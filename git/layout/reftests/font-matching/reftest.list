@@ -11,7 +11,7 @@
 != defaultfont-bolditalic.html defaultfont.html 
 != defaultfont-bolditalic.html defaultfont-bold.html
 
-fails-if(Android) != defaultjapanese-bold.html defaultjapanese.html
+!= defaultjapanese-bold.html defaultjapanese.html
 != defaultjapanese-italic.html defaultjapanese.html
 != defaultjapanese-oblique.html defaultjapanese.html
 != defaultjapanese-bolditalic.html defaultjapanese.html
@@ -43,22 +43,16 @@ random-if(cocoaWidget) != impact-bold.html impact.html # bug 539418
 == arial-variations-5.html arial-variations-5-ref.html
 == arial-variations-6.html arial-variations-6-ref.html
 
-# localized font family names should always match just as English names do
-== localized-family-names-001.html localized-family-names-001-ref.html
-== localized-family-names-002.html localized-family-names-002-ref.html
-== localized-family-names-003.html localized-family-names-003-ref.html
-== localized-family-names-004.html localized-family-names-004-ref.html
-
 # weight mapping tests
 HTTP(..) == normalmedium.html normalmedium-ref.html
 HTTP(..) != normalmedium.html normalmedium-notref.html
 
-# Linux fails due to bug 604815
-HTTP(..) == weightmapping-12.html weightmapping-12-ref.html
-HTTP(..) == weightmapping-25.html weightmapping-25-ref.html
-HTTP(..) == weightmapping-45.html weightmapping-45-ref.html
-HTTP(..) == weightmapping-458.html weightmapping-458-ref.html
-HTTP(..) == weightmapping-478.html weightmapping-478-ref.html
-HTTP(..) == weightmapping-7.html weightmapping-7-ref.html
-HTTP(..) == weightmapping-12579.html weightmapping-12579-ref.html
+# Linux fails due to bolder bug 
+random-if(gtk2Widget) HTTP(..) == weightmapping-12.html weightmapping-12-ref.html
+random-if(gtk2Widget) HTTP(..) == weightmapping-25.html weightmapping-25-ref.html
+random-if(gtk2Widget) HTTP(..) == weightmapping-45.html weightmapping-45-ref.html
+random-if(gtk2Widget) HTTP(..) == weightmapping-458.html weightmapping-458-ref.html
+random-if(gtk2Widget) HTTP(..) == weightmapping-478.html weightmapping-478-ref.html
+random-if(gtk2Widget) HTTP(..) == weightmapping-7.html weightmapping-7-ref.html
+random-if(gtk2Widget) HTTP(..) == weightmapping-12579.html weightmapping-12579-ref.html
 

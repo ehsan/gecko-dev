@@ -53,36 +53,33 @@ void DocumentRendererParent::SetCanvasContext(nsICanvasRenderingContextInternal*
     mCanvasContext = ctx;
 }
 
-void DocumentRendererParent::DrawToCanvas(const nsIntSize& aSize,
+void DocumentRendererParent::DrawToCanvas(PRUint32 aWidth, PRUint32 aHeight,
                                           const nsCString& aData)
 {
     if (!mCanvas || !mCanvasContext)
         return;
 
-    nsRefPtr<gfxImageSurface> surf =
-        new gfxImageSurface(reinterpret_cast<uint8*>(const_cast<nsCString&>(aData).BeginWriting()),
-                            gfxIntSize(aSize.width, aSize.height),
-                            aSize.width * 4,
-                            gfxASurface::ImageFormatARGB32);
+    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(reinterpret_cast<PRUint8*>(const_cast<char*>(aData.Data())),
+                                                         gfxIntSize(aWidth, aHeight),
+                                                         aWidth * 4,
+                                                         gfxASurface::ImageFormatARGB32);
     nsRefPtr<gfxPattern> pat = new gfxPattern(surf);
 
-    gfxRect rect(gfxPoint(0, 0), gfxSize(aSize.width, aSize.height));
     mCanvasContext->NewPath();
-    mCanvasContext->PixelSnappedRectangleAndSetPattern(rect, pat);
+    mCanvasContext->PixelSnappedRectangleAndSetPattern(gfxRect(0, 0, aWidth, aHeight), pat);
     mCanvasContext->Fill();
 
-    // get rid of the pattern surface ref, because aData is very
-    // likely to go away shortly
+    // get rid of the pattern surface ref, because aData is very likely to go away shortly
     mCanvasContext->SetColor(gfxRGBA(1,1,1,1));
 
-    gfxRect damageRect = mCanvasContext->UserToDevice(rect);
+    gfxRect damageRect = mCanvasContext->UserToDevice(gfxRect(0, 0, aWidth, aHeight));
     mCanvas->Redraw(damageRect);
 }
 
 bool
-DocumentRendererParent::Recv__delete__(const nsIntSize& renderedSize,
+DocumentRendererParent::Recv__delete__(const PRUint32& w, const PRUint32& h,
                                        const nsCString& data)
 {
-    DrawToCanvas(renderedSize, data);
+    DrawToCanvas(w, h, data);
     return true;
 }

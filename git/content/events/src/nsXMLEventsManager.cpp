@@ -83,11 +83,16 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     nsIURI *baseURI = aDocument->GetDocBaseURI();
     rv = NS_NewURI( getter_AddRefs(handlerURI), handlerURIStr, nsnull, baseURI);
     if (NS_SUCCEEDED(rv)) {
-      handlerURI->GetRef(handlerRef);
-      // We support only XML Events Basic.
-      rv = docURI->EqualsExceptRef(handlerURI, &equals);
-      if (NS_SUCCEEDED(rv) && equals) {
-        handler = aDocument->GetElementById(NS_ConvertUTF8toUTF16(handlerRef));
+      nsCOMPtr<nsIURL> handlerURL(do_QueryInterface(handlerURI));
+      if (handlerURL) {
+        handlerURL->GetRef(handlerRef);
+        handlerURL->SetRef(EmptyCString());
+        //We support only XML Events Basic.
+        docURI->Equals(handlerURL, &equals);
+        if (equals) {
+          handler =
+            aDocument->GetElementById(NS_ConvertUTF8toUTF16(handlerRef));
+        }
       }
     }
   }
@@ -113,7 +118,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::defaultAction,
                           nsGkAtoms::cancel, eCaseMatters);
 
-  nsIContent *observer = nsnull;
+  nsIContent *observer;
   if (!hasObserver) {
     if (!hasHandlerURI) //Parent should be the observer
       observer = aContent->GetParent();

@@ -1,5 +1,4 @@
-var rootDir = getRootDirectory(gTestPath);
-const gTestRoot = rootDir;
+const gTestRoot = "chrome://mochikit/content/browser/browser/base/content/test/";
 
 var gTestBrowser = null;
 var gNextTest = null;
@@ -127,12 +126,7 @@ function test3() {
 
   new TabOpenListener("about:addons", test4, prepareTest5);
 
-  var pluginNode = gTestBrowser.contentDocument.getElementById("test");
-  ok(pluginNode, "Test 3, Found plugin in page");
-  var manageLink = gTestBrowser.contentDocument.getAnonymousElementByAttribute(pluginNode, "class", "managePluginsLink");
-  ok(manageLink, "Test 3, found 'manage' link in plugin-problem binding");
-
-  EventUtils.synthesizeMouse(manageLink,
+  EventUtils.synthesizeMouse(gTestBrowser.contentDocument.getElementById("test"),
                              5, 5, {}, gTestBrowser.contentWindow);
 }
 

@@ -46,6 +46,7 @@ MODULE		= editor
 GRE_MODULE	= 1
 
 XPIDLSRCS	= \
+		nsICiter.idl \
 		nsIDocumentStateListener.idl \
 		nsIEditActionListener.idl \
 		nsIEditor.idl \

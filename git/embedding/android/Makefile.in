@@ -43,16 +43,12 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/ipc/app/defs.mk
 
-DIRS = locales
-
 JAVAFILES = \
   GeckoApp.java \
   GeckoAppShell.java \
-  GeckoConnectivityReceiver.java \
   GeckoEvent.java \
   GeckoSurfaceView.java \
   GeckoInputConnection.java \
-  AlertNotification.java \
   $(NULL)
 
 PROCESSEDJAVAFILES = \
@@ -61,92 +57,82 @@ PROCESSEDJAVAFILES = \
   NotificationHandler.java \
   $(NULL)
 
-
-ifneq (,$(findstring -march=armv7,$(OS_CFLAGS)))
-MIN_CPU_VERSION=7
-else
-MIN_CPU_VERSION=5
-endif
-
-ifeq (,$(ANDROID_VERSION_CODE))
-ANDROID_VERSION_CODE=$(shell $(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-buildid | cut -c1-10)
-endif
-
 DEFINES += \
-  -DANDROID_PACKAGE_NAME=$(ANDROID_PACKAGE_NAME) \
-  -DMOZ_APP_DISPLAYNAME="$(MOZ_APP_DISPLAYNAME)" \
+  -DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME) \
   -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
   -DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
-  -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME) \
-  -DMOZ_MIN_CPU_VERSION=$(MIN_CPU_VERSION) \
-  -DMOZ_CRASHREPORTER=$(MOZ_CRASHREPORTER) \
-  -DANDROID_VERSION_CODE=$(ANDROID_VERSION_CODE) \
-  -DMOZILLA_OFFICIAL=$(MOZILLA_OFFICIAL) \
-  $(NULL)
+  -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME)
 
 GARBAGE += \
   AndroidManifest.xml  \
   classes.dex  \
+  $(MOZ_APP_NAME).apk  \
   $(PROCESSEDJAVAFILES) \
   gecko.ap_  \
-  res/values/strings.xml \
-  R.java \
+  gecko-unaligned.apk  \
+  gecko-unsigned-unaligned.apk \
   $(NULL)
 
-GARBAGE_DIRS += classes res
+GARBAGE_DIRS += res libs dist classes
+
+DIRS = utils
 
 # Bug 567884 - Need a way to find appropriate icons during packaging
 ifeq ($(MOZ_APP_NAME),fennec)
 ICON_PATH = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_48x48.png
 ICON_PATH_HDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_72x72.png
-ifeq (org.mozilla.fennec_unofficial,$(ANDROID_PACKAGE_NAME))
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.fennec_unofficial.sharedID"
-else ifeq (,$(MOZ_OFFICIAL_BRANDING))
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.fennec.sharedID"
-else
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.firefox.sharedID"
-endif
 else
 ICON_PATH = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/icon48.png
 ICON_PATH_HDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/icon64.png
-DEFINES += -DMOZ_ANDROID_SHARED_ID="$(ANDROID_PACKAGE_NAME).sharedID"
 endif
 
-RES_LAYOUT = \
-  res/layout/notification_progress.xml \
-  res/layout/notification_progress_text.xml \
-  res/layout/notification_icon_text.xml \
+RES_DRAWABLE = \
+  res/drawable/alertaddons.png \
+  res/drawable/alertdownloads.png \
   $(NULL)
 
-RES_VALUES = res/values/colors.xml res/values/themes.xml
+RES_DRAWABLE_HDPI = \
+  res/drawable-hdpi/alertaddons.png \
+  res/drawable-hdpi/alertdownloads.png \
+  $(NULL)
 
-AB_rCD = $(shell echo $(AB_CD) | sed -e s/-/-r/)
+NATIVE_LIBS = $(shell cat $(DIST)/bin/dependentlibs.list) libxpcom.so libnssckbi.so libfreebl3.so libmozutils.so
+FULL_LIBS = $(addprefix libs/armeabi/,$(NATIVE_LIBS))
+
+# We'll strip all the libs by default, due to size, but we might
+# want to have a non-stripped version for debugging.  We should
+# really pull out debuginfo and stuff.
+ifdef NO_STRIP
+DO_STRIP=echo not stripping
+else
+DO_STRIP=$(STRIP)
+endif
+
+# The set of files/directories from the dist/bin dir that we'll make available in the apk
+# some directories not listed due to special handling
+DIST_LINK_FILES = \
+  modules \
+  res \
+  application.ini \
+  platform.ini \
+  greprefs.js \
+  browserconfig.properties \
+  blocklist.xml \
+  chrome.manifest \
+  $(NULL)
+
+ifdef MOZ_IPC
+DIST_LINK_FILES += $(MOZ_CHILD_PROCESS_NAME)
+endif
 
 JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar
 
-DEFAULT_BRANDPATH = $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales/en-US/brand.dtd
-DEFAULT_STRINGSPATH = locales/en-US/android_strings.dtd
-LOCALIZED_BRANDPATH = $(DEPTH)/dist/bin/chrome/$(AB_CD)/locale/branding/brand.dtd
-LOCALIZED_STRINGSPATH = $(DEPTH)/dist/bin/chrome/android-res/res/values-$(AB_CD)/android_strings.dtd
-
-ifdef MOZ_CRASHREPORTER
-PROCESSEDJAVAFILES += CrashReporter.java
-MOZ_ANDROID_DRAWABLES += embedding/android/resources/drawable/crash_reporter.png
-RES_LAYOUT += res/layout/crash_reporter.xml
-endif
-
-MOZ_ANDROID_DRAWABLES += embedding/android/resources/drawable/desktop_notification.png
-
-MOZ_ANDROID_DRAWABLES += $(shell if test -e $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/android-resources.mn; then cat $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/android-resources.mn | tr '\n' ' ';  fi)
-
 include $(topsrcdir)/config/rules.mk
-
-ifneq ($(AB_CD),en-US)
-LOCALIZED_STRINGS_XML = res/values-$(AB_rCD)/strings.xml
-endif
 
 # Override the Java settings with some specific android settings
 include $(topsrcdir)/config/android-common.mk
+
+tools:: $(MOZ_APP_NAME).apk
 
 # Note that we're going to set up a dependency directly between embed_android.dex and the java files
 # Instead of on the .class files, since more than one .class file might be produced per .java file
@@ -167,43 +153,47 @@ res/drawable-hdpi/icon.png: $(MOZ_APP_ICON)
 	$(NSINSTALL) -D res/drawable-hdpi
 	cp $(ICON_PATH_HDPI) $@
 
-RES_DRAWABLE = $(addprefix res/drawable/,$(notdir $(MOZ_ANDROID_DRAWABLES)))
-
-$(RES_DRAWABLE): $(addprefix $(topsrcdir)/,$(MOZ_ANDROID_DRAWABLES))
+$(RES_DRAWABLE):
 	$(NSINSTALL) -D res/drawable
-	$(NSINSTALL) $^ res/drawable/
+	cp $(topsrcdir)/mobile/app/android/drawable/* res/drawable/
 
-$(RES_LAYOUT): $(subst res/,$(srcdir)/resources/,$(RES_LAYOUT))
-	$(NSINSTALL) -D res/layout
-	$(NSINSTALL) $(srcdir)/resources/layout/* res/layout/
+$(RES_DRAWABLE_HDPI):
+	$(NSINSTALL) -D res/drawable-hdpi
+	cp $(topsrcdir)/mobile/app/android/drawable-hdpi/* res/drawable-hdpi/
 
-$(RES_VALUES): $(subst res/,$(srcdir)/resources/,$(RES_VALUES))
-	$(NSINSTALL) -D res/values
-	$(NSINSTALL) $(srcdir)/resources/values/* res/values/
-
-R.java: $(MOZ_APP_ICON) $(RES_LAYOUT) $(RES_DRAWABLE) $(RES_VALUES) res/drawable/icon.png res/drawable-hdpi/icon.png res/values/strings.xml AndroidManifest.xml
+R.java: $(MOZ_APP_ICON) $(RES_DRAWABLE) $(RES_DRAWABLE_HDPI)
 	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar -S res -J . --custom-package org.mozilla.gecko
 
-gecko.ap_: AndroidManifest.xml res/drawable/icon.png res/drawable-hdpi/icon.png $(RES_LAYOUT) $(RES_DRAWABLE) $(RES_VALUES) res/values/strings.xml FORCE
+gecko.ap_: AndroidManifest.xml res/drawable/icon.png res/drawable-hdpi/icon.png $(RES_DRAWABLE) $(RES_DRAWABLE_HDPI)
 	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar  -S res -F $@
 
-res/values/strings.xml: $(DEFAULT_BRANDPATH) $(DEFAULT_STRINGSPATH)
-	mkdir -p res/values
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) \
-	  -DBRANDPATH="$(DEFAULT_BRANDPATH)" \
-	  -DSTRINGSPATH="$(DEFAULT_STRINGSPATH)" \
-	  $(srcdir)/strings.xml.in \
-	  > $@
+libs/armeabi/%: $(DIST)/lib/%
+	@$(NSINSTALL) -D libs/armeabi
+	@cp -L -v $< $@
+	@$(DO_STRIP) $@
 
-res/values-$(AB_rCD)/strings.xml: $(LOCALIZED_BRANDPATH) $(LOCALIZED_STRINGSPATH)
-	mkdir -p res/values-$(AB_rCD)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) \
-	  -DBRANDPATH="$(call core_abspath,$(LOCALIZED_BRANDPATH))" \
-	  -DSTRINGSPATH="$(call core_abspath,$(LOCALIZED_STRINGSPATH))" \
-	  $(srcdir)/strings.xml.in \
-	  > $@
+# Bug 567873 - Android packaging should use standard packaging code
+dist: FORCE
+	$(NSINSTALL) -D dist/components
+	rm -rf dist/components/*
+	@(for f in $(DIST)/bin/components/* ; do $(NSINSTALL) $$f dist/components ; done)
+	$(NSINSTALL) -D dist/chrome
+	rm -rf dist/chrome/*
+	@(for f in $(DIST)/bin/chrome/* ; do $(NSINSTALL) $$f dist/chrome ; done)
+	$(NSINSTALL) -D dist/defaults
+	rm -rf dist/defaults/*
+	@(for f in $(DIST)/bin/defaults/* ; do $(NSINSTALL) $$f dist/defaults ; done )
+	@(for f in $(DIST_LINK_FILES) ; do if [ -e $(DIST)/bin/$$f ] ; then echo $$f ; ln -sf ../$(DIST)/bin/$$f dist ; fi ; done)
 
-chrome:: $(LOCALIZED_STRINGS_XML)
+gecko-unsigned-unaligned.apk: gecko.ap_ classes.dex dist $(FULL_LIBS)
+	$(APKBUILDER) $@ -v $(APKBUILDER_FLAGS) -z gecko.ap_ -f classes.dex -nf `pwd`/libs -rf dist
 
-libs:: classes.dex
-	$(INSTALL) classes.dex $(FINAL_TARGET)
+gecko-unaligned.apk: gecko-unsigned-unaligned.apk
+	cp gecko-unsigned-unaligned.apk $@
+ifdef JARSIGNER
+	$(JARSIGNER) $@
+endif
+
+$(MOZ_APP_NAME).apk: gecko-unaligned.apk
+	$(ZIPALIGN) -f -v 4 gecko-unaligned.apk $@
+

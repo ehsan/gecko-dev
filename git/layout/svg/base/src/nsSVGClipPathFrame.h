@@ -76,9 +76,11 @@ public:
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
 
+#ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
+#endif
 
   /**
    * Get the "type" of the frame

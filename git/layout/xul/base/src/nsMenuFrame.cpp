@@ -53,13 +53,18 @@
 #include "nsINameSpaceManager.h"
 #include "nsMenuPopupFrame.h"
 #include "nsMenuBarFrame.h"
+#include "nsIView.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsILookAndFeel.h"
 #include "nsIComponentManager.h"
 #include "nsWidgetsCID.h"
 #include "nsBoxLayoutState.h"
 #include "nsIScrollableFrame.h"
+#include "nsIViewManager.h"
 #include "nsBindingManager.h"
 #include "nsIServiceManager.h"
 #include "nsCSSFrameConstructor.h"
@@ -78,9 +83,6 @@
 #include "nsEventStateManager.h"
 #include "nsIDOMXULMenuListElement.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define NS_MENU_POPUP_LIST_INDEX 0
 
@@ -168,11 +170,10 @@ public:
     } else if (mAttr == nsGkAtoms::acceltext) {
       // someone reset the accelText attribute,
       // so clear the bit that says *we* set it
-      frame->RemoveStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
-      frame->BuildAcceleratorText(PR_TRUE);
-    }
-    else if (mAttr == nsGkAtoms::key) {
-      frame->BuildAcceleratorText(PR_TRUE);
+      frame->AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
+      frame->BuildAcceleratorText();
+    } else if (mAttr == nsGkAtoms::key) {
+      frame->BuildAcceleratorText();
     } else if (mAttr == nsGkAtoms::type || mAttr == nsGkAtoms::name) {
       frame->UpdateMenuType(frame->PresContext());
     }
@@ -223,7 +224,6 @@ nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext),
     mIsMenu(PR_FALSE),
     mChecked(PR_FALSE),
-    mIgnoreAccelTextChange(PR_FALSE),
     mType(eMenuType_Normal),
     mMenuParent(nsnull),
     mPopupFrame(nsnull),
@@ -334,7 +334,7 @@ nsMenuFrame::Init(nsIContent*      aContent,
     gModifierSeparator = new nsString(modifierSeparator);    
   }
 
-  BuildAcceleratorText(PR_FALSE);
+  BuildAcceleratorText();
   nsIReflowCallback* cb = new nsASyncMenuInitialization(this);
   NS_ENSURE_TRUE(cb, NS_ERROR_OUT_OF_MEMORY);
   PresContext()->PresShell()->PostReflowCallback(cb);
@@ -398,7 +398,7 @@ nsMenuFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   if (NS_MENU_POPUP_LIST_INDEX == aIndex) {
     return nsGkAtoms::popupList;
   }
-  return nsBoxFrame::GetAdditionalChildListName(aIndex);
+  return nsnull;
 }
 
 void
@@ -699,11 +699,6 @@ nsMenuFrame::AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
-  if (aAttribute == nsGkAtoms::acceltext && mIgnoreAccelTextChange) {
-    // Reset the flag so that only one change is ignored.
-    mIgnoreAccelTextChange = PR_FALSE;
-    return NS_OK;
-  }
 
   if (aAttribute == nsGkAtoms::checked ||
       aAttribute == nsGkAtoms::acceltext ||
@@ -830,7 +825,7 @@ nsMenuFrame::SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, PRBool aDebug)
 // In either case, do nothing if the item is disabled.
 //
 nsMenuFrame*
-nsMenuFrame::Enter(nsGUIEvent *aEvent)
+nsMenuFrame::Enter()
 {
   if (IsDisabled()) {
 #ifdef XP_WIN
@@ -851,7 +846,7 @@ nsMenuFrame::Enter(nsGUIEvent *aEvent)
   if (!IsOpen()) {
     // The enter key press applies to us.
     if (!IsMenu() && mMenuParent)
-      Execute(aEvent);          // Execute our event handler
+      Execute(0);          // Execute our event handler
     else
       return this;
   }
@@ -869,24 +864,6 @@ PRBool
 nsMenuFrame::IsMenu()
 {
   return mIsMenu;
-}
-
-nsMenuListType
-nsMenuFrame::GetParentMenuListType()
-{
-  if (mMenuParent && mMenuParent->IsMenu()) {
-    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(mMenuParent);
-    nsIFrame* parentMenu = popupFrame->GetParent();
-    if (parentMenu) {
-      nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(parentMenu->GetContent());
-      if (menulist) {
-        PRBool isEditable = PR_FALSE;
-        menulist->GetEditable(&isEditable);
-        return isEditable ? eEditableMenuList : eReadonlyMenuList;
-      }
-    }
-  }
-  return eNotMenuList;
 }
 
 nsresult
@@ -1038,7 +1015,7 @@ nsMenuFrame::UpdateMenuSpecialState(nsPresContext* aPresContext)
 }
 
 void 
-nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
+nsMenuFrame::BuildAcceleratorText()
 {
   nsAutoString accelText;
 
@@ -1054,7 +1031,7 @@ nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
 
   // If anything below fails, just leave the accelerator text blank.
   nsWeakFrame weakFrame(this);
-  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, aNotify);
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, PR_FALSE);
   ENSURE_TRUE(weakFrame.IsAlive());
 
   // See if we have a key node and use that instead.
@@ -1134,7 +1111,7 @@ nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
 #endif
 
     // Get the accelerator key value from prefs, overriding the default:
-    accelKey = Preferences::GetInt("ui.key.accelKey", accelKey);
+    accelKey = nsContentUtils::GetIntPref("ui.key.accelKey", accelKey);
   }
 
   nsAutoString modifiers;
@@ -1179,12 +1156,8 @@ nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
   nsMemory::Free(str);
 
   accelText += accelString;
-
-  mIgnoreAccelTextChange = PR_TRUE;
-  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, accelText, aNotify);
-  ENSURE_TRUE(weakFrame.IsAlive());
-
-  mIgnoreAccelTextChange = PR_FALSE;
+  
+  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, accelText, PR_FALSE);
 }
 
 void
@@ -1216,9 +1189,18 @@ nsMenuFrame::ShouldBlink()
     return PR_FALSE;
 
   // Don't blink in editable menulists.
-  if (GetParentMenuListType() == eEditableMenuList)
-    return PR_FALSE;
-
+  if (mMenuParent && mMenuParent->IsMenu()) {
+    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(mMenuParent);
+    nsIFrame* parentMenu = popupFrame->GetParent();
+    if (parentMenu) {
+      nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(parentMenu->GetContent());
+      if (menulist) {
+        PRBool isEditable = PR_FALSE;
+        menulist->GetEditable(&isEditable);
+        return !isEditable;
+      }
+    }
+  }
   return PR_TRUE;
 }
 
@@ -1272,7 +1254,8 @@ nsMenuFrame::CreateMenuCommandEvent(nsGUIEvent *aEvent, PRBool aFlipChecked)
 
   PRBool shift = PR_FALSE, control = PR_FALSE, alt = PR_FALSE, meta = PR_FALSE;
   if (aEvent && (aEvent->eventStructType == NS_MOUSE_EVENT ||
-                 aEvent->eventStructType == NS_KEY_EVENT)) {
+                 aEvent->eventStructType == NS_KEY_EVENT ||
+                 aEvent->eventStructType == NS_ACCESSIBLE_EVENT)) {
     shift = static_cast<nsInputEvent *>(aEvent)->isShift;
     control = static_cast<nsInputEvent *>(aEvent)->isControl;
     alt = static_cast<nsInputEvent *>(aEvent)->isAlt;
@@ -1385,13 +1368,6 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
         return PR_FALSE;
       tmpSize = mPopupFrame->GetPrefSize(aState);
       aSize.width = tmpSize.width;
-
-      // if there is a scroll frame, add the desired width of the scrollbar as well
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstChild(nsnull));
-      if (scrollFrame) {
-        aSize.width += scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
-      }
-
       return PR_TRUE;
     }
   }

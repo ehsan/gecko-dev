@@ -38,15 +38,10 @@
  -moz-border-image: url(chrome://testpilot-os/skin/notification-tail-up.png) 26 56 22 18 / 26px 56px 22px 18px round stretch;
 }
 
-/* tail-down uses the old styling; it doesn't look as good as the new styling,
-   but the new styling doesn't work on 3.6.
-   TODO: If someone is using 3.7.* or 4.* but is NOT on the beta channel and
-   installed Test Pilot from AMO, they should get the new styling, similar
-   to .tail-up! */
 .tail-down {
- -moz-border-image: url(chrome://testpilot/skin/notification-tail-down.png) 26 50 22 18 / 26px 50px 22px 18px repeat;
- color: white;
+ -moz-border-image: url(chrome://testpilot-os/skin/notification-tail-down.png) 26 56 22 18 / 26px 56px 22px 18px round stretch;
 }
+
 
 .pilot-notification-popup-container {
   -moz-appearance: none;

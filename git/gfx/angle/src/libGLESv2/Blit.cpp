@@ -155,23 +155,16 @@ void Blit::initGeometry()
 
     IDirect3DDevice9 *device = getDevice();
 
-    HRESULT result = device->CreateVertexBuffer(sizeof(quad), D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &mQuadVertexBuffer, NULL);
+    HRESULT hr = device->CreateVertexBuffer(sizeof(quad), D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &mQuadVertexBuffer, NULL);
 
-    if (FAILED(result))
+    if (FAILED(hr))
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
+        ASSERT(hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
         return error(GL_OUT_OF_MEMORY);
     }
 
-    void *lockPtr = NULL;
-    result = mQuadVertexBuffer->Lock(0, 0, &lockPtr, 0);
-
-    if (FAILED(result) || lockPtr == NULL)
-    {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-        return error(GL_OUT_OF_MEMORY);
-    }
-
+    void *lockPtr;
+    mQuadVertexBuffer->Lock(0, 0, &lockPtr, 0);
     memcpy(lockPtr, quad, sizeof(quad));
     mQuadVertexBuffer->Unlock();
 
@@ -181,11 +174,10 @@ void Blit::initGeometry()
         D3DDECL_END()
     };
 
-    result = device->CreateVertexDeclaration(elements, &mQuadVertexDeclaration);
-
-    if (FAILED(result))
+    hr = device->CreateVertexDeclaration(elements, &mQuadVertexDeclaration);
+    if (FAILED(hr))
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
+        ASSERT(hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
         return error(GL_OUT_OF_MEMORY);
     }
 }
@@ -295,34 +287,6 @@ bool Blit::boxFilter(IDirect3DSurface9 *source, IDirect3DSurface9 *dest)
     return true;
 }
 
-bool Blit::copy(IDirect3DSurface9 *source, const RECT &sourceRect, GLenum destFormat, GLint xoffset, GLint yoffset, IDirect3DSurface9 *dest)
-{
-    IDirect3DDevice9 *device = getDevice();
-
-    D3DSURFACE_DESC sourceDesc;
-    D3DSURFACE_DESC destDesc;
-    source->GetDesc(&sourceDesc);
-    dest->GetDesc(&destDesc);
-
-    if (sourceDesc.Format == destDesc.Format && destDesc.Usage & D3DUSAGE_RENDERTARGET)   // Can use StretchRect
-    {
-        RECT destRect = {xoffset, yoffset, xoffset + (sourceRect.right - sourceRect.left), yoffset + (sourceRect.bottom - sourceRect.top)};
-        HRESULT result = device->StretchRect(source, &sourceRect, dest, &destRect, D3DTEXF_POINT);
-
-        if (FAILED(result))
-        {
-            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-            return error(GL_OUT_OF_MEMORY, false);
-        }
-    }
-    else
-    {
-        return formatConvert(source, sourceRect, destFormat, xoffset, yoffset, dest);
-    }
-
-    return true;
-}
-
 bool Blit::formatConvert(IDirect3DSurface9 *source, const RECT &sourceRect, GLenum destFormat, GLint xoffset, GLint yoffset, IDirect3DSurface9 *dest)
 {
     IDirect3DTexture9 *texture = copySurfaceToTexture(source, sourceRect);
@@ -361,7 +325,6 @@ bool Blit::setFormatConvertShaders(GLenum destFormat)
     {
       default: UNREACHABLE();
       case GL_RGBA:
-      case GL_BGRA_EXT:
       case GL_RGB:
       case GL_ALPHA:
         okay = okay && setPixelShader(SHADER_PS_COMPONENTMASK);
@@ -388,7 +351,6 @@ bool Blit::setFormatConvertShaders(GLenum destFormat)
     {
       default: UNREACHABLE();
       case GL_RGBA:
-      case GL_BGRA_EXT:
         psConst0[X] = 1;
         psConst0[Z] = 1;
         break;
@@ -418,11 +380,6 @@ bool Blit::setFormatConvertShaders(GLenum destFormat)
 
 IDirect3DTexture9 *Blit::copySurfaceToTexture(IDirect3DSurface9 *surface, const RECT &sourceRect)
 {
-    if (!surface)
-    {
-        return NULL;
-    }
-
     egl::Display *display = getDisplay();
     IDirect3DDevice9 *device = getDevice();
 
@@ -449,8 +406,14 @@ IDirect3DTexture9 *Blit::copySurfaceToTexture(IDirect3DSurface9 *surface, const 
         return error(GL_OUT_OF_MEMORY, (IDirect3DTexture9*)NULL);
     }
 
+    RECT d3dSourceRect;
+    d3dSourceRect.left = sourceRect.left;
+    d3dSourceRect.right = sourceRect.right;
+    d3dSourceRect.top = sourceRect.top;
+    d3dSourceRect.bottom = sourceRect.bottom;
+
     display->endScene();
-    result = device->StretchRect(surface, &sourceRect, textureSurface, NULL, D3DTEXF_NONE);
+    result = device->StretchRect(surface, &d3dSourceRect, textureSurface, NULL, D3DTEXF_NONE);
 
     textureSurface->Release();
 
@@ -502,8 +465,10 @@ void Blit::setCommonBlitState()
     device->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
 
-    RECT scissorRect = {0};   // Scissoring is disabled for flipping, but we need this to capture and restore the old rectangle
-    device->SetScissorRect(&scissorRect);
+    for (int i = 0; i < MAX_VERTEX_ATTRIBS+1; i++)
+    {
+        device->SetStreamSourceFreq(i, 1);
+    }
 }
 
 void Blit::render()

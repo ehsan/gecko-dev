@@ -270,7 +270,7 @@ namespace nanojit
     // Full AccSets don't fit into load and store instructions.  But
     // load/store AccSets almost always contain a single access region.  We
     // take advantage of this to create a compressed AccSet, MiniAccSet, that
-    // does fit.
+    // does fit.  
     //
     // The 32 single-region AccSets get compressed into a number in the range
     // 0..31 (according to the position of the set bit), and all other
@@ -303,7 +303,7 @@ namespace nanojit
         return (miniAccSet.val == MINI_ACCSET_MULTIPLE.val) ? ACCSET_ALL : (1 << miniAccSet.val);
     }
 
-    // The LoadQual affects how a load can be optimised:
+    // The LoadQual affects how a load can be optimised:  
     //
     // - CONST: These loads are guaranteed to always return the same value
     //   during a single execution of a fragment (but the value is allowed to
@@ -410,6 +410,19 @@ namespace nanojit
         }
     };
 
+    /*
+     * Record for extra data used to compile switches as jump tables.
+     */
+    struct SwitchInfo
+    {
+        NIns**      table;       // Jump table; a jump address is NIns*
+        uint32_t    count;       // Number of table entries
+        // Index value at last execution of the switch. The index value
+        // is the offset into the jump table. Thus it is computed as
+        // (switch expression) - (lowest case value).
+        uint32_t    index;
+    };
+
     // Array holding the 'isCse' field from LIRopcode.tbl.
     extern const int8_t isCses[];       // cannot be uint8_t, some values are negative
 
@@ -478,21 +491,31 @@ namespace nanojit
         NanoAssert(op == LIR_xt || op == LIR_xf);
         return LOpcode(op ^ 1);
     }
-    inline LOpcode invertCmpOpcode(LOpcode op) {
-        NanoAssert(isCmpOpcode(op));
+    inline LOpcode invertCmpIOpcode(LOpcode op) {
+        NanoAssert(isCmpIOpcode(op));
+        return LOpcode(op ^ 1);
+    }
+#ifdef NANOJIT_64BIT
+    inline LOpcode invertCmpQOpcode(LOpcode op) {
+        NanoAssert(isCmpQOpcode(op));
+        return LOpcode(op ^ 1);
+    }
+#endif
+    inline LOpcode invertCmpDOpcode(LOpcode op) {
+        NanoAssert(isCmpDOpcode(op));
         return LOpcode(op ^ 1);
     }
 
     inline LOpcode getCallOpcode(const CallInfo* ci) {
         LOpcode op = LIR_callp;
         switch (ci->returnType()) {
-        case ARGTYPE_V: op = LIR_callv; break;
+        case ARGTYPE_V: op = LIR_callp; break;
         case ARGTYPE_I:
         case ARGTYPE_UI: op = LIR_calli; break;
+        case ARGTYPE_D: op = LIR_calld; break;
 #ifdef NANOJIT_64BIT
         case ARGTYPE_Q: op = LIR_callq; break;
 #endif
-        case ARGTYPE_D: op = LIR_calld; break;
         default:        NanoAssert(0);  break;
         }
         return op;
@@ -522,12 +545,9 @@ namespace nanojit
     // Array holding the 'retType' field from LIRopcode.tbl.
     extern const LTy retTypes[];
 
-    // Array holding the size in bytes of each LIns from LIRopcode.tbl.
-    extern const uint8_t insSizes[];
-
     inline RegisterMask rmask(Register r)
     {
-        return RegisterMask(1) << REGNUM(r);
+        return RegisterMask(1) << r;
     }
 
     //-----------------------------------------------------------------------
@@ -636,7 +656,7 @@ namespace nanojit
     private:
         // SharedFields: fields shared by all LIns kinds.
         //
-        // The .inReg, .regnum, .inAr and .arIndex fields form a "reservation"
+        // The .inReg, .reg, .inAr and .arIndex fields form a "reservation"
         // that is used temporarily during assembly to record information
         // relating to register allocation.  See class RegAlloc for more
         // details.  Note: all combinations of .inReg/.inAr are possible, ie.
@@ -648,7 +668,7 @@ namespace nanojit
         //
         struct SharedFields {
             uint32_t inReg:1;           // if 1, 'reg' is active
-            uint32_t regnum:7;
+            Register reg:7;
             uint32_t inAr:1;            // if 1, 'arIndex' is active
             uint32_t isResultLive:1;    // if 1, the instruction's result is live
 
@@ -711,10 +731,6 @@ namespace nanojit
         // Generally, void instructions (statements) are always live and
         // non-void instructions (expressions) are live if used by another
         // live instruction.  But there are some trickier cases.
-        // Any non-void instruction can be marked isResultLive=1 even
-        // when it is unreachable, e.g. due to an always-taken branch.
-        // The assembler marks it live if it sees any uses, regardless of
-        // whether those uses are in reachable code or not.
         bool isLive() const {
             return isV() ||
                    sharedFields.isResultLive ||
@@ -742,12 +758,7 @@ namespace nanojit
         }
         Register deprecated_getReg() {
             NanoAssert(isExtant());
-            if (isInReg()) {
-                Register r = { sharedFields.regnum };
-                return r;
-            } else {
-                return deprecated_UnknownReg;
-            }
+            return ( isInReg() ? sharedFields.reg : deprecated_UnknownReg );
         }
         uint32_t deprecated_getArIndex() {
             NanoAssert(isExtant());
@@ -771,12 +782,11 @@ namespace nanojit
         }
         Register getReg() {
             NanoAssert(isInReg());
-            Register r = { sharedFields.regnum };
-            return r;
+            return sharedFields.reg;
         }
         void setReg(Register r) {
             sharedFields.inReg = 1;
-            sharedFields.regnum = REGNUM(r);
+            sharedFields.reg = r;
         }
         void clearReg() {
             sharedFields.inReg = 0;
@@ -917,8 +927,7 @@ namespace nanojit
             return isCmpOpcode(opcode());
         }
         bool isCall() const {
-            return isop(LIR_callv) ||
-                   isop(LIR_calli) ||
+            return isop(LIR_calli) ||
 #if defined NANOJIT_64BIT
                    isop(LIR_callq) ||
 #endif
@@ -934,7 +943,8 @@ namespace nanojit
             return isLInsLd();
         }
         bool isGuard() const {
-            return isop(LIR_x) || isop(LIR_xf) || isop(LIR_xt) || isop(LIR_xbarrier) ||
+            return isop(LIR_x) || isop(LIR_xf) || isop(LIR_xt) ||
+                   isop(LIR_xbarrier) || isop(LIR_xtbl) ||
                    isop(LIR_addxovi) || isop(LIR_subxovi) || isop(LIR_mulxovi);
         }
         bool isJov() const {
@@ -985,16 +995,8 @@ namespace nanojit
             return isImmI() || isImmQorD();
         }
 
-        bool isConditionalBranch() const {
-            return isop(LIR_jt) || isop(LIR_jf) || isJov();
-        }
-
-        bool isUnConditionalBranch() const {
-            return isop(LIR_j) || isop(LIR_jtbl);
-        }
-
         bool isBranch() const {
-            return isConditionalBranch() || isUnConditionalBranch();
+            return isop(LIR_jt) || isop(LIR_jf) || isop(LIR_j) || isop(LIR_jtbl) || isJov();
         }
 
         LTy retType() const {
@@ -1037,13 +1039,11 @@ namespace nanojit
             return (void*)immI();
         #endif
         }
-
-        void overwriteWithSkip(LIns* skipTo);
     };
 
     typedef SeqBuilder<LIns*> InsList;
     typedef SeqBuilder<char*> StringList;
-    typedef HashMap<LIns*,bool> InsSet;
+
 
     // 0-operand form.  Used for LIR_start and LIR_label.
     class LInsOp0
@@ -1396,6 +1396,7 @@ namespace nanojit
         case LIR_x:
         case LIR_xt:
         case LIR_xf:
+        case LIR_xtbl:
         case LIR_xbarrier:
             return (GuardRecord*)oprnd2();
 
@@ -1579,12 +1580,6 @@ namespace nanojit
         virtual LIns* insJtbl(LIns* index, uint32_t size) {
             return out->insJtbl(index, size);
         }
-        virtual LIns* insComment(const char* str) {
-            return out->insComment(str);
-        }
-        virtual LIns* insSkip(LIns* skipTo) {
-            return out->insSkip(skipTo);
-        }
 
         // convenience functions
 
@@ -1680,36 +1675,10 @@ namespace nanojit
     private:
         Allocator& alloc;
 
-        // A small string-wrapper class, required because we need '==' to
-        // compare string contents, not string pointers, when strings are used
-        // as keys in CountMap.
-        struct Str {
-            Allocator& alloc;
-            char* s;
-
-            Str(Allocator& alloc_, const char* s_) : alloc(alloc_) {
-                s = new (alloc) char[1+strlen(s_)];
-                strcpy(s, s_);
-            }
-
-            bool operator==(const Str& str) const {
-                return (0 == strcmp(this->s, str.s));
-            }
-        };
-
-        // Similar to 'struct Str' -- we need to hash the string's contents,
-        // not its pointer.
-        template<class K> struct StrHash {
-            static size_t hash(const Str &k) {
-                // (const void*) cast is required by ARM RVCT 2.2
-                return murmurhash((const void*)k.s, strlen(k.s));
-            }
-        };
-
-        template <class Key, class H=DefaultHash<Key> >
-        class CountMap: public HashMap<Key, int, H> {
+        template <class Key>
+        class CountMap: public HashMap<Key, int> {
         public:
-            CountMap(Allocator& alloc) : HashMap<Key, int, H>(alloc, 128) {}
+            CountMap(Allocator& alloc) : HashMap<Key, int>(alloc) {}
             int add(Key k) {
                 int c = 1;
                 if (this->containsKey(k)) {
@@ -1722,7 +1691,7 @@ namespace nanojit
 
         CountMap<int> lircounts;
         CountMap<const CallInfo *> funccounts;
-        CountMap<Str, StrHash<Str> > namecounts;
+        CountMap<const char *> namecounts;
 
         void addNameWithSuffix(LIns* i, const char *s, int suffix, bool ignoreOneSuffix);
 
@@ -1778,9 +1747,9 @@ namespace nanojit
         char *formatImmD(RefBuf* buf, double c);
         void formatGuard(InsBuf* buf, LIns* ins);       // defined by the embedder
         void formatGuardXov(InsBuf* buf, LIns* ins);    // defined by the embedder
+        static const char* accNames[];                  // defined by the embedder
 
     public:
-        static const char* accNames[];                  // defined by the embedder
 
         LInsPrinter(Allocator& alloc, int embNumUsedAccs)
             : alloc(alloc), EMB_NUM_USED_ACCS(embNumUsedAccs)
@@ -1831,9 +1800,14 @@ namespace nanojit
         {
             if (!code.isEmpty()) {
                 InsBuf b;
-                for (Seq<LIns*>* p = code.get(); p != NULL; p = p->tail)
+                int32_t count = 0;
+                for (Seq<LIns*>* p = code.get(); p != NULL; p = p->tail) {
                     logc->printf("%s    %s\n", prefix, printer->formatIns(&b, p->head));
+                    count++;
+                }
                 code.clear();
+                if (count > 1)
+                    logc->printf("\n");
             }
         }
 
@@ -1842,7 +1816,7 @@ namespace nanojit
         }
 
         LIns* insGuardXov(LOpcode op, LIns* a, LIns* b, GuardRecord *gr) {
-            return add(out->insGuardXov(op,a,b,gr));
+            return add_flush(out->insGuardXov(op,a,b,gr));
         }
 
         LIns* insBranch(LOpcode v, LIns* condition, LIns* to) {
@@ -1850,7 +1824,7 @@ namespace nanojit
         }
 
         LIns* insBranchJov(LOpcode v, LIns* a, LIns* b, LIns* to) {
-            return add(out->insBranchJov(v, a, b, to));
+            return add_flush(out->insBranchJov(v, a, b, to));
         }
 
         LIns* insJtbl(LIns* index, uint32_t size) {
@@ -1883,7 +1857,7 @@ namespace nanojit
             return add(out->insLoad(v, base, disp, accSet, loadQual));
         }
         LIns* insStore(LOpcode op, LIns* v, LIns* b, int32_t d, AccSet accSet) {
-            return add_flush(out->insStore(op, v, b, d, accSet));
+            return add(out->insStore(op, v, b, d, accSet));
         }
         LIns* insAlloc(int32_t size) {
             return add(out->insAlloc(size));
@@ -1898,10 +1872,6 @@ namespace nanojit
 #endif
         LIns* insImmD(double d) {
             return add(out->insImmD(d));
-        }
-
-        LIns* insComment(const char* str) {
-            return add_flush(out->insComment(str));
         }
     };
 
@@ -1929,19 +1899,18 @@ namespace nanojit
             // We divide instruction kinds into groups.  LIns0 isn't present
             // because we don't need to record any 0-ary instructions.  Loads
             // aren't here, they're handled separately.
-            NLImmISmall = 0,
-            NLImmILarge = 1,
-            NLImmQ      = 2,   // only occurs on 64-bit platforms
-            NLImmD      = 3,
-            NL1         = 4,
-            NL2         = 5,
-            NL3         = 6,
-            NLCall      = 7,
+            LInsImmI = 0,
+            LInsImmQ = 1,   // only occurs on 64-bit platforms
+            LInsImmD = 2,
+            LIns1    = 3,
+            LIns2    = 4,
+            LIns3    = 5,
+            LInsCall = 6,
 
-            NLFirst = 0,
-            NLLast = 7,
+            LInsFirst = 0,
+            LInsLast = 6,
             // Need a value after "last" to outsmart compilers that insist last+1 is impossible.
-            NLInvalid = 8
+            LInsInvalid = 7
         };
         #define nextNLKind(kind)  NLKind(kind+1)
 
@@ -1954,11 +1923,11 @@ namespace nanojit
         //     Don't start m_capNL too small, or we'll waste time growing and rehashing.
         //     Don't start m_capNL too large, will waste memory.
         //
-        LIns**      m_listNL[NLLast + 1];
-        uint32_t    m_capNL[ NLLast + 1];
-        uint32_t    m_usedNL[NLLast + 1];
+        LIns**      m_listNL[LInsLast + 1];
+        uint32_t    m_capNL[ LInsLast + 1];
+        uint32_t    m_usedNL[LInsLast + 1];
         typedef uint32_t (CseFilter::*find_t)(LIns*);
-        find_t      m_findNL[NLLast + 1];
+        find_t      m_findNL[LInsLast + 1];
 
         // Similarly, for loads, there is one table for each CseAcc.  A CseAcc
         // is like a normal access region, but there are two extra possible
@@ -1994,18 +1963,6 @@ namespace nanojit
 
         Allocator& alloc;
 
-        // After a conditional guard such as "xf cmp", we know that 'cmp' must
-        // be true, else we would have side-exited.  So if we see 'cmp' again
-        // we can treat it like a constant.  This table records such
-        // comparisons.
-        InsSet knownCmpValues;
-
-        // If true, we will not add new instructions to the CSE tables, but we
-        // will continue to CSE instructions that match existing table
-        // entries.  Load instructions will still be removed if aliasing
-        // stores are encountered.
-        bool suspended;
-
         CseAcc miniAccSetToCseAcc(MiniAccSet miniAccSet, LoadQual loadQual) {
             NanoAssert(miniAccSet.val < NUM_ACCS || miniAccSet.val == MINI_ACCSET_MULTIPLE.val);
             return (loadQual == LOAD_CONST) ? CSE_ACC_CONST :
@@ -2027,8 +1984,7 @@ namespace nanojit
         static uint32_t hashCall(const CallInfo *call, uint32_t argc, LIns* args[]);
 
         // These versions are used before an LIns has been created.
-        LIns* findImmISmall(int32_t a, uint32_t &k);
-        LIns* findImmILarge(int32_t a, uint32_t &k);
+        LIns* findImmI(int32_t a, uint32_t &k);
 #ifdef NANOJIT_64BIT
         LIns* findImmQ(uint64_t a, uint32_t &k);
 #endif
@@ -2043,8 +1999,7 @@ namespace nanojit
         // These versions are used after an LIns has been created; they are
         // used for rehashing after growing.  They just call onto the
         // multi-arg versions above.
-        uint32_t findImmISmall(LIns* ins);
-        uint32_t findImmILarge(LIns* ins);
+        uint32_t findImmI(LIns* ins);
 #ifdef NANOJIT_64BIT
         uint32_t findImmQ(LIns* ins);
 #endif
@@ -2055,11 +2010,9 @@ namespace nanojit
         uint32_t findCall(LIns* ins);
         uint32_t findLoad(LIns* ins);
 
-        // These return false if they failed to grow due to OOM.
-        bool growNL(NLKind kind);
-        bool growL(CseAcc cseAcc);
+        void growNL(NLKind kind);
+        void growL(CseAcc cseAcc);
 
-        void addNLImmISmall(LIns* ins, uint32_t k);
         // 'k' is the index found by findXYZ().
         void addNL(NLKind kind, LIns* ins, uint32_t k);
         void addL(LIns* ins, uint32_t k);
@@ -2070,17 +2023,6 @@ namespace nanojit
 
     public:
         CseFilter(LirWriter *out, uint8_t embNumUsedAccs, Allocator&);
-
-        // CseFilter does some largish fallible allocations at start-up.  If
-        // they fail, the constructor sets this field to 'true'.  It should be
-        // checked after creation, and if set the CseFilter cannot be used.
-        // (But the check can be skipped if allocChunk() always succeeds.)
-        //
-        // FIXME: This fallibility is a sop to TraceMonkey's implementation of
-        // infallible malloc -- by avoiding some largish infallible
-        // allocations, it reduces the size of the reserve space needed.
-        // Bug 624590 is open to fix this.
-        bool initOOM;
 
         LIns* insImmI(int32_t imm);
 #ifdef NANOJIT_64BIT
@@ -2096,14 +2038,6 @@ namespace nanojit
         LIns* insCall(const CallInfo *call, LIns* args[]);
         LIns* insGuard(LOpcode op, LIns* cond, GuardRecord *gr);
         LIns* insGuardXov(LOpcode op, LIns* a, LIns* b, GuardRecord *gr);
-
-        // These functions provide control over CSE in the face of control
-        // flow.  A suspend()/resume() pair may be put around a synthetic
-        // control flow diamond, preventing the inserted label from resetting
-        // the CSE state.  A suspend() call must be dominated by a resume()
-        // call, else incorrect code could result.
-        void suspend() { suspended = true; }
-        void resume() { suspended = false; }
     };
 
     class LirBuffer
@@ -2117,6 +2051,7 @@ namespace nanojit
             verbose_only(LInsPrinter* printer;)
 
             int32_t insCount();
+            size_t  byteCount();
 
             // stats
             struct
@@ -2129,12 +2064,12 @@ namespace nanojit
             LIns *state, *param1, *sp, *rp;
             LIns* savedRegs[NumSavedRegs+1]; // Allocate an extra element in case NumSavedRegs == 0
 
+        protected:
+            friend class LirBufWriter;
+
             /** Each chunk is just a raw area of LIns instances, with no header
                 and no more than 8-byte alignment.  The chunk size is somewhat arbitrary. */
             static const size_t CHUNK_SZB = 8000;
-
-        protected:
-            friend class LirBufWriter;
 
             /** Get CHUNK_SZB more memory for LIR instructions. */
             void        chunkAlloc();
@@ -2143,6 +2078,7 @@ namespace nanojit
             Allocator&  _allocator;
             uintptr_t   _unused;   // next unused instruction slot in the current LIR chunk
             uintptr_t   _limit;    // one past the last usable byte of the current LIR chunk
+            size_t      _bytesAllocated;
     };
 
     class LirBufWriter : public LirWriter
@@ -2175,8 +2111,6 @@ namespace nanojit
             LIns*   insBranchJov(LOpcode v, LIns* a, LIns* b, LIns* to);
             LIns*   insAlloc(int32_t size);
             LIns*   insJtbl(LIns* index, uint32_t size);
-            LIns*   insComment(const char* str);
-            LIns*   insSkip(LIns* skipTo);
     };
 
     class LirFilter
@@ -2219,45 +2153,7 @@ namespace nanojit
 
         // Returns next instruction and advances to the prior instruction.
         // Invariant: never returns a skip.
-        LIns* read()
-        {
-            const uint8_t insReadSizes[] = {
-            // LIR_start is treated specially -- see below.  We intentionally
-            // do not use the global insSizes[] because of this customization.
-        #define OP___(op, number, repKind, retType, isCse) \
-                ((number) == LIR_start ? 0 : sizeof(LIns##repKind)),
-        #include "LIRopcode.tbl"
-        #undef OP___
-                0
-            };
-
-            // Check the invariant: _ins never points to a skip.
-            NanoAssert(_ins && !_ins->isop(LIR_skip));
-
-            // Step back one instruction.  Use a table lookup rather than a switch
-            // to avoid branch mispredictions.  LIR_start is given a special size
-            // of zero so that we don't step back past the start of the block.
-            // (Callers of this function should stop once they see a LIR_start.)
-            LIns* ret = _ins;
-            _ins = (LIns*)(uintptr_t(_ins) - insReadSizes[_ins->opcode()]);
-
-            // Ensure _ins doesn't end up pointing to a skip.
-            while (_ins->isop(LIR_skip)) {
-                NanoAssert(_ins->prevLIns() != _ins);
-                _ins = _ins->prevLIns();
-            }
-
-            return ret;
-        }
-
-        // Returns the instruction that read() will return on the next call.
-        // Invariant: never returns a skip.
-        LIns* peek()
-        {
-            // Check the invariant: _ins never points to a skip.
-            NanoAssert(_ins && !_ins->isop(LIR_skip));
-            return _ins;
-        }
+        LIns* read();
 
         LIns* finalIns() {
             return _finalIns;
@@ -2281,78 +2177,6 @@ namespace nanojit
         LIns* read();
     };
 
-    // This type is used to perform a simple interval analysis of 32-bit
-    // add/sub/mul.  It lets us avoid overflow checks in some cases.
-    struct Interval
-    {
-        // The bounds are 64-bit integers so that any overflow from a 32-bit
-        // operation can be safely detected.
-        //
-        // If 'hasOverflowed' is false, 'lo' and 'hi' must be in the range
-        // I32_MIN..I32_MAX.  If 'hasOverflowed' is true, 'lo' and 'hi' should
-        // not be trusted (and in debug builds we set them both to a special
-        // value UNTRUSTWORTHY that is outside the I32_MIN..I32_MAX range to
-        // facilitate sanity checking).
-        //
-        int64_t lo;
-        int64_t hi;
-        bool hasOverflowed;
-
-        static const int64_t I32_MIN = int64_t(int32_t(0x80000000));
-        static const int64_t I32_MAX = int64_t(int32_t(0x7fffffff));
-
-#ifdef DEBUG
-        static const int64_t UNTRUSTWORTHY = int64_t(0xdeafdeadbeeffeedLL);
-
-        bool isSane() {
-            return (hasOverflowed && lo == UNTRUSTWORTHY && hi == UNTRUSTWORTHY) ||
-                   (!hasOverflowed && lo <= hi && I32_MIN <= lo && hi <= I32_MAX);
-        }
-#endif
-
-        Interval(int64_t lo_, int64_t hi_) {
-            if (lo_ < I32_MIN || I32_MAX < hi_) {
-                hasOverflowed = true;
-#ifdef DEBUG
-                lo = UNTRUSTWORTHY;
-                hi = UNTRUSTWORTHY;
-#endif
-            } else {
-                hasOverflowed = false;
-                lo = lo_;
-                hi = hi_;
-            }
-            NanoAssert(isSane());
-        }
-
-        static Interval OverflowInterval() {
-            Interval interval(0, 0);
-#ifdef DEBUG
-            interval.lo = UNTRUSTWORTHY;
-            interval.hi = UNTRUSTWORTHY;
-#endif
-            interval.hasOverflowed = true;
-            return interval;
-        }
-
-        static Interval of(LIns* ins, int32_t lim);
-
-        static Interval add(Interval x, Interval y);
-        static Interval sub(Interval x, Interval y);
-        static Interval mul(Interval x, Interval y);
-
-        bool canBeZero() {
-            NanoAssert(isSane());
-            return hasOverflowed || (lo <= 0 && 0 <= hi);
-        }
-
-        bool canBeNegative() {
-            NanoAssert(isSane());
-            return hasOverflowed || (lo < 0);
-        }
-    };
-
-#if NJ_SOFTFLOAT_SUPPORTED
     struct SoftFloatOps
     {
         const CallInfo* opmap[LIR_sentinel];
@@ -2373,13 +2197,12 @@ namespace nanojit
         LIns *split(const CallInfo *call, LIns* args[]);
         LIns *callD1(const CallInfo *call, LIns *a);
         LIns *callD2(const CallInfo *call, LIns *a, LIns *b);
-        LIns *callI1(const CallInfo *call, LIns *a);
         LIns *cmpD(const CallInfo *call, LIns *a, LIns *b);
         LIns *ins1(LOpcode op, LIns *a);
         LIns *ins2(LOpcode op, LIns *a, LIns *b);
         LIns *insCall(const CallInfo *ci, LIns* args[]);
     };
-#endif
+
 
 #ifdef DEBUG
     // This class does thorough checking of LIR.  It checks *implicit* LIR
@@ -2477,100 +2300,6 @@ namespace nanojit
         void finish();
         LIns* read();
     };
-
-    /**
-      * A reverse filter for LIR that generates a control-flow graph in gml format.
-      * More information on Graph Modelling Language (gml) can be found here:
-      *   http://en.wikipedia.org/wiki/Graph_Modelling_Language
-      * An excellent tool for manipulating the graphs produced by this code
-      * is yED (http://www.yworks.com/en/products_yed_about.html).
-      *
-      * The raw output produced by this class contains connectively (i,e edge)
-      * information (including formatting), and node (i.e. vertex) data, but
-      * does not contain any positional information.
-      * Thus when opening the .gml file, all the nodes will likely appear stacked
-      * on one another.  An auto-layout tool like yEd can then re-position the
-      * nodes for better viewing.  E.g. Tools->Fit Node to Label followed by
-      * Layout->Hierarchical->Interactive produces a relatively convential
-      * looking flow-control graph.
-      *
-      * Usage:
-      *
-      *         LirReader  reader(frag->lastIns);
-      *         CfgLister  cfg(&reader, alloc);
-      *
-      *         for (LIns* ins = cfg.read(); !ins->isop(LIR_start); ins = cfg.read()) {}
-      *
-      *         cfg.printGmlCfg(f, frag->lirbuf->printer, proxiesFor);
-      *         fclose(f);
-      *
-      *  The first and second parameters to printGmlCfg() are an open FILE* and
-      *  a populated LInsPrinter, respectively.  The printer must be able to produce
-      *  a name from either the lirNameMap or a call to formatIns().
-      *
-      *  The 3rd parameter to primtGmlCfg(), proxiesFor can be used to limit
-      *  the number of edges in the graph. If an edge points to a vertex (LIns) in
-      *  this set, then a new node is created, with the same name as the original,
-      *  and the edge will point to that node.
-      *
-      * Algortihm:
-      *
-      *  During the first pass (i.e. CfgLister::read()), we capture edges and vertices
-      *  at an instruction level.  Recall that this is during a backwards pass, so for
-      *  forward branches we won't know whether an instruction we've seen already is
-      *  the target of a branch or not, until we reach the branch.  I.e. we see the
-      *  target instructions first and don't yet know they are targets.
-      *
-      *  On the 2nd pass (i.e. printGmlCfg) we use the list of branch targets from the
-      *  first pass (i.e. _vertices) and group instructions into them.  This is where
-      *  _alt comes into play, it provides a map from any instruction to the first
-      *  instruction of the containing block.
-      */
-    class CfgLister : public LirFilter
-    {
-    public:
-        virtual LIns* read();
-
-        typedef enum _CfgMode
-        {
-              CFG_EBB   // extended basic blocks
-            , CFG_BB    // basic blocks
-            , CFG_INS   // 1 block per instruction
-        }
-        CfgMode;
-
-        CfgLister(LirFilter* in, Allocator& alloc, CfgMode mode=CFG_EBB);
-
-        void printGmlCfg(FILE* f, LInsPrinter* printer, InsSet* makeProxyNodesFor);
-
-    private:
-        void        addEdge(LIns* from, LIns* to);
-        uint32_t    node2id(LIns* i);
-        const char* nodeName(LIns* i, InsBuf& b, LInsPrinter* printer);
-        const char* nodeShape(LIns* i, InsSet* pseudo);
-        uint32_t    edgeCountOf(LIns* i);
-
-        void printEdges(FILE* f, LInsPrinter* printer, InsSet* pseudo);
-        void printNode(FILE* f, InsList* nodeIns, LInsPrinter* printer, InsSet* pseudo);
-
-        void gmlNode(FILE* f, uint32_t id, const char* shape, const char* title);
-        void gmlEdge(FILE* f, uint32_t srcId, uint32_t dstId, const char* style, const char* fill, const char* width, const char* text);
-
-        //alternate form of gmlNode
-        void gmlNodePrefix(FILE* f, uint32_t id, const char* shape);
-        void gmlNodeSuffix(FILE* f);
-        void gmlNodeTextLine(FILE* f, const char* text, int32_t tabCount);
-
-        Allocator&                  _alloc;
-        HashMap<LIns*, LIns*>       _alt;       // allow edge src/dst to be re-mapped to another instruction
-        HashMap<LIns*, InsList*>    _edges;     // from,to list
-        InsSet                      _vertices;  // node list
-        HashMap<LIns*, uint32_t>    _ids;       // ins -> unique id
-        LIns*                       _prior;     // state maintained during read()
-        uint32_t                    _count;     // state maintained during read()
-        CfgMode                     _mode;      // mode selector
-    };
-
 #endif
 
 }

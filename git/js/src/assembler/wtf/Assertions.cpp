@@ -30,7 +30,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#if WTF_COMPILER_MSVC
+#if WTF_COMPILER_MSVC && !WTF_PLATFORM_WINCE
 #ifndef WINVER
 #define WINVER 0x0500
 #endif
@@ -39,6 +39,10 @@
 #endif
 #include "jswin.h"
 #include <crtdbg.h>
+#endif
+
+#if WTF_PLATFORM_WINCE
+#include <winbase.h>
 #endif
 
 extern "C" {
@@ -60,7 +64,7 @@ static void printf_stderr_common(const char* format, ...)
 
 static void printCallSite(const char* file, int line, const char* function)
 {
-#if WTF_COMPILER_MSVC && defined _DEBUG
+#if WTF_COMPILER_MSVC && !WTF_PLATFORM_WINCE && defined _DEBUG
     _CrtDbgReport(_CRT_WARN, file, line, NULL, "%s\n", function);
 #else
     printf_stderr_common("(%s:%d %s)\n", file, line, function);
@@ -70,15 +74,15 @@ static void printCallSite(const char* file, int line, const char* function)
 void WTFReportAssertionFailure(const char* file, int line, const char* function, const char* assertion)
 {
     if (assertion)
-        printf_stderr_common("Assertion failure: %s\n", assertion);
+        printf_stderr_common("ASSERTION FAILED: %s\n", assertion);
     else
-        printf_stderr_common("Should never be reached\n");
+        printf_stderr_common("SHOULD NEVER BE REACHED\n");
     printCallSite(file, line, function);
 }
 
 void WTFReportAssertionFailureWithMessage(const char* file, int line, const char* function, const char* assertion, const char* format, ...)
 {
-    printf_stderr_common("Assertion failure: ");
+    printf_stderr_common("ASSERTION FAILED: ");
     va_list args;
     va_start(args, format);
     vprintf_stderr_common(format, args);
@@ -89,13 +93,13 @@ void WTFReportAssertionFailureWithMessage(const char* file, int line, const char
 
 void WTFReportArgumentAssertionFailure(const char* file, int line, const char* function, const char* argName, const char* assertion)
 {
-    printf_stderr_common("Argument bad: %s, %s\n", argName, assertion);
+    printf_stderr_common("ARGUMENT BAD: %s, %s\n", argName, assertion);
     printCallSite(file, line, function);
 }
 
 void WTFReportFatalError(const char* file, int line, const char* function, const char* format, ...)
 {
-    printf_stderr_common("Fatal error: ");
+    printf_stderr_common("FATAL ERROR: ");
     va_list args;
     va_start(args, format);
     vprintf_stderr_common(format, args);
@@ -106,7 +110,7 @@ void WTFReportFatalError(const char* file, int line, const char* function, const
 
 void WTFReportError(const char* file, int line, const char* function, const char* format, ...)
 {
-    printf_stderr_common("Error: ");
+    printf_stderr_common("ERROR: ");
     va_list args;
     va_start(args, format);
     vprintf_stderr_common(format, args);

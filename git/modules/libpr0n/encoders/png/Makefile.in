@@ -46,9 +46,14 @@ FORCE_STATIC_LIB = 1
 MODULE_NAME	= imgEncoderPNGModule
 LIBXUL_LIBRARY = 1
 
-DEFINES		+= -DMOZ_PNG_WRITE \
-	-DMOZ_PNG_READ \
-	$(NULL)
+EXTRA_DSO_LIBS	= gkgfx
+
+
+ifneq (,$(filter png,$(MOZ_IMG_ENCODERS)))
+DEFINES		+= -DMOZ_PNG_WRITE
+endif
+
+DEFINES		+= -DMOZ_PNG_READ
 
 CPPSRCS		= nsPNGEncoder.cpp
 

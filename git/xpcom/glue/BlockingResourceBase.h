@@ -47,7 +47,6 @@
 #include "nscore.h"
 #include "nsDebug.h"
 #include "nsError.h"
-#include "nsTraceRefcnt.h"
 
 #ifdef DEBUG
 #include "prinit.h"
@@ -75,7 +74,7 @@ class NS_COM_GLUE BlockingResourceBase
 {
 public:
     // Needs to be kept in sync with kResourceTypeNames.
-    enum BlockingResourceType { eMutex, eReentrantMonitor, eCondVar };
+    enum BlockingResourceType { eMutex, eMonitor, eCondVar };
 
     /**
      * kResourceTypeName
@@ -110,7 +109,6 @@ private:
             mType(aType),
             mAcquisitionContext(CallStack::kNone)
         {
-            NS_ABORT_IF_FALSE(mName, "Name must be nonnull");
         }
         
         /**

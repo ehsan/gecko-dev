@@ -14,7 +14,7 @@
  *
  * The Original Code is Places test code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corp.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -38,6 +38,9 @@
  /**
  * Tests middle-clicking items in the Library.
  */
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 const ENABLE_HISTORY_PREF = "places.history.enabled";
 
@@ -246,12 +249,28 @@ function test() {
   // Temporary disable history, so we won't record pages navigation.
   gPrefService.setBoolPref(ENABLE_HISTORY_PREF, false);
 
+  // Window watcher for Library window.
+  var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
+  function windowObserver(aSubject, aTopic, aData) {
+    if (aTopic != "domwindowopened")
+      return;
+    ww.unregisterNotification(windowObserver);
+    gLibrary = aSubject.QueryInterface(Ci.nsIDOMWindow);
+    gLibrary.addEventListener("load", function onLoad(event) {
+      gLibrary.removeEventListener("load", onLoad, false);
+      // Kick off tests.
+      setTimeout(runNextTest, 0);
+    }, false);
+  }
+
   // Open Library window.
-  openLibrary(function (library) {
-    gLibrary = library;
-    // Kick off tests.
-    runNextTest();
-  });
+  ww.registerNotification(windowObserver);
+  ww.openWindow(null,
+                "chrome://browser/content/places/places.xul",
+                "",
+                "chrome,toolbar=yes,dialog=no,resizable",
+                null); 
 }
 
 function runNextTest() {

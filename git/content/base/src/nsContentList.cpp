@@ -45,6 +45,7 @@
 #include "nsContentList.h"
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 #include "nsIDocument.h"
 #include "nsGenericElement.h"
 
@@ -89,7 +90,6 @@ DOMCI_DATA(NodeList, nsBaseContentList)
 
 // QueryInterface implementation for nsBaseContentList
 NS_INTERFACE_TABLE_HEAD(nsBaseContentList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsBaseContentList)
     NS_CONTENT_LIST_INTERFACES(nsBaseContentList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
@@ -160,34 +160,17 @@ void nsBaseContentList::InsertElementAt(nsIContent* aContent, PRInt32 aIndex)
   mElements.InsertObjectAt(aContent, aIndex);
 }
 
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsSimpleContentList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSimpleContentList,
-                                                  nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSimpleContentList,
-                                                nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRoot)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsSimpleContentList)
-NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
-
-
-NS_IMPL_ADDREF_INHERITED(nsSimpleContentList, nsBaseContentList)
-NS_IMPL_RELEASE_INHERITED(nsSimpleContentList, nsBaseContentList)
-
 // nsFormContentList
 
-nsFormContentList::nsFormContentList(nsIContent *aForm,
+nsFormContentList::nsFormContentList(nsIDOMHTMLFormElement *aForm,
                                      nsBaseContentList& aContentList)
-  : nsSimpleContentList(aForm)
+  : nsBaseContentList()
 {
 
   // move elements that belong to mForm into this content list
 
   PRUint32 i, length = 0;
+
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
@@ -220,17 +203,15 @@ ContentListHashtableMatchEntry(PLDHashTable *table,
 {
   const ContentListHashEntry *e =
     static_cast<const ContentListHashEntry *>(entry);
-  const nsContentList* list = e->mContentList;
-  const nsContentListKey* ourKey = static_cast<const nsContentListKey *>(key);
+  const nsContentListKey* list1 = e->mContentList->GetKey();
+  const nsContentListKey* list2 = static_cast<const nsContentListKey *>(key);
 
-  return list->MatchesKey(*ourKey);
+  return list1->Equals(*list2);
 }
 
 already_AddRefed<nsContentList>
-NS_GetContentList(nsINode* aRootNode, 
-                  PRInt32  aMatchNameSpaceId,
-                  const nsAString& aTagname)
-                  
+NS_GetContentList(nsINode* aRootNode, nsIAtom* aMatchAtom,
+                  PRInt32 aMatchNameSpaceId)
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
@@ -262,14 +243,15 @@ NS_GetContentList(nsINode* aRootNode,
   ContentListHashEntry *entry = nsnull;
   // First we look in our hashtable.  Then we create a content list if needed
   if (gContentListHashTable.ops) {
-    nsContentListKey hashKey(aRootNode, aMatchNameSpaceId, aTagname);
+    nsContentListKey hashKey(aRootNode, aMatchAtom,
+                             aMatchNameSpaceId);
     
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
     entry = static_cast<ContentListHashEntry *>
                        (PL_DHashTableOperate(&gContentListHashTable,
-                                             &hashKey,
-                                             PL_DHASH_ADD));
+                                                &hashKey,
+                                                PL_DHASH_ADD));
     if (entry)
       list = entry->mContentList;
   }
@@ -277,20 +259,16 @@ NS_GetContentList(nsINode* aRootNode,
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    nsCOMPtr<nsIAtom> xmlAtom = do_GetAtom(aTagname);
-    nsCOMPtr<nsIAtom> htmlAtom;
-    if (aMatchNameSpaceId == kNameSpaceID_Unknown) {
-      nsAutoString lowercaseName;
-      nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-      htmlAtom = do_GetAtom(lowercaseName);
-    } else {
-      htmlAtom = xmlAtom;
-    }
-    list = new nsContentList(aRootNode, aMatchNameSpaceId,
-                             htmlAtom, xmlAtom);
+    list = new nsContentList(aRootNode, aMatchAtom,
+                             aMatchNameSpaceId);
     if (entry) {
-      entry->mContentList = list;
+      if (list)
+        entry->mContentList = list;
+      else
+        PL_DHashTableRawRemove(&gContentListHashTable, entry);
     }
+
+    NS_ENSURE_TRUE(list, nsnull);
   }
 
   NS_ADDREF(list);
@@ -407,15 +385,11 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
 // nsContentList implementation
 
 nsContentList::nsContentList(nsINode* aRootNode,
+                             nsIAtom* aMatchAtom,
                              PRInt32 aMatchNameSpaceId,
-                             nsIAtom* aHTMLMatchAtom,
-                             nsIAtom* aXMLMatchAtom,
                              PRBool aDeep)
   : nsBaseContentList(),
-    mRootNode(aRootNode),
-    mMatchNameSpaceId(aMatchNameSpaceId),
-    mHTMLMatchAtom(aHTMLMatchAtom),
-    mXMLMatchAtom(aXMLMatchAtom),
+    nsContentListKey(aRootNode, aMatchAtom, aMatchNameSpaceId),
     mFunc(nsnull),
     mDestroyFunc(nsnull),
     mData(nsnull),
@@ -424,22 +398,13 @@ nsContentList::nsContentList(nsINode* aRootNode,
     mFuncMayDependOnAttr(PR_FALSE)
 {
   NS_ASSERTION(mRootNode, "Must have root");
-  if (nsGkAtoms::_asterix == mHTMLMatchAtom) {
-    NS_ASSERTION(mXMLMatchAtom == nsGkAtoms::_asterix, "HTML atom and XML atom are not both asterix?");
+  if (nsGkAtoms::_asterix == mMatchAtom) {
     mMatchAll = PR_TRUE;
   }
   else {
     mMatchAll = PR_FALSE;
   }
   mRootNode->AddMutationObserver(this);
-
-  // We only need to flush if we're in an non-HTML document, since the
-  // HTML5 parser doesn't need flushing.  Further, if we're not in a
-  // document at all right now (in the GetCurrentDoc() sense), we're
-  // not parser-created and don't need to be flushing stuff under us
-  // to get our kids right.
-  nsIDocument* doc = mRootNode->GetCurrentDoc();
-  mFlushesNeeded = doc && !doc->IsHTML();
 }
 
 nsContentList::nsContentList(nsINode* aRootNode,
@@ -451,28 +416,17 @@ nsContentList::nsContentList(nsINode* aRootNode,
                              PRInt32 aMatchNameSpaceId,
                              PRBool aFuncMayDependOnAttr)
   : nsBaseContentList(),
-    mRootNode(aRootNode),
-    mMatchNameSpaceId(aMatchNameSpaceId),
-    mHTMLMatchAtom(aMatchAtom),
-    mXMLMatchAtom(aMatchAtom),
+    nsContentListKey(aRootNode, aMatchAtom, aMatchNameSpaceId),
     mFunc(aFunc),
     mDestroyFunc(aDestroyFunc),
     mData(aData),
-    mState(LIST_DIRTY),
     mMatchAll(PR_FALSE),
+    mState(LIST_DIRTY),
     mDeep(aDeep),
     mFuncMayDependOnAttr(aFuncMayDependOnAttr)
 {
   NS_ASSERTION(mRootNode, "Must have root");
   mRootNode->AddMutationObserver(this);
-
-  // We only need to flush if we're in an non-HTML document, since the
-  // HTML5 parser doesn't need flushing.  Further, if we're not in a
-  // document at all right now (in the GetCurrentDoc() sense), we're
-  // not parser-created and don't need to be flushing stuff under us
-  // to get our kids right.
-  nsIDocument* doc = mRootNode->GetCurrentDoc();
-  mFlushesNeeded = doc && !doc->IsHTML();
 }
 
 nsContentList::~nsContentList()
@@ -492,6 +446,7 @@ DOMCI_DATA(ContentList, nsContentList)
 
 // QueryInterface implementation for nsContentList
 NS_INTERFACE_TABLE_HEAD(nsContentList)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsContentList)
     NS_CONTENT_LIST_INTERFACES(nsContentList)
     NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIHTMLCollection)
@@ -517,7 +472,7 @@ nsContentList::Length(PRBool aDoFlush)
 nsIContent *
 nsContentList::Item(PRUint32 aIndex, PRBool aDoFlush)
 {
-  if (mRootNode && aDoFlush && mFlushesNeeded) {
+  if (mRootNode && aDoFlush) {
     // XXX sXBL/XBL2 issue
     nsIDocument* doc = mRootNode->GetCurrentDoc();
     if (doc) {
@@ -631,9 +586,19 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
+nsIContent*
+nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
+  *aResult = NS_OK;
+  return Item(aIndex, PR_TRUE);
+}
+
+nsISupports*
+nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
+                            nsresult* aResult)
+{
+  *aResult = NS_OK;
+
   nsIContent *item;
   *aCache = item = NamedItem(aName, PR_TRUE);
   return item;
@@ -808,39 +773,25 @@ PRBool
 nsContentList::Match(Element *aElement)
 {
   if (mFunc) {
-    return (*mFunc)(aElement, mMatchNameSpaceId, mXMLMatchAtom, mData);
+    return (*mFunc)(aElement, mMatchNameSpaceId, mMatchAtom, mData);
   }
 
-  if (!mXMLMatchAtom)
-    return PR_FALSE;
+  if (mMatchAtom) {
+    nsINodeInfo *ni = aElement->NodeInfo();
 
-  nsINodeInfo *ni = aElement->NodeInfo();
- 
-  PRBool unknown = mMatchNameSpaceId == kNameSpaceID_Unknown;
-  PRBool wildcard = mMatchNameSpaceId == kNameSpaceID_Wildcard;
-  PRBool toReturn = mMatchAll;
-  if (!unknown && !wildcard)
-    toReturn &= ni->NamespaceEquals(mMatchNameSpaceId);
+    if (mMatchNameSpaceId == kNameSpaceID_Unknown) {
+      return (mMatchAll || ni->QualifiedNameEquals(mMatchAtom));
+    }
 
-  if (toReturn)
-    return toReturn;
+    if (mMatchNameSpaceId == kNameSpaceID_Wildcard) {
+      return (mMatchAll || ni->Equals(mMatchAtom));
+    }
 
-  nsIDocument* doc = aElement->GetOwnerDoc();
-  PRBool matchHTML = aElement->GetNameSpaceID() == kNameSpaceID_XHTML &&
-    doc && doc->IsHTML();
- 
-  if (unknown) {
-    return matchHTML ? ni->QualifiedNameEquals(mHTMLMatchAtom) :
-                       ni->QualifiedNameEquals(mXMLMatchAtom);
+    return ((mMatchAll && ni->NamespaceEquals(mMatchNameSpaceId)) ||
+            ni->Equals(mMatchAtom, mMatchNameSpaceId));
   }
-  
-  if (wildcard) {
-    return matchHTML ? ni->Equals(mHTMLMatchAtom) :
-                       ni->Equals(mXMLMatchAtom);
-  }
-  
-  return matchHTML ? ni->Equals(mHTMLMatchAtom, mMatchNameSpaceId) :
-                     ni->Equals(mXMLMatchAtom, mMatchNameSpaceId);
+
+  return PR_FALSE;
 }
 
 PRBool 
@@ -939,10 +890,8 @@ nsContentList::RemoveFromHashtable()
   if (!gContentListHashTable.ops)
     return;
 
-  nsDependentAtomString str(mXMLMatchAtom);
-  nsContentListKey key(mRootNode, mMatchNameSpaceId, str);
   PL_DHashTableOperate(&gContentListHashTable,
-                       &key,
+                       GetKey(),
                        PL_DHASH_REMOVE);
 
   if (gContentListHashTable.entryCount == 0) {
@@ -954,7 +903,7 @@ nsContentList::RemoveFromHashtable()
 void
 nsContentList::BringSelfUpToDate(PRBool aDoFlush)
 {
-  if (mRootNode && aDoFlush && mFlushesNeeded) {
+  if (mRootNode && aDoFlush) {
     // XXX sXBL/XBL2 issue
     nsIDocument* doc = mRootNode->GetCurrentDoc();
     if (doc) {

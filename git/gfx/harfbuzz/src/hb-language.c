@@ -28,9 +28,6 @@
 
 #include "hb-language.h"
 
-HB_BEGIN_DECLS
-
-
 static const char canon_map[256] = {
    0,   0,   0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   0,   0,   0,
    0,   0,   0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   0,   0,   0,
@@ -116,5 +113,3 @@ hb_language_to_string (hb_language_t language)
   return (const char *) language;
 }
 
-
-HB_END_DECLS

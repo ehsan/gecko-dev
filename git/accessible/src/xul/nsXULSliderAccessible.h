@@ -64,8 +64,8 @@ public:
   NS_DECL_NSIACCESSIBLEVALUE
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
@@ -91,7 +91,7 @@ public:
   nsXULThumbAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 #endif

@@ -53,12 +53,14 @@
 #include "nsStackWalk.h"
 #include "nsString.h"
 
+#ifdef MOZ_IPC
 #include "nsXULAppAPI.h"
 #ifdef XP_WIN
 #include <process.h>
 #define getpid _getpid
 #else
 #include <unistd.h>
+#endif
 #endif
 
 #ifdef NS_TRACE_MALLOC
@@ -67,7 +69,7 @@
 
 #include "mozilla/BlockingResourceBase.h"
 
-#ifdef HAVE_DLOPEN
+#ifdef HAVE_LIBDL
 #include <dlfcn.h>
 #endif
 
@@ -102,8 +104,6 @@ NS_MeanAndStdDev(double n, double sumOfValues, double sumOfSquaredValues,
 
 #include "prlock.h"
 
-// TraceRefcnt has to use bare PRLock instead of mozilla::Mutex
-// because TraceRefcnt can be used very early in startup.
 static PRLock* gTraceLock;
 
 #define LOCK_TRACELOG()   PR_Lock(gTraceLock)
@@ -356,8 +356,12 @@ public:
   }
 
   PRBool PrintDumpHeader(FILE* out, const char* msg, nsTraceRefcntImpl::StatisticsType type) {
+#ifdef MOZ_IPC
     fprintf(out, "\n== BloatView: %s, %s process %d\n", msg,
             XRE_ChildProcessTypeToString(XRE_GetProcessType()), getpid());
+#else
+    fprintf(out, "\n== BloatView: %s\n", msg);
+#endif
     nsTraceRefcntStats& stats =
       (type == nsTraceRefcntImpl::NEW_STATS) ? mNewStats : mAllStats;
     if (gLogLeaksOnly && !HaveLeaks(&stats))
@@ -664,6 +668,7 @@ static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
     else {
       FILE *stream;
       nsCAutoString fname(value);
+#ifdef MOZ_IPC
       if (XRE_GetProcessType() != GeckoProcessType_Default) {
         bool hasLogExtension = 
             fname.RFind(".log", PR_TRUE, -1, 4) == kNotFound ? false : true;
@@ -676,6 +681,7 @@ static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
         if (hasLogExtension)
           fname.AppendLiteral(".log");
       }
+#endif
       stream = ::fopen(fname.get(), "w" FOPEN_NO_INHERIT);
       if (stream != NULL) {
         *result = stream;
@@ -724,7 +730,7 @@ static void InitTraceLog(void)
   if (defined) {
     gLogToLeaky = PR_TRUE;
     PRFuncPtr p = nsnull, q = nsnull;
-#ifdef HAVE_DLOPEN
+#ifdef HAVE_LIBDL
     {
       PRLibrary *lib = nsnull;
       p = PR_FindFunctionSymbolAndLibrary("__log_addref", &lib);
@@ -1285,26 +1291,6 @@ nsTraceRefcntImpl::Shutdown()
   if (gSerialNumbers) {
     PL_HashTableDestroy(gSerialNumbers);
     gSerialNumbers = nsnull;
-  }
-  if (gBloatLog) {
-    fclose(gBloatLog);
-    gBloatLog = nsnull;
-  }
-  if (gRefcntsLog) {
-    fclose(gRefcntsLog);
-    gRefcntsLog = nsnull;
-  }
-  if (gAllocLog) {
-    fclose(gAllocLog);
-    gAllocLog = nsnull;
-  }
-  if (gLeakyLog) {
-    fclose(gLeakyLog);
-    gLeakyLog = nsnull;
-  }
-  if (gCOMPtrLog) {
-    fclose(gCOMPtrLog);
-    gCOMPtrLog = nsnull;
   }
 #endif
 }

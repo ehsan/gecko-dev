@@ -21,20 +21,24 @@ var bind = Function.prototype.bind;
 assertEq(bind.length, 1);
 
 
+// The if here shouldn't be necessary when this-boxing doesn't happen in strict
+// mode.
 var strictReturnThis = function() { "use strict"; return this; };
+if (strictReturnThis() === undefined)
+{
+  assertEq(strictReturnThis.bind(undefined)(), undefined);
+  assertEq(strictReturnThis.bind(null)(), undefined);
 
-assertEq(strictReturnThis.bind(undefined)(), undefined);
-assertEq(strictReturnThis.bind(null)(), null);
+  var obj = {};
+  assertEq(strictReturnThis.bind(obj)(), obj);
 
-var obj = {};
-assertEq(strictReturnThis.bind(obj)(), obj);
+  assertEq(strictReturnThis.bind(NaN)(), NaN);
 
-assertEq(strictReturnThis.bind(NaN)(), NaN);
+  assertEq(strictReturnThis.bind(true)(), true);
+  assertEq(strictReturnThis.bind(false)(), false);
 
-assertEq(strictReturnThis.bind(true)(), true);
-assertEq(strictReturnThis.bind(false)(), false);
-
-assertEq(strictReturnThis.bind("foopy")(), "foopy");
+  assertEq(strictReturnThis.bind("foopy")(), "foopy");
+}
 
 
 // rigorous, step-by-step testing

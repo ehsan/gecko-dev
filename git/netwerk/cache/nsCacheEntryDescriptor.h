@@ -46,8 +46,6 @@
 #include "nsCacheEntry.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
-#include "nsCacheService.h"
-#include "nsIDiskCacheStreamInternal.h"
 
 /******************************************************************************
 * nsCacheEntryDescriptor
@@ -75,23 +73,7 @@ public:
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
     void           ClearCacheEntry(void) { mCacheEntry = nsnull; }
 
-    void           CloseOutput(void)
-    {
-      InternalCleanup(mOutput);
-      mOutput = nsnull;
-    }
-
 private:
-    void           InternalCleanup(nsIOutputStream *stream)
-    {
-      if (stream) {
-        nsCOMPtr<nsIDiskCacheStreamInternal> tmp (do_QueryInterface(stream));
-        if (tmp)
-          tmp->CloseInternal();
-        else
-          stream->Close();
-      }
-    }
 
 
      /*************************************************************************
@@ -156,10 +138,6 @@ private:
          { 
              // XXX _HACK_ the storage stream needs this!
              Close();
-             {
-             nsCacheServiceAutoLock lock;
-             mDescriptor->mOutput = nsnull;
-             }
              NS_RELEASE(mDescriptor);
          }
 
@@ -176,7 +154,6 @@ private:
       */
      nsCacheEntry          * mCacheEntry; // we are a child of the entry
      nsCacheAccessMode       mAccessGranted;
-     nsIOutputStream       * mOutput;
 };
 
 

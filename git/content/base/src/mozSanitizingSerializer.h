@@ -89,11 +89,10 @@ public:
                       { return NS_OK; }
   NS_IMETHOD AppendDoctype(nsIContent *aDoctype, nsAString& aStr)
                       { return NS_OK; }
-  NS_IMETHOD AppendElementStart(mozilla::dom::Element* aElement,
-                                mozilla::dom::Element* aOriginalElement,
-                                nsAString& aStr);
-  NS_IMETHOD AppendElementEnd(mozilla::dom::Element* aElement,
-                              nsAString& aStr);
+  NS_IMETHOD AppendElementStart(nsIContent *aElement,
+                                nsIContent *aOriginalElement,
+                                nsAString& aStr); 
+  NS_IMETHOD AppendElementEnd(nsIContent *aElement, nsAString& aStr);
   NS_IMETHOD Flush(nsAString& aStr);
 
   NS_IMETHOD AppendDocumentStart(nsIDocument *aDocument,
@@ -151,7 +150,7 @@ protected:
   PRUint32                     mSkipLevel;
   nsHashtable                  mAllowedTags;
 
-  nsRefPtr<mozilla::dom::Element> mContent;
+  nsCOMPtr<nsIContent>         mContent;
   nsAString*                   mOutputString;
   nsIParserNode*               mParserNode;
   nsCOMPtr<nsIParserService>   mParserService;

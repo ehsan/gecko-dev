@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -49,15 +50,19 @@ hyperlinkImplInterfaceInitCB(AtkHyperlinkImplIface *aIface)
 }
 
 AtkHyperlink*
-getHyperlinkCB(AtkHyperlinkImpl* aImpl)
+getHyperlinkCB(AtkHyperlinkImpl *aImpl)
 {
-  nsAccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aImpl));
-  if (!accWrap)
-    return nsnull;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aImpl));
+    if (!accWrap)
+        return nsnull;
 
-  NS_ENSURE_TRUE(accWrap->IsLink(), nsnull);
+    nsCOMPtr<nsIAccessibleHyperLink> accHyperlink;
+    accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperLink),
+                            getter_AddRefs(accHyperlink));
+    NS_ENSURE_TRUE(accHyperlink, nsnull);
+    
+    MaiHyperlink *maiHyperlink = accWrap->GetMaiHyperlink();
+    NS_ENSURE_TRUE(maiHyperlink, nsnull);
+    return maiHyperlink->GetAtkHyperlink();
 
-  MaiHyperlink* maiHyperlink = accWrap->GetMaiHyperlink();
-  NS_ENSURE_TRUE(maiHyperlink, nsnull);
-  return maiHyperlink->GetAtkHyperlink();
 }

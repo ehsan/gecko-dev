@@ -42,8 +42,6 @@
 #include <new>                  // for std::bad_alloc
 #include <string.h>
 
-#include <sys/types.h>
-
 #if defined(MALLOC_H)
 #  include MALLOC_H             // for memalign, valloc where available
 #endif // if defined(MALLOC_H)

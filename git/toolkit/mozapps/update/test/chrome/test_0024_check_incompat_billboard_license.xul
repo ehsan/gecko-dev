@@ -87,11 +87,12 @@ const TESTS = [ {
 gDisableNoUpdateAddon = true;
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let url = URL_UPDATE + "?showBillboard=1&showLicense=1&showDetails=1" +
             getVersionParams(getNewerAppVersion(), getNewerPlatformVersion());
   setUpdateURLOverride(url);
+  debugDump("Update URL: " + url);
 
   gUP.checkForUpdates();
 }

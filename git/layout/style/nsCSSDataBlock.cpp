@@ -190,6 +190,10 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                     TryToStartImageLoad(*val, doc, iProp);
                 }
                 *target = *val;
+                if (iProp == eCSSProperty_font_family) {
+                    // XXX Are there other things like this?
+                    aRuleData->mFontData->mFamilyFromHTML = PR_FALSE;
+                }
                 if (nsCSSProps::PropHasFlags(iProp,
                         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED) &&
                     ShouldIgnoreColors(aRuleData))
@@ -299,8 +303,8 @@ nsCSSCompressedDataBlock::~nsCSSCompressedDataBlock()
     const char* cursor = Block();
     const char* cursor_end = BlockEnd();
     while (cursor < cursor_end) {
-        NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(PropertyAtCursor(cursor)),
-                          "out of range");
+        nsCSSProperty iProp = PropertyAtCursor(cursor);
+        NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(iProp), "out of range");
 
         const nsCSSValue* val = ValueAtCursor(cursor);
         NS_ABORT_IF_FALSE(val->GetUnit() != eCSSUnit_Null, "oops");
@@ -329,6 +333,15 @@ nsCSSExpandedDataBlock::~nsCSSExpandedDataBlock()
 {
     AssertInitialState();
 }
+
+const size_t
+nsCSSExpandedDataBlock::kOffsetTable[] = {
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,        \
+                     kwtable_, stylestruct_, stylestructoffset_, animtype_)    \
+        offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),
+    #include "nsCSSPropList.h"
+    #undef CSS_PROP
+};
 
 void
 nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
@@ -390,9 +403,7 @@ nsCSSExpandedDataBlock::ComputeSize()
         for (size_t iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
             if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
-#ifdef DEBUG
             nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
-#endif
             NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(iProp), "out of range");
             NS_ABORT_IF_FALSE(PropertyAt(iProp)->GetUnit() != eCSSUnit_Null,
                               "null value while computing size");
@@ -601,9 +612,8 @@ nsCSSExpandedDataBlock::DoAssertInitialState()
     mPropertiesImportant.AssertIsEmpty("not initial state");
 
     for (PRUint32 i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
-        nsCSSProperty prop = nsCSSProperty(i);
-        NS_ABORT_IF_FALSE(PropertyAt(prop)->GetUnit() == eCSSUnit_Null,
-                          "not initial state");
+        NS_ABORT_IF_FALSE(PropertyAt(nsCSSProperty(i))->GetUnit() ==
+                          eCSSUnit_Null, "not initial state");
     }
 }
 #endif

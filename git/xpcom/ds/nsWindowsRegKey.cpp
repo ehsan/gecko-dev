@@ -328,35 +328,8 @@ nsWindowsRegKey::ReadStringValue(const nsAString &name, nsAString &result)
   if (begin.size_forward() != resultLen)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  rv = RegQueryValueExW(mKey, flatName.get(), 0, &type, (LPBYTE) begin.get(),
+  rv = RegQueryValueExW(mKey, flatName.get(), 0, NULL, (LPBYTE) begin.get(),
                         &size);
-
-  // Expand the environment variables if needed
-  if (type == REG_EXPAND_SZ) {
-    const nsString &flatSource = PromiseFlatString(result);
-    resultLen = ExpandEnvironmentStringsW(flatSource.get(), NULL, 0);
-    if (resultLen > 0) {
-      nsAutoString expandedResult;
-      // |resultLen| includes the terminating null character
-      --resultLen;
-      expandedResult.SetLength(resultLen);
-      nsAString::iterator begin;
-      expandedResult.BeginWriting(begin);
-      if (begin.size_forward() != resultLen)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-      resultLen = ExpandEnvironmentStringsW(flatSource.get(),
-                                            begin.get(),
-                                            resultLen + 1);
-      if (resultLen <= 0) {
-        rv = ERROR_UNKNOWN_FEATURE;
-        result.Truncate();
-      } else {
-        rv = ERROR_SUCCESS;
-        result = expandedResult;
-      }
-    }
-  }
 
   return (rv == ERROR_SUCCESS) ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -461,6 +434,10 @@ nsWindowsRegKey::WriteBinaryValue(const nsAString &name, const nsACString &value
 NS_IMETHODIMP
 nsWindowsRegKey::StartWatching(PRBool recurse)
 {
+#ifdef WINCE
+  return NS_ERROR_NOT_IMPLEMENTED;
+#else
+
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
   if (mWatchEvent)
@@ -485,6 +462,7 @@ nsWindowsRegKey::StartWatching(PRBool recurse)
 
   mWatchRecursive = recurse;
   return NS_OK;
+#endif
 }
 
 NS_IMETHODIMP

@@ -64,11 +64,10 @@ public:
     hb_codepoint_t GetGlyph(hb_codepoint_t unicode,
                             hb_codepoint_t variation_selector) const;
 
-    // get harfbuzz glyph advance, in font design units
-    void GetGlyphAdvance(gfxContext *aContext,
+    // get harfbuzz glyph metrics, in font design units
+    void GetGlyphMetrics(gfxContext *aContext,
                          hb_codepoint_t glyph,
-                         hb_position_t *x_advance,
-                         hb_position_t *y_advance) const;
+                         hb_glyph_metrics_t *metrics) const;
 
     hb_position_t GetKerning(PRUint16 aFirstGlyph,
                              PRUint16 aSecondGlyph) const;
@@ -90,6 +89,9 @@ protected:
 
     // harfbuzz face object, created on first use (caches font tables)
     hb_face_t         *mHBFace;
+
+    // language to use for shaping, derived from the style's language
+    hb_language_t      mHBLanguage;
 
     // Following table references etc are declared "mutable" because the
     // harfbuzz callback functions take a const ptr to the shaper, but
@@ -115,12 +117,12 @@ protected:
     mutable PRUint32   mSubtableOffset;
     mutable PRUint32   mUVSTableOffset;
 
-    // Whether the font implements GetGlyph, or we should read tables
-    // directly
-    PRPackedBool mUseFontGetGlyph;
-    // Whether the font implements GetGlyphWidth, or we should read tables
+    // Whether the font implements hinted widths, or we should read tables
     // directly to get ideal widths
-    PRPackedBool mUseFontGlyphWidths;
+    PRBool mUseHintedWidths;
+
+    // Features to apply in addition to the defaults built into the shaper
+    const nsTArray<hb_feature_t> *mOpenTypeFeatures;
 };
 
 #endif /* GFX_HARFBUZZSHAPER_H */

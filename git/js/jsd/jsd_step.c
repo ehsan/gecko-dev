@@ -69,7 +69,8 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
     JSDScript* jsdscript = NULL;
     JSScript * script;
     static indent = 0;
-    JSString* funName = NULL;
+    char* buf;
+    const char* funName = NULL;
 
     script = JS_GetFrameScript(cx, fp);
     if(script)
@@ -78,32 +79,32 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
         jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, script, fp);
         JSD_UNLOCK_SCRIPTS(jsdc);
         if(jsdscript)
-            funName = JSD_GetScriptFunctionId(jsdc, jsdscript);
+            funName = JSD_GetScriptFunctionName(jsdc, jsdscript);
     }
-
-    if(before)
-        printf("%sentering ", _indentSpaces(indent++));
-    else
-        printf("%sleaving ", _indentSpaces(--indent));
-
-    if (!funName)
-        printf("TOP_LEVEL");
-    else
-        JS_FileEscapedString(stdout, funName, 0);
+    if(!funName)
+        funName = "TOP_LEVEL";
 
     if(before)
     {
-        jsval thisVal;
-
-        printf("%s this: ", JS_IsConstructorFrame(cx, fp) ? "constructing":"");
-
-        if (JS_GetFrameThis(cx, fp, &thisVal))
-            printf("0x%0llx", (JSUword) thisVal);
-        else
-            puts("<unavailable>");
+        buf = JS_smprintf("%sentering %s %s this: %0x\n",
+                _indentSpaces(indent++),
+                funName,
+                JS_IsConstructorFrame(cx, fp) ? "constructing":"",
+                (int)JS_GetFrameThis(cx, fp));
     }
-    printf("\n");
+    else
+    {
+        buf = JS_smprintf("%sleaving %s\n",
+                _indentSpaces(--indent),
+                funName);
+    }
     JS_ASSERT(indent >= 0);
+
+    if(!buf)
+        return;
+
+    printf(buf);
+    free(buf);
 }
 #endif
 
@@ -126,12 +127,8 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
         return hookresult;
     }
     
-    if (before && JS_IsConstructorFrame(cx, fp)) {
-        jsval newObj;
-        if (!JS_GetFrameThis(cx, fp, &newObj))
-            return JS_FALSE;
-        jsd_Constructing(jsdc, cx, JSVAL_TO_OBJECT(newObj), fp);
-    }
+    if (before && JS_IsConstructorFrame(cx, fp))
+        jsd_Constructing(jsdc, cx, JS_GetFrameThis(cx, fp), fp);
 
     jsscript = JS_GetFrameScript(cx, fp);
     if (jsscript)
@@ -150,7 +147,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                 {
                     if (before)
                     {
-                        if (!pdata->lastCallStart)
+                        if (JSLL_IS_ZERO(pdata->lastCallStart))
                         {
                             int64 now;
                             JSDProfileData *callerpdata;
@@ -166,10 +163,13 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                                 pdata->caller = callerpdata;
                                 /* We need to 'stop' the timer for the caller.
                                  * Use time since last return if appropriate. */
-                                ll_delta = jsdc->lastReturnTime
-                                           ? now - jsdc->lastReturnTime
-                                           : now - callerpdata->lastCallStart;
-                                callerpdata->runningTime += ll_delta;
+                                if (JSLL_IS_ZERO(jsdc->lastReturnTime))
+                                {
+                                    JSLL_SUB(ll_delta, now, callerpdata->lastCallStart);
+                                } else {
+                                    JSLL_SUB(ll_delta, now, jsdc->lastReturnTime);
+                                }
+                                JSLL_ADD(callerpdata->runningTime, callerpdata->runningTime, ll_delta);
                             }
                             /* We're the new current function, and no return
                              * has happened yet. */
@@ -185,12 +185,13 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                         }
                         /* make sure we're called for the return too. */
                         hookresult = JS_TRUE;
-                    } else if (!pdata->recurseDepth && pdata->lastCallStart) {
+                    } else if (!pdata->recurseDepth &&
+                               !JSLL_IS_ZERO(pdata->lastCallStart)) {
                         int64 now, ll_delta;
                         jsdouble delta;
                         now = JS_Now();
-                        ll_delta = now - pdata->lastCallStart;
-                        delta = (JSFloat64) ll_delta;
+                        JSLL_SUB(ll_delta, now, pdata->lastCallStart);
+                        JSLL_L2D(delta, ll_delta);
                         delta /= 1000.0;
                         pdata->totalExecutionTime += delta;
                         /* minExecutionTime starts as 0, so we need to overwrite
@@ -208,13 +209,13 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                          * the running total by the time delta since the last
                          * return, and use the running total instead of the
                          * delta calculated above. */
-                        if (jsdc->lastReturnTime)
+                        if (!JSLL_IS_ZERO(jsdc->lastReturnTime))
                         {
                             /* Add last chunk to running time, and use total
                              * running time as 'delta'. */
-                            ll_delta = now - jsdc->lastReturnTime;
-                            pdata->runningTime += ll_delta;
-                            delta = (JSFloat64) pdata->runningTime;
+                            JSLL_SUB(ll_delta, now, jsdc->lastReturnTime);
+                            JSLL_ADD(pdata->runningTime, pdata->runningTime, ll_delta);
+                            JSLL_L2D(delta, pdata->runningTime);
                             delta /= 1000.0;
                         }
                         

@@ -40,9 +40,6 @@
 
 //include protocol PCompositor;
 include protocol PLayer;
-include protocol PRenderFrame;
-
-include "IPC/ShadowLayerUtils.h";
 
 using gfx3DMatrix;
 using gfxRGBA;
@@ -51,10 +48,7 @@ using nsIntRect;
 using nsIntRegion;
 using nsIntSize;
 using mozilla::GraphicsFilterType;
-using mozilla::layers::FrameMetrics;
-using mozilla::layers::SurfaceDescriptorX11;
 using mozilla::null_t;
-using mozilla::LayersBackend;
 
 /**
  * The layers protocol is spoken between thread contexts that manage
@@ -77,70 +71,35 @@ struct OpCreateCanvasLayer     { PLayer layer; };
 // For the "buffer creation" operations, we send an initial front
 // buffer that only contains (transparent) black pixels just so that
 // we can swap it back after the first OpPaint without a special case.
-
-union SurfaceDescriptor {
-  Shmem;
-  SurfaceDescriptorX11;
-};
-
-struct YUVImage {
-  Shmem Ydata;
-  Shmem Udata;
-  Shmem Vdata;
-};
-
-union SharedImage {
-  SurfaceDescriptor;
-  YUVImage;
-};
-
-struct ThebesBuffer {
-  SurfaceDescriptor buffer;
-  nsIntRect rect;
-  nsIntPoint rotation; 
-};
-union OptionalThebesBuffer { ThebesBuffer; null_t; };
-
 struct OpCreateThebesBuffer {
   PLayer layer;
-  OptionalThebesBuffer initialFront;
-  nsIntRegion frontValidRegion;
+  nsIntRect bufferRect;
+  Shmem initialFront;
 };
-struct OpDestroyThebesFrontBuffer { PLayer layer; };
 
 struct OpCreateCanvasBuffer {
   PLayer layer;
   nsIntSize size;
-  SurfaceDescriptor initialFront;
-  bool needYFlip;
+  Shmem initialFront;
 };
-struct OpDestroyCanvasFrontBuffer { PLayer layer; };
 
 struct OpCreateImageBuffer {
   PLayer layer;
   nsIntSize size;
-  SharedImage initialFront;
+  Shmem initialFront;
 };
-struct OpDestroyImageFrontBuffer { PLayer layer; };
-
 
 // Change a layer's attributes
 struct CommonLayerAttributes {
   nsIntRegion visibleRegion;
   gfx3DMatrix transform;
-  PRUint32 contentFlags;
+  bool isOpaqueContent;
   float opacity;
   bool useClipRect;
   nsIntRect clipRect;
-  bool useTileSourceRect;
-  nsIntRect tileSourceRect;
-  bool isFixedPosition;
 };
 
-struct ThebesLayerAttributes {
-  nsIntRegion validRegion;
-};
-struct ContainerLayerAttributes{ FrameMetrics metrics; };
+struct ThebesLayerAttributes   { nsIntRegion validRegion; };
 struct ColorLayerAttributes    { gfxRGBA color; };
 struct CanvasLayerAttributes   { GraphicsFilterType filter; };
 struct ImageLayerAttributes    { GraphicsFilterType filter; };
@@ -148,7 +107,6 @@ struct ImageLayerAttributes    { GraphicsFilterType filter; };
 union SpecificLayerAttributes {
   null_t;
   ThebesLayerAttributes;
-  ContainerLayerAttributes;
   ColorLayerAttributes;
   CanvasLayerAttributes;
   ImageLayerAttributes;
@@ -173,20 +131,25 @@ struct OpRemoveChild  { PLayer container; PLayer childLayer; };
 
 
 // Paint (buffer update)
+struct ThebesBuffer {
+  Shmem buffer;
+  nsIntRect rect;
+  nsIntPoint rotation; 
+};
 struct OpPaintThebesBuffer {
   PLayer layer;
   ThebesBuffer newFrontBuffer;
-  nsIntRegion updatedRegion;
 };
 
 struct OpPaintCanvas  {
   PLayer layer;
-  SurfaceDescriptor newFrontBuffer;
+  nsIntRect updated;
+  Shmem newFrontBuffer;
 };
 
 struct OpPaintImage  {
   PLayer layer;
-  SharedImage newFrontBuffer;
+  Shmem newFrontBuffer;
 };
 
 
@@ -200,9 +163,6 @@ union Edit {
   OpCreateCanvasBuffer;
   OpCreateThebesBuffer;
   OpCreateImageBuffer;
-  OpDestroyThebesFrontBuffer;
-  OpDestroyCanvasFrontBuffer;
-  OpDestroyImageFrontBuffer;
 
   OpSetLayerAttributes;
 
@@ -218,35 +178,29 @@ union Edit {
 
 
 // Replies to operations
-struct OpBufferSwap   { PLayer layer; SurfaceDescriptor newBackBuffer; };
+struct OpBufferSwap   { PLayer layer; Shmem newBackBuffer; };
 
-struct OpImageSwap { PLayer layer; SharedImage newBackImage; };
-
+/*
+ * XXX: if we choose *not* to do a new-front-to-new-back fill in the
+ * parent process, then we'll need to send back the old buffer
+ * attributes so that it can be filled anew.
+ *
 struct OpThebesBufferSwap {
   PLayer layer;
   ThebesBuffer newBackBuffer;
-  nsIntRegion newValidRegion;
-  // If the parent took the child's old back buffer and returned its
-  // old front buffer, |readOnlyFrontBuffer| may (if non-null) contain
-  // the child's old back buffer (parent's new front buffer).  This
-  // buffer can be used to read back the newly updated region into the
-  // child's new back buffer.  This buffer must be considered
-  // read-only, but sadly that's not enforced.
-  OptionalThebesBuffer readOnlyFrontBuffer;
-  nsIntRegion frontUpdatedRegion;
 };
+*/
 
 // Unit of a "changeset reply".  This is a weird abstraction, probably
 // only to be used for buffer swapping.
 union EditReply {
   OpBufferSwap;
-  OpThebesBufferSwap;
-  OpImageSwap;
+//  OpThebesBufferSwap;
 };
 
 
 sync protocol PLayers {
-  manager PRenderFrame /*or PCompositor or PMedia or PPlugin*/;
+  //manager PCompositor /*or PContent or PMedia or PPlugin*/;
   manages PLayer;
 
 parent:
@@ -254,9 +208,6 @@ parent:
 
   sync Update(Edit[] cset)
     returns (EditReply[] reply);
-
-  sync GetParentType()
-    returns (LayersBackend backend);
 
   async __delete__();
 };

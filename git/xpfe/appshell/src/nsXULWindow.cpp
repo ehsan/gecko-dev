@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 ci et: */
-/* ***** BEGIN LICENSE BLOCK *****
+/*
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -58,6 +59,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMBarProp.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIPrivateDOMEvent.h"
@@ -77,23 +79,24 @@
 #include "nsIScreenManager.h"
 #include "nsIScreen.h"
 #include "nsIScrollable.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIWindowWatcher.h"
 #include "nsIURI.h"
+#include "nsIDOMDocumentView.h"
+#include "nsIDOMViewCSS.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsITimelineService.h"
 #include "nsAppShellCID.h"
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsIContentUtils.h"
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
 #include "prenv.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
@@ -146,12 +149,12 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mIgnoreXULSize(PR_FALSE),
     mIgnoreXULPosition(PR_FALSE),
     mChromeFlagsFrozen(PR_FALSE),
-    mIgnoreXULSizeMode(PR_FALSE),
     mContextFlags(0),
     mBlurSuppressionLevel(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
+    mIgnoreXULSizeMode(PR_FALSE),
     // best guess till we have a widget
     mAppPerDev(nsPresContext::AppUnitsPerCSSPixel())
 {
@@ -273,17 +276,18 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
   nsCOMPtr<nsIContentViewer> cv;
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   if (cv) {
-    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(cv->GetDocument());
-    if (domDoc) {
+    nsCOMPtr<nsIDOMDocumentEvent> docEvent(
+      do_QueryInterface(cv->GetDocument()));
+    if (docEvent) {
       nsCOMPtr<nsIDOMEvent> event;
-      domDoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
+      docEvent->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
       if (event) {
         event->InitEvent(NS_LITERAL_STRING("windowZLevel"), PR_TRUE, PR_FALSE);
 
         nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
         privateEvent->SetTrusted(PR_TRUE);
 
-        nsCOMPtr<nsIDOMEventTarget> targ = do_QueryInterface(domDoc);
+        nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(docEvent));
         if (targ) {
           PRBool defaultActionEnabled;
           targ->DispatchEvent(event, &defaultActionEnabled);
@@ -1001,16 +1005,6 @@ void nsXULWindow::OnChromeLoaded()
     mChromeLoaded = PR_TRUE;
     ApplyChromeFlags();
     SyncAttributesToWidget();
-    if (!mIgnoreXULSize)
-      LoadSizeFromXUL();
-    if (mIntrinsicallySized) {
-      // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
-      nsCOMPtr<nsIContentViewer> cv;
-      mDocShell->GetContentViewer(getter_AddRefs(cv));
-      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer(do_QueryInterface(cv));
-      if (markupViewer)
-        markupViewer->SizeToContent();
-    }
 
     PRBool positionSet = !mIgnoreXULPosition;
     nsCOMPtr<nsIXULWindow> parentWindow(do_QueryReferent(mParentWindow));
@@ -1023,6 +1017,19 @@ void nsXULWindow::OnChromeLoaded()
 #endif
     if (positionSet)
       positionSet = LoadPositionFromXUL();
+
+    if (!mIgnoreXULSize)
+      LoadSizeFromXUL();
+
+    if (mIntrinsicallySized) {
+      // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
+      nsCOMPtr<nsIContentViewer> cv;
+      mDocShell->GetContentViewer(getter_AddRefs(cv));
+      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer(do_QueryInterface(cv));
+      if (markupViewer)
+        markupViewer->SizeToContent();
+    }
+
     LoadMiscPersistentAttributesFromXUL();
 
     if (mCenterAfterLoad && !positionSet)
@@ -1175,7 +1182,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
 
     mIntrinsicallySized = PR_FALSE;
     if (specWidth != currWidth || specHeight != currHeight)
-      SetSize(specWidth, specHeight, PR_FALSE);
+      SetSize(specWidth, specHeight, PR_TRUE);
   }
 
   return gotSize;
@@ -1227,29 +1234,16 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
           sizeMode = nsSizeMode_Fullscreen;
       }
     }
-
-    // If we are told to ignore the size mode attribute update the
-    // document so the attribute and window are in sync.
-    if (mIgnoreXULSizeMode) {
-      nsAutoString sizeString;
-      if (sizeMode == nsSizeMode_Maximized)
-        sizeString.Assign(SIZEMODE_MAXIMIZED);
-      else if (sizeMode == nsSizeMode_Fullscreen)
-        sizeString.Assign(SIZEMODE_FULLSCREEN);
-      else if (sizeMode == nsSizeMode_Normal)
-        sizeString.Assign(SIZEMODE_NORMAL);
-      if (!sizeString.IsEmpty()) {
-        windowElement->SetAttribute(MODE_ATTRIBUTE, sizeString);
-      }
-    }
-
+    
     if (sizeMode == nsSizeMode_Fullscreen) {
       nsCOMPtr<nsIDOMWindowInternal> ourWindow;
       GetWindowDOMWindow(getter_AddRefs(ourWindow));
       ourWindow->SetFullScreen(PR_TRUE);
-    } else {
-      mWindow->SetSizeMode(sizeMode);
     }
+    else
+      mWindow->SetSizeMode(sizeMode);
+
+    
     gotState = PR_TRUE;
   }
 
@@ -1344,8 +1338,8 @@ void nsXULWindow::StaggerPosition(PRInt32 &aRequestedX, PRInt32 &aRequestedY,
         nsCOMPtr<nsIBaseWindow> listBaseWindow(do_QueryInterface(supportsWindow));
         listBaseWindow->GetPosition(&listX, &listY);
 
-        if (NS_ABS(listX - aRequestedX) <= kSlop &&
-            NS_ABS(listY - aRequestedY) <= kSlop) {
+        if (PR_ABS(listX - aRequestedX) <= kSlop &&
+            PR_ABS(listY - aRequestedY) <= kSlop) {
           // collision! offset and start over
           if (bouncedX & 0x1)
             aRequestedX -= kOffset;
@@ -1401,14 +1395,22 @@ void nsXULWindow::SyncAttributesToWidget()
 
   // "chromemargin" attribute
   nsIntMargin margins;
+  nsCOMPtr<nsIContentUtils> cutils =
+    do_GetService("@mozilla.org/content/contentutils;1");
   rv = windowElement->GetAttribute(NS_LITERAL_STRING("chromemargin"), attr);
-  if (NS_SUCCEEDED(rv) && nsContentUtils::ParseIntMarginValue(attr, margins)) {
+  if (NS_SUCCEEDED(rv) && cutils && cutils->ParseIntMarginValue(attr, margins)) {
     mWindow->SetNonClientMargins(margins);
   }
 
   // "accelerated" attribute
   PRBool isAccelerated;
-  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
+  static const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
+  if (acceleratedEnv && *acceleratedEnv) {
+    isAccelerated = *acceleratedEnv != '0';
+    rv = NS_OK;
+  } else
+    rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
+
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetAcceleratedRendering(isAccelerated);
   }
@@ -1526,7 +1528,8 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   }
 
   if (mPersistentAttributesDirty & PAD_MISC) {
-    if (sizeMode != nsSizeMode_Minimized) {
+    if (sizeMode != nsSizeMode_Minimized &&
+        persistString.Find("sizemode") >= 0) {
       if (sizeMode == nsSizeMode_Maximized)
         sizeString.Assign(SIZEMODE_MAXIMIZED);
       else if (sizeMode == nsSizeMode_Fullscreen)
@@ -1534,7 +1537,7 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
       else
         sizeString.Assign(SIZEMODE_NORMAL);
       docShellElement->SetAttribute(MODE_ATTRIBUTE, sizeString);
-      if (ownerXULDoc && persistString.Find("sizemode") >= 0)
+      if (ownerXULDoc)
         ownerXULDoc->Persist(windowElementId, MODE_ATTRIBUTE);
     }
     if (persistString.Find("zlevel") >= 0) {
@@ -1780,14 +1783,19 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(PRInt32 aChromeFlags,
 
   nsCOMPtr<nsIURI> uri;
 
-  nsAdoptingCString urlStr = Preferences::GetCString("browser.chromeURL");
-  if (urlStr.IsEmpty()) {
-    urlStr.AssignLiteral("chrome://navigator/content/navigator.xul");
-  }
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs) {
+    nsXPIDLCString urlStr;
+    nsresult prefres;
+    prefres = prefs->GetCharPref("browser.chromeURL", getter_Copies(urlStr));
+    if (NS_SUCCEEDED(prefres) && urlStr.IsEmpty())
+      prefres = NS_ERROR_FAILURE;
+    if (NS_FAILED(prefres))
+      urlStr.AssignLiteral("chrome://navigator/content/navigator.xul");
 
-  nsCOMPtr<nsIIOService> service(do_GetService(NS_IOSERVICE_CONTRACTID));
-  if (service) {
-    service->NewURI(urlStr, nsnull, nsnull, getter_AddRefs(uri));
+    nsCOMPtr<nsIIOService> service(do_GetService(NS_IOSERVICE_CONTRACTID));
+    if (service)
+      service->NewURI(urlStr, nsnull, nsnull, getter_AddRefs(uri));
   }
   NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
 
@@ -1817,8 +1825,6 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(PRInt32 aChromeFlags,
     stack->Pop(&cx);
     NS_ASSERTION(cx == nsnull, "JSContextStack mismatch");
   }
-
-  NS_ENSURE_STATE(xulWin->mPrimaryContentShell);
 
   *_retval = newWindow;
   NS_ADDREF(*_retval);

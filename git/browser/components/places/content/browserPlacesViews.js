@@ -57,8 +57,6 @@ PlacesViewBase.prototype = {
   _viewElt: null,
   get viewElt() this._viewElt,
 
-  get controllers() this._viewElt.controllers,
-
   // The xul element that represents the root container.
   _rootElt: null,
 
@@ -402,9 +400,9 @@ PlacesViewBase.prototype = {
     let as = PlacesUtils.annotations;
 
     let lmStatus = null;
-    if (as.itemHasAnnotation(itemId, PlacesUtils.LMANNO_LOADFAILED))
+    if (as.itemHasAnnotation(itemId, "livemark/loadfailed"))
       lmStatus = "bookmarksLivemarkFailed";
-    else if (as.itemHasAnnotation(itemId, PlacesUtils.LMANNO_LOADING))
+    else if (as.itemHasAnnotation(itemId, "livemark/loading"))
       lmStatus = "bookmarksLivemarkLoading";
 
     let lmStatusElt = aPopup._lmStatusMenuItem;
@@ -443,7 +441,7 @@ PlacesViewBase.prototype = {
     elt.setAttribute("scheme", PlacesUIUtils.guessUrlSchemeForUI(aURIString));
   },
 
-  nodeIconChanged: function PVB_nodeIconChanged(aPlacesNode) {
+  nodeIconChanged: function PT_nodeIconChanged(aPlacesNode) {
     let elt = aPlacesNode._DOMElement;
     if (!elt)
       throw "aPlacesNode must have _DOMElement set";
@@ -466,27 +464,24 @@ PlacesViewBase.prototype = {
 
   nodeAnnotationChanged:
   function PVB_nodeAnnotationChanged(aPlacesNode, aAnno) {
-    let elt = aPlacesNode._DOMElement;
-    if (!elt)
-      throw "aPlacesNode must have _DOMElement set";
+    // Ensure the changed annotation is a livemark one.
+    if (/^livemark\//.test(aAnno) &&
+        PlacesUtils.nodeIsLivemarkContainer(aPlacesNode)) {
+      let elt = aPlacesNode._DOMElement;
+      if (!elt)
+        throw "aPlacesNode must have _DOMElement set";
 
-    // All livemarks have a feedURI, so use it as our indicator of a livemark
-    // being modified.
-    if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
       let menu = elt.parentNode;
       if (!menu.hasAttribute("livemark"))
         menu.setAttribute("livemark", "true");
-    }
 
-    if ([PlacesUtils.LMANNO_LOADING,
-         PlacesUtils.LMANNO_LOADFAILED].indexOf(aAnno) != -1) {
-      // Loading status changed, update the livemark status menuitem.
+      // Add or remove the livemark status menuitem.
       this._ensureLivemarkStatusMenuItem(elt);
     }
   },
 
   nodeTitleChanged:
-  function PVB_nodeTitleChanged(aPlacesNode, aNewTitle) {
+  function PM_nodeTitleChanged(aPlacesNode, aNewTitle) {
     let elt = aPlacesNode._DOMElement;
     if (!elt)
       throw "aPlacesNode must have _DOMElement set";
@@ -504,10 +499,10 @@ PlacesViewBase.prototype = {
       // Many users consider toolbars as shortcuts containers, so explicitly
       // allow empty labels on toolbarbuttons.  For any other element try to be
       // smarter, guessing a title from the uri.
-      elt.setAttribute("label", PlacesUIUtils.getBestTitle(aPlacesNode));
+      elt.label = PlacesUIUtils.getBestTitle(aPlacesNode);
     }
     else {
-      elt.setAttribute("label", aNewTitle);
+      elt.label = aNewTitle;
     }
   },
 
@@ -542,7 +537,7 @@ PlacesViewBase.prototype = {
   },
 
   nodeReplaced:
-  function PVB_nodeReplaced(aParentPlacesNode, aOldPlacesNode, aNewPlacesNode, aIndex) {
+  function PBV_nodeReplaced(aParentPlacesNode, aOldPlacesNode, aNewPlacesNode, aIndex) {
     let parentElt = aParentPlacesNode._DOMElement;
     if (!parentElt)
       throw "aParentPlacesNode node must have _DOMElement set";
@@ -572,7 +567,6 @@ PlacesViewBase.prototype = {
   nodeLastModifiedChanged: function() { },
   nodeKeywordChanged: function() { },
   sortingChanged: function() { },
-  batching: function() { },
   // Replaced by containerStateChanged.
   containerOpened: function() { },
   containerClosed: function() { },
@@ -657,11 +651,6 @@ PlacesViewBase.prototype = {
       this._result = null;
     }
 
-    if (this._controller) {
-      this._viewElt.controllers.removeController(this._controller);
-      this._controller = null;
-    }
-
     delete this._viewElt._placesView;
   },
 
@@ -669,9 +658,8 @@ PlacesViewBase.prototype = {
     if ("_isRTL" in this)
       return this._isRTL;
 
-    return this._isRTL = document.defaultView
-                                 .getComputedStyle(this.viewElt, "")
-                                 .direction == "rtl";
+    return this._isRTL = document.defaultView.getComputedStyle(this, "")
+                                 .direction == "rtl"
   },
 
   /**
@@ -758,8 +746,7 @@ PlacesViewBase.prototype = {
       aPopup._endOptOpenAllInTabs = document.createElement("menuitem");
       aPopup._endOptOpenAllInTabs.className = "openintabs-menuitem";
       aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
-        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event, " +
-                                               "PlacesUIUtils.getViewForNode(this));");
+        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event);");
       aPopup._endOptOpenAllInTabs.setAttribute("onclick",
         "checkForMiddleClick(this, event); event.stopPropagation();");
       aPopup._endOptOpenAllInTabs.setAttribute("label",
@@ -830,7 +817,7 @@ function PlacesToolbar(aPlace) {
 PlacesToolbar.prototype = {
   __proto__: PlacesViewBase.prototype,
 
-  _cbEvents: ["dragstart", "dragover", "dragexit", "dragend", "drop",
+  _cbEvents: ["dragstart", "dragover", "dragleave", "dragend", "drop",
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
               "mousedown", "mouseup",
@@ -1002,8 +989,8 @@ PlacesToolbar.prototype = {
       case "dragover":
         this._onDragOver(aEvent);
         break;
-      case "dragexit":
-        this._onDragExit(aEvent);
+      case "dragleave":
+        this._onDragLeave(aEvent);
         break;
       case "dragend":
         this._onDragEnd(aEvent);
@@ -1046,6 +1033,11 @@ PlacesToolbar.prototype = {
     if (this._chevron.collapsed)
       return;
 
+    // XXX (bug 508816) Scrollbox does not handle correctly RTL mode.
+    // This workarounds the issue scrolling the box to the right.
+    if (this._isRTL)
+      this._rootElt.scrollLeft = this._rootElt.scrollWidth;
+
     // Update the chevron on a timer.  This will avoid repeated work when
     // lot of changes happen in a small timeframe.
     if (this._updateChevronTimer)
@@ -1062,9 +1054,8 @@ PlacesToolbar.prototype = {
       // Once a child overflows, all the next ones will.
       if (!childOverflowed) {
         let childRect = child.getBoundingClientRect();
-        childOverflowed = this.isRTL ? (childRect.left < scrollRect.left)
-                                     : (childRect.right > scrollRect.right);
-                                      
+        childOverflowed = this._isRTL ? (childRect.left < scrollRect.left)
+                                      : (childRect.right > scrollRect.right);
       }
       child.style.visibility = childOverflowed ? "hidden" : "visible";
     }
@@ -1151,39 +1142,6 @@ PlacesToolbar.prototype = {
     }
 
     PlacesViewBase.prototype.nodeMoved.apply(this, arguments);
-  },
-
-  nodeAnnotationChanged:
-  function PT_nodeAnnotationChanged(aPlacesNode, aAnno) {
-    let elt = aPlacesNode._DOMElement;
-    if (!elt)
-      throw "aPlacesNode must have _DOMElement set";
-
-    if (elt == this._rootElt)
-      return;
-
-    // We're notified for the menupopup, not the containing toolbarbutton.
-    if (elt.localName == "menupopup")
-      elt = elt.parentNode;
-
-    if (elt.parentNode == this._rootElt) {
-      // Node is on the toolbar.
-
-      // All livemarks have a feedURI, so use it as our indicator.
-      if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
-        elt.setAttribute("livemark", true);
-      }
-
-      if ([PlacesUtils.LMANNO_LOADING,
-           PlacesUtils.LMANNO_LOADFAILED].indexOf(aAnno) != -1) {
-        // Loading status changed, update the livemark status menuitem.
-        this._ensureLivemarkStatusMenuItem(elt.firstChild);
-      }
-    }
-    else {
-      // Node is in a submenu.
-      PlacesViewBase.prototype.nodeAnnotationChanged.apply(this, arguments);
-    }
   },
 
   nodeTitleChanged: function PT_nodeTitleChanged(aPlacesNode, aNewTitle) {
@@ -1302,16 +1260,16 @@ PlacesToolbar.prototype = {
         // If we are in the middle of it, drop inside it.
         // Otherwise, drop before it, with regards to RTL mode.
         let threshold = eltRect.width * 0.25;
-        if (this.isRTL ? (aEvent.clientX > eltRect.right - threshold)
-                       : (aEvent.clientX < eltRect.left + threshold)) {
+        if (this._isRTL ? (aEvent.clientX > eltRect.right - threshold)
+                        : (aEvent.clientX < eltRect.left + threshold)) {
           // Drop before this folder.
           dropPoint.ip =
             new InsertionPoint(PlacesUtils.getConcreteItemId(this._resultNode),
                                eltIndex, Ci.nsITreeView.DROP_BEFORE);
           dropPoint.beforeIndex = eltIndex;
         }
-        else if (this.isRTL ? (aEvent.clientX > eltRect.left + threshold)
-                            : (aEvent.clientX < eltRect.right - threshold)) {
+        else if (this._isRTL ? (aEvent.clientX > eltRect.left + threshold)
+                             : (aEvent.clientX < eltRect.right - threshold)) {
           // Drop inside this folder.
           dropPoint.ip =
             new InsertionPoint(PlacesUtils.getConcreteItemId(elt._placesNode),
@@ -1336,8 +1294,8 @@ PlacesToolbar.prototype = {
         // This is a non-folder node or a read-only folder.
         // Drop before it with regards to RTL mode.
         let threshold = eltRect.width * 0.5;
-        if (this.isRTL ? (aEvent.clientX > eltRect.left + threshold)
-                       : (aEvent.clientX < eltRect.left + threshold)) {
+        if (this._isRTL ? (aEvent.clientX > eltRect.left + threshold)
+                        : (aEvent.clientX < eltRect.left + threshold)) {
           // Drop before this bookmark.
           dropPoint.ip =
             new InsertionPoint(PlacesUtils.getConcreteItemId(this._resultNode),
@@ -1521,7 +1479,7 @@ PlacesToolbar.prototype = {
       let ind = this._dropIndicator;
       let halfInd = ind.clientWidth / 2;
       let translateX;
-      if (this.isRTL) {
+      if (this._isRTL) {
         halfInd = Math.ceil(halfInd);
         translateX = 0 - this._rootElt.getBoundingClientRect().right - halfInd;
         if (this._rootElt.firstChild) {
@@ -1572,7 +1530,7 @@ PlacesToolbar.prototype = {
     aEvent.stopPropagation();
   },
 
-  _onDragExit: function PT__onDragExit(aEvent) {
+  _onDragLeave: function PT__onDragLeave(aEvent) {
     PlacesControllerDragHelper.currentDropTarget = null;
 
     // Set timer to turn off indicator bar (if we turn it off

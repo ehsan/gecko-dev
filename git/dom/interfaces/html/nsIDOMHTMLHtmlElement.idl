@@ -43,14 +43,11 @@
  * The nsIDOMHTMLHtmlElement interface is the interface to a [X]HTML
  * html element.
  *
- * This interface is trying to follow the DOM Level 2 HTML specification:
+ * For more information on this interface please see
  * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-[scriptable, uuid(a8500f4c-3314-4049-bb79-f782663e7273)]
+[scriptable, uuid(a6cf9086-15b3-11d2-932e-00805f8add32)]
 interface nsIDOMHTMLHtmlElement : nsIDOMHTMLElement
 {
            attribute DOMString        version;

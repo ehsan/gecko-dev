@@ -35,7 +35,6 @@
 
 //load('CSPUtils.jsm');
 Components.utils.import('resource://gre/modules/CSPUtils.jsm');
-Components.utils.import('resource://gre/modules/NetUtil.jsm');
 
 // load the HTTP server
 do_load_httpd_js();
@@ -47,37 +46,17 @@ const POLICY_PORT = 9000;
 const POLICY_URI = "http://localhost:" + POLICY_PORT + "/policy";
 const POLICY_URI_RELATIVE = "/policy";
 
-// helper to assert that an array has the given value somewhere.
-function do_check_in_array(arr, val, stack) {
-  if (!stack)
-    stack = Components.stack.caller;
-
-  var text = val + " in [" + arr.join(",") + "]";
-
-  for(var i in arr) {
-    dump(".......... " + i + "> " + arr[i] + "\n");
-    if(arr[i] == val) {
-      //succeed
-      ++_passedChecks;
-      dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
-           stack.lineNumber + "] " + text + "\n");
-      return;
-    }
-  }
-  do_throw(text, stack);
-}
-
 // helper to assert that an object or array must have a given key
 function do_check_has_key(foo, key, stack) {
   if (!stack) 
     stack = Components.stack.caller;
 
   var keys = [];
-  for (let k in foo) { keys.push(k); }
+  for(let k in keys) { keys.push(k); }
   var text = key + " in [" + keys.join(",") + "]";
 
-  for (var x in foo) {
-    if (x == key) {
+  for(var x in foo) {
+    if(x == key) {
       //succeed
       ++_passedChecks;
       dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
@@ -191,7 +170,6 @@ test(
 
       //"funny characters (#) should not work for host.");
       do_check_eq(null, CSPSource.fromString("a#2-c.com"));
-
       //print(" --- Stop ignoring errors that print ---\n");
 
       //"failed to parse host with port.");
@@ -231,16 +209,6 @@ test(
       do_check_true(src.permits("https://foobar.com"));
       //"src should reject other hosts"
       do_check_false(src.permits("https://a.com"));
-
-      src = CSPSource.create("javascript:", "https://foobar.com:443");
-      //"hostless schemes should be parseable."
-      var aUri = NetUtil.newURI("javascript:alert('foo');");
-      do_check_true(src.permits(aUri));
-      //"src should reject other hosts"
-      do_check_false(src.permits("https://a.com"));
-      //"nothing else should be allowed"
-      do_check_false(src.permits("https://foobar.com"));
-
     });
 
 ///////////////////// Test the source list //////////////////////
@@ -359,52 +327,21 @@ test(
 
       var cspr;
       var cspr_allowval;
-      var SD = CSPRep.SRC_DIRECTIVES;
 
       // check default policy "allow *"
       cspr = CSPRep.fromString("allow *", "http://self.com:80");
-      // "DEFAULT_SRC directive is missing when specified in fromString"
-      do_check_has_key(cspr._directives, SD.DEFAULT_SRC);
+      //"ALLOW directive is missing when specified in fromString"
+      do_check_has_key(cspr._directives, CSPRep.SRC_DIRECTIVES.ALLOW);
 
       // ... and check that the other directives were auto-filled with the
-      // DEFAULT_SRC one.
-      cspr_allowval = cspr._directives[SD.DEFAULT_SRC];
-      for(var d in SD) {
+      // ALLOW one.
+      var SD = CSPRep.SRC_DIRECTIVES;
+      cspr_allowval = cspr._directives[SD.ALLOW];
+      for(var d in CSPRep.SRC_DIRECTIVES) {
         //"Missing key " + d
         do_check_has_key(cspr._directives, SD[d]);
         //"Implicit directive " + d + " has non-allow value."
         do_check_eq(cspr._directives[SD[d]].toString(), cspr_allowval.toString());
-      }
-    });
-
-
-test(
-    function test_CSPRep_defaultSrc() {
-      var cspr, cspr_default_val, cspr_allow;
-      var SD = CSPRep.SRC_DIRECTIVES;
-
-      // apply policy of "default-src *" (e.g. "allow *")
-      cspr = CSPRep.fromString("default-src *", "http://self.com:80");
-      // "DEFAULT_SRC directive is missing when specified in fromString"
-      do_check_has_key(cspr._directives, SD.DEFAULT_SRC);
-
-      // check that the other directives were auto-filled with the
-      // DEFAULT_SRC one.
-      cspr_default_val = cspr._directives[SD.DEFAULT_SRC];
-      for (var d in SD) {
-        do_check_has_key(cspr._directives, SD[d]);
-        // "Implicit directive " + d + " has non-default-src value."
-        do_check_eq(cspr._directives[SD[d]].toString(), cspr_default_val.toString());
-      }
-
-      // check that |allow *| and |default-src *| are parsed equivalently and
-      // result in the same set of explicit policy directives
-      cspr = CSPRep.fromString("default-src *", "http://self.com:80");
-      cspr_allow = CSPRep.fromString("allow *", "http://self.com:80");
-
-      for (var d in SD) {
-        do_check_equivalent(cspr._directives[SD[d]],
-                            cspr_allow._directives[SD[d]]);
       }
     });
 
@@ -492,6 +429,45 @@ test(function test_CSPRep_fromString_withself() {
       do_check_true(cspr.permits("https://evil.com:100", SD.SCRIPT_SRC));
      });
 
+///////////////////// TEST POLICY_URI //////////////////////
+test(function test_CSPRep_fromPolicyURI() {
+        var cspr;
+        var SD = CSPRep.SRC_DIRECTIVES;
+        var self = "http://localhost:" + POLICY_PORT;
+
+        cspr = CSPRep.fromString("policy-uri " + POLICY_URI, self);
+        cspr_static = CSPRep.fromString(POLICY_FROM_URI, self);
+
+        //"policy-uri failed to load"
+        do_check_neq(null,cspr);
+
+        // other directives inherit self
+        for(var i in SD) {
+          //SD[i] + " parsed wrong from policy uri"
+          do_check_equivalent(cspr._directives[SD[i]],
+                              cspr_static._directives[SD[i]]);
+        }
+    });
+
+test(function test_CSPRep_fromRelativePolicyURI() {
+        var cspr;
+        var SD = CSPRep.SRC_DIRECTIVES;
+        var self = "http://localhost:" + POLICY_PORT;
+
+        cspr = CSPRep.fromString("policy-uri " + POLICY_URI_RELATIVE, self);
+        cspr_static = CSPRep.fromString(POLICY_FROM_URI, self);
+
+        //"policy-uri failed to load"
+        do_check_neq(null,cspr);
+
+        // other directives inherit self
+        for(var i in SD) {
+          //SD[i] + " parsed wrong from policy uri"
+          do_check_equivalent(cspr._directives[SD[i]],
+                              cspr_static._directives[SD[i]]);
+        }
+    });
+
 //////////////// TEST FRAME ANCESTOR DEFAULTS /////////////////
 // (see bug 555068)
 test(function test_FrameAncestor_defaults() {
@@ -517,66 +493,6 @@ test(function test_FrameAncestor_defaults() {
       do_check_false(cspr.permits("http://self.com", SD.FRAME_ANCESTORS));
       do_check_false(cspr.permits("http://subd.self.com:34", SD.FRAME_ANCESTORS));
      });
-
-test(function test_CSP_ReportURI_parsing() {
-      var cspr;
-      var SD = CSPRep.SRC_DIRECTIVES;
-      var self = "http://self.com:34";
-      var parsedURIs = [];
-
-      var uri_valid_absolute = self + "/report.py";
-      var uri_invalid_host_absolute = "http://foo.org:34/report.py";
-      var uri_valid_relative = "/report.py";
-      var uri_valid_relative_expanded = self + uri_valid_relative;
-      var uri_valid_relative2 = "foo/bar/report.py";
-      var uri_valid_relative2_expanded = self + "/" + uri_valid_relative2;
-      var uri_invalid_relative = "javascript:alert(1)";
-
-      cspr = CSPRep.fromString("allow *; report-uri " + uri_valid_absolute, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      do_check_in_array(parsedURIs, uri_valid_absolute);
-      do_check_eq(parsedURIs.length, 1);
-
-      cspr = CSPRep.fromString("allow *; report-uri " + uri_invalid_host_absolute, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      do_check_in_array(parsedURIs, "");
-      do_check_eq(parsedURIs.length, 1); // the empty string is in there.
-
-      cspr = CSPRep.fromString("allow *; report-uri " + uri_invalid_relative, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      do_check_in_array(parsedURIs, "");
-      do_check_eq(parsedURIs.length, 1);
-
-      cspr = CSPRep.fromString("allow *; report-uri " + uri_valid_relative, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      do_check_in_array(parsedURIs, uri_valid_relative_expanded);
-      do_check_eq(parsedURIs.length, 1);
-
-      cspr = CSPRep.fromString("allow *; report-uri " + uri_valid_relative2, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      dump(parsedURIs.length);
-      do_check_in_array(parsedURIs, uri_valid_relative2_expanded);
-      do_check_eq(parsedURIs.length, 1);
-
-      // combination!
-      cspr = CSPRep.fromString("allow *; report-uri " +
-                               uri_valid_relative2 + " " +
-                               uri_valid_absolute, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      do_check_in_array(parsedURIs, uri_valid_relative2_expanded);
-      do_check_in_array(parsedURIs, uri_valid_absolute);
-      do_check_eq(parsedURIs.length, 2);
-
-      cspr = CSPRep.fromString("allow *; report-uri " +
-                               uri_valid_relative2 + " " +
-                               uri_invalid_host_absolute + " " +
-                               uri_valid_absolute, self);
-      parsedURIs = cspr.getReportURIs().split(/\s+/);
-      do_check_in_array(parsedURIs, uri_valid_relative2_expanded);
-      do_check_in_array(parsedURIs, uri_valid_absolute);
-      do_check_eq(parsedURIs.length, 2);
-    });
-
 /*
 
 test(function test_CSPRep_fromPolicyURI_failswhenmixed() {

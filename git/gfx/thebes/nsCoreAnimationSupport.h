@@ -44,7 +44,6 @@
 #import "ApplicationServices/ApplicationServices.h"
 #include "nscore.h"
 #include "gfxTypes.h"
-#import <QuartzCore/QuartzCore.h>
 
 // Get the system color space.
 CGColorSpaceRef THEBES_API CreateSystemColorSpace();
@@ -58,8 +57,7 @@ class THEBES_API nsCARenderer {
 public:
   nsCARenderer() : mCARenderer(nsnull), mPixelBuffer(nsnull), mOpenGLContext(nsnull),
                    mCGImage(nsnull), mCGData(nsnull), mIOSurface(nsnull), mFBO(nsnull),
-                   mIOTexture(nsnull), 
-                   mUnsupportedWidth(UINT32_MAX), mUnsupportedHeight(UINT32_MAX) {}
+                   mIOTexture(nsnull) {}
   ~nsCARenderer();
   nsresult SetupRenderer(void* aCALayer, int aWidth, int aHeight);
   nsresult Render(int aWidth, int aHeight, CGImageRef *aOutCAImage);
@@ -74,7 +72,7 @@ public:
                                          nsIOSurface *surf, 
                                          CGColorSpaceRef aColorSpace, 
                                          int aX, int aY,
-                                         size_t aWidth, size_t aHeight);
+                                         int aWidth, int aHeight);
 private:
   void Destroy();
 
@@ -86,8 +84,6 @@ private:
   nsIOSurface       *mIOSurface;
   uint32_t           mFBO;
   uint32_t           mIOTexture;
-  uint32_t           mUnsupportedWidth;
-  uint32_t           mUnsupportedHeight;
 };
 
 typedef uint32_t IOSurfaceID;
@@ -107,9 +103,6 @@ public:
   size_t GetBytesPerRow();
   void Lock();
   void Unlock();
-  CGLError CGLTexImageIOSurface2D(CGLContextObj ctxt,
-                                  GLenum internalFormat, GLenum format, 
-                                  GLenum type, GLuint plane);
 private:
   friend class nsCARenderer;
   CFTypeRef mIOSurfacePtr;

@@ -43,17 +43,15 @@
 #include "nsIObserverService.h"
 #include "nsIAppStartup.h"
 #include "nsIGeolocationProvider.h"
+#include "nsIPrefService.h"
 
 #include "mozilla/Services.h"
-#include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
 #include "prenv.h"
 
 #include "AndroidBridge.h"
-#include "nsDeviceMotionSystem.h"
+#include "nsAccelerometerSystem.h"
 #include <android/log.h>
 #include <pthread.h>
-#include <wchar.h>
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
@@ -72,20 +70,25 @@ using namespace mozilla;
 PRLogModuleInfo *gWidgetLog = nsnull;
 #endif
 
-nsDeviceMotionSystem *gDeviceMotionSystem = nsnull;
+nsAccelerometerSystem *gAccel = nsnull;
 nsIGeolocationUpdate *gLocationCallback = nsnull;
 
 nsAppShell *nsAppShell::gAppShell = nsnull;
-
-NS_IMPL_ISUPPORTS_INHERITED1(nsAppShell, nsBaseAppShell, nsIObserver)
+AndroidGeckoEvent *nsAppShell::gEarlyEvent = nsnull;
 
 nsAppShell::nsAppShell()
-    : mQueueLock("nsAppShell.mQueueLock"),
-      mCondLock("nsAppShell.mCondLock"),
-      mQueueCond(mCondLock, "nsAppShell.mQueueCond"),
+    : mQueueLock(nsnull),
+      mCondLock(nsnull),
+      mQueueCond(nsnull),
+      mPausedLock(nsnull),
+      mPaused(nsnull),
       mNumDraws(0)
 {
     gAppShell = this;
+    if (gEarlyEvent) {
+        mEventQueue.AppendElement(gEarlyEvent);
+        gEarlyEvent = nsnull;
+    }
 }
 
 nsAppShell::~nsAppShell()
@@ -96,17 +99,10 @@ nsAppShell::~nsAppShell()
 void
 nsAppShell::NotifyNativeEvent()
 {
-    MutexAutoLock lock(mCondLock);
-    mQueueCond.Notify();
+    PR_Lock(mCondLock);
+    PR_NotifyCondVar(mQueueCond);
+    PR_Unlock(mCondLock);
 }
-
-#define PREFNAME_MATCH_OS  "intl.locale.matchOS"
-#define PREFNAME_UA_LOCALE "general.useragent.locale"
-static const char* kObservedPrefs[] = {
-  PREFNAME_MATCH_OS,
-  PREFNAME_UA_LOCALE,
-  nsnull
-};
 
 nsresult
 nsAppShell::Init()
@@ -116,83 +112,17 @@ nsAppShell::Init()
         gWidgetLog = PR_NewLogModule("Widget");
 #endif
 
+    mQueueLock = PR_NewLock();
+    mCondLock = PR_NewLock();
+    mPausedLock = PR_NewLock();
+    mQueueCond = PR_NewCondVar(mCondLock);
+    mPaused = PR_NewCondVar(mPausedLock);
+
     mObserversHash.Init();
 
-    nsresult rv = nsBaseAppShell::Init();
-    AndroidBridge* bridge = AndroidBridge::Bridge();
-    if (bridge)
-        bridge->NotifyAppShellReady();
-
-    nsCOMPtr<nsIObserverService> obsServ =
-        mozilla::services::GetObserverService();
-    if (obsServ) {
-        obsServ->AddObserver(this, "xpcom-shutdown", PR_FALSE);
-    }
-
-    if (!bridge)
-        return rv;
-
-    Preferences::AddStrongObservers(this, kObservedPrefs);
-
-    PRBool match;
-    rv = Preferences::GetBool(PREFNAME_MATCH_OS, &match);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (match) {
-        bridge->SetSelectedLocale(EmptyString());
-        return NS_OK;
-    }
-
-    nsAutoString locale;
-    rv = Preferences::GetLocalizedString(PREFNAME_UA_LOCALE, &locale);
-    if (NS_FAILED(rv)) {
-        rv = Preferences::GetString(PREFNAME_UA_LOCALE, &locale);
-    }
-
-    bridge->SetSelectedLocale(locale);
-    return rv;
+    return nsBaseAppShell::Init();
 }
 
-NS_IMETHODIMP
-nsAppShell::Observe(nsISupports* aSubject,
-                    const char* aTopic,
-                    const PRUnichar* aData)
-{
-    if (!strcmp(aTopic, "xpcom-shutdown")) {
-        // We need to ensure no observers stick around after XPCOM shuts down
-        // or we'll see crashes, as the app shell outlives XPConnect.
-        mObserversHash.Clear();
-        return nsBaseAppShell::Observe(aSubject, aTopic, aData);
-    } else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) && aData && (
-                   nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_UA_LOCALE)) ||
-                   nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_MATCH_OS)))) {
-        AndroidBridge* bridge = AndroidBridge::Bridge();
-        if (!bridge) {
-            return NS_OK;
-        }
-
-        PRBool match;
-        nsresult rv = Preferences::GetBool(PREFNAME_MATCH_OS, &match);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (match) {
-            bridge->SetSelectedLocale(EmptyString());
-            return NS_OK;
-        }
-
-        nsAutoString locale;
-        if (NS_FAILED(Preferences::GetLocalizedString(PREFNAME_UA_LOCALE,
-                                                      &locale))) {
-            locale = Preferences::GetString(PREFNAME_UA_LOCALE);
-        }
-
-        bridge->SetSelectedLocale(locale);
-        return NS_OK;
-    }
-    return NS_OK;
-}
 
 void
 nsAppShell::ScheduleNativeEventCallback()
@@ -203,34 +133,36 @@ nsAppShell::ScheduleNativeEventCallback()
     PostEvent(new AndroidGeckoEvent(AndroidGeckoEvent::NATIVE_POKE));
 }
 
+
 PRBool
 nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 {
     EVLOG("nsAppShell::ProcessNextNativeEvent %d", mayWait);
 
+    PR_Lock(mCondLock);
+
     nsAutoPtr<AndroidGeckoEvent> curEvent;
     AndroidGeckoEvent *nextEvent;
-    {
-        MutexAutoLock lock(mCondLock);
 
-        curEvent = GetNextEvent();
-        if (!curEvent && mayWait) {
-            // hmm, should we really hardcode this 10s?
+    curEvent = GetNextEvent();
+    if (!curEvent && mayWait) {
+        // hmm, should we really hardcode this 10s?
 #if defined(ANDROID_DEBUG_EVENTS)
-            PRTime t0, t1;
-            EVLOG("nsAppShell: waiting on mQueueCond");
-            t0 = PR_Now();
+        PRTime t0, t1;
+        EVLOG("nsAppShell: waiting on mQueueCond");
+        t0 = PR_Now();
 
-            mQueueCond.Wait(PR_MillisecondsToInterval(10000));
-            t1 = PR_Now();
-            EVLOG("nsAppShell: wait done, waited %d ms", (int)(t1-t0)/1000);
+        PR_WaitCondVar(mQueueCond, PR_MillisecondsToInterval(10000));
+        t1 = PR_Now();
+        EVLOG("nsAppShell: wait done, waited %d ms", (int)(t1-t0)/1000);
 #else
-            mQueueCond.Wait();
+        PR_WaitCondVar(mQueueCond, PR_INTERVAL_NO_TIMEOUT);
 #endif
 
-            curEvent = GetNextEvent();
-        }
+        curEvent = GetNextEvent();
     }
+
+    PR_Unlock(mCondLock);
 
     if (!curEvent)
         return false;
@@ -287,53 +219,30 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 
     EVLOG("nsAppShell: event %p %d [ndraws %d]", (void*)curEvent.get(), curEvent->Type(), mNumDraws);
 
+    nsWindow *target = (nsWindow*) curEvent->NativeWindow();
+
     switch (curEvent->Type()) {
     case AndroidGeckoEvent::NATIVE_POKE:
         NativeEventCallback();
         break;
 
-    case AndroidGeckoEvent::ACCELERATION_EVENT:
-        gDeviceMotionSystem->DeviceMotionChanged(nsIDeviceMotionData::TYPE_ACCELERATION,
-                                                 -curEvent->X(),
-                                                 curEvent->Y(),
-                                                 curEvent->Z());
+    case AndroidGeckoEvent::SENSOR_EVENT:
+        gAccel->AccelerationChanged(-curEvent->X(), curEvent->Y(), curEvent->Z());
         break;
 
-    case AndroidGeckoEvent::ORIENTATION_EVENT:
-        gDeviceMotionSystem->DeviceMotionChanged(nsIDeviceMotionData::TYPE_ORIENTATION,
-                                                 -curEvent->Alpha(),
-                                                 curEvent->Beta(),
-                                                 curEvent->Gamma());
-        break;
-
-    case AndroidGeckoEvent::LOCATION_EVENT: {
+    case AndroidGeckoEvent::LOCATION_EVENT:
         if (!gLocationCallback)
             break;
 
-        nsGeoPosition* p = curEvent->GeoPosition();
-        nsGeoPositionAddress* a = curEvent->GeoAddress();
-
-        if (p) {
-            p->SetAddress(a);
+        if (curEvent->GeoPosition())
             gLocationCallback->Update(curEvent->GeoPosition());
-        }
         else
             NS_WARNING("Received location event without geoposition!");
         break;
-    }
 
     case AndroidGeckoEvent::ACTIVITY_STOPPING: {
         nsCOMPtr<nsIObserverService> obsServ =
-            mozilla::services::GetObserverService();
-        NS_NAMED_LITERAL_STRING(minimize, "heap-minimize");
-        obsServ->NotifyObservers(nsnull, "memory-pressure", minimize.get());
-
-        break;
-    }
-
-    case AndroidGeckoEvent::ACTIVITY_SHUTDOWN: {
-        nsCOMPtr<nsIObserverService> obsServ =
-            mozilla::services::GetObserverService();
+          mozilla::services::GetObserverService();
         NS_NAMED_LITERAL_STRING(context, "shutdown-persist");
         obsServ->NotifyObservers(nsnull, "quit-application-granted", nsnull);
         obsServ->NotifyObservers(nsnull, "quit-application-forced", nsnull);
@@ -350,11 +259,13 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         // We really want to send a notification like profile-before-change,
         // but profile-before-change ends up shutting some things down instead
         // of flushing data
-        nsIPrefService* prefs = Preferences::GetService();
-        if (prefs) {
+        nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs)
             prefs->SavePrefFile(nsnull);
-        }
 
+        // The OS is sending us to the background, block this thread until 
+        // onResume is called to signal that we're back in the foreground
+        PR_WaitCondVar(mPaused, PR_INTERVAL_NO_TIMEOUT);
         break;
     }
 
@@ -368,12 +279,12 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         if (!uri)
             break;
 
-        const char *argv[3] = {
+        char* argv[3] = {
             "dummyappname",
             "-remote",
             uri
         };
-        nsresult rv = cmdline->Init(3, const_cast<char **>(argv), nsnull, nsICommandLine::STATE_REMOTE_AUTO);
+        nsresult rv = cmdline->Init(3, argv, nsnull, nsICommandLine::STATE_REMOTE_AUTO);
         if (NS_SUCCEEDED(rv))
             cmdline->Run();
         nsMemory::Free(uri);
@@ -381,7 +292,10 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
     }
 
     default:
-        nsWindow::OnGlobalAndroidEvent(curEvent);
+        if (target)
+            target->OnAndroidEvent(curEvent);
+        else
+            nsWindow::OnGlobalAndroidEvent(curEvent);
     }
 
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());
@@ -393,7 +307,7 @@ AndroidGeckoEvent*
 nsAppShell::GetNextEvent()
 {
     AndroidGeckoEvent *ae = nsnull;
-    MutexAutoLock lock(mQueueLock);
+    PR_Lock(mQueueLock);
     if (mEventQueue.Length()) {
         ae = mEventQueue[0];
         mEventQueue.RemoveElementAt(0);
@@ -401,6 +315,7 @@ nsAppShell::GetNextEvent()
             mNumDraws--;
         }
     }
+    PR_Unlock(mQueueLock);
 
     return ae;
 }
@@ -409,10 +324,11 @@ AndroidGeckoEvent*
 nsAppShell::PeekNextEvent()
 {
     AndroidGeckoEvent *ae = nsnull;
-    MutexAutoLock lock(mQueueLock);
+    PR_Lock(mQueueLock);
     if (mEventQueue.Length()) {
         ae = mEventQueue[0];
     }
+    PR_Unlock(mQueueLock);
 
     return ae;
 }
@@ -420,13 +336,12 @@ nsAppShell::PeekNextEvent()
 void
 nsAppShell::PostEvent(AndroidGeckoEvent *ae)
 {
-    {
-        MutexAutoLock lock(mQueueLock);
-        mEventQueue.AppendElement(ae);
-        if (ae->Type() == AndroidGeckoEvent::DRAW) {
-            mNumDraws++;
-        }
+    PR_Lock(mQueueLock);
+    mEventQueue.AppendElement(ae);
+    if (ae->Type() == AndroidGeckoEvent::DRAW) {
+        mNumDraws++;
     }
+    PR_Unlock(mQueueLock);
     NotifyNativeEvent();
 }
 
@@ -434,7 +349,7 @@ void
 nsAppShell::RemoveNextEvent()
 {
     AndroidGeckoEvent *ae = nsnull;
-    MutexAutoLock lock(mQueueLock);
+    PR_Lock(mQueueLock);
     if (mEventQueue.Length()) {
         ae = mEventQueue[0];
         mEventQueue.RemoveElementAt(0);
@@ -442,11 +357,16 @@ nsAppShell::RemoveNextEvent()
             mNumDraws--;
         }
     }
+    PR_Unlock(mQueueLock);
 }
 
 void
 nsAppShell::OnResume()
 {
+    PR_Lock(mPausedLock);
+    PR_NotifyCondVar(mPaused);
+    PR_Unlock(mPausedLock);
+
 }
 
 nsresult
@@ -492,7 +412,7 @@ nsAppShell::CallObserver(const nsAString &aObserverKey, const nsAString &aTopic,
 
     const NS_ConvertUTF16toUTF8 sTopic(aTopic);
     const nsPromiseFlatString& sData = PromiseFlatString(aData);
-
+    
     if (NS_IsMainThread()) {
         // This branch will unlikely be hit, have it just in case
         observer->Observe(nsnull, sTopic.get(), sData.get());
@@ -501,7 +421,6 @@ nsAppShell::CallObserver(const nsAString &aObserverKey, const nsAString &aTopic,
         nsCOMPtr<nsIRunnable> observerCaller = new ObserverCaller(observer, sTopic.get(), sData.get());
         nsresult rv = NS_DispatchToMainThread(observerCaller);
         ALOG("NS_DispatchToMainThread result: %d", rv);
-        unused << rv;
     }
 }
 
@@ -509,40 +428,6 @@ void
 nsAppShell::RemoveObserver(const nsAString &aObserverKey)
 {
     mObserversHash.Remove(aObserverKey);
-}
-
-// NotifyObservers support.  NotifyObservers only works on main thread.
-
-class NotifyObserversCaller : public nsRunnable {
-public:
-    NotifyObserversCaller(nsISupports *aSupports,
-                          const char *aTopic, const PRUnichar *aData) :
-        mSupports(aSupports), mTopic(aTopic), mData(aData) {
-    }
-
-    NS_IMETHOD Run() {
-        nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-        if (os)
-            os->NotifyObservers(mSupports, mTopic.get(), mData.get());
-
-        return NS_OK;
-    }
-
-private:
-    nsCOMPtr<nsISupports> mSupports;
-    nsCString mTopic;
-    nsString mData;
-};
-
-void
-nsAppShell::NotifyObservers(nsISupports *aSupports,
-                            const char *aTopic,
-                            const PRUnichar *aData)
-{
-    // This isn't main thread, so post this to main thread
-    nsCOMPtr<nsIRunnable> caller =
-        new NotifyObserversCaller(aSupports, aTopic, aData);
-    NS_DispatchToMainThread(caller);
 }
 
 // Used by IPC code

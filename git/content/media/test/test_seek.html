@@ -17,8 +17,6 @@
   <script type="text/javascript" src="seek9.js"></script>
   <script type="text/javascript" src="seek10.js"></script>
   <script type="text/javascript" src="seek11.js"></script>
-  <script type="text/javascript" src="seek12.js"></script>
-  <script type="text/javascript" src="seek13.js"></script>
 </head>
 <body>
 <pre id="test">
@@ -26,7 +24,7 @@
 
 var manager = new MediaTestManager;
 
-const NUM_SEEK_TESTS = 13;
+const NUM_SEEK_TESTS = 11
 
 function createTestArray() {
   var tests = [];
@@ -67,10 +65,9 @@ function startTest(test, token) {
     if (v.parentNode) {
       v.parentNode.removeChild(v);
     }
-    dump("SEEK-TEST: Finished " + name + "\n");
     manager.finished(v.token);
   }}(v, manager);
-  dump("SEEK-TEST: Started " + name + "\n");
+  dump("Seek test: " + test.number + "\n");
   window['test_seek' + test.number](v, test.duration/2, localIs, localOk, localFinish);
 }
 

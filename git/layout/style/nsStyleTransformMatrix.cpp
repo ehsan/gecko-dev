@@ -47,6 +47,7 @@
 #include "nsCSSKeywords.h"
 #include "nsMathUtils.h"
 #include "CSSCalc.h"
+#include "nsCSSStruct.h"
 
 namespace css = mozilla::css;
 
@@ -228,6 +229,81 @@ static nscoord CalcLength(const nsCSSValue &aValue,
                                 aCanStoreInRuleTree);
 }
 
+struct LengthPercentPairCalcOps : public css::NumbersAlreadyNormalizedOps
+{
+  struct result_type {
+    nscoord mLength;
+    float mPercent;
+
+    result_type(nscoord aLength, float aPercent)
+      : mLength(aLength), mPercent(aPercent) {}
+  };
+
+  LengthPercentPairCalcOps(nsStyleContext* aContext,
+                           nsPresContext* aPresContext,
+                           PRBool& aCanStoreInRuleTree)
+    : mContext(aContext),
+      mPresContext(aPresContext),
+      mCanStoreInRuleTree(aCanStoreInRuleTree) {}
+
+  nsStyleContext* mContext;
+  nsPresContext* mPresContext;
+  PRBool& mCanStoreInRuleTree;
+
+  result_type ComputeLeafValue(const nsCSSValue& aValue)
+  {
+    if (aValue.GetUnit() == eCSSUnit_Percent) {
+      return result_type(0, aValue.GetPercentValue());
+    } else {
+      return result_type(CalcLength(aValue, mContext, mPresContext,
+                                    mCanStoreInRuleTree),
+                         0.0f);
+    }
+  }
+
+  result_type
+  MergeAdditive(nsCSSUnit aCalcFunction,
+                result_type aValue1, result_type aValue2)
+  {
+    if (aCalcFunction == eCSSUnit_Calc_Plus) {
+      return result_type(NSCoordSaturatingAdd(aValue1.mLength,
+                                              aValue2.mLength),
+                         aValue1.mPercent + aValue2.mPercent);
+    }
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Minus,
+                      "min() and max() are not allowed in calc() on "
+                      "transform");
+    return result_type(NSCoordSaturatingSubtract(aValue1.mLength,
+                                                 aValue2.mLength, 0),
+                       aValue1.mPercent - aValue2.mPercent);
+  }
+
+  result_type
+  MergeMultiplicativeL(nsCSSUnit aCalcFunction,
+                       float aValue1, result_type aValue2)
+  {
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Times_L,
+                      "unexpected unit");
+    return result_type(NSCoordSaturatingMultiply(aValue2.mLength, aValue1),
+                       aValue1 * aValue2.mPercent);
+  }
+
+  result_type
+  MergeMultiplicativeR(nsCSSUnit aCalcFunction,
+                       result_type aValue1, float aValue2)
+  {
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Times_R ||
+                      aCalcFunction == eCSSUnit_Calc_Divided,
+                      "unexpected unit");
+    if (aCalcFunction == eCSSUnit_Calc_Divided) {
+      aValue2 = 1.0f / aValue2;
+    }
+    return result_type(NSCoordSaturatingMultiply(aValue1.mLength, aValue2),
+                       aValue1.mPercent * aValue2);
+  }
+
+};
+
 static void ProcessTranslatePart(nscoord& aOffset, float& aPercent,
                                  const nsCSSValue& aValue,
                                  nsStyleContext* aContext,
@@ -237,9 +313,9 @@ static void ProcessTranslatePart(nscoord& aOffset, float& aPercent,
   if (aValue.GetUnit() == eCSSUnit_Percent) {
     aPercent = aValue.GetPercentValue();
   } else if (aValue.IsCalcUnit()) {
-    nsRuleNode::ComputedCalc result =
-      nsRuleNode::SpecifiedCalcToComputedCalc(aValue, aContext, aPresContext,
-                                              aCanStoreInRuleTree);
+    LengthPercentPairCalcOps ops(aContext, aPresContext, aCanStoreInRuleTree);
+    LengthPercentPairCalcOps::result_type result =
+      css::ComputeCalc(aValue, ops);
     aPercent = result.mPercent;
     aOffset = result.mLength;
   } else {

@@ -41,9 +41,6 @@
 #include "nsDOMSettableTokenList.h"
 #include "nsStubMutationObserver.h"
 #include "nsIConstraintValidation.h"
-#include "nsEventStates.h"
-#include "mozAutoDocUpdate.h"
-#include "nsHTMLFormElement.h"
 
 
 class nsHTMLOutputElement : public nsGenericHTMLFormElement,
@@ -52,8 +49,6 @@ class nsHTMLOutputElement : public nsGenericHTMLFormElement,
                             public nsIConstraintValidation
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOutputElement();
 
@@ -77,22 +72,17 @@ public:
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
 
-  virtual bool IsDisabled() const { return PR_FALSE; }
-
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                         const nsAString& aValue, nsAttrValue& aResult);
 
-  nsEventStates IntrinsicState() const;
-
-  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                               nsIContent* aBindingParent,
-                               PRBool aCompileEventHandlers);
-
   // This function is called when a callback function from nsIMutationObserver
   // has to be used to update the defaultValue attribute.
   void DescendantsChanged();
+
+  // nsIConstraintValidation
+  PRBool IsBarredFromConstraintValidation() const { return PR_TRUE; }
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -124,9 +114,6 @@ nsHTMLOutputElement::nsHTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo
   , mValueModeFlag(eModeDefault)
 {
   AddMutationObserver(this);
-
-  // We start out valid and ui-valid (since we have no form).
-  AddStatesSilently(NS_EVENT_STATE_VALID | NS_EVENT_STATE_MOZ_UI_VALID);
 }
 
 nsHTMLOutputElement::~nsHTMLOutputElement()
@@ -157,17 +144,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLOutputElement)
 NS_IMPL_STRING_ATTR(nsHTMLOutputElement, Name, name)
 
 // nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(nsHTMLOutputElement)
-
-NS_IMETHODIMP
-nsHTMLOutputElement::SetCustomValidity(const nsAString& aError)
-{
-  nsIConstraintValidation::SetCustomValidity(aError);
-
-  UpdateState(true);
-
-  return NS_OK;
-}
+NS_IMPL_NSICONSTRAINTVALIDATION(nsHTMLOutputElement)
 
 NS_IMETHODIMP
 nsHTMLOutputElement::Reset()
@@ -198,48 +175,6 @@ nsHTMLOutputElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
 
   return nsGenericHTMLFormElement::ParseAttribute(aNamespaceID, aAttribute,
                                                   aValue, aResult);
-}
-
-nsEventStates
-nsHTMLOutputElement::IntrinsicState() const
-{
-  nsEventStates states = nsGenericHTMLFormElement::IntrinsicState();
-
-  // We don't have to call IsCandidateForConstraintValidation()
-  // because <output> can't be barred from constraint validation.
-  if (IsValid()) {
-    states |= NS_EVENT_STATE_VALID;
-    if (!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-      states |= NS_EVENT_STATE_MOZ_UI_VALID;
-    }
-  } else {
-    states |= NS_EVENT_STATE_INVALID;
-    if (!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-      states |= NS_EVENT_STATE_MOZ_UI_INVALID;
-    }
-  }
-
-  return states;
-}
-
-nsresult
-nsHTMLOutputElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                                nsIContent* aBindingParent,
-                                PRBool aCompileEventHandlers)
-{
-  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
-                                                     aBindingParent,
-                                                     aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Unfortunately, we can actually end up having to change our state
-  // as a result of being bound to a tree even from the parser: we
-  // might end up a in a novalidate form, and unlike other form
-  // controls that on its own is enough to make change ui-valid state.
-  // So just go ahead and update our state now.
-  UpdateState(false);
-
-  return rv;
 }
 
 NS_IMETHODIMP

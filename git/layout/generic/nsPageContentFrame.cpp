@@ -42,8 +42,10 @@
 #include "nsHTMLParts.h"
 #include "nsIContent.h"
 #include "nsPresContext.h"
+#include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
+#include "nsIDeviceContext.h"
 #include "nsReadableUtils.h"
 #include "nsSimplePageSequence.h"
 #include "nsDisplayList.h"
@@ -57,7 +59,7 @@ NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
 
 /* virtual */ nsSize
-nsPageContentFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsPageContentFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
                                 PRBool aShrinkWrap)
@@ -115,17 +117,13 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
     // in the percentage padding case)
     kidReflowState.mStylePadding->GetPadding(padding);
 
-    // This is for shrink-to-fit, and therefore we want to use the
-    // scrollable overflow, since the purpose of shrink to fit is to
-    // make the content that ought to be reachable (represented by the
-    // scrollable overflow) fit in the page.
-    if (frame->HasOverflowAreas()) {
+    // First check the combined area
+    if (frame->HasOverflowRect()) {
       // The background covers the content area and padding area, so check
       // for children sticking outside the child frame's padding edge
-      nscoord xmost = aDesiredSize.ScrollableOverflow().XMost();
-      if (xmost > aDesiredSize.width) {
+      if (aDesiredSize.mOverflowArea.XMost() > aDesiredSize.width) {
         mPD->mPageContentXMost =
-          xmost +
+          aDesiredSize.mOverflowArea.XMost() +
           kidReflowState.mStyleBorder->GetActualBorderWidth(NS_SIDE_RIGHT) +
           padding.right;
       }
@@ -137,10 +135,12 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
     NS_ASSERTION(aPresContext->IsDynamic() || !NS_FRAME_IS_FULLY_COMPLETE(aStatus) ||
                   !frame->GetNextInFlow(), "bad child flow list");
   }
-
-  // Reflow our fixed frames
+  // Reflow our fixed frames 
   nsReflowStatus fixedStatus = NS_FRAME_COMPLETE;
-  ReflowAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, fixedStatus);
+  mFixedContainer.Reflow(this, aPresContext, aReflowState, fixedStatus,
+                         aReflowState.availableWidth,
+                         aReflowState.availableHeight,
+                         PR_FALSE, PR_TRUE, PR_TRUE); // XXX could be optimized
   NS_ASSERTION(NS_FRAME_IS_COMPLETE(fixedStatus), "fixed frames can be truncated, but not incomplete");
 
   // Return our desired size

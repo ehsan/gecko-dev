@@ -54,10 +54,6 @@ namespace JSC { typedef MacroAssemblerX86 MacroAssemblerBase; }
 #include "MacroAssemblerX86_64.h"
 namespace JSC { typedef MacroAssemblerX86_64 MacroAssemblerBase; }
 
-#elif WTF_CPU_SPARC
-#include "MacroAssemblerSparc.h"
-namespace JSC { typedef MacroAssemblerSparc MacroAssemblerBase; }
-
 #else
 #error "The MacroAssembler is not supported on this platform."
 #endif
@@ -95,12 +91,12 @@ public:
         storePtr(src, Address(stackPointerRegister, (index * sizeof(void*))));
     }
 
-    void poke(TrustedImm32 value, int index = 0)
+    void poke(Imm32 value, int index = 0)
     {
         store32(value, Address(stackPointerRegister, (index * sizeof(void*))));
     }
 
-    void poke(TrustedImmPtr imm, int index = 0)
+    void poke(ImmPtr imm, int index = 0)
     {
         storePtr(imm, Address(stackPointerRegister, (index * sizeof(void*))));
     }
@@ -117,7 +113,7 @@ public:
         branch32(cond, op1, op2).linkTo(target, this);
     }
 
-    void branch32(Condition cond, RegisterID op1, TrustedImm32 imm, Label target)
+    void branch32(Condition cond, RegisterID op1, Imm32 imm, Label target)
     {
         branch32(cond, op1, imm).linkTo(target, this);
     }
@@ -177,9 +173,19 @@ public:
         and32(src, dest);
     }
 
+    void andPtr(Address address, RegisterID srcDest)
+    {
+        and32(address, srcDest);
+    }
+
     void andPtr(Imm32 imm, RegisterID srcDest)
     {
         and32(imm, srcDest);
+    }
+
+    void andPtr(ImmPtr ptr, RegisterID srcDest)
+    {
+        and32(Imm32(ptr), srcDest);
     }
 
     void notPtr(RegisterID srcDest)
@@ -200,6 +206,11 @@ public:
     void orPtr(Imm32 imm, RegisterID dest)
     {
         or32(imm, dest);
+    }
+
+    void orPtr(Address address, RegisterID srcDest)
+    {
+        or32(address, srcDest);
     }
 
     void subPtr(RegisterID src, RegisterID dest)
@@ -263,22 +274,27 @@ public:
         store32(src, address);
     }
 
+    void storePtr(RegisterID src, BaseIndex address)
+    {
+        store32(src, address);
+    }
+
     void storePtr(RegisterID src, void* address)
     {
         store32(src, address);
     }
 
-    void storePtr(TrustedImmPtr imm, ImplicitAddress address)
+    void storePtr(ImmPtr imm, ImplicitAddress address)
     {
         store32(Imm32(imm), address);
     }
 
-    void storePtr(TrustedImmPtr imm, BaseIndex address)
+    void storePtr(ImmPtr imm, BaseIndex address)
     {
         store32(Imm32(imm), address);
     }
 
-    void storePtr(TrustedImmPtr imm, void* address)
+    void storePtr(ImmPtr imm, void* address)
     {
         store32(Imm32(imm), address);
     }

@@ -41,6 +41,10 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
+#include "nsCSSStruct.h"
+
+// XXX wrap, variable, cols, tabstop
+
 
 class nsHTMLPreElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLPreElement
@@ -134,9 +138,14 @@ static void
 MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                       nsRuleData* aData)
 {
+  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
+    // variable
+    if (aAttributes->GetAttr(nsGkAtoms::variable))
+      aData->mFontData->mFamily.SetStringValue(NS_LITERAL_STRING("serif"),
+                                               eCSSUnit_Families);
+  }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
-    nsCSSValue* width = aData->ValueForWidth();
-    if (width->GetUnit() == eCSSUnit_Null) {
+    if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
       // width: int (html4 attribute == nav4 cols)
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
       if (!value || value->Type() != nsAttrValue::eInteger) {
@@ -145,15 +154,14 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
 
       if (value && value->Type() == nsAttrValue::eInteger)
-        width->SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Char);
+        aData->mPositionData->mWidth.SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Char);
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Text)) {
-    nsCSSValue* whiteSpace = aData->ValueForWhiteSpace();
-    if (whiteSpace->GetUnit() == eCSSUnit_Null) {
+    if (aData->mTextData->mWhiteSpace.GetUnit() == eCSSUnit_Null) {
       // wrap: empty
       if (aAttributes->GetAttr(nsGkAtoms::wrap))
-        whiteSpace->SetIntValue(NS_STYLE_WHITESPACE_PRE_WRAP, eCSSUnit_Enumerated);
+        aData->mTextData->mWhiteSpace.SetIntValue(NS_STYLE_WHITESPACE_PRE_WRAP, eCSSUnit_Enumerated);
 
       // width: int (html4 attribute == nav4 cols)
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
@@ -165,7 +173,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       if (value && value->Type() == nsAttrValue::eInteger) {
         // Force wrap property on since we want to wrap at a width
         // boundary not just a newline.
-        whiteSpace->SetIntValue(NS_STYLE_WHITESPACE_PRE_WRAP, eCSSUnit_Enumerated);
+        aData->mTextData->mWhiteSpace.SetIntValue(NS_STYLE_WHITESPACE_PRE_WRAP, eCSSUnit_Enumerated);
       }
     }
   }
@@ -177,6 +185,7 @@ NS_IMETHODIMP_(PRBool)
 nsHTMLPreElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry attributes[] = {
+    { &nsGkAtoms::variable },
     { &nsGkAtoms::wrap },
     { &nsGkAtoms::cols },
     { &nsGkAtoms::width },

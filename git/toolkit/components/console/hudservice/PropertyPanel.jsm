@@ -44,7 +44,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-var EXPORTED_SYMBOLS = ["PropertyPanel", "PropertyTreeView", "namesAndValuesOf"];
+var EXPORTED_SYMBOLS = ["PropertyPanel", "PropertyTreeView"];
 
 ///////////////////////////////////////////////////////////////////////////
 //// Helper for PropertyTreeView
@@ -95,12 +95,6 @@ function presentableValueFor(aObject)
         display: aObject
       };
 
-    case "Iterator":
-      return {
-        type: TYPE_OTHER,
-        display: "Iterator"
-      };
-
     case "Function":
       presentable = aObject.toString();
       return {
@@ -111,41 +105,13 @@ function presentableValueFor(aObject)
     default:
       presentable = aObject.toString();
       let m = /^\[object (\S+)\]/.exec(presentable);
-
-      if (typeof aObject == "object" && typeof aObject.next == "function" &&
-          m && m[1] == "Generator") {
-        return {
-          type: TYPE_OTHER,
-          display: m[1]
-        };
-      }
-
-      if (typeof aObject == "object" && typeof aObject.__iterator__ == "function") {
-        return {
-          type: TYPE_OTHER,
-          display: "Iterator"
-        };
-      }
+      let display;
 
       return {
         type: TYPE_OBJECT,
         display: m ? m[1] : "Object"
       };
   }
-}
-
-/**
- * Tells if the given function is native or not.
- *
- * @param function aFunction
- *        The function you want to check if it is native or not.
- *
- * @return boolean
- *         True if the given function is native, false otherwise.
- */
-function isNativeFunction(aFunction)
-{
-  return typeof aFunction == "function" && !("prototype" in aFunction);
 }
 
 /**
@@ -159,32 +125,15 @@ function isNativeFunction(aFunction)
 function namesAndValuesOf(aObject)
 {
   let pairs = [];
-  let value, presentable, getter;
-
-  let isDOMDocument = aObject instanceof Ci.nsIDOMDocument;
+  let value, presentable;
 
   for (var propName in aObject) {
-    // See bug 632275: skip deprecated width and height properties.
-    if (isDOMDocument && (propName == "width" || propName == "height")) {
+    try {
+      value = aObject[propName];
+      presentable = presentableValueFor(value);
+    }
+    catch (ex) {
       continue;
-    }
-
-    // Also skip non-native getters.
-    // TODO: implement a safer way to skip non-native getters. See bug 647235.
-    getter = aObject.__lookupGetter__ ?
-             aObject.__lookupGetter__(propName) : null;
-    if (getter && !isNativeFunction(getter)) {
-      value = ""; // Value is never displayed.
-      presentable = {type: TYPE_OTHER, display: "Getter"};
-    }
-    else {
-      try {
-        value = aObject[propName];
-        presentable = presentableValueFor(value);
-      }
-      catch (ex) {
-        continue;
-      }
     }
 
     let pair = {};
@@ -481,22 +430,16 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
     label: aTitle,
     titlebar: "normal",
     noautofocus: "true",
-    noautohide: "true",
-    close: "true",
+    noautohide: "true"
   });
 
   // Create the tree.
-  let tree = this.tree = createElement(aDocument, "tree", {
-    flex: 1,
-    hidecolumnpicker: "true"
-  });
+  let tree = this.tree = createElement(aDocument, "tree", { flex: 1 });
 
   let treecols = aDocument.createElement("treecols");
   appendChild(aDocument, treecols, "treecol", {
     primary: "true",
-    flex: 1,
-    hideheader: "true",
-    ignoreincolumnpicker: "true"
+    flex: 1
   });
   tree.appendChild(treecols);
 
@@ -513,8 +456,7 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
     aButtons.forEach(function(button) {
       let buttonNode = appendChild(aDocument, footer, "button", {
         label: button.label,
-        accesskey: button.accesskey || "",
-        class: button.class || "",
+        accesskey: button.accesskey || ""
       });
       buttonNode.addEventListener("command", button.oncommand, false);
     });
@@ -536,12 +478,6 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
     self.panel.removeEventListener("popupshown", onPopupShow, false);
     self.tree.view = self.treeView;
   }, false);
-
-  this.panel.addEventListener("popuphidden", function onPopupHide()
-  {
-    self.panel.removeEventListener("popuphidden", onPopupHide, false);
-    self.destroy();
-  }, false);
 }
 
 /**
@@ -552,13 +488,9 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
  */
 PropertyPanel.prototype.destroy = function PP_destroy()
 {
+  this.panel.hidePopup();
   this.panel.parentNode.removeChild(this.panel);
   this.treeView = null;
   this.panel = null;
   this.tree = null;
-
-  if (this.linkNode) {
-    this.linkNode._panelOpen = false;
-    this.linkNode = null;
-  }
 }

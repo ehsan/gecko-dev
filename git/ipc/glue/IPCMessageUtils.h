@@ -42,8 +42,6 @@
 #include "chrome/common/ipc_message_utils.h"
 
 #include "prtypes.h"
-#include "nsID.h"
-#include "nsMemory.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "gfx3DMatrix.h"
@@ -52,29 +50,15 @@
 #include "gfxPattern.h"
 #include "nsRect.h"
 #include "nsRegion.h"
-#include "gfxASurface.h"
-#include "Layers.h"
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4800 )
 #endif
 
-#if !defined(OS_POSIX)
-// This condition must be kept in sync with the one in
-// ipc_message_utils.h, but this dummy definition of
-// base::FileDescriptor acts as a static assert that we only get one
-// def or the other (or neither, in which case code using
-// FileDescriptor fails to build)
-namespace base { class FileDescriptor { }; }
-#endif
-
-using mozilla::layers::LayerManager;
 
 namespace mozilla {
 
 typedef gfxPattern::GraphicsFilter GraphicsFilterType;
-typedef gfxASurface::gfxSurfaceType gfxSurfaceType;
-typedef LayerManager::LayersBackend LayersBackend;
 
 // XXX there are out of place and might be generally useful.  Could
 // move to nscore.h or something.
@@ -130,22 +114,6 @@ struct ParamTraits<PRUint8>
     return true;
   }
 };
-
-#if !defined(OS_POSIX)
-// See above re: keeping definitions in sync
-template<>
-struct ParamTraits<base::FileDescriptor>
-{
-  typedef base::FileDescriptor paramType;
-  static void Write(Message* aMsg, const paramType& aParam) {
-    NS_RUNTIMEABORT("FileDescriptor isn't meaningful on this platform");
-  }
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult) {
-    NS_RUNTIMEABORT("FileDescriptor isn't meaningful on this platform");
-    return false;
-  }
-};
-#endif  // !defined(OS_POSIX)
 
 template <>
 struct ParamTraits<nsACString>
@@ -278,10 +246,10 @@ struct ParamTraits<nsString> : ParamTraits<nsAString>
   typedef nsString paramType;
 };
 
-template <typename E, class A>
-struct ParamTraits<nsTArray<E, A> >
+template <typename E>
+struct ParamTraits<nsTArray<E> >
 {
-  typedef nsTArray<E, A> paramType;
+  typedef nsTArray<E> paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -319,28 +287,6 @@ struct ParamTraits<nsTArray<E, A> >
       LogParam(aParam[index], aLog);
     }
   }
-};
-
-template<typename E>
-struct ParamTraits<InfallibleTArray<E> > :
-  ParamTraits<nsTArray<E, nsTArrayInfallibleAllocator> >
-{
-  typedef InfallibleTArray<E> paramType;
-
-  // use nsTArray Write() method
-
-  // deserialize the array fallibly, but return an InfallibleTArray
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    nsTArray<E> temp;
-    if (!ReadParam(aMsg, aIter, &temp))
-      return false;
-
-    aResult->SwapElements(temp);
-    return true;
-  }
-
-  // use nsTArray Log() method
 };
 
 template<>
@@ -473,67 +419,6 @@ struct ParamTraits<mozilla::GraphicsFilterType>
     }
   }
 };
-
- template<>
-struct ParamTraits<mozilla::gfxSurfaceType>
-{
-  typedef mozilla::gfxSurfaceType paramType;
-
-  static void Write(Message* msg, const paramType& param)
-  {
-    if (gfxASurface::SurfaceTypeImage <= param &&
-        param < gfxASurface::SurfaceTypeMax) {
-      WriteParam(msg, int32(param));
-      return;
-    }
-    NS_RUNTIMEABORT("surface type not reached");
-  }
-
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    int32 filter;
-    if (!ReadParam(msg, iter, &filter))
-      return false;
-
-    if (gfxASurface::SurfaceTypeImage <= filter &&
-        filter < gfxASurface::SurfaceTypeMax) {
-      *result = paramType(filter);
-      return true;
-    }
-    return false;
-  }
-};
-
- template<>
-struct ParamTraits<mozilla::LayersBackend>
-{
-  typedef mozilla::LayersBackend paramType;
-
-  static void Write(Message* msg, const paramType& param)
-  {
-    if (LayerManager::LAYERS_NONE < param &&
-        param < LayerManager::LAYERS_LAST) {
-      WriteParam(msg, int32(param));
-      return;
-    }
-    NS_RUNTIMEABORT("surface type not reached");
-  }
-
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    int32 type;
-    if (!ReadParam(msg, iter, &type))
-      return false;
-
-    if (LayerManager::LAYERS_NONE < type &&
-        type < LayerManager::LAYERS_LAST) {
-      *result = paramType(type);
-      return true;
-    }
-    return false;
-  }
-};
-
 template<>
 struct ParamTraits<gfxRGBA>
 {
@@ -664,70 +549,6 @@ struct ParamTraits<nsIntSize>
   {
     return (ReadParam(msg, iter, &result->width) &&
             ReadParam(msg, iter, &result->height));
-  }
-};
-
-template<>
-struct ParamTraits<nsRect>
-{
-  typedef nsRect paramType;
-  
-  static void Write(Message* msg, const paramType& param)
-  {
-    WriteParam(msg, param.x);
-    WriteParam(msg, param.y);
-    WriteParam(msg, param.width);
-    WriteParam(msg, param.height);
-  }
-
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    return (ReadParam(msg, iter, &result->x) &&
-            ReadParam(msg, iter, &result->y) &&
-            ReadParam(msg, iter, &result->width) &&
-            ReadParam(msg, iter, &result->height));
-  }
-};
-
-template<>
-struct ParamTraits<nsID>
-{
-  typedef nsID paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    WriteParam(aMsg, aParam.m0);
-    WriteParam(aMsg, aParam.m1);
-    WriteParam(aMsg, aParam.m2);
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(aParam.m3); i++) {
-      WriteParam(aMsg, aParam.m3[i]);
-    }
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    if(!ReadParam(aMsg, aIter, &(aResult->m0)) ||
-       !ReadParam(aMsg, aIter, &(aResult->m1)) ||
-       !ReadParam(aMsg, aIter, &(aResult->m2)))
-      return false;
-
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(aResult->m3); i++)
-      if (!ReadParam(aMsg, aIter, &(aResult->m3[i])))
-        return false;
-
-    return true;
-  }
-
-  static void Log(const paramType& aParam, std::wstring* aLog)
-  {
-    aLog->append(L"{");
-    aLog->append(StringPrintf(L"%8.8X-%4.4X-%4.4X-",
-                              aParam.m0,
-                              aParam.m1,
-                              aParam.m2));
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(aParam.m3); i++)
-      aLog->append(StringPrintf(L"%2.2X", aParam.m3[i]));
-    aLog->append(L"}");
   }
 };
 

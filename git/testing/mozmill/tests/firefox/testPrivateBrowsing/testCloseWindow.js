@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *   Henrik Skupin <hskupin@mozilla.com>
- *   Aaron Train <atrain@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,34 +34,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Include necessary modules
-const RELATIVE_ROOT = '../../shared-modules';
-const MODULE_REQUIRES = ['PrivateBrowsingAPI', 'TabbedBrowsingAPI', 'UtilsAPI'];
+var RELATIVE_ROOT = '../../shared-modules';
+var MODULE_REQUIRES = ['PrivateBrowsingAPI', 'TabbedBrowsingAPI'];
 
-const TIMEOUT = 5000;
+const gDelay = 0;
+const gTimeout = 5000;
 
-const LOCAL_TEST_FOLDER = collector.addHttpResource('../test-files/');
-const LOCAL_TEST_PAGES = [
-  {url: LOCAL_TEST_FOLDER + 'layout/mozilla.html', name: 'community'},
-  {url: LOCAL_TEST_FOLDER + 'layout/mozilla_mission.html', name: 'mission'}
-];
+var websites = [
+                {url: 'https://addons.mozilla.org/', id: 'search-query'},
+                {url: 'https://bugzilla.mozilla.org', id: 'quicksearch_top'}
+               ];
 
-var setupModule = function(module) {
+var setupModule = function(module)
+{
   controller = mozmill.getBrowserController();
   pb = new PrivateBrowsingAPI.privateBrowsing(controller);
-  tabBrowser = new TabbedBrowsingAPI.tabBrowser(controller);
 
   TabbedBrowsingAPI.closeAllTabs(controller);
 }
 
-var teardownModule = function(module) {
+var teardownModule = function(module)
+{
   pb.reset();
 }
 
 /**
  * Verify when closing window in private browsing that regular session is restored
  */
-var testCloseWindow = function() {
+var testCloseWindow = function()
+{
   // Closing the only browser window while staying in Private Browsing mode
   // will quit the application on Windows and Linux. So only on the test on OS X.
   if (!mozmill.isMac)
@@ -74,55 +74,45 @@ var testCloseWindow = function() {
   pb.enabled = false;
   pb.showPrompt = false;
 
-  // Open local pages in separate tabs
+  // Open websites in separate tabs
   var newTab = new elementslib.Elem(controller.menus['file-menu'].menu_newNavigatorTab);
-  
-  for each (var page in LOCAL_TEST_PAGES) {
-    controller.open(page.url);
+  for (var ii = 0; ii < websites.length; ii++) {
+    controller.open(websites[ii].url);
     controller.click(newTab);
   }
 
-  // Wait until all tabs have finished loading
-  for (var i = 0; i < LOCAL_TEST_PAGES.length; i++) {
-    controller.waitForPageLoad(controller.tabs.getTab(i));
-
-    var elem = new elementslib.Name(controller.tabs.getTab(i), LOCAL_TEST_PAGES[i].name);
-    controller.waitForElement(elem, TIMEOUT); 
+  // Wait until all tabs have been finished loading
+  for (var ii = 0; ii < websites.length; ii++) {
+    var elem = new elementslib.ID(controller.tabs.getTab(ii), websites[ii].id);
+    controller.waitForElement(elem, gTimeout);
   }
 
   // Start Private Browsing
   pb.start();
 
-  // One single window will be opened in PB mode which has to be closed now
-  var cmdKey = UtilsAPI.getEntity(tabBrowser.getDtds(), "closeCmd.key");
-  controller.keypress(null, cmdKey, {accelKey: true});
-  
-  controller.waitForEval("subject.utils.getWindows().length == subject.expectedCount",
-                         TIMEOUT, 100,
-                         {utils: mozmill.utils, expectedCount: (windowCount - 1)});
+  // Get the window count and wait until the window has been closed
+  controller.keypress(null, "w", {shiftKey: true, accelKey: true});
+  controller.waitForEval("subject.getWindows().length == " + (windowCount - 1),
+                         gTimeout, 100, mozmill.utils);
 
   // Without a window any keypress and menu click will fail.
   // Flipping the pref directly will also do it.
   pb.enabled = false;
-  controller.waitForEval("subject.utils.getWindows().length == subject.expectedCount",
-                         TIMEOUT, 100,
-                         {utils: mozmill.utils, expectedCount: windowCount});
+  controller.waitForEval("subject.getWindows().length == " + windowCount,
+                         gTimeout, 100, mozmill.utils);
 
-  UtilsAPI.handleWindow("type", "navigator:browser", checkWindowOpen, true);
-}
+  controller.sleep(500);
+  var window = mozmill.wm.getMostRecentWindow("navigator:browser");
+  controller = new mozmill.controller.MozMillController(window);
 
-function checkWindowOpen(controller) {
   // All tabs should be restored
-  controller.assertJS("subject.tabs.length == subject.expectedCount",
-                      {tabs: controller.tabs, expectedCount: (websites.length + 1)});
+  controller.assertJS("subject.tabs.length == " + (websites.length + 1),
+                      controller);
 
-  // Check if all local pages were re-loaded and show their content
-  for (var i = 0; i < LOCAL_TEST_PAGES.length; i++) {
-    var tab = controller.tabs.getTab(i);
-    var elem = new elementslib.Name(tab, LOCAL_TEST_PAGES[i].name);
-
-    controller.waitForPageLoad(tab);
-    controller.waitForElement(elem, TIMEOUT);
+  // Check if all pages were re-loaded and show their content
+  for (var ii = 0; ii < websites.length; ii++) {
+    var elem = new elementslib.ID(controller.tabs.getTab(ii), websites[ii].id);
+    controller.waitForElement(elem, gTimeout);
   }
 }
 

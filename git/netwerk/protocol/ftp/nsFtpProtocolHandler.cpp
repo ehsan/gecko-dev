@@ -49,10 +49,6 @@
  *                               use in OS2
  */
 
-#include "mozilla/net/NeckoChild.h"
-#include "mozilla/net/FTPChannelChild.h"
-using namespace mozilla::net;
-
 #include "nsFtpProtocolHandler.h"
 #include "nsFTPChannel.h"
 #include "nsIURL.h"
@@ -85,7 +81,6 @@ using namespace mozilla::net;
 //
 PRLogModuleInfo* gFTPLog = nsnull;
 #endif
-#undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
 
 //-----------------------------------------------------------------------------
@@ -133,9 +128,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS4(nsFtpProtocolHandler,
 nsresult
 nsFtpProtocolHandler::Init()
 {
-    if (IsNeckoChild())
-        NeckoChild::InitNeckoChild();
-
     if (mIdleTimeout == -1) {
         nsresult rv;
         nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
@@ -249,18 +241,18 @@ nsFtpProtocolHandler::NewProxiedChannel(nsIURI* uri, nsIProxyInfo* proxyInfo,
                                         nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
-    nsRefPtr<nsBaseChannel> channel;
-    if (IsNeckoChild())
-        channel = new FTPChannelChild(uri);
-    else
-        channel = new nsFtpChannel(uri, proxyInfo);
+    nsFtpChannel *channel = new nsFtpChannel(uri, proxyInfo);
+    if (!channel)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(channel);
 
     nsresult rv = channel->Init();
     if (NS_FAILED(rv)) {
+        NS_RELEASE(channel);
         return rv;
     }
     
-    channel.forget(result);
+    *result = channel;
     return rv;
 }
 

@@ -96,55 +96,69 @@ var PlacesUIUtils = {
     return bundle.GetStringFromName(key);
   },
 
-  get _copyableAnnotations() [
-    this.DESCRIPTION_ANNO,
-    this.LOAD_IN_SIDEBAR_ANNO,
-    PlacesUtils.POST_DATA_ANNO,
-    PlacesUtils.READ_ONLY_ANNO,
-  ],
-
   /**
-   * Get a transaction for copying a uri item (either a bookmark or a history
-   * entry) from one container to another.
-   *
+   * Get a transaction for copying a uri item from one container to another
+   * as a bookmark.
    * @param   aData
    *          JSON object of dropped or pasted item properties
    * @param   aContainer
    *          The container being copied into
    * @param   aIndex
    *          The index within the container the item is copied to
-   * @return A nsITransaction object that performs the copy.
-   *
-   * @note Since a copy creates a completely new item, only some internal
-   *       annotations are synced from the old one.
-   * @see this._copyableAnnotations for the list of copyable annotations.
+   * @returns A nsITransaction object that performs the copy.
    */
-  _getURIItemCopyTransaction:
-  function PUIU__getURIItemCopyTransaction(aData, aContainer, aIndex)
-  {
-    let transactions = [];
-    if (aData.dateAdded) {
-      transactions.push(
-        new PlacesEditItemDateAddedTransaction(null, aData.dateAdded)
-      );
-    }
-    if (aData.lastModified) {
-      transactions.push(
-        new PlacesEditItemLastModifiedTransaction(null, aData.lastModified)
-      );
-    }
+  _getURIItemCopyTransaction: function (aData, aContainer, aIndex) {
+    return this.ptm.createItem(PlacesUtils._uri(aData.uri), aContainer, aIndex,
+                               aData.title, "");
+  },
 
-    let keyword = aData.keyword || null;
-    let annos = [];
-    if (aData.annos) {
-      annos = aData.annos.filter(function (aAnno) {
-        return this._copyableAnnotations.indexOf(aAnno.name) != -1;
+  /**
+   * Get a transaction for copying a bookmark item from one container to
+   * another.
+   * @param   aData
+   *          JSON object of dropped or pasted item properties
+   * @param   aContainer
+   *          The container being copied into
+   * @param   aIndex
+   *          The index within the container the item is copied to
+   * @param   [optional] aExcludeAnnotations
+   *          Optional, array of annotations (listed by their names) to exclude
+   *          when copying the item.
+   * @returns A nsITransaction object that performs the copy.
+   */
+  _getBookmarkItemCopyTransaction:
+  function PUIU__getBookmarkItemCopyTransaction(aData, aContainer, aIndex,
+                                                aExcludeAnnotations) {
+    var itemURL = PlacesUtils._uri(aData.uri);
+    var itemTitle = aData.title;
+    var keyword = aData.keyword || null;
+    var annos = aData.annos || [];
+    // always exclude GUID when copying any item
+    var excludeAnnos = [PlacesUtils.GUID_ANNO];
+    if (aExcludeAnnotations)
+      excludeAnnos = excludeAnnos.concat(aExcludeAnnotations);
+    annos = annos.filter(function(aValue, aIndex, aArray) {
+      return excludeAnnos.indexOf(aValue.name) == -1;
+    });
+    var childTxns = [];
+    if (aData.dateAdded)
+      childTxns.push(this.ptm.editItemDateAdded(null, aData.dateAdded));
+    if (aData.lastModified)
+      childTxns.push(this.ptm.editItemLastModified(null, aData.lastModified));
+    if (aData.tags) {
+      var tags = aData.tags.split(", ");
+      // filter out tags already present, so that undo doesn't remove them
+      // from pre-existing bookmarks
+      var storedTags = PlacesUtils.tagging.getTagsForURI(itemURL);
+      tags = tags.filter(function (aTag) {
+        return (storedTags.indexOf(aTag) == -1);
       }, this);
+      if (tags.length)
+        childTxns.push(this.ptm.tagURI(itemURL, tags));
     }
 
-    return new PlacesCreateBookmarkTransaction(PlacesUtils._uri(aData.uri),
-                                               aContainer, aIndex, aData.title,
-                                               keyword, annos, transactions);
+    return this.ptm.createItem(itemURL, aContainer, aIndex, itemTitle, keyword,
+                               annos, childTxns);
   },
 
   /**
@@ -157,133 +171,94 @@ var PlacesUIUtils = {
    *          The container we are copying into
    * @param   aIndex
    *          The index in the destination container to insert the new items
-   * @return A nsITransaction object that will perform the copy.
-   *
-   * @note Since a copy creates a completely new item, only some internal
-   *       annotations are synced from the old one.
-   * @see this._copyableAnnotations for the list of copyable annotations.
+   * @returns A nsITransaction object that will perform the copy.
    */
   _getFolderCopyTransaction:
-  function PUIU__getFolderCopyTransaction(aData, aContainer, aIndex)
-  {
-    function getChildItemsTransactions(aChildren)
-    {
-      let transactions = [];
-      let index = aIndex;
-      aChildren.forEach(function (node, i) {
+  function PUIU__getFolderCopyTransaction(aData, aContainer, aIndex) {
+    function getChildItemsTransactions(aChildren) {
+      var childItemsTransactions = [];
+      var cc = aChildren.length;
+      var index = aIndex;
+      for (var i = 0; i < cc; ++i) {
+        var txn = null;
+        var node = aChildren[i];
+
         // Make sure that items are given the correct index, this will be
         // passed by the transaction manager to the backend for the insertion.
-        // Insertion behaves differently for DEFAULT_INDEX (append).
-        if (aIndex != PlacesUtils.bookmarks.DEFAULT_INDEX) {
+        // Insertion behaves differently if index == DEFAULT_INDEX (append)
+        if (aIndex != PlacesUtils.bookmarks.DEFAULT_INDEX)
           index = i;
-        }
 
         if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) {
-          if (node.livemark && node.annos) {
-            transactions.push(
-              PlacesUIUtils._getLivemarkCopyTransaction(node, aContainer, index)
-            );
-          }
-          else {
-            transactions.push(
-              PlacesUIUtils._getFolderCopyTransaction(node, aContainer, index)
-            );
-          }
+          if (node.livemark && node.annos) // node is a livemark
+            txn = PlacesUIUtils._getLivemarkCopyTransaction(node, aContainer, index);
+          else
+            txn = PlacesUIUtils._getFolderCopyTransaction(node, aContainer, index);
         }
-        else if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR) {
-          transactions.push(new PlacesCreateSeparatorTransaction(-1, index));
-        }
-        else if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE) {
-          transactions.push(
-            PlacesUIUtils._getURIItemCopyTransaction(node, -1, index)
-          );
-        }
-        else {
-          throw new Error("Unexpected item under a bookmarks folder");
-        }
-      });
-      return transactions;
+        else if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR)
+          txn = PlacesUIUtils.ptm.createSeparator(-1, index);
+        else if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE)
+          txn = PlacesUIUtils._getBookmarkItemCopyTransaction(node, -1, index);
+
+        if (txn)
+          childItemsTransactions.push(txn);
+        else
+          throw("Unexpected item under a bookmarks folder");
+      }
+      return childItemsTransactions;
     }
 
-    if (aContainer == PlacesUtils.tagsFolderId) { // Copying a tag folder.
-      let transactions = [];
+    // tag folders use tag transactions
+    if (aContainer == PlacesUtils.tagsFolderId) {
+      var txns = [];
       if (aData.children) {
         aData.children.forEach(function(aChild) {
-          transactions.push(
-            new PlacesTagURITransaction(PlacesUtils._uri(aChild.uri),
-                                        [aData.title])
-          );
-        });
+          txns.push(this.ptm.tagURI(PlacesUtils._uri(aChild.uri), [aData.title]));
+        }, this);
       }
-      return new PlacesAggregatedTransaction("addTags", transactions);
+      return this.ptm.aggregateTransactions("addTags", txns);
     }
-
-    if (aData.livemark && aData.annos) { // Copying a livemark.
+    else if (aData.livemark && aData.annos) {
+      // Place is a Livemark Container
       return this._getLivemarkCopyTransaction(aData, aContainer, aIndex);
     }
+    else {
+      var childItems = getChildItemsTransactions(aData.children);
+      if (aData.dateAdded)
+        childItems.push(this.ptm.editItemDateAdded(null, aData.dateAdded));
+      if (aData.lastModified)
+        childItems.push(this.ptm.editItemLastModified(null, aData.lastModified));
 
-    let transactions = getChildItemsTransactions(aData.children);
-    if (aData.dateAdded) {
-      transactions.push(
-        new PlacesEditItemDateAddedTransaction(null, aData.dateAdded)
-      );
+      var annos = aData.annos || [];
+      annos = annos.filter(function(aAnno) {
+        // always exclude GUID when copying any item
+        return aAnno.name != PlacesUtils.GUID_ANNO;
+      });
+      return this.ptm.createFolder(aData.title, aContainer, aIndex, annos, childItems);
     }
-    if (aData.lastModified) {
-      transactions.push(
-        new PlacesEditItemLastModifiedTransaction(null, aData.lastModified)
-      );
-    }
-
-    let annos = [];
-    if (aData.annos) {
-      annos = aData.annos.filter(function (aAnno) {
-        return this._copyableAnnotations.indexOf(aAnno.name) != -1;
-      }, this);
-    }
-
-    return new PlacesCreateFolderTransaction(aData.title, aContainer, aIndex,
-                                             annos, transactions);
   },
 
-  /**
-   * Gets a transaction for copying a live bookmark item from one container to
-   * another.
-   *
-   * @param   aData
-   *          Unwrapped live bookmarkmark data
-   * @param   aContainer
-   *          The container we are copying into
-   * @param   aIndex
-   *          The index in the destination container to insert the new items
-   * @return A nsITransaction object that will perform the copy.
-   *
-   * @note Since a copy creates a completely new item, only some internal
-   *       annotations are synced from the old one.
-   * @see this._copyableAnnotations for the list of copyable annotations.
-   */
   _getLivemarkCopyTransaction:
-  function PUIU__getLivemarkCopyTransaction(aData, aContainer, aIndex)
-  {
-    if (!aData.livemark || !aData.annos) {
-      throw new Error("node is not a livemark");
-    }
-
-    let feedURI, siteURI;
-    let annos = [];
-    if (aData.annos) {
-      annos = aData.annos.filter(function (aAnno) {
-        if (aAnno.name == PlacesUtils.LMANNO_FEEDURI) {
-          feedURI = PlacesUtils._uri(aAnno.value);
-        }
-        else if (aAnno.name == PlacesUtils.LMANNO_SITEURI) {
-          siteURI = PlacesUtils._uri(aAnno.value);
-        }
-        return this._copyableAnnotations.indexOf(aAnno.name) != -1
-      }, this);
-    }
-
-    return new PlacesCreateLivemarkTransaction(feedURI, siteURI, aData.title,
-                                               aContainer, aIndex, annos);
+  function PUIU__getLivemarkCopyTransaction(aData, aContainer, aIndex) {
+    if (!aData.livemark || !aData.annos)
+      throw("node is not a livemark");
+    // Place is a Livemark Container
+    var feedURI = null;
+    var siteURI = null;
+    aData.annos = aData.annos.filter(function(aAnno) {
+      if (aAnno.name == PlacesUtils.LMANNO_FEEDURI) {
+        feedURI = PlacesUtils._uri(aAnno.value);
+        return false;
+      }
+      else if (aAnno.name == PlacesUtils.LMANNO_SITEURI) {
+        siteURI = PlacesUtils._uri(aAnno.value);
+        return false;
+      }
+      // always exclude GUID when copying any item
+      return aAnno.name != PlacesUtils.GUID_ANNO;
+    });
+    return this.ptm.createLivemark(feedURI, siteURI, aData.title, aContainer,
+                                   aIndex, aData.annos);
   },
 
   /**
@@ -302,65 +277,98 @@ var PlacesUIUtils = {
    * @returns An object implementing nsITransaction that can perform
    *          the move/insert.
    */
-  makeTransaction:
-  function PUIU_makeTransaction(data, type, container, index, copy)
-  {
+  makeTransaction: function PUIU_makeTransaction(data, type, container,
+                                                 index, copy) {
     switch (data.type) {
       case PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER:
-        if (copy) {
+        if (copy)
           return this._getFolderCopyTransaction(data, container, index);
-        }
-
         // Otherwise move the item.
-        return new PlacesMoveItemTransaction(data.id, container, index);
+        return this.ptm.moveItem(data.id, container, index);
         break;
       case PlacesUtils.TYPE_X_MOZ_PLACE:
-        if (copy || data.id == -1) { // Id is -1 if the place is not bookmarked.
+        if (data.id == -1) // Not bookmarked.
           return this._getURIItemCopyTransaction(data, container, index);
-        }
 
+        if (copy)
+          return this._getBookmarkItemCopyTransaction(data, container, index);
         // Otherwise move the item.
-        return new PlacesMoveItemTransaction(data.id, container, index);
+        return this.ptm.moveItem(data.id, container, index);
         break;
       case PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR:
-        if (copy) {
-          // There is no data in a separator, so copying it just amounts to
-          // inserting a new separator.
-          return new PlacesCreateSeparatorTransaction(container, index);
-        }
-
+        // There is no data in a separator, so copying it just amounts to
+        // inserting a new separator.
+        if (copy)
+          return this.ptm.createSeparator(container, index);
         // Otherwise move the item.
-        return new PlacesMoveItemTransaction(data.id, container, index);
+        return this.ptm.moveItem(data.id, container, index);
         break;
       default:
         if (type == PlacesUtils.TYPE_X_MOZ_URL ||
             type == PlacesUtils.TYPE_UNICODE ||
             type == this.TYPE_TAB_DROP) {
-          let title = type != PlacesUtils.TYPE_UNICODE ? data.title
-                                                       : data.uri;
-          return new PlacesCreateBookmarkTransaction(PlacesUtils._uri(data.uri),
-                                                     container, index, title);
+          var title = (type != PlacesUtils.TYPE_UNICODE) ? data.title :
+                                                             data.uri;
+          return this.ptm.createItem(PlacesUtils._uri(data.uri),
+                                     container, index, title);
         }
     }
     return null;
   },
 
-  _reportDeprecatedAddBookmarkMethod:
-  function PUIU__reportDeprecatedAddBookmarkMethod() {
-    // Removes "PUIU_".
-    let oldFuncName = arguments.callee.caller.name.slice(5);
-    Cu.reportError(oldFuncName + " is deprecated and will be removed in a " +
-                   "future release. Use showBookmarkDialog instead.");
-  },
+  /**
+   * Methods to show the bookmarkProperties dialog in its various modes.
+   *
+   * The showMinimalAdd* methods open the dialog by its alternative URI. Thus
+   * they persist the dialog dimensions separately from the showAdd* methods.
+   * Note these variants also do not return the dialog "performed" state since
+   * they may not open the dialog modally.
+   */
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * Shows the "Add Bookmark" dialog.
+   *
+   * @param [optional] aURI
+   *        An nsIURI object for which the "add bookmark" dialog is
+   *        to be shown.
+   * @param [optional] aTitle
+   *        The default title for the new bookmark.
+   * @param [optional] aDescription
+            The default description for the new bookmark
+   * @param [optional] aDefaultInsertionPoint
+   *        The default insertion point for the new item. If set, the folder
+   *        picker would be hidden unless aShowPicker is set to true, in which
+   *        case the dialog only uses the folder identifier from the insertion
+   *        point as the initially selected item in the folder picker.
+   * @param [optional] aShowPicker
+   *        see above
+   * @param [optional] aLoadInSidebar
+   *        If true, the dialog will default to load the new item in the
+   *        sidebar (as a web panel).
+   * @param [optional] aKeyword
+   *        The default keyword for the new bookmark. The keyword field
+   *        will be shown in the dialog if this is used.
+   * @param [optional] aPostData
+   *        POST data for POST-style keywords.
+   * @param [optional] aCharSet
+   *        The character set for the bookmarked page.
+   * @return true if any transaction has been performed.
+   *
+   * Notes:
+   *  - the location, description and "loadInSidebar" fields are
+   *    visible only if there is no initial URI (aURI is null).
+   *  - When aDefaultInsertionPoint is not set, the dialog defaults to the
+   *    bookmarks root folder.
    */
-  showAddBookmarkUI: function PUIU_showAddBookmarkUI(
-    aURI, aTitle, aDescription, aDefaultInsertionPoint, aShowPicker,
-    aLoadInSidebar, aKeyword, aPostData, aCharSet) {
-    this._reportDeprecatedAddBookmarkMethod();
-
+  showAddBookmarkUI: function PUIU_showAddBookmarkUI(aURI,
+                                                     aTitle,
+                                                     aDescription,
+                                                     aDefaultInsertionPoint,
+                                                     aShowPicker,
+                                                     aLoadInSidebar,
+                                                     aKeyword,
+                                                     aPostData,
+                                                     aCharSet) {
     var info = {
       action: "add",
       type: "bookmark"
@@ -393,18 +401,25 @@ var PlacesUIUtils = {
         info.charSet = aCharSet;
     }
 
-    return this.showBookmarkDialog(info);
+    return this._showBookmarkDialog(info);
   },
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * @see showAddBookmarkUI
+   * This opens the dialog with only the name and folder pickers visible by
+   * default.
+   *
+   * You can still pass in the various paramaters as the default properties
+   * for the new bookmark.
+   *
+   * The keyword field will be visible only if the aKeyword parameter
+   * was used.
    */
   showMinimalAddBookmarkUI:
-  function PUIU_showMinimalAddBookmarkUI(
-    aURI, aTitle, aDescription, aDefaultInsertionPoint, aShowPicker,
-    aLoadInSidebar, aKeyword, aPostData, aCharSet) {
-    this._reportDeprecatedAddBookmarkMethod();
-
+  function PUIU_showMinimalAddBookmarkUI(aURI, aTitle, aDescription,
+                                         aDefaultInsertionPoint, aShowPicker,
+                                         aLoadInSidebar, aKeyword, aPostData,
+                                         aCharSet) {
     var info = {
       action: "add",
       type: "bookmark",
@@ -444,11 +459,30 @@ var PlacesUIUtils = {
     else
       info.hiddenRows.push("keyword");
 
-    return this.showBookmarkDialog(info, undefined, true);
+    return this._showBookmarkDialog(info, true);
   },
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * Shows the "Add Live Bookmark" dialog.
+   *
+   * @param [optional] aFeedURI
+   *        The feed URI for which the dialog is to be shown (nsIURI).
+   * @param [optional] aSiteURI
+   *        The site URI for the new live-bookmark (nsIURI).
+   * @param [optional] aDefaultInsertionPoint
+   *        The default insertion point for the new item. If set, the folder
+   *        picker would be hidden unless aShowPicker is set to true, in which
+   *        case the dialog only uses the folder identifier from the insertion
+   *        point as the initially selected item in the folder picker.
+   * @param [optional] aShowPicker
+   *        see above
+   * @return true if any transaction has been performed.
+   *
+   * Notes:
+   *  - the feedURI and description fields are visible only if there is no
+   *    initial feed URI (aFeedURI is null).
+   *  - When aDefaultInsertionPoint is not set, the dialog defaults to the
+   *    bookmarks root folder.
    */
   showAddLivemarkUI: function PUIU_showAddLivemarkURI(aFeedURI,
                                                       aSiteURI,
@@ -456,8 +490,6 @@ var PlacesUIUtils = {
                                                       aDescription,
                                                       aDefaultInsertionPoint,
                                                       aShowPicker) {
-    this._reportDeprecatedAddBookmarkMethod();
-
     var info = {
       action: "add",
       type: "livemark"
@@ -480,19 +512,21 @@ var PlacesUIUtils = {
       if (!aShowPicker)
         info.hiddenRows = ["folderPicker"];
     }
-    return this.showBookmarkDialog(info);
+    return this._showBookmarkDialog(info);
   },
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * @see showAddLivemarkUI
+   * This opens the dialog with only the name and folder pickers visible by
+   * default.
+   *
+   * You can still pass in the various paramaters as the default properties
+   * for the new live-bookmark.
    */
   showMinimalAddLivemarkUI:
-  function PUIU_showMinimalAddLivemarkURI(
-    aFeedURI, aSiteURI, aTitle, aDescription, aDefaultInsertionPoint,
-    aShowPicker) {
-
-    this._reportDeprecatedAddBookmarkMethod();
-
+  function PUIU_showMinimalAddLivemarkURI(aFeedURI, aSiteURI, aTitle,
+                                          aDescription, aDefaultInsertionPoint,
+                                          aShowPicker) {
     var info = {
       action: "add",
       type: "livemark",
@@ -516,15 +550,19 @@ var PlacesUIUtils = {
       if (!aShowPicker)
         info.hiddenRows.push("folderPicker");
     }
-    return this.showBookmarkDialog(info, undefined, true);
+    return this._showBookmarkDialog(info, true);
   },
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * Show an "Add Bookmarks" dialog to allow the adding of a folder full
+   * of bookmarks corresponding to the objects in the uriList.  This will
+   * be called most often as the result of a "Bookmark All Tabs..." command.
+   *
+   * @param aURIList  List of nsIURI objects representing the locations
+   *                  to be bookmarked.
+   * @return true if any transaction has been performed.
    */
   showMinimalAddMultiBookmarkUI: function PUIU_showAddMultiBookmarkUI(aURIList) {
-    this._reportDeprecatedAddBookmarkMethod();
-
     if (aURIList.length == 0)
       throw("showAddMultiBookmarkUI expects a list of nsIURI objects");
     var info = {
@@ -533,31 +571,46 @@ var PlacesUIUtils = {
       hiddenRows: ["description"],
       URIList: aURIList
     };
-    return this.showBookmarkDialog(info, undefined, true);
+    return this._showBookmarkDialog(info, true);
   },
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * Opens the properties dialog for a given item identifier.
+   *
+   * @param aItemId
+   *        item identifier for which the properties are to be shown
+   * @param aType
+   *        item type, either "bookmark" or "folder"
+   * @param [optional] aReadOnly
+   *        states if properties dialog should be readonly
+   * @return true if any transaction has been performed.
    */
   showItemProperties: function PUIU_showItemProperties(aItemId, aType, aReadOnly) {
-    this._reportDeprecatedAddBookmarkMethod();
-
     var info = {
       action: "edit",
       type: aType,
       itemId: aItemId,
       readOnly: aReadOnly
     };
-    return this.showBookmarkDialog(info);
+    return this._showBookmarkDialog(info);
   },
 
   /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
+   * Shows the "New Folder" dialog.
+   *
+   * @param [optional] aTitle
+   *        The default title for the new bookmark.
+   * @param [optional] aDefaultInsertionPoint
+   *        The default insertion point for the new item. If set, the folder
+   *        picker would be hidden unless aShowPicker is set to true, in which
+   *        case the dialog only uses the folder identifier from the insertion
+   *        point as the initially selected item in the folder picker.
+   * @param [optional] aShowPicker
+   *        see above
+   * @return true if any transaction has been performed.
    */
   showAddFolderUI:
   function PUIU_showAddFolderUI(aTitle, aDefaultInsertionPoint, aShowPicker) {
-    this._reportDeprecatedAddBookmarkMethod();
-
     var info = {
       action: "add",
       type: "folder",
@@ -573,48 +626,41 @@ var PlacesUIUtils = {
       if (!aShowPicker)
         info.hiddenRows.push("folderPicker");
     }
-    return this.showBookmarkDialog(info);
+    return this._showBookmarkDialog(info);
   },
 
-
   /**
-   * Shows the bookmark dialog corresponding to the specified info.
+   * Shows the bookmark dialog corresponding to the specified info
    *
    * @param aInfo
    *        Describes the item to be edited/added in the dialog.
    *        See documentation at the top of bookmarkProperties.js
-   * @param aWindow
-   *        Owner window for the new dialog.
-   * @param aMinimalUI [optional]
-   *        Whether to open the dialog in "minimal ui" mode. Do not pass this
-   *        for new callers.  It'll be removed in a future release.
+   * @param aMinimalUI
+   *        [optional] if true, the dialog is opened by its alternative
+   *        chrome: uri.
    *
-   * @see documentation at the top of bookmarkProperties.js
    * @return true if any transaction has been performed, false otherwise.
    */
-  showBookmarkDialog:
-  function PUIU_showBookmarkDialog(aInfo, aParentWindow, aMinimalUI) {
-    if (!aParentWindow) {
-      aParentWindow = this._getWindow(null);
-    }
-
-    // Preserve size attributes differently based on the fact the dialog has
-    // a folder picker or not.
-    let minimalUI = "hiddenRows" in aInfo &&
-                    aInfo.hiddenRows.indexOf("folderPicker") != -1;
-    let dialogURL = aMinimalUI ?
+  _showBookmarkDialog: function PUIU__showBookmarkDialog(aInfo, aMinimalUI) {
+    var dialogURL = aMinimalUI ?
                     "chrome://browser/content/places/bookmarkProperties2.xul" :
                     "chrome://browser/content/places/bookmarkProperties.xul";
 
-    let features =
-      "centerscreen,chrome,modal,resizable=" + (aMinimalUI ? "yes" : "no");
-
-    aParentWindow.openDialog(dialogURL, "",  features, aInfo);
+    var features;
+    if (aMinimalUI)
+      features = "centerscreen,chrome,modal,resizable=yes";
+    else
+      features = "centerscreen,chrome,modal,resizable=no";
+    this._getCurrentActiveWin().openDialog(dialogURL, "",  features, aInfo);
     return ("performed" in aInfo && aInfo.performed);
   },
 
   _getTopBrowserWin: function PUIU__getTopBrowserWin() {
     return Services.wm.getMostRecentWindow("navigator:browser");
+  },
+
+  _getCurrentActiveWin: function PUIU__getCurrentActiveWin() {
+    return focusManager.activeWindow;
   },
 
   /**
@@ -674,7 +720,7 @@ var PlacesUIUtils = {
    * This is actually used to distinguish user-initiated visits in frames
    * so automatic visits can be correctly ignored.
    */
-  markPageAsFollowedLink: function PUIU_markPageAsFollowedLink(aURL) {
+  markPageAsFollowedLink: function PUIU_markPageAsUserClicked(aURL) {
     PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory)
                .markPageAsFollowedLink(this.createFixedURI(aURL));
   },
@@ -743,8 +789,7 @@ var PlacesUIUtils = {
   /**
    * Gives the user a chance to cancel loading lots of tabs at once
    */
-  _confirmOpenInTabs:
-  function PUIU__confirmOpenInTabs(numTabsToOpen, aWindow) {
+  _confirmOpenInTabs: function PUIU__confirmOpenInTabs(numTabsToOpen) {
     const WARN_ON_OPEN_PREF = "browser.tabs.warnOnOpen";
     var reallyOpen = true;
 
@@ -762,7 +807,7 @@ var PlacesUIUtils = {
                              GetStringFromName("brandShortName");
 
         var buttonPressed = Services.prompt.confirmEx(
-          aWindow,
+          this._getCurrentActiveWin(),
           this.getString("tabs.openWarningTitle"),
           this.getFormattedString(messageKey, [numTabsToOpen, brandShortName]),
           (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
@@ -786,7 +831,7 @@ var PlacesUIUtils = {
   /** aItemsToOpen needs to be an array of objects of the form:
     * {uri: string, isBookmark: boolean}
     */
-  _openTabset: function PUIU__openTabset(aItemsToOpen, aEvent, aWindow) {
+  _openTabset: function PUIU__openTabset(aItemsToOpen, aEvent) {
     if (!aItemsToOpen.length)
       return;
 
@@ -801,28 +846,13 @@ var PlacesUIUtils = {
       urls.push(item.uri);
     }
 
-    // Prefer the caller window if it's a browser window, otherwise use
-    // the top browser window.
-    var browserWindow = null;
-    browserWindow =
-      aWindow && aWindow.document.documentElement.getAttribute("windowtype") == "navigator:browser" ?
-      aWindow : this._getTopBrowserWin();
-
-    // whereToOpenLink doesn't return "window" when there's no browser window
-    // open (Bug 630255).
+    var browserWindow = this._getTopBrowserWin();
     var where = browserWindow ?
                 browserWindow.whereToOpenLink(aEvent, false, true) : "window";
     if (where == "window") {
-      // There is no browser window open, thus open a new one.
-      var uriList = Cc["@mozilla.org/supports-string;1"].
-                  createInstance(Ci.nsISupportsString);
-      uriList.data = urls.join("|");
-      var args = Cc["@mozilla.org/supports-array;1"].
-                  createInstance(Ci.nsISupportsArray);
-      args.AppendElement(uriList);      
-      browserWindow = Services.ww.openWindow(aWindow,
-                                             "chrome://browser/content/browser.xul",
-                                             null, "chrome,dialog=no,all", args);
+      let win = this._getCurrentActiveWin();
+      win.openDialog(win.getBrowserURL(), "_blank",
+                     "chrome,all,dialog=no", urls.join("|"));
       return;
     }
 
@@ -831,62 +861,22 @@ var PlacesUIUtils = {
     browserWindow.gBrowser.loadTabs(urls, loadInBackground, replaceCurrentTab);
   },
 
-  /**
-   * Helper method for methods which are forced to take a view/window
-   * parameter as an optional parameter.  It will be removed post Fx4.
-   */
-  _getWindow: function PUIU__getWindow(aView) {
-    if (aView) {
-      // Pratically, this is the case for places trees.
-      if (aView instanceof Components.interfaces.nsIDOMNode)
-        return aView.ownerDocument.defaultView;
-
-      return Cu.getGlobalForObject(aView);
-    }
-
-    let caller = arguments.callee.caller;
-
-    // If a view wasn't expected, the method should have got a window.
-    if (aView === null) {
-      Components.utils.reportError("The api has changed. A window should be " +
-                                   "passed to " + caller.name + ".  Not " +
-                                   "passing a window will throw in a future " +
-                                   "release.");
-    }
-    else {
-      Components.utils.reportError("The api has changed. A places view " +
-                                   "should be passed to " + caller.name + ". " +
-                                   "Not passing a view will throw in a future " +
-                                   "release.");
-    }
-
-    // This could certainly break in some edge cases (like bug 562998), but
-    // that's the best we should do for those extreme backwards-compatibility cases.
-    let topBrowserWin = this._getTopBrowserWin();
-    return topBrowserWin ? topBrowserWin : focusManager.focusedWindow;
-  },
-
-  openContainerNodeInTabs:
-  function PUIU_openContainerInTabs(aNode, aEvent, aView) {
-    let window = this._getWindow(aView);
-
-    let urlsToOpen = PlacesUtils.getURLsForContainerNode(aNode);
-    if (!this._confirmOpenInTabs(urlsToOpen.length, window))
+  openContainerNodeInTabs: function PUIU_openContainerInTabs(aNode, aEvent) {
+    var urlsToOpen = PlacesUtils.getURLsForContainerNode(aNode);
+    if (!this._confirmOpenInTabs(urlsToOpen.length))
       return;
 
-    this._openTabset(urlsToOpen, aEvent, window);
+    this._openTabset(urlsToOpen, aEvent);
   },
 
-  openURINodesInTabs: function PUIU_openURINodesInTabs(aNodes, aEvent, aView) {
-    let window = this._getWindow(aView);
-
-    let urlsToOpen = [];
+  openURINodesInTabs: function PUIU_openURINodesInTabs(aNodes, aEvent) {
+    var urlsToOpen = [];
     for (var i=0; i < aNodes.length; i++) {
-      // Skip over separators and folders.
+      // skip over separators and folders
       if (PlacesUtils.nodeIsURI(aNodes[i]))
         urlsToOpen.push({uri: aNodes[i].uri, isBookmark: PlacesUtils.nodeIsBookmark(aNodes[i])});
     }
-    this._openTabset(urlsToOpen, aEvent, window);
+    this._openTabset(urlsToOpen, aEvent);
   },
 
   /**
@@ -898,13 +888,9 @@ var PlacesUIUtils = {
    * @param   aEvent
    *          The DOM mouse/key event with modifier keys set that track the
    *          user's preferred destination window or tab.
-   * @param   aView
-   *          The controller associated with aNode.
    */
-  openNodeWithEvent:
-  function PUIU_openNodeWithEvent(aNode, aEvent, aView) {
-    let window = this._getWindow(aView);
-    this._openNodeIn(aNode, window.whereToOpenLink(aEvent), window);
+  openNodeWithEvent: function PUIU_openNodeWithEvent(aNode, aEvent) {
+    this.openNodeIn(aNode, this._getCurrentActiveWin().whereToOpenLink(aEvent));
   },
 
   /**
@@ -912,15 +898,10 @@ var PlacesUIUtils = {
    * web panel.
    * see also openUILinkIn
    */
-  openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aView) {
-    let window = this._getWindow(aView);
-    this._openNodeIn(aNode, aWhere, window);
-  },
-
-  _openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aWindow) {
+  openNodeIn: function PUIU_openNodeIn(aNode, aWhere) {
     if (aNode && PlacesUtils.nodeIsURI(aNode) &&
-        this.checkURLSecurity(aNode, aWindow)) {
-      let isBookmark = PlacesUtils.nodeIsBookmark(aNode);
+        this.checkURLSecurity(aNode, this._getCurrentActiveWin())) {
+      var isBookmark = PlacesUtils.nodeIsBookmark(aNode);
 
       if (isBookmark)
         this.markPageAsFollowedBookmark(aNode.uri);
@@ -932,14 +913,14 @@ var PlacesUIUtils = {
       if (aWhere == "current" && isBookmark) {
         if (PlacesUtils.annotations
                        .itemHasAnnotation(aNode.itemId, this.LOAD_IN_SIDEBAR_ANNO)) {
-          let browserWin = this._getTopBrowserWin();
+          var browserWin = this._getTopBrowserWin();
           if (browserWin) {
             browserWin.openWebPanel(aNode.title, aNode.uri);
             return;
           }
         }
       }
-      aWindow.openUILinkIn(aNode.uri, aWhere);
+      this._getCurrentActiveWin().openUILinkIn(aNode.uri, aWhere);
     }
   },
 
@@ -1362,6 +1343,9 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     editLivemarkFeedURI: function(aLivemarkId, aFeedURI)
       new PlacesEditLivemarkFeedURITransaction(aLivemarkId, aFeedURI),
 
+    editBookmarkMicrosummary: function(aItemId, aNewMicrosummary)
+      new PlacesEditBookmarkMicrosummaryTransaction(aItemId, aNewMicrosummary),
+
     editItemDateAdded: function(aItemId, aNewDateAdded)
       new PlacesEditItemDateAddedTransaction(aItemId, aNewDateAdded),
 
@@ -1397,7 +1381,7 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     },
 
    /**
-    * Transaction for editing the description of a bookmark or a folder.
+    * Transaction for editing a the description of a bookmark or a folder.
     *
     * @param aItemId
     *        id of the item to edit.

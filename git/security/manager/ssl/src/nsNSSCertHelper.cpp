@@ -310,6 +310,9 @@ GetOIDText(SECItem *oid, nsINSSComponent *nssComponent, nsAString &text)
   case SEC_OID_PKCS1_SHA1_WITH_RSA_ENCRYPTION:
     bundlekey = "CertDumpSHA1WithRSA";
     break;
+  case SEC_OID_PKCS1_RSA_ENCRYPTION:
+    bundlekey = "CertDumpRSAEncr";
+    break;
   case SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION:
     bundlekey = "CertDumpSHA256WithRSA";
     break;
@@ -318,12 +321,6 @@ GetOIDText(SECItem *oid, nsINSSComponent *nssComponent, nsAString &text)
     break;
   case SEC_OID_PKCS1_SHA512_WITH_RSA_ENCRYPTION:
     bundlekey = "CertDumpSHA512WithRSA";
-    break;
-  case SEC_OID_PKCS1_RSA_ENCRYPTION:
-    bundlekey = "CertDumpRSAEncr";
-    break;
-  case SEC_OID_PKCS1_RSA_PSS_SIGNATURE:
-    bundlekey = "CertDumpRSAPSSSignature";
     break;
   case SEC_OID_NS_CERT_EXT_CERT_TYPE:
     bundlekey = "CertDumpCertType";
@@ -1277,13 +1274,9 @@ ProcessAuthKeyId(SECItem  *extData,
 
   arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   if (!arena)
-    return NS_ERROR_OUT_OF_MEMORY;
+    return NS_ERROR_FAILURE;
 
   ret = CERT_DecodeAuthKeyID (arena, extData);
-  if (!ret) {
-    rv = NS_ERROR_FAILURE;
-    goto finish;
-  }
 
   if (ret->keyID.len > 0) {
     nssComponent->GetPIPNSSBundleString("CertDumpKeyID", local);

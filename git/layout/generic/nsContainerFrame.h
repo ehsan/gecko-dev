@@ -50,7 +50,9 @@
  * Child list name indices
  * @see #GetAdditionalChildListName()
  */
-#define NS_CONTAINER_LIST_COUNT_INCL_OC 4
+#define NS_CONTAINER_LIST_COUNT_SANS_OC 1
+  // for frames that don't use overflow containers
+#define NS_CONTAINER_LIST_COUNT_INCL_OC 3
   // for frames that support overflow containers
 
 // Option flags for ReflowChild() and FinishReflowChild()
@@ -96,8 +98,7 @@ public:
 
   virtual PRBool IsLeaf() const;
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
-  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                     PRBool aRespectClusters = PR_TRUE);
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   
 #ifdef DEBUG
   NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
@@ -115,25 +116,8 @@ public:
                                      nsIFrame*      aNextInFlow,
                                      PRBool         aDeletingEmptyFrames);
 
-  /**
-   * Helper method to wrap views around frames. Used by containers
-   * under special circumstances (can be used by leaf frames as well)
-   */
-  static nsresult CreateViewForFrame(nsIFrame* aFrame,
-                                     PRBool aForce);
-
   // Positions the frame's view based on the frame's origin
   static void PositionFrameView(nsIFrame* aKidFrame);
-
-  static nsresult ReparentFrameView(nsPresContext* aPresContext,
-                                    nsIFrame*       aChildFrame,
-                                    nsIFrame*       aOldParentFrame,
-                                    nsIFrame*       aNewParentFrame);
-
-  static nsresult ReparentFrameViewList(nsPresContext*     aPresContext,
-                                        const nsFrameList& aChildFrameList,
-                                        nsIFrame*          aOldParentFrame,
-                                        nsIFrame*          aNewParentFrame);
 
   // Set the view's size and position after its frame has been reflowed.
   //
@@ -144,7 +128,7 @@ public:
   static void SyncFrameViewAfterReflow(nsPresContext* aPresContext,
                                        nsIFrame*       aFrame,
                                        nsIView*        aView,
-                                       const nsRect&   aVisualOverflowArea,
+                                       const nsRect*   aCombinedArea,
                                        PRUint32        aFlags = 0);
 
   // Syncs properties to the top level view and window, like transparency and
@@ -166,7 +150,7 @@ public:
                                       PRUint32         aFlags = 0);
 
   // Used by both nsInlineFrame and nsFirstLetterFrame.
-  void DoInlineIntrinsicWidth(nsRenderingContext *aRenderingContext,
+  void DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
                               InlineIntrinsicWidthData *aData,
                               nsLayoutUtils::IntrinsicWidthType aType);
 
@@ -174,7 +158,7 @@ public:
    * This is the CSS block concept of computing 'auto' widths, which most
    * classes derived from nsContainerFrame want.
    */
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -293,7 +277,7 @@ public:
    */
   nsresult ReflowOverflowContainerChildren(nsPresContext*           aPresContext,
                                            const nsHTMLReflowState& aReflowState,
-                                           nsOverflowAreas&         aOverflowRects,
+                                           nsRect&                  aOverflowRect,
                                            PRUint32                 aFlags,
                                            nsReflowStatus&          aStatus);
 
@@ -402,8 +386,8 @@ protected:
   /**
    * Set the overflow list.  aOverflowFrames must not be an empty list.
    */
-  void SetOverflowFrames(nsPresContext*  aPresContext,
-                         const nsFrameList& aOverflowFrames);
+  nsresult SetOverflowFrames(nsPresContext*  aPresContext,
+                             const nsFrameList& aOverflowFrames);
 
   /**
    * Destroy the overflow list and any frames that are on it.

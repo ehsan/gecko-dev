@@ -42,7 +42,6 @@
 #ifndef nsSecureBrowserUIImpl_h_
 #define nsSecureBrowserUIImpl_h_
 
-#include "mozilla/ReentrantMonitor.h"
 #include "nsCOMPtr.h"
 #include "nsXPIDLString.h"
 #include "nsString.h"
@@ -61,6 +60,7 @@
 #include "nsISSLStatusProvider.h"
 #include "nsIAssociatedContentSecurity.h"
 #include "pldhash.h"
+#include "prmon.h"
 #include "nsINetUtil.h"
 
 class nsITransportSecurityInfo;
@@ -93,11 +93,9 @@ public:
 
   NS_IMETHOD Notify(nsIDOMHTMLFormElement* formNode, nsIDOMWindowInternal* window,
                     nsIURI *actionURL, PRBool* cancelSubmit);
-  NS_IMETHOD NotifyInvalidSubmit(nsIDOMHTMLFormElement* formNode,
-                                 nsIArray* invalidElements) { return NS_OK; };
   
 protected:
-  mozilla::ReentrantMonitor mReentrantMonitor;
+  PRMonitor *mMonitor;
   
   nsWeakPtr mWindow;
   nsCOMPtr<nsINetUtil> mIOService;
@@ -129,7 +127,7 @@ protected:
   PRInt32 mSubRequestsBrokenSecurity;
   PRInt32 mSubRequestsNoSecurity;
 #ifdef DEBUG
-  /* related to mReentrantMonitor */
+  /* related to mMonitor */
   PRInt32 mOnStateLocationChangeReentranceDetection;
 #endif
 

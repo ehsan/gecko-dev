@@ -35,21 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsAlgorithm.h"
+  // So SSE.h will include emmintrin.h in an appropriate way:
+#define MOZILLA_SSE_INCLUDE_HEADER_FOR_SSE2
+
 #include "nsUCSupport.h"
 #include "nsUTF8ToUnicode.h"
 #include "mozilla/SSE.h"
 
 #define UNICODE_BYTE_ORDER_MARK    0xFEFF
-
-static PRUnichar* EmitSurrogatePair(PRUint32 ucs4, PRUnichar* aDest)
-{
-  NS_ASSERTION(ucs4 > 0xFFFF, "Should be a supplementary character");
-  ucs4 -= 0x00010000;
-  *aDest++ = 0xD800 | (0x000003FF & (ucs4 >> 10));
-  *aDest++ = 0xDC00 | (0x000003FF & ucs4);
-  return aDest;
-}
 
 //----------------------------------------------------------------------
 // Class nsUTF8ToUnicode [implementation]
@@ -114,7 +107,90 @@ NS_IMETHODIMP nsUTF8ToUnicode::Reset()
 // number of bytes left in src and the number of unichars available in
 // dst.)
 
-#if defined(__arm__) || defined(_M_ARM)
+#ifdef MOZILLA_COMPILE_WITH_SSE2
+
+static inline void
+Convert_ascii_run (const char *&src,
+                   PRUnichar *&dst,
+                   PRInt32 len)
+{
+  if (len > 15 && mozilla::use_sse2()) {
+    __m128i in, out1, out2;
+    __m128d *outp1, *outp2;
+    __m128i zeroes;
+    PRUint32 offset;
+
+    // align input to 16 bytes
+    while ((NS_PTR_TO_UINT32(src) & 15) && len > 0) {
+      if (*src & 0x80U)
+        return;
+      *dst++ = (PRUnichar) *src++;
+      len--;
+    }
+
+    zeroes = _mm_setzero_si128();
+
+    offset = NS_PTR_TO_UINT32(dst) & 15;
+
+    // Note: all these inner loops have to break, not return; we need
+    // to let the single-char loop below catch any leftover
+    // byte-at-a-time ASCII chars, since this function must consume
+    // all available ASCII chars before it returns
+
+    if (offset == 0) {
+      while (len > 15) {
+        in = _mm_load_si128((__m128i *) src); 
+        if (_mm_movemask_epi8(in))
+          break;
+        out1 = _mm_unpacklo_epi8(in, zeroes);
+        out2 = _mm_unpackhi_epi8(in, zeroes);
+        _mm_stream_si128((__m128i *) dst, out1);
+        _mm_stream_si128((__m128i *) (dst + 8), out2);
+        dst += 16;
+        src += 16;
+        len -= 16;
+      }
+    } else if (offset == 8) {
+      outp1 = (__m128d *) &out1;
+      outp2 = (__m128d *) &out2;
+      while (len > 15) {
+        in = _mm_load_si128((__m128i *) src); 
+        if (_mm_movemask_epi8(in))
+          break;
+        out1 = _mm_unpacklo_epi8(in, zeroes);
+        out2 = _mm_unpackhi_epi8(in, zeroes);
+        _mm_storel_epi64((__m128i *) dst, out1);
+        _mm_storel_epi64((__m128i *) (dst + 8), out2);
+        _mm_storeh_pd((double *) (dst + 4), *outp1);
+        _mm_storeh_pd((double *) (dst + 12), *outp2);
+        src += 16;
+        dst += 16;
+        len -= 16;
+      }
+    } else {
+      while (len > 15) {
+        in = _mm_load_si128((__m128i *) src);
+        if (_mm_movemask_epi8(in))
+          break;
+        out1 = _mm_unpacklo_epi8(in, zeroes);
+        out2 = _mm_unpackhi_epi8(in, zeroes);
+        _mm_storeu_si128((__m128i *) dst, out1);
+        _mm_storeu_si128((__m128i *) (dst + 8), out2);
+        src += 16;
+        dst += 16;
+        len -= 16;
+      }
+    }
+  }
+
+  // finish off a byte at a time
+
+  while (len-- > 0 && (*src & 0x80U) == 0) {
+    *dst++ = (PRUnichar) *src++;
+  }
+}
+
+#elif defined(__arm__) || defined(_M_ARM)
 
 // on ARM, do extra work to avoid byte/halfword reads/writes by
 // reading/writing a word at a time for as long as we can
@@ -171,30 +247,13 @@ finish:
   }
 }
 
-#else
-
-#ifdef MOZILLA_MAY_SUPPORT_SSE2
-namespace mozilla {
-namespace SSE2 {
-
-void Convert_ascii_run(const char *&src, PRUnichar *&dst, PRInt32 len);
-
-}
-}
-#endif
+#else /* generic code */
 
 static inline void
 Convert_ascii_run (const char *&src,
                    PRUnichar *&dst,
                    PRInt32 len)
 {
-#ifdef MOZILLA_MAY_SUPPORT_SSE2
-  if (mozilla::supports_sse2()) {
-    mozilla::SSE2::Convert_ascii_run(src, dst, len);
-    return;
-  }
-#endif
-
   while (len-- > 0 && (*src & 0x80U) == 0) {
     *dst++ = (PRUnichar) *src++;
   }
@@ -218,22 +277,6 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
 
   nsresult res = NS_OK; // conversion result
 
-  out = aDest;
-  if (mState == 0xFF) {
-    // Emit supplementary character left over from previous iteration. If the
-    // buffer size is insufficient, treat it as an illegal character.
-    if (aDestLen < 2) {
-      NS_ERROR("Output buffer insufficient to hold supplementary character");
-      mState = 0;
-      return NS_ERROR_ILLEGAL_INPUT;
-    }
-    out = EmitSurrogatePair(mUcs4, out);
-    mUcs4 = 0;
-    mState = 0;
-    mBytes = 1;
-    mFirst = PR_FALSE;
-  }
-
   // alias these locally for speed
   PRInt32 mUcs4 = this->mUcs4;
   PRUint8 mState = this->mState;
@@ -245,12 +288,12 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
   if (mFirst && aSrcLen && (0 == (0x80 & (*aSrc))))
     mFirst = PR_FALSE;
 
-  for (in = aSrc; ((in < inend) && (out < outend)); ++in) {
+  for (in = aSrc, out = aDest; ((in < inend) && (out < outend)); ++in) {
     if (0 == mState) {
       // When mState is zero we expect either a US-ASCII character or a
       // multi-octet sequence.
       if (0 == (0x80 & (*in))) {
-        PRInt32 max_loops = NS_MIN(inend - in, outend - out);
+        PRInt32 max_loops = PR_MIN(inend - in, outend - out);
         Convert_ascii_run(in, out, max_loops);
         --in; // match the rest of the cases
         mBytes = 1;
@@ -332,15 +375,9 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
           }
           if (mUcs4 > 0xFFFF) {
             // mUcs4 is in the range 0x10000 - 0x10FFFF. Output a UTF-16 pair
-            if (out + 2 > outend) {
-              // insufficient space left in the buffer. Keep mUcs4 for the
-              // next iteration.
-              mState = 0xFF;
-              ++in;
-              res = NS_OK_UDEC_MOREOUTPUT;
-              break;
-            }
-            out = EmitSurrogatePair(mUcs4, out);
+            mUcs4 -= 0x00010000;
+            *out++ = 0xD800 | (0x000003FF & (mUcs4 >> 10));
+            *out++ = 0xDC00 | (0x000003FF & mUcs4);
           } else if (UNICODE_BYTE_ORDER_MARK != mUcs4 || !mFirst) {
             // Don't output the BOM only if it is the first character
             *out++ = mUcs4;

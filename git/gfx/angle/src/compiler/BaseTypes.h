@@ -7,6 +7,10 @@
 #ifndef _BASICTYPES_INCLUDED_
 #define _BASICTYPES_INCLUDED_
 
+#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+#define __inline inline
+#endif
+
 //
 // Precision qualifiers
 //
@@ -19,7 +23,7 @@ enum TPrecision
     EbpHigh,
 };
 
-inline const char* getPrecisionString(TPrecision p)
+__inline const char* getPrecisionString(TPrecision p)
 {
     switch(p)
     {
@@ -47,22 +51,7 @@ enum TBasicType
     EbtAddress,            // should be deprecated??
 };
 
-inline const char* getBasicString(TBasicType t)
-{
-    switch (t)
-    {
-    case EbtVoid:              return "void";              break;
-    case EbtFloat:             return "float";             break;
-    case EbtInt:               return "int";               break;
-    case EbtBool:              return "bool";              break;
-    case EbtSampler2D:         return "sampler2D";         break;
-    case EbtSamplerCube:       return "samplerCube";       break;
-    case EbtStruct:            return "structure";         break;
-    default:                   return "unknown type";
-    }
-}
-
-inline bool IsSampler(TBasicType type)
+__inline bool IsSampler(TBasicType type)
 {
     return type > EbtGuardSamplerBegin && type < EbtGuardSamplerEnd;
 }
@@ -115,7 +104,7 @@ enum TQualifier
 //
 // This is just for debug print out, carried along with the definitions above.
 //
-inline const char* getQualifierString(TQualifier q)
+__inline const char* getQualifierString(TQualifier q)
 {
     switch(q)
     {

@@ -53,7 +53,7 @@ static const char gSymName[][sizeof("cupsPrintFile")] = {
     { "cupsPrintFile" },
     { "cupsTempFd" },
 };
-static const int gSymNameCt = NS_ARRAY_LENGTH(gSymName);
+static const int gSymNameCt = sizeof(gSymName) / sizeof(gSymName[0]);
 
 
 PRBool
@@ -87,4 +87,10 @@ nsCUPSShim::Init()
         }
     }
     return PR_TRUE;
+}
+
+nsCUPSShim::~nsCUPSShim()
+{
+    if (mCupsLib)
+        PR_UnloadLibrary(mCupsLib);
 }

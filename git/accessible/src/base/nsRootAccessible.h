@@ -84,37 +84,30 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   // nsRootAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ROOTACCESSIBLE_IMPL_CID)
 
   /**
-   * Fire an accessible focus event for the focused accessible and attach a new
-   * selection listener to real focused element, if necessary.
+   * Fire an accessible focus event for the current focusAccssible
+   * and attach a new selection listener, if necessary.
    *
-   * @param  aFocusAccessible   [in] the accessible which has received focus
-   * @param  aRealFocusContent  [in] the actual DOM element which has received
-   *                              focus (see @note section)
-   * @param  aForceEvent        [in, optional] fire a focus event even if
-   *                              the last focused item was the same
-   * @param  aIsFromUserInput   [in, optional] specifies whether the event is
-   *                              from user input
-   *
-   * @note  Use the originally focused node where the selection lives as real
-   *         focus node. For example, use the anonymous HTML:input instead of
-   *         the containing XUL:textbox. In this case, sometimes it is a later
-   *         focus event which points to the actual anonymous child with focus,
-   *         so to be safe we need to reset the selection listener every time.
-   *         This happens because when some bindings handle focus, they
-   *         retarget focus to the appropriate child inside of themselves, but
-   *         DOM focus stays outside on that binding parent.
+   * @param  aFocusAccessible  [in] the accessible which has received focus
+   * @param  aFocusNode        [in] the DOM node which has received focus
+   * @param  aFocusEvent       [in] DOM focus event that caused
+   *                             the node/accessible to receive focus
+   * @param  aForceEvent       [in] fire a focus event even if the last focused
+   *                             item was the same
+   * @return                    boolean -- was a focus event actually fired
    */
-  void FireAccessibleFocusEvent(nsAccessible* aFocusAccessible,
-                                nsIContent* aRealFocusContent,
-                                PRBool aForceEvent = PR_FALSE,
-                                EIsFromUserInput aIsFromUserInput = eAutoDetect);
+  PRBool FireAccessibleFocusEvent(nsAccessible *aFocusAccessible,
+                                  nsINode *aFocusNode,
+                                  nsIDOMEvent *aFocusEvent,
+                                  PRBool aForceEvent = PR_FALSE,
+                                  PRBool aIsAsynch = PR_FALSE,
+                                  EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
     /**
       * Fire an accessible focus event for the current focused node,
@@ -124,40 +117,27 @@ public:
 
     nsCaretAccessible *GetCaretAccessible();
 
-  /**
-   * Notify that the sub document presshell was activated.
-   */
-  virtual void DocumentActivated(nsDocAccessible* aDocument);
-
 protected:
   NS_DECL_RUNNABLEMETHOD(nsRootAccessible, FireCurrentFocusEvent)
 
-  /**
-   * Add/remove DOM event listeners.
-   */
-  virtual nsresult AddEventListeners();
-  virtual nsresult RemoveEventListeners();
-
-  /**
-   * Process the DOM event.
-   */
-  void ProcessDOMEvent(nsIDOMEvent* aEvent);
+    nsresult AddEventListeners();
+    nsresult RemoveEventListeners();
 
   /**
    * Process "popupshown" event. Used by HandleEvent().
    */
-  void HandlePopupShownEvent(nsAccessible* aAccessible);
 
+  nsresult HandlePopupShownEvent(nsAccessible *aAccessible);
   /*
    * Process "popuphiding" event. Used by HandleEvent().
    */
-  void HandlePopupHidingEvent(nsINode* aNode, nsAccessible* aAccessible);
+  nsresult HandlePopupHidingEvent(nsINode *aNode, nsAccessible *aAccessible);
 
 #ifdef MOZ_XUL
-    void HandleTreeRowCountChangedEvent(nsIDOMEvent* aEvent,
-                                        nsXULTreeAccessible* aAccessible);
-    void HandleTreeInvalidatedEvent(nsIDOMEvent* aEvent,
-                                    nsXULTreeAccessible* aAccessible);
+    nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
+                                            nsXULTreeAccessible *aAccessible);
+    nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
+                                        nsXULTreeAccessible *aAccessible);
 
     PRUint32 GetChromeFlags();
 #endif
@@ -169,11 +149,4 @@ protected:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsRootAccessible, NS_ROOTACCESSIBLE_IMPL_CID)
 
-inline nsRootAccessible*
-nsAccessible::AsRoot()
-{
-  return mFlags & eRootAccessible ?
-    static_cast<nsRootAccessible*>(this) : nsnull;
-}
-
-#endif
+#endif  

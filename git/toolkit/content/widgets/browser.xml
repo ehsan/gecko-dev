@@ -261,10 +261,6 @@
                 onget="return this._docShell || (this._docShell = this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell);"
                 readonly="true"/>
 
-      <property name="messageManager"
-                onget="return this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.messageManager;"
-                readonly="true"/>
-
       <field name="_webNavigation">null</field>
 
       <property name="webNavigation"
@@ -322,7 +318,7 @@
       
       <property name="webProgress"
                 readonly="true"
-                onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIWebProgress);"/>
+                onget="return this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.webProgress;"/>
 
       <field name="_contentWindow">null</field>
 
@@ -361,12 +357,6 @@
       <property name="contentPrincipal"
                 onget="return this.contentDocument.nodePrincipal;"
                 readonly="true"/>
-
-      <property name="showWindowResizer"
-                onset="if (val) this.setAttribute('showresizer', 'true');
-                       else this.removeAttribute('showresizer');
-                       return val;"
-                onget="return this.getAttribute('showresizer') == 'true';"/>
 
       <field name="mPrefs" readonly="true">
         Components.classes['@mozilla.org/preferences-service;1']
@@ -510,14 +500,8 @@
             if (!tabBrowser || tabBrowser.mCurrentBrowser == this)
               this.fastFind.setDocShell(this.docShell);
 
-            
-            if (this._scrollable) {
-              var doc =
-                this._scrollable.ownerDocument || this._scrollable.document;
-              if (doc == aEvent.target) {
-                this._autoScrollPopup.hidePopup();
-              }
-            }
+            if (this._scrollable)
+              this._autoScrollPopup.hidePopup();
          ]]>
         </body>
       </method>
@@ -662,8 +646,7 @@
                       Components.classes["@mozilla.org/browser/shistory;1"]
                                 .createInstance(Components.interfaces.nsISHistory);
               // enable global history
-              if (this.docShell)
-                this.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+              this.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
             }
           }
           catch (e) {
@@ -755,14 +738,15 @@
           ]]>
         </body>
       </method>
-
+          
+      <field name="_AUTOSCROLL_SPEED">3</field>
       <field name="_AUTOSCROLL_SNAP">10</field>
       <field name="_scrollable">null</field>
+      <field name="_autoScrollTimer">null</field>
       <field name="_startX">null</field>
       <field name="_startY">null</field>
       <field name="_screenX">null</field>
       <field name="_screenY">null</field>
-      <field name="_lastFrame">null</field>
       <field name="_autoScrollPopup">null</field>
       <field name="_autoScrollNeedsCleanup">false</field>
 
@@ -778,7 +762,7 @@
               window.removeEventListener("keydown", this, true);
               window.removeEventListener("keypress", this, true);
               window.removeEventListener("keyup", this, true);
-              window.removeEventListener("MozBeforePaint", this, true);
+              clearInterval(this._autoScrollTimer);
             }
          ]]>
        </body>
@@ -881,6 +865,7 @@
               }
             }
 
+            document.popupNode = null;
             this._autoScrollPopup.showPopup(document.documentElement,
                                             event.screenX,
                                             event.screenY,
@@ -890,9 +875,6 @@
             this._startY = event.screenY;
             this._screenX = event.screenX;
             this._screenY = event.screenY;
-            this._scrollErrorX = 0;
-            this._scrollErrorY = 0;
-            this._lastFrame = window.mozAnimationStartTime;
 
             window.addEventListener("mousemove", this, true);
             window.addEventListener("mousedown", this, true);
@@ -901,9 +883,12 @@
             window.addEventListener("keydown", this, true);
             window.addEventListener("keypress", this, true);
             window.addEventListener("keyup", this, true);
-            window.addEventListener("MozBeforePaint", this, true);
 
-            window.mozRequestAnimationFrame();
+            this._scrollErrorX = 0;
+            this._scrollErrorY = 0;
+
+            this._autoScrollTimer = setInterval(function(self) { self.autoScrollLoop(); },
+                                                20, this);
          ]]>
        </body>
      </method>
@@ -937,30 +922,21 @@
      </method>
 
      <method name="autoScrollLoop">
-       <parameter name="timestamp"/>
        <body>
          <![CDATA[
-           // avoid long jumps when the browser hangs for more than
-           // |maxTimeDelta| ms
-           const maxTimeDelta = 100;
-           var timeDelta = Math.min(maxTimeDelta, timestamp - this._lastFrame);
-           // we used to scroll |_accelerate()| pixels every 20ms (50fps)
-           var timeCompensation = timeDelta / 20;
-           this._lastFrame = timestamp;
-
            var actualScrollX = 0;
            var actualScrollY = 0;
            // don't bother scrolling vertically when the scrolldir is only horizontal
            // and the other way around
            var scrolldir = this._autoScrollPopup.getAttribute("scrolldir");
            if (scrolldir != 'EW') {
-             var y = this._accelerate(this._screenY, this._startY) * timeCompensation;
+             var y = this._accelerate(this._screenY, this._startY);
              var desiredScrollY = this._scrollErrorY + y;
              actualScrollY = this._roundToZero(desiredScrollY);
              this._scrollErrorY = (desiredScrollY - actualScrollY);
            }
            if (scrolldir != 'NS') {
-             var x = this._accelerate(this._screenX, this._startX) * timeCompensation;
+             var x = this._accelerate(this._screenX, this._startX);
              var desiredScrollX = this._scrollErrorX + x;
              actualScrollX = this._roundToZero(desiredScrollX);
              this._scrollErrorX = (desiredScrollX - actualScrollX);
@@ -972,7 +948,6 @@
              this._scrollable.scrollLeft += actualScrollX;
              this._scrollable.scrollTop += actualScrollY;
            }
-           window.mozRequestAnimationFrame();
          ]]>
        </body>
      </method>
@@ -1019,9 +994,6 @@
         <![CDATA[
           if (this._scrollable) {
             switch(aEvent.type) {
-              case "MozBeforePaint":
-                this.autoScrollLoop(aEvent.timeStamp);
-                break;
               case "mousemove": {
                 this._screenX = aEvent.screenX;
                 this._screenY = aEvent.screenY;
@@ -1172,7 +1144,7 @@
       </handler>
       <handler event="dragover" group="system">
       <![CDATA[
-        if (!this.droppedLinkHandler || event.getPreventDefault())
+        if (event.getPreventDefault())
           return;
 
         // For drags that appear to be internal text (for example, tab drags),
@@ -1193,7 +1165,7 @@
       </handler>
       <handler event="drop" group="system">
       <![CDATA[
-        if (!this.droppedLinkHandler || event.getPreventDefault())
+        if (event.getPreventDefault())
           return;
 
         let name = { };
@@ -1210,7 +1182,10 @@
           return;
 
         if (uri) {
-          this.droppedLinkHandler(event, uri, name.value);
+          if (this.droppedLinkHandler)
+            this.droppedLinkHandler(event, uri, name.value);
+          else
+            this.loadURI(uri, null, "");
         }
       ]]>
       </handler>

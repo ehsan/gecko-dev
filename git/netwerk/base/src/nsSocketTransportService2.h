@@ -47,11 +47,9 @@
 #include "pldhash.h"
 #include "prinrval.h"
 #include "prlog.h"
-#include "prinit.h"
 #include "prio.h"
 #include "nsASocketHandler.h"
 #include "nsIObserver.h"
-#include "mozilla/Mutex.h"
 
 //-----------------------------------------------------------------------------
 
@@ -61,11 +59,12 @@
 //
 extern PRLogModuleInfo *gSocketTransportLog;
 #endif
-#define SOCKET_LOG(args)     PR_LOG(gSocketTransportLog, PR_LOG_DEBUG, args)
-#define SOCKET_LOG_ENABLED() PR_LOG_TEST(gSocketTransportLog, PR_LOG_DEBUG)
+#define LOG(args)     PR_LOG(gSocketTransportLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gSocketTransportLog, PR_LOG_DEBUG)
 
 //-----------------------------------------------------------------------------
 
+#define NS_SOCKET_MAX_COUNT    50
 #define NS_SOCKET_POLL_TIMEOUT PR_INTERVAL_NO_TIMEOUT
 
 //-----------------------------------------------------------------------------
@@ -76,8 +75,6 @@ class nsSocketTransportService : public nsPISocketTransportService
                                , public nsIRunnable
                                , public nsIObserver
 {
-    typedef mozilla::Mutex Mutex;
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSPISOCKETTRANSPORTSERVICE
@@ -89,12 +86,6 @@ public:
 
     nsSocketTransportService();
 
-    // Max Socket count may need to get initialized/used by nsHttpHandler
-    // before this class is initialized.
-    static PRUint32 gMaxCount;
-    static PRCallOnceType gMaxCountInitOnce;
-    static PRStatus DiscoverMaxCount();
-
     //
     // the number of sockets that can be attached at any given time is
     // limited.  this is done because some operating systems (e.g., Win9x)
@@ -103,7 +94,7 @@ public:
     // call CanAttachSocket and check the result before creating a socket.
     //
     PRBool CanAttachSocket() {
-        return mActiveCount + mIdleCount < gMaxCount;
+        return mActiveCount + mIdleCount < NS_SOCKET_MAX_COUNT;
     }
 
 protected:
@@ -135,7 +126,7 @@ private:
     // initialization and shutdown (any thread)
     //-------------------------------------------------------------------------
 
-    Mutex         mLock;
+    PRLock       *mLock;
     PRPackedBool  mInitialized;
     PRPackedBool  mShuttingDown;
                             // indicates whether we are currently in the
@@ -159,25 +150,19 @@ private:
         PRUint16          mElapsedTime;  // time elapsed w/o activity
     };
 
-    SocketContext *mActiveList;                   /* mListSize entries */
-    SocketContext *mIdleList;                     /* mListSize entries */
+    SocketContext mActiveList [ NS_SOCKET_MAX_COUNT ];
+    SocketContext mIdleList   [ NS_SOCKET_MAX_COUNT ];
 
-    PRUint32 mActiveListSize;
-    PRUint32 mIdleListSize;
     PRUint32 mActiveCount;
     PRUint32 mIdleCount;
 
-    nsresult DetachSocket(SocketContext *, SocketContext *);
+    nsresult DetachSocket(SocketContext *);
     nsresult AddToIdleList(SocketContext *);
     nsresult AddToPollList(SocketContext *);
     void RemoveFromIdleList(SocketContext *);
     void RemoveFromPollList(SocketContext *);
     void MoveToIdleList(SocketContext *sock);
     void MoveToPollList(SocketContext *sock);
-
-    PRBool GrowActiveList();
-    PRBool GrowIdleList();
-    void   InitMaxCount();
     
     //-------------------------------------------------------------------------
     // poll list (socket thread only)
@@ -186,7 +171,7 @@ private:
     // event cannot be created).
     //-------------------------------------------------------------------------
 
-    PRPollDesc *mPollList;                        /* mListSize + 1 entries */
+    PRPollDesc mPollList[ NS_SOCKET_MAX_COUNT + 1 ];
 
     PRIntervalTime PollTimeout();            // computes ideal poll timeout
     nsresult       DoPollIteration(PRBool wait);

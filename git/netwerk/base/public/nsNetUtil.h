@@ -51,9 +51,6 @@
 
 #include "nsCRT.h"
 #include "nsIURI.h"
-#include "nsIStandardURL.h"
-#include "nsIURLParser.h"
-#include "nsIUUIDGenerator.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 #include "nsISafeOutputStream.h"
@@ -90,6 +87,7 @@
 #include "nsIPersistentProperties2.h"
 #include "nsISyncStreamListener.h"
 #include "nsInterfaceRequestorAgg.h"
+#include "nsInt64.h"
 #include "nsINetUtil.h"
 #include "nsIURIWithPrincipal.h"
 #include "nsIAuthPrompt.h"
@@ -104,11 +102,7 @@
 #include "nsIIDNService.h"
 #include "nsIChannelEventSink.h"
 #include "nsIChannelPolicy.h"
-#include "nsISocketProviderService.h"
-#include "nsISocketProvider.h"
 #include "mozilla/Services.h"
-
-#include "nsIRedirectChannelRegistrar.h"
 
 #ifdef MOZILLA_INTERNAL_API
 
@@ -487,8 +481,8 @@ NS_NewInputStreamChannel(nsIChannel      **result,
 inline nsresult
 NS_NewInputStreamPump(nsIInputStreamPump **result,
                       nsIInputStream      *stream,
-                      PRInt64              streamPos = PRInt64(-1),
-                      PRInt64              streamLen = PRInt64(-1),
+                      PRInt64              streamPos = nsInt64(-1),
+                      PRInt64              streamLen = nsInt64(-1),
                       PRUint32             segsize = 0,
                       PRUint32             segcount = 0,
                       PRBool               closeWhenDone = PR_FALSE)
@@ -616,13 +610,14 @@ NS_NewStreamLoader(nsIStreamLoader        **result,
 
 inline nsresult
 NS_NewUnicharStreamLoader(nsIUnicharStreamLoader        **result,
-                          nsIUnicharStreamLoaderObserver *observer)
+                          nsIUnicharStreamLoaderObserver *observer,
+                          PRUint32                        segmentSize = nsIUnicharStreamLoader::DEFAULT_SEGMENT_SIZE)
 {
     nsresult rv;
     nsCOMPtr<nsIUnicharStreamLoader> loader =
         do_CreateInstance(NS_UNICHARSTREAMLOADER_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-        rv = loader->Init(observer);
+        rv = loader->Init(observer, segmentSize);
         if (NS_SUCCEEDED(rv)) {
             *result = nsnull;
             loader.swap(*result);
@@ -966,26 +961,6 @@ NS_NewLocalFileInputStream(nsIInputStream **result,
 }
 
 inline nsresult
-NS_NewPartialLocalFileInputStream(nsIInputStream **result,
-                                  nsIFile         *file,
-                                  PRUint64         offset,
-                                  PRUint64         length,
-                                  PRInt32          ioFlags       = -1,
-                                  PRInt32          perm          = -1,
-                                  PRInt32          behaviorFlags = 0)
-{
-    nsresult rv;
-    nsCOMPtr<nsIPartialFileInputStream> in =
-        do_CreateInstance(NS_PARTIALLOCALFILEINPUTSTREAM_CONTRACTID, &rv);
-    if (NS_SUCCEEDED(rv)) {
-        rv = in->Init(file, offset, length, ioFlags, perm, behaviorFlags);
-        if (NS_SUCCEEDED(rv))
-            rv = CallQueryInterface(in, result);
-    }
-    return rv;
-}
-
-inline nsresult
 NS_NewLocalFileOutputStream(nsIOutputStream **result,
                             nsIFile          *file,
                             PRInt32           ioFlags       = -1,
@@ -1036,7 +1011,7 @@ NS_BackgroundInputStream(nsIInputStream **result,
         do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsITransport> inTransport;
-        rv = sts->CreateInputTransport(stream, PRInt64(-1), PRInt64(-1),
+        rv = sts->CreateInputTransport(stream, nsInt64(-1), nsInt64(-1),
                                        PR_TRUE, getter_AddRefs(inTransport));
         if (NS_SUCCEEDED(rv))
             rv = inTransport->OpenInputStream(nsITransport::OPEN_BLOCKING,
@@ -1060,7 +1035,7 @@ NS_BackgroundOutputStream(nsIOutputStream **result,
         do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsITransport> inTransport;
-        rv = sts->CreateOutputTransport(stream, PRInt64(-1), PRInt64(-1),
+        rv = sts->CreateOutputTransport(stream, nsInt64(-1), nsInt64(-1),
                                         PR_TRUE, getter_AddRefs(inTransport));
         if (NS_SUCCEEDED(rv))
             rv = inTransport->OpenOutputStream(nsITransport::OPEN_BLOCKING,
@@ -1171,19 +1146,16 @@ NS_NewPostDataStream(nsIInputStream  **result,
 }
 
 inline nsresult
-NS_ReadInputStreamToBuffer(nsIInputStream *aInputStream, 
-                           void** aDest,
+NS_ReadInputStreamToString(nsIInputStream *aInputStream, 
+                           nsACString &aDest,
                            PRUint32 aCount)
 {
     nsresult rv;
 
-    if (!*aDest) {
-        *aDest = malloc(aCount);
-        if (!*aDest)
-            return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    char * p = reinterpret_cast<char*>(*aDest);
+    aDest.SetLength(aCount);
+    if (aDest.Length() != aCount)
+        return NS_ERROR_OUT_OF_MEMORY;
+    char * p = aDest.BeginWriting();
     PRUint32 bytesRead;
     PRUint32 totalRead = 0;
     while (1) {
@@ -1198,18 +1170,6 @@ NS_ReadInputStreamToBuffer(nsIInputStream *aInputStream,
             return NS_ERROR_UNEXPECTED;
     }
     return rv; 
-}
-
-inline nsresult
-NS_ReadInputStreamToString(nsIInputStream *aInputStream, 
-                           nsACString &aDest,
-                           PRUint32 aCount)
-{
-    aDest.SetLength(aCount);
-    if (aDest.Length() != aCount)
-        return NS_ERROR_OUT_OF_MEMORY;
-    void* dest = aDest.BeginWriting();
-    return NS_ReadInputStreamToBuffer(aInputStream, &dest, aCount);
 }
 
 inline nsresult
@@ -1649,7 +1609,7 @@ NS_SecurityHashURI(nsIURI* aURI)
 
     nsCAutoString host;
     PRUint32 hostHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetAsciiHost(host)))
+    if (NS_SUCCEEDED(baseURI->GetHost(host)))
         hostHash = nsCRT::HashCode(host.get());
 
     // XOR to combine hash values
@@ -1755,13 +1715,6 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
         return PR_FALSE;
     }
 
-    nsCOMPtr<nsIStandardURL> targetURL(do_QueryInterface(targetBaseURI));
-    nsCOMPtr<nsIStandardURL> sourceURL(do_QueryInterface(sourceBaseURI));
-    if (!targetURL || !sourceURL)
-    {
-        return PR_FALSE;
-    }
-
 #ifdef MOZILLA_INTERNAL_API
     if (!targetHost.Equals(sourceHost, nsCaseInsensitiveCStringComparator() ))
 #else
@@ -1793,132 +1746,6 @@ NS_IsInternalSameURIRedirect(nsIChannel *aOldChannel,
 
   PRBool res;
   return NS_SUCCEEDED(oldURI->Equals(newURI, &res)) && res;
-}
-
-inline nsresult
-NS_LinkRedirectChannels(PRUint32 channelId,
-                        nsIParentChannel *parentChannel,
-                        nsIChannel** _result)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsIRedirectChannelRegistrar> registrar =
-      do_GetService("@mozilla.org/redirectchannelregistrar;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return registrar->LinkChannels(channelId,
-                                 parentChannel,
-                                 _result);
-}
-
-/**
- * Helper function to create a random URL string that's properly formed
- * but guaranteed to be invalid.
- */  
-#define NS_FAKE_SCHEME "http://"
-#define NS_FAKE_TLD ".invalid"
-inline nsresult
-NS_MakeRandomInvalidURLString(nsCString& result)
-{
-  nsresult rv;
-  nsCOMPtr<nsIUUIDGenerator> uuidgen =
-    do_GetService("@mozilla.org/uuid-generator;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsID idee;
-  rv = uuidgen->GenerateUUIDInPlace(&idee);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  char chars[NSID_LENGTH];
-  idee.ToProvidedString(chars);
-
-  result.AssignLiteral(NS_FAKE_SCHEME);
-  // Strip off the '{' and '}' at the beginning and end of the UUID
-  result.Append(chars + 1, NSID_LENGTH - 3);
-  result.AppendLiteral(NS_FAKE_TLD);
-
-  return NS_OK;
-}
-#undef NS_FAKE_SCHEME
-#undef NS_FAKE_TLD
-
-/**
- * Helper function to determine whether urlString is Java-compatible --
- * whether it can be passed to the Java URL(String) constructor without the
- * latter throwing a MalformedURLException, or without Java otherwise
- * mishandling it.  This function (in effect) implements a scheme whitelist
- * for Java.
- */  
-inline nsresult
-NS_CheckIsJavaCompatibleURLString(nsCString& urlString, PRBool *result)
-{
-  *result = PR_FALSE; // Default to "no"
-
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIURLParser> urlParser =
-    do_GetService(NS_STDURLPARSER_CONTRACTID, &rv);
-  if (NS_FAILED(rv) || !urlParser)
-    return NS_ERROR_FAILURE;
-
-  PRBool compatible = PR_TRUE;
-  PRUint32 schemePos = 0;
-  PRInt32 schemeLen = 0;
-  urlParser->ParseURL(urlString.get(), -1, &schemePos, &schemeLen,
-                      nsnull, nsnull, nsnull, nsnull);
-  if (schemeLen != -1) {
-    nsCString scheme;
-    scheme.Assign(urlString.get() + schemePos, schemeLen);
-    // By default Java only understands a small number of URL schemes, and of
-    // these only some can legitimately represent a browser page's "origin"
-    // (and be something we can legitimately expect Java to handle ... or not
-    // to mishandle).
-    //
-    // Besides those listed below, the OJI plugin understands the "jar",
-    // "mailto", "netdoc", "javascript" and "rmi" schemes, and Java Plugin2
-    // also understands the "about" scheme.  We actually pass "about" URLs
-    // to Java ("about:blank" when processing a javascript: URL (one that
-    // calls Java) from the location bar of a blank page, and (in FF4 and up)
-    // "about:home" when processing a javascript: URL from the home page).
-    // And Java doesn't appear to mishandle them (for example it doesn't allow
-    // connections to "about" URLs).  But it doesn't make any sense to do
-    // same-origin checks on "about" URLs, so we don't include them in our
-    // scheme whitelist.
-    //
-    // The OJI plugin doesn't understand "chrome" URLs (only Java Plugin2
-    // does) -- so we mustn't pass them to the OJI plugin.  But we do need to
-    // pass "chrome" URLs to Java Plugin2:  Java Plugin2 grants additional
-    // privileges to chrome "origins", and some extensions take advantage of
-    // this.  For more information see bug 620773.
-    //
-    // As of FF4, we no longer support the OJI plugin.
-    if (PL_strcasecmp(scheme.get(), "http") &&
-        PL_strcasecmp(scheme.get(), "https") &&
-        PL_strcasecmp(scheme.get(), "file") &&
-        PL_strcasecmp(scheme.get(), "ftp") &&
-        PL_strcasecmp(scheme.get(), "gopher") &&
-        PL_strcasecmp(scheme.get(), "chrome"))
-      compatible = PR_FALSE;
-  } else {
-    compatible = PR_FALSE;
-  }
-
-  *result = compatible;
-
-  return NS_OK;
-}
-
-/**
- * Make sure Personal Security Manager is initialized
- */
-inline void
-net_EnsurePSMInit()
-{
-    nsCOMPtr<nsISocketProviderService> spserv =
-            do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID);
-    if (spserv) {
-        nsCOMPtr<nsISocketProvider> provider;
-        spserv->GetSocketProvider("ssl", getter_AddRefs(provider));
-    }
 }
 
 #endif // !nsNetUtil_h__

@@ -54,6 +54,7 @@ nsGConfService::~nsGConfService()
 nsresult
 nsGConfService::Init()
 {
+  g_type_init();
   mClient = gconf_client_get_default();
   return mClient ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -213,7 +214,8 @@ nsGConfService::GetAppForProtocol(const nsACString &aScheme, PRBool *aEnabled,
   }
 
   aHandler.Assign(command);
-  g_free(command);
+  if (command)
+    g_free(command);
 
   if (err) {
     g_error_free(err);

@@ -35,8 +35,7 @@ var ADDON_PROPERTIES = ["id", "type", "version", "creator", "developers",
                         "supportURL", "contributionURL", "contributionAmount",
                         "averageRating", "reviewCount", "reviewURL",
                         "totalDownloads", "weeklyDownloads", "dailyUsers",
-                        "sourceURI", "repositoryStatus", "size", "updateDate",
-                        "purchaseURL", "purchaseAmount", "purchaseDisplayAmount"];
+                        "sourceURI", "repositoryStatus", "size", "updateDate"];
 
 // Results of getAddonsByIDs
 var GET_RESULTS = [{
@@ -76,7 +75,7 @@ var GET_RESULTS = [{
   weeklyDownloads:        3333,
   dailyUsers:             4444,
   sourceURI:              BASE_URL + INSTALL_URL2,
-  repositoryStatus:       8,
+  repositoryStatus:       4,
   size:                   5555,
   updateDate:             new Date(1265033045000)
 }, {
@@ -94,7 +93,7 @@ var SEARCH_RESULTS = [{
                             name: "Test Creator 1",
                             url:  BASE_URL + "/creator1.html"
                           },
-  repositoryStatus:       8,
+  repositoryStatus:       4,
   sourceURI:              BASE_URL + "/test1.xpi"
 }, {
   id:                     "test2@tests.mozilla.org",
@@ -108,9 +107,9 @@ var SEARCH_RESULTS = [{
                             name: "Test Developer 2",
                             url:  BASE_URL + "/developer2.html"
                           }],
-  description:            "Test Summary 2\n\nparagraph",
-  fullDescription:        "Test Description 2\nnewline",
-  developerComments:      "Test Developer\nComments 2",
+  description:            "Test Summary 2",
+  fullDescription:        "Test Description 2",
+  developerComments:      "Test Developer Comments 2",
   eula:                   "Test EULA 2",
   iconURL:                BASE_URL + "/icon2.png",
   screenshots:            [{
@@ -124,7 +123,7 @@ var SEARCH_RESULTS = [{
   homepageURL:            BASE_URL + "/learnmore2.html",
   supportURL:             BASE_URL + "/support2.html",
   contributionURL:        BASE_URL + "/meetDevelopers2.html",
-  contributionAmount:     null,
+  contributionAmount:     "$11.11",
   repositoryStatus:       4,
   sourceURI:              BASE_URL + "/test2.xpi"
 }, {
@@ -143,7 +142,7 @@ var SEARCH_RESULTS = [{
                             url:  BASE_URL + "/developer2-3.html"
                           }],
   description:            "Test Summary 3",
-  fullDescription:        "Test Description 3\n\n    List item 1\n    List item 2",
+  fullDescription:        "Test Description 3",
   developerComments:      "Test Developer Comments 3",
   eula:                   "Test EULA 3",
   iconURL:                BASE_URL + "/icon3.png",
@@ -170,35 +169,9 @@ var SEARCH_RESULTS = [{
   weeklyDownloads:        3333,
   dailyUsers:             4444,
   sourceURI:              BASE_URL + "/test3.xpi",
-  repositoryStatus:       8,
+  repositoryStatus:       4,
   size:                   5555,
   updateDate:             new Date(1265033045000)
-}, {
-  id:                     "purchase1@tests.mozilla.org",
-  type:                   "extension",
-  version:                "2.0",
-  creator:                {
-                            name: "Test Creator - Last Passing",
-                            url:  BASE_URL + "/creatorLastPassing.html"
-                          },
-  averageRating:          5,
-  repositoryStatus:       4,
-  purchaseURL:            "http://localhost:4444/purchaseURL1",
-  purchaseAmount:         5,
-  purchaseDisplayAmount:  "$5"
-}, {
-  id:                     "purchase2@tests.mozilla.org",
-  type:                   "extension",
-  version:                "2.0",
-  creator:                {
-                            name: "Test Creator - Last Passing",
-                            url:  BASE_URL + "/creatorLastPassing.html"
-                          },
-  averageRating:          5,
-  repositoryStatus:       4,
-  purchaseURL:            "http://localhost:4444/purchaseURL2",
-  purchaseAmount:         10,
-  purchaseDisplayAmount:  "$10"
 }, {
   id:                     "test-lastPassing@tests.mozilla.org",
   type:                   "extension",
@@ -270,10 +243,10 @@ function check_results(aActualAddons, aExpectedAddons, aAddonCount, aInstallNull
     if (aActualAddon.name != "PASS")
       do_throw(aActualAddon.id + " - " + "invalid add-on name " + aActualAddon.name);
 
-    do_check_eq(aActualAddon.install == null, !!aInstallNull || !aActualAddon.sourceURI);
+    do_check_eq(aActualAddon.install == null, !!aInstallNull);
 
     // Check that sourceURI property consistent within actual addon
-    if (aActualAddon.install)
+    if (!aInstallNull)
       do_check_eq(aActualAddon.install.sourceURI.spec, aActualAddon.sourceURI.spec);
   });
 }
@@ -416,7 +389,7 @@ function run_test_1() {
     urlTests:           urlTests,
     getURL:             function() AddonRepository.getRecommendedURL()
   }, {
-    initiallyUndefined: false,
+    initiallyUndefined: true,
     preference:         PREF_GETADDONS_BROWSESEARCHRESULTS,
     urlTests:           urlTests.concat(searchURLTests),
     getURL:             function getSearchURL(aTest) {

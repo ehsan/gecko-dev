@@ -46,6 +46,7 @@
 #include "nsIServiceManager.h"
 #include "nsReadableUtils.h"
 #include "nsString.h"
+#include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsNetCID.h"
 #include "nsNetError.h"
@@ -56,11 +57,8 @@
 #include "prmon.h"
 #include "prio.h"
 #include "plstr.h"
-#include "nsIOService.h"
 
 #include "mozilla/FunctionTimer.h"
-
-using namespace mozilla;
 
 static const char kPrefDnsCacheEntries[]    = "network.dnsCacheEntries";
 static const char kPrefDnsCacheExpiration[] = "network.dnsCacheExpiration";
@@ -106,14 +104,13 @@ nsDNSRecord::GetCanonicalName(nsACString &result)
     // if the record is for an IP address literal, then the canonical
     // host name is the IP address literal.
     const char *cname;
-    {
-        MutexAutoLock lock(*mHostRecord->addr_info_lock);
-        if (mHostRecord->addr_info)
-            cname = PR_GetCanonNameFromAddrInfo(mHostRecord->addr_info);
-        else
-            cname = mHostRecord->host;
-        result.Assign(cname);
-    }
+    PR_Lock(mHostRecord->addr_info_lock);
+    if (mHostRecord->addr_info)
+        cname = PR_GetCanonNameFromAddrInfo(mHostRecord->addr_info);
+    else
+        cname = mHostRecord->host;
+    result.Assign(cname);
+    PR_Unlock(mHostRecord->addr_info_lock);
     return NS_OK;
 }
 
@@ -126,7 +123,7 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
     if (mDone)
         return NS_ERROR_NOT_AVAILABLE;
 
-    mHostRecord->addr_info_lock->Lock();
+    PR_Lock(mHostRecord->addr_info_lock);
     if (mHostRecord->addr_info) {
         if (!mIter)
             mIterGenCnt = mHostRecord->addr_info_gencnt;
@@ -137,14 +134,14 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
             mIterGenCnt = mHostRecord->addr_info_gencnt;
         }
         mIter = PR_EnumerateAddrInfo(mIter, mHostRecord->addr_info, port, addr);
-        mHostRecord->addr_info_lock->Unlock();
+        PR_Unlock(mHostRecord->addr_info_lock);
         if (!mIter) {
             mDone = PR_TRUE;
             return NS_ERROR_NOT_AVAILABLE;
         }
     }
     else {
-        mHostRecord->addr_info_lock->Unlock();
+        PR_Unlock(mHostRecord->addr_info_lock);
         if (!mHostRecord->addr) {
             // Both mHostRecord->addr_info and mHostRecord->addr are null.
             // This can happen if mHostRecord->addr_info expired and the
@@ -308,13 +305,14 @@ nsDNSSyncRequest::OnLookupComplete(nsHostResolver *resolver,
 //-----------------------------------------------------------------------------
 
 nsDNSService::nsDNSService()
-    : mLock("nsDNSServer.mLock")
-    , mFirstTime(PR_TRUE)
+    : mLock(nsnull)
 {
 }
 
 nsDNSService::~nsDNSService()
 {
+    if (mLock)
+        PR_DestroyLock(mLock);
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsDNSService, nsIDNSService, nsPIDNSService,
@@ -326,6 +324,8 @@ nsDNSService::Init()
     NS_TIME_FUNCTION;
 
     NS_ENSURE_TRUE(!mResolver, NS_ERROR_ALREADY_INITIALIZED);
+
+    PRBool firstTime = (mLock == nsnull);
 
     // prefs
     PRUint32 maxCacheEntries  = 400;
@@ -356,8 +356,10 @@ nsDNSService::Init()
         prefs->GetIntPref("network.proxy.type", &proxyType);
     }
 
-    if (mFirstTime) {
-        mFirstTime = PR_FALSE;
+    if (firstTime) {
+        mLock = PR_NewLock();
+        if (!mLock)
+            return NS_ERROR_OUT_OF_MEMORY;
 
         // register as prefs observer
         if (prefs) {
@@ -380,20 +382,13 @@ nsDNSService::Init()
     if (enableIDN)
         idn = do_GetService(NS_IDNSERVICE_CONTRACTID);
 
-    nsDNSPrefetch::Initialize(this);
-
-    // Don't initialize the resolver if we're in offline mode.
-    // Later on, the IO service will reinitialize us when going online.
-    if (gIOService->IsOffline() && !gIOService->IsComingOnline())
-        return NS_OK;
-
     nsRefPtr<nsHostResolver> res;
     nsresult rv = nsHostResolver::Create(maxCacheEntries,
                                          maxCacheLifetime,
                                          getter_AddRefs(res));
     if (NS_SUCCEEDED(rv)) {
         // now, set all of our member variables while holding the lock
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         mResolver = res;
         mIDN = idn;
         mIPv4OnlyDomains = ipv4OnlyDomains; // exchanges buffer ownership
@@ -402,6 +397,8 @@ nsDNSService::Init()
         // Disable prefetching either by explicit preference or if a manual proxy is configured 
         mDisablePrefetch = disablePrefetch || (proxyType == nsIProtocolProxyService::PROXYCONFIG_MANUAL);
     }
+    
+    nsDNSPrefetch::Initialize(this);
     return rv;
 }
 
@@ -410,7 +407,7 @@ nsDNSService::Shutdown()
 {
     nsRefPtr<nsHostResolver> res;
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         res = mResolver;
         mResolver = nsnull;
     }
@@ -431,7 +428,7 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     nsRefPtr<nsHostResolver> res;
     nsCOMPtr<nsIIDNService> idn;
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
 
         if (mDisablePrefetch && (flags & RESOLVE_SPECULATE))
             return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
@@ -490,7 +487,7 @@ nsDNSService::Resolve(const nsACString &hostname,
     nsRefPtr<nsHostResolver> res;
     nsCOMPtr<nsIIDNService> idn;
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         res = mResolver;
         idn = mIDN;
     }
@@ -574,8 +571,8 @@ nsDNSService::Observe(nsISupports *subject, const char *topic, const PRUnichar *
 
     if (mResolver) {
         Shutdown();
+        Init();
     }
-    Init();
     return NS_OK;
 }
 
@@ -585,7 +582,7 @@ nsDNSService::GetAFForLookup(const nsACString &host)
     if (mDisableIPv6)
         return PR_AF_INET;
 
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
 
     PRUint16 af = PR_AF_UNSPEC;
 

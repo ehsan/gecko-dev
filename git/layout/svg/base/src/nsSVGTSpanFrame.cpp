@@ -109,8 +109,7 @@ nsSVGTSpanFrame::AttributeChanged(PRInt32         aNameSpaceID,
       (aAttribute == nsGkAtoms::x ||
        aAttribute == nsGkAtoms::y ||
        aAttribute == nsGkAtoms::dx ||
-       aAttribute == nsGkAtoms::dy ||
-       aAttribute == nsGkAtoms::rotate)) {
+       aAttribute == nsGkAtoms::dy)) {
     NotifyGlyphMetricsChange();
   }
 
@@ -154,31 +153,31 @@ nsSVGTSpanFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
   return nsSVGTSpanFrameBase::GetCharNumAtPosition(point);
 }
 
-NS_IMETHODIMP_(nsSVGGlyphFrame *)
-nsSVGTSpanFrame::GetFirstGlyphFrame()
+NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
+nsSVGTSpanFrame::GetFirstGlyphFragment()
 {
   // try children first:
   nsIFrame* kid = mFrames.FirstChild();
   while (kid) {
     nsISVGGlyphFragmentNode *node = do_QueryFrame(kid);
     if (node)
-      return node->GetFirstGlyphFrame();
+      return node->GetFirstGlyphFragment();
     kid = kid->GetNextSibling();
   }
 
   // nope. try siblings:
-  return GetNextGlyphFrame();
+  return GetNextGlyphFragment();
 
 }
 
-NS_IMETHODIMP_(nsSVGGlyphFrame *)
-nsSVGTSpanFrame::GetNextGlyphFrame()
+NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
+nsSVGTSpanFrame::GetNextGlyphFragment()
 {
   nsIFrame* sibling = GetNextSibling();
   while (sibling) {
     nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
     if (node)
-      return node->GetFirstGlyphFrame();
+      return node->GetFirstGlyphFragment();
     sibling = sibling->GetNextSibling();
   }
 
@@ -186,11 +185,11 @@ nsSVGTSpanFrame::GetNextGlyphFrame()
   
   NS_ASSERTION(GetParent(), "null parent");
   nsISVGGlyphFragmentNode *node = do_QueryFrame(GetParent());
-  return node ? node->GetNextGlyphFrame() : nsnull;
+  return node ? node->GetNextGlyphFragment() : nsnull;
 }
 
 NS_IMETHODIMP_(void)
-nsSVGTSpanFrame::SetWhitespaceCompression(PRBool)
+nsSVGTSpanFrame::SetWhitespaceHandling(PRUint8 aWhitespaceHandling)
 {
-  nsSVGTSpanFrameBase::SetWhitespaceCompression();
+  nsSVGTSpanFrameBase::SetWhitespaceHandling();
 }

@@ -59,14 +59,12 @@ public:
   virtual ~ShadowLayerParent();
 
   void Bind(Layer* layer);
-  void Destroy();
 
   Layer* AsLayer() const { return mLayer; }
   ContainerLayer* AsContainer() const;
 
 private:
-  NS_OVERRIDE
-  virtual void ActorDestroy(ActorDestroyReason why);
+  NS_OVERRIDE virtual bool Recv__delete__();
 
   nsRefPtr<Layer> mLayer;
 };

@@ -38,7 +38,6 @@
 #ifndef nsWebShellWindow_h__
 #define nsWebShellWindow_h__
 
-#include "mozilla/Mutex.h"
 #include "nsEvent.h"
 #include "nsIWebProgressListener.h"
 #include "nsITimer.h"
@@ -85,12 +84,11 @@ protected:
 
   void                     LoadContentAreas();
   PRBool                   ExecuteCloseHandler();
-  void                     ConstrainToOpenerScreen(PRInt32* aX, PRInt32* aY);
 
   static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 
   nsCOMPtr<nsITimer>      mSPTimer;
-  mozilla::Mutex          mSPTimerLock;
+  PRLock *                mSPTimerLock;
 
   void        SetPersistenceTimer(PRUint32 aDirtyFlags);
   static void FirePersistenceTimer(nsITimer *aTimer, void *aClosure);

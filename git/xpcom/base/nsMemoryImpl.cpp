@@ -49,9 +49,34 @@
 #include "pratom.h"
 
 #include "nsAlgorithm.h"
+#include "nsAutoLock.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "mozilla/Services.h"
+
+#if defined(XP_WIN)
+#include <windows.h>
+#endif
+
+#if (MOZ_PLATFORM_MAEMO == 5 || MOZ_PLATFORM_MAEMO == 4) && defined(__arm__)
+#include <fcntl.h>
+#include <unistd.h>
+static const char kHighMark[] = "/sys/kernel/high_watermark";
+#endif
+
+// Some platforms notify you when system memory is low, others do not.
+// In the case of those that do not, we want to post low memory
+// notifications from IsLowMemory().  For those that can notify us, that
+// code usually lives in toolkit.
+#ifdef WINCE
+#define NOTIFY_LOW_MEMORY
+#endif
+
+#ifdef WINCE_WINDOWS_MOBILE
+#include "aygshell.h"
+#endif
+
+#include "nsITimer.h"
 
 static nsMemoryImpl sGlobalMemory;
 
@@ -81,11 +106,56 @@ nsMemoryImpl::HeapMinimize(PRBool aImmediate)
     return FlushMemory(NS_LITERAL_STRING("heap-minimize").get(), aImmediate);
 }
 
+/* this magic number is something greater than 40mb
+ * and after all, 40mb should be good enough for any web app
+ * unless it's part of an office suite.
+ */
+static const int kRequiredMemory = 0x3000000;
+
 NS_IMETHODIMP
 nsMemoryImpl::IsLowMemory(PRBool *result)
 {
-    NS_ERROR("IsLowMemory is deprecated.  See bug 592308.");
+#if defined(WINCE_WINDOWS_MOBILE)
+    MEMORYSTATUS stat;
+    GlobalMemoryStatus(&stat);
+    *result = (stat.dwMemoryLoad >= 98);
+#elif defined(WINCE)
+    // Bug 525323 - GlobalMemoryStatus kills perf on WinCE.
     *result = PR_FALSE;
+#elif defined(XP_WIN)
+    MEMORYSTATUSEX stat;
+    stat.dwLength = sizeof stat;
+    GlobalMemoryStatusEx(&stat);
+    *result = (stat.ullAvailPageFile < kRequiredMemory) &&
+        ((float)stat.ullAvailPageFile / stat.ullTotalPageFile) < 0.1;
+#elif (MOZ_PLATFORM_MAEMO == 5 || MOZ_PLATFORM_MAEMO == 4) && defined(__arm__)
+    static int osso_highmark_fd = -1;
+    if (osso_highmark_fd == -1) {
+        osso_highmark_fd = open (kHighMark, O_RDONLY);
+
+        if (osso_highmark_fd == -1) {
+            NS_ERROR("can't find the osso highmark file");    
+            *result = PR_FALSE;
+            return NS_OK;
+        }
+    }
+
+    // be kind, rewind.
+    lseek(osso_highmark_fd, 0L, SEEK_SET);
+
+    int c = 0;
+    read (osso_highmark_fd, &c, 1);
+
+    *result = (c == '1');
+#else
+    *result = PR_FALSE;
+#endif
+
+#ifdef NOTIFY_LOW_MEMORY
+    if (*result) {
+        sGlobalMemory.FlushMemory(NS_LITERAL_STRING("low-memory").get(), PR_FALSE);
+    }
+#endif
     return NS_OK;
 }
 
@@ -111,7 +181,7 @@ nsMemoryImpl::FlushMemory(const PRUnichar* aReason, PRBool aImmediate)
         }
     }
 
-    PRInt32 lastVal = PR_ATOMIC_SET(&sIsFlushing, 1);
+    PRInt32 lastVal = PR_AtomicSet(&sIsFlushing, 1);
     if (lastVal)
         return NS_OK;
 
@@ -163,6 +233,17 @@ nsMemoryImpl::RunFlushers(const PRUnichar* aReason)
           }
         }
     }
+
+    // Run built-in system flushers
+#ifdef WINCE_WINDOWS_MOBILE
+
+    // This function tries to free up memory for an application.
+    // If necessary, the shell closes down other applications by
+    // sending WM_CLOSE messages.  We ask for 4MB.
+
+    SHCloseApps(1024 * 1024 * 4);
+
+#endif
 
     sIsFlushing = 0;
     return NS_OK;

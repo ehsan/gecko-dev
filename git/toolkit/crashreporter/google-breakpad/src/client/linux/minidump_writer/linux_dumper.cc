@@ -45,9 +45,7 @@
 #include <elf.h>
 #include <errno.h>
 #include <fcntl.h>
-#if !defined(__ANDROID__)
 #include <link.h>
-#endif
 
 #include <sys/types.h>
 #include <sys/ptrace.h>
@@ -106,12 +104,12 @@ bool DetachThread(pid_t pid) {
 }
 
 inline bool IsMappedFileOpenUnsafe(
-    const google_breakpad::MappingInfo& mapping) {
+    const google_breakpad::MappingInfo* mapping) {
   // It is unsafe to attempt to open a mapped file that lives under /dev,
   // because the semantics of the open may be driver-specific so we'd risk
   // hanging the crash dumper. And a file in /dev/ almost certainly has no
   // ELF file identifier anyways.
-  return my_strncmp(mapping.name,
+  return my_strncmp(mapping->name,
                     kMappedFileUnsafePrefix,
                     sizeof(kMappedFileUnsafePrefix) - 1) == 0;
 }
@@ -119,15 +117,10 @@ inline bool IsMappedFileOpenUnsafe(
 bool GetThreadRegisters(ThreadInfo* info) {
   pid_t tid = info->tid;
 
-  if (sys_ptrace(PTRACE_GETREGS, tid, NULL, &info->regs) == -1) {
+  if (sys_ptrace(PTRACE_GETREGS, tid, NULL, &info->regs) == -1 ||
+      sys_ptrace(PTRACE_GETFPREGS, tid, NULL, &info->fpregs) == -1) {
     return false;
   }
-
-#if !defined(__ANDROID__)
-  if (sys_ptrace(PTRACE_GETFPREGS, tid, NULL, &info->fpregs) == -1) {
-    return false;
-  }
-#endif
 
 #if defined(__i386)
   if (sys_ptrace(PTRACE_GETFPXREGS, tid, NULL, &info->fpxregs) == -1)
@@ -237,14 +230,16 @@ LinuxDumper::BuildProcPath(char* path, pid_t pid, const char* node) const {
 }
 
 bool
-LinuxDumper::ElfFileIdentifierForMapping(const MappingInfo& mapping,
+LinuxDumper::ElfFileIdentifierForMapping(unsigned int mapping_id,
                                          uint8_t identifier[sizeof(MDGUID)])
 {
+  assert(mapping_id < mappings_.size());
   my_memset(identifier, 0, sizeof(MDGUID));
+  const MappingInfo* mapping = mappings_[mapping_id];
   if (IsMappedFileOpenUnsafe(mapping)) {
     return false;
   }
-  int fd = sys_open(mapping.name, O_RDONLY, 0);
+  int fd = sys_open(mapping->name, O_RDONLY, 0);
   if (fd < 0)
     return false;
   struct kernel_stat st;
@@ -324,36 +319,25 @@ LinuxDumper::EnumerateMappings(wasteful_vector<MappingInfo*>* result) const {
       if (*i2 == ' ') {
         const char* i3 = my_read_hex_ptr(&offset, i2 + 6 /* skip ' rwxp ' */);
         if (*i3 == ' ') {
-          const char* name = NULL;
-          // Only copy name if the name is a valid path name, or if
-          // it's the VDSO image.
-          if (((name = my_strchr(line, '/')) == NULL) &&
-              linux_gate_loc &&
-              reinterpret_cast<void*>(start_addr) == linux_gate_loc) {
-            name = kLinuxGateLibraryName;
-            offset = 0;
-          }
-          // Merge adjacent mappings with the same name into one module,
-          // assuming they're a single library mapped by the dynamic linker
-          if (name && result->size()) {
-            MappingInfo* module = (*result)[result->size() - 1];
-            if ((start_addr == module->start_addr + module->size) &&
-                (my_strlen(name) == my_strlen(module->name)) &&
-                (my_strncmp(name, module->name, my_strlen(name)) == 0)) {
-              module->size = end_addr - module->start_addr;
-              line_reader->PopLine(line_len);
-              continue;
-            }
-          }
           MappingInfo* const module = new(allocator_) MappingInfo;
           memset(module, 0, sizeof(MappingInfo));
           module->start_addr = start_addr;
           module->size = end_addr - start_addr;
           module->offset = offset;
-          if (name != NULL) {
+          const char* name = NULL;
+          // Only copy name if the name is a valid path name, or if
+          // we've found the VDSO image
+          if ((name = my_strchr(line, '/')) != NULL) {
             const unsigned l = my_strlen(name);
             if (l < sizeof(module->name))
               memcpy(module->name, name, l);
+          } else if (linux_gate_loc &&
+                     reinterpret_cast<void*>(module->start_addr) ==
+                     linux_gate_loc) {
+            memcpy(module->name,
+                   kLinuxGateLibraryName,
+                   my_strlen(kLinuxGateLibraryName));
+            module->offset = 0;
           }
           result->push_back(module);
         }
@@ -441,7 +425,7 @@ bool LinuxDumper::ThreadInfoGet(ThreadInfo* info) {
 #elif defined(__x86_64)
   memcpy(&stack_pointer, &info->regs.rsp, sizeof(info->regs.rsp));
 #elif defined(__ARM_EABI__)
-  memcpy(&stack_pointer, &info->regs.ARM_sp, sizeof(info->regs.ARM_sp));
+  memcpy(&stack_pointer, &info->regs.uregs[R13], sizeof(info->regs.uregs[R13]));
 #else
 #error "This code hasn't been ported to your platform yet."
 #endif

@@ -39,8 +39,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <sys/types.h>
-#include <sys/stat.h>
 #include "nsOSHelperAppService.h"
 #include "nsObjCExceptions.h"
 #include "nsISupports.h"
@@ -95,9 +93,6 @@ extern "C" {
 
 nsOSHelperAppService::nsOSHelperAppService() : nsExternalHelperAppService()
 {
-  mode_t mask = umask(0777);
-  umask(mask);
-  mPermissions = 0666 & ~mask;
 }
 
 nsOSHelperAppService::~nsOSHelperAppService()
@@ -477,10 +472,4 @@ nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
   handlerInfo->SetDefaultDescription(desc);
 
   return NS_OK;
-}
-
-void
-nsOSHelperAppService::FixFilePermissions(nsILocalFile* aFile)
-{
-  aFile->SetPermissions(mPermissions);
 }

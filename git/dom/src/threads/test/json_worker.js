@@ -78,18 +78,22 @@ var messages = [
   {
     type: "object",
     value: cyclicalObject,
+    exception: true
   },
   {
     type: "object",
     value: [null, 2, false, cyclicalObject],
+    exception: true
   },
   {
     type: "object",
     value: cyclicalArray,
+    exception: true
   },
   {
     type: "object",
     value: {foo: 1, bar: cyclicalArray},
+    exception: true
   },
   {
     type: "object",
@@ -99,6 +103,7 @@ var messages = [
   {
     type: "object",
     value: crazyCyclicalObject,
+    exception: true
   },
   {
     type: "object",
@@ -310,9 +315,6 @@ function onmessage(event) {
       postMessage(messages[index].value);
     }
     catch (e) {
-      if (e.result != 2152923161) {
-        throw "Exception of the wrong type: " + e.result;
-      }
       exception = e;
     }
 

@@ -40,6 +40,7 @@
 
 // Mozilla includes
 #include "nscore.h"
+#include "nsIPrefService.h"
 #include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -108,7 +109,7 @@ FontStretchFromDWriteStretch(DWRITE_FONT_STRETCH aStretch)
 
 struct ffReferenceKey
 {
-    FallibleTArray<PRUint8> *mArray;
+    nsTArray<PRUint8> *mArray;
     nsID mGUID;
 };
 
@@ -146,7 +147,7 @@ public:
     // IDWriteFontFileLoader methods
     /**
      * Important! Note the key here -has- to be a pointer to an
-     * FallibleTArray<PRUint8>.
+     * nsTArray<PRUint8>.
      */
     virtual HRESULT STDMETHODCALLTYPE 
         CreateStreamFromKey(void const* fontFileReferenceKey,
@@ -155,8 +156,8 @@ public:
 
     /**
      * Gets the singleton loader instance. Note that when using this font
-     * loader, the key must be a pointer to an FallibleTArray<PRUint8>. This
-     * array will be empty when the function returns.
+     * loader, the key must be a pointer to an nsTArray<PRUint8>. This array
+     * will be empty when the function returns.
      */
     static IDWriteFontFileLoader* Instance()
     {
@@ -183,7 +184,7 @@ public:
      *
      * @param aData Font data
      */
-    gfxDWriteFontFileStream(FallibleTArray<PRUint8> *aData);
+    gfxDWriteFontFileStream(nsTArray<PRUint8> *aData);
     ~gfxDWriteFontFileStream();
 
     // IUnknown interface
@@ -231,7 +232,7 @@ public:
     virtual HRESULT STDMETHODCALLTYPE GetLastWriteTime(OUT UINT64* lastWriteTime);
 
 private:
-    FallibleTArray<PRUint8> mData;
+    nsTArray<PRUint8> mData;
     nsAutoRefCnt mRefCnt;
 }; 
 

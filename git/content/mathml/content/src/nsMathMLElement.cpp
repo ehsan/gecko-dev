@@ -47,7 +47,7 @@
 #include "nsMappedAttributes.h"
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h"
@@ -62,8 +62,6 @@ NS_INTERFACE_TABLE_HEAD(nsMathMLElement)
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsMathMLElement)
     NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMNode)
     NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMElement)
-    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsILink)
-    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, Link)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MathMLElement)
@@ -78,8 +76,6 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                             PRBool aCompileEventHandlers)
 {
   static const char kMathMLStyleSheetURI[] = "resource://gre-resources/mathml.css";
-
-  Link::ResetLinkState(false);
 
   nsresult rv = nsMathMLElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
@@ -103,16 +99,6 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
 
   return rv;
-}
-
-void
-nsMathMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
-{
-  // If this link is ever reinserted into a document, it might
-  // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false);
-
-  nsMathMLElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
 PRBool
@@ -179,14 +165,14 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       tag == nsGkAtoms::mtext_ || tag == nsGkAtoms::mspace_)
     return FindAttributeDependence(aAttribute, tokenMap,
                                    NS_ARRAY_LENGTH(tokenMap));
-  if (tag == nsGkAtoms::mstyle_ ||
-      tag == nsGkAtoms::math)
+  if (tag == nsGkAtoms::mstyle_)
     return FindAttributeDependence(aAttribute, mstyleMap,
                                    NS_ARRAY_LENGTH(mstyleMap));
 
   if (tag == nsGkAtoms::maction_ ||
       tag == nsGkAtoms::maligngroup_ ||
       tag == nsGkAtoms::malignmark_ ||
+      tag == nsGkAtoms::math ||
       tag == nsGkAtoms::menclose_ ||
       tag == nsGkAtoms::merror_ ||
       tag == nsGkAtoms::mfenced_ ||
@@ -340,10 +326,8 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
     const nsAttrValue* value =
       aAttributes->GetAttr(nsGkAtoms::scriptsizemultiplier_);
-    nsCSSValue* scriptSizeMultiplier =
-      aData->ValueForScriptSizeMultiplier();
     if (value && value->Type() == nsAttrValue::eString &&
-        scriptSizeMultiplier->GetUnit() == eCSSUnit_Null) {
+        aData->mFontData->mScriptSizeMultiplier.GetUnit() == eCSSUnit_Null) {
       nsAutoString str(value->GetStringValue());
       str.CompressWhitespace();
       // MathML numbers can't have leading '+'
@@ -352,22 +336,22 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
         float floatValue = str.ToFloat(&errorCode);
         // Negative scriptsizemultipliers are not parsed
         if (NS_SUCCEEDED(errorCode) && floatValue >= 0.0f) {
-          scriptSizeMultiplier->SetFloatValue(floatValue, eCSSUnit_Number);
+          aData->mFontData->mScriptSizeMultiplier.
+            SetFloatValue(floatValue, eCSSUnit_Number);
         }
       }
     }
 
     value = aAttributes->GetAttr(nsGkAtoms::scriptminsize_);
-    nsCSSValue* scriptMinSize = aData->ValueForScriptMinSize();
     if (value && value->Type() == nsAttrValue::eString &&
-        scriptMinSize->GetUnit() == eCSSUnit_Null) {
-      ParseNumericValue(value->GetStringValue(), *scriptMinSize, 0);
+        aData->mFontData->mScriptMinSize.GetUnit() == eCSSUnit_Null) {
+      ParseNumericValue(value->GetStringValue(),
+                        aData->mFontData->mScriptMinSize, 0);
     }
 
     value = aAttributes->GetAttr(nsGkAtoms::scriptlevel_);
-    nsCSSValue* scriptLevel = aData->ValueForScriptLevel();
     if (value && value->Type() == nsAttrValue::eString &&
-        scriptLevel->GetUnit() == eCSSUnit_Null) {
+        aData->mFontData->mScriptLevel.GetUnit() == eCSSUnit_Null) {
       nsAutoString str(value->GetStringValue());
       str.CompressWhitespace();
       if (str.Length() > 0) {
@@ -380,9 +364,9 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
           // to indicate that the scriptlevel is absolute.
           PRUnichar ch = str.CharAt(0);
           if (ch == '+' || ch == '-') {
-            scriptLevel->SetIntValue(intValue, eCSSUnit_Integer);
+            aData->mFontData->mScriptLevel.SetIntValue(intValue, eCSSUnit_Integer);
           } else {
-            scriptLevel->SetFloatValue(intValue, eCSSUnit_Number);
+            aData->mFontData->mScriptLevel.SetFloatValue(intValue, eCSSUnit_Number);
           }
         }
       }
@@ -394,11 +378,10 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       parseSizeKeywords = PR_FALSE;
       value = aAttributes->GetAttr(nsGkAtoms::fontsize_);
     }
-    nsCSSValue* fontSize = aData->ValueForFontSize();
     if (value && value->Type() == nsAttrValue::eString &&
-        fontSize->GetUnit() == eCSSUnit_Null) {
+        aData->mFontData->mSize.GetUnit() == eCSSUnit_Null) {
       nsAutoString str(value->GetStringValue());
-      if (!ParseNumericValue(str, *fontSize, 0) &&
+      if (!ParseNumericValue(str, aData->mFontData->mSize, 0) &&
           parseSizeKeywords) {
         static const char sizes[3][7] = { "small", "normal", "big" };
         static const PRInt32 values[NS_ARRAY_LENGTH(sizes)] = {
@@ -408,7 +391,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
         str.CompressWhitespace();
         for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
           if (str.EqualsASCII(sizes[i])) {
-            fontSize->SetIntValue(values[i], eCSSUnit_Enumerated);
+            aData->mFontData->mSize.SetIntValue(values[i], eCSSUnit_Enumerated);
             break;
           }
         }
@@ -416,10 +399,11 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     }
 
     value = aAttributes->GetAttr(nsGkAtoms::fontfamily_);
-    nsCSSValue* fontFamily = aData->ValueForFontFamily();
     if (value && value->Type() == nsAttrValue::eString &&
-        fontFamily->GetUnit() == eCSSUnit_Null) {
-      fontFamily->SetStringValue(value->GetStringValue(), eCSSUnit_Families);
+        aData->mFontData->mFamily.GetUnit() == eCSSUnit_Null) {
+      aData->mFontData->mFamily.SetStringValue(value->GetStringValue(),
+                                               eCSSUnit_Families);
+      aData->mFontData->mFamilyFromHTML = PR_FALSE;
     }
   }
 
@@ -429,11 +413,10 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     if (!value) {
       value = aAttributes->GetAttr(nsGkAtoms::background);
     }
-    nsCSSValue* backgroundColor = aData->ValueForBackgroundColor();
-    if (value && backgroundColor->GetUnit() == eCSSUnit_Null) {
+    if (value && aData->mColorData->mBackColor.GetUnit() == eCSSUnit_Null) {
       nscolor color;
       if (value->GetColorValue(color)) {
-        backgroundColor->SetColorValue(color);
+        aData->mColorData->mBackColor.SetColorValue(color);
       }
     }
   }
@@ -444,36 +427,20 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       value = aAttributes->GetAttr(nsGkAtoms::color);
     }
     nscolor color;
-    nsCSSValue* colorValue = aData->ValueForColor();
     if (value && value->GetColorValue(color) &&
-        colorValue->GetUnit() == eCSSUnit_Null) {
-      colorValue->SetColorValue(color);
+        aData->mColorData->mColor.GetUnit() == eCSSUnit_Null) {
+      aData->mColorData->mColor.SetColorValue(color);
     }
   }
 }
 
-nsresult
-nsMathMLElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
-  nsresult rv = nsGenericElement::PreHandleEvent(aVisitor);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return PreHandleEventForLinks(aVisitor);
-}
-
-nsresult
-nsMathMLElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
-{
-  return PostHandleEventForLinks(aVisitor);
-}
-
 NS_IMPL_ELEMENT_CLONE(nsMathMLElement)
 
-nsEventStates
+PRInt32
 nsMathMLElement::IntrinsicState() const
 {
-  return Link::LinkState() | nsMathMLElementBase::IntrinsicState() |
-    (mIncrementScriptLevel ? NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL : nsEventStates());
+  return nsMathMLElementBase::IntrinsicState() |
+    (mIncrementScriptLevel ? NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL : 0);
 }
 
 PRBool
@@ -492,187 +459,11 @@ nsMathMLElement::SetIncrementScriptLevel(PRBool aIncrementScriptLevel,
 
   NS_ASSERTION(aNotify, "We always notify!");
 
-  UpdateState(true);
-}
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc)
+    return;
 
-PRBool
-nsMathMLElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
-{
-  nsCOMPtr<nsIURI> uri;
-  if (IsLink(getter_AddRefs(uri))) {
-    if (aTabIndex) {
-      *aTabIndex = ((sTabFocusModel & eTabFocus_linksMask) == 0 ? -1 : 0);
-    }
-    return PR_TRUE;
-  }
-
-  if (aTabIndex) {
-    *aTabIndex = -1;
-  }
-
-  return PR_FALSE;
-}
-
-PRBool
-nsMathMLElement::IsLink(nsIURI** aURI) const
-{
-  // http://www.w3.org/TR/2010/REC-MathML3-20101021/chapter6.html#interf.link
-  // The REC says that the following elements should not be linking elements:
-  nsIAtom* tag = Tag();
-  if (tag == nsGkAtoms::mprescripts_ ||
-      tag == nsGkAtoms::none         ||
-      tag == nsGkAtoms::malignmark_  ||
-      tag == nsGkAtoms::maligngroup_) {
-    *aURI = nsnull;
-    return PR_FALSE;
-  }
-
-  PRBool hasHref = PR_FALSE;
-  const nsAttrValue* href = mAttrsAndChildren.GetAttr(nsGkAtoms::href,
-                                                      kNameSpaceID_None);
-  if (href) {
-    // MathML href
-    // The REC says: "When user agents encounter MathML elements with both href
-    // and xlink:href attributes, the href attribute should take precedence."
-    hasHref = PR_TRUE;
-  } else {
-    // To be a clickable XLink for styling and interaction purposes, we require:
-    //
-    //   xlink:href    - must be set
-    //   xlink:type    - must be unset or set to "" or set to "simple"
-    //   xlink:show    - must be unset or set to "", "new" or "replace"
-    //   xlink:actuate - must be unset or set to "" or "onRequest"
-    //
-    // For any other values, we're either not a *clickable* XLink, or the end
-    // result is poorly specified. Either way, we return PR_FALSE.
-    
-    static nsIContent::AttrValuesArray sTypeVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::simple, nsnull };
-    
-    static nsIContent::AttrValuesArray sShowVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::_new, &nsGkAtoms::replace, nsnull };
-    
-    static nsIContent::AttrValuesArray sActuateVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::onRequest, nsnull };
-    
-    // Optimization: check for href first for early return
-    href = mAttrsAndChildren.GetAttr(nsGkAtoms::href,
-                                     kNameSpaceID_XLink);
-    if (href &&
-        FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::type,
-                        sTypeVals, eCaseMatters) !=
-        nsIContent::ATTR_VALUE_NO_MATCH &&
-        FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::show,
-                        sShowVals, eCaseMatters) !=
-        nsIContent::ATTR_VALUE_NO_MATCH &&
-        FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::actuate,
-                        sActuateVals, eCaseMatters) !=
-        nsIContent::ATTR_VALUE_NO_MATCH) {
-      hasHref = PR_TRUE;
-    }
-  }
-
-  if (hasHref) {
-    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
-    // Get absolute URI
-    nsAutoString hrefStr;
-    href->ToString(hrefStr); 
-    nsContentUtils::NewURIWithDocumentCharset(aURI, hrefStr,
-                                              GetOwnerDoc(), baseURI);
-    // must promise out param is non-null if we return true
-    return !!*aURI;
-  }
-
-  *aURI = nsnull;
-  return PR_FALSE;
-}
-
-void
-nsMathMLElement::GetLinkTarget(nsAString& aTarget)
-{
-  const nsAttrValue* target = mAttrsAndChildren.GetAttr(nsGkAtoms::target,
-                                                        kNameSpaceID_XLink);
-  if (target) {
-    target->ToString(aTarget);
-  }
-
-  if (aTarget.IsEmpty()) {
-
-    static nsIContent::AttrValuesArray sShowVals[] =
-      { &nsGkAtoms::_new, &nsGkAtoms::replace, nsnull };
-    
-    switch (FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::show,
-                            sShowVals, eCaseMatters)) {
-    case 0:
-      aTarget.AssignLiteral("_blank");
-      return;
-    case 1:
-      return;
-    }
-    nsIDocument* ownerDoc = GetOwnerDoc();
-    if (ownerDoc) {
-      ownerDoc->GetBaseTarget(aTarget);
-    }
-  }
-}
-
-nsLinkState
-nsMathMLElement::GetLinkState() const
-{
-  return Link::GetLinkState();
-}
-
-void
-nsMathMLElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
-}
-
-already_AddRefed<nsIURI>
-nsMathMLElement::GetHrefURI() const
-{
-  nsCOMPtr<nsIURI> hrefURI;
-  return IsLink(getter_AddRefs(hrefURI)) ? hrefURI.forget() : nsnull;
-}
-
-nsresult
-nsMathMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                         nsIAtom* aPrefix, const nsAString& aValue,
-                         PRBool aNotify)
-{
-  nsresult rv = nsMathMLElementBase::SetAttr(aNameSpaceID, aName, aPrefix,
-                                           aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aName == nsGkAtoms::href &&
-      (aNameSpaceID == kNameSpaceID_None ||
-       aNameSpaceID == kNameSpaceID_XLink)) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
-  return rv;
-}
-
-nsresult
-nsMathMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
-                           PRBool aNotify)
-{
-  nsresult rv = nsMathMLElementBase::UnsetAttr(aNameSpaceID, aAttr, aNotify);
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttr == nsGkAtoms::href &&
-      (aNameSpaceID == kNameSpaceID_None ||
-       aNameSpaceID == kNameSpaceID_XLink)) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
-  return rv;
+  mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+  doc->ContentStatesChanged(this, nsnull,
+                            NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL);
 }

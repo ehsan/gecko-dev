@@ -3,6 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
 gBrowser.selectedTab = gBrowser.addTab();
 
 function finishAndCleanUp()
@@ -48,14 +50,14 @@ var conn = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase).DBConnectio
  */
 function getColumn(table, column, fromColumnName, fromColumnValue)
 {
-  let sql = "SELECT " + column + " " +
-            "FROM " + table + " " +
-            "WHERE " + fromColumnName + " = :val " +
-            "LIMIT 1";
-  let stmt = conn.createStatement(sql);
+  var stmt = conn.createStatement(
+    "SELECT " + column + " FROM " + table + "_temp WHERE " + fromColumnName + "=:val " +
+    "UNION ALL " +
+    "SELECT " + column + " FROM " + table + " WHERE " + fromColumnName + "=:val " +
+    "LIMIT 1");
   try {
     stmt.params.val = fromColumnValue;
-    ok(stmt.executeStep(), "Expect to get a row");
+    stmt.executeStep();
     return stmt.row[column];
   }
   finally {

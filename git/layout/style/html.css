@@ -287,51 +287,47 @@ table[align="right"] {
 
   /* Put this first so 'border' and 'frame' rules can override it. */
 table[rules] { 
-  border-width: thin;
-  border-style: hidden;
+  border: thin hidden; 
 }
 
   /* 'border' before 'frame' so 'frame' overrides
       A border with a given value should, of course, pass that value
       as the border-width in pixels -> attr mapping */
 
-  /* :-moz-table-border-nonzero is like [border]:not([border="0"]) except it
-     also checks for other zero-like values according to HTML attribute
-     parsing rules */
-table:-moz-table-border-nonzero { 
-  border-width: thin;
-  border-style: outset;
+  /* 'border="0"' suppresses the border */
+table[border]:not([border="0"]) { 
+  border: thin outset; 
 }
 
+  
 table[frame] {
   border: thin hidden;
 }
 
-/* specificity must beat table:-moz-table-border-nonzero rule above */
-table[frame="void"]   { border-style: hidden; }
-table[frame="above"]  { border-style: outset hidden hidden hidden; }
-table[frame="below"]  { border-style: hidden hidden outset hidden; }
-table[frame="lhs"]    { border-style: hidden hidden hidden outset; }
-table[frame="rhs"]    { border-style: hidden outset hidden hidden; }
-table[frame="hsides"] { border-style: outset hidden; }
-table[frame="vsides"] { border-style: hidden outset; }
-table[frame="box"],
-table[frame="border"] { border-style: outset; }
+/*increased specificity to compete with [border]:not([border="0"]) rule above*/
+table[frame][frame="void"]   { border-style: hidden; }
+table[frame][frame="above"]  { border-style: outset hidden hidden hidden; }
+table[frame][frame="below"]  { border-style: hidden hidden outset hidden; }
+table[frame][frame="lhs"]    { border-style: hidden hidden hidden outset; }
+table[frame][frame="rhs"]    { border-style: hidden outset hidden hidden; }
+table[frame][frame="hsides"] { border-style: outset hidden; }
+table[frame][frame="vsides"] { border-style: hidden outset; }
+table[frame][frame="box"],
+table[frame][frame="border"] { border-style: outset; }
 
  
 /* Internal Table Borders */
 
   /* 'border' cell borders first */
 
-table:-moz-table-border-nonzero > * > tr > td,
-table:-moz-table-border-nonzero > * > tr > th,
-table:-moz-table-border-nonzero > * > td,
-table:-moz-table-border-nonzero > * > th,
-table:-moz-table-border-nonzero > td,
-table:-moz-table-border-nonzero > th
+table[border]:not([border="0"])> * > tr > td,
+table[border]:not([border="0"])> * > tr > th,
+table[border]:not([border="0"])> * > td,
+table[border]:not([border="0"])> * > th,
+table[border]:not([border="0"])> td,
+table[border]:not([border="0"])> th
 {
-  border-width: thin;
-  border-style: inset;
+  border: thin inset;
 }
 
 /* collapse only if rules are really specified */
@@ -348,8 +344,7 @@ table[rules]:not([rules=""])> * > tr > th,
 table[rules]:not([rules=""])> td,
 table[rules]:not([rules=""])> th
 {
-  border-width: thin;
-  border-style: none;
+  border: thin none;
 }
 
 
@@ -360,8 +355,7 @@ table[rules][rules="none"] > * > tr > th,
 table[rules][rules="none"] > td,
 table[rules][rules="none"] > th
 {
-  border-width: thin;
-  border-style: none;
+  border: thin hidden;
 }
 
 table[rules][rules="all"] > tr > td,
@@ -371,16 +365,13 @@ table[rules][rules="all"] > * > tr > th,
 table[rules][rules="all"] > td,
 table[rules][rules="all"] > th 
 {
-  border-width: thin;
-  border-style: solid;
+  border: thin solid ;
 }
 
 table[rules][rules="rows"] > tr,
 table[rules][rules="rows"] > * > tr {
-  border-top-width: thin;
-  border-bottom-width: thin;
-  border-top-style: solid;
-  border-bottom-style: solid;
+  border-top: thin solid;
+  border-bottom: thin solid;
 }
 
 
@@ -388,25 +379,19 @@ table[rules][rules="cols"] > tr > td,
 table[rules][rules="cols"] > * > tr > td,
 table[rules][rules="cols"] > tr > th,
 table[rules][rules="cols"] > * > tr > th {
-  border-left-width: thin;
-  border-right-width: thin;
-  border-left-style: solid;
-  border-right-style: solid;
+  border-left: thin solid;
+  border-right: thin solid;
 }
 
 table[rules][rules="groups"] > colgroup {
-  border-left-width: thin;
-  border-right-width: thin;
-  border-left-style: solid;
-  border-right-style: solid;
+  border-left: thin solid;
+  border-right: thin solid;
 }
 table[rules][rules="groups"] > tfoot,
 table[rules][rules="groups"] > thead,
 table[rules][rules="groups"] > tbody {
-  border-top-width: thin;
-  border-bottom-width: thin;
-  border-top-style: solid;
-  border-bottom-style: solid;
+  border-top: thin solid;
+  border-bottom: thin solid;
 }
   
   
@@ -482,20 +467,6 @@ thead > form:-moz-is-html, tfoot > form:-moz-is-html,
 table > form:-moz-is-html {
   /* Important: don't show these forms in HTML */
   display: none !important;
-}
-
-table[bordercolor] > tbody,
-table[bordercolor] > thead,
-table[bordercolor] > tfoot,
-table[bordercolor] > col,
-table[bordercolor] > colgroup,
-table[bordercolor] > tr,
-table[bordercolor] > * > tr,
-table[bordercolor]  > tr > td,
-table[bordercolor] > * > tr > td,
-table[bordercolor]  > tr > th,
-table[bordercolor] > * > tr > th {
-  border-color: inherit;
 }
 
 /* inlines */
@@ -695,81 +666,32 @@ canvas {
 }
 
 /* focusable content: anything w/ tabindex >=0 is focusable */
-abbr:-moz-focusring,
-acronym:-moz-focusring,
-address:-moz-focusring,
-applet:-moz-focusring,
-b:-moz-focusring,
-base:-moz-focusring,
-big:-moz-focusring,
-blockquote:-moz-focusring,
-br:-moz-focusring,
-canvas:-moz-focusring,
-caption:-moz-focusring,
-center:-moz-focusring,
-cite:-moz-focusring,
-code:-moz-focusring,
-col:-moz-focusring,
-colgroup:-moz-focusring,
-dd:-moz-focusring,
-del:-moz-focusring,
-dfn:-moz-focusring,
-dir:-moz-focusring,
-div:-moz-focusring,
-dl:-moz-focusring,
-dt:-moz-focusring,
-em:-moz-focusring,
-embed:-moz-focusring,
-fieldset:-moz-focusring,
-font:-moz-focusring,
-form:-moz-focusring,
-h1:-moz-focusring,
-h2:-moz-focusring,
-h3:-moz-focusring,
-h4:-moz-focusring,
-h5:-moz-focusring,
-h6:-moz-focusring,
-hr:-moz-focusring,
-i:-moz-focusring,
-img:-moz-focusring,
-ins:-moz-focusring,
-kbd:-moz-focusring,
-label:-moz-focusring,
-legend:-moz-focusring,
-li:-moz-focusring,
-link:-moz-focusring,
-menu:-moz-focusring,
-object:-moz-focusring,
-ol:-moz-focusring,
-p:-moz-focusring,
-pre:-moz-focusring,
-progress:-moz-focusring,
-q:-moz-focusring,
-s:-moz-focusring,
-samp:-moz-focusring,
-small:-moz-focusring,
-span:-moz-focusring,
-strike:-moz-focusring,
-strong:-moz-focusring,
-sub:-moz-focusring,
-sup:-moz-focusring,
-table:-moz-focusring,
-tbody:-moz-focusring,
-td:-moz-focusring,
-tfoot:-moz-focusring,
-th:-moz-focusring,
-thead:-moz-focusring,
-tr:-moz-focusring,
-tt:-moz-focusring,
-u:-moz-focusring,
-ul:-moz-focusring,
-var:-moz-focusring {
+abbr:-moz-focusring, acronym:-moz-focusring, address:-moz-focusring,
+b:-moz-focusring, base:-moz-focusring, big:-moz-focusring,
+blockquote:-moz-focusring, br:-moz-focusring, canvas:-moz-focusring,
+caption:-moz-focusring, center:-moz-focusring, cite:-moz-focusring,
+code:-moz-focusring, col:-moz-focusring, colgroup:-moz-focusring,
+dd:-moz-focusring, del:-moz-focusring, dfn:-moz-focusring, dir:-moz-focusring,
+div:-moz-focusring, dl:-moz-focusring, dt:-moz-focusring, em:-moz-focusring,
+fieldset:-moz-focusring, font:-moz-focusring, form:-moz-focusring,
+h1:-moz-focusring, h2:-moz-focusring, h3:-moz-focusring, h4:-moz-focusring,
+h5:-moz-focusring, h6:-moz-focusring, hr:-moz-focusring, i:-moz-focusring,
+img:-moz-focusring, ins:-moz-focusring, kbd:-moz-focusring,
+label:-moz-focusring, legend:-moz-focusring, li:-moz-focusring,
+link:-moz-focusring, menu:-moz-focusring, ol:-moz-focusring, p:-moz-focusring,
+pre:-moz-focusring, q:-moz-focusring, s:-moz-focusring, samp:-moz-focusring,
+small:-moz-focusring, span:-moz-focusring, strike:-moz-focusring,
+strong:-moz-focusring, sub:-moz-focusring, sup:-moz-focusring,
+table:-moz-focusring, tbody:-moz-focusring, td:-moz-focusring,
+tfoot:-moz-focusring, th:-moz-focusring, thead:-moz-focusring, 
+tr:-moz-focusring, tt:-moz-focusring, u:-moz-focusring,
+ul:-moz-focusring, var:-moz-focusring {
   /* Don't specify the outline-color, we should always use initial value. */
    outline: 1px dotted;
 }
 
 /* hidden elements */
-base, basefont, datalist, head, meta, script, style, title,
+base, basefont, head, meta, script, style, title,
 noembed, param {
    display: none;
 }

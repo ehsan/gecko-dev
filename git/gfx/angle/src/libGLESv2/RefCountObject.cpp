@@ -22,7 +22,6 @@ RefCountObject::RefCountObject(GLuint id)
 
 RefCountObject::~RefCountObject()
 {
-    ASSERT(mRefCount == 0);
 }
 
 void RefCountObject::addRef() const

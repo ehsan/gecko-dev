@@ -311,6 +311,15 @@ static TString BuiltInFunctionsCommon()
     s.append(TString("bvec4 not(bvec4 x);"));
 
     //
+    // Texture Functions.
+    //
+    s.append(TString("vec4 texture2D(sampler2D sampler, vec2 coord);"));
+    s.append(TString("vec4 texture2DProj(sampler2D sampler, vec3 coord);"));
+    s.append(TString("vec4 texture2DProj(sampler2D sampler, vec4 coord);"));
+
+    s.append(TString("vec4 textureCube(samplerCube sampler, vec3 coord);"));
+
+    //
     // Noise functions.
     //
     //s.append(TString("float noise1(float x);"));
@@ -333,6 +342,7 @@ static TString BuiltInFunctionsCommon()
     //s.append(TString("vec4 noise4(vec3  x);"));
     //s.append(TString("vec4 noise4(vec4  x);"));
 
+    s.append(TString("\n"));
     return s;
 }
 
@@ -341,7 +351,7 @@ static TString BuiltInFunctionsCommon()
 // Prototypes for built-in functions seen by vertex shaders only.
 //
 //============================================================================
-static TString BuiltInFunctionsVertex(const ShBuiltInResources& resources)
+static TString BuiltInFunctionsVertex()
 {
     TString s;
 
@@ -353,16 +363,12 @@ static TString BuiltInFunctionsVertex(const ShBuiltInResources& resources)
     //
     // Texture Functions.
     //
-    s.append(TString("vec4 texture2D(sampler2D sampler, vec2 coord);"));
-    s.append(TString("vec4 texture2DProj(sampler2D sampler, vec3 coord);"));
-    s.append(TString("vec4 texture2DProj(sampler2D sampler, vec4 coord);"));
-    s.append(TString("vec4 textureCube(samplerCube sampler, vec3 coord);"));
-
     s.append(TString("vec4 texture2DLod(sampler2D sampler, vec2 coord, float lod);"));
     s.append(TString("vec4 texture2DProjLod(sampler2D sampler, vec3 coord, float lod);"));
     s.append(TString("vec4 texture2DProjLod(sampler2D sampler, vec4 coord, float lod);"));
     s.append(TString("vec4 textureCubeLod(samplerCube sampler, vec3 coord, float lod);"));
 
+    s.append(TString("\n"));
     return s;
 }
 
@@ -371,40 +377,34 @@ static TString BuiltInFunctionsVertex(const ShBuiltInResources& resources)
 // Prototypes for built-in functions seen by fragment shaders only.
 //
 //============================================================================
-static TString BuiltInFunctionsFragment(const ShBuiltInResources& resources)
+static TString BuiltInFunctionsFragment()
 {
     TString s;
 
     //
     // Texture Functions.
     //
-    s.append(TString("vec4 texture2D(sampler2D sampler, vec2 coord);"));
-    s.append(TString("vec4 texture2DProj(sampler2D sampler, vec3 coord);"));
-    s.append(TString("vec4 texture2DProj(sampler2D sampler, vec4 coord);"));
-    s.append(TString("vec4 textureCube(samplerCube sampler, vec3 coord);"));
-
     s.append(TString("vec4 texture2D(sampler2D sampler, vec2 coord, float bias);"));
     s.append(TString("vec4 texture2DProj(sampler2D sampler, vec3 coord, float bias);"));
     s.append(TString("vec4 texture2DProj(sampler2D sampler, vec4 coord, float bias);"));
     s.append(TString("vec4 textureCube(samplerCube sampler, vec3 coord, float bias);"));
 
-    if (resources.OES_standard_derivatives) {
-        s.append(TString("float dFdx(float p);"));
-        s.append(TString("vec2  dFdx(vec2  p);"));
-        s.append(TString("vec3  dFdx(vec3  p);"));
-        s.append(TString("vec4  dFdx(vec4  p);"));
+    //s.append(TString("float dFdx(float p);"));
+    //s.append(TString("vec2  dFdx(vec2  p);"));
+    //s.append(TString("vec3  dFdx(vec3  p);"));
+    //s.append(TString("vec4  dFdx(vec4  p);"));
 
-        s.append(TString("float dFdy(float p);"));
-        s.append(TString("vec2  dFdy(vec2  p);"));
-        s.append(TString("vec3  dFdy(vec3  p);"));
-        s.append(TString("vec4  dFdy(vec4  p);"));
+    //s.append(TString("float dFdy(float p);"));
+    //s.append(TString("vec2  dFdy(vec2  p);"));
+    //s.append(TString("vec3  dFdy(vec3  p);"));
+    //s.append(TString("vec4  dFdy(vec4  p);"));
 
-        s.append(TString("float fwidth(float p);"));
-        s.append(TString("vec2  fwidth(vec2  p);"));
-        s.append(TString("vec3  fwidth(vec3  p);"));
-        s.append(TString("vec4  fwidth(vec4  p);"));
-    }
+    s.append(TString("float fwidth(float p);"));
+    s.append(TString("vec2  fwidth(vec2  p);"));
+    s.append(TString("vec3  fwidth(vec3  p);"));
+    s.append(TString("vec4  fwidth(vec4  p);"));
 
+    s.append(TString("\n"));
     return s;
 }
 
@@ -427,6 +427,7 @@ static TString StandardUniforms()
     s.append(TString("};"));
     s.append(TString("uniform gl_DepthRangeParameters gl_DepthRange;"));
 
+    s.append(TString("\n"));
     return s;
 }
 
@@ -442,6 +443,7 @@ static TString DefaultPrecisionVertex()
     s.append(TString("precision highp int;"));
     s.append(TString("precision highp float;"));
 
+    s.append(TString("\n"));
     return s;
 }
 
@@ -457,6 +459,7 @@ static TString DefaultPrecisionFragment()
     s.append(TString("precision mediump int;"));
     // No default precision for float in fragment shaders
 
+    s.append(TString("\n"));
     return s;
 }
 
@@ -465,38 +468,37 @@ static TString DefaultPrecisionFragment()
 // Implementation dependent built-in constants.
 //
 //============================================================================
-static TString BuiltInConstants(const ShBuiltInResources &resources)
+static TString BuiltInConstants(const TBuiltInResource &resources)
 {
     TStringStream s;
 
-    s << "const int gl_MaxVertexAttribs = " << resources.MaxVertexAttribs << ";";
-    s << "const int gl_MaxVertexUniformVectors = " << resources.MaxVertexUniformVectors << ";";
+    s << "const int gl_MaxVertexAttribs = " << resources.maxVertexAttribs << ";";
+    s << "const int gl_MaxVertexUniformVectors = " << resources.maxVertexUniformVectors << ";";
 
-    s << "const int gl_MaxVaryingVectors = " << resources.MaxVaryingVectors << ";";
-    s << "const int gl_MaxVertexTextureImageUnits = " << resources.MaxVertexTextureImageUnits << ";";
-    s << "const int gl_MaxCombinedTextureImageUnits = " << resources.MaxCombinedTextureImageUnits << ";";
-    s << "const int gl_MaxTextureImageUnits = " << resources.MaxTextureImageUnits << ";";
-    s << "const int gl_MaxFragmentUniformVectors = " << resources.MaxFragmentUniformVectors << ";";
-    s << "const int gl_MaxDrawBuffers = " << resources.MaxDrawBuffers << ";";
+    s << "const int gl_MaxVaryingVectors = " << resources.maxVaryingVectors << ";";
+    s << "const int gl_MaxVertexTextureImageUnits = " << resources.maxVertexTextureImageUnits << ";";
+    s << "const int gl_MaxCombinedTextureImageUnits = " << resources.maxCombinedTextureImageUnits << ";";
+    s << "const int gl_MaxTextureImageUnits = " << resources.maxTextureImageUnits << ";";
+    s << "const int gl_MaxFragmentUniformVectors = " << resources.maxFragmentUniformVectors << ";";
+    s << "const int gl_MaxDrawBuffers = " << resources.maxDrawBuffers << ";";
 
     return s.str();
 }
 
-void TBuiltIns::initialize(ShShaderType type, ShShaderSpec spec,
-                           const ShBuiltInResources& resources)
+void TBuiltIns::initialize(EShLanguage language, EShSpec spec, const TBuiltInResource& resources)
 {
-    switch (type) {
-    case SH_FRAGMENT_SHADER:
+    switch (language) {
+    case EShLangFragment:
         builtInStrings.push_back(DefaultPrecisionFragment());
         builtInStrings.push_back(BuiltInFunctionsCommon());
-        builtInStrings.push_back(BuiltInFunctionsFragment(resources));
+        builtInStrings.push_back(BuiltInFunctionsFragment());
         builtInStrings.push_back(StandardUniforms());
         break;
 
-    case SH_VERTEX_SHADER:
+    case EShLangVertex:
         builtInStrings.push_back(DefaultPrecisionVertex());
         builtInStrings.push_back(BuiltInFunctionsCommon());
-        builtInStrings.push_back(BuiltInFunctionsVertex(resources));
+        builtInStrings.push_back(BuiltInFunctionsVertex());
         builtInStrings.push_back(StandardUniforms());
         break;
 
@@ -506,16 +508,14 @@ void TBuiltIns::initialize(ShShaderType type, ShShaderSpec spec,
     builtInStrings.push_back(BuiltInConstants(resources));
 }
 
-void IdentifyBuiltIns(ShShaderType type, ShShaderSpec spec,
-                      const ShBuiltInResources& resources,
-                      TSymbolTable& symbolTable)
+void IdentifyBuiltIns(EShLanguage language, EShSpec spec, const TBuiltInResource& resources, TSymbolTable& symbolTable)
 {
     //
     // First, insert some special built-in variables that are not in 
     // the built-in header files.
     //
-    switch(type) {
-    case SH_FRAGMENT_SHADER:
+    switch(language) {
+    case EShLangFragment:
         symbolTable.insert(*new TVariable(NewPoolTString("gl_FragCoord"),                   TType(EbtFloat, EbpMedium, EvqFragCoord,   4)));
         symbolTable.insert(*new TVariable(NewPoolTString("gl_FrontFacing"),                 TType(EbtBool,  EbpUndefined, EvqFrontFacing, 1)));
         symbolTable.insert(*new TVariable(NewPoolTString("gl_FragColor"),                   TType(EbtFloat, EbpMedium, EvqFragColor,   4)));
@@ -523,7 +523,7 @@ void IdentifyBuiltIns(ShShaderType type, ShShaderSpec spec,
         symbolTable.insert(*new TVariable(NewPoolTString("gl_PointCoord"),                  TType(EbtFloat, EbpMedium, EvqPointCoord,  2)));
         break;
 
-    case SH_VERTEX_SHADER:
+    case EShLangVertex:
         symbolTable.insert(*new TVariable(NewPoolTString("gl_Position"),    TType(EbtFloat, EbpHigh, EvqPosition,    4)));
         symbolTable.insert(*new TVariable(NewPoolTString("gl_PointSize"),   TType(EbtFloat, EbpMedium, EvqPointSize,   1)));
         break;
@@ -591,29 +591,23 @@ void IdentifyBuiltIns(ShShaderType type, ShShaderSpec spec,
     symbolTable.relateToOperator("all",          EOpAll);
 
     // Map language-specific operators.
-    switch(type) {
-    case SH_VERTEX_SHADER:
+    switch(language) {
+    case EShLangVertex:
         break;
-    case SH_FRAGMENT_SHADER:
-        if (resources.OES_standard_derivatives) {
-            symbolTable.relateToOperator("dFdx",   EOpDFdx);
-            symbolTable.relateToOperator("dFdy",   EOpDFdy);
-            symbolTable.relateToOperator("fwidth", EOpFwidth);
-
-            symbolTable.relateToExtension("dFdx", "GL_OES_standard_derivatives");
-            symbolTable.relateToExtension("dFdy", "GL_OES_standard_derivatives");
-            symbolTable.relateToExtension("fwidth", "GL_OES_standard_derivatives");
-        }
+    case EShLangFragment:
+        //symbolTable.relateToOperator("dFdx",   EOpDPdx);    // OES_standard_derivatives extension
+        //symbolTable.relateToOperator("dFdy",   EOpDPdy);    // OES_standard_derivatives extension
+        //symbolTable.relateToOperator("fwidth", EOpFwidth);  // OES_standard_derivatives extension
         break;
     default: break;
     }
 
     // Finally add resource-specific variables.
-    switch(type) {
-    case SH_FRAGMENT_SHADER: {
+    switch(language) {
+    case EShLangFragment: {
             // Set up gl_FragData.  The array size.
             TType fragData(EbtFloat, EbpMedium, EvqFragColor,   4, false, true);
-            fragData.setArraySize(resources.MaxDrawBuffers);
+            fragData.setArraySize(resources.maxDrawBuffers);
             symbolTable.insert(*new TVariable(NewPoolTString("gl_FragData"),    fragData));
         }
         break;
@@ -621,9 +615,3 @@ void IdentifyBuiltIns(ShShaderType type, ShShaderSpec spec,
     }
 }
 
-void InitExtensionBehavior(const ShBuiltInResources& resources,
-                           TExtensionBehavior& extBehavior)
-{
-    if (resources.OES_standard_derivatives)
-        extBehavior["GL_OES_standard_derivatives"] = EBhDisable;
-}

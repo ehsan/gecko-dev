@@ -36,29 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ReentrantMonitor.h"
 #include "nsThread.h"
 #include "nsThreadManager.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
+#include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "prlog.h"
 #include "nsThreadUtilsInternal.h"
-
-#define HAVE_UALARM _BSD_SOURCE || (_XOPEN_SOURCE >= 500 ||                 \
-                      _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) &&           \
-                      !(_POSIX_C_SOURCE >= 200809L || _XOPEN_SOURCE >= 700)
-
-#if defined(XP_UNIX) && !defined(ANDROID) && !defined(DEBUG) && HAVE_UALARM \
-  && defined(_GNU_SOURCE)
-# define MOZ_CANARY
-# include <unistd.h>
-# include <execinfo.h>
-# include <signal.h>
-# include <fcntl.h>
-# include "nsXULAppAPI.h"
-#endif
 
 #include "mozilla/FunctionTimer.h"
 #if defined(NS_FUNCTION_TIMER) && defined(_MSC_VER)
@@ -68,8 +54,6 @@
 #ifdef NS_FUNCTION_TIMER
 #include "nsCRT.h"
 #endif
-
-using namespace mozilla;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *sLog = PR_NewLogModule("nsThread");
@@ -175,7 +159,12 @@ class nsThreadStartupEvent : public nsRunnable {
 public:
   // Create a new thread startup object.
   static nsThreadStartupEvent *Create() {
-    return new nsThreadStartupEvent();
+    nsThreadStartupEvent *startup = new nsThreadStartupEvent();
+    if (startup && startup->mMon)
+      return startup;
+    // Allocation failure
+    delete startup;
+    return nsnull;
   }
 
   // This method does not return until the thread startup object is in the
@@ -183,7 +172,7 @@ public:
   void Wait() {
     if (mInitialized)  // Maybe avoid locking...
       return;
-    ReentrantMonitorAutoEnter mon(mMon);
+    nsAutoMonitor mon(mMon);
     while (!mInitialized)
       mon.Wait();
   }
@@ -191,22 +180,24 @@ public:
   // This method needs to be public to support older compilers (xlC_r on AIX).
   // It should be called directly as this class type is reference counted.
   virtual ~nsThreadStartupEvent() {
+    if (mMon)
+      nsAutoMonitor::DestroyMonitor(mMon);
   }
 
 private:
   NS_IMETHOD Run() {
-    ReentrantMonitorAutoEnter mon(mMon);
+    nsAutoMonitor mon(mMon);
     mInitialized = PR_TRUE;
     mon.Notify();
     return NS_OK;
   }
 
   nsThreadStartupEvent()
-    : mMon("nsThreadStartupEvent.mMon")
+    : mMon(nsAutoMonitor::NewMonitor("xpcom.threadstartup"))
     , mInitialized(PR_FALSE) {
   }
 
-  ReentrantMonitor mMon;
+  PRMonitor *mMon;
   PRBool     mInitialized;
 };
 
@@ -278,7 +269,7 @@ nsThread::ThreadFunc(void *arg)
   // NS_ProcessPendingEvents.
   while (PR_TRUE) {
     {
-      MutexAutoLock lock(self->mLock);
+      nsAutoLock lock(self->mLock);
       if (!self->mEvents->HasPendingEvent()) {
         // No events in the queue, so we will stop now. Don't let any more
         // events be added, since they won't be processed. It is critical
@@ -307,7 +298,7 @@ nsThread::ThreadFunc(void *arg)
 //-----------------------------------------------------------------------------
 
 nsThread::nsThread()
-  : mLock("nsThread.mLock")
+  : mLock(PR_NewLock())
   , mEvents(&mEventsRoot)
   , mPriority(PRIORITY_NORMAL)
   , mThread(nsnull)
@@ -320,11 +311,15 @@ nsThread::nsThread()
 
 nsThread::~nsThread()
 {
+  if (mLock)
+    PR_DestroyLock(mLock);
 }
 
 nsresult
 nsThread::Init()
 {
+  NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
+
   // spawn thread and wait until it is fully setup
   nsRefPtr<nsThreadStartupEvent> startup = nsThreadStartupEvent::Create();
   NS_ENSURE_TRUE(startup, NS_ERROR_OUT_OF_MEMORY);
@@ -346,7 +341,7 @@ nsThread::Init()
   // mThread.  By delaying insertion of this event into the queue, we ensure
   // that mThread is set properly.
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     mEvents->PutEvent(startup);
   }
 
@@ -359,6 +354,8 @@ nsThread::Init()
 nsresult
 nsThread::InitCurrentThread()
 {
+  NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
+
   mThread = PR_GetCurrentThread();
 
   nsThreadManager::get()->RegisterCurrentThread(this);
@@ -369,7 +366,7 @@ nsresult
 nsThread::PutEvent(nsIRunnable *event)
 {
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     if (mEventsAreDoomed) {
       NS_WARNING("An event was posted to a thread that will never run it (rejected)");
       return NS_ERROR_UNEXPECTED;
@@ -414,7 +411,7 @@ nsThread::Dispatch(nsIRunnable *event, PRUint32 flags)
 
     while (wrapper->IsPending())
       NS_ProcessNextEvent(thread);
-    return wrapper->Result();
+    return rv;
   }
 
   NS_ASSERTION(flags == NS_DISPATCH_NORMAL, "unexpected dispatch flags");
@@ -453,7 +450,7 @@ nsThread::Shutdown()
 
   // Prevent multiple calls to this method
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     if (!mShutdownRequired)
       return NS_ERROR_UNEXPECTED;
     mShutdownRequired = PR_FALSE;
@@ -486,7 +483,7 @@ nsThread::Shutdown()
 
 #ifdef DEBUG
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     NS_ASSERTION(!mObserver, "Should have been cleared at shutdown!");
   }
 #endif
@@ -502,67 +499,6 @@ nsThread::HasPendingEvents(PRBool *result)
   *result = mEvents->GetEvent(PR_FALSE, nsnull);
   return NS_OK;
 }
-
-#ifdef MOZ_CANARY
-void canary_alarm_handler (int signum);
-
-class Canary {
-//XXX ToDo: support nested loops
-public:
-  Canary() {
-    if (sOutputFD != 0 && EventLatencyIsImportant()) {
-      if (sOutputFD == -1) {
-        const int flags = O_WRONLY | O_APPEND | O_CREAT | O_NONBLOCK;
-        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-        char* env_var_flag = getenv("MOZ_KILL_CANARIES");
-        sOutputFD = env_var_flag ? (env_var_flag[0] ?
-                                    open(env_var_flag, flags, mode) :
-                                    STDERR_FILENO) : 0;
-        if (sOutputFD == 0)
-          return;
-      }
-      signal(SIGALRM, canary_alarm_handler);
-      ualarm(15000, 0);      
-    }
-  }
-
-  ~Canary() {
-    if (sOutputFD != 0 && EventLatencyIsImportant())
-      ualarm(0, 0);
-  }
-
-  static bool EventLatencyIsImportant() {
-    return NS_IsMainThread() && XRE_GetProcessType() == GeckoProcessType_Default;
-  }
-
-  static int sOutputFD;
-};
-
-int Canary::sOutputFD = -1;
-
-void canary_alarm_handler (int signum)
-{
-  void *array[30];
-  const char msg[29] = "event took too long to run:\n";
-  // use write to be safe in the signal handler
-  write(Canary::sOutputFD, msg, sizeof(msg)); 
-  backtrace_symbols_fd(array, backtrace(array, 30), Canary::sOutputFD);
-}
-
-#endif
-
-#define NOTIFY_EVENT_OBSERVERS(func_, params_)                                 \
-  PR_BEGIN_MACRO                                                               \
-    if (!mEventObservers.IsEmpty()) {                                          \
-      nsAutoTObserverArray<nsCOMPtr<nsIThreadObserver>, 2>::ForwardIterator    \
-        iter_(mEventObservers);                                                \
-      nsCOMPtr<nsIThreadObserver> obs_;                                        \
-      while (iter_.HasMore()) {                                                \
-        obs_ = iter_.GetNext();                                                \
-        obs_ -> func_ params_ ;                                                \
-      }                                                                        \
-    }                                                                          \
-  PR_END_MACRO
 
 NS_IMETHODIMP
 nsThread::ProcessNextEvent(PRBool mayWait, PRBool *result)
@@ -580,14 +516,8 @@ nsThread::ProcessNextEvent(PRBool mayWait, PRBool *result)
   if (obs)
     obs->OnProcessNextEvent(this, mayWait && !ShuttingDown(), mRunningEvent);
 
-  NOTIFY_EVENT_OBSERVERS(OnProcessNextEvent,
-                         (this, mayWait && !ShuttingDown(), mRunningEvent));
-
   ++mRunningEvent;
 
-#ifdef MOZ_CANARY
-  Canary canary;
-#endif
   nsresult rv = NS_OK;
 
   {
@@ -623,9 +553,6 @@ nsThread::ProcessNextEvent(PRBool mayWait, PRBool *result)
   }
 
   --mRunningEvent;
-
-  NOTIFY_EVENT_OBSERVERS(AfterProcessNextEvent, (this, mRunningEvent));
-
   if (obs)
     obs->AfterProcessNextEvent(this, mRunningEvent);
 
@@ -686,7 +613,7 @@ nsThread::AdjustPriority(PRInt32 delta)
 NS_IMETHODIMP
 nsThread::GetObserver(nsIThreadObserver **obs)
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   NS_IF_ADDREF(*obs = mObserver);
   return NS_OK;
 }
@@ -696,7 +623,7 @@ nsThread::SetObserver(nsIThreadObserver *obs)
 {
   NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
 
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   mObserver = obs;
   return NS_OK;
 }
@@ -705,8 +632,12 @@ NS_IMETHODIMP
 nsThread::PushEventQueue(nsIThreadEventFilter *filter)
 {
   nsChainedEventQueue *queue = new nsChainedEventQueue(filter);
+  if (!queue || !queue->IsInitialized()) {
+    delete queue;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   queue->mNext = mEvents;
   mEvents = queue;
   return NS_OK;
@@ -715,7 +646,7 @@ nsThread::PushEventQueue(nsIThreadEventFilter *filter)
 NS_IMETHODIMP
 nsThread::PopEventQueue()
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
 
   // Make sure we do not pop too many!
   NS_ENSURE_STATE(mEvents != &mEventsRoot);
@@ -744,52 +675,13 @@ nsThread::nsChainedEventQueue::PutEvent(nsIRunnable *event)
   return val;
 }
 
-NS_IMETHODIMP
-nsThread::GetRecursionDepth(PRUint32 *depth)
-{
-  NS_ENSURE_ARG_POINTER(depth);
-  NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
-
-  *depth = mRunningEvent;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThread::AddObserver(nsIThreadObserver *observer)
-{
-  NS_ENSURE_ARG_POINTER(observer);
-  NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
-
-  NS_WARN_IF_FALSE(!mEventObservers.Contains(observer),
-                   "Adding an observer twice!");
-
-  if (!mEventObservers.AppendElement(observer)) {
-    NS_WARNING("Out of memory!");
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThread::RemoveObserver(nsIThreadObserver *observer)
-{
-  NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
-
-  if (observer && !mEventObservers.RemoveElement(observer)) {
-    NS_WARNING("Removing an observer that was never added!");
-  }
-
-  return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
 nsThreadSyncDispatch::Run()
 {
   if (mSyncTask) {
-    mResult = mSyncTask->Run();
+    mSyncTask->Run();
     mSyncTask = nsnull;
     // unblock the origin thread
     mOrigin->Dispatch(this, NS_DISPATCH_NORMAL);

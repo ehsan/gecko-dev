@@ -58,13 +58,13 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 
+#include "nsIRenderingContext.h"
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsMediaError.h"
-
-using namespace mozilla::dom;
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 
@@ -101,7 +101,7 @@ NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
 }
 
 nsHTMLVideoElement::nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }
@@ -122,7 +122,7 @@ nsHTMLVideoElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsAttrValue& aResult)
 {
    if (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height) {
-     return aResult.ParseSpecialIntValue(aValue);
+     return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
    }
 
    return nsHTMLMediaElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -181,37 +181,3 @@ nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 }
 
 NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)
-
-NS_IMETHODIMP nsHTMLVideoElement::GetMozParsedFrames(PRUint32 *aMozParsedFrames)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  *aMozParsedFrames = mDecoder ? mDecoder->GetFrameStatistics().GetParsedFrames() : 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLVideoElement::GetMozDecodedFrames(PRUint32 *aMozDecodedFrames)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  *aMozDecodedFrames = mDecoder ? mDecoder->GetFrameStatistics().GetDecodedFrames() : 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLVideoElement::GetMozPresentedFrames(PRUint32 *aMozPresentedFrames)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  *aMozPresentedFrames = mDecoder ? mDecoder->GetFrameStatistics().GetPresentedFrames() : 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLVideoElement::GetMozPaintedFrames(PRUint32 *aMozPaintedFrames)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  *aMozPaintedFrames = (!mDecoder || !GetImageContainer()) ? 0 : GetImageContainer()->GetPaintCount();
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLVideoElement::GetMozFrameDelay(double *aMozFrameDelay) {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  *aMozFrameDelay = mDecoder ? mDecoder->GetFrameDelay() : 0;
-  return NS_OK;
-}

@@ -42,7 +42,6 @@
  
 #include "nsApplicationAccessible.h"
 
-#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 
@@ -56,7 +55,6 @@
 nsApplicationAccessible::nsApplicationAccessible() :
   nsAccessibleWrap(nsnull, nsnull)
 {
-  mFlags |= eApplicationAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,10 +125,11 @@ nsApplicationAccessible::GetValue(nsAString &aValue)
   return NS_OK;
 }
 
-void
-nsApplicationAccessible::Description(nsString &aDescription)
+NS_IMETHODIMP
+nsApplicationAccessible::GetDescription(nsAString &aDescription)
 {
   aDescription.Truncate();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -140,10 +139,19 @@ nsApplicationAccessible::GetKeyboardShortcut(nsAString &aKeyboardShortcut)
   return NS_OK;
 }
 
-PRUint64
-nsApplicationAccessible::State()
+NS_IMETHODIMP
+nsApplicationAccessible::GetRole(PRUint32 *aRole)
 {
-  return IsDefunct() ? states::DEFUNCT : 0;
+  NS_ENSURE_ARG_POINTER(aRole);
+  return GetRoleInternal(aRole);
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+{
+  NS_ENSURE_ARG_POINTER(aState);
+  GetStateInternal(aState, aExtraState);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -168,11 +176,22 @@ nsApplicationAccessible::GroupPosition(PRInt32 *aGroupLevel,
   return NS_OK;
 }
 
-nsAccessible*
-nsApplicationAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      EWhichChildAtPoint aWhichChild)
+NS_IMETHODIMP
+nsApplicationAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                         nsIAccessible **aChild)
 {
-  return nsnull;
+  NS_ENSURE_ARG_POINTER(aChild);
+  *aChild = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                                nsIAccessible **aChild)
+{
+  NS_ENSURE_ARG_POINTER(aChild);
+  *aChild = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -332,8 +351,8 @@ nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
-bool
-nsApplicationAccessible::IsDefunct() const
+PRBool
+nsApplicationAccessible::IsDefunct()
 {
   return nsAccessibilityService::IsShutdown();
 }
@@ -351,30 +370,39 @@ nsApplicationAccessible::Shutdown()
   mAppInfo = nsnull;
 }
 
-bool
-nsApplicationAccessible::IsPrimaryForNode() const
-{
-  return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public methods
 
-void
-nsApplicationAccessible::ApplyARIAState(PRUint64* aState)
+nsresult
+nsApplicationAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
 {
+  return NS_OK;
 }
 
-PRUint32
-nsApplicationAccessible::NativeRole()
+nsresult
+nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_APP_ROOT;
+  *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
+  return NS_OK;
 }
 
-PRUint64
-nsApplicationAccessible::NativeState()
+nsresult
+nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
+                                          PRUint32 *aExtraState)
 {
-  return 0;
+  *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
+  return NS_OK;
 }
 
 void
@@ -428,9 +456,15 @@ nsApplicationAccessible::CacheChildren()
 }
 
 nsAccessible*
-nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                            nsresult* aError) const
+nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 
@@ -438,7 +472,7 @@ nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIAccessNode and nsAccessNode
+// nsIAccessNode
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetDOMNode(nsIDOMNode **aDOMNode)
@@ -493,6 +527,14 @@ nsApplicationAccessible::GetOwnerWindow(void **aOwnerWindow)
 }
 
 NS_IMETHODIMP
+nsApplicationAccessible::GetUniqueID(void **aUniqueID)
+{
+  NS_ENSURE_ARG_POINTER(aUniqueID);
+  *aUniqueID = static_cast<void *>(this);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsApplicationAccessible::GetComputedStyleValue(const nsAString &aPseudoElt,
                                                const nsAString &aPropertyName,
                                                nsAString &aValue)
@@ -516,4 +558,3 @@ nsApplicationAccessible::GetLanguage(nsAString &aLanguage)
   aLanguage.Truncate();
   return NS_OK;
 }
-

@@ -58,11 +58,12 @@ var dragDirections = { LEFT: 0, UP: 1, RIGHT: 2, DOWN: 3 };
  * @param aDirection
  *        Direction for the dragging gesture, see dragDirections helper object.
  */
-function synthesizeDragWithDirection(aElement, aExpectedDragData, aDirection, aCallback) {
+function synthesizeDragWithDirection(aElement, aExpectedDragData, aDirection) {
+  var trapped = false;
+
   // Dragstart listener function.
-  gBookmarksToolbar.addEventListener("dragstart", function(event)
-  {
-    info("A dragstart event has been trapped.");
+  var trapDrag = function(event) {
+    trapped = true;
     var dataTransfer = event.dataTransfer;
     is(dataTransfer.mozItemCount, aExpectedDragData.length,
        "Number of dragged items should be the same.");
@@ -87,23 +88,7 @@ function synthesizeDragWithDirection(aElement, aExpectedDragData, aDirection, aC
 
     event.preventDefault();
     event.stopPropagation();
-
-    gBookmarksToolbar.removeEventListener("dragstart", arguments.callee, false);
-
-    // This is likely to cause a click event, and, in case we are dragging a
-    // bookmark, an unwanted page visit.  Prevent the click event.
-    aElement.addEventListener("click", prevent, false);
-    EventUtils.synthesizeMouse(aElement,
-                               startingPoint.x + xIncrement * 9,
-                               startingPoint.y + yIncrement * 9,
-                               { type: "mouseup" });
-    aElement.removeEventListener("click", prevent, false);
-
-    // Cleanup eventually opened menus.
-    if (aElement.localName == "menu" && aElement.open)
-      aElement.open = false;
-    aCallback()
-  }, false);
+  }
 
   var prevent = function(aEvent) {aEvent.preventDefault();}
 
@@ -137,10 +122,26 @@ function synthesizeDragWithDirection(aElement, aExpectedDragData, aDirection, aC
                              startingPoint.x + xIncrement * 1,
                              startingPoint.y + yIncrement * 1,
                              { type: "mousemove" });
+  gBookmarksToolbar.addEventListener("dragstart", trapDrag, false);
   EventUtils.synthesizeMouse(aElement,
                              startingPoint.x + xIncrement * 9,
                              startingPoint.y + yIncrement * 9,
                              { type: "mousemove" });
+  ok(trapped, "A dragstart event has been trapped.");
+  gBookmarksToolbar.removeEventListener("dragstart", trapDrag, false);
+
+  // This is likely to cause a click event, and, in case we are dragging a
+  // bookmark, an unwanted page visit.  Prevent the click event.
+  aElement.addEventListener("click", prevent, false);
+  EventUtils.synthesizeMouse(aElement,
+                             startingPoint.x + xIncrement * 9,
+                             startingPoint.y + yIncrement * 9,
+                             { type: "mouseup" });
+  aElement.removeEventListener("click", prevent, false);
+
+  // Cleanup eventually opened menus.
+  if (aElement.localName == "menu" && aElement.open)
+    aElement.open = false;
 }
 
 function getToolbarNodeForItemId(aItemId) {
@@ -189,28 +190,17 @@ var gTests = [
       isnot(element._placesNode, null, "Toolbar node has an associated Places node.");
       var expectedData = getExpectedDataForPlacesNode(element._placesNode);
 
-      info("Dragging left");
-      synthesizeDragWithDirection(element, expectedData, dragDirections.LEFT,
-        function ()
-        {
-          info("Dragging right");
-          synthesizeDragWithDirection(element, expectedData, dragDirections.RIGHT,
-            function ()
-            {
-              info("Dragging up");
-              synthesizeDragWithDirection(element, expectedData, dragDirections.UP,
-                function ()
-                {
-                  info("Dragging down");
-                  synthesizeDragWithDirection(element, new Array(), dragDirections.DOWN,
-                    function () {
-                      // Cleanup.
-                      PlacesUtils.bookmarks.removeItem(folderId);
-                      nextTest();
-                    });
-                });
-            });
-        });
+      ok(true, "Dragging left");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.LEFT);
+      ok(true, "Dragging right");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.RIGHT);
+      ok(true, "Dragging up");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.UP);
+      ok(true, "Dragging down");
+      synthesizeDragWithDirection(element, new Array(), dragDirections.DOWN);
+
+      // Cleanup.
+      PlacesUtils.bookmarks.removeItem(folderId);
     }
   },
 
@@ -231,28 +221,17 @@ var gTests = [
       isnot(element._placesNode, null, "Toolbar node has an associated Places node.");
       var expectedData = getExpectedDataForPlacesNode(element._placesNode);
 
-      info("Dragging left");
-      synthesizeDragWithDirection(element, expectedData, dragDirections.LEFT,
-        function ()
-        {
-          info("Dragging right");
-          synthesizeDragWithDirection(element, expectedData, dragDirections.RIGHT,
-            function ()
-            {
-              info("Dragging up");
-              synthesizeDragWithDirection(element, expectedData, dragDirections.UP,
-                function ()
-                {
-                  info("Dragging down");
-                  synthesizeDragWithDirection(element, expectedData, dragDirections.DOWN,
-                    function () {
-                      // Cleanup.
-                      PlacesUtils.bookmarks.removeItem(itemId);
-                      nextTest();
-                    });
-                });
-            });
-        });
+      ok(true, "Dragging left");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.LEFT);
+      ok(true, "Dragging right");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.RIGHT);
+      ok(true, "Dragging up");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.UP);
+      ok(true, "Dragging down");
+      synthesizeDragWithDirection(element, expectedData, dragDirections.DOWN);
+
+      // Cleanup.
+      PlacesUtils.bookmarks.removeItem(itemId);
     }
   },
 ];
@@ -263,7 +242,7 @@ function nextTest() {
     info("Start of test: " + test.desc);
     test.run();
 
-    waitForFocus(nextTest);
+    setTimeout(nextTest, 0);
   }
   else {
     // Collapse the personal toolbar if needed.
@@ -277,12 +256,11 @@ let toolbar = document.getElementById("PersonalToolbar");
 let wasCollapsed = toolbar.collapsed;
 
 function test() {
-  waitForExplicitFinish();
-
   // Uncollapse the personal toolbar if needed.
   if (wasCollapsed)
     setToolbarVisibility(toolbar, true);
 
-  waitForFocus(nextTest);
+  waitForExplicitFinish();
+  nextTest();
 }
 

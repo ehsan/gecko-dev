@@ -36,7 +36,6 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
 
 var gStateObject;
 var gTreeData;
@@ -55,26 +54,13 @@ window.onload = function() {
       return;
     }
   }
-
-  // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
-  if (sessionData.value.charAt(0) == '(')
-    sessionData.value = sessionData.value.slice(1, -1);
-  try {
-    gStateObject = JSON.parse(sessionData.value);
-  }
-  catch (exJSON) {
-    var s = new Cu.Sandbox("about:blank");
-    gStateObject = Cu.evalInSandbox("(" + sessionData.value + ")", s);
-    // If we couldn't parse the string with JSON.parse originally, make sure
-    // that the value in the textbox will be parsable.
-    sessionData.value = JSON.stringify(gStateObject);
-  }
-
   // make sure the data is tracked to be restored in case of a subsequent crash
   var event = document.createEvent("UIEvents");
   event.initUIEvent("input", true, true, window, 0);
   sessionData.dispatchEvent(event);
-
+  
+  gStateObject = JSON.parse(sessionData.value);
+  
   initTreeView();
   
   document.getElementById("errorTryAgain").focus();
@@ -182,10 +168,8 @@ function onListClick(aEvent) {
 #endif
     if ((aEvent.button == 1 || aEvent.button == 0 && aEvent.detail == 2 || accelKey) &&
         col.value.id == "title" &&
-        !treeView.isContainer(row.value)) {
+        !treeView.isContainer(row.value))
       restoreSingleTab(row.value, aEvent.shiftKey);
-      aEvent.stopPropagation();
-    }
     else if (col.value.id == "restore")
       toggleRowChecked(row.value);
   }
@@ -253,8 +237,6 @@ function restoreSingleTab(aIx, aShifted) {
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   var tabState = gStateObject.windows[item.parent.ix]
                              .tabs[aIx - gTreeData.indexOf(item.parent) - 1];
-  // ensure tab would be visible on the tabstrip.
-  tabState.hidden = false;
   ss.setTabState(newTab, JSON.stringify(tabState));
   
   // respect the preference as to whether to select the tab (the Shift key inverses)

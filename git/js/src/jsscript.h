@@ -73,7 +73,7 @@ namespace js {
  *
  * TODO: consider giving more bits to the slot value and takings ome from the level.
  */
-class UpvarCookie
+class UpvarCookie 
 {
     uint32 value;
 
@@ -102,7 +102,7 @@ class UpvarCookie
     bool isFree() const { return value == FREE_VALUE; }
     uint32 asInteger() const { return value; }
     /* isFree check should be performed before using these accessors. */
-    uint16 level() const { JS_ASSERT(!isFree()); return uint16(value >> 16); }
+    uint16 level() const { JS_ASSERT(!isFree()); return value >> 16; }
     uint16 slot() const { JS_ASSERT(!isFree()); return uint16(value); }
 
     void set(const UpvarCookie &other) { set(other.level(), other.slot()); }
@@ -145,8 +145,6 @@ typedef struct JSConstArray {
     uint32          length;
 } JSConstArray;
 
-struct JSArenaPool;
-
 namespace js {
 
 struct GlobalSlotArray {
@@ -156,201 +154,6 @@ struct GlobalSlotArray {
     };
     Entry           *vector;
     uint32          length;
-};
-
-struct Shape;
-
-enum BindingKind { NONE, ARGUMENT, VARIABLE, CONSTANT, UPVAR };
-
-/*
- * Formal parameters, local variables, and upvars are stored in a shape tree
- * path encapsulated within this class.  This class represents bindings for
- * both function and top-level scripts (the latter is needed to track names in
- * strict mode eval code, to give such code its own lexical environment).
- */
-class Bindings {
-    js::Shape *lastBinding;
-    uint16 nargs;
-    uint16 nvars;
-    uint16 nupvars;
-    bool hasExtensibleParents;
-
-  public:
-    inline Bindings(JSContext *cx, EmptyShape *emptyCallShape);
-
-    /*
-     * Transfers ownership of bindings data from bindings into this fresh
-     * Bindings instance. Once such a transfer occurs, the old bindings must
-     * not be used again.
-     */
-    inline void transfer(JSContext *cx, Bindings *bindings);
-
-    /*
-     * Clones bindings data from bindings, which must be immutable, into this
-     * fresh Bindings instance. A Bindings instance may be cloned multiple
-     * times.
-     */
-    inline void clone(JSContext *cx, Bindings *bindings);
-
-    uint16 countArgs() const { return nargs; }
-    uint16 countVars() const { return nvars; }
-    uint16 countUpvars() const { return nupvars; }
-
-    uintN countArgsAndVars() const { return nargs + nvars; }
-
-    uintN countLocalNames() const { return nargs + nvars + nupvars; }
-
-    bool hasUpvars() const { return nupvars > 0; }
-    bool hasLocalNames() const { return countLocalNames() > 0; }
-
-    /* Returns the shape lineage generated for these bindings. */
-    inline js::Shape *lastShape() const;
-
-    enum {
-        /*
-         * A script may have no more than this many arguments, variables, or
-         * upvars.
-         */
-        BINDING_COUNT_LIMIT = 0xFFFF
-    };
-
-    /*
-     * Add a local binding for the given name, of the given type, for the code
-     * being compiled.  If fun is non-null, this binding set is being created
-     * for that function, so adjust corresponding metadata in that function
-     * while adding.  Otherwise this set must correspond to a top-level script.
-     *
-     * A binding may be added twice with different kinds; the last one for a
-     * given name prevails.  (We preserve both bindings for the decompiler,
-     * which must deal with such cases.)  Pass null for name when indicating a
-     * destructuring argument.  Return true on success.
-     *
-     * The parser builds shape paths for functions, usable by Call objects at
-     * runtime, by calling an "add" method. All ARGUMENT bindings must be added
-     * before before any VARIABLE or CONSTANT bindings, which themselves must
-     * be added before all UPVAR bindings.
-     */
-    bool add(JSContext *cx, JSAtom *name, BindingKind kind);
-
-    /* Convenience specializations. */
-    bool addVariable(JSContext *cx, JSAtom *name) {
-        return add(cx, name, VARIABLE);
-    }
-    bool addConstant(JSContext *cx, JSAtom *name) {
-        return add(cx, name, CONSTANT);
-    }
-    bool addUpvar(JSContext *cx, JSAtom *name) {
-        return add(cx, name, UPVAR);
-    }
-    bool addArgument(JSContext *cx, JSAtom *name, uint16 *slotp) {
-        JS_ASSERT(name != NULL); /* not destructuring */
-        *slotp = nargs;
-        return add(cx, name, ARGUMENT);
-    }
-    bool addDestructuring(JSContext *cx, uint16 *slotp) {
-        *slotp = nargs;
-        return add(cx, NULL, ARGUMENT);
-    }
-
-    /*
-     * Look up an argument or variable name, returning its kind when found or
-     * NONE when no such name exists. When indexp is not null and the name
-     * exists, *indexp will receive the index of the corresponding argument or
-     * variable.
-     */
-    BindingKind lookup(JSContext *cx, JSAtom *name, uintN *indexp) const;
-
-    /* Convenience method to check for any binding for a name. */
-    bool hasBinding(JSContext *cx, JSAtom *name) const {
-        return lookup(cx, name, NULL) != NONE;
-    }
-
-    /*
-     * This method returns the local variable, argument, etc. names used by a
-     * script.  This function must be called only when hasLocalNames().
-     *
-     * The elements of the vector with index less than nargs correspond to the
-     * the names of arguments. An index >= nargs addresses a var binding.
-     * The name at an element will be null when the element is for an argument
-     * corresponding to a destructuring pattern.
-     */
-    bool getLocalNameArray(JSContext *cx, Vector<JSAtom *> *namesp);
-
-    /*
-     * Returns the slot where the sharp array is stored, or a value < 0 if no
-     * sharps are present or in case of failure.
-     */
-    int sharpSlotBase(JSContext *cx);
-
-    /*
-     * Protect stored bindings from mutation.  Subsequent attempts to add
-     * bindings will copy the existing bindings before adding to them, allowing
-     * the original bindings to be safely shared.
-     */
-    void makeImmutable();
-
-    /*
-     * Sometimes call objects and run-time block objects need unique shapes, but
-     * sometimes they don't.
-     *
-     * Property cache entries only record the shapes of the first and last
-     * objects along the search path, so if the search traverses more than those
-     * two objects, then those first and last shapes must determine the shapes
-     * of everything else along the path. The js_PurgeScopeChain stuff takes
-     * care of making this work, but that suffices only because we require that
-     * start points with the same shape have the same successor object in the
-     * search path --- a cache hit means the starting shapes were equal, which
-     * means the seach path tail (everything but the first object in the path)
-     * was shared, which in turn means the effects of a purge will be seen by
-     * all affected starting search points.
-     *
-     * For call and run-time block objects, the "successor object" is the scope
-     * chain parent. Unlike prototype objects (of which there are usually few),
-     * scope chain parents are created frequently (possibly on every call), so
-     * following the shape-implies-parent rule blindly would lead one to give
-     * every call and block its own shape.
-     *
-     * In many cases, however, it's not actually necessary to give call and
-     * block objects their own shapes, and we can do better. If the code will
-     * always be used with the same global object, and none of the enclosing
-     * call objects could have bindings added to them at runtime (by direct eval
-     * calls or function statements), then we can use a fixed set of shapes for
-     * those objects. You could think of the shapes in the functions' bindings
-     * and compile-time blocks as uniquely identifying the global object(s) at
-     * the end of the scope chain.
-     *
-     * (In fact, some JSScripts we do use against multiple global objects (see
-     * bug 618497), and using the fixed shapes isn't sound there.)
-     *
-     * In deciding whether a call or block has any extensible parents, we
-     * actually only need to consider enclosing calls; blocks are never
-     * extensible, and the other sorts of objects that appear in the scope
-     * chains ('with' blocks, say) are not CacheableNonGlobalScopes.
-     *
-     * If the hasExtensibleParents flag is set, then Call objects created for
-     * the function this Bindings describes need unique shapes. If the flag is
-     * clear, then we can use lastBinding's shape.
-     *
-     * For blocks, we set the the OWN_SHAPE flag on the compiler-generated
-     * blocksto indicate that their clones need unique shapes.
-     */
-    void setExtensibleParents() { hasExtensibleParents = true; }
-    bool extensibleParents() const { return hasExtensibleParents; }
-
-    /*
-     * These methods provide direct access to the shape path normally
-     * encapsulated by js::Bindings. These methods may be used to make a
-     * Shape::Range for iterating over the relevant shapes from youngest to
-     * oldest (i.e., last or right-most to first or left-most in source order).
-     *
-     * Sometimes iteration order must be from oldest to youngest, however. For
-     * such cases, use js::Bindings::getLocalNameArray.
-     */
-    const js::Shape *lastArgument() const;
-    const js::Shape *lastVariable() const;
-    const js::Shape *lastUpvar() const;
-
-    void trace(JSTracer *trc);
 };
 
 } /* namespace js */
@@ -366,137 +169,65 @@ class Bindings {
 namespace JSC {
     class ExecutablePool;
 }
-
-#define JS_UNJITTABLE_SCRIPT (reinterpret_cast<void*>(1))
-
-enum JITScriptStatus {
-    JITScript_None,
-    JITScript_Invalid,
-    JITScript_Valid
-};
-
 namespace js {
 namespace mjit {
 
 struct JITScript;
 
+namespace ic {
+# if defined JS_POLYIC
+    struct PICInfo;
+# endif
+# if defined JS_MONOIC
+    struct MICInfo;
+# endif
+}
+struct CallSite;
 }
 }
 #endif
 
-class JSPCCounters {
-    size_t numBytecodes;
-    int *counts;
-
- public:
-    JSPCCounters() : numBytecodes(0), counts(NULL) {
-    }
-
-    ~JSPCCounters() {
-        JS_ASSERT(!counts);
-    }
-
-    bool init(JSContext *cx, size_t numBytecodes);
-    void destroy(JSContext *cx);
-
-    // Boolean conversion, for 'if (counters) ...'
-    operator void*() const {
-        return counts;
-    }
-
-    int *get(int runmode) {
-        JS_ASSERT(runmode >= 0 && runmode < JSRUNMODE_COUNT);
-        return counts ? &counts[numBytecodes * runmode] : NULL;
-    }
-
-    int& get(int runmode, size_t offset) {
-        JS_ASSERT(offset < numBytecodes);
-        JS_ASSERT(counts);
-        return get(runmode)[offset];
-    }
-
-    size_t numRunmodes() const {
-        return JSRUNMODE_COUNT;
-    }
-};
-
 struct JSScript {
-    /*
-     * Two successively less primitive ways to make a new JSScript.  The first
-     * does *not* call a non-null cx->runtime->newScriptHook -- only the second,
-     * NewScriptFromCG, calls this optional debugger hook.
-     *
-     * The NewScript function can't know whether the script it creates belongs
-     * to a function, or is top-level or eval code, but the debugger wants access
-     * to the newly made script's function, if any -- so callers of NewScript
-     * are responsible for notifying the debugger after successfully creating any
-     * kind (function or other) of new JSScript.
-     */
-    static JSScript *NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
-                               uint32 nobjects, uint32 nupvars, uint32 nregexps,
-                               uint32 ntrynotes, uint32 nconsts, uint32 nglobals,
-                               uint16 nClosedArgs, uint16 nClosedVars, JSVersion version);
-
-    static JSScript *NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);
-
     /* FIXME: bug 586181 */
     JSCList         links;      /* Links for compartment script list */
     jsbytecode      *code;      /* bytecodes and their immediate operands */
     uint32          length;     /* length of code vector */
-
-  private:
     uint16          version;    /* JS version under which script was compiled */
-
-  public:
     uint16          nfixed;     /* number of slots besides stack operands in
                                    slot array */
-  private:
-    size_t          callCount_; /* Number of times the script has been called. */
-
-    /*
-     * Offsets to various array structures from the end of this script, or
-     * JSScript::INVALID_OFFSET if the array has length 0.
-     */
-  public:
     uint8           objectsOffset;  /* offset to the array of nested function,
                                        block, scope, xml and one-time regexps
-                                       objects */
+                                       objects or 0 if none */
     uint8           upvarsOffset;   /* offset of the array of display ("up")
-                                       closure vars */
+                                       closure vars or 0 if none */
     uint8           regexpsOffset;  /* offset to the array of to-be-cloned
-                                       regexps  */
-    uint8           trynotesOffset; /* offset to the array of try notes */
-    uint8           globalsOffset;  /* offset to the array of global slots */
-    uint8           constOffset;    /* offset to the array of constants */
-
+                                       regexps or 0 if none. */
+    uint8           trynotesOffset; /* offset to the array of try notes or
+                                       0 if none */
+    uint8           globalsOffset;  /* offset to the array of global slots or
+                                       0 if none */
+    uint8           constOffset;    /* offset to the array of constants or
+                                       0 if none */
     bool            noScriptRval:1; /* no need for result value of last
                                        expression statement */
-    bool            savedCallerFun:1; /* can call getCallerFunction() */
+    bool            savedCallerFun:1; /* object 0 is caller function */
     bool            hasSharps:1;      /* script uses sharp variables */
     bool            strictModeCode:1; /* code is in strict mode */
     bool            compileAndGo:1;   /* script was compiled with TCF_COMPILE_N_GO */
     bool            usesEval:1;       /* script uses eval() */
-    bool            usesArguments:1;  /* script uses arguments */
     bool            warnedAboutTwoArgumentEval:1; /* have warned about use of
                                                      obsolete eval(s, o) in
                                                      this script */
-    bool            hasSingletons:1;  /* script has singleton objects */
 #ifdef JS_METHODJIT
     bool            debugMode:1;      /* script was compiled in debug mode */
-    bool            singleStepMode:1; /* compile script in single-step mode */
 #endif
 
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
     JSAtomMap       atomMap;    /* maps immediate index to literal struct */
-    JSCompartment   *compartment; /* compartment the script was compiled for */
     const char      *filename;  /* source filename or null */
     uint32          lineno;     /* base line number of script */
     uint16          nslots;     /* vars plus maximum stack depth */
     uint16          staticLevel;/* static level for display maintenance */
-    uint16          nClosedArgs; /* number of args which are closed over. */
-    uint16          nClosedVars; /* number of vars which are closed over. */
-    js::Bindings    bindings;   /* names of top-level variables in this script
-                                   (and arguments if this is a function script) */
     JSPrincipals    *principals;/* principals for this script */
     union {
         /*
@@ -505,7 +236,7 @@ struct JSScript {
          *   JS_CompileFile, etc.) have these objects.
          * - Function scripts never have script objects; such scripts are owned
          *   by their function objects.
-         * - Temporary scripts created by obj_eval, JS_EvaluateScript, and
+         * - Temporary scripts created by obj_eval, JS_EvaluateScript, and 
          *   similar functions never have these objects; such scripts are
          *   explicitly destroyed by the code that created them.
          * Debugging API functions (JSDebugHooks::newScriptHook;
@@ -518,91 +249,56 @@ struct JSScript {
         JSObject    *object;
         JSScript    *nextToGC;  /* next to GC in rt->scriptsToGC list */
     } u;
-
 #ifdef CHECK_SCRIPT_OWNER
     JSThread        *owner;     /* for thread-safe life-cycle assertions */
 #endif
-
-    uint32          *closedSlots; /* vector of closed slots; args first, then vars. */
-
-    /* array of execution counters for every JSOp in the script, by runmode */
-    JSPCCounters    pcCounters;
-
-  public:
 #ifdef JS_METHODJIT
-    // Fast-cached pointers to make calls faster. These are also used to
-    // quickly test whether there is JIT code; a NULL value means no
-    // compilation has been attempted. A JS_UNJITTABLE_SCRIPT value means
-    // compilation failed. Any value is the arity-check entry point.
-    void *jitArityCheckNormal;
-    void *jitArityCheckCtor;
+    // Note: the other pointers in this group may be non-NULL only if 
+    // |execPool| is non-NULL.
+    void            *ncode;     /* native code compiled by the method JIT */
+    void            **nmap;     /* maps PCs to native code */
+    js::mjit::JITScript *jit;   /* Extra JIT info */
+# if defined JS_POLYIC
+    js::mjit::ic::PICInfo *pics; /* PICs in this script */
+# endif
+# if defined JS_MONOIC
+    js::mjit::ic::MICInfo *mics; /* MICs in this script. */
+# endif
 
-    js::mjit::JITScript *jitNormal;   /* Extra JIT info for normal scripts */
-    js::mjit::JITScript *jitCtor;     /* Extra JIT info for constructors */
-
-    bool hasJITCode() {
-        return jitNormal || jitCtor;
-    }
-
-    // These methods are implemented in MethodJIT.h.
-    inline void **nativeMap(bool constructing);
-    inline void *maybeNativeCodeForPC(bool constructing, jsbytecode *pc);
-    inline void *nativeCodeForPC(bool constructing, jsbytecode *pc);
-
-    js::mjit::JITScript *getJIT(bool constructing) {
-        return constructing ? jitCtor : jitNormal;
-    }
-
-    size_t callCount() const  { return callCount_; }
-    size_t incCallCount() { return ++callCount_; }
-
-    JITScriptStatus getJITStatus(bool constructing) {
-        void *addr = constructing ? jitArityCheckCtor : jitArityCheckNormal;
-        if (addr == NULL)
-            return JITScript_None;
-        if (addr == JS_UNJITTABLE_SCRIPT)
-            return JITScript_Invalid;
-        return JITScript_Valid;
-    }
+    bool isValidJitCode(void *jcode);
 #endif
-
-    JS_FRIEND_API(size_t) totalSize();  /* Size of the JSScript and all sections */
-    uint32 numNotes();                  /* Number of srcnote slots in the srcnotes section */
 
     /* Script notes are allocated right after the code. */
     jssrcnote *notes() { return (jssrcnote *)(code + length); }
 
-    static const uint8 INVALID_OFFSET = 0xFF;
-    static bool isValidOffset(uint8 offset) { return offset != INVALID_OFFSET; }
-
     JSObjectArray *objects() {
-        JS_ASSERT(isValidOffset(objectsOffset));
-        return reinterpret_cast<JSObjectArray *>(uintptr_t(this + 1) + objectsOffset);
+        JS_ASSERT(objectsOffset != 0);
+        return (JSObjectArray *)((uint8 *) this + objectsOffset);
     }
 
     JSUpvarArray *upvars() {
-        JS_ASSERT(isValidOffset(upvarsOffset));
-        return reinterpret_cast<JSUpvarArray *>(uintptr_t(this + 1) + upvarsOffset);
+        JS_ASSERT(upvarsOffset != 0);
+        return (JSUpvarArray *) ((uint8 *) this + upvarsOffset);
     }
 
     JSObjectArray *regexps() {
-        JS_ASSERT(isValidOffset(regexpsOffset));
-        return reinterpret_cast<JSObjectArray *>(uintptr_t(this + 1) + regexpsOffset);
+        JS_ASSERT(regexpsOffset != 0);
+        return (JSObjectArray *) ((uint8 *) this + regexpsOffset);
     }
 
     JSTryNoteArray *trynotes() {
-        JS_ASSERT(isValidOffset(trynotesOffset));
-        return reinterpret_cast<JSTryNoteArray *>(uintptr_t(this + 1) + trynotesOffset);
+        JS_ASSERT(trynotesOffset != 0);
+        return (JSTryNoteArray *) ((uint8 *) this + trynotesOffset);
     }
 
     js::GlobalSlotArray *globals() {
-        JS_ASSERT(isValidOffset(globalsOffset));
-        return reinterpret_cast<js::GlobalSlotArray *>(uintptr_t(this + 1) + globalsOffset);
+        JS_ASSERT(globalsOffset != 0);
+        return (js::GlobalSlotArray *) ((uint8 *)this + globalsOffset);
     }
 
     JSConstArray *consts() {
-        JS_ASSERT(isValidOffset(constOffset));
-        return reinterpret_cast<JSConstArray *>(uintptr_t(this + 1) + constOffset);
+        JS_ASSERT(constOffset != 0);
+        return (JSConstArray *) ((uint8 *) this + constOffset);
     }
 
     JSAtom *getAtom(size_t index) {
@@ -628,12 +324,7 @@ struct JSScript {
         return getAtom(arr->vector[index].atomIndex);
     }
 
-    JSVersion getVersion() const {
-        return JSVersion(version);
-    }
-
     inline JSFunction *getFunction(size_t index);
-    inline JSFunction *getCallerFunction();
 
     inline JSObject *getRegExp(size_t index);
 
@@ -646,21 +337,40 @@ struct JSScript {
     /*
      * The isEmpty method tells whether this script has code that computes any
      * result (not return value, result AKA normal completion value) other than
-     * JSVAL_VOID, or any other effects.
+     * JSVAL_VOID, or any other effects. It has a fast path for the case where
+     * |this| is the emptyScript singleton, but it also checks this->length and
+     * this->code, to handle debugger-generated mutable empty scripts.
      */
     inline bool isEmpty() const;
 
-    uint32 getClosedArg(uint32 index) {
-        JS_ASSERT(index < nClosedArgs);
-        return closedSlots[index];
+    /*
+     * Accessor for the emptyScriptConst singleton, to consolidate const_cast.
+     * See the private member declaration.
+     */
+    static JSScript *emptyScript() {
+        return const_cast<JSScript *>(&emptyScriptConst);
     }
 
-    uint32 getClosedVar(uint32 index) {
-        JS_ASSERT(index < nClosedVars);
-        return closedSlots[nClosedArgs + index];
+#ifdef JS_METHODJIT
+    /*
+     * Map the given PC to the corresponding native code address.
+     */
+    void *pcToNative(jsbytecode *pc) {
+        JS_ASSERT(nmap);
+        JS_ASSERT(nmap[pc - code]);
+        return nmap[pc - code];
     }
+#endif
 
-    void copyClosedSlotsTo(JSScript *other);
+  private:
+    /*
+     * Use const to put this in read-only memory if possible. We are stuck with
+     * non-const JSScript * and jsbytecode * by legacy code (back in the 1990s,
+     * const wasn't supported correctly on all target platforms). The debugger
+     * does mutate bytecode, and script->u.object may be set after construction
+     * in some cases, so making JSScript pointers const will be "hard".
+     */
+    static const JSScript emptyScriptConst;
 };
 
 #define SHARP_NSLOTS            2       /* [#array, #depth] slots if the script
@@ -682,7 +392,7 @@ StackDepth(JSScript *script)
         if ((pc_) < (script_)->code ||                                        \
             (script_)->code + (script_)->length <= (pc_)) {                   \
             JS_ASSERT((size_t)(index) < js_common_atom_count);                \
-            (atom) = cx->runtime->atomState.commonAtomsStart()[index];        \
+            (atom) = COMMON_ATOMS_START(&cx->runtime->atomState)[index];      \
         } else {                                                              \
             (atom) = script_->getAtom(index);                                 \
         }                                                                     \
@@ -693,10 +403,12 @@ extern JS_FRIEND_DATA(js::Class) js_ScriptClass;
 extern JSObject *
 js_InitScriptClass(JSContext *cx, JSObject *obj);
 
-namespace js {
-
-extern bool
-InitRuntimeScriptState(JSRuntime *rt);
+/*
+ * On first new context in rt, initialize script runtime state, specifically
+ * the script filename table and its lock.
+ */
+extern JSBool
+js_InitRuntimeScriptState(JSRuntime *rt);
 
 /*
  * On JS_DestroyRuntime(rt), forcibly free script filename prefixes and any
@@ -705,9 +417,16 @@ InitRuntimeScriptState(JSRuntime *rt);
  * This allows script filename prefixes to outlive any context in rt.
  */
 extern void
-FreeRuntimeScriptState(JSRuntime *rt);
+js_FreeRuntimeScriptState(JSRuntime *rt);
 
-} /* namespace js */
+extern const char *
+js_SaveScriptFilename(JSContext *cx, const char *filename);
+
+extern const char *
+js_SaveScriptFilenameRT(JSRuntime *rt, const char *filename, uint32 flags);
+
+extern uint32
+js_GetScriptFilenameFlags(const char *filename);
 
 extern void
 js_MarkScriptFilename(const char *filename);
@@ -719,6 +438,31 @@ extern void
 js_SweepScriptFilenames(JSRuntime *rt);
 
 /*
+ * Two successively less primitive ways to make a new JSScript.  The first
+ * does *not* call a non-null cx->runtime->newScriptHook -- only the second,
+ * js_NewScriptFromCG, calls this optional debugger hook.
+ *
+ * The js_NewScript function can't know whether the script it creates belongs
+ * to a function, or is top-level or eval code, but the debugger wants access
+ * to the newly made script's function, if any -- so callers of js_NewScript
+ * are responsible for notifying the debugger after successfully creating any
+ * kind (function or other) of new JSScript.
+ *
+ * NB: js_NewScript always creates a new script; it never returns the empty
+ * script singleton (JSScript::emptyScript()). Callers who know they can use
+ * that read-only singleton are responsible for choosing it instead of calling
+ * js_NewScript with length and nsrcnotes equal to 1 and other parameters save
+ * cx all zero.
+ */
+extern JSScript *
+js_NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
+             uint32 nobjects, uint32 nupvars, uint32 nregexps,
+             uint32 ntrynotes, uint32 nconsts, uint32 nglobals);
+
+extern JSScript *
+js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);
+
+/*
  * New-script-hook calling is factored from js_NewScriptFromCG so that it
  * and callers of js_XDRScript can share this code.  In the case of callers
  * of js_XDRScript, the hook should be invoked only after successful decode
@@ -727,32 +471,16 @@ js_SweepScriptFilenames(JSRuntime *rt);
 extern JS_FRIEND_API(void)
 js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun);
 
-extern void
+extern JS_FRIEND_API(void)
 js_CallDestroyScriptHook(JSContext *cx, JSScript *script);
 
-/*
- * The function must be used only outside the GC for a script that was run
- * only on the current thread.
- */
 extern void
 js_DestroyScript(JSContext *cx, JSScript *script);
 
 extern void
-js_DestroyScriptFromGC(JSContext *cx, JSScript *script);
-
-/*
- * Script objects may be cached and reused, in which case their JSD-visible
- * lifetimes may be shorter than their actual lifetimes. Destroy one such
- * script for real as part of a GC pass. From JSD's point of view, the script
- * is already dead.
- */
-extern void
-js_DestroyCachedScript(JSContext *cx, JSScript *script);
-
-extern void
 js_TraceScript(JSTracer *trc, JSScript *script);
 
-extern JSObject *
+extern JSBool
 js_NewScriptObject(JSContext *cx, JSScript *script);
 
 /*
@@ -771,7 +499,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc);
  * fp->imacpc may be non-null, indicating an active imacro.
  */
 extern uintN
-js_FramePCToLineNumber(JSContext *cx, js::StackFrame *fp, jsbytecode *pc);
+js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp);
 
 extern uintN
 js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc);
@@ -782,30 +510,6 @@ js_LineNumberToPC(JSScript *script, uintN lineno);
 extern JS_FRIEND_API(uintN)
 js_GetScriptLineExtent(JSScript *script);
 
-namespace js {
-
-extern uintN
-CurrentLine(JSContext *cx);
-
-/*
- * This function returns the file and line number of the script currently
- * executing on cx. If there is no current script executing on cx (e.g., a
- * native called directly through JSAPI (e.g., by setTimeout)), NULL and 0 are
- * returned as the file and line. Additionally, this function avoids the full
- * linear scan to compute line number when the caller guarnatees that the
- * script compilation occurs at a JSOP_EVAL.
- */
-
-enum LineOption {
-    CALLED_FROM_JSOP_EVAL,
-    NOT_CALLED_FROM_JSOP_EVAL
-};
-
-inline const char *
-CurrentScriptFileAndLine(JSContext *cx, uintN *linenop, LineOption = NOT_CALLED_FROM_JSOP_EVAL);
-
-}
-
 static JS_INLINE JSOp
 js_GetOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
@@ -815,28 +519,24 @@ js_GetOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
     return op;
 }
 
-extern JSScript *
-js_CloneScript(JSContext *cx, JSScript *script);
-
 /*
- * NB: after a successful JSXDR_DECODE, js_XDRScript callers must do any
- * required subsequent set-up of owning function or script object and then call
- * js_CallNewScriptHook.
+ * If magic is non-null, js_XDRScript succeeds on magic number mismatch but
+ * returns false in *magic; it reflects a match via a true *magic out param.
+ * If magic is null, js_XDRScript returns false on bad magic number errors,
+ * which it reports.
+ *
+ * NB: after a successful JSXDR_DECODE, and provided that *scriptp is not the
+ * JSScript::emptyScript() immutable singleton, js_XDRScript callers must do
+ * any required subsequent set-up of owning function or script object and then
+ * call js_CallNewScriptHook.
+ *
+ * If the caller requires a mutable empty script (for debugging or u.object
+ * ownership setting), pass true for needMutableScript. Otherwise pass false.
+ * Call js_CallNewScriptHook only with a mutable script, i.e. never with the
+ * JSScript::emptyScript() singleton.
  */
 extern JSBool
-js_XDRScript(JSXDRState *xdr, JSScript **scriptp);
-
-inline bool
-JSObject::isScript() const
-{
-    return getClass() == &js_ScriptClass;
-}
-
-inline JSScript *
-JSObject::getScript() const
-{
-    JS_ASSERT(isScript());
-    return static_cast<JSScript *>(getPrivate());
-}
+js_XDRScript(JSXDRState *xdr, JSScript **scriptp, bool needMutableScript,
+             JSBool *hasMagic);
 
 #endif /* jsscript_h___ */

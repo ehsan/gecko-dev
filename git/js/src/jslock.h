@@ -50,6 +50,8 @@
 # include "prthread.h"
 #endif
 
+JS_BEGIN_EXTERN_C
+
 #ifdef JS_THREADSAFE
 
 #if (defined(_WIN32) && defined(_M_IX86)) ||                                  \
@@ -57,7 +59,6 @@
     (defined(__i386) && (defined(__GNUC__) || defined(__SUNPRO_CC))) ||       \
     (defined(__x86_64) && (defined(__GNUC__) || defined(__SUNPRO_CC))) ||     \
     (defined(__sparc) && (defined(__GNUC__) || defined(__SUNPRO_CC))) ||      \
-    (defined(__arm__) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)) ||      \
     defined(AIX) ||                                                           \
     defined(USE_ARM_KUSER)
 # define JS_HAS_NATIVE_COMPARE_AND_SWAP 1
@@ -82,19 +83,36 @@ typedef struct JSThinLock {
     JSFatLock   *fat;
 } JSThinLock;
 
-#define CX_THINLOCK_ID(cx)       ((jsword)(cx)->thread())
+#define CX_THINLOCK_ID(cx)       ((jsword)(cx)->thread)
 #define CURRENT_THREAD_IS_ME(me) (((JSThread *)me)->id == js_CurrentThreadId())
 
 typedef PRLock JSLock;
+
+typedef struct JSTitle JSTitle;
+
+struct JSTitle {
+    JSContext       *ownercx;           /* creating context, NULL if shared */
+    JSThinLock      lock;               /* binary semaphore protecting title */
+    union {                             /* union lockful and lock-free state: */
+        jsrefcount  count;              /* lock entry count for reentrancy */
+        JSTitle     *link;              /* next link in rt->titleSharingTodo */
+    } u;
+};
+
+/*
+ * Title structure is always allocated as a field of JSObject.
+ */
+#define TITLE_TO_OBJECT(title)                                                 \
+    ((JSObject *)((uint8 *) (title) - offsetof(JSObject, title)))
 
 /*
  * Atomic increment and decrement for a reference counter, given jsrefcount *p.
  * NB: jsrefcount is int32, aka PRInt32, so that pratom.h functions work.
  */
-#define JS_ATOMIC_INCREMENT(p)      PR_ATOMIC_INCREMENT((PRInt32 *)(p))
-#define JS_ATOMIC_DECREMENT(p)      PR_ATOMIC_DECREMENT((PRInt32 *)(p))
-#define JS_ATOMIC_ADD(p,v)          PR_ATOMIC_ADD((PRInt32 *)(p), (PRInt32)(v))
-#define JS_ATOMIC_SET(p,v)          PR_ATOMIC_SET((PRInt32 *)(p), (PRInt32)(v))
+#define JS_ATOMIC_INCREMENT(p)      PR_AtomicIncrement((PRInt32 *)(p))
+#define JS_ATOMIC_DECREMENT(p)      PR_AtomicDecrement((PRInt32 *)(p))
+#define JS_ATOMIC_ADD(p,v)          PR_AtomicAdd((PRInt32 *)(p), (PRInt32)(v))
+#define JS_ATOMIC_SET(p,v)          PR_AtomicSet((PRInt32 *)(p), (PRInt32)(v))
 
 #define js_CurrentThreadId()        PR_GetCurrentThread()
 #define JS_NEW_LOCK()               PR_NewLock()
@@ -115,24 +133,76 @@ typedef PRLock JSLock;
 #define JS_LOCK_RUNTIME(rt)         js_LockRuntime(rt)
 #define JS_UNLOCK_RUNTIME(rt)       js_UnlockRuntime(rt)
 
+/*
+ * NB: The JS_LOCK_OBJ and JS_UNLOCK_OBJ macros work *only* on native objects
+ * (objects for which obj->isNative() returns true).  All uses of these macros in
+ * the engine are predicated on obj->isNative or equivalent checks.
+ */
+#define CX_OWNS_OBJECT_TITLE(cx,obj) ((obj)->title.ownercx == (cx))
+
+#define JS_LOCK_OBJ(cx,obj)                                                   \
+    JS_BEGIN_MACRO                                                            \
+        JSObject *obj_ = (obj);                                               \
+        if (!CX_OWNS_OBJECT_TITLE(cx, obj_)) {                                \
+            js_LockObj(cx, obj_);                                             \
+            JS_SET_OBJ_INFO(obj_, __FILE__, __LINE__);                        \
+        }                                                                     \
+    JS_END_MACRO
+
+#define JS_UNLOCK_OBJ(cx,obj)                                                 \
+    JS_BEGIN_MACRO                                                            \
+        JSObject *obj_ = (obj);                                               \
+        if (!CX_OWNS_OBJECT_TITLE(cx, obj_))                                  \
+            js_UnlockObj(cx, obj_);                                           \
+    JS_END_MACRO
+
+#define JS_LOCK_TITLE(cx,title)                                               \
+    ((title)->ownercx == (cx) ? (void)0                                       \
+     : (js_LockTitle(cx, (title)),                                            \
+        JS_SET_TITLE_INFO(title,__FILE__,__LINE__)))
+
+#define JS_UNLOCK_TITLE(cx,title) ((title)->ownercx == (cx) ? (void)0         \
+                                   : js_UnlockTitle(cx, title))
+
 extern void js_Lock(JSContext *cx, JSThinLock *tl);
 extern void js_Unlock(JSContext *cx, JSThinLock *tl);
 extern void js_LockRuntime(JSRuntime *rt);
 extern void js_UnlockRuntime(JSRuntime *rt);
+extern void js_LockObj(JSContext *cx, JSObject *obj);
+extern void js_UnlockObj(JSContext *cx, JSObject *obj);
+extern void js_InitTitle(JSContext *cx, JSTitle *title);
+extern void js_FinishTitle(JSContext *cx, JSTitle *title);
+extern void js_LockTitle(JSContext *cx, JSTitle *title);
+extern void js_UnlockTitle(JSContext *cx, JSTitle *title);
 extern int js_SetupLocks(int,int);
 extern void js_CleanupLocks();
+extern JS_FRIEND_API(jsval)
+js_GetSlotThreadSafe(JSContext *, JSObject *, uint32);
+extern void js_SetSlotThreadSafe(JSContext *, JSObject *, uint32, jsval);
 extern void js_InitLock(JSThinLock *);
 extern void js_FinishLock(JSThinLock *);
+
+/*
+ * This function must be called with the GC lock held.
+ */
+extern void
+js_ShareWaitingTitles(JSContext *cx);
 
 #ifdef DEBUG
 
 #define JS_IS_RUNTIME_LOCKED(rt)        js_IsRuntimeLocked(rt)
+#define JS_IS_OBJ_LOCKED(cx,obj)        js_IsObjLocked(cx,obj)
+#define JS_IS_TITLE_LOCKED(cx,title)    js_IsTitleLocked(cx,title)
 
 extern JSBool js_IsRuntimeLocked(JSRuntime *rt);
+extern JSBool js_IsObjLocked(JSContext *cx, JSObject *obj);
+extern JSBool js_IsTitleLocked(JSContext *cx, JSTitle *title);
 
 #else
 
 #define JS_IS_RUNTIME_LOCKED(rt)        0
+#define JS_IS_OBJ_LOCKED(cx,obj)        1
+#define JS_IS_TITLE_LOCKED(cx,title)    1
 
 #endif /* DEBUG */
 
@@ -143,7 +213,7 @@ extern JSBool js_IsRuntimeLocked(JSRuntime *rt);
 #define JS_ATOMIC_ADD(p,v)          (*(p) += (v))
 #define JS_ATOMIC_SET(p,v)          (*(p) = (v))
 
-#define js_CurrentThreadId()        0
+#define JS_CurrentThreadId() 0
 #define JS_NEW_LOCK()               NULL
 #define JS_DESTROY_LOCK(l)          ((void)0)
 #define JS_ACQUIRE_LOCK(l)          ((void)0)
@@ -159,10 +229,22 @@ extern JSBool js_IsRuntimeLocked(JSRuntime *rt);
 
 #define JS_LOCK_RUNTIME(rt)         ((void)0)
 #define JS_UNLOCK_RUNTIME(rt)       ((void)0)
+#define JS_LOCK_OBJ(cx,obj)         ((void)0)
+#define JS_UNLOCK_OBJ(cx,obj)       ((void)0)
 
+#define CX_OWNS_OBJECT_TITLE(cx,obj)    1
 #define JS_IS_RUNTIME_LOCKED(rt)        1
+#define JS_IS_OBJ_LOCKED(cx,obj)        1
+#define JS_IS_TITLE_LOCKED(cx,title)    1
 
 #endif /* !JS_THREADSAFE */
+
+#define JS_LOCK_RUNTIME_VOID(rt,e)                                            \
+    JS_BEGIN_MACRO                                                            \
+        JS_LOCK_RUNTIME(rt);                                                  \
+        e;                                                                    \
+        JS_UNLOCK_RUNTIME(rt);                                                \
+    JS_END_MACRO
 
 #define JS_LOCK_GC(rt)              JS_ACQUIRE_LOCK((rt)->gcLock)
 #define JS_UNLOCK_GC(rt)            JS_RELEASE_LOCK((rt)->gcLock)
@@ -209,13 +291,13 @@ js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 #define JS_ATOMIC_SET_MASK(w, mask) (*(w) |= (mask))
 #define JS_ATOMIC_CLEAR_MASK(w, mask) (*(w) &= ~(mask))
 
-#endif
+#endif /* JS_THREADSAFE */
 
-#ifdef __cplusplus
+JS_END_EXTERN_C
 
+#if defined JS_THREADSAFE && defined __cplusplus
 namespace js {
 
-#ifdef JS_THREADSAFE
 class AutoLock {
   private:
     JSLock *lock;
@@ -224,29 +306,8 @@ class AutoLock {
     AutoLock(JSLock *lock) : lock(lock) { JS_ACQUIRE_LOCK(lock); }
     ~AutoLock() { JS_RELEASE_LOCK(lock); }
 };
-# define JS_AUTO_LOCK_GUARD(name, l) AutoLock name((l));
-#else
-# define JS_AUTO_LOCK_GUARD(name, l)
-#endif
 
-class AutoAtomicIncrement {
-    int32 *p;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-  public:
-    AutoAtomicIncrement(int32 *p JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : p(p) {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-        JS_ATOMIC_INCREMENT(p);
-    }
-
-    ~AutoAtomicIncrement() {
-        JS_ATOMIC_DECREMENT(p);
-    }
-};
-
-} /* namespace js */
-
+}
 #endif
 
 #endif /* jslock_h___ */

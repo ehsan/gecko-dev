@@ -48,16 +48,11 @@
 namespace mozilla {
 namespace layers {
 
-#if defined(DEBUG)
-#define CHECK_CURRENT_PROGRAM 1
 #define ASSERT_THIS_PROGRAM                                             \
   do {                                                                  \
     NS_ASSERTION(mGL->GetUserData(&sCurrentProgramKey) == this, \
                  "SetUniform with wrong program active!");              \
   } while (0)
-#else
-#define ASSERT_THIS_PROGRAM
-#endif
 
 struct UniformValue {
   UniformValue() {
@@ -110,9 +105,7 @@ struct UniformValue {
 
 class LayerManagerOGLProgram {
 protected:
-#ifdef CHECK_CURRENT_PROGRAM
   static int sCurrentProgramKey;
-#endif
 
 public:
   typedef mozilla::gl::GLContext GLContext;
@@ -139,9 +132,7 @@ public:
   void Activate() {
     NS_ASSERTION(mProgram != 0, "Attempting to activate a program that's not in use!");
     mGL->fUseProgram(mProgram);
-#if CHECK_CURRENT_PROGRAM
     mGL->SetUserData(&sCurrentProgramKey, this);
-#endif
   }
 
   void SetUniform(GLuint aUniform, float aFloatValue) {
@@ -253,7 +244,7 @@ protected:
       }
 
         fprintf (stderr, "=== Source:\n%s\n", aShaderSource);
-        fprintf (stderr, "=== Log:\n%s\n", log.get());
+        fprintf (stderr, "=== Log:\n%s\n", nsPromiseFlatCString(log).get());
         fprintf (stderr, "============\n");
 
       if (!success) {
@@ -307,7 +298,7 @@ protected:
       } else {
         fprintf (stderr, "=== PROGRAM LINKING WARNINGS ===\n");
       }
-      fprintf (stderr, "=== Log:\n%s\n", log.get());
+      fprintf (stderr, "=== Log:\n%s\n", nsPromiseFlatCString(log).get());
       fprintf (stderr, "============\n");
     }
 
@@ -638,73 +629,6 @@ public:
     SetUniform(mUniformLocations[YTextureUniform], aYUnit);
     SetUniform(mUniformLocations[CbTextureUniform], aCbUnit);
     SetUniform(mUniformLocations[CrTextureUniform], aCrUnit);
-  }
-};
-
-/*
- * A ComponentAlphaTextureLayerProgram is a LayerProgram that renders one pass
- * of the two-pass component alpha rendering system using two textures.
- * It adds the following attributes and uniforms:
- *
- * Attribute inputs:
- *   aTexCoord     - texture coordinate
- *
- * Uniforms:
- *   uBlackTexture    - 2D texture on top of an opaque black background
- *   uWhiteTexture    - 2D texture on top of an opaque white background
- */
-
-class ComponentAlphaTextureLayerProgram :
-  public LayerProgram
-{
-public:
-  enum {
-    BlackTextureUniform = NumLayerUniforms,
-    WhiteTextureUniform,
-    NumUniforms
-  };
-
-  enum {
-    TexCoordAttrib = NumLayerAttribs,
-    NumAttribs
-  };
-
-  ComponentAlphaTextureLayerProgram(GLContext *aGL)
-    : LayerProgram(aGL)
-  { }
-
-  bool Initialize(const char *aVertexShaderString,
-                  const char *aFragmentShaderString)
-  {
-    if (!LayerProgram::Initialize(aVertexShaderString, aFragmentShaderString))
-      return false;
-
-    const char *uniformNames[] = {
-      "uBlackTexture",
-      "uWhiteTexture",
-      NULL
-    };
-
-    mUniformLocations.SetLength(NumUniforms);
-    GetUniformLocations(uniformNames, &mUniformLocations[NumLayerUniforms]);
-
-    const char *attribNames[] = {
-      "aTexCoord",
-      NULL
-    };
-
-    mAttribLocations.SetLength(NumAttribs);
-    GetAttribLocations(attribNames, &mAttribLocations[NumLayerAttribs]);
-
-    return true;
-  }
-
-  void SetBlackTextureUnit(GLint aUnit) {
-    SetUniform(mUniformLocations[BlackTextureUniform], aUnit);
-  }
-
-  void SetWhiteTextureUnit(GLint aUnit) {
-    SetUniform(mUniformLocations[WhiteTextureUniform], aUnit);
   }
 };
 

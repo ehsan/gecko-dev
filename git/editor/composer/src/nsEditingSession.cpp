@@ -43,7 +43,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowUtils.h"
 #include "nsIDOMWindowInternal.h"
-#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDOMDocument.h"
@@ -78,6 +78,7 @@
 #include "nsIPlaintextEditor.h"
 #include "nsIEditor.h"
 
+#include "nsIDOMNSDocument.h"
 #include "nsIScriptContext.h"
 #include "imgIContainer.h"
 
@@ -144,12 +145,12 @@ nsEditingSession::MakeWindowEditable(nsIDOMWindow *aWindow,
 {
   mEditorType.Truncate();
   mEditorFlags = 0;
+  mWindowToBeEdited = do_GetWeakReference(aWindow);
 
   // disable plugins
   nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  mDocShell = do_GetWeakReference(docShell);
   mInteractive = aInteractive;
   mMakeWholeDocumentEditable = aMakeWholeDocumentEditable;
 
@@ -348,29 +349,33 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
   //then lets check the mime type
   if (NS_SUCCEEDED(aWindow->GetDocument(getter_AddRefs(doc))) && doc)
   {
-    nsAutoString mimeType;
-    if (NS_SUCCEEDED(doc->GetContentType(mimeType)))
-      AppendUTF16toUTF8(mimeType, mimeCType);
-
-    if (IsSupportedTextType(mimeCType.get()))
+    nsCOMPtr<nsIDOMNSDocument> nsdoc = do_QueryInterface(doc);
+    if (nsdoc)
     {
-      mEditorType.AssignLiteral("text");
-      mimeCType = "text/plain";
-    }
-    else if (!mimeCType.EqualsLiteral("text/html") &&
-             !mimeCType.EqualsLiteral("application/xhtml+xml"))
-    {
-      // Neither an acceptable text or html type.
-      mEditorStatus = eEditorErrorCantEditMimeType;
+      nsAutoString mimeType;
+      if (NS_SUCCEEDED(nsdoc->GetContentType(mimeType)))
+        AppendUTF16toUTF8(mimeType, mimeCType);
 
-      // Turn editor into HTML -- we will load blank page later
-      mEditorType.AssignLiteral("html");
-      mimeCType.AssignLiteral("text/html");
+      if (IsSupportedTextType(mimeCType.get()))
+      {
+        mEditorType.AssignLiteral("text");
+        mimeCType = "text/plain";
+      }
+      else if (!mimeCType.EqualsLiteral("text/html") &&
+               !mimeCType.EqualsLiteral("application/xhtml+xml"))
+      {
+        // Neither an acceptable text or html type.
+        mEditorStatus = eEditorErrorCantEditMimeType;
+
+        // Turn editor into HTML -- we will load blank page later
+        mEditorType.AssignLiteral("html");
+        mimeCType.AssignLiteral("text/html");
+      }
     }
 
     // Flush out frame construction to make sure that the subframe's
     // presshell is set up if it needs to be.
-    nsCOMPtr<nsIDocument> document = do_QueryInterface(doc);
+    nsCOMPtr<nsIDocument> document(do_QueryInterface(doc));
     if (document) {
       document->FlushPendingNotifications(Flush_Frames);
       if (mMakeWholeDocumentEditable) {
@@ -446,15 +451,8 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
   nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(docShell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Try to reuse an existing editor
-  nsCOMPtr<nsIEditor> editor = do_QueryReferent(mExistingEditor);
-  if (editor) {
-    editor->PreDestroy(PR_FALSE);
-  } else {
-    editor = do_CreateInstance(classString, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mExistingEditor = do_GetWeakReference(editor);
-  }
+  nsCOMPtr<nsIEditor> editor = do_CreateInstance(classString, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   // set the editor on the docShell. The docShell now owns it.
   rv = editorDocShell->SetEditor(editor);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -488,8 +486,15 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
   rv = editor->AddDocumentStateListener(mStateMaintainer);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = editor->Init(domDoc, nsnull /* root content */,
-                    nsnull, mEditorFlags);
+  // XXXbz we really shouldn't need a presShell here!
+  nsCOMPtr<nsIPresShell> presShell;
+  rv = docShell->GetPresShell(getter_AddRefs(presShell));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsISelectionController> selCon = do_QueryInterface(presShell);
+  rv = editor->Init(domDoc, presShell, nsnull /* root content */,
+                    selCon, mEditorFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISelection> selection;
@@ -636,6 +641,10 @@ nsEditingSession::GetEditorForWindow(nsIDOMWindow *aWindow,
   return editorDocShell->GetEditor(outEditor);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 /*---------------------------------------------------------------------------
 
   OnStateChange
@@ -714,8 +723,9 @@ nsEditingSession::OnStateChange(nsIWebProgress *aWebProgress,
 
         if (htmlDoc && htmlDoc->IsWriting())
         {
-          nsCOMPtr<nsIDOMHTMLDocument> htmlDomDoc = do_QueryInterface(doc);
+          nsCOMPtr<nsIDOMNSHTMLDocument> htmlDomDoc(do_QueryInterface(doc));
           nsAutoString designMode;
+
           htmlDomDoc->GetDesignMode(designMode);
 
           if (designMode.EqualsLiteral("on"))
@@ -884,6 +894,11 @@ nsEditingSession::OnSecurityChange(nsIWebProgress *aWebProgress,
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 /*---------------------------------------------------------------------------
 
   IsProgressForTargetDocument
@@ -894,8 +909,12 @@ nsEditingSession::OnSecurityChange(nsIWebProgress *aWebProgress,
 PRBool
 nsEditingSession::IsProgressForTargetDocument(nsIWebProgress *aWebProgress)
 {
-  nsCOMPtr<nsIWebProgress> editedWebProgress = do_QueryReferent(mDocShell);
-  return editedWebProgress == aWebProgress;
+  nsCOMPtr<nsIDOMWindow> domWindow;
+  if (aWebProgress)
+    aWebProgress->GetDOMWindow(getter_AddRefs(domWindow));
+  nsCOMPtr<nsIDOMWindow> editedDOMWindow = do_QueryReferent(mWindowToBeEdited);
+
+  return (domWindow && (domWindow == editedDOMWindow));
 }
 
 
@@ -1011,9 +1030,9 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
     {
       // To keep pre Gecko 1.9 behavior, setup editor always when
       // mMakeWholeDocumentEditable.
-      bool needsSetup = false;
+      PRBool needsSetup;
       if (mMakeWholeDocumentEditable) {
-        needsSetup = true;
+        needsSetup = PR_TRUE;
       } else {
         // do we already have an editor here?
         nsCOMPtr<nsIEditor> editor;
@@ -1041,6 +1060,7 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
           NS_ENSURE_SUCCESS(rv, rv);
 
           mEditorStatus = eEditorCreationInProgress;
+          mDocShell = do_GetWeakReference(docShell);
           mLoadBlankDocTimer->InitWithFuncCallback(
                                           nsEditingSession::TimerCallback,
                                           static_cast<void*> (mDocShell.get()),
@@ -1133,6 +1153,11 @@ nsEditingSession::EndPageLoad(nsIWebProgress *aWebProgress,
   return NS_OK;
 #endif
 }
+
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 /*---------------------------------------------------------------------------
 
@@ -1401,7 +1426,7 @@ nsEditingSession::DetachFromWindow(nsIDOMWindow* aWindow)
 
   // Kill our weak reference to our original window, in case
   // it changes on restore, or otherwise dies.
-  mDocShell = nsnull;
+  mWindowToBeEdited = nsnull;
 
   return NS_OK;
 }
@@ -1417,9 +1442,7 @@ nsEditingSession::ReattachToWindow(nsIDOMWindow* aWindow)
   // old editor ot the window.
   nsresult rv;
 
-  nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
-  mDocShell = do_GetWeakReference(docShell);
+  mWindowToBeEdited = do_GetWeakReference(aWindow);
 
   // Disable plugins.
   if (!mInteractive)

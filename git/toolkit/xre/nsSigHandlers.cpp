@@ -53,16 +53,16 @@
 #include "plstr.h"
 #include "prenv.h"
 #include "nsDebug.h"
-#include "nsXULAppAPI.h"
+#ifdef MOZ_IPC
+#  include "nsXULAppAPI.h"
+#endif
 
 #if defined(LINUX)
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdlib.h> // atoi
-#ifndef __arm__ // no arm impl
-#  include <ucontext.h>
-#endif
+#include <ucontext.h>
 #endif
 
 #if defined(SOLARIS)
@@ -70,12 +70,23 @@
 #include <ucontext.h>
 #endif
 
+#ifdef XP_BEOS
+#include <be/app/Application.h>
+#include <string.h>
+#include "nsCOMPtr.h"
+#include "nsIServiceManager.h"
+#include "nsIAppStartup.h"
+#include "nsToolkitCompsCID.h"
+#endif
+
 static char _progname[1024] = "huh?";
 static unsigned int _gdb_sleep_duration = 300;
 
+#ifdef MOZ_IPC
 // NB: keep me up to date with the same variable in
 // ipc/chromium/chrome/common/ipc_channel_posix.cc
 static const int kClientChannelFd = 3;
+#endif
 
 #if defined(LINUX) && defined(DEBUG) && \
       (defined(__i386) || defined(__x86_64) || defined(PPC))
@@ -125,6 +136,7 @@ ah_crap_handler(int signum)
   _exit(signum);
 }
 
+#ifdef MOZ_IPC
 void
 child_ah_crap_handler(int signum)
 {
@@ -132,8 +144,29 @@ child_ah_crap_handler(int signum)
     close(kClientChannelFd);
   ah_crap_handler(signum);
 }
+#endif
 
 #endif // CRAWL_STACK_ON_SIGSEGV
+
+#ifdef XP_BEOS
+void beos_signal_handler(int signum) {
+#ifdef DEBUG
+	fprintf(stderr, "beos_signal_handler: %d\n", signum);
+#endif
+	nsresult rv;
+	nsCOMPtr<nsIAppStartup> appStartup(do_GetService(NS_APPSTARTUP_CONTRACTID, &rv));
+	if (NS_FAILED(rv)) {
+		// Failed to get the appstartup service so shutdown the hard way
+#ifdef DEBUG
+		fprintf(stderr, "beos_signal_handler: appShell->do_GetService() failed\n");
+#endif
+		exit(13);
+	}
+
+	// Exit the appshell so that the app can shutdown normally
+	appStartup->Quit(nsIAppStartup::eAttemptQuit);
+}
+#endif
 
 #ifdef MOZ_WIDGET_GTK2
 // Need this include for version test below.
@@ -165,7 +198,6 @@ my_glib_log_func(const gchar *log_domain, GLogLevelFlags log_level,
 
 #endif
 
-#ifdef SA_SIGINFO
 static void fpehandler(int signum, siginfo_t *si, void *context)
 {
   /* Integer divide by zero or integer overflow. */
@@ -190,7 +222,7 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
   *mxcsr &= ~SSE_STATUS_FLAGS; /* clear all pending SSE exceptions */
 #endif
 #endif
-#if defined(LINUX) && !defined(__arm__)
+#ifdef LINUX
   ucontext_t *uc = (ucontext_t *)context;
 
 #if defined(__i386__)
@@ -243,7 +275,6 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
 #endif
 #endif
 }
-#endif
 
 void InstallSignalHandlers(const char *ProgramName)
 {
@@ -261,8 +292,10 @@ void InstallSignalHandlers(const char *ProgramName)
 #if defined(CRAWL_STACK_ON_SIGSEGV)
   if (!getenv("XRE_NO_WINDOWS_CRASH_DIALOG")) {
     void (*crap_handler)(int) =
+#ifdef MOZ_IPC
       GeckoProcessType_Default != XRE_GetProcessType() ?
           child_ah_crap_handler :
+#endif
           ah_crap_handler;
     signal(SIGSEGV, crap_handler);
     signal(SIGILL, crap_handler);
@@ -270,14 +303,12 @@ void InstallSignalHandlers(const char *ProgramName)
   }
 #endif // CRAWL_STACK_ON_SIGSEGV
 
-#ifdef SA_SIGINFO
   /* Install a handler for floating point exceptions and disable them if they occur. */
   struct sigaction sa, osa;
   sa.sa_flags = SA_ONSTACK | SA_RESTART | SA_SIGINFO;
   sa.sa_sigaction = fpehandler;
   sigemptyset(&sa.sa_mask);
   sigaction(SIGFPE, &sa, &osa);
-#endif
 
 #if defined(DEBUG) && defined(LINUX)
   const char *memLimit = PR_GetEnv("MOZ_MEM_LIMIT");
@@ -315,6 +346,10 @@ void InstallSignalHandlers(const char *ProgramName)
 	    }
     }
 #endif //SOLARIS
+
+#ifdef XP_BEOS
+	signal(SIGTERM, beos_signal_handler);
+#endif
 
 #if defined(MOZ_WIDGET_GTK2) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
   const char *assertString = PR_GetEnv("XPCOM_DEBUG_BREAK");

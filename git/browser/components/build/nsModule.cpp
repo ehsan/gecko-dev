@@ -49,16 +49,28 @@
 #include "nsGNOMEShellService.h"
 #endif
 
+#ifndef WINCE
+
 #include "nsProfileMigrator.h"
+#if !defined(XP_BEOS)
+#include "nsDogbertProfileMigrator.h"
+#endif
 #if !defined(XP_OS2)
 #include "nsOperaProfileMigrator.h"
 #endif
+#include "nsPhoenixProfileMigrator.h"
 #include "nsSeamonkeyProfileMigrator.h"
 #if defined(XP_WIN) && !defined(__MINGW32__)
 #include "nsIEProfileMigrator.h"
 #elif defined(XP_MACOSX)
 #include "nsSafariProfileMigrator.h"
+#include "nsOmniWebProfileMigrator.h"
+#include "nsMacIEProfileMigrator.h"
+#include "nsCaminoProfileMigrator.h"
+#include "nsICabProfileMigrator.h"
 #endif
+
+#endif // WINCE
 
 #include "rdf.h"
 #include "nsFeedSniffer.h"
@@ -81,15 +93,27 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacShellService)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGNOMEShellService, Init)
 #endif
 
+#ifndef WINCE
+
+#if !defined(XP_BEOS)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsDogbertProfileMigrator)
+#endif
 #if !defined(XP_OS2)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsOperaProfileMigrator)
 #endif
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsPhoenixProfileMigrator)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsProfileMigrator)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSeamonkeyProfileMigrator)
 #if defined(XP_WIN) && !defined(__MINGW32__)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIEProfileMigrator)
 #elif defined(XP_MACOSX)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSafariProfileMigrator)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsOmniWebProfileMigrator)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacIEProfileMigrator)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsCaminoProfileMigrator)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsICabProfileMigrator)
+#endif
+
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFeedSniffer)
@@ -104,17 +128,27 @@ NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_FEEDSNIFFER_CID);
 NS_DEFINE_NAMED_CID(NS_BROWSER_ABOUT_REDIRECTOR_CID);
+#ifndef WINCE
 NS_DEFINE_NAMED_CID(NS_FIREFOX_PROFILEMIGRATOR_CID);
 #if defined(XP_WIN) && !defined(__MINGW32__)
 NS_DEFINE_NAMED_CID(NS_WINIEPROFILEMIGRATOR_CID);
 #elif defined(XP_MACOSX)
 NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SAFARIPROFILEMIGRATOR_CID);
+NS_DEFINE_NAMED_CID(NS_MACIEPROFILEMIGRATOR_CID);
+NS_DEFINE_NAMED_CID(NS_OMNIWEBPROFILEMIGRATOR_CID);
+NS_DEFINE_NAMED_CID(NS_CAMINOPROFILEMIGRATOR_CID);
+NS_DEFINE_NAMED_CID(NS_ICABPROFILEMIGRATOR_CID);
 #endif
 #if !defined(XP_OS2)
 NS_DEFINE_NAMED_CID(NS_OPERAPROFILEMIGRATOR_CID);
 #endif
+#if !defined(XP_BEOS)
+NS_DEFINE_NAMED_CID(NS_DOGBERTPROFILEMIGRATOR_CID);
+#endif
+NS_DEFINE_NAMED_CID(NS_PHOENIXPROFILEMIGRATOR_CID);
 NS_DEFINE_NAMED_CID(NS_SEAMONKEYPROFILEMIGRATOR_CID);
+#endif /* WINCE */
 NS_DEFINE_NAMED_CID(NS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID);
 
 static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
@@ -126,17 +160,27 @@ static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
 #endif
     { &kNS_FEEDSNIFFER_CID, false, NULL, nsFeedSnifferConstructor },
     { &kNS_BROWSER_ABOUT_REDIRECTOR_CID, false, NULL, AboutRedirector::Create },
+#ifndef WINCE
     { &kNS_FIREFOX_PROFILEMIGRATOR_CID, false, NULL, nsProfileMigratorConstructor },
 #if defined(XP_WIN) && !defined(__MINGW32__)
     { &kNS_WINIEPROFILEMIGRATOR_CID, false, NULL, nsIEProfileMigratorConstructor },
 #elif defined(XP_MACOSX)
     { &kNS_SHELLSERVICE_CID, false, NULL, nsMacShellServiceConstructor },
     { &kNS_SAFARIPROFILEMIGRATOR_CID, false, NULL, nsSafariProfileMigratorConstructor },
+    { &kNS_MACIEPROFILEMIGRATOR_CID, false, NULL, nsMacIEProfileMigratorConstructor },
+    { &kNS_OMNIWEBPROFILEMIGRATOR_CID, false, NULL, nsOmniWebProfileMigratorConstructor },
+    { &kNS_CAMINOPROFILEMIGRATOR_CID, false, NULL, nsCaminoProfileMigratorConstructor },
+    { &kNS_ICABPROFILEMIGRATOR_CID, false, NULL, nsICabProfileMigratorConstructor },
 #endif
 #if !defined(XP_OS2)
     { &kNS_OPERAPROFILEMIGRATOR_CID, false, NULL, nsOperaProfileMigratorConstructor },
 #endif
+#if !defined(XP_BEOS)
+    { &kNS_DOGBERTPROFILEMIGRATOR_CID, false, NULL, nsDogbertProfileMigratorConstructor },
+#endif
+    { &kNS_PHOENIXPROFILEMIGRATOR_CID, false, NULL, nsPhoenixProfileMigratorConstructor },
     { &kNS_SEAMONKEYPROFILEMIGRATOR_CID, false, NULL, nsSeamonkeyProfileMigratorConstructor },
+#endif /* WINCE */
     { &kNS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID, false, NULL, nsPrivateBrowsingServiceWrapperConstructor },
     { NULL }
 };
@@ -162,18 +206,27 @@ static const mozilla::Module::ContractIDEntry kBrowserContracts[] = {
     { NS_ABOUT_MODULE_CONTRACTID_PREFIX "sync-tabs", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
 #endif
     { NS_ABOUT_MODULE_CONTRACTID_PREFIX "home", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
-    { NS_ABOUT_MODULE_CONTRACTID_PREFIX "permissions", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
+#ifndef WINCE
     { NS_PROFILEMIGRATOR_CONTRACTID, &kNS_FIREFOX_PROFILEMIGRATOR_CID },
 #if defined(XP_WIN) && !defined(__MINGW32__)
     { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "ie", &kNS_WINIEPROFILEMIGRATOR_CID },
 #elif defined(XP_MACOSX)
     { NS_SHELLSERVICE_CONTRACTID, &kNS_SHELLSERVICE_CID },
     { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "safari", &kNS_SAFARIPROFILEMIGRATOR_CID },
+    { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "macie", &kNS_MACIEPROFILEMIGRATOR_CID },
+    { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "omniweb", &kNS_OMNIWEBPROFILEMIGRATOR_CID },
+    { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "camino", &kNS_CAMINOPROFILEMIGRATOR_CID },
+    { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "icab", &kNS_ICABPROFILEMIGRATOR_CID },
 #endif
 #if !defined(XP_OS2)
     { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "opera", &kNS_OPERAPROFILEMIGRATOR_CID },
 #endif
+#if !defined(XP_BEOS)
+    { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "dogbert", &kNS_DOGBERTPROFILEMIGRATOR_CID },
+#endif
+    { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "phoenix", &kNS_PHOENIXPROFILEMIGRATOR_CID },
     { NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "seamonkey", &kNS_SEAMONKEYPROFILEMIGRATOR_CID },
+#endif /* WINCE */
     { NS_PRIVATE_BROWSING_SERVICE_CONTRACTID, &kNS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID },
     { NULL }
 };

@@ -16,7 +16,8 @@ function run_test()
              let dir = Components.classes["@mozilla.org/file/local;1"]
                .createInstance(Components.interfaces.nsILocalFile);
              dir.initWithPath(profd);
-             let lock = CrashTestUtils.lockDir(dir);
+             let mycrasher = Components.classes["@mozilla.org/testcrasher;1"].createInstance(Components.interfaces.nsITestCrasher);
+             let lock = mycrasher.lockDir(dir);
              // when we crash, the lock file should be cleaned up
            },
            function(mdump, extra) {

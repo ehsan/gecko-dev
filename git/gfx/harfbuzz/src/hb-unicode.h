@@ -31,7 +31,6 @@
 
 HB_BEGIN_DECLS
 
-
 /* Unicode General Category property */
 typedef enum
 {
@@ -168,17 +167,12 @@ typedef enum
   HB_SCRIPT_JAVANESE,               /* Java */
   HB_SCRIPT_KAITHI,                 /* Kthi */
   HB_SCRIPT_LISU,                   /* Lisu */
-  HB_SCRIPT_MEETEI_MAYEK,           /* Mtei */
+  HB_SCRIPT_MEITEI_MAYEK,           /* Mtei */
   HB_SCRIPT_OLD_SOUTH_ARABIAN,      /* Sarb */
   HB_SCRIPT_OLD_TURKIC,             /* Orkh */
   HB_SCRIPT_SAMARITAN,              /* Samr */
   HB_SCRIPT_TAI_THAM,               /* Lana */
-  HB_SCRIPT_TAI_VIET,               /* Tavt */
-
-  /* Unicode-6.0 additions */
-  HB_SCRIPT_BATAK,                  /* Batk */
-  HB_SCRIPT_BRAHMI,                 /* Brah */
-  HB_SCRIPT_MANDAIC                 /* Mand */
+  HB_SCRIPT_TAI_VIET                /* Tavt */
 } hb_script_t;
 
 
@@ -206,15 +200,8 @@ hb_unicode_funcs_copy (hb_unicode_funcs_t *ufuncs);
 void
 hb_unicode_funcs_make_immutable (hb_unicode_funcs_t *ufuncs);
 
-hb_bool_t
-hb_unicode_funcs_is_immutable (hb_unicode_funcs_t *ufuncs);
 
-/*
- * funcs
- */
-
-
-/* typedefs */
+/* funcs */
 
 typedef hb_codepoint_t (*hb_unicode_get_mirroring_func_t) (hb_codepoint_t unicode);
 typedef hb_category_t (*hb_unicode_get_general_category_func_t) (hb_codepoint_t unicode);
@@ -222,8 +209,6 @@ typedef hb_script_t (*hb_unicode_get_script_func_t) (hb_codepoint_t unicode);
 typedef unsigned int (*hb_unicode_get_combining_class_func_t) (hb_codepoint_t unicode);
 typedef unsigned int (*hb_unicode_get_eastasian_width_func_t) (hb_codepoint_t unicode);
 
-
-/* setters */
 
 void
 hb_unicode_funcs_set_mirroring_func (hb_unicode_funcs_t *ufuncs,
@@ -245,28 +230,6 @@ void
 hb_unicode_funcs_set_eastasian_width_func (hb_unicode_funcs_t *ufuncs,
 					   hb_unicode_get_eastasian_width_func_t eastasian_width_func);
 
-
-/* getters */
-
-/* These never return NULL.  Return fallback defaults instead. */
-
-hb_unicode_get_mirroring_func_t
-hb_unicode_funcs_get_mirroring_func (hb_unicode_funcs_t *ufuncs);
-
-hb_unicode_get_general_category_func_t
-hb_unicode_funcs_get_general_category_func (hb_unicode_funcs_t *ufuncs);
-
-hb_unicode_get_script_func_t
-hb_unicode_funcs_get_script_func (hb_unicode_funcs_t *ufuncs);
-
-hb_unicode_get_combining_class_func_t
-hb_unicode_funcs_get_combining_class_func (hb_unicode_funcs_t *ufuncs);
-
-hb_unicode_get_eastasian_width_func_t
-hb_unicode_funcs_get_eastasian_width_func (hb_unicode_funcs_t *ufuncs);
-
-
-/* accessors */
 
 hb_codepoint_t
 hb_unicode_get_mirroring (hb_unicode_funcs_t *ufuncs,

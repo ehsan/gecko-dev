@@ -39,8 +39,6 @@
 
 #include "places_test_harness.h"
 #include "nsIBrowserHistory.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 
 #include "mock_Link.h"
 using namespace mozilla::dom;
@@ -128,22 +126,6 @@ NS_IMPL_ISUPPORTS1(
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Functions
-
-void
-test_set_places_enabled()
-{
-  // Ensure places is enabled for everyone.
-  nsresult rv;
-  nsCOMPtr<nsIPrefBranch> prefBranch =
-    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-  do_check_success(rv);
-
-  rv = prefBranch->SetBoolPref("places.history.enabled", PR_TRUE);
-  do_check_success(rv);
-
-  // Run the next test.
-  run_next_test();
-}
 
 // These variables are shared between part 1 and part 2 of the test.  Part 2
 // sets the nsCOMPtr's to nsnull, freeing the reference.
@@ -361,7 +343,7 @@ namespace test_observer_topic_dispatched_helpers {
       do_check_true(visited || notVisited);
 
       // Check to make sure we got the state we expected.
-      do_check_eq(visited, mExpectVisit);
+      do_check_eq(mExpectVisit, visited);
 
       // Indicate that we've been notified.
       mNotified = true;
@@ -447,7 +429,7 @@ test_visituri_inserts()
   do_check_true(place.id > 0);
   do_check_false(place.hidden);
   do_check_false(place.typed);
-  do_check_eq(place.visitCount, 1);
+  do_check_true(place.visitCount == 1);
 
   run_next_test();
 }
@@ -471,7 +453,7 @@ test_visituri_updates()
   PlaceRecord place;
   do_get_place(visitedURI, place);
 
-  do_check_eq(place.visitCount, 2);
+  do_check_true(place.visitCount == 2);
 
   run_next_test();
 }
@@ -515,8 +497,8 @@ test_visituri_creates_visit()
   do_get_lastVisit(place.id, visit);
 
   do_check_true(visit.id > 0);
-  do_check_eq(visit.lastVisitId, 0);
-  do_check_eq(visit.transitionType, nsINavHistoryService::TRANSITION_LINK);
+  do_check_true(visit.lastVisitId == 0);
+  do_check_true(visit.transitionType == nsINavHistoryService::TRANSITION_LINK);
 
   run_next_test();
 }
@@ -563,55 +545,7 @@ test_visituri_transition_embed()
   do_get_place(visitedURI, place);
   do_get_lastVisit(place.id, visit);
 
-  do_check_eq(place.id, 0);
-  do_check_eq(visit.id, 0);
-
-  run_next_test();
-}
-
-void
-test_new_visit_adds_place_guid()
-{
-  // First, add a visit and wait.  This will also add a place.
-  nsCOMPtr<nsIURI> visitedURI(new_test_uri());
-  nsCOMPtr<IHistory> history(do_get_IHistory());
-  nsresult rv = history->VisitURI(visitedURI, NULL,
-                                  mozilla::IHistory::TOP_LEVEL);
-  do_check_success(rv);
-  nsCOMPtr<VisitURIObserver> finisher = new VisitURIObserver();
-  finisher->WaitForNotification();
-
-  // Check that we have a guid for our visit.
-  PlaceRecord place;
-  do_get_place(visitedURI, place);
-  do_check_eq(place.visitCount, 1);
-  do_check_eq(place.guid.Length(), 12);
-
-  run_next_test();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//// IPC-only Tests
-
-void
-test_two_null_links_same_uri()
-{
-  // Tests that we do not crash when we have had two NULL Links passed to
-  // RegisterVisitedCallback and then the visit occurs (bug 607469).  This only
-  // happens in IPC builds.
-  nsCOMPtr<nsIURI> testURI(new_test_uri());
-
-  nsCOMPtr<IHistory> history(do_get_IHistory());
-  nsresult rv = history->RegisterVisitedCallback(testURI, NULL);
-  do_check_success(rv);
-  rv = history->RegisterVisitedCallback(testURI, NULL);
-  do_check_success(rv);
-
-  rv = history->VisitURI(testURI, NULL, mozilla::IHistory::TOP_LEVEL);
-  do_check_success(rv);
-
-  nsCOMPtr<VisitURIObserver> finisher = new VisitURIObserver();
-  finisher->WaitForNotification();
+  do_check_true(visit.transitionType == nsINavHistoryService::TRANSITION_EMBED);
 
   run_next_test();
 }
@@ -623,7 +557,6 @@ test_two_null_links_same_uri()
  * Note: for tests marked "Order Important!", please see the test for details.
  */
 Test gTests[] = {
-  TEST(test_set_places_enabled), // Must come first!
   TEST(test_unvisted_does_not_notify_part1), // Order Important!
   TEST(test_visited_notifies),
   TEST(test_unvisted_does_not_notify_part2), // Order Important!
@@ -638,10 +571,6 @@ Test gTests[] = {
   TEST(test_visituri_creates_visit),
   TEST(test_visituri_transition_typed),
   TEST(test_visituri_transition_embed),
-  TEST(test_new_visit_adds_place_guid),
-
-  // The rest of these tests are tests that are only run in IPC builds.
-  TEST(test_two_null_links_same_uri),
 };
 
 const char* file = __FILE__;

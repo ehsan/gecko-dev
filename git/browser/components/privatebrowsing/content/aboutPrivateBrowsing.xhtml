@@ -45,11 +45,6 @@
   %globalDTD;
   <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
   %browserDTD;
-#ifdef XP_MACOSX
-  <!ENTITY basePBMenu.label   "&toolsMenu.label;">
-#else
-  <!ENTITY basePBMenu.label   "<span class='appMenuButton'>&brandShortName;</span><span class='toolsMenu'>&toolsMenu.label;</span>">
-#endif
   <!ENTITY % privatebrowsingpageDTD SYSTEM "chrome://browser/locale/aboutPrivateBrowsing.dtd">
   %privatebrowsingpageDTD;
 ]>
@@ -61,12 +56,6 @@
     <style type="text/css"><![CDATA[
       body.normal .showPrivate,
       body.private .showNormal {
-        display: none;
-      }
-      body.appMenuButtonVisible .toolsMenu {
-        display: none;
-      }
-      body.appMenuButtonInvisible .appMenuButton {
         display: none;
       }
     ]]></style>
@@ -124,13 +113,6 @@
         let moreInfoLink = document.getElementById("moreInfoLink");
         if (moreInfoLink)
           moreInfoLink.setAttribute("href", moreInfoURL + "private-browsing");
-
-        // Show the correct menu structure based on whether the App Menu button is
-        // shown or not.
-        var menuBar = mainWindow.document.getElementById("toolbar-menubar");
-        var appMenuButtonIsVisible = menuBar.getAttribute("autohide") == "true";
-        document.body.classList.add(appMenuButtonIsVisible ? "appMenuButtonVisible" :
-                                                             "appMenuButtonInvisible");
       }, false);
       
       function togglePrivateBrowsing() {
@@ -175,8 +157,8 @@
 
         <!-- Footer -->
         <div id="footerDesc">
-          <p id="footerText" class="showPrivate">&privatebrowsingpage.howToStop2;</p>
-          <p id="footerTextNormal" class="showNormal">&privatebrowsingpage.howToStart2;</p>
+          <p id="footerText" class="showPrivate">&privatebrowsingpage.howToStop;</p>
+          <p id="footerTextNormal" class="showNormal">&privatebrowsingpage.howToStart;</p>
         </div>
 
         <!-- More Info -->

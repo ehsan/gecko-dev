@@ -49,8 +49,6 @@
 #include "nsString.h"
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
-#include "mozilla/mozalloc.h"
-#include "nsStyleConsts.h"
 
 class imgIRequest;
 class nsIDocument;
@@ -115,27 +113,30 @@ enum nsCSSUnit {
   eCSSUnit_Counter      = 21,     // (nsCSSValue::Array*) a counter(string,[string]) value
   eCSSUnit_Counters     = 22,     // (nsCSSValue::Array*) a counters(string,string[,string]) value
   eCSSUnit_Cubic_Bezier = 23,     // (nsCSSValue::Array*) a list of float values
-  eCSSUnit_Steps        = 24,     // (nsCSSValue::Array*) a list of (integer, enumerated)
-  eCSSUnit_Function     = 25,     // (nsCSSValue::Array*) a function with
+  eCSSUnit_Function     = 24,     // (nsCSSValue::Array*) a function with
                                   //  parameters.  First elem of array is name,
                                   //  the rest of the values are arguments.
 
-  // The top level of a calc() expression is eCSSUnit_Calc.  All
-  // remaining eCSSUnit_Calc_* units only occur inside these toplevel
-  // calc values.
+  // The top level of a calc() expression is either -moz-calc()
+  // (eCSSUnit_Calc), -moz-min() (eCSSUnit_Calc_Minimum), or -moz-max()
+  // (eCSSUnit_Calc_Maximum).  All remaining eCSSUnit_Calc_* units only
+  // occur inside these toplevel calc values.
 
   // eCSSUnit_Calc has an array with exactly 1 element.  eCSSUnit_Calc
   // exists so we can distinguish calc(2em) from 2em as specified values
   // (but we drop this distinction for nsStyleCoord when we store
   // computed values).
-  eCSSUnit_Calc         = 30,     // (nsCSSValue::Array*) calc() value
+  eCSSUnit_Calc         = 25,     // (nsCSSValue::Array*) calc() value
   // Plus, Minus, Times_* and Divided have arrays with exactly 2
   // elements.  a + b + c + d is grouped as ((a + b) + c) + d
-  eCSSUnit_Calc_Plus    = 31,     // (nsCSSValue::Array*) + node within calc()
-  eCSSUnit_Calc_Minus   = 32,     // (nsCSSValue::Array*) - within calc
-  eCSSUnit_Calc_Times_L = 33,     // (nsCSSValue::Array*) num * val within calc
-  eCSSUnit_Calc_Times_R = 34,     // (nsCSSValue::Array*) val * num within calc
-  eCSSUnit_Calc_Divided = 35,     // (nsCSSValue::Array*) / within calc
+  eCSSUnit_Calc_Plus    = 26,     // (nsCSSValue::Array*) + node within calc()
+  eCSSUnit_Calc_Minus   = 27,     // (nsCSSValue::Array*) - within calc
+  eCSSUnit_Calc_Times_L = 28,     // (nsCSSValue::Array*) num * val within calc
+  eCSSUnit_Calc_Times_R = 29,     // (nsCSSValue::Array*) val * num within calc
+  eCSSUnit_Calc_Divided = 30,     // (nsCSSValue::Array*) / within calc
+  // Minimum and Maximum have arrays with 1 or more elements
+  eCSSUnit_Calc_Minimum = 31,     // (nsCSSValue::Array*) min() within calc
+  eCSSUnit_Calc_Maximum = 32,     // (nsCSSValue::Array*) max() within calc
 
   eCSSUnit_URL          = 40,     // (nsCSSValue::URL*) value
   eCSSUnit_Image        = 41,     // (nsCSSValue::Image*) value
@@ -276,12 +277,12 @@ public:
   PRBool    IsTimeUnit() const  
     { return eCSSUnit_Seconds <= mUnit && mUnit <= eCSSUnit_Milliseconds; }
   PRBool    IsCalcUnit() const
-    { return eCSSUnit_Calc <= mUnit && mUnit <= eCSSUnit_Calc_Divided; }
+    { return eCSSUnit_Calc <= mUnit && mUnit <= eCSSUnit_Calc_Maximum; }
 
   PRBool    UnitHasStringValue() const
     { return eCSSUnit_String <= mUnit && mUnit <= eCSSUnit_Element; }
   PRBool    UnitHasArrayValue() const
-    { return eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Calc_Divided; }
+    { return eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Calc_Maximum; }
 
   PRInt32 GetIntValue() const
   {
@@ -348,7 +349,7 @@ public:
     NS_ABORT_IF_FALSE(mUnit == eCSSUnit_URL || mUnit == eCSSUnit_Image,
                  "not a URL value");
     return mUnit == eCSSUnit_URL ?
-      mValue.mURL->GetURI() : mValue.mImage->GetURI();
+      mValue.mURL->mURI : mValue.mImage->mURI;
   }
 
   nsCSSValueGradient* GetGradientValue() const
@@ -442,21 +443,15 @@ public:
 
   // Returns an already addrefed buffer.  Can return null on allocation
   // failure.
-  static already_AddRefed<nsStringBuffer>
-    BufferFromString(const nsString& aValue);
+  static nsStringBuffer* BufferFromString(const nsString& aValue);
 
   struct URL {
     // Methods are not inline because using an nsIPrincipal means requiring
     // caps, which leads to REQUIRES hell, since this header is included all
     // over.
 
-    // For both constructors aString must not be null.
-    // For both constructors aOriginPrincipal must not be null.
-    // Construct with a base URI; this will create the actual URI lazily from
-    // aString and aBaseURI.
-    URL(nsStringBuffer* aString, nsIURI* aBaseURI, nsIURI* aReferrer,
-        nsIPrincipal* aOriginPrincipal);
-    // Construct with the actual URI.
+    // aString must not be null.
+    // aOriginPrincipal must not be null.
     URL(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
         nsIPrincipal* aOriginPrincipal);
 
@@ -470,14 +465,7 @@ public:
     // unless you're sure this is the case.
     PRBool URIEquals(const URL& aOther) const;
 
-    nsIURI* GetURI() const;
-
-  private:
-    // If mURIResolved is false, mURI stores the base URI.
-    // If mURIResolved is true, mURI stores the URI we resolve to; this may be
-    // null if the URI is invalid.
-    mutable nsCOMPtr<nsIURI> mURI;
-  public:
+    nsCOMPtr<nsIURI> mURI; // null == invalid URL
     nsStringBuffer* mString; // Could use nsRefPtr, but it'd add useless
                              // null-checks; this is never null.
     nsCOMPtr<nsIURI> mReferrer;
@@ -485,8 +473,7 @@ public:
 
     NS_INLINE_DECL_REFCOUNTING(nsCSSValue::URL)
 
-  private:
-    mutable PRBool mURIResolved;
+  protected:
 
     // not to be implemented
     URL(const URL& aOther);
@@ -543,11 +530,6 @@ struct nsCSSValue::Array {
   // return |Array| with reference count of zero
   static Array* Create(size_t aItemCount) {
     return new (aItemCount) Array(aItemCount);
-  }
-
-  static Array* Create(const mozilla::fallible_t& aFallible,
-                       size_t aItemCount) {
-    return new (aFallible, aItemCount) Array(aItemCount);
   }
 
   nsCSSValue& operator[](size_t aIndex) {
@@ -608,13 +590,6 @@ private:
   void* operator new(size_t aSelfSize, size_t aItemCount) CPP_THROW_NEW {
     NS_ABORT_IF_FALSE(aItemCount > 0, "cannot have a 0 item count");
     return ::operator new(aSelfSize + sizeof(nsCSSValue) * (aItemCount - 1));
-  }
-
-  void* operator new(size_t aSelfSize, const mozilla::fallible_t& aFallible,
-                     size_t aItemCount) CPP_THROW_NEW {
-    NS_ABORT_IF_FALSE(aItemCount > 0, "cannot have a 0 item count");
-    return ::operator new(aSelfSize + sizeof(nsCSSValue) * (aItemCount - 1),
-                          aFallible);
   }
 
   void operator delete(void* aPtr) { ::operator delete(aPtr); }
@@ -986,55 +961,6 @@ private:
   // not to be implemented
   nsCSSValueGradient(const nsCSSValueGradient& aOther);
   nsCSSValueGradient& operator=(const nsCSSValueGradient& aOther);
-};
-
-struct nsCSSCornerSizes {
-  nsCSSCornerSizes(void);
-  nsCSSCornerSizes(const nsCSSCornerSizes& aCopy);
-  ~nsCSSCornerSizes();
-
-  // argument is a "full corner" constant from nsStyleConsts.h
-  nsCSSValue const & GetCorner(PRUint32 aCorner) const {
-    return this->*corners[aCorner];
-  }
-  nsCSSValue & GetCorner(PRUint32 aCorner) {
-    return this->*corners[aCorner];
-  }
-
-  PRBool operator==(const nsCSSCornerSizes& aOther) const {
-    NS_FOR_CSS_FULL_CORNERS(corner) {
-      if (this->GetCorner(corner) != aOther.GetCorner(corner))
-        return PR_FALSE;
-    }
-    return PR_TRUE;
-  }
-
-  PRBool operator!=(const nsCSSCornerSizes& aOther) const {
-    NS_FOR_CSS_FULL_CORNERS(corner) {
-      if (this->GetCorner(corner) != aOther.GetCorner(corner))
-        return PR_TRUE;
-    }
-    return PR_FALSE;
-  }
-
-  PRBool HasValue() const {
-    NS_FOR_CSS_FULL_CORNERS(corner) {
-      if (this->GetCorner(corner).GetUnit() != eCSSUnit_Null)
-        return PR_TRUE;
-    }
-    return PR_FALSE;
-  }
-
-  void Reset();
-
-  nsCSSValue mTopLeft;
-  nsCSSValue mTopRight;
-  nsCSSValue mBottomRight;
-  nsCSSValue mBottomLeft;
-
-protected:
-  typedef nsCSSValue nsCSSCornerSizes::*corner_type;
-  static const corner_type corners[4];
 };
 
 #endif /* nsCSSValue_h___ */

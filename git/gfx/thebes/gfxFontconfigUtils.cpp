@@ -39,20 +39,18 @@
 
 #include "gfxFontconfigUtils.h"
 #include "gfxFont.h"
-#include "gfxAtoms.h"
 
 #include <locale.h>
 #include <fontconfig/fontconfig.h>
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsILanguageAtomService.h"
 #include "nsTArray.h"
-#include "mozilla/Preferences.h"
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
-
-using namespace mozilla;
 
 /* static */ gfxFontconfigUtils* gfxFontconfigUtils::sUtils = nsnull;
 static nsILanguageAtomService* gLangService = nsnull;
@@ -191,11 +189,33 @@ GuessFcWeight(const gfxFontStyle& aFontStyle)
      * the weight in the list of supported font weights,
      * this value can be negative or positive.
      */
-    PRInt8 weight = aFontStyle.ComputeWeight();
+    PRInt8 weight;
+    PRInt8 offset;
+    aFontStyle.ComputeWeightAndOffset(&weight, &offset);
 
-    // ComputeWeight trimmed the range of weights for us
+    // ComputeWeightAndOffset trimmed the range of weights for us
     NS_ASSERTION(weight >= 0 && weight <= 10,
                  "base weight out of range");
+
+    // Most font families do not support every weight.  The tables here are
+    // chosen such that a normal (4) base weight and an offset of +1 will
+    // guess bold.
+
+    // Mapping from weight to a guess of the nearest available lighter weight
+    static const int lighterGuess[11] =
+        { 0, 0, 1, 1, 2, 3, 4, 4, 6, 7, 8 };
+    // Mapping from weight to a guess of the nearest available bolder weight
+    static const int bolderGuess[11] =
+        { 2, 3, 4, 6, 7, 7, 8, 9, 10, 10, 10 };
+
+    while (offset < 0) {
+        weight = lighterGuess[weight];
+        offset++;
+    }
+    while (offset > 0) {
+        weight = bolderGuess[weight];
+        offset--;
+    }
 
     return gfxFontconfigUtils::FcWeightForBaseWeight(weight);
 }
@@ -208,17 +228,7 @@ AddString(FcPattern *aPattern, const char *object, const char *aString)
 }
 
 static void
-AddWeakString(FcPattern *aPattern, const char *object, const char *aString)
-{
-    FcValue value;
-    value.type = FcTypeString;
-    value.u.s = gfxFontconfigUtils::ToFcChar8(aString);
-
-    FcPatternAddWeak(aPattern, object, value, FcTrue);
-}
-
-static void
-AddLangGroup(FcPattern *aPattern, nsIAtom *aLangGroup)
+AddLangGroup(FcPattern *aPattern, const nsACString& aLangGroup)
 {
     // Translate from mozilla's internal mapping into fontconfig's
     nsCAutoString lang;
@@ -229,14 +239,12 @@ AddLangGroup(FcPattern *aPattern, nsIAtom *aLangGroup)
     }
 }
 
+
 nsReturnRef<FcPattern>
 gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
                                const gfxFontStyle& aFontStyle,
                                const char *aLang)
 {
-    static const char* sFontconfigGenerics[] =
-        { "sans-serif", "serif", "monospace", "fantasy", "cursive" };
-
     nsAutoRef<FcPattern> pattern(FcPatternCreate());
     if (!pattern)
         return nsReturnRef<FcPattern>();
@@ -249,30 +257,9 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
         AddString(pattern, FC_LANG, aLang);
     }
 
-    PRBool useWeakBinding = PR_FALSE;
     for (PRUint32 i = 0; i < aFamilies.Length(); ++i) {
         NS_ConvertUTF16toUTF8 family(aFamilies[i]);
-        if (!useWeakBinding) {
-            AddString(pattern, FC_FAMILY, family.get());
-
-            // fontconfig generic families are typically implemented with weak
-            // aliases (so that the preferred font depends on language).
-            // However, this would give them lower priority than subsequent
-            // non-generic families in the list.  To ensure that subsequent
-            // families do not have a higher priority, they are given weak
-            // bindings.
-            for (PRUint32 g = 0;
-                 g < NS_ARRAY_LENGTH(sFontconfigGenerics);
-                 ++g) {
-                if (FcStrCmpIgnoreCase(ToFcChar8(sFontconfigGenerics[g]),
-                                       ToFcChar8(family.get()))) {
-                    useWeakBinding = PR_TRUE;
-                    break;
-                }
-            }
-        } else {
-            AddWeakString(pattern, FC_FAMILY, family.get());
-        }
+        AddString(pattern, FC_FAMILY, family.get());
     }
 
     return pattern.out();
@@ -295,7 +282,11 @@ gfxFontconfigUtils::GetFontList(nsIAtom *aLangGroup,
     aListOfFonts.Clear();
 
     nsTArray<nsCString> fonts;
-    nsresult rv = GetFontListInternal(fonts, aLangGroup);
+    nsCAutoString langGroupStr;
+    if (aLangGroup) {
+        aLangGroup->ToUTF8String(langGroupStr);
+    }
+    nsresult rv = GetFontListInternal(fonts, langGroupStr);
     if (NS_FAILED(rv))
         return rv;
 
@@ -337,33 +328,33 @@ gfxFontconfigUtils::GetFontList(nsIAtom *aLangGroup,
 }
 
 struct MozLangGroupData {
-    nsIAtom* const& mozLangGroup;
+    const char *mozLangGroup;
     const char *defaultLang;
 };
 
 const MozLangGroupData MozLangGroups[] = {
-    { gfxAtoms::x_western,      "en" },
-    { gfxAtoms::x_central_euro, "pl" },
-    { gfxAtoms::x_cyrillic,     "ru" },
-    { gfxAtoms::x_baltic,       "lv" },
-    { gfxAtoms::x_devanagari,   "hi" },
-    { gfxAtoms::x_tamil,        "ta" },
-    { gfxAtoms::x_armn,         "hy" },
-    { gfxAtoms::x_beng,         "bn" },
-    { gfxAtoms::x_cans,         "iu" },
-    { gfxAtoms::x_ethi,         "am" },
-    { gfxAtoms::x_geor,         "ka" },
-    { gfxAtoms::x_gujr,         "gu" },
-    { gfxAtoms::x_guru,         "pa" },
-    { gfxAtoms::x_khmr,         "km" },
-    { gfxAtoms::x_knda,         "kn" },
-    { gfxAtoms::x_mlym,         "ml" },
-    { gfxAtoms::x_orya,         "or" },
-    { gfxAtoms::x_sinh,         "si" },
-    { gfxAtoms::x_telu,         "te" },
-    { gfxAtoms::x_tibt,         "bo" },
-    { gfxAtoms::x_unicode,      0    },
-    { gfxAtoms::x_user_def,     0    }
+    { "x-western",      "en" },
+    { "x-central-euro", "pl" },
+    { "x-cyrillic",     "ru" },
+    { "x-baltic",       "lv" },
+    { "x-devanagari",   "hi" },
+    { "x-tamil",        "ta" },
+    { "x-armn",         "hy" },
+    { "x-beng",         "bn" },
+    { "x-cans",         "iu" },
+    { "x-ethi",         "am" },
+    { "x-geor",         "ka" },
+    { "x-gujr",         "gu" },
+    { "x-guru",         "pa" },
+    { "x-khmr",         "km" },
+    { "x-knda",         "kn" },
+    { "x-mlym",         "ml" },
+    { "x-orya",         "or" },
+    { "x-sinh",         "si" },
+    { "x-telu",         "te" },
+    { "x-tibt",         "bo" },
+    { "x-unicode",      0    },
+    { "x-user-def",     0    }
 };
 
 static PRBool
@@ -396,13 +387,13 @@ TryLangForGroup(const nsACString& aOSLang, nsIAtom *aLangGroup,
     }
 
     nsIAtom *atom =
-        gLangService->LookupLanguage(*aFcLang);
+        gLangService->LookupLanguage(NS_ConvertUTF8toUTF16(*aFcLang));
 
     return atom == aLangGroup;
 }
 
 /* static */ void
-gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
+gfxFontconfigUtils::GetSampleLangForGroup(const nsACString& aLangGroup,
                                           nsACString *aFcLang)
 {
     NS_PRECONDITION(aFcLang != nsnull, "aFcLang must not be NULL");
@@ -410,7 +401,8 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
     const MozLangGroupData *langGroup = nsnull;
 
     for (unsigned int i = 0; i < NS_ARRAY_LENGTH(MozLangGroups); ++i) {
-        if (aLangGroup == MozLangGroups[i].mozLangGroup) {
+        if (aLangGroup.Equals(MozLangGroups[i].mozLangGroup,
+                              nsCaseInsensitiveCStringComparator())) {
             langGroup = &MozLangGroups[i];
             break;
         }
@@ -419,7 +411,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
     if (!langGroup) {
         // Not a special mozilla language group.
         // Use aLangGroup as a language code.
-        aLangGroup->ToUTF8String(*aFcLang);
+        aFcLang->Assign(aLangGroup);
         return;
     }
 
@@ -430,6 +422,8 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
     }
 
     if (gLangService) {
+        nsRefPtr<nsIAtom> langGroupAtom = do_GetAtom(langGroup->mozLangGroup);
+
         const char *languages = getenv("LANGUAGE");
         if (languages) {
             const char separator = ':';
@@ -438,7 +432,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
                 if (*pos == '\0' || *pos == separator) {
                     if (languages < pos &&
                         TryLangForGroup(Substring(languages, pos),
-                                        aLangGroup, aFcLang))
+                                        langGroupAtom, aFcLang))
                         return;
 
                     if (*pos == '\0')
@@ -450,7 +444,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
         }
         const char *ctype = setlocale(LC_CTYPE, NULL);
         if (ctype &&
-            TryLangForGroup(nsDependentCString(ctype), aLangGroup, aFcLang))
+            TryLangForGroup(nsDependentCString(ctype), langGroupAtom, aFcLang))
             return;
     }
 
@@ -463,7 +457,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
 
 nsresult
 gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
-                                        nsIAtom *aLangGroup)
+                                        const nsACString& aLangGroup)
 {
     FcPattern *pat = NULL;
     FcObjectSet *os = NULL;
@@ -481,7 +475,7 @@ gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
         goto end;
 
     // take the pattern and add the lang group to it
-    if (aLangGroup) {
+    if (!aLangGroup.IsEmpty()) {
         AddLangGroup(pat, aLangGroup);
     }
 
@@ -588,8 +582,17 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
     // fontconfig converts the non existing font to sans-serif.
     // This is not good if the web page specifies font-family
     // that has Windows font name in the first.
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), NS_ERROR_FAILURE);
-    nsAdoptingCString list = Preferences::GetCString("font.alias-list");
+    nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return NS_ERROR_FAILURE;
+
+    nsCOMPtr<nsIPrefBranch> prefBranch;
+    prefs->GetBranch(0, getter_AddRefs(prefBranch));
+    if (!prefBranch)
+        return NS_ERROR_FAILURE;
+
+    nsXPIDLCString list;
+    prefBranch->GetCharPref("font.alias-list", getter_Copies(list));
 
     if (!list.IsEmpty()) {
         const char kComma = ',';

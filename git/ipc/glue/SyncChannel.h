@@ -49,7 +49,7 @@ namespace ipc {
 class SyncChannel : public AsyncChannel
 {
 protected:
-    typedef IPC::Message::msgid_t msgid_t;
+    typedef uint16 MessageId;
 
 public:
     static const int32 kNoTimeout;
@@ -63,11 +63,9 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
-        virtual void OnProcessingError(Result aError) = 0;
         virtual bool OnReplyTimeout() = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;
-        virtual void OnChannelConnected(int32 peer_pid) {};
     };
 
     SyncChannel(SyncListener* aListener);
@@ -105,7 +103,6 @@ public:
 
         bool mRPC;
         bool mSpinNestedEvents;
-        bool mListenerNotified;
         SyncChannel* mChannel;
 
         /* the previous stack frame for this channel */
@@ -172,7 +169,7 @@ protected:
 
     // On both
     bool AwaitingSyncReply() const {
-        mMonitor.AssertCurrentThreadOwns();
+        mMutex.AssertCurrentThreadOwns();
         return mPendingReply != 0;
     }
 
@@ -181,7 +178,7 @@ protected:
         return mChild ? --mNextSeqno : ++mNextSeqno;
     }
 
-    msgid_t mPendingReply;
+    MessageId mPendingReply;
     bool mProcessingSyncMessage;
     Message mRecvd;
     // This is only accessed from the worker thread; seqno's are

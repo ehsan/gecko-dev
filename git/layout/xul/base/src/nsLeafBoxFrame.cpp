@@ -45,8 +45,11 @@
 #include "nsLeafBoxFrame.h"
 #include "nsBoxFrame.h"
 #include "nsCOMPtr.h"
+#include "nsIDeviceContext.h"
+#include "nsIFontMetrics.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
+#include "nsIRenderingContext.h"
 #include "nsStyleContext.h"
 #include "nsIContent.h"
 #include "nsINameSpaceManager.h"
@@ -70,7 +73,7 @@ NS_NewLeafBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsLeafBoxFrame)
 
 nsLeafBoxFrame::nsLeafBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext)
-    : nsLeafFrame(aContext)
+    : nsLeafFrame(aContext), mMouseThrough(unset)
 {
 }
 
@@ -94,6 +97,8 @@ nsLeafBoxFrame::Init(
 {
   nsresult  rv = nsLeafFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  mMouseThrough = unset;
 
   UpdateMouseThrough();
 
@@ -122,15 +127,27 @@ void nsLeafBoxFrame::UpdateMouseThrough()
     switch (mContent->FindAttrValueIn(kNameSpaceID_None,
                                       nsGkAtoms::mousethrough,
                                       strings, eCaseMatters)) {
-      case 0: AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); break;
-      case 1: AddStateBits(NS_FRAME_MOUSE_THROUGH_ALWAYS); break;
-      case 2: {
-          RemoveStateBits(NS_FRAME_MOUSE_THROUGH_ALWAYS);
-          RemoveStateBits(NS_FRAME_MOUSE_THROUGH_NEVER);
-          break;
-      }
+      case 0: mMouseThrough = never; break;
+      case 1: mMouseThrough = always; break;
     }
   }
+}
+
+PRBool
+nsLeafBoxFrame::GetMouseThrough() const
+{
+  switch (mMouseThrough)
+  {
+    case always:
+      return PR_TRUE;
+    case never:
+      return PR_FALSE;
+    case unset:
+      if (mParent && mParent->IsBoxFrame())
+        return mParent->GetMouseThrough();
+  }
+
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -154,7 +171,7 @@ nsLeafBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 /* virtual */ nscoord
-nsLeafBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsLeafBoxFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -174,7 +191,7 @@ nsLeafBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsLeafBoxFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsLeafBoxFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -201,7 +218,7 @@ nsLeafBoxFrame::GetIntrinsicWidth()
 }
 
 nsSize
-nsLeafBoxFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsLeafBoxFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder,
                                 nsSize aPadding, PRBool aShrinkWrap)
@@ -323,7 +340,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   aDesiredSize.ascent = GetBoxAscent(state);
 
   // the overflow rect is set in SetBounds() above
-  aDesiredSize.mOverflowAreas = GetOverflowAreas();
+  aDesiredSize.mOverflowArea = GetOverflowRect();
 
 #ifdef DO_NOISY_REFLOW
   {

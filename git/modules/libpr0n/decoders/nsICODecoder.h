@@ -76,8 +76,9 @@ public:
   nsICODecoder();
   virtual ~nsICODecoder();
 
-  virtual void WriteInternal(const char* aBuffer, PRUint32 aCount);
-  virtual void FinishInternal();
+  virtual nsresult InitInternal();
+  virtual nsresult WriteInternal(const char* aBuffer, PRUint32 aCount);
+  virtual nsresult FinishInternal();
 
 private:
   // Private helper methods
@@ -111,6 +112,7 @@ private:
   PRPackedBool mHaveAlphaData;
   PRPackedBool mIsCursor;
   PRPackedBool mDecodingAndMask;
+  PRPackedBool mError;
 };
 
 } // namespace imagelib

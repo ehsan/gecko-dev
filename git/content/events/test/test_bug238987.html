@@ -41,7 +41,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
     var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
                                                      .getBranch("accessibility.");
     if (!newValue) {
-      prefs.clearUserPref("tabfocus");
+      try {
+        prefs.clearUserPref("tabfocus");
+      } catch(ex) {}
     } else {
       prefs.setIntPref("tabfocus", newValue);
     }
@@ -136,7 +138,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
       setOrRestoreTabFocus(0);
       SimpleTest.finish();
     } else {
-      setTimeout(tab, 0);
+      setTimeout(tab, 50);
     }
   }
 
@@ -161,7 +163,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
 
   function doTest() {
     setOrRestoreTabFocus(7);
-    setTimeout(start, 0);
+    setTimeout(start, 100);
   }
 
   SimpleTest.waitForExplicitFinish();

@@ -119,8 +119,6 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
                                                             PRInt32 aDestOffset,
                                                             PRBool aDoDeleteSelection)
 {
-  FireTrustedInputEvent trusted(this);
-
   nsresult rv = NS_OK;
   char* bestFlavor = nsnull;
   nsCOMPtr<nsISupports> genericDataObj;

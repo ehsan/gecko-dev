@@ -62,7 +62,6 @@ nsCacheEntry::nsCacheEntry(nsCString *          key,
       mLastModified(0),
       mExpirationTime(nsICache::NO_EXPIRATION_TIME),
       mFlags(0),
-      mPredictedDataSize(-1),
       mDataSize(0),
       mCacheDevice(nsnull),
       mData(nsnull)
@@ -167,9 +166,7 @@ nsresult
 nsCacheEntry::RequestAccess(nsCacheRequest * request, nsCacheAccessMode *accessGranted)
 {
     nsresult  rv = NS_OK;
-
-    if (IsDoomed()) return NS_ERROR_CACHE_ENTRY_DOOMED;
-
+    
     if (!IsInitialized()) {
         // brand new, unbound entry
         request->mKey = nsnull;  // steal ownership of the key string
@@ -181,6 +178,8 @@ nsCacheEntry::RequestAccess(nsCacheRequest * request, nsCacheAccessMode *accessG
         PR_APPEND_LINK(request, &mRequestQ);
         return rv;
     }
+    
+    if (IsDoomed()) return NS_ERROR_CACHE_ENTRY_DOOMED;
 
     if (IsStreamData() != request->IsStreamBased()) {
         *accessGranted = nsICache::ACCESS_NONE;
@@ -226,9 +225,6 @@ nsCacheEntry::CreateDescriptor(nsCacheRequest *           request,
 
     PR_APPEND_LINK(descriptor, &mDescriptorQ);
 
-    CACHE_LOG_DEBUG(("  descriptor %p created for request %p on entry %p\n",
-                    descriptor, request, this));
-
     NS_ADDREF(*result = descriptor);
     return NS_OK;
 }
@@ -250,9 +246,8 @@ PRBool
 nsCacheEntry::RemoveDescriptor(nsCacheEntryDescriptor * descriptor)
 {
     NS_ASSERTION(descriptor->CacheEntry() == this, "### Wrong cache entry!!");
-    descriptor->CloseOutput();
-    descriptor->ClearCacheEntry();
     PR_REMOVE_AND_INIT_LINK(descriptor);
+    descriptor->ClearCacheEntry();
 
     if (!PR_CLIST_IS_EMPTY(&mDescriptorQ))
         return PR_TRUE;  // stay active if we still have open descriptors
@@ -274,7 +269,6 @@ nsCacheEntry::DetachDescriptors(void)
         nsCacheEntryDescriptor * nextDescriptor =
             (nsCacheEntryDescriptor *)PR_NEXT_LINK(descriptor);
         
-        descriptor->CloseOutput();
         descriptor->ClearCacheEntry();
         PR_REMOVE_AND_INIT_LINK(descriptor);
         descriptor = nextDescriptor;

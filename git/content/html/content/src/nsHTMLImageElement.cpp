@@ -70,14 +70,11 @@
 #include "nsRuleData.h"
 
 #include "nsIJSContextStack.h"
+#include "nsImageMapUtils.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsEventDispatcher.h"
 
 #include "nsLayoutUtils.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 // XXX nav attrs: suppress
 
@@ -143,7 +140,7 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
@@ -151,12 +148,13 @@ public:
   void MaybeLoadImage();
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
+  nsPoint GetXY();
   nsSize GetWidthHeight();
 };
 
 nsGenericHTMLElement*
 NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+                       PRUint32 aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
@@ -170,8 +168,7 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nsnull,
-                                                   kNameSpaceID_XHTML,
-                                                   nsIDOMNode::ELEMENT_NODE);
+                                                   kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
@@ -181,8 +178,6 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 nsHTMLImageElement::nsHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
-  // We start out broken
-  AddStatesSilently(NS_EVENT_STATE_BROKEN);
 }
 
 nsHTMLImageElement::~nsHTMLImageElement()
@@ -249,6 +244,42 @@ nsHTMLImageElement::GetComplete(PRBool* aComplete)
   *aComplete =
     (status &
      (imgIRequest::STATUS_LOAD_COMPLETE | imgIRequest::STATUS_ERROR)) != 0;
+
+  return NS_OK;
+}
+
+nsPoint
+nsHTMLImageElement::GetXY()
+{
+  nsPoint point(0, 0);
+
+  nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
+
+  if (!frame) {
+    return point;
+  }
+
+  nsIFrame* layer = nsLayoutUtils::GetClosestLayer(frame->GetParent());
+  nsPoint origin(frame->GetOffsetTo(layer));
+  // Convert to pixels using that scale
+  point.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
+  point.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+
+  return point;
+}
+
+NS_IMETHODIMP
+nsHTMLImageElement::GetX(PRInt32* aX)
+{
+  *aX = GetXY().x;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLImageElement::GetY(PRInt32* aY)
+{
+  *aY = GetXY().y;
 
   return NS_OK;
 }
@@ -335,6 +366,11 @@ nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::align) {
       return ParseAlignValue(aValue, aResult);
+    }
+    if (aAttribute == nsGkAtoms::src) {
+      static const char* kWhitespace = " \n\r\t\b";
+      aResult.SetTo(nsContentUtils::TrimCharsInSet(kWhitespace, aValue));
+      return PR_TRUE;
     }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
       return PR_TRUE;
@@ -423,7 +459,9 @@ nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
     // XXXbz which document should this be using?  sXBL/XBL2 issue!  I
     // think that GetOwnerDoc() is right, since we don't want to
     // assume stuff about the document we're bound to.
-    if (GetOwnerDoc() && GetOwnerDoc()->FindImageMap(usemap)) {
+    nsCOMPtr<nsIDOMHTMLMapElement> imageMap =
+      nsImageMapUtils::FindImageMap(GetOwnerDoc(), usemap);
+    if (imageMap) {
       if (aTabIndex) {
         // Use tab index on individual map areas
         *aTabIndex = (sTabFocusModel & eTabFocus_linksMask)? 0 : -1;
@@ -465,13 +503,12 @@ nsHTMLImageElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
     // If caller is not chrome and dom.disable_image_src_set is true,
     // prevent setting image.src by exiting early
-    if (Preferences::GetBool("dom.disable_image_src_set") &&
+    if (nsContentUtils::GetBoolPref("dom.disable_image_src_set") &&
         !nsContentUtils::IsCallerChrome()) {
       return NS_OK;
     }
 
-    // A hack to get animations to reset. See bug 594771.
-    mNewRequestsWillNeedAnimationReset = PR_TRUE;
+    nsCOMPtr<imgIRequest> oldCurrentRequest = mCurrentRequest;
 
     // Force image loading here, so that we'll try to load the image from
     // network if it's set to be not cacheable...  If we change things so that
@@ -480,7 +517,17 @@ nsHTMLImageElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     // here.
     LoadImage(aValue, PR_TRUE, aNotify);
 
-    mNewRequestsWillNeedAnimationReset = PR_FALSE;
+    if (mCurrentRequest && !mPendingRequest &&
+        oldCurrentRequest != mCurrentRequest) {
+      // We have a current request, and it's not the same one as we used
+      // to have, and we have no pending request.  So imglib already had
+      // that image.  Reset the animation on it -- see bug 210001
+      nsCOMPtr<imgIContainer> container;
+      mCurrentRequest->GetImage(getter_AddRefs(container));
+      if (container) {
+        container->ResetAnimation();
+      }
+    }
   }
     
   return nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -509,10 +556,7 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
-    // FIXME: Bug 660963 it would be nice if we could just have
-    // ClearBrokenState update our state and do it fast...
     ClearBrokenState();
-    RemoveStatesSilently(NS_EVENT_STATE_BROKEN);
     // If loading is temporarily disabled, don't even launch MaybeLoadImage.
     // Otherwise MaybeLoadImage may run later when someone has reenabled
     // loading.
@@ -539,7 +583,7 @@ nsHTMLImageElement::MaybeLoadImage()
   }
 }
 
-nsEventStates
+PRInt32
 nsHTMLImageElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() |
@@ -557,16 +601,16 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   }
 
   // The first (optional) argument is the width of the image
-  uint32 width;
-  JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
+  int32 width;
+  JSBool ret = JS_ValueToInt32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
   nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<PRInt32>(width));
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
-    uint32 height;
-    ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
+    int32 height;
+    ret = JS_ValueToInt32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
     rv = SetIntAttr(nsGkAtoms::height, static_cast<PRInt32>(height));

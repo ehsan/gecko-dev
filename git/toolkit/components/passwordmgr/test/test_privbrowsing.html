@@ -103,47 +103,49 @@ function loadNextTest() {
 
 
 function checkTest() {
-  var popup;
+  var bar;
 
   switch (testNum) {
     case 1:
-      // run outside of private mode, popup notification should appear
-      popup = getPopup(popupNotifications, "password-save");
-      ok(popup, "got popup notification");
-      popup.remove();
+      // run outside of private mode, notification bar should appear
+      bar = getNotificationBar(notifyBox, "password-save");
+      ok(bar, "got notification bar");
+      notifyBox.removeAllNotifications(true);
       break;
 
     case 2:
-      // run inside of private mode, popup notification should not appear
-      popup = getPopup(popupNotifications, "password-save");
-      ok(!popup, "checking for no popup notification");
+      // run inside of private mode, notification bar should not appear
+      bar = getNotificationBar(notifyBox, "password-save");
+      ok(!bar, "checking for no notification bar");
+      notifyBox.removeAllNotifications(true);
       break;
 
     case 3:
-      // run outside of private mode, popup notification should appear
-      popup = getPopup(popupNotifications, "password-save");
-      ok(popup, "got popup notification");
-      popup.remove();
+      // run outside of private mode, notification bar should appear
+      bar = getNotificationBar(notifyBox, "password-save");
+      ok(bar, "got notification bar");
+      notifyBox.removeAllNotifications(true);
       break;
 
     case 4:
-      // run outside of private mode, popup notification should appear
-      popup = getPopup(popupNotifications, "password-change");
-      ok(popup, "got popup notification");
-      popup.remove();
+      // run outside of private mode, notification bar should appear
+      bar = getNotificationBar(notifyBox, "password-change");
+      ok(bar, "got notification bar");
+      notifyBox.removeAllNotifications(true);
       break;
 
     case 5:
-      // run inside of private mode, popup notification should not appear
-      popup = getPopup(popupNotifications, "password-change");
-      ok(!popup, "checking for no popup notification");
+      // run inside of private mode, notification bar should not appear
+      bar = getNotificationBar(notifyBox, "password-change");
+      ok(!bar, "checking for no notification bar");
+      notifyBox.removeAllNotifications(true);
       break;
 
     case 6:
-      // run outside of private mode, popup notification should appear
-      popup = getPopup(popupNotifications, "password-change");
-      ok(popup, "got popup notification");
-      popup.remove();
+      // run outside of private mode, notification bar should appear
+      bar = getNotificationBar(notifyBox, "password-change");
+      ok(bar, "got notification bar");
+      notifyBox.removeAllNotifications(true);
       pwmgr.removeLogin(login);
       break;
 
@@ -218,6 +220,9 @@ function handleLoad(aEvent) {
 
   checkTest();
 
+  // Remove any notification bar that might be lingering from a failed test.
+  notifyBox.removeAllNotifications(true);
+
   if (testNum < subtests.length) {
     loadNextTest();
   } else {
@@ -259,10 +264,13 @@ if (!pb) { // Private Browsing might not be available
   var iframe = document.getElementById("iframe");
   iframe.onload = handleLoad;
 
-  // popupNotifications (not *popup*) is a constant, per-tab container. So, we
+  // The notification box (not *bar*) is a constant, per-tab container. So, we
   // only need to fetch it once.
-  var popupNotifications = getPopupNotifications(window.top);
-  ok(popupNotifications, "Got popupNotifications");
+  var notifyBox = getNotificationBox(window.top);
+  ok(notifyBox, "Got notification box");
+
+  // Remove any notification bars that might be left over from other tests.
+  notifyBox.removeAllNotifications(true);
 
   SimpleTest.waitForExplicitFinish();
 

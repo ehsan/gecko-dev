@@ -43,8 +43,6 @@
 #import <Cocoa/Cocoa.h>
 #include <dlfcn.h>
 
-#include "CustomCocoaEvents.h"
-#include "mozilla/WidgetTraceEvent.h"
 #include "nsAppShell.h"
 #include "nsCOMPtr.h"
 #include "nsIFile.h"
@@ -171,27 +169,6 @@ PRBool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
   return (topItem.mWidget != nsnull);
 }
 
-// GeckoNSApplication
-//
-// Subclass of NSApplication for filtering out certain events.
-@interface GeckoNSApplication : NSApplication
-{
-}
-@end
-
-@implementation GeckoNSApplication
-- (void)sendEvent:(NSEvent *)anEvent
-{
-  if ([anEvent type] == NSApplicationDefined &&
-      [anEvent subtype] == kEventSubtypeTrace) {
-    mozilla::SignalTracerThread();
-    return;
-  }
-  [super sendEvent:anEvent];
-}
-@end
-
-
 // AppShellDelegate
 //
 // Cocoa bridge class.  An object of this class is registered to receive
@@ -231,6 +208,7 @@ nsAppShell::nsAppShell()
 , mRunningEventLoop(PR_FALSE)
 , mStarted(PR_FALSE)
 , mTerminated(PR_FALSE)
+, mNotifiedWillTerminate(PR_FALSE)
 , mSkippedNativeCallback(PR_FALSE)
 , mHadMoreEventsCount(0)
 , mRecursionDepth(0)
@@ -309,7 +287,7 @@ nsAppShell::Init()
   [NSBundle loadNibFile:
                      [NSString stringWithUTF8String:(const char*)nibPath.get()]
       externalNameTable:
-           [NSDictionary dictionaryWithObject:[GeckoNSApplication sharedApplication]
+           [NSDictionary dictionaryWithObject:[NSApplication sharedApplication]
                                        forKey:@"NSOwner"]
                withZone:NSDefaultMallocZone()];
 
@@ -346,12 +324,6 @@ nsAppShell::Init()
                               @selector(nsAppShell_NSApplication_beginModalSessionForWindow:));
     nsToolkit::SwizzleMethods([NSApplication class], @selector(endModalSession:),
                               @selector(nsAppShell_NSApplication_endModalSession:));
-    // We should only replace the original terminate: method if we're not
-    // running in a Cocoa embedder (like Camino).  See bug 604901.
-    if (!mRunningCocoaEmbedded) {
-      nsToolkit::SwizzleMethods([NSApplication class], @selector(terminate:),
-                                @selector(nsAppShell_NSApplication_terminate:));
-    }
     if (!nsToolkit::OnSnowLeopardOrLater()) {
       dlopen("/System/Library/Frameworks/Carbon.framework/Frameworks/Print.framework/Versions/Current/Plugins/PrintCocoaUI.bundle/Contents/MacOS/PrintCocoaUI",
              RTLD_LAZY);
@@ -411,7 +383,7 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
                                        timestamp:0
                                     windowNumber:0
                                          context:NULL
-                                         subtype:kEventSubtypeNone
+                                         subtype:0
                                            data1:0
                                            data2:0]
              atStart:NO];
@@ -433,7 +405,7 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
                                      timestamp:0
                                   windowNumber:0
                                        context:NULL
-                                       subtype:kEventSubtypeNone
+                                       subtype:0
                                          data1:0
                                          data2:0]
            atStart:NO];
@@ -459,8 +431,8 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
   if (self->mTerminated) {
     PRInt32 releaseCount = 0;
     if (self->mNativeEventScheduledDepth > self->mNativeEventCallbackDepth) {
-      releaseCount = PR_ATOMIC_SET(&self->mNativeEventScheduledDepth,
-                                   self->mNativeEventCallbackDepth);
+      releaseCount = PR_AtomicSet(&self->mNativeEventScheduledDepth,
+                                  self->mNativeEventCallbackDepth);
     }
     while (releaseCount-- > self->mNativeEventCallbackDepth)
       self->Release();
@@ -470,8 +442,8 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
     // (non-reproducible) cases of double-frees that *might* have been caused
     // by spontaneous calls (from the OS) to ProcessGeckoEvents().  So we
     // deal with that possibility here.
-    if (PR_ATOMIC_DECREMENT(&self->mNativeEventScheduledDepth) < 0) {
-      PR_ATOMIC_SET(&self->mNativeEventScheduledDepth, 0);
+    if (PR_AtomicDecrement(&self->mNativeEventScheduledDepth) < 0) {
+      PR_AtomicSet(&self->mNativeEventScheduledDepth, 0);
       NS_WARNING("Spontaneous call to ProcessGeckoEvents()!");
     } else {
       self->Release();
@@ -493,14 +465,20 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
 void
 nsAppShell::WillTerminate()
 {
+  mNotifiedWillTerminate = PR_TRUE;
   if (mTerminated)
     return;
+  mTerminated = PR_TRUE;
 
-  // Make sure that the nsAppExitEvent posted by nsAppStartup::Quit() (called
-  // from [MacApplicationDelegate applicationShouldTerminate:]) gets run.
+  // Calling [NSApp terminate:] causes (among other things) an
+  // NSApplicationWillTerminate notification to be posted and the main run
+  // loop to die before returning (in the call to [NSApp run]).  So this is
+  // our last crack at processing any remaining Gecko events.
   NS_ProcessPendingEvents(NS_GetCurrentThread());
 
-  mTerminated = PR_TRUE;
+  // Unless we call nsBaseAppShell::Exit() here, it might not get called
+  // at all.
+  nsBaseAppShell::Exit();
 }
 
 // ScheduleNativeEventCallback
@@ -535,7 +513,7 @@ nsAppShell::ScheduleNativeEventCallback()
   // ProcessGeckoEvents().  But there are exceptions, for which see
   // ProcessGeckoEvents() and Exit().
   NS_ADDREF_THIS();
-  PR_ATOMIC_INCREMENT(&mNativeEventScheduledDepth);
+  PR_AtomicIncrement(&mNativeEventScheduledDepth);
 
   // This will invoke ProcessGeckoEvents on the main thread.
   ::CFRunLoopSourceSignal(mCFRunLoopSource);
@@ -819,7 +797,7 @@ nsAppShell::Exit(void)
   // to ScheduleNativeEventCallback() and ProcessGeckoEvents() isn't on the
   // stack, we need to take care of the problem here.
   if (!mNativeEventCallbackDepth && mNativeEventScheduledDepth) {
-    PRInt32 releaseCount = PR_ATOMIC_SET(&mNativeEventScheduledDepth, 0);
+    PRInt32 releaseCount = PR_AtomicSet(&mNativeEventScheduledDepth, 0);
     while (releaseCount-- > 0)
       NS_RELEASE_THIS();
   }
@@ -983,21 +961,14 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 
 @end
 
-// We hook beginModalSessionForWindow: and endModalSession: in order to
-// maintain a list of Cocoa app-modal windows (and the "sessions" to which
-// they correspond).  We need this in order to deal with the consequences
-// of a Cocoa app-modal dialog being "interrupted" by a Gecko-modal dialog.
-// See nsCocoaAppModalWindowList::CurrentSession() and
-// nsAppShell::ProcessNextNativeEvent() above.
-//
-// We hook terminate: in order to make OS-initiated termination work nicely
-// with Gecko's shutdown sequence.  (Two ways to trigger OS-initiated
-// termination:  1) Quit from the Dock menu; 2) Log out from (or shut down)
-// your computer while the browser is active.)
+// We hook these methods in order to maintain a list of Cocoa app-modal
+// windows (and the "sessions" to which they correspond).  We need this in
+// order to deal with the consequences of a Cocoa app-modal dialog being
+// "interrupted" by a Gecko-modal dialog.  See nsCocoaAppModalWindowList::
+// CurrentSession() and nsAppShell::ProcessNextNativeEvent() above.
 @interface NSApplication (MethodSwizzling)
 - (NSModalSession)nsAppShell_NSApplication_beginModalSessionForWindow:(NSWindow *)aWindow;
 - (void)nsAppShell_NSApplication_endModalSession:(NSModalSession)aSession;
-- (void)nsAppShell_NSApplication_terminate:(id)sender;
 @end
 
 @implementation NSApplication (MethodSwizzling)
@@ -1025,22 +996,6 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   if (gCocoaAppModalWindowList &&
       wasRunningAppModal && (prevAppModalWindow != [NSApp modalWindow]))
     gCocoaAppModalWindowList->PopCocoa(prevAppModalWindow, aSession);
-}
-
-// Called by the OS after [MacApplicationDelegate applicationShouldTerminate:]
-// has returned NSTerminateNow.  This method "subclasses" and replaces the
-// OS's original implementation.  The only thing the orginal method does which
-// we need is that it posts NSApplicationWillTerminateNotification.  Everything
-// else is unneeded (because it's handled elsewhere), or actively interferes
-// with Gecko's shutdown sequence.  For example the original terminate: method
-// causes the app to exit() inside [NSApp run] (called from nsAppShell::Run()
-// above), which means that nothing runs after the call to nsAppStartup::Run()
-// in XRE_Main(), which in particular means that ScopedXPCOMStartup's destructor
-// and NS_ShutdownXPCOM() never get called.
-- (void)nsAppShell_NSApplication_terminate:(id)sender
-{
-  [[NSNotificationCenter defaultCenter] postNotificationName:NSApplicationWillTerminateNotification
-                                                      object:NSApp];
 }
 
 @end

@@ -183,92 +183,55 @@ class BinaryBlob:
         assert_true(out_data == data, "Serialization fail %d !=%d"% (len(out_data), len(data)))
         return retstruct
 
-def optimizejar(jar, outjar, inlog = None):
-    if inlog is not None:
-        inlog = open(inlog).read().rstrip()
-        # in the case of an empty log still move the index forward
-        if len(inlog) == 0:
-            inlog = []
-        else:
-            inlog = inlog.split("\n")
-    outlog = []
+def optimizejar(log, jar, outjar):
+    entries = open(log).read().rstrip().split("\n")
     jarblob = BinaryBlob(jar)
     dirend = jarblob.read_struct(cdir_end, jarblob.length - size_of(cdir_end))
     assert_true(dirend.signature == ENDSIG, "no signature in the end");
-    cdir_offset = dirend.cdir_offset
-    readahead = 0
-    if inlog is None and cdir_offset == 4:
-        readahead = struct.unpack("<I", jarblob.readAt(0, 4))[0]
-        print("%s: startup data ends at byte %d" % (outjar, readahead));
 
-    total_stripped = 0;
+    cdir_offset = dirend.cdir_offset
+   
     jarblob.offset = cdir_offset
     central_directory = []
-    for i in range(0, dirend.cdir_entries):
+    for i  in range(0, dirend.cdir_entries):
         entry = jarblob.read_struct(cdir_entry)
-        if entry.filename[-1:] == "/":
-            total_stripped += len(entry.pack())
-        else:
-            total_stripped += entry.extrafield_size
         central_directory.append(entry)
         
     reordered_count = 0
-    if inlog is not None:
-        dup_guard = set()
-        for ordered_name in inlog:
-            if ordered_name in dup_guard:
-                continue
-            else:
-                dup_guard.add(ordered_name)
-            found = False
-            for i in range(reordered_count, len(central_directory)):
-                if central_directory[i].filename == ordered_name:
-                    # swap the cdir entries
-                    tmp = central_directory[i]
-                    central_directory[i] = central_directory[reordered_count]
-                    central_directory[reordered_count] = tmp
-                    reordered_count = reordered_count + 1
-                    found = True
-                    break
-            if not found:
-                print( "Can't find '%s' in %s" % (ordered_name, jar))
+    dup_guard = set()
+    for ordered_name in entries:
+        if ordered_name in dup_guard:
+            continue
+        else:
+            dup_guard.add(ordered_name)
+        found = False
+        for i in range(reordered_count, len(central_directory)):
+            if central_directory[i].filename == ordered_name:
+                # swap the cdir entries
+                tmp = central_directory[i]
+                central_directory[i] = central_directory[reordered_count]
+                central_directory[reordered_count] = tmp
+                reordered_count = reordered_count + 1
+                found = True
+                break
+        assert_true(found, "Can't find %s in %s\n" %(ordered_name, jar))
 
+    # have to put central directory at offset 1 cos 0 confuses some tools
+    dirend.cdir_offset = 1
+    dirend_data = dirend.pack()
     outfd = open(outjar, "wb")
-    out_offset = 0
-    if inlog is not None:
-        # have to put central directory at offset 4 cos 0 confuses some tools.
-        # This also lets us specify how many entries should be preread
-        dirend.cdir_offset = 4
-        # make room for central dir + end of dir + 4 extra bytes at front
-        out_offset = dirend.cdir_offset + dirend.cdir_size + size_of(cdir_end) - total_stripped
-        outfd.seek(out_offset)
+    # make room for central dir + end of dir + 1 extra byte at front
+    out_offset = dirend.cdir_offset + dirend.cdir_size + len(dirend_data)
+    outfd.seek(out_offset)
 
     cdir_data = ""
     written_count = 0
-    crc_mapping = {}
-    dups_found = 0
-    dupe_bytes = 0
-    # store number of bytes suggested for readahead
     for entry in central_directory:
         # read in the header twice..first for comparison, second time for convenience when writing out
         jarfile = jarblob.read_struct(local_file_header, entry.offset)
         assert_true(jarfile.filename == entry.filename, "Directory/Localheader mismatch")
-        # drop directory entries
-        if entry.filename[-1:] == "/":
-            total_stripped += len(jarfile.pack())
-            dirend.cdir_entries -= 1
-            continue
-        # drop extra field data
-        else:
-            total_stripped += jarfile.extra_field_size;
-        entry.extrafield = jarfile.extra_field = ""
-        entry.extrafield_size = jarfile.extra_field_size = 0
-        # January 1st, 2010
-        entry.lastmod_date = jarfile.lastmod_date = ((2010 - 1980) << 9) | (1 << 5) | 1
-        entry.lastmod_time = jarfile.lastmod_time = 0
         data = jarfile.pack()
         outfd.write(data)
-        old_entry_offset = entry.offset
         entry.offset = out_offset
         out_offset = out_offset + len(data)
         entry_data = entry.pack()
@@ -277,95 +240,40 @@ def optimizejar(jar, outjar, inlog = None):
         assert_true(len(entry_data) != expected_len,
                     "%s entry size - expected:%d got:%d" % (entry.filename, len(entry_data), expected_len))
         written_count += 1
+        if written_count == reordered_count:
+            print("%s: startup data ends at byte %d"%( outjar, out_offset));
+        elif written_count < reordered_count:
+            print("%s @ %d" % (entry.filename, entry.offset))
 
-        if entry.crc32 in crc_mapping:
-            dups_found += 1
-            dupe_bytes += entry.compressed_size + len(data) + len(entry_data)
-            print("%s\n\tis a duplicate of\n%s\n---"%(entry.filename, crc_mapping[entry.crc32]))
-        else:
-            crc_mapping[entry.crc32] = entry.filename;
-
-        if inlog is not None:
-            if written_count == reordered_count:
-                readahead = out_offset
-                print("%s: startup data ends at byte %d"%( outjar, readahead));
-            elif written_count < reordered_count:
-                pass
-                #print("%s @ %d" % (entry.filename, out_offset))
-        elif readahead >= old_entry_offset + len(data):
-            outlog.append(entry.filename)
-            reordered_count += 1
-
-    if inlog is None:
-        dirend.cdir_offset = out_offset
-
-    if dups_found > 0:
-        print("WARNING: Found %d duplicate files taking %d bytes"%(dups_found, dupe_bytes))
-
-    dirend.cdir_size = len(cdir_data)
-    dirend_data = dirend.pack()
     assert_true(size_of(cdir_end) == len(dirend_data), "Failed to serialize directory end correctly. Serialized size;%d, expected:%d"%(len(dirend_data), size_of(cdir_end)));
-
+    outfd.write(dirend_data)
     outfd.seek(dirend.cdir_offset)
+    assert_true(len(cdir_data) == dirend.cdir_size, "Failed to serialize central directory correctly. Serialized size;%d, expected:%d expected-size:%d" % (len(cdir_data), dirend.cdir_size, dirend.cdir_size - len(cdir_data)));
     outfd.write(cdir_data)
     outfd.write(dirend_data)
-
-    # for ordered jars the central directory is written in the begining of the file, so a second central-directory
-    # entry has to be written in the end of the file
-    if inlog is not None:
-        outfd.seek(0)
-        outfd.write(struct.pack("<I", readahead));
-        outfd.seek(out_offset)
-        outfd.write(dirend_data)
-
-    print "Stripped %d bytes" % total_stripped
-    print "%s %d/%d in %s" % (("Ordered" if inlog is not None else "Deoptimized"),
-                              reordered_count, len(central_directory), outjar)
     outfd.close()
-    return outlog
-        
-if len(sys.argv) != 5:
-    print "Usage: --optimize|--deoptimize %s JAR_LOG_DIR IN_JAR_DIR OUT_JAR_DIR" % sys.argv[0]
+    print "Ordered %d/%d in %s" % (reordered_count, len(central_directory), outjar)
+    
+if len(sys.argv) != 4:
+    print "Usage: %s JAR_LOG_DIR IN_JAR_DIR OUT_JAR_DIR" % sys.argv[0]
     exit(1)
 
-def optimize(JAR_LOG_DIR, IN_JAR_DIR, OUT_JAR_DIR):
-    ls = os.listdir(IN_JAR_DIR)
-    for jarfile in ls:
-        if not jarfile.endswith(".jar"):
-            continue
-        injarfile = os.path.join(IN_JAR_DIR, jarfile)
-        outjarfile = os.path.join(OUT_JAR_DIR, jarfile) 
-        logfile = os.path.join(JAR_LOG_DIR, jarfile + ".log")
-        if not os.path.isfile(logfile):
-            logfile = None
-        optimizejar(injarfile, outjarfile, logfile)
+JAR_LOG_DIR = sys.argv[1]
+IN_JAR_DIR = sys.argv[2]
+OUT_JAR_DIR = sys.argv[3]
 
-def deoptimize(JAR_LOG_DIR, IN_JAR_DIR, OUT_JAR_DIR):
-    if not os.path.exists(JAR_LOG_DIR):
-        os.makedirs(JAR_LOG_DIR)
+if not os.path.exists(JAR_LOG_DIR):
+    print "No jar logs found. No jars to optimize."
+    exit(0)
 
-    ls = os.listdir(IN_JAR_DIR)
-    for jarfile in ls:
-        if not jarfile.endswith(".jar"):
-            continue
-        injarfile = os.path.join(IN_JAR_DIR, jarfile)
-        outjarfile = os.path.join(OUT_JAR_DIR, jarfile) 
-        logfile = os.path.join(JAR_LOG_DIR, jarfile + ".log")
-        log = optimizejar(injarfile, outjarfile, None)
-        open(logfile, "wb").write("\n".join(log))
-
-def main():        
-    MODE = sys.argv[1]
-    JAR_LOG_DIR = sys.argv[2]
-    IN_JAR_DIR = sys.argv[3]
-    OUT_JAR_DIR = sys.argv[4]
-    if MODE == "--optimize":
-        optimize(JAR_LOG_DIR, IN_JAR_DIR, OUT_JAR_DIR)
-    elif MODE == "--deoptimize":
-        deoptimize(JAR_LOG_DIR, IN_JAR_DIR, OUT_JAR_DIR)
-    else:
-        print("Unknown mode %s" % MODE)
-        exit(1)
-
-if __name__ == '__main__':
-    main()
+ls = os.listdir(JAR_LOG_DIR)
+for logfile in ls:
+    if logfile[-8:] != ".jar.log":
+        continue
+    injarfile = os.path.join(IN_JAR_DIR, logfile[:-4])
+    outjarfile = os.path.join(OUT_JAR_DIR, logfile[:-4]) 
+    if not os.path.exists(injarfile):
+        print "Warning: Skipping %s, %s doesn't exist" % (logfile, injarfile)
+        continue
+    logfile = os.path.join(JAR_LOG_DIR, logfile)
+    optimizejar(logfile, injarfile, outjarfile)

@@ -45,11 +45,6 @@ function test() {
     return false;
   }
 
-  var file = Components.classes["@mozilla.org/file/directory_service;1"]
-             .getService(Components.interfaces.nsIProperties)
-             .get("TmpD", Components.interfaces.nsIFile);
-  filePath = file.path;
-
   let fieldList = {
     "//input[@name='input']":     Date.now().toString(),
     "//input[@name='spaced 1']":  Math.random().toString(),
@@ -64,7 +59,7 @@ function test() {
     "//textarea[1]":              "",
     "//textarea[2]":              "Some text... " + Math.random(),
     "//textarea[3]":              "Some more text\n" + new Date(),
-    "//input[@type='file']":      filePath
+    "//input[@type='file']":      "/dev/null"
   };
 
   function getElementByXPath(aTab, aQuery) {
@@ -109,12 +104,16 @@ function test() {
            getService(Ci.nsIPrivateBrowsingService);
   gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
 
+  // sessionstore service
+  let ss = test(function() Cc["@mozilla.org/browser/sessionstore;1"].
+                           getService(Ci.nsISessionStore));
+
   //////////////////////////////////////////////////////////////////
   // Test (B) : Session data restoration between modes            //
   //////////////////////////////////////////////////////////////////
 
-  let rootDir = getRootDirectory(gTestPath);
-  const testURL = rootDir + "browser_248970_b_sample.html";
+  const testURL = "chrome://mochikit/content/browser/" +
+  "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
   const testURL2 = "http://mochi.test:8888/browser/" +
   "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
 

@@ -53,6 +53,12 @@
 #include <string.h>
 #include <direct.h>
 
+#ifdef WINCE
+// CSIDL_LOCAL_APPDATA is not defined on WinCE:
+// fall back to CSIDL_APPDATA.
+#define CSIDL_LOCAL_APPDATA CSIDL_APPDATA
+#endif
+
 #elif defined(XP_OS2)
 
 #define MAX_PATH _MAX_PATH
@@ -72,6 +78,18 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/param.h>
+#include "prenv.h"
+
+#elif defined(XP_BEOS)
+
+#include <FindDirectory.h>
+#include <fs_info.h>
+#include <Path.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/param.h>
+#include <OS.h>
+#include <image.h>
 #include "prenv.h"
 
 #endif
@@ -156,6 +174,15 @@ static nsresult GetKnownFolder(GUID* guid, nsILocalFile** aFile)
 static nsresult GetWindowsFolder(int folder, nsILocalFile** aFile)
 //----------------------------------------------------------------------------------------
 {
+#ifdef WINCE
+#define SHGetSpecialFolderPathW SHGetSpecialFolderPath
+
+#ifndef WINCE_WINDOWS_MOBILE
+    if (folder == CSIDL_APPDATA || folder == CSIDL_LOCAL_APPDATA)
+        folder = CSIDL_PROFILE;
+#endif
+#endif
+
     WCHAR path_orig[MAX_PATH + 3];
     WCHAR *path = path_orig+1;
     HRESULT result = SHGetSpecialFolderPathW(NULL, path, folder, true);
@@ -171,9 +198,19 @@ static nsresult GetWindowsFolder(int folder, nsILocalFile** aFile)
         path[++len] = L'\0';
     }
 
+#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
+    // sometimes CSIDL_PROFILE shows up without a root slash
+    if (folder == CSIDL_PROFILE && path[0] != '\\') {
+        path_orig[0] = '\\';
+        path = path_orig;
+        len++;
+    }
+#endif
+
     return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
 }
 
+#ifndef WINCE
 /**
  * Provides a fallback for getting the path to APPDATA or LOCALAPPDATA by
  * querying the registry when the call to SHGetSpecialFolderPathW is unable to
@@ -209,8 +246,34 @@ static nsresult GetRegWindowsAppDataFolder(PRBool aLocal, nsILocalFile** aFile)
 
     return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
 }
+#endif
 
 #endif // XP_WIN
+
+#if defined (XP_BEOS)
+static nsresult
+GetBeOSFolder( directory_which which, dev_t volume, nsILocalFile** aFile)
+{
+    char path[MAXPATHLEN];
+    if (volume < 0)
+        return NS_ERROR_FAILURE;
+
+    status_t result = find_directory(which, volume, false, path, MAXPATHLEN - 2);
+    if (result != B_OK)
+        return NS_ERROR_FAILURE;
+
+    int len = strlen(path);
+    if (len == 0)
+        return NS_ERROR_FAILURE;
+
+    if (path[len-1] != '/')
+    {
+        path[len]   = '/';
+        path[len+1] = '\0';
+    }
+    return NS_NewNativeLocalFile(nsDependentCString(path), PR_TRUE, aFile);
+}
+#endif // XP_BEOS
 
 #if defined(XP_UNIX)
 static nsresult
@@ -445,11 +508,12 @@ GetUnixXDGUserDirectory(SystemDirectories aSystemDirectory,
 
         rv = file->AppendNative(NS_LITERAL_CSTRING(".documents"));
     }
-#endif
+#else
     else {
       // no fallback for the other XDG dirs
       rv = NS_ERROR_FAILURE;
     }
+#endif
 
     if (NS_FAILED(rv))
         return rv;
@@ -505,7 +569,13 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 #endif
 
         case OS_DriveDirectory:
-#if defined (XP_WIN)
+#if defined (WINCE)
+        {
+            return NS_NewLocalFile(nsDependentString(L"\\"),
+                                   PR_TRUE,
+                                   aFile);
+        }
+#elif defined (XP_WIN)
         {
             PRInt32 len = ::GetWindowsDirectoryW(path, MAX_PATH);
             if (len == 0)
@@ -568,7 +638,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             return GetOSXFolderType(kUserDomain, kTemporaryFolderType, aFile);
         }
 
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) || defined(XP_BEOS)
         {
             static const char *tPath = nsnull;
             if (!tPath) {
@@ -593,6 +663,15 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 #if defined (XP_WIN)
         case Win_SystemDirectory:
         {
+#ifdef WINCE
+            PRUnichar winDirBuf[MAX_PATH];
+            nsAutoString winDir;
+            if (SHGetSpecialFolderPath(NULL, winDirBuf, CSIDL_WINDOWS, PR_TRUE))
+                winDir.Assign(winDirBuf);
+            else
+                winDir.Assign(L"\\Windows");
+            return NS_NewLocalFile(winDir, PR_TRUE, aFile);
+#else
             PRInt32 len = ::GetSystemDirectoryW(path, MAX_PATH);
 
             // Need enough space to add the trailing backslash
@@ -604,10 +683,20 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             return NS_NewLocalFile(nsDependentString(path, len),
                                    PR_TRUE,
                                    aFile);
+#endif
         }
 
         case Win_WindowsDirectory:
         {
+#ifdef WINCE
+            PRUnichar winDirBuf[MAX_PATH];
+            nsAutoString winDir;
+            if (SHGetSpecialFolderPath(NULL, winDirBuf, CSIDL_WINDOWS, PR_TRUE))
+                winDir.Assign(winDirBuf);
+            else
+                winDir.Assign(L"\\Windows");
+            return NS_NewLocalFile(winDir, PR_TRUE, aFile);
+#else
             PRInt32 len = ::GetWindowsDirectoryW(path, MAX_PATH);
 
             // Need enough space to add the trailing backslash
@@ -620,6 +709,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             return NS_NewLocalFile(nsDependentString(path, len),
                                    PR_TRUE,
                                    aFile);
+#endif
         }
 
         case Win_ProgramFiles:
@@ -629,10 +719,6 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 
         case Win_HomeDirectory:
         {
-            nsresult rv = GetWindowsFolder(CSIDL_PROFILE, aFile);
-            if (NS_SUCCEEDED(rv))
-                return rv;
-
             PRInt32 len;
             if ((len = ::GetEnvironmentVariableW(L"HOME", path, MAX_PATH)) > 0)
             {
@@ -643,11 +729,9 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 path[len]   = L'\\';
                 path[++len] = L'\0';
 
-                rv = NS_NewLocalFile(nsDependentString(path, len),
-                                     PR_TRUE,
-                                     aFile);
-                if (NS_SUCCEEDED(rv))
-                    return rv;
+                return NS_NewLocalFile(nsDependentString(path, len),
+                                       PR_TRUE,
+                                       aFile);
             }
 
             len = ::GetEnvironmentVariableW(L"HOMEDRIVE", path, MAX_PATH);
@@ -756,6 +840,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
         {
             return GetWindowsFolder(CSIDL_TEMPLATES, aFile);
         }
+#ifndef WINCE
         case Win_Common_Startmenu:
         {
             return GetWindowsFolder(CSIDL_COMMON_STARTMENU, aFile);
@@ -780,18 +865,24 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
         {
             return GetWindowsFolder(CSIDL_COOKIES, aFile);
         }
+#endif
         case Win_Appdata:
         {
             nsresult rv = GetWindowsFolder(CSIDL_APPDATA, aFile);
+#ifndef WINCE
             if (NS_FAILED(rv))
                 rv = GetRegWindowsAppDataFolder(PR_FALSE, aFile);
+#endif
             return rv;
         }
+
         case Win_LocalAppdata:
         {
             nsresult rv = GetWindowsFolder(CSIDL_LOCAL_APPDATA, aFile);
+#ifndef WINCE
             if (NS_FAILED(rv))
                 rv = GetRegWindowsAppDataFolder(PR_TRUE, aFile);
+#endif
             return rv;
         }
 #endif  // XP_WIN
@@ -820,6 +911,31 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             return GetUnixXDGUserDirectory(aSystemSystemDirectory, aFile);
 #endif
 
+#ifdef XP_BEOS
+        case BeOS_SettingsDirectory:
+        {
+            return GetBeOSFolder(B_USER_SETTINGS_DIRECTORY,0, aFile);
+        }
+
+        case BeOS_HomeDirectory:
+        {
+            return GetBeOSFolder(B_USER_DIRECTORY,0, aFile);
+        }
+
+        case BeOS_DesktopDirectory:
+        {
+            /* Get the user's desktop folder, which in the future may differ from the boot desktop */
+            char path[MAXPATHLEN];
+            if (find_directory(B_USER_DIRECTORY, 0, false, path, MAXPATHLEN) != B_OK )
+                break;
+            return GetBeOSFolder(B_DESKTOP_DIRECTORY, dev_for_path(path), aFile);
+        }
+
+        case BeOS_SystemDirectory:
+        {
+            return GetBeOSFolder(B_BEOS_DIRECTORY,0, aFile);
+        }
+#endif
 #ifdef XP_OS2
         case OS2_SystemDirectory:
         {

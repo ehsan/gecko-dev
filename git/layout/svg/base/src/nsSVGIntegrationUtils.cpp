@@ -55,11 +55,9 @@
 PRBool
 nsSVGIntegrationUtils::UsingEffectsForFrame(const nsIFrame* aFrame)
 {
-  if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    return PR_FALSE;
-  }
   const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
-  return (style->mFilter || style->mClipPath || style->mMask);
+  return (style->mFilter || style->mClipPath || style->mMask) &&
+          !aFrame->IsFrameOfType(nsIFrame::eSVG);
 }
 
 /* static */ nsRect
@@ -76,7 +74,7 @@ GetPreEffectsOverflowRect(nsIFrame* aFrame)
     (aFrame->Properties().Get(nsIFrame::PreEffectsBBoxProperty()));
   if (r)
     return *r;
-  return aFrame->GetVisualOverflowRect();
+  return aFrame->GetOverflowRect();
 }
 
 struct BBoxCollector : public nsLayoutUtils::BoxCallback {
@@ -149,18 +147,12 @@ nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(nsIFrame* aFrame,
     nsSVGEffects::GetEffectProperties(firstFrame);
   if (!effectProperties.mFilter)
     return aInvalidRect;
-
-  nsSVGFilterProperty *prop = nsSVGEffects::GetFilterProperty(firstFrame);
-  if (!prop || !prop->IsInObserverList()) {
-    return aInvalidRect;
-  }
-
-  nsSVGFilterFrame* filterFrame = prop->GetFilterFrame();
+  nsSVGFilterFrame* filterFrame = nsSVGEffects::GetFilterFrame(firstFrame);
   if (!filterFrame) {
     // The frame is either not there or not currently available,
     // perhaps because we're in the middle of tearing stuff down.
     // Be conservative.
-    return aFrame->GetVisualOverflowRect();
+    return aFrame->GetOverflowRect();
   }
 
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
@@ -220,8 +212,8 @@ public:
   virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
                      const nsIntRect* aDirtyRect)
   {
-    nsRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
-    nsRenderingContext::AutoPushTranslation push(ctx, -mOffset);
+    nsIRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
+    nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
     mInnerList->PaintForFrame(mBuilder, ctx, mFrame, nsDisplayList::PAINT_DEFAULT);
   }
 
@@ -233,7 +225,7 @@ private:
 };
 
 void
-nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
+nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
                                               nsIFrame* aEffectsFrame,
                                               const nsRect& aDirtyRect,
                                               nsDisplayListBuilder* aBuilder,
@@ -288,7 +280,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame) + aBuilder->ToReferenceFrame(firstFrame);
   PRInt32 appUnitsPerDevPixel = aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
   userSpaceRect = userSpaceRect.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
-  aCtx->Translate(userSpaceRect.TopLeft());
+  aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
 
   gfxMatrix matrix = GetInitialMatrix(aEffectsFrame);
 
@@ -298,7 +290,6 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = PR_TRUE;
     gfx->Save();
-    aCtx->IntersectClip(aEffectsFrame->GetVisualOverflowRect());
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
@@ -320,7 +311,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
     gfx->SetMatrix(savedCTM);
     aInnerList->PaintForFrame(aBuilder, aCtx, aEffectsFrame,
                               nsDisplayList::PAINT_DEFAULT);
-    aCtx->Translate(userSpaceRect.TopLeft());
+    aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
   }
 
   if (clipPathFrame && isTrivialClip) {
@@ -513,9 +504,6 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
     nsRefPtr<gfxPattern> pattern =
       server->GetPaintServerPattern(aTarget, 1.0, &overrideBounds);
 
-    if (!pattern)
-      return nsnull;
-
     // pattern is now set up to fill aPaintServerSize. But we want it to
     // fill aRenderSize, so we need to add a scaling transform.
     // We couldn't just have set overrideBounds to aRenderSize - it would have
@@ -539,7 +527,7 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
 }
 
 /* static */ void
-nsSVGIntegrationUtils::DrawPaintServer(nsRenderingContext* aRenderingContext,
+nsSVGIntegrationUtils::DrawPaintServer(nsIRenderingContext* aRenderingContext,
                                        nsIFrame*            aTarget,
                                        nsIFrame*            aPaintServer,
                                        gfxPattern::GraphicsFilter aFilter,
@@ -559,8 +547,6 @@ nsSVGIntegrationUtils::DrawPaintServer(nsRenderingContext* aRenderingContext,
   nsRefPtr<gfxDrawable> drawable =
     DrawableFromPaintServer(aPaintServer, aTarget, aPaintServerSize, imageSize);
 
-  if (drawable) {
-    nsLayoutUtils::DrawPixelSnapped(aRenderingContext, drawable, aFilter,
-                                    aDest, aFill, aAnchor, aDirty);
-  }
+  nsLayoutUtils::DrawPixelSnapped(aRenderingContext, drawable, aFilter,
+                                  aDest, aFill, aAnchor, aDirty);
 }

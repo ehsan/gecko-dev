@@ -1,3 +1,8 @@
+// load our utility script
+var scriptLoader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"]
+                             .getService(Components.interfaces.mozIJSSubScriptLoader);
+scriptLoader.loadSubScript("chrome://mochikit/content/browser/toolkit/crashreporter/test/browser/aboutcrashes_utils.js", this);
+
 function check_clear_visible(tab, aVisible) {
   let doc = gBrowser.getBrowserForTab(tab).contentDocument;
   let visible = false;
@@ -48,19 +53,15 @@ function test() {
 
   let tab = gBrowser.selectedTab = gBrowser.addTab("about:blank");
   let browser = gBrowser.getBrowserForTab(tab);
-  let onLoad = function () {
-    executeSoon(function() {
-      if (run_test_onload(tab)) {
-        // prep and run the next test
-        run_test_setup(crD);
-        executeSoon(function() { browser.loadURI("about:crashes", null, null); });
-      }
-    });
-  };
-  browser.addEventListener("load", onLoad, true);
-  registerCleanupFunction(function () {
-    browser.removeEventListener("load", onLoad, true);
-  });
+  browser.addEventListener("load", function() {
+      executeSoon(function() {
+          if (run_test_onload(tab)) {
+            // prep and run the next test
+            run_test_setup(crD);
+            executeSoon(function() { browser.loadURI("about:crashes", null, null); });
+          }
+        });
+    }, true);
   // kick things off
   run_test_setup(crD);
   browser.loadURI("about:crashes", null, null);

@@ -53,7 +53,6 @@
 #include "nsPageContentFrame.h"
 #include "nsCSSPseudoElements.h"
 #include "RestyleTracker.h"
-#include "nsIAnonymousContentCreator.h"
 
 class nsIDocument;
 struct nsFrameItems;
@@ -73,6 +72,9 @@ class nsICSSAnonBoxPseudo;
 class nsPageContentFrame;
 struct PendingBinding;
 class nsRefreshDriver;
+
+typedef void (nsLazyFrameConstructionCallback)
+             (nsIContent* aContent, nsIFrame* aFrame, void* aArg);
 
 class nsFrameConstructorState;
 class nsFrameConstructorSaveState;
@@ -236,11 +238,22 @@ public:
   nsresult CharacterDataChanged(nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo);
 
-  nsresult ContentStateChanged(nsIContent*   aContent,
-                               nsEventStates aStateMask);
+  nsresult ContentStatesChanged(nsIContent*     aContent1,
+                                nsIContent*     aContent2,
+                                PRInt32         aStateMask);
 
-  // generate the child frames and process bindings
-  nsresult GenerateChildFrames(nsIFrame* aFrame);
+  // Process the children of aContent and indicate that frames should be
+  // created for them. This is used for lazily built content such as that
+  // inside popups so that it is only created when the popup is opened.
+  // If aIsSynch is true, this method constructs the frames synchronously.
+  // aCallback will be called with three arguments, the first is the value
+  // of aContent, the second is aContent's primary frame, and the third is
+  // the value of aArg.
+  // aCallback will always be called even if the children of aContent had
+  // been generated earlier.
+  nsresult AddLazyChildren(nsIContent* aContent,
+                           nsLazyFrameConstructionCallback* aCallback,
+                           void* aArg, PRBool aIsSynch = PR_FALSE);
 
   // Should be called when a frame is going to be destroyed and
   // WillDestroyFrameTree hasn't been called yet.
@@ -415,6 +428,9 @@ private:
                               nsIFrame*&     aPageFrame,
                               nsIFrame*&     aCanvasFrame);
 
+  void DoContentStateChanged(Element* aElement,
+                             PRInt32 aStateMask);
+
   /* aMinHint is the minimal change that should be made to the element */
   // XXXbz do we really need the aPrimaryFrame argument here?
   void RestyleElement(Element* aElement,
@@ -430,16 +446,12 @@ private:
                                 nsIFrame*                      aNewFrame,
                                 PRBool                         aAllowCounters = PR_TRUE);
 
-  // aState can be null if not available; it's used as an optimization.
-  // XXXbz IsValidSibling is the only caller that doesn't pass a state here!
   already_AddRefed<nsStyleContext>
   ResolveStyleContext(nsIFrame*         aParentFrame,
-                      nsIContent*       aContent,
-                      nsFrameConstructorState* aState);
+                      nsIContent*       aContent);
   already_AddRefed<nsStyleContext>
   ResolveStyleContext(nsStyleContext* aParentStyleContext,
-                      nsIContent* aContent,
-                      nsFrameConstructorState* aState);
+                      nsIContent* aContent);
 
   // Construct a frame for aContent and put it in aFrameItems.  This should
   // only be used in cases when it's known that the frame won't need table
@@ -624,7 +636,7 @@ private:
   */
   struct FrameConstructionData;
   typedef const FrameConstructionData*
-    (* FrameConstructionDataGetter)(Element*, nsStyleContext*);
+    (* FrameConstructionDataGetter)(nsIContent*, nsStyleContext*);
 
   /* A constructor function that's used for complicated construction tasks.
      This is expected to create the new frame, initialize it, add whatever
@@ -678,10 +690,12 @@ private:
      frame.  If this is not set, the frame will be pushed as the
      absolute containing block as needed, based on its style */
 #define FCDATA_FORCE_NULL_ABSPOS_CONTAINER 0x10
+#ifdef MOZ_MATHML
   /* If FCDATA_WRAP_KIDS_IN_BLOCKS is set, the inline kids of the frame
      will be wrapped in blocks.  This is only usable for MathML at the
      moment. */
 #define FCDATA_WRAP_KIDS_IN_BLOCKS 0x20
+#endif /* MOZ_MATHML */
   /* If FCDATA_SUPPRESS_FRAME is set, no frame should be created for the
      content.  If this bit is set, nothing else in the struct needs to be
      set. */
@@ -697,35 +711,36 @@ private:
   /* If FCDATA_SKIP_ABSPOS_PUSH is set, don't push this frame as an
      absolute containing block, no matter what its style says. */
 #define FCDATA_SKIP_ABSPOS_PUSH 0x200
+  /* If FCDATA_FORCE_VIEW is set, then force creation of a view for the frame.
+     this is only used if a scrollframe is not created and a full constructor
+     isn't used, so this flag shouldn't be used with
+     FCDATA_MAY_NEED_SCROLLFRAME or FCDATA_FUNC_IS_FULL_CTOR.  */
+#define FCDATA_FORCE_VIEW 0x400
   /* If FCDATA_DISALLOW_GENERATED_CONTENT is set, then don't allow generated
      content when processing kids of this frame.  This should not be used with
      FCDATA_FUNC_IS_FULL_CTOR */
-#define FCDATA_DISALLOW_GENERATED_CONTENT 0x400
+#define FCDATA_DISALLOW_GENERATED_CONTENT 0x800
   /* If FCDATA_IS_TABLE_PART is set, then the frame is some sort of
      table-related thing and we should not attempt to fetch a table-cell parent
      for it if it's inside another table-related frame. */
-#define FCDATA_IS_TABLE_PART 0x800
+#define FCDATA_IS_TABLE_PART 0x1000
   /* If FCDATA_IS_INLINE is set, then the frame is a non-replaced CSS
      inline box. */
-#define FCDATA_IS_INLINE 0x1000
+#define FCDATA_IS_INLINE 0x2000
   /* If FCDATA_IS_LINE_PARTICIPANT is set, the frame is something that will
      return true for IsFrameOfType(nsIFrame::eLineParticipant) */
-#define FCDATA_IS_LINE_PARTICIPANT 0x2000
+#define FCDATA_IS_LINE_PARTICIPANT 0x4000
   /* If FCDATA_IS_LINE_BREAK is set, the frame is something that will
      induce a line break boundary before and after itself. */
-#define FCDATA_IS_LINE_BREAK 0x4000
+#define FCDATA_IS_LINE_BREAK 0x8000
   /* If FCDATA_ALLOW_BLOCK_STYLES is set, allow block styles when processing
      children.  This should not be used with FCDATA_FUNC_IS_FULL_CTOR. */
-#define FCDATA_ALLOW_BLOCK_STYLES 0x8000
+#define FCDATA_ALLOW_BLOCK_STYLES 0x10000
   /* If FCDATA_USE_CHILD_ITEMS is set, then use the mChildItems in the relevant
      FrameConstructionItem instead of trying to process the content's children.
      This can be used with or without FCDATA_FUNC_IS_FULL_CTOR.
      The child items might still need table pseudo processing. */
-#define FCDATA_USE_CHILD_ITEMS 0x10000
-  /* If FCDATA_FORCED_NON_SCROLLABLE_BLOCK is set, then this block
-     would have been scrollable but has been forced to be
-     non-scrollable due to being in a paginated context. */
-#define FCDATA_FORCED_NON_SCROLLABLE_BLOCK 0x20000
+#define FCDATA_USE_CHILD_ITEMS 0x20000
 
   /* Structure representing information about how a frame should be
      constructed.  */
@@ -781,7 +796,7 @@ private:
      match or if the matching integer has a FrameConstructionDataGetter that
      returns null. */
   static const FrameConstructionData*
-    FindDataByInt(PRInt32 aInt, Element* aElement,
+    FindDataByInt(PRInt32 aInt, nsIContent* aContent,
                   nsStyleContext* aStyleContext,
                   const FrameConstructionDataByInt* aDataPtr,
                   PRUint32 aDataLength);
@@ -792,7 +807,7 @@ private:
      match or if the matching tag has a FrameConstructionDataGetter that
      returns null. */
   static const FrameConstructionData*
-    FindDataByTag(nsIAtom* aTag, Element* aElement,
+    FindDataByTag(nsIAtom* aTag, nsIContent* aContent,
                   nsStyleContext* aStyleContext,
                   const FrameConstructionDataByTag* aDataPtr,
                   PRUint32 aDataLength);
@@ -856,9 +871,14 @@ private:
         new FrameConstructionItem(aFCData, aContent, aTag, aNameSpaceID,
                                   aPendingBinding, aStyleContext,
                                   aSuppressWhiteSpaceOptimizations);
-      PR_APPEND_LINK(item, &mItems);
-      ++mItemCount;
-      ++mDesiredParentCounts[item->DesiredParentType()];
+      if (item) {
+        PR_APPEND_LINK(item, &mItems);
+        ++mItemCount;
+        ++mDesiredParentCounts[item->DesiredParentType()];
+      } else {
+        // Clean up the style context
+        nsRefPtr<nsStyleContext> sc(aStyleContext);
+      }
       return item;
     }
 
@@ -1183,24 +1203,24 @@ private:
                         nsStyleContext* aMainStyleContext,
                         FrameConstructionItemList& aItems);
 
-  // Function to find FrameConstructionData for aElement.  Will return
-  // null if aElement is not HTML.
+  // Function to find FrameConstructionData for aContent.  Will return
+  // null if aContent is not HTML.
   // aParentFrame might be null.  If it is, that means it was an
   // inline frame.
-  static const FrameConstructionData* FindHTMLData(Element* aContent,
+  static const FrameConstructionData* FindHTMLData(nsIContent* aContent,
                                                    nsIAtom* aTag,
                                                    PRInt32 aNameSpaceID,
                                                    nsIFrame* aParentFrame,
                                                    nsStyleContext* aStyleContext);
   // HTML data-finding helper functions
   static const FrameConstructionData*
-    FindImgData(Element* aElement, nsStyleContext* aStyleContext);
+    FindImgData(nsIContent* aContent, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
-    FindImgControlData(Element* aElement, nsStyleContext* aStyleContext);
+    FindImgControlData(nsIContent* aContent, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
-    FindInputData(Element* aElement, nsStyleContext* aStyleContext);
+    FindInputData(nsIContent* aContent, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
-    FindObjectData(Element* aElement, nsStyleContext* aStyleContext);
+    FindObjectData(nsIContent* aContent, nsStyleContext* aStyleContext);
 
   /* Construct a frame from the given FrameConstructionItem.  This function
      will handle adding the frame to frame lists, processing children, setting
@@ -1261,9 +1281,10 @@ private:
 
   nsresult GetAnonymousContent(nsIContent* aParent,
                                nsIFrame* aParentFrame,
-                               nsTArray<nsIAnonymousContentCreator::ContentInfo>& aAnonContent);
+                               nsTArray<nsIContent*>& aAnonContent);
 
 //MathML Mod - RBS
+#ifdef MOZ_MATHML
   /**
    * Takes the frames in aBlockItems and wraps them in a new anonymous block
    * frame whose content is aContent and whose parent will be aParentFrame.
@@ -1277,35 +1298,36 @@ private:
 
   // Function to find FrameConstructionData for aContent.  Will return
   // null if aContent is not MathML.
-  static const FrameConstructionData* FindMathMLData(Element* aElement,
+  static const FrameConstructionData* FindMathMLData(nsIContent* aContent,
                                                      nsIAtom* aTag,
                                                      PRInt32 aNameSpaceID,
                                                      nsStyleContext* aStyleContext);
+#endif
 
   // Function to find FrameConstructionData for aContent.  Will return
   // null if aContent is not XUL.
-  static const FrameConstructionData* FindXULTagData(Element* aElement,
+  static const FrameConstructionData* FindXULTagData(nsIContent* aContent,
                                                      nsIAtom* aTag,
                                                      PRInt32 aNameSpaceID,
                                                      nsStyleContext* aStyleContext);
   // XUL data-finding helper functions and structures
 #ifdef MOZ_XUL
   static const FrameConstructionData*
-    FindPopupGroupData(Element* aElement, nsStyleContext* aStyleContext);
+    FindPopupGroupData(nsIContent* aContent, nsStyleContext* aStyleContext);
   // sXULTextBoxData used for both labels and descriptions
   static const FrameConstructionData sXULTextBoxData;
   static const FrameConstructionData*
-    FindXULLabelData(Element* aElement, nsStyleContext* aStyleContext);
+    FindXULLabelData(nsIContent* aContent, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
-    FindXULDescriptionData(Element* aElement, nsStyleContext* aStyleContext);
+    FindXULDescriptionData(nsIContent* aContent, nsStyleContext* aStyleContext);
 #ifdef XP_MACOSX
   static const FrameConstructionData*
-    FindXULMenubarData(Element* aElement, nsStyleContext* aStyleContext);
+    FindXULMenubarData(nsIContent* aContent, nsStyleContext* aStyleContext);
 #endif /* XP_MACOSX */
   static const FrameConstructionData*
-    FindXULListBoxBodyData(Element* aElement, nsStyleContext* aStyleContext);
+    FindXULListBoxBodyData(nsIContent* aContent, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
-    FindXULListItemData(Element* aElement, nsStyleContext* aStyleContext);
+    FindXULListItemData(nsIContent* aContent, nsStyleContext* aStyleContext);
 #endif /* MOZ_XUL */
 
   // Function to find FrameConstructionData for aContent using one of the XUL
@@ -1315,11 +1337,12 @@ private:
   // constructed by tag.
   static const FrameConstructionData*
     FindXULDisplayData(const nsStyleDisplay* aDisplay,
-                       Element* aElement,
+                       nsIContent* aContent,
                        nsStyleContext* aStyleContext);
 
 // SVG - rods
-  static const FrameConstructionData* FindSVGData(Element* aElement,
+#ifdef MOZ_SVG
+  static const FrameConstructionData* FindSVGData(nsIContent* aContent,
                                                   nsIAtom* aTag,
                                                   PRInt32 aNameSpaceID,
                                                   nsIFrame* aParentFrame,
@@ -1331,11 +1354,12 @@ private:
                                           const nsStyleDisplay* aStyleDisplay,
                                           nsFrameItems& aFrameItems,
                                           nsIFrame** aNewFrame);
+#endif
 
   /* Not static because it does PropagateScrollToViewport.  If this
      changes, make this static */
   const FrameConstructionData*
-    FindDisplayData(const nsStyleDisplay* aDisplay, Element* aElement,
+    FindDisplayData(const nsStyleDisplay* aDisplay, nsIContent* aContent,
                     nsStyleContext* aStyleContext);
 
   /**
@@ -1441,8 +1465,6 @@ private:
                             nsIFrame* aScrolledFrame);
 
   // InitializeSelectFrame puts scrollFrame in aFrameItems if aBuildCombobox is false
-  // aBuildCombobox indicates if we are building a combobox that has a dropdown
-  // popup widget or not.
   nsresult
   InitializeSelectFrame(nsFrameConstructorState& aState,
                         nsIFrame*                scrollFrame,
@@ -1786,6 +1808,27 @@ public:
   friend class nsFrameConstructorState;
 
 private:
+
+  class LazyGenerateChildrenEvent;
+  friend class LazyGenerateChildrenEvent;
+
+  // See comments of nsCSSFrameConstructor::AddLazyChildren()
+  class LazyGenerateChildrenEvent : public nsRunnable {
+  public:
+    NS_DECL_NSIRUNNABLE
+    LazyGenerateChildrenEvent(nsIContent *aContent,
+                              nsIPresShell *aPresShell,
+                              nsLazyFrameConstructionCallback* aCallback,
+                              void* aArg)
+      : mContent(aContent), mPresShell(aPresShell), mCallback(aCallback), mArg(aArg)
+    {}
+
+  private:
+    nsCOMPtr<nsIContent> mContent;
+    nsCOMPtr<nsIPresShell> mPresShell;
+    nsLazyFrameConstructionCallback* mCallback;
+    void* mArg;
+  };
 
   nsIDocument*        mDocument;  // Weak ref
   nsIPresShell*       mPresShell; // Weak ref

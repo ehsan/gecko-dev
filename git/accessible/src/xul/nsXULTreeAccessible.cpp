@@ -43,7 +43,6 @@
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
 #include "nsRelUtils.h"
-#include "States.h"
 
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
@@ -58,7 +57,7 @@
 
 nsXULTreeAccessible::
   nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+  nsXULSelectableAccessible(aContent, aShell)
 {
   mTree = nsCoreUtils::GetTreeBoxObject(aContent);
   if (mTree)
@@ -86,39 +85,41 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXULTreeAccessible)
 NS_INTERFACE_MAP_STATIC_AMBIGUOUS(nsXULTreeAccessible)
-NS_INTERFACE_MAP_END_INHERITING(nsAccessible)
+NS_INTERFACE_MAP_END_INHERITING(nsXULSelectableAccessible)
 
-NS_IMPL_ADDREF_INHERITED(nsXULTreeAccessible, nsAccessible)
-NS_IMPL_RELEASE_INHERITED(nsXULTreeAccessible, nsAccessible)
+NS_IMPL_ADDREF_INHERITED(nsXULTreeAccessible, nsXULSelectableAccessible)
+NS_IMPL_RELEASE_INHERITED(nsXULTreeAccessible, nsXULSelectableAccessible)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessible implementation
 
-PRUint64
-nsXULTreeAccessible::NativeState()
+nsresult
+nsXULTreeAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Get focus status from base class.
-  PRUint64 state = nsAccessible::NativeState();
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   // readonly state
-  state |= states::READONLY;
+  *aState |= nsIAccessibleStates::STATE_READONLY;
 
   // remove focusable and focused states since tree items are focusable for AT
-  state &= ~(states::FOCUSABLE | states::FOCUSED);
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSED;
 
   // multiselectable state.
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_TRUE(selection, state);
+  NS_ENSURE_STATE(selection);
 
   PRBool isSingle = PR_FALSE;
-  nsresult rv = selection->GetSingle(&isSingle);
-  NS_ENSURE_SUCCESS(rv, state);
+  rv = selection->GetSingle(&isSingle);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!isSingle)
-    state |= states::MULTISELECTABLE;
+    *aState |= nsIAccessibleStates::STATE_MULTISELECTABLE;
 
-  return state;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -156,10 +157,10 @@ nsXULTreeAccessible::GetValue(nsAString& aValue)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessNode implementation
 
-bool
-nsXULTreeAccessible::IsDefunct() const
+PRBool
+nsXULTreeAccessible::IsDefunct()
 {
-  return nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView;
+  return nsXULSelectableAccessible::IsDefunct() || !mTree || !mTreeView;
 }
 
 void
@@ -174,15 +175,18 @@ nsXULTreeAccessible::Shutdown()
   mTree = nsnull;
   mTreeView = nsnull;
 
-  nsAccessibleWrap::Shutdown();
+  nsXULSelectableAccessible::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessible implementation (put methods here)
 
-PRUint32
-nsXULTreeAccessible::NativeRole()
+nsresult
+nsXULTreeAccessible::GetRoleInternal(PRUint32 *aRole)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // No primary column means we're in a list. In fact, history and mail turn off
   // the primary flag when switching to a flat view.
 
@@ -192,9 +196,11 @@ nsXULTreeAccessible::NativeRole()
   if (cols)
     cols->GetPrimaryColumn(getter_AddRefs(primaryCol));
 
-  return primaryCol ?
+  *aRole = primaryCol ?
     static_cast<PRUint32>(nsIAccessibleRole::ROLE_OUTLINE) :
     static_cast<PRUint32>(nsIAccessibleRole::ROLE_LIST);
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,19 +233,20 @@ nsXULTreeAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessible implementation (DON'T put methods here)
 
-nsAccessible*
-nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                  EWhichChildAtPoint aWhichChild)
+nsresult
+nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                     PRBool aDeepestChild,
+                                     nsIAccessible **aChild)
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
-    return nsnull;
+    return NS_ERROR_FAILURE;
 
   nsPresContext *presContext = frame->PresContext();
   nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
-  NS_ENSURE_TRUE(rootFrame, nsnull);
+  NS_ENSURE_STATE(rootFrame);
 
   nsIntRect rootRect = rootFrame->GetScreenRectExternal();
 
@@ -255,10 +262,11 @@ nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   // If we failed to find tree cell for the given point then it might be
   // tree columns.
   if (row == -1 || !column)
-    return nsAccessibleWrap::ChildAtPoint(aX, aY, aWhichChild);
+    return nsXULSelectableAccessible::
+      GetChildAtPoint(aX, aY, aDeepestChild, aChild);
 
   nsAccessible *child = GetTreeItemAccessible(row);
-  if (aWhichChild == eDeepestChild && child) {
+  if (aDeepestChild && child) {
     // Look for accessible cell for the found item accessible.
     nsRefPtr<nsXULTreeItemAccessibleBase> treeitem = do_QueryObject(child);
 
@@ -267,147 +275,155 @@ nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
       child = cell;
   }
 
-  return child;
+  NS_IF_ADDREF(*aChild = child);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULTreeAccessible: SelectAccessible
+// nsXULTreeAccessible: nsAccessibleSelectable implementation
 
-bool
-nsXULTreeAccessible::IsSelect()
+NS_IMETHODIMP nsXULTreeAccessible::GetSelectedChildren(nsIArray **_retval)
 {
-  return true;
-}
+  // Ask tree selection to get all selected children
+  *_retval = nsnull;
 
-already_AddRefed<nsIArray>
-nsXULTreeAccessible::SelectedItems()
-{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return nsnull;
-
-  nsCOMPtr<nsIMutableArray> selectedItems =
+    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIMutableArray> selectedAccessibles =
     do_CreateInstance(NS_ARRAY_CONTRACTID);
-  if (!selectedItems)
-    return nsnull;
+  NS_ENSURE_STATE(selectedAccessibles);
 
-  PRInt32 rangeCount = 0;
-  selection->GetRangeCount(&rangeCount);
-  for (PRInt32 rangeIdx = 0; rangeIdx < rangeCount; rangeIdx++) {
-    PRInt32 firstIdx = 0, lastIdx = -1;
-    selection->GetRangeAt(rangeIdx, &firstIdx, &lastIdx);
-    for (PRInt32 rowIdx = firstIdx; rowIdx <= lastIdx; rowIdx++) {
-      nsIAccessible* item = GetTreeItemAccessible(rowIdx);
-      if (item)
-        selectedItems->AppendElement(item, PR_FALSE);
+  PRInt32 rowIndex, rowCount;
+  PRBool isSelected;
+  mTreeView->GetRowCount(&rowCount);
+  for (rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    selection->IsSelected(rowIndex, &isSelected);
+    if (isSelected) {
+      nsIAccessible *tempAccessible = GetTreeItemAccessible(rowIndex);
+      NS_ENSURE_STATE(tempAccessible);
+
+      selectedAccessibles->AppendElement(tempAccessible, PR_FALSE);
     }
   }
 
-  nsIMutableArray* items = nsnull;
-  selectedItems.forget(&items);
-  return items;
+  PRUint32 length;
+  selectedAccessibles->GetLength(&length);
+  if (length != 0) {
+    *_retval = selectedAccessibles;
+    NS_IF_ADDREF(*_retval);
+  }
+
+  return NS_OK;
 }
 
-PRUint32
-nsXULTreeAccessible::SelectedItemCount()
+NS_IMETHODIMP nsXULTreeAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
 {
+  *aSelectionCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsITreeSelection> selection;
+  mTreeView->GetSelection(getter_AddRefs(selection));
+  if (selection)
+    selection->GetCount(aSelectionCount);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState)
+{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (selection) {
-    PRInt32 count = 0;
-    selection->GetCount(&count);
-    return count;
+    selection->IsSelected(aIndex, aSelState);
+    if ((!(*aSelState) && eSelection_Add == aMethod) || 
+        ((*aSelState) && eSelection_Remove == aMethod))
+      return selection->ToggleSelect(aIndex);
   }
 
-  return 0;
+  return NS_OK;
 }
 
-bool
-nsXULTreeAccessible::AddItemToSelection(PRUint32 aIndex)
+NS_IMETHODIMP nsXULTreeAccessible::AddChildToSelection(PRInt32 aIndex)
 {
+  PRBool isSelected;
+  return ChangeSelection(aIndex, eSelection_Add, &isSelected);
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::RemoveChildFromSelection(PRInt32 aIndex)
+{
+  PRBool isSelected;
+  return ChangeSelection(aIndex, eSelection_Remove, &isSelected);
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::IsChildSelected(PRInt32 aIndex, PRBool *_retval)
+{
+  return ChangeSelection(aIndex, eSelection_GetState, _retval);
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::ClearSelection()
+{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
-  if (selection) {
-    PRBool isSelected = PR_FALSE;
-    selection->IsSelected(aIndex, &isSelected);
-    if (!isSelected)
-      selection->ToggleSelect(aIndex);
+  if (selection)
+    selection->ClearSelection();
 
-    return true;
-  }
-  return false;
+  return NS_OK;
 }
 
-bool
-nsXULTreeAccessible::RemoveItemFromSelection(PRUint32 aIndex)
+NS_IMETHODIMP
+nsXULTreeAccessible::RefSelection(PRInt32 aIndex, nsIAccessible **aAccessible)
 {
-  nsCOMPtr<nsITreeSelection> selection;
-  mTreeView->GetSelection(getter_AddRefs(selection));
-  if (selection) {
-    PRBool isSelected = PR_FALSE;
-    selection->IsSelected(aIndex, &isSelected);
-    if (isSelected)
-      selection->ToggleSelect(aIndex);
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
 
-    return true;
-  }
-  return false;
-}
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
-bool
-nsXULTreeAccessible::IsItemSelected(PRUint32 aIndex)
-{
-  nsCOMPtr<nsITreeSelection> selection;
-  mTreeView->GetSelection(getter_AddRefs(selection));
-  if (selection) {
-    PRBool isSelected = PR_FALSE;
-    selection->IsSelected(aIndex, &isSelected);
-    return isSelected;
-  }
-  return false;
-}
-
-bool
-nsXULTreeAccessible::UnselectAll()
-{
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return false;
+    return NS_ERROR_FAILURE;
 
-  selection->ClearSelection();
-  return true;
-}
-
-nsAccessible*
-nsXULTreeAccessible::GetSelectedItem(PRUint32 aIndex)
-{
-  nsCOMPtr<nsITreeSelection> selection;
-  mTreeView->GetSelection(getter_AddRefs(selection));
-  if (!selection)
-    return nsnull;
-
-  PRUint32 selCount = 0;
-  PRInt32 rangeCount = 0;
-  selection->GetRangeCount(&rangeCount);
-  for (PRInt32 rangeIdx = 0; rangeIdx < rangeCount; rangeIdx++) {
-    PRInt32 firstIdx = 0, lastIdx = -1;
-    selection->GetRangeAt(rangeIdx, &firstIdx, &lastIdx);
-    for (PRInt32 rowIdx = firstIdx; rowIdx <= lastIdx; rowIdx++) {
-      if (selCount == aIndex)
-        return GetTreeItemAccessible(rowIdx);
-
+  PRInt32 rowIndex, rowCount;
+  PRInt32 selCount = 0;
+  PRBool isSelected;
+  mTreeView->GetRowCount(&rowCount);
+  for (rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    selection->IsSelected(rowIndex, &isSelected);
+    if (isSelected) {
+      if (selCount == aIndex) {
+        NS_IF_ADDREF(*aAccessible = GetTreeItemAccessible(rowIndex));
+        return NS_OK;
+      }
       selCount++;
     }
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
-bool
-nsXULTreeAccessible::SelectAll()
+NS_IMETHODIMP
+nsXULTreeAccessible::SelectAllSelection(PRBool *aIsMultiSelectable)
 {
+  NS_ENSURE_ARG_POINTER(aIsMultiSelectable);
+  *aIsMultiSelectable = PR_FALSE;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // see if we are multiple select if so set ourselves as such
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
@@ -415,12 +431,12 @@ nsXULTreeAccessible::SelectAll()
     PRBool single = PR_FALSE;
     selection->GetSingle(&single);
     if (!single) {
+      *aIsMultiSelectable = PR_TRUE;
       selection->SelectAll();
-      return true;
     }
   }
 
-  return false;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -469,21 +485,23 @@ nsXULTreeAccessible::GetTreeItemAccessible(PRInt32 aRow)
     return nsnull;
 
   void *key = reinterpret_cast<void*>(aRow);
-  nsAccessible* cachedTreeItem = mAccessibleCache.GetWeak(key);
-  if (cachedTreeItem)
-    return cachedTreeItem;
+  nsRefPtr<nsAccessible> accessible = mAccessibleCache.GetWeak(key);
 
-  nsRefPtr<nsAccessible> treeItem = CreateTreeItemAccessible(aRow);
-  if (treeItem) {
-    if (mAccessibleCache.Put(key, treeItem)) {
-      if (GetDocAccessible()->BindToDocument(treeItem, nsnull))
-        return treeItem;
+  if (!accessible) {
+    accessible = CreateTreeItemAccessible(aRow);
+    if (!accessible)
+      return nsnull;
 
-      mAccessibleCache.Remove(key);
+    if (!accessible->Init()) {
+      accessible->Shutdown();
+      return nsnull;
     }
+
+    if (!mAccessibleCache.Put(key, accessible))
+      return nsnull;
   }
 
-  return nsnull;
+  return accessible;
 }
 
 void
@@ -496,21 +514,24 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
   if (aCount > 0)
     return;
 
-  nsDocAccessible* document = GetDocAccessible();
-
   // Fire destroy event for removed tree items and delete them from caches.
   for (PRInt32 rowIdx = aRow; rowIdx < aRow - aCount; rowIdx++) {
 
     void* key = reinterpret_cast<void*>(rowIdx);
-    nsAccessible* treeItem = mAccessibleCache.GetWeak(key);
+    nsAccessible *accessible = mAccessibleCache.GetWeak(key);
 
-    if (treeItem) {
+    if (accessible) {
       nsRefPtr<AccEvent> event =
-        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, treeItem);
+        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible, PR_FALSE);
       nsEventShell::FireEvent(event);
 
-      // Unbind from document, shutdown and remove from tree cache.
-      document->UnbindFromDocument(treeItem);
+      accessible->Shutdown();
+
+      // Remove accessible from document cache and tree cache.
+      nsDocAccessible *docAccessible = GetDocAccessible();
+      if (docAccessible)
+        docAccessible->RemoveAccessNodeFromCache(accessible);
+
       mAccessibleCache.Remove(key);
     }
   }
@@ -528,11 +549,16 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
   for (PRInt32 rowIdx = newRowCount; rowIdx < oldRowCount; ++rowIdx) {
 
     void *key = reinterpret_cast<void*>(rowIdx);
-    nsAccessible* treeItem = mAccessibleCache.GetWeak(key);
+    nsAccessible *accessible = mAccessibleCache.GetWeak(key);
 
-    if (treeItem) {
-      // Unbind from document, shutdown and remove from tree cache.
-      document->UnbindFromDocument(treeItem);
+    if (accessible) {
+      accessible->Shutdown();
+
+      // Remove accessible from document cache and tree cache.
+      nsDocAccessible *docAccessible = GetDocAccessible();
+      if (docAccessible)
+        docAccessible->RemoveAccessNodeFromCache(accessible);
+
       mAccessibleCache.Remove(key);
     }
   }
@@ -593,18 +619,26 @@ nsXULTreeAccessible::TreeViewChanged()
   if (IsDefunct())
     return;
 
-  // Fire reorder event on tree accessible on accessible tree (do not fire
-  // show/hide events on tree items because it can be expensive to fire them for
-  // each tree item.
-  nsRefPtr<AccEvent> reorderEvent =
-    new AccEvent(nsIAccessibleEvent::EVENT_REORDER, this, eAutoDetect,
-                 AccEvent::eCoalesceFromSameSubtree);
-  if (reorderEvent)
-    GetDocAccessible()->FireDelayedAccessibleEvent(reorderEvent);
+  // Fire only notification destroy/create events on accessible tree to lie to
+  // AT because it should be expensive to fire destroy events for each tree item
+  // in cache.
+  nsRefPtr<AccEvent> eventDestroy =
+    new AccEvent(nsIAccessibleEvent::EVENT_HIDE, this, PR_FALSE);
+  if (!eventDestroy)
+    return;
 
-  // Clear cache.
+  FirePlatformEvent(eventDestroy);
+
   ClearCache(mAccessibleCache);
+
   mTree->GetView(getter_AddRefs(mTreeView));
+
+  nsRefPtr<AccEvent> eventCreate =
+    new AccEvent(nsIAccessibleEvent::EVENT_SHOW, this, PR_FALSE);
+  if (!eventCreate)
+    return;
+
+  FirePlatformEvent(eventCreate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -637,26 +671,21 @@ nsXULTreeItemAccessibleBase::
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsISupports implementation
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTreeItemAccessibleBase)
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULTreeItemAccessibleBase,
+                             nsAccessible,
+                             nsXULTreeItemAccessibleBase)
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULTreeItemAccessibleBase,
-                                                  nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTree)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTreeView)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+////////////////////////////////////////////////////////////////////////////////
+// nsXULTreeItemAccessibleBase: nsIAccessNode implementation
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULTreeItemAccessibleBase,
-                                                nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTree)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTreeView)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULTreeItemAccessibleBase)
-  NS_INTERFACE_TABLE_INHERITED1(nsXULTreeItemAccessibleBase,
-                                nsXULTreeItemAccessibleBase)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsAccessible)
-NS_IMPL_ADDREF_INHERITED(nsXULTreeItemAccessibleBase, nsAccessible)
-NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessibleBase, nsAccessible)
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetUniqueID(void **aUniqueID)
+{
+  // Since mContent is same for all tree items and tree itself, use |this|
+  // pointer as the unique ID.
+  *aUniqueID = static_cast<void*>(this);
+  return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsIAccessible implementation
@@ -851,8 +880,8 @@ nsXULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsAccessNode implementation
 
-bool
-nsXULTreeItemAccessibleBase::IsDefunct() const
+PRBool
+nsXULTreeItemAccessibleBase::IsDefunct()
 {
   if (nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0)
     return PR_TRUE;
@@ -870,12 +899,6 @@ nsXULTreeItemAccessibleBase::Shutdown()
   mRow = -1;
 
   nsAccessibleWrap::Shutdown();
-}
-
-bool
-nsXULTreeItemAccessibleBase::IsPrimaryForNode() const
-{
-  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -941,17 +964,33 @@ nsXULTreeItemAccessibleBase::GroupPosition(PRInt32 *aGroupLevel,
   return NS_OK;
 }
 
-PRUint64
-nsXULTreeItemAccessibleBase::NativeState()
+nsresult
+nsXULTreeItemAccessibleBase::GetStateInternal(PRUint32 *aState,
+                                              PRUint32 *aExtraState)
 {
+  NS_ENSURE_ARG_POINTER(aState);
+
+  *aState = 0;
+  if (aExtraState)
+    *aExtraState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
   // focusable and selectable states
-  PRUint64 state = states::FOCUSABLE | states::SELECTABLE;
+  *aState = nsIAccessibleStates::STATE_FOCUSABLE |
+    nsIAccessibleStates::STATE_SELECTABLE;
 
   // expanded/collapsed state
   if (IsExpandable()) {
     PRBool isContainerOpen;
     mTreeView->IsContainerOpen(mRow, &isContainerOpen);
-    state |= isContainerOpen ? states::EXPANDED : states::COLLAPSED;
+    *aState |= isContainerOpen ?
+      static_cast<PRUint32>(nsIAccessibleStates::STATE_EXPANDED) :
+      static_cast<PRUint32>(nsIAccessibleStates::STATE_COLLAPSED);
   }
 
   // selected state
@@ -961,7 +1000,7 @@ nsXULTreeItemAccessibleBase::NativeState()
     PRBool isSelected;
     selection->IsSelected(mRow, &isSelected);
     if (isSelected)
-      state |= states::SELECTED;
+      *aState |= nsIAccessibleStates::STATE_SELECTED;
   }
 
   // focused state
@@ -971,7 +1010,7 @@ nsXULTreeItemAccessibleBase::NativeState()
     PRInt32 currentIndex;
     multiSelect->GetCurrentIndex(&currentIndex);
     if (currentIndex == mRow) {
-      state |= states::FOCUSED;
+      *aState |= nsIAccessibleStates::STATE_FOCUSED;
     }
   }
 
@@ -980,15 +1019,9 @@ nsXULTreeItemAccessibleBase::NativeState()
   mTree->GetFirstVisibleRow(&firstVisibleRow);
   mTree->GetLastVisibleRow(&lastVisibleRow);
   if (mRow < firstVisibleRow || mRow > lastVisibleRow)
-    state |= states::INVISIBLE;
+    *aState |= nsIAccessibleStates::STATE_INVISIBLE;
 
-  return state;
-}
-
-PRInt32
-nsXULTreeItemAccessibleBase::IndexInParent() const
-{
-  return mParent ? mParent->ContentChildCount() + mRow : -1;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1025,12 +1058,19 @@ nsXULTreeItemAccessibleBase::DispatchClickEvent(nsIContent *aContent,
 
 nsAccessible*
 nsXULTreeItemAccessibleBase::GetSiblingAtOffset(PRInt32 aOffset,
-                                                nsresult* aError) const
+                                                nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 
-  return mParent->GetChildAt(IndexInParent() + aOffset);
+  return mParent->GetChildAt(GetIndexInParent() + aOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1060,22 +1100,6 @@ nsXULTreeItemAccessibleBase::IsExpandable()
   return PR_FALSE;
 }
 
-void
-nsXULTreeItemAccessibleBase::GetCellName(nsITreeColumn* aColumn,
-                                         nsAString& aName)
-{
-  mTreeView->GetCellText(mRow, aColumn, aName);
-
-  // If there is still no name try the cell value:
-  // This is for graphical cells. We need tree/table view implementors to
-  // implement FooView::GetCellValue to return a meaningful string for cases
-  // where there is something shown in the cell (non-text) such as a star icon;
-  // in which case GetCellValue for that cell would return "starred" or
-  // "flagged" for example.
-  if (aName.IsEmpty())
-    mTreeView->GetCellValue(mRow, aColumn, aName);
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible
@@ -1091,26 +1115,6 @@ nsXULTreeItemAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULTreeItemAccessible: nsISupports implementation
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTreeItemAccessible)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULTreeItemAccessible,
-                                                  nsXULTreeItemAccessibleBase)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mColumn)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULTreeItemAccessible,
-                                                nsXULTreeItemAccessibleBase)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mColumn)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXULTreeItemAccessible)
-NS_INTERFACE_MAP_END_INHERITING(nsXULTreeItemAccessibleBase)
-NS_IMPL_ADDREF_INHERITED(nsXULTreeItemAccessible, nsXULTreeItemAccessibleBase)
-NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessible, nsXULTreeItemAccessibleBase)
-
-////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsIAccessible implementation
 
 NS_IMETHODIMP
@@ -1121,15 +1125,24 @@ nsXULTreeItemAccessible::GetName(nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  GetCellName(mColumn, aName);
+  mTreeView->GetCellText(mRow, mColumn, aName);
+
+  // If there is still no name try the cell value:
+  // This is for graphical cells. We need tree/table view implementors to implement
+  // FooView::GetCellValue to return a meaningful string for cases where there is
+  // something shown in the cell (non-text) such as a star icon; in which case
+  // GetCellValue for that cell would return "starred" or "flagged" for example.
+  if (aName.IsEmpty())
+    mTreeView->GetCellValue(mRow, mColumn, aName);
+
   return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsAccessNode implementation
 
-bool
-nsXULTreeItemAccessible::IsDefunct() const
+PRBool
+nsXULTreeItemAccessible::IsDefunct()
 {
   return nsXULTreeItemAccessibleBase::IsDefunct() || !mColumn;
 }
@@ -1154,22 +1167,21 @@ nsXULTreeItemAccessible::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsAccessible implementation
 
-PRUint32
-nsXULTreeItemAccessible::NativeRole()
+nsresult
+nsXULTreeItemAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsITreeColumns> columns;
   mTree->GetColumns(getter_AddRefs(columns));
-  if (!columns) {
-    NS_ERROR("No tree columns object in the tree!");
-    return nsIAccessibleRole::ROLE_NOTHING;
-  }
+  NS_ENSURE_STATE(columns);
 
   nsCOMPtr<nsITreeColumn> primaryColumn;
   columns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
 
-  return primaryColumn ?
+  *aRole = primaryColumn ?
     static_cast<PRUint32>(nsIAccessibleRole::ROLE_OUTLINEITEM) :
     static_cast<PRUint32>(nsIAccessibleRole::ROLE_LISTITEM);
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1209,13 +1221,20 @@ nsXULTreeColumnsAccessible::
 
 nsAccessible*
 nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                               nsresult* aError) const
+                                               nsresult* aError)
 {
   if (aOffset < 0)
     return nsXULColumnsAccessible::GetSiblingAtOffset(aOffset, aError);
 
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
-    *aError =  NS_OK; // fail peacefully
+    *aError = NS_OK; // fail peacefully
 
   nsCOMPtr<nsITreeBoxObject> tree = nsCoreUtils::GetTreeBoxObject(mContent);
   if (tree) {
@@ -1225,7 +1244,7 @@ nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
       PRInt32 rowCount = 0;
       treeView->GetRowCount(&rowCount);
       if (rowCount > 0 && aOffset <= rowCount) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(GetParent());
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
 
         if (treeAcc)
           return treeAcc->GetTreeItemAccessible(aOffset - 1);

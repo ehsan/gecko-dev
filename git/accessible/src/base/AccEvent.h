@@ -41,8 +41,6 @@
 #ifndef _AccEvent_H_
 #define _AccEvent_H_
 
-#include "nsIAccessibleEvent.h"
-
 #include "nsAccessible.h"
 
 class nsAccEvent;
@@ -92,10 +90,11 @@ public:
 
   // Initialize with an nsIAccessible
   AccEvent(PRUint32 aEventType, nsAccessible* aAccessible,
+           PRBool aIsAsynch = PR_FALSE,
            EIsFromUserInput aIsFromUserInput = eAutoDetect,
            EEventRule aEventRule = eRemoveDupes);
   // Initialize with an nsIDOMNode
-  AccEvent(PRUint32 aEventType, nsINode* aNode,
+  AccEvent(PRUint32 aEventType, nsINode* aNode, PRBool aIsAsynch = PR_FALSE,
            EIsFromUserInput aIsFromUserInput = eAutoDetect,
            EEventRule aEventRule = eRemoveDupes);
   virtual ~AccEvent() {}
@@ -103,6 +102,7 @@ public:
   // AccEvent
   PRUint32 GetEventType() const { return mEventType; }
   EEventRule GetEventRule() const { return mEventRule; }
+  PRBool IsAsync() const { return mIsAsync; }
   PRBool IsFromUserInput() const { return mIsFromUserInput; }
 
   nsAccessible *GetAccessible();
@@ -119,11 +119,10 @@ public:
    */
   enum EventGroup {
     eGenericEvent,
+    eReorderEvent,
     eStateChangeEvent,
     eTextChangeEvent,
-    eMutationEvent,
     eHideEvent,
-    eShowEvent,
     eCaretMoveEvent,
     eTableChangeEvent
   };
@@ -155,10 +154,44 @@ protected:
   PRBool mIsFromUserInput;
   PRUint32 mEventType;
   EEventRule mEventRule;
+  PRPackedBool mIsAsync;
   nsRefPtr<nsAccessible> mAccessible;
   nsCOMPtr<nsINode> mNode;
 
-  friend class NotificationController;
+  friend class nsAccEventQueue;
+};
+
+
+/**
+ * Accessible reorder event.
+ */
+class AccReorderEvent : public AccEvent
+{
+public:
+  AccReorderEvent(nsAccessible* aAccTarget, PRBool aIsAsynch,
+                  PRBool aIsUnconditional, nsINode* aReasonNode);
+
+  // AccEvent
+  static const EventGroup kEventGroup = eReorderEvent;
+  virtual unsigned int GetEventGroups() const
+  {
+    return AccEvent::GetEventGroups() | (1U << eReorderEvent);
+  }
+
+  // AccReorderEvent
+  /**
+   * Return true if event is unconditional, i.e. must be fired.
+   */
+  PRBool IsUnconditionalEvent();
+
+  /**
+   * Return true if changed DOM node has accessible in its tree.
+   */
+  PRBool HasAccessibleInReasonSubtree();
+
+private:
+  PRBool mUnconditionalEvent;
+  nsCOMPtr<nsINode> mReasonNode;
 };
 
 
@@ -168,13 +201,15 @@ protected:
 class AccStateChangeEvent: public AccEvent
 {
 public:
-  AccStateChangeEvent(nsAccessible* aAccessible, PRUint64 aState,
-                      PRBool aIsEnabled,
+  AccStateChangeEvent(nsAccessible* aAccessible,
+                      PRUint32 aState, PRBool aIsExtraState,
+                      PRBool aIsEnabled, PRBool aIsAsynch = PR_FALSE,
                       EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
-  AccStateChangeEvent(nsINode* aNode, PRUint64 aState, PRBool aIsEnabled);
+  AccStateChangeEvent(nsINode* aNode, PRUint32 aState, PRBool aIsExtraState,
+                      PRBool aIsEnabled);
 
-  AccStateChangeEvent(nsINode* aNode, PRUint64 aState);
+  AccStateChangeEvent(nsINode* aNode, PRUint32 aState, PRBool aIsExtraState);
 
   // AccEvent
   virtual already_AddRefed<nsAccEvent> CreateXPCOMObject();
@@ -186,11 +221,13 @@ public:
   }
 
   // AccStateChangeEvent
-  PRUint64 GetState() const { return mState; }
+  PRUint32 GetState() const { return mState; }
+  PRBool IsExtraState() const { return mIsExtraState; }
   PRBool IsStateEnabled() const { return mIsEnabled; }
 
 private:
-  PRUint64 mState;
+  PRUint32 mState;
+  PRBool mIsExtraState;
   PRBool mIsEnabled;
 };
 
@@ -202,7 +239,8 @@ class AccTextChangeEvent: public AccEvent
 {
 public:
   AccTextChangeEvent(nsAccessible* aAccessible, PRInt32 aStart,
-                     const nsAString& aModifiedText, PRBool aIsInserted,
+                     nsAString& aModifiedText,
+                     PRBool aIsInserted, PRBool aIsAsynch = PR_FALSE,
                      EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
   // AccEvent
@@ -226,75 +264,33 @@ private:
   PRBool mIsInserted;
   nsString mModifiedText;
 
-  friend class NotificationController;
+  friend class nsAccEventQueue;
 };
 
 
 /**
- * Base class for show and hide accessible events.
+ * Accessible hide events.
  */
-class AccMutationEvent: public AccEvent
+class AccHideEvent : public AccEvent
 {
 public:
-  AccMutationEvent(PRUint32 aEventType, nsAccessible* aTarget,
-                   nsINode* aTargetNode);
-
-  // Event
-  static const EventGroup kEventGroup = eMutationEvent;
-  virtual unsigned int GetEventGroups() const
-  {
-    return AccEvent::GetEventGroups() | (1U << eMutationEvent);
-  }
-
-  // MutationEvent
-  bool IsShow() const { return mEventType == nsIAccessibleEvent::EVENT_SHOW; }
-  bool IsHide() const { return mEventType == nsIAccessibleEvent::EVENT_HIDE; }
-
-protected:
-  nsRefPtr<AccTextChangeEvent> mTextChangeEvent;
-
-  friend class NotificationController;
-};
-
-
-/**
- * Accessible hide event.
- */
-class AccHideEvent: public AccMutationEvent
-{
-public:
-  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode);
+  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode,
+               PRBool aIsAsynch, EIsFromUserInput aIsFromUserInput);
 
   // Event
   static const EventGroup kEventGroup = eHideEvent;
   virtual unsigned int GetEventGroups() const
   {
-    return AccMutationEvent::GetEventGroups() | (1U << eHideEvent);
+    return AccEvent::GetEventGroups() | (1U << eHideEvent);
   }
 
 protected:
   nsRefPtr<nsAccessible> mParent;
   nsRefPtr<nsAccessible> mNextSibling;
   nsRefPtr<nsAccessible> mPrevSibling;
+  nsRefPtr<AccTextChangeEvent> mTextChangeEvent;
 
-  friend class NotificationController;
-};
-
-
-/**
- * Accessible show event.
- */
-class AccShowEvent: public AccMutationEvent
-{
-public:
-  AccShowEvent(nsAccessible* aTarget, nsINode* aTargetNode);
-
-  // Event
-  static const EventGroup kEventGroup = eShowEvent;
-  virtual unsigned int GetEventGroups() const
-  {
-    return AccMutationEvent::GetEventGroups() | (1U << eShowEvent);
-  }
+  friend class nsAccEventQueue;
 };
 
 
@@ -331,7 +327,8 @@ class AccTableChangeEvent : public AccEvent
 {
 public:
   AccTableChangeEvent(nsAccessible* aAccessible, PRUint32 aEventType,
-                      PRInt32 aRowOrColIndex, PRInt32 aNumRowsOrCols);
+                      PRInt32 aRowOrColIndex, PRInt32 aNumRowsOrCols,
+                      PRBool aIsAsynch);
 
   // AccEvent
   virtual already_AddRefed<nsAccEvent> CreateXPCOMObject();

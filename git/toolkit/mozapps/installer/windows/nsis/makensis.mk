@@ -57,7 +57,7 @@ CUSTOM_NSIS_PLUGINS = \
 	AccessControl.dll \
 	AppAssocReg.dll \
 	ApplicationID.dll \
-	InvokeShellVerb.dll \
+	nsProcess.dll \
 	ShellLink.dll \
 	UAC.dll \
 	$(NULL)

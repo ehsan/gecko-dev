@@ -51,7 +51,6 @@ class nsISelectionController;
 class nsFrameSelection;
 class nsIEditor;
 class nsITextControlElement;
-struct SelectionState;
 
 /**
  * nsTextEditorState is a class which is responsible for managing the state of
@@ -112,7 +111,7 @@ struct SelectionState;
  *
  *  * The editor's cached value.  This value is stored in the mCachedValue member.
  *    It is used to improve the performance of append operations to the text
- *    control.  A mutation observer stored in the mMutationObserver has the job of
+ *    control.  A mutation observer stored in the mAnonDivObserver has the job of
  *    invalidating this cache when the anonymous contect containing the value is
  *    changed.
  *
@@ -140,8 +139,6 @@ struct SelectionState;
  *     frame is bound to the text editor state object.
  */
 
-class RestoreSelectionState;
-
 class nsTextEditorState {
 public:
   explicit nsTextEditorState(nsITextControlElement* aOwningElement);
@@ -163,14 +160,14 @@ public:
   void EmptyValue() { if (mValue) mValue->Truncate(); }
   PRBool IsEmpty() const { return mValue ? mValue->IsEmpty() : PR_TRUE; }
 
-  nsresult CreatePlaceholderNode();
-
   nsIContent* GetRootNode() {
     if (!mRootNode)
       CreateRootNode();
     return mRootNode;
   }
   nsIContent* GetPlaceholderNode() {
+    if (!mPlaceholderDiv)
+      CreatePlaceholderNode();
     return mPlaceholderDiv;
   }
 
@@ -212,24 +209,19 @@ public:
 
   void ClearValueCache() { mCachedValue.Truncate(); }
 
-  void HideSelectionIfBlurred();
-
 private:
-  friend class RestoreSelectionState;
-
   // not copy constructible
   nsTextEditorState(const nsTextEditorState&);
   // not assignable
   void operator= (const nsTextEditorState&);
 
   nsresult CreateRootNode();
+  nsresult CreatePlaceholderNode();
 
   void ValueWasChanged(PRBool aNotify);
 
   void DestroyEditor();
   void Clear();
-
-  void FinishedRestoringSelection() { mRestoringSelection = nsnull; }
 
   class InitializationGuard {
   public:
@@ -258,8 +250,6 @@ private:
 
   nsITextControlElement* const mTextCtrlElement;
   nsRefPtr<nsTextInputSelectionImpl> mSelCon;
-  nsAutoPtr<SelectionState> mSelState;
-  RestoreSelectionState* mRestoringSelection;
   nsCOMPtr<nsIEditor> mEditor;
   nsCOMPtr<nsIContent> mRootNode;
   nsCOMPtr<nsIContent> mPlaceholderDiv;

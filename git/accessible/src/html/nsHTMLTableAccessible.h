@@ -61,8 +61,8 @@ public:
   NS_DECL_NSIACCESSIBLETABLECELL
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
 protected:
@@ -99,7 +99,7 @@ public:
                                   nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 
@@ -131,23 +131,15 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_TABLEACCESSIBLE_IMPL_CID)
 
   // nsIAccessible
+  NS_IMETHOD GetDescription(nsAString& aDescription);
   NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
                                nsIAccessibleRelation **aRelation);
 
   // nsAccessible
-  virtual void Description(nsString& aDescription);
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-
-  // TableAccessible
-  inline nsAccessible* Caption() const
-  {
-    nsAccessible* child = mChildren.SafeElementAt(0, nsnull);
-    return child && child->Role() == nsIAccessibleRole::ROLE_CAPTION ?
-      child : nsnull;
-  }
 
   // nsHTMLTableAccessible
 
@@ -223,7 +215,7 @@ public:
                                nsIAccessibleRelation **aRelation);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 #endif  

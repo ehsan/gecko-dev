@@ -115,10 +115,6 @@ CSS_PSEUDO_CLASS(mozLWThemeDarkText, ":-moz-lwtheme-darktext")
 // Matches anything when the containing window is inactive
 CSS_PSEUDO_CLASS(mozWindowInactive, ":-moz-window-inactive")
 
-// Matches any table elements that have a nonzero border attribute,
-// according to HTML integer attribute parsing rules.
-CSS_PSEUDO_CLASS(mozTableBorderNonzero, ":-moz-table-border-nonzero")
-
 // :not needs to come at the end of the non-bit pseudo-class list, since
 // it doesn't actually get directly matched on in SelectorMatches.
 CSS_PSEUDO_CLASS(notPseudo, ":not")
@@ -159,9 +155,11 @@ CSS_STATE_PSEUDO_CLASS(mozHandlerBlocked, ":-moz-handler-blocked",
 CSS_STATE_PSEUDO_CLASS(mozHandlerCrashed, ":-moz-handler-crashed",
                        NS_EVENT_STATE_HANDLER_CRASHED)
 
+#ifdef MOZ_MATHML
 CSS_STATE_PSEUDO_CLASS(mozMathIncrementScriptLevel,
                        ":-moz-math-increment-script-level",
                        NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL)
+#endif
 
 // CSS 3 UI
 // http://www.w3.org/TR/2004/CR-css3-ui-20040511/#pseudo-classes
@@ -178,12 +176,6 @@ CSS_STATE_PSEUDO_CLASS(mozReadWrite, ":-moz-read-write",
                        NS_EVENT_STATE_MOZ_READWRITE)
 CSS_STATE_PSEUDO_CLASS(mozPlaceholder, ":-moz-placeholder",
                        NS_EVENT_STATE_MOZ_PLACEHOLDER)
-CSS_STATE_PSEUDO_CLASS(mozSubmitInvalid, ":-moz-submit-invalid",
-                       NS_EVENT_STATE_MOZ_SUBMITINVALID)
-CSS_STATE_PSEUDO_CLASS(mozUIInvalid, ":-moz-ui-invalid",
-                       NS_EVENT_STATE_MOZ_UI_INVALID)
-CSS_STATE_PSEUDO_CLASS(mozUIValid, ":-moz-ui-valid",
-                       NS_EVENT_STATE_MOZ_UI_VALID)
 
 #ifdef DEFINED_CSS_STATE_PSEUDO_CLASS
 #undef DEFINED_CSS_STATE_PSEUDO_CLASS

@@ -63,10 +63,12 @@ LIBRARY_NAME=XUL
 MAKE_FRAMEWORK=1
 endif
 
-VPATH += $(topsrcdir)/build/
-CPPSRCS += $(STDCXX_COMPAT)
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
+CPPSRCS += dlldeps-xul.cpp
+endif
+
+ifeq ($(OS_ARCH),WINCE)
 CPPSRCS += dlldeps-xul.cpp
 endif
 
@@ -74,7 +76,10 @@ ifeq ($(OS_ARCH),OS2)
 CPPSRCS += dlldeps-xul.cpp
 endif
 
+# dependent libraries
 ifneq (,$(MOZ_ENABLE_GTK2))
+SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/embedding/browser/gtk/src/$(LIB_PREFIX)gtkembedmoz.$(LIB_SUFFIX)
 DEFINES += -DMOZ_ENABLE_GTK2
 endif
 
@@ -87,6 +92,33 @@ SHARED_LIBRARY_LIBS += \
 	$(foreach lib,$(STATIC_LIBS),$(DEPTH)/staticlib/$(LIB_PREFIX)$(lib).$(LIB_SUFFIX)) \
 	$(NULL)
 
+ifdef MOZ_JAVAXPCOM
+LOCAL_INCLUDES += \
+		-I$(topsrcdir)/extensions/java/xpcom/src \
+		-I$(JAVA_INCLUDE_PATH) \
+		$(NULL)
+
+ifeq ($(OS_ARCH),WINNT)
+CPPSRCS += dlldeps-javaxpcom.cpp
+LOCAL_INCLUDES += -I$(JAVA_INCLUDE_PATH)/win32
+else
+ifeq ($(OS_ARCH),OS2)
+CPPSRCS += dlldeps-javaxpcom.cpp
+LOCAL_INCLUDES += -I$(JAVA_INCLUDE_PATH)/os2
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+EXTRA_DSO_LDOPTS += -framework JavaVM
+else
+LOCAL_INCLUDES += -I$(JAVA_INCLUDE_PATH)/linux
+endif
+endif
+endif
+
+SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/extensions/java/xpcom/src/$(LIB_PREFIX)javaxpcom.$(LIB_SUFFIX)
+endif #MOZ_JAVAXPCOM
+
+ifdef MOZ_ENABLE_LIBXUL
 include $(srcdir)/libxul-config.mk
 
 EXTRA_DEPS += \
@@ -123,24 +155,22 @@ GARBAGE += \
 	$(RDF_UTIL_SRC_LCPPSRCS) \
 	$(NULL)
 endif
+endif
 
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
 endif
 
-# See bug 653662 - some builders are hitting an internal size limit
-# on incremental builds. Disable this for debug builds for now. We may
-# be able to revisit this after our builders are upgraded to something
-# later than Visual Studio 2005.
-ifeq ($(OS_ARCH),WINNT)
-ifdef MOZ_DEBUG
-EXTRA_DSO_LDOPTS += -INCREMENTAL:NO
-endif
-endif
-
 EXTRA_DSO_LDOPTS += $(LIBS_DIR) $(EXTRA_DSO_LIBS)
+
+ifndef MOZ_ENABLE_LIBXUL
+EXTRA_DSO_LDOPTS += \
+	$(MOZ_COMPONENT_LIBS) \
+	$(MOZ_JS_LIBS) \
+	$(NULL)
+endif
 
 DEFINES += -DIMPL_XREAPI
 
@@ -164,16 +194,7 @@ EXTRA_DSO_LDOPTS += \
 	-framework CoreAudio \
 	-framework AudioToolbox \
 	-framework AudioUnit \
-	-framework IOKit \
-	-framework Foundation \
-	-framework AppKit \
 	$(NULL)
-endif
-endif
-
-ifneq (,$(filter GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
-ifdef MOZ_SYDNEYAUDIO
-EXTRA_DSO_LDOPTS += -lossaudio
 endif
 endif
 
@@ -186,10 +207,7 @@ EXTRA_DSO_LDOPTS += $(LIBCONIC_LIBS)
 endif
 
 ifdef MOZ_ENABLE_DBUS
-EXTRA_DSO_LDOPTS += $(MOZ_DBUS_LIBS)
-ifdef MOZ_PLATFORM_MAEMO
-EXTRA_DSO_LDOPTS += $(MOZ_DBUS_GLIB_LIBS)
-endif
+EXTRA_DSO_LDOPTS += $(MOZ_DBUS_LIBS) $(MOZ_DBUS_GLIB_LIBS)
 endif
 
 ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
@@ -203,9 +221,7 @@ EXTRA_DSO_LDOPTS += $(FT2_LIBS) $(MOZ_PANGO_LIBS)
 endif
 
 ifdef MOZ_TREE_FREETYPE
-ifndef MOZ_TREE_CAIRO
 EXTRA_DSO_LDOPTS += $(FT2_LIBS)
-endif
 endif
 
 ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
@@ -216,23 +232,30 @@ ifdef MOZ_ENABLE_LIBPROXY
 EXTRA_DSO_LDOPTS += $(MOZ_LIBPROXY_LIBS)
 endif
 
-ifeq ($(OS_ARCH),SunOS)
-ifdef GNU_CC
-EXTRA_DSO_LDOPTS += -lelf
-else
-EXTRA_DSO_LDOPTS += -lelf -ldemangle
+ifeq ($(OS_ARCH),BeOS)
+EXTRA_DSO_LDOPTS += -lbe -ltracker
 endif
+
+ifeq ($(OS_ARCH),SunOS)
+EXTRA_DSO_LDOPTS += -lelf -ldemangle
 endif
 
 ifeq ($(OS_ARCH),WINNT)
-OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version winspool comdlg32 imm32 winmm wsock32 msimg32 shlwapi psapi ws2_32 dbghelp)
+OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version winspool comdlg32 imm32 winmm wsock32 msimg32 shlwapi psapi)
 ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 OS_LIBS += $(call EXPAND_LIBNAME,imagehlp)
 endif
-ifdef MOZ_CRASHREPORTER
-OS_LIBS += $(call EXPAND_LIBNAME,wininet)
-endif
 endif # WINNT
+ifeq ($(OS_ARCH),WINCE)
+OS_LIBS += $(call EXPAND_LIBNAME, aygshell uuid ole32 oleaut32 Ws2 ddraw)
+OS_LIBS += $(call EXPAND_LIBNAME, ceosutil libcmt comsuppw)
+ifdef WINCE_WINDOWS_MOBILE
+OS_LIBS += $(call EXPAND_LIBNAME, cellcore)
+endif
+ifdef HAS_OGLES
+OS_LIBS += $(call EXPAND_LIBNAME, libGLESv2 libEGL)
+endif
+endif
 
 ifdef MOZ_JPROF
 EXTRA_DSO_LDOPTS += -ljprof
@@ -247,20 +270,11 @@ include $(topsrcdir)/config/rules.mk
 export:: $(RDF_UTIL_SRC_CPPSRCS) $(INTL_UNICHARUTIL_UTIL_CPPSRCS)
 	$(INSTALL) $^ .
 
+ifdef MOZ_ENABLE_LIBXUL
 include $(srcdir)/libxul-rules.mk
-
-ifeq ($(OS_ARCH),OpenBSD)
-# Needed by nsAuthGSSAPI
-EXTRA_DSO_LDOPTS += -lkrb5 -lcrypto
 endif
 
 ifdef MOZ_JAVAXPCOM
 dlldeps-javaxpcom.cpp: $(topsrcdir)/extensions/java/xpcom/src/dlldeps-javaxpcom.cpp
 	$(INSTALL) $^ .
-endif
-
-ifdef MOZ_DEBUG
-ifdef ENABLE_TESTS
-DEFINES += -DENABLE_LAYOUTDEBUG
-endif
 endif

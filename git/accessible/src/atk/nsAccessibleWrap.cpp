@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -51,7 +52,6 @@
 #include "nsRoleMap.h"
 #include "nsRelUtils.h"
 #include "nsStateMap.h"
-#include "States.h"
 
 #include "nsMaiInterfaceComponent.h"
 #include "nsMaiInterfaceAction.h"
@@ -341,7 +341,9 @@ void nsAccessibleWrap::SetMaiHyperlink(MaiHyperlink* aMaiHyperlink)
         if (!maiHyperlink && !aMaiHyperlink) {
             return; // Never set and we're shutting down
         }
-        delete maiHyperlink;
+        if (maiHyperlink) {
+            delete maiHyperlink;
+        }
         g_object_set_qdata(G_OBJECT(mAtkObject), quark_mai_hyperlink,
                            aMaiHyperlink);
     }
@@ -450,13 +452,20 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
         interfacesBits |= 1 << MAI_INTERFACE_IMAGE;
     }
 
-  // HyperLinkAccessible
-  if (IsLink())
-    interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
+    //nsIAccessibleHyperLink
+    nsCOMPtr<nsIAccessibleHyperLink> accessInterfaceHyperlink;
+    QueryInterface(NS_GET_IID(nsIAccessibleHyperLink),
+                   getter_AddRefs(accessInterfaceHyperlink));
+    if (accessInterfaceHyperlink) {
+       interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
+    }
 
     if (!nsAccUtils::MustPrune(this)) {  // These interfaces require children
       //nsIAccessibleHypertext
-      if (IsHyperText()) {
+      nsCOMPtr<nsIAccessibleHyperText> accessInterfaceHypertext;
+      QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
+                     getter_AddRefs(accessInterfaceHypertext));
+      if (accessInterfaceHypertext) {
           interfacesBits |= 1 << MAI_INTERFACE_HYPERTEXT;
       }
 
@@ -469,7 +478,10 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
       }
       
       //nsIAccessibleSelection
-      if (IsSelect()) {
+      nsCOMPtr<nsIAccessibleSelectable> accessInterfaceSelection;
+      QueryInterface(NS_GET_IID(nsIAccessibleSelectable),
+                     getter_AddRefs(accessInterfaceSelection));
+      if (accessInterfaceSelection) {
           interfacesBits |= 1 << MAI_INTERFACE_SELECTION;
       }
     }
@@ -715,18 +727,20 @@ const gchar *
 getDescriptionCB(AtkObject *aAtkObj)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
-    if (!accWrap || accWrap->IsDefunct())
+    if (!accWrap) {
         return nsnull;
+    }
 
     /* nsIAccessible is responsible for the non-NULL description */
     nsAutoString uniDesc;
-    accWrap->Description(uniDesc);
+    nsresult rv = accWrap->GetDescription(uniDesc);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     NS_ConvertUTF8toUTF16 objDesc(aAtkObj->description);
-    if (!uniDesc.Equals(objDesc))
+    if (!uniDesc.Equals(objDesc)) {
         atk_object_set_description(aAtkObj,
                                    NS_ConvertUTF16toUTF8(uniDesc).get());
-
+    }
     return aAtkObj->description;
 }
 
@@ -744,8 +758,11 @@ getRoleCB(AtkObject *aAtkObj)
 #endif
 
     if (aAtkObj->role == ATK_ROLE_INVALID) {
-        // map to the actual value
-        PRUint32 atkRole = atkRoleMap[accWrap->Role()];
+        PRUint32 accRole, atkRole;
+        nsresult rv = accWrap->GetRole(&accRole);
+        NS_ENSURE_SUCCESS(rv, ATK_ROLE_INVALID);
+
+        atkRole = atkRoleMap[accRole]; // map to the actual value
         NS_ASSERTION(atkRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY] ==
                      kROLE_ATK_LAST_ENTRY, "ATK role map skewed");
         aAtkObj->role = static_cast<AtkRole>(atkRole);
@@ -791,15 +808,17 @@ ConvertToAtkAttributeSet(nsIPersistentProperties* aAttributes)
     return objAttributeSet;
 }
 
-AtkAttributeSet*
-GetAttributeSet(nsAccessible* aAccessible)
+AtkAttributeSet *
+GetAttributeSet(nsIAccessible* aAccessible)
 {
     nsCOMPtr<nsIPersistentProperties> attributes;
     aAccessible->GetAttributes(getter_AddRefs(attributes));
 
     if (attributes) {
         // Deal with attributes that we only need to expose in ATK
-        if (aAccessible->State() & states::HASPOPUP) {
+        PRUint32 state;
+        aAccessible->GetState(&state, nsnull);
+        if (state & nsIAccessibleStates::STATE_HASPOPUP) {
           // There is no ATK state for haspopup, must use object attribute to expose the same info
           nsAutoString oldValueUnused;
           attributes->SetStringProperty(NS_LITERAL_CSTRING("haspopup"), NS_LITERAL_STRING("true"),
@@ -898,23 +917,25 @@ getIndexInParentCB(AtkObject *aAtkObj)
     return parent->GetIndexOfEmbeddedChild(accWrap);
 }
 
-static void
-TranslateStates(PRUint64 aState, AtkStateSet* aStateSet)
+static void TranslateStates(PRUint32 aState, const AtkStateMap *aStateMap,
+                            AtkStateSet *aStateSet)
 {
+  NS_ASSERTION(aStateSet, "Can't pass in null state set");
 
   // Convert every state to an entry in AtkStateMap
   PRUint32 stateIndex = 0;
-  PRUint64 bitMask = 1;
-  while (gAtkStateMap[stateIndex].stateMapEntryType != kNoSuchState) {
-    if (gAtkStateMap[stateIndex].atkState) { // There's potentially an ATK state for this
+  PRUint32 bitMask = 1;
+  while (aStateMap[stateIndex].stateMapEntryType != kNoSuchState) {
+    if (aStateMap[stateIndex].atkState) {    // There's potentially an ATK state for this
       PRBool isStateOn = (aState & bitMask) != 0;
-      if (gAtkStateMap[stateIndex].stateMapEntryType == kMapOpposite) {
+      if (aStateMap[stateIndex].stateMapEntryType == kMapOpposite) {
         isStateOn = !isStateOn;
       }
       if (isStateOn) {
-        atk_state_set_add_state(aStateSet, gAtkStateMap[stateIndex].atkState);
+        atk_state_set_add_state(aStateSet, aStateMap[stateIndex].atkState);
       }
     }
+    // Map extended state
     bitMask <<= 1;
     ++ stateIndex;
   }
@@ -928,12 +949,18 @@ refStateSetCB(AtkObject *aAtkObj)
 
     nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
     if (!accWrap) {
-        TranslateStates(states::DEFUNCT, state_set);
+        TranslateStates(nsIAccessibleStates::EXT_STATE_DEFUNCT,
+                        gAtkStateMapExt, state_set);
         return state_set;
     }
 
     // Map states
-    TranslateStates(accWrap->State(), state_set);
+    PRUint32 accState = 0, accExtState = 0;
+    nsresult rv = accWrap->GetState(&accState, &accExtState);
+    NS_ENSURE_SUCCESS(rv, state_set);
+
+    TranslateStates(accState, gAtkStateMap, state_set);
+    TranslateStates(accExtState, gAtkStateMapExt, state_set);
 
     return state_set;
 }
@@ -1066,26 +1093,18 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     case nsIAccessibleEvent::EVENT_FOCUS:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_FOCUS\n"));
-        nsRootAccessible* rootAccWrap = accWrap->RootAccessible();
+        nsRefPtr<nsRootAccessible> rootAccWrap = accWrap->GetRootAccessible();
         if (rootAccWrap && rootAccWrap->mActivated) {
             atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
             nsRefPtr<AccEvent> stateChangeEvent =
-              new AccStateChangeEvent(accessible, states::FOCUSED, PR_TRUE);
+              new AccStateChangeEvent(accessible,
+                                      nsIAccessibleStates::STATE_FOCUSED,
+                                      PR_FALSE, PR_TRUE);
             return FireAtkStateChangeEvent(stateChangeEvent, atkObj);
         }
       } break;
 
-    case nsIAccessibleEvent::EVENT_NAME_CHANGE:
-      {
-        nsString newName;
-        accessible->GetName(newName);
-        NS_ConvertUTF16toUTF8 utf8Name(newName);
-        if (!utf8Name.Equals(atkObj->name))
-          atk_object_set_name(atkObj, utf8Name.get());
-
-        break;
-      }
     case nsIAccessibleEvent::EVENT_VALUE_CHANGE:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_VALUE_CHANGE\n"));
@@ -1265,27 +1284,6 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         g_signal_emit(atkObj, id, 0);
       } break;
 
-    case nsIAccessibleEvent::EVENT_WINDOW_MAXIMIZE:
-      {
-        MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_MAXIMIZE\n"));
-        guint id = g_signal_lookup ("maximize", MAI_TYPE_ATK_OBJECT);
-        g_signal_emit(atkObj, id, 0);
-      } break;
-
-    case nsIAccessibleEvent::EVENT_WINDOW_MINIMIZE:
-      {
-        MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_MINIMIZE\n"));
-        guint id = g_signal_lookup ("minimize", MAI_TYPE_ATK_OBJECT);
-        g_signal_emit(atkObj, id, 0);
-      } break;
-
-    case nsIAccessibleEvent::EVENT_WINDOW_RESTORE:
-      {
-        MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_RESTORE\n"));
-        guint id = g_signal_lookup ("restore", MAI_TYPE_ATK_OBJECT);
-        g_signal_emit(atkObj, id, 0);
-      } break;
-
     case nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_DOCUMENT_LOAD_COMPLETE\n"));
@@ -1330,22 +1328,26 @@ nsAccessibleWrap::FireAtkStateChangeEvent(AccEvent* aEvent,
     AccStateChangeEvent* event = downcast_accEvent(aEvent);
     NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 
+    PRUint32 state = event->GetState();
+    PRBool isExtra = event->IsExtraState();
     PRBool isEnabled = event->IsStateEnabled();
-    PRInt32 stateIndex = AtkStateMap::GetStateIndexFor(event->GetState());
+
+    PRInt32 stateIndex = AtkStateMap::GetStateIndexFor(state);
     if (stateIndex >= 0) {
-        NS_ASSERTION(gAtkStateMap[stateIndex].stateMapEntryType != kNoSuchState,
+        const AtkStateMap *atkStateMap = isExtra ? gAtkStateMapExt : gAtkStateMap;
+        NS_ASSERTION(atkStateMap[stateIndex].stateMapEntryType != kNoSuchState,
                      "No such state");
 
-        if (gAtkStateMap[stateIndex].atkState != kNone) {
-            NS_ASSERTION(gAtkStateMap[stateIndex].stateMapEntryType != kNoStateChange,
+        if (atkStateMap[stateIndex].atkState != kNone) {
+            NS_ASSERTION(atkStateMap[stateIndex].stateMapEntryType != kNoStateChange,
                          "State changes should not fired for this state");
 
-            if (gAtkStateMap[stateIndex].stateMapEntryType == kMapOpposite)
+            if (atkStateMap[stateIndex].stateMapEntryType == kMapOpposite)
                 isEnabled = !isEnabled;
 
             // Fire state change for first state if there is one to map
             atk_object_notify_state_change(aObject,
-                                           gAtkStateMap[stateIndex].atkState,
+                                           atkStateMap[stateIndex].atkState,
                                            isEnabled);
         }
     }
@@ -1365,27 +1367,14 @@ nsAccessibleWrap::FireAtkTextChangedEvent(AccEvent* aEvent,
     PRInt32 start = event->GetStartOffset();
     PRUint32 length = event->GetLength();
     PRBool isInserted = event->IsTextInserted();
+
     PRBool isFromUserInput = aEvent->IsFromUserInput();
-    char* signal_name = nsnull;
 
-    if (gHaveNewTextSignals) {
-        nsAutoString text;
-        event->GetModifiedText(text);
-        signal_name = g_strconcat(isInserted ? "text-insert" : "text-remove",
-                                  isFromUserInput ? "" : "::system", NULL);
-        g_signal_emit_by_name(aObject, signal_name, start, length,
-                              NS_ConvertUTF16toUTF8(text).get());
-    } else {
-        // XXX remove this code and the gHaveNewTextSignals check when we can
-        // stop supporting old atk since it doesn't really work anyway
-        // see bug 619002
-        signal_name = g_strconcat(isInserted ? "text_changed::insert" :
-                                  "text_changed::delete",
-                                  isFromUserInput ? "" : kNonUserInputEvent, NULL);
-        g_signal_emit_by_name(aObject, signal_name, start, length);
-    }
+    char *signal_name = g_strconcat(isInserted ? "text_changed::insert" : "text_changed::delete",
+                                    isFromUserInput ? "" : kNonUserInputEvent, NULL);
+    g_signal_emit_by_name(aObject, signal_name, start, length);
+    g_free (signal_name);
 
-    g_free(signal_name);
     return NS_OK;
 }
 

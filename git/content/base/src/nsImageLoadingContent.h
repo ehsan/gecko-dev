@@ -96,7 +96,7 @@ protected:
    * be an image (eg an HTML <input> of type other than "image") should just
    * not call this method when computing their intrinsic state.
    */
-  nsEventStates ImageState() const;
+  PRInt32 ImageState() const;
 
   /**
    * LoadImage is called by subclasses when the appropriate
@@ -226,13 +226,6 @@ private:
                            PRInt16 aNewImageStatus);
 
   /**
-   * Method to fire an event once we know what's going on with the image load.
-   *
-   * @param aEventType "load" or "error" depending on how things went
-   */
-  nsresult FireEvent(const nsAString& aEventType);
-protected:
-  /**
    * Method to create an nsIURI object from the given string (will
    * handle getting the right charset, base, etc).  You MUST pass in a
    * non-null document to this function.
@@ -244,6 +237,13 @@ protected:
   nsresult StringToURI(const nsAString& aSpec, nsIDocument* aDocument,
                        nsIURI** aURI);
 
+  /**
+   * Method to fire an event once we know what's going on with the image load.
+   *
+   * @param aEventType "load" or "error" depending on how things went
+   */
+  nsresult FireEvent(const nsAString& aEventType);
+protected:
   void CreateStaticImageClone(nsImageLoadingContent* aDest) const;
 
   /**
@@ -284,8 +284,6 @@ protected:
 
   /**
    * Adds/Removes a given imgIRequest from our document's tracker.
-   *
-   * No-op if aImage is null.
    */
   nsresult TrackImage(imgIRequest* aImage);
   nsresult UntrackImage(imgIRequest* aImage);
@@ -315,7 +313,7 @@ private:
    * When mIsImageStateForced is true, this holds the ImageState that we'll
    * return in ImageState().
    */
-  nsEventStates mForcedImageState;
+  PRInt32 mForcedImageState;
 
   PRInt16 mImageBlockingStatus;
   PRPackedBool mLoadingEnabled : 1;
@@ -338,21 +336,6 @@ private:
    * Whether we're currently blocking document load.
    */
   PRPackedBool mBlockingOnload : 1;
-
-protected:
-  /**
-   * A hack to get animations to reset, see bug 594771. On requests
-   * that originate from setting .src, we mark them for needing their animation
-   * reset when they are ready. mNewRequestsWillNeedAnimationReset is set to
-   * true while preparing such requests (as a hack around needing to change an
-   * interface), and the other two booleans store which of the current
-   * and pending requests are of the sort that need their animation restarted.
-   */
-  PRPackedBool mNewRequestsWillNeedAnimationReset : 1;
-
-private:
-  PRPackedBool mPendingRequestNeedsResetAnimation : 1;
-  PRPackedBool mCurrentRequestNeedsResetAnimation : 1;
 
   /* The number of nested AutoStateChangers currently tracking our state. */
   PRUint8 mStateChangerDepth;

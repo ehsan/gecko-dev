@@ -67,7 +67,7 @@
 #viewButton {
   -moz-appearance: none;
   border: 1px solid #7F7F7F;
-  border-radius: 10px;
+  -moz-border-radius: 10px;
   background: @toolbarbuttonBackground@;
   min-width: 0px;
   min-height: 0px;
@@ -103,7 +103,7 @@ treechildren::-moz-tree-image(title) {
 }
 
 treechildren::-moz-tree-image(title, livemarkItem) {
-  list-style-image: url("chrome://browser/skin/livemark-item.png");
+  list-style-image: url("chrome://browser/skin/places/livemarkItem.png");
 }
 
 treechildren::-moz-tree-image(title, container),

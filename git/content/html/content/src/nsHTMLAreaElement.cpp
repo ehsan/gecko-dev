@@ -41,6 +41,7 @@
 #include "nsILink.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsIEventStateManager.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
@@ -82,7 +83,6 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
-  virtual void RequestLinkStateUpdate();
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -103,7 +103,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   virtual nsXPCClassInfo* GetClassInfo();
 };
@@ -113,8 +113,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
 
 nsHTMLAreaElement::nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    Link(this)
+  : nsGenericHTMLElement(aNodeInfo)
 {
 }
 
@@ -141,12 +140,13 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAreaElement)
 NS_IMPL_ELEMENT_CLONE(nsHTMLAreaElement)
 
 
+NS_IMPL_STRING_ATTR(nsHTMLAreaElement, AccessKey, accesskey)
 NS_IMPL_STRING_ATTR(nsHTMLAreaElement, Alt, alt)
 NS_IMPL_STRING_ATTR(nsHTMLAreaElement, Coords, coords)
 NS_IMPL_URI_ATTR(nsHTMLAreaElement, Href, href)
 NS_IMPL_BOOL_ATTR(nsHTMLAreaElement, NoHref, nohref)
 NS_IMPL_STRING_ATTR(nsHTMLAreaElement, Shape, shape)
-NS_IMPL_INT_ATTR(nsHTMLAreaElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLAreaElement, TabIndex, tabindex, 0)
 
 NS_IMETHODIMP
 nsHTMLAreaElement::GetTarget(nsAString& aValue)
@@ -197,9 +197,16 @@ nsHTMLAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 {
   Link::ResetLinkState(false);
 
-  return nsGenericHTMLElement::BindToTree(aDocument, aParent,
+  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aDocument) {
+    RegAccessKey();
+  }
+
+  return rv;
 }
 
 void
@@ -209,6 +216,10 @@ nsHTMLAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // be under a different xml:base, so forget the cached state now.
   Link::ResetLinkState(false);
 
+  if (IsInDoc()) {
+    UnregAccessKey();
+  }
+
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
@@ -217,6 +228,10 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify)
 {
+  if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None) {
+    UnregAccessKey();
+  }
+
   nsresult rv =
     nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue, aNotify);
 
@@ -229,6 +244,12 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     Link::ResetLinkState(!!aNotify);
   }
 
+  if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None &&
+      !aValue.IsEmpty()) {
+    SetFlags(NODE_HAS_ACCESSKEY);
+    RegAccessKey();
+  }
+
   return rv;
 }
 
@@ -236,6 +257,13 @@ nsresult
 nsHTMLAreaElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::accesskey &&
+      aNameSpaceID == kNameSpaceID_None) {
+    // Have to unregister before clearing flag. See UnregAccessKey
+    UnregAccessKey();
+    UnsetFlags(NODE_HAS_ACCESSKEY);
+  }
+
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
 
@@ -297,19 +325,13 @@ nsHTMLAreaElement::GetLinkState() const
   return Link::GetLinkState();
 }
 
-void
-nsHTMLAreaElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
-}
-
 already_AddRefed<nsIURI>
 nsHTMLAreaElement::GetHrefURI() const
 {
   return GetHrefURIForAnchors();
 }
 
-nsEventStates
+PRInt32
 nsHTMLAreaElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();

@@ -38,9 +38,13 @@
 #include "nscore.h"
 
 #include "nsXPLookAndFeel.h"
+#include "nsIServiceManager.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIObserver.h"
 #include "nsCRT.h"
 #include "nsFont.h"
-#include "mozilla/Preferences.h"
 
 #include "gfxPlatform.h"
 #include "qcms.h"
@@ -49,12 +53,38 @@
 #include "nsSize.h"
 #endif
 
-using namespace mozilla;
-
 NS_IMPL_ISUPPORTS2(nsXPLookAndFeel, nsILookAndFeel, nsIObserver)
 
 nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
 {
+  { "ui.windowTitleHeight", eMetric_WindowTitleHeight, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.windowBorderWidth", eMetric_WindowBorderWidth, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.windowBorderHeight", eMetric_WindowBorderHeight, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.widget3DBorder", eMetric_Widget3DBorder, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textFieldBorder", eMetric_TextFieldBorder, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textFieldHeight", eMetric_TextFieldHeight, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.buttonHorizontalInsidePaddingNavQuirks",
+    eMetric_ButtonHorizontalInsidePaddingNavQuirks, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.buttonHorizontalInsidePaddingOffsetNavQuirks",
+    eMetric_ButtonHorizontalInsidePaddingOffsetNavQuirks, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.checkboxSize", eMetric_CheckboxSize, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.radioboxSize", eMetric_RadioboxSize, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textHorizontalInsideMinimumPadding",
+    eMetric_TextHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textVerticalInsidePadding", eMetric_TextVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textShouldUseVerticalInsidePadding",
+    eMetric_TextShouldUseVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textShouldUseHorizontalInsideMinimumPadding",
+    eMetric_TextShouldUseHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listShouldUseHorizontalInsideMinimumPadding",
+    eMetric_ListShouldUseHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listHorizontalInsideMinimumPadding",
+    eMetric_ListHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listShouldUseVerticalInsidePadding",
+    eMetric_ListShouldUseVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listVerticalInsidePadding", eMetric_ListVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.caretBlinkTime", eMetric_CaretBlinkTime, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.caretWidth", eMetric_CaretWidth, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.caretVisibleWithSelection", eMetric_ShowCaretDuringSelection, PR_FALSE, nsLookAndFeelTypeInt, 0 },
@@ -62,8 +92,7 @@ nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
   { "ui.dragThresholdX", eMetric_DragThresholdX, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.dragThresholdY", eMetric_DragThresholdY, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.useAccessibilityTheme", eMetric_UseAccessibilityTheme, PR_FALSE, nsLookAndFeelTypeInt, 0 },
-  { "ui.scrollbarsCanOverlapContent", eMetric_ScrollbarsCanOverlapContent,
-    PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.isScreenReaderActive", eMetric_IsScreenReaderActive, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.menusCanOverlapOSBar", eMetric_MenusCanOverlapOSBar,
     PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.skipNavigatingDisabledMenuItem", eMetric_SkipNavigatingDisabledMenuItem, PR_FALSE, nsLookAndFeelTypeInt, 0 },
@@ -97,6 +126,22 @@ nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
 
 nsLookAndFeelFloatPref nsXPLookAndFeel::sFloatPrefs[] =
 {
+  { "ui.textFieldVerticalInsidePadding",
+    eMetricFloat_TextFieldVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.textFieldHorizontalInsidePadding",
+    eMetricFloat_TextFieldHorizontalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.textAreaVerticalInsidePadding", eMetricFloat_TextAreaVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.textAreaHorizontalInsidePadding",
+    eMetricFloat_TextAreaHorizontalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.listVerticalInsidePadding",
+    eMetricFloat_ListVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.listHorizontalInsidePadding",
+    eMetricFloat_ListHorizontalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.buttonVerticalInsidePadding", eMetricFloat_ButtonVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.buttonHorizontalInsidePadding", eMetricFloat_ButtonHorizontalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeFloat, 0 },
   { "ui.IMEUnderlineRelativeSize", eMetricFloat_IMEUnderlineRelativeSize,
     PR_FALSE, nsLookAndFeelTypeFloat, 0 },
   { "ui.SpellCheckerUnderlineRelativeSize",
@@ -220,113 +265,124 @@ nsXPLookAndFeel::nsXPLookAndFeel() : nsILookAndFeel()
 void
 nsXPLookAndFeel::IntPrefChanged (nsLookAndFeelIntPref *data)
 {
-  if (!data) {
-    return;
-  }
-
-  PRInt32 intpref;
-  nsresult rv = Preferences::GetInt(data->name, &intpref);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  data->intVar = intpref;
-  data->isSet = PR_TRUE;
+  if (data)
+  {
+    nsCOMPtr<nsIPrefBranch> prefService(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefService)
+    {
+      PRInt32 intpref;
+      nsresult rv = prefService->GetIntPref(data->name, &intpref);
+      if (NS_SUCCEEDED(rv))
+      {
+        data->intVar = intpref;
+        data->isSet = PR_TRUE;
 #ifdef DEBUG_akkana
-  printf("====== Changed int pref %s to %d\n", data->name, data->intVar);
+        printf("====== Changed int pref %s to %d\n", data->name, data->intVar);
 #endif
+      }
+    }
+  }
 }
 
 void
 nsXPLookAndFeel::FloatPrefChanged (nsLookAndFeelFloatPref *data)
 {
-  if (!data) {
-    return;
-  }
-
-  PRInt32 intpref;
-  nsresult rv = Preferences::GetInt(data->name, &intpref);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  data->floatVar = (float)intpref / 100.;
-  data->isSet = PR_TRUE;
+  if (data)
+  {
+    nsCOMPtr<nsIPrefBranch> prefService(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefService)
+    {
+      PRInt32 intpref;
+      nsresult rv = prefService->GetIntPref(data->name, &intpref);
+      if (NS_SUCCEEDED(rv))
+      {
+        data->floatVar = (float)intpref / 100.;
+        data->isSet = PR_TRUE;
 #ifdef DEBUG_akkana
-  printf("====== Changed float pref %s to %f\n", data->name, data->floatVar);
+        printf("====== Changed float pref %s to %f\n", data->name, data->floatVar);
 #endif
+      }
+    }
+  }
 }
 
 void
 nsXPLookAndFeel::ColorPrefChanged (unsigned int index, const char *prefName)
 {
-  nsAutoString colorStr;
-  nsresult rv = Preferences::GetString(prefName, &colorStr);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  if (!colorStr.IsEmpty()) {
-    nscolor thecolor;
-    if (colorStr[0] == PRUnichar('#')) {
-      if (NS_HexToRGB(nsDependentString(
-                        Substring(colorStr, 1, colorStr.Length() - 1)),
-                      &thecolor)) {
+  nsCOMPtr<nsIPrefBranch> prefService(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefService) {
+    nsXPIDLCString colorStr;
+    nsresult rv = prefService->GetCharPref(prefName, getter_Copies(colorStr));
+    if (NS_SUCCEEDED(rv) && !colorStr.IsEmpty()) {
+      nscolor thecolor;
+      if (colorStr[0] == '#') {
+        if (NS_HexToRGB(NS_ConvertASCIItoUTF16(Substring(colorStr, 1, colorStr.Length() - 1)),
+                        &thecolor)) {
+          PRInt32 id = NS_PTR_TO_INT32(index);
+          CACHE_COLOR(id, thecolor);
+        }
+      }
+      else if (NS_ColorNameToRGB(NS_ConvertASCIItoUTF16(colorStr), &thecolor)) {
         PRInt32 id = NS_PTR_TO_INT32(index);
         CACHE_COLOR(id, thecolor);
-      }
-    } else if (NS_ColorNameToRGB(colorStr, &thecolor)) {
-      PRInt32 id = NS_PTR_TO_INT32(index);
-      CACHE_COLOR(id, thecolor);
 #ifdef DEBUG_akkana
-      printf("====== Changed color pref %s to 0x%lx\n",
-             prefName, thecolor);
+        printf("====== Changed color pref %s to 0x%lx\n",
+               prefName, thecolor);
 #endif
+      }
+    } else if (colorStr.IsEmpty()) {
+      // Reset to the default color, by clearing the cache
+      // to force lookup when the color is next used
+      PRInt32 id = NS_PTR_TO_INT32(index);
+      CLEAR_COLOR_CACHE(id);
     }
-  } else {
-    // Reset to the default color, by clearing the cache
-    // to force lookup when the color is next used
-    PRInt32 id = NS_PTR_TO_INT32(index);
-    CLEAR_COLOR_CACHE(id);
   }
 }
 
 void
-nsXPLookAndFeel::InitFromPref(nsLookAndFeelIntPref* aPref)
+nsXPLookAndFeel::InitFromPref(nsLookAndFeelIntPref* aPref, nsIPrefBranch* aPrefBranch)
 {
   PRInt32 intpref;
-  nsresult rv = Preferences::GetInt(aPref->name, &intpref);
-  if (NS_SUCCEEDED(rv)) {
+  nsresult rv = aPrefBranch->GetIntPref(aPref->name, &intpref);
+  if (NS_SUCCEEDED(rv))
+  {
     aPref->isSet = PR_TRUE;
     aPref->intVar = intpref;
   }
 }
 
 void
-nsXPLookAndFeel::InitFromPref(nsLookAndFeelFloatPref* aPref)
+nsXPLookAndFeel::InitFromPref(nsLookAndFeelFloatPref* aPref, nsIPrefBranch* aPrefBranch)
 {
   PRInt32 intpref;
-  nsresult rv = Preferences::GetInt(aPref->name, &intpref);
-  if (NS_SUCCEEDED(rv)) {
+  nsresult rv = aPrefBranch->GetIntPref(aPref->name, &intpref);
+  if (NS_SUCCEEDED(rv))
+  {
     aPref->isSet = PR_TRUE;
     aPref->floatVar = (float)intpref / 100.;
   }
 }
 
 void
-nsXPLookAndFeel::InitColorFromPref(PRInt32 i)
+nsXPLookAndFeel::InitColorFromPref(PRInt32 i, nsIPrefBranch* aPrefBranch)
 {
-  nsAutoString colorStr;
-  nsresult rv = Preferences::GetString(sColorPrefs[i], &colorStr);
-  if (NS_FAILED(rv) || colorStr.IsEmpty()) {
-    return;
-  }
-  nscolor thecolor;
-  if (colorStr[0] == PRUnichar('#')) {
-    nsAutoString hexString;
-    colorStr.Right(hexString, colorStr.Length() - 1);
-    if (NS_HexToRGB(hexString, &thecolor)) {
+  nsXPIDLCString colorStr;
+  nsresult rv = aPrefBranch->GetCharPref(sColorPrefs[i], getter_Copies(colorStr));
+  if (NS_SUCCEEDED(rv) && !colorStr.IsEmpty())
+  {
+    nsAutoString colorNSStr; colorNSStr.AssignWithConversion(colorStr);
+    nscolor thecolor;
+    if (colorNSStr[0] == '#') {
+      nsAutoString hexString;
+      colorNSStr.Right(hexString, colorNSStr.Length() - 1);
+      if (NS_HexToRGB(hexString, &thecolor)) {
+        CACHE_COLOR(i, thecolor);
+      }
+    }
+    else if (NS_ColorNameToRGB(colorNSStr, &thecolor))
+    {
       CACHE_COLOR(i, thecolor);
     }
-  } else if (NS_ColorNameToRGB(colorStr, &thecolor)) {
-    CACHE_COLOR(i, thecolor);
   }
 }
 
@@ -376,24 +432,31 @@ nsXPLookAndFeel::Init()
   // protects against some other process writing to our static variables.
   sInitialized = PR_TRUE;
 
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (!prefs)
+    return;
+  nsCOMPtr<nsIPrefBranch2> prefBranchInternal(do_QueryInterface(prefs));
+  if (!prefBranchInternal)
+    return;
+
   unsigned int i;
   for (i = 0; i < NS_ARRAY_LENGTH(sIntPrefs); ++i) {
-    InitFromPref(&sIntPrefs[i]);
-    Preferences::AddStrongObserver(this, sIntPrefs[i].name);
+    InitFromPref(&sIntPrefs[i], prefs);
+    prefBranchInternal->AddObserver(sIntPrefs[i].name, this, PR_FALSE);
   }
 
   for (i = 0; i < NS_ARRAY_LENGTH(sFloatPrefs); ++i) {
-    InitFromPref(&sFloatPrefs[i]);
-    Preferences::AddStrongObserver(this, sFloatPrefs[i].name);
+    InitFromPref(&sFloatPrefs[i], prefs);
+    prefBranchInternal->AddObserver(sFloatPrefs[i].name, this, PR_FALSE);
   }
 
   for (i = 0; i < NS_ARRAY_LENGTH(sColorPrefs); ++i) {
-    InitColorFromPref(i);
-    Preferences::AddStrongObserver(this, sColorPrefs[i]);
+    InitColorFromPref(i, prefs);
+    prefBranchInternal->AddObserver(sColorPrefs[i], this, PR_FALSE);
   }
 
   PRBool val;
-  if (NS_SUCCEEDED(Preferences::GetBool("ui.use_native_colors", &val))) {
+  if (NS_SUCCEEDED(prefs->GetBoolPref("ui.use_native_colors", &val))) {
     sUseNativeColors = val;
   }
 }
@@ -605,12 +668,12 @@ nsXPLookAndFeel::GetMetric(const nsMetricID aID, PRInt32& aMetric)
     break;
   }
 
-  for (unsigned int i = 0; i < NS_ARRAY_LENGTH(sIntPrefs); ++i) {
-    if (sIntPrefs[i].isSet && (sIntPrefs[i].id == aID)) {
+  for (unsigned int i = 0; i < ((sizeof (sIntPrefs) / sizeof (*sIntPrefs))); ++i)
+    if (sIntPrefs[i].isSet && (sIntPrefs[i].id == aID))
+    {
       aMetric = sIntPrefs[i].intVar;
       return NS_OK;
     }
-  }
 
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -621,12 +684,12 @@ nsXPLookAndFeel::GetMetric(const nsMetricFloatID aID, float& aMetric)
   if (!sInitialized)
     Init();
 
-  for (unsigned int i = 0; i < NS_ARRAY_LENGTH(sFloatPrefs); ++i) {
-    if (sFloatPrefs[i].isSet && sFloatPrefs[i].id == aID) {
+  for (unsigned int i = 0; i < ((sizeof (sFloatPrefs) / sizeof (*sFloatPrefs))); ++i)
+    if (sFloatPrefs[i].isSet && sFloatPrefs[i].id == aID)
+    {
       aMetric = sFloatPrefs[i].floatVar;
       return NS_OK;
     }
-  }
 
   return NS_ERROR_NOT_AVAILABLE;
 }

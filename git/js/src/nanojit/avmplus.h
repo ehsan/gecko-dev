@@ -83,7 +83,7 @@
 #define __inline__ inline
 #endif
 
-#if defined(DEBUG)
+#if defined(DEBUG) || defined(NJ_NO_VARIADIC_MACROS)
 #if !defined _DEBUG
 #define _DEBUG
 #endif
@@ -147,7 +147,7 @@ static inline unsigned __int64 rdtsc(void)
     return __rdtsc();
 }
 
-#elif defined(__GNUC__) && defined(__powerpc__)
+#elif defined(__powerpc__)
 
 # define AVMPLUS_HAS_RDTSC 1
 
@@ -179,6 +179,8 @@ static __inline__ unsigned long long rdtsc(void)
 # define AVMPLUS_HAS_RDTSC 0
 #endif
 
+struct JSContext;
+
 #ifdef PERFM
 # define PERFM_NVPROF(n,v) _nvprof(n,v)
 # define PERFM_NTPROF(n) _ntprof(n)
@@ -191,8 +193,155 @@ static __inline__ unsigned long long rdtsc(void)
 
 namespace avmplus {
 
+    typedef int FunctionID;
+
     extern void AvmLog(char const *msg, ...);
 
+    static const int kstrconst_emptyString = 0;
+
+    class AvmInterpreter
+    {
+        class Labels {
+        public:
+            const char* format(const void* ip)
+            {
+                static char buf[33];
+                sprintf(buf, "%p", ip);
+                return buf;
+            }
+        };
+
+        Labels _labels;
+    public:
+        Labels* labels;
+
+        AvmInterpreter()
+        {
+            labels = &_labels;
+        }
+
+    };
+
+    class AvmConsole
+    {
+    public:
+        AvmConsole& operator<<(const char* s)
+        {
+            fprintf(stdout, "%s", s);
+            return *this;
+        }
+    };
+
+    class AvmCore
+    {
+    public:
+        AvmInterpreter interp;
+        AvmConsole console;
+
+        static nanojit::Config config;
+
+#ifdef AVMPLUS_IA32
+        static inline bool
+        use_sse2()
+        {
+            return config.i386_sse2;
+        }
+#endif
+
+        static inline bool
+        use_cmov()
+        {
+#ifdef AVMPLUS_IA32
+            return config.i386_use_cmov;
+#else
+        return true;
+#endif
+        }
+    };
+
+    /**
+     * Bit vectors are an efficent method of keeping True/False information
+     * on a set of items or conditions. Class BitSet provides functions
+     * to manipulate individual bits in the vector.
+     *
+     * This object is not optimized for a fixed sized bit vector
+     * it instead allows for dynamically growing the bit vector.
+     */
+    class BitSet
+    {
+        public:
+            enum {  kUnit = 8*sizeof(long),
+                    kDefaultCapacity = 4   };
+
+            BitSet()
+            {
+                capacity = kDefaultCapacity;
+                ar = (long*)calloc(capacity, sizeof(long));
+                reset();
+            }
+
+            ~BitSet()
+            {
+                free(ar);
+            }
+
+            void reset()
+            {
+                for (int i = 0; i < capacity; i++)
+                    ar[i] = 0;
+            }
+
+            void set(int bitNbr)
+            {
+                int index = bitNbr / kUnit;
+                int bit = bitNbr % kUnit;
+                if (index >= capacity)
+                    grow(index+1);
+
+                ar[index] |= (1<<bit);
+            }
+
+            void clear(int bitNbr)
+            {
+                int index = bitNbr / kUnit;
+                int bit = bitNbr % kUnit;
+                if (index < capacity)
+                    ar[index] &= ~(1<<bit);
+            }
+
+            bool get(int bitNbr) const
+            {
+                int index = bitNbr / kUnit;
+                int bit = bitNbr % kUnit;
+                bool value = false;
+                if (index < capacity)
+                    value = ( ar[index] & (1<<bit) ) ? true : false;
+                return value;
+            }
+
+        private:
+            // Grow the array until at least newCapacity big
+            void grow(int newCapacity)
+            {
+                // create vector that is 2x bigger than requested
+                newCapacity *= 2;
+                //MEMTAG("BitVector::Grow - long[]");
+                long* newAr = (long*)calloc(newCapacity, sizeof(long));
+
+                // copy the old one
+                for (int i = 0; i < capacity; i++)
+                    newAr[i] = ar[i];
+
+                // in with the new out with the old
+                free(ar);
+
+                ar = newAr;
+                capacity = newCapacity;
+            }
+
+            int capacity;
+            long* ar;
+    };
 }
 
 #endif

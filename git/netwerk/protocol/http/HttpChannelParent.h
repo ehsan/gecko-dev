@@ -46,7 +46,6 @@
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/net/PHttpChannelParent.h"
 #include "mozilla/net/NeckoCommon.h"
-#include "nsIParentRedirectingChannel.h"
 #include "nsIProgressEventSink.h"
 #include "nsITabParent.h"
 
@@ -60,19 +59,24 @@ namespace net {
 class HttpChannelParentListener;
 
 class HttpChannelParent : public PHttpChannelParent
-                        , public nsIParentRedirectingChannel
                         , public nsIProgressEventSink
-                        , public nsIInterfaceRequestor
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSISTREAMLISTENER
-  NS_DECL_NSIPARENTCHANNEL
-  NS_DECL_NSIPARENTREDIRECTINGCHANNEL
   NS_DECL_NSIPROGRESSEVENTSINK
-  NS_DECL_NSIINTERFACEREQUESTOR
 
+  // Make these non-virtual for a little performance benefit
+  nsresult OnStartRequest(nsIRequest *aRequest, 
+                          nsISupports *aContext);
+  nsresult OnStopRequest(nsIRequest *aRequest, 
+                         nsISupports *aContext, 
+                         nsresult aStatusCode);
+  nsresult OnDataAvailable(nsIRequest *aRequest, 
+                           nsISupports *aContext, 
+                           nsIInputStream *aInputStream, 
+                           PRUint32 aOffset, 
+                           PRUint32 aCount);
+  
   HttpChannelParent(PBrowserParent* iframeEmbedding);
   virtual ~HttpChannelParent();
 
@@ -84,32 +88,28 @@ protected:
                              const PRUint32&            loadFlags,
                              const RequestHeaderTuples& requestHeaders,
                              const nsHttpAtom&          requestMethod,
-                             const IPC::InputStream&    uploadStream,
-                             const PRBool&              uploadStreamHasHeaders,
+                             const nsCString&           uploadStreamData,
+                             const PRInt32&             uploadStreamInfo,
                              const PRUint16&            priority,
                              const PRUint8&             redirectionLimit,
                              const PRBool&              allowPipelining,
                              const PRBool&              forceAllowThirdPartyCookie,
                              const bool&                doResumeAt,
                              const PRUint64&            startPos,
-                             const nsCString&           entityID,
-                             const bool&                chooseApplicationCache,
-                             const nsCString&           appCacheClientID);
+                             const nsCString&           entityID);
 
-  virtual bool RecvConnectChannel(const PRUint32& channelId);
   virtual bool RecvSetPriority(const PRUint16& priority);
   virtual bool RecvSetCacheTokenCachedCharset(const nsCString& charset);
   virtual bool RecvSuspend();
   virtual bool RecvResume();
   virtual bool RecvCancel(const nsresult& status);
-  virtual bool RecvRedirect2Verify(const nsresult& result,
+  virtual bool RecvRedirect2Result(const nsresult& result,
                                    const RequestHeaderTuples& changedHeaders);
   virtual bool RecvUpdateAssociatedContentSecurity(const PRInt32& high,
                                                    const PRInt32& low,
                                                    const PRInt32& broken,
                                                    const PRInt32& no);
   virtual bool RecvDocumentChannelCleanup();
-  virtual bool RecvMarkOfflineCacheEntryAsForeign();
 
   virtual void ActorDestroy(ActorDestroyReason why);
 
@@ -119,17 +119,9 @@ protected:
 
 private:
   nsCOMPtr<nsIChannel> mChannel;
+  nsRefPtr<HttpChannelParentListener> mChannelListener;
   nsCOMPtr<nsICacheEntryDescriptor> mCacheDescriptor;
   bool mIPCClosed;                // PHttpChannel actor has been Closed()
-
-  nsCOMPtr<nsIChannel> mRedirectChannel;
-  nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
-
-  // state for combining OnStatus/OnProgress with OnDataAvailable
-  // into one IPDL call to child.
-  nsresult mStoredStatus;
-  PRUint64 mStoredProgress;
-  PRUint64 mStoredProgressMax;
 };
 
 } // namespace net

@@ -64,18 +64,47 @@ DocumentRendererChild::DocumentRendererChild()
 DocumentRendererChild::~DocumentRendererChild()
 {}
 
-bool
-DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
-                                      const nsRect& documentRect,
-                                      const gfxMatrix& transform,
-                                      const nsString& bgcolor,
-                                      PRUint32 renderFlags,
-                                      PRBool flushLayout, 
-                                      const nsIntSize& renderSize,
-                                      nsCString& data)
+static void
+FlushLayoutForTree(nsIDOMWindow* aWindow)
 {
-    if (flushLayout)
-        nsContentUtils::FlushLayoutForTree(window);
+    nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
+    if (!piWin)
+        return;
+
+    // Note that because FlushPendingNotifications flushes parents, this
+    // is O(N^2) in docshell tree depth.  However, the docshell tree is
+    // usually pretty shallow.
+
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    aWindow->GetDocument(getter_AddRefs(domDoc));
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+    if (doc) {
+        doc->FlushPendingNotifications(Flush_Layout);
+    }
+
+    nsCOMPtr<nsIDocShellTreeNode> node =
+        do_QueryInterface(piWin->GetDocShell());
+    if (node) {
+        PRInt32 i = 0, i_end;
+        node->GetChildCount(&i_end);
+        for (; i < i_end; ++i) {
+            nsCOMPtr<nsIDocShellTreeItem> item;
+            node->GetChildAt(i, getter_AddRefs(item));
+            nsCOMPtr<nsIDOMWindow> win = do_GetInterface(item);
+            if (win) {
+                FlushLayoutForTree(win);
+            }
+        }
+    }
+}
+
+bool
+DocumentRendererChild::RenderDocument(nsIDOMWindow *window, const PRInt32& x, const PRInt32& y, const PRInt32& w, const PRInt32& h,
+                                      const nsString& aBGColor, const PRUint32& flags, const PRBool& flush, 
+                                      PRUint32& _width, PRUint32& _height, nsCString& data)
+{
+    if (flush)
+        FlushLayoutForTree(window);
 
     nsCOMPtr<nsPresContext> presContext;
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(window);
@@ -90,24 +119,26 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
 
     nscolor bgColor;
     nsCSSParser parser;
-    nsresult rv = parser.ParseColorString(bgcolor, nsnull, 0, &bgColor);
+    nsresult rv = parser.ParseColorString(PromiseFlatString(aBGColor),
+                                          nsnull, 0, &bgColor);
     if (NS_FAILED(rv))
         return false;
 
     nsIPresShell* presShell = presContext->PresShell();
 
+    nsRect r(x, y, w, h);
+
+    _width = nsPresContext::AppUnitsToIntCSSPixels(w);
+    _height = nsPresContext::AppUnitsToIntCSSPixels(h);
+
     // Draw directly into the output array.
-    data.SetLength(renderSize.width * renderSize.height * 4);
-
-    nsRefPtr<gfxImageSurface> surf =
-        new gfxImageSurface(reinterpret_cast<uint8*>(data.BeginWriting()),
-                            gfxIntSize(renderSize.width, renderSize.height),
-                            4 * renderSize.width,
-                            gfxASurface::ImageFormatARGB32);
+    data.SetLength(_width * _height * 4);
+    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(reinterpret_cast<PRUint8*>(const_cast<char*>(data.get())),
+                                                         gfxIntSize(_width, _height),
+                                                         4 * _width, gfxASurface::ImageFormatARGB32);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-    ctx->SetMatrix(transform);
 
-    presShell->RenderDocument(documentRect, renderFlags, bgColor, ctx);
+    presShell->RenderDocument(r, flags, bgColor, ctx);
 
     return true;
 }

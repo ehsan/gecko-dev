@@ -64,21 +64,6 @@
 #include "nsIStandaloneNativeMenu.h"
 #include "nsILocalFileMac.h"
 #include "nsString.h"
-#include "nsCommandLineServiceMac.h"
-
-class AutoAutoreleasePool {
-public:
-  AutoAutoreleasePool()
-  {
-    mLocalPool = [[NSAutoreleasePool alloc] init];
-  }
-  ~AutoAutoreleasePool()
-  {
-    [mLocalPool release];
-  }
-private:
-  NSAutoreleasePool *mLocalPool;
-};
 
 @interface MacApplicationDelegate : NSObject
 {
@@ -86,11 +71,7 @@ private:
 
 @end
 
-static PRBool sProcessedGetURLEvent = PR_FALSE;
-
-@class GeckoNSApplication;
-
-// Methods that can be called from non-Objective-C code.
+// Something to call from non-objective code.
 
 // This is needed, on relaunch, to force the OS to use the "Cocoa Dock API"
 // instead of the "Carbon Dock API".  For more info see bmo bug 377166.
@@ -99,7 +80,7 @@ EnsureUseCocoaDockAPI()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [GeckoNSApplication sharedApplication];
+  [NSApplication sharedApplication];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -111,10 +92,7 @@ SetupMacApplicationDelegate()
 
   // this is called during startup, outside an event loop, and therefore
   // needs an autorelease pool to avoid cocoa object leakage (bug 559075)
-  AutoAutoreleasePool pool;
-
-  // Ensure that ProcessPendingGetURLAppleEvents() doesn't regress bug 377166.
-  [GeckoNSApplication sharedApplication];
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
   // This call makes it so that application:openFile: doesn't get bogus calls
   // from Cocoa doing its own parsing of the argument string. And yes, we need
@@ -126,31 +104,9 @@ SetupMacApplicationDelegate()
   MacApplicationDelegate *delegate = [[MacApplicationDelegate alloc] init];
   [NSApp setDelegate:delegate];
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
+  [pool release];
 
-// Indirectly make the OS process any pending GetURL Apple events.  This is
-// done via _DPSNextEvent() (an undocumented AppKit function called from
-// [NSApplication nextEventMatchingMask:untilDate:inMode:dequeue:]).  Apple
-// events are only processed if 'dequeue' is 'YES' -- so we need to call
-// [NSApplication sendEvent:] on any event that gets returned.  'event' will
-// never itself be an Apple event, and it may be 'nil' even when Apple events
-// are processed.
-void
-ProcessPendingGetURLAppleEvents()
-{
-  AutoAutoreleasePool pool;
-  PRBool keepSpinning = PR_TRUE;
-  while (keepSpinning) {
-    sProcessedGetURLEvent = PR_FALSE;
-    NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask
-                                        untilDate:nil
-                                           inMode:NSDefaultRunLoopMode
-                                          dequeue:YES];
-    if (event)
-      [NSApp sendEvent:event];
-    keepSpinning = sProcessedGetURLEvent;
-  }
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 @implementation MacApplicationDelegate
@@ -172,11 +128,6 @@ ProcessPendingGetURLAppleEvents()
              forEventClass:'WWW!'
                 andEventID:'OURL'];
 
-    [aeMgr setEventHandler:self
-               andSelector:@selector(handleAppleEvent:withReplyEvent:)
-             forEventClass:kCoreEventClass
-                andEventID:kAEOpenDocuments];
-
     if (![NSApp windowsMenu]) {
       // If the application has a windows menu, it will keep it up to date and
       // prepend the window list to the Dock menu automatically.
@@ -197,7 +148,6 @@ ProcessPendingGetURLAppleEvents()
   NSAppleEventManager *aeMgr = [NSAppleEventManager sharedAppleEventManager];
   [aeMgr removeEventHandlerForEventClass:kInternetEventClass andEventID:kAEGetURL];
   [aeMgr removeEventHandlerForEventClass:'WWW!' andEventID:'OURL'];
-  [aeMgr removeEventHandlerForEventClass:kCoreEventClass andEventID:kAEOpenDocuments];
   [super dealloc];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -225,20 +175,10 @@ ProcessPendingGetURLAppleEvents()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  NSURL *url = [NSURL fileURLWithPath:filename];
-  if (!url)
-    return NO;
-
-  NSString *urlString = [url absoluteString];
-  if (!urlString)
-    return NO;
-
-  // Add the URL to any command line we're currently setting up.
-  if (CommandLineServiceMac::AddURLToCurrentCommandLine([urlString UTF8String]))
-    return YES;
+  NSString *escapedPath = [filename stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
 
   nsCOMPtr<nsILocalFileMac> inFile;
-  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)url, PR_TRUE, getter_AddRefs(inFile));
+  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)[NSURL URLWithString:escapedPath], PR_TRUE, getter_AddRefs(inFile));
   if (NS_FAILED(rv))
     return NO;
 
@@ -367,14 +307,7 @@ ProcessPendingGetURLAppleEvents()
   if (!event)
     return;
 
-  AutoAutoreleasePool pool;
-
-  PRBool isGetURLEvent =
-    ([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL);
-  if (isGetURLEvent)
-    sProcessedGetURLEvent = PR_TRUE;
-
-  if (isGetURLEvent ||
+  if (([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL) ||
       ([event eventClass] == 'WWW!' && [event eventID] == 'OURL')) {
     NSString* urlString = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
 
@@ -386,10 +319,6 @@ ProcessPendingGetURLAppleEvents()
                         range:NSMakeRange(0, [schemeString length])] == NSOrderedSame) {
       return;
     }
-
-    // Add the URL to any command line we're currently setting up.
-    if (CommandLineServiceMac::AddURLToCurrentCommandLine([urlString UTF8String]))
-      return;
 
     nsCOMPtr<nsICommandLineRunner> cmdLine(do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
     if (!cmdLine) {
@@ -405,26 +334,6 @@ ProcessPendingGetURLAppleEvents()
     if (NS_FAILED(rv))
       return;
     rv = cmdLine->Run();
-  }
-  else if ([event eventClass] == kCoreEventClass && [event eventID] == kAEOpenDocuments) {
-    NSAppleEventDescriptor* fileListDescriptor = [event paramDescriptorForKeyword:keyDirectObject];
-    if (!fileListDescriptor)
-      return;
-
-    // Descriptor list indexing is one-based...
-    NSInteger numberOfFiles = [fileListDescriptor numberOfItems];
-    for (NSInteger i = 1; i <= numberOfFiles; i++) {
-      NSString* urlString = [[fileListDescriptor descriptorAtIndex:i] stringValue];
-      if (!urlString)
-        continue;
-
-      // We need a path, not a URL
-      NSURL* url = [NSURL URLWithString:urlString];
-      if (!url)
-        continue;
-
-      [self application:NSApp openFile:[url path]];
-    }
   }
 }
 

@@ -42,8 +42,8 @@ function test() {
   // make sure we do save form data
   gPrefService.setIntPref("browser.sessionstore.privacy_level", 0);
   
-  let rootDir = getRootDirectory(gTestPath);
-  let testURL = rootDir + "browser_456342_sample.xhtml";
+  let testURL = "chrome://mochikit/content/browser/" +
+    "browser/components/sessionstore/test/browser/browser_456342_sample.xhtml";
   let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
@@ -57,6 +57,8 @@ function test() {
 
     gBrowser.removeTab(tab);
     
+    let ss = Cc["@mozilla.org/browser/sessionstore;1"]
+               .getService(Ci.nsISessionStore);
     let undoItems = JSON.parse(ss.getClosedTabData(window));
     let savedFormData = undoItems[0].state.entries[0].formdata;
     

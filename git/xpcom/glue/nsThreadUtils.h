@@ -47,7 +47,6 @@
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/threads/nsThreadIDs.h"
 
 // This is needed on some systems to prevent collisions between the symbols
 // appearing in xpcom_core and xpcomglue.  It may be unnecessary in the future
@@ -101,15 +100,22 @@ extern NS_COM_GLUE NS_METHOD
 NS_GetMainThread(nsIThread **result);
 
 #if defined(MOZILLA_INTERNAL_API) && defined(XP_WIN)
+
 NS_COM bool NS_IsMainThread();
+
 #elif defined(MOZILLA_INTERNAL_API) && defined(NS_TLS)
-// This is defined in nsThreadManager.cpp and initialized to `Main` for the
+// This is defined in nsThreadManager.cpp and initialized to `true` for the
 // main thread by nsThreadManager::Init.
-extern NS_TLS mozilla::threads::ID gTLSThreadID;
+extern NS_TLS bool gTLSIsMainThread;
+
+#ifdef MOZ_ENABLE_LIBXUL
 inline bool NS_IsMainThread()
 {
-  return gTLSThreadID == mozilla::threads::Main;
+  return gTLSIsMainThread;
 }
+#else
+NS_COM bool NS_IsMainThread();
+#endif
 #else
 /**
  * Test to see if the current thread is the main thread.

@@ -39,6 +39,7 @@
 #ifndef __nsHTMLSelectAccessible_h__
 #define __nsHTMLSelectAccessible_h__
 
+#include "nsIAccessibleSelectable.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsHTMLFormControlAccessible.h"
 #include "nsIDOMHTMLOptionsCollection.h"
@@ -62,10 +63,58 @@ class nsIMutableArray;
   *           - nsHTMLSelectOptionAccessible(s)
   */
 
+/** ------------------------------------------------------ */
+/**  First, the common widgets                             */
+/** ------------------------------------------------------ */
+
+/*
+ * The HTML implementation of nsIAccessibleSelectable.
+ */
+class nsHTMLSelectableAccessible : public nsAccessibleWrap
+{
+public:
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLESELECTABLE
+
+  nsHTMLSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  virtual ~nsHTMLSelectableAccessible() {}
+
+protected:
+
+  NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
+
+  class iterator 
+  {
+  protected:
+    PRUint32 mLength;
+    PRUint32 mIndex;
+    PRInt32 mSelCount;
+    nsCOMPtr<nsIDOMHTMLOptionsCollection> mOptions;
+    nsCOMPtr<nsIDOMHTMLOptionElement> mOption;
+    nsCOMPtr<nsIWeakReference> mWeakShell;
+    nsHTMLSelectableAccessible *mParentSelect;
+
+  public:
+    iterator(nsHTMLSelectableAccessible *aParent, nsIWeakReference *aWeakShell);
+
+    void CalcSelectionCount(PRInt32 *aSelectionCount);
+    void Select(PRBool aSelect);
+    void AddAccessibleIfSelected(nsIMutableArray *aSelectedAccessibles, 
+                                 nsPresContext *aContext);
+    PRBool GetAccessibleIfSelected(PRInt32 aIndex, nsPresContext *aContext,
+                                   nsIAccessible **aAccessible);
+
+    PRBool Advance();
+  };
+
+  friend class iterator;
+};
+
 /*
  * The list that contains all the options in the select.
  */
-class nsHTMLSelectListAccessible : public nsAccessibleWrap
+class nsHTMLSelectListAccessible : public nsHTMLSelectableAccessible
 {
 public:
   
@@ -73,13 +122,8 @@ public:
   virtual ~nsHTMLSelectListAccessible() {}
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-
-  // SelectAccessible
-  virtual bool IsSelect();
-  virtual bool SelectAll();
-  virtual bool UnselectAll();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
 
@@ -109,12 +153,11 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
-  NS_IMETHOD SetSelected(PRBool aSelect);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual PRInt32 GetLevelInternal();
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
@@ -136,9 +179,10 @@ private:
   /**
    * Get Select element's accessible state
    * @param aState, Select element state
+   * @param aExtraState, Select element extra state
    * @return Select element content, returns null if not avaliable
    */ 
-  nsIContent* GetSelectState(PRUint64* aState);
+  nsIContent* GetSelectState(PRUint32* aState, PRUint32* aExtraState = nsnull);
 };
 
 /*
@@ -157,8 +201,8 @@ public:
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
   // nsAccessible
@@ -184,6 +228,7 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& _retval);
+  NS_IMETHOD GetDescription(nsAString& aDescription);
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
@@ -192,10 +237,8 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual void Description(nsString& aDescription);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-  virtual void InvalidateChildren();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
   // nsAccessible
@@ -226,12 +269,14 @@ public:
                                nsIWeakReference* aShell);
   virtual ~nsHTMLComboboxListAccessible() {}
 
+  // nsIAccessible
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
+
   // nsAccessNode
-  virtual nsIFrame* GetFrame() const;
-  virtual bool IsPrimaryForNode() const;
+  virtual nsIFrame* GetFrame();
 
   // nsAccessible
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
 };
 

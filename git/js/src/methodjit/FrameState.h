@@ -45,10 +45,18 @@
 #include "methodjit/FrameEntry.h"
 #include "CodeGenIncludes.h"
 #include "ImmutableSync.h"
-#include "jscompartment.h"
 
 namespace js {
 namespace mjit {
+
+struct StateRemat {
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
+    union {
+        RegisterID reg : 31;
+        uint32 offset  : 31;
+    };
+    bool inReg : 1;
+};
 
 struct Uses {
     explicit Uses(uint32 nuses)
@@ -62,6 +70,38 @@ struct Changes {
       : nchanges(nchanges)
     { }
     uint32 nchanges;
+};
+
+class MaybeRegisterID {
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
+
+  public:
+    MaybeRegisterID()
+      : reg_(Registers::ReturnReg), set(false)
+    { }
+
+    MaybeRegisterID(RegisterID reg)
+      : reg_(reg), set(true)
+    { }
+
+    inline RegisterID reg() const { JS_ASSERT(set); return reg_; }
+    inline void setReg(const RegisterID r) { reg_ = r; set = true; }
+    inline bool isSet() const { return set; }
+
+    MaybeRegisterID & operator =(const MaybeRegisterID &other) {
+        set = other.set;
+        reg_ = other.reg_;
+        return *this;
+    }
+
+    MaybeRegisterID & operator =(RegisterID r) {
+        setReg(r);
+        return *this;
+    }
+
+  private:
+    RegisterID reg_;
+    bool set;
 };
 
 /*
@@ -135,112 +175,28 @@ class FrameState
         uint32 nentries;
     };
 
-    /*
-     * Some RegisterState invariants.
-     *
-     *  If |fe| is non-NULL, |save| is NULL.
-     *  If |save| is non-NULL, |fe| is NULL.
-     *  That is, both |fe| and |save| cannot be non-NULL.
-     *
-     *  If either |fe| or |save| is non-NULL, the register is not in freeRegs.
-     *  If both |fe| and |save| are NULL, the register is either in freeRegs,
-     *  or owned by the compiler.
-     */
     struct RegisterState {
-        RegisterState() : fe_(NULL), save_(NULL)
+        RegisterState()
         { }
 
         RegisterState(FrameEntry *fe, RematInfo::RematType type)
-          : fe_(fe), save_(NULL), type_(type)
-        {
-            JS_ASSERT(!save_);
-        }
+          : fe(fe), type(type)
+        { }
 
-        bool isPinned() const {
-            assertConsistency();
-            return !!save_;
-        }
-
-        void assertConsistency() const {
-            JS_ASSERT_IF(fe_, !save_);
-            JS_ASSERT_IF(save_, !fe_);
-        }
-
-        FrameEntry *fe() const {
-            assertConsistency();
-            return fe_;
-        }
-
-        RematInfo::RematType type() const {
-            assertConsistency();
-            return type_;
-        }
-
-        FrameEntry *usedBy() const {
-            if (fe_)
-                return fe_;
-            return save_;
-        }
-
-        void associate(FrameEntry *fe, RematInfo::RematType type) {
-            JS_ASSERT(!fe_);
-            JS_ASSERT(!save_);
-
-            fe_ = fe;
-            type_ = type;
-            JS_ASSERT(!save_);
-        }
-
-        /* Change ownership. */
-        void reassociate(FrameEntry *fe) {
-            assertConsistency();
-            JS_ASSERT(fe);
-
-            fe_ = fe;
-        }
-
-        /* Unassociate this register from the FE. */
-        void forget() {
-            JS_ASSERT(fe_);
-            fe_ = NULL;
-            JS_ASSERT(!save_);
-        }
-
-        void pin() {
-            JS_ASSERT(fe_ != NULL);
-            assertConsistency();
-            save_ = fe_;
-            fe_ = NULL;
-        }
-
-        void unpin() {
-            JS_ASSERT(save_ != NULL);
-            assertConsistency();
-            fe_ = save_;
-            save_ = NULL;
-        }
-
-        void unpinUnsafe() {
-            assertConsistency();
-            save_ = NULL;
-        }
-
-      private:
         /* FrameEntry owning this register, or NULL if not owned by a frame. */
-        FrameEntry *fe_;
+        FrameEntry *fe;
 
         /* Hack - simplifies register allocation for pairs. */
-        FrameEntry *save_;
+        FrameEntry *save;
         
         /* Part of the FrameEntry that owns the FE. */
-        RematInfo::RematType type_;
+        RematInfo::RematType type;
     };
 
-    FrameState *thisFromCtor() { return this; }
   public:
-    FrameState(JSContext *cx, JSScript *script, JSFunction *fun, Assembler &masm);
+    FrameState(JSContext *cx, JSScript *script, Assembler &masm);
     ~FrameState();
-    bool init();
+    bool init(uint32 nargs);
 
     /*
      * Pushes a synced slot.
@@ -289,13 +245,6 @@ class FrameState
     inline void pushUntypedPayload(JSValueType type, RegisterID payload);
 
     /*
-     * Pushes a value onto the operation stack. This must be used when the
-     * value is known, but its type cannot be propagated because it is not
-     * known to be correct at a slow-path merge point.
-     */
-    inline void pushUntypedValue(const Value &value);
-
-    /*
      * Pushes a number onto the operation stack.
      *
      * If asInt32 is set to true, then the FS will attempt to optimize
@@ -315,12 +264,6 @@ class FrameState
      * the slow path also stores the double to memory.
      */
     inline void pushInt32(RegisterID payload);
-
-    /*
-     * Pushes an initializer with specified payload, storing whether it is an array
-     * or object whose contents can be initialized in fast paths.
-     */
-    inline void pushInitializerObject(RegisterID payload, bool array, JSObject *baseobj);
 
     /*
      * Pops a value off the operation stack, freeing any of its resources.
@@ -344,13 +287,10 @@ class FrameState
     inline void enterBlock(uint32 n);
     inline void leaveBlock(uint32 n);
 
-    // Pushes a copy of a slot (formal argument, local variable, or stack slot)
-    // onto the operation stack.
+    /*
+     * Pushes a copy of a local variable.
+     */
     void pushLocal(uint32 n);
-    void pushArg(uint32 n);
-    void pushCallee();
-    void pushThis();
-    inline void learnThisIsObject();
 
     /*
      * Allocates a temporary register for a FrameEntry's type. The register
@@ -385,6 +325,13 @@ class FrameState
      * already have a register, and does not change the frame state in doing so.
      */
     inline RegisterID tempRegForData(FrameEntry *fe, RegisterID reg, Assembler &masm) const;
+
+    /*
+     * Forcibly loads the type tag for the specified FrameEntry
+     * into a register already marked as owning the type.
+     */
+    inline void emitLoadTypeTag(FrameEntry *fe, RegisterID reg) const;
+    inline void emitLoadTypeTag(Assembler &masm, FrameEntry *fe, RegisterID reg) const;
 
     /*
      * Convert an integer to a double without applying
@@ -451,18 +398,6 @@ class FrameState
     RegisterID copyInt32ConstantIntoReg(FrameEntry *fe);
     RegisterID copyInt32ConstantIntoReg(Assembler &masm, FrameEntry *fe);
 
-    /*
-     * Gets registers for the components of fe where needed,
-     * pins them and stores into vr.
-     */
-    void pinEntry(FrameEntry *fe, ValueRemat &vr);
-
-    /* Unpins registers from a call to pinEntry. */
-    void unpinEntry(const ValueRemat &vr);
-
-    /* Syncs fe to memory, given its state as constructed by a call to pinEntry. */
-    void ensureValueSynced(Assembler &masm, FrameEntry *fe, const ValueRemat &vr);
-
     struct BinaryAlloc {
         MaybeRegisterID lhsType;
         MaybeRegisterID lhsData;
@@ -485,9 +420,6 @@ class FrameState
      */
     void allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAlloc &alloc,
                         bool resultNeeded = true);
-
-    /* Ensures that an FE has both type and data remat'd in registers. */
-    void ensureFullRegs(FrameEntry *fe, MaybeRegisterID *typeReg, MaybeRegisterID *dataReg);
 
     /*
      * Similar to allocForBinary, except works when the LHS and RHS have the
@@ -555,22 +487,12 @@ class FrameState
      * Fully stores a FrameEntry at an arbitrary address. popHint specifies
      * how hard the register allocator should try to keep the FE in registers.
      */
-    void storeTo(FrameEntry *fe, Address address, bool popHint = false);
+    void storeTo(FrameEntry *fe, Address address, bool popHint);
 
     /*
-     * Fully stores a FrameEntry into two arbitrary registers. tempReg may be
-     * used as a temporary.
-     */
-    void loadForReturn(FrameEntry *fe, RegisterID typeReg, RegisterID dataReg, RegisterID tempReg);
-    void loadThisForReturn(RegisterID typeReg, RegisterID dataReg, RegisterID tempReg);
-
-    /*
-     * Stores the top stack slot back to a slot.
+     * Stores the top stack slot back to a local variable.
      */
     void storeLocal(uint32 n, bool popGuaranteed = false, bool typeChange = true);
-    void storeArg(uint32 n, bool popGuaranteed = false);
-    void storeTop(FrameEntry *target, bool popGuaranteed = false, bool typeChange = true);
-    void finishStore(FrameEntry *fe, bool closed);
 
     /*
      * Restores state from a slow path.
@@ -584,39 +506,32 @@ class FrameState
 
     /*
      * Syncs all outstanding stores to memory and possibly kills regs in the
-     * process.  The top [ignored..uses-1] frame entries will be synced.
+     * process.
      */
-    void syncAndKill(Registers kill, Uses uses, Uses ignored);
-    void syncAndKill(Registers kill, Uses uses) { syncAndKill(kill, uses, Uses(0)); }
+    void syncAndKill(Registers kill, Uses uses); 
 
-    /* Syncs and kills everything. */
-    void syncAndKillEverything() {
-        syncAndKill(Registers(Registers::AvailRegs), Uses(frameSlots()));
-    }
+    /*
+     * Reset the register state.
+     */
+    void resetRegState();
 
     /*
      * Clear all tracker entries, syncing all outstanding stores in the process.
      * The stack depth is in case some merge points' edges did not immediately
      * precede the current instruction.
      */
-    inline void syncAndForgetEverything(uint32 newStackDepth);
+    inline void forgetEverything(uint32 newStackDepth);
 
     /*
      * Same as above, except the stack depth is not changed. This is used for
      * branching opcodes.
      */
-    void syncAndForgetEverything();
-
-    /*
-     * Throw away the entire frame state, without syncing anything.
-     * This can only be called after a syncAndKill() against all registers.
-     */
     void forgetEverything();
 
     /*
-     * Discard the entire framestate forcefully.
+     * Throw away the entire frame state, without syncing anything.
      */
-    void discardFrame();
+    void throwaway();
 
     /*
      * Mark an existing slot with a type.
@@ -629,63 +544,51 @@ class FrameState
     inline void forgetType(FrameEntry *fe);
 
     /*
-     * Discards a FrameEntry, tricking the FS into thinking it's synced.
-     */
-    void discardFe(FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is null. Condition must
+     * Helper function. Tests if a slot's type is null. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testNull(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is undefined. Condition must
-     * be Equal or NotEqual.
-     */
-    inline Jump testUndefined(Assembler::Condition cond, FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is an integer. Condition must
+     * Helper function. Tests if a slot's type is an integer. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testInt32(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a double. Condition must
+     * Helper function. Tests if a slot's type is a double. Condition should
      * be Equal or Not Equal.
      */
     inline Jump testDouble(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a boolean. Condition must
+     * Helper function. Tests if a slot's type is a boolean. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testBoolean(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a string. Condition must
+     * Helper function. Tests if a slot's type is a string. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testString(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a non-funobj. Condition must
+     * Helper function. Tests if a slot's type is a non-funobj. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testObject(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is primitive. Condition must
+     * Helper function. Tests if a slot's type is primitve. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testPrimitive(Assembler::Condition cond, FrameEntry *fe);
 
     /*
      * Marks a register such that it cannot be spilled by the register
-     * allocator. Any pinned registers must be unpinned at the end of the op,
-     * no matter what. In addition, pinReg() can only be used on registers
-     * which are associated with FrameEntries.
+     * allocator. Any pinned registers must be unpinned at the end of the op.
+     * Note: This function should only be used on registers tied to FEs.
      */
     inline void pinReg(RegisterID reg);
 
@@ -693,16 +596,6 @@ class FrameState
      * Unpins a previously pinned register.
      */
     inline void unpinReg(RegisterID reg);
-
-    /*
-     * Same as unpinReg(), but does not restore the FrameEntry.
-     */
-    inline void unpinKilledReg(RegisterID reg);
-
-    /* Pins a data or type register if one exists. */
-    MaybeRegisterID maybePinData(FrameEntry *fe);
-    MaybeRegisterID maybePinType(FrameEntry *fe);
-    void maybeUnpinReg(MaybeRegisterID reg);
 
     /*
      * Dups the top item on the stack.
@@ -725,32 +618,18 @@ class FrameState
      */
     inline void giveOwnRegs(FrameEntry *fe);
 
+    /*
+     * Returns the current stack depth of the frame.
+     */
     uint32 stackDepth() const { return sp - spBase; }
-
-    // Returns the number of entries in the frame, that is:
-    //   2 for callee, this +
-    //   nargs +
-    //   nfixed +
-    //   currently pushed stack slots
-    uint32 frameSlots() const { return uint32(sp - entries); }
-
-    // Returns the number of local variables and active stack slots.
-    uint32 localSlots() const { return uint32(sp - locals); }
+    uint32 frameDepth() const { return stackDepth() + script->nfixed; }
+    inline FrameEntry *tosFe() const;
 
 #ifdef DEBUG
     void assertValidRegisterState() const;
 #endif
 
-    // Return an address, relative to the StackFrame, that represents where
-    // this FrameEntry is stored in memory. Note that this is its canonical
-    // address, not its backing store. There is no guarantee that the memory
-    // is coherent.
     Address addressOf(const FrameEntry *fe) const;
-
-    // Returns an address, relative to the StackFrame, that represents where
-    // this FrameEntry is backed in memory. This is not necessarily its
-    // canonical address, but the address for which the payload has been synced
-    // to memory. The caller guarantees that the payload has been synced.
     Address addressForDataRemat(const FrameEntry *fe) const;
 
     inline StateRemat dataRematInfo(const FrameEntry *fe) const;
@@ -776,15 +655,15 @@ class FrameState
      */
     void shift(int32 n);
 
-    // Notifies the frame that a local variable or argument slot is closed over.
-    inline void setClosedVar(uint32 slot);
-    inline void setClosedArg(uint32 slot);
+    /*
+     * Notifies the frame of a slot that can escape. Returns whether or not
+     * the slot was added.
+     */
+    inline bool addEscaping(uint32 local);
 
     inline void setInTryBlock(bool inTryBlock) {
         this->inTryBlock = inTryBlock;
     }
-
-    inline uint32 regsInUse() const { return Registers::AvailRegs & ~freeRegs.freeMask; }
 
   private:
     inline RegisterID allocReg(FrameEntry *fe, RematInfo::RematType type);
@@ -793,31 +672,16 @@ class FrameState
     void evictReg(RegisterID reg);
     inline FrameEntry *rawPush();
     inline void addToTracker(FrameEntry *fe);
-
-    /* Guarantee sync, but do not set any sync flag. */
-    inline void ensureFeSynced(const FrameEntry *fe, Assembler &masm) const;
-    inline void ensureTypeSynced(const FrameEntry *fe, Assembler &masm) const;
-    inline void ensureDataSynced(const FrameEntry *fe, Assembler &masm) const;
-
-    /* Guarantee sync, even if register allocation is required, and set sync. */
-    inline void syncFe(FrameEntry *fe);
-    inline void syncType(FrameEntry *fe);
-    inline void syncData(FrameEntry *fe);
-
-    inline FrameEntry *getOrTrack(uint32 index);
+    inline void syncType(const FrameEntry *fe, Address to, Assembler &masm) const;
+    inline void syncData(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline FrameEntry *getLocal(uint32 slot);
-    inline FrameEntry *getArg(uint32 slot);
-    inline FrameEntry *getCallee();
-    inline FrameEntry *getThis();
     inline void forgetAllRegs(FrameEntry *fe);
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
+    inline uint32 localIndex(uint32 n);
     void pushCopyOf(uint32 index);
-#if defined JS_NUNBOX32
-    void syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
+    void syncFancy(Assembler &masm, Registers avail, uint32 resumeAt,
                    FrameEntry *bottom) const;
-#endif
     inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
-    void resetInternalState();
 
     /*
      * "Uncopies" the backing store of a FrameEntry that has been copied. The
@@ -828,38 +692,31 @@ class FrameState
      * Later addition: uncopy() returns the first copy found.
      */
     FrameEntry *uncopy(FrameEntry *original);
-    FrameEntry *walkTrackerForUncopy(FrameEntry *original);
-    FrameEntry *walkFrameForUncopy(FrameEntry *original);
-
-    /*
-     * All registers in the FE are forgotten. If it is copied, it is uncopied
-     * beforehand.
-     */
-    void forgetEntry(FrameEntry *fe);
 
     FrameEntry *entryFor(uint32 index) const {
         JS_ASSERT(entries[index].isTracked());
         return &entries[index];
     }
 
-    RegisterID evictSomeReg() { return evictSomeReg(Registers::AvailRegs); }
-    uint32 indexOf(int32 depth) const {
-        JS_ASSERT(uint32((sp + depth) - entries) < feLimit());
+    void moveOwnership(RegisterID reg, FrameEntry *newFe) {
+        regstate[reg].fe = newFe;
+    }
+
+    RegisterID evictSomeReg() {
+        return evictSomeReg(Registers::AvailRegs);
+    }
+
+    uint32 indexOf(int32 depth) {
         return uint32((sp + depth) - entries);
     }
-    uint32 indexOfFe(FrameEntry *fe) const {
-        JS_ASSERT(uint32(fe - entries) < feLimit());
+
+    uint32 indexOfFe(FrameEntry *fe) {
         return uint32(fe - entries);
     }
-    uint32 feLimit() const { return script->nslots + nargs + 2; }
-
-    inline bool isClosedVar(uint32 slot);
-    inline bool isClosedArg(uint32 slot);
 
   private:
     JSContext *cx;
     JSScript *script;
-    JSFunction *fun;
     uint32 nargs;
     Assembler &masm;
 
@@ -868,9 +725,6 @@ class FrameState
 
     /* Cache of FrameEntry objects. */
     FrameEntry *entries;
-
-    FrameEntry *callee_;
-    FrameEntry *this_;
 
     /* Base pointer for arguments. */
     FrameEntry *args;
@@ -893,18 +747,12 @@ class FrameState
      */
     RegisterState regstate[Assembler::TotalRegisters];
 
-#if defined JS_NUNBOX32
     mutable ImmutableSync reifier;
-#endif
 
-    JSPackedBool *closedVars;
-    JSPackedBool *closedArgs;
+    uint32 *escaping;
     bool eval;
-    bool usesArguments;
     bool inTryBlock;
 };
-
-class AutoPreserveAcrossSyncAndKill;
 
 } /* namespace mjit */
 } /* namespace js */

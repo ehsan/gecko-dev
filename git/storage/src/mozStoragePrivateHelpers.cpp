@@ -49,18 +49,12 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
 #include "nsThreadUtils.h"
-#include "nsJSUtils.h"
 
 #include "Variant.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozIStorageStatement.h"
 #include "mozIStorageCompletionCallback.h"
 #include "mozIStorageBindingParams.h"
-
-#include "prlog.h"
-#ifdef PR_LOGGING
-extern PRLogModuleInfo* gStorageLog;
-#endif
 
 namespace mozilla {
 namespace storage {
@@ -157,9 +151,10 @@ convertJSValToVariant(
 
   if (JSVAL_IS_STRING(aValue)) {
     JSString *str = JSVAL_TO_STRING(aValue);
-    nsDependentJSString value;
-    if (!value.init(aCtx, str))
-        return nsnull;
+    nsDependentString value(
+      reinterpret_cast<PRUnichar *>(::JS_GetStringChars(str)),
+      ::JS_GetStringLength(str)
+    );
     return new TextVariant(value);
   }
 
@@ -329,21 +324,6 @@ prepareStmt(sqlite3* aDatabase,
     srv = WaitForUnlockNotify(aDatabase);
     if (srv != SQLITE_OK)
       break;
-  }
-
-  if (srv != SQLITE_OK) {
-    nsCString warnMsg;
-    warnMsg.AppendLiteral("The SQL statement '");
-    warnMsg.Append(aSQL);
-    warnMsg.AppendLiteral("' could not be compiled due to an error: ");
-    warnMsg.Append(::sqlite3_errmsg(aDatabase));
-
-#ifdef DEBUG
-    NS_WARNING(warnMsg.get());
-#endif
-#ifdef PR_LOGGING
-    PR_LOG(gStorageLog, PR_LOG_ERROR, ("%s", warnMsg.get()));
-#endif
   }
 
   (void)::sqlite3_extended_result_codes(aDatabase, 0);

@@ -45,7 +45,7 @@
 #include "nsMemory.h"
 
 #include "mozilla/CondVar.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 
 #include "TestHarness.h"
@@ -68,13 +68,14 @@ spawn(void (*run)(void*), void* arg)
     do {                                        \
         passed(__FUNCTION__);                   \
         return NS_OK;                           \
-    } while (0)
+    } while (0);
+
 
 #define FAIL(why)                               \
     do {                                        \
-        fail("%s | %s - %s", __FILE__, __FUNCTION__, why); \
+        fail(why);                              \
         return NS_ERROR_FAILURE;                \
-    } while (0)
+    } while (0);
 
 //-----------------------------------------------------------------------------
 
@@ -257,7 +258,7 @@ bool
 CheckForDeadlock(const char* test, const char* const* findTokens)
 {
     Subprocess proc(test);
-    proc.RunToCompletion(5000);
+    proc.RunToCompletion(1000);
 
     if (0 == proc.mExitCode)
         return false;
@@ -393,7 +394,7 @@ Sanity3()
 nsresult
 Sanity4_Child()
 {
-    mozilla::ReentrantMonitor m1("dd.sanity4.m1");
+    mozilla::Monitor m1("dd.sanity4.m1");
     mozilla::Mutex m2("dd.sanity4.m2");
     m1.Enter();
     m2.Lock();
@@ -405,11 +406,11 @@ nsresult
 Sanity4()
 {
     const char* const tokens[] = {
-        "Re-entering ReentrantMonitor after acquiring other resources",
+        "Re-entering Monitor after acquiring other resources",
         "###!!! ERROR: Potential deadlock detected",
-        "=== Cyclical dependency starts at\n--- ReentrantMonitor : dd.sanity4.m1",
+        "=== Cyclical dependency starts at\n--- Monitor : dd.sanity4.m1",
         "--- Next dependency:\n--- Mutex : dd.sanity4.m2",
-        "=== Cycle completed at\n--- ReentrantMonitor : dd.sanity4.m1",
+        "=== Cycle completed at\n--- Monitor : dd.sanity4.m1",
         "###!!! ASSERTION: Potential deadlock detected",
         0
     };
@@ -572,7 +573,7 @@ main(int argc, char** argv)
         FAIL("unknown child test");
     }
 
-    ScopedXPCOM xpcom("XPCOM deadlock detector correctness (" __FILE__ ")");
+    ScopedXPCOM xpcom("Deadlock detector correctness");
     if (xpcom.failed())
         return 1;
 

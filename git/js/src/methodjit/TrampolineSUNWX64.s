@@ -37,8 +37,8 @@
 
 .text
 
-/ JSBool JaegerTrampoline(JSContext *cx, StackFrame *fp, void *code,
-/                         FrameRegs *regs, uintptr_t inlineCallCount)
+/ JSBool JaegerTrampoline(JSContext *cx, JSStackFrame *fp, void *code,
+/                        JSFrameRegs *regs, uintptr_t inlineCallCount)
 .global JaegerTrampoline
 .type   JaegerTrampoline, @function
 JaegerTrampoline:
@@ -52,49 +52,35 @@ JaegerTrampoline:
     pushq %r15
     pushq %rbx
 
-    /* Load mask registers. */
-    movq $0xFFFF800000000000, %r13
-    movq $0x00007FFFFFFFFFFF, %r14
-
     /* Build the JIT frame.
      * rdi = cx
      * rsi = fp
      * rcx = inlineCallCount
      * fp must go into rbx
      */
-    pushq %rsi        /* entryFp */
-    pushq %rcx        /* inlineCallCount */
-    pushq %rdi        /* cx */
-    pushq %rsi        /* fp */
+    pushq %rcx
+    pushq %rdi
+    pushq %rsi
     movq  %rsi, %rbx
 
     /* Space for the rest of the VMFrame. */
     subq  $0x28, %rsp
 
-    /* This is actually part of the VMFrame. */
-    pushq %r8
-
-    /* Set cx->regs and set the active frame. Save rdx and align frame in one. */
+    /* Set cx->regs (requires saving rdx). */
     pushq %rdx
     movq  %rsp, %rdi
     call SetVMFrameRegs
-    movq  %rsp, %rdi
-    call PushActiveVMFrame
+    popq  %rdx
 
-    /* Jump into into the JIT'd code. */
-    jmp *0(%rsp)
-.size   JaegerTrampoline, . - JaegerTrampoline
+    /*
+     * Jump into into the JIT'd code. The call implicitly fills in
+     * the precious f.scriptedReturn member of VMFrame.
+     */
+    call *%rdx
+    leaq -8(%rsp), %rdi
+    call UnsetVMFrameRegs
 
-/ void JaegerTrampolineReturn()
-.global JaegerTrampolineReturn
-.type   JaegerTrampolineReturn, @function
-JaegerTrampolineReturn:
-    or   %rdx, %rcx
-    movq %rcx, 0x30(%rbx)
-    movq %rsp, %rdi
-    call PopActiveVMFrame
-
-    addq $0x58, %rsp
+    addq $0x40, %rsp
     popq %rbx
     popq %r15
     popq %r14
@@ -103,7 +89,7 @@ JaegerTrampolineReturn:
     popq %rbp
     movq $1, %rax
     ret
-.size   JaegerTrampolineReturn, . - JaegerTrampolineReturn
+.size   JaegerTrampoline, . - JaegerTrampoline
 
 
 / void *JaegerThrowpoline(js::VMFrame *vmFrame)
@@ -116,16 +102,20 @@ JaegerThrowpoline:
     je   throwpoline_exit
     jmp  *%rax
   throwpoline_exit:
-    movq %rsp, %rdi
-    call PopActiveVMFrame
-    addq $0x58, %rsp
+    addq $0x48, %rsp
     popq %rbx
     popq %r15
     popq %r14
     popq %r13
     popq %r12
     popq %rbp
-    xorq %rax,%rax
     ret
 .size   JaegerThrowpoline, . - JaegerThrowpoline
 
+.global JaegerFromTracer
+.type   JaegerFromTracer, @function
+JaegerFromTracer:
+    /* Restore fp reg. */
+    movq 0x30(%rsp), %rbx
+    jmp *%rax
+.size   JaegerFromTracer, . - JaegerFromTracer

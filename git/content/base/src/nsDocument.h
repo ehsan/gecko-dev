@@ -52,18 +52,29 @@
 #include "nsTArray.h"
 #include "nsHashSets.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIDOM3Document.h"
+#include "nsIDOMDocumentView.h"
 #include "nsIDOMDocumentXBL.h"
+#include "nsIDOMNSDocument.h"
+#include "nsIDOMNSDocumentStyle.h"
+#include "nsIDOMDocumentRange.h"
+#include "nsIDOMDocumentTraversal.h"
 #include "nsStubDocumentObserver.h"
+#include "nsIDOM3EventTarget.h"
+#include "nsIDOMNSEventTarget.h"
 #include "nsIDOMStyleSheetList.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIContent.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMNodeSelector.h"
 #include "nsIPrincipal.h"
 #include "nsIParser.h"
 #include "nsBindingManager.h"
 #include "nsINodeInfo.h"
+#include "nsIDOMDocumentEvent.h"
+#include "nsIDOM3DocumentEvent.h"
 #include "nsHashtable.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIBoxObject.h"
@@ -99,9 +110,6 @@
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
 #include "nsIDOMDOMImplementation.h"
-#include "nsIDOMTouchEvent.h"
-
-#include "TimeStamp.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -109,7 +117,7 @@
 #define XML_DECLARATION_BITS_STANDALONE_YES       (1 << 3)
 
 
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsDOMStyleSheetList;
 class nsDOMStyleSheetSetList;
 class nsIOutputStream;
@@ -124,7 +132,6 @@ class nsChildContentList;
 class nsXMLEventsManager;
 class nsHTMLStyleSheet;
 class nsHTMLCSSStyleSheet;
-class nsDOMNavigationTiming;
 
 /**
  * Right now our identifier map entries contain information for 'name'
@@ -160,12 +167,16 @@ public:
 
   void SetInvalidName();
   PRBool IsInvalidName();
-  void AddNameElement(nsIDocument* aDocument, Element* aElement);
+  void AddNameElement(Element* aElement);
   void RemoveNameElement(Element* aElement);
+  PRBool HasNameContentList() {
+    return mNameContentList != nsnull;
+  }
   PRBool IsEmpty();
   nsBaseContentList* GetNameContentList() {
     return mNameContentList;
   }
+  nsresult CreateNameContentList();
 
   /**
    * Returns the element if we know the element associated with this
@@ -246,12 +257,14 @@ private:
                            PRBool aImageOnly = PR_FALSE);
 
   // empty if there are no elementswith this ID.
-  // The elements are stored as weak pointers.
+  // The elementsnodes are stored addrefed.
   nsSmallVoidArray mIdContentList;
-  nsRefPtr<nsBaseContentList> mNameContentList;
+  // NAME_NOT_VALID if this id cannot be used as a 'name'.  Otherwise
+  // stores Elements.
+  nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
-  nsRefPtr<Element> mImageElement;
+  nsCOMPtr<Element> mImageElement;
 };
 
 class nsDocHeaderData
@@ -284,11 +297,13 @@ public:
   NS_DECL_NSIDOMSTYLESHEETLIST
 
   // nsIDocumentObserver
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETADDED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETREMOVED
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
+  virtual void NodeWillBeDestroyed(const nsINode *aNode);
+  virtual void StyleSheetAdded(nsIDocument *aDocument,
+                               nsIStyleSheet* aStyleSheet,
+                               PRBool aDocumentSheet);
+  virtual void StyleSheetRemoved(nsIDocument *aDocument,
+                                 nsIStyleSheet* aStyleSheet,
+                                 PRBool aDocumentSheet);
 
   nsIStyleSheet* GetItemAt(PRUint32 aIndex);
 
@@ -488,13 +503,23 @@ protected:
 // the interface.
 class nsDocument : public nsIDocument,
                    public nsIDOMXMLDocument, // inherits nsIDOMDocument
+                   public nsIDOMNSDocument,
+                   public nsIDOMDocumentEvent,
+                   public nsIDOM3DocumentEvent,
+                   public nsIDOMNSDocumentStyle,
+                   public nsIDOMDocumentView,
+                   public nsIDOMDocumentRange,
+                   public nsIDOMDocumentTraversal,
                    public nsIDOMDocumentXBL,
+                   public nsIDOM3Document,
                    public nsSupportsWeakReference,
+                   public nsIDOMEventTarget,
+                   public nsIDOM3EventTarget,
+                   public nsIDOMNSEventTarget,
                    public nsIScriptObjectPrincipal,
-                   public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH,
+                   public nsIRadioGroupContainer,
                    public nsIApplicationCacheContainer,
-                   public nsStubMutationObserver,
-                   public nsIDOMDocumentTouch
+                   public nsStubMutationObserver
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -533,7 +558,7 @@ public:
    * Get the Content-Type of this document.
    */
   // NS_IMETHOD GetContentType(nsAString& aContentType);
-  // Already declared in nsIDOMDocument
+  // Already declared in nsIDOMNSDocument
 
   /**
    * Set the Content-Type of this document.
@@ -685,9 +710,10 @@ public:
   virtual void SetReadyStateInternal(ReadyState rs);
   virtual ReadyState GetReadyStateEnum();
 
-  virtual void ContentStateChanged(nsIContent* aContent,
-                                   nsEventStates aStateMask);
-  virtual void DocumentStatesChanged(nsEventStates aStateMask);
+  virtual void ContentStatesChanged(nsIContent* aContent1,
+                                    nsIContent* aContent2,
+                                    PRInt32 aStateMask);
+  virtual void DocumentStatesChanged(PRInt32 aStateMask);
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aOldStyleRule,
@@ -716,8 +742,6 @@ public:
 
   // nsINode
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-  virtual PRUint16 NodeType();
-  virtual void NodeName(nsAString& aNodeName);
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
   virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
@@ -725,11 +749,28 @@ public:
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
   virtual nsresult AppendChildTo(nsIContent* aKid, PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
+                                    nsPresContext* aPresContext,
+                                    nsEventStatus* aEventStatus);
+  virtual nsIEventListenerManager* GetListenerManager(PRBool aCreateIfNotFound);
+  virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                         const nsIID& aIID);
+  virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                            const nsIID& aIID);
+  virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
+  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  {
+    return nsContentUtils::GetContextForEventHandlers(this, aRv);
+  }
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
+  virtual PRBool IsEqualNode(nsINode* aOther);
+  virtual void GetTextContent(nsAString &aTextContent);
 
   // nsIRadioGroupContainer
   NS_IMETHOD WalkRadioGroup(const nsAString& aName,
@@ -750,11 +791,6 @@ public:
                              nsIFormControl* aRadio);
   NS_IMETHOD RemoveFromRadioGroup(const nsAString& aName,
                                   nsIFormControl* aRadio);
-  virtual PRUint32 GetRequiredRadioCount(const nsAString& aName) const;
-  virtual void RadioRequiredChanged(const nsAString& aName,
-                                    nsIFormControl* aRadio);
-  virtual bool GetValueMissingState(const nsAString& aName) const;
-  virtual void SetValueMissingState(const nsAString& aName, bool aValue);
 
   // for radio group
   nsresult GetRadioGroup(const nsAString& aName,
@@ -766,25 +802,53 @@ public:
   // nsIDOMDocument
   NS_DECL_NSIDOMDOCUMENT
 
+  // nsIDOM3Document
+  NS_DECL_NSIDOM3DOCUMENT
+
   // nsIDOMXMLDocument
   NS_DECL_NSIDOMXMLDOCUMENT
+
+  // nsIDOMNSDocument
+  NS_DECL_NSIDOMNSDOCUMENT
+
+  // nsIDOMDocumentEvent
+  NS_DECL_NSIDOMDOCUMENTEVENT
+
+  // nsIDOM3DocumentEvent
+  NS_DECL_NSIDOM3DOCUMENTEVENT
+
+  // nsIDOMDocumentStyle
+  NS_DECL_NSIDOMDOCUMENTSTYLE
+
+  // nsIDOMNSDocumentStyle
+  NS_DECL_NSIDOMNSDOCUMENTSTYLE
+
+  // nsIDOMDocumentView
+  NS_DECL_NSIDOMDOCUMENTVIEW
+
+  // nsIDOMDocumentRange
+  NS_DECL_NSIDOMDOCUMENTRANGE
+
+  // nsIDOMDocumentTraversal
+  NS_DECL_NSIDOMDOCUMENTTRAVERSAL
 
   // nsIDOMDocumentXBL
   NS_DECL_NSIDOMDOCUMENTXBL
 
   // nsIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
-  virtual nsEventListenerManager*
-    GetListenerManager(PRBool aCreateIfNotFound);
+  NS_DECL_NSIDOMEVENTTARGET
+
+  // nsIDOM3EventTarget
+  NS_DECL_NSIDOM3EVENTTARGET
+
+  // nsIDOMNSEventTarget
+  NS_DECL_NSIDOMNSEVENTTARGET
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal();
 
   // nsIApplicationCacheContainer
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
-
-  // nsIDOMDocumentTouch
-  NS_DECL_NSIDOMDOCUMENTTOUCH
 
   virtual nsresult Init();
   
@@ -797,9 +861,6 @@ public:
 
   nsresult CreateElement(const nsAString& aTagName,
                          nsIContent** aReturn);
-  nsresult CreateElementNS(const nsAString& aNamespaceURI,
-                           const nsAString& aQualifiedName,
-                           nsIContent** aReturn);
 
   nsresult CreateTextNode(const nsAString& aData, nsIContent** aReturn);
 
@@ -860,8 +921,6 @@ public:
   nsSMILAnimationController* GetAnimationController();
 #endif // MOZ_SMIL
 
-  void SetImagesNeedAnimating(PRBool aAnimating);
-
   virtual void SuppressEventHandling(PRUint32 aIncrease);
 
   virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents);
@@ -895,10 +954,9 @@ public:
 
   virtual nsISupports* GetCurrentContentSink();
 
-  virtual nsEventStates GetDocumentState();
+  virtual PRInt32 GetDocumentState();
 
-  virtual void RegisterFileDataUri(const nsACString& aUri);
-  virtual void UnregisterFileDataUri(const nsACString& aUri);
+  virtual void RegisterFileDataUri(nsACString& aUri);
 
   // Only BlockOnload should call this!
   void AsyncBlockOnload();
@@ -909,9 +967,7 @@ public:
   virtual void SetChangeScrollPosWhenScrollingToRef(PRBool aValue);
 
   already_AddRefed<nsContentList>
-  GetElementsByTagName(const nsAString& aTagName) {
-    return NS_GetContentList(this, kNameSpaceID_Unknown, aTagName);
-  }
+    GetElementsByTagName(const nsAString& aTagName);
   already_AddRefed<nsContentList>
     GetElementsByTagNameNS(const nsAString& aNamespaceURI,
                            const nsAString& aLocalName);
@@ -924,13 +980,6 @@ public:
   virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(PRBool aLocked);
 
-  virtual nsresult GetStateObject(nsIVariant** aResult);
-
-  virtual nsDOMNavigationTiming* GetNavigationTiming() const;
-  virtual nsresult SetNavigationTiming(nsDOMNavigationTiming* aTiming);
-
-  virtual Element* FindImageMap(const nsAString& aNormalizedMapName);
-
 protected:
   friend class nsNodeUtils;
 
@@ -939,7 +988,7 @@ protected:
    * service if it is.
    * @returns PR_TRUE if aId looks correct, PR_FALSE otherwise.
    */
-  inline PRBool CheckGetElementByIdArg(const nsAString& aId)
+  static inline PRBool CheckGetElementByIdArg(const nsAString& aId)
   {
     if (aId.IsEmpty()) {
       ReportEmptyGetElementByIdArg();
@@ -948,7 +997,7 @@ protected:
     return PR_TRUE;
   }
 
-  void ReportEmptyGetElementByIdArg();
+  static void ReportEmptyGetElementByIdArg();
 
   void DispatchContentLoadedEvents();
 
@@ -982,6 +1031,7 @@ protected:
                          nsIPresShell** aInstancePtrResult);
 
   nsresult ResetStylesheetsToURI(nsIURI* aURI);
+  virtual nsStyleSet::sheetType GetAttrSheetType();
   void FillStyleSet(nsStyleSet* aStyleSet);
 
   // Return whether all the presshells for this document are safe to flush
@@ -992,11 +1042,11 @@ protected:
     return kNameSpaceID_None;
   }
 
-  void DispatchPageTransition(nsIDOMEventTarget* aDispatchTarget,
+  void DispatchPageTransition(nsPIDOMEventTarget* aDispatchTarget,
                               const nsAString& aType,
                               PRBool aPersisted);
 
-  virtual nsPIDOMWindow *GetWindowInternal() const;
+  virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const;
   virtual PRBool InternalAllowXULXBL();
@@ -1049,7 +1099,7 @@ protected:
   // is a weak reference to avoid leaks due to circular references.
   nsWeakPtr mScopeObject;
 
-  nsRefPtr<nsEventListenerManager> mListenerManager;
+  nsCOMPtr<nsIEventListenerManager> mListenerManager;
   nsCOMPtr<nsIDOMStyleSheetList> mDOMStyleSheets;
   nsRefPtr<nsDOMStyleSheetSetList> mStyleSheetSetList;
   nsRefPtr<nsScriptLoader> mScriptLoader;
@@ -1064,9 +1114,6 @@ protected:
   nsTHashtable<nsIdentifierMapEntry> mIdentifierMap;
 
   nsClassHashtable<nsStringHashKey, nsRadioGroupStruct> mRadioGroups;
-
-  // Recorded time of change to 'loading' state.
-  mozilla::TimeStamp mLoadingTimeStamp;
 
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
@@ -1097,9 +1144,6 @@ protected:
   // Whether we're currently holding a lock on all of our images.
   PRPackedBool mLockingImages:1;
 
-  // Whether we currently require our images to animate
-  PRPackedBool mAnimatingImages:1;
-
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
@@ -1114,6 +1158,8 @@ protected:
 
   nsCOMPtr<nsIScriptEventManager> mScriptEventManager;
 
+  nsString mBaseTarget;
+
   // Our update nesting level
   PRUint32 mUpdateNestLevel;
 
@@ -1123,10 +1169,9 @@ protected:
 
   nsCOMPtr<nsIContent> mFirstBaseNodeWithHref;
 
-  nsEventStates mDocumentState;
-  nsEventStates mGotDocumentState;
+  PRInt32 mDocumentState;
+  PRInt32 mGotDocumentState;
 
-  nsRefPtr<nsDOMNavigationTiming> mTiming;
 private:
   friend class nsUnblockOnloadEvent;
 
@@ -1148,11 +1193,6 @@ private:
   // aSheetSet as the preferred set in the CSSLoader.
   void EnableStyleSheetsForSetInternal(const nsAString& aSheetSet,
                                        PRBool aUpdateCSSLoader);
-
-  // Revoke any pending notifications due to mozRequestAnimationFrame calls
-  void RevokeAnimationFrameNotifications();
-  // Reschedule any notifications we need to handle mozRequestAnimationFrame
-  void RescheduleAnimationFrameNotifications();
 
   // These are not implemented and not supported.
   nsDocument(const nsDocument& aOther);
@@ -1199,8 +1239,6 @@ private:
 
   nsCOMPtr<nsIDOMDOMImplementation> mDOMImplementation;
 
-  nsRefPtr<nsContentList> mImageMaps;
-
   nsCString mScrollToRef;
   PRUint8 mScrolledToRefAlready : 1;
   PRUint8 mChangeScrollPosWhenScrollingToRef : 1;
@@ -1217,7 +1255,13 @@ protected:
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentView, nsDocument)  \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
+                                     nsDocument)                              \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)          \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOM3Document, nsDocument)
 
 #endif /* nsDocument_h___ */

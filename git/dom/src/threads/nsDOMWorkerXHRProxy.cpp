@@ -40,6 +40,7 @@
 
 // Interfaces
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsILoadGroup.h"
 #include "nsIRequest.h"
@@ -48,6 +49,7 @@
 #include "nsIXMLHttpRequest.h"
 
 // Other includes
+#include "nsAutoLock.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsThreadUtils.h"
@@ -63,8 +65,6 @@
 #include "nsDOMWorkerPool.h"
 #include "nsDOMWorkerXHR.h"
 #include "nsDOMWorkerXHRProxiedFunctions.h"
-
-using namespace mozilla;
 
 #define MAX_XHR_LISTENER_TYPE nsDOMWorkerXHREventTarget::sMaxXHREventTypes
 #define MAX_UPLOAD_LISTENER_TYPE nsDOMWorkerXHREventTarget::sMaxUploadEventTypes
@@ -181,7 +181,7 @@ public:
     nsRefPtr<nsDOMWorkerXHREvent> lastProgressOrLoadEvent;
 
     if (!mProxy->mCanceled) {
-      MutexAutoLock lock(mProxy->mWorkerXHR->GetLock());
+      nsAutoLock lock(mProxy->mWorkerXHR->Lock());
       mProxy->mLastProgressOrLoadEvent.swap(lastProgressOrLoadEvent);
       if (mProxy->mCanceled) {
         return NS_ERROR_ABORT;
@@ -375,7 +375,7 @@ nsDOMWorkerXHRProxy::Destroy()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   {
-    MutexAutoLock lock(mWorkerXHR->GetLock());
+    nsAutoLock lock(mWorkerXHR->Lock());
 
     mCanceled = PR_TRUE;
 
@@ -397,23 +397,22 @@ nsDOMWorkerXHRProxy::InitInternal()
   NS_ASSERTION(!mXHR, "InitInternal shouldn't be called twice!");
 
   nsDOMWorker* worker = mWorkerXHR->mWorker;
+  nsRefPtr<nsDOMWorkerPool> pool = worker->Pool();
+
   if (worker->IsCanceled()) {
     return NS_ERROR_ABORT;
   }
 
-  NS_ASSERTION(worker->GetPrincipal(), "Must have a principal!");
-  NS_ASSERTION(worker->GetBaseURI(), "Must have a URI!");
-
-  nsIScriptGlobalObject* sgo = worker->Pool()->ScriptGlobalObject();
-  nsIScriptContext* scriptContext = sgo ? sgo->GetContext() : nsnull;
-
-  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(sgo);
+  nsIPrincipal* nodePrincipal = pool->ParentDocument()->NodePrincipal();
+  nsIScriptContext* scriptContext = pool->ScriptGlobalObject()->GetContext();
+  nsCOMPtr<nsPIDOMWindow> ownerWindow =
+    do_QueryInterface( pool->ScriptGlobalObject());
 
   nsRefPtr<nsXMLHttpRequest> xhrConcrete = new nsXMLHttpRequest();
   NS_ENSURE_TRUE(xhrConcrete, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = xhrConcrete->Init(worker->GetPrincipal(), scriptContext,
-                                  ownerWindow, worker->GetBaseURI());
+  nsresult rv = xhrConcrete->Init(nodePrincipal, scriptContext, ownerWindow,
+                                  worker->GetURI());
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Call QI manually here to avoid keeping up with the cast madness of
@@ -465,7 +464,7 @@ nsDOMWorkerXHRProxy::DestroyInternal()
     // necko has fired its OnStartRequest notification. Guard against that here.
     nsRefPtr<nsDOMWorkerXHRFinishSyncXHRRunnable> syncFinishedRunnable;
     {
-      MutexAutoLock lock(mWorkerXHR->GetLock());
+      nsAutoLock lock(mWorkerXHR->Lock());
       mSyncFinishedRunnable.swap(syncFinishedRunnable);
     }
 
@@ -494,6 +493,11 @@ nsDOMWorkerXHRProxy::AddRemoveXHRListeners(PRBool aAdd)
   nsCOMPtr<nsIDOMEventTarget> xhrTarget(do_QueryInterface(mXHR));
   NS_ASSERTION(xhrTarget, "This shouldn't fail!");
 
+  EventListenerFunction addRemoveEventListener =
+    aAdd ?
+    &nsIDOMEventTarget::AddEventListener :
+    &nsIDOMEventTarget::RemoveEventListener;
+
   nsAutoString eventName;
   PRUint32 index = 0;
 
@@ -503,25 +507,14 @@ nsDOMWorkerXHRProxy::AddRemoveXHRListeners(PRBool aAdd)
 
     for (; index < MAX_UPLOAD_LISTENER_TYPE; index++) {
       eventName.AssignASCII(nsDOMWorkerXHREventTarget::sListenerTypes[index]);
-      if (aAdd) {
-        xhrTarget->AddEventListener(eventName, this, PR_FALSE);
-        uploadTarget->AddEventListener(eventName, this, PR_FALSE);
-      }
-      else {
-        xhrTarget->RemoveEventListener(eventName, this, PR_FALSE);
-        uploadTarget->RemoveEventListener(eventName, this, PR_FALSE);
-      }
+      (xhrTarget.get()->*addRemoveEventListener)(eventName, this, PR_FALSE);
+      (uploadTarget.get()->*addRemoveEventListener)(eventName, this, PR_FALSE);
     }
   }
 
   for (; index < MAX_XHR_LISTENER_TYPE; index++) {
     eventName.AssignASCII(nsDOMWorkerXHREventTarget::sListenerTypes[index]);
-    if (aAdd) {
-      xhrTarget->AddEventListener(eventName, this, PR_FALSE);
-    }
-    else {
-      xhrTarget->RemoveEventListener(eventName, this, PR_FALSE);
-    }
+    (xhrTarget.get()->*addRemoveEventListener)(eventName, this, PR_FALSE);
   }
 }
 
@@ -586,7 +579,7 @@ nsDOMWorkerXHRProxy::HandleWorkerEvent(nsDOMWorkerXHREvent* aEvent,
   NS_ASSERTION(aEvent, "Should not be null!");
 
   {
-    MutexAutoLock lock(mWorkerXHR->GetLock());
+    nsAutoLock lock(mWorkerXHR->Lock());
 
     if (mCanceled ||
         (aEvent->mChannelID != -1 && aEvent->mChannelID != mChannelID)) {
@@ -611,7 +604,7 @@ nsDOMWorkerXHRProxy::HandleWorkerEvent(nsDOMWorkerXHREvent* aEvent,
     progressInfo = nsnull;
 
     // Dummy memory barrier.
-    MutexAutoLock lock(mWorkerXHR->GetLock());
+    nsAutoLock lock(mWorkerXHR->Lock());
   }
 
   nsIDOMEventTarget* target = aUploadEvent ?
@@ -689,7 +682,7 @@ nsDOMWorkerXHRProxy::DispatchPrematureAbortEvents(PRUint32 aType,
 }
 
 nsresult
-nsDOMWorkerXHRProxy::MaybeDispatchPrematureAbortEvents(PRBool aFromOpen)
+nsDOMWorkerXHRProxy::MaybeDispatchPrematureAbortEvents(PRBool aFromOpenRequest)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -704,7 +697,7 @@ nsDOMWorkerXHRProxy::MaybeDispatchPrematureAbortEvents(PRBool aFromOpen)
                                       nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (aFromOpen) {
+    if (aFromOpenRequest) {
       rv = DispatchPrematureAbortEvents(LISTENER_TYPE_ABORT, target,
                                         mDownloadProgressInfo);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -775,7 +768,7 @@ nsDOMWorkerXHRProxy::HandleEvent(nsIDOMEvent* aEvent)
 
     NS_ASSERTION(!syncFinishedRunnable, "This shouldn't be set!");
 
-    MutexAutoLock lock(mWorkerXHR->GetLock());
+    nsAutoLock lock(mWorkerXHR->Lock());
     mSyncFinishedRunnable.swap(syncFinishedRunnable);
   }
   else {
@@ -817,7 +810,7 @@ nsDOMWorkerXHRProxy::HandleEvent(nsIDOMEvent* aEvent)
     NS_ENSURE_TRUE(runnable, NS_ERROR_OUT_OF_MEMORY);
 
     {
-      MutexAutoLock lock(mWorkerXHR->GetLock());
+      nsAutoLock lock(mWorkerXHR->Lock());
 
       if (mCanceled) {
         return NS_ERROR_ABORT;
@@ -872,17 +865,17 @@ nsDOMWorkerXHRProxy::HandleEventRunnable(nsIRunnable* aRunnable)
 }
 
 nsresult
-nsDOMWorkerXHRProxy::Open(const nsACString& aMethod,
-                          const nsACString& aUrl,
-                          PRBool aAsync,
-                          const nsAString& aUser,
-                          const nsAString& aPassword)
+nsDOMWorkerXHRProxy::OpenRequest(const nsACString& aMethod,
+                                 const nsACString& aUrl,
+                                 PRBool aAsync,
+                                 const nsAString& aUser,
+                                 const nsAString& aPassword)
 {
   if (!NS_IsMainThread()) {
     mSyncRequest = !aAsync;
 
     // Always do async behind the scenes!
-    RUN_PROXIED_FUNCTION(Open,
+    RUN_PROXIED_FUNCTION(OpenRequest,
                          (aMethod, aUrl, PR_TRUE, aUser, aPassword));
     return NS_OK;
   }
@@ -894,12 +887,12 @@ nsDOMWorkerXHRProxy::Open(const nsACString& aMethod,
   nsresult rv = MaybeDispatchPrematureAbortEvents(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mXHR->Open(aMethod, aUrl, aAsync, aUser, aPassword);
+  rv = mXHR->OpenRequest(aMethod, aUrl, aAsync, aUser, aPassword);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Do this after Open is called so that we will continue to run events
-  // from the old channel if Open fails. Any events generated by the
-  // Open method will always run regardless of channel ID.
+  // Do this after OpenRequest is called so that we will continue to run events
+  // from the old channel if OpenRequest fails. Any events generated by the
+  // OpenRequest method will always run regardless of channel ID.
   mChannelID++;
 
   return NS_OK;
@@ -963,7 +956,7 @@ nsDOMWorkerXHRProxy::Send(nsIVariant* aBody)
     mSyncXHRThread = NS_GetCurrentThread();
     NS_ENSURE_TRUE(mSyncXHRThread, NS_ERROR_FAILURE);
 
-    MutexAutoLock lock(mWorkerXHR->GetLock());
+    nsAutoLock lock(mWorkerXHR->Lock());
 
     if (mCanceled) {
       return NS_ERROR_ABORT;
@@ -988,7 +981,7 @@ nsDOMWorkerXHRProxy::SendAsBinary(const nsAString& aBody)
     mSyncXHRThread = NS_GetCurrentThread();
     NS_ENSURE_TRUE(mSyncXHRThread, NS_ERROR_FAILURE);
 
-    MutexAutoLock lock(mWorkerXHR->GetLock());
+    nsAutoLock lock(mWorkerXHR->Lock());
 
     if (mCanceled) {
       return NS_ERROR_ABORT;
@@ -1095,7 +1088,7 @@ nsDOMWorkerXHRProxy::GetStatus(nsresult* _retval)
 }
 
 nsresult
-nsDOMWorkerXHRProxy::GetReadyState(PRUint16* _retval)
+nsDOMWorkerXHRProxy::GetReadyState(PRInt32* _retval)
 {
   NS_ASSERTION(_retval, "Null pointer!");
 

@@ -50,7 +50,7 @@
 #include "nsEditorUtils.h"
 #include "nsHTMLEditUtils.h"
 #include "nsTextEditRules.h"
-#include "nsHTMLEditRules.h"
+#include "nsIHTMLEditRules.h"
 
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
@@ -58,13 +58,13 @@
 
 #include "nsIDOMEventTarget.h"
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIServiceManager.h"
+
 #include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMRGBColor.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define  BLACK_BG_RGB_TRIGGER 0xd0
 
@@ -311,7 +311,7 @@ nsHTMLEditor::HideGrabber()
   NS_ENSURE_TRUE(mGrabber, NS_ERROR_NULL_POINTER);
 
   // get the presshell's document observer interface.
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   // We allow the pres shell to be null; when it is, we presume there
   // are no document observers to notify, but we still want to
   // UnbindFromTree.
@@ -411,7 +411,7 @@ nsHTMLEditor::GrabberClicked()
     mMouseMotionListenerP = new ResizerMouseMotionListener(this);
     if (!mMouseMotionListenerP) {return NS_ERROR_NULL_POINTER;}
 
-    nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+    nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
     NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
     res = piTarget->AddEventListenerByIID(mMouseMotionListenerP,
@@ -427,7 +427,7 @@ nsresult
 nsHTMLEditor::EndMoving()
 {
   if (mPositioningShadow) {
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
+    nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
     NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
     nsCOMPtr<nsIDOMNode> parentNode;
@@ -441,7 +441,7 @@ nsHTMLEditor::EndMoving()
 
     mPositioningShadow = nsnull;
   }
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
 
   if (piTarget && mMouseMotionListenerP) {
 #ifdef DEBUG
@@ -502,8 +502,15 @@ void
 nsHTMLEditor::AddPositioningOffset(PRInt32 & aX, PRInt32 & aY)
 {
   // Get the positioning offset
-  PRInt32 positioningOffset =
-    Preferences::GetInt("editor.positioning.offset", 0);
+  nsresult res;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &res);
+  PRInt32 positioningOffset = 0;
+  if (NS_SUCCEEDED(res) && prefBranch) {
+    res = prefBranch->GetIntPref("editor.positioning.offset", &positioningOffset);
+    if (NS_FAILED(res)) // paranoia
+      positioningOffset = 0;
+  }
 
   aX += positioningOffset;
   aY += positioningOffset;
@@ -586,7 +593,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     res = HasStyleOrIdOrClass(aElement, &hasStyleOrIdOrClass);
     NS_ENSURE_SUCCESS(res, res);
     if (!hasStyleOrIdOrClass && nsHTMLEditUtils::IsDiv(aElement)) {
-      nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+      nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
       NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
       res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
       NS_ENSURE_SUCCESS(res, res);
@@ -681,14 +688,13 @@ nsHTMLEditor::CheckPositionedElementBGandFG(nsIDOMElement * aElement,
                                          bgColorStr);
     NS_ENSURE_SUCCESS(res, res);
     if (bgColorStr.EqualsLiteral("transparent")) {
-      nsCOMPtr<nsIDOMWindow> window;
-      res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(window));
-      NS_ENSURE_SUCCESS(res, res);
 
+      nsCOMPtr<nsIDOMViewCSS> viewCSS;
+      res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(viewCSS));
+      NS_ENSURE_SUCCESS(res, res);
       nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-      res = window->GetComputedStyle(aElement, EmptyString(), getter_AddRefs(cssDecl));
+      res = viewCSS->GetComputedStyle(aElement, EmptyString(), getter_AddRefs(cssDecl));
       NS_ENSURE_SUCCESS(res, res);
-
       // from these declarations, get the one we want and that one only
       nsCOMPtr<nsIDOMCSSValue> colorCssValue;
       res = cssDecl->GetPropertyCSSValue(NS_LITERAL_STRING("color"), getter_AddRefs(colorCssValue));

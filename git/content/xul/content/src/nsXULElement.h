@@ -49,7 +49,7 @@
 #ifndef nsXULElement_h__
 #define nsXULElement_h__
 
-// XXX because nsEventListenerManager has broken includes
+// XXX because nsIEventListenerManager has broken includes
 #include "nsIDOMEvent.h"
 #include "nsIServiceManager.h"
 #include "nsIAtom.h"
@@ -57,9 +57,10 @@
 #include "nsIControllers.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOM3EventTarget.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFResource.h"
 #include "nsIScriptObjectOwner.h"
@@ -79,6 +80,7 @@
 class nsIDocument;
 class nsString;
 class nsIDocShell;
+class nsICSSStyleRule;
 
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
@@ -86,11 +88,7 @@ class nsIScriptGlobalObjectOwner;
 class nsXULPrototypeNode;
 typedef nsTArray<nsRefPtr<nsXULPrototypeNode> > nsPrototypeArray;
 
-namespace mozilla {
-namespace css {
-class StyleRule;
-}
-}
+static NS_DEFINE_CID(kCSSParserCID, NS_CSSPARSER_CID);
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -254,6 +252,7 @@ public:
 
     virtual ~nsXULPrototypeElement()
     {
+        UnlinkJSObjects();
         Unlink();
     }
 
@@ -282,6 +281,7 @@ public:
 
     nsresult SetAttrAt(PRUint32 aPos, const nsAString& aValue, nsIURI* aDocumentURI);
 
+    void UnlinkJSObjects();
     void Unlink();
 
     nsPrototypeArray         mChildren;
@@ -354,9 +354,7 @@ public:
     {
         NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
         if (!aObject) {
-            mScriptObject.mObject = nsnull;
-
-            return;
+          return;
         }
 
         nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
@@ -504,7 +502,7 @@ public:
                                 nsIContent* aBindingParent,
                                 PRBool aCompileEventHandlers);
     virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
     virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsAString& aResult) const;
     virtual PRBool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
@@ -542,7 +540,7 @@ public:
     virtual const nsAttrValue* DoGetClasses() const;
 
     NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
-    virtual mozilla::css::StyleRule* GetInlineStyleRule();
+    virtual nsICSSStyleRule* GetInlineStyleRule();
     virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                                 PRInt32 aModType) const;
     NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -566,7 +564,7 @@ public:
     NS_DECL_NSIDOMXULELEMENT
 
     virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-    virtual nsEventStates IntrinsicState() const;
+    virtual PRInt32 IntrinsicState() const;
 
     nsresult EnsureLocalStyle();
 
@@ -616,7 +614,7 @@ protected:
     class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
-       nsXULSlots();
+       nsXULSlots(PtrBits aFlags);
        virtual ~nsXULSlots();
 
        nsRefPtr<nsFrameLoader> mFrameLoader;
@@ -650,15 +648,13 @@ protected:
     virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify);
 
-    virtual void UpdateEditableState(PRBool aNotify);
-
     virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult);
 
     virtual nsresult
-      GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+      GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
                                      nsISupports** aTarget,
                                      PRBool* aDefer);
   
@@ -709,15 +705,6 @@ protected:
            PRBool aIsScriptable);
 
     friend class nsScriptEventHandlerOwnerTearoff;
-
-    bool IsReadWriteTextElement() const
-    {
-        const nsIAtom* tag = Tag();
-        return
-            GetNameSpaceID() == kNameSpaceID_XUL &&
-            (tag == nsGkAtoms::textbox || tag == nsGkAtoms::textarea) &&
-            !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
-    }
 };
 
 #endif // nsXULElement_h__

@@ -25,7 +25,6 @@
  *   Rob Campbell <rcampbell@mozilla.com> (original author)
  *   Mihai Șucan <mihai.sucan@gmail.com>
  *   Julian Viereck <jviereck@mozilla.com>
- *   Paul Rouget <paul@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,8 +41,6 @@
  * ***** END LICENSE BLOCK ***** */
 #endif
 
-#include insideOutBox.js
-
 const INSPECTOR_INVISIBLE_ELEMENTS = {
   "head": true,
   "base": true,
@@ -56,256 +53,152 @@ const INSPECTOR_INVISIBLE_ELEMENTS = {
   "title": true,
 };
 
-// Inspector notifications dispatched through the nsIObserverService.
-const INSPECTOR_NOTIFICATIONS = {
-  // Fires once the Inspector highlighter is initialized and ready for use.
-  HIGHLIGHTER_READY: "highlighter-ready",
-
-  // Fires once the Inspector highlights an element in the page.
-  HIGHLIGHTING: "inspector-highlighting",
-
-  // Fires once the Inspector stops highlighting any element.
-  UNHIGHLIGHTING: "inspector-unhighlighting",
-
-  // Fires once the Inspector completes the initialization and opens up on
-  // screen.
-  OPENED: "inspector-opened",
-
-  // Fires once the Inspector is closed.
-  CLOSED: "inspector-closed",
-};
-
 ///////////////////////////////////////////////////////////////////////////
-//// IFrameHighlighter
+//// PanelHighlighter
 
 /**
- * A highlighter mechanism using a transparent xul iframe.
+ * A highlighter mechanism using xul panels.
  *
- * @param nsIDOMNode aBrowser
- *        The xul:browser object for the content window being highlighted.
+ * @param aBrowser
+ *        The XUL browser object for the content window being highlighted.
  */
-function IFrameHighlighter(aBrowser)
+function PanelHighlighter(aBrowser)
 {
-  this._init(aBrowser);
+  this.panel = document.getElementById("highlighter-panel");
+  this.panel.hidden = false;
+  this.browser = aBrowser;
+  this.win = this.browser.contentWindow;
 }
 
-IFrameHighlighter.prototype = {
-
-  _init: function IFH__init(aBrowser)
-  {
-    this.browser = aBrowser;
-    let stack = this.browser.parentNode;
-    this.win = this.browser.contentWindow;
-    this._highlighting = false;
-
-    let div = document.createElement("div");
-    div.flex = 1;
-    div.setAttribute("style", "pointer-events: none; -moz-user-focus: ignore");
-
-    let iframe = document.createElement("iframe");
-    iframe.setAttribute("id", "highlighter-frame");
-    iframe.setAttribute("transparent", "true");
-    iframe.setAttribute("type", "content");
-    iframe.addEventListener("DOMTitleChanged", function(aEvent) {
-      aEvent.stopPropagation();
-    }, true);
-    iframe.flex = 1;
-    iframe.setAttribute("style", "-moz-user-focus: ignore");
-
-    this.listenOnce(iframe, "load", (function iframeLoaded() {
-      this.iframeDoc = iframe.contentDocument;
-
-      this.veilTopDiv = this.iframeDoc.getElementById("veil-topbox");
-      this.veilLeftDiv = this.iframeDoc.getElementById("veil-leftbox");
-      this.veilMiddleDiv = this.iframeDoc.getElementById("veil-middlebox");
-      this.veilTransparentDiv = this.iframeDoc.getElementById("veil-transparentbox");
-
-      let closeButton = this.iframeDoc.getElementById("close-button");
-      this.listenOnce(closeButton, "click",
-        InspectorUI.closeInspectorUI.bind(InspectorUI, false), false);
-
-      this.browser.addEventListener("click", this, true);
-      iframe.contentWindow.addEventListener("resize", this, false);
-      this.handleResize();
-      Services.obs.notifyObservers(null,
-        INSPECTOR_NOTIFICATIONS.HIGHLIGHTER_READY, null);
-    }).bind(this), true);
-
-    iframe.setAttribute("src", "chrome://browser/content/highlighter.xhtml");
-
-    div.appendChild(iframe);
-    stack.appendChild(div);
-    this.iframe = iframe;
-    this.iframeContainer = div;
-  },
-
-  /**
-   * Destroy the iframe and its nodes.
-   */
-  destroy: function IFH_destroy()
-  {
-    this.browser.removeEventListener("click", this, true);
-    this._highlightRect = null;
-    this._highlighting = false;
-    this.veilTopDiv = null;
-    this.veilLeftDiv = null;
-    this.veilMiddleDiv = null;
-    this.veilTransparentDiv = null;
-    this.node = null;
-    this.iframeDoc = null;
-    this.browser.parentNode.removeChild(this.iframeContainer);
-    this.iframeContainer = null;
-    this.iframe = null;
-    this.win = null
-    this.browser = null;
-  },
-
-  /**
-   * Is the highlighter highlighting? Public method for querying the state
-   * of the highlighter.
-   */
-  get isHighlighting() {
-    return this._highlighting;
-  },
+PanelHighlighter.prototype = {
 
   /**
    * Highlight this.node, unhilighting first if necessary.
    *
-   * @param boolean aScroll
+   * @param scroll
    *        Boolean determining whether to scroll or not.
    */
-  highlight: function IFH_highlight(aScroll)
+  highlight: function PanelHighlighter_highlight(scroll)
   {
     // node is not set or node is not highlightable, bail
-    if (!this.node || !this.isNodeHighlightable()) {
+    if (!this.isNodeHighlightable()) {
       return;
     }
 
-    let clientRect = this.node.getBoundingClientRect();
+    this.unhighlight();
 
-    // clientRect is read-only, we need to be able to change properties.
-    let rect = {top: clientRect.top,
-                left: clientRect.left,
-                width: clientRect.width,
-                height: clientRect.height};
-    let oldRect = this._highlightRect;
+    let rect = this.node.getBoundingClientRect();
 
-    if (oldRect && rect.top == oldRect.top && rect.left == oldRect.left &&
-        rect.width == oldRect.width && rect.height == oldRect.height) {
-      return; // same rectangle
-    }
-
-    if (aScroll) {
+    if (scroll) {
       this.node.scrollIntoView();
     }
 
-    // Go up in the tree of frames to determine the correct rectangle
-    // coordinates and size.
-    let frameWin = this.node.ownerDocument.defaultView;
-    do {
-      let frameRect = frameWin.frameElement ?
-                      frameWin.frameElement.getBoundingClientRect() :
-                      {top: 0, left: 0};
-
-      if (rect.top < 0) {
-        rect.height += rect.top;
-        rect.top = 0;
-      }
-
-      if (rect.left < 0) {
-        rect.width += rect.left;
-        rect.left = 0;
-      }
-
-      let diffx = frameWin.innerWidth - rect.left - rect.width;
-      if (diffx < 0) {
-        rect.width += diffx;
-      }
-      let diffy = frameWin.innerHeight - rect.top - rect.height;
-      if (diffy < 0) {
-        rect.height += diffy;
-      }
-
-      rect.left += frameRect.left;
-      rect.top += frameRect.top;
-
-      frameWin = frameWin.parent;
-    } while (frameWin != this.win);
-
-    this.highlightRectangle(rect);
-
-    if (this._highlighting) {
-      Services.obs.notifyObservers(null,
-        INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, null);
+    if (this.viewContainsRect(rect)) {
+      // TODO check for offscreen boundaries, bug565301
+      this.panel.openPopup(this.node, "overlap", 0, 0, false, false);
+      this.panel.sizeTo(rect.width, rect.height);
+    } else {
+      this.highlightVisibleRegion(rect);
     }
   },
 
   /**
    * Highlight the given node.
    *
-   * @param nsIDOMNode aNode
+   * @param aNode
    *        a DOM element to be highlighted
-   * @param object aParams
+   * @param aParams
    *        extra parameters object
    */
-  highlightNode: function IFH_highlightNode(aNode, aParams)
+  highlightNode: function PanelHighlighter_highlightNode(aNode, aParams)
   {
     this.node = aNode;
     this.highlight(aParams && aParams.scroll);
   },
 
   /**
-   * Highlight a rectangular region.
+   * Highlight the visible region of the region described by aRect, if any.
    *
-   * @param object aRect
-   *        The rectangle region to highlight.
+   * @param aRect
    * @returns boolean
-   *          True if the rectangle was highlighted, false otherwise.
+   *          was a region highlighted?
    */
-  highlightRectangle: function IFH_highlightRectangle(aRect)
+  highlightVisibleRegion: function PanelHighlighter_highlightVisibleRegion(aRect)
   {
-    if (aRect.left >= 0 && aRect.top >= 0 &&
-        aRect.width > 0 && aRect.height > 0) {
-      // The bottom div and the right div are flexibles (flex=1).
-      // We don't need to resize them.
-      this.veilTopDiv.style.height = aRect.top + "px";
-      this.veilLeftDiv.style.width = aRect.left + "px";
-      this.veilMiddleDiv.style.height = aRect.height + "px";
-      this.veilTransparentDiv.style.width = aRect.width + "px";
+    let offsetX = 0;
+    let offsetY = 0;
+    let width = 0;
+    let height = 0;
+    let visibleWidth = this.win.innerWidth;
+    let visibleHeight = this.win.innerHeight;
 
-      this._highlighting = true;
-    } else {
-      this.unhighlight();
+    // If any of these edges are out-of-bounds, the node's rectangle is
+    // completely out-of-view and we can return.
+    if (aRect.top > visibleHeight || aRect.left > visibleWidth ||
+        aRect.bottom < 0 || aRect.right < 0) {
+      return false;
     }
 
-    this._highlightRect = aRect;
+    // Calculate node offsets, if values are negative, then start the offsets
+    // at their absolute values from node origin. The delta should be the edge
+    // of view.
+    offsetX = aRect.left < 0 ? Math.abs(aRect.left) : 0;
+    offsetY = aRect.top < 0 ? Math.abs(aRect.top) : 0;
 
-    return this._highlighting;
+    // Calculate actual node width, taking into account the available visible
+    // width and then subtracting the offset for the final dimension.
+    width = aRect.right > visibleWidth ? visibleWidth - aRect.left :
+      aRect.width;
+    width -= offsetX;
+
+    // Calculate actual node height using the same formula as above for width.
+    height = aRect.bottom > visibleHeight ? visibleHeight - aRect.top :
+      aRect.height;
+    height -= offsetY;
+
+    // If width and height are non-negative, open the highlighter popup over the
+    // node and sizeTo width and height.
+    if (width > 0 && height > 0) {
+      this.panel.openPopup(this.node, "overlap", offsetX, offsetY, false,
+        false);
+      this.panel.sizeTo(width, height);
+      return true;
+    }
+
+    return false;
   },
 
   /**
-   * Clear the highlighter surface.
+   * Close the highlighter panel.
    */
-  unhighlight: function IFH_unhighlight()
+  unhighlight: function PanelHighlighter_unhighlight()
   {
-    this._highlighting = false;
-    this.veilMiddleDiv.style.height = 0;
-    this.veilTransparentDiv.style.width = 0;
-    Services.obs.notifyObservers(null,
-      INSPECTOR_NOTIFICATIONS.UNHIGHLIGHTING, null);
+    if (this.isHighlighting) {
+      this.panel.hidePopup();
+    }
+  },
+
+  /**
+   * Is the highlighter panel open?
+   *
+   * @returns boolean
+   */
+  get isHighlighting()
+  {
+    return this.panel.state == "open";
   },
 
   /**
    * Return the midpoint of a line from pointA to pointB.
    *
-   * @param object aPointA
+   * @param aPointA
    *        An object with x and y properties.
-   * @param object aPointB
+   * @param aPointB
    *        An object with x and y properties.
-   * @returns object
+   * @returns aPoint
    *          An object with x and y properties.
    */
-  midPoint: function IFH_midPoint(aPointA, aPointB)
+  midPoint: function PanelHighlighter_midPoint(aPointA, aPointB)
   {
     let pointC = { };
     pointC.x = (aPointB.x - aPointA.x) / 2 + aPointA.x;
@@ -318,25 +211,28 @@ IFrameHighlighter.prototype = {
    * Calculation based on midpoint of diagonal from top left to bottom right
    * of panel.
    *
-   * @returns nsIDOMNode|null
-   *          Returns the node under the current highlighter rectangle. Null is
-   *          returned if there is no node highlighted.
+   * @returns a DOM node or null if none
    */
   get highlitNode()
   {
-    // Not highlighting? Bail.
-    if (!this._highlighting || !this._highlightRect) {
+    // No highlighter panel? Bail.
+    if (!this.isHighlighting) {
       return null;
     }
 
+    let browserRect = this.browser.getBoundingClientRect();
+    let clientRect = this.panel.getBoundingClientRect();
+
+    // Calculate top left point offset minus browser chrome.
     let a = {
-      x: this._highlightRect.left,
-      y: this._highlightRect.top
+      x: clientRect.left - browserRect.left,
+      y: clientRect.top - browserRect.top
     };
 
+    // Calculate bottom right point minus browser chrome.
     let b = {
-      x: a.x + this._highlightRect.width,
-      y: a.y + this._highlightRect.height
+      x: clientRect.right - browserRect.left,
+      y: clientRect.bottom - browserRect.top
     };
 
     // Get midpoint of diagonal line.
@@ -350,194 +246,242 @@ IFrameHighlighter.prototype = {
    * Is this.node highlightable?
    *
    * @returns boolean
-   *          True if the node is highlightable or false otherwise.
    */
-  isNodeHighlightable: function IFH_isNodeHighlightable()
+  isNodeHighlightable: function PanelHighlighter_isNodeHighlightable()
   {
-    if (!this.node || this.node.nodeType != Node.ELEMENT_NODE) {
+    if (!this.node) {
       return false;
     }
     let nodeName = this.node.nodeName.toLowerCase();
+    if (nodeName[0] == '#') {
+      return false;
+    }
     return !INSPECTOR_INVISIBLE_ELEMENTS[nodeName];
+  },
+
+  /**
+   * Returns true if the given viewport-relative rect is within the visible area
+   * of the window.
+   *
+   * @param aRect
+   *        a CSS rectangle object
+   * @returns boolean
+   */
+  viewContainsRect: function PanelHighlighter_viewContainsRect(aRect)
+  {
+    let visibleWidth = this.win.innerWidth;
+    let visibleHeight = this.win.innerHeight;
+
+    return ((0 <= aRect.left) && (aRect.right <= visibleWidth) && 
+        (0 <= aRect.top) && (aRect.bottom <= visibleHeight))
   },
 
   /////////////////////////////////////////////////////////////////////////
   //// Event Handling
 
-  attachInspectListeners: function IFH_attachInspectListeners()
-  {
-    this.browser.addEventListener("mousemove", this, true);
-    this.browser.addEventListener("dblclick", this, true);
-    this.browser.addEventListener("mousedown", this, true);
-    this.browser.addEventListener("mouseup", this, true);
-  },
-
-  detachInspectListeners: function IFH_detachInspectListeners()
-  {
-    this.browser.removeEventListener("mousemove", this, true);
-    this.browser.removeEventListener("dblclick", this, true);
-    this.browser.removeEventListener("mousedown", this, true);
-    this.browser.removeEventListener("mouseup", this, true);
-  },
-
-  /**
-   * Generic event handler.
-   *
-   * @param nsIDOMEvent aEvent
-   *        The DOM event object.
-   */
-  handleEvent: function IFH_handleEvent(aEvent)
-  {
-    switch (aEvent.type) {
-      case "click":
-        this.handleClick(aEvent);
-        break;
-      case "mousemove":
-        this.handleMouseMove(aEvent);
-        break;
-      case "resize":
-        this.handleResize(aEvent);
-        break;
-      case "dblclick":
-      case "mousedown":
-      case "mouseup":
-        aEvent.stopPropagation();
-        aEvent.preventDefault();
-        break;
-    }
-  },
-
-  /**
-   * Handle clicks on the iframe.
-   *
-   * @param nsIDOMEvent aEvent
-   *        The DOM event.
-   */
-  handleClick: function IFH_handleClick(aEvent)
-  {
-    // Proxy the click event to the iframe.
-    let x = aEvent.clientX;
-    let y = aEvent.clientY;
-    let frameWin = aEvent.view;
-    while (frameWin != this.win) {
-      if (frameWin.frameElement) {
-        let frameRect = frameWin.frameElement.getBoundingClientRect();
-        x += frameRect.left;
-        y += frameRect.top;
-      }
-      frameWin = frameWin.parent;
-    }
-
-    let element = this.iframeDoc.elementFromPoint(x, y);
-    if (element && element.classList &&
-        element.classList.contains("clickable")) {
-      let newEvent = this.iframeDoc.createEvent("MouseEvents");
-      newEvent.initMouseEvent(aEvent.type, aEvent.bubbles, aEvent.cancelable,
-        this.iframeDoc.defaultView, aEvent.detail, aEvent.screenX,
-        aEvent.screenY, x, y, aEvent.ctrlKey, aEvent.altKey, aEvent.shiftKey,
-        aEvent.metaKey, aEvent.button, null);
-      element.dispatchEvent(newEvent);
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-      return;
-    }
-
-    // Stop inspection when the user clicks on a node.
-    if (InspectorUI.inspecting) {
-      if (aEvent.button == 0) {
-        let win = aEvent.target.ownerDocument.defaultView;
-        InspectorUI.stopInspecting();
-        win.focus();
-      }
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-    }
-  },
-
   /**
    * Handle mousemoves in panel when InspectorUI.inspecting is true.
    *
-   * @param nsiDOMEvent aEvent
+   * @param aEvent
    *        The MouseEvent triggering the method.
    */
-  handleMouseMove: function IFH_handleMouseMove(aEvent)
+  handleMouseMove: function PanelHighlighter_handleMouseMove(aEvent)
   {
     if (!InspectorUI.inspecting) {
       return;
     }
-
-    let element = InspectorUI.elementFromPoint(aEvent.target.ownerDocument,
-      aEvent.clientX, aEvent.clientY);
+    let browserRect = this.browser.getBoundingClientRect();
+    let element = InspectorUI.elementFromPoint(this.win.document,
+      aEvent.clientX - browserRect.left, aEvent.clientY - browserRect.top);
     if (element && element != this.node) {
       InspectorUI.inspectNode(element);
     }
   },
 
   /**
-   * Handle window resize events.
-   */
-  handleResize: function IFH_handleResize()
-  {
-    let style = this.iframeContainer.style;
-    if (this.win.scrollMaxY && this.win.scrollbars.visible) {
-      style.paddingRight = this.getScrollbarWidth() + "px";
-    } else {
-      style.paddingRight = 0;
-    }
-    if (this.win.scrollMaxX && this.win.scrollbars.visible) {
-      style.paddingBottom = this.getScrollbarWidth() + "px";
-    } else {
-      style.paddingBottom = 0;
-    }
-
-    this.highlight();
-  },
-
-  /**
-   * Determine the scrollbar width in the current document.
+   * Handle MozMousePixelScroll in panel when InspectorUI.inspecting is true.
    *
-   * @returns number
-   *          The scrollbar width in pixels.
-   */
-  getScrollbarWidth: function IFH_getScrollbarWidth()
-  {
-    if (this._scrollbarWidth) {
-      return this._scrollbarWidth;
-    }
-
-    let hbox = document.createElement("hbox");
-    hbox.setAttribute("style", "height: 0%; overflow: hidden");
-
-    let scrollbar = document.createElement("scrollbar");
-    scrollbar.setAttribute("orient", "vertical");
-    hbox.appendChild(scrollbar);
-
-    document.documentElement.appendChild(hbox);
-    this._scrollbarWidth = scrollbar.clientWidth;
-    document.documentElement.removeChild(hbox);
-
-    return this._scrollbarWidth;
-  },
-
-  /**
-   * Helper to listen for an event only once.
-   *
-   * @param nsIDOMEventTarget aTarget
-   *        The DOM event target you want to add an event listener to.
-   * @param string aName
-   *        The event name you want to listen for.
-   * @param function aCallback
-   *        The function you want to execute once for the given event.
-   * @param boolean aCapturing
-   *        Tells if you want to use capture for the event listener.
+   * @param aEvent
+   *        The onMozMousePixelScrollEvent triggering the method.
    * @returns void
    */
-  listenOnce: function IFH_listenOnce(aTarget, aName, aCallback, aCapturing)
+  handlePixelScroll: function PanelHighlighter_handlePixelScroll(aEvent) {
+    if (!InspectorUI.inspecting) {
+      return;
+    }
+    let browserRect = this.browser.getBoundingClientRect();
+    let element = InspectorUI.elementFromPoint(this.win.document,
+      aEvent.clientX - browserRect.left, aEvent.clientY - browserRect.top);
+    let win = element.ownerDocument.defaultView;
+
+    if (aEvent.axis == aEvent.HORIZONTAL_AXIS) {
+      win.scrollBy(aEvent.detail, 0);
+    } else {
+      win.scrollBy(0, aEvent.detail);
+    }
+  }
+};
+
+///////////////////////////////////////////////////////////////////////////
+//// InspectorTreeView
+
+/**
+ * TreeView object to manage the view of the DOM tree. Wraps and provides an
+ * interface to an inIDOMView object
+ *
+ * @param aWindow
+ *        a top-level window object
+ */
+function InspectorTreeView(aWindow)
+{
+  this.tree = document.getElementById("inspector-tree");
+  this.treeBody = document.getElementById("inspector-tree-body");
+  this.view = Cc["@mozilla.org/inspector/dom-view;1"]
+              .createInstance(Ci.inIDOMView);
+  this.view.showSubDocuments = true;
+  this.view.whatToShow = NodeFilter.SHOW_ALL;
+  this.tree.view = this.view;
+  this.contentWindow = aWindow;
+  this.view.rootNode = aWindow.document;
+  this.view.rebuild();
+}
+
+InspectorTreeView.prototype = {
+  get editable() { return false; },
+  get selection() { return this.view.selection; },
+
+  /**
+   * Destroy the view.
+   */
+  destroy: function ITV_destroy()
   {
-    aTarget.addEventListener(aName, function listenOnce_handler(aEvent) {
-      aTarget.removeEventListener(aName, listenOnce_handler, aCapturing);
-      aCallback.call(this, aEvent);
-    }, aCapturing);
+    this.tree.view = null;
+    this.view = null;
+    this.tree = null;
+  },
+
+  /**
+   * Get the cell text at a given row and column.
+   *
+   * @param aRow
+   *        The row index of the desired cell.
+   * @param aCol
+   *        The column index of the desired cell.
+   * @returns string
+   */
+  getCellText: function ITV_getCellText(aRow, aCol)
+  {
+    return this.view.getCellText(aRow, aCol);
+  },
+
+  /**
+   * Get the index of the selected row.
+   *
+   * @returns number -1 if there is no row selected.
+   */
+  get selectionIndex()
+  {
+    return this.selection ? this.selection.currentIndex : -1;
+  },
+
+  /**
+   * Get the corresponding node for the currently-selected row in the tree.
+   *
+   * @returns DOMNode|null
+   */
+  get selectedNode()
+  {
+    let rowIndex = this.selectionIndex;
+    return rowIndex > -1 ? this.view.getNodeFromRowIndex(rowIndex) : null;
+  },
+
+  /**
+   * Set the selected row in the table to the specified index.
+   *
+   * @param anIndex
+   *        The index to set the selection to.
+   */
+  set selectedRow(anIndex)
+  {
+    this.view.selection.select(anIndex);
+    this.tree.treeBoxObject.ensureRowIsVisible(anIndex);
+  },
+
+  /**
+   * Set the selected node to the specified document node.
+   *
+   * @param aNode
+   *        The document node to select in the tree.
+   */
+  set selectedNode(aNode)
+  {
+    let rowIndex = this.view.getRowIndexFromNode(aNode);
+    if (rowIndex > -1) {
+      this.selectedRow = rowIndex;
+    } else {
+      this.selectElementInTree(aNode);
+    }
+  },
+
+  /**
+   * Select the given node in the tree, searching for and expanding rows
+   * as-needed.
+   *
+   * @param aNode
+   *        The document node to select in the three.
+   * @returns boolean
+   *          Whether a node was selected or not if not found.
+   */
+  selectElementInTree: function ITV_selectElementInTree(aNode)
+  {
+    if (!aNode) {
+      this.view.selection.select(null);
+      return false;      
+    }
+
+    // Keep searching until a pre-created ancestor is found, then 
+    // open each ancestor until the found element is created.
+    let domUtils = Cc["@mozilla.org/inspector/dom-utils;1"].
+                    getService(Ci.inIDOMUtils);
+    let line = [];
+    let parent = aNode;
+    let index = null;
+
+    while (parent) {
+      index = this.view.getRowIndexFromNode(parent);
+      line.push(parent);
+      if (index < 0) {
+        // Row for this node hasn't been created yet.
+        parent = domUtils.getParentForNode(parent,
+          this.view.showAnonymousContent);
+      } else {
+        break;
+      }
+    }
+
+    // We have all the ancestors, now open them one-by-one from the top
+    // to bottom.
+    let lastIndex;
+    let view = this.tree.treeBoxObject.view;
+
+    for (let i = line.length - 1; i >= 0; --i) {
+      index = this.view.getRowIndexFromNode(line[i]);
+      if (index < 0) {
+        // Can't find the row, so stop trying to descend.
+        break;
+      }
+      if (i > 0 && !view.isContainerOpen(index)) {
+        view.toggleOpenState(index);
+      }
+      lastIndex = index;
+    }
+
+    if (lastIndex >= 0) {
+      this.selectedRow = lastIndex;
+      return true;
+    }
+    
+    return false;
   },
 };
 
@@ -549,10 +493,8 @@ IFrameHighlighter.prototype = {
  */
 var InspectorUI = {
   browser: null,
-  showTextNodesWithWhitespace: false,
+  selectEventsSuppressed: false,
   inspecting: false,
-  treeLoaded: false,
-  prefEnabledName: "devtools.inspector.enabled",
 
   /**
    * Toggle the inspector interface elements on or off.
@@ -562,8 +504,8 @@ var InspectorUI = {
    */
   toggleInspectorUI: function IUI_toggleInspectorUI(aEvent)
   {
-    if (this.isTreePanelOpen) {
-      this.closeInspectorUI();
+    if (this.isPanelOpen) {
+      this.closeInspectorUI(true);
     } else {
       this.openInspectorUI();
     }
@@ -583,36 +525,64 @@ var InspectorUI = {
   },
 
   /**
+   * Toggle the style panel. Invoked from the toolbar's Style button.
+   */
+  toggleStylePanel: function IUI_toggleStylePanel()
+  {
+    if (this.isStylePanelOpen) {
+      this.stylePanel.hidePopup();
+    } else {
+      this.openStylePanel();
+      if (this.treeView.selectedNode) {
+        this.updateStylePanel(this.treeView.selectedNode);
+      }
+    }
+  },
+
+  /**
+   * Toggle the DOM panel. Invoked from the toolbar's DOM button.
+   */
+  toggleDOMPanel: function IUI_toggleDOMPanel()
+  {
+    if (this.isDOMPanelOpen) {
+      this.domPanel.hidePopup();
+    } else {
+      this.clearDOMPanel();
+      this.openDOMPanel();
+      if (this.treeView.selectedNode) {
+        this.updateDOMPanel(this.treeView.selectedNode);
+      }
+    }
+  },
+
+  /**
    * Is the tree panel open?
    *
    * @returns boolean
    */
-  get isTreePanelOpen()
+  get isPanelOpen()
   {
     return this.treePanel && this.treePanel.state == "open";
   },
 
   /**
-   * Return the default selection element for the inspected document.
+   * Is the style panel open?
+   *
+   * @returns boolean
    */
-  get defaultSelection()
+  get isStylePanelOpen()
   {
-    let doc = this.win.document;
-    return doc.documentElement.lastElementChild;
+    return this.stylePanel && this.stylePanel.state == "open";
   },
 
-  initializeTreePanel: function IUI_initializeTreePanel()
+  /**
+   * Is the DOM panel open?
+   *
+   * @returns boolean
+   */
+  get isDOMPanelOpen()
   {
-    this.treeBrowserDocument = this.treeIFrame.contentDocument;
-    this.treePanelDiv = this.treeBrowserDocument.createElement("div");
-    this.treeBrowserDocument.body.appendChild(this.treePanelDiv);
-    this.treePanelDiv.ownerPanel = this;
-    this.ioBox = new InsideOutBox(this, this.treePanelDiv);
-    this.ioBox.createObjectBox(this.win.document.documentElement);
-    this.treeLoaded = true;
-
-    // initialize the highlighter
-    this.initializeHighlighter();
+    return this.domPanel && this.domPanel.state == "open";
   },
 
   /**
@@ -621,165 +591,72 @@ var InspectorUI = {
   openTreePanel: function IUI_openTreePanel()
   {
     if (!this.treePanel) {
-      this.treePanel = document.getElementById("inspector-tree-panel");
+      this.treePanel = document.getElementById("inspector-panel");
       this.treePanel.hidden = false;
     }
-
-    this.treeIFrame = document.getElementById("inspector-tree-iframe");
-    if (!this.treeIFrame) {
-      let resizerBox = document.getElementById("tree-panel-resizer-box");
-      this.treeIFrame = document.createElement("iframe");
-      this.treeIFrame.setAttribute("id", "inspector-tree-iframe");
-      this.treeIFrame.setAttribute("flex", "1");
-      this.treeIFrame.setAttribute("type", "content");
-      this.treeIFrame.setAttribute("onclick", "InspectorUI.onTreeClick(event)");
-      this.treeIFrame = this.treePanel.insertBefore(this.treeIFrame, resizerBox);
+    if (!this.isPanelOpen) {
+      const panelWidthRatio = 7 / 8;
+      const panelHeightRatio = 1 / 5;
+      let bar = document.getElementById("status-bar");
+      this.treePanel.openPopupAtScreen(this.win.screenX + 80,
+        this.win.outerHeight + this.win.screenY);
+      this.treePanel.sizeTo(this.win.outerWidth * panelWidthRatio, 
+        this.win.outerHeight * panelHeightRatio);
+      this.tree = document.getElementById("inspector-tree");
+      this.createDocumentModel();
     }
-
-    this.treePanel.addEventListener("popupshown", function treePanelShown() {
-      InspectorUI.treePanel.removeEventListener("popupshown",
-        treePanelShown, false);
-
-        InspectorUI.treeIFrame.addEventListener("load",
-          function loadedInitializeTreePanel() {
-            InspectorUI.treeIFrame.removeEventListener("load",
-              loadedInitializeTreePanel, true);
-            InspectorUI.initializeTreePanel();
-          }, true);
-
-      let src = InspectorUI.treeIFrame.getAttribute("src");
-      if (src != "chrome://browser/content/inspector.html") {
-        InspectorUI.treeIFrame.setAttribute("src",
-          "chrome://browser/content/inspector.html");
-      } else {
-        InspectorUI.treeIFrame.contentWindow.location.reload();
-      }
-
-    }, false);
-
-    const panelWidthRatio = 7 / 8;
-    const panelHeightRatio = 1 / 5;
-
-    let width = parseInt(this.win.outerWidth * panelWidthRatio);
-    let height = parseInt(this.win.outerHeight * panelHeightRatio);
-    let y = Math.min(window.screen.availHeight - height, this.win.innerHeight);
-
-    this.treePanel.openPopup(this.browser, "overlap", 0, 0,
-      false, false);
-
-    this.treePanel.moveTo(80, y);
-    this.treePanel.sizeTo(width, height);
-  },
-
-  createObjectBox: function IUI_createObjectBox(object, isRoot)
-  {
-    let tag = this.domplateUtils.getNodeTag(object);
-    if (tag)
-      return tag.replace({object: object}, this.treeBrowserDocument);
-  },
-
-  getParentObject: function IUI_getParentObject(node)
-  {
-    let parentNode = node ? node.parentNode : null;
-
-    if (!parentNode) {
-      // Documents have no parentNode; Attr, Document, DocumentFragment, Entity,
-      // and Notation. top level windows have no parentNode
-      if (node && node == Node.DOCUMENT_NODE) {
-        // document type
-        if (node.defaultView) {
-          let embeddingFrame = node.defaultView.frameElement;
-          if (embeddingFrame)
-            return embeddingFrame.parentNode;
-        }
-      }
-      // a Document object without a parentNode or window
-      return null;  // top level has no parent
-    }
-
-    if (parentNode.nodeType == Node.DOCUMENT_NODE) {
-      if (parentNode.defaultView) {
-        return parentNode.defaultView.frameElement;
-      }
-      if (this.embeddedBrowserParents) {
-        let skipParent = this.embeddedBrowserParents[node];
-        // HTML element? could be iframe?
-        if (skipParent)
-          return skipParent;
-      } else // parent is document element, but no window at defaultView.
-        return null;
-    } else if (!parentNode.localName) {
-      return null;
-    }
-    return parentNode;
-  },
-
-  getChildObject: function IUI_getChildObject(node, index, previousSibling)
-  {
-    if (!node)
-      return null;
-
-    if (node.contentDocument) {
-      // then the node is a frame
-      if (index == 0) {
-        if (!this.embeddedBrowserParents)
-          this.embeddedBrowserParents = {};
-        let skipChild = node.contentDocument.documentElement;
-        this.embeddedBrowserParents[skipChild] = node;
-        return skipChild;  // the node's HTMLElement
-      }
-      return null;
-    }
-
-    if (node instanceof GetSVGDocument) {
-      // then the node is a frame
-      if (index == 0) {
-        if (!this.embeddedBrowserParents)
-          this.embeddedBrowserParents = {};
-        let skipChild = node.getSVGDocument().documentElement;
-        this.embeddedBrowserParents[skipChild] = node;
-        return skipChild;  // the node's SVGElement
-      }
-      return null;
-    }
-
-    let child = null;
-    if (previousSibling)  // then we are walking
-      child = this.getNextSibling(previousSibling);
-    else
-      child = this.getFirstChild(node);
-
-    if (this.showTextNodesWithWhitespace)
-      return child;
-
-    for (; child; child = this.getNextSibling(child)) {
-      if (!this.domplateUtils.isWhitespaceText(child))
-        return child;
-    }
-
-    return null;  // we have no children worth showing.
-  },
-
-  getFirstChild: function IUI_getFirstChild(node)
-  {
-    this.treeWalker = node.ownerDocument.createTreeWalker(node,
-      NodeFilter.SHOW_ALL, null, false);
-    return this.treeWalker.firstChild();
-  },
-
-  getNextSibling: function IUI_getNextSibling(node)
-  {
-    let next = this.treeWalker.nextSibling();
-
-    if (!next)
-      delete this.treeWalker;
-
-    return next;
   },
 
   /**
-   * Open inspector UI. tree. Add listeners for document scrolling,
-   * resize, tabContainer.TabSelect and others.
+   * Open the style panel if not already onscreen.
+   */
+  openStylePanel: function IUI_openStylePanel()
+  {
+    if (!this.stylePanel)
+      this.stylePanel = document.getElementById("inspector-style-panel");
+    if (!this.isStylePanelOpen) {
+      this.stylePanel.hidden = false;
+      // open at top right of browser panel, offset by 20px from top.
+      this.stylePanel.openPopup(this.browser, "end_before", 0, 20, false, false);
+      // size panel to 200px wide by half browser height - 60.
+      this.stylePanel.sizeTo(200, this.win.outerHeight / 2 - 60);
+    }
+  },
+
+  /**
+   * Open the DOM panel if not already onscreen.
+   */
+  openDOMPanel: function IUI_openDOMPanel()
+  {
+    if (!this.isDOMPanelOpen) {
+      this.domPanel.hidden = false;
+      // open at middle right of browser panel, offset by 20px from middle.
+      this.domPanel.openPopup(this.browser, "end_before", 0,
+        this.win.outerHeight / 2 - 20, false, false);
+      // size panel to 200px wide by half browser height - 60.
+      this.domPanel.sizeTo(200, this.win.outerHeight / 2 - 60);
+    }
+  },
+
+  /**
+   * Toggle the dimmed (semi-transparent) state for a panel by setting or
+   * removing a dimmed attribute.
+   *
+   * @param aDim
+   *        The panel to be dimmed.
+   */
+  toggleDimForPanel: function IUI_toggleDimForPanel(aDim)
+  {
+    if (aDim.hasAttribute("dimmed")) {
+      aDim.removeAttribute("dimmed");
+    } else {
+      aDim.setAttribute("dimmed", "true");
+    }
+  },
+
+  /**
+   * Open inspector UI. tree, style and DOM panels if enabled. Add listeners for
+   * document scrolling, resize, tabContainer.TabSelect and others.
    */
   openInspectorUI: function IUI_openInspectorUI()
   {
@@ -787,15 +664,58 @@ var InspectorUI = {
     this.browser = gBrowser.selectedBrowser;
     this.win = this.browser.contentWindow;
     this.winID = this.getWindowID(this.win);
-    if (!this.domplate) {
-      Cu.import("resource:///modules/domplate.jsm", this);
-      this.domplateUtils.setDOM(window);
-    }
 
+    // DOM panel initialization and loading (via PropertyPanel.jsm)
+    let objectPanelTitle = this.strings.
+      GetStringFromName("object.objectPanelTitle");
+    let parent = document.getElementById("inspector-style-panel").parentNode;
+    this.propertyPanel = new (this.PropertyPanel)(parent, document,
+      objectPanelTitle, {});
+
+    // additional DOM panel setup needed for unittest identification and use
+    this.domPanel = this.propertyPanel.panel;
+    this.domPanel.setAttribute("id", "inspector-dom-panel");
+    this.domBox = this.propertyPanel.tree;
+    this.domTreeView = this.propertyPanel.treeView;
+
+    // open inspector UI
     this.openTreePanel();
 
-    this.browser.addEventListener("scroll", this, true);
+    // style panel setup and activation
+    this.styleBox = document.getElementById("inspector-style-listbox");
+    this.clearStylePanel();
+    this.openStylePanel();
+
+    // DOM panel setup and activation
+    this.clearDOMPanel();
+    this.openDOMPanel();
+
+    // setup highlighter and start inspecting
+    this.initializeHighlighter();
+
+    if (!InspectorStore.hasID(this.winID) ||
+      InspectorStore.getValue(this.winID, "inspecting")) {
+      this.startInspecting();
+    }
+
+    this.win.document.addEventListener("scroll", this, false);
+    this.win.addEventListener("resize", this, false);
     this.inspectCmd.setAttribute("checked", true);
+
+    if (InspectorStore.isEmpty()) {
+      gBrowser.tabContainer.addEventListener("TabSelect", this, false);
+    }
+
+    if (InspectorStore.hasID(this.winID)) {
+      let selectedNode = InspectorStore.getValue(this.winID, "selectedNode");
+      if (selectedNode) {
+        this.inspectNode(selectedNode);
+      }
+    } else {
+      InspectorStore.addStore(this.winID);
+      InspectorStore.setValue(this.winID, "selectedNode", null);
+      this.win.addEventListener("pagehide", this, true);
+    }
   },
 
   /**
@@ -803,33 +723,7 @@ var InspectorUI = {
    */
   initializeHighlighter: function IUI_initializeHighlighter()
   {
-    Services.obs.addObserver(this.highlighterReady,
-      INSPECTOR_NOTIFICATIONS.HIGHLIGHTER_READY, false);
-    this.highlighter = new IFrameHighlighter(this.browser);
-  },
-
-  /**
-   * Initialize the InspectorStore.
-   */
-  initializeStore: function IUI_initializeStore()
-  {
-    // First time opened, add the TabSelect listener
-    if (InspectorStore.isEmpty())
-      gBrowser.tabContainer.addEventListener("TabSelect", this, false);
-
-    // Has this windowID been inspected before?
-    if (InspectorStore.hasID(this.winID)) {
-      let selectedNode = InspectorStore.getValue(this.winID, "selectedNode");
-      if (selectedNode) {
-        this.inspectNode(selectedNode);
-      }
-    } else {
-      // First time inspecting, set state to no selection + live inspection.
-      InspectorStore.addStore(this.winID);
-      InspectorStore.setValue(this.winID, "selectedNode", null);
-      InspectorStore.setValue(this.winID, "inspecting", true);
-      this.win.addEventListener("pagehide", this, true);
-    }
+    this.highlighter = new PanelHighlighter(this.browser);
   },
 
   /**
@@ -837,28 +731,18 @@ var InspectorUI = {
    * Remove event listeners for document scrolling, resize,
    * tabContainer.TabSelect and others.
    *
-   * @param boolean aKeepStore
-   *        Tells if you want the store associated to the current tab/window to
-   *        be cleared or not. Set this to true to not clear the store, or false
-   *        otherwise.
+   * @param boolean aClearStore tells if you want the store associated to the
+   * current tab/window to be cleared or not.
    */
-  closeInspectorUI: function IUI_closeInspectorUI(aKeepStore)
+  closeInspectorUI: function IUI_closeInspectorUI(aClearStore)
   {
-    if (this.closing || !this.win || !this.browser) {
-      return;
-    }
-
-    this.closing = true;
-
-    if (!aKeepStore) {
+    if (aClearStore) {
       InspectorStore.deleteStore(this.winID);
       this.win.removeEventListener("pagehide", this, true);
     } else {
       // Update the store before closing.
-      if (this.selection) {
-        InspectorStore.setValue(this.winID, "selectedNode",
-          this.selection);
-      }
+      InspectorStore.setValue(this.winID, "selectedNode",
+        this.treeView.selectedNode);
       InspectorStore.setValue(this.winID, "inspecting", this.inspecting);
     }
 
@@ -866,45 +750,28 @@ var InspectorUI = {
       gBrowser.tabContainer.removeEventListener("TabSelect", this, false);
     }
 
-    this.browser.removeEventListener("scroll", this, true);
+    this.win.document.removeEventListener("scroll", this, false);
+    this.win.removeEventListener("resize", this, false);
     this.stopInspecting();
-    if (this.highlighter) {
-      this.highlighter.destroy();
-      this.highlighter = null;
+    if (this.highlighter && this.highlighter.isHighlighting) {
+      this.highlighter.unhighlight();
     }
-
-    if (this.treePanelDiv) {
-      this.treePanelDiv.ownerPanel = null;
-      let parent = this.treePanelDiv.parentNode;
-      parent.removeChild(this.treePanelDiv);
-      delete this.treePanelDiv;
-      delete this.treeBrowserDocument;
+    if (this.isPanelOpen) {
+      this.treePanel.hidePopup();
+      this.treeView.destroy();
     }
-
-    if (this.treeIFrame)
-      delete this.treeIFrame;
-    delete this.ioBox;
-
-    if (this.domplate) {
-      this.domplateUtils.setDOM(null);
-      delete this.domplate;
-      delete this.HTMLTemplates;
-      delete this.domplateUtils;
+    if (this.isStylePanelOpen) {
+      this.stylePanel.hidePopup();
     }
-
+    if (this.domPanel) {
+      this.domPanel.hidePopup();
+      this.domBox = null;
+      this.domTreeView = null;
+      this.propertyPanel.destroy();
+    }
     this.inspectCmd.setAttribute("checked", false);
     this.browser = this.win = null; // null out references to browser and window
     this.winID = null;
-    this.selection = null;
-    this.treeLoaded = false;
-
-    this.treePanel.addEventListener("popuphidden", function treePanelHidden() {
-      InspectorUI.closing = false;
-      Services.obs.notifyObservers(null, INSPECTOR_NOTIFICATIONS.CLOSED, null);
-    }, false);
-
-    this.treePanel.hidePopup();
-    delete this.treePanel;
   },
 
   /**
@@ -915,6 +782,8 @@ var InspectorUI = {
   {
     this.attachPageListeners();
     this.inspecting = true;
+    this.toggleDimForPanel(this.stylePanel);
+    this.toggleDimForPanel(this.domPanel);
   },
 
   /**
@@ -923,64 +792,157 @@ var InspectorUI = {
    */
   stopInspecting: function IUI_stopInspecting()
   {
-    if (!this.inspecting) {
+    if (!this.inspecting)
       return;
-    }
-
     this.detachPageListeners();
     this.inspecting = false;
-    if (this.highlighter.node) {
-      this.select(this.highlighter.node, true, true);
-    } else {
-      this.select(null, true, true);
-    }
-  },
-
-  /**
-   * Select an object in the tree view.
-   * @param aNode
-   *        node to inspect
-   * @param forceUpdate
-   *        force an update?
-   * @param aScroll
-   *        force scroll?
-   */
-  select: function IUI_select(aNode, forceUpdate, aScroll)
-  {
-    if (!aNode)
-      aNode = this.defaultSelection;
-
-    if (forceUpdate || aNode != this.selection) {
-      this.selection = aNode;
-      if (!this.inspecting) {
-        this.highlighter.highlightNode(this.selection);
-      }
-      this.ioBox.select(this.selection, true, true, aScroll);
+    this.toggleDimForPanel(this.stylePanel);
+    this.toggleDimForPanel(this.domPanel);
+    if (this.treeView.selection) {
+      this.updateStylePanel(this.treeView.selectedNode);
+      this.updateDOMPanel(this.treeView.selectedNode);
     }
   },
 
   /////////////////////////////////////////////////////////////////////////
-  //// Event Handling
+  //// Model Creation Methods
 
-  notifyReady: function IUI_notifyReady()
+  /**
+   * Create treeView object from content window.
+   */
+  createDocumentModel: function IUI_createDocumentModel()
   {
-    // Setup the InspectorStore or restore state
-    this.initializeStore();
+    this.treeView = new InspectorTreeView(this.win);
+  },
 
-    if (InspectorStore.getValue(this.winID, "inspecting")) {
-      this.startInspecting();
+  /**
+   * Add a new item to the style panel listbox.
+   *
+   * @param aLabel
+   *        A bit of text to put in the listitem's label attribute.
+   * @param aType
+   *        The type of item.
+   * @param content
+   *        Text content or value of the listitem.
+   */
+  addStyleItem: function IUI_addStyleItem(aLabel, aType, aContent)
+  {
+    let itemLabelString = this.strings.GetStringFromName("style.styleItemLabel");
+    let item = document.createElement("listitem");
+
+    // Do not localize these strings
+    let label = aLabel;
+    item.className = "style-" + aType;
+    if (aContent) {
+      label = itemLabelString.replace("#1", aLabel);
+      label = label.replace("#2", aContent);
+    }
+    item.setAttribute("label", label);
+
+    this.styleBox.appendChild(item);
+  },
+
+  /**
+   * Create items for each rule included in the given array.
+   *
+   * @param aRules
+   *        an array of rule objects
+   */
+  createStyleRuleItems: function IUI_createStyleRuleItems(aRules)
+  {
+    let selectorLabel = this.strings.GetStringFromName("style.selectorLabel");
+
+    aRules.forEach(function(rule) {
+      this.addStyleItem(selectorLabel, "selector", rule.id);
+      rule.properties.forEach(function(property) {
+        if (property.overridden)
+          return; // property marked overridden elsewhere
+        // Do not localize the strings below this line
+        let important = "";
+        if (property.important)
+          important += " !important";
+        this.addStyleItem(property.name, "property", property.value + important);
+      }, this);
+    }, this);
+  },
+
+  /**
+   * Create rule items for each section as well as the element's style rules,
+   * if any.
+   *
+   * @param aRules
+   *        Array of rules corresponding to the element's style object.
+   * @param aSections
+   *        Array of sections encapsulating the inherited rules for selectors
+   *        and elements.
+   */
+  createStyleItems: function IUI_createStyleItems(aRules, aSections)
+  {
+    this.createStyleRuleItems(aRules);
+    let inheritedString = 
+        this.strings.GetStringFromName("style.inheritedFrom");
+    aSections.forEach(function(section) {
+      let sectionTitle = section.element.tagName;
+      if (section.element.id)
+        sectionTitle += "#" + section.element.id;
+      let replacedString = inheritedString.replace("#1", sectionTitle);
+      this.addStyleItem(replacedString, "section");
+      this.createStyleRuleItems(section.rules);
+    }, this);
+  },
+
+  /**
+   * Remove all items from the Style Panel's listbox.
+   */
+  clearStylePanel: function IUI_clearStylePanel()
+  {
+    for (let i = this.styleBox.childElementCount; i >= 0; --i)
+      this.styleBox.removeItemAt(i);
+  },
+
+  /**
+   * Remove all items from the DOM Panel's listbox.
+   */
+  clearDOMPanel: function IUI_clearStylePanel()
+  {
+    this.domTreeView.data = {};
+  },
+
+  /**
+   * Update the contents of the style panel with styles for the currently
+   * inspected node.
+   *
+   * @param aNode
+   *        The highlighted node to get styles for.
+   */
+  updateStylePanel: function IUI_updateStylePanel(aNode)
+  {
+    if (this.inspecting || !this.isStylePanelOpen) {
+      return;
     }
 
-    this.win.focus();
-    Services.obs.notifyObservers(null, INSPECTOR_NOTIFICATIONS.OPENED, null);
+    let rules = [], styleSections = [], usedProperties = {};
+    this.style.getInheritedRules(aNode, styleSections, usedProperties);
+    this.style.getElementRules(aNode, rules, usedProperties);
+    this.clearStylePanel();
+    this.createStyleItems(rules, styleSections);
   },
 
-  highlighterReady: function IUI_highlighterReady()
+  /**
+   * Update the contents of the DOM panel with name/value pairs for the
+   * currently-inspected node.
+   */
+  updateDOMPanel: function IUI_updateDOMPanel(aNode)
   {
-    Services.obs.removeObserver(InspectorUI.highlighterReady,
-      INSPECTOR_NOTIFICATIONS.HIGHLIGHTER_READY, false);
-    InspectorUI.notifyReady();
+    if (this.inspecting || !this.isDOMPanelOpen) {
+      return;
+    }
+
+    this.domTreeView.data = aNode;
   },
+
+  /////////////////////////////////////////////////////////////////////////
+  //// Event Handling
 
   /**
    * Main callback handler for events.
@@ -992,27 +954,16 @@ var InspectorUI = {
   {
     let winID = null;
     let win = null;
-    let inspectorClosed = false;
 
     switch (event.type) {
       case "TabSelect":
         winID = this.getWindowID(gBrowser.selectedBrowser.contentWindow);
-        if (this.isTreePanelOpen && winID != this.winID) {
-          this.closeInspectorUI(true);
-          inspectorClosed = true;
+        if (this.isPanelOpen && winID != this.winID) {
+          this.closeInspectorUI(false);
         }
 
         if (winID && InspectorStore.hasID(winID)) {
-          if (inspectorClosed && this.closing) {
-            Services.obs.addObserver(function reopenInspectorForTab() {
-              Services.obs.removeObserver(reopenInspectorForTab,
-                INSPECTOR_NOTIFICATIONS.CLOSED, false);
-
-              InspectorUI.openInspectorUI();
-            }, INSPECTOR_NOTIFICATIONS.CLOSED, false);
-          } else {
-            this.openInspectorUI();
-          }
+          this.openInspectorUI();
         }
 
         if (InspectorStore.isEmpty()) {
@@ -1041,52 +992,53 @@ var InspectorUI = {
         switch (event.keyCode) {
           case KeyEvent.DOM_VK_RETURN:
           case KeyEvent.DOM_VK_ESCAPE:
-            if (this.inspecting) {
-              this.stopInspecting();
-              event.preventDefault();
-              event.stopPropagation();
-            }
+            this.stopInspecting();
             break;
         }
         break;
+      case "mousemove":
+        let element = this.elementFromPoint(event.target.ownerDocument,
+          event.clientX, event.clientY);
+        if (element && element != this.node) {
+          this.inspectNode(element);
+        }
+        break;
+      case "click":
+        this.stopInspecting();
+        break;
       case "scroll":
+      case "resize":
         this.highlighter.highlight();
         break;
     }
   },
 
   /**
-   * Handle click events in the html tree panel.
-   * @param aEvent
-   *        The mouse event.
+   * Event fired when a tree row is selected in the tree panel.
    */
-  onTreeClick: function IUI_onTreeClick(aEvent)
+  onTreeSelected: function IUI_onTreeSelected()
   {
-    let node;
-    let target = aEvent.target;
-    let hitTwisty = false;
-    if (this.hasClass(target, "twisty")) {
-      node = this.getRepObject(aEvent.target.nextSibling);
-      hitTwisty = true;
-    } else {
-      node = this.getRepObject(aEvent.target);
+    if (this.selectEventsSuppressed) {
+      return false;
     }
 
-    if (node) {
-      if (hitTwisty)
-        this.ioBox.toggleObject(node);
-      this.select(node, false, false);
-    }
+    let node = this.treeView.selectedNode;
+    this.highlighter.highlightNode(node);
+    this.stopInspecting();
+    this.updateStylePanel(node);
+    this.updateDOMPanel(node);
+    return true;
   },
 
   /**
-   * Attach event listeners to content window and child windows to enable
+   * Attach event listeners to content window and child windows to enable 
    * highlighting and click to stop inspection.
    */
   attachPageListeners: function IUI_attachPageListeners()
   {
-    this.browser.addEventListener("keypress", this, true);
-    this.highlighter.attachInspectListeners();
+    this.win.addEventListener("keypress", this, true);
+    this.browser.addEventListener("mousemove", this, true);
+    this.browser.addEventListener("click", this, true);
   },
 
   /**
@@ -1095,8 +1047,9 @@ var InspectorUI = {
    */
   detachPageListeners: function IUI_detachPageListeners()
   {
-    this.browser.removeEventListener("keypress", this, true);
-    this.highlighter.detachInspectListeners();
+    this.win.removeEventListener("keypress", this, true);
+    this.browser.removeEventListener("mousemove", this, true);
+    this.browser.removeEventListener("click", this, true);
   },
 
   /////////////////////////////////////////////////////////////////////////
@@ -1111,12 +1064,16 @@ var InspectorUI = {
    */
   inspectNode: function IUI_inspectNode(aNode)
   {
-    this.select(aNode, true, true);
     this.highlighter.highlightNode(aNode);
+    this.selectEventsSuppressed = true;
+    this.treeView.selectedNode = aNode;
+    this.selectEventsSuppressed = false;
+    this.updateStylePanel(aNode);
+    this.updateDOMPanel(aNode);
   },
 
   /**
-   * Find an element from the given coordinates. This method descends through
+   * Find an element from the given coordinates. This method descends through 
    * frames to find the element the user clicked inside frames.
    *
    * @param DOMDocument aDocument the document to look into.
@@ -1148,47 +1105,6 @@ var InspectorUI = {
   //// Utility functions
 
   /**
-   * Does the given object have a class attribute?
-   * @param aNode
-   *        the DOM node.
-   * @param aClass
-   *        The class string.
-   * @returns boolean
-   */
-  hasClass: function IUI_hasClass(aNode, aClass)
-  {
-    if (!(aNode instanceof Element))
-      return false;
-    return aNode.classList.contains(aClass);
-  },
-
-  /**
-   * Add the class name to the given object.
-   * @param aNode
-   *        the DOM node.
-   * @param aClass
-   *        The class string.
-   */
-  addClass: function IUI_addClass(aNode, aClass)
-  {
-    if (aNode instanceof Element)
-      aNode.classList.add(aClass);
-  },
-
-  /**
-   * Remove the class name from the given object
-   * @param aNode
-   *        the DOM node.
-   * @param aClass
-   *        The class string.
-   */
-  removeClass: function IUI_removeClass(aNode, aClass)
-  {
-    if (aNode instanceof Element)
-      aNode.classList.remove(aClass);
-  },
-
-  /**
    * Retrieve the unique ID of a window object.
    *
    * @param nsIDOMWindow aWindow
@@ -1211,57 +1127,13 @@ var InspectorUI = {
   },
 
   /**
-   * Get the "repObject" from the HTML panel's domplate-constructed DOM node.
-   * In this system, a "repObject" is the Object being Represented by the box
-   * object. It is the "real" object that we're building our facade around.
-   *
-   * @param element
-   *        The element in the HTML panel the user clicked.
-   * @returns either a real node or null
-   */
-  getRepObject: function IUI_getRepObject(element)
-  {
-    let target = null;
-    for (let child = element; child; child = child.parentNode) {
-      if (this.hasClass(child, "repTarget"))
-        target = child;
-
-      if (child.repObject) {
-        if (!target && this.hasClass(child.repObject, "repIgnore"))
-          break;
-        else
-          return child.repObject;
-      }
-    }
-    return null;
-  },
-
-  /**
+   * debug logging facility
    * @param msg
    *        text message to send to the log
    */
   _log: function LOG(msg)
   {
     Services.console.logStringMessage(msg);
-  },
-
-  /**
-   * Debugging function.
-   * @param msg
-   *        text to show with the stack trace.
-   */
-  _trace: function TRACE(msg)
-  {
-    this._log("TRACE: " + msg);
-    let frame = Components.stack.caller;
-    while (frame = frame.caller) {
-      if (frame.language == Ci.nsIProgrammingLanguage.JAVASCRIPT ||
-          frame.language == Ci.nsIProgrammingLanguage.JAVASCRIPT2) {
-        this._log("filename: " + frame.filename + " lineNumber: " + frame.lineNumber +
-          " functionName: " + frame.name);
-      }
-    }
-    this._log("END TRACE");
   },
 }
 
@@ -1343,11 +1215,7 @@ var InspectorStore = {
    */
   getValue: function IS_getValue(aID, aKey)
   {
-    if (!this.hasID(aID))
-      return null;
-    if (aKey in this.store[aID])
-      return this.store[aID][aKey];
-    return null;
+    return aID in this.store ? this.store[aID][aKey] : null;
   },
 
   /**
@@ -1397,5 +1265,28 @@ var InspectorStore = {
 
 XPCOMUtils.defineLazyGetter(InspectorUI, "inspectCmd", function () {
   return document.getElementById("Tools:Inspect");
+});
+
+XPCOMUtils.defineLazyGetter(InspectorUI, "strings", function () {
+  return Services.strings.createBundle("chrome://browser/locale/inspector.properties");
+});
+
+XPCOMUtils.defineLazyGetter(InspectorUI, "PropertyTreeView", function () {
+  var obj = {};
+  Cu.import("resource://gre/modules/PropertyPanel.jsm", obj);
+  return obj.PropertyTreeView;
+});
+
+XPCOMUtils.defineLazyGetter(InspectorUI, "PropertyPanel", function () {
+  var obj = {};
+  Cu.import("resource://gre/modules/PropertyPanel.jsm", obj);
+  return obj.PropertyPanel;
+});
+
+XPCOMUtils.defineLazyGetter(InspectorUI, "style", function () {
+  var obj = {};
+  Cu.import("resource:///modules/stylePanel.jsm", obj);
+  obj.style.initialize();
+  return obj.style;
 });
 

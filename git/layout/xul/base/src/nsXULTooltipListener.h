@@ -130,6 +130,9 @@ protected:
   // tooltip can be opened at this location.
   PRInt32 mMouseScreenX, mMouseScreenY;
 
+  // last cached mouse event
+  nsCOMPtr<nsIDOMEvent> mCachedMouseEvent;
+  
   // various constants for tooltips
   enum {
     kTooltipMouseMoveTolerance = 7,    // 7 pixel tolerance for mousemove event

@@ -47,7 +47,6 @@
 #include "nsCRT.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDTD.h"
-#include "mozilla/dom/FromParser.h"
 
 class nsIDocument;
 class nsIURI;
@@ -138,7 +137,7 @@ protected:
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                  nsIContent** aResult, PRBool* aAppendContent,
-                                 mozilla::dom::FromParser aFromParser);
+                                 PRUint32 aFromParser);
 
   // aParent is allowed to be null here if this is the root content
   // being closed
@@ -149,7 +148,7 @@ protected:
   nsresult AddContentAsLeaf(nsIContent *aContent);
 
   nsIContent* GetCurrentContent();
-  StackNode* GetCurrentStackNode();
+  StackNode & GetCurrentStackNode();
   nsresult PushContent(nsIContent *aContent);
   void PopContent();
   PRBool HaveNotifiedForCurrentContent() const;

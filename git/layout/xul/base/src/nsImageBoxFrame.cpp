@@ -43,6 +43,8 @@
 //
 
 #include "nsImageBoxFrame.h"
+#include "nsIDeviceContext.h"
+#include "nsIFontMetrics.h"
 #include "nsGkAtoms.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
@@ -53,6 +55,7 @@
 #include "nsHTMLParts.h"
 #include "nsString.h"
 #include "nsLeafFrame.h"
+#include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
@@ -63,8 +66,10 @@
 #include "nsILoadGroup.h"
 #include "nsHTMLContainerFrame.h"
 #include "prprf.h"
+#include "nsIFontMetrics.h"
 #include "nsCSSRendering.h"
 #include "nsIDOMHTMLImageElement.h"
+#include "nsIDeviceContext.h"
 #include "nsINameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsIDOMHTMLMapElement.h"
@@ -324,12 +329,12 @@ public:
   // Doesn't handle HitTest because nsLeafBoxFrame already creates an
   // event receiver for us
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("XULImage", TYPE_XUL_IMAGE)
 };
 
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
-                              nsRenderingContext* aCtx)
+                              nsIRenderingContext* aCtx)
 {
   static_cast<nsImageBoxFrame*>(mFrame)->
     PaintImage(*aCtx, mVisibleRect, ToReferenceFrame(),
@@ -361,7 +366,7 @@ nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
+nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
                             const nsRect& aDirtyRect, nsPoint aPt,
                             PRUint32 aFlags)
 {
@@ -504,10 +509,8 @@ NS_IMETHODIMP nsImageBoxFrame::OnStartContainer(imgIRequest *request,
 {
   NS_ENSURE_ARG_POINTER(image);
 
-  // Ensure the animation (if any) is started. Note: There is no
-  // corresponding call to Decrement for this. This Increment will be
-  // 'cleaned up' by the Request when it is destroyed, but only then.
-  request->IncrementAnimationConsumers();
+  // Ensure the animation (if any) is started
+  image->StartAnimation();
 
   nscoord w, h;
   image->GetWidth(&w);

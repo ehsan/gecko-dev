@@ -42,6 +42,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmspaceFrame.h"
 
@@ -127,7 +129,7 @@ nsMathMLmspaceFrame::Reflow(nsPresContext*          aPresContext,
 {
   ProcessAttributes(aPresContext);
 
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
   mBoundingMetrics.width = mWidth;
   mBoundingMetrics.ascent = mHeight;
   mBoundingMetrics.descent = mDepth;

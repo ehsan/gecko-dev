@@ -88,13 +88,8 @@ function urlSecurityCheck(aURL, aPrincipal, aFlags)
     else
       secMan.checkLoadURIStrWithPrincipal(aPrincipal, aURL, aFlags);
   } catch (e) {
-    let principalStr = "";
-    try {
-      principalStr = " from " + aPrincipal.URI.spec;
-    }
-    catch(e2) { }
-
-    throw "Load of " + aURL + principalStr + " denied.";
+    // XXXmano: dump the principal url here too
+    throw "Load of " + aURL + " denied.";
   }
 }
 
@@ -341,10 +336,7 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
       file: file
     };
 
-    // Find a URI to use for determining last-downloaded-to directory
-    let relatedURI = aReferrer || sourceURI;
-
-    if (!getTargetFile(fpParams, aSkipPrompt, relatedURI))
+    if (!getTargetFile(fpParams, aSkipPrompt))
       // If the method returned false this is because the user cancelled from
       // the save file picker dialog.
       return;
@@ -554,14 +546,10 @@ function initFileInfo(aFI, aURL, aURLCharset, aDocument,
  *        If false, don't save the file automatically to the user's
  *        default download directory, even if the associated preference
  *        is set, but ask for the target explicitly.
- * @param aRelatedURI
- *        An nsIURI associated with the download. The last used
- *        directory of the picker is retrieved from/stored in the 
- *        Content Pref Service using this URI.
  * @return true if the user confirmed a filename in the picker or the picker
  *         was not displayed; false if they dismissed the picker.
  */
-function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelatedURI)
+function getTargetFile(aFpP, /* optional */ aSkipPrompt)
 {
   if (typeof gDownloadLastDir != "object")
     Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
@@ -594,7 +582,7 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
     // file picker if it is still valid. Otherwise, keep the default of the
     // user's default downloads directory. If it doesn't exist, it will be
     // changed to the user's desktop later.
-    var lastDir = gDownloadLastDir.getFile(aRelatedURI);
+    var lastDir = gDownloadLastDir.file;
     if (lastDir.exists()) {
       dir = lastDir;
       dirExists = true;
@@ -638,7 +626,7 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
 
   // Do not store the last save directory as a pref inside the private browsing mode
   var directory = fp.file.parent.QueryInterface(nsILocalFile);
-  gDownloadLastDir.setFile(aRelatedURI, directory);
+  gDownloadLastDir.file = directory;
 
   fp.file.leafName = validateFileName(fp.file.leafName);
   
@@ -941,41 +929,7 @@ function validateFileName(aFileName)
   }
   else if (navigator.appVersion.indexOf("Macintosh") != -1)
     re = /[\:\/]+/g;
-  else if (navigator.appVersion.indexOf("Android") != -1 ||
-           navigator.appVersion.indexOf("Maemo") != -1) {
-    // On mobile devices, the filesystem may be very limited in what
-    // it considers valid characters. To avoid errors, we sanitize
-    // conservatively.
-    const dangerousChars = "*?<>|\":/\\[];,+=";
-    var processed = "";
-    for (var i = 0; i < aFileName.length; i++)
-      processed += aFileName.charCodeAt(i) >= 32 &&
-                   !(dangerousChars.indexOf(aFileName[i]) >= 0) ? aFileName[i]
-                                                                : "_";
-
-    // Last character should not be a space
-    processed = processed.trim();
-
-    // If a large part of the filename has been sanitized, then we
-    // will use a default filename instead
-    if (processed.replace(/_/g, "").length <= processed.length/2) {
-      // We purposefully do not use a localized default filename,
-      // which we could have done using
-      // ContentAreaUtils.stringBundle.GetStringFromName("DefaultSaveFileName")
-      // since it may contain invalid characters.
-      var original = processed;
-      processed = "download";
-
-      // Preserve a suffix, if there is one
-      if (original.indexOf(".") >= 0) {
-        var suffix = original.split(".").slice(-1)[0];
-        if (suffix && suffix.indexOf("_") < 0)
-          processed += "." + suffix;
-      }
-    }
-    return processed;
-  }
-
+  
   return aFileName.replace(re, "_");
 }
 

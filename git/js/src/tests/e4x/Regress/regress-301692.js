@@ -44,39 +44,39 @@ var expect = '';
 printBugNumber(BUGNUMBER);
 START(summary);
 
-actual = ConvertToString((function () { return <xml/>; }));
+actual = ToString((function () { return <xml/>; }));
 expect = 'function () { return <xml/>;}';
 TEST(1, expect, actual);
 
-actual = ConvertToString((function () { return <xml></xml>; }));
+actual = ToString((function () { return <xml></xml>; }));
 expect = 'function () { return <xml></xml>;}';
 TEST(2, expect, actual);
 
-actual = ConvertToString((function () { return <xml><morexml/></xml>; }));
+actual = ToString((function () { return <xml><morexml/></xml>; }));
 expect = 'function () { return <xml><morexml/></xml>;}';
 TEST(3, expect, actual);
 
-actual = ConvertToString((function (k) { return <xml>{k}</xml>; }));
+actual = ToString((function (k) { return <xml>{k}</xml>; }));
 expect = 'function (k) { return <xml>{k}</xml>;}';
 TEST(4, expect, actual);
 
-actual = ConvertToString((function (k) { return <{k}/>; }));
+actual = ToString((function (k) { return <{k}/>; }));
 expect = 'function (k) { return <{k}/>;}';
 TEST(5, expect, actual);
 
-actual = ConvertToString((function (k) { return <{k}>{k}</{k}>; }));
+actual = ToString((function (k) { return <{k}>{k}</{k}>; }));
 expect = 'function (k) { return <{k}>{k}</{k}>;}';
 TEST(6, expect, actual);
 
-actual = ConvertToString((function (k) { return <{k}
-                         {k}={k} {"k"}={k + "world"}><{k + "k"}/></{k}>; }));
+actual = ToString((function (k) { return <{k}
+                  {k}={k} {"k"}={k + "world"}><{k + "k"}/></{k}>; }));
 expect = 'function (k) ' +
          '{ return <{k} {k}={k} {"k"}={k + "world"}><{k + "k"}/></{k}>;}';
 TEST(7, expect, actual);
 
 END();
 
-function ConvertToString(f)
+function ToString(f)
 {
   return f.toString().replace(/\n/g, '').replace(/[ ]+/g, ' ');
 }

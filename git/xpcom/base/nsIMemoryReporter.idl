@@ -44,62 +44,14 @@ interface nsISimpleEnumerator;
 interface nsIMemoryReporter : nsISupports
 {
   /*
-   * The name of the process containing this reporter.  All reporters start
-   * with "", which is short-hand for the "main" process;  this is true even
-   * for reporters in child processes.  When reporters from child reporters
-   * are copied into the main process, the copies have their 'process' field
-   * set appropriately.
-   */
-  readonly attribute string process;
-
-  /*
-   * The path that this memory usage should be reported under.  Paths are
-   * '/'-delimited, eg. "a/b/c".  There are two categories of paths.
+   * The path that this memory usage should be reported under.
    *
-   * - Paths starting with "explicit" represent non-overlapping regions of 
-   *   memory that have been explicitly allocated with an OS-level allocation
-   *   (eg. mmap/VirtualAlloc/vm_allocate) or a heap-level allocation (eg.
-   *   malloc/calloc/operator new).  Each one can be viewed as representing a
-   *   path in a tree from the root node ("explicit") to a node lower in the
-   *   tree; this lower node does not have to be a leaf node.
-   *
-   *   So, for example, "explicit/a/b", "explicit/a/c", "explicit/d",
-   *   "explicit/d/e", and "explicit/d/f" define this tree:
-   *
-   *     explicit
-   *     |--a
-   *     |  |--b [*]
-   *     |  \--c [*]
-   *     \--d [*]
-   *        |--e [*]
-   *        \--f [*]
-   *
-   *   Nodes marked with a [*] have a reporter.
-   *
-   * - All other paths represent cross-cuttings memory regions, ie. ones that
-   *   may overlap arbitrarily with regions in the "explicit" tree.
+   * Normally "/"-delimited for organization.
    */
   readonly attribute string path;
 
   /*
-   * Allocation kinds.  "MAPPED" means it is allocated directly by the OS, eg.
-   * by calling mmap, VirtualAlloc, vm_allocate, etc.  "HEAP" means it is
-   * allocated by the heap allocator, eg. by calling malloc, calloc, realloc,
-   * memalign, operator new, operator new[], etc.  "OTHER" means it doesn't fit
-   * into either of these categories;  such reporters should have a path that
-   * does *not* start with "explicit".
-   */
-  const PRInt32 MR_MAPPED = 0;
-  const PRInt32 MR_HEAP   = 1;
-  const PRInt32 MR_OTHER  = 2;
-
-  /*
-   * The memory kind, see MR_* above.
-   */
-  readonly attribute PRInt32 kind;
-
-  /*
-   * A human-readable description of this memory usage report.
+   * A human-readable description of this memory usage report
    */
   readonly attribute string description;
 
@@ -139,16 +91,11 @@ interface nsIMemoryReporterManager : nsISupports
 
 %{C++
 
-/*
- * Note that this defaults 'process' to "", which is usually what's desired.
- */
-#define NS_MEMORY_REPORTER_IMPLEMENT(_classname,_path,_kind,_desc,_usageFunction,_dataptr) \
+#define NS_MEMORY_REPORTER_IMPLEMENT(_classname,_path,_desc,_usageFunction,_dataptr) \
     class MemoryReporter_##_classname : public nsIMemoryReporter {      \
     public:                                                             \
       NS_DECL_ISUPPORTS                                                 \
-      NS_IMETHOD GetProcess(char **process) { *process = strdup(""); return NS_OK; } \
       NS_IMETHOD GetPath(char **memoryPath) { *memoryPath = strdup(_path); return NS_OK; } \
-      NS_IMETHOD GetKind(int *kind) { *kind = _kind; return NS_OK; } \
       NS_IMETHOD GetDescription(char **desc) { *desc = strdup(_desc); return NS_OK; } \
       NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) { *memoryUsed = _usageFunction(_dataptr); return NS_OK; } \
     };                                                                  \

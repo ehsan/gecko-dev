@@ -34,16 +34,13 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#ifndef nsHTMLFormElement_h__
-#define nsHTMLFormElement_h__
-
 #include "nsCOMPtr.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsFormSubmission.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMNSHTMLFormElement.h"
 #include "nsIWebProgressListener.h"
 #include "nsIRadioGroupContainer.h"
 #include "nsIURI.h"
@@ -52,10 +49,8 @@
 #include "nsUnicharUtils.h"
 #include "nsThreadUtils.h"
 #include "nsInterfaceHashtable.h"
-#include "nsDataHashtable.h"
 
 class nsFormControlList;
-class nsIMutableArray;
 
 /**
  * hashkey wrapper using nsAString KeyType
@@ -92,9 +87,10 @@ private:
 
 class nsHTMLFormElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLFormElement,
+                          public nsIDOMNSHTMLFormElement,
                           public nsIWebProgressListener,
                           public nsIForm,
-                          public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH
+                          public nsIRadioGroupContainer
 {
 public:
   nsHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -116,6 +112,9 @@ public:
 
   // nsIDOMHTMLFormElement
   NS_DECL_NSIDOMHTMLFORMELEMENT
+
+  // nsIDOMNSHTMLFormElement
+  NS_DECL_NSIDOMNSHTMLFORMELEMENT  
 
   // nsIWebProgressListener
   NS_DECL_NSIWEBPROGRESSLISTENER
@@ -145,11 +144,6 @@ public:
                              nsIFormControl* aRadio);
   NS_IMETHOD RemoveFromRadioGroup(const nsAString& aName,
                                   nsIFormControl* aRadio);
-  virtual PRUint32 GetRequiredRadioCount(const nsAString& aName) const;
-  virtual void RadioRequiredChanged(const nsAString& aName,
-                                    nsIFormControl* aRadio);
-  virtual bool GetValueMissingState(const nsAString& aName) const;
-  virtual void SetValueMissingState(const nsAString& aName, bool aValue);
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -173,8 +167,6 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
-  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify);
 
   /**
    * Forget all information about the current submission (and the fact that we
@@ -191,11 +183,10 @@ public:
    * Remove an element from this form's list of elements
    *
    * @param aElement the element to remove
-   * @param aUpdateValidity If true, updates the form validity.
+   * @param aNotify If true, send nsIDocumentObserver notifications as needed.
    * @return NS_OK if the element was successfully removed.
    */
-  nsresult RemoveElement(nsGenericHTMLFormElement* aElement,
-                         bool aUpdateValidity);
+  nsresult RemoveElement(nsGenericHTMLFormElement* aElement, PRBool aNotify);
 
   /**
    * Remove an element from the lookup table maintained by the form.
@@ -214,12 +205,10 @@ public:
    * Add an element to end of this form's list of elements
    *
    * @param aElement the element to add
-   * @param aUpdateValidity If true, the form validity will be updated.
    * @param aNotify If true, send nsIDocumentObserver notifications as needed.
    * @return NS_OK if the element was successfully added
    */
-  nsresult AddElement(nsGenericHTMLFormElement* aElement, bool aUpdateValidity,
-                      PRBool aNotify);
+  nsresult AddElement(nsGenericHTMLFormElement* aElement, PRBool aNotify);
 
   /**    
    * Add an element to the lookup table maintained by the form.
@@ -255,76 +244,25 @@ public:
   void OnSubmitClickBegin(nsIContent* aOriginatingElement);
   void OnSubmitClickEnd();
 
-  /**
-   * This method will update the form validity so the submit controls states
-   * will be updated (for -moz-submit-invalid pseudo-class).
-   * This method has to be called by form elements whenever their validity state
-   * or status regarding constraint validation changes.
-   *
-   * @note This method isn't used for CheckValidity().
-   * @note If an element becomes barred from constraint validation, it has to be
-   * considered as valid.
-   *
-   * @param aElementValidityState the new validity state of the element
-   */
-  void UpdateValidity(PRBool aElementValidityState);
-
-  /**
-   * Returns the form validity based on the last UpdateValidity() call.
-   *
-   * @return Whether the form was valid the last time UpdateValidity() was called.
-   *
-   * @note This method may not return the *current* validity state!
-   */
-  PRBool GetValidity() const { return !mInvalidElementsCount; }
-
-  /**
-   * This method check the form validity and make invalid form elements send
-   * invalid event if needed.
-   *
-   * @return Whether the form is valid.
-   *
-   * @note Do not call this method if novalidate/formnovalidate is used.
-   * @note This method might disappear with bug 592124, hopefuly.
-   */
-  bool CheckValidFormSubmission();
-
   virtual nsXPCClassInfo* GetClassInfo();
-
-  /**
-   * Walk over the form elements and call SubmitNamesValues() on them to get
-   * their data pumped into the FormSubmitter.
-   *
-   * @param aFormSubmission the form submission object
-   */
-  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
-
-  /**
-   * Whether the submission of this form has been ever prevented because of
-   * being invalid.
-   *
-   * @return Whether the submission of this form has been prevented because of
-   * being invalid.
-   */
-  bool HasEverTriedInvalidSubmit() const { return mEverTriedInvalidSubmit; }
-
 protected:
   class RemoveElementRunnable;
   friend class RemoveElementRunnable;
 
   class RemoveElementRunnable : public nsRunnable {
   public:
-    RemoveElementRunnable(nsHTMLFormElement* aForm)
-      : mForm(aForm)
+    RemoveElementRunnable(nsHTMLFormElement* aForm, PRBool aNotify):
+      mForm(aForm), mNotify(aNotify)
     {}
 
     NS_IMETHOD Run() {
-      mForm->HandleDefaultSubmitRemoval();
+      mForm->HandleDefaultSubmitRemoval(mNotify);
       return NS_OK;
     }
 
   private:
     nsRefPtr<nsHTMLFormElement> mForm;
+    PRBool mNotify;
   };
 
   nsresult DoSubmitOrReset(nsEvent* aEvent,
@@ -332,7 +270,7 @@ protected:
   nsresult DoReset();
 
   // Async callback to handle removal of our default submit
-  void HandleDefaultSubmitRemoval();
+  void HandleDefaultSubmitRemoval(PRBool aNotify);
 
   //
   // Submit Helpers
@@ -361,6 +299,13 @@ protected:
    * @param aFormSubmission the submission object
    */
   nsresult SubmitSubmission(nsFormSubmission* aFormSubmission);
+  /**
+   * Walk over the form elements and call SubmitNamesValues() on them to get
+   * their data pumped into the FormSubmitter.
+   *
+   * @param aFormSubmission the form submission object
+   */
+  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
 
   /**
    * Notify any submit observers of the submit.
@@ -389,12 +334,12 @@ protected:
    * Check the form validity following this algorithm:
    * http://www.whatwg.org/specs/web-apps/current-work/#statically-validate-the-constraints
    *
-   * @param aInvalidElements [out] parameter containing the list of unhandled
-   * invalid controls.
+   * TODO: add a [out] parameter to have the list of unhandled invalid controls
+   *       but not needed until we have a UI to test it.
    *
    * @return Whether the form is currently valid.
    */
-  PRBool CheckFormValidity(nsIMutableArray* aInvalidElements) const;
+  PRBool CheckFormValidity() const;
 
 public:
   /**
@@ -413,10 +358,6 @@ protected:
   nsRefPtr<nsFormControlList> mControls;
   /** The currently selected radio button of each group */
   nsInterfaceHashtable<nsStringCaseInsensitiveHashKey,nsIDOMHTMLInputElement> mSelectedRadioButtons;
-  /** The number of required radio button of each group */
-  nsDataHashtable<nsStringCaseInsensitiveHashKey,PRUint32> mRequiredRadioButtonCounts;
-  /** The value missing state of each group */
-  nsDataHashtable<nsStringCaseInsensitiveHashKey,bool> mValueMissingRadioGroups;
   /** Whether we are currently processing a submit event or not */
   PRPackedBool mGeneratingSubmit;
   /** Whether we are currently processing a reset event or not */
@@ -450,24 +391,9 @@ protected:
   /** The first submit element in mNotInElements -- WEAK */
   nsGenericHTMLFormElement* mFirstSubmitNotInElements;
 
-  /**
-   * Number of invalid and candidate for constraint validation elements in the
-   * form the last time UpdateValidity has been called.
-   * @note Should only be used by UpdateValidity() and GetValidity()!
-   */
-  PRInt32 mInvalidElementsCount;
-
-  /**
-   * Whether the submission of this form has been ever prevented because of
-   * being invalid.
-   */
-  bool mEverTriedInvalidSubmit;
-
 protected:
   /** Detection of first form to notify observers */
   static PRBool gFirstFormSubmitted;
   /** Detection of first password input to initialize the password manager */
   static PRBool gPasswordManagerInitialized;
 };
-
-#endif // nsHTMLFormElement_h__

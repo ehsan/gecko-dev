@@ -158,6 +158,8 @@ protected:
   // MORE THAN ONE EDITOR PER EDITING SESSION
   nsRefPtr<nsComposerCommandsUpdater> mStateMaintainer;
   
+  nsWeakPtr       mWindowToBeEdited;
+
   // Save the editor type so we can create the editor after loading uri
   nsCString       mEditorType; 
   PRUint32        mEditorFlags;
@@ -168,9 +170,6 @@ protected:
 
   // Make sure the docshell we use is safe
   nsWeakPtr       mDocShell;
-
-  // See if we can reuse an existing editor
-  nsWeakPtr       mExistingEditor;
 };
 
 

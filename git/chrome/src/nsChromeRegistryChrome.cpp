@@ -36,9 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "mozilla/dom/PContentParent.h"
 #include "RegistryMessageUtils.h"
 #include "nsResProtocolHandler.h"
+#endif
 
 #include "nsChromeRegistryChrome.h"
 
@@ -75,6 +77,8 @@
 #include "nsIXPConnect.h"
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
+
+#include "mozilla/Omnijar.h"
 
 #define UILOCALE_CMD_LINE_ARG "UILocale"
 
@@ -330,10 +334,11 @@ nsresult
 nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
 {
   nsresult rv;
-  PRBool matchOSLocale = PR_FALSE;
+  PRBool matchOSLocale = PR_FALSE, userLocaleOverride = PR_FALSE;
+  prefs->PrefHasUserValue(SELECTED_LOCALE_PREF, &userLocaleOverride);
   rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOSLocale);
 
-  if (NS_SUCCEEDED(rv) && matchOSLocale) {
+  if (NS_SUCCEEDED(rv) && matchOSLocale && !userLocaleOverride) {
     // compute lang and region code only when needed!
     nsCAutoString uiLocale;
     rv = getUILangCountry(uiLocale);
@@ -347,9 +352,6 @@ nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
       mSelectedLocale = provider;
     }
   }
-
-  if (NS_FAILED(rv))
-    NS_ERROR("Couldn't select locale from pref!");
 
   return rv;
 }
@@ -368,15 +370,15 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
 
     if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
         pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-        rv = UpdateSelectedLocale();
-        if (NS_SUCCEEDED(rv) && mProfileLoaded)
-          FlushAllCaches();
+      rv = SelectLocaleFromPref(prefs);
+      if (NS_SUCCEEDED(rv) && mProfileLoaded)
+        FlushAllCaches();
     }
     else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       nsXPIDLCString provider;
       rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
       if (NS_FAILED(rv)) {
-        NS_ERROR("Couldn't get new skin pref!");
+        NS_ERROR("Couldn't get new locale pref!");
         return rv;
       }
 
@@ -423,24 +425,7 @@ nsChromeRegistryChrome::CheckForNewChrome()
   return NS_OK;
 }
 
-nsresult nsChromeRegistryChrome::UpdateSelectedLocale()
-{
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    rv = SelectLocaleFromPref(prefs);
-    if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
-      NS_ASSERTION(obsSvc, "Couldn't get observer service.");
-      obsSvc->NotifyObservers((nsIChromeRegistry*) this,
-                              "selected-locale-has-changed", nsnull);
-    }
-  }
-
-  return rv;
-}
-
+#ifdef MOZ_IPC
 static void
 SerializeURI(nsIURI* aURI,
              SerializedURI& aSerializedURI)
@@ -474,7 +459,7 @@ EnumerateOverride(nsIURI* aURIKey,
 
 struct EnumerationArgs
 {
-  InfallibleTArray<ChromePackage>& packages;
+  nsTArray<ChromePackage>& packages;
   const nsCString& selectedLocale;
   const nsCString& selectedSkin;
 };
@@ -483,9 +468,9 @@ void
 nsChromeRegistryChrome::SendRegisteredChrome(
     mozilla::dom::PContentParent* aParent)
 {
-  InfallibleTArray<ChromePackage> packages;
-  InfallibleTArray<ResourceMapping> resources;
-  InfallibleTArray<OverrideMapping> overrides;
+  nsTArray<ChromePackage> packages;
+  nsTArray<ResourceMapping> resources;
+  nsTArray<OverrideMapping> overrides;
 
   EnumerationArgs args = {
     packages, mSelectedLocale, mSelectedSkin
@@ -506,8 +491,7 @@ nsChromeRegistryChrome::SendRegisteredChrome(
 
   mOverrideTable.EnumerateRead(&EnumerateOverride, &overrides);
 
-  bool success = aParent->SendRegisterChrome(packages, resources, overrides,
-                                             mSelectedLocale);
+  bool success = aParent->SendRegisterChrome(packages, resources, overrides);
   NS_ENSURE_TRUE(success, );
 }
 
@@ -538,6 +522,7 @@ nsChromeRegistryChrome::CollectPackages(PLDHashTable *table,
   args->packages.AppendElement(chromePackage);
   return (PLDHashOperator)PL_DHASH_NEXT;
 }
+#endif
 
 static PRBool
 CanLoadResource(nsIURI* aResourceURI)
@@ -549,10 +534,11 @@ CanLoadResource(nsIURI* aResourceURI)
   return isLocalResource;
 }
 
-nsIURI*
+nsresult
 nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
                                               const nsCString& aProvider,
-                                              const nsCString& aPath)
+                                              const nsCString& aPath,
+                                              nsIURI* *aResult)
 {
   PackageEntry* entry =
       static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
@@ -561,24 +547,25 @@ nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
 
   if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     if (!mInitialized)
-      return nsnull;
+      return NS_ERROR_NOT_INITIALIZED;
 
     LogMessage("No chrome package registered for chrome://%s/%s/%s",
                aPackage.get(), aProvider.get(), aPath.get());
 
-    return nsnull;
+    return NS_ERROR_FAILURE;
   }
 
+  *aResult = nsnull;
   if (aProvider.EqualsLiteral("locale")) {
-    return entry->locales.GetBase(mSelectedLocale, nsProviderArray::LOCALE);
+    *aResult = entry->locales.GetBase(mSelectedLocale, nsProviderArray::LOCALE);
   }
   else if (aProvider.EqualsLiteral("skin")) {
-    return entry->skins.GetBase(mSelectedSkin, nsProviderArray::ANY);
+    *aResult = entry->skins.GetBase(mSelectedSkin, nsProviderArray::ANY);
   }
   else if (aProvider.EqualsLiteral("content")) {
-    return entry->baseURI;
+    *aResult = entry->baseURI;
   }
-  return nsnull;
+  return NS_OK;
 }
 
 nsresult
@@ -801,6 +788,7 @@ nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
       return NULL;
     }
 
+#ifdef MOZ_OMNIJAR
     if (mPath) {
       nsCOMPtr<nsIURI> fileURI;
       io->NewFileURI(mFile, getter_AddRefs(fileURI));
@@ -813,7 +801,9 @@ nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
 
       NS_NewURI(getter_AddRefs(mManifestURI), spec, NULL, NULL, io);
     }
-    else {
+    else
+#endif
+    {
       io->NewFileURI(mFile, getter_AddRefs(mManifestURI));
     }
   }
@@ -891,6 +881,13 @@ nsChromeRegistryChrome::ManifestContent(ManifestProcessingContext& cx, int linen
     entry->flags |= PLATFORM_PACKAGE;
   if (contentaccessible)
     entry->flags |= CONTENT_ACCESSIBLE;
+  if (cx.GetXPConnect()) {
+    nsCAutoString urlp("chrome://");
+    urlp.Append(package);
+    urlp.Append('/');
+
+    cx.GetXPConnect()->FlagSystemFilenamePrefix(urlp.get(), true);
+  }
 }
 
 void

@@ -961,7 +961,6 @@ backtrace(tm_thread *t, int skip, int *immediate_abort)
          * Create a single fake stack frame so that all the tools get
          * data in the correct format.
          */
-        *immediate_abort = 0;
         if (info->size < 1) {
             PR_ASSERT(!info->buffer); /* !info->size == !info->buffer */
             info->buffer = __libc_malloc(1 * sizeof(void*));
@@ -1365,7 +1364,7 @@ NS_TraceMallocStartup(int logfd)
         log_header(logfd);
     }
 
-    RegisterTraceMallocShutdown();
+    atexit(NS_TraceMallocShutdown);
 
     tmlock = PR_NewLock();
     (void) tm_get_thread(); /* ensure index initialization while it's easy */

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -43,8 +42,6 @@
 #include "nscore.h"
 #include "nsIScriptContext.h"
 #include "nsISHistory.h"
-#include "nsIWeakReference.h"
-#include "nsPIDOMWindow.h"
 
 class nsIDocShell;
 
@@ -52,7 +49,7 @@ class nsIDocShell;
 class nsHistory : public nsIDOMHistory
 {
 public:
-  nsHistory(nsPIDOMWindow* aInnerWindow);
+  nsHistory(nsIDocShell* aDocShell);
   virtual ~nsHistory();
 
   // nsISupports
@@ -61,23 +58,13 @@ public:
   // nsIDOMHistory
   NS_DECL_NSIDOMHISTORY
 
-  nsIDocShell *GetDocShell() {
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-    if (!win)
-      return nsnull;
-    return win->GetDocShell();
-  }
-
-  void GetWindow(nsPIDOMWindow **aWindow) {
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-    *aWindow = win.forget().get();
-  }
+  void SetDocShell(nsIDocShell *aDocShell);
 
 protected:
   nsresult GetSessionHistoryFromDocShell(nsIDocShell * aDocShell,
                                          nsISHistory ** aReturn);
 
-  nsCOMPtr<nsIWeakReference> mInnerWindow;
+  nsIDocShell* mDocShell;
 };
 
 #endif /* nsHistory_h___ */

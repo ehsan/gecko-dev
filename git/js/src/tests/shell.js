@@ -279,24 +279,6 @@ if (typeof assertEq == 'undefined')
     };
 }
 
-if (typeof assertThrows === 'undefined') {
-    var assertThrows = function assertThrows(f, ctor, msg) {
-        var fullmsg;
-        try {
-            f();
-        } catch (exc) {
-            if (exc instanceof ctor)
-                return;
-            fullmsg = "Assertion failed: expected exception " + ctor.name + ", got " + exc;
-        }
-        if (fullmsg === undefined)
-            fullmsg = "Assertion failed: expected exception " + ctor.name +", no exception thrown";
-        if (msg !== undefined)
-            fullmsg += " - " + msg;
-        throw new Error(fullmsg);
-    };
-}
-
 /*
  * Compare expected result to actual result, if they differ (in value and/or
  * type) report a failure.  If description is provided, include it in the
@@ -665,11 +647,7 @@ function optionsClear() {
   for (var i = 0; i < optionNames.length; i++)
   {
     var optionName = optionNames[i];
-    if (optionName &&
-        optionName != "methodjit" &&
-        optionName != "tracejit" &&
-        optionName != "jitprofiling" &&
-        optionName != "methodjit_always")
+    if (optionName && optionName != "methodjit" && optionName != "tracejit")
     {
       options(optionName);
     }
@@ -716,10 +694,8 @@ function optionsReset() {
     optionsClear();
 
     // turn on initial settings
-    for (var optionName in options.initvalues)
+    for (optionName in options.initvalues)
     {
-      if (!options.hasOwnProperty(optionName))
-        continue;
       options(optionName);
     }
   }

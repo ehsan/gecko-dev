@@ -135,11 +135,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-#if defined( MAC_OS_X_VERSION_10_6 ) && ( MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6 )
-@interface WindowDelegate : NSObject <NSWindowDelegate>
-#else
 @interface WindowDelegate : NSObject
-#endif
 {
   nsCocoaWindow* mGeckoWindow; // [WEAK] (we are owned by the window)
   // Used to avoid duplication when we send NS_ACTIVATE and
@@ -183,12 +179,15 @@ struct UnifiedGradientInfo {
 {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
+  BOOL mInUnifiedToolbarReset;
   NSColor *mBackgroundColor;
 }
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (void)setUnifiedToolbarHeight:(float)aHeight;
+- (void)notifyToolbarAt:(float)aY height:(float)aHeight;
 - (float)unifiedToolbarHeight;
+- (float)beginMaybeResetUnifiedToolbar;
+- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight;
 - (float)titlebarHeight;
 - (NSRect)titlebarRect;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
@@ -214,7 +213,7 @@ public:
                                    nsNativeWidget aNativeParent,
                                    const nsIntRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
-                                   nsDeviceContext *aContext,
+                                   nsIDeviceContext *aContext,
                                    nsIAppShell *aAppShell = nsnull,
                                    nsIToolkit *aToolkit = nsnull,
                                    nsWidgetInitData *aInitData = nsnull);
@@ -244,10 +243,9 @@ public:
     NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD              Resize(PRInt32 aWidth,PRInt32 aHeight, PRBool aRepaint);
     NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
-    NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
     NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
     void                    ReportMoveEvent();
-    void                    ReportSizeEvent();
+    void                    ReportSizeEvent(NSRect *overrideRect = nsnull);
     NS_IMETHOD              SetCursor(nsCursor aCursor);
     NS_IMETHOD              SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
 
@@ -256,9 +254,7 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
     NS_IMETHOD Update();
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager(bool *aAllowRetaining = nsnull);
-    virtual LayerManager* GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nsnull);
+    virtual LayerManager* GetLayerManager();
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
                                    PRBool aDoCapture, PRBool aConsumeRollupEvent);
@@ -281,6 +277,11 @@ public:
     // be notified that a some form of drag event needs to go into Gecko
     virtual PRBool DragEvent(unsigned int aMessage, Point aMouseGlobal, UInt16 aKeyModifiers);
 
+    // Helpers to prevent recursive resizing during live-resize
+    PRBool IsResizing () const { return mIsResizing; }
+    void StartResizing () { mIsResizing = PR_TRUE; }
+    void StopResizing () { mIsResizing = PR_FALSE; }
+
     PRBool HasModalDescendents() { return mNumModalDescendents > 0; }
     NSWindow *GetCocoaWindow() { return mWindow; }
 
@@ -297,10 +298,6 @@ public:
 
     void SetPopupWindowLevel();
 
-    PRBool IsChildInFailingLeftClickThrough(NSView *aChild);
-    PRBool ShouldFocusPlugin();
-
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   nsresult             CreateNativeWindow(const NSRect &aRect,
@@ -308,14 +305,13 @@ protected:
                                           PRBool aRectIsFrameRect);
   nsresult             CreatePopupContentView(const nsIntRect &aRect,
                                               EVENT_CALLBACK aHandleEventFunction,
-                                              nsDeviceContext *aContext,
+                                              nsIDeviceContext *aContext,
                                               nsIAppShell *aAppShell,
                                               nsIToolkit *aToolkit);
   void                 DestroyNativeWindow();
   void                 AdjustWindowShadow();
   void                 SetUpWindowFilter();
   void                 CleanUpWindowFilter();
-  void                 UpdateBounds();
 
   virtual already_AddRefed<nsIWidget>
   AllocateChildPopupWidget()
@@ -334,6 +330,7 @@ protected:
   PRInt32              mShadowStyle;
   NSUInteger           mWindowFilter;
 
+  PRPackedBool         mIsResizing;     // we originated the resize, prevent infinite recursion
   PRPackedBool         mWindowMadeHere; // true if we created the window, false for embedding
   PRPackedBool         mSheetNeedsShow; // if this is a sheet, are we waiting to be shown?
                                         // this is used for sibling sheet contention only

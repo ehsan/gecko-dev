@@ -50,7 +50,6 @@ interface nsIURI;
 interface nsIInputStream;
 interface nsIDocShellTreeItem;
 interface nsISupportsArray;
-interface nsIStructuredCloneContainer;
 %{C++
 struct nsIntRect;
 class nsDocShellEditorData;
@@ -59,7 +58,7 @@ class nsDocShellEditorData;
 [ptr] native nsDocShellEditorDataPtr(nsDocShellEditorData);
 
 
-[scriptable, uuid(5f3ebf43-6944-45fb-b1b1-78a05bf9370b)]
+[scriptable, uuid(39b73c3a-48eb-4189-8069-247279c3c42d)]
 interface nsISHEntry : nsIHistoryEntry
 {
     /** URI for the document */
@@ -141,11 +140,21 @@ interface nsISHEntry : nsIHistoryEntry
     attribute unsigned long ID;
 
     /**
+     * pageIdentifier is an integer that should be the same for two entries
+     * attached to the same docshell only if the two entries are entries for
+     * the same page in the sense that one could go from the state represented
+     * by one to the state represented by the other simply by scrolling (so the
+     * entries are separated by an anchor traversal or a subframe navigation in
+     * some other frame).
+     */
+    attribute unsigned long pageIdentifier;
+
+    /**
      * docIdentifier is an integer that should be the same for two entries
      * attached to the same docshell if and only if the two entries are entries
      * for the same document.  In practice, two entries A and B will have the
-     * same docIdentifier if we arrived at B by clicking an anchor link in A or
-     * if B was created by A's calling history.pushState().
+     * same docIdentifier if they have the same pageIdentifier or if B was
+     * created by A calling history.pushState().
      */
     attribute unsigned long long docIdentifier;
 
@@ -202,9 +211,9 @@ interface nsISHEntry : nsIHistoryEntry
 
     /**
      * Get/set data associated with this history state via a pushState() call,
-     * serialized using structured clone.
+     * encoded as JSON.
      **/
-    attribute nsIStructuredCloneContainer stateData;
+    attribute AString stateData;
 
     /**
      * Gets the owning pointer to the editor data assosicated with
@@ -241,17 +250,6 @@ interface nsISHEntry : nsIHistoryEntry
     attribute unsigned long long docshellID;
 };
 
-[scriptable, uuid(bb66ac35-253b-471f-a317-3ece940f04c5)]
-interface nsISHEntryInternal : nsISupports
-{
-    [notxpcom] void RemoveFromBFCacheAsync();
-    [notxpcom] void RemoveFromBFCacheSync();
-
-    /**
-     * A number that is assigned by the sHistory when the entry is activated
-     */
-    attribute unsigned long lastTouched;
-};
 
 %{ C++
 // {BFD1A791-AD9F-11d3-BDC7-0050040A9B44}

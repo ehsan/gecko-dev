@@ -41,16 +41,18 @@
 #if !defined jsjaeger_assembler_h__ && defined JS_METHODJIT && defined JS_NUNBOX32
 #define jsjaeger_assembler_h__
 
-#include "assembler/assembler/MacroAssembler.h"
-#include "methodjit/CodeGenIncludes.h"
-#include "methodjit/RematInfo.h"
+#include "methodjit/BaseAssembler.h"
 
 namespace js {
 namespace mjit {
 
-/* Don't use ImmTag. Use ImmType instead. */
-struct ImmTag : JSC::MacroAssembler::Imm32
+/* 
+ * Don't use ImmTag. Use ImmType instead.
+ * TODO: ImmTag should really just be for internal use...
+ */
+class ImmTag : public JSC::MacroAssembler::Imm32
 {
+  public:
     ImmTag(JSValueTag mask)
       : Imm32(int32(mask))
     { }
@@ -63,33 +65,20 @@ struct ImmType : ImmTag
     { }
 };
 
-struct ImmPayload : JSC::MacroAssembler::Imm32
+class Assembler : public BaseAssembler
 {
-    ImmPayload(uint32 payload)
-      : Imm32(payload)
-    { }
-};
-
-class NunboxAssembler : public JSC::MacroAssembler
-{
-  public:
-#ifdef IS_BIG_ENDIAN
-    static const uint32 PAYLOAD_OFFSET = 4;
-    static const uint32 TAG_OFFSET     = 0;
-#else
     static const uint32 PAYLOAD_OFFSET = 0;
     static const uint32 TAG_OFFSET     = 4;
-#endif
 
   public:
     static const JSC::MacroAssembler::Scale JSVAL_SCALE = JSC::MacroAssembler::TimesEight;
 
     Address payloadOf(Address address) {
-        return Address(address.base, address.offset + PAYLOAD_OFFSET);
+        return address;
     }
-  
+
     BaseIndex payloadOf(BaseIndex address) {
-        return BaseIndex(address.base, address.index, address.scale, address.offset + PAYLOAD_OFFSET);
+        return address;
     }
 
     Address tagOf(Address address) {
@@ -100,192 +89,92 @@ class NunboxAssembler : public JSC::MacroAssembler
         return BaseIndex(address.base, address.index, address.scale, address.offset + TAG_OFFSET);
     }
 
-    void loadInlineSlot(RegisterID objReg, uint32 slot,
-                        RegisterID typeReg, RegisterID dataReg) {
-        Address address(objReg, JSObject::getFixedSlotOffset(slot));
-        if (objReg == typeReg) {
-            loadPayload(address, dataReg);
-            loadTypeTag(address, typeReg);
+    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, RegisterID type, RegisterID data) {
+        JS_ASSERT(type != data);
+        Address address(obj, offsetof(JSObject, fslots) + slot * sizeof(Value));
+        RegisterID activeAddressReg = obj;
+        if (slot >= JS_INITIAL_NSLOTS) {
+            loadPtr(Address(obj, offsetof(JSObject, dslots)), clobber);
+            address = Address(clobber, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
+            activeAddressReg = clobber;
+        }
+        if (activeAddressReg == type) {
+            loadPayload(address, data);
+            loadTypeTag(address, type);
         } else {
-            loadTypeTag(address, typeReg);
-            loadPayload(address, dataReg);
+            loadTypeTag(address, type);
+            loadPayload(address, data);
         }
     }
 
-    template <typename T>
-    void loadTypeTag(T address, RegisterID reg) {
+    void loadTypeTag(Address address, RegisterID reg) {
         load32(tagOf(address), reg);
     }
 
-    template <typename T>
-    void storeTypeTag(ImmTag imm, T address) {
+    void loadTypeTag(BaseIndex address, RegisterID reg) {
+        load32(tagOf(address), reg);
+    }
+
+    void storeTypeTag(ImmType imm, Address address) {
         store32(imm, tagOf(address));
     }
 
-    template <typename T>
-    void storeTypeTag(RegisterID reg, T address) {
+    void storeTypeTag(ImmType imm, BaseIndex address) {
+        store32(imm, tagOf(address));
+    }
+
+    void storeTypeTag(RegisterID reg, Address address) {
         store32(reg, tagOf(address));
     }
 
-    template <typename T>
-    void loadPayload(T address, RegisterID reg) {
+    void storeTypeTag(RegisterID reg, BaseIndex address) {
+        store32(reg, tagOf(address));
+    }
+
+    void loadPayload(Address address, RegisterID reg) {
         load32(payloadOf(address), reg);
     }
 
-    template <typename T>
-    void storePayload(RegisterID reg, T address) {
+    void loadPayload(BaseIndex address, RegisterID reg) {
+        load32(payloadOf(address), reg);
+    }
+
+    void storePayload(RegisterID reg, Address address) {
         store32(reg, payloadOf(address));
     }
 
-    template <typename T>
-    void storePayload(ImmPayload imm, T address) {
+    void storePayload(RegisterID reg, BaseIndex address) {
+        store32(reg, payloadOf(address));
+    }
+
+    void storePayload(Imm32 imm, Address address) {
         store32(imm, payloadOf(address));
-    }
-
-    bool addressUsesRegister(BaseIndex address, RegisterID reg) {
-        return (address.base == reg) || (address.index == reg);
-    }
-
-    bool addressUsesRegister(Address address, RegisterID reg) {
-        return address.base == reg;
-    }
-
-    /* Loads type first, then payload, returning label after type load. */
-    template <typename T>
-    Label loadValueAsComponents(T address, RegisterID type, RegisterID payload) {
-        JS_ASSERT(!addressUsesRegister(address, type));
-        loadTypeTag(address, type);
-        Label l = label();
-        loadPayload(address, payload);
-        return l;
-    }
-
-    void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        jsval_layout jv;
-        jv.asBits = JSVAL_BITS(Jsvalify(val));
-
-        move(ImmTag(jv.s.tag), type);
-        move(Imm32(jv.s.payload.u32), payload);
-    }
-
-    /*
-     * Load a (64b) js::Value from 'address' into 'type' and 'payload', and
-     * return a label which can be used by
-     * ICRepatcher::patchAddressOffsetForValueLoad to patch the address'
-     * offset.
-     *
-     * The data register is guaranteed to be clobbered last. (This makes the
-     * base register for the address reusable as 'dreg'.)
-     */
-    Label loadValueWithAddressOffsetPatch(Address address, RegisterID treg, RegisterID dreg) {
-        JS_ASSERT(address.base != treg); /* treg is clobbered first. */
-
-        Label start = label();
-#if defined JS_CPU_X86
-        /*
-         * On x86 there are two loads to patch and they both encode the offset
-         * in-line.
-         */
-        loadTypeTag(address, treg);
-        DBGLABEL_NOMASM(endType);
-        loadPayload(address, dreg);
-        DBGLABEL_NOMASM(endPayload);
-        JS_ASSERT(differenceBetween(start, endType) == 6);
-        JS_ASSERT(differenceBetween(endType, endPayload) == 6);
-        return start;
-#elif defined JS_CPU_ARM || defined JS_CPU_SPARC
-        /* 
-         * On ARM, the first instruction loads the offset from a literal pool, so the label
-         * returned points at that instruction.
-         */
-        DataLabel32 load = load64WithAddressOffsetPatch(address, treg, dreg);
-        JS_ASSERT(differenceBetween(start, load) == 0);
-        (void) load;
-        return start;
-#endif
-    }
-
-    /*
-     * Store a (64b) js::Value from type |treg| and payload |dreg| into |address|, and
-     * return a label which can be used by
-     * ICRepatcher::patchAddressOffsetForValueStore to patch the address'
-     * offset.
-     */
-    DataLabel32 storeValueWithAddressOffsetPatch(RegisterID treg, RegisterID dreg, Address address) {
-        DataLabel32 start = dataLabel32();
-#if defined JS_CPU_X86
-        /*
-         * On x86 there are two stores to patch and they both encode the offset
-         * in-line.
-         */
-        storeTypeTag(treg, address);
-        DBGLABEL_NOMASM(endType);
-        storePayload(dreg, address);
-        DBGLABEL_NOMASM(endPayload);
-        JS_ASSERT(differenceBetween(start, endType) == 6);
-        JS_ASSERT(differenceBetween(endType, endPayload) == 6);
-        return start;
-#elif defined JS_CPU_ARM || defined JS_CPU_SPARC
-        return store64WithAddressOffsetPatch(treg, dreg, address);
-#endif
-    }
-
-    /* Overloaded for storing a constant type. */
-    DataLabel32 storeValueWithAddressOffsetPatch(ImmType type, RegisterID dreg, Address address) {
-        DataLabel32 start = dataLabel32();
-#if defined JS_CPU_X86
-        storeTypeTag(type, address);
-        DBGLABEL_NOMASM(endType);
-        storePayload(dreg, address);
-        DBGLABEL_NOMASM(endPayload);
-        JS_ASSERT(differenceBetween(start, endType) == 10);
-        JS_ASSERT(differenceBetween(endType, endPayload) == 6);
-        return start;
-#elif defined JS_CPU_ARM || defined JS_CPU_SPARC
-        return store64WithAddressOffsetPatch(type, dreg, address);
-#endif
-    }
-
-    /* Overloaded for storing constant type and data. */
-    DataLabel32 storeValueWithAddressOffsetPatch(const Value &v, Address address) {
-        jsval_layout jv;
-        jv.asBits = JSVAL_BITS(Jsvalify(v));
-        ImmTag type(jv.s.tag);
-        Imm32 payload(jv.s.payload.u32);
-        DataLabel32 start = dataLabel32();
-#if defined JS_CPU_X86
-        store32(type, tagOf(address));
-        DBGLABEL_NOMASM(endType);
-        store32(payload, payloadOf(address));
-        DBGLABEL_NOMASM(endPayload);
-        JS_ASSERT(differenceBetween(start, endType) == 10);
-        JS_ASSERT(differenceBetween(endType, endPayload) == 10);
-        return start;
-#elif defined JS_CPU_ARM || defined JS_CPU_SPARC
-        return store64WithAddressOffsetPatch(type, payload, address);
-#endif
-    }
-
-    /* Overloaded for store with value remat info. */
-    DataLabel32 storeValueWithAddressOffsetPatch(const ValueRemat &vr, Address address) {
-        if (vr.isConstant()) {
-            return storeValueWithAddressOffsetPatch(vr.value(), address);
-        } else if (vr.isTypeKnown()) {
-            ImmType type(vr.knownType());
-            RegisterID data(vr.dataReg());
-            return storeValueWithAddressOffsetPatch(type, data, address);
-        } else {
-            RegisterID type(vr.typeReg());
-            RegisterID data(vr.dataReg());
-            return storeValueWithAddressOffsetPatch(type, data, address);
-        }
     }
 
     /*
      * Stores type first, then payload.
      */
-    template <typename T>
-    Label storeValue(const Value &v, T address) {
+    void storeValue(const Value &v, Address address) {
+        jsval_layout jv;
+        jv.asBits = JSVAL_BITS(Jsvalify(v));
+
+        store32(ImmTag(jv.s.tag), tagOf(address));
+        store32(Imm32(jv.s.payload.u32), payloadOf(address));
+    }
+
+    void storeValue(const Value &v, BaseIndex address) {
+        jsval_layout jv;
+        jv.asBits = JSVAL_BITS(Jsvalify(v));
+
+        store32(ImmTag(jv.s.tag), tagOf(address));
+        store32(Imm32(jv.s.payload.u32), payloadOf(address));
+    }
+
+    /*
+     * Performs type store before payload store, even for Undefined.
+     * Returns label after type store.
+     */
+    Label storeValueForIC(const Value &v, Address address) {
         jsval_layout jv;
         jv.asBits = JSVAL_BITS(Jsvalify(v));
 
@@ -295,179 +184,97 @@ class NunboxAssembler : public JSC::MacroAssembler
         return l;
     }
 
-    template <typename T>
-    void storeValueFromComponents(RegisterID type, RegisterID payload, T address) {
-        storeTypeTag(type, address);
-        storePayload(payload, address);
-    }
-
-    template <typename T>
-    void storeValueFromComponents(ImmType type, RegisterID payload, T address) {
-        storeTypeTag(type, address);
-        storePayload(payload, address);
-    }
-
-    template <typename T>
-    Label storeValue(const ValueRemat &vr, T address) {
-        if (vr.isConstant()) {
-            return storeValue(vr.value(), address);
-        } else {
-            if (vr.isTypeKnown())
-                storeTypeTag(ImmType(vr.knownType()), address);
-            else
-                storeTypeTag(vr.typeReg(), address);
-            Label l = label();
-            storePayload(vr.dataReg(), address);
-            return l;
-        }
-    }
-
-    template <typename T>
-    Jump guardNotHole(T address) {
-        return branch32(Equal, tagOf(address), ImmType(JSVAL_TYPE_MAGIC));
-    }
-
     void loadPrivate(Address privAddr, RegisterID to) {
-        loadPtr(payloadOf(privAddr), to);
+        loadPtr(privAddr, to);
     }
 
-    void loadObjPrivate(RegisterID base, RegisterID to) {
-        Address priv(base, offsetof(JSObject, privateData));
-        loadPtr(priv, to);
+    void loadFunctionPrivate(RegisterID base, RegisterID to) {
+        Address privSlot(base, offsetof(JSObject, fslots) +
+                               JSSLOT_PRIVATE * sizeof(Value));
+        loadPrivate(privSlot, to);
     }
 
-    Jump testNull(Condition cond, RegisterID reg) {
+    Jump testNull(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_NULL));
     }
 
-    Jump testNull(Condition cond, Address address) {
+    Jump testNull(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_NULL));
     }
 
-    Jump testUndefined(Condition cond, RegisterID reg) {
-        return branch32(cond, reg, ImmTag(JSVAL_TAG_UNDEFINED));
-    }
-
-    Jump testUndefined(Condition cond, Address address) {
-        return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_UNDEFINED));
-    }
-
-    Jump testInt32(Condition cond, RegisterID reg) {
+    Jump testInt32(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testInt32(Condition cond, Address address) {
+    Jump testInt32(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testNumber(Condition cond, RegisterID reg) {
-        cond = (cond == Equal) ? BelowOrEqual : Above;
+    Jump testNumber(Assembler::Condition cond, RegisterID reg) {
+        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
         return branch32(cond, reg, ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testNumber(Condition cond, Address address) {
-        cond = (cond == Equal) ? BelowOrEqual : Above;
+    Jump testNumber(Assembler::Condition cond, Address address) {
+        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testPrimitive(Condition cond, RegisterID reg) {
-        cond = (cond == NotEqual) ? AboveOrEqual : Below;
+    Jump testPrimitive(Assembler::Condition cond, RegisterID reg) {
+        cond = (cond == Assembler::NotEqual) ? Assembler::AboveOrEqual : Assembler::Below;
         return branch32(cond, reg, ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testPrimitive(Condition cond, Address address) {
-        cond = (cond == NotEqual) ? AboveOrEqual : Below;
+    Jump testPrimitive(Assembler::Condition cond, Address address) {
+        cond = (cond == Assembler::NotEqual) ? Assembler::AboveOrEqual : Assembler::Below;
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testObject(Condition cond, RegisterID reg) {
+    Jump testObject(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testObject(Condition cond, Address address) {
+    Jump testObject(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testDouble(Condition cond, RegisterID reg) {
-        Condition opcond;
-        if (cond == Equal)
-            opcond = Below;
+    Jump testDouble(Assembler::Condition cond, RegisterID reg) {
+        Assembler::Condition opcond;
+        if (cond == Assembler::Equal)
+            opcond = Assembler::Below;
         else
-            opcond = AboveOrEqual;
+            opcond = Assembler::AboveOrEqual;
         return branch32(opcond, reg, ImmTag(JSVAL_TAG_CLEAR));
     }
 
-    Jump testDouble(Condition cond, Address address) {
-        Condition opcond;
-        if (cond == Equal)
-            opcond = Below;
+    Jump testDouble(Assembler::Condition cond, Address address) {
+        Assembler::Condition opcond;
+        if (cond == Assembler::Equal)
+            opcond = Assembler::Below;
         else
-            opcond = AboveOrEqual;
+            opcond = Assembler::AboveOrEqual;
         return branch32(opcond, tagOf(address), ImmTag(JSVAL_TAG_CLEAR));
     }
 
-    Jump testBoolean(Condition cond, RegisterID reg) {
+    Jump testBoolean(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_BOOLEAN));
     }
 
-    Jump testBoolean(Condition cond, Address address) {
+    Jump testBoolean(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_BOOLEAN));
     }
 
-    Jump testString(Condition cond, RegisterID reg) {
+    Jump testString(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_STRING));
     }
 
-    Jump testString(Condition cond, Address address) {
+    Jump testString(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_STRING));
-    }
-
-#ifdef JS_CPU_X86
-    void fastLoadDouble(RegisterID lo, RegisterID hi, FPRegisterID fpReg) {
-        if (MacroAssemblerX86Common::getSSEState() >= HasSSE4_1) {
-            m_assembler.movd_rr(lo, fpReg);
-            m_assembler.pinsrd_rr(hi, fpReg);
-        } else {
-            m_assembler.movd_rr(lo, fpReg);
-            m_assembler.movd_rr(hi, FPRegisters::Temp0);
-            m_assembler.unpcklps_rr(FPRegisters::Temp0, fpReg);
-        }
-    }
-#endif
-
-    void breakDouble(FPRegisterID srcDest, RegisterID typeReg, RegisterID dataReg) {
-#ifdef JS_CPU_X86
-        // Move the low 32-bits of the 128-bit XMM register into dataReg.
-        // Then, right shift the 128-bit XMM register by 4 bytes.
-        // Finally, move the new low 32-bits of the 128-bit XMM register into typeReg.
-        m_assembler.movd_rr(srcDest, dataReg);
-        m_assembler.psrldq_rr(srcDest, 4);
-        m_assembler.movd_rr(srcDest, typeReg);
-#elif defined JS_CPU_SPARC
-        breakDoubleTo32(srcDest, typeReg, dataReg);
-#else
-        JS_NOT_REACHED("implement this - push double, pop pop is easiest");
-#endif
-    }
-
-    void loadStaticDouble(const double *dp, FPRegisterID dest, RegisterID scratch) {
-        move(ImmPtr(dp), scratch);
-        loadDouble(Address(scratch), dest);
-    }
-
-    template <typename T>
-    Jump fastArrayLoadSlot(T address, RegisterID typeReg, RegisterID dataReg) {
-        loadTypeTag(address, typeReg);
-        Jump notHole = branch32(Equal, typeReg, ImmType(JSVAL_TYPE_MAGIC));
-        loadPayload(address, dataReg);
-        return notHole;
     }
 };
 
-typedef NunboxAssembler ValueAssembler;
-
-} /* namespace mjit */
 } /* namespace js */
+} /* namespace mjit */
 
 #endif
 

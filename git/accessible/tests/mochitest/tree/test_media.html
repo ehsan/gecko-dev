@@ -13,11 +13,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=483573
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
-          src="../common.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/common.js"></script>
   <script type="application/javascript"
-          src="../role.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/role.js"></script>
   <script type="application/javascript"
-          src="../states.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/states.js"></script>
 
   <script type="application/javascript">
 
@@ -30,33 +30,24 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=483573
         role: ROLE_GROUPING,
         children: [
           { // start/stop button
-            role: ROLE_PUSHBUTTON,
-            name: "Play",
-            children: []
+            role: ROLE_PUSHBUTTON
           },
           { // buffer bar
-            role: ROLE_PROGRESSBAR,
-            children: []
+            role: ROLE_PROGRESSBAR
           },
           { // progress bar
-            role: ROLE_PROGRESSBAR,
-            children: []
+            role: ROLE_PROGRESSBAR
           },
           { // slider of progress bar
-            role: ROLE_SLIDER,
-            //name: "0:00 of 0:02 elapsed",
-            children: []
+            role: ROLE_SLIDER
           },
           { // mute button
-            role: ROLE_PUSHBUTTON,
-            name: "Mute",
-            children: []
+            role: ROLE_PUSHBUTTON
           }
         ]
       };
       testAccessibleTree("audio", accTree);
 
-      todo(false, "Enable name test for slider. Fail on Linux.");
       SimpleTest.finish();
     }
 
@@ -74,7 +65,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=483573
   <pre id="test">
   </pre>
 
-  <audio id="audio" src="../bug461281.ogg"
+  <audio id="audio" src="chrome://mochikit/content/a11y/accessible/bug461281.ogg"
          controls="true"></audio>
 
   <div id="eventDump"></div>

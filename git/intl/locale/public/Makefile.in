@@ -49,11 +49,10 @@ EXPORTS		= \
 		nsDateTimeFormatCID.h \
 		nsIDateTimeFormat.h \
 		nsILanguageAtomService.h \
-		nsPosixLocale.h \
+		nsIMacLocale.h \
+		nsIPosixLocale.h \
 		nsIOS2Locale.h \
-		nsWin32Locale.h \
-		nsICharsetAlias.h \
-		nsIPlatformCharset.h \
+		nsIWin32Locale.h \
 		nsLocaleCID.h \
 		$(NULL)
 

@@ -83,7 +83,6 @@ class XPCNativeScriptableSharedMap;
 class XPCWrappedNativeProtoMap;
 class XPCNativeWrapperMap;
 class WrappedNative2WrapperMap;
-class JSObject2JSObjectMap;
 
 class nsXPCComponents;
 class nsXPCComponents_Interfaces;
@@ -100,5 +99,15 @@ class nsXPCConstructor;
 class AutoMarkingPtr;
 
 class xpcProperty;
+
+#ifdef XPC_IDISPATCH_SUPPORT
+class XPCDispInterface;
+struct IDispatch;
+class XPCDispParams;
+class XPCDispJSPropertyInfo;
+class nsIXPConnectWrappedJS;
+class XPCIDispatchExtension;
+#endif
+
 
 #endif /* xpcforwards_h___ */

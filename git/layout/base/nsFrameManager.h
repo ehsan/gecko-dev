@@ -63,8 +63,6 @@ class RestyleTracker;
 } // namespace css
 } // namespace mozilla
 
-struct TreeMatchContext;
-
 /**
  * Frame manager interface. The frame manager serves two purposes:
  * <li>provides a service for mapping from content to frame and from
@@ -124,7 +122,10 @@ public:
   // Functions for manipulating the frame model
   NS_HIDDEN_(nsresult) AppendFrames(nsIFrame*       aParentFrame,
                                     nsIAtom*        aListName,
-                                    nsFrameList&    aFrameList);
+                                    nsFrameList&    aFrameList)
+  {
+    return aParentFrame->AppendFrames(aListName, aFrameList);
+  }
 
   NS_HIDDEN_(nsresult) InsertFrames(nsIFrame*       aParentFrame,
                                     nsIAtom*        aListName,
@@ -201,18 +202,6 @@ public:
   }
 
 private:
-  enum DesiredA11yNotifications {
-    eSkipNotifications,
-    eSendAllNotifications,
-    eNotifyIfShown
-  };
-
-  enum A11yNotificationType {
-    eDontNotify,
-    eNotifyShown,
-    eNotifyHidden
-  };
-
   // Use eRestyle_Self for the aRestyleHint argument to mean
   // "reresolve our style context but not kids", use eRestyle_Subtree
   // to mean "reresolve our style context and kids", and use
@@ -225,10 +214,8 @@ private:
                           nsStyleChangeList *aChangeList, 
                           nsChangeHint       aMinChange,
                           nsRestyleHint      aRestyleHint,
-                          RestyleTracker&    aRestyleTracker,
-                          DesiredA11yNotifications aDesiredA11yNotifications,
-                          nsTArray<nsIContent*>& aVisibleKidsOfHiddenElement,
-                          TreeMatchContext &aTreeMatchContext);
+                          PRBool             aFireAccessibilityEvents,
+                          RestyleTracker&    aRestyleTracker);
 };
 
 #endif

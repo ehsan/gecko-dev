@@ -41,77 +41,10 @@
 #ifndef jsscriptinlines_h___
 #define jsscriptinlines_h___
 
-#include "jsautooplen.h"
-#include "jscntxt.h"
 #include "jsfun.h"
 #include "jsopcode.h"
 #include "jsregexp.h"
 #include "jsscript.h"
-#include "jsscope.h"
-
-namespace js {
-
-inline
-Bindings::Bindings(JSContext *cx, EmptyShape *emptyCallShape)
-  : lastBinding(emptyCallShape), nargs(0), nvars(0), nupvars(0),
-    hasExtensibleParents(false)
-{
-}
-
-inline void
-Bindings::transfer(JSContext *cx, Bindings *bindings)
-{
-    JS_ASSERT(lastBinding == cx->compartment->emptyCallShape);
-
-    *this = *bindings;
-#ifdef DEBUG
-    bindings->lastBinding = NULL;
-#endif
-
-    /* Preserve back-pointer invariants across the lastBinding transfer. */
-    if (lastBinding->inDictionary())
-        lastBinding->listp = &this->lastBinding;
-}
-
-inline void
-Bindings::clone(JSContext *cx, Bindings *bindings)
-{
-    JS_ASSERT(lastBinding == cx->compartment->emptyCallShape);
-
-    /*
-     * Non-dictionary bindings are fine to share, as are dictionary bindings if
-     * they're copy-on-modification.
-     */
-    JS_ASSERT(!bindings->lastBinding->inDictionary() || bindings->lastBinding->frozen());
-
-    *this = *bindings;
-}
-
-Shape *
-Bindings::lastShape() const
-{
-    JS_ASSERT(lastBinding);
-    JS_ASSERT_IF(lastBinding->inDictionary(), lastBinding->frozen());
-    return lastBinding;
-}
-
-extern const char *
-CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop);
-
-inline const char *
-CurrentScriptFileAndLine(JSContext *cx, uintN *linenop, LineOption opt)
-{
-    if (opt == CALLED_FROM_JSOP_EVAL) {
-        JS_ASSERT(js_GetOpcode(cx, cx->fp()->script(), cx->regs().pc) == JSOP_EVAL);
-        JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
-        return cx->fp()->script()->filename;
-    }
-
-    return CurrentScriptFileAndLineSlow(cx, linenop);
-}
-
-} // namespace js
 
 inline JSFunction *
 JSScript::getFunction(size_t index)
@@ -122,13 +55,6 @@ JSScript::getFunction(size_t index)
     JSFunction *fun = (JSFunction *) funobj;
     JS_ASSERT(FUN_INTERPRETED(fun));
     return fun;
-}
-
-inline JSFunction *
-JSScript::getCallerFunction()
-{
-    JS_ASSERT(savedCallerFun);
-    return getFunction(0);
 }
 
 inline JSObject *
@@ -144,13 +70,18 @@ JSScript::getRegExp(size_t index)
 inline bool
 JSScript::isEmpty() const
 {
-    if (length > 3)
-        return false;
+    if (this == emptyScript())
+        return true;
 
-    jsbytecode *pc = code;
-    if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
-        ++pc;
-    return JSOp(*pc) == JSOP_STOP;
+    if (length <= 3) {
+        jsbytecode *pc = code;
+
+        if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
+            ++pc;
+        if (JSOp(*pc) == JSOP_STOP)
+            return true;
+    }
+    return false;
 }
 
 #endif /* jsscriptinlines_h___ */

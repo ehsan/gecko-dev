@@ -49,7 +49,6 @@
 #include "nsILocalFile.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsIPrefService.h"
 #include "nsIProfileChangeStatus.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIToolkitChromeRegistry.h"
@@ -74,9 +73,17 @@
 #ifdef XP_WIN
 #include <windows.h>
 #include <shlobj.h>
+// This is not defined by VC6.
+#ifndef CSIDL_LOCAL_APPDATA
+#define CSIDL_LOCAL_APPDATA             0x001C
+#endif
 #endif
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
+#endif
+#ifdef XP_BEOS
+#include <be/kernel/image.h>
+#include <FindDirectory.h>
 #endif
 #ifdef XP_UNIX
 #include <ctype.h>
@@ -259,10 +266,10 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
     rv = GetUserAppDataDirectory((nsILocalFile**)(nsIFile**) getter_AddRefs(file));
   }
   else if (!strcmp(aProperty, XRE_UPDATE_ROOT_DIR)) {
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     rv = GetUpdateRootDir(getter_AddRefs(file));
 #else
-    // Only supported on Windows, so just immediately fail.
+    // Only supported on Windows other than WINCE, so just immediately fail.
     return NS_ERROR_FAILURE;
 #endif
   }
@@ -301,6 +308,9 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
     if (NS_SUCCEEDED(rv))
       file = lf;
   }
+  else if (!strcmp(aProperty, "resource:app")) {
+    rv = GetAppDir()->Clone(getter_AddRefs(file));
+  }
 
   else if (!strcmp(aProperty, NS_APP_PROFILE_DIR_STARTUP) && mProfileDir) {
     return mProfileDir->Clone(aFile);
@@ -330,11 +340,6 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
 #endif
   else if (!strcmp(aProperty, XRE_USER_SYS_EXTENSION_DIR)) {
     return GetSysUserExtensionsDirectory((nsILocalFile**)(nsIFile**) aFile);
-  }
-  else if (!strcmp(aProperty, XRE_APP_DISTRIBUTION_DIR)) {
-    rv = GetAppDir()->Clone(getter_AddRefs(file));
-    if (NS_SUCCEEDED(rv))
-      rv = file->AppendNative(NS_LITERAL_CSTRING("distribution"));
   }
   else if (NS_SUCCEEDED(GetProfileStartupDir(getter_AddRefs(file)))) {
     // We need to allow component, xpt, and chrome registration to
@@ -454,6 +459,9 @@ LoadDirsIntoArray(nsCOMArray<nsIFile>& aSourceDirs,
   }
 }
 
+static const char *const kAppendChromeManifests[] =
+  { "chrome.manifest", nsnull };
+
 NS_IMETHODIMP
 nsXREDirProvider::GetFiles(const char* aProperty, nsISimpleEnumerator** aResult)
 {
@@ -499,8 +507,6 @@ LoadExtensionDirectories(nsINIParser &parser,
 {
   nsresult rv;
   PRInt32 i = 0;
-  nsCOMPtr<nsIPrefServiceInternal> prefs =
-    do_GetService("@mozilla.org/preferences-service;1");
   do {
     nsCAutoString buf("Extension");
     buf.AppendInt(i++);
@@ -518,19 +524,11 @@ LoadExtensionDirectories(nsINIParser &parser,
     if (NS_FAILED(rv))
       continue;
 
-    if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_CSTRING(".xpi"))) {
-      XRE_AddJarManifestLocation(aType, dir);
-      if (!prefs)
-        continue;
-      prefs->ReadExtensionPrefs(dir);
-    }
-    else {
-      aDirectories.AppendObject(dir);
+    aDirectories.AppendObject(dir);
 
-      nsCOMPtr<nsILocalFile> manifest =
-        CloneAndAppend(dir, "chrome.manifest");
-      XRE_AddManifestLocation(aType, manifest);
-    }
+    nsCOMPtr<nsILocalFile> manifest =
+      CloneAndAppend(dir, "chrome.manifest");
+    XRE_AddManifestLocation(aType, manifest);
   }
   while (PR_TRUE);
 }
@@ -818,6 +816,24 @@ GetShellFolderPath(int folder, nsAString& _retval)
 
   nsresult rv = NS_OK;
 
+#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
+  if (folder == CSIDL_APPDATA || folder == CSIDL_LOCAL_APPDATA)
+    folder = CSIDL_PROFILE;
+
+  BOOL ok = SHGetSpecialFolderPath(NULL, buf, folder, true);
+  if (!ok) {
+    _retval.SetLength(0);
+    return NS_ERROR_FAILURE;
+  }
+
+  buf[bufLength - 1] = L'\0';
+  _retval.SetLength(wcslen(buf));
+
+  // sometimes CSIDL_PROFILE shows up without a root slash
+  if (folder == CSIDL_PROFILE && buf[0] != '\\') {
+    _retval.Insert('\\', 0);
+  }
+#else
   LPITEMIDLIST pItemIDList = NULL;
 
   if (SUCCEEDED(SHGetSpecialFolderLocation(NULL, folder, &pItemIDList)) &&
@@ -832,10 +848,12 @@ GetShellFolderPath(int folder, nsAString& _retval)
   }
 
   CoTaskMemFree(pItemIDList);
+#endif
 
   return rv;
 }
 
+#ifndef WINCE
 /**
  * Provides a fallback for getting the path to APPDATA or LOCALAPPDATA by
  * querying the registry when the call to SHGetSpecialFolderLocation or
@@ -887,6 +905,7 @@ GetRegWindowsAppDataFolder(PRBool aLocal, nsAString& _retval)
 
   return NS_OK;
 }
+#endif
 
 nsresult
 nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
@@ -905,6 +924,9 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   PRUint32 bufLength = longPath.GetMutableData(&buf, MAXPATHLEN);
   NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
 
+#ifdef WINCE
+  longPath.Assign(appPath);
+#else
   DWORD len = GetLongPathNameW(appPath.get(), buf, bufLength);
 
   // Failing GetLongPathName() is not fatal.
@@ -912,7 +934,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
     longPath.Assign(appPath);
   else
     longPath.SetLength(len);
-
+#endif
   // Use <UserLocalDataDir>\updates\<relative path to app dir from
   // Program Files> if app dir is under Program Files to avoid the
   // folder virtualization mess on Windows Vista
@@ -1019,15 +1041,20 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
   nsString path;
   if (aLocal) {
     rv = GetShellFolderPath(CSIDL_LOCAL_APPDATA, path);
+#ifndef WINCE
     if (NS_FAILED(rv))
       rv = GetRegWindowsAppDataFolder(aLocal, path);
+#endif
   }
   if (!aLocal || NS_FAILED(rv)) {
     rv = GetShellFolderPath(CSIDL_APPDATA, path);
+#ifndef WINCE
     if (NS_FAILED(rv)) {
       if (!aLocal)
         rv = GetRegWindowsAppDataFolder(aLocal, path);
     }
+#endif
+
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1056,6 +1083,24 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
     *strrchr(appDir, '\\') = '\0';
     rv = NS_NewNativeLocalFile(nsDependentCString(appDir), PR_TRUE, getter_AddRefs(localDir));
   }
+#elif defined(XP_BEOS)
+  char appDir[MAXPATHLEN];
+  if (find_directory(B_USER_SETTINGS_DIRECTORY, NULL, true, appDir, MAXPATHLEN))
+    return NS_ERROR_FAILURE;
+
+  int len = strlen(appDir);
+  appDir[len]   = '/';
+  appDir[len+1] = '\0';
+
+  rv = NS_NewNativeLocalFile(nsDependentCString(appDir), PR_TRUE,
+                             getter_AddRefs(localDir));
+#elif defined(ANDROID)
+  // used for setting the patch to our profile
+  // XXX: investigate putting the profile somewhere else
+  const char* homeDir = "/data/data/org.mozilla." MOZ_APP_NAME;
+
+  rv = NS_NewNativeLocalFile(nsDependentCString(homeDir), PR_TRUE,
+                             getter_AddRefs(localDir));
 #elif defined(XP_UNIX)
   const char* homeDir = getenv("HOME");
   if (!homeDir || !*homeDir)
@@ -1232,7 +1277,7 @@ nsXREDirProvider::AppendSysUserExtensionPath(nsIFile* aFile)
 
   nsresult rv;
 
-#if defined (XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
+#if defined (XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2) || defined(XP_BEOS)
 
   static const char* const sXR = "Mozilla";
   rv = aFile->AppendNative(nsDependentCString(sXR));
@@ -1281,7 +1326,7 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile)
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-#elif defined(XP_WIN) || defined(XP_OS2)
+#elif defined(XP_WIN) || defined(XP_OS2) || defined(XP_BEOS)
   if (gAppData->profile) {
     rv = AppendProfileString(aFile, gAppData->profile);
   }

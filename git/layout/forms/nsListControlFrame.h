@@ -88,8 +88,8 @@ public:
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*          aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -238,7 +238,7 @@ public:
    * @param aPt the offset of this frame, relative to the rendering reference
    * frame
    */
-  void PaintFocus(nsRenderingContext& aRC, nsPoint aPt);
+  void PaintFocus(nsIRenderingContext& aRC, nsPoint aPt);
   /**
    * If this frame IsFocused(), invalidates an area that includes anything
    * that PaintFocus will or could have painted --- basically the whole
@@ -297,12 +297,10 @@ protected:
   PRBool     UpdateSelection();
 
   /**
-   * Returns whether mContent supports multiple selection.
+   * Returns whether the nsIDOMHTMLSelectElement supports 
+   * multiple selection.
    */
-  PRBool     GetMultiple() const {
-    return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple);
-  }
-
+  PRBool     GetMultiple(nsIDOMHTMLSelectElement* aSelect = nsnull) const;
 
   /**
    * Toggles (show/hide) the combobox dropdown menu.

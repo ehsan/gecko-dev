@@ -51,11 +51,9 @@
 #include "nsIFrame.h"
 #include "nsFrameManager.h"
 #include "mozilla/AutoRestore.h"
-#include "FrameLayerBuilder.h"
 
 #include "nsINameSpaceManager.h"
 
-#include "mozilla/Util.h" // for DebugOnly
 
 #ifdef DEBUG
 #include "nsBlockDebugFlags.h"
@@ -682,22 +680,6 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                                               adjustedAvailableSpace.width,
                                               aFloat, offsets);
 
-  nsMargin floatMargin; // computed margin
-  nsReflowStatus reflowStatus;
-
-  // If it's a floating first-letter, we need to reflow it before we
-  // know how wide it is (since we don't compute which letters are part
-  // of the first letter until reflow!).
-  PRBool isLetter = aFloat->GetType() == nsGkAtoms::letterFrame;
-  if (isLetter) {
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, PR_FALSE, reflowStatus);
-    floatMarginWidth = aFloat->GetSize().width + floatMargin.LeftRight();
-    NS_ASSERTION(NS_FRAME_IS_COMPLETE(reflowStatus),
-                 "letter frames shouldn't break, and if they do now, "
-                 "then they're breaking at the wrong point");
-  }
-
   // Find a place to place the float. The CSS2 spec doesn't want
   // floats overlapping each other or sticking out of the containing
   // block if possible (CSS2 spec section 9.5.1, see the rule list).
@@ -818,11 +800,11 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
 
   // Reflow the float after computing its vertical position so it knows
   // where to break.
-  if (!isLetter) {
-    PRBool pushedDown = mY != saveY;
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, pushedDown, reflowStatus);
-  }
+  nsMargin floatMargin; // computed margin
+  PRBool pushedDown = mY != saveY;
+  nsReflowStatus reflowStatus;
+  mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
+                      floatMargin, pushedDown, reflowStatus);
   if (aFloat->GetPrevInFlow())
     floatMargin.top = 0;
   if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus))
@@ -858,17 +840,15 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as
   // well, since we're moving the float after flowing it.
-  PRBool moved = aFloat->GetPosition() != origin;
-  if (moved) {
-    aFloat->SetPosition(origin);
-    nsContainerFrame::PositionFrameView(aFloat);
-    nsContainerFrame::PositionChildViews(aFloat);
-    FrameLayerBuilder::InvalidateThebesLayersInSubtree(aFloat);
-  }
+  aFloat->SetPosition(origin);
+  nsContainerFrame::PositionFrameView(aFloat);
+  nsContainerFrame::PositionChildViews(aFloat);
 
   // Update the float combined area state
+  nsRect combinedArea = aFloat->GetOverflowRect() + origin;
+
   // XXX Floats should really just get invalidated here if necessary
-  mFloatOverflowAreas.UnionWith(aFloat->GetOverflowAreas() + origin);
+  mFloatCombinedArea.UnionRect(combinedArea, mFloatCombinedArea);
 
   // Place the float in the float manager
   // calculate region
@@ -882,11 +862,12 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   mFloatManager->AddFloat(aFloat, region);
   NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "bad float placement");
   // store region
-  nsFloatManager::StoreRegionFor(aFloat, region);
+  rv = nsFloatManager::StoreRegionFor(aFloat, region);
+  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "float region storage failed");
 
   // If the float's dimensions have changed, note the damage in the
   // float manager.
-  if (!region.IsEqualEdges(oldRegion)) {
+  if (region != oldRegion) {
     // XXXwaterson conservative: we could probably get away with noting
     // less damage; e.g., if only height has changed, then only note the
     // area into which the float has grown or from which the float has
@@ -941,7 +922,7 @@ nsBlockReflowState::PushFloatPastBreak(nsIFrame *aFloat)
 
   // Put the float on the pushed floats list, even though it
   // isn't actually a continuation.
-  DebugOnly<nsresult> rv = mBlock->StealFrame(mPresContext, aFloat);
+  nsresult rv = mBlock->StealFrame(mPresContext, aFloat);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame should succeed");
   AppendPushedFloat(aFloat);
 

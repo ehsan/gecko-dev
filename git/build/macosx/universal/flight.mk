@@ -120,10 +120,9 @@ postflight_all:
 	  $(DIST_UNI)/$(MOZ_PKG_APPNAME)/$(APPNAME)
 # A universal .dmg can now be produced by making in either architecture's
 # INSTALLER_DIR.
-ifdef ENABLE_TESTS
 # Now, repeat the process for the test package.
-	$(MAKE) -C $(OBJDIR_ARCH_1) UNIVERSAL_BINARY= CHROME_JAR= package-tests
-	$(MAKE) -C $(OBJDIR_ARCH_2) UNIVERSAL_BINARY= CHROME_JAR= package-tests
+	$(MAKE) -C $(OBJDIR_ARCH_1) UNIVERSAL_BINARY= package-tests
+	$(MAKE) -C $(OBJDIR_ARCH_2) UNIVERSAL_BINARY= package-tests
 	rm -rf $(DIST_UNI)/test-package-stage
 # automation.py differs because it hardcodes a path to
 # dist/bin. It doesn't matter which one we use.
@@ -138,4 +137,3 @@ ifdef ENABLE_TESTS
              $(DIST_ARCH_1)/test-package-stage                          \
              $(DIST_ARCH_2)/test-package-stage                          \
              $(DIST_UNI)/test-package-stage; fi
-endif

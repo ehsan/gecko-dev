@@ -55,6 +55,9 @@
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
@@ -79,6 +82,7 @@ nsIStringBundle *nsAccessNode::gStringBundle = 0;
 nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
 nsINode *nsAccessNode::gLastFocusedNode = nsnull;
 
+PRBool nsAccessNode::gIsCacheDisabled = PR_FALSE;
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
 
 nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
@@ -90,7 +94,7 @@ nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible. nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_1(nsAccessNode, mContent)
+NS_IMPL_CYCLE_COLLECTION_0(nsAccessNode)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccessNode)
   NS_INTERFACE_MAP_ENTRY(nsIAccessNode)
@@ -98,8 +102,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccessNode)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAccessNode)
 NS_INTERFACE_MAP_END
  
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAccessNode)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsAccessNode, LastRelease())
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsAccessNode, nsIAccessNode)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(nsAccessNode, nsIAccessNode,
+                                      LastRelease())
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode construction/desctruction
@@ -132,12 +137,6 @@ void nsAccessNode::LastRelease()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public
 
-bool
-nsAccessNode::IsDefunct() const
-{
-  return !mContent;
-}
-
 PRBool
 nsAccessNode::Init()
 {
@@ -153,12 +152,9 @@ nsAccessNode::Shutdown()
 }
 
 // nsIAccessNode
-NS_IMETHODIMP
-nsAccessNode::GetUniqueID(void **aUniqueID)
+NS_IMETHODIMP nsAccessNode::GetUniqueID(void **aUniqueID)
 {
-  NS_ENSURE_ARG_POINTER(aUniqueID);
-
-  *aUniqueID = UniqueID();
+  *aUniqueID = static_cast<void*>(GetNode());
   return NS_OK;
 }
 
@@ -218,6 +214,7 @@ void nsAccessNode::InitXPAccessibility()
 
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
+    prefBranch->GetBoolPref("accessibility.disablecache", &gIsCacheDisabled);
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 
@@ -287,8 +284,7 @@ nsAccessNode::GetDocAccessible() const
     GetAccService()->GetDocAccessible(mContent->GetOwnerDoc()) : nsnull;
 }
 
-nsRootAccessible*
-nsAccessNode::RootAccessible() const
+already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
 {
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
     nsCoreUtils::GetDocShellTreeItemFor(mContent);
@@ -303,20 +299,15 @@ nsAccessNode::RootAccessible() const
     return nsnull;
   }
 
-  nsDocAccessible* docAcc = nsAccUtils::GetDocAccessibleFor(root);
-  return docAcc ? docAcc->AsRoot() : nsnull;
+  nsDocAccessible *docAcc = nsAccUtils::GetDocAccessibleFor(root);
+  nsRefPtr<nsRootAccessible> rootAcc = do_QueryObject(docAcc);
+  return rootAcc.forget();
 }
 
 nsIFrame*
-nsAccessNode::GetFrame() const
+nsAccessNode::GetFrame()
 {
   return mContent ? mContent->GetPrimaryFrame() : nsnull;
-}
-
-bool
-nsAccessNode::IsPrimaryForNode() const
-{
-  return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,8 +340,8 @@ nsAccessNode::GetRootDocument(nsIAccessibleDocument **aRootDocument)
 {
   NS_ENSURE_ARG_POINTER(aRootDocument);
 
-  nsRootAccessible* rootDocument = RootAccessible();
-  NS_IF_ADDREF(*aRootDocument = rootDocument);
+  nsRefPtr<nsRootAccessible> rootDocument = GetRootAccessible();
+  NS_IF_ADDREF(*aRootDocument = rootDocument.get());
   return NS_OK;
 }
 
@@ -382,8 +373,7 @@ nsAccessNode::ScrollTo(PRUint32 aScrollType)
 
   PRInt16 vPercent, hPercent;
   nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
-  return shell->ScrollContentIntoView(content, vPercent, hPercent,
-                                      nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+  return shell->ScrollContentIntoView(content, vPercent, hPercent);
 }
 
 NS_IMETHODIMP

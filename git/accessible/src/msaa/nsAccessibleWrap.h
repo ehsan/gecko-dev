@@ -310,7 +310,7 @@ public: // construction, destruction
   virtual nsresult HandleAccEvent(AccEvent* aEvent);
 
   // Helper methods
-  static PRInt32 GetChildIDFor(nsAccessible* aAccessible);
+  static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
   static HWND GetHWNDFor(nsAccessible *aAccessible);
   static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
                                         BSTR *aIA2Attributes);
@@ -327,7 +327,7 @@ public: // construction, destruction
   /**
    * Find an accessible by the given child ID in cached documents.
    */
-  nsAccessible* GetXPAccessibleFor(const VARIANT& aVarChild);
+  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& aVarChild);
 
   NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 

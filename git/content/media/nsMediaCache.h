@@ -40,13 +40,9 @@
 #define nsMediaCache_h_
 
 #include "nsTArray.h"
+#include "nsAutoLock.h"
 #include "nsIPrincipal.h"
 #include "nsCOMPtr.h"
-
-class nsByteRange;
-namespace mozilla {
-class ReentrantMonitorAutoEnter;
-}
 
 /**
  * Media applications want fast, "on demand" random access to media data,
@@ -211,8 +207,6 @@ class nsMediaChannelStream;
  * This class can be directly embedded as a value.
  */
 class nsMediaCacheStream {
-  typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
-
 public:
   enum {
     // This needs to be a power of two
@@ -316,11 +310,6 @@ public:
   // Returns the offset of the first byte of cached data at or after aOffset,
   // or -1 if there is no such cached data.
   PRInt64 GetNextCachedData(PRInt64 aOffset);
-  // Fills aRanges with the ByteRanges representing the data which is currently
-  // cached. Locks the media cache while running, to prevent any ranges
-  // growing. The stream should be pinned while this runs and while its results
-  // are used, to ensure no data is evicted.
-  nsresult GetCachedRanges(nsTArray<nsByteRange>& aRanges);
 
   // Reads from buffered data only. Will fail if not all data to be read is
   // in the cache. Will not mark blocks as read. Can be called from the main
@@ -430,10 +419,10 @@ private:
   PRInt64 GetNextCachedDataInternal(PRInt64 aOffset);
   // A helper function to do the work of closing the stream. Assumes
   // that the cache monitor is held. Main thread only.
-  // aReentrantMonitor is the nsAutoReentrantMonitor wrapper holding the cache monitor.
+  // aMonitor is the nsAutoMonitor wrapper holding the cache monitor.
   // This is used to NotifyAll to wake up threads that might be
   // blocked on reading from this stream.
-  void CloseInternal(ReentrantMonitorAutoEnter& aReentrantMonitor);
+  void CloseInternal(nsAutoMonitor* aMonitor);
   // Update mPrincipal given that data has been received from aPrincipal
   void UpdatePrincipal(nsIPrincipal* aPrincipal);
 

@@ -229,9 +229,9 @@ void TIntermLoop::traverse(TIntermTraverser* it)
 
 		if(it->rightToLeft)
 		{
-			if(expr)
+			if(terminal)
 			{
-				expr->traverse(it);
+				terminal->traverse(it);
 			}
 
 			if(body)
@@ -239,16 +239,16 @@ void TIntermLoop::traverse(TIntermTraverser* it)
 				body->traverse(it);
 			}
 
-			if(cond)
+			if(test)
 			{
-				cond->traverse(it);
+				test->traverse(it);
 			}
 		}
 		else
 		{
-			if(cond)
+			if(test)
 			{
-				cond->traverse(it);
+				test->traverse(it);
 			}
 
 			if(body)
@@ -256,9 +256,9 @@ void TIntermLoop::traverse(TIntermTraverser* it)
 				body->traverse(it);
 			}
 
-			if(expr)
+			if(terminal)
 			{
-				expr->traverse(it);
+				terminal->traverse(it);
 			}
 		}
 

@@ -37,7 +37,6 @@
 #include "prtime.h"
 
 #include "cert.h"
-#include "certi.h"
 #include "certdb.h"
 #include "secitem.h"
 #include "secder.h"
@@ -87,24 +86,10 @@ SEC_DeletePermCertificate(CERTCertificate *cert)
     PRStatus nssrv;
     NSSTrustDomain *td = STAN_GetDefaultTrustDomain();
     NSSCertificate *c = STAN_GetNSSCertificate(cert);
-    CERTCertTrust *certTrust;
 
     if (c == NULL) {
         /* error code is set */
         return SECFailure;
-    }
-
-    certTrust = nssTrust_GetCERTCertTrustForCert(c, cert);
-    if (certTrust) {
-	NSSTrust *nssTrust = nssTrustDomain_FindTrustForCertificate(td, c);
-	if (nssTrust) {
-	    nssrv = STAN_DeleteCertTrustMatchingSlot(c);
-	    if (nssrv != PR_SUCCESS) {
-    		CERT_MapStanError();
-    	    }
-	    /* This call always returns PR_SUCCESS! */
-	    (void) nssTrust_Destroy(nssTrust);
-	}
     }
 
     /* get rid of the token instances */
@@ -629,30 +614,19 @@ CERT_FindCertByDERCert(CERTCertDBHandle *handle, SECItem *derCert)
     return STAN_GetCERTCertificateOrRelease(c);
 }
 
-static CERTCertificate *
-common_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle, 
-                                             char *name,
-                                             PRBool anyUsage,
-                                             SECCertUsage lookingForUsage)
+CERTCertificate *
+CERT_FindCertByNicknameOrEmailAddr(CERTCertDBHandle *handle, const char *name)
 {
     NSSCryptoContext *cc;
     NSSCertificate *c, *ct;
     CERTCertificate *cert;
     NSSUsage usage;
-    CERTCertList *certlist;
 
     if (NULL == name) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return NULL;
     }
-
-    usage.anyUsage = anyUsage;
-
-    if (!anyUsage) {
-      usage.nss3lookingForCA = PR_FALSE;
-      usage.nss3usage = lookingForUsage;
-    }
-
+    usage.anyUsage = PR_TRUE;
     cc = STAN_GetDefaultCryptoContext();
     ct = NSSCryptoContext_FindBestCertificateByNickname(cc, name, 
                                                        NULL, &usage, NULL);
@@ -664,34 +638,7 @@ common_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
             PORT_Free(lowercaseName);
         }
     }
-
-    if (anyUsage) {
-      cert = PK11_FindCertFromNickname(name, NULL);
-    }
-    else {
-      if (ct) {
-        /* Does ct really have the required usage? */
-          nssDecodedCert *dc;
-          dc = nssCertificate_GetDecoding(ct);
-          if (!dc->matchUsage(dc, &usage)) {
-            CERT_DestroyCertificate(STAN_GetCERTCertificateOrRelease(ct));
-            ct = NULL;
-          }
-      }
-
-      certlist = PK11_FindCertsFromNickname(name, NULL);
-      if (certlist) {
-        SECStatus rv = CERT_FilterCertListByUsage(certlist, 
-                                                  lookingForUsage, 
-                                                  PR_FALSE);
-        if (SECSuccess == rv &&
-            !CERT_LIST_END(CERT_LIST_HEAD(certlist), certlist)) {
-          cert = CERT_DupCertificate(CERT_LIST_HEAD(certlist)->cert);
-        }
-        CERT_DestroyCertList(certlist);
-      }
-    }
-
+    cert = PK11_FindCertFromNickname(name, NULL);
     if (cert) {
 	c = get_best_temp_or_perm(ct, STAN_GetNSSCertificate(cert));
 	CERT_DestroyCertificate(cert);
@@ -702,23 +649,6 @@ common_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
 	c = ct;
     }
     return c ? STAN_GetCERTCertificateOrRelease(c) : NULL;
-}
-
-CERTCertificate *
-CERT_FindCertByNicknameOrEmailAddr(CERTCertDBHandle *handle, const char *name)
-{
-  return common_FindCertByNicknameOrEmailAddrForUsage(handle, name, 
-                                                      PR_TRUE, 0);
-}
-
-CERTCertificate *
-CERT_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle, 
-                                           const char *name, 
-                                           SECCertUsage lookingForUsage)
-{
-  return common_FindCertByNicknameOrEmailAddrForUsage(handle, name, 
-                                                      PR_FALSE, 
-                                                      lookingForUsage);
 }
 
 static void 

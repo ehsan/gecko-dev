@@ -1,4 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -48,17 +48,12 @@
 #include "nsIXPCScriptable.h"
 
 #include "jsapi.h"
-#include "mozilla/Mutex.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsTPtrArray.h"
+#include "prlock.h"
 
 #include "nsDOMWorkerMessageHandler.h"
-
-// {1295EFB5-8644-42B2-8B8E-80EEF56E4284}
-#define NS_WORKERFACTORY_CID \
- {0x1295efb5, 0x8644, 0x42b2, \
-  {0x8b, 0x8e, 0x80, 0xee, 0xf5, 0x6e, 0x42, 0x84} }
 
 class nsDOMWorker;
 class nsDOMWorkerFeature;
@@ -79,28 +74,22 @@ class nsDOMWorkerScope : public nsDOMWorkerMessageHandler,
 {
   friend class nsDOMWorker;
 
+  typedef nsresult (NS_STDCALL nsDOMWorkerScope::*SetListenerFunc)
+    (nsIDOMEventListener*);
+
 public:
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDOMEventHandler
-  NS_FORWARD_INTERNAL_NSIDOMEVENTTARGET(nsDOMWorkerMessageHandler::)
+  NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture,
                               PRBool aWantsUntrusted,
                               PRUint8 optional_argc);
-  NS_IMETHOD RemoveEventListener(const nsAString& aType,
-                                 nsIDOMEventListener* aListener,
-                                 PRBool aUseCapture);
-  NS_IMETHOD DispatchEvent(nsIDOMEvent* aEvent,
-                           PRBool* _retval);
   NS_DECL_NSIWORKERGLOBALSCOPE
   NS_DECL_NSIWORKERSCOPE
   NS_DECL_NSIXPCSCRIPTABLE
   NS_DECL_NSICLASSINFO
-
-  typedef NS_STDCALL_FUNCPROTO(nsresult, SetListenerFunc, nsDOMWorkerScope,
-                               SetOnmessage, (nsIDOMEventListener*));
 
   nsDOMWorkerScope(nsDOMWorker* aWorker);
 
@@ -116,41 +105,12 @@ private:
   PRPackedBool mHasOnerror;
 };
 
-class nsLazyAutoRequest
-{
-public:
-  nsLazyAutoRequest() : mCx(nsnull) {}
-
-  ~nsLazyAutoRequest() {
-    if (mCx)
-      JS_EndRequest(mCx);
-  }
-
-  void enter(JSContext *aCx) {
-    JS_BeginRequest(aCx);
-    mCx = aCx;
-  }
-
-  bool entered() const { return mCx != nsnull; }
-
-  void swap(nsLazyAutoRequest &other) {
-    JSContext *tmp = mCx;
-    mCx = other.mCx;
-    other.mCx = tmp;
-  }
-
-private:
-  JSContext *mCx;
-};
-
 class nsDOMWorker : public nsDOMWorkerMessageHandler,
-                    public nsIWorker,
+                    public nsIChromeWorker,
                     public nsITimerCallback,
                     public nsIJSNativeInitializer,
                     public nsIXPCScriptable
 {
-  typedef mozilla::Mutex Mutex;
-
   friend class nsDOMWorkerFeature;
   friend class nsDOMWorkerFunctions;
   friend class nsDOMWorkerScope;
@@ -168,29 +128,22 @@ class nsDOMWorker : public nsDOMWorkerMessageHandler,
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDOMEventHandler
-  NS_FORWARD_INTERNAL_NSIDOMEVENTTARGET(nsDOMWorkerMessageHandler::)
+  NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture,
                               PRBool aWantsUntrusted,
                               PRUint8 optional_argc);
-  NS_IMETHOD RemoveEventListener(const nsAString& aType,
-                                 nsIDOMEventListener* aListener,
-                                 PRBool aUseCapture);
-  NS_IMETHOD DispatchEvent(nsIDOMEvent* aEvent,
-                           PRBool* _retval);
-
   NS_DECL_NSIABSTRACTWORKER
   NS_DECL_NSIWORKER
+  NS_DECL_NSICHROMEWORKER
   NS_DECL_NSITIMERCALLBACK
   NS_DECL_NSICLASSINFO
   NS_DECL_NSIXPCSCRIPTABLE
 
   static nsresult NewWorker(nsISupports** aNewObject);
   static nsresult NewChromeWorker(nsISupports** aNewObject);
-  static nsresult NewChromeDOMWorker(nsDOMWorker** aNewObject);
 
   enum WorkerPrivilegeModel { CONTENT, CHROME };
 
@@ -221,7 +174,7 @@ public:
   PRBool IsClosing();
   PRBool IsSuspended();
 
-  PRBool SetGlobalForContext(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoEnterCompartment *aComp);
+  PRBool SetGlobalForContext(JSContext* aCx);
 
   void SetPool(nsDOMWorkerPool* aPool);
 
@@ -229,7 +182,7 @@ public:
     return mPool;
   }
 
-  Mutex& GetLock() {
+  PRLock* Lock() {
     return mLock;
   }
 
@@ -248,12 +201,6 @@ public:
   PRBool IsPrivileged() {
     return mPrivilegeModel == CHROME;
   }
-
-  static JSObject* ReadStructuredClone(JSContext* aCx,
-                                       JSStructuredCloneReader* aReader,
-                                       uint32 aTag,
-                                       uint32 aData,
-                                       void* aClosure);
 
   /**
    * Use this chart to help figure out behavior during each of the closing
@@ -311,7 +258,7 @@ private:
 
   nsresult PostMessageInternal(PRBool aToInner);
 
-  PRBool CompileGlobalObject(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoEnterCompartment *aComp);
+  PRBool CompileGlobalObject(JSContext* aCx);
 
   PRUint32 NextTimeoutId() {
     return ++mNextTimeoutId;
@@ -329,15 +276,15 @@ private:
     return mPrincipal;
   }
 
-  void SetPrincipal(nsIPrincipal* aPrincipal);
-
-  nsIURI* GetBaseURI() {
-    return mBaseURI;
+  void SetPrincipal(nsIPrincipal* aPrincipal) {
+    mPrincipal = aPrincipal;
   }
 
-  nsresult SetBaseURI(nsIURI* aURI);
+  nsIURI* GetURI() {
+    return mURI;
+  }
 
-  void ClearBaseURI();
+  nsresult SetURI(nsIURI* aURI);
 
   nsresult FireCloseRunnable(PRIntervalTime aTimeoutInterval,
                              PRBool aClearQueue,
@@ -367,7 +314,7 @@ private:
   // worker is created.
   WorkerPrivilegeModel mPrivilegeModel;
 
-  Mutex mLock;
+  PRLock* mLock;
 
   nsRefPtr<nsDOMWorkerPool> mPool;
 
@@ -385,7 +332,7 @@ private:
   nsIXPConnectWrappedNative* mWrappedNative;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsCOMPtr<nsIURI> mBaseURI;
+  nsCOMPtr<nsIURI> mURI;
 
   PRInt32 mErrorHandlerRecursionCount;
 
@@ -459,13 +406,6 @@ protected:
 private:
   PRPackedBool mHasId;
   PRPackedBool mFreeToDie;
-};
-
-class nsWorkerFactory : public nsIWorkerFactory
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIWORKERFACTORY
 };
 
 #endif /* __NSDOMWORKER_H__ */

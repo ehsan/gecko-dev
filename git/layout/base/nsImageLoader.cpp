@@ -118,8 +118,6 @@ nsresult
 nsImageLoader::Load(imgIRequest *aImage)
 {
   NS_ASSERTION(!mRequest, "can't reuse image loaders");
-  NS_ASSERTION(mFrame, "not initialized");
-  NS_ASSERTION(aImage, "must have non-null image");
 
   if (!mFrame)
     return NS_ERROR_NOT_INITIALIZED;
@@ -149,6 +147,8 @@ NS_IMETHODIMP nsImageLoader::OnStartContainer(imgIRequest *aRequest,
    *   one loop = 2
    */
   aImage->SetAnimationMode(mFrame->PresContext()->ImageAnimationMode());
+  // Ensure the animation (if any) is started.
+  aImage->StartAnimation();
 
   return NS_OK;
 }
@@ -205,10 +205,8 @@ NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
     // We're in the middle of a paint anyway
     return NS_OK;
   }
-
-  nsRect r = aDirtyRect->IsEqualInterior(nsIntRect::GetMaxSizedIntRect()) ?
-    nsRect(nsPoint(0, 0), mFrame->GetSize()) :
-    aDirtyRect->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
+  
+  nsRect r = aDirtyRect->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
 
   DoRedraw(&r);
 
@@ -239,7 +237,7 @@ nsImageLoader::DoRedraw(const nsRect* aDamageRect)
 
   if (mFrame->GetType() == nsGkAtoms::canvasFrame) {
     // The canvas's background covers the whole viewport.
-    bounds = mFrame->GetVisualOverflowRect();
+    bounds = mFrame->GetOverflowRect();
   }
 
   // XXX this should be ok, but there is some crappy ass bug causing it not to work

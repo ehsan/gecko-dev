@@ -40,24 +40,16 @@
 #include "jsapi.h"
 #include "jswrapper.h"
 
-class nsIPrincipal;
-
 namespace xpc {
 
 class AccessCheck {
   public:
     static bool isSameOrigin(JSCompartment *a, JSCompartment *b);
     static bool isChrome(JSCompartment *compartment);
-    static nsIPrincipal *getPrincipal(JSCompartment *compartment);
-    static bool isCrossOriginAccessPermitted(JSContext *cx, JSObject *obj, jsid id,
-                                             JSWrapper::Action act);
+    static bool isCrossOriginAccessPermitted(JSContext *cx, JSObject *obj, jsid id, bool set);
     static bool isSystemOnlyAccessPermitted(JSContext *cx);
-    static bool isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper);
-    static bool documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj);
 
     static bool needsSystemOnlyWrapper(JSObject *obj);
-
-    static bool isScriptAccessOnly(JSContext *cx, JSObject *wrapper);
 
     static void deny(JSContext *cx, jsid id);
 };
@@ -72,8 +64,7 @@ struct Policy {
 
 // This policy permits access to all properties.
 struct Permissive : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
-                      Permission &perm) {
+    static bool check(JSContext *cx, JSObject *wrapper, jsid id, bool set, Permission &perm) {
         perm = PermitObjectAccess;
         return true;
     }
@@ -82,63 +73,29 @@ struct Permissive : public Policy {
 // This policy only permits access to the object if the subject can touch
 // system objects.
 struct OnlyIfSubjectIsSystem : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
-                      Permission &perm) {
-        if (AccessCheck::isSystemOnlyAccessPermitted(cx)) {
-            perm = PermitObjectAccess;
-            return true;
-        }
+    static bool check(JSContext *cx, JSObject *wrapper, jsid id, bool set, Permission &perm) {
         perm = DenyAccess;
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, wrapper))
-            return false;
-        AccessCheck::deny(cx, id);
-        return false;
+        if (AccessCheck::isSystemOnlyAccessPermitted(cx))
+            perm = PermitObjectAccess;
+        return true;
     }
 };
 
 // This policy only permits access to properties that are safe to be used
 // across origins.
 struct CrossOriginAccessiblePropertiesOnly : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
-                      Permission &perm) {
-        if (AccessCheck::isCrossOriginAccessPermitted(cx, wrapper, id, act)) {
-            perm = PermitPropertyAccess;
-            return true;
-        }
+    static bool check(JSContext *cx, JSObject *wrapper, jsid id, bool set, Permission &perm) {
         perm = DenyAccess;
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, wrapper))
-            return false;
-        AccessCheck::deny(cx, id);
-        return false;
-    }
-};
-
-// This policy only permits access to properties that are safe to be used
-// across origins.
-struct SameOriginOrCrossOriginAccessiblePropertiesOnly : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
-                      Permission &perm) {
-        if (AccessCheck::isCrossOriginAccessPermitted(cx, wrapper, id, act) ||
-            AccessCheck::isLocationObjectSameOrigin(cx, wrapper)) {
+        if (AccessCheck::isCrossOriginAccessPermitted(cx, wrapper, id, set))
             perm = PermitPropertyAccess;
-            return true;
-        }
-        perm = DenyAccess;
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, wrapper))
-            return false;
-        AccessCheck::deny(cx, id);
-        return false;
+        return true;
     }
 };
 
 // This policy only permits access to properties if they appear in the
 // objects exposed properties list.
 struct ExposedPropertiesOnly : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
-                      Permission &perm);
+    static bool check(JSContext *cx, JSObject *wrapper, jsid id, bool set, Permission &perm);
 };
 
 }

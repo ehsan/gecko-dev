@@ -59,7 +59,7 @@ public:
                          PRBool usingSSL=PR_FALSE)
         : mRef(0)
         , mProxyInfo(proxyInfo)
-        , mUsingSSL(usingSSL)
+        , mUsingSSL(usingSSL) 
     {
         LOG(("Creating nsHttpConnectionInfo @%x\n", this));
 
@@ -75,14 +75,14 @@ public:
 
     nsrefcnt AddRef()
     {
-        nsrefcnt n = NS_AtomicIncrementRefcnt(mRef);
+        nsrefcnt n = PR_AtomicIncrement((PRInt32 *) &mRef);
         NS_LOG_ADDREF(this, n, "nsHttpConnectionInfo", sizeof(*this));
         return n;
     }
 
     nsrefcnt Release()
     {
-        nsrefcnt n = NS_AtomicDecrementRefcnt(mRef);
+        nsrefcnt n = PR_AtomicDecrement((PRInt32 *) &mRef);
         NS_LOG_RELEASE(this, n, "nsHttpConnectionInfo");
         if (n == 0)
             delete this;
@@ -124,8 +124,7 @@ public:
     PRInt32       DefaultPort() const    { return mUsingSSL ? NS_HTTPS_DEFAULT_PORT : NS_HTTP_DEFAULT_PORT; }
     void          SetAnonymous(PRBool anon)         
                                          { mHashKey.SetCharAt(anon ? 'A' : '.', 2); }
-    PRBool        ShouldForceConnectMethod();
-
+            
 private:
     nsrefcnt               mRef;
     nsCString              mHashKey;

@@ -58,13 +58,13 @@ class nsAHtml5TreeBuilderState {
     
     virtual nsIContent** getHeadPointer() = 0;
 
-    virtual nsIContent** getDeepTreeSurrogateParent() = 0;
-
     virtual PRInt32 getMode() = 0;
 
     virtual PRInt32 getOriginalMode() = 0;
 
     virtual PRBool isFramesetOk() = 0;
+
+    virtual PRBool isInForeign() = 0;
 
     virtual PRBool isNeedToDropLF() = 0;
 

@@ -52,65 +52,41 @@
 #include "nsEventDispatcher.h"
 #include "jsapi.h"
 #include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
 
 using mozilla::TimeStamp;
-using mozilla::TimeDuration;
-
-using namespace mozilla;
 
 #define DEFAULT_FRAME_RATE 60
 #define DEFAULT_THROTTLED_FRAME_RATE 1
 
-static PRBool sPrecisePref;
-
-/* static */ void
-nsRefreshDriver::InitializeStatics()
-{
-  Preferences::AddBoolVarCache(&sPrecisePref,
-                               "layout.frame_rate.precise",
-                               PR_FALSE);
-}
 // Compute the interval to use for the refresh driver timer, in
 // milliseconds
-PRInt32
-nsRefreshDriver::GetRefreshTimerInterval() const
+static PRInt32
+GetRefreshTimerInterval(bool aThrottled)
 {
   const char* prefName =
-    mThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
-  PRInt32 rate = Preferences::GetInt(prefName, -1);
+    aThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
+  PRInt32 rate = nsContentUtils::GetIntPref(prefName, -1);
   if (rate <= 0) {
     // TODO: get the rate from the platform
-    rate = mThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
+    rate = aThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
   }
   NS_ASSERTION(rate > 0, "Must have positive rate here");
-  PRInt32 interval = NSToIntRound(1000.0/rate);
-  if (mThrottled) {
-    interval = NS_MAX(interval, mLastTimerInterval * 2);
-  }
-  mLastTimerInterval = interval;
-  return interval;
+  return NSToIntRound(1000.0/rate);
 }
 
-PRInt32
-nsRefreshDriver::GetRefreshTimerType() const
+static PRInt32
+GetRefreshTimerType()
 {
-  if (mThrottled) {
-    return nsITimer::TYPE_ONE_SHOT;
-  }
-  if (HaveAnimationFrameListeners() || sPrecisePref) {
-    return nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP;
-  }
-  return nsITimer::TYPE_REPEATING_SLACK;
+  PRBool precise =
+    nsContentUtils::GetBoolPref("layout.frame_rate.precise", PR_FALSE);
+  return precise ? (PRInt32)nsITimer::TYPE_REPEATING_PRECISE
+                 : (PRInt32)nsITimer::TYPE_REPEATING_SLACK;
 }
 
 nsRefreshDriver::nsRefreshDriver(nsPresContext *aPresContext)
   : mPresContext(aPresContext),
     mFrozen(false),
-    mThrottled(false),
-    mTestControllingRefreshes(false),
-    mTimerIsPrecise(false),
-    mLastTimerInterval(0)
+    mThrottled(false)
 {
 }
 
@@ -121,36 +97,10 @@ nsRefreshDriver::~nsRefreshDriver()
   NS_ABORT_IF_FALSE(!mTimer, "timer should be gone");
 }
 
-// Method for testing.  See nsIDOMWindowUtils.advanceTimeAndRefresh
-// for description.
-void
-nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
-{
-  mTestControllingRefreshes = true;
-  mMostRecentRefreshEpochTime += aMilliseconds * 1000;
-  mMostRecentRefresh += TimeDuration::FromMilliseconds(aMilliseconds);
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull);
-    pusher.Pop();
-  }
-}
-
-void
-nsRefreshDriver::RestoreNormalRefresh()
-{
-  mTestControllingRefreshes = false;
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull); // will call UpdateMostRecentRefresh()
-    pusher.Pop();
-  }
-}
-
 TimeStamp
 nsRefreshDriver::MostRecentRefresh() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
 
   return mMostRecentRefresh;
 }
@@ -158,7 +108,7 @@ nsRefreshDriver::MostRecentRefresh() const
 PRInt64
 nsRefreshDriver::MostRecentRefreshEpochTime() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
 
   return mMostRecentRefreshEpochTime;
 }
@@ -170,7 +120,7 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver *aObserver,
   ObserverArray& array = ArrayFor(aFlushType);
   PRBool success = array.AppendElement(aObserver) != nsnull;
 
-  EnsureTimerStarted(false);
+  EnsureTimerStarted();
 
   return success;
 }
@@ -184,7 +134,7 @@ nsRefreshDriver::RemoveRefreshObserver(nsARefreshObserver *aObserver,
 }
 
 void
-nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
+nsRefreshDriver::EnsureTimerStarted()
 {
   if (mTimer || mFrozen || !mPresContext) {
     // It's already been started, or we don't want to start it now or
@@ -192,27 +142,16 @@ nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
     return;
   }
 
-  if (!aAdjustingTimer) {
-    // If we didn't already have a timer and aAdjustingTimer is false,
-    // then we just got our first observer (or an explicit call to
-    // MostRecentRefresh by a caller who's likely to add an observer
-    // shortly).  This means we should fake a most-recent-refresh time
-    // of now so that said observer gets a reasonable refresh time, so
-    // things behave as though the timer had always been running.
-    UpdateMostRecentRefresh();
-  }
+  UpdateMostRecentRefresh();
 
   mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   if (!mTimer) {
     return;
   }
 
-  PRInt32 timerType = GetRefreshTimerType();
-  mTimerIsPrecise = (timerType == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
-
   nsresult rv = mTimer->InitWithCallback(this,
-                                         GetRefreshTimerInterval(),
-                                         timerType);
+                                         GetRefreshTimerInterval(mThrottled),
+                                         GetRefreshTimerType());
   if (NS_FAILED(rv)) {
     mTimer = nsnull;
   }
@@ -243,17 +182,12 @@ nsRefreshDriver::ObserverCount() const
   sum += mStyleFlushObservers.Length();
   sum += mLayoutFlushObservers.Length();
   sum += mBeforePaintTargets.Length();
-  sum += mAnimationFrameListenerDocs.Length();
   return sum;
 }
 
 void
 nsRefreshDriver::UpdateMostRecentRefresh()
 {
-  if (mTestControllingRefreshes) {
-    return;
-  }
-
   // Call JS_Now first, since that can have nonzero latency in some rare cases.
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
@@ -286,17 +220,10 @@ NS_IMPL_ISUPPORTS1(nsRefreshDriver, nsITimerCallback)
  */
 
 NS_IMETHODIMP
-nsRefreshDriver::Notify(nsITimer *aTimer)
+nsRefreshDriver::Notify(nsITimer * /* unused */)
 {
   NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
-  NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
-                  "Shouldn't have a JSContext on the stack");
-
-  if (mTestControllingRefreshes && aTimer) {
-    // Ignore real refreshes from our timer (but honor the others).
-    return NS_OK;
-  }
 
   UpdateMostRecentRefresh();
 
@@ -334,89 +261,39 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
       // Don't just loop while we have things in mBeforePaintTargets,
       // the whole point is that event handlers should readd the
       // target as needed.
-      nsTArray< nsCOMPtr<nsIDocument> > targets;
+      nsTArray<nsIDocument*> targets;
       targets.SwapElements(mBeforePaintTargets);
+      PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
       for (PRUint32 i = 0; i < targets.Length(); ++i) {
         targets[i]->BeforePaintEventFiring();
       }
-
-      // Also grab all of our animation frame listeners up front.
-      nsIDocument::AnimationListenerList animationListeners;
-      for (PRUint32 i = 0; i < mAnimationFrameListenerDocs.Length(); ++i) {
-        mAnimationFrameListenerDocs[i]->
-          TakeAnimationFrameListeners(animationListeners);
-      }
-      // OK, now reset mAnimationFrameListenerDocs so they can be
-      // readded as needed.
-      mAnimationFrameListenerDocs.Clear();
-
-      PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
       for (PRUint32 i = 0; i < targets.Length(); ++i) {
         nsEvent ev(PR_TRUE, NS_BEFOREPAINT);
         ev.time = eventTime;
         nsEventDispatcher::Dispatch(targets[i], nsnull, &ev);
       }
 
-      for (PRUint32 i = 0; i < animationListeners.Length(); ++i) {
-        animationListeners[i]->OnBeforePaint(eventTime);
-      }
-
       // This is the Flush_Style case.
-      if (mPresContext && mPresContext->GetPresShell()) {
-        nsAutoTArray<nsIPresShell*, 16> observers;
-        observers.AppendElements(mStyleFlushObservers);
-        for (PRUint32 j = observers.Length();
-             j && mPresContext && mPresContext->GetPresShell(); --j) {
-          // Make sure to not process observers which might have been removed
-          // during previous iterations.
-          nsIPresShell* shell = observers[j - 1];
-          if (!mStyleFlushObservers.Contains(shell))
-            continue;
-          NS_ADDREF(shell);
-          mStyleFlushObservers.RemoveElement(shell);
-          shell->FrameConstructor()->mObservingRefreshDriver = PR_FALSE;
-          shell->FlushPendingNotifications(Flush_Style);
-          NS_RELEASE(shell);
-        }
+      while (!mStyleFlushObservers.IsEmpty() &&
+             mPresContext && mPresContext->GetPresShell()) {
+        PRUint32 idx = mStyleFlushObservers.Length() - 1;
+        nsCOMPtr<nsIPresShell> shell = mStyleFlushObservers[idx];
+        mStyleFlushObservers.RemoveElementAt(idx);
+        shell->FrameConstructor()->mObservingRefreshDriver = PR_FALSE;
+        shell->FlushPendingNotifications(Flush_Style);
       }
     } else if  (i == 1) {
       // This is the Flush_Layout case.
-      if (mPresContext && mPresContext->GetPresShell()) {
-        nsAutoTArray<nsIPresShell*, 16> observers;
-        observers.AppendElements(mLayoutFlushObservers);
-        for (PRUint32 j = observers.Length();
-             j && mPresContext && mPresContext->GetPresShell(); --j) {
-          // Make sure to not process observers which might have been removed
-          // during previous iterations.
-          nsIPresShell* shell = observers[j - 1];
-          if (!mLayoutFlushObservers.Contains(shell))
-            continue;
-          NS_ADDREF(shell);
-          mLayoutFlushObservers.RemoveElement(shell);
-          shell->mReflowScheduled = PR_FALSE;
-          shell->mSuppressInterruptibleReflows = PR_FALSE;
-          shell->FlushPendingNotifications(Flush_InterruptibleLayout);
-          NS_RELEASE(shell);
-        }
+      while (!mLayoutFlushObservers.IsEmpty() &&
+             mPresContext && mPresContext->GetPresShell()) {
+        PRUint32 idx = mLayoutFlushObservers.Length() - 1;
+        nsCOMPtr<nsIPresShell> shell = mLayoutFlushObservers[idx];
+        mLayoutFlushObservers.RemoveElementAt(idx);
+        shell->mReflowScheduled = PR_FALSE;
+        shell->mSuppressInterruptibleReflows = PR_FALSE;
+        shell->FlushPendingNotifications(Flush_InterruptibleLayout);
       }
     }
-  }
-
-  if (mThrottled ||
-      (mTimerIsPrecise !=
-       (GetRefreshTimerType() == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP))) {
-    // Stop the timer now and restart it here.  Stopping is in the mThrottled
-    // case ok because either it's already one-shot, and it just fired, and all
-    // we need to do is null it out, or it's repeating and we need to reset it
-    // to be one-shot.  Stopping and restarting in the case when we need to
-    // switch from precise to slack timers or vice versa is unfortunately
-    // required.
-
-    // Note that the EnsureTimerStarted() call here is ok because
-    // EnsureTimerStarted makes sure to not start the timer if it shouldn't be
-    // started.
-    StopTimer();
-    EnsureTimerStarted(true);
   }
 
   return NS_OK;
@@ -436,12 +313,8 @@ nsRefreshDriver::Thaw()
   NS_ASSERTION(mFrozen, "Thaw called on an unfrozen refresh driver");
   mFrozen = false;
   if (ObserverCount()) {
-    // FIXME: This isn't quite right, since our EnsureTimerStarted call
-    // updates our mMostRecentRefresh, but the DoRefresh call won't run
-    // and notify our observers until we get back to the event loop.
-    // Thus MostRecentRefresh() will lie between now and the DoRefresh.
     NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
-    EnsureTimerStarted(false);
+    EnsureTimerStarted();
   }
 }
 
@@ -451,10 +324,10 @@ nsRefreshDriver::SetThrottled(bool aThrottled)
   if (aThrottled != mThrottled) {
     mThrottled = aThrottled;
     if (mTimer) {
-      // We want to switch our timer type here, so just stop and
-      // restart the timer.
-      StopTimer();
-      EnsureTimerStarted(true);
+      // Stopping and restarting the timer would update our most recent refresh
+      // time, which isn't quite right.  Luckily, we can just reschedule the
+      // timer.
+      mTimer->SetDelay(GetRefreshTimerInterval(mThrottled));
     }
   }
 }
@@ -485,32 +358,12 @@ nsRefreshDriver::ScheduleBeforePaintEvent(nsIDocument* aDocument)
                mBeforePaintTargets.NoIndex,
                "Shouldn't have a paint event posted for this document");
   PRBool appended = mBeforePaintTargets.AppendElement(aDocument) != nsnull;
-  EnsureTimerStarted(false);
+  EnsureTimerStarted();
   return appended;
-}
-
-void
-nsRefreshDriver::ScheduleAnimationFrameListeners(nsIDocument* aDocument)
-{
-  NS_ASSERTION(mAnimationFrameListenerDocs.IndexOf(aDocument) ==
-               mAnimationFrameListenerDocs.NoIndex,
-               "Don't schedule the same document multiple times");
-  mAnimationFrameListenerDocs.AppendElement(aDocument);
-  // No need to worry about restarting our timer in precise mode if it's
-  // already running; that will happen automatically when it fires.
-  EnsureTimerStarted(false);
 }
 
 void
 nsRefreshDriver::RevokeBeforePaintEvent(nsIDocument* aDocument)
 {
   mBeforePaintTargets.RemoveElement(aDocument);
-}
-
-void
-nsRefreshDriver::RevokeAnimationFrameListeners(nsIDocument* aDocument)
-{
-  mAnimationFrameListenerDocs.RemoveElement(aDocument);
-  // No need to worry about restarting our timer in slack mode if it's already
-  // running; that will happen automatically when it fires.
 }

@@ -44,12 +44,12 @@
 #include "nsIDOMDOMException.h"
 #include "nsIDOMRangeException.h"
 #include "nsIDOMFileException.h"
+#ifdef MOZ_SVG
 #include "nsIDOMSVGException.h"
+#endif
 #include "nsIDOMXPathException.h"
-#include "nsIIDBDatabaseException.h"
 #include "nsString.h"
 #include "prprf.h"
-#include "nsIDOMEventException.h"
 
 #define DOM_MSG_DEF(val, message) {(val), #val, message},
 
@@ -132,23 +132,6 @@ NSResultToNameAndMessage(nsresult aNSResult,
   return;
 }
 
-nsresult
-NS_GetNameAndMessageForDOMNSResult(nsresult aNSResult, const char** aName,
-                                   const char** aMessage)
-{
-  const char* name = nsnull;
-  const char* message = nsnull;
-  NSResultToNameAndMessage(aNSResult, &name, &message);
-
-  if (name && message) {
-    *aName = name;
-    *aMessage = message;
-    return NS_OK;
-  }
-
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
 IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsDOMException, nsIDOMDOMException)
   NS_DECL_NSIDOMDOMEXCEPTION
 IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsDOMException, nsIDOMDOMException,
@@ -183,6 +166,7 @@ nsRangeException::GetCode(PRUint16* aCode)
   return NS_OK;
 }
 
+#ifdef MOZ_SVG
 IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsSVGException, nsIDOMSVGException)
   NS_DECL_NSIDOMSVGEXCEPTION
 IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsSVGException, nsIDOMSVGException,
@@ -199,6 +183,7 @@ nsSVGException::GetCode(PRUint16* aCode)
 
   return NS_OK;
 }
+#endif // MOZ_SVG
 
 IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsXPathException, nsIDOMXPathException)
   NS_DECL_NSIDOMXPATHEXCEPTION
@@ -231,42 +216,6 @@ nsDOMFileException::GetCode(PRUint16* aCode)
   GetResult(&result);
   *aCode = NS_ERROR_GET_CODE(result);
 
-  return NS_OK;
-}
-
-IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsDOMEventException, nsIDOMEventException)
-  NS_DECL_NSIDOMEVENTEXCEPTION
-IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsDOMEventException, nsIDOMEventException,
-                                 EventException, NS_ERROR_MODULE_DOM_EVENTS,
-                                 NSResultToNameAndMessage)
-
-NS_IMETHODIMP
-nsDOMEventException::GetCode(PRUint16* aCode)
-{
-  NS_ENSURE_ARG_POINTER(aCode);
-  nsresult result;
-  GetResult(&result);
-  *aCode = NS_ERROR_GET_CODE(result);
-
-  return NS_OK;
-}
-
-IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsIDBDatabaseException,
-                                 nsIIDBDatabaseException)
-  NS_DECL_NSIIDBDATABASEEXCEPTION
-IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsIDBDatabaseException,
-                                 nsIIDBDatabaseException,
-                                 IDBDatabaseException,
-                                 NS_ERROR_MODULE_DOM_INDEXEDDB,
-                                 NSResultToNameAndMessage)
-
-NS_IMETHODIMP
-nsIDBDatabaseException::GetCode(PRUint16* aCode)
-{
-  NS_ASSERTION(aCode, "Null pointer!");
-  nsresult result;
-  GetResult(&result);
-  *aCode = NS_ERROR_GET_CODE(result);
   return NS_OK;
 }
 

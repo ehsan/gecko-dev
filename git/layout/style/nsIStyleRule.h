@@ -47,6 +47,8 @@
 
 #include "nsISupports.h"
 
+class nsIStyleSheet;
+class nsIContent;
 struct nsRuleData;
 
 // IID for the nsIStyleRule interface {f75f3f70-435d-43a6-a01b-65970489ca26}
@@ -102,6 +104,8 @@ public:
    * break CSS cascading rules.
    */
   virtual void MapRuleInfoInto(nsRuleData* aRuleData)=0;
+
+  virtual nsIStyleRule* GetImportantRule(void) { return nsnull; }
 
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const = 0;

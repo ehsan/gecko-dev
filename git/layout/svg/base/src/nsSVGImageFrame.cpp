@@ -46,7 +46,6 @@
 #include "gfxMatrix.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "gfxPlatform.h"
-#include "nsSVGSVGElement.h"
 
 class nsSVGImageFrame;
 
@@ -116,10 +115,7 @@ public:
 #endif
 
 private:
-  gfxMatrix GetRasterImageTransform(PRInt32 aNativeWidth,
-                                    PRInt32 aNativeHeight);
-  gfxMatrix GetVectorImageTransform();
-  PRBool    TransformContextForPainting(gfxContext* aGfxContext);
+  gfxMatrix GetImageTransform();
 
   nsCOMPtr<imgIDecoderObserver> mListener;
 
@@ -145,12 +141,6 @@ nsSVGImageFrame::~nsSVGImageFrame()
   if (mListener) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     if (imageLoader) {
-      // Push a null JSContext on the stack so that code that runs
-      // within the below code doesn't think it's being called by
-      // JS. See bug 604262.
-      nsCxPusher pusher;
-      pusher.PushNull();
-
       imageLoader->RemoveObserver(mListener);
     }
     reinterpret_cast<nsSVGImageListener*>(mListener.get())->SetFrame(nsnull);
@@ -175,13 +165,6 @@ nsSVGImageFrame::Init(nsIContent* aContent,
   if (!mListener) return NS_ERROR_OUT_OF_MEMORY;
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
-
-  // Push a null JSContext on the stack so that code that runs within
-  // the below code doesn't think it's being called by JS. See bug
-  // 604262.
-  nsCxPusher pusher;
-  pusher.PushNull();
-
   imageLoader->AddObserver(mListener);
 
   return NS_OK; 
@@ -210,63 +193,23 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 gfxMatrix
-nsSVGImageFrame::GetRasterImageTransform(PRInt32 aNativeWidth, PRInt32 aNativeHeight)
+nsSVGImageFrame::GetImageTransform()
 {
   float x, y, width, height;
   nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
+
+  PRInt32 nativeWidth, nativeHeight;
+  mImageContainer->GetWidth(&nativeWidth);
+  mImageContainer->GetHeight(&nativeHeight);
 
   gfxMatrix viewBoxTM =
     nsSVGUtils::GetViewBoxTransform(element,
                                     width, height,
-                                    0, 0, aNativeWidth, aNativeHeight,
+                                    0, 0, nativeWidth, nativeHeight,
                                     element->mPreserveAspectRatio);
 
   return viewBoxTM * gfxMatrix().Translate(gfxPoint(x, y)) * GetCanvasTM();
-}
-
-gfxMatrix
-nsSVGImageFrame::GetVectorImageTransform()
-{
-  float x, y, width, height;
-  nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);
-  element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
-
-  // No viewBoxTM needed here -- our height/width overrides any concept of
-  // "native size" that the SVG image has, and it will handle viewBox and
-  // preserveAspectRatio on its own once we give it a region to draw into.
-
-  return gfxMatrix().Translate(gfxPoint(x, y)) * GetCanvasTM();
-}
-
-PRBool
-nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext)
-{
-  gfxMatrix imageTransform;
-  if (mImageContainer->GetType() == imgIContainer::TYPE_VECTOR) {
-    imageTransform = GetVectorImageTransform();
-  } else {
-    PRInt32 nativeWidth, nativeHeight;
-    if (NS_FAILED(mImageContainer->GetWidth(&nativeWidth)) ||
-        NS_FAILED(mImageContainer->GetHeight(&nativeHeight)) ||
-        nativeWidth == 0 || nativeHeight == 0) {
-      return PR_FALSE;
-    }
-    imageTransform = GetRasterImageTransform(nativeWidth, nativeHeight);
-  }
-
-  if (imageTransform.IsSingular()) {
-    return PR_FALSE;
-  }
-
-  // NOTE: We need to cancel out the effects of Full-Page-Zoom, or else
-  // it'll get applied an extra time by DrawSingleUnscaledImage.
-  nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-  gfxFloat pageZoomFactor =
-    nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPx);
-  aGfxContext->Multiply(imageTransform.Scale(pageZoomFactor, pageZoomFactor));
-
-  return PR_TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -281,8 +224,8 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
     return NS_OK;
 
   float x, y, width, height;
-  nsSVGImageElement *imgElem = static_cast<nsSVGImageElement*>(mContent);
-  imgElem->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
+  nsSVGElement *element = static_cast<nsSVGElement*>(mContent);
+  element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
   if (width <= 0 || height <= 0)
     return NS_OK;
 
@@ -297,18 +240,35 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       currentRequest->GetImage(getter_AddRefs(mImageContainer));
   }
 
-  if (mImageContainer) {
-    gfxContext* ctx = aContext->GetGfxContext();
-    gfxContextAutoSaveRestore autoRestorer(ctx);
+  // XXXbholley - I don't think huge images in SVGs are common enough to
+  // warrant worrying about the responsiveness impact of doing synchronous
+  // decodes. The extra code complexity of determinining when we want to
+  // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
+  nsRefPtr<gfxASurface> currentFrame;
+  if (mImageContainer)
+    mImageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                              imgIContainer::FLAG_SYNC_DECODE,
+                              getter_AddRefs(currentFrame));
+
+  // We need to wrap the surface in a pattern to have somewhere to set the
+  // graphics filter.
+  nsRefPtr<gfxPattern> thebesPattern;
+  if (currentFrame)
+    thebesPattern = new gfxPattern(currentFrame);
+
+  if (thebesPattern) {
+
+    thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
+    thebesPattern->SetExtend(gfxPattern::EXTEND_PAD_EDGE);
+
+    gfxContext *gfx = aContext->GetGfxContext();
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
-      gfxRect clipRect = nsSVGUtils::GetClipRectForFrame(this, x, y,
-                                                         width, height);
-      nsSVGUtils::SetClipRect(ctx, GetCanvasTM(), clipRect);
-    }
+      gfx->Save();
 
-    if (!TransformContextForPainting(ctx)) {
-      return NS_ERROR_FAILURE;
+      gfxRect clipRect =
+        nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
+      nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
     }
 
     // fill-opacity doesn't affect <image>, so if we're allowed to
@@ -319,77 +279,15 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       opacity = GetStyleDisplay()->mOpacity;
     }
 
-    if (opacity != 1.0f) {
-      ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-    }
+    PRInt32 nativeWidth, nativeHeight;
+    mImageContainer->GetWidth(&nativeWidth);
+    mImageContainer->GetHeight(&nativeHeight);
 
-    nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-    nsRect dirtyRect; // only used if aDirtyRect is non-null
-    if (aDirtyRect) {
-      dirtyRect = aDirtyRect->ToAppUnits(appUnitsPerDevPx);
-      // Adjust dirtyRect to match our local coordinate system.
-      dirtyRect.MoveBy(-mRect.TopLeft());
-    }
+    nsSVGUtils::CompositePatternMatrix(gfx, thebesPattern, GetImageTransform(),
+                                       nativeWidth, nativeHeight, opacity);
 
-    // XXXbholley - I don't think huge images in SVGs are common enough to
-    // warrant worrying about the responsiveness impact of doing synchronous
-    // decodes. The extra code complexity of determinining when we want to
-    // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
-    PRUint32 drawFlags = imgIContainer::FLAG_SYNC_DECODE;
-
-    if (mImageContainer->GetType() == imgIContainer::TYPE_VECTOR) {
-      nsIFrame* imgRootFrame = mImageContainer->GetRootLayoutFrame();
-      if (!imgRootFrame) {
-        // bad image (e.g. XML parse error in image's SVG file)
-        return NS_OK;
-      }
-
-      // Grab root node (w/ sanity-check to make sure it exists & is <svg>)
-      nsSVGSVGElement* rootSVGElem =
-        static_cast<nsSVGSVGElement*>(imgRootFrame->GetContent());
-      if (!rootSVGElem || rootSVGElem->GetNameSpaceID() != kNameSpaceID_SVG ||
-          rootSVGElem->Tag() != nsGkAtoms::svg) {
-        NS_ABORT_IF_FALSE(PR_FALSE, "missing or non-<svg> root node!!");
-        return PR_FALSE;
-      }
-
-      // Override preserveAspectRatio in our helper document
-      // XXXdholbert We should technically be overriding the helper doc's clip
-      // and overflow properties here, too. See bug 272288 comment 36.
-      rootSVGElem->SetImageOverridePreserveAspectRatio(
-        imgElem->mPreserveAspectRatio.GetAnimValue());
-      nsRect destRect(0, 0,
-                      appUnitsPerDevPx * width,
-                      appUnitsPerDevPx * height);
-
-      // Note: Can't use DrawSingleUnscaledImage for the TYPE_VECTOR case.
-      // That method needs our image to have a fixed native width & height,
-      // and that's not always true for TYPE_VECTOR images.
-      nsLayoutUtils::DrawSingleImage(
-        aContext->GetRenderingContext(this),
-        mImageContainer,
-        nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        destRect,
-        aDirtyRect ? dirtyRect : destRect,
-        drawFlags);
-
-      rootSVGElem->ClearImageOverridePreserveAspectRatio();
-    } else { // mImageContainer->GetType() == TYPE_RASTER
-      nsLayoutUtils::DrawSingleUnscaledImage(
-        aContext->GetRenderingContext(this),
-        mImageContainer,
-        nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        nsPoint(0, 0),
-        aDirtyRect ? &dirtyRect : nsnull,
-        drawFlags);
-    }
-
-    if (opacity != 1.0f) {
-      ctx->PopGroupToSource();
-      ctx->SetOperator(gfxContext::OPERATOR_OVER);
-      ctx->Paint(opacity);
-    }
-    // gfxContextAutoSaveRestore goes out of scope & cleans up our gfxContext
+    if (GetStyleDisplay()->IsScrollableOverflow())
+      gfx->Restore();
   }
 
   return rv;
@@ -398,32 +296,17 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGImageFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  // Special case for raster images -- we only want to accept points that fall
-  // in the underlying image's (transformed) native bounds.  That region
-  // doesn't necessarily map to our <image> element's [x,y,width,height].  So,
-  // we have to look up the native image size & our image transform in order
-  // to filter out points that fall outside that area.
   if (GetStyleDisplay()->IsScrollableOverflow() && mImageContainer) {
-    if (mImageContainer->GetType() == imgIContainer::TYPE_RASTER) {
-      PRInt32 nativeWidth, nativeHeight;
-      if (NS_FAILED(mImageContainer->GetWidth(&nativeWidth)) ||
-          NS_FAILED(mImageContainer->GetHeight(&nativeHeight)) ||
-          nativeWidth == 0 || nativeHeight == 0) {
-        return nsnull;
-      }
+    PRInt32 nativeWidth, nativeHeight;
+    mImageContainer->GetWidth(&nativeWidth);
+    mImageContainer->GetHeight(&nativeHeight);
 
-      if (!nsSVGUtils::HitTestRect(
-               GetRasterImageTransform(nativeWidth, nativeHeight),
-               0, 0, nativeWidth, nativeHeight,
-               PresContext()->AppUnitsToDevPixels(aPoint.x),
-               PresContext()->AppUnitsToDevPixels(aPoint.y))) {
-        return nsnull;
-      }
+    if (!nsSVGUtils::HitTestRect(GetImageTransform(),
+                                 0, 0, nativeWidth, nativeHeight,
+                                 PresContext()->AppUnitsToDevPixels(aPoint.x),
+                                 PresContext()->AppUnitsToDevPixels(aPoint.y))) {
+      return nsnull;
     }
-    // The special case above doesn't apply to vector images, because they
-    // don't limit their drawing to explicit "native bounds" -- they have
-    // an infinite canvas on which to place content.  So it's reasonable to
-    // just fall back on our <image> element's own bounds here.
   }
 
   return nsSVGPathGeometryFrame::GetFrameForPoint(aPoint);
@@ -443,7 +326,7 @@ nsSVGImageFrame::GetType() const
 NS_IMETHODIMP
 nsSVGImageFrame::UpdateCoveredRegion()
 {
-  mRect.SetEmpty();
+  mRect.Empty();
 
   gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 

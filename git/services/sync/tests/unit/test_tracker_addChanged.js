@@ -1,4 +1,4 @@
-Cu.import("resource://services-sync/engines.js");
+Cu.import("resource://services-sync/trackers.js");
 
 function run_test() {
   let tracker = new Tracker();

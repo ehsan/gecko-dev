@@ -66,7 +66,7 @@ typedef bool (*nsLoadScriptCallback)(void* aCallbackData, const nsAString& aURL)
 typedef bool (*nsSyncMessageCallback)(void* aCallbackData,
                                       const nsAString& aMessage,
                                       const nsAString& aJSON,
-                                      InfallibleTArray<nsString>* aJSONRetVal);
+                                      nsTArray<nsString>* aJSONRetVal);
 typedef bool (*nsAsyncMessageCallback)(void* aCallbackData,
                                        const nsAString& aMessage,
                                        const nsAString& aJSON);
@@ -82,16 +82,14 @@ public:
                         void* aCallbackData,
                         nsFrameMessageManager* aParentManager,
                         JSContext* aContext,
-                        PRBool aGlobal = PR_FALSE,
-                        PRBool aProcessManager = PR_FALSE)
-  : mChrome(aChrome), mGlobal(aGlobal), mIsProcessManager(aProcessManager),
-    mParentManager(aParentManager),
+                        PRBool aGlobal = PR_FALSE)
+  : mChrome(aChrome), mGlobal(aGlobal), mParentManager(aParentManager),
     mSyncCallback(aSyncCallback), mAsyncCallback(aAsyncCallback),
     mLoadScriptCallback(aLoadScriptCallback), mCallbackData(aCallbackData),
     mContext(aContext)
   {
-    NS_ASSERTION(mContext || (aChrome && !aParentManager) || aProcessManager,
-                 "Should have mContext in non-global/non-process manager!");
+    NS_ASSERTION(mContext || (aChrome && !aParentManager),
+                 "Should have mContext in non-global manager!");
     NS_ASSERTION(aChrome || !aParentManager, "Should not set parent manager!");
     // This is a bit hackish. When parent manager is global, we want
     // to attach the window message manager to it immediately.
@@ -108,28 +106,19 @@ public:
       static_cast<nsFrameMessageManager*>(mChildManagers[i - 1])->
         Disconnect(PR_FALSE);
     }
-    if (mIsProcessManager) {
-      if (this == sParentProcessManager) {
-        sParentProcessManager = nsnull;
-      }
-      if (this == sChildProcessManager) {
-        sChildProcessManager = nsnull;
-      }
-    }
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFrameMessageManager,
                                            nsIContentFrameMessageManager)
   NS_DECL_NSIFRAMEMESSAGEMANAGER
-  NS_DECL_NSISYNCMESSAGESENDER
   NS_DECL_NSICONTENTFRAMEMESSAGEMANAGER
   NS_DECL_NSICHROMEFRAMEMESSAGEMANAGER
 
   nsresult ReceiveMessage(nsISupports* aTarget, const nsAString& aMessage,
                           PRBool aSync, const nsAString& aJSON,
                           JSObject* aObjectsArray,
-                          InfallibleTArray<nsString>* aJSONRetVal,
+                          nsTArray<nsString>* aJSONRetVal,
                           JSContext* aContext = nsnull);
   void AddChildManager(nsFrameMessageManager* aManager,
                        PRBool aLoadScripts = PR_TRUE);
@@ -153,21 +142,11 @@ public:
   }
   PRBool IsGlobal() { return mGlobal; }
   PRBool IsWindowLevel() { return mParentManager && mParentManager->IsGlobal(); }
-
-  static nsFrameMessageManager* GetParentProcessManager()
-  {
-    return sParentProcessManager;
-  }
-  static nsFrameMessageManager* GetChildProcessManager()
-  {
-    return sChildProcessManager;
-  }
 protected:
   nsTArray<nsMessageListenerInfo> mListeners;
   nsCOMArray<nsIContentFrameMessageManager> mChildManagers;
   PRPackedBool mChrome;
   PRPackedBool mGlobal;
-  PRPackedBool mIsProcessManager;
   nsFrameMessageManager* mParentManager;
   nsSyncMessageCallback mSyncCallback;
   nsAsyncMessageCallback mAsyncCallback;
@@ -175,24 +154,13 @@ protected:
   void* mCallbackData;
   JSContext* mContext;
   nsTArray<nsString> mPendingScripts;
-public:
-  static nsFrameMessageManager* sParentProcessManager;
-  static nsFrameMessageManager* sChildProcessManager;
 };
-
-void
-ContentScriptErrorReporter(JSContext* aCx,
-                           const char* aMessage,
-                           JSErrorReport* aReport);
 
 class nsScriptCacheCleaner;
 
 struct nsFrameScriptExecutorJSObjectHolder
 {
-  nsFrameScriptExecutorJSObjectHolder(JSObject* aObject) : mObject(aObject)
-  { MOZ_COUNT_CTOR(nsFrameScriptExecutorJSObjectHolder); }
-  ~nsFrameScriptExecutorJSObjectHolder()
-  { MOZ_COUNT_DTOR(nsFrameScriptExecutorJSObjectHolder); }
+  nsFrameScriptExecutorJSObjectHolder(JSObject* aObject) : mObject(aObject) {}
   JSObject* mObject;
 };
 
@@ -201,44 +169,16 @@ class nsFrameScriptExecutor
 public:
   static void Shutdown();
 protected:
-  friend class nsFrameScriptCx;
-  nsFrameScriptExecutor() : mCx(nsnull), mCxStackRefCnt(0),
-                            mDelayedCxDestroy(PR_FALSE)
-  { MOZ_COUNT_CTOR(nsFrameScriptExecutor); }
-  ~nsFrameScriptExecutor()
-  { MOZ_COUNT_DTOR(nsFrameScriptExecutor); }
+  nsFrameScriptExecutor() : mCx(nsnull) {}
   void DidCreateCx();
   // Call this when you want to destroy mCx.
   void DestroyCx();
   void LoadFrameScriptInternal(const nsAString& aURL);
-  static void Traverse(nsFrameScriptExecutor *tmp,
-                       nsCycleCollectionTraversalCallback &cb);
   nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
   JSContext* mCx;
-  PRUint32 mCxStackRefCnt;
-  PRPackedBool mDelayedCxDestroy;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   static nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>* sCachedScripts;
   static nsRefPtr<nsScriptCacheCleaner> sScriptCacheCleaner;
-};
-
-class nsFrameScriptCx
-{
-public:
-  nsFrameScriptCx(nsISupports* aOwner, nsFrameScriptExecutor* aExec)
-  : mOwner(aOwner), mExec(aExec)
-  {
-    ++(mExec->mCxStackRefCnt);
-  }
-  ~nsFrameScriptCx()
-  {
-    if (--(mExec->mCxStackRefCnt) == 0 &&
-        mExec->mDelayedCxDestroy) {
-      mExec->DestroyCx();
-    }
-  }
-  nsCOMPtr<nsISupports> mOwner;
-  nsFrameScriptExecutor* mExec;
 };
 
 class nsScriptCacheCleaner : public nsIObserver

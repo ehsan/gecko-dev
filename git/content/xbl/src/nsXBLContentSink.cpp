@@ -247,12 +247,11 @@ nsXBLContentSink::ReportUnexpectedElement(nsIAtom* aElementName,
   return nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                          "UnexpectedElement",
                                          params, NS_ARRAY_LENGTH(params),
-                                         nsnull,
+                                         mDocumentURI,
                                          EmptyString() /* source line */,
                                          aLineNumber, 0 /* column number */,
                                          nsIScriptError::errorFlag,
-                                         "XBL Content Sink",
-                                         mDocument);
+                                         "XBL Content Sink");
 }
 
 void
@@ -291,7 +290,7 @@ nsXBLContentSink::HandleStartElement(const PRUnichar *aName,
     return rv;
 
   if (mState == eXBL_InBinding && !mBinding) {
-    rv = ConstructBinding(aLineNumber);
+    rv = ConstructBinding();
     if (NS_FAILED(rv))
       return rv;
     
@@ -555,7 +554,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
 #undef ENSURE_XBL_STATE
 
 nsresult
-nsXBLContentSink::ConstructBinding(PRUint32 aLineNumber)
+nsXBLContentSink::ConstructBinding()
 {
   nsCOMPtr<nsIContent> binding = GetCurrentContent();
   nsAutoString id;
@@ -581,14 +580,6 @@ nsXBLContentSink::ConstructBinding(PRUint32 aLineNumber)
       delete mBinding;
       mBinding = nsnull;
     }
-  } else {
-    nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
-                                    "MissingIdAttr", nsnull, 0,
-                                    mDocumentURI,
-                                    EmptyString(),
-                                    aLineNumber, 0,
-                                    nsIScriptError::errorFlag,
-                                    "XBL Content Sink");
   }
 
   return rv;
@@ -673,12 +664,11 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber
     mState = eXBL_Error;
     nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                     "CommandNotInChrome", nsnull, 0,
-                                    nsnull,
+                                    mDocumentURI,
                                     EmptyString() /* source line */,
                                     aLineNumber, 0 /* column number */,
                                     nsIScriptError::errorFlag,
-                                    "XBL Content Sink",
-                                    mDocument);
+                                    "XBL Content Sink");
     return; // Don't even make this handler.
   }
 
@@ -880,7 +870,7 @@ nsresult
 nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                FromParser aFromParser)
+                                PRUint32 aFromParser)
 {
 #ifdef MOZ_XUL
   if (!aNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
@@ -954,8 +944,7 @@ nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts,
     }
     else {
       nsCOMPtr<nsINodeInfo> ni;
-      ni = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                         nsIDOMNode::ATTRIBUTE_NODE);
+      ni = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
       attrs[i].mName.SetTo(ni);
     }
     

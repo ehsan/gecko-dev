@@ -68,7 +68,7 @@
 @define FRAGMENT_SHADER_HEADER
 /* Fragment Shader */
 #ifdef GL_ES
-precision lowp float;
+precision mediump float;
 #endif
 @end
 
@@ -80,11 +80,7 @@ $FRAGMENT_SHADER_HEADER$
 uniform float uLayerOpacity;
 #endif
 
-#ifdef GL_ES // for tiling, texcoord can be greater than the lowfp range
-varying mediump vec2 vTexCoord;
-#else
 varying vec2 vTexCoord;
-#endif
 @end
 
 // This is a basic Layer vertex shader.  It's used for all
@@ -101,11 +97,7 @@ uniform vec4 uRenderTargetOffset;
 attribute vec4 aVertexCoord;
 attribute vec2 aTexCoord;
 
-#ifdef GL_ES // for tiling, texcoord can be greater than the lowfp range
-varying mediump vec2 vTexCoord;
-#else
 varying vec2 vTexCoord;
-#endif
 
 void main()
 {
@@ -204,9 +196,6 @@ void main()
 // Three textures, representing YCbCr planes of a video image
 @shader sYCbCrTextureLayerFS
 $LAYER_FRAGMENT$
-#ifdef GL_ES
-precision mediump float;
-#endif
 uniform sampler2D uYTexture;
 uniform sampler2D uCbTexture;
 uniform sampler2D uCrTexture;
@@ -287,35 +276,4 @@ void main()
   gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
 }
 #endif
-@end
-
-// Two textures and two passes for component alpha rendering
-@shader sComponentPass1FS
-
-$LAYER_FRAGMENT$
-uniform sampler2D uBlackTexture;
-uniform sampler2D uWhiteTexture;
-
-void main()
-{
-  vec3 onBlack = texture2D(uBlackTexture, vTexCoord).bgr;
-  vec3 onWhite = texture2D(uWhiteTexture, vTexCoord).bgr;
-  vec4 alphas = (1.0 - onWhite + onBlack).rgbg;
-  gl_FragColor = alphas * uLayerOpacity;
-}
-@end
-
-@shader sComponentPass2FS
-
-$LAYER_FRAGMENT$
-uniform sampler2D uBlackTexture;
-uniform sampler2D uWhiteTexture;
-
-void main()
-{
-  vec3 onBlack = texture2D(uBlackTexture, vTexCoord).bgr;
-  vec3 onWhite = texture2D(uWhiteTexture, vTexCoord).bgr;
-  vec4 alphas = (1.0 - onWhite + onBlack).rgbg;
-  gl_FragColor = vec4(onBlack, alphas.a) * uLayerOpacity;
-}
 @end

@@ -64,54 +64,30 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-#include "prlog.h"
-
 #include "gfxPlatformFontList.h"
 #include "gfxTextRunWordCache.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"  // for pref changes callback notification
+#include "nsServiceManagerUtils.h"
 #include "nsUnicharUtils.h"
-#include "nsUnicodeRange.h"
-#include "gfxUnicodeProperties.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 // font info loader constants
 static const PRUint32 kDelayBeforeLoadingCmaps = 8 * 1000; // 8secs
 static const PRUint32 kIntervalBetweenLoadingCmaps = 150; // 150ms
 static const PRUint32 kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 
-#ifdef PR_LOGGING
+static PRLogModuleInfo *gFontListLog = PR_NewLogModule("fontListLog");
 
-#define LOG_FONTLIST(args) PR_LOG(gfxPlatform::GetLog(eGfxLog_fontlist), \
-                               PR_LOG_DEBUG, args)
-#define LOG_FONTLIST_ENABLED() PR_LOG_TEST( \
-                                   gfxPlatform::GetLog(eGfxLog_fontlist), \
-                                   PR_LOG_DEBUG)
-
-#endif // PR_LOGGING
 
 gfxPlatformFontList *gfxPlatformFontList::sPlatformFontList = nsnull;
 
-
-static const char* kObservedPrefs[] = {
-    "font.",
-    "font.name-list.",
-    "intl.accept_languages",  // hmmmm...
-    nsnull
-};
 
 class gfxFontListPrefObserver : public nsIObserver {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 };
-
-static gfxFontListPrefObserver* gFontListPrefObserver = nsnull;
 
 NS_IMPL_ISUPPORTS1(gfxFontListPrefObserver, nsIObserver)
 
@@ -149,21 +125,20 @@ gfxPlatformFontList::gfxPlatformFontList(PRBool aNeedFullnamePostscriptNames)
     LoadBadUnderlineList();
 
     // pref changes notification setup
-    NS_ASSERTION(!gFontListPrefObserver,
-                 "There has been font list pref observer already");
-    gFontListPrefObserver = new gfxFontListPrefObserver();
-    NS_ADDREF(gFontListPrefObserver);
-    Preferences::AddStrongObservers(gFontListPrefObserver, kObservedPrefs);
+    gfxFontListPrefObserver *observer = new gfxFontListPrefObserver();
+    if (observer) {
+        nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (pref) {
+            pref->AddObserver("font.", observer, PR_FALSE);
+            pref->AddObserver("font.name-list.", observer, PR_FALSE);
+            pref->AddObserver("intl.accept_languages", observer, PR_FALSE);  // hmmmm...
+        } else {
+            delete observer;
+        }
+    }
 }
 
-gfxPlatformFontList::~gfxPlatformFontList()
-{
-    NS_ASSERTION(gFontListPrefObserver, "There is no font list pref observer");
-    Preferences::RemoveObservers(gFontListPrefObserver, kObservedPrefs);
-    NS_RELEASE(gFontListPrefObserver);
-}
-
-nsresult
+void
 gfxPlatformFontList::InitFontList()
 {
     mFontFamilies.Clear();
@@ -181,10 +156,6 @@ gfxPlatformFontList::InitFontList()
     mCodepointsWithNoFonts.reset();
     mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
     mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
-
-    sPlatformFontList = this;
-
-    return NS_OK;
 }
 
 void
@@ -408,25 +379,6 @@ gfxPlatformFontList::FindFontForChar(const PRUint32 aCh, gfxFont *aPrevFont)
     // iterate over all font families to find a font that support the character
     mFontFamilies.Enumerate(gfxPlatformFontList::FindFontForCharProc, &data);
 
-#ifdef PR_LOGGING
-    PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textrun);
-
-    if (NS_UNLIKELY(log)) {
-        PRUint32 charRange = gfxFontUtils::CharRangeBit(aCh);
-        PRUint32 unicodeRange = FindCharUnicodeRange(aCh);
-        PRUint32 hbscript = gfxUnicodeProperties::GetScriptCode(aCh);
-        PR_LOG(log, PR_LOG_DEBUG,\
-               ("(textrun-systemfallback) char: u+%6.6x "
-                "char-range: %d unicode-range: %d script: %d match: [%s] count: %d\n",
-                aCh,
-                charRange, unicodeRange, hbscript,
-                (data.mBestMatch ?
-                 NS_ConvertUTF16toUTF8(data.mBestMatch->Name()).get() :
-                 "<none>"),
-                data.mCount));
-    }
-#endif
-
     // no match? add to set of non-matching codepoints
     if (!data.mBestMatch) {
         mCodepointsWithNoFonts.set(aCh);
@@ -448,24 +400,6 @@ gfxPlatformFontList::FindFontForCharProc(nsStringHashKey::KeyType aKey, nsRefPtr
     return PL_DHASH_NEXT;
 }
 
-#ifdef XP_WIN
-#include <windows.h>
-
-// crude hack for using when monitoring process
-static void LogRegistryEvent(const wchar_t *msg)
-{
-  HKEY dummyKey;
-  HRESULT hr;
-  wchar_t buf[512];
-
-  wsprintfW(buf, L" log %s", msg);
-  hr = RegOpenKeyExW(HKEY_LOCAL_MACHINE, buf, 0, KEY_READ, &dummyKey);
-  if (SUCCEEDED(hr)) {
-    RegCloseKey(dummyKey);
-  }
-}
-#endif
-
 gfxFontFamily* 
 gfxPlatformFontList::FindFamily(const nsAString& aFamily)
 {
@@ -474,26 +408,22 @@ gfxPlatformFontList::FindFamily(const nsAString& aFamily)
     PRBool found;
     GenerateFontListKey(aFamily, key);
 
-    NS_ASSERTION(mFontFamilies.Count() != 0, "system font list was not initialized correctly");
-
     // lookup in canonical (i.e. English) family name list
     if ((familyEntry = mFontFamilies.GetWeak(key, &found))) {
         return familyEntry;
     }
 
     // lookup in other family names list (mostly localized names)
-    if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found)) != nsnull) {
+    if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found))) {
         return familyEntry;
     }
 
     // name not found and other family names not yet fully initialized so
     // initialize the rest of the list and try again.  this is done lazily
-    // since reading name table entries is expensive.
-    // although ASCII localized family names are possible they don't occur
-    // in practice so avoid pulling in names at startup
-    if (!mOtherFamilyNamesInitialized && !IsASCII(aFamily)) {
+    // since reading name table entries is expensive
+    if (!mOtherFamilyNamesInitialized) {
         InitOtherFamilyNames();
-        if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found)) != nsnull) {
+        if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found))) {
             return familyEntry;
         }
     }
@@ -535,12 +465,9 @@ gfxPlatformFontList::AddOtherFamilyName(gfxFontFamily *aFamilyEntry, nsAString& 
 
     if (!mOtherFamilyNames.GetWeak(key, &found)) {
         mOtherFamilyNames.Put(key, aFamilyEntry);
-#ifdef PR_LOGGING
-        LOG_FONTLIST(("(fontlist-otherfamily) canonical family: %s, "
-                      "other family: %s\n",
-                      NS_ConvertUTF16toUTF8(aFamilyEntry->Name()).get(),
-                      NS_ConvertUTF16toUTF8(aOtherFamilyName).get()));
-#endif
+        PR_LOG(gFontListLog, PR_LOG_DEBUG, ("(fontlist-otherfamily) canonical family: %s, other family: %s\n", 
+                                            NS_ConvertUTF16toUTF8(aFamilyEntry->Name()).get(), 
+                                            NS_ConvertUTF16toUTF8(aOtherFamilyName).get()));
         if (mBadUnderlineFamilyNames.Contains(key))
             aFamilyEntry->SetBadUnderlineFamily();
     }
@@ -553,11 +480,9 @@ gfxPlatformFontList::AddFullname(gfxFontEntry *aFontEntry, nsAString& aFullname)
 
     if (!mFullnames.GetWeak(aFullname, &found)) {
         mFullnames.Put(aFullname, aFontEntry);
-#ifdef PR_LOGGING
-        LOG_FONTLIST(("(fontlist-fullname) name: %s, fullname: %s\n",
-                      NS_ConvertUTF16toUTF8(aFontEntry->Name()).get(),
-                      NS_ConvertUTF16toUTF8(aFullname).get()));
-#endif
+        PR_LOG(gFontListLog, PR_LOG_DEBUG, ("(fontlist-fullname) name: %s, fullname: %s\n", 
+                                            NS_ConvertUTF16toUTF8(aFontEntry->Name()).get(), 
+                                            NS_ConvertUTF16toUTF8(aFullname).get()));
     }
 }
 
@@ -568,11 +493,9 @@ gfxPlatformFontList::AddPostscriptName(gfxFontEntry *aFontEntry, nsAString& aPos
 
     if (!mPostscriptNames.GetWeak(aPostscriptName, &found)) {
         mPostscriptNames.Put(aPostscriptName, aFontEntry);
-#ifdef PR_LOGGING
-        LOG_FONTLIST(("(fontlist-postscript) name: %s, psname: %s\n",
-                      NS_ConvertUTF16toUTF8(aFontEntry->Name()).get(),
-                      NS_ConvertUTF16toUTF8(aPostscriptName).get()));
-#endif
+        PR_LOG(gFontListLog, PR_LOG_DEBUG, ("(fontlist-postscript) name: %s, psname: %s\n", 
+                                            NS_ConvertUTF16toUTF8(aFontEntry->Name()).get(), 
+                                            NS_ConvertUTF16toUTF8(aPostscriptName).get()));
     }
 }
 

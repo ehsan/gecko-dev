@@ -42,12 +42,11 @@
 interface nsIIDBIndex;
 interface nsIIDBKeyRange;
 interface nsIIDBRequest;
-interface nsIIDBTransaction;
 interface nsIVariant;
 interface nsIDOMDOMStringList;
 
 %{C++
-#include "jspubtd.h"
+#include "jsapi.h"
 %}
 
 /**
@@ -55,7 +54,7 @@ interface nsIDOMDOMStringList;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-nsIIDBObjectStore
  * for more information.
  */
-[scriptable, uuid(6a65dc92-66e3-407a-a370-590a6c54664a)]
+[scriptable, uuid(9cb63602-a52f-4d21-b802-e7165143f83d)]
 interface nsIIDBObjectStore : nsISupports
 {
   readonly attribute DOMString name;
@@ -63,8 +62,6 @@ interface nsIIDBObjectStore : nsISupports
   readonly attribute DOMString keyPath;
 
   readonly attribute nsIDOMDOMStringList indexNames;
-
-  readonly attribute nsIIDBTransaction transaction;
 
   // Success fires IDBTransactionEvent, result == value for key
   nsIIDBRequest
@@ -89,37 +86,32 @@ interface nsIIDBObjectStore : nsISupports
       [optional /* undefined */] in jsval key);
 
   // Success fires IDBTransactionEvent, result == null
-  [implicit_jscontext]
   nsIIDBRequest
-  delete(in jsval key);
+  remove(in nsIVariant key);
 
   // Success fires IDBTransactionEvent, result == null
   nsIIDBRequest
   clear();
 
-  // Success fires IDBTransactionEvent, result == IDBCursor or result == null if
-  // no match.
+  // Success fires IDBTransactionEvent, result == IDBCursor or
+  // IDBCursorPreloadedRequest if preload == true. result == null if no match.
   [optional_argc]
   nsIIDBRequest
   openCursor([optional /* null */] in nsIIDBKeyRange range,
-             [optional /* NEXT */] in unsigned short direction);
+             [optional /* NEXT */] in unsigned short direction,
+             [optional /* false */] in boolean preload);
 
-  /**
-   * Optional arguments:
-   *   - unique (boolean):
-   *       Specifies whether values in the index must be unique. Defaults to
-   *       false.
-   */
-  [implicit_jscontext]
-  nsIIDBIndex
+  // Success fires IDBTransactionEvent, result == IDBIndex
+  nsIIDBRequest
   createIndex(in AString name,
               in AString keyPath,
-              [optional /* none */] in jsval options);
+              [optional /* false */] in boolean unique);
 
   // Returns object immediately
   nsIIDBIndex
   index(in AString name);
 
-  void
-  deleteIndex(in AString name);
+  // Success fires IDBTransactionEvent, result == null
+  nsIIDBRequest
+  removeIndex(in AString name);
 };

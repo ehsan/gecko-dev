@@ -51,8 +51,6 @@ PARALLEL_DIRS = \
   http \
   res \
   viewsource \
-  websocket \
-  wyciwyg \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

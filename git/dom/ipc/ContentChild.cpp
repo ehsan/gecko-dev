@@ -37,42 +37,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_GTK2
-#include <gtk/gtk.h>
-#endif
-
-#ifdef MOZ_WIDGET_QT
-#include "nsQAppInstance.h"
-#endif
-
 #include "ContentChild.h"
-#include "CrashReporterChild.h"
 #include "TabChild.h"
-#if defined(MOZ_SYDNEYAUDIO)
-#include "AudioChild.h"
-#endif
 
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
-#include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/StorageChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
 
-#if defined(MOZ_SYDNEYAUDIO)
-#include "nsAudioStream.h"
-#endif
-#include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
 #include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
-#include "nsIScriptError.h"
-#include "nsIConsoleService.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -83,156 +63,128 @@
 
 #include "nsChromeRegistryContent.h"
 #include "mozilla/chrome/RegistryMessageUtils.h"
-#include "nsFrameMessageManager.h"
-
-#include "nsIGeolocationProvider.h"
-#include "mozilla/dom/PMemoryReportRequestChild.h"
-
-#ifdef MOZ_PERMISSIONS
-#include "nsPermission.h"
-#include "nsPermissionManager.h"
-#endif
-
-#include "nsDeviceMotion.h"
-
-#if defined(ANDROID)
-#include "APKOpen.h"
-#endif
-
-#ifdef XP_WIN
-#include <process.h>
-#define getpid _getpid
-#endif
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
-using namespace mozilla::docshell;
 
 namespace mozilla {
 namespace dom {
 
-nsString* gIndexedDBPath = nsnull;
-
-class MemoryReportRequestChild : public PMemoryReportRequestChild
+class PrefObserver
 {
 public:
-    MemoryReportRequestChild();
-    virtual ~MemoryReportRequestChild();
-};
-
-MemoryReportRequestChild::MemoryReportRequestChild()
-{
-    MOZ_COUNT_CTOR(MemoryReportRequestChild);
-}
-
-MemoryReportRequestChild::~MemoryReportRequestChild()
-{
-    MOZ_COUNT_DTOR(MemoryReportRequestChild);
-}
-
-class AlertObserver
-{
-public:
-
-    AlertObserver(nsIObserver *aObserver, const nsString& aData)
-        : mObserver(aObserver)
-        , mData(aData)
+    /**
+     * Pass |aHoldWeak=true| to force this to hold a weak ref to
+     * |aObserver|.  Otherwise, this holds a strong ref.
+     *
+     * XXX/cjones: what do domain and prefRoot mean?
+     */
+    PrefObserver(nsIObserver *aObserver, bool aHoldWeak,
+                 const nsCString& aPrefRoot, const nsCString& aDomain)
+        : mPrefRoot(aPrefRoot)
+        , mDomain(aDomain)
     {
+        if (aHoldWeak) {
+            nsCOMPtr<nsISupportsWeakReference> supportsWeakRef = 
+                do_QueryInterface(aObserver);
+            if (supportsWeakRef)
+                mWeakObserver = do_GetWeakReference(aObserver);
+        } else {
+            mObserver = aObserver;
+        }
     }
 
-    ~AlertObserver() {}
+    ~PrefObserver() {}
 
+    /**
+     * Return true if this observer can no longer receive
+     * notifications.
+     */
+    bool IsDead() const
+    {
+        nsCOMPtr<nsIObserver> observer = GetObserver();
+        return !observer;
+    }
+
+    /**
+     * Return true iff a request to remove observers matching
+     * <aObserver, aDomain, aPrefRoot> entails removal of this.
+     */
     bool ShouldRemoveFrom(nsIObserver* aObserver,
-                          const nsString& aData) const
+                          const nsCString& aPrefRoot,
+                          const nsCString& aDomain) const
     {
-        return (mObserver == aObserver &&
-                mData == aData);
+        nsCOMPtr<nsIObserver> observer = GetObserver();
+        return (observer == aObserver &&
+                mDomain == aDomain && mPrefRoot == aPrefRoot);
     }
 
-    bool Observes(const nsString& aData) const
+    /**
+     * Return true iff this should be notified of changes to |aPref|.
+     */
+    bool Observes(const nsCString& aPref) const
     {
-        return mData.Equals(aData);
+        nsCAutoString myPref(mPrefRoot);
+        myPref += mDomain;
+        return StringBeginsWith(aPref, myPref);
     }
 
-    bool Notify(const nsCString& aType) const
+    /**
+     * Notify this of a pref change that's relevant to our interests
+     * (see Observes() above).  Return false iff this no longer cares
+     * to observe any more pref changes.
+     */
+    bool Notify() const
     {
-        mObserver->Observe(nsnull, aType.get(), mData.get());
+        nsCOMPtr<nsIObserver> observer = GetObserver();
+        if (!observer) {
+            return false;
+        }
+
+        nsCOMPtr<nsIPrefBranch> prefBranch;
+        nsCOMPtr<nsIPrefService> prefService =
+            do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefService) {
+            prefService->GetBranch(mPrefRoot.get(), 
+                                   getter_AddRefs(prefBranch));
+            observer->Observe(prefBranch, "nsPref:changed",
+                              NS_ConvertASCIItoUTF16(mDomain).get());
+        }
         return true;
     }
 
 private:
-    nsCOMPtr<nsIObserver> mObserver;
-    nsString mData;
-};
-
-class ConsoleListener : public nsIConsoleListener
-{
-public:
-    ConsoleListener(ContentChild* aChild)
-    : mChild(aChild) {}
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSICONSOLELISTENER
-
-private:
-    ContentChild* mChild;
-    friend class ContentChild;
-};
-
-NS_IMPL_ISUPPORTS1(ConsoleListener, nsIConsoleListener)
-
-NS_IMETHODIMP
-ConsoleListener::Observe(nsIConsoleMessage* aMessage)
-{
-    if (!mChild)
-        return NS_OK;
-    
-    nsCOMPtr<nsIScriptError> scriptError = do_QueryInterface(aMessage);
-    if (scriptError) {
-        nsString msg, sourceName, sourceLine;
-        nsXPIDLCString category;
-        PRUint32 lineNum, colNum, flags;
-
-        nsresult rv = scriptError->GetErrorMessage(msg);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetSourceName(sourceName);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetSourceLine(sourceLine);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetCategory(getter_Copies(category));
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetLineNumber(&lineNum);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetColumnNumber(&colNum);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetFlags(&flags);
-        NS_ENSURE_SUCCESS(rv, rv);
-        mChild->SendScriptError(msg, sourceName, sourceLine,
-                               lineNum, colNum, flags, category);
-        return NS_OK;
+    already_AddRefed<nsIObserver> GetObserver() const
+    {
+        nsCOMPtr<nsIObserver> observer =
+            mObserver ? mObserver : do_QueryReferent(mWeakObserver);
+        return observer.forget();
     }
 
-    nsXPIDLString msg;
-    nsresult rv = aMessage->GetMessageMoz(getter_Copies(msg));
-    NS_ENSURE_SUCCESS(rv, rv);
-    mChild->SendConsoleMessage(msg);
-    return NS_OK;
-}
+    // We only either hold a strong or a weak reference to the
+    // observer, so only either mObserver or
+    // GetReferent(mWeakObserver) is ever non-null.
+    nsCOMPtr<nsIObserver> mObserver;
+    nsWeakPtr mWeakObserver;
+    nsCString mPrefRoot;
+    nsCString mDomain;
+
+    // disable these
+    PrefObserver(const PrefObserver&);
+    PrefObserver& operator=(const PrefObserver&);
+};
+
 
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
-#ifdef ANDROID
- : mScreenSize(0, 0)
-#endif
+    : mDead(false)
 {
 }
 
 ContentChild::~ContentChild()
 {
-    delete gIndexedDBPath;
-    gIndexedDBPath = nsnull;
 }
 
 bool
@@ -240,115 +192,19 @@ ContentChild::Init(MessageLoop* aIOLoop,
                    base::ProcessHandle aParentHandle,
                    IPC::Channel* aChannel)
 {
-#ifdef MOZ_WIDGET_GTK2
-    // sigh
-    gtk_init(NULL, NULL);
-#endif
-
-#ifdef MOZ_WIDGET_QT
-    // sigh, seriously
-    nsQAppInstance::AddRef();
-#endif
-
-#ifdef MOZ_X11
-    // Do this after initializing GDK, or GDK will install its own handler.
-    XRE_InstallX11ErrorHandler();
-#endif
-
     NS_ASSERTION(!sSingleton, "only one ContentChild per child");
-
+  
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
-#if defined(ANDROID) && defined(MOZ_CRASHREPORTER)
-    PCrashReporterChild* crashreporter = SendPCrashReporterConstructor();
-    InfallibleTArray<Mapping> mappings;
-    const struct mapping_info *info = getLibraryMapping();
-    while (info && info->name) {
-        mappings.AppendElement(Mapping(nsDependentCString(info->name),
-                                       nsDependentCString(info->file_id),
-                                       info->base,
-                                       info->len,
-                                       info->offset));
-        info++;
-    }
-    crashreporter->SendAddLibraryMappings(mappings);
-#endif
-
-    return true;
-}
-
-void
-ContentChild::InitXPCOM()
-{
-    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-    if (!svc) {
-        NS_WARNING("Couldn't acquire console service");
-        return;
-    }
-
-    mConsoleListener = new ConsoleListener(this);
-    if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
-        NS_WARNING("Couldn't register console listener for child process");
-}
-
-PMemoryReportRequestChild*
-ContentChild::AllocPMemoryReportRequest()
-{
-    return new MemoryReportRequestChild();
-}
-
-bool
-ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child)
-{
-    InfallibleTArray<MemoryReport> reports;
-    
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    nsCOMPtr<nsISimpleEnumerator> r;
-    mgr->EnumerateReporters(getter_AddRefs(r));
-
-    PRBool more;
-    while (NS_SUCCEEDED(r->HasMoreElements(&more)) && more) {
-      nsCOMPtr<nsIMemoryReporter> report;
-      r->GetNext(getter_AddRefs(report));
-
-      nsCString path;
-      PRInt32 kind;
-      nsCString desc;
-      PRInt64 memoryUsed;
-      report->GetPath(getter_Copies(path));
-      report->GetKind(&kind);
-      report->GetDescription(getter_Copies(desc));
-      report->GetMemoryUsed(&memoryUsed);
-
-      static const int maxLength = 31;   // big enough; pid is only a few chars
-      MemoryReport memreport(nsPrintfCString(maxLength, "Content (%d)",
-                                             getpid()),
-                             path,
-                             kind,
-                             desc,
-                             memoryUsed);
-
-      reports.AppendElement(memreport);
-
-    }
-
-    child->Send__delete__(child, reports);
-    return true;
-}
-
-bool
-ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
-{
-    delete actor;
     return true;
 }
 
 PBrowserChild*
 ContentChild::AllocPBrowser(const PRUint32& aChromeFlags)
 {
-    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags);
-    return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
+  nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags);
+  return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
 }
 
 bool
@@ -356,19 +212,6 @@ ContentChild::DeallocPBrowser(PBrowserChild* iframe)
 {
     TabChild* child = static_cast<TabChild*>(iframe);
     NS_RELEASE(child);
-    return true;
-}
-
-PCrashReporterChild*
-ContentChild::AllocPCrashReporter()
-{
-    return new CrashReporterChild();
-}
-
-bool
-ContentChild::DeallocPCrashReporter(PCrashReporterChild* crashreporter)
-{
-    delete crashreporter;
     return true;
 }
 
@@ -392,30 +235,6 @@ ContentChild::RecvPTestShellConstructor(PTestShellChild* actor)
     return true;
 }
 
-PAudioChild*
-ContentChild::AllocPAudio(const PRInt32& numChannels,
-                          const PRInt32& rate,
-                          const PRInt32& format)
-{
-#if defined(MOZ_SYDNEYAUDIO)
-    AudioChild *child = new AudioChild();
-    NS_ADDREF(child);
-    return child;
-#else
-    return nsnull;
-#endif
-}
-
-bool
-ContentChild::DeallocPAudio(PAudioChild* doomed)
-{
-#if defined(MOZ_SYDNEYAUDIO)
-    AudioChild *child = static_cast<AudioChild*>(doomed);
-    NS_RELEASE(child);
-#endif
-    return true;
-}
-
 PNeckoChild* 
 ContentChild::AllocPNecko()
 {
@@ -429,52 +248,15 @@ ContentChild::DeallocPNecko(PNeckoChild* necko)
     return true;
 }
 
-PExternalHelperAppChild*
-ContentChild::AllocPExternalHelperApp(const IPC::URI& uri,
-                                      const nsCString& aMimeContentType,
-                                      const nsCString& aContentDisposition,
-                                      const bool& aForceSave,
-                                      const PRInt64& aContentLength,
-                                      const IPC::URI& aReferrer)
-{
-    ExternalHelperAppChild *child = new ExternalHelperAppChild();
-    child->AddRef();
-    return child;
-}
-
 bool
-ContentChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
-{
-    ExternalHelperAppChild *child = static_cast<ExternalHelperAppChild*>(aService);
-    child->Release();
-    return true;
-}
-
-PStorageChild*
-ContentChild::AllocPStorage(const StorageConstructData& aData)
-{
-    NS_NOTREACHED("We should never be manually allocating PStorageChild actors");
-    return nsnull;
-}
-
-bool
-ContentChild::DeallocPStorage(PStorageChild* aActor)
-{
-    StorageChild* child = static_cast<StorageChild*>(aActor);
-    child->ReleaseIPDLReference();
-    return true;
-}
-
-bool
-ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
-                                 const InfallibleTArray<ResourceMapping>& resources,
-                                 const InfallibleTArray<OverrideMapping>& overrides,
-                                 const nsCString& locale)
+ContentChild::RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
+                                 const nsTArray<ResourceMapping>& resources,
+                                 const nsTArray<OverrideMapping>& overrides)
 {
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
     nsChromeRegistryContent* chromeRegistry =
         static_cast<nsChromeRegistryContent*>(registrySvc.get());
-    chromeRegistry->RegisterRemoteChrome(packages, resources, overrides, locale);
+    chromeRegistry->RegisterRemoteChrome(packages, resources, overrides);
     return true;
 }
 
@@ -485,109 +267,81 @@ ContentChild::RecvSetOffline(const PRBool& offline)
   NS_ASSERTION(io, "IO Service can not be null");
 
   io->SetOffline(offline);
-
+    
   return true;
 }
 
 void
 ContentChild::ActorDestroy(ActorDestroyReason why)
 {
-    if (AbnormalShutdown == why) {
-        NS_WARNING("shutting down early because of crash!");
-        QuickExit();
-    }
+    if (AbnormalShutdown == why)
+        NS_WARNING("shutting down because of crash!");
 
-#ifndef DEBUG
-    // In release builds, there's no point in the content process
-    // going through the full XPCOM shutdown path, because it doesn't
-    // keep persistent state.
-    QuickExit();
-#endif
-
-    mAlertObservers.Clear();
-
-    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-    if (svc) {
-        svc->UnregisterListener(mConsoleListener);
-        mConsoleListener->mChild = nsnull;
-    }
+    // We might be holding the last ref to some of the observers in
+    // mPrefObserverArray.  Some of them try to unregister themselves
+    // in their dtors (sketchy).  To side-step uaf problems and so
+    // forth, we set this mDead flag.  Then, if during a Clear() a
+    // being-deleted observer tries to unregister itself, it hits the
+    // |if (mDead)| special case below and we're safe.
+    mDead = true;
+    mPrefObservers.Clear();
 
     XRE_ShutdownChildProcess();
 }
 
-void
-ContentChild::ProcessingError(Result what)
-{
-    switch (what) {
-    case MsgDropped:
-        QuickExit();
-
-    case MsgNotKnown:
-    case MsgNotAllowed:
-    case MsgPayloadError:
-    case MsgProcessingError:
-    case MsgRouteError:
-    case MsgValueError:
-        NS_RUNTIMEABORT("aborting because of fatal error");
-
-    default:
-        NS_RUNTIMEABORT("not reached");
-    }
-}
-
-void
-ContentChild::QuickExit()
-{
-    NS_WARNING("content process _exit()ing");
-    _exit(0);
-}
-
 nsresult
-ContentChild::AddRemoteAlertObserver(const nsString& aData,
-                                     nsIObserver* aObserver)
+ContentChild::AddRemotePrefObserver(const nsCString& aDomain, 
+                                    const nsCString& aPrefRoot, 
+                                    nsIObserver* aObserver, 
+                                    PRBool aHoldWeak)
 {
-    NS_ASSERTION(aObserver, "Adding a null observer?");
-    mAlertObservers.AppendElement(new AlertObserver(aObserver, aData));
+    if (aObserver) {
+        mPrefObservers.AppendElement(
+            new PrefObserver(aObserver, aHoldWeak, aPrefRoot, aDomain));
+    }
     return NS_OK;
 }
 
-bool
-ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
+nsresult
+ContentChild::RemoveRemotePrefObserver(const nsCString& aDomain, 
+                                       const nsCString& aPrefRoot, 
+                                       nsIObserver* aObserver)
 {
-    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
+    if (mDead) {
+        // Silently ignore, we're about to exit.  See comment in
+        // ActorDestroy().
+        return NS_OK;
+    }
 
-    prefs->SetPreference(&aPref);
-
-    return true;
-}
-
-bool
-ContentChild::RecvClearUserPreference(const nsCString& aPrefName)
-{
-    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->ClearContentPref(aPrefName);
-
-    return true;
-}
-
-bool
-ContentChild::RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData)
-{
-    for (PRUint32 i = 0; i < mAlertObservers.Length();
+    for (PRUint32 i = 0; i < mPrefObservers.Length();
          /*we mutate the array during the loop; ++i iff no mutation*/) {
-        AlertObserver* observer = mAlertObservers[i];
-        if (observer->Observes(aData) && observer->Notify(aType)) {
-            // if aType == alertfinished, this alert is done.  we can
-            // remove the observer.
-            if (aType.Equals(nsDependentCString("alertfinished"))) {
-                mAlertObservers.RemoveElementAt(i);
-                continue;
-            }
+        PrefObserver* observer = mPrefObservers[i];
+        if (observer->IsDead()) {
+            mPrefObservers.RemoveElementAt(i);
+            continue;
+        } else if (observer->ShouldRemoveFrom(aObserver, aPrefRoot, aDomain)) {
+            mPrefObservers.RemoveElementAt(i);
+            return NS_OK;
+        }
+        ++i;
+    }
+
+    NS_WARNING("RemoveRemotePrefObserver(): no observer was matched!");
+    return NS_ERROR_UNEXPECTED;
+}
+
+bool
+ContentChild::RecvNotifyRemotePrefObserver(const nsCString& aPref)
+{
+    for (PRUint32 i = 0; i < mPrefObservers.Length();
+         /*we mutate the array during the loop; ++i iff no mutation*/) {
+        PrefObserver* observer = mPrefObservers[i];
+        if (observer->Observes(aPref) &&
+            !observer->Notify()) {
+            // |observer| had a weak ref that went away, so it no
+            // longer cares about pref changes
+            mPrefObservers.RemoveElementAt(i);
+            continue;
         }
         ++i;
     }
@@ -600,96 +354,6 @@ ContentChild::RecvNotifyVisited(const IPC::URI& aURI)
     nsCOMPtr<nsIURI> newURI(aURI);
     History::GetService()->NotifyVisited(newURI);
     return true;
-}
-
-
-bool
-ContentChild::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
-{
-  nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
-  if (cpm) {
-    cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
-  }
-  return true;
-}
-
-bool
-ContentChild::RecvGeolocationUpdate(const GeoPosition& somewhere)
-{
-  nsCOMPtr<nsIGeolocationUpdate> gs = do_GetService("@mozilla.org/geolocation/service;1");
-  if (!gs) {
-    return true;
-  }
-  nsCOMPtr<nsIDOMGeoPosition> position = somewhere;
-  gs->Update(position);
-  return true;
-}
-
-bool
-ContentChild::RecvAddPermission(const IPC::Permission& permission)
-{
-#if MOZ_PERMISSIONS
-  nsRefPtr<nsPermissionManager> permissionManager =
-    nsPermissionManager::GetSingleton();
-  NS_ABORT_IF_FALSE(permissionManager, 
-                   "We have no permissionManager in the Content process !");
-
-  permissionManager->AddInternal(nsCString(permission.host),
-                                 nsCString(permission.type),
-                                 permission.capability,
-                                 0,
-                                 permission.expireType,
-                                 permission.expireTime,
-                                 nsPermissionManager::eNotify,
-                                 nsPermissionManager::eNoDBOperation);
-#endif
-
-  return true;
-}
-
-bool
-ContentChild::RecvDeviceMotionChanged(const long int& type,
-                                      const double& x, const double& y,
-                                      const double& z)
-{
-    nsCOMPtr<nsIDeviceMotionUpdate> dmu = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dmu)
-        dmu->DeviceMotionChanged(type, x, y, z);
-    return true;
-}
-
-bool
-ContentChild::RecvScreenSizeChanged(const gfxIntSize& size)
-{
-#ifdef ANDROID
-    mScreenSize = size;
-#else
-    NS_RUNTIMEABORT("Message currently only expected on android");
-#endif
-  return true;
-}
-
-bool
-ContentChild::RecvFlushMemory(const nsString& reason)
-{
-    nsCOMPtr<nsIObserverService> os =
-        mozilla::services::GetObserverService();
-    if (os)
-        os->NotifyObservers(nsnull, "memory-pressure", reason.get());
-  return true;
-}
-
-nsString&
-ContentChild::GetIndexedDBPath()
-{
-    if (!gIndexedDBPath) {
-        gIndexedDBPath = new nsString(); // cleaned up in the destructor
-        SendGetIndexedDBDirectory(gIndexedDBPath);
-    }
-
-    return *gIndexedDBPath;
 }
 
 } // namespace dom

@@ -46,7 +46,6 @@
 #include "nsIServiceManager.h"
 #include "nsIPlatformCharset.h"
 #include "nsICharsetConverterManager.h"
-#include "nsIPrivateBrowsingService.h"
 #include "nsFilePicker.h"
 #include "nsILocalFile.h"
 #include "nsIURL.h"
@@ -58,7 +57,9 @@
 
 // commdlg.h and cderr.h are needed to build with WIN32_LEAN_AND_MEAN
 #include <commdlg.h>
+#ifndef WINCE
 #include <cderr.h>
+#endif
 
 #include "nsString.h"
 #include "nsToolkit.h"
@@ -70,11 +71,21 @@ char nsFilePicker::mLastUsedDirectory[MAX_PATH+1] = { 0 };
 
 #define MAX_EXTENSION_LENGTH 10
 
+//-------------------------------------------------------------------------
+//
+// nsFilePicker constructor
+//
+//-------------------------------------------------------------------------
 nsFilePicker::nsFilePicker()
 {
   mSelectedType   = 1;
 }
 
+//-------------------------------------------------------------------------
+//
+// nsFilePicker destructor
+//
+//-------------------------------------------------------------------------
 nsFilePicker::~nsFilePicker()
 {
   if (mLastUsedUnicodeDirectory) {
@@ -83,7 +94,13 @@ nsFilePicker::~nsFilePicker()
   }
 }
 
+//-------------------------------------------------------------------------
+//
 // Show - Display the file dialog
+//
+//-------------------------------------------------------------------------
+
+#ifndef WINCE_WINDOWS_MOBILE
 int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
   if (uMsg == BFFM_INITIALIZED)
@@ -96,6 +113,7 @@ int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpDa
   }
   return 0;
 }
+#endif
 
 NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 {
@@ -126,13 +144,15 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
   mUnicodeFile.Truncate();
 
+#ifndef WINCE_WINDOWS_MOBILE
+
   if (mMode == modeGetFolder) {
     PRUnichar dirBuffer[MAX_PATH+1];
     wcsncpy(dirBuffer, initialDir.get(), MAX_PATH);
 
     BROWSEINFOW browserInfo;
     browserInfo.hwndOwner      = (HWND)
-      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : 0); 
+      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
     browserInfo.pidlRoot       = nsnull;
     browserInfo.pszDisplayName = (LPWSTR)dirBuffer;
     browserInfo.lpszTitle      = mTitle.get();
@@ -163,6 +183,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     }
   }
   else 
+#endif // WINCE_WINDOWS_MOBILE
   {
 
     OPENFILENAMEW ofn;
@@ -177,24 +198,16 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     ofn.lpstrTitle   = (LPCWSTR)mTitle.get();
     ofn.lpstrFilter  = (LPCWSTR)filterBuffer.get();
     ofn.nFilterIndex = mSelectedType;
-    ofn.hwndOwner    = (HWND) (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : 0); 
+#ifdef WINCE_WINDOWS_MOBILE
+    // If we're running fullscreen the dialog inherits that, which is bad
+    ofn.hwndOwner    = (HWND) 0;
+#else
+    ofn.hwndOwner    = (HWND) (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
+#endif
     ofn.lpstrFile    = fileBuffer;
     ofn.nMaxFile     = FILE_BUFFER_SIZE;
 
-    ofn.Flags = OFN_NOCHANGEDIR | OFN_SHAREAWARE |
-                OFN_LONGNAMES | OFN_OVERWRITEPROMPT |
-                OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
-
-    // Handle add to recent docs settings
-    nsCOMPtr<nsIPrivateBrowsingService> pbs =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    PRBool privacyModeEnabled = PR_FALSE;
-    if (pbs) {
-      pbs->GetPrivateBrowsingEnabled(&privacyModeEnabled);
-    }
-    if (privacyModeEnabled || !mAddToRecentDocs) {
-      ofn.Flags |= OFN_DONTADDTORECENT;
-    }
+    ofn.Flags = OFN_NOCHANGEDIR | OFN_SHAREAWARE | OFN_LONGNAMES | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
 
     if (!mDefaultExtension.IsEmpty()) {
       ofn.lpstrDefExt = mDefaultExtension.get();
@@ -222,7 +235,9 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
       }
     }
 
-    MOZ_SEH_TRY {
+#ifndef WINCE
+    try {
+#endif
       if (mMode == modeOpen) {
         // FILE MUST EXIST!
         ofn.Flags |= OFN_FILEMUSTEXIST;
@@ -249,7 +264,9 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         if (!result) {
           // Error, find out what kind.
           if (::GetLastError() == ERROR_INVALID_PARAMETER 
+#ifndef WINCE
               || ::CommDlgExtendedError() == FNERR_INVALIDFILENAME
+#endif
               ) {
             // probably the default file name is too long or contains illegal characters!
             // Try again, without a starting file name.
@@ -258,18 +275,26 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           }
         }
       } 
+#ifdef WINCE_WINDOWS_MOBILE
+      else if (mMode == modeGetFolder) {
+        ofn.Flags = OFN_PROJECT | OFN_FILEMUSTEXIST;
+        result = ::GetOpenFileNameW(&ofn);
+      }
+#endif
       else {
         NS_ERROR("unsupported mode"); 
       }
+#ifndef WINCE
     }
-    MOZ_SEH_EXCEPT(PR_TRUE) {
+    catch(...) {
       MessageBoxW(ofn.hwndOwner,
                   0,
                   L"The filepicker was unexpectedly closed by Windows.",
                   MB_ICONERROR);
       result = PR_FALSE;
     }
-
+#endif
+  
     if (result) {
       // Remember what filter type the user selected
       mSelectedType = (PRInt16)ofn.nFilterIndex;
@@ -327,9 +352,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         mUnicodeFile.Assign(fileBuffer);
       }
     }
-    if (ofn.hwndOwner) {
-      ::DestroyWindow(ofn.hwndOwner);
-    }
+
   }
 
   if (result) {
@@ -404,6 +427,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
   return NS_OK;
 }
 
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
 {
   *aFileURL = nsnull;
@@ -421,7 +445,11 @@ NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
   return NS_NewArrayEnumerator(aFiles, mFiles);
 }
 
+//-------------------------------------------------------------------------
+//
 // Get the file + path
+//
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
 {
   mDefault = aString;
@@ -459,7 +487,11 @@ NS_IMETHODIMP nsFilePicker::GetDefaultString(nsAString& aString)
   return NS_ERROR_FAILURE;
 }
 
+//-------------------------------------------------------------------------
+//
 // The default extension to use for files
+//
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetDefaultExtension(nsAString& aExtension)
 {
   aExtension = mDefaultExtension;
@@ -472,7 +504,11 @@ NS_IMETHODIMP nsFilePicker::SetDefaultExtension(const nsAString& aExtension)
   return NS_OK;
 }
 
+//-------------------------------------------------------------------------
+//
 // Set the filter index
+//
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetFilterIndex(PRInt32 *aFilterIndex)
 {
   // Windows' filter index is 1-based, we use a 0-based system.
@@ -487,6 +523,7 @@ NS_IMETHODIMP nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
   return NS_OK;
 }
 
+//-------------------------------------------------------------------------
 void nsFilePicker::InitNative(nsIWidget *aParent,
                               const nsAString& aTitle,
                               PRInt16 aMode)

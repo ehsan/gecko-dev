@@ -50,23 +50,21 @@ SDK_XPIDLSRCS =                                 \
 	domstubs.idl				\
 	nsIDOMBarProp.idl			\
 	nsIDOMWindow.idl			\
+	nsIDOMWindow2.idl			\
 	nsIDOMWindowCollection.idl		\
 	nsIDOMWindowUtils.idl			\
 	$(NULL)
 
 XPIDLSRCS =					\
-	nsIAnimationFrameListener.idl           \
 	nsIBrowserDOMWindow.idl			\
-    nsIContentPermissionPrompt.idl  \
 	nsIContentPrefService.idl		\
-	nsIContentURIGrouper.idl		\
+	nsIContentURIGrouper.idl    \
 	nsIDOMClientInformation.idl		\
 	nsIDOMConstructor.idl			\
 	nsIDOMCRMFObject.idl			\
 	nsIDOMCrypto.idl			\
 	nsIDOMHistory.idl			\
 	nsIDOMLocation.idl			\
-	nsIDOMMediaQueryList.idl		\
 	nsIDOMMimeType.idl			\
 	nsIDOMMimeTypeArray.idl			\
 	nsIDOMNavigator.idl			\
@@ -78,17 +76,13 @@ XPIDLSRCS =					\
 	nsIDOMJSWindow.idl			\
 	nsIDOMModalContentWindow.idl		\
 	nsIDOMChromeWindow.idl			\
+	nsIDOMNSFeatureFactory.idl		\
         nsIDOMClientRect.idl			\
         nsIDOMClientRectList.idl		\
 	nsIFocusManager.idl			\
 	nsIQueryContentEventResult.idl		\
-	nsITabChild.idl				\
-	nsITabParent.idl			\
-	nsIDOMGlobalPropertyInitializer.idl	\
-	nsIStructuredCloneContainer.idl		\
-	nsIDOMPerformance.idl			\
-	nsIDOMPerformanceTiming.idl		\
-	nsIDOMPerformanceNavigation.idl		\
+	nsITabChild.idl                         \
+	nsITabParent.idl                         \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -65,15 +65,10 @@ function test()
 
   runtest();
   gc();
-  var count1 = countHeap();
+  var counter = countHeap();
   runtest();
   gc();
-  var count2 = countHeap();
-  runtest();
-  gc();
-  var count3 = countHeap();
-  /* Try to be tolerant of conservative GC noise: we want a steady leak. */
-  if (count1 < count2 && count2 < count3)
+  if (counter != countHeap())
     throw "A leaky watch point is detected";
 
   function runtest () {

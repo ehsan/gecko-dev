@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,7 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["Clients", "ClientsRec"];
+const EXPORTED_SYMBOLS = ["Clients"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -44,28 +43,11 @@ const Cu = Components.utils;
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/ext/StringBundle.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/resource.js");
+Cu.import("resource://services-sync/stores.js");
+Cu.import("resource://services-sync/type_records/clients.js");
 Cu.import("resource://services-sync/util.js");
 
-const CLIENTS_TTL = 1814400; // 21 days
-const CLIENTS_TTL_REFRESH = 604800; // 7 days
-
-function ClientsRec(collection, id) {
-  CryptoWrapper.call(this, collection, id);
-}
-ClientsRec.prototype = {
-  __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Clients",
-  ttl: CLIENTS_TTL
-};
-
-Utils.deferGetSet(ClientsRec, "cleartext", ["name", "type", "commands"]);
-
-
-XPCOMUtils.defineLazyGetter(this, "Clients", function () {
-  return new ClientEngine();
-});
+Utils.lazy(this, "Clients", ClientEngine);
 
 function ClientEngine() {
   SyncEngine.call(this, "Clients");
@@ -80,13 +62,6 @@ ClientEngine.prototype = {
 
   // Always sync client data as it controls other sync behavior
   get enabled() true,
-
-  get lastRecordUpload() {
-    return Svc.Prefs.get(this.name + ".lastRecordUpload", 0);
-  },
-  set lastRecordUpload(value) {
-    Svc.Prefs.set(this.name + ".lastRecordUpload", Math.floor(value));
-  },
 
   // Aggregate some stats on the composition of clients on this account
   get stats() {
@@ -153,19 +128,14 @@ ClientEngine.prototype = {
       return localName;
 
     // Generate a client name if we don't have a useful one yet
-    let env = Cc["@mozilla.org/process/environment;1"]
-                .getService(Ci.nsIEnvironment);
-    let user = env.get("USER") || env.get("USERNAME") ||
-               Svc.Prefs.get("account") || Svc.Prefs.get("username");
+    let user = Svc.Env.get("USER") || Svc.Env.get("USERNAME") ||
+               Svc.Prefs.get("username");
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
     let app = brand.get("brandShortName");
+    let os = Cc["@mozilla.org/network/protocol;1?name=http"].
+             getService(Ci.nsIHttpProtocolHandler).oscpu;
 
-    let system = Cc["@mozilla.org/system-info;1"]
-                   .getService(Ci.nsIPropertyBag2).get("device") ||
-                 Cc["@mozilla.org/network/protocol;1?name=http"]
-                   .getService(Ci.nsIHttpProtocolHandler).oscpu;
-
-    return this.localName = Str.sync.get("client.name2", [user, app, system]);
+    return this.localName = Str.sync.get("client.name2", [user, app, os]);
   },
   set localName(value) Svc.Prefs.set("client.name", value),
 
@@ -176,15 +146,6 @@ ClientEngine.prototype = {
     if (this._store._remoteClients[id])
       return this._store._remoteClients[id].type == "mobile";
     return false;
-  },
-
-  _syncStartup: function _syncStartup() {
-    // Reupload new client record periodically.
-    if (Date.now() / 1000 - this.lastRecordUpload > CLIENTS_TTL_REFRESH) {
-      this._tracker.addChangedID(this.localID);
-      this.lastRecordUpload = Date.now() / 1000;
-    }
-    SyncEngine.prototype._syncStartup.call(this);
   },
 
   // Always process incoming items because they might have commands
@@ -198,27 +159,6 @@ ClientEngine.prototype = {
   _wipeClient: function _wipeClient() {
     SyncEngine.prototype._resetClient.call(this);
     this._store.wipe();
-  },
-
-  removeClientData: function removeClientData() {
-    let res = new Resource(this.engineURL + "/" + this.localID);
-    res.delete();
-  },
-
-  // Override the default behavior to delete bad records from the server.
-  handleHMACMismatch: function handleHMACMismatch(item, mayRetry) {
-    this._log.debug("Handling HMAC mismatch for " + item.id);
-    
-    let base = SyncEngine.prototype.handleHMACMismatch.call(this, item, mayRetry);
-    if (base != SyncEngine.kRecoveryStrategy.error)
-      return base;
-
-    // It's a bad client record. Save it to be deleted at the end of the sync.
-    this._log.debug("Bad client record detected. Scheduling for deletion.");
-    this._deleteId(item.id);
-
-    // Neither try again nor error; we're going to delete it.
-    return SyncEngine.kRecoveryStrategy.ignore;
   }
 };
 
@@ -238,17 +178,17 @@ ClientStore.prototype = {
       this._remoteClients[record.id] = record.cleartext;
   },
 
-  createRecord: function createRecord(id, collection) {
-    let record = new ClientsRec(collection, id);
+  createRecord: function createRecord(guid) {
+    let record = new ClientsRec();
 
     // Package the individual components into a record for the local client
-    if (id == Clients.localID) {
+    if (guid == Clients.localID) {
       record.name = Clients.localName;
       record.type = Clients.localType;
       record.commands = Clients.localCommands;
     }
     else
-      record.cleartext = this._remoteClients[id];
+      record.cleartext = this._remoteClients[guid];
 
     return record;
   },

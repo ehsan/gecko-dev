@@ -20,20 +20,7 @@
 
   function reloadAllExperiments() {
     Components.utils.import("resource://testpilot/modules/setup.js");
-    TestPilotSetup.reloadRemoteExperiments(function(success) {
-      let errors = TestPilotSetup._remoteExperimentLoader.getLoadErrors();
-      let str;
-      if (errors.length > 0) {
-        str = "<ul>";
-        for each (let errStr in errors) {
-          str += "<li>" + errStr + "</li>";          
-        }
-        str += "</ul>";
-      } else {
-        str = "All experiments reloaded, no errors.";
-      }
-      document.getElementById("debug").innerHTML = str;
-    });
+    TestPilotSetup.reloadRemoteExperiments();
   }
 
   function runUnitTests() {
@@ -94,7 +81,8 @@
     var path = codeStore.resolveModule(null, filename);
     var textArea = document.getElementById("experiment-code-area");
     codeStore.setLocalOverride(path, textArea.value);
-    reloadAllExperiments();
+    reloadAllExperiments(function(success) {
+      document.getElementById("debug").innerHTML = "Success? " + success;});
   }
 
   function showMetaData() {
@@ -183,34 +171,6 @@
     task.changeStatus(newStatus, false);
   }
 
-  function showIndexFileDropdown() {
-    var prefService  = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-    var prefName = "extensions.testpilot.indexFileName";
-    var selector = document.getElementById("index-file-selector");
-    if (prefService.getCharPref(prefName) == "index.json") {
-      selector.selectedIndex = 0;
-    } else {
-      selector.selectedIndex = 1;
-    }
-  }
-
-  function setSelectedIndexFile() {
-    var prefService  = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-    var prefName = "extensions.testpilot.indexFileName";
-    var selector = document.getElementById("index-file-selector");
-    var i = selector.selectedIndex;
-    prefService.setCharPref( prefName, selector.options[i].value );
-
-    // DELETE CACHED INDEX FILE
-    var file = Components.classes["@mozilla.org/file/directory_service;1"].
-                     getService(Components.interfaces.nsIProperties).
-                     get("ProfD", Components.interfaces.nsIFile);
-    file.append("TestPilotExperimentFiles");
-    file.append("index.json");
-    if (file.exists()) {
-      file.remove(false);
-    }
-  }
 
 </script>
 
@@ -220,7 +180,7 @@
 
 </head>
 
-<body onload="populateFileDropdown();showSelectedTaskStatus();showIndexFileDropdown();">
+<body onload="populateFileDropdown();showSelectedTaskStatus();">
 
 <fieldset>
 <p><select id="task-selector" onchange="showSelectedTaskStatus();"></select> Current Status = <span id="show-status-span"></span>.
@@ -248,11 +208,6 @@ or set it to
 <button onclick="reloadAllExperiments();">Reload All Experiments</button>
 <button onclick="remindMe();">Notify Me</button>
 <button onclick="testJarStore();">Test Jar Store</button>
-Index file: 
-<select id="index-file-selector" onchange="setSelectedIndexFile();">
-  <option value="index.json">index.json</option>
-  <option value="index-dev.json">index-dev.json</option>
-</select>
 </p>
 </fieldset>
 <p><span id="debug"></span></p>

@@ -42,11 +42,12 @@
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsHTMLContainerFrame.h"
+#include "nsIFontMetrics.h"
 #include "nsGenericHTMLElement.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsILoadGroup.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
@@ -60,12 +61,6 @@
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
 #include "nsContentUtils.h"
-
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
-
-#define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
 
 class nsBulletListener : public nsStubImageDecoderObserver
 {
@@ -186,30 +181,6 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
       mImageRequest = nsnull;
     }
   }
-
-#ifdef ACCESSIBILITY
-  // Update the list bullet accessible. If old style list isn't available then
-  // no need to update the accessible tree because it's not created yet.
-  if (aOldStyleContext) {
-    nsAccessibilityService* accService = nsIPresShell::AccService();
-    if (accService) {
-      const nsStyleList* oldStyleList = aOldStyleContext->PeekStyleList();
-      if (oldStyleList) {
-        bool hadBullet = oldStyleList->GetListStyleImage() ||
-            oldStyleList->mListStyleType != NS_STYLE_LIST_STYLE_NONE;
-
-        const nsStyleList* newStyleList = GetStyleList();
-        bool hasBullet = newStyleList->GetListStyleImage() ||
-            newStyleList->mListStyleType != NS_STYLE_LIST_STYLE_NONE;
-
-        if (hadBullet != hasBullet) {
-          accService->UpdateListBullet(PresContext()->GetPresShell(), mContent,
-                                       hasBullet);
-        }
-      }
-    }
-  }
-#endif
 }
 
 class nsDisplayBullet : public nsDisplayItem {
@@ -224,26 +195,17 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
-  }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
     aOutFrames->AppendElement(mFrame);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Bullet", TYPE_BULLET)
-
-  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return GetBounds(aBuilder);
-  }
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
-                            nsRenderingContext* aCtx)
+                            nsIRenderingContext* aCtx)
 {
   static_cast<nsBulletFrame*>(mFrame)->
     PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect);
@@ -264,7 +226,7 @@ nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
+nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
                            const nsRect& aDirtyRect)
 {
   const nsStyleList* myList = GetStyleList();
@@ -289,7 +251,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     }
   }
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.SetColor(GetVisitedDependentColor(eCSSProperty_color));
 
   mTextIsRTL = PR_FALSE;
@@ -314,9 +276,9 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
 
   case NS_STYLE_LIST_STYLE_SQUARE:
     {
-      nsRect rect(aPt, mRect.Size());
-      rect.Deflate(mPadding);
-
+      nsRect rect(mPadding.TopLeft() + aPt,
+                  nsSize(mRect.width - mPadding.LeftRight(),
+                         mRect.height - mPadding.TopBottom()));
       // Snap the height and the width of the rectangle to device pixels,
       // and then center the result within the original rectangle, so that
       // all square bullets at the same font size have the same visual
@@ -388,7 +350,8 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
     GetListItemText(*myList, text);
     aRenderingContext.SetFont(fm);
-    nscoord ascent = fm->MaxAscent();
+    nscoord ascent;
+    fm->GetMaxAscent(ascent);
     aRenderingContext.SetTextRunRTL(mTextIsRTL);
     aRenderingContext.DrawString(text, mPadding.left + aPt.x,
                                  mPadding.top + aPt.y + ascent);
@@ -500,20 +463,15 @@ static PRBool RomanToText(PRInt32 ordinal, nsString& result, const char* achars,
     romanPos--;
     addOn.SetLength(0);
     switch(*dp) {
-      case '3':
-        addOn.Append(PRUnichar(achars[romanPos]));
-        // FALLTHROUGH
-      case '2':
-        addOn.Append(PRUnichar(achars[romanPos]));
-        // FALLTHROUGH
-      case '1':
-        addOn.Append(PRUnichar(achars[romanPos]));
+      case '3':  addOn.Append(PRUnichar(achars[romanPos]));
+      case '2':  addOn.Append(PRUnichar(achars[romanPos]));
+      case '1':  addOn.Append(PRUnichar(achars[romanPos]));
         break;
       case '4':
         addOn.Append(PRUnichar(achars[romanPos]));
         // FALLTHROUGH
       case '5': case '6':
-      case '7': case '8':
+      case '7': case  '8':
         addOn.Append(PRUnichar(bchars[romanPos]));
         for(n=0;'5'+n<*dp;n++) {
           addOn.Append(PRUnichar(achars[romanPos]));
@@ -1309,7 +1267,7 @@ nsBulletFrame::GetListItemText(const nsStyleList& aListStyle,
 
 void
 nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
-                              nsRenderingContext *aRenderingContext,
+                              nsIRenderingContext *aRenderingContext,
                               nsHTMLReflowMetrics& aMetrics)
 {
   // Reset our padding.  If we need it, we'll set it below.
@@ -1317,8 +1275,6 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   
   const nsStyleList* myList = GetStyleList();
   nscoord ascent;
-
-  RemoveStateBits(BULLET_FRAME_IMAGE_LOADING);
 
   if (myList->GetListStyleImage() && mImageRequest) {
     PRUint32 status;
@@ -1332,8 +1288,6 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
       aMetrics.width = mComputedSize.width;
       aMetrics.ascent = aMetrics.height = mComputedSize.height;
 
-      AddStateBits(BULLET_FRAME_IMAGE_LOADING);
-
       return;
     }
   }
@@ -1346,7 +1300,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   // match the image size).
   mIntrinsicSize.SizeTo(0, 0);
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   nscoord bulletSize;
 
@@ -1360,7 +1314,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_DISC:
     case NS_STYLE_LIST_STYLE_CIRCLE:
     case NS_STYLE_LIST_STYLE_SQUARE:
-      ascent = fm->MaxAscent();
+      fm->GetMaxAscent(ascent);
       bulletSize = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                           NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
       mPadding.bottom = NSToCoordRound(float(ascent) / 8.0f);
@@ -1421,13 +1375,11 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ER:
     case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ET:
       GetListItemText(*myList, text);
-      aMetrics.height = fm->MaxHeight();
+      fm->GetHeight(aMetrics.height);
       aRenderingContext->SetFont(fm);
-      aMetrics.width =
-        nsLayoutUtils::GetStringWidth(this, aRenderingContext,
-                                      text.get(), text.Length());
+      aMetrics.width = nsLayoutUtils::GetStringWidth(this, aRenderingContext, text.get(), text.Length());
       aMetrics.width += mPadding.right;
-      aMetrics.ascent = fm->MaxAscent();
+      fm->GetMaxAscent(aMetrics.ascent);
       break;
   }
 }
@@ -1455,15 +1407,15 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
   // overflow their font-boxes. It'll do for now; to fix it for real, we really
   // should rewrite all the text-handling code here to use gfxTextRun (bug
   // 397294).
-  aMetrics.SetOverflowAreasToDesiredBounds();
-
+  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
+  
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return NS_OK;
 }
 
 /* virtual */ nscoord
-nsBulletFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsBulletFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nsHTMLReflowMetrics metrics;
   DISPLAY_MIN_WIDTH(this, metrics.width);
@@ -1472,7 +1424,7 @@ nsBulletFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsBulletFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsBulletFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nsHTMLReflowMetrics metrics;
   DISPLAY_PREF_WIDTH(this, metrics.width);
@@ -1516,10 +1468,9 @@ NS_IMETHODIMP nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
 
   // Handle animations
   aImage->SetAnimationMode(presContext->ImageAnimationMode());
-  // Ensure the animation (if any) is started. Note: There is no
-  // corresponding call to Decrement for this. This Increment will be
-  // 'cleaned up' by the Request when it is destroyed, but only then.
-  aRequest->IncrementAnimationConsumers();
+  // Ensure the animation (if any) is started.
+  aImage->StartAnimation();
+
   
   return NS_OK;
 }
@@ -1583,38 +1534,6 @@ nsBulletFrame::GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGro
     return;
 
   *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed
-}
-
-nscoord
-nsBulletFrame::GetBaseline() const
-{
-  nscoord ascent = 0, bottomPadding;
-  if (GetStateBits() & BULLET_FRAME_IMAGE_LOADING) {
-    ascent = GetRect().height;
-  } else {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-    const nsStyleList* myList = GetStyleList();
-    switch (myList->mListStyleType) {
-      case NS_STYLE_LIST_STYLE_NONE:
-        break;
-
-      case NS_STYLE_LIST_STYLE_DISC:
-      case NS_STYLE_LIST_STYLE_CIRCLE:
-      case NS_STYLE_LIST_STYLE_SQUARE:
-        ascent = fm->MaxAscent();
-        bottomPadding = NSToCoordRound(float(ascent) / 8.0f);
-        ascent = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
-                        NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
-        ascent += bottomPadding;
-        break;
-
-      default:
-        ascent = fm->MaxAscent();
-        break;
-    }
-  }
-  return ascent + GetUsedBorderAndPadding().top;
 }
 
 

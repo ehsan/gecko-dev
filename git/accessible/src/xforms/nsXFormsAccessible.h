@@ -77,16 +77,17 @@ public:
   // Returns value of instance node that xforms element is bound to.
   NS_IMETHOD GetValue(nsAString& aValue);
 
-  // nsAccessible
   // Returns value of child xforms 'hint' element.
-  virtual void Description(nsString& aDescription);
+  NS_IMETHOD GetDescription(nsAString& aDescription);
+
+  // nsAccessible
 
   // Returns value of child xforms 'label' element.
   virtual nsresult GetNameInternal(nsAString& aName);
 
   // Returns state of xforms element taking into account state of instance node
   // that it is bound to.
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   // Denies accessible nodes in anonymous content of xforms element by
   // always returning PR_FALSE value.
@@ -127,7 +128,7 @@ public:
   nsXFormsContainerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
   // Allows accessible nodes in anonymous content of xforms element by
   // always returning PR_TRUE value.
@@ -148,7 +149,7 @@ public:
   NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsAccessible
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -161,21 +162,12 @@ class nsXFormsSelectableAccessible : public nsXFormsEditableAccessible
 public:
   nsXFormsSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
-  // SelectAccessible
-  virtual bool IsSelect();
-  virtual already_AddRefed<nsIArray> SelectedItems();
-  virtual PRUint32 SelectedItemCount();
-  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
-  virtual bool IsItemSelected(PRUint32 aIndex);
-  virtual bool AddItemToSelection(PRUint32 aIndex);
-  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
-  virtual bool SelectAll();
-  virtual bool UnselectAll();
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLESELECTABLE
 
 protected:
-  nsIContent* GetItemByIndex(PRUint32* aIndex,
-                             nsAccessible* aAccessible = nsnull);
-
+  already_AddRefed<nsIDOMNode> GetItemByIndex(PRInt32 *aIndex,
+                                              nsIAccessible *aAccessible = nsnull);
   PRBool mIsSelect1Element;
 };
 
@@ -194,7 +186,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
 protected:
-  bool IsSelected();
+  PRBool IsItemSelected();
 };
 
 #endif

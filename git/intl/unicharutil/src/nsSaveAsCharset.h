@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsSaveAsCharset_h__
-#define nsSaveAsCharset_h__
-
 #include "nsIFactory.h"
 #include "nsString.h"
 #include "nsTArray.h"
@@ -103,4 +100,3 @@ protected:
   PRInt32        mCharsetListIndex;
 };
 
-#endif

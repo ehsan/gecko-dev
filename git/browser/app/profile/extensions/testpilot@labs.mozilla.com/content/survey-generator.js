@@ -1,40 +1,3 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Test Pilot.
- *
- * The Initial Developer of the Original Code is Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Jono X <jono@mozilla.com>
- *   Raymond Lee <raymond@appcoast.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-
 const MULTIPLE_CHOICE = 0;
 const CHECK_BOXES_WITH_FREE_ENTRY = 1;
 const SCALE = 2;
@@ -91,22 +54,12 @@ function onBuiltinSurveyLoad() {
       explanation.innerHTML = "";
     }
     drawSurveyForm(task, contentDiv);
-    // Allow surveys to define arbitrary page load handlers - call them
-    // after creating the rest of the page:
-    task.onPageLoad(task, document);
   }
 }
 
 function drawSurveyForm(task, contentDiv) {
+  let oldAnswers = task.oldAnswers;
   let surveyQuestions = task.surveyQuestions;
-
-  /* Fill form fields with old survey answers if available --
-   * but not if the survey version has changed since you stored them!!
-   * (bug 576482) */
-  let oldAnswers = null;
-  if (task.oldAnswers && (task.version == task.oldAnswers["version_number"])) {
-    oldAnswers = task.oldAnswers["answers"];
-  }
 
   let submitButton = document.getElementById("survey-submit");
   submitButton.setAttribute("style", "");
@@ -117,7 +70,7 @@ function drawSurveyForm(task, contentDiv) {
   for (let i = 0; i < surveyQuestions.length; i++) {
     let question = surveyQuestions[i].question;
     let explanation = surveyQuestions[i].explanation;
-    let elem, j;
+    let elem;
 
     elem = document.createElement("h3");
     elem.innerHTML = (i+1) + ". " + question;
@@ -132,7 +85,7 @@ function drawSurveyForm(task, contentDiv) {
     let choices = surveyQuestions[i].choices;
     switch (surveyQuestions[i].type) {
     case MULTIPLE_CHOICE:
-      for (j = 0; j < choices.length; j++) {
+      for (let j = 0; j < choices.length; j++) {
         let newRadio = document.createElement("input");
         newRadio.setAttribute("type", "radio");
         newRadio.setAttribute("name", "answer_to_" + i);
@@ -151,7 +104,7 @@ function drawSurveyForm(task, contentDiv) {
     case CHECK_BOXES_WITH_FREE_ENTRY:
       let checkboxName = "answer_to_" + i;
       // Check boxes:
-      for (j = 0; j < choices.length; j++) {
+      for (let j = 0; j < choices.length; j++) {
         let newCheck = document.createElement("input");
         newCheck.setAttribute("type", "checkbox");
         newCheck.setAttribute("name", checkboxName);
@@ -191,7 +144,7 @@ function drawSurveyForm(task, contentDiv) {
         inputBox.addEventListener(
           "keypress", function() {
             let elements = document.getElementsByName(checkboxName);
-            for (j = (elements.length - 1); j >= 0; j--) {
+            for (let j = (elements.length - 1); j >= 0; j--) {
               if (elements[j].value == freeformId) {
                 elements[j].checked = true;
                 break;
@@ -216,7 +169,7 @@ function drawSurveyForm(task, contentDiv) {
       let label = document.createElement("span");
       label.innerHTML = surveyQuestions[i].min_label;
       contentDiv.appendChild(label);
-      for (j = surveyQuestions[i].scale_minimum;
+      for (let j = surveyQuestions[i].scale_minimum;
            j <= surveyQuestions[i].scale_maximum;
            j++) {
         let newRadio = document.createElement("input");
@@ -246,7 +199,7 @@ function drawSurveyForm(task, contentDiv) {
       let freeformId = "freeform_" + i;
       let radioName = "answer_to_" + i;
 
-      for (j = 0; j < choices.length; j++) {
+      for (let j = 0; j < choices.length; j++) {
         let newRadio = document.createElement("input");
         newRadio.setAttribute("type", "radio");
         newRadio.setAttribute("name", radioName);

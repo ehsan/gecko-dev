@@ -42,7 +42,7 @@
  */
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsbool.h"
@@ -54,20 +54,17 @@
 #include "jsstr.h"
 #include "jsvector.h"
 
-#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
-#include "jsstrinlines.h"
 
 using namespace js;
 
 Class js_BooleanClass = {
     "Boolean",
-    JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
-    PropertyStub,         /* addProperty */
-    PropertyStub,         /* delProperty */
-    PropertyStub,         /* getProperty */
-    StrictPropertyStub,   /* setProperty */
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
+    PropertyStub,   /* addProperty */
+    PropertyStub,   /* delProperty */
+    PropertyStub,   /* getProperty */
+    PropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub
@@ -79,29 +76,29 @@ Class js_BooleanClass = {
 static JSBool
 bool_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    bool b;
-    if (!GetPrimitiveThis(cx, vp, &b))
-        return false;
-
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
+        return JS_FALSE;
     char buf[32];
-    JS_snprintf(buf, sizeof buf, "(new Boolean(%s))", JS_BOOLEAN_STR(b));
+    JS_snprintf(buf, sizeof buf, "(new %s(%s))",
+                js_BooleanClass.name,
+                JS_BOOLEAN_STR(primp->toBoolean()));
     JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
-        return false;
+        return JS_FALSE;
     vp->setString(str);
-    return true;
+    return JS_TRUE;
 }
 #endif
 
 static JSBool
 bool_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    bool b;
-    if (!GetPrimitiveThis(cx, vp, &b))
-        return false;
-
-    JSAtom *atom = cx->runtime->atomState.booleanAtoms[b ? 1 : 0];
-    JSString *str = atom;
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
+        return JS_FALSE;
+    JSAtom *atom = cx->runtime->atomState.booleanAtoms[primp->toBoolean() ? 1 : 0];
+    JSString *str = ATOM_TO_STRING(atom);
     if (!str)
         return JS_FALSE;
     vp->setString(str);
@@ -111,38 +108,36 @@ bool_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 bool_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    bool b;
-    if (!GetPrimitiveThis(cx, vp, &b))
-        return false;
-
-    vp->setBoolean(b);
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
+        return JS_FALSE;
+    *vp = *primp;
     return JS_TRUE;
 }
 
 static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  bool_toSource,  0, 0),
+    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_THISP_BOOLEAN),
 #endif
-    JS_FN(js_toString_str,  bool_toString,  0, 0),
-    JS_FN(js_valueOf_str,   bool_valueOf,   0, 0),
+    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
     JS_FS_END
 };
 
 static JSBool
-Boolean(JSContext *cx, uintN argc, Value *vp)
+Boolean(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
 {
-    Value *argv = vp + 2;
-    bool b = argc != 0 ? js_ValueToBoolean(argv[0]) : false;
+    Value bval;
 
-    if (IsConstructing(vp)) {
-        JSObject *obj = NewBuiltinClassInstance(cx, &js_BooleanClass);
-        if (!obj)
-            return false;
-        obj->setPrimitiveThis(BooleanValue(b));
-        vp->setObject(*obj);
-    } else {
-        vp->setBoolean(b);
-    }
+    if (argc != 0)
+        bval.setBoolean(!!js_ValueToBoolean(argv[0]));
+    else
+        bval.setBoolean(false);
+    if (!JS_IsConstructing(cx))
+        *rval = bval;
+    else
+        obj->setPrimitiveThis(bval);
     return true;
 }
 
@@ -162,14 +157,14 @@ js_InitBooleanClass(JSContext *cx, JSObject *obj)
 JSString *
 js_BooleanToString(JSContext *cx, JSBool b)
 {
-    return cx->runtime->atomState.booleanAtoms[b ? 1 : 0];
+    return ATOM_TO_STRING(cx->runtime->atomState.booleanAtoms[b ? 1 : 0]);
 }
 
 /* This function implements E-262-3 section 9.8, toString. */
-bool
-js::BooleanToStringBuffer(JSContext *cx, JSBool b, StringBuffer &sb)
+JSBool
+js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
 {
-    return b ? sb.append("true") : sb.append("false");
+    return b ? js_AppendLiteral(cb, "true") : js_AppendLiteral(cb, "false");
 }
 
 JSBool

@@ -52,6 +52,7 @@
 
 class nsEditor;
 class nsIDOMDragEvent;
+class nsPIDOMEventTarget;
 
 class nsEditorEventListener : public nsIDOMKeyListener,
                               public nsIDOMTextListener,
@@ -101,15 +102,15 @@ protected:
   PRBool CanDrop(nsIDOMDragEvent* aEvent);
   nsresult DragEnter(nsIDOMDragEvent* aDragEvent);
   nsresult DragOver(nsIDOMDragEvent* aDragEvent);
-  nsresult DragExit(nsIDOMDragEvent* aDragEvent);
+  nsresult DragLeave(nsIDOMDragEvent* aDragEvent);
   nsresult Drop(nsIDOMDragEvent* aDragEvent);
   nsresult DragGesture(nsIDOMDragEvent* aDragEvent);
-  void CleanupDragDropCaret();
   already_AddRefed<nsIPresShell> GetPresShell();
 
 protected:
   nsEditor* mEditor; // weak
   nsRefPtr<nsCaret> mCaret;
+  PRPackedBool mCaretDrawn;
   PRPackedBool mCommitText;
   PRPackedBool mInTransaction;
 };

@@ -47,9 +47,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-const FEEDWRITER_CID = Components.ID("{49bb6593-3aff-4eb3-a068-2712c28bd58e}");
-const FEEDWRITER_CONTRACTID = "@mozilla.org/browser/feeds/result-writer;1";
-
 function LOG(str) {
   var prefB = Cc["@mozilla.org/preferences-service;1"].
               getService(Ci.nsIPrefBranch);
@@ -262,7 +259,7 @@ FeedWriter.prototype = {
   },
 
   /**
-   * Calls doCommand for a given XUL element within the context of the
+   * Calls doCommand for a the given XUL element within the context of the
    * content document.
    *
    * @param aElement
@@ -1039,6 +1036,10 @@ FeedWriter.prototype = {
 
     Cu.evalInSandbox(codeStr, this._contentSandbox);
 
+    var historySvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                     getService(Ci.nsINavHistoryService);
+    historySvc.addObserver(this, false);
+
     // List of web handlers
     var wccr = Cc["@mozilla.org/embeddor.implemented/web-content-handler-registrar;1"].
                getService(Ci.nsIWebContentConverterService);
@@ -1055,7 +1056,15 @@ FeedWriter.prototype = {
         codeStr = "handlersMenuPopup.appendChild(menuItem);";
         Cu.evalInSandbox(codeStr, this._contentSandbox);
 
-        this._setFaviconForWebReader(handlers[i].uri, menuItem);
+        // For privacy reasons we cannot set the image attribute directly
+        // to the icon url, see Bug 358878
+        var uri = makeURI(handlers[i].uri);
+        if (!this._setFaviconForWebReader(uri, menuItem)) {
+          if (uri && /^https?/.test(uri.scheme)) {
+            var iconURL = makeURI(uri.prePath + "/favicon.ico");
+            this._faviconService.setAndLoadFaviconForPage(uri, iconURL, true);
+          }
+        }
       }
       this._contentSandbox.menuItem = null;
     }
@@ -1226,6 +1235,10 @@ FeedWriter.prototype = {
     this.__bundle = null;
     this._feedURI = null;
     this.__contentSandbox = null;
+
+    var historySvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                     getService(Ci.nsINavHistoryService);
+    historySvc.removeObserver(this);
   },
 
   _removeFeedFromCache: function FW__removeFeedFromCache() {
@@ -1345,47 +1358,76 @@ FeedWriter.prototype = {
   },
 
   /**
-   * Sets the icon for the given web-reader item in the readers menu.
-   * The icon is fetched and stored through the favicon service.
-   *
-   * @param aReaderUrl
-   *        the reader url.
+   * Sets the icon for the given web-reader item in the readers menu
+   * if the favicon-service has the necessary icon stored.
+   * @param aURI
+   *        the reader URI.
    * @param aMenuItem
    *        the reader item in the readers menulist.
-   *
-   * @note For privacy reasons we cannot set the image attribute directly
-   *       to the icon url.  See Bug 358878 for details.
+   * @return true if the icon was set, false otherwise.
    */
   _setFaviconForWebReader:
-  function FW__setFaviconForWebReader(aReaderUrl, aMenuItem) {
-    var readerURI = makeURI(aReaderUrl);
-    if (!/^https?/.test(readerURI.scheme)) {
-      // Don't try to get a favicon for non http(s) URIs.
-      return;
+  function FW__setFaviconForWebReader(aURI, aMenuItem) {
+    var faviconsSvc = this._faviconService;
+    var faviconURI = null;
+    try {
+      faviconURI = faviconsSvc.getFaviconForPage(aURI);
     }
-    var faviconURI = makeURI(readerURI.prePath + "/favicon.ico");
-    var self = this;
-    this._faviconService.setAndLoadFaviconForPage(readerURI, faviconURI, false,
-      function (aURI, aDataLen, aData, aMimeType) {
-        if (aDataLen > 0) {
-          var dataURL = "data:" + aMimeType + ";base64," +
-                        btoa(String.fromCharCode.apply(null, aData));
-          self._contentSandbox.menuItem = aMenuItem;
-          self._contentSandbox.dataURL = dataURL;
-          var codeStr = "menuItem.setAttribute('image', dataURL);";
-          Cu.evalInSandbox(codeStr, self._contentSandbox);
-          self._contentSandbox.menuItem = null;
-          self._contentSandbox.dataURL = null;
-        }
-      });
+    catch(ex) { }
+
+    if (faviconURI) {
+      var dataURL = faviconsSvc.getFaviconDataAsDataURL(faviconURI);
+      if (dataURL) {
+        this._contentSandbox.menuItem = aMenuItem;
+        this._contentSandbox.dataURL = dataURL;
+        var codeStr = "menuItem.setAttribute('image', dataURL);";
+        Cu.evalInSandbox(codeStr, this._contentSandbox);
+        this._contentSandbox.menuItem = null;
+        this._contentSandbox.dataURL = null;
+
+        return true;
+      }
+    }
+
+    return false;
   },
 
-  classID: FEEDWRITER_CID,
-  classInfo: XPCOMUtils.generateCI({classID: FEEDWRITER_CID,
-                                    contractID: FEEDWRITER_CONTRACTID,
-                                    interfaces: [Ci.nsIFeedWriter],
-                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFeedWriter,
+   // nsINavHistoryService
+   onPageChanged: function FW_onPageChanged(aURI, aWhat, aValue) {
+     if (aWhat == Ci.nsINavHistoryObserver.ATTRIBUTE_FAVICON) {
+       // Go through the readers menu and look for the corresponding
+       // reader menu-item for the page if any.
+       var spec = aURI.spec;
+       var possibleHandlers = this._handlersMenuList.firstChild.childNodes;
+       for (var i=0; i < possibleHandlers.length ; i++) {
+         if (possibleHandlers[i].getAttribute("webhandlerurl") == spec) {
+           this._setFaviconForWebReader(aURI, possibleHandlers[i]);
+           return;
+         }
+       }
+     }
+   },
+
+   onBeginUpdateBatch: function() { },
+   onEndUpdateBatch: function() { },
+   onVisit: function() { },
+   onTitleChanged: function() { },
+   onBeforeDeleteURI: function() { },
+   onDeleteURI: function() { },
+   onClearHistory: function() { },
+   onDeleteVisits: function() { },
+
+  // nsIClassInfo
+  getInterfaces: function FW_getInterfaces(countRef) {
+    var interfaces = [Ci.nsIFeedWriter, Ci.nsIClassInfo, Ci.nsISupports];
+    countRef.value = interfaces.length;
+    return interfaces;
+  },
+  getHelperForLanguage: function FW_getHelperForLanguage(language) null,
+  classID: Components.ID("{49bb6593-3aff-4eb3-a068-2712c28bd58e}"),
+  implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+  flags: Ci.nsIClassInfo.DOM_OBJECT,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFeedWriter, Ci.nsIClassInfo,
                                          Ci.nsIDOMEventListener, Ci.nsIObserver,
                                          Ci.nsINavHistoryObserver])
 };

@@ -20,8 +20,3 @@ script regress-410192.js
 script regress-450871-01.js
 script regress-450871-02.js
 script regress-462734-01.js
-script extensibility.js
-script regress-595207.js
-script json-stringify-dropping-xml-elements.js
-script stringify-xml.js
-script xml-as-proto.js

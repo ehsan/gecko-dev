@@ -94,7 +94,7 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
   // Initialize the Image. If we're using the one from the caller, we
   // require that it not be initialized.
   nsCString mimeType(aMimeType);
-  rv = image->Init(nsnull, mimeType.get(), "<unknown>", Image::INIT_FLAG_NONE);
+  rv = image->Init(nsnull, mimeType.get(), Image::INIT_FLAG_NONE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIInputStream> inStream = aInStr;
@@ -111,14 +111,14 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Send the source data to the Image. WriteToRasterImage always
-  // consumes everything it gets if it doesn't run out of memory.
+  // consumes everything it gets.
   PRUint32 bytesRead;
   rv = inStream->ReadSegments(RasterImage::WriteToRasterImage,
                               static_cast<void*>(image),
                               length, &bytesRead);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ABORT_IF_FALSE(bytesRead == length || image->HasError(),
-  "WriteToRasterImage should consume everything or the image must be in error!");
+  NS_ABORT_IF_FALSE(bytesRead == length, "WriteToRasterImage should consume everything!");
+
 
   // Let the Image know we've sent all the data
   rv = image->SourceDataComplete();

@@ -63,33 +63,13 @@ EXPORTS_mozilla/ipc = \
   RPCChannel.h \
   SharedMemory.h \
   SharedMemoryBasic.h \
-  SharedMemoryBasic_chromium.h \
   SharedMemorySysV.h \
   Shmem.h \
   SyncChannel.h \
   ScopedXREEmbed.h \
-  Transport.h \
   $(NULL)
 
-ifeq ($(OS_ARCH),WINNT) #{
-EXPORTS_mozilla/ipc += \
-  Transport_win.h \
-  $(NULL)
-else
-# POSIX
-EXPORTS_mozilla/ipc += \
-  Transport_posix.h \
-  $(NULL)
-endif #}
-
-ifeq ($(OS_TARGET),Android)
-# Android has its own,
-# almost-but-not-quite-compatible-with-POSIX-or-/dev/shm shared memory
-# impl.
-EXPORTS_mozilla/ipc += SharedMemoryBasic_android.h
-else
-EXPORTS_mozilla/ipc += SharedMemoryBasic_chromium.h
-endif #}
+ENABLE_CXX_EXCEPTIONS = 1
 
 CPPSRCS += \
   AsyncChannel.cpp \
@@ -97,32 +77,21 @@ CPPSRCS += \
   GeckoChildProcessHost.cpp \
   MessagePump.cpp \
   ProcessChild.cpp \
-  ProtocolUtils.cpp \
   RPCChannel.cpp \
   ScopedXREEmbed.cpp \
-  SharedMemory.cpp \
   Shmem.cpp \
   StringUtil.cpp \
   SyncChannel.cpp \
   $(NULL)
 
-ifeq ($(OS_ARCH),WINNT) #{
+ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += \
   SharedMemory_windows.cpp \
-  Transport_win.cpp \
   WindowsMessageLoop.cpp \
   $(NULL)
 else
-# POSIX
-CPPSRCS += \
-  SharedMemory_posix.cpp \
-  Transport_posix.cpp \
-  $(NULL)
-endif #}
-
-ifeq ($(OS_TARGET),Android)
-CPPSRCS += SharedMemoryBasic_android.cpp
-endif #}
+CPPSRCS += SharedMemory_posix.cpp
+endif
 
 include $(topsrcdir)/ipc/app/defs.mk
 DEFINES += -DMOZ_CHILD_PROCESS_NAME=\"$(MOZ_CHILD_PROCESS_NAME)\"

@@ -75,7 +75,6 @@ public:
   NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, PRBool *aCancel, PRBool *aHandled);
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult);
   NS_IMETHOD DocumentIsEmpty(PRBool *aDocumentIsEmpty);
-  NS_IMETHOD DocumentModified();
 
   // nsTextEditRules action id's
   enum 
@@ -161,8 +160,7 @@ protected:
   nsresult DidInsertText(nsISelection *aSelection, nsresult aResult);
   nsresult GetTopEnclosingPre(nsIDOMNode *aNode, nsIDOMNode** aOutPreNode);
 
-  nsresult WillInsertBreak(nsISelection *aSelection, PRBool *aCancel,
-                           PRBool *aHandled, PRInt32 aMaxLength);
+  nsresult WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBool *aHandled);
   nsresult DidInsertBreak(nsISelection *aSelection, nsresult aResult);
 
   nsresult WillInsert(nsISelection *aSelection, PRBool *aCancel);
@@ -206,6 +204,9 @@ protected:
 
   // helper functions
   
+  /** replaces newllines with breaks, if needed.  acts on doc portion in aRange */
+  nsresult ReplaceNewlines(nsIDOMRange *aRange);
+  
   /** creates a trailing break in the text doc if there is not one already */
   nsresult CreateTrailingBRIfNeeded();
   
@@ -217,8 +218,7 @@ protected:
   nsresult TruncateInsertionIfNeeded(nsISelection             *aSelection, 
                                      const nsAString          *aInString,
                                      nsAString                *aOutString,
-                                     PRInt32                   aMaxLength,
-                                     PRBool                   *aTruncated);
+                                     PRInt32                   aMaxLength);
 
   /** Remove IME composition text from password buffer */
   nsresult RemoveIMETextFromPWBuf(PRUint32 &aStart, nsAString *aIMEString);
@@ -232,8 +232,6 @@ protected:
                                      PRBool               *aCancel);
 
   nsresult HideLastPWInput();
-
-  nsresult CollapseSelectionToTrailingBRIfNeeded(nsISelection *aSelection);
 
   PRBool IsPasswordEditor() const
   {
@@ -373,4 +371,8 @@ class nsAutoLockListener
   PRPackedBool mOldState;
 };
 
+
+nsresult NS_NewTextEditRules(nsIEditRules** aInstancePtrResult);
+
 #endif //nsTextEditRules_h__
+

@@ -62,7 +62,7 @@ interface nsIDOMTextMetrics : nsISupports
   readonly attribute float width;
 };
 
-[scriptable, uuid(bf5e52a3-6ec1-4a6e-8364-9f9222ec8edb)]
+[scriptable, uuid(408be1b9-4d75-4873-b50b-9b651626e41d)]
 interface nsIDOMCanvasRenderingContext2D : nsISupports
 {
   // back-reference to the canvas element for which
@@ -106,9 +106,6 @@ enum CanvasMultiGetterType {
   [noscript] void setFillStyle_multi(in DOMString str, in nsISupports iface);
   [noscript] void getFillStyle_multi(out DOMString str, out nsISupports iface, out long type);
 
-  //attribute DOMString fillRule;
-  attribute DOMString mozFillRule; /* "evenodd", "nonzero" (default) */
-
   nsIDOMCanvasGradient createLinearGradient (in float x0, in float y0, in float x1, in float y1);
   nsIDOMCanvasGradient createRadialGradient(in float x0, in float y0, in float r0, in float x1, in float y1, in float r1);
   nsIDOMCanvasPattern createPattern(in nsIDOMHTMLElement image, in DOMString repetition);
@@ -137,7 +134,7 @@ enum CanvasMultiGetterType {
   void quadraticCurveTo(in float cpx, in float cpy, in float x, in float y);
   void bezierCurveTo(in float cp1x, in float cp1y, in float cp2x, in float cp2y, in float x, in float y);
   void arcTo(in float x1, in float y1, in float x2, in float y2, in float radius);
-  void arc(in float x, in float y, in float r, in float startAngle, in float endAngle, [optional] in boolean anticlockwise);
+  void arc(in float x, in float y, in float r, in float startAngle, in float endAngle, in boolean clockwise);
   void rect(in float x, in float y, in float w, in float h);
 
   void fill();
@@ -196,8 +193,7 @@ enum CanvasMultiGetterType {
   [noscript] void getImageData_explicit(in long x, in long y, in unsigned long width, in unsigned long height,
                                         [array, size_is(dataLen)] in octet dataPtr, in unsigned long dataLen);
   [noscript] void putImageData_explicit(in long x, in long y, in unsigned long width, in unsigned long height,
-                                        [array, size_is(dataLen)] in octet dataPtr, in unsigned long dataLen, in boolean hasDirtyRect,
-                                        in long dirtyX, in long dirtyY, in long dirtyWidth, in long dirtyHeight);
+                                        [array, size_is(dataLen)] in octet dataPtr, in unsigned long dataLen);
 
   // ImageData createImageData(in float w, in float h);
   // Note: this is basically script-only (and really, quickstub-only).  Native callers

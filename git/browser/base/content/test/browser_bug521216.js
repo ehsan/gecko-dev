@@ -39,9 +39,8 @@ var progressListener = {
     if (aBrowser == tab.linkedBrowser)
       record(arguments.callee.name);
   },
-  onLinkIconAvailable: function onLinkIconAvailable(aBrowser, aIconURL) {
-    if (aBrowser == tab.linkedBrowser &&
-        aIconURL == "about:logo")
+  onLinkIconAvailable: function onLinkIconAvailable(aBrowser) {
+    if (aBrowser == tab.linkedBrowser)
       record(arguments.callee.name);
   }
 };

@@ -54,8 +54,6 @@
     #define NANOJIT_SPARC
 #elif defined AVMPLUS_AMD64
     #define NANOJIT_X64
-#elif defined VMCFG_SH4
-    #define NANOJIT_SH4
 #elif defined AVMPLUS_MIPS
     #define NANOJIT_MIPS
 #else
@@ -90,7 +88,7 @@
 #endif
 #ifdef JS_VALGRIND
 #  include <valgrind/valgrind.h>
-#elif !defined(VALGRIND_DISCARD_TRANSLATIONS)
+#else
 #  define VALGRIND_DISCARD_TRANSLATIONS(addr, szB)
 #endif
 
@@ -101,9 +99,15 @@ namespace nanojit
      * START AVM bridging definitions
      * -------------------------------------------
      */
+    typedef avmplus::AvmCore AvmCore;
+
     const uint32_t MAXARGS = 8;
 
-    #if defined(_DEBUG)
+    #ifdef NJ_NO_VARIADIC_MACROS
+        inline void NanoAssertMsgf(bool a,const char *f,...) {}
+        inline void NanoAssertMsg(bool a,const char *m) {}
+        inline void NanoAssert(bool a) {}
+    #elif defined(_DEBUG)
 
         #define __NanoAssertMsgf(a, file_, line_, f, ...)  \
             if (!(a)) { \
@@ -147,7 +151,12 @@ namespace nanojit
     #define NJ_VERBOSE 1
 #endif
 
-#if defined(NJ_VERBOSE)
+#ifdef NJ_NO_VARIADIC_MACROS
+    #include <stdio.h>
+    #define verbose_outputf            if (_logc->lcbits & LC_Native) \
+                                        Assembler::outputf
+    #define verbose_only(x)            x
+#elif defined(NJ_VERBOSE)
     #include <stdio.h>
     #define verbose_outputf            if (_logc->lcbits & LC_Native) \
                                         Assembler::outputf
@@ -179,9 +188,6 @@ static inline bool isU32(uintptr_t i) {
 
 #define alignTo(x,s)        ((((uintptr_t)(x)))&~(((uintptr_t)s)-1))
 #define alignUp(x,s)        ((((uintptr_t)(x))+(((uintptr_t)s)-1))&~(((uintptr_t)s)-1))
-
-#define NJ_MIN(x, y) ((x) < (y) ? (x) : (y))
-#define NJ_MAX(x, y) ((x) > (y) ? (x) : (y))
 
 namespace nanojit
 {
@@ -326,15 +332,14 @@ namespace nanojit {
            and below, so that callers can use bits 16 and above for
            themselves. */
         // TODO: add entries for the writer pipeline
-        LC_FragProfile      = 1<<8, // collect per-frag usage counts
-        LC_Liveness         = 1<<7, // show LIR liveness analysis
-        LC_ReadLIR          = 1<<6, // as read from LirBuffer
-        LC_AfterSF          = 1<<5, // after StackFilter
-        LC_AfterDCE         = 1<<4, // after dead code elimination
-        LC_Bytes            = 1<<3, // byte values of native instruction
-        LC_Native           = 1<<2, // final native code
-        LC_RegAlloc         = 1<<1, // stuff to do with reg alloc
-        LC_Activation       = 1<<0  // enable printActivationState
+        LC_FragProfile = 1<<7, // collect per-frag usage counts
+        LC_Liveness    = 1<<6, // show LIR liveness analysis
+        LC_ReadLIR     = 1<<5, // as read from LirBuffer
+        LC_AfterSF     = 1<<4, // after StackFilter
+        LC_AfterDCE    = 1<<3, // after dead code elimination
+        LC_Native      = 1<<2, // final native code
+        LC_RegAlloc    = 1<<1, // stuff to do with reg alloc
+        LC_Activation  = 1<<0  // enable printActivationState
     };
 
     class LogControl

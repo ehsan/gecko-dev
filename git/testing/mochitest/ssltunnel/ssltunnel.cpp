@@ -51,15 +51,12 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <stdarg.h>
 #include "prinit.h"
 #include "prerror.h"
-#include "prenv.h"
 #include "prio.h"
 #include "prnetdb.h"
 #include "prtpool.h"
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nss.h"
 #include "pk11func.h"
 #include "key.h"
@@ -73,68 +70,6 @@ using std::vector;
 #define IS_DELIM(m, c)          ((m)[(c) >> 3] & (1 << ((c) & 7)))
 #define SET_DELIM(m, c)         ((m)[(c) >> 3] |= (1 << ((c) & 7)))
 #define DELIM_TABLE_SIZE        32
-
-// You can set the level of logging by env var SSLTUNNEL_LOG_LEVEL=n, where n
-// is 0 through 3.  The default is 1, INFO level logging.
-enum LogLevel {
-  LEVEL_DEBUG = 0,
-  LEVEL_INFO = 1,
-  LEVEL_ERROR = 2,
-  LEVEL_SILENT = 3
-} gLogLevel, gLastLogLevel;
-
-#define _LOG_OUTPUT(level, func, params) \
-PR_BEGIN_MACRO \
-  if (level >= gLogLevel) { \
-    gLastLogLevel = level; \
-    func params;\
-  } \
-PR_END_MACRO
-
-// The most verbose output
-#define LOG_DEBUG(params) \
-  _LOG_OUTPUT(LEVEL_DEBUG, printf, params)
-
-// Top level informative messages
-#define LOG_INFO(params) \
-  _LOG_OUTPUT(LEVEL_INFO, printf, params)
-
-// Serious errors that must be logged always until completely gag
-#define LOG_ERROR(params) \
-  _LOG_OUTPUT(LEVEL_ERROR, eprintf, params)
-
-// Same as LOG_ERROR, but when logging is set to LEVEL_DEBUG, the message 
-// will be put to the stdout instead of stderr to keep continuity with other 
-// LOG_DEBUG message output
-#define LOG_ERRORD(params) \
-PR_BEGIN_MACRO \
-  if (gLogLevel == LEVEL_DEBUG) \
-    _LOG_OUTPUT(LEVEL_ERROR, printf, params); \
-  else \
-    _LOG_OUTPUT(LEVEL_ERROR, eprintf, params); \
-PR_END_MACRO
-
-// If there is any output written between LOG_BEGIN_BLOCK() and
-// LOG_END_BLOCK() then a new line will be put to the proper output (out/err)
-#define LOG_BEGIN_BLOCK() \
-  gLastLogLevel = LEVEL_SILENT;
-
-#define LOG_END_BLOCK() \
-PR_BEGIN_MACRO \
-  if (gLastLogLevel == LEVEL_ERROR) \
-    LOG_ERROR(("\n")); \
-  if (gLastLogLevel < LEVEL_ERROR) \
-    _LOG_OUTPUT(gLastLogLevel, printf, ("\n")); \
-PR_END_MACRO
-
-int eprintf(const char* str, ...)
-{
-  va_list ap;
-  va_start(ap, str);
-  int result = vfprintf(stderr, str, ap);
-  va_end(ap);
-  return result;
-}
 
 // Copied from nsCRT
 char* strtok2(char* string, const char* delims, char* *newStr)
@@ -232,8 +167,8 @@ struct relayBuffer
   }
 
   bool empty() { return bufferhead == buffertail; }
-  size_t areafree() { return bufferend - buffertail; }
-  size_t margin() { return areafree() + BUF_MARGIN; }
+  size_t free() { return bufferend - buffertail; }
+  size_t margin() { return free() + BUF_MARGIN; }
   size_t present() { return buffertail - bufferhead; }
 };
 
@@ -329,19 +264,19 @@ bool ReadConnectRequest(server_info_t* server_info,
     client_auth_option* clientauth, string& host)
 {
   if (buffer.present() < 4) {
-    LOG_DEBUG((" !! only %d bytes present in the buffer", (int)buffer.present()));
+    printf(" !! only %d bytes present in the buffer", (int)buffer.present());
     return false;
   }
   if (strncmp(buffer.buffertail-4, "\r\n\r\n", 4)) {
-    LOG_ERRORD((" !! request is not tailed with CRLFCRLF but with %x %x %x %x", 
-               *(buffer.buffertail-4),
-               *(buffer.buffertail-3),
-               *(buffer.buffertail-2),
-               *(buffer.buffertail-1)));
+    printf(" !! request is not tailed with CRLFCRLF but with %x %x %x %x", 
+           *(buffer.buffertail-4),
+           *(buffer.buffertail-3),
+           *(buffer.buffertail-2),
+           *(buffer.buffertail-1));
     return false;
   }
 
-  LOG_DEBUG((" parsing initial connect request, dump:\n%.*s\n", (int)buffer.present(), buffer.bufferhead));
+  printf(" parsing initial connect request, dump:\n%.*s\n", (int)buffer.present(), buffer.bufferhead);
 
   *result = 400;
 
@@ -349,11 +284,11 @@ bool ReadConnectRequest(server_info_t* server_info,
   char* _caret;
   token = strtok2(buffer.bufferhead, " ", &_caret);
   if (!token) {
-    LOG_ERRORD((" no space found"));
+    printf(" no space found");
     return true;
   }
   if (strcmp(token, "CONNECT")) {
-    LOG_ERRORD((" not CONNECT request but %s", token));
+    printf(" not CONNECT request but %s", token);
     return true;
   }
 
@@ -373,7 +308,7 @@ bool ReadConnectRequest(server_info_t* server_info,
 
   token = strtok2(_caret, "/", &_caret);
   if (strcmp(token, "HTTP")) {  
-    LOG_ERRORD((" not tailed with HTTP but with %s", token));
+    printf(" not tailed with HTTP but with %s", token);
     return true;
   }
 
@@ -389,26 +324,26 @@ bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, string &cer
   AutoCert cert(PK11_FindCertFromNickname(
       certnick, NULL));
   if (!cert) {
-    LOG_ERROR(("Failed to find cert %s\n", certnick));
+    fprintf(stderr, "Failed to find cert %s\n", certnick);
     return false;
   }
 
   AutoKey privKey(PK11_FindKeyByAnyCert(cert, NULL));
   if (!privKey) {
-    LOG_ERROR(("Failed to find private key\n"));
+    fprintf(stderr, "Failed to find private key\n");
     return false;
   }
 
   PRFileDesc* ssl_socket = SSL_ImportFD(NULL, socket);
   if (!ssl_socket) {
-    LOG_ERROR(("Error importing SSL socket\n"));
+    fprintf(stderr, "Error importing SSL socket\n");
     return false;
   }
 
   SSLKEAType certKEA = NSS_FindCertKEAType(cert);
   if (SSL_ConfigSecureServer(ssl_socket, cert, privKey, certKEA)
       != SECSuccess) {
-    LOG_ERROR(("Error configuring SSL server socket\n"));
+    fprintf(stderr, "Error configuring SSL server socket\n");
     return false;
   }
 
@@ -428,7 +363,7 @@ bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, string &cer
 }
 
 /**
- * This function examines the buffer for a Sec-WebSocket-Location: field, 
+ * This function examines the buffer for a S5ec-WebSocket-Location: field, 
  * and if it's present, it replaces the hostname in that field with the
  * value in the server's original_host field.  This function works
  * in the reverse direction as AdjustWebSocketHost(), replacing the real
@@ -501,8 +436,6 @@ bool AdjustWebSocketHost(relayBuffer& buffer, connection_info_t *ci)
   h1 += strlen(HEADER_UPGRADE);
   h1 += strspn(h1, " \t");
   char* h2 = strstr(h1, "WebSocket\r\n");
-  if (!h2) h2 = strstr(h1, "websocket\r\n");
-  if (!h2) h2 = strstr(h1, "Websocket\r\n");
   if (!h2)
     return false;
 
@@ -547,7 +480,7 @@ bool AdjustRequestURI(relayBuffer& buffer, string *host)
   // Cannot use strnchr so add a null char at the end. There is always some space left
   // because we preserve a margin.
   buffer.buffertail[1] = '\0';
-  LOG_DEBUG((" incoming request to adjust:\n%s\n", buffer.bufferhead));
+  printf(" incoming request to adjust:\n%s\n", buffer.bufferhead);
 
   char *token, *path;
   path = strchr(buffer.bufferhead, ' ') + 1;
@@ -612,10 +545,10 @@ void HandleConnection(void* data)
   client_auth_option clientAuth;
   string fullHost;
 
-  LOG_DEBUG(("SSLTUNNEL(%p)): incoming connection csock(0)=%p, ssock(1)=%p\n",
+  printf("SSLTUNNEL(%p): incoming connection csock(0)=%p, ssock(1)=%p\n",
          static_cast<void*>(data),
          static_cast<void*>(ci->client_sock),
-         static_cast<void*>(other_sock)));
+         static_cast<void*>(other_sock));
   if (other_sock) 
   {
     PRInt32 numberOfSockets = 1;
@@ -644,17 +577,17 @@ void HandleConnection(void* data)
     {
       sockets[0].in_flags |= PR_POLL_EXCEPT;
       sockets[1].in_flags |= PR_POLL_EXCEPT;
-      LOG_DEBUG(("SSLTUNNEL(%p)): polling flags csock(0)=%c%c, ssock(1)=%c%c\n",
-                 static_cast<void*>(data),
-                 sockets[0].in_flags & PR_POLL_READ  ? 'R' : '-',
-                 sockets[0].in_flags & PR_POLL_WRITE ? 'W' : '-',
-                 sockets[1].in_flags & PR_POLL_READ  ? 'R' : '-',
-                 sockets[1].in_flags & PR_POLL_WRITE ? 'W' : '-'));
+      printf("SSLTUNNEL(%p): polling flags csock(0)=%c%c, ssock(1)=%c%c\n",
+             static_cast<void*>(data),
+             sockets[0].in_flags & PR_POLL_READ  ? 'R' : '-',
+             sockets[0].in_flags & PR_POLL_WRITE ? 'W' : '-',
+             sockets[1].in_flags & PR_POLL_READ  ? 'R' : '-',
+             sockets[1].in_flags & PR_POLL_WRITE ? 'W' : '-');
       PRInt32 pollStatus = PR_Poll(sockets, numberOfSockets, PR_MillisecondsToInterval(1000));
       if (pollStatus < 0)
       {
-        LOG_DEBUG(("SSLTUNNEL(%p)): pollStatus=%d, exiting\n",
-                   static_cast<void*>(data), pollStatus));
+        printf("SSLTUNNEL(%p): pollStatus=%d, exiting\n",
+               static_cast<void*>(data), pollStatus);
         client_error = true;
         break;
       }
@@ -662,8 +595,8 @@ void HandleConnection(void* data)
       if (pollStatus == 0)
       {
         // timeout
-        LOG_DEBUG(("SSLTUNNEL(%p)): poll timeout, looping\n",
-                   static_cast<void*>(data)));
+        printf("SSLTUNNEL(%p): poll timeout, looping\n",
+               static_cast<void*>(data));
         continue;
       }
 
@@ -675,16 +608,15 @@ void HandleConnection(void* data)
         PRInt16 &in_flags2 = sockets[s2].in_flags;
         sockets[s].out_flags = 0;
 
-        LOG_BEGIN_BLOCK();
-        LOG_DEBUG(("SSLTUNNEL(%p)): %csock(%d)=%p out_flags=%d",
-                   static_cast<void*>(data),
-                   s == 0 ? 'c' : 's',
-                   s,
-                   static_cast<void*>(sockets[s].fd),
-                   out_flags));
+        printf("SSLTUNNEL(%p): %csock(%d)=%p out_flags=%d",
+               static_cast<void*>(data),
+               s == 0 ? 'c' : 's',
+               s,
+               static_cast<void*>(sockets[s].fd),
+               out_flags);
         if (out_flags & (PR_POLL_EXCEPT | PR_POLL_ERR | PR_POLL_HUP))
         {
-          LOG_DEBUG((" :exception\n"));
+          printf(" :exception\n");
           client_error = true;
           socketErrorState[s] = PR_TRUE;
           // We got a fatal error state on the socket. Clear the output buffer
@@ -694,21 +626,21 @@ void HandleConnection(void* data)
           continue;
         } // PR_POLL_EXCEPT, PR_POLL_ERR, PR_POLL_HUP handling
 
-        if (out_flags & PR_POLL_READ && !buffers[s].areafree())
+        if (out_flags & PR_POLL_READ && !buffers[s].free())
         {
-           LOG_DEBUG((" no place in read buffer but got read flag, dropping it now!"));
+           printf(" no place in read buffer but got read flag, dropping it now!");
            in_flags &= ~PR_POLL_READ;
         }
 
-        if (out_flags & PR_POLL_READ && buffers[s].areafree())
+        if (out_flags & PR_POLL_READ && buffers[s].free())
         {
-          LOG_DEBUG((" :reading"));
+          printf(" :reading");
           PRInt32 bytesRead = PR_Recv(sockets[s].fd, buffers[s].buffertail, 
-              buffers[s].areafree(), 0, PR_INTERVAL_NO_TIMEOUT);
+              buffers[s].free(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesRead == 0)
           {
-            LOG_DEBUG((" socket gracefully closed"));
+            printf(" socket gracefully closed");
             client_done = true;
             in_flags &= ~PR_POLL_READ;
           }
@@ -716,7 +648,7 @@ void HandleConnection(void* data)
           {
             if (PR_GetError() != PR_WOULD_BLOCK_ERROR)
             {
-              LOG_DEBUG((" error=%d", PR_GetError()));
+              printf(" error=%d", PR_GetError());
               // We are in error state, indicate that the connection was 
               // not closed gracefully
               client_error = true;
@@ -725,7 +657,7 @@ void HandleConnection(void* data)
               buffers[s2].bufferhead = buffers[s2].buffertail = buffers[s2].buffer;
             }
             else
-              LOG_DEBUG((" would block"));
+              printf(" would block");
           }
           else
           {
@@ -733,12 +665,12 @@ void HandleConnection(void* data)
             // throw this data away and continue loop
             if (socketErrorState[s2])
             {
-              LOG_DEBUG((" have read but other socket is in error state\n"));
+              printf(" have read but other socket is in error state\n");
               continue;
             }
 
             buffers[s].buffertail += bytesRead;
-            LOG_DEBUG((", read %d bytes", bytesRead));
+            printf(", read %d bytes", bytesRead);
 
             // We have to accept and handle the initial CONNECT request here
             PRInt32 response;
@@ -774,7 +706,7 @@ void HandleConnection(void* data)
               // Store response to the oposite buffer
               if (response != 200)
               {
-                LOG_ERRORD((" could not read the connect request, closing connection with %d", response));
+                printf(" could not read the connect request, closing connection with %d", response);
                 client_done = true;
                 sprintf(buffers[s2].buffer, "HTTP/1.1 %d ERROR\r\nConnection: close\r\n\r\n", response);
                 buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
@@ -784,15 +716,15 @@ void HandleConnection(void* data)
               strcpy(buffers[s2].buffer, "HTTP/1.1 200 Connected\r\nConnection: keep-alive\r\n\r\n");
               buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
 
-              LOG_DEBUG((" accepted CONNECT request, connected to the server, sending OK to the client\n"));
+              printf(" accepted CONNECT request, connected to the server, sending OK to the client\n");
               // Send the response to the client socket
               break;
             } // end of CONNECT handling
 
-            if (!buffers[s].areafree())
+            if (!buffers[s].free())
             {
               // Do not poll for read when the buffer is full
-              LOG_DEBUG((" no place in our read buffer, stop reading"));
+              printf(" no place in our read buffer, stop reading");
               in_flags &= ~PR_POLL_READ;
             }
 
@@ -815,11 +747,11 @@ void HandleConnection(void* data)
                     addr = &websocket_server;
                   if (!ConnectSocket(other_sock, addr, connect_timeout))
                   {
-                    LOG_ERRORD((" could not open connection to the real server\n"));
+                    printf(" could not open connection to the real server\n");
                     client_error = true;
                     break;
                   }
-                  LOG_DEBUG(("\n connected to remote server\n"));
+                  printf("\n connected to remote server\n");
                   numberOfSockets = 2;
                 }
               }
@@ -830,23 +762,23 @@ void HandleConnection(void* data)
               }
 
               in_flags2 |= PR_POLL_WRITE;
-              LOG_DEBUG((" telling the other socket to write"));
+              printf(" telling the other socket to write");
             }
             else
-              LOG_DEBUG((" we have something for the other socket to write, but ssl has not been administered on it"));
+              printf(" we have something for the other socket to write, but ssl has not been administered on it");
           }
         } // PR_POLL_READ handling
 
         if (out_flags & PR_POLL_WRITE)
         {
-          LOG_DEBUG((" :writing"));
+          printf(" :writing");
           PRInt32 bytesWrite = PR_Send(sockets[s].fd, buffers[s2].bufferhead, 
               buffers[s2].present(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesWrite < 0)
           {
             if (PR_GetError() != PR_WOULD_BLOCK_ERROR) {
-              LOG_DEBUG((" error=%d", PR_GetError()));
+              printf(" error=%d", PR_GetError());
               client_error = true;
               socketErrorState[s] = PR_TRUE;
               // We got a fatal error while writting the buffer. Clear it to break
@@ -854,56 +786,56 @@ void HandleConnection(void* data)
               buffers[s2].bufferhead = buffers[s2].buffertail = buffers[s2].buffer;
             }
             else
-              LOG_DEBUG((" would block"));
+              printf(" would block");
           }
           else
           {
-            LOG_DEBUG((", written %d bytes", bytesWrite));
+            printf(", written %d bytes", bytesWrite);
             buffers[s2].buffertail[1] = '\0';
-            LOG_DEBUG((" dump:\n%.*s\n", bytesWrite, buffers[s2].bufferhead));
+            printf(" dump:\n%.*s\n", bytesWrite, buffers[s2].bufferhead);
             
             buffers[s2].bufferhead += bytesWrite;
             if (buffers[s2].present())
             {
-              LOG_DEBUG((" still have to write %d bytes", (int)buffers[s2].present()));
+              printf(" still have to write %d bytes", (int)buffers[s2].present());
               in_flags |= PR_POLL_WRITE;
             }              
             else
             {
               if (!ssl_updated)
               {
-                LOG_DEBUG((" proxy response sent to the client"));
+                printf(" proxy response sent to the client");
                 // Proxy response has just been writen, update to ssl
                 ssl_updated = true;
                 if (!ci->http_proxy_only && 
                     !ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, clientAuth))
                 {
-                  LOG_ERRORD((" failed to config server socket\n"));
+                  printf(" but failed to config server socket\n");
                   client_error = true;
                   break;
                 }
 
-                LOG_DEBUG((" client socket updated to SSL"));
+                printf(" client socket updated to SSL");
               } // sslUpdate
 
-              LOG_DEBUG((" dropping our write flag and setting other socket read flag"));
+              printf(" dropping our write flag and setting other socket read flag");
               in_flags &= ~PR_POLL_WRITE;
               in_flags2 |= PR_POLL_READ;
               buffers[s2].compact();
             }
           }
         } // PR_POLL_WRITE handling
-        LOG_END_BLOCK(); // end the log
+        printf("\n"); // end the log
       } // for...
     } // while, poll
   }
   else
     client_error = true;
 
-  LOG_DEBUG(("SSLTUNNEL(%p)): exiting root function for csock=%p, ssock=%p\n",
-             static_cast<void*>(data),
-             static_cast<void*>(ci->client_sock),
-             static_cast<void*>(other_sock)));
+  printf("SSLTUNNEL(%p): exiting root function for csock=%p, ssock=%p\n",
+         static_cast<void*>(data),
+         static_cast<void*>(ci->client_sock),
+         static_cast<void*>(other_sock));
   if (!client_error)
     PR_Shutdown(ci->client_sock, PR_SHUTDOWN_SEND);
   PR_Close(ci->client_sock);
@@ -924,7 +856,7 @@ void StartServer(void* data)
   //TODO: select ciphers?
   AutoFD listen_socket(PR_NewTCPSocket());
   if (!listen_socket) {
-    LOG_ERROR(("failed to create socket\n"));
+    fprintf(stderr, "failed to create socket\n");
     SignalShutdown();
     return;
   }
@@ -939,19 +871,19 @@ void StartServer(void* data)
   PRNetAddr server_addr;
   PR_InitializeNetAddr(PR_IpAddrAny, si->listen_port, &server_addr);
   if (PR_Bind(listen_socket, &server_addr) != PR_SUCCESS) {
-    LOG_ERROR(("failed to bind socket\n"));
+    fprintf(stderr, "failed to bind socket\n");
     SignalShutdown();
     return;
   }
 
   if (PR_Listen(listen_socket, 1) != PR_SUCCESS) {
-    LOG_ERROR(("failed to listen on socket\n"));
+    fprintf(stderr, "failed to listen on socket\n");
     SignalShutdown();
     return;
   }
 
-  LOG_INFO(("Server listening on port %d with cert %s\n", si->listen_port,
-         si->cert_nickname.c_str()));
+  printf("Server listening on port %d with cert %s\n", si->listen_port,
+         si->cert_nickname.c_str());
 
   while (!shutdown_server) {
     connection_info_t* ci = new connection_info_t();
@@ -1017,13 +949,13 @@ int processConfigLine(char* configLine)
   {
     char* ipstring = strtok2(_caret, ":", &_caret);
     if (PR_StringToNetAddr(ipstring, &websocket_server) != PR_SUCCESS) {
-      LOG_ERROR(("Invalid IP address in proxy config: %s\n", ipstring));
+      fprintf(stderr, "Invalid IP address in proxy config: %s\n", ipstring);
       return 1;
     }
     char* remoteport = strtok2(_caret, ":", &_caret);
     int port = atoi(remoteport);
     if (port <= 0) {
-      LOG_ERROR(("Invalid remote port in proxy config: %s\n", remoteport));
+      fprintf(stderr, "Invalid remote port in proxy config: %s\n", remoteport);
       return 1;
     }
     websocket_server.inet.port = PR_htons(port);
@@ -1035,13 +967,13 @@ int processConfigLine(char* configLine)
   {
     char* ipstring = strtok2(_caret, ":", &_caret);
     if (PR_StringToNetAddr(ipstring, &remote_addr) != PR_SUCCESS) {
-      LOG_ERROR(("Invalid remote IP address: %s\n", ipstring));
+      fprintf(stderr, "Invalid remote IP address: %s\n", ipstring);
       return 1;
     }
     char* serverportstring = strtok2(_caret, ":", &_caret);
     int port = atoi(serverportstring);
     if (port <= 0) {
-      LOG_ERROR(("Invalid remote port: %s\n", serverportstring));
+      fprintf(stderr, "Invalid remote port: %s\n", serverportstring);
       return 1;
     }
     remote_addr.inet.port = PR_htons(port);
@@ -1065,7 +997,7 @@ int processConfigLine(char* configLine)
 
     int port = atoi(serverportstring);
     if (port <= 0) {
-      LOG_ERROR(("Invalid port specified: %s\n", serverportstring));
+      fprintf(stderr, "Invalid port specified: %s\n", serverportstring);
       return 1;
     }
 
@@ -1081,7 +1013,7 @@ int processConfigLine(char* configLine)
 
       PLHashEntry* entry = PL_HashTableAdd(existingServer->host_cert_table, hostname_copy, certnick_copy);
       if (!entry) {
-        LOG_ERROR(("Out of memory"));
+        fprintf(stderr, "Out of memory");
         return 1;
       }
     }
@@ -1093,13 +1025,13 @@ int processConfigLine(char* configLine)
       server.host_cert_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, PL_CompareStrings, NULL, NULL);
       if (!server.host_cert_table)
       {
-        LOG_ERROR(("Internal, could not create hash table\n"));
+        fprintf(stderr, "Internal, could not create hash table\n");
         return 1;
       }
       server.host_clientauth_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, ClientAuthValueComparator, NULL, NULL);
       if (!server.host_clientauth_table)
       {
-        LOG_ERROR(("Internal, could not create hash table\n"));
+        fprintf(stderr, "Internal, could not create hash table\n");
         return 1;
       }
       servers.push_back(server);
@@ -1116,7 +1048,7 @@ int processConfigLine(char* configLine)
 
     int port = atoi(serverportstring);
     if (port <= 0) {
-      LOG_ERROR(("Invalid port specified: %s\n", serverportstring));
+      fprintf(stderr, "Invalid port specified: %s\n", serverportstring);
       return 1;
     }
 
@@ -1125,7 +1057,7 @@ int processConfigLine(char* configLine)
       char* authoptionstring = strtok2(_caret, ":", &_caret);
       client_auth_option* authoption = new client_auth_option;
       if (!authoption) {
-        LOG_ERROR(("Out of memory"));
+        fprintf(stderr, "Out of memory");
         return 1;
       }
 
@@ -1137,7 +1069,7 @@ int processConfigLine(char* configLine)
         *authoption = caNone;
       else
       {
-        LOG_ERROR(("Incorrect client auth option modifier for host '%s'", hostname));
+        fprintf(stderr, "Incorrect client auth option modifier for host '%s'", hostname);
         return 1;
       }
 
@@ -1145,7 +1077,7 @@ int processConfigLine(char* configLine)
 
       char *hostname_copy = new char[strlen(hostname)+strlen(hostportstring)+2];
       if (!hostname_copy) {
-        LOG_ERROR(("Out of memory"));
+        fprintf(stderr, "Out of memory");
         return 1;
       }
 
@@ -1155,13 +1087,13 @@ int processConfigLine(char* configLine)
 
       PLHashEntry* entry = PL_HashTableAdd(existingServer->host_clientauth_table, hostname_copy, authoption);
       if (!entry) {
-        LOG_ERROR(("Out of memory"));
+        fprintf(stderr, "Out of memory");
         return 1;
       }
     }
     else
     {
-      LOG_ERROR(("Server on port %d for client authentication option is not defined, use 'listen' option first", port));
+      fprintf(stderr, "Server on port %d for client authentication option is not defined, use 'listen' option first", port);
       return 1;
     }
 
@@ -1175,7 +1107,7 @@ int processConfigLine(char* configLine)
     return 0;
   }
 
-  LOG_ERROR(("Error: keyword \"%s\" unexpected\n", keyword));
+  printf("Error: keyword \"%s\" unexpected\n", keyword);
   return 1;
 }
 
@@ -1209,13 +1141,13 @@ int parseConfigFile(const char* filePath)
   // Check mandatory items
   if (nssconfigdir.empty())
   {
-    LOG_ERROR(("Error: missing path to NSS certification database\n,use certdbdir:<path> in the config file\n"));
+    printf("Error: missing path to NSS certification database\n,use certdbdir:<path> in the config file\n");
     return 1;
   }
 
   if (any_host_spec_config && !do_http_proxy)
   {
-    LOG_ERROR(("Warning: any host-specific configurations are ignored, add httpproxy:1 to allow them\n"));
+    printf("Warning: any host-specific configurations are ignored, add httpproxy:1 to allow them\n");
   }
 
   return 0;
@@ -1238,10 +1170,6 @@ PRIntn freeClientAuthHashItems(PLHashEntry *he, PRIntn i, void *arg)
 int main(int argc, char** argv)
 {
   const char* configFilePath;
-  
-  const char* logLevelEnv = PR_GetEnv("SSLTUNNEL_LOG_LEVEL");
-  gLogLevel = logLevelEnv ? (LogLevel)atoi(logLevelEnv) : LEVEL_INFO;
-  
   if (argc == 1)
     configFilePath = "ssltunnel.cfg";
   else
@@ -1250,7 +1178,7 @@ int main(int argc, char** argv)
   memset(&websocket_server, 0, sizeof(PRNetAddr));
 
   if (parseConfigFile(configFilePath)) {
-    LOG_ERROR(("Error: config file \"%s\" missing or formating incorrect\n"
+    fprintf(stderr, "Error: config file \"%s\" missing or formating incorrect\n"
       "Specify path to the config file as parameter to ssltunnel or \n"
       "create ssltunnel.cfg in the working directory.\n\n"
       "Example format of the config file:\n\n"
@@ -1279,28 +1207,28 @@ int main(int argc, char** argv)
       "       # Proxy WebSocket traffic to the server at 127.0.0.1:9999,\n"
       "       # instead of the server specified in the 'forward' option.\n"
       "       websocketserver:127.0.0.1:9999\n",
-      configFilePath));
+      configFilePath);
     return 1;
   }
 
   // create a thread pool to handle connections
-  threads = PR_CreateThreadPool(NS_MAX<PRInt32>(INITIAL_THREADS, servers.size()*2),
-                                NS_MAX<PRInt32>(MAX_THREADS, servers.size()*2),
+  threads = PR_CreateThreadPool(PR_MAX(INITIAL_THREADS, servers.size()*2),
+                                PR_MAX(MAX_THREADS, servers.size()*2),
                                 DEFAULT_STACKSIZE);
   if (!threads) {
-    LOG_ERROR(("Failed to create thread pool\n"));
+    fprintf(stderr, "Failed to create thread pool\n");
     return 1;
   }
 
   shutdown_lock = PR_NewLock();
   if (!shutdown_lock) {
-    LOG_ERROR(("Failed to create lock\n"));
+    fprintf(stderr, "Failed to create lock\n");
     PR_ShutdownThreadPool(threads);
     return 1;
   }
   shutdown_condvar = PR_NewCondVar(shutdown_lock);
   if (!shutdown_condvar) {
-    LOG_ERROR(("Failed to create condvar\n"));
+    fprintf(stderr, "Failed to create condvar\n");
     PR_ShutdownThreadPool(threads);
     PR_DestroyLock(shutdown_lock);
     return 1;
@@ -1313,7 +1241,7 @@ int main(int argc, char** argv)
     PRInt32 errorlen = PR_GetErrorTextLength();
     char* err = new char[errorlen+1];
     PR_GetErrorText(err);
-    LOG_ERROR(("Failed to init NSS: %s", err));
+    fprintf(stderr, "Failed to init NSS: %s", err);
     delete[] err;
     PR_ShutdownThreadPool(threads);
     PR_DestroyCondVar(shutdown_condvar);
@@ -1322,7 +1250,7 @@ int main(int argc, char** argv)
   }
 
   if (NSS_SetDomesticPolicy() != SECSuccess) {
-    LOG_ERROR(("NSS_SetDomesticPolicy failed\n"));
+    fprintf(stderr, "NSS_SetDomesticPolicy failed\n");
     PR_ShutdownThreadPool(threads);
     PR_DestroyCondVar(shutdown_condvar);
     PR_DestroyLock(shutdown_lock);
@@ -1332,7 +1260,7 @@ int main(int argc, char** argv)
 
   // these values should make NSS use the defaults
   if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
-    LOG_ERROR(("SSL_ConfigServerSessionIDCache failed\n"));
+    fprintf(stderr, "SSL_ConfigServerSessionIDCache failed\n");
     PR_ShutdownThreadPool(threads);
     PR_DestroyCondVar(shutdown_condvar);
     PR_DestroyLock(shutdown_lock);
@@ -1351,14 +1279,14 @@ int main(int argc, char** argv)
   PR_WaitCondVar(shutdown_condvar, PR_INTERVAL_NO_TIMEOUT);
   PR_Unlock(shutdown_lock);
   shutdown_server = true;
-  LOG_INFO(("Shutting down...\n"));
+  printf("Shutting down...\n");
   // cleanup
   PR_ShutdownThreadPool(threads);
   PR_JoinThreadPool(threads);
   PR_DestroyCondVar(shutdown_condvar);
   PR_DestroyLock(shutdown_lock);
   if (NSS_Shutdown() == SECFailure) {
-    LOG_DEBUG(("Leaked NSS objects!\n"));
+    fprintf(stderr, "Leaked NSS objects!\n");
   }
   
   for (vector<server_info_t>::iterator it = servers.begin();

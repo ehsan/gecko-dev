@@ -74,15 +74,9 @@ CPPSRCS = \
   JetpackActorCommon.cpp \
   $(NULL)
 
-# For nsDependentJSString
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/dom/base \
-  $(NULL)
-
-# Bug 629197: disabled jetpack service (and its tests).
-# ifdef ENABLE_TESTS
-# TOOL_DIRS += tests
-# endif
+ifdef ENABLE_TESTS
+TOOL_DIRS += tests
+endif
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

@@ -54,19 +54,15 @@ class nsAccTreeWalker
 {
 public:
   nsAccTreeWalker(nsIWeakReference *aShell, nsIContent *aNode, 
-                  PRBool aWalkAnonymousContent, bool aWalkCache = false);
+                  PRBool aWalkAnonymousContent);
   virtual ~nsAccTreeWalker();
 
   /**
    * Return the next child accessible.
-   *
-   * @note Returned accessible is bound to the document, if the accessible is
-   *       rejected during tree creation then the caller should be unbind it
-   *       from the document.
    */
-  inline nsAccessible* NextChild()
+  already_AddRefed<nsAccessible> GetNextChild()
   {
-    return NextChildInternal(false);
+    return GetNextChildInternal(PR_FALSE);
   }
 
 private:
@@ -78,7 +74,8 @@ private:
    *                     shouldn't go up through the tree if we failed find
    *                     accessible children.
    */
-  nsAccessible* NextChildInternal(bool aNoWalkUp);
+  already_AddRefed<nsAccessible>
+    GetNextChildInternal(PRBool aNoWalkUp = PR_FALSE);
 
   /**
    * Create new state for the given node and push it on top of stack.
@@ -94,8 +91,7 @@ private:
   void PopState();
 
   nsCOMPtr<nsIWeakReference> mWeakShell;
-  PRInt32 mChildFilter;
-  bool mWalkCache;
+  PRInt32 mChildType;
   WalkState* mState;
 };
 

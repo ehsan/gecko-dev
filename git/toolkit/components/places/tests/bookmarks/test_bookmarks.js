@@ -50,25 +50,10 @@ let bookmarksObserver = {
   onEndUpdateBatch: function() {
     this._endUpdateBatch = true;
   },
-  onItemAdded: function(id, folder, index, itemType, uri, title, dateAdded,
-                        guid) {
+  onItemAdded: function(id, folder, index, itemType) {
     this._itemAddedId = id;
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
-    this._itemAddedURI = uri;
-
-    // Ensure that we've created a guid for this item.
-    let stmt = DBConn().createStatement(
-      "SELECT guid "
-    + "FROM moz_bookmarks "
-    + "WHERE id = :item_id "
-    );
-    stmt.params.item_id = id;
-    do_check_true(stmt.executeStep());
-    do_check_false(stmt.getIsNull(0));
-    do_check_valid_places_guid(stmt.row.guid);
-    do_check_eq(stmt.row.guid, guid);
-    stmt.finalize();
   },
   onBeforeItemRemoved: function(){},
   onItemRemoved: function(id, folder, index, itemType) {
@@ -143,7 +128,6 @@ function run_test() {
   do_check_eq(bookmarksObserver._itemAddedId, testRoot);
   do_check_eq(bookmarksObserver._itemAddedParent, root);
   do_check_eq(bookmarksObserver._itemAddedIndex, bmStartIndex);
-  do_check_eq(bookmarksObserver._itemAddedURI, null);
   let testStartIndex = 0;
 
   // test getItemIndex for folders
@@ -152,7 +136,7 @@ function run_test() {
   // test getItemType for folders
   do_check_eq(bs.getItemType(testRoot), bs.TYPE_FOLDER);
 
-  // insert a bookmark.
+  // insert a bookmark 
   // the time before we insert, in microseconds
   let beforeInsert = Date.now() * 1000;
   do_check_true(beforeInsert > 0);
@@ -162,7 +146,6 @@ function run_test() {
   do_check_eq(bookmarksObserver._itemAddedId, newId);
   do_check_eq(bookmarksObserver._itemAddedParent, testRoot);
   do_check_eq(bookmarksObserver._itemAddedIndex, testStartIndex);
-  do_check_true(bookmarksObserver._itemAddedURI.equals(uri("http://google.com/")));
   do_check_eq(bs.getBookmarkURI(newId).spec, "http://google.com/");
 
   let dateAdded = bs.getItemDateAdded(newId);
@@ -227,7 +210,6 @@ function run_test() {
   do_check_eq(bookmarksObserver._itemAddedId, workFolder);
   do_check_eq(bookmarksObserver._itemAddedParent, testRoot);
   do_check_eq(bookmarksObserver._itemAddedIndex, 0);
-  do_check_eq(bookmarksObserver._itemAddedURI, null);
 
   do_check_eq(bs.getItemTitle(workFolder), "Work");
   bs.setItemTitle(workFolder, "Work #");

@@ -49,7 +49,9 @@
 #include <objbase.h>
 #include <initguid.h>
 
+#ifndef WINCE
 #include "nsUXThemeData.h"
+#endif
 
 // unknwn.h is needed to build with WIN32_LEAN_AND_MEAN
 #include <unknwn.h>
@@ -67,13 +69,49 @@ HINSTANCE nsToolkit::mDllInstance = 0;
 PRBool    nsToolkit::mIsWinXP     = PR_FALSE;
 static PRBool dummy = nsToolkit::InitVersionInfo();
 
-static const unsigned long kD3DUsageDelay = 5000;
+#if !defined(MOZ_STATIC_COMPONENT_LIBS) && !defined(MOZ_ENABLE_LIBXUL)
+//
+// Dll entry point. Keep the dll instance
+//
 
-static void
-StartAllowingD3D9(nsITimer *aTimer, void *aClosure)
+#if defined(__GNUC__)
+// If DllMain gets name mangled, it won't be seen.
+extern "C" {
+#endif
+
+// Windows CE is created when nsToolkit
+// starts up, not when the dll is loaded.
+#ifndef WINCE
+BOOL APIENTRY DllMain(  HINSTANCE hModule, 
+                        DWORD reason, 
+                        LPVOID lpReserved )
 {
-  nsWindow::StartAllowingD3D9(true);
+    switch( reason ) {
+        case DLL_PROCESS_ATTACH:
+            nsToolkit::Startup(hModule);
+            break;
+
+        case DLL_THREAD_ATTACH:
+            break;
+    
+        case DLL_THREAD_DETACH:
+            break;
+    
+        case DLL_PROCESS_DETACH:
+            nsToolkit::Shutdown();
+            break;
+
+    }
+
+    return TRUE;
 }
+#endif //#ifndef WINCE
+
+#if defined(__GNUC__)
+} // extern "C"
+#endif
+
+#endif
 
 //
 // main for the message pump thread
@@ -120,7 +158,7 @@ nsToolkit::nsToolkit()
     mGuiThread  = NULL;
     mDispatchWnd = 0;
 
-#if defined(MOZ_STATIC_COMPONENT_LIBS)
+#if defined(MOZ_STATIC_COMPONENT_LIBS) || defined (WINCE)
     nsToolkit::Startup(GetModuleHandle(NULL));
 #endif
 
@@ -150,7 +188,7 @@ nsToolkit::~nsToolkit()
       gMouseTrailer = nsnull;
     }
 
-#if defined (MOZ_STATIC_COMPONENT_LIBS)
+#if defined (MOZ_STATIC_COMPONENT_LIBS) || defined(WINCE)
     nsToolkit::Shutdown();
 #endif
 }
@@ -177,7 +215,18 @@ nsToolkit::Startup(HMODULE hModule)
     VERIFY(::RegisterClassW(&wc) || 
            GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
 
+    // Vista API.  Mozilla is DPI Aware.
+    typedef BOOL (*SetProcessDPIAwareFunc)(VOID);
+
+    SetProcessDPIAwareFunc setDPIAware = (SetProcessDPIAwareFunc)
+      GetProcAddress(LoadLibraryW(L"user32.dll"), "SetProcessDPIAware");
+
+    if (setDPIAware)
+      setDPIAware();
+
+#ifndef WINCE
     nsUXThemeData::Initialize();
+#endif
 }
 
 
@@ -190,14 +239,6 @@ nsToolkit::Shutdown()
     ::UnregisterClassW(L"nsToolkitClass", nsToolkit::mDllInstance);
 }
 
-void
-nsToolkit::StartAllowingD3D9()
-{
-  nsIToolkit *toolkit;
-  NS_GetCurrentToolkit(&toolkit);
-  static_cast<nsToolkit*>(toolkit)->mD3D9Timer->Cancel();
-  nsWindow::StartAllowingD3D9(false);
-}
 
 //-------------------------------------------------------------------------
 //
@@ -278,12 +319,6 @@ NS_METHOD nsToolkit::Init(PRThread *aThread)
         CreateUIThread();
     }
 
-    mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
-    mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
-                                     NULL,
-                                     kD3DUsageDelay,
-                                     nsITimer::TYPE_ONE_SHOT);
-
     nsWidgetAtoms::RegisterAtoms();
 
     return NS_OK;
@@ -298,6 +333,7 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
                                        LPARAM lParam)
 {
     switch (msg) {
+#ifndef WINCE
         case WM_SYSCOLORCHANGE:
         {
           // WM_SYSCOLORCHANGE messages are only dispatched to top
@@ -311,6 +347,7 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
           // the current system colors.
           nsWindow::GlobalMsgWindowProc(hWnd, msg, wParam, lParam);
         }
+#endif
     }
 
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);
@@ -376,6 +413,7 @@ PRBool nsToolkit::InitVersionInfo()
   {
     isInitialized = PR_TRUE;
 
+#ifndef WINCE
     OSVERSIONINFO osversion;
     osversion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
 
@@ -384,6 +422,7 @@ PRBool nsToolkit::InitVersionInfo()
     if (osversion.dwMajorVersion == 5)  { 
       nsToolkit::mIsWinXP = (osversion.dwMinorVersion == 1);
     }
+#endif
   }
 
   return PR_TRUE;
@@ -497,8 +536,10 @@ void MouseTrailer::TimerProc(nsITimer* aTimer, void* aClosure)
     mp.y = GET_Y_LPARAM(pos);
     HWND mouseWnd = ::WindowFromPoint(mp);
     if (mtrailer->mMouseTrailerWindow != mouseWnd) {
+#ifndef WINCE
       // Notify someone that a mouse exit happened.
       PostMessage(mtrailer->mMouseTrailerWindow, WM_MOUSELEAVE, 0, 0);
+#endif
 
       // we are out of this window, destroy timer
       mtrailer->DestroyTimer();

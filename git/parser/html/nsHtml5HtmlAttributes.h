@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2008-2011 Mozilla Foundation
+ * Copyright (c) 2008-2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -67,8 +67,8 @@ class nsHtml5HtmlAttributes
   private:
     PRInt32 mode;
     PRInt32 length;
-    autoJArray<nsHtml5AttributeName*,PRInt32> names;
-    autoJArray<nsString*,PRInt32> values;
+    jArray<nsHtml5AttributeName*,PRInt32> names;
+    jArray<nsString*,PRInt32> values;
   public:
     nsHtml5HtmlAttributes(PRInt32 mode);
     ~nsHtml5HtmlAttributes();
@@ -88,10 +88,13 @@ class nsHtml5HtmlAttributes
     void adjustForMath();
     void adjustForSvg();
     nsHtml5HtmlAttributes* cloneAttributes(nsHtml5AtomTable* interner);
-    PRBool equalsAnother(nsHtml5HtmlAttributes* other);
     static void initializeStatics();
     static void releaseStatics();
 };
+
+#ifdef nsHtml5HtmlAttributes_cpp__
+nsHtml5HtmlAttributes* nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES = nsnull;
+#endif
 
 
 

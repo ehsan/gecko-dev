@@ -38,10 +38,11 @@
 #include "nsPageFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsIDeviceContext.h"
 #include "nsReadableUtils.h"
 #include "nsPageContentFrame.h"
 #include "nsDisplayList.h"
@@ -52,6 +53,7 @@
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
 #endif
+#include "nsIFontMetrics.h"
 #include "nsIPrintSettings.h"
 #include "nsRegion.h"
 
@@ -150,10 +152,6 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
   if (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE) {
     aDesiredSize.height = aReflowState.availableHeight;
   }
-
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
-  FinishAndStoreOverflow(&aDesiredSize);
-
   PR_PL(("PageFrame::Reflow %p ", this));
   PR_PL(("[%d,%d]\n", aReflowState.availableWidth, aReflowState.availableHeight));
 
@@ -247,7 +245,7 @@ nsPageFrame::ProcessSpecialCodes(const nsString& aStr, nsString& aNewStr)
 
 
 //------------------------------------------------------------------------------
-nscoord nsPageFrame::GetXPosition(nsRenderingContext& aRenderingContext, 
+nscoord nsPageFrame::GetXPosition(nsIRenderingContext& aRenderingContext, 
                                   const nsRect&        aRect, 
                                   PRInt32              aJust,
                                   const nsString&      aStr)
@@ -283,7 +281,7 @@ nscoord nsPageFrame::GetXPosition(nsRenderingContext& aRenderingContext,
 // @param aAscent - the ascent of the font
 // @param aHeight - the height of the font
 void
-nsPageFrame::DrawHeaderFooter(nsRenderingContext& aRenderingContext,
+nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
                               nsHeaderFooterEnum   aHeaderFooter,
                               const nsString&      aStrLeft,
                               const nsString&      aStrCenter,
@@ -327,7 +325,7 @@ nsPageFrame::DrawHeaderFooter(nsRenderingContext& aRenderingContext,
 // @param aAscent - the ascent of the font
 // @param aWidth - available width for the string
 void
-nsPageFrame::DrawHeaderFooter(nsRenderingContext& aRenderingContext,
+nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
                               nsHeaderFooterEnum   aHeaderFooter,
                               PRInt32              aJust,
                               const nsString&      aStr,
@@ -391,19 +389,25 @@ nsPageFrame::DrawHeaderFooter(nsRenderingContext& aRenderingContext,
     // set up new clip and draw the text
     aRenderingContext.PushState();
     aRenderingContext.SetColor(NS_RGB(0,0,0));
-    aRenderingContext.IntersectClip(aRect);
+    aRenderingContext.SetClipRect(aRect, nsClipCombine_kIntersect);
     nsLayoutUtils::DrawString(this, &aRenderingContext, str.get(), str.Length(), nsPoint(x, y + aAscent));
     aRenderingContext.PopState();
   }
 }
 
-static void PaintPageContent(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintPrintPreviewBackground(nsIFrame* aFrame, nsIRenderingContext* aCtx,
+                                        const nsRect& aDirtyRect, nsPoint aPt)
+{
+  static_cast<nsPageFrame*>(aFrame)->PaintPrintPreviewBackground(*aCtx, aPt);
+}
+
+static void PaintPageContent(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                              const nsRect& aDirtyRect, nsPoint aPt)
 {
   static_cast<nsPageFrame*>(aFrame)->PaintPageContent(*aCtx, aDirtyRect, aPt);
 }
 
-static void PaintHeaderFooter(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintHeaderFooter(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                               const nsRect& aDirtyRect, nsPoint aPt)
 {
   static_cast<nsPageFrame*>(aFrame)->PaintHeaderFooter(*aCtx, aPt);
@@ -419,7 +423,10 @@ nsPageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv;
 
   if (PresContext()->IsScreen()) {
-    rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+    rv = set.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayGeneric(aBuilder, this, ::PaintPrintPreviewBackground,
+                         "PrintPreviewBackground",
+                         nsDisplayItem::TYPE_PRINT_PREVIEW_BACKGROUND));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -451,7 +458,42 @@ nsPageFrame::SetPageNumInfo(PRInt32 aPageNumber, PRInt32 aTotalPages)
 
 
 void
-nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
+nsPageFrame::PaintPrintPreviewBackground(nsIRenderingContext& aRenderingContext,
+                                         nsPoint aPt)
+{
+  // fill page with White
+  aRenderingContext.SetColor(NS_RGB(255,255,255));
+  // REVIEW: this used to have rect's width and height be the
+  // mClipRect if specialClipIsSet ... but that seems completely bogus
+  // and inconsistent with the painting of the shadow below
+  nsRect rect(aPt, GetSize());
+  rect.width  -= mPD->mShadowSize.width;
+  rect.height -= mPD->mShadowSize.height;
+  aRenderingContext.FillRect(rect);
+  // draw line around outside of page
+  aRenderingContext.SetColor(NS_RGB(0,0,0));
+  aRenderingContext.DrawRect(rect);
+
+  if (mPD->mShadowSize.width > 0 && mPD->mShadowSize.height > 0) {
+    aRenderingContext.SetColor(NS_RGB(51,51,51));
+    nsRect r(aPt.x,aPt.y, mRect.width, mRect.height);
+    nsRect shadowRect;
+    shadowRect.x = r.x + r.width - mPD->mShadowSize.width;
+    shadowRect.y = r.y + mPD->mShadowSize.height;
+    shadowRect.width  = mPD->mShadowSize.width;
+    shadowRect.height = r.height - mPD->mShadowSize.height;
+    aRenderingContext.FillRect(shadowRect);
+
+    shadowRect.x = r.x + mPD->mShadowSize.width;
+    shadowRect.y = r.y + r.height - mPD->mShadowSize.height;
+    shadowRect.width  = r.width - mPD->mShadowSize.width;
+    shadowRect.height = mPD->mShadowSize.height;
+    aRenderingContext.FillRect(shadowRect);
+  }
+}
+
+void
+nsPageFrame::PaintHeaderFooter(nsIRenderingContext& aRenderingContext,
                                nsPoint aPt)
 {
   nsPresContext* pc = PresContext();
@@ -463,12 +505,14 @@ nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
       return;
   }
 
-  nsRect rect(aPt, mRect.Size());
+  nsRect rect(aPt.x, aPt.y, mRect.width - mPD->mShadowSize.width,
+              mRect.height - mPD->mShadowSize.height);
+
   aRenderingContext.SetColor(NS_RGB(0,0,0));
 
   // Get the FontMetrics to determine width.height of strings
-  nsRefPtr<nsFontMetrics> fontMet;
-  pc->DeviceContext()->GetMetricsFor(*mPD->mHeadFootFont, nsnull,
+  nsCOMPtr<nsIFontMetrics> fontMet;
+  pc->DeviceContext()->GetMetricsFor(*mPD->mHeadFootFont,
                                      pc->GetUserFontSet(),
                                      *getter_AddRefs(fontMet));
 
@@ -477,8 +521,8 @@ nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
   nscoord ascent = 0;
   nscoord visibleHeight = 0;
   if (fontMet) {
-    visibleHeight = fontMet->MaxHeight();
-    ascent = fontMet->MaxAscent();
+    fontMet->GetHeight(visibleHeight);
+    fontMet->GetMaxAscent(ascent);
   }
 
   // print document headers and footers
@@ -501,7 +545,7 @@ nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
 
 //------------------------------------------------------------------------------
 void
-nsPageFrame::PaintPageContent(nsRenderingContext& aRenderingContext,
+nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
                               const nsRect&        aDirtyRect,
                               nsPoint              aPt) {
   nsIFrame* pageContentFrame  = mFrames.FirstChild();
@@ -509,7 +553,7 @@ nsPageFrame::PaintPageContent(nsRenderingContext& aRenderingContext,
   float scale = PresContext()->GetPageScale();
   aRenderingContext.PushState();
   nsPoint framePos = aPt + pageContentFrame->GetOffsetTo(this);
-  aRenderingContext.Translate(framePos);
+  aRenderingContext.Translate(framePos.x, framePos.y);
   // aPt translates to coords relative to this, then margins translate to
   // pageContentFrame's coords
   rect -= framePos;
@@ -536,7 +580,7 @@ nsPageFrame::PaintPageContent(nsRenderingContext& aRenderingContext,
     NS_ASSERTION(clipRect.y < pageContentFrame->GetSize().height,
                  "Should be clipping to region inside the page content bounds");
   }
-  aRenderingContext.IntersectClip(clipRect);
+  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
 
   nsRect backgroundRect = nsRect(nsPoint(0, 0), pageContentFrame->GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,

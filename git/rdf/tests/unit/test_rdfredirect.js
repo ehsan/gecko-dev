@@ -67,8 +67,6 @@ rdfLoadObserver.prototype =
     }
       
     gPending -= 1;
-      
-    this.ds.removeXMLSinkObserver(this);
 
     if (gPending == 0) {
       do_test_pending();

@@ -48,7 +48,7 @@
 
 #include "base/basictypes.h"
 
-#include "nsAtomicRefcnt.h"
+#include "pratom.h"
 
 #include "mozilla/ipc/SyncChannel.h"
 #include "nsAutoPtr.h"
@@ -78,13 +78,11 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
-        virtual void OnProcessingError(Result aError) = 0;
         virtual bool OnReplyTimeout() = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;
         virtual Result OnCallReceived(const Message& aMessage,
                                       Message*& aReply) = 0;
-        virtual void OnChannelConnected(int32 peer_pid) {};
 
         virtual void OnEnteredCxxStack()
         {
@@ -111,7 +109,6 @@ public:
         {
             return RRPChildWins;
         }
-        virtual void ProcessRemoteNativeEventsInRPCCall() {};
     };
 
     RPCChannel(RPCListener* aListener);
@@ -179,7 +176,6 @@ public:
 
 #ifdef OS_WIN
     void ProcessNativeEventsInRPCCall();
-    static void NotifyGeckoEventDispatch();
 
 protected:
     bool WaitForNotify();
@@ -200,7 +196,7 @@ protected:
 
     bool EventOccurred() const;
 
-    void MaybeUndeferIncall();
+    bool MaybeProcessDeferredIncall();
     void EnqueuePendingMessages();
 
     /**
@@ -208,18 +204,6 @@ protected:
      * @return true if a message was processed
      */
     bool OnMaybeDequeueOne();
-
-    /**
-     * The "remote view of stack depth" can be different than the
-     * actual stack depth when there are out-of-turn replies.  When we
-     * receive one, our actual RPC stack depth doesn't decrease, but
-     * the other side (that sent the reply) thinks it has.  So, the
-     * "view" returned here is |stackDepth| minus the number of
-     * out-of-turn replies.
-     *
-     * Only called from the worker thread.
-     */
-    size_t RemoteViewOfStackDepth(size_t stackDepth) const;
 
     void Incall(const Message& call, size_t stackDepth);
     void DispatchIncall(const Message& call);
@@ -325,7 +309,7 @@ protected:
 
     // Called from both threads
     size_t StackDepth() const {
-        mMonitor.AssertCurrentThreadOwns();
+        mMutex.AssertCurrentThreadOwns();
         return mStack.size();
     }
 
@@ -439,7 +423,7 @@ protected:
     //  !mCxxStackFrames.empty() => RPCChannel code on C++ stack
     //
     // This member is only accessed on the worker thread, and so is
-    // not protected by mMonitor.  It is managed exclusively by the
+    // not protected by mMutex.  It is managed exclusively by the
     // helper |class CxxStackFrame|.
     std::vector<RPCFrame> mCxxStackFrames;
 
@@ -464,10 +448,12 @@ private:
         void Run() { mTask->Run(); }
         void Cancel() { mTask->Cancel(); }
         void AddRef() {
-            NS_AtomicIncrementRefcnt(mRefCnt);
+            PR_AtomicIncrement(reinterpret_cast<PRInt32*>(&mRefCnt));
         }
         void Release() {
-            if (NS_AtomicDecrementRefcnt(mRefCnt) == 0)
+            nsrefcnt count =
+                PR_AtomicDecrement(reinterpret_cast<PRInt32*>(&mRefCnt));
+            if (0 == count)
                 delete this;
         }
 

@@ -39,12 +39,8 @@
 /* General Update Manager Tests */
 
 function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
-
-  logTestInfo("testing addition of a successful update to " + FILE_UPDATES_DB +
-              " and verification of update properties with the format prior " +
-              "to bug 530872");
+  dump("Testing: addition of a successful update to " + FILE_UPDATES_DB +
+       " and verification of update properties\n");
   removeUpdateDirsAndFiles();
   setUpdateChannel("test_channel");
 
@@ -126,16 +122,19 @@ function run_test() {
   do_check_eq(update.appVersion, "3.0");
   do_check_eq(update.platformVersion, "3.0");
   do_check_eq(update.detailsURL, "http://details2/");
-  do_check_eq(update.billboardURL, "http://details2/");
+  do_check_eq(update.billboardURL, null);
   do_check_eq(update.licenseURL, null);
+  do_check_false(update.showPrompt);
+  do_check_false(update.showNeverForVersion);
+  do_check_false(update.showSurvey);
   do_check_eq(update.serviceURL, "http://service2/");
   do_check_eq(update.installDate, "1238441400314");
   do_check_eq(update.statusText, getString("patchApplyFailure"));
   do_check_eq(update.buildID, "20080811053724");
   do_check_true(update.isCompleteUpdate);
   do_check_eq(update.channel, "test_channel");
-  do_check_true(update.showPrompt);
-  do_check_true(update.showNeverForVersion);
+  do_check_false(update.showPrompt);
+  do_check_false(update.showNeverForVersion);
   do_check_false(update.showSurvey);
   do_check_eq(update.previousAppVersion, null);
   // Custom attributes
@@ -194,23 +193,23 @@ function run_test() {
   do_check_eq(update.detailsURL, "http://details/");
   do_check_eq(update.billboardURL, "http://billboard/");
   do_check_eq(update.licenseURL, "http://license/");
+  do_check_true(update.showPrompt);
+  do_check_true(update.showNeverForVersion);
+  do_check_true(update.showSurvey);
   do_check_eq(update.serviceURL, "http://service/");
   do_check_eq(update.installDate, "1238441400314");
   do_check_eq(update.statusText, getString("installSuccess"));
   do_check_eq(update.buildID, "20080811053724");
   do_check_true(update.isCompleteUpdate);
   do_check_eq(update.channel, "test_channel");
-  do_check_true(update.showPrompt);
-  do_check_true(update.showNeverForVersion);
-  do_check_true(update.showSurvey);
   do_check_eq(update.previousAppVersion, "3.0");
 
   patch = update.selectedPatch;
   do_check_eq(patch.type, "complete");
-  do_check_eq(patch.URL, URL_HOST + URL_PATH + "/" + FILE_SIMPLE_MAR);
+  do_check_eq(patch.URL, "http://localhost:4444/data/empty.mar");
   do_check_eq(patch.hashFunction, "MD5");
-  do_check_eq(patch.hashValue, MD5_HASH_SIMPLE_MAR);
-  do_check_eq(patch.size, SIZE_SIMPLE_MAR);
+  do_check_eq(patch.hashValue, "6232cd43a1c77e30191c53a329a3f99d");
+  do_check_eq(patch.size, "775");
   do_check_true(patch.selected);
   do_check_eq(patch.state, STATE_SUCCEEDED);
 
@@ -224,29 +223,25 @@ function run_test() {
   do_check_eq(update.detailsURL, "http://details/");
   do_check_eq(update.billboardURL, null);
   do_check_eq(update.licenseURL, null);
+  do_check_false(update.showPrompt);
+  do_check_false(update.showNeverForVersion);
+  do_check_false(update.showSurvey);
   do_check_eq(update.serviceURL, "http://service/");
   do_check_eq(update.installDate, "1238441400314");
   do_check_eq(update.statusText, getString("patchApplyFailure"));
   do_check_eq(update.buildID, "20080811053724");
   do_check_true(update.isCompleteUpdate);
   do_check_eq(update.channel, "test_channel");
-  do_check_false(update.showPrompt);
-  do_check_false(update.showNeverForVersion);
-  do_check_false(update.showSurvey);
   do_check_eq(update.previousAppVersion, null);
 
   patch = update.selectedPatch;
   do_check_eq(patch.type, "complete");
-  do_check_eq(patch.URL, URL_HOST + URL_PATH + "/" + FILE_SIMPLE_MAR);
+  do_check_eq(patch.URL, "http://localhost:4444/data/empty.mar");
   do_check_eq(patch.hashFunction, "MD5");
-  do_check_eq(patch.hashValue, MD5_HASH_SIMPLE_MAR);
-  do_check_eq(patch.size, SIZE_SIMPLE_MAR);
+  do_check_eq(patch.hashValue, "6232cd43a1c77e30191c53a329a3f99d");
+  do_check_eq(patch.size, "775");
   do_check_true(patch.selected);
   do_check_eq(patch.state, STATE_FAILED);
 
-  do_test_finished();
-}
-
-function end_test() {
   cleanUp();
 }

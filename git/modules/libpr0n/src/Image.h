@@ -48,10 +48,6 @@ namespace imagelib {
 class Image : public imgIContainer
 {
 public:
-  // From NS_DECL_IMGICONTAINER:
-  NS_SCRIPTABLE NS_IMETHOD GetAnimationMode(PRUint16 *aAnimationMode);
-  NS_SCRIPTABLE NS_IMETHOD SetAnimationMode(PRUint16 aAnimationMode);
-
   imgStatusTracker& GetStatusTracker() { return *mStatusTracker; }
 
   /**
@@ -84,7 +80,6 @@ public:
    */
   virtual nsresult Init(imgIDecoderObserver* aObserver,
                         const char* aMimeType,
-                        const char* aURIString,
                         PRUint32 aFlags) = 0;
 
   /**
@@ -97,13 +92,7 @@ public:
    * The size, in bytes, occupied by the significant data portions of the image.
    * This includes both compressed source data and decoded frames.
    */
-  PRUint32 GetDataSize();
-
-  /**
-   * The components that make up GetDataSize().
-   */      
-  virtual PRUint32 GetDecodedDataSize() = 0;
-  virtual PRUint32 GetSourceDataSize() = 0;
+  virtual PRUint32 GetDataSize() = 0;
 
   // Mimetype translation
   enum eDecoderType {
@@ -117,48 +106,12 @@ public:
   };
   static eDecoderType GetDecoderType(const char *aMimeType);
 
-  void IncrementAnimationConsumers();
-  void DecrementAnimationConsumers();
-#ifdef DEBUG
-  PRUint32 GetAnimationConsumers() { return mAnimationConsumers; }
-#endif
-
-  void SetWindowID(PRUint64 aWindowId) {
-    mWindowId = aWindowId;
-  }
-  PRUint64 WindowID() const { return mWindowId; }
-
-  PRBool HasError() { return mError; }
-
 protected:
   Image(imgStatusTracker* aStatusTracker);
 
-  /**
-   * Decides whether animation should or should not be happening,
-   * and makes sure the right thing is being done.
-   */
-  virtual void EvaluateAnimation();
-
-  virtual nsresult StartAnimation() = 0;
-  virtual nsresult StopAnimation() = 0;
-
-  PRUint64 mWindowId;
-
   // Member data shared by all implementations of this abstract class
   nsAutoPtr<imgStatusTracker> mStatusTracker;
-  PRUint32                    mAnimationConsumers;
-  PRUint16                    mAnimationMode;   // Enum values in imgIContainer
-  PRPackedBool                mInitialized:1;   // Have we been initalized?
-  PRPackedBool                mAnimating:1;     // Are we currently animating?
-  PRPackedBool                mError:1;         // Error handling
-
-  /**
-   * Extended by child classes, if they have additional
-   * conditions for being able to animate
-   */
-  virtual PRBool ShouldAnimate() {
-    return mAnimationConsumers > 0 && mAnimationMode != kDontAnimMode;
-  }
+  PRPackedBool                mInitialized;   // Have we been initalized?
 };
 
 } // namespace imagelib

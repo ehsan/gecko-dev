@@ -38,23 +38,27 @@
 #define NS_SVGTEXTCONTAINERFRAME_H
 
 #include "nsSVGContainerFrame.h"
+#include "nsIDOMSVGNumberList.h"
 
 class nsISVGGlyphFragmentNode;
+class nsISVGGlyphFragmentLeaf;
 class nsSVGTextFrame;
-class nsSVGGlyphFrame;
+namespace mozilla {
+class SVGUserUnitList;
+}
 
 class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame
 {
-protected:
+public:
   nsSVGTextContainerFrame(nsStyleContext* aContext) :
     nsSVGDisplayContainerFrame(aContext) {}
 
-public:
   void NotifyGlyphMetricsChange();
-  virtual void GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY);
-  virtual void GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy);
-  virtual const SVGNumberList *GetRotate();
+  virtual void GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY);
+  virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
+  virtual already_AddRefed<nsIDOMSVGNumberList> GetRotate();
   
+public:
   NS_DECL_QUERYFRAME_TARGET(nsSVGTextContainerFrame)
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
@@ -89,9 +93,6 @@ public:
    * Get the character at the specified position
    */
   virtual PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
-  void GetEffectiveXY(nsTArray<float> &aX, nsTArray<float> &aY);
-  void GetEffectiveDxDy(nsTArray<float> &aDx, nsTArray<float> &aDy);
-  void GetEffectiveRotate(nsTArray<float> &aRotate);
 
 protected:
   /*
@@ -106,36 +107,25 @@ protected:
   nsISVGGlyphFragmentNode *
   GetNextGlyphFragmentChildNode(nsISVGGlyphFragmentNode *node);
 
-  void CopyPositionList(nsTArray<float> *parentList,
-                        SVGUserUnitList *selfList,
-                        nsTArray<float> &dstList,
-                        PRUint32 aOffset);
-  void CopyRotateList(nsTArray<float> *parentList,
-                      const SVGNumberList *selfList,
-                      nsTArray<float> &dstList,
-                      PRUint32 aOffset);
-  PRUint32 BuildPositionList(PRUint32 aOffset, PRUint32 aDepth);
+  /*
+   * Set Whitespace handling
+   */
+  void SetWhitespaceHandling();
 
-  void SetWhitespaceCompression();
 private:
   /*
-   * Returns the glyph frame containing a particular character
+   * Returns the glyph fragment containing a particular character
    */
-  static nsSVGGlyphFrame *
-  GetGlyphFrameAtCharNum(nsISVGGlyphFragmentNode* node,
-                         PRUint32 charnum,
-                         PRUint32 *offset);
+  static nsISVGGlyphFragmentLeaf *
+  GetGlyphFragmentAtCharNum(nsISVGGlyphFragmentNode* node,
+                            PRUint32 charnum,
+                            PRUint32 *offset);
 
   /*
    * Returns the text frame ancestor of this frame (or the frame itself
    * if this is a text frame)
    */
   nsSVGTextFrame * GetTextFrame();
-  nsTArray<float> mX;
-  nsTArray<float> mY;
-  nsTArray<float> mDx;
-  nsTArray<float> mDy;
-  nsTArray<float> mRotate;
 };
 
 #endif

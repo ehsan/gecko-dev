@@ -62,8 +62,8 @@ enum nsViewVisibility {
 };
 
 #define NS_IVIEW_IID    \
-  { 0xe0a3b0ee, 0x8d0f, 0x4dcb, \
-    { 0x89, 0x04, 0x81, 0x2d, 0xfd, 0x90, 0x00, 0x73 } }
+  { 0xba00349c, 0xe58a, 0x436a, \
+    { 0x9f, 0x1f, 0x05, 0xb3, 0xdd, 0x9d, 0x9d, 0x36 } }
 
 // Public view flags are defined in this file
 #define NS_VIEW_FLAGS_PUBLIC              0x00FF
@@ -174,25 +174,6 @@ public:
   nsRect GetBounds() const { return mDimBounds; }
 
   /**
-   * The bounds of this view relative to this view. So this is the same as
-   * GetBounds except this is relative to this view instead of the parent view.
-   */
-  nsRect GetDimensions() const {
-    nsRect r = mDimBounds; r.MoveBy(-mPosX, -mPosY); return r;
-  }
-
-  /**
-   * Set the dimensions at which invalidations are clipped, which can
-   * be different than |GetDimensions()|.  |aRect| is relative to
-   * |this|.  It can be null, in which case invalidations return to
-   * being clipped to the view dimensions.
-   *
-   * The caller is responsible for invalidating the area that may lie
-   * outside the view dimensions but inside |aRect| after this call.
-   */
-  void SetInvalidationDimensions(const nsRect* aRect);
-
-  /**
    * Get the offset between the coordinate systems of |this| and aOther.
    * Adding the return value to a point in the coordinate system of |this|
    * will transform the point to the coordinate system of aOther.
@@ -220,13 +201,6 @@ public:
    * The offset is expressed in appunits of |this|.
    */
   nsPoint GetOffsetToWidget(nsIWidget* aWidget) const;
-
-  /**
-   * Takes a point aPt that is in the coordinate system of |this|'s parent view
-   * and converts it to be in the coordinate system of |this| taking into
-   * account the offset and any app unit per dev pixel ratio differences.
-   */
-  nsPoint ConvertFromParentCoords(nsPoint aPt) const;
 
   /**
    * Called to query the visibility state of a view.
@@ -274,9 +248,6 @@ public:
    * @result view's next sibling
    */
   nsIView* GetNextSibling() const { return reinterpret_cast<nsIView*>(mNextSibling); }
-  void SetNextSibling(nsIView *aSibling) {
-    mNextSibling = reinterpret_cast<nsView*>(aSibling);
-  }
 
   /**
    * Set the view's link to client owned data.
@@ -293,9 +264,8 @@ public:
   /**
    * Get the nearest widget in this view or a parent of this view and
    * the offset from the widget's origin to this view's origin
-   * @param aOffset - if non-null the offset from this view's origin to the
-   * widget's origin (usually positive) expressed in appunits of this will be
-   * returned in aOffset.
+   * @param aOffset the offset from this view's origin to the widget's origin
+   * (usually positive) expressed in appunits of this.
    * @return the widget closest to this view; can be null because some view trees
    * don't have widgets at all (e.g., printing), but if any view in the view tree
    * has a widget, then it's safe to assume this will not return null
@@ -311,11 +281,15 @@ public:
    *
    * @param aWidgetInitData data used to initialize this view's widget before
    *        its create is called.
+   * @param aContentType is either content, UI or inherit from parent window.
+   *        This is used to expose what type of window this is to 
+   *        assistive technology like screen readers.
    * @return error status
    */
   nsresult CreateWidget(nsWidgetInitData *aWidgetInitData = nsnull,
                         PRBool aEnableDragDrop = PR_TRUE,
-                        PRBool aResetVisibility = PR_TRUE);
+                        PRBool aResetVisibility = PR_TRUE,
+                        nsContentType aContentType = eContentTypeInherit);
 
   /**
    * Create a widget for this view with an explicit parent widget.
@@ -325,7 +299,8 @@ public:
   nsresult CreateWidgetForParent(nsIWidget* aParentWidget,
                                  nsWidgetInitData *aWidgetInitData = nsnull,
                                  PRBool aEnableDragDrop = PR_TRUE,
-                                 PRBool aResetVisibility = PR_TRUE);
+                                 PRBool aResetVisibility = PR_TRUE,
+                                 nsContentType aContentType = eContentTypeInherit);
 
   /**
    * Create a popup widget for this view.  Pass |aParentWidget| to
@@ -337,14 +312,8 @@ public:
   nsresult CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
                                 nsIWidget* aParentWidget = nsnull,
                                 PRBool aEnableDragDrop = PR_TRUE,
-                                PRBool aResetVisibility = PR_TRUE);
-
-  /**
-   * Destroys the associated widget for this view.  If this method is
-   * not called explicitly, the widget when be destroyed when its
-   * view gets destroyed.
-   */
-  void DestroyWidget();
+                                PRBool aResetVisibility = PR_TRUE,
+                                nsContentType aContentType = eContentTypeInherit);
 
   /**
    * Attach/detach a top level widget from this view. When attached, the view

@@ -37,8 +37,6 @@
 
 #include "AccGroupInfo.h"
 
-#include "States.h"
-
 AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
   mPosInSet(0), mSetSize(0), mParent(nsnull)
 {
@@ -47,21 +45,22 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
   if (!parent)
     return;
 
-  PRInt32 indexInParent = aItem->IndexInParent();
+  PRInt32 indexInParent = aItem->GetIndexInParent();
   PRInt32 level = nsAccUtils::GetARIAOrDefaultLevel(aItem);
 
   // Compute position in set.
   mPosInSet = 1;
   for (PRInt32 idx = indexInParent - 1; idx >=0 ; idx--) {
     nsAccessible* sibling = parent->GetChildAt(idx);
-    PRUint32 siblingRole = sibling->Role();
+    PRUint32 siblingRole = nsAccUtils::Role(sibling);
 
     // If the sibling is separator then the group is ended.
     if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR)
       break;
 
     // If sibling is not visible and hasn't the same base role.
-    if (BaseRole(siblingRole) != aRole || sibling->State() & states::INVISIBLE)
+    if (BaseRole(siblingRole) != aRole ||
+        nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)
       continue;
 
     // Check if it's hierarchical flatten structure, i.e. if the sibling
@@ -97,14 +96,15 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
   for (PRInt32 idx = indexInParent + 1; idx < siblingCount; idx++) {
     nsAccessible* sibling = parent->GetChildAt(idx);
 
-    PRUint32 siblingRole = sibling->Role();
+    PRUint32 siblingRole = nsAccUtils::Role(sibling);
 
     // If the sibling is separator then the group is ended.
     if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR)
       break;
 
     // If sibling is visible and has the same base role
-    if (BaseRole(siblingRole) != aRole || sibling->State() & states::INVISIBLE)
+    if (BaseRole(siblingRole) != aRole ||
+        nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)
       continue;
 
     // and check if it's hierarchical flatten structure.
@@ -131,7 +131,7 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
     return;
 
   // Compute parent.
-  PRUint32 parentRole = parent->Role();
+  PRUint32 parentRole = nsAccUtils::Role(parent);
 
   // In the case of ARIA row in treegrid, return treegrid since ARIA
   // groups aren't used to organize levels in ARIA treegrids.
@@ -152,19 +152,15 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
     return;
   }
 
-  nsAccessible* parentPrevSibling = parent->PrevSibling();
-  if (!parentPrevSibling)
-    return;
-
-  PRUint32 parentPrevSiblingRole = parentPrevSibling->Role();
+  nsAccessible* parentPrevSibling = parent->GetSiblingAtOffset(-1);
+  PRUint32 parentPrevSiblingRole = nsAccUtils::Role(parentPrevSibling);
   if (parentPrevSiblingRole == nsIAccessibleRole::ROLE_TEXT_LEAF) {
     // XXX Sometimes an empty text accessible is in the hierarchy here,
     // although the text does not appear to be rendered, GetRenderedText()
     // says that it is so we need to skip past it to find the true
     // previous sibling.
-    parentPrevSibling = parentPrevSibling->PrevSibling();
-    if (parentPrevSibling)
-      parentPrevSiblingRole = parentPrevSibling->Role();
+    parentPrevSibling = parentPrevSibling->GetSiblingAtOffset(-1);
+    parentPrevSiblingRole = nsAccUtils::Role(parentPrevSibling);
   }
 
   // Previous sibling of parent group is a tree item, this is the

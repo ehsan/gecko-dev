@@ -38,6 +38,8 @@
 #include "nsStreamTransportService.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsNetSegmentUtils.h"
+#include "nsAutoLock.h"
+#include "nsInt64.h"
 #include "nsTransportUtils.h"
 #include "nsStreamUtils.h"
 #include "nsNetError.h"

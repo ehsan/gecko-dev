@@ -49,31 +49,31 @@ struct nsIntSize;
 class nsNativeThemeWin : private nsNativeTheme,
                          public nsITheme {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // The nsITheme interface.
-  NS_IMETHOD DrawWidgetBackground(nsRenderingContext* aContext,
+  NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
                                   const nsRect& aDirtyRect);
 
-  NS_IMETHOD GetWidgetBorder(nsDeviceContext* aContext, 
+  NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
                              nsIntMargin* aResult);
 
-  virtual PRBool GetWidgetPadding(nsDeviceContext* aContext,
+  virtual PRBool GetWidgetPadding(nsIDeviceContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntMargin* aResult);
 
-  virtual PRBool GetWidgetOverflow(nsDeviceContext* aContext,
+  virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame,
                                    PRUint8 aWidgetType,
                                    nsRect* aOverflowRect);
 
-  NS_IMETHOD GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+  NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntSize* aResult,
                                   PRBool* aIsOverridable);
@@ -104,22 +104,17 @@ protected:
                                 PRInt32& aPart, PRInt32& aState);
   nsresult ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
                                    PRInt32& aPart, PRInt32& aState, PRBool& aFocused);
-  nsresult ClassicDrawWidgetBackground(nsRenderingContext* aContext,
+  nsresult ClassicDrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
                                   const nsRect& aClipRect);
-  nsresult ClassicGetWidgetBorder(nsDeviceContext* aContext, 
+  nsresult ClassicGetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
                              nsIntMargin* aResult);
 
-  PRBool ClassicGetWidgetPadding(nsDeviceContext* aContext,
-                            nsIFrame* aFrame,
-                            PRUint8 aWidgetType,
-                            nsIntMargin* aResult);
-
-  nsresult ClassicGetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+  nsresult ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntSize* aResult,
                                   PRBool* aIsOverridable);

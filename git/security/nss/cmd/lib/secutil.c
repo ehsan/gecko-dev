@@ -981,7 +981,7 @@ SECU_PrintInteger(FILE *out, SECItem *i, char *m, int level)
 }
 
 static void
-secu_PrintRawString(FILE *out, SECItem *si, const char *m, int level)
+secu_PrintRawString(FILE *out, SECItem *si, char *m, int level)
 {
     int column;
     unsigned int i;
@@ -2094,25 +2094,23 @@ secu_PrintCRLDistPtsExtension(FILE *out, SECItem *value, char *msg, int level)
 	CRLDistributionPoint ** pPoints = dPoints->distPoints;
 	CRLDistributionPoint *  pPoint;
 	while (NULL != (pPoint = *pPoints++)) {
-	    SECU_Indent(out, level); fputs("Distribution point:\n", out);
 	    if (pPoint->distPointType == generalName && 
 	        pPoint->distPoint.fullName != NULL) {
 		secu_PrintGeneralNames(out, pPoint->distPoint.fullName, NULL,
-		                       level + 1);
+		                       level);
 	    } else if (pPoint->distPointType == relativeDistinguishedName &&
 	               pPoint->distPoint.relativeName.avas) {
 		SECU_PrintRDN(out, &pPoint->distPoint.relativeName, "RDN", 
-		              level + 1);
+		              level);
 	    } else if (pPoint->derDistPoint.data) {
-		SECU_PrintAny(out, &pPoint->derDistPoint, "Point", level + 1);
+		SECU_PrintAny(out, &pPoint->derDistPoint, "Point", level);
 	    }
 	    if (pPoint->reasons.data) {
 		secu_PrintDecodedBitString(out, &pPoint->reasons, "Reasons", 
-		                           level + 1);
+		                           level);
 	    }
 	    if (pPoint->crlIssuer) {
-		secu_PrintGeneralName(out, pPoint->crlIssuer, "CRL issuer",
-				      level + 1);
+		secu_PrintGeneralName(out, pPoint->crlIssuer, "Issuer", level);
 	    }
 	}
     } else {
@@ -2334,7 +2332,7 @@ SECU_PrintExtensions(FILE *out, CERTCertExtension **extensions,
  * print those, so make a directory name out of the RDN, and print it.
  */
 void
-SECU_PrintRDN(FILE *out, CERTRDN *rdn, const char *msg, int level)
+SECU_PrintRDN(FILE *out, CERTRDN *rdn, char *msg, int level)
 {
     CERTName name;
     CERTRDN *rdns[2];
@@ -2347,7 +2345,7 @@ SECU_PrintRDN(FILE *out, CERTRDN *rdn, const char *msg, int level)
 }
 
 void
-SECU_PrintName(FILE *out, CERTName *name, const char *msg, int level)
+SECU_PrintName(FILE *out, CERTName *name, char *msg, int level)
 {
     char *nameStr = NULL;
     char *str;
@@ -4164,40 +4162,4 @@ SECU_SECItemHexStringToBinary(SECItem* srcdest)
     srcdest->len /= 2;
     return SECSuccess;
 }
-
-CERTCertificate*
-SECU_FindCertByNicknameOrFilename(CERTCertDBHandle *handle,
-                                  char *name, PRBool ascii,
-                                  void *pwarg)
-{
-    CERTCertificate *the_cert;
-    the_cert = CERT_FindCertByNicknameOrEmailAddr(handle, name);
-    if (the_cert) {
-        return the_cert;
-    }
-    the_cert = PK11_FindCertFromNickname(name, pwarg);
-    if (!the_cert) {
-        /* Don't have a cert with name "name" in the DB. Try to
-         * open a file with such name and get the cert from there.*/
-        SECStatus rv;
-        SECItem item = {0, NULL, 0};
-        PRFileDesc* fd = PR_Open(name, PR_RDONLY, 0777); 
-        if (!fd) {
-            return NULL;
-        }
-        rv = SECU_ReadDERFromFile(&item, fd, ascii);
-        PR_Close(fd);
-        if (rv != SECSuccess || !item.len) {
-            PORT_Free(item.data);
-            return NULL;
-        }
-        the_cert = CERT_NewTempCertificate(handle, &item, 
-                                           NULL     /* nickname */, 
-                                           PR_FALSE /* isPerm */, 
-                                           PR_TRUE  /* copyDER */);
-        PORT_Free(item.data);
-    }
-    return the_cert;
-}
-
 

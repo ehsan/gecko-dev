@@ -53,6 +53,10 @@ menulist > menupopup,
   -moz-binding: url("chrome://global/content/bindings/menulist.xml#menulist-compact");
 }
 
+progressmeter {
+  -moz-binding: url("chrome://global/content/bindings/progressmeter.xml#progressmeter-periodic-redraw");
+}
+
 /* ::::: draggable elements ::::: */
 
 toolbar:not([nowindowdrag="true"]) {
@@ -140,7 +144,6 @@ statusbar {
   Prevents hiding of scrollbars in browser when window is made smaller.*/
   min-height: 15px !important;
   margin: 0px !important;
-  /* need to use -moz-padding-end when/if bug 631729 gets fixed: */
   padding: 0px 16px 1px 1px;
   -moz-appearance: statusbar;
   text-shadow: rgba(255, 255, 255, 0.4) 0 1px;
@@ -164,11 +167,11 @@ statusbarpanel {
 }
 
 :root:-moz-lwtheme-darktext {
-  text-shadow: 1px 1px 1.5px white;
+  text-shadow: 1px 1px 2px white;
 }
 
 :root:-moz-lwtheme-brighttext {
-  text-shadow: 1px 1px 1.5px black;
+  text-shadow: 1px 1px 2px black;
 }
 
 statusbar:-moz-lwtheme {
@@ -292,24 +295,24 @@ notification > button {
   min-width: 60px;
   min-height: 16px;
   -moz-appearance: none;
-  border-radius: 10000px;
+  -moz-border-radius: 100%;
   border: @roundButtonBorder@;
   text-shadow: @loweredShadow@;
   background: @roundButtonBackground@;
-  box-shadow: @roundButtonShadow@;
+  -moz-box-shadow: @roundButtonShadow@;
 }
 
 notification > button:active:hover {
   background: @roundButtonPressedBackground@;
-  box-shadow: @roundButtonPressedShadow@;
+  -moz-box-shadow: @roundButtonPressedShadow@;
 }
 
 notification > button:-moz-focusring {
-  box-shadow: @focusRingShadow@, @roundButtonShadow@;
+  -moz-box-shadow: @focusRingShadow@, @roundButtonShadow@;
 }
 
 notification > button:active:hover:-moz-focusring {
-  box-shadow: @focusRingShadow@, @roundButtonPressedShadow@;
+  -moz-box-shadow: @focusRingShadow@, @roundButtonPressedShadow@;
 }
 
 notification > button > .button-box > .button-text {

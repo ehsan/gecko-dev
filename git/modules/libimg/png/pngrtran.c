@@ -1,8 +1,8 @@
 
 /* pngrtran.c - transforms the data in a row for PNG readers
  *
- * Last changed in libpng 1.4.6 [%RDATE%]
- * Copyright (c) 1998-2011 Glenn Randers-Pehrson
+ * Last changed in libpng 1.4.2 [May 6, 2010]
+ * Copyright (c) 1998-2010 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  *
@@ -26,7 +26,7 @@ void PNGAPI
 png_set_crc_action(png_structp png_ptr, int crit_action, int ancil_action)
 {
    png_debug(1, "in png_set_crc_action");
-
+ 
    if (png_ptr == NULL)
       return;
 
@@ -98,7 +98,7 @@ png_set_background(png_structp png_ptr,
    int need_expand, double background_gamma)
 {
    png_debug(1, "in png_set_background");
-
+ 
    if (png_ptr == NULL)
       return;
    if (background_gamma_code == PNG_BACKGROUND_GAMMA_UNKNOWN)
@@ -686,11 +686,6 @@ png_set_rgb_to_gray_fixed(png_structp png_ptr, int error_action,
               break;
 
       case 3: png_ptr->transformations |= PNG_RGB_TO_GRAY_ERR;
-         break;
-
-      default:
-         png_error(png_ptr, "invalid error action in png_set_rgb_to_gray");
-         break;
    }
    if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE)
 #ifdef PNG_READ_EXPAND_SUPPORTED
@@ -832,8 +827,6 @@ png_init_read_transformations(png_structp png_ptr)
                    = png_ptr->trans_color.blue = png_ptr->trans_color.gray;
                }
                break;
-
-            default:
 
             case 8:
 
@@ -1008,7 +1001,7 @@ png_init_read_transformations(png_structp png_ptr)
              */
             png_ptr->transformations &= ~PNG_BACKGROUND;
             png_ptr->transformations &= ~PNG_GAMMA;
-            png_ptr->flags |= PNG_FLAG_STRIP_ALPHA;
+            png_ptr->transformations |= PNG_STRIP_ALPHA;
          }
          /* if (png_ptr->background_gamma_type!=PNG_BACKGROUND_GAMMA_UNKNOWN) */
          else
@@ -1035,9 +1028,6 @@ png_init_read_transformations(png_structp png_ptr)
                   gs = 1.0 / (png_ptr->background_gamma *
                      png_ptr->screen_gamma);
                   break;
-
-               default:
-                  png_error(png_ptr, "invalid background gamma type");
             }
 
             png_ptr->background_1.gray = (png_uint_16)(pow(
@@ -1131,7 +1121,7 @@ png_init_read_transformations(png_structp png_ptr)
 
       /* Handled alpha, still need to strip the channel. */
       png_ptr->transformations &= ~PNG_BACKGROUND;
-      png_ptr->flags |= PNG_FLAG_STRIP_ALPHA;
+      png_ptr->transformations |= PNG_STRIP_ALPHA;
    }
 #endif /* PNG_READ_BACKGROUND_SUPPORTED */
 
@@ -1636,9 +1626,6 @@ png_do_unpack(png_row_infop row_info, png_bytep row)
             }
             break;
          }
-
-         default:
-            break;
       }
       row_info->bit_depth = 8;
       row_info->pixel_depth = (png_byte)(8 * row_info->channels);
@@ -1695,9 +1682,6 @@ png_do_unshift(png_row_infop row_info, png_bytep row, png_color_8p sig_bits)
 
       switch (row_info->bit_depth)
       {
-         default:
-            break;
-
          case 2:
          {
             png_bytep bp;
@@ -2290,7 +2274,7 @@ png_do_rgb_to_gray(png_structp png_ptr, png_row_infop row_info, png_bytep row)
 
    png_debug(1, "in png_do_rgb_to_gray");
 
-   if (!(row_info->color_type & PNG_COLOR_MASK_PALETTE) &&
+   if (
       (row_info->color_type & PNG_COLOR_MASK_COLOR))
    {
       png_uint_32 rc = png_ptr->rgb_to_gray_red_coeff;
@@ -2814,9 +2798,6 @@ png_do_background(png_row_infop row_info, png_bytep row,
                   }
                   break;
                }
-
-               default:
-                  break;
             }
             break;
          }
@@ -3249,9 +3230,6 @@ png_do_background(png_row_infop row_info, png_bytep row,
             }
             break;
          }
-
-         default:
-            break;
       }
 
       if (row_info->color_type & PNG_COLOR_MASK_ALPHA)
@@ -3450,9 +3428,6 @@ png_do_gamma(png_row_infop row_info, png_bytep row,
             }
             break;
          }
-
-         default:
-            break;
       }
    }
 }
@@ -3547,9 +3522,6 @@ png_do_expand_palette(png_row_infop row_info, png_bytep row,
                }
                break;
             }
-
-            default:
-               break;
          }
          row_info->bit_depth = 8;
          row_info->pixel_depth = 8;
@@ -3700,9 +3672,6 @@ png_do_expand(png_row_infop row_info, png_bytep row,
                   }
                   break;
                }
-
-               default:
-                  break;
             }
 
             row_info->bit_depth = 8;

@@ -100,6 +100,7 @@ EXPORTS		= \
 		nsHashtable.h \
 		nsIByteBuffer.h \
 		nsIUnicharBuffer.h \
+		nsInt64.h \
 		nsMathUtils.h \
 		nsObserverService.h \
 		nsRecyclingAllocator.h \
@@ -148,7 +149,7 @@ SDK_XPIDLSRCS   = \
 		nsISupportsPrimitives.idl  \
 		$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 CPPSRCS += nsWindowsRegKey.cpp
 XPIDLSRCS += nsIWindowsRegKey.idl
 EXPORTS += nsWindowsRegKey.h

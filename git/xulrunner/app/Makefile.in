@@ -25,7 +25,6 @@
 #  Dan Mosedale <dmose@mozilla.org>
 #  Darin Fisher <darin@meer.net>
 #  Benjamin Smedberg <benjamin@smedbergs.us>
-#  Jared Wein <jwein@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,27 +40,31 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH = ../..
-topsrcdir = @top_srcdir@
-srcdir = @srcdir@
-VPATH = @srcdir@
+DEPTH		= ../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = profile
+DIRS		= profile
 
 PREF_JS_EXPORTS = $(srcdir)/xulrunner.js
 GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/,xulrunner.js)
 
 DEFINES += -DAB_CD=$(AB_CD)
 
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter BeOS OS2 WINCE WINNT,$(OS_ARCH)))
 PROGRAM = xulrunner$(BIN_SUFFIX)
 else
 PROGRAM = xulrunner-bin$(BIN_SUFFIX)
 endif
 
 DEFINES += -DXULRUNNER_PROGNAME=\"xulrunner\"
+
+ifdef MOZ_JAVAXPCOM
+DEFINES += -DMOZ_JAVAXPCOM
+endif
 
 ifdef TARGET_XPCOM_ABI
 DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
@@ -70,22 +73,54 @@ endif
 
 CPPSRCS = nsXULRunnerApp.cpp
 
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
+CPPSRCS += nsRegisterGREWin.cpp
+else
+ifeq (OS2,$(OS_ARCH))
+CPPSRCS += nsRegisterGREVoid.cpp
+else
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += nsRegisterGREVoid.cpp
+else
+CPPSRCS += nsRegisterGREUnix.cpp
+endif
+endif
+endif
+
 LOCAL_INCLUDES += \
-  -I$(topsrcdir)/toolkit/xre \
-  -I$(topsrcdir)/toolkit/profile \
-  -I$(topsrcdir)/xpcom/base \
-  $(NULL)
+        -I$(topsrcdir)/toolkit/xre \
+        -I$(topsrcdir)/toolkit/profile/src \
+        $(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 TK_LIBS := -framework Cocoa $(TK_LIBS)
 endif
 
+ifndef MOZ_ENABLE_LIBXUL
+ifeq (bundle,$(MOZ_FS_LAYOUT))
+LIBS += $(DIST)/bin/XUL
+else
+EXTRA_DSO_LIBS += xul
+endif
+endif
+
 LIBS += \
-  $(EXTRA_DSO_LIBS) \
-  $(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
-  $(XPCOM_LIBS) \
-  $(NSPR_LIBS) \
-  $(NULL)
+	$(EXTRA_DSO_LIBS) \
+	$(MOZ_JS_LIBS) \
+	$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+	$(XPCOM_LIBS) \
+	$(NSPR_LIBS) \
+	$(TK_LIBS) \
+	$(NULL)
+
+# Add explicit X11 dependency when building against X11 toolkits
+ifneq (,$(filter gtk gtk2 xlib,$(MOZ_WIDGET_TOOLKIT)))
+LIBS += $(XLDFLAGS) $(XLIBS) $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
+endif
+
+ifdef MOZ_JPROF
+LIBS += -ljprof
+endif
 
 ifndef MOZ_WINCONSOLE
 ifdef MOZ_DEBUG
@@ -105,7 +140,11 @@ include $(topsrcdir)/config/config.mk
 ifdef _MSC_VER
 # Always enter a Windows program through wmain, whether or not we're
 # a console application.
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+else
 WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
 endif
 
 ifeq ($(OS_ARCH),WINNT)
@@ -119,6 +158,10 @@ endif
 ifdef DEBUG
 RCFLAGS += -DDEBUG
 endif
+endif
+
+ifeq ($(OS_ARCH),BeOS)
+OS_LIBS += -ltracker
 endif
 
 ifeq ($(OS_ARCH),OS2)
@@ -160,7 +203,7 @@ endif
 endif
 endif
 
-ifneq (,$(filter-out OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter-out OS2 WINCE WINNT BeOS,$(OS_ARCH)))
 ifeq (unix, $(MOZ_FS_LAYOUT))
 
 xulrunner:: $(topsrcdir)/build/unix/mozilla.in $(GLOBAL_DEPS)
@@ -179,6 +222,19 @@ GARBAGE += xulrunner
 endif
 endif
 
+ifneq (,$(filter gtk gtk2,$(MOZ_WIDGET_TOOLKIT)))
+
+ICON_FILES	= \
+		$(DIST)/branding/document.png \
+		$(NULL)
+
+libs:: $(ICON_FILES)
+	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/icons
+
+install::
+	$(SYSINSTALL) $(IFLAGS1) $(ICON_FILES) $(DESTDIR)$(mozappdir)/icons
+endif
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
@@ -188,7 +244,7 @@ endif
 
 # XXX applications would need to supply this file
 #export:: brand.dtd.in
-#	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ > brand.dtd
+#	$(PERL) $(topsrcdir)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) $^ > brand.dtd
 
 export::
 	$(NSINSTALL) -D $(DIST)/branding
@@ -196,6 +252,9 @@ ifeq ($(OS_ARCH),WINNT)
 	cp $(srcdir)/xulrunner.ico   $(DIST)/branding/xulrunner.ico
 	cp $(srcdir)/xulrunner.ico   $(DIST)/branding/app.ico
 	cp $(srcdir)/document.ico  $(DIST)/branding/document.ico
+endif
+ifneq (,$(filter gtk gtk2,$(MOZ_WIDGET_TOOLKIT)))
+	cp $(srcdir)/document.png $(DIST)/branding/document.png
 endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 	cp $(srcdir)/default16.png   $(DIST)/branding/default16.png

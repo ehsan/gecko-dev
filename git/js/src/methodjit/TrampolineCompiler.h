@@ -49,18 +49,23 @@ namespace mjit {
 
 class TrampolineCompiler
 {
+    typedef Assembler::Label Label;
+    typedef Assembler::Jump Jump;
+    typedef Assembler::ImmPtr ImmPtr;
+    typedef Assembler::Imm32 Imm32;
+    typedef Assembler::Address Address;
     typedef bool (*TrampolineGenerator)(Assembler &masm);
 
 public:
-    TrampolineCompiler(JSC::ExecutableAllocator *alloc, Trampolines *tramps)
-      : execAlloc(alloc), trampolines(tramps)
+    TrampolineCompiler(JSC::ExecutableAllocator *pool, Trampolines *tramps)
+      : execPool(pool), trampolines(tramps)
     { }
 
     bool compile();
     static void release(Trampolines *tramps);
 
 private:
-    bool compileTrampoline(Trampolines::TrampolinePtr *where, JSC::ExecutablePool **pool,
+    bool compileTrampoline(void **where, JSC::ExecutablePool **pool,
                            TrampolineGenerator generator);
     
     /* Generators for trampolines. */
@@ -70,7 +75,7 @@ private:
     static bool generateForceReturnFast(Assembler &masm);
 #endif
 
-    JSC::ExecutableAllocator *execAlloc;
+    JSC::ExecutableAllocator *execPool;
     Trampolines *trampolines;
 };
 

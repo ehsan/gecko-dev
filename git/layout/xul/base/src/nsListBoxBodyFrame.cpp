@@ -58,10 +58,13 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsStyleContext.h"
-#include "nsFontMetrics.h"
+#include "nsIRenderingContext.h"
+#include "nsIDeviceContext.h"
+#include "nsIFontMetrics.h"
 #include "nsITimer.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
+#include "nsIDOMNSDocument.h"
 #include "nsPIBoxObject.h"
 #include "nsINodeInfo.h"
 #include "nsLayoutUtils.h"
@@ -78,6 +81,10 @@
  * do this until the timer finally first because the user has stopped moving
  * the mouse. Then do all the queued requests in on shot.
  */
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 // the longest amount of time that can go by before the use
 // notices it as a delay.
@@ -219,9 +226,9 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
       scrollbarFrame->SetScrollbarMediatorContent(GetContent());
     }
   }
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  mRowHeight = fm->MaxHeight();
+  fm->GetHeight(mRowHeight);
 
   return rv;
 }
@@ -282,25 +289,6 @@ nsListBoxBodyFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
     aBoxLayoutState.SetPaintingDisabled(PR_TRUE);
 
   nsresult rv = nsBoxFrame::DoLayout(aBoxLayoutState);
-
-  // determine the real height for the scrollable area from the total number
-  // of rows, since non-visible rows don't yet have frames
-  nsRect rect(nsPoint(0, 0), GetSize());
-  nsOverflowAreas overflow(rect, rect);
-  if (mLayoutManager) {
-    nsIFrame* childFrame = mFrames.FirstChild();
-    while (childFrame) {
-      ConsiderChildOverflow(overflow, childFrame);
-      childFrame = childFrame->GetNextSibling();
-    }
-
-    nsSize prefSize = mLayoutManager->GetPrefSize(this, aBoxLayoutState);
-    NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-      nsRect& o = overflow.Overflow(otype);
-      o.height = NS_MAX(o.height, prefSize.height);
-    }
-  }
-  FinishAndStoreOverflow(overflow, GetSize());
 
   if (mScrolling)
     aBoxLayoutState.SetPaintingDisabled(PR_FALSE);
@@ -722,7 +710,7 @@ nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
       nsIContent *child = (*iter);
 
       if (child->Tag() == nsGkAtoms::listitem) {
-        nsRenderingContext* rendContext = aBoxLayoutState.GetRenderingContext();
+        nsIRenderingContext* rendContext = aBoxLayoutState.GetRenderingContext();
         if (rendContext) {
           nsAutoString value;
           PRUint32 textCount = child->GetChildCount();

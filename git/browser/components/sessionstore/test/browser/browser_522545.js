@@ -35,11 +35,37 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   /** Test for Bug 522545 **/
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
-  requestLongerTimeout(2);
+
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
+
+  function waitForBrowserState(aState, aSetStateCallback) {
+    var locationChanges = 0;
+    gBrowser.addTabsProgressListener({
+      onLocationChange: function (aBrowser) {
+        if (++locationChanges == aState.windows[0].tabs.length) {
+          gBrowser.removeTabsProgressListener(this);
+          executeSoon(aSetStateCallback);
+        }
+      }
+    });
+    ss.setBrowserState(JSON.stringify(aState));
+  }
 
   // This tests the following use case:
   // User opens a new tab which gets focus. The user types something into the
@@ -226,25 +252,23 @@ function test() {
       is(browser.userTypedValue, null, "userTypedValue is empty to start");
       is(browser.userTypedClear, 0, "userTypedClear is 0 to start");
 
-      gURLBar.value = "example.org";
+      gURLBar.value = "mozilla.org";
       let event = document.createEvent("Events");
       event.initEvent("input", true, false);
       gURLBar.dispatchEvent(event);
 
-      executeSoon(function() {
-        is(browser.userTypedValue, "example.org",
-           "userTypedValue was set when changing gURLBar.value");
-        is(browser.userTypedClear, 0,
-           "userTypedClear was not changed when changing gURLBar.value");
+      is(browser.userTypedValue, "mozilla.org",
+         "userTypedValue was set when changing gURLBar.value");
+      is(browser.userTypedClear, 0,
+         "userTypedClear was not changed when changing gURLBar.value");
 
-        // Now make sure ss gets these values too
-        let newState = JSON.parse(ss.getBrowserState());
-        is(newState.windows[0].tabs[0].userTypedValue, "example.org",
-           "sessionstore got correct userTypedValue");
-        is(newState.windows[0].tabs[0].userTypedClear, 0,
-           "sessionstore got correct userTypedClear");
-        runNextTest();
-      });
+      // Now make sure ss gets these values too
+      let newState = JSON.parse(ss.getBrowserState());
+      is(newState.windows[0].tabs[0].userTypedValue, "mozilla.org",
+         "sessionstore got correct userTypedValue");
+      is(newState.windows[0].tabs[0].userTypedClear, 0,
+         "sessionstore got correct userTypedClear");
+      runNextTest();
     });
   }
 
@@ -260,7 +284,16 @@ function test() {
       }]
     };
 
-    waitForBrowserState(state, function() {
+    // Set state here and listen for load event because waitForBrowserState
+    // doesn't guarantee all the tabs have loaded, so the test could continue
+    // before we're in a testable state. This is important here because of the
+    // distinction between "http://example.com" and "http://example.com/".
+    ss.setBrowserState(JSON.stringify(state));
+    gBrowser.addEventListener("load", function(aEvent) {
+      if (gBrowser.currentURI.spec == "about:blank")
+        return;
+      gBrowser.removeEventListener("load", arguments.callee, true);
+
       let browser = gBrowser.selectedBrowser;
       is(browser.currentURI.spec, "http://example.com/",
          "userTypedClear=2 caused userTypedValue to be loaded");
@@ -268,10 +301,10 @@ function test() {
          "userTypedValue was null after loading a URI");
       is(browser.userTypedClear, 0,
          "userTypeClear reset to 0");
-      is(gURLBar.value, gURLBar.trimValue("http://example.com/"),
+      is(gURLBar.value, "http://example.com/",
          "Address bar's value set after loading URI");
       runNextTest();
-    });
+    }, true);
   }
 
 
@@ -280,17 +313,15 @@ function test() {
                test_getBrowserState_lotsOfTabsOpening,
                test_getBrowserState_userTypedValue, test_userTypedClearLoadURI];
   let originalState = ss.getBrowserState();
-  let state = {
-    windows: [{
-      tabs: [{ entries: [{ url: "about:blank" }] }]
-    }]
-  };
   function runNextTest() {
     if (tests.length) {
-      waitForBrowserState(state, tests.shift());
+      tests.shift()();
     } else {
       ss.setBrowserState(originalState);
-      executeSoon(finish);
+      executeSoon(function () {
+        is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
+        finish();
+      });
     }
   }
 

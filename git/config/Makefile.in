@@ -104,7 +104,8 @@ HEADERS = \
 
 export:: $(TARGETS) $(HEADERS)
 	$(INSTALL) $(IFLAGS1) $(HEADERS) $(DIST)/include
-	-$(RM) $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+	-rm -f $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+	-rm -f $(DIST)/bin/chrome/chromelist.txt
 ifdef HOST_PROGRAM
 	$(INSTALL) $(HOST_PROGRAM) $(DIST)/bin
 endif
@@ -121,16 +122,16 @@ endif
 ifdef WRAP_SYSTEM_INCLUDES
 export::
 	if test ! -d system_wrappers; then mkdir system_wrappers; fi
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
+	$(PERL) $(topsrcdir)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) \
+		-DBUILD_STATIC_LIBS=$(BUILD_STATIC_LIBS) \
 		-DMOZ_TREE_CAIRO=$(MOZ_TREE_CAIRO) \
-		-DMOZ_TREE_PIXMAN=$(MOZ_TREE_PIXMAN) \
+		-DMOZ_ENABLE_LIBXUL=$(MOZ_ENABLE_LIBXUL) \
 		-DMOZ_NATIVE_HUNSPELL=$(MOZ_NATIVE_HUNSPELL) \
 		-DMOZ_NATIVE_BZ2=$(MOZ_NATIVE_BZ2) \
 		-DMOZ_NATIVE_ZLIB=$(MOZ_NATIVE_ZLIB) \
 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
 		-DMOZ_NATIVE_LIBEVENT=$(MOZ_NATIVE_LIBEVENT) \
-		-DMOZ_NATIVE_LIBVPX=$(MOZ_NATIVE_LIBVPX) \
 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
 	$(INSTALL) system_wrappers $(DIST)
 
@@ -165,7 +166,7 @@ install::
 	$(SYSINSTALL) $(IFLAGS1) $(DEPTH)/mozilla-config.h $(DESTDIR)$(includedir)
 
 GARBAGE += \
-  $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc *.pyc
+	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
@@ -188,8 +189,6 @@ PYUNITS := \
   unit-printprereleasesuffix.py \
   unit-JarMaker.py \
   unit-buildlist.py \
-  unit-expandlibs.py \
-  unit-writemozinfo.py \
   $(NULL)
 
 check:: check-python-modules check-jar-mn

@@ -50,7 +50,7 @@ nsLeafFrame::~nsLeafFrame()
 NS_IMPL_FRAMEARENA_HELPERS(nsLeafFrame)
 
 /* virtual */ nscoord
-nsLeafFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsLeafFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -60,7 +60,7 @@ nsLeafFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsLeafFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsLeafFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -69,7 +69,7 @@ nsLeafFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nsSize
-nsLeafFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsLeafFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder,
                              nsSize aPadding, PRBool aShrinkWrap)
@@ -120,8 +120,9 @@ nsLeafFrame::DoReflow(nsPresContext* aPresContext,
                   aMetrics.width, aMetrics.height));
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
 
-  aMetrics.SetOverflowAreasToDesiredBounds();
-
+  aMetrics.mOverflowArea =
+    nsRect(0, 0, aMetrics.width, aMetrics.height);
+  
   return NS_OK;
 }
 
@@ -148,6 +149,7 @@ nsLeafFrame::SizeToAvailSize(const nsHTMLReflowState& aReflowState,
 {
   aDesiredSize.width  = aReflowState.availableWidth; // FRAME
   aDesiredSize.height = aReflowState.availableHeight;
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea =
+    nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   FinishAndStoreOverflow(&aDesiredSize);  
 }

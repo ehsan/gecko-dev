@@ -165,7 +165,7 @@ public:
                                nsNativeWidget aNativeParent,
                                const nsIntRect& aRect,
                                EVENT_CALLBACK aHandleEventFunction,
-                               nsDeviceContext* aContext,
+                               nsIDeviceContext* aContext,
                                nsIAppShell* aAppShell = nsnull,
                                nsIToolkit* aToolkit = nsnull,
                                nsWidgetInitData* aInitData = nsnull);
@@ -214,10 +214,10 @@ public:
                                            PRBool* aLEDState);
   NS_IMETHOD            DispatchEvent(nsGUIEvent* event,
                                       nsEventStatus& aStatus);
-  NS_IMETHOD            ReparentNativeWidget(nsIWidget* aNewParent);
 
   // nsWindow
   static void           ReleaseGlobals();
+
 protected:
   // from nsBaseWidget
   virtual void          OnDestroy();

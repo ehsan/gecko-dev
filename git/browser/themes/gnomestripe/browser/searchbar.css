@@ -21,7 +21,8 @@
 .searchbar-engine-image {
   height: 16px;
   width: 16px;
-  list-style-image: url("moz-icon://stock/gtk-file?size=menu");
+  list-style-image: url("chrome://global/skin/icons/folder-item.png");
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
   -moz-margin-start: 2px;
 }
 
@@ -29,9 +30,11 @@
   -moz-appearance: none;
   min-width: 0;
   margin: 0;
+  -moz-margin-end: 2px;
   border: 0;
   -moz-box-align: center;
-  background-color: transparent;
+  background: -moz-dialog -moz-linear-gradient(rgba(255,255,255,.25), rgba(0,0,0,.15));
+  -moz-border-end: 1px solid ThreeDShadow;
 }
 
 .searchbar-engine-button > .button-box {
@@ -41,10 +44,24 @@
   border: 0;
 }
 
+.searchbar-engine-button:hover {
+  background-image: -moz-linear-gradient(rgba(255,255,255,.5), rgba(50%,50%,50%,.2), rgba(0,0,0,.15));
+}
+
+.searchbar-engine-button:hover:active,
+.searchbar-engine-button[open="true"] {
+  background-image: -moz-linear-gradient(rgba(0,0,0,.4), rgba(0,0,0,.1));
+}
+
+.searchbar-engine-button[addengines="true"] {
+  -moz-box-shadow: 0 -5px 20px Highlight inset;
+}
+
 .searchbar-dropmarker-image {
   -moz-appearance: toolbarbutton-dropdown !important;
   width: 12px;
   height: 12px;
+  -moz-margin-start: 1px;
 }
 
 /* Search go button */

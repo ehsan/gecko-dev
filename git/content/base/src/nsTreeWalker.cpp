@@ -147,10 +147,8 @@ NS_IMETHODIMP nsTreeWalker::SetCurrentNode(nsIDOMNode * aCurrentNode)
     nsresult rv = nsContentUtils::CheckSameOrigin(mRoot, aCurrentNode);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsINode> node = do_QueryInterface(aCurrentNode);
-    NS_ENSURE_TRUE(node, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    mCurrentNode = do_QueryInterface(aCurrentNode);
 
-    mCurrentNode.swap(node);
     return NS_OK;
 }
 
@@ -368,14 +366,11 @@ nsresult nsTreeWalker::FirstChildInternal(PRBool aReversed, nsIDOMNode **_retval
                 node = sibling;
                 break;
             }
-
             nsINode *parent = node->GetNodeParent();
 
             if (!parent || parent == mRoot || parent == mCurrentNode) {
                 return NS_OK;
             }
-
-            node = parent;
 
         } while (node);
     }
@@ -391,6 +386,7 @@ nsresult nsTreeWalker::FirstChildInternal(PRBool aReversed, nsIDOMNode **_retval
  * @returns         Errorcode
  */
 nsresult nsTreeWalker::NextSiblingInternal(PRBool aReversed, nsIDOMNode **_retval)
+
 {
     nsresult rv;
     PRInt16 filtered;
@@ -403,39 +399,46 @@ nsresult nsTreeWalker::NextSiblingInternal(PRBool aReversed, nsIDOMNode **_retva
         return NS_OK;
 
     while (1) {
-        nsINode* sibling = aReversed ? node->GetPreviousSibling()
-                                     : node->GetNextSibling();
+        nsCOMPtr<nsINode> sibling = aReversed ? node->GetPreviousSibling()
+                                              : node->GetNextSibling();
 
         while (sibling) {
-            node = sibling;
-
-            rv = TestNode(node, &filtered);
+            rv = TestNode(sibling, &filtered);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (filtered == nsIDOMNodeFilter::FILTER_ACCEPT) {
-                // Node found
-                mCurrentNode.swap(node);
-                return CallQueryInterface(mCurrentNode, _retval);
+            switch (filtered) {
+                case nsIDOMNodeFilter::FILTER_ACCEPT:
+                    // Node found
+                    mCurrentNode = sibling;
+                    return CallQueryInterface(sibling, _retval);
+                case nsIDOMNodeFilter::FILTER_SKIP: {
+                        nsINode *firstChild = aReversed ? sibling->GetLastChild()
+                                                        : sibling->GetFirstChild();
+                        if (firstChild) {
+                            sibling = firstChild;
+                            continue;
+                        }
+                    }
+                    break;
+                case nsIDOMNodeFilter::FILTER_REJECT:
+                    // Keep searching
+                    break;
             }
-
-            // If rejected or no children, try a sibling
-            if (filtered == nsIDOMNodeFilter::FILTER_REJECT ||
-                !(sibling = aReversed ? node->GetLastChild()
-                                      : node->GetFirstChild())) {
-                sibling = aReversed ? node->GetPreviousSibling()
-                                    : node->GetNextSibling();
-            }
+            sibling = aReversed ? sibling->GetPreviousSibling()
+                                : sibling->GetNextSibling();
         }
 
         node = node->GetNodeParent();
 
         if (!node || node == mRoot)
-            return NS_OK;
+            break;
 
         // Is parent transparent in filtered view?
         rv = TestNode(node, &filtered);
         NS_ENSURE_SUCCESS(rv, rv);
         if (filtered == nsIDOMNodeFilter::FILTER_ACCEPT)
-            return NS_OK;
+            break;
     }
+
+    return NS_OK;
 }

@@ -46,7 +46,6 @@
 #include "nsSVGString.h"
 #include "nsTArray.h"
 #include "nsReferencedElement.h"
-#include "mozilla/dom/FromParser.h"
 
 class nsIContent;
 class nsINodeInfo;
@@ -58,7 +57,7 @@ class nsINodeInfo;
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult,
                     already_AddRefed<nsINodeInfo> aNodeInfo,
-                    mozilla::dom::FromParser aFromParser);
+                    PRUint32 aFromParser);
 
 typedef nsSVGGraphicElement nsSVGUseElementBase;
 
@@ -102,11 +101,9 @@ public:
   void DestroyAnonymousContent();
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
   virtual void DidChangeString(PRUint8 aAttrEnum);
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -132,7 +129,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual StringAttributesInfo GetStringInfo();
 
-  PRBool HasValidDimensions();
   void SyncWidthHeight(PRUint8 aAttrEnum);
   void LookupHref();
   void TriggerReclone();

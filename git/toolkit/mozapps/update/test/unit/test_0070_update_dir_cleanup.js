@@ -39,9 +39,6 @@
 /* General Update Directory Cleanup Tests */
 
 function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
-
   removeUpdateDirsAndFiles();
   setUpdateChannel();
 
@@ -58,39 +55,27 @@ function run_test() {
   log.append(FILE_UPDATE_LOG);
   writeFile(log, "Last Update Log");
 
-  let channelchange = dir.clone();
-  channelchange.append("0");
-  channelchange.append(CHANNEL_CHANGE_FILE);
-  channelchange.create(AUS_Ci.nsIFile.FILE_TYPE, PERMS_FILE);
-
   standardInit();
 
-  logTestInfo("testing " + log.path + " shouldn't exist");
+  dump("Testing: " + FILE_UPDATE_LOG + " doesn't exist\n");
   do_check_false(log.exists());
 
+  dump("Testing: " + FILE_LAST_LOG + " exists\n");
   log = dir.clone();
   log.append(FILE_LAST_LOG);
-  logTestInfo("testing " + log.path + " should exist");
   do_check_true(log.exists());
 
-  logTestInfo("testing " + log.path + " contents");
+  dump("Testing: " + FILE_LAST_LOG + " contents\n");
   do_check_eq(readFile(log), "Last Update Log");
 
+  dump("Testing: " + FILE_BACKUP_LOG + " doesn't exist\n");
   log = dir.clone();
   log.append(FILE_BACKUP_LOG);
-  logTestInfo("testing " + log.path + " shouldn't exist");
   do_check_false(log.exists());
 
+  dump("Testing: " + dir.path + " exists (bug 512994)\n");
   dir.append("0");
-  logTestInfo("testing " + dir.path + " should exist (bug 512994)");
   do_check_true(dir.exists());
 
-  logTestInfo("testing " + channelchange.path + " shouldn't exist");
-  do_check_false(channelchange.exists());
-
-  do_test_finished();
-}
-
-function end_test() {
   cleanUp();
 }

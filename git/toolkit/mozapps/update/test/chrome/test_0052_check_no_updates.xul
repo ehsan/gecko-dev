@@ -29,10 +29,11 @@ const TESTS = [ {
 } ];
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let url = URL_UPDATE + "?noUpdates=1";
   setUpdateURLOverride(url);
+  debugDump("Update URL: " + url);
 
   gUP.checkForUpdates();
 }

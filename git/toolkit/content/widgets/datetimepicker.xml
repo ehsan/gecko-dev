@@ -20,7 +20,7 @@
    - the Initial Developer. All Rights Reserved.
    -
    - Contributor(s):
-   -   Neil Deakin <enndeakin@gmail.com> (Original Author)
+   -   Neil Deakin <enndeakin@sympatico.ca> (Original Author)
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -62,24 +62,24 @@
                 xbl:inherits="context">
         <xul:hbox class="textbox-input-box datetimepicker-input-subbox" align="center">
           <html:input class="datetimepicker-input textbox-input" anonid="input-one"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
         <xul:label anonid="sep-first" class="datetimepicker-separator" value=":"/>
         <xul:hbox class="textbox-input-box datetimepicker-input-subbox" align="center">
           <html:input class="datetimepicker-input textbox-input" anonid="input-two"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
         <xul:label anonid="sep-second" class="datetimepicker-separator" value=":"/>
         <xul:hbox class="textbox-input-box datetimepicker-input-subbox" align="center">
           <html:input class="datetimepicker-input textbox-input" anonid="input-three"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
         <xul:hbox class="textbox-input-box datetimepicker-input-subbox" align="center">
           <html:input class="datetimepicker-input textbox-input" anonid="input-ampm"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
       </xul:hbox>
@@ -246,12 +246,12 @@
            extends="chrome://global/content/bindings/datetimepicker.xml#datetimepicker-base">
 
     <implementation>
-      <field name="is24HourClock">false</field>
-      <field name="hourLeadingZero">false</field>
-      <field name="minuteLeadingZero">true</field>
-      <field name="secondLeadingZero">true</field>
-      <field name="amIndicator">"AM"</field>
-      <field name="pmIndicator">"PM"</field>
+      <field name="is24HourClock" readonly="true">false</field>
+      <field name="hourLeadingZero" readonly="true">false</field>
+      <field name="minuteLeadingZero" readonly="true">true</field>
+      <field name="secondLeadingZero" readonly="true">true</field>
+      <field name="amIndicator" readonly="true">"AM"</field>
+      <field name="pmIndicator" readonly="true">"PM"</field>
 
       <field name="hourField">null</field>
       <field name="minuteField">null</field>
@@ -645,11 +645,6 @@
       </property>
       <property name="open" onget="return false;" onset="return val;"/>
 
-      <property name="displayedMonth" onget="return this.month;"
-                onset="this.month = val; return val;"/>
-      <property name="displayedYear" onget="return this.year;"
-                onset="this.year = val; return val;"/>
-
       <method name="_setValueNoSync">
         <parameter name="aValue"/>
         <body>
@@ -994,25 +989,6 @@
         </setter>
       </property>
 
-      <property name="displayedMonth">
-        <getter>
-          return this._displayedDate.getMonth();
-        </getter>
-        <setter>
-          this._updateUI(this.monthField, val, true);
-          return val;
-        </setter>
-      </property>
-      <property name="displayedYear">
-        <getter>
-          return this._displayedDate.getFullYear();
-        </getter>
-        <setter>
-          this._updateUI(this.yearField, val, true);
-          return val;
-        </setter>
-      </property>
-
       <method name="_init">
         <body>
           <![CDATA[
@@ -1054,30 +1030,15 @@
       <method name="_updateUI">
         <parameter name="aField"/>
         <parameter name="aValue"/>
-        <parameter name="aCheckMonth"/>
+        <parameter name="aIncDecMonth"/>
         <body>
           <![CDATA[
             var date;
             var currentMonth;
-            if (aCheckMonth) {
+            if (aIncDecMonth) {
               if (!this._displayedDate)
                 this._displayedDate = this.dateValue;
-
-              var expectedMonth = aValue;
-              if (aField == this.monthField) {
-                this._displayedDate.setMonth(aValue);
-              }
-              else {
-                expectedMonth = this._displayedDate.getMonth();
-                this._displayedDate.setFullYear(aValue);
-              }
-
-              if (expectedMonth != -1 && expectedMonth != 12 &&
-                  expectedMonth != this._displayedDate.getMonth()) {
-                // If the month isn't what was expected, then the month overflowed.
-                // Setting the date to 0 will go back to the last day of the right month.
-                this._displayedDate.setDate(0);
-              }
+              this._displayedDate.setMonth(aValue);
 
               date = new Date(this._displayedDate);
               currentMonth = this._displayedDate.getMonth();
@@ -1244,24 +1205,24 @@
                 allowevents="true" xbl:inherits="context">
         <xul:hbox class="datetimepicker-input-subbox" align="baseline">
           <html:input class="datetimepicker-input textbox-input" anonid="input-one"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
         <xul:label anonid="sep-first" class="datetimepicker-separator" value=":"/>
         <xul:hbox class="datetimepicker-input-subbox" align="baseline">
           <html:input class="datetimepicker-input textbox-input" anonid="input-two"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
         <xul:label anonid="sep-second" class="datetimepicker-separator" value=":"/>
         <xul:hbox class="datetimepicker-input-subbox" align="center">
           <html:input class="datetimepicker-input textbox-input" anonid="input-three"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
         <xul:hbox class="datetimepicker-input-subbox" align="center">
           <html:input class="datetimepicker-input textbox-input" anonid="input-ampm"
-                      size="2" maxlength="2"
+                      size="2" maxlength="2" flex="1"
                       xbl:inherits="disabled,readonly"/>
         </xul:hbox>
       </xul:hbox>
@@ -1288,24 +1249,6 @@
               this.boxObject.openMenu(val);
             return val;
           ]]>
-        </setter>
-      </property>
-      <property name="displayedMonth">
-        <getter>
-          return document.getAnonymousElementByAttribute(this, "anonid", "grid").displayedMonth;
-        </getter>
-        <setter>
-          document.getAnonymousElementByAttribute(this, "anonid", "grid").displayedMonth = val;
-          return val;
-        </setter>
-      </property>
-      <property name="displayedYear">
-        <getter>
-          return document.getAnonymousElementByAttribute(this, "anonid", "grid").displayedYear;
-        </getter>
-        <setter>
-          document.getAnonymousElementByAttribute(this, "anonid", "grid").displayedYear = val;
-          return val;
         </setter>
       </property>
     </implementation>

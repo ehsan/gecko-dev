@@ -83,12 +83,13 @@ var gPrefObserver = {
 };
 
 
-function CSPWarning(aMsg, aSource, aScriptSample, aLineNum) {
+function CSPWarning(aMsg) {
   var textMessage = 'CSP WARN:  ' + aMsg + "\n";
+  dump(textMessage);
 
   var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
                     .createInstance(Components.interfaces.nsIScriptError);
-  consoleMsg.init('CSP: ' + aMsg, aSource, aScriptSample, aLineNum, 0,
+  consoleMsg.init('CSP: ' + aMsg, null, null, 0, 0,
                   Components.interfaces.nsIScriptError.warningFlag,
                   "Content Security Policy");
   Components.classes["@mozilla.org/consoleservice;1"]
@@ -98,6 +99,7 @@ function CSPWarning(aMsg, aSource, aScriptSample, aLineNum) {
 
 function CSPError(aMsg) {
   var textMessage = 'CSP ERROR:  ' + aMsg + "\n";
+  dump(textMessage);
 
   var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
                     .createInstance(Components.interfaces.nsIScriptError);
@@ -113,62 +115,11 @@ function CSPdebug(aMsg) {
   if (!gPrefObserver.debugEnabled) return;
 
   aMsg = 'CSP debug: ' + aMsg + "\n";
+  dump(aMsg);
   Components.classes["@mozilla.org/consoleservice;1"]
                     .getService(Components.interfaces.nsIConsoleService)
                     .logStringMessage(aMsg);
 }
-
-// Callback to resume a request once the policy-uri has been fetched
-function CSPPolicyURIListener(policyURI, docRequest, csp) {
-  this._policyURI = policyURI;    // location of remote policy
-  this._docRequest = docRequest;  // the parent document request
-  this._csp = csp;                // parent document's CSP
-  this._policy = "";              // contents fetched from policyURI
-  this._wrapper = null;           // nsIScriptableInputStream
-  this._docURI = docRequest.QueryInterface(Components.interfaces.nsIChannel)
-                 .originalURI;    // parent document URI (to be used as 'self')
-}
-
-CSPPolicyURIListener.prototype = {
-
-  QueryInterface: function(iid) {
-    if (iid.equals(Components.interfaces.nsIStreamListener) ||
-        iid.equals(Components.interfaces.nsIRequestObserver) ||
-        iid.equals(Components.interfaces.nsISupports))
-      return this;
-    throw Components.results.NS_ERROR_NO_INTERFACE;
-  },
-
-  onStartRequest:
-  function(request, context) {},
-
-  onDataAvailable:
-  function(request, context, inputStream, offset, count) {
-    if (this._wrapper == null) {
-      this._wrapper = Components.classes["@mozilla.org/scriptableinputstream;1"]
-                      .createInstance(Components.interfaces.nsIScriptableInputStream);
-      this._wrapper.init(inputStream);
-    }
-    // store the remote policy as it becomes available
-    this._policy += this._wrapper.read(count);
-  },
-
-  onStopRequest:
-  function(request, context, status) {
-    if (Components.isSuccessCode(status)) {
-      // send the policy we received back to the parent document's CSP
-      // for parsing
-      this._csp.refinePolicy(this._policy, this._docURI, this._docRequest);
-    }
-    else {
-      // problem fetching policy so fail closed
-      this._csp.refinePolicy("allow 'none'", this._docURI, this._docRequest);
-      this._csp.refinePolicy("default-src 'none'", this._docURI, this._docRequest);
-    }
-    // resume the parent document request
-    this._docRequest.resume();
-  }
-};
 
 //:::::::::::::::::::::::: CLASSES ::::::::::::::::::::::::::// 
 
@@ -188,7 +139,7 @@ function CSPRep() {
 }
 
 CSPRep.SRC_DIRECTIVES = {
-  DEFAULT_SRC:      "default-src",
+  ALLOW:            "allow",
   SCRIPT_SRC:       "script-src",
   STYLE_SRC:        "style-src",
   MEDIA_SRC:        "media-src",
@@ -206,7 +157,6 @@ CSPRep.URI_DIRECTIVES = {
 };
 
 CSPRep.OPTIONS_DIRECTIVE = "options";
-CSPRep.ALLOW_DIRECTIVE   = "allow";
 
 /**
   * Factory to create a new CSPRep, parsed from a string.
@@ -215,15 +165,10 @@ CSPRep.ALLOW_DIRECTIVE   = "allow";
   *        string rep of a CSP
   * @param self (optional)
   *        string or CSPSource representing the "self" source
-  * @param docRequest (optional)
-  *        request for the parent document which may need to be suspended
-  *        while the policy-uri is asynchronously fetched
-  * @param csp (optional)
-  *        the CSP object to update once the policy has been fetched
   * @returns
   *        an instance of CSPRep
   */
-CSPRep.fromString = function(aStr, self, docRequest, csp) {
+CSPRep.fromString = function(aStr, self) {
   var SD = CSPRep.SRC_DIRECTIVES;
   var UD = CSPRep.URI_DIRECTIVES;
   var aCSPR = new CSPRep();
@@ -260,17 +205,6 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
       continue directive;
     }
 
-    // ALLOW DIRECTIVE //////////////////////////////////////////////////
-    // parse "allow" as equivalent to "default-src", at least until the spec
-    // stabilizes, at which time we can stop parsing "allow"
-    if (dirname === CSPRep.ALLOW_DIRECTIVE) {
-      var dv = CSPSourceList.fromString(dirvalue, self, true);
-      if (dv) {
-        aCSPR._directives[SD.DEFAULT_SRC] = dv;
-        continue directive;
-      }
-    }
-
     // SOURCE DIRECTIVES ////////////////////////////////////////////////
     for each(var sdi in SD) {
       if (dirname === sdi) {
@@ -282,65 +216,43 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
         }
       }
     }
-
+    
     // REPORT URI ///////////////////////////////////////////////////////
     if (dirname === UD.REPORT_URI) {
       // might be space-separated list of URIs
       var uriStrings = dirvalue.split(/\s+/);
       var okUriStrings = [];
 
+      // Verify that each report URI is in the same etld + 1
+      // if "self" is defined, and just that it's valid otherwise.
       for (let i in uriStrings) {
-        var uri = null;
         try {
-          // Relative URIs are okay, but to ensure we send the reports to the
-          // right spot, the relative URIs are expanded here during parsing.
-          // The resulting CSPRep instance will have only absolute URIs.
-          uri = gIoService.newURI(uriStrings[i],null,selfUri);
-
-          // if there's no host, don't do the ETLD+ check.  This will throw
-          // NS_ERROR_FAILURE if the URI doesn't have a host, causing a parse
-          // failure.
-          uri.host;
-
-          // Verify that each report URI is in the same etld + 1 and that the
-          // scheme and port match "self" if "self" is defined, and just that
-          // it's valid otherwise.
+          var uri = gIoService.newURI(uriStrings[i],null,null);
           if (self) {
-            if (gETLDService.getBaseDomain(uri) !==
+            if (gETLDService.getBaseDomain(uri) ===
                 gETLDService.getBaseDomain(selfUri)) {
+              okUriStrings.push(uriStrings[i]);
+            } else {
               CSPWarning("can't use report URI from non-matching eTLD+1: "
                          + gETLDService.getBaseDomain(uri));
-              continue;
-            }
-            if (!uri.schemeIs(selfUri.scheme)) {
-              CSPWarning("can't use report URI with different scheme from "
-                         + "originating document: " + uri.asciiSpec);
-              continue;
-            }
-            if (uri.port && uri.port !== selfUri.port) {
-              CSPWarning("can't use report URI with different port from "
-                         + "originating document: " + uri.asciiSpec);
-              continue;
             }
           }
         } catch(e) {
           switch (e.result) {
             case Components.results.NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS:
             case Components.results.NS_ERROR_HOST_IS_IP_ADDRESS:
-              if (uri.host !== selfUri.host) {
-                CSPWarning("page on " + selfUri.host
-                           + " cannot send reports to " + uri.host);
-                continue;
+              if (uri.host === selfUri.host) {
+                okUriStrings.push(uriStrings[i]);
+              } else {
+                CSPWarning("page on " + selfUri.host + " cannot send reports to " + uri.host);
               }
               break;
 
             default:
               CSPWarning("couldn't parse report URI: " + uriStrings[i]);
-              continue;
+              break;
           }
         }
-        // all verification passed: same ETLD+1, scheme, and port.
-        okUriStrings.push(uri.asciiSpec);
       }
       aCSPR._directives[UD.REPORT_URI] = okUriStrings.join(' ');
       continue directive;
@@ -351,13 +263,7 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
       // POLICY_URI can only be alone
       if (aCSPR._directives.length > 0 || dirs.length > 1) {
         CSPError("policy-uri directive can only appear alone");
-        return CSPRep.fromString("default-src 'none'");
-      }
-      // if we were called without a reference to the parent document request
-      // we won't be able to suspend it while we fetch the policy -> fail closed
-      if (!docRequest || !csp) {
-        CSPError("The policy-uri cannot be fetched without a parent request and a CSP.");
-        return CSPRep.fromString("default-src 'none'");
+        return CSPRep.fromString("allow 'none'");
       }
 
       var uri = '';
@@ -365,44 +271,50 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
         uri = gIoService.newURI(dirvalue, null, selfUri);
       } catch(e) {
         CSPError("could not parse URI in policy URI: " + dirvalue);
-        return CSPRep.fromString("default-src 'none'");
+        return CSPRep.fromString("allow 'none'");
       }
 
       // Verify that policy URI comes from the same origin
       if (selfUri) {
         if (selfUri.host !== uri.host){
           CSPError("can't fetch policy uri from non-matching hostname: " + uri.host);
-          return CSPRep.fromString("default-src 'none'");
+          return CSPRep.fromString("allow 'none'");
         }
         if (selfUri.port !== uri.port){
           CSPError("can't fetch policy uri from non-matching port: " + uri.port);
-          return CSPRep.fromString("default-src 'none'");
+          return CSPRep.fromString("allow 'none'");
         }
         if (selfUri.scheme !== uri.scheme){
           CSPError("can't fetch policy uri from non-matching scheme: " + uri.scheme);
-          return CSPRep.fromString("default-src 'none'");
+          return CSPRep.fromString("allow 'none'");
         }
       }
 
-      // suspend the parent document request while we fetch the policy-uri
-      try {
-        docRequest.suspend();
-        var chan = gIoService.newChannel(uri.asciiSpec, null, null);
-        // make request anonymous (no cookies, etc.) so the request for the
-        // policy-uri can't be abused for CSRF
-        chan.loadFlags |= Components.interfaces.nsIChannel.LOAD_ANONYMOUS;
-        chan.asyncOpen(new CSPPolicyURIListener(uri, docRequest, csp), null);
-      }
-      catch (e) {
-        // resume the document request and apply most restrictive policy
-        docRequest.resume();
-        CSPError("Error fetching policy-uri: " + e);
-        return CSPRep.fromString("default-src 'none'");
-      }
+      var req = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]  
+                  .createInstance(Components.interfaces.nsIXMLHttpRequest);  
 
-      // return a fully-open policy to be intersected with the contents of the
-      // policy-uri when it returns
-      return CSPRep.fromString("default-src *");
+      // insert error hook
+      req.onerror = CSPError;
+
+      // synchronous -- otherwise we need to architect a callback into the
+      // xpcom component so that whomever creates the policy object gets
+      // notified when it's loaded and ready to go.
+      req.open("GET", uri.asciiSpec, false);
+
+      // make request anonymous
+      // This prevents sending cookies with the request, in case the policy URI
+      // is injected, it can't be abused for CSRF.
+      req.channel.loadFlags |= Components.interfaces.nsIChannel.LOAD_ANONYMOUS;
+
+      req.send(null);
+      if (req.status == 200) {
+        aCSPR = CSPRep.fromString(req.responseText, self);
+        // remember where we got the policy
+        aCSPR._directives[UD.POLICY_URI] = dirvalue;
+        return aCSPR;
+      }
+      CSPError("Error fetching policy URI: server response was " + req.status);
+      return CSPRep.fromString("allow 'none'");
     }
 
     // UNIDENTIFIED DIRECTIVE /////////////////////////////////////////////
@@ -410,11 +322,11 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
 
   } // end directive: loop
 
-  // if makeExplicit fails for any reason, default to default-src 'none'.  This
-  // includes the case where "default-src" is not present.
+  // if makeExplicit fails for any reason, default to allow 'none'.  This
+  // includes the case where "allow" is not present.
   if (aCSPR.makeExplicit())
     return aCSPR;
-  return CSPRep.fromString("default-src 'none'", self);
+  return CSPRep.fromString("allow 'none'", self);
 };
 
 CSPRep.prototype = {
@@ -446,7 +358,8 @@ CSPRep.prototype = {
   },
 
   /**
-   * Generates canonical string representation of the policy.
+   * Generates string representation of the policy.  Should be fairly similar
+   * to the original.
    */
   toString:
   function csp_toString() {
@@ -547,22 +460,22 @@ CSPRep.prototype = {
   makeExplicit:
   function cspsd_makeExplicit() {
     var SD = CSPRep.SRC_DIRECTIVES;
-    var defaultSrcDir = this._directives[SD.DEFAULT_SRC];
-    if (!defaultSrcDir) {
-      CSPWarning("'allow' or 'default-src' directive required but not present.  Reverting to \"default-src 'none'\"");
+    var allowDir = this._directives[SD.ALLOW];
+    if (!allowDir) {
+      CSPWarning("'allow' directive required but not present.  Reverting to \"allow 'none'\"");
       return false;
     }
 
     for (var dir in SD) {
       var dirv = SD[dir];
-      if (dirv === SD.DEFAULT_SRC) continue;
+      if (dirv === SD.ALLOW) continue;
       if (!this._directives[dirv]) {
         // implicit directive, make explicit.
         // All but frame-ancestors directive inherit from 'allow' (bug 555068)
         if (dirv === SD.FRAME_ANCESTORS)
           this._directives[dirv] = CSPSourceList.fromString("*");
         else
-          this._directives[dirv] = defaultSrcDir.clone();
+          this._directives[dirv] = allowDir.clone();
         this._directives[dirv]._isImplicit = true;
       }
     }
@@ -672,7 +585,8 @@ CSPSourceList.prototype = {
   },
 
   /**
-   * Generates canonical string representation of the Source List.
+   * Generates string representation of the Source List.
+   * Should be fairly similar to the original.
    */
   toString:
   function() {
@@ -703,7 +617,7 @@ CSPSourceList.prototype = {
   },
 
   /**
-   * Makes a new deep copy of this object.
+   * Makes a new instance that resembles this object.
    * @returns
    *      a new CSPSourceList
    */
@@ -1015,7 +929,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
         // Allow scheme-only sources!  These default to wildcard host/port,
         // especially since host and port don't always matter.
         // Example: "javascript:" and "data:" 
-        if (!sObj._host) sObj._host = CSPHost.fromString("*");
+        if (!sObj._host) sObj._host = "*";
         if (!sObj._port) sObj._port = "*";
       } else {
         // some host was defined.
@@ -1114,7 +1028,8 @@ CSPSource.prototype = {
   },
 
   /**
-   * Generates canonical string representation of the Source.
+   * Generates string representation of the Source.
+   * Should be fairly similar to the original.
    */
   toString:
   function() {
@@ -1132,7 +1047,7 @@ CSPSource.prototype = {
   },
 
   /**
-   * Makes a new deep copy of this object.
+   * Makes a new instance that resembles this object.
    * @returns
    *      a new CSPSource
    */
@@ -1235,28 +1150,13 @@ CSPSource.prototype = {
       return null;
     }
 
-    // NOTE: Both sources must have a host, if they don't, something funny is
-    // going on.  The fromString() factory method should have set the host to
-    // * if there's no host specified in the input. Regardless, if a host is
-    // not present either the scheme is hostless or any host should be allowed.
-    // This means we can use the other source's host as the more restrictive
-    // host expression, or if neither are present, we can use "*", but the
-    // error should still be reported.
-
     // host
-    if (this._host && that._host) {
+    if (!this._host)
+      newSource._host = that._host;
+    else if (!that._host)
+      newSource._host = this._host;
+    else // both this and that have hosts
       newSource._host = this._host.intersectWith(that._host);
-    } else if (this._host) {
-      CSPError("intersecting source with undefined host: " + that.toString());
-      newSource._host = this._host.clone();
-    } else if (that._host) {
-      CSPError("intersecting source with undefined host: " + this.toString());
-      newSource._host = that._host.clone();
-    } else {
-      CSPError("intersecting two sources with undefined hosts: " +
-               this.toString() + " and " + that.toString());
-      newSource._host = CSPHost.fromString("*");
-    }
 
     return newSource;
   },
@@ -1344,7 +1244,8 @@ CSPHost.fromString = function(aStr) {
 
 CSPHost.prototype = {
   /**
-   * Generates canonical string representation of the Host.
+   * Generates string representation of the Source.
+   * Should be fairly similar to the original.
    */
   toString:
   function() {
@@ -1352,7 +1253,7 @@ CSPHost.prototype = {
   },
 
   /**
-   * Makes a new deep copy of this object.
+   * Makes a new instance that resembles this object.
    * @returns
    *      a new CSPHost
    */
@@ -1374,7 +1275,7 @@ CSPHost.prototype = {
    */
   permits:
   function(aHost) {
-    if (!aHost) aHost = CSPHost.fromString("*");
+    if (!aHost) return false;
 
     if (!(aHost instanceof CSPHost)) {
       // -- compare CSPHost to String

@@ -114,12 +114,14 @@ nsDOMKeyboardEvent::GetCharCode(PRUint32* aCharCode)
   switch (mEvent->message) {
   case NS_KEY_UP:
   case NS_KEY_DOWN:
+    ReportWrongPropertyAccessWarning("charCode");
     *aCharCode = 0;
     break;
   case NS_KEY_PRESS:
     *aCharCode = ((nsKeyEvent*)mEvent)->charCode;
     break;
   default:
+    ReportWrongPropertyAccessWarning("charCode");
     break;
   }
   return NS_OK;
@@ -137,6 +139,7 @@ nsDOMKeyboardEvent::GetKeyCode(PRUint32* aKeyCode)
     *aKeyCode = ((nsKeyEvent*)mEvent)->keyCode;
     break;
   default:
+    ReportWrongPropertyAccessWarning("keyCode");
     *aKeyCode = 0;
     break;
   }
@@ -166,6 +169,7 @@ nsDOMKeyboardEvent::GetWhich(PRUint32* aWhich)
       }
       break;
     default:
+      ReportWrongPropertyAccessWarning("which");
       *aWhich = 0;
       break;
   }
@@ -175,7 +179,7 @@ nsDOMKeyboardEvent::GetWhich(PRUint32* aWhich)
 
 NS_IMETHODIMP
 nsDOMKeyboardEvent::InitKeyEvent(const nsAString& aType, PRBool aCanBubble, PRBool aCancelable,
-                                 nsIDOMWindow* aView, PRBool aCtrlKey, PRBool aAltKey,
+                                 nsIDOMAbstractView* aView, PRBool aCtrlKey, PRBool aAltKey,
                                  PRBool aShiftKey, PRBool aMetaKey,
                                  PRUint32 aKeyCode, PRUint32 aCharCode)
 {
@@ -198,5 +202,9 @@ nsresult NS_NewDOMKeyboardEvent(nsIDOMEvent** aInstancePtrResult,
                                 nsKeyEvent *aEvent)
 {
   nsDOMKeyboardEvent* it = new nsDOMKeyboardEvent(aPresContext, aEvent);
+  if (nsnull == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   return CallQueryInterface(it, aInstancePtrResult);
 }

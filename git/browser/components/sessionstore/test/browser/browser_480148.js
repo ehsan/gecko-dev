@@ -34,10 +34,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   /** Test for Bug 484108 **/
-  requestLongerTimeout(2);
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   waitForExplicitFinish();
 
   // builds the tests state based on a few parameters
@@ -75,13 +86,16 @@ function test() {
   }
 
   // the number of tests we're running
-  let numTests = 7;
+  let numTests = 6;
   let completedTests = 0;
 
   let tabMinWidth = parseInt(getComputedStyle(gBrowser.selectedTab, null).minWidth);
 
   function runTest(testNum, totalTabs, selectedTab, shownTabs, hiddenTabs, order) {
     let test = {
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMEventListener,
+                                             Ci.nsISupportsWeakReference]),
+
       state: buildTestState(totalTabs, selectedTab, hiddenTabs),
       numTabsToShow: shownTabs,
       expectedOrder: order,
@@ -112,6 +126,7 @@ function test() {
         if (++completedTests == numTests) {
           this.window.removeEventListener("load", this, false);
           this.window.removeEventListener("SSTabRestoring", this, false);
+          is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
           finish();
         }
       },
@@ -119,9 +134,7 @@ function test() {
       handleLoad: function (aEvent) {
         let _this = this;
         executeSoon(function () {
-          let extent = _this.window.outerWidth - _this.window.gBrowser.tabContainer.mTabstrip.scrollClientSize;
-          let windowWidth = _this.tabbarWidth + extent;
-          _this.window.resizeTo(windowWidth, _this.window.outerHeight);
+          _this.window.resizeTo(_this.windowWidth, _this.window.outerHeight);
           ss.setWindowState(_this.window, JSON.stringify(_this.state), true);
         });
       },
@@ -140,7 +153,7 @@ function test() {
 
       // setup and actually run the test
       run: function () {
-        this.tabbarWidth = Math.floor((this.numTabsToShow - 0.5) * tabMinWidth);
+        this.windowWidth = Math.floor((this.numTabsToShow - 0.5) * tabMinWidth);
         this.window = openDialog(location, "_blank", "chrome,all,dialog=no");
         this.window.addEventListener("SSTabRestoring", this, false);
         this.window.addEventListener("load", this, false);
@@ -156,7 +169,6 @@ function test() {
   runTest(4, 13, 11, 6, [],         [10, 7, 8, 9, 11, 12, 0, 1, 2, 3, 4, 5, 6]);
   runTest(5, 13, 13, 6, [0, 4, 9],  [12, 6, 7, 8, 10, 11, 1, 2, 3, 5, 0, 4, 9]);
   runTest(6, 13, 4,  6, [1, 7, 12], [3, 4, 5, 6, 8, 9, 0, 2, 10, 11, 1, 7, 12]);
-  runTest(7, 13, 4,  6, [0, 1, 2],  [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 1, 2]);
 
   // finish() is run by the last test to finish, so no cleanup down here
 }

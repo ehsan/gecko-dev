@@ -87,8 +87,6 @@ public:
 
     virtual nsresult        EvictEntries(const char * clientID);
 
-    bool                    EntryIsTooBig(PRInt64 entrySize);
-
     /**
      * Preference accessors
      */
@@ -105,24 +103,13 @@ public:
     nsDiskCacheMap *        CacheMap()    { return &mCacheMap; }
     
 private:    
-    friend class nsDiskCacheDeviceDeactivateEntryEvent;
     /**
      *  Private methods
      */
 
-    inline bool IsValidBinding(nsDiskCacheBinding *binding)
-    {
-        NS_ASSERTION(binding, "  binding == nsnull");
-        NS_ASSERTION(binding->mDeactivateEvent == nsnull,
-                     "  entry in process of deactivation");
-        return (binding && !binding->mDeactivateEvent);
-    }
-
     PRBool                  Initialized() { return mInitialized; }
 
     nsresult                Shutdown_Private(PRBool flush);
-    nsresult                DeactivateEntry_Private(nsCacheEntry * entry,
-                                                    nsDiskCacheBinding * binding);
 
     nsresult                OpenDiskCache();
     nsresult                ClearDiskCache();

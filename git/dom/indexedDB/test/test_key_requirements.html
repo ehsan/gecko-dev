@@ -16,36 +16,33 @@
       const name = window.location.pathname;
       const description = "My Test Database";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
-      db.addEventListener("error", function(event) {
-        event.preventDefault();
-      }, false);
+      let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "", true);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      let objectStore = event.result;
 
       request = objectStore.add({});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let key1 = event.target.result;
+      let key1 = event.result;
 
       request = objectStore.put({}, key1);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key1, "put gave the same key back");
+      is(event.result, key1, "put gave the same key back");
 
       let key2 = 10;
 
@@ -54,7 +51,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key2, "put gave the same key back");
+      is(event.result, key2, "put gave the same key back");
 
       key2 = 100;
 
@@ -63,7 +60,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key2, "put gave the same key back");
+      is(event.result, key2, "put gave the same key back");
 
       try {
         objectStore.put({});
@@ -82,14 +79,19 @@
       }
 
       try {
-        objectStore.delete();
+        objectStore.remove();
         ok(false, "remove with no key should throw!");
       }
       catch (e) {
         ok(true, "remove with no key threw");
       }
 
-      objectStore = db.createObjectStore("bar");
+      request = db.createObjectStore("bar", "", false);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      objectStore = event.result;
 
       try {
         objectStore.add({});
@@ -116,14 +118,19 @@
       }
 
       try {
-        objectStore.delete();
+        objectStore.remove();
         ok(false, "remove with no key should throw!");
       }
       catch (e) {
         ok(true, "remove with no key threw");
       }
 
-      objectStore = db.createObjectStore("baz", { keyPath: "id" });
+      request = db.createObjectStore("baz", "id", false);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      objectStore = event.result;
 
       try {
         objectStore.add({});
@@ -134,14 +141,6 @@
       }
 
       try {
-        objectStore.add({id:5}, 5);
-        ok(false, "add with inline key and passed key should throw!");
-      }
-      catch (e) {
-        ok(true, "add with inline key and passed key threw");
-      }
-
-      try {
         objectStore.put({});
         ok(false, "put with no key should throw!");
       }
@@ -158,7 +157,7 @@
       }
 
       try {
-        objectStore.delete();
+        objectStore.remove();
         ok(false, "remove with no key should throw!");
       }
       catch (e) {
@@ -172,34 +171,33 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key1, "add gave back the same key");
+      is(event.result, key1, "add gave back the same key");
 
       request = objectStore.put({id:10});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key1, "put gave back the same key");
+      is(event.result, key1, "put gave back the same key");
 
       request = objectStore.put({id:10});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key1, "put gave back the same key");
+      is(event.result, key1, "put gave back the same key");
 
       request = objectStore.add({id:10});
-      request.onerror = new ExpectError(IDBDatabaseException.CONSTRAINT_ERR);
+      request.onerror = grabEventAndContinueHandler;
       request.onsuccess = unexpectedSuccessHandler;
+      yield;
+
+      request = objectStore.add({}, null);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      try {
-        objectStore.add({}, null);
-        ok(false, "add with null key should throw!");
-      }
-      catch (e) {
-        ok(true, "add with null key threw");
-      }
+      is(typeof(event.result), "string", "Good generated key");
 
       try {
         objectStore.put({}, null);
@@ -218,29 +216,33 @@
       }
 
       try {
-        objectStore.delete({}, null);
+        objectStore.remove({}, null);
         ok(false, "remove with null key should throw!");
       }
       catch (e) {
         ok(true, "remove with null key threw");
       }
 
-      objectStore = db.createObjectStore("bazing", { keyPath: "id",
-                                                     autoIncrement: true });
+      request = db.createObjectStore("bazing", "id", true);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      objectStore = event.result;
 
       request = objectStore.add({});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      key1 = event.target.result;
+      key1 = event.result;
 
       request = objectStore.put({id:key1});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key1, "put gave the same key back");
+      is(event.result, key1, "put gave the same key back");
 
       key2 = 10;
 
@@ -249,7 +251,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      is(event.target.result, key2, "put gave the same key back");
+      is(event.result, key2, "put gave the same key back");
 
       try {
         objectStore.put({});
@@ -268,22 +270,14 @@
       }
 
       try {
-        objectStore.delete();
+        objectStore.remove();
         ok(false, "remove with no key should throw!");
       }
       catch (e) {
         ok(true, "remove with no key threw");
       }
 
-      try {
-        objectStore.add({id:5}, 5);
-        ok(false, "add with inline key and passed key should throw!");
-      }
-      catch (e) {
-        ok(true, "add with inline key and passed key threw");
-      }
-
-      request = objectStore.delete(key2);
+      request = objectStore.remove(key2);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;

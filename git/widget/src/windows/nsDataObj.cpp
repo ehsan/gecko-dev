@@ -756,11 +756,15 @@ STDMETHODIMP nsDataObj::EndOperation(HRESULT hResult,
                                      DWORD dwEffects)
 {
   mIsInOperation = FALSE;
+  Release();
   return S_OK;
 }
 
 STDMETHODIMP nsDataObj::GetAsyncMode(BOOL *pfIsOpAsync)
 {
+  if (!pfIsOpAsync)
+    return E_FAIL;
+
   *pfIsOpAsync = mIsAsyncMode;
 
   return S_OK;
@@ -768,6 +772,9 @@ STDMETHODIMP nsDataObj::GetAsyncMode(BOOL *pfIsOpAsync)
 
 STDMETHODIMP nsDataObj::InOperation(BOOL *pfInAsyncOp)
 {
+  if (!pfInAsyncOp)
+    return E_FAIL;
+
   *pfInAsyncOp = mIsInOperation;
 
   return S_OK;

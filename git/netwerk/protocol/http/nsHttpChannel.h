@@ -55,17 +55,16 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
 #include "nsIApplicationCacheChannel.h"
+#include "nsIEncodedChannel.h"
+#include "nsIStringEnumerator.h"
 #include "nsIPrompt.h"
 #include "nsIResumableChannel.h"
 #include "nsIProtocolProxyCallback.h"
 #include "nsICancelable.h"
 #include "nsIHttpAuthenticableChannel.h"
+#include "nsITraceableChannel.h"
 #include "nsIHttpChannelAuthProvider.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsICryptoHash.h"
-#include "nsITimedChannel.h"
-#include "nsDNSPrefetch.h"
-#include "TimingStruct.h"
 
 class nsAHttpConnection;
 class AutoRedirectVetoNotifier;
@@ -77,16 +76,16 @@ using namespace mozilla::net;
 //-----------------------------------------------------------------------------
 
 class nsHttpChannel : public HttpBaseChannel
-                    , public HttpAsyncAborter<nsHttpChannel>
                     , public nsIStreamListener
                     , public nsICachingChannel
                     , public nsICacheListener
+                    , public nsIEncodedChannel
                     , public nsITransportEventSink
                     , public nsIProtocolProxyCallback
                     , public nsIHttpAuthenticableChannel
+                    , public nsITraceableChannel
                     , public nsIApplicationCacheChannel
                     , public nsIAsyncVerifyRedirectCallback
-                    , public nsITimedChannel
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -95,13 +94,14 @@ public:
     NS_DECL_NSICACHEINFOCHANNEL
     NS_DECL_NSICACHINGCHANNEL
     NS_DECL_NSICACHELISTENER
+    NS_DECL_NSIENCODEDCHANNEL
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
     NS_DECL_NSIPROXIEDCHANNEL
+    NS_DECL_NSITRACEABLECHANNEL
     NS_DECL_NSIAPPLICATIONCACHECONTAINER
     NS_DECL_NSIAPPLICATIONCACHECHANNEL
     NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
-    NS_DECL_NSITIMEDCHANNEL
 
     // nsIHttpAuthenticableChannel. We can't use
     // NS_DECL_NSIHTTPAUTHENTICABLECHANNEL because it duplicates cancel() and
@@ -146,7 +146,9 @@ public:
     NS_IMETHOD ResumeAt(PRUint64 startPos, const nsACString& entityID);
 
 public: /* internal necko use only */ 
-
+    typedef void (nsHttpChannel:: *nsAsyncCallback)(void);
+    nsHttpResponseHead * GetResponseHead() const { return mResponseHead; }
+    void SetRemoteChannel(bool aRemote) { mRemoteChannel = aRemote; }
     void InternalSetUploadStream(nsIInputStream *uploadStream) 
       { mUploadStream = uploadStream; }
     void SetUploadStreamHasHeaders(PRBool hasHeaders) 
@@ -164,9 +166,20 @@ public: /* internal necko use only */
 private:
     typedef nsresult (nsHttpChannel::*nsContinueRedirectionFunc)(nsresult result);
 
+    // AsyncCall may be used to call a member function asynchronously.
+    // retval isn't refcounted and is set only when event was successfully
+    // posted, the event is returned for the purpose of cancelling when needed
+    nsresult AsyncCall(nsAsyncCallback funcPtr,
+                       nsRunnableMethod<nsHttpChannel> **retval = nsnull);
+
     PRBool   RequestIsConditional();
     nsresult Connect(PRBool firstTime = PR_TRUE);
+    nsresult AsyncAbort(nsresult status);
+    // Send OnStartRequest/OnStopRequest to our listener, if any.
+    void     HandleAsyncNotifyListener();
+    void     DoNotifyListener();
     nsresult SetupTransaction();
+    nsresult ApplyContentConversions();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
     nsresult ContinueProcessResponse(nsresult);
@@ -181,7 +194,6 @@ private:
     nsresult ProcessFallback(PRBool *waitingForRedirectCallback);
     nsresult ContinueProcessFallback(nsresult);
     PRBool   ResponseWouldVary();
-    void     HandleAsyncAbort();
 
     nsresult ContinueOnStartRequest1(nsresult);
     nsresult ContinueOnStartRequest2(nsresult);
@@ -258,26 +270,6 @@ private:
      */
     nsresult ProcessSTSHeader();
 
-    /**
-     * Computes and returns a 64 bit encoded string holding a hash of the
-     * input buffer. Input buffer must be a null-terminated string.
-     */
-    nsresult Hash(const char *buf, nsACString &hash);
-
-    void InvalidateCacheEntryForLocation(const char *location);
-    void AssembleCacheKey(const char *spec, PRUint32 postID, nsACString &key);
-    nsresult CreateNewURI(const char *loc, nsIURI **newURI);
-    void DoInvalidateCacheEntry(nsACString &key);
-
-    // Ref RFC2616 13.10: "invalidation... MUST only be performed if
-    // the host part is the same as in the Request-URI"
-    inline PRBool HostPartIsTheSame(nsIURI *uri) {
-        nsCAutoString tmpHost1, tmpHost2;
-        return (NS_SUCCEEDED(mURI->GetAsciiHost(tmpHost1)) &&
-                NS_SUCCEEDED(uri->GetAsciiHost(tmpHost2)) &&
-                (tmpHost1 == tmpHost2));
-    }
-
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;
     nsCOMPtr<nsICancelable>           mProxyRequest;
@@ -307,8 +299,17 @@ private:
     // auth specific data
     nsCOMPtr<nsIHttpChannelAuthProvider> mAuthProvider;
 
+    // Function pointer that can be set to indicate that we got suspended while
+    // waiting on an AsyncCall.  When we get resumed we should AsyncCall this
+    // function.
+    nsAsyncCallback                   mPendingAsyncCallOnResume;
+
     // Proxy info to replace with
     nsCOMPtr<nsIProxyInfo>            mTargetProxyInfo;
+
+    // Suspend counter.  This is used if someone tries to suspend/resume us
+    // before we have either a cache pump or a transaction pump.
+    PRUint32                          mSuspendCount;
 
     // If the channel is associated with a cache, and the URI matched
     // a fallback namespace, this will hold the key for the fallback
@@ -316,12 +317,12 @@ private:
     nsCString                         mFallbackKey;
 
     friend class AutoRedirectVetoNotifier;
-    friend class HttpAsyncAborter<nsHttpChannel>;
     nsCOMPtr<nsIURI>                  mRedirectURI;
     nsCOMPtr<nsIChannel>              mRedirectChannel;
     PRUint32                          mRedirectType;
 
     // state flags
+    PRUint32                          mApplyConversion          : 1;
     PRUint32                          mCachedContentIsValid     : 1;
     PRUint32                          mCachedContentIsPartial   : 1;
     PRUint32                          mTransactionReplaced      : 1;
@@ -335,37 +336,48 @@ private:
     // True if we are loading a fallback cache entry from the
     // application cache.
     PRUint32                          mFallbackChannel          : 1;
+    PRUint32                          mTracingEnabled           : 1;
     // True if consumer added its own If-None-Match or If-Modified-Since
     // headers. In such a case we must not override them in the cache code
     // and also we want to pass possible 304 code response through.
     PRUint32                          mCustomConditionalRequest : 1;
     PRUint32                          mFallingBack              : 1;
     PRUint32                          mWaitingForRedirectCallback : 1;
+    // True iff this channel is servicing a remote HttpChannelChild
+    PRUint32                          mRemoteChannel : 1;
     // True if mRequestTime has been set. In such a case it is safe to update
     // the cache entry's expiration time. Otherwise, it is not(see bug 567360).
     PRUint32                          mRequestTimeInitialized : 1;
 
+    class nsContentEncodings : public nsIUTF8StringEnumerator
+    {
+    public:
+        NS_DECL_ISUPPORTS
+        NS_DECL_NSIUTF8STRINGENUMERATOR
+
+        nsContentEncodings(nsIHttpChannel* aChannel, const char* aEncodingHeader);
+        virtual ~nsContentEncodings();
+        
+    private:
+        nsresult PrepareForNext(void);
+        
+        // We do not own the buffer.  The channel owns it.
+        const char* mEncodingHeader;
+        const char* mCurStart;  // points to start of current header
+        const char* mCurEnd;  // points to end of current header
+        
+        // Hold a ref to our channel so that it can't go away and take the
+        // header with it.
+        nsCOMPtr<nsIHttpChannel> mChannel;
+        
+        PRPackedBool mReady;
+    };
+
     nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
-
-    nsCOMPtr<nsICryptoHash>        mHasher;
-
-    PRTime                            mChannelCreationTime;
-    mozilla::TimeStamp                mChannelCreationTimestamp;
-    mozilla::TimeStamp                mAsyncOpenTime;
-    mozilla::TimeStamp                mCacheReadStart;
-    mozilla::TimeStamp                mCacheReadEnd;
-    // copied from the transaction before we null out mTransaction
-    // so that the timing can still be queried from OnStopRequest
-    TimingStruct                      mTransactionTimings;
-    // Needed for accurate DNS timing
-    nsRefPtr<nsDNSPrefetch>           mDNSPrefetch;
 
     nsresult WaitForRedirectCallback();
     void PushRedirectAsyncFunc(nsContinueRedirectionFunc func);
     void PopRedirectAsyncFunc(nsContinueRedirectionFunc func);
-
-protected:
-    virtual void DoNotifyListenerCleanup();
 };
 
 #endif // nsHttpChannel_h__

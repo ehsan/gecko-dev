@@ -66,7 +66,6 @@ public:
     nsresult    GetOutputStream(PRUint32 offset, nsIOutputStream ** outputStream);
 
     nsresult    CloseOutputStream(nsDiskCacheOutputStream * outputStream);
-    nsresult    CloseOutputStreamInternal(nsDiskCacheOutputStream * outputStream);
         
     nsresult    Write( const char * buffer,
                        PRUint32     count,
@@ -78,10 +77,10 @@ public:
 
     void        ClearBinding();
     
-    void        IncrementInputStreamCount() { PR_ATOMIC_INCREMENT(&mInStreamCount); }
+    void        IncrementInputStreamCount() { PR_AtomicIncrement(&mInStreamCount); }
     void        DecrementInputStreamCount()
                 {
-                    PR_ATOMIC_DECREMENT(&mInStreamCount);
+                    PR_AtomicDecrement(&mInStreamCount);
                     NS_ASSERTION(mInStreamCount >= 0, "mInStreamCount has gone negative");
                 }
 

@@ -61,7 +61,7 @@ namespace js {
 enum TokenKind {
     TOK_ERROR = -1,                     /* well-known as the only code < EOF */
     TOK_EOF = 0,                        /* end of file */
-    TOK_EOL = 1,                        /* end of line; only returned by peekTokenSameLine() */
+    TOK_EOL = 1,                        /* end of line */
     TOK_SEMI = 2,                       /* semicolon */
     TOK_COMMA = 3,                      /* comma operator */
     TOK_ASSIGN = 4,                     /* assignment ops (= += -= etc.) */
@@ -140,11 +140,10 @@ enum TokenKind {
                                            not a block */
     TOK_FORHEAD = 83,                   /* head of for(;;)-style loop */
     TOK_ARGSBODY = 84,                  /* formal args in list + body at end */
-    TOK_UPVARS = 85,                    /* lexical dependencies as JSAtomDefnMap
+    TOK_UPVARS = 85,                    /* lexical dependencies as JSAtomList
                                            of definitions paired with a parse
                                            tree full of uses of those names */
     TOK_RESERVED,                       /* reserved keywords */
-    TOK_STRICT_RESERVED,                /* reserved keywords in strict mode */
     TOK_LIMIT                           /* domain size */
 };
 
@@ -234,7 +233,7 @@ struct TokenPos {
 struct Token {
     TokenKind           type;           /* char value or above enumerator */
     TokenPos            pos;            /* token position in file */
-    const jschar        *ptr;           /* beginning of token in line buffer */
+    jschar              *ptr;           /* beginning of token in line buffer */
     union {
         struct {                        /* name or string literal */
             JSOp        op;             /* operator, for minimal parser */
@@ -252,8 +251,9 @@ struct Token {
 
 enum TokenStreamFlags
 {
+    TSF_ERROR = 0x01,           /* fatal error while compiling */
     TSF_EOF = 0x02,             /* hit end of file */
-    TSF_EOL = 0x04,             /* an EOL was hit in whitespace or a multi-line comment */
+    TSF_NEWLINES = 0x04,        /* tokenize newlines */
     TSF_OPERAND = 0x08,         /* looking for operand, not operator */
     TSF_UNEXPECTED_EOF = 0x10,  /* unexpected end of input, i.e. TOK_EOF not at top-level. */
     TSF_KEYWORD_IS_NAME = 0x20, /* Ignore keywords and return TOK_NAME instead to the parser. */
@@ -263,7 +263,6 @@ enum TokenStreamFlags
     TSF_XMLTAGMODE = 0x200,     /* scanning within an XML tag in E4X */
     TSF_XMLTEXTMODE = 0x400,    /* scanning XMLText terminal from E4X */
     TSF_XMLONLYMODE = 0x800,    /* don't scan {expr} within text/tag */
-    TSF_OCTAL_CHAR = 0x1000,    /* observed a octal character escape */
 
     /*
      * To handle the hard case of contiguous HTML comments, we want to clear the
@@ -293,21 +292,18 @@ enum TokenStreamFlags
 #define t_atom2         u.p.atom2
 #define t_dval          u.dval
 
+static const size_t LINE_LIMIT = 1024; /* logical line buffer size limit
+                                          -- physical line length is unlimited */
+static const size_t UNGET_LIMIT = 6;   /* maximum number of chars to unget at once
+                                          -- for \uXXXX lookahead */
+
 class TokenStream
 {
-    /* Unicode separators that are treated as line terminators, in addition to \n, \r */
-    enum {
-        LINE_SEPARATOR = 0x2028,
-        PARA_SEPARATOR = 0x2029
-    };
-
     static const size_t ntokens = 4;                /* 1 current + 2 lookahead, rounded
                                                        to power of 2 to avoid divmod by 3 */
     static const uintN ntokensMask = ntokens - 1;
 
   public:
-    typedef Vector<jschar, 32> CharBuffer;
-
     /*
      * To construct a TokenStream, first call the constructor, which is
      * infallible, then call |init|, which can fail. To destroy a TokenStream,
@@ -321,46 +317,32 @@ class TokenStream
     TokenStream(JSContext *);
 
     /*
-     * Create a new token stream from an input buffer.
-     * Return false on memory-allocation failure.
+     * Create a new token stream, either from an input buffer or from a file.
+     * Return false on file-open or memory-allocation failure.
      */
-    bool init(const jschar *base, size_t length, const char *filename, uintN lineno,
-              JSVersion version);
-    ~TokenStream();
+    bool init(const jschar *base, size_t length, FILE *fp, const char *filename, uintN lineno);
+    void close();
+    ~TokenStream() {}
 
     /* Accessors. */
     JSContext *getContext() const { return cx; }
     bool onCurrentLine(const TokenPos &pos) const { return lineno == pos.end.lineno; }
     const Token &currentToken() const { return tokens[cursor]; }
-    bool isCurrentTokenType(TokenKind type) const {
-        return currentToken().type == type;
-    }
-    bool isCurrentTokenType(TokenKind type1, TokenKind type2) const {
-        TokenKind type = currentToken().type;
-        return type == type1 || type == type2;
-    }
-    const CharBuffer &getTokenbuf() const { return tokenbuf; }
+    const JSCharBuffer &getTokenbuf() const { return tokenbuf; }
     const char *getFilename() const { return filename; }
     uintN getLineno() const { return lineno; }
-    /* Note that the version and hasXML can get out of sync via setXML. */
-    JSVersion versionNumber() const { return VersionNumber(version); }
-    JSVersion versionWithFlags() const { return version; }
-    bool hasXML() const { return xml || VersionShouldParseXML(versionNumber()); }
-    void setXML(bool enabled) { xml = enabled; }
 
     /* Flag methods. */
     void setStrictMode(bool enabled = true) { setFlag(enabled, TSF_STRICT_MODE_CODE); }
     void setXMLTagMode(bool enabled = true) { setFlag(enabled, TSF_XMLTAGMODE); }
     void setXMLOnlyMode(bool enabled = true) { setFlag(enabled, TSF_XMLONLYMODE); }
     void setUnexpectedEOF(bool enabled = true) { setFlag(enabled, TSF_UNEXPECTED_EOF); }
-    void setOctalCharacterEscape(bool enabled = true) { setFlag(enabled, TSF_OCTAL_CHAR); }
-
     bool isStrictMode() { return !!(flags & TSF_STRICT_MODE_CODE); }
     bool isXMLTagMode() { return !!(flags & TSF_XMLTAGMODE); }
     bool isXMLOnlyMode() { return !!(flags & TSF_XMLONLYMODE); }
     bool isUnexpectedEOF() { return !!(flags & TSF_UNEXPECTED_EOF); }
     bool isEOF() const { return !!(flags & TSF_EOF); }
-    bool hasOctalCharacterEscape() const { return flags & TSF_OCTAL_CHAR; }
+    bool isError() const { return !!(flags & TSF_ERROR); }
 
     /* Mutators. */
     bool reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN errorNumber, va_list ap);
@@ -372,9 +354,6 @@ class TokenStream
     }
 
   private:
-    static JSAtom *atomize(JSContext *cx, CharBuffer &cb);
-    bool putIdentInTokenbuf(const jschar *identStart);
-
     /*
      * Enables flags in the associated tokenstream for the object lifetime.
      * Useful for lexically-scoped flag toggles.
@@ -403,24 +382,24 @@ class TokenStream
      * Get the next token from the stream, make it the current token, and
      * return its kind.
      */
-    TokenKind getToken() {
+    TokenKind getToken(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         /* Check for a pushed-back token resulting from mismatching lookahead. */
-        if (lookahead != 0) {
+        while (lookahead != 0) {
             JS_ASSERT(!(flags & TSF_XMLTEXTMODE));
             lookahead--;
             cursor = (cursor + 1) & ntokensMask;
             TokenKind tt = currentToken().type;
-            JS_ASSERT(tt != TOK_EOL);
-            return tt;
+            JS_ASSERT(!(flags & TSF_NEWLINES));
+            if (tt != TOK_EOL)
+                return tt;
         }
 
-        return getTokenInternal();
-    }
+        /* If there was a fatal error, keep returning TOK_ERROR. */
+        if (flags & TSF_ERROR)
+            return TOK_ERROR;
 
-    /* Similar, but also sets flags. */
-    TokenKind getToken(uintN withFlags) {
-        Flagger flagger(this, withFlags);
-        return getToken();
+        return getTokenInternal();
     }
 
     /*
@@ -432,174 +411,73 @@ class TokenStream
         cursor = (cursor - 1) & ntokensMask;
     }
 
-    TokenKind peekToken() {
+    TokenKind peekToken(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (lookahead != 0) {
             JS_ASSERT(lookahead == 1);
             return tokens[(cursor + lookahead) & ntokensMask].type;
         }
-        TokenKind tt = getTokenInternal();
+        TokenKind tt = getToken();
         ungetToken();
         return tt;
     }
 
-    TokenKind peekToken(uintN withFlags) {
-        Flagger flagger(this, withFlags);
-        return peekToken();
-    }
-
     TokenKind peekTokenSameLine(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (!onCurrentLine(currentToken().pos))
             return TOK_EOL;
-
-        if (lookahead != 0) {
-            JS_ASSERT(lookahead == 1);
-            return tokens[(cursor + lookahead) & ntokensMask].type;
-        }
-
-        /*
-         * This is the only place TOK_EOL is produced.  No token with TOK_EOL
-         * is created, just a TOK_EOL TokenKind is returned.
-         */
-        flags &= ~TSF_EOL;
-        TokenKind tt = getToken(withFlags);
-        if (flags & TSF_EOL) {
-            tt = TOK_EOL;
-            flags &= ~TSF_EOL;
-        }
-        ungetToken();
+        TokenKind tt = peekToken(TSF_NEWLINES);
         return tt;
     }
 
     /*
      * Get the next token from the stream if its kind is |tt|.
      */
-    bool matchToken(TokenKind tt) {
-        if (getToken() == tt)
-            return true;
-        ungetToken();
-        return false;
-    }
-
-    bool matchToken(TokenKind tt, uintN withFlags) {
+    JSBool matchToken(TokenKind tt, uintN withFlags = 0) {
         Flagger flagger(this, withFlags);
-        return matchToken(tt);
+        if (getToken() == tt)
+            return JS_TRUE;
+        ungetToken();
+        return JS_FALSE;
     }
-
 
   private:
-    /*
-     * This is the low-level interface to the JS source code buffer.  It just
-     * gets raw chars, basically.  TokenStreams functions are layered on top
-     * and do some extra stuff like converting all EOL sequences to '\n',
-     * tracking the line number, and setting the TSF_EOF flag.  (The "raw" in
-     * "raw chars" refers to the lack of EOL sequence normalization.)
-     */
-    class TokenBuf {
-      public:
-        TokenBuf() : base(NULL), limit(NULL), ptr(NULL) { }
-
-        void init(const jschar *buf, size_t length) {
-            base = ptr = buf;
-            limit = base + length;
-        }
-
-        bool hasRawChars() const {
-            return ptr < limit;
-        }
-
-        bool atStart() const {
-            return ptr == base;
-        }
-
-        jschar getRawChar() {
-            return *ptr++;      /* this will NULL-crash if poisoned */
-        }
-
-        jschar peekRawChar() const {
-            return *ptr;        /* this will NULL-crash if poisoned */
-        }
-
-        bool matchRawChar(jschar c) {
-            if (*ptr == c) {    /* this will NULL-crash if poisoned */
-                ptr++;
-                return true;
-            }
-            return false;
-        }
-
-        bool matchRawCharBackwards(jschar c) {
-            JS_ASSERT(ptr);     /* make sure haven't been poisoned */
-            if (*(ptr - 1) == c) {
-                ptr--;
-                return true;
-            }
-            return false;
-        }
-
-        void ungetRawChar() {
-            JS_ASSERT(ptr);     /* make sure haven't been poisoned */
-            ptr--;
-        }
-
-        const jschar *addressOfNextRawChar() {
-            JS_ASSERT(ptr);     /* make sure haven't been poisoned */
-            return ptr;
-        }
-
-        /* Use this with caution! */
-        void setAddressOfNextRawChar(const jschar *a) {
-            JS_ASSERT(a);
-            ptr = a;
-        }
-
-#ifdef DEBUG
-        /*
-         * Poison the TokenBuf so it cannot be accessed again.  There's one
-         * exception to this rule -- see findEOL() -- which is why
-         * ptrWhenPoisoned exists.
-         */
-        void poison() {
-            ptrWhenPoisoned = ptr;
-            ptr = NULL;
-        }
-#endif
-
-        static bool isRawEOLChar(int32 c) {
-            return (c == '\n' || c == '\r' || c == LINE_SEPARATOR || c == PARA_SEPARATOR);
-        }
-
-        const jschar *findEOL();
-
-      private:
-        const jschar *base;             /* base of buffer */
-        const jschar *limit;            /* limit for quick bounds check */
-        const jschar *ptr;              /* next char to get */
-        const jschar *ptrWhenPoisoned;  /* |ptr| when poison() was called */
-    };
+    typedef struct TokenBuf {
+        jschar              *base;      /* base of line or stream buffer */
+        jschar              *limit;     /* limit for quick bounds check */
+        jschar              *ptr;       /* next char to get, or slot to use */
+    } TokenBuf;
 
     TokenKind getTokenInternal();     /* doesn't check for pushback or error flag. */
+    int fillUserbuf();
+    int32 getCharFillLinebuf();
 
-    int32 getChar();
-    int32 getCharIgnoreEOL();
+    /* This gets the next char, normalizing all EOL sequences to '\n' as it goes. */
+    JS_ALWAYS_INLINE int32 getChar() {
+        int32 c;
+        if (currbuf->ptr < currbuf->limit - 1) {
+            /* Not yet the last char of currbuf, so it can't be a newline.  Just get it. */
+            c = *currbuf->ptr++;
+            JS_ASSERT(c != '\n');
+        } else {
+            c = getCharSlowCase();
+        }
+        return c;
+    }
+
+    int32 getCharSlowCase();
     void ungetChar(int32 c);
-    void ungetCharIgnoreEOL(int32 c);
     Token *newToken(ptrdiff_t adjust);
-    bool peekUnicodeEscape(int32 *c);
-    bool matchUnicodeEscapeIdStart(int32 *c);
-    bool matchUnicodeEscapeIdent(int32 *c);
-    bool peekChars(intN n, jschar *cp);
-    bool getAtLine();
+    int32 getUnicodeEscape();
+    JSBool peekChars(intN n, jschar *cp);
+    JSBool getXMLEntity();
 
-    bool getXMLEntity();
-    bool getXMLTextOrTag(TokenKind *ttp, Token **tpp);
-    bool getXMLMarkup(TokenKind *ttp, Token **tpp);
-
-    bool matchChar(int32 expect) {
+    JSBool matchChar(int32 expect) {
         int32 c = getChar();
         if (c == expect)
-            return true;
+            return JS_TRUE;
         ungetChar(c);
-        return false;
+        return JS_FALSE;
     }
 
     int32 peekChar() {
@@ -613,29 +491,33 @@ class TokenStream
             getChar();
     }
 
-    void updateLineInfoForEOL();
-    void updateFlagsForEOL();
-
     JSContext           * const cx;
     Token               tokens[ntokens];/* circular token buffer */
     uintN               cursor;         /* index of last parsed token */
     uintN               lookahead;      /* count of lookahead tokens */
     uintN               lineno;         /* current line number */
     uintN               flags;          /* flags -- see above */
-    const jschar        *linebase;      /* start of current line;  points into userbuf */
-    const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
-    TokenBuf            userbuf;        /* user input buffer */
+    uint32              linepos;        /* linebuf offset in physical line */
+    uint32              lineposNext;    /* the next value of linepos */
+    TokenBuf            linebuf;        /* line buffer for diagnostics */
+    TokenBuf            userbuf;        /* user input buffer if !file */
+    TokenBuf            ungetbuf;       /* buffer for ungetChar */
+    TokenBuf            *currbuf;       /* the buffer getChar is currently using */
     const char          *filename;      /* input filename or null */
+    FILE                *file;          /* stdio stream if reading from file */
+    JSSourceHandler     listener;       /* callback for source; eg debugger */
+    void                *listenerData;  /* listener 'this' data */
     void                *listenerTSData;/* listener data for this TokenStream */
-    CharBuffer          tokenbuf;       /* current token string buffer */
-    int8                oneCharTokens[128];  /* table of one-char tokens */
-    JSPackedBool        maybeEOL[256];       /* probabilistic EOL lookup table */
-    JSPackedBool        maybeStrSpecial[256];/* speeds up string scanning */
-    JSVersion           version;        /* (i.e. to identify keywords) */
-    bool                xml;            /* see JSOPTION_XML */
+    JSCharBuffer        tokenbuf;       /* current token string buffer */
+    bool                maybeEOL[256];  /* probabilistic EOL lookup table */
+    bool                maybeStrSpecial[256];/* speeds up string scanning */
 };
 
 } /* namespace js */
+
+/* Unicode separators that are treated as line terminators, in addition to \n, \r */
+#define LINE_SEPARATOR  0x2028
+#define PARA_SEPARATOR  0x2029
 
 extern void
 js_CloseTokenStream(JSContext *cx, js::TokenStream *ts);
@@ -643,23 +525,12 @@ js_CloseTokenStream(JSContext *cx, js::TokenStream *ts);
 extern JS_FRIEND_API(int)
 js_fgets(char *buf, int size, FILE *file);
 
-namespace js {
-
-struct KeywordInfo {
-    const char  *chars;         /* C string with keyword text */
-    TokenKind   tokentype;
-    JSOp        op;             /* JSOp */
-    JSVersion   version;        /* JSVersion */
-};
-
 /*
- * Returns a KeywordInfo for the specified characters, or NULL if the string is
- * not a keyword.
+ * If the given char array forms JavaScript keyword, return corresponding
+ * token. Otherwise return TOK_EOF.
  */
-extern const KeywordInfo *
-FindKeyword(const jschar *s, size_t length);
-
-} // namespace js
+extern js::TokenKind
+js_CheckKeyword(const jschar *chars, size_t length);
 
 /*
  * Friend-exported API entry point to call a mapping function on each reserved
@@ -672,7 +543,7 @@ typedef void (*JSMapKeywordFun)(const char *);
  * check if str is a JS keyword.
  */
 extern JSBool
-js_IsIdentifier(JSLinearString *str);
+js_IsIdentifier(JSString *str);
 
 /*
  * Steal one JSREPORT_* bit (see jsapi.h) to tell that arguments to the error

@@ -61,51 +61,17 @@ ShadowLayerParent::Bind(Layer* layer)
   mLayer = layer;
 }
 
-void
-ShadowLayerParent::Destroy()
-{
-  // It's possible for Destroy() to come in just after this has been
-  // created, but just before the transaction in which Bind() would
-  // have been called.  In that case, we'll ignore shadow-layers
-  // transactions from there on and never get a layer here.
-  if (mLayer) {
-    mLayer->Disconnect();
-  }
-}
-
 ContainerLayer*
 ShadowLayerParent::AsContainer() const
 {
   return static_cast<ContainerLayer*>(AsLayer());
 }
 
-void
-ShadowLayerParent::ActorDestroy(ActorDestroyReason why)
+bool
+ShadowLayerParent::Recv__delete__()
 {
-  switch (why) {
-  case AncestorDeletion:
-    NS_RUNTIMEABORT("shadow layer deleted out of order!");
-    return;                     // unreached
-
-  case Deletion:
-    // See comment near Destroy() above.
-    if (mLayer) {
-      mLayer->Disconnect();
-    }
-    break;
-
-  case AbnormalShutdown:
-  case NormalShutdown:
-    // let IPDL-generated code automatically clean up Shmems and so
-    // forth; our channel is disconnected anyway
-    break;
-
-  case FailedConstructor:
-    NS_RUNTIMEABORT("FailedConstructor isn't possible in PLayers");
-    return;                     // unreached
-  }
-
   mLayer = NULL;
+  return true;
 }
 
 } // namespace layers

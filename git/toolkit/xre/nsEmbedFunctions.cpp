@@ -35,11 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#if defined(MOZ_WIDGET_QT)
-#include "nsQAppInstance.h"
-#endif
-
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
+#endif
 
 #include "nsXULAppAPI.h"
 
@@ -72,14 +70,11 @@
 #include "nsExceptionHandler.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
-#include "nsJSUtils.h"
 #include "nsWidgetsCID.h"
 #include "nsXREDirProvider.h"
 
 #include "mozilla/Omnijar.h"
-#if defined(XP_MACOSX)
-#include "chrome/common/mach_ipc_mac.h"
-#endif
+#ifdef MOZ_IPC
 #include "nsX11ErrorHandler.h"
 #include "base/at_exit.h"
 #include "base/command_line.h"
@@ -132,6 +127,7 @@ using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::XPCShellEnvironment;
 
 using mozilla::startup::sChildProcessType;
+#endif
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -245,6 +241,7 @@ XRE_StringToChildProcessType(const char* aProcessTypeString)
   return GeckoProcessType_Invalid;
 }
 
+#ifdef MOZ_IPC
 namespace mozilla {
 namespace startup {
 GeckoProcessType sChildProcessType = GeckoProcessType_Default;
@@ -312,77 +309,6 @@ XRE_InitChildProcess(int aArgc,
 
   sChildProcessType = aProcess;
 
-  // Complete 'task_t' exchange for Mac OS X. This structure has the same size
-  // regardless of architecture so we don't have any cross-arch issues here.
-#ifdef XP_MACOSX
-  if (aArgc < 1)
-    return 1;
-  const char* const mach_port_name = aArgv[--aArgc];
-
-  const int kTimeoutMs = 1000;
-
-  MachSendMessage child_message(0);
-  if (!child_message.AddDescriptor(mach_task_self())) {
-    NS_WARNING("child AddDescriptor(mach_task_self()) failed.");
-    return 1;
-  }
-
-  ReceivePort child_recv_port;
-  mach_port_t raw_child_recv_port = child_recv_port.GetPort();
-  if (!child_message.AddDescriptor(raw_child_recv_port)) {
-    NS_WARNING("Adding descriptor to message failed");
-    return 1;
-  }
-
-  MachPortSender child_sender(mach_port_name);
-  kern_return_t err = child_sender.SendMessage(child_message, kTimeoutMs);
-  if (err != KERN_SUCCESS) {
-    NS_WARNING("child SendMessage() failed");
-    return 1;
-  }
-
-  MachReceiveMessage parent_message;
-  err = child_recv_port.WaitForMessage(&parent_message, kTimeoutMs);
-  if (err != KERN_SUCCESS) {
-    NS_WARNING("child WaitForMessage() failed");
-    return 1;
-  }
-
-  if (parent_message.GetTranslatedPort(0) == MACH_PORT_NULL) {
-    NS_WARNING("child GetTranslatedPort(0) failed");
-    return 1;
-  }
-  err = task_set_bootstrap_port(mach_task_self(),
-                                parent_message.GetTranslatedPort(0));
-  if (err != KERN_SUCCESS) {
-    NS_WARNING("child task_set_bootstrap_port() failed");
-    return 1;
-  }
-#endif
-  
-#if defined(MOZ_CRASHREPORTER)
-  if (aArgc < 1)
-    return 1;
-  const char* const crashReporterArg = aArgv[--aArgc];
-  
-#  if defined(XP_WIN) || defined(XP_MACOSX)
-  // on windows and mac, |crashReporterArg| is the named pipe on which the
-  // server is listening for requests, or "-" if crash reporting is
-  // disabled.
-  if (0 != strcmp("-", crashReporterArg)
-      && !XRE_SetRemoteExceptionHandler(crashReporterArg))
-    return 1;
-#  elif defined(OS_LINUX)
-  // on POSIX, |crashReporterArg| is "true" if crash reporting is
-  // enabled, false otherwise
-  if (0 != strcmp("false", crashReporterArg)
-      && !XRE_SetRemoteExceptionHandler(NULL))
-    return 1;
-#  else
-#    error "OOP crash reporting unsupported on this platform"
-#  endif   
-#endif // if defined(MOZ_CRASHREPORTER)
-
   gArgv = aArgv;
   gArgc = aArgc;
 
@@ -390,10 +316,6 @@ XRE_InitChildProcess(int aArgc,
   
 #if defined(MOZ_WIDGET_GTK2)
   g_thread_init(NULL);
-#endif
-
-#if defined(MOZ_WIDGET_QT)
-  nsQAppInstance::AddRef();
 #endif
 
   if (PR_GetEnv("MOZ_DEBUG_CHILD_PROCESS")) {
@@ -512,7 +434,9 @@ XRE_InitChildProcess(int aArgc,
       // Allow ProcessChild to clean up after itself before going out of
       // scope and being deleted
       process->CleanUp();
-      mozilla::Omnijar::CleanUp();
+#ifdef MOZ_OMNIJAR
+      mozilla::SetOmnijar(nsnull);
+#endif
     }
   }
 
@@ -568,13 +492,11 @@ XRE_InitParentProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
 
-  ScopedXREEmbed embed;
-
-  gArgc = aArgc;
-  gArgv = aArgv;
-  int rv = XRE_InitCommandLine(gArgc, gArgv);
+  int rv = XRE_InitCommandLine(aArgc, aArgv);
   if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
+
+  ScopedXREEmbed embed;
 
   {
     embed.Start();
@@ -628,46 +550,8 @@ nsresult
 XRE_RunAppShell()
 {
     nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
-#if defined(XP_MACOSX)
-    {
-      // In content processes that want XPCOM (and hence want
-      // AppShell), we usually run our hybrid event loop through
-      // MessagePump::Run(), by way of nsBaseAppShell::Run().  The
-      // Cocoa nsAppShell impl, however, implements its own Run()
-      // that's unaware of MessagePump.  That's all rather suboptimal,
-      // but oddly enough not a problem... usually.
-      // 
-      // The problem with this setup comes during startup.
-      // XPCOM-in-subprocesses depends on IPC, e.g. to init the pref
-      // service, so we have to init IPC first.  But, IPC also
-      // indirectly kinda-depends on XPCOM, because MessagePump
-      // schedules work from off-main threads (e.g. IO thread) by
-      // using NS_DispatchToMainThread().  If the IO thread receives a
-      // Message from the parent before nsThreadManager is
-      // initialized, then DispatchToMainThread() will fail, although
-      // MessagePump will remember the task.  This race condition
-      // isn't a problem when appShell->Run() ends up in
-      // MessagePump::Run(), because MessagePump will immediate see it
-      // has work to do.  It *is* a problem when we end up in [NSApp
-      // run], because it's not aware that MessagePump has work that
-      // needs to be processed; that was supposed to be signaled by
-      // nsIRunnable(s).
-      // 
-      // So instead of hacking Cocoa nsAppShell or rewriting the
-      // event-loop system, we compromise here by processing any tasks
-      // that might have been enqueued on MessagePump, *before*
-      // MessagePump::ScheduleWork was able to successfully
-      // DispatchToMainThread().
-      MessageLoop* loop = MessageLoop::current();
-      bool couldNest = loop->NestableTasksAllowed();
+    NS_ENSURE_TRUE(appShell, NS_ERROR_FAILURE);
 
-      loop->SetNestableTasksAllowed(true);
-      loop->PostTask(FROM_HERE, new MessageLoop::QuitTask());
-      loop->Run();
-
-      loop->SetNestableTasksAllowed(couldNest);
-    }
-#endif  // XP_MACOSX
     return appShell->Run();
 }
 
@@ -692,17 +576,7 @@ XRE_ShutdownChildProcess()
   //  (3) ProcessChild goes out of scope and terminates the IO thread
   //  (4) ProcessChild joins the IO thread
   //  (5) exit()
-  MessageLoop::current()->Quit();
-#if defined(XP_MACOSX)
-  nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
-  if (appShell) {
-      // On Mac, we might be only above nsAppShell::Run(), not
-      // MessagePump::Run().  See XRE_RunAppShell(). To account for
-      // that case, we fire off an Exit() here.  If we were indeed
-      // above MessagePump::Run(), this Exit() is just superfluous.
-      appShell->Exit();
-  }
-#endif // XP_MACOSX
+  MessageLoop::current()->Quit(); 
 }
 
 namespace {
@@ -727,9 +601,8 @@ XRE_SendTestShellCommand(JSContext* aCx,
     TestShellParent* tsp = GetOrCreateTestShellParent();
     NS_ENSURE_TRUE(tsp, false);
 
-    nsDependentJSString command;
-    NS_ENSURE_TRUE(command.init(aCx, aCommand), NS_ERROR_FAILURE);
-
+    nsDependentString command((PRUnichar*)JS_GetStringChars(aCommand),
+                              JS_GetStringLength(aCommand));
     if (!aCallback) {
         return tsp->SendExecuteCommand(command);
     }
@@ -766,3 +639,6 @@ XRE_InstallX11ErrorHandler()
   InstallX11ErrorHandler();
 }
 #endif
+
+#endif // MOZ_IPC
+

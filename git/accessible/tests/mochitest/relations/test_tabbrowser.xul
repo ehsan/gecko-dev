@@ -2,12 +2,7 @@
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css"
                  type="text/css"?>
-
-<!-- Firefox tabbrowser -->
 <?xml-stylesheet href="chrome://browser/content/browser.css"
-                 type="text/css"?>
-<!-- SeaMonkey tabbrowser -->
-<?xml-stylesheet href="chrome://navigator/content/navigator.css"
                  type="text/css"?>
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -19,13 +14,12 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="../common.js" />
+          src="chrome://mochikit/content/a11y/accessible/common.js" />
   <script type="application/javascript"
-          src="../role.js" />
+          src="chrome://mochikit/content/a11y/accessible/role.js" />
   <script type="application/javascript"
-          src="../relations.js" />
+          src="chrome://mochikit/content/a11y/accessible/relations.js" />
 
-  <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
   <script type="application/javascript">
   <![CDATA[
     ////////////////////////////////////////////////////////////////////////////
@@ -61,7 +55,8 @@
        }
       };
 
-      tabBrowser.addProgressListener(progressListener);
+      tabBrowser.addProgressListener(progressListener,
+                                     Ci.nsIWebProgress.NOTIFY_STATE_WINDOW);
 
       tabBrowser.loadTabs(["about:", "about:mozilla"], false, true);
     }
@@ -79,7 +74,7 @@
       testRelation(panels[1], RELATION_LABELLED_BY, tabs[1]);
       testRelation(tabs[1], RELATION_LABEL_FOR, panels[1]);
 
-      SimpleTest.finish();
+      SimpleTest.finish()
     }
 
     SimpleTest.waitForExplicitFinish();
@@ -120,7 +115,6 @@
                 type="content-primary"
                 tabcontainer="tabbrowser-tabs"
                 flex="1"/>
-    <toolbar id="addon-bar"/>
   </vbox>
 
 </window>

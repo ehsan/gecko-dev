@@ -90,11 +90,14 @@ function runTests()
        getDesciption(aPreventedOnBubbling) + "prevented on bubbling phase");
   }
 
+  var systemGroup =
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
+      systemEventGroup;
   var parentElement = document.getElementById("display");
-  SpecialPowers.addSystemEventListener(parentElement, "keypress", listener,
-                                       true);
-  SpecialPowers.addSystemEventListener(parentElement, "keypress", listener,
-                                       false);
+  parentElement.QueryInterface(Components.interfaces.nsIDOM3EventTarget);
+  parentElement.addGroupedEventListener("keypress", listener, true, systemGroup);
+  parentElement.addGroupedEventListener("keypress", listener, false, systemGroup);
 
   function doTest(aElement, aDescription, aIsSingleLine, aIsReadonly,
                   aIsTabbable)
@@ -284,22 +287,12 @@ function runTests()
     synthesizeKey("VK_TAB", { });
     check(aDescription + "Tab",
           true, true, !aIsTabbable && !aIsReadonly);
-    is(aElement.value, !aIsTabbable && !aIsReadonly ? "a\t" : "a",
+    // The tab char is converted to 4 space characters because textarea/input
+    // elements are not preformatted editor.
+    is(aElement.value, !aIsTabbable && !aIsReadonly ? "a    " : "a",
        aDescription + "Tab");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Tab)");
-
-    // If the editor is not tabbable, make sure that it accepts tab characters
-    // even if it's empty.
-    if (!aIsTabbable && !aIsReadonly) {
-      reset("");
-      synthesizeKey("VK_TAB", {});
-      check(aDescription + "Tab on empty textarea",
-            true, true, !aIsReadonly);
-      is(aElement.value, "\t", aDescription + "Tab on empty textarea");
-      is(fm.focusedElement, aElement,
-         aDescription + "focus moved unexpectedly (Tab on empty textarea");
-    }
 
     reset("a");
     synthesizeKey("VK_TAB", { shiftKey: true });
@@ -404,10 +397,8 @@ function runTests()
 
   editor.flags = flags;
 
-  SpecialPowers.removeSystemEventListener(parentElement, "keypress", listener,
-                                          true);
-  SpecialPowers.removeSystemEventListener(parentElement, "keypress", listener,
-                                          false);
+  parentElement.removeGroupedEventListener("keypress", listener, true, systemGroup);
+  parentElement.removeGroupedEventListener("keypress", listener, false, systemGroup);
 
   SimpleTest.finish();
 }

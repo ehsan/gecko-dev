@@ -59,8 +59,7 @@ public:
   static nsresult OnRemoveContent(nsPresContext* aPresContext,
                                   nsIContent* aContent);
   static nsresult OnChangeFocus(nsPresContext* aPresContext,
-                                nsIContent* aContent,
-                                PRUint32 aReason);
+                                nsIContent* aContent);
   static void OnInstalledMenuKeyboardListener(PRBool aInstalling);
 
   // These two methods manage focus and selection/text observers.
@@ -87,11 +86,10 @@ public:
   // widget.  So, the caller must have focus.
   // aNewIMEState must have an enabled state of nsIContent::IME_STATUS_*.
   // And optionally, it can have an open state of nsIContent::IME_STATUS_*.
-  static void UpdateIMEState(PRUint32 aNewIMEState, nsIContent* aContent);
+  static void UpdateIMEState(PRUint32 aNewIMEState);
 
 protected:
-  static void SetIMEState(PRUint32 aState, nsIContent* aContent,
-                          nsIWidget* aWidget, PRUint32 aReason);
+  static void SetIMEState(PRUint32 aState, nsIWidget* aWidget);
   static PRUint32 GetNewIMEState(nsPresContext* aPresContext,
                                  nsIContent* aContent);
 
@@ -100,7 +98,6 @@ protected:
   static nsIContent*    sContent;
   static nsPresContext* sPresContext;
   static PRBool         sInstalledMenuKeyboardListener;
-  static PRBool         sInSecureInputMode;
 
   static nsTextStateManager* sTextStateObserver;
 };

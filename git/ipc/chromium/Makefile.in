@@ -44,10 +44,12 @@ include $(DEPTH)/config/autoconf.mk
 OS_CXXFLAGS := $(filter-out -fshort-wchar,$(OS_CXXFLAGS))
 
 LIBRARY_NAME = chromium_s
+SUPPRESS_FAKELIB = 1 # Chromium is not ready for the awesomeness of fakelibs
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
+ENABLE_CXX_EXCEPTIONS = 1
 ACDEFINES =
 
 ifndef MOZ_NATIVE_LIBEVENT # {
@@ -130,7 +132,6 @@ CPPSRCS += \
   message_router.cc \
   notification_service.cc \
   task_queue.cc \
-  sha512.cc \
   $(NULL)
 
 ifdef OS_WIN # {
@@ -139,6 +140,7 @@ CPPSRCS += \
   base_paths_win.cc \
   cpu.cc \
   condition_variable_win.cc \
+  debug_on_start.cc \
   debug_util_win.cc \
   event_recorder.cc \
   file_util_win.cc \
@@ -164,7 +166,6 @@ CPPSRCS += \
   waitable_event_win.cc \
   win_util.cc \
   chrome_paths_win.cc \
-  chrome_constants.cc \
   ipc_channel_win.cc \
   process_watcher_win.cc \
   transport_dib_win.cc \
@@ -172,16 +173,10 @@ CPPSRCS += \
 
 endif # } OS_WIN
 
-ifdef _MSC_VER # {
-
-CPPSRCS += \
-  debug_on_start.cc
-
-endif # }
-
 ifdef OS_POSIX # {
 
 CPPSRCS += \
+  sha512.cc \
   condition_variable_posix.cc \
   debug_util_posix.cc \
   event_recorder_stubs.cc \
@@ -252,6 +247,7 @@ ifdef OS_LINUX # {
 CPPSRCS += \
   atomicops_internals_x86_gcc.cc \
   base_paths_linux.cc \
+  data_pack.cc \
   file_util_linux.cc \
   file_version_info_linux.cc \
   idle_timer_none.cc \

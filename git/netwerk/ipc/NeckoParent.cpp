@@ -42,8 +42,6 @@
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/net/CookieServiceParent.h"
-#include "mozilla/net/WyciwygChannelParent.h"
-#include "mozilla/net/FTPChannelParent.h"
 
 #include "nsHTMLDNSPrefetch.h"
 
@@ -75,22 +73,6 @@ NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
   return true;
 }
 
-PFTPChannelParent*
-NeckoParent::AllocPFTPChannel()
-{
-  FTPChannelParent *p = new FTPChannelParent();
-  p->AddRef();
-  return p;
-}
-
-bool
-NeckoParent::DeallocPFTPChannel(PFTPChannelParent* channel)
-{
-  FTPChannelParent *p = static_cast<FTPChannelParent *>(channel);
-  p->Release();
-  return true;
-}
-
 PCookieServiceParent* 
 NeckoParent::AllocPCookieService()
 {
@@ -101,22 +83,6 @@ bool
 NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
 {
   delete cs;
-  return true;
-}
-
-PWyciwygChannelParent*
-NeckoParent::AllocPWyciwygChannel()
-{
-  WyciwygChannelParent *p = new WyciwygChannelParent();
-  p->AddRef();
-  return p;
-}
-
-bool
-NeckoParent::DeallocPWyciwygChannel(PWyciwygChannelParent* channel)
-{
-  WyciwygChannelParent *p = static_cast<WyciwygChannelParent *>(channel);
-  p->Release();
   return true;
 }
 

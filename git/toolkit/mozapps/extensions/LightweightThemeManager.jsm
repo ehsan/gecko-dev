@@ -46,12 +46,7 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 const ID_SUFFIX              = "@personas.mozilla.org";
 const PREF_LWTHEME_TO_SELECT = "extensions.lwThemeToSelect";
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
-const PREF_EM_DSS_ENABLED    = "extensions.dss.enabled";
 const ADDON_TYPE             = "theme";
-
-const URI_EXTENSION_STRINGS  = "chrome://mozapps/locale/extensions/extensions.properties";
-
-const STRING_TYPE_NAME       = "type.%ID%.name";
 
 const DEFAULT_MAX_USED_THEMES_COUNT = 30;
 
@@ -90,12 +85,6 @@ __defineSetter__("_maxUsedThemes", function(aVal) {
   delete this._maxUsedThemes;
   return this._maxUsedThemes = aVal;
 });
-
-// Holds the ID of the theme being enabled or disabled while sending out the
-// events so cached AddonWrapper instances can return correct values for
-// permissions and pendingOperations
-var _themeIDBeingEnabled = null;
-var _themeIDBeingDisbled = null;
 
 var LightweightThemeManager = {
   get usedThemes () {
@@ -335,7 +324,6 @@ var LightweightThemeManager = {
     if (current) {
       if (current.id == id)
         return;
-      _themeIDBeingDisbled = current.id;
       let wrapper = new AddonWrapper(current);
       if (aPendingRestart) {
         Services.prefs.setCharPref(PREF_LWTHEME_TO_SELECT, "");
@@ -346,26 +334,20 @@ var LightweightThemeManager = {
         this.themeChanged(null);
         AddonManagerPrivate.callAddonListeners("onDisabled", wrapper);
       }
-      _themeIDBeingDisbled = null;
     }
 
     if (id) {
       let theme = this.getUsedTheme(id);
-      _themeIDBeingEnabled = id;
-      let wrapper = new AddonWrapper(theme);
+      let wrapper = new AddonWrapper(theme, true);
       if (aPendingRestart) {
         AddonManagerPrivate.callAddonListeners("onEnabling", wrapper, true);
         Services.prefs.setCharPref(PREF_LWTHEME_TO_SELECT, id);
-
-        // Flush the preferences to disk so they survive any crash
-        Services.prefs.savePrefFile(null);
       }
       else {
         AddonManagerPrivate.callAddonListeners("onEnabling", wrapper, false);
         this.themeChanged(theme);
         AddonManagerPrivate.callAddonListeners("onEnabled", wrapper);
       }
-      _themeIDBeingEnabled = null;
     }
   },
 
@@ -415,7 +397,7 @@ var LightweightThemeManager = {
  * The AddonWrapper wraps lightweight theme to provide the data visible to
  * consumers of the AddonManager API.
  */
-function AddonWrapper(aTheme) {
+function AddonWrapper(aTheme, aBeingEnabled) {
   this.__defineGetter__("id", function() aTheme.id + ID_SUFFIX);
   this.__defineGetter__("type", function() ADDON_TYPE);
   this.__defineGetter__("isActive", function() {
@@ -459,18 +441,6 @@ function AddonWrapper(aTheme) {
   });
 
   this.__defineGetter__("operationsRequiringRestart", function() {
-    // If a non-default theme is in use then a restart will be required to
-    // enable lightweight themes unless dynamic theme switching is enabled
-    if (Services.prefs.prefHasUserValue(PREF_GENERAL_SKINS_SELECTEDSKIN)) {
-      try {
-        if (Services.prefs.getBoolPref(PREF_EM_DSS_ENABLED))
-          return AddonManager.OP_NEEDS_RESTART_NONE;
-      }
-      catch (e) {
-      }
-      return AddonManager.OP_NEEDS_RESTART_ENABLE;
-    }
-
     return AddonManager.OP_NEEDS_RESTART_NONE;
   });
 
@@ -484,16 +454,12 @@ function AddonWrapper(aTheme) {
     let permissions = AddonManager.PERM_CAN_UNINSTALL;
     if (this.userDisabled)
       permissions |= AddonManager.PERM_CAN_ENABLE;
-    else
-      permissions |= AddonManager.PERM_CAN_DISABLE;
     return permissions;
   });
 
   this.__defineGetter__("userDisabled", function() {
-    if (_themeIDBeingEnabled == aTheme.id)
+    if (aBeingEnabled)
       return false;
-    if (_themeIDBeingDisbled == aTheme.id)
-      return true;
 
     try {
       let toSelect = Services.prefs.getCharPref(PREF_LWTHEME_TO_SELECT);
@@ -807,8 +773,4 @@ function _persistProgressListener(successCallback) {
   };
 }
 
-AddonManagerPrivate.registerProvider(LightweightThemeManager, [
-  new AddonManagerPrivate.AddonType("theme", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 5000)
-]);
+AddonManagerPrivate.registerProvider(LightweightThemeManager);

@@ -201,11 +201,6 @@ int ARMAssembler::genInt(int reg, ARMWord imm, bool positive)
     return 1;
 }
 
-#ifdef __GNUC__
-// If the result of this function isn't used, the caller should probably be
-// using movImm.
-__attribute__((warn_unused_result))
-#endif
 ARMWord ARMAssembler::getImm(ARMWord imm, int tmpReg, bool invert)
 {
     ARMWord tmp;
@@ -413,16 +408,15 @@ inline void ARMAssembler::fixUpOffsets(void * buffer)
     }
 }
 
-void* ARMAssembler::executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool **poolp)
+void* ARMAssembler::executableCopy(ExecutablePool* allocator)
 {
     // 64-bit alignment is required for next constant pool and JIT code as well
     m_buffer.flushWithoutBarrier(true);
     if (m_buffer.uncheckedSize() & 0x7)
         bkpt(0);
 
-    void * data = m_buffer.executableAllocAndCopy(allocator, poolp);
-    if (data)
-        fixUpOffsets(data);
+    void * data = m_buffer.executableCopy(allocator);
+    fixUpOffsets(data);
     return data;
 }
 
@@ -430,11 +424,13 @@ void* ARMAssembler::executableAllocAndCopy(ExecutableAllocator* allocator, Execu
 // offsets and literal pool loads as it goes. The buffer is assumed to be large
 // enough to hold the code, and any pre-existing literal pool is assumed to
 // have been flushed.
-void ARMAssembler::executableCopy(void * buffer)
+void* ARMAssembler::executableCopy(void * buffer)
 {
     ASSERT(m_buffer.sizeOfConstantPool() == 0);
+
     memcpy(buffer, m_buffer.data(), m_buffer.size());
     fixUpOffsets(buffer);
+    return buffer;
 }
 
 } // namespace JSC

@@ -3,5 +3,4 @@
 html|*.menulist-editable-input {
   -moz-appearance: none !important;
   background: transparent ! important;
-  -moz-box-flex: 1;
 }

@@ -114,17 +114,14 @@ protected:
   void FlushSkinCaches();
   void FlushAllCaches();
 
-  // Update the selected locale used by the chrome registry, and fire a
-  // notification about this change
-  virtual nsresult UpdateSelectedLocale() = 0;
-
   static void LogMessage(const char* aMsg, ...);
   static void LogMessageWithContext(nsIURI* aURL, PRUint32 aLineNumber, PRUint32 flags,
                                     const char* aMsg, ...);
 
-  virtual nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,
-                                        const nsCString& aProvider,
-                                        const nsCString& aPath) = 0;
+  virtual nsresult GetBaseURIFromPackage(const nsCString& aPackage,
+                                         const nsCString& aProvider,
+                                         const nsCString& aPath,
+                                         nsIURI* *aResult) = 0;
   virtual nsresult GetFlagsFromPackage(const nsCString& aPackage,
                                        PRUint32* aFlags) = 0;
 
@@ -145,11 +142,13 @@ public:
       , mPath(NULL)
     { }
 
-    ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile, const char* aPath)
+#ifdef MOZ_OMNIJAR
+    ManifestProcessingContext(NSLocationType aType, const char* aPath)
       : mType(aType)
-      , mFile(aFile)
+      , mFile(mozilla::OmnijarPath())
       , mPath(aPath)
     { }
+#endif
 
     ~ManifestProcessingContext()
     { }

@@ -42,7 +42,6 @@
 
 #include "nscore.h"
 #include "nsCOMPtr.h"
-#include "mozilla/dom/FromParser.h"
 
 /**
  * Functions to create content, to be used only inside Gecko
@@ -57,10 +56,17 @@ class imgIRequest;
 class nsNodeInfoManager;
 class nsGenericHTMLElement;
 
+/**
+ * Constants for passing as aFromParser
+ */
+#define NS_NOT_FROM_PARSER 0
+#define NS_FROM_PARSER_NETWORK 1
+#define NS_FROM_PARSER_DOCUMENT_WRITE (1 << 1)
+#define NS_FROM_PARSER_FRAGMENT (1 << 2)
+
 nsresult
 NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
-              already_AddRefed<nsINodeInfo> aNodeInfo,
-              mozilla::dom::FromParser aFromParser);
+              already_AddRefed<nsINodeInfo> aNodeInfo, PRUint32 aFromParser);
 
 nsresult
 NS_NewXMLElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -103,17 +109,19 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
 
 nsresult
 NS_NewHTMLElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                  mozilla::dom::FromParser aFromParser);
+                  PRUint32 aFromParser);
 
 // First argument should be nsHTMLTag, but that adds dependency to parser
 // for a bunch of files.
 already_AddRefed<nsGenericHTMLElement>
 CreateHTMLElement(PRUint32 aNodeType, already_AddRefed<nsINodeInfo> aNodeInfo,
-                  mozilla::dom::FromParser aFromParser);
+                  PRUint32 aFromParser);
 
+#ifdef MOZ_MATHML
 nsresult
 NS_NewMathMLElement(nsIContent** aResult,
                      already_AddRefed<nsINodeInfo> aNodeInfo);
+#endif
 
 #ifdef MOZ_XUL
 nsresult
@@ -123,9 +131,11 @@ void
 NS_TrustedNewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo);
 #endif
 
+#ifdef MOZ_SVG
 nsresult
 NS_NewSVGElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                 mozilla::dom::FromParser aFromParser);
+                 PRUint32 aFromParser);
+#endif
 
 nsresult
 NS_NewGenConImageContent(nsIContent** aResult,

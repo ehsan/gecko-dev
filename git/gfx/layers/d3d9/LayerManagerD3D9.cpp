@@ -42,66 +42,51 @@
 #include "ImageLayerD3D9.h"
 #include "ColorLayerD3D9.h"
 #include "CanvasLayerD3D9.h"
-#include "ReadbackLayerD3D9.h"
-#include "gfxWindowsPlatform.h"
-#include "nsIGfxInfo.h"
-#include "nsServiceManagerUtils.h"
-#include "gfxFailure.h"
-#include "mozilla/Preferences.h"
-
-#include "gfxCrashReporterUtils.h"
+#include "nsIServiceManager.h"
+#include "nsIPrefService.h"
 
 namespace mozilla {
 namespace layers {
 
-DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
+DeviceManagerD3D9 *LayerManagerD3D9::mDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
-  : mWidget(aWidget)
-  , mDeviceResetCount(0)
+  : mIs3DEnabled(PR_FALSE)
 {
-  mCurrentCallbackInfo.Callback = NULL;
-  mCurrentCallbackInfo.CallbackData = NULL;
+    mWidget = aWidget;
+    mCurrentCallbackInfo.Callback = NULL;
+    mCurrentCallbackInfo.CallbackData = NULL;
 }
 
 LayerManagerD3D9::~LayerManagerD3D9()
 {
-  Destroy();
+  /* Important to release this first since it also holds a reference to the
+   * device manager
+   */
+  mSwapChain = nsnull;
+
+  if (mDeviceManager) {
+    mDeviceManager->Release();
+  }
 }
 
 PRBool
 LayerManagerD3D9::Initialize()
 {
-  ScopedGfxFeatureReporter reporter("D3D9 Layers");
+  /* Check the user preference for whether 3d video is enabled or not */ 
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
+  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled); 
 
-  /* XXX: this preference and blacklist code should move out of the layer manager */
-  PRBool forceAccelerate =
-    Preferences::GetBool("layers.acceleration.force-enabled", PR_FALSE);
-
-  nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-  if (gfxInfo) {
-    PRInt32 status;
-    if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
-      if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate)
-      {
-        NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
-        return PR_FALSE;
-      }
-    }
-  }
-
-  if (!mDefaultDeviceManager) {
+  if (!mDeviceManager) {
     mDeviceManager = new DeviceManagerD3D9;
 
     if (!mDeviceManager->Init()) {
       mDeviceManager = nsnull;
       return PR_FALSE;
     }
-
-    mDefaultDeviceManager = mDeviceManager;
-  } else {
-    mDeviceManager = mDefaultDeviceManager;
   }
+
+  mDeviceManager->AddRef();
 
   mSwapChain = mDeviceManager->
     CreateSwapChain((HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW));
@@ -110,7 +95,6 @@ LayerManagerD3D9::Initialize()
     return PR_FALSE;
   }
 
-  reporter.SetSuccessful();
   return PR_TRUE;
 }
 
@@ -118,22 +102,6 @@ void
 LayerManagerD3D9::SetClippingRegion(const nsIntRegion &aClippingRegion)
 {
   mClippingRegion = aClippingRegion;
-}
-
-void
-LayerManagerD3D9::Destroy()
-{
-  if (!IsDestroyed()) {
-    if (mRoot) {
-      static_cast<LayerD3D9*>(mRoot->ImplData())->LayerManagerDestroyed();
-    }
-    /* Important to release this first since it also holds a reference to the
-     * device manager
-     */
-    mSwapChain = nsnull;
-    mDeviceManager = nsnull;
-  }
-  LayerManager::Destroy();
 }
 
 void
@@ -152,40 +120,16 @@ LayerManagerD3D9::EndConstruction()
 {
 }
 
-bool
-LayerManagerD3D9::EndEmptyTransaction()
-{
-  // If the device reset count from our last EndTransaction doesn't match
-  // the current device reset count, the device must have been reset one or
-  // more times since our last transaction. In that case, an empty transaction
-  // is not possible, because layers may need to be rerendered.
-  if (!mRoot || mDeviceResetCount != mDeviceManager->GetDeviceResetCount())
-    return false;
-
-  EndTransaction(nsnull, nsnull);
-  return true;
-}
-
 void
 LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
                                  void* aCallbackData)
 {
-  mDeviceResetCount = mDeviceManager->GetDeviceResetCount();
-
-  if (mRoot) {
-    mCurrentCallbackInfo.Callback = aCallback;
-    mCurrentCallbackInfo.CallbackData = aCallbackData;
-
-    // The results of our drawing always go directly into a pixel buffer,
-    // so we don't need to pass any global transform here.
-    mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
-
-    Render();
-    /* Clean this out for sanity */
-    mCurrentCallbackInfo.Callback = NULL;
-    mCurrentCallbackInfo.CallbackData = NULL;
-  }
-
+  mCurrentCallbackInfo.Callback = aCallback;
+  mCurrentCallbackInfo.CallbackData = aCallbackData;
+  Render();
+  /* Clean this out for sanity */
+  mCurrentCallbackInfo.Callback = NULL;
+  mCurrentCallbackInfo.CallbackData = NULL;
   // Clear mTarget, next transaction could have no target
   mTarget = NULL;
 }
@@ -193,7 +137,7 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
 void
 LayerManagerD3D9::SetRoot(Layer *aLayer)
 {
-  mRoot = aLayer;
+  mRootLayer = static_cast<LayerD3D9*>(aLayer->ImplData());
 }
 
 already_AddRefed<ThebesLayer>
@@ -231,36 +175,11 @@ LayerManagerD3D9::CreateCanvasLayer()
   return layer.forget();
 }
 
-already_AddRefed<ReadbackLayer>
-LayerManagerD3D9::CreateReadbackLayer()
-{
-  nsRefPtr<ReadbackLayer> layer = new ReadbackLayerD3D9(this);
-  return layer.forget();
-}
-
 already_AddRefed<ImageContainer>
 LayerManagerD3D9::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(device());
+  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(this);
   return container.forget();
-}
-
-void ReleaseTexture(void *texture)
-{
-  static_cast<IDirect3DTexture9*>(texture)->Release();
-}
-
-void
-LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
-{
-  // We could choose to abort here when hr == E_OUTOFMEMORY.
-  nsCString msg;
-  msg.Append(aMsg);
-  msg.AppendLiteral(" Error code: ");
-  msg.AppendInt(PRUint32(aCode));
-  NS_WARNING(msg.BeginReading());
-
-  gfx::LogFailure(msg);
 }
 
 void
@@ -279,21 +198,23 @@ LayerManagerD3D9::Render()
 
   device()->BeginScene();
 
-  const nsIntRect *clipRect = mRoot->GetClipRect();
-  RECT r;
-  if (clipRect) {
-    r.left = (LONG)clipRect->x;
-    r.top = (LONG)clipRect->y;
-    r.right = (LONG)(clipRect->x + clipRect->width);
-    r.bottom = (LONG)(clipRect->y + clipRect->height);
-  } else {
-    r.left = r.top = 0;
-    r.right = rect.width;
-    r.bottom = rect.height;
-  }
-  device()->SetScissorRect(&r);
+  if (mRootLayer) {
+    const nsIntRect *clipRect = mRootLayer->GetLayer()->GetClipRect();
+    RECT r;
+    if (clipRect) {
+      r.left = (LONG)clipRect->x;
+      r.top = (LONG)clipRect->y;
+      r.right = (LONG)(clipRect->x + clipRect->width);
+      r.bottom = (LONG)(clipRect->y + clipRect->height);
+    } else {
+      r.left = r.top = 0;
+      r.right = rect.width;
+      r.bottom = rect.height;
+    }
+    device()->SetScissorRect(&r);
 
-  static_cast<LayerD3D9*>(mRoot->ImplData())->RenderLayer();
+    mRootLayer->RenderLayer();
+  }
 
   device()->EndScene();
 
@@ -314,36 +235,23 @@ LayerManagerD3D9::SetupPipeline()
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
 
-  gfx3DMatrix viewMatrix;
+  float viewMatrix[4][4];
   /*
    * Matrix to transform to viewport space ( <-1.0, 1.0> topleft,
    * <1.0, -1.0> bottomright)
    */
-  viewMatrix._11 = 2.0f / rect.width;
-  viewMatrix._22 = -2.0f / rect.height;
-  viewMatrix._41 = -1.0f;
-  viewMatrix._42 = 1.0f;
+  memset(&viewMatrix, 0, sizeof(viewMatrix));
+  viewMatrix[0][0] = 2.0f / rect.width;
+  viewMatrix[1][1] = -2.0f / rect.height;
+  viewMatrix[2][2] = 1.0f;
+  viewMatrix[3][0] = -1.0f;
+  viewMatrix[3][1] = 1.0f;
+  viewMatrix[3][3] = 1.0f;
 
-  HRESULT hr = device()->SetVertexShaderConstantF(CBmProjection,
-                                                  &viewMatrix._11, 4);
+  HRESULT hr = device()->SetVertexShaderConstantF(8, &viewMatrix[0][0], 4);
 
   if (FAILED(hr)) {
     NS_WARNING("Failed to set projection shader constant!");
-  }
-
-  hr = device()->SetVertexShaderConstantF(CBvTextureCoords,
-                                          ShaderConstantRect(0, 0, 1.0f, 1.0f),
-                                          1);
-
-  if (FAILED(hr)) {
-    NS_WARNING("Failed to set texCoords shader constant!");
-  }
-
-  float offset[] = { 0, 0, 0, 0 };
-  hr = device()->SetVertexShaderConstantF(CBvRenderTargetOffset, offset, 1);
-
-  if (FAILED(hr)) {
-    NS_WARNING("Failed to set RenderTargetOffset shader constant!");
   }
 }
 

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -68,12 +69,15 @@
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMElement.h"
 #include "Link.h"
+#ifdef MOZ_SVG
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMSVGForeignObjectElem.h"
+#endif
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMNSUIEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -101,7 +105,9 @@
 #include "nsPresContext.h"
 #include "nsIViewManager.h"
 #include "nsIView.h"
-#include "nsEventListenerManager.h"
+#include "nsPIDOMEventTarget.h"
+#include "nsIEventListenerManager.h"
+#include "nsIDOMEventGroup.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIConstraintValidation.h"
 
@@ -109,10 +115,10 @@
 // GetEventReceiver
 //
 // A helper routine that navigates the tricky path from a |nsWebBrowser| to
-// a |nsIDOMEventTarget| via the window root and chrome event handler.
+// a |nsPIDOMEventTarget| via the window root and chrome event handler.
 //
 static nsresult
-GetDOMEventTarget( nsWebBrowser* inBrowser, nsIDOMEventTarget** aTarget)
+GetPIDOMEventTarget( nsWebBrowser* inBrowser, nsPIDOMEventTarget** aTarget)
 {
   NS_ENSURE_ARG_POINTER(inBrowser);
   
@@ -124,10 +130,11 @@ GetDOMEventTarget( nsWebBrowser* inBrowser, nsIDOMEventTarget** aTarget)
   NS_ENSURE_TRUE(domWindowPrivate, NS_ERROR_FAILURE);
   nsPIDOMWindow *rootWindow = domWindowPrivate->GetPrivateRoot();
   NS_ENSURE_TRUE(rootWindow, NS_ERROR_FAILURE);
-  nsCOMPtr<nsIDOMEventTarget> target =
-    rootWindow->GetChromeEventHandler();
-  NS_ENSURE_TRUE(target, NS_ERROR_FAILURE);
-  target.forget(aTarget);
+  nsCOMPtr<nsPIDOMEventTarget> piTarget =
+    do_QueryInterface(rootWindow->GetChromeEventHandler());
+  NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
+  *aTarget = piTarget;
+  NS_IF_ADDREF(*aTarget);
   
   return NS_OK;
 }
@@ -461,18 +468,6 @@ nsDocShellTreeOwner::GetPersistence(PRBool* aPersistPosition,
                                     PRBool* aPersistSizeMode)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDocShellTreeOwner::GetTargetableShellCount(PRUint32* aResult)
-{
-  if(mTreeOwner) {
-    mTreeOwner->GetTargetableShellCount(aResult);
-  } else {
-    *aResult = 0;
-  }
-
-  return NS_OK;
 }
 
 //*****************************************************************************
@@ -884,19 +879,21 @@ nsDocShellTreeOwner::AddChromeListeners()
   }
 
   // register dragover and drop event listeners with the listener manager
-  nsCOMPtr<nsIDOMEventTarget> target;
-  GetDOMEventTarget(mWebBrowser, getter_AddRefs(target));
+  nsCOMPtr<nsPIDOMEventTarget> piTarget;
+  GetPIDOMEventTarget(mWebBrowser, getter_AddRefs(piTarget));
 
-  nsEventListenerManager* elmP = target->GetListenerManager(PR_TRUE);
-  if (elmP)
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+  nsIEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
+  if (sysGroup && elmP)
   {
     rv = elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                      NS_EVENT_FLAG_BUBBLE |
-                                      NS_EVENT_FLAG_SYSTEM_EVENT);
+                                      NS_EVENT_FLAG_BUBBLE,
+                                      sysGroup);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                      NS_EVENT_FLAG_BUBBLE |
-                                      NS_EVENT_FLAG_SYSTEM_EVENT);
+                                      NS_EVENT_FLAG_BUBBLE,
+                                      sysGroup);
   }
 
   return rv;
@@ -916,20 +913,24 @@ nsDocShellTreeOwner::RemoveChromeListeners()
     NS_RELEASE(mChromeContextMenuListener);
   }
 
-  nsCOMPtr<nsIDOMEventTarget> piTarget;
-  GetDOMEventTarget(mWebBrowser, getter_AddRefs(piTarget));
+  nsCOMPtr<nsPIDOMEventTarget> piTarget;
+  GetPIDOMEventTarget(mWebBrowser, getter_AddRefs(piTarget));
   if (!piTarget)
     return NS_OK;
 
-  nsEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
-  if (elmP)
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+  nsIEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
+  if (sysGroup && elmP)
   {
-    elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+    nsresult rv =
+      elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("dragover"),
+                                      NS_EVENT_FLAG_BUBBLE,
+                                      sysGroup);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("drop"),
+                                         NS_EVENT_FLAG_BUBBLE,
+                                         sysGroup);
   }
 
   return NS_OK;
@@ -1027,6 +1028,11 @@ nsDocShellTreeOwner::GetOwnerRequestor()
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // DefaultTooltipTextProvider
 
@@ -1055,6 +1061,7 @@ DefaultTooltipTextProvider::DefaultTooltipTextProvider()
     mTag_window       = do_GetAtom("window");   
 }
 
+#ifdef MOZ_SVG
 //
 // UseSVGTitle
 //
@@ -1083,6 +1090,7 @@ UseSVGTitle(nsIDOMElement *currElement)
   return (parentSVGContent != nsnull);
 }
 
+#endif
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */
 NS_IMETHODIMP
 DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
@@ -1097,26 +1105,12 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
   PRBool found = PR_FALSE;
   nsCOMPtr<nsIDOMNode> current ( aNode );
 
-  // If the element implement the constraint validation API and has no title,
-  // show the validation message, if any.
+  // If the element implement the constraint validation API,
+  // show the validation message, if any, instead of the title.
   nsCOMPtr<nsIConstraintValidation> cvElement = do_QueryInterface(current);
   if (cvElement) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(cvElement);
-    nsCOMPtr<nsIAtom> titleAtom = do_GetAtom("title");
-
-    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(content);
-    PRBool formHasNoValidate = PR_FALSE;
-    mozilla::dom::Element* form = formControl->GetFormElement();
-    if (form) {
-      nsCOMPtr<nsIAtom> noValidateAtom = do_GetAtom("novalidate");
-      formHasNoValidate = form->HasAttr(kNameSpaceID_None, noValidateAtom);
-    }
-
-    if (!content->HasAttr(kNameSpaceID_None, titleAtom) &&
-        !formHasNoValidate) {
-      cvElement->GetValidationMessage(outText);
-      found = !outText.IsEmpty();
-    }
+    cvElement->GetValidationMessage(outText);
+    found = !outText.IsEmpty();
   }
 
   while ( !found && current ) {
@@ -1144,6 +1138,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                   found = PR_TRUE;
               }
             }
+#ifdef MOZ_SVG
             else {
               if (lookingForSVGTitle) {
                 lookingForSVGTitle = UseSVGTitle(currElement);
@@ -1158,7 +1153,8 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                   childNodes->Item(i, getter_AddRefs(childNode));
                   nsCOMPtr<nsIDOMSVGTitleElement> titleElement(do_QueryInterface(childNode));
                   if (titleElement) {
-                    titleElement->GetTextContent(outText);
+                    nsCOMPtr<nsIDOM3Node> titleContent(do_QueryInterface(titleElement));
+                    titleContent->GetTextContent(outText);
                     if ( outText.Length() )
                       found = PR_TRUE;
                     break;
@@ -1166,6 +1162,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                 }
               }
             }
+#endif
           }
         }
       }
@@ -1236,7 +1233,7 @@ NS_IMETHODIMP
 ChromeTooltipListener::AddChromeListeners()
 {  
   if (!mEventTarget)
-    GetDOMEventTarget(mWebBrowser, getter_AddRefs(mEventTarget));
+    GetPIDOMEventTarget(mWebBrowser, getter_AddRefs(mEventTarget));
   
   // Register the appropriate events for tooltips, but only if
   // the embedding chrome cares.
@@ -1559,7 +1556,8 @@ ChromeTooltipListener::sTooltipCallback(nsITimer *aTimer,
     if (shell) {
       nsIViewManager* vm = shell->GetViewManager();
       if (vm) {
-        nsIView* view = vm->GetRootView();
+        nsIView* view;
+        vm->GetRootView(view);
         if (view) {
           nsPoint offset;
           widget = view->GetNearestWidget(&offset);
@@ -1641,6 +1639,12 @@ ChromeTooltipListener::sAutoHideCallback(nsITimer *aTimer, void* aListener)
 } // sAutoHideCallback
 
 
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 NS_IMPL_ADDREF(ChromeContextMenuListener)
 NS_IMPL_RELEASE(ChromeContextMenuListener)
 
@@ -1719,7 +1723,7 @@ NS_IMETHODIMP
 ChromeContextMenuListener::AddChromeListeners()
 {  
   if (!mEventTarget)
-    GetDOMEventTarget(mWebBrowser, getter_AddRefs(mEventTarget));
+    GetPIDOMEventTarget(mWebBrowser, getter_AddRefs(mEventTarget));
   
   // Register the appropriate events for context menus, but only if
   // the embedding chrome cares.

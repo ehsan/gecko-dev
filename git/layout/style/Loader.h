@@ -52,10 +52,12 @@
 #include "nsURIHashKey.h"
 
 class nsIAtom;
+class nsICSSImportRule;
 class nsICSSLoaderObserver;
 class nsCSSStyleSheet;
 class nsIContent;
 class nsIDocument;
+class nsIUnicharInputStream;
 class nsCSSParser;
 class nsMediaList;
 
@@ -124,7 +126,6 @@ protected:
 namespace css {
 
 class SheetLoadData;
-class ImportRule;
 
 /***********************************************************************
  * Enum that describes the state of the sheet returned by CreateSheet. *
@@ -166,7 +167,7 @@ public:
    *
    * @param aElement the element linking to the stylesheet.  This must not be
    *                 null and must implement nsIStyleSheetLinkingElement.
-   * @param aBuffer the stylesheet data
+   * @param aStream the character stream that holds the stylesheet data.
    * @param aLineNumber the line number at which the stylesheet data started.
    * @param aTitle the title of the sheet.
    * @param aMedia the media string for the sheet.
@@ -177,7 +178,7 @@ public:
    *        alternate sheet.
    */
   nsresult LoadInlineStyle(nsIContent* aElement,
-                           const nsAString& aBuffer,
+                           nsIUnicharInputStream* aStream,
                            PRUint32 aLineNumber,
                            const nsAString& aTitle,
                            const nsAString& aMedia,
@@ -231,7 +232,7 @@ public:
   nsresult LoadChildSheet(nsCSSStyleSheet* aParentSheet,
                           nsIURI* aURL,
                           nsMediaList* aMedia,
-                          ImportRule* aRule);
+                          nsICSSImportRule* aRule);
 
   /**
    * Synchronously load and return the stylesheet at aURL.  Any child sheets
@@ -314,7 +315,7 @@ public:
 
   /**
    * nsresult Loader::StopLoadingSheet(nsIURI* aURL), which notifies the
-   * nsICSSLoaderObserver with NS_BINDING_ABORTED, was removed in Bug 556446.
+   * nsICSSLoaderObserver with NS_BINDING_ABORTED, was removed in Bug 556446. 
    * It can be found in revision 2c44a32052ad.
    */
 
@@ -327,11 +328,6 @@ public:
    */
   PRBool GetEnabled() { return mEnabled; }
   void SetEnabled(PRBool aEnabled) { mEnabled = aEnabled; }
-
-  /**
-   * Get the document we live for. May return null.
-   */
-  nsIDocument* GetDocument() const { return mDocument; }
 
   /**
    * Return true if this loader has pending loads (ones that would send
@@ -407,7 +403,7 @@ private:
 
   nsresult InsertChildSheet(nsCSSStyleSheet* aSheet,
                             nsCSSStyleSheet* aParentSheet,
-                            ImportRule* aParentRule);
+                            nsICSSImportRule* aParentRule);
 
   nsresult InternalLoadNonDocumentSheet(nsIURI* aURL,
                                         PRBool aAllowUnsafeRules,
@@ -438,11 +434,11 @@ private:
   // sheet to complete on failure.
   nsresult LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState);
 
-  // Parse the stylesheet in aLoadData.  The sheet data comes from aInput.
+  // Parse the stylesheet in aLoadData.  The sheet data comes from aStream.
   // Set aCompleted to true if the parse finished, false otherwise (e.g. if the
   // sheet had an @import).  If aCompleted is true when this returns, then
-  // ParseSheet also called SheetComplete on aLoadData.
-  nsresult ParseSheet(const nsAString& aInput,
+  // ParseSheet also called SheetComplete on aLoadData
+  nsresult ParseSheet(nsIUnicharInputStream* aStream,
                       SheetLoadData* aLoadData,
                       PRBool& aCompleted);
 

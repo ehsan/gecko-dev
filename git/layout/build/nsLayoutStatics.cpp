@@ -57,6 +57,7 @@
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
+#include "nsGenericElement.h"  // for nsDOMEventRTTearoff
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
@@ -78,7 +79,8 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
-#include "nsCrossSiteListenerProxy.h"
+#include "nsXMLHttpRequest.h"
+#include "nsWebSocket.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
@@ -87,9 +89,9 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsHTMLInputElement.h"
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
-#include "nsMathMLAtoms.h"
-#include "nsMathMLOperators.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -101,8 +103,19 @@
 #include "inDOMView.h"
 #endif
 
+#ifdef MOZ_MATHML
+#include "nsMathMLAtoms.h"
+#include "nsMathMLOperators.h"
+#endif
+
+#ifdef MOZ_SVG
+PRBool NS_SVGEnabled();
+#endif
+
+#ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
+#endif
 
 #ifdef MOZ_MEDIA
 #include "nsMediaDecoder.h"
@@ -119,13 +132,8 @@
 #include "nsJSEnvironment.h"
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"
-#include "nsRefreshDriver.h"
-
-#include "nsHyphenationManager.h"
 
 extern void NS_ShutdownChainItemPool();
-
-using namespace mozilla;
 
 nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
@@ -181,9 +189,17 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSRendering::Init();
+  rv = nsCSSRendering::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRendering");
+    return rv;
+  }
 
-  nsTextFrameTextRunCache::Init();
+  rv = nsTextFrameTextRunCache::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize textframe textrun cache");
+    return rv;
+  }
 
   rv = nsHTMLDNSPrefetch::Initialize();
   if (NS_FAILED(rv)) {
@@ -202,10 +218,14 @@ nsLayoutStatics::Initialize()
 
 #endif
 
+#ifdef MOZ_MATHML
   nsMathMLOperators::AddRefTable();
+#endif
 
+#ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
+#endif
 
 #ifdef DEBUG
   nsFrame::DisplayReflowStartup();
@@ -257,11 +277,14 @@ nsLayoutStatics::Initialize()
   nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
   nsIPresShell::InitializeStatics();
-  nsRefreshDriver::InitializeStatics();
 
-  nsCORSListenerProxy::Startup();
+  nsCrossSiteListenerProxy::Startup();
 
-  nsFrameList::Init();
+  rv = nsFrameList::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsFrameList");
+    return rv;
+  }
 
   NS_SealStaticAtomTable();
 
@@ -279,6 +302,7 @@ nsLayoutStatics::Shutdown()
   nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
   nsDOMAttribute::Shutdown();
+  nsDOMEventRTTearoff::Shutdown();
   nsEventListenerManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
   nsCSSParser::Shutdown();
@@ -307,13 +331,17 @@ nsLayoutStatics::Shutdown()
   nsSprocketLayout::Shutdown();
 #endif
 
+#ifdef MOZ_MATHML
   nsMathMLOperators::ReleaseTable();
+#endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
   nsFloatManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
   nsCSSScanner::ReleaseGlobals();
+
+  NS_IF_RELEASE(nsRuleNode::gLangService);
 
   nsTextFragment::Shutdown();
 
@@ -330,8 +358,10 @@ nsLayoutStatics::Shutdown()
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
 
+#ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
+#endif
 
   nsDOMThreadService::Shutdown();
 
@@ -339,7 +369,9 @@ nsLayoutStatics::Shutdown()
   nsAudioStream::ShutdownLibrary();
 #endif
 
-  nsCORSListenerProxy::Shutdown();
+  nsXMLHttpRequest::ShutdownACCache();
+  
+  nsWebSocket::ReleaseGlobals();
   
   nsIPresShell::ReleaseStatics();
 
@@ -352,8 +384,4 @@ nsLayoutStatics::Shutdown()
   nsFrameList::Shutdown();
 
   nsHTMLInputElement::DestroyUploadLastDir();
-
-  nsLayoutUtils::Shutdown();
-
-  nsHyphenationManager::Shutdown();
 }

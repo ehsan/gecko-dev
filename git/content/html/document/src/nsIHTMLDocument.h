@@ -34,23 +34,28 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#ifndef nsIHTMLDocument_h
-#define nsIHTMLDocument_h
+#ifndef nsIHTMLDocument_h___
+#define nsIHTMLDocument_h___
 
 #include "nsISupports.h"
 #include "nsCompatibility.h"
+#include "nsContentList.h"
 
-class nsIDOMHTMLFormElement;
+class nsIImageMap;
+class nsString;
+class nsIDOMNodeList;
+class nsIDOMHTMLCollection;
+class nsIDOMHTMLMapElement;
+class nsHTMLStyleSheet;
+class nsIStyleSheet;
 class nsIContent;
+class nsIDOMHTMLBodyElement;
 class nsIScriptElement;
 class nsIEditor;
-class nsContentList;
-class nsWrapperCache;
 
 #define NS_IHTMLDOCUMENT_IID \
-{ 0x51a360fa, 0xd659, 0x4d85, \
-  { 0xa5, 0xc5, 0x4a, 0xbb, 0x0d, 0x97, 0x0f, 0x7a } }
+{ 0x840cacc9, 0x1956, 0x4987, \
+  { 0x80, 0x6e, 0xc6, 0xab, 0x19, 0x1b, 0x92, 0xd2 } }
 
 
 /**
@@ -61,13 +66,15 @@ class nsIHTMLDocument : public nsISupports
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IHTMLDOCUMENT_IID)
 
+  virtual nsIDOMHTMLMapElement *GetImageMap(const nsAString& aMapName) = 0;
+
   /**
    * Set compatibility mode for this document
    */
   virtual void SetCompatibilityMode(nsCompatibility aMode) = 0;
 
   virtual nsresult ResolveName(const nsAString& aName,
-                               nsIContent *aForm,
+                               nsIDOMHTMLFormElement *aForm,
                                nsISupports **aResult,
                                nsWrapperCache **aCache) = 0;
 
@@ -165,6 +172,12 @@ public:
   virtual void DisableCookieAccess() = 0;
 
   /**
+   * Get the first <body> child of the root <html>, but don't do
+   * anything <frameset>-related (like nsIDOMHTMLDocument::GetBody).
+   */
+  virtual nsIContent* GetBodyContentExternal() = 0;
+
+  /**
    * Called when this nsIHTMLDocument's editor is destroyed.
    */
   virtual void TearingDownEditor(nsIEditor *aEditor) = 0;
@@ -176,4 +189,4 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLDocument, NS_IHTMLDOCUMENT_IID)
 
-#endif /* nsIHTMLDocument_h */
+#endif /* nsIHTMLDocument_h___ */

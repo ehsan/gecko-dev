@@ -1,12 +1,13 @@
+var currentHandler;
 var browser;
 
 function doc() browser.contentDocument;
 
 function setHandlerFunc(aResultFunc) {
-  gBrowser.addEventListener("DOMLinkAdded", function (event) {
-    gBrowser.removeEventListener("DOMLinkAdded", arguments.callee, false);
-    executeSoon(aResultFunc);
-  }, false);
+  if (currentHandler)
+    gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
+  gBrowser.addEventListener("DOMLinkAdded", aResultFunc, false);
+  currentHandler = aResultFunc;
 }
 
 function test() {
@@ -18,8 +19,7 @@ function test() {
     event.currentTarget.removeEventListener("load", arguments.callee, true);
     iconDiscovery();
   }, true);
-  var rootDir = getRootDirectory(gTestPath);
-  content.location = rootDir + "discovery.html";
+  content.location = "chrome://mochikit/content/browser/browser/base/content/test/discovery.html";
 }
 
 var iconDiscoveryTests = [
@@ -36,7 +36,7 @@ var iconDiscoveryTests = [
 function runIconDiscoveryTest() {
   var test = iconDiscoveryTests[0];
   var head = doc().getElementById("linkparent");
-  var hasSrc = gBrowser.getIcon() != null;
+  var hasSrc = gProxyFavIcon.hasAttribute("src");
   if (test.pass)
     ok(hasSrc, test.text);
   else
@@ -48,17 +48,16 @@ function runIconDiscoveryTest() {
 }
 
 function iconDiscovery() {
+  setHandlerFunc(runIconDiscoveryTest);
   if (iconDiscoveryTests.length) {
-    setHandlerFunc(runIconDiscoveryTest);
-    gBrowser.setIcon(gBrowser.selectedTab, null);
+    gProxyFavIcon.removeAttribute("src");
 
     var test = iconDiscoveryTests[0];
     var head = doc().getElementById("linkparent");
     var link = doc().createElement("link");
 
-    var rootDir = getRootDirectory(gTestPath);
     var rel = test.rel || "icon";
-    var href = test.href || rootDir + "moz.png";
+    var href = test.href || "chrome://mochikit/content/browser/browser/base/content/test/moz.png";
     var type = test.type || "image/png";
     if (test.pass == undefined)
       test.pass = true;
@@ -118,6 +117,7 @@ function runMultipleEnginesTestAndFinalize() {
   is(browser.engines[0].uri, "http://first.mozilla.com/search.xml", "first engine wins");
 
   gBrowser.removeCurrentTab();
+  gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
   finish();
 }
 
@@ -142,7 +142,6 @@ function searchDiscovery() {
     link.title = title;
     head.appendChild(link);
   } else {
-    setHandlerFunc(runMultipleEnginesTestAndFinalize);
     setHandlerFunc(runMultipleEnginesTestAndFinalize);
     // Test multiple engines with the same title
     var link = doc().createElement("link");

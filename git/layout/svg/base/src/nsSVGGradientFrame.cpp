@@ -128,8 +128,20 @@ nsSVGGradientFrame::GetStopInformation(PRInt32 aIndex,
       *aOffset = 1.0f;
   }
 
-  *aStopColor   = stopFrame->GetStyleSVGReset()->mStopColor;
-  *aStopOpacity = stopFrame->GetStyleSVGReset()->mStopOpacity;
+  if (stopFrame) {
+    *aStopColor   = stopFrame->GetStyleSVGReset()->mStopColor;
+    *aStopOpacity = stopFrame->GetStyleSVGReset()->mStopOpacity;
+  }
+#ifdef DEBUG
+  // One way or another we have an implementation problem if we get here
+  else if (stopElement) {
+    NS_WARNING("We *do* have a stop but can't use it because it doesn't have "
+               "a frame - we need frame free gradients and stops!");
+  }
+  else {
+    NS_ERROR("Don't call me with an invalid stop index!");
+  }
+#endif
 }
 
 gfxMatrix

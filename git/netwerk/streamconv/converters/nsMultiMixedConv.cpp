@@ -37,6 +37,7 @@
 
 #include "nsMultiMixedConv.h"
 #include "nsMemory.h"
+#include "nsInt64.h"
 #include "plstr.h"
 #include "nsIHttpChannel.h"
 #include "nsIServiceManager.h"
@@ -606,7 +607,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         // have enough info to start a part, go ahead and buffer
         // enough to collect a boundary token.
         if (!mPartChannel || !(cursor[bufLen-1] == nsCRT::LF) )
-            bufAmt = NS_MIN(mTokenLen - 1, bufLen);
+            bufAmt = PR_MIN(mTokenLen - 1, bufLen);
     }
 
     if (bufAmt) {
@@ -979,7 +980,7 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
 
                 mIsByteRangeRequest = PR_TRUE;
                 if (mContentLength == LL_MAXUINT)
-                    mContentLength = PRUint64(PRInt64(mByteRangeEnd - mByteRangeStart + PRInt64(1)));
+                    mContentLength = PRUint64(PRInt64(mByteRangeEnd - mByteRangeStart + nsInt64(1)));
             }
         }
         *newLine = tmpChar;

@@ -39,7 +39,9 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
   Services.prefs.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, "theme1/1.0");
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("theme1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme1@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -51,9 +53,11 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("theme2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme2@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -64,11 +68,13 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   // We need a default theme for some of these things to work but we have hidden
   // the one in the application directory.
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("default@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "default@tests.mozilla.org",
     version: "1.0",
     name: "Default",
@@ -78,7 +84,7 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   startupManager();
   // Make sure we only register once despite multiple calls
@@ -104,8 +110,6 @@ function run_test() {
     do_check_true(isThemeInAddonsList(profileDir, t1.id));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_UNINSTALL |
-                                               AddonManager.OP_NEEDS_RESTART_DISABLE);
 
     do_check_neq(t2, null);
     do_check_true(t2.userDisabled);
@@ -116,7 +120,6 @@ function run_test() {
     do_check_false(isThemeInAddonsList(profileDir, t2.id));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t2.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_ENABLE);
 
     run_test_1();
   });
@@ -165,7 +168,6 @@ function check_test_1() {
     do_check_false(isThemeInAddonsList(profileDir, t1.id));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_ENABLE);
 
     do_check_neq(t2, null);
     do_check_false(t2.userDisabled);
@@ -174,8 +176,6 @@ function check_test_1() {
     do_check_true(isThemeInAddonsList(profileDir, t2.id));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t2.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_UNINSTALL |
-                                               AddonManager.OP_NEEDS_RESTART_DISABLE);
     do_check_false(gLWThemeChanged);
 
     run_test_2();
@@ -186,7 +186,7 @@ function check_test_1() {
 // case since we don't have the default theme installed)
 function run_test_2() {
   var dest = profileDir.clone();
-  dest.append(do_get_expected_addon_name("theme2@tests.mozilla.org"));
+  dest.append("theme2@tests.mozilla.org");
   dest.remove(true);
 
   restartManager();
@@ -212,7 +212,9 @@ function run_test_2() {
 
 // Installing a lightweight theme should happen instantly and disable the default theme
 function run_test_3() {
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("theme2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme2@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -222,7 +224,7 @@ function run_test_3() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
   restartManager();
 
   prepare_test({
@@ -273,7 +275,7 @@ function run_test_3() {
     do_check_eq(p1.blocklistState, 0);
     do_check_true(p1.isActive);
     do_check_eq(p1.pendingOperations, 0);
-    do_check_eq(p1.permissions, AddonManager.PERM_CAN_UNINSTALL | AddonManager.PERM_CAN_DISABLE);
+    do_check_eq(p1.permissions, AddonManager.PERM_CAN_UNINSTALL);
     do_check_eq(p1.scope, AddonManager.SCOPE_PROFILE);
     do_check_true("isCompatibleWith" in p1);
     do_check_true("findUpdates" in p1);
@@ -347,7 +349,7 @@ function run_test_4() {
     do_check_false(p2.userDisabled);
     do_check_true(p2.isActive);
     do_check_eq(p2.pendingOperations, 0);
-    do_check_eq(p2.permissions, AddonManager.PERM_CAN_UNINSTALL | AddonManager.PERM_CAN_DISABLE);
+    do_check_eq(p2.permissions, AddonManager.PERM_CAN_UNINSTALL);
     do_check_eq(p2.installDate.getTime(), p2.updateDate.getTime());
 
     // Should have been installed sometime in the last few seconds.
@@ -362,7 +364,7 @@ function run_test_4() {
     do_check_true(p1.userDisabled);
     do_check_false(p1.isActive);
     do_check_eq(p1.pendingOperations, 0);
-    do_check_eq(p1.permissions, AddonManager.PERM_CAN_UNINSTALL | AddonManager.PERM_CAN_ENABLE);
+    do_check_eq(p1.permissions, AddonManager.PERM_CAN_UNINSTALL + AddonManager.PERM_CAN_ENABLE);
 
     AddonManager.getAddonsByTypes(["theme"], function(addons) {
       let seen = false;
@@ -671,7 +673,6 @@ function run_test_11() {
     do_check_eq(install.name, "Test Theme 1");
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
     do_check_true(install.addon.skinnable, true);
-    do_check_false(hasFlag(install.addon.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_INSTALL));
 
     prepare_test({
       "theme1@tests.mozilla.org": [
@@ -689,9 +690,11 @@ function run_test_11() {
 function check_test_11() {
   AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
     do_check_neq(t1, null);
-    var previewSpec = do_get_addon_root_uri(profileDir, "theme1@tests.mozilla.org") + "preview.png";
+    var preview = profileDir.clone();
+    preview.append("theme1@tests.mozilla.org");
+    preview.append("preview.png");
     do_check_eq(t1.screenshots.length, 1);
-    do_check_eq(t1.screenshots[0], previewSpec);
+    do_check_eq(t1.screenshots[0], NetUtil.newURI(preview).spec);
     do_check_true(t1.skinnable);
     do_check_false(gLWThemeChanged);
 
@@ -713,7 +716,6 @@ function run_test_12() {
     do_check_eq(install.version, "1.0");
     do_check_eq(install.name, "Test Theme 1");
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
-    do_check_false(hasFlag(install.addon.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_INSTALL));
 
     prepare_test({
       "theme1@tests.mozilla.org": [
@@ -765,7 +767,6 @@ function run_test_13() {
       do_check_eq(install.version, "1.0");
       do_check_eq(install.name, "Test Theme 1");
       do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
-      do_check_true(hasFlag(install.addon.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_INSTALL));
 
       prepare_test({
         "theme1@tests.mozilla.org": [
@@ -1034,54 +1035,6 @@ function run_test_20() {
     catch (e) {
     }
 
-    run_test_21();
-  });
-}
-
-// Tests that cached copies of a lightweight theme have the right permissions
-// and pendingOperations during the onEnabling event
-function run_test_21() {
-  AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
-    // Switch to a custom theme so we can test pendingOperations properly.
-
-    prepare_test({
-      "theme1@tests.mozilla.org": [
-        "onEnabling"
-      ],
-      "default@tests.mozilla.org": [
-        "onDisabling"
-      ]
-    });
-
-    t1.userDisabled = false;
-    ensure_test_completed();
-
-    restartManager();
-
-    AddonManager.getAddonByID("1@personas.mozilla.org", function(p1) {
-      AddonManager.addAddonListener({
-        onEnabling: function(aAddon) {
-          do_check_false(hasFlag(aAddon.permissions, AddonManager.PERM_CAN_ENABLE));
-          do_check_true(hasFlag(aAddon.pendingOperations, AddonManager.PENDING_ENABLE));
-
-          do_check_eq(aAddon.permissions, p1.permissions);
-          do_check_eq(aAddon.pendingOperations, p1.pendingOperations);
-        }
-      });
-
-      prepare_test({
-        "1@personas.mozilla.org": [
-          "onEnabling"
-        ],
-        "theme1@tests.mozilla.org": [
-          "onDisabling"
-        ]
-      });
-
-      p1.userDisabled = false;
-      ensure_test_completed();
-
-      end_test();
-    });
+    end_test();
   });
 }

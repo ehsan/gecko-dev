@@ -49,20 +49,19 @@
 #include "nsMenuPopupFrame.h"
 #include "nsIServiceManager.h"
 #ifdef MOZ_XUL
+#include "nsIDOMNSDocument.h"
 #include "nsITreeView.h"
 #endif
 #include "nsGUIEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
+#include "nsContentUtils.h"
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #endif
 #include "nsIRootBox.h"
 #include "nsEventDispatcher.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 nsXULTooltipListener* nsXULTooltipListener::mInstance = nsnull;
 
@@ -81,8 +80,8 @@ nsXULTooltipListener::nsXULTooltipListener()
 {
   if (sTooltipListenerCount++ == 0) {
     // register the callback so we get notified of updates
-    Preferences::RegisterCallback(ToolbarTipsPrefChanged,
-                                  "browser.chrome.toolbar_tips");
+    nsContentUtils::RegisterPrefCallback("browser.chrome.toolbar_tips",
+                                         ToolbarTipsPrefChanged, nsnull);
 
     // Call the pref callback to initialize our state.
     ToolbarTipsPrefChanged("browser.chrome.toolbar_tips", nsnull);
@@ -98,8 +97,8 @@ nsXULTooltipListener::~nsXULTooltipListener()
 
   if (--sTooltipListenerCount == 0) {
     // Unregister our pref observer
-    Preferences::UnregisterCallback(ToolbarTipsPrefChanged,
-                                    "browser.chrome.toolbar_tips");
+    nsContentUtils::UnregisterPrefCallback("browser.chrome.toolbar_tips",
+                                           ToolbarTipsPrefChanged, nsnull);
   }
 }
 
@@ -138,6 +137,10 @@ nsXULTooltipListener::MouseOut(nsIDOMEvent* aMouseEvent)
 {
   // reset flag so that tooltip will display on the next MouseMove
   mTooltipShownOnce = PR_FALSE;
+   
+  // Clear the cached mouse event as it might hold a window alive too long, see
+  // bug 420803.
+  mCachedMouseEvent = nsnull;
 
   // if the timer is running and no tooltip is shown, we
   // have to cancel the timer here so that it doesn't 
@@ -216,6 +219,7 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
     return NS_OK;
   mMouseScreenX = newMouseX;
   mMouseScreenY = newMouseY;
+  mCachedMouseEvent = aMouseEvent;
 
   nsCOMPtr<nsIDOMEventTarget> currentTarget;
   aMouseEvent->GetCurrentTarget(getter_AddRefs(currentTarget));
@@ -324,8 +328,8 @@ int
 nsXULTooltipListener::ToolbarTipsPrefChanged(const char *aPref,
                                              void *aClosure)
 {
-  sShowTooltips =
-    Preferences::GetBool("browser.chrome.toolbar_tips", sShowTooltips);
+  sShowTooltips = nsContentUtils::GetBoolPref("browser.chrome.toolbar_tips",
+                                              sShowTooltips);
 
   return 0;
 }
@@ -345,7 +349,7 @@ nsXULTooltipListener::AddTooltipSupport(nsIContent* aNode)
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aNode));
   evtTarget->AddEventListener(NS_LITERAL_STRING("mouseout"), static_cast<nsIDOMMouseListener*>(this), PR_FALSE);
   evtTarget->AddEventListener(NS_LITERAL_STRING("mousemove"), static_cast<nsIDOMMouseListener*>(this), PR_FALSE);
-  evtTarget->AddEventListener(NS_LITERAL_STRING("dragstart"), static_cast<nsIDOMMouseListener*>(this), PR_TRUE);
+  evtTarget->AddEventListener(NS_LITERAL_STRING("dragstart"), static_cast<nsIDOMMouseListener*>(this), PR_FALSE);
   
   return NS_OK;
 }
@@ -359,7 +363,7 @@ nsXULTooltipListener::RemoveTooltipSupport(nsIContent* aNode)
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aNode));
   evtTarget->RemoveEventListener(NS_LITERAL_STRING("mouseout"), static_cast<nsIDOMMouseListener*>(this), PR_FALSE);
   evtTarget->RemoveEventListener(NS_LITERAL_STRING("mousemove"), static_cast<nsIDOMMouseListener*>(this), PR_FALSE);
-  evtTarget->RemoveEventListener(NS_LITERAL_STRING("dragstart"), static_cast<nsIDOMMouseListener*>(this), PR_TRUE);
+  evtTarget->RemoveEventListener(NS_LITERAL_STRING("dragstart"), static_cast<nsIDOMMouseListener*>(this), PR_FALSE);
 
   return NS_OK;
 }
@@ -545,8 +549,10 @@ nsXULTooltipListener::LaunchTooltip()
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
-    nsCOMPtr<nsIContent> target = do_QueryReferent(mTargetNode);
-    pm->ShowTooltipAtScreen(currentTooltip, target, mMouseScreenX, mMouseScreenY);
+    pm->ShowPopupAtScreen(currentTooltip, mMouseScreenX, mMouseScreenY,
+                          PR_FALSE, mCachedMouseEvent);
+
+    mCachedMouseEvent = nsnull;
 
     // Clear the current tooltip if the popup was not opened successfully.
     if (!pm->IsPopupOpen(currentTooltip))
@@ -559,6 +565,8 @@ nsXULTooltipListener::LaunchTooltip()
 nsresult
 nsXULTooltipListener::HideTooltip()
 {
+  mCachedMouseEvent = nsnull;
+
 #ifdef MOZ_XUL
   nsCOMPtr<nsIContent> currentTooltip = do_QueryReferent(mCurrentTooltip);
   if (currentTooltip) {

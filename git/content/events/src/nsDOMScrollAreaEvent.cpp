@@ -35,8 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
 #include "IPC/IPCMessageUtils.h"
+#endif
 
 #include "nsDOMScrollAreaEvent.h"
 #include "nsGUIEvent.h"
@@ -101,7 +103,7 @@ NS_IMETHODIMP
 nsDOMScrollAreaEvent::InitScrollAreaEvent(const nsAString &aEventType,
                                           PRBool aCanBubble,
                                           PRBool aCancelable,
-                                          nsIDOMWindow *aView,
+                                          nsIDOMAbstractView *aView,
                                           PRInt32 aDetail,
                                           float aX, float aY,
                                           float aWidth, float aHeight)
@@ -114,6 +116,7 @@ nsDOMScrollAreaEvent::InitScrollAreaEvent(const nsAString &aEventType,
   return NS_OK;
 }
 
+#ifdef MOZ_IPC
 void
 nsDOMScrollAreaEvent::Serialize(IPC::Message* aMsg,
                                 PRBool aSerializeInterfaceType)
@@ -149,6 +152,7 @@ nsDOMScrollAreaEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 
   return PR_TRUE;
 }
+#endif
 
 nsresult
 NS_NewDOMScrollAreaEvent(nsIDOMEvent **aInstancePtrResult,
@@ -156,5 +160,10 @@ NS_NewDOMScrollAreaEvent(nsIDOMEvent **aInstancePtrResult,
                          nsScrollAreaEvent *aEvent)
 {
   nsDOMScrollAreaEvent *ev = new nsDOMScrollAreaEvent(aPresContext, aEvent);
+
+  if (!ev) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   return CallQueryInterface(ev, aInstancePtrResult);
 }

@@ -108,9 +108,10 @@ nsSMILCompositor::ComposeAttribute()
   PRUint32 firstFuncToCompose = GetFirstFuncToAffectSandwich();
 
   // FOURTH: Get & cache base value
-  nsSMILValue sandwichResultValue;
-  if (!mAnimationFunctions[firstFuncToCompose]->WillReplace()) {
-    sandwichResultValue = smilAttr->GetBaseValue();
+  nsSMILValue sandwichResultValue = smilAttr->GetBaseValue();
+  if (sandwichResultValue.IsNull()) {
+    NS_WARNING("nsISMILAttr::GetBaseValue failed");
+    return;
   }
   UpdateCachedBaseValue(sandwichResultValue);
 
@@ -122,10 +123,6 @@ nsSMILCompositor::ComposeAttribute()
   PRUint32 length = mAnimationFunctions.Length();
   for (PRUint32 i = firstFuncToCompose; i < length; ++i) {
     mAnimationFunctions[i]->ComposeResult(*smilAttr, sandwichResultValue);
-  }
-  if (sandwichResultValue.IsNull()) {
-    smilAttr->ClearAnimValue();
-    return;
   }
 
   // SIXTH: Set the animated value to the final composited result.
@@ -161,8 +158,7 @@ nsSMILCompositor::CreateSMILAttr()
       return new nsSMILCSSProperty(propId, mKey.mElement.get());
     }
   } else {
-    return mKey.mElement->GetAnimatedAttr(mKey.mAttributeNamespaceID,
-                                          mKey.mAttributeName);
+    return mKey.mElement->GetAnimatedAttr(mKey.mAttributeName);
   }
   return nsnull;
 }

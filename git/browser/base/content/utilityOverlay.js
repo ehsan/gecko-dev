@@ -23,7 +23,6 @@
 #   Alec Flett <alecf@netscape.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #   Gavin Sharp <gavin@gavinsharp.com>
-#   Dão Gottwald <dao@design-noir.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,19 +50,24 @@ function getBrowserURL()
   return "chrome://browser/content/browser.xul";
 }
 
-function getTopWin(skipPopups) {
-  // If this is called in a browser window, use that window regardless of
-  // whether it's the frontmost window, since commands can be executed in
-  // background windows (bug 626148).
-  if (top.document.documentElement.getAttribute("windowtype") == "navigator:browser" &&
-      (!skipPopups || !top.document.documentElement.getAttribute("chromehidden")))
-    return top;
-
-  if (skipPopups) {
-    return Components.classes["@mozilla.org/browser/browserglue;1"]
-                     .getService(Components.interfaces.nsIBrowserGlue)
-                     .getMostRecentBrowserWindow();
+function goToggleToolbar( id, elementID )
+{
+  var toolbar = document.getElementById(id);
+  var element = document.getElementById(elementID);
+  if (toolbar)
+  {
+    var isHidden = toolbar.hidden;
+    toolbar.hidden = !isHidden;
+    document.persist(id, 'hidden');
+    if (element) {
+      element.setAttribute("checked", isHidden ? "true" : "false");
+      document.persist(elementID, 'checked');
+    }
   }
+}
+
+function getTopWin()
+{
   return Services.wm.getMostRecentWindow("navigator:browser");
 }
 
@@ -170,33 +174,18 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
  *   relatedToCurrent     (boolean)
  */
 function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI) {
-  var params;
-
-  if (arguments.length == 3 && typeof arguments[2] == "object") {
-    params = aAllowThirdPartyFixup;
-  } else {
-    params = {
-      allowThirdPartyFixup: aAllowThirdPartyFixup,
-      postData: aPostData,
-      referrerURI: aReferrerURI
-    };
-  }
-
-  params.fromChrome = true;
-
-  openLinkIn(url, where, params);
-}
-
-function openLinkIn(url, where, params) {
   if (!where || !url)
     return;
 
-  var aFromChrome           = params.fromChrome;
-  var aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-  var aPostData             = params.postData;
-  var aCharset              = params.charset;
-  var aReferrerURI          = params.referrerURI;
-  var aRelatedToCurrent     = params.relatedToCurrent;
+  var aRelatedToCurrent;
+  if (arguments.length == 3 &&
+      typeof arguments[2] == "object") {
+    let params = arguments[2];
+    aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+    aPostData             = params.postData;
+    aReferrerURI          = params.referrerURI;
+    aRelatedToCurrent     = params.relatedToCurrent;
+  }
 
   if (where == "save") {
     saveURL(url, null, null, true, null, aReferrerURI);
@@ -206,11 +195,6 @@ function openLinkIn(url, where, params) {
   const Ci = Components.interfaces;
 
   var w = getTopWin();
-  if ((where == "tab" || where == "tabshifted") &&
-      w && w.document.documentElement.getAttribute("chromehidden")) {
-    w = getTopWin(true);
-    aRelatedToCurrent = false;
-  }
 
   if (!w || where == "window") {
     var sa = Cc["@mozilla.org/supports-array;1"].
@@ -220,45 +204,29 @@ function openLinkIn(url, where, params) {
                createInstance(Ci.nsISupportsString);
     wuri.data = url;
 
-    let charset = null;
-    if (aCharset) {
-      charset = Cc["@mozilla.org/supports-string;1"]
-                  .createInstance(Ci.nsISupportsString);
-      charset.data = "charset=" + aCharset;
-    }
-
     var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
                                        createInstance(Ci.nsISupportsPRBool);
     allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
 
     sa.AppendElement(wuri);
-    sa.AppendElement(charset);
+    sa.AppendElement(null);
     sa.AppendElement(aReferrerURI);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 
-    Services.ww.openWindow(w || window, getBrowserURL(),
-                           null, "chrome,dialog=no,all", sa);
+    var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
+
+    ww.openWindow(w || window,
+                  getBrowserURL(),
+                  null,
+                  "chrome,dialog=no,all",
+                  sa);
+
     return;
   }
 
-  var loadInBackground = aFromChrome ?
-                         getBoolPref("browser.tabs.loadBookmarksInBackground") :
-                         getBoolPref("browser.tabs.loadInBackground");
-
-  if (where == "current" && w.gBrowser.selectedTab.pinned) {
-    try {
-      let uriObj = Services.io.newURI(url, null, null);
-      if (!uriObj.schemeIs("javascript") &&
-          w.gBrowser.currentURI.host != uriObj.host) {
-        where = "tab";
-        loadInBackground = false;
-      }
-    } catch (err) {
-      where = "tab";
-      loadInBackground = false;
-    }
-  }
+  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground");
 
   switch (where) {
   case "current":
@@ -271,7 +239,6 @@ function openLinkIn(url, where, params) {
     let browser = w.gBrowser;
     browser.loadOneTab(url, {
                        referrerURI: aReferrerURI,
-                       charset: aCharset,
                        postData: aPostData,
                        inBackground: loadInBackground,
                        allowThirdPartyFixup: aAllowThirdPartyFixup,
@@ -413,18 +380,23 @@ function isBidiEnabled() {
 function openAboutDialog() {
   var enumerator = Services.wm.getEnumerator("Browser:About");
   while (enumerator.hasMoreElements()) {
-    // Only open one about window (Bug 599573)
     let win = enumerator.getNext();
+#ifdef XP_WIN
+    if (win.opener != window)
+      continue;
+#endif
     win.focus();
     return;
   }
 
-#ifdef XP_WIN
-  var features = "chrome,centerscreen,dependent";
-#elifdef XP_MACOSX
+#ifdef XP_MACOSX
   var features = "chrome,resizable=no,minimizable=no";
 #else
-  var features = "chrome,centerscreen,dependent,dialog=no";
+#ifdef XP_WIN
+  var features = "chrome,centerscreen,dependent";
+#else
+  var features = "chrome,centerscreen";
+#endif
 #endif
   window.openDialog("chrome://browser/content/aboutDialog.xul", "", features);
 }
@@ -460,6 +432,18 @@ function openAdvancedPreferences(tabID)
 }
 
 /**
+ * Opens the release notes page for this version of the application.
+ */
+function openReleaseNotes()
+{
+  var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                            .getService(Components.interfaces.nsIURLFormatter);
+  var relnotesURL = formatter.formatURLPref("app.releaseNotesURL");
+  
+  openUILinkIn(relnotesURL, "tab");
+}
+
+/**
  * Opens the troubleshooting information (about:support) page for this version
  * of the application.
  */
@@ -473,8 +457,32 @@ function openTroubleshootingPage()
  */
 function openFeedbackPage()
 {
-  openUILinkIn("http://input.mozilla.com/feedback", "tab");
+  openUILinkIn("http://input.mozilla.com/sad", "tab");
 }
+
+
+#ifdef MOZ_UPDATER
+/**
+ * Opens the update manager and checks for updates to the application.
+ */
+function checkForUpdates()
+{
+  var um = 
+      Components.classes["@mozilla.org/updates/update-manager;1"].
+      getService(Components.interfaces.nsIUpdateManager);
+  var prompter = 
+      Components.classes["@mozilla.org/updates/update-prompt;1"].
+      createInstance(Components.interfaces.nsIUpdatePrompt);
+
+  // If there's an update ready to be applied, show the "Update Downloaded"
+  // UI instead and let the user know they have to restart the browser for
+  // the changes to be applied. 
+  if (um.activeUpdate && um.activeUpdate.state == "pending")
+    prompter.showUpdateDownloaded(um.activeUpdate);
+  else
+    prompter.checkForUpdates();
+}
+#endif
 
 function buildHelpMenu()
 {
@@ -482,6 +490,61 @@ function buildHelpMenu()
   // may not exist in OSX
   if (typeof safebrowsing != "undefined")
     safebrowsing.setReportPhishingMenu();
+
+#ifdef MOZ_UPDATER
+  var updates = 
+      Components.classes["@mozilla.org/updates/update-service;1"].
+      getService(Components.interfaces.nsIApplicationUpdateService);
+  var um = 
+      Components.classes["@mozilla.org/updates/update-manager;1"].
+      getService(Components.interfaces.nsIUpdateManager);
+
+  // Disable the UI if the update enabled pref has been locked by the 
+  // administrator or if we cannot update for some other reason
+  var checkForUpdates = document.getElementById("checkForUpdates");
+  var canCheckForUpdates = updates.canCheckForUpdates;
+  checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
+  if (!canCheckForUpdates)
+    return; 
+
+  var strings = document.getElementById("bundle_browser");
+  var activeUpdate = um.activeUpdate;
+  
+  // If there's an active update, substitute its name into the label
+  // we show for this item, otherwise display a generic label.
+  function getStringWithUpdateName(key) {
+    if (activeUpdate && activeUpdate.name)
+      return strings.getFormattedString(key, [activeUpdate.name]);
+    return strings.getString(key + "Fallback");
+  }
+  
+  // By default, show "Check for Updates..."
+  var key = "default";
+  if (activeUpdate) {
+    switch (activeUpdate.state) {
+    case "downloading":
+      // If we're downloading an update at present, show the text:
+      // "Downloading Firefox x.x..." otherwise we're paused, and show
+      // "Resume Downloading Firefox x.x..."
+      key = updates.isDownloading ? "downloading" : "resume";
+      break;
+    case "pending":
+      // If we're waiting for the user to restart, show: "Apply Downloaded
+      // Updates Now..."
+      key = "pending";
+      break;
+    }
+  }
+  checkForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
+  checkForUpdates.accessKey = strings.getString("updatesItem_" + key + ".accesskey");
+  if (um.activeUpdate && updates.isDownloading)
+    checkForUpdates.setAttribute("loading", "true");
+  else
+    checkForUpdates.removeAttribute("loading");
+#else
+  // Needed by safebrowsing for inserting its menuitem so just hide it
+  document.getElementById("updateSeparator").hidden = true;
+#endif
 }
 
 function isElementVisible(aElement)
@@ -526,25 +589,37 @@ function makeURLAbsolute(aBase, aUrl)
  *        There will be no security check.
  */ 
 function openNewTabWith(aURL, aDocument, aPostData, aEvent,
-                        aAllowThirdPartyFixup, aReferrer) {
+                        aAllowThirdPartyFixup, aReferrer)
+{
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
+  var loadInBackground = getBoolPref("browser.tabs.loadInBackground");
+
+  if (aEvent && aEvent.shiftKey)
+    loadInBackground = !loadInBackground;
+
   // As in openNewWindowWith(), we want to pass the charset of the
-  // current document over to a new tab.
-  var originCharset = aDocument && aDocument.characterSet;
-  if (!originCharset &&
-      document.documentElement.getAttribute("windowtype") == "navigator:browser")
+  // current document over to a new tab. 
+  var wintype = document.documentElement.getAttribute("windowtype");
+  var originCharset;
+  if (wintype == "navigator:browser")
     originCharset = window.content.document.characterSet;
 
-  openLinkIn(aURL, aEvent && aEvent.shiftKey ? "tabshifted" : "tab",
-             { charset: originCharset,
-               postData: aPostData,
-               allowThirdPartyFixup: aAllowThirdPartyFixup,
-               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer });
+  // open link in new tab
+  var referrerURI = aDocument ? aDocument.documentURIObject : aReferrer;
+  var browser = top.document.getElementById("content");
+  return browser.loadOneTab(aURL, {
+                            referrerURI: referrerURI,
+                            charset: originCharset,
+                            postData: aPostData,
+                            inBackground: loadInBackground,
+                            allowThirdPartyFixup: aAllowThirdPartyFixup});
 }
 
-function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup, aReferrer) {
+function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,
+                           aReferrer)
+{
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
@@ -552,16 +627,15 @@ function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup, aR
   // document with a character set, then extract the current charset menu
   // setting from the current document and use it to initialize the new browser
   // window...
-  var originCharset = aDocument && aDocument.characterSet;
-  if (!originCharset &&
-      document.documentElement.getAttribute("windowtype") == "navigator:browser")
-    originCharset = window.content.document.characterSet;
+  var charsetArg = null;
+  var wintype = document.documentElement.getAttribute("windowtype");
+  if (wintype == "navigator:browser")
+    charsetArg = "charset=" + window.content.document.characterSet;
 
-  openLinkIn(aURL, "window",
-             { charset: originCharset,
-               postData: aPostData,
-               allowThirdPartyFixup: aAllowThirdPartyFixup,
-               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer });
+  var referrerURI = aDocument ? aDocument.documentURIObject : aReferrer;
+  return window.openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no",
+                           aURL, charsetArg, referrerURI, aPostData,
+                           aAllowThirdPartyFixup);
 }
 
 /**
@@ -617,11 +691,4 @@ function openPrefsHelp() {
 
   var helpTopic = document.getElementsByTagName("prefwindow")[0].currentPane.helpTopic;
   openHelpLink(helpTopic, !instantApply);
-}
-
-function trimURL(aURL) {
-  return aURL /* remove single trailing slash for http/https/ftp URLs */
-             .replace(/^((?:http|https|ftp):\/\/[^/]+)\/$/, "$1")
-              /* remove http:// unless the host starts with "ftp." or contains "@" */
-             .replace(/^http:\/\/((?!ftp\.)[^\/@]+(?:\/|$))/, "$1");
 }

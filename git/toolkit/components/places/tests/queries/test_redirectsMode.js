@@ -62,67 +62,50 @@ function check_results_callback(aSequence) {
                   " sortingMode("   + sortingMode   + ").");
 
   // Build expectedData array.
-  let expectedData = visits.filter(function (aVisit, aIndex, aArray) {
-    // Embed visits never appear in results.
-    if (aVisit.transType == Ci.nsINavHistoryService.TRANSITION_EMBED)
-      return false;
-
-    if (aVisit.transType == Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK &&
-      !includeHidden) {
-      // If the page has any non-hidden visit, then it's visible.
-      if (visits.filter(function (refVisit) {
-            return refVisit.uri == aVisit.uri &&
-                   refVisit.transType != Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK;
-          }).length == 0)
+  let expectedData = visits.filter(function(aVisit, aIndex, aArray) {
+    switch (aVisit.transType) {
+      case Ci.nsINavHistoryService.TRANSITION_TYPED:
+      case Ci.nsINavHistoryService.TRANSITION_LINK:
+      case Ci.nsINavHistoryService.TRANSITION_BOOKMARK:
+      case Ci.nsINavHistoryService.TRANSITION_DOWNLOAD:
+        return redirectsMode != Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
+      case Ci.nsINavHistoryService.TRANSITION_EMBED:
+      case Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK:
+        return includeHidden && redirectsMode != Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
+      case Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY:
+      case Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT:
+        if (redirectsMode == Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_ALL)
+          return true;
+        if (redirectsMode == Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET) {
+           // We must check if this redirect will redirect again.
+          return aArray.filter(function(refVisit) {
+                                return refVisit.referrer == aVisit.uri;
+                               }).length == 0;
+        }
+        return false;
+      default:
         return false;
     }
-
-    if (redirectsMode == Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_SOURCE) {
-      // Filter out any redirect target.
-      return aVisit.transType != Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT &&
-             aVisit.transType != Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY;
-    }
-
-    if (redirectsMode == Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET) {
-      // Filter out any entry that is a redirect source.
-      return visits.filter(function (refVisit) {
-        return !refVisit.isRedirect && refVisit.uri == aVisit.uri;
-      }).length > 0;
-    }
-
-    return true;
-  });
-
-  // Remove duplicates, since queries are RESULTS_AS_URI (unique pages).
-  let seen = [];
-  expectedData = expectedData.filter(function (aData) {
-    if (seen.indexOf(aData.uri) != -1)
-      return false;
-    else
-      seen.push(aData.uri);
-    return true;
   });
 
   // Sort expectedData.
-  function getFirstIndexFor(aEntry) {
-    for (let i = 0; i < visits.length; i++) {
-      if (visits[i].uri == aEntry.uri)
-        return i;
+  if (sortingMode > 0) {
+    function comparator(a, b) {
+      if (sortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING)
+        return b.lastVisit - a.lastVisit;
+      else if (sortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING)
+        return b.visitCount - a.visitCount;
+      else
+        return 0;
     }
+    expectedData.sort(comparator);
   }
-  function comparator(a, b) {
-    if (sortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING)
-      return b.lastVisit - a.lastVisit;
-    else if (sortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING)
-      return b.visitCount - a.visitCount;
-    else
-      return getFirstIndexFor(a) - getFirstIndexFor(b);
-  }
-  expectedData.sort(comparator);
 
   // Crop results to maxResults if it's defined.
   if (maxResults) {
-    expectedData = expectedData.slice(0, maxResults);
+    expectedData = expectedData.filter(function(aVisit, aIndex) {
+                                        return aIndex < maxResults;
+                                       });
   }
 
   // Create a new query with required options.
@@ -228,6 +211,8 @@ function cartProd(aSequences, aCallback)
  *   visit -> redirect_temp -> redirect_perm
  */
 function add_visits_to_database() {
+  // Clean up the database.
+  PlacesUtils.bhistory.removeAllPages();
   remove_all_bookmarks();
 
   // We don't really bother on this, but we need a time to add visits.
@@ -239,9 +224,7 @@ function add_visits_to_database() {
     Ci.nsINavHistoryService.TRANSITION_LINK,
     Ci.nsINavHistoryService.TRANSITION_TYPED,
     Ci.nsINavHistoryService.TRANSITION_BOOKMARK,
-    // Embed visits are not added to the database and we don't want redirects
-    // to them, thus just avoid addition.
-    //Ci.nsINavHistoryService.TRANSITION_EMBED,
+    Ci.nsINavHistoryService.TRANSITION_EMBED,
     Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK,
     // Would make hard sorting by visit date because last_visit_date is actually
     // calculated excluding download transitions, but the query includes
@@ -285,28 +268,6 @@ function add_visits_to_database() {
       visitCount: visitCount++,
       isInQuery: true }));
 
-  // Add a REDIRECT_PERMANENT layer of visits that loop to the first visit.
-  // These entries should not change visitCount or lastVisit, otherwise
-  // guessing an order would be a nightmare.
-  function getLastValue(aURI, aProperty) {
-    for (let i = 0; i < visits.length; i++) {
-      if (visits[i].uri == aURI) {
-        return visits[i][aProperty];
-      }
-    }
-    do_throw("Unknown uri.");
-    return null;
-  }
-  t.forEach(function (transition) visits.push(
-    { isVisit: true,
-      transType: Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT,
-      uri: "http://" + transition + ".example.com/",
-      title: getLastValue("http://" + transition + ".example.com/", "title"),
-      lastVisit: getLastValue("http://" + transition + ".example.com/", "lastVisit"),
-      referrer: "http://" + transition + ".redirect.perm.example.com/",
-      visitCount: getLastValue("http://" + transition + ".example.com/", "visitCount"),
-      isInQuery: true }));
-
   // Add an unvisited bookmark in the database, it should never appear.
   visits.push({ isBookmark: true,
     uri: "http://unvisited.bookmark.com/",
@@ -321,16 +282,9 @@ function add_visits_to_database() {
 
 // Main
 function run_test() {
-  do_test_pending();
-
   // Populate the database.
   add_visits_to_database();
 
-  // Frecency and hidden are updated asynchronously, wait for them.
-  waitForAsyncUpdates(continue_test);
- }
-
- function continue_test() {
   // This array will be used by cartProd to generate a matrix of all possible
   // combinations.
   let includeHidden_options = [true, false];
@@ -347,6 +301,7 @@ function run_test() {
   cartProd([includeHidden_options, redirectsMode_options, maxResults_options, sorting_options],
            check_results_callback);
 
+  // Clean up so we can't pollute next tests.
+  PlacesUtils.bhistory.removeAllPages();
   remove_all_bookmarks();
-  waitForClearHistory(do_test_finished);
 }

@@ -42,86 +42,86 @@
 
 #define MOZ_ALIGN_WORD(x) (((x) + 3) & ~3)
 
-using namespace mozilla::ipc;
+using mozilla::ipc::SharedMemory;
 
-static const cairo_user_data_key_t SHM_KEY = {0};
+static cairo_user_data_key_t SHM_KEY;
 
-struct SharedImageInfo {
+typedef struct _SharedImageInfo
+{
     PRInt32 width;
     PRInt32 height;
     PRInt32 format;
-};
+} SharedImageInfo;
 
 static SharedImageInfo*
-GetShmInfoPtr(const Shmem& aShmem)
+GetShmInfoPtr(const mozilla::ipc::Shmem &aShmem)
 {
     return reinterpret_cast<SharedImageInfo*>
         (aShmem.get<char>() + aShmem.Size<char>() - sizeof(SharedImageInfo));
 }
 
-gfxSharedImageSurface::~gfxSharedImageSurface()
+size_t
+gfxSharedImageSurface::GetAlignedSize()
 {
-    MOZ_COUNT_DTOR(gfxSharedImageSurface);
+   return MOZ_ALIGN_WORD(sizeof(SharedImageInfo) + mSize.height * mStride);
 }
 
-/*static*/ PRBool
-gfxSharedImageSurface::IsSharedImage(gfxASurface* aSurface)
+bool
+gfxSharedImageSurface::InitSurface(PRBool aUpdateShmemInfo)
 {
-    return (aSurface
-            && aSurface->GetType() == gfxASurface::SurfaceTypeImage
-            && aSurface->GetData(&SHM_KEY));
-}
+    if (!CheckSurfaceSize(mSize))
+        return false;
 
-gfxSharedImageSurface::gfxSharedImageSurface(const gfxIntSize& aSize,
-                                             gfxImageFormat aFormat,
-                                             const Shmem& aShmem)
-{
-    MOZ_COUNT_CTOR(gfxSharedImageSurface);
-
-    mSize = aSize;
-    mFormat = aFormat;
-    mStride = ComputeStride(aSize, aFormat);
-    mShmem = aShmem;
-    mData = aShmem.get<unsigned char>();
     cairo_surface_t *surface =
-        cairo_image_surface_create_for_data(mData,
+        cairo_image_surface_create_for_data(mShmem.get<unsigned char>(),
                                             (cairo_format_t)mFormat,
                                             mSize.width,
                                             mSize.height,
                                             mStride);
-    if (surface) {
-        cairo_surface_set_user_data(surface, &SHM_KEY, this, NULL);
+
+    if (!surface)
+        return false;
+
+    cairo_surface_set_user_data(surface,
+                                &SHM_KEY,
+                                this, NULL);
+
+    if (aUpdateShmemInfo) {
+        SharedImageInfo *shmInfo = GetShmInfoPtr(mShmem);
+        shmInfo->width = mSize.width;
+        shmInfo->height = mSize.height;
+        shmInfo->format = mFormat;
     }
-    Init(surface);
+
+    InitFromSurface(surface);
+    return true;
 }
 
-void
-gfxSharedImageSurface::WriteShmemInfo()
+gfxSharedImageSurface::~gfxSharedImageSurface()
 {
-    SharedImageInfo* shmInfo = GetShmInfoPtr(mShmem);
-    shmInfo->width = mSize.width;
-    shmInfo->height = mSize.height;
-    shmInfo->format = mFormat;
 }
 
-/*static*/ size_t
-gfxSharedImageSurface::GetAlignedSize(const gfxIntSize& aSize, long aStride)
+gfxSharedImageSurface::gfxSharedImageSurface()
 {
-   return MOZ_ALIGN_WORD(sizeof(SharedImageInfo) + aSize.height * aStride);
 }
 
-/*static*/ already_AddRefed<gfxSharedImageSurface>
-gfxSharedImageSurface::Open(const Shmem& aShmem)
+gfxSharedImageSurface::gfxSharedImageSurface(const mozilla::ipc::Shmem &aShmem)
 {
-    SharedImageInfo* shmInfo = GetShmInfoPtr(aShmem);
-    gfxIntSize size(shmInfo->width, shmInfo->height);
-    if (!CheckSurfaceSize(size))
-        return nsnull;
+    mShmem = aShmem;
+    SharedImageInfo *shmInfo = GetShmInfoPtr(aShmem);
+    mSize.width = shmInfo->width;
+    mSize.height = shmInfo->height;
+    mFormat = (gfxImageFormat)shmInfo->format;
+    mStride = ComputeStride();
 
-    nsRefPtr<gfxSharedImageSurface> s =
-        new gfxSharedImageSurface(size,
-                                  (gfxImageFormat)shmInfo->format,
-                                  aShmem);
-    // We didn't create this Shmem and so don't free it on errors
-    return (s->CairoStatus() != 0) ? nsnull : s.forget();
+    if (!InitSurface(PR_FALSE))
+        NS_RUNTIMEABORT("Shared memory is bad");
+}
+
+PRBool
+gfxSharedImageSurface::IsSharedImage(gfxASurface *aSurface)
+{
+    return (aSurface
+            && aSurface->GetType() == gfxASurface::SurfaceTypeImage
+            && aSurface->GetData(&SHM_KEY));
 }

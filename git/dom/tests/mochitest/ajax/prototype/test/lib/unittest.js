@@ -215,17 +215,11 @@ Test.Unit.Runner = Class.create({
     var test = this.tests[this.currentTest], actions;
     
     if (!test) return this.finish();
-    if (test.timerID > 0) test.timerID = -1;
     if (!test.isWaiting) this.logger.start(test.name);
     test.run();
     if (test.isWaiting) {
-      if (test.timeToWait) {
-        this.logger.message("Waiting for " + test.timeToWait + "ms");
-        test.timerID = setTimeout(this.runTests.bind(this), test.timeToWait);
-      } else {
-        this.logger.message("Waiting for finish");
-      }
-      test.runner = this;
+      this.logger.message("Waiting for " + test.timeToWait + "ms");
+      setTimeout(this.runTests.bind(this), test.timeToWait || 1000);
       return;
     }
     
@@ -492,9 +486,7 @@ Test.Unit.Testcase = Class.create(Test.Unit.Assertions, {
   },
   
   isWaiting:  false,
-  timeToWait: null,
-  timerID:   -1,
-  runner:     null,
+  timeToWait: 1000,
   assertions: 0,
   failures:   0,
   errors:     0,
@@ -506,22 +498,6 @@ Test.Unit.Testcase = Class.create(Test.Unit.Assertions, {
     this.timeToWait = time;
   },
   
-  waitForFinish: function() {
-    this.isWaiting = true;
-  },
-
-  finish: function() {
-    if (this.timerID > 0) {
-      clearTimeout(this.timerID);
-      this.timerID = -1;
-      this.timeToWait = null;
-    }
-    this.test = function(){};
-    // continue test
-    if (this.runner)
-      this.runner.runTests();
-  },
-
   run: function(rethrow) {
     try {
       try {

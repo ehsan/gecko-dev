@@ -53,27 +53,26 @@ ColorLayerD3D9::RenderLayer()
   // XXX we might be able to improve performance by using
   // IDirect3DDevice9::Clear
 
+  float quadTransform[4][4];
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
+  // Transform the quad to the size of the visible area.
+  memset(&quadTransform, 0, sizeof(quadTransform));
+  quadTransform[0][0] = (float)visibleRect.width;
+  quadTransform[1][1] = (float)visibleRect.height;
+  quadTransform[2][2] = 1.0f;
+  quadTransform[3][0] = (float)visibleRect.x;
+  quadTransform[3][1] = (float)visibleRect.y;
+  quadTransform[3][3] = 1.0f;
 
-  device()->SetVertexShaderConstantF(
-    CBvLayerQuad,
-    ShaderConstantRect(visibleRect.x,
-                       visibleRect.y,
-                       visibleRect.width,
-                       visibleRect.height),
-    1);
-
-  const gfx3DMatrix& transform = GetEffectiveTransform();
-  device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
+  device()->SetVertexShaderConstantF(0, &quadTransform[0][0], 4);
+  device()->SetVertexShaderConstantF(4, &mTransform._11, 4);
 
   float color[4];
-  float opacity = GetEffectiveOpacity() * mColor.a;
-  // output color is premultiplied, so we need to adjust all channels.
-  // mColor is not premultiplied.
-  color[0] = (float)(mColor.r * opacity);
-  color[1] = (float)(mColor.g * opacity);
-  color[2] = (float)(mColor.b * opacity);
-  color[3] = (float)(opacity);
+  // color is premultiplied, so we need to adjust all channels
+  color[0] = (float)(mColor.r * GetOpacity());
+  color[1] = (float)(mColor.g * GetOpacity());
+  color[2] = (float)(mColor.b * GetOpacity());
+  color[3] = (float)(mColor.a * GetOpacity());
 
   device()->SetPixelShaderConstantF(0, color, 1);
 

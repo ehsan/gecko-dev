@@ -42,19 +42,11 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
 
-// Avoid circular import.
-__defineGetter__("Service", function() {
-  delete this.Service;
-  Cu.import("resource://services-sync/service.js", this);
-  return this.Service;
-});
-
-XPCOMUtils.defineLazyGetter(this, "ID", function () {
-  return new IDManager();
-});
+Utils.lazy(this, 'ID', IDManager);
 
 // For storing identities we'll use throughout Weave
 function IDManager() {
@@ -120,11 +112,11 @@ Identity.prototype = {
       if (login.username == this.username && login.password == this._password)
         exists = true;
       else
-        Services.logins.removeLogin(login);
+        Svc.Login.removeLogin(login);
     }
 
     // No need to create the login after clearing out the other ones
-    let log = Log4Moz.repository.getLogger("Sync.Identity");
+    let log = Log4Moz.repository.getLogger("Identity");
     if (exists) {
       log.trace("Skipping persist: " + this.realm + " for " + this.username);
       return;
@@ -136,8 +128,8 @@ Identity.prototype = {
       "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo, "init");
     let newLogin = new nsLoginInfo(PWDMGR_HOST, null, this.realm,
       this.username, this.password, "", "");
-    Services.logins.addLogin(newLogin);
+    Svc.Login.addLogin(newLogin);
   },
 
-  get _logins() Services.logins.findLogins({}, PWDMGR_HOST, null, this.realm)
+  get _logins() Svc.Login.findLogins({}, PWDMGR_HOST, null, this.realm)
 };

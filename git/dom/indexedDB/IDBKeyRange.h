@@ -47,32 +47,31 @@
 
 BEGIN_INDEXEDDB_NAMESPACE
 
+class IDBFactory;
+
 class IDBKeyRange : public nsIIDBKeyRange
 {
+  friend class IDBFactory;
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIIDBKEYRANGE
 
-  static JSBool DefineConstructors(JSContext* aCx,
-                                   JSObject* aObject);
-
-  static
-  already_AddRefed<IDBKeyRange> Create(nsIVariant* aLower,
-                                       nsIVariant* aUpper,
-                                       PRBool aLowerOpen,
-                                       PRBool aUpperOpen);
-
 protected:
+  static
+  already_AddRefed<IDBKeyRange> Create(nsIVariant* aLeft,
+                                       nsIVariant* aRight,
+                                       PRUint16 aFlags);
+
   IDBKeyRange()
-  : mLowerOpen(PR_FALSE), mUpperOpen(PR_FALSE)
+  : mFlags(0)
   { }
 
   ~IDBKeyRange() { }
 
-  nsCOMPtr<nsIVariant> mLower;
-  nsCOMPtr<nsIVariant> mUpper;
-  PRPackedBool mLowerOpen;
-  PRPackedBool mUpperOpen;
+  nsCOMPtr<nsIVariant> mLeft;
+  nsCOMPtr<nsIVariant> mRight;
+  PRUint16 mFlags;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -119,6 +119,7 @@ protected:
   PRPackedBool       mRunningEventLoop;
   PRPackedBool       mStarted;
   PRPackedBool       mTerminated;
+  PRPackedBool       mNotifiedWillTerminate;
   PRPackedBool       mSkippedNativeCallback;
   PRPackedBool       mRunningCocoaEmbedded;
 

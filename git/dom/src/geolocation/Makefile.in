@@ -51,7 +51,10 @@ FORCE_STATIC_LIB = 1
 
 CPPSRCS		= \
 		nsGeolocation.cpp \
-		nsGeoPosition.cpp \
+		$(NULL)
+
+EXTRA_DSO_LDOPTS = \
+		$(MOZ_COMPONENT_LIBS) \
 		$(NULL)
 
 LOCAL_INCLUDES = \
@@ -61,20 +64,25 @@ LOCAL_INCLUDES = \
 		-I$(topsrcdir)/content/events/src \
 		$(NULL)
 
-EXPORTS        = nsGeoPosition.h
+ifdef WINCE_WINDOWS_MOBILE
+CPPSRCS         += nsGeoPosition.cpp
+LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/windows \
+                   $(NULL)
+endif
 
 ifdef MOZ_MAEMO_LIBLOCATION
+CPPSRCS         += nsGeoPosition.cpp
 LOCAL_INCLUDES  += $(MOZ_PLATFORM_MAEMO_CFLAGS) \
                    -I$(topsrcdir)/dom/system/unix \
                    $(NULL)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+CPPSRCS         += nsGeoPosition.cpp
+EXPORTS         += nsGeoPosition.h
 LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/android \
                    $(NULL)
 endif
-
-EXPORTS         += nsGeoPositionIPCSerialiser.h
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

@@ -409,7 +409,7 @@ protected:
   void              ClearSpecs(TimeValueSpecList& aSpecs,
                                InstanceTimeList& aInstances,
                                RemovalTestFunction aRemove);
-  void              ClearIntervalProgress();
+  void              RewindTiming();
   void              DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly);
 
   /**
@@ -423,10 +423,8 @@ protected:
    *                    applied at the last possible moment (i.e. if they are at
    *                    or before the current sample time) and only if the
    *                    current interval is not already ending.
-   * @return PR_TRUE if the end time of the current interval was updated,
-   *         PR_FALSE otherwise.
    */
-  PRBool ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
+  void ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
 
   /**
    * Clears certain state in response to the element restarting.
@@ -472,20 +470,17 @@ protected:
    * @param aPrevInterval   The previous interval used. If supplied, the first
    *                        interval that begins after aPrevInterval will be
    *                        returned. May be nsnull.
-   * @param aReplacedInterval The interval that is being updated (if any). This
-   *                        used to ensure we don't return interval endpoints
-   *                        that are dependent on themselves. May be nsnull.
    * @param aFixedBeginTime The time to use for the start of the interval. This
    *                        is used when only the endpoint of the interval
    *                        should be updated such as when the animation is in
    *                        the ACTIVE state. May be nsnull.
    * @param[out] aResult    The next interval. Will be unchanged if no suitable
-   *                        interval was found (in which case PR_FALSE will be
-   *                        returned).
-   * @return  PR_TRUE if a suitable interval was found, PR_FALSE otherwise.
+   *                        interval was found (in which case NS_ERROR_FAILURE
+   *                        will be returned).
+   * @return  NS_OK if a suitable interval was found, NS_ERROR_FAILURE
+   * otherwise.
    */
-  PRBool            GetNextInterval(const nsSMILInterval* aPrevInterval,
-                                    const nsSMILInterval* aReplacedInterval,
+  nsresult          GetNextInterval(const nsSMILInterval* aPrevInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
                                     nsSMILInterval& aResult) const;
   nsSMILInstanceTime* GetNextGreater(const InstanceTimeList& aList,
@@ -510,34 +505,13 @@ protected:
   void              RegisterMilestone();
   PRBool            GetNextMilestone(nsSMILMilestone& aNextMilestone) const;
 
-  // Notification methods. Note that these notifications can result in nested
-  // calls to this same object. Therefore,
-  // (i)  we should not perform notification until this object is in
-  //      a consistent state to receive callbacks, and
-  // (ii) after calling these methods we must assume that the state of the
-  //      element may have changed.
   void              NotifyNewInterval();
-  void              NotifyChangedInterval(nsSMILInterval* aInterval,
-                                          PRBool aBeginObjectChanged,
-                                          PRBool aEndObjectChanged);
-
+  void              NotifyChangedInterval();
   void              FireTimeEventAsync(PRUint32 aMsg, PRInt32 aDetail);
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
   const nsSMILInterval* GetPreviousInterval() const;
   PRBool            HasPlayed() const { return !mOldIntervals.IsEmpty(); }
   PRBool            EndHasEventConditions() const;
-
-  // Reset the current interval by first passing ownership to a temporary
-  // variable so that if Unlink() results in us receiving a callback,
-  // mCurrentInterval will be nsnull and we will be in a consistent state.
-  void ResetCurrentInterval()
-  {
-    if (mCurrentInterval) {
-      // Transfer ownership to temp var. (This sets mCurrentInterval to null.)
-      nsAutoPtr<nsSMILInterval> interval(mCurrentInterval);
-      interval->Unlink();
-    }
-  }
 
   // Hashtable callback methods
   PR_STATIC_CALLBACK(PLDHashOperator) NotifyNewIntervalCallback(

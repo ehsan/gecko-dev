@@ -183,6 +183,11 @@ public:
   }
 
   /**
+   * Return true if the given DOM node contains accessible children.
+   */
+  static PRBool HasAccessibleChildren(nsINode *aNode);
+
+  /**
     * Return ancestor in this document with the given role if it exists.
     *
     * @param  aDescendant  [in] descendant to start search with
@@ -199,8 +204,8 @@ public:
    * @param  aAccessible  [in] the item accessible
    * @param  aState       [in] the state of the item accessible
    */
-  static nsAccessible* GetSelectableContainer(nsAccessible* aAccessible,
-                                              PRUint64 aState);
+  static nsAccessible *GetSelectableContainer(nsAccessible *aAccessible,
+                                              PRUint32 aState);
 
   /**
    * Return multi selectable container for the given item.
@@ -218,10 +223,12 @@ public:
    * Used for normal and misspelling selection changes processing.
    *
    * @param aSelection  [in] the given selection
+   * @param aNode       [out, optional] the DOM node of text accessible
    * @return            text accessible
    */
-  static nsHyperTextAccessible*
-    GetTextAccessibleFromSelection(nsISelection* aSelection);
+  static already_AddRefed<nsHyperTextAccessible>
+    GetTextAccessibleFromSelection(nsISelection *aSelection,
+                                   nsINode **aNode = nsnull);
 
   /**
    * Converts the given coordinates to coordinates relative screen.
@@ -291,6 +298,36 @@ public:
   }
 
   /**
+   * Return the role from native markup of the given accessible.
+   */
+  static PRUint32 RoleInternal(nsIAccessible *aAcc);
+
+  /**
+   * Return the state for the given accessible.
+   */
+  static PRUint32 State(nsIAccessible *aAcc)
+  {
+    PRUint32 state = 0;
+    if (aAcc)
+      aAcc->GetState(&state, nsnull);
+
+    return state;
+  }
+
+  /**
+   * Return the extended state for the given accessible.
+   */
+  static PRUint32 ExtendedState(nsIAccessible *aAcc)
+  {
+    PRUint32 state = 0;
+    PRUint32 extstate = 0;
+    if (aAcc)
+      aAcc->GetState(&state, &extstate);
+
+    return extstate;
+  }
+
+  /**
    * Get the ARIA attribute characteristics for a given ARIA attribute.
    * 
    * @param aAtom  ARIA attribute
@@ -345,23 +382,13 @@ public:
   }
 
   /**
-   * Transform nsIAccessibleStates constants to internal state constant.
+   * Return true if the given accessible hasn't children.
    */
-  static inline PRUint64 To64State(PRUint32 aState1, PRUint32 aState2)
+  static inline PRBool IsLeaf(nsIAccessible *aAcc)
   {
-    return static_cast<PRUint64>(aState1) +
-        (static_cast<PRUint64>(aState2) << 31);
-  }
-
-  /**
-   * Transform internal state constant to nsIAccessibleStates constants.
-   */
-  static inline void To32States(PRUint64 aState64,
-                                PRUint32* aState1, PRUint32* aState2)
-  {
-    *aState1 = aState64 & 0x7fffffff;
-    if (aState2)
-      *aState2 = static_cast<PRUint32>(aState64 >> 31);
+    PRInt32 numChildren = 0;
+    aAcc->GetChildCount(&numChildren);
+    return numChildren == 0;
   }
 
   /**

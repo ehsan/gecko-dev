@@ -105,6 +105,7 @@ static void StopTrackingEntry(nsSHEntry *aEntry)
 nsSHEntry::nsSHEntry() 
   : mLoadType(0)
   , mID(gEntryID++)
+  , mPageIdentifier(mID)
   , mDocIdentifier(gEntryDocIdentifier++)
   , mScrollPositionX(0)
   , mScrollPositionY(0)
@@ -116,7 +117,6 @@ nsSHEntry::nsSHEntry()
   , mParent(nsnull)
   , mViewerBounds(0, 0, 0, 0)
   , mDocShellID(0)
-  , mLastTouched(0)
 {
 }
 
@@ -129,6 +129,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mLayoutHistoryState(other.mLayoutHistoryState)
   , mLoadType(0)         // XXX why not copy?
   , mID(other.mID)
+  , mPageIdentifier(other.mPageIdentifier)
   , mDocIdentifier(other.mDocIdentifier)
   , mScrollPositionX(0)  // XXX why not copy?
   , mScrollPositionY(0)  // XXX why not copy?
@@ -143,7 +144,6 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mViewerBounds(0, 0, 0, 0)
   , mOwner(other.mOwner)
   , mDocShellID(other.mDocShellID)
-  , mStateData(other.mStateData)
 {
 }
 
@@ -165,10 +165,10 @@ nsSHEntry::~nsSHEntry()
   mChildren.EnumerateForwards(ClearParentPtr, nsnull);
   mChildren.Clear();
 
-  if (mContentViewer) {
-    // RemoveFromBFCacheSync is virtual, so call the nsSHEntry version
-    // explicitly
-    nsSHEntry::RemoveFromBFCacheSync();
+  nsCOMPtr<nsIContentViewer> viewer = mContentViewer;
+  DropPresentationState();
+  if (viewer) {
+    viewer->Destroy();
   }
 
   mEditorData = nsnull;
@@ -187,8 +187,8 @@ nsSHEntry::~nsSHEntry()
 //    nsSHEntry: nsISupports
 //*****************************************************************************
 
-NS_IMPL_ISUPPORTS5(nsSHEntry, nsISHContainer, nsISHEntry, nsIHistoryEntry,
-                   nsIMutationObserver, nsISHEntryInternal)
+NS_IMPL_ISUPPORTS4(nsSHEntry, nsISHContainer, nsISHEntry, nsIHistoryEntry,
+                   nsIMutationObserver)
 
 //*****************************************************************************
 //    nsSHEntry: nsISHEntry
@@ -254,7 +254,7 @@ nsSHEntry::SetContentViewer(nsIContentViewer *aViewer)
     // the contentviewer
     mDocument = do_QueryInterface(domDoc);
     if (mDocument) {
-      mDocument->SetBFCacheEntry(this);
+      mDocument->SetShellHidden(PR_TRUE);
       mDocument->AddMutationObserver(this);
     }
   }
@@ -386,6 +386,18 @@ NS_IMETHODIMP nsSHEntry::GetID(PRUint32 * aResult)
 NS_IMETHODIMP nsSHEntry::SetID(PRUint32  aID)
 {
   mID = aID;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::GetPageIdentifier(PRUint32 * aResult)
+{
+  *aResult = mPageIdentifier;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::SetPageIdentifier(PRUint32 aPageIdentifier)
+{
+  mPageIdentifier = aPageIdentifier;
   return NS_OK;
 }
 
@@ -619,83 +631,28 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
   //
   NS_ASSERTION(aOffset < (mChildren.Count()+1023), "Large frames array!\n");
 
-  PRBool newChildIsDyn = PR_FALSE;
-  if (aChild) {
-    aChild->IsDynamicallyAdded(&newChildIsDyn);
+#ifdef DEBUG
+  if (aOffset < mChildren.Count()) {
+    nsISHEntry* oldChild = mChildren.ObjectAt(aOffset);
+    if (aChild && oldChild && oldChild != aChild) {
+      PRBool dyn = PR_FALSE;
+      oldChild->IsDynamicallyAdded(&dyn);
+      NS_WARN_IF_FALSE(dyn, "Adding child where we already have a child?  "
+                            "This may misbehave");
+    }
   }
+#endif
 
-  // If the new child is dynamically added, try to add it to aOffset, but if
-  // there are non-dynamically added children, the child must be after those.
-  if (newChildIsDyn) {
-    PRInt32 lastNonDyn = aOffset - 1;
-    for (PRInt32 i = aOffset; i < mChildren.Count(); ++i) {
-      nsISHEntry* entry = mChildren[i];
-      if (entry) {
-        PRBool dyn = PR_FALSE;
-        entry->IsDynamicallyAdded(&dyn);
-        if (dyn) {
-          break;
-        } else {
-          lastNonDyn = i;
-        }
-      }
-    }
-    // InsertObjectAt allows only appending one object.
-    // If aOffset is larger than Count(), we must first manually
-    // set the capacity.
-    if (aOffset > mChildren.Count()) {
-      mChildren.SetCount(aOffset);
-    }
-    if (!mChildren.InsertObjectAt(aChild, lastNonDyn + 1)) {
-      NS_WARNING("Adding a child failed!");
-      aChild->SetParent(nsnull);
-      return NS_ERROR_FAILURE;
-    }
-  } else {
-    // If the new child isn't dynamically added, it should be set to aOffset.
-    // If there are dynamically added children before that, those must be
-    // moved to be after aOffset.
-    if (mChildren.Count() > 0) {
-      PRInt32 start = NS_MIN(mChildren.Count() - 1, aOffset);
-      PRInt32 dynEntryIndex = -1;
-      nsISHEntry* dynEntry = nsnull;
-      for (PRInt32 i = start; i >= 0; --i) {
-        nsISHEntry* entry = mChildren[i];
-        if (entry) {
-          PRBool dyn = PR_FALSE;
-          entry->IsDynamicallyAdded(&dyn);
-          if (dyn) {
-            dynEntryIndex = i;
-            dynEntry = entry;
-          } else {
-            break;
-          }
-        }
-      }
-  
-      if (dynEntry) {
-        nsCOMArray<nsISHEntry> tmp;
-        tmp.SetCount(aOffset - dynEntryIndex + 1);
-        mChildren.InsertObjectsAt(tmp, dynEntryIndex);
-        NS_ASSERTION(mChildren[aOffset + 1] == dynEntry, "Whaat?");
-      }
-    }
-    
-
-    // Make sure there isn't anything at aOffset.
-    if (aOffset < mChildren.Count()) {
-      nsISHEntry* oldChild = mChildren[aOffset];
-      if (oldChild && oldChild != aChild) {
-        NS_ERROR("Adding a child where we already have a child? This may misbehave");
-        oldChild->SetParent(nsnull);
-      }
-    }
-
-    if (!mChildren.ReplaceObjectAt(aChild, aOffset)) {
-      NS_WARNING("Adding a child failed!");
-      aChild->SetParent(nsnull);
-      return NS_ERROR_FAILURE;
-    }
+  // InsertObjectAt allows only appending one object.
+  // If aOffset is larger than Count(), we must first manually
+  // set the capacity.
+  if (aOffset > mChildren.Count()) {
+    mChildren.SetCount(aOffset);
+  }
+  if (!mChildren.InsertObjectAt(aChild, aOffset)) {
+    NS_WARNING("Adding a child failed!");
+    aChild->SetParent(nsnull);
+    return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
@@ -790,7 +747,7 @@ nsSHEntry::DropPresentationState()
   nsRefPtr<nsSHEntry> kungFuDeathGrip = this;
 
   if (mDocument) {
-    mDocument->SetBFCacheEntry(nsnull);
+    mDocument->SetShellHidden(PR_FALSE);
     mDocument->RemoveMutationObserver(this);
     mDocument = nsnull;
   }
@@ -804,7 +761,6 @@ nsSHEntry::DropPresentationState()
   mViewerBounds.SetRect(0, 0, 0, 0);
   mChildShells.Clear();
   mRefreshURIList = nsnull;
-  mEditorData = nsnull;
 }
 
 void
@@ -854,7 +810,7 @@ nsSHEntry::CharacterDataChanged(nsIDocument* aDocument,
                                 nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo)
 {
-  RemoveFromBFCacheAsync();
+  DocumentMutated();
 }
 
 void
@@ -873,7 +829,7 @@ nsSHEntry::AttributeChanged(nsIDocument* aDocument,
                             nsIAtom* aAttribute,
                             PRInt32 aModType)
 {
-  RemoveFromBFCacheAsync();
+  DocumentMutated();
 }
 
 void
@@ -882,7 +838,7 @@ nsSHEntry::ContentAppended(nsIDocument* aDocument,
                            nsIContent* aFirstNewContent,
                            PRInt32 /* unused */)
 {
-  RemoveFromBFCacheAsync();
+  DocumentMutated();
 }
 
 void
@@ -891,7 +847,7 @@ nsSHEntry::ContentInserted(nsIDocument* aDocument,
                            nsIContent* aChild,
                            PRInt32 /* unused */)
 {
-  RemoveFromBFCacheAsync();
+  DocumentMutated();
 }
 
 void
@@ -901,7 +857,7 @@ nsSHEntry::ContentRemoved(nsIDocument* aDocument,
                           PRInt32 aIndexInContainer,
                           nsIContent* aPreviousSibling)
 {
-  RemoveFromBFCacheAsync();
+  DocumentMutated();
 }
 
 void
@@ -929,27 +885,10 @@ public:
 };
 
 void
-nsSHEntry::RemoveFromBFCacheSync()
+nsSHEntry::DocumentMutated()
 {
   NS_ASSERTION(mContentViewer && mDocument,
-               "we're not in the bfcache!");
-
-  nsCOMPtr<nsIContentViewer> viewer = mContentViewer;
-  DropPresentationState();
-
-  // Warning! The call to DropPresentationState could have dropped the last
-  // reference to this nsSHEntry, so no accessing members beyond here.
-
-  if (viewer) {
-    viewer->Destroy();
-  }
-}
-
-void
-nsSHEntry::RemoveFromBFCacheAsync()
-{
-  NS_ASSERTION(mContentViewer && mDocument,
-               "we're not in the bfcache!");
+               "we shouldn't still be observing the doc");
 
   // Release the reference to the contentviewer asynchronously so that the
   // document doesn't get nuked mid-mutation.
@@ -992,17 +931,16 @@ nsSHEntry::HasDetachedEditor()
 }
 
 NS_IMETHODIMP
-nsSHEntry::GetStateData(nsIStructuredCloneContainer **aContainer)
+nsSHEntry::GetStateData(nsAString &aStateData)
 {
-  NS_ENSURE_ARG_POINTER(aContainer);
-  NS_IF_ADDREF(*aContainer = mStateData);
+  aStateData.Assign(mStateData);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSHEntry::SetStateData(nsIStructuredCloneContainer *aContainer)
+nsSHEntry::SetStateData(const nsAString &aDataStr)
 {
-  mStateData = aContainer;
+  mStateData.Assign(aDataStr);
   return NS_OK;
 }
 
@@ -1040,21 +978,6 @@ NS_IMETHODIMP
 nsSHEntry::SetDocshellID(PRUint64 aID)
 {
   mDocShellID = aID;
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsSHEntry::GetLastTouched(PRUint32 *aLastTouched)
-{
-  *aLastTouched = mLastTouched;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSHEntry::SetLastTouched(PRUint32 aLastTouched)
-{
-  mLastTouched = aLastTouched;
   return NS_OK;
 }
 

@@ -37,14 +37,15 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
 #include "nsCOMPtr.h"
 #include "nsXMLContentSink.h"
 #include "nsIParser.h"
+#include "nsIUnicharInputStream.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMDOMImplementation.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIContent.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -87,7 +88,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIContentPolicy.h"
-#include "nsIDocumentViewer.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentErrors.h"
 #include "nsIDOMProcessingInstruction.h"
@@ -96,9 +96,10 @@
 #include "nsIHTMLDocument.h"
 #include "mozAutoDocUpdate.h"
 #include "nsMimeTypes.h"
-#include "nsHtml5SVGLoadDispatcher.h"
 
-using namespace mozilla::dom;
+#ifdef MOZ_SVG
+#include "nsHtml5SVGLoadDispatcher.h"
+#endif
 
 // XXX Open Issues:
 // 1) what's not allowed - We need to figure out which HTML tags
@@ -330,6 +331,15 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
     // Kick off layout for non-XSLT transformed documents.
     mDocument->ScriptLoader()->RemoveObserver(this);
 
+    if (mDocElement) {
+      // Notify document observers that all the content has been stuck
+      // into the document.
+      // XXX do we need to notify for things like PIs?  Or just the
+      // documentElement?
+      NS_ASSERTION(mDocument->IndexOf(mDocElement) != -1,
+                   "mDocElement not in doc?");
+    }
+
     // Check if we want to prettyprint
     MaybePrettyPrint();
 
@@ -376,9 +386,9 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
-  if (docViewer) {
-    return docViewer->SetDocumentInternal(aResultDocument, PR_TRUE);
+  if (contentViewer) {
+    nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aResultDocument);
+    return contentViewer->SetDOMDocument(doc);
   }
   return NS_OK;
 }
@@ -489,7 +499,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                FromParser aFromParser)
+                                PRUint32 aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -504,11 +514,12 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
+#ifdef MOZ_SVG
       || aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)
+#endif
     ) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(content);
     sele->SetScriptLineNumber(aLineNumber);
-    sele->SetCreatorParser(mParser);
     mConstrainSize = PR_FALSE;
   }
 
@@ -538,11 +549,9 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(content));
     if (ssle) {
       ssle->InitStyleLinkElement(PR_FALSE);
-      if (aFromParser) {
-        ssle->SetEnableUpdates(PR_FALSE);
-      }
+      ssle->SetEnableUpdates(PR_FALSE);
       if (!aNodeInfo->Equals(nsGkAtoms::link, kNameSpaceID_XHTML)) {
-        ssle->SetLineNumber(aFromParser ? aLineNumber : 0);
+        ssle->SetLineNumber(aLineNumber);
       }
     }
   } 
@@ -591,7 +600,9 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
   nsresult rv = NS_OK;
 
   if (nodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
+#ifdef MOZ_SVG
       || nodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)
+#endif
     ) {
     mConstrainSize = PR_TRUE; 
 
@@ -725,7 +736,6 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
 
   NS_ConvertUTF16toUTF8 type(aType);
   if (type.EqualsIgnoreCase(TEXT_XSL) ||
-      type.EqualsIgnoreCase(APPLICATION_XSLT_XML) ||
       type.EqualsIgnoreCase(TEXT_XML) ||
       type.EqualsIgnoreCase(APPLICATION_XML)) {
     if (aAlternate) {
@@ -860,14 +870,15 @@ nsXMLContentSink::GetCurrentContent()
   if (mContentStack.Length() == 0) {
     return nsnull;
   }
-  return GetCurrentStackNode()->mContent;
+  return GetCurrentStackNode().mContent;
 }
 
-StackNode*
+StackNode &
 nsXMLContentSink::GetCurrentStackNode()
 {
   PRInt32 count = mContentStack.Length();
-  return count != 0 ? &mContentStack[count-1] : nsnull;
+  NS_ASSERTION(count > 0, "Bogus Length()");
+  return mContentStack[count-1];
 }
 
 
@@ -1012,13 +1023,11 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   }
   
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                           nsIDOMNode::ELEMENT_NODE);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   result = CreateElement(aAtts, aAttsCount, nodeInfo, aLineNumber,
-                         getter_AddRefs(content), &appendContent,
-                         FROM_PARSER_NETWORK);
+                         getter_AddRefs(content), &appendContent, PR_TRUE);
   NS_ENSURE_SUCCESS(result, result);
 
   // Have to do this before we push the new content on the stack... and have to
@@ -1106,14 +1115,11 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 
   FlushText();
 
-  StackNode* sn = GetCurrentStackNode();
-  if (!sn) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  StackNode & sn = GetCurrentStackNode();
 
   nsCOMPtr<nsIContent> content;
-  sn->mContent.swap(content);
-  PRUint32 numFlushed = sn->mNumFlushed;
+  sn.mContent.swap(content);
+  PRUint32 numFlushed = sn.mNumFlushed;
 
   PopContent();
   NS_ASSERTION(content, "failed to pop content");
@@ -1152,6 +1158,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
   }
   DidAddContent();
 
+#ifdef MOZ_SVG
   if (content->GetNameSpaceID() == kNameSpaceID_SVG &&
       content->Tag() == nsGkAtoms::svg) {
     FlushTags();
@@ -1160,6 +1167,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
       NS_WARNING("failed to dispatch svg load dispatcher");
     }
   }
+#endif
 
   return aInterruptable && NS_SUCCEEDED(result) ? DidProcessATokenImpl() :
                                                   result;
@@ -1223,7 +1231,8 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
   // Create a new doctype node
   nsCOMPtr<nsIDOMDocumentType> docType;
   rv = NS_NewDOMDocumentType(getter_AddRefs(docType), mNodeInfoManager, nsnull,
-                             name, aPublicId, aSystemId, aSubset);
+                             name, nsnull, nsnull, aPublicId, aSystemId,
+                             aSubset);
   if (NS_FAILED(rv) || !docType) {
     return rv;
   }
@@ -1658,8 +1667,10 @@ nsXMLContentSink::IsMonolithicContainer(nsINodeInfo* aNodeInfo)
           (aNodeInfo->NameAtom() == nsGkAtoms::tr ||
            aNodeInfo->NameAtom() == nsGkAtoms::select ||
            aNodeInfo->NameAtom() == nsGkAtoms::object ||
-           aNodeInfo->NameAtom() == nsGkAtoms::applet)) ||
-          (aNodeInfo->NamespaceID() == kNameSpaceID_MathML &&
+           aNodeInfo->NameAtom() == nsGkAtoms::applet))
+#ifdef MOZ_MATHML
+       || (aNodeInfo->NamespaceID() == kNameSpaceID_MathML &&
           (aNodeInfo->NameAtom() == nsGkAtoms::math))
+#endif
           );
 }

@@ -64,16 +64,13 @@ USING_INDEXEDDB_NAMESPACE
 using mozilla::MutexAutoLock;
 
 LazyIdleThread::LazyIdleThread(PRUint32 aIdleTimeoutMS,
-                               ShutdownMethod aShutdownMethod,
                                nsIObserver* aIdleObserver)
 : mMutex("LazyIdleThread::mMutex"),
   mOwningThread(NS_GetCurrentThread()),
   mIdleObserver(aIdleObserver),
-  mQueuedRunnables(nsnull),
   mIdleTimeoutMS(aIdleTimeoutMS),
   mPendingEventCount(0),
   mIdleNotificationCount(0),
-  mShutdownMethod(aShutdownMethod),
   mShutdown(PR_FALSE),
   mThreadIsShuttingDown(PR_FALSE),
   mIdleTimeoutEnabled(PR_TRUE)
@@ -175,7 +172,7 @@ LazyIdleThread::EnsureThread()
 
   nsresult rv;
 
-  if (mShutdownMethod == AutomaticShutdown && NS_IsMainThread()) {
+  if (NS_IsMainThread()) {
     nsCOMPtr<nsIObserverService> obs =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -257,15 +254,10 @@ LazyIdleThread::ShutdownThread()
 {
   ASSERT_OWNING_THREAD();
 
-  // Before calling Shutdown() on the real thread we need to put a queue in
-  // place in case a runnable is posted to the thread while it's in the
-  // process of shutting down. This will be our queue.
-  nsAutoTArray<nsCOMPtr<nsIRunnable>, 10> queuedRunnables;
-
   nsresult rv;
 
   if (mThread) {
-    if (mShutdownMethod == AutomaticShutdown && NS_IsMainThread()) {
+    if (NS_IsMainThread()) {
       nsCOMPtr<nsIObserverService> obs =
         do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
       NS_WARN_IF_FALSE(obs, "Failed to get observer service!");
@@ -297,15 +289,8 @@ LazyIdleThread::ShutdownThread()
     rv = mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Put the temporary queue in place before calling Shutdown().
-    mQueuedRunnables = &queuedRunnables;
-
-    if (NS_FAILED(mThread->Shutdown())) {
-      NS_ERROR("Failed to shutdown the thread!");
-    }
-
-    // Now unset the queue.
-    mQueuedRunnables = nsnull;
+    rv = mThread->Shutdown();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mThread = nsnull;
 
@@ -326,26 +311,6 @@ LazyIdleThread::ShutdownThread()
     mIdleTimer = nsnull;
   }
 
-  // If our temporary queue has any runnables then we need to dispatch them.
-  if (queuedRunnables.Length()) {
-    // If the thread manager has gone away then these runnables will never run.
-    if (mShutdown) {
-      NS_ERROR("Runnables dispatched to LazyIdleThread will never run!");
-      return NS_OK;
-    }
-
-    // Re-dispatch the queued runnables.
-    for (PRUint32 index = 0; index < queuedRunnables.Length(); index++) {
-      nsCOMPtr<nsIRunnable> runnable;
-      runnable.swap(queuedRunnables[index]);
-      NS_ASSERTION(runnable, "Null runnable?!");
-
-      if (NS_FAILED(Dispatch(runnable, NS_DISPATCH_NORMAL))) {
-        NS_ERROR("Failed to re-dispatch queued runnable!");
-      }
-    }
-  }
-
   return NS_OK;
 }
 
@@ -361,7 +326,7 @@ NS_IMPL_THREADSAFE_ADDREF(LazyIdleThread)
 NS_IMETHODIMP_(nsrefcnt)
 LazyIdleThread::Release()
 {
-  nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
+  nsrefcnt count = PR_AtomicDecrement((PRInt32 *)&mRefCnt);
   NS_LOG_RELEASE(this, count, "LazyIdleThread");
 
   if (!count) {
@@ -396,16 +361,6 @@ LazyIdleThread::Dispatch(nsIRunnable* aEvent,
                          PRUint32 aFlags)
 {
   ASSERT_OWNING_THREAD();
-
-  // LazyIdleThread can't always support synchronous dispatch currently.
-  NS_ENSURE_TRUE(aFlags == NS_DISPATCH_NORMAL, NS_ERROR_NOT_IMPLEMENTED);
-
-  // If our thread is shutting down then we can't actually dispatch right now.
-  // Queue this runnable for later.
-  if (UseRunnableQueue()) {
-    mQueuedRunnables->AppendElement(aEvent);
-    return NS_OK;
-  }
 
   nsresult rv = EnsureThread();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -442,11 +397,10 @@ LazyIdleThread::Shutdown()
 {
   ASSERT_OWNING_THREAD();
 
-  mShutdown = PR_TRUE;
-
   nsresult rv = ShutdownThread();
   NS_ASSERTION(!mThread, "Should have destroyed this by now!");
 
+  mShutdown = PR_TRUE;
   mIdleObserver = nsnull;
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -550,10 +504,8 @@ LazyIdleThread::Observe(nsISupports* /* aSubject */,
                         const PRUnichar* /* aData */)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(mShutdownMethod == AutomaticShutdown,
-               "Should not receive notifications if not AutomaticShutdown!");
-  NS_ASSERTION(!strcmp("xpcom-shutdown-threads", aTopic), "Bad topic!");
-
+  NS_ENSURE_FALSE(strcmp("xpcom-shutdown-threads", aTopic),
+                  NS_ERROR_UNEXPECTED);
   Shutdown();
   return NS_OK;
 }

@@ -56,7 +56,8 @@ nsIconDecoder::nsIconDecoder() :
   mPixBytesRead(0),
   mPixBytesTotal(0),
   mImageData(nsnull),
-  mState(iconStateStart)
+  mState(iconStateStart),
+  mNotifiedDone(PR_FALSE)
 {
   // Nothing to do
 }
@@ -64,15 +65,36 @@ nsIconDecoder::nsIconDecoder() :
 nsIconDecoder::~nsIconDecoder()
 { }
 
-void
+
+nsresult
+nsIconDecoder::InitInternal()
+{
+  // Fire OnStartDecode at init time to support bug 512435
+  if (!IsSizeDecode() && mObserver)
+    mObserver->OnStartDecode(nsnull);
+
+  return NS_OK;
+}
+
+nsresult
+nsIconDecoder::FinishInternal()
+{
+  // If we haven't notified of completion yet for a full/success decode, we
+  // didn't finish. Notify in error mode
+  if (!IsSizeDecode() && !mNotifiedDone)
+    NotifyDone(/* aSuccess = */ PR_FALSE);
+
+  return NS_OK;
+}
+
+nsresult
 nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
 {
-  NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
+  nsresult rv;
 
   // We put this here to avoid errors about crossing initialization with case
   // jumps on linux.
   PRUint32 bytesToRead = 0;
-  nsresult rv;
 
   // Performance isn't critical here, so our update rectangle is 
   // always the full icon
@@ -99,12 +121,6 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
 
         // Post our size to the superclass
         PostSize(mWidth, mHeight);
-        if (HasError()) {
-          // Setting the size lead to an error; this can happen when for example
-          // a multipart channel sends an image of a different size.
-          mState = iconStateFinished;
-          return;
-        }
 
         // If We're doing a size decode, we're done
         if (IsSizeDecode()) {
@@ -117,8 +133,8 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
                                  gfxASurface::ImageFormatARGB32,
                                  &mImageData, &mPixBytesTotal);
         if (NS_FAILED(rv)) {
-          PostDecoderError(rv);
-          return;
+          mState = iconStateError;
+          return rv;
         }
 
         // Tell the superclass we're starting a frame
@@ -133,7 +149,7 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
       case iconStateReadPixels:
 
         // How many bytes are we reading?
-        bytesToRead = NS_MIN(aCount, mPixBytesTotal - mPixBytesRead);
+        bytesToRead = PR_MIN(aCount, mPixBytesTotal - mPixBytesRead);
 
         // Copy the bytes
         memcpy(mImageData + mPixBytesRead, aBuffer, bytesToRead);
@@ -148,8 +164,7 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
 
         // If we've got all the pixel bytes, we're finished
         if (mPixBytesRead == mPixBytesTotal) {
-          PostFrameStop();
-          PostDecodeDone();
+          NotifyDone(/* aSuccess = */ PR_TRUE);
           mState = iconStateFinished;
         }
         break;
@@ -160,8 +175,34 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
         aCount = 0;
 
         break;
+
+      case iconStateError:
+        return NS_IMAGELIB_ERROR_FAILURE;
+        break;
     }
   }
+
+  return NS_OK;
+}
+
+void
+nsIconDecoder::NotifyDone(PRBool aSuccess)
+{
+  // We should only call this once
+  NS_ABORT_IF_FALSE(!mNotifiedDone, "Calling NotifyDone twice");
+
+  // Notify
+  PostFrameStop();
+  if (aSuccess)
+    mImage->DecodingComplete();
+  if (mObserver) {
+    mObserver->OnStopContainer(nsnull, mImage);
+    mObserver->OnStopDecode(nsnull, aSuccess ? NS_OK : NS_ERROR_FAILURE,
+                            nsnull);
+  }
+
+  // Flag that we've notified
+  mNotifiedDone = PR_TRUE;
 }
 
 } // namespace imagelib

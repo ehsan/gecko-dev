@@ -74,6 +74,7 @@
 #include "nsCRT.h"
 #include "nsAutoPtr.h"
 #include "nsPrintfCString.h"
+#include "nsAutoLock.h"
 #include "nsSSLThread.h"
 #include "nsNSSShutDown.h"
 #include "nsSSLStatus.h"
@@ -99,7 +100,6 @@
 #include "keyhi.h"
 #include "secport.h"
 
-using namespace mozilla;
 
 //#define DEBUG_SSL_VERBOSE //Enable this define to get minimal 
                             //reports when doing SSL read/write
@@ -115,8 +115,6 @@ NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 NSSCleanupAutoPtrClass(char, PL_strfree)
 NSSCleanupAutoPtrClass(void, PR_FREEIF)
 NSSCleanupAutoPtrClass_WithParam(PRArenaPool, PORT_FreeArena, FalseParam, PR_FALSE)
-
-static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 /* SSM_UserCertChoice: enum for cert choice info */
 typedef enum {ASK, AUTO} SSM_UserCertChoice;
@@ -360,7 +358,7 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
   if (mDocShellDependentStuffKnown)
     return NS_OK;
 
-  if (!mCallbacks || nsSSLThread::stoppedOrStopping())
+  if (!mCallbacks || nsSSLThread::exitRequested())
     return NS_ERROR_FAILURE;
 
   mDocShellDependentStuffKnown = PR_TRUE;
@@ -381,9 +379,6 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
   // with a socket close, and the socket transport might detach the callbacks 
   // instance prior to our error reporting.
 
-  nsISecureBrowserUI* secureUI = nsnull;
-  CallGetInterface(proxiedCallbacks.get(), &secureUI);
-
   nsCOMPtr<nsIDocShell> docshell;
 
   nsCOMPtr<nsIDocShellTreeItem> item(do_GetInterface(proxiedCallbacks));
@@ -402,7 +397,7 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
     NS_ASSERTION(docshell, "rootItem do_QI is null");
   }
 
-  if (docshell && !secureUI)
+  if (docshell)
   {
     nsCOMPtr<nsIDocShell> proxiedDocShell;
     NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
@@ -410,28 +405,28 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
                          docshell.get(),
                          NS_PROXY_SYNC,
                          getter_AddRefs(proxiedDocShell));
+    nsISecureBrowserUI* secureUI = nsnull;
     if (proxiedDocShell)
       proxiedDocShell->GetSecurityUI(&secureUI);
-  }
+    if (secureUI)
+    {
+      nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
+      NS_ProxyRelease(mainThread, secureUI, PR_FALSE);
+      mExternalErrorReporting = PR_TRUE;
 
-  if (secureUI)
-  {
-    nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
-    NS_ProxyRelease(mainThread, secureUI, PR_FALSE);
-    mExternalErrorReporting = PR_TRUE;
-
-    // If this socket is associated to a docshell, let's try to remember
-    // the currently used cert. If this socket gets a notification from NSS
-    // having the same raw socket, we can keep the PSM wrapper object
-    // and all the data it has cached (like verification results).
-    nsCOMPtr<nsISSLStatusProvider> statprov = do_QueryInterface(secureUI);
-    if (statprov) {
-      nsCOMPtr<nsISupports> isup_stat;
-      statprov->GetSSLStatus(getter_AddRefs(isup_stat));
-      if (isup_stat) {
-        nsCOMPtr<nsISSLStatus> sslstat = do_QueryInterface(isup_stat);
-        if (sslstat) {
-          sslstat->GetServerCert(getter_AddRefs(mPreviousCert));
+      // If this socket is associated to a docshell, let's try to remember
+      // the currently used cert. If this socket gets a notification from NSS
+      // having the same raw socket, we can keep the PSM wrapper object
+      // and all the data it has cached (like verification results).
+      nsCOMPtr<nsISSLStatusProvider> statprov = do_QueryInterface(secureUI);
+      if (statprov) {
+        nsCOMPtr<nsISupports> isup_stat;
+        statprov->GetSSLStatus(getter_AddRefs(isup_stat));
+        if (isup_stat) {
+          nsCOMPtr<nsISSLStatus> sslstat = do_QueryInterface(isup_stat);
+          if (sslstat) {
+            sslstat->GetServerCert(getter_AddRefs(mPreviousCert));
+          }
         }
       }
     }
@@ -567,7 +562,7 @@ NS_IMETHODIMP nsNSSSocketInfo::GetInterface(const nsIID & uuid, void * *result)
 
     rv = ir->GetInterface(uuid, result);
   } else {
-    if (nsSSLThread::stoppedOrStopping())
+    if (nsSSLThread::exitRequested())
       return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
@@ -936,7 +931,7 @@ void nsSSLIOLayerHelpers::Cleanup()
     PR_DestroyPollableEvent(mSharedPollableEvent);
 
   if (mutex) {
-    delete mutex;
+    PR_DestroyLock(mutex);
     mutex = nsnull;
   }
 
@@ -1413,7 +1408,7 @@ displayAlert(nsAFlatString &formattedString, nsNSSSocketInfo *infoObject)
   // The interface requestor object may not be safe, so proxy the call to get
   // the nsIPrompt.
 
-  if (nsSSLThread::stoppedOrStopping())
+  if (nsSSLThread::exitRequested())
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
@@ -1450,7 +1445,7 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo, PRInt32 err)
     return NS_OK;
   }
 
-  if (nsSSLThread::stoppedOrStopping()) {
+  if (nsSSLThread::exitRequested()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1801,7 +1796,7 @@ nsSSLIOLayerHelpers::rememberTolerantSite(PRFileDesc* ssl_layer_fd,
   nsCAutoString key;
   getSiteKey(socketInfo, key);
 
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   nsSSLIOLayerHelpers::mTLSTolerantSites->Put(key);
 }
 
@@ -2073,7 +2068,7 @@ nsSSLIOLayerPoll(PRFileDesc *fd, PRInt16 in_flags, PRInt16 *out_flags)
 PRBool nsSSLIOLayerHelpers::nsSSLIOLayerInitialized = PR_FALSE;
 PRDescIdentity nsSSLIOLayerHelpers::nsSSLIOLayerIdentity;
 PRIOMethods nsSSLIOLayerHelpers::nsSSLIOLayerMethods;
-Mutex *nsSSLIOLayerHelpers::mutex = nsnull;
+PRLock *nsSSLIOLayerHelpers::mutex = nsnull;
 nsCStringHashSet *nsSSLIOLayerHelpers::mTLSIntolerantSites = nsnull;
 nsCStringHashSet *nsSSLIOLayerHelpers::mTLSTolerantSites = nsnull;
 nsPSMRememberCertErrorsTable *nsSSLIOLayerHelpers::mHostsWithCertErrors = nsnull;
@@ -2275,7 +2270,9 @@ nsresult nsSSLIOLayerHelpers::Init()
     nsSSLIOLayerMethods.poll = nsSSLIOLayerPoll;
   }
 
-  mutex = new Mutex("nsSSLIOLayerHelpers.mutex");
+  mutex = PR_NewLock();
+  if (!mutex)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mSharedPollableEvent = PR_NewPollableEvent();
 
@@ -2313,7 +2310,7 @@ nsresult nsSSLIOLayerHelpers::Init()
 
 void nsSSLIOLayerHelpers::addIntolerantSite(const nsCString &str)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   // Remember intolerant site only if it is not known as tolerant
   if (!mTLSTolerantSites->Contains(str))
     nsSSLIOLayerHelpers::mTLSIntolerantSites->Put(str);
@@ -2321,19 +2318,19 @@ void nsSSLIOLayerHelpers::addIntolerantSite(const nsCString &str)
 
 void nsSSLIOLayerHelpers::removeIntolerantSite(const nsCString &str)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   nsSSLIOLayerHelpers::mTLSIntolerantSites->Remove(str);
 }
 
 PRBool nsSSLIOLayerHelpers::isKnownAsIntolerantSite(const nsCString &str)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   return mTLSIntolerantSites->Contains(str);
 }
 
 void nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(const nsCString &str)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   
   if (mRenegoUnrestrictedSites) {
     delete mRenegoUnrestrictedSites;
@@ -2358,31 +2355,31 @@ void nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(const nsCString &str)
 
 PRBool nsSSLIOLayerHelpers::isRenegoUnrestrictedSite(const nsCString &str)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   return mRenegoUnrestrictedSites->Contains(str);
 }
 
 void nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(PRBool broken)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   mTreatUnsafeNegotiationAsBroken = broken;
 }
 
 PRBool nsSSLIOLayerHelpers::treatUnsafeNegotiationAsBroken()
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   return mTreatUnsafeNegotiationAsBroken;
 }
 
 void nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(PRInt32 level)
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   mWarnLevelMissingRFC5746 = level;
 }
 
 PRInt32 nsSSLIOLayerHelpers::getWarnLevelMissingRFC5746()
 {
-  MutexAutoLock lock(*mutex);
+  nsAutoLock lock(mutex);
   return mWarnLevelMissingRFC5746;
 }
 
@@ -3207,7 +3204,7 @@ if (!hasRemembered)
          node = CERT_LIST_NEXT(node)
         )
     {
-      nsRefPtr<nsNSSCertificate> tempCert = nsNSSCertificate::Create(node->cert);
+      nsRefPtr<nsNSSCertificate> tempCert = new nsNSSCertificate(node->cert);
 
       if (!tempCert)
         continue;
@@ -3342,19 +3339,12 @@ cancel_and_failure(nsNSSSocketInfo* infoObject)
 static SECStatus
 nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
 {
-  // cert was revoked, don't do anything else
-  // Calling cancel_and_failure is not necessary, and would be wrong,
-  // [for errors other than the ones explicitly handled below,] 
-  // because it suppresses error reporting.
-  if (PR_GetError() == SEC_ERROR_REVOKED_CERTIFICATE)
-    return SECFailure;
-
   nsNSSShutDownPreventionLock locker;
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo *)arg;
   if (!infoObject)
     return SECFailure;
 
-  if (nsSSLThread::stoppedOrStopping())
+  if (nsSSLThread::exitRequested())
     return cancel_and_failure(infoObject);
 
   CERTCertificate *peerCert = nsnull;
@@ -3364,7 +3354,7 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
     return cancel_and_failure(infoObject);
 
   nsRefPtr<nsNSSCertificate> nssCert;
-  nssCert = nsNSSCertificate::Create(peerCert);
+  nssCert = new nsNSSCertificate(peerCert);
   if (!nssCert)
     return cancel_and_failure(infoObject);
 
@@ -3379,14 +3369,6 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
   PRErrorCode errorCodeMismatch = SECSuccess;
   PRErrorCode errorCodeExpired = SECSuccess;
 
-  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-  if (!inss)
-    return cancel_and_failure(infoObject);
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-  if (NS_FAILED(nsrv))
-    return cancel_and_failure(infoObject);
-  
   char *hostname = SSL_RevealURL(sslSocket);
   if (!hostname)
     return cancel_and_failure(infoObject);
@@ -3425,22 +3407,10 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
 
     verify_log->arena = log_arena;
 
-    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-      srv = CERT_VerifyCertificate(CERT_GetDefaultCertDB(), peerCert,
-                                  PR_TRUE, certificateUsageSSLServer,
-                                  PR_Now(), (void*)infoObject, 
-                                  verify_log, NULL);
-    }
-    else {
-      CERTValOutParam cvout[2];
-      cvout[0].type = cert_po_errorLog;
-      cvout[0].value.pointer.log = verify_log;
-      cvout[1].type = cert_po_end;
-
-      srv = CERT_PKIXVerifyCert(peerCert, certificateUsageSSLServer,
-                                survivingParams->GetRawPointerForNSS(),
-                                cvout, (void*)infoObject);
-    }
+    srv = CERT_VerifyCertificate(CERT_GetDefaultCertDB(), peerCert,
+                                 PR_TRUE, certificateUsageSSLServer,
+                                 PR_Now(), (void*)infoObject, 
+                                 verify_log, NULL);
 
     // We ignore the result code of the cert verification.
     // Either it is a failure, which is expected, and we'll process the

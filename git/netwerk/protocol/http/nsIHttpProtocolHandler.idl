@@ -39,7 +39,7 @@
 
 #include "nsIProxiedProtocolHandler.idl"
 
-[scriptable, uuid(9814fdf0-5ac3-11e0-80e3-0800200c9a66)]
+[scriptable, uuid(36709064-d2c8-40cb-b754-d30d970be639)]
 interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
 {
     /**
@@ -60,6 +60,16 @@ interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
      * @return The complete version (major and minor) string. (eg. "5.0")
      */
     readonly attribute ACString appVersion;
+
+    /**
+     * @return The vendor name.
+     */
+    readonly attribute ACString vendor;
+
+    /**
+     * @return The vendor sub string.
+     */
+    readonly attribute ACString vendorSub;
 
     /**
      * @return The product name.
@@ -85,6 +95,13 @@ interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
      * @return The oscpu this application is running on
      */
     readonly attribute ACString oscpu;
+
+    /**
+     * Get the translation of the application. The value for language
+     * is usually a 2-letter code such as "en" and occasionally a 
+     * five-character code to indicate a language subtype, such as "zh_CN". 
+     */
+    readonly attribute ACString language;
 
     /**
      * Get the application comment misc portion.

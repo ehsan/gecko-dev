@@ -22,8 +22,7 @@
  *
  * Contributor(s):
  *   Adobe AS3 Team
- *   leon.sha@oracle.com
- *   ginn.chen@oracle.com
+ *   leon.sha@sun.com
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <sys/types.h>
 #include <sys/mman.h>
 #include <errno.h>
 #include "nanojit.h"
@@ -71,537 +69,9 @@ namespace nanojit
 #define BIT_ROUND_UP(v,q)      ( (((uintptr_t)v)+(q)-1) & ~((q)-1) )
 #define TODO(x) do{ verbose_only(outputf(#x);) NanoAssertMsgf(false, "%s", #x); } while(0)
 
-    inline void Assembler::CALL(const CallInfo* ci) {
-        int32_t offset = (ci->_address) - ((int32_t)_nIns) + 4;
-        int32_t i = 0x40000000 | ((offset >> 2) & 0x3FFFFFFF);
-        IMM32(i);
-        asm_output("call %s",(ci->_name));
-    }
-
-    inline void Assembler::IntegerOperation
-        (Register rs1, Register rs2, Register rd, int32_t op3, const char *opcode) {
-        Format_3_1(2, rd, op3, rs1, 0, rs2);
-        asm_output("%s %s, %s, %s", opcode, gpn(rs1), gpn(rs2), gpn(rd));
-    }
-
-    inline void Assembler::IntegerOperationI
-        (Register rs1, int32_t simm13, Register rd, int32_t op3, const char *opcode) {
-        Format_3_1I(2, rd, op3, rs1, simm13);
-        asm_output("%s %s, %d, %s", opcode, gpn(rs1), simm13, gpn(rd));
-    }
-
-    inline void Assembler::ADD(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0, "add");
-    }
-    inline void Assembler::ADDCC(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x10, "addcc");
-    }
-    inline void Assembler::AND(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x1, "and");
-    }
-    inline void Assembler::ANDCC(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x11, "andcc");
-    }
-    inline void Assembler::OR(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x2, "or");
-    }
-    inline void Assembler::ORI(Register rs1, int32_t simm13, Register rd) {
-        IntegerOperationI(rs1, simm13, rd, 0x2, "or");
-    }
-    inline void Assembler::ORN(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x6, "orn");
-    }
-    inline void Assembler::SMULCC(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x1b, "smulcc");
-    }
-    inline void Assembler::SUB(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x4, "sub");
-    }
-    inline void Assembler::SUBCC(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x14, "subcc");
-    }
-    inline void Assembler::SUBI(Register rs1, int32_t simm13, Register rd) {
-        IntegerOperationI(rs1, simm13, rd, 0x4, "sub");
-    }
-    inline void Assembler::XOR(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x3, "xor");
-    }
-
-    inline void Assembler::Bicc(int32_t a, int32_t dsp22, int32_t cond, const char *opcode) {
-        Format_2_2(a, cond, 0x2, dsp22);
-        asm_output("%s 0x%x", opcode, _nIns + dsp22 - 1);
-    }
-
-    inline void Assembler::BA  (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x8, "ba");   }
-    inline void Assembler::BE  (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x1, "be");   }
-    inline void Assembler::BNE (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x9, "bne");  }
-    inline void Assembler::BG  (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0xa, "bg");   }
-    inline void Assembler::BGU (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0xc, "bgu");  }
-    inline void Assembler::BGE (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0xb, "bge");  }
-    inline void Assembler::BL  (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x3, "bl");  }
-    inline void Assembler::BLE (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x2, "ble");  }
-    inline void Assembler::BLEU(int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x4, "bleu"); }
-    inline void Assembler::BCC (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0xd, "bcc");  }
-    inline void Assembler::BCS (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x5, "bcs");  }
-    inline void Assembler::BVC (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0xf, "bvc");  }
-    inline void Assembler::BVS (int32_t a, int32_t dsp22) { Bicc(a, dsp22, 0x7, "bvs");  }
-
-    inline void Assembler::FABSS(Register rs2, Register rd) {
-        Format_3_8(2, rd, 0x34, G0, 0x9, rs2);
-        asm_output("fabs %s, %s", gpn(rs2), gpn(rd));
-    }
-
-    inline void Assembler::FADDD(Register rs1, Register rs2, Register rd) {
-        Format_3_8(2, rd, 0x34, rs1, 0x42, rs2);
-        asm_output("faddd %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd));
-    }
-
-    inline void Assembler::FBfcc(int32_t a, int32_t dsp22, int32_t cond, const char *opcode) {
-        Format_2_2(a, cond, 0x6, dsp22);
-        asm_output("%s 0x%x", opcode, _nIns + dsp22 - 1);
-    }
-
-    inline void Assembler::FBE  (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0x9, "fbe");   }
-    inline void Assembler::FBNE (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0x1, "fbne");  }
-    inline void Assembler::FBUE (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0xa, "fbue");  }
-    inline void Assembler::FBG  (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0x6, "fbg");   }
-    inline void Assembler::FBUG (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0x5, "fbug");  }
-    inline void Assembler::FBGE (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0xb, "fbge");  }
-    inline void Assembler::FBUGE(int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0xc, "fbuge"); }
-    inline void Assembler::FBL  (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0x4, "fbl");   }
-    inline void Assembler::FBUL (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0x3, "fbul");  }
-    inline void Assembler::FBLE (int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0xd, "fble");  }
-    inline void Assembler::FBULE(int32_t a, int32_t dsp22) { FBfcc(a, dsp22, 0xe, "fbule"); }
-
-    inline void Assembler::FCMPD(Register rs1, Register rs2) {
-        Format_3_9(2, 0, 0, 0x35, rs1, 0x52, rs2);
-        asm_output("fcmpd %s, %s", gpn(rs1), gpn(rs2));
-    }
-
-    inline void Assembler::FloatOperation
-        (Register rs1, Register rs2, Register rd, int32_t opf, const char *opcode) {
-        Format_3_8(2, rd, 0x34, rs1, opf, rs2);
-        if (rs1 != G0) {
-          asm_output("%s %s, %s, %s", opcode, gpn(rs1), gpn(rs2), gpn(rd));
-        } else {
-          asm_output("%s %s, %s", opcode, gpn(rs2), gpn(rd));
-        }
-    }
-
-    inline void Assembler::FSUBD(Register rs1, Register rs2, Register rd) {
-        FloatOperation(rs1, rs2, rd, 0x46, "fsubd");
-    }
-    inline void Assembler::FMULD(Register rs1, Register rs2, Register rd) {
-        FloatOperation(rs1, rs2, rd, 0x4a, "fsubd");
-    }
-    inline void Assembler::FDTOI(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0xd2, "fdtoi");
-    }
-    inline void Assembler::FDIVD(Register rs1, Register rs2, Register rd) {
-        FloatOperation(rs1, rs2, rd, 0x4e, "fdivd");
-    }
-    inline void Assembler::FMOVD(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0x2, "fmovd");
-    }
-    inline void Assembler::FNEGD(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0x6, "fnegd");
-    }
-    inline void Assembler::FITOD(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0xc8, "fitod");
-    }
-    inline void Assembler::FDTOS(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0xc6, "fdtos");
-    }
-    inline void Assembler::FSTOD(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0xc9, "fstod");
-    }
-
-    inline void Assembler::JMPL(Register rs1, Register rs2, Register rd) {
-        Format_3_1(2, rd, 0x38, rs1, 0, rs2);
-        asm_output("jmpl [%s + %s]", gpn(rs1), gpn(rs2));
-    }
-
-    inline void Assembler::JMPLI(Register rs1, int32_t simm13, Register rd) {
-        Format_3_1I(2, rd, 0x38, rs1, simm13);
-        asm_output("jmpl [%s + 0x%x]", gpn(rs1), simm13);
-    }
-
-    inline void Assembler::LoadOperation
-        (Register rs1, Register rs2, Register rd, int32_t op3, const char* opcode) {
-        Format_3_1(3, rd, op3, rs1, 0, rs2);
-        asm_output("%s [%s + %s], %s", opcode, gpn(rs1), gpn(rs2), gpn(rd));
-    }
-
-    inline void Assembler::LoadOperationI
-        (Register rs1, int32_t simm13, Register rd, int32_t op3, const char* opcode) {
-        Format_3_1I(3, rd, op3, rs1, simm13);
-        asm_output("%s [%s + 0x%x], %s", opcode, gpn(rs1), simm13, gpn(rd));
-    }
-
-    inline void Assembler::LDF(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd, 0x20, "ldf");
-    }
-    inline void Assembler::LDFI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0x20, "ldf");
-    }
-
-    inline void Assembler::LDF32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDFI(rs1, immI, rd);
-        } else {
-            LDF(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDDF32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI+4)) {
-            LDFI(rs1, immI+4, rd + 1);
-            LDFI(rs1, immI, rd);
-        } else {
-            LDF(rs1, L0, rd + 1);
-            SET32(immI+4, L0);
-            LDF(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDUB(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0x1, "ldub");
-    }
-    inline void Assembler::LDUBI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0x1, "ldub");
-    }
-
-    inline void Assembler::LDUB32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDUBI(rs1, immI, rd);
-        } else {
-            LDUB(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDSB(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0x9, "ldsb");
-    }
-    inline void Assembler::LDSBI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0x9, "ldsb");
-    }
-
-    inline void Assembler::LDSB32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDSBI(rs1, immI, rd);
-        } else {
-            LDSB(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDUH(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0x2, "lduh");
-    }
-    inline void Assembler::LDUHI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0x2, "lduh");
-    }
-
-    inline void Assembler::LDUH32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDUHI(rs1, immI, rd);
-        } else {
-            LDUH(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDSH(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0xa, "ldsh");
-    }
-    inline void Assembler::LDSHI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0xa, "ldsh");
-    }
-
-    inline void Assembler::LDSH32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDSHI(rs1, immI, rd);
-        } else {
-            LDSH(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDSW(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0x8, "ldsw");
-    }
-    inline void Assembler::LDSWI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0x8, "ldsw");
-    }
-
-    inline void Assembler::LDSW32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDSWI(rs1, immI, rd);
-        } else {
-            LDSW(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::MOVcc
-        (Register rs, int32_t cc2, int32_t cc1, int32_t cc0, Register rd, int32_t cond, const char *opcode) {
-        Format_4_2(rd, 0x2c, cc2, cond, cc1, cc0, rs);
-        asm_output("%s %s, %s", opcode, gpn(rs), gpn(rd));
-    }
-
-    inline void Assembler::MOVccI
-        (int32_t simm11, int32_t cc2, int32_t cc1, int32_t cc0, Register rd, int32_t cond, const char *opcode) {
-        Format_4_2I(rd, 0x2c, cc2, cond, cc1, cc0, simm11);
-        asm_output("%s 0x%x, %s", opcode, simm11, gpn(rd));
-    }
-
-    inline void Assembler::MOVE  (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0x1, "move");   }
-    inline void Assembler::MOVNE (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0x9, "movne");  }
-    inline void Assembler::MOVL  (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0x3, "movl");   }
-    inline void Assembler::MOVLE (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0x2, "movle");  }
-    inline void Assembler::MOVG  (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0xa, "movg");   }
-    inline void Assembler::MOVGE (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0xb, "movge");  }
-    inline void Assembler::MOVLEU(Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0x4, "movleu"); }
-    inline void Assembler::MOVGU (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0xc, "movgu");  }
-    inline void Assembler::MOVCC (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0xd, "movcc");  }
-    inline void Assembler::MOVCS (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0x5, "movcs");  }
-    inline void Assembler::MOVVC (Register rs, Register rd) { MOVcc(rs, 1, 0, 0, rd, 0xf, "movvc");  }
-    inline void Assembler::MOVEI  (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x1, "move");   }
-    inline void Assembler::MOVNEI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x9, "movne");  }
-    inline void Assembler::MOVLI  (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x3, "movl");   }
-    inline void Assembler::MOVLEI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x2, "movle");  }
-    inline void Assembler::MOVGI  (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0xa, "movg");   }
-    inline void Assembler::MOVGEI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0xb, "movge");  }
-    inline void Assembler::MOVLEUI(int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x4, "movleu"); }
-    inline void Assembler::MOVGUI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0xc, "movgu");  }
-    inline void Assembler::MOVCCI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0xd, "movcc");  }
-    inline void Assembler::MOVCSI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x5, "movcs");  }
-    inline void Assembler::MOVVSI (int32_t simm11, Register rd) { MOVccI(simm11, 1, 0, 0, rd, 0x7, "movvs");  }
-    inline void Assembler::MOVFEI (int32_t simm11, Register rd) { MOVccI(simm11, 0, 0, 0, rd, 0x9, "movfe");  }
-    inline void Assembler::MOVFLI (int32_t simm11, Register rd) { MOVccI(simm11, 0, 0, 0, rd, 0x4, "movfl");  }
-    inline void Assembler::MOVFLEI(int32_t simm11, Register rd) { MOVccI(simm11, 0, 0, 0, rd, 0xd, "movfle"); }
-    inline void Assembler::MOVFGI (int32_t simm11, Register rd) { MOVccI(simm11, 0, 0, 0, rd, 0x6, "movfg");  }
-    inline void Assembler::MOVFGEI(int32_t simm11, Register rd) { MOVccI(simm11, 0, 0, 0, rd, 0xb, "movfge"); }
-
-    inline void Assembler::FMOVDcc(Register rs, int32_t opt_cc, Register rd, int32_t cond, const char *opcode) {
-        Format_4_5(rd, 0x35, cond, opt_cc, 0x2, rs);
-        asm_output("%s %s, %s", opcode, gpn(rs), gpn(rd));
-    }
-
-    inline void Assembler::FMOVDNE  (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0x9, "fmovdne"); }
-    inline void Assembler::FMOVDL   (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0x3, "fmovdl");  }
-    inline void Assembler::FMOVDLE  (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0x2, "fmovdle"); }
-    inline void Assembler::FMOVDLEU (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0x4, "fmovdleu");}
-    inline void Assembler::FMOVDG   (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0xa, "fmovdg");  }
-    inline void Assembler::FMOVDGU  (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0xc, "fmovdgu"); }
-    inline void Assembler::FMOVDGE  (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0xb, "fmovdfge");}
-    inline void Assembler::FMOVDCC  (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0xd, "fmovdcc"); }
-    inline void Assembler::FMOVDCS  (Register rs, Register rd) { FMOVDcc(rs, 0x4, rd, 0x5, "fmovdcs"); }
-    inline void Assembler::FMOVDFNE (Register rs, Register rd) { FMOVDcc(rs, 0x0, rd, 0x1, "fmovdfne"); }
-    inline void Assembler::FMOVDFUG (Register rs, Register rd) { FMOVDcc(rs, 0x0, rd, 0x5, "fmovdfug"); }
-    inline void Assembler::FMOVDFUGE(Register rs, Register rd) { FMOVDcc(rs, 0x0, rd, 0xc, "fmovdfuge");}
-    inline void Assembler::FMOVDFUL (Register rs, Register rd) { FMOVDcc(rs, 0x0, rd, 0x3, "fmovdful"); }
-    inline void Assembler::FMOVDFULE(Register rs, Register rd) { FMOVDcc(rs, 0x0, rd, 0xe, "fmovdfule");}
-
-    inline void Assembler::NOP() {
-        Format_2(0, 0x4, 0);
-        asm_output("nop");
-    }
-
-    inline void Assembler::RDY(Register rd) {
-        Format_3_1(2, rd, 0x28, G0, 0, G0);
-        asm_output("rdy %s", gpn(rd));
-    }
-
-    inline void Assembler::RESTORE(Register rs1, Register rs2, Register rd) {
-        Format_3_1(2, rd, 0x3d, rs1, 0, rs2);
-        asm_output("restore");
-    }
-
-    inline void Assembler::SAVE(Register rs1, Register rs2, Register rd) {
-        IntegerOperation(rs1, rs2, rd, 0x3c, "save");
-    }
-    inline void Assembler::SAVEI(Register rs1, int32_t simm13, Register rd) {
-        IntegerOperationI(rs1, simm13, rd, 0x3c, "save");
-    }
-
-    inline void Assembler::SETHI(int32_t immI, Register rd) {
-        Format_2A(rd, 0x4, immI >> 10);
-        asm_output("sethi 0x%x, %s     ! 0x%x", immI >> 10, gpn(rd), immI);
-    }
-
-    inline void Assembler::SET32(int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            ORI(G0, immI, rd);
-        } else {
-            ORI(rd, immI & 0x3FF, rd);
-            SETHI(immI, rd);
-        }
-    }
-
-    inline void Assembler::ShiftOperation
-        (Register rs1, Register rs2, Register rd, int32_t op3, const char* opcode) {
-        Format_3_5(2, rd, op3, rs1, 0, rs2);
-        asm_output("%s %s, %s, %s", opcode, gpn(rs1), gpn(rs2), gpn(rd));
-    }
-
-    inline void Assembler::ShiftOperationI
-        (Register rs1, int32_t shcnt32, Register rd, int32_t op3, const char* opcode) {
-        Format_3_6(2, rd, op3, rs1, shcnt32);
-        asm_output("%s %s, %d, %s", opcode, gpn(rs1), shcnt32, gpn(rd));
-    }
-
-    inline void Assembler::SLL(Register rs1, Register rs2, Register rd) {
-        ShiftOperation(rs1, rs2, rd, 0x25, "sll");
-    }
-    inline void Assembler::SRA(Register rs1, Register rs2, Register rd) {
-        ShiftOperation(rs1, rs2, rd, 0x27, "sra");
-    }
-    inline void Assembler::SRAI(Register rs1, int32_t shcnt32, Register rd) {
-        ShiftOperationI(rs1, shcnt32, rd, 0x27, "sra");
-    }
-    inline void Assembler::SRL(Register rs1, Register rs2, Register rd) {
-        ShiftOperation(rs1, rs2, rd, 0x26, "srl");
-    }
-
-    inline void Assembler::Store
-        (Register rd, Register rs1, Register rs2, int32_t op3, const char* opcode) {
-        Format_3_1(3, rd, op3, rs1, 0, rs2);
-        asm_output("%s %s, [%s + %s]", opcode, gpn(rd), gpn(rs1), gpn(rs2));
-    }
-
-    inline void Assembler::StoreI
-        (Register rd, int32_t simm13, Register rs1, int32_t op3, const char* opcode) {
-        Format_3_1I(3, rd, op3, rs1, simm13);
-        asm_output("%s %s, [%s + 0x%x]", opcode, gpn(rd), gpn(rs1), simm13);
-    }
-
-    inline void Assembler::STF(Register rd, Register rs1, Register rs2) {
-        Store(rd, rs1, rs2, 0x24, "stf");
-    }
-    inline void Assembler::STFI(Register rd, int32_t simm13, Register rs1) {
-        StoreI(rd, simm13, rs1, 0x24, "stf");
-    }
-
-    inline void Assembler::STF32(Register rd, int32_t immI, Register rs1) {
-        if (isIMM13(immI)) {
-            STFI(rd, immI, rs1);
-        } else {
-            STF(rd, L0, rs1);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::STDF32(Register rd, int32_t immI, Register rs1) {
-        if (isIMM13(immI+4)) {
-            STFI(rd + 1, immI+4, rs1);
-            STFI(rd, immI, rs1);
-        } else {
-            STF(rd + 1, L0, rs1);
-            SET32(immI+4, L0);
-            STF(rd, L0, rs1);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::STW(Register rd, Register rs1, Register rs2) {
-        Store(rd, rs1, rs2, 0x4, "st");
-    }
-    inline void Assembler::STWI(Register rd, int32_t simm13, Register rs1) {
-        StoreI(rd, simm13, rs1, 0x4, "st");
-    }
-
-    inline void Assembler::STW32(Register rd, int32_t immI, Register rs1) {
-        if (isIMM13(immI)) {
-            STWI(rd, immI, rs1);
-         } else {
-            STW(rd, L0, rs1);
-            SET32(immI, L0);
-         }
-    }
-
-    inline void Assembler::STH(Register rd, Register rs1, Register rs2) {
-        Store(rd, rs1, rs2, 0x6, "sth");
-    }
-    inline void Assembler::STHI(Register rd, int32_t simm13, Register rs1) {
-        StoreI(rd, simm13, rs1, 0x6, "sth");
-    }
-
-    inline void Assembler::STH32(Register rd, int32_t immI, Register rs1) {
-        if (isIMM13(immI)) {
-            STHI(rd, immI, rs1);
-         } else {
-            STH(rd, L0, rs1);
-            SET32(immI, L0);
-         }
-    }
-
-    inline void Assembler::STB(Register rd, Register rs1, Register rs2) {
-        Store(rd, rs1, rs2, 0x5, "stb");
-    }
-    inline void Assembler::STBI(Register rd, int32_t simm13, Register rs1) {
-        StoreI(rd, simm13, rs1, 0x5, "stb");
-    }
-
-    inline void Assembler::STB32(Register rd, int32_t immI, Register rs1) {
-        if (isIMM13(immI)) {
-            STBI(rd, immI, rs1);
-        } else {
-            STB(rd, L0, rs1);
-            SET32(immI, L0);
-        }
-    }
-
-    // general Assemble
-    inline void Assembler::JMP_long_nocheck(int32_t t) {
-        NOP();
-        JMPL(G0, G2, G0);
-        ORI(G2, t & 0x3FF, G2);
-        SETHI(t, G2);
-    }
-
-    inline void Assembler::JMP_long(int32_t t) {
-        underrunProtect(16);
-        JMP_long_nocheck(t);
-    }
-
-    inline void Assembler::JMP_long_placeholder() {
-        JMP_long(0);
-    }
-
-    inline int32_t Assembler::JCC(void *t) {
-        underrunProtect(32);
-        int32_t tt = ((intptr_t)t - (intptr_t)_nIns + 8) >> 2;
-        if( !(isIMM22(tt)) ) {
-            NOP();
-            JMPL(G0, G2, G0);
-            SET32((intptr_t)t, G2);
-            NOP();
-            BA(0, 5);
-            tt = 4;
-        }
-        NOP();
-        return tt;
-    }
-
-    void Assembler::JMP(void *t) {
-        if (!t) {
-            JMP_long_placeholder();
-        } else {
-            int32_t tt = JCC(t);
-            BA(0, tt);
-        }
-    }
-
-    void Assembler::MR(Register rd, Register rs) {
-        underrunProtect(4);
-        ORI(rs, 0, rd);
-    }
-
-    void Assembler::nInit() {
+    void Assembler::nInit(AvmCore* core)
+    {
+        has_cmov = true;
     }
 
     void Assembler::nBeginAssembly() {
@@ -627,7 +97,7 @@ namespace nanojit
 
         verbose_only(
         if (_logc->lcbits & LC_Native) {
-            outputf("        0x%x:",_nIns);
+            outputf("        %p:",_nIns);
             outputf("        patch entry:");
         })
         NIns *patchEntry = _nIns;
@@ -683,13 +153,12 @@ namespace nanojit
 
     void Assembler::asm_call(LIns* ins)
     {
-        if (!ins->isop(LIR_callv)) {
-            Register retReg = ( ins->isop(LIR_calld) ? F0 : retRegs[0] );
-            deprecated_prepResultReg(ins, rmask(retReg));
-        }
+        Register retReg = ( ins->isop(LIR_calld) ? F0 : retRegs[0] );
+        deprecated_prepResultReg(ins, rmask(retReg));
 
         // Do this after we've handled the call result, so we don't
         // force the call result to be spilled unnecessarily.
+
         evictScratchRegsExcept(0);
 
         const CallInfo* ci = ins->callInfo();
@@ -700,10 +169,9 @@ namespace nanojit
         ArgType argTypes[MAXARGS];
         uint32_t argc = ci->getArgTypes(argTypes);
 
-        NanoAssert(ins->isop(LIR_callv) || ins->isop(LIR_callp) ||
-                   ins->isop(LIR_calld));
+        NanoAssert(ins->isop(LIR_callp) || ins->isop(LIR_calld));
         verbose_only(if (_logc->lcbits & LC_Native)
-                     outputf("        0x%x:", _nIns);
+                     outputf("        %p:", _nIns);
                      )
         bool indirect = ci->isIndirect();
         if (!indirect) {
@@ -712,10 +180,10 @@ namespace nanojit
         else {
             argc--;
             Register r = findSpecificRegFor(ins->arg(argc), I0);
-            JMPL(G0, I0, O7);
+            JMPL(G0, I0, 15);
         }
 
-        Register GPRIndex = O0;
+        uint32_t GPRIndex = O0;
         uint32_t offset = kLinkageAreaSize; // start of parameters stack postion.
 
         for(int i=0; i<argc; i++)
@@ -724,30 +192,29 @@ namespace nanojit
                 ArgType ty = argTypes[j];
                 if (ty == ARGTYPE_D) {
                     Register r = findRegFor(ins->arg(j), FpRegs);
+                    GPRIndex += 2;
+                    offset += 8;
 
                     underrunProtect(48);
                     // We might be calling a varargs function.
                     // So, make sure the GPR's are also loaded with
                     // the value, or the stack contains it.
-                    if (GPRIndex <= O5) {
-                        LDSW32(SP, offset, GPRIndex);
+                    if (GPRIndex-2 <= O5) {
+                        LDSW32(SP, offset-8, (Register)(GPRIndex-2));
                     }
-                    GPRIndex = GPRIndex + 1;
-                    if (GPRIndex <= O5) {
-                        LDSW32(SP, offset+4, GPRIndex);
+                    if (GPRIndex-1 <= O5) {
+                        LDSW32(SP, offset-4, (Register)(GPRIndex-1));
                     }
-                    GPRIndex = GPRIndex + 1;
-                    STDF32(r, offset, SP);
-                    offset += 8;
+                    STDF32(r, offset-8, SP);
                 } else {
                     if (GPRIndex > O5) {
                         underrunProtect(12);
                         Register r = findRegFor(ins->arg(j), GpRegs);
                         STW32(r, offset, SP);
                     } else {
-                        Register r = findSpecificRegFor(ins->arg(j), GPRIndex);
+                        Register r = findSpecificRegFor(ins->arg(j), (Register)GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
+                    GPRIndex++;
                     offset += 4;
                 }
             }
@@ -756,11 +223,11 @@ namespace nanojit
     Register Assembler::nRegisterAllocFromSet(RegisterMask set)
     {
         // need to implement faster way
-        Register i = G0;
-        while (!(set & rmask(i)))
-            i = i + 1;
-        _allocator.free &= ~rmask(i);
-        return i;
+        int i=0;
+        while (!(set & rmask((Register)i)))
+            i ++;
+        _allocator.free &= ~rmask((Register)i);
+        return (Register) i;
     }
 
     void Assembler::nRegisterResetAll(RegAlloc& a)
@@ -815,9 +282,11 @@ namespace nanojit
         switch (op) {
             case LIR_sti:
             case LIR_sti2c:
-            case LIR_sti2s:
                 // handled by mainline code below for now
                 break;
+            case LIR_sti2s:
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_store32 should never receive this LIR opcode");
                 return;
@@ -834,9 +303,6 @@ namespace nanojit
                     break;
                 case LIR_sti2c:
                     STB32(L2, dr, rb);
-                    break;
-                case LIR_sti2s:
-                    STH32(L2, dr, rb);
                     break;
                 }
                 SET32(c, L2);
@@ -860,9 +326,6 @@ namespace nanojit
                 case LIR_sti2c:
                     STB32(ra, dr, rb);
                     break;
-                case LIR_sti2s:
-                    STH32(ra, dr, rb);
-                    break;
                 }
             }
     }
@@ -883,75 +346,65 @@ namespace nanojit
     {
         switch (ins->opcode()) {
             case LIR_ldd:
-            case LIR_ldf2d:
                 // handled by mainline code below for now
                 break;
+            case LIR_ldf2d:
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_load64 should never receive this LIR opcode");
                 return;
         }
 
-        underrunProtect(48);
+        underrunProtect(72);
         LIns* base = ins->oprnd1();
         int db = ins->disp();
-        Register rb = getBaseReg(base, db, GpRegs);
+        Register rr = ins->deprecated_getReg();
 
-        if (ins->isInReg()) {
-            Register rr =  ins->getReg();
-            asm_maybe_spill(ins, false);
-            NanoAssert(rmask(rr) & FpRegs);
-
-            if (ins->opcode() == LIR_ldd) {
-                LDDF32(rb, db, rr);
-            } else {
-                FSTOD(F28, rr);
-                LDF32(rb, db, F28);
-            }
+        int dr = deprecated_disp(ins);
+        Register rb;
+        if (base->isop(LIR_allocp)) {
+            rb = FP;
+            db += findMemFor(base);
         } else {
-            NanoAssert(ins->isInAr());
-            int dr = arDisp(ins);
-
-            if (ins->opcode() == LIR_ldd) {
-                // don't use an fpu reg to simply load & store the value.
-                asm_mmq(FP, dr, rb, db);
-            } else {
-                STDF32(F28, dr, FP);
-                FSTOD(F28, F28);
-                LDF32(rb, db, F28);
-            }
+            rb = findRegFor(base, GpRegs);
         }
+        ins->clearReg();
 
-        freeResourcesOf(ins);
+        // don't use an fpu reg to simply load & store the value.
+        if (dr)
+            asm_mmq(FP, dr, rb, db);
+
+        deprecated_freeRsrcOf(ins);
+
+        if (rr != deprecated_UnknownReg)
+            {
+                NanoAssert(rmask(rr)&FpRegs);
+                _allocator.retire(rr);
+                LDDF32(rb, db, rr);
+            }
     }
 
     void Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
     {
         switch (op) {
             case LIR_std:
-            case LIR_std2f:
                 // handled by mainline code below for now
                 break;
+            case LIR_std2f:
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_store64 should never receive this LIR opcode");
                 return;
         }
 
         underrunProtect(48);
-        Register rb = getBaseReg(base, dr, GpRegs);
-        if (op == LIR_std2f) {
-            Register rv = ( !value->isInReg()
-                            ? findRegFor(value, FpRegs)
-                            : value->getReg() );
-            NanoAssert(rmask(rv) & FpRegs);
-            STF32(F28, dr, rb);
-            FDTOS(rv, F28);
-            return;
-        }
-
         if (value->isImmD())
             {
                 // if a constant 64-bit value just store it now rather than
                 // generating a pointless store/load/store sequence
+                Register rb = findRegFor(base, GpRegs);
                 STW32(L2, dr+4, rb);
                 SET32(value->immDlo(), L2);
                 STW32(L2, dr, rb);
@@ -971,15 +424,30 @@ namespace nanojit
                 // c) maybe its a double just being stored.  oh well.
 
                 int da = findMemFor(value);
+                Register rb;
+                if (base->isop(LIR_allocp)) {
+                    rb = FP;
+                    dr += findMemFor(base);
+                } else {
+                    rb = findRegFor(base, GpRegs);
+                }
                 asm_mmq(rb, dr, FP, da);
                 return;
             }
 
+        Register rb;
+        if (base->isop(LIR_allocp)) {
+            rb = FP;
+            dr += findMemFor(base);
+        } else {
+            rb = findRegFor(base, GpRegs);
+        }
+
         // if value already in a reg, use that, otherwise
-        // get it into FPU regs.
+        // try to get it into XMM regs before FPU regs.
         Register rv = ( !value->isInReg()
                       ? findRegFor(value, FpRegs)
-                      : value->getReg() );
+                      : value->deprecated_getReg() );
 
         STDF32(rv, dr, rb);
     }
@@ -999,14 +467,14 @@ namespace nanojit
         LDSW32(rs, ds, t);
     }
 
-    Branches Assembler::asm_branch(bool branchOnFalse, LIns* cond, NIns* targ)
+    NIns* Assembler::asm_branch(bool branchOnFalse, LIns* cond, NIns* targ)
     {
         NIns* at = 0;
         LOpcode condop = cond->opcode();
         NanoAssert(cond->isCmp());
         if (isCmpDOpcode(condop))
             {
-                return Branches(asm_branchd(branchOnFalse, cond, targ));
+                return asm_branchd(branchOnFalse, cond, targ);
             }
 
         underrunProtect(32);
@@ -1065,7 +533,7 @@ namespace nanojit
                     BCC(0, tt);
             }
         asm_cmp(cond);
-        return Branches(at);
+        return at;
     }
 
     NIns* Assembler::asm_branch_ov(LOpcode op, NIns* targ)
@@ -1128,15 +596,15 @@ namespace nanojit
         LOpcode condop = ins->opcode();
         NanoAssert(isCmpDOpcode(condop));
         if (condop == LIR_eqd)
-            MOVFEI(1, r);
+            MOVFEI(1, 0, 0, 0, r);
         else if (condop == LIR_led)
-            MOVFLEI(1, r);
+            MOVFLEI(1, 0, 0, 0, r);
         else if (condop == LIR_ltd)
-            MOVFLI(1, r);
+            MOVFLI(1, 0, 0, 0, r);
         else if (condop == LIR_ged)
-            MOVFGEI(1, r);
+            MOVFGEI(1, 0, 0, 0, r);
         else // if (condop == LIR_gtd)
-            MOVFGI(1, r);
+            MOVFGI(1, 0, 0, 0, r);
         ORI(G0, 0, r);
         asm_cmpd(ins);
     }
@@ -1149,23 +617,23 @@ namespace nanojit
         Register r = deprecated_prepResultReg(ins, AllowableFlagRegs);
 
         if (op == LIR_eqi)
-            MOVEI(1, r);
+            MOVEI(1, 1, 0, 0, r);
         else if (op == LIR_lti)
-            MOVLI(1, r);
+            MOVLI(1, 1, 0, 0, r);
         else if (op == LIR_lei)
-            MOVLEI(1, r);
+            MOVLEI(1, 1, 0, 0, r);
         else if (op == LIR_gti)
-            MOVGI(1, r);
+            MOVGI(1, 1, 0, 0, r);
         else if (op == LIR_gei)
-            MOVGEI(1, r);
+            MOVGEI(1, 1, 0, 0, r);
         else if (op == LIR_ltui)
-            MOVCSI(1, r);
+            MOVCSI(1, 1, 0, 0, r);
         else if (op == LIR_leui)
-            MOVLEUI(1, r);
+            MOVLEUI(1, 1, 0, 0, r);
         else if (op == LIR_gtui)
-            MOVGUI(1, r);
+            MOVGUI(1, 1, 0, 0, r);
         else // if (op == LIR_geui)
-            MOVCCI(1, r);
+            MOVCCI(1, 1, 0, 0, r);
         ORI(G0, 0, r);
         asm_cmp(ins);
     }
@@ -1188,7 +656,7 @@ namespace nanojit
                 }
                 allow &= ~rmask(rb);
             }
-        else if ((op == LIR_addi || op == LIR_addxovi || op == LIR_addjovi) && lhs->isop(LIR_allocp) && rhs->isImmI()) {
+        else if ((op == LIR_addi || op == LIR_addxovi) && lhs->isop(LIR_allocp) && rhs->isImmI()) {
             // add alloc+const, use lea
             Register rr = deprecated_prepResultReg(ins, allow);
             int d = findMemFor(lhs) + rhs->immI();
@@ -1209,9 +677,9 @@ namespace nanojit
                 if (lhs == rhs)
                     rb = ra;
 
-                if (op == LIR_addi || op == LIR_addxovi || op == LIR_addjovi)
+                if (op == LIR_addi || op == LIR_addxovi)
                     ADDCC(rr, rb, rr);
-                else if (op == LIR_subi || op == LIR_subxovi || op == LIR_subjovi)
+                else if (op == LIR_subi || op == LIR_subxovi)
                     SUBCC(rr, rb, rr);
                 else if (op == LIR_muli)
                     SMULCC(rr, rb, rr);
@@ -1239,9 +707,9 @@ namespace nanojit
         else
             {
                 int c = rhs->immI();
-                if (op == LIR_addi || op == LIR_addxovi || op == LIR_addjovi)
+                if (op == LIR_addi || op == LIR_addxovi)
                     ADDCC(rr, L2, rr);
-                else if (op == LIR_subi || op == LIR_subxovi || op == LIR_subjovi)
+                else if (op == LIR_subi || op == LIR_subxovi)
                     SUBCC(rr, L2, rr);
                 else if (op == LIR_andi)
                     AND(rr, L2, rr);
@@ -1305,11 +773,9 @@ namespace nanojit
                 LDSW32(ra, d, rr);
                 break;
             case LIR_ldc2i:
-                LDSB32(ra, d, rr);
-                break;
             case LIR_lds2i:
-                LDSH32(ra, d, rr);
-                break;
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_load32 should never receive this LIR opcode");
                 return;
@@ -1325,72 +791,37 @@ namespace nanojit
         LIns* iffalse = ins->oprnd3();
 
         NanoAssert(condval->isCmp());
-        NanoAssert(op == LIR_cmovi && iftrue->isI() && iffalse->isI() ||
-                  (op == LIR_cmovd && iftrue->isD() && iffalse->isD()));
+        NanoAssert(op == LIR_cmovi && iftrue->isI() && iffalse->isI());
 
-        RegisterMask rm = (op == LIR_cmovi) ? GpRegs : FpRegs;
-        const Register rr = deprecated_prepResultReg(ins, rm);
-        const Register iffalsereg = findRegFor(iffalse, rm & ~rmask(rr));
-        bool isIcc = true;
+        const Register rr = deprecated_prepResultReg(ins, GpRegs);
 
+        // this code assumes that neither LD nor MR nor MRcc set any of the condition flags.
+        // (This is true on Intel, is it true on all architectures?)
+        const Register iffalsereg = findRegFor(iffalse, GpRegs & ~rmask(rr));
         if (op == LIR_cmovi) {
             switch (condval->opcode()) {
                 // note that these are all opposites...
-                case LIR_eqi:  MOVNE (iffalsereg, rr); break;
-                case LIR_lti:  MOVGE (iffalsereg, rr); break;
-                case LIR_lei:  MOVG  (iffalsereg, rr); break;
-                case LIR_gti:  MOVLE (iffalsereg, rr); break;
-                case LIR_gei:  MOVL  (iffalsereg, rr); break;
-                case LIR_ltui: MOVCC (iffalsereg, rr); break;
-                case LIR_leui: MOVGU (iffalsereg, rr); break;
-                case LIR_gtui: MOVLEU(iffalsereg, rr); break;
-                case LIR_geui: MOVCS (iffalsereg, rr); break;
+            case LIR_eqi:  MOVNE (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_lti:  MOVGE (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_lei:  MOVG  (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_gti:  MOVLE (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_gei:  MOVL  (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_ltui: MOVCC (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_leui: MOVGU (iffalsereg, 1, 0, 0, rr); break;
+            case LIR_gtui: MOVLEU(iffalsereg, 1, 0, 0, rr); break;
+            case LIR_geui: MOVCS (iffalsereg, 1, 0, 0, rr); break;
                 debug_only( default: NanoAssert(0); break; )
-            }
-        } else {
-            switch (condval->opcode()) {
-                // note that these are all opposites...
-                case LIR_eqi:  FMOVDNE  (iffalsereg, rr); break;
-                case LIR_lti:  FMOVDGE  (iffalsereg, rr); break;
-                case LIR_lei:  FMOVDG   (iffalsereg, rr); break;
-                case LIR_gti:  FMOVDLE  (iffalsereg, rr); break;
-                case LIR_gei:  FMOVDL   (iffalsereg, rr); break;
-                case LIR_ltui: FMOVDCC  (iffalsereg, rr); break;
-                case LIR_leui: FMOVDGU  (iffalsereg, rr); break;
-                case LIR_gtui: FMOVDLEU (iffalsereg, rr); break;
-                case LIR_geui: FMOVDCS  (iffalsereg, rr); break;
-                case LIR_eqd:  FMOVDFNE (iffalsereg, rr); isIcc = false; break;
-                case LIR_led:  FMOVDFUG (iffalsereg, rr); isIcc = false; break;
-                case LIR_ltd:  FMOVDFUGE(iffalsereg, rr); isIcc = false; break;
-                case LIR_ged:  FMOVDFUL (iffalsereg, rr); isIcc = false; break;
-                case LIR_gtd:  FMOVDFULE(iffalsereg, rr); isIcc = false; break;
-                debug_only( default: NanoAssert(0); break; )
-            }
+                    }
         }
-
         /*const Register iftruereg =*/ findSpecificRegFor(iftrue, rr);
-        if (isIcc)
-            asm_cmp(condval);
-        else
-            asm_cmpd(condval);
-
+        asm_cmp(condval);
     }
 
     void Assembler::asm_param(LIns* ins)
     {
-        underrunProtect(12);
         uint32_t a = ins->paramArg();
-        NanoAssertMsg(ins->paramKind() == 0, "savedRegs are not used on SPARC");
-
-        if (a < sizeof(argRegs)/sizeof(argRegs[0])) { // i0 - i5
-            prepareResultReg(ins, rmask(argRegs[a]));
-        } else {
-            // Incoming arg is on stack
-            Register r = prepareResultReg(ins, GpRegs);
-            int32_t d = a * sizeof (intptr_t) + kLinkageAreaSize;
-            LDSW32(FP, d, r);
-        }
-        freeResourcesOf(ins);
+        uint32_t kind = ins->paramKind();
+        deprecated_prepResultReg(ins, rmask(argRegs[a]));
     }
 
     void Assembler::asm_immi(LIns* ins)
@@ -1500,7 +931,6 @@ namespace nanojit
     }
 
     void Assembler::asm_d2i(LIns* ins) {
-        underrunProtect(28);
         LIns *lhs = ins->oprnd1();
         Register rr = prepareResultReg(ins, GpRegs);
         Register ra = findRegFor(lhs, FpRegs);
@@ -1508,7 +938,6 @@ namespace nanojit
         LDSW32(FP, d, rr);
         STF32(ra, d, FP);
         FDTOI(ra, ra);
-        freeResourcesOf(ins);
     }
 
     void Assembler::asm_nongp_copy(Register r, Register s)
@@ -1635,10 +1064,6 @@ namespace nanojit
         SWAP(NIns*, codeStart, exitStart);
         SWAP(NIns*, codeEnd, exitEnd);
         verbose_only( SWAP(size_t, codeBytes, exitBytes); )
-    }
-
-    void Assembler::asm_insert_random_nop() {
-        NanoAssert(0); // not supported
     }
 
 #endif /* FEATURE_NANOJIT */

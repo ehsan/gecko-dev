@@ -39,14 +39,13 @@
 #include "storage_test_harness.h"
 #include "prthread.h"
 #include "nsIEventTarget.h"
-#include "nsIInterfaceRequestorUtils.h"
 
 #include "sqlite3.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
-using mozilla::ReentrantMonitor;
-using mozilla::ReentrantMonitorAutoEnter;
+using mozilla::Monitor;
+using mozilla::MonitorAutoEnter;
 
 /**
  * Verify that mozIStorageAsyncStatement's life-cycle never triggers a mutex on
@@ -140,7 +139,7 @@ class ThreadWedger : public nsRunnable
 {
 public:
   ThreadWedger(nsIEventTarget *aTarget)
-  : mReentrantMonitor("thread wedger")
+  : mMonitor("thread wedger")
   , unwedged(false)
   {
     aTarget->Dispatch(this, aTarget->NS_DISPATCH_NORMAL);
@@ -148,7 +147,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    ReentrantMonitorAutoEnter automon(mReentrantMonitor);
+    MonitorAutoEnter automon(mMonitor);
 
     if (!unwedged)
       automon.Wait();
@@ -158,18 +157,45 @@ public:
 
   void unwedge()
   {
-    ReentrantMonitorAutoEnter automon(mReentrantMonitor);
+    MonitorAutoEnter automon(mMonitor);
     unwedged = true;
     automon.Notify();
   }
 
 private:
-  ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
   bool unwedged;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Async Helpers
+
+/**
+ * Execute an async statement, blocking the main thread until we get the
+ * callback completion notification.
+ */
+void
+blocking_async_execute(mozIStorageBaseStatement *stmt)
+{
+  nsRefPtr<AsyncStatementSpinner> spinner(new AsyncStatementSpinner());
+
+  nsCOMPtr<mozIStoragePendingStatement> pendy;
+  (void)stmt->ExecuteAsync(spinner, getter_AddRefs(pendy));
+  spinner->SpinUntilCompleted();
+}
+
+/**
+ * Invoke AsyncClose on the given connection, blocking the main thread until we
+ * get the completion notification.
+ */
+void
+blocking_async_close(mozIStorageConnection *db)
+{
+  nsRefPtr<AsyncStatementSpinner> spinner(new AsyncStatementSpinner());
+
+  db->AsyncClose(spinner);
+  spinner->SpinUntilCompleted();
+}
 
 /**
  * A horrible hack to figure out what the connection's async thread is.  By
@@ -195,14 +221,6 @@ get_conn_async_thread(mozIStorageConnection *db)
   nsCOMPtr<nsIThread> asyncThread;
   threadMan->GetThreadFromPRThread(last_non_watched_thread,
                                    getter_AddRefs(asyncThread));
-
-  // Additionally, check that the thread we get as the background thread is the
-  // same one as the one we report from getInterface.
-  nsCOMPtr<nsIEventTarget> target = do_GetInterface(db);
-  nsCOMPtr<nsIThread> allegedAsyncThread = do_QueryInterface(target);
-  PRThread *allegedPRThread;
-  (void)allegedAsyncThread->GetPRThread(&allegedPRThread);
-  do_check_eq(allegedPRThread, last_non_watched_thread);
   return asyncThread.forget();
 }
 
@@ -213,7 +231,6 @@ get_conn_async_thread(mozIStorageConnection *db)
 void
 test_TrueAsyncStatement()
 {
-  // (only the first test needs to call this)
   hook_sqlite_mutex();
 
   nsCOMPtr<mozIStorageConnection> db(getMemoryDatabase());
@@ -236,7 +253,7 @@ test_TrueAsyncStatement()
     NS_LITERAL_CSTRING("INSERT INTO test (id) VALUES (?)"),
     getter_AddRefs(stmt)
   );
-  stmt->BindInt32ByIndex(0, 1);
+  stmt->BindInt32Parameter(0, 1);
   blocking_async_execute(stmt);
   stmt->Finalize();
   do_check_false(mutex_used_on_watched_thread);
@@ -339,46 +356,10 @@ test_AsyncCancellation()
   blocking_async_close(db);
 }
 
-/**
- * Test that the destructor for an asynchronous statement which has a
- *  sqlite3_stmt will dispatch that statement to the async thread for
- *  finalization rather than trying to finalize it on the main thread
- *  (and thereby running afoul of our mutex use detector).
- */
-void test_AsyncDestructorFinalizesOnAsyncThread()
-{
-  // test_TrueAsyncStatement called hook_sqlite_mutex() for us
-
-  nsCOMPtr<mozIStorageConnection> db(getMemoryDatabase());
-  watch_for_mutex_use_on_this_thread();
-
-  // -- create an async statement
-  nsCOMPtr<mozIStorageAsyncStatement> stmt;
-  db->CreateAsyncStatement(
-    NS_LITERAL_CSTRING("CREATE TABLE test (id INTEGER PRIMARY KEY)"),
-    getter_AddRefs(stmt)
-  );
-
-  // -- execute it so it gets a sqlite3_stmt that needs to be finalized
-  blocking_async_execute(stmt);
-  do_check_false(mutex_used_on_watched_thread);
-
-  // -- forget our reference
-  stmt = nsnull;
-
-  // -- verify the mutex was not touched
-  do_check_false(mutex_used_on_watched_thread);
-
-  // -- make sure the statement actually gets finalized / cleanup
-  // the close will assert if we failed to finalize!
-  blocking_async_close(db);
-}
-
 void (*gTests[])(void) = {
   // this test must be first because it hooks the mutex mechanics
   test_TrueAsyncStatement,
   test_AsyncCancellation,
-  test_AsyncDestructorFinalizesOnAsyncThread
 };
 
 const char *file = __FILE__;

@@ -44,6 +44,7 @@
 
 class nsDOMValidityState;
 class nsIDOMValidityState;
+class nsGenericHTMLFormElement;
 
 #define NS_ICONSTRAINTVALIDATION_IID \
 { 0xca3824dc, 0x4f5c, 0x4878, \
@@ -64,17 +65,15 @@ public:
 
   friend class nsDOMValidityState;
 
-  static const PRUint16 sContentSpecifiedMaxLengthMessage;
-
   virtual ~nsIConstraintValidation();
 
   PRBool IsValid() const { return mValidityBitField == 0; }
 
-  PRBool IsCandidateForConstraintValidation() const {
-           return !mBarredFromConstraintValidation;
-         }
+  PRBool IsCandidateForConstraintValidation() const;
 
   NS_IMETHOD GetValidationMessage(nsAString& aValidationMessage);
+
+protected:
 
   enum ValidityStateType
   {
@@ -88,11 +87,6 @@ public:
     VALIDITY_STATE_CUSTOM_ERROR     = 0x80  // 0b10000000
   };
 
-  void SetValidityState(ValidityStateType mState,
-                        PRBool mValue);
-
-protected:
-
   // You can't instantiate an object from that class.
   nsIConstraintValidation();
 
@@ -104,7 +98,15 @@ protected:
          return mValidityBitField & mState;
        }
 
-  void SetBarredFromConstraintValidation(PRBool aBarred);
+  void   SetValidityState(ValidityStateType mState, PRBool mValue) {
+           if (mValue) {
+             mValidityBitField |= mState;
+           } else {
+             mValidityBitField &= ~mState;
+           }
+         }
+
+  virtual PRBool   IsBarredFromConstraintValidation() const { return PR_FALSE; }
 
   virtual nsresult GetValidationMessage(nsAString& aValidationMessage,
                                         ValidityStateType aType) {
@@ -123,11 +125,6 @@ private:
    * A pointer to the ValidityState object.
    */
   nsRefPtr<nsDOMValidityState>  mValidity;
-
-  /**
-   * Keeps track whether the element is barred from constraint validation.
-   */
-  PRBool                        mBarredFromConstraintValidation;
 
   /**
    * The string representing the custom error.

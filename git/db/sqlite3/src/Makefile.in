@@ -52,7 +52,7 @@ FORCE_SHARED_LIB = 1
 VISIBILITY_FLAGS =
 LIB_IS_C_ONLY    = 1
 
-ifeq ($(OS_ARCH),WINNT)
+ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 ifndef GNU_CC
 DEFFILE = $(CURDIR)/sqlite-processed.def
 RCFILE  = sqlite.rc
@@ -101,8 +101,7 @@ CSRCS = \
 # -DSQLITE_ENABLE_FTS3=1 enables the full-text index module.
 # -DSQLITE_CORE=1 statically links that module into the SQLite library.
 # -DSQLITE_DEFAULT_PAGE_SIZE=32768 and SQLITE_MAX_DEFAULT_PAGE_SIZE=32768
-# increases the page size from 1k, see bug 416330.  The value must stay in sync
-# with mozIStorageConnection::DEFAULT_PAGE_SIZE.
+# increases the page size from 1k, see bug 416330.
 # Note: Be sure to update the configure.in checks when these change!
 DEFINES = \
   -DSQLITE_SECURE_DELETE=1 \
@@ -133,11 +132,6 @@ ifeq ($(OS_ARCH),OS2)
 ifdef MOZ_OS2_HIGH_MEMORY
 DEFINES += -DOS2_HIGH_MEMORY
 endif
-endif
-
-ifeq ($(OS_TARGET),Android)
-# default to user readable only to fit Android security model
-DEFINES += -DSQLITE_DEFAULT_FILE_PERMISSIONS=0600
 endif
 
 include $(topsrcdir)/config/rules.mk

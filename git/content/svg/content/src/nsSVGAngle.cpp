@@ -245,7 +245,7 @@ nsSVGAngle::GetDegreesPerUnit(PRUint8 aUnit)
   case nsIDOMSVGAngle::SVG_ANGLETYPE_RAD:
     return static_cast<float>(180.0 / M_PI);
   case nsIDOMSVGAngle::SVG_ANGLETYPE_GRAD:
-    return 90.0f / 100.0f;
+    return 180.0f / 100.0f;
   default:
     NS_NOTREACHED("Unknown unit type");
     return 0;
@@ -337,8 +337,8 @@ nsSVGAngle::SetBaseValueString(const nsAString &aValueAsString,
                                nsSVGElement *aSVGElement,
                                PRBool aDoSetAttr)
 {
-  float value = 0;
-  PRUint16 unitType = 0;
+  float value;
+  PRUint16 unitType;
   
   nsresult rv = GetValueFromString(aValueAsString, &value, &unitType);
   if (NS_FAILED(rv)) {

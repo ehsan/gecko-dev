@@ -49,9 +49,7 @@
 #endif
 
 #include "jstypes.h"
-
 #include "jscntxt.h"
-#include "jscompartment.h"
 #include "jshashtable.h"
 #include "jsobj.h"
 #include "jsprvtd.h"
@@ -199,81 +197,78 @@
  * of child node pointer arrays ("kid chunks").  The details are isolated in
  * jspropertytree.h/.cpp; others must treat js::Shape.kids as opaque.
  *
- * One final twist (can you stand it?): the vast majority (~95% or more) of
- * scopes are looked up fewer than three times;  in these cases, initializing
- * scope->table isn't worth it.  So instead of always allocating scope->table,
- * we leave it null while initializing all the other scope members as if it
- * were non-null and minimal-length.  Until a scope is searched
- * MAX_LINEAR_SEARCHES times, we use linear search from obj->lastProp to find a
- * given id, and save on the time and space overhead of creating a hash table.
+ * One final twist (can you stand it?): the mean number of entries per scope
+ * in Mozilla is < 5, with a large standard deviation (~8).  Instead of always
+ * allocating scope->table, we leave it null while initializing all the other
+ * scope members as if it were non-null and minimal-length.  Until a property
+ * is added that crosses the threshold of 6 or more entries for hashing, we use
+ * linear search from obj->lastProp to find a given id, and save on the space
+ * overhead of a hash table.
  */
-
-#define SHAPE_INVALID_SLOT              0xffffffff
 
 namespace js {
 
 /*
  * Shapes use multiplicative hashing, _a la_ jsdhash.[ch], but specialized to
- * minimize footprint.  But if a Shape lineage has been searched fewer than
- * MAX_LINEAR_SEARCHES times, we use linear search and avoid allocating
- * scope->table.
+ * minimize footprint.  But if a Shape lineage has fewer than HASH_THRESHOLD
+ * entries, we use linear search and avoid allocating scope->table.
  */
 struct PropertyTable {
-    static const uint32 MAX_LINEAR_SEARCHES = 7;
-    static const uint32 MIN_SIZE_LOG2       = 4;
-    static const uint32 MIN_SIZE            = JS_BIT(MIN_SIZE_LOG2);
+    enum {
+        HASH_THRESHOLD  = 6,
+        MIN_SIZE_LOG2   = 4,
+        MIN_SIZE        = JS_BIT(MIN_SIZE_LOG2)
+    };
 
     int             hashShift;          /* multiplicative hash shift */
 
     uint32          entryCount;         /* number of entries in table */
     uint32          removedCount;       /* removed entry sentinels in table */
-    uint32          freelist;           /* SHAPE_INVALID_SLOT or head of slot
-                                           freelist in owning dictionary-mode
-                                           object */
     js::Shape       **entries;          /* table of ptrs to shared tree nodes */
 
     PropertyTable(uint32 nentries)
       : hashShift(JS_DHASH_BITS - MIN_SIZE_LOG2),
         entryCount(nentries),
-        removedCount(0),
-        freelist(SHAPE_INVALID_SLOT)
+        removedCount(0)
     {
         /* NB: entries is set by init, which must be called. */
     }
 
     ~PropertyTable() {
-        js::UnwantedForeground::free_(entries);
+        js_free(entries);
     }
 
     /* By definition, hashShift = JS_DHASH_BITS - log2(capacity). */
     uint32 capacity() const { return JS_BIT(JS_DHASH_BITS - hashShift); }
 
-    /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */
-    bool needsToGrow() const {
-        uint32 size = capacity();
-        return entryCount + removedCount >= size - (size >> 2);
-    }
-
-    /*
-     * Try to grow the table.  On failure, reports out of memory on cx
-     * and returns false.  This will make any extant pointers into the
-     * table invalid.  Don't call this unless needsToGrow() is true.
-     */
-    bool grow(JSContext *cx);
-
     /*
      * NB: init and change are fallible but do not report OOM, so callers can
-     * cope or ignore. They do however use JSRuntime's calloc_ method in order
-     * to update the malloc counter on success.
+     * cope or ignore. They do update the malloc counter on success.
      */
-    bool            init(JSRuntime *rt, js::Shape *lastProp);
-    bool            change(int log2Delta, JSContext *cx);
+    bool            init(JSContext *cx, js::Shape *lastProp);
+    bool            change(JSContext *cx, int change);
     js::Shape       **search(jsid id, bool adding);
 };
 
 } /* namespace js */
 
 struct JSObject;
+
+#define SHAPE_INVALID_SLOT              0xffffffff
+
+inline const js::Value &
+JSObject::lockedGetSlot(uintN slot) const
+{
+    OBJ_CHECK_SLOT(this, slot);
+    return this->getSlot(slot);
+}
+
+inline void
+JSObject::lockedSetSlot(uintN slot, const js::Value &value)
+{
+    OBJ_CHECK_SLOT(this, slot);
+    this->setSlot(slot, value);
+}
 
 namespace js {
 
@@ -285,38 +280,32 @@ CastAsPropertyOp(js::Class *clasp)
     return JS_DATA_TO_FUNC_PTR(PropertyOp, clasp);
 }
 
-/*
- * Reuse the API-only JSPROP_INDEX attribute to mean shadowability.
- */
-#define JSPROP_SHADOWABLE       JSPROP_INDEX
-
-struct Shape : public js::gc::Cell
+struct Shape : public JSObjectMap
 {
     friend struct ::JSObject;
     friend struct ::JSFunction;
     friend class js::PropertyTree;
-    friend class js::Bindings;
-    friend bool IsShapeAboutToBeFinalized(JSContext *cx, const js::Shape *shape);
 
-    mutable uint32      shapeid;        /* shape identifier */
-    uint32              slotSpan;       /* one more than maximum live slot number */
+  protected:
+    mutable js::PropertyTable *table;
 
-    /* 
-     * numLinearSearches starts at zero and is incremented initially on each
-     * search() call.  Once numLinearSearches reaches MAX_LINEAR_SEARCHES
-     * (which is a small integer), the table is created on the next search()
-     * call, and the table pointer will be easily distinguishable from a small
-     * integer.  The table can also be created when hashifying for dictionary
-     * mode.
-     */
-    union {
-        mutable size_t numLinearSearches;
-        mutable js::PropertyTable *table;
-    };
-
+  public:
     inline void freeTable(JSContext *cx);
 
-    jsid                propid;
+    static bool initRuntimeState(JSContext *cx);
+    static void finishRuntimeState(JSContext *cx);
+
+    enum {
+        EMPTY_ARGUMENTS_SHAPE   = 1,
+        EMPTY_BLOCK_SHAPE       = 2,
+        EMPTY_CALL_SHAPE        = 3,
+        EMPTY_DECL_ENV_SHAPE    = 4,
+        EMPTY_ENUMERATOR_SHAPE  = 5,
+        EMPTY_WITH_SHAPE        = 6,
+        LAST_RESERVED_SHAPE     = 6
+    };
+
+    jsid                id;
 
   protected:
     union {
@@ -329,7 +318,7 @@ struct Shape : public js::gc::Cell
     };
 
     union {
-        js::StrictPropertyOp  rawSetter;/* getter is JSObject* and setter is 0
+        js::PropertyOp  rawSetter;      /* getter is JSObject* and setter is 0
                                            if shape->isMethod() */
         JSObject        *setterObj;     /* user-defined callable "set" object or
                                            null if shape->hasSetterValue() */
@@ -354,8 +343,7 @@ struct Shape : public js::gc::Cell
                                            else to obj->lastProp */
     };
 
-    static inline js::Shape **search(JSRuntime *rt, js::Shape **startp, jsid id,
-                                     bool adding = false);
+    static inline js::Shape **search(js::Shape **startp, jsid id, bool adding = false);
     static js::Shape *newDictionaryShape(JSContext *cx, const js::Shape &child, js::Shape **listp);
     static js::Shape *newDictionaryList(JSContext *cx, js::Shape **listp);
 
@@ -364,77 +352,27 @@ struct Shape : public js::gc::Cell
 
     js::Shape *getChild(JSContext *cx, const js::Shape &child, js::Shape **listp);
 
-    bool hashify(JSRuntime *rt);
+    bool maybeHash(JSContext *cx);
 
-    bool hasTable() const {
-        /* A valid pointer should be much bigger than MAX_LINEAR_SEARCHES. */
-        return numLinearSearches > PropertyTable::MAX_LINEAR_SEARCHES;
+    void setTable(js::PropertyTable *t) const { table = t; }
+
+    void insertFree(js::Shape **freep) {
+        id = JSID_VOID;
+        parent = *freep;
+        if (parent)
+            parent->listp = &parent;
+        listp = freep;
+        *freep = this;
     }
 
-    js::PropertyTable *getTable() const {
-        JS_ASSERT(hasTable());
-        return table;
-    }
-
-    void setTable(js::PropertyTable *t) const {
-        JS_ASSERT_IF(t && t->freelist != SHAPE_INVALID_SLOT, t->freelist < slotSpan);
-        table = t;
-    }
-
-    /*
-     * Setter for parent. The challenge is to maintain JSObjectMap::slotSpan in
-     * the face of arbitrary slot order.
-     *
-     * By induction, an empty shape has a slotSpan member correctly computed as
-     * JSCLASS_FREE(clasp) -- see EmptyShape's constructor in jsscopeinlines.h.
-     * This is the basis case, where p is null.
-     *
-     * Any child shape, whether in a shape tree or in a dictionary list, must
-     * have a slotSpan either one greater than its slot value (if the child's
-     * slot is SHAPE_INVALID_SLOT, this will yield 0; the static assertion
-     * below enforces this), or equal to its parent p's slotSpan, whichever is
-     * greater. This is the inductive step.
-     *
-     * If we maintained shape paths such that parent slot was always one less
-     * than child slot, possibly with an exception for SHAPE_INVALID_SLOT slot
-     * values where we would use another way of computing slotSpan based on the
-     * PropertyTable (as JSC does), then we would not need to store slotSpan in
-     * Shape (to be precise, in its base struct, JSobjectMap).
-     *
-     * But we currently scramble slots along shape paths due to resolve-based
-     * creation of shapes mapping reserved slots, and we do not have the needed
-     * PropertyTable machinery to use as an alternative when parent slot is not
-     * one less than child slot. This machinery is neither simple nor free, as
-     * it must involve creating a table for any slot-less transition and then
-     * pinning the table to its shape.
-     *
-     * Use of 'delete' can scramble slots along the shape lineage too, although
-     * it always switches the target object to dictionary mode, so the cost of
-     * a pinned table is less onerous.
-     *
-     * Note that allocating a uint32 slotSpan member in JSObjectMap takes no
-     * net extra space on 64-bit targets (it packs with shape). And on 32-bit
-     * targets, adding slotSpan to JSObjectMap takes no gross extra space,
-     * because Shape rounds up to an even number of 32-bit words (required for
-     * GC-thing and js::Value allocation in any event) on 32-bit targets.
-     *
-     * So in terms of space, we can afford to maintain both slotSpan and slot,
-     * but it might be better if we eliminated slotSpan using slot combined
-     * with an auxiliary mechanism based on table.
-     */
-    void setParent(js::Shape *p) {
-        JS_STATIC_ASSERT(uint32(SHAPE_INVALID_SLOT) == ~uint32(0));
-        if (p)
-            slotSpan = JS_MAX(p->slotSpan, slot + 1);
-        JS_ASSERT(slotSpan < JSObject::NSLOTS_LIMIT);
-        parent = p;
+    void removeFree() {
+        JS_ASSERT(JSID_IS_VOID(id));
+        *listp = parent;
+        if (parent)
+            parent->listp = listp;
     }
 
   public:
-    static JS_FRIEND_DATA(Shape) sharedNonNative;
-
-    bool isNative() const { return this != &sharedNonNative; }
-
     const js::Shape *previous() const {
         return parent;
     }
@@ -450,7 +388,7 @@ struct Shape : public js::gc::Cell
         Range(const Shape *shape) : cursor(shape) { }
 
         bool empty() const {
-            JS_ASSERT_IF(!cursor->parent, JSID_IS_EMPTY(cursor->propid));
+            JS_ASSERT_IF(!cursor->parent, JSID_IS_EMPTY(cursor->id));
             return !cursor->parent;
         }
 
@@ -476,29 +414,43 @@ struct Shape : public js::gc::Cell
      * with these bits.
      */
     enum {
-        SHARED_EMPTY    = 0x01,
+        /* GC mark flag. */
+        MARK            = 0x01,
+
+        SHARED_EMPTY    = 0x02,
+
+        /*
+         * Set during a shape-regenerating GC if the shape has already been
+         * regenerated.
+         */
+        SHAPE_REGEN     = 0x04,
 
         /* Property stored in per-object dictionary, not shared property tree. */
-        IN_DICTIONARY   = 0x02,
+        IN_DICTIONARY   = 0x08,
 
-        /* Prevent unwanted mutation of shared Bindings::lastBinding nodes. */
-        FROZEN          = 0x04
+        /* Prevent unwanted mutation of shared JSFunction::u.i.names nodes. */
+        FROZEN          = 0x10
     };
 
-    Shape(jsid id, js::PropertyOp getter, js::StrictPropertyOp setter, uint32 slot, uintN attrs,
-          uintN flags, intN shortid, uint32 shape = INVALID_SHAPE, uint32 slotSpan = 0);
+    Shape(jsid id, js::PropertyOp getter, js::PropertyOp setter, uint32 slot,
+          uintN attrs, uintN flags, intN shortid);
 
     /* Used by EmptyShape (see jsscopeinlines.h). */
-    Shape(JSCompartment *comp, Class *aclasp);
+    Shape(JSContext *cx, Class *aclasp);
 
-    /* Used by sharedNonNative. */
-    explicit Shape(uint32 shape);
+    bool marked() const         { return (flags & MARK) != 0; }
+    void mark() const           { flags |= MARK; }
+    void clearMark()            { flags &= ~MARK; }
+
+    bool hasRegenFlag() const   { return (flags & SHAPE_REGEN) != 0; }
+    void setRegenFlag()         { flags |= SHAPE_REGEN; }
+    void clearRegenFlag()       { flags &= ~SHAPE_REGEN; }
 
     bool inDictionary() const   { return (flags & IN_DICTIONARY) != 0; }
     bool frozen() const         { return (flags & FROZEN) != 0; }
     void setFrozen()            { flags |= FROZEN; }
 
-    bool isEmptyShape() const   { JS_ASSERT_IF(!parent, JSID_IS_EMPTY(propid)); return !parent; }
+    bool isEmptyShape() const   { JS_ASSERT_IF(!parent, JSID_IS_EMPTY(id)); return !parent; }
 
   public:
     /* Public bits stored in shape->flags. */
@@ -531,9 +483,9 @@ struct Shape : public js::gc::Cell
         return hasGetterValue() && getterObj ? js::ObjectValue(*getterObj) : js::UndefinedValue();
     }
 
-    js::StrictPropertyOp setter() const { return rawSetter; }
+    js::PropertyOp setter() const { return rawSetter; }
     bool hasDefaultSetter() const  { return !rawSetter; }
-    js::StrictPropertyOp setterOp() const { JS_ASSERT(!hasSetterValue()); return rawSetter; }
+    js::PropertyOp setterOp() const { JS_ASSERT(!hasSetterValue()); return rawSetter; }
     JSObject *setterObject() const { JS_ASSERT(hasSetterValue()); return setterObj; }
 
     // Per ES5, decode null setterObj as the undefined value, which encodes as null.
@@ -548,12 +500,16 @@ struct Shape : public js::gc::Cell
 
     inline JSDHashNumber hash() const;
     inline bool matches(const js::Shape *p) const;
-    inline bool matchesParamsAfterId(js::PropertyOp agetter, js::StrictPropertyOp asetter,
+    inline bool matchesParamsAfterId(js::PropertyOp agetter, js::PropertyOp asetter,
                                      uint32 aslot, uintN aattrs, uintN aflags,
                                      intN ashortid) const;
 
-    bool get(JSContext* cx, JSObject *receiver, JSObject *obj, JSObject *pobj, js::Value* vp) const;
-    bool set(JSContext* cx, JSObject *obj, bool strict, js::Value* vp) const;
+    bool get(JSContext* cx, JSObject *obj, JSObject *pobj, js::Value* vp) const;
+    bool set(JSContext* cx, JSObject *obj, js::Value* vp) const;
+
+    inline bool isSharedPermanent() const;
+
+    void trace(JSTracer *trc) const;
 
     bool hasSlot() const { return (attrs & JSPROP_SHARED) == 0; }
 
@@ -578,20 +534,9 @@ struct Shape : public js::gc::Cell
         return (attrs & (JSPROP_SETTER | JSPROP_GETTER)) != 0;
     }
 
-    /*
-     * For ES5 compatibility, we allow properties with JSPropertyOp-flavored
-     * setters to be shadowed when set. The "own" property thereby created in
-     * the directly referenced object will have the same getter and setter as
-     * the prototype property. See bug 552432.
-     */
-    bool shadowable() const {
-        JS_ASSERT_IF(isDataDescriptor(), writable());
-        return hasSlot() || (attrs & JSPROP_SHADOWABLE);
-    }
-
     uint32 entryCount() const {
-        if (hasTable())
-            return getTable()->entryCount;
+        if (table)
+            return table->entryCount;
 
         const js::Shape *shape = this;
         uint32 count = 0;
@@ -604,15 +549,11 @@ struct Shape : public js::gc::Cell
     void dump(JSContext *cx, FILE *fp) const;
     void dumpSubtree(JSContext *cx, int level, FILE *fp) const;
 #endif
-
-    void finalize(JSContext *cx);
-    void removeChild(js::Shape *child);
-    void removeChildSlowly(js::Shape *child);
 };
 
 struct EmptyShape : public js::Shape
 {
-    EmptyShape(JSCompartment *comp, js::Class *aclasp);
+    EmptyShape(JSContext *cx, js::Class *aclasp);
 
     js::Class *getClass() const { return clasp; };
 
@@ -620,26 +561,8 @@ struct EmptyShape : public js::Shape
         js::Shape *eprop = JS_PROPERTY_TREE(cx).newShape(cx);
         if (!eprop)
             return NULL;
-        return new (eprop) EmptyShape(cx->compartment, clasp);
+        return new (eprop) EmptyShape(cx, clasp);
     }
-
-    static EmptyShape *ensure(JSContext *cx, js::Class *clasp, EmptyShape **shapep) {
-        EmptyShape *shape = *shapep;
-        if (!shape) {
-            if (!(shape = create(cx, clasp)))
-                return NULL;
-            return *shapep = shape;
-        }
-        return shape;
-    }
-
-    static inline EmptyShape *getEmptyArgumentsShape(JSContext *cx);
-
-    static inline EmptyShape *getEmptyBlockShape(JSContext *cx);
-    static inline EmptyShape *getEmptyCallShape(JSContext *cx);
-    static inline EmptyShape *getEmptyDeclEnvShape(JSContext *cx);
-    static inline EmptyShape *getEmptyEnumeratorShape(JSContext *cx);
-    static inline EmptyShape *getEmptyWithShape(JSContext *cx);
 };
 
 } /* namespace js */
@@ -663,56 +586,233 @@ struct EmptyShape : public js::Shape
 #define SHAPE_STORE_PRESERVING_COLLISION(spp, shape)                          \
     (*(spp) = (js::Shape *) (jsuword(shape) | SHAPE_HAD_COLLISION(*(spp))))
 
+inline js::Shape **
+JSObject::nativeSearch(jsid id, bool adding)
+{
+    return js::Shape::search(&lastProp, id, adding);
+}
+
+inline const js::Shape *
+JSObject::nativeLookup(jsid id)
+{
+    return SHAPE_FETCH(nativeSearch(id));
+}
+
+inline bool
+JSObject::nativeContains(jsid id)
+{
+    return nativeLookup(id) != NULL;
+}
+
+inline bool
+JSObject::nativeContains(const js::Shape &shape)
+{
+    return nativeLookup(shape.id) == &shape;
+}
+
+inline const js::Shape *
+JSObject::lastProperty() const
+{
+    JS_ASSERT(isNative());
+    JS_ASSERT(!JSID_IS_VOID(lastProp->id));
+    return lastProp;
+}
+
+inline bool
+JSObject::nativeEmpty() const
+{
+    return lastProperty()->isEmptyShape();
+}
+
+inline bool
+JSObject::inDictionaryMode() const
+{
+    return lastProperty()->inDictionary();
+}
+
+inline uint32
+JSObject::propertyCount() const
+{
+    return lastProperty()->entryCount();
+}
+
+inline bool
+JSObject::hasPropertyTable() const
+{
+    return !!lastProperty()->table;
+}
+
+/*
+ * FIXME: shape must not be null, should use a reference here and other places.
+ */
+inline void
+JSObject::setLastProperty(const js::Shape *shape)
+{
+    JS_ASSERT(!inDictionaryMode());
+    JS_ASSERT(!JSID_IS_VOID(shape->id));
+    JS_ASSERT_IF(lastProp, !JSID_IS_VOID(lastProp->id));
+
+    lastProp = const_cast<js::Shape *>(shape);
+}
+
+inline void
+JSObject::removeLastProperty()
+{
+    JS_ASSERT(!inDictionaryMode());
+    JS_ASSERT(!JSID_IS_VOID(lastProp->parent->id));
+
+    lastProp = lastProp->parent;
+}
+
+namespace js {
+
+inline void
+Shape::removeFromDictionary(JSObject *obj) const
+{
+    JS_ASSERT(!frozen());
+    JS_ASSERT(inDictionary());
+    JS_ASSERT(obj->inDictionaryMode());
+    JS_ASSERT(listp);
+    JS_ASSERT(!JSID_IS_VOID(id));
+
+    JS_ASSERT(obj->lastProp->inDictionary());
+    JS_ASSERT(obj->lastProp->listp == &obj->lastProp);
+    JS_ASSERT_IF(obj->lastProp != this, !JSID_IS_VOID(obj->lastProp->id));
+    JS_ASSERT_IF(obj->lastProp->parent, !JSID_IS_VOID(obj->lastProp->parent->id));
+
+    if (parent)
+        parent->listp = listp;
+    *listp = parent;
+    listp = NULL;
+}
+
+inline void
+Shape::insertIntoDictionary(js::Shape **dictp)
+{
+    /*
+     * Don't assert inDictionaryMode() here because we may be called from
+     * JSObject::toDictionaryMode via JSObject::newDictionaryShape.
+     */
+    JS_ASSERT(inDictionary());
+    JS_ASSERT(!listp);
+    JS_ASSERT(!JSID_IS_VOID(id));
+
+    JS_ASSERT_IF(*dictp, !(*dictp)->frozen());
+    JS_ASSERT_IF(*dictp, (*dictp)->inDictionary());
+    JS_ASSERT_IF(*dictp, (*dictp)->listp == dictp);
+    JS_ASSERT_IF(*dictp, !JSID_IS_VOID((*dictp)->id));
+
+    parent = *dictp;
+    if (parent)
+        parent->listp = &parent;
+    listp = dictp;
+    *dictp = this;
+}
+
+} /* namespace js */
+
 /*
  * If SHORTID is set in shape->flags, we use shape->shortid rather
  * than id when calling shape's getter or setter.
  */
 #define SHAPE_USERID(shape)                                                   \
     ((shape)->hasShortID() ? INT_TO_JSID((shape)->shortid)                    \
-                           : (shape)->propid)
+                           : (shape)->id)
+
+#ifndef JS_THREADSAFE
+# define js_GenerateShape(cx, gcLocked)    js_GenerateShape (cx)
+#endif
 
 extern uint32
-js_GenerateShape(JSRuntime *rt);
+js_GenerateShape(JSContext *cx, bool gcLocked);
 
-extern uint32
-js_GenerateShape(JSContext *cx);
+#ifdef DEBUG
+struct JSScopeStats {
+    jsrefcount          searches;
+    jsrefcount          hits;
+    jsrefcount          misses;
+    jsrefcount          hashes;
+    jsrefcount          hashHits;
+    jsrefcount          hashMisses;
+    jsrefcount          steps;
+    jsrefcount          stepHits;
+    jsrefcount          stepMisses;
+    jsrefcount          initSearches;
+    jsrefcount          changeSearches;
+    jsrefcount          tableAllocFails;
+    jsrefcount          toDictFails;
+    jsrefcount          wrapWatchFails;
+    jsrefcount          adds;
+    jsrefcount          addFails;
+    jsrefcount          puts;
+    jsrefcount          redundantPuts;
+    jsrefcount          putFails;
+    jsrefcount          changes;
+    jsrefcount          changeFails;
+    jsrefcount          compresses;
+    jsrefcount          grows;
+    jsrefcount          removes;
+    jsrefcount          removeFrees;
+    jsrefcount          uselessRemoves;
+    jsrefcount          shrinks;
+};
+
+extern JS_FRIEND_DATA(JSScopeStats) js_scope_stats;
+
+# define METER(x)       JS_ATOMIC_INCREMENT(&js_scope_stats.x)
+#else
+# define METER(x)       /* nothing */
+#endif
 
 namespace js {
 
 JS_ALWAYS_INLINE js::Shape **
-Shape::search(JSRuntime *rt, js::Shape **startp, jsid id, bool adding)
+Shape::search(js::Shape **startp, jsid id, bool adding)
 {
-    js::Shape *start = *startp;
-    if (start->hasTable())
-        return start->getTable()->search(id, adding);
+    METER(searches);
+    if (!(*startp)->table) {
+        /*
+         * Not enough properties to justify hashing: search from *startp.
+         *
+         * We don't use a Range here, or stop at null parent (the empty shape
+         * at the end), to avoid an extra load per iteration just to save a
+         * load and id test at the end (when missing).
+         */
+        js::Shape **spp;
 
-    if (start->numLinearSearches == PropertyTable::MAX_LINEAR_SEARCHES) {
-        if (start->hashify(rt))
-            return start->getTable()->search(id, adding);
-        /* OOM!  Don't increment numLinearSearches, to keep hasTable() false. */
-        JS_ASSERT(!start->hasTable());
-    } else {
-        JS_ASSERT(start->numLinearSearches < PropertyTable::MAX_LINEAR_SEARCHES);
-        start->numLinearSearches++;
+        for (spp = startp; js::Shape *shape = *spp; spp = &shape->parent) {
+            if (shape->id == id) {
+                METER(hits);
+                return spp;
+            }
+        }
+        METER(misses);
+        return spp;
     }
-
-    /*
-     * Not enough searches done so far to justify hashing: search linearly
-     * from *startp.
-     *
-     * We don't use a Range here, or stop at null parent (the empty shape
-     * at the end), to avoid an extra load per iteration just to save a
-     * load and id test at the end (when missing).
-     */
-    js::Shape **spp;
-    for (spp = startp; js::Shape *shape = *spp; spp = &shape->parent) {
-        if (shape->propid == id)
-            return spp;
-    }
-    return spp;
+    return (*startp)->table->search(id, adding);
 }
 
-} // namespace js
+#undef METER
+
+inline bool
+Shape::isSharedPermanent() const
+{
+    return (~attrs & (JSPROP_SHARED | JSPROP_PERMANENT)) == 0;
+}
+
+class AutoObjectLocker {
+    JSContext   * const cx;
+    JSObject    * const obj;
+  public:
+    AutoObjectLocker(JSContext *cx, JSObject *obj)
+      : cx(cx), obj(obj) {
+        JS_LOCK_OBJ(cx, obj);
+    }
+
+    ~AutoObjectLocker() { JS_UNLOCK_OBJ(cx, obj); }
+};
+
+}
 
 #ifdef _MSC_VER
 #pragma warning(pop)

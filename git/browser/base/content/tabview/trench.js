@@ -55,7 +55,7 @@
 //     Guide trenches extend out (unless they are intercepted) and act as "guides".
 //   edge - which edge of the Item that this trench corresponds to.
 //     Either "top", "left", "bottom", or "right".
-function Trench(element, xory, type, edge) {
+var Trench = function(element, xory, type, edge) {
   //----------
   // Variable: id
   // (integer) The id for the Trench. Set sequentially via <Trenches.nextId>
@@ -110,15 +110,6 @@ function Trench(element, xory, type, edge) {
 };
 
 Trench.prototype = {
-  // ----------
-  // Function: toString
-  // Prints [Trench edge type (parentItem)] for debug use
-  toString: function Trench_toString() {
-    return "[Trench " + this.edge + " " + this.type +
-           (this.parentItem ? " (" + this.parentItem + ")" : "") +
-           "]";
-  },
-
   //----------
   // Variable: radius
   // (integer) radius is how far away we should snap from
@@ -242,7 +233,7 @@ Trench.prototype = {
       if (!this.dom.guideTrench)
         this.dom.guideTrench = iQ("<div/>").addClass('guideTrench').css({id: 'guideTrench'+this.id});
       var guideTrench = this.dom.guideTrench;
-      guideTrench.css(this.guideRect);
+      guideTrench.css(this.guideRect.css());
       iQ("body").append(guideTrench);
     } else {
       if (this.dom.guideTrench) {
@@ -275,8 +266,8 @@ Trench.prototype = {
     else
       activeVisibleTrench.removeClass('activeTrench');
 
-    visibleTrench.css(this.rect);
-    activeVisibleTrench.css(this.activeRect || this.rect);
+    visibleTrench.css(this.rect.css());
+    activeVisibleTrench.css((this.activeRect || this.rect).css());
     iQ("body").append(visibleTrench);
     iQ("body").append(activeVisibleTrench);
   },
@@ -391,7 +382,7 @@ Trench.prototype = {
   ruleOverlaps: function Trench_ruleOverlaps(position, range) {
     return (this.position - this.radius < position &&
            position < this.position + this.radius &&
-           this.activeRange.overlaps(range));
+           this.activeRange.contains(range));
   },
 
   //----------
@@ -475,27 +466,18 @@ var Trenches = {
   //   nextId - (integer) a counter for the next <Trench>'s <Trench.id> value.
   //   showDebug - (boolean) whether to draw the <Trench>es or not.
   //   defaultRadius - (integer) the default radius for new <Trench>es.
-  //   disabled - (boolean) whether trench-snapping is disabled or not.
   nextId: 0,
   showDebug: false,
   defaultRadius: 10,
-  disabled: false,
 
   // ---------
   // Variables: snapping preferences; used to break ties in snapping.
   //   preferTop - (boolean) prefer snapping to the top to the bottom
   //   preferLeft - (boolean) prefer snapping to the left to the right
   preferTop: true,
-  get preferLeft() { return !UI.rtl; },
+  preferLeft: true,
 
   trenches: [],
-
-  // ----------
-  // Function: toString
-  // Prints [Trenches count=count] for debug use
-  toString: function Trenches_toString() {
-    return "[Trenches count=" + this.trenches.length + "]";
-  },
 
   // ---------
   // Function: getById

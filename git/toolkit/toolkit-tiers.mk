@@ -49,7 +49,7 @@ tier_platform_dirs = tools/trace-malloc/lib
 endif
 
 ifdef MOZ_TREE_FREETYPE
-tier_platform_staticdirs += modules/freetype2
+tier_platform_dirs += modules/freetype2
 endif
 
 tier_platform_dirs += xpcom
@@ -58,8 +58,11 @@ ifndef MOZ_NATIVE_ZLIB
 tier_platform_dirs += modules/zlib
 endif
 
+ifndef WINCE
+tier_platform_dirs += modules/libreg
+endif
+
 tier_platform_dirs += \
-		modules/libreg \
 		modules/libpref \
 		intl \
 		netwerk \
@@ -92,11 +95,17 @@ endif
 
 tier_platform_dirs	+= gfx/qcms
 
+ifeq ($(OS_ARCH),WINCE)
+tier_platform_dirs += modules/lib7z
+endif
+
 #
 # "gecko" - core components
 #
 
+ifdef MOZ_IPC
 tier_platform_dirs += ipc js/ipc js/jetpack
+endif
 
 tier_platform_dirs += \
 		js/src/xpconnect \
@@ -139,17 +148,11 @@ tier_platform_dirs += \
 		$(NULL)
 endif
 
-ifdef MOZ_TREMOR
-tier_platform_dirs += \
-		media/libtremor \
-		$(NULL)
-endif
-
 ifdef MOZ_WEBM
-tier_platform_dirs += media/libnestegg
-ifndef MOZ_NATIVE_LIBVPX
-tier_platform_dirs += media/libvpx
-endif
+tier_platform_dirs += \
+		media/libnestegg \
+		media/libvpx \
+		$(NULL)
 endif
 
 ifdef MOZ_OGG
@@ -172,6 +175,7 @@ tier_platform_dirs	+= \
 		parser \
 		gfx \
 		modules/libpr0n \
+		modules/plugin \
 		dom \
 		view \
 		widget \
@@ -179,6 +183,7 @@ tier_platform_dirs	+= \
 		editor \
 		layout \
 		docshell \
+		webshell \
 		embedding \
 		xpfe/appshell \
 		$(NULL)
@@ -224,24 +229,28 @@ ifdef MOZ_PREF_EXTENSIONS
 tier_platform_dirs += extensions/pref
 endif
 
-tier_platform_dirs += services/crypto/component
+# JavaXPCOM JNI code is compiled into libXUL
+ifdef MOZ_JAVAXPCOM
+tier_platform_dirs += extensions/java/xpcom/src
+endif
 
+ifndef BUILD_STATIC_LIBS
+ifneq (,$(MOZ_ENABLE_GTK2))
+tier_platform_dirs += embedding/browser/gtk
+endif
+endif
+
+ifdef MOZ_ENABLE_LIBXUL
 tier_platform_dirs += startupcache
-
-ifdef APP_LIBXUL_STATICDIRS
-# Applications can cheat and ask for code to be
-# built before libxul so libxul can be linked against it.
-tier_platform_staticdirs += $(APP_LIBXUL_STATICDIRS)
-endif
-ifdef APP_LIBXUL_DIRS
-# Applications can cheat and ask for code to be
-# built before libxul so it can be linked into libxul.
-tier_platform_dirs += $(APP_LIBXUL_DIRS)
 endif
 
+ifndef BUILD_STATIC_LIBS
 tier_platform_dirs += toolkit/library
+endif
 
+ifdef MOZ_ENABLE_LIBXUL
 tier_platform_dirs += xpcom/stub
+endif
 
 ifdef NS_TRACE_MALLOC
 tier_platform_dirs += tools/trace-malloc
@@ -264,6 +273,11 @@ endif
 
 ifdef MOZ_MAPINFO
 tier_platform_dirs	+= tools/codesighs
+endif
+
+ifdef MOZ_SERVICES_SYNC
+tier_platform_dirs += services/crypto
+tier_platform_dirs += services/sync
 endif
 
 ifdef ENABLE_TESTS

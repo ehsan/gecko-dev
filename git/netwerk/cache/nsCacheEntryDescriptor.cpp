@@ -54,8 +54,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsCacheEntryDescriptor,
 nsCacheEntryDescriptor::nsCacheEntryDescriptor(nsCacheEntry * entry,
                                                nsCacheAccessMode accessGranted)
     : mCacheEntry(entry),
-      mAccessGranted(accessGranted),
-      mOutput(nsnull)
+      mAccessGranted(accessGranted)
 {
     PR_INIT_CLIST(this);
     NS_ADDREF(nsCacheService::GlobalInstance());  // ensure it lives for the lifetime of the descriptor
@@ -187,25 +186,6 @@ NS_IMETHODIMP nsCacheEntryDescriptor::IsStreamBased(PRBool *result)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsCacheEntryDescriptor::GetPredictedDataSize(PRInt64 *result)
-{
-    NS_ENSURE_ARG_POINTER(result);
-    nsCacheServiceAutoLock lock;
-    if (!mCacheEntry) return NS_ERROR_NOT_AVAILABLE;
-
-    *result = mCacheEntry->PredictedDataSize();
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsCacheEntryDescriptor::SetPredictedDataSize(PRInt64
-                                                           predictedSize)
-{
-    nsCacheServiceAutoLock lock;
-    if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
-
-    mCacheEntry->SetPredictedDataSize(predictedSize);
-    return NS_OK;
-}
 
 NS_IMETHODIMP nsCacheEntryDescriptor::GetDataSize(PRUint32 *result)
 {
@@ -609,34 +589,20 @@ nsOutputStreamWrapper::LazyInit()
     nsCacheEntry* cacheEntry = mDescriptor->CacheEntry();
     if (!cacheEntry) return NS_ERROR_NOT_AVAILABLE;
 
-    NS_ASSERTION(mOutput == nsnull, "mOutput set in LazyInit");
-
-    nsCOMPtr<nsIOutputStream> stream;
     rv = nsCacheService::OpenOutputStreamForEntry(cacheEntry, mode, mStartOffset,
-                                                  getter_AddRefs(stream));
-    if (NS_FAILED(rv))
-        return rv;
+                                                  getter_AddRefs(mOutput));
+    if (NS_FAILED(rv)) return rv;
 
     nsCacheDevice* device = cacheEntry->CacheDevice();
-    if (device) {
-        // the entry has been truncated to mStartOffset bytes, inform device
-        PRInt32 size = cacheEntry->DataSize();
-        rv = device->OnDataSizeChange(cacheEntry, mStartOffset - size);
-        if (NS_SUCCEEDED(rv))
-            cacheEntry->SetDataSize(mStartOffset);
-    } else {
-        rv = NS_ERROR_NOT_AVAILABLE;
-    }
+    if (!device) return NS_ERROR_NOT_AVAILABLE;
 
-    // If anything above failed, clean up internal state and get out of here
-    // (see bug #654926)...
-    if (NS_FAILED(rv)) {
-        mDescriptor->InternalCleanup(stream);
-        return rv;
-    }
+    // the entry has been truncated to mStartOffset bytes, inform the device.
+    PRInt32 size = cacheEntry->DataSize();
+    rv = device->OnDataSizeChange(cacheEntry, mStartOffset - size);
+    if (NS_FAILED(rv)) return rv;
 
-    // ... otherwise, set members and mark initialized
-    mDescriptor->mOutput = mOutput = stream;
+    cacheEntry->SetDataSize(mStartOffset);
+
     mInitialized = PR_TRUE;
     return NS_OK;
 }
@@ -685,6 +651,7 @@ nsOutputStreamWrapper::WriteFrom(nsIInputStream * inStr,
                                  PRUint32         count,
                                  PRUint32 *       result)
 {
+    NS_NOTREACHED("cache stream not buffered");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -694,6 +661,7 @@ nsOutputStreamWrapper::WriteSegments(nsReadSegmentFun  reader,
                                      PRUint32          count,
                                      PRUint32 *        result)
 {
+    NS_NOTREACHED("cache stream not buffered");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 

@@ -40,6 +40,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsIRenderingContext.h"
 #include "nsCSSRendering.h"
 #include "nsIContent.h"
 #include "prinrval.h"
@@ -47,7 +48,7 @@
 #include "nsHTMLParts.h"
 #include "nsIPresShell.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -90,7 +91,7 @@ nsTableOuterFrame::GetBaseline() const
 }
 
 /* virtual */ nsSize
-nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsTableCaptionFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aCBSize, nscoord aAvailableWidth,
                                      nsSize aMargin, nsSize aBorder,
                                      nsSize aPadding, PRBool aShrinkWrap)
@@ -149,7 +150,7 @@ already_AddRefed<nsAccessible>
 nsTableCaptionFrame::CreateAccessible()
 {
   if (!GetRect().IsEmpty()) {
-    nsAccessibilityService* accService = nsIPresShell::AccService();
+    nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
       return accService->CreateHTMLCaptionAccessible(mContent,
                                                      PresContext()->PresShell());
@@ -195,7 +196,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 already_AddRefed<nsAccessible>
 nsTableOuterFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLTableAccessible(mContent,
                                                  PresContext()->PresShell());
@@ -227,7 +229,7 @@ nsTableOuterFrame::GetChildList(nsIAtom* aListName) const
   if (!aListName) {
     return mFrames;
   }
-  return nsHTMLContainerFrame::GetChildList(aListName);
+  return nsFrameList::EmptyList();
 }
 
 nsIAtom*
@@ -236,7 +238,7 @@ nsTableOuterFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   if (aIndex == NS_TABLE_FRAME_CAPTION_LIST_INDEX) {
     return nsGkAtoms::captionList;
   }
-  return nsHTMLContainerFrame::GetAdditionalChildListName(aIndex);
+  return nsnull;
 }
 
 NS_IMETHODIMP 
@@ -493,7 +495,7 @@ GetContainingBlockSize(const nsHTMLReflowState& aOuterRS)
 }
 
 /* virtual */ nscoord
-nsTableOuterFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsTableOuterFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord width = nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
                     mInnerTableFrame, nsLayoutUtils::MIN_WIDTH);
@@ -514,7 +516,7 @@ nsTableOuterFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsTableOuterFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsTableOuterFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord maxWidth;
   DISPLAY_PREF_WIDTH(this, maxWidth);
@@ -562,7 +564,7 @@ nsTableOuterFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 // aMarginResult is non-null, fill it with the part of the margin-width
 // that was contributed by the margin.
 static nscoord
-ChildShrinkWrapWidth(nsRenderingContext *aRenderingContext,
+ChildShrinkWrapWidth(nsIRenderingContext *aRenderingContext,
                      nsIFrame *aChildFrame,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nscoord *aMarginResult = nsnull)
@@ -587,7 +589,7 @@ ChildShrinkWrapWidth(nsRenderingContext *aRenderingContext,
 }
 
 /* virtual */ nsSize
-nsTableOuterFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsTableOuterFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                    nsSize aCBSize, nscoord aAvailableWidth,
                                    nsSize aMargin, nsSize aBorder,
                                    nsSize aPadding, PRBool aShrinkWrap)
@@ -955,10 +957,10 @@ nsTableOuterFrame::UpdateReflowMetrics(PRUint8              aCaptionSide,
   SetDesiredSize(aCaptionSide, aInnerMargin, aCaptionMargin,
                  aMet.width, aMet.height);
 
-  aMet.SetOverflowAreasToDesiredBounds();
-  ConsiderChildOverflow(aMet.mOverflowAreas, mInnerTableFrame);
+  aMet.mOverflowArea = nsRect(0, 0, aMet.width, aMet.height);
+  ConsiderChildOverflow(aMet.mOverflowArea, mInnerTableFrame);
   if (mCaptionFrame) {
-    ConsiderChildOverflow(aMet.mOverflowAreas, mCaptionFrame);
+    ConsiderChildOverflow(aMet.mOverflowArea, mCaptionFrame);
   }
   FinishAndStoreOverflow(&aMet);
 }
@@ -1001,15 +1003,15 @@ NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
     static_cast<nsHTMLReflowState*>((void*) innerRSSpace);
 
   nsRect origInnerRect = mInnerTableFrame->GetRect();
-  nsRect origInnerVisualOverflow = mInnerTableFrame->GetVisualOverflowRect();
+  nsRect origInnerOverflowRect = mInnerTableFrame->GetOverflowRect();
   PRBool innerFirstReflow =
     (mInnerTableFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
   nsRect origCaptionRect;
-  nsRect origCaptionVisualOverflow;
+  nsRect origCaptionOverflowRect;
   PRBool captionFirstReflow;
   if (mCaptionFrame) {
     origCaptionRect = mCaptionFrame->GetRect();
-    origCaptionVisualOverflow = mCaptionFrame->GetVisualOverflowRect();
+    origCaptionOverflowRect = mCaptionFrame->GetOverflowRect();
     captionFirstReflow =
       (mCaptionFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
   }
@@ -1119,11 +1121,10 @@ NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
   innerRS->~nsHTMLReflowState();
 
   nsTableFrame::InvalidateFrame(mInnerTableFrame, origInnerRect,
-                                origInnerVisualOverflow, innerFirstReflow);
+                                origInnerOverflowRect, innerFirstReflow);
   if (mCaptionFrame) {
     nsTableFrame::InvalidateFrame(mCaptionFrame, origCaptionRect,
-                                  origCaptionVisualOverflow,
-                                  captionFirstReflow);
+                                  origCaptionOverflowRect, captionFirstReflow);
   }
 
   UpdateReflowMetrics(captionSide, aDesiredSize, innerMargin, captionMargin);

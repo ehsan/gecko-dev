@@ -72,7 +72,7 @@
 #include "nsCRT.h"
 
 // Event listeners
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIDOMMouseMotionListener.h"
 #include "nsIDOMLoadListener.h"
@@ -80,6 +80,7 @@
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMFormListener.h"
 #include "nsIDOMContextMenuListener.h"
+#include "nsIDOMEventGroup.h"
 #include "nsAttrName.h"
 
 #include "nsGkAtoms.h"
@@ -93,7 +94,7 @@
 #include "nsXBLBinding.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsGUIEvent.h"
 
 #include "prprf.h"
@@ -232,8 +233,7 @@ nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName)
     JSCLASS_NEW_RESOLVE | JSCLASS_NEW_RESOLVE_GETS_START |
     // Our one reserved slot holds the relevant nsXBLPrototypeBinding
     JSCLASS_HAS_RESERVED_SLOTS(1);
-  addProperty = delProperty = getProperty = ::JS_PropertyStub;
-  setProperty = ::JS_StrictPropertyStub;
+  addProperty = delProperty = setProperty = getProperty = ::JS_PropertyStub;
   enumerate = ::JS_EnumerateStub;
   resolve = (JSResolveOp)XBLResolve;
   convert = ::JS_ConvertStub;
@@ -313,13 +313,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLBinding)
                                             tmp->mContent);
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNextBinding)
-  delete tmp->mInsertionPointTable;
-  tmp->mInsertionPointTable = nsnull;
+  // XXX What about mNextBinding and mInsertionPointTable?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXBLBinding)
-  cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(
-                      tmp->mPrototypeBinding->XBLDocumentInfo()));
+  nsCOMPtr<nsISupports> iface = do_QueryObject(tmp->mPrototypeBinding->XBLDocumentInfo());
+  cb.NoteXPCOMChild(iface);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNextBinding, nsXBLBinding)
   if (tmp->mInsertionPointTable)
@@ -457,6 +455,14 @@ BuildContentLists(nsISupports* aKey,
   if (count == 0)
     return PL_DHASH_NEXT;
 
+  // XXX Could this array just be altered in place and passed directly to
+  // SetContentListFor?  We'd save space if we could pull this off.
+  nsInsertionPointList* contentList = new nsInsertionPointList;
+  if (!contentList) {
+    data->mRv = NS_ERROR_OUT_OF_MEMORY;
+    return PL_DHASH_STOP;
+  }
+
   // Figure out the relevant content node.
   nsXBLInsertionPoint* currPoint = aData->ElementAt(0);
   nsCOMPtr<nsIContent> parent = currPoint->GetInsertionParent();
@@ -465,14 +471,6 @@ BuildContentLists(nsISupports* aKey,
     return PL_DHASH_STOP;
   }
   PRInt32 currIndex = currPoint->GetInsertionIndex();
-
-  // XXX Could this array just be altered in place and passed directly to
-  // SetContentListFor?  We'd save space if we could pull this off.
-  nsInsertionPointList* contentList = new nsInsertionPointList;
-  if (!contentList) {
-    data->mRv = NS_ERROR_OUT_OF_MEMORY;
-    return PL_DHASH_STOP;
-  }
 
   nsCOMPtr<nsIDOMNodeList> nodeList;
   if (parent == boundElement) {
@@ -835,11 +833,12 @@ nsXBLBinding::InstallEventHandlers()
     nsXBLPrototypeHandler* handlerChain = mPrototypeBinding->GetPrototypeHandlers();
 
     if (handlerChain) {
-      nsEventListenerManager* manager =
+      nsIEventListenerManager* manager =
         mBoundElement->GetListenerManager(PR_TRUE);
       if (!manager)
         return;
 
+      nsCOMPtr<nsIDOMEventGroup> systemEventGroup;
       PRBool isChromeDoc =
         nsContentUtils::IsChromeDoc(mBoundElement->GetOwnerDoc());
       PRBool isChromeBinding = mPrototypeBinding->IsChrome();
@@ -853,18 +852,24 @@ nsXBLBinding::InstallEventHandlers()
             eventAtom == nsGkAtoms::keypress)
           continue;
 
+        // If this is a command, add it in the system event group, otherwise 
+        // add it to the standard event group.
+
+        // This is a weak ref. systemEventGroup above is already a
+        // strong ref, so we are guaranteed it will not go away.
+        nsIDOMEventGroup* eventGroup = nsnull;
+        if ((curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
+            (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
+          if (!systemEventGroup)
+            manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
+          eventGroup = systemEventGroup;
+        }
+
         nsXBLEventHandler* handler = curr->GetEventHandler();
         if (handler) {
           // Figure out if we're using capturing or not.
           PRInt32 flags = (curr->GetPhase() == NS_PHASE_CAPTURING) ?
             NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
-
-          // If this is a command, add it in the system event group
-          if ((curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND |
-                                  NS_HANDLER_TYPE_SYSTEM)) &&
-              (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
-            flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
-          }
 
           PRBool hasAllowUntrustedAttr = curr->HasAllowUntrustedAttr();
           if ((hasAllowUntrustedAttr && curr->AllowUntrustedEvents()) ||
@@ -874,7 +879,7 @@ nsXBLBinding::InstallEventHandlers()
 
           manager->AddEventListenerByType(handler,
                                           nsDependentAtomString(eventAtom),
-                                          flags);
+                                          flags, eventGroup);
         }
       }
 
@@ -891,22 +896,26 @@ nsXBLBinding::InstallEventHandlers()
         // If this is a command, add it in the system event group, otherwise 
         // add it to the standard event group.
 
+        // This is a weak ref. systemEventGroup above is already a
+        // strong ref, so we are guaranteed it will not go away.
+        nsIDOMEventGroup* eventGroup = nsnull;
+        if ((handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
+            (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
+          if (!systemEventGroup)
+            manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
+          eventGroup = systemEventGroup;
+        }
+
         // Figure out if we're using capturing or not.
         PRInt32 flags = (handler->GetPhase() == NS_PHASE_CAPTURING) ?
           NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
-
-        if ((handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND |
-                                   NS_HANDLER_TYPE_SYSTEM)) &&
-            (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
-          flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
-        }
 
         // For key handlers we have to set NS_PRIV_EVENT_UNTRUSTED_PERMITTED flag.
         // Whether the handling of the event is allowed or not is handled in
         // nsXBLKeyEventHandler::HandleEvent
         flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
 
-        manager->AddEventListenerByType(handler, type, flags);
+        manager->AddEventListenerByType(handler, type, flags, eventGroup);
       }
     }
   }
@@ -964,7 +973,9 @@ nsXBLBinding::ExecuteAttachedHandler()
   if (mNextBinding)
     mNextBinding->ExecuteAttachedHandler();
 
-  if (AllowScripts())
+  // Executing mNextBindings constructor might have caused us to loose our
+  // bound element
+  if (mBoundElement && AllowScripts())
     mPrototypeBinding->BindingAttached(mBoundElement);
 }
 
@@ -984,13 +995,14 @@ nsXBLBinding::UnhookEventHandlers()
   nsXBLPrototypeHandler* handlerChain = mPrototypeBinding->GetPrototypeHandlers();
 
   if (handlerChain) {
-    nsEventListenerManager* manager =
+    nsCOMPtr<nsIEventListenerManager> manager =
       mBoundElement->GetListenerManager(PR_FALSE);
     if (!manager) {
       return;
     }
                                       
     PRBool isChromeBinding = mPrototypeBinding->IsChrome();
+    nsCOMPtr<nsIDOMEventGroup> systemEventGroup;
     nsXBLPrototypeHandler* curr;
     for (curr = handlerChain; curr; curr = curr->GetNextHandler()) {
       nsXBLEventHandler* handler = curr->GetCachedEventHandler();
@@ -1012,15 +1024,19 @@ nsXBLBinding::UnhookEventHandlers()
       // If this is a command, remove it from the system event group,
       // otherwise remove it from the standard event group.
 
-      if ((curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND |
-                              NS_HANDLER_TYPE_SYSTEM)) &&
+      // This is a weak ref. systemEventGroup above is already a
+      // strong ref, so we are guaranteed it will not go away.
+      nsIDOMEventGroup* eventGroup = nsnull;
+      if ((curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
           (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
-        flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
+        if (!systemEventGroup)
+          manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
+        eventGroup = systemEventGroup;
       }
 
       manager->RemoveEventListenerByType(handler,
                                          nsDependentAtomString(eventAtom),
-                                         flags);
+                                         flags, eventGroup);
     }
 
     const nsCOMArray<nsXBLKeyEventHandler>* keyHandlers =
@@ -1039,12 +1055,17 @@ nsXBLBinding::UnhookEventHandlers()
       // If this is a command, remove it from the system event group, otherwise 
       // remove it from the standard event group.
 
+      // This is a weak ref. systemEventGroup above is already a
+      // strong ref, so we are guaranteed it will not go away.
+      nsIDOMEventGroup* eventGroup = nsnull;
       if ((handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
           (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
-        flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
+        if (!systemEventGroup)
+          manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
+        eventGroup = systemEventGroup;
       }
 
-      manager->RemoveEventListenerByType(handler, type, flags);
+      manager->RemoveEventListenerByType(handler, type, flags, eventGroup);
     }
   }
 }
@@ -1073,85 +1094,71 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
             nsCxPusher pusher;
             pusher.Push(cx);
 
-            nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-            nsIXPConnect *xpc = nsContentUtils::XPConnect();
+            nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
+            jsval v;
             nsresult rv =
-              xpc->GetWrappedNativeOfNativeObject(cx, scope, mBoundElement,
-                                                  NS_GET_IID(nsISupports),
-                                                  getter_AddRefs(wrapper));
+              nsContentUtils::WrapNative(cx, scope, mBoundElement, &v,
+                                         getter_AddRefs(wrapper));
             if (NS_FAILED(rv))
               return;
 
-            JSObject* scriptObject;
-            if (wrapper)
-                wrapper->GetJSObject(&scriptObject);
-            else
-                scriptObject = nsnull;
+            JSObject* scriptObject = JSVAL_TO_OBJECT(v);
 
-            if (scriptObject) {
-              // XXX Stay in sync! What if a layered binding has an
-              // <interface>?!
-              // XXXbz what does that comment mean, really?  It seems to date
-              // back to when there was such a thing as an <interface>, whever
-              // that was...
+            // XXX Stay in sync! What if a layered binding has an
+            // <interface>?!
+            // XXXbz what does that comment mean, really?  It seems to date
+            // back to when there was such a thing as an <interface>, whever
+            // that was...
 
-              // Find the right prototype.
-              JSObject* base = scriptObject;
-              JSObject* proto;
-              JSAutoRequest ar(cx);
-              JSAutoEnterCompartment ac;
-              if (!ac.enter(cx, scriptObject)) {
-                return;
-              }
-
-              for ( ; true; base = proto) { // Will break out on null proto
-                proto = ::JS_GetPrototype(cx, base);
-                if (!proto) {
-                  break;
-                }
-
-                JSClass* clazz = ::JS_GET_CLASS(cx, proto);
-                if (!clazz ||
-                    (~clazz->flags &
-                     (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) ||
-                    JSCLASS_RESERVED_SLOTS(clazz) != 1 ||
-                    clazz->resolve != (JSResolveOp)XBLResolve ||
-                    clazz->finalize != XBLFinalize) {
-                  // Clearly not the right class
-                  continue;
-                }
-
-                nsRefPtr<nsXBLDocumentInfo> docInfo =
-                  static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(cx, proto));
-                if (!docInfo) {
-                  // Not the proto we seek
-                  continue;
-                }
-
-                jsval protoBinding;
-                if (!::JS_GetReservedSlot(cx, proto, 0, &protoBinding)) {
-                  NS_ERROR("Really shouldn't happen");
-                  continue;
-                }
-
-                if (JSVAL_TO_PRIVATE(protoBinding) != mPrototypeBinding) {
-                  // Not the right binding
-                  continue;
-                }
-
-                // Alright!  This is the right prototype.  Pull it out of the
-                // proto chain.
-                JSObject* grandProto = ::JS_GetPrototype(cx, proto);
-                ::JS_SetPrototype(cx, base, grandProto);
+            // Find the right prototype.
+            JSObject* base = scriptObject;
+            JSObject* proto;
+            JSAutoRequest ar(cx);
+            for ( ; true; base = proto) { // Will break out on null proto
+              proto = ::JS_GetPrototype(cx, base);
+              if (!proto) {
                 break;
               }
 
-              mPrototypeBinding->UndefineFields(cx, scriptObject);
+              JSClass* clazz = ::JS_GET_CLASS(cx, proto);
+              if (!clazz ||
+                  (~clazz->flags &
+                   (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) ||
+                  JSCLASS_RESERVED_SLOTS(clazz) != 1) {
+                // Clearly not the right class
+                continue;
+              }
 
-              // Don't remove the reference from the document to the
-              // wrapper here since it'll be removed by the element
-              // itself when that's taken out of the document.
+              nsRefPtr<nsXBLDocumentInfo> docInfo =
+                static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(cx, proto));
+              if (!docInfo) {
+                // Not the proto we seek
+                continue;
+              }
+              
+              jsval protoBinding;
+              if (!::JS_GetReservedSlot(cx, proto, 0, &protoBinding)) {
+                NS_ERROR("Really shouldn't happen");
+                continue;
+              }
+
+              if (JSVAL_TO_PRIVATE(protoBinding) != mPrototypeBinding) {
+                // Not the right binding
+                continue;
+              }
+
+              // Alright!  This is the right prototype.  Pull it out of the
+              // proto chain.
+              JSObject* grandProto = ::JS_GetPrototype(cx, proto);
+              ::JS_SetPrototype(cx, base, grandProto);
+              break;
             }
+
+            mPrototypeBinding->UndefineFields(cx, scriptObject);
+
+            // Don't remove the reference from the document to the
+            // wrapper here since it'll be removed by the element
+            // itself when that's taken out of the document.
           }
         }
       }
@@ -1232,16 +1239,11 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 {
   // First ensure our JS class is initialized.
   jsval val;
-  JSObject* proto = NULL;
+  JSObject* proto;
 
   nsCAutoString className(aClassName);
   JSObject* parent_proto = nsnull;  // If we have an "obj" we can set this
   JSAutoRequest ar(cx);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, global))
-      return NS_ERROR_FAILURE;
-
   if (obj) {
     // Retrieve the current prototype of obj.
     parent_proto = ::JS_GetPrototype(cx, obj);
@@ -1340,10 +1342,6 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 
     // Keep this proto binding alive while we're alive.  Do this first so that
     // we can guarantee that in XBLFinalize this will be non-null.
-    // Note that we can't just store aProtoBinding in the private and
-    // addref/release the nsXBLDocumentInfo through it, because cycle
-    // collection doesn't seem to work right if the private is not an
-    // nsISupports.
     nsXBLDocumentInfo* docInfo = aProtoBinding->XBLDocumentInfo();
     ::JS_SetPrivate(cx, proto, docInfo);
     NS_ADDREF(docInfo);
@@ -1386,7 +1384,7 @@ nsXBLBinding::AllowScripts()
     return PR_FALSE;
   }
 
-  nsIDocument* doc = mBoundElement ? mBoundElement->GetOwnerDoc() : nsnull;
+  nsIDocument* doc = mBoundElement->GetOwnerDoc();
   if (!doc) {
     return PR_FALSE;
   }

@@ -14,7 +14,8 @@
    -
    - The Original Code is mozilla.org code.
    -
-   - The Initial Developer of the Original Code is the Mozilla Foundation.
+   - The Initial Developer of the Original Code is
+   - Mozilla Corp
    - Portions created by the Initial Developer are Copyright (C) 2007
    - the Initial Developer. All Rights Reserved.
    -
@@ -46,8 +47,8 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" 
         title="&exceptionMgr.title;"
         buttons="cancel,extra1,extra2"
-        buttonlabelextra1="&exceptionMgr.exceptionButton.label;"
-        buttonaccesskeyextra1="&exceptionMgr.exceptionButton.accesskey;"
+        buttonlabelextra1="&exceptionMgr.exceptionButton;"
+        buttonaccesskeyextra1="&exceptionMgr.exceptionButtonAccess;"
         style="width: 500px; height: 480px;"
         onload="initExceptionDialog();"
         ondialogextra1="addException();"

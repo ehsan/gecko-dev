@@ -44,9 +44,7 @@
 
 /* ::::: menu/menuitem ::::: */
 
-menu,
-menuitem,
-.splitmenu-menuitem {
+menu, menuitem {
   -moz-appearance: menuitem;
   -moz-box-align: center;
   max-width: 42em;
@@ -54,6 +52,9 @@ menuitem,
   font: menu;
   list-style-image: none;
   -moz-image-region: auto;
+  /* 3px is the default padding value. See the big comment under moz_gtk_check_menu_item_paint()
+     in widget/src/gtk2/gtk2drawing.c and bug 406129 for why we're hardcoding this. */
+  padding: 0px 3px;
 }
 
 menuitem[default="true"] {
@@ -61,15 +62,13 @@ menuitem[default="true"] {
 }
 
 menu[_moz-menuactive="true"],
-menuitem[_moz-menuactive="true"],
-.splitmenu-menuitem[_moz-menuactive="true"] {
+menuitem[_moz-menuactive="true"] {
   color: -moz-menuhovertext;
   background-color: -moz-menuhover;
 }
 
 menu[disabled="true"],
-menuitem[disabled="true"],
-.splitmenu-menuitem[disabled="true"] {
+menuitem[disabled="true"] {
   color: GrayText;
 }
 
@@ -87,7 +86,7 @@ menubar:-moz-lwtheme > menu:not([open="true"]) {
   text-shadow: inherit;
 }
 
-menubar > menu[_moz-menuactive="true"]:not([open]):not([disabled="true"]):not(:-moz-lwtheme) {
+menubar > menu[_moz-menuactive="true"] {
   color: -moz-menubartext;
 }
 
@@ -105,7 +104,10 @@ menuitem.spell-suggestion {
 menulist > menupopup > menuitem,
 .menulist-menupopup > menu,
 menulist > menupopup > menu {
-  padding: 1px 5px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  -moz-padding-start: 1px;
+  -moz-padding-end: 30px;
   max-width: none;
   font: message-box;
 }

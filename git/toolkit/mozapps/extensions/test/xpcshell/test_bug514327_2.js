@@ -54,10 +54,6 @@ function get_test_plugintag() {
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9");
 
-  var blocklistFile = gProfD.clone();
-  blocklistFile.append("blocklist.xml");
-  if (blocklistFile.exists())
-    blocklistFile.remove(false);
   var source = do_get_file("data/test_bug514327_2.xml");
   source.copyTo(gProfD, "blocklist.xml");
 
@@ -68,13 +64,9 @@ function run_test() {
   if (!plugin)
     do_throw("Plugin tag not found");
 
-  //run the code after the blocklist is closed
-  Services.obs.notifyObservers(null, "addon-blocklist-closed", null);
-  do_execute_soon(function() {
-    // should be marked as outdated by the blocklist
-    do_check_true(blocklist.getPluginBlocklistState(plugin, "1", "1.9") == nsIBLS.STATE_OUTDATED);
+  // should be marked as outdated by the blocklist
+  do_check_true(blocklist.getPluginBlocklistState(plugin, "1", "1.9") == nsIBLS.STATE_OUTDATED);
 
-    // should indicate that a warning should be shown
-    do_check_true(prefs.getBoolPref("plugins.update.notifyUser"));
-  });
+  // should indicate that a warning should be shown
+  do_check_true(prefs.getBoolPref("plugins.update.notifyUser"));
 }

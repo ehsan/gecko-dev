@@ -51,19 +51,12 @@ CPPSRCS = \
   MozillaRuntimeMain.cpp \
   $(NULL)
 
-ifeq (Android,$(OS_TARGET))
-WRAP_MALLOC_CFLAGS =
-WRAP_MALLOC_LIB =
-CPPSRCS = MozillaRuntimeMainAndroid.cpp
-else
 LIBS += \
   $(XPCOM_LIBS) \
   $(NSPR_LIBS) \
   $(NULL)
-endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 
 ifndef MOZ_WINCONSOLE
 ifdef MOZ_DEBUG
@@ -83,7 +76,15 @@ include $(topsrcdir)/ipc/chromium/chromium-config.mk
 ifdef _MSC_VER
 # Always enter a Windows program through wmain, whether or not we're
 # a console application.
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+else
 WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
+endif
+
+ifdef WINCE
+EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,corelibc)
 endif
 
 ifeq ($(OS_ARCH),WINNT)
@@ -91,9 +92,7 @@ OS_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 oleaut32 v
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 msimg32)
 endif
 
-ifneq (Android,$(OS_TARGET))
 LIBS += $(JEMALLOC_LIBS)
-endif
 
 include $(topsrcdir)/config/rules.mk
 

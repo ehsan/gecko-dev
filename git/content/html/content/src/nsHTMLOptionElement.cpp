@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLOptionElement.h"
-#include "nsHTMLSelectElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMEventTarget.h"
@@ -49,7 +48,9 @@
 #include "nsIForm.h"
 #include "nsIDOMText.h"
 #include "nsIDOMNode.h"
+#include "nsGenericElement.h"
 #include "nsIDOMHTMLCollection.h"
+#include "nsISelectElement.h"
 #include "nsISelectControlFrame.h"
 
 // Notify/query select frame for selected state
@@ -59,33 +60,11 @@
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsCOMPtr.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
-
-using namespace mozilla::dom;
-
-/**
- * This macro is similar to NS_IMPL_STRING_ATTR except that the getter method
- * falls back to GetText if the content attribute isn't set. GetText returns a
- * whitespace compressed .textContent value.
- */
-#define NS_IMPL_STRING_ATTR_WITH_TEXTCONTENT(_class, _method, _atom) \
-  NS_IMETHODIMP                                                      \
-  _class::Get##_method(nsAString& aValue)                            \
-  {                                                                  \
-    if (!GetAttr(kNameSpaceID_None, nsGkAtoms::_atom, aValue)) {     \
-      GetText(aValue);                                               \
-    }                                                                \
-    return NS_OK;                                                    \
-  }                                                                  \
-  NS_IMETHODIMP                                                      \
-  _class::Set##_method(const nsAString& aValue)                      \
-  {                                                                  \
-    return SetAttrHelper(nsGkAtoms::_atom, aValue);                  \
-  }
 
 /**
  * Implementation of &lt;option&gt;
@@ -93,7 +72,7 @@ using namespace mozilla::dom;
 
 nsGenericHTMLElement*
 NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        FromParser aFromParser)
+                        PRUint32 aFromParser)
 {
   /*
    * nsHTMLOptionElement's will be created without a nsINodeInfo passed in
@@ -107,8 +86,7 @@ NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nsnull,
-                                                   kNameSpaceID_XHTML,
-                                                   nsIDOMNode::ELEMENT_NODE);
+                                                   kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
@@ -121,8 +99,6 @@ nsHTMLOptionElement::nsHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo
     mIsSelected(PR_FALSE),
     mIsInSetDefaultSelected(PR_FALSE)
 {
-  // We start off enabled
-  AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
 
 nsHTMLOptionElement::~nsHTMLOptionElement()
@@ -157,7 +133,8 @@ nsHTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
   NS_ENSURE_ARG_POINTER(aForm);
   *aForm = nsnull;
 
-  nsHTMLSelectElement* selectControl = GetSelect();
+  nsCOMPtr<nsIDOMHTMLSelectElement> selectControl =
+    do_QueryInterface(GetSelect());
 
   if (selectControl) {
     selectControl->GetForm(aForm);
@@ -172,11 +149,34 @@ nsHTMLOptionElement::SetSelectedInternal(PRBool aValue, PRBool aNotify)
   mSelectedChanged = PR_TRUE;
   mIsSelected = aValue;
 
-  // When mIsInSetDefaultSelected is true, the state change will be handled by
+  // When mIsInSetDefaultSelected is true, the notification will be handled by
   // SetAttr/UnsetAttr.
-  if (!mIsInSetDefaultSelected) {
-    UpdateState(aNotify);
+  if (aNotify && !mIsInSetDefaultSelected) {
+    nsIDocument* document = GetCurrentDoc();
+    if (document) {
+      mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, aNotify);
+      document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_CHECKED);
+    }
   }
+}
+
+NS_IMETHODIMP
+nsHTMLOptionElement::SetValue(const nsAString& aValue)
+{
+  SetAttr(kNameSpaceID_None, nsGkAtoms::value, aValue, PR_TRUE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLOptionElement::GetValue(nsAString& aValue)
+{
+  // If the value attr is there, that is *exactly* what we use.  If it is
+  // not, we compress whitespace .text.
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::value, aValue)) {
+    GetText(aValue);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP 
@@ -199,7 +199,7 @@ nsHTMLOptionElement::SetSelected(PRBool aValue)
 {
   // Note: The select content obj maintains all the PresState
   // so defer to it to get the answer
-  nsHTMLSelectElement* selectInt = GetSelect();
+  nsCOMPtr<nsISelectElement> selectInt = do_QueryInterface(GetSelect());
   if (selectInt) {
     PRInt32 index;
     GetIndex(&index);
@@ -216,8 +216,8 @@ nsHTMLOptionElement::SetSelected(PRBool aValue)
 }
 
 NS_IMPL_BOOL_ATTR(nsHTMLOptionElement, DefaultSelected, selected)
-NS_IMPL_STRING_ATTR_WITH_TEXTCONTENT(nsHTMLOptionElement, Label, label)
-NS_IMPL_STRING_ATTR_WITH_TEXTCONTENT(nsHTMLOptionElement, Value, value)
+NS_IMPL_STRING_ATTR(nsHTMLOptionElement, Label, label)
+//NS_IMPL_STRING_ATTR(nsHTMLOptionElement, Value, value)
 NS_IMPL_BOOL_ATTR(nsHTMLOptionElement, Disabled, disabled)
 
 NS_IMETHODIMP 
@@ -228,7 +228,8 @@ nsHTMLOptionElement::GetIndex(PRInt32* aIndex)
   *aIndex = -1; // -1 indicates the index was not found
 
   // Get our containing select content object.
-  nsHTMLSelectElement* selectElement = GetSelect();
+  nsCOMPtr<nsIDOMHTMLSelectElement> selectElement =
+    do_QueryInterface(GetSelect());
 
   if (selectElement) {
     // Get the options from the select object.
@@ -285,9 +286,9 @@ nsHTMLOptionElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   }
   
   // We just changed out selected state (since we look at the "selected"
-  // attribute when mSelectedChanged is false).  Let's tell our select about
+  // attribute when mSelectedChanged is false.  Let's tell our select about
   // it.
-  nsHTMLSelectElement* selectInt = GetSelect();
+  nsCOMPtr<nsISelectElement> selectInt = do_QueryInterface(GetSelect());
   if (!selectInt) {
     return NS_OK;
   }
@@ -337,10 +338,10 @@ nsHTMLOptionElement::SetText(const nsAString& aText)
   return nsContentUtils::SetNodeTextContent(this, aText, PR_TRUE);
 }
 
-nsEventStates
+PRInt32
 nsHTMLOptionElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLElement::IntrinsicState();
   // Nasty hack because we need to call an interface method, and one that
   // toggles some of our hidden internal state at that!  Would that we could
   // use |mutable|.
@@ -356,7 +357,9 @@ nsHTMLOptionElement::IntrinsicState() const
     state |= NS_EVENT_STATE_DEFAULT;
   }
 
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRBool disabled;
+  GetBoolAttr(nsGkAtoms::disabled, &disabled);
+  if (disabled) {
     state |= NS_EVENT_STATE_DISABLED;
     state &= ~NS_EVENT_STATE_ENABLED;
   } else {
@@ -368,14 +371,14 @@ nsHTMLOptionElement::IntrinsicState() const
 }
 
 // Get the select content element that contains this option
-nsHTMLSelectElement*
+nsIContent*
 nsHTMLOptionElement::GetSelect()
 {
   nsIContent* parent = this;
   while ((parent = parent->GetParent()) &&
          parent->IsHTML()) {
     if (parent->Tag() == nsGkAtoms::select) {
-      return nsHTMLSelectElement::FromContent(parent);
+      return parent;
     }
     if (parent->Tag() != nsGkAtoms::optgroup) {
       break;
@@ -409,13 +412,10 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
       return result;
     }
 
-    size_t length;
-    const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-    if (!chars) {
-      return NS_ERROR_FAILURE;
-    }
-
-    textContent->SetText(chars, length, PR_FALSE);
+    textContent->SetText(reinterpret_cast<const PRUnichar*>
+                                         (JS_GetStringChars(jsstr)),
+                         JS_GetStringLength(jsstr),
+                         PR_FALSE);
     
     result = AppendChildTo(textContent, PR_FALSE);
     if (NS_FAILED(result)) {
@@ -429,14 +429,9 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
         return NS_ERROR_FAILURE;
       }
 
-      size_t length;
-      const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-      if (!chars) {
-        return NS_ERROR_FAILURE;
-      }
-
       // Set the value attribute for this element
-      nsAutoString value(chars, length);
+      nsAutoString value(reinterpret_cast<const PRUnichar*>
+                                         (JS_GetStringChars(jsstr)));
 
       result = SetAttr(kNameSpaceID_None, nsGkAtoms::value, value,
                        PR_FALSE);

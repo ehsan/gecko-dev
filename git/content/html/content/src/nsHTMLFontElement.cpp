@@ -39,9 +39,11 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
+#include "nsIDeviceContext.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsMappedAttributes.h"
+#include "nsCSSStruct.h"
 #include "nsRuleData.h"
 #include "nsIDocument.h"
 
@@ -184,22 +186,23 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                       nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
+    nsRuleDataFont& font = *(aData->mFontData);
+    
     // face: string list
-    nsCSSValue* family = aData->ValueForFontFamily();
-    if (family->GetUnit() == eCSSUnit_Null) {
+    if (font.mFamily.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::face);
       if (value && value->Type() == nsAttrValue::eString &&
           !value->IsEmptyString()) {
-        family->SetStringValue(value->GetStringValue(), eCSSUnit_Families);
+        font.mFamily.SetStringValue(value->GetStringValue(), eCSSUnit_Families);
+        font.mFamilyFromHTML = PR_TRUE;
       }
     }
 
     // pointSize: int
-    nsCSSValue* fontSize = aData->ValueForFontSize();
-    if (fontSize->GetUnit() == eCSSUnit_Null) {
+    if (font.mSize.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::pointSize);
       if (value && value->Type() == nsAttrValue::eInteger)
-        fontSize->SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Point);
+        font.mSize.SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Point);
       else {
         // size: int, enum , 
         value = aAttributes->GetAttr(nsGkAtoms::size);
@@ -213,45 +216,43 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
               size = value->GetIntegerValue();
 
             size = ((0 < size) ? ((size < 8) ? size : 7) : 1); 
-            fontSize->SetIntValue(size, eCSSUnit_Enumerated);
+            font.mSize.SetIntValue(size, eCSSUnit_Enumerated);
           }
         }
       }
     }
 
     // fontWeight: int
-    nsCSSValue* fontWeight = aData->ValueForFontWeight();
-    if (fontWeight->GetUnit() == eCSSUnit_Null) {
+    if (font.mWeight.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::fontWeight);
       if (value && value->Type() == nsAttrValue::eInteger) // +/-
-        fontWeight->SetIntValue(value->GetIntegerValue(), eCSSUnit_Integer);
+        font.mWeight.SetIntValue(value->GetIntegerValue(), eCSSUnit_Integer);
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
-    nsCSSValue* colorValue = aData->ValueForColor();
-    if (colorValue->GetUnit() == eCSSUnit_Null &&
+    if (aData->mColorData->mColor.GetUnit() == eCSSUnit_Null &&
         aData->mPresContext->UseDocumentColors()) {
       // color: color
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::color);
       nscolor color;
       if (value && value->GetColorValue(color)) {
-        colorValue->SetColorValue(color);
+        aData->mColorData->mColor.SetColorValue(color);
       }
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(TextReset)) {
     // Make <a><font color="red">text</font></a> give the text a red underline
-    // in quirks mode.  The NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL flag only
+    // in quirks mode.  The NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL flag only
     // affects quirks mode rendering.
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::color);
     nscolor color;
     if (value && value->GetColorValue(color)) {
-      nsCSSValue* decoration = aData->ValueForTextDecorationLine();
-      PRInt32 newValue = NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL;
-      if (decoration->GetUnit() == eCSSUnit_Enumerated) {
-        newValue |= decoration->GetIntValue();
+      nsCSSValue& decoration = aData->mTextData->mDecoration;
+      PRInt32 newValue = NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL;
+      if (decoration.GetUnit() == eCSSUnit_Enumerated) {
+        newValue |= decoration.GetIntValue();
       }
-      decoration->SetIntValue(newValue, eCSSUnit_Enumerated);
+      decoration.SetIntValue(newValue, eCSSUnit_Enumerated);
     }
   }
 

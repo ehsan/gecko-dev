@@ -22,20 +22,22 @@
         <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,tooltiptext=inputtooltiptext">
           <children/>
           <html:input anonid="input" class="autocomplete-textbox textbox-input"
-                      allowevents="true"
-                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint,userAction"/>
+                      flex="1" allowevents="true"
+                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,userAction"/>
         </xul:hbox>
         <children includes="hbox"/>
       </xul:hbox>
 
       <xul:dropmarker class="autocomplete-history-dropmarker" allowevents="true"
-                      xbl:inherits="open,enablehistory" anonid="historydropmarker"/>
+                      xbl:inherits="open,hidden=disablehistory" anonid="historydropmarker"/>
 
       <xul:popupset>
         <xul:panel type="autocomplete" anonid="popup"
                    ignorekeys="true" noautofocus="true" level="top"
                    xbl:inherits="for=id,nomatch"/>
       </xul:popupset>
+      
+      <children includes="menupopup"/>
     </content>
 
     <implementation implements="nsIDOMXULMenuListElement, nsIAccessibleProvider">
@@ -53,6 +55,7 @@
         this.ifSetAttribute("timeout", 50);
         this.ifSetAttribute("maxrows", 5);
         this.ifSetAttribute("showpopup", true);
+        this.ifSetAttribute("disablehistory", true);
         this.ifSetAttribute("disableKeyNavigation", true);
         
         // initialize the search sessions
@@ -1005,7 +1008,7 @@
             // Alt+Down falls through to history popup toggling code
               
             case KeyEvent.DOM_VK_F4:
-              if (!aEvent.ctrlKey && !aEvent.shiftKey && this.getAttribute("enablehistory") == "true") {
+              if (!aEvent.ctrlKey && !aEvent.shiftKey && this.getAttribute("disablehistory") != "true") {
                 var historyPopup = document.getAnonymousElementByAttribute(this, "anonid", "historydropmarker");
                 if (historyPopup)
                   historyPopup.showPopup();
@@ -1480,11 +1483,6 @@
           this.initialize();
       ]]></constructor>
 
-      <destructor><![CDATA[
-        if (this.view)
-          this.tree.view = null;
-      ]]></destructor>
-
       <field name="textbox">
         document.getBindingParent(this);
       </field>
@@ -1513,7 +1511,6 @@
      <property name="pageCount"
                onget="return this.tree.treeBoxObject.getPageLength();"/>
 
-     <field name="maxRows">0</field>
      <field name="mLastRows">0</field>
 
       <method name="initialize">
@@ -1521,7 +1518,6 @@
         this.showCommentColumn = this.textbox.showCommentColumn;
         this.tree.view = this.textbox.view;
         this.view = this.textbox.view;
-        this.maxRows = this.textbox.maxRows;
         ]]></body>
       </method>
 
@@ -1534,7 +1530,7 @@
           // detect the desired height of the tree
           var bx = this.tree.treeBoxObject;
           var view = this.view;
-          var rows = this.maxRows || 6;
+          var rows = this.textbox ? this.textbox.maxRows : 6;
           if (!view.rowCount || (rows && view.rowCount < rows))
             rows = view.rowCount;
           
@@ -1637,7 +1633,6 @@
             this.tree.view = aInput.controller;
             this.view = this.tree.view;
             this.showCommentColumn = aInput.showCommentColumn;
-            this.maxRows = aInput.maxRows;
             this.invalidate();
 
             var viewer = aElement
@@ -1750,7 +1745,7 @@
       <method name="showPopup">
         <body><![CDATA[
           var textbox = document.getBindingParent(this);
-          var kids = textbox.getElementsByClassName("autocomplete-history-popup");
+          var kids = textbox.getElementsByTagName("menupopup");
           if (kids.item(0) && textbox.getAttribute("open") != "true") { // Open history popup
             kids[0].showPopup(textbox, -1, -1, "popup", "bottomleft", "topleft");
             textbox.setAttribute("open", "true");

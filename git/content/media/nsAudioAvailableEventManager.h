@@ -51,7 +51,6 @@ class nsAudioAvailableEventManager
 {
 public:
   nsAudioAvailableEventManager(nsBuiltinDecoder* aDecoder);
-  ~nsAudioAvailableEventManager();
 
   // Initialize the event manager with audio metadata.  Called before
   // audio begins to get queued or events are dispatched.
@@ -63,8 +62,7 @@ public:
 
   // Queues audio sample data and re-packages it into equal sized
   // framebuffers.  Called from the audio thread.
-  void QueueWrittenAudioData(SoundDataValue* aAudioData,
-                             PRUint32 aAudioDataLength,
+  void QueueWrittenAudioData(float* aAudioData, PRUint32 aAudioDataLength,
                              PRUint64 aEndTimeSampleOffset);
 
   // Clears the queue of any existing events.  Called from both the state
@@ -76,10 +74,6 @@ public:
   // Called from the state machine thread.
   void Drain(PRUint64 aTime);
 
-  // Sets the size of the signal buffer.
-  // Called from the main and the state machine thread.
-  void SetSignalBufferLength(PRUint32 aLength);
-
 private:
   // The decoder associated with the event manager.  The event manager shares
   // the same lifetime as the decoder (the decoder holds a reference to the
@@ -87,16 +81,13 @@ private:
   nsBuiltinDecoder* mDecoder;
 
   // The number of samples per second.
-  float mSamplesPerSecond;
+  PRUint64 mSamplesPerSecond;
 
   // A buffer for audio data to be dispatched in DOM events.
   nsAutoArrayPtr<float> mSignalBuffer;
 
   // The current size of the signal buffer, may change due to DOM calls.
   PRUint32 mSignalBufferLength;
-
-  // The size of the new signal buffer, may change due to DOM calls.
-  PRUint32 mNewSignalBufferLength;
 
   // The position of the first available item in mSignalBuffer
   PRUint32 mSignalBufferPosition;
@@ -105,9 +96,8 @@ private:
   // between the state machine and audio threads.
   nsTArray< nsCOMPtr<nsIRunnable> > mPendingEvents;
 
-  // ReentrantMonitor for shared access to mPendingEvents queue or
-  // buffer length.
-  ReentrantMonitor mReentrantMonitor;
+  // Monitor for shared access to mPendingEvents queue.
+  Monitor mMonitor;
 };
 
 #endif

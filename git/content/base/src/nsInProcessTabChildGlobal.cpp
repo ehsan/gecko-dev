@@ -50,12 +50,11 @@
 #include "nsIJSContextStack.h"
 #include "nsFrameLoader.h"
 #include "nsIPrivateDOMEvent.h"
-#include "xpcpublic.h"
 
 bool SendSyncMessageToParent(void* aCallbackData,
                              const nsAString& aMessage,
                              const nsAString& aJSON,
-                             InfallibleTArray<nsString>* aJSONRetVal)
+                             nsTArray<nsString>* aJSONRetVal)
 {
   nsInProcessTabChildGlobal* tabChild =
     static_cast<nsInProcessTabChildGlobal*>(aCallbackData);
@@ -68,8 +67,8 @@ bool SendSyncMessageToParent(void* aCallbackData,
     async->Run();
   }
   if (tabChild->mChromeMessageManager) {
-    nsRefPtr<nsFrameMessageManager> mm = tabChild->mChromeMessageManager;
-    mm->ReceiveMessage(owner, aMessage, PR_TRUE, aJSON, nsnull, aJSONRetVal);
+    tabChild->mChromeMessageManager->ReceiveMessage(owner, aMessage, PR_TRUE,
+                                                    aJSON, nsnull, aJSONRetVal);
   }
   return true;
 }
@@ -85,9 +84,9 @@ public:
   {
     mTabChild->mASyncMessages.RemoveElement(this);
     if (mTabChild->mChromeMessageManager) {
-      nsRefPtr<nsFrameMessageManager> mm = mTabChild->mChromeMessageManager;
-      mm->ReceiveMessage(mTabChild->mOwner, mMessage, PR_FALSE,
-                         mJSON, nsnull, nsnull);
+      mTabChild->mChromeMessageManager->ReceiveMessage(mTabChild->mOwner, mMessage,
+                                                       PR_FALSE,
+                                                       mJSON, nsnull, nsnull);
     }
     return NS_OK;
   }
@@ -120,19 +119,12 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
 nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
 {
   NS_ASSERTION(!mCx, "Couldn't release JSContext?!?");
-
-  if (mListenerManager) {
-    mListenerManager->Disconnect();
-  }
 }
 
 nsresult
 nsInProcessTabChildGlobal::Init()
 {
-#ifdef DEBUG
-  nsresult rv =
-#endif
-  InitTabChildGlobal();
+  nsresult rv = InitTabChildGlobal();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                    "Couldn't initialize nsInProcessTabChildGlobal");
   mMessageManager = new nsFrameMessageManager(PR_FALSE,
@@ -156,12 +148,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsInProcessTabChildGlobal,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMessageManager)
-  nsFrameScriptExecutor::Traverse(tmp, cb);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobal)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsInProcessTabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIFrameMessageManager)
-  NS_INTERFACE_MAP_ENTRY(nsISyncMessageSender)
   NS_INTERFACE_MAP_ENTRY(nsIContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIInProcessContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)
@@ -186,12 +177,6 @@ nsInProcessTabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
 {
   NS_IF_ADDREF(*aDocShell = mDocShell);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsInProcessTabChildGlobal::PrivateNoteIntentionalCrash()
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void
@@ -294,13 +279,27 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   nsContentUtils::XPConnect()->SetSecurityManagerForJSContext(cx, nsContentUtils::GetSecurityManager(), 0);
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
-  JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+  PRUint32 stackDummy;
+  jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
 
-  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_PRIVATE_IS_NSISUPPORTS);
+  // 256k stack space.
+  const jsuword kStackSize = 0x40000;
+
+#if JS_STACK_GROWTH_DIRECTION < 0
+  stackLimit = (currentStackAddr > kStackSize) ?
+               currentStackAddr - kStackSize :
+               0;
+#else
+  stackLimit = (currentStackAddr + kStackSize > currentStackAddr) ?
+               currentStackAddr + kStackSize :
+               (jsuword) -1;
+#endif
+
+  JS_SetThreadStackLimit(cx, stackLimit);
+  JS_SetScriptStackQuota(cx, 100*1024*1024);
+
+  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
-  JS_SetErrorReporter(cx, ContentScriptErrorReporter);
-
-  xpc_LocalizeContext(cx);
 
   JSAutoRequest ar(cx);
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
@@ -309,13 +308,13 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
                          nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT;
 
   nsISupports* scopeSupports =
-    NS_ISUPPORTS_CAST(nsIDOMEventTarget*, this);
+    NS_ISUPPORTS_CAST(nsPIDOMEventTarget*, this);
   JS_SetContextPrivate(cx, scopeSupports);
 
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
                                          NS_GET_IID(nsISupports),
-                                         GetPrincipal(), nsnull,
+                                         GetPrincipal(), EmptyCString(),
                                          flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -328,28 +327,9 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   return NS_OK;
 }
 
-class nsAsyncScriptLoad : public nsRunnable
-{
-public:
-  nsAsyncScriptLoad(nsInProcessTabChildGlobal* aTabChild, const nsAString& aURL)
-  : mTabChild(aTabChild), mURL(aURL) {}
-
-  NS_IMETHOD Run()
-  {
-    mTabChild->LoadFrameScript(mURL);
-    return NS_OK;
-  }
-  nsRefPtr<nsInProcessTabChildGlobal> mTabChild;
-  nsString mURL;
-};
-
 void
 nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL)
 {
-  if (!nsContentUtils::IsSafeToRunScript()) {
-    nsContentUtils::AddScriptRunner(new nsAsyncScriptLoad(this, aURL));
-    return;
-  }
   if (!mInitialized) {
     mInitialized = PR_TRUE;
     Init();

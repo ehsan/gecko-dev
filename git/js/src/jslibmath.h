@@ -53,6 +53,8 @@
 /* The right copysign function is not always named the same thing. */
 #if __GNUC__ >= 4 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4)
 #define js_copysign __builtin_copysign
+#elif defined WINCE
+#define js_copysign _copysign
 #elif defined _WIN32
 #if _MSC_VER < 1400
 /* Try to work around apparent _copysign bustage in VC7.x. */
@@ -63,12 +65,6 @@ extern double js_copysign(double, double);
 #endif
 #else
 #define js_copysign copysign
-#endif
-
-#if defined(_M_X64) && _MSC_VER <= 1500
-// This is a workaround for fmod bug (http://support.microsoft.com/kb/982107)
-extern "C" double js_myfmod(double x, double y);
-#define fmod js_myfmod
 #endif
 
 /* Consistency wrapper for platform deviations in fmod() */

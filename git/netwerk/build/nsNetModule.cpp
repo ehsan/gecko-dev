@@ -37,8 +37,10 @@
 
 #include "necko-config.h"
 
+#ifdef MOZ_IPC
 #define ALLOW_LATE_NSHTTP_H_INCLUDE 1
 #include "base/basictypes.h"
+#endif 
 
 #include "nsCOMPtr.h"
 #include "nsIClassInfoImpl.h"
@@ -59,7 +61,6 @@
 #include "nsSOCKSSocketProvider.h"
 #include "nsCacheService.h"
 #include "nsDiskCacheDeviceSQL.h"
-#include "nsApplicationCache.h"
 #include "nsMimeTypes.h"
 #include "nsNetStrings.h"
 #include "nsDNSPrefetch.h"
@@ -121,13 +122,6 @@ NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsLoadGroup, Init)
 
 #include "nsEffectiveTLDService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsEffectiveTLDService, Init)
-
-#include "nsSerializationHelper.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsSerializationHelper)
-
-#include "RedirectChannelRegistrar.h"
-typedef mozilla::net::RedirectChannelRegistrar RedirectChannelRegistrar;
-NS_GENERIC_FACTORY_CONSTRUCTOR(RedirectChannelRegistrar)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -217,7 +211,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsAboutCacheEntry)
 #ifdef NECKO_OFFLINE_CACHE
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsOfflineCacheDevice, nsOfflineCacheDevice::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCacheNamespace)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCache)
 #endif
 
 #ifdef NECKO_PROTOCOL_file
@@ -250,7 +243,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpHandler, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpsHandler, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpAuthManager, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpChannelAuthProvider)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpActivityDistributor)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpActivityDistributor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpBasicAuth)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpDigestAuth)
 #endif // !NECKO_PROTOCOL_http
@@ -274,21 +267,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsViewSourceHandler)
 
 #ifdef NECKO_PROTOCOL_data
 #include "nsDataHandler.h"
-#endif
-
-#ifdef NECKO_PROTOCOL_wyciwyg
-#include "nsWyciwygProtocolHandler.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWyciwygProtocolHandler)
-#endif
-
-#ifdef NECKO_PROTOCOL_websocket
-#include "nsWebSocketHandler.h"
-namespace mozilla {
-namespace net {
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocketHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocketSSLHandler)
-} // namespace mozilla::net
-} // namespace mozilla
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -325,12 +303,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNetworkLinkService, Init)
 #elif defined(MOZ_ENABLE_LIBCONIC)
 #include "nsMaemoNetworkLinkService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsMaemoNetworkLinkService, Init)
-#elif defined(MOZ_ENABLE_QTNETWORK)
-#include "nsQtNetworkLinkService.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsQtNetworkLinkService, Init)
-#elif defined(ANDROID)
-#include "nsAndroidNetworkLinkService.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAndroidNetworkLinkService)
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -634,11 +606,6 @@ static void nsNetShutdown()
     
     // Release DNS service reference.
     nsDNSPrefetch::Shutdown();
-
-#ifdef NECKO_PROTOCOL_websocket
-    // Release the Websocket Admission Manager
-    mozilla::net::nsWebSocketHandler::Shutdown();
-#endif // NECKO_PROTOCOL_websocket
 }
 
 NS_DEFINE_NAMED_CID(NS_IOSERVICE_CID);
@@ -664,7 +631,6 @@ NS_DEFINE_NAMED_CID(NS_STREAMLISTENERTEE_CID);
 NS_DEFINE_NAMED_CID(NS_LOADGROUP_CID);
 NS_DEFINE_NAMED_CID(NS_LOCALFILEINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_LOCALFILEOUTPUTSTREAM_CID);
-NS_DEFINE_NAMED_CID(NS_PARTIALLOCALFILEINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_SAFELOCALFILEOUTPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_URICHECKER_CID);
 NS_DEFINE_NAMED_CID(NS_INCREMENTALDOWNLOAD_CID);
@@ -734,7 +700,6 @@ NS_DEFINE_NAMED_CID(NS_CACHESERVICE_CID);
 #ifdef NECKO_OFFLINE_CACHE
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHENAMESPACE_CID);
-NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHE_CID);
 #endif
 #ifdef NECKO_COOKIES
 NS_DEFINE_NAMED_CID(NS_COOKIEMANAGER_CID);
@@ -752,26 +717,13 @@ NS_DEFINE_NAMED_CID(NS_DEVICEPROTOCOLHANDLER_CID);
 #ifdef NECKO_PROTOCOL_viewsource
 NS_DEFINE_NAMED_CID(NS_VIEWSOURCEHANDLER_CID);
 #endif
-#ifdef NECKO_PROTOCOL_wyciwyg
-NS_DEFINE_NAMED_CID(NS_WYCIWYGPROTOCOLHANDLER_CID);
-#endif
-#ifdef NECKO_PROTOCOL_websocket
-NS_DEFINE_NAMED_CID(NS_WEBSOCKETPROTOCOLHANDLER_CID);
-NS_DEFINE_NAMED_CID(NS_WEBSOCKETSSLPROTOCOLHANDLER_CID);
-#endif
 #if defined(XP_WIN)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #elif defined(MOZ_WIDGET_COCOA)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #elif defined(MOZ_ENABLE_LIBCONIC)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
-#elif defined(MOZ_ENABLE_QTNETWORK)
-NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
-#elif defined(ANDROID)
-NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #endif
-NS_DEFINE_NAMED_CID(NS_SERIALIZATION_HELPER_CID);
-NS_DEFINE_NAMED_CID(NS_REDIRECTCHANNELREGISTRAR_CID);
 
 static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_IOSERVICE_CID, false, NULL, nsIOServiceConstructor },
@@ -797,7 +749,6 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_LOADGROUP_CID, false, NULL, nsLoadGroupConstructor },
     { &kNS_LOCALFILEINPUTSTREAM_CID, false, NULL, nsFileInputStream::Create },
     { &kNS_LOCALFILEOUTPUTSTREAM_CID, false, NULL, nsFileOutputStream::Create },
-    { &kNS_PARTIALLOCALFILEINPUTSTREAM_CID, false, NULL, nsPartialFileInputStream::Create },
     { &kNS_SAFELOCALFILEOUTPUTSTREAM_CID, false, NULL, nsSafeFileOutputStreamConstructor },
     { &kNS_URICHECKER_CID, false, NULL, nsURICheckerConstructor },
     { &kNS_INCREMENTALDOWNLOAD_CID, false, NULL, net_NewIncrementalDownload },
@@ -867,7 +818,6 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
 #ifdef NECKO_OFFLINE_CACHE
     { &kNS_APPLICATIONCACHESERVICE_CID, false, NULL, nsOfflineCacheDeviceConstructor },
     { &kNS_APPLICATIONCACHENAMESPACE_CID, false, NULL, nsApplicationCacheNamespaceConstructor },
-    { &kNS_APPLICATIONCACHE_CID, false, NULL, nsApplicationCacheConstructor },
 #endif
 #ifdef NECKO_COOKIES
     { &kNS_COOKIEMANAGER_CID, false, NULL, nsICookieServiceConstructor },
@@ -885,28 +835,13 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
 #ifdef NECKO_PROTOCOL_viewsource
     { &kNS_VIEWSOURCEHANDLER_CID, false, NULL, nsViewSourceHandlerConstructor },
 #endif
-#ifdef NECKO_PROTOCOL_wyciwyg
-    { &kNS_WYCIWYGPROTOCOLHANDLER_CID, false, NULL, nsWyciwygProtocolHandlerConstructor },
-#endif
-#ifdef NECKO_PROTOCOL_websocket
-    { &kNS_WEBSOCKETPROTOCOLHANDLER_CID, false, NULL,
-      mozilla::net::nsWebSocketHandlerConstructor },
-    { &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID, false, NULL,
-      mozilla::net::nsWebSocketSSLHandlerConstructor },
-#endif
 #if defined(XP_WIN)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsNotifyAddrListenerConstructor },
 #elif defined(MOZ_WIDGET_COCOA)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsNetworkLinkServiceConstructor },
 #elif defined(MOZ_ENABLE_LIBCONIC)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsMaemoNetworkLinkServiceConstructor },
-#elif defined(MOZ_ENABLE_QTNETWORK)
-    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsQtNetworkLinkServiceConstructor },
-#elif defined(ANDROID)
-    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsAndroidNetworkLinkServiceConstructor },
 #endif
-    { &kNS_SERIALIZATION_HELPER_CID, false, NULL, nsSerializationHelperConstructor },
-    { &kNS_REDIRECTCHANNELREGISTRAR_CID, false, NULL, RedirectChannelRegistrarConstructor },
     { NULL }
 };
 
@@ -934,7 +869,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_LOADGROUP_CONTRACTID, &kNS_LOADGROUP_CID },
     { NS_LOCALFILEINPUTSTREAM_CONTRACTID, &kNS_LOCALFILEINPUTSTREAM_CID },
     { NS_LOCALFILEOUTPUTSTREAM_CONTRACTID, &kNS_LOCALFILEOUTPUTSTREAM_CID },
-    { NS_PARTIALLOCALFILEINPUTSTREAM_CONTRACTID, &kNS_PARTIALLOCALFILEINPUTSTREAM_CID },
     { NS_SAFELOCALFILEOUTPUTSTREAM_CONTRACTID, &kNS_SAFELOCALFILEOUTPUTSTREAM_CID },
     { NS_URICHECKER_CONTRACT_ID, &kNS_URICHECKER_CID },
     { NS_INCREMENTALDOWNLOAD_CONTRACTID, &kNS_INCREMENTALDOWNLOAD_CID },
@@ -1009,7 +943,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
 #ifdef NECKO_OFFLINE_CACHE
     { NS_APPLICATIONCACHESERVICE_CONTRACTID, &kNS_APPLICATIONCACHESERVICE_CID },
     { NS_APPLICATIONCACHENAMESPACE_CONTRACTID, &kNS_APPLICATIONCACHENAMESPACE_CID },
-    { NS_APPLICATIONCACHE_CONTRACTID, &kNS_APPLICATIONCACHE_CID },
 #endif
 #ifdef NECKO_COOKIES
     { NS_COOKIEMANAGER_CONTRACTID, &kNS_COOKIEMANAGER_CID },
@@ -1027,26 +960,13 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
 #ifdef NECKO_PROTOCOL_viewsource
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "view-source", &kNS_VIEWSOURCEHANDLER_CID },
 #endif
-#ifdef NECKO_PROTOCOL_wyciwyg
-    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "wyciwyg", &kNS_WYCIWYGPROTOCOLHANDLER_CID },
-#endif
-#ifdef NECKO_PROTOCOL_websocket
-    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "ws", &kNS_WEBSOCKETPROTOCOLHANDLER_CID },
-    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "wss", &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID },
-#endif
 #if defined(XP_WIN)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #elif defined(MOZ_WIDGET_COCOA)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #elif defined(MOZ_ENABLE_LIBCONIC)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
-#elif defined(MOZ_ENABLE_QTNETWORK)
-    { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
-#elif defined(ANDROID)
-    { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #endif
-    { NS_SERIALIZATION_HELPER_CONTRACTID, &kNS_SERIALIZATION_HELPER_CID },
-    { NS_REDIRECTCHANNELREGISTRAR_CONTRACTID, &kNS_REDIRECTCHANNELREGISTRAR_CID },
     { NULL }
 };
 

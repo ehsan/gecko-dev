@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -41,7 +42,7 @@
 #define __MAI_HYPERLINK_H__
 
 #include "nsMai.h"
-#include "nsAccessible.h"
+#include "nsIAccessibleHyperLink.h"
 
 struct _AtkHyperlink;
 typedef struct _AtkHyperlink                      AtkHyperlink;
@@ -53,16 +54,17 @@ typedef struct _AtkHyperlink                      AtkHyperlink;
 class MaiHyperlink
 {
 public:
-    MaiHyperlink(nsAccessible* aHyperLink);
+    MaiHyperlink(nsIAccessibleHyperLink *aAcc);
     ~MaiHyperlink();
 
 public:
     AtkHyperlink *GetAtkHyperlink(void);
-  nsAccessible* GetAccHyperlink()
-  { return mHyperlink && mHyperlink->IsLink() ? mHyperlink : nsnull; }
+    nsIAccessibleHyperLink *GetAccHyperlink(void) {
+        return mHyperlink;
+    }
 
 protected:
-    nsAccessible* mHyperlink;
+    nsIAccessibleHyperLink *mHyperlink;
     AtkHyperlink *mMaiAtkHyperlink;
 public:
     static nsresult Initialize(AtkHyperlink *aObj, MaiHyperlink *aClass);

@@ -20,15 +20,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=414796
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
-
-// File constructors should not work from non-chrome code
-try {
-  var file = File("/etc/passwd");
-  ok(false, "Did not throw on unprivileged attempt to construct a File");
-} catch (e) {
-  ok(true, "Threw on an unprivileged attempt to construct a File");
-}
-
 const minFileSize = 20000;
 var fileNum = 1;
 var testRanCounter = 0;
@@ -71,7 +62,6 @@ var nonExistingFile = fileList.files[0];
 
 // Test that plain reading works and fires events as expected, both
 // for text and binary reading
-
 var onloadHasRunText = false;
 var onloadStartHasRunText = false;
 r = new FileReader();
@@ -124,33 +114,11 @@ r.onload = getLoadHandler(testTextData,
                           "utf16 reading");
 expectedTestCount++;
 
-
-// Test loading an empty file works (and doesn't crash!)
-var emptyFile = createFileWithData("");
-dump("hello nurse");
 r = new FileReader();
-r.onload = getLoadHandler("", 0, "empty no encoding reading");
-r.readAsText(emptyFile, "");
-expectedTestCount++;
-
-r = new FileReader();
-r.onload = getLoadHandler("", 0, "empty utf8 reading");
-r.readAsText(emptyFile, "utf8");
-expectedTestCount++;
-
-r = new FileReader();
-r.onload = getLoadHandler("", 0, "empty utf16 reading");
-r.readAsText(emptyFile, "utf-16");
-expectedTestCount++;
-
-r = new FileReader();
-r.onload = getLoadHandler("", 0, "empty binary string reading");
-r.readAsBinaryString(emptyFile);
-expectedTestCount++;
-
-r = new FileReader();
-r.onload = getLoadHandler(convertToDataURL(""), 0, "empt binary string reading");
-r.readAsDataURL(emptyFile);
+r.onload = getLoadHandler(testTextData,
+                          convertToUTF32(testTextData).length,
+                          "utf32 reading");
+r.readAsText(createFileWithData(convertToUTF32(testTextData)), "UTF-32");
 expectedTestCount++;
 
 
@@ -259,13 +227,7 @@ r.onloadend = function (event) {
 r.onload = function() { ok(false, "load should not fire for aborted reads") };
 r.onerror = function() { ok(false, "error should not fire for aborted reads") };
 r.onprogress = function() { ok(false, "progress should not fire for aborted reads") };
-var abortThrew = false;
-try {
-  r.abort();
-} catch(e) {
-  abortThrew = true;
-}
-is(abortThrew, true, "abort() must throw if not loading");
+r.abort();
 is(abortHasRun, false, "abort() is a no-op unless loading");
 r.readAsText(asciiFile);
 r.abort();
@@ -283,13 +245,7 @@ r.onabort = function (event) {
   is(event.target.result, null, "file data should be null on aborted reads");
 }
 r.onload = function() { ok(false, "load should not fire for aborted reads") };
-var abortThrew = false;
-try {
-  r.abort();
-} catch(e) {
-  abortThrew = true;
-}
-is(abortThrew, true, "abort() must throw if not loading");
+r.abort();
 is(reuseAbortHasRun, false, "abort() is a no-op unless loading");
 r.readAsText(asciiFile);
 r.readAsText(asciiFile);
@@ -361,6 +317,15 @@ function convertToUTF16(s) {
   for (var i = 0; i < s.length; ++i) {
     c = s.charCodeAt(i);
     res += String.fromCharCode(c >>> 8, c & 255);
+  }
+  return res;
+}
+
+function convertToUTF32(s) {
+  res = "";
+  for (var i = 0; i < s.length; ++i) {
+    c = s.charCodeAt(i);
+    res += "\0\0" + String.fromCharCode(c >>> 8, c & 255);
   }
   return res;
 }

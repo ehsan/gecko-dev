@@ -75,36 +75,23 @@ commonFiles=(
   vp8/common/reconinter.c
   vp8/common/reconintra4x4.c
   vp8/common/reconintra.c
+  vp8/common/segmentation_common.c
   vp8/common/setupintrarecon.c
   vp8/common/swapyv12buffer.c
   vp8/common/textblit.c
   vp8/common/treecoder.c
-  vp8/common/arm/arm_systemdependent.c
-  vp8/common/arm/bilinearfilter_arm.c
-  vp8/common/arm/filter_arm.c
-  vp8/common/arm/loopfilter_arm.c
-  vp8/common/arm/reconintra_arm.c
-  vp8/common/arm/vpx_asm_offsets.c
-  vp8/common/arm/neon/recon_neon.c
   vp8/common/x86/loopfilter_x86.c
   vp8/common/x86/vp8_asm_stubs.c
   vp8/common/x86/x86_systemdependent.c
   vp8/decoder/dboolhuff.c
   vp8/decoder/decodemv.c
   vp8/decoder/decodframe.c
+  vp8/decoder/demode.c
   vp8/decoder/dequantize.c
   vp8/decoder/detokenize.c
-  vp8/decoder/reconintra_mt.c
   vp8/decoder/generic/dsystemdependent.c
-  vp8/decoder/idct_blk.c
   vp8/decoder/onyxd_if.c
   vp8/decoder/threading.c
-  vp8/decoder/arm/arm_dsystemdependent.c
-  vp8/decoder/arm/dequantize_arm.c
-  vp8/decoder/arm/armv6/idct_blk_v6.c
-  vp8/decoder/arm/neon/idct_blk_neon.c
-  vp8/decoder/x86/idct_blk_mmx.c
-  vp8/decoder/x86/idct_blk_sse2.c
   vp8/decoder/x86/x86_dsystemdependent.c
   vp8/vp8_dx_iface.c
   vpx/src/vpx_codec.c
@@ -149,6 +136,7 @@ commonFiles=(
   vp8/common/reconinter.h
   vp8/common/reconintra4x4.h
   vp8/common/reconintra.h
+  vp8/common/segmentation_common.h
   vp8/common/setupintrarecon.h
   vp8/common/subpixel.h
   vp8/common/swapyv12buffer.h
@@ -157,10 +145,6 @@ commonFiles=(
   vp8/common/treecoder.h
   vp8/common/type_aliases.h
   vp8/common/vpxerrors.h
-  vp8/common/arm/idct_arm.h
-  vp8/common/arm/loopfilter_arm.h
-  vp8/common/arm/recon_arm.h
-  vp8/common/arm/subpixel_arm.h
   vp8/common/x86/idct_x86.h
   vp8/common/x86/loopfilter_x86.h
   vp8/common/x86/postproc_x86.h
@@ -169,14 +153,11 @@ commonFiles=(
   vp8/decoder/dboolhuff.h
   vp8/decoder/decodemv.h
   vp8/decoder/decoderthreading.h
+  vp8/decoder/demode.h
   vp8/decoder/dequantize.h
   vp8/decoder/detokenize.h
   vp8/decoder/onyxd_int.h
-  vp8/decoder/reconintra_mt.h
   vp8/decoder/treereader.h
-  vp8/decoder/arm/dboolhuff_arm.h
-  vp8/decoder/arm/dequantize_arm.h
-  vp8/decoder/arm/detokenize_arm.h
   vp8/decoder/x86/dequantize_x86.h
   vpx/internal/vpx_codec_internal.h
   vpx/vp8cx.h
@@ -193,65 +174,15 @@ commonFiles=(
   vpx/vpx_integer.h
   vpx_mem/include/vpx_mem_intrnl.h
   vpx_mem/vpx_mem.h
-  vpx_ports/arm_cpudetect.c
   vpx_ports/config.h
   vpx_ports/mem.h
   vpx_ports/vpx_timer.h
-  vpx_ports/arm.h
   vpx_ports/x86.h
   vpx_scale/scale_mode.h
   vpx_scale/vpxscale.h
   vpx_scale/yv12config.h
   vpx_scale/yv12extend.h
-  vp8/common/arm/armv6/bilinearfilter_v6.asm
-  vp8/common/arm/armv6/copymem8x4_v6.asm
-  vp8/common/arm/armv6/copymem8x8_v6.asm
-  vp8/common/arm/armv6/copymem16x16_v6.asm
-  vp8/common/arm/armv6/dc_only_idct_add_v6.asm
-  vp8/common/arm/armv6/iwalsh_v6.asm
-  vp8/common/arm/armv6/filter_v6.asm
-  vp8/common/arm/armv6/idct_v6.asm
-  vp8/common/arm/armv6/loopfilter_v6.asm
-  vp8/common/arm/armv6/recon_v6.asm
-  vp8/common/arm/armv6/simpleloopfilter_v6.asm
-  vp8/common/arm/armv6/sixtappredict8x4_v6.asm
-  vp8/common/arm/neon/bilinearpredict4x4_neon.asm
-  vp8/common/arm/neon/bilinearpredict8x4_neon.asm
-  vp8/common/arm/neon/bilinearpredict8x8_neon.asm
-  vp8/common/arm/neon/bilinearpredict16x16_neon.asm
-  vp8/common/arm/neon/copymem8x4_neon.asm
-  vp8/common/arm/neon/copymem8x8_neon.asm
-  vp8/common/arm/neon/copymem16x16_neon.asm
-  vp8/common/arm/neon/dc_only_idct_add_neon.asm
-  vp8/common/arm/neon/iwalsh_neon.asm
-  vp8/common/arm/neon/loopfilter_neon.asm
-  vp8/common/arm/neon/loopfiltersimplehorizontaledge_neon.asm
-  vp8/common/arm/neon/loopfiltersimpleverticaledge_neon.asm
-  vp8/common/arm/neon/mbloopfilter_neon.asm
-  vp8/common/arm/neon/recon2b_neon.asm
-  vp8/common/arm/neon/recon4b_neon.asm
-  vp8/common/arm/neon/reconb_neon.asm
-  vp8/common/arm/neon/shortidct4x4llm_1_neon.asm
-  vp8/common/arm/neon/shortidct4x4llm_neon.asm
-  vp8/common/arm/neon/sixtappredict4x4_neon.asm
-  vp8/common/arm/neon/sixtappredict8x4_neon.asm
-  vp8/common/arm/neon/sixtappredict8x8_neon.asm
-  vp8/common/arm/neon/sixtappredict16x16_neon.asm
-  vp8/common/arm/neon/recon16x16mb_neon.asm
-  vp8/common/arm/neon/buildintrapredictorsmby_neon.asm
-  vp8/common/arm/neon/save_neon_reg.asm
-  vp8/decoder/arm/detokenize.asm
-  vp8/decoder/arm/armv6/dequant_dc_idct_v6.asm
-  vp8/decoder/arm/armv6/dequant_idct_v6.asm
-  vp8/decoder/arm/armv6/dequantize_v6.asm
-  vp8/decoder/arm/neon/idct_dequant_dc_full_2x_neon.asm
-  vp8/decoder/arm/neon/idct_dequant_dc_0_2x_neon.asm
-  vp8/decoder/arm/neon/dequant_idct_neon.asm
-  vp8/decoder/arm/neon/idct_dequant_full_2x_neon.asm
-  vp8/decoder/arm/neon/idct_dequant_0_2x_neon.asm
-  vp8/decoder/arm/neon/dequantizeb_neon.asm
   vp8/common/x86/idctllm_mmx.asm
-  vp8/common/x86/idctllm_sse2.asm
   vp8/common/x86/iwalsh_mmx.asm
   vp8/common/x86/iwalsh_sse2.asm
   vp8/common/x86/loopfilter_mmx.asm
@@ -262,12 +193,9 @@ commonFiles=(
   vp8/common/x86/recon_sse2.asm
   vp8/common/x86/subpixel_mmx.asm
   vp8/common/x86/subpixel_sse2.asm
-  vp8/common/x86/subpixel_ssse3.asm
   vp8/decoder/x86/dequantize_mmx.asm
   vpx_ports/emms.asm
   vpx_ports/x86_abi_support.asm
-  build/make/ads2gas.pl
-  build/make/obj_int_extract.c
   LICENSE
   PATENTS
 )
@@ -286,9 +214,9 @@ cp $1/objdir/x86-linux-gcc/vpx_config.asm vpx_config_x86-linux-gcc.asm
 cp $1/objdir/x86-linux-gcc/vpx_config.h vpx_config_x86-linux-gcc.h
 
 # Config files for x86_64-linux-gcc and Solaris x86_64
-cp $1/objdir/x86_64-linux-gcc/vpx_config.c vpx_config_x86_64-linux-gcc.c
-cp $1/objdir/x86_64-linux-gcc/vpx_config.asm vpx_config_x86_64-linux-gcc.asm
-cp $1/objdir/x86_64-linux-gcc/vpx_config.h vpx_config_x86_64-linux-gcc.h
+cp $1/objdir/x86_64-linux-gcc/vpx_config.c vpx_config_x86-linux-gcc.c
+cp $1/objdir/x86_64-linux-gcc/vpx_config.asm vpx_config_x86-linux-gcc.asm
+cp $1/objdir/x86_64-linux-gcc/vpx_config.h vpx_config_x86-linux-gcc.h
 
 # Copy config files for mac...
 cp $1/objdir/x86-darwin9-gcc/vpx_config.c vpx_config_x86-darwin9-gcc.c
@@ -299,10 +227,6 @@ cp $1/objdir/x86-darwin9-gcc/vpx_config.h vpx_config_x86-darwin9-gcc.h
 cp $1/objdir/x86_64-darwin9-gcc/vpx_config.c vpx_config_x86_64-darwin9-gcc.c
 cp $1/objdir/x86_64-darwin9-gcc/vpx_config.asm vpx_config_x86_64-darwin9-gcc.asm
 cp $1/objdir/x86_64-darwin9-gcc/vpx_config.h vpx_config_x86_64-darwin9-gcc.h
-
-# Config files for arm-linux-gcc
-cp $1/objdir/armv7-linux-gcc/vpx_config.c vpx_config_arm-linux-gcc.c
-cp $1/objdir/armv7-linux-gcc/vpx_config.h vpx_config_arm-linux-gcc.h
 
 # Config files for generic-gnu
 cp $1/objdir/generic-gnu/vpx_config.c vpx_config_generic-gnu.c
@@ -315,14 +239,12 @@ do
   cp -v $1/$f $f
 done
 
+# Patch to reduce compiler warnings, so we can compile with -Werror in mozilla.
+patch -p3 < reduce-warnings-1.patch
+patch -p3 < splitmv-bounds.patch
+patch -p3 < subpixel-qword.patch
+# Patch to make asm globals symbol hidden so linking succeeds on x86-64.
+patch -p3 < subpixel-hidden.patch
+patch -p3 < emptyif_warning.patch
 # Patch to compile with Sun Studio on Solaris
 patch -p3 < solaris.patch
-
-# Patch to fix link with xcode4
-patch -p1 < xcode4.patch
-
-# Patch to fix data race on global function pointers
-patch -p3 < bug640935.patch
-
-# Patch to avoid text relocations on ARM
-patch -p3 < bug646815.patch

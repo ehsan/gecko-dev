@@ -15,34 +15,30 @@
     {
       const READ_ONLY = Components.interfaces.nsIIDBTransaction.READ_ONLY;
       const READ_WRITE = Components.interfaces.nsIIDBTransaction.READ_WRITE;
-      const VERSION_CHANGE =
-        Components.interfaces.nsIIDBTransaction.VERSION_CHANGE;
 
       const name = window.location.pathname;
       const description = "My Test Database";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "", true);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      is(event.target.transaction.mode, VERSION_CHANGE, "Correct mode");
+      is(event.transaction.mode, READ_WRITE, "Correct mode");
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
-
-      request = objectStore.add({});
+      request = event.result.add({});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let key = event.target.result;
+      let key = event.result;
       ok(key, "Got a key");
 
       SimpleTest.executeSoon(function() { testGenerator.next(); });
@@ -57,7 +53,7 @@
       // loop.
       for (let i = 0; i < 20; i++) {
         readerCount++;
-        request = db.transaction("foo").objectStore("foo").get(key);
+        request = db.objectStore("foo").get(key);
         request.onerror = errorHandler;
         request.onsuccess = function(event) {
           callbackCount++;
@@ -66,20 +62,18 @@
 
       while (continueReading) {
         readerCount++;
-        request = db.transaction("foo").objectStore("foo").get(key);
+        request = db.objectStore("foo").get(key);
         request.onerror = errorHandler;
         request.onsuccess = function(event) {
-          is(event.target.transaction.mode, READ_ONLY, "Correct mode");
+          is(event.transaction.mode, READ_ONLY, "Correct mode");
           callbackCount++;
           if (callbackCount == 100) {
-            request = db.transaction("foo", READ_WRITE)
-                        .objectStore("foo")
-                        .add({}, readerCount);
+            request = db.objectStore("foo", READ_WRITE).add({}, readerCount);
             request.onerror = errorHandler;
             request.onsuccess = function(event) {
               continueReading = false;
               finalCallbackCount = callbackCount;
-              is(event.target.result, callbackCount,
+              is(event.result, callbackCount,
                  "write callback came before later reads");
             }
           }

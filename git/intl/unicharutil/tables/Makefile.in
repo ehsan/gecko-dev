@@ -50,12 +50,10 @@ _PROP_TABLES = \
 	html40Symbols.properties \
 	html40Special.properties \
 	transliterate.properties \
-	mathml20.properties \
 	$(NULL)
 
-ifeq ($(MOZ_WIDGET_TOOLKIT), qt)
-CFLAGS          += $(MOZ_QT_CFLAGS)
-CXXFLAGS        += $(MOZ_QT_CFLAGS)
+ifdef MOZ_MATHML
+_PROP_TABLES += mathml20.properties
 endif
 
 libs:: $(_PROP_TABLES)

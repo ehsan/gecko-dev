@@ -68,20 +68,18 @@ AutoScriptRetrapper::untrap(jsbytecode *pc)
 {
     if (!traps.append(pc))
         return false;
-    *pc = JS_GetTrapOpcode(traps.allocPolicy().context(), script, pc);
+    *pc = JS_GetTrapOpcode(cx, script, pc);
     return true;
 }
 
 Recompiler::PatchableAddress
-Recompiler::findPatch(JITScript *jit, void **location)
+Recompiler::findPatch(void **location)
 { 
-    uint8* codeStart = (uint8 *)jit->code.m_code.executableAddress();
-    CallSite *callSites_ = jit->callSites();
-    for (uint32 i = 0; i < jit->nCallSites; i++) {
-        if (callSites_[i].codeOffset + codeStart == *location) {
+    for (uint32 i = 0; i < script->jit->nCallSites; i++) {
+        if (script->jit->callSites[i].codeOffset + (uint8*)script->jit->invoke == *location) {
             PatchableAddress result;
             result.location = location;
-            result.callSite = callSites_[i];
+            result.callSite = script->jit->callSites[i];
             return result;
         }
     }
@@ -118,102 +116,49 @@ Recompiler::Recompiler(JSContext *cx, JSScript *script)
 bool
 Recompiler::recompile()
 {
-    JS_ASSERT(script->hasJITCode());
+    JS_ASSERT(script->ncode && script->ncode != JS_UNJITTABLE_METHOD);
 
-    Vector<PatchableAddress> normalPatches(cx);
-    Vector<PatchableAddress> ctorPatches(cx);
+    Vector<PatchableAddress> toPatch(cx);
 
-    StackFrame *firstCtorFrame = NULL;
-    StackFrame *firstNormalFrame = NULL;
+    /* Scan the stack, saving the ncode elements of the frames. */
+    JSStackFrame *firstFrame = NULL;
+    for (AllFramesIter i(cx); !i.done(); ++i) {
+        if (!firstFrame && i.fp()->maybeScript() == script)
+            firstFrame = i.fp();
+        if (script->isValidJitCode(i.fp()->ncode)) {
+            if (!toPatch.append(findPatch(&i.fp()->ncode)))
+                return false;
+        }
+    }
 
-    // Find all JIT'd stack frames to account for return addresses that will
-    // need to be patched after recompilation.
-    for (VMFrame *f = script->compartment->jaegerCompartment()->activeFrame();
+    /* Iterate over VMFrames saving the machine and scripted return. */
+    for (VMFrame *f = JS_METHODJIT_DATA(cx).activeFrame;
          f != NULL;
          f = f->previous) {
 
-        // Scan all frames owned by this VMFrame.
-        StackFrame *end = f->entryfp->prev();
-        for (StackFrame *fp = f->fp(); fp != end; fp = fp->prev()) {
-            // Remember the latest frame for each type of JIT'd code, so the
-            // compiler will have a frame to re-JIT from.
-            if (!firstCtorFrame && fp->script() == script && fp->isConstructing())
-                firstCtorFrame = fp;
-            else if (!firstNormalFrame && fp->script() == script && !fp->isConstructing())
-                firstNormalFrame = fp;
-
-            void **addr = fp->addressOfNativeReturnAddress();
-            if (script->jitCtor && script->jitCtor->isValidCode(*addr)) {
-                if (!ctorPatches.append(findPatch(script->jitCtor, addr)))
-                    return false;
-            } else if (script->jitNormal && script->jitNormal->isValidCode(*addr)) {
-                if (!normalPatches.append(findPatch(script->jitNormal, addr)))
-                    return false;
-            }
-        }
-
-        void **addr = f->returnAddressLocation();
-        if (script->jitCtor && script->jitCtor->isValidCode(*addr)) {
-            if (!ctorPatches.append(findPatch(script->jitCtor, addr)))
-                return false;
-        } else if (script->jitNormal && script->jitNormal->isValidCode(*addr)) {
-            if (!normalPatches.append(findPatch(script->jitNormal, addr)))
+        void **machineReturn = f->returnAddressLocation();
+        if (script->isValidJitCode(*machineReturn)) {
+            if (!toPatch.append(findPatch(machineReturn)))
                 return false;
         }
     }
-
-    Vector<CallSite> normalSites(cx);
-    Vector<CallSite> ctorSites(cx);
-
-    if (script->jitNormal && !saveTraps(script->jitNormal, &normalSites))
-        return false;
-    if (script->jitCtor && !saveTraps(script->jitCtor, &ctorSites))
-        return false;
 
     ReleaseScriptCode(cx, script);
 
-    if (normalPatches.length() &&
-        !recompile(firstNormalFrame, normalPatches, normalSites)) {
-        return false;
-    }
+    /* No need to actually compile or fixup if no frames on the stack */
+    if (!firstFrame)
+        return true;
 
-    if (ctorPatches.length() &&
-        !recompile(firstCtorFrame, ctorPatches, ctorSites)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool
-Recompiler::saveTraps(JITScript *jit, Vector<CallSite> *sites)
-{
-    CallSite *callSites_ = jit->callSites();
-    for (uint32 i = 0; i < jit->nCallSites; i++) {
-        CallSite &site = callSites_[i];
-        if (site.isTrap() && !sites->append(site))
-            return false;
-    }
-    return true;
-}
-
-bool
-Recompiler::recompile(StackFrame *fp, Vector<PatchableAddress> &patches,
-                      Vector<CallSite> &sites)
-{
     /* If we get this far, the script is live, and we better be safe to re-jit. */
-    JS_ASSERT(cx->compartment->debugMode());
-    JS_ASSERT(fp);
+    JS_ASSERT(cx->compartment->debugMode);
 
-    Compiler c(cx, fp);
-    if (!c.loadOldTraps(sites))
-        return false;
-    if (c.compile() != Compile_Okay)
+    Compiler c(cx, script, firstFrame->getFunction(), firstFrame->getScopeChain());
+    if (c.Compile() != Compile_Okay)
         return false;
 
     /* Perform the earlier scanned patches */
-    for (uint32 i = 0; i < patches.length(); i++)
-        applyPatch(c, patches[i]);
+    for (uint32 i = 0; i < toPatch.length(); i++)
+        applyPatch(c, toPatch[i]);
 
     return true;
 }

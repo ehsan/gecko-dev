@@ -212,8 +212,6 @@ class Automation(object):
                  universal_newlines=False,
                  startupinfo=None,
                  creationflags=0):
-      args = automationutils.wrapCommand(args)
-      print "args: %s" % args
       subprocess.Popen.__init__(self, args, bufsize, executable,
                                 stdin, stdout, stderr,
                                 preexec_fn, close_fds,
@@ -309,10 +307,10 @@ class Automation(object):
     # Insert desired permissions
     c = 0
     for perm in permissions.keys():
-      for host,allow in permissions[perm]:
+      for host in permissions[perm]:
         c += 1
-        cursor.execute("INSERT INTO moz_hosts values(?, ?, ?, ?, 0, 0)",
-                       (c, host, perm, 1 if allow else 2))
+        cursor.execute("INSERT INTO moz_hosts values(?, ?, ?, 1, 0, 0)",
+                       (c, host, perm))
 
     # Commit and close
     permDB.commit()
@@ -329,20 +327,15 @@ class Automation(object):
     # Set up permissions database
     locations = self.readLocations()
     self.setupPermissionsDatabase(profileDir,
-      {'allowXULXBL':[(l.host, 'noxul' not in l.options) for l in locations]});
+      {'allowXULXBL':map(lambda l: l.host, locations)});
 
     part = """\
-user_pref("browser.console.showInPanel", true);
 user_pref("browser.dom.window.dump.enabled", true);
-user_pref("browser.firstrun.show.localepicker", false);
-user_pref("browser.firstrun.show.uidiscovery", false);
 user_pref("dom.allow_scripts_to_close_windows", true);
 user_pref("dom.disable_open_during_load", false);
 user_pref("dom.max_script_run_time", 0); // no slow script dialogs
 user_pref("dom.max_chrome_script_run_time", 0);
 user_pref("dom.popup_maximum", -1);
-user_pref("dom.send_after_paint_to_content", true);
-user_pref("dom.successive_dialog_time_limit", 0);
 user_pref("signed.applets.codebase_principal_support", true);
 user_pref("security.warn_submit_insecure", false);
 user_pref("browser.shell.checkDefaultBrowser", false);
@@ -350,13 +343,10 @@ user_pref("shell.checkDefaultClient", false);
 user_pref("browser.warnOnQuit", false);
 user_pref("accessibility.typeaheadfind.autostart", false);
 user_pref("javascript.options.showInConsole", true);
-user_pref("devtools.errorconsole.enabled", true);
 user_pref("layout.debug.enable_data_xbl", true);
 user_pref("browser.EULA.override", true);
-user_pref("javascript.options.tracejit.content", true);
+user_pref("javascript.options.jit.content", false);
 user_pref("javascript.options.methodjit.content", true);
-user_pref("javascript.options.jitprofiling.content", true);
-user_pref("javascript.options.methodjit_always", false);
 user_pref("gfx.color_management.force_srgb", true);
 user_pref("network.manage-offline-status", false);
 user_pref("test.mousescroll", true);
@@ -365,22 +355,15 @@ user_pref("network.http.prompt-temp-redirect", false);
 user_pref("media.cache_size", 100);
 user_pref("security.warn_viewing_mixed", false);
 user_pref("app.update.enabled", false);
-user_pref("browser.panorama.experienced_first_run", true); // Assume experienced
-user_pref("dom.w3c_touch_events.enabled", true);
 
 // Only load extensions from the application and user profile
 // AddonManager.SCOPE_PROFILE + AddonManager.SCOPE_APPLICATION
 user_pref("extensions.enabledScopes", 5);
-// Disable metadata caching for installed add-ons by default
-user_pref("extensions.getAddons.cache.enabled", false);
-// Disable intalling any distribution add-ons
-user_pref("extensions.installDistroAddons", false);
 
 user_pref("extensions.testpilot.runStudies", false);
 
 user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 user_pref("geo.wifi.testing", true);
-user_pref("geo.ignore.location_filter", true);
 
 user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
 
@@ -390,11 +373,6 @@ user_pref("urlclassifier.updateinterval", 172800);
 user_pref("browser.safebrowsing.provider.0.gethashURL", "http://%(server)s/safebrowsing-dummy/gethash");
 user_pref("browser.safebrowsing.provider.0.keyURL", "http://%(server)s/safebrowsing-dummy/newkey");
 user_pref("browser.safebrowsing.provider.0.updateURL", "http://%(server)s/safebrowsing-dummy/update");
-// Point update checks to the local testing server for fast failures
-user_pref("extensions.update.url", "http://%(server)s/extensions-dummy/updateURL");
-user_pref("extensions.blocklist.url", "http://%(server)s/extensions-dummy/blocklistURL");
-// Make sure opening about:addons won't hit the network
-user_pref("extensions.webservice.discoverURL", "http://%(server)s/extensions-dummy/discoveryURL");
 """ % { "server" : self.webServer + ":" + str(self.httpPort) }
     prefs.append(part)
 
@@ -443,23 +421,20 @@ function FindProxyForURL(url, host)
   var isHttp = matches[1] == 'http';
   var isHttps = matches[1] == 'https';
   var isWebSocket = matches[1] == 'ws';
-  var isWebSocketSSL = matches[1] == 'wss';
   if (!matches[3])
   {
     if (isHttp | isWebSocket) matches[3] = '80';
-    if (isHttps | isWebSocketSSL) matches[3] = '443';
+    if (isHttps) matches[3] = '443';
   }
   if (isWebSocket)
     matches[1] = 'http';
-  if (isWebSocketSSL)
-    matches[1] = 'https';
 
   var origin = matches[1] + '://' + matches[2] + ':' + matches[3];
   if (origins.indexOf(origin) < 0)
     return 'DIRECT';
   if (isHttp)
     return 'PROXY %(remote)s:%(httpport)s';
-  if (isHttps || isWebSocket || isWebSocketSSL)
+  if (isHttps || isWebSocket)
     return 'PROXY %(remote)s:%(sslport)s';
   return 'DIRECT';
 }""" % { "origins": origins,
@@ -592,12 +567,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 
     env['GNOME_DISABLE_CRASH_DIALOG'] = '1'
     env['XRE_NO_WINDOWS_CRASH_DIALOG'] = '1'
-
-    # Don't do this for Mac since it makes the Mac OS X 10.5 (32-bit)
-    # trace-malloc leak test hang.  (It doesn't make the 10.6 (64-bit)
-    # leak test hang, though.)
-    if not self.IS_MAC:
-      env['NS_TRACE_MALLOC_DISABLE_STACKS'] = '1'
     return env
 
   if IS_WIN32:
@@ -640,7 +609,10 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       pExitCode = ctypes.wintypes.DWORD()
       ctypes.windll.kernel32.GetExitCodeProcess(pHandle, ctypes.byref(pExitCode))
       ctypes.windll.kernel32.CloseHandle(pHandle)
-      return pExitCode.value == STILL_ACTIVE
+      if (pExitCode.value == STILL_ACTIVE):
+        return True
+      else:
+        return False
 
     def killPid(self, pid):
       PROCESS_TERMINATE = 0x0001
@@ -671,7 +643,10 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
         # Wait on it to see if it's a zombie. This can throw OSError.ECHILD if
         # the process terminates before we get to this point.
         wpid, wstatus = os.waitpid(pid, os.WNOHANG)
-        return wpid == 0
+        if wpid == 0:
+          return True
+
+        return False
       except OSError, err:
         # Catch the errors we might expect from os.kill/os.waitpid, 
         # and re-raise any others
@@ -763,7 +738,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
         if stackFixerFunction:
           line = stackFixerFunction(line)
         self.log.info(line.rstrip())
-        if self.UNIXISH and not debuggerInfo and not self.haveDumpedScreen and "TEST-UNEXPECTED-FAIL" in line and "Test timed out" in line:
+        if self.UNIXISH and not debuggerInfo and not self.haveDumpedScreen and "TEST-UNEXPECTED-FAIL" in line and "Test timed out." in line:
           self.dumpScreen(utilityPath)
 
         (line, didTimeout) = self.readWithTimeout(logsource, timeout)
@@ -871,7 +846,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       # create certificate database for the profile
       certificateStatus = self.fillCertificateDB(profileDir, certPath, utilityPath, xrePath)
       if certificateStatus != 0:
-        self.log.info("TEST-UNEXPECTED-FAIL | automation.py | Certificate integration failed")
+        self.log.info("TEST-UNEXPECTED FAIL | automation.py | Certificate integration failed")
         return certificateStatus
 
       # start ssltunnel to provide https:// URLs capability
@@ -885,12 +860,11 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     startTime = datetime.now()
 
     if debuggerInfo and debuggerInfo["interactive"]:
-      # If an interactive debugger is attached, don't redirect output,
-      # don't use timeouts, and don't capture ctrl-c.
+      # If an interactive debugger is attached, don't redirect output
+      # and don't use timeouts.
       timeout = None
       maxTime = None
       outputPipe = None
-      signal.signal(signal.SIGINT, lambda sigid, frame: None)
     else:
       outputPipe = subprocess.PIPE
 
@@ -917,35 +891,47 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 
     return status
 
-  """
-   Copies an extension into the extensions directory of the given profile.
-   extensionSource - the source location of the extension files.  This can be either
+  """ 
+   Copies an "installed" extension into the extensions directory of the given profile
+   extensionSource - the source location of the extension files.  This can be either 
                      a directory or a path to an xpi file.
    profileDir      - the profile directory we are copying into.  We will create the
-                     "extensions" directory there if it doesn't exist.
+                     "extensions" directory there if it doesn't exist
    extensionID     - the id of the extension to be used as the containing directory for the
-                     extension, if extensionSource is a directory, i.e.
+                     extension, i.e.
                  this is the name of the folder in the <profileDir>/extensions/<extensionID>
   """
-  def installExtension(self, extensionSource, profileDir, extensionID = None):
-    if not os.path.isdir(profileDir):
-      self.log.info("INFO | automation.py | Cannot install extension, invalid profileDir at: %s", profileDir)
-      return
+  def installExtension(self, extensionSource, profileDir, extensionID):
+    if (not os.path.exists(extensionSource)):
+      self.log.info("INFO | automation.py | Cannot install extension no source at: %s", extensionSource) 
+      
+    if (not os.path.exists(profileDir)):
+      self.log.info("INFO | automation.py | Cannot install extension invalid profileDir at: %s", profileDir)
 
-    extnsdir = os.path.join(profileDir, "extensions")
-
-    if os.path.isfile(extensionSource):
-      # Copy extension xpi directly.
-      # "destination file is created or overwritten".
-      shutil.copy2(extensionSource, extnsdir)
-    elif os.path.isdir(extensionSource):
-      if extensionID == None:
-        self.log.info("INFO | automation.py | Cannot install extension, missing extensionID")
-        return
-
-      # Copy extension tree into its own directory.
-      # "destination directory must not already exist".
-      shutil.copytree(extensionSource, os.path.join(extnsdir, extensionID))
+    # See if we have an XPI or a directory
+    if (os.path.isfile(extensionSource)):
+      tmpd = tempfile.mkdtemp()
+      extrootdir = self.extractZip(extensionSource, tmpd)
     else:
-      self.log.info("INFO | automation.py | Cannot install extension, invalid extensionSource at: %s", extensionSource)
-      return
+      extrootdir = extensionSource 
+    extnsdir = os.path.join(profileDir, "extensions")
+    extnshome = os.path.join(extnsdir, extensionID)
+
+    # Now we copy the extension source into the extnshome
+    shutil.copytree(extrootdir, extnshome)
+
+  def extractZip(self, filename, dest):
+    z = zipfile.ZipFile(filename, 'r')
+    for n in z.namelist():
+      fullpath = os.path.join(dest, n)
+      parentdir = os.path.dirname(fullpath)
+      if not os.path.isdir(parentdir):
+        os.makedirs(parentdir)
+      if (not n.endswith(os.sep)):
+        data = z.read(n)
+        f = open(fullpath, 'w')
+        f.write(data)
+        f.close()
+    z.close()
+    return dest
+

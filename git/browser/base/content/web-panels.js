@@ -108,10 +108,10 @@ function load()
     var panelBrowser = getPanelBrowser();
     panelBrowser.webProgress.addProgressListener(panelProgressListener,
                                                  Ci.nsIWebProgress.NOTIFY_ALL);
-    var cachedurl = panelBrowser.getAttribute("cachedurl")
-    if (cachedurl) {
+    if (panelBrowser.getAttribute("cachedurl")) {
         panelBrowser.webNavigation
-                    .loadURI(cachedurl, nsIWebNavigation.LOAD_FLAGS_NONE, null,
+                    .loadURI(panelBrowser.getAttribute("cachedurl"),
+                             nsIWebNavigation.LOAD_FLAGS_NONE, null,
                              null, null);
     }
 

@@ -41,16 +41,10 @@
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "gfxTypes.h"
-#include "gfxUtils.h"
-#include "nsRect.h"
+#include "gfxThebesUtils.h"
 
 /**
- * Implementation of a triple box blur approximation of a Gaussian blur.
- *
- * A Gaussian blur is good for blurring because, when done independently
- * in the horizontal and vertical directions, it matches the result that
- * would be obtained using a different (rotated) set of axes.  A triple
- * box blur is a very close approximation of a Gaussian.
+ * Implementation of a box blur approximation of a Gaussian blur.
  *
  * Creates an 8-bit alpha channel context for callers to draw in,
  * spreads the contents of that context, blurs the contents, and applies
@@ -74,11 +68,7 @@ public:
      * Constructs a box blur and initializes the temporary surface.
      * @param aRect The coordinates of the surface to create in device units.
      *
-     * @param aBlurRadius The blur radius in pixels.  This is the radius of
-     *   the entire (triple) kernel function.  Each individual box blur has
-     *   radius approximately 1/3 this value, or diameter approximately 2/3
-     *   this value.  This parameter should nearly always be computed using
-     *   CalculateBlurRadius, below.
+     * @param aBlurRadius The blur radius in pixels
      *
      * @param aDirtyRect A pointer to a dirty rect, measured in device units, if available.
      *  This will be used for optimizing the blur operation. It is safe to pass NULL here.
@@ -104,6 +94,11 @@ public:
     }
 
     /**
+     * Premultiplies the image by the given alpha.
+     */
+    void PremultiplyAlpha(gfxFloat alpha);
+
+    /**
      * Does the actual blurring/spreading and mask applying. Users of this
      * object must have drawn whatever they want to be blurred onto the internal
      * gfxContext returned by GetContext before calling this.
@@ -115,9 +110,7 @@ public:
 
     /**
      * Calculates a blur radius that, when used with box blur, approximates
-     * a Gaussian blur with the given standard deviation.  The result of
-     * this function should be used as the aBlurRadius parameter to Init,
-     * above.
+     * a Gaussian blur with the given standard deviation.
      */
     static gfxIntSize CalculateBlurRadius(const gfxPoint& aStandardDeviation);
 

@@ -46,7 +46,6 @@
         width="1024">
   <script src="chrome://mochikit/content/tests/SimpleTest/MozillaFileLogger.js"/>
   <script src="chrome://mochikit/content/tests/SimpleTest/quit.js"/>
-  <script src="chrome://mochikit/content/chrome-harness.js"/>
   <style xmlns="http://www.w3.org/1999/xhtml"><![CDATA[
     #results {
       margin: 5px;
@@ -87,30 +86,20 @@
     p {
       margin: 0.1em;
     }
-
-    a {
-      color: blue;
-      text-decoration: underline;
-    }
   ]]></style>
   <script type="application/javascript;version=1.7"><![CDATA[
-    if (Cc === undefined) {
-      var Cc = Components.classes;
-      var Ci = Components.interfaces;
-    }
-    
     var gConfig;
 
     var gDumper = {
       get fileLogger() {
         let logger = null;
-        if (gConfig.logFile) {
+        if (gConfig.logPath) {
           try {
-            MozillaFileLogger.init(gConfig.logFile);
+            MozillaFileLogger.init(gConfig.logPath);
             logger = MozillaFileLogger;
           } catch (ex) {
             dump("TEST-UNEXPECTED-FAIL | (browser-harness.xul) | " +
-                 "Error trying to log to " + gConfig.logFile + ": " + ex + "\n");
+                 "Error trying to log to " + gConfig.logPath + ": " + ex + "\n");
           }
         }
         delete this.fileLogger;
@@ -140,18 +129,62 @@
         document.getElementById("runTestsButton").label =
           "Run " + gConfig.testPath + " tests";
 
-      if (gConfig.autorun)
+      if (gConfig.autoRun)
         setTimeout(runTests, 0);
     }
 
-    var gErrorCount = 0;
+    function readConfig() {
+      var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
+                        getService(Ci.nsIProperties);
+      var configFile = fileLocator.get("ProfD", Ci.nsIFile);
+      configFile.append("testConfig.js");
+
+      if (!configFile.exists())
+        return;
+
+      var fileInStream = Cc["@mozilla.org/network/file-input-stream;1"].
+                         createInstance(Ci.nsIFileInputStream);
+      var sstream = Cc["@mozilla.org/scriptableinputstream;1"].
+                    createInstance(Ci.nsIScriptableInputStream);
+      fileInStream.init(configFile, -1, 0, 0);
+      sstream.init(fileInStream);
+
+      var config = "";
+      var str = sstream.read(4096);
+      while (str.length > 0) {
+        config += str;
+        str = sstream.read(4096);
+      }
+
+      sstream.close();
+      fileInStream.close();
+
+      return eval(config);
+    }
+
+    function getChromeDir() {
+      const Cc = Components.classes; const Ci = Components.interfaces;
+
+      /** Find our chrome dir **/
+      var ios = Cc["@mozilla.org/network/io-service;1"].
+                  getService(Ci.nsIIOService);
+      var chromeURI = ios.newURI("chrome://mochikit/content/",
+                                 null, null);
+      var resolvedURI = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                        getService(Ci.nsIChromeRegistry).
+                        convertChromeURL(chromeURI);
+      var fileHandler = Cc["@mozilla.org/network/protocol;1?name=file"].
+                        getService(Ci.nsIFileProtocolHandler);
+      var chromeDir = fileHandler.getFileFromURLSpec(resolvedURI.spec);
+
+      return chromeDir.parent.QueryInterface(Ci.nsILocalFile);
+    }
 
     function browserTest(aTestFile) {
       this.path = aTestFile;
       this.dumper = gDumper;
       this.results = [];
       this.scope = null;
-      this.duration = 0;
     }
     browserTest.prototype = {
       get passCount() {
@@ -170,10 +203,6 @@
         this.dumper.dump(result.result + " | " + this.path + " | " + result.msg + "\n");
       },
 
-      setDuration: function setDuration(duration) {
-        this.duration = duration;
-      },
-
       get htmlLog() {
         let txtToHTML = Cc["@mozilla.org/txttohtmlconv;1"].
                         getService(Ci.mozITXTToHTMLConv);
@@ -181,39 +210,59 @@
           return txtToHTML.scanTXT(str, Ci.mozITXTToHTMLConv.kEntities);
         }
         var path = _entityEncode(this.path);
-        var html = this.results.map(function (t) {
-          var classname = t.info ? "info" : "result " + (t.pass ? "passed" : "failed");
-          var text = t.result + " | " + path + " | " + _entityEncode(t.msg);
-          if (!t.info && !t.pass) {
-            return '<p class="' + classname + '" id=\"ERROR' + (gErrorCount++) + '">' +
-                   text + " <a href=\"javascript:scrollTo('ERROR" + gErrorCount + "')\">NEXT ERROR</a></p>";
-          }
-          return '<p class="' + classname + '">' + text + "</p>";
+        return this.results.map(function (t) {
+          var class = t.info ? "info" : "result " + (t.pass ? "passed" : "failed");
+          return "<p class=\"" + class + "\">" + t.result + " | " + path +
+                 " | " + _entityEncode(t.msg) + "</p>";
         }).join("\n");
-        if (this.duration) {
-          html += "<p class=\"info\">TEST-END | " + path + " | finished in " +
-                  this.duration + " ms</p>";
-        }
-        return html;
       }
     };
 
     // Returns an array of browserTest objects for all the selected tests
     function listTests() {
-      [links, singleTestPath] = getTestList();
-      if (!links)
-        return [];
+      const Cc = Components.classes; const Ci = Components.interfaces;
+
+      var ioSvc = Cc["@mozilla.org/network/io-service;1"].
+                  getService(Ci.nsIIOService);
+
+      var testsDir = getChromeDir();
+      testsDir.appendRelativePath("browser");
+
+      var requestPath = "chrome://mochikit/content/browser";
+      var fileNameRegexp = /browser_.+\.js$/;
+
+      if (gConfig.testPath) {
+        var testsDirURI = ioSvc.newFileURI(testsDir);
+        testsDir = ioSvc.newURI(gConfig.testPath, null, testsDirURI)
+                        .QueryInterface(Ci.nsIFileURL).file;
+
+        // Invalid testPath...
+        if (!testsDir.exists())
+          return [];
+
+        // If we were passed a specific file, run only that test.
+        if (testsDir.isFile()) {
+          if (fileNameRegexp.test(testsDir.leafName))
+            return [new browserTest(requestPath + "/" + gConfig.testPath)];
+
+          // We were passed a file that's not a test...
+          return [];
+        }
+
+        // otherwise, we were passed a directory of tests
+        requestPath += "/" + gConfig.testPath;
+      }
 
       // load server.js in so we can share template functions
       var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                           getService(Ci.mozIJSSubScriptLoader);
+                         getService(Ci.mozIJSSubScriptLoader);
       var srvScope = {};
-      scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
-                                 srvScope);
+      scriptLoader.loadSubScript("chrome://mochikit/content/server.js", srvScope);
 
+      var [links, ] = srvScope.list(requestPath, testsDir, true);
       var fileNames = [];
-      var fileNameRegexp = /browser_.+\.js$/;
       srvScope.arrayOfTestFiles(links, fileNames, fileNameRegexp);
+
       return fileNames.map(function (f) new browserTest(f));
     }
 
@@ -228,6 +277,7 @@
 
       setStatus("Running...");
       testWin.focus();
+
       var Tester = new testWin.Tester(listTests(), gDumper, testsFinished);
       Tester.start();
     }
@@ -250,10 +300,7 @@
       log += failCount != 0 ? "failure" :
                passCount == 0 ? "todo" : "success";
       log += "\">\n<p>Passed: " + passCount + "</p>\n" +
-             "<p>Failed: " + failCount;
-      if (failCount > 0)
-        log += " <a href=\"javascript:scrollTo('ERROR0')\">NEXT ERROR</a>";
-      log += "</p>\n" +
+             "<p>Failed: " + failCount + "</p>\n" +
              "<p>Todo: " + todoCount + "</p>\n</div>\n<div id=\"log\">\n";
 
       return log + aTests.map(function (f) {
@@ -273,16 +320,6 @@
       // UI
       document.getElementById("results").innerHTML = getHTMLLogFromTests(aTests);
       setStatus("Done.");
-    }
-
-    function scrollTo(id) {
-      var line = document.getElementById(id);
-      if (!line)
-        return;
-
-      var boxObject = document.getElementById("results").parentNode.boxObject;
-      boxObject.QueryInterface(Components.interfaces.nsIScrollBoxObject);
-      boxObject.scrollToElement(line);
     }
   ]]></script>
   <button id="runTestsButton" oncommand="runTests();" label="Run All Tests"/>

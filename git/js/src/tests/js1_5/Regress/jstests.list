@@ -12,7 +12,7 @@ script regress-115436.js
 script regress-116228.js
 script regress-118849.js
 skip script regress-119719.js # obsolete test
-skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) slow script regress-127243.js
+skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-127243.js # slow
 script regress-127557.js
 script regress-131510-001.js
 script regress-139316.js
@@ -60,6 +60,7 @@ script regress-233483.js
 script regress-234389.js
 script regress-238881.js
 script regress-238945.js
+script regress-240317.js
 script regress-240577.js
 script regress-243174.js
 script regress-243389-n.js
@@ -91,14 +92,16 @@ script regress-275378.js
 script regress-276103.js
 script regress-278873.js
 script regress-280769-1.js
-silentfail script regress-280769-2.js
+script regress-280769-2.js
 script regress-280769-3.js
 script regress-280769-4.js
 script regress-280769-5.js
 script regress-280769.js
+script regress-281487.js
 script regress-281606.js
 script regress-281930.js
 script regress-283477.js
+script regress-286216.js
 script regress-288688.js
 script regress-289094.js
 script regress-290575.js
@@ -128,11 +131,11 @@ script regress-31255.js
 script regress-312588.js
 random script regress-313967-01.js # BigO
 random script regress-313967-02.js # BigO
-skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) slow script regress-314401.js
+skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-314401.js # slow
 script regress-315974.js
 script regress-315990.js
 script regress-317476.js
-fails-if(Android) script regress-317533.js
+script regress-317533.js
 script regress-317714-01.js
 script regress-317714-02.js
 script regress-319384.js
@@ -143,7 +146,7 @@ script regress-321757.js
 script regress-321874.js
 script regress-321971.js
 script regress-322430.js
-fails-if(Android) script regress-323314-1.js
+script regress-323314-1.js
 script regress-325925.js
 script regress-326453.js
 script regress-326467.js
@@ -163,7 +166,7 @@ script regress-334807-06.js
 script regress-336100.js
 script regress-338307.js
 script regress-340369.js
-skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) slow script regress-341360.js
+skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-341360.js # slow
 script regress-343713.js
 script regress-343966.js
 script regress-344711-n.js
@@ -185,7 +188,7 @@ skip script regress-350692.js # obsolete test
 skip-if(xulRuntime.OS=="Linux"&&!xulRuntime.shell&&!xulRuntime.XPCOMABI.match(/x86_64/)&&isDebugBuild) script regress-351116.js # bug 521549
 script regress-351515.js
 script regress-352009.js
-fails-if(Android) script regress-352197.js
+script regress-352197.js
 script regress-352208.js
 script regress-352604.js
 skip script regress-354924.js # obsolete test
@@ -236,13 +239,13 @@ script regress-416737-01.js
 script regress-416737-02.js
 script regress-417893.js
 script regress-418504.js
-skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) slow script regress-418540.js
+skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-418540.js # slow
 script regress-419018.js
 script regress-419803.js
 script regress-420919.js
 skip-if(xulRuntime.XPCOMABI.match(/x86_64/)) script regress-422348.js # On 64-bit, takes forever rather than throwing
 script regress-424311.js
-skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) slow script regress-425360.js
+skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-425360.js # slow
 script regress-426827.js
 script regress-428366.js
 script regress-438415-01.js

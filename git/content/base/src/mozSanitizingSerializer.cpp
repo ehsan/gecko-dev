@@ -63,9 +63,8 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
-#include "mozilla/dom/Element.h"
 
-using namespace mozilla::dom;
+//#define DEBUG_BenB
 
 static inline PRUnichar* escape(const nsString& source)
 {
@@ -242,8 +241,8 @@ mozSanitizingHTMLSerializer::AppendText(nsIContent* aText,
 }
 
 NS_IMETHODIMP 
-mozSanitizingHTMLSerializer::AppendElementStart(Element* aElement,
-                                                Element* aOriginalElement,
+mozSanitizingHTMLSerializer::AppendElementStart(nsIContent *aElement,
+                                                nsIContent *aOriginalElement,
                                                 nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -271,7 +270,7 @@ mozSanitizingHTMLSerializer::AppendElementStart(Element* aElement,
 } 
  
 NS_IMETHODIMP 
-mozSanitizingHTMLSerializer::AppendElementEnd(Element* aElement,
+mozSanitizingHTMLSerializer::AppendElementEnd(nsIContent *aElement,
                                               nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -330,7 +329,7 @@ NS_IMETHODIMP
 mozSanitizingHTMLSerializer::SetDocumentCharset(nsACString& aCharset)
 {
   // No idea, if this works - it isn't invoked by |TestOutput|.
-  Write(NS_LITERAL_STRING("\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=")
+  Write(NS_LITERAL_STRING("\n<meta http-equiv=\"Context-Type\" content=\"text/html; charset=")
         /* Danger: breaking the line within the string literal, like
            "foo"\n"bar", breaks win32! */
         + nsAdoptingString(escape(NS_ConvertASCIItoUTF16(aCharset)))

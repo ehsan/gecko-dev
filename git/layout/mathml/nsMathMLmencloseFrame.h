@@ -85,12 +85,12 @@ public:
                                              nsStyleContext* aContext);
   
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
   
   virtual nsresult
-  MeasureForWidth(nsRenderingContext& aRenderingContext,
+  MeasureForWidth(nsIRenderingContext& aRenderingContext,
                   nsHTMLReflowMetrics& aDesiredSize);
   
   NS_IMETHOD
@@ -103,6 +103,11 @@ public:
                             nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
   GetAdditionalStyleContext(PRInt32 aIndex) const;
+
+  NS_IMETHOD
+  Init(nsIContent* aContent,
+       nsIFrame*   aParent,
+       nsIFrame*   aPrevInFlow);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -121,7 +126,7 @@ protected:
   nsMathMLmencloseFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmencloseFrame();
 
-  nsresult PlaceInternal(nsRenderingContext& aRenderingContext,
+  nsresult PlaceInternal(nsIRenderingContext& aRenderingContext,
                          PRBool               aPlaceOrigin,
                          nsHTMLReflowMetrics& aDesiredSize,
                          PRBool               aWidthOnly);

@@ -44,8 +44,6 @@
 
 #include "CheckedInt.h"
 
-#include "jstypedarray.h"
-
 #if defined(USE_ANGLE)
 #include "angle/ShaderLang.h"
 #endif
@@ -85,24 +83,23 @@ WebGLProgram::UpdateInfo(gl::GLContext *gl)
 }
 
 /*
- * Verify that state is consistent for drawing, and compute max number of elements (maxAllowedCount)
- * that will be legal to be read from bound VBOs.
+ * Verify that we can read count consecutive elements from each bound VBO.
  */
 
 PRBool
-WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
+WebGLContext::ValidateBuffers(PRUint32 count)
 {
+    NS_ENSURE_TRUE(count > 0, PR_TRUE);
+
 #ifdef DEBUG
-    GLint currentProgram = 0;
+    GLuint currentProgram = 0;
     MakeContextCurrent();
-    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &currentProgram);
-    NS_ASSERTION(GLuint(currentProgram) == mCurrentProgram->GLName(),
+    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, (GLint*) &currentProgram);
+    NS_ASSERTION(currentProgram == mCurrentProgram->GLName(),
                  "WebGL: current program doesn't agree with GL state");
-    if (GLuint(currentProgram) != mCurrentProgram->GLName())
+    if (currentProgram != mCurrentProgram->GLName())
         return PR_FALSE;
 #endif
-
-    *maxAllowedCount = -1;
 
     PRUint32 attribs = mAttribBuffers.Length();
     for (PRUint32 i = 0; i < attribs; ++i) {
@@ -114,7 +111,7 @@ WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
             continue;
 
         if (vd.buf == nsnull) {
-            ErrorInvalidOperation("%s: no VBO bound to enabled vertex attrib index %d!", info, i);
+            LogMessage("No VBO bound to enabled attrib index %d!", i);
             return PR_FALSE;
         }
 
@@ -123,32 +120,20 @@ WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
         if (!mCurrentProgram->IsAttribInUse(i))
             continue;
 
-        // the base offset
-        CheckedInt32 checked_byteLength
-          = CheckedInt32(vd.buf->ByteLength()) - vd.byteOffset;
-        CheckedInt32 checked_sizeOfLastElement
-          = CheckedInt32(vd.componentSize()) * vd.size;
+        // compute the number of bytes we actually need
+        CheckedUint32 checked_needed = CheckedUint32(vd.byteOffset) + // the base offset
+            CheckedUint32(vd.actualStride()) * (count-1) + // to stride to the start of the last element group
+            CheckedUint32(vd.componentSize()) * vd.size;   // and the number of bytes needed for these components
 
-        if (!checked_byteLength.valid() ||
-            !checked_sizeOfLastElement.valid())
-        {
-          ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
-          return PR_FALSE;
+        if (!checked_needed.valid()) {
+            LogMessage("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
+            return PR_FALSE;
         }
 
-        if (checked_byteLength.value() < checked_sizeOfLastElement.value()) {
-          *maxAllowedCount = 0;
-        } else {
-          CheckedInt32 checked_maxAllowedCount
-            = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
-
-          if (!checked_maxAllowedCount.valid()) {
-            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+        if (vd.buf->ByteLength() < checked_needed.value()) {
+            LogMessage("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
+                       i, checked_needed.value(), vd.buf->ByteLength());
             return PR_FALSE;
-          }
-
-          if (*maxAllowedCount == -1 || *maxAllowedCount > checked_maxAllowedCount.value())
-              *maxAllowedCount = checked_maxAllowedCount.value();
         }
     }
 
@@ -217,25 +202,6 @@ PRBool WebGLContext::ValidateBlendFuncSrcEnum(WebGLenum factor, const char *info
         return PR_TRUE;
     else
         return ValidateBlendFuncDstEnum(factor, info);
-}
-
-PRBool WebGLContext::ValidateBlendFuncEnumsCompatibility(WebGLenum sfactor, WebGLenum dfactor, const char *info)
-{
-    PRBool sfactorIsConstantColor = sfactor == LOCAL_GL_CONSTANT_COLOR ||
-                                    sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
-    PRBool sfactorIsConstantAlpha = sfactor == LOCAL_GL_CONSTANT_ALPHA ||
-                                    sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA;
-    PRBool dfactorIsConstantColor = dfactor == LOCAL_GL_CONSTANT_COLOR ||
-                                    dfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
-    PRBool dfactorIsConstantAlpha = dfactor == LOCAL_GL_CONSTANT_ALPHA ||
-                                    dfactor == LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA;
-    if ( (sfactorIsConstantColor && dfactorIsConstantAlpha) ||
-         (dfactorIsConstantColor && sfactorIsConstantAlpha) ) {
-        ErrorInvalidOperation("%s are mutually incompatible, see section 6.8 in the WebGL 1.0 spec", info);
-        return PR_FALSE;
-    } else {
-        return PR_TRUE;
-    }
 }
 
 PRBool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *info)
@@ -329,124 +295,62 @@ PRBool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
     }
 }
 
-PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
-                                              PRUint32 *texelSize, const char *info)
+PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
+                                                PRUint32 *texelSize, const char *info)
 {
-    if (type == LOCAL_GL_UNSIGNED_BYTE ||
-        (IsExtensionEnabled(WebGL_OES_texture_float) && type == LOCAL_GL_FLOAT))
+    if (type == LOCAL_GL_UNSIGNED_BYTE)
     {
-        if (jsArrayType != -1) {
-            if ((type == LOCAL_GL_UNSIGNED_BYTE && jsArrayType != js::TypedArray::TYPE_UINT8) ||
-                (type == LOCAL_GL_FLOAT && jsArrayType != js::TypedArray::TYPE_FLOAT32))
-            {
-                ErrorInvalidOperation("%s: invalid typed array type for given format", info);
-                return PR_FALSE;
-            }
-        }
-
-        int texMultiplier = type == LOCAL_GL_FLOAT ? 4 : 1;
         switch (format) {
+            case LOCAL_GL_RED:
+            case LOCAL_GL_GREEN:
+            case LOCAL_GL_BLUE:
             case LOCAL_GL_ALPHA:
             case LOCAL_GL_LUMINANCE:
-                *texelSize = 1 * texMultiplier;
+                *texelSize = 1;
                 return PR_TRUE;
             case LOCAL_GL_LUMINANCE_ALPHA:
-                *texelSize = 2 * texMultiplier;
+                *texelSize = 2;
                 return PR_TRUE;
             case LOCAL_GL_RGB:
-                *texelSize = 3 * texMultiplier;
+                *texelSize = 3;
                 return PR_TRUE;
             case LOCAL_GL_RGBA:
-                *texelSize = 4 * texMultiplier;
+                *texelSize = 4;
                 return PR_TRUE;
             default:
-                break;
-        }
-
-        ErrorInvalidEnum("%s: invalid format 0x%x", info, format);
-        return PR_FALSE;
-    }
-
-    switch (type) {
-        case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-        case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-            if (jsArrayType != -1 && jsArrayType != js::TypedArray::TYPE_UINT16) {
-                ErrorInvalidOperation("%s: invalid typed array type for given format", info);
+                ErrorInvalidEnum("%s: invalid format 0x%x", info, format);
                 return PR_FALSE;
-            }
-
-            if (format == LOCAL_GL_RGBA) {
-                *texelSize = 2;
-                return PR_TRUE;
-            }
-            ErrorInvalidOperation("%s: mutually incompatible format and type", info);
-            return PR_FALSE;
-
-        case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-            if (jsArrayType != -1 && jsArrayType != js::TypedArray::TYPE_UINT16) {
-                ErrorInvalidOperation("%s: invalid typed array type for given format", info);
-                return PR_FALSE;
-            }
-
-            if (format == LOCAL_GL_RGB) {
-                *texelSize = 2;
-                return PR_TRUE;
-            }
-            ErrorInvalidOperation("%s: mutually incompatible format and type", info);
-            return PR_FALSE;
-
-        default:
-            break;
         }
-
-    ErrorInvalidEnum("%s: invalid type 0x%x", info, type);
-    return PR_FALSE;
-}
-
-PRBool WebGLContext::ValidateAttribIndex(WebGLuint index, const char *info)
-{
-    if (index >= mAttribBuffers.Length()) {
-        if (index == WebGLuint(-1)) {
-             ErrorInvalidValue("%s: index -1 is invalid. That probably comes from a getAttribLocation() call, "
-                               "where this return value -1 means that the passed name didn't correspond to an active attribute in "
-                               "the specified program.", info);
-        } else {
-             ErrorInvalidValue("%s: index %d is out of range", info, index);
-        }
-        return PR_FALSE;
     } else {
-        return PR_TRUE;
+        switch (type) {
+            case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+            case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+                if (format == LOCAL_GL_RGBA) {
+                    *texelSize = 2;
+                    return PR_TRUE;
+                } else {
+                    ErrorInvalidOperation("%s: mutually incompatible format and type", info);
+                    return PR_FALSE;
+                }
+            case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+                if (format == LOCAL_GL_RGB) {
+                    *texelSize = 2;
+                    return PR_TRUE;
+                } else {
+                    ErrorInvalidOperation("%s: mutually incompatible format and type", info);
+                    return PR_FALSE;
+                }
+            default:
+                ErrorInvalidEnum("%s: invalid type 0x%x", info, type);
+                return PR_FALSE;
+        }
     }
-}
-
-PRBool WebGLContext::ValidateStencilParamsForDrawCall()
-{
-  const char *msg = "%s set different front and back stencil %s. Drawing in this configuration is not allowed.";
-  if (mStencilRefFront != mStencilRefBack) {
-      ErrorInvalidOperation(msg, "stencilFuncSeparate", "reference values");
-      return PR_FALSE;
-  }
-  if (mStencilValueMaskFront != mStencilValueMaskBack) {
-      ErrorInvalidOperation(msg, "stencilFuncSeparate", "value masks");
-      return PR_FALSE;
-  }
-  if (mStencilWriteMaskFront != mStencilWriteMaskBack) {
-      ErrorInvalidOperation(msg, "stencilMaskSeparate", "write masks");
-      return PR_FALSE;
-  }
-  return PR_TRUE;
 }
 
 PRBool
 WebGLContext::InitAndValidateGL()
 {
     if (!gl) return PR_FALSE;
-
-    GLenum error = gl->fGetError();
-    if (error != LOCAL_GL_NO_ERROR) {
-        LogMessage("GL error 0x%x occurred during OpenGL context initialization, before WebGL initialization!", error);
-        return PR_FALSE;
-    }
 
     mActiveTexture = 0;
     mSynthesizedGLError = LOCAL_GL_NO_ERROR;
@@ -461,6 +365,10 @@ WebGLContext::InitAndValidateGL()
     mBoundElementArrayBuffer = nsnull;
     mCurrentProgram = nsnull;
 
+    mFramebufferColorAttachments.Clear();
+    mFramebufferDepthAttachment = nsnull;
+    mFramebufferStencilAttachment = nsnull;
+
     mBoundFramebuffer = nsnull;
     mBoundRenderbuffer = nsnull;
 
@@ -471,14 +379,12 @@ WebGLContext::InitAndValidateGL()
     mMapFramebuffers.Clear();
     mMapRenderbuffers.Clear();
 
+    // make sure that the opengl stuff that we need is supported
+    GLint val = 0;
+
     MakeContextCurrent();
 
-    // on desktop OpenGL, we always keep vertex attrib 0 array enabled
-    if (!gl->IsGLES2()) {
-        gl->fEnableVertexAttribArray(0);
-    }
-
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, &mGLMaxVertexAttribs);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, (GLint*) &mGLMaxVertexAttribs);
     if (mGLMaxVertexAttribs < 8) {
         LogMessage("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
         return PR_FALSE;
@@ -489,7 +395,7 @@ WebGLContext::InitAndValidateGL()
     // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
     // even though the hardware supports much more.  The
     // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS value is the accurate value.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &mGLMaxTextureUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureUnits);
     if (mGLMaxTextureUnits < 8) {
         LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: %d is < 8!", mGLMaxTextureUnits);
         return PR_FALSE;
@@ -498,77 +404,47 @@ WebGLContext::InitAndValidateGL()
     mBound2DTextures.SetLength(mGLMaxTextureUnits);
     mBoundCubeMapTextures.SetLength(mGLMaxTextureUnits);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
-    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*) &mGLMaxTextureSize);
+    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, (GLint*) &mGLMaxCubeMapTextureSize);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureImageUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxVertexTextureImageUnits);
 
-    if (gl->HasES2Compatibility()) {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, &mGLMaxFragmentUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, &mGLMaxVertexUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, &mGLMaxVaryingVectors);
+    if (gl->IsGLES2()) {
+        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
     } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &mGLMaxFragmentUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint*) &mGLMaxFragmentUniformVectors);
         mGLMaxFragmentUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, &mGLMaxVertexUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
         mGLMaxVertexUniformVectors /= 4;
-
-        // we are now going to try to read GL_MAX_VERTEX_OUTPUT_COMPONENTS and GL_MAX_FRAGMENT_INPUT_COMPONENTS,
-        // however these constants only entered the OpenGL standard at OpenGL 3.2. So we will try reading,
-        // and check OpenGL error for INVALID_ENUM.
-
-        // before we start, we check that no error already occurred, to prevent hiding it in our subsequent error handling
-        error = gl->fGetError();
-        if (error != LOCAL_GL_NO_ERROR) {
-            LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
-            return PR_FALSE;
-        }
-
-        // On the public_webgl list, "problematic GetParameter pnames" thread, the following formula was given:
-        //   mGLMaxVaryingVectors = min (GL_MAX_VERTEX_OUTPUT_COMPONENTS, GL_MAX_FRAGMENT_INPUT_COMPONENTS) / 4
-        GLint maxVertexOutputComponents,
-              minFragmentInputComponents;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_OUTPUT_COMPONENTS, &maxVertexOutputComponents);
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_INPUT_COMPONENTS, &minFragmentInputComponents);
-
-        error = gl->fGetError();
-        switch (error) {
-            case LOCAL_GL_NO_ERROR:
-                mGLMaxVaryingVectors = NS_MIN(maxVertexOutputComponents, minFragmentInputComponents) / 4;
-                break;
-            case LOCAL_GL_INVALID_ENUM:
-                mGLMaxVaryingVectors = 16; // = 64/4, 64 is the min value for maxVertexOutputComponents in OpenGL 3.2 spec
-                break;
-            default:
-                LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
-                return PR_FALSE;
-        }
+        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_FLOATS, (GLint*) &mGLMaxVaryingVectors);
+        mGLMaxVaryingVectors /= 4;
     }
 
+#if 0
+    // Leaving this code in here, even though it's ifdef'd out, for
+    // when we support more than 1 color attachment.
+    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, (GLint*) &val);
+#else
     // Always 1 for GLES2
-    mMaxFramebufferColorAttachments = 1;
+    val = 1;
+#endif
+    mFramebufferColorAttachments.SetLength(val);
+
+#if defined(DEBUG_vladimir) && defined(USE_GLES2)
+    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
+    fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_FORMAT: 0x%04x\n", val);
+
+    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, (GLint*) &val);
+    fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_TYPE: 0x%04x\n", val);
+#endif
 
     if (!gl->IsGLES2()) {
         // gl_PointSize is always available in ES2 GLSL, but has to be
         // specifically enabled on desktop GLSL.
         gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
-
-        // we don't do the following glEnable(GL_POINT_SPRITE) on ATI cards on Windows, because bug 602183 shows that it causes
-        // crashes in the ATI/Windows driver; and point sprites on ATI seem like a lost cause anyway, see
-        //    http://www.gamedev.net/community/forums/topic.asp?topic_id=525643
-        // Also, if the ATI/Windows driver implements a recent GL spec version, this shouldn't be needed anyway.
-#ifdef XP_WIN
-        if (gl->Vendor() != gl::GLContext::VendorATI)
-#else
-        if (true)
-#endif
-        {
-            // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
-            // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
-            //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
-            gl->fEnable(LOCAL_GL_POINT_SPRITE);
-        }
     }
 
     // Check the shader validator pref
@@ -586,14 +462,6 @@ WebGLContext::InitAndValidateGL()
         }
     }
 #endif
-
-    // notice that the point of calling GetError here is not only to check for error,
-    // it is also to reset the error flag so that a subsequent WebGL getError call will give the correct result.
-    error = gl->fGetError();
-    if (error != LOCAL_GL_NO_ERROR) {
-        LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
-        return PR_FALSE;
-    }
 
     return PR_TRUE;
 }

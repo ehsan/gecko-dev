@@ -44,7 +44,6 @@
 class nsTraceRefcntImpl : public nsITraceRefcnt
 {
 public:
-  nsTraceRefcntImpl() {}
   NS_DECL_ISUPPORTS
   NS_DECL_NSITRACEREFCNT
 

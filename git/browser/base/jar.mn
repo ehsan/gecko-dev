@@ -2,6 +2,7 @@ browser.jar:
 %  content browser %content/browser/ contentaccessible=yes
 #ifdef XP_MACOSX
 %  overlay chrome://mozapps/content/downloads/downloads.xul chrome://browser/content/downloadManagerOverlay.xul
+%  overlay chrome://mozapps/content/extensions/extensions.xul chrome://browser/content/extensionsManagerOverlay.xul
 %  overlay chrome://global/content/console.xul chrome://browser/content/jsConsoleOverlay.xul
 %  overlay chrome://mozapps/content/update/updates.xul chrome://browser/content/softwareUpdateOverlay.xul
 #endif
@@ -14,26 +15,21 @@ browser.jar:
 %  style chrome://global/content/customizeToolbar.xul chrome://browser/skin/
 *       content/browser/aboutDialog.xul               (content/aboutDialog.xul)
 *       content/browser/aboutDialog.js                (content/aboutDialog.js)
-*       content/browser/aboutDialog.css               (content/aboutDialog.css)
+        content/browser/aboutDialog.css               (content/aboutDialog.css)
 *       content/browser/aboutRobots.xhtml             (content/aboutRobots.xhtml)
 *       content/browser/aboutHome.xhtml               (content/aboutHome.xhtml)
 *       content/browser/aboutHome.js                  (content/aboutHome.js)
 *       content/browser/aboutHome.css                 (content/aboutHome.css)
-        content/browser/aboutHome-restore-icon.png    (content/aboutHome-restore-icon.png)
-        content/browser/aboutHome-restore-icon-small.png    (content/aboutHome-restore-icon-small.png)
-        content/browser/aboutHome-snippet1.png        (content/aboutHome-snippet1.png)
-        content/browser/aboutHome-snippet2.png        (content/aboutHome-snippet2.png)
         content/browser/aboutRobots-icon.png          (content/aboutRobots-icon.png)
+        content/browser/aboutRobots-icon-rtl.png      (content/aboutRobots-icon-rtl.png)
         content/browser/aboutRobots-widget-left.png   (content/aboutRobots-widget-left.png)
+        content/browser/aboutRobots-widget-right.png  (content/aboutRobots-widget-right.png)
 *       content/browser/browser.css                   (content/browser.css)
 *       content/browser/browser.js                    (content/browser.js)
 *       content/browser/browser.xul                   (content/browser.xul)
 *       content/browser/browser-tabPreviews.xml       (content/browser-tabPreviews.xml)
+*       content/browser/credits.xhtml                 (content/credits.xhtml)
 *       content/browser/fullscreen-video.xhtml        (content/fullscreen-video.xhtml)
-        content/browser/highlighter.xhtml             (content/highlighter.xhtml)
-*       content/browser/inspector.html                (content/inspector.html)
-*       content/browser/scratchpad.xul                (content/scratchpad.xul)
-*       content/browser/scratchpad.js                 (content/scratchpad.js)
 *       content/browser/pageinfo/pageInfo.xul         (content/pageinfo/pageInfo.xul)
 *       content/browser/pageinfo/pageInfo.js          (content/pageinfo/pageInfo.js)
 *       content/browser/pageinfo/pageInfo.css         (content/pageinfo/pageInfo.css)
@@ -44,6 +40,7 @@ browser.jar:
 *       content/browser/pageinfo/security.js          (content/pageinfo/security.js)
 *       content/browser/openLocation.js               (content/openLocation.js)
 *       content/browser/openLocation.xul              (content/openLocation.xul)
+*       content/browser/pageReportFirstTime.xul       (content/pageReportFirstTime.xul)
 *       content/browser/safeMode.js                   (content/safeMode.js)
 *       content/browser/safeMode.xul                  (content/safeMode.xul)
 *       content/browser/sanitize.js                   (content/sanitize.js)
@@ -67,15 +64,10 @@ browser.jar:
         content/browser/aboutSyncTabs.css             (content/aboutSyncTabs.css)
 *       content/browser/aboutSyncTabs-bindings.xml    (content/aboutSyncTabs-bindings.xml)
 *       content/browser/syncSetup.xul                 (content/syncSetup.xul)
-        content/browser/syncAddDevice.js              (content/syncAddDevice.js)
-*       content/browser/syncAddDevice.xul             (content/syncAddDevice.xul)
         content/browser/syncSetup.js                  (content/syncSetup.js)
 *       content/browser/syncGenericChange.xul         (content/syncGenericChange.xul)
         content/browser/syncGenericChange.js          (content/syncGenericChange.js)
-*       content/browser/syncKey.xhtml                 (content/syncKey.xhtml)
 *       content/browser/syncNotification.xml          (content/syncNotification.xml)
-*       content/browser/syncQuota.xul                 (content/syncQuota.xul)
-        content/browser/syncQuota.js                  (content/syncQuota.js)
         content/browser/syncUtils.js                  (content/syncUtils.js)
 #endif
 # XXX: We should exclude this one as well (bug 71895)
@@ -83,6 +75,7 @@ browser.jar:
 #ifdef XP_MACOSX
 *       content/browser/macBrowserOverlay.xul         (content/macBrowserOverlay.xul)
 *       content/browser/downloadManagerOverlay.xul    (content/downloadManagerOverlay.xul)
+*       content/browser/extensionsManagerOverlay.xul  (content/extensionsManagerOverlay.xul)
 *       content/browser/jsConsoleOverlay.xul          (content/jsConsoleOverlay.xul)
 *       content/browser/softwareUpdateOverlay.xul  (content/softwareUpdateOverlay.xul)
 #endif
@@ -93,5 +86,3 @@ browser.jar:
 # the following files are browser-specific overrides
 *       content/browser/license.html                  (/toolkit/content/license.html)
 % override chrome://global/content/license.html chrome://browser/content/license.html
-# XXXkhuey This really should live in browser/, but it's too late in the release cycle to move
-+       content/browser/NetworkPanel.xhtml            (/toolkit/components/console/hudservice/NetworkPanel.xhtml)

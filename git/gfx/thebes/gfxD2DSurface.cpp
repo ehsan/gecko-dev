@@ -54,14 +54,6 @@ gfxD2DSurface::gfxD2DSurface(HANDLE handle, gfxContentType aContent)
 	(cairo_content_t)aContent));
 }
 
-gfxD2DSurface::gfxD2DSurface(ID3D10Texture2D *texture, gfxContentType aContent)
-{
-    Init(cairo_d2d_surface_create_for_texture(
-        gfxWindowsPlatform::GetPlatform()->GetD2DDevice(),
-        texture,
-	(cairo_content_t)aContent));
-}
-
 gfxD2DSurface::gfxD2DSurface(cairo_surface_t *csurf)
 {
     Init(csurf, PR_TRUE);
@@ -95,12 +87,6 @@ gfxD2DSurface::Scroll(const nsIntPoint &aDelta, const nsIntRect &aClip)
     rect.width = aClip.width;
     rect.height = aClip.height;
     cairo_d2d_scroll(CairoSurface(), aDelta.x, aDelta.y, &rect);
-}
-
-ID3D10Texture2D*
-gfxD2DSurface::GetTexture()
-{
-  return cairo_d2d_surface_get_texture(CairoSurface());
 }
 
 HDC

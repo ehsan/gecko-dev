@@ -48,56 +48,29 @@ namespace js {
 namespace mjit {
 
 struct Registers {
-    enum CallConvention {
-        NormalCall,
-        FastCall
-    };
 
     typedef JSC::MacroAssembler::RegisterID RegisterID;
 
-    // Homed and scratch registers for working with Values on x64.
+// TODO: Eliminate scratch register (requires rewriting register allocation mechanism)
 #if defined(JS_CPU_X64)
     static const RegisterID TypeMaskReg = JSC::X86Registers::r13;
     static const RegisterID PayloadMaskReg = JSC::X86Registers::r14;
-    static const RegisterID ValueReg = JSC::X86Registers::r10;
-    static const RegisterID ScratchReg = JSC::X86Registers::r11;
-#endif
-
-    // Register that homes the current StackFrame.
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-    static const RegisterID JSFrameReg = JSC::X86Registers::ebx;
-#elif defined(JS_CPU_ARM)
-    static const RegisterID JSFrameReg = JSC::ARMRegisters::r11;
-#elif defined(JS_CPU_SPARC)
-    static const RegisterID JSFrameReg = JSC::SparcRegisters::l0;
+    static const RegisterID ValueReg = JSC::X86Registers::r15;
 #endif
 
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
     static const RegisterID ReturnReg = JSC::X86Registers::eax;
-# if defined(JS_CPU_X86) || defined(_WIN64)
+# if defined(JS_CPU_X86) || defined(_MSC_VER)
     static const RegisterID ArgReg0 = JSC::X86Registers::ecx;
     static const RegisterID ArgReg1 = JSC::X86Registers::edx;
-#  if defined(JS_CPU_X64)
-    static const RegisterID ArgReg2 = JSC::X86Registers::r8;
-#  endif
 # else
     static const RegisterID ArgReg0 = JSC::X86Registers::edi;
     static const RegisterID ArgReg1 = JSC::X86Registers::esi;
-    static const RegisterID ArgReg2 = JSC::X86Registers::edx;
 # endif
 #elif JS_CPU_ARM
     static const RegisterID ReturnReg = JSC::ARMRegisters::r0;
     static const RegisterID ArgReg0 = JSC::ARMRegisters::r0;
     static const RegisterID ArgReg1 = JSC::ARMRegisters::r1;
-    static const RegisterID ArgReg2 = JSC::ARMRegisters::r2;
-#elif JS_CPU_SPARC
-    static const RegisterID ReturnReg = JSC::SparcRegisters::o0;
-    static const RegisterID ArgReg0 = JSC::SparcRegisters::o0;
-    static const RegisterID ArgReg1 = JSC::SparcRegisters::o1;
-    static const RegisterID ArgReg2 = JSC::SparcRegisters::o2;
-    static const RegisterID ArgReg3 = JSC::SparcRegisters::o3;
-    static const RegisterID ArgReg4 = JSC::SparcRegisters::o4;
-    static const RegisterID ArgReg5 = JSC::SparcRegisters::o5;
 #endif
 
     static const RegisterID StackPointer = JSC::MacroAssembler::stackPointerRegister;
@@ -122,7 +95,8 @@ struct Registers {
 # if defined(JS_CPU_X64)
         | (1 << JSC::X86Registers::r8)
         | (1 << JSC::X86Registers::r9)
-#  if !defined(_WIN64)
+        | (1 << JSC::X86Registers::r10)
+#  if !defined(_MSC_VER)
         | (1 << JSC::X86Registers::esi)
         | (1 << JSC::X86Registers::edi)
 #  endif
@@ -135,8 +109,8 @@ struct Registers {
           (1 << JSC::X86Registers::r12)
     // r13 is TypeMaskReg.
     // r14 is PayloadMaskReg.
-        | (1 << JSC::X86Registers::r15)
-#  if defined(_WIN64)
+    // r15 is ValueReg.
+#  if defined(_MSC_VER)
         | (1 << JSC::X86Registers::esi)
         | (1 << JSC::X86Registers::edi)
 #  endif
@@ -147,15 +121,11 @@ struct Registers {
 # endif
         ;
 
-# if defined(JS_CPU_X86)
     static const uint32 SingleByteRegs = (TempRegs | SavedRegs) &
         ~((1 << JSC::X86Registers::esi) |
           (1 << JSC::X86Registers::edi) |
           (1 << JSC::X86Registers::ebp) |
           (1 << JSC::X86Registers::esp));
-# elif defined(JS_CPU_X64)
-    static const uint32 SingleByteRegs = TempRegs | SavedRegs;
-# endif
 
 #elif defined(JS_CPU_ARM)
     static const uint32 TempRegs =
@@ -179,116 +149,11 @@ struct Registers {
     // r15 is PC (program counter).
 
     static const uint32 SingleByteRegs = TempRegs | SavedRegs;
-#elif defined(JS_CPU_SPARC)
-    static const uint32 TempRegs =
-          (1 << JSC::SparcRegisters::o0)
-        | (1 << JSC::SparcRegisters::o1)
-        | (1 << JSC::SparcRegisters::o2)
-        | (1 << JSC::SparcRegisters::o3)
-        | (1 << JSC::SparcRegisters::o4)
-        | (1 << JSC::SparcRegisters::o5);
-
-    static const uint32 SavedRegs =
-          (1 << JSC::SparcRegisters::l2)
-        | (1 << JSC::SparcRegisters::l3)
-        | (1 << JSC::SparcRegisters::l4)
-        | (1 << JSC::SparcRegisters::l5)
-        | (1 << JSC::SparcRegisters::l6)
-        | (1 << JSC::SparcRegisters::l7)
-        | (1 << JSC::SparcRegisters::i0)
-        | (1 << JSC::SparcRegisters::i1)
-        | (1 << JSC::SparcRegisters::i2)
-        | (1 << JSC::SparcRegisters::i3)
-        | (1 << JSC::SparcRegisters::i4)
-        | (1 << JSC::SparcRegisters::i5);
-
-    static const uint32 SingleByteRegs = TempRegs | SavedRegs;
 #else
 # error "Unsupported platform"
 #endif
 
     static const uint32 AvailRegs = SavedRegs | TempRegs;
-
-    static bool isSaved(RegisterID reg) {
-        uint32 mask = maskReg(reg);
-        JS_ASSERT(mask & AvailRegs);
-        return bool(mask & SavedRegs);
-    }
-
-    static inline uint32 numArgRegs(CallConvention convention) {
-#if defined(JS_CPU_X86)
-# if defined(JS_NO_FASTCALL)
-        return 0;
-# else
-        return (convention == FastCall) ? 2 : 0;
-# endif
-#elif defined(JS_CPU_X64)
-# ifdef _WIN64
-        return 4;
-# else
-        return 6;
-# endif
-#elif defined(JS_CPU_ARM)
-        return 4;
-#elif defined(JS_CPU_SPARC)
-        return 6;
-#endif
-    }
-
-    static inline bool regForArg(CallConvention conv, uint32 i, RegisterID *reg) {
-#if defined(JS_CPU_X86)
-        static const RegisterID regs[] = {
-            JSC::X86Registers::ecx,
-            JSC::X86Registers::edx
-        };
-
-# if defined(JS_NO_FASTCALL)
-        return false;
-# else
-        if (conv == NormalCall)
-            return false;
-# endif
-#elif defined(JS_CPU_X64)
-# ifdef _WIN64
-        static const RegisterID regs[] = {
-            JSC::X86Registers::ecx,
-            JSC::X86Registers::edx,
-            JSC::X86Registers::r8,
-            JSC::X86Registers::r9
-        };
-# else
-        static const RegisterID regs[] = {
-            JSC::X86Registers::edi,
-            JSC::X86Registers::esi,
-            JSC::X86Registers::edx,
-            JSC::X86Registers::ecx,
-            JSC::X86Registers::r8,
-            JSC::X86Registers::r9
-        };
-# endif
-#elif defined(JS_CPU_ARM)
-        static const RegisterID regs[] = {
-            JSC::ARMRegisters::r0,
-            JSC::ARMRegisters::r1,
-            JSC::ARMRegisters::r2,
-            JSC::ARMRegisters::r3
-        };
-#elif defined(JS_CPU_SPARC)
-        static const RegisterID regs[] = {
-            JSC::SparcRegisters::o0,
-            JSC::SparcRegisters::o1,
-            JSC::SparcRegisters::o2,
-            JSC::SparcRegisters::o3,
-            JSC::SparcRegisters::o4,
-            JSC::SparcRegisters::o5
-        };
-#endif
-        JS_ASSERT(numArgRegs(conv) == JS_ARRAY_LENGTH(regs));
-        if (i > JS_ARRAY_LENGTH(regs))
-            return false;
-        *reg = regs[i];
-        return true;
-    }
 
     Registers()
       : freeMask(AvailRegs)
@@ -320,16 +185,11 @@ struct Registers {
         return !(freeMask & mask);
     }
 
-    RegisterID peekReg() {
+    RegisterID takeAnyReg() {
         JS_ASSERT(!empty());
         int ireg;
         JS_FLOOR_LOG2(ireg, freeMask);
         RegisterID reg = (RegisterID)ireg;
-        return reg;
-    }
-
-    RegisterID takeAnyReg() {
-        RegisterID reg = peekReg();
         takeReg(reg);
         return reg;
     }
@@ -361,10 +221,6 @@ struct Registers {
 
     void takeReg(RegisterID reg) {
         JS_ASSERT(hasReg(reg));
-        takeRegUnchecked(reg);
-    }
-
-    void takeRegUnchecked(RegisterID reg) {
         freeMask &= ~(1 << reg);
     }
 
@@ -408,27 +264,6 @@ struct FPRegisters {
     static const FPRegisterID Second = JSC::ARMRegisters::d1;
     static const FPRegisterID Temp0 = JSC::ARMRegisters::d2;
     static const FPRegisterID Temp1 = JSC::ARMRegisters::d3;
-#elif defined(JS_CPU_SPARC)
-    static const uint32 TotalFPRegisters = 16;
-    static const uint32 TempFPRegs = 
-          (1 << JSC::SparcRegisters::f0)
-        | (1 << JSC::SparcRegisters::f2)
-        | (1 << JSC::SparcRegisters::f4)
-        | (1 << JSC::SparcRegisters::f6)
-        | (1 << JSC::SparcRegisters::f8)
-        | (1 << JSC::SparcRegisters::f10)
-        | (1 << JSC::SparcRegisters::f12)
-        | (1 << JSC::SparcRegisters::f14)
-        | (1 << JSC::SparcRegisters::f16)
-        | (1 << JSC::SparcRegisters::f18)
-        | (1 << JSC::SparcRegisters::f20)
-        | (1 << JSC::SparcRegisters::f22)
-        | (1 << JSC::SparcRegisters::f24)
-        | (1 << JSC::SparcRegisters::f26)
-        | (1 << JSC::SparcRegisters::f28);
-    /* FIXME: Temporary hack until FPRegister allocation exists. */
-    static const FPRegisterID First  = JSC::SparcRegisters::f0;
-    static const FPRegisterID Second = JSC::SparcRegisters::f2;
 #else
 # error "Unsupported platform"
 #endif
@@ -510,8 +345,6 @@ struct FPRegisters {
 
     uint32 freeFPMask;
 };
-
-static const JSC::MacroAssembler::RegisterID JSFrameReg = Registers::JSFrameReg;
 
 } /* namespace mjit */
 

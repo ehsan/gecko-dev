@@ -57,13 +57,14 @@ public:
                                       nsGUIEvent* aEvent,
                                       nsEventStatus* aEventStatus);
 
-  virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent);
+  virtual PRBool GetMouseThrough() const { return PR_FALSE; }
 
-  void UpdateMouseThrough() { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
+  virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent);
 
 protected:
 	PRBool mTrackingMouseMove;	
 	nsIntPoint mLastPoint;
+
 
 }; // class nsTitleBarFrame
 

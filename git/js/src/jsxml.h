@@ -41,7 +41,6 @@
 
 #include "jspubtd.h"
 #include "jsobj.h"
-#include "jscell.h"
 
 extern const char js_AnyName_str[];
 extern const char js_AttributeName_str[];
@@ -114,7 +113,13 @@ struct JSXMLArrayCursor
         return root = array->vector[index];
     }
 
-    void trace(JSTracer *trc);
+    void trace(JSTracer *trc) {
+#ifdef DEBUG
+        size_t index = 0;
+#endif
+        for (JSXMLArrayCursor *cursor = this; cursor; cursor = cursor->next)
+            js::MarkGCThing(trc, cursor->root, "cursor_root", index++);
+    }
 };
 
 #define JSXML_PRESET_CAPACITY   JS_BIT(31)
@@ -157,23 +162,7 @@ typedef struct JSXMLElemVar {
     JSXMLArray          attrs;
 } JSXMLElemVar;
 
-/* union member shorthands */
-#define xml_kids        u.list.kids
-#define xml_target      u.list.target
-#define xml_targetprop  u.list.targetprop
-#define xml_namespaces  u.elem.namespaces
-#define xml_attrs       u.elem.attrs
-#define xml_value       u.value
-
-/* xml_class-testing macros */
-#define JSXML_HAS_KIDS(xml)     JSXML_CLASS_HAS_KIDS((xml)->xml_class)
-#define JSXML_HAS_VALUE(xml)    JSXML_CLASS_HAS_VALUE((xml)->xml_class)
-#define JSXML_HAS_NAME(xml)     JSXML_CLASS_HAS_NAME((xml)->xml_class)
-#define JSXML_LENGTH(xml)       (JSXML_CLASS_HAS_KIDS((xml)->xml_class)       \
-                                 ? (xml)->xml_kids.length                     \
-                                 : 0)
-
-struct JSXML : js::gc::Cell {
+struct JSXML {
 #ifdef DEBUG_notme
     JSCList             links;
     uint32              serial;
@@ -189,29 +178,37 @@ struct JSXML : js::gc::Cell {
         JSXMLElemVar    elem;
         JSString        *value;
     } u;
-    
-    void finalize(JSContext *cx) {
-        if (JSXML_HAS_KIDS(this)) {
-            xml_kids.finish(cx);
-            if (xml_class == JSXML_CLASS_ELEMENT) {
-                xml_namespaces.finish(cx);
-                xml_attrs.finish(cx);
-            }
-        }
-#ifdef DEBUG_notme
-        JS_REMOVE_LINK(&links);
-#endif
-    }
 };
+
+JS_STATIC_ASSERT(sizeof(JSXML) % JS_GCTHING_ALIGN == 0);
+
+/* union member shorthands */
+#define xml_kids        u.list.kids
+#define xml_target      u.list.target
+#define xml_targetprop  u.list.targetprop
+#define xml_namespaces  u.elem.namespaces
+#define xml_attrs       u.elem.attrs
+#define xml_value       u.value
 
 /* xml_flags values */
 #define XMLF_WHITESPACE_TEXT    0x1
+
+/* xml_class-testing macros */
+#define JSXML_HAS_KIDS(xml)     JSXML_CLASS_HAS_KIDS((xml)->xml_class)
+#define JSXML_HAS_VALUE(xml)    JSXML_CLASS_HAS_VALUE((xml)->xml_class)
+#define JSXML_HAS_NAME(xml)     JSXML_CLASS_HAS_NAME((xml)->xml_class)
+#define JSXML_LENGTH(xml)       (JSXML_CLASS_HAS_KIDS((xml)->xml_class)       \
+                                 ? (xml)->xml_kids.length                     \
+                                 : 0)
 
 extern JSXML *
 js_NewXML(JSContext *cx, JSXMLClass xml_class);
 
 extern void
 js_TraceXML(JSTracer *trc, JSXML *xml);
+
+extern void
+js_FinalizeXML(JSContext *cx, JSXML *xml);
 
 extern JSObject *
 js_NewXMLObject(JSContext *cx, JSXMLClass xml_class);
@@ -274,10 +271,19 @@ extern JSObject *
 js_InitQNameClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
+js_InitAttributeNameClass(JSContext *cx, JSObject *obj);
+
+extern JSObject *
+js_InitAnyNameClass(JSContext *cx, JSObject *obj);
+
+extern JSObject *
 js_InitXMLClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
 js_InitXMLClasses(JSContext *cx, JSObject *obj);
+
+extern JSBool
+js_GetFunctionNamespace(JSContext *cx, js::Value *vp);
 
 /*
  * If obj is QName corresponding to function::name, set *funidp to name's id,
@@ -303,14 +309,14 @@ js_IsXMLName(JSContext *cx, jsval v);
 extern JSBool
 js_ToAttributeName(JSContext *cx, js::Value *vp);
 
-extern JSFlatString *
+extern JSString *
 js_EscapeAttributeValue(JSContext *cx, JSString *str, JSBool quote);
 
 extern JSString *
 js_AddAttributePart(JSContext *cx, JSBool isName, JSString *str,
                     JSString *str2);
 
-extern JSFlatString *
+extern JSString *
 js_EscapeElementValue(JSContext *cx, JSString *str);
 
 extern JSString *

@@ -70,7 +70,7 @@
 
 #ifdef _WIN32
 # include <windows.h>
-#elif !defined(__OS2__)
+#else
 # include <unistd.h>
 # include <sys/mman.h>
 # ifndef MAP_ANON
@@ -81,6 +81,8 @@
 #  endif
 # endif
 #endif
+
+#ifndef DEBUG_TRACEMALLOC_PRESARENA
 
 // Size to use for PLArena block allocations.
 static const size_t ARENA_PAGE_SIZE = 4096;
@@ -125,38 +127,6 @@ GetDesiredRegionSize()
   SYSTEM_INFO sinfo;
   GetSystemInfo(&sinfo);
   return sinfo.dwAllocationGranularity;
-}
-
-#define RESERVE_FAILED 0
-
-#elif defined(__OS2__)
-static void *
-ReserveRegion(PRUword region, PRUword size)
-{
-  // OS/2 doesn't support allocation at an arbitrary address,
-  // so return an address that is known to be invalid.
-  return (void*)0xFFFD0000;
-}
-
-static void
-ReleaseRegion(void *region, PRUword size)
-{
-  return;
-}
-
-static bool
-ProbeRegion(PRUword region, PRUword size)
-{
-  // There's no reliable way to probe an address in the system
-  // arena other than by touching it and seeing if a trap occurs.
-  return false;
-}
-
-static PRUword
-GetDesiredRegionSize()
-{
-  // Page size is fixed at 4k.
-  return 0x1000;
 }
 
 #define RESERVE_FAILED 0
@@ -273,7 +243,6 @@ ARENA_POISON_init()
   return PR_SUCCESS;
 }
 
-#ifndef DEBUG_TRACEMALLOC_PRESARENA
 
 // All keys to this hash table fit in 32 bits (see below) so we do not
 // bother actually hashing them.
@@ -404,17 +373,10 @@ nsPresArena::Size()
 
 #else
 // Stub implementation that forwards everything to malloc and does not
-// poison allocations (it still initializes the poison value though,
-// for external use through GetPoisonValue()).
+// poison.
 
 struct nsPresArena::State
 {
-
-  State()
-  {
-    PR_CallOnce(&ARENA_POISON_guard, ARENA_POISON_init);
-  }
-
   void* Allocate(PRUint32 /* unused */, size_t aSize)
   {
     return PR_Malloc(aSize);
@@ -469,10 +431,4 @@ void
 nsPresArena::FreeByCode(nsQueryFrame::FrameIID aCode, void* aPtr)
 {
   mState->Free(aCode, aPtr);
-}
-
-/* static */ PRUword
-nsPresArena::GetPoisonValue()
-{
-  return ARENA_POISON;
 }

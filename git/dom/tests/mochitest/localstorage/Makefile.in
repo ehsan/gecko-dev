@@ -47,7 +47,6 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES	= \
-    frameBug624047.html \
     frameChromeSlave.html \
     frameMasterEqual.html \
     frameMasterNotEqual.html \
@@ -62,7 +61,6 @@ _TEST_FILES	= \
     interOriginTest2.js \
     pbSwitch.js \
     test_brokenUTF-16.html \
-    test_bug624047.html \
     test_cookieBlock.html \
     test_cookieSession-phase1.html \
     test_cookieSession-phase2.html \
@@ -70,8 +68,6 @@ _TEST_FILES	= \
     test_localStorageBase.html \
     test_localStorageBasePrivateBrowsing.html \
     test_localStorageBaseSessionOnly.html \
-    test_localStorageCookieSettings.html \
-    test_localStorageEnablePref.html \
     test_localStorageOriginsEquals.html \
     test_localStorageOriginsDiff.html \
     test_localStorageOriginsPortDiffs.html \

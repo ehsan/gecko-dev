@@ -47,7 +47,6 @@
 #include "nsIScrollableFrame.h"
 #include "nsStubMutationObserver.h"
 #include "nsITextControlElement.h"
-#include "nsIStatefulFrame.h"
 
 class nsIEditor;
 class nsISelectionController;
@@ -60,13 +59,10 @@ class nsTextEditorState;
 
 class nsTextControlFrame : public nsStackFrame,
                            public nsIAnonymousContentCreator,
-                           public nsITextControlFrame,
-                           public nsIStatefulFrame
+                           public nsITextControlFrame
 {
 public:
   NS_DECL_FRAMEARENA_HELPERS
-
-  NS_DECLARE_FRAME_PROPERTY(ContentScrollPos, DestroyPoint)
 
   nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext);
   virtual ~nsTextControlFrame();
@@ -79,8 +75,8 @@ public:
     return do_QueryFrame(GetFirstChild(nsnull));
   }
 
-  virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsIRenderingContext* aRenderingContext);
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -121,9 +117,8 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   // Utility methods to set current widget state
 
@@ -160,14 +155,6 @@ public:
   virtual nsresult EnsureEditorInitialized();
 
 //==== END NSITEXTCONTROLFRAME
-
-//==== NSISTATEFULFRAME
-
-  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
-  NS_IMETHOD RestoreState(nsPresState* aState);
-
-//=== END NSISTATEFULFRAME
-
 //==== OVERLOAD of nsIFrame
   virtual nsIAtom* GetType() const;
 
@@ -180,13 +167,8 @@ public:
 
   NS_DECL_QUERYFRAME
 
-  // Temp reference to scriptrunner
-  // We could make these auto-Revoking via the "delete" entry for safety
-  NS_DECLARE_FRAME_PROPERTY(TextControlInitializer, nsnull)
-
-
 public: //for methods who access nsTextControlFrame directly
-  void FireOnInput(PRBool aTrusted);
+  void FireOnInput();
   void SetValueChanged(PRBool aValueChanged);
   /** Called when the frame is focused, to remember the value for onChange. */
   nsresult InitFocusedValue();
@@ -210,16 +192,16 @@ public: //for methods who access nsTextControlFrame directly
     ValueSetter(nsTextControlFrame* aFrame,
                 PRBool aHasFocusValue)
       : mFrame(aFrame)
+      , mInited(PR_FALSE)
+    {
+      NS_ASSERTION(aFrame, "Should pass a valid frame");
+
       // This method isn't used for user-generated changes, except for calls
       // from nsFileControlFrame which sets mFireChangeEventState==true and
       // restores it afterwards (ie. we want 'change' events for those changes).
       // Focused value must be updated to prevent incorrect 'change' events,
       // but only if user hasn't changed the value.
-      , mFocusValueInit(!mFrame->mFireChangeEventState && aHasFocusValue)
-      , mOuterTransaction(false)
-      , mInited(false)
-    {
-      NS_ASSERTION(aFrame, "Should pass a valid frame");
+      mFocusValueInit = !mFrame->mFireChangeEventState && aHasFocusValue;
     }
     void Cancel() {
       mInited = PR_FALSE;
@@ -291,27 +273,23 @@ protected:
   class EditorInitializer : public nsRunnable {
   public:
     EditorInitializer(nsTextControlFrame* aFrame) :
+      mWeakFrame(aFrame),
       mFrame(aFrame) {}
 
     NS_IMETHOD Run() {
-      if (mFrame) {
+      if (mWeakFrame) {
         nsCOMPtr<nsIPresShell> shell =
-          mFrame->PresContext()->GetPresShell();
+          mWeakFrame.GetFrame()->PresContext()->GetPresShell();
         PRBool observes = shell->ObservesNativeAnonMutationsForPrint();
         shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
         mFrame->EnsureEditorInitialized();
         shell->ObserveNativeAnonMutationsForPrint(observes);
-        mFrame->FinishedInitializer();
       }
       return NS_OK;
     }
 
-    // avoids use of nsWeakFrame
-    void Revoke() {
-      mFrame = nsnull;
-    }
-
   private:
+    nsWeakFrame mWeakFrame;
     nsTextControlFrame* mFrame;
   };
 
@@ -376,10 +354,8 @@ protected:
   // Compute our intrinsic size.  This does not include any borders, paddings,
   // etc.  Just the size of our actual area for the text (and the scrollbars,
   // for <textarea>).
-  nsresult CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
+  nsresult CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
                              nsSize&              aIntrinsicSize);
-
-  nsresult ScrollSelectionIntoView();
 
 private:
   //helper methods
@@ -397,10 +373,6 @@ private:
    */
   nsresult GetRootNodeAndInitializeEditor(nsIDOMElement **aRootElement);
 
-  void FinishedInitializer() {
-    Properties().Delete(TextControlInitializer());
-  }
-
 private:
   // these packed bools could instead use the high order bits on mState, saving 4 bytes 
   PRPackedBool mUseEditor;
@@ -409,8 +381,7 @@ private:
   // Calls to SetValue will be treated as user values (i.e. trigger onChange
   // eventually) when mFireChangeEventState==true, this is used by nsFileControlFrame.
   PRPackedBool mFireChangeEventState;
-  // Keep track if we have asked a placeholder node creation.
-  PRPackedBool mUsePlaceholder;
+  PRPackedBool mInSecureKeyboardInputMode;
 
 #ifdef DEBUG
   PRPackedBool mInEditorInitialization;

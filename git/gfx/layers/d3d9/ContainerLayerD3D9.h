@@ -66,13 +66,6 @@ public:
   PRBool IsEmpty();
 
   void RenderLayer();
-
-  virtual void LayerManagerDestroyed();
-
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    DefaultComputeEffectiveTransforms(aTransformToSurface);
-  }
 };
 
 } /* layers */

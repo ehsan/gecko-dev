@@ -51,14 +51,13 @@
 class nsHttpResponseHead
 {
 public:
-    nsHttpResponseHead() : mHeaders(nsHttpHeaderArray::HTTP_RESPONSE_HEADERS)
-                         , mVersion(NS_HTTP_VERSION_1_1)
+    nsHttpResponseHead() : mVersion(NS_HTTP_VERSION_1_1)
                          , mStatus(200)
                          , mContentLength(LL_MAXUINT)
                          , mCacheControlNoStore(PR_FALSE)
                          , mCacheControlNoCache(PR_FALSE)
                          , mPragmaNoCache(PR_FALSE) {}
-    ~nsHttpResponseHead() 
+   ~nsHttpResponseHead() 
     {
         Reset();
     }
@@ -105,7 +104,7 @@ public:
     void     ParseStatusLine(const char *line);
 
     // parse a header line. line must be null terminated. parsing is destructive.
-    nsresult ParseHeaderLine(const char *line);
+    void     ParseHeaderLine(const char *line);
 
     // cache validation support methods
     nsresult ComputeFreshnessLifetime(PRUint32 *);
@@ -151,7 +150,9 @@ private:
     PRPackedBool      mCacheControlNoCache;
     PRPackedBool      mPragmaNoCache;
 
+#ifdef MOZ_IPC
     friend struct IPC::ParamTraits<nsHttpResponseHead>;
+#endif
 };
 
 #endif // nsHttpResponseHead_h__

@@ -52,12 +52,6 @@ EXPORTS_IPC = \
 		nsGUIEventIPC.h \
 		$(NULL)
 
-ifdef MOZ_INSTRUMENT_EVENT_LOOP
-EXPORTS_NAMESPACES += mozilla
-EXPORTS_mozilla = \
-  WidgetTraceEvent.h
-endif
-
 EXPORTS		= \
 		nsIWidget.h \
 		nsGUIEvent.h \
@@ -84,10 +78,8 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 EXPORTS		+= nsIDragSessionOS2.h
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS		+= \
-		nsIPrintDialogService.h \
-		$(NULL)
+ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
+EXPORTS		+= nsIDragSessionBeOS.h
 endif
 
 ifneq (,$(filter qt gtk2,$(MOZ_WIDGET_TOOLKIT)))
@@ -121,8 +113,6 @@ XPIDLSRCS	= \
 		nsIPrintOptions.idl \
 		nsIIdleService.idl \
 		nsIGfxInfo.idl \
-                nsIGfxInfoDebug.idl \
-		nsIIMEPicker.idl \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)

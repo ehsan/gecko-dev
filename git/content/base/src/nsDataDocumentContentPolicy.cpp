@@ -42,8 +42,6 @@
  */
 
 #include "nsDataDocumentContentPolicy.h"
-#include "nsNetUtil.h"
-#include "nsScriptSecurityManager.h"
 #include "nsIDocument.h"
 #include "nsINode.h"
 #include "nsIDOMWindow.h"
@@ -83,42 +81,6 @@ nsDataDocumentContentPolicy::ShouldLoad(PRUint32 aContentType,
   // Nothing else is OK to load for data documents
   if (doc->IsLoadedAsData()) {
     *aDecision = nsIContentPolicy::REJECT_TYPE;
-    return NS_OK;
-  }
-
-  if (doc->IsBeingUsedAsImage()) {
-    // Allow local resources for SVG-as-an-image documents, but disallow
-    // everything else, to prevent data leakage
-    PRBool hasFlags;
-    nsresult rv = NS_URIChainHasFlags(aContentLocation,
-                                      nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
-                                      &hasFlags);
-    if (NS_FAILED(rv) || !hasFlags) {
-      // resource is not local (or we couldn't tell) - reject!
-      *aDecision = nsIContentPolicy::REJECT_TYPE;
-
-      // report error, if we can.
-      if (node) {
-        nsIPrincipal* requestingPrincipal = node->NodePrincipal();
-        nsRefPtr<nsIURI> principalURI;
-        rv = requestingPrincipal->GetURI(getter_AddRefs(principalURI));
-        if (NS_SUCCEEDED(rv) && principalURI) {
-          nsScriptSecurityManager::ReportError(
-            nsnull, NS_LITERAL_STRING("CheckSameOriginError"), principalURI,
-            aContentLocation);
-        }
-      }
-    } else if (aContentType == nsIContentPolicy::TYPE_IMAGE &&
-               doc->GetDocumentURI()) {
-      // Check for (& disallow) recursive image-loads
-      PRBool isRecursiveLoad;
-      rv = aContentLocation->EqualsExceptRef(doc->GetDocumentURI(),
-                                             &isRecursiveLoad);
-      if (NS_FAILED(rv) || isRecursiveLoad) {
-        NS_WARNING("Refusing to recursively load image");
-        *aDecision = nsIContentPolicy::REJECT_TYPE;
-      }
-    }
     return NS_OK;
   }
 

@@ -11,6 +11,7 @@ found in the LICENSE file.
     <link rel="stylesheet" href="../resources/js-test-style.css"/>
     <script src="../resources/js-test-pre.js"></script>
     <script src="resources/webgl-test.js"> </script>
+    <script src="../../debug/webgl-debug.js"> </script>
 </head>
 <body>
 <canvas id="example" width="2" height="2" style="width: 40px; height: 40px;"></canvas>
@@ -57,7 +58,7 @@ function init()
     window.initNonKhronosFramework(false);
   }
 
-  debug("Tests that binding both TEXTURE_2D and TEXTURE_CUBE_MAP to the same");
+  debug("Tests that binding both TEXTURE_2D and TEXTURE_3D to the same");
   debug("active texture unit works as long as they are not used");
   debug("simultaneously in the same shader program.");
   debug("");
@@ -66,12 +67,12 @@ function init()
   var ctx2d = canvas2d.getContext("2d");
   ctx2d.globalCompositeOperation = "copy";
 
-  gl = initWebGL("example", "vshader", "fshader2d", ["vPosition", "texCoord0"],
+  gl = initWebGL("example", "vshader", "fshader2d", [ "vPosition", "texCoord0"],
                  [ 0, 0, 0, 1 ], 1);
+  gl = WebGLDebugUtils.makeDebugContext(gl);
 
   var program2d = gl.program;
-  var programCube = createProgram(
-      gl, "vshader", "fshaderCube", ["vPosition", "texCoord0"]);
+  var programCube = loadProgram(gl, "vshader", "fshaderCube", false);
 
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.BLEND);

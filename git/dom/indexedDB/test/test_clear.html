@@ -19,21 +19,21 @@
       const description = "My Test Database";
       const entryCount = 1000;
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = request.result;
+      let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "", true);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      event.target.transaction.oncomplete = continueToNextStep;
+      event.transaction.oncomplete = continueToNextStep;
 
-      let objectStore = db.createObjectStore("foo", { autoIncrement: true });
+      let objectStore = event.result;
 
       let firstKey;
       for (let i = 0; i < entryCount; i++) {
@@ -41,7 +41,7 @@
         request.onerror = errorHandler;
         if (!i) {
           request.onsuccess = function(event) {
-            firstKey = event.target.result;
+            firstKey = event.result;
           };
         }
       }
@@ -51,10 +51,10 @@
 
       let seenEntryCount = 0;
 
-      request = db.transaction("foo").objectStore("foo").openCursor();
+      request = db.objectStore("foo").openCursor();
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        let cursor = event.target.result;
+        let cursor = event.result;
         if (cursor) {
           seenEntryCount++;
           cursor.continue();
@@ -68,26 +68,24 @@
       is(seenEntryCount, entryCount, "Correct entry count");
 
       try {
-        db.transaction("foo").objectStore("foo").clear();
+        db.objectStore("foo").clear();
         ok(false, "clear should throw on READ_ONLY transactions");
       }
       catch (e) {
         ok(true, "clear should throw on READ_ONLY transactions");
       }
 
-      request = db.transaction("foo", READ_WRITE).objectStore("foo").clear();
+      request = db.objectStore("foo", READ_WRITE).clear();
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      ok(event.target.result === undefined, "Correct event.target.result");
-      ok(request.result === undefined, "Correct request.result");
-      ok(request === event.target, "Correct event.target");
+      ok(event.result === null, "Correct event.result");
 
-      request = db.transaction("foo").objectStore("foo").openCursor();
+      request = db.objectStore("foo").openCursor();
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        let cursor = request.result;
+        let cursor = event.result;
         if (cursor) {
           ok(false, "Shouldn't have any entries");
         }
@@ -95,12 +93,12 @@
       }
       yield;
 
-      request = db.transaction("foo", READ_WRITE).objectStore("foo").add({});
+      request = db.objectStore("foo", READ_WRITE).add({});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      isnot(event.target.result, firstKey, "Got a different key");
+      isnot(event.result, firstKey, "Got a different key");
 
       finishTest();
       yield;

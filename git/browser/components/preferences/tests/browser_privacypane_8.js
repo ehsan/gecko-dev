@@ -13,7 +13,7 @@
  *
  * The Original Code is Privacy PrefPane Test.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corp.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -37,13 +37,7 @@
 function test() {
   let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                getService(Ci.mozIJSSubScriptLoader);
-  let rootDir = getRootDirectory(gTestPath);
-  let jar = getJar(rootDir);
-  if (jar) {
-    let tmpdir = extractJarToTmp(jar);
-    rootDir = "file://" + tmpdir.path + '/';
-  }
-  loader.loadSubScript(rootDir + "privacypane_tests.js", this);
+  loader.loadSubScript("chrome://mochikit/content/browser/browser/components/preferences/tests/privacypane_tests.js", this);
 
   run_test_subset([
     // history mode should be initialized to remember

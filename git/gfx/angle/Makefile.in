@@ -59,9 +59,9 @@ LOCAL_INCLUDES += -I$(srcdir)/include -I$(srcdir)/src
 VPATH += $(srcdir)/src
 VPATH += $(srcdir)/src/compiler
 VPATH += $(srcdir)/src/compiler/preprocessor
+VPATH += $(srcdir)/generated
 
 CPPSRCS = \
-	Compiler.cpp \
         InfoSink.cpp \
         Initialize.cpp \
         InitializeDll.cpp \
@@ -76,18 +76,13 @@ CPPSRCS = \
         RemoveTree.cpp \
         ShaderLang.cpp \
         SymbolTable.cpp \
-	VariableInfo.cpp \
-	compilerdebug.cpp \
+	debug.cpp \
 	ossource_nspr.cpp \
-	util.cpp \
-	ValidateLimitations.cpp \
-	ForLoopUnroll.cpp \
-	MapLongVariableNames.cpp \
 	$(NULL)
 
 # flex/yacc generated files
 CPPSRCS += \
-	glslang_lex.cpp \
+	glslang.cpp \
 	glslang_tab.cpp \
 	$(NULL)
 
@@ -96,7 +91,6 @@ CPPSRCS += \
 	CodeGenGLSL.cpp \
 	OutputGLSL.cpp \
 	TranslatorGLSL.cpp \
-	VersionGLSL.cpp \
 	$(NULL)
 
 # Currently, only one or the other
@@ -108,7 +102,6 @@ CPPSRCS += \
 ##	OutputHLSL.cpp \
 ##	TranslatorHLSL.cpp \
 ##	UnfoldSelect.cpp \
-##	SearchSymbol.cpp \
 ##	$(NULL)
 
 CSRCS   = \
@@ -123,18 +116,8 @@ CSRCS   = \
 
 DEFINES += -DANGLE_USE_NSPR -DANGLE_BUILD
 
-# ANGLE only on Win32 for now, the solution isn't set up
-# for 64-bit yet. This is handled by MOZ_ANGLE which the configure script
-# leaves undefined in the 64-bit case.
-ifdef MOZ_ANGLE
-
-# libEGL depends on (links against!) libGLESv2!
-DIRS = src/libGLESv2 src/libEGL
-
-libs::
-	expand "$(MOZ_D3DX9_CAB)" -F:$(MOZ_D3DX9_DLL) "$(DIST)/bin"
-	expand "$(MOZ_D3DCOMPILER_CAB)" -F:$(MOZ_D3DCOMPILER_DLL) "$(DIST)/bin"
-
+ifndef MOZ_ENABLE_LIBXUL
+EXTRA_DSO_LDOPTS = $(MOZ_COMPONENT_LIBS)
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -144,3 +127,4 @@ include $(topsrcdir)/config/rules.mk
 # upstream at some point.
 CXXFLAGS := $(filter-out -pedantic,$(CXXFLAGS))
 CFLAGS := $(filter-out -pedantic,$(CFLAGS))
+

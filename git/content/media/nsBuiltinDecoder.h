@@ -109,15 +109,15 @@ The following result in state transitions.
 
 Shutdown()
   Clean up any resources the nsDecoderStateMachine owns.
-Play()
-  Start decoding and playback of media data.
+Decode()
+  Start decoding media data.
 Buffer
   This is not user initiated. It occurs when the
   available data in the stream drops below a certain point.
 Complete
   This is not user initiated. It occurs when the
   stream is completely decoded.
-Seek(double)
+Seek(float)
   Seek to the time position given in the resource.
 
 A state transition diagram:
@@ -130,13 +130,13 @@ DECODING_METADATA
   |---------------->----->------------------------|        v
 DECODING             |          |  |              |        |
   ^                  v Seek(t)  |  |              |        |
-  |         Play()   |          v  |              |        |
+  |         Decode() |          v  |              |        |
   ^-----------<----SEEKING      |  v Complete     v        v
   |                  |          |  |              |        |
   |                  |          |  COMPLETED    SHUTDOWN-<-|
   ^                  ^          |  |Shutdown()    |
   |                  |          |  >-------->-----^
-  |          Play()  |Seek(t)   |Buffer()         |
+  |         Decode() |Seek(t)   |Buffer()         |
   -----------<--------<-------BUFFERING           |
                                 |                 ^
                                 v Shutdown()      |
@@ -212,7 +212,7 @@ Shutdown when destroying the nsBuiltinDecoder object.
 #include "nsMediaStream.h"
 #include "nsMediaDecoder.h"
 #include "nsHTMLMediaElement.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
 class nsAudioStream;
 
@@ -237,7 +237,7 @@ public:
 
   // Initializes the state machine, returns NS_OK on success, or
   // NS_ERROR_FAILURE on failure.
-  virtual nsresult Init(nsDecoderStateMachine* aCloneDonor) = 0;
+  virtual nsresult Init() = 0;
 
   // Return the current decode state. The decoder monitor must be
   // obtained before calling this.
@@ -245,44 +245,38 @@ public:
 
   // Set the audio volume. The decoder monitor must be obtained before
   // calling this.
-  virtual void SetVolume(double aVolume) = 0;
+  virtual void SetVolume(float aVolume) = 0;
 
   virtual void Shutdown() = 0;
 
   // Called from the main thread to get the duration. The decoder monitor
-  // must be obtained before calling this. It is in units of microseconds.
+  // must be obtained before calling this. It is in units of milliseconds.
   virtual PRInt64 GetDuration() = 0;
 
   // Called from the main thread to set the duration of the media resource
   // if it is able to be obtained via HTTP headers. Called from the 
   // state machine thread to set the duration if it is obtained from the
   // media metadata. The decoder monitor must be obtained before calling this.
-  // aDuration is in microseconds.
   virtual void SetDuration(PRInt64 aDuration) = 0;
-
-  // Called while decoding metadata to set the end time of the media
-  // resource. The decoder monitor must be obtained before calling this.
-  // aEndTime is in microseconds.
-  virtual void SetEndTime(PRInt64 aEndTime) = 0;
 
   // Functions used by assertions to ensure we're calling things
   // on the appropriate threads.
-  virtual PRBool OnDecodeThread() const = 0;
+  virtual PRBool OnDecodeThread() = 0;
 
   virtual nsHTMLMediaElement::NextFrameStatus GetNextFrameStatus() = 0;
 
   // Cause state transitions. These methods obtain the decoder monitor
   // to synchronise the change of state, and to notify other threads
   // that the state has changed.
-  virtual void Play() = 0;
+  virtual void Decode() = 0;
 
   // Seeks to aTime in seconds
-  virtual void Seek(double aTime) = 0;
+  virtual void Seek(float aTime) = 0;
 
   // Returns the current playback position in seconds.
   // Called from the main thread to get the current frame time. The decoder
   // monitor must be obtained before calling this.
-  virtual double GetCurrentTime() const = 0;
+  virtual float GetCurrentTime() = 0;
 
   // Clear the flag indicating that a playback position change event
   // is currently queued. This is called from the main thread and must
@@ -290,14 +284,8 @@ public:
   virtual void ClearPositionChangeFlag() = 0;
 
   // Called from the main thread to set whether the media resource can
-  // seek into unbuffered ranges. The decoder monitor must be obtained
-  // before calling this.
+  // be seeked. The decoder monitor must be obtained before calling this.
   virtual void SetSeekable(PRBool aSeekable) = 0;
-
-  // Returns PR_TRUE if the media resource can seek into unbuffered ranges,
-  // as set by SetSeekable(). The decoder monitor must be obtained before
-  // calling this.
-  virtual PRBool GetSeekable() = 0;
 
   // Update the playback position. This can result in a timeupdate event
   // and an invalidate of the frame being dispatched asynchronously if
@@ -307,18 +295,12 @@ public:
   virtual void UpdatePlaybackPosition(PRInt64 aTime) = 0;
 
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered) = 0;
-
-  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) = 0;
-
+  
   // Causes the state machine to switch to buffering state, and to
   // immediately stop playback and buffer downloaded data. Must be called
   // with the decode monitor held. Called on the state machine thread and
   // the main thread.
   virtual void StartBuffering() = 0;
-
-  // Sets the current size of the framebuffer used in MozAudioAvailable events.
-  // Called on the state machine thread and the main thread.
-  virtual void SetFrameBufferLength(PRUint32 aLength) = 0;
 };
 
 class nsBuiltinDecoder : public nsMediaDecoder
@@ -330,7 +312,7 @@ class nsBuiltinDecoder : public nsMediaDecoder
   NS_DECL_NSIOBSERVER
 
  public:
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
+  typedef mozilla::Monitor Monitor;
 
   // Enumeration for the valid play states (see mPlayState)
   enum PlayState {
@@ -352,11 +334,10 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // object disposes of this decoder object.
   virtual void Shutdown();
   
-  virtual double GetCurrentTime();
+  virtual float GetCurrentTime();
 
   virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener** aListener,
-                        nsMediaDecoder* aCloneDonor);
+                        nsIStreamListener** aListener);
 
   virtual nsDecoderStateMachine* CreateStateMachine() = 0;
 
@@ -365,13 +346,13 @@ class nsBuiltinDecoder : public nsMediaDecoder
   virtual nsresult Play();
 
   // Seek to the time position in (seconds) from the start of the video.
-  virtual nsresult Seek(double aTime);
+  virtual nsresult Seek(float time);
 
   virtual nsresult PlaybackRateChanged();
 
   virtual void Pause();
-  virtual void SetVolume(double aVolume);
-  virtual double GetDuration();
+  virtual void SetVolume(float volume);
+  virtual float GetDuration();
 
   virtual nsMediaStream* GetCurrentStream();
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
@@ -399,10 +380,10 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Call on the main thread only.
   virtual PRBool IsEnded() const;
 
-  // Set the duration of the media resource in units of seconds.
+  // Set the duration of the media resource in units of milliseconds.
   // This is called via a channel listener if it can pick up the duration
   // from a content header. Must be called from the main thread only.
-  virtual void SetDuration(double aDuration);
+  virtual void SetDuration(PRInt64 aDuration);
 
   // Set a flag indicating whether seeking is supported
   virtual void SetSeekable(PRBool aSeekable);
@@ -429,7 +410,7 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // state machine.
   void Stop();
 
-  void AudioAvailable(float* aFrameBuffer, PRUint32 aFrameBufferLength, float aTime);
+  void AudioAvailable(float* aFrameBuffer, PRUint32 aFrameBufferLength, PRUint64 aTime);
 
   // Called by the state machine to notify the decoder that the duration
   // has changed.
@@ -439,32 +420,21 @@ class nsBuiltinDecoder : public nsMediaDecoder
     return IsCurrentThread(mStateMachineThread);
   }
 
-  PRBool OnDecodeThread() const {
+  PRBool OnDecodeThread() {
     return mDecoderStateMachine->OnDecodeThread();
   }
 
   // Returns the monitor for other threads to synchronise access to
   // state.
-  ReentrantMonitor& GetReentrantMonitor() { 
-    return mReentrantMonitor; 
+  Monitor& GetMonitor() { 
+    return mMonitor; 
   }
 
   // Constructs the time ranges representing what segments of the media
   // are buffered and playable.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered) {
-    if (mDecoderStateMachine) {
-      return mDecoderStateMachine->GetBuffered(aBuffered);
-    }
-    return NS_ERROR_FAILURE;
+    return mDecoderStateMachine->GetBuffered(aBuffered);
   }
-
-  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {
-    return mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
-  }
-
-  // Sets the length of the framebuffer used in MozAudioAvailable events.
-  // The new size must be between 512 and 16384.
-  virtual nsresult RequestFrameBufferLength(PRUint32 aLength);
 
  public:
   // Return the current state. Can be called on any thread. If called from
@@ -511,7 +481,8 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Called when the metadata from the media file has been read.
   // Call on the main thread only.
   void MetadataLoaded(PRUint32 aChannels,
-                      PRUint32 aRate);
+                      PRUint32 aRate,
+                      PRUint32 aFrameBufferLength);
 
   // Called when the first frame has been loaded.
   // Call on the main thread only.
@@ -597,18 +568,18 @@ public:
   // seconds. This is updated approximately at the framerate of the
   // video (if it is a video) or the callback period of the audio.
   // It is read and written from the main thread only.
-  double mCurrentTime;
+  float mCurrentTime;
 
   // Volume that playback should start at.  0.0 = muted. 1.0 = full
   // volume.  Readable/Writeable from the main thread.
-  double mInitialVolume;
+  float mInitialVolume;
 
   // Position to seek to when the seek notification is received by the
   // decode thread. Written by the main thread and read via the
-  // decode thread. Synchronised using mReentrantMonitor. If the
+  // decode thread. Synchronised using mMonitor. If the
   // value is negative then no seek has been requested. When a seek is
   // started this is reset to negative.
-  double mRequestedSeekTime;
+  float mRequestedSeekTime;
 
   // Duration of the media resource. Set to -1 if unknown.
   // Set when the metadata is loaded. Accessed on the main thread
@@ -633,13 +604,13 @@ public:
   // Stream of media data.
   nsAutoPtr<nsMediaStream> mStream;
 
-  // ReentrantMonitor for detecting when the video play state changes. A call
+  // Monitor for detecting when the video play state changes. A call
   // to Wait on this monitor will block the thread until the next
   // state change.
-  ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
 
   // Set to one of the valid play states. It is protected by the
-  // monitor mReentrantMonitor. This monitor must be acquired when reading or
+  // monitor mMonitor. This monitor must be acquired when reading or
   // writing the state. Any change to the state on the main thread
   // must call NotifyAll on the monitor so the decode thread can wake up.
   PlayState mPlayState;

@@ -29,8 +29,6 @@
 
 #include "hb-open-type-private.hh"
 
-HB_BEGIN_DECLS
-
 
 /*
  *
@@ -79,6 +77,7 @@ typedef struct OffsetTable
   {
     Tag t;
     t.set (tag);
+    /* TODO: bsearch (need to sort in sanitize) */
     unsigned int count = numTables;
     for (unsigned int i = 0; i < count; i++)
     {
@@ -252,7 +251,5 @@ struct OpenTypeFontFile
   DEFINE_SIZE_UNION (4, tag);
 };
 
-
-HB_END_DECLS
 
 #endif /* HB_OPEN_FILE_PRIVATE_HH */

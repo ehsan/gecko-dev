@@ -41,13 +41,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 let EXPORTED_SYMBOLS = ["AllTabs"];
 
 let AllTabs = {
-  // ----------
-  // Function: toString
-  // Prints [AllTabs] for debug use
-  toString: function AllTabs_toString() {
-    return "[AllTabs]";
-  },
-
   /**
    * Get an array of all tabs from all tabbrowser windows.
    *
@@ -57,7 +50,7 @@ let AllTabs = {
   get tabs() {
     // Get tabs from each browser window and flatten them into one array
     return Array.concat.apply(null, browserWindows.map(function(browserWindow) {
-      return Array.filter(browserWindow.gBrowser.tabs, function (tab) !tab.closing);
+      return Array.slice(browserWindow.gBrowser.tabs);
     }));
   },
 
@@ -66,7 +59,7 @@ let AllTabs = {
    *
    * @param eventName
    *        Name of the corresponding Tab* Event; one of "attrModified",
-   *        "close", "move", "open", "select", "pinned", "unpinned".
+   *        "close", "move", "open", "select".
    * @param callback
    *        Callback that gets called with the tab as the first argument and
    *        the event as the second argument.
@@ -74,11 +67,11 @@ let AllTabs = {
    */
   register: function register(eventName, callback) {
     // Either add additional callbacks or create the first entry
-    let listeners = eventListeners[events[eventName]];
+    let listeners = eventListeners[eventName];
     if (listeners)
       listeners.push(callback);
     else
-      eventListeners[events[eventName]] = [callback];
+      eventListeners[eventName] = [callback];
   },
 
   /**
@@ -86,14 +79,14 @@ let AllTabs = {
    *
    * @param eventName
    *        Name of the corresponding Tab* Event; one of "attrModified",
-   *        "close", "move", "open", "select", "pinned", "unpinned".
+   *        "close", "move", "open", "select".
    * @param callback
    *        The callback given for the original AllTabs.register call.
    * @usage AllTabs.unregister("close", handleClose);
    */
   unregister: function unregister(eventName, callback) {
     // Nothing to remove for this event
-    let listeners = eventListeners[events[eventName]];
+    let listeners = eventListeners[eventName];
     if (!listeners)
       return;
 
@@ -114,50 +107,31 @@ __defineGetter__("browserWindows", function browserWindows() {
   return browserWindows;
 });
 
-let events = {
-  attrModified: "TabAttrModified",
-  close:        "TabClose",
-  move:         "TabMove",
-  open:         "TabOpen",
-  select:       "TabSelect",
-  pinned:       "TabPinned",
-  unpinned:     "TabUnpinned"
-};
+let events = ["attrModified", "close", "move", "open", "select"];
 let eventListeners = {};
 
 function registerBrowserWindow(browserWindow) {
-  for each (let event in events)
-    browserWindow.addEventListener(event, tabEventListener, true);
+  events.forEach(function(eventName) {
+    let tabEvent = "Tab" + eventName[0].toUpperCase() + eventName.slice(1);
+    browserWindow.addEventListener(tabEvent, function(event) {
+      // Make sure we've gotten listeners before trying to call
+      let listeners = eventListeners[eventName];
+      if (!listeners)
+        return;
 
-  browserWindow.addEventListener("unload", unregisterBrowserWindow, false);
-}
+      let tab = event.target;
 
-function unregisterBrowserWindow(unloadEvent) {
-  let browserWindow = unloadEvent.currentTarget;
-
-  for each (let event in events)
-    browserWindow.removeEventListener(event, tabEventListener, true);
-
-  browserWindow.removeEventListener("unload", unregisterBrowserWindow, false);
-}
-
-function tabEventListener(event) {
-  // Make sure we've gotten listeners before trying to call
-  let listeners = eventListeners[event.type];
-  if (!listeners)
-    return;
-
-  let tab = event.target;
-
-  // Make a copy of the listeners, so it can't change as we call back
-  listeners.slice().forEach(function (callback) {
-    try {
-      callback(tab, event);
-    }
-    // Don't let failing callbacks stop us but report the failure
-    catch (ex) {
-      Cu.reportError(ex);
-    }
+      // Make a copy of the listeners, so it can't change as we call back
+      listeners.slice().forEach(function(callback) {
+        try {
+          callback(tab, event);
+        }
+        // Don't let failing callbacks stop us but report the failure
+        catch(ex) {
+          Cu.reportError(ex);
+        }
+      });
+    }, true);
   });
 }
 

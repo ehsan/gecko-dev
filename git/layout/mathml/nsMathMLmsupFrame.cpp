@@ -43,6 +43,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmsupFrame.h"
 
@@ -82,7 +84,7 @@ nsMathMLmsupFrame::TransmitAutomaticData()
 }
 
 /* virtual */ nsresult
-nsMathMLmsupFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmsupFrame::Place(nsIRenderingContext& aRenderingContext,
                          PRBool               aPlaceOrigin,
                          nsHTMLReflowMetrics& aDesiredSize)
 {
@@ -114,7 +116,7 @@ nsMathMLmsupFrame::Place(nsRenderingContext& aRenderingContext,
 // mover uses this when movablelimits is set.
 nsresult
 nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
-                                    nsRenderingContext& aRenderingContext,
+                                    nsIRenderingContext& aRenderingContext,
                                     PRBool               aPlaceOrigin,
                                     nsHTMLReflowMetrics& aDesiredSize,
                                     nsMathMLContainerFrame* aFrame,
@@ -154,10 +156,10 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   // get min supscript shift limit from x-height
   // = d(x) + 1/4 * sigma_5, Rule 18c, App. G, TeXbook
   nscoord xHeight = 0;
-  nsRefPtr<nsFontMetrics> fm =
+  nsCOMPtr<nsIFontMetrics> fm =
     aPresContext->GetMetricsFor(baseFrame->GetStyleFont()->mFont);
 
-  xHeight = fm->XHeight();
+  fm->GetXHeight (xHeight);
   nscoord minShiftFromXHeight = (nscoord) 
     (bmSupScript.descent + (1.0f/4.0f) * xHeight);
   nscoord italicCorrection;

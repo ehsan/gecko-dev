@@ -48,14 +48,14 @@
 #include "nsDOMError.h"
 #include "nsNodeInfoManager.h"
 
+#include "nsIRenderingContext.h"
+
 #include "nsICanvasRenderingContextInternal.h"
 #include "nsICanvasElementExternal.h"
 #include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsLayoutUtils.h"
 
 #include "Layers.h"
-
-class nsIDOMFile;
 
 class nsHTMLCanvasElement : public nsGenericHTMLElement,
                             public nsICanvasElementExternal,
@@ -68,13 +68,6 @@ public:
   nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLCanvasElement();
 
-  static nsHTMLCanvasElement* FromContent(nsIContent* aPossibleCanvas)
-  {
-    if (!aPossibleCanvas || !aPossibleCanvas->IsHTML(nsGkAtoms::canvas)) {
-      return nsnull;
-    }
-    return static_cast<nsHTMLCanvasElement*>(aPossibleCanvas);
-  }
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -91,8 +84,8 @@ public:
   NS_DECL_NSIDOMHTMLCANVASELEMENT
 
   // CC
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLCanvasElement,
-                                           nsGenericHTMLElement)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLCanvasElement,
+                                                     nsGenericHTMLElement)
 
   /**
    * Ask the canvas Element to return the primary frame, if any
@@ -114,16 +107,11 @@ public:
    */
   void SetWriteOnly();
 
-  /**
-   * Notify that some canvas content has changed and the window may
-   * need to be updated. aDamageRect is in canvas coordinates.
-   */
-  void InvalidateCanvasContent(const gfxRect* aDamageRect);
   /*
-   * Notify that we need to repaint the entire canvas, including updating of
-   * the layer tree.
+   * Ask the canvas frame to invalidate itself.  If damageRect is
+   * given, it is relative to the origin of the canvas frame in CSS pixels.
    */
-  void InvalidateCanvas();
+  void InvalidateFrame(const gfxRect* damageRect = nsnull);
 
   /*
    * Get the number of contexts in this canvas, and request a context at
@@ -167,31 +155,22 @@ public:
    * Helpers called by various users of Canvas
    */
 
-  already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
-                                               CanvasLayer *aOldLayer,
+  already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
                                                LayerManager *aManager);
 
-  // Call this whenever we need future changes to the canvas
-  // to trigger fresh invalidation requests. This needs to be called
-  // whenever we render the canvas contents to the screen, or whenever we
-  // take a snapshot of the canvas that needs to be "live" (e.g. -moz-element).
+  // Tell the Context that all the current rendering that it's
+  // invalidated has been displayed to the screen, so that it should
+  // start requesting invalidates again as needed.
   void MarkContextClean();
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsIntSize GetWidthHeight();
 
-  nsresult UpdateContext(nsIPropertyBag *aNewContextOptions = nsnull);
-  nsresult ExtractData(const nsAString& aType,
-                       const nsAString& aOptions,
-                       nsIInputStream** aStream,
-                       bool& aFellBackToPNG);
+  nsresult UpdateContext();
   nsresult ToDataURLImpl(const nsAString& aMimeType,
-                         nsIVariant* aEncoderOptions,
+                         const nsAString& aEncoderOptions,
                          nsAString& aDataURL);
-  nsresult MozGetAsFileImpl(const nsAString& aName,
-                            const nsAString& aType,
-                            nsIDOMFile** aResult);
   nsresult GetContextHelper(const nsAString& aContextId,
                             nsICanvasRenderingContextInternal **aContext);
 

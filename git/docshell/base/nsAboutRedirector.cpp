@@ -64,8 +64,6 @@ struct RedirEntry {
   URI.  Perhaps we should separate the two concepts out...
  */
 static RedirEntry kRedirMap[] = {
-    { "", "chrome://global/content/about.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
     { "about", "chrome://global/content/aboutAbout.xhtml", 0 },
     { "credits", "http://www.mozilla.org/credits/",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
@@ -81,6 +79,8 @@ static RedirEntry kRedirMap[] = {
     { "buildconfig", "chrome://global/content/buildconfig.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "license", "chrome://global/content/license.html",
+      nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
+    { "licence", "chrome://global/content/license.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "neterror", "chrome://global/content/netError.xhtml",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |

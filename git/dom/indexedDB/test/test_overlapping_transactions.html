@@ -19,22 +19,23 @@
       const description = "My Test Database";
       const objectStores = [ "foo", "bar" ];
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
       is(db.objectStoreNames.length, 0, "Correct objectStoreNames list");
 
-      request = db.setVersion("1");
-      request.onerror = errorHandler;
-      request.onsuccess = function(event) {
-        event.target.transaction.oncomplete = grabEventAndContinueHandler;
-        for (let i in objectStores) {
-          db.createObjectStore(objectStores[i], { autoIncrement: true });
-        }
-      };
+      for (let i in objectStores) {
+        request = db.createObjectStore(objectStores[i], "", true);
+        request.onerror = errorHandler;
+        request.onsuccess = function(event) {
+          if (db.objectStoreNames.length == objectStores.length) {
+            event.transaction.oncomplete = grabEventAndContinueHandler;
+          }
+        };
+      }
       yield;
 
       is(db.objectStoreNames.length, objectStores.length,
@@ -86,7 +87,7 @@
         request.onsuccess = function(event) {
           is(stepNumber, 5, "This callback came fifth");
           stepNumber++;
-          event.target.transaction.oncomplete = grabEventAndContinueHandler;
+          event.transaction.oncomplete = grabEventAndContinueHandler;
         }
 
         stepNumber++;

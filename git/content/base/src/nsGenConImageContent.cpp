@@ -46,7 +46,7 @@
 #include "nsXMLElement.h"
 #include "nsImageLoadingContent.h"
 #include "imgIRequest.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 
 class nsGenConImageContent : public nsXMLElement,
                              public nsImageLoadingContent
@@ -55,9 +55,6 @@ public:
   nsGenConImageContent(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsXMLElement(aNodeInfo)
   {
-    // nsImageLoadingContent starts out broken, so we start out
-    // suppressed to match it.
-    AddStatesSilently(NS_EVENT_STATE_SUPPRESSED);
   }
 
   nsresult Init(imgIRequest* aImageRequest)
@@ -67,7 +64,7 @@ public:
   }
 
   // nsIContent overrides
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   
 private:
   virtual ~nsGenConImageContent();
@@ -99,13 +96,13 @@ nsGenConImageContent::~nsGenConImageContent()
   DestroyImageLoadingContent();
 }
 
-nsEventStates
+PRInt32
 nsGenConImageContent::IntrinsicState() const
 {
-  nsEventStates state = nsXMLElement::IntrinsicState();
+  PRInt32 state = nsXMLElement::IntrinsicState();
 
-  nsEventStates imageState = nsImageLoadingContent::ImageState();
-  if (imageState.HasAtLeastOneOfStates(NS_EVENT_STATE_BROKEN | NS_EVENT_STATE_USERDISABLED)) {
+  PRInt32 imageState = nsImageLoadingContent::ImageState();
+  if (imageState & (NS_EVENT_STATE_BROKEN | NS_EVENT_STATE_USERDISABLED)) {
     // We should never be in an error state; if the image fails to load, we
     // just go to the suppressed state.
     imageState |= NS_EVENT_STATE_SUPPRESSED;

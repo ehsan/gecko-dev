@@ -82,14 +82,14 @@ helper_isFloat32Array(JSObject *obj) {
  *    BufferData_array (int, js::TypedArray *, int)
  */
 static JSBool
-nsIDOMWebGLRenderingContext_BufferData(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_BufferData(JSContext *cx, uintN argc, jsval *vp)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -102,7 +102,7 @@ nsIDOMWebGLRenderingContext_BufferData(JSContext *cx, uintN argc, jsval *vp)
 
     int32 target;
     js::TypedArray *wa = 0;
-    JSObject *wb = 0;
+    js::ArrayBuffer *wb = 0;
     int32 size;
     int32 usage;
 
@@ -111,24 +111,20 @@ nsIDOMWebGLRenderingContext_BufferData(JSContext *cx, uintN argc, jsval *vp)
     if (!JS_ValueToECMAInt32(cx, argv[2], &usage))
         return JS_FALSE;
 
-    JSBool nullobject = JSVAL_IS_NULL(argv[1]);
+    if (!JSVAL_IS_PRIMITIVE(argv[1])) {
 
-    if (!nullobject) {
-        if (!JSVAL_IS_PRIMITIVE(argv[1])) {
-
-            JSObject *arg2 = JSVAL_TO_OBJECT(argv[1]);
-            if (js_IsArrayBuffer(arg2)) {
-                wb = js::ArrayBuffer::getArrayBuffer(arg2);
-            } else if (js_IsTypedArray(arg2)) {
-                wa = js::TypedArray::fromJSObject(arg2);
-            }
+        JSObject *arg2 = JSVAL_TO_OBJECT(argv[1]);
+        if (js_IsArrayBuffer(arg2)) {
+            wb = js::ArrayBuffer::fromJSObject(arg2);
+        } else if (js_IsTypedArray(arg2)) {
+            wa = js::TypedArray::fromJSObject(arg2);
         }
+    }
 
-        if (!wa && !wb &&
-            !JS_ValueToECMAInt32(cx, argv[1], &size))
-        {
-            return JS_FALSE;
-        }
+    if (!wa && !wb &&
+        !JS_ValueToECMAInt32(cx, argv[1], &size))
+    {
+        return JS_FALSE;
     }
 
     nsresult rv;
@@ -137,8 +133,6 @@ nsIDOMWebGLRenderingContext_BufferData(JSContext *cx, uintN argc, jsval *vp)
         rv = self->BufferData_array(target, wa, usage);
     else if (wb)
         rv = self->BufferData_buf(target, wb, usage);
-    else if (nullobject)
-        rv = self->BufferData_null();
     else
         rv = self->BufferData_size(target, size, usage);
 
@@ -155,14 +149,14 @@ nsIDOMWebGLRenderingContext_BufferData(JSContext *cx, uintN argc, jsval *vp)
  *    BufferSubData_array (int, int, js::TypedArray *)
  */
 static JSBool
-nsIDOMWebGLRenderingContext_BufferSubData(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_BufferSubData(JSContext *cx, uintN argc, jsval *vp)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -176,30 +170,26 @@ nsIDOMWebGLRenderingContext_BufferSubData(JSContext *cx, uintN argc, jsval *vp)
     int32 target;
     int32 offset;
     js::TypedArray *wa = 0;
-    JSObject *wb = 0;
+    js::ArrayBuffer *wb = 0;
 
     if (!JS_ValueToECMAInt32(cx, argv[0], &target))
         return JS_FALSE;
     if (!JS_ValueToECMAInt32(cx, argv[1], &offset))
         return JS_FALSE;
 
-    if (!JSVAL_IS_OBJECT(argv[2])) {
+    if (JSVAL_IS_PRIMITIVE(argv[2])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
         return JS_FALSE;
     }
 
-    JSBool nullobject = JSVAL_IS_NULL(argv[2]);
-
-    if (!nullobject) {
-        JSObject *arg3 = JSVAL_TO_OBJECT(argv[2]);
-        if (js_IsArrayBuffer(arg3)) {
-            wb = js::ArrayBuffer::getArrayBuffer(arg3);
-        } else if (js_IsTypedArray(arg3)) {
-            wa = js::TypedArray::fromJSObject(arg3);
-        } else {
-            xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
-            return JS_FALSE;
-        }
+    JSObject *arg3 = JSVAL_TO_OBJECT(argv[2]);
+    if (js_IsArrayBuffer(arg3)) {
+        wb = js::ArrayBuffer::fromJSObject(arg3);
+    } else if (js_IsTypedArray(arg3)) {
+        wa = js::TypedArray::fromJSObject(arg3);
+    } else {
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
+        return JS_FALSE;
     }
 
     nsresult rv;
@@ -208,8 +198,6 @@ nsIDOMWebGLRenderingContext_BufferSubData(JSContext *cx, uintN argc, jsval *vp)
         rv = self->BufferSubData_array(target, offset, wa);
     } else if (wb) {
         rv = self->BufferSubData_buf(target, offset, wb);
-    } else if (nullobject) {
-        rv = self->BufferSubData_null();
     } else {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
         return JS_FALSE;
@@ -227,7 +215,7 @@ nsIDOMWebGLRenderingContext_BufferSubData(JSContext *cx, uintN argc, jsval *vp)
  *    ReadPixels(int, int, int, int, uint, uint, ArrayBufferView)
  */
 static JSBool
-nsIDOMWebGLRenderingContext_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
@@ -236,7 +224,7 @@ nsIDOMWebGLRenderingContext_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
 
     nsresult rv;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -261,7 +249,7 @@ nsIDOMWebGLRenderingContext_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
         JSObject *argv6 = JSVAL_TO_OBJECT(argv[6]);
         if (js_IsArrayBuffer(argv6)) {
             rv = self->ReadPixels_buf(argv0, argv1, argv2, argv3,
-                                      argv4, argv5, js::ArrayBuffer::getArrayBuffer(argv6));
+                                      argv4, argv5, js::ArrayBuffer::fromJSObject(argv6));
         } else if (js_IsTypedArray(argv6)) {
             rv = self->ReadPixels_array(argv0, argv1, argv2, argv3,
                                         argv4, argv5,
@@ -290,7 +278,7 @@ nsIDOMWebGLRenderingContext_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
  *    TexImage2D(uint, int, uint, uint, uint, ImageData)
  */
 static JSBool
-nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
@@ -299,7 +287,7 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
 
     nsresult rv;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -329,13 +317,6 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
 
         rv = self->TexImage2D_dom(argv0, argv1, argv2, argv3, argv4, elt);
 
-        // NS_ERROR_DOM_SECURITY_ERR indicates we tried to load a cross-domain element, so
-        // bail out immediately, don't try to interprete as ImageData
-        if (rv == NS_ERROR_DOM_SECURITY_ERR) {
-            xpc_qsThrowBadArg(cx, rv, vp, 5);
-            return JS_FALSE;
-        }
-
         if (NS_FAILED(rv)) {
             // failed to interprete argv[5] as a DOMElement, now try to interprete it as ImageData
             JSObject *argv5 = JSVAL_TO_OBJECT(argv[5]);
@@ -363,9 +344,9 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
                 xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 5);
                 return JS_FALSE;
             }
-            rv = self->TexImage2D_imageData(argv0, argv1, argv2,
-                                            int_width, int_height, 0,
-                                            argv3, argv4, js::TypedArray::fromJSObject(obj_data));
+            rv = self->TexImage2D_array(argv0, argv1, argv2,
+                                        int_width, int_height, 0,
+                                        argv3, argv4, js::TypedArray::fromJSObject(obj_data));
         }
     } else if (argc > 8 &&
                JSVAL_IS_OBJECT(argv[8])) // here, we allow null !
@@ -388,7 +369,7 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
         } else if (js_IsArrayBuffer(argv8)) {
             rv = self->TexImage2D_buf(argv0, argv1, argv2, argv3,
                                       argv4, argv5, argv6, argv7,
-                                      js::ArrayBuffer::getArrayBuffer(argv8));
+                                      js::ArrayBuffer::fromJSObject(argv8));
         } else if (js_IsTypedArray(argv8)) {
             rv = self->TexImage2D_array(argv0, argv1, argv2, argv3,
                                         argv4, argv5, argv6, argv7,
@@ -415,7 +396,7 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
  *    TexSubImage2D(uint, int, int, int, uint, uint, ImageData)
  */
 static JSBool
-nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
@@ -424,7 +405,7 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
 
     nsresult rv;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -454,13 +435,6 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
         if (NS_FAILED(rv)) return JS_FALSE;
 
         rv = self->TexSubImage2D_dom(argv0, argv1, argv2, argv3, argv4, argv5, elt);
-        
-        // NS_ERROR_DOM_SECURITY_ERR indicates we tried to load a cross-domain element, so
-        // bail out immediately, don't try to interprete as ImageData
-        if (rv == NS_ERROR_DOM_SECURITY_ERR) {
-            xpc_qsThrowBadArg(cx, rv, vp, 6);
-            return JS_FALSE;
-        }
 
         if (NS_FAILED(rv)) {
             // failed to interprete argv[6] as a DOMElement, now try to interprete it as ImageData
@@ -488,10 +462,10 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
                 xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 6);
                 return JS_FALSE;
             }
-            rv = self->TexSubImage2D_imageData(argv0, argv1, argv2, argv3,
-                                               int_width, int_height,
-                                               argv4, argv5,
-                                               js::TypedArray::fromJSObject(obj_data));
+            rv = self->TexSubImage2D_array(argv0, argv1, argv2, argv3,
+                                           int_width, int_height,
+                                           argv4, argv5,
+                                           js::TypedArray::fromJSObject(obj_data));
         }
     } else if (argc > 8 &&
                !JSVAL_IS_PRIMITIVE(argv[8]))
@@ -507,7 +481,7 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
         if (js_IsArrayBuffer(argv8)) {
             rv = self->TexSubImage2D_buf(argv0, argv1, argv2, argv3,
                                          argv4, argv5, argv6, argv7,
-                                         js::ArrayBuffer::getArrayBuffer(argv8));
+                                         js::ArrayBuffer::fromJSObject(argv8));
         } else if (js_IsTypedArray(argv8)) {
             rv = self->TexSubImage2D_array(argv0, argv1, argv2, argv3,
                                            argv4, argv5, argv6, argv7,
@@ -530,7 +504,7 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
 
 /* NOTE: There is a TN version of this below, update it as well */
 static inline JSBool
-helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(JSContext *cx, uintN argc, jsval *vp, int nElements)
+helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(JSContext *cx, uintN argc, jsval *vp, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
@@ -539,7 +513,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(JSContext *cx, uintN argc, jsval
 
     nsresult rv;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -558,7 +532,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(JSContext *cx, uintN argc, jsval
         return JS_FALSE;
     }
 
-    if (JSVAL_IS_PRIMITIVE(argv[1])) {
+    if (!JSVAL_IS_OBJECT(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
         return JS_FALSE;
     }
@@ -604,7 +578,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(JSContext *cx, uintN argc, jsval
 
 /* NOTE: There is a TN version of this below, update it as well */
 static inline JSBool
-helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(JSContext *cx, uintN argc, jsval *vp, int nElements)
+helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(JSContext *cx, uintN argc, jsval *vp, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
@@ -613,7 +587,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(JSContext *cx, uintN argc, jsval
 
     nsresult rv;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -632,7 +606,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(JSContext *cx, uintN argc, jsval
         return JS_FALSE;
     }
 
-    if (JSVAL_IS_PRIMITIVE(argv[1])) {
+    if (!JSVAL_IS_OBJECT(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
         return JS_FALSE;
     }
@@ -678,14 +652,16 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(JSContext *cx, uintN argc, jsval
 
 /* NOTE: There is a TN version of this below, update it as well */
 static inline JSBool
-helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc, jsval *vp, int nElements)
+helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv(JSContext *cx, uintN argc, jsval *vp, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsresult rv;
+
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -698,7 +674,7 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc,
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    nsresult rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
+    rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
     if (NS_FAILED(rv)) {
         xpc_qsThrowBadArg(cx, rv, vp, 0);
         return JS_FALSE;
@@ -708,7 +684,7 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc,
     if (!JS_ValueToECMAInt32(cx, argv[1], &transpose))
         return JS_FALSE;
 
-    if (JSVAL_IS_PRIMITIVE(argv[2])) {
+    if (!JSVAL_IS_OBJECT(argv[2])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
         return JS_FALSE;
     }
@@ -751,14 +727,16 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc,
 }
 
 static inline JSBool
-helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, jsval *vp, int nElements)
+helper_nsICanvasRenderingContextWebGL_VertexAttrib_x_fv(JSContext *cx, uintN argc, jsval *vp, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
 
-    nsIDOMWebGLRenderingContext *self;
+    nsresult rv;
+
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
@@ -773,7 +751,7 @@ helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, 
     if (!JS_ValueToECMAUint32(cx, argv[0], &location))
         return JS_FALSE;
 
-    if (JSVAL_IS_PRIMITIVE(argv[1])) {
+    if (!JSVAL_IS_OBJECT(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
         return JS_FALSE;
     }
@@ -800,7 +778,6 @@ helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, 
         return JS_FALSE;
     }
 
-    nsresult rv = NS_OK;
     if (nElements == 1) {
         rv = self->VertexAttrib1fv_array(location, wa);
     } else if (nElements == 2) {
@@ -819,126 +796,117 @@ helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, 
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform1iv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform1iv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(cx, argc, vp, 1);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(cx, argc, vp, 1);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform2iv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform2iv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(cx, argc, vp, 2);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(cx, argc, vp, 2);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform3iv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform3iv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(cx, argc, vp, 3);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(cx, argc, vp, 3);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform4iv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform4iv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(cx, argc, vp, 4);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(cx, argc, vp, 4);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform1fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform1fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(cx, argc, vp, 1);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(cx, argc, vp, 1);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform2fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform2fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(cx, argc, vp, 2);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(cx, argc, vp, 2);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform3fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform3fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(cx, argc, vp, 3);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(cx, argc, vp, 3);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_Uniform4fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_Uniform4fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(cx, argc, vp, 4);
+    return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(cx, argc, vp, 4);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_UniformMatrix2fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_UniformMatrix2fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(cx, argc, vp, 2);
+    return helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv(cx, argc, vp, 2);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_UniformMatrix3fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_UniformMatrix3fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(cx, argc, vp, 3);
+    return helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv(cx, argc, vp, 3);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_UniformMatrix4fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_UniformMatrix4fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(cx, argc, vp, 4);
+    return helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv(cx, argc, vp, 4);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_VertexAttrib1fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_VertexAttrib1fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(cx, argc, vp, 1);
+    return helper_nsICanvasRenderingContextWebGL_VertexAttrib_x_fv(cx, argc, vp, 1);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_VertexAttrib2fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_VertexAttrib2fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(cx, argc, vp, 2);
+    return helper_nsICanvasRenderingContextWebGL_VertexAttrib_x_fv(cx, argc, vp, 2);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_VertexAttrib3fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_VertexAttrib3fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(cx, argc, vp, 3);
+    return helper_nsICanvasRenderingContextWebGL_VertexAttrib_x_fv(cx, argc, vp, 3);
 }
 
 static JSBool
-nsIDOMWebGLRenderingContext_VertexAttrib4fv(JSContext *cx, uintN argc, jsval *vp)
+nsICanvasRenderingContextWebGL_VertexAttrib4fv(JSContext *cx, uintN argc, jsval *vp)
 {
-    return helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(cx, argc, vp, 4);
+    return helper_nsICanvasRenderingContextWebGL_VertexAttrib_x_fv(cx, argc, vp, 4);
 }
 
 #ifdef JS_TRACER
 
 static inline void FASTCALL
-helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
+helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
                                                       JSObject *arg, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
-    JS::Anchor<jsval> self_anchor;
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr,
-                          &self_anchor.get(), nsnull)) {
+    xpc_qsArgValArray<3> vp(cx);
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
-    }
-
-    if (!arg) {
-        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsIDOMWebGLRenderingContext", "uniformNiv");
-        js_SetTraceableNativeFailed(cx);
     }
 
     js::AutoValueRooter obj_tvr(cx);
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    JS::Anchor<jsval> location_anchor;
     nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location,
-                           &location_selfref.ptr, &location_anchor.get(),
-                           nsnull);
+        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
     if (NS_FAILED(rv_convert_arg0)) {
         js_SetTraceableNativeFailed(cx);
         return;
@@ -959,12 +927,13 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(JSContext *cx, JSObject *obj,
         *obj_tvr.jsval_addr() = OBJECT_TO_JSVAL(nobj);
         wa = js::TypedArray::fromJSObject(nobj);
     } else {
-        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsIDOMWebGLRenderingContext", "uniformNiv");
+        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsICanvasRenderingContextWebGL", "uniformNiv");
         js_SetTraceableNativeFailed(cx);
         return;
     }
 
-    nsresult rv = NS_OK;
+    nsresult rv;
+
     if (nElements == 1) {
         rv = self->Uniform1iv_array(location, wa);
     } else if (nElements == 2) {
@@ -976,40 +945,31 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(JSContext *cx, JSObject *obj,
     }
 
     if (NS_FAILED(rv)) {
-        xpc_qsThrowMethodFailedWithDetails(cx, rv, "nsIDOMWebGLRenderingContext", "uniformNiv");
+        xpc_qsThrowMethodFailedWithDetails(cx, rv, "nsICanvasRenderingContextWebGL", "uniformNiv");
         js_SetTraceableNativeFailed(cx);
     }
 }
 
 static inline void FASTCALL
-helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
+helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
                                                       JSObject *arg, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
-    JS::Anchor<jsval> self_anchor;
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr,
-                          &self_anchor.get(), nsnull)) {
+    xpc_qsArgValArray<3> vp(cx);
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
-    }
-
-    if (!arg) {
-        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsIDOMWebGLRenderingContext", "uniformNfv");
-        js_SetTraceableNativeFailed(cx);
     }
 
     js::AutoValueRooter obj_tvr(cx);
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    JS::Anchor<jsval> location_anchor;
     nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location,
-                           &location_selfref.ptr, &location_anchor.get(),
-                           nsnull);
+        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
     if (NS_FAILED(rv_convert_arg0)) {
         js_SetTraceableNativeFailed(cx);
         return;
@@ -1030,12 +990,13 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj,
         *obj_tvr.jsval_addr() = OBJECT_TO_JSVAL(nobj);
         wa = js::TypedArray::fromJSObject(nobj);
     } else {
-        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsIDOMWebGLRenderingContext", "uniformNfv");
+        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsICanvasRenderingContextWebGL", "uniformNfv");
         js_SetTraceableNativeFailed(cx);
         return;
     }
 
-    nsresult rv = NS_OK;
+    nsresult rv;
+
     if (nElements == 1) {
         rv = self->Uniform1fv_array(location, wa);
     } else if (nElements == 2) {
@@ -1047,7 +1008,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj,
     }
 
     if (NS_FAILED(rv)) {
-        xpc_qsThrowMethodFailedWithDetails(cx, rv, "nsIDOMWebGLRenderingContext", "uniformNfv");
+        xpc_qsThrowMethodFailedWithDetails(cx, rv, "nsICanvasRenderingContextWebGL", "uniformNfv");
         js_SetTraceableNativeFailed(cx);
     }
 
@@ -1055,34 +1016,25 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj,
 }
 
 static inline void FASTCALL
-helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
+helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
                                                             JSBool transpose, JSObject *arg, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
-    nsIDOMWebGLRenderingContext *self;
+    nsICanvasRenderingContextWebGL *self;
     xpc_qsSelfRef selfref;
-    JS::Anchor<jsval> self_anchor;
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr,
-                          &self_anchor.get(), nsnull)) {
+    xpc_qsArgValArray<4> vp(cx);
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
-    }
-
-    if (!arg) {
-        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsIDOMWebGLRenderingContext", "uniformMatrixNfv");
-        js_SetTraceableNativeFailed(cx);
     }
 
     js::AutoValueRooter obj_tvr(cx);
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    JS::Anchor<jsval> location_anchor;
     nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location,
-                           &location_selfref.ptr, &location_anchor.get(),
-                           nsnull);
+        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
     if (NS_FAILED(rv_convert_arg0)) {
         js_SetTraceableNativeFailed(cx);
         return;
@@ -1103,12 +1055,12 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject
         *obj_tvr.jsval_addr() = OBJECT_TO_JSVAL(nobj);
         wa = js::TypedArray::fromJSObject(nobj);
     } else {
-        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsIDOMWebGLRenderingContext", "uniformMatrixNfv");
+        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsICanvasRenderingContextWebGL", "uniformMatrixNfv");
         js_SetTraceableNativeFailed(cx);
         return;
     }
 
-    nsresult rv = NS_OK;
+    nsresult rv;
     if (nElements == 2) {
         rv = self->UniformMatrix2fv_array(location, transpose, wa);
     } else if (nElements == 3) {
@@ -1118,7 +1070,7 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject
     }
 
     if (NS_FAILED(rv)) {
-        xpc_qsThrowMethodFailedWithDetails(cx, rv, "nsIDOMWebGLRenderingContext", "uniformMatrixNfv");
+        xpc_qsThrowMethodFailedWithDetails(cx, rv, "nsICanvasRenderingContextWebGL", "uniformMatrixNfv");
         js_SetTraceableNativeFailed(cx);
     }
 }
@@ -1126,133 +1078,133 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform1iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform1iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(cx, obj, location, arg, 1);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 1);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform1iv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform1iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform1iv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform1iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform2iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform2iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(cx, obj, location, arg, 2);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 2);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform2iv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform2iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform2iv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform2iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform3iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform3iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(cx, obj, location, arg, 3);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 3);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform3iv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform3iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform3iv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform3iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform4iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform4iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(cx, obj, location, arg, 4);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 4);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform4iv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform4iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform4iv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform4iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform1fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform1fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(cx, obj, location, arg, 1);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 1);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform1fv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform1fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform1fv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform1fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform2fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform2fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(cx, obj, location, arg, 2);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 2);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform2fv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform2fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform2fv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform2fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform3fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform3fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(cx, obj, location, arg, 3);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 3);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform3fv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform3fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform3fv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform3fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_Uniform4fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform4fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(cx, obj, location, arg, 4);
+    helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 4);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_Uniform4fv,
-    (4, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_Uniform4fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform4fv,
+    (4, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_Uniform4fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_UniformMatrix2fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
+nsICanvasRenderingContextWebGL_UniformMatrix2fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 2);
+    helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 2);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_UniformMatrix2fv,
-    (5, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_UniformMatrix2fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_UniformMatrix2fv,
+    (5, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix2fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_UniformMatrix3fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
+nsICanvasRenderingContextWebGL_UniformMatrix3fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 3);
+    helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 3);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_UniformMatrix3fv,
-    (5, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_UniformMatrix3fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_UniformMatrix3fv,
+    (5, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix3fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 // FIXME This should return void, not uint32
 //       (waiting for https://bugzilla.mozilla.org/show_bug.cgi?id=572798)
 static uint32 FASTCALL
-nsIDOMWebGLRenderingContext_UniformMatrix4fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
+nsICanvasRenderingContextWebGL_UniformMatrix4fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
 {
-    helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 4);
+    helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 4);
     return 0;
 }
 
-JS_DEFINE_TRCINFO_1(nsIDOMWebGLRenderingContext_UniformMatrix4fv,
-    (5, (static, UINT32_FAIL, nsIDOMWebGLRenderingContext_UniformMatrix4fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
+JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_UniformMatrix4fv,
+    (5, (static, UINT32_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix4fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACCSET_STORE_ANY)))
 
 #endif /* JS_TRACER */

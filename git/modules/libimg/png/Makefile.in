@@ -51,10 +51,8 @@ LIBXUL_LIBRARY = 1
 
 ifndef GNU_CC
 ifeq ($(OS_ARCH),WINNT)
-ifneq ($(OS_TEST),x86_64)
 # FIXME: bug 413019
 OS_COMPILE_CFLAGS += -GL-
-endif
 endif
 endif
 
@@ -68,21 +66,28 @@ CSRCS		= \
 		pngtrans.c \
 		$(NULL)
 
-# These files enable support for reading/writting PNGs
+# These files enable support for reading PNGs
 CSRCS		+= \
 		pngpread.c \
 		pngread.c \
 		pngrio.c \
 		pngrtran.c \
 		pngrutil.c \
+		$(NULL)
+
+DEFINES		+= -DMOZ_PNG_READ
+
+# These files enable support for writing PNGs
+ifneq (,$(filter png,$(MOZ_IMG_ENCODERS)))
+CSRCS		+= \
 		pngwio.c \
 		pngwrite.c \
 		pngwtran.c \
 		pngwutil.c \
 		$(NULL)
 
-DEFINES		+= -DMOZ_PNG_READ \
-		-DMOZ_PNG_WRITE
+DEFINES		+= -DMOZ_PNG_WRITE
+endif
 
 EXPORTS		= png.h pngconf.h mozpngconf.h
 

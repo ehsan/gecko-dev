@@ -46,6 +46,7 @@
 #include "nsReadableUtils.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -59,7 +60,6 @@
 #include "nsClientRect.h"
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
-#include "nsFontFaceList.h"
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
@@ -1172,7 +1172,7 @@ RemoveNode(nsIDOMNode* aNode)
 {
   nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
   nsCOMPtr<nsINode> parent = node->GetNodeParent();
-  return parent ? parent->RemoveChild(node) : NS_OK;
+  return parent ? parent->RemoveChildAt(parent->IndexOf(node), PR_TRUE) : NS_OK;
 }
 
 /**
@@ -1449,6 +1449,18 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
       commonCloneAncestor = newCloneAncestor;
     }
   }
+
+  // XXX_kin: At this point we should be checking for the case
+  // XXX_kin: where we have 2 adjacent text nodes left, each
+  // XXX_kin: containing one of the range end points. The spec
+  // XXX_kin: says the 2 nodes should be merged in that case,
+  // XXX_kin: and to use Normalize() to do the merging, but
+  // XXX_kin: calling Normalize() on the common parent to accomplish
+  // XXX_kin: this might also normalize nodes that are outside the
+  // XXX_kin: range but under the common parent. Need to verify
+  // XXX_kin: with the range commitee members that this was the
+  // XXX_kin: desired behavior. For now we don't merge anything!
+  // XXX ajvincent Filed as https://bugzilla.mozilla.org/show_bug.cgi?id=401276
 
   rv = CollapseRangeAfterDelete(this);
   if (NS_SUCCEEDED(rv) && aFragment) {
@@ -2237,62 +2249,3 @@ nsRange::GetClientRects(nsIDOMClientRectList** aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsRange::GetUsedFontFaces(nsIDOMFontFaceList** aResult)
-{
-  *aResult = nsnull;
-
-  NS_ENSURE_TRUE(mStartParent, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIDOMNode> startContainer = do_QueryInterface(mStartParent);
-  nsCOMPtr<nsIDOMNode> endContainer = do_QueryInterface(mEndParent);
-
-  // Flush out layout so our frames are up to date.
-  nsIDocument* doc = mStartParent->GetOwnerDoc();
-  NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
-  doc->FlushPendingNotifications(Flush_Frames);
-
-  // Recheck whether we're still in the document
-  NS_ENSURE_TRUE(mStartParent->IsInDoc(), NS_ERROR_UNEXPECTED);
-
-  nsRefPtr<nsFontFaceList> fontFaceList = new nsFontFaceList();
-
-  RangeSubtreeIterator iter;
-  nsresult rv = iter.Init(this);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  while (!iter.IsDone()) {
-    // only collect anything if the range is not collapsed
-    nsCOMPtr<nsIDOMNode> node(iter.GetCurrentNode());
-    iter.Next();
-
-    nsCOMPtr<nsIContent> content = do_QueryInterface(node);
-    if (!content) {
-      continue;
-    }
-    nsIFrame* frame = content->GetPrimaryFrame();
-    if (!frame) {
-      continue;
-    }
-
-    if (content->IsNodeOfType(nsINode::eTEXT)) {
-       if (node == startContainer) {
-         PRInt32 offset = startContainer == endContainer ? 
-           mEndOffset : content->GetText()->GetLength();
-         nsLayoutUtils::GetFontFacesForText(frame, mStartOffset, offset,
-                                            PR_TRUE, fontFaceList);
-         continue;
-       }
-       if (node == endContainer) {
-         nsLayoutUtils::GetFontFacesForText(frame, 0, mEndOffset,
-                                            PR_TRUE, fontFaceList);
-         continue;
-       }
-    }
-
-    nsLayoutUtils::GetFontFacesForFrames(frame, fontFaceList);
-  }
-
-  fontFaceList.forget(aResult);
-  return NS_OK;
-}

@@ -218,12 +218,10 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual void DidAnimateLength(PRUint8 aAttrEnum);
   virtual void DidAnimateNumber(PRUint8 aAttrEnum);
-  virtual void DidAnimateNumberList(PRUint8 aAttrEnum);
   virtual void DidAnimateInteger(PRUint8 aAttrEnum);
   virtual void DidAnimateEnum(PRUint8 aAttrEnum);
   virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
   virtual void DidAnimatePreserveAspectRatio();
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   // nsIDOMSVGFitlerPrimitiveStandardAttributes values
   enum { X, Y, WIDTH, HEIGHT };

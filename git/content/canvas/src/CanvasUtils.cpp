@@ -83,13 +83,16 @@ CanvasUtils::DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
     if (aPrincipal == nsnull)
         return;
 
-    PRBool subsumes;
-    nsresult rv =
-        aCanvasElement->NodePrincipal()->Subsumes(aPrincipal, &subsumes);
-
-    if (NS_SUCCEEDED(rv) && subsumes) {
-        // This canvas has access to that image anyway
-        return;
+    nsCOMPtr<nsINode> elem = do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(aCanvasElement));
+    if (elem) { // XXXbz How could this actually be null?
+        PRBool subsumes;
+        nsresult rv =
+            elem->NodePrincipal()->Subsumes(aPrincipal, &subsumes);
+            
+        if (NS_SUCCEEDED(rv) && subsumes) {
+            // This canvas has access to that image anyway
+            return;
+        }
     }
 
     aCanvasElement->SetWriteOnly();

@@ -74,11 +74,7 @@ function run_test_1() {
     AddonManager.getAddonByID(gID, function(p) {
       do_check_neq(p, null);
       do_check_eq(p.name, "Test Plug-in");
-      do_check_eq(p.description,
-                  "Plug-in for testing purposes.\u2122 " +
-                    "(\u0939\u093f\u0928\u094d\u0926\u0940 " + 
-                    "\u4e2d\u6587 " +
-                    "\u0627\u0644\u0639\u0631\u0628\u064a\u0629)");
+      do_check_eq(p.description, "Plug-in for testing purposes.");
       do_check_eq(p.creator, null);
       do_check_eq(p.version, "1.0.0.0");
       do_check_eq(p.type, "plugin");
@@ -164,18 +160,6 @@ function run_test_3(p) {
     do_check_false(p.userDisabled);
     do_check_false(p.appDisabled);
     do_check_true(p.isActive);
-    do_check_eq(p.name, "Test Plug-in");
-
-    run_test_4();
-  });
-}
-
-// Verify that after a restart the test plugin has the same ID
-function run_test_4() {
-  restartManager();
-
-  AddonManager.getAddonByID(gID, function(p) {
-    do_check_neq(p, null);
     do_check_eq(p.name, "Test Plug-in");
 
     do_test_finished();

@@ -34,7 +34,7 @@
  * happening.
  */
 function runTest() {
-  debugDump("entering");
+  ok(true, "Entering runTest - cleanup");
 
   SimpleTest.waitForExplicitFinish();
 
@@ -74,9 +74,8 @@ function runTest() {
     removeDirRecursive(addonPrepDir);
   }
   catch (e) {
-    dump("Unable to remove directory\n" +
-         "path: " + addonPrepDir.path + "\n" +
-         "Exception: " + e + "\n");
+    debugDump("removeDirRecursive failed to remove the " + ADDON_PREP_DIR +
+              " from the profile. " + e);
   }
 
   resetAddons(SimpleTest.finish);

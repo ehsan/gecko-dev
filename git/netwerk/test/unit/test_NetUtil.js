@@ -16,7 +16,7 @@
  * The Original Code is Necko Test Code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -49,9 +49,6 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm");
 // files.
 do_get_profile();
 
-const OUTPUT_STREAM_CONTRACT_ID = "@mozilla.org/network/file-output-stream;1";
-const SAFE_OUTPUT_STREAM_CONTRACT_ID = "@mozilla.org/network/safe-file-output-stream;1";
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Helper Methods
 
@@ -78,15 +75,10 @@ function getFileContents(aFile)
   return string.value;
 }
 
-/**
- * Tests asynchronously writing a file using NetUtil.asyncCopy.
- *
- * @param aContractId
- *        The contract ID to use for the output stream
- * @param aDeferOpen
- *        Whether to use DEFER_OPEN in the output stream.
- */
-function async_write_file(aContractId, aDeferOpen)
+////////////////////////////////////////////////////////////////////////////////
+//// Tests
+
+function test_async_write_file()
 {
   do_test_pending();
 
@@ -98,8 +90,9 @@ function async_write_file(aContractId, aDeferOpen)
   file.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0666);
 
   // Then, we need an output stream to our output file.
-  let ostream = Cc[aContractId].createInstance(Ci.nsIFileOutputStream);
-  ostream.init(file, -1, -1, aDeferOpen ? Ci.nsIFileOutputStream.DEFER_OPEN : 0);
+  let ostream = Cc["@mozilla.org/network/file-output-stream;1"].
+                createInstance(Ci.nsIFileOutputStream);
+  ostream.init(file, -1, -1, 0);
 
   // Finally, we need an input stream to take data from.
   const TEST_DATA = "this is a test string";
@@ -120,23 +113,39 @@ function async_write_file(aContractId, aDeferOpen)
   });
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//// Tests
+function test_async_write_file_nsISafeOutputStream()
+{
+  do_test_pending();
 
-function test_async_write_file() {
-  async_write_file(OUTPUT_STREAM_CONTRACT_ID);
-}
+  // First, we need an output file to write to.
+  let file = Cc["@mozilla.org/file/directory_service;1"].
+             getService(Ci.nsIProperties).
+             get("ProfD", Ci.nsIFile);
+  file.append("NetUtil-async-test-file.tmp");
+  file.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0666);
 
-function test_async_write_file_deferred() {
-  async_write_file(OUTPUT_STREAM_CONTRACT_ID, true);
-}
+  // Then, we need an output stream to our output file.
+  let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
+                createInstance(Ci.nsIFileOutputStream);
+  ostream.init(file, -1, -1, 0);
 
-function test_async_write_file_safe() {
-  async_write_file(SAFE_OUTPUT_STREAM_CONTRACT_ID);
-}
+  // Finally, we need an input stream to take data from.
+  const TEST_DATA = "this is a test string";
+  let istream = Cc["@mozilla.org/io/string-input-stream;1"].
+                createInstance(Ci.nsIStringInputStream);
+  istream.setData(TEST_DATA, TEST_DATA.length);
 
-function test_async_write_file_safe_deferred() {
-  async_write_file(SAFE_OUTPUT_STREAM_CONTRACT_ID, true);
+  NetUtil.asyncCopy(istream, ostream, function(aResult) {
+    // Make sure the copy was successful!
+    do_check_true(Components.isSuccessCode(aResult));
+
+    // Check the file contents.
+    do_check_eq(TEST_DATA, getFileContents(file));
+
+    // Finish the test.
+    do_test_finished();
+    run_next_test();
+  });
 }
 
 function test_newURI_no_spec_throws()
@@ -352,27 +361,6 @@ function test_asyncFetch_with_nsIFile()
   });
 }
 
-function test_asyncFetch_with_nsIInputString()
-{
-  const TEST_DATA = "this is a test string";
-  let istream = Cc["@mozilla.org/io/string-input-stream;1"].
-                createInstance(Ci.nsIStringInputStream);
-  istream.setData(TEST_DATA, TEST_DATA.length);
-
-  // Read the input stream asynchronously.
-  NetUtil.asyncFetch(istream, function(aInputStream, aResult) {
-    // Check that we had success.
-    do_check_true(Components.isSuccessCode(aResult));
-
-    // Check that we got the right data.
-    do_check_eq(aInputStream.available(), TEST_DATA.length);
-    do_check_eq(NetUtil.readInputStreamToString(aInputStream, TEST_DATA.length),
-                TEST_DATA);
-
-    run_next_test();
-  });
-}
-
 function test_asyncFetch_does_not_block()
 {
   // Create our channel that has no data.
@@ -539,11 +527,9 @@ function test_readInputStreamToString_too_many_bytes()
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Runner
 
-[
+let tests = [
   test_async_write_file,
-  test_async_write_file_deferred,
-  test_async_write_file_safe,
-  test_async_write_file_safe_deferred,
+  test_async_write_file_nsISafeOutputStream,
   test_newURI_no_spec_throws,
   test_newURI,
   test_newURI_takes_nsIFile,
@@ -554,7 +540,6 @@ function test_readInputStreamToString_too_many_bytes()
   test_asyncFetch_with_nsIURI,
   test_asyncFetch_with_string,
   test_asyncFetch_with_nsIFile,
-  test_asyncFetch_with_nsIInputString,
   test_asyncFetch_does_not_block,
   test_newChannel_no_specifier,
   test_newChannel_with_string,
@@ -565,11 +550,32 @@ function test_readInputStreamToString_too_many_bytes()
   test_readInputStreamToString_no_bytes_arg,
   test_readInputStreamToString_blocking_stream,
   test_readInputStreamToString_too_many_bytes,
-].forEach(add_test);
+];
 let index = 0;
+
+function run_next_test()
+{
+  if (index < tests.length) {
+    do_test_pending();
+
+    // Asynchronous test exceptions do not kill the test...
+    do_execute_soon(function() {
+      try {
+        print("Running the next test: " + tests[index].name);
+        tests[index++]();
+      }
+      catch (e) {
+        do_throw(e);
+      }
+    });
+  }
+
+  do_test_finished();
+}
 
 function run_test()
 {
+  do_test_pending();
   run_next_test();
 }
 

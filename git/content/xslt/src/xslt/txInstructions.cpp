@@ -61,7 +61,8 @@ txApplyDefaultElementTemplate::execute(txExecutionState& aEs)
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
                                       mode, &aEs, nsnull, &frame);
 
-    aEs.pushTemplateRule(frame, mode, aEs.mTemplateParams);
+    nsresult rv = aEs.pushTemplateRule(frame, mode, aEs.mTemplateParams);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aEs.runTemplate(templ);
 }
@@ -96,7 +97,8 @@ txApplyImportsStart::execute(txExecutionState& aEs)
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
                                       mode, &aEs, rule->mFrame, &frame);
 
-    aEs.pushTemplateRule(frame, mode, rule->mParams);
+    rv = aEs.pushTemplateRule(frame, mode, rule->mParams);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aEs.runTemplate(templ);
 }
@@ -114,7 +116,8 @@ txApplyTemplates::execute(txExecutionState& aEs)
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
                                       mMode, &aEs, nsnull, &frame);
 
-    aEs.pushTemplateRule(frame, mMode, aEs.mTemplateParams);
+    nsresult rv = aEs.pushTemplateRule(frame, mMode, aEs.mTemplateParams);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aEs.runTemplate(templ);
 }
@@ -429,7 +432,7 @@ txCopyOf::execute(txExecutionState& aEs)
             txResultTreeFragment* rtf =
                 static_cast<txResultTreeFragment*>
                            (static_cast<txAExprResult*>(exprRes));
-            return rtf->flushToHandler(aEs.mResultHandler);
+            return rtf->flushToHandler(&aEs.mResultHandler);
         }
         default:
         {
@@ -714,8 +717,7 @@ txPushNewContext::addSort(nsAutoPtr<Expr> aSelectExpr,
 nsresult
 txPushNullTemplateRule::execute(txExecutionState& aEs)
 {
-    aEs.pushTemplateRule(nsnull, txExpandedName(), nsnull);
-    return NS_OK;
+    return aEs.pushTemplateRule(nsnull, txExpandedName(), nsnull);
 }
 
 nsresult

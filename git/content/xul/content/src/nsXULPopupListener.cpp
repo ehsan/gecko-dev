@@ -55,7 +55,7 @@
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
 #include "nsXULPopupManager.h"
-#include "nsEventStateManager.h"
+
 #include "nsIScriptContext.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULDocument.h"
@@ -70,18 +70,16 @@
 #include "nsFrameManager.h"
 #include "nsHTMLReflowState.h"
 #include "nsIObjectLoadingContent.h"
-#include "mozilla/Preferences.h"
 
 // for event firing in context menus
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIEventStateManager.h"
 #include "nsFocusManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
 #include "nsDOMError.h"
 #include "nsIMenuFrame.h"
-
-using namespace mozilla;
 
 // on win32 and os/2, context menus come up on mouse up. On other platforms,
 // they appear on mouse down. Certain bits of code care about this difference.
@@ -178,7 +176,7 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.
     PRBool eventEnabled =
-      Preferences::GetBool("dom.event.contextmenu.enabled", PR_TRUE);
+      nsContentUtils::GetBoolPref("dom.event.contextmenu.enabled", PR_TRUE);
     if (!eventEnabled) {
       // If the target node is for plug-in, we should not open XUL context
       // menu on windowless plug-ins.
@@ -303,7 +301,7 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
       }
     }
 
-    nsEventStateManager *esm = context->EventStateManager();
+    nsIEventStateManager *esm = context->EventStateManager();
     nsCOMPtr<nsIContent> focusableContent = do_QueryInterface(element);
     esm->SetContentState(focusableContent, NS_EVENT_STATE_ACTIVE);
   }

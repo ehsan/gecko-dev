@@ -257,38 +257,24 @@ bool SetCloseOnExec(int fd) {
 
 Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
                                   Listener* listener)
-    : factory_(this) {
-  Init(mode, listener);
-  uses_fifo_ = CommandLine::ForCurrentProcess()->HasSwitch(switches::kIPCUseFIFO);
-
+    : mode_(mode),
+      is_blocked_on_write_(false),
+      message_send_bytes_written_(0),
+      uses_fifo_(CommandLine::ForCurrentProcess()->HasSwitch(
+                     switches::kIPCUseFIFO)),
+      server_listen_pipe_(-1),
+      pipe_(-1),
+      client_pipe_(-1),
+      listener_(listener),
+      waiting_connect_(true),
+      processing_incoming_(false),
+      factory_(this) {
   if (!CreatePipe(channel_id, mode)) {
     // The pipe may have been closed already.
     LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
                     "\" in " << (mode == MODE_SERVER ? "server" : "client") <<
                     " mode error(" << strerror(errno) << ").";
   }
-}
-
-Channel::ChannelImpl::ChannelImpl(int fd, Mode mode, Listener* listener)
-    : factory_(this) {
-  Init(mode, listener);
-  pipe_ = fd;
-  waiting_connect_ = (MODE_SERVER == mode);
-
-  EnqueueHelloMessage();
-}
-
-void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
-  mode_ = mode;
-  is_blocked_on_write_ = false;
-  message_send_bytes_written_ = 0;
-  uses_fifo_ = false;
-  server_listen_pipe_ = -1;
-  pipe_ = -1;
-  client_pipe_ = -1;
-  listener_ = listener;
-  waiting_connect_ = true;
-  processing_incoming_ = false;
 }
 
 bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
@@ -348,10 +334,6 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
   }
 
   // Create the Hello message to be sent when Connect is called
-  return EnqueueHelloMessage();
-}
-
-bool Channel::ChannelImpl::EnqueueHelloMessage() {
   scoped_ptr<Message> msg(new Message(MSG_ROUTING_NONE,
                                       HELLO_MESSAGE_TYPE,
                                       IPC::Message::PRIORITY_NORMAL));
@@ -613,9 +595,8 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
     struct iovec iov = {const_cast<char*>(out_bytes), amt_to_write};
     msgh.msg_iov = &iov;
     msgh.msg_iovlen = 1;
-    static const int tmp = CMSG_SPACE(sizeof(
-        int[FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE]));
-    char buf[tmp];
+    char buf[CMSG_SPACE(
+        sizeof(int[FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE]))];
 
     if (message_send_bytes_written_ == 0 &&
         !msg->file_descriptor_set()->empty()) {
@@ -814,12 +795,6 @@ Channel::Channel(const std::wstring& channel_id, Mode mode,
     : channel_impl_(new ChannelImpl(channel_id, mode, listener)) {
 }
 
-#if defined(CHROMIUM_MOZILLA_BUILD)
-Channel::Channel(int fd, Mode mode, Listener* listener)
-    : channel_impl_(new ChannelImpl(fd, mode, listener)) {
-}
-#endif
-
 Channel::~Channel() {
   delete channel_impl_;
 }
@@ -849,11 +824,5 @@ bool Channel::Send(Message* message) {
 void Channel::GetClientFileDescriptorMapping(int *src_fd, int *dest_fd) const {
   return channel_impl_->GetClientFileDescriptorMapping(src_fd, dest_fd);
 }
-
-#ifdef CHROMIUM_MOZILLA_BUILD
-int Channel::GetServerFileDescriptor() const {
-  return channel_impl_->GetServerFileDescriptor();
-}
-#endif
 
 }  // namespace IPC

@@ -88,11 +88,11 @@ nsDOMScriptObjectFactory::nsDOMScriptObjectFactory() :
     if (xs) {
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM);
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_RANGE);
+#ifdef MOZ_SVG
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_SVG);
+#endif
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_XPATH);
-      xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_INDEXEDDB);
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_XPCONNECT);
-      xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_EVENTS);
     }
 
     NS_ASSERTION(!gExceptionProvider, "Registered twice?!");
@@ -289,14 +289,14 @@ nsDOMScriptObjectFactory::Observe(nsISupports *aSubject,
                                         NS_ERROR_MODULE_DOM);
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_DOM_RANGE);
+#ifdef MOZ_SVG
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_SVG);
+#endif
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_DOM_XPATH);
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_XPCONNECT);
-        xs->UnregisterExceptionProvider(gExceptionProvider,
-                                        NS_ERROR_MODULE_DOM_EVENTS);
       }
 
       NS_RELEASE(gExceptionProvider);
@@ -388,18 +388,16 @@ nsDOMExceptionProvider::GetException(nsresult result,
   {
     case NS_ERROR_MODULE_DOM_RANGE:
       return NS_NewRangeException(result, aDefaultException, _retval);
+#ifdef MOZ_SVG
     case NS_ERROR_MODULE_SVG:
       return NS_NewSVGException(result, aDefaultException, _retval);
+#endif
     case NS_ERROR_MODULE_DOM_XPATH:
       return NS_NewXPathException(result, aDefaultException, _retval);
     case NS_ERROR_MODULE_XPCONNECT:
       return CreateXPConnectException(result, aDefaultException, _retval);
     case NS_ERROR_MODULE_DOM_FILE:
       return NS_NewFileException(result, aDefaultException, _retval);
-    case NS_ERROR_MODULE_DOM_INDEXEDDB:
-      return NS_NewIDBDatabaseException(result, aDefaultException, _retval);
-    case NS_ERROR_MODULE_DOM_EVENTS:
-      return NS_NewEventException(result, aDefaultException, _retval);
     default:
       return NS_NewDOMException(result, aDefaultException, _retval);
   }

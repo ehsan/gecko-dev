@@ -87,36 +87,12 @@ gfxQuartzSurface::gfxQuartzSurface(cairo_surface_t *csurf,
     Init(csurf, PR_TRUE);
 }
 
-gfxQuartzSurface::gfxQuartzSurface(unsigned char *data,
-                                   const gfxSize& size,
-                                   long stride,
-                                   gfxImageFormat format,
-                                   PRBool aForPrinting)
-    : mCGContext(nsnull), mSize(size), mForPrinting(aForPrinting)
-{
-    unsigned int width = (unsigned int) floor(size.width);
-    unsigned int height = (unsigned int) floor(size.height);
-
-    if (!CheckSurfaceSize(gfxIntSize(width, height)))
-        return;
-
-    cairo_surface_t *surf = cairo_quartz_surface_create_for_data
-        (data, (cairo_format_t) format, width, height, stride);
-
-    mCGContext = cairo_quartz_surface_get_cg_context (surf);
-
-    CGContextRetain(mCGContext);
-
-    Init(surf);
-}
-
 already_AddRefed<gfxASurface>
 gfxQuartzSurface::CreateSimilarSurface(gfxContentType aType,
                                        const gfxIntSize& aSize)
 {
     cairo_surface_t *surface =
-        cairo_quartz_surface_create_cg_layer(mSurface, (cairo_content_t)aType,
-                                             aSize.width, aSize.height);
+        cairo_quartz_surface_create_cg_layer(mSurface, aSize.width, aSize.height);
     if (cairo_surface_status(surface)) {
         cairo_surface_destroy(surface);
         return nsnull;
@@ -136,27 +112,9 @@ gfxQuartzSurface::GetCGContextWithClip(gfxContext *ctx)
 PRInt32 gfxQuartzSurface::GetDefaultContextFlags() const
 {
     if (mForPrinting)
-        return gfxContext::FLAG_DISABLE_SNAPPING |
-               gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
+        return gfxContext::FLAG_DISABLE_SNAPPING;
 
     return 0;
-}
-
-already_AddRefed<gfxImageSurface> gfxQuartzSurface::GetAsImageSurface()
-{
-    cairo_surface_t *surface = cairo_quartz_surface_get_image(mSurface);
-    if (!surface)
-        return nsnull;
-
-    nsRefPtr<gfxASurface> img = Wrap(surface);
-
-    // cairo_quartz_surface_get_image returns a referenced image, and thebes
-    // shares the refcounts of Cairo surfaces. However, Wrap also adds a
-    // reference to the image. We need to remove one of these references
-    // explicitly so we don't leak.
-    img->Release();
-
-    return static_cast<gfxImageSurface*>(img.forget().get());
 }
 
 gfxQuartzSurface::~gfxQuartzSurface()

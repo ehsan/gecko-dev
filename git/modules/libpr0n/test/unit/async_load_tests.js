@@ -15,8 +15,6 @@ server.start(8088);
 
 load('image_load_helpers.js');
 
-var requests = [];
-
 // Return a closure that holds on to the listener from the original
 // imgIRequest, and compares its results to the cloned one.
 function getCloneStopCallback(original_listener)
@@ -82,7 +80,7 @@ function checkSecondLoad()
 
   var loader = Cc["@mozilla.org/image/loader;1"].getService(Ci.imgILoader);
   var listener = new ImageListener(checkClone, secondLoadDone);
-  requests.push(loader.loadImage(uri, null, null, null, listener, null, 0, null, null, null));
+  var req = loader.loadImage(uri, null, null, null, listener, null, 0, null, null, null);
   listener.synchronous = false;
 }
 
@@ -139,7 +137,7 @@ function checkSecondChannelLoad()
                                    getChannelLoadImageStopCallback(channellistener,
                                                                    all_done_callback));
   var outlistener = {};
-  requests.push(loader.loadImageWithChannel(channel, listener, null, outlistener));
+  var req = loader.loadImageWithChannel(channel, listener, null, outlistener);
   channellistener.outputListener = outlistener.value;
 
   listener.synchronous = false;
@@ -165,7 +163,7 @@ function run_loadImageWithChannel_tests()
                                    getChannelLoadImageStopCallback(channellistener,
                                                                    checkSecondChannelLoad));
   var outlistener = {};
-  requests.push(loader.loadImageWithChannel(channel, listener, null, outlistener));
+  var req = loader.loadImageWithChannel(channel, listener, null, outlistener);
   channellistener.outputListener = outlistener.value;
 
   listener.synchronous = false;
@@ -185,7 +183,7 @@ function startImageCallback(otherCb)
     // Make sure we can load the same image immediately out of the cache.
     do_test_pending();
     var listener2 = new ImageListener(null, function(foo, bar) { do_test_finished(); });
-    requests.push(loader.loadImage(uri, null, null, null, listener2, null, 0, null, null, null));
+    var req2 = loader.loadImage(uri, null, null, null, listener2, null, 0, null, null, null);
     listener2.synchronous = false;
 
     // Now that we've started another load, chain to the callback.
@@ -200,7 +198,6 @@ function run_test()
   do_test_pending();
   var listener = new ImageListener(startImageCallback(checkClone), firstLoadDone);
   var req = loader.loadImage(uri, null, null, null, listener, null, 0, null, null, null);
-  requests.push(req);
 
   // Ensure that we don't cause any mayhem when we lock an image.
   req.lockImage();

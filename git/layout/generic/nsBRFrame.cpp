@@ -44,20 +44,19 @@
 #include "nsLineLayout.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
-#include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
+#include "nsIRenderingContext.h"
 #include "nsLayoutUtils.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 //FOR SELECTION
 #include "nsIContent.h"
 #include "nsFrameSelection.h"
 //END INCLUDES FOR SELECTION
-
-#define BR_USING_CENTERED_FONT_BASELINE NS_FRAME_STATE_BIT(63)
 
 class BRFrame : public nsFrame {
 public:
@@ -68,8 +67,7 @@ public:
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
 
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
-  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                     PRBool aRespectClusters = PR_TRUE);
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
                                 PRInt32* aOffset, PeekWordState* aState);
 
@@ -77,14 +75,13 @@ public:
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual nsIAtom* GetType() const;
-  virtual nscoord GetBaseline() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -126,7 +123,6 @@ BRFrame::Reflow(nsPresContext* aPresContext,
                        // However, it's not always 0.  See below.
   aMetrics.width = 0;
   aMetrics.ascent = 0;
-  RemoveStateBits(BR_USING_CENTERED_FONT_BASELINE);
 
   // Only when the BR is operating in a line-layout situation will it
   // behave like a BR.
@@ -151,13 +147,13 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       // normal inline frame.  That line-height is used is important
       // here for cases where the line-height is less than 1.
       nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
-      nsFontMetrics *fm = aReflowState.rendContext->FontMetrics();
+      nsCOMPtr<nsIFontMetrics> fm;
+      aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
         aMetrics.height = logicalHeight;
         aMetrics.ascent =
           nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
-        AddStateBits(BR_USING_CENTERED_FONT_BASELINE);
       }
       else {
         aMetrics.ascent = aMetrics.height = 0;
@@ -185,29 +181,29 @@ BRFrame::Reflow(nsPresContext* aPresContext,
   else {
     aStatus = NS_FRAME_COMPLETE;
   }
-
-  aMetrics.SetOverflowAreasToDesiredBounds();
+  
+  aMetrics.mOverflowArea = nsRect(0, 0, aMetrics.width, aMetrics.height);
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return NS_OK;
 }
 
 /* virtual */ void
-BRFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+BRFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                            nsIFrame::InlineMinWidthData *aData)
 {
   aData->ForceBreak(aRenderingContext);
 }
 
 /* virtual */ void
-BRFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+BRFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                             nsIFrame::InlinePrefWidthData *aData)
 {
   aData->ForceBreak(aRenderingContext);
 }
 
 /* virtual */ nscoord
-BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -215,7 +211,7 @@ BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-BRFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -226,23 +222,6 @@ nsIAtom*
 BRFrame::GetType() const
 {
   return nsGkAtoms::brFrame;
-}
-
-nscoord
-BRFrame::GetBaseline() const
-{
-  nscoord ascent = 0;
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  if (fm) {
-    nscoord logicalHeight = GetRect().height;
-    if (GetStateBits() & BR_USING_CENTERED_FONT_BASELINE) {
-      ascent = nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
-    } else {
-      ascent = fm->MaxAscent() + GetUsedBorderAndPadding().top;
-    }
-  }
-  return NS_MIN(mRect.height, ascent);
 }
 
 nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoint)
@@ -272,8 +251,7 @@ BRFrame::PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset)
 }
 
 PRBool
-BRFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                             PRBool aRespectClusters)
+BRFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Keep going. The actual line jumping will stop us.
@@ -293,7 +271,7 @@ BRFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsK
 already_AddRefed<nsAccessible>
 BRFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   if (!accService) {
     return nsnull;
   }

@@ -71,7 +71,7 @@
 #include <X11/Xatom.h>
 #endif
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
 struct DBusMessage;  /* libosso.h references internals of dbus */
 
 #include <dbus/dbus.h>
@@ -178,7 +178,7 @@ public:
   NS_IMETHOD Enable();
 
 private:
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
   osso_context_t *m_osso_context;    
   /* A note about why we need to have m_hw_state:
      the osso hardware callback does not tell us what changed, just
@@ -189,7 +189,7 @@ private:
 #endif
 };
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
 static nsresult
 GetMostRecentWindow(const PRUnichar* aType, nsIDOMWindowInternal** aWindow)
 {
@@ -451,7 +451,7 @@ nsNativeAppSupportUnix::Start(PRBool *aRetVal)
     exit(0);
   }
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
   /* zero state out. */
   memset(&m_hw_state, 0, sizeof(osso_hw_state_t));
 
@@ -600,7 +600,7 @@ nsNativeAppSupportUnix::Stop(PRBool *aResult)
   NS_ENSURE_ARG(aResult);
   *aResult = PR_TRUE;
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
   if (m_osso_context) {
     // Disable the accelerometer when closing
     OssoRequestAccelerometer(m_osso_context, PR_FALSE);
@@ -621,7 +621,7 @@ nsNativeAppSupportUnix::Stop(PRBool *aResult)
 NS_IMETHODIMP
 nsNativeAppSupportUnix::Enable()
 {
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
   // Enable the accelerometer for orientation support
   if (OssoIsScreenOn(m_osso_context))
       OssoRequestAccelerometer(m_osso_context, PR_TRUE);

@@ -48,7 +48,6 @@
 #include "nsIChannel.h"
 #include "nsILoadGroup.h"
 #include "nsISupportsPriority.h"
-#include "nsITimedChannel.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
@@ -72,10 +71,7 @@ class Image;
 } // namespace imagelib
 } // namespace mozilla
 
-class imgRequestProxy : public imgIRequest, 
-                        public nsISupportsPriority, 
-                        public nsISecurityInfoProvider,
-                        public nsITimedChannel
+class imgRequestProxy : public imgIRequest, public nsISupportsPriority, public nsISecurityInfoProvider
 {
 public:
   NS_DECL_ISUPPORTS
@@ -83,7 +79,6 @@ public:
   NS_DECL_NSIREQUEST
   NS_DECL_NSISUPPORTSPRIORITY
   NS_DECL_NSISECURITYINFOPROVIDER
-  // nsITimedChannel declared below
 
   imgRequestProxy();
   virtual ~imgRequestProxy();
@@ -131,12 +126,6 @@ public:
   // Setter for our |mImage| pointer, for imgRequest to use, once it
   // instantiates an Image.
   void SetImage(mozilla::imagelib::Image* aImage);
-
-  // Removes all animation consumers that were created with
-  // IncrementAnimationConsumers. This is necessary since we need
-  // to do it before the proxy itself is destroyed. See
-  // imgRequest::RemoveProxy
-  void ClearAnimationConsumers();
 
 protected:
   friend class imgStatusTracker;
@@ -201,16 +190,6 @@ protected:
   //   (b) whether mOwner has instantiated its image yet
   imgStatusTracker& GetStatusTracker();
 
-  nsITimedChannel* TimedChannel()
-  {
-    if (!mOwner)
-      return nsnull;
-    return mOwner->mTimedChannel;
-  }
-
-public:
-  NS_FORWARD_SAFE_NSITIMEDCHANNEL(TimedChannel())
-
 private:
   friend class imgCacheValidator;
 
@@ -240,8 +219,8 @@ private:
   nsCOMPtr<nsILoadGroup> mLoadGroup;
 
   nsLoadFlags mLoadFlags;
-  PRUint32    mLockCount;
-  PRUint32    mAnimationConsumers;
+  PRUint32    mLocksHeld;
+  PRUint32    mDeferredLocks;
   PRPackedBool mCanceled;
   PRPackedBool mIsInLoadGroup;
   PRPackedBool mListenerIsStrongRef;

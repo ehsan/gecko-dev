@@ -47,15 +47,6 @@
 #include "nsAppShell.h"
 #include "nsWindow.h"
 #include <android/log.h>
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
-#include "nsINetworkLinkService.h"
-
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#include "nsExceptionHandler.h"
-#endif
-
 
 using namespace mozilla;
 
@@ -65,12 +56,10 @@ extern "C" {
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_nativeInit(JNIEnv *, jclass);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_notifyGeckoOfEvent(JNIEnv *, jclass, jobject event);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobject sv);
+    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_setInitialSize(JNIEnv *jenv, jclass, int width, int height);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onResume(JNIEnv *, jclass);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onLowMemory(JNIEnv *, jclass);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_callObserver(JNIEnv *, jclass, jstring observerKey, jstring topic, jstring data);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_removeObserver(JNIEnv *jenv, jclass, jstring jObserverKey);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *, jclass, jstring status);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *, jclass, jstring stack);
 }
 
 
@@ -90,6 +79,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGeckoOfEvent(JNIEnv *jenv, jclass jc,
     // poke the appshell
     if (nsAppShell::gAppShell)
         nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(jenv, event));
+    else if (!nsAppShell::gEarlyEvent)
+        nsAppShell::gEarlyEvent = new AndroidGeckoEvent(jenv, event);
 }
 
 NS_EXPORT void JNICALL
@@ -99,13 +90,9 @@ Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobjec
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onLowMemory(JNIEnv *jenv, jclass jc)
+Java_org_mozilla_gecko_GeckoAppShell_setInitialSize(JNIEnv *jenv, jclass, int width, int height)
 {
-    if (nsAppShell::gAppShell) {
-        nsAppShell::gAppShell->NotifyObservers(nsnull,
-                                               "memory-pressure",
-                                               NS_LITERAL_STRING("low-memory").get());
-    }
+    nsWindow::SetInitialAndroidBounds(gfxIntSize(width, height));
 }
 
 NS_EXPORT void JNICALL
@@ -140,28 +127,4 @@ Java_org_mozilla_gecko_GeckoAppShell_removeObserver(JNIEnv *jenv, jclass, jstrin
     jenv->ReleaseStringChars(jObserverKey, observerKey);
 
     nsAppShell::gAppShell->RemoveObserver(sObserverKey);
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *jenv, jclass, jstring jStatus)
-{
-    if (!nsAppShell::gAppShell)
-        return;
-
-    nsJNIString sStatus(jStatus, jenv);
-
-    nsAppShell::gAppShell->NotifyObservers(nsnull,
-                                           NS_NETWORK_LINK_TOPIC,
-                                           sStatus.get());
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *, jclass, jstring stack)
-{
-#ifdef MOZ_CRASHREPORTER
-     nsJNIString javaStack(stack);
-     CrashReporter::AppendAppNotesToCrashReport(
-         NS_ConvertUTF16toUTF8(javaStack));
-#endif
-    abort();
 }

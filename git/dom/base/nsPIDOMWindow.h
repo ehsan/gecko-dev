@@ -45,15 +45,12 @@
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindowInternal.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
-#include "nsIURI.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
-#define DOM_WINDOW_FROZEN_TOPIC "dom-window-frozen"
-#define DOM_WINDOW_THAWED_TOPIC "dom-window-thawed"
 
 class nsIPrincipal;
 
@@ -80,8 +77,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x6c05ae9d, 0x4ad1, 0x4e92, \
-  { 0x9c, 0x95, 0xd3, 0x54, 0xea, 0x0f, 0xb9, 0x48 } }
+{ 0x4beac1da, 0x513e, 0x4a8b, \
+  { 0x96, 0x94, 0x1c, 0xf6, 0x4f, 0xba, 0xa8, 0x1c } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -92,7 +89,7 @@ public:
 
   virtual void ActivateOrDeactivate(PRBool aActivate) = 0;
 
-  // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow::GetWindowRoot
+  // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow2::GetWindowRoot
   virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
 
   virtual void SetActive(PRBool aActive)
@@ -105,24 +102,14 @@ public:
     return mIsActive;
   }
 
-  void SetIsBackground(PRBool aIsBackground)
-  {
-    mIsBackground = aIsBackground;
-  }
-
-  PRBool IsBackground()
-  {
-    return mIsBackground;
-  }
-
-  nsIDOMEventTarget* GetChromeEventHandler() const
+  nsPIDOMEventTarget* GetChromeEventHandler() const
   {
     return mChromeEventHandler;
   }
 
-  virtual void SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler) = 0;
+  virtual void SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler) = 0;
 
-  nsIDOMEventTarget* GetParentTarget()
+  nsPIDOMEventTarget* GetParentTarget()
   {
     if (!mParentTarget) {
       UpdateParentTarget();
@@ -329,7 +316,7 @@ public:
 
   nsPIDOMWindow *GetOuterWindow()
   {
-    return mIsInnerWindow ? mOuterWindow.get() : this;
+    return mIsInnerWindow ? mOuterWindow : this;
   }
 
   nsPIDOMWindow *GetCurrentInnerWindow() const
@@ -386,8 +373,7 @@ public:
    * created.
    */
   virtual nsresult SetNewDocument(nsIDocument *aDocument,
-                                  nsISupports *aState,
-                                  PRBool aForceReuseInnerWindow) = 0;
+                                  nsISupports *aState) = 0;
 
   /**
    * Set the opener window.  aOriginalOpener is true if and only if this is the
@@ -405,8 +391,8 @@ public:
    * Callback for notifying a window about a modal dialog being
    * opened/closed with the window as a parent.
    */
-  virtual nsIDOMWindow *EnterModalState() = 0;
-  virtual void LeaveModalState(nsIDOMWindow *) = 0;
+  virtual void EnterModalState() = 0;
+  virtual void LeaveModalState() = 0;
 
   virtual PRBool CanClose() = 0;
   virtual nsresult ForceClose() = 0;
@@ -442,11 +428,6 @@ public:
   {
     mMayHaveTouchEventListener = PR_TRUE;
     MaybeUpdateTouchState();
-  }
-
-  PRBool HasTouchEventListeners()
-  {
-    return mMayHaveTouchEventListener;
   }
 
   /**
@@ -542,11 +523,9 @@ public:
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
+   * Instructs this window to synchronously dispatch a hashchange event.
    */
-  virtual nsresult DispatchAsyncHashchange(nsIURI *aOldURI,
-                                           nsIURI *aNewURI) = 0;
+  virtual nsresult DispatchSyncHashchange() = 0;
 
   /**
    * Instructs this window to synchronously dispatch a popState event.
@@ -567,18 +546,6 @@ public:
    */
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin) = 0;
 
-  /**
-   * NOTE! This function *will* be called on multiple threads so the
-   * implementation must not do any AddRef/Release or other actions that will
-   * mutate internal state.
-   */
-  virtual PRUint32 GetSerial() = 0;
-
-  /**
-   * Return the window id of this window
-   */
-  PRUint64 WindowID() const { return mWindowID; }
-
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
   // be null if and only if the created window itself is an outer
@@ -588,7 +555,7 @@ protected:
 
   ~nsPIDOMWindow();
 
-  void SetChromeEventHandlerInternal(nsIDOMEventTarget* aChromeEventHandler) {
+  void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
     // mParentTarget will be set when the next event is dispatched.
     mParentTarget = nsnull;
@@ -599,10 +566,10 @@ protected:
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
-  nsCOMPtr<nsIDOMEventTarget> mChromeEventHandler; // strong
+  nsCOMPtr<nsPIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
 
-  nsCOMPtr<nsIDOMEventTarget> mParentTarget; // strong
+  nsCOMPtr<nsPIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;
@@ -627,29 +594,15 @@ protected:
   PRPackedBool           mIsModalContentWindow;
 
   // Tracks activation state that's used for :-moz-window-inactive.
-  // Only used on outer windows.
   PRPackedBool           mIsActive;
-
-  // Tracks whether our docshell is active.  If it is, mIsBackground
-  // is false.  Too bad we have so many different concepts of
-  // "active".  Only used on outer windows.
-  PRPackedBool           mIsBackground;
 
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;
-  nsCOMPtr<nsPIDOMWindow> mOuterWindow;
+  nsPIDOMWindow         *mOuterWindow;
 
   // the element within the document that is currently focused when this
   // window is active
   nsCOMPtr<nsIContent> mFocusedNode;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
-
-  // This is only used by the inner window. Set to true once we've sent
-  // the (chrome|content)-document-global-created notification.
-  PRPackedBool mHasNotifiedGlobalCreated;
 };
 
 

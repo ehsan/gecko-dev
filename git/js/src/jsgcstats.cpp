@@ -42,20 +42,10 @@
 #include "jsgc.h"
 #include "jsxml.h"
 #include "jsbuiltins.h"
-#include "jscompartment.h"
-
-#include "jsgcinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
-#define UL(x)       ((unsigned long)(x))
-#define PERCENT(x,y)  (100.0 * (double) (x) / (double) (y))
-
-namespace js {
-namespace gc {
-
-#if defined(JS_DUMP_CONSERVATIVE_GC_ROOTS)
+#if defined(JS_DUMP_CONSERVATIVE_GC_ROOTS) || defined(JS_GCMETER)
 
 void
 ConservativeGCStats::dump(FILE *fp)
@@ -74,60 +64,9 @@ ConservativeGCStats::dump(FILE *fp)
     fprintf(fp, "        excluded, wrong tag: %lu\n", ULSTAT(counter[CGCT_WRONGTAG]));
     fprintf(fp, "         excluded, not live: %lu\n", ULSTAT(counter[CGCT_NOTLIVE]));
     fprintf(fp, "            valid GC things: %lu\n", ULSTAT(counter[CGCT_VALID]));
-    fprintf(fp, "      valid but not aligned: %lu\n", ULSTAT(unaligned));
 #undef ULSTAT
 }
 #endif
-
-} //gc
-} //js
-
-#ifdef JSGC_TESTPILOT
-typedef JSRuntime::GCData GCData;
-
-JS_PUBLIC_API(bool)
-JS_GetGCInfoEnabled(JSRuntime *rt)
-{
-    return rt->gcData.infoEnabled;
-}
-
-JS_PUBLIC_API(void)
-JS_SetGCInfoEnabled(JSRuntime *rt, bool enabled)
-{
-    rt->gcData.infoEnabled = enabled;
-}
-
-JS_PUBLIC_API(JSGCInfo *)
-JS_GCInfoFront(JSRuntime *rt)
-{
-    GCData &data = rt->gcData;
-    JS_ASSERT(data.infoEnabled);
-    if (!data.count)
-        return NULL;
-
-    return &data.info[data.start];
-}
-
-JS_PUBLIC_API(bool)
-JS_GCInfoPopFront(JSRuntime *rt)
-{
-    GCData &data = rt->gcData;
-    JS_ASSERT(data.infoEnabled);
-    JS_ASSERT(data.count);
-
-    if (data.count >= GCData::INFO_LIMIT) {
-        data.count = data.start = 0;
-        return true;
-    }
-
-    data.start = (data.start + 1) % GCData::INFO_LIMIT;
-    data.count -= 1;
-    return false;
-}
-#endif
-
-
-namespace js {
 
 #ifdef JS_DUMP_CONSERVATIVE_GC_ROOTS
 void
@@ -150,37 +89,29 @@ GCMarker::dumpConservativeRoots()
 
     conservativeStats.dump(fp);
 
-    for (void **thingp = conservativeRoots.begin(); thingp != conservativeRoots.end(); ++thingp) {
-        void *thing = thingp;
-        fprintf(fp, "  %p: ", thing);
-        
-        switch (GetGCThingTraceKind(thing)) {
+    for (ConservativeRoot *i = conservativeRoots.begin();
+         i != conservativeRoots.end();
+         ++i) {
+        fprintf(fp, "  %p: ", i->thing);
+        switch (i->traceKind) {
           default:
             JS_NOT_REACHED("Unknown trace kind");
 
           case JSTRACE_OBJECT: {
-            JSObject *obj = (JSObject *) thing;
+            JSObject *obj = (JSObject *) i->thing;
             fprintf(fp, "object %s", obj->getClass()->name);
             break;
           }
-          case JSTRACE_SHAPE: {
-            fprintf(fp, "shape");
-            break;
-          }
           case JSTRACE_STRING: {
-            JSString *str = (JSString *) thing;
-            if (str->isLinear()) {
-                char buf[50];
-                PutEscapedString(buf, sizeof buf, &str->asLinear(), '"');
-                fprintf(fp, "string %s", buf);
-            } else {
-                fprintf(fp, "rope: length %d", (int)str->length());
-            }
+            JSString *str = (JSString *) i->thing;
+            char buf[50];
+            js_PutEscapedString(buf, sizeof buf, str, '"');
+            fprintf(fp, "string %s", buf);
             break;
           }
 # if JS_HAS_XML_SUPPORT
           case JSTRACE_XML: {
-            JSXML *xml = (JSXML *) thing;
+            JSXML *xml = (JSXML *) i->thing;
             fprintf(fp, "xml %u", (unsigned)xml->xml_class);
             break;
           }
@@ -195,141 +126,250 @@ GCMarker::dumpConservativeRoots()
 }
 #endif /* JS_DUMP_CONSERVATIVE_GC_ROOTS */
 
-#if defined(MOZ_GCTIMER) || defined(JSGC_TESTPILOT)
+#ifdef JS_GCMETER
 
-volatile GCTimer::JSGCReason gcReason = GCTimer::NOREASON;
-const char *gcReasons[] = {"  API", "Maybe", "LastC", "DestC", "Compa", "LastD",
-                          "Malloc", "Alloc", "Chunk", "Shape", "  None"};
+void
+UpdateArenaStats(JSGCArenaStats *st, uint32 nlivearenas, uint32 nkilledArenas,
+                 uint32 nthings)
+{
+    size_t narenas;
+
+    narenas = nlivearenas + nkilledArenas;
+    JS_ASSERT(narenas >= st->livearenas);
+
+    st->newarenas = narenas - st->livearenas;
+    st->narenas = narenas;
+    st->livearenas = nlivearenas;
+    if (st->maxarenas < narenas)
+        st->maxarenas = narenas;
+    st->totalarenas += narenas;
+
+    st->nthings = nthings;
+    if (st->maxthings < nthings)
+        st->maxthings = nthings;
+    st->totalthings += nthings;
+}
+
+JS_FRIEND_API(void)
+js_DumpGCStats(JSRuntime *rt, FILE *fp)
+{
+    static const char *const GC_ARENA_NAMES[] = {
+        "object",
+        "function",
+#if JS_HAS_XML_SUPPORT
+        "xml",
+#endif
+        "short string",
+        "string",
+        "external_string_0",
+        "external_string_1",
+        "external_string_2",
+        "external_string_3",
+        "external_string_4",
+        "external_string_5",
+        "external_string_6",
+        "external_string_7",
+    };
+
+    fprintf(fp, "\nGC allocation statistics:\n\n");
+
+#define UL(x)       ((unsigned long)(x))
+#define ULSTAT(x)   UL(rt->gcStats.x)
+#define PERCENT(x,y)  (100.0 * (double) (x) / (double) (y))
+
+    size_t sumArenas = 0;
+    size_t sumTotalArenas = 0;
+    size_t sumThings = 0;
+    size_t sumMaxThings = 0;
+    size_t sumThingSize = 0;
+    size_t sumTotalThingSize = 0;
+    size_t sumArenaCapacity = 0;
+    size_t sumTotalArenaCapacity = 0;
+    size_t sumAlloc = 0;
+    size_t sumLocalAlloc = 0;
+    size_t sumFail = 0;
+    size_t sumRetry = 0;
+    for (int i = 0; i < (int) FINALIZE_LIMIT; i++) {
+        size_t thingSize, thingsPerArena;
+        JSGCArenaStats *st;
+        thingSize = rt->gcArenaList[i].thingSize;
+        thingsPerArena = ThingsPerArena(thingSize);
+        st = &rt->gcArenaStats[i];
+        if (st->maxarenas == 0)
+            continue;
+        fprintf(fp,
+                "%s arenas (thing size %lu, %lu things per arena):",
+                GC_ARENA_NAMES[i], UL(thingSize), UL(thingsPerArena));
+        putc('\n', fp);
+        fprintf(fp, "           arenas before GC: %lu\n", UL(st->narenas));
+        fprintf(fp, "       new arenas before GC: %lu (%.1f%%)\n",
+                UL(st->newarenas), PERCENT(st->newarenas, st->narenas));
+        fprintf(fp, "            arenas after GC: %lu (%.1f%%)\n",
+                UL(st->livearenas), PERCENT(st->livearenas, st->narenas));
+        fprintf(fp, "                 max arenas: %lu\n", UL(st->maxarenas));
+        fprintf(fp, "                     things: %lu\n", UL(st->nthings));
+        fprintf(fp, "        GC cell utilization: %.1f%%\n",
+                PERCENT(st->nthings, thingsPerArena * st->narenas));
+        fprintf(fp, "   average cell utilization: %.1f%%\n",
+                PERCENT(st->totalthings, thingsPerArena * st->totalarenas));
+        fprintf(fp, "                 max things: %lu\n", UL(st->maxthings));
+        fprintf(fp, "             alloc attempts: %lu\n", UL(st->alloc));
+        fprintf(fp, "        alloc without locks: %lu  (%.1f%%)\n",
+                UL(st->localalloc), PERCENT(st->localalloc, st->alloc));
+        sumArenas += st->narenas;
+        sumTotalArenas += st->totalarenas;
+        sumThings += st->nthings;
+        sumMaxThings += st->maxthings;
+        sumThingSize += thingSize * st->nthings;
+        sumTotalThingSize += size_t(thingSize * st->totalthings);
+        sumArenaCapacity += thingSize * thingsPerArena * st->narenas;
+        sumTotalArenaCapacity += thingSize * thingsPerArena * st->totalarenas;
+        sumAlloc += st->alloc;
+        sumLocalAlloc += st->localalloc;
+        sumFail += st->fail;
+        sumRetry += st->retry;
+        putc('\n', fp);
+    }
+
+    fputs("Never used arenas:\n", fp);
+    for (int i = 0; i < (int) FINALIZE_LIMIT; i++) {
+        size_t thingSize, thingsPerArena;
+        JSGCArenaStats *st;
+        thingSize = rt->gcArenaList[i].thingSize;
+        thingsPerArena = ThingsPerArena(thingSize);
+        st = &rt->gcArenaStats[i];
+        if (st->maxarenas != 0)
+            continue;
+        fprintf(fp,
+                "%s (thing size %lu, %lu things per arena)\n",
+                GC_ARENA_NAMES[i], UL(thingSize), UL(thingsPerArena));
+    }
+    fprintf(fp, "\nTOTAL STATS:\n");
+    fprintf(fp, "            bytes allocated: %lu\n", UL(rt->gcBytes));
+    fprintf(fp, "            total GC arenas: %lu\n", UL(sumArenas));
+    fprintf(fp, "       max allocated arenas: %lu\n", ULSTAT(maxnallarenas));
+    fprintf(fp, "       max allocated chunks: %lu\n", ULSTAT(maxnchunks));
+    fprintf(fp, "            total GC things: %lu\n", UL(sumThings));
+    fprintf(fp, "        max total GC things: %lu\n", UL(sumMaxThings));
+    fprintf(fp, "        GC cell utilization: %.1f%%\n",
+            PERCENT(sumThingSize, sumArenaCapacity));
+    fprintf(fp, "   average cell utilization: %.1f%%\n",
+            PERCENT(sumTotalThingSize, sumTotalArenaCapacity));
+    fprintf(fp, "allocation retries after GC: %lu\n", UL(sumRetry));
+    fprintf(fp, "             alloc attempts: %lu\n", UL(sumAlloc));
+    fprintf(fp, "        alloc without locks: %lu  (%.1f%%)\n",
+            UL(sumLocalAlloc), PERCENT(sumLocalAlloc, sumAlloc));
+    fprintf(fp, "        allocation failures: %lu\n", UL(sumFail));
+    fprintf(fp, "           valid lock calls: %lu\n", ULSTAT(lock));
+    fprintf(fp, "         valid unlock calls: %lu\n", ULSTAT(unlock));
+    fprintf(fp, "      delayed tracing calls: %lu\n", ULSTAT(unmarked));
+#ifdef DEBUG
+    fprintf(fp, "      max trace later count: %lu\n", ULSTAT(maxunmarked));
+#endif
+    fprintf(fp, "potentially useful GC calls: %lu\n", ULSTAT(poke));
+    fprintf(fp, "  thing arenas freed so far: %lu\n", ULSTAT(afree));
+    rt->gcStats.conservative.dump(fp);
+
+#undef UL
+#undef ULSTAT
+#undef PERCENT
+}
+#endif
+
+#ifdef MOZ_GCTIMER
+
+namespace js {
 
 jsrefcount newChunkCount = 0;
 jsrefcount destroyChunkCount = 0;
 
-#ifdef MOZ_GCTIMER
-static const char *gcTimerStatPath = NULL;
-#endif
-
-GCTimer::GCTimer(JSRuntime *rt, JSCompartment *comp)
-  : rt(rt), isCompartmental(comp),
-    enabled(rt->gcData.isTimerEnabled())
-{
-#ifdef MOZ_GCTIMER
-    if (!gcTimerStatPath) {
-        gcTimerStatPath = getenv("MOZ_GCTIMER");
-        if (!gcTimerStatPath || !gcTimerStatPath[0])
-            gcTimerStatPath = "gcTimer.dat";
-    }
-    if (!strcmp(gcTimerStatPath, "none"))
-        enabled = false;
-#endif
-    clearTimestamps();
+GCTimer::GCTimer() {
     getFirstEnter();
-    enter = PRMJ_Now();
+    memset(this, 0, sizeof(GCTimer));
+    enter = rdtsc();
 }
 
-uint64
-GCTimer::getFirstEnter()
-{
-    JSRuntime::GCData &data = rt->gcData;
-    if (enabled && !data.firstEnterValid)
-        data.setFirstEnter(PRMJ_Now());
-
-    return data.firstEnter;
+uint64 
+GCTimer::getFirstEnter() {
+    static uint64 firstEnter = rdtsc();
+    return firstEnter;
 }
 
-#define TIMEDIFF(start, end) ((double)(end - start) / PRMJ_USEC_PER_MSEC)
-
-void
-GCTimer::finish(bool lastGC)
-{
-#if defined(JSGC_TESTPILOT)
-    if (!enabled) {
-        newChunkCount = 0;
-        destroyChunkCount = 0;
-        return;
-    }
-#endif
-    end = PRMJ_Now();
+void 
+GCTimer::finish(bool lastGC) {
+    end = rdtsc();
 
     if (startMark > 0) {
-        double appTime = TIMEDIFF(getFirstEnter(), enter);
-        double gcTime = TIMEDIFF(enter, end);
-        double waitTime = TIMEDIFF(enter, startMark);
-        double markTime = TIMEDIFF(startMark, startSweep);
-        double sweepTime = TIMEDIFF(startSweep, sweepDestroyEnd);
-        double sweepObjTime = TIMEDIFF(startSweep, sweepObjectEnd);
-        double sweepStringTime = TIMEDIFF(sweepObjectEnd, sweepStringEnd);
-        double sweepShapeTime = TIMEDIFF(sweepStringEnd, sweepShapeEnd);
-        double destroyTime = TIMEDIFF(sweepShapeEnd, sweepDestroyEnd);
-        double endTime = TIMEDIFF(sweepDestroyEnd, end);
+        if (JS_WANT_GC_SUITE_PRINT) {
+            fprintf(stderr, "%f %f %f\n",
+                    (double)(end - enter) / 1e6,
+                    (double)(startSweep - startMark) / 1e6,
+                    (double)(sweepDestroyEnd - startSweep) / 1e6);
+        } else {
+            static FILE *gcFile;
 
-#if defined(JSGC_TESTPILOT)
-        GCData &data = rt->gcData;
-        size_t oldLimit = (data.start + data.count) % GCData::INFO_LIMIT;
-        data.count += 1;
+            if (!gcFile) {
+                gcFile = fopen("gcTimer.dat", "w");
 
-        JSGCInfo &info = data.info[oldLimit];
-        info.appTime = appTime;
-        info.gcTime = gcTime;
-        info.waitTime = waitTime;
-        info.markTime = markTime;
-        info.sweepTime = sweepTime;
-        info.sweepObjTime = sweepObjTime;
-        info.sweepStringTime = sweepStringTime;
-        info.sweepShapeTime = sweepShapeTime;
-        info.destroyTime = destroyTime;
-        info.endTime = endTime;
-        info.isCompartmental = isCompartmental;
-#endif
+                fprintf(gcFile, "     AppTime,  Total,   Mark,  Sweep, FinObj,");
+                fprintf(gcFile, " FinStr,  Destroy,  newChunks, destoyChunks\n");
+            }
+            JS_ASSERT(gcFile);
+            fprintf(gcFile, "%12.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f,  %7.1f, ",
+                    (double)(enter - getFirstEnter()) / 1e6,
+                    (double)(end - enter) / 1e6,
+                    (double)(startSweep - startMark) / 1e6,
+                    (double)(sweepDestroyEnd - startSweep) / 1e6,
+                    (double)(sweepObjectEnd - startSweep) / 1e6,
+                    (double)(sweepStringEnd - sweepObjectEnd) / 1e6,
+                    (double)(sweepDestroyEnd - sweepStringEnd) / 1e6);
+            fprintf(gcFile, "%10d, %10d \n", newChunkCount,
+                    destroyChunkCount);
+            fflush(gcFile);
 
-#if defined(MOZ_GCTIMER)
-        static FILE *gcFile;
-        static bool fullFormat;
-
-        if (!gcFile) {
-            if (!strcmp(gcTimerStatPath, "stdout")) {
-                gcFile = stdout;
-                fullFormat = false;
-            } else if (!strcmp(gcTimerStatPath, "stderr")) {
-                gcFile = stderr;
-                fullFormat = false;
-            } else {
-                gcFile = fopen(gcTimerStatPath, "a");
-                JS_ASSERT(gcFile);
-                fullFormat = true;
-                fprintf(gcFile, "     AppTime,  Total,   Wait,   Mark,  Sweep, FinObj,"
-                        " FinStr, SwShapes, Destroy,    End, +Chu, -Chu, T, Reason\n");
+            if (lastGC) {
+                fclose(gcFile);
+                gcFile = NULL;
             }
         }
-
-        if (!fullFormat) {
-            fprintf(stderr, "%f %f %f\n",
-                    TIMEDIFF(enter, end),
-                    TIMEDIFF(startMark, startSweep),
-                    TIMEDIFF(startSweep, sweepDestroyEnd));
-        } else {
-            /*               App   , Tot  , Wai  , Mar  , Swe  , FiO  , FiS  , SwS  , Des   , End */
-            fprintf(gcFile, "%12.0f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %8.1f,  %6.1f, %6.1f, ",
-                    appTime, gcTime, waitTime, markTime, sweepTime, sweepObjTime, sweepStringTime,
-                    sweepShapeTime, destroyTime, endTime);
-            fprintf(gcFile, "%4d, %4d,", newChunkCount, destroyChunkCount);
-            fprintf(gcFile, " %s, %s\n", isCompartmental ? "C" : "G", gcReasons[gcReason]);
-        }
-        fflush(gcFile);
-        
-        if (lastGC && gcFile != stdout && gcFile != stderr)
-            fclose(gcFile);
-#endif
     }
     newChunkCount = 0;
     destroyChunkCount = 0;
-    gcReason = NOREASON;
 }
 
-#undef TIMEDIFF
+#ifdef JS_SCOPE_DEPTH_METER
+void
+DumpScopeDepthMeter(JSRuntime *rt)
+{
+    static FILE *fp;
+    if (!fp)
+        fp = fopen("/tmp/scopedepth.stats", "w");
 
+    if (fp) {
+        JS_DumpBasicStats(&rt->protoLookupDepthStats, "proto-lookup depth", fp);
+        JS_DumpBasicStats(&rt->scopeSearchDepthStats, "scope-search depth", fp);
+        JS_DumpBasicStats(&rt->hostenvScopeDepthStats, "hostenv scope depth", fp);
+        JS_DumpBasicStats(&rt->lexicalScopeDepthStats, "lexical scope depth", fp);
+
+        putc('\n', fp);
+        fflush(fp);
+    }
+}
 #endif
 
-} //js
+#ifdef JS_DUMP_LOOP_STATS
+void
+DumpLoopStats(JSRuntime *rt)
+{
+    static FILE *lsfp;
+    if (!lsfp)
+        lsfp = fopen("/tmp/loopstats", "w");
+    if (lsfp) {
+        JS_DumpBasicStats(&rt->loopStats, "loops", lsfp);
+        fflush(lsfp);
+    }
+}
+#endif
 
-#undef UL
-#undef PERCENT
+} /* namespace js */
+#endif

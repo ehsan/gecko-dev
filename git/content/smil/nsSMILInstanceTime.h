@@ -117,7 +117,6 @@ public:
   PRBool IsDependent() const { return !!mBaseInterval; }
   PRBool IsDependentOn(const nsSMILInstanceTime& aOther) const;
   const nsSMILInterval* GetBaseInterval() const { return mBaseInterval; }
-  const nsSMILInstanceTime* GetBaseTime() const;
 
   PRBool SameTimeAndBase(const nsSMILInstanceTime& aOther) const
   {
@@ -133,6 +132,7 @@ public:
 
 protected:
   void SetBaseInterval(nsSMILInterval* aBaseInterval);
+  const nsSMILInstanceTime* GetBaseTime() const;
 
   nsSMILTimeValue mTime;
 
@@ -174,10 +174,9 @@ protected:
   //
   // Instance times are only shared in a few cases, namely:
   // a) early ends,
-  // b) zero-duration intervals,
+  // b) zero-duration intervals, and
   // c) momentarily whilst establishing new intervals and updating the current
-  //    interval, and
-  // d) trimmed intervals
+  //    interval
   // Hence the limited range of a PRUint16 should be more than adequate.
   PRUint16      mFixedEndpointRefCnt;
 

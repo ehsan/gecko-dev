@@ -174,7 +174,7 @@ function runServer()
   }
 
   if (typeof(_SERVER_PORT) != "undefined") {
-    if (parseInt(_SERVER_PORT) > 0 && parseInt(_SERVER_PORT) < 65536)
+    if (parseInt(_SERVER_PORT) > 0 && parseInt(_SERVER_PORT) < 32000)
       SERVER_PORT = _SERVER_PORT;
   } else {
     throw "please define _SERVER_PORT (as a port number) before running server.js";
@@ -200,7 +200,7 @@ function runServer()
   if (serverAlive.exists()) {
     serverAlive.append("server_alive.txt");
     foStream.init(serverAlive,
-                  0x02 | 0x08 | 0x20, 436, 0); // write, create, truncate
+                  0x02 | 0x08 | 0x20, 0664, 0); // write, create, truncate
     data = "It's alive!";
     foStream.write(data, data.length);
     foStream.close();
@@ -239,9 +239,6 @@ function createMochitestServer(serverBasePath)
   server.registerContentType("ogg", "application/ogg");
   server.registerContentType("ogv", "video/ogg");
   server.registerContentType("oga", "audio/ogg");
-  server.registerContentType("dat", "text/plain; charset=utf-8");
-  server.registerContentType("frag", "text/plain"); // .frag == WebGL fragment shader
-  server.registerContentType("vert", "text/plain"); // .vert == WebGL vertex shader
   server.setIndexHandler(defaultDirHandler);
 
   var serverRoot =
@@ -275,7 +272,7 @@ function processLocations(server)
   serverLocations.append("server-locations.txt");
 
   const PR_RDONLY = 0x01;
-  var fis = new FileInputStream(serverLocations, PR_RDONLY, 292 /* 0444 */,
+  var fis = new FileInputStream(serverLocations, PR_RDONLY, 0444,
                                 Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
   var lis = new ConverterInputStream(fis, "UTF-8", 1024, 0x0);
@@ -461,12 +458,7 @@ function isTest(filename, pattern)
   if (pattern)
     return pattern.test(filename);
 
-  // File name is a URL style path to a test file, make sure that we check for
-  // tests that start with test_.
-  testPattern = /^test_/;
-  pathPieces = filename.split('/');
-    
-  return testPattern.test(pathPieces[pathPieces.length - 1]) &&
+  return filename.indexOf("test_") > -1 &&
          filename.indexOf(".js") == -1 &&
          filename.indexOf(".css") == -1 &&
          !/\^headers\^$/.test(filename);
@@ -554,7 +546,7 @@ function linksToTableRows(links, recursionLevel)
 }
 
 function arrayOfTestFiles(linkArray, fileArray, testPattern) {
-  for (var [link, value] in Iterator(linkArray)) {
+  for (var [link, value] in linkArray) {
     if (value instanceof Object) {
       arrayOfTestFiles(value, fileArray, testPattern);
     } else if (isTest(link, testPattern)) {

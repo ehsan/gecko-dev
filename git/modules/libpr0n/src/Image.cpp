@@ -42,12 +42,7 @@ namespace imagelib {
 
 // Constructor
 Image::Image(imgStatusTracker* aStatusTracker) :
-  mWindowId(0),
-  mAnimationConsumers(0),
-  mAnimationMode(kNormalAnimMode),
-  mInitialized(PR_FALSE),
-  mAnimating(PR_FALSE),
-  mError(PR_FALSE)
+  mInitialized(PR_FALSE)
 {
   if (aStatusTracker) {
     mStatusTracker = aStatusTracker;
@@ -55,15 +50,6 @@ Image::Image(imgStatusTracker* aStatusTracker) :
   } else {
     mStatusTracker = new imgStatusTracker(this);
   }
-}
-
-PRUint32
-Image::GetDataSize()
-{
-  if (mError)
-    return 0;
-  
-  return GetSourceDataSize() + GetDecodedDataSize();
 }
 
 // Translates a mimetype into a concrete decoder
@@ -112,66 +98,6 @@ Image::GetDecoderType(const char *aMimeType)
   return rv;
 }
 
-void
-Image::IncrementAnimationConsumers()
-{
-  mAnimationConsumers++;
-  EvaluateAnimation();
-}
-
-void
-Image::DecrementAnimationConsumers()
-{
-  NS_ABORT_IF_FALSE(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
-  mAnimationConsumers--;
-  EvaluateAnimation();
-}
-
-//******************************************************************************
-/* attribute unsigned short animationMode; */
-NS_IMETHODIMP
-Image::GetAnimationMode(PRUint16* aAnimationMode)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(aAnimationMode);
-  
-  *aAnimationMode = mAnimationMode;
-  return NS_OK;
-}
-
-//******************************************************************************
-/* attribute unsigned short animationMode; */
-NS_IMETHODIMP
-Image::SetAnimationMode(PRUint16 aAnimationMode)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ASSERTION(aAnimationMode == kNormalAnimMode ||
-               aAnimationMode == kDontAnimMode ||
-               aAnimationMode == kLoopOnceAnimMode,
-               "Wrong Animation Mode is being set!");
-  
-  mAnimationMode = aAnimationMode;
-
-  EvaluateAnimation();
-
-  return NS_OK;
-}
-
-void
-Image::EvaluateAnimation()
-{
-  if (!mAnimating && ShouldAnimate()) {
-    nsresult rv = StartAnimation();
-    mAnimating = NS_SUCCEEDED(rv);
-  } else if (mAnimating && !ShouldAnimate()) {
-    StopAnimation();
-    mAnimating = PR_FALSE;
-  }
-}
 
 } // namespace imagelib
 } // namespace mozilla

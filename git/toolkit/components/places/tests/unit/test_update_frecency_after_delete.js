@@ -45,304 +45,274 @@
  * bookmark is deleted.
  */
 
-add_test(function unvisited_bookmarked_livemarkItem()
-{
-  do_log_info("Frecency of unvisited, separately bookmarked livemark item's " +
-              "URI should be zero after bookmark removed.");
-  // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
-  // only item.
-  const TEST_URI = NetUtil.newURI("http://example.com/livemark-item");
-  createLivemark(TEST_URI);
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+const bmServ =
+  Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+  getService(Ci.nsINavBookmarksService);
+const histServ =
+  Cc["@mozilla.org/browser/nav-history-service;1"].
+  getService(Ci.nsINavHistoryService);
+const lmServ =
+  Cc["@mozilla.org/browser/livemark-service;2"].
+  getService(Ci.nsILivemarkService);
 
-    PlacesUtils.bookmarks.removeItem(id);
+const dbConn =
+  Cc["@mozilla.org/browser/nav-history-service;1"].
+  getService(Ci.nsPIPlacesDatabase).
+  DBConnection;
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("URI's only bookmark is now unvisited livemark item => frecency = 0");
-      do_check_eq(frecencyForUrl(TEST_URI), 0);
+var tests = [];
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+tests.push({
+  desc: ["Frecency of unvisited, separately bookmarked livemark item's URI ",
+         "should be zero after bookmark removed."].join(""),
+  run: function () {
+    // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
+    // only item.
+    let lmItemURL = "http://example.com/livemark-item";
+    let lmItemURI = uri(lmItemURL);
+    createLivemark(lmItemURI);
+    let bmId = bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                                     lmItemURI,
+                                     bmServ.DEFAULT_INDEX,
+                                     "bookmark title");
+
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(lmItemURL), 0);
+
+    bmServ.removeItem(bmId);
+
+    // URI's only "bookmark" is now unvisited livemark item => frecency = 0.
+    do_check_eq(getFrecency(lmItemURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function visited_bookmarked_livemarkItem()
-{
-  do_log_info("Frecency of visited, separately bookmarked livemark item's " +
-              "URI should not be zero after bookmark removed.");
-  // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
-  // only item.
-  const TEST_URI = NetUtil.newURI("http://example.com/livemark-item");
-  createLivemark(TEST_URI);
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["Frecency of visited, separately bookmarked livemark item's URI ",
+         "should not be zero after bookmark removed."].join(""),
+  run: function () {
+    // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
+    // only item.
+    let lmItemURL = "http://example.com/livemark-item";
+    let lmItemURI = uri(lmItemURL);
+    createLivemark(lmItemURI);
+    let bmId = bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                                     lmItemURI,
+                                     bmServ.DEFAULT_INDEX,
+                                     "bookmark title");
 
-    visit(TEST_URI);
-    PlacesUtils.bookmarks.removeItem(id);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(lmItemURL), 0);
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("URI's only bookmark is now *visited* livemark item => frecency != 0");
-      do_check_neq(frecencyForUrl(TEST_URI), 0);
+    visit(lmItemURI);
+    bmServ.removeItem(bmId);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    // URI's only "bookmark" is now *visited* livemark item => frecency != 0.
+    do_check_neq(getFrecency(lmItemURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function removed_bookmark()
-{
-  do_log_info("After removing bookmark, frecency of bookmark's URI should be " +
-              "zero if URI is unvisited and no longer bookmarked.");
-  const TEST_URI = NetUtil.newURI("http://example.com/1");
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["After removing bookmark, frecency of bookmark's URI should be zero ",
+         "if URI is unvisited and no longer bookmarked."].join(""),
+  run: function () {
+    let url = "http://example.com/1";
+    let bmId = bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                                     uri(url),
+                                     bmServ.DEFAULT_INDEX,
+                                     "bookmark title");
 
-    PlacesUtils.bookmarks.removeItem(id);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(url), 0);
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("Unvisited URI no longer bookmarked => frecency should = 0");
-      do_check_eq(frecencyForUrl(TEST_URI), 0);
+    bmServ.removeItem(bmId);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    // Unvisited URI no longer bookmarked => frecency should = 0.
+    do_check_eq(getFrecency(url), 0);
+    runNextTest();
+  }
 });
 
-add_test(function removed_but_visited_bookmark()
-{
-  do_log_info("After removing bookmark, frecency of bookmark's URI should " +
-              "not be zero if URI is visited.");
-  const TEST_URI = NetUtil.newURI("http://example.com/1");
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["After removing bookmark, frecency of bookmark's URI should not be ",
+         "zero if URI is visited."].join(""),
+  run: function () {
+    let bmURL = "http://example.com/1";
+    let bmURI = uri(bmURL);
 
-    visit(TEST_URI);
-    PlacesUtils.bookmarks.removeItem(id);
+    let bmId = bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                                     bmURI,
+                                     bmServ.DEFAULT_INDEX,
+                                     "bookmark title");
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("*Visited* URI no longer bookmarked => frecency should != 0");
-      do_check_neq(frecencyForUrl(TEST_URI), 0);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(bmURL), 0);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    visit(bmURI);
+    bmServ.removeItem(bmId);
+
+    // *Visited* URI no longer bookmarked => frecency should != 0.
+    do_check_neq(getFrecency(bmURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function remove_bookmark_still_bookmarked()
-{
-  do_log_info("After removing bookmark, frecency of bookmark's URI should ",
-              "not be zero if URI is still bookmarked.");
-  const TEST_URI = NetUtil.newURI("http://example.com/1");
-  let id1 = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                 TEST_URI,
-                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                 "bookmark 1 title");
-  let id2 = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                 TEST_URI,
-                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                 "bookmark 2 title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["After removing bookmark, frecency of bookmark's URI should not be ",
+         "zero if URI is still bookmarked."].join(""),
+  run: function () {
+    let bmURL = "http://example.com/1";
+    let bmURI = uri(bmURL);
 
-    PlacesUtils.bookmarks.removeItem(id1);
+    let bm1Id = bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                                      bmURI,
+                                      bmServ.DEFAULT_INDEX,
+                                      "bookmark 1 title");
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("URI still bookmarked => frecency should != 0");
-      do_check_neq(frecencyForUrl(TEST_URI), 0);
+    bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                          bmURI,
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark 2 title");
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(bmURL), 0);
+
+    bmServ.removeItem(bm1Id);
+
+    // URI still bookmarked => frecency should != 0.
+    do_check_neq(getFrecency(bmURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function cleared_parent_of_unvisited_bookmark_to_livemarkItem()
-{
-  do_log_info("Frecency of unvisited, separately bookmarked livemark item's " +
-              "URI should be zero after all children removed from bookmark's " +
-              "parent.");
-  // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
-  // only item.
-  const TEST_URI = NetUtil.newURI("http://example.com/livemark-item");
-  createLivemark(TEST_URI);
+tests.push({
+  desc: ["Frecency of unvisited, separately bookmarked livemark item's URI ",
+         "should be zero after all children removed from bookmark's ",
+         "parent."].join(""),
+  run: function () {
+    // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
+    // only item.
+    let lmItemURL = "http://example.com/livemark-item";
+    let lmItemURI = uri(lmItemURL);
+    createLivemark(lmItemURI);
 
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+    bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                          lmItemURI,
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark title");
 
-    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(lmItemURL), 0);
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("URI's only bookmark is now unvisited livemark item => frecency = 0");
-      do_check_eq(frecencyForUrl(TEST_URI), 0);
+    bmServ.removeFolderChildren(bmServ.unfiledBookmarksFolder);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    // URI's only "bookmark" is now unvisited livemark item => frecency = 0.
+    do_check_eq(getFrecency(lmItemURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function cleared_parent_of_visited_bookmark_to_livemarkItem()
-{
-  do_log_info("Frecency of visited, separately bookmarked livemark item's " +
-              "URI should not be zero after all children removed from " +
-              "bookmark's parent.");
-  // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
-  // only item.
-  const TEST_URI = NetUtil.newURI("http://example.com/livemark-item");
-  createLivemark(TEST_URI);
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["Frecency of visited, separately bookmarked livemark item's URI ",
+         "should not be zero after all children removed from bookmark's ",
+         "parent."].join(""),
+  run: function () {
+    // Add livemark and bookmark.  Bookmark's URI is the URI of the livemark's
+    // only item.
+    let lmItemURL = "http://example.com/livemark-item";
+    let lmItemURI = uri(lmItemURL);
+    createLivemark(lmItemURI);
+    bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                          lmItemURI,
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark title");
 
-    visit(TEST_URI);
-    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(lmItemURL), 0);
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("URI's only bookmark is now *visited* livemark item => frecency != 0");
-      do_check_neq(frecencyForUrl(TEST_URI), 0);
+    visit(lmItemURI);
+    bmServ.removeFolderChildren(bmServ.unfiledBookmarksFolder);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    // URI's only "bookmark" is now *visited* livemark item => frecency != 0.
+    do_check_neq(getFrecency(lmItemURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function cleared_parent_of_unvisited_unbookmarked_livemarkItem()
-{
-  do_log_info("After removing all children from bookmark's parent, frecency " +
-              "of bookmark's URI should be zero if URI is unvisited and no " +
-              "longer bookmarked.");
-  const TEST_URI = NetUtil.newURI("http://example.com/1");
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["After removing all children from bookmark's parent, frecency of ",
+         "bookmark's URI should be zero if URI is unvisited and no longer ",
+         "bookmarked."].join(""),
+  run: function () {
+    let url = "http://example.com/1";
+    bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                          uri(url),
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark title");
 
-    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(url), 0);
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("Unvisited URI no longer bookmarked => frecency should = 0");
-      do_check_eq(frecencyForUrl(TEST_URI), 0);
+    bmServ.removeFolderChildren(bmServ.unfiledBookmarksFolder);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    // Unvisited URI no longer bookmarked => frecency should = 0.
+    do_check_eq(getFrecency(url), 0);
+    runNextTest();
+  }
 });
 
-add_test(function cleared_parent_of_visited_bookmark()
-{
-  do_log_info("After removing all children from bookmark's parent, frecency " +
-              "of bookmark's URI should not be zero if URI is visited.");
-  const TEST_URI = NetUtil.newURI("http://example.com/1");
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+tests.push({
+  desc: ["After removing all children from bookmark's parent, frecency of ",
+         "bookmark's URI should not be zero if URI is visited."].join(""),
+  run: function () {
+    let bmURL = "http://example.com/1";
+    let bmURI = uri(bmURL);
 
-    visit(TEST_URI);
-    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
+    bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                          bmURI,
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark title");
 
-    waitForAsyncUpdates(function ()
-    {
-      do_log_info("*Visited* URI no longer bookmarked => frecency should != 0");
-      do_check_neq(frecencyForUrl(TEST_URI), 0);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(bmURL), 0);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    visit(bmURI);
+    bmServ.removeFolderChildren(bmServ.unfiledBookmarksFolder);
+
+    // *Visited* URI no longer bookmarked => frecency should != 0.
+    do_check_neq(getFrecency(bmURL), 0);
+    runNextTest();
+  }
 });
 
-add_test(function cleared_parent_of_bookmark_still_bookmarked()
-{
-  do_log_info("After removing all children from bookmark's parent, frecency " +
-              "of bookmark's URI should not be zero if URI is still " +
-              "bookmarked.");
-  const TEST_URI = NetUtil.newURI("http://example.com/1");
-  let id1 = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.toolbarFolderId,
-                                                 TEST_URI,
-                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                 "bookmark 1 title");
+tests.push({
+  desc: ["After removing all children from bookmark's parent, frecency of ",
+         "bookmark's URI should not be zero if URI is still ",
+         "bookmarked."].join(""),
+  run: function () {
+    let bmURL = "http://example.com/1";
+    let bmURI = uri(bmURL);
 
-  let id2 = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                TEST_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "bookmark 2 title");
-  waitForAsyncUpdates(function ()
-  {
-    do_log_info("Bookmarked => frecency of URI should be != 0");
-    do_check_neq(frecencyForUrl(TEST_URI), 0);
+    bmServ.insertBookmark(bmServ.toolbarFolder,
+                          bmURI,
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark 1 title");
 
-    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
+    bmServ.insertBookmark(bmServ.unfiledBookmarksFolder,
+                          bmURI,
+                          bmServ.DEFAULT_INDEX,
+                          "bookmark 2 title");
 
-    waitForAsyncUpdates(function ()
-    {
-      // URI still bookmarked => frecency should != 0.
-      do_check_neq(frecencyForUrl(TEST_URI), 0);
+    // Bookmarked => frecency of URI should be != 0.
+    do_check_neq(getFrecency(bmURL), 0);
 
-      remove_all_bookmarks();
-      waitForClearHistory(run_next_test);
-    });
-  });
+    bmServ.removeFolderChildren(bmServ.unfiledBookmarksFolder);
+
+    // URI still bookmarked => frecency should != 0.
+    do_check_neq(getFrecency(bmURL), 0);
+    runNextTest();
+  }
 });
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -350,20 +320,40 @@ add_test(function cleared_parent_of_bookmark_still_bookmarked()
 /**
  * Creates a livemark with a single child item.
  *
- * @param  aChildURI
+ * @param  aLmChildItemURI
  *         the URI of the livemark's single child item
  * @return the item ID of the single child item
  */
-function createLivemark(aChildURI)
-{
-  let livemarkId = PlacesUtils.livemarks.createLivemarkFolderOnly(
-    PlacesUtils.unfiledBookmarksFolderId, "livemark title",
-    uri("http://example.com/"), uri("http://example.com/rdf"), -1
-  );
-  return PlacesUtils.bookmarks.insertBookmark(livemarkId,
-                                              aChildURI,
-                                              PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                              "livemark item title");
+function createLivemark(aLmChildItemURI) {
+  let lmItemId = lmServ.createLivemarkFolderOnly(bmServ.unfiledBookmarksFolder,
+                                                 "livemark title",
+                                                 uri("http://example.com/"),
+                                                 uri("http://example.com/rdf"),
+                                                 -1);
+  let lmChildItemId = bmServ.insertBookmark(lmItemId,
+                                            aLmChildItemURI,
+                                            bmServ.DEFAULT_INDEX,
+                                            "livemark item title");
+  return lmChildItemId;
+}
+
+/**
+ * Returns the frecency of a Place.
+ *
+ * @param  aURL
+ *         the URL of a Place
+ * @return the frecency of aURL
+ */
+function getFrecency(aURL) {
+  let sql = "SELECT frecency FROM moz_places_view WHERE url = :url";
+  let stmt = dbConn.createStatement(sql);
+  stmt.params.url = aURL;
+  do_check_true(stmt.executeStep());
+  let frecency = stmt.getInt32(0);
+  print("frecency=" + frecency);
+  stmt.finalize();
+
+  return frecency;
 }
 
 /**
@@ -372,16 +362,30 @@ function createLivemark(aChildURI)
  * @param aURI
  *        the URI of the Place for which to add a visit
  */
-function visit(aURI)
-{
-  PlacesUtils.history.addVisit(aURI, Date.now() * 1000, null,
-                               PlacesUtils.history.TRANSITION_BOOKMARK,
-                               false, 0);
+function visit(aURI) {
+  let visitId = histServ.addVisit(aURI,
+                                  Date.now() * 1000,
+                                  null,
+                                  histServ.TRANSITION_BOOKMARK,
+                                  false,
+                                  0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-function run_test()
-{
-  run_next_test();
+function run_test() {
+  do_test_pending();
+  runNextTest();
+}
+
+function runNextTest() {
+  if (tests.length) {
+    let test = tests.shift();
+    print("Test " +  + ": " + test.desc);
+    remove_all_bookmarks();
+    waitForClearHistory(test.run);
+  }
+  else {
+    do_test_finished();
+  }
 }

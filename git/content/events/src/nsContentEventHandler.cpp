@@ -61,7 +61,6 @@
 #include "nsLayoutUtils.h"
 #include "nsISelection2.h"
 #include "nsIMEStateManager.h"
-#include "nsIObjectFrame.h"
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 
@@ -304,7 +303,7 @@ nsContentEventHandler::ExpandToClusterBoundary(nsIContent* aContent,
   NS_ASSERTION(*aXPOffset >= 0 && *aXPOffset <= aContent->TextLength(),
                "offset is out of range.");
 
-  nsRefPtr<nsFrameSelection> fs = mPresShell->FrameSelection();
+  nsCOMPtr<nsFrameSelection> fs = mPresShell->FrameSelection();
   PRInt32 offsetInFrame;
   nsFrameSelection::HINT hint =
     aForward ? nsFrameSelection::HINTLEFT : nsFrameSelection::HINTRIGHT;
@@ -826,51 +825,6 @@ nsContentEventHandler::OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent)
 }
 
 nsresult
-nsContentEventHandler::OnQueryDOMWidgetHittest(nsQueryContentEvent* aEvent)
-{
-  nsresult rv = Init(aEvent);
-  if (NS_FAILED(rv))
-    return rv;
-
-  aEvent->mReply.mWidgetIsHit = PR_FALSE;
-
-  NS_ENSURE_TRUE(aEvent->widget, NS_ERROR_FAILURE);
-
-  nsIDocument* doc = mPresShell->GetDocument();
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
-  nsIFrame* docFrame = mPresShell->GetRootFrame();
-  NS_ENSURE_TRUE(docFrame, NS_ERROR_FAILURE);
-
-  nsIntPoint eventLoc =
-    aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
-  nsIntRect docFrameRect = docFrame->GetScreenRect(); // Returns CSS pixels
-  eventLoc.x = mPresContext->DevPixelsToIntCSSPixels(eventLoc.x);
-  eventLoc.y = mPresContext->DevPixelsToIntCSSPixels(eventLoc.y);
-  eventLoc.x -= docFrameRect.x;
-  eventLoc.y -= docFrameRect.y;
-
-  nsCOMPtr<nsIDOMElement> elementUnderMouse;
-  doc->ElementFromPointHelper(eventLoc.x, eventLoc.y, PR_FALSE, PR_FALSE,
-                              getter_AddRefs(elementUnderMouse));
-  nsCOMPtr<nsIContent> contentUnderMouse = do_QueryInterface(elementUnderMouse);
-  if (contentUnderMouse) {
-    nsIWidget* targetWidget = nsnull;
-    nsIFrame* targetFrame = contentUnderMouse->GetPrimaryFrame();
-    nsIObjectFrame* pluginFrame = do_QueryFrame(targetFrame);
-    if (pluginFrame) {
-      targetWidget = pluginFrame->GetWidget();
-    } else if (targetFrame) {
-      targetWidget = targetFrame->GetNearestWidget();
-    }
-    if (aEvent->widget == targetWidget)
-      aEvent->mReply.mWidgetIsHit = PR_TRUE;
-  }
-
-  aEvent->mSucceeded = PR_TRUE;
-  return NS_OK;
-}
-
-nsresult
 nsContentEventHandler::GetFlatTextOffsetOfRange(nsIContent* aRootContent,
                                                 nsINode* aNode,
                                                 PRInt32 aNodeOffset,
@@ -921,7 +875,7 @@ nsContentEventHandler::GetStartFrameAndOffset(nsIRange* aRange,
     content = static_cast<nsIContent*>(node);
   NS_ASSERTION(content, "the start node doesn't have nsIContent!");
 
-  nsRefPtr<nsFrameSelection> fs = mPresShell->FrameSelection();
+  nsCOMPtr<nsFrameSelection> fs = mPresShell->FrameSelection();
   *aFrame = fs->GetFrameForNodeOffset(content, aRange->StartOffset(),
                                       fs->GetHint(), aOffsetInFrame);
   NS_ENSURE_TRUE((*aFrame), NS_ERROR_FAILURE);

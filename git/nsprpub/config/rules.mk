@@ -280,13 +280,6 @@ $(NFSPWD):
 $(PROGRAM): $(OBJS)
 	@$(MAKE_OBJDIR)
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-ifdef MOZ_PROFILE_USE
-# In the second pass, we need to merge the pgc files into the pgd file.
-# The compiler would do this for us automatically if they were in the right
-# place, but they're in dist/bin.
-	python $(topsrcdir)/build/win32/pgomerge.py \
-		$(notdir $(PROGRAM:.exe=)) $(DIST)/bin
-endif	# MOZ_PROFILE_USE
 	$(CC) $(OBJS) -Fe$@ -link $(LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS)
 ifdef MT
 	@if test -f $@.manifest; then \
@@ -294,11 +287,6 @@ ifdef MT
 		rm -f $@.manifest; \
 	fi
 endif	# MSVC with manifest tool
-ifdef MOZ_PROFILE_GENERATE
-# touch it a few seconds into the future to work around FAT's
-# 2-second granularity
-	touch -t `date +%Y%m%d%H%M.%S -d "now+5seconds"` pgo.relink
-endif	# MOZ_PROFILE_GENERATE
 else	# WINNT && !GCC
 	$(CC) -o $@ $(CFLAGS) $(OBJS) $(LDFLAGS)
 endif	# WINNT && !GCC
@@ -318,10 +306,7 @@ $(IMPORT_LIBRARY): $(MAPFILE)
 	$(IMPLIB) $@ $(MAPFILE)
 else
 ifeq (,$(filter-out WIN95 WINCE WINMO,$(OS_TARGET)))
-# PDBs and import libraries need to depend on the shared library to
-# order dependencies properly.
 $(IMPORT_LIBRARY): $(SHARED_LIBRARY)
-$(SHARED_LIB_PDB): $(SHARED_LIBRARY)
 endif
 endif
 
@@ -338,10 +323,6 @@ ifeq ($(OS_ARCH)$(OS_RELEASE), AIX4.1)
 		-bM:SRE -bnoentry $(OS_LIBS) $(EXTRA_LIBS)
 else	# AIX 4.1
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-ifdef MOZ_PROFILE_USE
-	python $(topsrcdir)/build/win32/pgomerge.py \
-		$(notdir $(SHARED_LIBRARY:.$(DLL_SUFFIX)=)) $(DIST)/bin
-endif	# MOZ_PROFILE_USE
 	$(LINK_DLL) -MAP $(DLLBASE) $(DLL_LIBS) $(EXTRA_LIBS) $(OBJS) $(RES)
 ifdef MT
 	@if test -f $@.manifest; then \
@@ -349,9 +330,6 @@ ifdef MT
 		rm -f $@.manifest; \
 	fi
 endif	# MSVC with manifest tool
-ifdef MOZ_PROFILE_GENERATE
-	touch -t `date +%Y%m%d%H%M.%S -d "now+5seconds"` pgo.relink
-endif	# MOZ_PROFILE_GENERATE
 else	# WINNT && !GCC
 	$(MKSHLIB) $(OBJS) $(RES) $(LDFLAGS) $(EXTRA_LIBS)
 endif	# WINNT && !GCC
@@ -359,24 +337,6 @@ endif	# AIX 4.1
 ifdef ENABLE_STRIP
 	$(STRIP) $@
 endif
-
-################################################################################
-
-ifdef MOZ_PROFILE_USE
-ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-# When building with PGO, we have to make sure to re-link
-# in the MOZ_PROFILE_USE phase if we linked in the
-# MOZ_PROFILE_GENERATE phase. We'll touch this pgo.relink
-# file in the link rule in the GENERATE phase to indicate
-# that we need a relink.
-$(SHARED_LIBRARY): pgo.relink
-
-$(PROGRAM): pgo.relink
-
-endif	# WINNT && !GCC
-endif	# MOZ_PROFILE_USE
-
-################################################################################
 
 ifeq ($(OS_ARCH),WINNT)
 $(RES): $(RESNAME)
@@ -498,14 +458,6 @@ $(filter $(OBJDIR)/%.$(OBJ_SUFFIX),$(OBJS)): $(OBJDIR)/%.$(OBJ_SUFFIX): $(DUMMY_
 ################################################################################
 # Special gmake rules.
 ################################################################################
-
-#
-# Disallow parallel builds with MSVC < 8 since it can't open the PDB file in
-# parallel.
-#
-ifeq (,$(filter-out 1200 1300 1310,$(MSC_VER)))
-.NOTPARALLEL:
-endif
 
 #
 # Re-define the list of default suffixes, so gmake won't have to churn through

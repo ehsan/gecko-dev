@@ -53,7 +53,6 @@ const Cu = Components.utils;
 const CSP_VIOLATION_TOPIC = "csp-on-violate-policy";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/CSPUtils.jsm");
 
 /* ::::: Policy Parsing & Data structures :::::: */
@@ -62,7 +61,7 @@ function ContentSecurityPolicy() {
   CSPdebug("CSP CREATED");
   this._isInitialized = false;
   this._reportOnlyMode = false;
-  this._policy = CSPRep.fromString("default-src *");
+  this._policy = CSPRep.fromString("allow *");
 
   // default options "wide open" since this policy will be intersected soon
   this._policy._allowInlineScripts = true;
@@ -70,8 +69,10 @@ function ContentSecurityPolicy() {
 
   this._requestHeaders = []; 
   this._request = "";
-  this._docRequest = null;
-  CSPdebug("CSP POLICY INITED TO 'default-src *'");
+  CSPdebug("CSP POLICY INITED TO 'allow *'");
+
+  this._observerService = Cc['@mozilla.org/observer-service;1']
+                            .getService(Ci.nsIObserverService);
 }
 
 /*
@@ -85,7 +86,7 @@ function ContentSecurityPolicy() {
   csp._MAPPINGS=[];
 
   /* default, catch-all case */
-  csp._MAPPINGS[cp.TYPE_OTHER]             =  cspr_sd.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_OTHER]             =  cspr_sd.ALLOW;
 
   /* self */
   csp._MAPPINGS[cp.TYPE_DOCUMENT]          =  null;
@@ -106,9 +107,9 @@ function ContentSecurityPolicy() {
 
 
   /* These must go through the catch-all */
-  csp._MAPPINGS[cp.TYPE_XBL]               = cspr_sd.DEFAULT_SRC;
-  csp._MAPPINGS[cp.TYPE_PING]              = cspr_sd.DEFAULT_SRC;
-  csp._MAPPINGS[cp.TYPE_DTD]               = cspr_sd.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_XBL]               = cspr_sd.ALLOW;
+  csp._MAPPINGS[cp.TYPE_PING]              = cspr_sd.ALLOW;
+  csp._MAPPINGS[cp.TYPE_DTD]               = cspr_sd.ALLOW;
 }
 
 ContentSecurityPolicy.prototype = {
@@ -128,45 +129,39 @@ ContentSecurityPolicy.prototype = {
   },
 
   get allowsInlineScript() {
+    // trigger automatic report to go out when inline scripts are disabled.
+    if (!this._policy.allowsInlineScripts) {
+      var violation = 'violated base restriction: Inline Scripts will not execute';
+      // gotta wrap the violation string, since it's sent out to observers as
+      // an nsISupports.
+      let wrapper = Cc["@mozilla.org/supports-cstring;1"]
+                      .createInstance(Ci.nsISupportsCString);
+      wrapper.data = violation;
+      this._observerService.notifyObservers(
+                              wrapper,
+                              CSP_VIOLATION_TOPIC,
+                              'inline script base restriction');
+      this.sendReports('self', violation);
+    }
     return this._reportOnlyMode || this._policy.allowsInlineScripts;
   },
 
   get allowsEval() {
-    return this._reportOnlyMode || this._policy.allowsEvalInScripts;
-  },
-
-  /**
-   * Log policy violation on the Error Console and send a report if a report-uri
-   * is present in the policy
-   *
-   * @param aViolationType
-   *     one of the VIOLATION_TYPE_* constants, e.g. inline-script or eval
-   * @param aSourceFile
-   *     name of the source file containing the violation (if available)
-   * @param aContentSample
-   *     sample of the violating content (to aid debugging)
-   * @param aLineNum
-   *     source line number of the violation (if available)
-   */
-  logViolationDetails:
-  function(aViolationType, aSourceFile, aScriptSample, aLineNum) {
-    // allowsInlineScript and allowsEval both return true when report-only mode
-    // is enabled, resulting in a call to this function. Therefore we need to
-    // check that the policy was in fact violated before logging any violations
-    switch (aViolationType) {
-    case Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT:
-      if (!this._policy.allowsInlineScripts)
-        this._asyncReportViolation('self','inline script base restriction',
-                                   'violated base restriction: Inline Scripts will not execute',
-                                   aSourceFile, aScriptSample, aLineNum);
-      break;
-    case Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_EVAL:
-      if (!this._policy.allowsEvalInScripts)
-        this._asyncReportViolation('self','eval script base restriction',
-                                   'violated base restriction: Code will not be created from strings',
-                                   aSourceFile, aScriptSample, aLineNum);
-      break;
+    // trigger automatic report to go out when eval and friends are disabled.
+    if (!this._policy.allowsEvalInScripts) {
+      var violation = 'violated base restriction: Code will not be created from strings';
+      // gotta wrap the violation string, since it's sent out to observers as
+      // an nsISupports.
+      let wrapper = Cc["@mozilla.org/supports-cstring;1"]
+                      .createInstance(Ci.nsISupportsCString);
+      wrapper.data = violation;
+      this._observerService.notifyObservers(
+                              wrapper,
+                              CSP_VIOLATION_TOPIC,
+                              'eval script base restriction');
+      this.sendReports('self', violation);
     }
+    return this._reportOnlyMode || this._policy.allowsEvalInScripts;
   },
 
   set reportOnlyMode(val) {
@@ -193,24 +188,13 @@ ContentSecurityPolicy.prototype = {
     if (!aChannel)
       return;
     // grab the request line
-    var internalChannel = null;
-    try {
-      internalChannel = aChannel.QueryInterface(Ci.nsIHttpChannelInternal);
-    } catch (e) {
-      CSPdebug("No nsIHttpChannelInternal for " + aChannel.URI.asciiSpec);
-    }
-
-    this._request = aChannel.requestMethod + " " + aChannel.URI.asciiSpec;
-    this._docRequest = aChannel;
-
-    // We will only be able to provide the HTTP version information if aChannel
-    // implements nsIHttpChannelInternal
-    if (internalChannel) {
-      var reqMaj = {};
-      var reqMin = {};
-      var reqVersion = internalChannel.getRequestVersion(reqMaj, reqMin);
-      this._request += " HTTP/" + reqMaj.value + "." + reqMin.value;
-    }
+    var internalChannel = aChannel.QueryInterface(Ci.nsIHttpChannelInternal);
+    var reqMaj = {};
+    var reqMin = {};
+    var reqVersion = internalChannel.getRequestVersion(reqMaj, reqMin);
+    this._request = aChannel.requestMethod + " " 
+                  + aChannel.URI.asciiSpec
+                  + " HTTP/" + reqMaj.value + "." + reqMin.value;
 
     // grab the request headers
     var self = this;
@@ -232,13 +216,6 @@ ContentSecurityPolicy.prototype = {
   function csp_refinePolicy(aPolicy, selfURI) {
     CSPdebug("REFINE POLICY: " + aPolicy);
     CSPdebug("         SELF: " + selfURI.asciiSpec);
-    // For nested schemes such as view-source: make sure we are taking the
-    // innermost URI to use as 'self' since that's where we will extract the
-    // scheme, host and port from
-    if (selfURI instanceof Ci.nsINestedURI) {
-      CSPdebug("        INNER: " + selfURI.innermostURI.asciiSpec);
-      selfURI = selfURI.innermostURI;
-    }
 
     // stay uninitialized until policy merging is done
     this._isInitialized = false;
@@ -246,9 +223,7 @@ ContentSecurityPolicy.prototype = {
     // If there is a policy-uri, fetch the policy, then re-call this function.
     // (1) parse and create a CSPRep object
     var newpolicy = CSPRep.fromString(aPolicy,
-                                      selfURI.scheme + "://" + selfURI.hostPort,
-                                      this._docRequest,
-                                      this);
+                                      selfURI.scheme + "://" + selfURI.hostPort);
 
     // (2) Intersect the currently installed CSPRep object with the new one
     var intersect = this._policy.intersectWith(newpolicy);
@@ -262,7 +237,7 @@ ContentSecurityPolicy.prototype = {
    * Generates and sends a violation report to the specified report URIs.
    */
   sendReports:
-  function(blockedUri, violatedDirective, aSourceFile, aScriptSample, aLineNum) {
+  function(blockedUri, violatedDirective) {
     var uriString = this._policy.getReportURIs();
     var uris = uriString.split(/\s+/);
     if (uris.length > 0) {
@@ -290,26 +265,12 @@ ContentSecurityPolicy.prototype = {
           'violated-directive': violatedDirective
         }
       }
-      // extra report fields for script errors (if available)
-      if (aSourceFile)
-        report["csp-report"]["source-file"] = aSourceFile;
-      if (aScriptSample)
-        report["csp-report"]["script-sample"] = aScriptSample;
-      if (aLineNum)
-        report["csp-report"]["line-number"] = aLineNum;
-
       CSPdebug("Constructed violation report:\n" + JSON.stringify(report));
 
       CSPWarning("Directive \"" + violatedDirective + "\" violated"
-               + (blockedUri['asciiSpec'] ? " by " + blockedUri.asciiSpec : ""),
-                 (aSourceFile) ? aSourceFile : null,
-                 (aScriptSample) ? decodeURIComponent(aScriptSample) : null,
-                 (aLineNum) ? aLineNum : null);
+               + (blockedUri['asciiSpec'] ? " by " + blockedUri.asciiSpec : ""));
 
       // For each URI in the report list, send out a report.
-      // We make the assumption that all of the URIs are absolute URIs; this
-      // should be taken care of in CSPRep.fromString (where it converts any
-      // relative URIs into absolute ones based on "self").
       for (let i in uris) {
         if (uris[i] === "")
           continue;
@@ -386,11 +347,14 @@ ContentSecurityPolicy.prototype = {
         // report the frame-ancestor violation
         let directive = this._policy._directives[cspContext];
         let violatedPolicy = (directive._isImplicit
-                                ? 'default-src' : 'frame-ancestors ')
+                                ? 'allow' : 'frame-ancestors ')
                                 + directive.toString();
-
-        this._asyncReportViolation(ancestors[i], violatedPolicy);
-
+        // send an nsIURI object to the observers (more interesting than a string)
+        this._observerService.notifyObservers(
+                                ancestors[i],
+                                CSP_VIOLATION_TOPIC, 
+                                violatedPolicy);
+        this.sendReports(ancestors[i].asciiSpec, violatedPolicy);
         // need to lie if we are testing in report-only mode
         return this._reportOnlyMode;
       }
@@ -412,8 +376,7 @@ ContentSecurityPolicy.prototype = {
                           aExtra) {
 
     // don't filter chrome stuff
-    if (aContentLocation.scheme === 'chrome' ||
-        aContentLocation.scheme === 'resource') {
+    if (aContentLocation.scheme === 'chrome') {
       return Ci.nsIContentPolicy.ACCEPT;
     }
 
@@ -441,9 +404,13 @@ ContentSecurityPolicy.prototype = {
       try {
         let directive = this._policy._directives[cspContext];
         let violatedPolicy = (directive._isImplicit
-                                ? 'default-src' : cspContext)
+                                ? 'allow' : cspContext)
                                 + ' ' + directive.toString();
-        this._asyncReportViolation(aContentLocation, violatedPolicy);
+        this._observerService.notifyObservers(
+                                aContentLocation,
+                                CSP_VIOLATION_TOPIC, 
+                                violatedPolicy);
+        this.sendReports(aContentLocation, violatedPolicy);
       } catch(e) {
         CSPdebug('---------------- ERROR: ' + e);
       }
@@ -465,54 +432,6 @@ ContentSecurityPolicy.prototype = {
     return res;
   },
 
-  /**
-   * Asynchronously notifies any nsIObservers listening to the CSP violation
-   * topic that a violation occurred.  Also triggers report sending.  All
-   * asynchronous on the main thread.
-   *
-   * @param blockedContentSource
-   *        Either a CSP Source (like 'self', as string) or nsIURI: the source
-   *        of the violation.
-   * @param violatedDirective
-   *        the directive that was violated (string).
-   * @param observerSubject
-   *        optional, subject sent to the nsIObservers listening to the CSP
-   *        violation topic.
-   * @param aSourceFile
-   *        name of the file containing the inline script violation
-   * @param aScriptSample
-   *        a sample of the violating inline script
-   * @param aLineNum
-   *        source line number of the violation (if available)
-   */
-  _asyncReportViolation:
-  function(blockedContentSource, violatedDirective, observerSubject,
-           aSourceFile, aScriptSample, aLineNum) {
-    // if optional observerSubject isn't specified, default to the source of
-    // the violation.
-    if (!observerSubject)
-      observerSubject = blockedContentSource;
-
-    // gotta wrap things that aren't nsISupports, since it's sent out to
-    // observers as such.  Objects that are not nsISupports are converted to
-    // strings and then wrapped into a nsISupportsCString.
-    if (!(observerSubject instanceof Ci.nsISupports)) {
-      let d = observerSubject;
-      observerSubject = Cc["@mozilla.org/supports-cstring;1"]
-                          .createInstance(Ci.nsISupportsCString);
-      observerSubject.data = d;
-    }
-
-    var reportSender = this;
-    Services.tm.mainThread.dispatch(
-      function() {
-        Services.obs.notifyObservers(observerSubject,
-                                     CSP_VIOLATION_TOPIC,
-                                     violatedDirective);
-        reportSender.sendReports(blockedContentSource, violatedDirective,
-                                 aSourceFile, aScriptSample, aLineNum);
-      }, Ci.nsIThread.DISPATCH_NORMAL);
-  },
 };
 
 var NSGetFactory = XPCOMUtils.generateNSGetFactory([ContentSecurityPolicy]);

@@ -128,9 +128,9 @@ public:
                      PRBool aRelevantLinkVisited);
 
   // Does this style context or any of its ancestors have text
-  // decoration lines?
-  PRBool HasTextDecorationLines() const
-    { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATION_LINES); }
+  // decorations?
+  PRBool HasTextDecorations() const
+    { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATIONS); }
 
   // Does this style context represent the style for a pseudo-element or
   // inherit data from such a style context?  Whether this returns true
@@ -208,13 +208,11 @@ public:
   // Setters for inherit structs only, since rulenode only sets those eagerly.
   #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_, ctor_args_)          \
     void SetStyle##name_ (nsStyle##name_ * aStruct) {                       \
-      void *& slot =                                                        \
-        mCachedInheritedData.mStyleStructs[eStyleStruct_##name_];           \
-      NS_ASSERTION(!slot ||                                                 \
+      NS_ASSERTION(!mCachedInheritedData.m##name_##Data ||                  \
                    (mBits &                                                 \
                     nsCachedStyleData::GetBitForSID(eStyleStruct_##name_)), \
                    "Going to leak styledata");                              \
-      slot = aStruct;                                                       \
+      mCachedInheritedData.m##name_##Data = aStruct;                        \
     }
 #define STYLE_STRUCT_RESET(name_, checkdata_cb_, ctor_args_) /* nothing */
   #include "nsStyleStructList.h"
@@ -324,14 +322,6 @@ public:
    */
   void* Alloc(size_t aSize);
 
-  /**
-   * Start the background image loads for this style context.
-   */
-  void StartBackgroundImageLoads() {
-    // Just get our background struct; that should do the trick
-    GetStyleBackground();
-  }
-
 #ifdef DEBUG
   void List(FILE* out, PRInt32 aIndent);
 #endif
@@ -352,8 +342,7 @@ protected:
   #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_, ctor_args_)      \
     const nsStyle##name_ * DoGetStyle##name_(PRBool aComputeData) {     \
       const nsStyle##name_ * cachedData =                               \
-        static_cast<nsStyle##name_*>(                                   \
-          mCachedInheritedData.mStyleStructs[eStyleStruct_##name_]);    \
+        mCachedInheritedData.m##name_##Data;                            \
       if (cachedData) /* Have it cached already, yay */                 \
         return cachedData;                                              \
       /* Have the rulenode deal */                                      \
@@ -361,10 +350,8 @@ protected:
     }
   #define STYLE_STRUCT_RESET(name_, checkdata_cb_, ctor_args_)          \
     const nsStyle##name_ * DoGetStyle##name_(PRBool aComputeData) {     \
-      const nsStyle##name_ * cachedData = mCachedResetData              \
-        ? static_cast<nsStyle##name_*>(                                 \
-            mCachedResetData->mStyleStructs[eStyleStruct_##name_])      \
-        : nsnull;                                                       \
+      const nsStyle##name_ * cachedData =                               \
+        mCachedResetData ? mCachedResetData->m##name_##Data : nsnull;   \
       if (cachedData) /* Have it cached already, yay */                 \
         return cachedData;                                              \
       /* Have the rulenode deal */                                      \

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=98:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -168,16 +168,14 @@ class PropertyCache
 
     PropertyCacheEntry  table[SIZE];
     JSBool              empty;
-
-  public:
 #ifdef JS_PROPERTY_CACHE_METERING
+  public:
     PropertyCacheEntry  *pctestentry;   /* entry of the last PC-based test */
     uint32              fills;          /* number of cache entry fills */
     uint32              nofills;        /* couldn't fill (e.g. default get) */
     uint32              rofills;        /* set on read-only prop can't fill */
     uint32              disfills;       /* fill attempts on disabled cache */
     uint32              oddfills;       /* fill attempt after setter deleted */
-    uint32              add2dictfills;  /* fill attempt on dictionary object */
     uint32              modfills;       /* fill that rehashed to a new entry */
     uint32              brandfills;     /* scope brandings to type structural
                                            method fills */
@@ -201,17 +199,12 @@ class PropertyCache
     uint32              misses;         /* cache misses */
     uint32              flushes;        /* cache flushes */
     uint32              pcpurges;       /* shadowing purges on proto chain */
-
+  private:
 # define PCMETER(x)     x
 #else
 # define PCMETER(x)     ((void)0)
 #endif
 
-    PropertyCache() {
-        PodZero(this);
-    }
-    
-  private:
     /*
      * Add kshape rather than xor it to avoid collisions between nearby bytecode
      * that are evolving an object by setting successive properties, incrementing
@@ -242,7 +235,11 @@ class PropertyCache
     /*
      * Test for cached information about a property set on *objp at pc.
      *
-     * On a hit, set *entryp to the entry and return true.
+     * On a fast hit, set *entryp to the entry and return true.
+     *
+     * On a slow hit, set *entryp to the entry, set *obj2p to the object that
+     * owns the property (either obj or a prototype), set *atomp to NULL, and
+     * return false.
      *
      * On a miss, set *atomp to the name of the property being set and return false.
      */
@@ -271,14 +268,11 @@ class PropertyCache
      * not possible.
      */
     JS_REQUIRES_STACK PropertyCacheEntry *fill(JSContext *cx, JSObject *obj, uintN scopeIndex,
-                                               JSObject *pobj, const js::Shape *shape,
-                                               JSBool adding = false);
+                                               uintN protoIndex, JSObject *pobj,
+                                               const js::Shape *shape, JSBool adding = false);
 
     void purge(JSContext *cx);
-    void purgeForScript(JSContext *cx, JSScript *script);
-
-    /* Restore an entry that may have been purged during a GC. */
-    void restore(PropertyCacheEntry *entry);
+    void purgeForScript(JSScript *script);
 };
 
 } /* namespace js */

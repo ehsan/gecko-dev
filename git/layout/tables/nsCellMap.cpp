@@ -925,11 +925,11 @@ void nsTableCellMap::ExpandZeroColSpans()
 }
 
 void
-nsTableCellMap::ResetTopStart(PRUint8    aSide,
-                              nsCellMap& aCellMap,
-                              PRUint32   aRowIndex,
-                              PRUint32   aColIndex,
-                              PRBool     aIsLowerRight)
+nsTableCellMap::SetNotTopStart(PRUint8    aSide,
+                               nsCellMap& aCellMap,
+                               PRUint32   aRowIndex,
+                               PRUint32   aColIndex,
+                               PRBool     aIsLowerRight)
 {
   if (!mBCInfo || aIsLowerRight) ABORT0();
 
@@ -939,7 +939,6 @@ nsTableCellMap::ResetTopStart(PRUint8    aSide,
   switch(aSide) {
   case NS_SIDE_BOTTOM:
     aRowIndex++;
-    // FALLTHROUGH
   case NS_SIDE_TOP:
     cellData = (BCCellData*)aCellMap.GetDataAt(aRowIndex, aColIndex);
     if (cellData) {
@@ -962,7 +961,6 @@ nsTableCellMap::ResetTopStart(PRUint8    aSide,
     break;
   case NS_SIDE_RIGHT:
     aColIndex++;
-    // FALLTHROUGH
   case NS_SIDE_LEFT:
     cellData = (BCCellData*)aCellMap.GetDataAt(aRowIndex, aColIndex);
     if (cellData) {

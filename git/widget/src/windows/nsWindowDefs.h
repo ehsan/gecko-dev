@@ -56,8 +56,6 @@
 // A magic APP message that can be sent to quit, sort of like a QUERYENDSESSION/ENDSESSION,
 // but without the query.
 #define MOZ_WM_APP_QUIT                   (WM_APP+0x0300)
-// Used as a "tracer" event to probe event loop latency.
-#define MOZ_WM_TRACE                      (WM_APP+0x0301)
 
 // GetWindowsVersion constants
 #define WIN2K_VERSION                     0x500
@@ -66,9 +64,7 @@
 #define VISTA_VERSION                     0x600
 #define WIN7_VERSION                      0x601
 
-#ifndef WM_THEMECHANGED
-#define WM_THEMECHANGED                   0x031A
-#endif
+#define WM_XP_THEMECHANGED                0x031A
 
 #ifndef WM_GETOBJECT
 #define WM_GETOBJECT                      0x03d
@@ -90,10 +86,6 @@
 #define SPI_GETWHEELSCROLLCHARS           0x006C
 #endif
 
-#ifndef SPI_SETWHEELSCROLLCHARS
-#define SPI_SETWHEELSCROLLCHARS           0x006D
-#endif
-
 #ifndef MAPVK_VSC_TO_VK
 #define MAPVK_VK_TO_VSC                   0
 #define MAPVK_VSC_TO_VK                   1
@@ -102,10 +94,6 @@
 
 // ConstrainPosition window positioning slop value
 #define kWindowPositionSlop               20
-
-// Origin of the system context menu when displayed in full screen mode
-#define MOZ_SYSCONTEXT_X_POS              20
-#define MOZ_SYSCONTEXT_Y_POS              20
 
 // Drop shadow window style
 #define CS_XP_DROPSHADOW                  0x00020000
@@ -173,11 +161,24 @@
    */
 #endif // #ifndef APPCOMMAND_BROWSER_BACKWARD
 
+#if defined(WINCE)
+#ifndef RDW_NOINTERNALPAINT
+#define RDW_NOINTERNALPAINT     0
+#endif
+#ifndef ERROR
+#define ERROR 0
+#endif
+#endif // defined(WINCE)
+
 //Tablet PC Mouse Input Source
+#if !defined(WINCE)
 #define TABLET_INK_SIGNATURE 0xFFFFFF00
 #define TABLET_INK_CHECK     0xFF515700
 #define TABLET_INK_TOUCH     0x00000080
 #define MOUSE_INPUT_SOURCE() GetMouseInputSource()
+#else
+#define MOUSE_INPUT_SOURCE() nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE
+#endif
 
 /**************************************************************
  *
@@ -209,11 +210,14 @@ typedef enum
  * touchpad scrolling or screen readers.
  */
 const PRUint32 kMaxClassNameLength   = 40;
-const char kClassNameHidden[]        = "MozillaHiddenWindowClass";
-const char kClassNameGeneral[]       = "MozillaWindowClass";
-const char kClassNameDialog[]        = "MozillaDialogClass";
-const char kClassNameDropShadow[]    = "MozillaDropShadowWindowClass";
-const char kClassNameTemp[]          = "MozillaTempWindowClass";
+const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
+const LPCWSTR kClassNameUI           = L"MozillaUIWindowClass";
+const LPCWSTR kClassNameContent      = L"MozillaContentWindowClass";
+const LPCWSTR kClassNameContentFrame = L"MozillaContentFrameWindowClass";
+const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
+const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
+const LPCWSTR kClassNameDropShadow   = L"MozillaDropShadowWindowClass";
+const LPCWSTR kClassNameTemp         = L"MozillaTempWindowClass";
 
 static const PRUint32 sModifierKeyMap[][3] = {
   { nsIWidget::CAPS_LOCK, VK_CAPITAL, 0 },
@@ -237,18 +241,6 @@ struct nsAlternativeCharCode; // defined in nsGUIEvent.h
 struct nsFakeCharMessage {
   UINT mCharCode;
   UINT mScanCode;
-
-  MSG GetCharMessage(HWND aWnd)
-  {
-    MSG msg;
-    msg.hwnd = aWnd;
-    msg.message = WM_CHAR;
-    msg.wParam = static_cast<WPARAM>(mCharCode);
-    msg.lParam = static_cast<LPARAM>(mScanCode);
-    msg.time = 0;
-    msg.pt.x = msg.pt.y = 0;
-    return msg;
-  }
 };
 
 // Used in char processing

@@ -61,11 +61,6 @@ public:
   NS_IMETHOD
   InheritAutomaticData(nsIFrame* aParent);
 
-  NS_IMETHOD
-  TransmitAutomaticData() {
-    return TransmitAutomaticDataForMrowLikeElement();
-  }
-
 protected:
   nsMathMLmrowFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmrowFrame();

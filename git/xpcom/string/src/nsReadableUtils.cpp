@@ -145,9 +145,9 @@ LossyAppendUTF16toASCII( const nsAString& aSource, nsACString& aDest )
 
     dest.advance(old_dest_length);
 
-    // right now, this won't work on multi-fragment destinations
-    LossyConvertEncoding16to8 converter(dest.get());
-
+      // right now, this won't work on multi-fragment destinations
+    LossyConvertEncoding<PRUnichar, char> converter(dest.get());
+    
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);
   }
 
@@ -167,7 +167,7 @@ AppendASCIItoUTF16( const nsACString& aSource, nsAString& aDest )
     dest.advance(old_dest_length);
 
       // right now, this won't work on multi-fragment destinations
-    LossyConvertEncoding8to16 converter(dest.get());
+    LossyConvertEncoding<char, PRUnichar> converter(dest.get());
 
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);
   }
@@ -303,7 +303,7 @@ ToNewCString( const nsAString& aSource )
       return nsnull;
 
     nsAString::const_iterator fromBegin, fromEnd;
-    LossyConvertEncoding16to8 converter(result);
+    LossyConvertEncoding<PRUnichar, char> converter(result);
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter).write_terminator();
     return result;
   }
@@ -374,7 +374,7 @@ ToNewUnicode( const nsACString& aSource )
       return nsnull;
 
     nsACString::const_iterator fromBegin, fromEnd;
-    LossyConvertEncoding8to16 converter(result);
+    LossyConvertEncoding<char, PRUnichar> converter(result);
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter).write_terminator();
     return result;
   }
@@ -573,16 +573,14 @@ IsUTF8( const nsACString& aString )
             --state;
 
             // non-character : EF BF [BE-BF] or F[0-7] [89AB]F BF [BE-BF]
-            if ( nonchar &&  
-                 ( ( !state && c < 0xBE ) ||
-                   ( state == 1 && c != 0xBF )  ||
-                   ( state == 2 && 0x0F != (0x0F & c) )))
-              nonchar = PR_FALSE;
+            if ( nonchar &&  ( !state &&  c < 0xBE ||
+                  state == 1 && c != 0xBF  ||
+                  state == 2 && 0x0F != (0x0F & c) ))
+                nonchar = PR_FALSE;
 
-            if ( !UTF8traits::isInSeq(c) || ( overlong && c <= olupper ) || 
-                 ( surrogate && slower <= c ) || ( nonchar && !state ))
+            if ( !UTF8traits::isInSeq(c) || overlong && c <= olupper || 
+                  surrogate && slower <= c || nonchar && !state )
               return PR_FALSE; // Not UTF-8 string
-
             overlong = surrogate = PR_FALSE;
           }
         }
@@ -637,7 +635,7 @@ class CopyToUpperCase
       PRUint32
       write( const char* aSource, PRUint32 aSourceLength )
         {
-          PRUint32 len = NS_MIN(PRUint32(mIter.size_forward()), aSourceLength);
+          PRUint32 len = PR_MIN(PRUint32(mIter.size_forward()), aSourceLength);
           char* cp = mIter.get();
           const char* end = aSource + len;
           while (aSource != end) {
@@ -718,7 +716,7 @@ class CopyToLowerCase
       PRUint32
       write( const char* aSource, PRUint32 aSourceLength )
         {
-          PRUint32 len = NS_MIN(PRUint32(mIter.size_forward()), aSourceLength);
+          PRUint32 len = PR_MIN(PRUint32(mIter.size_forward()), aSourceLength);
           char* cp = mIter.get();
           const char* end = aSource + len;
           while (aSource != end) {
@@ -804,7 +802,7 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
           {
               // fast inner loop (that's what it's called, not what it is) looks for a potential match
             while ( aSearchStart != aSearchEnd &&
-                    compare(aPatternStart.get(), aSearchStart.get(), 1, 1) )
+                    compare(*aPatternStart, *aSearchStart) )
               ++aSearchStart;
 
               // if we broke out of the `fast' loop because we're out of string ... we're done: no match
@@ -841,7 +839,7 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
 
                   // else if we mismatched ... it's time to advance to the next search position
                   //  and get back into the `fast' loop
-                if ( compare(testPattern.get(), testSearch.get(), 1, 1) )
+                if ( compare(*testPattern, *testSearch) )
                   {
                     ++aSearchStart;
                     break;
@@ -873,7 +871,7 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
         --searchEnd;
     
           // Check last character, if a match, explore further from here
-        if ( compare(patternEnd.get(), searchEnd.get(), 1, 1) == 0 )
+        if ( compare(*patternEnd, *searchEnd) == 0 )
           {  
               // We're at a potential match, let's see if we really hit one
             IteratorT testPattern(patternEnd);
@@ -902,7 +900,7 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
                 --testPattern;
                 --testSearch;
               }
-            while ( compare(testPattern.get(), testSearch.get(), 1, 1) == 0 );
+            while ( compare(*testPattern, *testSearch) == 0 );
           }
       }
 

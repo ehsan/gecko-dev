@@ -42,9 +42,11 @@
 
 #include "base/basictypes.h"
 #include "base/message_loop.h"
+#include "chrome/common/ipc_channel.h"
 
-#include "mozilla/Monitor.h"
-#include "mozilla/ipc/Transport.h"
+#include "mozilla/CondVar.h"
+#include "mozilla/Mutex.h"
+
 
 //-----------------------------------------------------------------------------
 
@@ -55,7 +57,6 @@ struct HasResultCodes
 {
     enum Result {
         MsgProcessed,
-        MsgDropped,
         MsgNotKnown,
         MsgNotAllowed,
         MsgPayloadError,
@@ -65,10 +66,11 @@ struct HasResultCodes
     };
 };
 
-class AsyncChannel : public Transport::Listener, protected HasResultCodes
+class AsyncChannel : public IPC::Channel::Listener, protected HasResultCodes
 {
 protected:
-    typedef mozilla::Monitor Monitor;
+    typedef mozilla::CondVar CondVar;
+    typedef mozilla::Mutex Mutex;
 
     enum ChannelState {
         ChannelClosed,
@@ -80,8 +82,8 @@ protected:
     };
 
 public:
+    typedef IPC::Channel Transport;
     typedef IPC::Message Message;
-    typedef mozilla::ipc::Transport Transport;
 
     class /*NS_INTERFACE_CLASS*/ AsyncListener: protected HasResultCodes
     {
@@ -91,11 +93,7 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
-        virtual void OnProcessingError(Result aError) = 0;
-        virtual void OnChannelConnected(int32 peer_pid) {};
     };
-
-    enum Side { Parent, Child, Unknown };
 
 public:
     //
@@ -109,7 +107,7 @@ public:
     //
     // Returns true iff the transport layer was successfully connected,
     // i.e., mChannelState == ChannelConnected.
-    bool Open(Transport* aTransport, MessageLoop* aIOLoop=0, Side aSide=Unknown);
+    bool Open(Transport* aTransport, MessageLoop* aIOLoop=0);
     
     // Close the underlying transport channel.
     void Close();
@@ -117,18 +115,11 @@ public:
     // Asynchronously send a message to the other side of the channel
     virtual bool Send(Message* msg);
 
-    // Asynchronously deliver a message back to this side of the
-    // channel
-    virtual bool Echo(Message* msg);
-
-    // Send OnChannelConnected notification to listeners.
-    void DispatchOnChannelConnected(int32 peer_pid);
-
     //
     // These methods are called on the "IO" thread
     //
 
-    // Implement the Transport::Listener interface
+    // Implement the IPC::Channel::Listener interface
     NS_OVERRIDE virtual void OnMessageReceived(const Message& msg);
     NS_OVERRIDE virtual void OnChannelConnected(int32 peer_pid);
     NS_OVERRIDE virtual void OnChannelError();
@@ -148,7 +139,7 @@ protected:
     }
 
     bool Connected() const {
-        mMonitor.AssertCurrentThreadOwns();
+        mMutex.AssertCurrentThreadOwns();
         return ChannelConnected == mChannelState;
     }
 
@@ -162,6 +153,12 @@ protected:
 
     bool MaybeHandleError(Result code, const char* channelName);
     void ReportConnectionError(const char* channelName) const;
+
+    void PrintErrorMessage(const char* channelName, const char* msg) const
+    {
+        fprintf(stderr, "\n###!!! [%s][%s] Error: %s\n\n",
+                mChild ? "Child" : "Parent", channelName, msg);
+    }
 
     // Run on the worker thread
 
@@ -181,7 +178,6 @@ protected:
     void OnChannelOpened();
     void OnCloseChannel();
     void PostErrorNotifyTask();
-    void OnEchoMessage(Message* msg);
 
     // Return true if |msg| is a special message targeted at the IO
     // thread, in which case it shouldn't be delivered to the worker.
@@ -191,12 +187,13 @@ protected:
     Transport* mTransport;
     AsyncListener* mListener;
     ChannelState mChannelState;
-    Monitor mMonitor;
+    Mutex mMutex;
+    CondVar mCvar;
     MessageLoop* mIOLoop;       // thread where IO happens
     MessageLoop* mWorkerLoop;   // thread where work is done
     bool mChild;                // am I the child or parent?
     CancelableTask* mChannelErrorTask; // NotifyMaybeChannelError runnable
-    Transport::Listener* mExistingListener; // channel's previous listener
+    IPC::Channel::Listener* mExistingListener; // channel's previous listener
 };
 
 

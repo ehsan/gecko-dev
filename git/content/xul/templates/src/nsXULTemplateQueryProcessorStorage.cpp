@@ -375,24 +375,24 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
               case 1:
                 typeError = PR_sscanf(NS_ConvertUTF16toUTF8(value).get(),"%d",&valInt32);
                 if (typeError > 0)
-                    rv = statement->BindInt32ByIndex(index, valInt32);
+                    rv = statement->BindInt32Parameter(index, valInt32);
                 break;
               case 2:
                 typeError = PR_sscanf(NS_ConvertUTF16toUTF8(value).get(),"%lld",&valInt64);
                 if (typeError > 0)
-                    rv = statement->BindInt64ByIndex(index, valInt64);
+                    rv = statement->BindInt64Parameter(index, valInt64);
                 break;
               case 3:
-                rv = statement->BindNullByIndex(index);
+                rv = statement->BindNullParameter(index);
                 break;
               case 4:
                 typeError = PR_sscanf(NS_ConvertUTF16toUTF8(value).get(),"%lf",&valFloat);
                 if (typeError > 0)
-                    rv = statement->BindDoubleByIndex(index, valFloat);
+                    rv = statement->BindDoubleParameter(index, valFloat);
                 break;
               case 5:
               case nsIContent::ATTR_MISSING:
-                rv = statement->BindStringByIndex(index, value);
+                rv = statement->BindStringParameter(index, value);
                 break;
               default:
                 typeError = 0;

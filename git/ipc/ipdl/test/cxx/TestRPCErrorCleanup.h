@@ -26,11 +26,6 @@ protected:
         if (AbnormalShutdown != why)
             fail("unexpected destruction!");  
     }
-
-    NS_OVERRIDE
-    virtual void ProcessingError(Result what);
-
-    bool mGotProcessingError;
 };
 
 

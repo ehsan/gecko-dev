@@ -74,7 +74,9 @@
 #include "nsDragService.h"
 #include "nsGfxCIID.h"
 #include "nsHashKeys.h"
+#include "nsIDeviceContext.h"
 #include "nsIMenuRollup.h"
+#include "nsIPrefService.h"
 #include "nsIRollupListener.h"
 #include "nsIScreenManager.h"
 #include "nsOS2Uni.h"
@@ -82,10 +84,6 @@
 #include "nsToolkit.h"
 #include "nsWidgetAtoms.h"
 #include "wdgtos2rc.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 //=============================================================================
 //  Macros
@@ -312,8 +310,14 @@ void nsWindow::InitGlobals()
   // it scroll messages. Needless to say, no Mozilla window has real scroll
   // bars. So if you have the "os2.trackpoint" preference set, we put an
   // invisible scroll bar on every child window so we can scroll.
-  if (Preferences::GetBool("os2.trackpoint", PR_FALSE)) {
-    gOS2Flags |= kIsTrackPoint;
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+  if (NS_SUCCEEDED(rv) && prefs) {
+    PRBool isTrackPoint = PR_FALSE;
+    prefs->GetBoolPref("os2.trackpoint", &isTrackPoint);
+    if (isTrackPoint) {
+      gOS2Flags |= kIsTrackPoint;
+    }
   }
 }
 
@@ -335,7 +339,7 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
                            nsNativeWidget aNativeParent,
                            const nsIntRect& aRect,
                            EVENT_CALLBACK aHandleEventFunction,
-                           nsDeviceContext* aContext,
+                           nsIDeviceContext* aContext,
                            nsIAppShell* aAppShell,
                            nsIToolkit* aToolkit,
                            nsWidgetInitData* aInitData)
@@ -360,9 +364,32 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
     }
   }
 
-  BaseCreate(aParent, aRect, aHandleEventFunction,
-             aContext, aAppShell, aToolkit, aInitData);
+  // Save the event callback function.
+  mEventCallback = aHandleEventFunction;
 
+  // Make sure a device context exists.
+  if (aContext) {
+    mContext = aContext;
+    NS_ADDREF(mContext);
+  } else {
+    static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
+    nsresult rv = CallCreateInstance(kDeviceContextCID, &mContext);
+    NS_ENSURE_SUCCESS(rv, rv);
+    mContext->Init(nsnull);
+  }
+
+  // XXX Toolkit is obsolete & will be removed.
+  if (!mToolkit) {
+    if (aToolkit) {
+      mToolkit = aToolkit;
+    } else if (pParent) {
+      mToolkit = pParent->GetToolkit();
+    } else {
+      mToolkit = new nsToolkit;
+      mToolkit->Init(PR_GetCurrentThread());
+    }
+    NS_ADDREF(mToolkit);
+  }
 
 #ifdef DEBUG_FOCUS
   mWindowIdentifier = currentWindowIdentifier;
@@ -371,15 +398,16 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
 
   // Some basic initialization.
   if (aInitData) {
+    mWindowType = aInitData->mWindowType;
+    mBorderStyle = aInitData->mBorderStyle;
+
     // Suppress creation of a Thebes surface for windows that will never
     // be painted because they're always covered by another window.
     if (mWindowType == eWindowType_toplevel ||
-        mWindowType == eWindowType_invisible) {
+        mWindowType == eWindowType_invisible ||
+        (mWindowType == eWindowType_child &&
+         aInitData->mContentType == eContentTypeContent)) {
       mNoPaint = PR_TRUE;
-    }
-    // Popup windows should not have an nsWindow parent.
-    else if (mWindowType == eWindowType_popup) {
-      pParent = 0;
     }
   }
 
@@ -550,6 +578,28 @@ nsIWidget* nsWindow::GetParent()
   return mParent;
 }
 
+static PRInt32 sDPI = 0;
+
+float nsWindow::GetDPI()
+{
+    if (!sDPI) {
+        // create DC compatible with the screen
+        HDC dc = DevOpenDC((HAB)1, OD_MEMORY,"*",0L, NULL, NULLHANDLE);
+        if (dc > 0) {
+            // we do have a DC and we can query the DPI setting from it
+            LONG lDPI;
+            if (DevQueryCaps(dc, CAPS_VERTICAL_FONT_RES, 1, &lDPI))
+                sDPI = lDPI;
+            DevCloseDC(dc);
+        }
+        if (sDPI <= 0) {
+            // Fall back to something sane
+            sDPI = 96;
+        }
+    }
+    return sDPI;  
+}
+
 //-----------------------------------------------------------------------------
 
 NS_METHOD nsWindow::Enable(PRBool aState)
@@ -672,29 +722,6 @@ gfxASurface* nsWindow::ConfirmThebesSurface()
     mThebesSurface = new gfxOS2Surface(mWnd);
   }
   return mThebesSurface;
-}
-
-//-----------------------------------------------------------------------------
-
-float nsWindow::GetDPI()
-{
-  static PRInt32 sDPI = 0;
-
-  // Create DC compatible with the screen, then query the DPI setting.
-  // If this fails, fall back to something sensible.
-  if (!sDPI) {
-    HDC dc = DevOpenDC(0, OD_MEMORY,"*",0L, 0, 0);
-    if (dc > 0) {
-      LONG lDPI;
-      if (DevQueryCaps(dc, CAPS_VERTICAL_FONT_RES, 1, &lDPI))
-        sDPI = lDPI;
-      DevCloseDC(dc);
-    }
-    if (sDPI <= 0) {
-      sDPI = 96;
-    }
-  }
-  return sDPI;  
 }
 
 //-----------------------------------------------------------------------------
@@ -1015,7 +1042,7 @@ void nsWindow::SetPluginClipRegion(const Configuration& aConfiguration)
 
   // If nothing has changed, exit.
   if (!StoreWindowClipRegion(aConfiguration.mClipRegion) &&
-      mBounds.IsEqualInterior(aConfiguration.mBounds)) {
+      mBounds == aConfiguration.mBounds) {
     return;
   }
 
@@ -1749,12 +1776,7 @@ MRESULT nsWindow::ProcessMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
 
     case WM_BUTTON1DOWN:
       WinSetCapture(HWND_DESKTOP, mWnd);
-      isDone = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2);
-      // If this msg is forwarded to a popup's owner, Moz will cause the
-      // popup to be rolled-up in error when the owner processes the msg.
-      if (mWindowType == eWindowType_popup) {
-        isDone = PR_TRUE;
-      }
+      DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2);
       // there's no need to clear this on button-up
       sLastButton1Down.x = XFROMMP(mp1);
       sLastButton1Down.y = YFROMMP(mp1);
@@ -2049,6 +2071,7 @@ do {
   nsPaintEvent event(PR_TRUE, NS_PAINT, this);
   InitEvent(event);
   nsRefPtr<gfxContext> thebesContext = new gfxContext(mThebesSurface);
+  thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
   // Intersect the update region with the paint rectangle to clip areas
   // that aren't visible (e.g. offscreen or covered by another window).
@@ -2774,14 +2797,6 @@ NS_IMETHODIMP nsWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 
 //-----------------------------------------------------------------------------
 
-NS_IMETHODIMP nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
-{
-  NS_PRECONDITION(aNewParent, "");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-//-----------------------------------------------------------------------------
-
 PRBool nsWindow::DispatchWindowEvent(nsGUIEvent* event)
 {
   nsEventStatus status;
@@ -2889,7 +2904,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
     // (i.e. frame, titlebar, etc.), mark this as a toplevel exit.
     // Note: exits to and from menus will also be marked toplevel.
     if (aEventType == NS_MOUSE_EXIT) {
-      HWND  hTop = 0;
+      HWND  hTop;
       HWND  hCur = mWnd;
       HWND  hDesk = WinQueryDesktopWindow(0, 0);
       while (hCur && hCur != hDesk) {

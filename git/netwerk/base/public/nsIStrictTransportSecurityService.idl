@@ -38,7 +38,6 @@
 #include "nsISupports.idl"
 
 interface nsIURI;
-interface nsIObserver;
 interface nsIHttpChannel;
 
 [scriptable, uuid(16955eee-6c48-4152-9309-c42a465138a1)]

@@ -45,13 +45,15 @@
 
 #include "nsContainerFrame.h"
 #include "nsGkAtoms.h"
+#include "nsAbsoluteContainingBlock.h"
 
 class nsPresContext;
 
 /**
   * ViewportFrame is the parent of a single child - the doc root frame or a scroll frame 
   * containing the doc root frame. ViewportFrame stores this child in its primary child 
-  * list.
+  * list. It stores fixed positioned items in a secondary child list and its mFixedContainer 
+  * delegate handles them. 
   */
 class ViewportFrame : public nsContainerFrame {
 public:
@@ -61,6 +63,7 @@ public:
 
   ViewportFrame(nsStyleContext* aContext)
     : nsContainerFrame(aContext)
+    , mFixedContainer(nsGkAtoms::fixedList)
   {}
   virtual ~ViewportFrame() { } // useful for debugging
 
@@ -83,12 +86,16 @@ public:
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
+
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -111,11 +118,13 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-private:
-  virtual nsIAtom* GetAbsoluteListName() const { return nsGkAtoms::fixedList; }
-
 protected:
   nsPoint AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) const;
+
+protected:
+  // position: fixed content is really content which is absolutely positioned with
+  // respect to the viewport.
+  nsAbsoluteContainingBlock mFixedContainer;
 };
 
 

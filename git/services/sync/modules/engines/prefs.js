@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Anant Narayanan <anant@kix.in>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,33 +34,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['PrefsEngine', 'PrefRec'];
+const EXPORTED_SYMBOLS = ['PrefsEngine'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 const WEAVE_SYNC_PREFS = "services.sync.prefs.sync.";
+const WEAVE_PREFS_GUID = "preferences";
 
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/stores.js");
+Cu.import("resource://services-sync/trackers.js");
+Cu.import("resource://services-sync/type_records/prefs.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/ext/Preferences.js");
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-
-const PREFS_GUID = Utils.encodeBase64url(Services.appinfo.ID);
-
-function PrefRec(collection, id) {
-  CryptoWrapper.call(this, collection, id);
-}
-PrefRec.prototype = {
-  __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Pref",
-};
-
-Utils.deferGetSet(PrefRec, "cleartext", ["value"]);
-
 
 function PrefsEngine() {
   SyncEngine.call(this, "Prefs");
@@ -71,15 +57,6 @@ PrefsEngine.prototype = {
   _storeObj: PrefStore,
   _trackerObj: PrefTracker,
   _recordObj: PrefRec,
-  version: 2,
-
-  getChangedIDs: function getChangedIDs() {
-    // No need for a proper timestamp (no conflict resolution needed).
-    let changedIDs = {};
-    if (this._tracker.modified)
-      changedIDs[PREFS_GUID] = 0;
-    return changedIDs;
-  },
 
   _wipeClient: function _wipeClient() {
     SyncEngine.prototype._wipeClient.call(this);
@@ -101,6 +78,7 @@ function PrefStore(name) {
   Store.call(this, name);
   Svc.Obs.add("profile-before-change", function() {
     this.__prefs = null;
+    this.__syncPrefs = null;
   }, this);
 }
 PrefStore.prototype = {
@@ -109,72 +87,107 @@ PrefStore.prototype = {
  __prefs: null,
   get _prefs() {
     if (!this.__prefs)
-      this.__prefs = new Preferences();
+      this.__prefs = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch2);
     return this.__prefs;
   },
 
-  _getSyncPrefs: function _getSyncPrefs() {
-    let syncPrefs = Cc["@mozilla.org/preferences-service;1"]
-                      .getService(Ci.nsIPrefService)
-                      .getBranch(WEAVE_SYNC_PREFS)
-                      .getChildList("", {});
-    // Also sync preferences that determine which prefs get synced.
-    return syncPrefs.concat(
-      syncPrefs.map(function (pref) { return WEAVE_SYNC_PREFS + pref; }));
+  __syncPrefs: null,
+  get _syncPrefs() {
+    if (!this.__syncPrefs)
+      this.__syncPrefs = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefService).
+                         getBranch(WEAVE_SYNC_PREFS).
+                         getChildList("", {});
+    return this.__syncPrefs;
   },
 
-  _isSynced: function _isSyncedPref(pref) {
-    return (pref.indexOf(WEAVE_SYNC_PREFS) == 0)
-            || this._prefs.get(WEAVE_SYNC_PREFS + pref, false);
-  },
+  _getAllPrefs: function PrefStore__getAllPrefs() {
+    let values = [];
+    let toSync = this._syncPrefs;
 
-  _getAllPrefs: function () {
-    let values = {};
-    for each (let pref in this._getSyncPrefs()) {
-      if (this._isSynced(pref)) {
-        // Missing prefs get the null value.
-        values[pref] = this._prefs.get(pref, null);
+    let pref;
+    for (let i = 0; i < toSync.length; i++) {
+      if (!this._prefs.getBoolPref(WEAVE_SYNC_PREFS + toSync[i]))
+        continue;
+
+      pref = {};
+      pref["name"] = toSync[i];
+
+      switch (this._prefs.getPrefType(toSync[i])) {
+        case Ci.nsIPrefBranch.PREF_INT:
+          pref["type"] = "int";
+          pref["value"] = this._prefs.getIntPref(toSync[i]);
+          break;
+        case Ci.nsIPrefBranch.PREF_STRING:
+          pref["type"] = "string";
+          pref["value"] = this._prefs.getCharPref(toSync[i]);
+          break;
+        case Ci.nsIPrefBranch.PREF_BOOL:
+          pref["type"] = "boolean";
+          pref["value"] = this._prefs.getBoolPref(toSync[i]);
+          break;
+        default:
+          this._log.trace("Unsupported pref type for " + toSync[i]);
       }
+      if ("value" in pref)
+        values[values.length] = pref;
     }
+
     return values;
   },
 
   _setAllPrefs: function PrefStore__setAllPrefs(values) {
-    let enabledPref = "lightweightThemes.isThemeSelected";
-    let enabledBefore = this._prefs.get(enabledPref, false);
-    let prevTheme = LightweightThemeManager.currentTheme;
+    // cache 
+    let ltmExists = true;
+    let ltm = {};
+    let enabledBefore = false;
+    let prevTheme = "";
+    try {
+      Cu.import("resource://gre/modules/LightweightThemeManager.jsm", ltm);
+      ltm = ltm.LightweightThemeManager;
 
-    for (let [pref, value] in Iterator(values)) {
-      if (!this._isSynced(pref))
-        continue;
-
-      // Pref has gone missing, best we can do is reset it.
-      if (value == null) {
-        this._prefs.reset(pref);
-        continue;
+      let enabledPref = "lightweightThemes.isThemeSelected";
+      if (this._prefs.getPrefType(enabledPref) == this._prefs.PREF_BOOL) {
+        enabledBefore = this._prefs.getBoolPref(enabledPref);
+        prevTheme = ltm.currentTheme;
       }
-
-      try {
-        this._prefs.set(pref, value);
-      } catch(ex) {
-        this._log.trace("Failed to set pref: " + pref + ": " + ex);
-      } 
+    } catch(ex) {
+      ltmExists = false;
+    } // LightweightThemeManager only exists in Firefox 3.6+
+    
+    for (let i = 0; i < values.length; i++) {
+      switch (values[i]["type"]) {
+        case "int":
+          this._prefs.setIntPref(values[i]["name"], values[i]["value"]);
+          break;
+        case "string":
+          this._prefs.setCharPref(values[i]["name"], values[i]["value"]);
+          break;
+        case "boolean":
+          this._prefs.setBoolPref(values[i]["name"], values[i]["value"]);
+          break;
+        default:
+          this._log.trace("Unexpected preference type: " + values[i]["type"]);
+      }
     }
 
     // Notify the lightweight theme manager of all the new values
-    let enabledNow = this._prefs.get(enabledPref, false);
-    if (enabledBefore && !enabledNow) {
-      LightweightThemeManager.currentTheme = null;
-    } else if (enabledNow && LightweightThemeManager.usedThemes[0] != prevTheme) {
-      LightweightThemeManager.currentTheme = null;
-      LightweightThemeManager.currentTheme = LightweightThemeManager.usedThemes[0];
+    if (ltmExists) {
+      let enabledNow = this._prefs.getBoolPref("lightweightThemes.isThemeSelected");    
+      if (enabledBefore && !enabledNow)
+        ltm.currentTheme = null;
+      else if (enabledNow && ltm.usedThemes[0] != prevTheme) {
+        ltm.currentTheme = null;
+        ltm.currentTheme = ltm.usedThemes[0];
+      }
     }
   },
 
   getAllIDs: function PrefStore_getAllIDs() {
     /* We store all prefs in just one WBO, with just one GUID */
     let allprefs = {};
-    allprefs[PREFS_GUID] = true;
+    allprefs[WEAVE_PREFS_GUID] = this._getAllPrefs();
     return allprefs;
   },
 
@@ -183,13 +196,13 @@ PrefStore.prototype = {
   },
 
   itemExists: function FormStore_itemExists(id) {
-    return (id === PREFS_GUID);
+    return (id === WEAVE_PREFS_GUID);
   },
 
-  createRecord: function createRecord(id, collection) {
-    let record = new PrefRec(collection, id);
+  createRecord: function createRecord(guid) {
+    let record = new PrefRec();
 
-    if (id == PREFS_GUID) {
+    if (guid == WEAVE_PREFS_GUID) {
       record.value = this._getAllPrefs();
     } else {
       record.deleted = true;
@@ -207,10 +220,6 @@ PrefStore.prototype = {
   },
 
   update: function PrefStore_update(record) {
-    // Silently ignore pref updates that are for other apps.
-    if (record.id != PREFS_GUID)
-      return;
-
     this._log.trace("Received pref updates, applying...");
     this._setAllPrefs(record.value);
   },
@@ -229,26 +238,22 @@ function PrefTracker(name) {
 PrefTracker.prototype = {
   __proto__: Tracker.prototype,
 
-  get modified() {
-    return Svc.Prefs.get("engine.prefs.modified", false);
-  },
-  set modified(value) {
-    Svc.Prefs.set("engine.prefs.modified", value);
-  },
-
-  loadChangedIDs: function loadChangedIDs() {
-    // Don't read changed IDs from disk at start up.
-  },
-
-  clearChangedIDs: function clearChangedIDs() {
-    this.modified = false;
-  },
-
  __prefs: null,
   get _prefs() {
     if (!this.__prefs)
-      this.__prefs = new Preferences();
+      this.__prefs = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch2);
     return this.__prefs;
+  },
+
+  __syncPrefs: null,
+  get _syncPrefs() {
+    if (!this.__syncPrefs)
+      this.__syncPrefs = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefService).
+                         getBranch(WEAVE_SYNC_PREFS).
+                         getChildList("", {});
+    return this.__syncPrefs;
   },
 
   _enabled: false,
@@ -256,27 +261,26 @@ PrefTracker.prototype = {
     switch (aTopic) {
       case "weave:engine:start-tracking":
         if (!this._enabled) {
-          Cc["@mozilla.org/preferences-service;1"]
-            .getService(Ci.nsIPrefBranch2).addObserver("", this, false);
+          this._prefs.addObserver("", this, false);
           this._enabled = true;
         }
         break;
       case "weave:engine:stop-tracking":
-        if (this._enabled)
+        if (this._enabled) {
+          this._prefs.removeObserver("", this);
           this._enabled = false;
+        }
         // Fall through to clean up.
       case "profile-before-change":
         this.__prefs = null;
-        Cc["@mozilla.org/preferences-service;1"]
-          .getService(Ci.nsIPrefBranch2).removeObserver("", this);
+        this.__syncPrefs = null;
+        this._prefs.removeObserver("", this);
         break;
       case "nsPref:changed":
-        // Trigger a sync for MULTI-DEVICE for a change that determines
-        // which prefs are synced or a regular pref change.
-        if (aData.indexOf(WEAVE_SYNC_PREFS) == 0 || 
-            this._prefs.get(WEAVE_SYNC_PREFS + aData, false)) {
-          this.score += SCORE_INCREMENT_XLARGE;
-          this.modified = true;
+        // 25 points per pref change
+        if (this._syncPrefs.indexOf(aData) != -1) {
+          this.score += 1;
+          this.addChangedID(WEAVE_PREFS_GUID);
           this._log.trace("Preference " + aData + " changed");
         }
         break;

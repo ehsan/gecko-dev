@@ -47,8 +47,8 @@
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE },
-  { &nsGkAtoms::target, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink },
+  { &nsGkAtoms::target, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(A)
@@ -63,12 +63,11 @@ NS_IMPL_RELEASE_INHERITED(nsSVGAElement, nsSVGAElementBase)
 DOMCI_NODE_DATA(SVGAElement, nsSVGAElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
-  NS_NODE_INTERFACE_TABLE7(nsSVGAElement,
+  NS_NODE_INTERFACE_TABLE6(nsSVGAElement,
                            nsIDOMNode,
                            nsIDOMElement,
                            nsIDOMSVGElement,
                            nsIDOMSVGAElement,
-                           nsIDOMSVGURIReference,
                            nsILink,
                            Link)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAElement)
@@ -79,8 +78,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAElementBase)
 // Implementation
 
 nsSVGAElement::nsSVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsSVGAElementBase(aNodeInfo),
-    Link(this)
+  : nsSVGAElementBase(aNodeInfo)
 {
 }
 
@@ -159,12 +157,6 @@ nsLinkState
 nsSVGAElement::GetLinkState() const
 {
   return Link::GetLinkState();
-}
-
-void
-nsSVGAElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
 }
 
 already_AddRefed<nsIURI>
@@ -284,7 +276,7 @@ nsSVGAElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
-nsEventStates
+PRInt32
 nsSVGAElement::IntrinsicState() const
 {
   return Link::LinkState() | nsSVGAElementBase::IntrinsicState();

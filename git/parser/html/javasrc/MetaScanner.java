@@ -25,8 +25,7 @@ package nu.validator.htmlparser.impl;
 
 import java.io.IOException;
 
-import nu.validator.htmlparser.annotation.Auto;
-import nu.validator.htmlparser.annotation.Inline;
+import nu.validator.htmlparser.annotation.NoLength;
 import nu.validator.htmlparser.common.ByteReadable;
 
 import org.xml.sax.SAXException;
@@ -36,22 +35,12 @@ public abstract class MetaScanner {
     /**
      * Constant for "charset".
      */
-    private static final char[] CHARSET = "harset".toCharArray();
+    private static final @NoLength char[] CHARSET = "charset".toCharArray();
     
     /**
      * Constant for "content".
      */
-    private static final char[] CONTENT = "ontent".toCharArray();
-
-    /**
-     * Constant for "http-equiv".
-     */
-    private static final char[] HTTP_EQUIV = "ttp-equiv".toCharArray();
-
-    /**
-     * Constant for "content-type".
-     */
-    private static final char[] CONTENT_TYPE = "content-type".toCharArray();
+    private static final @NoLength char[] CONTENT = "content".toCharArray();
 
     private static final int NO = 0;
 
@@ -103,12 +92,6 @@ public abstract class MetaScanner {
     
     private static final int SELF_CLOSING_START_TAG = 20;
     
-    private static final int HTTP_EQUIV_NOT_SEEN = 0;
-    
-    private static final int HTTP_EQUIV_CONTENT_TYPE = 1;
-
-    private static final int HTTP_EQUIV_OTHER = 2;
-
     /**
      * The data source.
      */
@@ -122,22 +105,12 @@ public abstract class MetaScanner {
     /**
      * The current position in recognizing the attribute name "content".
      */
-    private int contentIndex = Integer.MAX_VALUE;
+    private int contentIndex = -1;
     
     /**
      * The current position in recognizing the attribute name "charset".
      */
-    private int charsetIndex = Integer.MAX_VALUE;
-
-    /**
-     * The current position in recognizing the attribute name "http-equive".
-     */
-    private int httpEquivIndex = Integer.MAX_VALUE;
-
-    /**
-     * The current position in recognizing the attribute value "content-type".
-     */
-    private int contentTypeIndex = Integer.MAX_VALUE;
+    private int charsetIndex = -1;
 
     /**
      * The tokenizer state.
@@ -152,35 +125,25 @@ public abstract class MetaScanner {
     /**
      * Accumulation buffer for attribute values.
      */
-    private @Auto char[] strBuf;
+    private char[] strBuf;
     
-    private String content;
+    // [NOCPP[
     
-    private String charset;
-    
-    private int httpEquivState;
-    
+    /**
+     * @param source
+     * @param errorHandler
+     * @param publicId
+     * @param systemId
+     */
     public MetaScanner() {
         this.readable = null;
         this.metaState = NO;
-        this.contentIndex = Integer.MAX_VALUE;
-        this.charsetIndex = Integer.MAX_VALUE;
-        this.httpEquivIndex = Integer.MAX_VALUE;
-        this.contentTypeIndex = Integer.MAX_VALUE;
+        this.contentIndex = -1;
+        this.charsetIndex = -1;
         this.stateSave = DATA;
-        this.strBufLen = 0;
-        this.strBuf = new char[36];
-        this.content = null;
-        this.charset = null;
-        this.httpEquivState = HTTP_EQUIV_NOT_SEEN;
+        strBufLen = 0;
+        strBuf = new char[36];
     }
-    
-    @SuppressWarnings("unused") private void destructor() {
-        Portability.releaseString(content);
-        Portability.releaseString(charset);
-    }
-
-    // [NOCPP[
     
     /**
      * Reads a byte from the data source.
@@ -331,32 +294,17 @@ public abstract class MetaScanner {
                                 state = MetaScanner.SELF_CLOSING_START_TAG;
                                 continue stateloop;
                             case '>':
-                                if (handleTag()) {
-                                    break stateloop;
-                                }
                                 state = DATA;
                                 continue stateloop;
                             case 'c':
                             case 'C':
                                 contentIndex = 0;
                                 charsetIndex = 0;
-                                httpEquivIndex = Integer.MAX_VALUE;
-                                contentTypeIndex = Integer.MAX_VALUE;
-                                state = MetaScanner.ATTRIBUTE_NAME;
-                                break beforeattributenameloop;                                
-                            case 'h':
-                            case 'H':
-                                contentIndex = Integer.MAX_VALUE;
-                                charsetIndex = Integer.MAX_VALUE;
-                                httpEquivIndex = 0;
-                                contentTypeIndex = Integer.MAX_VALUE;
                                 state = MetaScanner.ATTRIBUTE_NAME;
                                 break beforeattributenameloop;                                
                             default:
-                                contentIndex = Integer.MAX_VALUE;
-                                charsetIndex = Integer.MAX_VALUE;
-                                httpEquivIndex = Integer.MAX_VALUE;
-                                contentTypeIndex = Integer.MAX_VALUE;
+                                contentIndex = -1;
+                                charsetIndex = -1;
                                 state = MetaScanner.ATTRIBUTE_NAME;
                                 break beforeattributenameloop;
                             // continue stateloop;
@@ -380,14 +328,10 @@ public abstract class MetaScanner {
                                 continue stateloop;
                             case '=':
                                 strBufLen = 0;
-                                contentTypeIndex = 0;
                                 state = MetaScanner.BEFORE_ATTRIBUTE_VALUE;
                                 break attributenameloop;
                             // continue stateloop;
                             case '>':
-                                if (handleTag()) {
-                                    break stateloop;
-                                }
                                 state = MetaScanner.DATA;
                                 continue stateloop;
                             default:
@@ -395,21 +339,20 @@ public abstract class MetaScanner {
                                     if (c >= 'A' && c <= 'Z') {
                                         c += 0x20;
                                     }
-                                    if (contentIndex < CONTENT.length && c == CONTENT[contentIndex]) {
-                                        ++contentIndex;
-                                    } else {
-                                        contentIndex = Integer.MAX_VALUE;
+                                    if (contentIndex == 6) {
+                                        contentIndex = -1;
+                                    } else if (contentIndex > -1
+                                            && contentIndex < 6
+                                            && (c == CONTENT[contentIndex + 1])) {
+                                        contentIndex++;
                                     }
-                                    if (charsetIndex < CHARSET.length && c == CHARSET[charsetIndex]) {
-                                        ++charsetIndex;
-                                    } else {
-                                        charsetIndex = Integer.MAX_VALUE;
+                                    if (charsetIndex == 6) {
+                                        charsetIndex = -1;
+                                    } else if (charsetIndex > -1
+                                            && charsetIndex < 6
+                                            && (c == CHARSET[charsetIndex + 1])) {
+                                        charsetIndex++;
                                     }
-                                    if (httpEquivIndex < HTTP_EQUIV.length && c == HTTP_EQUIV[httpEquivIndex]) {
-                                        ++httpEquivIndex;
-                                    } else {
-                                        httpEquivIndex = Integer.MAX_VALUE;
-                                    }                                    
                                 }
                                 continue;
                         }
@@ -434,13 +377,12 @@ public abstract class MetaScanner {
                                 state = MetaScanner.ATTRIBUTE_VALUE_SINGLE_QUOTED;
                                 continue stateloop;
                             case '>':
-                                if (handleTag()) {
-                                    break stateloop;
-                                }
                                 state = MetaScanner.DATA;
                                 continue stateloop;
                             default:
-                                handleCharInAttributeValue(c);
+                                if (charsetIndex == 6 || contentIndex == 6) {
+                                    addToBuffer(c);
+                                }
                                 state = MetaScanner.ATTRIBUTE_VALUE_UNQUOTED;
                                 continue stateloop;
                         }
@@ -457,12 +399,16 @@ public abstract class MetaScanner {
                             case -1:
                                 break stateloop;
                             case '"':
-                                handleAttributeValue();
+                                if (tryCharset()) {
+                                    break stateloop;
+                                }
                                 state = MetaScanner.AFTER_ATTRIBUTE_VALUE_QUOTED;
                                 break attributevaluedoublequotedloop;
                             // continue stateloop;
                             default:
-                                handleCharInAttributeValue(c);
+                                if (metaState == A && (contentIndex == 6 || charsetIndex == 6)) {
+                                    addToBuffer(c);
+                                }
                                 continue;
                         }
                     }
@@ -484,9 +430,6 @@ public abstract class MetaScanner {
                                 break afterattributevaluequotedloop;
                             // continue stateloop;
                             case '>':
-                                if (handleTag()) {
-                                    break stateloop;
-                                }
                                 state = MetaScanner.DATA;
                                 continue stateloop;
                             default:
@@ -502,9 +445,6 @@ public abstract class MetaScanner {
                         case -1:
                             break stateloop;
                         case '>':
-                            if (handleTag()) {
-                                break stateloop;
-                            }
                             state = MetaScanner.DATA;
                             continue stateloop;
                         default:
@@ -528,18 +468,21 @@ public abstract class MetaScanner {
                             case '\n':
 
                             case '\u000C':
-                                handleAttributeValue();
+                                if (tryCharset()) {
+                                    break stateloop;
+                                }
                                 state = MetaScanner.BEFORE_ATTRIBUTE_NAME;
                                 continue stateloop;
                             case '>':
-                                handleAttributeValue();
-                                if (handleTag()) {
+                                if (tryCharset()) {
                                     break stateloop;
                                 }
                                 state = MetaScanner.DATA;
                                 continue stateloop;
                             default:
-                                handleCharInAttributeValue(c);
+                                if (metaState == A && (contentIndex == 6 || charsetIndex == 6)) {
+                                    addToBuffer(c);
+                                }
                                 continue;
                         }
                     }
@@ -556,17 +499,16 @@ public abstract class MetaScanner {
                             case '\u000C':
                                 continue;
                             case '/':
-                                handleAttributeValue();
+                                if (tryCharset()) {
+                                    break stateloop;
+                                }
                                 state = MetaScanner.SELF_CLOSING_START_TAG;
                                 continue stateloop;
                             case '=':
-                                strBufLen = 0;
-                                contentTypeIndex = 0;
                                 state = MetaScanner.BEFORE_ATTRIBUTE_VALUE;
                                 continue stateloop;
                             case '>':
-                                handleAttributeValue();
-                                if (handleTag()) {
+                                if (tryCharset()) {
                                     break stateloop;
                                 }
                                 state = MetaScanner.DATA;
@@ -713,11 +655,15 @@ public abstract class MetaScanner {
                             case -1:
                                 break stateloop;
                             case '\'':
-                                handleAttributeValue();
+                                if (tryCharset()) {
+                                    break stateloop;
+                                }
                                 state = MetaScanner.AFTER_ATTRIBUTE_VALUE_QUOTED;
                                 continue stateloop;
                             default:
-                                handleCharInAttributeValue(c);
+                                if (metaState == A && (contentIndex == 6 || charsetIndex == 6)) {
+                                    addToBuffer(c);
+                                }
                                 continue;
                         }
                     }
@@ -744,27 +690,6 @@ public abstract class MetaScanner {
         stateSave  = state;
     }
 
-    private void handleCharInAttributeValue(int c) {
-        if (metaState == A) {
-            if (contentIndex == CONTENT.length || charsetIndex == CHARSET.length) {
-                addToBuffer(c);
-            } else if (httpEquivIndex == HTTP_EQUIV.length) {
-                if (contentTypeIndex < CONTENT_TYPE.length && toAsciiLowerCase(c) == CONTENT_TYPE[contentTypeIndex]) {
-                    ++contentTypeIndex;
-                } else {
-                    contentTypeIndex = Integer.MAX_VALUE;
-                }
-            }
-        }
-    }
-
-    @Inline private int toAsciiLowerCase(int c) {
-        if (c >= 'A' && c <= 'Z') {
-            return c + 0x20;
-        }
-        return c;
-    }
-
     /**
      * Adds a character to the accumulation buffer.
      * @param c the character to add
@@ -773,6 +698,7 @@ public abstract class MetaScanner {
         if (strBufLen == strBuf.length) {
             char[] newBuf = new char[strBuf.length + (strBuf.length << 1)];
             System.arraycopy(strBuf, 0, newBuf, 0, strBuf.length);
+            Portability.releaseArray(strBuf);
             strBuf = newBuf;
         }
         strBuf[strBufLen++] = (char)c;
@@ -783,52 +709,28 @@ public abstract class MetaScanner {
      * @return <code>true</code> if successful
      * @throws SAXException
      */
-    private void handleAttributeValue() throws SAXException {
-        if (metaState != A) {
-            return;
+    private boolean tryCharset() throws SAXException {
+        if (metaState != A || !(contentIndex == 6 || charsetIndex == 6)) {
+            return false;
         }
-        if (contentIndex == CONTENT.length && content == null) {
-            content = Portability.newStringFromBuffer(strBuf, 0, strBufLen);
-            return;
+        String attVal = Portability.newStringFromBuffer(strBuf, 0, strBufLen);
+        String candidateEncoding;
+        if (contentIndex == 6) {
+            candidateEncoding = TreeBuilder.extractCharsetFromContent(attVal);
+            Portability.releaseString(attVal);
+        } else {
+            candidateEncoding = attVal;
         }
-        if (charsetIndex == CHARSET.length && charset == null) {
-            charset = Portability.newStringFromBuffer(strBuf, 0, strBufLen);            
-            return;
+        if (candidateEncoding == null) {
+            return false;
         }
-        if (httpEquivIndex == HTTP_EQUIV.length
-                && httpEquivState == HTTP_EQUIV_NOT_SEEN) {
-            httpEquivState = (contentTypeIndex == CONTENT_TYPE.length) ? HTTP_EQUIV_CONTENT_TYPE
-                    : HTTP_EQUIV_OTHER;
-            return;
-        }
-    }
-
-    private boolean handleTag() throws SAXException {
-        boolean stop = handleTagInner();
-        Portability.releaseString(content);
-        content = null;
-        Portability.releaseString(charset);
-        charset = null;
-        httpEquivState = HTTP_EQUIV_NOT_SEEN;
-        return stop;
+        boolean success = tryCharset(candidateEncoding);
+        Portability.releaseString(candidateEncoding);
+        contentIndex = -1;
+        charsetIndex = -1;
+        return success;
     }
     
-    private boolean handleTagInner() throws SAXException {
-        if (charset != null && tryCharset(charset)) {
-                return true;
-        }
-        if (content != null && httpEquivState == HTTP_EQUIV_CONTENT_TYPE) {
-            String extract = TreeBuilder.extractCharsetFromContent(content);
-            if (extract == null) {
-                return false;
-            }
-            boolean success = tryCharset(extract);
-            Portability.releaseString(extract);
-            return success;
-        }
-        return false;
-    }
-
     /**
      * Tries to switch to an encoding.
      * 
@@ -837,5 +739,6 @@ public abstract class MetaScanner {
      * @throws SAXException
      */
     protected abstract boolean tryCharset(String encoding) throws SAXException;
+
     
 }

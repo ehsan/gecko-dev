@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: set ts=2 sw=2 et tw=78:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -47,7 +48,7 @@
 #include "nsWeakPtr.h"
 #include "nsFrameSelection.h"
 
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsDisplayListBuilder;
 
 //-----------------------------------------------------------------------------
@@ -169,7 +170,7 @@ class nsCaret : public nsISelectionListener
      *  Actually paint the caret onto the given rendering context.
      */
     void      PaintCaret(nsDisplayListBuilder *aBuilder,
-                         nsRenderingContext *aCtx,
+                         nsIRenderingContext *aCtx,
                          nsIFrame *aForFrame,
                          const nsPoint &aOffset);
     /**
@@ -204,10 +205,6 @@ protected:
 
     void          StartBlinking();
     void          StopBlinking();
-
-    // If the nearest block has a potential 'text-overflow' marker then
-    // invalidate it.
-    void          InvalidateTextOverflowBlock();
     
     PRBool        DrawAtPositionWithHint(nsIDOMNode* aNode,
                                          PRInt32 aOffset,
@@ -220,10 +217,10 @@ protected:
       nscoord mCaretWidth;        // full caret width including bidi indicator
     };
     Metrics ComputeMetrics(nsIFrame* aFrame, PRInt32 aOffset, nscoord aCaretHeight);
-    nsresult GetGeometryForFrame(nsIFrame* aFrame,
-                                 PRInt32   aFrameOffset,
-                                 nsRect*   aRect,
-                                 nscoord*  aBidiIndicatorSize);
+    void GetGeometryForFrame(nsIFrame* aFrame,
+                             PRInt32   aFrameOffset,
+                             nsRect*   aRect,
+                             nscoord*  aBidiIndicatorSize);
 
     // Returns true if the caret should be drawn. When |mDrawn| is true,
     // this returns true, so that we erase the drawn caret. If |aIgnoreDrawnState|
@@ -296,10 +293,16 @@ protected:
                                               // actually drawn (anon <BR> in text control)
     PRInt32               mLastContentOffset; // the offset for the last request
 
-    nsFrameSelection::HINT mLastHint;        // the hint associated with the last request, see also
-                                              // mLastBidiLevel below
+    nsFrameSelection::HINT mLastHint;         // the hint associated with the last request, see also
+                                              // mLastBidiLevel above
+
+    nsWeakFrame           mLastFrame;         // the last frame on which the caret has been drawn.
+    PRInt32               mLastFrameOffset;   // the frame offset for the last caret position
 
 };
+
+nsresult
+NS_NewCaret(nsCaret** aInstancePtrResult);
 
 // handy stack-based class for temporarily disabling the caret
 

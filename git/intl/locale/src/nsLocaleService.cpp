@@ -35,13 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_QT
-#include <QString>
-#include <QtCore/QLocale>
-#endif
-
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 #include "nsILocale.h"
 #include "nsILocaleService.h"
 #include "nsLocale.h"
@@ -55,16 +49,20 @@
 #include <ctype.h>
 
 #if defined(XP_WIN)
-#  include "nsWin32Locale.h"
+#  include "nsIWin32Locale.h"
 #elif defined(XP_OS2)
 #  include "unidef.h"
 #  include "nsIOS2Locale.h"
 #elif defined(XP_MACOSX)
 #  include <Carbon/Carbon.h>
-#elif defined(XP_UNIX)
+#  include "nsIMacLocale.h"
+#elif defined(XP_UNIX) || defined(XP_BEOS)
 #  include <locale.h>
 #  include <stdlib.h>
-#  include "nsPosixLocale.h"
+#  include "nsIPosixLocale.h"
+#if (MOZ_PLATFORM_MAEMO >= 6)
+#  include "nsIGConfService.h"
+#endif
 #endif
 
 //
@@ -83,7 +81,7 @@ const char* LocaleList[LocaleListLength] =
 #define NSILOCALE_MAX_ACCEPT_LANGUAGE	16
 #define NSILOCALE_MAX_ACCEPT_LENGTH		18
 
-#if (defined(XP_UNIX) && !defined(XP_MACOSX)) || defined(XP_OS2)
+#if (defined(XP_UNIX) && !defined(XP_MACOSX)) || defined(XP_BEOS) || defined(XP_OS2)
 static int posix_locale_category[LocaleListLength] =
 {
   LC_COLLATE,
@@ -137,77 +135,107 @@ nsLocaleService::nsLocaleService(void)
     : mSystemLocale(0), mApplicationLocale(0)
 {
 #ifdef XP_WIN
+    nsCOMPtr<nsIWin32Locale> win32Converter = do_GetService(NS_WIN32LOCALE_CONTRACTID);
+
+    NS_ASSERTION(win32Converter, "nsLocaleService: can't get win32 converter\n");
+
     nsAutoString        xpLocale;
-    //
-    // get the system LCID
-    //
-    LCID win_lcid = GetSystemDefaultLCID();
-    NS_ENSURE_TRUE(win_lcid, );
-    nsWin32Locale::GetXPLocale(win_lcid, xpLocale);
-    nsresult rv = NewLocale(xpLocale, getter_AddRefs(mSystemLocale));
-    NS_ENSURE_SUCCESS(rv, );
+    if (win32Converter) {
+        
+        nsresult result;
+        //
+        // get the system LCID
+        //
+        LCID win_lcid = GetSystemDefaultLCID();
+        if (win_lcid==0) { return;}
+            result = win32Converter->GetXPLocale(win_lcid, xpLocale);
+        if (NS_FAILED(result)) { return;}
+            result = NewLocale(xpLocale, getter_AddRefs(mSystemLocale));
+        if (NS_FAILED(result)) { return;}
 
-    //
-    // get the application LCID
-    //
-    win_lcid = GetUserDefaultLCID();
-    NS_ENSURE_TRUE(win_lcid, );
-    nsWin32Locale::GetXPLocale(win_lcid, xpLocale);
-    rv = NewLocale(xpLocale, getter_AddRefs(mApplicationLocale));
-    NS_ENSURE_SUCCESS(rv, );
+        //
+        // get the application LCID
+        //
+        win_lcid = GetUserDefaultLCID();
+        if (win_lcid==0) { return;}
+            result = win32Converter->GetXPLocale(win_lcid, xpLocale);
+        if (NS_FAILED(result)) { return;}
+            result = NewLocale(xpLocale, getter_AddRefs(mApplicationLocale));
+        if (NS_FAILED(result)) { return;}
+    }
 #endif
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
-    nsRefPtr<nsLocale> resultLocale(new nsLocale());
-    NS_ENSURE_TRUE(resultLocale, );
-
-#ifdef MOZ_WIDGET_QT
-    const char* lang = QLocale::system().name().toAscii();
-#else
-    // Get system configuration
-    const char* lang = getenv("LANG");
-#endif
+#if (defined(XP_UNIX) && !defined(XP_MACOSX)) || defined(XP_BEOS)
+    nsCOMPtr<nsIPosixLocale> posixConverter = do_GetService(NS_POSIXLOCALE_CONTRACTID);
 
     nsAutoString xpLocale, platformLocale;
-    nsAutoString category, category_platform;
-    int i;
+    if (posixConverter) {
+        nsAutoString category, category_platform;
+        nsLocale* resultLocale;
+        int i;
 
-    for( i = 0; i < LocaleListLength; i++ ) {
-        nsresult result;
-        // setlocale( , "") evaluates LC_* and LANG
-        char* lc_temp = setlocale(posix_locale_category[i], "");
-        CopyASCIItoUTF16(LocaleList[i], category);
-        category_platform = category;
-        category_platform.AppendLiteral("##PLATFORM");
-        if (lc_temp != nsnull) {
-            result = nsPosixLocale::GetXPLocale(lc_temp, xpLocale);
-            CopyASCIItoUTF16(lc_temp, platformLocale);
-        } else {
-            if ( lang == nsnull ) {
-                platformLocale.AssignLiteral("en_US");
-                result = nsPosixLocale::GetXPLocale("en-US", xpLocale);
-            } else {
-                CopyASCIItoUTF16(lang, platformLocale);
-                result = nsPosixLocale::GetXPLocale(lang, xpLocale);
+        resultLocale = new nsLocale();
+        if ( resultLocale == NULL ) { 
+            return; 
+        }
+
+        // Get system configuration
+        const char* lang = getenv("LANG");
+#if (MOZ_PLATFORM_MAEMO >= 6)
+        nsCAutoString gconfLocaleString;
+        nsresult rv;
+        nsCOMPtr<nsIGConfService> gconf =
+            do_GetService(NS_GCONFSERVICE_CONTRACTID, &rv);
+        if (NS_SUCCEEDED(rv)) {
+            rv = gconf->GetString(NS_LITERAL_CSTRING("/meegotouch/i18n/language"),
+                                  gconfLocaleString);
+            if (NS_SUCCEEDED(rv) && !gconfLocaleString.IsEmpty()) {
+                lang = gconfLocaleString.get();
+                // For setlocale() doing the right thing we need to export
+                // this as LANG to the environment
+                setenv("LANG", lang, 1);
             }
         }
-        if (NS_FAILED(result)) {
-            return;
+#endif
+        for( i = 0; i < LocaleListLength; i++ ) {
+            nsresult result;
+            // setlocale( , "") evaluates LC_* and LANG
+            char* lc_temp = setlocale(posix_locale_category[i], "");
+            CopyASCIItoUTF16(LocaleList[i], category);
+            category_platform = category;
+            category_platform.AppendLiteral("##PLATFORM");
+            if (lc_temp != nsnull) {
+                result = posixConverter->GetXPLocale(lc_temp, xpLocale);
+                CopyASCIItoUTF16(lc_temp, platformLocale);
+            } else {
+                if ( lang == nsnull ) {
+                    platformLocale.AssignLiteral("en_US");
+                    result = posixConverter->GetXPLocale("en-US", xpLocale);
+                }
+                else {
+                    CopyASCIItoUTF16(lang, platformLocale);
+                    result = posixConverter->GetXPLocale(lang, xpLocale);
+                }
+            }
+            if (NS_FAILED(result)) {
+                return;
+            }
+            resultLocale->AddCategory(category, xpLocale);
+            resultLocale->AddCategory(category_platform, platformLocale);
         }
-        resultLocale->AddCategory(category, xpLocale);
-        resultLocale->AddCategory(category_platform, platformLocale);
-    }
-    mSystemLocale = do_QueryInterface(resultLocale);
-    mApplicationLocale = do_QueryInterface(resultLocale);
+        mSystemLocale = do_QueryInterface(resultLocale);
+        mApplicationLocale = do_QueryInterface(resultLocale);
+    }  // if ( NS_SUCCEEDED )...
        
-#endif // XP_UNIX
+#endif // XP_UNIX || XP_BEOS
 #ifdef XP_OS2
     nsCOMPtr<nsIOS2Locale> os2Converter = do_GetService(NS_OS2LOCALE_CONTRACTID);
     nsAutoString xpLocale;
     if (os2Converter) {
         nsAutoString category;
+        nsLocale* resultLocale;
         int i;
 
-        nsRefPtr<nsLocale> resultLocale(new nsLocale());
+        resultLocale = new nsLocale();
         if ( resultLocale == NULL ) { 
             return; 
         }
@@ -296,17 +324,17 @@ nsLocaleService::NewLocale(const nsAString &aLocale, nsILocale **_retval)
 
     *_retval = nsnull;
 
-    nsRefPtr<nsLocale> resultLocale(new nsLocale());
+    nsLocale* resultLocale = new nsLocale();
     if (!resultLocale) return NS_ERROR_OUT_OF_MEMORY;
 
     for (PRInt32 i = 0; i < LocaleListLength; i++) {
       nsString category; category.AssignWithConversion(LocaleList[i]);
       result = resultLocale->AddCategory(category, aLocale);
-      if (NS_FAILED(result)) return result;
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
+      if (NS_FAILED(result)) { delete resultLocale; return result;}
+#if (defined(XP_UNIX) && !defined(XP_MACOSX)) || defined(XP_BEOS)
       category.AppendLiteral("##PLATFORM");
       result = resultLocale->AddCategory(category, aLocale);
-      if (NS_FAILED(result)) return result;
+      if (NS_FAILED(result)) { delete resultLocale; return result;}
 #endif
     }
 

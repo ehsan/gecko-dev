@@ -193,6 +193,12 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
   NS_ASSERTION(mQuirkSheet, "Could not load quirk.css");
 }
 
+nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
+{
+  gCSSLoader = nsnull;
+  gStyleCache = nsnull;
+}
+
 void
 nsLayoutStylesheetCache::EnsureGlobal()
 {

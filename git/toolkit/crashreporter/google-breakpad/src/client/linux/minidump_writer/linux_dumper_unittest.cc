@@ -35,7 +35,7 @@
 #include "breakpad_googletest_includes.h"
 #include "client/linux/minidump_writer/linux_dumper.h"
 #include "common/linux/file_id.h"
-#include "common/memory.h"
+#include "common/linux/memory.h"
 
 using namespace google_breakpad;
 
@@ -222,7 +222,7 @@ TEST(LinuxDumperTest, FileIDsMatch) {
 
   uint8_t identifier1[sizeof(MDGUID)];
   uint8_t identifier2[sizeof(MDGUID)];
-  EXPECT_TRUE(dumper.ElfFileIdentifierForMapping(*mappings[i], identifier1));
+  EXPECT_TRUE(dumper.ElfFileIdentifierForMapping(i, identifier1));
   FileID fileid(exe_name);
   EXPECT_TRUE(fileid.ElfFileIdentifier(identifier2));
   char identifier_string1[37];

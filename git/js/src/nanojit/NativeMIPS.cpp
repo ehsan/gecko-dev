@@ -1148,7 +1148,7 @@ namespace nanojit
                 // [xor  $t,$rr,$t]     if (rr==ra)
                 // and   $at,$at,$t
                 // srl   $at,$at,31
-
+                
                 if (ra == rb) {
                     // special case for (ra == rb) which can't overflow
                     MOVE(AT, ZERO);
@@ -1618,7 +1618,7 @@ namespace nanojit
         return patch;
     }
 
-    Branches Assembler::asm_branch(bool branchOnFalse, LIns *cond, NIns * const targ)
+    NIns* Assembler::asm_branch(bool branchOnFalse, LIns *cond, NIns * const targ)
     {
         NanoAssert(cond->isCmp());
         LOpcode condop = cond->opcode();
@@ -1628,7 +1628,7 @@ namespace nanojit
         Register ra = findRegFor(a, allow);
         Register rb = (b==a) ? ra : findRegFor(b, allow & ~rmask(ra));
 
-        return Branches(asm_bxx(branchOnFalse, condop, ra, rb, targ));
+        return asm_bxx(branchOnFalse, condop, ra, rb, targ);
     }
 
     void Assembler::asm_j(NIns * const targ, bool bdelay)
@@ -1712,28 +1712,27 @@ namespace nanojit
     void
     Assembler::asm_call(LIns* ins)
     {
-        if (!ins->isop(LIR_callv)) {
-            Register rr;
-            LOpcode op = ins->opcode();
+        Register rr;
+        LOpcode op = ins->opcode();
 
-            switch (op) {
-            case LIR_calli:
-                rr = retRegs[0];
-                break;
-            case LIR_calld:
-                NanoAssert(cpu_has_fpu);
-                rr = FV0;
-                break;
-            default:
-                BADOPCODE(op);
-                return;
-            }
-
-            deprecated_prepResultReg(ins, rmask(rr));
+        switch (op) {
+        case LIR_calld:
+            NanoAssert(cpu_has_fpu);
+            rr = FV0;
+            break;
+        case LIR_calli:
+            rr = retRegs[0];
+            break;
+        default:
+            BADOPCODE(op);
+            return;
         }
+
+        deprecated_prepResultReg(ins, rmask(rr));
 
         // Do this after we've handled the call result, so we don't
         // force the call result to be spilled unnecessarily.
+
         evictScratchRegsExcept(0);
 
         const CallInfo* ci = ins->callInfo();
@@ -1908,7 +1907,7 @@ namespace nanojit
     }
 
     void
-    Assembler::nInit()
+    Assembler::nInit(AvmCore*)
     {
         nHints[LIR_calli]  = rmask(V0);
 #if NJ_SOFTFLOAT_SUPPORTED
@@ -2007,7 +2006,6 @@ namespace nanojit
          * j       $ra
          * addiu   $sp,FRAMESIZE
          */
-        underrunProtect(2*4);   // j $ra; addiu $sp,FRAMESIZE
         ADDIU(SP, SP, FRAMESIZE);
         JR(RA);
         LW(FP, FP_OFFSET, SP);
@@ -2063,12 +2061,6 @@ namespace nanojit
         SWAP(NIns*, codeEnd, exitEnd);
         verbose_only( SWAP(size_t, codeBytes, exitBytes); )
     }
-
-    void
-    Assembler::asm_insert_random_nop() {
-        NanoAssert(0); // not supported
-    }
-
 }
 
 #endif // FEATURE_NANOJIT && NANOJIT_MIPS

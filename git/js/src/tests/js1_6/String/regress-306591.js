@@ -60,16 +60,11 @@ actual = String.toUpperCase(new Boolean(true));
 reportCompare(expect, actual, summary +
               " String.toUpperCase(new Boolean(true))");
 
-try
-{
-  String.indexOf(null, 'l');
-  throw new Error("should have thrown a TypeError");
-}
-catch (e)
-{
-  assertEq(e instanceof TypeError, true,
-           "String.indexOf(null [, ...]) didn't work correctly");
-}
+// null means the global object is passed
+expect = (typeof window == 'undefined') ? 9 : -1;
+actual = String.indexOf(null, 'l');             
+reportCompare(expect, actual, summary +
+              " String.indexOf(null, 'l')");
 
 expect = 2;
 actual = String.indexOf(String(null), 'l');             
@@ -91,16 +86,11 @@ actual = String.toUpperCase(true);
 reportCompare(expect, actual, summary +
               " String.toUpperCase(true)");
 
-try
-{
-  String.indexOf(undefined, 'd');
-  throw new Error("should have thrown a TypeError");
-}
-catch (e)
-{
-  assertEq(e instanceof TypeError, true,
-           "String.indexOf(undefined [, ...]) didn't work correctly");
-}
+// null means the global object is passed
+expect = (typeof window == 'undefined') ? -1 : 11;
+actual = String.indexOf(undefined, 'd');
+reportCompare(expect, actual, summary +
+              " String.indexOf(undefined, 'd')");
 
 expect = 2;
 actual = String.indexOf(String(undefined), 'd');

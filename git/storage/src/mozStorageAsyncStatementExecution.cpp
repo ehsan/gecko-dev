@@ -16,7 +16,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Corporation. 
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -76,7 +76,6 @@ namespace storage {
 namespace {
 
 typedef AsyncExecuteStatements::ExecutionState ExecutionState;
-typedef AsyncExecuteStatements::StatementDataArray StatementDataArray;
 
 /**
  * Notifies a callback with a result set.
@@ -97,15 +96,8 @@ public:
   {
     NS_ASSERTION(mCallback, "Trying to notify about results without a callback!");
 
-    if (mEventStatus->shouldNotify()) {
-      // Hold a strong reference to the callback while notifying it, so that if
-      // it spins the event loop, the callback won't be released and freed out
-      // from under us.
-      nsCOMPtr<mozIStorageStatementCallback> callback =
-        do_QueryInterface(mCallback);
-
+    if (mEventStatus->shouldNotify())
       (void)mCallback->HandleResult(mResults);
-    }
 
     return NS_OK;
   }
@@ -133,15 +125,8 @@ public:
 
   NS_IMETHOD Run()
   {
-    if (mEventStatus->shouldNotify() && mCallback) {
-      // Hold a strong reference to the callback while notifying it, so that if
-      // it spins the event loop, the callback won't be released and freed out
-      // from under us.
-      nsCOMPtr<mozIStorageStatementCallback> callback =
-        do_QueryInterface(mCallback);
-
+    if (mEventStatus->shouldNotify() && mCallback)
       (void)mCallback->HandleError(mErrorObj);
-    }
 
     return NS_OK;
   }
@@ -153,24 +138,24 @@ private:
 };
 
 /**
- * Notifies the calling thread that the statement has finished executing.  Takes
- * ownership of the StatementData so it is released on the proper thread.
+ * Notifies the calling thread that the statement has finished executing.  Keeps
+ * the AsyncExecuteStatements instance alive long enough so that it does not
+ * get destroyed on the async thread if there are no other references alive.
  */
 class CompletionNotifier : public nsRunnable
 {
 public:
   /**
-   * This takes ownership of the callback and the StatementData.  They are
-   * released on the thread this is dispatched to (which should always be the
-   * calling thread).
+   * This takes ownership of the callback.  It is released on the thread this is
+   * dispatched to (which should always be the calling thread).
    */
   CompletionNotifier(mozIStorageStatementCallback *aCallback,
                      ExecutionState aReason,
-                     StatementDataArray &aStatementData)
-    : mCallback(aCallback)
+                     AsyncExecuteStatements *aKeepAsyncAlive)
+    : mKeepAsyncAlive(aKeepAsyncAlive)
+    , mCallback(aCallback)
     , mReason(aReason)
   {
-    mStatementData.SwapElements(aStatementData);
   }
 
   NS_IMETHOD Run()
@@ -180,16 +165,11 @@ public:
       NS_RELEASE(mCallback);
     }
 
-    // The async thread could still hold onto a reference to us, so we need to
-    // make sure we release our reference to the StatementData now in case our
-    // destructor happens in a different thread.
-    mStatementData.Clear();
-
     return NS_OK;
   }
 
 private:
-  StatementDataArray mStatementData;
+  nsRefPtr<AsyncExecuteStatements> mKeepAsyncAlive;
   mozIStorageStatementCallback *mCallback;
   ExecutionState mReason;
 };
@@ -468,9 +448,8 @@ AsyncExecuteStatements::notifyComplete()
   // Always generate a completion notification; it is what guarantees that our
   // destruction does not happen here on the async thread.
   nsRefPtr<CompletionNotifier> completionEvent =
-    new CompletionNotifier(mCallback, mState, mStatements);
-  NS_ASSERTION(mStatements.IsEmpty(),
-               "Should have given up ownership of mStatements!");
+    new CompletionNotifier(mCallback, mState, this);
+  NS_ENSURE_TRUE(completionEvent, NS_ERROR_OUT_OF_MEMORY);
 
   // We no longer own mCallback (the CompletionNotifier takes ownership).
   mCallback = nsnull;
@@ -534,21 +513,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(
   mozIStoragePendingStatement
 )
 
-bool
-AsyncExecuteStatements::statementsNeedTransaction()
-{
-  // If there is more than one write statement, run in a transaction.
-  // Additionally, if we have only one statement but it needs a transaction, due
-  // to multiple BindingParams, we will wrap it in one.
-  for (PRUint32 i = 0, transactionsCount = 0; i < mStatements.Length(); ++i) {
-    transactionsCount += mStatements[i].needsTransaction();
-    if (transactionsCount > 1) {
-      return true;
-    }
-  }
-  return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStoragePendingStatement
 
@@ -590,7 +554,13 @@ AsyncExecuteStatements::Run()
   if (mState == CANCELED)
     return notifyComplete();
 
-  if (statementsNeedTransaction()) {
+  // If there is more than one statement, run it in a transaction.  We assume
+  // that we have been given write statements since getting a batch of read
+  // statements doesn't make a whole lot of sense.
+  // Additionally, if we have only one statement and it needs a transaction, we
+  // will wrap it in one.
+  if (mStatements.Length() > 1 || mStatements[0].needsTransaction()) {
+    // We don't error if this failed because it's not terrible if it does.
     mTransactionManager = new mozStorageTransaction(mConnection, PR_FALSE,
                                                     mozIStorageConnection::TRANSACTION_IMMEDIATE);
   }

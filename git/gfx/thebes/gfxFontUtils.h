@@ -43,7 +43,6 @@
 #include "gfxTypes.h"
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "prcpucfg.h"
 
 #include "nsDataHashtable.h"
@@ -123,7 +122,7 @@ public:
         // first block, check bits
         if ((block = mBlocks[startBlock])) {
             start = aStart;
-            end = NS_MIN(aEnd, ((startBlock+1) << BLOCK_INDEX_SHIFT) - 1);
+            end = PR_MIN(aEnd, ((startBlock+1) << BLOCK_INDEX_SHIFT) - 1);
             for (i = start; i <= end; i++) {
                 if ((block->mBits[(i>>3) & (BLOCK_SIZE - 1)]) & (1 << (i & 0x7)))
                     return PR_TRUE;
@@ -211,7 +210,7 @@ public:
             }
 
             const PRUint32 start = aStart > blockFirstBit ? aStart - blockFirstBit : 0;
-            const PRUint32 end = NS_MIN<PRUint32>(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
+            const PRUint32 end = PR_MIN(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
 
             for (PRUint32 bit = start; bit <= end; ++bit) {
                 block->mBits[bit>>3] |= 1 << (bit & 0x7);
@@ -228,7 +227,10 @@ public:
         }
         Block *block = mBlocks[blockIndex];
         if (!block) {
-            return;
+            block = new Block;
+            if (NS_UNLIKELY(!block)) // OOM
+                return;
+            mBlocks[blockIndex] = block;
         }
         block->mBits[(aIndex>>3) & (BLOCK_SIZE - 1)] &= ~(1 << (aIndex & 0x7));
     }
@@ -246,16 +248,26 @@ public:
 
         for (PRUint32 i = startIndex; i <= endIndex; ++i) {
             const PRUint32 blockFirstBit = i * BLOCK_SIZE_BITS;
+            const PRUint32 blockLastBit = blockFirstBit + BLOCK_SIZE_BITS - 1;
 
             Block *block = mBlocks[i];
             if (!block) {
-                // any nonexistent block is implicitly all clear,
-                // so there's no need to even create it
-                continue;
+                PRBool fullBlock = PR_FALSE;
+                if (aStart <= blockFirstBit && aEnd >= blockLastBit)
+                    fullBlock = PR_TRUE;
+
+                block = new Block(fullBlock ? 0xFF : 0);
+
+                if (NS_UNLIKELY(!block)) // OOM
+                    return;
+                mBlocks[i] = block;
+
+                if (fullBlock)
+                    continue;
             }
 
             const PRUint32 start = aStart > blockFirstBit ? aStart - blockFirstBit : 0;
-            const PRUint32 end = NS_MIN<PRUint32>(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
+            const PRUint32 end = PR_MIN(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
 
             for (PRUint32 bit = start; bit <= end; ++bit) {
                 block->mBits[bit>>3] &= ~(1 << (bit & 0x7));
@@ -354,21 +366,6 @@ struct AutoSwap_PRUint24 {
 private:
     AutoSwap_PRUint24() { }
     PRUint8  value[3];
-};
-
-struct SFNTHeader {
-    AutoSwap_PRUint32    sfntVersion;            // Fixed, 0x00010000 for version 1.0.
-    AutoSwap_PRUint16    numTables;              // Number of tables.
-    AutoSwap_PRUint16    searchRange;            // (Maximum power of 2 <= numTables) x 16.
-    AutoSwap_PRUint16    entrySelector;          // Log2(maximum power of 2 <= numTables).
-    AutoSwap_PRUint16    rangeShift;             // NumTables x 16-searchRange.        
-};
-
-struct TableDirEntry {
-    AutoSwap_PRUint32    tag;                    // 4 -byte identifier.
-    AutoSwap_PRUint32    checkSum;               // CheckSum for this table.
-    AutoSwap_PRUint32    offset;                 // Offset from beginning of TrueType font file.
-    AutoSwap_PRUint32    length;                 // Length of this table.        
 };
 
 struct HeadTable {
@@ -692,12 +689,12 @@ public:
     // EOT header on output
     static nsresult
     MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
-                  FallibleTArray<PRUint8> *aHeader, FontDataOverlay *aOverlay);
+                  nsTArray<PRUint8> *aHeader, FontDataOverlay *aOverlay);
 
     // determine whether a font (which has already passed ValidateSFNTHeaders)
     // is CFF format rather than TrueType
     static PRBool
-    IsCffFont(const PRUint8* aFontData, PRBool& hasVertical);
+    IsCffFont(const PRUint8* aFontData);
 
 #endif
 
@@ -706,41 +703,25 @@ public:
     DetermineFontDataType(const PRUint8 *aFontData, PRUint32 aFontDataLength);
 
     // checks for valid SFNT table structure, returns true if valid
-    // does *not* guarantee that all font data is valid, though it does
-    // check that key tables such as 'name' are present and readable.
-    // XXX to be removed if/when we eliminate the option to disable OTS,
-    // which does more thorough validation.
+    // does *not* guarantee that all font data is valid
     static PRBool
     ValidateSFNTHeaders(const PRUint8 *aFontData, PRUint32 aFontDataLength);
     
-    // Read the fullname from the sfnt data (used to save the original name
-    // prior to renaming the font for installation).
-    // This is called with sfnt data that has already been validated,
-    // so it should always succeed in finding the name table.
-    static nsresult
-    GetFullNameFromSFNT(const PRUint8* aFontData, PRUint32 aLength,
-                        nsAString& aFullName);
-
-    // helper to get fullname from name table
-    static nsresult
-    GetFullNameFromTable(FallibleTArray<PRUint8>& aNameTable,
-                         nsAString& aFullName);
-
     // create a new name table and build a new font with that name table
     // appended on the end, returns true on success
     static nsresult
     RenameFont(const nsAString& aName, const PRUint8 *aFontData, 
-               PRUint32 aFontDataLength, FallibleTArray<PRUint8> *aNewFont);
+               PRUint32 aFontDataLength, nsTArray<PRUint8> *aNewFont);
     
     // read all names matching aNameID, returning in aNames array
     static nsresult
-    ReadNames(FallibleTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
+    ReadNames(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
               PRInt32 aPlatformID, nsTArray<nsString>& aNames);
       
     // reads English or first name matching aNameID, returning in aName
     // platform based on OS
     static nsresult
-    ReadCanonicalName(FallibleTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
+    ReadCanonicalName(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
                       nsString& aName);
       
     // convert a name from the raw name table data into an nsString,
@@ -819,7 +800,7 @@ public:
 
 protected:
     static nsresult
-    ReadNames(FallibleTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
+    ReadNames(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
               PRInt32 aLangID, PRInt32 aPlatformID, nsTArray<nsString>& aNames);
 
     // convert opentype name-table platform/encoding/language values to a charset name
@@ -900,7 +881,7 @@ public:
         InitLoader();
 
         // start timer
-        mTimer->InitWithFuncCallback(LoaderTimerCallback, this, timerInterval,
+        mTimer->InitWithFuncCallback(LoaderTimerCallback, this, aDelay, 
                                      nsITimer::TYPE_REPEATING_SLACK);
     }
 

@@ -76,16 +76,17 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGLengthList)
   NS_DECL_NSIDOMSVGLENGTHLIST
 
-  DOMSVGLengthList(DOMSVGAnimatedLengthList *aAList,
-                   const SVGLengthList &aInternalList)
+  DOMSVGLengthList(DOMSVGAnimatedLengthList *aAList)
     : mAList(aAList)
   {
-    // aInternalList must be passed in explicitly because we can't use
-    // InternalList() here. (Because it depends on IsAnimValList, which depends
-    // on this object having been assigned to aAList's mBaseVal or mAnimVal,
-    // which hasn't happend yet.)
-    
-    InternalListLengthWillChange(aInternalList.Length()); // Sync mItems
+    // We silently ignore SetLength OOM failure since being out of sync is safe
+    // so long as we have *fewer* items than our internal list.
+
+    mItems.SetLength(InternalList().Length());
+    for (PRUint32 i = 0; i < Length(); ++i) {
+      // null out all the pointers - items are created on-demand
+      mItems[i] = nsnull;
+    }
   }
 
   ~DOMSVGLengthList() {
@@ -109,8 +110,6 @@ public:
     return mItems.Length();
   }
 
-  nsIDOMSVGLength* GetItemWithoutAddRef(PRUint32 aIndex);
-
   /// Called to notify us to syncronize our length and detach excess items.
   void InternalListLengthWillChange(PRUint32 aNewLength);
 
@@ -130,15 +129,13 @@ private:
 
   /// Used to determine if this list is the baseVal or animVal list.
   PRBool IsAnimValList() const {
-    NS_ABORT_IF_FALSE(this == mAList->mBaseVal || this == mAList->mAnimVal,
-                      "Calling IsAnimValList() too early?!");
     return this == mAList->mAnimVal;
   }
 
   /**
    * Get a reference to this object's corresponding internal SVGLengthList.
    *
-   * To simplify the code we just have this one method for obtaining both
+   * To simplyfy the code we just have this one method for obtaining both
    * baseVal and animVal internal lists. This means that animVal lists don't
    * get const protection, but our setter methods guard against changing
    * animVal lists.
@@ -147,9 +144,6 @@ private:
 
   /// Creates a DOMSVGLength for aIndex, if it doesn't already exist.
   void EnsureItemAt(PRUint32 aIndex);
-
-  void MaybeInsertNullInAnimValListAt(PRUint32 aIndex);
-  void MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex);
 
   // Weak refs to our DOMSVGLength items. The items are friends and take care
   // of clearing our pointer to them when they die.

@@ -4,7 +4,7 @@
 <!-- Firefox tabbrowser -->
 <?xml-stylesheet href="chrome://browser/content/browser.css"
                  type="text/css"?>
-<!-- SeaMonkey tabbrowser -->
+<!-- Seamonkey tabbrowser -->
 <?xml-stylesheet href="chrome://navigator/content/navigator.css"
                  type="text/css"?>
 
@@ -26,13 +26,6 @@
 
     function is(aExpected, aActual, aMsg) {
       gOpenerWnd.SimpleTest.is(aExpected, aActual, aMsg);
-    }
-
-    function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
-                        aAbsentExtraState)
-    {
-      gOpenerWnd.testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
-                            aAbsentExtraState);
     }
 
     var invokerChecker = gOpenerWnd.invokerChecker;
@@ -98,9 +91,6 @@
         is(event.state, STATE_BUSY, "Wrong state of statechange event.");
         is(event.isEnabled(), aIsEnabled,
            "Wrong value of state of statechange event");
-
-        testStates(event.accessible, (aIsEnabled ? STATE_BUSY : 0), 0,
-                   (aIsEnabled ? 0 : STATE_BUSY), 0);
       }
     }
 
@@ -192,11 +182,11 @@
     /**
      * Load wrong URI what results in error page loading.
      */
-    function loadErrorPageInvoker(aURL, aURLDescr)
+    function loadErrorPageInvoker()
     {
       this.invoke = function loadErrorPageInvoker_invoke()
       {
-        gTabBrowser.loadURI(aURL);
+        gTabBrowser.loadURI("www.wronguri.wronguri");
       }
 
       this.eventSeq = [
@@ -209,7 +199,7 @@
 
       this.getID = function loadErrorPageInvoker_getID()
       {
-        return "load error page: '" + aURLDescr + "'";
+        return "load error page";
       }
     }
 
@@ -226,15 +216,11 @@
       gTabBrowser = document.getElementById("content");
 
       gQueue = new gOpenerWnd.eventQueue();
-      gQueue.push(new loadURIInvoker("about:"));
+      gQueue.push(new loadURIInvoker("about:robots"));
       gQueue.push(new clickReloadBtnInvoker());
       gQueue.push(new loadURIInvoker("about:mozilla"));
       gQueue.push(new reloadInvoker());
-      gQueue.push(new loadErrorPageInvoker("www.wronguri.wronguri",
-                                           "Server not found"));
-      gQueue.push(new loadErrorPageInvoker("https://nocert.example.com:443",
-                                          "Untrusted Connection"));
-
+      gQueue.push(new loadErrorPageInvoker());
       gQueue.onFinish = function() { window.close(); }
       gQueue.invoke();
     }

@@ -73,29 +73,31 @@ CPPSRCS	= \
 		nsDragService.cpp \
 		nsNativeThemeQt.cpp \
 		mozqwidget.cpp \
-		mozSwipeGesture.cpp \
 		nsSound.cpp \
 		nsFilePicker.cpp \
-		nsPrintOptionsQt.cpp \
-		nsPrintSettingsQt.cpp \
-		nsPrintDialogQt.cpp \
-		nsDeviceContextSpecQt.cpp \
 		$(NULL)
 
-ifdef MOZ_ENABLE_QTMOBILITY
-MOCSRCS += moc_mozqorientationsensorfilter.cpp
-CPPSRCS += mozqorientationsensorfilter.cpp
-endif
-
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a
+
+EXTRA_DSO_LDOPTS = \
+		$(MOZ_COMPONENT_LIBS) \
+		-lgkgfx \
+		-lthebes \
+		$(MOZ_JS_LIBS) \
+		$(MOZ_QT_LIBS) \
+		$(GLIB_LIBS) \
+		$(QCMS_LIBS) \
+		$(XEXT_LIBS) \
+		$(NULL)
+
+
+EXTRA_DSO_LDOPTS += -L$(DIST)/lib $(MOZ_XLIB_LDFLAGS) $(XLIBS)
 
 # If not primary toolkit, install in secondary path
 ifneq (qt,$(MOZ_WIDGET_TOOLKIT))
 INACTIVE_COMPONENT = 1
 endif
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS	+= $(MOZ_QT_CFLAGS) $(GLIB_CFLAGS) $(MOZ_CAIRO_CFLAGS)
@@ -124,5 +126,4 @@ LOCAL_INCLUDES	+= \
 		   $(NULL)
 ifdef MOZ_X11
 INCLUDES   	+= -I$(srcdir)/../shared/x11
-INCLUDES   	+= -I$(srcdir)/../shared
 endif

@@ -68,12 +68,6 @@ extern "C" {
 #define NESTEGG_CODEC_VP8    0 /**< Track uses Google On2 VP8 codec. */
 #define NESTEGG_CODEC_VORBIS 1 /**< Track uses Xiph Vorbis codec. */
 
-#define NESTEGG_VIDEO_MONO              0 /**< Track is mono video. */
-#define NESTEGG_VIDEO_STEREO_LEFT_RIGHT 1 /**< Track is side-by-side stereo video.  Left first. */
-#define NESTEGG_VIDEO_STEREO_BOTTOM_TOP 2 /**< Track is top-bottom stereo video.  Right first. */
-#define NESTEGG_VIDEO_STEREO_TOP_BOTTOM 3 /**< Track is top-bottom stereo video.  Left first. */
-#define NESTEGG_VIDEO_STEREO_RIGHT_LEFT 11 /**< Track is side-by-side stereo video.  Right first. */
-
 #define NESTEGG_SEEK_SET 0 /**< Seek offset relative to beginning of stream. */
 #define NESTEGG_SEEK_CUR 1 /**< Seek offset relative to current position in stream. */
 #define NESTEGG_SEEK_END 2 /**< Seek offset relative to end of stream. */
@@ -119,10 +113,6 @@ typedef struct {
 
 /** Parameters specific to a video track. */
 typedef struct {
-  unsigned int stereo_mode;    /**< Video mode.  One of #NESTEGG_VIDEO_MONO,
-                                    #NESTEGG_VIDEO_STEREO_LEFT_RIGHT,
-                                    #NESTEGG_VIDEO_STEREO_BOTTOM_TOP, or
-                                    #NESTEGG_VIDEO_STEREO_TOP_BOTTOM. */
   unsigned int width;          /**< Width of the video frame in pixels. */
   unsigned int height;         /**< Height of the video frame in pixels. */
   unsigned int display_width;  /**< Display width of the video frame in pixels. */
@@ -163,15 +153,6 @@ void nestegg_destroy(nestegg * context);
     @retval  0 Success.
     @retval -1 Error. */
 int nestegg_duration(nestegg * context, uint64_t * duration);
-
-/** Query the tstamp scale of the media stream in nanoseconds.
-    Timecodes presented by nestegg have been scaled by this value
-    before presentation to the caller.
-    @param context Stream context initialized by #nestegg_init.
-    @param scale   Storage for the queried scale factor.
-    @retval  0 Success.
-    @retval -1 Error. */
-int nestegg_tstamp_scale(nestegg * context, uint64_t * scale);
 
 /** Query the number of tracks in the media stream.
     @param context Stream context initialized by #nestegg_init.

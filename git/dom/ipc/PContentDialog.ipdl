@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 include protocol PBrowser;
+include "mozilla/TabTypes.h";
 
 namespace mozilla {
 namespace dom {

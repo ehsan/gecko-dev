@@ -47,12 +47,10 @@
 #include "nsIDocShell.h"
 #include "nsStringFwd.h"
 #include "nsIFrameLoader.h"
-#include "nsPoint.h"
 #include "nsSize.h"
 #include "nsIURI.h"
 #include "nsAutoPtr.h"
 #include "nsFrameMessageManager.h"
-#include "Layers.h"
 
 class nsIContent;
 class nsIURI;
@@ -61,14 +59,11 @@ class nsIView;
 class nsIInProcessContentFrameMessageManager;
 class AutoResetInShow;
 
+#ifdef MOZ_IPC
 namespace mozilla {
 namespace dom {
 class PBrowserParent;
 class TabParent;
-}
-
-namespace layout {
-class RenderFrameParent;
 }
 }
 
@@ -78,99 +73,37 @@ typedef struct _GtkWidget GtkWidget;
 #ifdef MOZ_WIDGET_QT
 class QX11EmbedContainer;
 #endif
+#endif
 
-/**
- * Defines a target configuration for this <browser>'s content
- * document's view.  If the content document's actual view
- * doesn't match this nsIContentView, then on paints its pixels
- * are transformed to compensate for the difference.
- *
- * Used to support asynchronous re-paints of content pixels; see
- * nsIContentView.
- */
-class nsContentView : public nsIContentView
-{
-public:
-  typedef mozilla::layers::FrameMetrics::ViewID ViewID;
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICONTENTVIEW
- 
-  struct ViewConfig {
-    ViewConfig()
-      : mScrollOffset(0, 0)
-      , mXScale(1.0)
-      , mYScale(1.0)
-    {}
-
-    // Default copy ctor and operator= are fine
-
-    PRBool operator==(const ViewConfig& aOther) const
-    {
-      return (mScrollOffset == aOther.mScrollOffset &&
-              mXScale == aOther.mXScale &&
-              mYScale == aOther.mYScale);
-    }
-
-    // This is the scroll offset the <browser> user wishes or expects
-    // its enclosed content document to have.  "Scroll offset" here
-    // means the document pixel at pixel (0,0) within the CSS
-    // viewport.  If the content document's actual scroll offset
-    // doesn't match |mScrollOffset|, the difference is used to define
-    // a translation transform when painting the content document.
-    nsPoint mScrollOffset;
-    // The scale at which the <browser> user wishes to paint its
-    // enclosed content document.  If content-document layers have a
-    // lower or higher resolution than the desired scale, then the
-    // ratio is used to define a scale transform when painting the
-    // content document.
-    float mXScale;
-    float mYScale;
-  };
-
-  nsContentView(nsIContent* aOwnerContent, ViewID aScrollId,
-                ViewConfig aConfig = ViewConfig())
-    : mViewportSize(0, 0)
-    , mContentSize(0, 0)
-    , mOwnerContent(aOwnerContent)
-    , mScrollId(aScrollId)
-    , mConfig(aConfig)
-  {}
-
-  bool IsRoot() const;
-
-  ViewID GetId() const
-  {
-    return mScrollId;
-  }
-
-  ViewConfig GetViewConfig() const
-  {
-    return mConfig;
-  }
-
-  nsSize mViewportSize;
-  nsSize mContentSize;
-
-  nsIContent *mOwnerContent; // WEAK
-
-private:
-  nsresult Update(const ViewConfig& aConfig);
-
-  ViewID mScrollId;
-  ViewConfig mConfig;
-};
-
-
-class nsFrameLoader : public nsIFrameLoader,
-                      public nsIContentViewManager
+class nsFrameLoader : public nsIFrameLoader
 {
   friend class AutoResetInShow;
+#ifdef MOZ_IPC
   typedef mozilla::dom::PBrowserParent PBrowserParent;
   typedef mozilla::dom::TabParent TabParent;
-  typedef mozilla::layout::RenderFrameParent RenderFrameParent;
+#endif
 
 protected:
-  nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated);
+  nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated) :
+    mOwnerContent(aOwner),
+    mDepthTooGreat(PR_FALSE),
+    mIsTopLevelContent(PR_FALSE),
+    mDestroyCalled(PR_FALSE),
+    mNeedsAsyncDestroy(PR_FALSE),
+    mInSwap(PR_FALSE),
+    mInShow(PR_FALSE),
+    mHideCalled(PR_FALSE),
+    mNetworkCreated(aNetworkCreated)
+#ifdef MOZ_IPC
+    , mDelayRemoteDialogs(PR_FALSE)
+    , mRemoteWidgetCreated(PR_FALSE)
+    , mRemoteFrame(false)
+    , mRemoteBrowser(nsnull)
+#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+    , mRemoteSocket(nsnull)
+#endif
+#endif
+  {}
 
 public:
   ~nsFrameLoader() {
@@ -181,22 +114,16 @@ public:
     nsFrameLoader::Destroy();
   }
 
-  PRBool AsyncScrollEnabled() const
-  {
-    return !!(mRenderMode & RENDER_MODE_ASYNC_SCROLL);
-  }
-
   static nsFrameLoader* Create(nsIContent* aOwner, PRBool aNetworkCreated);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFrameLoader, nsIFrameLoader)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameLoader)
   NS_DECL_NSIFRAMELOADER
-  NS_DECL_NSICONTENTVIEWMANAGER
   NS_HIDDEN_(nsresult) CheckForRecursiveLoad(nsIURI* aURI);
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
-  nsIDOMEventTarget* GetTabChildGlobalAsEventTarget();
+  nsPIDOMEventTarget* GetTabChildGlobalAsEventTarget();
   nsresult CreateStaticClone(nsIFrameLoader* aDest);
 
   /**
@@ -206,11 +133,6 @@ public:
   PRBool Show(PRInt32 marginWidth, PRInt32 marginHeight,
               PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
               nsSubDocumentFrame* frame);
-
-  /**
-   * Called when the margin properties of the containing frame are changed.
-   */
-  void MarginsChanged(PRUint32 aMarginWidth, PRUint32 aMarginHeight);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -247,44 +169,16 @@ public:
   nsIDocument* GetOwnerDoc() const
   { return mOwnerContent ? mOwnerContent->GetOwnerDoc() : nsnull; }
 
+#ifdef MOZ_IPC
   PBrowserParent* GetRemoteBrowser();
-
-  /**
-   * The "current" render frame is the one on which the most recent
-   * remote layer-tree transaction was executed.  If no content has
-   * been drawn yet, or the remote browser doesn't have any drawn
-   * content for whatever reason, return NULL.  The returned render
-   * frame has an associated shadow layer tree.
-   *
-   * Note that the returned render frame might not be a frame
-   * constructed for this->GetURL().  This can happen, e.g., if the
-   * <browser> was just navigated to a new URL, but hasn't painted the
-   * new page yet.  A render frame for the previous page may be
-   * returned.  (In-process <browser> behaves similarly, and this
-   * behavior seems desirable.)
-   */
-  RenderFrameParent* GetCurrentRemoteFrame() const
-  {
-    return mCurrentRemoteFrame;
-  }
-
-  /**
-   * |aFrame| can be null.  If non-null, it must be the remote frame
-   * on which the most recent layer transaction completed for this's
-   * <browser>.
-   */
-  void SetCurrentRemoteFrame(RenderFrameParent* aFrame)
-  {
-    mCurrentRemoteFrame = aFrame;
-  }
+#endif
   nsFrameMessageManager* GetFrameMessageManager() { return mMessageManager; }
-
-  nsIContent* GetOwnerContent() { return mOwnerContent; }
-  void SetOwnerContent(nsIContent* aContent);
 
 private:
 
+#ifdef MOZ_IPC
   bool ShouldUseRemoteProcess();
+#endif
 
   /**
    * If we are an IPC frame, set mRemoteFrame. Otherwise, create and
@@ -304,11 +198,14 @@ private:
   void FireErrorEvent();
   nsresult ReallyStartLoadingInternal();
 
-  // Return true if remote browser created; nothing else to do
-  bool TryRemoteBrowser();
+#ifdef MOZ_IPC
+  // True means new process started; nothing else to do
+  bool TryNewProcess();
 
-  // Tell the remote browser that it's now "virtually visible"
-  bool ShowRemoteFrame(const nsIntSize& size);
+  // Do the hookup necessary to actually show a remote frame once the view and
+  // widget are available.
+  bool ShowRemoteFrame(nsSubDocumentFrame* frame, nsIView* view);
+#endif
 
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
@@ -330,18 +227,21 @@ private:
   // it may lose the flag.
   PRPackedBool mNetworkCreated : 1;
 
+#ifdef MOZ_IPC
   PRPackedBool mDelayRemoteDialogs : 1;
-  PRPackedBool mRemoteBrowserShown : 1;
+  PRPackedBool mRemoteWidgetCreated : 1;
   bool mRemoteFrame;
   // XXX leaking
   nsCOMPtr<nsIObserver> mChildHost;
-  RenderFrameParent* mCurrentRemoteFrame;
   TabParent* mRemoteBrowser;
 
-  // See nsIFrameLoader.idl.  Short story, if !(mRenderMode &
-  // RENDER_MODE_ASYNC_SCROLL), all the fields below are ignored in
-  // favor of what content tells.
-  PRUint32 mRenderMode;
+#ifdef MOZ_WIDGET_GTK2
+  GtkWidget* mRemoteSocket;
+#elif defined(MOZ_WIDGET_QT)
+  QX11EmbedContainer* mRemoteSocket;
+#endif
+#endif
+
 };
 
 #endif

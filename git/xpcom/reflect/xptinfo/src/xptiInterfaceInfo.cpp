@@ -40,9 +40,6 @@
 /* Implementation of xptiInterfaceEntry and xptiInterfaceInfo. */
 
 #include "xptiprivate.h"
-#include "nsAtomicRefcnt.h"
-
-using namespace mozilla;
 
 /***************************************************************************/
 // Debug Instrumentation...
@@ -51,7 +48,7 @@ using namespace mozilla;
 static int DEBUG_TotalInfos = 0;
 static int DEBUG_CurrentInfos = 0;
 static int DEBUG_MaxInfos = 0;
-static int DEBUG_ReentrantMonitorEntryCount = 0;
+static int DEBUG_MonitorEntryCount = 0;
 
 #define LOG_INFO_CREATE(t)                                                  \
     DEBUG_TotalInfos++;                                                     \
@@ -63,7 +60,7 @@ static int DEBUG_ReentrantMonitorEntryCount = 0;
     DEBUG_CurrentInfos-- /* no ';' */
 
 #define LOG_INFO_MONITOR_ENTRY                                              \
-    DEBUG_ReentrantMonitorEntryCount++ /* no ';' */
+    DEBUG_MonitorEntryCount++ /* no ';' */
 
 #else /* SHOW_INFO_COUNT_STATS */
 
@@ -104,7 +101,7 @@ xptiInterfaceEntry::xptiInterfaceEntry(const char* name,
 PRBool 
 xptiInterfaceEntry::Resolve()
 {
-    MutexAutoLock lock(xptiInterfaceInfoManager::GetResolveLock());
+    nsAutoLock lock(xptiInterfaceInfoManager::GetResolveLock());
     return ResolveLocked();
 }
 
@@ -619,10 +616,7 @@ xptiInterfaceEntry::HasAncestor(const nsIID * iid, PRBool *_retval)
 nsresult 
 xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
 {
-#ifdef DEBUG
-    xptiInterfaceInfoManager::GetSingleton()->GetWorkingSet()->mTableReentrantMonitor.
-        AssertCurrentThreadIn();
-#endif
+    nsAutoMonitor lock(xptiInterfaceInfoManager::GetInfoMonitor());
     LOG_INFO_MONITOR_ENTRY;
 
     if(!mInfo)
@@ -649,19 +643,6 @@ xptiInterfaceEntry::LockedInvalidateInterfaceInfo()
     }
 }
 
-PRBool
-xptiInterfaceInfo::BuildParent()
-{
-    mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::GetSingleton()->
-                                    GetWorkingSet()->mTableReentrantMonitor);
-    NS_ASSERTION(mEntry && 
-                 mEntry->IsFullyResolved() && 
-                 !mParent &&
-                 mEntry->Parent(),
-                "bad BuildParent call");
-    return NS_SUCCEEDED(mEntry->Parent()->GetInterfaceInfo(&mParent));
-}
-
 /***************************************************************************/
 
 NS_IMPL_QUERY_INTERFACE1(xptiInterfaceInfo, nsIInterfaceInfo)
@@ -682,7 +663,7 @@ xptiInterfaceInfo::~xptiInterfaceInfo()
 nsrefcnt
 xptiInterfaceInfo::AddRef(void)
 {
-    nsrefcnt cnt = NS_AtomicIncrementRefcnt(mRefCnt);
+    nsrefcnt cnt = (nsrefcnt) PR_AtomicIncrement((PRInt32*)&mRefCnt);
     NS_LOG_ADDREF(this, cnt, "xptiInterfaceInfo", sizeof(*this));
     return cnt;
 }
@@ -691,15 +672,13 @@ nsrefcnt
 xptiInterfaceInfo::Release(void)
 {
     xptiInterfaceEntry* entry = mEntry;
-    nsrefcnt cnt = NS_AtomicDecrementRefcnt(mRefCnt);
+    nsrefcnt cnt = (nsrefcnt) PR_AtomicDecrement((PRInt32*)&mRefCnt);
     NS_LOG_RELEASE(this, cnt, "xptiInterfaceInfo");
     if(!cnt)
     {
-        mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::
-                                          GetSingleton()->GetWorkingSet()->
-                                          mTableReentrantMonitor);
+        nsAutoMonitor lock(xptiInterfaceInfoManager::GetInfoMonitor());
         LOG_INFO_MONITOR_ENTRY;
-
+        
         // If GetInterfaceInfo added and *released* a reference before we 
         // acquired the monitor then 'this' might already be dead. In that
         // case we would not want to try to access any instance data. We
@@ -713,7 +692,7 @@ xptiInterfaceInfo::Release(void)
         // then we want to bail out of here without destorying the object.
         if(mRefCnt)
             return 1;
-
+        
         if(mEntry)
         {
             mEntry->LockedInterfaceInfoDeathNotification();

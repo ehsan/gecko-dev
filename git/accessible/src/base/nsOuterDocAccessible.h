@@ -67,11 +67,12 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                   PRBool aDeepestChild,
+                                   nsIAccessible **aChild);
 
   virtual void InvalidateChildren();
   virtual PRBool AppendChild(nsAccessible *aAccessible);

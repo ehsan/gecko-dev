@@ -62,8 +62,8 @@ public:
   bool
   RecvMessage(JSContext* cx,
               const nsString& messageName,
-              const InfallibleTArray<Variant>& data,
-              InfallibleTArray<Variant>* results);
+              const nsTArray<Variant>& data,
+              nsTArray<Variant>* results);
 
   nsresult
   RegisterReceiver(JSContext* cx,
@@ -130,7 +130,7 @@ private:
    ~RecList();
     void add(jsval v);
     void remove(jsval v);
-    bool copyTo(JSContext *cx, nsTArray<jsval>& dst) const;
+    void copyTo(nsTArray<jsval>& dst) const;
   };
 
   nsClassHashtable<nsStringHashKey, RecList> mReceivers;

@@ -89,10 +89,6 @@ public:
     nsGtkIMModule(nsWindow* aOwnerWindow);
     ~nsGtkIMModule();
 
-    // "Enabled" means the users can use all IMEs.
-    // I.e., the focus is in the normal editors.
-    PRBool IsEnabled();
-
     // OnFocusWindow is a notification that aWindow is going to be focused.
     void OnFocusWindow(nsWindow* aWindow);
     // OnBlurWindow is a notification that aWindow is going to be unfocused.
@@ -107,13 +103,12 @@ public:
     // filtered by IME.  Otherwise, this returns FALSE.
     // NOTE: When the keypress event starts composition, this returns TRUE but
     //       this dispatches keydown event before compositionstart event.
-    PRBool OnKeyEvent(nsWindow* aWindow, GdkEventKey* aEvent,
-                      PRBool aKeyDownEventWasSent = PR_FALSE);
+    PRBool OnKeyEvent(nsWindow* aWindow, GdkEventKey* aEvent);
 
     // IME related nsIWidget methods.
     nsresult ResetInputState(nsWindow* aCaller);
-    nsresult SetInputMode(nsWindow* aCaller, const IMEContext* aContext);
-    nsresult GetInputMode(IMEContext* aContext);
+    nsresult SetIMEEnabled(nsWindow* aCaller, PRUint32 aState);
+    nsresult GetIMEEnabled(PRUint32* aState);
     nsresult CancelIMEComposition(nsWindow* aCaller);
 
     // If a software keyboard has been opened, this returns TRUE.
@@ -148,9 +143,9 @@ protected:
     // always "closed", so it closes IME forcedly.
     GtkIMContext       *mDummyContext;
 
-    // IME enabled state and other things defined in IMEContext.
+    // IME enabled state in this window.  The values is nsIWidget::IME_STATUS_*.
     // Use following helper methods if you don't need the detail of the status.
-    IMEContext mIMEContext;
+    PRUint32           mEnabled;
 
     // mCompositionStart is the start offset of the composition string in the
     // current content.  When <textarea> or <input> have focus, it means offset
@@ -184,12 +179,6 @@ protected:
     // another content (nsIContent).  Don't refer this value directly, use
     // ShouldIgnoreNativeCompositionEvent().
     PRPackedBool mIgnoreNativeCompositionEvent;
-    // mKeyDownEventWasSent is used by OnKeyEvent() and
-    // DispatchCompositionStart().  DispatchCompositionStart() dispatches
-    // a keydown event if the composition start is caused by a native
-    // keypress event.  If this is true, the keydown event has been dispatched.
-    // Then, DispatchCompositionStart() doesn't dispatch keydown event.
-    PRPackedBool mKeyDownEventWasSent;
 
     // sLastFocusedModule is a pointer to the last focused instance of this
     // class.  When a instance is destroyed and sLastFocusedModule refers it,
@@ -229,6 +218,10 @@ protected:
     // GetContext() returns current IM context which is chosen by the enabled
     // state.  So, this means *current* IM context.
     GtkIMContext* GetContext();
+
+    // "Enabled" means the users can use all IMEs.
+    // I.e., the focus is in the normal editors.
+    PRBool IsEnabled();
 
     // "Editable" means the users can input characters. They may be not able to
     // use IMEs but they can use dead keys.

@@ -38,7 +38,7 @@
       ];
 
       const indexData = [
-        { name: "weight", keyPath: "weight", options: { unique: false } }
+        { name: "weight", keyPath: "weight", unique: false }
       ];
 
       const objectStoreDataWeightSort = [
@@ -49,19 +49,19 @@
         { key: "237-23-7734", value: { name: "Ron", height: 73, weight: 180 } }
       ];
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore(objectStoreName, "");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore(objectStoreName, { } );
+      let objectStore = event.result;
 
       let addedData = 0;
       for (let i in objectStoreData) {
@@ -76,10 +76,20 @@
       }
       event = yield;
 
+      addedData = 0;
       for (let i in indexData) {
-        objectStore.createIndex(indexData[i].name, indexData[i].keyPath,
-                                indexData[i].options);
+        request = objectStore.createIndex(indexData[i].name,
+                                          indexData[i].keyPath,
+                                          indexData[i].unique);
+        request.onerror = errorHandler;
+        request.onsuccess = function(event) {
+          if (++addedData == indexData.length) {
+            is(objectStore.indexNames.length, addedData, "Good index count");
+            testGenerator.send(event);
+          }
+        }
       }
+      event = yield;
 
       addedData = 0;
       for (let i in badObjectStoreData) {
@@ -94,19 +104,18 @@
       }
       yield;
 
-      objectStore = db.transaction(objectStoreName)
-                      .objectStore(objectStoreName);
+      objectStore = db.objectStore(objectStoreName);
 
       let keyIndex = 0;
 
-      request = objectStore.index("weight").openKeyCursor();
+      request = objectStore.index("weight").openCursor();
       request.onerror = errorHandler;
       request.onsuccess = function (event) {
-        let cursor = event.target.result;
+        let cursor = event.result;
         if (cursor) {
           is(cursor.key, objectStoreDataWeightSort[keyIndex].value.weight,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataWeightSort[keyIndex].key,
+          is(cursor.value, objectStoreDataWeightSort[keyIndex].key,
              "Correct value");
           keyIndex++;
 
@@ -125,7 +134,7 @@
       request = objectStore.openCursor();
       request.onerror = errorHandler;
       request.onsuccess = function (event) {
-        let cursor = event.target.result;
+        let cursor = event.result;
         if (cursor) {
           keyIndex++;
           cursor.continue();

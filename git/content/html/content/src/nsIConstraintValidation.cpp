@@ -41,17 +41,11 @@
 #include "nsGenericHTMLElement.h"
 #include "nsHTMLFormElement.h"
 #include "nsDOMValidityState.h"
-#include "nsIFormControl.h"
-#include "nsHTMLFormElement.h"
 
-
-const PRUint16 nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
 
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
   , mValidity(nsnull)
-  // By default, all elements are subjects to constraint validation.
-  , mBarredFromConstraintValidation(PR_FALSE)
 {
 }
 
@@ -80,23 +74,8 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
   aValidationMessage.Truncate();
 
   if (IsCandidateForConstraintValidation() && !IsValid()) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(this);
-    NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
-
-    nsAutoString authorMessage;
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::x_moz_errormessage,
-                     authorMessage);
-
-    if (!authorMessage.IsEmpty()) {
-      aValidationMessage.Assign(authorMessage);
-      if (aValidationMessage.Length() > sContentSpecifiedMaxLengthMessage) {
-        aValidationMessage.Truncate(sContentSpecifiedMaxLengthMessage);
-      }
-    } else if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
+    if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
       aValidationMessage.Assign(mCustomValidity);
-      if (aValidationMessage.Length() > sContentSpecifiedMaxLengthMessage) {
-        aValidationMessage.Truncate(sContentSpecifiedMaxLengthMessage);
-      }
     } else if (GetValidityState(VALIDITY_STATE_TOO_LONG)) {
       GetValidationMessage(aValidationMessage, VALIDITY_STATE_TOO_LONG);
     } else if (GetValidityState(VALIDITY_STATE_VALUE_MISSING)) {
@@ -137,58 +116,34 @@ nsIConstraintValidation::CheckValidity(PRBool* aValidity)
 }
 
 void
-nsIConstraintValidation::SetValidityState(ValidityStateType aState,
-                                          PRBool aValue)
-{
-  PRBool previousValidity = IsValid();
-
-  if (aValue) {
-    mValidityBitField |= aState;
-  } else {
-    mValidityBitField &= ~aState;
-  }
-
-  // Inform the form element if our validity has changed.
-  if (previousValidity != IsValid() && IsCandidateForConstraintValidation()) {
-    nsCOMPtr<nsIFormControl> formCtrl = do_QueryInterface(this);
-    NS_ASSERTION(formCtrl, "This interface should be used by form elements!");
-
-    nsHTMLFormElement* form =
-      static_cast<nsHTMLFormElement*>(formCtrl->GetFormElement());
-    if (form) {
-      form->UpdateValidity(IsValid());
-    }
-  }
-}
-
-void
 nsIConstraintValidation::SetCustomValidity(const nsAString& aError)
 {
   mCustomValidity.Assign(aError);
   SetValidityState(VALIDITY_STATE_CUSTOM_ERROR, !mCustomValidity.IsEmpty());
 }
 
-void
-nsIConstraintValidation::SetBarredFromConstraintValidation(PRBool aBarred)
+PRBool
+nsIConstraintValidation::IsCandidateForConstraintValidation() const
 {
-  PRBool previousBarred = mBarredFromConstraintValidation;
+  /**
+   * An element is never candidate for constraint validation if:
+   * - it is disabled ;
+   * - TODO: or it's ancestor is a datalist element (bug 555840).
+   * We are doing these checks here to prevent writing them in every
+   * |IsBarredFromConstraintValidation| function.
+   */
 
-  mBarredFromConstraintValidation = aBarred;
+  nsCOMPtr<nsIContent> content =
+    do_QueryInterface(const_cast<nsIConstraintValidation*>(this));
+  NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
 
-  // Inform the form element if our status regarding constraint validation
-  // is going to change.
-  if (!IsValid() && previousBarred != mBarredFromConstraintValidation) {
-    nsCOMPtr<nsIFormControl> formCtrl = do_QueryInterface(this);
-    NS_ASSERTION(formCtrl, "This interface should be used by form elements!");
-
-    nsHTMLFormElement* form =
-      static_cast<nsHTMLFormElement*>(formCtrl->GetFormElement());
-    if (form) {
-      // If the element is going to be barred from constraint validation,
-      // we can inform the form that we are now valid.
-      // Otherwise, we are now invalid.
-      form->UpdateValidity(aBarred);
-    }
-  }
+  // For the moment, all elements that are not barred from constraint validation
+  // accept the disabled attribute and elements that are always barred from
+  // constraint validation do not accept it (objects, fieldset, output).
+  // If one of these elements change and become not always barred from
+  // constraint validation or another element appear with constraint validation
+  // support and can't be disabled, this code will have to be changed.
+  return !content->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) &&
+         !IsBarredFromConstraintValidation();
 }
 

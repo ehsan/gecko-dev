@@ -187,7 +187,7 @@ public:
       Atom()->ToString(aStr);
     }
     else {
-      aStr = NodeInfo()->QualifiedName();
+      NodeInfo()->GetQualifiedName(aStr);
     }
   }
 

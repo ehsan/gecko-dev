@@ -46,9 +46,7 @@ function log(m) {
 
 function maybeFinish(v, n) {
   log(n + ",");
-  if (v.parentNode) {
-    v.parentNode.removeChild(v);
-  }
+  v.parentNode.removeChild(v);
   manager.finished(v.token);
 }
 
@@ -136,8 +134,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v._gotLoadStart = true;}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("canplaythrough", this.canplaythrough, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },
   {
@@ -255,7 +253,6 @@ var tests = [
       ok(true, "(7) Got playback ended");
       var v = e.target;
       v._finished = true;
-      is(v._gotErrorEvent, true, "(7) Should get error event from first source load failure");      
       maybeFinish(v, 7);
     },
       
@@ -265,7 +262,6 @@ var tests = [
       v._gotLoadedMetaData = false;
       v._finished = false;
       v.preload = "none";
-      v._gotErrorEvent = false;
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("loadstart", function(e){v._gotLoadStart = true;}, false);
       v.addEventListener("suspend", this.suspend, false);
@@ -273,7 +269,6 @@ var tests = [
       var s1 = document.createElement("source");
       s1.src = "not-a-real-file.404"
       s1.type = test.type;
-      s1.addEventListener("error", function(e){v._gotErrorEvent = true;}, false);
       v.appendChild(s1);
       var s2 = document.createElement("source");
       s2.src = test.name;
@@ -302,8 +297,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v.preload = "metadata";}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("loadeddata", this.loadeddata, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },
   /*{
@@ -331,8 +326,8 @@ var tests = [
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("loadeddata", function(){v.preload = "auto"}, false);
       v.addEventListener("canplaythrough", this.canplaythrough, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },*/
   {
@@ -353,8 +348,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v.preload = "auto";}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("canplaythrough", this.canplaythrough, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },
   {
@@ -377,8 +372,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v.preload = "metadata";}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("loadeddata", this.loadeddata, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },
   {
@@ -402,8 +397,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v._gotLoadStart = true;}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("canplaythrough", this.canplaythrough, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
       v.preload = "metadata";
     },
   },
@@ -431,8 +426,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v._gotLoadStart = true;}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("loadeddata", this.loadeddata, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
       v.preload = "none";
     },
   },
@@ -491,8 +486,8 @@ var tests = [
       v.addEventListener("loadstart", function(e){v._gotLoadStart = true;}, false);
       v.addEventListener("loadedmetadata", function(e){v._gotLoadedMetaData = true;}, false);
       v.addEventListener("ended", this.ended, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },
   {
@@ -511,8 +506,8 @@ var tests = [
       v.preload = "metadata";
       v.autoplay = true;
       v.addEventListener("ended", this.ended, false);
-      v.src = test.name; // Causes implicit load.
-      document.body.appendChild(v);
+      v.src = test.name;
+      document.body.appendChild(v); // Causes implicit load.
     },
   },
   {
@@ -535,27 +530,6 @@ var tests = [
       v.src = test.name;
     },    
   },
-  {
-    // 18. On a preload='none' video, call play() before load algorithms's sync
-    // has run, the play() call should override preload='none'.
-    ended:
-    function(e) {
-      ok(true, "(18) Got playback ended.");
-      var v = e.target;
-      v._finished = true;
-      maybeFinish(v, 18);
-    },
-    
-    setup:
-    function(v) {
-      v.addEventListener("ended", this.ended, false);
-      v._finished = false;
-      v.preload = "none";
-      v.src = test.name; // Schedules async section to continue load algorithm.
-      document.body.appendChild(v);
-      v.play(); // Should cause preload:none to be overridden.
-    },  
-    }
 ];
 
 function startTest(test, token) {

@@ -15,7 +15,7 @@
  *
  * The Original Code is sanitize dialog test code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corp.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -836,7 +836,6 @@ function intPrefIs(aPrefName, aExpectedVal, aMsg) {
 ///////////////////////////////////////////////////////////////////////////////
 
 function test() {
-  requestLongerTimeout(2);
   blankSlate();
   waitForExplicitFinish();
   // Kick off all the tests in the gAllTests array.

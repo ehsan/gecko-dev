@@ -126,24 +126,6 @@ nsMIMEHeaderParamImpl::GetParameter(const nsACString& aHeaderVal,
     return NS_OK;
 }
 
-// remove backslash-encoded sequences from quoted-strings
-// modifies string in place, potentially shortening it
-void RemoveQuotedStringEscapes(char *src)
-{
-  char *dst = src;
-
-  for (char *c = src; *c; ++c)
-  {
-    if (c[0] == '\\' && c[1])
-    {
-      // skip backslash if not at end
-      ++c;
-    }
-    *dst++ = *c;
-  }
-  *dst = 0;
-}
-
 // moved almost verbatim from mimehdrs.cpp
 // char *
 // MimeHeaders_get_parameter (const char *header_value, const char *parm_name,
@@ -183,8 +165,8 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
       if (str == start)
         return NS_ERROR_UNEXPECTED;
       *aResult = (char *) nsMemory::Clone(start, (str - start) + 1);
-      NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
       (*aResult)[str - start] = '\0';  // null-terminate
+      NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
       return NS_OK;
     }
 
@@ -234,8 +216,6 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
     if (*str == '=') ++str;
     while (nsCRT::IsAsciiSpace(*str)) ++str;
 
-    PRBool needUnquote = PR_FALSE;
-    
     if (*str != '"')
     {
       // The value is a token, not a quoted string.
@@ -248,9 +228,7 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
     }
     else
     {
-      // The value is a quoted string.
-      needUnquote = PR_TRUE;
-      
+      // The value is a quoted string. 
       ++str;
       valueStart = str;
       for (valueEnd = str; *valueEnd; ++valueEnd)
@@ -273,15 +251,9 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
       //     line continuation -- jht 4/29/98 
       nsCAutoString tempStr(valueStart, valueEnd - valueStart);
       tempStr.StripChars("\r\n");
-      char *res = ToNewCString(tempStr);
-      NS_ENSURE_TRUE(res, NS_ERROR_OUT_OF_MEMORY);
-      
-      if (needUnquote)
-        RemoveQuotedStringEscapes(res);
-            
-      *aResult = res;
-      
-      // keep going, we may find a RFC 2231 encoded alternative
+      *aResult = ToNewCString(tempStr);
+      NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
+      return NS_OK;
     }
     // case B, C, and D
     else if (tokenEnd - tokenStart > paramLen &&
@@ -328,12 +300,7 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
 
         if (sQuote2 && sQuote2 + 1 < valueEnd)
         {
-          if (*aResult)
-          {
-            // drop non-2231-encoded value, instead prefer the one using
-            // the RFC2231 encoding
-            nsMemory::Free(*aResult);
-          }
+          NS_ASSERTION(!*aResult, "This is the 1st line. result buffer should be null.");
           *aResult = (char *) nsMemory::Alloc(valueEnd - (sQuote2 + 1) + 1);
           if (*aResult)
           {

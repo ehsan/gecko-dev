@@ -54,7 +54,15 @@ public:
 
     virtual ~gfxMacFont();
 
+    ATSFontRef GetATSFontRef() const { return mATSFont; }
     CGFontRef GetCGFontRef() const { return mCGFont; }
+
+    virtual PRBool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript);
 
     /* overrides for the pure virtual methods in gfxFont */
     virtual const gfxFont::Metrics& GetMetrics() {
@@ -67,13 +75,6 @@ public:
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 
-    /* override Measure to add padding for antialiasing */
-    virtual RunMetrics Measure(gfxTextRun *aTextRun,
-                               PRUint32 aStart, PRUint32 aEnd,
-                               BoundingBoxType aBoundingBoxType,
-                               gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing);
-
     // override gfxFont table access function to bypass gfxFontEntry cache,
     // use CGFontRef API to get direct access to system font data
     virtual hb_blob_t *GetFontTable(PRUint32 aTag);
@@ -81,28 +82,17 @@ public:
 protected:
     virtual void CreatePlatformShaper();
 
-    // override to prefer CoreText shaping with fonts that depend on AAT
-    virtual PRBool InitTextRun(gfxContext *aContext,
-                               gfxTextRun *aTextRun,
-                               const PRUnichar *aString,
-                               PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript,
-                               PRBool aPreferPlatformShaping = PR_FALSE);
-
     void InitMetrics();
-    void InitMetricsFromPlatform();
-    void InitMetricsFromATSMetrics(ATSFontRef aFontRef);
+    void InitMetricsFromATSMetrics();
 
-    // Get width and glyph ID for a character; uses aConvFactor
-    // to convert font units as returned by CG to actual dimensions
+    // Get width and glyph ID for a character; requires that
+    // mFUnitsConvFactor has been set before this is called
     gfxFloat GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
-                          PRUint32 *aGlyphID, gfxFloat aConvFactor);
+                          PRUint32 *aGlyphID);
 
     static void DestroyBlobFunc(void* aUserData);
 
-    // a weak reference to the CoreGraphics font: this is owned by the
-    // MacOSFontEntry, it is not retained or released by gfxMacFont
+    ATSFontRef            mATSFont;
     CGFontRef             mCGFont;
 
     cairo_font_face_t    *mFontFace;

@@ -89,16 +89,6 @@ public:
   nsresult ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
 
   /**
-   * Called when mouse button down event handling is started and finished.
-   */
-  void SetMouseButtonDownHandlingDocument(nsIDocument* aDocument)
-  {
-    NS_ASSERTION(!aDocument || !mMouseDownEventHandlingDocument,
-                 "Some mouse button down events are nested?");
-    mMouseDownEventHandlingDocument = aDocument;
-  }
-
-  /**
    * Returns the content node that would be focused if aWindow was in an
    * active window. This will traverse down the frame hierarchy, starting at
    * the given window aWindow. Sets aFocusedWindow to the window with the
@@ -123,13 +113,6 @@ public:
    */
   static nsIContent* GetRedirectedFocus(nsIContent* aContent);
 
-  /**
-   * Returns a flag indicating the source and/or reason of the focus change.
-   * This is used to indicate to the IME code if the focus come from a user 
-   * input or a script for example.
-   */
-  static PRUint32 GetFocusMoveReason(PRUint32 aFlags);
-
   static PRBool sMouseFocusesFormControl;
 
 protected:
@@ -149,13 +132,11 @@ protected:
    * true, then the focus has actually shifted and the caret position will be
    * updated to the new focus, aNewContent will be scrolled into view (unless
    * a flag disables this) and the focus method for the window will be updated.
-   * If aAdjustWidget is false, don't change the widget focus state.
    *
    * All actual focus changes must use this method to do so. (as opposed
    * to those that update the focus in an inactive window for instance).
    */
-  void SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
-                     PRBool aFocusChanged, PRBool aAdjustWidget);
+  void SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags, PRBool aFocusChanged);
 
   /**
    * Returns true if aPossibleAncestor is the same as aWindow or an
@@ -225,13 +206,10 @@ protected:
    * aIsLeavingDocument should be set to true if the document/window is being
    * blurred as well. Document/window blur events will be fired. It should be
    * false if an element is the same document is about to be focused.
-   *
-   * If aAdjustWidget is false, don't change the widget focus state.
    */
   PRBool Blur(nsPIDOMWindow* aWindowToClear,
               nsPIDOMWindow* aAncestorWindowToFocus,
-              PRBool aIsLeavingDocument,
-              PRBool aAdjustWidget);
+              PRBool aIsLeavingDocument);
 
   /**
    * Focus an element in the active window and child frame.
@@ -256,16 +234,13 @@ protected:
    *
    * aWindowRaised should be true if the window is being raised. In this case,
    * command updaters will not be called.
-   *
-   * If aAdjustWidget is false, don't change the widget focus state.
    */
   void Focus(nsPIDOMWindow* aWindow,
              nsIContent* aContent,
              PRUint32 aFlags,
              PRBool aIsNewDocument,
              PRBool aFocusChanged,
-             PRBool aWindowRaised,
-             PRBool aAdjustWidget);
+             PRBool aWindowRaised);
 
   /**
    * Fires a focus or blur event at aTarget.
@@ -280,8 +255,7 @@ protected:
                             nsIDocument* aDocument,
                             nsISupports* aTarget,
                             PRUint32 aFocusMethod,
-                            PRBool aWindowRaised,
-                            PRBool aIsRefocus = PR_FALSE);
+                            PRBool aWindowRaised);
 
   /**
    * Scrolls aContent into view unless the FLAG_NOSCROLL flag is set.
@@ -467,19 +441,6 @@ protected:
                            nsIContent* aEndSelection,
                            nsIContent** aFocusedContent);
 
-private:
-  // Notify that the focus state of aContent has changed.  Note that
-  // we need to pass in whether the window should show a focus ring
-  // before the SetFocusedNode call on it happened when losing focus
-  // and after the SetFocusedNode call when gaining focus, which is
-  // why that information needs to be an explicit argument instead of
-  // just passing in the window and asking it whether it should show
-  // focus rings: in the losing focus case that information could be
-  // wrong..
-  static void NotifyFocusStateChange(nsIContent* aContent,
-                                     PRBool aWindowShouldShowFocusRing,
-                                     PRBool aGettingFocus);
-
   // the currently active and front-most top-most window
   nsCOMPtr<nsPIDOMWindow> mActiveWindow;
 
@@ -504,14 +465,6 @@ private:
   // synchronized actions cannot be interrupted with events, so queue these up
   // and fire them later.
   nsTArray<nsDelayedBlurOrFocusEvent> mDelayedBlurFocusEvents;
-
-  // A document which is handling a mouse button down event.
-  // When a mouse down event process is finished, ESM sets focus to the target
-  // content.  Therefore, while DOM event handlers are handling mouse down
-  // events, the handlers should be able to steal focus from any elements even
-  // if focus is in chrome content.  So, if this isn't NULL and the caller
-  // can access the document node, the caller should succeed in moving focus.
-  nsCOMPtr<nsIDocument> mMouseDownEventHandlingDocument;
 
   // the single focus manager
   static nsFocusManager* sInstance;

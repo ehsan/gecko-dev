@@ -50,145 +50,135 @@
 #include "nsIContent.h"
 #include "nsCSSPseudoElements.h"
 #include "nsRuleWalker.h"
-#include "nsNthIndexCache.h"
 
 class nsIStyleSheet;
 class nsIAtom;
 class nsICSSPseudoComparator;
 class nsAttrValue;
 
-/**
- * A |TreeMatchContext| has data about a matching operation.  The
- * data are not node-specific but are invariants of the DOM tree the
- * nodes being matched against are in.
- *
- * Most of the members are in parameters to selector matching.  The
- * one out parameter is mHaveRelevantLink.  Consumers that use a
- * TreeMatchContext for more than one matching operation and care
- * about :visited and mHaveRelevantLink need to
- * ResetForVisitedMatching() and ResetForUnvisitedMatching() as
- * needed.
- */
-struct NS_STACK_CLASS TreeMatchContext {
-  // Reset this context for matching for the style-if-:visited.
-  void ResetForVisitedMatching() {
-    NS_PRECONDITION(mForStyling, "Why is this being called?");
-    mHaveRelevantLink = PR_FALSE;
-    mVisitedHandling = nsRuleWalker::eRelevantLinkVisited;
-  }
-  
-  void ResetForUnvisitedMatching() {
-    NS_PRECONDITION(mForStyling, "Why is this being called?");
-    mHaveRelevantLink = PR_FALSE;
-    mVisitedHandling = nsRuleWalker::eRelevantLinkUnvisited;
-  }
-
-  void SetHaveRelevantLink() { mHaveRelevantLink = PR_TRUE; }
-  PRBool HaveRelevantLink() const { return mHaveRelevantLink; }
-
-  nsRuleWalker::VisitedHandlingType VisitedHandling() const
-  {
-    return mVisitedHandling;
-  }
-
-  // Is this matching operation for the creation of a style context?
-  // (If it is, we need to set slow selector bits on nodes indicating
-  // that certain restyling needs to happen.)
-  const PRBool mForStyling;
-
- private:
-  // When mVisitedHandling is eRelevantLinkUnvisited, this is set to true if a
-  // relevant link (see explanation in definition of VisitedHandling enum) was
-  // encountered during the matching process, which means that matching needs
-  // to be rerun with eRelevantLinkVisited.  Otherwise, its behavior is
-  // undefined (it might get set appropriately, or might not).
-  PRBool mHaveRelevantLink;
-
-  // How matching should be performed.  See the documentation for
-  // nsRuleWalker::VisitedHandlingType.
-  nsRuleWalker::VisitedHandlingType mVisitedHandling;
-
- public:
-  // The document we're working with.
-  nsIDocument* const mDocument;
-
-  // Root of scoped stylesheet (set and unset by the supplier of the
-  // scoped stylesheet).
-  nsIContent* mScopedRoot;
-
-  // Whether our document is HTML (as opposed to XML of some sort,
-  // including XHTML).
-  // XXX XBL2 issue: Should we be caching this?  What should it be for XBL2?
-  const PRPackedBool mIsHTMLDocument;
-
-  // Possibly remove use of mCompatMode in SelectorMatches?
-  // XXX XBL2 issue: Should we be caching this?  What should it be for XBL2?
-  const nsCompatibility mCompatMode;
-
-  // The nth-index cache we should use
-  nsNthIndexCache mNthIndexCache;
-
-  // Constructor to use when creating a tree match context for styling
-  TreeMatchContext(PRBool aForStyling,
-                   nsRuleWalker::VisitedHandlingType aVisitedHandling,
-                   nsIDocument* aDocument)
-    : mForStyling(aForStyling)
-    , mHaveRelevantLink(PR_FALSE)
-    , mVisitedHandling(aVisitedHandling)
-    , mDocument(aDocument)
-    , mScopedRoot(nsnull)
-    , mIsHTMLDocument(aDocument->IsHTML())
-    , mCompatMode(aDocument->GetCompatibilityMode())
-  {
-  }
-};
-
 // The implementation of the constructor and destructor are currently in
 // nsCSSRuleProcessor.cpp.
 
-struct NS_STACK_CLASS RuleProcessorData  {
+struct RuleProcessorData {
   RuleProcessorData(nsPresContext* aPresContext,
                     mozilla::dom::Element* aElement, 
                     nsRuleWalker* aRuleWalker,
-                    TreeMatchContext& aTreeMatchContext)
-    : mPresContext(aPresContext)
-    , mElement(aElement)
-    , mRuleWalker(aRuleWalker)
-    , mTreeMatchContext(aTreeMatchContext)
+                    nsCompatibility* aCompat = nsnull);
+  
+  // NOTE: not |virtual|
+  ~RuleProcessorData();
+
+  // This should be used for all heap-allocation of RuleProcessorData
+  static RuleProcessorData* Create(nsPresContext* aPresContext,
+                                   mozilla::dom::Element* aElement, 
+                                   nsRuleWalker* aRuleWalker,
+                                   nsCompatibility aCompat)
   {
-    NS_ASSERTION(aElement, "null element leaked into SelectorMatches");
-    NS_ASSERTION(aElement->GetOwnerDoc(), "Document-less node here?");
-    NS_PRECONDITION(aTreeMatchContext.mForStyling == !!aRuleWalker,
-                    "Should be styling if and only if we have a rule walker");
+    if (NS_LIKELY(aPresContext)) {
+      return new (aPresContext) RuleProcessorData(aPresContext, aElement,
+                                                  aRuleWalker, &aCompat);
+    }
+
+    return new RuleProcessorData(aPresContext, aElement, aRuleWalker,
+                                 &aCompat);
   }
   
-  nsPresContext* const mPresContext;
-  mozilla::dom::Element* const mElement; // weak ref, must not be null
-  nsRuleWalker* const mRuleWalker; // Used to add rules to our results.
-  TreeMatchContext& mTreeMatchContext;
+  void Destroy() {
+    nsPresContext * pc = mPresContext;
+    if (NS_LIKELY(pc)) {
+      this->~RuleProcessorData();
+      pc->FreeToShell(sizeof(RuleProcessorData), this);
+      return;
+    }
+    delete this;
+  }
+
+  // For placement new
+  void* operator new(size_t sz, RuleProcessorData* aSlot) CPP_THROW_NEW {
+    return aSlot;
+  }
+private:
+  void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
+    return aContext->AllocateFromShell(sz);
+  }
+  void* operator new(size_t sz) CPP_THROW_NEW {
+    return ::operator new(sz);
+  }
+public:
+  const nsString* GetLang();
+  PRUint32 ContentState();
+  PRUint32 DocumentState();
+  PRBool IsLink();
+
+  PRUint32 GetContentStateForVisitedHandling(
+             nsRuleWalker::VisitedHandlingType aVisitedHandling,
+             PRBool aIsRelevantLink);
+
+  // Returns a 1-based index of the child in its parent.  If the child
+  // is not in its parent's child list (i.e., it is anonymous content),
+  // returns 0.
+  // If aCheckEdgeOnly is true, the function will return 1 if the result
+  // is 1, and something other than 1 (maybe or maybe not a valid
+  // result) otherwise.
+  PRInt32 GetNthIndex(PRBool aIsOfType, PRBool aIsFromEnd,
+                      PRBool aCheckEdgeOnly);
+
+  nsPresContext*    mPresContext;
+  mozilla::dom::Element* mElement;       // weak ref, must not be null
+  nsIContent*       mParentContent; // mElement->GetParent(); weak ref
+  nsRuleWalker*     mRuleWalker; // Used to add rules to our results.
+  nsIContent*       mScopedRoot;    // Root of scoped stylesheet (set and unset by the supplier of the scoped stylesheet
+  
+  nsIAtom*          mContentTag;    // mElement->GetTag()
+  nsIAtom*          mContentID;     // mElement->GetID()
+  PRPackedBool      mIsHTMLContent; // whether mElement is IsHTML()
+  PRPackedBool      mIsHTML;        // mIsHTMLContent && IsInHTMLDocument()
+  PRPackedBool      mHasAttributes; // mElement->GetAttrCount() > 0
+  nsCompatibility   mCompatMode;    // Possibly remove use of this in SelectorMatches?
+  PRInt32           mNameSpaceID;   // mElement->GetNameSapce()
+  const nsAttrValue* mClasses;      // mElement->GetClasses()
+  // mPreviousSiblingData and mParentData are always RuleProcessorData
+  // and never a derived class.  They are allocated lazily, when
+  // selectors require matching of prior siblings or ancestors.
+  RuleProcessorData* mPreviousSiblingData;
+  RuleProcessorData* mParentData;
+
+private:
+  nsString *mLanguage; // NULL means we haven't found out the language yet
+
+  // This node's index for :nth-child(), :nth-last-child(),
+  // :nth-of-type(), :nth-last-of-type().  If -2, needs to be computed.
+  // If -1, needs to be computed but known not to be 1.
+  // If 0, the node is not at any index in its parent.
+  // The first subscript is 0 for -child and 1 for -of-type, the second
+  // subscript is 0 for nth- and 1 for nth-last-.
+  PRInt32 mNthIndices[2][2];
+
+  // mContentState is initialized lazily.
+  PRInt32 mContentState;  // eventStateMgr->GetContentState() or
+                          // mElement->IntrinsicState() if we have no ESM
+                          // adjusted for not supporting :visited (but with
+                          // visitedness information when we support it)
+  PRPackedBool mGotContentState;
 };
 
-struct NS_STACK_CLASS ElementRuleProcessorData : public RuleProcessorData {
+struct ElementRuleProcessorData : public RuleProcessorData {
   ElementRuleProcessorData(nsPresContext* aPresContext,
                            mozilla::dom::Element* aElement, 
-                           nsRuleWalker* aRuleWalker,
-                           TreeMatchContext& aTreeMatchContext)
-  : RuleProcessorData(aPresContext, aElement, aRuleWalker, aTreeMatchContext)
+                           nsRuleWalker* aRuleWalker)
+  : RuleProcessorData(aPresContext, aElement, aRuleWalker)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
     NS_PRECONDITION(aRuleWalker, "null pointer");
-    NS_PRECONDITION(aTreeMatchContext.mForStyling, "Styling here!");
   }
 };
 
-struct NS_STACK_CLASS PseudoElementRuleProcessorData : public RuleProcessorData {
+struct PseudoElementRuleProcessorData : public RuleProcessorData {
   PseudoElementRuleProcessorData(nsPresContext* aPresContext,
                                  mozilla::dom::Element* aParentElement,
                                  nsRuleWalker* aRuleWalker,
-                                 nsCSSPseudoElements::Type aPseudoType,
-                                 TreeMatchContext& aTreeMatchContext)
-    : RuleProcessorData(aPresContext, aParentElement, aRuleWalker,
-                        aTreeMatchContext),
+                                 nsCSSPseudoElements::Type aPseudoType)
+    : RuleProcessorData(aPresContext, aParentElement, aRuleWalker),
       mPseudoType(aPseudoType)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
@@ -196,13 +186,12 @@ struct NS_STACK_CLASS PseudoElementRuleProcessorData : public RuleProcessorData 
                       nsCSSPseudoElements::ePseudo_PseudoElementCount,
                     "null pointer");
     NS_PRECONDITION(aRuleWalker, "null pointer");
-    NS_PRECONDITION(aTreeMatchContext.mForStyling, "Styling here!");
   }
 
   nsCSSPseudoElements::Type mPseudoType;
 };
 
-struct NS_STACK_CLASS AnonBoxRuleProcessorData {
+struct AnonBoxRuleProcessorData {
   AnonBoxRuleProcessorData(nsPresContext* aPresContext,
                            nsIAtom* aPseudoTag,
                            nsRuleWalker* aRuleWalker)
@@ -221,15 +210,13 @@ struct NS_STACK_CLASS AnonBoxRuleProcessorData {
 };
 
 #ifdef MOZ_XUL
-struct NS_STACK_CLASS XULTreeRuleProcessorData : public RuleProcessorData {
+struct XULTreeRuleProcessorData : public RuleProcessorData {
   XULTreeRuleProcessorData(nsPresContext* aPresContext,
                            mozilla::dom::Element* aParentElement,
                            nsRuleWalker* aRuleWalker,
                            nsIAtom* aPseudoTag,
-                           nsICSSPseudoComparator* aComparator,
-                           TreeMatchContext& aTreeMatchContext)
-    : RuleProcessorData(aPresContext, aParentElement, aRuleWalker,
-                        aTreeMatchContext),
+                           nsICSSPseudoComparator* aComparator)
+    : RuleProcessorData(aPresContext, aParentElement, aRuleWalker),
       mPseudoTag(aPseudoTag),
       mComparator(aComparator)
   {
@@ -237,7 +224,6 @@ struct NS_STACK_CLASS XULTreeRuleProcessorData : public RuleProcessorData {
     NS_PRECONDITION(aPseudoTag, "null pointer");
     NS_PRECONDITION(aRuleWalker, "null pointer");
     NS_PRECONDITION(aComparator, "must have a comparator");
-    NS_PRECONDITION(aTreeMatchContext.mForStyling, "Styling here!");
   }
 
   nsIAtom*                 mPseudoTag;
@@ -245,35 +231,31 @@ struct NS_STACK_CLASS XULTreeRuleProcessorData : public RuleProcessorData {
 };
 #endif
 
-struct NS_STACK_CLASS StateRuleProcessorData : public RuleProcessorData {
+struct StateRuleProcessorData : public RuleProcessorData {
   StateRuleProcessorData(nsPresContext* aPresContext,
                          mozilla::dom::Element* aElement,
-                         nsEventStates aStateMask,
-                         TreeMatchContext& aTreeMatchContext)
-    : RuleProcessorData(aPresContext, aElement, nsnull, aTreeMatchContext),
+                         PRInt32 aStateMask)
+    : RuleProcessorData(aPresContext, aElement, nsnull),
       mStateMask(aStateMask)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
-    NS_PRECONDITION(!aTreeMatchContext.mForStyling, "Not styling here!");
   }
-  const nsEventStates mStateMask; // |HasStateDependentStyle| for which state(s)?
-                                  //  Constants defined in nsEventStates.h .
+  const PRInt32 mStateMask; // |HasStateDependentStyle| for which state(s)?
+                            //  Constants defined in nsIEventStateManager.h .
 };
 
-struct NS_STACK_CLASS AttributeRuleProcessorData : public RuleProcessorData {
+struct AttributeRuleProcessorData : public RuleProcessorData {
   AttributeRuleProcessorData(nsPresContext* aPresContext,
                              mozilla::dom::Element* aElement,
                              nsIAtom* aAttribute,
                              PRInt32 aModType,
-                             PRBool aAttrHasChanged,
-                             TreeMatchContext& aTreeMatchContext)
-    : RuleProcessorData(aPresContext, aElement, nsnull, aTreeMatchContext),
+                             PRBool aAttrHasChanged)
+    : RuleProcessorData(aPresContext, aElement, nsnull),
       mAttribute(aAttribute),
       mModType(aModType),
       mAttrHasChanged(aAttrHasChanged)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
-    NS_PRECONDITION(!aTreeMatchContext.mForStyling, "Not styling here!");
   }
   nsIAtom* mAttribute; // |HasAttributeDependentStyle| for which attribute?
   PRInt32 mModType;    // The type of modification (see nsIDOMMutationEvent).

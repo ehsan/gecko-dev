@@ -53,8 +53,8 @@ var BUGNUMBER = "2157";
 
 startTest();
 
-AddRegExpCases( /a||b/.exec(''),
-		"/a||b/.exec('')",
+AddRegExpCases( /a||b/(''),
+		"//a||b/('')",
 		1,
 		[''] );
 

@@ -175,8 +175,6 @@ public:
    *  @lina 06/18/2000
    */
   nsresult Resolve(nsBlockFrame* aBlockFrame);
-  void ResolveParagraph(nsBlockFrame* aBlockFrame);
-  void ResolveParagraphWithinBlock(nsBlockFrame* aBlockFrame);
 
   /**
    * Reorder this line using Bidi engine.
@@ -210,8 +208,7 @@ public:
    *  NSBIDI_LTR - left-to-right string
    *  NSBIDI_RTL - right-to-left string
    * @param aPresContext the presentation context
-   * @param aRenderingContext the rendering context to render to
-   * @param aTextRunConstructionContext the rendering context to be used to construct the textrun (affects font hinting)
+   * @param aRenderingContext the rendering context
    * @param aX the x-coordinate to render the string
    * @param aY the y-coordinate to render the string
    * @param[in,out] aPosResolve array of logical positions to resolve into visual positions; can be nsnull if this functionality is not required
@@ -221,26 +218,24 @@ public:
                       PRInt32                aLength,
                       nsBidiDirection        aBaseDirection,
                       nsPresContext*         aPresContext,
-                      nsRenderingContext&    aRenderingContext,
-                      nsRenderingContext&    aTextRunConstructionContext,
+                      nsIRenderingContext&   aRenderingContext,
                       nscoord                aX,
                       nscoord                aY,
                       nsBidiPositionResolve* aPosResolve = nsnull,
                       PRInt32                aPosResolveCount = 0)
   {
     return ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
-                                          aTextRunConstructionContext, MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
+                                          MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
   }
   
   nscoord MeasureTextWidth(const PRUnichar*     aText,
                            PRInt32              aLength,
                            nsBidiDirection      aBaseDirection,
                            nsPresContext*       aPresContext,
-                           nsRenderingContext&  aRenderingContext)
+                           nsIRenderingContext& aRenderingContext)
   {
     nscoord length;
-    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext,
-                                                 aRenderingContext, aRenderingContext,
+    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
                                                  MODE_MEASURE, 0, 0, nsnull, 0, &length);
     return NS_SUCCEEDED(rv) ? length : 0;
   }
@@ -323,60 +318,37 @@ public:
                        nscoord*               aWidth);
 
   /**
-   * Make a copy of a string, converting from logical to visual order
-   *
-   * @param aSource the source string
-   * @param aDest the destination string
-   * @param aBaseDirection the base direction of the string
-   *       (NSBIDI_LTR or NSBIDI_RTL to force the base direction;
-   *        NSBIDI_DEFAULT_LTR or NSBIDI_DEFAULT_RTL to let the bidi engine
-   *        determine the direction from rules P2 and P3 of the bidi algorithm.
-   *  @see nsBidi::GetPara
-   * @param aOverride if TRUE, the text has a bidi override, according to
-   *                    the direction in aDir
-   */
-  void CopyLogicalToVisual(const nsAString& aSource,
-                           nsAString& aDest,
-                           nsBidiLevel aBaseDirection,
-                           PRBool aOverride);
-
-  /**
    * Guess at how much memory is being used by this nsBidiPresUtils instance,
    * including memory used by nsBidi.
    */
   PRUint32 EstimateMemoryUsed();
-
-  void Traverse(nsCycleCollectionTraversalCallback &cb) const;
-  void Unlink();
 
 private:
   nsresult ProcessTextForRenderingContext(const PRUnichar*       aText,
                                           PRInt32                aLength,
                                           nsBidiDirection        aBaseDirection,
                                           nsPresContext*         aPresContext,
-                                          nsRenderingContext&    aRenderingContext,
-                                          nsRenderingContext&    aTextRunConstructionContext,
+                                          nsIRenderingContext&   aRenderingContext,
                                           Mode                   aMode,
                                           nscoord                aX, // DRAW only
                                           nscoord                aY, // DRAW only
                                           nsBidiPositionResolve* aPosResolve,  /* may be null */
                                           PRInt32                aPosResolveCount,
                                           nscoord*               aWidth /* may be null */);
-  void AdvanceAndAppendFrame(nsIFrame**                 aFrame,
-                             nsBlockInFlowLineIterator* aLineIter,
-                             nsIFrame**                 aNextSibling);
 
   /**
-   * Traverse the child frames of the block element and:
-   *  Set up an array of the frames in logical order
-   *  Create a string containing the text content of all the frames
-   *  If we encounter content that requires us to split the element into more
-   *  than one paragraph for bidi resolution, resolve the paragraph up to that
-   *  point.
+   *  Create a string containing entire text content of this block.
+   *
+   *  @lina 05/02/2000
    */
-  void TraverseFrames(nsBlockFrame*              aBlockFrame,
-                      nsBlockInFlowLineIterator* aLineIter,
-                      nsIFrame*                  aCurrentFrame);
+  void CreateBlockBuffer();
+
+  /**
+   * Set up an array of the frames after splitting frames so that each frame has
+   * consistent directionality. At this point the frames are still in logical
+   * order
+   */
+  void InitLogicalArray(nsIFrame* aCurrentFrame);
 
   /**
    * Initialize the logically-ordered array of frames
@@ -505,31 +477,14 @@ private:
   
   void StripBidiControlCharacters(PRUnichar* aText,
                                   PRInt32&   aTextLength) const;
-
-  static PRBool WriteLogicalToVisual(const PRUnichar* aSrc,
-                                     PRUint32 aSrcLength,
-                                     PRUnichar* aDest,
-                                     nsBidiLevel aBaseDirection,
-                                     nsBidi* aBidiEngine);
-
- static void WriteReverse(const PRUnichar* aSrc,
-                          PRUint32 aSrcLength,
-                          PRUnichar* aDest);
-
-  nsString        mBuffer;
-  nsTArray<PRUnichar> mEmbeddingStack;
+  nsAutoString    mBuffer;
   nsTArray<nsIFrame*> mLogicalFrames;
-  nsTArray<nsLineBox*> mLinePerFrame;
   nsTArray<nsIFrame*> mVisualFrames;
   nsDataHashtable<nsISupportsHashKey, PRInt32> mContentToFrameIndex;
   PRInt32         mArraySize;
   PRInt32*        mIndexMap;
   PRUint8*        mLevels;
   nsresult        mSuccess;
-  PRPackedBool    mIsVisual;
-  nsBidiLevel     mParaLevel;
-  nsIFrame*       mPrevFrame;
-  nsIContent*     mPrevContent;
 
   nsBidi*         mBidiEngine;
 };

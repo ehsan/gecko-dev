@@ -40,17 +40,18 @@
 #define nsEventQueue_h__
 
 #include <stdlib.h>
-#include "mozilla/ReentrantMonitor.h"
+#include "prmon.h"
 #include "nsIRunnable.h"
 
 // A threadsafe FIFO event queue...
 class NS_COM nsEventQueue
 {
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
-
 public:
   nsEventQueue();
   ~nsEventQueue();
+
+  // Returns "true" if the event queue has been completely constructed.
+  PRBool IsInitialized() { return mMonitor != nsnull; }
 
   // This method adds a new event to the pending event queue.  The event object
   // is AddRef'd if this method succeeds.  This method returns PR_TRUE if the
@@ -82,8 +83,8 @@ public:
   }
 
   // Expose the event queue's monitor for "power users"
-  ReentrantMonitor& GetReentrantMonitor() {
-    return mReentrantMonitor;
+  PRMonitor *Monitor() {
+    return mMonitor;
   }
 
 private:
@@ -96,6 +97,7 @@ private:
 
   // Page objects are linked together to form a simple deque.
 
+  struct Page; friend struct Page; // VC6!
   struct Page {
     struct Page *mNext;
     nsIRunnable *mEvents[EVENTS_PER_PAGE];
@@ -109,7 +111,7 @@ private:
     free(p);
   }
 
-  ReentrantMonitor mReentrantMonitor;
+  PRMonitor *mMonitor;
 
   Page *mHead;
   Page *mTail;

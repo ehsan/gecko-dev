@@ -37,13 +37,6 @@
 #include "X86Assembler.h"
 #include "AbstractMacroAssembler.h"
 
-#if WTF_COMPILER_MSVC
-#if WTF_CPU_X86_64
-/* for __cpuid */
-#include <intrin.h>
-#endif
-#endif
-
 namespace JSC {
 
 class MacroAssemblerX86Common : public AbstractMacroAssembler<X86Assembler> {
@@ -116,12 +109,12 @@ public:
         m_assembler.addl_rr(src, dest);
     }
 
-    void add32(TrustedImm32 imm, Address address)
+    void add32(Imm32 imm, Address address)
     {
         m_assembler.addl_im(imm.m_value, address.offset, address.base);
     }
 
-    void add32(TrustedImm32 imm, RegisterID dest)
+    void add32(Imm32 imm, RegisterID dest)
     {
         m_assembler.addl_ir(imm.m_value, dest);
     }
@@ -203,12 +196,6 @@ public:
         m_assembler.imull_i32r(src, imm.m_value, dest);
     }
 
-    void idiv(RegisterID reg)
-    {
-        m_assembler.cdq();
-        m_assembler.idivl_r(reg);
-    }
-
     void neg32(RegisterID srcDest)
     {
         m_assembler.negl_r(srcDest);
@@ -234,7 +221,7 @@ public:
         m_assembler.orl_rr(src, dest);
     }
 
-    void or32(TrustedImm32 imm, RegisterID dest)
+    void or32(Imm32 imm, RegisterID dest)
     {
         m_assembler.orl_ir(imm.m_value, dest);
     }
@@ -249,7 +236,7 @@ public:
         m_assembler.orl_mr(src.offset, src.base, dest);
     }
 
-    void or32(TrustedImm32 imm, Address address)
+    void or32(Imm32 imm, Address address)
     {
         m_assembler.orl_im(imm.m_value, address.offset, address.base);
     }
@@ -313,12 +300,12 @@ public:
         m_assembler.subl_rr(src, dest);
     }
     
-    void sub32(TrustedImm32 imm, RegisterID dest)
+    void sub32(Imm32 imm, RegisterID dest)
     {
         m_assembler.subl_ir(imm.m_value, dest);
     }
     
-    void sub32(TrustedImm32 imm, Address address)
+    void sub32(Imm32 imm, Address address)
     {
         m_assembler.subl_im(imm.m_value, address.offset, address.base);
     }
@@ -339,12 +326,12 @@ public:
         m_assembler.xorl_rr(src, dest);
     }
 
-    void xor32(TrustedImm32 imm, Address dest)
+    void xor32(Imm32 imm, Address dest)
     {
         m_assembler.xorl_im(imm.m_value, dest.offset, dest.base);
     }
 
-    void xor32(TrustedImm32 imm, RegisterID dest)
+    void xor32(Imm32 imm, RegisterID dest)
     {
         m_assembler.xorl_ir(imm.m_value, dest);
     }
@@ -392,56 +379,6 @@ public:
         return DataLabel32(this);
     }
 
-    void store8(RegisterID src, Address address)
-    {
-        m_assembler.movb_rm(src, address.offset, address.base);
-    }
-
-    void store8(RegisterID src, BaseIndex address)
-    {
-        m_assembler.movb_rm(src, address.offset, address.base, address.index, address.scale);
-    }
-
-    void store16(RegisterID src, Address address)
-    {
-        m_assembler.movw_rm(src, address.offset, address.base);
-    }
-
-    void store16(RegisterID src, BaseIndex address)
-    {
-        m_assembler.movw_rm(src, address.offset, address.base, address.index, address.scale);
-    }
-
-    void load8ZeroExtend(BaseIndex address, RegisterID dest)
-    {
-        m_assembler.movzbl_mr(address.offset, address.base, address.index, address.scale, dest);
-    }
-    
-    void load8ZeroExtend(Address address, RegisterID dest)
-    {
-        m_assembler.movzbl_mr(address.offset, address.base, dest);
-    }
-
-    void load8SignExtend(BaseIndex address, RegisterID dest)
-    {
-        m_assembler.movxbl_mr(address.offset, address.base, address.index, address.scale, dest);
-    }
-    
-    void load8SignExtend(Address address, RegisterID dest)
-    {
-        m_assembler.movxbl_mr(address.offset, address.base, dest);
-    }
-
-    void load16SignExtend(BaseIndex address, RegisterID dest)
-    {
-        m_assembler.movxwl_mr(address.offset, address.base, address.index, address.scale, dest);
-    }
-    
-    void load16SignExtend(Address address, RegisterID dest)
-    {
-        m_assembler.movxwl_mr(address.offset, address.base, dest);
-    }
-
     void load16(BaseIndex address, RegisterID dest)
     {
         m_assembler.movzwl_mr(address.offset, address.base, address.index, address.scale, dest);
@@ -463,39 +400,19 @@ public:
         m_assembler.movl_rm(src, address.offset, address.base);
     }
 
+    void store32(Imm32 imm, BaseIndex address)
+    {
+        m_assembler.movl_i32m(imm.m_value, address.offset, address.base, address.index, address.scale);
+    }
+
     void store32(RegisterID src, BaseIndex address)
     {
         m_assembler.movl_rm(src, address.offset, address.base, address.index, address.scale);
     }
 
-    void store32(TrustedImm32 imm, BaseIndex address)
-    {
-        m_assembler.movl_i32m(imm.m_value, address.offset, address.base, address.index, address.scale);
-    }
-
-    void store16(Imm32 imm, BaseIndex address)
-    {
-        m_assembler.movw_i16m(imm.m_value, address.offset, address.base, address.index, address.scale);
-    }
-
-    void store8(Imm32 imm, BaseIndex address)
-    {
-        m_assembler.movb_i8m(imm.m_value, address.offset, address.base, address.index, address.scale);
-    }
-
-    void store32(TrustedImm32 imm, ImplicitAddress address)
+    void store32(Imm32 imm, ImplicitAddress address)
     {
         m_assembler.movl_i32m(imm.m_value, address.offset, address.base);
-    }
-
-    void store16(Imm32 imm, ImplicitAddress address)
-    {
-        m_assembler.movw_i16m(imm.m_value, address.offset, address.base);
-    }
-
-    void store8(Imm32 imm, ImplicitAddress address)
-    {
-        m_assembler.movb_i8m(imm.m_value, address.offset, address.base);
     }
 
 
@@ -509,80 +426,16 @@ public:
         m_assembler.movsd_rr(src, dest);
     }
 
-    void loadFloat(ImplicitAddress address, FPRegisterID dest)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.movss_mr(address.offset, address.base, dest);
-        m_assembler.cvtss2sd_rr(dest, dest);
-    }
-
-    void loadFloat(BaseIndex address, FPRegisterID dest)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.movss_mr(address.offset, address.base, address.index, address.scale, dest);
-        m_assembler.cvtss2sd_rr(dest, dest);
-    }
-
-    void convertDoubleToFloat(FPRegisterID src, FPRegisterID dest)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.cvtsd2ss_rr(src, dest);
-    }
-
     void loadDouble(ImplicitAddress address, FPRegisterID dest)
     {
         ASSERT(isSSE2Present());
         m_assembler.movsd_mr(address.offset, address.base, dest);
     }
 
-    void loadDouble(BaseIndex address, FPRegisterID dest)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.movsd_mr(address.offset, address.base, address.index, address.scale, dest);
-    }
-
-    void storeFloat(ImmDouble imm, Address address)
-    {
-        union {
-            float f;
-            uint32 u32;
-        } u;
-        u.f = imm.u.d;
-        store32(Imm32(u.u32), address);
-    }
-
-    void storeFloat(ImmDouble imm, BaseIndex address)
-    {
-        union {
-            float f;
-            uint32 u32;
-        } u;
-        u.f = imm.u.d;
-        store32(Imm32(u.u32), address);
-    }
-
     void storeDouble(FPRegisterID src, ImplicitAddress address)
     {
         ASSERT(isSSE2Present());
         m_assembler.movsd_rm(src, address.offset, address.base);
-    }
-
-    void storeFloat(FPRegisterID src, ImplicitAddress address)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.movss_rm(src, address.offset, address.base);
-    }
-
-    void storeDouble(FPRegisterID src, BaseIndex address)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.movsd_rm(src, address.offset, address.base, address.index, address.scale);
-    }
-
-    void storeFloat(FPRegisterID src, BaseIndex address)
-    {
-        ASSERT(isSSE2Present());
-        m_assembler.movss_rm(src, address.offset, address.base, address.index, address.scale);
     }
 
     void addDouble(FPRegisterID src, FPRegisterID dest)
@@ -748,7 +601,7 @@ public:
     //
     // Move values in registers.
 
-    void move(TrustedImm32 imm, RegisterID dest)
+    void move(Imm32 imm, RegisterID dest)
     {
         // Note: on 64-bit the Imm32 value is zero extended into the register, it
         // may be useful to have a separate version that sign extends the value?
@@ -767,7 +620,7 @@ public:
             m_assembler.movq_rr(src, dest);
     }
 
-    void move(TrustedImmPtr imm, RegisterID dest)
+    void move(ImmPtr imm, RegisterID dest)
     {
         m_assembler.movq_i64r(imm.asIntptr(), dest);
     }
@@ -798,7 +651,7 @@ public:
             m_assembler.movl_rr(src, dest);
     }
 
-    void move(TrustedImmPtr imm, RegisterID dest)
+    void move(ImmPtr imm, RegisterID dest)
     {
         m_assembler.movl_i32r(imm.asIntptr(), dest);
     }
@@ -852,7 +705,7 @@ public:
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
-    Jump branch32(Condition cond, RegisterID left, TrustedImm32 right)
+    Jump branch32(Condition cond, RegisterID left, Imm32 right)
     {
         if (((cond == Equal) || (cond == NotEqual)) && !right.m_value)
             m_assembler.testl_rr(left, left);
@@ -862,26 +715,18 @@ public:
     }
     
     // Branch based on a 32-bit comparison, forcing the size of the
-    // immediate operand to 32 bits in the native code stream to ensure that
-    // the length of code emitted by this instruction is consistent.
-    Jump branch32FixedLength(Condition cond, RegisterID left, TrustedImm32 right)
+    // immediate operand to 32 bits in the native code stream.
+    Jump branch32_force32(Condition cond, RegisterID left, Imm32 right)
     {
         m_assembler.cmpl_ir_force32(right.m_value, left);
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
     // Branch and record a label after the comparison.
-    Jump branch32WithPatch(Condition cond, RegisterID left, TrustedImm32 right, DataLabel32 &dataLabel)
+    Jump branch32WithPatch(Condition cond, RegisterID left, Imm32 right, DataLabel32 &dataLabel)
     {
         // Always use cmpl, since the value is to be patched.
-        m_assembler.cmpl_ir_force32(right.m_value, left);
-        dataLabel = DataLabel32(this);
-        return Jump(m_assembler.jCC(x86Condition(cond)));
-    }
-
-    Jump branch32WithPatch(Condition cond, Address left, TrustedImm32 right, DataLabel32 &dataLabel)
-    {
-        m_assembler.cmpl_im_force32(right.m_value, left.offset, left.base);
+        m_assembler.cmpl_ir(right.m_value, left);
         dataLabel = DataLabel32(this);
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
@@ -898,19 +743,19 @@ public:
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
-    Jump branch32(Condition cond, Address left, TrustedImm32 right)
+    Jump branch32(Condition cond, Address left, Imm32 right)
     {
         m_assembler.cmpl_im(right.m_value, left.offset, left.base);
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
-    Jump branch32(Condition cond, BaseIndex left, TrustedImm32 right)
+    Jump branch32(Condition cond, BaseIndex left, Imm32 right)
     {
         m_assembler.cmpl_im(right.m_value, left.offset, left.base, left.index, left.scale);
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
-    Jump branch32WithUnalignedHalfWords(Condition cond, BaseIndex left, TrustedImm32 right)
+    Jump branch32WithUnalignedHalfWords(Condition cond, BaseIndex left, Imm32 right)
     {
         return branch32(cond, left, right);
     }
@@ -1005,11 +850,7 @@ public:
         m_assembler.jmp_m(address.offset, address.base);
     }
 
-    void jump(BaseIndex address)
-    {
-        m_assembler.jmp_m(address.offset, address.base, address.index, address.scale);
-    }
-
+    
     // Arithmetic control flow operations:
     //
     // This set of conditional branch operations branch based
@@ -1237,17 +1078,12 @@ public:
         m_assembler.movzbl_rr(dest, dest);
     }
 
-    // As the SSE's were introduced in order, the presence of a later SSE implies
-    // the presence of an earlier SSE. For example, SSE4_2 support implies SSE2 support.
     enum SSECheckState {
         NotCheckedSSE = 0,
         NoSSE = 1,
-        HasSSE = 2,
-        HasSSE2 = 3,
-        HasSSE3 = 4,
-        HasSSSE3 = 5,
-        HasSSE4_1 = 6,
-        HasSSE4_2 = 7
+        HasSSE2 = 2,
+        HasSSE4_1 = 3, // implies HasSSE2
+        HasSSE4_2 = 4  // implies HasSSE4_1
     };
 
     static SSECheckState getSSEState()
@@ -1276,10 +1112,11 @@ private:
     {
         // Default the flags value to zero; if the compiler is
         // not MSVC or GCC we will read this as SSE2 not present.
-        volatile int flags_edx = 0;
-        volatile int flags_ecx = 0;
+        int flags_edx = 0;
+        int flags_ecx = 0;
 #if WTF_COMPILER_MSVC
 #if WTF_CPU_X86_64
+        extern void __cpuid(int a[4], int b);
         int cpuinfo[4];
 
         __cpuid(cpuinfo, 1);
@@ -1294,19 +1131,6 @@ private:
         }
 #endif
 #elif WTF_COMPILER_GCC
-#if WTF_CPU_X86_64
-        asm (
-             "movl $0x1, %%eax;"
-             "pushq %%rbx;"
-             "cpuid;"
-             "popq %%rbx;"
-             "movl %%ecx, %0;"
-             "movl %%edx, %1;"
-             : "=g" (flags_ecx), "=g" (flags_edx)
-             :
-             : "%eax", "%ecx", "%edx"
-             );
-#else
         asm (
              "movl $0x1, %%eax;"
              "pushl %%ebx;"
@@ -1319,81 +1143,29 @@ private:
              : "%eax", "%ecx", "%edx"
              );
 #endif
-#elif WTF_COMPILER_SUNPRO
-#if WTF_CPU_X86_64
-        asm (
-             "movl $0x1, %%eax;"
-             "pushq %%rbx;"
-             "cpuid;"
-             "popq %%rbx;"
-             "movl %%ecx, (%rsi);"
-             "movl %%edx, (%rdi);"
-             :
-             : "S" (&flags_ecx), "D" (&flags_edx)
-             : "%eax", "%ecx", "%edx"
-             );
-#else
-        asm (
-             "movl $0x1, %eax;"
-             "pushl %ebx;"
-             "cpuid;"
-             "popl %ebx;"
-             "movl %ecx, (%esi);"
-             "movl %edx, (%edi);"
-             :
-             : "S" (&flags_ecx), "D" (&flags_edx)
-             : "%eax", "%ecx", "%edx"
-             );
-#endif
-#endif
-        static const int SSEFeatureBit = 1 << 25;
         static const int SSE2FeatureBit = 1 << 26;
-        static const int SSE3FeatureBit = 1 << 0;
-        static const int SSSE3FeatureBit = 1 << 9;
         static const int SSE41FeatureBit = 1 << 19;
         static const int SSE42FeatureBit = 1 << 20;
         if (flags_ecx & SSE42FeatureBit)
             s_sseCheckState = HasSSE4_2;
         else if (flags_ecx & SSE41FeatureBit)
             s_sseCheckState = HasSSE4_1;
-        else if (flags_ecx & SSSE3FeatureBit)
-            s_sseCheckState = HasSSSE3;
-        else if (flags_ecx & SSE3FeatureBit)
-            s_sseCheckState = HasSSE3;
         else if (flags_edx & SSE2FeatureBit)
             s_sseCheckState = HasSSE2;
-        else if (flags_edx & SSEFeatureBit)
-            s_sseCheckState = HasSSE;
         else
             s_sseCheckState = NoSSE;
     }
 
 #if WTF_CPU_X86
-#if WTF_OS_MAC_OS_X
+#if WTF_PLATFORM_MAC
 
-    // All X86 Macs are guaranteed to support at least SSE2
-    static bool isSSEPresent()
-    {
-        return true;
-    }
-
+    // All X86 Macs are guaranteed to support at least SSE2,
     static bool isSSE2Present()
     {
         return true;
     }
 
-#else // OS(MAC_OS_X)
-
-    static bool isSSEPresent()
-    {
-        if (s_sseCheckState == NotCheckedSSE) {
-            setSSECheckState();
-        }
-        // Only check once.
-        ASSERT(s_sseCheckState != NotCheckedSSE);
-
-        return s_sseCheckState >= HasSSE;
-    }
+#else // PLATFORM(MAC)
 
     static bool isSSE2Present()
     {
@@ -1418,27 +1190,6 @@ private:
     }
 
 #endif
-    static bool isSSE3Present()
-    {
-        if (s_sseCheckState == NotCheckedSSE) {
-            setSSECheckState();
-        }
-        // Only check once.
-        ASSERT(s_sseCheckState != NotCheckedSSE);
-
-        return s_sseCheckState >= HasSSE3;
-    }
-
-    static bool isSSSE3Present()
-    {
-        if (s_sseCheckState == NotCheckedSSE) {
-            setSSECheckState();
-        }
-        // Only check once.
-        ASSERT(s_sseCheckState != NotCheckedSSE);
-
-        return s_sseCheckState >= HasSSSE3;
-    }
 
     static bool isSSE41Present()
     {

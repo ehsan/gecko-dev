@@ -71,6 +71,8 @@
 #  define WIDGET_MODULES MODULE(nsWidgetModule)
 #elif defined(XP_MACOSX)
 #  define WIDGET_MODULES MODULE(nsWidgetMacModule)
+#elif defined(XP_BEOS)
+#  define WIDGET_MODULES MODULE(nsWidgetBeOSModule)
 #elif defined(XP_OS2)
 #  define WIDGET_MODULES MODULE(nsWidgetOS2Module)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -97,6 +99,12 @@
 #define RDF_MODULES
 #endif
 
+#ifdef MOZ_PLAINTEXT_EDITOR_ONLY
+#define COMPOSER_MODULE
+#else
+#define COMPOSER_MODULE MODULE(nsComposerModule)
+#endif
+
 #ifdef ACCESSIBILITY
 #define ACCESS_MODULES MODULE(nsAccessibilityModule)
 #else
@@ -121,21 +129,25 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#ifdef ENABLE_LAYOUTDEBUG
+#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
 #endif
 
-#if defined(ENABLE_JETPACK_SERVICE)
+#ifdef MOZ_IPC
 #define JETPACK_MODULES \
     MODULE(jetpack)
 #else
 #define JETPACK_MODULES
 #endif
 
+#ifdef MOZ_PLUGINS
 #define PLUGINS_MODULES \
     MODULE(nsPluginModule)
+#else
+#define PLUGINS_MODULES
+#endif
 
 #ifdef MOZ_JSDEBUGGER
 #define JSDEBUGGER_MODULES \
@@ -166,15 +178,13 @@
 #define PLACES_MODULES \
     MODULE(nsPlacesModule)
 #else
-#define PLACES_MODULES
-#endif
-
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
-#define MORK_MODULES \
+#define PLACES_MODULES \
     MODULE(nsMorkModule)
 #else
-#define MORK_MODULES
+#define PLACES_MODULES
 #endif
+#endif    
 
 #ifdef MOZ_XUL
 #define XULENABLED_MODULES                   \
@@ -221,19 +231,6 @@
 #define JSCTYPES_MODULE
 #endif
 
-#define JSREFLECT_MODULE MODULE(jsreflect)
-
-#define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
-
-#ifndef MOZ_APP_COMPONENT_MODULES
-#if defined(MOZ_APP_COMPONENT_INCLUDE)
-#include MOZ_APP_COMPONENT_INCLUDE
-#define MOZ_APP_COMPONENT_MODULES APP_COMPONENT_MODULES
-#else
-#define MOZ_APP_COMPONENT_MODULES
-#endif
-#endif
-
 #define XUL_MODULES                          \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
@@ -261,14 +258,13 @@
     ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
-    MODULE(nsComposerModule)                 \
+    COMPOSER_MODULE                          \
     MODULE(application)                      \
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \
     STORAGE_MODULE                           \
     PLACES_MODULES                           \
-    MORK_MODULES                             \
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
@@ -282,11 +278,7 @@
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
-    JSREFLECT_MODULE                         \
     MODULE(jsperf)                           \
-    SERVICES_CRYPTO_MODULE                   \
-    MOZ_APP_COMPONENT_MODULES                \
-    MODULE(nsTelemetryModule)                \
     /* end of list */
 
 #define MODULE(_name) \
@@ -297,11 +289,13 @@ XUL_MODULES
 #undef MODULE
 
 #define MODULE(_name) \
-    &NSMODULE_NAME(_name),
+    NSMODULE_NAME(_name),
 
-const mozilla::Module *const *const kPStaticModules[] = {
+static const mozilla::Module *const kStaticModules[] = {
   XUL_MODULES
   NULL
 };
 
 #undef MODULE
+
+mozilla::Module const *const *const kPStaticModules = kStaticModules;

@@ -1,3 +1,8 @@
+//
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
 /****************************************************************************\
 Copyright (c) 2002, NVIDIA Corporation.
 
@@ -59,7 +64,6 @@ typedef struct Options_Rec{
     int DumpAtomTable;
 } Options;
 
-#define MAX_IF_NESTING  64
 struct CPPStruct_Rec {
     // Public members
     SourceLoc *pLastSourceLoc;  // Set at the start of each statement by the tree walkers
@@ -81,7 +85,7 @@ struct CPPStruct_Rec {
     // Private members:
     SourceLoc ltokenLoc;
 	int ifdepth;                //current #if-#else-#endif nesting in the cpp.c file (pre-processor)    
-    int elsedepth[MAX_IF_NESTING];//Keep a track of #if depth..Max allowed is 64.
+    int elsedepth[64];          //Keep a track of #if depth..Max allowed is 64.   
     int elsetracker;            //#if-#else and #endif constructs...Counter.
     const char *ErrMsg;
     int CompileError;           //Indicate compile error when #error, #else,#elif mismatch.
@@ -90,10 +94,10 @@ struct CPPStruct_Rec {
     // Globals used to communicate between PaParseStrings() and yy_input()and 
     // also across the files.(gen_glslang.cpp and scanner.c)
     //
-    int PaWhichStr;             // which string we're parsing
-    const int* PaStrLen;        // array of lengths of the PaArgv strings
-    int PaArgc;                 // count of strings in the array
-    const char* const* PaArgv;  // our array of strings to parse    
+    int    PaWhichStr;            // which string we're parsing
+    int*   PaStrLen;              // array of lengths of the PaArgv strings
+    int    PaArgc;                // count of strings in the array
+    char** PaArgv;                // our array of strings to parse    
     unsigned int tokensBeforeEOF : 1;
 };
 

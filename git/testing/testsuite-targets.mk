@@ -45,10 +45,6 @@ else
 TEST_PATH_ARG :=
 endif
 
-# include automation-build.mk to get the path to the binary
-TARGET_DEPTH = $(DEPTH)
-include $(topsrcdir)/build/binary-location.mk
-
 SYMBOLS_PATH := --symbols-path=$(DIST)/crashreporter-symbols
 
 # Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] mochitest*|.
@@ -78,12 +74,6 @@ mochitest-plain:
 	$(RUN_MOCHITEST)
 	$(CHECK_TEST_ERROR)
 
-# Allow mochitest-1 ... mochitest-5 for developer ease
-mochitest-1 mochitest-2 mochitest-3 mochitest-4 mochitest-5: mochitest-%:
-	echo "mochitest: $* / 5"
-	$(RUN_MOCHITEST) --chunk-by-dir=4 --total-chunks=5 --this-chunk=$*
-	$(CHECK_TEST_ERROR)
-
 mochitest-chrome:
 	$(RUN_MOCHITEST) --chrome
 	$(CHECK_TEST_ERROR)
@@ -93,65 +83,24 @@ mochitest-a11y:
 	$(CHECK_TEST_ERROR)
 
 mochitest-ipcplugins:
-ifeq (Darwin,$(OS_ARCH))
-ifeq (i386,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=false --test-path=dom/plugins/test
-endif
-ifeq (x86_64,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=false --test-path=dom/plugins/test
-endif
-ifeq (powerpc,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=false --test-path=dom/plugins/test
-endif
-else
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=false --test-path=dom/plugins/test
-endif
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=true --test-path=modules/plugin/test
 	$(CHECK_TEST_ERROR)
 
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
-ifeq ($(OS_ARCH),WINNT) #{
-# GPU-rendered shadow layers are unsupported here
-OOP_CONTENT = --setpref=browser.tabs.remote=true --setpref=layers.acceleration.disabled=true
-GPU_RENDERING =
-else
-OOP_CONTENT = --setpref=browser.tabs.remote=true
-GPU_RENDERING = --setpref=layers.acceleration.force-enabled=true
-endif #}
-
-reftest: TEST_PATH?=layout/reftests/reftest.list
+reftest: TEST_PATH=layout/reftests/reftest.list
 reftest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)
 
-reftest-ipc: TEST_PATH?=layout/reftests/reftest.list
-reftest-ipc:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT))
-	$(CHECK_TEST_ERROR)
-
-reftest-ipc-gpu: TEST_PATH?=layout/reftests/reftest.list
-reftest-ipc-gpu:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT) $(GPU_RENDERING))
-	$(CHECK_TEST_ERROR)
-
-crashtest: TEST_PATH?=testing/crashtest/crashtests.list
+crashtest: TEST_PATH=testing/crashtest/crashtests.list
 crashtest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)
 
-crashtest-ipc: TEST_PATH?=testing/crashtest/crashtests.list
-crashtest-ipc:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT))
-	$(CHECK_TEST_ERROR)
-
-crashtest-ipc-gpu: TEST_PATH?=testing/crashtest/crashtests.list
-crashtest-ipc-gpu:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT) $(GPU_RENDERING))
-	$(CHECK_TEST_ERROR)
-
-jstestbrowser: TEST_PATH?=js/src/tests/jstests.list
+jstestbrowser: TEST_PATH=js/src/tests/jstests.list
 jstestbrowser:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) --extra-profile-file=$(topsrcdir)/js/src/tests/user.js)
 	$(CHECK_TEST_ERROR)
@@ -165,54 +114,26 @@ xpcshell-tests:
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
 	  -I$(topsrcdir)/build \
 	  $(topsrcdir)/testing/xpcshell/runxpcshelltests.py \
-	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
+	  --manifest=$(DEPTH)/_tests/xpcshell/all-test-dirs.list \
 	  --no-logfiles \
           $(SYMBOLS_PATH) \
 	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
-	  $(LIBXUL_DIST)/bin/xpcshell
-
-# install and run the mozmill tests
-$(DEPTH)/_tests/mozmill:
-	$(MAKE) -C $(DEPTH)/testing/mozmill install-develop PKG_STAGE=../../_tests
-	$(PYTHON) $(topsrcdir)/testing/mozmill/installmozmill.py --develop $(DEPTH)/_tests/mozmill
-
-MOZMILL_TEST_PATH = $(DEPTH)/_tests/mozmill/tests/firefox
-mozmill: TEST_PATH?=$(MOZMILL_TEST_PATH)
-mozmill: $(DEPTH)/_tests/mozmill
-	$(SHELL) $(DEPTH)/_tests/mozmill/mozmill.sh -t $(TEST_PATH) -b $(browser_path) --show-all
-
-MOZMILL_RESTART_TEST_PATH = $(DEPTH)/_tests/mozmill/tests/firefox/restartTests
-mozmill-restart: TEST_PATH?=$(MOZMILL_RESTART_TEST_PATH)
-mozmill-restart: $(DEPTH)/_tests/mozmill
-	$(SHELL) $(DEPTH)/_tests/mozmill/mozmill-restart.sh -t $(TEST_PATH) -b $(browser_path) --show-all
-
-# in order to have `mozmill-all` ignore TEST_PATH, if it is set, we shell out to call make
-# again, verbosely overriding the TEST_PATH
-# This isn't as neat as having mozmill and mozmill-restart be dependencies, but it 
-# seems to be the make idiom
-mozmill-all: 
-	$(MAKE) mozmill TEST_PATH=$(MOZMILL_TEST_PATH)
-	$(MAKE) mozmill-restart TEST_PATH=$(MOZMILL_RESTART_TEST_PATH)
+	  $(DIST)/bin/xpcshell
 
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 ifndef UNIVERSAL_BINARY
 PKG_STAGE = $(DIST)/test-package-stage
-package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-jetpack stage-firebug
+package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill 
 else
 # This staging area has been built for us by universal/flight.mk
 PKG_STAGE = $(DIST)/universal/test-package-stage
 endif
 
 package-tests:
-	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
-ifndef UNIVERSAL_BINARY
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-else
-	#building tests.jar (bug 543800) fails on unify, so we build tests.jar after unify is run
-	$(MAKE) -C $(DEPTH)/testing/mochitest stage-chromejar PKG_STAGE=$(DIST)/universal
-endif
+	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
 	cd $(PKG_STAGE) && \
 	  zip -r9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" *
 
@@ -221,7 +142,7 @@ package-tests: stage-android
 endif
 
 make-stage-dir:
-	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs && $(NSINSTALL) -D $(PKG_STAGE)/jetpack && $(NSINSTALL) -D $(PKG_STAGE)/firebug
+	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs
 
 stage-mochitest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/mochitest stage-package
@@ -240,18 +161,10 @@ stage-mozmill: make-stage-dir
 
 stage-android: make-stage-dir
 	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/sutAgentAndroid.apk $(PKG_STAGE)/bin
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/watcher/Watcher.apk $(PKG_STAGE)/bin
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/fencp/FenCP.apk $(PKG_STAGE)/bin
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/ffxcp/FfxCP.apk $(PKG_STAGE)/bin
 
-stage-jetpack: make-stage-dir
-	$(NSINSTALL) $(topsrcdir)/testing/jetpack/jetpack-location.txt $(PKG_STAGE)/jetpack
-
-stage-firebug: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/firebug stage-package
 .PHONY: \
   mochitest mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins \
   reftest crashtest \
   xpcshell-tests \
   jstestbrowser \
-  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-android stage-jetpack stage-firebug
+  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-android

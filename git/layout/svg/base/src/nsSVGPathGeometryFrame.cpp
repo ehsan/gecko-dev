@@ -154,12 +154,15 @@ NS_IMETHODIMP_(nsIFrame*)
 nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   PRUint16 fillRule, mask;
-  if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
+  // check if we're a clipPath - cheaper than IsClipChild(), and we shouldn't
+  // get in here for other nondisplay children
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
+    NS_ASSERTION(IsClipChild(), "should be in clipPath but we're not");
     mask = HITTEST_MASK_FILL;
     fillRule = GetClipRule();
   } else {
     mask = GetHittestMask();
-    if (!mask || ((mask & HITTEST_MASK_CHECK_MRECT) &&
+    if (!mask || (!(mask & HITTEST_MASK_FORCE_TEST) &&
                   !mRect.Contains(aPoint)))
       return nsnull;
     fillRule = GetStyleSVG()->mFillRule;
@@ -167,24 +170,23 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 
   PRBool isHit = PR_FALSE;
 
-  nsRefPtr<gfxContext> context =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(context);
+  GeneratePath(&context);
   gfxPoint userSpacePoint =
-    context->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
-                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
+    context.DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
+                                  PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   if (fillRule == NS_STYLE_FILL_RULE_EVENODD)
-    context->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
+    context.SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
   else
-    context->SetFillRule(gfxContext::FILL_RULE_WINDING);
+    context.SetFillRule(gfxContext::FILL_RULE_WINDING);
 
   if (mask & HITTEST_MASK_FILL)
-    isHit = context->PointInFill(userSpacePoint);
+    isHit = context.PointInFill(userSpacePoint);
   if (!isHit && (mask & HITTEST_MASK_STROKE)) {
-    SetupCairoStrokeHitGeometry(context);
-    isHit = context->PointInStroke(userSpacePoint);
+    SetupCairoStrokeHitGeometry(&context);
+    isHit = context.PointInStroke(userSpacePoint);
   }
 
   if (isHit && nsSVGUtils::HitTestClip(this, aPoint))
@@ -246,15 +248,14 @@ nsSVGPathGeometryFrame::GetCoveredRegion()
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::UpdateCoveredRegion()
 {
-  mRect.SetEmpty();
+  mRect.Empty();
 
-  nsRefPtr<gfxContext> context =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(context);
-  context->IdentityMatrix();
+  GeneratePath(&context);
+  context.IdentityMatrix();
 
-  gfxRect extent = context->GetUserPathExtent();
+  gfxRect extent = context.GetUserPathExtent();
 
   // Be careful when replacing the following logic to get the fill and stroke
   // extents independently (instead of computing the stroke extents from the
@@ -269,14 +270,16 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
   //   stroke bounds that it will return will be empty.
 
   if (HasStroke()) {
-    SetupCairoStrokeGeometry(context);
+    SetupCairoStrokeGeometry(&context);
     if (extent.Width() <= 0 && extent.Height() <= 0) {
       // If 'extent' is empty, its position will not be set. Although
       // GetUserStrokeExtent gets the extents wrong we can still use it
       // to get the device space position of zero length stroked paths.
-      extent = context->GetUserStrokeExtent();
-      extent += gfxPoint(extent.width, extent.height)/2;
-      extent.SizeTo(gfxSize(0, 0));
+      extent = context.GetUserStrokeExtent();
+      extent.pos.x += extent.size.width / 2;
+      extent.pos.y += extent.size.height / 2;
+      extent.size.width = 0;
+      extent.size.height = 0;
     }
     extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
   } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
@@ -335,6 +338,23 @@ nsSVGPathGeometryFrame::NotifyRedrawUnsuspended()
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSVGPathGeometryFrame::SetMatrixPropagation(PRBool aPropagate)
+{
+  if (aPropagate) {
+    AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
+  } else {
+    RemoveStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
+  }
+  return NS_OK;
+}
+
+PRBool
+nsSVGPathGeometryFrame::GetMatrixPropagation()
+{
+  return (GetStateBits() & NS_STATE_SVG_PROPAGATE_TRANSFORM) != 0;
+}
+
 gfxRect
 nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
@@ -342,11 +362,10 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
     // XXX ReportToConsole
     return gfxRect(0.0, 0.0, 0.0, 0.0);
   }
-  nsRefPtr<gfxContext> context =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
-  GeneratePath(context, &aToBBoxUserspace);
-  context->IdentityMatrix();
-  return context->GetUserPathExtent();
+  gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  GeneratePath(&context, &aToBBoxUserspace);
+  context.IdentityMatrix();
+  return context.GetUserPathExtent();
 }
 
 //----------------------------------------------------------------------
@@ -483,12 +502,67 @@ nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
 
   aContext->Multiply(matrix);
 
-  // Hack to let SVGPathData::ConstructPath know if we have square caps:
-  const nsStyleSVG* style = GetStyleSVG();
-  if (style->mStrokeLinecap == NS_STYLE_STROKE_LINECAP_SQUARE) {
-    aContext->SetLineCap(gfxContext::LINE_CAP_SQUARE);
-  }
-
   aContext->NewPath();
   static_cast<nsSVGPathGeometryElement*>(mContent)->ConstructPath(aContext);
+}
+
+PRUint16
+nsSVGPathGeometryFrame::GetHittestMask()
+{
+  PRUint16 mask = 0;
+
+  switch(GetStyleVisibility()->mPointerEvents) {
+    case NS_STYLE_POINTER_EVENTS_NONE:
+      break;
+    case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
+    case NS_STYLE_POINTER_EVENTS_AUTO:
+      if (GetStyleVisibility()->IsVisible()) {
+        if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)
+          mask |= HITTEST_MASK_FILL;
+        if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
+          mask |= HITTEST_MASK_STROKE;
+      }
+      break;
+    case NS_STYLE_POINTER_EVENTS_VISIBLEFILL:
+      if (GetStyleVisibility()->IsVisible()) {
+        mask |= HITTEST_MASK_FILL | HITTEST_MASK_FORCE_TEST;
+      }
+      break;
+    case NS_STYLE_POINTER_EVENTS_VISIBLESTROKE:
+      if (GetStyleVisibility()->IsVisible()) {
+        mask |= HITTEST_MASK_STROKE | HITTEST_MASK_FORCE_TEST;
+      }
+      break;
+    case NS_STYLE_POINTER_EVENTS_VISIBLE:
+      if (GetStyleVisibility()->IsVisible()) {
+        mask |=
+          HITTEST_MASK_FILL |
+          HITTEST_MASK_STROKE |
+          HITTEST_MASK_FORCE_TEST;
+      }
+      break;
+    case NS_STYLE_POINTER_EVENTS_PAINTED:
+      if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)
+        mask |= HITTEST_MASK_FILL;
+      if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
+        mask |= HITTEST_MASK_STROKE;
+      break;
+    case NS_STYLE_POINTER_EVENTS_FILL:
+      mask |= HITTEST_MASK_FILL | HITTEST_MASK_FORCE_TEST;
+      break;
+    case NS_STYLE_POINTER_EVENTS_STROKE:
+      mask |= HITTEST_MASK_STROKE | HITTEST_MASK_FORCE_TEST;
+      break;
+    case NS_STYLE_POINTER_EVENTS_ALL:
+      mask |=
+        HITTEST_MASK_FILL |
+        HITTEST_MASK_STROKE |
+        HITTEST_MASK_FORCE_TEST;
+      break;
+    default:
+      NS_ERROR("not reached");
+      break;
+  }
+
+  return mask;
 }

@@ -47,7 +47,6 @@
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGRect.h"
 #include "nsSVGFilterInstance.h"
-#include "gfxUtils.h"
 
 nsIFrame*
 NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -68,7 +67,7 @@ MapDeviceRectToFilterSpace(const gfxMatrix& aMatrix,
                                                 aDeviceRect->width, aDeviceRect->height));
     r.RoundOut();
     nsIntRect intRect;
-    if (gfxUtils::GfxRectToIntRect(r, &intRect)) {
+    if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(r, &intRect))) {
       rect = intRect;
     }
   }
@@ -169,7 +168,7 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
     // We don't care if this overflows, because we can handle upscaling/
     // downscaling to filterRes
     PRBool overflow;
-    filterRes = nsSVGUtils::ConvertToSurfaceSize(filterRegion.Size() * scale,
+    filterRes = nsSVGUtils::ConvertToSurfaceSize(filterRegion.size * scale,
                                                  &overflow);
   }
 
@@ -237,8 +236,9 @@ TransformFilterSpaceToDeviceSpace(nsSVGFilterInstance *aInstance, nsIntRect *aRe
   r = m.TransformBounds(r);
   r.RoundOut();
   nsIntRect deviceRect;
-  if (!gfxUtils::GfxRectToIntRect(r, &deviceRect))
-    return NS_ERROR_FAILURE;
+  nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &deviceRect);
+  if (NS_FAILED(rv))
+    return rv;
   *aRect = deviceRect;
   return NS_OK;
 }

@@ -50,7 +50,6 @@
 #include "nsFrameSelection.h"
 #include "nsHTMLReflowState.h"
 #include "nsHTMLReflowMetrics.h"
-#include "nsHTMLParts.h"
 
 /**
  * nsFrame logging constants. We redefine the nspr
@@ -239,8 +238,7 @@ public:
   NS_IMETHOD  GetSelectionController(nsPresContext *aPresContext, nsISelectionController **aSelCon);
 
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
-  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                     PRBool aRespectClusters = PR_TRUE);
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
                                 PRInt32* aOffset, PeekWordState *aState);
   /**
@@ -273,18 +271,18 @@ public:
   virtual PRBool IsSelfEmpty();
 
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
   virtual IntrinsicWidthOffsetData
-    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext);
+    IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext);
   virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
 
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -308,7 +306,7 @@ public:
    * likewise for height, since in such cases the result is guaranteed
    * to be unused.
    */
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -317,7 +315,7 @@ public:
    * Utility function for ComputeAutoSize implementations.  Return
    * max(GetMinWidth(), min(aWidthInCB, GetPrefWidth()))
    */
-  nscoord ShrinkWidthToFit(nsRenderingContext *aRenderingContext,
+  nscoord ShrinkWidthToFit(nsIRenderingContext *aRenderingContext,
                            nscoord aWidthInCB);
 
   NS_IMETHOD  WillReflow(nsPresContext* aPresContext);
@@ -328,15 +326,6 @@ public:
   NS_IMETHOD  DidReflow(nsPresContext*           aPresContext,
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus         aStatus);
-  void ReflowAbsoluteFrames(nsPresContext*           aPresContext,
-                            nsHTMLReflowMetrics&     aDesiredSize,
-                            const nsHTMLReflowState& aReflowState,
-                            nsReflowStatus&          aStatus);
-  void FinishReflowWithAbsoluteFrames(nsPresContext*           aPresContext,
-                                      nsHTMLReflowMetrics&     aDesiredSize,
-                                      const nsHTMLReflowState& aReflowState,
-                                      nsReflowStatus&          aStatus);
-  void DestroyAbsoluteFrames(nsIFrame* aDestructRoot);
   virtual PRBool CanContinueTextRun() const;
 
   // Selection Methods
@@ -396,14 +385,13 @@ public:
    */
   void CheckInvalidateSizeChange(nsHTMLReflowMetrics&     aNewDesiredSize);
 
-  // Helper function that tests if the frame tree is too deep; if it is
-  // it marks the frame as "unflowable", zeroes out the metrics, sets
-  // the reflow status, and returns PR_TRUE. Otherwise, the frame is
-  // unmarked "unflowable" and the metrics and reflow status are not
-  // touched and PR_FALSE is returned.
+  // Helper function that tests if the frame tree is too deep; if it
+  // is it marks the frame as "unflowable" and zeros out the metrics
+  // and returns PR_TRUE. Otherwise, the frame is unmarked
+  // "unflowable" and the metrics are not touched and PR_FALSE is
+  // returned.
   PRBool IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics& aMetrics,
-                            nsReflowStatus& aStatus);
+                            nsHTMLReflowMetrics& aMetrics);
 
   // Do the work for getting the parent style context frame so that
   // other frame's |GetParentStyleContextFrame| methods can call this
@@ -414,9 +402,9 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 
-  // Incorporate the child overflow areas into aOverflowAreas.
-  // If the child does not have a overflow, use the child area.
-  void ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
+  // incorporate the child overflow area into the parent overflow area
+  // if the child does not have a overflow use the child area
+  void ConsiderChildOverflow(nsRect&   aOverflowArea,
                              nsIFrame* aChildFrame);
 
   virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const;
@@ -561,7 +549,7 @@ protected:
    * which kind of content this is for
    */
   nsresult DisplaySelectionOverlay(nsDisplayListBuilder* aBuilder,
-      nsDisplayList* aList, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
+      const nsDisplayListSet& aLists, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
 
   PRInt16 DisplaySelection(nsPresContext* aPresContext, PRBool isOkToTurnOn = PR_FALSE);
   
@@ -581,17 +569,6 @@ public:
   static PRInt32 GetLineNumber(nsIFrame *aFrame,
                                PRBool aLockScroll,
                                nsIFrame** aContainingBlock = nsnull);
-
-  // test whether aFrame should apply paginated overflow clipping.
-  static PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame)
-  {
-    // If we're paginated and a block, and have NS_BLOCK_CLIP_PAGINATED_OVERFLOW
-    // set, then we want to clip our overflow.
-    return
-      aFrame->PresContext()->IsPaginated() &&
-      aFrame->GetType() == nsGkAtoms::blockFrame &&
-      (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
-  }
 
 protected:
 
@@ -627,7 +604,7 @@ private:
   nsresult BoxReflow(nsBoxLayoutState& aState,
                      nsPresContext*    aPresContext,
                      nsHTMLReflowMetrics&     aDesiredSize,
-                     nsRenderingContext* aRenderingContext,
+                     nsIRenderingContext* aRenderingContext,
                      nscoord aX,
                      nscoord aY,
                      nscoord aWidth,

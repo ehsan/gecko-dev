@@ -50,7 +50,6 @@
  * nsWindow - Native window management and event handling.
  */
 
-#include "nsAutoPtr.h"
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
 #include "nsIdleService.h"
@@ -60,12 +59,17 @@
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
-#include "nsITimer.h"
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
 #endif
 
+#if !defined(WINCE)
 #include "nsWinGesture.h"
+#endif
+
+#if defined(WINCE)
+#include "nsWindowCE.h"
+#endif
 
 #include "WindowHook.h"
 #include "TaskbarWindowPreview.h"
@@ -75,8 +79,9 @@
 #include "nsAccessible.h"
 #endif
 
+#if !defined(WINCE)
 #include "nsUXThemeData.h"
-
+#endif // !defined(WINCE)
 /**
  * Forward class definitions
  */
@@ -111,7 +116,7 @@ public:
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
-                                 nsDeviceContext *aContext,
+                                 nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
                                  nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
@@ -126,7 +131,9 @@ public:
   NS_IMETHOD              Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
+#if !defined(WINCE)
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+#endif
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement, nsIWidget *aWidget, PRBool aActivate);
   NS_IMETHOD              SetSizeMode(PRInt32 aMode);
   NS_IMETHOD              Enable(PRBool aState);
@@ -159,7 +166,7 @@ public:
                                               PRBool aDoCapture, PRBool aConsumeRollupEvent);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
-  virtual LayerManager*   GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT, bool* aAllowRetaining = nsnull);
+  virtual LayerManager*   GetLayerManager();
   gfxASurface             *GetThebesSurface();
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
@@ -175,8 +182,8 @@ public:
   NS_IMETHOD              ResetInputState();
   NS_IMETHOD              SetIMEOpenState(PRBool aState);
   NS_IMETHOD              GetIMEOpenState(PRBool* aState);
-  NS_IMETHOD              SetInputMode(const IMEContext& aContext);
-  NS_IMETHOD              GetInputMode(IMEContext& aContext);
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
   NS_IMETHOD              CancelIMEComposition();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
   NS_IMETHOD              RegisterTouchWindow();
@@ -184,7 +191,7 @@ public:
 #ifdef MOZ_XUL
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
-  virtual void            UpdateOpaqueRegion(const nsIntRegion& aOpaqueRegion);
+  virtual void            UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion, const nsIntRegion& aPossiblyTransparentRegion);
 #endif // MOZ_XUL
 #ifdef NS_ENABLE_TSF
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus);
@@ -240,27 +247,16 @@ public:
   static nsWindow*        GetNSWindowPtr(HWND aWnd);
   WindowHook&             GetWindowHook() { return mWindowHook; }
   nsWindow*               GetParentWindow(PRBool aIncludeOwner);
-  // Get an array of all nsWindow*s on the main thread.
-  typedef void            (WindowEnumCallback)(nsWindow*);
-  static void             EnumAllWindows(WindowEnumCallback aCallback);
 
   /**
    * Misc.
    */
   virtual PRBool          AutoErase(HDC dc);
   nsIntPoint*             GetLastPoint() { return &mLastPoint; }
+  PRBool                  GetIMEEnabled() { return mIMEEnabled; }
   // needed in nsIMM32Handler.cpp
-  PRBool                  PluginHasFocus() { return mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN; }
+  PRBool                  PluginHasFocus() { return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN; }
   PRBool                  IsTopLevelWidget() { return mIsTopWidgetWindow; }
-  /**
-   * Start allowing Direct3D9 to be used by widgets when GetLayerManager is
-   * called.
-   *
-   * @param aReinitialize Call GetLayerManager on widgets to ensure D3D9 is
-   *                      initialized, this is usually called when this function
-   *                      is triggered by timeout and not user/web interaction.
-   */
-  static void             StartAllowingD3D9(bool aReinitialize);
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
@@ -276,12 +272,7 @@ public:
   void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
 #endif
 
-  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
-
-  // A magic number to identify the FAKETRACKPOINTSCROLLABLE window created
-  // when the trackpoint hack is enabled.
-  enum { eFakeTrackPointScrollableID = 0x46545053 };
 
   /**
    * Callbacks
@@ -292,45 +283,35 @@ protected:
   static BOOL CALLBACK    BroadcastMsgToChildren(HWND aWnd, LPARAM aMsg);
   static BOOL CALLBACK    BroadcastMsg(HWND aTopWindow, LPARAM aMsg);
   static BOOL CALLBACK    DispatchStarvedPaints(HWND aTopWindow, LPARAM aMsg);
+#if !defined(WINCE)
   static BOOL CALLBACK    RegisterTouchForDescendants(HWND aTopWindow, LPARAM aMsg);
   static BOOL CALLBACK    UnregisterTouchForDescendants(HWND aTopWindow, LPARAM aMsg);
+#endif
   static LRESULT CALLBACK MozSpecialMsgFilter(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialWndProc(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialMouseProc(int code, WPARAM wParam, LPARAM lParam);
   static VOID    CALLBACK HookTimerForPopups( HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime );
   static BOOL    CALLBACK ClearResourcesCallback(HWND aChild, LPARAM aParam);
-  static BOOL    CALLBACK EnumAllChildWindProc(HWND aWnd, LPARAM aParam);
-  static BOOL    CALLBACK EnumAllThreadWindowProc(HWND aWnd, LPARAM aParam);
-  static void             AllowD3D9Callback(nsWindow *aWindow);
-  static void             AllowD3D9WithReinitializeCallback(nsWindow *aWindow);
-  static BOOL CALLBACK    FindOurWindowAtPointCallback(HWND aHWND, LPARAM aLPARAM);
 
   /**
    * Window utilities
    */
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
-  static PRInt32          GetMonitorCount();
   LPARAM                  lParamToScreen(LPARAM lParam);
   LPARAM                  lParamToClient(LPARAM lParam);
   virtual void            SubclassWindow(BOOL bState);
   PRBool                  CanTakeFocus();
   PRBool                  UpdateNonClientMargins(PRInt32 aSizeMode = -1, PRBool aReflowWindow = PR_TRUE);
-  void                    UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption);
   void                    ResetLayout();
   void                    InvalidateNonClientRegion();
   HRGN                    ExcludeNonClientFromPaintRegion(HRGN aRegion);
-  static void             InitInputWorkaroundPrefDefaults();
-  static PRBool           GetInputWorkaroundPref(const char* aPrefName, PRBool aValueIfAutomatic);
-  static PRBool           UseTrackPointHack();
-  static void             PerformElantechSwipeGestureHack(UINT& aVirtualKeyCode, nsModifierKeyState& aModKeyState);
-  static void             GetMainWindowClass(nsAString& aClass);
+#if !defined(WINCE)
+  static void             InitTrackPointHack();
+#endif
   PRBool                  HasGlass() const {
     return mTransparencyMode == eTransparencyGlass ||
            mTransparencyMode == eTransparencyBorderlessGlass;
   }
-  static PRBool           IsOurProcessWindow(HWND aHWND);
-  static HWND             FindOurProcessWindow(HWND aHWND);
-  static HWND             FindOurWindowAtPoint(const POINT& aPoint);
 
   /**
    * Event processing helpers
@@ -341,10 +322,7 @@ protected:
   PRBool                  DispatchStandardEvent(PRUint32 aMsg);
   PRBool                  DispatchCommandEvent(PRUint32 aEventCommand);
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
-  static void             RemoveNextCharMessage(HWND aWnd);
-  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
-                            UINT aLastMsg,
-                            nsFakeCharMessage* aFakeCharMessage = nsnull);
+  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg);
   static MSG              InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam);
   virtual PRBool          ProcessMessage(UINT msg, WPARAM &wParam,
                                          LPARAM &lParam, LRESULT *aRetValue);
@@ -366,19 +344,6 @@ protected:
                                                  LRESULT* aRetValue,
                                                  PRBool& aQuitProcessing);
   PRInt32                 ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my);
-  static WORD             GetScanCode(LPARAM aLParam)
-  {
-    return (aLParam >> 16) & 0xFF;
-  }
-  static PRBool           IsExtendedScanCode(LPARAM aLParam)
-  {
-    return (aLParam & 0x1000000) != 0;
-  }
-  static PRBool           IsRedirectedKeyDownMessage(const MSG &aMsg);
-  static void             ForgetRedirectedKeyDownMessage()
-  {
-    sRedirectedKeyDown.message = WM_NULL;
-  }
 
   /**
    * Event handlers
@@ -409,12 +374,18 @@ protected:
 #endif
   PRBool                  OnHotKey(WPARAM wParam, LPARAM lParam);
   BOOL                    OnInputLangChange(HKL aHKL);
+  void                    OnSettingsChange(WPARAM wParam, LPARAM lParam);
   PRBool                  OnPaint(HDC aDC, PRUint32 aNestingLevel);
   void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
-  PRBool                  OnMouseWheel(UINT aMessage, WPARAM aWParam,
-                                       LPARAM aLParam, PRBool& aHandled,
+#if defined(CAIRO_HAS_DDRAW_SURFACE)
+  PRBool                  OnPaintImageDDraw16();
+#endif // defined(CAIRO_HAS_DDRAW_SURFACE)
+  PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
+                                       PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
+#if !defined(WINCE)
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
+#endif // !defined(WINCE)
 
   /**
    * Function that registers when the user has been active (used for detecting
@@ -422,15 +393,14 @@ protected:
    */
   void                    UserActivity();
 
-  PRInt32                 GetHeight(PRInt32 aProposedHeight);
-  void                    GetWindowClass(nsString& aWindowClass);
-  void                    GetWindowPopupClass(nsString& aWindowClass);
+  /**
+   * Methods for derived classes 
+   */
+  virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
+  virtual LPCWSTR         WindowClass();
+  virtual LPCWSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
-  DWORD                   WindowExStyle();
-
-  void                    RegisterWindowClass(const nsString& aClassName,
-                                              UINT aExtraStyle,
-                                              LPWSTR aIconID);
+  virtual DWORD           WindowExStyle();
 
   /**
    * XP and Vista theming support for windows with rounded edges
@@ -460,8 +430,10 @@ private:
 protected:
 #endif // MOZ_XUL
 
+#ifdef MOZ_IPC
   static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
   void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
+#endif // MOZ_IPC
 
   /**
    * Misc.
@@ -474,14 +446,17 @@ protected:
                                               PRBool aIntersectWithExisting);
   nsIntRegion             GetRegionToPaint(PRBool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
+#if !defined(WINCE)
   static void             ActivateOtherWindowHelper(HWND aWnd);
   static PRUint16         GetMouseInputSource();
+#endif
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
   void                    ClearCachedResources();
-
-  nsPopupType PopupType() { return mPopupType; }
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  void                    UpdateCaptionButtonsClippingRect();
+#endif
 
 protected:
   nsCOMPtr<nsIWidget>   mParent;
@@ -493,54 +468,53 @@ protected:
   PRPackedBool          mIsTopWidgetWindow;
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
+  PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
+  PRPackedBool          mExitToNonClientArea;
   PRPackedBool          mTouchWindow;
-  PRPackedBool          mDisplayPanFeedback;
-  PRPackedBool          mHideChrome;
-  PRPackedBool          mIsRTL;
-  PRPackedBool          mFullscreenMode;
-  PRPackedBool          mMousePresent;
   PRUint32              mBlurSuppressLevel;
+  nsContentType         mContentType;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;
-  IMEContext            mIMEContext;
+  PRUint32              mIMEEnabled;
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
+  PRPackedBool          mDisplayPanFeedback;
+  PRPackedBool          mHideChrome;
   nsSizeMode            mOldSizeMode;
   WindowHook            mWindowHook;
-  DWORD                 mAssumeWheelIsZoomUntil;
-  static PRBool         sDropShadowEnabled;
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
   static nsWindow*      sCurrentWindow;
+  static BOOL           sIsRegistered;
+  static BOOL           sIsPopupClassRegistered;
   static BOOL           sIsOleInitialized;
   static HCURSOR        sHCursor;
   static imgIContainer* sCursorImgContainer;
   static PRBool         sSwitchKeyboardLayout;
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
-  static PRBool         sIsInMouseCapture;
   static int            sTrimOnMinimize;
-  static PRBool         sDefaultTrackPointHack;
-  static const char*    sDefaultMainWindowClass;
-  static PRBool         sUseElantechSwipeHack;
-  static PRBool         sUseElantechPinchHack;
-  static bool           sAllowD3D9;
-
-  // Always use the helper method to read this property.  See bug 603793.
-  static TriStateBool   sHasBogusPopupsDropShadowOnMultiMonitor;
-  static bool           HasBogusPopupsDropShadowOnMultiMonitor();
-
+  static PRBool         sTrackPointHack;
+#ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
+#endif
 
   // Non-client margin settings
   // Pre-calculated outward offset applied to default frames
   nsIntMargin           mNonClientOffset;
   // Margins set by the owner
   nsIntMargin           mNonClientMargins;
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  // Represents the area taken by the caption buttons
+  // on dwm-enabled systems
+  nsIntRect             mCaptionButtons;
+  nsIntRegion           mCaptionButtonsRoundedRegion;
+#endif
 
   // Indicates custom frames are enabled
   PRPackedBool          mCustomNonClient;
@@ -597,7 +571,9 @@ protected:
 #endif // MOZ_XUL
 
   // Win7 Gesture processing and management
+#if !defined(WINCE)
   nsWinGesture          mGesture;
+#endif // !defined(WINCE)
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   // Weak ref to the nsITaskbarWindowPreview associated with this window
@@ -607,64 +583,15 @@ protected:
   PRBool                mHasTaskbarIconBeenCreated;
 #endif
 
+#if defined(WINCE_HAVE_SOFTKB)
+  static PRBool         sSoftKeyboardState;
+#endif // defined(WINCE_HAVE_SOFTKB)
+
 #ifdef ACCESSIBILITY
   static BOOL           sIsAccessibilityOn;
   static HINSTANCE      sAccLib;
   static LPFNLRESULTFROMOBJECT sLresultFromObject;
 #endif // ACCESSIBILITY
-
-  // sRedirectedKeyDown is WM_KEYDOWN message or WM_SYSKEYDOWN message which
-  // was reirected to SendInput() API by OnKeyDown().
-  static MSG            sRedirectedKeyDown;
-
-  static PRBool sEnablePixelScrolling;
-  static PRBool sNeedsToInitMouseWheelSettings;
-  static ULONG sMouseWheelScrollLines;
-  static ULONG sMouseWheelScrollChars;
-  static void InitMouseWheelScrollData();
-
-  static HWND sLastMouseWheelWnd;
-  static PRInt32 sRemainingDeltaForScroll;
-  static PRInt32 sRemainingDeltaForPixel;
-  static PRBool sLastMouseWheelDeltaIsPositive;
-  static PRBool sLastMouseWheelOrientationIsVertical;
-  static PRBool sLastMouseWheelUnitIsPage;
-  static PRUint32 sLastMouseWheelTime; // in milliseconds
-  static void ResetRemainingWheelDelta();
-
-  // If a window receives WM_KEYDOWN message or WM_SYSKEYDOWM message which is
-  // redirected message, OnKeyDowm() prevents to dispatch NS_KEY_DOWN event
-  // because it has been dispatched before the message was redirected.
-  // However, in some cases, ProcessKeyDownMessage() doesn't call OnKeyDown().
-  // Then, ProcessKeyDownMessage() needs to forget the redirected message and
-  // remove WM_CHAR message or WM_SYSCHAR message for the redirected keydown
-  // message.  AutoForgetRedirectedKeyDownMessage struct is a helper struct
-  // for doing that.  This must be created in stack.
-  struct AutoForgetRedirectedKeyDownMessage
-  {
-    AutoForgetRedirectedKeyDownMessage(nsWindow* aWindow, const MSG &aMsg) :
-      mCancel(!nsWindow::IsRedirectedKeyDownMessage(aMsg)),
-      mWindow(aWindow), mMsg(aMsg)
-    {
-    }
-
-    ~AutoForgetRedirectedKeyDownMessage()
-    {
-      if (mCancel) {
-        return;
-      }
-      // Prevent unnecessary keypress event
-      if (!mWindow->mOnDestroyCalled) {
-        nsWindow::RemoveNextCharMessage(mWindow->mWnd);
-      }
-      // Foreget the redirected message
-      nsWindow::ForgetRedirectedKeyDownMessage();
-    }
-
-    PRBool mCancel;
-    nsRefPtr<nsWindow> mWindow;
-    const MSG &mMsg;
-  };
 };
 
 /**

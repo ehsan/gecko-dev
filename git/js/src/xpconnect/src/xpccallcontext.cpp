@@ -57,17 +57,18 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         mJSContext(cx),
         mContextPopRequired(JS_FALSE),
         mDestroyJSContextInDestructor(JS_FALSE),
-        mCallerLanguage(callerLanguage)
+        mCallerLanguage(callerLanguage),
+        mCallee(nsnull)
 {
-    Init(callerLanguage, callerLanguage == NATIVE_CALLER, obj, funobj,
-         INIT_SHOULD_LOOKUP_WRAPPER, name, argc, argv, rval);
+    Init(callerLanguage, callerLanguage == NATIVE_CALLER, obj, funobj, JS_TRUE,
+         name, argc, argv, rval);
 }
 
 XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                JSContext* cx,
                                JSBool callBeginRequest,
                                JSObject* obj,
-                               JSObject* flattenedJSObject,
+                               JSObject* currentJSObject,
                                XPCWrappedNative* wrapper,
                                XPCWrappedNativeTearOff* tearOff)
     :   mState(INIT_FAILED),
@@ -78,12 +79,12 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         mContextPopRequired(JS_FALSE),
         mDestroyJSContextInDestructor(JS_FALSE),
         mCallerLanguage(callerLanguage),
-        mFlattenedJSObject(flattenedJSObject),
+        mCurrentJSObject(currentJSObject),
         mWrapper(wrapper),
-        mTearOff(tearOff)
+        mTearOff(tearOff),
+        mCallee(nsnull)
 {
-    Init(callerLanguage, callBeginRequest, obj, nsnull,
-         WRAPPER_PASSED_TO_CONSTRUCTOR, JSID_VOID, NO_ARGS,
+    Init(callerLanguage, callBeginRequest, obj, nsnull, JS_FALSE, JSID_VOID, NO_ARGS,
          nsnull, nsnull);
 }
 
@@ -92,12 +93,24 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
                      JSBool callBeginRequest,
                      JSObject* obj,
                      JSObject* funobj,
-                     WrapperInitOptions wrapperInitOptions,
+                     JSBool getWrappedNative,
                      jsid name,
                      uintN argc,
                      jsval *argv,
                      jsval *rval)
 {
+    // Mark our internal string wrappers as not used. Make sure we do
+    // this before any early returns, as the destructor will assert
+    // based on this.
+    StringWrapperEntry *se =
+        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+    PRUint32 i;
+    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+    {
+        se[i].mInUse = PR_FALSE;
+    }
+
     if(!mXPC)
         return;
 
@@ -167,37 +180,44 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
     if(!obj)
         return;
 
-    mScopeForNewJSObjects = obj;
-
-    mState = HAVE_SCOPE;
-
     mMethodIndex = 0xDEAD;
+    mOperandJSObject = obj;
 
     mState = HAVE_OBJECT;
 
     mTearOff = nsnull;
-    if(wrapperInitOptions == INIT_SHOULD_LOOKUP_WRAPPER)
-    {
+
+    if(getWrappedNative)
         mWrapper = XPCWrappedNative::GetWrappedNativeOfJSObject(mJSContext, obj,
                                                                 funobj,
-                                                                &mFlattenedJSObject,
+                                                                &mCurrentJSObject,
                                                                 &mTearOff);
-        if(mWrapper)
+    if(mWrapper)
+    {
+        DEBUG_CheckWrapperThreadSafety(mWrapper);
+
+        mFlattenedJSObject = mWrapper->GetFlatJSObject();
+
+        if(mTearOff)
         {
-            DEBUG_CheckWrapperThreadSafety(mWrapper);
-
-            mFlattenedJSObject = mWrapper->GetFlatJSObject();
-
-            if(mTearOff)
-                mScriptableInfo = nsnull;
-            else
-                mScriptableInfo = mWrapper->GetScriptableInfo();
+            mCurrentJSObject = mTearOff->GetJSObject();
+            mScriptableInfo = nsnull;
         }
         else
         {
-            NS_ABORT_IF_FALSE(!mFlattenedJSObject || IS_SLIM_WRAPPER(mFlattenedJSObject),
-                              "should have a slim wrapper");
+            mWrapper->GetJSObject(&mCurrentJSObject);
+            mScriptableInfo = mWrapper->GetScriptableInfo();
         }
+    }
+    else
+    {
+        if(!mCurrentJSObject)
+            return;
+
+        NS_ASSERTION(IS_SLIM_WRAPPER(mCurrentJSObject),
+                     "What kind of wrapper is this?");
+
+        mFlattenedJSObject = mCurrentJSObject;
     }
 
     if(!JSID_IS_VOID(name))
@@ -216,6 +236,9 @@ XPCCallContext::SetName(jsid name)
 
     mName = name;
 
+#ifdef XPC_IDISPATCH_SUPPORT
+    mIDispatchMember = nsnull;
+#endif
     if(mTearOff)
     {
         mSet = nsnull;
@@ -271,6 +294,9 @@ XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
 
     if(mState < HAVE_NAME)
         mState = HAVE_NAME;
+#ifdef XPC_IDISPATCH_SUPPORT
+    mIDispatchMember = nsnull;
+#endif
 }
 
 void
@@ -285,6 +311,9 @@ XPCCallContext::SetArgsAndResultPtr(uintN argc,
         mSet = nsnull;
         mInterface = nsnull;
         mMember = nsnull;
+#ifdef XPC_IDISPATCH_SUPPORT
+        mIDispatchMember = nsnull;
+#endif
         mStaticMemberIsLocal = JS_FALSE;
     }
 
@@ -392,12 +421,26 @@ XPCCallContext::~XPCCallContext()
         
             JS_DestroyContext(mJSContext);
         }
+        else
+        {
+            // Don't clear newborns if JS frames (compilation or execution)
+            // are active!  Doing so violates ancient invariants in the JS
+            // engine, and it's not necessary to fix JS component leaks.
+            if(!JS_IsRunning(mJSContext))
+                JS_ClearNewbornRoots(mJSContext);
+        }
     }
 
 #ifdef DEBUG
-    for(PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
     {
-        NS_ASSERTION(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
+        StringWrapperEntry *se =
+            reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+        PRUint32 i;
+        for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+        {
+            NS_ASSERTION(!se[i].mInUse, "Uh, string wrapper still in use!");
+        }
     }
 #endif
 
@@ -406,11 +449,15 @@ XPCCallContext::~XPCCallContext()
 }
 
 XPCReadableJSStringWrapper *
-XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
+XPCCallContext::NewStringWrapper(PRUnichar *str, PRUint32 len)
 {
-    for(PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+    StringWrapperEntry *se =
+        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+    PRUint32 i;
+    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
     {
-        StringWrapperEntry& ent = mScratchStrings[i];
+        StringWrapperEntry& ent = se[i];
 
         if(!ent.mInUse)
         {
@@ -418,7 +465,7 @@ XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
 
             // Construct the string using placement new.
 
-            return new (ent.mString.addr()) XPCReadableJSStringWrapper(str, len);
+            return new (&ent.mString) XPCReadableJSStringWrapper(str, len);
         }
     }
 
@@ -430,16 +477,20 @@ XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
 void
 XPCCallContext::DeleteString(nsAString *string)
 {
-    for(PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+    StringWrapperEntry *se =
+        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+    PRUint32 i;
+    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
     {
-        StringWrapperEntry& ent = mScratchStrings[i];
-        if(string == ent.mString.addr())
+        StringWrapperEntry& ent = se[i];
+        if(string == &ent.mString)
         {
             // One of our internal strings is no longer in use, mark
             // it as such and destroy the string.
 
             ent.mInUse = PR_FALSE;
-            ent.mString.addr()->~XPCReadableJSStringWrapper();
+            ent.mString.~XPCReadableJSStringWrapper();
 
             return;
         }
@@ -543,6 +594,33 @@ XPCCallContext::SetReturnValueWasSet(PRBool aReturnValueWasSet)
     mReturnValueWasSet = aReturnValueWasSet;
     return NS_OK;
 }
+
+#ifdef XPC_IDISPATCH_SUPPORT
+
+void
+XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface, 
+                                 void * member)
+{
+    CHECK_STATE(HAVE_CONTEXT);
+
+    // We are going straight to the method info and need not do a lookup
+    // by id.
+
+    // don't be tricked if method is called with wrong 'this'
+    if(mTearOff && mTearOff->GetInterface() != iface)
+        mTearOff = nsnull;
+
+    mSet = nsnull;
+    mInterface = iface;
+    mMember = nsnull;
+    mIDispatchMember = member;
+    mName = reinterpret_cast<XPCDispInterface::Member*>(member)->GetName();
+
+    if(mState < HAVE_NAME)
+        mState = HAVE_NAME;
+}
+
+#endif
 
 NS_IMETHODIMP
 XPCCallContext::GetPreviousCallContext(nsAXPCNativeCallContext **aResult)

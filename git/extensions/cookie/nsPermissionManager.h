@@ -49,7 +49,6 @@
 #include "nsTHashtable.h"
 #include "nsTArray.h"
 #include "nsString.h"
-#include "nsPermission.h"
 
 class nsIPermission;
 class nsIIDNService;
@@ -167,9 +166,9 @@ public:
 
   nsPermissionManager();
   virtual ~nsPermissionManager();
-  static nsIPermissionManager* GetXPCOMSingleton();
-  static already_AddRefed<nsPermissionManager> GetSingleton();
   nsresult Init();
+
+private:
 
   // enums for AddInternal()
   enum OperationType {
@@ -197,8 +196,6 @@ public:
                        PRInt64  aExpireTime,
                        NotifyOperationType aNotifyOperation,
                        DBOperationType aDBOperation);
-
-private:
 
   PRInt32 GetTypeIndex(const char *aTypeString,
                        PRBool      aAdd);
@@ -250,17 +247,6 @@ private:
 
   // An array to store the strings identifying the different types.
   nsTArray<nsCString>          mTypeArray;
-
-  // Whether we should update the child process with every change to a
-  // permission. This is set to true once the child is ready to receive
-  // such updates.
-  PRBool                       mUpdateChildProcess;
-
-public:
-  void ChildRequestPermissions()
-  {
-    mUpdateChildProcess = PR_TRUE;
-  }
 };
 
 // {4F6B5E00-0C36-11d5-A535-0010A401EB10}

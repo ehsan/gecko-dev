@@ -39,13 +39,10 @@ topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
 VPATH     = @srcdir@
 
-ifeq (,$(filter aurora beta release,$(MOZ_UPDATE_CHANNEL)))
-DEFINES += -DMOZ_COMPATABILITY_NIGHTLY=1
-endif
-
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = extensions
+MODULE       = extensions
+XPIDL_MODULE = extensions
 
 XPIDLSRCS = \
   amIInstallTrigger.idl \
@@ -62,13 +59,17 @@ EXTRA_PP_COMPONENTS = \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \
-  AddonLogging.jsm \
   AddonManager.jsm \
   AddonRepository.jsm \
-  AddonUpdateChecker.jsm \
-  PluginProvider.jsm \
   XPIProvider.jsm \
+  AddonUpdateChecker.jsm \
+  AddonLogging.jsm \
   $(NULL)
+
+ifdef MOZ_PLUGINS
+  EXTRA_PP_JS_MODULES += PluginProvider.jsm
+  DEFINES += -DMOZ_PLUGINS
+endif
 
 EXTRA_JS_MODULES = \
   LightweightThemeManager.jsm \
@@ -79,9 +80,9 @@ DIRS += test
 endif
 
 EXTRA_DSO_LDOPTS = \
-  $(MOZ_JS_LIBS) \
-  $(MOZ_UNICHARUTIL_LIBS) \
-  $(MOZ_COMPONENT_LIBS) \
-  $(NULL)
+		$(MOZ_JS_LIBS) \
+		$(MOZ_UNICHARUTIL_LIBS) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

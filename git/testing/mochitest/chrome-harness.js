@@ -38,8 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-Components.utils.import("resource://gre/modules/NetUtil.jsm");
-
 /*
  * getChromeURI converts a URL to a URI
  * 
@@ -93,38 +91,35 @@ function getChromeDir(resolvedURI) {
 /*
  * given a .jar file, we get all test files located inside the archive
  *
- * aBasePath: base URL to determine chrome location and search for tests
- * aTestPath: passed in testPath value from command line such as: dom/tests/mochitest
- * aDir: the test dir to append to the baseURL after getting a directory interface
+ * basePath: base URL to determine chrome location and search for tests
+ * testPath: passed in testPath value from command line such as: dom/tests/mochitest
+ * dir: the test dir to append to the baseURL after getting a directory interface
  *
  * As a note, this is hardcoded to the .jar structure we use for mochitest.  
  * Please don't assume this works for all jar files.
  */
-function getMochitestJarListing(aBasePath, aTestPath, aDir)
+function getMochitestJarListing(basePath, testPath, dir)
 {
   var zReader = Components.classes["@mozilla.org/libjar/zip-reader;1"].
                   createInstance(Components.interfaces.nsIZipReader);
   var fileHandler = Components.classes["@mozilla.org/network/protocol;1?name=file"].
                     getService(Components.interfaces.nsIFileProtocolHandler);
 
-  var fileName = fileHandler.getFileFromURLSpec(getResolvedURI(aBasePath).JARFile.spec);
+  var fileName = fileHandler.getFileFromURLSpec(getResolvedURI(basePath).JARFile.spec);
   zReader.open(fileName);
   //hardcoded 'content' as that is the root dir in the mochikit.jar file
-  var idx = aBasePath.indexOf('/content');
-  var basePath = aBasePath.slice(0, idx);
-
-  var base = "content/" + aDir + "/";
+  var base = "content/" + dir + "/";
 
   var singleTestPath;
-  if (aTestPath) {
-    var extraPath = aTestPath;
-    var pathToCheck = base + aTestPath;
+  if (testPath) {
+    var extraPath = testPath;
+    var pathToCheck = base + testPath;
     if (zReader.hasEntry(pathToCheck)) {
       var pathEntry = zReader.getEntry(pathToCheck);
       if (pathEntry.isDirectory) {
         base = pathToCheck;
       } else {
-        singleTestPath = basePath + '/' + base + aTestPath;
+        singleTestPath = '/' + base + testPath;
         var singleObject = {};
         singleObject[singleTestPath] = true;
         return [singleObject, singleTestPath];
@@ -133,11 +128,8 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
     else if (zReader.hasEntry(pathToCheck + "/")) {
       base = pathToCheck + "/";
     }
-    else {
-      return [];
-    }
   }
-  var [links, count] = zList(base, zReader, basePath, true);
+  var [links, count] = zList(base, zReader, true);
   return [links, null];
 }
 
@@ -151,7 +143,7 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
  * returns:
  *  [json object of {dir:{subdir:{file:true, file:true, ...}}}, count of tests]
  */
-function zList(base, zReader, baseJarName, recurse) {
+function zList(base, zReader, recurse) {
   var dirs = zReader.findEntries(base + "*");
   var links = {};
   var count = 0;
@@ -170,12 +162,12 @@ function zList(base, zReader, baseJarName, recurse) {
     var myFile = fileArray[i];
     if (myFile.substr(-1) === '/' && recurse) {
       var childCount = 0;
-      [links[myFile], childCount] = zList(myFile, zReader, baseJarName, recurse);
+      [links[myFile], childCount] = zList(myFile, zReader, recurse);
       count += childCount;
     } else {
       if (myFile.indexOf("SimpleTest") == -1) {
         //we add the '/' so we don't try to run content/content/chrome
-        links[baseJarName + '/' + myFile] = true;
+        links['/' + myFile] = true;
       }
     }
   }
@@ -242,14 +234,8 @@ function getRootDirectory(path, chromeURI) {
     chromeURI = getChromeURI(path);
   }
   var myURL = chromeURI.QueryInterface(Components.interfaces.nsIURL);
-  var mydir = myURL.directory;
 
-  if (mydir.match('/$') != '/')
-  {
-    mydir += '/';
-  }
-
-  return chromeURI.prePath + mydir;
+  return chromeURI.prePath + myURL.directory;
 }
 
 //used by tests to determine their directory based off window.location.path
@@ -289,9 +275,7 @@ function extractJarToTmp(jar) {
                       .getService(Components.interfaces.nsIProperties)
                       .get("ProfD", Components.interfaces.nsILocalFile);
   tmpdir.append("mochikit.tmp");
-  // parseInt is used because octal escape sequences cause deprecation warnings
-  // in strict mode (which is turned on in debug builds)
-  tmpdir.createUnique(Components.interfaces.nsIFile.DIRECTORY_TYPE, parseInt("0777", 8));
+  tmpdir.createUnique(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0777);
 
   var zReader = Components.classes["@mozilla.org/libjar/zip-reader;1"].
                   createInstance(Components.interfaces.nsIZipReader);
@@ -317,9 +301,7 @@ function extractJarToTmp(jar) {
   var dirs = zReader.findEntries(filepath + '*/');
   while (dirs.hasMore()) {
     var targetDir = buildRelativePath(dirs.getNext(), tmpdir, filepath);
-    // parseInt is used because octal escape sequences cause deprecation warnings
-    // in strict mode (which is turned on in debug builds)
-    targetDir.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, parseInt("0777", 8));
+    targetDir.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0777);
   }
 
   //now do the files
@@ -358,68 +340,3 @@ function buildRelativePath(jarentryname, destdir, basepath)
   return targetFile;
 }
 
-function readConfig() {
-  var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"].
-                    getService(Components.interfaces.nsIProperties);
-  var configFile = fileLocator.get("ProfD", Components.interfaces.nsIFile);
-  configFile.append("testConfig.js");
-
-  if (!configFile.exists())
-    return {};
-
-  var fileInStream = Components.classes["@mozilla.org/network/file-input-stream;1"].
-                     createInstance(Components.interfaces.nsIFileInputStream);
-  fileInStream.init(configFile, -1, 0, 0);
-
-  var str = NetUtil.readInputStreamToString(fileInStream, fileInStream.available());
-  fileInStream.close();
-  return JSON.parse(str);
-}
-
-function getTestList() {
-  var params = {};
-  if (window.parseQueryString) {
-    params = parseQueryString(location.search.substring(1), true);
-  }
-
-  var config = readConfig();
-  for (p in params) {
-    if (params[p] == 1) {
-      config[p] = true;
-    } else if (params[p] == 0) {
-      config[p] = false;
-    } else {
-      config[p] = params[p];
-    }
-  }
-  params = config;
-
-  var baseurl = 'chrome://mochitests/content';
-  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"]
-                      .getService(Components.interfaces.nsIProperties)
-                      .get("ProfD", Components.interfaces.nsILocalFile);
-  testsURI.append("tests.manifest");
-  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-  var manifestFile = ioSvc.newFileURI(testsURI)
-                  .QueryInterface(Components.interfaces.nsIFileURL).file;
-
-  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
-    autoRegister(manifestFile);
-
-  // load server.js in so we can share template functions
-  var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                       getService(Ci.mozIJSSubScriptLoader);
-  var srvScope = {};
-  scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
-                             srvScope);
-  var singleTestPath;
-  var links;
-
-  if (getResolvedURI(baseurl).JARFile) {
-    [links, singleTestPath] = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
-  } else {
-    [links, singleTestPath] = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
-  }
-  return [links, singleTestPath];
-}

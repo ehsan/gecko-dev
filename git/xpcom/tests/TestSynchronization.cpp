@@ -63,13 +63,14 @@ spawn(void (*run)(void*), void* arg)
     do {                                        \
         passed(__FUNCTION__);                   \
         return NS_OK;                           \
-    } while (0)
+    } while (0);
+
 
 #define FAIL(why)                               \
     do {                                        \
-        fail("%s | %s - %s", __FILE__, __FUNCTION__, why); \
+        fail(why);                              \
         return NS_ERROR_FAILURE;                \
-    } while (0)
+    } while (0);
 
 //-----------------------------------------------------------------------------
 // Sanity check: tests that can be done on a single thread
@@ -391,7 +392,7 @@ AutoMonitor()
 int
 main(int argc, char** argv)
 {
-    ScopedXPCOM xpcom("Synchronization (" __FILE__ ")");
+    ScopedXPCOM xpcom("Synchronization");
     if (xpcom.failed())
         return 1;
 

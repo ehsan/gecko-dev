@@ -36,9 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "IPCMessageUtils.h"
-#include "mozilla/net/NeckoMessageUtils.h"
-
 #include "nsAboutProtocolHandler.h"
 #include "nsIURI.h"
 #include "nsIIOService.h"
@@ -325,51 +322,23 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
     return NS_OK;
 }
 
-// nsIIPCSerializable
-PRBool
-nsNestedAboutURI::Read(const IPC::Message *aMsg, void **aIter)
-{
-    if (!nsSimpleNestedURI::Read(aMsg, aIter))
-        return PR_FALSE;
-
-    IPC::URI uri;
-    if (!ReadParam(aMsg, aIter, &uri))
-        return PR_FALSE;
-
-    mBaseURI = uri;
-
-    return PR_TRUE;
-}
-
-void
-nsNestedAboutURI::Write(IPC::Message *aMsg)
-{
-    nsSimpleNestedURI::Write(aMsg);
-
-    IPC::URI uri(mBaseURI);
-    WriteParam(aMsg, uri);
-}
-
 // nsSimpleURI
 /* virtual */ nsSimpleURI*
-nsNestedAboutURI::StartClone(nsSimpleURI::RefHandlingEnum aRefHandlingMode)
+nsNestedAboutURI::StartClone()
 {
     // Sadly, we can't make use of nsSimpleNestedURI::StartClone here.
-    // However, this function is expected to exactly match that function,
-    // aside from the "new ns***URI()" call.
     NS_ENSURE_TRUE(mInnerURI, nsnull);
 
     nsCOMPtr<nsIURI> innerClone;
-    nsresult rv = aRefHandlingMode == eHonorRef ?
-        mInnerURI->Clone(getter_AddRefs(innerClone)) :
-        mInnerURI->CloneIgnoringRef(getter_AddRefs(innerClone));
-
+    nsresult rv = mInnerURI->Clone(getter_AddRefs(innerClone));
     if (NS_FAILED(rv)) {
         return nsnull;
     }
 
     nsNestedAboutURI* url = new nsNestedAboutURI(innerClone, mBaseURI);
-    url->SetMutable(PR_FALSE);
+    if (url) {
+        url->SetMutable(PR_FALSE);
+    }
 
     return url;
 }

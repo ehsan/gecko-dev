@@ -38,8 +38,6 @@
 
 #include "nsHTMLWin32ObjectAccessible.h"
 
-#include "States.h"
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLWin32ObjectOwnerAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,18 +64,29 @@ nsHTMLWin32ObjectOwnerAccessible::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLWin32ObjectOwnerAccessible: nsAccessible implementation
 
-PRUint32
-nsHTMLWin32ObjectOwnerAccessible::NativeRole()
+nsresult
+nsHTMLWin32ObjectOwnerAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_EMBEDDED_OBJECT;
+  NS_ENSURE_ARG_POINTER(aRole);
+
+  *aRole = nsIAccessibleRole::ROLE_EMBEDDED_OBJECT;
+  return NS_OK;
 }
 
-PRUint64
-nsHTMLWin32ObjectOwnerAccessible::NativeState()
+nsresult
+nsHTMLWin32ObjectOwnerAccessible::GetStateInternal(PRUint32 *aState,
+                                                   PRUint32 *aExtraState)
 {
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  if (rv == NS_OK_DEFUNCT_OBJECT)
+    return rv;
+
   // XXX: No HWND means this is windowless plugin which is not accessible in
   // the meantime.
-  return mHwnd ? nsAccessibleWrap::NativeState() : states::UNAVAILABLE;
+  if (!mHwnd)
+    *aState = nsIAccessibleStates::STATE_UNAVAILABLE;
+
+  return rv;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

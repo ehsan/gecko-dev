@@ -44,7 +44,7 @@
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
 #include "nsIIDBRequest.h"
-#include "nsIIDBVersionChangeRequest.h"
+#include "nsIVariant.h"
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
@@ -55,91 +55,86 @@ class nsPIDOMWindow;
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
-class IDBTransaction;
+class IDBFactory;
+class IDBDatabase;
 
 class IDBRequest : public nsDOMEventTargetHelper,
                    public nsIIDBRequest
 {
+  friend class AsyncConnectionHelper;
+
 public:
+  class Generator : public nsISupports
+  {
+    protected:
+      friend class IDBRequest;
+
+      Generator() { }
+
+      virtual ~Generator() {
+        NS_ASSERTION(mLiveRequests.IsEmpty(), "Huh?!");
+      }
+
+      already_AddRefed<IDBRequest>
+      GenerateRequest(nsIScriptContext* aScriptContext,
+                      nsPIDOMWindow* aOwner) {
+        return GenerateRequestInternal(aScriptContext, aOwner, PR_FALSE);
+      }
+
+      already_AddRefed<IDBRequest>
+      GenerateWriteRequest(nsIScriptContext* aScriptContext,
+                           nsPIDOMWindow* aOwner) {
+        return GenerateRequestInternal(aScriptContext, aOwner, PR_TRUE);
+      }
+
+      void NoteDyingRequest(IDBRequest* aRequest) {
+        NS_ASSERTION(mLiveRequests.Contains(aRequest), "Unknown request!");
+        mLiveRequests.RemoveElement(aRequest);
+      }
+
+    private:
+      already_AddRefed<IDBRequest>
+      GenerateRequestInternal(nsIScriptContext* aScriptContext,
+                              nsPIDOMWindow* aOwner,
+                              PRBool aWriteRequest);
+
+      // XXXbent Assuming infallible nsTArray here, make sure it lands!
+      nsAutoTArray<IDBRequest*, 1> mLiveRequests;
+  };
+
+  friend class IDBRequestGenerator;
+
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBREQUEST
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IDBRequest,
-                                                         nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBRequest,
+                                           nsDOMEventTargetHelper)
 
-  static
-  already_AddRefed<IDBRequest> Create(nsISupports* aSource,
-                                      nsIScriptContext* aScriptContext,
-                                      nsPIDOMWindow* aOwner,
-                                      IDBTransaction* aTransaction);
-
-  // nsIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
-
-  nsISupports* Source()
+  already_AddRefed<nsISupports> GetGenerator()
   {
-    return mSource;
+    nsCOMPtr<nsISupports> generator(mGenerator);
+    return generator.forget();
   }
 
-  void Reset();
+private:
+  // Only called by IDBRequestGenerator::Generate().
+  IDBRequest()
+  : mReadyState(nsIIDBRequest::INITIAL),
+    mAborted(PR_FALSE),
+    mWriteRequest(PR_FALSE)
+  { }
 
-  nsresult SetDone(AsyncConnectionHelper* aHelper);
-
-  nsIScriptContext* ScriptContext()
-  {
-    NS_ASSERTION(mScriptContext, "This should never be null!");
-    return mScriptContext;
-  }
-
-  nsPIDOMWindow* Owner()
-  {
-    NS_ASSERTION(mOwner, "This should never be null!");
-    return mOwner;
-  }
-
-  virtual void RootResultVal();
-  virtual void UnrootResultVal();
+  nsRefPtr<Generator> mGenerator;
 
 protected:
-  IDBRequest();
+  // Called by Release().
   ~IDBRequest();
-
-  nsCOMPtr<nsISupports> mSource;
-  nsRefPtr<IDBTransaction> mTransaction;
 
   nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
-  jsval mResultVal;
-
-  PRUint16 mErrorCode;
-  bool mResultValRooted;
-  bool mHaveResultOrErrorCode;
-};
-
-class IDBVersionChangeRequest : public IDBRequest,
-                                public nsIIDBVersionChangeRequest
-{
-public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_NSIIDBREQUEST(IDBRequest::)
-  NS_DECL_NSIIDBVERSIONCHANGEREQUEST
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBVersionChangeRequest,
-                                           IDBRequest)
-
-  ~IDBVersionChangeRequest();
-
-  static
-  already_AddRefed<IDBVersionChangeRequest>
-  Create(nsISupports* aSource,
-         nsIScriptContext* aScriptContext,
-         nsPIDOMWindow* aOwner,
-         IDBTransaction* aTransaction);
-
-  virtual void RootResultVal();
-  virtual void UnrootResultVal();
-
-protected:
-  nsRefPtr<nsDOMEventListenerWrapper> mOnBlockedListener;
+  PRUint16 mReadyState;
+  PRPackedBool mAborted;
+  PRPackedBool mWriteRequest;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -38,11 +38,6 @@
 #include "gfxASurface.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
-#include "mozilla/arm.h"
-#ifdef MOZ_X11
-#include "cairo.h"
-#include "gfxXlibSurface.h"
-#endif
 
 gfxSurfaceDrawable::gfxSurfaceDrawable(gfxASurface* aSurface,
                                        const gfxIntSize aSize,
@@ -66,60 +61,44 @@ DeviceToImageTransform(gfxContext* aContext,
     return gfxMatrix(deviceToUser).Multiply(aUserSpaceToImageSpace);
 }
 
-static void
+static void 
 PreparePatternForUntiledDrawing(gfxPattern* aPattern,
                                 const gfxMatrix& aDeviceToImage,
-                                gfxASurface *currentTarget,
+                                gfxASurface::gfxSurfaceType aSurfaceType,
                                 const gfxPattern::GraphicsFilter aDefaultFilter)
 {
     // In theory we can handle this using cairo's EXTEND_PAD,
     // but implementation limitations mean we have to consult
     // the surface type.
-    switch (currentTarget->GetType()) {
-
-#ifdef MOZ_X11
+    switch (aSurfaceType) {
         case gfxASurface::SurfaceTypeXlib:
+        case gfxASurface::SurfaceTypeXcb:
         {
-            // See bugs 324698, 422179, and 468496.  This is a workaround for
-            // XRender's RepeatPad not being implemented correctly on old X
-            // servers.
+            // See bug 324698.  This is a workaround for EXTEND_PAD not being
+            // implemented correctly on linux in the X server.
             //
-            // In this situation, cairo avoids XRender and instead reads back
-            // to perform EXTEND_PAD with pixman.  This is too slow so we
-            // avoid EXTEND_PAD and set the filter to CAIRO_FILTER_FAST ---
-            // otherwise, pixman's sampling will sample transparency for the
-            // outside edges and we'll get blurry edges.
+            // Set the filter to CAIRO_FILTER_FAST --- otherwise,
+            // pixman's sampling will sample transparency for the outside edges
+            // and we'll get blurry edges.  CAIRO_EXTEND_PAD would also work
+            // here, if available
             //
             // But don't do this for simple downscales because it's horrible.
             // Downscaling means that device-space coordinates are
             // scaled *up* to find the image pixel coordinates.
-            //
-            // Cairo, and hence Gecko, can use RepeatPad on Xorg 1.7. We
-            // enable EXTEND_PAD provided that we're running on a recent
-            // enough X server.
-
-            gfxXlibSurface *xlibSurface =
-                static_cast<gfxXlibSurface *>(currentTarget);
-            Display *dpy = xlibSurface->XDisplay();
-            // This is the exact condition for cairo to avoid XRender for
-            // EXTEND_PAD
-            if (VendorRelease(dpy) >= 60700000 ||
-                VendorRelease(dpy) < 10699000) {
-
-                PRBool isDownscale =
-                    aDeviceToImage.xx >= 1.0 && aDeviceToImage.yy >= 1.0 &&
-                    aDeviceToImage.xy == 0.0 && aDeviceToImage.yx == 0.0;
-
-                gfxPattern::GraphicsFilter filter =
-                    isDownscale ? aDefaultFilter : gfxPattern::FILTER_FAST;
-                aPattern->SetFilter(filter);
-
-                // Use the default EXTEND_NONE
-                break;
+            PRBool isDownscale =
+                aDeviceToImage.xx >= 1.0 && aDeviceToImage.yy >= 1.0 &&
+                aDeviceToImage.xy == 0.0 && aDeviceToImage.yx == 0.0;
+            if (!isDownscale) {
+                aPattern->SetFilter(gfxPattern::FILTER_FAST);
             }
-            // else fall through to EXTEND_PAD and the default filter.
+            break;
         }
-#endif
+
+        case gfxASurface::SurfaceTypeQuartz:
+        case gfxASurface::SurfaceTypeQuartzImage:
+            // Don't set EXTEND_PAD, Mac seems to be OK. Really?
+            aPattern->SetFilter(aDefaultFilter);
+            break;
 
         default:
             // turn on EXTEND_PAD.
@@ -143,25 +122,15 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
         pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
         pattern->SetFilter(aFilter);
     } else {
-        gfxPattern::GraphicsFilter filter = aFilter;
-        if (aContext->CurrentMatrix().HasOnlyIntegerTranslation() &&
-            aTransform.HasOnlyIntegerTranslation())
-        {
-          // If we only have integer translation, no special filtering needs to
-          // happen and we explicitly use FILTER_FAST. This is fast for some
-          // backends.
-          filter = gfxPattern::FILTER_FAST;
-        }
         nsRefPtr<gfxASurface> currentTarget = aContext->CurrentSurface();
+        gfxASurface::gfxSurfaceType surfaceType = currentTarget->GetType();
         gfxMatrix deviceSpaceToImageSpace =
             DeviceToImageTransform(aContext, aTransform);
         PreparePatternForUntiledDrawing(pattern, deviceSpaceToImageSpace,
-                                        currentTarget, filter);
+                                        surfaceType, aFilter);
     }
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    if (!mozilla::supports_neon()) {
-        pattern->SetFilter(gfxPattern::FILTER_FAST);
-    }
+    pattern->SetFilter(gfxPattern::FILTER_FAST); 
 #endif
     pattern->SetMatrix(gfxMatrix(aTransform).Multiply(mTransform));
     aContext->NewPath();
@@ -182,7 +151,7 @@ already_AddRefed<gfxSurfaceDrawable>
 gfxCallbackDrawable::MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilter)
 {
     nsRefPtr<gfxASurface> surface =
-        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, gfxASurface::CONTENT_COLOR_ALPHA);
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, gfxASurface::ImageFormatARGB32);
     if (!surface || surface->CairoStatus() != 0)
         return nsnull;
 

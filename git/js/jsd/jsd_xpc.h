@@ -288,8 +288,6 @@ class jsdService : public jsdIDebuggerService
     virtual ~jsdService();
     
     static jsdService *GetService ();
-
-    PRBool CheckInterruptHook() { return !!mInterruptHook; }
     
   private:
     PRBool      mOn;
@@ -307,7 +305,7 @@ class jsdService : public jsdIDebuggerService
     nsCOMPtr<jsdIExecutionHook> mThrowHook;
     nsCOMPtr<jsdICallHook>      mTopLevelHook;
     nsCOMPtr<jsdICallHook>      mFunctionHook;
-    nsCOMPtr<jsdIActivationCallback> mActivationCallback;
+
 };
 
 #endif /* JSDSERVICE_H___ */

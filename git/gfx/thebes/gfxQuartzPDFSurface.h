@@ -54,18 +54,14 @@ public:
     nsresult BeginPage();
     nsresult EndPage();
 
-    virtual const gfxIntSize GetSize() const {
-        gfxIntSize size(mRect.size.width, mRect.size.height);
+    gfxSize GetSize() {
+        gfxSize size(mRect.size.width, mRect.size.height);
         return size;
     }
 
     CGContextRef GetCGContext() { return mCGContext; }
 
-    virtual PRInt32 GetDefaultContextFlags() const
-    {
-      return gfxContext::FLAG_DISABLE_SNAPPING |
-             gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
-    }
+    virtual PRInt32 GetDefaultContextFlags() const { return gfxContext::FLAG_DISABLE_SNAPPING; }
 
 protected:
     CGContextRef mCGContext;

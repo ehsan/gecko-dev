@@ -9,5 +9,5 @@ input, textarea, select, button,
 
 /* Override the default style. */
 :invalid {
-  box-shadow: none;
+  -moz-box-shadow: none;
 }

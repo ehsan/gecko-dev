@@ -43,11 +43,9 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIConsoleService.h"
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
-
-#include "gfxCrashReporterUtils.h"
 
 // from GL/osmesa.h. We don't include that file so as to avoid having a build-time dependency on OSMesa.
 #define OSMESA_RGBA     GL_RGBA
@@ -106,8 +104,22 @@ OSMesaLibrary::EnsureInitialized()
     if (mInitialized)
         return PR_TRUE;
 
-    nsAdoptingCString osmesalib = Preferences::GetCString("webgl.osmesalib");
-    if (osmesalib.IsEmpty()) {
+    nsresult rv;
+
+    nsCOMPtr<nsIPrefService> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+    nsCOMPtr<nsIPrefBranch> prefBranch;
+    rv = prefService->GetBranch("webgl.", getter_AddRefs(prefBranch));
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+    nsCString osmesalib;
+
+    rv = prefBranch->GetCharPref("osmesalib", getter_Copies(osmesalib));
+
+    if (NS_FAILED(rv) ||
+        osmesalib.Length() == 0)
+    {
         return PR_FALSE;
     }
 
@@ -150,8 +162,6 @@ public:
 
     ~GLContextOSMesa()
     {
-        MarkDestroyed();
-
         if (mContext)
             sOSMesaLibrary.fDestroyContext(mContext);
     }
@@ -212,7 +222,7 @@ public:
         return InitWithPrefix("gl", PR_TRUE);
     }
 
-    PRBool MakeCurrentImpl(PRBool aForce = PR_FALSE)
+    PRBool MakeCurrent()
     {
         PRBool succeeded
           = sOSMesaLibrary.fMakeCurrent(mContext, mThebesSurface->Data(),

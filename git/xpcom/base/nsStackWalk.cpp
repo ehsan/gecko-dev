@@ -42,7 +42,7 @@
 
 #include "nsStackWalk.h"
 
-#if defined(_WIN32) && (defined(_M_IX86) || defined(_M_AMD64) || defined(_M_IA64)) // WIN32 x86 stack walking code
+#if defined(_WIN32) && (defined(_M_IX86) || defined(_M_AMD64) || defined(_M_IA64)) && !defined(WINCE) // WIN32 x86 stack walking code
 
 #include "nscore.h"
 #include <windows.h>
@@ -1137,7 +1137,7 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
 #define __USE_GNU
 #endif
 
-#if defined(HAVE_DLOPEN) || defined(XP_MACOSX)
+#if defined(HAVE_LIBDL) || defined(XP_MACOSX)
 #include <dlfcn.h>
 #endif
 

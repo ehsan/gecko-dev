@@ -45,8 +45,7 @@
 #include "nsISeekableStream.h"
 #include "nsIStreamBufferAccess.h"
 #include "nsCOMPtr.h"
-#include "nsIIPCSerializable.h"
-
+#include "nsInt64.h"
 ////////////////////////////////////////////////////////////////////////////////
 
 class nsBufferedStream : public nsISeekableStream
@@ -69,7 +68,7 @@ protected:
     char*                       mBuffer;
 
     // mBufferStartOffset is the offset relative to the start of mStream.
-    PRInt64                     mBufferStartOffset;
+    nsInt64                     mBufferStartOffset;
 
     // mCursor is the read cursor for input streams, or write cursor for
     // output streams, and is relative to mBufferStartOffset.
@@ -90,15 +89,13 @@ protected:
 
 class nsBufferedInputStream : public nsBufferedStream,
                               public nsIBufferedInputStream,
-                              public nsIStreamBufferAccess,
-                              public nsIIPCSerializable
+                              public nsIStreamBufferAccess
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSIBUFFEREDINPUTSTREAM
     NS_DECL_NSISTREAMBUFFERACCESS
-    NS_DECL_NSIIPCSERIALIZABLE
 
     nsBufferedInputStream() : nsBufferedStream() {}
     virtual ~nsBufferedInputStream() {}

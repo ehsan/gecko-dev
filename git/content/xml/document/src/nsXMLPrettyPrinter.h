@@ -51,13 +51,17 @@ public:
 
     NS_DECL_ISUPPORTS
 
+    // nsIDocumentObserver
+    virtual void BeginUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType);
+    virtual void EndUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType);
+
     // nsIMutationObserver
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
     NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
-
+    
     /**
      * This will prettyprint the document if the document is loaded in a
      * displayed window.
@@ -68,10 +72,6 @@ public:
      */
     nsresult PrettyPrint(nsIDocument* aDocument, PRBool* aDidPrettyPrint);
 
-    /**
-     * Unhook the prettyprinter
-     */
-    void Unhook();
 private:
     /**
      * Signals for unhooking by setting mUnhookPending if the node changed is

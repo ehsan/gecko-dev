@@ -74,8 +74,8 @@ public:
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);  
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);  
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nsIFrame* GetContentInsertionFrame() {
     nsIFrame* frame = GetFirstChild(nsnull);
@@ -100,7 +100,7 @@ public:
 
   virtual nsIAtom* GetType() const;
 
-  virtual void PaintColumnRule(nsRenderingContext* aCtx,
+  virtual void PaintColumnRule(nsIRenderingContext* aCtx,
                                const nsRect&        aDirtyRect,
                                const nsPoint&       aPt);
 
@@ -209,14 +209,14 @@ nsColumnSetFrame::GetType() const
 }
 
 static void
-PaintColumnRule(nsIFrame* aFrame, nsRenderingContext* aCtx,
+PaintColumnRule(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                 const nsRect& aDirtyRect, nsPoint aPt)
 {
   static_cast<nsColumnSetFrame*>(aFrame)->PaintColumnRule(aCtx, aDirtyRect, aPt);
 }
 
 void
-nsColumnSetFrame::PaintColumnRule(nsRenderingContext* aCtx,
+nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
                                   const nsRect& aDirtyRect,
                                   const nsPoint& aPt)
 {
@@ -443,7 +443,7 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
     return;
   }
   
-  nsRect r = aChild->GetVisualOverflowRect();
+  nsRect r = aChild->GetOverflowRect();
   r += aChild->GetPosition();
   aParent->Invalidate(r);
   r -= aChild->GetPosition();
@@ -454,7 +454,7 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
 }
 
 nscoord
-nsColumnSetFrame::GetMinWidth(nsRenderingContext *aRenderingContext) {
+nsColumnSetFrame::GetMinWidth(nsIRenderingContext *aRenderingContext) {
   nscoord width = 0;
   DISPLAY_MIN_WIDTH(this, width);
   if (mFrames.FirstChild()) {
@@ -485,7 +485,7 @@ nsColumnSetFrame::GetMinWidth(nsRenderingContext *aRenderingContext) {
 }
 
 nscoord
-nsColumnSetFrame::GetPrefWidth(nsRenderingContext *aRenderingContext) {
+nsColumnSetFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext) {
   // Our preferred width is our desired column width, if specified, otherwise
   // the child's preferred width, times the number of columns, plus the width
   // of any required column gaps
@@ -555,8 +555,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   const nsMargin &borderPadding = aReflowState.mComputedBorderPadding;
   
   nsRect contentRect(0, 0, 0, 0);
-  nsOverflowAreas overflowRects;
-
+  nsRect overflowRect(0, 0, 0, 0);
+  
   nsIFrame* child = mFrames.FirstChild();
   nsPoint childOrigin = nsPoint(borderPadding.left, borderPadding.top);
   // For RTL, figure out where the last column's left edge should be. Since the
@@ -603,10 +603,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     // may have overflowing content that cares about the available height boundary.
     // (It may also have overflowing content that doesn't care about the available height
     // boundary, but if so, too bad, this optimization is defeated.)
-    // We want scrollable overflow here since this is a calculation that
-    // affects layout.
     PRBool skipResizeHeightShrink = shrinkingHeightOnly
-      && child->GetScrollableOverflowRect().YMost() <= aConfig.mColMaxHeight;
+      && child->GetOverflowRect().YMost() <= aConfig.mColMaxHeight;
 
     nscoord childContentBottom = 0;
     if (!reflowNext && (skipIncremental || skipResizeHeightShrink)) {
@@ -697,7 +695,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
     contentRect.UnionRect(contentRect, child->GetRect());
 
-    ConsiderChildOverflow(overflowRects, child);
+    ConsiderChildOverflow(overflowRect, child);
     contentBottom = NS_MAX(contentBottom, childContentBottom);
     aColData.mLastHeight = childContentBottom;
     aColData.mSumHeight += childContentBottom;
@@ -803,7 +801,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   
   // If we're doing RTL, we need to make sure our last column is at the left-hand side of the frame.
   if (RTL && childOrigin.x != targetX) {
-    overflowRects.Clear();
+    overflowRect = nsRect(0, 0, 0, 0);
     contentRect = nsRect(0, 0, 0, 0);
     PRInt32 deltaX = targetX - childOrigin.x;
 #ifdef DEBUG_roc
@@ -811,7 +809,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 #endif
     for (child = mFrames.FirstChild(); child; child = child->GetNextSibling()) {
       MoveChildTo(this, child, child->GetPosition() + nsPoint(deltaX, 0));
-      ConsiderChildOverflow(overflowRects, child);
+      ConsiderChildOverflow(overflowRect, child);
       contentRect.UnionRect(contentRect, child->GetRect());
     }
   }
@@ -849,9 +847,9 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   aDesiredSize.height = borderPadding.top + contentSize.height +
     borderPadding.bottom;
   aDesiredSize.width = contentSize.width + borderPadding.left + borderPadding.right;
-  aDesiredSize.mOverflowAreas = overflowRects;
-  aDesiredSize.UnionOverflowAreasWithDesiredBounds();
-
+  overflowRect.UnionRect(overflowRect, nsRect(0, 0, aDesiredSize.width, aDesiredSize.height));
+  aDesiredSize.mOverflowArea = overflowRect;
+  
 #ifdef DEBUG_roc
   printf("*** DONE PASS feasible=%d\n", allFit && NS_FRAME_IS_FULLY_COMPLETE(aStatus)
          && !NS_FRAME_IS_TRUNCATED(aStatus));
@@ -869,8 +867,8 @@ nsColumnSetFrame::DrainOverflowColumns()
   if (prev) {
     nsAutoPtr<nsFrameList> overflows(prev->StealOverflowFrames());
     if (overflows) {
-      nsContainerFrame::ReparentFrameViewList(PresContext(), *overflows,
-                                              prev, this);
+      nsHTMLContainerFrame::ReparentFrameViewList(PresContext(), *overflows,
+                                                  prev, this);
 
       mFrames.InsertFrames(this, nsnull, *overflows);
     }

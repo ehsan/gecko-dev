@@ -63,11 +63,6 @@
 #include "nsISelectionController.h"
 #include "nsIMutationObserver.h"
 #include "nsContentEventHandler.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
-#include "nsIFormControl.h"
-#include "nsIForm.h"
-#include "nsHTMLFormElement.h"
 
 /******************************************************************/
 /* nsIMEStateManager                                              */
@@ -76,7 +71,6 @@
 nsIContent*    nsIMEStateManager::sContent      = nsnull;
 nsPresContext* nsIMEStateManager::sPresContext  = nsnull;
 PRBool         nsIMEStateManager::sInstalledMenuKeyboardListener = PR_FALSE;
-PRBool         nsIMEStateManager::sInSecureInputMode = PR_FALSE;
 
 nsTextStateManager* nsIMEStateManager::sTextStateObserver = nsnull;
 
@@ -89,7 +83,7 @@ nsIMEStateManager::OnDestroyPresContext(nsPresContext* aPresContext)
   nsCOMPtr<nsIWidget> widget = GetWidget(sPresContext);
   if (widget) {
     PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
-    SetIMEState(newState, nsnull, widget, IMEContext::FOCUS_REMOVED);
+    SetIMEState(newState, widget);
   }
   sContent = nsnull;
   sPresContext = nsnull;
@@ -114,7 +108,7 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
     if (NS_FAILED(rv))
       widget->ResetInputState();
     PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
-    SetIMEState(newState, nsnull, widget, IMEContext::FOCUS_REMOVED);
+    SetIMEState(newState, widget);
   }
 
   sContent = nsnull;
@@ -125,37 +119,13 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
 
 nsresult
 nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
-                                 nsIContent* aContent,
-                                 PRUint32 aReason)
+                                 nsIContent* aContent)
 {
   NS_ENSURE_ARG_POINTER(aPresContext);
 
   nsCOMPtr<nsIWidget> widget = GetWidget(aPresContext);
   if (!widget) {
     return NS_OK;
-  }
-
-  // Handle secure input mode for password field input.
-  PRBool contentIsPassword = PR_FALSE;
-  if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML) {
-    if (aContent->Tag() == nsGkAtoms::input) {
-      nsAutoString type;
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type);
-      contentIsPassword = type.LowerCaseEqualsLiteral("password");
-    }
-  }
-  if (sInSecureInputMode) {
-    if (!contentIsPassword) {
-      if (NS_SUCCEEDED(widget->EndSecureKeyboardInput())) {
-        sInSecureInputMode = PR_FALSE;
-      }
-    }
-  } else {
-    if (contentIsPassword) {
-      if (NS_SUCCEEDED(widget->BeginSecureKeyboardInput())) {
-        sInSecureInputMode = PR_TRUE;
-      }
-    }
   }
 
   PRUint32 newState = GetNewIMEState(aPresContext, aContent);
@@ -167,12 +137,12 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
       // the enabled state isn't changing, we should do nothing.
       return NS_OK;
     }
-    IMEContext context;
-    if (!widget || NS_FAILED(widget->GetInputMode(context))) {
+    PRUint32 enabled;
+    if (NS_FAILED(widget->GetIMEEnabled(&enabled))) {
       // this platform doesn't support IME controlling
       return NS_OK;
     }
-    if (context.mStatus ==
+    if (enabled ==
         nsContentUtils::GetWidgetStatusFromIMEStatus(newEnabledState)) {
       // the enabled state isn't changing.
       return NS_OK;
@@ -192,7 +162,7 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
 
   if (newState != nsIContent::IME_STATUS_NONE) {
     // Update IME state for new focus widget
-    SetIMEState(newState, aContent, widget, aReason);
+    SetIMEState(newState, widget);
   }
 
   sPresContext = aPresContext;
@@ -205,14 +175,11 @@ void
 nsIMEStateManager::OnInstalledMenuKeyboardListener(PRBool aInstalling)
 {
   sInstalledMenuKeyboardListener = aInstalling;
-
-  PRUint32 reason = aInstalling ? IMEContext::FOCUS_MOVED_TO_MENU
-                                : IMEContext::FOCUS_MOVED_FROM_MENU;
-  OnChangeFocus(sPresContext, sContent, reason);
+  OnChangeFocus(sPresContext, sContent);
 }
 
 void
-nsIMEStateManager::UpdateIMEState(PRUint32 aNewIMEState, nsIContent* aContent)
+nsIMEStateManager::UpdateIMEState(PRUint32 aNewIMEState)
 {
   if (!sPresContext) {
     NS_WARNING("ISM doesn't know which editor has focus");
@@ -226,13 +193,13 @@ nsIMEStateManager::UpdateIMEState(PRUint32 aNewIMEState, nsIContent* aContent)
   }
 
   // Don't update IME state when enabled state isn't actually changed.
-  IMEContext context;
-  nsresult rv = widget->GetInputMode(context);
+  PRUint32 currentEnabledState;
+  nsresult rv = widget->GetIMEEnabled(&currentEnabledState);
   if (NS_FAILED(rv)) {
     return; // This platform doesn't support controling the IME state.
   }
   PRUint32 newEnabledState = aNewIMEState & nsIContent::IME_STATUS_MASK_ENABLED;
-  if (context.mStatus ==
+  if (currentEnabledState ==
         nsContentUtils::GetWidgetStatusFromIMEStatus(newEnabledState)) {
     return;
   }
@@ -240,7 +207,7 @@ nsIMEStateManager::UpdateIMEState(PRUint32 aNewIMEState, nsIContent* aContent)
   // commit current composition
   widget->ResetInputState();
 
-  SetIMEState(aNewIMEState, aContent, widget, IMEContext::EDITOR_STATE_MODIFIED);
+  SetIMEState(aNewIMEState, widget);
 }
 
 PRUint32
@@ -268,79 +235,14 @@ nsIMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
   return aContent->GetDesiredIMEState();
 }
 
-// Helper class, used for IME enabled state change notification
-class IMEEnabledStateChangedEvent : public nsRunnable {
-public:
-  IMEEnabledStateChangedEvent(PRUint32 aState)
-    : mState(aState)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-    if (observerService) {
-      nsAutoString state;
-      state.AppendInt(mState);
-      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
-    }
-    return NS_OK;
-  }
-
-private:
-  PRUint32 mState;
-};
-
 void
 nsIMEStateManager::SetIMEState(PRUint32 aState,
-                               nsIContent* aContent,
-                               nsIWidget* aWidget,
-                               PRUint32 aReason)
+                               nsIWidget* aWidget)
 {
   if (aState & nsIContent::IME_STATUS_MASK_ENABLED) {
-    if (!aWidget)
-      return;
-
-    PRUint32 state = nsContentUtils::GetWidgetStatusFromIMEStatus(aState);
-    IMEContext context;
-    context.mStatus = state;
-    
-    if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML &&
-        (aContent->Tag() == nsGkAtoms::input ||
-         aContent->Tag() == nsGkAtoms::textarea)) {
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                        context.mHTMLInputType);
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::moz_action_hint,
-                        context.mActionHint);
-
-      // if we don't have an action hint and  return won't submit the form use "next"
-      if (context.mActionHint.IsEmpty() && aContent->Tag() == nsGkAtoms::input) {
-        PRBool willSubmit = PR_FALSE;
-        nsCOMPtr<nsIFormControl> control(do_QueryInterface(aContent));
-        mozilla::dom::Element* formElement = control->GetFormElement();
-        nsCOMPtr<nsIForm> form;
-        if (control) {
-          // is this a form and does it have a default submit element?
-          if ((form = do_QueryInterface(formElement)) && form->GetDefaultSubmitElement()) {
-            willSubmit = PR_TRUE;
-          // is this an html form and does it only have a single text input element?
-          } else if (formElement && formElement->Tag() == nsGkAtoms::form && formElement->IsHTML() &&
-                     static_cast<nsHTMLFormElement*>(formElement)->HasSingleTextControl()) {
-            willSubmit = PR_TRUE;
-          }
-        }
-        context.mActionHint.Assign(willSubmit ? NS_LITERAL_STRING("go") : NS_LITERAL_STRING("next"));
-      }
-    }
-
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
-      context.mReason = aReason | IMEContext::FOCUS_FROM_CONTENT_PROCESS;
-    } else {
-      context.mReason = aReason;
-    }
-
-    aWidget->SetInputMode(context);
-
-    nsContentUtils::AddScriptRunner(new IMEEnabledStateChangedEvent(state));
+    PRUint32 state =
+      nsContentUtils::GetWidgetStatusFromIMEStatus(aState);
+    aWidget->SetIMEEnabled(state);
   }
   if (aState & nsIContent::IME_STATUS_MASK_OPENED) {
     PRBool open = !!(aState & nsIContent::IME_STATUS_OPEN);
@@ -384,8 +286,7 @@ public:
 
   nsresult Init(nsIWidget* aWidget,
                 nsPresContext* aPresContext,
-                nsINode* aNode,
-                PRBool aWantUpdates);
+                nsINode* aNode);
   void     Destroy(void);
 
   nsCOMPtr<nsIWidget>            mWidget;
@@ -406,15 +307,9 @@ nsTextStateManager::nsTextStateManager()
 nsresult
 nsTextStateManager::Init(nsIWidget* aWidget,
                          nsPresContext* aPresContext,
-                         nsINode* aNode,
-                         PRBool aWantUpdates)
+                         nsINode* aNode)
 {
   mWidget = aWidget;
-
-  if (!aWantUpdates) {
-    mEditableNode = aNode;
-    return NS_OK;
-  }
 
   nsIPresShell* presShell = aPresContext->PresShell();
 
@@ -439,17 +334,12 @@ nsTextStateManager::Init(nsIWidget* aWidget,
 
   nsCOMPtr<nsIDOMRange> selDomRange;
   rv = sel->GetRangeAt(0, getter_AddRefs(selDomRange));
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIRange> selRange(do_QueryInterface(selDomRange));
+  NS_ENSURE_TRUE(selRange && selRange->GetStartParent(), NS_ERROR_UNEXPECTED);
 
-  if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsIRange> selRange(do_QueryInterface(selDomRange));
-    NS_ENSURE_TRUE(selRange && selRange->GetStartParent(),
-                   NS_ERROR_UNEXPECTED);
-
-    mRootContent = selRange->GetStartParent()->
+  mRootContent = selRange->GetStartParent()->
                      GetSelectionRootContent(presShell);
-  } else {
-    mRootContent = aNode->GetSelectionRootContent(presShell);
-  }
   if (!mRootContent && aNode->IsNodeOfType(nsINode::eDOCUMENT)) {
     // The document node is editable, but there are no contents, this document
     // is not editable.
@@ -645,7 +535,7 @@ static nsINode* GetRootEditableNode(nsPresContext* aPresContext,
     nsINode* node = aContent;
     while (node && node->IsEditable()) {
       root = node;
-      node = node->GetNodeParent();
+      node = node->GetParent();
     }
     return root;
   }
@@ -700,8 +590,6 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
     return NS_OK;
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool wantUpdates = rv != NS_SUCCESS_IME_NO_UPDATES;
-
   // OnIMEFocusChange may cause focus and sTextStateObserver to change
   // In that case return and keep the current sTextStateObserver
   NS_ENSURE_TRUE(!sTextStateObserver, NS_OK);
@@ -709,8 +597,7 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
   sTextStateObserver = new nsTextStateManager();
   NS_ENSURE_TRUE(sTextStateObserver, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(sTextStateObserver);
-  rv = sTextStateObserver->Init(widget, aPresContext,
-                                editableNode, wantUpdates);
+  rv = sTextStateObserver->Init(widget, aPresContext, editableNode);
   if (NS_FAILED(rv)) {
     sTextStateObserver->mDestroying = PR_TRUE;
     sTextStateObserver->Destroy();
@@ -725,8 +612,7 @@ nsresult
 nsIMEStateManager::GetFocusSelectionAndRoot(nsISelection** aSel,
                                             nsIContent** aRoot)
 {
-  if (!sTextStateObserver || !sTextStateObserver->mEditableNode ||
-      !sTextStateObserver->mSel)
+  if (!sTextStateObserver || !sTextStateObserver->mEditableNode)
     return NS_ERROR_NOT_AVAILABLE;
 
   NS_ASSERTION(sTextStateObserver->mSel && sTextStateObserver->mRootContent,

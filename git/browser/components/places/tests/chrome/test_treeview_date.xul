@@ -15,7 +15,7 @@
    -
    - The Original Code is the Places test code.
    -
-   - The Initial Developer of the Original Code is the Mozilla Foundation.
+   - The Initial Developer of the Original Code is Mozilla Corp.
    - Portions created by the Initial Developer are Copyright (C) 2009
    - the Initial Developer. All Rights Reserved.
    -
@@ -91,6 +91,9 @@
     }
 
     function continue_test() {
+      const Cc = Components.classes;
+      const Ci = Components.interfaces;
+
       var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
                getService(Ci.nsINavHistoryService);
       var bh = hs.QueryInterface(Ci.nsIBrowserHistory);

@@ -93,12 +93,22 @@ public:
 
   virtual eMathMLFrameType GetMathMLFrameType();
 
+  NS_IMETHOD
+  AttributeChanged(PRInt32         aNameSpaceID,
+                   nsIAtom*        aAttribute,
+                   PRInt32         aModType);
+
+  NS_IMETHOD
+  Init(nsIContent*      aContent,
+       nsIFrame*        aParent,
+       nsIFrame*        aPrevInFlow);
+
   virtual nsresult
-  MeasureForWidth(nsRenderingContext& aRenderingContext,
+  MeasureForWidth(nsIRenderingContext& aRenderingContext,
                   nsHTMLReflowMetrics& aDesiredSize);
 
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 
@@ -133,7 +143,10 @@ protected:
   
   virtual PRIntn GetSkipSides() const { return 0; }
 
-  nsresult PlaceInternal(nsRenderingContext& aRenderingContext,
+  PRBool
+  IsBevelled();
+
+  nsresult PlaceInternal(nsIRenderingContext& aRenderingContext,
                          PRBool               aPlaceOrigin,
                          nsHTMLReflowMetrics& aDesiredSize,
                          PRBool               aWidthOnly);

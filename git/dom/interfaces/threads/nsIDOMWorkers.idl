@@ -128,13 +128,13 @@ interface nsIWorkerScope : nsIWorkerGlobalScope
   attribute nsIDOMEventListener onclose;
 };
 
-[scriptable, builtinclass, uuid(b90b7561-b5e2-4545-84b0-280dbaaa94ea)]
+[scriptable, uuid(b90b7561-b5e2-4545-84b0-280dbaaa94ea)]
 interface nsIAbstractWorker : nsIDOMEventTarget
 {
   attribute nsIDOMEventListener onerror;
 };
 
-[scriptable, builtinclass, uuid(daf945c3-8d29-4724-8939-dd383f7d27a7)]
+[scriptable, uuid(daf945c3-8d29-4724-8939-dd383f7d27a7)]
 interface nsIWorker : nsIAbstractWorker
 {
   void postMessage(/* in JSObject aMessage */);
@@ -144,13 +144,7 @@ interface nsIWorker : nsIAbstractWorker
   void terminate();
 };
 
-[scriptable, uuid(cfc4bb32-ca83-4d58-9b6f-66f8054a333a)]
-interface nsIWorkerFactory : nsISupports
+[scriptable, uuid(c40dfe2c-c9d4-4c48-8e5d-adc99f207dd2)]
+interface nsIChromeWorker : nsIWorker
 {
-    nsIWorker newChromeWorker(/* in DOMString aScriptURL */);
 };
-
-%{ C++
-#define NS_WORKERFACTORY_CONTRACTID \
-"@mozilla.org/threads/workerfactory;1"
-%}

@@ -43,6 +43,8 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmstyleFrame.h"
 
@@ -82,7 +84,12 @@ nsMathMLmstyleFrame::InheritAutomaticData(nsIFrame* aParent)
 NS_IMETHODIMP
 nsMathMLmstyleFrame::TransmitAutomaticData()
 {
-  return TransmitAutomaticDataForMrowLikeElement();
+  // Nothing particular to do here, the values that we computed in
+  // InheritAutomaticData() are the values that we wanted to pass to
+  // our children. Our children would have inherited these values in
+  // their own InheritAutomaticData() as we descended the frame tree.
+
+  return NS_OK;
 }
 
 // displaystyle and scriptlevel are special in <mstyle>...

@@ -44,61 +44,20 @@ namespace xpc {
 
 class WrapperFactory {
   public:
-    enum { WAIVE_XRAY_WRAPPER_FLAG = JSWrapper::LAST_USED_FLAG << 1,
-           IS_XRAY_WRAPPER_FLAG    = WAIVE_XRAY_WRAPPER_FLAG << 1,
-           SCRIPT_ACCESS_ONLY_FLAG = IS_XRAY_WRAPPER_FLAG << 1,
-           PARTIALLY_TRANSPARENT   = SCRIPT_ACCESS_ONLY_FLAG << 1,
-           SOW_FLAG                = PARTIALLY_TRANSPARENT << 1 };
+    enum { WAIVE_XRAY_WRAPPER_FLAG = (1<<0) };
 
     // Return true if any of any of the nested wrappers have the flag set.
-    static bool HasWrapperFlag(JSObject *wrapper, uintN flag) {
+    bool HasWrapperFlag(JSObject *wrapper, uintN flag) {
         uintN flags = 0;
         wrapper->unwrap(&flags);
         return !!(flags & flag);
     }
 
-    static bool IsXrayWrapper(JSObject *wrapper) {
-        return HasWrapperFlag(wrapper, IS_XRAY_WRAPPER_FLAG);
-    }
-
-    static bool IsPartiallyTransparent(JSObject *wrapper) {
-        return HasWrapperFlag(wrapper, PARTIALLY_TRANSPARENT);
-    }
-
-    static bool HasWaiveXrayFlag(JSObject *wrapper) {
-        return HasWrapperFlag(wrapper, WAIVE_XRAY_WRAPPER_FLAG);
-    }
-
-    static JSObject *WaiveXray(JSContext *cx, JSObject *obj);
-
-    static JSObject *DoubleWrap(JSContext *cx, JSObject *obj, uintN flags);
-
-    // Prepare a given object for wrapping in a new compartment.
-    static JSObject *PrepareForWrapping(JSContext *cx,
-                                        JSObject *scope,
-                                        JSObject *obj,
-                                        uintN flags);
-
     // Rewrap an object that is about to cross compartment boundaries.
     static JSObject *Rewrap(JSContext *cx,
                             JSObject *obj,
                             JSObject *wrappedProto,
-                            JSObject *parent,
                             uintN flags);
-
-    // Return true if this is a location object.
-    static bool IsLocationObject(JSObject *obj);
-
-    // Wrap a location object.
-    static JSObject *WrapLocationObject(JSContext *cx, JSObject *obj);
-
-    // Wrap wrapped object into a waiver wrapper and then re-wrap it.
-    static bool WaiveXrayAndWrap(JSContext *cx, jsval *vp);
-
-    // Wrap a (same compartment) object in a SOW.
-    static JSObject *WrapSOWObject(JSContext *cx, JSObject *obj);
 };
-
-extern JSWrapper WaiveXrayWrapperWrapper;
 
 }

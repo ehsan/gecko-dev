@@ -22,10 +22,14 @@ void InitializeGlobalPools()
     if (globalPools)
         return;
 
-    TThreadGlobalPools* threadData = new TThreadGlobalPools();
-    threadData->globalPoolAllocator = 0;
+    TPoolAllocator *globalPoolAllocator = new TPoolAllocator(true);
 
-    OS_SetTLSValue(PoolIndex, threadData);
+    TThreadGlobalPools* threadData = new TThreadGlobalPools();
+    
+    threadData->globalPoolAllocator = globalPoolAllocator;
+        
+    OS_SetTLSValue(PoolIndex, threadData);     
+    globalPoolAllocator->push();
 }
 
 void FreeGlobalPools()
@@ -34,7 +38,9 @@ void FreeGlobalPools()
     TThreadGlobalPools* globalPools= static_cast<TThreadGlobalPools*>(OS_GetTLSValue(PoolIndex));    
     if (!globalPools)
         return;
- 
+    
+    GlobalPoolAllocator.popAll();
+    delete &GlobalPoolAllocator;       
     delete globalPools;
 }
 
@@ -60,7 +66,7 @@ TPoolAllocator& GetGlobalPoolAllocator()
     return *threadData->globalPoolAllocator;
 }
 
-void SetGlobalPoolAllocator(TPoolAllocator* poolAllocator)
+void SetGlobalPoolAllocatorPtr(TPoolAllocator* poolAllocator)
 {
     TThreadGlobalPools* threadData = static_cast<TThreadGlobalPools*>(OS_GetTLSValue(PoolIndex));
 
@@ -71,13 +77,13 @@ void SetGlobalPoolAllocator(TPoolAllocator* poolAllocator)
 // Implement the functionality of the TPoolAllocator class, which
 // is documented in PoolAlloc.h.
 //
-TPoolAllocator::TPoolAllocator(int growthIncrement, int allocationAlignment) : 
+TPoolAllocator::TPoolAllocator(bool g, int growthIncrement, int allocationAlignment) : 
+    global(g),
     pageSize(growthIncrement),
     alignment(allocationAlignment),
     freeList(0),
     inUseList(0),
-    numCalls(0),
-    totalBytes(0)
+    numCalls(0)
 {
     //
     // Don't allow page sizes we know are smaller than all common
@@ -117,14 +123,24 @@ TPoolAllocator::TPoolAllocator(int growthIncrement, int allocationAlignment) :
 
 TPoolAllocator::~TPoolAllocator()
 {
-    while (inUseList) {
-        tHeader* next = inUseList->nextPage;
-        inUseList->~tHeader();
-        delete [] reinterpret_cast<char*>(inUseList);
-        inUseList = next;
+    if (!global) {
+        //
+        // Then we know that this object is not being 
+        // allocated after other, globally scoped objects
+        // that depend on it.  So we can delete the "in use" memory.
+        //
+        while (inUseList) {
+            tHeader* next = inUseList->nextPage;
+            inUseList->~tHeader();
+            delete [] reinterpret_cast<char*>(inUseList);
+            inUseList = next;
+        }
     }
 
-    // We should not check the guard blocks
+    //
+    // Always delete the free list memory - it can't be being
+    // (correctly) referenced, whether the pool allocator was
+    // global or not.  We should not check the guard blocks
     // here, because we did it already when the block was
     // placed into the free list.
     //
@@ -151,18 +167,16 @@ const unsigned char TAllocation::userDataFill       = 0xcd;
 //
 void TAllocation::checkGuardBlock(unsigned char* blockMem, unsigned char val, const char* locText) const
 {
-#ifdef GUARD_BLOCKS
     for (size_t x = 0; x < guardBlockSize; x++) {
         if (blockMem[x] != val) {
             char assertMsg[80];
 
             // We don't print the assert message.  It's here just to be helpful.
-            sprintf(assertMsg, "PoolAlloc: Damage %s %lu byte allocation at 0x%p\n",
+            sprintf(assertMsg, "PoolAlloc: Damage %s %u byte allocation at 0x%p\n",
                     locText, size, data());
             assert(0 && "PoolAlloc: Damage in guard block");
         }
     }
-#endif
 }
 
 

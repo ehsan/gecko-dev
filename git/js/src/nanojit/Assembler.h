@@ -181,22 +181,13 @@ namespace nanojit
         #endif
     #endif
 
-    class Noise
-    {
-        public:
-            virtual ~Noise() {}
-
-            // produce a random number from 0-maxValue for the JIT to use in attack mitigation
-            virtual uint32_t getValue(uint32_t maxValue) = 0;
-    };
-
     // error codes
     enum AssmError
     {
          None = 0
         ,StackFull
         ,UnknownBranch
-        ,BranchTooFar
+        ,ConditionalBranchTooFar
     };
 
     typedef SeqBuilder<NIns*> NInsList;
@@ -229,23 +220,6 @@ namespace nanojit
         void clear() { labels.clear(); }
         void add(LIns *label, NIns *addr, RegAlloc &regs);
         LabelState *get(LIns *);
-    };
-
-    /**
-     * Some architectures (i386, X64) can emit two branches that need patching
-     * in some situations. This is returned by asm_branch() implementations
-     * with 0, 1 or 2 of these fields set to a non-NULL value. (If only 1 is set, 
-     * it must be patch1, not patch2.)
-     */
-    struct Branches 
-    {
-        NIns* const branch1;
-        NIns* const branch2;
-        inline explicit Branches(NIns* b1 = NULL, NIns* b2 = NULL) 
-            : branch1(b1)
-            , branch2(b2)
-        {
-        }
     };
 
     /** map tracking the register allocation state at each bailout point
@@ -301,7 +275,7 @@ namespace nanojit
             void* vtuneHandle;
             #endif
 
-            Assembler(CodeAlloc& codeAlloc, Allocator& dataAlloc, Allocator& alloc, LogControl* logc, const Config& config);
+            Assembler(CodeAlloc& codeAlloc, Allocator& dataAlloc, Allocator& alloc, AvmCore* core, LogControl* logc, const Config& config);
 
             void        compile(Fragment *frag, Allocator& alloc, bool optimize
                                 verbose_only(, LInsPrinter*));
@@ -310,15 +284,15 @@ namespace nanojit
             void        assemble(Fragment* frag, LirFilter* reader);
             void        beginAssembly(Fragment *frag);
 
-            void        setNoiseGenerator(Noise* noise)  { _noise = noise; } // used for attack mitigation; setting to 0 disables all mitigations
-
             void        releaseRegisters();
             void        patch(GuardRecord *lr);
             void        patch(SideExit *exit);
-            AssmError   error()               { return _err; }
+#ifdef NANOJIT_IA32
+            void        patch(SideExit *exit, SwitchInfo* si);
+#endif
+            AssmError   error()    { return _err; }
             void        setError(AssmError e) { _err = e; }
-            void        cleanupAfterError();
-            void        clearNInsPtrs();
+
             void        reset();
 
             debug_only ( void       pageValidate(); )
@@ -326,6 +300,8 @@ namespace nanojit
             // support calling out from a fragment ; used to debug the jit
             debug_only( void        resourceConsistencyCheck(); )
             debug_only( void        registerConsistencyCheck(); )
+
+            CodeList*   codeList;                   // finished blocks of code.
 
         private:
             void        gen(LirFilter* toCompile);
@@ -372,11 +348,8 @@ namespace nanojit
             void        evict(LIns* vic);
             RegisterMask hint(LIns* ins);
 
-            void        getBaseIndexScale(LIns* addp, LIns** base, LIns** index, int* scale);
-
             void        codeAlloc(NIns *&start, NIns *&end, NIns *&eip
-                                  verbose_only(, size_t &nBytes)
-                                  , size_t byteLimit=0);
+                                  verbose_only(, size_t &nBytes));
 
             // These instructions don't have to be saved & reloaded to spill,
             // they can just be recalculated cheaply.
@@ -400,7 +373,6 @@ namespace nanojit
             RegAllocMap         _branchStateMap;
             NInsMap             _patches;
             LabelStateMap       _labels;
-            Noise*              _noise;             // object to generate random noise used when hardening enabled.
         #if NJ_USES_IMMD_POOL
             ImmDPoolMap     _immDPool;
         #endif
@@ -414,7 +386,6 @@ namespace nanojit
             // temporarily swap all the code/exit variables below (using
             // swapCodeChunks()).  Afterwards we swap them all back and set
             // _inExit to false again.
-            CodeList*   codeList;               // finished blocks of code.
             bool        _inExit, vpad2[3];
             NIns        *codeStart, *codeEnd;   // current normal code chunk
             NIns        *exitStart, *exitEnd;   // current exit code chunk
@@ -422,7 +393,6 @@ namespace nanojit
             NIns*       _nExitIns;              // current instruction in current exit code chunk
                                                 // note: _nExitIns == NULL until the first side exit is seen.
         #ifdef NJ_VERBOSE
-            NIns*       _nInsAfter;             // next instruction (ascending) in current normal/exit code chunk (for verbose output)
             size_t      codeBytes;              // bytes allocated in normal code chunks
             size_t      exitBytes;              // bytes allocated in exit code chunks
         #endif
@@ -498,24 +468,25 @@ namespace nanojit
             void        asm_nongp_copy(Register r, Register s);
             void        asm_call(LIns*);
             Register    asm_binop_rhs_reg(LIns* ins);
-            Branches    asm_branch(bool branchOnFalse, LIns* cond, NIns* targ);
+            NIns*       asm_branch(bool branchOnFalse, LIns* cond, NIns* targ);
             NIns*       asm_branch_ov(LOpcode op, NIns* targ);
+            void        asm_switch(LIns* ins, NIns* target);
             void        asm_jtbl(LIns* ins, NIns** table);
-            void        asm_insert_random_nop();
+            void        emitJumpTable(SwitchInfo* si, NIns* target);
             void        assignSavedRegs();
             void        reserveSavedRegs();
             void        assignParamRegs();
             void        handleLoopCarriedExprs(InsList& pending_lives);
 
             // platform specific implementation (see NativeXXX.cpp file)
-            void        nInit();
+            void        nInit(AvmCore *);
             void        nBeginAssembly();
             Register    nRegisterAllocFromSet(RegisterMask set);
             void        nRegisterResetAll(RegAlloc& a);
-            void        nPatchBranch(NIns* branch, NIns* location);
+            static void nPatchBranch(NIns* branch, NIns* location);
             void        nFragExit(LIns* guard);
 
-            RegisterMask nHints[LIR_sentinel+1];
+            static RegisterMask nHints[LIR_sentinel+1];
             RegisterMask nHint(LIns* ins);
 
             // A special entry for hints[];  if an opcode has this value, we call
@@ -529,6 +500,18 @@ namespace nanojit
             DECLARE_PLATFORM_ASSEMBLER()
 
         private:
+#ifdef NANOJIT_IA32
+            debug_only( int32_t _fpuStkDepth; )
+            debug_only( int32_t _sv_fpuStkDepth; )
+
+            // since we generate backwards the depth is negative
+            inline void fpu_push() {
+                debug_only( ++_fpuStkDepth; NanoAssert(_fpuStkDepth <= 0); )
+            }
+            inline void fpu_pop() {
+                debug_only( --_fpuStkDepth; NanoAssert(_fpuStkDepth >= -7); )
+            }
+#endif
             const Config& _config;
     };
 

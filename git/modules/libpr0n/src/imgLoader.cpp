@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -52,10 +53,11 @@
 #include "nsCOMPtr.h"
 
 #include "nsNetUtil.h"
-#include "nsStreamUtils.h"
 #include "nsIHttpChannel.h"
 #include "nsICachingChannel.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefService.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
@@ -65,8 +67,6 @@
 #include "nsThreadUtils.h"
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
-#include "nsIDocument.h"
-#include "nsPIDOMWindow.h"
 
 #include "netCore.h"
 
@@ -89,9 +89,7 @@
 #include "nsIChannelPolicy.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::imagelib;
 
 #if defined(DEBUG_pavlov) || defined(DEBUG_timeless)
@@ -158,58 +156,46 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD GetProcess(char **process)
-  {
-    *process = strdup("");
-    return NS_OK;
-  }
-
   NS_IMETHOD GetPath(char **memoryPath)
   {
     if (mType == ChromeUsedRaw) {
-      *memoryPath = strdup("explicit/images/chrome/used/raw");
+      *memoryPath = strdup("images/chrome/used/raw");
     } else if (mType == ChromeUsedUncompressed) {
-      *memoryPath = strdup("explicit/images/chrome/used/uncompressed");
+      *memoryPath = strdup("images/chrome/used/uncompressed");
     } else if (mType == ChromeUnusedRaw) {
-      *memoryPath = strdup("explicit/images/chrome/unused/raw");
+      *memoryPath = strdup("images/chrome/unused/raw");
     } else if (mType == ChromeUnusedUncompressed) {
-      *memoryPath = strdup("explicit/images/chrome/unused/uncompressed");
+      *memoryPath = strdup("images/chrome/unused/uncompressed");
     } else if (mType == ContentUsedRaw) {
-      *memoryPath = strdup("explicit/images/content/used/raw");
+      *memoryPath = strdup("images/content/used/raw");
     } else if (mType == ContentUsedUncompressed) {
-      *memoryPath = strdup("explicit/images/content/used/uncompressed");
+      *memoryPath = strdup("images/content/used/uncompressed");
     } else if (mType == ContentUnusedRaw) {
-      *memoryPath = strdup("explicit/images/content/unused/raw");
+      *memoryPath = strdup("images/content/unused/raw");
     } else if (mType == ContentUnusedUncompressed) {
-      *memoryPath = strdup("explicit/images/content/unused/uncompressed");
+      *memoryPath = strdup("images/content/unused/uncompressed");
     }
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetKind(PRInt32 *kind)
-  {
-    *kind = MR_HEAP;
     return NS_OK;
   }
 
   NS_IMETHOD GetDescription(char **desc)
   {
     if (mType == ChromeUsedRaw) {
-      *desc = strdup("Memory used by in-use chrome images (compressed data).");
+      *desc = strdup("Memory used by in-use chrome images, compressed data");
     } else if (mType == ChromeUsedUncompressed) {
-      *desc = strdup("Memory used by in-use chrome images (uncompressed data).");
+      *desc = strdup("Memory used by in-use chrome images, uncompressed data");
     } else if (mType == ChromeUnusedRaw) {
-      *desc = strdup("Memory used by not in-use chrome images (compressed data).");
+      *desc = strdup("Memory used by not in-use chrome images, compressed data");
     } else if (mType == ChromeUnusedUncompressed) {
-      *desc = strdup("Memory used by not in-use chrome images (uncompressed data).");
+      *desc = strdup("Memory used by not in-use chrome images, uncompressed data");
     } else if (mType == ContentUsedRaw) {
-      *desc = strdup("Memory used by in-use content images (compressed data).");
+      *desc = strdup("Memory used by in-use content images, compressed data");
     } else if (mType == ContentUsedUncompressed) {
-      *desc = strdup("Memory used by in-use content images (uncompressed data).");
+      *desc = strdup("Memory used by in-use content images, uncompressed data");
     } else if (mType == ContentUnusedRaw) {
-      *desc = strdup("Memory used by not in-use content images (compressed data).");
+      *desc = strdup("Memory used by not in-use content images, compressed data");
     } else if (mType == ContentUnusedUncompressed) {
-      *desc = strdup("Memory used by not in-use content images (uncompressed data).");
+      *desc = strdup("Memory used by not in-use content images, uncompressed data");
     }
     return NS_OK;
   }
@@ -239,7 +225,7 @@ public:
     }
 
     nsRefPtr<imgRequest> req = entry->GetRequest();
-    Image *image = static_cast<Image*>(req->mImage.get());
+    RasterImage *image = static_cast<RasterImage*>(req->mImage.get());
     if (!image)
       return PL_DHASH_NEXT;
 
@@ -284,7 +270,7 @@ class nsProgressNotificationProxy : public nsIProgressEventSink
   public:
     nsProgressNotificationProxy(nsIChannel* channel,
                                 imgIRequest* proxy)
-        : mImageRequest(proxy) {
+        : mChannel(channel), mImageRequest(proxy) {
       channel->GetNotificationCallbacks(getter_AddRefs(mOriginalCallbacks));
     }
 
@@ -295,6 +281,7 @@ class nsProgressNotificationProxy : public nsIProgressEventSink
   private:
     ~nsProgressNotificationProxy() {}
 
+    nsCOMPtr<nsIChannel> mChannel;
     nsCOMPtr<nsIInterfaceRequestor> mOriginalCallbacks;
     nsCOMPtr<nsIRequest> mImageRequest;
 };
@@ -310,7 +297,7 @@ nsProgressNotificationProxy::OnProgress(nsIRequest* request,
                                         PRUint64 progress,
                                         PRUint64 progressMax) {
   nsCOMPtr<nsILoadGroup> loadGroup;
-  request->GetLoadGroup(getter_AddRefs(loadGroup));
+  mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
 
   nsCOMPtr<nsIProgressEventSink> target;
   NS_QueryNotificationCallbacks(mOriginalCallbacks,
@@ -328,7 +315,7 @@ nsProgressNotificationProxy::OnStatus(nsIRequest* request,
                                       nsresult status,
                                       const PRUnichar* statusArg) {
   nsCOMPtr<nsILoadGroup> loadGroup;
-  request->GetLoadGroup(getter_AddRefs(loadGroup));
+  mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
 
   nsCOMPtr<nsIProgressEventSink> target;
   NS_QueryNotificationCallbacks(mOriginalCallbacks,
@@ -345,9 +332,16 @@ nsProgressNotificationProxy::AsyncOnChannelRedirect(nsIChannel *oldChannel,
                                                     nsIChannel *newChannel,
                                                     PRUint32 flags,
                                                     nsIAsyncVerifyRedirectCallback *cb) {
+  // The 'old' channel should match the current one
+  NS_ABORT_IF_FALSE(oldChannel == mChannel,
+                    "old channel doesn't match current!");
+
+  // Save the new channel
+  mChannel = newChannel;
+
   // Tell the original original callbacks about it too
   nsCOMPtr<nsILoadGroup> loadGroup;
-  newChannel->GetLoadGroup(getter_AddRefs(loadGroup));
+  mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
   nsCOMPtr<nsIChannelEventSink> target;
   NS_QueryNotificationCallbacks(mOriginalCallbacks,
                                 loadGroup,
@@ -852,15 +846,19 @@ nsresult imgLoader::InitCache()
   if (!sChromeCache.Init())
       return NS_ERROR_OUT_OF_MEMORY;
 
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv); 
+  if (NS_FAILED(rv))
+    return rv;
+
   PRInt32 timeweight;
-  rv = Preferences::GetInt("image.cache.timeweight", &timeweight);
+  rv = prefs->GetIntPref("image.cache.timeweight", &timeweight);
   if (NS_SUCCEEDED(rv))
     sCacheTimeWeight = timeweight / 1000.0;
   else
     sCacheTimeWeight = 0.5;
 
   PRInt32 cachesize;
-  rv = Preferences::GetInt("image.cache.size", &cachesize);
+  rv = prefs->GetIntPref("image.cache.size", &cachesize);
   if (NS_SUCCEEDED(rv))
     sCacheMaxSize = cachesize;
   else
@@ -880,9 +878,14 @@ nsresult imgLoader::InitCache()
 
 nsresult imgLoader::Init()
 {
-  ReadAcceptHeaderPref();
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv); 
+  if (NS_FAILED(rv))
+    return rv;
 
-  Preferences::AddWeakObserver(this, "image.http.accept");
+  ReadAcceptHeaderPref(prefs);
+
+  prefs->AddObserver("image.http.accept", this, PR_TRUE);
 
   // Listen for when we leave private browsing mode
   nsCOMPtr<nsIObserverService> obService = mozilla::services::GetObserverService();
@@ -898,7 +901,8 @@ imgLoader::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* a
   // We listen for pref change notifications...
   if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "image.http.accept")) {
-      ReadAcceptHeaderPref();
+      nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
+      ReadAcceptHeaderPref(prefs);
     }
   }
 
@@ -916,10 +920,13 @@ imgLoader::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* a
   return NS_OK;
 }
 
-void imgLoader::ReadAcceptHeaderPref()
+void imgLoader::ReadAcceptHeaderPref(nsIPrefBranch *aBranch)
 {
-  nsAdoptingCString accept = Preferences::GetCString("image.http.accept");
-  if (accept)
+  NS_ASSERTION(aBranch, "Pref branch is null");
+
+  nsXPIDLCString accept;
+  nsresult rv = aBranch->GetCharPref("image.http.accept", getter_Copies(accept));
+  if (NS_SUCCEEDED(rv))
     mAcceptHeader = accept;
   else
     mAcceptHeader = "image/png,image/*;q=0.8,*/*;q=0.5";
@@ -1171,9 +1178,6 @@ PRBool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
     rv = CreateNewProxyForRequest(request, aLoadGroup, aObserver,
                                   aLoadFlags, aExistingRequest, 
                                   reinterpret_cast<imgIRequest **>(aProxyRequest));
-    if (NS_FAILED(rv)) {
-      return PR_FALSE;
-    }
 
     if (*aProxyRequest) {
       imgRequestProxy* proxy = static_cast<imgRequestProxy*>(*aProxyRequest);
@@ -1641,12 +1645,6 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     void *cacheId = NS_GetCurrentThread();
     request->Init(aURI, aURI, loadGroup, newChannel, entry, cacheId, aCX);
 
-    // Pass the windowID of the loading document, if possible.
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(aCX);
-    if (doc) {
-      request->SetWindowID(doc->OuterWindowID());
-    }
-
     // create the proxy listener
     ProxyListener *pl = new ProxyListener(static_cast<nsIStreamListener *>(request.get()));
     if (!pl) {
@@ -1695,10 +1693,6 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     LOG_MSG(gImgLog, "imgLoader::LoadImage", "creating proxy request.");
     rv = CreateNewProxyForRequest(request, aLoadGroup, aObserver,
                                   requestFlags, aRequest, _retval);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
     imgRequestProxy *proxy = static_cast<imgRequestProxy *>(*_retval);
 
     // Make sure that OnStatus/OnProgress calls have the right request set, if
@@ -1737,6 +1731,7 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
 {
   NS_ASSERTION(channel, "imgLoader::LoadImageWithChannel -- NULL channel pointer");
 
+  nsresult rv;
   nsRefPtr<imgRequest> request;
 
   nsCOMPtr<nsIURI> uri;
@@ -1803,10 +1798,9 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
   nsCOMPtr<nsILoadGroup> loadGroup;
   channel->GetLoadGroup(getter_AddRefs(loadGroup));
 
-  // Filter out any load flags not from nsIRequest
-  requestFlags &= nsIRequest::LOAD_REQUESTMASK;
+  // XXX: It looks like the wrong load flags are being passed in...
+  requestFlags &= 0xFFFF;
 
-  nsresult rv = NS_OK;
   if (request) {
     // we have this in our cache already.. cancel the current (document) load
 
@@ -1827,6 +1821,11 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
     request->Init(originalURI, uri, channel, channel, entry, NS_GetCurrentThread(), aCX);
 
     ProxyListener *pl = new ProxyListener(static_cast<nsIStreamListener *>(request.get()));
+    if (!pl) {
+      request->CancelAndAbort(NS_ERROR_OUT_OF_MEMORY);
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
     NS_ADDREF(pl);
 
     *listener = static_cast<nsIStreamListener*>(pl);
@@ -2168,6 +2167,15 @@ NS_IMETHODIMP imgCacheValidator::OnStopRequest(nsIRequest *aRequest, nsISupports
 /** nsIStreamListener methods **/
 
 
+// XXX see bug 113959
+static NS_METHOD dispose_of_data(nsIInputStream* in, void* closure,
+                                 const char* fromRawSegment, PRUint32 toOffset,
+                                 PRUint32 count, PRUint32 *writeCount)
+{
+  *writeCount = count;
+  return NS_OK;
+}
+
 /* void onDataAvailable (in nsIRequest request, in nsISupports ctxt, in nsIInputStream inStr, in unsigned long sourceOffset, in unsigned long count); */
 NS_IMETHODIMP imgCacheValidator::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt, nsIInputStream *inStr, PRUint32 sourceOffset, PRUint32 count)
 {
@@ -2183,7 +2191,7 @@ NS_IMETHODIMP imgCacheValidator::OnDataAvailable(nsIRequest *aRequest, nsISuppor
   if (!mDestListener) {
     // XXX see bug 113959
     PRUint32 _retval;
-    inStr->ReadSegments(NS_DiscardSegment, nsnull, count, &_retval);
+    inStr->ReadSegments(dispose_of_data, nsnull, count, &_retval);
     return NS_OK;
   }
 

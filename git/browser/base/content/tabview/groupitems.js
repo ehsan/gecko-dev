@@ -24,9 +24,6 @@
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
  * Raymond Lee <raymond@appcoast.com>
- * Tim Taubert <tim.taubert@gmx.de>
- * Sean Dunn <seanedunn@yahoo.com>
- * Mihai Sucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -60,35 +57,41 @@
 //
 // Possible options:
 //   id - specifies the groupItem's id; otherwise automatically generated
+//   locked - see <Item.locked>; default is {}
 //   userSize - see <Item.userSize>; default is null
 //   bounds - a <Rect>; otherwise based on the locations of the provided elements
 //   container - a DOM element to use as the container for this groupItem; otherwise will create
 //   title - the title for the groupItem; otherwise blank
-//   focusTitle - focus the title's input field after creation
-//   dontPush - true if this groupItem shouldn't push away or snap on creation; default is false
-//   immediately - true if we want all placement immediately, not with animation
-function GroupItem(listOfEls, options) {
-  if (!options)
+//   dontPush - true if this groupItem shouldn't push away on creation; default is false
+let GroupItem = function GroupItem(listOfEls, options) {
+  try {
+  if (typeof options == 'undefined')
     options = {};
 
   this._inited = false;
-  this._uninited = false;
   this._children = []; // an array of Items
   this.defaultSize = new Point(TabItems.tabWidth * 1.5, TabItems.tabHeight * 1.5);
   this.isAGroupItem = true;
   this.id = options.id || GroupItems.getNextID();
   this._isStacked = false;
+  this._stackAngles = [0];
   this.expanded = null;
-  this.hidden = false;
-  this.fadeAwayUndoButtonDelay = 15000;
-  this.fadeAwayUndoButtonDuration = 300;
+  this.locked = (options.locked ? Utils.copy(options.locked) : {});
+  this.topChild = null;
 
   this.keepProportional = false;
-  this._frozenItemSizeData = {};
 
   // Variable: _activeTab
   // The <TabItem> for the groupItem's active tab.
   this._activeTab = null;
+
+  // Variables: xDensity, yDensity
+  // "density" ranges from 0 to 1, with 0 being "not dense" = "squishable" and 1 being "dense"
+  // = "not squishable". For example, if there is extra space in the vertical direction,
+  // yDensity will be < 1. These are set by <GroupItem.arrange>, as it is dependent on the tab items
+  // inside the groupItem.
+  this.xDensity = 0;
+  this.yDensity = 0;
 
   if (Utils.isPoint(options.userSize))
     this.userSize = new Point(options.userSize);
@@ -107,7 +110,6 @@ function GroupItem(listOfEls, options) {
   }
 
   var $container = options.container;
-  let immediately = options.immediately || $container ? true : false;
   if (!$container) {
     $container = iQ('<div>')
       .addClass('groupItem')
@@ -128,7 +130,8 @@ function GroupItem(listOfEls, options) {
     .click(function() {
       self.newTab();
     })
-    .attr('title', tabviewString('groupItem.newTabButton'))
+    .attr('title',
+          "New tab")
     .appendTo($container);
 
   // ___ Resizer
@@ -140,7 +143,7 @@ function GroupItem(listOfEls, options) {
   // ___ Titlebar
   var html =
     "<div class='title-container'>" +
-      "<input class='name' placeholder='" + this.defaultName + "'/>" +
+      "<input class='name'/>" +
       "<div class='title-shield' />" +
     "</div>";
 
@@ -149,7 +152,11 @@ function GroupItem(listOfEls, options) {
     .html(html)
     .appendTo($container);
 
-  this.$closeButton = iQ('<div>')
+  this.$titlebar.css({
+      position: "absolute",
+    });
+
+  var $close = iQ('<div>')
     .addClass('close')
     .click(function() {
       self.closeAll();
@@ -160,67 +167,78 @@ function GroupItem(listOfEls, options) {
   this.$titleContainer = iQ('.title-container', this.$titlebar);
   this.$title = iQ('.name', this.$titlebar);
   this.$titleShield = iQ('.title-shield', this.$titlebar);
-  this.setTitle(options.title);
+  this.setTitle(options.title || this.defaultName);
 
-  var handleKeyPress = function (e) {
-    if (e.keyCode == KeyEvent.DOM_VK_ESCAPE ||
-        e.keyCode == KeyEvent.DOM_VK_RETURN ||
-        e.keyCode == KeyEvent.DOM_VK_ENTER) {
+  var titleUnfocus = function() {
+    self.$titleShield.show();
+    if (!self.getTitle()) {
+      self.$title
+        .addClass("defaultName")
+        .val(self.defaultName);
+    } else {
+      self.$title
+        .css({"background":"none"})
+        .animate({
+          "padding-left": "1px"
+        }, {
+          duration: 200,
+          easing: "tabviewBounce"
+        });
+    }
+  };
+
+  var handleKeyPress = function(e) {
+    if (e.which == 13 || e.which == 27) { // return & escape
       (self.$title)[0].blur();
       self.$title
         .addClass("transparentBorder")
         .one("mouseout", function() {
           self.$title.removeClass("transparentBorder");
         });
-      e.stopPropagation();
-      e.preventDefault();
-    }
-  };
+    } else
+      self.adjustTitleSize();
 
-  var handleKeyUp = function(e) {
-    // NOTE: When user commits or cancels IME composition, the last key
-    //       event fires only a keyup event.  Then, we shouldn't take any
-    //       reactions but we should update our status.
-    self.adjustTitleSize();
     self.save();
   };
 
   this.$title
-    .blur(function() {
-      self._titleFocused = false;
-      self.$titleShield.show();
-      if (self.getTitle())
-        gTabView.firstUseExperienced = true;
-    })
+    .css({backgroundRepeat: 'no-repeat'})
+    .blur(titleUnfocus)
     .focus(function() {
-      self._unfreezeItemSize();
-      if (!self._titleFocused) {
-        (self.$title)[0].select();
-        self._titleFocused = true;
+      if (self.locked.title) {
+        (self.$title)[0].blur();
+        return;
+      }
+      (self.$title)[0].select();
+      if (!self.getTitle()) {
+        self.$title
+          .removeClass("defaultName")
+          .val('');
       }
     })
-    .mousedown(function(e) {
-      e.stopPropagation();
-    })
-    .keypress(handleKeyPress)
-    .keyup(handleKeyUp);
+    .keyup(handleKeyPress);
 
-  this.$titleShield
-    .mousedown(function(e) {
-      self.lastMouseDownTarget = (Utils.isLeftClick(e) ? e.target : null);
-    })
-    .mouseup(function(e) {
-      var same = (e.target == self.lastMouseDownTarget);
-      self.lastMouseDownTarget = null;
-      if (!same)
-        return;
+  titleUnfocus();
 
-      if (!self.isDragging)
-        self.focusTitle();
-    });
+  if (this.locked.title)
+    this.$title.addClass('name-locked');
+  else {
+    this.$titleShield
+      .mousedown(function(e) {
+        self.lastMouseDownTarget = (Utils.isRightClick(e) ? null : e.target);
+      })
+      .mouseup(function(e) {
+        var same = (e.target == self.lastMouseDownTarget);
+        self.lastMouseDownTarget = null;
+        if (!same)
+          return;
 
-  if (options.focusTitle)
-    this.focusTitle();
+        if (!self.isDragging) {
+          self.$titleShield.hide();
+          (self.$title)[0].focus();
+        }
+      });
+  }
 
   // ___ Stack Expander
   this.$expander = iQ("<div/>")
@@ -228,98 +246,81 @@ function GroupItem(listOfEls, options) {
     .appendTo($container)
     .hide();
 
-  // ___ app tabs: create app tab tray and populate it
-  let appTabTrayContainer = iQ("<div/>")
-    .addClass("appTabTrayContainer")
-    .appendTo($container);
-  this.$appTabTray = iQ("<div/>")
-    .addClass("appTabTray")
-    .appendTo(appTabTrayContainer);
+  // ___ locking
+  if (this.locked.bounds)
+    $container.css({cursor: 'default'});
 
-  AllTabs.tabs.forEach(function(xulTab) {
-    if (xulTab.pinned && xulTab.ownerDocument.defaultView == gWindow)
-      self.addAppTab(xulTab, {dontAdjustTray: true});
-  });
-
-  // ___ Undo Close
-  this.$undoContainer = null;
-  this._undoButtonTimeoutId = null;
+  if (this.locked.close)
+    $close.hide();
 
   // ___ Superclass initialization
   this._init($container[0]);
 
+  if (this.$debug)
+    this.$debug.css({zIndex: -1000});
+
   // ___ Children
   Array.prototype.forEach.call(listOfEls, function(el) {
-    self.add(el, options);
+    self.add(el, null, options);
   });
 
   // ___ Finish Up
   this._addHandlers($container);
 
-  this.setResizable(true, immediately);
+  if (!this.locked.bounds)
+    this.setResizable(true);
 
   GroupItems.register(this);
 
   // ___ Position
+  var immediately = $container ? true : false;
   this.setBounds(rectToBe, immediately);
-  if (options.dontPush) {
-    this.setZ(drag.zIndex);
-    drag.zIndex++; 
-  } else
-    // Calling snap will also trigger pushAway
-    this.snap(immediately);
+  this.snap();
   if ($container)
     this.setBounds(rectToBe, immediately);
 
+  // ___ Push other objects away
+  if (!options.dontPush)
+    this.pushAway();
+
   this._inited = true;
   this.save();
-
-  GroupItems.updateGroupCloseButtons();
+  } catch(e) {
+    Utils.log("Error in GroupItem()");
+    Utils.log(e.stack);
+  }
 };
 
 // ----------
-GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
-  // ----------
-  // Function: toString
-  // Prints [GroupItem id=id] for debug use
-  toString: function GroupItem_toString() {
-    return "[GroupItem id=" + this.id + "]";
-  },
-
+window.GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Variable: defaultName
   // The prompt text for the title field.
-  defaultName: tabviewString('groupItem.defaultName'),
+  defaultName: "Name this tab group…",
 
   // -----------
   // Function: setActiveTab
-  // Sets the active <TabItem> for this groupItem; can be null, but only
-  // if there are no children.
-  setActiveTab: function GroupItem_setActiveTab(tab) {
-    Utils.assertThrow((!tab && this._children.length == 0) || tab.isATabItem,
-        "tab must be null (if no children) or a TabItem");
-
+  // Sets the active <TabItem> for this groupItem
+  setActiveTab: function(tab) {
+    Utils.assert(tab && tab.isATabItem, 'tab must be a TabItem');
     this._activeTab = tab;
-
-    if (this.isStacked())
-      this.arrange({immediately: true});
   },
 
   // -----------
   // Function: getActiveTab
-  // Gets the active <TabItem> for this groupItem; can be null, but only
-  // if there are no children.
-  getActiveTab: function GroupItem_getActiveTab() {
+  // Gets the active <TabItem> for this groupItem
+  getActiveTab: function() {
     return this._activeTab;
   },
 
   // ----------
   // Function: getStorageData
   // Returns all of the info worth storing about this groupItem.
-  getStorageData: function GroupItem_getStorageData() {
+  getStorageData: function() {
     var data = {
       bounds: this.getBounds(),
       userSize: null,
+      locked: Utils.copy(this.locked),
       title: this.getTitle(),
       id: this.id
     };
@@ -333,31 +334,15 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: isEmpty
   // Returns true if the tab groupItem is empty and unnamed.
-  isEmpty: function GroupItem_isEmpty() {
+  isEmpty: function() {
     return !this._children.length && !this.getTitle();
-  },
-
-  // ----------
-  // Function: isStacked
-  // Returns true if this item is in a stacked groupItem.
-  isStacked: function GroupItem_isStacked() {
-    return this._isStacked;
-  },
-
-  // ----------
-  // Function: isTopOfStack
-  // Returns true if the item is showing on top of this group's stack,
-  // determined by whether the tab is this group's topChild, or
-  // if it doesn't have one, its first child.
-  isTopOfStack: function GroupItem_isTopOfStack(item) {
-    return this.isStacked() && item == this.getTopChild();
   },
 
   // ----------
   // Function: save
   // Saves this groupItem to persistent storage.
-  save: function GroupItem_save() {
-    if (!this._inited || this._uninited) // too soon/late to save
+  save: function() {
+    if (!this._inited) // too soon to save now
       return;
 
     var data = this.getStorageData();
@@ -366,24 +351,17 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
-  // Function: deleteData
-  // Deletes the groupItem in the persistent storage.
-  deleteData: function GroupItem_deleteData() {
-    this._uninited = true;
-    Storage.deleteGroupItem(gWindow, this.id);
-  },
-
-  // ----------
   // Function: getTitle
   // Returns the title of this groupItem as a string.
-  getTitle: function GroupItem_getTitle() {
-    return this.$title ? this.$title.val() : '';
+  getTitle: function() {
+    var value = (this.$title ? this.$title.val() : '');
+    return (value == this.defaultName ? '' : value);
   },
 
   // ----------
   // Function: setTitle
   // Sets the title of this groupItem with the given string
-  setTitle: function GroupItem_setTitle(value) {
+  setTitle: function(value) {
     this.$title.val(value);
     this.save();
   },
@@ -391,11 +369,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: adjustTitleSize
   // Used to adjust the width of the title box depending on groupItem width and title size.
-  adjustTitleSize: function GroupItem_adjustTitleSize() {
+  adjustTitleSize: function() {
     Utils.assert(this.bounds, 'bounds needs to have been set');
     let closeButton = iQ('.close', this.container);
-    var dimension = UI.rtl ? 'left' : 'right';
-    var w = Math.min(this.bounds.width - parseInt(closeButton.width()) - parseInt(closeButton.css(dimension)),
+    var w = Math.min(this.bounds.width - parseInt(closeButton.width()) - parseInt(closeButton.css('right')),
                      Math.max(150, this.getTitle().length * 6));
     // The * 6 multiplier calculation is assuming that characters in the title
     // are approximately 6 pixels wide. Bug 586545
@@ -405,102 +382,13 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
-  // Function: focusTitle
-  // Hide the title's shield and focus the underlying input field.
-  focusTitle: function GroupItem_focusTitle() {
-    this.$titleShield.hide();
-    this.$title[0].focus();
-  },
-
-  // ----------
-  // Function: adjustAppTabTray
-  // Used to adjust the appTabTray size, to split the appTabIcons across
-  // multiple columns when needed - if the groupItem size is too small.
-  //
-  // Parameters:
-  //   arrangeGroup - rearrange the groupItem if the number of appTab columns
-  //   changes. If true, then this.arrange() is called, otherwise not.
-  adjustAppTabTray: function GroupItem_adjustAppTabTray(arrangeGroup) {
-    let icons = iQ(".appTabIcon", this.$appTabTray);
-    let container = iQ(this.$appTabTray[0].parentNode);
-    if (!icons.length) {
-      // There are no icons, so hide the appTabTray if needed.
-      if (parseInt(container.css("width")) != 0) {
-        this.$appTabTray.css("-moz-column-count", "auto");
-        this.$appTabTray.css("height", 0);
-        container.css("width", 0);
-        container.css("height", 0);
-
-        if (container.hasClass("appTabTrayContainerTruncated"))
-          container.removeClass("appTabTrayContainerTruncated");
-
-        if (arrangeGroup)
-          this.arrange();
-      }
-      return;
-    }
-
-    let iconBounds = iQ(icons[0]).bounds();
-    let boxBounds = this.getBounds();
-    let contentHeight = boxBounds.height -
-                        parseInt(container.css("top")) -
-                        this.$resizer.height();
-    let rows = Math.floor(contentHeight / iconBounds.height);
-    let columns = Math.ceil(icons.length / rows);
-    let columnsGap = parseInt(this.$appTabTray.css("-moz-column-gap"));
-    let iconWidth = iconBounds.width + columnsGap;
-    let maxColumns = Math.floor((boxBounds.width * 0.20) / iconWidth);
-
-    Utils.assert(rows > 0 && columns > 0 && maxColumns > 0,
-      "make sure the calculated rows, columns and maxColumns are correct");
-
-    if (columns > maxColumns)
-      container.addClass("appTabTrayContainerTruncated");
-    else if (container.hasClass("appTabTrayContainerTruncated"))
-      container.removeClass("appTabTrayContainerTruncated");
-
-    // Need to drop the -moz- prefix when Gecko makes it obsolete.
-    // See bug 629452.
-    if (parseInt(this.$appTabTray.css("-moz-column-count")) != columns)
-      this.$appTabTray.css("-moz-column-count", columns);
-
-    if (parseInt(this.$appTabTray.css("height")) != contentHeight) {
-      this.$appTabTray.css("height", contentHeight + "px");
-      container.css("height", contentHeight + "px");
-    }
-
-    let fullTrayWidth = iconWidth * columns - columnsGap;
-    if (parseInt(this.$appTabTray.css("width")) != fullTrayWidth)
-      this.$appTabTray.css("width", fullTrayWidth + "px");
-
-    let trayWidth = iconWidth * Math.min(columns, maxColumns) - columnsGap;
-    if (parseInt(container.css("width")) != trayWidth) {
-      container.css("width", trayWidth + "px");
-
-      // Rearrange the groupItem if the width changed.
-      if (arrangeGroup)
-        this.arrange();
-    }
-  },
-
-  // ----------
   // Function: getContentBounds
   // Returns a <Rect> for the groupItem's content area (which doesn't include the title, etc).
-  getContentBounds: function GroupItem_getContentBounds() {
+  getContentBounds: function() {
     var box = this.getBounds();
     var titleHeight = this.$titlebar.height();
     box.top += titleHeight;
     box.height -= titleHeight;
-
-    let appTabTrayContainer = iQ(this.$appTabTray[0].parentNode);
-    var appTabTrayWidth = appTabTrayContainer.width();
-    if (appTabTrayWidth)
-      appTabTrayWidth += parseInt(appTabTrayContainer.css(UI.rtl ? "left" : "right"));
-
-    box.width -= appTabTrayWidth;
-    if (UI.rtl) {
-      box.left += appTabTrayWidth;
-    }
 
     // Make the computed bounds' "padding" and new tab button margin actually be
     // themeable --OR-- compute this from actual bounds. Bug 586546
@@ -521,19 +409,17 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Possible options:
   //   force - true to always update the DOM even if the bounds haven't changed; default false
-  setBounds: function GroupItem_setBounds(inRect, immediately, options) {
-    if (!Utils.isRect(inRect)) {
-      Utils.trace('GroupItem.setBounds: rect is not a real rectangle!', inRect);
+  setBounds: function(rect, immediately, options) {
+    if (!Utils.isRect(rect)) {
+      Utils.trace('GroupItem.setBounds: rect is not a real rectangle!', rect);
       return;
     }
 
-    // Validate and conform passed in size
-    let validSize = GroupItems.calcValidSize(
-      new Point(inRect.width, inRect.height));
-    let rect = new Rect(inRect.left, inRect.top, validSize.x, validSize.y);
-
     if (!options)
       options = {};
+
+    rect.width = Math.max(110, rect.width);
+    rect.height = Math.max(125, rect.height);
 
     var titleHeight = this.$titlebar.height();
 
@@ -565,19 +451,13 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     var offset = new Point(rect.left - this.bounds.left, rect.top - this.bounds.top);
     this.bounds = new Rect(rect);
 
-    // Make sure the AppTab icons fit the new groupItem size.
-    if (css.width || css.height)
-      this.adjustAppTabTray();
-
     // ___ Deal with children
     if (css.width || css.height) {
       this.arrange({animate: !immediately}); //(immediately ? 'sometimes' : true)});
     } else if (css.left || css.top) {
       this._children.forEach(function(child) {
-        if (!child.getHidden()) {
-          var box = child.getBounds();
-          child.setPosition(box.left + offset.x, box.top + offset.y, immediately);
-        }
+        var box = child.getBounds();
+        child.setPosition(box.left + offset.x, box.top + offset.y, immediately);
       });
     }
 
@@ -600,12 +480,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       });
     }
 
-    if (css.width) {      
-      this.adjustTitleSize();
-    }
+    this.adjustTitleSize();
 
-    UI.clearShouldResizeItems();
-
+    this._updateDebugBounds();
     this.setTrenches(rect);
 
     this.save();
@@ -614,10 +491,13 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: setZ
   // Set the Z order for the groupItem's container, as well as its children.
-  setZ: function GroupItem_setZ(value) {
+  setZ: function(value) {
     this.zIndex = value;
 
     iQ(this.container).css({zIndex: value});
+
+    if (this.$debug)
+      this.$debug.css({zIndex: value + 1});
 
     var count = this._children.length;
     if (count) {
@@ -625,7 +505,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       var zIndex = topZIndex;
       var self = this;
       this._children.forEach(function(child) {
-        if (child == self.getTopChild())
+        if (child == self.topChild)
           child.setZ(topZIndex + 1);
         else {
           child.setZ(zIndex);
@@ -638,301 +518,35 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: close
   // Closes the groupItem, removing (but not closing) all of its children.
-  //
-  // Parameters:
-  //   options - An object with optional settings for this call.
-  //
-  // Options:
-  //   immediately - (bool) if true, no animation will be used
-  close: function GroupItem_close(options) {
+  close: function() {
     this.removeAll();
     GroupItems.unregister(this);
-
-    // remove unfreeze event handlers, if item size is frozen
-    this._unfreezeItemSize({dontArrange: true});
-
-    let self = this;
-    let destroyGroup = function () {
-      iQ(self.container).remove();
-      if (self.$undoContainer) {
-        self.$undoContainer.remove();
-        self.$undoContainer = null;
-      }
-      self.removeTrenches();
+    this._sendToSubscribers("close");
+    this.removeTrenches();
+    iQ(this.container).fadeOut(function() {
+      iQ(this).remove();
       Items.unsquish();
-      self._sendToSubscribers("close");
-      GroupItems.updateGroupCloseButtons();
-    }
+    });
 
-    if (this.hidden || (options && options.immediately)) {
-      destroyGroup();
-    } else {
-      iQ(this.container).animate({
-        opacity: 0,
-        "-moz-transform": "scale(.3)",
-      }, {
-        duration: 170,
-        complete: destroyGroup
-      });
-    }
-
-    this.deleteData();
+    Storage.deleteGroupItem(gWindow, this.id);
   },
 
   // ----------
   // Function: closeAll
   // Closes the groupItem and all of its children.
-  closeAll: function GroupItem_closeAll() {
-    if (this._children.length > 0) {
-      this._unfreezeItemSize();
-      this._children.forEach(function(child) {
-        iQ(child.container).hide();
+  closeAll: function() {
+    var self = this;
+    if (this._children.length) {
+      var toClose = this._children.concat();
+      toClose.forEach(function(child) {
+        child.removeSubscriber(self, "close");
+        child.close();
       });
+    }
 
-      iQ(this.container).animate({
-         opacity: 0,
-         "-moz-transform": "scale(.3)",
-      }, {
-        duration: 170,
-        complete: function() {
-          iQ(this).hide();
-        }
-      });
-
-      this.droppable(false);
-      this.removeTrenches();
-      this._createUndoButton();
-    } else
+    if (!this.locked.close)
       this.close();
-    
-    this._makeClosestTabActive();
   },
-  
-  // ----------
-  // Function: _makeClosestTabActive
-  // Make the closest tab external to this group active.
-  // Used when closing the group.
-  _makeClosestTabActive: function GroupItem__makeClosestTabActive() {
-    let closeCenter = this.getBounds().center();
-    // Find closest tab to make active
-    let closestTabItem = UI.getClosestTab(closeCenter);
-    UI.setActive(closestTabItem);
-  },
-
-  // ----------
-  // Function: _unhide
-  // Shows the hidden group.
-  _unhide: function GroupItem__unhide() {
-    let self = this;
-
-    this._cancelFadeAwayUndoButtonTimer();
-    this.hidden = false;
-    this.$undoContainer.remove();
-    this.$undoContainer = null;
-    this.droppable(true);
-    this.setTrenches(this.bounds);
-
-    iQ(this.container).show().animate({
-      "-moz-transform": "scale(1)",
-      "opacity": 1
-    }, {
-      duration: 170,
-      complete: function() {
-        self._children.forEach(function(child) {
-          iQ(child.container).show();
-        });
-
-        UI.setActive(self);
-        self._sendToSubscribers("groupShown", { groupItemId: self.id });
-      }
-    });
-
-    GroupItems.updateGroupCloseButtons();
-  },
-
-  // ----------
-  // Function: closeHidden
-  // Removes the group item, its children and its container.
-  closeHidden: function GroupItem_closeHidden() {
-    let self = this;
-
-    this._cancelFadeAwayUndoButtonTimer();
-
-    // When the last non-empty groupItem is closed and there are no orphan or
-    // pinned tabs then create a new group with a blank tab.
-    let remainingGroups = GroupItems.groupItems.filter(function (groupItem) {
-      return (groupItem != self && groupItem.getChildren().length);
-    });
-    if (!gBrowser._numPinnedTabs && !GroupItems.getOrphanedTabs().length &&
-        !remainingGroups.length) {
-      let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
-        return (groupItem != self && !groupItem.getChildren().length);
-      });
-      let group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
-      group.newTab(null, { closedLastTab: true });
-    }
-
-    this.destroy();
-  },
-
-  // ----------
-  // Function: destroy
-  // Close all tabs linked to children (tabItems), removes all children and 
-  // close the groupItem.
-  //
-  // Parameters:
-  //   options - An object with optional settings for this call.
-  //
-  // Options:
-  //   immediately - (bool) if true, no animation will be used
-  destroy: function GroupItem_destroy(options) {
-    let self = this;
-
-    // when "TabClose" event is fired, the browser tab is about to close and our 
-    // item "close" event is fired.  And then, the browser tab gets closed. 
-    // In other words, the group "close" event is fired before all browser
-    // tabs in the group are closed.  The below code would fire the group "close"
-    // event only after all browser tabs in that group are closed.
-    let shouldRemoveTabItems = [];
-    let toClose = this._children.concat();
-    toClose.forEach(function(child) {
-      child.removeSubscriber(self, "close");
-
-      let removed = child.close(true);
-      if (removed) {
-        shouldRemoveTabItems.push(child);
-      } else {
-        // child.removeSubscriber() must be called before child.close(), 
-        // therefore we call child.addSubscriber() if the tab is not removed.
-        child.addSubscriber(self, "close", function() {
-          self.remove(child);
-        });
-      }
-    });
-
-    if (shouldRemoveTabItems.length != toClose.length) {
-      // remove children without the assiciated tab and show the group item
-      shouldRemoveTabItems.forEach(function(child) {
-        self.remove(child, { dontArrange: true });
-      });
-
-      this.$undoContainer.fadeOut(function() { self._unhide() });
-    } else {
-      this.close(options);
-    }
-  },
-
-  // ----------
-  // Function: _fadeAwayUndoButton
-  // Fades away the undo button
-  _fadeAwayUndoButton: function GroupItem__fadeAwayUdoButton() {
-    let self = this;
-
-    if (this.$undoContainer) {
-      // if there is one or more orphan tabs or there is more than one group 
-      // and other groupS are not empty, fade away the undo button.
-      let shouldFadeAway = GroupItems.getOrphanedTabs().length > 0;
-      
-      if (!shouldFadeAway && GroupItems.groupItems.length > 1) {
-        shouldFadeAway = 
-          GroupItems.groupItems.some(function(groupItem) {
-            return (groupItem != self && groupItem.getChildren().length > 0);
-          });
-      }
-      if (shouldFadeAway) {
-        self.$undoContainer.animate({
-          color: "transparent",
-          opacity: 0
-        }, {
-          duration: this._fadeAwayUndoButtonDuration,
-          complete: function() { self.closeHidden(); }
-        });
-      }
-    }
-  },
-
-  // ----------
-  // Function: _createUndoButton
-  // Makes the affordance for undo a close group action
-  _createUndoButton: function GroupItem__createUndoButton() {
-    let self = this;
-    this.$undoContainer = iQ("<div/>")
-      .addClass("undo")
-      .attr("type", "button")
-      .appendTo("body");
-    iQ("<span/>")
-      .text(tabviewString("groupItem.undoCloseGroup"))
-      .appendTo(this.$undoContainer);
-    let undoClose = iQ("<span/>")
-      .addClass("close")
-      .appendTo(this.$undoContainer);
-
-    this.$undoContainer.css({
-      left: this.bounds.left + this.bounds.width/2 - iQ(self.$undoContainer).width()/2,
-      top:  this.bounds.top + this.bounds.height/2 - iQ(self.$undoContainer).height()/2,
-      "-moz-transform": "scale(.1)",
-      opacity: 0
-    });
-    this.hidden = true;
-
-    // hide group item and show undo container.
-    setTimeout(function() {
-      self.$undoContainer.animate({
-        "-moz-transform": "scale(1)",
-        "opacity": 1
-      }, {
-        easing: "tabviewBounce",
-        duration: 170,
-        complete: function() {
-          self._sendToSubscribers("groupHidden", { groupItemId: self.id });
-        }
-      });
-    }, 50);
-
-    // add click handlers
-    this.$undoContainer.click(function(e) {
-      // don't do anything if the close button is clicked.
-      if (e.target == undoClose[0])
-        return;
-
-      self.$undoContainer.fadeOut(function() { self._unhide(); });
-    });
-
-    undoClose.click(function() {
-      self.$undoContainer.fadeOut(function() { self.closeHidden(); });
-    });
-
-    this.setupFadeAwayUndoButtonTimer();
-    // Cancel the fadeaway if you move the mouse over the undo
-    // button, and restart the countdown once you move out of it.
-    this.$undoContainer.mouseover(function() { 
-      self._cancelFadeAwayUndoButtonTimer();
-    });
-    this.$undoContainer.mouseout(function() {
-      self.setupFadeAwayUndoButtonTimer();
-    });
-
-    GroupItems.updateGroupCloseButtons();
-  },
-
-  // ----------
-  // Sets up fade away undo button timeout. 
-  setupFadeAwayUndoButtonTimer: function() {
-    let self = this;
-
-    if (!this._undoButtonTimeoutId) {
-      this._undoButtonTimeoutId = setTimeout(function() { 
-        self._fadeAwayUndoButton(); 
-      }, this.fadeAwayUndoButtonDelay);
-    }
-  },
-  
-  // ----------
-  // Cancels the fade away undo button timeout. 
-  _cancelFadeAwayUndoButtonTimer: function() {
-    clearTimeout(this._undoButtonTimeoutId);
-    this._undoButtonTimeoutId = null;
-  }, 
 
   // ----------
   // Function: add
@@ -941,14 +555,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   //   a - The item to add. Can be an <Item>, a DOM element or an iQ object.
   //       The latter two must refer to the container of an <Item>.
-  //   options - An object with optional settings for this call.
-  //
-  // Options:
-  //
-  //   index - (int) if set, add this tab at this index
-  //   immediately - (bool) if true, no animation will be used
-  //   dontArrange - (bool) if true, will not trigger an arrange on the group
-  add: function GroupItem_add(a, options) {
+  //   dropPos - An object with left and top properties referring to the location dropped at.  Optional.
+  //   options - An object with optional settings for this call. Currently the only one is dontArrange.
+  add: function(a, dropPos, options) {
     try {
       var item;
       var $el;
@@ -959,14 +568,15 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         $el = iQ(a);
         item = Items.item($el);
       }
-
-      // safeguard to remove the item from its previous group
-      if (item.parent && item.parent !== this)
-        item.parent.remove(item);
+      Utils.assertThrow(!item.parent || item.parent == this,
+          "shouldn't already be in another groupItem");
 
       item.removeTrenches();
 
-      if (!options)
+      if (!dropPos)
+        dropPos = {top:window.innerWidth, left:window.innerHeight};
+
+      if (typeof options == 'undefined')
         options = {};
 
       var self = this;
@@ -978,8 +588,48 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         wasAlreadyInThisGroupItem = true;
       }
 
+      // TODO: You should be allowed to drop in the white space at the bottom
+      // and have it go to the end (right now it can match the thumbnail above
+      // it and go there)
+      // Bug 586548
+      function findInsertionPoint(dropPos) {
+        if (self.shouldStack(self._children.length + 1))
+          return 0;
+
+        var best = {dist: Infinity, item: null};
+        var index = 0;
+        var box;
+        self._children.forEach(function(child) {
+          box = child.getBounds();
+          if (box.bottom < dropPos.top || box.top > dropPos.top)
+            return;
+
+          var dist = Math.sqrt(Math.pow((box.top+box.height/2)-dropPos.top,2)
+              + Math.pow((box.left+box.width/2)-dropPos.left,2));
+
+          if (dist <= best.dist) {
+            best.item = child;
+            best.dist = dist;
+            best.index = index;
+          }
+        });
+
+        if (self._children.length) {
+          if (best.item) {
+            box = best.item.getBounds();
+            var insertLeft = dropPos.left <= box.left + box.width/2;
+            if (!insertLeft)
+              return best.index+1;
+            return best.index;
+          }
+          return self._children.length;
+        }
+
+        return 0;
+      }
+
       // Insert the tab into the right position.
-      var index = ("index" in options) ? options.index : this._children.length;
+      var index = findInsertionPoint(dropPos);
       this._children.splice(index, 0, item);
 
       item.setZ(this.getZ() + 1);
@@ -990,38 +640,21 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         item.groupItemData = {};
 
         item.addSubscriber(this, "close", function() {
-          let count = self._children.length;
-          let dontArrange = self.expanded || !self.shouldStack(count);
-          self.remove(item, {dontArrange: dontArrange});
-
-          if (dontArrange)
-            self._freezeItemSize(count);
-
-          if (self._children.length > 0 && self._activeTab)
-            UI.setActive(self);
+          self.remove(item);
         });
 
         item.setParent(this);
 
         if (typeof item.setResizable == 'function')
-          item.setResizable(false, options.immediately);
+          item.setResizable(false);
 
-        if (item == UI.getActiveTab() || !this._activeTab)
-          this.setActiveTab(item);
-
-        // if it matches the selected tab or no active tab and the browser
-        // tab is hidden, the active group item would be set.
-        if (item.tab == gBrowser.selectedTab ||
-            (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
-          UI.setActive(this);
+        if (item.tab == gBrowser.selectedTab)
+          GroupItems.setActiveGroupItem(this);
       }
 
-      if (!options.dontArrange)
-        this.arrange({animate: !options.immediately});
-
-      this._unfreezeItemSize({dontArrange: true});
-      this._sendToSubscribers("childAdded",{ groupItemId: this.id, item: item });
-
+      if (!options.dontArrange) {
+        this.arrange();
+      }
       UI.setReorderTabsOnHide(this);
     } catch(e) {
       Utils.log('GroupItem.add error', e);
@@ -1035,12 +668,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   //   a - The item to remove. Can be an <Item>, a DOM element or an iQ object.
   //       The latter two must refer to the container of an <Item>.
-  //   options - An optional object with settings for this call. See below.
-  //
-  // Possible options: 
-  //   dontArrange - don't rearrange the remaining items
-  //   immediately - don't animate
-  remove: function GroupItem_remove(a, options) {
+  //   options - An object with optional settings for this call. Currently the only one is dontArrange.
+  remove: function(a, options) {
     try {
       var $el;
       var item;
@@ -1053,46 +682,30 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         item = Items.item($el);
       }
 
-      if (!options)
+      if (typeof options == 'undefined')
         options = {};
 
       var index = this._children.indexOf(item);
       if (index != -1)
         this._children.splice(index, 1);
 
-      if (item == this._activeTab || !this._activeTab) {
-        if (this._children.length > 0)
-          this._activeTab = this._children[0];
-        else
-          this._activeTab = null;
-      }
-
       item.setParent(null);
       item.removeClass("tabInGroupItem");
       item.removeClass("stacked");
-      item.isStacked = false;
-      item.setHidden(false);
       item.removeClass("stack-trayed");
       item.setRotation(0);
-
-      // Force tabItem resize if it's dragged out of a stacked groupItem.
-      // The tabItems's title will be visible and that's why we need to
-      // recalculate its height.
-      if (item.isDragging && this.isStacked())
-        item.setBounds(item.getBounds(), true, {force: true});
 
       item.droppable(true);
       item.removeSubscriber(this, "close");
 
       if (typeof item.setResizable == 'function')
-        item.setResizable(true, options.immediately);
+        item.setResizable(true);
 
-      if (!options.dontArrange) {
-        this.arrange({animate: !options.immediately});
-        this._unfreezeItemSize({dontArrange: true});
+      if (!this._children.length && !this.locked.close && !this.getTitle() && !options.dontClose) {
+        this.close();
+      } else if (!options.dontArrange) {
+        this.arrange();
       }
-
-      this._sendToSubscribers("childRemoved",{ groupItemId: this.id, item: item });
     } catch(e) {
       Utils.log(e);
     }
@@ -1101,194 +714,56 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: removeAll
   // Removes all of the groupItem's children.
-  // The optional "options" param is passed to each remove call. 
-  removeAll: function GroupItem_removeAll(options) {
-    let self = this;
-    let newOptions = {dontArrange: true};
-    if (options)
-      Utils.extend(newOptions, options);
-      
-    let toRemove = this._children.concat();
+  removeAll: function() {
+    var self = this;
+    var toRemove = this._children.concat();
     toRemove.forEach(function(child) {
-      self.remove(child, newOptions);
-    });
-  },
-
-  // ----------
-  // Adds the given xul:tab as an app tab in this group's apptab tray
-  //
-  // Parameters:
-  //   options - change how the app tab is added.
-  //
-  // Options:
-  //   dontAdjustTray - (boolean) if true, the $appTabTray size is not adjusted,
-  //                    which means that the adjustAppTabTray() method is not
-  //                    called.
-  addAppTab: function GroupItem_addAppTab(xulTab, options) {
-    let self = this;
-
-    let iconUrl = GroupItems.getAppTabFavIconUrl(xulTab);
-    let $appTab = iQ("<img>")
-      .addClass("appTabIcon")
-      .attr("src", iconUrl)
-      .data("xulTab", xulTab)
-      .appendTo(this.$appTabTray)
-      .click(function(event) {
-        if (!Utils.isLeftClick(event))
-          return;
-
-        UI.setActive(self, { dontSetActiveTabInGroup: true });
-        UI.goToTab(iQ(this).data("xulTab"));
-      });
-
-    // adjust the tray, if needed.
-    if (!options || !options.dontAdjustTray)
-      this.adjustAppTabTray(true);
-  },
-
-  // ----------
-  // Removes the given xul:tab as an app tab in this group's apptab tray
-  removeAppTab: function GroupItem_removeAppTab(xulTab) {
-    // remove the icon
-    iQ(".appTabIcon", this.$appTabTray).each(function(icon) {
-      let $icon = iQ(icon);
-      if ($icon.data("xulTab") != xulTab)
-        return true;
-        
-      $icon.remove();
-      return false;
-    });
-    
-    // adjust the tray
-    this.adjustAppTabTray(true);
-  },
-
-  // ----------
-  // Arranges the given xul:tab as an app tab in the group's apptab tray
-  arrangeAppTab: function GroupItem_arrangeAppTab(xulTab) {
-    let self = this;
-
-    let elements = iQ(".appTabIcon", this.$appTabTray);
-    let length = elements.length;
-
-    elements.each(function(icon) {
-      let $icon = iQ(icon);
-      if ($icon.data("xulTab") != xulTab)
-        return true;
-
-      let targetIndex = xulTab._tPos;
-
-      $icon.remove({ preserveEventHandlers: true });
-      if (targetIndex < (length - 1))
-        self.$appTabTray[0].insertBefore(
-          icon,
-          iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
-      else
-        $icon.appendTo(self.$appTabTray);
-      return false;
+      self.remove(child, {dontArrange: true});
     });
   },
 
   // ----------
   // Function: hideExpandControl
   // Hide the control which expands a stacked groupItem into a quick-look view.
-  hideExpandControl: function GroupItem_hideExpandControl() {
+  hideExpandControl: function() {
     this.$expander.hide();
   },
 
   // ----------
   // Function: showExpandControl
   // Show the control which expands a stacked groupItem into a quick-look view.
-  showExpandControl: function GroupItem_showExpandControl() {
-    let parentBB = this.getBounds();
-    let childBB = this.getChild(0).getBounds();
-    let padding = 7;
+  showExpandControl: function() {
+    var childBB = this.getChild(0).getBounds();
+    var dT = childBB.top - this.getBounds().top;
+    var dL = childBB.left - this.getBounds().left;
+
     this.$expander
         .show()
         .css({
-          left: parentBB.width/2 - this.$expander.width()/2
+          opacity: .2,
+          top: dT + childBB.height + Math.min(7, (this.getBounds().bottom-childBB.bottom)/2),
+          // TODO: Why the magic -6? because the childBB.width seems to be over-sizing itself.
+          // But who can blame an object for being a bit optimistic when self-reporting size.
+          // It has to impress the ladies somehow. Bug 586549
+          left: dL + childBB.width/2 - this.$expander.width()/2 - 6,
         });
   },
 
   // ----------
   // Function: shouldStack
-  // Returns true if the groupItem, given "count", should stack (instead of 
-  // grid).
-  shouldStack: function GroupItem_shouldStack(count) {
+  // Returns true if the groupItem, given "count", should stack (instead of grid).
+  shouldStack: function(count) {
     if (count <= 1)
       return false;
 
     var bb = this.getContentBounds();
     var options = {
-      return: 'widthAndColumns',
-      count: count || this._children.length,
-      hideTitle: false
+      pretend: true,
+      count: count
     };
-    let arrObj = Items.arrange(this._children, bb, options);
 
-    let shouldStack = arrObj.childWidth < TabItems.minTabWidth * 1.35;
-    this._columns = shouldStack ? null : arrObj.columns;
-
-    return shouldStack;
-  },
-
-  // ----------
-  // Function: _freezeItemSize
-  // Freezes current item size (when removing a child).
-  //
-  // Parameters:
-  //   itemCount - the number of children before the last one was removed
-  _freezeItemSize: function GroupItem__freezeItemSize(itemCount) {
-    let data = this._frozenItemSizeData;
-
-    if (!data.lastItemCount) {
-      let self = this;
-      data.lastItemCount = itemCount;
-
-      // unfreeze item size when tabview is hidden
-      data.onTabViewHidden = function () self._unfreezeItemSize();
-      window.addEventListener('tabviewhidden', data.onTabViewHidden, false);
-
-      // we don't need to observe mouse movement when expanded because the
-      // tray is closed when we leave it and collapse causes unfreezing
-      if (!self.expanded) {
-        // unfreeze item size when cursor is moved out of group bounds
-        data.onMouseMove = function (e) {
-          let cursor = new Point(e.pageX, e.pageY);
-          if (!self.bounds.contains(cursor))
-            self._unfreezeItemSize();
-        }
-        iQ(window).mousemove(data.onMouseMove);
-      }
-    }
-
-    this.arrange({animate: true, count: data.lastItemCount});
-  },
-
-  // ----------
-  // Function: _unfreezeItemSize
-  // Unfreezes and updates item size.
-  //
-  // Parameters:
-  //   options - various options (see below)
-  //
-  // Possible options:
-  //   dontArrange - do not arrange items when unfreezing
-  _unfreezeItemSize: function GroupItem__unfreezeItemSize(options) {
-    let data = this._frozenItemSizeData;
-    if (!data.lastItemCount)
-      return;
-
-    if (!options || !options.dontArrange)
-      this.arrange({animate: true});
-
-    // unbind event listeners
-    window.removeEventListener('tabviewhidden', data.onTabViewHidden, false);
-    if (data.onMouseMove)
-      iQ(window).unbind('mousemove', data.onMouseMove);
-
-    // reset freeze status
-    this._frozenItemSizeData = {};
+    var rects = Items.arrange(null, bb, options);
+    return (rects[0].width < TabItems.minTabWidth * 1.35);
   },
 
   // ----------
@@ -1296,49 +771,80 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Lays out all of the children.
   //
   // Parameters:
-  //   options - passed to <Items.arrange> or <_stackArrange>, except those below
-  //
-  // Options:
-  //   addTab - (boolean) if true, we add one to the child count
-  //   oldDropIndex - if set, we will only set any bounds if the dropIndex has
-  //                  changed
-  //   dropPos - (<Point>) a position where a tab is currently positioned, above
-  //             this group.
-  //   animate - (boolean) if true, movement of children will be animated.
-  //
-  // Returns:
-  //   dropIndex - an index value for where an item would be dropped, if 
-  //               options.dropPos is given.
-  arrange: function GroupItem_arrange(options) {
-    if (!options)
-      options = {};
-
-    let childrenToArrange = [];
-    this._children.forEach(function(child) {
-      if (child.isDragging)
-        options.addTab = true;
-      else
-        childrenToArrange.push(child);
-    });
-
-    if (GroupItems._arrangePaused) {
-      GroupItems.pushArrange(this, options);
-      return false;
-    }
-    
-    let shouldStack = this.shouldStack(childrenToArrange.length + (options.addTab ? 1 : 0));
-    let box = this.getContentBounds();
-    
-    // if we should stack and we're not expanded
-    if (shouldStack && !this.expanded) {
-      this.showExpandControl();
-      this._stackArrange(childrenToArrange, box, options);
-      return false;
+  //   options - passed to <Items.arrange> or <_stackArrange>
+  arrange: function(options) {
+    if (this.expanded) {
+      this.topChild = null;
+      var box = new Rect(this.expanded.bounds);
+      box.inset(8, 8);
+      Items.arrange(this._children, box, Utils.extend({}, options, {padding: 8, z: 99999}));
     } else {
-      this.hideExpandControl();
-      // a dropIndex is returned
-      return this._gridArrange(childrenToArrange, box, options);
+      var bb = this.getContentBounds();
+      var count = this._children.length;
+      if (!this.shouldStack(count)) {
+        var animate;
+        if (!options || typeof options.animate == 'undefined')
+          animate = true;
+        else
+          animate = options.animate;
+
+        if (typeof options == 'undefined')
+          options = {};
+
+        this._children.forEach(function(child) {
+            child.removeClass("stacked")
+        });
+
+        this.topChild = null;
+
+        var arrangeOptions = Utils.copy(options);
+        Utils.extend(arrangeOptions, {
+          pretend: true,
+          count: count
+        });
+
+        if (!count) {
+          this.xDensity = 0;
+          this.yDensity = 0;
+          return;
+        }
+
+        var rects = Items.arrange(this._children, bb, arrangeOptions);
+
+        // yDensity = (the distance of the bottom of the last tab to the top of the content area)
+        // / (the total available content height)
+        this.yDensity = (rects[rects.length - 1].bottom - bb.top) / (bb.height);
+
+        // xDensity = (the distance from the left of the content area to the right of the rightmost
+        // tab) / (the total available content width)
+
+        // first, find the right of the rightmost tab! luckily, they're in order.
+        // TODO: does this change for rtl?
+        var rightMostRight = 0;
+        for each (var rect in rects) {
+          if (rect.right > rightMostRight)
+            rightMostRight = rect.right;
+          else
+            break;
+        }
+        this.xDensity = (rightMostRight - bb.left) / (bb.width);
+
+        this._children.forEach(function(child, index) {
+          if (!child.locked.bounds) {
+            child.setBounds(rects[index], !animate);
+            child.setRotation(0);
+            if (options.z)
+              child.setZ(options.z);
+          }
+        });
+
+        this._isStacked = false;
+      } else
+        this._stackArrange(bb, options);
     }
+
+    if (this._isStacked && !this.expanded) this.showExpandControl();
+    else this.hideExpandControl();
   },
 
   // ----------
@@ -1346,155 +852,123 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Arranges the children in a stack.
   //
   // Parameters:
-  //   childrenToArrange - array of <TabItem> children
   //   bb - <Rect> to arrange within
   //   options - see below
   //
   // Possible "options" properties:
   //   animate - whether to animate; default: true.
-  _stackArrange: function GroupItem__stackArrange(childrenToArrange, bb, options) {
-    if (!options)
-      options = {};
-    var animate = "animate" in options ? options.animate : true;
+  _stackArrange: function(bb, options) {
+    var animate;
+    if (!options || typeof options.animate == 'undefined')
+      animate = true;
+    else
+      animate = options.animate;
 
-    var count = childrenToArrange.length;
+    if (typeof options == 'undefined')
+      options = {};
+
+    var count = this._children.length;
     if (!count)
       return;
 
-    let itemAspect = TabItems.tabHeight / TabItems.tabWidth;
-    let zIndex = this.getZ() + count + 1;
-    let maxRotation = 35; // degress
-    let scale = 0.7;
-    let newTabsPad = 10;
-    let bbAspect = bb.height / bb.width;
-    let numInPile = 6;
-    let angleDelta = 3.5; // degrees
+    var zIndex = this.getZ() + count + 1;
 
-    // compute size of the entire stack, modulo rotation.
-    let size;
+    var maxRotation = 35; // degress
+    var scale = 0.8;
+    var newTabsPad = 10;
+    var w;
+    var h;
+    var itemAspect = TabItems.tabHeight / TabItems.tabWidth;
+    var bbAspect = bb.height / bb.width;
+
+    // compute h and w. h and w are the dimensions of each of the tabs... in other words, the
+    // height and width of the entire stack, modulo rotation.
     if (bbAspect > itemAspect) { // Tall, thin groupItem
-      size = TabItems.calcValidSize(new Point(bb.width * scale, -1),
-        {hideTitle:true});
-     } else { // Short, wide groupItem
-      size = TabItems.calcValidSize(new Point(-1, bb.height * scale),
-        {hideTitle:true});
-     }
+      w = bb.width * scale;
+      h = w * itemAspect;
+      // let's say one, because, even though there's more space, we're enforcing that with scale.
+      this.xDensity = 1;
+      this.yDensity = h / (bb.height * scale);
+    } else { // Short, wide groupItem
+      h = bb.height * scale;
+      w = h * (1 / itemAspect);
+      this.yDensity = 1;
+      this.xDensity = h / (bb.width * scale);
+    }
 
     // x is the left margin that the stack will have, within the content area (bb)
     // y is the vertical margin
-    var x = (bb.width - size.x) / 2;
-    var y = Math.min(size.x, (bb.height - size.y) / 2);
-    var box = new Rect(bb.left + x, bb.top + y, size.x, size.y);
+    var x = (bb.width - w) / 2;
+
+    var y = Math.min(x, (bb.height - h) / 2);
+    var box = new Rect(bb.left + x, bb.top + y, w, h);
 
     var self = this;
     var children = [];
-
-    // ensure topChild is the first item in childrenToArrange
-    let topChild = this.getTopChild();
-    let topChildPos = childrenToArrange.indexOf(topChild);
-    if (topChildPos > 0) {
-      childrenToArrange.splice(topChildPos, 1);
-      childrenToArrange.unshift(topChild);
-    }
-
-    childrenToArrange.forEach(function GroupItem__stackArrange_order(child) {
-      // Children are still considered stacked even if they're hidden later.
-      child.addClass("stacked");
-      child.isStacked = true;
-      if (numInPile-- > 0) {
+    this._children.forEach(function(child) {
+      if (child == self.topChild)
+        children.unshift(child);
+      else
         children.push(child);
-      } else {
-        child.setHidden(true);
+    });
+
+    children.forEach(function(child, index) {
+      if (!child.locked.bounds) {
+        child.setZ(zIndex);
+        zIndex--;
+
+        child.addClass("stacked");
+        child.setBounds(box, !animate);
+        child.setRotation(self._randRotate(maxRotation, index));
       }
     });
 
     self._isStacked = true;
-
-    let angleAccum = 0;
-    children.forEach(function GroupItem__stackArrange_apply(child, index) {
-      child.setZ(zIndex);
-      zIndex--;
-
-      // Force a recalculation of height because we've changed how the title
-      // is shown.
-      child.setBounds(box, !animate || child.getHidden(), {force:true});
-      child.setRotation((UI.rtl ? -1 : 1) * angleAccum);
-      child.setHidden(false);
-      angleAccum += angleDelta;
-    });
   },
-  
+
   // ----------
-  // Function: _gridArrange
-  // Arranges the children into a grid.
-  //
-  // Parameters:
-  //   childrenToArrange - array of <TabItem> children
-  //   box - <Rect> to arrange within
-  //   options - see below
-  //
-  // Possible "options" properties:
-  //   animate - whether to animate; default: true.
-  //   z - (int) a z-index to assign the children
-  //   columns - the number of columns to use in the layout, if known in advance
-  //
-  // Returns:
-  //   dropIndex - (int) the index at which a dragged item (if there is one) should be added
-  //               if it is dropped. Otherwise (boolean) false.
-  _gridArrange: function GroupItem__gridArrange(childrenToArrange, box, options) {
-    let arrangeOptions;
-    if (this.expanded) {
-      // if we're expanded, we actually want to use the expanded tray's bounds.
-      box = new Rect(this.expanded.bounds);
-      box.inset(8, 8);
-      arrangeOptions = Utils.extend({}, options, {z: 99999});
-    } else {
-      this._isStacked = false;
-      arrangeOptions = Utils.extend({}, options, {
-        columns: this._columns
-      });
-
-      childrenToArrange.forEach(function(child) {
-        child.removeClass("stacked");
-        child.isStacked = false;
-        child.setHidden(false);
-      });
+  // Function: _randRotate
+  // Random rotation generator for <_stackArrange>
+  _randRotate: function(spread, index) {
+    if (index >= this._stackAngles.length) {
+      var randAngle = 5*index + parseInt((Math.random()-.5)*1);
+      this._stackAngles.push(randAngle);
+      return randAngle;
     }
-  
-    if (!childrenToArrange.length)
-      return false;
 
-    // Items.arrange will determine where/how the child items should be
-    // placed, but will *not* actually move them for us. This is our job.
-    let result = Items.arrange(childrenToArrange, box, arrangeOptions);
-    let {dropIndex, rects, columns} = result;
-    if ("oldDropIndex" in options && options.oldDropIndex === dropIndex)
-      return dropIndex;
+    if (index > 5) index = 5;
 
-    this._columns = columns;
-    let index = 0;
-    let self = this;
-    childrenToArrange.forEach(function GroupItem_arrange_children_each(child, i) {
-      // If dropIndex spacing is active and this is a child after index,
-      // bump it up one so we actually use the correct rect
-      // (and skip one for the dropPos)
-      if (self._dropSpaceActive && index === dropIndex)
-        index++;
-      child.setBounds(rects[index], !options.animate);
-      child.setRotation(0);
-      if (arrangeOptions.z)
-        child.setZ(arrangeOptions.z);
-      index++;
-    });
-
-    return dropIndex;
+    return this._stackAngles[index];
   },
 
-  expand: function GroupItem_expand() {
+  // ----------
+  // Function: childHit
+  // Called by one of the groupItem's children when the child is clicked on.
+  //
+  // Returns an object:
+  //   shouldZoom - true if the browser should launch into the tab represented by the child
+  //   callback - called after the zoom animation is complete
+  childHit: function(child) {
+    var self = this;
+
+    // ___ normal click
+    if (!this._isStacked || this.expanded) {
+      return {
+        shouldZoom: true,
+        callback: function() {
+          self.collapse();
+        }
+      };
+    }
+
+    GroupItems.setActiveGroupItem(self);
+    return { shouldZoom: true };
+  },
+
+  expand: function() {
     var self = this;
     // ___ we're stacked, and command is held down so expand
-    UI.setActive(this.getTopChild());
-    
+    GroupItems.setActiveGroupItem(self);
     var startBounds = this.getChild(0).getBounds();
     var $tray = iQ("<div>").css({
       top: startBounds.top,
@@ -1504,7 +978,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       position: "absolute",
       zIndex: 99998
     }).appendTo("body");
-    $tray[0].id = "expandedTray";
+
 
     var w = 180;
     var h = w * (TabItems.tabHeight / TabItems.tabWidth) * 1.1;
@@ -1536,16 +1010,12 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         left: pos.left
       }, {
         duration: 200,
-        easing: "tabviewBounce",
-        complete: function GroupItem_expand_animate_complete() {
-          self._sendToSubscribers("expanded");
-        }
+        easing: "tabviewBounce"
       })
       .addClass("overlay");
 
     this._children.forEach(function(child) {
       child.addClass("stack-trayed");
-      child.setHidden(false);
     });
 
     var $shield = iQ('<div>')
@@ -1581,11 +1051,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: collapse
   // Collapses the groupItem from the expanded "tray" mode.
-  collapse: function GroupItem_collapse() {
+  collapse: function() {
     if (this.expanded) {
       var z = this.getZ();
       var box = this.getBounds();
-      let self = this;
       this.expanded.$tray
         .css({
           zIndex: z + 1
@@ -1599,9 +1068,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         }, {
           duration: 350,
           easing: "tabviewBounce",
-          complete: function GroupItem_collapse_animate_complete() {
+          complete: function() {
             iQ(this).remove();
-            self._sendToSubscribers("collapsed");
           }
         });
 
@@ -1613,100 +1081,66 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       });
 
       this.arrange({z: z + 2});
-      this._unfreezeItemSize({dontArrange: true});
     }
   },
 
   // ----------
   // Function: _addHandlers
   // Helper routine for the constructor; adds various event handlers to the container.
-  _addHandlers: function GroupItem__addHandlers(container) {
-    let self = this;
+  _addHandlers: function(container) {
+    var self = this;
 
-    var dropIndex = false;
-    var dropSpaceTimer = null;
-
-    // When the _dropSpaceActive flag is turned on on a group, and a tab is
-    // dragged on top, a space will open up.
-    this._dropSpaceActive = false;
-
-    this.dropOptions.over = function GroupItem_dropOptions_over(event) {
+    this.dropOptions.over = function() {
       iQ(this.container).addClass("acceptsDrop");
     };
-    this.dropOptions.move = function GroupItem_dropOptions_move(event) {
-      let oldDropIndex = dropIndex;
-      let dropPos = drag.info.item.getBounds().center();
-      let options = {dropPos: dropPos,
-                     addTab: self._dropSpaceActive && drag.info.item.parent != self,
-                     oldDropIndex: oldDropIndex};
-      let newDropIndex = self.arrange(options);
-      // If this is a new drop index, start a timer!
-      if (newDropIndex !== oldDropIndex) {
-        dropIndex = newDropIndex;
-        if (this._dropSpaceActive)
+    this.dropOptions.drop = function(event) {
+      iQ(this.container).removeClass("acceptsDrop");
+      this.add(drag.info.$el, {left:event.pageX, top:event.pageY});
+      GroupItems.setActiveGroupItem(this);
+    };
+
+    if (!this.locked.bounds)
+      this.draggable();
+
+    iQ(container)
+      .mousedown(function(e) {
+        self._mouseDown = {
+          location: new Point(e.clientX, e.clientY),
+          className: e.target.className
+        };
+      })
+      .mouseup(function(e) {
+        if (!self._mouseDown || !self._mouseDown.location || !self._mouseDown.className)
           return;
-          
-        if (dropSpaceTimer) {
-          clearTimeout(dropSpaceTimer);
-          dropSpaceTimer = null;
+
+        // Don't zoom in on clicks inside of the controls.
+        var className = self._mouseDown.className;
+        if (className.indexOf('title-shield') != -1 ||
+           className.indexOf('name') != -1 ||
+           className.indexOf('close') != -1 ||
+           className.indexOf('newTabButton') != -1 ||
+           className.indexOf('stackExpander') != -1) {
+          return;
         }
 
-        dropSpaceTimer = setTimeout(function GroupItem_arrange_evaluateDropSpace() {
-          // Note that dropIndex's scope is GroupItem__addHandlers, but
-          // newDropIndex's scope is GroupItem_dropOptions_move. Thus,
-          // dropIndex may change with other movement events before we come
-          // back and check this. If it's still the same dropIndex, activate
-          // drop space display!
-          if (dropIndex === newDropIndex) {
-            self._dropSpaceActive = true;
-            dropIndex = self.arrange({dropPos: dropPos,
-                                      addTab: drag.info.item.parent != self,
-                                      animate: true});
-          }
-          dropSpaceTimer = null;
-        }, 250);
-      }
-    };
-    this.dropOptions.drop = function GroupItem_dropOptions_drop(event) {
-      iQ(this.container).removeClass("acceptsDrop");
-      let options = {};
-      if (this._dropSpaceActive)
-        this._dropSpaceActive = false;
+        var location = new Point(e.clientX, e.clientY);
 
-      if (dropSpaceTimer) {
-        clearTimeout(dropSpaceTimer);
-        dropSpaceTimer = null;
-        // If we drop this item before the timed rearrange was executed,
-        // we won't have an accurate dropIndex value. Get that now.
-        let dropPos = drag.info.item.getBounds().center();
-        dropIndex = self.arrange({dropPos: dropPos,
-                                  addTab: drag.info.item.parent != self,
-                                  animate: true});
-      }
+        if (location.distance(self._mouseDown.location) > 1.0)
+          return;
 
-      if (dropIndex !== false)
-        options = {index: dropIndex};
-      this.add(drag.info.$el, options);
-      UI.setActive(this);
-      dropIndex = false;
-    };
-    this.dropOptions.out = function GroupItem_dropOptions_out(event) {
-      dropIndex = false;
-      if (this._dropSpaceActive)
-        this._dropSpaceActive = false;
+        // Zoom into the last-active tab when the groupItem
+        // is clicked, but only for non-stacked groupItems.
+        var activeTab = self.getActiveTab();
+        if (!self._isStacked) {
+          if (activeTab)
+            activeTab.zoomIn();
+          else if (self.getChild(0))
+            self.getChild(0).zoomIn();
+        }
 
-      if (dropSpaceTimer) {
-        clearTimeout(dropSpaceTimer);
-        dropSpaceTimer = null;
-      }
-      self.arrange();
-      var groupItem = drag.info.item.parent;
-      if (groupItem)
-        groupItem.remove(drag.info.$el);
-      iQ(this.container).removeClass("acceptsDrop");
-    }
+        self._mouseDown = null;
+    });
 
-    this.draggable();
     this.droppable(true);
 
     this.$expander.click(function() {
@@ -1717,23 +1151,15 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: setResizable
   // Sets whether the groupItem is resizable and updates the UI accordingly.
-  setResizable: function GroupItem_setResizable(value, immediately) {
-    var self = this;
-
-    this.resizeOptions.minWidth = GroupItems.minGroupWidth;
-    this.resizeOptions.minHeight = GroupItems.minGroupHeight;
-
-    let start = this.resizeOptions.start;
-    this.resizeOptions.start = function (event) {
-      start.call(self, event);
-      self._unfreezeItemSize();
-    }
+  setResizable: function(value) {
+    this.resizeOptions.minWidth = 90;
+    this.resizeOptions.minHeight = 90;
 
     if (value) {
-      immediately ? this.$resizer.show() : this.$resizer.fadeIn();
+      this.$resizer.fadeIn();
       this.resizable(true);
     } else {
-      immediately ? this.$resizer.hide() : this.$resizer.fadeOut();
+      this.$resizer.fadeOut();
       this.resizable(false);
     }
   },
@@ -1741,16 +1167,45 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: newTab
   // Creates a new tab within this groupItem.
-  // Parameters:
-  //  url - the new tab should open this url as well
-  //  options - the options object
-  //    closedLastTab - boolean indicates the last tab has just been closed
-  newTab: function GroupItem_newTab(url, options) {
-    if (options && options.closedLastTab)
-      UI.closedLastTabInTabView = true;
+  newTab: function(url) {
+    GroupItems.setActiveGroupItem(this);
+    let newTab = gBrowser.loadOneTab(url || "about:blank", {inBackground: true});
 
-    UI.setActive(this, { dontSetActiveTabInGroup: true });
-    gBrowser.loadOneTab(url || "about:blank", { inBackground: false });
+    // TabItems will have handled the new tab and added the tabItem property
+    let newItem = newTab.tabItem;
+
+    var self = this;
+    iQ(newItem.container).css({opacity: 0});
+    let $anim = iQ("<div>")
+      .addClass("newTabAnimatee")
+      .css({
+        top: newItem.bounds.top + 5,
+        left: newItem.bounds.left + 5,
+        width: newItem.bounds.width - 10,
+        height: newItem.bounds.height - 10,
+        zIndex: 999,
+        opacity: 0
+      })
+      .appendTo("body")
+      .animate({opacity: 1}, {
+        duration: 500,
+        complete: function() {
+          $anim.animate({
+            top: 0,
+            left: 0,
+            width: window.innerWidth,
+            height: window.innerHeight
+          }, {
+            duration: 270,
+            complete: function() {
+              iQ(newItem.container).css({opacity: 1});
+              newItem.zoomIn(!url);
+              $anim.remove();
+              self._sendToSubscribers("tabAdded", {groupItemId: self.id});
+            }
+          });
+        }
+      });
   },
 
   // ----------
@@ -1759,7 +1214,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // shown in the tab bar. It does it by sorting the children
   // of the groupItem by the positions of their respective tabs in the
   // tab bar.
-  reorderTabItemsBasedOnTabOrder: function GroupItem_reorderTabItemsBasedOnTabOrder() {
+  reorderTabItemsBasedOnTabOrder: function() {
     this._children.sort(function(a,b) a.tab._tPos - b.tab._tPos);
 
     this.arrange({animate: false});
@@ -1769,34 +1224,44 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: reorderTabsBasedOnTabItemOrder
   // Reorders the tabs in the tab bar based on the arrangment of the tabs
   // shown in the groupItem.
-  reorderTabsBasedOnTabItemOrder: function GroupItem_reorderTabsBasedOnTabItemOrder() {
-    let indices;
-    let tabs = this._children.map(function (tabItem) tabItem.tab);
+  reorderTabsBasedOnTabItemOrder: function() {
+    var tabBarTabs = Array.slice(gBrowser.tabs);
+    var currentIndex;
 
-    tabs.forEach(function (tab, index) {
-      if (!indices)
-        indices = tabs.map(function (tab) tab._tPos);
-
-      let start = index ? indices[index - 1] + 1 : 0;
-      let end = index + 1 < indices.length ? indices[index + 1] - 1 : Infinity;
-      let targetRange = new Range(start, end);
-
-      if (!targetRange.contains(tab._tPos)) {
-        gBrowser.moveTabTo(tab, start);
-        indices = null;
-      }
+    // ToDo: optimisation is needed to further reduce the tab move.
+    // Bug 586553
+    this._children.forEach(function(tabItem) {
+      tabBarTabs.some(function(tab, i) {
+        if (tabItem.tab == tab) {
+          if (!currentIndex)
+            currentIndex = i;
+          else if (tab.pinned)
+            currentIndex++;
+          else {
+            var removed;
+            if (currentIndex < i)
+              currentIndex = i;
+            else if (currentIndex > i) {
+              removed = tabBarTabs.splice(i, 1);
+              tabBarTabs.splice(currentIndex, 0, removed);
+              gBrowser.moveTabTo(tabItem.tab, currentIndex);
+            }
+          }
+          return true;
+        }
+        return false;
+      });
     });
   },
 
   // ----------
-  // Function: getTopChild
-  // Gets the <Item> that should be displayed on top when in stack mode.
-  getTopChild: function GroupItem_getTopChild() {
-    if (!this.getChildren().length) {
-      return null;
-    }
+  // Function: setTopChild
+  // Sets the <Item> that should be displayed on top when in stack mode.
+  setTopChild: function(topChild) {
+    this.topChild = topChild;
 
-    return this.getActiveTab() || this.getChild(0);
+    this.arrange({animate: false});
+    // this.arrange calls this.save for us
   },
 
   // ----------
@@ -1806,7 +1271,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Parameters:
   //  index - the index of the child tab to return, use negative
   //          numbers to index from the end (-1 is the last child)
-  getChild: function GroupItem_getChild(index) {
+  getChild: function(index) {
     if (index < 0)
       index = this._children.length + index;
     if (index >= this._children.length || index < 0)
@@ -1817,229 +1282,46 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: getChildren
   // Returns all children.
-  getChildren: function GroupItem_getChildren() {
+  getChildren: function() {
     return this._children;
   }
 });
 
 // ##########
 // Class: GroupItems
-// Singleton for managing all <GroupItem>s.
-let GroupItems = {
+// Singelton for managing all <GroupItem>s.
+window.GroupItems = {
   groupItems: [],
   nextID: 1,
   _inited: false,
   _activeGroupItem: null,
   _activeOrphanTab: null,
-  _cleanupFunctions: [],
-  _arrangePaused: false,
-  _arrangesPending: [],
-  _removingHiddenGroups: false,
-  _delayedModUpdates: [],
-  minGroupHeight: 110,
-  minGroupWidth: 125,
-
-  // ----------
-  // Function: toString
-  // Prints [GroupItems] for debug use
-  toString: function GroupItems_toString() {
-    return "[GroupItems count=" + this.groupItems.length + "]";
-  },
 
   // ----------
   // Function: init
-  init: function GroupItems_init() {
-    let self = this;
-
-    // setup attr modified handler, and prepare for its uninit
-    function handleAttrModified(xulTab) {
-      self._handleAttrModified(xulTab);
-    }
-
-    // make sure any closed tabs are removed from the delay update list
-    function handleClose(xulTab) {
-      let idx = self._delayedModUpdates.indexOf(xulTab);
-      if (idx != -1)
-        self._delayedModUpdates.splice(idx, 1);
-    }
-
-    AllTabs.register("attrModified", handleAttrModified);
-    AllTabs.register("close", handleClose);
-    this._cleanupFunctions.push(function() {
-      AllTabs.unregister("attrModified", handleAttrModified);
-      AllTabs.unregister("close", handleClose);
-    });
+  init: function() {
   },
 
   // ----------
   // Function: uninit
-  uninit: function GroupItems_uninit() {
-    // call our cleanup functions
-    this._cleanupFunctions.forEach(function(func) {
-      func();
-    });
-
-    this._cleanupFunctions = [];
-
-    // additional clean up
+  uninit : function() {
     this.groupItems = null;
-  },
-
-  // ----------
-  // Function: newGroup
-  // Creates a new empty group.
-  newGroup: function GroupItems_newGroup() {
-    let bounds = new Rect(20, 20, 250, 200);
-    return new GroupItem([], {bounds: bounds, immediately: true});
-  },
-
-  // ----------
-  // Function: pauseArrange
-  // Bypass arrange() calls and collect for resolution in
-  // resumeArrange()
-  pauseArrange: function GroupItems_pauseArrange() {
-    Utils.assert(this._arrangePaused == false, 
-      "pauseArrange has been called while already paused");
-    Utils.assert(this._arrangesPending.length == 0, 
-      "There are bypassed arrange() calls that haven't been resolved");
-    this._arrangePaused = true;
-  },
-
-  // ----------
-  // Function: pushArrange
-  // Push an arrange() call and its arguments onto an array
-  // to be resolved in resumeArrange()
-  pushArrange: function GroupItems_pushArrange(groupItem, options) {
-    Utils.assert(this._arrangePaused, 
-      "Ensure pushArrange() called while arrange()s aren't paused"); 
-    let i;
-    for (i = 0; i < this._arrangesPending.length; i++)
-      if (this._arrangesPending[i].groupItem === groupItem)
-        break;
-    let arrangeInfo = {
-      groupItem: groupItem,
-      options: options
-    };
-    if (i < this._arrangesPending.length)
-      this._arrangesPending[i] = arrangeInfo;
-    else
-      this._arrangesPending.push(arrangeInfo);
-  },
-
-  // ----------
-  // Function: resumeArrange
-  // Resolve bypassed and collected arrange() calls
-  resumeArrange: function GroupItems_resumeArrange() {
-    this._arrangePaused = false;
-    for (let i = 0; i < this._arrangesPending.length; i++) {
-      let g = this._arrangesPending[i];
-      g.groupItem.arrange(g.options);
-    }
-    this._arrangesPending = [];
-  },
-
-  // ----------
-  // Function: _handleAttrModified
-  // watch for icon changes on app tabs
-  _handleAttrModified: function GroupItems__handleAttrModified(xulTab) {
-    if (!UI.isTabViewVisible()) {
-      if (this._delayedModUpdates.indexOf(xulTab) == -1) {
-        this._delayedModUpdates.push(xulTab);
-      }
-    } else
-      this._updateAppTabIcons(xulTab); 
-  },
-
-  // ----------
-  // Function: flushTabUpdates
-  // Update apptab icons based on xulTabs which have been updated
-  // while the TabView hasn't been visible 
-  flushAppTabUpdates: function GroupItems_flushAppTabUpdates() {
-    let self = this;
-    this._delayedModUpdates.forEach(function(xulTab) {
-      self._updateAppTabIcons(xulTab);
-    });
-    this._delayedModUpdates = [];
-  },
-
-  // ----------
-  // Function: _updateAppTabIcons
-  // Update images of any apptab icons that point to passed in xultab 
-  _updateAppTabIcons: function GroupItems__updateAppTabIcons(xulTab) {
-    if (xulTab.ownerDocument.defaultView != gWindow || !xulTab.pinned)
-      return;
-
-    let iconUrl = this.getAppTabFavIconUrl(xulTab);
-    this.groupItems.forEach(function(groupItem) {
-      iQ(".appTabIcon", groupItem.$appTabTray).each(function(icon) {
-        let $icon = iQ(icon);
-        if ($icon.data("xulTab") != xulTab)
-          return true;
-
-        if (iconUrl != $icon.attr("src"))
-          $icon.attr("src", iconUrl);
-        return false;
-      });
-    });
-  },
-
-  // ----------
-  // Function: getAppTabFavIconUrl
-  // Gets the fav icon url for app tab.
-  getAppTabFavIconUrl: function GroupItems__getAppTabFavIconUrl(xulTab) {
-    let iconUrl;
-
-    if (UI.shouldLoadFavIcon(xulTab.linkedBrowser))
-      iconUrl = UI.getFavIconUrlForTab(xulTab);
-    else
-      iconUrl = gFavIconService.defaultFavicon.spec;
-
-    return iconUrl;
-  },
-
-  // ----------
-  // Function: addAppTab
-  // Adds the given xul:tab to the app tab tray in all groups
-  addAppTab: function GroupItems_addAppTab(xulTab) {
-    this.groupItems.forEach(function(groupItem) {
-      groupItem.addAppTab(xulTab);
-    });
-    this.updateGroupCloseButtons();
-  },
-
-  // ----------
-  // Function: removeAppTab
-  // Removes the given xul:tab from the app tab tray in all groups
-  removeAppTab: function GroupItems_removeAppTab(xulTab) {
-    this.groupItems.forEach(function(groupItem) {
-      groupItem.removeAppTab(xulTab);
-    });
-    this.updateGroupCloseButtons();
-  },
-
-  // ----------
-  // Function: arrangeAppTab
-  // Arranges the given xul:tab as an app tab from app tab tray in all groups
-  arrangeAppTab: function GroupItems_arrangeAppTab(xulTab) {
-    this.groupItems.forEach(function(groupItem) {
-      groupItem.arrangeAppTab(xulTab);
-    });
   },
 
   // ----------
   // Function: getNextID
   // Returns the next unused groupItem ID.
-  getNextID: function GroupItems_getNextID() {
+  getNextID: function() {
     var result = this.nextID;
     this.nextID++;
-    this._save();
+    this.save();
     return result;
   },
 
   // ----------
   // Function: getStorageData
   // Returns an object for saving GroupItems state to persistent storage.
-  getStorageData: function GroupItems_getStorageData() {
+  getStorageData: function() {
     var data = {nextID: this.nextID, groupItems: []};
     this.groupItems.forEach(function(groupItem) {
       data.groupItems.push(groupItem.getStorageData());
@@ -2051,25 +1333,21 @@ let GroupItems = {
   // ----------
   // Function: saveAll
   // Saves GroupItems state, as well as the state of all of the groupItems.
-  saveAll: function GroupItems_saveAll() {
-    this._save();
+  saveAll: function() {
+    this.save();
     this.groupItems.forEach(function(groupItem) {
       groupItem.save();
     });
   },
 
   // ----------
-  // Function: _save
+  // Function: save
   // Saves GroupItems state.
-  _save: function GroupItems__save() {
+  save: function() {
     if (!this._inited) // too soon to save now
       return;
 
-    let activeGroupId = this._activeGroupItem ? this._activeGroupItem.id : null;
-    Storage.saveGroupItemsData(
-      gWindow,
-      { nextID: this.nextID, activeGroupId: activeGroupId,
-        totalNumber: this.groupItems.length });
+    Storage.saveGroupItemsData(gWindow, {nextID:this.nextID});
   },
 
   // ----------
@@ -2088,86 +1366,36 @@ let GroupItems = {
   // ----------
   // Function: reconstitute
   // Restores to stored state, creating groupItems as needed.
-  reconstitute: function GroupItems_reconstitute(groupItemsData, groupItemData) {
+  // If no data, sets up blank slate (including "new tabs" groupItem).
+  reconstitute: function(groupItemsData, groupItemData) {
     try {
-      let activeGroupId;
-
-      if (groupItemsData) {
-        if (groupItemsData.nextID)
-          this.nextID = Math.max(this.nextID, groupItemsData.nextID);
-        if (groupItemsData.activeGroupId)
-          activeGroupId = groupItemsData.activeGroupId;
-      }
+      if (groupItemsData && groupItemsData.nextID)
+        this.nextID = groupItemsData.nextID;
 
       if (groupItemData) {
-        var toClose = this.groupItems.concat();
         for (var id in groupItemData) {
-          let data = groupItemData[id];
-          if (this.groupItemStorageSanity(data)) {
-            let groupItem = this.groupItem(data.id); 
-            if (groupItem && !groupItem.hidden) {
-              groupItem.userSize = data.userSize;
-              groupItem.setTitle(data.title);
-              groupItem.setBounds(data.bounds, true);
-              
-              let index = toClose.indexOf(groupItem);
-              if (index != -1)
-                toClose.splice(index, 1);
-            } else {
-              var options = {
-                dontPush: true,
-                immediately: true
-              };
-  
-              new GroupItem([], Utils.extend({}, data, options));
-            }
+          var groupItem = groupItemData[id];
+          if (this.groupItemStorageSanity(groupItem)) {
+            var options = {
+              dontPush: true
+            };
+
+            new GroupItem([], Utils.extend({}, groupItem, options));
           }
         }
-
-        toClose.forEach(function(groupItem) {
-          // All remaining children in to-be-closed groups are re-used by
-          // session restore. Reconnect them so that they're put into their
-          // right groups.
-          groupItem.getChildren().forEach(function (tabItem) {
-            if (tabItem.parent && tabItem.parent.hidden)
-              iQ(tabItem.container).show();
-            tabItem._reconnected = false;
-            tabItem._reconnect();
-          });
-          groupItem.close({immediately: true});
-        });
-      }
-
-      // set active group item
-      if (activeGroupId) {
-        let activeGroupItem = this.groupItem(activeGroupId);
-        if (activeGroupItem)
-          UI.setActive(activeGroupItem);
       }
 
       this._inited = true;
-      this._save(); // for nextID
+      this.save(); // for nextID
     } catch(e) {
       Utils.log("error in recons: "+e);
     }
   },
 
   // ----------
-  // Function: load
-  // Loads the storage data for groups. 
-  // Returns true if there was global group data.
-  load: function GroupItems_load() {
-    let groupItemsData = Storage.readGroupItemsData(gWindow);
-    let groupItemData = Storage.readGroupItemData(gWindow);
-    this.reconstitute(groupItemsData, groupItemData);
-    
-    return (groupItemsData && !Utils.isEmptyObject(groupItemsData));
-  },
-
-  // ----------
   // Function: groupItemStorageSanity
   // Given persistent storage data for a groupItem, returns true if it appears to not be damaged.
-  groupItemStorageSanity: function GroupItems_groupItemStorageSanity(groupItemData) {
+  groupItemStorageSanity: function(groupItemData) {
     // TODO: check everything
     // Bug 586555
     var sane = true;
@@ -2180,38 +1408,46 @@ let GroupItems = {
   },
 
   // ----------
+  // Function: getGroupItemWithTitle
+  // Returns the <GroupItem> that has the given title, or null if none found.
+  // TODO: what if there are multiple groupItems with the same title??
+  //       Right now, looks like it'll return the last one. Bug 586557
+  getGroupItemWithTitle: function(title) {
+    var result = null;
+    this.groupItems.forEach(function(groupItem) {
+      if (groupItem.getTitle() == title)
+        result = groupItem;
+    });
+
+    return result;
+  },
+
+  // ----------
   // Function: register
   // Adds the given <GroupItem> to the list of groupItems we're tracking.
-  register: function GroupItems_register(groupItem) {
+  register: function(groupItem) {
     Utils.assert(groupItem, 'groupItem');
     Utils.assert(this.groupItems.indexOf(groupItem) == -1, 'only register once per groupItem');
     this.groupItems.push(groupItem);
-    UI.updateTabButton();
   },
 
   // ----------
   // Function: unregister
   // Removes the given <GroupItem> from the list of groupItems we're tracking.
-  unregister: function GroupItems_unregister(groupItem) {
+  unregister: function(groupItem) {
     var index = this.groupItems.indexOf(groupItem);
     if (index != -1)
       this.groupItems.splice(index, 1);
 
     if (groupItem == this._activeGroupItem)
       this._activeGroupItem = null;
-
-    this._arrangesPending = this._arrangesPending.filter(function (pending) {
-      return groupItem != pending.groupItem;
-    });
-
-    UI.updateTabButton();
   },
 
   // ----------
   // Function: groupItem
   // Given some sort of identifier, returns the appropriate groupItem.
   // Currently only supports groupItem ids.
-  groupItem: function GroupItems_groupItem(a) {
+  groupItem: function(a) {
     var result = null;
     this.groupItems.forEach(function(candidate) {
       if (candidate.id == a)
@@ -2222,9 +1458,44 @@ let GroupItems = {
   },
 
   // ----------
+  // Function: arrange
+  // Arranges all of the groupItems into a grid.
+  arrange: function() {
+    var bounds = Items.getPageBounds();
+    bounds.bottom -= 20; // for the dev menu
+
+    var count = this.groupItems.length - 1;
+    var columns = Math.ceil(Math.sqrt(count));
+    var rows = ((columns * columns) - count >= columns ? columns - 1 : columns);
+    var padding = 12;
+    var startX = bounds.left + padding;
+    var startY = bounds.top + padding;
+    var totalWidth = bounds.width - padding;
+    var totalHeight = bounds.height - padding;
+    var box = new Rect(startX, startY,
+        (totalWidth / columns) - padding,
+        (totalHeight / rows) - padding);
+
+    var i = 0;
+    this.groupItems.forEach(function(groupItem) {
+      if (groupItem.locked.bounds)
+        return;
+
+      groupItem.setBounds(box, true);
+
+      box.left += box.width + padding;
+      i++;
+      if (i % columns == 0) {
+        box.left = startX;
+        box.top += box.height + padding;
+      }
+    });
+  },
+
+  // ----------
   // Function: removeAll
   // Removes all tabs from all groupItems (which automatically closes all unnamed groupItems).
-  removeAll: function GroupItems_removeAll() {
+  removeAll: function() {
     var toRemove = this.groupItems.concat();
     toRemove.forEach(function(groupItem) {
       groupItem.removeAll();
@@ -2234,157 +1505,128 @@ let GroupItems = {
   // ----------
   // Function: newTab
   // Given a <TabItem>, files it in the appropriate groupItem.
-  newTab: function GroupItems_newTab(tabItem, options) {
+  newTab: function(tabItem) {
     let activeGroupItem = this.getActiveGroupItem();
-
-    // 1. Active group
-    // 2. Active orphan
-    // 3. First visible non-app tab (that's not the tab in question), whether it's an
-    // orphan or not (make a new group if it's an orphan, add it to the group if it's
-    // not)
-    // 4. First group
-    // 5. First orphan that's not the tab in question
-    // 6. At this point there should be no groups or tabs (except for app tabs and the
-    // tab in question): make a new group
-
+    let orphanTab = this.getActiveOrphanTab();
+//    Utils.log('newTab', activeGroupItem, orphanTab);
     if (activeGroupItem) {
-      activeGroupItem.add(tabItem, options);
-      return;
-    }
-
-    let orphanTabItem = UI.getActiveOrphanTab();
-    if (!orphanTabItem) {
-      let targetGroupItem;
-      // find first visible non-app tab in the tabbar.
-      gBrowser.visibleTabs.some(function(tab) {
-        if (!tab.pinned && tab != tabItem.tab) {
-          if (tab._tabViewTabItem) {
-            if (!tab._tabViewTabItem.parent) {
-              // the first visible tab is an orphan tab, set the orphan tab, and 
-              // create a new group for orphan tab and new tabItem
-              orphanTabItem = tab._tabViewTabItem;
-            } else if (!tab._tabViewTabItem.parent.hidden) {
-              // the first visible tab belongs to a group, add the new tabItem to 
-              // that group
-              targetGroupItem = tab._tabViewTabItem.parent;
-            }
-          }
-          return true;
-        }
-        return false;
-      });
-
-      let visibleGroupItems;
-      if (!orphanTabItem) {
-        if (targetGroupItem) {
-          // add the new tabItem to the first group item
-          targetGroupItem.add(tabItem);
-          UI.setActive(targetGroupItem);
-          return;
-        } else {
-          // find the first visible group item
-          visibleGroupItems = this.groupItems.filter(function(groupItem) {
-            return (!groupItem.hidden);
-          });
-          if (visibleGroupItems.length > 0) {
-            visibleGroupItems[0].add(tabItem);
-            UI.setActive(visibleGroupItems[0]);
-            return;
-          }
-        }
-        let orphanedTabs = this.getOrphanedTabs();
-        // set the orphan tab, and create a new group for orphan tab and 
-        // new tabItem
-        if (orphanedTabs.length > 0)
-          orphanTabItem = orphanedTabs[0];
-      }
-    }
-
-    // create new group for orphan tab and new tabItem
-    let tabItems;
-    let newGroupItemBounds;
-    // the orphan tab would be the same as tabItem when all tabs are app tabs
-    // and a new tab is created.
-    if (orphanTabItem && orphanTabItem.tab != tabItem.tab) {
-      newGroupItemBounds = orphanTabItem.getBounds();
-      tabItems = [orphanTabItem, tabItem];
+      activeGroupItem.add(tabItem);
+    } else if (orphanTab) {
+      let newGroupItemBounds = orphanTab.getBoundsWithTitle();
+      newGroupItemBounds.inset(-40,-40);
+      let newGroupItem = new GroupItem([orphanTab, tabItem], {bounds: newGroupItemBounds});
+      newGroupItem.snap();
+      this.setActiveGroupItem(newGroupItem);
     } else {
-      tabItem.setPosition(60, 60, true);
-      newGroupItemBounds = tabItem.getBounds();
-      tabItems = [tabItem];
+      this.positionNewTabAtBottom(tabItem);
     }
+  },
 
-    newGroupItemBounds.inset(-40,-40);
-    let newGroupItem = new GroupItem(tabItems, { bounds: newGroupItemBounds });
-    newGroupItem.snap();
-    UI.setActive(newGroupItem);
+  // ----------
+  // Function: positionNewTabAtBottom
+  // Does what it says on the tin.
+  // TODO: Make more robust and improve documentation,
+  // Also, this probably belongs in tabitems.js
+  // Bug 586558
+  positionNewTabAtBottom: function(tabItem) {
+    let windowBounds = Items.getSafeWindowBounds();
+
+    let itemBounds = new Rect(
+      windowBounds.right - TabItems.tabWidth,
+      windowBounds.bottom - TabItems.tabHeight,
+      TabItems.tabWidth,
+      TabItems.tabHeight
+    );
+
+    tabItem.setBounds(itemBounds);
   },
 
   // ----------
   // Function: getActiveGroupItem
   // Returns the active groupItem. Active means its tabs are
   // shown in the tab bar when not in the TabView interface.
-  getActiveGroupItem: function GroupItems_getActiveGroupItem() {
+  getActiveGroupItem: function() {
     return this._activeGroupItem;
   },
 
   // ----------
   // Function: setActiveGroupItem
-  // Sets the active groupItem, thereby showing only the relevant tabs and
+  // Sets the active groupItem, thereby showing only the relevent tabs, and
   // setting the groupItem which will receive new tabs.
   //
   // Paramaters:
   //  groupItem - the active <GroupItem> or <null> if no groupItem is active
   //          (which means we have an orphaned tab selected)
-  setActiveGroupItem: function GroupItems_setActiveGroupItem(groupItem) {
+  setActiveGroupItem: function(groupItem) {
+
     if (this._activeGroupItem)
       iQ(this._activeGroupItem.container).removeClass('activeGroupItem');
 
     if (groupItem !== null) {
       if (groupItem)
         iQ(groupItem.container).addClass('activeGroupItem');
+      // if a groupItem is active, we surely are not in an orphaned tab.
+      this.setActiveOrphanTab(null);
     }
 
     this._activeGroupItem = groupItem;
-    this._save();
+  },
+
+  // ----------
+  // Function: getActiveOrphanTab
+  // Returns the active orphan tab, in cases when there is no active groupItem.
+  getActiveOrphanTab: function() {
+    return this._activeOrphanTab;
+  },
+
+  // ----------
+  // Function: setActiveOrphanTab
+  // In cases where an orphan tab (not in a groupItem) is active by itself,
+  // this function is called and the "active orphan tab" is set.
+  //
+  // Paramaters:
+  //  groupItem - the active <TabItem> or <null>
+  setActiveOrphanTab: function(tabItem) {
+    this._activeOrphanTab = tabItem;
   },
 
   // ----------
   // Function: _updateTabBar
   // Hides and shows tabs in the tab bar based on the active groupItem or
   // currently active orphan tabItem
-  _updateTabBar: function GroupItems__updateTabBar() {
+  _updateTabBar: function() {
     if (!window.UI)
       return; // called too soon
 
-    let activeOrphanTab;
-    if (!this._activeGroupItem) {
-      activeOrphanTab = UI.getActiveOrphanTab();
-      if (!activeOrphanTab) {
-        Utils.assert(false, "There must be something to show in the tab bar!");
-        return;
-      }
+    if (!this._activeGroupItem && !this._activeOrphanTab) {
+      Utils.assert(false, "There must be something to show in the tab bar!");
+      return;
     }
 
     let tabItems = this._activeGroupItem == null ?
-      [activeOrphanTab] : this._activeGroupItem._children;
+      [this._activeOrphanTab] : this._activeGroupItem._children;
     gBrowser.showOnlyTheseTabs(tabItems.map(function(item) item.tab));
   },
 
   // ----------
   // Function: updateActiveGroupItemAndTabBar
-  // Sets active TabItem and GroupItem, and updates tab bar appropriately.
-  updateActiveGroupItemAndTabBar: function GroupItems_updateActiveGroupItemAndTabBar(tabItem) {
-    Utils.assertThrow(tabItem && tabItem.isATabItem, "tabItem must be a TabItem");
-
-    UI.setActive(tabItem);
+  // Sets active group item and updates tab bar
+  updateActiveGroupItemAndTabBar: function(tabItem) {
+    if (tabItem.parent) {
+      let groupItem = tabItem.parent;
+      this.setActiveGroupItem(groupItem);
+      groupItem.setActiveTab(tabItem);
+    } else {
+      this.setActiveGroupItem(null);
+      this.setActiveOrphanTab(tabItem);
+    }
     this._updateTabBar();
   },
 
   // ----------
   // Function: getOrphanedTabs
   // Returns an array of all tabs that aren't in a groupItem.
-  getOrphanedTabs: function GroupItems_getOrphanedTabs() {
+  getOrphanedTabs: function() {
     var tabs = TabItems.getItems();
     tabs = tabs.filter(function(tab) {
       return tab.parent == null;
@@ -2397,10 +1639,10 @@ let GroupItems = {
   // Paramaters:
   //  reverse - the boolean indicates the direction to look for the next groupItem.
   // Returns the <tabItem>. If nothing is found, return null.
-  getNextGroupItemTab: function GroupItems_getNextGroupItemTab(reverse) {
+  getNextGroupItemTab: function(reverse) {
     var groupItems = Utils.copy(GroupItems.groupItems);
     var activeGroupItem = GroupItems.getActiveGroupItem();
-    var activeOrphanTab = UI.getActiveOrphanTab();
+    var activeOrphanTab = GroupItems.getActiveOrphanTab();
     var tabItem = null;
 
     if (reverse)
@@ -2409,19 +1651,10 @@ let GroupItems = {
     if (!activeGroupItem) {
       if (groupItems.length > 0) {
         groupItems.some(function(groupItem) {
-          if (!groupItem.hidden) {
-            // restore the last active tab in the group
-            let activeTab = groupItem.getActiveTab();
-            if (activeTab) {
-              tabItem = activeTab;
-              return true;
-            }
-            // if no tab is active, use the first one
-            var child = groupItem.getChild(0);
-            if (child) {
-              tabItem = child;
-              return true;
-            }
+          var child = groupItem.getChild(0);
+          if (child) {
+            tabItem = child;
+            return true;
           }
           return false;
         });
@@ -2429,7 +1662,7 @@ let GroupItems = {
     } else {
       var currentIndex;
       groupItems.some(function(groupItem, index) {
-        if (!groupItem.hidden && groupItem == activeGroupItem) {
+        if (groupItem == activeGroupItem) {
           currentIndex = index;
           return true;
         }
@@ -2437,19 +1670,10 @@ let GroupItems = {
       });
       var firstGroupItems = groupItems.slice(currentIndex + 1);
       firstGroupItems.some(function(groupItem) {
-        if (!groupItem.hidden) {
-          // restore the last active tab in the group
-          let activeTab = groupItem.getActiveTab();
-          if (activeTab) {
-            tabItem = activeTab;
-            return true;
-          }
-          // if no tab is active, use the first one
-          var child = groupItem.getChild(0);
-          if (child) {
-            tabItem = child;
-            return true;
-          }
+        var child = groupItem.getChild(0);
+        if (child) {
+          tabItem = child;
+          return true;
         }
         return false;
       });
@@ -2461,19 +1685,10 @@ let GroupItems = {
       if (!tabItem) {
         var secondGroupItems = groupItems.slice(0, currentIndex);
         secondGroupItems.some(function(groupItem) {
-          if (!groupItem.hidden) {
-            // restore the last active tab in the group
-            let activeTab = groupItem.getActiveTab();
-            if (activeTab) {
-              tabItem = activeTab;
-              return true;
-            }
-            // if no tab is active, use the first one
-            var child = groupItem.getChild(0);
-            if (child) {
-              tabItem = child;
-              return true;
-            }
+          var child = groupItem.getChild(0);
+          if (child) {
+            tabItem = child;
+            return true;
           }
           return false;
         });
@@ -2484,45 +1699,40 @@ let GroupItems = {
 
   // ----------
   // Function: moveTabToGroupItem
-  // Used for the right click menu in the tab strip; moves the given tab
-  // into the given group. Does nothing if the tab is an app tab.
   // Paramaters:
   //  tab - the <xul:tab>.
   //  groupItemId - the <groupItem>'s id.  If nothing, create a new <groupItem>.
-  moveTabToGroupItem : function GroupItems_moveTabToGroupItem (tab, groupItemId) {
-    if (tab.pinned)
-      return;
-
-    Utils.assertThrow(tab._tabViewTabItem, "tab must be linked to a TabItem");
-
-    // given tab is already contained in target group
-    if (tab._tabViewTabItem.parent && tab._tabViewTabItem.parent.id == groupItemId)
-      return;
-
+  moveTabToGroupItem : function(tab, groupItemId) {
     let shouldUpdateTabBar = false;
     let shouldShowTabView = false;
     let groupItem;
 
     // switch to the appropriate tab first.
     if (gBrowser.selectedTab == tab) {
-      if (gBrowser.visibleTabs.length > 1) {
-        gBrowser._blurTab(tab);
+      let list = gBrowser.visibleTabs;
+      let listLength = list.length;
+
+      if (listLength > 1) {
+        let index = list.indexOf(tab);
+        if (index == 0 || (index + 1) < listLength)
+          gBrowser.selectTabAtIndex(index + 1);
+        else
+          gBrowser.selectTabAtIndex(index - 1);
         shouldUpdateTabBar = true;
       } else {
         shouldShowTabView = true;
       }
-    } else {
+    } else
       shouldUpdateTabBar = true
-    }
 
     // remove tab item from a groupItem
-    if (tab._tabViewTabItem.parent)
-      tab._tabViewTabItem.parent.remove(tab._tabViewTabItem);
+    if (tab.tabItem.parent)
+      tab.tabItem.parent.remove(tab.tabItem);
 
     // add tab item to a groupItem
     if (groupItemId) {
       groupItem = GroupItems.groupItem(groupItemId);
-      groupItem.add(tab._tabViewTabItem);
+      groupItem.add(tab.tabItem);
       UI.setReorderTabItemsOnShow(groupItem);
     } else {
       let pageBounds = Items.getPageBounds();
@@ -2532,80 +1742,27 @@ let GroupItems = {
       box.width = 250;
       box.height = 200;
 
-      new GroupItem([ tab._tabViewTabItem ], { bounds: box });
+      new GroupItem([ tab.tabItem ], { bounds: box });
     }
 
     if (shouldUpdateTabBar)
       this._updateTabBar();
-    else if (shouldShowTabView)
+    else if (shouldShowTabView) {
+      tab.tabItem.setZoomPrep(false);
       UI.showTabView();
-  },
-
-  // ----------
-  // Function: removeHiddenGroups
-  // Removes all hidden groups' data and its browser tabs.
-  removeHiddenGroups: function GroupItems_removeHiddenGroups() {
-    if (this._removingHiddenGroups)
-      return;
-    this._removingHiddenGroups = true;
-
-    let groupItems = this.groupItems.concat();
-    groupItems.forEach(function(groupItem) {
-      if (groupItem.hidden)
-        groupItem.closeHidden();
-     });
-
-    this._removingHiddenGroups = false;
-  },
-
-  // ----------
-  // Function: getUnclosableGroupItemId
-  // If there's only one (non-hidden) group, and there are app tabs present, 
-  // returns that group.
-  // Return the <GroupItem>'s Id
-  getUnclosableGroupItemId: function GroupItems_getUnclosableGroupItemId() {
-    let unclosableGroupItemId = null;
-
-    if (gBrowser._numPinnedTabs > 0) {
-      let hiddenGroupItems = 
-        this.groupItems.concat().filter(function(groupItem) {
-          return !groupItem.hidden;
-        });
-      if (hiddenGroupItems.length == 1)
-        unclosableGroupItemId = hiddenGroupItems[0].id;
     }
-
-    return unclosableGroupItemId;
   },
 
   // ----------
-  // Function: updateGroupCloseButtons
-  // Updates group close buttons.
-  updateGroupCloseButtons: function GroupItems_updateGroupCloseButtons() {
-    let unclosableGroupItemId = this.getUnclosableGroupItemId();
-
-    if (unclosableGroupItemId) {
-      let groupItem = this.groupItem(unclosableGroupItemId);
-
-      if (groupItem) {
-        groupItem.$closeButton.hide();
+  // Function: killNewTabGroup
+  // Removes the New Tab Group, which is now defunct. See bug 575851 and comments therein.
+  killNewTabGroup: function() {
+    let newTabGroupTitle = "New Tabs";
+    this.groupItems.forEach(function(groupItem) {
+      if (groupItem.getTitle() == newTabGroupTitle && groupItem.locked.title) {
+        groupItem.removeAll();
+        groupItem.close();
       }
-    } else {
-      this.groupItems.forEach(function(groupItem) {
-        groupItem.$closeButton.show();
-      });
-    }
-  },
-  
-  // ----------
-  // Function: calcValidSize
-  // Basic measure rules. Assures that item is a minimum size.
-  calcValidSize: function GroupItems_calcValidSize(size, options) {
-    Utils.assert(Utils.isPoint(size), 'input is a Point');
-    Utils.assert((size.x>0 || size.y>0) && (size.x!=0 && size.y!=0), 
-      "dimensions are valid:"+size.x+","+size.y);
-    return new Point(
-      Math.max(size.x, GroupItems.minGroupWidth),
-      Math.max(size.y, GroupItems.minGroupHeight));
+    });
   }
 };

@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sha512.c,v 1.14.6.2 2011/03/30 22:45:05 wtc%google.com Exp $ */
+/* $Id: sha512.c,v 1.14 2009/04/09 22:11:07 julien.pierre.boogz%sun.com Exp $ */
 
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -48,7 +48,6 @@
 #undef HAVE_LONG_LONG
 #endif
 #include "prtypes.h"	/* for PRUintXX */
-#include "prlong.h"
 #include "secport.h"	/* for PORT_XXX */
 #include "blapi.h"
 #include "sha256.h"	/* for struct SHA256ContextStr */
@@ -135,7 +134,7 @@ static __inline__ PRUint32 swap4b(PRUint32 value)
 #define SHA_HTONL(x) swap4b(x)
 #define BYTESWAP4(x)  x = SHA_HTONL(x)
 
-#else
+#else /* neither windows nor Linux PC */
 #define SWAP4MASK  0x00FF00FF
 #define SHA_HTONL(x) (t1 = (x), t1 = (t1 << 16) | (t1 >> 16), \
                       ((t1 & SWAP4MASK) << 8) | ((t1 >> 8) & SWAP4MASK))
@@ -1107,14 +1106,16 @@ SHA512_End(SHA512Context *ctx, unsigned char *digest,
 {
 #if defined(HAVE_LONG_LONG)
     unsigned int inBuf  = (unsigned int)ctx->sizeLo & 0x7f;
-    PRUint64 t1;
+    unsigned int padLen = (inBuf < 112) ? (112 - inBuf) : (112 + 128 - inBuf);
+    PRUint64 lo, t1;
+    lo = (ctx->sizeLo << 3);
 #else
     unsigned int inBuf  = (unsigned int)ctx->sizeLo.lo & 0x7f;
-    PRUint32 t1;
-#endif
     unsigned int padLen = (inBuf < 112) ? (112 - inBuf) : (112 + 128 - inBuf);
-    PRUint64 lo;
-    LL_SHL(lo, ctx->sizeLo, 3);
+    PRUint64 lo = ctx->sizeLo;
+    PRUint32 t1;
+    lo.lo <<= 3;
+#endif
 
     SHA512_Update(ctx, pad, padLen);
 

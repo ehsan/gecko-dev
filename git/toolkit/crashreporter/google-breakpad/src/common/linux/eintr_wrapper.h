@@ -36,7 +36,7 @@
 // signal and return EINTR. See man 7 signal.
 //
 
-#define HANDLE_EINTR(x) __extension__ ({ \
+#define HANDLE_EINTR(x) ({ \
   typeof(x) __eintr_result__; \
   do { \
     __eintr_result__ = x; \

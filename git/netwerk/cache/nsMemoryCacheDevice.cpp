@@ -294,12 +294,6 @@ nsMemoryCacheDevice::GetFileForEntry( nsCacheEntry *    entry,
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-bool
-nsMemoryCacheDevice::EntryIsTooBig(PRInt64 entrySize)
-{
-    return entrySize > mSoftLimit;
-}
-
 
 nsresult
 nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, PRInt32 deltaSize)
@@ -307,7 +301,7 @@ nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, PRInt32 deltaSize)
     if (entry->IsStreamData()) {
         // we have the right to refuse or pre-evict
         PRUint32  newSize = entry->DataSize() + deltaSize;
-        if (EntryIsTooBig(newSize)) {
+        if ((PRInt32) newSize > mSoftLimit) {
 #ifdef DEBUG
             nsresult rv =
 #endif
@@ -405,9 +399,9 @@ nsMemoryCacheDevice::EvictionList(nsCacheEntry * entry, PRInt32  deltaSize)
     // compute which eviction queue this entry should go into,
     // based on floor(log2(size/nref))
     PRInt32  size       = deltaSize + (PRInt32)entry->Size();
-    PRInt32  fetchCount = NS_MAX(1, entry->FetchCount());
+    PRInt32  fetchCount = PR_MAX(1, entry->FetchCount());
 
-    return NS_MIN(PR_FloorLog2(size / fetchCount), kQueueCount - 1);
+    return PR_MIN(PR_FloorLog2(size / fetchCount), kQueueCount - 1);
 }
 
 

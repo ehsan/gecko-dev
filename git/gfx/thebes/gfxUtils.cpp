@@ -39,9 +39,8 @@
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxDrawable.h"
-#include "nsRegion.h"
 
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(WINCE)
 #include "gfxWindowsPlatform.h"
 #endif
 
@@ -210,27 +209,6 @@ IsSafeImageTransformComponent(gfxFloat aValue)
   return aValue >= -32768 && aValue <= 32767;
 }
 
-/**
- * This returns the fastest operator to use for solid surfaces which have no
- * alpha channel or their alpha channel is uniformly opaque.
- * This differs per render mode.
- */
-static gfxContext::GraphicsOperator
-OptimalFillOperator()
-{
-#ifdef XP_WIN
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D) {
-        // D2D -really- hates operator source.
-        return gfxContext::OPERATOR_OVER;
-    } else {
-#endif
-        return gfxContext::OPERATOR_SOURCE;
-#ifdef XP_WIN
-    }
-#endif
-}
-
 // EXTEND_PAD won't help us here; we have to create a temporary surface to hold
 // the subimage of pixels we're allowed to sample.
 static already_AddRefed<gfxDrawable>
@@ -251,7 +229,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
         aUserSpaceToImageSpace.TransformBounds(userSpaceClipExtents);
     // Inflate by one pixel because bilinear filtering will sample at most
     // one pixel beyond the computed image pixel coordinate.
-    imageSpaceClipExtents.Inflate(1.0);
+    imageSpaceClipExtents.Outset(1.0);
 
     gfxRect needed = imageSpaceClipExtents.Intersect(aSourceRect);
     needed = needed.Intersect(aSubimage);
@@ -266,21 +244,21 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
 
     gfxIntSize size(PRInt32(needed.Width()), PRInt32(needed.Height()));
     nsRefPtr<gfxASurface> temp =
-        gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ContentFromFormat(aFormat));
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, aFormat);
     if (!temp || temp->CairoStatus())
         return nsnull;
 
-    nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
-    tmpCtx->SetOperator(OptimalFillOperator());
-    aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), PR_TRUE,
-                    gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.TopLeft()));
+    gfxContext tmpCtx(temp);
+    tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
+    aDrawable->Draw(&tmpCtx, needed - needed.pos, PR_TRUE,
+                    gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.pos));
 
     nsRefPtr<gfxPattern> resultPattern = new gfxPattern(temp);
     if (!resultPattern)
         return nsnull;
 
     nsRefPtr<gfxDrawable> drawable = 
-        new gfxSurfaceDrawable(temp, size, gfxMatrix().Translate(-needed.TopLeft()));
+        new gfxSurfaceDrawable(temp, size, gfxMatrix().Translate(-needed.pos));
     return drawable.forget();
 }
 
@@ -347,6 +325,27 @@ private:
     PRPackedBool mSucceeded;
     PRPackedBool mPushedGroup;
 };
+
+/**
+ * This returns the fastest operator to use for solid surfaces which have no
+ * alpha channel or their alpha channel is uniformly opaque.
+ * This differs per render mode.
+ */
+static gfxContext::GraphicsOperator
+OptimalFillOperator()
+{
+#ifdef XP_WIN
+    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
+        gfxWindowsPlatform::RENDER_DIRECT2D) {
+        // D2D -really- hates operator source.
+        return gfxContext::OPERATOR_OVER;
+    } else {
+#endif
+        return gfxContext::OPERATOR_SOURCE;
+#ifdef XP_WIN
+    }
+#endif
+}
 
 static gfxMatrix
 DeviceToImageTransform(gfxContext* aContext,
@@ -417,103 +416,5 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
     drawable->Draw(aContext, aFill, doTile, aFilter, aUserSpaceToImageSpace);
 
     aContext->SetOperator(op);
-}
-
-/* static */ int
-gfxUtils::ImageFormatToDepth(gfxASurface::gfxImageFormat aFormat)
-{
-    switch (aFormat) {
-        case gfxASurface::ImageFormatARGB32:
-            return 32;
-        case gfxASurface::ImageFormatRGB24:
-            return 24;
-        case gfxASurface::ImageFormatRGB16_565:
-            return 16;
-        default:
-            break;
-    }
-    return 0;
-}
-
-static void
-PathFromRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
-                       PRBool aSnap)
-{
-  aContext->NewPath();
-  nsIntRegionRectIterator iter(aRegion);
-  const nsIntRect* r;
-  while ((r = iter.Next()) != nsnull) {
-    aContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), aSnap);
-  }
-}
-
-static void
-ClipToRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
-                     PRBool aSnap)
-{
-  PathFromRegionInternal(aContext, aRegion, aSnap);
-  aContext->Clip();
-}
-
-/*static*/ void
-gfxUtils::ClipToRegion(gfxContext* aContext, const nsIntRegion& aRegion)
-{
-  ClipToRegionInternal(aContext, aRegion, PR_FALSE);
-}
-
-/*static*/ void
-gfxUtils::ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
-{
-  ClipToRegionInternal(aContext, aRegion, PR_TRUE);
-}
-
-/*static*/ gfxFloat
-gfxUtils::ClampToScaleFactor(gfxFloat aVal)
-{
-  // Arbitary scale factor limitation. We can increase this
-  // for better scaling performance at the cost of worse
-  // quality.
-  static const gfxFloat kScaleResolution = 2;
-
-  // Negative scaling is just a flip and irrelevant to
-  // our resolution calculation.
-  if (aVal < 0.0) {
-    aVal = -aVal;
-  }
-
-  gfxFloat power = log(aVal)/log(kScaleResolution);
-
-  // If power is within 1e-6 of an integer, round to nearest to
-  // prevent floating point errors, otherwise round up to the
-  // next integer value.
-  if (fabs(power - NS_round(power)) < 1e-6) {
-    power = NS_round(power);
-  } else {
-    power = NS_ceil(power);
-  }
-
-  return pow(kScaleResolution, power);
-}
-
-
-/*static*/ void
-gfxUtils::PathFromRegion(gfxContext* aContext, const nsIntRegion& aRegion)
-{
-  PathFromRegionInternal(aContext, aRegion, PR_FALSE);
-}
-
-/*static*/ void
-gfxUtils::PathFromRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
-{
-  PathFromRegionInternal(aContext, aRegion, PR_TRUE);
-}
-
-
-PRBool
-gfxUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
-{
-  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
-  PRInt32(aIn.Width()), PRInt32(aIn.Height()));
-  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height).IsEqualEdges(aIn);
 }
 

@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "VideoUtils.h"
-#include "nsMathUtils.h"
 #include "prtypes.h"
 
 // Adds two 32bit unsigned numbers, retuns PR_TRUE if addition succeeded,
@@ -176,43 +175,24 @@ PRBool MulOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult) {
   return PR_TRUE;
 }
 
-// Converts from number of audio samples to microseconds, given the specified
+// Converts from number of audio samples to milliseconds, given the specified
 // audio rate.
-PRBool SamplesToUsecs(PRInt64 aSamples, PRUint32 aRate, PRInt64& aOutUsecs)
+PRBool SamplesToMs(PRInt64 aSamples, PRUint32 aRate, PRInt64& aOutMs)
 {
   PRInt64 x;
-  if (!MulOverflow(aSamples, USECS_PER_S, x))
+  if (!MulOverflow(aSamples, 1000, x))
     return PR_FALSE;
-  aOutUsecs = x / aRate;
+  aOutMs = x / aRate;
   return PR_TRUE;
 }
 
-// Converts from microseconds to number of audio samples, given the specified
+// Converts from milliseconds to number of audio samples, given the specified
 // audio rate.
-PRBool UsecsToSamples(PRInt64 aUsecs, PRUint32 aRate, PRInt64& aOutSamples)
+PRBool MsToSamples(PRInt64 aMs, PRUint32 aRate, PRInt64& aOutSamples)
 {
   PRInt64 x;
-  if (!MulOverflow(aUsecs, aRate, x))
+  if (!MulOverflow(aMs, aRate, x))
     return PR_FALSE;
-  aOutSamples = x / USECS_PER_S;
+  aOutSamples = x / 1000;
   return PR_TRUE;
-}
-
-static PRInt32 ConditionDimension(float aValue)
-{
-  // This will exclude NaNs and too-big values.
-  if (aValue > 1.0 && aValue <= PR_INT32_MAX)
-    return PRInt32(NS_round(aValue));
-  return 0;
-}
-
-void ScaleDisplayByAspectRatio(nsIntSize& aDisplay, float aAspectRatio)
-{
-  if (aAspectRatio > 1.0) {
-    // Increase the intrinsic width
-    aDisplay.width = ConditionDimension(aAspectRatio * aDisplay.width);
-  } else {
-    // Increase the intrinsic height
-    aDisplay.height = ConditionDimension(aDisplay.height / aAspectRatio);
-  }
 }

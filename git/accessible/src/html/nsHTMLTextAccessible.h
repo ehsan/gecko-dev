@@ -60,8 +60,8 @@ public:
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -73,7 +73,7 @@ public:
   nsHTMLHRAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 /**
@@ -86,8 +86,8 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -102,26 +102,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-};
-
-/**
- * Used for HTML output element.
- */
-class nsHTMLOutputAccessible : public nsHyperTextAccessibleWrap
-{
-public:
-  nsHTMLOutputAccessible(nsIContent* aContent, nsIWeakReference* aShell);
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIAccessible
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation** aRelation);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties* aAttributes);
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 /**
@@ -130,19 +111,32 @@ public:
 class nsHTMLListBulletAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLListBulletAccessible(nsIContent* aContent, nsIWeakReference* aShell);
+  nsHTMLListBulletAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                             const nsAString& aBulletText);
+
+  // nsIAccessNode
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
 
   // nsAccessNode
-  virtual bool IsPrimaryForNode() const;
+  virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-  virtual void AppendTextTo(nsAString& aText, PRUint32 aStartOffset = 0,
-                            PRUint32 aLength = PR_UINT32_MAX);
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
+                                PRUint32 aLength);
+
+protected:
+  // XXX: Ideally we'd get the bullet text directly from the bullet frame via
+  // nsBulletFrame::GetListItemText(), but we'd need an interface for getting
+  // text from contentless anonymous frames. Perhaps something like
+  // nsIAnonymousFrame::GetText() ? However, in practice storing the bullet text
+  // here should not be a problem if we invalidate the right parts of
+  // the accessibility cache when mutation events occur.
+  nsString mBulletText;
 };
 
 /**
@@ -157,8 +151,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -167,37 +161,28 @@ public:
 class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLIAccessible(nsIContent* aContent, nsIWeakReference* aShell);
+  nsHTMLLIAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                     const nsAString& aBulletText);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsAccessNode
-  virtual void Shutdown();
-
   // nsIAccessible
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  // nsAccessNode
+  virtual void Shutdown();
 
-  // nsHTMLLIAccessible
-  void UpdateBullet(bool aHasBullet);
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
   // nsAccessible
   virtual void CacheChildren();
 
 private:
-  nsRefPtr<nsHTMLListBulletAccessible> mBullet;
+  nsRefPtr<nsHTMLListBulletAccessible> mBulletAccessible;
 };
 
-inline nsHTMLLIAccessible*
-nsAccessible::AsHTMLListItem()
-{
-  return mFlags & eHTMLListItemAccessible ?
-    static_cast<nsHTMLLIAccessible*>(this) : nsnull;
-}
-
-#endif
+#endif  

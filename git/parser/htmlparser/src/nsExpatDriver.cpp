@@ -285,15 +285,15 @@ struct nsCatalogData {
 
 // The order of this table is guestimated to be in the optimum order
 static const nsCatalogData kCatalogTable[] = {
-  { "-//W3C//DTD XHTML 1.0 Transitional//EN",    "htmlmathml-f.ent", nsnull },
-  { "-//W3C//DTD XHTML 1.1//EN",                 "htmlmathml-f.ent", nsnull },
-  { "-//W3C//DTD XHTML 1.0 Strict//EN",          "htmlmathml-f.ent", nsnull },
-  { "-//W3C//DTD XHTML 1.0 Frameset//EN",        "htmlmathml-f.ent", nsnull },
-  { "-//W3C//DTD XHTML Basic 1.0//EN",           "htmlmathml-f.ent", nsnull },
-  { "-//W3C//DTD XHTML 1.1 plus MathML 2.0//EN", "htmlmathml-f.ent", "resource://gre-resources/mathml.css" },
-  { "-//W3C//DTD XHTML 1.1 plus MathML 2.0 plus SVG 1.1//EN", "htmlmathml-f.ent", "resource://gre-resources/mathml.css" },
-  { "-//W3C//DTD MathML 2.0//EN",                "htmlmathml-f.ent", "resource://gre-resources/mathml.css" },
-  { "-//WAPFORUM//DTD XHTML Mobile 1.0//EN",     "htmlmathml-f.ent", nsnull },
+  { "-//W3C//DTD XHTML 1.0 Transitional//EN",    "xhtml11.dtd", nsnull },
+  { "-//W3C//DTD XHTML 1.1//EN",                 "xhtml11.dtd", nsnull },
+  { "-//W3C//DTD XHTML 1.0 Strict//EN",          "xhtml11.dtd", nsnull },
+  { "-//W3C//DTD XHTML 1.0 Frameset//EN",        "xhtml11.dtd", nsnull },
+  { "-//W3C//DTD XHTML Basic 1.0//EN",           "xhtml11.dtd", nsnull },
+  { "-//W3C//DTD XHTML 1.1 plus MathML 2.0//EN", "mathml.dtd",  "resource://gre-resources/mathml.css" },
+  { "-//W3C//DTD XHTML 1.1 plus MathML 2.0 plus SVG 1.1//EN", "mathml.dtd", "resource://gre-resources/mathml.css" },
+  { "-//W3C//DTD MathML 2.0//EN",                "mathml.dtd",  "resource://gre-resources/mathml.css" },
+  { "-//WAPFORUM//DTD XHTML Mobile 1.0//EN",     "xhtml11.dtd", nsnull },
   { nsnull, nsnull, nsnull }
 };
 
@@ -375,8 +375,7 @@ nsExpatDriver::nsExpatDriver()
     mIsFinalChunk(PR_FALSE),
     mInternalState(NS_OK),
     mExpatBuffered(0),
-    mCatalogData(nsnull),
-    mWindowID(0)
+    mCatalogData(nsnull)
 {
 }
 
@@ -799,17 +798,14 @@ nsExpatDriver::OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
     return NS_ERROR_CONTENT_BLOCKED;
   }
 
+  rv = NS_OpenURI(aStream, uri);
+
   nsCAutoString absURL;
   uri->GetSpec(absURL);
 
   CopyUTF8toUTF16(absURL, aAbsURL);
 
-  nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel), uri);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  channel->SetContentType(NS_LITERAL_CSTRING("application/xml"));
-  return channel->Open(aStream);
+  return rv;
 }
 
 static nsresult
@@ -947,13 +943,11 @@ nsExpatDriver::HandleError()
   nsCOMPtr<nsIScriptError> serr(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
   nsresult rv = NS_ERROR_FAILURE;
   if (serr) {
-    nsCOMPtr<nsIScriptError2> serr2(do_QueryInterface(serr));
-    rv = serr2->InitWithWindowID(description.get(),
-                                 mURISpec.get(),
-                                 mLastLine.get(),
-                                 lineNumber, colNumber,
-                                 nsIScriptError::errorFlag, "malformed-xml",
-                                 mWindowID);
+    rv = serr->Init(description.get(),
+                    mURISpec.get(),
+                    mLastLine.get(),
+                    lineNumber, colNumber,
+                    nsIScriptError::errorFlag, "malformed-xml");
   }
 
   // If it didn't initialize, we can't do any logging.
@@ -1239,22 +1233,6 @@ nsExpatDriver::WillBuildModel(const CParserContext& aParserContext,
 
   XML_SetBase(mExpatParser, mURISpec.get());
 
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mOriginalSink->GetTarget());
-  if (doc) {
-    nsCOMPtr<nsPIDOMWindow> win = doc->GetWindow();
-    if (!win) {
-      PRBool aHasHadScriptHandlingObject;
-      nsIScriptGlobalObject *global =
-        doc->GetScriptHandlingObject(aHasHadScriptHandlingObject);
-      if (global) {
-        win = do_QueryInterface(global);
-      }
-    }
-    if (win) {
-      mWindowID = win->GetOuterWindow()->WindowID();
-    }
-  }
-
   // Set up the callbacks
   XML_SetXmlDeclHandler(mExpatParser, Driver_HandleXMLDeclaration); 
   XML_SetElementHandler(mExpatParser, Driver_HandleStartElement,
@@ -1436,10 +1414,7 @@ nsExpatDriver::MaybeStopParser(nsresult aState)
         mInternalState == NS_ERROR_HTMLPARSER_INTERRUPTED ||
         (mInternalState == NS_ERROR_HTMLPARSER_BLOCK &&
          aState != NS_ERROR_HTMLPARSER_INTERRUPTED)) {
-      mInternalState = (aState == NS_ERROR_HTMLPARSER_INTERRUPTED ||
-                        aState == NS_ERROR_HTMLPARSER_BLOCK) ?
-                       aState :
-                       NS_ERROR_HTMLPARSER_STOPPARSING;
+      mInternalState = aState;
     }
 
     // If we get an error then we need to stop Expat (by calling XML_StopParser

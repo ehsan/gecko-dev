@@ -57,10 +57,10 @@ void PlatformThread::SetName(const char* name) {
   info.dwThreadID = CurrentId();
   info.dwFlags = 0;
 
-  MOZ_SEH_TRY {
+  __try {
     RaiseException(kVCThreadNameException, 0, sizeof(info)/sizeof(DWORD),
                    reinterpret_cast<DWORD_PTR*>(&info));
-  } MOZ_SEH_EXCEPT(EXCEPTION_CONTINUE_EXECUTION) {
+  } __except(EXCEPTION_CONTINUE_EXECUTION) {
   }
 }
 

@@ -10,12 +10,6 @@
 
 #filter substitution
 
-#if MOZ_UPDATE_CHANNEL == aurora
-#define SHIP_FEEDBACK
-#elif MOZ_UPDATE_CHANNEL == beta
-#define SHIP_FEEDBACK
-#endif
-
 #ifdef XP_MACOSX
 ; Mac bundle stuff
 @APPNAME@/Contents/Info.plist
@@ -36,9 +30,10 @@
 @BINPATH@/update.locale
 @BINPATH@/updater.ini
 @BINPATH@/dictionaries/*
-@BINPATH@/hyphenation/*
 #ifdef XP_WIN32
+#ifndef WINCE
 @BINPATH@/uninstall/helper.exe
+#endif
 #endif
 
 [xpcom]
@@ -56,13 +51,16 @@
 #else
 @BINPATH@/@DLL_PREFIX@xul@DLL_SUFFIX@
 #endif
+#ifdef MOZ_IPC
 #ifdef XP_MACOSX
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@.app/
-@BINPATH@/@DLL_PREFIX@plugin_child_interpose@DLL_SUFFIX@
 #else
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #endif
-#ifdef XP_WIN32
+#endif
+#ifdef WINCE
+@BINPATH@/mozce_shunt.dll
+#elifdef XP_WIN32
 #ifndef MOZ_MEMORY
 #if _MSC_VER == 1400
 @BINPATH@/Microsoft.VC80.CRT.manifest
@@ -138,6 +136,7 @@
 @BINPATH@/components/content_canvas.xpt
 @BINPATH@/components/content_htmldoc.xpt
 @BINPATH@/components/content_html.xpt
+@BINPATH@/components/content_xmldoc.xpt
 @BINPATH@/components/content_xslt.xpt
 @BINPATH@/components/content_xtf.xpt
 @BINPATH@/components/cookie.xpt
@@ -150,7 +149,6 @@
 @BINPATH@/components/dom_css.xpt
 @BINPATH@/components/dom_events.xpt
 @BINPATH@/components/dom_geolocation.xpt
-@BINPATH@/components/dom_notification.xpt
 @BINPATH@/components/dom_html.xpt
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
@@ -161,6 +159,7 @@
 @BINPATH@/components/dom_stylesheets.xpt
 @BINPATH@/components/dom_threads.xpt
 @BINPATH@/components/dom_traversal.xpt
+@BINPATH@/components/dom_views.xpt
 @BINPATH@/components/dom_xbl.xpt
 @BINPATH@/components/dom_xpath.xpt
 @BINPATH@/components/dom_xul.xpt
@@ -196,7 +195,9 @@
 @BINPATH@/components/layout_xul.xpt
 @BINPATH@/components/locale.xpt
 @BINPATH@/components/lwbrk.xpt
+#ifndef WINCE
 @BINPATH@/components/migration.xpt
+#endif
 @BINPATH@/components/mimetype.xpt
 @BINPATH@/components/mozfind.xpt
 @BINPATH@/components/necko_about.xpt
@@ -211,7 +212,6 @@
 @BINPATH@/components/necko_strconv.xpt
 @BINPATH@/components/necko_viewsource.xpt
 @BINPATH@/components/necko_wifi.xpt
-@BINPATH@/components/necko_wyciwyg.xpt
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
 @BINPATH@/components/parentalcontrols.xpt
@@ -225,7 +225,9 @@
 @BINPATH@/components/satchel.xpt
 @BINPATH@/components/saxparser.xpt
 @BINPATH@/components/sessionstore.xpt
-@BINPATH@/components/services-crypto-component.xpt
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/components/services-crypto.xpt
+#endif
 @BINPATH@/components/shellservice.xpt
 @BINPATH@/components/shistory.xpt
 @BINPATH@/components/spellchecker.xpt
@@ -236,6 +238,9 @@
 #endif
 @BINPATH@/components/txtsvc.xpt
 @BINPATH@/components/txmgr.xpt
+#ifdef MOZ_USE_NATIVE_UCONV
+@BINPATH@/components/ucnative.xpt
+#endif
 @BINPATH@/components/uconv.xpt
 @BINPATH@/components/unicharutil.xpt
 @BINPATH@/components/update.xpt
@@ -243,6 +248,7 @@
 @BINPATH@/components/urlformatter.xpt
 @BINPATH@/components/webBrowser_core.xpt
 @BINPATH@/components/webbrowserpersist.xpt
+@BINPATH@/components/webshell_idls.xpt
 @BINPATH@/components/widget.xpt
 #ifdef XP_MACOSX
 @BINPATH@/components/widget_cocoa.xpt
@@ -261,11 +267,8 @@
 @BINPATH@/components/xuldoc.xpt
 @BINPATH@/components/xultmpl.xpt
 @BINPATH@/components/zipwriter.xpt
-@BINPATH@/components/telemetry.xpt
 
 ; JavaScript components
-@BINPATH@/components/ConsoleAPI.manifest
-@BINPATH@/components/ConsoleAPI.js
 @BINPATH@/components/FeedProcessor.manifest
 @BINPATH@/components/FeedProcessor.js
 @BINPATH@/components/BrowserFeeds.manifest
@@ -279,6 +282,7 @@
 @BINPATH@/components/nsBrowserGlue.js
 @BINPATH@/components/nsSetDefaultBrowser.manifest
 @BINPATH@/components/nsSetDefaultBrowser.js
+@BINPATH@/components/nsMicrosummaryService.js
 @BINPATH@/components/BrowserPlaces.manifest
 @BINPATH@/components/nsPrivateBrowsingService.manifest
 @BINPATH@/components/nsPrivateBrowsingService.js
@@ -340,11 +344,11 @@
 @BINPATH@/components/toolkitplaces.manifest
 @BINPATH@/components/nsLivemarkService.js
 @BINPATH@/components/nsTaggingService.js
+@BINPATH@/components/nsPlacesDBFlush.js
 @BINPATH@/components/nsPlacesAutoComplete.manifest
 @BINPATH@/components/nsPlacesAutoComplete.js
 @BINPATH@/components/nsPlacesExpiration.js
 @BINPATH@/components/PlacesProtocolHandler.js
-@BINPATH@/components/PlacesCategoriesStarter.js
 @BINPATH@/components/nsDefaultCLH.manifest
 @BINPATH@/components/nsDefaultCLH.js
 @BINPATH@/components/nsContentPrefService.manifest
@@ -360,7 +364,6 @@
 @BINPATH@/components/satchel.manifest
 @BINPATH@/components/nsFormAutoComplete.js
 @BINPATH@/components/nsFormHistory.js
-@BINPATH@/components/nsInputListAutoComplete.js
 @BINPATH@/components/contentSecurityPolicy.manifest
 @BINPATH@/components/contentSecurityPolicy.js
 @BINPATH@/components/contentAreaDropListener.manifest
@@ -378,9 +381,9 @@
 #ifdef MOZ_SERVICES_SYNC
 @BINPATH@/components/SyncComponents.manifest
 @BINPATH@/components/Weave.js
+@BINPATH@/components/WeaveCrypto.manifest
+@BINPATH@/components/WeaveCrypto.js
 #endif
-@BINPATH@/components/TelemetryPing.js
-@BINPATH@/components/TelemetryPing.manifest
 
 ; Modules
 @BINPATH@/modules/*
@@ -389,7 +392,6 @@
 @BINPATH@/components/nsSafebrowsingApplication.manifest
 @BINPATH@/components/nsSafebrowsingApplication.js
 @BINPATH@/components/nsURLClassifier.manifest
-@BINPATH@/components/nsUrlClassifierHashCompleter.js
 @BINPATH@/components/nsUrlClassifierListManager.js
 @BINPATH@/components/nsUrlClassifierLib.js
 @BINPATH@/components/url-classifier.xpt
@@ -399,22 +401,14 @@
 @BINPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
 #endif
 
-; ANGLE GLES-on-D3D rendering library
-#ifdef MOZ_ANGLE
-@BINPATH@/libEGL.dll
-@BINPATH@/libGLESv2.dll
-@BINPATH@/@MOZ_D3DX9_DLL@
-@BINPATH@/@MOZ_D3DCOMPILER_DLL@
-#endif
-
 ; [Browser Chrome Files]
 @BINPATH@/chrome/browser@JAREXT@
 @BINPATH@/chrome/browser.manifest
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/preview.png
-#ifdef SHIP_FEEDBACK
-@BINPATH@/distribution/extensions/testpilot@labs.mozilla.com.xpi
+#if MOZ_UPDATE_CHANNEL == beta
+@BINPATH@/extensions/testpilot@labs.mozilla.com/*
 #endif
 @BINPATH@/chrome/toolkit@JAREXT@
 @BINPATH@/chrome/toolkit.manifest
@@ -556,9 +550,26 @@ bin/libfreebl_32int64_3.so
 bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 #endif
 
+; [ActiveX]
+#ifdef WINCE
+#ifndef MOZ_NO_ACTIVEX_SUPPORT
+@BINPATH@/components/nsAxSecurityPolicy.js
+@BINPATH@/@PREF_DIR@/activex.js
+@BINPATH@/plugins/npmozax.dll
+@BINPATH@/plugins/nsIMozAxPlugin.xpt
+#endif
+#endif
+
+; [FastStart]
+#ifdef WINCE
+#ifdef MOZ_FASTSTART
+@BINPATH@/firefoxfaststart.exe
+@BINPATH@/components/FastStartup.manifest
+@BINPATH@/components/FastStartup.js
+#endif
+#endif
+
 ; [OS/2]
 #ifdef XP_OS2
 @BINPATH@/MozSounds.cmd
-@BINPATH@/*.xqs
-@BINPATH@/components/*.xqs
 #endif

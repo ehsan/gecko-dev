@@ -482,22 +482,10 @@ function test_clone_copies_overridden_functions()
   run_next_test();
 }
 
-function test_getInterface()
-{
-  let db = getOpenedDatabase();
-  let target = db.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIEventTarget);
-  // Just check that target is non-null.  Other tests will ensure that it has
-  // the correct value.
-  do_check_true(target != null);
-
-  run_next_test();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Runner
 
-[
+var tests = [
   test_connectionReady_open,
   test_connectionReady_closed,
   test_databaseFile,
@@ -525,10 +513,36 @@ function test_getInterface()
   test_close_clone_fails,
   test_clone_copies_functions,
   test_clone_copies_overridden_functions,
-  test_getInterface,
-].forEach(add_test);
+];
+let index = 0;
+
+function run_next_test()
+{
+  function _run_next_test() {
+    if (index < tests.length) {
+      do_test_pending();
+      print("Running the next test: " + tests[index].name);
+
+      // Asynchronous tests means that exceptions don't kill the test.
+      try {
+        tests[index++]();
+      }
+      catch (e) {
+        do_throw(e);
+      }
+    }
+
+    do_test_finished();
+  }
+
+  // For saner stacks, we execute this code RSN.
+  do_execute_soon(_run_next_test);
+}
 
 function run_test()
 {
+  cleanup();
+
+  do_test_pending();
   run_next_test();
 }

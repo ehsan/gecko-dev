@@ -50,34 +50,29 @@ static PerfMeasurement* GetPMFromThis(JSContext* cx, jsval* vp);
 // Constructor and destructor
 
 static JSBool
-pm_construct(JSContext* cx, uintN argc, jsval* vp)
+pm_construct(JSContext* cx, JSObject* obj, uintN argc, jsval* argv, jsval* rval)
 {
     uint32 mask;
-    if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
+    if (!JS_ConvertArguments(cx, argc, argv, "u", &mask))
         return JS_FALSE;
 
-    JSObject *obj = JS_NewObjectForConstructor(cx, vp);
-    if (!obj)
+    if (!JS_SealObject(cx, obj, JS_FALSE))
         return JS_FALSE;
 
-    if (!JS_FreezeObject(cx, obj))
-        return JS_FALSE;
-
-    PerfMeasurement* p = cx->new_<PerfMeasurement>(PerfMeasurement::EventMask(mask));
+    PerfMeasurement* p = new PerfMeasurement(PerfMeasurement::EventMask(mask));
     if (!p) {
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
     }
 
     JS_SetPrivate(cx, obj, p);
-    *vp = OBJECT_TO_JSVAL(obj);
     return JS_TRUE;
 }
 
 static void
 pm_finalize(JSContext* cx, JSObject* obj)
 {
-    cx->delete_((PerfMeasurement*) JS_GetPrivate(cx, obj));
+    delete (PerfMeasurement*) JS_GetPrivate(cx, obj);
 }
 
 // Property access
@@ -216,7 +211,7 @@ static const struct pm_const {
 
 static JSClass pm_class = {
     "PerfMeasurement", JSCLASS_HAS_PRIVATE,
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, pm_finalize,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
@@ -265,12 +260,12 @@ RegisterPerfMeasurement(JSContext *cx, JSObject *global)
 
     for (const pm_const *c = pm_consts; c->name; c++) {
         if (!JS_DefineProperty(cx, ctor, c->name, INT_TO_JSVAL(c->value),
-                               JS_PropertyStub, JS_StrictPropertyStub, PM_CATTRS))
+                               JS_PropertyStub, JS_PropertyStub, PM_CATTRS))
             return 0;
     }
 
-    if (!JS_FreezeObject(cx, prototype) ||
-        !JS_FreezeObject(cx, ctor)) {
+    if (!JS_SealObject(cx, prototype, JS_FALSE) ||
+        !JS_SealObject(cx, ctor, JS_FALSE)) {
         return 0;
     }
 

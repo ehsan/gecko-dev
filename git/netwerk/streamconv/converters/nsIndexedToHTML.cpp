@@ -54,7 +54,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefLocalizedString.h"
-#include "nsIChromeRegistry.h"
 
 NS_IMPL_ISUPPORTS4(nsIndexedToHTML,
                    nsIDirIndexListener,
@@ -151,29 +150,6 @@ nsIndexedToHTML::AsyncConvertData(const char *aFromType,
 
 NS_IMETHODIMP
 nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
-    nsString buffer;
-    nsresult rv = DoOnStartRequest(request, aContext, buffer);
-    if (NS_FAILED(rv)) {
-        request->Cancel(rv);
-    }
-    
-    rv = mListener->OnStartRequest(request, aContext);
-    if (NS_FAILED(rv)) return rv;
-
-    // The request may have been canceled, and if that happens, we want to
-    // suppress calls to OnDataAvailable.
-    request->GetStatus(&rv);
-    if (NS_FAILED(rv)) return rv;
-
-    // Push our buffer to the listener.
-
-    rv = FormatInputStream(request, aContext, buffer);
-    return rv;
-}
-
-nsresult
-nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
-                                  nsString& aBuffer) {
     nsresult rv;
 
     nsCOMPtr<nsIChannel> channel = do_QueryInterface(request);
@@ -181,7 +157,7 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
     rv = channel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv)) return rv;
 
-    channel->SetContentType(NS_LITERAL_CSTRING("text/html"));
+    channel->SetContentType(NS_LITERAL_CSTRING("application/xhtml+xml"));
 
     mParser = do_CreateInstance("@mozilla.org/dirIndexParser;1",&rv);
     if (NS_FAILED(rv)) return rv;
@@ -297,9 +273,7 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
     }
 
     nsString buffer;
-    buffer.AppendLiteral("<!DOCTYPE html>\n"
-                         "<html>\n<head>\n"
-                         "<meta http-equiv=\"content-type\" content=\"text/html; charset=");
+    buffer.AppendLiteral("<?xml version=\"1.0\" encoding=\"");
     
     // Get the encoding from the parser
     // XXX - this won't work for any encoding set via a 301: line in the
@@ -311,8 +285,13 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
     if (NS_FAILED(rv)) return rv;
 
     AppendASCIItoUTF16(encoding, buffer);
-    buffer.AppendLiteral("\">\n"
-                         "<style type=\"text/css\">\n"
+    buffer.AppendLiteral("\"?>\n"
+                         "<!DOCTYPE html ["
+                         " <!ENTITY % globalDTD SYSTEM \"chrome://global/locale/global.dtd\">\n"
+                         " %globalDTD;\n"
+                         "]>\n"
+                         "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n"
+                         "<style type=\"text/css\"><![CDATA[\n"
                          ":root {\n"
                          "  font-family: sans-serif;\n"
                          "}\n"
@@ -398,10 +377,10 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                          ".dir::before {\n"
                          "  content: url(resource://gre/res/html/folder.png);\n"
                          "}\n"
-                         "</style>\n"
+                         "]]></style>\n"
                          "<link rel=\"stylesheet\" media=\"screen, projection\" type=\"text/css\""
-                         " href=\"chrome://global/skin/dirListing/dirListing.css\">\n"
-                         "<script type=\"application/javascript\">\n"
+                         " href=\"chrome://global/skin/dirListing/dirListing.css\" />\n"
+                         "<script type=\"application/javascript\"><![CDATA[\n"
                          "var gTable, gOrderBy, gTBody, gRows, gUI_showHidden;\n"
                          "document.addEventListener(\"DOMContentLoaded\", function() {\n"
                          "  gTable = document.getElementsByTagName(\"table\")[0];\n"
@@ -479,7 +458,7 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                          "                     \"\" :\n"
                          "                     \"remove-hidden\";\n"
                          "}\n"
-                         "</script>\n");
+                         "]]></script>\n");
 
     buffer.AppendLiteral("<link rel=\"icon\" type=\"image/png\" href=\"");
     nsCOMPtr<nsIURI> innerUri = NS_GetInnermostURI(uri);
@@ -530,7 +509,7 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                              "BYWFOWicuqppoNTnStHzPFCPQhBEBOyGAX4JMADFetubi4BS"
                              "YAAAAABJRU5ErkJggg%3D%3D");
     }
-    buffer.AppendLiteral("\">\n<title>");
+    buffer.AppendLiteral("\" />\n<title>");
 
     // Everything needs to end in a /,
     // otherwise we end up linking to file:///foo/dirfile
@@ -606,20 +585,7 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
         NS_ERROR("broken protocol handler didn't escape double-quote.");
     }
 
-    nsAutoString direction(NS_LITERAL_STRING("ltr"));
-    nsCOMPtr<nsIXULChromeRegistry> reg =
-      mozilla::services::GetXULChromeRegistryService();
-    if (reg) {
-      PRBool isRTL = PR_FALSE;
-      reg->IsLocaleRTL(NS_LITERAL_CSTRING("global"), &isRTL);
-      if (isRTL) {
-        direction.AssignLiteral("rtl");
-      }
-    }
-
-    buffer.AppendLiteral("</head>\n<body dir=\"");
-    buffer.Append(direction);
-    buffer.AppendLiteral("\">\n<h1>");
+    buffer.AppendLiteral("</head>\n<body dir=\"&locale.dir;\">\n<h1>");
     
     const PRUnichar* formatHeading[] = {
         htmlEscSpec.get()
@@ -657,7 +623,7 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                                         getter_Copies(showHiddenText));
         if (NS_FAILED(rv)) return rv;
 
-        buffer.AppendLiteral("<p id=\"UI_showHidden\" style=\"display:none\"><label><input type=\"checkbox\" checked onchange=\"updateHidden()\">");
+        buffer.AppendLiteral("<p id=\"UI_showHidden\" style=\"display:none\"><label><input type=\"checkbox\" checked=\"checked\" onchange=\"updateHidden()\" />");
         AppendNonAsciiToNCR(showHiddenText, buffer);
         buffer.AppendLiteral("</label></p>\n");
     }
@@ -693,7 +659,18 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                          " </thead>\n");
     buffer.AppendLiteral(" <tbody>\n");
 
-    aBuffer = buffer;
+    // Push buffer to the listener now, so the initial HTML will not
+    // be parsed in OnDataAvailable().
+
+    rv = mListener->OnStartRequest(request, aContext);
+    if (NS_FAILED(rv)) return rv;
+
+    // The request may have been canceled, and if that happens, we want to
+    // suppress calls to OnDataAvailable.
+    request->GetStatus(&rv);
+    if (NS_FAILED(rv)) return rv;
+
+    rv = FormatInputStream(request, aContext, buffer);
     return rv;
 }
 
@@ -858,7 +835,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
         descriptionAffix.Cut(0, descriptionAffix.Length() - 25);
         if (NS_IS_LOW_SURROGATE(descriptionAffix.First()))
             descriptionAffix.Cut(0, 1);
-        description.Truncate(NS_MIN<PRUint32>(71, description.Length() - 28));
+        description.Truncate(PR_MIN(71, description.Length() - 28));
         if (NS_IS_HIGH_SURROGATE(description.Last()))
             description.Truncate(description.Length() - 1);
 
@@ -957,7 +934,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
                                         getter_Copies(altText));
         if (NS_FAILED(rv)) return rv;
         AppendNonAsciiToNCR(altText, pushBuffer);
-        pushBuffer.AppendLiteral("\">");
+        pushBuffer.AppendLiteral("\" />");
     }
 
     pushBuffer.Append(escapedShort);

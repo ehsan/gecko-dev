@@ -145,7 +145,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLSharedListElement)
 
 
 NS_IMPL_BOOL_ATTR(nsHTMLSharedListElement, Compact, compact)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSharedListElement, Start, start, 1)
+NS_IMPL_INT_ATTR(nsHTMLSharedListElement, Start, start)
 NS_IMPL_STRING_ATTR(nsHTMLSharedListElement, Type, type)
 
 
@@ -199,15 +199,14 @@ static void
 MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(List)) {
-    nsCSSValue* listStyleType = aData->ValueForListStyleType();
-    if (listStyleType->GetUnit() == eCSSUnit_Null) {
+    if (aData->mListData->mType.GetUnit() == eCSSUnit_Null) {
       // type: enum
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::type);
       if (value) {
         if (value->Type() == nsAttrValue::eEnum)
-          listStyleType->SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
+          aData->mListData->mType.SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
         else
-          listStyleType->SetIntValue(NS_STYLE_LIST_STYLE_DECIMAL, eCSSUnit_Enumerated);
+          aData->mListData->mType.SetIntValue(NS_STYLE_LIST_STYLE_DECIMAL, eCSSUnit_Enumerated);
       }
     }
   }

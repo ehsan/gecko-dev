@@ -15,12 +15,12 @@ var gl = null;
 var textureLoc = null;
 var successfullyParsed = false;
 
-if (window.initNonKhronosFramework) {
-    window.initNonKhronosFramework(true);
-}
-
 function init()
 {
+    if (window.initNonKhronosFramework) {
+        window.initNonKhronosFramework(true);
+    }
+
     description('Verify texImage2D and texSubImage2D code paths taking Video Elements');
 
     var canvas = document.getElementById("example");
@@ -57,8 +57,6 @@ function runOneIteration(videoElement, useTexSubImage2D, flipY, topColor, bottom
     // Set up texture parameters
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     // Set up pixel store parameters
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flipY);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -104,7 +102,17 @@ function runTest(videoElement)
     runOneIteration(videoElement, true, true, red, green);
     runOneIteration(videoElement, true, false, green, red);
 
-    finishTest();
+    successfullyParsed = true;
+    var epilogue = document.createElement("script");
+    epilogue.onload = finish;
+    epilogue.src = "../resources/js-test-post.js";
+    document.body.appendChild(epilogue);
+}
+
+function finish() {
+    if (window.nonKhronosFrameworkNotifyDone) {
+        window.nonKhronosFrameworkNotifyDone();
+    }
 }
 </script>
 </head>
@@ -112,10 +120,15 @@ function runTest(videoElement)
 <canvas id="example" width="32px" height="32px"></canvas>
 <div id="description"></div>
 <div id="console"></div>
-<video width="640" height="228" id="vid" controls>
+<video width="640" height="228" id="vid" controls autoplay>
   <source src="resources/red-green.mp4"  type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"' />
-  <source src="resources/red-green.webmvp8.webm" type='video/webm; codecs="vp8, vorbis"' />
-  <source src="resources/red-green.theora.ogv"  type='video/ogg; codecs="theora, vorbis"' />
+  <source src="resources/red-green.webmvp8.webm"  type='video/ogg; codecs="theora, vorbis"' />
+  <source src="resources/red-green.theora.ogv" type='video/webm; codecs="vp8, vorbis"' />
 </video>
 </body>
 </html>
+
+
+
+
+

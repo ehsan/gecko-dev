@@ -41,20 +41,15 @@
  * stream.
  */
 
-#include "IPC/IPCMessageUtils.h"
-#include "mozilla/net/NeckoMessageUtils.h"
-
 #include "nsMultiplexInputStream.h"
 #include "nsIMultiplexInputStream.h"
 #include "nsISeekableStream.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
-#include "nsIIPCSerializable.h"
-#include "nsIClassInfoImpl.h"
+#include "nsInt64.h"
 
 class nsMultiplexInputStream : public nsIMultiplexInputStream,
-                               public nsISeekableStream,
-                               public nsIIPCSerializable
+                               public nsISeekableStream
 {
 public:
     nsMultiplexInputStream();
@@ -63,7 +58,6 @@ public:
     NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSIMULTIPLEXINPUTSTREAM
     NS_DECL_NSISEEKABLESTREAM
-    NS_DECL_NSIIPCSERIALIZABLE
 
 private:
     ~nsMultiplexInputStream() {}
@@ -86,22 +80,11 @@ private:
     nsresult mStatus;
 };
 
-NS_IMPL_THREADSAFE_ADDREF(nsMultiplexInputStream)
-NS_IMPL_THREADSAFE_RELEASE(nsMultiplexInputStream)
 
-NS_IMPL_CLASSINFO(nsMultiplexInputStream, NULL, nsIClassInfo::THREADSAFE,
-                  NS_MULTIPLEXINPUTSTREAM_CID)
-
-NS_IMPL_QUERY_INTERFACE4_CI(nsMultiplexInputStream,
-                            nsIMultiplexInputStream,
-                            nsIInputStream,
-                            nsISeekableStream,
-                            nsIIPCSerializable)
-NS_IMPL_CI_INTERFACE_GETTER4(nsMultiplexInputStream,
-                             nsIMultiplexInputStream,
-                             nsIInputStream,
-                             nsISeekableStream,
-                             nsIIPCSerializable)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsMultiplexInputStream,
+                              nsIMultiplexInputStream,
+                              nsIInputStream,
+                              nsISeekableStream)
 
 nsMultiplexInputStream::nsMultiplexInputStream()
     : mCurrentStream(0),
@@ -381,7 +364,7 @@ nsMultiplexInputStream::Tell(PRInt64 *_retval)
         return mStatus;
 
     nsresult rv;
-    PRInt64 ret64 = 0;
+    nsInt64 ret64 = 0;
     PRUint32 i, last;
     last = mStartedReadingCurrent ? mCurrentStream+1 : mCurrentStream;
     for (i = 0; i < last; ++i) {
@@ -424,50 +407,4 @@ nsMultiplexInputStreamConstructor(nsISupports *outer,
     NS_RELEASE(inst);
 
     return rv;
-}
-
-PRBool
-nsMultiplexInputStream::Read(const IPC::Message *aMsg, void **aIter)
-{
-    using IPC::ReadParam;
-
-    PRUint32 count;
-    if (!ReadParam(aMsg, aIter, &count))
-        return PR_FALSE;
-
-    for (PRUint32 i = 0; i < count; i++) {
-        IPC::InputStream inputStream;
-        if (!ReadParam(aMsg, aIter, &inputStream))
-            return PR_FALSE;
-
-        nsCOMPtr<nsIInputStream> stream(inputStream);
-        nsresult rv = AppendStream(stream);
-        if (NS_FAILED(rv))
-            return PR_FALSE;
-    }
-
-    if (!ReadParam(aMsg, aIter, &mCurrentStream) ||
-        !ReadParam(aMsg, aIter, &mStartedReadingCurrent) ||
-        !ReadParam(aMsg, aIter, &mStatus))
-        return PR_FALSE;
-
-    return PR_TRUE;
-}
-
-void
-nsMultiplexInputStream::Write(IPC::Message *aMsg)
-{
-    using IPC::WriteParam;
-
-    PRUint32 count = mStreams.Count();
-    WriteParam(aMsg, count);
-
-    for (PRUint32 i = 0; i < count; i++) {
-        IPC::InputStream inputStream(mStreams.ObjectAt(i));
-        WriteParam(aMsg, inputStream);
-    }
-
-    WriteParam(aMsg, mCurrentStream);
-    WriteParam(aMsg, mStartedReadingCurrent);
-    WriteParam(aMsg, mStatus);
 }

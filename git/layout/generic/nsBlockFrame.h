@@ -84,7 +84,7 @@ class nsIntervalSet;
  * Child list name indices
  * @see #GetAdditionalChildListName()
  */
-#define NS_BLOCK_LIST_COUNT  (NS_CONTAINER_LIST_COUNT_INCL_OC + 4)
+#define NS_BLOCK_LIST_COUNT  (NS_CONTAINER_LIST_COUNT_INCL_OC + 5)
 
 /**
  * Some invariants:
@@ -156,8 +156,6 @@ public:
   reverse_line_iterator rend_lines() { return mLines.rend(); }
   const_reverse_line_iterator rbegin_lines() const { return mLines.rbegin(); }
   const_reverse_line_iterator rend_lines() const { return mLines.rend(); }
-  line_iterator line(nsLineBox* aList) { return mLines.begin(aList); }
-  reverse_line_iterator rline(nsLineBox* aList) { return mLines.rbegin(aList); }
 
   friend nsIFrame* NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
@@ -184,7 +182,6 @@ public:
                           nsIFrame*       aOldFrame);
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nscoord GetBaseline() const;
-  virtual nscoord GetCaretBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsSplittableType GetSplittableType() const;
@@ -216,11 +213,10 @@ public:
 
   // line cursor methods to speed up searching for the line(s)
   // containing a point. The basic idea is that we set the cursor
-  // property if the lines' overflowArea.VisualOverflow().ys and
-  // overflowArea.VisualOverflow().yMosts are non-decreasing
-  // (considering only non-empty overflowArea.VisualOverflow()s; empty
-  // overflowArea.VisualOverflow()s never participate in event handling
-  // or painting), and the block has sufficient number of lines. The
+  // property if the lines' combinedArea.ys and combinedArea.yMosts
+  // are non-decreasing (considering only non-empty combinedAreas;
+  // empty combinedAreas never participate in event handling or
+  // painting), and the block has sufficient number of lines. The
   // cursor property points to a "recently used" line. If we get a
   // series of requests that work on lines
   // "near" the cursor, then we can find those nearby lines quickly by
@@ -251,19 +247,9 @@ public:
   // not 'none'?
   PRBool BulletIsEmpty() const;
 
-  /**
-   * Return the bullet text equivalent.
-   */
-  virtual void GetBulletText(nsAString& aText) const;
-
-  /**
-   * Return true if there's a bullet.
-   */
-  virtual bool HasBullet() const;
-
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
   
@@ -341,6 +327,7 @@ protected:
     : nsHTMLContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
+    , mAbsoluteContainer(nsGkAtoms::absoluteList)
   {
 #ifdef DEBUG
   InitDebugFlags();
@@ -349,7 +336,6 @@ protected:
   virtual ~nsBlockFrame();
 
 #ifdef DEBUG
-#ifdef _IMPL_NS_LAYOUT
   already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext)
   {
     return aPresContext->StyleSet()->
@@ -357,7 +343,6 @@ protected:
                               nsCSSPseudoElements::ePseudo_firstLetter,
                               mStyleContext);
   }
-#endif
 #endif
 
   /*
@@ -368,11 +353,9 @@ protected:
                                        const nsPoint& aPt,
                                        nsLineBox* aLine,
                                        nscolor aColor,
-                                       PRUint8 aStyle,
                                        gfxFloat aOffset,
                                        gfxFloat aAscent,
                                        gfxFloat aSize,
-                                       const nsCharClipDisplayItem::ClipEdges& aClipEdges,
                                        const PRUint8 aDecoration);
 
   virtual void AdjustForTextIndent(const nsLineBox* aLine,
@@ -384,7 +367,7 @@ protected:
                    nsLineList::iterator* aEndIterator,
                    PRBool* aInOverflowLines);
 
-  void SetFlags(nsFrameState aFlags) {
+  void SetFlags(PRUint32 aFlags) {
     mState &= ~NS_BLOCK_FLAGS_MASK;
     mState |= aFlags;
   }
@@ -411,9 +394,9 @@ protected:
                                 nsHTMLReflowMetrics&     aMetrics,
                                 nscoord*                 aBottomEdgeOfChildren);
 
-  void ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics&     aMetrics,
-                            nscoord                  aBottomEdgeOfChildren);
+  void ComputeCombinedArea(const nsHTMLReflowState& aReflowState,
+                           nsHTMLReflowMetrics&     aMetrics,
+                           nscoord                  aBottomEdgeOfChildren);
 
   /** add the frames in aFrameList to this block after aPrevSibling
     * this block thinks in terms of lines, but the frame construction code
@@ -491,8 +474,8 @@ protected:
   /** Reflow pushed floats
    */
   nsresult ReflowPushedFloats(nsBlockReflowState& aState,
-                              nsOverflowAreas&    aOverflowAreas,
-                              nsReflowStatus&     aStatus);
+                                    nsRect&             aBounds,
+                                    nsReflowStatus&     aStatus);
 
   /** Find any trailing BR clear from the last line of the block (or its PIFs)
    */
@@ -713,13 +696,6 @@ protected:
   nsLineList* RemoveOverflowLines();
   nsresult SetOverflowLines(nsLineList* aOverflowLines);
 
-  // Determine the computed height that's in effect for this block
-  // frame (that is, our computed height minus the heights of our
-  // previous in-flows).
-  // XXXbz this clearly makes laying out a block with N in-flows
-  // O(N^2)!  Good thing the constant is tiny.
-  nscoord GetEffectiveComputedHeight(const nsHTMLReflowState& aReflowState) const;
-
   /**
    * This class is useful for efficiently modifying the out of flow
    * overflow list. It gives the client direct writable access to
@@ -776,6 +752,10 @@ protected:
   friend class nsBlockReflowState;
   friend class nsBlockInFlowLineIterator;
 
+private:
+  nsAbsoluteContainingBlock mAbsoluteContainer;
+
+
 #ifdef DEBUG
 public:
   static PRBool gLamePaintMetrics;
@@ -826,17 +806,13 @@ public:
   /**
    * Set up the iterator to point to the first line found starting from
    * aFrame. Sets aFoundValidLine to false if there is no such line.
-   * After aFoundValidLine has returned false, don't call any methods on this
-   * object again.
    */
   nsBlockInFlowLineIterator(nsBlockFrame* aFrame, PRBool* aFoundValidLine);
   /**
    * Set up the iterator to point to the line that contains aFindFrame (either
    * directly or indirectly).  If aFrame is out of flow, or contained in an
    * out-of-flow, finds the line containing the out-of-flow's placeholder. If
-   * the frame is not found, sets aFoundValidLine to false. After
-   * aFoundValidLine has returned false, don't call any methods on this
-   * object again.
+   * the frame is not found, sets aFoundValidLine to false.
    */
   nsBlockInFlowLineIterator(nsBlockFrame* aFrame, nsIFrame* aFindFrame,
                             PRBool* aFoundValidLine);

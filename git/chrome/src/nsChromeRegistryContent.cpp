@@ -52,12 +52,8 @@ void
 nsChromeRegistryContent::RegisterRemoteChrome(
     const nsTArray<ChromePackage>& aPackages,
     const nsTArray<ResourceMapping>& aResources,
-    const nsTArray<OverrideMapping>& aOverrides,
-    const nsACString& aLocale)
+    const nsTArray<OverrideMapping>& aOverrides)
 {
-  NS_ABORT_IF_FALSE(mLocale == nsDependentCString(""),
-                    "RegisterChrome twice?");
-
   for (PRUint32 i = aPackages.Length(); i > 0; ) {
     --i;
     RegisterPackage(aPackages[i]);
@@ -72,8 +68,6 @@ nsChromeRegistryContent::RegisterRemoteChrome(
     --i;
     RegisterOverride(aOverrides[i]);
   }
-
-  mLocale = aLocale;
 }
 
 void
@@ -176,26 +170,28 @@ nsChromeRegistryContent::RegisterOverride(const OverrideMapping& aOverride)
   mOverrideTable.Put(chromeURI, overrideURI);
 }
 
-nsIURI*
+nsresult
 nsChromeRegistryContent::GetBaseURIFromPackage(const nsCString& aPackage,
                                                const nsCString& aProvider,
-                                               const nsCString& aPath)
+                                               const nsCString& aPath,
+                                               nsIURI* *aResult)
 {
   PackageEntry* entry;
   if (!mPackagesHash.Get(aPackage, &entry)) {
-    return nsnull;
+    return NS_ERROR_FAILURE;
   }
 
+  *aResult = nsnull;
   if (aProvider.EqualsLiteral("locale")) {
-    return entry->localeBaseURI;
+    *aResult = entry->localeBaseURI;
   }
   else if (aProvider.EqualsLiteral("skin")) {
-    return entry->skinBaseURI;
+    *aResult = entry->skinBaseURI;
   }
   else if (aProvider.EqualsLiteral("content")) {
-    return entry->contentBaseURI;
+    *aResult = entry->contentBaseURI;
   }
-  return nsnull;
+  return NS_OK;
 }
 
 nsresult
@@ -249,12 +245,7 @@ NS_IMETHODIMP
 nsChromeRegistryContent::GetSelectedLocale(const nsACString& aPackage,
                                            nsACString& aLocale)
 {
-  if (aPackage != nsDependentCString("global")) {
-    NS_ERROR("Uh-oh, caller wanted something other than 'some local'");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  aLocale = mLocale;
-  return NS_OK;
+  CONTENT_NOT_IMPLEMENTED();
 }
   
 NS_IMETHODIMP
@@ -274,11 +265,6 @@ nsChromeRegistryContent::GetStyleOverlays(nsIURI *aChromeURL,
 NS_IMETHODIMP
 nsChromeRegistryContent::GetXULOverlays(nsIURI *aChromeURL,
                                         nsISimpleEnumerator **aResult)
-{
-  CONTENT_NOT_IMPLEMENTED();
-}
-
-nsresult nsChromeRegistryContent::UpdateSelectedLocale()
 {
   CONTENT_NOT_IMPLEMENTED();
 }

@@ -43,15 +43,8 @@ from glob import glob
 from optparse import OptionParser
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import mkdtemp, gettempdir
-import manifestparser
 
 from automationutils import *
-
-""" Control-C handling """
-gotSIGINT = False
-def markGotSIGINT(signum, stackFrame):
-  global gotSIGINT 
-  gotSIGINT = True
 
 class XPCShellTests(object):
 
@@ -64,23 +57,38 @@ class XPCShellTests(object):
     self.log.setLevel(logging.INFO)
     self.log.addHandler(handler)
 
+  def readManifest(self):
+    """
+      For a given manifest file, read the contents and populate self.testdirs
+    """
+    manifestdir = os.path.dirname(self.manifest)
+    try:
+      f = open(self.manifest, "r")
+      for line in f:
+        path = os.path.join(manifestdir, line.rstrip())
+        if os.path.isdir(path):
+          self.testdirs.append(path)
+      f.close()
+    except:
+      pass # just eat exceptions
+
   def buildTestList(self):
     """
-      read the xpcshell.ini manifest and set self.alltests to be 
-      an array of test objects.
-
-      if we are chunking tests, it will be done here as well
+      Builds a dict of {"testdir" : ["testfile1", "testfile2", ...], "testdir2"...}.
+      If manifest is given override testdirs to build initial list of directories and tests.
+      If testpath is given, use that, otherwise chunk if requested.
+      The resulting set of tests end up in self.alltests
     """
-    mp = manifestparser.ManifestParser(strict=False)
-    if self.manifest is None:
-      for testdir in self.testdirs:
-        if testdir:
-          mp.read(os.path.join(testdir, 'xpcshell.ini'))
-    else:
-      mp.read(self.manifest)
     self.buildTestPath()
 
-    self.alltests = mp.tests
+    self.alltests = {}
+    if self.manifest is not None:
+      self.readManifest()
+
+    for dir in self.testdirs:
+      tests = self.getTestFiles(dir)
+      if tests:
+        self.alltests[os.path.abspath(dir)] = tests
 
     if self.singleFile is None and self.totalChunks > 1:
       self.chunkTests()
@@ -149,12 +157,6 @@ class XPCShellTests(object):
     self.env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
     # Don't launch the crash reporter client
     self.env["MOZ_CRASHREPORTER_NO_REPORT"] = "1"
-    # Capturing backtraces is very slow on some platforms, and it's
-    # disabled by automation.py too
-    if not (sys.platform == 'osx' or sys.platform == "darwin"):
-      # XXX automation.py has this odd special case; without it, bug
-      # 618052 seems to be exacerbated
-      self.env["NS_TRACE_MALLOC_DISABLE_STACKS"] = "1"
 
     if sys.platform == 'win32':
       self.env["PATH"] = self.env["PATH"] + ";" + self.xrePath
@@ -164,11 +166,7 @@ class XPCShellTests(object):
     elif sys.platform == 'osx' or sys.platform == "darwin":
       self.env["DYLD_LIBRARY_PATH"] = self.xrePath
     else: # unix or linux?
-      if not "LD_LIBRARY_PATH" in self.env or self.env["LD_LIBRARY_PATH"] is None:
-        self.env["LD_LIBRARY_PATH"] = self.xrePath
-      else:
-        self.env["LD_LIBRARY_PATH"] = ":".join([self.xrePath, self.env["LD_LIBRARY_PATH"]])
-
+      self.env["LD_LIBRARY_PATH"] = self.xrePath
     return self.env
 
   def buildXpcsRunArgs(self):
@@ -187,7 +185,7 @@ class XPCShellTests(object):
       Determine the value of the stdout and stderr for the test.
       Return value is a list (pStdout, pStderr).
     """
-    if self.interactive:
+    if self.interactive or self.verbose:
       pStdout = None
       pStderr = None
     else:
@@ -231,6 +229,7 @@ class XPCShellTests(object):
         if self.testPath.find('/') == -1:
           # Test only.
           self.singleFile = self.testPath
+          self.testPath = None
         else:
           # Both path and test.
           # Reuse |testPath| temporarily.
@@ -242,24 +241,38 @@ class XPCShellTests(object):
         # Simply remove optional ending separator.
         self.testPath = self.testPath.rstrip("/")
 
-
-  def getHeadFiles(self, test):
+  def getHeadFiles(self, testdir):
     """
-      test['head'] is a whitespace delimited list of head files.
-      return the list of head files as paths including the subdir if the head file exists
+      Get the list of head files for a given test directory.
+      On a remote system, this is overloaded to list files in a remote directory structure.
+    """
+    return [f for f in sorted(glob(os.path.join(testdir, "head_*.js"))) if os.path.isfile(f)]
+
+  def getTailFiles(self, testdir):
+    """
+      Get the list of tail files for a given test directory.
+      Tails are executed in the reverse order, to "match" heads order,
+      as in "h1-h2-h3 then t3-t2-t1".
 
       On a remote system, this is overloaded to list files in a remote directory structure.
     """
-    return [os.path.join(test['here'], f).strip() for f in sorted(test['head'].split(' ')) if os.path.isfile(os.path.join(test['here'], f))]
+    return [f for f in reversed(sorted(glob(os.path.join(testdir, "tail_*.js")))) if os.path.isfile(f)]
 
-  def getTailFiles(self, test):
+  def getTestFiles(self, testdir):
     """
-      test['tail'] is a whitespace delimited list of head files.
-      return the list of tail files as paths including the subdir if the tail file exists
+      Ff a single test file was specified, we only want to execute that test,
+      otherwise return a list of all tests in a directory
 
-      On a remote system, this is overloaded to list files in a remote directory structure.
+      On a remote system, this is overloaded to find files in the remote directory structure.
     """
-    return [os.path.join(test['here'], f).strip() for f in sorted(test['tail'].split(' ')) if os.path.isfile(os.path.join(test['here'], f))]
+    testfiles = sorted(glob(os.path.join(os.path.abspath(testdir), "test_*.js")))
+    if self.singleFile:
+      if self.singleFile in [os.path.basename(x) for x in testfiles]:
+        testfiles = [os.path.abspath(os.path.join(testdir, self.singleFile))]
+      else: # not in this dir? skip it
+        return None
+            
+    return testfiles
 
   def setupProfileDir(self):
     """
@@ -301,7 +314,6 @@ class XPCShellTests(object):
       Simple wrapper to launch a process.
       On a remote system, this is more complex and we need to overload this function.
     """
-    cmd = wrapCommand(cmd)
     proc = Popen(cmd, stdout=stdout, stderr=stderr, 
                 env=env, cwd=cwd)
     return proc
@@ -370,7 +382,7 @@ class XPCShellTests(object):
 
   def runTests(self, xpcshell, xrePath=None, symbolsPath=None,
                manifest=None, testdirs=[], testPath=None,
-               interactive=False, verbose=False, keepGoing=False, logfiles=True,
+               interactive=False, verbose=False, logfiles=True,
                thisChunk=1, totalChunks=1, debugger=None,
                debuggerArgs=None, debuggerInteractive=False,
                profileName=None):
@@ -397,8 +409,6 @@ class XPCShellTests(object):
       directory if running only a subset of tests
     """
 
-    global gotSIGINT 
-
     self.xpcshell = xpcshell
     self.xrePath = xrePath
     self.symbolsPath = symbolsPath
@@ -407,16 +417,11 @@ class XPCShellTests(object):
     self.testPath = testPath
     self.interactive = interactive
     self.verbose = verbose
-    self.keepGoing = keepGoing
     self.logfiles = logfiles
     self.totalChunks = totalChunks
     self.thisChunk = thisChunk
     self.debuggerInfo = getDebuggerInfo(self.oldcwd, debugger, debuggerArgs, debuggerInteractive)
     self.profileName = profileName or "xpcshell"
-
-    # If we have an interactive debugger, disable ctrl-c.
-    if self.debuggerInfo and self.debuggerInfo["interactive"]:
-        signal.signal(signal.SIGINT, lambda signum, frame: None)
 
     if not testdirs and not manifest:
       # nothing to test!
@@ -433,87 +438,68 @@ class XPCShellTests(object):
 
     self.buildTestList()
 
-    for test in self.alltests:
-      name = test['path']
-      if self.singleFile and not name.endswith(self.singleFile):
+    for testdir in sorted(self.alltests.keys()):
+      if self.testPath and not testdir.endswith(self.testPath):
         continue
 
-      if self.testPath and name.find(self.testPath) == -1:
-        continue
-
-      testdir = os.path.dirname(name)
       self.buildXpcsCmd(testdir)
-      testHeadFiles = self.getHeadFiles(test)
-      testTailFiles = self.getTailFiles(test)
+      testHeadFiles = self.getHeadFiles(testdir)
+      testTailFiles = self.getTailFiles(testdir)
       cmdH = self.buildCmdHead(testHeadFiles, testTailFiles, self.xpcsCmd)
 
-      # create a temp dir that the JS harness can stick a profile in
-      self.profileDir = self.setupProfileDir()
-      self.leakLogFile = self.setupLeakLogging()
+      # Now execute each test individually.
+      for test in self.alltests[testdir]:
+        # create a temp dir that the JS harness can stick a profile in
+        self.profileDir = self.setupProfileDir()
+        self.leakLogFile = self.setupLeakLogging()
 
-      # The test file will have to be loaded after the head files.
-      cmdT = ['-e', 'const _TEST_FILE = ["%s"];' %
-                replaceBackSlashes(name)]
+        # The test file will have to be loaded after the head files.
+        cmdT = ['-e', 'const _TEST_FILE = ["%s"];' %
+                replaceBackSlashes(test)]
 
-      try:
-        print "TEST-INFO | %s | running test ..." % name
+        try:
+          print "TEST-INFO | %s | running test ..." % test
 
-        proc = self.launchProcess(cmdH + cmdT + self.xpcsRunArgs,
-                    stdout=pStdout, stderr=pStderr, env=self.env, cwd=testdir)
+          proc = self.launchProcess(cmdH + cmdT + self.xpcsRunArgs,
+                      stdout=pStdout, stderr=pStderr, env=self.env, cwd=testdir)
 
-        # Allow user to kill hung subprocess with SIGINT w/o killing this script
-        # - don't move this line above launchProcess, or child will inherit the SIG_IGN
-        signal.signal(signal.SIGINT, markGotSIGINT)
-        # |stderr == None| as |pStderr| was either |None| or redirected to |stdout|.
-        stdout, stderr = self.communicate(proc)
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
+          # |stderr == None| as |pStderr| was either |None| or redirected to |stdout|.
+          stdout, stderr = self.communicate(proc)
 
-        if interactive:
-          # Not sure what else to do here...
-          return True
+          if interactive:
+            # Not sure what else to do here...
+            return True
 
-        def print_stdout(stdout):
-          """Print stdout line-by-line to avoid overflowing buffers."""
-          print ">>>>>>>"
-          for line in stdout.splitlines():
-            print line
-          print "<<<<<<<"
+          if (self.getReturnCode(proc) != 0) or \
+              (stdout and re.search("^((parent|child): )?TEST-UNEXPECTED-FAIL", stdout, re.MULTILINE)) or \
+              (stdout and re.search(": SyntaxError:", stdout, re.MULTILINE)):
+            print """TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:
+  >>>>>>>
+  %s
+  <<<<<<<""" % (test, self.getReturnCode(proc), stdout)
+            failCount += 1
+          else:
+            print "TEST-PASS | %s | test passed" % test
+            passCount += 1
 
-        if (self.getReturnCode(proc) != 0) or \
-            (stdout and re.search("^((parent|child): )?TEST-UNEXPECTED-", stdout, re.MULTILINE)) or \
-            (stdout and re.search(": SyntaxError:", stdout, re.MULTILINE)):
-          print "TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:" % (name, self.getReturnCode(proc))
-          print_stdout(stdout)
-          failCount += 1
-        else:
-          print "TEST-PASS | %s | test passed" % name
-          if verbose:
-            print_stdout(stdout)
-          passCount += 1
+          checkForCrashes(testdir, self.symbolsPath, testName=test)
+          # Find child process(es) leak log(s), if any: See InitLog() in
+          # xpcom/base/nsTraceRefcntImpl.cpp for logfile naming logic
+          leakLogs = [self.leakLogFile]
+          for childLog in glob(os.path.join(self.profileDir, "runxpcshelltests_leaks_*_pid*.log")):
+            if os.path.isfile(childLog):
+              leakLogs += [childLog]
+          for log in leakLogs:
+            dumpLeakLog(log, True)
 
-        checkForCrashes(testdir, self.symbolsPath, testName=name)
-        # Find child process(es) leak log(s), if any: See InitLog() in
-        # xpcom/base/nsTraceRefcntImpl.cpp for logfile naming logic
-        leakLogs = [self.leakLogFile]
-        for childLog in glob(os.path.join(self.profileDir, "runxpcshelltests_leaks_*_pid*.log")):
-          if os.path.isfile(childLog):
-            leakLogs += [childLog]
-        for log in leakLogs:
-          dumpLeakLog(log, True)
+          if self.logfiles and stdout:
+            self.createLogFile(test, stdout, leakLogs)
+        finally:
+          # We don't want to delete the profile when running check-interactive
+          # or check-one.
+          if self.profileDir and not self.interactive and not self.singleFile:
+            self.removeDir(self.profileDir)
 
-        if self.logfiles and stdout:
-          self.createLogFile(name, stdout, leakLogs)
-      finally:
-        # We don't want to delete the profile when running check-interactive
-        # or check-one.
-        if self.profileDir and not self.interactive and not self.singleFile:
-          self.removeDir(self.profileDir)
-      if gotSIGINT:
-        print "TEST-UNEXPECTED-FAIL | Received SIGINT (control-C) during test execution"
-        if (keepGoing):
-          gotSIGINT = False
-        else:
-          break
     if passCount == 0 and failCount == 0:
       print "TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?"
       failCount = 1
@@ -522,10 +508,6 @@ class XPCShellTests(object):
 INFO | Passed: %d
 INFO | Failed: %d""" % (passCount, failCount)
 
-    if gotSIGINT and not keepGoing:
-      print "TEST-UNEXPECTED-FAIL | Received SIGINT (control-C), so stopped run. " \
-            "(Use --keep-going to keep running tests after killing one with SIGINT)"
-      return False
     return failCount == 0
 
 class XPCShellOptions(OptionParser):
@@ -540,9 +522,6 @@ class XPCShellOptions(OptionParser):
     self.add_option("--verbose",
                     action="store_true", dest="verbose", default=False,
                     help="always print stdout and stderr from tests")
-    self.add_option("--keep-going",
-                    action="store_true", dest="keepGoing", default=False,
-                    help="continue running tests after test killed with control-C (SIGINT)")
     self.add_option("--logfiles",
                     action="store_true", dest="logfiles", default=True,
                     help="create log files (default, only used to override --no-logfiles)")

@@ -69,7 +69,8 @@
 #
 #######################################################################
 # Defines
-
+#
+CVS = cvs
 comma := ,
 
 CWD := $(CURDIR)
@@ -106,6 +107,7 @@ endif
 PERL ?= perl
 PYTHON ?= python
 
+RUN_AUTOCONF_LOCALLY = 1
 CONFIG_GUESS_SCRIPT := $(wildcard $(TOPSRCDIR)/build/autoconf/config.guess)
 ifdef CONFIG_GUESS_SCRIPT
   CONFIG_GUESS = $(shell $(CONFIG_GUESS_SCRIPT))
@@ -168,14 +170,13 @@ CONFIGURES += $(TOPSRCDIR)/js/src/configure
 
 #######################################################################
 # Rules
+# 
 
 # The default rule is build
 build::
-	$(MAKE) -f $(TOPSRCDIR)/client.mk $(if $(MOZ_PGO),profiledbuild,realbuild)
-
 
 # Print out any options loaded from mozconfig.
-all realbuild clean depend distclean export libs install realclean::
+all build clean depend distclean export libs install realclean::
 	@if test -f .mozconfig.out; then \
 	  cat .mozconfig.out; \
 	  rm -f .mozconfig.out; \
@@ -209,11 +210,10 @@ else
 endif
 
 profiledbuild::
-	$(MAKE) -f $(TOPSRCDIR)/client.mk realbuild MOZ_PROFILE_GENERATE=1
-	$(MAKE) -C $(PGO_OBJDIR) package
-	OBJDIR=${PGO_OBJDIR} JARLOG_DIR=${PGO_OBJDIR}/jarlog/en-US $(PROFILE_GEN_SCRIPT)
+	$(MAKE) -f $(TOPSRCDIR)/client.mk build MOZ_PROFILE_GENERATE=1
+	OBJDIR=${PGO_OBJDIR} $(PROFILE_GEN_SCRIPT)
 	$(MAKE) -f $(TOPSRCDIR)/client.mk maybe_clobber_profiledbuild
-	$(MAKE) -f $(TOPSRCDIR)/client.mk realbuild MOZ_PROFILE_USE=1
+	$(MAKE) -f $(TOPSRCDIR)/client.mk build MOZ_PROFILE_USE=1
 
 #####################################################
 # Build date unification
@@ -230,7 +230,7 @@ endif
 #####################################################
 # Preflight, before building any project
 
-realbuild alldep preflight_all::
+build alldep preflight_all::
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_PREFLIGHT_ALL),,1))
 # Don't run preflight_all for individual projects in multi-project builds
 # (when MOZ_CURRENT_PROJECT is set.)
@@ -254,7 +254,7 @@ endif
 # loop through them.
 
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_BUILD_PROJECTS),,1))
-configure depend realbuild install export libs clean realclean distclean alldep preflight postflight maybe_clobber_profiledbuild upload sdk::
+configure depend build install export libs clean realclean distclean alldep preflight postflight maybe_clobber_profiledbuild upload sdk::
 	set -e; \
 	for app in $(MOZ_BUILD_PROJECTS); do \
 	  $(MAKE) -f $(TOPSRCDIR)/client.mk $@ MOZ_CURRENT_PROJECT=$$app; \
@@ -271,6 +271,7 @@ else
 CONFIG_STATUS = $(wildcard $(OBJDIR)/config.status)
 CONFIG_CACHE  = $(wildcard $(OBJDIR)/config.cache)
 
+ifdef RUN_AUTOCONF_LOCALLY
 EXTRA_CONFIG_DEPS := \
 	$(TOPSRCDIR)/aclocal.m4 \
 	$(wildcard $(TOPSRCDIR)/build/autoconf/*.m4) \
@@ -280,6 +281,7 @@ EXTRA_CONFIG_DEPS := \
 $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
 	@echo Generating $@ using autoconf
 	cd $(@D); $(AUTOCONF)
+endif
 
 CONFIG_STATUS_DEPS := \
 	$(wildcard $(CONFIGURES)) \
@@ -287,9 +289,8 @@ CONFIG_STATUS_DEPS := \
 	$(TOPSRCDIR)/.mozconfig.mk \
 	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/js/src/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/browser/config/version.txt) \
-	$(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
+	$(wildcard $(TOPSRCDIR)/config/chrome-versions.sh) \
+  $(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
 # configure uses the program name to determine @srcdir@. Calling it without
@@ -298,6 +299,10 @@ CONFIG_STATUS_DEPS := \
 ifeq ($(TOPSRCDIR),$(OBJDIR))
   CONFIGURE = ./configure
 else
+  CONFIGURE = $(TOPSRCDIR)/configure
+endif
+
+ifdef MOZ_TOOLS
   CONFIGURE = $(TOPSRCDIR)/configure
 endif
 
@@ -334,7 +339,7 @@ depend:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
 ####################################
 # Preflight
 
-realbuild alldep preflight::
+build alldep preflight::
 ifdef MOZ_PREFLIGHT
 	set -e; \
 	for mkfile in $(MOZ_PREFLIGHT); do \
@@ -345,7 +350,7 @@ endif
 ####################################
 # Build it
 
-realbuild::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
+build::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
 	$(MOZ_MAKE)
 
 ####################################
@@ -358,7 +363,7 @@ install export libs clean realclean distclean alldep maybe_clobber_profiledbuild
 ####################################
 # Postflight
 
-realbuild alldep postflight::
+build alldep postflight::
 ifdef MOZ_POSTFLIGHT
 	set -e; \
 	for mkfile in $(MOZ_POSTFLIGHT); do \
@@ -371,7 +376,7 @@ endif # MOZ_CURRENT_PROJECT
 ####################################
 # Postflight, after building all projects
 
-realbuild alldep postflight_all::
+build alldep postflight_all::
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_POSTFLIGHT_ALL),,1))
 # Don't run postflight_all for individual projects in multi-project builds
 # (when MOZ_CURRENT_PROJECT is set.)
@@ -411,4 +416,4 @@ echo-variable-%:
 # in parallel.
 .NOTPARALLEL:
 
-.PHONY: checkout real_checkout depend realbuild build profiledbuild maybe_clobber_profiledbuild export libs alldep install clean realclean distclean cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all upload sdk
+.PHONY: checkout real_checkout depend build profiledbuild maybe_clobber_profiledbuild export libs alldep install clean realclean distclean cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all

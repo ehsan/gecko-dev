@@ -46,7 +46,8 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmoverFrame.h"
 #include "nsMathMLmsupFrame.h"
@@ -190,14 +191,12 @@ XXX The winner is the outermost in conflicting settings like these:
     mEmbellishData.flags &= ~NS_MATHML_EMBELLISH_ACCENTOVER;
 
   // if we have an accent attribute, it overrides what the overscript said
-  nsAutoString value;
-  if (GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::accent_,
-                   value)) {
-    if (value.EqualsLiteral("true")) {
-      mEmbellishData.flags |= NS_MATHML_EMBELLISH_ACCENTOVER;
-    } else if (value.EqualsLiteral("false")) {
-      mEmbellishData.flags &= ~NS_MATHML_EMBELLISH_ACCENTOVER;
-    }
+  static nsIContent::AttrValuesArray strings[] =
+    {&nsGkAtoms::_true, &nsGkAtoms::_false, nsnull};
+  switch (mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::accent_,
+                                    strings, eCaseMatters)) {
+    case 0: mEmbellishData.flags |= NS_MATHML_EMBELLISH_ACCENTOVER; break;
+    case 1: mEmbellishData.flags &= ~NS_MATHML_EMBELLISH_ACCENTOVER; break;
   }
 
   // disable the stretch-all flag if we are going to act like a superscript
@@ -247,7 +246,7 @@ i.e.:
 */
 
 /* virtual */ nsresult
-nsMathMLmoverFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmoverFrame::Place(nsIRenderingContext& aRenderingContext,
                           PRBool               aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
 { 
@@ -285,9 +284,11 @@ nsMathMLmoverFrame::Place(nsRenderingContext& aRenderingContext,
 
   aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  nsCOMPtr<nsIFontMetrics> fm;
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
 
-  nscoord xHeight = fm->XHeight();
+  nscoord xHeight = 0;
+  fm->GetXHeight (xHeight);
 
   nscoord ruleThickness;
   GetRuleThickness (aRenderingContext, fm, ruleThickness);

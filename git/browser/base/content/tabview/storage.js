@@ -49,16 +49,9 @@ let Storage = {
   UI_DATA_IDENTIFIER: "tabview-ui",
 
   // ----------
-  // Function: toString
-  // Prints [Storage] for debug use
-  toString: function Storage_toString() {
-    return "[Storage]";
-  },
-
-  // ----------
   // Function: init
   // Sets up the object.
-  init: function Storage_init() {
+  init: function() {
     this._sessionStore =
       Cc["@mozilla.org/browser/sessionstore;1"].
         getService(Ci.nsISessionStore);
@@ -66,14 +59,14 @@ let Storage = {
 
   // ----------
   // Function: uninit
-  uninit: function Storage_uninit () {
+  uninit : function() {
     this._sessionStore = null;
   },
 
   // ----------
   // Function: wipe
   // Cleans out all the stored data, leaving empty objects.
-  wipe: function Storage_wipe() {
+  wipe: function() {
     try {
       var self = this;
 
@@ -99,17 +92,8 @@ let Storage = {
   // ----------
   // Function: saveTab
   // Saves the data for a single tab.
-  saveTab: function Storage_saveTab(tab, data) {
+  saveTab: function(tab, data) {
     Utils.assert(tab, "tab");
-
-    if (data != null) {
-      let imageData = data.imageData;
-      // Remove imageData from payload
-      delete data.imageData;
-
-      if (imageData != null)
-        ThumbnailStorage.saveThumbnail(tab, imageData);
-    }
 
     this._sessionStore.setTabValue(tab, this.TAB_DATA_IDENTIFIER,
       JSON.stringify(data));
@@ -117,39 +101,28 @@ let Storage = {
 
   // ----------
   // Function: getTabData
-  // Load tab data from session store and return it. Asynchrously loads the tab's
-  // thumbnail from the cache and calls <callback>(imageData) when done.
-  getTabData: function Storage_getTabData(tab, callback) {
+  // Returns the data object associated with a single tab.
+  getTabData: function(tab) {
     Utils.assert(tab, "tab");
-    Utils.assert(typeof callback == "function", "callback arg must be a function");
 
-    let existingData = null;
-
+    var existingData = null;
     try {
-      let tabData = this._sessionStore.getTabValue(tab, this.TAB_DATA_IDENTIFIER);
+      var tabData = this._sessionStore.getTabValue(tab, this.TAB_DATA_IDENTIFIER);
       if (tabData != "") {
         existingData = JSON.parse(tabData);
       }
     } catch (e) {
-      // getTabValue will fail if the property doesn't exist.
+      // getWindowValue will fail if the property doesn't exist
       Utils.log(e);
     }
 
-    if (existingData) {
-      ThumbnailStorage.loadThumbnail(
-        tab, existingData.url,
-        function(status, imageData) { 
-          callback(imageData);
-        }
-      );
-    }
     return existingData;
   },
 
   // ----------
   // Function: saveGroupItem
   // Saves the data for a single groupItem, associated with a specific window.
-  saveGroupItem: function Storage_saveGroupItem(win, data) {
+  saveGroupItem: function(win, data) {
     var id = data.id;
     var existingData = this.readGroupItemData(win);
     existingData[id] = data;
@@ -160,7 +133,7 @@ let Storage = {
   // ----------
   // Function: deleteGroupItem
   // Deletes the data for a single groupItem from the given window.
-  deleteGroupItem: function Storage_deleteGroupItem(win, id) {
+  deleteGroupItem: function(win, id) {
     var existingData = this.readGroupItemData(win);
     delete existingData[id];
     this._sessionStore.setWindowValue(win, this.GROUP_DATA_IDENTIFIER,
@@ -170,16 +143,15 @@ let Storage = {
   // ----------
   // Function: readGroupItemData
   // Returns the data for all groupItems associated with the given window.
-  readGroupItemData: function Storage_readGroupItemData(win) {
+  readGroupItemData: function(win) {
     var existingData = {};
-    let data;
     try {
-      data = this._sessionStore.getWindowValue(win, this.GROUP_DATA_IDENTIFIER);
-      if (data)
-        existingData = JSON.parse(data);
+      existingData = JSON.parse(
+        this._sessionStore.getWindowValue(win, this.GROUP_DATA_IDENTIFIER)
+      );
     } catch (e) {
       // getWindowValue will fail if the property doesn't exist
-      Utils.log("Error in readGroupItemData: "+e, data);
+      Utils.log("Error in readGroupItemData: "+e);
     }
     return existingData;
   },
@@ -187,52 +159,35 @@ let Storage = {
   // ----------
   // Function: saveGroupItemsData
   // Saves the global data for the <GroupItems> singleton for the given window.
-  saveGroupItemsData: function Storage_saveGroupItemsData(win, data) {
+  saveGroupItemsData: function(win, data) {
     this.saveData(win, this.GROUPS_DATA_IDENTIFIER, data);
   },
 
   // ----------
   // Function: readGroupItemsData
   // Reads the global data for the <GroupItems> singleton for the given window.
-  readGroupItemsData: function Storage_readGroupItemsData(win) {
+  readGroupItemsData: function(win) {
     return this.readData(win, this.GROUPS_DATA_IDENTIFIER);
   },
 
   // ----------
   // Function: saveUIData
   // Saves the global data for the <UIManager> singleton for the given window.
-  saveUIData: function Storage_saveUIData(win, data) {
+  saveUIData: function(win, data) {
     this.saveData(win, this.UI_DATA_IDENTIFIER, data);
   },
 
   // ----------
   // Function: readUIData
   // Reads the global data for the <UIManager> singleton for the given window.
-  readUIData: function Storage_readUIData(win) {
+  readUIData: function(win) {
     return this.readData(win, this.UI_DATA_IDENTIFIER);
-  },
-
-  // ----------
-  // Function: saveVisibilityData
-  // Saves visibility for the given window.
-  saveVisibilityData: function Storage_saveVisibilityData(win, data) {
-    this._sessionStore.setWindowValue(
-      win, win.TabView.VISIBILITY_IDENTIFIER, data);
-  },
-
-  // ----------
-  // Function: saveActiveGroupName
-  // Saves the active group's name for the given window.
-  saveActiveGroupName: function Storage_saveActiveGroupName(win) {
-    let groupName = win.TabView.getActiveGroupName();
-    this._sessionStore.setWindowValue(
-      win, win.TabView.LAST_SESSION_GROUP_NAME_IDENTIFIER, groupName);
   },
 
   // ----------
   // Function: saveData
   // Generic routine for saving data to a window.
-  saveData: function Storage_saveData(win, id, data) {
+  saveData: function(win, id, data) {
     try {
       this._sessionStore.setWindowValue(win, id, JSON.stringify(data));
     } catch (e) {
@@ -243,7 +198,7 @@ let Storage = {
   // ----------
   // Function: readData
   // Generic routine for reading data from a window.
-  readData: function Storage_readData(win, id) {
+  readData: function(win, id) {
     var existingData = {};
     try {
       var data = this._sessionStore.getWindowValue(win, id);
@@ -256,4 +211,3 @@ let Storage = {
     return existingData;
   }
 };
-

@@ -201,7 +201,7 @@ public:
    * @return  True if the animation will replace, false if it will add or
    *          otherwise build on the passed in value.
    */
-  virtual PRBool WillReplace() const;
+  PRBool WillReplace() const;
 
   /**
    * Indicates if the parameters for this animation have changed since the last
@@ -309,16 +309,9 @@ protected:
                                 const nsSMILValue*& aTo);
   double   ComputePacedTotalDistance(const nsSMILValueArray& aValues) const;
 
-  /**
-   * Adjust the simple progress, that is, the point within the simple duration,
-   * by applying any keyTimes.
-   */
-  double   ScaleSimpleProgress(double aProgress, nsSMILCalcMode aCalcMode);
-  /**
-   * Adjust the progress within an interval, that is, between two animation
-   * values, by applying any keySplines.
-   */
-  double   ScaleIntervalProgress(double aProgress, PRUint32 aIntervalIndex);
+  void     ScaleSimpleProgress(double& aProgress);
+  void     ScaleIntervalProgress(double& aProgress, PRUint32 aIntervalIndex,
+                                 PRUint32 aNumIntervals);
 
   // Convenience attribute getters -- use these instead of querying
   // mAnimationElement as these may need to be overridden by subclasses
@@ -338,15 +331,18 @@ protected:
   void         CheckKeyTimes(PRUint32 aNumValues);
   void         CheckKeySplines(PRUint32 aNumValues);
 
-  virtual PRBool IsToAnimation() const {
+  // When GetValues() returns a single-value array, this method indicates
+  // whether that single value can be understood to be a static value, to be
+  // set for the full animation duration.
+  virtual PRBool TreatSingleValueAsStatic() const {
+    return HasAttr(nsGkAtoms::values);
+  }
+
+  inline PRBool IsToAnimation() const {
     return !HasAttr(nsGkAtoms::values) &&
             HasAttr(nsGkAtoms::to) &&
            !HasAttr(nsGkAtoms::from);
   }
-
-  // Returns PR_TRUE if we know our composited value won't change over the
-  // simple duration of this animation (for a fixed base value).
-  virtual PRBool IsValueFixedForSimpleDuration() const;
 
   inline PRBool IsAdditive() const {
     /*
@@ -413,6 +409,9 @@ protected:
   nsTArray<double>              mKeyTimes;
   nsTArray<nsSMILKeySpline>     mKeySplines;
 
+  PRPackedBool                  mIsActive;
+  PRPackedBool                  mIsFrozen;
+
   // These are the parameters provided by the previous sample. Currently we
   // perform lazy calculation. That is, we only calculate the result if and when
   // instructed by the compositor. This allows us to apply the result directly
@@ -421,6 +420,9 @@ protected:
   nsSMILTime                    mSampleTime; // sample time within simple dur
   nsSMILTimeValue               mSimpleDuration;
   PRUint32                      mRepeatIteration;
+  PRPackedBool                  mLastValue;
+  PRPackedBool                  mHasChanged;
+  PRPackedBool                  mValueNeedsReparsingEverySample;
 
   nsSMILTime                    mBeginTime; // document time
 
@@ -464,14 +466,6 @@ protected:
   // sample to sample (because if neither target nor animated value have
   // changed, we don't have to do anything).
   nsSMILWeakTargetIdentifier    mLastTarget;
-
-  // Boolean flags
-  PRPackedBool                  mIsActive:1;
-  PRPackedBool                  mIsFrozen:1;
-  PRPackedBool                  mLastValue:1;
-  PRPackedBool                  mHasChanged:1;
-  PRPackedBool                  mValueNeedsReparsingEverySample:1;
-  PRPackedBool                  mPrevSampleWasSingleValueAnimation:1;
 };
 
 #endif // NS_SMILANIMATIONFUNCTION_H_

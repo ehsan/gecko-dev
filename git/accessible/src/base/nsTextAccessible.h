@@ -50,32 +50,16 @@ public:
   nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual void AppendTextTo(nsAString& aText, PRUint32 aStartOffset = 0,
-                            PRUint32 aLength = PR_UINT32_MAX);
-
-  // nsTextAccessible
-  void SetText(const nsAString& aText) { mText = aText; }
-  const nsString& Text() const { return mText; }
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
+                                PRUint32 aLength);
 
 protected:
+
   // nsAccessible
   virtual void CacheChildren();
-
-protected:
-  nsString mText;
 };
 
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible downcast method
-
-inline nsTextAccessible*
-nsAccessible::AsTextLeaf()
-{
-  return mFlags & eTextLeafAccessible ?
-    static_cast<nsTextAccessible*>(this) : nsnull;
-}
 
 #endif
 

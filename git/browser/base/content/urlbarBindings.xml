@@ -22,8 +22,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Dão Gottwald <dao@design-noir.de>
-#   Drew Willcoxon <adw@mozilla.com>
+# Dão Gottwald <dao@design-noir.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,45 +38,11 @@
 #
 # ***** END LICENSE BLOCK *****
 
-<!DOCTYPE bindings [
-<!ENTITY % notificationDTD SYSTEM "chrome://global/locale/notification.dtd">
-%notificationDTD;
-]>
-
 <bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl"
-          xmlns:html="http://www.w3.org/1999/xhtml"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
           xmlns:xbl="http://www.mozilla.org/xbl">
 
   <binding id="urlbar" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
-
-    <content sizetopopup="pref">
-      <xul:hbox anonid="textbox-container"
-                class="autocomplete-textbox-container urlbar-textbox-container"
-                flex="1" xbl:inherits="focused">
-        <children includes="image|deck|stack|box">
-          <xul:image class="autocomplete-icon" allowevents="true"/>
-        </children>
-        <xul:hbox anonid="textbox-input-box"
-                  class="textbox-input-box urlbar-input-box"
-                  flex="1" xbl:inherits="tooltiptext=inputtooltiptext">
-          <children/>
-          <html:input anonid="input"
-                      class="autocomplete-textbox urlbar-input textbox-input uri-element-right-align"
-                      allowevents="true"
-                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
-        </xul:hbox>
-        <children includes="hbox"/>
-      </xul:hbox>
-      <xul:dropmarker anonid="historydropmarker"
-                      class="autocomplete-history-dropmarker urlbar-history-dropmarker"
-                      allowevents="true"
-                      xbl:inherits="open,enablehistory,parentfocused=focused"/>
-      <xul:popupset anonid="popupset"
-                    class="autocomplete-result-popupset"/>
-      <children includes="toolbarbutton"/>
-    </content>
-
     <implementation implements="nsIObserver, nsIDOMEventListener">
       <constructor><![CDATA[
         this._prefs = Components.classes["@mozilla.org/preferences-service;1"]
@@ -90,8 +55,6 @@
         this.doubleClickSelectsAll = this._prefs.getBoolPref("doubleClickSelectsAll");
         this.completeDefaultIndex = this._prefs.getBoolPref("autoFill");
         this.timeout = this._prefs.getIntPref("delay");
-        this._formattingEnabled = this._prefs.getBoolPref("formatting.enabled");
-        this._mayTrimURLs = this._prefs.getBoolPref("trimURLs");
 
         this._urlTooltip = document.getElementById("urlTooltip");
 
@@ -101,38 +64,6 @@
         this.inputField.addEventListener("mouseout", this, false);
         this.inputField.addEventListener("overflow", this, false);
         this.inputField.addEventListener("underflow", this, false);
-
-        const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-        var textBox = document.getAnonymousElementByAttribute(this,
-                                                "anonid", "textbox-input-box");
-        var cxmenu = document.getAnonymousElementByAttribute(textBox,
-                                            "anonid", "input-box-contextmenu");
-        var pasteAndGo;
-        cxmenu.addEventListener("popupshowing", function() {
-          if (!pasteAndGo)
-            return;
-          var controller = document.commandDispatcher.getControllerForCommand("cmd_paste");
-          var enabled = controller.isCommandEnabled("cmd_paste");
-          if (enabled)
-            pasteAndGo.removeAttribute("disabled");
-          else
-            pasteAndGo.setAttribute("disabled", "true");
-        }, false);
-
-        var insertLocation = cxmenu.firstChild;
-        while (insertLocation.nextSibling &&
-               insertLocation.getAttribute("cmd") != "cmd_paste")
-          insertLocation = insertLocation.nextSibling;
-        if (insertLocation) {
-          pasteAndGo = document.createElement("menuitem");
-          let label = Services.strings.createBundle("chrome://browser/locale/browser.properties").
-                                   GetStringFromName("pasteAndGo.label");
-          pasteAndGo.setAttribute("label", label);
-          pasteAndGo.setAttribute("anonid", "paste-and-go");
-          pasteAndGo.setAttribute("oncommand",
-              "gURLBar.select(); goDoCommand('cmd_paste'); gURLBar.handleCommand();");
-          cxmenu.insertBefore(pasteAndGo, insertLocation.nextSibling);
-        }
       ]]></constructor>
 
       <destructor><![CDATA[
@@ -181,79 +112,6 @@
         ]]></body>
       </method>
 
-      <field name="_mayTrimURLs">true</field>
-      <method name="trimValue">
-        <parameter name="aURL"/>
-        <body><![CDATA[
-          return this._mayTrimURLs ? trimURL(aURL) : aURL;
-        ]]></body>
-      </method>
-
-      <field name="_formattingEnabled">true</field>
-      <method name="formatValue">
-        <body><![CDATA[
-          if (!this._formattingEnabled || this.focused)
-            return;
-
-          let controller = this.editor.selectionController;
-          let selection = controller.getSelection(controller.SELECTION_URLSECONDARY);
-          selection.removeAllRanges();
-
-          let textNode = this.editor.rootElement.firstChild;
-          let value = textNode.textContent;
-
-          let protocol = value.match(/^[a-z\d.+\-]+:/);
-          if (protocol &&
-              ["http:", "https:", "ftp:"].indexOf(protocol[0]) == -1)
-            return;
-          let matchedURL = value.match(/^((?:[a-z]+:\/\/)?(?:[^\/]+@)?)(.+?)(?::\d+)?(?:\/|$)/);
-          if (!matchedURL)
-            return;
-
-          let [, preDomain, domain] = matchedURL;
-          let baseDomain = domain;
-          let subDomain = "";
-          // getBaseDomainFromHost doesn't recognize IPv6 literals in brackets as IPs (bug 667159)
-          if (domain[0] != "[") {
-            try {
-              baseDomain = Services.eTLD.getBaseDomainFromHost(domain);
-            } catch (e) {}
-          }
-          if (baseDomain != domain) {
-            let segments = function (s) s.replace(/[^.]*/g, "").length + 1;
-            let subSegments = segments(domain) - segments(baseDomain);
-            subDomain = domain.match(new RegExp("(?:[^.]*\.){" + subSegments + "}"))[0];
-          }
-
-          let rangeLength = preDomain.length + subDomain.length;
-          if (rangeLength) {
-            let range = document.createRange();
-            range.setStart(textNode, 0);
-            range.setEnd(textNode, rangeLength);
-            selection.addRange(range);
-          }
-
-          let startRest = preDomain.length + domain.length;
-          if (startRest < value.length) {
-            let range = document.createRange();
-            range.setStart(textNode, startRest);
-            range.setEnd(textNode, value.length);
-            selection.addRange(range);
-          }
-        ]]></body>
-      </method>
-
-      <method name="_clearFormatting">
-        <body><![CDATA[
-          if (!this._formattingEnabled)
-            return;
-
-          let controller = this.editor.selectionController;
-          let selection = controller.getSelection(controller.SELECTION_URLSECONDARY);
-          selection.removeAllRanges();
-        ]]></body>
-      </method>
-
       <method name="handleRevert">
         <body><![CDATA[
           var isScrolling = this.popupOpen;
@@ -283,25 +141,19 @@
             return; // Do nothing for right clicks
 
           var url = this.value;
-          var mayInheritPrincipal = false;
           var postData = null;
 
           var action = this._parseActionUrl(url);
           if (action) {
             url = action.param;
-            if (this.hasAttribute("actiontype")) {
-              if (action.type == "switchtab") {
-                this.handleRevert();
-                let prevTab = gBrowser.selectedTab;
-                if (switchToTabHavingURI(url) &&
-                    isTabEmpty(prevTab))
-                  gBrowser.removeTab(prevTab);
-              }
+            if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
+              if (action.type == "switchtab")
+                switchToTabHavingURI(url);
               return;
             }
           }
           else {
-            [url, postData, mayInheritPrincipal] = this._canonizeURL(aTriggeringEvent);
+            [url, postData] = this._canonizeURL(aTriggeringEvent);
             if (!url)
               return;
           }
@@ -316,35 +168,15 @@
             Cu.reportError(ex);
           }
 
-          function loadCurrent() {
-            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
-            // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
-            // inheriting the currently loaded document's principal, unless this
-            // URL is marked as safe to inherit (e.g. came from a bookmark
-            // keyword).
-            if (!mayInheritPrincipal)
-              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-            gBrowser.loadURIWithFlags(url, flags, null, null, postData);
-          }
-
           if (aTriggeringEvent instanceof MouseEvent) {
             // We have a mouse event (from the go button), so use the standard
             // UI link behaviors
-            let where = whereToOpenLink(aTriggeringEvent, false, false);
-            if (where == "current") {
-              loadCurrent();
-            } else {
-              this.handleRevert();
-              content.focus();
-              openUILinkIn(url, where,
-                           { allowThirdPartyFixup: true, postData: postData });
-            }
+            openUILink(url, aTriggeringEvent, false, false,
+                       true /* allow third party fixup */, postData);
             return;
           }
 
-          if (aTriggeringEvent &&
-              aTriggeringEvent.altKey &&
-              !isTabEmpty(gBrowser.selectedTab)) {
+          if (aTriggeringEvent && aTriggeringEvent.altKey) {
             this.handleRevert();
             content.focus();
             gBrowser.loadOneTab(url, {
@@ -353,9 +185,9 @@
                                 allowThirdPartyFixup: true});
             aTriggeringEvent.preventDefault();
             aTriggeringEvent.stopPropagation();
-          } else {
-            loadCurrent();
           }
+          else
+            loadURI(url, null, postData, true /* allow third party fixup */);
 
           gBrowser.selectedBrowser.focus();
         ]]></body>
@@ -366,7 +198,7 @@
         <body><![CDATA[
           var url = this.value;
           if (!url)
-            return ["", null, false];
+            return ["", null];
 
           // Only add the suffix when the URL bar value isn't already "URL-like",
           // and only if we get a keyboard event, to match user expectations.
@@ -406,7 +238,7 @@
               // Tack www. and suffix on.  If user has appended directories, insert
               // suffix before them (bug 279035).  Be careful not to get two slashes.
               // Also, don't add the suffix if it's in the original url (bug 233853).
-
+      
               let firstSlash = url.indexOf("/");
               let existingSuffix = url.indexOf(suffix.substring(0, suffix.length - 1));
 
@@ -416,7 +248,7 @@
               // Yes slash, no suffix: Insert suffix (mozilla/stuff)
               // Yes slash, suffix before slash: Do nothing (mozilla.com/stuff)
               // Yes slash, suffix after slash: Insert suffix (mozilla/?stuff=.com)
-
+      
               if (firstSlash >= 0) {
                 if (existingSuffix == -1 || existingSuffix > firstSlash)
                   url = url.substring(0, firstSlash) + suffix +
@@ -429,10 +261,9 @@
           }
 
           var postData = {};
-          var mayInheritPrincipal = { value: false };
-          url = getShortcutOrURI(url, postData, mayInheritPrincipal);
+          url = getShortcutOrURI(url, postData);
 
-          return [url, postData.value, mayInheritPrincipal.value];
+          return [url, postData.value];
         ]]></body>
       </method>
 
@@ -488,9 +319,8 @@
             aEvent.preventDefault();
             this.value = url;
             SetPageProxyState("invalid");
-            this.focus();
             try {
-              urlSecurityCheck(url,
+              urlSecurityCheck(this.value,
                                gBrowser.contentPrincipal,
                                Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
             } catch (ex) {
@@ -511,7 +341,10 @@
           // non-data URI, encode it.
           if (val == inputVal &&
               this.getAttribute("pageproxystate") == "valid") {
-            let uri = gBrowser.currentURI;
+            let uri;
+            try {
+              uri = makeURI(val);
+            } catch (e) {}
 
             if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data")) {
               val = uri.spec;
@@ -582,12 +415,6 @@
               case "delay":
                 this.timeout = this._prefs.getIntPref(aData);
                 break;
-              case "formatting.enabled":
-                this._formattingEnabled = this._prefs.getBoolPref(aData);
-                break;
-              case "trimURLs":
-                this._mayTrimURLs = this._prefs.getBoolPref(aData);
-                break;
             }
           }
         ]]></body>
@@ -654,49 +481,9 @@
           return {type: action, param: param};
         ]]></body>
       </method>
-
-      <field name="_numNoActionsKeys"><![CDATA[
-        0
-      ]]></field>
-
-      <method name="_clearNoActions">
-        <parameter name="aURL"/>
-        <body><![CDATA[
-          this._numNoActionsKeys = 0;
-          this.popup.removeAttribute("noactions");
-          let action = this._parseActionUrl(this._value);
-          if (action)
-            this.setAttribute("actiontype", action.type);
-        ]]></body>
-      </method>
     </implementation>
 
     <handlers>
-      <handler event="keydown"><![CDATA[
-        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
-             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
-            this.popup.selectedIndex >= 0) {
-          this._numNoActionsKeys++;
-          this.popup.setAttribute("noactions", "true");
-          this.removeAttribute("actiontype");
-        }
-      ]]></handler>
-
-      <handler event="keyup"><![CDATA[
-        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
-             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
-            this._numNoActionsKeys > 0) {
-          this._numNoActionsKeys--;
-          if (this._numNoActionsKeys == 0)
-            this._clearNoActions();
-        }
-      ]]></handler>
-
-      <handler event="blur"><![CDATA[
-        this._clearNoActions();
-        this.formatValue();
-      ]]></handler>
-
       <handler event="draggesture" phase="capturing"><![CDATA[
         // TODO: This should use dragstart but editor code is still using
         //       the old drag & drop APIs, so we have to handle draggesture.
@@ -726,12 +513,7 @@
         dt.effectAllowed = "copyLink";
         event.stopPropagation();
       ]]></handler>
-
-      <handler event="focus" phase="capturing"><![CDATA[
-        this._hideURLTooltip();
-        this._clearFormatting();
-      ]]></handler>
-
+      <handler event="focus" phase="capturing" action="this._hideURLTooltip();"/>
       <handler event="dragover" phase="capturing" action="this.onDragOver(event, this);"/>
       <handler event="drop" phase="capturing" action="this.onDrop(event, this);"/>
       <handler event="select"><![CDATA[
@@ -790,7 +572,7 @@
           if (searchBar && searchBar.textbox == this.mInput) {
             // Handle search bar popup clicks
             var search = controller.getValueAt(this.selectedIndex);
-
+  
             // close the autocomplete popup and revert the entered search term
             this.closePopup();
             controller.handleEscape();
@@ -906,543 +688,4 @@
 
     </implementation>
   </binding>
-
-  <binding id="geolocation-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
-    <content align="start">
-      <xul:image class="popup-notification-icon"
-                 xbl:inherits="popupid"/>
-      <xul:vbox flex="1">
-        <xul:description class="popup-notification-description"
-                         xbl:inherits="xbl:text=label"/>
-        <xul:spacer flex="1"/>
-        <xul:hbox class="popup-notification-button-container"
-                  pack="end" align="center">
-          <xul:label anonid="learnmore" class="text-link geolocation-text-link"/>
-          <xul:spacer flex="1"/>
-          <xul:button anonid="button"
-                      type="menu-button"
-                      class="popup-notification-menubutton"
-                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
-            <xul:menupopup anonid="menupopup"
-                           xbl:inherits="oncommand=menucommand">
-              <children/>
-              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
-                            label="&closeNotificationItem.label;"
-                            xbl:inherits="oncommand=closeitemcommand"/>
-            </xul:menupopup>
-          </xul:button>
-        </xul:hbox>
-      </xul:vbox>
-      <xul:vbox pack="start">
-        <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton tabbable"
-                           xbl:inherits="oncommand=closebuttoncommand"
-                           tooltiptext="&closeNotification.tooltip;"/>
-      </xul:vbox>
-    </content>
-    <implementation>  
-      <constructor><![CDATA[
-        let link = document.getAnonymousElementByAttribute(this, "anonid", "learnmore");
-        link.value = gNavigatorBundle.getString("geolocation.learnMore");
-        
-        let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
-        link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
-      ]]></constructor>
-    </implementation>
-  </binding>
-
-  <binding id="addon-progress-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
-    <content align="start">
-      <xul:image class="popup-notification-icon"
-                 xbl:inherits="popupid"/>
-      <xul:vbox flex="1">
-        <xul:description class="popup-notification-description addon-progress-description"
-                         xbl:inherits="xbl:text=label"/>
-        <xul:spacer flex="1"/>
-        <xul:hbox align="center">
-          <xul:progressmeter anonid="progressmeter" flex="1" mode="undetermined" class="popup-progress-meter"/>
-          <xul:button anonid="cancel" class="popup-progress-cancel" oncommand="document.getBindingParent(this).cancel()"/>
-        </xul:hbox>
-        <xul:label anonid="progresstext" class="popup-progress-label"/>
-        <xul:hbox class="popup-notification-button-container"
-                  pack="end" align="center">
-          <xul:button anonid="button"
-                      class="popup-notification-menubutton"
-                      type="menu-button"
-                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
-            <xul:menupopup anonid="menupopup"
-                           xbl:inherits="oncommand=menucommand">
-              <children/>
-              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
-                            label="&closeNotificationItem.label;"
-                            xbl:inherits="oncommand=closeitemcommand"/>
-            </xul:menupopup>
-          </xul:button>
-        </xul:hbox>
-      </xul:vbox>
-      <xul:vbox pack="start">
-        <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton tabbable"
-                           xbl:inherits="oncommand=closebuttoncommand"
-                           tooltiptext="&closeNotification.tooltip;"/>
-      </xul:vbox>
-    </content>
-    <implementation>
-      <constructor><![CDATA[
-        this.cancelbtn.setAttribute("tooltiptext", gNavigatorBundle.getString("addonDownloadCancelTooltip"));
-
-        this.notification.options.installs.forEach(function(aInstall) {
-          aInstall.addListener(this);
-        }, this);
-
-        // Calling updateProgress can sometimes cause this notification to be
-        // removed in the middle of refreshing the notification panel which
-        // makes the panel get refreshed again. Just initialise to the
-        // undetermined state and then schedule a proper check at the next
-        // opportunity
-        this.setProgress(0, -1);
-        setTimeout(this.updateProgress.bind(this), 0);
-      ]]></constructor>
-
-      <destructor><![CDATA[
-        this.destroy();
-      ]]></destructor>
-
-      <field name="progressmeter" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "progressmeter");
-      </field>
-      <field name="progresstext" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "progresstext");
-      </field>
-      <field name="cancelbtn" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "cancel");
-      </field>
-      <field name="DownloadUtils" readonly="true">
-        let utils = {};
-        Components.utils.import("resource://gre/modules/DownloadUtils.jsm", utils);
-        utils.DownloadUtils;
-      </field>
-
-      <method name="destroy">
-        <body><![CDATA[
-          this.notification.options.installs.forEach(function(aInstall) {
-            aInstall.removeListener(this);
-          }, this);
-        ]]></body>
-      </method>
-
-      <method name="setProgress">
-        <parameter name="aProgress"/>
-        <parameter name="aMaxProgress"/>
-        <body><![CDATA[
-          if (aMaxProgress == -1) {
-            this.progressmeter.mode = "undetermined";
-          }
-          else {
-            this.progressmeter.mode = "determined";
-            this.progressmeter.value = (aProgress * 100) / aMaxProgress;
-          }
-
-          let now = Date.now();
-
-          if (!this.notification.lastUpdate) {
-            this.notification.lastUpdate = now;
-            this.notification.lastProgress = aProgress;
-            return;
-          }
-
-          let delta = now - this.notification.lastUpdate;
-          if ((delta < 400) && (aProgress < aMaxProgress))
-            return;
-
-          delta /= 1000;
-
-          // This code is taken from nsDownloadManager.cpp
-          let speed = (aProgress - this.notification.lastProgress) / delta;
-          if (this.notification.speed)
-            speed = speed * 0.9 + this.notification.speed * 0.1;
-
-          this.notification.lastUpdate = now;
-          this.notification.lastProgress = aProgress;
-          this.notification.speed = speed;
-
-          let status = null;
-          [status, this.notification.last] = this.DownloadUtils.getDownloadStatus(aProgress, aMaxProgress, speed, this.notification.last);
-          this.progresstext.value = status;
-        ]]></body>
-      </method>
-
-      <method name="cancel">
-        <body><![CDATA[
-          // Cache these as cancelling the installs will remove this
-          // notification which will drop these references
-          let browser = this.notification.browser;
-          let contentWindow = this.notification.options.contentWindow;
-          let sourceURI = this.notification.options.sourceURI;
-
-          let installs = this.notification.options.installs;
-          installs.forEach(function(aInstall) {
-            try {
-              aInstall.cancel();
-            }
-            catch (e) {
-              // Cancel will throw if the download has already failed
-            }
-          }, this);
-
-          let anchorID = "addons-notification-icon";
-          let notificationID = "addon-install-cancelled";
-          let messageString = gNavigatorBundle.getString("addonDownloadCancelled");
-          messageString = PluralForm.get(installs.length, messageString);
-          let buttonText = gNavigatorBundle.getString("addonDownloadRestart");
-          buttonText = PluralForm.get(installs.length, buttonText);
-
-          let action = {
-            label: buttonText,
-            accessKey: gNavigatorBundle.getString("addonDownloadRestart.accessKey"),
-            callback: function() {
-              let weblistener = Cc["@mozilla.org/addons/web-install-listener;1"].
-                                getService(Ci.amIWebInstallListener);
-              if (weblistener.onWebInstallRequested(contentWindow, sourceURI,
-                                                    installs, installs.length)) {
-                installs.forEach(function(aInstall) {
-                  aInstall.install();
-                });
-              }
-            }
-          };
-
-          PopupNotifications.show(browser, notificationID, messageString,
-                                  anchorID, action);
-        ]]></body>
-      </method>
-
-      <method name="updateProgress">
-        <body><![CDATA[
-          let downloadingCount = 0;
-          let progress = 0;
-          let maxProgress = 0;
-
-          this.notification.options.installs.forEach(function(aInstall) {
-            if (aInstall.maxProgress == -1)
-              maxProgress = -1;
-            progress += aInstall.progress;
-            if (maxProgress >= 0)
-              maxProgress += aInstall.maxProgress;
-            if (aInstall.state < AddonManager.STATE_DOWNLOADED)
-              downloadingCount++;
-          });
-
-          if (downloadingCount == 0) {
-            this.destroy();
-            PopupNotifications.remove(this.notification);
-          }
-          else {
-            this.setProgress(progress, maxProgress);
-          }
-        ]]></body>
-      </method>
-
-      <method name="onDownloadProgress">
-        <body><![CDATA[
-          this.updateProgress();
-        ]]></body>
-      </method>
-
-      <method name="onDownloadFailed">
-        <body><![CDATA[
-          this.updateProgress();
-        ]]></body>
-      </method>
-
-      <method name="onDownloadCancelled">
-        <body><![CDATA[
-          this.updateProgress();
-        ]]></body>
-      </method>
-
-      <method name="onDownloadEnded">
-        <body><![CDATA[
-          this.updateProgress();
-        ]]></body>
-      </method>
-    </implementation>
-  </binding>
-
-  <binding id="splitmenu">
-    <content>
-      <xul:hbox anonid="menuitem" flex="1"
-                class="splitmenu-menuitem"
-                xbl:inherits="iconic,label,disabled,onclick=oncommand,_moz-menuactive=active"/>
-      <xul:menu anonid="menu" class="splitmenu-menu"
-                xbl:inherits="disabled,_moz-menuactive=active"
-                oncommand="event.stopPropagation();">
-        <children includes="menupopup"/>
-      </xul:menu>
-    </content>
-
-    <implementation implements="nsIDOMEventListener">
-      <constructor><![CDATA[
-        this._parentMenupopup.addEventListener("DOMMenuItemActive", this, false);
-        this._parentMenupopup.addEventListener("popuphidden", this, false);
-      ]]></constructor>
-
-      <destructor><![CDATA[
-        this._parentMenupopup.removeEventListener("DOMMenuItemActive", this, false);
-        this._parentMenupopup.removeEventListener("popuphidden", this, false);
-      ]]></destructor>
-
-      <field name="menuitem" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "menuitem");
-      </field>
-      <field name="menu" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "menu");
-      </field>
-
-      <field name="_menuDelay">600</field>
-
-      <field name="_parentMenupopup"><![CDATA[
-        this._getParentMenupopup(this);
-      ]]></field>
-
-      <method name="_getParentMenupopup">
-        <parameter name="aNode"/>
-        <body><![CDATA[
-          let node = aNode.parentNode;
-          while (node) {
-            if (node.localName == "menupopup")
-              break;
-            node = node.parentNode;
-          }
-          return node;
-        ]]></body>
-      </method>
-
-      <method name="handleEvent">
-        <parameter name="event"/>
-        <body><![CDATA[
-          switch (event.type) {
-            case "DOMMenuItemActive":
-              if (this.getAttribute("active") == "true" &&
-                  event.target != this &&
-                  this._getParentMenupopup(event.target) == this._parentMenupopup)
-                this.removeAttribute("active");
-              break;
-            case "popuphidden":
-              if (event.target == this._parentMenupopup)
-                this.removeAttribute("active");
-              break;
-          }
-        ]]></body>
-      </method>
-    </implementation>
-
-    <handlers>
-      <handler event="mouseover"><![CDATA[
-        if (this.getAttribute("active") != "true") {
-          this.setAttribute("active", "true");
-
-          let event = document.createEvent("Events");
-          event.initEvent("DOMMenuItemActive", true, false);
-          this.dispatchEvent(event);
-
-          if (this.getAttribute("disabled") != "true") {
-            let self = this;
-            setTimeout(function () {
-              if (self.getAttribute("active") == "true")
-                self.menu.open = true;
-            }, this._menuDelay);
-          }
-        }
-      ]]></handler>
-
-      <handler event="popupshowing"><![CDATA[
-        if (event.target == this.firstChild &&
-            this._parentMenupopup._currentPopup)
-          this._parentMenupopup._currentPopup.hidePopup();
-      ]]></handler>
-
-      <handler event="click" phase="capturing"><![CDATA[
-        if (this.getAttribute("disabled") == "true") {
-          // Prevent the command from being carried out
-          event.stopPropagation();
-          return;
-        }
-
-        let node = event.originalTarget;
-        while (true) {
-          if (node == this.menuitem)
-            break;
-          if (node == this)
-            return;
-          node = node.parentNode;
-        }
-
-        this._parentMenupopup.hidePopup();
-      ]]></handler>
-    </handlers>
-  </binding>
-
-  <binding id="menuitem-tooltip" extends="chrome://global/content/bindings/menu.xml#menuitem">
-    <implementation>
-      <constructor><![CDATA[
-        this.setAttribute("tooltiptext", this.getAttribute("acceltext"));
-        // TODO: Simplify this to this.setAttribute("acceltext", "") once bug
-        // 592424 is fixed
-        document.getAnonymousElementByAttribute(this, "anonid", "accel").firstChild.setAttribute("value", "");
-      ]]></constructor>
-    </implementation>
-  </binding>
-
-  <binding id="menuitem-iconic-tooltip" extends="chrome://global/content/bindings/menu.xml#menuitem-iconic">
-    <implementation>
-      <constructor><![CDATA[
-        this.setAttribute("tooltiptext", this.getAttribute("acceltext"));
-        // TODO: Simplify this to this.setAttribute("acceltext", "") once bug
-        // 592424 is fixed
-        document.getAnonymousElementByAttribute(this, "anonid", "accel").firstChild.setAttribute("value", "");
-      ]]></constructor>
-    </implementation>
-  </binding>
-
- <binding id="promobox">
-    <content>
-      <xul:hbox class="panel-promo-box" align="start" flex="1">
-        <xul:hbox align="center" flex="1">
-          <xul:image class="panel-promo-icon"/>
-          <xul:description anonid="promo-message" class="panel-promo-message" flex="1">
-            <xul:description anonid="promo-link"
-                             class="plain text-link inline-link"
-                             onclick="document.getBindingParent(this).onLinkClick();"/>
-          </xul:description>
-        </xul:hbox>
-        <xul:toolbarbutton class="panel-promo-closebutton"
-                           oncommand="document.getBindingParent(this).onCloseButtonCommand();"
-                           tooltiptext="&closeNotification.tooltip;"/>
-      </xul:hbox>
-    </content>
-
-    <implementation implements="nsIDOMEventListener">
-      <constructor><![CDATA[
-        this._panel.addEventListener("popupshowing", this, false);
-      ]]></constructor>
-
-      <destructor><![CDATA[
-        this._panel.removeEventListener("popupshowing", this, false);
-      ]]></destructor>
-
-      <field name="_panel" readonly="true"><![CDATA[
-        let node = this.parentNode;
-        while(node && node.localName != "panel") {
-          node = node.parentNode;
-        }
-        node;
-      ]]></field>
-      <field name="_promomessage" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "promo-message");
-      </field>
-      <field name="_promolink" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "promo-link");
-      </field>
-      <field name="_brandBundle" readonly="true">
-        Services.strings.createBundle("chrome://branding/locale/brand.properties");
-      </field>
-      <property name="_viewsLeft">
-        <getter><![CDATA[
-          try {
-            return Services.prefs.getIntPref("browser.syncPromoViewsLeft");
-          } catch(ex) {}
-          return 5;
-        ]]></getter>
-        <setter><![CDATA[
-          Services.prefs.setIntPref("browser.syncPromoViewsLeft", val);
-          return val;
-        ]]></setter>
-      </property>
-      <property name="_notificationType">
-        <getter><![CDATA[
-          // Use the popupid attribute to identify the notification type,
-          // otherwise just rely on the panel id for common arrowpanels.
-          let type = this._panel.firstChild.getAttribute("popupid") ||
-                     this._panel.id;
-          if (/^password-/.test(type))
-            return "passwords";
-          if (type == "editBookmarkPanel")
-            return "bookmarks";
-          return null;
-        ]]></getter>
-      </property>
-      <property name="_notificationMessage">
-        <getter><![CDATA[
-          return gNavigatorBundle.getFormattedString(
-            "syncPromoNotification." + this._notificationType + ".description",
-            [this._brandBundle.GetStringFromName("syncBrandShortName")]
-          );
-        ]]></getter>
-      </property>
-      <method name="onCloseButtonCommand">
-        <body><![CDATA[
-          this._viewsLeft = 0;
-          this.hidden = true;
-        ]]></body>
-      </method>
-      <method name="onLinkClick">
-        <body><![CDATA[
-          // Open a new selected tab and close the current panel.
-          gBrowser.loadOneTab(this._promolink.getAttribute("href"),
-                              { inBackground: false });
-          this._panel.hidePopup();
-        ]]></body>
-      </method>
-      <method name="handleEvent">
-        <parameter name="event"/>
-        <body><![CDATA[
-          if (event.type != "popupshowing" || event.target != this._panel)
-            return;
-
-          // A previous notification may have unhidden this.
-          this.hidden = true;
-
-          // Only handle supported notification panels.
-          if (!this._notificationType) {
-            return;
-          }
-
-          let viewsLeft = this._viewsLeft;
-          if (viewsLeft) {
-            if (Services.prefs.prefHasUserValue("services.sync.username")) {
-              // If the user has already setup Sync, don't show the notification.
-              this._viewsLeft = 0;
-              // Be sure to hide the panel, in case it was visible and the user
-              // decided to setup Sync after noticing it.
-              viewsLeft = 0;
-              // The panel is still hidden, just bail out.
-              return;
-            }
-            else {
-              this._viewsLeft = viewsLeft - 1;
-            }
-
-            this._promolink.setAttribute("href", "https://services.mozilla.com/sync/");
-            this._promolink.value = gNavigatorBundle.getString("syncPromoNotification.learnMoreLinkText");
-
-            this.hidden = false;
-
-            // HACK: The description element doesn't wrap correctly in panels,
-            // thus set a width on it, based on the available space, before
-            // setting its textContent.  Then set its height as well, to
-            // fix wrong height calculation on Linux (bug 659578).
-            let self = this;
-            this._panel.addEventListener("popupshown", function (evt) {
-              self._panel.removeEventListener("popupshown", arguments.callee, true);
-              self._promomessage.width = self._promomessage.getBoundingClientRect().width;
-              self._promomessage.firstChild.textContent = self._notificationMessage;
-              self._promomessage.height = self._promomessage.getBoundingClientRect().height;
-            }, true);
-          }
-        ]]></body>
-      </method>
-    </implementation>
-  </binding>
-
 </bindings>

@@ -49,64 +49,39 @@ PROGRAM         = jsapi-tests$(BIN_SUFFIX)
 CPPSRCS = \
   tests.cpp \
   selfTest.cpp \
-  testArgumentsObject.cpp \
-  testBug604087.cpp \
   testClassGetter.cpp \
-  testCloneScript.cpp \
   testConservativeGC.cpp \
   testContexts.cpp \
   testDebugger.cpp \
-  testDeepFreeze.cpp \
   testDefineGetterSetterNonEnumerable.cpp \
   testDefineProperty.cpp \
   testExtendedEq.cpp \
-  testFuncCallback.cpp \
-  testFunctionProperties.cpp \
   testGCChunkAlloc.cpp \
-  testGetPropertyDefault.cpp \
+  testFuncCallback.cpp \
   testIntString.cpp \
-  testIntern.cpp \
+  testIsAboutToBeFinalized.cpp \
   testLookup.cpp \
-  testLooselyEqual.cpp \
   testNewObject.cpp \
   testOps.cpp \
-  testParseJSON.cpp \
   testPropCache.cpp \
-  testRegExp.cpp \
-  testResolveRecursion.cpp \
-  testSameValue.cpp \
-  testScriptObject.cpp \
-  testSetProperty.cpp \
-  testStringBuffer.cpp \
-  testThreadGC.cpp \
-  testThreads.cpp \
   testTrap.cpp \
-  testUTF8.cpp \
-  testVersion.cpp \
+  testSameValue.cpp \
+  testSeal.cpp \
   testXDR.cpp \
-  testCustomIterator.cpp \
-  testExternalStrings.cpp \
+  testSetPropertyWithNativeGetterStubSetter.cpp \
   $(NULL)
-
-# Disabled: an entirely unrelated test seems to cause this to fail.  Moreover,
-# given the test's dependence on interactions between the compiler, the GC, and
-# conservative stack scanning, the fix isn't obvious: more investigation
-# needed.
-#CPPSRCS += \
-#  testRegExpInstanceProperties.cpp \
-#  $(NULL)
 
 DEFINES         += -DEXPORT_JS_API
 
-# Some platforms that have stdint.h include it in system headers.  So
-# to reliably get limit macros defined, we'd always have to define the
-# one below before including any header, but that's obscure and
-# fragile, so we do it here.
-DEFINES         += -D__STDC_LIMIT_MACROS
-
-LIBS      = $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX) $(NSPR_LIBS)
+LIBS      = $(NSPR_LIBS) $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX)
 
 LOCAL_INCLUDES += -I$(topsrcdir) -I..
+
+ifdef _MSC_VER
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainACRTStartup
+endif
+endif
 
 include $(topsrcdir)/config/rules.mk
 

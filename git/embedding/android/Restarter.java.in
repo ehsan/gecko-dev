@@ -1,4 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -36,59 +36,56 @@
  * ***** END LICENSE BLOCK ***** */
 
 #filter substitution
-package @ANDROID_PACKAGE_NAME@;
+package org.mozilla.@MOZ_APP_NAME@;
 
-import android.app.*;
 import android.content.*;
-import android.util.*;
-import android.os.*;
+import android.util.Log;
 import java.io.*;
-import org.mozilla.gecko.GeckoAppShell;
 
-public class Restarter extends Activity {
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
+public class Restarter extends BroadcastReceiver {
+    @Override 
+    public void onReceive(Context context, Intent intent) {
         Log.i("Restarter", "trying to restart @MOZ_APP_NAME@");
-        try {
-            int countdown = 40;
-            while (GeckoAppShell.checkForGeckoProcs() &&  --countdown > 0) {
-                // Wait for the old process to die before we continue
-                try {
-                    Thread.currentThread().sleep(100);
-                } catch (InterruptedException ie) {}
-            }
-            
-            if (countdown <= 0) {
-                // if the countdown expired, something is hung
-                GeckoAppShell.killAnyZombies();
-                countdown = 10;
-                // wait for the kill to take effect
-                while (GeckoAppShell.checkForGeckoProcs() &&  --countdown > 0) {
-                    try {
-                        Thread.currentThread().sleep(100);
-                    } catch (InterruptedException ie) {}
+        try { 
+            boolean stillRunning;
+            do {
+                stillRunning = false;
+                Process p = Runtime.getRuntime().exec("/system/bin/ps");
+                BufferedReader psOut = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                String line;
+                Log.i("Restarter", "pid: " + new Integer(android.os.Process.myPid()).toString());
+                while((line = psOut.readLine()) != null) {
+                    Log.i("Restarter", "ps: " + line);
+                    if (line.contains("org.mozilla.@MOZ_APP_NAME@.App")){
+                        if (!line.contains(new Integer(android.os.Process.myPid()).toString())){
+                            Log.i("Restarter", "app still running, wait a bit");
+                            stillRunning = true;
+                            Thread.sleep(500);
+                            break; // don't need to look at the rest
+                        } else {
+                            Log.i("Restarter", "found ourselves");
+                        }
+                    }
                 }
-            }
+            } while(stillRunning);
         } catch (Exception e) {
-            Log.i("Restarter", e.toString());
+                Log.i("Restarter", e.toString());
         }
         try {
             String action = "android.intent.action.MAIN";
-            Intent intent = new Intent(action);
-            intent.setClassName("@ANDROID_PACKAGE_NAME@",
-                                "@ANDROID_PACKAGE_NAME@.App");
-            Bundle b = getIntent().getExtras();
-            if (b != null)
-                intent.putExtras(b);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            Log.i("GeckoAppJava", intent.toString());
-            startActivity(intent);
+            String env;
+            StringBuffer envstr = new StringBuffer();
+            for (int c = 0; (env = intent.getStringExtra("env" + c)) != null; c++) {
+                envstr.append(" --es env" + c + " " + env);
+            }
+            String amCmd = "/system/bin/am start -a " + action + envstr.toString() + 
+                " -n org.mozilla.@MOZ_APP_NAME@/org.mozilla.@MOZ_APP_NAME@.App";
+            Log.i("Restarter", amCmd);
+
+            Runtime.getRuntime().exec(amCmd);
         } catch (Exception e) {
             Log.i("Restarter", e.toString());
         }
-        // Give the new process time to start before we die
-        GeckoAppShell.waitForAnotherGeckoProc();
-        System.exit(0);
+        System.exit(0);    
     }
 };

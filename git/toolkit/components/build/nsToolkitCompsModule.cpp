@@ -63,6 +63,7 @@
 #include "nsUrlClassifierDBService.h"
 #include "nsUrlClassifierStreamUpdater.h"
 #include "nsUrlClassifierUtils.h"
+#include "nsUrlClassifierHashCompleter.h"
 #endif
 
 #ifdef MOZ_FEEDS
@@ -70,10 +71,6 @@
 #endif
 
 #include "nsBrowserStatusFilter.h"
-
-#ifdef ANDROID
-#include "nsWebappsSupport.h"
-#endif
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -100,6 +97,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsTypeAheadFind)
 #ifdef MOZ_URL_CLASSIFIER
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUrlClassifierStreamUpdater)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlClassifierUtils, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlClassifierHashCompleter, Init)
 
 static nsresult
 nsUrlClassifierDBServiceConstructor(nsISupports *aOuter, REFNSIID aIID,
@@ -127,10 +125,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableUnescapeHTML)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
 
-#ifdef ANDROID
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebappsSupport)
-#endif
-
 NS_DEFINE_NAMED_CID(NS_TOOLKIT_APPSTARTUP_CID);
 NS_DEFINE_NAMED_CID(NS_USERINFO_CID);
 #ifdef ALERTS_SERVICE
@@ -149,16 +143,13 @@ NS_DEFINE_NAMED_CID(NS_TYPEAHEADFIND_CID);
 NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERDBSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERSTREAMUPDATER_CID);
 NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERUTILS_CID);
+NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERHASHCOMPLETER_CID);
 #endif
 #ifdef MOZ_FEEDS
 NS_DEFINE_NAMED_CID(NS_SCRIPTABLEUNESCAPEHTML_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_BROWSERSTATUSFILTER_CID);
 NS_DEFINE_NAMED_CID(NS_CHARSETMENU_CID);
-
-#ifdef ANDROID
-NS_DEFINE_NAMED_CID(NS_WEBAPPSSUPPORT_CID);
-#endif
 
 static const mozilla::Module::CIDEntry kToolkitCIDs[] = {
   { &kNS_TOOLKIT_APPSTARTUP_CID, false, NULL, nsAppStartupConstructor },
@@ -179,15 +170,13 @@ static const mozilla::Module::CIDEntry kToolkitCIDs[] = {
   { &kNS_URLCLASSIFIERDBSERVICE_CID, false, NULL, nsUrlClassifierDBServiceConstructor },
   { &kNS_URLCLASSIFIERSTREAMUPDATER_CID, false, NULL, nsUrlClassifierStreamUpdaterConstructor },
   { &kNS_URLCLASSIFIERUTILS_CID, false, NULL, nsUrlClassifierUtilsConstructor },
+  { &kNS_URLCLASSIFIERHASHCOMPLETER_CID, false, NULL, nsUrlClassifierHashCompleterConstructor },
 #endif
 #ifdef MOZ_FEEDS
   { &kNS_SCRIPTABLEUNESCAPEHTML_CID, false, NULL, nsScriptableUnescapeHTMLConstructor },
 #endif
   { &kNS_BROWSERSTATUSFILTER_CID, false, NULL, nsBrowserStatusFilterConstructor },
   { &kNS_CHARSETMENU_CID, false, NULL, NS_NewCharsetMenu },
-#ifdef ANDROID
-  { &kNS_WEBAPPSSUPPORT_CID, false, NULL, nsWebappsSupportConstructor },
-#endif
   { NULL }
 };
 
@@ -211,15 +200,13 @@ static const mozilla::Module::ContractIDEntry kToolkitContracts[] = {
   { NS_URICLASSIFIERSERVICE_CONTRACTID, &kNS_URLCLASSIFIERDBSERVICE_CID },
   { NS_URLCLASSIFIERSTREAMUPDATER_CONTRACTID, &kNS_URLCLASSIFIERSTREAMUPDATER_CID },
   { NS_URLCLASSIFIERUTILS_CONTRACTID, &kNS_URLCLASSIFIERUTILS_CID },
+  { NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID, &kNS_URLCLASSIFIERHASHCOMPLETER_CID },
 #endif
 #ifdef MOZ_FEEDS
   { NS_SCRIPTABLEUNESCAPEHTML_CONTRACTID, &kNS_SCRIPTABLEUNESCAPEHTML_CID },
 #endif
   { NS_BROWSERSTATUSFILTER_CONTRACTID, &kNS_BROWSERSTATUSFILTER_CID },
   { NS_RDF_DATASOURCE_CONTRACTID_PREFIX NS_CHARSETMENU_PID, &kNS_CHARSETMENU_CID },
-#ifdef ANDROID
-  { NS_WEBAPPSSUPPORT_CONTRACTID, &kNS_WEBAPPSSUPPORT_CID },
-#endif
   { NULL }
 };
 

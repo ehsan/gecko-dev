@@ -48,7 +48,7 @@ from runtests import Mochitest
 from runtests import MochitestOptions
 from runtests import MochitestServer
 
-import devicemanager, devicemanagerADB, devicemanagerSUT
+import devicemanager
 
 class RemoteOptions(MochitestOptions):
 
@@ -65,11 +65,6 @@ class RemoteOptions(MochitestOptions):
                     type = "string", dest = "deviceIP",
                     help = "ip address of remote device to test")
         defaults["deviceIP"] = None
-
-        self.add_option("--dm_trans", action="store",
-                    type = "string", dest = "dm_trans",
-                    help = "the transport to use to communicate with device: [adb|sut]; default=sut")
-        defaults["dm_trans"] = "sut"
 
         self.add_option("--devicePort", action="store",
                     type = "string", dest = "devicePort",
@@ -101,11 +96,6 @@ class RemoteOptions(MochitestOptions):
                     help = "ip address where the remote web server is hosted at")
         defaults["sslPort"] = automation.DEFAULT_SSL_PORT
 
-        self.add_option("--pidfile", action = "store",
-                    type = "string", dest = "pidFile",
-                    help = "name of the pidfile to generate")
-        defaults["pidFile"] = ""
-
         defaults["remoteTestRoot"] = None
         defaults["logFile"] = "mochitest.log"
         defaults["autorun"] = True
@@ -117,17 +107,16 @@ class RemoteOptions(MochitestOptions):
 
     def verifyRemoteOptions(self, options, automation):
         options.remoteTestRoot = automation._devicemanager.getDeviceRoot()
-        productRoot = options.remoteTestRoot + "/" + automation._product
 
-        if (options.utilityPath == self._automation.DIST_BIN):
-            options.utilityPath = productRoot + "/bin"
+        options.utilityPath = options.remoteTestRoot + "/bin"
+        options.certPath = options.remoteTestRoot + "/certs"
 
-        if options.remoteWebServer == None:
-            if os.name != "nt":
-                options.remoteWebServer = automation.getLanIp()
-            else:
-                print "ERROR: you must specify a --remote-webserver=<ip address>\n"
-                return None
+       
+        if options.remoteWebServer == None and os.name != "nt":
+            options.remoteWebServer = automation.getLanIp()
+        elif os.name == "nt":
+            print "ERROR: you must specify a remoteWebServer ip address\n"
+            return None
 
         options.webServer = options.remoteWebServer
 
@@ -136,10 +125,11 @@ class RemoteOptions(MochitestOptions):
             return None
 
         if (options.remoteLogFile == None):
-            options.remoteLogFile = options.remoteTestRoot + '/mochitest.log'
+            options.remoteLogFile =  automation._devicemanager.getDeviceRoot() + '/test.log'
 
-        if (options.remoteLogFile.count('/') < 1):
-            options.remoteLogFile = options.remoteTestRoot + '/' + options.remoteLogFile
+        # Set up our options that we depend on based on the above
+        productRoot = options.remoteTestRoot + "/" + automation._product
+        options.utilityPath = productRoot + "/bin"
 
         # remoteAppPath or app must be specified to find the product to launch
         if (options.remoteAppPath and options.app):
@@ -158,11 +148,6 @@ class RemoteOptions(MochitestOptions):
                 options.xrePath = productRoot + "/xulrunner"
             else:
                 options.xrePath = options.utilityPath
-
-        if (options.pidFile != ""):
-            f = open(options.pidFile, 'w')
-            f.write("%s" % os.getpid())
-            f.close()
 
         return options
 
@@ -198,12 +183,6 @@ class MochiRemote(Mochitest):
         self._dm.getFile(self.remoteLog, self.localLog)
         self._dm.removeFile(self.remoteLog)
         self._dm.removeDir(self.remoteProfile)
-        if (options.pidFile != ""):
-            try:
-                os.remove(options.pidFile)
-                os.remove(options.pidFile + ".xpcshell.pid")
-            except:
-                print "Warning: cleaning up pidfile '%s' was unsuccessful from the test harness" % options.pidFile
 
     def findPath(self, paths, filename = None):
         for path in paths:
@@ -220,19 +199,6 @@ class MochiRemote(Mochitest):
         remoteProfilePath = options.profilePath
         remoteUtilityPath = options.utilityPath
         localAutomation = Automation()
-        localAutomation.IS_WIN32 = False
-        localAutomation.IS_LINUX = False
-        localAutomation.IS_MAC = False
-        localAutomation.UNIXISH = False
-        hostos = sys.platform
-        if (hostos == 'mac' or  hostos == 'darwin'):
-          localAutomation.IS_MAC = True
-        elif (hostos == 'linux' or hostos == 'linux2'):
-          localAutomation.IS_LINUX = True
-          localAutomation.UNIXISH = True
-        elif (hostos == 'win32' or hostos == 'win64'):
-          localAutomation.BIN_SUFFIX = ".exe"
-          localAutomation.IS_WIN32 = True
 
         paths = [options.xrePath, localAutomation.DIST_BIN, self._automation._product, os.path.join('..', self._automation._product)]
         options.xrePath = self.findPath(paths)
@@ -257,12 +223,7 @@ class MochiRemote(Mochitest):
         self.server = MochitestServer(localAutomation, options)
         self.server.start()
 
-        if (options.pidFile != ""):
-            f = open(options.pidFile + ".xpcshell.pid", 'w')
-            f.write("%s" % self.server._process.pid)
-            f.close()
         self.server.ensureReady(self.SERVER_STARTUP_TIMEOUT)
-
         options.xrePath = remoteXrePath
         options.utilityPath = remoteUtilityPath
         options.profilePath = remoteProfilePath
@@ -282,13 +243,7 @@ class MochiRemote(Mochitest):
     def buildURLOptions(self, options):
         self.localLog = options.logFile
         options.logFile = self.remoteLog
-        options.profilePath = self.localProfile
         retVal = Mochitest.buildURLOptions(self, options)
-        #we really need testConfig.js (for browser chrome)
-        if self._dm.pushDir(options.profilePath, self.remoteProfile) == None:
-            raise devicemanager.FileError("Unable to copy profile to device.")
-
-        options.profilePath = self.remoteProfile
         options.logFile = self.localLog
         return retVal
 
@@ -298,7 +253,7 @@ class MochiRemote(Mochitest):
           return "NO_CHROME_ON_DROID"
         path = '/'.join(parts[:-1])
         manifest = path + "/chrome/" + os.path.basename(filename)
-        if self._dm.pushFile(filename, manifest) == False:
+        if self._dm.pushFile(filename, manifest) == None:
             raise devicemanager.FileError("Unable to install Chrome files on device.")
         return manifest
 
@@ -307,17 +262,12 @@ class MochiRemote(Mochitest):
 
 def main():
     scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
-    dm_none = devicemanagerADB.DeviceManagerADB()
-    auto = RemoteAutomation(dm_none, "fennec")
+    dm = devicemanager.DeviceManager(None, None)
+    auto = RemoteAutomation(dm, "fennec")
     parser = RemoteOptions(auto, scriptdir)
     options, args = parser.parse_args()
-    if (options.dm_trans == "adb"):
-        if (options.deviceIP):
-            dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
-        else:
-            dm = dm_auto
-    else:
-         dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
+
+    dm = devicemanager.DeviceManager(options.deviceIP, options.devicePort)
     auto.setDeviceManager(dm)
     options = parser.verifyRemoteOptions(options, auto)
     if (options == None):
@@ -336,13 +286,7 @@ def main():
     if (options == None):
         sys.exit(1)
     
-    auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
-
-    procName = options.app.split('/')[-1]
-    if (dm.processExist(procName)):
-      dm.killProcess(procName)
-
     sys.exit(mochitest.runTests(options))
     
 if __name__ == "__main__":

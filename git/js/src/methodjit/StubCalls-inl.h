@@ -44,15 +44,19 @@
 namespace js {
 namespace mjit {
 
-static inline void
-ThrowException(VMFrame &f)
-{
-    void *ptr = JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline);
-    *f.returnAddressLocation() = ptr;
-}
+#define THROW()  \
+    do {         \
+        void *ptr = JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline); \
+        *f.returnAddressLocation() = ptr; \
+        return;  \
+    } while (0)
 
-#define THROW()   do { ThrowException(f); return; } while (0)
-#define THROWV(v) do { ThrowException(f); return v; } while (0)
+#define THROWV(v)       \
+    do {                \
+        void *ptr = JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline); \
+        *f.returnAddressLocation() = ptr; \
+        return v;       \
+    } while (0)
 
 static inline JSObject *
 ValueToObject(JSContext *cx, Value *vp)
@@ -65,32 +69,32 @@ ValueToObject(JSContext *cx, Value *vp)
 static inline void
 ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
 {
-    JSAutoByteString printable;
-    if (js_AtomToPrintableString(cx, atom, &printable))
-        js_ReportIsNotDefined(cx, printable.ptr());
+    const char *printable = js_AtomToPrintableString(cx, atom);
+    if (printable)
+        js_ReportIsNotDefined(cx, printable);
 }
 
-#define NATIVE_SET(cx,obj,shape,entry,strict,vp)                              \
+#define NATIVE_SET(cx,obj,shape,entry,vp)                                     \
     JS_BEGIN_MACRO                                                            \
         if (shape->hasDefaultSetter() &&                                      \
             (shape)->slot != SHAPE_INVALID_SLOT &&                            \
             !(obj)->brandedOrHasMethodBarrier()) {                            \
             /* Fast path for, e.g., plain Object instance properties. */      \
-            (obj)->nativeSetSlot((shape)->slot, *vp);                         \
+            (obj)->lockedSetSlot((shape)->slot, *vp);                         \
         } else {                                                              \
-            if (!js_NativeSet(cx, obj, shape, false, strict, vp))             \
+            if (!js_NativeSet(cx, obj, shape, false, vp))                     \
                 THROW();                                                      \
         }                                                                     \
     JS_END_MACRO
 
 #define NATIVE_GET(cx,obj,pobj,shape,getHow,vp,onerr)                         \
     JS_BEGIN_MACRO                                                            \
-        if (shape->isDataDescriptor() && shape->hasDefaultGetter()) {         \
+        if (shape->hasDefaultGetter()) {                                      \
             /* Fast path for Object instance properties. */                   \
             JS_ASSERT((shape)->slot != SHAPE_INVALID_SLOT ||                  \
                       !shape->hasDefaultSetter());                            \
             if (((shape)->slot != SHAPE_INVALID_SLOT))                        \
-                *(vp) = (pobj)->nativeGetSlot((shape)->slot);                 \
+                *(vp) = (pobj)->lockedGetSlot((shape)->slot);                 \
             else                                                              \
                 (vp)->setUndefined();                                         \
         } else {                                                              \
@@ -98,6 +102,7 @@ ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
                 onerr;                                                        \
         }                                                                     \
     JS_END_MACRO
+
 
 }}
 

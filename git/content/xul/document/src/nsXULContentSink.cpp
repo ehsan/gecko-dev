@@ -465,8 +465,7 @@ XULContentSinkImpl::NormalizeAttributeString(const PRUnichar *aExpatName,
 
     nsCOMPtr<nsINodeInfo> ni;
     ni = mNodeInfoManager->GetNodeInfo(localName, prefix,
-                                       nameSpaceID,
-                                       nsIDOMNode::ATTRIBUTE_NODE);
+                                       nameSpaceID);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     aName.SetTo(ni);
@@ -519,8 +518,7 @@ XULContentSinkImpl::HandleStartElement(const PRUnichar *aName,
                                  getter_AddRefs(localName), &nameSpaceID);
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                           nsIDOMNode::ELEMENT_NODE);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
   
   nsresult rv = NS_OK;
@@ -1060,7 +1058,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
               // our implementation knowledge to reuse JSVERSION_HAS_XML as a
               // safe version flag. This is still OK if version is
               // JSVERSION_UNKNOWN (-1),
-              version |= js::VersionFlags::HAS_XML;
+              version |= JSVERSION_HAS_XML;
 
               nsAutoString value;
               rv = parser.GetParameter("e4x", value);
@@ -1069,7 +1067,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
                       return rv;
               } else {
                   if (value.Length() == 1 && value[0] == '0')
-                    version &= ~js::VersionFlags::HAS_XML;
+                    version &= ~JSVERSION_HAS_XML;
               }
           }
       }
@@ -1083,7 +1081,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
 
               // Even when JS version < 1.6 is specified, E4X is
               // turned on in XUL.
-              version |= js::VersionFlags::HAS_XML;
+              version |= JSVERSION_HAS_XML;
           }
       }
       aAttributes += 2;

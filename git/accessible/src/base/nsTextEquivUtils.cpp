@@ -64,7 +64,9 @@ nsTextEquivUtils::GetNameFromSubtree(nsAccessible *aAccessible,
 
   gInitiatorAcc = aAccessible;
 
-  PRUint32 nameRule = gRoleToNameRulesMap[aAccessible->Role()];
+  PRUint32 role = nsAccUtils::Role(aAccessible);
+  PRUint32 nameRule = gRoleToNameRulesMap[role];
+
   if (nameRule == eFromSubtree) {
     //XXX: is it necessary to care the accessible is not a document?
     if (aAccessible->IsContent()) {
@@ -92,14 +94,26 @@ nsTextEquivUtils::GetTextEquivFromIDRefs(nsAccessible *aAccessible,
   if (!content)
     return NS_OK;
 
-  nsIContent* refContent = nsnull;
-  IDRefsIterator iter(content, aIDRefsAttr);
-  while ((refContent = iter.NextElem())) {
+  nsCOMPtr<nsIArray> refElms;
+  nsCoreUtils::GetElementsByIDRefsAttr(content, aIDRefsAttr,
+                                       getter_AddRefs(refElms));
+
+  if (!refElms)
+    return NS_OK;
+
+  PRUint32 count = 0;
+  nsresult rv = refElms->GetLength(&count);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIContent> refContent;
+  for (PRUint32 idx = 0; idx < count; idx++) {
+    refContent = do_QueryElementAt(refElms, idx, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (!aTextEquiv.IsEmpty())
       aTextEquiv += ' ';
 
-    nsresult rv = AppendTextEquivFromContent(aAccessible, refContent,
-                                             &aTextEquiv);
+    rv = AppendTextEquivFromContent(aAccessible, refContent, &aTextEquiv);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -255,7 +269,9 @@ nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
   // into subtree if accessible allows "text equivalent from subtree rule" or
   // it's not root and not control.
   if (isEmptyTextEquiv) {
-    PRUint32 nameRule = gRoleToNameRulesMap[aAccessible->Role()];
+    PRUint32 role = nsAccUtils::Role(aAccessible);
+    PRUint32 nameRule = gRoleToNameRulesMap[role];
+
     if (nameRule & eFromSubtreeIfRec) {
       rv = AppendFromAccessibleChildren(aAccessible, aString);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -278,7 +294,9 @@ nsresult
 nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
                                   nsAString *aString)
 {
-  PRUint32 nameRule = gRoleToNameRulesMap[aAccessible->Role()];
+  PRUint32 role = nsAccUtils::Role(aAccessible);
+  PRUint32 nameRule = gRoleToNameRulesMap[role];
+
   if (nameRule != eFromValue)
     return NS_OK_NO_NAME_CLAUSE_HANDLED;
 
@@ -297,7 +315,7 @@ nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
   }
 
   //XXX: is it necessary to care the accessible is not a document?
-  if (aAccessible->IsDocumentNode())
+  if (aAccessible->IsDocument())
     return NS_ERROR_UNEXPECTED;
 
   nsIContent *content = aAccessible->GetContent();
@@ -416,7 +434,7 @@ nsTextEquivUtils::IsWhitespace(PRUnichar aChar)
 
 PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
 {
-  eFromSubtreeIfRec, // ROLE_NOTHING
+  eNoRule,           // ROLE_NOTHING
   eNoRule,           // ROLE_TITLEBAR
   eNoRule,           // ROLE_MENUBAR
   eNoRule,           // ROLE_SCROLLBAR
@@ -519,7 +537,7 @@ PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
   eNoRule,           // ROLE_AUTOCOMPLETE
   eNoRule,           // ROLE_EDITBAR
   eFromValue,        // ROLE_ENTRY
-  eFromSubtreeIfRec, // ROLE_CAPTION
+  eNoRule,           // ROLE_CAPTION
   eNoRule,           // ROLE_DOCUMENT_FRAME
   eFromSubtreeIfRec, // ROLE_HEADING
   eNoRule,           // ROLE_PAGE

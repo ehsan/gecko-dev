@@ -46,22 +46,13 @@
 #include "client/linux/minidump_writer/minidump_writer.h"
 #include "client/minidump_file_writer-inl.h"
 
-#include <algorithm>
-
 #include <errno.h>
 #include <fcntl.h>
-#if defined(__ANDROID__)
-#include "client/linux/android_link.h"
-#else
 #include <link.h>
-#endif
 #include <stdio.h>
 #include <unistd.h>
-#include <ctype.h>
-#if !defined(__ANDROID__)
 #include <sys/ucontext.h>
 #include <sys/user.h>
-#endif
 #include <sys/utsname.h>
 
 #include "client/minidump_file_writer.h"
@@ -69,7 +60,6 @@
 #include "google_breakpad/common/minidump_cpu_amd64.h"
 #include "google_breakpad/common/minidump_cpu_x86.h"
 
-#include "client/linux/android_ucontext.h"
 #include "client/linux/handler/exception_handler.h"
 #include "client/linux/minidump_writer/line_reader.h"
 #include "client/linux/minidump_writer/linux_dumper.h"
@@ -345,13 +335,11 @@ static void CPUFillFromThreadInfo(MDRawContextARM *out,
     out->iregs[i] = info.regs.uregs[i];
   // No CPSR register in ThreadInfo(it's not accessible via ptrace)
   out->cpsr = 0;
-#if !defined(__ANDROID__)
   out->float_save.fpscr = info.fpregs.fpsr |
     (static_cast<u_int64_t>(info.fpregs.fpcr) << 32);
   //TODO: sort this out, actually collect floating point registers
   memset(&out->float_save.regs, 0, sizeof(out->float_save.regs));
   memset(&out->float_save.extra, 0, sizeof(out->float_save.extra));
-#endif
 }
 
 static void CPUFillFromUContext(MDRawContextARM *out, const ucontext *uc,
@@ -385,11 +373,11 @@ static void CPUFillFromUContext(MDRawContextARM *out, const ucontext *uc,
 }
 
 static uintptr_t InstructionPointer(const ThreadInfo& info) {
-  return info.regs.ARM_ip;
+  return info.regs.uregs[R12];
 }
 
 static uintptr_t StackPointer(const ThreadInfo& info) {
-  return info.regs.ARM_sp;
+  return info.regs.uregs[R13];
 }
 
 static uintptr_t StackPointer(const ucontext* uc) {
@@ -417,8 +405,7 @@ class MinidumpWriter {
   // case (1) above
   MinidumpWriter(const char* filename,
                  pid_t crashing_pid,
-                 const ExceptionHandler::CrashContext* context,
-                 const MappingList& mappings)
+                 const ExceptionHandler::CrashContext* context)
       : filename_(filename),
         siginfo_(&context->siginfo),
         ucontext_(&context->context),
@@ -430,25 +417,20 @@ class MinidumpWriter {
 #endif
         crashing_tid_(context->tid),
         crashing_tid_pc_(0),
-        dumper_(crashing_pid),
-        memory_blocks_(dumper_.allocator()),
-        mapping_info_(mappings) {
+        dumper_(crashing_pid) {
   }
 
   // case (2) above
   MinidumpWriter(const char* filename,
                  pid_t pid,
-                 pid_t blame_thread,
-                 const MappingList& mappings)
+                 pid_t blame_thread)
       : filename_(filename),
         siginfo_(NULL),         // we fill this in if we find blame_thread
         ucontext_(NULL),
         float_state_(NULL),
         crashing_tid_(blame_thread),
         crashing_tid_pc_(0),    // set if we find blame_thread
-        dumper_(pid),
-        memory_blocks_(dumper_.allocator()),
-        mapping_info_(mappings) {
+        dumper_(pid) {
   }
 
   bool Init() {
@@ -471,7 +453,7 @@ class MinidumpWriter {
     // it to a MD_LINUX_DSO_DEBUG stream.
     struct r_debug* r_debug = NULL;
     uint32_t dynamic_length = 0;
-#if !defined(__ANDROID__)
+
     for (int i = 0;;) {
       ElfW(Dyn) dyn;
       dynamic_length += sizeof(dyn);
@@ -482,13 +464,10 @@ class MinidumpWriter {
       } else if (dyn.d_tag == DT_NULL)
         break;
     }
-#endif
 
     // A minidump file contains a number of tagged streams. This is the number
     // of stream which we write.
-    unsigned kNumWriters = 12;
-    if (r_debug)
-      ++kNumWriters;
+    const unsigned kNumWriters = 11 + !!r_debug;
 
     TypedMDRVA<MDRawHeader> header(&minidump_writer_);
     TypedMDRVA<MDRawDirectory> dir(&minidump_writer_);
@@ -512,10 +491,6 @@ class MinidumpWriter {
     dir.CopyIndex(dir_index++, &dirent);
 
     if (!WriteMappings(&dirent))
-      return false;
-    dir.CopyIndex(dir_index++, &dirent);
-
-    if (!WriteMemoryListStream(&dirent))
       return false;
     dir.CopyIndex(dir_index++, &dirent);
 
@@ -730,51 +705,6 @@ class MinidumpWriter {
         memory.Copy(stack_copy, stack_len);
         thread.stack.start_of_memory_range = (uintptr_t) (stack);
         thread.stack.memory = memory.location();
-        memory_blocks_.push_back(thread.stack);
-
-        // Copy 256 bytes around crashing instruction pointer to minidump.
-        const size_t kIPMemorySize = 256;
-        u_int64_t ip = GetInstructionPointer();
-        // Bound it to the upper and lower bounds of the memory map
-        // it's contained within. If it's not in mapped memory,
-        // don't bother trying to write it.
-        bool ip_is_mapped = false;
-        MDMemoryDescriptor ip_memory_d;
-        for (unsigned i = 0; i < dumper_.mappings().size(); ++i) {
-          const MappingInfo& mapping = *dumper_.mappings()[i];
-          if (ip >= mapping.start_addr &&
-              ip < mapping.start_addr + mapping.size) {
-            ip_is_mapped = true;
-            // Try to get 128 bytes before and after the IP, but
-            // settle for whatever's available.
-            ip_memory_d.start_of_memory_range =
-              std::max(mapping.start_addr,
-                       uintptr_t(ip - (kIPMemorySize / 2)));
-            uintptr_t end_of_range = 
-              std::min(uintptr_t(ip + (kIPMemorySize / 2)),
-                       uintptr_t(mapping.start_addr + mapping.size));
-            ip_memory_d.memory.data_size =
-              end_of_range - ip_memory_d.start_of_memory_range;
-            break;
-          }
-        }
-
-        if (ip_is_mapped) {
-          UntypedMDRVA ip_memory(&minidump_writer_);
-          if (!ip_memory.Allocate(ip_memory_d.memory.data_size))
-            return false;
-          uint8_t* memory_copy =
-            (uint8_t*) dumper_.allocator()->Alloc(ip_memory_d.memory.data_size);
-          dumper_.CopyFromProcess(
-            memory_copy,
-            thread.thread_id,
-            reinterpret_cast<void*>(ip_memory_d.start_of_memory_range),
-            ip_memory_d.memory.data_size);
-          ip_memory.Copy(memory_copy, ip_memory_d.memory.data_size);
-          ip_memory_d.memory = ip_memory.location();
-          memory_blocks_.push_back(ip_memory_d);
-        }
-
         TypedMDRVA<RawContextCPU> cpu(&minidump_writer_);
         if (!cpu.Allocate())
           return false;
@@ -798,8 +728,6 @@ class MinidumpWriter {
         memory.Copy(stack_copy, info.stack_len);
         thread.stack.start_of_memory_range = (uintptr_t)(info.stack);
         thread.stack.memory = memory.location();
-        memory_blocks_.push_back(thread.stack);
-
         TypedMDRVA<RawContextCPU> cpu(&minidump_writer_);
         if (!cpu.Allocate())
           return false;
@@ -834,34 +762,17 @@ class MinidumpWriter {
     return true;
   }
 
-  // If there is caller-provided information about this mapping
-  // in the mapping_info_ list, return true. Otherwise, return false.
-  bool HaveMappingInfo(const MappingInfo& mapping) {
-    for (MappingList::const_iterator iter = mapping_info_.begin();
-         iter != mapping_info_.end();
-         ++iter) {
-      // Ignore any mappings that are wholly contained within
-      // mappings in the mapping_info_ list.
-      if (mapping.start_addr >= iter->first.start_addr &&
-          (mapping.start_addr + mapping.size) <=
-          (iter->first.start_addr + iter->first.size)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // Write information about the mappings in effect. Because we are using the
   // minidump format, the information about the mappings is pretty limited.
   // Because of this, we also include the full, unparsed, /proc/$x/maps file in
   // another stream in the file.
   bool WriteMappings(MDRawDirectory* dirent) {
     const unsigned num_mappings = dumper_.mappings().size();
-    unsigned num_output_mappings = mapping_info_.size();
+    unsigned num_output_mappings = 0;
 
     for (unsigned i = 0; i < dumper_.mappings().size(); ++i) {
       const MappingInfo& mapping = *dumper_.mappings()[i];
-      if (ShouldIncludeMapping(mapping) && !HaveMappingInfo(mapping))
+      if (ShouldIncludeMapping(mapping))
         num_output_mappings++;
     }
 
@@ -873,102 +784,55 @@ class MinidumpWriter {
     dirent->location = list.location();
     *list.get() = num_output_mappings;
 
-    // First write all the mappings from the dumper
-    unsigned int j = 0;
-    for (unsigned i = 0; i < num_mappings; ++i) {
+    for (unsigned i = 0, j = 0; i < num_mappings; ++i) {
       const MappingInfo& mapping = *dumper_.mappings()[i];
-      if (!ShouldIncludeMapping(mapping) || HaveMappingInfo(mapping))
+      if (!ShouldIncludeMapping(mapping))
         continue;
 
       MDRawModule mod;
-      if (!FillRawModule(mapping, mod, NULL))
+      my_memset(&mod, 0, MD_MODULE_SIZE);
+      mod.base_of_image = mapping.start_addr;
+      mod.size_of_image = mapping.size;
+      const size_t filepath_len = my_strlen(mapping.name);
+
+      // Figure out file name from path
+      const char* filename_ptr = mapping.name + filepath_len - 1;
+      while (filename_ptr >= mapping.name) {
+        if (*filename_ptr == '/')
+          break;
+        filename_ptr--;
+      }
+      filename_ptr++;
+      const size_t filename_len = mapping.name + filepath_len - filename_ptr;
+      uint8_t cv_buf[MDCVInfoPDB70_minsize + NAME_MAX];
+      uint8_t* cv_ptr = cv_buf;
+      UntypedMDRVA cv(&minidump_writer_);
+      if (!cv.Allocate(MDCVInfoPDB70_minsize + filename_len + 1))
         return false;
+
+      const uint32_t cv_signature = MD_CVINFOPDB70_SIGNATURE;
+      memcpy(cv_ptr, &cv_signature, sizeof(cv_signature));
+      cv_ptr += sizeof(cv_signature);
+      uint8_t* signature = cv_ptr;
+      cv_ptr += sizeof(MDGUID);
+      dumper_.ElfFileIdentifierForMapping(i, signature);
+      my_memset(cv_ptr, 0, sizeof(uint32_t));  // Set age to 0 on Linux.
+      cv_ptr += sizeof(uint32_t);
+
+      // Write pdb_file_name
+      memcpy(cv_ptr, filename_ptr, filename_len + 1);
+      cv.Copy(cv_buf, MDCVInfoPDB70_minsize + filename_len + 1);
+
+      mod.cv_record = cv.location();
+
+      MDLocationDescriptor ld;
+      if (!minidump_writer_.WriteString(mapping.name, filepath_len, &ld))
+        return false;
+      mod.module_name_rva = ld.rva;
+
       list.CopyIndexAfterObject(j++, &mod, MD_MODULE_SIZE);
     }
-    // Next write all the mappings provided by the caller
-    for (MappingList::const_iterator iter = mapping_info_.begin();
-         iter != mapping_info_.end();
-         ++iter) {
-      MDRawModule mod;
-      if (!FillRawModule(iter->first, mod, iter->second))
-          return false;
-        list.CopyIndexAfterObject(j++, &mod, MD_MODULE_SIZE);
-    }
 
-    return true;
-  }
-
-  // Fill the MDRawModule mod with information about the provided
-  // mapping. If identifier is non-NULL, use it instead of calculating
-  // a file ID from the mapping.
-  bool FillRawModule(const MappingInfo& mapping,
-                     MDRawModule& mod,
-                     const u_int8_t* identifier) {
-    my_memset(&mod, 0, MD_MODULE_SIZE);
-
-    mod.base_of_image = mapping.start_addr;
-    mod.size_of_image = mapping.size;
-    const size_t filepath_len = my_strlen(mapping.name);
-
-    // Figure out file name from path
-    const char* filename_ptr = mapping.name + filepath_len - 1;
-    while (filename_ptr >= mapping.name) {
-      if (*filename_ptr == '/')
-        break;
-      filename_ptr--;
-    }
-    filename_ptr++;
-
-    size_t filename_len = mapping.name + filepath_len - filename_ptr;
-
-    uint8_t cv_buf[MDCVInfoPDB70_minsize + NAME_MAX];
-    uint8_t* cv_ptr = cv_buf;
-    UntypedMDRVA cv(&minidump_writer_);
-    if (!cv.Allocate(MDCVInfoPDB70_minsize + filename_len + 1))
-      return false;
-
-    const uint32_t cv_signature = MD_CVINFOPDB70_SIGNATURE;
-    memcpy(cv_ptr, &cv_signature, sizeof(cv_signature));
-    cv_ptr += sizeof(cv_signature);
-    uint8_t* signature = cv_ptr;
-    cv_ptr += sizeof(MDGUID);
-    if (identifier) {
-      // GUID was provided by caller.
-      memcpy(signature, identifier, sizeof(MDGUID));
-    } else {
-      dumper_.ElfFileIdentifierForMapping(mapping, signature);
-    }
-    my_memset(cv_ptr, 0, sizeof(uint32_t));  // Set age to 0 on Linux.
-    cv_ptr += sizeof(uint32_t);
-
-    // Write pdb_file_name
-    memcpy(cv_ptr, filename_ptr, filename_len + 1);
-    cv.Copy(cv_buf, MDCVInfoPDB70_minsize + filename_len + 1);
-
-    mod.cv_record = cv.location();
-
-    MDLocationDescriptor ld;
-    if (!minidump_writer_.WriteString(mapping.name, filepath_len, &ld))
-      return false;
-    mod.module_name_rva = ld.rva;
-    return true;
-  }
-
-  bool WriteMemoryListStream(MDRawDirectory* dirent) {
-    TypedMDRVA<uint32_t> list(&minidump_writer_);
-    if (!list.AllocateObjectAndArray(memory_blocks_.size(),
-                                     sizeof(MDMemoryDescriptor)))
-      return false;
-
-    dirent->stream_type = MD_MEMORY_LIST_STREAM;
-    dirent->location = list.location();
-
-    *list.get() = memory_blocks_.size();
-
-    for (size_t i = 0; i < memory_blocks_.size(); ++i) {
-      list.CopyIndexAfterObject(i, &memory_blocks_[i],
-                                sizeof(MDMemoryDescriptor));
-    }
     return true;
   }
 
@@ -1010,9 +874,6 @@ class MinidumpWriter {
 
   bool WriteDSODebugStream(MDRawDirectory* dirent, struct r_debug* r_debug,
                            uint32_t dynamic_length) {
-#if defined(__ANDROID__)
-    return false;
-#else
     // The caller provided us with a pointer to "struct r_debug". We can
     // look up the "r_map" field to get a linked list of all loaded DSOs.
     // Our list of DSOs potentially is different from the ones in the crashing
@@ -1086,26 +947,9 @@ class MinidumpWriter {
     delete[] dso_debug_data;
 
     return true;
-#endif  // __ANDROID__
   }
 
  private:
-#if defined(__i386)
-  uintptr_t GetInstructionPointer() {
-    return ucontext_->uc_mcontext.gregs[REG_EIP];
-  }
-#elif defined(__x86_64)
-  uintptr_t GetInstructionPointer() {
-    return ucontext_->uc_mcontext.gregs[REG_RIP];
-  }
-#elif defined(__ARM_EABI__)
-  uintptr_t GetInstructionPointer() {
-    return ucontext_->uc_mcontext.arm_ip;
-  }
-#else
-#error "This code has not been ported to your platform yet."
-#endif
-
   void NullifyDirectoryEntry(MDRawDirectory* dirent) {
     dirent->stream_type = 0;
     dirent->location.data_size = 0;
@@ -1356,28 +1200,15 @@ popline:
   LinuxDumper dumper_;
   MinidumpFileWriter minidump_writer_;
   MDLocationDescriptor crashing_thread_context_;
-  // Blocks of memory written to the dump. These are all currently
-  // written while writing the thread list stream, but saved here
-  // so a memory list stream can be written afterwards.
-  wasteful_vector<MDMemoryDescriptor> memory_blocks_;
-  // Additional information about some mappings provided by the caller.
-  const MappingList& mapping_info_;
 };
 
 bool WriteMinidump(const char* filename, pid_t crashing_process,
                    const void* blob, size_t blob_size) {
-  MappingList m;
-  return WriteMinidump(filename, crashing_process, blob, blob_size, m);
-}
-
-bool WriteMinidump(const char* filename, pid_t crashing_process,
-                   const void* blob, size_t blob_size,
-                   const MappingList& mappings) {
   if (blob_size != sizeof(ExceptionHandler::CrashContext))
     return false;
   const ExceptionHandler::CrashContext* context =
       reinterpret_cast<const ExceptionHandler::CrashContext*>(blob);
-  MinidumpWriter writer(filename, crashing_process, context, mappings);
+  MinidumpWriter writer(filename, crashing_process, context);
   if (!writer.Init())
     return false;
   return writer.Dump();
@@ -1385,9 +1216,7 @@ bool WriteMinidump(const char* filename, pid_t crashing_process,
 
 bool WriteMinidump(const char* filename, pid_t process,
                    pid_t process_blamed_thread) {
-  //TODO: support mappings here
-  MappingList m;
-  MinidumpWriter writer(filename, process, process_blamed_thread, m);
+  MinidumpWriter writer(filename, process, process_blamed_thread);
   if (!writer.Init())
     return false;
   return writer.Dump();

@@ -50,13 +50,13 @@ assertMsg(loc != null, "getUniformLocation succeeded");
 
 var arguments = [
   { value: "foo",
-    throws: true },
+    throw: true },
   { value: 0,
-    throws: true },
+    throw: true },
   { value: null,
-    throws: false },
+    throw: false },
   { value: undefined,
-    throws: false }
+    throw: false }
 ];
 
 var argument;
@@ -67,7 +67,7 @@ function shouldBeEmptyString(command) {
 
 for (var i = 0; i < arguments.length; ++i) {
   var func, func2, func3;
-  if (arguments[i].throws) {
+  if (arguments[i].throw) {
     func = shouldThrow;
     func2 = shouldThrow;
     func3 = shouldThrow;
@@ -79,6 +79,7 @@ for (var i = 0; i < arguments.length; ++i) {
   argument = arguments[i].value;
   func("context.compileShader(argument)");
   func("context.linkProgram(argument)");
+  func("context.attachShader(argument)");
   func("context.attachShader(program, argument)");
   func("context.attachShader(argument, shader)");
   func("context.detachShader(program, argument)");

@@ -50,6 +50,7 @@ DIRS = \
   interfaces/html \
   interfaces/events \
   interfaces/stylesheets \
+  interfaces/views \
   interfaces/sidebar \
   interfaces/css \
   interfaces/traversal \
@@ -63,9 +64,11 @@ DIRS = \
   interfaces/offline \
   interfaces/geolocation \
   interfaces/threads \
-  interfaces/notification \
-  interfaces/svg \
   $(NULL)
+
+ifdef MOZ_SVG
+DIRS += interfaces/svg
+endif
 
 ifdef MOZ_SMIL
 DIRS += interfaces/smil
@@ -76,22 +79,19 @@ DIRS += \
   base \
   src \
   locales \
-  plugins/base \
-  plugins/ipc \
+  plugins \
   indexedDB \
   system \
+  $(NULL)
+
+ifdef MOZ_IPC
+DIRS += \
   ipc \
   $(NULL)
+endif
 
 ifdef ENABLE_TESTS
 DIRS += tests
-
-# These subdirs rely on GTK libraries and header files, it is not
-#  buildable on other non-GTK unix builds
-
-ifneq (,$(filter gtk2 cocoa windows android qt os2,$(MOZ_WIDGET_TOOLKIT)))
-DIRS += plugins/test
-endif
 endif
 
 include $(topsrcdir)/config/rules.mk

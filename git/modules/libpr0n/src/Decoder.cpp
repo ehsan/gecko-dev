@@ -37,22 +37,15 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "Decoder.h"
-#include "nsIServiceManager.h"
-#include "nsIConsoleService.h"
-#include "nsIScriptError.h"
 
 namespace mozilla {
 namespace imagelib {
 
 Decoder::Decoder()
-  : mDecodeFlags(0)
-  , mFrameCount(0)
-  , mFailCode(NS_OK)
+  : mFrameCount(0)
   , mInitialized(false)
   , mSizeDecode(false)
   , mInFrame(false)
-  , mDecodeDone(false)
-  , mDataError(false)
 {
 }
 
@@ -66,7 +59,7 @@ Decoder::~Decoder()
  * Common implementation of the decoder interface.
  */
 
-void
+nsresult
 Decoder::Init(RasterImage* aImage, imgIDecoderObserver* aObserver)
 {
   // We should always have an image
@@ -79,88 +72,29 @@ Decoder::Init(RasterImage* aImage, imgIDecoderObserver* aObserver)
   mImage = aImage;
   mObserver = aObserver;
 
-  // Fire OnStartDecode at init time to support bug 512435
-  if (!IsSizeDecode() && mObserver)
-      mObserver->OnStartDecode(nsnull);
-
   // Implementation-specific initialization
-  InitInternal();
+  nsresult rv = InitInternal();
   mInitialized = true;
+  return rv;
 }
 
-void
+nsresult
 Decoder::Write(const char* aBuffer, PRUint32 aCount)
 {
-  // We're strict about decoder errors
-  NS_ABORT_IF_FALSE(!HasDecoderError(),
-                    "Not allowed to make more decoder calls after error!");
-
-  // If a data error occured, just ignore future data
-  if (HasDataError())
-    return;
-
   // Pass the data along to the implementation
-  WriteInternal(aBuffer, aCount);
+  return WriteInternal(aBuffer, aCount);
 }
 
-void
+nsresult
 Decoder::Finish()
 {
   // Implementation-specific finalization
-  if (!HasError())
-    FinishInternal();
-
-  // If the implementation left us mid-frame, finish that up.
-  if (mInFrame && !HasDecoderError())
-    PostFrameStop();
-
-  // If PostDecodeDone() has not been called, we need to sent teardown
-  // notifications.
-  if (!IsSizeDecode() && !mDecodeDone) {
-
-    // Log data errors to the error console
-    nsCOMPtr<nsIConsoleService> consoleService =
-      do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    nsCOMPtr<nsIScriptError2> errorObject =
-      do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
-
-    if (consoleService && errorObject && !HasDecoderError()) {
-      nsAutoString msg(NS_LITERAL_STRING("Image corrupt or truncated: ") +
-                       NS_ConvertASCIItoUTF16(mImage->GetURIString()));
-
-      errorObject->InitWithWindowID
-        (msg.get(),
-         NS_ConvertUTF8toUTF16(mImage->GetURIString()).get(),
-         nsnull,
-         0, 0, nsIScriptError::errorFlag,
-         "Image", mImage->WindowID()
-         );
-  
-      nsCOMPtr<nsIScriptError> error = do_QueryInterface(errorObject);
-      consoleService->LogMessage(error);
-    }
-
-    // If we only have a data error, see if things are worth salvaging
-    bool salvage = !HasDecoderError() && mImage->GetNumFrames();
-
-    // If we're salvaging, say we finished decoding
-    if (salvage)
-      mImage->DecodingComplete();
-
-    // Fire teardown notifications
-    if (mObserver) {
-      mObserver->OnStopContainer(nsnull, mImage);
-      mObserver->OnStopDecode(nsnull, salvage ? NS_OK : NS_ERROR_FAILURE, nsnull);
-    }
-  }
+  return FinishInternal();
 }
 
 void
 Decoder::FlushInvalidations()
 {
-  NS_ABORT_IF_FALSE(!HasDecoderError(),
-                    "Not allowed to make more decoder calls after error!");
-
   // If we've got an empty invalidation rect, we have nothing to do
   if (mInvalidRect.IsEmpty())
     return;
@@ -175,16 +109,16 @@ Decoder::FlushInvalidations()
   }
 
   // Clear the invalidation rectangle
-  mInvalidRect.SetEmpty();
+  mInvalidRect.Empty();
 }
 
 /*
  * Hook stubs. Override these as necessary in decoder implementations.
  */
 
-void Decoder::InitInternal() { }
-void Decoder::WriteInternal(const char* aBuffer, PRUint32 aCount) { }
-void Decoder::FinishInternal() { }
+nsresult Decoder::InitInternal() {return NS_OK; }
+nsresult Decoder::WriteInternal(const char* aBuffer, PRUint32 aCount) {return NS_OK; }
+nsresult Decoder::FinishInternal() {return NS_OK; }
 
 /*
  * Progress Notifications
@@ -256,40 +190,6 @@ Decoder::PostInvalidation(nsIntRect& aRect)
 
   // Account for the new region
   mInvalidRect.UnionRect(mInvalidRect, aRect);
-}
-
-void
-Decoder::PostDecodeDone()
-{
-  NS_ABORT_IF_FALSE(!IsSizeDecode(), "Can't be done with decoding with size decode!");
-  NS_ABORT_IF_FALSE(!mInFrame, "Can't be done decoding if we're mid-frame!");
-  NS_ABORT_IF_FALSE(!mDecodeDone, "Decode already done!");
-  mDecodeDone = true;
-
-  // Notify
-  mImage->DecodingComplete();
-  if (mObserver) {
-    mObserver->OnStopContainer(nsnull, mImage);
-    mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
-  }
-}
-
-void
-Decoder::PostDataError()
-{
-  mDataError = true;
-}
-
-void
-Decoder::PostDecoderError(nsresult aFailureCode)
-{
-  NS_ABORT_IF_FALSE(NS_FAILED(aFailureCode), "Not a failure code!");
-
-  mFailCode = aFailureCode;
-
-  // XXXbholley - we should report the image URI here, but imgContainer
-  // needs to know its URI first
-  NS_WARNING("Image decoding error - This is probably a bug!");
 }
 
 } // namespace imagelib

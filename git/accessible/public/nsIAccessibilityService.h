@@ -75,17 +75,6 @@ public:
                                              nsIPresShell* aPresShell) = 0;
 
   /**
-   * Return root document accessible that is or contains a document accessible
-   * for the given presshell.
-   *
-   * @param aPresShell  [in] the presshell
-   * @param aCanCreate  [in] points whether the root document accessible
-   *                        should be returned from the cache or can be created
-   */
-  virtual nsAccessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  PRBool aCanCreate) = 0;
-
-  /**
    * Creates accessible for the given DOM node or frame.
    */
   virtual already_AddRefed<nsAccessible>
@@ -109,7 +98,8 @@ public:
   virtual already_AddRefed<nsAccessible>
     CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
   virtual already_AddRefed<nsAccessible>
-    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
+    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell,
+                           const nsAString& aBulletText) = 0;
   virtual already_AddRefed<nsAccessible>
     CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
   virtual already_AddRefed<nsAccessible>
@@ -140,19 +130,27 @@ public:
   virtual void RemoveNativeRootAccessible(nsAccessible* aRootAccessible) = 0;
 
   /**
-   * Notification used to update the accessible tree when new content is
-   * inserted.
+   * Used to describe sort of changes leading to accessible tree invalidation.
    */
-  virtual void ContentRangeInserted(nsIPresShell* aPresShell,
-                                    nsIContent* aContainer,
-                                    nsIContent* aStartChild,
-                                    nsIContent* aEndChild) = 0;
+  enum {
+    NODE_APPEND = 0x01,
+    NODE_REMOVE = 0x02,
+    NODE_SIGNIFICANT_CHANGE = 0x03,
+    FRAME_SHOW = 0x04,
+    FRAME_HIDE = 0x05,
+    FRAME_SIGNIFICANT_CHANGE = 0x06
+  };
 
   /**
-   * Notification used to update the accessible tree when content is removed.
+   * Invalidate the accessible tree when DOM tree or frame tree is changed.
+   *
+   * @param aPresShell   [in] the presShell where changes occurred
+   * @param aContent     [in] the affected DOM content
+   * @param aChangeType  [in] the change type (see constants declared above)
    */
-  virtual void ContentRemoved(nsIPresShell* aPresShell, nsIContent* aContainer,
-                              nsIContent* aChild) = 0;
+  virtual nsresult InvalidateSubtreeFor(nsIPresShell *aPresShell,
+                                        nsIContent *aContent,
+                                        PRUint32 aChangeType) = 0;
 
   /**
    * Notify accessibility that anchor jump has been accomplished to the given
@@ -167,18 +165,13 @@ public:
   virtual void PresShellDestroyed(nsIPresShell *aPresShell) = 0;
 
   /**
-   * Recreate an accessible for the given content node in the presshell.
-   */
-  virtual void RecreateAccessible(nsIPresShell* aPresShell,
-                                  nsIContent* aContent) = 0;
-
-  /**
    * Fire accessible event of the given type for the given target.
    *
    * @param aEvent   [in] accessible event type
    * @param aTarget  [in] target of accessible event
    */
-  virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget) = 0;
+  virtual nsresult FireAccessibleEvent(PRUint32 aEvent,
+                                       nsIAccessible *aTarget) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIAccessibilityService,

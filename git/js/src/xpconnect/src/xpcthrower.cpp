@@ -179,14 +179,35 @@ XPCThrower::Verbosify(XPCCallContext& ccx,
     if(ccx.HasInterfaceAndMember())
     {
         XPCNativeInterface* iface = ccx.GetInterface();
-        jsid id = ccx.GetMember()->GetName();
-        JSAutoByteString bytes;
-        const char *name = JSID_IS_VOID(id) ? "Unknown" : bytes.encode(ccx, JSID_TO_STRING(id));
-        if(!name)
+#ifdef XPC_IDISPATCH_SUPPORT
+        NS_ASSERTION(ccx.GetIDispatchMember() == nsnull || 
+                        ccx.GetMember() == nsnull,
+                     "Both IDispatch member and regular XPCOM member "
+                     "were set in XPCCallContext");
+        char const * name;
+        if(ccx.GetIDispatchMember())
         {
-            name = "";
+            XPCDispInterface::Member * member = 
+                reinterpret_cast<XPCDispInterface::Member*>(ccx.GetIDispatchMember());
+            if(member && JSID_IS_STRING(member->GetName()))
+            {
+                name = JS_GetStringBytes(JSID_TO_STRING(member->GetName()));
+            }
+            else
+                name = "Unknown";
         }
-        sz = JS_smprintf("%s [%s.%s]", *psz, iface->GetNameString(), name);
+        else
+            name = iface->GetMemberName(ccx, ccx.GetMember());
+        sz = JS_smprintf("%s [%s.%s]",
+                         *psz,
+                         iface->GetNameString(),
+                         name);
+#else
+        sz = JS_smprintf("%s [%s.%s]",
+                         *psz,
+                         iface->GetNameString(),
+                         iface->GetMemberName(ccx, ccx.GetMember()));
+#endif
     }
 
     if(sz)
@@ -291,8 +312,6 @@ XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
            (xpcEx = do_QueryInterface(e)) &&
            NS_SUCCEEDED(xpcEx->StealJSVal(&thrown)))
         {
-            if (!JS_WrapValue(cx, &thrown))
-                return JS_FALSE;
             JS_SetPendingException(cx, thrown);
             success = JS_TRUE;
         }
@@ -320,3 +339,68 @@ XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
     }
     return success;
 }
+
+#ifdef XPC_IDISPATCH_SUPPORT
+// static
+void
+XPCThrower::ThrowCOMError(JSContext* cx, unsigned long COMErrorCode,
+                          nsresult rv, const EXCEPINFO * exception)
+{
+    nsCAutoString msg;
+    IErrorInfo * pError;
+    const char * format;
+    if(!nsXPCException::NameAndFormatForNSResult(rv, nsnull, &format))
+        format = "";
+    msg = format;
+#ifndef WINCE
+    if(exception)
+    {
+        msg += static_cast<const char *>
+                          (_bstr_t(exception->bstrSource, false));
+        msg += " : ";
+        msg.AppendInt(static_cast<PRUint32>(COMErrorCode));
+        msg += " - ";
+        msg += static_cast<const char *>
+                          (_bstr_t(exception->bstrDescription, false));
+    }
+    else
+    {
+        // Get the current COM error object
+        unsigned long result = GetErrorInfo(0, &pError);
+        if(SUCCEEDED(result) && pError)
+        {
+            // Build an error message from the COM error object
+            BSTR bstrSource = NULL;
+            if(SUCCEEDED(pError->GetSource(&bstrSource)) && bstrSource)
+            {
+                _bstr_t src(bstrSource, false);
+                msg += static_cast<const char *>(src);
+                msg += " : ";
+            }
+            msg.AppendInt(static_cast<PRUint32>(COMErrorCode), 16);
+            BSTR bstrDesc = NULL;
+            if(SUCCEEDED(pError->GetDescription(&bstrDesc)) && bstrDesc)
+            {
+                msg += " - ";
+                _bstr_t desc(bstrDesc, false);
+                msg += static_cast<const char *>(desc);
+            }
+        }
+        else
+        {
+            // No error object, so just report the result
+            msg += "COM Error Result = ";
+            msg.AppendInt(static_cast<PRUint32>(COMErrorCode), 16);
+        }
+    }
+
+#else
+    // No error object, so just report the result
+    msg += "COM Error Result = ";
+    msg.AppendInt(static_cast<PRUint32>(COMErrorCode), 16);
+#endif
+
+    XPCThrower::BuildAndThrowException(cx, rv, msg.get());
+}
+
+#endif

@@ -43,7 +43,6 @@
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "mozilla/unused.h"
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
 #include "nsNetUtil.h"
@@ -56,18 +55,12 @@
 #include "nsISerializable.h"
 #include "nsIAssociatedContentSecurity.h"
 #include "nsISecureBrowserUI.h"
-#include "nsIRedirectChannelRegistrar.h"
-
-#include "nsIFTPChannel.h"
-
-using mozilla::unused;
 
 namespace mozilla {
 namespace net {
 
 HttpChannelParentListener::HttpChannelParentListener(HttpChannelParent* aInitialChannel)
   : mActiveChannel(aInitialChannel)
-  , mRedirectChannelId(0)
 {
 }
 
@@ -141,22 +134,56 @@ HttpChannelParentListener::OnDataAvailable(nsIRequest *aRequest,
 NS_IMETHODIMP 
 HttpChannelParentListener::GetInterface(const nsIID& aIID, void **result)
 {
-  if (aIID.Equals(NS_GET_IID(nsIChannelEventSink)) ||
+  if (aIID.Equals(NS_GET_IID(nsIAuthPromptProvider))) {
+    if (!mActiveChannel || !mActiveChannel->mTabParent)
+      return NS_NOINTERFACE;
+    return mActiveChannel->mTabParent->QueryInterface(aIID, result);
+  }
+
+  if (aIID.Equals(NS_GET_IID(nsIProgressEventSink))) {
+    if (!mActiveChannel)
+      return NS_NOINTERFACE;
+    return mActiveChannel->QueryInterface(aIID, result);
+  }
+
+  // TODO: 575494: once we're confident we're handling all needed interfaces,
+  // remove all code below and simply "return QueryInterface(aIID, result)"
+  if (// Known interface calls:
+
+      // FIXME: HTTP Authorization (bug 537782):
+      // nsHttpChannel first tries to get this as an nsIAuthPromptProvider; if that
+      // fails, it tries as an nsIAuthPrompt2, and if that fails, an nsIAuthPrompt.
+      // See nsHttpChannel::GetAuthPrompt().  So if we can return any one of these,
+      // HTTP auth should be all set.  The other two if checks can be eventually
+      // deleted.
+      aIID.Equals(NS_GET_IID(nsIAuthPrompt2)) ||
+      aIID.Equals(NS_GET_IID(nsIAuthPrompt))  ||
+      // FIXME: redirects (bug 536294):
+      // The likely solution here is for this class to implement nsIChannelEventSink
+      // and nsIHttpEventSink (and forward calls to any real sinks in the child), in
+      // which case QueryInterface() will do the work here and these if statements
+      // can be eventually discarded.
+      aIID.Equals(NS_GET_IID(nsIChannelEventSink)) || 
       aIID.Equals(NS_GET_IID(nsIHttpEventSink))  ||
-      aIID.Equals(NS_GET_IID(nsIRedirectResultListener)))
+      aIID.Equals(NS_GET_IID(nsIRedirectResultListener))  ||
+      // FIXME: application cache (bug 536295):
+      aIID.Equals(NS_GET_IID(nsIApplicationCacheContainer)) ||
+      // FIXME:  bug 561830: when fixed, we shouldn't be asked for this interface
+      aIID.Equals(NS_GET_IID(nsIDocShellTreeItem)) ||
+      // Let this return NS_ERROR_NO_INTERFACE: it's OK to not provide it.
+      aIID.Equals(NS_GET_IID(nsIBadCertListener2))) 
   {
     return QueryInterface(aIID, result);
+  } else {
+    nsPrintfCString msg(2000, 
+       "HttpChannelParentListener::GetInterface: interface UUID=%s not yet supported! "
+       "Use 'grep -ri UUID <mozilla_src>' to find the name of the interface, "
+       "check http://tinyurl.com/255ojvu to see if a bug has already been "
+       "filed, and if not, add one and make it block bug 516730. Thanks!",
+       aIID.ToString());
+    NECKO_MAYBE_ABORT(msg);
+    return NS_NOINTERFACE;
   }
-
-  nsCOMPtr<nsIInterfaceRequestor> ir;
-  if (mActiveChannel &&
-      NS_SUCCEEDED(CallQueryInterface(mActiveChannel.get(),
-                                      getter_AddRefs(ir))))
-  {
-    return ir->GetInterface(aIID, result);
-  }
-
-  return NS_NOINTERFACE;
 }
 
 //-----------------------------------------------------------------------------
@@ -170,29 +197,59 @@ HttpChannelParentListener::AsyncOnChannelRedirect(
                                     PRUint32 redirectFlags,
                                     nsIAsyncVerifyRedirectCallback* callback)
 {
-  nsresult rv;
+  if (mActiveChannel->mIPCClosed)
+    return NS_BINDING_ABORTED;
 
-  // Register the new channel and obtain id for it
-  nsCOMPtr<nsIRedirectChannelRegistrar> registrar =
-      do_GetService("@mozilla.org/redirectchannelregistrar;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // Create new PHttpChannel
+  PBrowserParent* browser = mActiveChannel->mTabParent ?
+      static_cast<TabParent*>(mActiveChannel->mTabParent.get()) : nsnull;
+  mRedirectChannel = static_cast<HttpChannelParent *>
+      (mActiveChannel->Manager()->SendPHttpChannelConstructor(browser));
 
-  rv = registrar->RegisterChannel(newChannel, &mRedirectChannelId);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // Join it with the correct channel
+  mRedirectChannel->mChannel = newChannel;
 
-  LOG(("Registered %p channel under id=%d", newChannel, mRedirectChannelId));
+  // Let the new channel also keep the wrapper in case we get another redirect
+  // response, it wouldn't be able to send back the redirect result.
+  mRedirectChannel->mChannelListener = this;
 
-  nsCOMPtr<nsIParentRedirectingChannel> activeRedirectingChannel =
-      do_QueryInterface(mActiveChannel);
-  if (!activeRedirectingChannel) {
-    NS_RUNTIMEABORT("Channel got a redirect response, but doesn't implement "
-                    "nsIParentRedirectingChannel to handle it.");
+  // And finally, let the content process decide to redirect or not.
+  mRedirectCallback = callback;
+
+  nsCOMPtr<nsIURI> newURI;
+  newChannel->GetURI(getter_AddRefs(newURI));
+
+  nsHttpChannel *oldHttpChannel = static_cast<nsHttpChannel *>(oldChannel);
+  // TODO: check mActiveChannel->mIPCClosed and return val from Send function
+  mActiveChannel->SendRedirect1Begin(mRedirectChannel,
+                                     IPC::URI(newURI),
+                                     redirectFlags,
+                                     *oldHttpChannel->GetResponseHead());
+
+  // mActiveChannel gets the response in RecvRedirect2Result and forwards it
+  // to this wrapper through OnContentRedirectResultReceived
+
+  return NS_OK;
+}
+
+void
+HttpChannelParentListener::OnContentRedirectResultReceived(
+                                const nsresult result,
+                                const RequestHeaderTuples& changedHeaders)
+{
+  nsHttpChannel* newHttpChannel = 
+      static_cast<nsHttpChannel*>(mRedirectChannel->mChannel.get());
+
+  if (NS_SUCCEEDED(result)) {
+    for (PRUint32 i = 0; i < changedHeaders.Length(); i++) {
+      newHttpChannel->SetRequestHeader(changedHeaders[i].mHeader,
+                                       changedHeaders[i].mValue,
+                                       changedHeaders[i].mMerge);
+    }
   }
 
-  return activeRedirectingChannel->StartRedirect(mRedirectChannelId,
-                                                 newChannel,
-                                                 redirectFlags,
-                                                 callback);
+  mRedirectCallback->OnRedirectVerifyCallback(result);
+  mRedirectCallback = nsnull;
 }
 
 //-----------------------------------------------------------------------------
@@ -202,52 +259,29 @@ HttpChannelParentListener::AsyncOnChannelRedirect(
 NS_IMETHODIMP
 HttpChannelParentListener::OnRedirectResult(PRBool succeeded)
 {
-  nsresult rv;
-
-  nsCOMPtr<nsIParentChannel> redirectChannel;
-  if (mRedirectChannelId) {
-    nsCOMPtr<nsIRedirectChannelRegistrar> registrar =
-        do_GetService("@mozilla.org/redirectchannelregistrar;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = registrar->GetParentChannel(mRedirectChannelId,
-                                     getter_AddRefs(redirectChannel));
-    if (NS_FAILED(rv) || !redirectChannel) {
-      // Redirect might get canceled before we got AsyncOnChannelRedirect
-      LOG(("Registered parent channel not found under id=%d", mRedirectChannelId));
-
-      nsCOMPtr<nsIChannel> newChannel;
-      rv = registrar->GetRegisteredChannel(mRedirectChannelId,
-                                           getter_AddRefs(newChannel));
-      NS_ASSERTION(newChannel, "Already registered channel not found");
-
-      if (NS_SUCCEEDED(rv))
-        newChannel->Cancel(NS_BINDING_ABORTED);
-    }
-
-    // Release all previously registered channels, they are no longer need to be
-    // kept in the registrar from this moment.
-    registrar->DeregisterChannels(mRedirectChannelId);
-
-    mRedirectChannelId = 0;
+  if (!mRedirectChannel) {
+    // Redirect might get canceled before we got AsyncOnChannelRedirect
+    return NS_OK;
   }
 
-  nsCOMPtr<nsIParentRedirectingChannel> activeRedirectingChannel =
-      do_QueryInterface(mActiveChannel);
-  NS_ABORT_IF_FALSE(activeRedirectingChannel,
-    "Channel finished a redirect response, but doesn't implement "
-    "nsIParentRedirectingChannel to complete it.");
+  if (succeeded && !mActiveChannel->mIPCClosed) {
+    // TODO: check return value: assume child dead if failed
+    mActiveChannel->SendRedirect3Complete();
+  }
 
-  activeRedirectingChannel->CompleteRedirect(succeeded);
-
+  HttpChannelParent* channelToDelete;
   if (succeeded) {
     // Switch to redirect channel and delete the old one.
-    mActiveChannel->Delete();
-    mActiveChannel = redirectChannel;
-  } else if (redirectChannel) {
+    channelToDelete = mActiveChannel;
+    mActiveChannel = mRedirectChannel;
+  } else {
     // Delete the redirect target channel: continue using old channel
-    redirectChannel->Delete();
+    channelToDelete = mRedirectChannel;
   }
+
+  if (!channelToDelete->mIPCClosed)
+    HttpChannelParent::Send__delete__(channelToDelete);
+  mRedirectChannel = nsnull;
 
   return NS_OK;
 }

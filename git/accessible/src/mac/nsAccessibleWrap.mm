@@ -86,14 +86,25 @@ nsAccessibleWrap::GetNativeInterface (void **aOutInterface)
   return NS_ERROR_FAILURE;
 }
 
+// get the native NSWindow we reside in.
+void
+nsAccessibleWrap::GetNativeWindow (void **aOutNativeWindow)
+{
+  *aOutNativeWindow = nsnull;
+
+  nsDocAccessible *docAcc = GetDocAccessible();
+  if (docAcc)
+    docAcc->GetWindowHandle (aOutNativeWindow);
+}
+
 // overridden in subclasses to create the right kind of object. by default we create a generic
 // 'mozAccessible' node.
-Class
+objc_class*
 nsAccessibleWrap::GetNativeType () 
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  PRUint32 role = Role();
+  PRUint32 role = nsAccUtils::Role(this);
   switch (role) {
     case nsIAccessibleRole::ROLE_PUSHBUTTON:
     case nsIAccessibleRole::ROLE_SPLITBUTTON:

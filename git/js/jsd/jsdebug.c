@@ -49,7 +49,7 @@ JSD_DebuggerOnForUser(JSRuntime*         jsrt,
                       JSD_UserCallbacks* callbacks,
                       void*              user)
 {
-    return jsd_DebuggerOnForUser(jsrt, callbacks, user, NULL);
+    return jsd_DebuggerOnForUser(jsrt, callbacks, user);
 }
 
 JSD_PUBLIC_API(JSDContext*)
@@ -302,12 +302,12 @@ JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript)
     return jsd_GetScriptFilename(jsdc, jsdscript);
 }
 
-JSD_PUBLIC_API(JSString *)
-JSD_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript)
+JSD_PUBLIC_API(const char*)
+JSD_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_SCRIPT(jsdscript);
-    return jsd_GetScriptFunctionId(jsdc, jsdscript);
+    return jsd_GetScriptFunctionName(jsdc, jsdscript);
 }
 
 JSD_PUBLIC_API(uintN)
@@ -354,16 +354,6 @@ JSD_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, jsuword pc)
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_SCRIPT(jsdscript);
     return jsd_GetClosestLine(jsdc, jsdscript, pc);
-}
-
-JSD_PUBLIC_API(JSBool)
-JSD_GetLinePCs(JSDContext* jsdc, JSDScript* jsdscript,
-               uintN startLine, uintN maxLines,
-               uintN* count, uintN** lines, jsuword** pcs)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_SCRIPT(jsdscript);
-    return jsd_GetLinePCs(jsdc, jsdscript, startLine, maxLines, count, lines, pcs);
 }
 
 JSD_PUBLIC_API(void)
@@ -587,14 +577,6 @@ JSD_SetInterruptHook(JSDContext*           jsdc,
 }
 
 JSD_PUBLIC_API(JSBool)
-JSD_EnableSingleStepInterrupts(JSDContext* jsdc, JSDScript* jsdscript, JSBool enable)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_SCRIPT(jsdscript);
-    return jsd_EnableSingleStepInterrupts(jsdc, jsdscript, enable);
-}
-
-JSD_PUBLIC_API(JSBool)
 JSD_ClearInterruptHook(JSDContext* jsdc)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
@@ -759,13 +741,22 @@ JSD_GetThisForStackFrame(JSDContext* jsdc,
     return jsd_GetThisForStackFrame(jsdc, jsdthreadstate, jsdframe);
 }
 
-JSD_PUBLIC_API(JSString *)
-JSD_GetIdForStackFrame(JSDContext* jsdc,
+JSD_PUBLIC_API(const char*)
+JSD_GetNameForStackFrame(JSDContext* jsdc,
+                         JSDThreadState* jsdthreadstate,
+                         JSDStackFrameInfo* jsdframe)
+{
+    JSD_ASSERT_VALID_CONTEXT(jsdc);
+    return jsd_GetNameForStackFrame(jsdc, jsdthreadstate, jsdframe);
+}
+
+JSD_PUBLIC_API(JSBool)
+JSD_IsStackFrameNative(JSDContext* jsdc,
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
-    return jsd_GetIdForStackFrame(jsdc, jsdthreadstate, jsdframe);
+    return jsd_IsStackFrameNative(jsdc, jsdthreadstate, jsdframe);
 }
 
 JSD_PUBLIC_API(JSBool)
@@ -1126,20 +1117,12 @@ JSD_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
     return jsd_GetValueString(jsdc, jsdval);
 }
 
-JSD_PUBLIC_API(JSString *)
-JSD_GetValueFunctionId(JSDContext* jsdc, JSDValue* jsdval)
+JSD_PUBLIC_API(const char*)
+JSD_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_VALUE(jsdval);
-    return jsd_GetValueFunctionId(jsdc, jsdval);
-}
-
-JSD_PUBLIC_API(JSFunction*)
-JSD_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_VALUE(jsdval);
-    return jsd_GetValueFunction(jsdc, jsdval);
+    return jsd_GetValueFunctionName(jsdc, jsdval);
 }
 
 /**************************************************/

@@ -48,8 +48,6 @@
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
 
-class nsIDOMDragEvent;
-
 class nsFileControlFrame : public nsBlockFrame,
                            public nsIFormControlFrame,
                            public nsIAnonymousContentCreator
@@ -73,7 +71,7 @@ public:
   virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const;
   virtual void SetFocus(PRBool aOn, PRBool aRepaint);
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   
   NS_IMETHOD Reflow(nsPresContext*          aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -89,19 +87,29 @@ public:
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
-  virtual void ContentStatesChanged(nsEventStates aStates);
   virtual PRBool IsLeaf() const;
 
 
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
 #ifdef ACCESSIBILITY
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
+
+  /**
+   * This methods return the file filter mask requested by the HTML5 accept
+   * attribute. If the accept attribute isn't present or the value isn't valid,
+   * the returned value will be 0.
+   *
+   * See:
+   * http://dev.w3.org/html5/spec/forms.html#attr-input-accept
+   *
+   * @return the file picker filter mask or 0 if there is no filter.
+   */
+  PRInt32 GetFileFilterFromAccept() const;
 
   typedef PRBool (*AcceptAttrCallback)(const nsAString&, void*);
   void ParseAcceptAttribute(AcceptAttrCallback aCallback, void* aClosure) const;
@@ -137,28 +145,7 @@ protected:
   protected:
     nsFileControlFrame* mFrame;
   };
-
-  class SyncDisabledStateEvent;
-  friend class SyncDisabledStateEvent;
-  class SyncDisabledStateEvent : public nsRunnable
-  {
-  public:
-    SyncDisabledStateEvent(nsFileControlFrame* aFrame)
-      : mFrame(aFrame)
-    {}
-
-    NS_IMETHOD Run() {
-      nsFileControlFrame* frame = static_cast<nsFileControlFrame*>(mFrame.GetFrame());
-      NS_ENSURE_STATE(frame);
-
-      frame->SyncDisabledState();
-      return NS_OK;
-    }
-
-  private:
-    nsWeakFrame mFrame;
-  };
-
+  
   class CaptureMouseListener: public MouseListener {
   public:
     CaptureMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame),
@@ -171,9 +158,6 @@ protected:
   public:
     BrowseMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame) {};
      NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
-     NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
-
-     static PRBool IsValidDropData(nsIDOMDragEvent* aEvent);
   };
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
@@ -230,15 +214,11 @@ private:
    * Copy an attribute from file content to text and button content.
    * @param aNameSpaceID namespace of attr
    * @param aAttribute attribute atom
-   * @param aWhichControls which controls to apply to (SYNC_TEXT or SYNC_FILE)
+   * @param aWhichControls which controls to apply to (SYNC_TEXT or SYNC_FILE
+   *        or SYNC_BOTH)
    */
   void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                 PRInt32 aWhichControls);
-
-  /**
-   * Sync the disabled state of the content with anonymous children.
-   */
-  void SyncDisabledState();
 };
 
 #endif

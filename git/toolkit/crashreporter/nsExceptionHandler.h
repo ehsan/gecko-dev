@@ -89,6 +89,7 @@ bool AppendExtraData(nsILocalFile* extraFile, const AnnotationTable& data);
 nsresult GetSubmitReports(PRBool* aSubmitReport);
 nsresult SetSubmitReports(PRBool aSubmitReport);
 
+#ifdef MOZ_IPC
 // Out-of-process crash reporter API.
 
 // Return true iff a dump was found for |childPid|, and return the
@@ -155,27 +156,7 @@ bool SetRemoteExceptionHandler();
 #endif  // XP_WIN32
 
 bool UnsetRemoteExceptionHandler();
-
-#if defined(__ANDROID__)
-// Android builds use a custom library loader, so /proc/<pid>/maps
-// will just show anonymous mappings for all the non-system
-// shared libraries. This API is to work around that by providing
-// info about the shared libraries that are mapped into these anonymous
-// mappings.
-void AddLibraryMapping(const char* library_name,
-                       const char* file_id,
-                       uintptr_t   start_address,
-                       size_t      mapping_length,
-                       size_t      file_offset);
-
-void AddLibraryMappingForChild(PRUint32    childPid,
-                               const char* library_name,
-                               const char* file_id,
-                               uintptr_t   start_address,
-                               size_t      mapping_length,
-                               size_t      file_offset);
-void RemoveLibraryMappingsForChild(PRUint32 childPid);
-#endif
+#endif // MOZ_IPC
 }
 
 #endif /* nsExceptionHandler_h__ */

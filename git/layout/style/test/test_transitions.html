@@ -7,7 +7,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=435441
   <title>Test for Bug 435441</title>
   <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
-  <script type="application/javascript" src="animation_utils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <style type="text/css">
 
@@ -44,6 +43,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=435441
 
 /** Test for Bug 435441 **/
 
+function px_to_num(str)
+{
+    return Number(String(str).match(/^([\d.]+)px$/)[1]);
+}
+
 // Run tests simultaneously so we don't have to take up too much time.
 SimpleTest.waitForExplicitFinish();
 var gTestsRunning = 0;
@@ -75,6 +79,36 @@ function process_future_calls(index)
     for (var i = 0; i < calls.length; ++i) {
         calls[i]();
         TestFinished();
+    }
+}
+
+function bezier(x1, y1, x2, y2) {
+    // Cubic bezier with control points (0, 0), (x1, y1), (x2, y2), and (1, 1).
+    function x_for_t(t) {
+        var omt = 1-t;
+        return 3 * omt * omt * t * x1 + 3 * omt * t * t * x2 + t * t * t;
+    }
+    function y_for_t(t) {
+        var omt = 1-t;
+        return 3 * omt * omt * t * y1 + 3 * omt * t * t * y2 + t * t * t;
+    }
+    function t_for_x(x) {
+        // Binary subdivision.
+        var mint = 0, maxt = 1;
+        for (var i = 0; i < 30; ++i) {
+            var guesst = (mint + maxt) / 2;
+            var guessx = x_for_t(guesst);
+            if (x < guessx)
+                maxt = guesst;
+            else
+                mint = guesst;
+        }
+        return (mint + maxt) / 2;
+    }
+    return function bezier_closure(x) {
+        if (x == 0) return 0;
+        if (x == 1) return 1;
+        return y_for_t(t_for_x(x));
     }
 }
 
@@ -192,22 +226,6 @@ for (var d = -4; d <= 4; ++d) {
     is(getComputedStyle(p, "").marginLeft, "0px",
        "should be zero before changing value");
     delay_tests[d] = p;
-}
-
-// Test transition-delay values of -4s through 4s on a 4s transition
-// with duration of zero.
-var delay_zero_tests = {};
-for (var d = -4; d <= 4; ++d) {
-    var p = document.createElement("p");
-    var delay = d + "s";
-    var t = document.createTextNode("transition-delay: " + delay);
-    p.appendChild(t);
-    p.style.marginLeft = "0px";
-    p.style.MozTransition = "0s margin-left linear " + delay;
-    div.appendChild(p);
-    is(getComputedStyle(p, "").marginLeft, "0px",
-       "should be zero before changing value");
-    delay_zero_tests[d] = p;
 }
 
 // Test that changing the value on an already-running transition to the
@@ -388,10 +406,6 @@ for (var d in delay_tests) {
     var p = delay_tests[d];
     p.style.marginLeft = "100px";
 }
-for (var d in delay_zero_tests) {
-    var p = delay_zero_tests[d];
-    p.style.marginLeft = "100px";
-}
 reset_test.style.marginLeft = "100px";
 reset_test_reference.style.marginLeft = "100px";
 for (var i in descendant_tests) {
@@ -569,29 +583,6 @@ function check_delay_test(time)
 check_delay_test(0);
 for (var i = 1; i <= 8; ++i) {
     add_future_call(i, check_delay_test);
-}
-
-function check_delay_zero_test(time)
-{
-    for (var d in delay_zero_tests) {
-        var p = delay_zero_tests[d];
-
-        time_range = [ px_to_num(earlyrefcs.textIndent) / 125,
-                       px_to_num(laterefcs.textIndent) / 125 ];
-        var m = getComputedStyle(p, "").marginLeft;
-        var desc = "delay_zero test for delay " + d + "s";
-        if (time_range[0] < d && time_range[1] < d) {
-            is(m, "0px", desc);
-        } else if ((time_range[0] > d && time_range[1] > d) ||
-                   (d == 0 && time == 0)) {
-            is(m, "100px", desc);
-        }
-    }
-}
-
-check_delay_zero_test(0);
-for (var i = 1; i <= 8; ++i) {
-    add_future_call(i, check_delay_zero_test);
 }
 
 function reset_reset_test(time)

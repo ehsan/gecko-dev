@@ -44,6 +44,9 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
 
+
+include $(topsrcdir)/config/config.mk
+
 CPP_UNIT_TESTS	= \
                   TestCOM.cpp \
                   $(NULL)

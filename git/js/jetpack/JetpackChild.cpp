@@ -38,11 +38,11 @@
 #include "base/basictypes.h"
 #include "jscntxt.h"
 #include "nsXULAppAPI.h"
-#include "nsNativeCharsetUtils.h"
 
 #include "mozilla/jetpack/JetpackChild.h"
 #include "mozilla/jetpack/Handle.h"
-#include "mozilla/IntentionalCrash.h"
+
+#include "jsarray.h"
 
 #include <stdio.h>
 
@@ -57,7 +57,8 @@ JetpackChild::~JetpackChild()
 {
 }
 
-#define IMPL_METHOD_FLAGS (JSPROP_ENUMERATE | \
+#define IMPL_METHOD_FLAGS (JSFUN_FAST_NATIVE |  \
+                           JSPROP_ENUMERATE | \
                            JSPROP_READONLY | \
                            JSPROP_PERMANENT)
 const JSFunctionSpec
@@ -74,8 +75,6 @@ JetpackChild::sImplMethods[] = {
 #ifdef JS_GC_ZEAL
   JS_FN("gczeal", GCZeal, 1, IMPL_METHOD_FLAGS),
 #endif
-  JS_FN("_noteIntentionalCrash", NoteIntentionalCrash, 0,
-        IMPL_METHOD_FLAGS),
   JS_FS_END
 };
 
@@ -84,35 +83,10 @@ JetpackChild::sImplMethods[] = {
 const JSClass
 JetpackChild::sGlobalClass = {
   "JetpackChild::sGlobalClass", JSCLASS_GLOBAL_FLAGS,
-  JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
   JS_EnumerateStub, JS_ResolveStub,  JS_ConvertStub,  JS_FinalizeStub,
   JSCLASS_NO_OPTIONAL_MEMBERS
 };
-
-#ifdef BUILD_CTYPES
-static char*
-UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
-{
-  nsCAutoString native;
-  nsDependentString unicode(source, slen);
-  nsresult rv = NS_CopyUnicodeToNative(unicode, native);
-  if (NS_FAILED(rv)) {
-    JS_ReportError(cx, "could not convert string to native charset");
-    return NULL;
-  }
-
-  char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
-  if (!result)
-    return NULL;
-
-  memcpy(result, native.get(), native.Length() + 1);
-  return result;
-}
-
-static JSCTypesCallbacks sCallbacks = {
-  UnicodeToNative
-};
-#endif
 
 bool
 JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
@@ -138,19 +112,10 @@ JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
     JS_SetContextPrivate(mCx, this);
     JSObject* implGlobal =
       JS_NewCompartmentAndGlobalObject(mCx, const_cast<JSClass*>(&sGlobalClass), NULL);
-    if (!implGlobal)
-        return false;
-
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(mCx, implGlobal))
-        return false;
-
-    jsval ctypes;
-    if (!JS_InitStandardClasses(mCx, implGlobal) ||
+    if (!implGlobal ||
+        !JS_InitStandardClasses(mCx, implGlobal) ||
 #ifdef BUILD_CTYPES
         !JS_InitCTypesClass(mCx, implGlobal) ||
-        !JS_GetProperty(mCx, implGlobal, "ctypes", &ctypes) ||
-        !JS_SetCTypesCallbacks(mCx, JSVAL_TO_OBJECT(ctypes), &sCallbacks) ||
 #endif
         !JS_DefineFunctions(mCx, implGlobal,
                             const_cast<JSFunctionSpec*>(sImplMethods)))
@@ -177,15 +142,9 @@ JetpackChild::ActorDestroy(ActorDestroyReason why)
 
 bool
 JetpackChild::RecvSendMessage(const nsString& messageName,
-                              const InfallibleTArray<Variant>& data)
+                              const nsTArray<Variant>& data)
 {
   JSAutoRequest request(mCx);
-
-  JSObject *global = JS_GetGlobalObject(mCx);
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mCx, global))
-    return false;
-
   return JetpackActorCommon::RecvMessage(mCx, messageName, data, NULL);
 }
 
@@ -194,14 +153,9 @@ JetpackChild::RecvEvalScript(const nsString& code)
 {
   JSAutoRequest request(mCx);
 
-  JSObject *global = JS_GetGlobalObject(mCx);
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mCx, global))
-    return false;
-
-  jsval ignored;
-  (void) JS_EvaluateUCScript(mCx, global, code.get(),
-                             code.Length(), "", 1, &ignored);
+  js::AutoValueRooter ignored(mCx);
+  (void) JS_EvaluateUCScript(mCx, JS_GetGlobalObject(mCx), code.get(),
+                             code.Length(), "", 1, ignored.jsval_addr());
   return true;
 }
 
@@ -229,7 +183,7 @@ JetpackChild::GetThis(JSContext* cx)
 
 struct MessageResult {
   nsString msgName;
-  InfallibleTArray<Variant> data;
+  nsTArray<Variant> data;
 };
 
 static JSBool
@@ -249,12 +203,8 @@ MessageCommon(JSContext* cx, uintN argc, jsval* vp,
     return JS_FALSE;
   }
 
-  size_t length;
-  const jschar* chars = JS_GetStringCharsAndLength(cx, msgNameStr, &length);
-  if (!chars)
-      return JS_FALSE;
-
-  result->msgName.Assign(chars, length);
+  result->msgName.Assign((PRUnichar*)JS_GetStringChars(msgNameStr),
+                         JS_GetStringLength(msgNameStr));
 
   result->data.Clear();
 
@@ -296,7 +246,7 @@ JetpackChild::CallMessage(JSContext* cx, uintN argc, jsval* vp)
   if (!MessageCommon(cx, argc, vp, &smr))
     return JS_FALSE;
 
-  InfallibleTArray<Variant> results;
+  nsTArray<Variant> results;
   if (!GetThis(cx)->CallCallMessage(smr.msgName, smr.data, &results)) {
     JS_ReportError(cx, "Failed to callMessage");
     return JS_FALSE;
@@ -357,17 +307,15 @@ ReceiverCommon(JSContext* cx, uintN argc, jsval* vp,
     return JS_FALSE;
   }
 
-  size_t length;
-  const jschar* chars = JS_GetStringCharsAndLength(cx, str, &length);
-  if (!chars)
-      return JS_FALSE;
-
-  result->msgName.Assign(chars, length);
+  result->msgName.Assign((PRUnichar*)JS_GetStringChars(str),
+                         JS_GetStringLength(str));
 
   if (arity < 2)
     return JS_TRUE;
 
-  if (JS_TypeOfValue(cx, argv[1]) != JSTYPE_FUNCTION) {
+  if (!JSVAL_IS_OBJECT(argv[1]) ||
+      !JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(argv[1])))
+  {
     JS_ReportError(cx, "%s expects a function as its second argument",
                    methodName);
     return JS_FALSE;
@@ -455,15 +403,11 @@ JetpackChild::CreateSandbox(JSContext* cx, uintN argc, jsval* vp)
   if (!obj)
     return JS_FALSE;
 
-  jsval rval = OBJECT_TO_JSVAL(obj);
-  if (!JS_WrapValue(cx, &rval))
-    return JS_FALSE;
-
-  JSAutoEnterCompartment ac;
+  JSAutoCrossCompartmentCall ac;
   if (!ac.enter(cx, obj))
     return JS_FALSE;
 
-  JS_SET_RVAL(cx, vp, rval);
+  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
   return JS_InitStandardClasses(cx, obj);
 }
 
@@ -479,40 +423,24 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
 
   JSObject* obj;
   if (!JSVAL_IS_OBJECT(argv[0]) ||
-      !(obj = JSVAL_TO_OBJECT(argv[0]))) {
-    JS_ReportError(cx, "The first argument to evalInSandbox must be a global object created using createSandbox.");
-    JS_ASSERT(JS_FALSE);
-    return JS_FALSE;
-  }
-
-  // Unwrap, and switch compartments
-  obj = obj->unwrap();
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, obj))
-    return JS_FALSE;
-
-  if (&sGlobalClass != JS_GetClass(cx, obj) ||
+      !(obj = JSVAL_TO_OBJECT(argv[0])) ||
+      &sGlobalClass != JS_GetClass(cx, obj) ||
       obj == JS_GetGlobalObject(cx)) {
     JS_ReportError(cx, "The first argument to evalInSandbox must be a global object created using createSandbox.");
-    JS_ASSERT(JS_FALSE);
     return JS_FALSE;
   }
-
-  if (!JS_WrapValue(cx, &argv[1]))
-    return JS_FALSE;
 
   JSString* str = JS_ValueToString(cx, argv[1]);
   if (!str)
     return JS_FALSE;
 
-  size_t length;
-  const jschar* chars = JS_GetStringCharsAndLength(cx, str, &length);
-  if (!chars)
-      return JS_FALSE;
+  JSAutoCrossCompartmentCall ac;
+  if (!ac.enter(cx, obj))
+    return JS_FALSE;
 
   js::AutoValueRooter ignored(cx);
-  return JS_EvaluateUCScript(cx, obj, chars, length, "", 1, ignored.jsval_addr());
+  return JS_EvaluateUCScript(cx, obj, JS_GetStringChars(str), JS_GetStringLength(str), "", 1,
+                             ignored.jsval_addr());
 }
 
 bool JetpackChild::sReportingError;
@@ -572,17 +500,10 @@ JetpackChild::GCZeal(JSContext* cx, uintN argc, jsval *vp)
   if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
     return JS_FALSE;
 
-  JS_SetGCZeal(cx, PRUint8(zeal), JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
+  JS_SetGCZeal(cx, PRUint8(zeal));
   return JS_TRUE;
 }
 #endif
-
-JSBool
-JetpackChild::NoteIntentionalCrash(JSContext* cx, uintN argc, jsval *vp)
-{
-  mozilla::NoteIntentionalCrash("jetpack");
-  return JS_TRUE;
-}
 
 } // namespace jetpack
 } // namespace mozilla

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -58,7 +59,7 @@ getLinkCB(AtkHypertext *aText, gint aLinkIndex)
     if (!accWrap)
         return nsnull;
 
-    nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
     NS_ENSURE_TRUE(hyperText, nsnull);
 
     nsAccessible* hyperLink = hyperText->GetLinkAt(aLinkIndex);
@@ -81,7 +82,7 @@ getLinkCountCB(AtkHypertext *aText)
     if (!accWrap)
         return -1;
 
-    nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
     NS_ENSURE_TRUE(hyperText, -1);
 
     return hyperText->GetLinkCount();
@@ -94,7 +95,7 @@ getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
     if (!accWrap)
         return -1;
 
-    nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
     NS_ENSURE_TRUE(hyperText, -1);
 
     PRInt32 index = -1;

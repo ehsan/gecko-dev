@@ -14,9 +14,7 @@ function test() {
   theTab = gBrowser.addTab();
   theBrowser = gBrowser.getBrowserForTab(theTab);
   theBrowser.addEventListener("load", listener, true);
-  
-  var rootDir = getRootDirectory(gTestPath);
-  theBrowser.contentWindow.location = rootDir + "bug453896_iframe.html";
+  theBrowser.contentWindow.location = "chrome://mochikit/content/browser/layout/style/test/bug453896_iframe.html";
 }
 
 function doTest() {

@@ -3,12 +3,6 @@
 # found in the LICENSE file.
 
 {
-  'target_defaults': {
-    'defines': [
-      'ANGLE_DISABLE_TRACE',
-      'ANGLE_COMPILE_OPTIMIZATION_LEVEL=D3DCOMPILE_OPTIMIZATION_LEVEL0',
-    ],
-  },
   'targets': [
     {
       'target_name': 'translator_common',
@@ -17,17 +11,17 @@
         '.',
         '../include',
       ],
+      'variables': {
+        'glslang_cpp_file': '<(INTERMEDIATE_DIR)/glslang.cpp',
+        'glslang_tab_cpp_file': '<(INTERMEDIATE_DIR)/glslang_tab.cpp',
+        'glslang_tab_h_file': '<(INTERMEDIATE_DIR)/glslang_tab.h',
+      },
       'sources': [
         'compiler/BaseTypes.h',
         'compiler/Common.h',
-        'compiler/Compiler.cpp',
         'compiler/ConstantUnion.h',
-        'compiler/compilerdebug.cpp',
-        'compiler/compilerdebug.h',
-        'compiler/glslang.h',
-        'compiler/glslang_lex.cpp',
-        'compiler/glslang_tab.cpp',
-        'compiler/glslang_tab.h',
+        'compiler/debug.cpp',
+        'compiler/debug.h',
         'compiler/InfoSink.cpp',
         'compiler/InfoSink.h',
         'compiler/Initialize.cpp',
@@ -41,8 +35,6 @@
         'compiler/intermOut.cpp',
         'compiler/IntermTraverse.cpp',
         'compiler/localintermediate.h',
-        'compiler/MapLongVariableNames.cpp',
-        'compiler/MapLongVariableNames.h',
         'compiler/MMap.h',
         'compiler/osinclude.h',
         'compiler/parseConst.cpp',
@@ -60,12 +52,6 @@
         'compiler/SymbolTable.h',
         'compiler/Types.h',
         'compiler/unistd.h',
-        'compiler/util.cpp',
-        'compiler/util.h',
-        'compiler/ValidateLimitations.cpp',
-        'compiler/ValidateLimitations.h',
-        'compiler/VariableInfo.cpp',
-        'compiler/VariableInfo.h',
         'compiler/preprocessor/atom.c',
         'compiler/preprocessor/atom.h',
         'compiler/preprocessor/compile.h',
@@ -83,6 +69,10 @@
         'compiler/preprocessor/symbols.h',
         'compiler/preprocessor/tokens.c',
         'compiler/preprocessor/tokens.h',
+        # Generated files
+        '<(glslang_cpp_file)',
+        '<(glslang_tab_cpp_file)',
+        '<(glslang_tab_h_file)',
       ],
       'conditions': [
         ['OS=="win"', {
@@ -90,6 +80,35 @@
         }, { # else: posix
           'sources': ['compiler/ossource_posix.cpp'],
         }],
+      ],
+      'actions': [
+        {
+          'action_name': 'flex_glslang',
+          'inputs': ['compiler/glslang.l'],
+          'outputs': ['<(glslang_cpp_file)'],
+          'action': [
+            'flex',
+            '--noline',
+            '--nounistd',
+            '--outfile=<(glslang_cpp_file)',
+            '<(_inputs)',
+          ],
+          'message': 'Executing flex on <(_inputs)',
+        },
+        {
+          'action_name': 'bison_glslang',
+          'inputs': ['compiler/glslang.y'],
+          'outputs': ['<(glslang_tab_cpp_file)', '<(glslang_tab_h_file)'],
+          'action': [
+            'bison',
+            '--no-lines',
+            '--defines=<(glslang_tab_h_file)',
+            '--skeleton=yacc.c',
+            '--output=<(glslang_tab_cpp_file)',
+            '<(_inputs)',
+          ],
+          'message': 'Executing bison on <(_inputs)',
+        },
       ],
     },
     {
@@ -102,14 +121,10 @@
       ],
       'sources': [
         'compiler/CodeGenGLSL.cpp',
-        'compiler/ForLoopUnroll.cpp',
-        'compiler/ForLoopUnroll.h',
         'compiler/OutputGLSL.cpp',
         'compiler/OutputGLSL.h',
         'compiler/TranslatorGLSL.cpp',
         'compiler/TranslatorGLSL.h',
-        'compiler/VersionGLSL.cpp',
-        'compiler/VersionGLSL.h',
       ],
     },
     {
@@ -128,8 +143,6 @@
         'compiler/TranslatorHLSL.h',
         'compiler/UnfoldSelect.cpp',
         'compiler/UnfoldSelect.h',
-        'compiler/SearchSymbol.cpp',
-        'compiler/SearchSymbol.h',
       ],
     },
   ],
@@ -149,24 +162,23 @@
             'common/angleutils.h',
             'common/debug.cpp',
             'common/debug.h',
-            'common/version.h',
-            'libGLESv2/IndexDataManager.cpp',
-            'libGLESv2/IndexDataManager.h',
-            'libGLESv2/vertexconversion.h',
-            'libGLESv2/VertexDataManager.cpp',
-            'libGLESv2/VertexDataManager.h',
+            'libGLESv2/geometry/backend.cpp',
+            'libGLESv2/geometry/backend.h',
+            'libGLESv2/geometry/dx9.cpp',
+            'libGLESv2/geometry/dx9.h',
+            'libGLESv2/geometry/IndexDataManager.cpp',
+            'libGLESv2/geometry/IndexDataManager.h',
+            'libGLESv2/geometry/vertexconversion.h',
+            'libGLESv2/geometry/VertexDataManager.cpp',
+            'libGLESv2/geometry/VertexDataManager.h',
             'libGLESv2/Blit.cpp',
             'libGLESv2/Blit.h',
             'libGLESv2/Buffer.cpp',
             'libGLESv2/Buffer.h',
             'libGLESv2/Context.cpp',
             'libGLESv2/Context.h',
-            'libGLESv2/Fence.cpp',
-            'libGLESv2/Fence.h',
             'libGLESv2/Framebuffer.cpp',
             'libGLESv2/Framebuffer.h',
-            'libGLESv2/HandleAllocator.cpp',
-            'libGLESv2/HandleAllocator.h',
             'libGLESv2/libGLESv2.cpp',
             'libGLESv2/libGLESv2.def',
             'libGLESv2/main.cpp',
@@ -190,11 +202,7 @@
           'msvs_settings': {
             'VCLinkerTool': {
               'AdditionalLibraryDirectories': ['$(DXSDK_DIR)/lib/x86'],
-              'AdditionalDependencies': [
-                'd3d9.lib',
-                'd3dx9.lib',
-                'd3dcompiler.lib',
-              ],
+              'AdditionalDependencies': ['d3dx9.lib'],
             }
           },
         },
@@ -210,7 +218,6 @@
             'common/angleutils.h',
             'common/debug.cpp',
             'common/debug.h',
-            'common/version.h',
             'libEGL/Config.cpp',
             'libEGL/Config.h',
             'libEGL/Display.cpp',
@@ -224,15 +231,7 @@
           ],
           'msvs_settings': {
             'VCLinkerTool': {
-              'AdditionalLibraryDirectories': ['$(DXSDK_DIR)/lib/x86'],
-              'AdditionalDependencies': [
-                'd3d9.lib',
-                'dxguid.lib',
-                'dwmapi.lib',
-              ],
-              'DelayLoadDLLs': [
-                'dwmapi.dll',
-              ]
+              'AdditionalDependencies': ['d3d9.lib'],
             }
           },
         },

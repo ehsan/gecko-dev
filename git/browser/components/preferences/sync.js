@@ -21,7 +21,6 @@
  *   Edward Lee <edilee@mozilla.com>
  *   Mike Connor <mconnor@mozilla.com>
  *   Paul O’Shannessy <paul@oshannessy.com>
- *   Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,7 +41,6 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 const PAGE_NO_ACCOUNT = 0;
 const PAGE_HAS_ACCOUNT = 1;
-const PAGE_NEEDS_UPDATE = 2;
 
 let gSyncPane = {
   _stringBundle: null,
@@ -61,60 +59,94 @@ let gSyncPane = {
     return Weave.Svc.Prefs.isSet("serverURL");
   },
 
-  needsUpdate: function () {
-    this.page = PAGE_NEEDS_UPDATE;
+  onLoginStart: function () {
+    if (this.page == PAGE_NO_ACCOUNT)
+      return;
+
+    document.getElementById("loginFeedbackRow").hidden = true;
+    document.getElementById("connectThrobber").hidden = false;
+  },
+
+  onLoginError: function () {
+    if (this.page == PAGE_NO_ACCOUNT)
+      return;
+
+    document.getElementById("connectThrobber").hidden = true;
+    document.getElementById("loginFeedbackRow").hidden = false;
     let label = document.getElementById("loginError");
     label.value = Weave.Utils.getErrorString(Weave.Status.login);
     label.className = "error";
   },
 
+  onLoginFinish: function () {
+    document.getElementById("connectThrobber").hidden = true;
+    this.updateWeavePrefs();
+  },
+
   init: function () {
-    let topics = ["weave:service:login:error",
-                  "weave:service:login:finish",
-                  "weave:service:start-over",
-                  "weave:service:setup-complete",
-                  "weave:service:logout:finish"];
+    let obs = [
+      ["weave:service:login:start",   "onLoginStart"],
+      ["weave:service:login:error",   "onLoginError"],
+      ["weave:service:login:finish",  "onLoginFinish"],
+      ["weave:service:start-over",    "updateWeavePrefs"],
+      ["weave:service:setup-complete","updateWeavePrefs"],
+      ["weave:service:logout:finish", "updateWeavePrefs"]];
 
     // Add the observers now and remove them on unload
-    //XXXzpao This should use Services.obs.* but Weave's Obs does nice handling
-    //        of `this`. Fix in a followup. (bug 583347)
-    topics.forEach(function (topic) {
-      Weave.Svc.Obs.add(topic, this.updateWeavePrefs, this);
-    }, this);
-    window.addEventListener("unload", function() {
-      topics.forEach(function (topic) {
-        Weave.Svc.Obs.remove(topic, this.updateWeavePrefs, this);
-      }, gSyncPane);
-    }, false);
+    let self = this;
+    let addRem = function(add) {
+      obs.forEach(function([topic, func]) {
+        //XXXzpao This should use Services.obs.* but Weave's Obs does nice handling
+        //        of `this`. Fix in a followup. (bug 583347)
+        if (add)
+          Weave.Svc.Obs.add(topic, self[func], self);
+        else
+          Weave.Svc.Obs.remove(topic, self[func], self);
+      });
+    };
+    addRem(true);
+    window.addEventListener("unload", function() addRem(false), false);
 
     this._stringBundle =
-      Services.strings.createBundle("chrome://browser/locale/preferences/preferences.properties");
+      Services.strings.createBundle("chrome://browser/locale/preferences/preferences.properties");;
     this.updateWeavePrefs();
   },
 
   updateWeavePrefs: function () {
     if (Weave.Status.service == Weave.CLIENT_NOT_CONFIGURED ||
-        Weave.Svc.Prefs.get("firstSync", "") == "notReady") {
+        Weave.Svc.Prefs.get("firstSync", "") == "notReady")
       this.page = PAGE_NO_ACCOUNT;
-    } else if (Weave.Status.login == Weave.LOGIN_FAILED_INVALID_PASSPHRASE ||
-               Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED) {
-      this.needsUpdate();
-    } else {
+    else {
       this.page = PAGE_HAS_ACCOUNT;
-      document.getElementById("accountName").value = Weave.Service.account;
+      document.getElementById("currentUser").value = Weave.Service.username;
       document.getElementById("syncComputerName").value = Weave.Clients.localName;
+      if (Weave.Status.service == Weave.LOGIN_FAILED)
+        this.onLoginError();
+      this.updateConnectButton();
+      let syncEverything = this._checkDefaultValues();
+      document.getElementById("weaveSyncMode").selectedIndex = syncEverything ? 0 : 1;
+      document.getElementById("syncModeOptions").selectedIndex = syncEverything ? 0 : 1;
       document.getElementById("tosPP").hidden = this._usingCustomServer;
     }
+  },
+
+  updateConnectButton: function () {
+    let str = Weave.Service.isLoggedIn ? this._stringBundle.GetStringFromName("disconnect.label")
+                                       : this._stringBundle.GetStringFromName("connect.label");
+    document.getElementById("connectButton").label = str;
+  },
+
+  handleConnectCommand: function () {
+    Weave.Service.isLoggedIn ? Weave.Service.logout() : Weave.Service.login();
   },
 
   startOver: function (showDialog) {
     if (showDialog) {
       let flags = Services.prompt.BUTTON_POS_0 * Services.prompt.BUTTON_TITLE_IS_STRING +
-                  Services.prompt.BUTTON_POS_1 * Services.prompt.BUTTON_TITLE_CANCEL + 
-                  Services.prompt.BUTTON_POS_1_DEFAULT;
+                  Services.prompt.BUTTON_POS_1 * Services.prompt.BUTTON_TITLE_CANCEL;
       let buttonChoice =
         Services.prompt.confirmEx(window,
-                                  this._stringBundle.GetStringFromName("stopUsingAccount.title"),
+                                  this._stringBundle.GetStringFromName("differentAccount.title"),
                                   this._stringBundle.GetStringFromName("differentAccount.label"),
                                   flags,
                                   this._stringBundle.GetStringFromName("differentAccountConfirm.label"),
@@ -125,8 +157,11 @@ let gSyncPane = {
         return;
     }
 
+    this.handleExpanderClick();
     Weave.Service.startOver();
     this.updateWeavePrefs();
+    document.getElementById("manageAccountExpander").className = "expander-down";
+    document.getElementById("manageAccountControls").hidden = true;
   },
 
   updatePass: function () {
@@ -143,6 +178,55 @@ let gSyncPane = {
       gSyncUtils.resetPassphrase();
   },
 
+  updateSyncPrefs: function () {
+    let syncEverything = document.getElementById("weaveSyncMode").selectedItem.value == "syncEverything";
+    document.getElementById("syncModeOptions").selectedIndex = syncEverything ? 0 : 1;
+
+    if (syncEverything) {
+      let prefs = this.prefArray;
+      for (let i = 0; i < prefs.length; ++i)
+        document.getElementById(prefs[i]).value = true;
+    }
+  },
+
+  /**
+   * Check whether all the preferences values are set to their default values
+   *
+   * @param aPrefs an array of pref names to check for
+   * @returns boolean true if all of the prefs are set to their default values,
+   *                  false otherwise
+   */
+  _checkDefaultValues: function () {
+    let prefs = this.prefArray;
+    for (let i = 0; i < prefs.length; ++i) {
+      let pref = document.getElementById(prefs[i]);
+      if (pref.value != pref.defaultValue)
+        return false;
+    }
+    return true;
+  },
+
+
+  handleExpanderClick: function () {
+    //XXXzpao Might be fixed in bug 583441, otherwise we'll need a new bug.
+    // ok, this is pretty evil, and likely fragile if the prefwindow
+    // binding changes, but that won't happen in 3.6 *fingers crossed*
+    let prefwindow = document.documentElement;
+    let pane = document.getElementById("paneSync");
+    if (prefwindow._shouldAnimate)
+      prefwindow._currentHeight = pane.contentHeight;
+
+    let expander = document.getElementById("manageAccountExpander");
+    let expand = expander.className == "expander-down";
+    expander.className =
+       expand ? "expander-up" : "expander-down";
+    document.getElementById("manageAccountControls").hidden = !expand;
+
+    // and... shazam
+    if (prefwindow._shouldAnimate)
+      prefwindow.animate("null", pane);
+  },
+
   openSetup: function (resetSync) {
     var win = Services.wm.getMostRecentWindow("Weave:AccountSetup");
     if (win)
@@ -151,27 +235,6 @@ let gSyncPane = {
       window.openDialog("chrome://browser/content/syncSetup.xul",
                         "weaveSetup", "centerscreen,chrome,resizable=no", resetSync);
     }
-  },
-
-  openQuotaDialog: function () {
-    let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
-    if (win)
-      win.focus();
-    else 
-      window.openDialog("chrome://browser/content/syncQuota.xul", "",
-                        "centerscreen,chrome,dialog,modal");
-  },
-
-  openAddDevice: function () {
-    if (!Weave.Utils.ensureMPUnlocked())
-      return;
-    
-    let win = Services.wm.getMostRecentWindow("Sync:AddDevice");
-    if (win)
-      win.focus();
-    else 
-      window.openDialog("chrome://browser/content/syncAddDevice.xul",
-                        "syncAddDevice", "centerscreen,chrome,resizable=no");
   },
 
   resetSync: function () {

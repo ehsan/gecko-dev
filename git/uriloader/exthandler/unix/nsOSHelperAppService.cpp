@@ -41,7 +41,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
 #include <contentaction/contentaction.h>
 #include <QString>
 #endif
@@ -1213,7 +1213,7 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
        aProtocolScheme));
   *aHandlerExists = PR_FALSE;
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
   // libcontentaction requires character ':' after scheme
   ContentAction::Action action =
     ContentAction::Action::defaultActionForScheme(QString(aProtocolScheme) + ':');

@@ -153,8 +153,7 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
   nsAutoTArray<gfxTextRun::DetailedGlyph,2> glyphs;
   while (iter.NextRun()) {
     gfxTextRun::GlyphRun* run = iter.GetGlyphRun();
-    nsresult rv = aDest->AddGlyphRun(run->mFont, run->mMatchType,
-                                     offset, PR_FALSE);
+    nsresult rv = aDest->AddGlyphRun(run->mFont, offset);
     if (NS_FAILED(rv))
       return;
 
@@ -177,9 +176,7 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
           anyMissing = PR_TRUE;
           glyphs.Clear();
         }
-        if (g.GetGlyphCount() > 0) {
-          glyphs.AppendElements(aSrc->GetDetailedGlyphs(k), g.GetGlyphCount());
-        }
+        glyphs.AppendElements(aSrc->GetDetailedGlyphs(k), g.GetGlyphCount());
       }
 
       // We could teach this method to handle merging of characters that aren't
@@ -312,7 +309,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
       if (transformedChild) {
         transformedChild->FinishSettingProperties(aRefContext);
       }
-      aTextRun->CopyGlyphDataFrom(child, 0, child->GetLength(), runStart);
+      aTextRun->CopyGlyphDataFrom(child, 0, child->GetLength(), runStart, PR_FALSE);
 
       runStart = i;
       styleArray.Clear();
@@ -430,6 +427,6 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     // We can't steal the data because the child may be cached and stealing
     // the data would break the cache.
     aTextRun->ResetGlyphRuns();
-    aTextRun->CopyGlyphDataFrom(child, 0, child->GetLength(), 0);
+    aTextRun->CopyGlyphDataFrom(child, 0, child->GetLength(), 0, PR_FALSE);
   }
 }

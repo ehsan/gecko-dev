@@ -58,7 +58,6 @@ function checkFile() {
       ++gCheckExistsAttempts;
       // Wait a bit longer then try again
       do_timeout(1000, checkFile);
-      return;
     }
   }
 
@@ -94,12 +93,6 @@ function checkFile() {
 }
 
 function run_test() {
-  var isOSX = ("nsILocalFileMac" in Components.interfaces);
-  if (isOSX) {
-    dump("INFO | test_punycodeURIs.js | Skipping test on mac, bug 599475")
-    return;
-  }
-
   // set up the uri to test with
   var ioService =
     Components.classes["@mozilla.org/network/io-service;1"]

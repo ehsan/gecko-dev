@@ -46,6 +46,7 @@ CHROME_DEPS = buildconfig.html
 include $(DEPTH)/config/autoconf.mk
 
 DEFINES += \
+  -DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
   -Dtarget="$(target)" \
   -Dac_configure_args="$(ac_configure_args)" \
   -DCC="$(CC)" \
@@ -85,7 +86,6 @@ EXTRA_JS_MODULES = \
   Geometry.jsm \
   InlineSpellChecker.jsm \
   PopupNotifications.jsm \
-  Dict.jsm \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \

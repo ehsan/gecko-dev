@@ -49,15 +49,16 @@
 #include "nsIEditor.h"
 
 #include "nsIComponentManager.h"
+#include "nsXPIDLString.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsISupportsPrimitives.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIChromeRegistry.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsITextServicesFilter.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEditorSpellCheck)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEditorSpellCheck)
@@ -185,8 +186,19 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
 
   // Tell the spellchecker what dictionary to use:
 
-  nsAdoptingString dictName =
-    Preferences::GetLocalizedString("spellchecker.dictionary");
+  nsXPIDLString dictName;
+
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+
+  if (NS_SUCCEEDED(rv) && prefBranch) {
+    nsCOMPtr<nsISupportsString> prefString;
+    rv = prefBranch->GetComplexValue("spellchecker.dictionary",
+                                     NS_GET_IID(nsISupportsString),
+                                     getter_AddRefs(prefString));
+    if (NS_SUCCEEDED(rv) && prefString)
+      prefString->GetData(dictName);
+  }
 
   if (dictName.IsEmpty())
   {
@@ -441,10 +453,7 @@ nsEditorSpellCheck::UninitSpellChecker()
 
   // we preserve the last selected language, but ignore errors so we continue
   // to uninitialize
-#ifdef DEBUG
-  nsresult rv =
-#endif
-  SaveDefaultDictionary();
+  nsresult rv = SaveDefaultDictionary();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to set default dictionary");
 
   // Cleanup - kill the spell checker
@@ -459,17 +468,29 @@ nsEditorSpellCheck::UninitSpellChecker()
 NS_IMETHODIMP
 nsEditorSpellCheck::SaveDefaultDictionary()
 {
-  PRUnichar *dictName = nsnull;
-  nsresult rv = GetCurrentDictionary(&dictName);
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
 
-  if (NS_SUCCEEDED(rv) && dictName && *dictName) {
-    rv = Preferences::SetString("spellchecker.dictionary", dictName);
+  if (NS_SUCCEEDED(rv) && prefBranch)
+  {
+    PRUnichar *dictName = nsnull;
+    rv = GetCurrentDictionary(&dictName);
+
+    if (NS_SUCCEEDED(rv) && dictName && *dictName) {
+      nsCOMPtr<nsISupportsString> prefString =
+        do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
+
+      if (NS_SUCCEEDED(rv) && prefString) {
+        prefString->SetData(nsDependentString(dictName));
+        rv = prefBranch->SetComplexValue("spellchecker.dictionary",
+                                         NS_GET_IID(nsISupportsString),
+                                         prefString);
+      }
+    }
+    if (dictName)
+      nsMemory::Free(dictName);
   }
-
-  if (dictName) {
-    nsMemory::Free(dictName);
-  }
-
   return rv;
 }
 

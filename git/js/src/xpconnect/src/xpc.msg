@@ -162,6 +162,14 @@ XPC_MSG_DEF(NS_ERROR_OBJECT_IS_IMMUTABLE            , "Can not modify immutable 
 XPC_MSG_DEF(NS_ERROR_LOSS_OF_SIGNIFICANT_DATA       , "Data conversion failed because significant data would be lost")
 XPC_MSG_DEF(NS_SUCCESS_LOSS_OF_INSIGNIFICANT_DATA   , "Data conversion succeeded but data was rounded to fit")
 
+#ifdef XPC_IDISPATCH_SUPPORT
+XPC_MSG_DEF(NS_ERROR_XPC_COM_UNKNOWN                , "Unknown COM error occurred")
+XPC_MSG_DEF(NS_ERROR_XPC_COM_ERROR                  , "COM Error")
+XPC_MSG_DEF(NS_ERROR_XPC_COM_INVALID_CLASS_ID       , "Invalid class ID")
+XPC_MSG_DEF(NS_ERROR_XPC_COM_CREATE_FAILED          , "Unable to create an instance of the desired COM class")
+XPC_MSG_DEF(NS_ERROR_XPC_IDISPATCH_NOT_ENABLED      , "IDispatch support is not enabled")
+#endif
+
 /* network related codes (from nsNetError.h) */
 
 XPC_MSG_DEF(NS_BINDING_FAILED                       , "The async request failed for some unknown reason")
@@ -207,13 +215,3 @@ XPC_MSG_DEF(NS_ERROR_CACHE_IN_USE                   , "Cache is currently in use
 XPC_MSG_DEF(NS_ERROR_DOCUMENT_NOT_CACHED            , "Document does not exist in cache")
 XPC_MSG_DEF(NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS     , "The requested number of domain levels exceeds those present in the host string")
 XPC_MSG_DEF(NS_ERROR_HOST_IS_IP_ADDRESS             , "The host string is an IP address")
-XPC_MSG_DEF(NS_ERROR_NOT_SAME_THREAD                , "Can't access a wrapped JS object from a different thread")
-
-/* storage related codes (from mozStorage.h) */
-XPC_MSG_DEF(NS_ERROR_STORAGE_BUSY                   , "SQLite database connection is busy")
-XPC_MSG_DEF(NS_ERROR_STORAGE_IOERR                  , "SQLite encountered an IO error")
-XPC_MSG_DEF(NS_ERROR_STORAGE_CONSTRAINT             , "SQLite database operation failed because a constraint was violated")
-
-/* plugin related codes (from nsPluginError.h) */
-XPC_MSG_DEF(NS_ERROR_PLUGIN_TIME_RANGE_NOT_SUPPORTED, "Clearing site data by time range not supported by plugin")
-

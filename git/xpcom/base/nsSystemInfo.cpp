@@ -45,10 +45,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 nsSystemInfo::nsSystemInfo()
 {
 }
@@ -96,7 +92,7 @@ nsSystemInfo::Init()
     // This must be done here because NSPR can only separate OS's when compiled, not libraries.
     char* gtkver = PR_smprintf("GTK %u.%u.%u", gtk_major_version, gtk_minor_version, gtk_micro_version);
     if (gtkver) {
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("secondaryLibrary"),
+      rv = SetPropertyAsACString(NS_ConvertASCIItoUTF16("secondaryLibrary"),
                                  nsDependentCString(gtkver));
       PR_smprintf_free(gtkver);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -108,65 +104,26 @@ nsSystemInfo::Init()
     char *  line = nsnull;
     size_t  len = 0;
     ssize_t read;
-#if MOZ_PLATFORM_MAEMO > 5
-    FILE *fp = popen("/usr/bin/sysinfoclient --get /component/product", "r");
-#else
-    FILE *fp = fopen("/proc/component_version", "r");
-#endif
+    FILE *fp = fopen ("/proc/component_version", "r");
     if (fp) {
       while ((read = getline(&line, &len, fp)) != -1) {
         if (line) {
           if (strstr(line, "RX-51")) {
-            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N900"));
-            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
-            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("RX-51"));
+            SetPropertyAsACString(NS_ConvertASCIItoUTF16("device"), NS_LITERAL_CSTRING("Nokia N900"));
             break;
           } else if (strstr(line, "RX-44") ||
                      strstr(line, "RX-48") ||
                      strstr(line, "RX-32") ) {
-            /* not as accurate as we can be, but these devices are deprecated */
-            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N8xx"));
-            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
-            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N8xx"));
+            SetPropertyAsACString(NS_ConvertASCIItoUTF16("device"), NS_LITERAL_CSTRING("Nokia N8xx"));
             break;
           }
         }
       }
       if (line)
         free(line);
-#if MOZ_PLATFORM_MAEMO > 5
-      pclose(fp);
-#else
       fclose(fp);
-#endif
     }
-#endif
-
-#ifdef ANDROID
-    if (mozilla::AndroidBridge::Bridge()) {
-        nsAutoString str;
-        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str))
-            SetPropertyAsAString(NS_LITERAL_STRING("device"), str);
-        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", str))
-            SetPropertyAsAString(NS_LITERAL_STRING("manufacturer"), str);
-        PRInt32 version;
-        if (!mozilla::AndroidBridge::Bridge()->GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &version))
-            version = 0;
-        if (version >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str))
-            SetPropertyAsAString(NS_LITERAL_STRING("hardware"), str);
-        SetPropertyAsAString(NS_LITERAL_STRING("shellName"), NS_LITERAL_STRING("Android"));
-        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "CODENAME", str)) {
-            if (version) {
-                str.Append(NS_LITERAL_STRING(" ("));
-                str.AppendInt(version);
-                str.Append(NS_LITERAL_STRING(")"));
-            }   
-            SetPropertyAsAString(NS_LITERAL_STRING("shellVersion"), str);
-        }
-                
-        
-    }
-#endif
+#endif   
     return NS_OK;
 }
 

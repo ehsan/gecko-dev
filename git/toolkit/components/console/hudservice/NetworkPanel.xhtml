@@ -29,7 +29,6 @@
    - Contributor(s):
    -   Joe Walker <jwalker@mozilla.com>
    -   Julian Viereck <jviereck@mozilla.com>
-   -   Mihai Șucan <mihai.sucan@gmail.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -52,46 +51,34 @@
   <link rel="stylesheet" href="chrome://global/skin/webConsole_networkPanel.css" type="text/css"/>
 </head>
 <body role="application">
-<table id="header">
-  <tr>
-    <th class="property-name"
-        scope="row">&networkPanel.requestURL;:</th>
-    <td class="property-value"
-        id="headUrl"></td>
-  </tr>
-  <tr>
-    <th class="property-name"
-        scope="row">&networkPanel.requestMethod;:</th>
-    <td class="property-value"
-        id="headMethod"></td>
-  </tr>
-  <tr>
-    <th class="property-name"
-        scope="row">&networkPanel.statusCode;:</th>
-    <td class="property-value"
-        id="headStatus"></td>
-  </tr>
-</table>
+<div id="header">
+  <span class="property-name">&networkPanel.requestURL;:</span>
+  <span class="property-value" id="headUrl"></span><br />
+  <span class="property-name">&networkPanel.requestMethod;:</span>
+  <span class="property-value" id="headMethod"></span><br />
+  <span class="property-name">&networkPanel.statusCode;:</span>
+  <span class="property-value" id="headStatus"></span>
+</div>
 
 <div class="group">
   <h1>
     &networkPanel.requestHeaders;
     <span id="requestHeadersInfo" class="info"></span>
   </h1>
-  <table class="property-table" id="requestHeadersContent"></table>
+    <div class="property-header" id="requestHeadersContent"></div>
 
   <div id="requestCookie" style="display:none">
     <h1>&networkPanel.requestCookie;</h1>
-    <table class="property-table" id="requestCookieContent"></table>
+      <div class="property-header" id="requestCookieContent"></div>
   </div>
 
   <div id="requestBody" style="display:none">
     <h1>&networkPanel.requestBody;</h1>
-    <table class="property-table" id="requestBodyContent"></table>
+      <div class="property-header" id="requestBodyContent"></div>
   </div>
   <div id="requestFormData" style="display:none">
     <h1>&networkPanel.requestFormData;</h1>
-    <table class="property-table" id="requestFormDataContent"></table>
+      <div class="property-header" id="requestFormDataContent"></div>
   </div>
 </div>
 
@@ -100,34 +87,27 @@
     &networkPanel.responseHeaders;
     <span id="responseHeadersInfo" class="info">&Delta;</span>
   </h1>
-  <table class="property-table" id="responseHeadersContent"></table>
+    <div class="property-header" id="responseHeadersContent"></div>
 
   <div id="responseBody" style="display:none">
     <h1>
       &networkPanel.responseBody;
       <span class="info" id="responseBodyInfo">&Delta;</span>
     </h1>
-    <table class="property-table" id="responseBodyContent"></table>
+      <div class="property-header" id="responseBodyContent"></div>
   </div>
   <div id="responseBodyCached" style="display:none">
     <h1>
       &networkPanel.responseBodyCached;
       <span class="info" id="responseBodyCachedInfo">&Delta;</span>
     </h1>
-    <table class="property-table" id="responseBodyCachedContent"></table>
+      <div class="property-header" id="responseBodyCachedContent"></div>
   </div>
   <div id="responseNoBody" style="display:none">
     <h1>
       &networkPanel.responseNoBody;
       <span id="responseNoBodyInfo" class="info">&Delta;</span>
     </h1>
-  </div>
-  <div id="responseBodyUnknownType" style="display:none">
-    <h1>
-      &networkPanel.responseBodyUnknownType;
-      <span id="responseBodyUnknownTypeInfo" class="info">&Delta;</span>
-    </h1>
-    <table class="property-table" id="responseBodyUnknownTypeContent"></table>
   </div>
   <div id="responseImage" style="display:none">
     <h1>

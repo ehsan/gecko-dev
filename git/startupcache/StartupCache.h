@@ -155,14 +155,12 @@ private:
   nsresult LoadArchive();
   nsresult Init();
   void WriteToDisk();
-  nsresult ResetStartupWriteTimer();
-  void WaitOnWriteThread();
 
   static nsresult InitSingleton();
   static void WriteTimeout(nsITimer *aTimer, void *aClosure);
-  static void ThreadedWrite(void *aClosure);
 
   nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;
+  nsCOMPtr<nsIZipWriter> mZipW;
   nsAutoPtr<nsZipArchive> mArchive;
   nsCOMPtr<nsILocalFile> mFile;
   
@@ -174,7 +172,7 @@ private:
 
   static StartupCache *gStartupCache;
   static PRBool gShutdownInitiated;
-  PRThread *mWriteThread;
+
 #ifdef DEBUG
   nsTHashtable<nsISupportsHashKey> mWriteObjectMap;
 #endif

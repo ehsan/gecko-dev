@@ -48,8 +48,8 @@
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsEventStateManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventStateManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMEvent.h"
 #include "nsGUIEvent.h"
 #include "nsContentUtils.h"
@@ -271,12 +271,13 @@ nsXTFElementWrapper::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsXTFElementWrapper::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+nsXTFElementWrapper::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
+  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on xtf child removal.");
   nsresult rv;
   if (mNotificationMask & nsIXTFElement::NOTIFY_WILL_REMOVE_CHILD)
     GetXTFElement()->WillRemoveChild(aIndex);
-  rv = nsXTFElementWrapperBase::RemoveChildAt(aIndex, aNotify);
+  rv = nsXTFElementWrapperBase::RemoveChildAt(aIndex, aNotify, aMutationEvent);
   if (mNotificationMask & nsIXTFElement::NOTIFY_CHILD_REMOVED)
     GetXTFElement()->ChildRemoved(aIndex);
   return rv;
@@ -536,21 +537,19 @@ nsXTFElementWrapper::GetExistingAttrNameFromQName(const nsAString& aStr) const
   if (!nodeInfo) {
     nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aStr);
     if (HandledByInner(nameAtom)) 
-      nodeInfo = mNodeInfo->NodeInfoManager()->
-        GetNodeInfo(nameAtom, nsnull, kNameSpaceID_None,
-                    nsIDOMNode::ATTRIBUTE_NODE).get();
+      nodeInfo = mNodeInfo->NodeInfoManager()->GetNodeInfo(nameAtom, nsnull, kNameSpaceID_None).get();
   }
   
   return nodeInfo;
 }
 
-nsEventStates
+PRInt32
 nsXTFElementWrapper::IntrinsicState() const
 {
-  nsEventStates retState = nsXTFElementWrapperBase::IntrinsicState();
-  if (mIntrinsicState.HasState(NS_EVENT_STATE_MOZ_READONLY)) {
+  PRInt32 retState = nsXTFElementWrapperBase::IntrinsicState();
+  if (mIntrinsicState & NS_EVENT_STATE_MOZ_READONLY) {
     retState &= ~NS_EVENT_STATE_MOZ_READWRITE;
-  } else if (mIntrinsicState.HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
+  } else if (mIntrinsicState & NS_EVENT_STATE_MOZ_READWRITE) {
     retState &= ~NS_EVENT_STATE_MOZ_READONLY;
   }
 
@@ -902,21 +901,21 @@ nsXTFElementWrapper::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 NS_IMETHODIMP
-nsXTFElementWrapper::SetIntrinsicState(nsEventStates::InternalType aNewState)
+nsXTFElementWrapper::SetIntrinsicState(PRInt32 aNewState)
 {
   nsIDocument *doc = GetCurrentDoc();
-  nsEventStates newStates(aNewState);
-  nsEventStates bits = mIntrinsicState ^ newStates;
-
-  if (!doc || bits.IsEmpty())
+  PRInt32 bits = mIntrinsicState ^ aNewState;
+  
+  if (!doc || !bits)
     return NS_OK;
 
-  NS_WARN_IF_FALSE(!newStates.HasAllStates(NS_EVENT_STATE_MOZ_READONLY |
-                                           NS_EVENT_STATE_MOZ_READWRITE),
+  NS_WARN_IF_FALSE(!((aNewState & NS_EVENT_STATE_MOZ_READONLY) &&
+                   (aNewState & NS_EVENT_STATE_MOZ_READWRITE)),
                    "Both READONLY and READWRITE are being set.  Yikes!!!");
 
-  mIntrinsicState = newStates;
-  UpdateState(true);
+  mIntrinsicState = aNewState;
+  mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+  doc->ContentStatesChanged(this, nsnull, bits);
 
   return NS_OK;
 }
@@ -974,7 +973,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
   if (!presContext)
     return;
 
-  nsEventStateManager *esm = presContext->EventStateManager();
+  nsIEventStateManager *esm = presContext->EventStateManager();
   if (!esm)
     return;
 

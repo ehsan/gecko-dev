@@ -295,6 +295,7 @@ function openDownload(aDownload)
     } catch (e) { }
 
 #ifdef XP_WIN
+#ifndef WINCE
     // On Vista and above, we rely on native security prompting for
     // downloaded content unless it's disabled.
     try {
@@ -305,6 +306,7 @@ function openDownload(aDownload)
         dontAsk = true;
       }
     } catch (ex) { }
+#endif
 #endif
 
     if (!dontAsk) {
@@ -490,9 +492,11 @@ function Startup()
   }, false);
 
 #ifdef XP_WIN
+#ifndef WINCE
   let tempScope = {};
   Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", tempScope);
   tempScope.DownloadTaskbarProgress.onDownloadWindowLoad(window);
+#endif
 #endif
 }
 
@@ -716,7 +720,6 @@ var gDownloadDNDObserver =
     var dt = aEvent.dataTransfer;
     dt.mozSetDataAt("application/x-moz-file", f, 0);
     dt.effectAllowed = "copyMove";
-    dt.addElement(dl);
   },
 
   onDragOver: function (aEvent)
@@ -1187,11 +1190,11 @@ function buildDownloadList(aForceBuild)
   }
 
   try {
-    gStmt.bindByIndex(0, nsIDM.DOWNLOAD_NOTSTARTED);
-    gStmt.bindByIndex(1, nsIDM.DOWNLOAD_DOWNLOADING);
-    gStmt.bindByIndex(2, nsIDM.DOWNLOAD_PAUSED);
-    gStmt.bindByIndex(3, nsIDM.DOWNLOAD_QUEUED);
-    gStmt.bindByIndex(4, nsIDM.DOWNLOAD_SCANNING);
+    gStmt.bindInt32Parameter(0, nsIDM.DOWNLOAD_NOTSTARTED);
+    gStmt.bindInt32Parameter(1, nsIDM.DOWNLOAD_DOWNLOADING);
+    gStmt.bindInt32Parameter(2, nsIDM.DOWNLOAD_PAUSED);
+    gStmt.bindInt32Parameter(3, nsIDM.DOWNLOAD_QUEUED);
+    gStmt.bindInt32Parameter(4, nsIDM.DOWNLOAD_SCANNING);
   } catch (e) {
     // Something must have gone wrong when binding, so clear and quit
     gStmt.reset();

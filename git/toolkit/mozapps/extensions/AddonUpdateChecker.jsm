@@ -56,8 +56,6 @@ const PREFIX_THEME          = "urn:mozilla:theme:";
 const TOOLKIT_ID            = "toolkit@mozilla.org"
 const XMLURI_PARSE_ERROR    = "http://www.mozilla.org/newlayout/xml/parsererror.xml"
 
-const PREF_UPDATE_REQUIREBUILTINCERTS = "extensions.update.requireBuiltInCerts";
-
 Components.utils.import("resource://gre/modules/Services.jsm");
 // shared code for suppressing bad cert dialogs
 Components.utils.import("resource://gre/modules/CertUtils.jsm");
@@ -332,14 +330,7 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
 
   let updates = ds.GetTarget(extensionRes, EM_R("updates"), true);
 
-  // A missing updates property doesn't count as a failure, just as no avialable
-  // update information
-  if (!updates) {
-    WARN("Update manifest for " + aId + " did not contain an updates property");
-    return [];
-  }
-
-  if (!(updates instanceof Ci.nsIRDFResource))
+  if (!updates || !(updates instanceof Ci.nsIRDFResource))
     throw new Error("Missing updates property for " + extensionRes.Value);
 
   let cu = Cc["@mozilla.org/rdf/container-utils;1"].
@@ -386,7 +377,6 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
       }
 
       let result = {
-        id: aId,
         version: version,
         updateURL: getProperty(ds, targetApp, "updateLink"),
         updateHash: getProperty(ds, targetApp, "updateHash"),
@@ -433,29 +423,17 @@ function UpdateParser(aId, aType, aUpdateKey, aUrl, aObserver) {
                createInstance(Ci.nsITimer);
   this.timer.initWithCallback(this, TIMEOUT, Ci.nsITimer.TYPE_ONE_SHOT);
 
-  let requireBuiltIn = true;
-  try {
-    requireBuiltIn = Services.prefs.getBoolPref(PREF_UPDATE_REQUIREBUILTINCERTS);
-  }
-  catch (e) {
-  }
-
   LOG("Requesting " + aUrl);
-  try {
-    this.request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
-                   createInstance(Ci.nsIXMLHttpRequest);
-    this.request.open("GET", aUrl, true);
-    this.request.channel.notificationCallbacks = new BadCertHandler(!requireBuiltIn);
-    this.request.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
-    this.request.overrideMimeType("text/xml");
-    var self = this;
-    this.request.onload = function(event) { self.onLoad() };
-    this.request.onerror = function(event) { self.onError() };
-    this.request.send(null);
-  }
-  catch (e) {
-    ERROR("Failed to request update manifest", e);
-  }
+  this.request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
+                 createInstance(Ci.nsIXMLHttpRequest);
+  this.request.open("GET", aUrl, true);
+  this.request.channel.notificationCallbacks = new BadCertHandler();
+  this.request.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
+  this.request.overrideMimeType("text/xml");
+  var self = this;
+  this.request.onload = function(event) { self.onLoad() };
+  this.request.onerror = function(event) { self.onError() };
+  this.request.send(null);
 }
 
 UpdateParser.prototype = {
@@ -475,15 +453,8 @@ UpdateParser.prototype = {
     let request = this.request;
     this.request = null;
 
-    let requireBuiltIn = true;
     try {
-      requireBuiltIn = Services.prefs.getBoolPref(PREF_UPDATE_REQUIREBUILTINCERTS);
-    }
-    catch (e) {
-    }
-
-    try {
-      checkCert(request.channel, !requireBuiltIn);
+      checkCert(request.channel);
     }
     catch (e) {
       this.notifyError(AddonUpdateChecker.ERROR_DOWNLOAD_ERROR);
@@ -539,7 +510,7 @@ UpdateParser.prototype = {
     this.timer = null;
 
     if (!Components.isSuccessCode(this.request.status)) {
-      WARN("Request failed: " + this.request.status);
+      WARN("Request failed: " + request.status);
     }
     else if (this.request.channel instanceof Ci.nsIHttpChannel) {
       try {
@@ -685,16 +656,9 @@ var AddonUpdateChecker = {
     if (!aPlatformVersion)
       aPlatformVersion = Services.appinfo.platformVersion;
 
-    let blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
-                    getService(Ci.nsIBlocklistService);
-
     let newest = null;
     for (let i = 0; i < aUpdates.length; i++) {
       if (!aUpdates[i].updateURL)
-        continue;
-      let state = blocklist.getAddonBlocklistState(aUpdates[i].id, aUpdates[i].version,
-                                                   aAppVersion, aPlatformVersion);
-      if (state != Ci.nsIBlocklistService.STATE_NOT_BLOCKED)
         continue;
       if ((newest == null || (Services.vc.compare(newest.version, aUpdates[i].version) < 0)) &&
           matchesVersions(aUpdates[i], aAppVersion, aPlatformVersion))

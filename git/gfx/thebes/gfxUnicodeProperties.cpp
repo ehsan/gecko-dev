@@ -145,68 +145,30 @@ gfxUnicodeProperties::GetScriptCode(PRUint32 aCh)
                         [aCh & ((1 << kScriptCharBits) - 1)];
 }
 
-gfxUnicodeProperties::HSType
-gfxUnicodeProperties::GetHangulSyllableType(PRUint32 aCh)
-{
-    // all Hangul chars are in plane 0
-    if (aCh < UNICODE_BMP_LIMIT) {
-        return HSType(sHangulValues[sHangulPages[0][aCh >> kHangulCharBits]]
-                                   [aCh & ((1 << kHangulCharBits) - 1)]);
-    }
-    return HST_NONE;
-}
-
 // TODO: replace this with a properties file or similar;
 // expect this to evolve as harfbuzz shaping support matures.
 //
-// The "shaping type" of each script run, as returned by this
-// function, is compared to the bits set in the
-// gfx.font_rendering.harfbuzz.scripts
+// The "shaping level" of each script run, as returned by this
+// function, is compared to the gfx.font_rendering.harfbuzz.level
 // preference to decide whether to use the harfbuzz shaper.
 //
+// Currently, we only distinguish "simple" (level 1) scripts
+// and "the rest" (level 2), but may subdivide this further in
+// the future.
 PRInt32
-gfxUnicodeProperties::ScriptShapingType(PRInt32 aScriptCode)
+gfxUnicodeProperties::ScriptShapingLevel(PRInt32 aScriptCode)
 {
     switch (aScriptCode) {
-    default:
-        return SHAPING_DEFAULT; // scripts not explicitly listed here are
-                                // assumed to just use default shaping
-
-    case HB_SCRIPT_ARABIC:
-    case HB_SCRIPT_SYRIAC:
-    case HB_SCRIPT_NKO:
-    case HB_SCRIPT_MANDAIC:
-        return SHAPING_ARABIC; // bidi scripts with Arabic-style shaping
-
-    case HB_SCRIPT_HEBREW:
-        return SHAPING_HEBREW;
-
-    case HB_SCRIPT_HANGUL:
-        return SHAPING_HANGUL;
-
-    case HB_SCRIPT_MONGOLIAN: // to be supported by the Arabic shaper?
-        return SHAPING_MONGOLIAN;
-
-    case HB_SCRIPT_BENGALI:
-    case HB_SCRIPT_DEVANAGARI:
-    case HB_SCRIPT_GUJARATI:
-    case HB_SCRIPT_GURMUKHI:
-    case HB_SCRIPT_KANNADA:
-    case HB_SCRIPT_MALAYALAM:
-    case HB_SCRIPT_ORIYA:
-    case HB_SCRIPT_SINHALA:
-    case HB_SCRIPT_TAMIL:
-    case HB_SCRIPT_TELUGU:
-    case HB_SCRIPT_KHMER:
-    case HB_SCRIPT_THAI:
-    case HB_SCRIPT_LAO:
-    case HB_SCRIPT_TIBETAN:
-    case HB_SCRIPT_NEW_TAI_LUE:
-    case HB_SCRIPT_TAI_LE:
-    case HB_SCRIPT_MYANMAR:
-    case HB_SCRIPT_PHAGS_PA:
-    case HB_SCRIPT_BATAK:
-    case HB_SCRIPT_BRAHMI:
-        return SHAPING_INDIC; // scripts that require Indic or other "special" shaping
+    case HB_SCRIPT_LATIN:
+    case HB_SCRIPT_CYRILLIC:
+    case HB_SCRIPT_HAN:
+    case HB_SCRIPT_HIRAGANA:
+    case HB_SCRIPT_KATAKANA:
+    case HB_SCRIPT_COMMON:
+    case HB_SCRIPT_INHERITED:
+    case HB_SCRIPT_UNKNOWN:
+        return 1; // level 1: common scripts that can use "generic" shaping
     }
+
+    return 2; // all others are considered level 2
 }

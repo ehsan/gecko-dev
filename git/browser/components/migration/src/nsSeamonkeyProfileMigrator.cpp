@@ -322,6 +322,11 @@ nsSeamonkeyProfileMigrator::FillProfileDataFromSeamonkeyRegistry()
   
   seamonkeyRegistry->Append(NS_LITERAL_STRING(".mozilla"));
   seamonkeyRegistry->Append(NS_LITERAL_STRING("appreg"));
+#elif defined(XP_BEOS)
+   fileLocator->Get(NS_BEOS_SETTINGS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(seamonkeyRegistry));
+
+   seamonkeyRegistry->Append(NS_LITERAL_STRING("Mozilla"));
+   seamonkeyRegistry->Append(NS_LITERAL_STRING("appreg"));
 #elif defined(XP_OS2)
   fileLocator->Get(NS_OS2_HOME_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(seamonkeyRegistry));
   
@@ -393,6 +398,7 @@ nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("browser.display.use_document_fonts",       Bool),
   MAKESAMETYPEPREFTRANSFORM("intl.charset.default",                     String),
   MAKESAMETYPEPREFTRANSFORM("intl.accept_languages",                    String),
+  MAKESAMETYPEPREFTRANSFORM("intl.accept_charsets",                     String),
 
   MAKEPREFTRANSFORM("network.image.imageBehavior",      0, Int, Image),
   MAKEPREFTRANSFORM("network.cookie.cookieBehavior",    0, Int, Cookie),

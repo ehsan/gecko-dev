@@ -67,10 +67,9 @@ public:
         NS_TIME_FUNCTION;
 
         NS_ASSERTION(!sPlatformFontList, "What's this doing here?");
-        gfxPlatform::GetPlatform()->CreatePlatformFontList();
-        if (!sPlatformFontList) {
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
+        sPlatformFontList = gfxPlatform::GetPlatform()->CreatePlatformFontList();
+        if (!sPlatformFontList) return NS_ERROR_OUT_OF_MEMORY;
+        sPlatformFontList->InitFontList();
         return NS_OK;
     }
 
@@ -78,11 +77,6 @@ public:
         delete sPlatformFontList;
         sPlatformFontList = nsnull;
     }
-
-    virtual ~gfxPlatformFontList();
-
-    // initialize font lists
-    virtual nsresult InitFontList();
 
     void GetFontList (nsIAtom *aLangGroup,
                       const nsACString& aGenericFamily,
@@ -95,12 +89,12 @@ public:
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
-    virtual void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
+    void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
 
     gfxFontEntry* FindFontForChar(const PRUint32 aCh, gfxFont *aPrevFont);
 
     // TODO: make this virtual, for lazily adding to the font list
-    virtual gfxFontFamily* FindFamily(const nsAString& aFamily);
+    gfxFontFamily* FindFamily(const nsAString& aFamily);
 
     gfxFontEntry* FindFontForFamily(const nsAString& aFamily, const gfxFontStyle* aStyle, PRBool& aNeedsBold);
 
@@ -145,6 +139,9 @@ protected:
     static PLDHashOperator FindFontForCharProc(nsStringHashKey::KeyType aKey,
                                                nsRefPtr<gfxFontFamily>& aFamilyEntry,
                                                void* userArg);
+
+    // initialize font lists
+    virtual void InitFontList();
 
     // separate initialization for reading in name tables, since this is expensive
     void InitOtherFamilyNames();

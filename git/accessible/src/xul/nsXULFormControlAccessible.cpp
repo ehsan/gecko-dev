@@ -43,9 +43,7 @@
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
 #include "nsRelUtils.h"
-#include "States.h"
 
 // NOTE: alphabetically ordered
 #include "nsHTMLFormControlAccessible.h"
@@ -110,30 +108,47 @@ nsXULButtonAccessible::DoAction(PRUint8 aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULButtonAccessible: nsAccessible
+// nsXULButtonAccessible: nsAccessNode
 
-PRUint32
-nsXULButtonAccessible::NativeRole()
+PRBool
+nsXULButtonAccessible::Init()
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  if (!nsAccessibleWrap::Init())
+    return PR_FALSE;
+
+  if (ContainsMenu())
+    nsCoreUtils::GeneratePopupTree(mContent);
+
+  return PR_TRUE;
 }
 
-PRUint64
-nsXULButtonAccessible::NativeState()
+////////////////////////////////////////////////////////////////////////////////
+// nsXULButtonAccessible: nsAccessible
+
+nsresult
+nsXULButtonAccessible::GetRoleInternal(PRUint32 *aRole)
+{
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
+}
+
+nsresult
+nsXULButtonAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Possible states: focused, focusable, unavailable(disabled).
 
   // get focus and disable status from base class
-  PRUint64 state = nsAccessible::NativeState();
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   PRBool disabled = PR_FALSE;
   nsCOMPtr<nsIDOMXULControlElement> xulFormElement(do_QueryInterface(mContent));
   if (xulFormElement) {
     xulFormElement->GetDisabled(&disabled);
     if (disabled)
-      state |= states::UNAVAILABLE;
+      *aState |= nsIAccessibleStates::STATE_UNAVAILABLE;
     else 
-      state |= states::FOCUSABLE;
+      *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
   }
 
   // Buttons can be checked -- they simply appear pressed in rather than checked
@@ -142,27 +157,27 @@ nsXULButtonAccessible::NativeState()
     nsAutoString type;
     xulButtonElement->GetType(type);
     if (type.EqualsLiteral("checkbox") || type.EqualsLiteral("radio")) {
-      state |= states::CHECKABLE;
+      *aState |= nsIAccessibleStates::STATE_CHECKABLE;
       PRBool checked = PR_FALSE;
       PRInt32 checkState = 0;
       xulButtonElement->GetChecked(&checked);
       if (checked) {
-        state |= states::PRESSED;
+        *aState |= nsIAccessibleStates::STATE_PRESSED;
         xulButtonElement->GetCheckState(&checkState);
         if (checkState == nsIDOMXULButtonElement::CHECKSTATE_MIXED) { 
-          state |= states::MIXED;
+          *aState |= nsIAccessibleStates::STATE_MIXED;
         }
       }
     }
   }
 
   if (ContainsMenu())
-    state |= states::HASPOPUP;
+    *aState |= nsIAccessibleStates::STATE_HASPOPUP;
 
   if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::_default))
-    state |= states::DEFAULT;
+    *aState |= nsIAccessibleStates::STATE_DEFAULT;
 
-  return state;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,37 +205,35 @@ nsXULButtonAccessible::CacheChildren()
   if (!isMenu && !isMenuButton)
     return;
 
-  nsAccessible* menupopup = nsnull;
-  nsAccessible* button = nsnull;
+  nsRefPtr<nsAccessible> menupopupAccessible;
+  nsRefPtr<nsAccessible> buttonAccessible;
 
   nsAccTreeWalker walker(mWeakShell, mContent, PR_TRUE);
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild())) {
-    PRUint32 role = child->Role();
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild())) {
+    // XXX: do not call nsAccessible::GetRole() while accessible not in tree
+    // (bug 574588).
+    PRUint32 role = nsAccUtils::Role(child);
 
     if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
-      // Get an accessible for menupopup or panel elements.
-      menupopup = child;
+      // Get an accessbile for menupopup or panel elements.
+      menupopupAccessible.swap(child);
 
     } else if (isMenuButton && role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       // Button type="menu-button" contains a real button. Get an accessible
-      // for it. Ignore dropmarker button which is placed as a last child.
-      button = child;
+      // for it. Ignore dropmarker button what is placed as a last child.
+      buttonAccessible.swap(child);
       break;
-
-    } else {
-      // Unbind rejected accessible from document.
-      GetDocAccessible()->UnbindFromDocument(child);
     }
   }
 
-  if (!menupopup)
+  if (!menupopupAccessible)
     return;
 
-  AppendChild(menupopup);
-  if (button)
-    AppendChild(button);
+  AppendChild(menupopupAccessible);
+  if (buttonAccessible)
+    AppendChild(buttonAccessible);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,16 +319,36 @@ NS_IMETHODIMP nsXULDropmarkerAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-PRUint32
-nsXULDropmarkerAccessible::NativeRole()
+/**
+  * We are a pushbutton
+  */
+nsresult
+nsXULDropmarkerAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
 }
 
-PRUint64
-nsXULDropmarkerAccessible::NativeState()
+nsresult
+nsXULDropmarkerAccessible::GetStateInternal(PRUint32 *aState,
+                                            PRUint32 *aExtraState)
 {
-  return DropmarkerOpen(PR_FALSE) ? states::PRESSED : 0;
+  *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
+  if (DropmarkerOpen(PR_FALSE))
+    *aState = nsIAccessibleStates::STATE_PRESSED;
+
+  return NS_OK;
 }
 
                       
@@ -329,10 +362,11 @@ nsXULCheckboxAccessible::
 {
 }
 
-PRUint32
-nsXULCheckboxAccessible::NativeRole()
+nsresult
+nsXULCheckboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_CHECKBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_CHECKBUTTON;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsXULCheckboxAccessible::GetNumActions(PRUint8 *_retval)
@@ -348,8 +382,11 @@ NS_IMETHODIMP nsXULCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString& 
 {
   if (aIndex == eAction_Click) {
     // check or uncheck
+    PRUint32 state;
+    nsresult rv = GetStateInternal(&state, nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    if (NativeState() & states::CHECKED)
+    if (state & nsIAccessibleStates::STATE_CHECKED)
       aName.AssignLiteral("uncheck");
     else
       aName.AssignLiteral("check");
@@ -372,14 +409,18 @@ nsXULCheckboxAccessible::DoAction(PRUint8 aIndex)
   return NS_OK;
 }
 
-PRUint64
-nsXULCheckboxAccessible::NativeState()
+/**
+  * Possible states: focused, focusable, unavailable(disabled), checked
+  */
+nsresult
+nsXULCheckboxAccessible::GetStateInternal(PRUint32 *aState,
+                                          PRUint32 *aExtraState)
 {
-  // Possible states: focused, focusable, unavailable(disabled), checked
   // Get focus and disable status from base class
-  PRUint64 state = nsFormControlAccessible::NativeState();
+  nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
   
-  state |= states::CHECKABLE;
+  *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
   // Determine Checked state
   nsCOMPtr<nsIDOMXULCheckboxElement> xulCheckboxElement =
@@ -388,15 +429,15 @@ nsXULCheckboxAccessible::NativeState()
     PRBool checked = PR_FALSE;
     xulCheckboxElement->GetChecked(&checked);
     if (checked) {
-      state |= states::CHECKED;
+      *aState |= nsIAccessibleStates::STATE_CHECKED;
       PRInt32 checkState = 0;
       xulCheckboxElement->GetCheckState(&checkState);
       if (checkState == nsIDOMXULCheckboxElement::CHECKSTATE_MIXED)
-        state |= states::MIXED;
+        *aState |= nsIAccessibleStates::STATE_MIXED;
     }
   }
 
-  return state;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,10 +450,11 @@ nsXULGroupboxAccessible::
 {
 }
 
-PRUint32
-nsXULGroupboxAccessible::NativeRole()
+nsresult
+nsXULGroupboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GROUPING;
+  *aRole = nsIAccessibleRole::ROLE_GROUPING;
+  return NS_OK;
 }
 
 nsresult
@@ -443,7 +485,7 @@ nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
     PRInt32 childCount = GetChildCount();
     for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
       nsAccessible *childAcc = GetChildAt(childIdx);
-      if (childAcc->Role() == nsIAccessibleRole::ROLE_LABEL) {
+      if (nsAccUtils::Role(childAcc) == nsIAccessibleRole::ROLE_LABEL) {
         // Ensure that it's our label
         // XXX: we'll fail if group accessible expose more than one relation
         // targets.
@@ -464,6 +506,140 @@ nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsXULProgressMeterAccessible
+////////////////////////////////////////////////////////////////////////////////
+
+nsXULProgressMeterAccessible::
+  nsXULProgressMeterAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsFormControlAccessible(aContent, aShell)
+{
+}
+
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULProgressMeterAccessible,
+                             nsFormControlAccessible,
+                             nsIAccessibleValue)
+
+// nsAccessible
+
+nsresult
+nsXULProgressMeterAccessible::GetRoleInternal(PRUint32 *aRole)
+{
+  *aRole = nsIAccessibleRole::ROLE_PROGRESSBAR;
+  return NS_OK;
+}
+
+// nsIAccessibleValue
+
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::GetValue(nsAString& aValue)
+{
+  nsresult rv = nsFormControlAccessible::GetValue(aValue);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!aValue.IsEmpty())
+    return NS_OK;
+
+  double maxValue = 0;
+  rv = GetMaximumValue(&maxValue);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (maxValue != 1) {
+    double curValue = 0;
+    rv = GetCurrentValue(&curValue);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    double percentValue = (curValue / maxValue) * 100;
+    nsAutoString value;
+    value.AppendFloat(percentValue); // AppendFloat isn't available on nsAString
+    value.AppendLiteral("%");
+    aValue = value;
+    return NS_OK;
+  }
+
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aValue);
+  if (aValue.IsEmpty())
+    aValue.AppendLiteral("0");  // Empty value for progress meter = 0%
+
+  aValue.AppendLiteral("%");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::GetMaximumValue(double *aMaximumValue)
+{
+  nsresult rv = nsFormControlAccessible::GetMaximumValue(aMaximumValue);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  nsAutoString value;
+  if (mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::max, value)) {
+    PRInt32 result = NS_OK;
+    *aMaximumValue = value.ToFloat(&result);
+    return result;
+  }
+
+  *aMaximumValue = 1; // 100% = 1;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::GetMinimumValue(double *aMinimumValue)
+{
+  nsresult rv = nsFormControlAccessible::GetMinimumValue(aMinimumValue);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  *aMinimumValue = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::GetMinimumIncrement(double *aMinimumIncrement)
+{
+  nsresult rv = nsFormControlAccessible::GetMinimumIncrement(aMinimumIncrement);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  *aMinimumIncrement = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::GetCurrentValue(double *aCurrentValue)
+{
+  nsresult rv = nsFormControlAccessible::GetCurrentValue(aCurrentValue);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  nsAutoString attrValue;
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, attrValue);
+
+  // Return zero value if there is no attribute or its value is empty.
+  if (attrValue.IsEmpty())
+    return NS_OK;
+
+  PRInt32 error = NS_OK;
+  double value = attrValue.ToFloat(&error);
+  if (NS_FAILED(error))
+    return NS_OK; // Zero value because of wrong markup.
+
+  // If no max value then value is between 0 and 1 (refer to GetMaximumValue()
+  // method where max value is assumed to be equal to 1 in this case).
+  if (!mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::max))
+    value /= 100;
+
+  *aCurrentValue = value;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::SetCurrentValue(double aValue)
+{
+  return NS_ERROR_FAILURE; // Progress meters are readonly!
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 // nsXULRadioButtonAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -474,12 +650,14 @@ nsXULRadioButtonAccessible::
 }
 
 /** We are Focusable and can be Checked and focused */
-PRUint64
-nsXULRadioButtonAccessible::NativeState()
+nsresult
+nsXULRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
+                                             PRUint32 *aExtraState)
 {
-  PRUint64 state = nsFormControlAccessible::NativeState();
+  nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  state |= states::CHECKABLE;
+  *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
   PRBool selected = PR_FALSE;   // Radio buttons can be selected
 
@@ -488,11 +666,11 @@ nsXULRadioButtonAccessible::NativeState()
   if (radioButton) {
     radioButton->GetSelected(&selected);
     if (selected) {
-      state |= states::CHECKED;
+      *aState |= nsIAccessibleStates::STATE_CHECKED;
     }
   }
 
-  return state;
+  return NS_OK;
 }
 
 void
@@ -523,19 +701,27 @@ nsXULRadioGroupAccessible::
 { 
 }
 
-PRUint32
-nsXULRadioGroupAccessible::NativeRole()
+nsresult
+nsXULRadioGroupAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GROUPING;
+  *aRole = nsIAccessibleRole::ROLE_GROUPING;
+  return NS_OK;
 }
 
-PRUint64
-nsXULRadioGroupAccessible::NativeState()
+nsresult
+nsXULRadioGroupAccessible::GetStateInternal(PRUint32 *aState,
+                                            PRUint32 *aExtraState)
 {
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
   // The radio group is not focusable. Sometimes the focus controller will
   // report that it is focused. That means that the actual selected radio button
   // should be considered focused.
-  return nsAccessible::NativeState() & ~(states::FOCUSABLE | states::FOCUSED);
+  *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
+               nsIAccessibleStates::STATE_FOCUSED);
+
+  return NS_OK;
 }
 
                       
@@ -549,10 +735,11 @@ nsXULStatusBarAccessible::
 {
 }
 
-PRUint32
-nsXULStatusBarAccessible::NativeRole()
+nsresult
+nsXULStatusBarAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_STATUSBAR;
+  *aRole = nsIAccessibleRole::ROLE_STATUSBAR;
+  return NS_OK;
 }
 
 
@@ -623,10 +810,11 @@ nsXULToolbarAccessible::
 {
 }
 
-PRUint32
-nsXULToolbarAccessible::NativeRole()
+nsresult
+nsXULToolbarAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_TOOLBAR;
+  *aRole = nsIAccessibleRole::ROLE_TOOLBAR;
+  return NS_OK;
 }
 
 nsresult
@@ -654,16 +842,30 @@ nsXULToolbarSeparatorAccessible::
 {
 }
 
-PRUint32
-nsXULToolbarSeparatorAccessible::NativeRole()
+nsresult
+nsXULToolbarSeparatorAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_SEPARATOR;
+  *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
+  return NS_OK;
 }
 
-PRUint64
-nsXULToolbarSeparatorAccessible::NativeState()
+nsresult
+nsXULToolbarSeparatorAccessible::GetStateInternal(PRUint32 *aState,
+                                                  PRUint32 *aExtraState)
 {
-  return 0;
+  *aState = 0;  // no special state flags for toolbar separator
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,9 +885,11 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsXULTextFieldAccessible, nsAccessible, nsHyperText
 
 NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
 {
-  PRUint64 state = NativeState();
+  PRUint32 state;
+  nsresult rv = GetStateInternal(&state, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (state & states::PROTECTED)    // Don't return password text!
+  if (state & nsIAccessibleStates::STATE_PROTECTED)    // Don't return password text!
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMXULTextBoxElement> textBox(do_QueryInterface(mContent));
@@ -699,34 +903,41 @@ NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
   return NS_ERROR_FAILURE;
 }
 
-void
-nsXULTextFieldAccessible::ApplyARIAState(PRUint64* aState)
+nsresult
+nsXULTextFieldAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsHyperTextAccessibleWrap::ApplyARIAState(aState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetARIAState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsStateMapEntry::MapToStates(mContent, aState, eARIAAutoComplete);
+  nsStateMapEntry::MapToStates(mContent, aState, aExtraState, eARIAAutoComplete);
 
+  return NS_OK;
 }
 
-PRUint64
-nsXULTextFieldAccessible::NativeState()
+nsresult
+nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
+                                           PRUint32 *aExtraState)
 {
-  PRUint64 state = nsHyperTextAccessibleWrap::NativeState();
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> inputField(GetInputField());
-  NS_ENSURE_TRUE(inputField, state);
+  NS_ENSURE_TRUE(inputField, NS_ERROR_FAILURE);
 
-  // Create a temporary accessible from the HTML text field to get
-  // the accessible state from. Doesn't add to cache into document cache.
-  nsRefPtr<nsHTMLTextFieldAccessible> tempAccessible =
+  // Create a temporary accessible from the HTML text field
+  // to get the accessible state from. Doesn't add to cache
+  // because Init() is not called.
+  nsHTMLTextFieldAccessible* tempAccessible =
     new nsHTMLTextFieldAccessible(inputField, mWeakShell);
   if (!tempAccessible)
-    return state;
-
-  state |= tempAccessible->NativeState();
+    return NS_ERROR_OUT_OF_MEMORY;
+  nsCOMPtr<nsIAccessible> kungFuDeathGrip = tempAccessible;
+  rv = tempAccessible->GetStateInternal(aState, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (gLastFocusedNode == mContent)
-    state |= states::FOCUSED;
+    *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
   if (menuList) {
@@ -734,20 +945,47 @@ nsXULTextFieldAccessible::NativeState()
     if (!mContent->AttrValueIs(kNameSpaceID_None,
                                nsAccessibilityAtoms::editable,
                                nsAccessibilityAtoms::_true, eIgnoreCase)) {
-      state |= states::READONLY;
+      *aState |= nsIAccessibleStates::STATE_READONLY;
+    }
+  }
+  else {
+    // <xul:textbox>
+    if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                              nsAccessibilityAtoms::password, eIgnoreCase)) {
+      *aState |= nsIAccessibleStates::STATE_PROTECTED;
+    }
+    if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::readonly,
+                              nsAccessibilityAtoms::_true, eIgnoreCase)) {
+      *aState |= nsIAccessibleStates::STATE_READONLY;
     }
   }
 
-  return state;
+  if (!aExtraState)
+    return NS_OK;
+
+  PRBool isMultiLine = mContent->HasAttr(kNameSpaceID_None,
+                                         nsAccessibilityAtoms::multiline);
+
+  if (isMultiLine) {
+    *aExtraState |= nsIAccessibleStates::EXT_STATE_MULTI_LINE;
+  }
+  else {
+    *aExtraState |= nsIAccessibleStates::EXT_STATE_SINGLE_LINE;
+  }
+
+  return NS_OK;
 }
 
-PRUint32
-nsXULTextFieldAccessible::NativeRole()
+nsresult
+nsXULTextFieldAccessible::GetRoleInternal(PRUint32 *aRole)
 {
+  *aRole = nsIAccessibleRole::ROLE_ENTRY;
+
   if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
                             nsAccessibilityAtoms::password, eIgnoreCase))
-    return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
-  return nsIAccessibleRole::ROLE_ENTRY;
+    *aRole = nsIAccessibleRole::ROLE_PASSWORD_TEXT;
+
+  return NS_OK;
 }
 
 
@@ -819,8 +1057,8 @@ nsXULTextFieldAccessible::CacheChildren()
 
   nsAccTreeWalker walker(mWeakShell, inputContent, PR_FALSE);
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild()) && AppendChild(child));
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild()) && AppendChild(child));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

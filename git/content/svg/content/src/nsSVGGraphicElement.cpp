@@ -38,7 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGGraphicElement.h"
-#include "nsSVGSVGElement.h"
 #include "nsSVGTransformList.h"
 #include "nsSVGAnimatedTransformList.h"
 #include "nsGkAtoms.h"
@@ -83,7 +82,7 @@ NS_IMETHODIMP nsSVGGraphicElement::GetNearestViewportElement(nsIDOMSVGElement * 
 /* readonly attribute nsIDOMSVGElement farthestViewportElement; */
 NS_IMETHODIMP nsSVGGraphicElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  NS_IF_ADDREF(*aFarthestViewportElement = nsSVGUtils::GetOuterSVGElement(this));
+  *aFarthestViewportElement = nsSVGUtils::GetFarthestViewportElement(this).get();
   return NS_OK;
 }
 
@@ -184,7 +183,7 @@ nsSVGGraphicElement::IsEventName(nsIAtom* aName)
 }
 
 gfxMatrix
-nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
+nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
   gfxMatrix result(aMatrix);
 

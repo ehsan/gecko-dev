@@ -61,7 +61,6 @@ static const char kCookiesLifetimeDays[] = "network.cookie.lifetime.days";
 static const char kCookiesLifetimeCurrentSession[] = "network.cookie.lifetime.behavior";
 static const char kCookiesP3PString[] = "network.cookie.p3p";
 static const char kCookiesAskPermission[] = "network.cookie.warnAboutCookies";
-static const char kCookiesMaxPerHost[] = "network.cookie.maxPerHost";
 
 static char *sBuffer;
 
@@ -216,8 +215,6 @@ InitPrefs(nsIPrefBranch *aPrefBranch)
     aPrefBranch->SetIntPref(kCookiesLifetimeCurrentSession, 0);
     aPrefBranch->SetIntPref(kCookiesLifetimeDays, 1);
     aPrefBranch->SetBoolPref(kCookiesAskPermission, PR_FALSE);
-    // Set the base domain limit to 50 so we have a known value.
-    aPrefBranch->SetIntPref(kCookiesMaxPerHost, 50);
 }
 
 class ScopedXPCOM
@@ -309,11 +306,11 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://www.basic.com/testPath/testfile.txt", nsnull, getter_Copies(cookie));
       rv[1] = CheckResult(cookie.get(), MUST_EQUAL, "test=basic");
       GetACookie(cookieService, "http://www.basic.com./", nsnull, getter_Copies(cookie));
-      rv[2] = CheckResult(cookie.get(), MUST_BE_NULL);
+      rv[2] = CheckResult(cookie.get(), MUST_EQUAL, "test=basic");
       GetACookie(cookieService, "http://www.basic.com.", nsnull, getter_Copies(cookie));
-      rv[3] = CheckResult(cookie.get(), MUST_BE_NULL);
+      rv[3] = CheckResult(cookie.get(), MUST_EQUAL, "test=basic");
       GetACookie(cookieService, "http://www.basic.com./testPath/testfile.txt", nsnull, getter_Copies(cookie));
-      rv[4] = CheckResult(cookie.get(), MUST_BE_NULL);
+      rv[4] = CheckResult(cookie.get(), MUST_EQUAL, "test=basic");
       GetACookie(cookieService, "http://www.basic2.com/", nsnull, getter_Copies(cookie));
       rv[5] = CheckResult(cookie.get(), MUST_BE_NULL);
       SetACookie(cookieService, "http://www.basic.com", nsnull, "test=basic; max-age=-1", nsnull);
@@ -332,7 +329,7 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://domain.com", nsnull, getter_Copies(cookie));
       rv[0] = CheckResult(cookie.get(), MUST_EQUAL, "test=domain");
       GetACookie(cookieService, "http://domain.com.", nsnull, getter_Copies(cookie));
-      rv[1] = CheckResult(cookie.get(), MUST_BE_NULL);
+      rv[1] = CheckResult(cookie.get(), MUST_EQUAL, "test=domain");
       GetACookie(cookieService, "http://www.domain.com", nsnull, getter_Copies(cookie));
       rv[2] = CheckResult(cookie.get(), MUST_EQUAL, "test=domain");
       GetACookie(cookieService, "http://foo.domain.com", nsnull, getter_Copies(cookie));
@@ -372,14 +369,7 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://foo.domain.com", nsnull, getter_Copies(cookie));
       rv[13] = CheckResult(cookie.get(), MUST_BE_NULL);
 
-      SetACookie(cookieService, "http://path.net/path/file", nsnull, "test=taco; path=\"/bogus\"", nsnull);
-      GetACookie(cookieService, "http://path.net/path/file", nsnull, getter_Copies(cookie));
-      rv[14] = CheckResult(cookie.get(), MUST_EQUAL, "test=taco");
-      SetACookie(cookieService, "http://path.net/path/file", nsnull, "test=taco; max-age=-1", nsnull);
-      GetACookie(cookieService, "http://path.net/path/file", nsnull, getter_Copies(cookie));
-      rv[15] = CheckResult(cookie.get(), MUST_BE_NULL);
-
-      allTestsPassed = PrintResult(rv, 16) && allTestsPassed;
+      allTestsPassed = PrintResult(rv, 14) && allTestsPassed;
 
 
       // *** path tests
@@ -745,11 +735,10 @@ main(PRInt32 argc, char *argv[])
       rv[13] = NS_SUCCEEDED(cookieMgr2->CookieExists(newDomainCookie, &found)) && !found;
       // sleep four seconds, to make sure the second cookie has expired
       PR_Sleep(4 * PR_TicksPerSecond());
-      // check that both CountCookiesFromHost() and CookieExists() count the
-      // expired cookie
+      // check CountCookiesFromHost() and CookieExists() don't count the expired cookie
       rv[14] = NS_SUCCEEDED(cookieMgr2->CountCookiesFromHost(NS_LITERAL_CSTRING("cookiemgr.test"), &hostCookies)) &&
-              hostCookies == 2;
-      rv[15] = NS_SUCCEEDED(cookieMgr2->CookieExists(expiredCookie, &found)) && found;
+              hostCookies == 1;
+      rv[15] = NS_SUCCEEDED(cookieMgr2->CookieExists(expiredCookie, &found)) && !found;
       // double-check RemoveAll() using the enumerator
       rv[16] = NS_SUCCEEDED(cookieMgr->RemoveAll());
       rv[17] = NS_SUCCEEDED(cookieMgr->GetEnumerator(getter_AddRefs(enumerator))) &&
@@ -772,6 +761,12 @@ main(PRInt32 argc, char *argv[])
         name.AppendInt(i);
         name += NS_LITERAL_CSTRING("=creation");
         SetACookie(cookieService, "http://creation.ordering.tests/", nsnull, name.get(), nsnull);
+
+        if (i == 9) {
+          // sleep a couple of seconds, to make sure the first 10 cookies are older than
+          // subsequent ones (timer resolution varies on different platforms).
+          PR_Sleep(2 * PR_TicksPerSecond());
+        }
 
         if (i >= 10) {
           expected += name;

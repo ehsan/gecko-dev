@@ -24,7 +24,6 @@
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
- *   Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -49,7 +48,8 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsIDOMText.h"
 #include "nsIDOMMutationEvent.h"
@@ -82,9 +82,11 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 // error handlers
 // provide a feedback to the user when a frame with bad markup can not be rendered
 nsresult
-nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
+nsMathMLContainerFrame::ReflowError(nsIRenderingContext& aRenderingContext,
                                     nsHTMLReflowMetrics& aDesiredSize)
 {
+  nsresult rv;
+
   // clear all other flags and record that there is an error with this frame
   mEmbellishData.flags = 0;
   mPresentationData.flags = NS_MATHML_ERROR;
@@ -95,13 +97,22 @@ nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
 
   // bounding metrics
   nsAutoString errorMsg; errorMsg.AssignLiteral("invalid-markup");
-  mBoundingMetrics =
-    aRenderingContext.GetBoundingMetrics(errorMsg.get(), errorMsg.Length());
+  rv = aRenderingContext.GetBoundingMetrics(errorMsg.get(),
+                                            PRUint32(errorMsg.Length()),
+                                            mBoundingMetrics);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("GetBoundingMetrics failed");
+    aDesiredSize.width = aDesiredSize.height = 0;
+    aDesiredSize.ascent = 0;
+    return NS_OK;
+  }
 
   // reflow metrics
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
-  aDesiredSize.ascent = fm->MaxAscent();
-  nscoord descent = fm->MaxDescent();
+  nsCOMPtr<nsIFontMetrics> fm;
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
+  fm->GetMaxAscent(aDesiredSize.ascent);
+  nscoord descent;
+  fm->GetMaxDescent(descent);
   aDesiredSize.height = aDesiredSize.ascent + descent;
   aDesiredSize.width = mBoundingMetrics.width;
 
@@ -124,12 +135,12 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLError", TYPE_MATHML_ERROR)
 };
 
 void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
-                                 nsRenderingContext* aCtx)
+                                 nsIRenderingContext* aCtx)
 {
   // Set color and font ...
   nsLayoutUtils::SetFontFromStyle(aCtx, mFrame->GetStyleContext());
@@ -139,11 +150,13 @@ void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
   aCtx->FillRect(nsRect(pt, mFrame->GetSize()));
   aCtx->SetColor(NS_RGB(255,255,255));
 
-  nscoord ascent = aCtx->FontMetrics()->MaxAscent();
+  nscoord ascent;
+  nsCOMPtr<nsIFontMetrics> fm;
+  aCtx->GetFontMetrics(*getter_AddRefs(fm));
+  fm->GetMaxAscent(ascent);
 
-  NS_NAMED_LITERAL_STRING(errorMsg, "invalid-markup");
-  aCtx->DrawString(errorMsg.get(), PRUint32(errorMsg.Length()),
-                   pt.x, pt.y+ascent);
+  nsAutoString errorMsg; errorMsg.AssignLiteral("invalid-markup");
+  aCtx->DrawString(errorMsg.get(), PRUint32(errorMsg.Length()), pt.x, pt.y+ascent);
 }
 
 /* /////////////
@@ -226,7 +239,7 @@ nsMathMLContainerFrame::ClearSavedChildMetrics()
 // helper to get the preferred size that a container frame should use to fire
 // the stretch on its stretchy child frames.
 void
-nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingContext,
+nsMathMLContainerFrame::GetPreferredStretchSize(nsIRenderingContext& aRenderingContext,
                                                 PRUint32             aOptions,
                                                 nsStretchDirection   aStretchDirection,
                                                 nsBoundingMetrics&   aPreferredStretchSize)
@@ -243,16 +256,14 @@ nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingCo
   }
   else {
     // compute a size that doesn't include embellishements
-    PRBool stretchAll =
-      NS_MATHML_WILL_STRETCH_ALL_CHILDREN_VERTICALLY(mPresentationData.flags) ||
-      NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(mPresentationData.flags);
     NS_ASSERTION(NS_MATHML_IS_EMBELLISH_OPERATOR(mEmbellishData.flags) ||
-                 stretchAll,
+                 NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(mPresentationData.flags) ||
+                 NS_MATHML_WILL_STRETCH_ALL_CHILDREN_VERTICALLY(mPresentationData.flags),
                  "invalid call to GetPreferredStretchSize");
     PRBool firstTime = PR_TRUE;
     nsBoundingMetrics bm, bmChild;
-    nsIFrame* childFrame =
-      stretchAll ? GetFirstChild(nsnull) : mPresentationData.baseFrame;
+    // XXXrbs need overloaded FirstChild() and clean integration of <maction> throughout
+    nsIFrame* childFrame = GetFirstChild(nsnull);
     while (childFrame) {
       // initializations in case this child happens not to be a MathML frame
       nsIMathMLFrame* mathMLFrame = do_QueryFrame(childFrame);
@@ -282,9 +293,9 @@ nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingCo
       if (firstTime) {
         firstTime = PR_FALSE;
         bm = bmChild;
-        if (!stretchAll) {
-          // we may get here for cases such as <msup><mo>...</mo> ... </msup>,
-          // or <maction>...<mo>...</mo></maction>.
+        if (!NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(mPresentationData.flags) &&
+            !NS_MATHML_WILL_STRETCH_ALL_CHILDREN_VERTICALLY(mPresentationData.flags)) {
+          // we may get here for cases such as <msup><mo>...</mo> ... </msup>
           break;
         }
       }
@@ -323,7 +334,7 @@ nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingCo
 }
 
 NS_IMETHODIMP
-nsMathMLContainerFrame::Stretch(nsRenderingContext& aRenderingContext,
+nsMathMLContainerFrame::Stretch(nsIRenderingContext& aRenderingContext,
                                 nsStretchDirection   aStretchDirection,
                                 nsBoundingMetrics&   aContainerSize,
                                 nsHTMLReflowMetrics& aDesiredStretchSize)
@@ -474,7 +485,7 @@ nsMathMLContainerFrame::Stretch(nsRenderingContext& aRenderingContext,
 }
 
 nsresult
-nsMathMLContainerFrame::FinalizeReflow(nsRenderingContext& aRenderingContext,
+nsMathMLContainerFrame::FinalizeReflow(nsIRenderingContext& aRenderingContext,
                                        nsHTMLReflowMetrics& aDesiredSize)
 {
   // During reflow, we use rect.x and rect.y as placeholders for the child's ascent
@@ -845,15 +856,12 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
 {
   // nsIFrame::FinishAndStoreOverflow likes the overflow area to include the
   // frame rectangle.
-  aMetrics->SetOverflowAreasToDesiredBounds();
+  nsRect frameRect(0, 0, aMetrics->width, aMetrics->height);
 
   // Text-shadow overflows.
   if (PresContext()->CompatibilityMode() != eCompatibility_NavQuirks) {
-    nsRect frameRect(0, 0, aMetrics->width, aMetrics->height);
     nsRect shadowRect = nsLayoutUtils::GetTextShadowRectsUnion(frameRect, this);
-    // shadows contribute only to visual overflow
-    nsRect& visOverflow = aMetrics->VisualOverflow();
-    visOverflow.UnionRect(visOverflow, shadowRect);
+    frameRect.UnionRect(frameRect, shadowRect);
   }
 
   // All non-child-frame content such as nsMathMLChars (and most child-frame
@@ -863,9 +871,7 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
                      mBoundingMetrics.rightBearing - mBoundingMetrics.leftBearing,
                      mBoundingMetrics.ascent + mBoundingMetrics.descent);
 
-  // REVIEW: Maybe this should contribute only to visual overflow
-  // and not scrollable?
-  aMetrics->mOverflowAreas.UnionAllWith(boundingBox);
+  aMetrics->mOverflowArea.UnionRect(frameRect, boundingBox);
 
   // mBoundingMetrics does not necessarily include content of <mpadded>
   // elements whose mBoundingMetrics may not be representative of the true
@@ -873,7 +879,7 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
   // make such to include child overflow areas.
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
-    ConsiderChildOverflow(aMetrics->mOverflowAreas, childFrame);
+    ConsiderChildOverflow(aMetrics->mOverflowArea, childFrame);
     childFrame = childFrame->GetNextSibling();
   }
 
@@ -939,7 +945,7 @@ nsMathMLContainerFrame::Reflow(nsPresContext*           aPresContext,
 {
   aDesiredSize.width = aDesiredSize.height = 0;
   aDesiredSize.ascent = 0;
-  aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
+  aDesiredSize.mBoundingMetrics.Clear();
 
   /////////////
   // Reflow children
@@ -1021,7 +1027,7 @@ nsMathMLContainerFrame::Reflow(nsPresContext*           aPresContext,
 }
 
 /* virtual */ nscoord
-nsMathMLContainerFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsMathMLContainerFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -1030,7 +1036,7 @@ nsMathMLContainerFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsMathMLContainerFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsMathMLContainerFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -1039,7 +1045,7 @@ nsMathMLContainerFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsMathMLContainerFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
+nsMathMLContainerFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext)
 {
   // Get child widths
   nsIFrame* childFrame = mFrames.FirstChild();
@@ -1077,7 +1083,7 @@ nsMathMLContainerFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 }
 
 /* virtual */ nsresult
-nsMathMLContainerFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
+nsMathMLContainerFrame::MeasureForWidth(nsIRenderingContext& aRenderingContext,
                                         nsHTMLReflowMetrics& aDesiredSize)
 {
   return Place(aRenderingContext, PR_FALSE, aDesiredSize);
@@ -1271,12 +1277,12 @@ private:
 };
 
 /* virtual */ nsresult
-nsMathMLContainerFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLContainerFrame::Place(nsIRenderingContext& aRenderingContext,
                               PRBool               aPlaceOrigin,
                               nsHTMLReflowMetrics& aDesiredSize)
 {
   // This is needed in case this frame is empty (i.e., no child frames)
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
 
   RowChildFrameIterator child(this);
   nscoord ascent = 0, descent = 0;
@@ -1452,80 +1458,6 @@ nsMathMLContainerFrame::DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop)
                        NS_FRAME_REFLOW_FINISHED);
     }
   }
-}
-
-// helper used by mstyle, mphantom, mpadded and mrow in their implementations
-// of TransmitAutomaticData().
-nsresult
-nsMathMLContainerFrame::TransmitAutomaticDataForMrowLikeElement()
-{
-  //
-  // One loop to check both conditions below:
-  //
-  // 1) whether all the children of the mrow-like element are space-like.
-  //
-  //   The REC defines the following elements to be "space-like":
-  //   * an mstyle, mphantom, or mpadded element, all of whose direct
-  //     sub-expressions are space-like;
-  //   * an mrow all of whose direct sub-expressions are space-like.
-  //
-  // 2) whether all but one child of the mrow-like element are space-like and
-  //    this non-space-like child is an embellished operator.
-  //
-  //   The REC defines the following elements to be embellished operators:
-  //   * one of the elements mstyle, mphantom, or mpadded, such that an mrow
-  //     containing the same arguments would be an embellished operator;
-  //   * an mrow whose arguments consist (in any order) of one embellished
-  //     operator and zero or more space-like elements.
-  //
-  nsIFrame *childFrame, *baseFrame;
-  PRBool embellishedOpFound = PR_FALSE;
-  nsEmbellishData embellishData;
-  
-  for (childFrame = GetFirstChild(nsnull);
-       childFrame;
-       childFrame = childFrame->GetNextSibling()) {
-    nsIMathMLFrame* mathMLFrame = do_QueryFrame(childFrame);
-    if (!mathMLFrame) break;
-    if (!mathMLFrame->IsSpaceLike()) {
-      if (embellishedOpFound) break;
-      baseFrame = childFrame;
-      GetEmbellishDataFrom(baseFrame, embellishData);
-      if (!NS_MATHML_IS_EMBELLISH_OPERATOR(embellishData.flags)) break;
-      embellishedOpFound = PR_TRUE;
-    }
-  }
-
-  if (!childFrame) {
-    // we successfully went to the end of the loop. This means that one of
-    // condition 1) or 2) holds.
-    if (!embellishedOpFound) {
-      // the mrow-like element is space-like.
-      mPresentationData.flags |= NS_MATHML_SPACE_LIKE;
-    } else {
-      // the mrow-like element is an embellished operator.
-      // let the state of the embellished operator found bubble to us.
-      mPresentationData.baseFrame = baseFrame;
-      mEmbellishData = embellishData;
-    }
-  }
-
-  if (childFrame || !embellishedOpFound) {
-    // The element is not embellished operator
-    mPresentationData.baseFrame = nsnull;
-    mEmbellishData.flags = 0;
-    mEmbellishData.coreFrame = nsnull;
-    mEmbellishData.direction = NS_STRETCH_DIRECTION_UNSUPPORTED;
-    mEmbellishData.leftSpace = 0;
-    mEmbellishData.rightSpace = 0;
-  }
-
-  if (childFrame || embellishedOpFound) {
-    // The element is not space-like
-    mPresentationData.flags &= ~NS_MATHML_SPACE_LIKE;
-  }
-
-  return NS_OK;
 }
 
 //==========================

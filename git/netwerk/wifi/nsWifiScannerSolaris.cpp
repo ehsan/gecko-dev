@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsAutoPtr.h"
 #include "nsWifiMonitor.h"
 #include "nsWifiAccessPoint.h"
 
@@ -51,8 +52,6 @@
 
 #define DLADM_STRSIZE 256
 #define DLADM_SECTIONS 3
-
-using namespace mozilla;
 
 struct val_strength_t {
   const char *strength_name;
@@ -174,7 +173,7 @@ nsWifiMonitor::DoScan()
     nsCOMArray<nsIWifiListener> currentListeners;
 
     {
-      MonitorAutoEnter mon(mMonitor);
+      nsAutoMonitor mon(mMonitor);
 
       for (PRUint32 i = 0; i < mListeners.Length(); i++) {
         if (!mListeners[i].mHasSentData || accessPointsChanged) {
@@ -223,7 +222,7 @@ nsWifiMonitor::DoScan()
 
     LOG(("waiting on monitor\n"));
 
-    MonitorAutoEnter mon(mMonitor);
+    nsAutoMonitor mon(mMonitor);
     mon.Wait(PR_SecondsToInterval(60));
   }
 

@@ -21,7 +21,6 @@
  * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
- * Tim Taubert <tim.taubert@gmx.de>
  *
  * This file incorporates work from:
  * jQuery JavaScript Library v1.4.2: http://code.jquery.com/jquery-1.4.2.js
@@ -75,7 +74,7 @@ let rsingleTag = /^<(\w+)\s*\/?>(?:<\/\1>)?$/;
 // ----------
 // Function: iQClass
 // You don't call this directly; this is what's called by iQ().
-function iQClass(selector, context) {
+let iQClass = function(selector, context) {
 
   // Handle $(""), $(null), or $(undefined)
   if (!selector) {
@@ -167,7 +166,7 @@ function iQClass(selector, context) {
     return null;
   }
 
-  if ("selector" in selector) {
+  if (typeof selector.selector !== "undefined") {
     this.selector = selector.selector;
     this.context = selector.context;
   }
@@ -186,23 +185,6 @@ function iQClass(selector, context) {
   
 iQClass.prototype = {
 
-  // ----------
-  // Function: toString
-  // Prints [iQ...] for debug use
-  toString: function iQClass_toString() {
-    if (this.length > 1) {
-      if (this.selector)
-        return "[iQ (" + this.selector + ")]";
-      else
-        return "[iQ multi-object]";
-    }
-
-    if (this.length == 1)
-      return "[iQ (" + this[0].toString() + ")]";
-
-    return "[iQ non-object]";
-  },
-
   // Start with an empty selector
   selector: "",
 
@@ -212,19 +194,21 @@ iQClass.prototype = {
   // ----------
   // Function: each
   // Execute a callback for every element in the matched set.
-  each: function iQClass_each(callback) {
+  each: function(callback) {
     if (typeof callback != "function") {
       Utils.assert(false, "each's argument must be a function");
       return null;
     }
-    for (let i = 0; this[i] != null && callback(this[i]) !== false; i++) {}
+    for (let i = 0; this[i] != null; i++) {
+      callback(this[i]);
+    }
     return this;
   },
 
   // ----------
   // Function: addClass
   // Adds the given class(es) to the receiver.
-  addClass: function iQClass_addClass(value) {
+  addClass: function(value) {
     Utils.assertThrow(typeof value == "string" && value,
                       'requires a valid string argument');
 
@@ -244,7 +228,7 @@ iQClass.prototype = {
   // ----------
   // Function: removeClass
   // Removes the given class(es) from the receiver.
-  removeClass: function iQClass_removeClass(value) {
+  removeClass: function(value) {
     if (typeof value != "string" || !value) {
       Utils.assert(false, 'does not support function argument');
       return null;
@@ -266,7 +250,7 @@ iQClass.prototype = {
   // ----------
   // Function: hasClass
   // Returns true is the receiver has the given css class.
-  hasClass: function iQClass_hasClass(singleClassName) {
+  hasClass: function(singleClassName) {
     let length = this.length;
     for (let i = 0; i < length; i++) {
       if (this[i].classList.contains(singleClassName)) {
@@ -280,7 +264,7 @@ iQClass.prototype = {
   // Function: find
   // Searches the receiver and its children, returning a new iQ object with
   // elements that match the given selector.
-  find: function iQClass_find(selector) {
+  find: function(selector) {
     let ret = [];
     let length = 0;
 
@@ -310,35 +294,9 @@ iQClass.prototype = {
   },
 
   // ----------
-  // Function: contains
-  // Check to see if a given DOM node descends from the receiver.
-  contains: function iQClass_contains(selector) {
-    Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-
-    // fast path when querySelector() can be used
-    if ('string' == typeof selector)
-      return null != this[0].querySelector(selector);
-
-    let object = iQ(selector);
-    Utils.assert(object.length <= 1, 'does not yet support multi-objects');
-
-    let elem = object[0];
-    if (!elem || !elem.parentNode)
-      return false;
-
-    do {
-      elem = elem.parentNode;
-    } while (elem && this[0] != elem);
-
-    return this[0] == elem;
-  },
-
-  // ----------
   // Function: remove
   // Removes the receiver from the DOM.
-  remove: function iQClass_remove(options) {
-    if (!options || !options.preserveEventHandlers)
-      this.unbindAll();
+  remove: function() {
     for (let i = 0; this[i] != null; i++) {
       let elem = this[i];
       if (elem.parentNode) {
@@ -351,11 +309,10 @@ iQClass.prototype = {
   // ----------
   // Function: empty
   // Removes all of the reciever's children and HTML content from the DOM.
-  empty: function iQClass_empty() {
+  empty: function() {
     for (let i = 0; this[i] != null; i++) {
       let elem = this[i];
       while (elem.firstChild) {
-        iQ(elem.firstChild).unbindAll();
         elem.removeChild(elem.firstChild);
       }
     }
@@ -364,23 +321,25 @@ iQClass.prototype = {
 
   // ----------
   // Function: width
-  // Returns the width of the receiver, including padding and border.
-  width: function iQClass_width() {
-    return Math.floor(this[0].offsetWidth);
+  // Returns the width of the receiver.
+  width: function() {
+    let bounds = this.bounds();
+    return bounds.width;
   },
 
   // ----------
   // Function: height
-  // Returns the height of the receiver, including padding and border.
-  height: function iQClass_height() {
-    return Math.floor(this[0].offsetHeight);
+  // Returns the height of the receiver.
+  height: function() {
+    let bounds = this.bounds();
+    return bounds.height;
   },
 
   // ----------
   // Function: position
   // Returns an object with the receiver's position in left and top
   // properties.
-  position: function iQClass_position() {
+  position: function() {
     let bounds = this.bounds();
     return new Point(bounds.left, bounds.top);
   },
@@ -388,7 +347,7 @@ iQClass.prototype = {
   // ----------
   // Function: bounds
   // Returns a <Rect> with the receiver's bounds.
-  bounds: function iQClass_bounds() {
+  bounds: function() {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
     let rect = this[0].getBoundingClientRect();
     return new Rect(Math.floor(rect.left), Math.floor(rect.top),
@@ -399,9 +358,9 @@ iQClass.prototype = {
   // Function: data
   // Pass in both key and value to attach some data to the receiver;
   // pass in just key to retrieve it.
-  data: function iQClass_data(key, value) {
+  data: function(key, value) {
     let data = null;
-    if (value === undefined) {
+    if (typeof value === "undefined") {
       Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
       data = this[0].iQData;
       if (data)
@@ -427,9 +386,9 @@ iQClass.prototype = {
   // Function: html
   // Given a value, sets the receiver's innerHTML to it; otherwise returns
   // what's already there.
-  html: function iQClass_html(value) {
+  html: function(value) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-    if (value === undefined)
+    if (typeof value === "undefined")
       return this[0].innerHTML;
 
     this[0].innerHTML = value;
@@ -440,9 +399,9 @@ iQClass.prototype = {
   // Function: text
   // Given a value, sets the receiver's textContent to it; otherwise returns
   // what's already there.
-  text: function iQClass_text(value) {
+  text: function(value) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-    if (value === undefined) {
+    if (typeof value === "undefined") {
       return this[0].textContent;
     }
 
@@ -452,9 +411,9 @@ iQClass.prototype = {
   // ----------
   // Function: val
   // Given a value, sets the receiver's value to it; otherwise returns what's already there.
-  val: function iQClass_val(value) {
+  val: function(value) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-    if (value === undefined) {
+    if (typeof value === "undefined") {
       return this[0].value;
     }
 
@@ -465,7 +424,7 @@ iQClass.prototype = {
   // ----------
   // Function: appendTo
   // Appends the receiver to the result of iQ(selector).
-  appendTo: function iQClass_appendTo(selector) {
+  appendTo: function(selector) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
     iQ(selector).append(this);
     return this;
@@ -474,7 +433,7 @@ iQClass.prototype = {
   // ----------
   // Function: append
   // Appends the result of iQ(selector) to the receiver.
-  append: function iQClass_append(selector) {
+  append: function(selector) {
     let object = iQ(selector);
     Utils.assert(object.length == 1 && this.length == 1, 
         'does not yet support multi-objects (or null objects)');
@@ -485,9 +444,9 @@ iQClass.prototype = {
   // ----------
   // Function: attr
   // Sets or gets an attribute on the element(s).
-  attr: function iQClass_attr(key, value) {
+  attr: function(key, value) {
     Utils.assert(typeof key === 'string', 'string key');
-    if (value === undefined) {
+    if (typeof value === "undefined") {
       Utils.assert(this.length == 1, 'retrieval does not support multi-objects (or null objects)');
       return this[0].getAttribute(key);
     }
@@ -507,25 +466,18 @@ iQClass.prototype = {
   //   a: object, b: undefined - sets with properties from a
   //   a: string, b: undefined - gets property specified by a
   //   a: string, b: string/number - sets property specified by a to b
-  css: function iQClass_css(a, b) {
+  css: function(a, b) {
     let properties = null;
 
     if (typeof a === 'string') {
       let key = a;
-      if (b === undefined) {
+      if (typeof b === "undefined") {
         Utils.assert(this.length == 1, 'retrieval does not support multi-objects (or null objects)');
 
         return window.getComputedStyle(this[0], null).getPropertyValue(key);
       }
       properties = {};
       properties[key] = b;
-    } else if (a instanceof Rect) {
-      properties = {
-        left: a.left,
-        top: a.top,
-        width: a.width,
-        height: a.height
-      };
     } else {
       properties = a;
     }
@@ -543,7 +495,6 @@ iQClass.prototype = {
       let elem = this[i];
       for (let key in properties) {
         let value = properties[key];
-
         if (pixels[key] && typeof value != 'string')
           value += 'px';
 
@@ -573,7 +524,7 @@ iQClass.prototype = {
   //     "tabviewBounce", "easeInQuad". Default is "ease".
   //   complete - function to call once the animation is done, takes nothing
   //     in, but "this" is set to the element that was animated.
-  animate: function iQClass_animate(css, options) {
+  animate: function(css, options) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
 
     if (!options)
@@ -588,16 +539,6 @@ iQClass.prototype = {
     let duration = (options.duration || 400);
     let easing = (easings[options.easing] || 'ease');
 
-    if (css instanceof Rect) {
-      css = {
-        left: css.left,
-        top: css.top,
-        width: css.width,
-        height: css.height
-      };
-    }
-
-
     // The latest versions of Firefox do not animate from a non-explicitly
     // set css properties. So for each element to be animated, go through
     // and explicitly define 'em.
@@ -611,7 +552,7 @@ iQClass.prototype = {
     });
 
     this.css({
-      '-moz-transition-property': Object.keys(css).join(", "),
+      '-moz-transition-property': 'all', // TODO: just animate the properties we're changing
       '-moz-transition-duration': (duration / 1000) + 's',
       '-moz-transition-timing-function': easing
     });
@@ -636,8 +577,8 @@ iQClass.prototype = {
   // ----------
   // Function: fadeOut
   // Animates the receiver to full transparency. Calls callback on completion.
-  fadeOut: function iQClass_fadeOut(callback) {
-    Utils.assert(typeof callback == "function" || callback === undefined, 
+  fadeOut: function(callback) {
+    Utils.assert(typeof callback == "function" || typeof callback === "undefined", 
         'does not yet support duration');
 
     this.animate({
@@ -657,7 +598,7 @@ iQClass.prototype = {
   // ----------
   // Function: fadeIn
   // Animates the receiver to full opacity.
-  fadeIn: function iQClass_fadeIn() {
+  fadeIn: function() {
     this.css({display: ''});
     this.animate({
       opacity: 1
@@ -671,7 +612,7 @@ iQClass.prototype = {
   // ----------
   // Function: hide
   // Hides the receiver.
-  hide: function iQClass_hide() {
+  hide: function() {
     this.css({display: 'none', opacity: 0});
     return this;
   },
@@ -679,7 +620,7 @@ iQClass.prototype = {
   // ----------
   // Function: show
   // Shows the receiver.
-  show: function iQClass_show() {
+  show: function() {
     this.css({display: '', opacity: 1});
     return this;
   },
@@ -688,7 +629,7 @@ iQClass.prototype = {
   // Function: bind
   // Binds the given function to the given event type. Also wraps the function
   // in a try/catch block that does a Utils.log on any errors.
-  bind: function iQClass_bind(type, func) {
+  bind: function(type, func) {
     let handler = function(event) func.apply(this, [event]);
 
     for (let i = 0; this[i] != null; i++) {
@@ -714,7 +655,7 @@ iQClass.prototype = {
   // Function: one
   // Binds the given function to the given event type, but only for one call;
   // automatically unbinds after the event fires once.
-  one: function iQClass_one(type, func) {
+  one: function(type, func) {
     Utils.assert(typeof func == "function", 'does not support eventData argument');
 
     let handler = function(e) {
@@ -728,7 +669,7 @@ iQClass.prototype = {
   // ----------
   // Function: unbind
   // Unbinds the given function from the given event type.
-  unbind: function iQClass_unbind(type, func) {
+  unbind: function(type, func) {
     Utils.assert(typeof func == "function", 'Must provide a function');
 
     for (let i = 0; this[i] != null; i++) {
@@ -750,28 +691,6 @@ iQClass.prototype = {
     }
 
     return this;
-  },
-
-  // ----------
-  // Function: unbindAll
-  // Unbinds all event handlers.
-  unbindAll: function iQClass_unbindAll() {
-    for (let i = 0; this[i] != null; i++) {
-      let elem = this[i];
-
-      for (let j = 0; j < elem.childElementCount; j++)
-        iQ(elem.children[j]).unbindAll();
-
-      if (!elem.iQEventData)
-        continue;
-
-      for (let type in elem.iQEventData) {
-        while (elem.iQEventData[type].length)
-          this.unbind(type, elem.iQEventData[type][0].original);
-      }
-    }
-
-    return this;
   }
 };
 
@@ -780,7 +699,6 @@ iQClass.prototype = {
 let events = [
   'keyup',
   'keydown',
-  'keypress',
   'mouseup',
   'mousedown',
   'mouseover',

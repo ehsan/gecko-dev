@@ -37,10 +37,8 @@ function checkSizeReflection(element, defaultValue)
     "The content attribute should containt the previously set value");
 
   element.setAttribute('size', 0);
-  is(element.size, 0,
-    "0 should be considered as a valid value");
-  is(element.getAttribute('size'), 0,
-    "The content attribute should containt the previously set value");
+  is(element.size, defaultValue,
+    "The reflecting IDL attribute should return the default value when content attribute value is invalid");
 
   element.setAttribute('size', 2147483647); /* PR_INT32_MAX */
   is(element.size, 2147483647,
@@ -94,7 +92,7 @@ function checkSetSizeException(element)
   } catch(e) {
     caught = true;
   }
-  ok(!caught, "Setting a positive size shouldn't throw an exception");
+  ok(!caught, "Setting a valid size shouldn't throw an exception");
 
   caught = false;
   try {
@@ -102,7 +100,7 @@ function checkSetSizeException(element)
   } catch(e) {
     caught = true;
   }
-  ok(!caught, "Setting a size to 0 from the IDL shouldn't throw an exception");
+  ok(caught, "Setting an invalid size from the IDL should throw an exception");
 
   caught = false;
   try {
@@ -124,36 +122,36 @@ function checkSetSizeException(element)
   element.removeAttribute('size');
 }
 
-function checkSizeWhenChangeMultiple(element, aDefaultNonMultiple, aDefaultMultiple)
+function checkSizeWhenChangeMultiple(element)
 {
   s.setAttribute('size', -1)
-  is(s.size, aDefaultNonMultiple, "Size IDL attribute should be 1");
+  is(s.size, 1, "Size IDL attribute should be 1");
 
   s.multiple = true;
-  is(s.size, aDefaultMultiple, "Size IDL attribute should be 4");
+  is(s.size, 4, "Size IDL attribute should be 4");
 
   is(s.getAttribute('size'), -1, "Size content attribute should be -1");
 
   s.setAttribute('size', -2);
-  is(s.size, aDefaultMultiple, "Size IDL attribute should be 4");
+  is(s.size, 4, "Size IDL attribute should be 4");
 
   s.multiple = false;
-  is(s.size, aDefaultNonMultiple, "Size IDL attribute should be 1");
+  is(s.size, 1, "Size IDL attribute should be 1");
 
   is(s.getAttribute('size'), -2, "Size content attribute should be -2");
 }
 
 var s = document.getElementById('s');
 
-checkSizeReflection(s, 0);
+checkSizeReflection(s, 1);
 checkSetSizeException(s);
 
 s.setAttribute('multiple', 'true');
-checkSizeReflection(s, 0);
+checkSizeReflection(s, 4);
 checkSetSizeException(s);
 s.removeAttribute('multiple');
 
-checkSizeWhenChangeMultiple(s, 0, 0);
+checkSizeWhenChangeMultiple(s);
 
 </script>
 </pre>

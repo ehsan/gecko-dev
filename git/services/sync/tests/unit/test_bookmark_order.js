@@ -1,5 +1,6 @@
 _("Making sure after processing incoming bookmarks, they show up in the right order");
 Cu.import("resource://services-sync/engines/bookmarks.js");
+Cu.import("resource://services-sync/type_records/bookmark.js");
 Cu.import("resource://services-sync/util.js");
 
 function getBookmarks(folderId) {
@@ -7,16 +8,16 @@ function getBookmarks(folderId) {
 
   let pos = 0;
   while (true) {
-    let itemId = PlacesUtils.bookmarks.getIdForItemAt(folderId, pos);
+    let itemId = Svc.Bookmark.getIdForItemAt(folderId, pos);
     _("Got itemId", itemId, "under", folderId, "at", pos);
     if (itemId == -1)
       break;
 
-    switch (PlacesUtils.bookmarks.getItemType(itemId)) {
-      case PlacesUtils.bookmarks.TYPE_BOOKMARK:
-        bookmarks.push(PlacesUtils.bookmarks.getItemTitle(itemId));
+    switch (Svc.Bookmark.getItemType(itemId)) {
+      case Svc.Bookmark.TYPE_BOOKMARK:
+        bookmarks.push(Svc.Bookmark.getItemTitle(itemId));
         break;
-      case PlacesUtils.bookmarks.TYPE_FOLDER:
+      case Svc.Bookmark.TYPE_FOLDER:
         bookmarks.push(getBookmarks(itemId));
         break;
       default:
@@ -30,7 +31,7 @@ function getBookmarks(folderId) {
 }
 
 function check(expected) {
-  let bookmarks = getBookmarks(PlacesUtils.bookmarks.unfiledBookmarksFolder);
+  let bookmarks = getBookmarks(Svc.Bookmark.unfiledBookmarksFolder);
 
   _("Checking if the bookmark structure is", JSON.stringify(expected));
   _("Got bookmarks:", JSON.stringify(bookmarks));
@@ -38,96 +39,133 @@ function check(expected) {
 }
 
 function run_test() {
-  let store = new BookmarksEngine()._store;
-  initTestLogging("Trace");
-
   _("Starting with a clean slate of no bookmarks");
+  let store = new (new BookmarksEngine())._storeObj();
   store.wipe();
   check([]);
 
-  function bookmark(name, parent) {
-    let bookmark = new Bookmark("http://weave.server/my-bookmark");
+  function $B(name, parent, pred) {
+    let bookmark = new Bookmark();
     bookmark.id = name;
     bookmark.title = name;
     bookmark.bmkUri = "http://uri/";
     bookmark.parentid = parent || "unfiled";
+    bookmark.predecessorid = pred;
     bookmark.tags = [];
-    return bookmark;
+    store.applyIncoming(bookmark);
   }
 
-  function folder(name, parent, children) {
-    let folder = new BookmarkFolder("http://weave.server/my-bookmark-folder");
+  function $F(name, parent, pred) {
+    let folder = new BookmarkFolder();
     folder.id = name;
     folder.title = name;
     folder.parentid = parent || "unfiled";
-    folder.children = children;
-    return folder;
-  }
-
-  function apply(record) {
-    store._childrenToOrder = {};
-    store.applyIncoming(record);
-    store._orderChildren();
-    delete store._childrenToOrder;
+    folder.predecessorid = pred;
+    store.applyIncoming(folder);
   }
 
   _("basic add first bookmark");
-  apply(bookmark("10", ""));
+  $B("10", "");
   check(["10"]);
 
   _("basic append behind 10");
-  apply(bookmark("20", ""));
+  $B("20", "", "10");
   check(["10", "20"]);
 
   _("basic create in folder");
-  apply(bookmark("31", "f30"));
-  let f30 = folder("f30", "", ["31"]);
-  apply(f30);
+  $F("f30", "", "20");
+  $B("31", "f30");
   check(["10", "20", ["31"]]);
 
-  _("insert missing parent -> append to unfiled");
-  apply(bookmark("41", "f40"));
-  check(["10", "20", ["31"], "41"]);
+  _("insert missing predecessor -> append");
+  $B("50", "", "f40");
+  check(["10", "20", ["31"], "50"]);
+
+  _("insert missing parent -> append");
+  $B("41", "f40");
+  check(["10", "20", ["31"], "50", "41"]);
 
   _("insert another missing parent -> append");
-  apply(bookmark("42", "f40"));
-  check(["10", "20", ["31"], "41", "42"]);
+  $B("42", "f40", "41");
+  check(["10", "20", ["31"], "50", "41", "42"]);
 
   _("insert folder -> move children and followers");
-  let f40 = folder("f40", "", ["41", "42"]);
-  apply(f40);
-  check(["10", "20", ["31"], ["41", "42"]]);
+  $F("f40", "", "f30");
+  check(["10", "20", ["31"], ["41", "42"], "50"]);
 
-  _("Moving 41 behind 42 -> update f40");
-  f40.children = ["42", "41"];
-  apply(f40);
-  check(["10", "20", ["31"], ["42", "41"]]);
+  _("Moving 10 behind 50 -> update 10, 20");
+  $B("10", "", "50");
+  $B("20", "");
+  check(["20", ["31"], ["41", "42"], "50", "10"]);
 
   _("Moving 10 back to front -> update 10, 20");
-  f40.children = ["41", "42"];
-  apply(f40);
-  check(["10", "20", ["31"], ["41", "42"]]);
+  $B("10", "");
+  $B("20", "", "10");
+  check(["10", "20", ["31"], ["41", "42"], "50"]);
 
-  _("Moving 20 behind 42 in f40 -> update 50");
-  apply(bookmark("20", "f40"));
-  check(["10", ["31"], ["41", "42", "20"]]);
+  _("Moving 10 behind 50 in different order -> update 20, 10");
+  $B("20", "");
+  $B("10", "", "50");
+  check(["20", ["31"], ["41", "42"], "50", "10"]);
 
-  _("Moving 10 in front of 31 in f30 -> update 10, f30");
-  apply(bookmark("10", "f30"));
-  f30.children = ["10", "31"];
-  apply(f30);
-  check([["10", "31"], ["41", "42", "20"]]);
+  _("Moving 10 back to front in different order -> update 20, 10");
+  $B("20", "", "10");
+  $B("10", "");
+  check(["10", "20", ["31"], ["41", "42"], "50"]);
 
-  _("Moving 20 from f40 to f30 -> update 20, f30");
-  apply(bookmark("20", "f30"));
-  f30.children = ["10", "20", "31"];
-  apply(f30);
-  check([["10", "20", "31"], ["41", "42"]]);
+  _("Moving 50 behind 42 in f40 -> update 50");
+  $B("50", "f40", "42");
+  check(["10", "20", ["31"], ["41", "42", "50"]]);
 
-  _("Move 20 back to front -> update 20, f30");
-  apply(bookmark("20", ""));
-  f30.children = ["10", "31"];
-  apply(f30);
-  check([["10", "31"], ["41", "42"], "20"]);
+  _("Moving 10 in front of 31 in f30 -> update 10, 20, 31");
+  $B("10", "f30");
+  $B("20", "");
+  $B("31", "f30", "10");
+  check(["20", ["10", "31"], ["41", "42", "50"]]);
 
+  _("Moving 20 between 10 and 31 -> update 20, f30, 31");
+  $B("20", "f30", "10");
+  $F("f30", "");
+  $B("31", "f30", "20");
+  check([["10", "20", "31"], ["41", "42", "50"]]);
+
+  _("Move 20 back to front -> update 20, f30, 31");
+  $B("20", "");
+  $F("f30", "", "20");
+  $B("31", "f30", "10");
+  check(["20", ["10", "31"], ["41", "42", "50"]]);
+
+  _("Moving 20 between 10 and 31 different order -> update f30, 20, 31");
+  $F("f30", "");
+  $B("20", "f30", "10");
+  $B("31", "f30", "20");
+  check([["10", "20", "31"], ["41", "42", "50"]]);
+
+  _("Move 20 back to front different order -> update f30, 31, 20");
+  $F("f30", "", "20");
+  $B("31", "f30", "10");
+  $B("20", "");
+  check(["20", ["10", "31"], ["41", "42", "50"]]);
+
+  _("Moving 20 between 10 and 31 different order 2 -> update 31, f30, 20");
+  $B("31", "f30", "20");
+  $F("f30", "");
+  $B("20", "f30", "10");
+  check([["10", "20", "31"], ["41", "42", "50"]]);
+
+  _("Move 20 back to front different order 2 -> update 31, f30, 20");
+  $B("31", "f30", "10");
+  $F("f30", "", "20");
+  $B("20", "");
+  check(["20", ["10", "31"], ["41", "42", "50"]]);
+
+  _("Move 10, 31 to f40 but update in reverse -> update 41, 31, 10");
+  $B("41", "f40", "31");
+  $B("31", "f40", "10");
+  $B("10", "f40");
+  check(["20", [], ["10", "31", "41", "42", "50"]]);
+
+  _("Reparent f40 into f30");
+  $F("f40", "f30");
+  check(["20", [["10", "31", "41", "42", "50"]]]);
 }

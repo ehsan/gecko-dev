@@ -1,11 +1,11 @@
 //
-// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
 
 #include "compiler/OutputGLSL.h"
-#include "compiler/compilerdebug.h"
+#include "compiler/debug.h"
 
 namespace
 {
@@ -195,10 +195,7 @@ const ConstantUnion* TOutputGLSL::writeConstantUnion(const TType& type,
 void TOutputGLSL::visitSymbol(TIntermSymbol* node)
 {
     TInfoSinkBase& out = objSink();
-    if (mLoopUnroll.NeedsToReplaceSymbolWithValue(node))
-        out << mLoopUnroll.GetLoopIndexValue(node);
-    else
-        out << node->getSymbol();
+    out << node->getSymbol();
 
     if (mDeclaringVariables && node->getType().isArray())
         out << arrayBrackets(node->getType());
@@ -307,6 +304,8 @@ bool TOutputGLSL::visitBinary(Visit visit, TIntermBinary* node)
 
 bool TOutputGLSL::visitUnary(Visit visit, TIntermUnary* node)
 {
+    TInfoSinkBase& out = objSink();
+
     switch (node->getOp())
     {
         case EOpNegative: writeTriplet(visit, "(-", NULL, ")"); break;
@@ -376,10 +375,6 @@ bool TOutputGLSL::visitUnary(Visit visit, TIntermUnary* node)
 
         case EOpLength: writeTriplet(visit, "length(", NULL, ")"); break;
         case EOpNormalize: writeTriplet(visit, "normalize(", NULL, ")"); break;
-
-        case EOpDFdx: writeTriplet(visit, "dFdx(", NULL, ")"); break;
-        case EOpDFdy: writeTriplet(visit, "dFdy(", NULL, ")"); break;
-        case EOpFwidth: writeTriplet(visit, "fwidth(", NULL, ")"); break;
 
         case EOpAny: writeTriplet(visit, "any(", NULL, ")"); break;
         case EOpAll: writeTriplet(visit, "all(", NULL, ")"); break;
@@ -615,61 +610,35 @@ bool TOutputGLSL::visitLoop(Visit visit, TIntermLoop* node)
 
     incrementDepth();
     // Loop header.
-    TLoopType loopType = node->getType();
-    if (loopType == ELoopFor)  // for loop
+    if (node->testFirst())  // for loop
     {
-        if (!node->getUnrollFlag()) {
-            out << "for (";
-            if (node->getInit())
-                node->getInit()->traverse(this);
-            out << "; ";
+        out << "for (";
+        if (node->getInit())
+            node->getInit()->traverse(this);
+        out << "; ";
 
-            if (node->getCondition())
-                node->getCondition()->traverse(this);
-            out << "; ";
+        ASSERT(node->getTest() != NULL);
+        node->getTest()->traverse(this);
+        out << "; ";
 
-            if (node->getExpression())
-                node->getExpression()->traverse(this);
-            out << ")\n";
-        }
-    }
-    else if (loopType == ELoopWhile)  // while loop
-    {
-        out << "while (";
-        ASSERT(node->getCondition() != NULL);
-        node->getCondition()->traverse(this);
+        if (node->getTerminal())
+            node->getTerminal()->traverse(this);
         out << ")\n";
     }
     else  // do-while loop
     {
-        ASSERT(loopType == ELoopDoWhile);
         out << "do\n";
     }
 
     // Loop body.
-    if (node->getUnrollFlag())
-    {
-        TLoopIndexInfo indexInfo;
-        mLoopUnroll.FillLoopIndexInfo(node, indexInfo);
-        mLoopUnroll.Push(indexInfo);
-        while (mLoopUnroll.SatisfiesLoopCondition())
-        {
-            visitCodeBlock(node->getBody());
-            mLoopUnroll.Step();
-        }
-        mLoopUnroll.Pop();
-    }
-    else
-    {
-        visitCodeBlock(node->getBody());
-    }
+    visitCodeBlock(node->getBody());
 
     // Loop footer.
-    if (loopType == ELoopDoWhile)  // do-while loop
+    if (!node->testFirst())  // while loop
     {
         out << "while (";
-        ASSERT(node->getCondition() != NULL);
-        node->getCondition()->traverse(this);
+        ASSERT(node->getTest() != NULL);
+        node->getTest()->traverse(this);
         out << ");\n";
     }
     decrementDepth();
@@ -681,6 +650,8 @@ bool TOutputGLSL::visitLoop(Visit visit, TIntermLoop* node)
 
 bool TOutputGLSL::visitBranch(Visit visit, TIntermBranch* node)
 {
+    TInfoSinkBase &out = objSink();
+
     switch (node->getFlowOp())
     {
         case EOpKill: writeTriplet(visit, "discard", NULL, NULL); break;

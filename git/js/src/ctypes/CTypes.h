@@ -56,25 +56,25 @@ template<class T>
 class OperatorDelete
 {
 public:
-  static void destroy(T* ptr) { UnwantedForeground::delete_(ptr); }
+  static void destroy(T* ptr) { delete ptr; }
 };
 
 template<class T>
 class OperatorArrayDelete
 {
 public:
-  static void destroy(T* ptr) { UnwantedForeground::array_delete(ptr); }
+  static void destroy(T* ptr) { delete[] ptr; }
 };
 
-// Class that takes ownership of a pointer T*, and calls cx->delete_() or
-// cx->array_delete() upon destruction.
+// Class that takes ownership of a pointer T*, and calls operator delete or
+// operator delete[] upon destruction.
 template<class T, class DeleteTraits = OperatorDelete<T> >
 class AutoPtr {
 private:
   typedef AutoPtr<T, DeleteTraits> self_type;
 
 public:
-  // An AutoPtr variant that calls js_array_delete() instead.
+  // An AutoPtr variant that calls operator delete[] instead.
   typedef AutoPtr<T, OperatorArrayDelete<T> > Array;
 
   AutoPtr() : mPtr(NULL) { }
@@ -141,10 +141,7 @@ void
 AppendString(Vector<jschar, N, AP> &v, JSString* str)
 {
   JS_ASSERT(str);
-  const jschar *chars = str->getChars(NULL);
-  if (!chars)
-    return;
-  v.append(chars, str->length());
+  v.append(str->chars(), str->length());
 }
 
 template <size_t N, class AP>
@@ -157,12 +154,8 @@ AppendString(Vector<char, N, AP> &v, JSString* str)
   if (!v.resize(vlen + alen))
     return;
 
-  const jschar *chars = str->getChars(NULL);
-  if (!chars)
-    return;
-
   for (size_t i = 0; i < alen; ++i)
-    v[i + vlen] = char(chars[i]);
+    v[i + vlen] = char(str->chars()[i]);
 }
 
 template <class T, size_t N, class AP, size_t ArrayLength>
@@ -193,26 +186,38 @@ PrependString(Vector<jschar, N, AP> &v, JSString* str)
   if (!v.resize(vlen + alen))
     return;
 
-  const jschar *chars = str->getChars(NULL);
-  if (!chars)
-    return;
-
   // Move vector data forward. This is safe since we've already resized.
   memmove(v.begin() + alen, v.begin(), vlen * sizeof(jschar));
 
   // Copy data to insert.
-  memcpy(v.begin(), chars, alen * sizeof(jschar));
+  memcpy(v.begin(), str->chars(), alen * sizeof(jschar));
+}
+
+template <class T, size_t N, size_t M, class AP>
+bool
+StringsEqual(Vector<T, N, AP> &v, Vector<T, M, AP> &w)
+{
+  if (v.length() != w.length())
+    return false;
+
+  return memcmp(v.begin(), w.begin(), v.length() * sizeof(T)) == 0;
+}
+
+template <size_t N, class AP>
+bool
+StringsEqual(Vector<jschar, N, AP> &v, JSString* str)
+{
+  JS_ASSERT(str);
+  size_t length = str->length();
+  if (v.length() != length)
+    return false;
+
+  return memcmp(v.begin(), str->chars(), length * sizeof(jschar)) == 0;
 }
 
 /*******************************************************************************
 ** Function and struct API definitions
 *******************************************************************************/
-
-JS_ALWAYS_INLINE void
-ASSERT_OK(JSBool ok)
-{
-  JS_ASSERT(ok);
-}
 
 // for JS error reporting
 enum ErrorNum {
@@ -263,7 +268,7 @@ struct FieldInfo
 // Hash policy for FieldInfos.
 struct FieldHashPolicy
 {
-  typedef JSFlatString* Key;
+  typedef JSString* Key;
   typedef Key Lookup;
 
   static uint32 hash(const Lookup &l) {
@@ -286,7 +291,7 @@ struct FieldHashPolicy
   }
 };
 
-typedef HashMap<JSFlatString*, FieldInfo, FieldHashPolicy, SystemAllocPolicy> FieldInfoHash;
+typedef HashMap<JSString*, FieldInfo, FieldHashPolicy, SystemAllocPolicy> FieldInfoHash;
 
 // Descriptor of ABI, return type, argument types, and variadicity for a
 // FunctionType.
@@ -332,10 +337,6 @@ struct ClosureInfo
 #endif
 };
 
-bool IsCTypesGlobal(JSContext* cx, JSObject* obj);
-
-JSCTypesCallbacks* GetCallbacks(JSContext* cx, JSObject* obj);
-
 JSBool InitTypeClasses(JSContext* cx, JSObject* parent);
 
 JSBool ConvertToJS(JSContext* cx, JSObject* typeObj, JSObject* dataObj,
@@ -350,11 +351,6 @@ JSBool ExplicitConvert(JSContext* cx, jsval val, JSObject* targetType,
 /*******************************************************************************
 ** JSClass reserved slot definitions
 *******************************************************************************/
-
-enum CTypesGlobalSlot {
-  SLOT_CALLBACKS = 0, // pointer to JSCTypesCallbacks struct
-  CTYPESGLOBAL_SLOTS
-};
 
 enum CABISlot {
   SLOT_ABICODE = 0, // ABICode of the CABI object
@@ -391,7 +387,7 @@ enum CTypeSlot {
   SLOT_ELEMENT_T = 7, // (ArrayTypes only) 'elementType' property
   SLOT_LENGTH    = 8, // (ArrayTypes only) 'length' property
   SLOT_FIELDS    = 7, // (StructTypes only) 'fields' property
-  SLOT_FIELDINFO = 8, // (StructTypes only) FieldInfoHash table
+  SLOT_FIELDINFO = 8, // (StructTypes only) FieldInfo array
   SLOT_FNINFO    = 7, // (FunctionTypes only) FunctionInfo struct
   SLOT_ARGS_T    = 8, // (FunctionTypes only) 'argTypes' property (cached)
   CTYPE_SLOTS
@@ -448,7 +444,6 @@ namespace CType {
   JSString* GetName(JSContext* cx, JSObject* obj);
   JSObject* GetProtoFromCtor(JSContext* cx, JSObject* obj, CTypeProtoSlot slot);
   JSObject* GetProtoFromType(JSContext* cx, JSObject* obj, CTypeProtoSlot slot);
-  JSCTypesCallbacks* GetCallbacksFromType(JSContext* cx, JSObject* obj);
 }
 
 namespace PointerType {
@@ -471,7 +466,7 @@ namespace StructType {
   JSBool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
 
   const FieldInfoHash* GetFieldInfo(JSContext* cx, JSObject* obj);
-  const FieldInfo* LookupField(JSContext* cx, JSObject* obj, JSFlatString *name);
+  const FieldInfo* LookupField(JSContext* cx, JSObject* obj, JSString *name);
   JSObject* BuildFieldsArray(JSContext* cx, JSObject* obj);
   ffi_type* BuildFFIType(JSContext* cx, JSObject* obj);
 }
@@ -504,8 +499,6 @@ namespace CData {
 
   // Attached by JSAPI as the function 'ctypes.cast'
   JSBool Cast(JSContext* cx, uintN argc, jsval* vp);
-  // Attached by JSAPI as the function 'ctypes.getRuntime'
-  JSBool GetRuntime(JSContext* cx, uintN argc, jsval* vp);
 }
 
 namespace Int64 {

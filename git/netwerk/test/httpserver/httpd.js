@@ -787,10 +787,6 @@ nsHttpServer.prototype =
     // Fire a pending server-stopped notification if it's our responsibility.
     if (!this._hasOpenConnections() && this._socketClosed)
       this._notifyStopped();
-    // Bug 508125: Add a GC here else we'll use gigabytes of memory running
-    // mochitests. We can't rely on xpcshell doing an automated GC, as that
-    // would interfere with testing GC stuff...
-    gc();
   },
 
   /**
@@ -2605,10 +2601,6 @@ ServerHandler.prototype =
         s.importFunction(function setObjectState(k, v)
         {
           self._setObjectState(k, v);
-        });
-        s.importFunction(function registerPathHandler(p, h)
-        {
-          self.registerPathHandler(p, h);
         });
 
         // Make it possible for sjs files to access their location

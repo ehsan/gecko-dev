@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2007-2011 Mozilla Foundation
+ * Copyright (c) 2007-2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -59,143 +59,108 @@
 
 #include "nsHtml5StackNode.h"
 
-PRInt32 
-nsHtml5StackNode::getGroup()
-{
-  return flags & NS_HTML5ELEMENT_NAME_GROUP_MASK;
-}
 
-PRBool 
-nsHtml5StackNode::isScoping()
-{
-  return (flags & NS_HTML5ELEMENT_NAME_SCOPING);
-}
-
-PRBool 
-nsHtml5StackNode::isSpecial()
-{
-  return (flags & NS_HTML5ELEMENT_NAME_SPECIAL);
-}
-
-PRBool 
-nsHtml5StackNode::isFosterParenting()
-{
-  return (flags & NS_HTML5ELEMENT_NAME_FOSTER_PARENTING);
-}
-
-PRBool 
-nsHtml5StackNode::isHtmlIntegrationPoint()
-{
-  return (flags & NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
-}
-
-
-nsHtml5StackNode::nsHtml5StackNode(PRInt32 flags, PRInt32 ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
-  : flags(flags),
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 group, PRInt32 ns, nsIAtom* name, nsIContent** node, PRBool scoping, PRBool special, PRBool fosterParenting, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
+  : group(group),
     name(name),
     popName(popName),
     ns(ns),
     node(node),
+    scoping(scoping),
+    special(special),
+    fosterParenting(fosterParenting),
     attributes(attributes),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
+  nsHtml5Portability::retainLocal(name);
+  nsHtml5Portability::retainLocal(popName);
+  ;
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node)
-  : flags(elementName->getFlags()),
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node)
+  : group(elementName->group),
     name(elementName->name),
     popName(elementName->name),
-    ns(kNameSpaceID_XHTML),
+    ns(ns),
     node(node),
+    scoping(elementName->scoping),
+    special(elementName->special),
+    fosterParenting(elementName->fosterParenting),
     attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-
+  nsHtml5Portability::retainLocal(name);
+  nsHtml5Portability::retainLocal(popName);
+  ;
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsHtml5HtmlAttributes* attributes)
-  : flags(elementName->getFlags()),
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node, nsHtml5HtmlAttributes* attributes)
+  : group(elementName->group),
     name(elementName->name),
     popName(elementName->name),
-    ns(kNameSpaceID_XHTML),
+    ns(ns),
     node(node),
+    scoping(elementName->scoping),
+    special(elementName->special),
+    fosterParenting(elementName->fosterParenting),
     attributes(attributes),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-
+  nsHtml5Portability::retainLocal(name);
+  nsHtml5Portability::retainLocal(popName);
+  ;
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName)
-  : flags(elementName->getFlags()),
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName)
+  : group(elementName->group),
     name(elementName->name),
     popName(popName),
-    ns(kNameSpaceID_XHTML),
+    ns(ns),
     node(node),
+    scoping(elementName->scoping),
+    special(elementName->special),
+    fosterParenting(elementName->fosterParenting),
     attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
+  nsHtml5Portability::retainLocal(name);
+  nsHtml5Portability::retainLocal(popName);
+  ;
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContent** node)
-  : flags(prepareSvgFlags(elementName->getFlags())),
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, PRBool scoping)
+  : group(elementName->group),
     name(elementName->name),
     popName(popName),
-    ns(kNameSpaceID_SVG),
+    ns(ns),
     node(node),
+    scoping(scoping),
+    special(PR_FALSE),
+    fosterParenting(PR_FALSE),
     attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-}
-
-
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, PRBool markAsIntegrationPoint)
-  : flags(prepareMathFlags(elementName->getFlags(), markAsIntegrationPoint)),
-    name(elementName->name),
-    popName(popName),
-    ns(kNameSpaceID_MathML),
-    node(node),
-    attributes(nsnull),
-    refcount(1)
-{
-  MOZ_COUNT_CTOR(nsHtml5StackNode);
-}
-
-PRInt32 
-nsHtml5StackNode::prepareSvgFlags(PRInt32 flags)
-{
-  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
-  if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_SVG)) {
-    flags |= (NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
-  }
-  return flags;
-}
-
-PRInt32 
-nsHtml5StackNode::prepareMathFlags(PRInt32 flags, PRBool markAsIntegrationPoint)
-{
-  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
-  if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_MATHML)) {
-    flags |= (NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL);
-  }
-  if (markAsIntegrationPoint) {
-    flags |= NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT;
-  }
-  return flags;
+  nsHtml5Portability::retainLocal(name);
+  nsHtml5Portability::retainLocal(popName);
+  ;
 }
 
 
 nsHtml5StackNode::~nsHtml5StackNode()
 {
   MOZ_COUNT_DTOR(nsHtml5StackNode);
+  nsHtml5Portability::releaseLocal(name);
+  nsHtml5Portability::releaseLocal(popName);
+  ;
   delete attributes;
 }
 

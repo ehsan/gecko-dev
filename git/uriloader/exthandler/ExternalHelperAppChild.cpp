@@ -89,9 +89,8 @@ ExternalHelperAppChild::OnDataAvailable(nsIRequest *request,
 NS_IMETHODIMP
 ExternalHelperAppChild::OnStartRequest(nsIRequest *request, nsISupports *ctx)
 {
-  nsresult rv = mHandler->OnStartRequest(request, ctx);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
-
+  // FIXME: Eventually we should implement this:
+  // mHandler->OnStartRequest(request, ctx);
   nsCString entityID;
   nsCOMPtr<nsIResumableChannel> resumable(do_QueryInterface(request));
   if (resumable)
@@ -106,10 +105,9 @@ ExternalHelperAppChild::OnStopRequest(nsIRequest *request,
                                       nsISupports *ctx,
                                       nsresult status)
 {
-  nsresult rv = mHandler->OnStopRequest(request, ctx, status);
+  // FIXME: Eventually we should implement this:
+  // mHandler->OnStopRequest(request, ctx, status);
   SendOnStopRequest(status);
-
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
   return NS_OK;
 }
 

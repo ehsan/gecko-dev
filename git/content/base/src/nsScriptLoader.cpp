@@ -75,7 +75,6 @@
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
 #include "nsCRT.h"
-#include "nsContentCreatorFunctions.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -118,6 +117,7 @@ public:
 
   nsCOMPtr<nsIScriptElement> mElement;
   PRPackedBool mLoading;             // Are we still waiting for a load to complete?
+  PRPackedBool mDefer;               // Is execution defered?
   PRPackedBool mIsInline;            // Is the script inline or loaded?
   nsString mScriptText;              // Holds script for loaded scripts
   PRUint32 mJSVersion;
@@ -140,7 +140,7 @@ nsScriptLoader::nsScriptLoader(nsIDocument *aDocument)
     mBlockerCount(0),
     mEnabled(PR_TRUE),
     mDeferEnabled(PR_FALSE),
-    mDocumentParsingDone(PR_FALSE)
+    mUnblockOnloadWhenDoneProcessing(PR_FALSE)
 {
   // enable logging for CSP
 #ifdef PR_LOGGING
@@ -153,24 +153,12 @@ nsScriptLoader::~nsScriptLoader()
 {
   mObservers.Clear();
 
-  if (mParserBlockingRequest) {
-    mParserBlockingRequest->FireScriptAvailable(NS_ERROR_ABORT);
+  for (PRInt32 i = 0; i < mRequests.Count(); i++) {
+    mRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
   }
 
-  for (PRUint32 i = 0; i < mXSLTRequests.Length(); i++) {
-    mXSLTRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
-  }
-
-  for (PRUint32 i = 0; i < mDeferRequests.Length(); i++) {
-    mDeferRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
-  }
-
-  for (PRUint32 i = 0; i < mAsyncRequests.Length(); i++) {
+  for (PRInt32 i = 0; i < mAsyncRequests.Count(); i++) {
     mAsyncRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
-  }
-
-  for (PRUint32 i = 0; i < mNonAsyncExternalScriptInsertedRequests.Length(); i++) {
-    mNonAsyncExternalScriptInsertedRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
   }
 
   // Unblock the kids, in case any of them moved to a different document
@@ -351,23 +339,6 @@ nsScriptLoader::PreloadURIComparator::Equals(const PreloadInfo &aPi,
          same;
 }
 
-class nsScriptRequestProcessor : public nsRunnable
-{
-private:
-  nsRefPtr<nsScriptLoader> mLoader;
-  nsRefPtr<nsScriptLoadRequest> mRequest;
-public:
-  nsScriptRequestProcessor(nsScriptLoader* aLoader,
-                           nsScriptLoadRequest* aRequest)
-    : mLoader(aLoader)
-    , mRequest(aRequest)
-  {}
-  NS_IMETHODIMP Run()
-  {
-    return mLoader->ProcessRequest(mRequest);
-  }
-};
-
 nsresult
 nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 {
@@ -497,7 +468,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
           // We re-use our knowledge of the implementation to reuse
           // JSVERSION_HAS_XML as a safe version flag.
           // If version has JSVERSION_UNKNOWN (-1), then this is still OK.
-          version |= js::VersionFlags::HAS_XML;
+          version |= JSVERSION_HAS_XML;
       }
     }
   } else {
@@ -544,212 +515,135 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   nsCOMPtr<nsIContent> eltContent(do_QueryInterface(aElement));
   eltContent->SetScriptTypeID(typeID);
 
-  // Step 9. in the HTML5 spec
+  PRBool hadPendingRequests = !!GetFirstPendingRequest();
 
+  // Did we preload this request?
+  nsCOMPtr<nsIURI> scriptURI = aElement->GetScriptURI();
   nsRefPtr<nsScriptLoadRequest> request;
-  if (aElement->GetScriptExternal()) {
-    // external script
-    nsCOMPtr<nsIURI> scriptURI = aElement->GetScriptURI();
-    if (!scriptURI) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
+  if (scriptURI) {
     nsTArray<PreloadInfo>::index_type i =
       mPreloads.IndexOf(scriptURI.get(), 0, PreloadURIComparator());
     if (i != nsTArray<PreloadInfo>::NoIndex) {
-      // preloaded
-      // note that a script-inserted script can steal a preload!
       request = mPreloads[i].mRequest;
       request->mElement = aElement;
-      nsString preloadCharset(mPreloads[i].mCharset);
+      request->mJSVersion = version;
+      request->mDefer = mDeferEnabled && aElement->GetScriptDeferred() &&
+        !aElement->GetScriptAsync();
       mPreloads.RemoveElementAt(i);
 
-      // Double-check that the charset the preload used is the same as
-      // the charset we have now.
-      nsAutoString elementCharset;
-      aElement->GetScriptCharset(elementCharset);
-      if (elementCharset.Equals(preloadCharset)) {
-        rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
-        NS_ENSURE_SUCCESS(rv, rv);
-      } else {
-        // Drop the preload
-        request = nsnull;
+      rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
+      if (NS_FAILED(rv)) {
+        // Note, we're dropping our last ref to request here.
+        return rv;
       }
-    }
 
-    if (!request) {
-      // no usable preload
-      request = new nsScriptLoadRequest(aElement, version);
-      NS_ENSURE_TRUE(request, NS_ERROR_OUT_OF_MEMORY);
-      request->mURI = scriptURI;
-      request->mIsInline = PR_FALSE;
-      request->mLoading = PR_TRUE;
-      rv = StartLoad(request, type);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+      // Can we run the script now?
+      // This is true if we're done loading, the script isn't deferred and
+      // there are either no scripts or stylesheets to wait for, or the
+      // script is async
+      PRBool readyToRun =
+        !request->mLoading && !request->mDefer &&
+        ((!hadPendingRequests && ReadyToExecuteScripts()) ||
+         aElement->GetScriptAsync());
 
-    request->mJSVersion = version;
-
-    if (aElement->GetScriptAsync()) {
-      mAsyncRequests.AppendElement(request);
-      if (!request->mLoading) {
-        // The script is available already. Run it ASAP when the event
-        // loop gets a chance to spin.
-        ProcessPendingRequestsAsync();
-      }
-      return NS_OK;
-    }
-    if (!aElement->GetParserCreated()) {
-      // Violate the HTML5 spec in order to make LABjs and the "order" plug-in
-      // for RequireJS work with their Gecko-sniffed code path. See
-      // http://lists.w3.org/Archives/Public/public-html/2010Oct/0088.html
-      mNonAsyncExternalScriptInsertedRequests.AppendElement(request);
-      if (!request->mLoading) {
-        // The script is available already. Run it ASAP when the event
-        // loop gets a chance to spin.
-        ProcessPendingRequestsAsync();
-      }
-      return NS_OK;
-    }
-    // we now have a parser-inserted request that may or may not be still
-    // loading
-    if (aElement->GetScriptDeferred()) {
-      // We don't want to run this yet.
-      // If we come here, the script is a parser-created script and it has
-      // the defer attribute but not the async attribute. Since a
-      // a parser-inserted script is being run, we came here by the parser
-      // running the script, which means the parser is still alive and the
-      // parse is ongoing.
-      NS_ASSERTION(mDocument->GetCurrentContentSink() ||
-                   aElement->GetParserCreated() == FROM_PARSER_XSLT,
-          "Non-XSLT Defer script on a document without an active parser; bug 592366.");
-      mDeferRequests.AppendElement(request);
-      return NS_OK;
-    }
-
-    if (aElement->GetParserCreated() == FROM_PARSER_XSLT) {
-      // Need to maintain order for XSLT-inserted scripts
-      NS_ASSERTION(!mParserBlockingRequest,
-          "Parser-blocking scripts and XSLT scripts in the same doc!");
-      mXSLTRequests.AppendElement(request);
-      if (!request->mLoading) {
-        // The script is available already. Run it ASAP when the event
-        // loop gets a chance to spin.
-        ProcessPendingRequestsAsync();
-      }
-      return NS_ERROR_HTMLPARSER_BLOCK;
-    }
-    if (!request->mLoading && ReadyToExecuteScripts()) {
-      // The request has already been loaded and there are no pending style
-      // sheets. If the script comes from the network stream, cheat for
-      // performance reasons and avoid a trip through the event loop.
-      if (aElement->GetParserCreated() == FROM_PARSER_NETWORK) {
+      if (readyToRun && nsContentUtils::IsSafeToRunScript()) {
         return ProcessRequest(request);
       }
-      // Otherwise, we've got a document.written script, make a trip through
-      // the event loop to hide the preload effects from the scripts on the
-      // Web page.
-      NS_ASSERTION(!mParserBlockingRequest,
-          "There can be only one parser-blocking script at a time");
-      NS_ASSERTION(mXSLTRequests.IsEmpty(),
-          "Parser-blocking scripts and XSLT scripts in the same doc!");
-      mParserBlockingRequest = request;
-      ProcessPendingRequestsAsync();
-      return NS_ERROR_HTMLPARSER_BLOCK;
-    }
-    // The script hasn't loaded yet or there's a style sheet blocking it.
-    // The script will be run when it loads or the style sheet loads.
-    NS_ASSERTION(!mParserBlockingRequest,
-        "There can be only one parser-blocking script at a time");
-    NS_ASSERTION(mXSLTRequests.IsEmpty(),
-        "Parser-blocking scripts and XSLT scripts in the same doc!");
-    mParserBlockingRequest = request;
-    return NS_ERROR_HTMLPARSER_BLOCK;
-  }
 
-  // inline script
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = mDocument->NodePrincipal()->GetCsp(getter_AddRefs(csp));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (csp) {
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("New ScriptLoader i ****with CSP****"));
-    PRBool inlineOK;
-    rv = csp->GetAllowsInlineScript(&inlineOK);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!inlineOK) {
-      PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("CSP blocked inline scripts (2)"));
-      // gather information to log with violation report
-      nsIURI* uri = mDocument->GetDocumentURI();
-      nsCAutoString asciiSpec;
-      uri->GetAsciiSpec(asciiSpec);
-      nsAutoString scriptText;
-      aElement->GetScriptText(scriptText);
-
-      // cap the length of the script sample at 40 chars
-      if (scriptText.Length() > 40) {
-        scriptText.Truncate(40);
-        scriptText.Append(NS_LITERAL_STRING("..."));
+      // Not done loading yet. Move into the real requests queue and wait.
+      if (aElement->GetScriptAsync()) {
+        mAsyncRequests.AppendObject(request);
+      }
+      else {
+        mRequests.AppendObject(request);
       }
 
-      csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_INLINE_SCRIPT,
-                               NS_ConvertUTF8toUTF16(asciiSpec),
-                               scriptText,
-                               aElement->GetScriptLineNumber());
-      return NS_ERROR_FAILURE;
+      if (readyToRun) {
+        nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this,
+          &nsScriptLoader::ProcessPendingRequests));
+      }
+
+      return request->mDefer || aElement->GetScriptAsync() ?
+        NS_OK : NS_ERROR_HTMLPARSER_BLOCK;
     }
   }
 
+  // Create a request object for this script
   request = new nsScriptLoadRequest(aElement, version);
   NS_ENSURE_TRUE(request, NS_ERROR_OUT_OF_MEMORY);
-  request->mJSVersion = version;
-  request->mLoading = PR_FALSE;
-  request->mIsInline = PR_TRUE;
-  request->mURI = mDocument->GetDocumentURI();
-  request->mLineNo = aElement->GetScriptLineNumber();
 
-  if (aElement->GetParserCreated() == FROM_PARSER_XSLT &&
-      (!ReadyToExecuteScripts() || !mXSLTRequests.IsEmpty())) {
-    // Need to maintain order for XSLT-inserted scripts
-    NS_ASSERTION(!mParserBlockingRequest,
-        "Parser-blocking scripts and XSLT scripts in the same doc!");
-    mXSLTRequests.AppendElement(request);
-    return NS_ERROR_HTMLPARSER_BLOCK;
+  // First check to see if this is an external script
+  if (scriptURI) {
+    request->mDefer = mDeferEnabled && aElement->GetScriptDeferred() &&
+      !aElement->GetScriptAsync();
+    request->mURI = scriptURI;
+    request->mIsInline = PR_FALSE;
+    request->mLoading = PR_TRUE;
+
+    rv = StartLoad(request, type);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+  } else {
+    // in-line script
+    nsCOMPtr<nsIContentSecurityPolicy> csp;
+    nsresult rv = mDocument->NodePrincipal()->GetCsp(getter_AddRefs(csp));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (csp) {
+      PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("New ScriptLoader i ****with CSP****"));
+      PRBool inlineOK;
+      // this call will send violation reports when necessary
+      rv = csp->GetAllowsInlineScript(&inlineOK);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if (!inlineOK) {
+        PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("CSP blocked inline scripts (2)"));
+        return NS_ERROR_FAILURE;
+      }
+    }
+
+    request->mDefer = PR_FALSE;
+    request->mLoading = PR_FALSE;
+    request->mIsInline = PR_TRUE;
+    request->mURI = mDocument->GetDocumentURI();
+
+    request->mLineNo = aElement->GetScriptLineNumber();
+
+    // If we've got existing pending requests, add ourselves
+    // to this list.
+    if (!hadPendingRequests && ReadyToExecuteScripts() &&
+        nsContentUtils::IsSafeToRunScript()) {
+      return ProcessRequest(request);
+    }
   }
-  if (aElement->GetParserCreated() == NOT_FROM_PARSER) {
-    NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-        "A script-inserted script is inserted without an update batch?");
-    nsContentUtils::AddScriptRunner(new nsScriptRequestProcessor(this,
-                                                                 request));
+
+  // Add the request to our requests list
+  NS_ENSURE_TRUE(aElement->GetScriptAsync() ?
+                 mAsyncRequests.AppendObject(request) :
+                 mRequests.AppendObject(request),
+                 NS_ERROR_OUT_OF_MEMORY);
+
+  if (request->mDefer || aElement->GetScriptAsync()) {
     return NS_OK;
   }
-  if (aElement->GetParserCreated() == FROM_PARSER_NETWORK &&
-      !ReadyToExecuteScripts()) {
-    NS_ASSERTION(!mParserBlockingRequest,
-        "There can be only one parser-blocking script at a time");
-    mParserBlockingRequest = request;
-    NS_ASSERTION(mXSLTRequests.IsEmpty(),
-        "Parser-blocking scripts and XSLT scripts in the same doc!");
-    return NS_ERROR_HTMLPARSER_BLOCK;
+
+  // If there weren't any pending requests before, and this one is
+  // ready to execute, do that as soon as it's safe.
+  if (!request->mLoading && !hadPendingRequests && ReadyToExecuteScripts()) {
+    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this,
+      &nsScriptLoader::ProcessPendingRequests));
   }
-  // We now have a document.written inline script or we have an inline script
-  // from the network but there is no style sheet that is blocking scripts.
-  // Don't check for style sheets blocking scripts in the document.write
-  // case to avoid style sheet network activity affecting when
-  // document.write returns. It's not really necessary to do this if
-  // there's no document.write currently on the call stack. However,
-  // this way matches IE more closely than checking if document.write
-  // is on the call stack.
-  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
-      "Not safe to run a parser-inserted script?");
-  return ProcessRequest(request);
+
+  // Added as pending request, now we can send blocking back
+  return NS_ERROR_HTMLPARSER_BLOCK;
 }
 
 nsresult
 nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
 {
-  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
-               "Processing requests when running scripts is unsafe.");
+  NS_ASSERTION(ReadyToExecuteScripts() && nsContentUtils::IsSafeToRunScript(),
+               "Caller forgot to check ReadyToExecuteScripts()");
 
   NS_ENSURE_ARG(aRequest);
   nsAFlatString* script;
@@ -758,8 +652,6 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   NS_TIME_FUNCTION;
 
   nsCOMPtr<nsIDocument> doc;
-
-  nsCOMPtr<nsINode> scriptElem = do_QueryInterface(aRequest->mElement);
 
   // If there's no script text, we try to get it from the element
   if (aRequest->mIsInline) {
@@ -772,47 +664,22 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   else {
     script = &aRequest->mScriptText;
 
-    doc = scriptElem->GetOwnerDoc();
-  }
-
-  nsCOMPtr<nsIScriptElement> oldParserInsertedScript;
-  PRUint32 parserCreated = aRequest->mElement->GetParserCreated();
-  if (parserCreated) {
-    oldParserInsertedScript = mCurrentParserInsertedScript;
-    mCurrentParserInsertedScript = aRequest->mElement;
+    nsCOMPtr<nsIContent> eltAsContent = do_QueryInterface(aRequest->mElement);
+    NS_ASSERTION(eltAsContent, "Script should QI to nsIContent.");
+    doc = eltAsContent->GetOwnerDoc();
   }
 
   FireScriptAvailable(NS_OK, aRequest);
-
-  PRBool runScript = PR_TRUE;
-  nsContentUtils::DispatchTrustedEvent(scriptElem->GetOwnerDoc(),
-                                       scriptElem,
-                                       NS_LITERAL_STRING("beforescriptexecute"),
-                                       PR_TRUE, PR_TRUE, &runScript);
-
-  nsresult rv = NS_OK;
-  if (runScript) {
-    if (doc) {
-      doc->BeginEvaluatingExternalScript();
-    }
-    aRequest->mElement->BeginEvaluating();
-    rv = EvaluateScript(aRequest, *script);
-    aRequest->mElement->EndEvaluating();
-    if (doc) {
-      doc->EndEvaluatingExternalScript();
-    }
-
-    nsContentUtils::DispatchTrustedEvent(scriptElem->GetOwnerDoc(),
-                                         scriptElem,
-                                         NS_LITERAL_STRING("afterscriptexecute"),
-                                         PR_TRUE, PR_FALSE);
+  aRequest->mElement->BeginEvaluating();
+  if (doc) {
+    doc->BeginEvaluatingExternalScript();
   }
-
+  nsresult rv = EvaluateScript(aRequest, *script);
+  if (doc) {
+    doc->EndEvaluatingExternalScript();
+  }
+  aRequest->mElement->EndEvaluating();
   FireScriptEvaluated(rv, aRequest);
-
-  if (parserCreated) {
-    mCurrentParserInsertedScript = oldParserInsertedScript;
-  }
 
   return rv;
 }
@@ -855,13 +722,6 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIContent> scriptContent(do_QueryInterface(aRequest->mElement));
-  nsIDocument* ownerDoc = scriptContent->GetOwnerDoc();
-  if (ownerDoc != mDocument) {
-    // Willful violation of HTML5 as of 2010-12-01
-    return NS_ERROR_FAILURE;
-  }
-
   nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
   if (!pwin || !pwin->IsInnerWindow()) {
     return NS_ERROR_FAILURE;
@@ -870,6 +730,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   NS_ASSERTION(globalObject, "windows must be global objects");
 
   // Get the script-type to be used by this element.
+  nsCOMPtr<nsIContent> scriptContent(do_QueryInterface(aRequest->mElement));
   NS_ASSERTION(scriptContent, "no content - what is default script-type?");
   PRUint32 stid = scriptContent ? scriptContent->GetScriptTypeID() :
                                   nsIProgrammingLanguage::JAVASCRIPT;
@@ -926,10 +787,22 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   return rv;
 }
 
+nsScriptLoadRequest*
+nsScriptLoader::GetFirstPendingRequest()
+{
+  for (PRInt32 i = 0; i < mRequests.Count(); ++i) {
+    if (!mRequests[i]->mDefer) {
+      return mRequests[i];
+    }
+  }
+
+  return nsnull;
+}
+
 void
 nsScriptLoader::ProcessPendingRequestsAsync()
 {
-  if (mParserBlockingRequest || !mPendingChildLoaders.IsEmpty()) {
+  if (GetFirstPendingRequest() || !mPendingChildLoaders.IsEmpty()) {
     nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this,
       &nsScriptLoader::ProcessPendingRequests);
 
@@ -940,51 +813,31 @@ nsScriptLoader::ProcessPendingRequestsAsync()
 void
 nsScriptLoader::ProcessPendingRequests()
 {
-  nsRefPtr<nsScriptLoadRequest> request;
-  if (mParserBlockingRequest &&
-      !mParserBlockingRequest->mLoading &&
-      ReadyToExecuteScripts()) {
-    request.swap(mParserBlockingRequest);
-    // nsContentSink::ScriptAvailable unblocks the parser
-    ProcessRequest(request);
-  }
-
-  while (ReadyToExecuteScripts() && 
-         !mXSLTRequests.IsEmpty() && 
-         !mXSLTRequests[0]->mLoading) {
-    request.swap(mXSLTRequests[0]);
-    mXSLTRequests.RemoveElementAt(0);
-    ProcessRequest(request);
-  }
-
-  PRUint32 i = 0;
-  while (mEnabled && i < mAsyncRequests.Length()) {
-    if (!mAsyncRequests[i]->mLoading) {
-      request.swap(mAsyncRequests[i]);
-      mAsyncRequests.RemoveElementAt(i);
-      ProcessRequest(request);
-      continue;
+  while (1) {
+    nsRefPtr<nsScriptLoadRequest> request;
+    if (ReadyToExecuteScripts()) {
+      request = GetFirstPendingRequest();
+      if (request && !request->mLoading) {
+        mRequests.RemoveObject(request);
+      }
+      else {
+        request = nsnull;
+      }
     }
-    ++i;
-  }
 
-  while (mEnabled && !mNonAsyncExternalScriptInsertedRequests.IsEmpty() &&
-         !mNonAsyncExternalScriptInsertedRequests[0]->mLoading) {
-    // Violate the HTML5 spec and execute these in the insertion order in
-    // order to make LABjs and the "order" plug-in for RequireJS work with
-    // their Gecko-sniffed code path. See
-    // http://lists.w3.org/Archives/Public/public-html/2010Oct/0088.html
-    request.swap(mNonAsyncExternalScriptInsertedRequests[0]);
-    mNonAsyncExternalScriptInsertedRequests.RemoveElementAt(0);
-    ProcessRequest(request);
-  }
-
-  if (mDocumentParsingDone && mXSLTRequests.IsEmpty()) {
-    while (!mDeferRequests.IsEmpty() && !mDeferRequests[0]->mLoading) {
-      request.swap(mDeferRequests[0]);
-      mDeferRequests.RemoveElementAt(0);
-      ProcessRequest(request);
+    for (PRInt32 i = 0;
+         !request && mEnabled && i < mAsyncRequests.Count();
+         ++i) {
+      if (!mAsyncRequests[i]->mLoading) {
+        request = mAsyncRequests[i];
+        mAsyncRequests.RemoveObjectAt(i);
+      }
     }
+
+    if (!request)
+      break;
+
+    ProcessRequest(request);
   }
 
   while (!mPendingChildLoaders.IsEmpty() && ReadyToExecuteScripts()) {
@@ -993,14 +846,12 @@ nsScriptLoader::ProcessPendingRequests()
     child->RemoveExecuteBlocker();
   }
 
-  if (mDocumentParsingDone && mDocument &&
-      !mParserBlockingRequest && mAsyncRequests.IsEmpty() &&
-      mNonAsyncExternalScriptInsertedRequests.IsEmpty() &&
-      mXSLTRequests.IsEmpty() && mDeferRequests.IsEmpty()) {
+  if (mUnblockOnloadWhenDoneProcessing && mDocument &&
+      !GetFirstPendingRequest() && !mAsyncRequests.Count()) {
     // No more pending scripts; time to unblock onload.
     // OK to unblock onload synchronously here, since callers must be
     // prepared for the world changing anyway.
-    mDocumentParsingDone = PR_FALSE;
+    mUnblockOnloadWhenDoneProcessing = PR_FALSE;
     mDocument->UnblockOnload(PR_TRUE);
   }
 }
@@ -1165,14 +1016,8 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   nsresult rv = PrepareLoadedRequest(request, aLoader, aStatus, aStringLen,
                                      aString);
   if (NS_FAILED(rv)) {
-    if (mDeferRequests.RemoveElement(request) ||
-        mAsyncRequests.RemoveElement(request) ||
-        mNonAsyncExternalScriptInsertedRequests.RemoveElement(request) ||
-        mXSLTRequests.RemoveElement(request)) {
-      FireScriptAvailable(rv, request);
-    } else if (mParserBlockingRequest == request) {
-      mParserBlockingRequest = nsnull;
-      // nsContentSink::ScriptAvailable unblocks the parser
+    if (mRequests.RemoveObject(request) ||
+        mAsyncRequests.RemoveObject(request)) {
       FireScriptAvailable(rv, request);
     } else {
       mPreloads.RemoveElement(request, PreloadRequestComparator());
@@ -1244,12 +1089,9 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
   // inserting the request in the array. However it's an unlikely case
   // so if you see this assertion it is likely something else that is
   // wrong, especially if you see it more than once.
-  NS_ASSERTION(mDeferRequests.IndexOf(aRequest) >= 0 ||
+  NS_ASSERTION(mRequests.IndexOf(aRequest) >= 0 ||
                mAsyncRequests.IndexOf(aRequest) >= 0 ||
-               mNonAsyncExternalScriptInsertedRequests.IndexOf(aRequest) >= 0 ||
-               mXSLTRequests.IndexOf(aRequest) >= 0 ||
-               mPreloads.Contains(aRequest, PreloadRequestComparator()) ||
-               mParserBlockingRequest,
+               mPreloads.Contains(aRequest, PreloadRequestComparator()),
                "aRequest should be pending!");
 
   // Mark this as loaded
@@ -1294,15 +1136,15 @@ nsScriptLoader::ParsingComplete(PRBool aTerminated)
   if (mDeferEnabled) {
     // Have to check because we apparently get ParsingComplete
     // without BeginDeferringScripts in some cases
-    mDocumentParsingDone = PR_TRUE;
+    mUnblockOnloadWhenDoneProcessing = PR_TRUE;
   }
   mDeferEnabled = PR_FALSE;
   if (aTerminated) {
-    mDeferRequests.Clear();
-    mAsyncRequests.Clear();
-    mNonAsyncExternalScriptInsertedRequests.Clear();
-    mXSLTRequests.Clear();
-    mParserBlockingRequest = nsnull;
+    mRequests.Clear();
+  } else {
+    for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
+      mRequests[i]->mDefer = PR_FALSE;
+    }
   }
 
   // Have to call this even if aTerminated so we'll correctly unblock
@@ -1322,6 +1164,8 @@ nsScriptLoader::PreloadURI(nsIURI *aURI, const nsAString &aCharset,
   request->mURI = aURI;
   request->mIsInline = PR_FALSE;
   request->mLoading = PR_TRUE;
+  request->mDefer = PR_FALSE; // This is computed later when we go to execute the
+                              // script.
   nsresult rv = StartLoad(request, aType);
   if (NS_FAILED(rv)) {
     return;

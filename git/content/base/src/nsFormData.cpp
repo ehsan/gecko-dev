@@ -36,10 +36,10 @@
 
 #include "nsFormData.h"
 #include "nsIVariant.h"
+#include "nsIDOMFileInternal.h"
 #include "nsIInputStream.h"
-#include "nsIDOMFile.h"
+#include "nsIFile.h"
 #include "nsContentUtils.h"
-#include "nsHTMLFormElement.h"
 
 nsFormData::nsFormData()
   : nsFormSubmission(NS_LITERAL_CSTRING("UTF-8"), nsnull)
@@ -56,7 +56,6 @@ NS_IMPL_RELEASE(nsFormData)
 NS_INTERFACE_MAP_BEGIN(nsFormData)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFormData)
   NS_INTERFACE_MAP_ENTRY(nsIXHRSendable)
-  NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(FormData)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFormData)
 NS_INTERFACE_MAP_END
@@ -85,11 +84,11 @@ nsFormData::AddNameValuePair(const nsAString& aName,
 
 nsresult
 nsFormData::AddNameFilePair(const nsAString& aName,
-                            nsIDOMBlob* aBlob)
+                            nsIFile* aFile)
 {
   FormDataTuple* data = mFormData.AppendElement();
   data->name = aName;
-  data->fileValue = aBlob;
+  data->fileValue = aFile;
   data->valueIsFile = PR_TRUE;
 
   return NS_OK;
@@ -114,9 +113,13 @@ nsFormData::Append(const nsAString& aName, nsIVariant* aValue)
 
     nsMemory::Free(iid);
 
-    nsCOMPtr<nsIDOMBlob> domBlob = do_QueryInterface(supports);
-    if (domBlob) {
-      return AddNameFilePair(aName, domBlob);
+    nsCOMPtr<nsIDOMFileInternal> domFile = do_QueryInterface(supports);
+    if (domFile) {
+      nsCOMPtr<nsIFile> file;
+      rv = domFile->GetInternalFile(getter_AddRefs(file));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      return AddNameFilePair(aName, file);
     }
   }
 
@@ -132,7 +135,7 @@ nsFormData::Append(const nsAString& aName, nsIVariant* aValue)
 }
 
 // -------------------------------------------------------------------------
-// nsIXHRSendable
+// nsIDXHRSendable
 
 NS_IMETHODIMP
 nsFormData::GetSendInfo(nsIInputStream** aBody, nsACString& aContentType,
@@ -152,38 +155,6 @@ nsFormData::GetSendInfo(nsIInputStream** aBody, nsACString& aContentType,
   fs.GetContentType(aContentType);
   aCharset.Truncate();
   NS_ADDREF(*aBody = fs.GetSubmissionBody());
-
-  return NS_OK;
-}
-
-
-// -------------------------------------------------------------------------
-// nsIJSNativeInitializer
-
-NS_IMETHODIMP
-nsFormData::Initialize(nsISupports* aOwner,
-                       JSContext* aCx,
-                       JSObject* aObj,
-                       PRUint32 aArgc,
-                       jsval* aArgv)
-{
-  if (aArgc > 0) {
-    if (JSVAL_IS_PRIMITIVE(aArgv[0])) {
-      return NS_ERROR_UNEXPECTED;
-    }
-    nsCOMPtr<nsIContent> formCont = do_QueryInterface(
-      nsContentUtils::XPConnect()->
-        GetNativeOfWrapper(aCx, JSVAL_TO_OBJECT(aArgv[0])));
-    
-    if (!formCont || !formCont->IsHTML(nsGkAtoms::form)) {
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    nsresult rv = static_cast<nsHTMLFormElement*>(formCont.get())->
-      WalkFormElements(this);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
 
   return NS_OK;
 }

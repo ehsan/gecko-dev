@@ -93,7 +93,7 @@ random == rotate-1e.html rotate-1-ref.html
 # ensure matrix 3d does not break us - should do nothing
 == matrix3d-1.html matrix3d-1-ref.html
 # Test that complex transform can be reversed
-fails-if(Android) == stresstest-1.html stresstest-1-ref.html
+== stresstest-1.html stresstest-1-ref.html
 # Test scale transforms
 == scalex-1.html scalex-1-ref.html
 == scaley-1.html scaley-1-ref.html
@@ -105,6 +105,3 @@ fails-if(Android) == stresstest-1.html stresstest-1-ref.html
 == propagate-inherit-boolean.html propagate-inherit-boolean-ref.html
 # Ensure you can't move outside an iframe
 == iframe-1.html iframe-1-ref.html
-# Bugs
-== 601894-1.html 601894-ref.html
-== 601894-2.html 601894-ref.html

@@ -43,6 +43,24 @@
 
 static NS_DEFINE_CID(kCharsetAliasCID, NS_CHARSETALIAS_CID);
 
+nsHtml5MetaScanner::nsHtml5MetaScanner()
+ : readable(nsnull),
+   metaState(NS_HTML5META_SCANNER_NO),
+   contentIndex(-1),
+   charsetIndex(-1),
+   stateSave(NS_HTML5META_SCANNER_DATA),
+   strBufLen(0),
+   strBuf(jArray<PRUnichar,PRInt32>(36))
+{
+  MOZ_COUNT_CTOR(nsHtml5MetaScanner);
+}
+
+nsHtml5MetaScanner::~nsHtml5MetaScanner()
+{
+  MOZ_COUNT_DTOR(nsHtml5MetaScanner);
+  strBuf.release();
+}
+
 void
 nsHtml5MetaScanner::sniff(nsHtml5ByteReadable* bytes, nsIUnicodeDecoder** decoder, nsACString& charset)
 {
@@ -69,7 +87,7 @@ nsHtml5MetaScanner::tryCharset(nsString* charset)
   }
   nsCAutoString encoding;
   CopyUTF16toUTF8(*charset, encoding);
-  encoding.Trim(" \t\r\n\f");
+  // XXX spec says only UTF-16
   if (encoding.LowerCaseEqualsLiteral("utf-16") ||
       encoding.LowerCaseEqualsLiteral("utf-16be") ||
       encoding.LowerCaseEqualsLiteral("utf-16le")) {
@@ -94,6 +112,9 @@ nsHtml5MetaScanner::tryCharset(nsString* charset)
   if (preferred.LowerCaseEqualsLiteral("utf-16") ||
       preferred.LowerCaseEqualsLiteral("utf-16be") ||
       preferred.LowerCaseEqualsLiteral("utf-16le") ||
+      preferred.LowerCaseEqualsLiteral("utf-32") ||
+      preferred.LowerCaseEqualsLiteral("utf-32be") ||
+      preferred.LowerCaseEqualsLiteral("utf-32le") ||
       preferred.LowerCaseEqualsLiteral("utf-7") ||
       preferred.LowerCaseEqualsLiteral("jis_x0212-1990") ||
       preferred.LowerCaseEqualsLiteral("x-jis0208") ||

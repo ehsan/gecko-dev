@@ -202,13 +202,6 @@ public:
     }
 
     /**
-     * Returns true if the matrix only has an integer translation.
-     */
-    PRBool HasOnlyIntegerTranslation() const {
-        return !HasNonIntegerTranslation();
-    }
-
-    /**
      * Returns true if the matrix has any transform other
      * than a translation or a -1 y scale (y axis flip)
      */
@@ -263,30 +256,6 @@ public:
             return gfxSize(major, minor);
 
         return gfxSize(minor, major);
-    }
-
-    /**
-     * Snap matrix components that are close to integers
-     * to integers. In particular, components that are integral when
-     * converted to single precision are set to those integers.
-     */
-    void NudgeToIntegers(void);
-
-    /**
-     * Returns true if matrix is multiple of 90 degrees rotation with flipping,
-     * scaling and translation.
-     */
-    PRBool PreservesAxisAlignedRectangles() const {
-        return ((FuzzyEqual(xx, 0.0) && FuzzyEqual(yy, 0.0))
-            || (FuzzyEqual(xy, 0.0) && FuzzyEqual(yx, 0.0)));
-    }
-
-    /**
-     * Returns true if the matrix has non-integer scale
-     */
-    PRBool HasNonIntegerScale() const {
-        return !FuzzyEqual(xx, NS_floor(xx + 0.5)) ||
-               !FuzzyEqual(yy, NS_floor(yy + 0.5));
     }
 
 private:

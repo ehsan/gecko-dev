@@ -50,14 +50,6 @@ using namespace mozilla;
 using mozilla::layers::ImageContainer;
 using mozilla::layers::PlanarYCbCrImage;
 
-using mozilla::layers::PlanarYCbCrImage;
-
-// Verify these values are sane. Once we've checked the frame sizes, we then
-// can do less integer overflow checking.
-PR_STATIC_ASSERT(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION);
-PR_STATIC_ASSERT(MAX_VIDEO_HEIGHT < PlanarYCbCrImage::MAX_DIMENSION);
-PR_STATIC_ASSERT(PlanarYCbCrImage::MAX_DIMENSION < PR_UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION);
-
 // Un-comment to enable logging of seek bisections.
 //#define SEEK_LOGGING
 
@@ -79,32 +71,7 @@ ValidatePlane(const VideoData::YCbCrBuffer::Plane& aPlane)
 {
   return aPlane.mWidth <= PlanarYCbCrImage::MAX_DIMENSION &&
          aPlane.mHeight <= PlanarYCbCrImage::MAX_DIMENSION &&
-         aPlane.mWidth * aPlane.mHeight < MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT &&
          aPlane.mStride > 0;
-}
-
-PRBool
-nsVideoInfo::ValidateVideoRegion(const nsIntSize& aFrame,
-                                 const nsIntRect& aPicture,
-                                 const nsIntSize& aDisplay)
-{
-  return
-    aFrame.width <= PlanarYCbCrImage::MAX_DIMENSION &&
-    aFrame.height <= PlanarYCbCrImage::MAX_DIMENSION &&
-    aFrame.width * aFrame.height <= MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT &&
-    aFrame.width * aFrame.height != 0 &&
-    aPicture.width <= PlanarYCbCrImage::MAX_DIMENSION &&
-    aPicture.x < PlanarYCbCrImage::MAX_DIMENSION &&
-    aPicture.x + aPicture.width < PlanarYCbCrImage::MAX_DIMENSION &&
-    aPicture.height <= PlanarYCbCrImage::MAX_DIMENSION &&
-    aPicture.y < PlanarYCbCrImage::MAX_DIMENSION &&
-    aPicture.y + aPicture.height < PlanarYCbCrImage::MAX_DIMENSION &&
-    aPicture.width * aPicture.height <= MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT &&
-    aPicture.width * aPicture.height != 0 &&
-    aDisplay.width <= PlanarYCbCrImage::MAX_DIMENSION &&
-    aDisplay.height <= PlanarYCbCrImage::MAX_DIMENSION &&
-    aDisplay.width * aDisplay.height <= MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT &&
-    aDisplay.width * aDisplay.height != 0;
 }
 
 VideoData* VideoData::Create(nsVideoInfo& aInfo,
@@ -114,8 +81,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
                              PRInt64 aEndTime,
                              const YCbCrBuffer& aBuffer,
                              PRBool aKeyframe,
-                             PRInt64 aTimecode,
-                             nsIntRect aPicture)
+                             PRInt64 aTimecode)
 {
   if (!aContainer) {
     return nsnull;
@@ -130,8 +96,13 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
   }
 
   // The following situations could be triggered by invalid input
-  if (aPicture.width <= 0 || aPicture.height <= 0) {
+  if (aInfo.mPicture.width <= 0 || aInfo.mPicture.height <= 0) {
     NS_WARNING("Empty picture rect");
+    return nsnull;
+  }
+  if (aBuffer.mPlanes[0].mWidth != PRUint32(aInfo.mFrame.width) ||
+      aBuffer.mPlanes[0].mHeight != PRUint32(aInfo.mFrame.height)) {
+    NS_WARNING("Unexpected frame size");
     return nsnull;
   }
   if (!ValidatePlane(aBuffer.mPlanes[0]) || !ValidatePlane(aBuffer.mPlanes[1]) ||
@@ -139,15 +110,14 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
     NS_WARNING("Invalid plane size");
     return nsnull;
   }
-
   // Ensure the picture size specified in the headers can be extracted out of
   // the frame we've been supplied without indexing out of bounds.
-  PRUint32 xLimit;
-  PRUint32 yLimit;
-  if (!AddOverflow32(aPicture.x, aPicture.width, xLimit) ||
-      xLimit > aBuffer.mPlanes[0].mStride ||
-      !AddOverflow32(aPicture.y, aPicture.height, yLimit) ||
-      yLimit > aBuffer.mPlanes[0].mHeight)
+  PRUint32 picXLimit;
+  PRUint32 picYLimit;
+  if (!AddOverflow32(aInfo.mPicture.x, aInfo.mPicture.width, picXLimit) ||
+      picXLimit > aBuffer.mPlanes[0].mStride ||
+      !AddOverflow32(aInfo.mPicture.y, aInfo.mPicture.height, picYLimit) ||
+      picYLimit > aBuffer.mPlanes[0].mHeight)
   {
     // The specified picture dimensions can't be contained inside the video
     // frame, we'll stomp memory if we try to copy it. Fail.
@@ -155,12 +125,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
     return nsnull;
   }
 
-  nsAutoPtr<VideoData> v(new VideoData(aOffset,
-                                       aTime,
-                                       aEndTime,
-                                       aKeyframe,
-                                       aTimecode,
-                                       aInfo.mDisplay));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aEndTime, aKeyframe, aTimecode));
   // Currently our decoder only knows how to output to PLANAR_YCBCR
   // format.
   Image::Format format = Image::PLANAR_YCBCR;
@@ -180,18 +145,18 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
   data.mCrChannel = aBuffer.mPlanes[2].mData;
   data.mCbCrSize = gfxIntSize(aBuffer.mPlanes[1].mWidth, aBuffer.mPlanes[1].mHeight);
   data.mCbCrStride = aBuffer.mPlanes[1].mStride;
-  data.mPicX = aPicture.x;
-  data.mPicY = aPicture.y;
-  data.mPicSize = gfxIntSize(aPicture.width, aPicture.height);
-  data.mStereoMode = aInfo.mStereoMode;
+  data.mPicX = aInfo.mPicture.x;
+  data.mPicY = aInfo.mPicture.y;
+  data.mPicSize = gfxIntSize(aInfo.mPicture.width, aInfo.mPicture.height);
 
   videoImage->SetData(data); // Copies buffer
   return v.forget();
 }
 
 nsBuiltinDecoderReader::nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder)
-  : mReentrantMonitor("media.decoderreader"),
-    mDecoder(aDecoder)
+  : mMonitor("media.decoderreader"),
+    mDecoder(aDecoder),
+    mDataOffset(0)
 {
   MOZ_COUNT_CTOR(nsBuiltinDecoderReader);
 }
@@ -212,9 +177,92 @@ nsresult nsBuiltinDecoderReader::ResetDecode()
   return res;
 }
 
-VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
+nsresult nsBuiltinDecoderReader::GetBufferedBytes(nsTArray<ByteRange>& aRanges)
+{
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
+  mMonitor.AssertCurrentThreadIn();
+  PRInt64 startOffset = mDataOffset;
+  nsMediaStream* stream = mDecoder->GetCurrentStream();
+  while (PR_TRUE) {
+    PRInt64 endOffset = stream->GetCachedDataEnd(startOffset);
+    if (endOffset == startOffset) {
+      // Uncached at startOffset.
+      endOffset = stream->GetNextCachedData(startOffset);
+      if (endOffset == -1) {
+        // Uncached at startOffset until endOffset of stream, or we're at
+        // the end of stream.
+        break;
+      }
+    } else {
+      // Bytes [startOffset..endOffset] are cached.
+      PRInt64 startTime = -1;
+      PRInt64 endTime = -1;
+      if (NS_FAILED(ResetDecode())) {
+        return NS_ERROR_FAILURE;
+      }
+      FindStartTime(startOffset, startTime);
+      if (startTime != -1 &&
+          ((endTime = FindEndTime(endOffset)) != -1))
+      {
+        NS_ASSERTION(startOffset < endOffset,
+                     "Start offset must be before end offset");
+        NS_ASSERTION(startTime < endTime,
+                     "Start time must be before end time");
+        aRanges.AppendElement(ByteRange(startOffset,
+                                        endOffset,
+                                        startTime,
+                                        endTime));
+      }
+    }
+    startOffset = endOffset;
+  }
+  if (NS_FAILED(ResetDecode())) {
+    return NS_ERROR_FAILURE;
+  }
+  return NS_OK;
+}
+
+ByteRange
+nsBuiltinDecoderReader::GetSeekRange(const nsTArray<ByteRange>& ranges,
+                                     PRInt64 aTarget,
+                                     PRInt64 aStartTime,
+                                     PRInt64 aEndTime,
+                                     PRBool aExact)
+{
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
+  PRInt64 so = mDataOffset;
+  PRInt64 eo = mDecoder->GetCurrentStream()->GetLength();
+  PRInt64 st = aStartTime;
+  PRInt64 et = aEndTime;
+  for (PRUint32 i = 0; i < ranges.Length(); i++) {
+    const ByteRange &r = ranges[i];
+    if (r.mTimeStart < aTarget) {
+      so = r.mOffsetStart;
+      st = r.mTimeStart;
+    }
+    if (r.mTimeEnd >= aTarget && r.mTimeEnd < et) {
+      eo = r.mOffsetEnd;
+      et = r.mTimeEnd;
+    }
+
+    if (r.mTimeStart < aTarget && aTarget <= r.mTimeEnd) {
+      // Target lies exactly in this range.
+      return ranges[i];
+    }
+  }
+  return aExact ? ByteRange() : ByteRange(so, eo, st, et);
+}
+
+VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64 aOffset,
+                                                 PRInt64& aOutStartTime)
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
+
+  if (NS_FAILED(ResetDecode())) {
+    return nsnull;
+  }
 
   // Extract the start times of the bitstreams in order to calculate
   // the duration.
@@ -237,12 +285,17 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
     }
   }
 
-  PRInt64 startTime = NS_MIN(videoStartTime, audioStartTime);
+  PRInt64 startTime = PR_MIN(videoStartTime, audioStartTime);
   if (startTime != PR_INT64_MAX) {
     aOutStartTime = startTime;
   }
 
   return videoData;
+}
+
+PRInt64 nsBuiltinDecoderReader::FindEndTime(PRInt64 aEndOffset)
+{
+  return -1;
 }
 
 template<class Data>
@@ -252,7 +305,7 @@ Data* nsBuiltinDecoderReader::DecodeToFirstData(DecodeFn aDecodeFn,
   PRBool eof = PR_FALSE;
   while (!eof && aQueue.GetSize() == 0) {
     {
-      ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+      MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
       if (mDecoder->GetDecodeState() == nsDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
         return nsnull;
       }
@@ -274,8 +327,8 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
         PRBool skip = PR_FALSE;
         eof = !DecodeVideoFrame(skip, 0);
         {
-          ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-          ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+          MonitorAutoExit exitReaderMon(mMonitor);
+          MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
           if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
             return NS_ERROR_FAILURE;
           }
@@ -287,7 +340,7 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
       nsAutoPtr<VideoData> video(mVideoQueue.PeekFront());
       // If the frame end time is less than the seek target, we won't want
       // to display this frame after the seek, so discard it.
-      if (video && video->mEndTime <= aTarget) {
+      if (video && video->mEndTime < aTarget) {
         if (startTime == -1) {
           startTime = video->mTime;
         }
@@ -299,8 +352,8 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
       }
     }
     {
-      ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-      ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+      MonitorAutoExit exitReaderMon(mMonitor);
+      MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
       if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
         return NS_ERROR_FAILURE;
       }
@@ -315,8 +368,8 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
       while (!eof && mAudioQueue.GetSize() == 0) {
         eof = !DecodeAudioData();
         {
-          ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-          ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+          MonitorAutoExit exitReaderMon(mMonitor);
+          MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
           if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
             return NS_ERROR_FAILURE;
           }

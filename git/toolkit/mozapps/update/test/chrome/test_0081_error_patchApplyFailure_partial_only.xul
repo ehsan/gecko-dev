@@ -27,15 +27,13 @@ const TESTS = [ {
 } ];
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let patches = getLocalPatchString("partial", null, null, null, null, null,
                                     STATE_PENDING);
   let updates = getLocalUpdateString(patches, null, null, null,
                                      Services.appinfo.version,
-                                     Services.appinfo.platformVersion, null,
-                                     null, null, null, null, null, null,
-                                     "false");
+                                     Services.appinfo.platformVersion);
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
 

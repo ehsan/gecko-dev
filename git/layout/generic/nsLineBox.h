@@ -410,27 +410,20 @@ public:
   // overflow area of its parent block.  The combined area should be
   // used for painting-related things, but should never be used for
   // layout (except for handling of 'overflow').
-  void SetOverflowAreas(const nsOverflowAreas& aOverflowAreas);
-  nsRect GetOverflowArea(nsOverflowType aType) {
-    return mData ? mData->mOverflowAreas.Overflow(aType) : mBounds;
+  void SetCombinedArea(const nsRect& aCombinedArea);
+  nsRect GetCombinedArea() {
+    return mData ? mData->mCombinedArea : mBounds;
   }
-  nsOverflowAreas GetOverflowAreas() {
-    if (mData) {
-      return mData->mOverflowAreas;
-    }
-    return nsOverflowAreas(mBounds, mBounds);
+  PRBool CombinedAreaIntersects(const nsRect& aDamageRect) {
+    nsRect* ca = (mData ? &mData->mCombinedArea : &mBounds);
+    return !((ca->YMost() <= aDamageRect.y) ||
+             (ca->y >= aDamageRect.YMost()));
   }
-  nsRect GetVisualOverflowArea()
-    { return GetOverflowArea(eVisualOverflow); }
-  nsRect GetScrollableOverflowArea()
-    { return GetOverflowArea(eScrollableOverflow); }
 
   void SlideBy(nscoord aDY) {
     mBounds.y += aDY;
     if (mData) {
-      NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-        mData->mOverflowAreas.Overflow(otype).y += aDY;
-      }
+      mData->mCombinedArea.y += aDY;
     }
   }
 
@@ -529,9 +522,9 @@ public:
   };
 
   struct ExtraData {
-    ExtraData(const nsRect& aBounds) : mOverflowAreas(aBounds, aBounds) {
+    ExtraData(const nsRect& aBounds) : mCombinedArea(aBounds) {
     }
-    nsOverflowAreas mOverflowAreas;
+    nsRect mCombinedArea;
   };
 
   struct ExtraBlockData : public ExtraData {
@@ -1233,16 +1226,6 @@ class nsLineList {
       return rv;
     }
 
-    reverse_iterator rbegin(nsLineBox* aLine)
-    {
-      reverse_iterator rv;
-      rv.mCurrent = aLine;
-#ifdef DEBUG
-      rv.mListLink = &mLink;
-#endif
-      return rv;
-    }
-
     const_reverse_iterator rend() const
     {
       const_reverse_iterator rv;
@@ -1379,16 +1362,6 @@ class nsLineList {
       link_type tmp(y.mLink);
       y.mLink = mLink;
       mLink = tmp;
-
-      if (!empty()) {
-        mLink._mNext->_mPrev = &mLink;
-        mLink._mPrev->_mNext = &mLink;
-      }
-
-      if (!y.empty()) {
-        y.mLink._mNext->_mPrev = &y.mLink;
-        y.mLink._mPrev->_mNext = &y.mLink;
-      }
     }
 
     void clear()

@@ -43,7 +43,7 @@
 #include "nsAutoPtr.h"
 
 #include "mozilla/CondVar.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 #endif // ifdef DEBUG
 
@@ -56,7 +56,7 @@ namespace mozilla {
 const char* const BlockingResourceBase::kResourceTypeName[] =
 {
     // needs to be kept in sync with BlockingResourceType
-    "Mutex", "ReentrantMonitor", "CondVar"
+    "Mutex", "Monitor", "CondVar"
 };
 
 #ifdef DEBUG
@@ -84,7 +84,7 @@ BlockingResourceBase::DeadlockDetectorEntry::Print(
     out += mName;
 
     if (maybeCurrentlyAcquired) {
-        fputs(" (currently acquired)\n", stderr);
+        fputs(" (currently acquired)", stderr);
         out += " (currently acquired)\n";
     }
 
@@ -237,7 +237,7 @@ BlockingResourceBase::PrintCycle(const DDT::ResourceAcquisitionArray* aCycle,
     const DDT::ResourceAcquisition* it = 1 + aCycle->Elements();
     for (i = 1; i < len - 1; ++i, ++it) {
         fputs("\n--- Next dependency:\n", stderr);
-        out += "\nNext dependency:\n";
+        out += "Next dependency:\n";
 
         maybeImminent &= it->mResource->Print(*it, out);
     }
@@ -272,9 +272,9 @@ Mutex::Unlock()
 
 
 //
-// Debug implementation of ReentrantMonitor
+// Debug implementation of Monitor
 void
-ReentrantMonitor::Enter()
+Monitor::Enter()
 {
     BlockingResourceBase* chainFront = ResourceChainFront();
 
@@ -282,7 +282,7 @@ ReentrantMonitor::Enter()
 
     if (this == chainFront) {
         // immediately re-entered the monitor: acceptable
-        PR_EnterMonitor(mReentrantMonitor);
+        PR_EnterMonitor(mMonitor);
         ++mEntryCount;
         return;
     }
@@ -297,14 +297,14 @@ ReentrantMonitor::Enter()
              br = ResourceChainPrev(br)) {
             if (br == this) {
                 NS_WARNING(
-                    "Re-entering ReentrantMonitor after acquiring other resources.\n"
+                    "Re-entering Monitor after acquiring other resources.\n"
                     "At calling context\n");
                 GetAcquisitionContext().Print(stderr);
 
                 // show the caller why this is potentially bad
                 CheckAcquire(callContext);
 
-                PR_EnterMonitor(mReentrantMonitor);
+                PR_EnterMonitor(mMonitor);
                 ++mEntryCount;
                 return;
             }
@@ -312,23 +312,23 @@ ReentrantMonitor::Enter()
     }
 
     CheckAcquire(callContext);
-    PR_EnterMonitor(mReentrantMonitor);
-    NS_ASSERTION(0 == mEntryCount, "ReentrantMonitor isn't free!");
-    Acquire(callContext);       // protected by mReentrantMonitor
+    PR_EnterMonitor(mMonitor);
+    NS_ASSERTION(0 == mEntryCount, "Monitor isn't free!");
+    Acquire(callContext);       // protected by mMonitor
     mEntryCount = 1;
 }
 
 void
-ReentrantMonitor::Exit()
+Monitor::Exit()
 {
     if (0 == --mEntryCount)
-        Release();              // protected by mReentrantMonitor
-    PRStatus status = PR_ExitMonitor(mReentrantMonitor);
-    NS_ASSERTION(PR_SUCCESS == status, "bad ReentrantMonitor::Exit()");
+        Release();              // protected by mMonitor
+    PRStatus status = PR_ExitMonitor(mMonitor);
+    NS_ASSERTION(PR_SUCCESS == status, "bad Monitor::Exit()");
 }
 
 nsresult
-ReentrantMonitor::Wait(PRIntervalTime interval)
+Monitor::Wait(PRIntervalTime interval)
 {
     AssertCurrentThreadIn();
 
@@ -342,7 +342,7 @@ ReentrantMonitor::Wait(PRIntervalTime interval)
 
     // give up the monitor until we're back from Wait()
     nsresult rv =
-        PR_Wait(mReentrantMonitor, interval) == PR_SUCCESS ?
+        PR_Wait(mMonitor, interval) == PR_SUCCESS ?
             NS_OK : NS_ERROR_FAILURE;
     
     // restore saved state

@@ -259,7 +259,7 @@ AsyncStatement::getParams()
  */
 AsyncStatement::~AsyncStatement()
 {
-  destructorAsyncFinalize();
+  internalAsyncFinalize();
   cleanupJSHelpers();
 
   // If we are getting destroyed on the wrong thread, proxy the connection
@@ -271,8 +271,7 @@ AsyncStatement::~AsyncStatement()
     // nsCOMPtr.  Which it is not; it's an nsRefPtr.
     Connection *forgottenConn = nsnull;
     mDBConnection.swap(forgottenConn);
-    (void)::NS_ProxyRelease(forgottenConn->threadOpenedOn,
-                            static_cast<mozIStorageConnection *>(forgottenConn));
+    (void)::NS_ProxyRelease(mDBConnection->threadOpenedOn, forgottenConn);
   }
 }
 

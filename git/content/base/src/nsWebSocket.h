@@ -50,6 +50,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsDOMEventTargetWrapperCache.h"
 #include "nsAutoPtr.h"
+#include "nsIProxiedProtocolHandler.h"
 
 #define DEFAULT_WS_SCHEME_PORT  80
 #define DEFAULT_WSS_SCHEME_PORT 443
@@ -87,20 +88,20 @@ public:
 
   // nsIDOMEventTarget
   NS_IMETHOD AddEventListener(const nsAString& aType,
-                              nsIDOMEventListener *aListener,
-                              PRBool aUseCapture,
-                              PRBool aWantsUntrusted,
-                              PRUint8 optional_argc);
+                              nsIDOMEventListener* aListener,
+                              PRBool aUseCapture);
   NS_IMETHOD RemoveEventListener(const nsAString& aType,
                                  nsIDOMEventListener* aListener,
                                  PRBool aUseCapture);
 
-  // Determine if preferences allow WebSocket
-  static PRBool PrefEnabled();
+  // nsIDOMNSEventTarget
+  NS_IMETHOD AddEventListener(const nsAString& aType,
+                              nsIDOMEventListener *aListener,
+                              PRBool aUseCapture,
+                              PRBool aWantsUntrusted,
+                              PRUint8 optional_argc);
 
-  const PRUint64 WindowID() const { return mWindowID; }
-  const nsCString& GetScriptFile() const { return mScriptFile; }
-  const PRUint32 GetScriptLine() const { return mScriptLine; }
+  static void ReleaseGlobals();
 
 protected:
   nsresult ParseURL(const nsString& aURL);
@@ -108,7 +109,7 @@ protected:
   nsresult EstablishConnection();
 
   nsresult CreateAndDispatchSimpleEvent(const nsString& aName);
-  nsresult CreateAndDispatchMessageEvent(const nsACString& aData);
+  nsresult CreateAndDispatchMessageEvent(nsCString *aData);
   nsresult CreateAndDispatchCloseEvent(PRBool aWasClean);
 
   // called from mConnection accordingly to the situation
@@ -139,8 +140,7 @@ protected:
   nsCString mAsciiHost;  // hostname
   PRUint32  mPort;
   nsCString mResource; // [filepath[?query]]
-  nsString  mUTF16Origin;
-  
+  nsCString mOrigin;
   nsCOMPtr<nsIURI> mURI;
   nsCString mProtocol;
 
@@ -153,19 +153,49 @@ protected:
                                     // mConnection when we are connected,
                                     // but we need this one after disconnecting.
 
-  // Web Socket owner information:
-  // - the script file name, UTF8 encoded.
-  // - source code line number where the Web Socket object was constructed.
-  // - the window ID of the outer window where the script lives. Note that this 
-  // may not be the same as the Web Socket owner window.
-  // These attributes are used for error reporting.
-  nsCString mScriptFile;
-  PRUint32 mScriptLine;
-  PRUint64 mWindowID;
-
 private:
   nsWebSocket(const nsWebSocket& x);   // prevent bad usage
   nsWebSocket& operator=(const nsWebSocket& x);
+};
+
+#define NS_WSPROTOCOLHANDLER_CONTRACTID \
+    NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "ws"
+
+#define NS_WSSPROTOCOLHANDLER_CONTRACTID \
+    NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "wss"
+
+#define NS_WSPROTOCOLHANDLER_CID                     \
+{ /* a4e6aa3b-b6db-4809-aa11-e292e074cbc4 */         \
+    0xa4e6aa3b,                                      \
+    0xb6db,                                          \
+    0x4809,                                          \
+    {0xaa, 0x11, 0xe2, 0x92, 0xe0, 0x74, 0xcb, 0xc4} \
+}
+
+#define NS_WSSPROTOCOLHANDLER_CID                    \
+{ /* c6531804-b5c8-4a53-80bf-e339b82d3161 */         \
+    0xc6531804,                                      \
+    0xb5c8,                                          \
+    0x4a53,                                          \
+    {0x80, 0xbf, 0xe3, 0x39, 0xb8, 0x2d, 0x31, 0x61} \
+}
+
+class nsWSProtocolHandler: public nsIProxiedProtocolHandler
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIPROTOCOLHANDLER
+  NS_DECL_NSIPROXIEDPROTOCOLHANDLER
+
+  nsWSProtocolHandler() {};
+};
+
+class nsWSSProtocolHandler: public nsWSProtocolHandler
+{
+public:
+  NS_IMETHOD GetScheme(nsACString & aScheme);
+  NS_IMETHOD GetDefaultPort(PRInt32 *aDefaultPort);
+  nsWSSProtocolHandler() {};
 };
 
 #endif

@@ -40,6 +40,7 @@
 #include "jscntxt.h"
 
 #include "jsapi.h"
+#include "jstl.h"
 #include "jshashtable.h"
 
 #include "mozilla/jetpack/JetpackActorCommon.h"
@@ -48,9 +49,15 @@
 #include "mozilla/jetpack/PHandleChild.h"
 #include "mozilla/jetpack/Handle.h"
 
-#include "nsJSUtils.h"
-
-using namespace mozilla::jetpack;
+using mozilla::jetpack::JetpackActorCommon;
+using mozilla::jetpack::PHandleParent;
+using mozilla::jetpack::HandleParent;
+using mozilla::jetpack::PHandleChild;
+using mozilla::jetpack::HandleChild;
+using mozilla::jetpack::KeyValue;
+using mozilla::jetpack::PrimVariant;
+using mozilla::jetpack::CompVariant;
+using mozilla::jetpack::Variant;
 
 class JetpackActorCommon::OpaqueSeenType
 {
@@ -131,12 +138,8 @@ JetpackActorCommon::jsval_to_PrimVariant(JSContext* cx, JSType type, jsval from,
   }
 
   case JSTYPE_STRING:
-    {
-        nsDependentJSString depStr;
-        if (!depStr.init(cx, from))
-            return false;
-        *to = depStr;
-    }
+    *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(from)),
+                            JS_GetStringLength(JSVAL_TO_STRING(from)));
     return true;
 
   case JSTYPE_NUMBER:
@@ -167,7 +170,7 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
   if (type != JSTYPE_OBJECT)
     return false;
 
-  Maybe<OpaqueSeenType> lost;
+  js::LazilyConstructed<OpaqueSeenType> lost;
   if (!seen) {
     lost.construct();
     seen = lost.addr();
@@ -197,9 +200,7 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
           !jsval_to_Variant(cx, val, vp, seen))
         *vp = void_t();
     }
-    InfallibleTArray<Variant> outElems;
-    outElems.SwapElements(elems);
-    *to = outElems;
+    *to = elems;
     return true;
   }
 
@@ -220,17 +221,13 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
     KeyValue kv;
     // Silently drop properties that can't be converted.
     if (jsval_to_Variant(cx, val, &kv.value(), seen)) {
-      nsDependentJSString depStr;
-      if (!depStr.init(cx, idStr))
-          return false;
-      kv.key() = depStr;
+      kv.key() = nsDependentString((PRUnichar*)JS_GetStringChars(idStr),
+                                   JS_GetStringLength(idStr));
       // If AppendElement fails, we lose this property, no big deal.
       kvs.AppendElement(kv);
     }
   }
-  InfallibleTArray<KeyValue> outKvs;
-  outKvs.SwapElements(kvs);
-  *to = outKvs;
+  *to = kvs;
 
   return true;
 }
@@ -328,7 +325,7 @@ JetpackActorCommon::jsval_from_CompVariant(JSContext* cx,
                                            jsval* to,
                                            OpaqueSeenType* seen)
 {
-  Maybe<OpaqueSeenType> lost;
+  js::LazilyConstructed<OpaqueSeenType> lost;
   if (!seen) {
     lost.construct();
     seen = lost.addr();
@@ -417,25 +414,17 @@ JetpackActorCommon::jsval_from_Variant(JSContext* cx, const Variant& from,
 bool
 JetpackActorCommon::RecvMessage(JSContext* cx,
                                 const nsString& messageName,
-                                const InfallibleTArray<Variant>& data,
-                                InfallibleTArray<Variant>* results)
+                                const nsTArray<Variant>& data,
+                                nsTArray<Variant>* results)
 {
   if (results)
     results->Clear();
 
-  JSObject* implGlobal = JS_GetGlobalObject(cx);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, implGlobal))
-    return false;
-
   RecList* list;
   if (!mReceivers.Get(messageName, &list))
     return true;
-
   nsAutoTArray<jsval, 4> snapshot;
-  if (!list->copyTo(cx, snapshot))
-    return false;
+  list->copyTo(snapshot);
   if (!snapshot.Length())
     return true;
   
@@ -460,7 +449,9 @@ JetpackActorCommon::RecvMessage(JSContext* cx,
     if (!jsval_from_Variant(cx, data.ElementAt(i), argv + i + 1))
       return false;
 
+  JSObject* implGlobal = JS_GetGlobalObject(cx);
   js::AutoValueRooter rval(cx);
+
   for (PRUint32 i = 0; i < snapshot.Length(); ++i) {
     Variant* vp = results ? results->AppendElement() : NULL;
     rval.set(JSVAL_VOID);
@@ -516,23 +507,17 @@ JetpackActorCommon::RecList::remove(jsval v)
     if (node->value() == v) {
       prev->down = node->down;
       delete node;
-    } else
-      prev = node;
-    node = prev->down;
+    }
+    node = (prev = node)->down;
   }
 }
 
-bool
-JetpackActorCommon::RecList::copyTo(JSContext *cx, nsTArray<jsval>& dst) const
+void
+JetpackActorCommon::RecList::copyTo(nsTArray<jsval>& dst) const
 {
   dst.Clear();
-  for (RecNode* node = mHead; node; node = node->down) {
-    jsval v = node->value();
-    if (!JS_WrapValue(cx, &v))
-      return false;
-    dst.AppendElement(v);
-  }
-  return true;
+  for (RecNode* node = mHead; node; node = node->down)
+    dst.AppendElement(node->value());
 }
 
 nsresult
@@ -540,7 +525,8 @@ JetpackActorCommon::RegisterReceiver(JSContext* cx,
                                      const nsString& messageName,
                                      jsval receiver)
 {
-  if (JS_TypeOfValue(cx, receiver) != JSTYPE_FUNCTION)
+  if (!JSVAL_IS_OBJECT(receiver) ||
+      !JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(receiver)))
     return NS_ERROR_INVALID_ARG;
 
   RecList* list;

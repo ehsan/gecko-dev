@@ -39,10 +39,9 @@
 
 #include "nsHTMLLinkAccessible.h"
 
-#include "States.h"
 #include "nsCoreUtils.h"
 
-#include "nsEventStates.h"
+#include "nsILink.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLinkAccessible
@@ -61,44 +60,45 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-PRUint32
-nsHTMLLinkAccessible::NativeRole()
+nsresult
+nsHTMLLinkAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_LINK;
+  *aRole = nsIAccessibleRole::ROLE_LINK;
+  return NS_OK;
 }
 
-PRUint64
-nsHTMLLinkAccessible::NativeState()
+nsresult
+nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  PRUint64 states = nsHyperTextAccessibleWrap::NativeState();
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  states  &= ~states::READONLY;
+  *aState  &= ~nsIAccessibleStates::STATE_READONLY;
 
   if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::name)) {
     // This is how we indicate it is a named anchor
     // In other words, this anchor can be selected as a location :)
     // There is no other better state to use to indicate this.
-    states |= states::SELECTABLE;
+    *aState |= nsIAccessibleStates::STATE_SELECTABLE;
   }
 
-  nsEventStates state = mContent->AsElement()->State();
-  if (state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
-                                  NS_EVENT_STATE_UNVISITED)) {
-    states |= states::LINKED;
-
-    if (state.HasState(NS_EVENT_STATE_VISITED))
-      states |= states::TRAVERSED;
-
-    return states;
+  nsLinkState linkState = mContent->GetLinkState();
+  if (linkState == eLinkState_NotLink || linkState == eLinkState_Unknown) {
+    // This is a either named anchor (a link with also a name attribute) or
+    // it doesn't have any attributes. Check if 'click' event handler is
+    // registered, otherwise bail out.
+    PRBool isOnclick = nsCoreUtils::HasClickListener(mContent);
+    if (!isOnclick)
+      return NS_OK;
   }
 
-  // This is a either named anchor (a link with also a name attribute) or
-  // it doesn't have any attributes. Check if 'click' event handler is
-  // registered, otherwise bail out.
-  if (nsCoreUtils::HasClickListener(mContent))
-    states |= states::LINKED;
+  *aState |= nsIAccessibleStates::STATE_LINKED;
 
-  return states;
+  if (linkState == eLinkState_Visited)
+    *aState |= nsIAccessibleStates::STATE_TRAVERSED;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -163,19 +163,23 @@ nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HyperLinkAccessible
+// nsIAccessibleHyperLink
 
-bool
-nsHTMLLinkAccessible::IsLink()
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 {
-  // Expose HyperLinkAccessible unconditionally.
-  return true;
-}
+  NS_ENSURE_ARG_POINTER(aURI);
+  *aURI = nsnull;
 
-already_AddRefed<nsIURI>
-nsHTMLLinkAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
-{
-  return aAnchorIndex == 0 ? mContent->GetHrefURI() : nsnull;
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIURI> uri = mContent->GetHrefURI();
+  uri.forget(aURI);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,7 +191,6 @@ nsHTMLLinkAccessible::IsLinked()
   if (IsDefunct())
     return PR_FALSE;
 
-  nsEventStates state = mContent->AsElement()->State();
-  return state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
-                                     NS_EVENT_STATE_UNVISITED);
+  nsLinkState linkState = mContent->GetLinkState();
+  return linkState != eLinkState_NotLink && linkState != eLinkState_Unknown;
 }

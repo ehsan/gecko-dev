@@ -123,13 +123,11 @@ nsNSSCertificateDB::FindCertByNickname(nsISupports *aToken,
   }
   if (cert) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("got it\n"));
-    nsCOMPtr<nsIX509Cert> pCert = nsNSSCertificate::Create(cert);
+    nsCOMPtr<nsIX509Cert> pCert = new nsNSSCertificate(cert);
     CERT_DestroyCertificate(cert);
-    if (pCert) {
-      *_rvCert = pCert;
-      NS_ADDREF(*_rvCert);
-      return NS_OK;
-    }
+    *_rvCert = pCert;
+    NS_ADDREF(*_rvCert);
+    return NS_OK;
   }
   *_rvCert = nsnull;
   return NS_ERROR_FAILURE;
@@ -176,7 +174,7 @@ nsNSSCertificateDB::FindCertByDBKey(const char *aDBkey, nsISupports *aToken,
   cert = CERT_FindCertByIssuerAndSN(CERT_GetDefaultCertDB(), &issuerSN);
   PR_FREEIF(keyItem.data);
   if (cert) {
-    nsNSSCertificate *nssCert = nsNSSCertificate::Create(cert);
+    nsNSSCertificate *nssCert = new nsNSSCertificate(cert);
     CERT_DestroyCertificate(cert);
     if (nssCert == nsnull)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -533,20 +531,9 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
   CERTCertListNode *node;
   PRTime now;
   SECCertUsage certusage;
-  SECCertificateUsage certificateusage;
   SECItem **rawArray;
   int numcerts;
   int i;
-  CERTValOutParam cvout[1];
-  cvout[0].type = cert_po_end;
-
-  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-  if (!inss)
-    return nsrv;
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-  if (NS_FAILED(nsrv))
-    return nsrv;
  
   PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   if (!arena)
@@ -560,7 +547,6 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
 
   certdb = CERT_GetDefaultCertDB();
   certusage = certUsageEmailRecipient;
-  certificateusage = certificateUsageEmailRecipient;
 
   numcerts = certCollection->numcerts;
 
@@ -603,7 +589,6 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
    * valid chains, then import them.
    */
   now = PR_Now();
-
   for (node = CERT_LIST_HEAD(certList);
        !CERT_LIST_END(node,certList);
        node = CERT_LIST_NEXT(node)) {
@@ -614,19 +599,9 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
       continue;
     }
 
-    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-      if (CERT_VerifyCert(certdb, node->cert,
-          PR_TRUE, certusage, now, ctx, NULL) != SECSuccess) {
-        alert_and_skip = true;
-      }
-    }
-    else {
-      if (CERT_PKIXVerifyCert(node->cert, certificateusage,
-                              survivingParams->GetRawPointerForNSS(),
-                              cvout, ctx)
-          != SECSuccess) {
-        alert_and_skip = true;
-      }
+    if (CERT_VerifyCert(certdb, node->cert, 
+        PR_TRUE, certusage, now, ctx, NULL) != SECSuccess) {
+      alert_and_skip = true;
     }
 
     CERTCertificateList *certChain = nsnull;
@@ -640,7 +615,7 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
     }
 
     if (alert_and_skip) {    
-      nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(node->cert);
+      nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(node->cert);
       DisplayCertificateAlert(ctx, "NotImportingUnverifiedCert", certToShow);
       continue;
     }
@@ -797,14 +772,6 @@ nsresult
 nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfaceRequestor *ctx)
 {
   SECItem **rawArray;
-  nsresult nsrv;
-  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-  if (!inss)
-    return nsrv;
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-  if (NS_FAILED(nsrv))
-    return nsrv;
 
   /* filter out the certs we don't want */
   SECStatus srv = CERT_FilterCertListByUsage(certList, certUsageAnyCA, PR_TRUE);
@@ -815,29 +782,17 @@ nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfac
   /* go down the remaining list of certs and verify that they have
    * valid chains, if yes, then import.
    */
+  PRTime now = PR_Now();
   CERTCertListNode *node;
-  CERTValOutParam cvout[1];
-  cvout[0].type = cert_po_end;
-
   for (node = CERT_LIST_HEAD(certList);
        !CERT_LIST_END(node,certList);
        node = CERT_LIST_NEXT(node)) {
 
     bool alert_and_skip = false;
 
-    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-      if (CERT_VerifyCert(CERT_GetDefaultCertDB(), node->cert, 
-          PR_TRUE, certUsageVerifyCA, PR_Now(), ctx, NULL) != SECSuccess) {
-        alert_and_skip = true;
-      }
-    }
-    else {
-      if (CERT_PKIXVerifyCert(node->cert, certificateUsageVerifyCA,
-                              survivingParams->GetRawPointerForNSS(),
-                              cvout, ctx)
-          != SECSuccess) {
-        alert_and_skip = true;
-      }
+    if (CERT_VerifyCert(CERT_GetDefaultCertDB(), node->cert, 
+        PR_TRUE, certUsageVerifyCA, now, ctx, NULL) != SECSuccess) {
+      alert_and_skip = true;
     }
 
     CERTCertificateList *certChain = nsnull;
@@ -851,7 +806,7 @@ nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfac
     }
 
     if (alert_and_skip) {    
-      nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(node->cert);
+      nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(node->cert);
       DisplayCertificateAlert(ctx, "NotImportingUnverifiedCert", certToShow);
       continue;
     }
@@ -957,7 +912,7 @@ nsNSSCertificateDB::ImportUserCertificate(PRUint8 *data, PRUint32 length, nsIInt
 
   slot = PK11_KeyForCertExists(cert, NULL, ctx);
   if ( slot == NULL ) {
-    nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(cert);
+    nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(cert);
     DisplayCertificateAlert(ctx, "UserCertIgnoredNoPrivateKey", certToShow);
     goto loser;
   }
@@ -985,7 +940,7 @@ nsNSSCertificateDB::ImportUserCertificate(PRUint8 *data, PRUint32 length, nsIInt
   PK11_FreeSlot(slot);
 
   {
-    nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(cert);
+    nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(cert);
     DisplayCertificateAlert(ctx, "UserCertImported", certToShow);
   }
   rv = NS_OK;
@@ -1440,7 +1395,7 @@ nsNSSCertificateDB::FindEmailEncryptionCert(const nsAString &aNickname, nsIX509C
 
   if (!cert) { goto loser; }  
 
-  nssCert = nsNSSCertificate::Create(cert);
+  nssCert = new nsNSSCertificate(cert);
   if (nssCert == nsnull) {
     rv = NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1480,7 +1435,7 @@ nsNSSCertificateDB::FindEmailSigningCert(const nsAString &aNickname, nsIX509Cert
 
   if (!cert) { goto loser; }  
 
-  nssCert = nsNSSCertificate::Create(cert);
+  nssCert = new nsNSSCertificate(cert);
   if (nssCert == nsnull) {
     rv = NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1517,7 +1472,7 @@ nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEma
   if (CERT_LIST_END(CERT_LIST_HEAD(certlist), certlist))
     return NS_ERROR_FAILURE;
   
-  nsNSSCertificate *nssCert = nsNSSCertificate::Create(CERT_LIST_HEAD(certlist)->cert);
+  nsNSSCertificate *nssCert = new nsNSSCertificate(CERT_LIST_HEAD(certlist)->cert);
   if (!nssCert)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1528,54 +1483,65 @@ nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEma
 
 /* nsIX509Cert constructX509FromBase64 (in string base64); */
 NS_IMETHODIMP
-nsNSSCertificateDB::ConstructX509FromBase64(const char *base64,
-                                            nsIX509Cert **_retval)
+nsNSSCertificateDB::ConstructX509FromBase64(const char * base64, nsIX509Cert **_retval)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  // sure would be nice to have a smart pointer class for PL_ allocations
-  // unfortunately, we cannot distinguish out-of-memory from bad-input here
-  PRUint32 len = PL_strlen(base64);
-  char *certDER = PL_Base64Decode(base64, len, NULL);
-  if (!certDER)
-    return NS_ERROR_ILLEGAL_VALUE;
-  if (!*certDER) {
-    PL_strfree(certDER);
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  // If we get to this point, we know we had well-formed base64 input;
-  // therefore the input string cannot have been less than two
-  // characters long.  Compute the unpadded length of the decoded data.
-  PRUint32 lengthDER = (len * 3) / 4;
-  if (base64[len-1] == '=') {
-    lengthDER--;
-    if (base64[len-2] == '=')
-      lengthDER--;
+  if (!_retval) {
+    return NS_ERROR_FAILURE;
   }
 
   nsNSSShutDownPreventionLock locker;
-  SECItem secitem_cert;
-  secitem_cert.type = siDERCertBuffer;
-  secitem_cert.data = (unsigned char*)certDER;
-  secitem_cert.len = lengthDER;
+  PRUint32 len = PL_strlen(base64);
+  int adjust = 0;
 
-  CERTCertificate *cert =
-    CERT_NewTempCertificate(CERT_GetDefaultCertDB(), &secitem_cert,
-                            nsnull, PR_FALSE, PR_TRUE);
-  PL_strfree(certDER);
+  /* Compute length adjustment */
+  if (base64[len-1] == '=') {
+    adjust++;
+    if (base64[len-2] == '=') adjust++;
+  }
 
-  if (!cert)
-    return (PORT_GetError() == SEC_ERROR_NO_MEMORY)
-      ? NS_ERROR_OUT_OF_MEMORY : NS_ERROR_FAILURE;
+  nsresult rv = NS_OK;
+  char *certDER = 0;
+  PRInt32 lengthDER = 0;
 
-  nsNSSCertificate *nsNSS = nsNSSCertificate::Create(cert);
-  CERT_DestroyCertificate(cert);
+  certDER = PL_Base64Decode(base64, len, NULL);
+  if (!certDER || !*certDER) {
+    rv = NS_ERROR_ILLEGAL_VALUE;
+  }
+  else {
+    lengthDER = (len*3)/4 - adjust;
 
-  if (!nsNSS)
-    return NS_ERROR_OUT_OF_MEMORY;
+    SECItem secitem_cert;
+    secitem_cert.type = siDERCertBuffer;
+    secitem_cert.data = (unsigned char*)certDER;
+    secitem_cert.len = lengthDER;
 
-  return CallQueryInterface(nsNSS, _retval);
+    CERTCertificate *cert = CERT_NewTempCertificate(CERT_GetDefaultCertDB(), &secitem_cert, nsnull, PR_FALSE, PR_TRUE);
+
+    if (!cert) {
+      rv = NS_ERROR_FAILURE;
+    }
+    else {
+      nsNSSCertificate *nsNSS = new nsNSSCertificate(cert);
+      if (!nsNSS) {
+        rv = NS_ERROR_OUT_OF_MEMORY;
+      }
+      else {
+        nsresult rv = nsNSS->QueryInterface(NS_GET_IID(nsIX509Cert), (void**)_retval);
+
+        if (NS_SUCCEEDED(rv) && *_retval) {
+          NS_ADDREF(*_retval);
+        }
+        
+        NS_RELEASE(nsNSS);
+      }
+      CERT_DestroyCertificate(cert);
+    }
+  }
+  
+  if (certDER) {
+    nsCRT::free(certDER);
+  }
+  return rv;
 }
 
 void

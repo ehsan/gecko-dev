@@ -37,8 +37,10 @@
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMDocument.h"
+#ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
+#endif
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsMappedAttributes.h"
@@ -46,15 +48,15 @@
 #include "nsRuleData.h"
 #include "nsStyleConsts.h"
 
-using namespace mozilla::dom;
-
-class nsHTMLIFrameElement : public nsGenericHTMLFrameElement
-                          , public nsIDOMHTMLIFrameElement
-                          , public nsIDOMGetSVGDocument
+class nsHTMLIFrameElement : public nsGenericHTMLFrameElement,
+                            public nsIDOMHTMLIFrameElement
+#ifdef MOZ_SVG
+                            , public nsIDOMGetSVGDocument
+#endif
 {
 public:
   nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                      PRUint32 aFromParser = NS_NOT_FROM_PARSER);
   virtual ~nsHTMLIFrameElement();
 
   // nsISupports
@@ -72,8 +74,10 @@ public:
   // nsIDOMHTMLIFrameElement
   NS_DECL_NSIDOMHTMLIFRAMEELEMENT
 
+#ifdef MOZ_SVG
   // nsIDOMGetSVGDocument
   NS_DECL_NSIDOMGETSVGDOCUMENT
+#endif
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -92,7 +96,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(IFrame)
 
 
 nsHTMLIFrameElement::nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         FromParser aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
 {
 }
@@ -111,7 +115,9 @@ DOMCI_NODE_DATA(HTMLIFrameElement, nsHTMLIFrameElement)
 NS_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLIFrameElement)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
+#ifdef MOZ_SVG
     NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMGetSVGDocument)
+#endif
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLIFrameElement,
                                                nsGenericHTMLFrameElement)
@@ -138,11 +144,13 @@ nsHTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
   return nsGenericHTMLFrameElement::GetContentDocument(aContentDocument);
 }
 
+#ifdef MOZ_SVG
 NS_IMETHODIMP
 nsHTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
 {
   return GetContentDocument(aResult);
 }
+#endif
 
 PRBool
 nsHTMLIFrameElement::ParseAttribute(PRInt32 aNamespaceID,
@@ -152,16 +160,16 @@ nsHTMLIFrameElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::marginwidth) {
-      return aResult.ParseSpecialIntValue(aValue);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::marginheight) {
-      return aResult.ParseSpecialIntValue(aValue);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::width) {
-      return aResult.ParseSpecialIntValue(aValue);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::height) {
-      return aResult.ParseSpecialIntValue(aValue);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::frameborder) {
       return ParseFrameborderValue(aValue, aResult);
@@ -192,40 +200,34 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       if (NS_STYLE_FRAME_0 == frameborder ||
           NS_STYLE_FRAME_NO == frameborder ||
           NS_STYLE_FRAME_OFF == frameborder) {
-        nsCSSValue* borderLeftWidth = aData->ValueForBorderLeftWidthValue();
-        if (borderLeftWidth->GetUnit() == eCSSUnit_Null)
-          borderLeftWidth->SetFloatValue(0.0f, eCSSUnit_Pixel);
-        nsCSSValue* borderRightWidth = aData->ValueForBorderRightWidthValue();
-        if (borderRightWidth->GetUnit() == eCSSUnit_Null)
-          borderRightWidth->SetFloatValue(0.0f, eCSSUnit_Pixel);
-        nsCSSValue* borderTopWidth = aData->ValueForBorderTopWidth();
-        if (borderTopWidth->GetUnit() == eCSSUnit_Null)
-          borderTopWidth->SetFloatValue(0.0f, eCSSUnit_Pixel);
-        nsCSSValue* borderBottomWidth = aData->ValueForBorderBottomWidth();
-        if (borderBottomWidth->GetUnit() == eCSSUnit_Null)
-          borderBottomWidth->SetFloatValue(0.0f, eCSSUnit_Pixel);
+        if (aData->mMarginData->mBorderWidth.mLeft.GetUnit() == eCSSUnit_Null)
+          aData->mMarginData->mBorderWidth.mLeft.SetFloatValue(0.0f, eCSSUnit_Pixel);
+        if (aData->mMarginData->mBorderWidth.mRight.GetUnit() == eCSSUnit_Null)
+          aData->mMarginData->mBorderWidth.mRight.SetFloatValue(0.0f, eCSSUnit_Pixel);
+        if (aData->mMarginData->mBorderWidth.mTop.GetUnit() == eCSSUnit_Null)
+          aData->mMarginData->mBorderWidth.mTop.SetFloatValue(0.0f, eCSSUnit_Pixel);
+        if (aData->mMarginData->mBorderWidth.mBottom.GetUnit() == eCSSUnit_Null)
+          aData->mMarginData->mBorderWidth.mBottom.SetFloatValue(0.0f, eCSSUnit_Pixel);
       }
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
     // width: value
-    nsCSSValue* width = aData->ValueForWidth();
-    if (width->GetUnit() == eCSSUnit_Null) {
+    if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
       if (value && value->Type() == nsAttrValue::eInteger)
-        width->SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Pixel);
+        aData->mPositionData->mWidth.SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Pixel);
       else if (value && value->Type() == nsAttrValue::ePercent)
-        width->SetPercentValue(value->GetPercentValue());
+        aData->mPositionData->mWidth.SetPercentValue(value->GetPercentValue());
     }
 
     // height: value
-    nsCSSValue* height = aData->ValueForHeight();
-    if (height->GetUnit() == eCSSUnit_Null) {
+    if (aData->mPositionData->mHeight.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::height);
       if (value && value->Type() == nsAttrValue::eInteger)
-        height->SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Pixel);
+        aData->mPositionData->mHeight.SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Pixel);
       else if (value && value->Type() == nsAttrValue::ePercent)
-        height->SetPercentValue(value->GetPercentValue());
+        aData->mPositionData->mHeight.SetPercentValue(value->GetPercentValue());
     }
   }
 

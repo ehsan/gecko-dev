@@ -97,9 +97,9 @@ AsyncStatementParams::SetProperty(
   }
   else if (JSID_IS_STRING(aId)) {
     JSString *str = JSID_TO_STRING(aId);
-    size_t length;
-    const jschar *chars = JS_GetInternedStringCharsAndLength(str, &length);
-    NS_ConvertUTF16toUTF8 name(chars, length);
+    NS_ConvertUTF16toUTF8 name(reinterpret_cast<const PRUnichar *>
+                                   (::JS_GetStringChars(str)),
+                               ::JS_GetStringLength(str));
 
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
     NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
@@ -140,11 +140,15 @@ AsyncStatementParams::NewResolve(
     resolved = true;
   }
   else if (JSID_IS_STRING(aId)) {
+    JSString *str = JSID_TO_STRING(aId);
+    jschar *nameChars = ::JS_GetStringChars(str);
+    size_t nameLength = ::JS_GetStringLength(str);
+
     // We are unable to tell if there's a parameter with this name and so
     // we must assume that there is.  This screws the rest of the prototype
     // chain, but people really shouldn't be depending on this anyways.
-    ok = ::JS_DefinePropertyById(aCtx, aScopeObj, aId, JSVAL_VOID, nsnull,
-                                 nsnull, 0);
+    ok = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
+                               JSVAL_VOID, nsnull, nsnull, 0);
     resolved = true;
   }
 

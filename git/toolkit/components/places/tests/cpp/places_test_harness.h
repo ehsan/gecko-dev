@@ -16,7 +16,7 @@
  * The Original Code is places test code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -50,11 +50,6 @@
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
 #include "nsPIPlacesDatabase.h"
-#include "nsIObserver.h"
-#include "prinrval.h"
-
-#define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
-#define WAITFORTOPIC_TIMEOUT_SECONDS 5
 
 using namespace mozilla;
 
@@ -67,7 +62,7 @@ static size_t gPassedTests = 0;
     if (aCondition) { \
       gPassedTests++; \
     } else { \
-      fail("%s | Expected true, got false at line %d", __FILE__, __LINE__); \
+      fail("Expected true, got false at %s:%d!", __FILE__, __LINE__); \
     } \
   PR_END_MACRO
 
@@ -77,34 +72,15 @@ static size_t gPassedTests = 0;
     if (!aCondition) { \
       gPassedTests++; \
     } else { \
-      fail("%s | Expected false, got true at line %d", __FILE__, __LINE__); \
+      fail("Expected false, got true at %s:%d!", __FILE__, __LINE__); \
     } \
   PR_END_MACRO
 
 #define do_check_success(aResult) \
   do_check_true(NS_SUCCEEDED(aResult))
 
-#ifdef LINUX
-// XXX Linux opt builds on tinderbox are orange due to linking with stdlib.
-// This is sad and annoying, but it's a workaround that works.
-#define do_check_eq(aExpected, aActual) \
-  do_check_true(aExpected == aActual)
-#else
-#include <sstream>
-
-#define do_check_eq(aActual, aExpected) \
-  PR_BEGIN_MACRO \
-    gTotalTests++; \
-    if (aExpected == aActual) { \
-      gPassedTests++; \
-    } else { \
-      std::ostringstream temp; \
-      temp << __FILE__ << " | Expected '" << aExpected << "', got '"; \
-      temp << aActual <<"' at line " << __LINE__; \
-      fail(temp.str().c_str()); \
-    } \
-  PR_END_MACRO
-#endif
+#define do_check_eq(aFirst, aSecond) \
+  do_check_true(aFirst == aSecond)
 
 struct Test
 {
@@ -126,59 +102,6 @@ void do_test_pending();
 void do_test_finished();
 
 /**
- * Spins current thread until a topic is received.
- */
-class WaitForTopicSpinner : public nsIObserver
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  WaitForTopicSpinner(const char* const aTopic)
-  : mTopic(aTopic)
-  , mTopicReceived(false)
-  , mStartTime(PR_IntervalNow())
-  {
-  }
-
-  void Spin() {
-    nsCOMPtr<nsIObserverService> observerService =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    if (observerService) {
-      (void)observerService->AddObserver(this, mTopic, PR_FALSE);
-
-      while (!mTopicReceived) {
-        if (PR_IntervalNow() - mStartTime > WAITFORTOPIC_TIMEOUT_SECONDS * PR_USEC_PER_SEC) {
-          // Timed out waiting for the topic.
-          do_check_true(false);
-          break;
-        }
-        (void)NS_ProcessNextEvent();
-      }
-
-      (void)observerService->RemoveObserver(this, mTopic);
-    }
-  }
-
-  NS_IMETHOD Observe(nsISupports* aSubject,
-                     const char* aTopic,
-                     const PRUnichar* aData)
-  {
-    do_check_false(strcmp(aTopic, mTopic));
-    mTopicReceived = true;
-    return NS_OK;
-  }
-
-private:
-  const char* const mTopic;
-  bool mTopicReceived;
-  PRIntervalTime mStartTime;
-};
-NS_IMPL_ISUPPORTS1(
-  WaitForTopicSpinner,
-  nsIObserver
-)
-
-/**
  * Adds a URI to the database.
  *
  * @param aURI
@@ -195,11 +118,6 @@ addURI(nsIURI* aURI)
                                nsINavHistoryService::TRANSITION_LINK, PR_FALSE,
                                0, &id);
   do_check_success(rv);
-
-  // Wait for frecency update.
-  nsRefPtr<WaitForTopicSpinner> spinner =
-    new WaitForTopicSpinner(TOPIC_FRECENCY_UPDATED);
-  spinner->Spin();
 }
 
 struct PlaceRecord
@@ -208,7 +126,6 @@ struct PlaceRecord
   PRInt32 hidden;
   PRInt32 typed;
   PRInt32 visitCount;
-  nsCString guid;
 };
 
 struct VisitRecord
@@ -265,21 +182,22 @@ do_get_place(nsIURI* aURI, PlaceRecord& result)
   do_check_success(rv);
 
   rv = dbConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT id, hidden, typed, visit_count, guid FROM moz_places "
+    "SELECT id, hidden, typed, visit_count FROM moz_places_temp "
     "WHERE url=?1 "
+    "UNION ALL "
+    "SELECT id, hidden, typed, visit_count FROM moz_places "
+    "WHERE url=?1 "
+    "LIMIT 1"
   ), getter_AddRefs(stmt));
   do_check_success(rv);
 
-  rv = stmt->BindUTF8StringByIndex(0, spec);
+  rv = stmt->BindUTF8StringParameter(0, spec);
   do_check_success(rv);
 
   PRBool hasResults;
   rv = stmt->ExecuteStep(&hasResults);
+  do_check_true(hasResults);
   do_check_success(rv);
-  if (!hasResults) {
-    result.id = 0;
-    return;
-  }
 
   rv = stmt->GetInt64(0, &result.id);
   do_check_success(rv);
@@ -288,8 +206,6 @@ do_get_place(nsIURI* aURI, PlaceRecord& result)
   rv = stmt->GetInt32(2, &result.typed);
   do_check_success(rv);
   rv = stmt->GetInt32(3, &result.visitCount);
-  do_check_success(rv);
-  rv = stmt->GetUTF8String(4, result.guid);
   do_check_success(rv);
 }
 
@@ -306,23 +222,22 @@ do_get_lastVisit(PRInt64 placeId, VisitRecord& result)
   nsCOMPtr<mozIStorageStatement> stmt;
 
   nsresult rv = dbConn->CreateStatement(NS_LITERAL_CSTRING(
+    "SELECT id, from_visit, visit_type FROM moz_historyvisits_temp "
+    "WHERE place_id=?1 "
+    "UNION ALL "
     "SELECT id, from_visit, visit_type FROM moz_historyvisits "
     "WHERE place_id=?1 "
     "LIMIT 1"
   ), getter_AddRefs(stmt));
   do_check_success(rv);
 
-  rv = stmt->BindInt64ByIndex(0, placeId);
+  rv = stmt->BindInt64Parameter(0, placeId);
   do_check_success(rv);
 
   PRBool hasResults;
   rv = stmt->ExecuteStep(&hasResults);
+  do_check_true(hasResults);
   do_check_success(rv);
-
-  if (!hasResults) {
-    result.id = 0;
-    return;
-  }
 
   rv = stmt->GetInt64(0, &result.id);
   do_check_success(rv);

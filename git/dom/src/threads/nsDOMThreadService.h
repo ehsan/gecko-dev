@@ -47,13 +47,12 @@
 
 // Other includes
 #include "jsapi.h"
-#include "mozilla/ReentrantMonitor.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
 #include "nsStringGlue.h"
 #include "nsTPtrArray.h"
+#include "prmon.h"
 
 #include "prlog.h"
 #ifdef PR_LOGGING
@@ -69,13 +68,6 @@ class nsIScriptGlobalObject;
 class nsIThreadJSContextStack;
 class nsIXPConnect;
 class nsIXPCSecurityManager;
-
-enum ThreadsafeStatus
-{
-  Threadsafe,
-  NotThreadsafe,
-  Unknown
-};
 
 class nsDOMThreadService : public nsIEventTarget,
                            public nsIObserver,
@@ -121,11 +113,6 @@ public:
   void ResumeWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject);
 
   nsresult ChangeThreadPoolMaxThreads(PRInt16 aDelta);
-
-  void NoteThreadsafeContractId(const nsACString& aContractId,
-                                PRBool aIsThreadsafe);
-
-  ThreadsafeStatus GetContractIdThreadsafeStatus(const nsACString& aContractId);
 
 private:
   nsDOMThreadService();
@@ -183,23 +170,20 @@ private:
   // Maps nsIScriptGlobalObject* to nsDOMWorkerPool.
   nsRefPtrHashtable<nsVoidPtrHashKey, nsDOMWorkerPool> mPools;
 
-  // mReentrantMonitor protects all access to mWorkersInProgress and
+  // mMonitor protects all access to mWorkersInProgress and
   // mCreationsInProgress.
-  mozilla::ReentrantMonitor mReentrantMonitor;
+  PRMonitor* mMonitor;
 
   // A map from nsDOMWorkerThread to nsDOMWorkerRunnable.
   nsRefPtrHashtable<nsVoidPtrHashKey, nsDOMWorkerRunnable> mWorkersInProgress;
 
   // A list of active JSContexts that we've created. Always protected with
-  // mReentrantMonitor.
+  // mMonitor.
   nsTArray<JSContext*> mJSContexts;
 
   // A list of worker runnables that were never started because the worker was
-  // suspended. Always protected with mReentrantMonitor.
+  // suspended. Always protected with mMonitor.
   nsTArray<nsDOMWorkerRunnable*> mSuspendedWorkers;
-
-  // Always protected with mReentrantMonitor.
-  nsDataHashtable<nsCStringHashKey, PRBool> mThreadsafeContractIDs;
 
   nsString mAppName;
   nsString mAppVersion;

@@ -46,7 +46,6 @@
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jsutil.h"
-#include "jsarena.h"
 
 #ifdef __cplusplus
 # include "jsvalue.h"
@@ -62,16 +61,7 @@ typedef enum JSOp {
     op = val,
 #include "jsopcode.tbl"
 #undef OPDEF
-    JSOP_LIMIT,
-
-    /*
-     * These pseudo-ops help js_DecompileValueGenerator decompile JSOP_SETNAME,
-     * JSOP_SETPROP, and JSOP_SETELEM, respectively.  They are never stored in
-     * bytecode, so they don't preempt valid opcodes.
-     */
-    JSOP_GETPROP2 = JSOP_LIMIT,
-    JSOP_GETELEM2 = JSOP_LIMIT + 1,
-    JSOP_FAKE_LIMIT = JSOP_GETELEM2
+    JSOP_LIMIT
 } JSOp;
 
 /*
@@ -382,8 +372,14 @@ js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
     JS_END_MACRO
 
 /*
+ * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
+ */
+extern uintN
+js_GetVariableBytecodeLength(jsbytecode *pc);
+
+/*
  * Find the number of stack slots used by a variadic opcode such as JSOP_CALL
- * (for such ops, JSCodeSpec.nuses is -1).
+ * or JSOP_NEWARRAY (for such ops, JSCodeSpec.nuses is -1).
  */
 extern uintN
 js_GetVariableStackUses(JSOp op, jsbytecode *pc);
@@ -418,6 +414,20 @@ js_GetStackDefs(JSContext *cx, const JSCodeSpec *cs, JSOp op, JSScript *script,
     return js_GetEnterBlockStackDefs(cx, script, pc);
 }
 #endif
+
+#ifdef DEBUG
+/*
+ * Disassemblers, for debugging only.
+ */
+#include <stdio.h>
+
+extern JS_FRIEND_API(JSBool)
+js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, FILE *fp);
+
+extern JS_FRIEND_API(uintN)
+js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
+                JSBool lines, FILE *fp);
+#endif /* DEBUG */
 
 /*
  * Decompilers, for script, function, and expression pretty-printing.
@@ -461,6 +471,22 @@ extern char *
 js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback);
 
+#define JSDVG_IGNORE_STACK      0
+#define JSDVG_SEARCH_STACK      1
+
+#ifdef __cplusplus
+namespace js {
+
+static inline char *
+DecompileValueGenerator(JSContext *cx, intN spindex, const Value &v,
+                        JSString *fallback)
+{
+    return js_DecompileValueGenerator(cx, spindex, Jsvalify(v), fallback);
+}
+
+}
+#endif
+
 /*
  * Given bytecode address pc in script's main program code, return the operand
  * stack depth just before (JSOp) *pc executes.
@@ -473,99 +499,5 @@ js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
 #endif
 
 JS_END_EXTERN_C
-
-#define JSDVG_IGNORE_STACK      0
-#define JSDVG_SEARCH_STACK      1
-
-#ifdef __cplusplus
-/*
- * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
- */
-extern size_t
-js_GetVariableBytecodeLength(JSOp op, jsbytecode *pc);
-
-inline size_t
-js_GetVariableBytecodeLength(jsbytecode *pc)
-{
-    JS_ASSERT(*pc != JSOP_TRAP);
-    return js_GetVariableBytecodeLength(JSOp(*pc), pc);
-}
-
-namespace js {
-
-static inline char *
-DecompileValueGenerator(JSContext *cx, intN spindex, const Value &v,
-                        JSString *fallback)
-{
-    return js_DecompileValueGenerator(cx, spindex, Jsvalify(v), fallback);
-}
-
-/*
- * Sprintf, but with unlimited and automatically allocated buffering.
- */
-struct Sprinter {
-    JSContext       *context;       /* context executing the decompiler */
-    JSArenaPool     *pool;          /* string allocation pool */
-    char            *base;          /* base address of buffer in pool */
-    size_t          size;           /* size of buffer allocated at base */
-    ptrdiff_t       offset;         /* offset of next free char in buffer */
-};
-
-#define INIT_SPRINTER(cx, sp, ap, off) \
-    ((sp)->context = cx, (sp)->pool = ap, (sp)->base = NULL, (sp)->size = 0,  \
-     (sp)->offset = off)
-
-/*
- * Attempt to reserve len space in sp (including a trailing NULL byte). If the
- * attempt succeeds, return a pointer to the start of that space and adjust the
- * length of sp's contents. The caller *must* completely fill this space
- * (including the space for the trailing NULL byte) on success.
- */
-extern char *
-SprintReserveAmount(Sprinter *sp, size_t len);
-
-extern ptrdiff_t
-SprintPut(Sprinter *sp, const char *s, size_t len);
-
-extern ptrdiff_t
-SprintCString(Sprinter *sp, const char *s);
-
-extern ptrdiff_t
-SprintString(Sprinter *sp, JSString *str);
-
-extern ptrdiff_t
-Sprint(Sprinter *sp, const char *format, ...);
-
-extern bool
-CallResultEscapes(jsbytecode *pc);
-
-extern size_t
-GetBytecodeLength(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-extern bool
-IsValidBytecodeOffset(JSContext *cx, JSScript *script, size_t offset);
-
-inline bool
-FlowsIntoNext(JSOp op)
-{
-    // JSOP_YIELD is considered to flow into the next instruction, like JSOP_CALL.
-    return op != JSOP_STOP && op != JSOP_RETURN && op != JSOP_RETRVAL && op != JSOP_THROW &&
-           op != JSOP_GOTO && op != JSOP_GOTOX && op != JSOP_RETSUB;
-}
-
-}
-#endif
-
-#if defined(DEBUG) && defined(__cplusplus)
-/*
- * Disassemblers, for debugging only.
- */
-extern JS_FRIEND_API(JSBool)
-js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp);
-
-extern JS_FRIEND_API(uintN)
-js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
-                JSBool lines, js::Sprinter *sp);
-#endif
 
 #endif /* jsopcode_h___ */

@@ -72,17 +72,11 @@ public:
   NS_DECL_NSITHREADOBSERVER
   NS_DECL_NSIOBSERVER
 
-  enum ShutdownMethod {
-    AutomaticShutdown = 0,
-    ManualShutdown
-  };
-
   /**
    * Create a new LazyIdleThread that will destroy its thread after the given
    * number of milliseconds.
    */
   LazyIdleThread(PRUint32 aIdleTimeoutMS,
-                 ShutdownMethod aShutdownMethod = AutomaticShutdown,
                  nsIObserver* aIdleObserver = nsnull);
 
   /**
@@ -151,14 +145,6 @@ private:
   void SelfDestruct();
 
   /**
-   * Returns true if events should be queued rather than immediately dispatched
-   * to mThread. Currently only happens when the thread is shutting down.
-   */
-  PRBool UseRunnableQueue() {
-    return !!mQueuedRunnables;
-  }
-
-  /**
    * Protects data that is accessed on both threads.
    */
   mozilla::Mutex mMutex;
@@ -188,12 +174,6 @@ private:
   nsIObserver* mIdleObserver;
 
   /**
-   * Temporary storage for events that happen to be dispatched while we're in
-   * the process of shutting down our real thread.
-   */
-  nsTArray<nsCOMPtr<nsIRunnable> >* mQueuedRunnables;
-
-  /**
    * The number of milliseconds a thread should be idle before dying.
    */
   const PRUint32 mIdleTimeoutMS;
@@ -210,13 +190,6 @@ private:
    * another timer will be on the way.
    */
   PRUint32 mIdleNotificationCount;
-
-  /**
-   * Whether or not the thread should automatically shutdown. If the owner
-   * specified ManualShutdown at construction time then the owner should take
-   * care to call Shutdown() manually when appropriate.
-   */
-  ShutdownMethod mShutdownMethod;
 
   /**
    * Only accessed on the owning thread. Set to true when Shutdown() has been

@@ -46,7 +46,6 @@
 
 #include "nsRuleNode.h"
 #include "nsIStyleRule.h"
-#include "StyleRule.h"
 
 class nsRuleWalker {
 public:
@@ -56,28 +55,11 @@ public:
     mCurrent = aNode;
   }
 
-protected:
-  void DoForward(nsIStyleRule* aRule) {
+  void Forward(nsIStyleRule* aRule) { 
     mCurrent = mCurrent->Transition(aRule, mLevel, mImportance);
-    NS_POSTCONDITION(mCurrent, "Transition messed up");
-  }
-
-public:
-  void Forward(nsIStyleRule* aRule) {
-    NS_PRECONDITION(!nsRefPtr<mozilla::css::StyleRule>(do_QueryObject(aRule)),
-                    "Calling the wrong Forward() overload");
-    DoForward(aRule);
-  }
-  void Forward(mozilla::css::StyleRule* aRule) {
-    DoForward(aRule);
     mCheckForImportantRules =
       mCheckForImportantRules && !aRule->GetImportantRule();
-  }
-  // ForwardOnPossiblyCSSRule should only be used by callers that have
-  // an explicit list of rules they need to walk, with the list
-  // already containing any important rules they care about.
-  void ForwardOnPossiblyCSSRule(nsIStyleRule* aRule) {
-    DoForward(aRule);
+    NS_POSTCONDITION(mCurrent, "Transition messed up");
   }
 
   void Reset() { mCurrent = mRoot; }
@@ -111,6 +93,14 @@ public:
     eLinksVisitedOrUnvisited
   };
 
+  void ResetForVisitedMatching() {
+    Reset();
+    mVisitedHandling = eRelevantLinkVisited;
+  }
+  VisitedHandlingType VisitedHandling() const { return mVisitedHandling; }
+  void SetHaveRelevantLink() { mHaveRelevantLink = PR_TRUE; }
+  PRBool HaveRelevantLink() const { return mHaveRelevantLink; }
+
 private:
   nsRuleNode* mCurrent; // Our current position.  Never null.
   nsRuleNode* mRoot; // The root of the tree we're walking.
@@ -120,10 +110,23 @@ private:
                                         // we walk and set to false if we find
                                         // one.
 
+  // When mVisitedHandling is eRelevantLinkUnvisited, this is set to
+  // true on the RuleProcessorData *for the node being matched* if a
+  // relevant link (see explanation in definition of VisitedHandling
+  // enum) was encountered during the matching process, which means that
+  // matching needs to be rerun with eRelevantLinkVisited.  Otherwise,
+  // its behavior is undefined (it might get set appropriately, or might
+  // not).
+  PRBool mHaveRelevantLink;
+
+  VisitedHandlingType mVisitedHandling;
+
 public:
   nsRuleWalker(nsRuleNode* aRoot)
     : mCurrent(aRoot)
     , mRoot(aRoot)
+    , mHaveRelevantLink(PR_FALSE)
+    , mVisitedHandling(eRelevantLinkUnvisited)
   {
     NS_ASSERTION(mCurrent, "Caller screwed up and gave us null node");
     MOZ_COUNT_CTOR(nsRuleWalker);

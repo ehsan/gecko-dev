@@ -52,18 +52,16 @@
  * Based on original code from nsIStringStream.cpp
  */
 
-#include "IPC/IPCMessageUtils.h"
-
 #include "nsStringStream.h"
 #include "nsStreamUtils.h"
 #include "nsReadableUtils.h"
 #include "nsISeekableStream.h"
 #include "nsISupportsPrimitives.h"
+#include "nsInt64.h"
 #include "nsCRT.h"
 #include "prerror.h"
 #include "plstr.h"
 #include "nsIClassInfoImpl.h"
-#include "nsIIPCSerializable.h"
 
 //-----------------------------------------------------------------------------
 // nsIStringInputStream implementation
@@ -72,7 +70,6 @@
 class nsStringInputStream : public nsIStringInputStream
                           , public nsISeekableStream
                           , public nsISupportsCString
-                          , public nsIIPCSerializable
 {
 public:
     NS_DECL_ISUPPORTS
@@ -81,7 +78,6 @@ public:
     NS_DECL_NSISEEKABLESTREAM
     NS_DECL_NSISUPPORTSPRIMITIVE
     NS_DECL_NSISUPPORTSCSTRING
-    NS_DECL_NSIIPCSERIALIZABLE
 
     nsStringInputStream()
         : mData(nsnull)
@@ -125,18 +121,16 @@ NS_IMPL_THREADSAFE_RELEASE(nsStringInputStream)
 
 NS_IMPL_CLASSINFO(nsStringInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_STRINGINPUTSTREAM_CID)
-NS_IMPL_QUERY_INTERFACE5_CI(nsStringInputStream,
+NS_IMPL_QUERY_INTERFACE4_CI(nsStringInputStream,
                             nsIStringInputStream,
                             nsIInputStream,
                             nsISupportsCString,
-                            nsISeekableStream,
-                            nsIIPCSerializable)
-NS_IMPL_CI_INTERFACE_GETTER5(nsStringInputStream,
+                            nsISeekableStream)
+NS_IMPL_CI_INTERFACE_GETTER4(nsStringInputStream,
                              nsIStringInputStream,
                              nsIInputStream,
                              nsISupportsCString,
-                             nsISeekableStream,
-                             nsIIPCSerializable)
+                             nsISeekableStream)
 
 /////////
 // nsISupportsCString implementation
@@ -353,38 +347,6 @@ nsStringInputStream::SetEOF()
 
     mLength = mOffset;
     return NS_OK;
-}
-
-/////////
-// nsIIPCSerializable implementation
-/////////
-
-PRBool
-nsStringInputStream::Read(const IPC::Message *aMsg, void **aIter)
-{
-    using IPC::ReadParam;
-
-    nsCAutoString value;
-
-    if (!ReadParam(aMsg, aIter, &value))
-        return PR_FALSE;
-
-    nsresult rv = SetData(value.get(), value.Length());
-    if (NS_FAILED(rv))
-        return PR_FALSE;
-
-    return PR_TRUE;
-}
-
-void
-nsStringInputStream::Write(IPC::Message *aMsg)
-{
-    using IPC::WriteParam;
-
-    nsCAutoString value;
-    GetData(value);
-
-    WriteParam(aMsg, value);
 }
 
 NS_COM nsresult

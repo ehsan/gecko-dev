@@ -42,7 +42,6 @@
 #include <gtk/gtk.h>
 
 #include "gtkdrawing.h"
-#include "nsStyleConsts.h"
 
 #ifdef MOZ_PLATFORM_MAEMO
 #include "nsIServiceManager.h"
@@ -412,6 +411,72 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     res = NS_OK;
 
     switch (aID) {
+    case eMetric_WindowTitleHeight:
+        aMetric = 0;
+        break;
+    case eMetric_WindowBorderWidth:
+        // XXXldb Why is this commented out?
+        //    aMetric = mStyle->klass->xthickness;
+        break;
+    case eMetric_WindowBorderHeight:
+        // XXXldb Why is this commented out?
+        //    aMetric = mStyle->klass->ythickness;
+        break;
+    case eMetric_Widget3DBorder:
+        // XXXldb Why is this commented out?
+        //    aMetric = 4;
+        break;
+    case eMetric_TextFieldHeight:
+        {
+            GtkRequisition req;
+            GtkWidget *text = gtk_entry_new();
+            // needed to avoid memory leak
+            g_object_ref_sink(GTK_OBJECT(text));
+            gtk_widget_size_request(text,&req);
+            aMetric = req.height;
+            gtk_widget_destroy(text);
+            g_object_unref(text);
+        }
+        break;
+    case eMetric_TextFieldBorder:
+        aMetric = 2;
+        break;
+    case eMetric_TextVerticalInsidePadding:
+        aMetric = 0;
+        break;
+    case eMetric_TextShouldUseVerticalInsidePadding:
+        aMetric = 0;
+        break;
+    case eMetric_TextHorizontalInsideMinimumPadding:
+        aMetric = 15;
+        break;
+    case eMetric_TextShouldUseHorizontalInsideMinimumPadding:
+        aMetric = 1;
+        break;
+    case eMetric_ButtonHorizontalInsidePaddingNavQuirks:
+        aMetric = 10;
+        break;
+    case eMetric_ButtonHorizontalInsidePaddingOffsetNavQuirks:
+        aMetric = 8;
+        break;
+    case eMetric_CheckboxSize:
+        aMetric = 15;
+        break;
+    case eMetric_RadioboxSize:
+        aMetric = 15;
+        break;
+    case eMetric_ListShouldUseHorizontalInsideMinimumPadding:
+        aMetric = 15;
+        break;
+    case eMetric_ListHorizontalInsideMinimumPadding:
+        aMetric = 15;
+        break;
+    case eMetric_ListShouldUseVerticalInsidePadding:
+        aMetric = 1;
+        break;
+    case eMetric_ListVerticalInsidePadding:
+        aMetric = 1;
+        break;
     case eMetric_CaretBlinkTime:
         {
             GtkSettings *settings;
@@ -443,7 +508,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
             gboolean select_on_focus;
 
             entry = gtk_entry_new();
-            g_object_ref_sink(entry);
+            g_object_ref_sink(GTK_OBJECT(entry));
             settings = gtk_widget_get_settings(entry);
             g_object_get(settings, 
                          "gtk-entry-select-on-focus",
@@ -484,13 +549,12 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
             g_object_get(gtk_widget_get_settings(box),
                          "gtk-dnd-drag-threshold", &threshold,
                          NULL);
-            g_object_ref_sink(box);
+            g_object_ref_sink(GTK_OBJECT(box));
             
             aMetric = threshold;
         }
         break;
     case eMetric_ScrollArrowStyle:
-        moz_gtk_init();
         aMetric =
             ConvertGTKStepperStyleToMozillaScrollArrowStyle(moz_gtk_get_scrollbar_widget());
         break;
@@ -515,7 +579,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_DWMCompositor:
     case eMetric_WindowsClassic:
     case eMetric_WindowsDefaultTheme:
-    case eMetric_WindowsThemeIdentifier:
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;
         break;
@@ -554,14 +617,14 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         break;
     case eMetric_IMERawInputUnderlineStyle:
     case eMetric_IMEConvertedTextUnderlineStyle:
-        aMetric = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
+        aMetric = NS_UNDERLINE_STYLE_SOLID;
         break;
     case eMetric_IMESelectedRawTextUnderlineStyle:
     case eMetric_IMESelectedConvertedTextUnderline:
-        aMetric = NS_STYLE_TEXT_DECORATION_STYLE_NONE;
+        aMetric = NS_UNDERLINE_STYLE_NONE;
         break;
     case eMetric_SpellCheckerUnderlineStyle:
-        aMetric = NS_STYLE_TEXT_DECORATION_STYLE_WAVY;
+        aMetric = NS_UNDERLINE_STYLE_WAVY;
         break;
     case eMetric_ImagesInMenus:
         aMetric = moz_gtk_images_in_menus();
@@ -590,6 +653,30 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID,
     res = NS_OK;
 
     switch (aID) {
+    case eMetricFloat_TextFieldVerticalInsidePadding:
+        aMetric = 0.25f;
+        break;
+    case eMetricFloat_TextFieldHorizontalInsidePadding:
+        aMetric = 0.95f; // large number on purpose so minimum padding is used
+        break;
+    case eMetricFloat_TextAreaVerticalInsidePadding:
+        aMetric = 0.40f;    
+        break;
+    case eMetricFloat_TextAreaHorizontalInsidePadding:
+        aMetric = 0.40f; // large number on purpose so minimum padding is used
+        break;
+    case eMetricFloat_ListVerticalInsidePadding:
+        aMetric = 0.10f;
+        break;
+    case eMetricFloat_ListHorizontalInsidePadding:
+        aMetric = 0.40f;
+        break;
+    case eMetricFloat_ButtonVerticalInsidePadding:
+        aMetric = 0.25f;
+        break;
+    case eMetricFloat_ButtonHorizontalInsidePadding:
+        aMetric = 0.25f;
+        break;
     case eMetricFloat_IMEUnderlineRelativeSize:
         aMetric = 1.0f;
         break;
@@ -625,7 +712,7 @@ nsLookAndFeel::InitLookAndFeel()
     GtkWidget *menuitem = gtk_menu_item_new();
     GtkWidget *menu = gtk_menu_new();
 
-    g_object_ref_sink(menu);
+    g_object_ref_sink(GTK_OBJECT(menu));
 
     gtk_container_add(GTK_CONTAINER(menuitem), accel_label);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);

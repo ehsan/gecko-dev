@@ -47,8 +47,6 @@ typedef struct __attribute__ ((packed)) {
 struct replentry {
   char * pattern;
   char * pattern2;
-  bool start;
-  bool end;
 };
 
 #endif

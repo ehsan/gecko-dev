@@ -149,17 +149,15 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
   if (mJSMethodObject && targetClassObject) {
     nsDependentString name(mName);
     JSAutoRequest ar(cx);
-    JSAutoEnterCompartment ac;
-
-    if (!ac.enter(cx, globalObject)) {
-      return NS_ERROR_UNEXPECTED;
-    }
-
     JSObject * method = ::JS_CloneFunctionObject(cx, mJSMethodObject, globalObject);
     if (!method) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    nsresult rv;
+    nsAutoGCRoot root(&method, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    
     if (!::JS_DefineUCProperty(cx, targetClassObject,
                                reinterpret_cast<const jschar*>(mName), 
                                name.Length(), OBJECT_TO_JSVAL(method),
@@ -263,7 +261,7 @@ void
 nsXBLProtoImplMethod::Trace(TraceCallback aCallback, void *aClosure) const
 {
   if (IsCompiled() && mJSMethodObject) {
-    aCallback(nsIProgrammingLanguage::JAVASCRIPT, mJSMethodObject, "mJSMethodObject", aClosure);
+    aCallback(nsIProgrammingLanguage::JAVASCRIPT, mJSMethodObject, aClosure);
   }
 }
 
@@ -308,10 +306,6 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   JSObject* thisObject = JSVAL_TO_OBJECT(v);
 
   JSAutoRequest ar(cx);
-  JSAutoEnterCompartment ac;
-
-  if (!ac.enter(cx, thisObject))
-    return NS_ERROR_UNEXPECTED;
 
   // Clone the function object, using thisObject as the parent so "this" is in
   // the scope chain of the resulting function (for backwards compat to the
@@ -342,10 +336,9 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     // anything else.  We just report it.  Note that we need to set aside the
     // frame chain here, since the constructor invocation is not related to
     // whatever is on the stack right now, really.
-    JSBool saved = JS_SaveFrameChain(cx);
-    JS_ReportPendingException(cx);
-    if (saved)
-        JS_RestoreFrameChain(cx);
+    JSStackFrame* frame = JS_SaveFrameChain(cx);
+    ::JS_ReportPendingException(cx);
+    JS_RestoreFrameChain(cx, frame);
     return NS_ERROR_FAILURE;
   }
 

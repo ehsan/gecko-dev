@@ -51,7 +51,6 @@
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
 #include "RasterImage.h"
-#include "VectorImage.h"
 
 #include "imgILoader.h"
 #include "ImageLogging.h"
@@ -80,7 +79,8 @@
 #include "nsNetUtil.h"
 #include "nsIProtocolHandler.h"
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 
 #include "DiscardTracker.h"
 #include "nsAsyncRedirectVerifyHelper.h"
@@ -92,19 +92,11 @@
 #define MAXBYTESFORSYNC_PREF "image.mem.max_bytes_for_sync_decode"
 #define SVG_MIMETYPE "image/svg+xml"
 
-using namespace mozilla;
 using namespace mozilla::imagelib;
 
 /* Kept up to date by a pref observer. */
 static PRBool gDecodeOnDraw = PR_FALSE;
 static PRBool gDiscardable = PR_FALSE;
-
-static const char* kObservedPrefs[] = {
-  DISCARD_PREF,
-  DECODEONDRAW_PREF,
-  DISCARD_TIMEOUT_PREF,
-  nsnull
-};
 
 /*
  * Pref observer goop. Yuck.
@@ -115,28 +107,31 @@ static PRBool gRegisteredPrefObserver = PR_FALSE;
 
 // Reloader
 static void
-ReloadPrefs()
+ReloadPrefs(nsIPrefBranch *aBranch)
 {
   // Discardable
-  gDiscardable = Preferences::GetBool(DISCARD_PREF, gDiscardable);
+  PRBool discardable;
+  nsresult rv = aBranch->GetBoolPref(DISCARD_PREF, &discardable);
+  if (NS_SUCCEEDED(rv))
+    gDiscardable = discardable;
 
   // Decode-on-draw
-  gDecodeOnDraw = Preferences::GetBool(DECODEONDRAW_PREF, gDecodeOnDraw);
+  PRBool decodeondraw;
+  rv = aBranch->GetBoolPref(DECODEONDRAW_PREF, &decodeondraw);
+  if (NS_SUCCEEDED(rv))
+    gDecodeOnDraw = decodeondraw;
 
   // Progressive decoding knobs
   PRInt32 bytesAtATime, maxMS, maxBytesForSync;
-  if (NS_SUCCEEDED(Preferences::GetInt(BYTESATATIME_PREF, &bytesAtATime))) {
+  rv = aBranch->GetIntPref(BYTESATATIME_PREF, &bytesAtATime);
+  if (NS_SUCCEEDED(rv))
     RasterImage::SetDecodeBytesAtATime(bytesAtATime);
-  }
-
-  if (NS_SUCCEEDED(Preferences::GetInt(MAXMS_PREF, &maxMS))) {
+  rv = aBranch->GetIntPref(MAXMS_PREF, &maxMS);
+  if (NS_SUCCEEDED(rv))
     RasterImage::SetMaxMSBeforeYield(maxMS);
-  }
-
-  if (NS_SUCCEEDED(Preferences::GetInt(MAXBYTESFORSYNC_PREF,
-                                       &maxBytesForSync))) {
+  rv = aBranch->GetIntPref(MAXBYTESFORSYNC_PREF, &maxBytesForSync);
+  if (NS_SUCCEEDED(rv))
     RasterImage::SetMaxBytesForSyncDecode(maxBytesForSync);
-  }
 
   // Discard timeout
   mozilla::imagelib::DiscardTracker::ReloadTimeout();
@@ -165,8 +160,15 @@ imgRequestPrefObserver::Observe(nsISupports     *aSubject,
       strcmp(NS_LossyConvertUTF16toASCII(aData).get(), DISCARD_TIMEOUT_PREF))
     return NS_OK;
 
+  // Get the pref branch
+  nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(aSubject);
+  if (!branch) {
+    NS_WARNING("Couldn't get pref branch within imgRequestPrefObserver::Observe!");
+    return NS_OK;
+  }
+
   // Process the change
-  ReloadPrefs();
+  ReloadPrefs(branch);
 
   return NS_OK;
 }
@@ -185,7 +187,7 @@ NS_IMPL_ISUPPORTS8(imgRequest,
 
 imgRequest::imgRequest() : 
   mCacheId(0), mValidator(nsnull), mImageSniffers("image-sniffing-services"),
-  mWindowId(0), mDecodeRequested(PR_FALSE), mIsMultiPartChannel(PR_FALSE),
+  mDecodeRequested(PR_FALSE), mIsMultiPartChannel(PR_FALSE),
   mGotData(PR_FALSE), mIsInCache(PR_FALSE)
 {}
 
@@ -223,8 +225,6 @@ nsresult imgRequest::Init(nsIURI *aURI,
   mKeyURI = aKeyURI;
   mRequest = aRequest;
   mChannel = aChannel;
-  mTimedChannel = do_QueryInterface(mChannel);
-
   mChannel->GetNotificationCallbacks(getter_AddRefs(mPrevChannelSink));
 
   NS_ASSERTION(mPrevChannelSink != this,
@@ -240,10 +240,19 @@ nsresult imgRequest::Init(nsIURI *aURI,
 
   // Register our pref observer if it hasn't been done yet.
   if (NS_UNLIKELY(!gRegisteredPrefObserver)) {
-    nsCOMPtr<nsIObserver> observer(new imgRequestPrefObserver());
-    Preferences::AddStrongObservers(observer, kObservedPrefs);
-    ReloadPrefs();
-    gRegisteredPrefObserver = PR_TRUE;
+    imgRequestPrefObserver *observer = new imgRequestPrefObserver();
+    if (observer) {
+      nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+      if (branch) {
+        branch->AddObserver(DISCARD_PREF, observer, PR_FALSE);
+        branch->AddObserver(DECODEONDRAW_PREF, observer, PR_FALSE);
+        branch->AddObserver(DISCARD_TIMEOUT_PREF, observer, PR_FALSE);
+        ReloadPrefs(branch);
+        gRegisteredPrefObserver = PR_TRUE;
+      }
+    }
+    else
+      delete observer;
   }
 
   return NS_OK;
@@ -302,11 +311,6 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
 {
   LOG_SCOPE_WITH_PARAM(gImgLog, "imgRequest::RemoveProxy", "proxy", proxy);
 
-  // This will remove our animation consumers, so after removing
-  // this proxy, we don't end up without proxies with observers, but still
-  // have animation consumers.
-  proxy->ClearAnimationConsumers();
-
   mObservers.RemoveElement(proxy);
 
   // Let the status tracker do its thing before we potentially call Cancel()
@@ -316,6 +320,12 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
 
   imgStatusTracker& statusTracker = GetStatusTracker();
   statusTracker.EmulateRequestFinished(proxy, aStatus, !aNotify);
+
+  if (mImage && !HaveProxyWithObserver(nsnull)) {
+    LOG_MSG(gImgLog, "imgRequest::RemoveProxy", "stopping animation");
+
+    mImage->StopAnimation();
+  }
 
   if (mObservers.IsEmpty()) {
     // If we have no observers, there's nothing holding us alive. If we haven't
@@ -383,6 +393,11 @@ void imgRequest::Cancel(nsresult aStatus)
   /* The Cancel() method here should only be called by this class. */
 
   LOG_SCOPE(gImgLog, "imgRequest::Cancel");
+
+  LOG_MSG(gImgLog, "imgRequest::Cancel", "stopping animation");
+  if (mImage) {
+    mImage->StopAnimation();
+  }
 
   imgStatusTracker& statusTracker = GetStatusTracker();
   statusTracker.RecordCancel();
@@ -764,16 +779,10 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
                     "Already have an image for non-multipart request");
 
   // If we're multipart, and our image is initialized, fix things up for another round
-  if (mIsMultiPartChannel && mImage) {
-    if (mImage->GetType() == imgIContainer::TYPE_RASTER) {
-      // Inform the RasterImage that we have new source data
-      static_cast<RasterImage*>(mImage.get())->NewSourceData();
-    } else {  // imageType == imgIContainer::TYPE_VECTOR
-      nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-      NS_ABORT_IF_FALSE(imageAsStream,
-                        "SVG-typed Image failed QI to nsIStreamListener");
-      imageAsStream->OnStartRequest(aRequest, ctxt);
-    }
+  if (mIsMultiPartChannel && mImage &&
+      mImage->GetType() == imgIContainer::TYPE_RASTER) {
+    // Inform the RasterImage that we have new source data
+    static_cast<RasterImage*>(mImage.get())->NewSourceData();
   }
 
   /*
@@ -909,22 +918,15 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   // Tell the image that it has all of the source data. Note that this can
   // trigger a failure, since the image might be waiting for more non-optional
   // data and this is the point where we break the news that it's not coming.
-  if (mImage) {
-    nsresult rv;
-    if (mImage->GetType() == imgIContainer::TYPE_RASTER) {
-      // Notify the image
-      rv = static_cast<RasterImage*>(mImage.get())->SourceDataComplete();
-    } else { // imageType == imgIContainer::TYPE_VECTOR
-      nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-      NS_ABORT_IF_FALSE(imageAsStream,
-                        "SVG-typed Image failed QI to nsIStreamListener");
-      rv = imageAsStream->OnStopRequest(aRequest, ctxt, status);
-    }
+  if (mImage && mImage->GetType() == imgIContainer::TYPE_RASTER) {
 
-    // If we got an error in the SourceDataComplete() / OnStopRequest() call,
-    // we don't want to proceed as if nothing bad happened. However, we also
-    // want to give precedence to failure status codes from necko, since
-    // presumably they're more meaningful.
+    // Notify the image
+    nsresult rv = static_cast<RasterImage*>(mImage.get())->SourceDataComplete();
+
+    // If we got an error in the SourceDataComplete() call, we don't want to
+    // proceed as if nothing bad happened. However, we also want to give
+    // precedence to failure status codes from necko, since presumably
+    // they're more meaningful.
     if (NS_FAILED(rv) && NS_SUCCEEDED(status))
       status = rv;
   }
@@ -950,7 +952,6 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
     statusTracker.SendStopRequest(srIter.GetNext(), lastPart, status);
   }
 
-  mTimedChannel = nsnull;
   return NS_OK;
 }
 
@@ -1011,12 +1012,9 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     }
 
     /* now we have mimetype, so we can infer the image type that we want */
-    if (mContentType.EqualsLiteral(SVG_MIMETYPE)) {
-      mImage = new VectorImage(mStatusTracker.forget());
-    } else {
-      mImage = new RasterImage(mStatusTracker.forget());
-    }
-    mImage->SetWindowID(mWindowId);
+    // XXXdholbert When VectorImage lands, this is where we'd instantiate that
+    // (if mContentType matches SVG_MIMETYPE).  For now, just assume raster.
+    mImage = new RasterImage(mStatusTracker.forget());
     imageType = mImage->GetType();
 
     // Notify any imgRequestProxys that are observing us that we have an Image.
@@ -1089,16 +1087,10 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     if (mIsMultiPartChannel)
       imageFlags |= Image::INIT_FLAG_MULTIPART;
 
-    // Get our URI string
-    nsCAutoString uriString;
-    rv = mURI->GetSpec(uriString);
-    if (NS_FAILED(rv))
-      uriString.Assign("<unknown image URI>");
-
     // Initialize the image that we created above. For RasterImages, this
     // instantiates a decoder behind the scenes, so if we don't have a decoder
     // for this mimetype we'll find out about it here.
-    rv = mImage->Init(this, mContentType.get(), uriString.get(), imageFlags);
+    rv = mImage->Init(this, mContentType.get(), imageFlags);
     if (NS_FAILED(rv)) { // Probably bad mimetype
 
       this->Cancel(rv);
@@ -1118,50 +1110,25 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
           // its source buffer
           if (len > 0) {
             PRUint32 sizeHint = (PRUint32) len;
-            sizeHint = NS_MIN<PRUint32>(sizeHint, 20000000); /* Bound by something reasonable */
+            sizeHint = PR_MIN(sizeHint, 20000000); /* Bound by something reasonable */
             RasterImage* rasterImage = static_cast<RasterImage*>(mImage.get());
-            rv = rasterImage->SetSourceSizeHint(sizeHint);
-            if (NS_FAILED(rv)) {
-              // Flush memory, try to get some back, and try again
-              rv = nsMemory::HeapMinimize(PR_TRUE);
-              rv |= rasterImage->SetSourceSizeHint(sizeHint);
-              // If we've still failed at this point, things are going downhill
-              if (NS_FAILED(rv)) {
-                NS_WARNING("About to hit OOM in imagelib!");
-              }
-            }
+            rasterImage->SetSourceSizeHint(sizeHint);
           }
         }
       }
     }
 
-    if (imageType == imgIContainer::TYPE_RASTER) {
-      // If we were waiting on the image to do something, now's our chance.
-      if (mDecodeRequested) {
-        mImage->RequestDecode();
-      }
-    } else { // imageType == imgIContainer::TYPE_VECTOR
-      nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-      NS_ABORT_IF_FALSE(imageAsStream,
-                        "SVG-typed Image failed QI to nsIStreamListener");
-      imageAsStream->OnStartRequest(aRequest, nsnull);
+    // If we were waiting on the image to do something, now's our chance.
+    if (mDecodeRequested) {
+      mImage->RequestDecode();
     }
   }
 
-  if (imageType == imgIContainer::TYPE_RASTER) {
-    // WriteToRasterImage always consumes everything it gets
-    // if it doesn't run out of memory
-    PRUint32 bytesRead;
-    rv = inStr->ReadSegments(RasterImage::WriteToRasterImage,
-                             static_cast<void*>(mImage),
-                             count, &bytesRead);
-    NS_ABORT_IF_FALSE(bytesRead == count || mImage->HasError(),
-  "WriteToRasterImage should consume everything or the image must be in error!");
-  } else { // imageType == imgIContainer::TYPE_VECTOR
-    nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-    rv = imageAsStream->OnDataAvailable(aRequest, ctxt, inStr,
-                                        sourceOffset, count);
-  }
+  // WriteToRasterImage always consumes everything it gets
+  PRUint32 bytesRead;
+  rv = inStr->ReadSegments(RasterImage::WriteToRasterImage,
+                           static_cast<void*>(mImage),
+                           count, &bytesRead);
   if (NS_FAILED(rv)) {
     PR_LOG(gImgLog, PR_LOG_WARNING,
            ("[this=%p] imgRequest::OnDataAvailable -- "
@@ -1169,6 +1136,7 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     this->Cancel(NS_IMAGELIB_ERROR_FAILURE);
     return NS_BINDING_ABORTED;
   }
+  NS_ABORT_IF_FALSE(bytesRead == count, "WriteToRasterImage should consume everything!");
 
   return NS_OK;
 }
@@ -1272,7 +1240,6 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   }
 
   mChannel = mNewRedirectChannel;
-  mTimedChannel = do_QueryInterface(mChannel);
   mNewRedirectChannel = nsnull;
 
   // Don't make any cache changes if we're going to point to the same thing. We

@@ -49,16 +49,6 @@
 
 typedef struct FT_FaceRec_* FT_Face;
 
-class FileAndIndex {
-public:
-    FileAndIndex(nsCString aFilename, PRUint32 aIndex) :
-        filename(aFilename), index(aIndex) {}
-    FileAndIndex(FileAndIndex* fai) :
-        filename(fai->filename), index(fai->index) {}
-    nsCString filename;
-    PRUint32 index;
-};
-
 /**
  * FontFamily is a class that describes one of the fonts on the users system.  It holds
  * each FontEntry (maps more directly to a font face) which holds font type, charset info
@@ -72,13 +62,10 @@ public:
         gfxFontFamily(aName) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
-    virtual void FindStyleVariations();
-    void AddFontFileAndIndex(nsCString aFilename, PRUint32 aIndex);
 
-private:
-    // mFilenames are queus of font files that
-    // need to be lazily processed into font entries
-    nsTArray<FileAndIndex> mFilenames;
+protected:
+    virtual PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
+                                       PRBool anItalic, PRInt16 aStretch);
 };
 
 class FontEntry : public gfxFontEntry
@@ -111,8 +98,6 @@ public:
 
     cairo_font_face_t *CairoFontFace();
     nsresult ReadCMAP();
-
-    nsresult GetFontTable(PRUint32 aTableTag, FallibleTArray<PRUint8>& aBuffer);
 
     FT_Face mFTFace;
     cairo_font_face_t *mFontFace;
@@ -166,17 +151,7 @@ public: // new functions
     }
 
 protected:
-    virtual PRBool InitTextRun(gfxContext *aContext,
-                               gfxTextRun *aTextRun,
-                               const PRUnichar *aString,
-                               PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript,
-                               PRBool aPreferPlatformShaping = PR_FALSE);
-
     void FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd);
-
-    void AddRange(gfxTextRun *aTextRun, const PRUnichar *str, PRUint32 offset, PRUint32 len);
 
     typedef nsBaseHashtableET<nsUint32HashKey, CachedGlyphData> CharGlyphMapEntryType;
     typedef nsTHashtable<CharGlyphMapEntryType> CharGlyphMap;
@@ -191,11 +166,24 @@ public: // new functions
     virtual ~gfxFT2FontGroup ();
 
 protected: // from gfxFontGroup
+    virtual gfxTextRun *MakeTextRun(const PRUnichar *aString, 
+                                    PRUint32 aLength,
+                                    const Parameters *aParams, 
+                                    PRUint32 aFlags);
+
+    virtual gfxTextRun *MakeTextRun(const PRUint8 *aString, 
+                                    PRUint32 aLength,
+                                    const Parameters *aParams, 
+                                    PRUint32 aFlags);
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
 
 
 protected: // new functions
+    void InitTextRun(gfxTextRun *aTextRun);
+
+    void CreateGlyphRunsFT(gfxTextRun *aTextRun);
+    void AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnichar *str, PRUint32 offset, PRUint32 len);
 
     static PRBool FontCallback (const nsAString & fontName, 
                                 const nsACString & genericName, 

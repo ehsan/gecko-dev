@@ -130,43 +130,6 @@ gfxWindowsSurface::InitWithDC(PRUint32 flags)
     }
 }
 
-already_AddRefed<gfxASurface>
-gfxWindowsSurface::CreateSimilarSurface(gfxContentType aContent,
-                                        const gfxIntSize& aSize)
-{
-    if (!mSurface || !mSurfaceValid) {
-        return nsnull;
-    }
-
-    cairo_surface_t *surface;
-    if (GetContentType() == CONTENT_COLOR_ALPHA) {
-        // When creating a similar surface to a transparent surface, ensure
-        // the new surface uses a DIB. cairo_surface_create_similar won't
-        // use  a DIB for a CONTENT_COLOR surface if this surface doesn't
-        // have a DIB (e.g. if we're a transparent window surface). But
-        // we need a DIB to perform well if the new surface is composited into
-        // a surface that's the result of create_similar(CONTENT_COLOR_ALPHA)
-        // (e.g. a backbuffer for the window) --- that new surface *would*
-        // have a DIB.
-        surface =
-          cairo_win32_surface_create_with_dib(cairo_format_t(gfxASurface::FormatFromContent(aContent)),
-                                              aSize.width, aSize.height);
-    } else {
-        surface =
-          cairo_surface_create_similar(mSurface, cairo_content_t(aContent),
-                                       aSize.width, aSize.height);
-    }
-
-    if (cairo_surface_status(surface)) {
-        cairo_surface_destroy(surface);
-        return nsnull;
-    }
-
-    nsRefPtr<gfxASurface> result = Wrap(surface);
-    cairo_surface_destroy(surface);
-    return result.forget();
-}
-
 gfxWindowsSurface::~gfxWindowsSurface()
 {
     if (mOwnsDC) {
@@ -184,7 +147,7 @@ gfxWindowsSurface::GetDCWithClip(gfxContext *ctx)
 }
 
 already_AddRefed<gfxImageSurface>
-gfxWindowsSurface::GetAsImageSurface()
+gfxWindowsSurface::GetImageSurface()
 {
     if (!mSurfaceValid) {
         NS_WARNING ("GetImageSurface on an invalid (null) surface; who's calling this without checking for surface errors?");
@@ -239,7 +202,7 @@ gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
                                  const nsAString& aPrintToFileName)
 {
 #ifdef NS_PRINTING
-#define DOC_TITLE_LENGTH (MAX_PATH-1)
+#define DOC_TITLE_LENGTH 30
     DOCINFOW docinfo;
 
     nsString titleStr(aTitle);
@@ -323,8 +286,7 @@ gfxWindowsSurface::GetDefaultContextFlags() const
 {
     if (mForPrinting)
         return gfxContext::FLAG_SIMPLIFY_OPERATORS |
-               gfxContext::FLAG_DISABLE_SNAPPING |
-               gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
+               gfxContext::FLAG_DISABLE_SNAPPING;
 
     return 0;
 }

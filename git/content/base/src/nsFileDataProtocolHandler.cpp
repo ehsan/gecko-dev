@@ -35,33 +35,34 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsFileDataProtocolHandler.h"
-#include "nsSimpleURI.h"
+#include "nsNetCID.h"
 #include "nsDOMError.h"
 #include "nsCOMPtr.h"
 #include "nsClassHashtable.h"
 #include "nsNetUtil.h"
 #include "nsIURIWithPrincipal.h"
 #include "nsIPrincipal.h"
-#include "nsIDOMFile.h"
+#include "nsIFileChannel.h"
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIProgrammingLanguage.h"
 
+static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
+
 // -----------------------------------------------------------------------
 // Hash table
 struct FileDataInfo
 {
-  nsCOMPtr<nsIDOMBlob> mFile;
+  nsCOMPtr<nsIURI> mFileUri;
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
 static nsClassHashtable<nsCStringHashKey, FileDataInfo>* gFileDataTable;
 
 void
-nsFileDataProtocolHandler::AddFileDataEntry(nsACString& aUri,
-					    nsIDOMBlob* aFile,
+nsFileDataProtocolHandler::AddFileDataEntry(nsACString& aUri, nsIFile* aFile,
                                             nsIPrincipal* aPrincipal)
 {
   if (!gFileDataTable) {
@@ -71,7 +72,7 @@ nsFileDataProtocolHandler::AddFileDataEntry(nsACString& aUri,
 
   FileDataInfo* info = new FileDataInfo;
 
-  info->mFile = aFile;
+  NS_NewFileURI(getter_AddRefs(info->mFileUri), aFile);
   info->mPrincipal = aPrincipal;
 
   gFileDataTable->Put(aUri, info);
@@ -87,22 +88,6 @@ nsFileDataProtocolHandler::RemoveFileDataEntry(nsACString& aUri)
       gFileDataTable = nsnull;
     }
   }
-}
-
-nsIPrincipal*
-nsFileDataProtocolHandler::GetFileDataEntryPrincipal(nsACString& aUri)
-{
-  if (!gFileDataTable) {
-    return nsnull;
-  }
-  
-  FileDataInfo* res;
-  gFileDataTable->Get(aUri, &res);
-  if (!res) {
-    return nsnull;
-  }
-
-  return res->mPrincipal;
 }
 
 static FileDataInfo*
@@ -130,56 +115,71 @@ GetFileDataInfo(const nsACString& aUri)
 
 static NS_DEFINE_CID(kFILEDATAURICID, NS_FILEDATAURI_CID);
 
-class nsFileDataURI : public nsSimpleURI,
-                      public nsIURIWithPrincipal
+
+// Use an extra base object to avoid having to manually retype all the
+// nsIURI methods.  I wish we could just inherit from nsSimpleURI instead.
+class nsFileDataURI_base : public nsIURI,
+                           public nsIMutable
 {
 public:
-  nsFileDataURI(nsIPrincipal* aPrincipal) :
-      nsSimpleURI(), mPrincipal(aPrincipal)
+  nsFileDataURI_base(nsIURI* aSimpleURI) :
+    mSimpleURI(aSimpleURI)
+  {
+    mMutable = do_QueryInterface(mSimpleURI);
+    NS_ASSERTION(aSimpleURI && mMutable, "This isn't going to work out");
+  }
+  virtual ~nsFileDataURI_base() {}
+
+  // For use only from deserialization
+  nsFileDataURI_base() {}
+  
+  NS_FORWARD_NSIURI(mSimpleURI->)
+  NS_FORWARD_NSIMUTABLE(mMutable->)
+
+protected:
+  nsCOMPtr<nsIURI> mSimpleURI;
+  nsCOMPtr<nsIMutable> mMutable;
+};
+
+class nsFileDataURI : public nsFileDataURI_base,
+                      public nsIURIWithPrincipal,
+                      public nsISerializable,
+                      public nsIClassInfo
+{
+public:
+  nsFileDataURI(nsIPrincipal* aPrincipal, nsIURI* aSimpleURI) :
+      nsFileDataURI_base(aSimpleURI), mPrincipal(aPrincipal)
   {}
   virtual ~nsFileDataURI() {}
 
   // For use only from deserialization
-  nsFileDataURI() : nsSimpleURI() {}
+  nsFileDataURI() : nsFileDataURI_base() {}
 
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIURIWITHPRINCIPAL
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
 
-  // Override CloneInternal() and EqualsInternal()
-  virtual nsresult CloneInternal(RefHandlingEnum aRefHandlingMode,
-                                 nsIURI** aClone);
-  virtual nsresult EqualsInternal(nsIURI* aOther,
-                                  RefHandlingEnum aRefHandlingMode,
-                                  PRBool* aResult);
-
-  // Override StartClone to hand back a nsFileDataURI
-  virtual nsSimpleURI* StartClone(RefHandlingEnum /* unused */)
-  { return new nsFileDataURI(); }
+  // Override Clone() and Equals()
+  NS_IMETHOD Clone(nsIURI** aClone);
+  NS_IMETHOD Equals(nsIURI* aOther, PRBool *aResult);
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-static NS_DEFINE_CID(kThisSimpleURIImplementationCID,
-                     NS_THIS_SIMPLEURI_IMPLEMENTATION_CID);
-
-NS_IMPL_ADDREF_INHERITED(nsFileDataURI, nsSimpleURI)
-NS_IMPL_RELEASE_INHERITED(nsFileDataURI, nsSimpleURI)
-
+NS_IMPL_ADDREF(nsFileDataURI)
+NS_IMPL_RELEASE(nsFileDataURI)
 NS_INTERFACE_MAP_BEGIN(nsFileDataURI)
+  NS_INTERFACE_MAP_ENTRY(nsIURI)
   NS_INTERFACE_MAP_ENTRY(nsIURIWithPrincipal)
+  NS_INTERFACE_MAP_ENTRY(nsISerializable)
+  NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
+  NS_INTERFACE_MAP_ENTRY(nsIMutable)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIURI)
   if (aIID.Equals(kFILEDATAURICID))
-    foundInterface = static_cast<nsIURI*>(this);
-  else if (aIID.Equals(kThisSimpleURIImplementationCID)) {
-    // Need to return explicitly here, because if we just set foundInterface
-    // to null the NS_INTERFACE_MAP_END_INHERITING will end up calling into
-    // nsSimplURI::QueryInterface and finding something for this CID.
-    *aInstancePtr = nsnull;
-    return NS_NOINTERFACE;
-  }
+      foundInterface = static_cast<nsIURI*>(this);
   else
-NS_INTERFACE_MAP_END_INHERITING(nsSimpleURI)
+NS_INTERFACE_MAP_END
 
 // nsIURIWithPrincipal methods:
 
@@ -209,8 +209,11 @@ nsFileDataURI::GetPrincipalUri(nsIURI** aUri)
 NS_IMETHODIMP
 nsFileDataURI::Read(nsIObjectInputStream* aStream)
 {
-  nsresult rv = nsSimpleURI::Read(aStream);
+  nsresult rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mSimpleURI));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  mMutable = do_QueryInterface(mSimpleURI);
+  NS_ENSURE_TRUE(mMutable, NS_ERROR_UNEXPECTED);
 
   return NS_ReadOptionalObject(aStream, PR_TRUE, getter_AddRefs(mPrincipal));
 }
@@ -218,7 +221,8 @@ nsFileDataURI::Read(nsIObjectInputStream* aStream)
 NS_IMETHODIMP
 nsFileDataURI::Write(nsIObjectOutputStream* aStream)
 {
-  nsresult rv = nsSimpleURI::Write(aStream);
+  nsresult rv = aStream->WriteCompoundObject(mSimpleURI, NS_GET_IID(nsIURI),
+                                             PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_WriteOptionalCompoundObject(aStream, mPrincipal,
@@ -227,34 +231,23 @@ nsFileDataURI::Write(nsIObjectOutputStream* aStream)
 }
 
 // nsIURI methods:
-nsresult
-nsFileDataURI::CloneInternal(nsSimpleURI::RefHandlingEnum aRefHandlingMode,
-                             nsIURI** aClone)
+
+NS_IMETHODIMP
+nsFileDataURI::Clone(nsIURI** aClone)
 {
   nsCOMPtr<nsIURI> simpleClone;
-  nsresult rv =
-    nsSimpleURI::CloneInternal(aRefHandlingMode, getter_AddRefs(simpleClone));
+  nsresult rv = mSimpleURI->Clone(getter_AddRefs(simpleClone));
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef DEBUG
-  nsRefPtr<nsFileDataURI> uriCheck;
-  rv = simpleClone->QueryInterface(kFILEDATAURICID, getter_AddRefs(uriCheck));
-  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv) && uriCheck,
-		    "Unexpected!");
-#endif
+  nsIURI* newURI = new nsFileDataURI(mPrincipal, simpleClone);
+  NS_ENSURE_TRUE(newURI, NS_ERROR_OUT_OF_MEMORY);
 
-  nsFileDataURI* fileDataURI = static_cast<nsFileDataURI*>(simpleClone.get());
-
-  fileDataURI->mPrincipal = mPrincipal;
-
-  simpleClone.forget(aClone);
+  NS_ADDREF(*aClone = newURI);
   return NS_OK;
 }
 
-/* virtual */ nsresult
-nsFileDataURI::EqualsInternal(nsIURI* aOther,
-                              nsSimpleURI::RefHandlingEnum aRefHandlingMode,
-                              PRBool* aResult)
+NS_IMETHODIMP
+nsFileDataURI::Equals(nsIURI* aOther, PRBool *aResult)
 {
   if (!aOther) {
     *aResult = PR_FALSE;
@@ -268,20 +261,14 @@ nsFileDataURI::EqualsInternal(nsIURI* aOther,
     return NS_OK;
   }
 
-  // Compare the member data that our base class knows about.
-  if (!nsSimpleURI::EqualsInternal(otherFileDataUri, aRefHandlingMode)) {
-    *aResult = PR_FALSE;
+  nsresult rv = mPrincipal->Equals(otherFileDataUri->mPrincipal, aResult);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  if (!*aResult) {
     return NS_OK;
-   }
-
-  // Compare the piece of additional member data that we add to base class.
-  if (mPrincipal && otherFileDataUri->mPrincipal) {
-    // Both of us have mPrincipals. Compare them.
-    return mPrincipal->Equals(otherFileDataUri->mPrincipal, aResult);
   }
-  // else, at least one of us lacks a principal; only equal if *both* lack it.
-  *aResult = (!mPrincipal && !otherFileDataUri->mPrincipal);
-  return NS_OK;
+
+  return mSimpleURI->Equals(otherFileDataUri->mSimpleURI, aResult);
 }
 
 // nsIClassInfo methods:
@@ -387,14 +374,17 @@ nsFileDataProtocolHandler::NewURI(const nsACString& aSpec,
   FileDataInfo* info =
     GetFileDataInfo(aSpec);
 
-  nsRefPtr<nsFileDataURI> uri =
-    new nsFileDataURI(info ? info->mPrincipal.get() : nsnull);
-
-  rv = uri->SetSpec(aSpec);
+  nsCOMPtr<nsIURI> inner = do_CreateInstance(kSimpleURICID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = inner->SetSpec(aSpec);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsRefPtr<nsFileDataURI> uri =
+    new nsFileDataURI(info ? info->mPrincipal.get() : nsnull, inner);
+
   NS_TryToSetImmutable(uri);
-  uri.forget(aResult);
+  *aResult = uri.forget().get();
 
   return NS_OK;
 }
@@ -423,25 +413,14 @@ nsFileDataProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
   }
 #endif
 
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = info->mFile->GetInternalStream(getter_AddRefs(stream));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-				uri,
-				stream);
+  nsresult rv = NS_NewChannel(getter_AddRefs(channel), info->mFileUri);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISupports> owner = do_QueryInterface(info->mPrincipal);
 
-  nsAutoString type;
-  rv = info->mFile->GetType(type);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   channel->SetOwner(owner);
   channel->SetOriginalURI(uri);
-  channel->SetContentType(NS_ConvertUTF16toUTF8(type));
   channel.forget(result);
   
   return NS_OK;

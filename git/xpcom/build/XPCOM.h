@@ -74,6 +74,8 @@
 #include "nsIException.h"
 #include "nsIExceptionService.h"
 #include "nsIFactory.h"
+#include "nsIFastLoadFileControl.h"
+#include "nsIFastLoadService.h"
 #include "nsIFile.h"
 #include "nsIHashable.h"
 #include "nsIINIParser.h"
@@ -115,6 +117,7 @@
 #include "nsIUnicharLineInputStream.h"
 #include "nsIVariant.h"
 #include "nsIVersionComparator.h"
+#include "nsIWeakReference.h"
 #include "nsIWritablePropertyBag2.h"
 
 // interfaces that include something above
@@ -161,6 +164,7 @@
 
 #include "nsArrayEnumerator.h"
 #include "nsArrayUtils.h"
+#include "nsAutoLock.h"
 #include "nsCRTGlue.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDeque.h"

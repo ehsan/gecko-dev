@@ -296,7 +296,7 @@ class RunnableMethod : public CancelableTask,
  public:
   RunnableMethod(T* obj, Method meth, const Params& params)
       : obj_(obj), meth_(meth), params_(params) {
-    this->RetainCallee(obj_);
+    RetainCallee(obj_);
   }
   ~RunnableMethod() {
     ReleaseCallee();

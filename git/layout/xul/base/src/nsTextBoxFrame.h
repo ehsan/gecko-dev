@@ -84,11 +84,9 @@ public:
 
   virtual ~nsTextBoxFrame();
 
-  void PaintTitle(nsRenderingContext& aRenderingContext,
+  void PaintTitle(nsIRenderingContext& aRenderingContext,
                   const nsRect&        aDirtyRect,
                   nsPoint              aPt);
-
-  nsRect GetComponentAlphaBounds();
 
   virtual PRBool ComputesOwnOverflowArea();
 
@@ -102,23 +100,23 @@ protected:
 
   // REVIEW: SORRY! Couldn't resist devirtualizing these
   void LayoutTitle(nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect&        aRect);
 
-  void CalculateUnderline(nsRenderingContext& aRenderingContext);
+  void CalculateUnderline(nsIRenderingContext& aRenderingContext);
 
   void CalcTextSize(nsBoxLayoutState& aBoxLayoutState);
 
-  void CalcDrawRect(nsRenderingContext &aRenderingContext);
+  nsRect CalcTextRect(nsIRenderingContext &aRenderingContext, const nsPoint &aTextOrigin);
 
   nsTextBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  nscoord CalculateTitleForWidth(nsPresContext*      aPresContext,
-                                 nsRenderingContext& aRenderingContext,
-                                 nscoord              aWidth);
+  void CalculateTitleForWidth(nsPresContext*      aPresContext,
+                              nsIRenderingContext& aRenderingContext,
+                              nscoord              aWidth);
 
   void GetTextSize(nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsString&      aString,
                    nsSize&              aSize,
                    nscoord&             aAscent);
@@ -130,7 +128,7 @@ private:
   PRBool AlwaysAppendAccessKey();
   PRBool InsertSeparatorBeforeAccessKey();
 
-  void DrawText(nsRenderingContext& aRenderingContext,
+  void DrawText(nsIRenderingContext& aRenderingContext,
                          const nsRect&        aTextRect,
                          const nscolor*       aOverrideColor);
 
@@ -144,10 +142,10 @@ private:
   nsString mCroppedTitle;
   nsString mAccessKey;
   nsSize mTextSize;
-  nsRect mTextDrawRect;
   nsAccessKeyInfo* mAccessKeyInfo;
 
   CroppingStyle mCropType;
+  nscoord mTitleWidth;
   nscoord mAscent;
   PRPackedBool mNeedsRecalc;
   PRPackedBool mNeedsReflowCallback;

@@ -41,12 +41,9 @@
 
 #include "nsIAccessibleDocument.h"
 
-#include "nsEventShell.h"
 #include "nsHyperTextAccessibleWrap.h"
-#include "NotificationController.h"
+#include "nsEventShell.h"
 
-#include "nsClassHashtable.h"
-#include "nsDataHashtable.h"
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
 #include "nsIEditor.h"
@@ -93,6 +90,7 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetDescription(nsAString& aDescription);
   NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
   NS_IMETHOD TakeFocus(void);
@@ -107,16 +105,14 @@ public:
   // nsAccessNode
   virtual PRBool Init();
   virtual void Shutdown();
-  virtual nsIFrame* GetFrame() const;
-  virtual bool IsDefunct() const;
+  virtual nsIFrame* GetFrame();
+  virtual PRBool IsDefunct();
   virtual nsINode* GetNode() const { return mDocument; }
-  virtual nsIDocument* GetDocumentNode() const { return mDocument; }
 
   // nsAccessible
-  virtual void Description(nsString& aDescription);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-  virtual void ApplyARIAState(PRUint64* aState);
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
@@ -139,37 +135,11 @@ public:
   }
 
   /**
-   * Marks this document as loaded or loading, used to expose busy state.
-   * The loaded flag has special meaning for error pages and used as workaround
-   * to make IsContentLoaded() return correct result since these pages do not
+   * Marks as loaded, used for error pages as workaround since they do not
    * receive pageshow event and as consequence nsIDocument::IsShowing() returns
    * false.
    */
   void MarkAsLoaded() { mIsLoaded = PR_TRUE; }
-  void MarkAsLoading() { mIsLoaded = PR_FALSE; }
-
-  /**
-   * Return a native window handler or pointer depending on platform.
-   */
-  virtual void* GetNativeWindow() const;
-
-  /**
-   * Return the parent document.
-   */
-  nsDocAccessible* ParentDocument() const
-    { return mParent ? mParent->GetDocAccessible() : nsnull; }
-
-  /**
-   * Return the child document count.
-   */
-  PRUint32 ChildDocumentCount() const
-    { return mChildDocuments.Length(); }
-
-  /**
-   * Return the child document at the given index.
-   */
-  nsDocAccessible* GetChildDocumentAt(PRUint32 aIndex) const
-    { return mChildDocuments.SafeElementAt(aIndex, nsnull); }
 
   /**
    * Non-virtual method to fire a delayed event after a 0 length timeout.
@@ -177,9 +147,12 @@ public:
    * @param aEventType   [in] the nsIAccessibleEvent event type
    * @param aDOMNode     [in] DOM node the accesible event should be fired for
    * @param aAllowDupes  [in] rule to process an event (see EEventRule constants)
+   * @param aIsAsynch    [in] set to PR_TRUE if this is not being called from
+   *                      code synchronous with a DOM event
    */
   nsresult FireDelayedAccessibleEvent(PRUint32 aEventType, nsINode *aNode,
                                       AccEvent::EEventRule aAllowDupes = AccEvent::eRemoveDupes,
+                                      PRBool aIsAsynch = PR_FALSE,
                                       EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
   /**
@@ -190,220 +163,75 @@ public:
   nsresult FireDelayedAccessibleEvent(AccEvent* aEvent);
 
   /**
-   * Handle anchor jump when page is loaded.
-   */
-  inline void HandleAnchorJump(nsIContent* aTargetNode)
-  {
-    HandleNotification<nsDocAccessible, nsIContent>
-      (this, &nsDocAccessible::ProcessAnchorJump, aTargetNode);
-  }
-
-  /**
-   * Bind the child document to the tree.
-   */
-  inline void BindChildDocument(nsDocAccessible* aDocument)
-  {
-    mNotificationController->ScheduleChildDocBinding(aDocument);
-  }
-
-  /**
-   * Process the generic notification.
+   * Find the accessible object in the accessibility cache that corresponds to
+   * the given node or the first ancestor of it that has an accessible object
+   * associated with it. Clear that accessible object's parent's cache of
+   * accessible children and remove the accessible object and any descendants
+   * from the accessible cache. Fires proper events. New accessible objects will
+   * be created and cached again on demand.
    *
-   * @note  The caller must guarantee that the given instance still exists when
-   *          notification is processed.
-   * @see   NotificationController::HandleNotification
+   * @param aContent  [in] the child that is changing
+   * @param aEvent    [in] the event from nsIAccessibleEvent that caused
+   *                   the change.
    */
-  template<class Class, class Arg>
-  inline void HandleNotification(Class* aInstance,
-                                 typename TNotification<Class, Arg>::Callback aMethod,
-                                 Arg* aArg)
-  {
-    if (mNotificationController) {
-      mNotificationController->HandleNotification<Class, Arg>(aInstance,
-                                                              aMethod, aArg);
-    }
-  }
+  void InvalidateCacheSubtree(nsIContent *aContent, PRUint32 aEvent);
 
   /**
-   * Return the cached accessible by the given DOM node if it's in subtree of
+   * Return the cached accessible by the given unique ID if it's in subtree of
    * this document accessible or the document accessible itself, otherwise null.
+   *
+   * @note   the unique ID matches with the uniqueID attribute on nsIAccessNode
+   *
+   * @param  aUniqueID  [in] the unique ID used to cache the node.
    *
    * @return the accessible object
    */
-  nsAccessible* GetAccessible(nsINode* aNode) const;
+  nsAccessible* GetCachedAccessible(void *aUniqueID);
 
   /**
-   * Return whether the given DOM node has an accessible or not.
-   */
-  inline bool HasAccessible(nsINode* aNode)
-  {
-    return GetAccessible(aNode);
-  }
-
-  /**
-   * Return the cached accessible by the given unique ID within this document.
+   * Cache the accessible.
    *
-   * @note   the unique ID matches with the uniqueID() of nsAccessNode
+   * @param  aUniquID     [in] the unique identifier of accessible
+   * @param  aAccessible  [in] accessible to cache
    *
-   * @param  aUniqueID  [in] the unique ID used to cache the node.
+   * @return true if accessible being cached, otherwise false
    */
-  inline nsAccessible* GetAccessibleByUniqueID(void* aUniqueID)
-  {
-    return UniqueID() == aUniqueID ?
-      this : mAccessibleCache.GetWeak(aUniqueID);
-  }
+  PRBool CacheAccessible(void *aUniqueID, nsAccessible *aAccessible);
 
   /**
-   * Return the cached accessible by the given unique ID looking through
-   * this and nested documents.
+   * Remove the given accessible from document cache.
    */
-  nsAccessible* GetAccessibleByUniqueIDInSubtree(void* aUniqueID);
+  void RemoveAccessNodeFromCache(nsAccessible *aAccessible);
 
   /**
-   * Return an accessible for the given DOM node or container accessible if
-   * the node is not accessible.
+   * Process the event when the queue of pending events is untwisted. Fire
+   * accessible events as result of the processing.
    */
-  nsAccessible* GetAccessibleOrContainer(nsINode* aNode);
-
-  /**
-   * Return a container accessible for the given DOM node.
-   */
-  inline nsAccessible* GetContainerAccessible(nsINode* aNode)
-  {
-    return aNode ? GetAccessibleOrContainer(aNode->GetNodeParent()) : nsnull;
-  }
-
-  /**
-   * Return true if the given ID is referred by relation attribute.
-   *
-   * @note Different elements may share the same ID if they are hosted inside
-   *       XBL bindings. Be careful the result of this method may be  senseless
-   *       while it's called for XUL elements (where XBL is used widely).
-   */
-  PRBool IsDependentID(const nsAString& aID) const
-    { return mDependentIDsHash.Get(aID, nsnull); }
-
-  /**
-   * Initialize the newly created accessible and put it into document caches.
-   *
-   * @param  aAccessible    [in] created accessible
-   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
-   *                          if none
-   */
-  bool BindToDocument(nsAccessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
-
-  /**
-   * Remove from document and shutdown the given accessible.
-   */
-  void UnbindFromDocument(nsAccessible* aAccessible);
-
-  /**
-   * Notify the document accessible that content was inserted.
-   */
-  void ContentInserted(nsIContent* aContainerNode,
-                       nsIContent* aStartChildNode,
-                       nsIContent* aEndChildNode);
-
-  /**
-   * Notify the document accessible that content was removed.
-   */
-  void ContentRemoved(nsIContent* aContainerNode, nsIContent* aChildNode);
-
-  /**
-   * Updates accessible tree when rendered text is changed.
-   */
-  inline void UpdateText(nsIContent* aTextNode)
-  {
-    NS_ASSERTION(mNotificationController, "The document was shut down!");
-
-    if (mNotificationController)
-      mNotificationController->ScheduleTextUpdate(aTextNode);
-  }
-
-  /**
-   * Recreate an accessible, results in hide/show events pair.
-   */
-  void RecreateAccessible(nsIContent* aContent);
-
-  /**
-   * Used to notify the document that the accessible caching is started or
-   * finished.
-   *
-   * While children are cached we may encounter the case there's no accessible
-   * for referred content by related accessible. Keep the caching root and
-   * these related nodes to invalidate their containers after root caching.
-   */
-  void NotifyOfCachingStart(nsAccessible* aAccessible);
-  void NotifyOfCachingEnd(nsAccessible* aAccessible);
+  void ProcessPendingEvent(AccEvent* aEvent);
 
 protected:
 
-  // nsAccessible
-  virtual void CacheChildren();
-
-  // nsDocAccessible
     virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
     virtual nsresult AddEventListeners();
     virtual nsresult RemoveEventListeners();
-
-  /**
-   * Notify this document that was bound to the accessible document tree.
-   * Can be overridden by wrappers to prepare initialization work.
-   */
-  virtual void NotifyOfInitialUpdate();
-
     void AddScrollListener();
     void RemoveScrollListener();
 
   /**
-   * Append the given document accessible to this document's child document
-   * accessibles.
-   */
-  bool AppendChildDocument(nsDocAccessible* aChildDocument)
-  {
-    return mChildDocuments.AppendElement(aChildDocument);
-  }
-
-  /**
-   * Remove the given document accessible from this document's child document
-   * accessibles.
-   */
-  void RemoveChildDocument(nsDocAccessible* aChildDocument)
-  {
-    mChildDocuments.RemoveElement(aChildDocument);
-  }
-
-  /**
-   * Add dependent IDs pointed by accessible element by relation attribute to
-   * cache. If the relation attribute is missed then all relation attributes
-   * are checked.
+   * Invalidate parent-child relations for any cached accessible in the DOM
+   * subtree. Accessible objects aren't destroyed.
    *
-   * @param aRelProvider [in] accessible that element has relation attribute
-   * @param aRelAttr     [in, optional] relation attribute
+   * @param aStartNode  [in] the root of the subrtee to invalidate accessible
+   *                      child/parent refs in
    */
-  void AddDependentIDsFor(nsAccessible* aRelProvider,
-                          nsIAtom* aRelAttr = nsnull);
+  void InvalidateChildrenInSubtree(nsINode *aStartNode);
 
   /**
-   * Remove dependent IDs pointed by accessible element by relation attribute
-   * from cache. If the relation attribute is absent then all relation
-   * attributes are checked.
-   *
-   * @param aRelProvider [in] accessible that element has relation attribute
-   * @param aRelAttr     [in, optional] relation attribute
+   * Traverse through DOM tree and shutdown accessible objects.
    */
-  void RemoveDependentIDsFor(nsAccessible* aRelProvider,
-                             nsIAtom* aRelAttr = nsnull);
+  void RefreshNodes(nsINode *aStartNode);
 
-  /**
-   * Update or recreate an accessible depending on a changed attribute.
-   *
-   * @param aElement   [in] the element the attribute was changed on
-   * @param aAttribute [in] the changed attribute
-   * @return            true if an action was taken on the attribute change
-   */
-  bool UpdateAccessibleOnAttrChange(mozilla::dom::Element* aElement,
-                                    nsIAtom* aAttribute);
+    static void ScrollTimerCallback(nsITimer *aTimer, void *aClosure);
 
     /**
      * Fires accessible events when attribute is changed.
@@ -422,141 +250,96 @@ protected:
      */
     void ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute);
 
-  /**
-   * Process the event when the queue of pending events is untwisted. Fire
-   * accessible events as result of the processing.
-   */
-  void ProcessPendingEvent(AccEvent* aEvent);
+    /**
+     * Fire text changed event for character data changed. The method is used
+     * from nsIMutationObserver methods.
+     *
+     * @param aContent     the text node holding changed data
+     * @param aInfo        info structure describing how the data was changed
+     * @param aIsInserted  the flag pointed whether removed or inserted
+     *                     characters should be cause of event
+     */
+    void FireTextChangeEventForText(nsIContent *aContent,
+                                    CharacterDataChangeInfo* aInfo,
+                                    PRBool aIsInserted);
 
   /**
-   * Process anchor jump notification and fire scrolling end event.
+   * Create a text change event for a changed node.
+   *
+   * @param  aContainerAccessible  [in] the parent accessible for the node
+   * @param  aChangeNode           [in] the node that is being inserted or
+   *                                 removed, or shown/hidden
+   * @param  aAccessible           [in] the accessible for that node, or nsnull
+   *                                 if none exists
+   * @param  aIsInserting          [in] is aChangeNode being created or shown
+   *                                 (vs. removed or hidden)
+   * @param  aIsAsync              [in] whether casual change is async
+   * @param  aIsFromUserInput      [in] the event is known to be from user input
    */
-  void ProcessAnchorJump(nsIContent* aTargetNode);
+  already_AddRefed<AccEvent>
+    CreateTextChangeEventForNode(nsAccessible *aContainerAccessible,
+                                 nsIContent *aChangeNode,
+                                 nsAccessible *aAccessible,
+                                 PRBool aIsInserting,
+                                 PRBool aIsAsynch,
+                                 EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
   /**
-   * Update the accessible tree for inserted content.
+   * Used to define should the event be fired on a delay.
    */
-  void ProcessContentInserted(nsAccessible* aContainer,
-                              const nsTArray<nsCOMPtr<nsIContent> >* aInsertedContent);
-
-  /**
-   * Update the accessible tree for content insertion or removal.
-   */
-  void UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
-                  bool aIsInsert);
-
-  /**
-   * Helper for UpdateTree() method. Go down to DOM subtree and updates
-   * accessible tree. Return one of these flags.
-   */
-  enum EUpdateTreeFlags {
-    eNoAccessible = 0,
-    eAccessible = 1,
-    eAlertAccessible = 2
+  enum EEventFiringType {
+    eNormalEvent,
+    eDelayedEvent
   };
 
-  PRUint32 UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert);
-
   /**
-   * Create accessible tree.
-   */
-  void CacheChildrenInSubtree(nsAccessible* aRoot);
-
-  /**
-   * Remove accessibles in subtree from node to accessible map.
-   */
-  void UncacheChildrenInSubtree(nsAccessible* aRoot);
-
-  /**
-   * Shutdown any cached accessible in the subtree.
+   * Fire show/hide events for either the current node if it has an accessible,
+   * or the first-line accessible descendants of the given node.
    *
-   * @param aAccessible  [in] the root of the subrtee to invalidate accessible
-   *                      child/parent refs in
+   * @param  aDOMNode          [in] the given node
+   * @param  aAvoidOnThisNode  [in] call with PR_TRUE the first time to
+   *                             prevent event firing on root node for change
+   * @param  aEventType        [in] event type to fire an event
+   * @param  aDelayedOrNormal  [in] whether to fire the event on a delay
+   * @param  aIsAsyncChange    [in] whether casual change is async
+   * @param  aIsFromUserInput  [in] the event is known to be from user input
    */
-  void ShutdownChildrenInSubtree(nsAccessible *aAccessible);
+  nsresult FireShowHideEvents(nsINode *aDOMNode, PRBool aAvoidOnThisNode,
+                              PRUint32 aEventType,
+                              EEventFiringType aDelayedOrNormal,
+                              PRBool aIsAsyncChange,
+                              EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
   /**
-   * Used to fire scrolling end event after page scroll.
-   *
-   * @param aTimer    [in] the timer object
-   * @param aClosure  [in] the document accessible where scrolling happens
+   * Fire a value change event for the the given accessible if it is a text
+   * field (has a ROLE_ENTRY).
    */
-  static void ScrollTimerCallback(nsITimer* aTimer, void* aClosure);
+  void FireValueChangeForTextFields(nsAccessible *aAccessible);
 
   /**
    * Cache of accessibles within this document accessible.
    */
   nsAccessibleHashtable mAccessibleCache;
-  nsDataHashtable<nsPtrHashKey<const nsINode>, nsAccessible*>
-    mNodeToAccessibleMap;
 
+    void *mWnd;
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsITimer> mScrollWatchTimer;
     PRUint16 mScrollPositionChangedTicks; // Used for tracking scroll events
 
 protected:
 
+  nsRefPtr<nsAccEventQueue> mEventQueue;
+
   /**
    * Specifies if the document was loaded, used for error pages only.
    */
   PRPackedBool mIsLoaded;
 
-  static PRUint64 gLastFocusedAccessiblesState;
-
-  nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
-
-  /**
-   * A storage class for pairing content with one of its relation attributes.
-   */
-  class AttrRelProvider
-  {
-  public:
-    AttrRelProvider(nsIAtom* aRelAttr, nsIContent* aContent) :
-      mRelAttr(aRelAttr), mContent(aContent) { }
-
-    nsIAtom* mRelAttr;
-    nsCOMPtr<nsIContent> mContent;
-
-  private:
-    AttrRelProvider();
-    AttrRelProvider(const AttrRelProvider&);
-    AttrRelProvider& operator =(const AttrRelProvider&);
-  };
-
-  /**
-   * The cache of IDs pointed by relation attributes.
-   */
-  typedef nsTArray<nsAutoPtr<AttrRelProvider> > AttrRelProviderArray;
-  nsClassHashtable<nsStringHashKey, AttrRelProviderArray> mDependentIDsHash;
-
-  friend class RelatedAccIterator;
-
-  /**
-   * Used for our caching algorithm. We store the root of the tree that needs
-   * caching, the list of nodes that should be invalidated, and whether we are
-   * processing the invalidation list.
-   *
-   * @see NotifyOfCachingStart/NotifyOfCachingEnd
-   */
-  nsAccessible* mCacheRoot;
-  nsTArray<nsIContent*> mInvalidationList;
-  PRBool mIsPostCacheProcessing;
-
-  /**
-   * Used to process notification from core and accessible events.
-   */
-  nsRefPtr<NotificationController> mNotificationController;
-  friend class NotificationController;
+    static PRUint32 gLastFocusedAccessiblesState;
+    static nsIAtom *gLastFocusedFrameType;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,
                               NS_DOCACCESSIBLE_IMPL_CID)
 
-inline nsDocAccessible*
-nsAccessible::AsDoc()
-{
-  return mFlags & eDocAccessible ?
-    static_cast<nsDocAccessible*>(this) : nsnull;
-}
-
-#endif
+#endif  

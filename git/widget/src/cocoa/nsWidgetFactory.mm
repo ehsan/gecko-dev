@@ -99,15 +99,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacDockSupport)
 #include "nsStandaloneNativeMenu.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsStandaloneNativeMenu)
 
-#include "GfxInfo.h"
-namespace mozilla {
-namespace widget {
-// This constructor should really be shared with all platforms.
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(GfxInfo, Init)
-}
-}
-
-
 NS_DEFINE_NAMED_CID(NS_WINDOW_CID);
 NS_DEFINE_NAMED_CID(NS_POPUP_CID);
 NS_DEFINE_NAMED_CID(NS_CHILD_CID);
@@ -132,7 +123,6 @@ NS_DEFINE_NAMED_CID(NS_IDLE_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_NATIVEMENUSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_MACDOCKSUPPORT_CID);
 NS_DEFINE_NAMED_CID(NS_STANDALONENATIVEMENU_CID);
-NS_DEFINE_NAMED_CID(NS_GFXINFO_CID);
 
 
 static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
@@ -160,7 +150,6 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_NATIVEMENUSERVICE_CID, false, NULL, nsNativeMenuServiceXConstructor },
   { &kNS_MACDOCKSUPPORT_CID, false, NULL, nsMacDockSupportConstructor },
   { &kNS_STANDALONENATIVEMENU_CID, false, NULL, nsStandaloneNativeMenuConstructor },
-  { &kNS_GFXINFO_CID, false, NULL, mozilla::widget::GfxInfoConstructor },
   { NULL }
 };
 
@@ -189,7 +178,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/widget/nativemenuservice;1", &kNS_NATIVEMENUSERVICE_CID },
   { "@mozilla.org/widget/macdocksupport;1", &kNS_MACDOCKSUPPORT_CID },
   { "@mozilla.org/widget/standalonenativemenu;1", &kNS_STANDALONENATIVEMENU_CID },
-  { "@mozilla.org/gfx/info;1", &kNS_GFXINFO_CID },
   { NULL }
 };
 

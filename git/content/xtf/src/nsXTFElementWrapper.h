@@ -84,7 +84,7 @@ public:
                               PRBool aNullParent = PR_TRUE);
   nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                          PRBool aNotify);
-  nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
   nsIAtom *GetIDAttributeName() const;
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    nsIAtom* aPrefix, const nsAString& aValue,
@@ -108,7 +108,7 @@ public:
   PRUint32 GetAttrCount() const;
   virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const;
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   virtual void BeginAddingChildren();
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -155,10 +155,6 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo() { return this; }
 
-  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
-  {
-  }
-
 protected:
   virtual nsIXTFElement* GetXTFElement() const
   {
@@ -187,7 +183,7 @@ protected:
    * The intrinsic state of the element.
    * @see nsIContent::IntrinsicState()
    */
-  nsEventStates mIntrinsicState;
+  PRInt32 mIntrinsicState;
 
   // Temporary owner used by GetAttrNameAt
   nsAttrName mTmpAttrName;

@@ -42,17 +42,14 @@
 #include "nsIInputStream.h"
 #include "nsIDocShell.h"
 #include "gfxPattern.h"
-#include "mozilla/RefPtr.h"
 
+// {EC90F32E-7848-4819-A1E3-02E64C682A72}
 #define NS_ICANVASRENDERINGCONTEXTINTERNAL_IID \
-{ 0xffb42d3c, 0x8281, 0x44c8, \
-  { 0xac, 0xba, 0x73, 0x15, 0x31, 0xaa, 0xe5, 0x07 } }
+{ 0xec90f32e, 0x7848, 0x4819, { 0xa1, 0xe3, 0x2, 0xe6, 0x4c, 0x68, 0x2a, 0x72 } }
 
 class nsHTMLCanvasElement;
 class gfxContext;
 class gfxASurface;
-class nsIPropertyBag;
-class nsDisplayListBuilder;
 
 namespace mozilla {
 namespace layers {
@@ -61,9 +58,6 @@ class LayerManager;
 }
 namespace ipc {
 class Shmem;
-}
-namespace gfx {
-class SourceSurface;
 }
 }
 
@@ -100,11 +94,6 @@ public:
   // If this canvas context can be represented with a simple Thebes surface,
   // return the surface.  Otherwise returns an error.
   NS_IMETHOD GetThebesSurface(gfxASurface **surface) = 0;
-  
-  // This gets an Azure SourceSurface for the canvas, this will be a snapshot
-  // of the canvas at the time it was called. This will return null for a
-  // non-azure canvas.
-  virtual mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot() = 0;
 
   // If this context is opaque, the backing store of the canvas should
   // be created as opaque; all compositing operators should assume the
@@ -118,8 +107,7 @@ public:
 
   // Return the CanvasLayer for this context, creating
   // one for the given layer manager if not available.
-  virtual already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
-                                                       CanvasLayer *aOldLayer,
+  virtual already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
                                                        LayerManager *aManager) = 0;
 
   virtual void MarkContextClean() = 0;
@@ -127,19 +115,21 @@ public:
   // Redraw the dirty rectangle of this canvas.
   NS_IMETHOD Redraw(const gfxRect &dirty) = 0;
 
-  // Passes a generic nsIPropertyBag options argument, along with the
-  // previous one, if any.  Optional.
-  NS_IMETHOD SetContextOptions(nsIPropertyBag *aNewOptions) { return NS_OK; }
-
-  //
-  // shmem support
-  //
-
   // If this context can be set to use Mozilla's Shmem segments as its backing
   // store, this will set it to that state. Note that if you have drawn
   // anything into this canvas before changing the shmem state, it will be
   // lost.
   NS_IMETHOD SetIsIPC(PRBool isIPC) = 0;
+
+  // Swap this back buffer with the front, and copy its contents to the new
+  // back. x, y, w, and h specify the area of |back| that is dirty.
+  NS_IMETHOD Swap(mozilla::ipc::Shmem& back,
+                  PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h) = 0;
+
+  // Sync back and front buffer, move ownership of back buffer to parent
+  NS_IMETHOD Swap(PRUint32 nativeID,
+                  PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h) = 0;
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICanvasRenderingContextInternal,

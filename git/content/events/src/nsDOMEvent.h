@@ -77,8 +77,6 @@ public:
     eDOMEvents_blur,
     eDOMEvents_load,
     eDOMEvents_popstate,
-    eDOMEvents_beforescriptexecute,
-    eDOMEvents_afterscriptexecute,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
     eDOMEvents_hashchange,
@@ -136,8 +134,7 @@ public:
     eDOMEvents_copy,
     eDOMEvents_cut,
     eDOMEvents_paste,
-    eDOMEvents_open,
-    eDOMEvents_message,
+#ifdef MOZ_SVG
     eDOMEvents_SVGLoad,
     eDOMEvents_SVGUnload,
     eDOMEvents_SVGAbort,
@@ -145,6 +142,7 @@ public:
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
     eDOMEvents_beginEvent,
     eDOMEvents_endEvent,
@@ -175,7 +173,6 @@ public:
 #endif
     eDOMEvents_afterpaint,
     eDOMEvents_beforepaint,
-    eDOMEvents_beforeresize,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,
@@ -189,10 +186,7 @@ public:
     eDOMEvents_MozTouchMove,
     eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
-    eDOMEvents_transitionend,
-    eDOMEvents_animationstart,
-    eDOMEvents_animationend,
-    eDOMEvents_animationiteration
+    eDOMEvents_transitionend
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -229,6 +223,7 @@ protected:
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
   already_AddRefed<nsIContent> GetTargetFromFrame();
+  nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;

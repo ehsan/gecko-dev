@@ -64,9 +64,6 @@
 #include "nsContentUtils.h"
 #include "nsAttrName.h"
 #include "nsILineBreaker.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 static const char kMozStr[] = "moz";
 
@@ -646,11 +643,7 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
                                       nsAString& aStr,
                                       PRBool aDoEscapeEntities)
 {
-  nsAutoString attrString_;
-  // For innerHTML we can do faster appending without
-  // temporary strings.
-  PRBool rawAppend = mDoRaw && aDoEscapeEntities;
-  nsAString& attrString = (rawAppend) ? aStr : attrString_;
+  nsAutoString attrString;
 
   attrString.Append(PRUnichar(' '));
   if (!aPrefix.IsEmpty()) {
@@ -669,9 +662,6 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
     mInAttribute = PR_FALSE;
 
     attrString.Append(PRUnichar('"'));
-    if (rawAppend) {
-      return;
-    }
   }
   else {
     // Depending on whether the attribute value contains quotes or apostrophes we
@@ -918,8 +908,8 @@ nsXMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendElementStart(Element* aElement,
-                                           Element* aOriginalElement,
+nsXMLContentSerializer::AppendElementStart(nsIContent *aElement,
+                                           nsIContent *aOriginalElement,
                                            nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -933,7 +923,7 @@ nsXMLContentSerializer::AppendElementStart(Element* aElement,
 
   nsAutoString tagPrefix, tagLocalName, tagNamespaceURI;
   aElement->NodeInfo()->GetPrefix(tagPrefix);
-  aElement->NodeInfo()->GetName(tagLocalName);
+  aElement->NodeInfo()->GetLocalName(tagLocalName);
   aElement->NodeInfo()->GetNamespaceURI(tagNamespaceURI);
 
   PRUint32 skipAttr = ScanNamespaceDeclarations(content,
@@ -1019,7 +1009,7 @@ nsXMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendElementEnd(Element* aElement,
+nsXMLContentSerializer::AppendElementEnd(nsIContent *aElement,
                                          nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -1044,7 +1034,7 @@ nsXMLContentSerializer::AppendElementEnd(Element* aElement,
   nsAutoString tagPrefix, tagLocalName, tagNamespaceURI;
   
   aElement->NodeInfo()->GetPrefix(tagPrefix);
-  aElement->NodeInfo()->GetName(tagLocalName);
+  aElement->NodeInfo()->GetLocalName(tagLocalName);
   aElement->NodeInfo()->GetNamespaceURI(tagNamespaceURI);
 
 #ifdef DEBUG
@@ -1319,8 +1309,7 @@ void
 nsXMLContentSerializer::IncrIndentation(nsIAtom* aName)
 {
   // we want to keep the source readable
-  if (mDoWrap &&
-      mIndent.Length() >= PRUint32(mMaxColumn) - MIN_INDENTED_LINE_LENGTH) {
+  if(mDoWrap && mIndent.Length() >= mMaxColumn - MIN_INDENTED_LINE_LENGTH) {
     ++mIndentOverflow;
   }
   else {
@@ -1370,7 +1359,19 @@ nsXMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
   }
 
   if (mDoRaw) {
+    nsDependentString str(aStr);
+    PRInt32 lastNewlineOffset = str.RFindChar('\n');
     AppendToString(aStr, aOutputStr);
+
+    if (lastNewlineOffset != kNotFound) {
+      // the string contains at least a line break,
+      // so we should update the mColPos property with
+      // the number of characters between the last line
+      // break and the end of the string
+      mColPos = aStr.Length() - lastNewlineOffset;
+    }
+
+    mIsIndentationAddedOnCurrentLine = (mColPos != 0);
   }
   else {
     // Convert line-endings to mLineBreak
@@ -1659,7 +1660,7 @@ nsXMLContentSerializer::AppendToStringFormatedWrapped(const nsASingleFragmentStr
   PRBool mayIgnoreStartOfLineWhitespaceSequence =
     (!mColPos || (mIsIndentationAddedOnCurrentLine &&
                   sequenceStartAfterAWhitespace &&
-                  PRUint32(mColPos) == mIndent.Length()));
+                  mColPos == mIndent.Length()));
 
   while (pos < end) {
     sequenceStart = pos;

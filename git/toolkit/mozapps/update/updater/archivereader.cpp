@@ -49,6 +49,10 @@
 # include <io.h>
 #endif
 
+#ifdef WINCE
+#include "updater_wince.h"
+#endif
+
 static int inbuf_size  = 262144;
 static int outbuf_size = 262144;
 static char *inbuf  = NULL;

@@ -106,7 +106,7 @@ private:
   nsCOMPtr<nsIArray> mArgv;
 
   // The JS expression to evaluate or function to call, if !mExpr
-  JSFlatString *mExpr;
+  JSString *mExpr;
   JSObject *mFunObj;
 };
 
@@ -114,42 +114,11 @@ private:
 // nsJSScriptTimeoutHandler
 // QueryInterface implementation for nsJSScriptTimeoutHandler
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSScriptTimeoutHandler)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSScriptTimeoutHandler)
   tmp->ReleaseJSObjects();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
-  if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    nsCAutoString foo("nsJSScriptTimeoutHandler");
-    if (tmp->mExpr) {
-      foo.AppendLiteral(" [");
-      foo.Append(tmp->mFileName);
-      foo.AppendLiteral(":");
-      foo.AppendInt(tmp->mLineNo);
-      foo.AppendLiteral("]");
-    }
-    else if (tmp->mFunObj) {
-      JSFunction* fun = (JSFunction*)tmp->mFunObj->getPrivate();
-      if (fun->atom) {
-        JSFlatString *funId = JS_ASSERT_STRING_IS_FLAT(JS_GetFunctionId(fun));
-        size_t size = 1 + JS_PutEscapedFlatString(NULL, 0, funId, 0);
-        char *name = new char[size];
-        if (name) {
-          JS_PutEscapedFlatString(name, size, funId, 0);
-          foo.AppendLiteral(" [");
-          foo.Append(name);
-          delete[] name;
-          foo.AppendLiteral("]");
-        }
-      }
-    }
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(),
-                              sizeof(nsJSScriptTimeoutHandler), foo.get());
-  }
-  else {
-    NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSScriptTimeoutHandler,
-                                      tmp->mRefCnt.get())
-  }
-
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsJSScriptTimeoutHandler)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSScriptTimeoutHandler)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArgv)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -228,7 +197,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
   ncc->GetArgc(&argc);
   ncc->GetArgvPtr(&argv);
 
-  JSFlatString *expr = nsnull;
+  JSString *expr = nsnull;
   JSObject *funobj = nsnull;
   int32 interval = 0;
 
@@ -260,17 +229,10 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
 
   case JSTYPE_STRING:
   case JSTYPE_OBJECT:
-    {
-      JSString *str = ::JS_ValueToString(cx, argv[0]);
-      if (!str)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-      expr = ::JS_FlattenString(cx, str);
-      if (!expr)
-          return NS_ERROR_OUT_OF_MEMORY;
-
-      argv[0] = STRING_TO_JSVAL(str);
-    }
+    expr = ::JS_ValueToString(cx, argv[0]);
+    if (!expr)
+      return NS_ERROR_OUT_OF_MEMORY;
+    argv[0] = STRING_TO_JSVAL(expr);
     break;
 
   default:
@@ -313,9 +275,11 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
 
     mExpr = expr;
 
+    nsIPrincipal *prin = aWindow->GetPrincipal();
+
     // Get the calling location.
     const char *filename;
-    if (nsJSUtils::GetCallingLocation(cx, &filename, &mLineNo)) {
+    if (nsJSUtils::GetCallingLocation(cx, &filename, &mLineNo, prin)) {
       mFileName.Assign(filename);
     }
   } else if (funobj) {
@@ -371,7 +335,8 @@ const PRUnichar *
 nsJSScriptTimeoutHandler::GetHandlerText()
 {
   NS_ASSERTION(mExpr, "No expression, so no handler text!");
-  return ::JS_GetFlatStringChars(mExpr);
+  return reinterpret_cast<const PRUnichar *>
+                         (::JS_GetStringChars(mExpr));
 }
 
 nsresult NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,

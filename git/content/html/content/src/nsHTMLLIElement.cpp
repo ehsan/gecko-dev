@@ -152,12 +152,11 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                       nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(List)) {
-    nsCSSValue* listStyleType = aData->ValueForListStyleType();
-    if (listStyleType->GetUnit() == eCSSUnit_Null) {
+    if (aData->mListData->mType.GetUnit() == eCSSUnit_Null) {
       // type: enum
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::type);
       if (value && value->Type() == nsAttrValue::eEnum)
-        listStyleType->SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
+        aData->mListData->mType.SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
     }
   }
 

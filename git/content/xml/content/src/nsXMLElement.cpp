@@ -72,7 +72,6 @@ nsresult
 nsXMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                         PRBool aNotify)
 {
-  nsAutoScriptBlocker scriptBlocker;
   PRBool isId = PR_FALSE;
   if (aAttribute == GetIDAttributeName() &&
       aNameSpaceID == kNameSpaceID_None) {
@@ -80,16 +79,11 @@ nsXMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
     RemoveFromIdTable();
     isId = PR_TRUE;
   }
-
-  nsMutationGuard guard;
-
+  
   nsresult rv = nsGenericElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
-
-  if (isId &&
-      (!guard.Mutated(0) ||
-       !mNodeInfo->GetIDAttributeAtom() ||
-       !HasAttr(kNameSpaceID_None, GetIDAttributeName()))) {
-    ClearHasID();
+  
+  if (isId) {
+    UnsetFlags(NODE_HAS_ID);
   }
   
   return rv;
@@ -104,48 +98,31 @@ nsXMLElement::GetIDAttributeName() const
 nsIAtom*
 nsXMLElement::DoGetID() const
 {
-  NS_ASSERTION(HasID(), "Unexpected call");
-
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(GetIDAttributeName());
-  return attrVal ? attrVal->GetAtomValue() : nsnull;
-}
-
-void
-nsXMLElement::NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
-{
-  NS_ASSERTION(!IsInDoc() ||
-               aOldNodeInfo->GetDocument() == mNodeInfo->GetDocument(),
-               "Can only change document if we're not inside one");
-  nsIDocument* doc = GetCurrentDoc();
-
-  if (HasID() && doc) {
-    const nsAttrValue* attrVal =
-      mAttrsAndChildren.GetAttr(aOldNodeInfo->GetIDAttributeAtom());
-    if (attrVal) {
-      doc->RemoveFromIdTable(this, attrVal->GetAtomValue());
-    }
-  }
-  
-  ClearHasID();
+  NS_ASSERTION(HasFlag(NODE_HAS_ID), "Unexpected call");
 
   nsIAtom* IDName = GetIDAttributeName();
   if (IDName) {
     const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(IDName);
     if (attrVal) {
-      SetHasID();
+      if (attrVal->Type() == nsAttrValue::eAtom) {
+        return attrVal->GetAtomValue();
+      }
+      if (attrVal->IsEmptyString()) {
+        return nsnull;
+      }
+      // Check if the ID has been stored as a string.
+      // This would occur if the ID attribute name changed after 
+      // the ID was parsed. 
       if (attrVal->Type() == nsAttrValue::eString) {
-        nsString idVal(attrVal->GetStringValue());
+        nsAutoString idVal(attrVal->GetStringValue());
 
         // Create an atom from the value and set it into the attribute list. 
         const_cast<nsAttrValue*>(attrVal)->ParseAtom(idVal);
-      }
-      NS_ASSERTION(attrVal->Type() == nsAttrValue::eAtom,
-                   "Should be atom by now");
-      if (doc) {
-        doc->AddToIdTable(this, attrVal->GetAtomValue());
+        return attrVal->GetAtomValue();
       }
     }
   }
+  return nsnull;
 }
 
 PRBool
@@ -160,11 +137,11 @@ nsXMLElement::ParseAttribute(PRInt32 aNamespaceID,
     // not that it has an emptystring as the id.
     RemoveFromIdTable();
     if (aValue.IsEmpty()) {
-      ClearHasID();
+      UnsetFlags(NODE_HAS_ID);
       return PR_FALSE;
     }
     aResult.ParseAtom(aValue);
-    SetHasID();
+    SetFlags(NODE_HAS_ID);
     AddToIdTable(aResult.GetAtomValue());
     return PR_TRUE;
   }
@@ -182,7 +159,7 @@ nsXMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                              aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDocument && HasID() && !GetBindingParent()) {
+  if (aDocument && HasFlag(NODE_HAS_ID) && !GetBindingParent()) {
     aDocument->AddToIdTable(this, DoGetID());
   }
 

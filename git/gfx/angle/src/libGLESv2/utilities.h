@@ -11,10 +11,7 @@
 
 #define GL_APICALL
 #include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 #include <d3d9.h>
-
-#include <string>
 
 namespace gl
 {
@@ -31,16 +28,9 @@ int AllocateFirstFreeBits(unsigned int *bits, unsigned int allocationSize, unsig
 
 int ComputePixelSize(GLenum format, GLenum type);
 GLsizei ComputePitch(GLsizei width, GLenum format, GLenum type, GLint alignment);
-GLsizei ComputeCompressedPitch(GLsizei width, GLenum format);
-GLsizei ComputeCompressedSize(GLsizei width, GLsizei height, GLenum format);
-bool IsCompressed(GLenum format);
 bool IsCubemapTextureTarget(GLenum target);
 bool IsTextureTarget(GLenum target);
 bool CheckTextureFormatType(GLenum format, GLenum type);
-
-bool IsColorRenderable(GLenum internalformat);
-bool IsDepthRenderable(GLenum internalformat);
-bool IsStencilRenderable(GLenum internalformat);
 
 }
 
@@ -54,34 +44,19 @@ D3DBLENDOP ConvertBlendOp(GLenum blendOp);
 D3DSTENCILOP ConvertStencilOp(GLenum stencilOp);
 D3DTEXTUREADDRESS ConvertTextureWrap(GLenum wrap);
 D3DCULL ConvertCullMode(GLenum cullFace, GLenum frontFace);
-D3DCUBEMAP_FACES ConvertCubeFace(GLenum cubeFace);
 DWORD ConvertColorMask(bool red, bool green, bool blue, bool alpha);
 D3DTEXTUREFILTERTYPE ConvertMagFilter(GLenum magFilter);
 void ConvertMinFilter(GLenum minFilter, D3DTEXTUREFILTERTYPE *d3dMinFilter, D3DTEXTUREFILTERTYPE *d3dMipFilter);
-bool ConvertPrimitiveType(GLenum primitiveType, GLsizei elementCount,
+unsigned int GetAlphaSize(D3DFORMAT colorFormat);
+unsigned int GetRedSize(D3DFORMAT colorFormat);
+unsigned int GetGreenSize(D3DFORMAT colorFormat);
+unsigned int GetBlueSize(D3DFORMAT colorFormat);
+unsigned int GetDepthSize(D3DFORMAT depthFormat);
+unsigned int GetStencilSize(D3DFORMAT stencilFormat);
+bool ConvertPrimitiveType(GLenum primitiveType, GLsizei primitiveCount,
                           D3DPRIMITIVETYPE *d3dPrimitiveType, int *d3dPrimitiveCount);
 D3DFORMAT ConvertRenderbufferFormat(GLenum format);
-D3DMULTISAMPLE_TYPE GetMultisampleTypeFromSamples(GLsizei samples);
 
 }
-
-namespace dx2es
-{
-GLuint GetAlphaSize(D3DFORMAT colorFormat);
-GLuint GetRedSize(D3DFORMAT colorFormat);
-GLuint GetGreenSize(D3DFORMAT colorFormat);
-GLuint GetBlueSize(D3DFORMAT colorFormat);
-GLuint GetDepthSize(D3DFORMAT depthFormat);
-GLuint GetStencilSize(D3DFORMAT stencilFormat);
-
-GLsizei GetSamplesFromMultisampleType(D3DMULTISAMPLE_TYPE type);
-
-GLenum ConvertBackBufferFormat(D3DFORMAT format);
-GLenum ConvertDepthStencilFormat(D3DFORMAT format);
-
-}
-
-std::string getTempPath();
-void writeFile(const char* path, const void* data, size_t size);
 
 #endif  // LIBGLESV2_UTILITIES_H

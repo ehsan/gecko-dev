@@ -55,16 +55,13 @@ class nsDiskCacheBlockFile {
 public:
     nsDiskCacheBlockFile()
            : mFD(nsnull)
-           , mBitMap(nsnull)
            , mBlockSize(0)
-           , mBitMapWords(0)
-           , mFileSize(0)
+           , mBitMap(nsnull)
            , mBitMapDirty(PR_FALSE)
             {}
     ~nsDiskCacheBlockFile() { (void) Close(PR_TRUE); }
     
-    nsresult  Open( nsILocalFile *  blockFile, PRUint32  blockSize,
-                    PRUint32  bitMapSize);
+    nsresult  Open( nsILocalFile *  blockFile, PRUint32  blockSize);
     nsresult  Close(PRBool flush);
     
     /*
@@ -83,16 +80,13 @@ private:
     PRInt32   AllocateBlocks( PRInt32  numBlocks);
     nsresult  VerifyAllocation( PRInt32 startBlock, PRInt32 numBLocks);
     PRUint32  CalcBlockFileSize();
-    bool   Write(PRInt32 offset, const void *buf, PRInt32 amount);
 
 /**
  *  Data members
  */
     PRFileDesc *                mFD;
-    PRUint32 *                  mBitMap;      // XXX future: array of bit map blocks
     PRUint32                    mBlockSize;
-    PRUint32                    mBitMapWords;
-    PRInt32                     mFileSize;
+    PRUint32 *                  mBitMap;      // XXX future: array of bit map blocks
     PRBool                      mBitMapDirty;
 };
 

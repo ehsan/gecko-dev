@@ -178,19 +178,27 @@ struct nsKeyConverter nsKeycodes[] = {
     { NS_VK_EQUALS, GDK_plus }
 };
 
-#ifdef SOLARIS
+#ifdef MOZ_X11
+#define IS_XSUN_XSERVER(dpy) \
+    (strstr(XServerVendor(dpy), "Sun Microsystems") != NULL)
+#endif /* MOZ_X11 */
+
 // map Sun Keyboard special keysyms on to NS_VK keys
 struct nsKeyConverter nsSunKeycodes[] = {
+    {NS_VK_ESCAPE, GDK_F11 }, //bug 57262, Sun Stop key generates F11 keysym
     {NS_VK_F1, GDK_Help }, //Mapping Help key to F1
     {NS_VK_F11, 0x1005ff10 }, //Sun F11 key generates SunF36(0x1005ff10) keysym
-    {NS_VK_F12, 0x1005ff11 }  //Sun F12 key generates SunF37(0x1005ff11) keysym
+    {NS_VK_F12, 0x1005ff11 }, //Sun F12 key generates SunF37(0x1005ff11) keysym
+    {NS_VK_PAGE_UP,    GDK_F29 }, //KP_Prior
+    {NS_VK_PAGE_DOWN,  GDK_F35 }, //KP_Next
+    {NS_VK_HOME,       GDK_F27 }, //KP_Home
+    {NS_VK_END,        GDK_F33 }, //KP_End
 };
-#endif
 
 int
 GdkKeyCodeToDOMKeyCode(int aKeysym)
 {
-    unsigned int i;
+    int i, length = 0;
 
     // First, try to handle alphanumeric input, not listed in nsKeycodes:
     // most likely, more letters will be getting typed in than things in
@@ -211,16 +219,20 @@ GdkKeyCodeToDOMKeyCode(int aKeysym)
     if (aKeysym >= GDK_KP_0 && aKeysym <= GDK_KP_9)
         return aKeysym - GDK_KP_0 + NS_VK_NUMPAD0;
 
-#ifdef SOLARIS
+#ifdef MOZ_X11
     // map Sun Keyboard special keysyms
-    for (i = 0; i < NS_ARRAY_LENGTH(nsSunKeycodes); i++) {
-        if (nsSunKeycodes[i].keysym == aKeysym)
-            return(nsSunKeycodes[i].vkCode);
+    if (IS_XSUN_XSERVER(GDK_DISPLAY())) {
+        length = sizeof(nsSunKeycodes) / sizeof(struct nsKeyConverter);
+        for (i = 0; i < length; i++) {
+            if (nsSunKeycodes[i].keysym == aKeysym)
+                return(nsSunKeycodes[i].vkCode);
+        }
     }
-#endif /* SOLARIS */
+#endif /* MOZ_X11 */
 
     // misc other things
-    for (i = 0; i < NS_ARRAY_LENGTH(nsKeycodes); i++) {
+    length = sizeof(nsKeycodes) / sizeof(struct nsKeyConverter);
+    for (i = 0; i < length; i++) {
         if (nsKeycodes[i].keysym == aKeysym)
             return(nsKeycodes[i].vkCode);
     }
@@ -235,7 +247,7 @@ GdkKeyCodeToDOMKeyCode(int aKeysym)
 int
 DOMKeyCodeToGdkKeyCode(int aKeysym)
 {
-    unsigned int i;
+    int i, length = 0;
 
     // First, try to handle alphanumeric input, not listed in nsKeycodes:
     // most likely, more letters will be getting typed in than things in
@@ -255,7 +267,8 @@ DOMKeyCodeToGdkKeyCode(int aKeysym)
       return aKeysym - NS_VK_NUMPAD0 + GDK_KP_0;
 
     // misc other things
-    for (i = 0; i < NS_ARRAY_LENGTH(nsKeycodes); ++i) {
+    length = NS_ARRAY_LENGTH(nsKeycodes);
+    for (i = 0; i < length; ++i) {
       if (nsKeycodes[i].vkCode == aKeysym) {
         return nsKeycodes[i].keysym;
       }

@@ -55,7 +55,6 @@
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
 #include "mozilla/Services.h"
-#include "xpcpublic.h"
  
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
@@ -76,7 +75,7 @@ public:
 
   virtual nsIScriptContext *GetContext();
   virtual JSObject *GetGlobalJSObject();
-  virtual void OnFinalize(JSObject* aObject);
+  virtual void OnFinalize(PRUint32 aLangID, void *aScriptGlobal);
   virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
 
   // nsIScriptObjectPrincipal methods
@@ -138,7 +137,7 @@ nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
 
 static JSBool
 nsXBLDocGlobalObject_setProperty(JSContext *cx, JSObject *obj,
-                                 jsid id, JSBool strict, jsval *vp)
+                                 jsid id, jsval *vp)
 {
   return nsXBLDocGlobalObject::
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_SET_PROPERTY);
@@ -167,7 +166,7 @@ nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeThis));
 
   if (sgo)
-    sgo->OnFinalize(obj);
+    sgo->OnFinalize(nsIProgrammingLanguage::JAVASCRIPT, obj);
 
   // The addref was part of JSObject construction
   NS_RELEASE(nativeThis);
@@ -215,8 +214,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXBLDocGlobalObject)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObject)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXBLDocGlobalObject)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXBLDocGlobalObject)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXBLDocGlobalObject, nsIScriptGlobalObject)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXBLDocGlobalObject, nsIScriptGlobalObject)
 
 void
 XBL_ProtoErrorReporter(JSContext *cx,
@@ -325,13 +324,9 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment(PRUint32 aLangID)
   // we must apparently override that with our own (although it isn't clear 
   // why - see bug 339647)
   JS_SetErrorReporter(cx, XBL_ProtoErrorReporter);
-
-  nsIPrincipal *principal = GetPrincipal();
-  JSCompartment *compartment;
-
-  rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
-                              false, &mJSObject, &compartment);
-  NS_ENSURE_SUCCESS(rv, nsnull);
+  mJSObject = ::JS_NewGlobalObject(cx, &gSharedGlobalClass);
+  if (!mJSObject)
+    return nsnull;
 
   ::JS_SetGlobalObject(cx, mJSObject);
 
@@ -383,10 +378,13 @@ nsXBLDocGlobalObject::GetGlobalJSObject()
 }
 
 void
-nsXBLDocGlobalObject::OnFinalize(JSObject* aObject)
+nsXBLDocGlobalObject::OnFinalize(PRUint32 aLangID, void *aObject)
 {
+  NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
+               "Only JS supported");
   NS_ASSERTION(aObject == mJSObject, "Wrong object finalized!");
-  mJSObject = NULL;
+
+  mJSObject = nsnull;
 }
 
 void
@@ -463,10 +461,12 @@ TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLDocumentInfo)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXBLDocumentInfo)
   if (tmp->mBindingTable) {
     tmp->mBindingTable->Enumerate(UnlinkProtoJSObjects, nsnull);
   }
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -491,8 +491,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXBLDocumentInfo)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObjectOwner)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXBLDocumentInfo)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXBLDocumentInfo)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXBLDocumentInfo, nsIScriptGlobalObjectOwner)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXBLDocumentInfo,
+                                           nsIScriptGlobalObjectOwner)
 
 nsXBLDocumentInfo::nsXBLDocumentInfo(nsIDocument* aDocument)
   : mDocument(aDocument),

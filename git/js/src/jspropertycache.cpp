@@ -49,8 +49,8 @@ using namespace js;
 JS_STATIC_ASSERT(sizeof(PCVal) == sizeof(jsuword));
 
 JS_REQUIRES_STACK PropertyCacheEntry *
-PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *pobj,
-                    const Shape *shape, JSBool adding)
+PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoIndex,
+                    JSObject *pobj, const Shape *shape, JSBool adding)
 {
     jsbytecode *pc;
     jsuword kshape, vshape;
@@ -77,45 +77,44 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
     }
 
     /*
-     * Dictionary-mode objects have unique shapes, so there is no way to cache
-     * a prediction of the next shape when adding.
-     */
-    if (adding && obj->inDictionaryMode()) {
-        PCMETER(add2dictfills++);
-        return JS_NO_PROP_CACHE_FILL;
-    }
-
-    /*
      * Check for overdeep scope and prototype chain. Because resolve, getter,
      * and setter hooks can change the prototype chain using JS_SetPrototype
-     * after LookupPropertyWithFlags has returned, we calculate the protoIndex
-     * here and not in LookupPropertyWithFlags.
+     * after js_LookupPropertyWithFlags has returned the nominal protoIndex,
+     * we have to validate protoIndex if it is non-zero. If it is zero, then
+     * we know thanks to the pobj->nativeContains test above, combined with the
+     * fact that obj == pobj, that protoIndex is invariant.
      *
      * The scopeIndex can't be wrong. We require JS_SetParent calls to happen
      * before any running script might consult a parent-linked scope chain. If
      * this requirement is not satisfied, the fill in progress will never hit,
      * but vcap vs. scope shape tests ensure nothing malfunctions.
      */
-    JS_ASSERT_IF(obj == pobj, scopeIndex == 0);
+    JS_ASSERT_IF(scopeIndex == 0 && protoIndex == 0, obj == pobj);
 
-    JSObject *tmp = obj;
-    for (uintN i = 0; i != scopeIndex; i++)
-        tmp = tmp->getParent();
+    if (protoIndex != 0) {
+        JSObject *tmp = obj;
 
-    uintN protoIndex = 0;
-    while (tmp != pobj) {
-        tmp = tmp->getProto();
+        for (uintN i = 0; i != scopeIndex; i++)
+            tmp = tmp->getParent();
+        JS_ASSERT(tmp != pobj);
 
-        /*
-         * We cannot cache properties coming from native objects behind
-         * non-native ones on the prototype chain. The non-natives can
-         * mutate in arbitrary way without changing any shapes.
-         */
-        if (!tmp || !tmp->isNative()) {
-            PCMETER(noprotos++);
-            return JS_NO_PROP_CACHE_FILL;
+        protoIndex = 1;
+        for (;;) {
+            tmp = tmp->getProto();
+
+            /*
+             * We cannot cache properties coming from native objects behind
+             * non-native ones on the prototype chain. The non-natives can
+             * mutate in arbitrary way without changing any shapes.
+             */
+            if (!tmp || !tmp->isNative()) {
+                PCMETER(noprotos++);
+                return JS_NO_PROP_CACHE_FILL;
+            }
+            if (tmp == pobj)
+                break;
+            ++protoIndex;
         }
-        ++protoIndex;
     }
 
     if (scopeIndex > PCVCAP_SCOPEMASK || protoIndex > PCVCAP_PROTOMASK) {
@@ -127,8 +126,8 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
      * Optimize the cached vword based on our parameters and the current pc's
      * opcode format flags.
      */
-    pc = cx->regs().pc;
-    op = js_GetOpcode(cx, cx->fp()->script(), pc);
+    pc = cx->regs->pc;
+    op = js_GetOpcode(cx, cx->fp()->getScript(), pc);
     cs = &js_CodeSpec[op];
     kshape = 0;
 
@@ -146,13 +145,15 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
                  */
                 JS_ASSERT(pobj->hasMethodBarrier());
                 JSObject &funobj = shape->methodObject();
-                JS_ASSERT(funobj == pobj->nativeGetSlot(shape->slot).toObject());
+                JS_ASSERT(&funobj == &pobj->lockedGetSlot(shape->slot).toObject());
                 vword.setFunObj(funobj);
                 break;
             }
 
-            if (!pobj->generic() && shape->hasDefaultGetter() && pobj->containsSlot(shape->slot)) {
-                const Value &v = pobj->nativeGetSlot(shape->slot);
+            if (!pobj->generic() &&
+                shape->hasDefaultGetter() &&
+                pobj->containsSlot(shape->slot)) {
+                const Value &v = pobj->lockedGetSlot(shape->slot);
                 JSObject *funobj;
 
                 if (IsFunctionObject(v, &funobj)) {
@@ -171,16 +172,14 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
                     if (!pobj->branded()) {
                         PCMETER(brandfills++);
 #ifdef DEBUG_notme
-                        JSFunction *fun = GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(v));
-                        JSAutoByteString funNameBytes;
-                        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
-                            fprintf(stderr,
-                                    "branding %p (%s) for funobj %p (%s), shape %lu\n",
-                                    pobj, pobj->getClass()->name, JSVAL_TO_OBJECT(v), funName,
-                                    obj->shape());
-                        }
+                        fprintf(stderr,
+                                "branding %p (%s) for funobj %p (%s), shape %lu\n",
+                                pobj, pobj->getClass()->name,
+                                JSVAL_TO_OBJECT(v),
+                                JS_GetFunctionName(GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(v))),
+                                obj->shape());
 #endif
-                        if (!pobj->brand(cx))
+                        if (!pobj->brand(cx, shape->slot, v))
                             return JS_NO_PROP_CACHE_FILL;
                     }
                     vword.setFunObj(*funobj);
@@ -194,7 +193,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
          * with stub getters and setters, we can cache the slot.
          */
         if (!(cs->format & (JOF_SET | JOF_FOR)) &&
-            (!(cs->format & JOF_INCDEC) || (shape->hasDefaultSetter() && shape->writable())) &&
+            (!(cs->format & JOF_INCDEC) || shape->hasDefaultSetter()) &&
             shape->hasDefaultGetter() &&
             pobj->containsSlot(shape->slot)) {
             /* Great, let's cache shape's slot and use it on cache hit. */
@@ -203,7 +202,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
             /* Best we can do is to cache shape (still a nice speedup). */
             vword.setShape(shape);
             if (adding &&
-                pobj->shape() == shape->shapeid) {
+                pobj->shape() == shape->shape) {
                 /*
                  * Our caller added a new property. We also know that a setter
                  * that js_NativeSet might have run has not mutated pobj, so
@@ -234,7 +233,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
                 JS_ASSERT(shape == pobj->lastProperty());
                 JS_ASSERT(!pobj->nativeEmpty());
 
-                kshape = shape->previous()->shapeid;
+                kshape = shape->previous()->shape;
 
                 /*
                  * When adding we predict no prototype object will later gain a
@@ -305,7 +304,7 @@ GetAtomFromBytecode(JSContext *cx, jsbytecode *pc, JSOp op, const JSCodeSpec &cs
 
     ptrdiff_t pcoff = (JOF_TYPE(cs.format) == JOF_SLOTATOM) ? SLOTNO_LEN : 0;
     JSAtom *atom;
-    GET_ATOM_FROM_BYTECODE(cx->fp()->script(), pc, pcoff, atom);
+    GET_ATOM_FROM_BYTECODE(cx->fp()->getScript(), pc, pcoff, atom);
     return atom;
 }
 
@@ -316,13 +315,13 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     JSObject *obj, *pobj, *tmp;
     uint32 vcap;
 
-    StackFrame *fp = cx->fp();
+    JSStackFrame *fp = cx->fp();
 
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
-    JS_ASSERT(uintN((fp->hasImacropc() ? fp->imacropc() : pc) - fp->script()->code)
-              < fp->script()->length);
+    JS_ASSERT(uintN((fp->hasIMacroPC() ? fp->getIMacroPC() : pc) - fp->getScript()->code)
+              < fp->getScript()->length);
 
-    JSOp op = js_GetOpcode(cx, fp->script(), pc);
+    JSOp op = js_GetOpcode(cx, fp->getScript(), pc);
     const JSCodeSpec &cs = js_CodeSpec[op];
 
     obj = *objp;
@@ -334,11 +333,10 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
         JSAtom *atom = GetAtomFromBytecode(cx, pc, op, cs);
 #ifdef DEBUG_notme
         JSScript *script = cx->fp()->getScript();
-        JSAutoByteString printable;
         fprintf(stderr,
                 "id miss for %s from %s:%u"
                 " (pc %u, kpc %u, kshape %u, shape %u)\n",
-                js_AtomToPrintableString(cx, atom, &printable),
+                js_AtomToPrintableString(cx, atom),
                 script->filename,
                 js_PCToLineNumber(cx, script, pc),
                 pc - script->code,
@@ -444,7 +442,6 @@ PropertyCache::purge(JSContext *cx)
         P(rofills);
         P(disfills);
         P(oddfills);
-        P(add2dictfills);
         P(modfills);
         P(brandfills);
         P(noprotos);
@@ -485,10 +482,8 @@ PropertyCache::purge(JSContext *cx)
 }
 
 void
-PropertyCache::purgeForScript(JSContext *cx, JSScript *script)
+PropertyCache::purgeForScript(JSScript *script)
 {
-    JS_ASSERT(!cx->runtime->gcRunning);
-
     for (PropertyCacheEntry *entry = table; entry < table + SIZE; entry++) {
         if (JS_UPTRDIFF(entry->kpc, script->code) < script->length) {
             entry->kpc = NULL;
@@ -498,15 +493,4 @@ PropertyCache::purgeForScript(JSContext *cx, JSScript *script)
 #endif
         }
     }
-}
-
-void
-PropertyCache::restore(PropertyCacheEntry *entry)
-{
-    PropertyCacheEntry *entry2;
-
-    empty = false;
-
-    entry2 = &table[hash(entry->kpc, entry->kshape)];
-    *entry2 = *entry;
 }

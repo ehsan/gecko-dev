@@ -54,7 +54,12 @@ CPPSRCS  = nsProfileMigrator.cpp \
            nsBrowserProfileMigratorUtils.cpp \
            nsNetscapeProfileMigratorBase.cpp \
            nsSeamonkeyProfileMigrator.cpp \
+           nsPhoenixProfileMigrator.cpp \
            $(NULL)
+
+ifneq ($(OS_ARCH),BeOS)
+CPPSRCS += nsDogbertProfileMigrator.cpp
+endif
 
 ifneq ($(OS_ARCH),OS2)
 CPPSRCS += nsOperaProfileMigrator.cpp
@@ -67,6 +72,10 @@ endif
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += nsSafariProfileMigrator.cpp \
+           nsMacIEProfileMigrator.cpp \
+           nsOmniWebProfileMigrator.cpp \
+           nsCaminoProfileMigrator.cpp \
+           nsICabProfileMigrator.cpp \
            $(NULL)
 endif            
 

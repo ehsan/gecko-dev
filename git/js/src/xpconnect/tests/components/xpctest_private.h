@@ -59,7 +59,7 @@
 #include "xpctest.h"
 #include "jsapi.h"
 
-#ifdef WIN32
+#if defined(WIN32) && !defined(XPCONNECT_STANDALONE)
 #define IMPLEMENT_TIMER_STUFF 1
 #endif
 

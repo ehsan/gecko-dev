@@ -108,7 +108,7 @@ static  JSObject *autoconfig_glob;
 
 static JSClass global_class = {
     "autoconfig_global", JSCLASS_GLOBAL_FLAGS,
-    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
 };
 
@@ -160,11 +160,8 @@ nsresult CentralizedAdminPrefManagerInit()
         static_cast<nsIXPCSecurityManager*>(new AutoConfigSecMan());
     xpc->SetSecurityManagerForJSContext(autoconfig_cx, secman, 0);
 
-    autoconfig_glob = JS_NewCompartmentAndGlobalObject(autoconfig_cx, &global_class, NULL);
+    autoconfig_glob = JS_NewGlobalObject(autoconfig_cx, &global_class);
     if (autoconfig_glob) {
-        JSAutoEnterCompartment ac;
-        if(!ac.enter(autoconfig_cx, autoconfig_glob))
-            return NS_ERROR_FAILURE;
         if (JS_InitStandardClasses(autoconfig_cx, autoconfig_glob)) {
             // XPCONNECT enable this JS context
             rv = xpc->InitClasses(autoconfig_cx, autoconfig_glob);
@@ -191,6 +188,7 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
                                    PRBool bCallbacks, PRBool skipFirstLine)
 {
     JSBool ok;
+    jsval result;
 
     if (skipFirstLine) {
         /* In order to protect the privacy of the JavaScript preferences file 
@@ -225,7 +223,7 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
 
     JS_BeginRequest(autoconfig_cx);
     ok = JS_EvaluateScript(autoconfig_cx, autoconfig_glob,
-                           js_buffer, length, filename, 0, nsnull);
+                           js_buffer, length, filename, 0, &result);
     JS_EndRequest(autoconfig_cx);
 
     JS_MaybeGC(autoconfig_cx);

@@ -43,28 +43,18 @@ relativesrcdir = toolkit/mozapps/update/test
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS = \
+  chrome \
+  $(NULL)
+
 XPCSHELL_TESTS = \
   unit \
   $(NULL)
 
 TESTROOT = $(call core_abspath,$(DEPTH))/_tests/xpcshell/$(relativesrcdir)
 
-DEFINES += \
-  -DAB_CD=$(AB_CD) \
-  -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
-  -DBIN_SUFFIX=$(BIN_SUFFIX) \
-  -DNS_NO_XPCOM \
-  $(NULL)
-
-# Android doesn't build the updater binary, so it skips the things that test it.
-ifneq ($(OS_TARGET),Android)
-DIRS = \
-  chrome \
-  $(NULL)
-
 CPPSRCS = \
   TestAUSReadStrings.cpp \
-  TestAUSHelper.cpp \
   $(NULL)
 
 SIMPLE_PROGRAMS = $(CPPSRCS:.cpp=$(BIN_SUFFIX))
@@ -82,6 +72,11 @@ LOCAL_INCLUDES += \
 
 MOZ_WINCONSOLE = 1
 
+DEFINES += \
+  -DAB_CD=$(AB_CD) \
+  -DNS_NO_XPCOM \
+  $(NULL)
+
 LIBS += \
   ../../readstrings/$(LIB_PREFIX)readstrings.$(LIB_SUFFIX) \
   $(NULL)
@@ -90,11 +85,15 @@ ifeq ($(OS_ARCH),WINNT)
 USE_STATIC_LIBS = 1
 DEFINES += -DUNICODE -D_UNICODE
 endif
-endif # Not Android
+
+ifeq ($(OS_ARCH),WINCE)
+USE_STATIC_LIBS = 1
+DEFINES += -DUNICODE -D_UNICODE
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+endif
 
 include $(topsrcdir)/config/rules.mk
 
-ifneq ($(OS_TARGET),Android)
 # TestAUSReadStrings runs during check in the following directory with a Unicode
 # char in order to test bug 473417 on Windows.
 ifeq ($(OS_ARCH),WINNT)
@@ -103,6 +102,9 @@ else
 bug473417dir = test_bug473417
 endif
 
+libs:: unit/head_update.js.in
+	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $^ > $(TESTROOT)/unit/head_update.js
+
 check::
 	$(RM) -rf $(DEPTH)/_tests/updater/ && $(NSINSTALL) -D $(DEPTH)/_tests/updater/$(bug473417dir)/
 	for i in $(INI_TEST_FILES); do \
@@ -110,14 +112,3 @@ check::
 	done
 	$(INSTALL) $(FINAL_TARGET)/TestAUSReadStrings$(BIN_SUFFIX) $(DEPTH)/_tests/updater/$(bug473417dir)/
 	@$(RUN_TEST_PROGRAM) $(DEPTH)/_tests/updater/$(bug473417dir)/TestAUSReadStrings$(BIN_SUFFIX)
-endif # Not Android
-
-libs:: unit/head_update.js.in
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $^ > $(TESTROOT)/unit/head_update.js
-
-ifneq ($(OS_TARGET),Android)
-ifndef MOZ_PROFILE_GENERATE
-libs::
-	$(INSTALL) TestAUSHelper$(BIN_SUFFIX) $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit
-endif
-endif # Not Android

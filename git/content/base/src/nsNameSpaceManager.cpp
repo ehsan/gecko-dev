@@ -57,7 +57,9 @@
 static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #endif
 
-using namespace mozilla::dom;
+#ifdef MOZ_SVG
+PRBool NS_SVGEnabled();
+#endif
 
 #define kXMLNSNameSpaceURI "http://www.w3.org/2000/xmlns/"
 #define kXMLNameSpaceURI "http://www.w3.org/XML/1998/namespace"
@@ -225,7 +227,7 @@ NameSpaceManagerImpl::GetNameSpaceID(const nsAString& aURI)
 
 nsresult
 NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
-              already_AddRefed<nsINodeInfo> aNodeInfo, FromParser aFromParser)
+              already_AddRefed<nsINodeInfo> aNodeInfo, PRUint32 aFromParser)
 {
   if (aElementType == kNameSpaceID_XHTML) {
     return NS_NewHTMLElement(aResult, aNodeInfo, aFromParser);
@@ -235,12 +237,16 @@ NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
     return NS_NewXULElement(aResult, aNodeInfo);
   }
 #endif
+#ifdef MOZ_MATHML
   if (aElementType == kNameSpaceID_MathML) {
     return NS_NewMathMLElement(aResult, aNodeInfo);
   }
-  if (aElementType == kNameSpaceID_SVG) {
+#endif
+#ifdef MOZ_SVG
+  if (aElementType == kNameSpaceID_SVG && NS_SVGEnabled()) {
     return NS_NewSVGElement(aResult, aNodeInfo, aFromParser);
   }
+#endif
   if (aElementType == kNameSpaceID_XMLEvents) {
     return NS_NewXMLEventsElement(aResult, aNodeInfo);
   }
@@ -263,8 +269,12 @@ NameSpaceManagerImpl::HasElementCreator(PRInt32 aNameSpaceID)
 #ifdef MOZ_XUL
          aNameSpaceID == kNameSpaceID_XUL ||
 #endif
+#ifdef MOZ_MATHML
          aNameSpaceID == kNameSpaceID_MathML ||
+#endif
+#ifdef MOZ_SVG
          aNameSpaceID == kNameSpaceID_SVG ||
+#endif
          aNameSpaceID == kNameSpaceID_XMLEvents ||
          PR_FALSE;
 }

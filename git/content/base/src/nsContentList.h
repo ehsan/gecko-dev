@@ -74,6 +74,7 @@ typedef PRBool (*nsContentListMatchFunc)(nsIContent* aContent,
 typedef void (*nsContentListDestroyFunc)(void* aData);
 
 class nsIDocument;
+class nsIDOMHTMLFormElement;
 
 
 class nsBaseContentList : public nsINodeList
@@ -125,35 +126,13 @@ protected:
 };
 
 
-class nsSimpleContentList : public nsBaseContentList
-{
-public:
-  nsSimpleContentList(nsINode *aRoot) : nsBaseContentList(),
-                                        mRoot(aRoot)
-  {
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSimpleContentList,
-                                           nsBaseContentList)
-
-  virtual nsINode* GetParentObject()
-  {
-    return mRoot;
-  }
-
-private:
-  // This has to be a strong reference, the root might go away before the list.
-  nsCOMPtr<nsINode> mRoot;
-};
-
 // This class is used only by form element code and this is a static
 // list of elements. NOTE! This list holds strong references to
 // the elements in the list.
-class nsFormContentList : public nsSimpleContentList
+class nsFormContentList : public nsBaseContentList
 {
 public:
-  nsFormContentList(nsIContent *aForm,
+  nsFormContentList(nsIDOMHTMLFormElement *aForm,
                     nsBaseContentList& aContentList);
 };
 
@@ -161,35 +140,44 @@ public:
  * Class that's used as the key to hash nsContentList implementations
  * for fast retrieval
  */
-struct nsContentListKey
+class nsContentListKey
 {
+public:
   nsContentListKey(nsINode* aRootNode,
-                   PRInt32 aMatchNameSpaceId,
-                   const nsAString& aTagname)
-    : mRootNode(aRootNode),
+                   nsIAtom* aMatchAtom, 
+                   PRInt32 aMatchNameSpaceId)
+    : mMatchAtom(aMatchAtom),
       mMatchNameSpaceId(aMatchNameSpaceId),
-      mTagname(aTagname)
+      mRootNode(aRootNode)
   {
   }
-
+  
   nsContentListKey(const nsContentListKey& aContentListKey)
-    : mRootNode(aContentListKey.mRootNode),
+    : mMatchAtom(aContentListKey.mMatchAtom),
       mMatchNameSpaceId(aContentListKey.mMatchNameSpaceId),
-      mTagname(aContentListKey.mTagname)
+      mRootNode(aContentListKey.mRootNode)
   {
   }
 
+  PRBool Equals(const nsContentListKey& aContentListKey) const
+  {
+    return
+      mMatchAtom == aContentListKey.mMatchAtom &&
+      mMatchNameSpaceId == aContentListKey.mMatchNameSpaceId &&
+      mRootNode == aContentListKey.mRootNode;
+  }
   inline PRUint32 GetHash(void) const
   {
     return
-      HashString(mTagname) ^
+      NS_PTR_TO_INT32(mMatchAtom.get()) ^
       (NS_PTR_TO_INT32(mRootNode) << 12) ^
       (mMatchNameSpaceId << 24);
   }
   
-  nsINode* const mRootNode; // Weak ref
-  const PRInt32 mMatchNameSpaceId;
-  const nsAString& mTagname;
+protected:
+  nsCOMPtr<nsIAtom> mMatchAtom;
+  PRInt32 mMatchNameSpaceId;
+  nsINode* mRootNode; // Weak ref
 };
 
 /**
@@ -217,8 +205,10 @@ struct nsContentListKey
  * tree based on some criterion.
  */
 class nsContentList : public nsBaseContentList,
+                      protected nsContentListKey,
                       public nsIHTMLCollection,
-                      public nsStubMutationObserver
+                      public nsStubMutationObserver,
+                      public nsWrapperCache
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -240,9 +230,8 @@ public:
    *              our root.
    */  
   nsContentList(nsINode* aRootNode,
+                nsIAtom* aMatchAtom, 
                 PRInt32 aMatchNameSpaceId,
-                nsIAtom* aHTMLMatchAtom,
-                nsIAtom* aXMLMatchAtom,
                 PRBool aDeep = PR_TRUE);
 
   /**
@@ -278,20 +267,23 @@ public:
   virtual PRInt32 IndexOf(nsIContent *aContent, PRBool aDoFlush);
   virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
-  virtual nsINode* GetParentObject()
-  {
-    return mRootNode;
-  }
 
   // nsIHTMLCollection
-  // GetNodeAt already declared as part of nsINodeList
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
   virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache);
+                                    nsWrapperCache** aCache,
+                                    nsresult* aResult);
 
   // nsContentList public methods
+  NS_HIDDEN_(nsINode*) GetParentObject() { return mRootNode; }
   NS_HIDDEN_(PRUint32) Length(PRBool aDoFlush);
   NS_HIDDEN_(nsIContent*) Item(PRUint32 aIndex, PRBool aDoFlush);
   NS_HIDDEN_(nsIContent*) NamedItem(const nsAString& aName, PRBool aDoFlush);
+
+  nsContentListKey* GetKey() {
+    return static_cast<nsContentListKey*>(this);
+  }
+  
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
@@ -314,19 +306,6 @@ public:
     }
 #endif
     return static_cast<nsContentList*>(list);
-  }
-
-  PRBool MatchesKey(const nsContentListKey& aKey) const
-  {
-    // The root node is most commonly the same: the document.  And the
-    // most common namespace id is kNameSpaceID_Unknown.  So check the
-    // string first.
-    NS_PRECONDITION(mXMLMatchAtom,
-                    "How did we get here with a null match atom on our list?");
-    return
-      mXMLMatchAtom->Equals(aKey.mTagname) &&
-      mRootNode == aKey.mRootNode &&
-      mMatchNameSpaceId == aKey.mMatchNameSpaceId;
   }
 
 protected:
@@ -399,11 +378,6 @@ protected:
     RemoveFromHashtable();
   }
 
-  nsINode* mRootNode; // Weak ref
-  PRInt32 mMatchNameSpaceId;
-  nsCOMPtr<nsIAtom> mHTMLMatchAtom;
-  nsCOMPtr<nsIAtom> mXMLMatchAtom;
-
   /**
    * Function to use to determine whether a piece of content matches
    * our criterion
@@ -418,34 +392,24 @@ protected:
    */
   void* mData;
   /**
+   * True if we are looking for elements named "*"
+   */
+  PRPackedBool mMatchAll;
+  /**
    * The current state of the list (possible values are:
    * LIST_UP_TO_DATE, LIST_LAZY, LIST_DIRTY
    */
   PRUint8 mState;
-
-  // The booleans have to use PRUint8 to pack with mState, because MSVC won't
-  // pack different typedefs together.  Once we no longer have to worry about
-  // flushes in XML documents, we can go back to using PRPackedBool for the
-  // booleans.
-  
-  /**
-   * True if we are looking for elements named "*"
-   */
-  PRUint8 mMatchAll : 1;
   /**
    * Whether to actually descend the tree.  If this is false, we won't
    * consider grandkids of mRootNode.
    */
-  PRUint8 mDeep : 1;
+  PRPackedBool mDeep;
   /**
    * Whether the return value of mFunc could depend on the values of
    * attributes.
    */
-  PRUint8 mFuncMayDependOnAttr : 1;
-  /**
-   * Whether we actually need to flush to get our state correct.
-   */
-  PRUint8 mFlushesNeeded : 1;
+  PRPackedBool mFuncMayDependOnAttr;
 
 #ifdef DEBUG_CONTENT_LIST
   void AssertInSync();
@@ -520,15 +484,9 @@ protected:
   nsString mString;
 };
 
-// If aMatchNameSpaceId is kNameSpaceID_Unknown, this will return a
-// content list which matches ASCIIToLower(aTagname) against HTML
-// elements in HTML documents and aTagname against everything else.
-// For any other value of aMatchNameSpaceId, the list will match
-// aTagname against all elements.
 already_AddRefed<nsContentList>
-NS_GetContentList(nsINode* aRootNode,
-                  PRInt32 aMatchNameSpaceId,
-                  const nsAString& aTagname);
+NS_GetContentList(nsINode* aRootNode, nsIAtom* aMatchAtom,
+                  PRInt32 aMatchNameSpaceId);
 
 already_AddRefed<nsContentList>
 NS_GetFuncStringContentList(nsINode* aRootNode,

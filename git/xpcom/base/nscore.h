@@ -195,7 +195,7 @@
 #define NS_EXPORT_STATIC_MEMBER_(type) type
 #define NS_IMPORT_STATIC_MEMBER_(type) type
 
-#elif defined(XP_OS2)
+#elif defined(XP_OS2) && defined(__declspec)
 
 #define NS_IMPORT __declspec(dllimport)
 #define NS_IMPORT_(type) type __declspec(dllimport)
@@ -258,11 +258,11 @@
  * Deprecated declarations.
  */
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
-# define MOZ_DEPRECATED __attribute__((deprecated))
+# define NS_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER) && (_MSC_VER >= 1300)
-# define MOZ_DEPRECATED __declspec(deprecated)
+# define NS_DEPRECATED __declspec(deprecated)
 #else
-# define MOZ_DEPRECATED
+# define NS_DEPRECATED
 #endif
 
 /**
@@ -295,7 +295,15 @@
 #define XPCOM_API(type) IMPORT_XPCOM_API(type)
 #endif
 
+#ifdef MOZ_ENABLE_LIBXUL
 #define NS_COM
+#elif defined(_IMPL_NS_COM)
+#define NS_COM NS_EXPORT
+#elif defined(XPCOM_GLUE)
+#define NS_COM
+#else
+#define NS_COM NS_IMPORT
+#endif
 
 #ifdef MOZILLA_INTERNAL_API
 #  define NS_COM_GLUE NS_COM
@@ -545,17 +553,6 @@ typedef PRUint32 nsrefcnt;
 # define NS_OUTPARAM
 # define NS_INOUTPARAM
 # define NS_OVERRIDE
-#endif
-
-/*
- * SEH exception macros.
- */
-#ifdef HAVE_SEH_EXCEPTIONS
-#define MOZ_SEH_TRY           __try
-#define MOZ_SEH_EXCEPT(expr)  __except(expr)
-#else
-#define MOZ_SEH_TRY           if(PR_TRUE)
-#define MOZ_SEH_EXCEPT(expr)  else
 #endif
 
 #endif /* nscore_h___ */

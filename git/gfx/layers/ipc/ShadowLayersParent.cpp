@@ -46,15 +46,11 @@
 
 #include "mozilla/unused.h"
 
-#include "mozilla/layout/RenderFrameParent.h"
-
 #include "gfxSharedImageSurface.h"
 
 #include "ImageLayers.h"
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
-
-using mozilla::layout::RenderFrameParent;
 
 namespace mozilla {
 namespace layers {
@@ -122,7 +118,6 @@ ShadowChild(const OpRemoveChild& op)
 //--------------------------------------------------
 // ShadowLayersParent
 ShadowLayersParent::ShadowLayersParent(ShadowLayerManager* aManager)
-  : mDestroyed(false)
 {
   MOZ_COUNT_CTOR(ShadowLayersParent);
   mLayerManager = aManager;
@@ -133,26 +128,11 @@ ShadowLayersParent::~ShadowLayersParent()
   MOZ_COUNT_DTOR(ShadowLayersParent);
 }
 
-void
-ShadowLayersParent::Destroy()
-{
-  mDestroyed = true;
-  for (size_t i = 0; i < ManagedPLayerParent().Length(); ++i) {
-    ShadowLayerParent* slp =
-      static_cast<ShadowLayerParent*>(ManagedPLayerParent()[i]);
-    slp->Destroy();
-  }
-}
-
 bool
-ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
-                               InfallibleTArray<EditReply>* reply)
+ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
+                               nsTArray<EditReply>* reply)
 {
-  MOZ_LAYERS_LOG(("[ParentSide] received txn with %d edits", cset.Length()));
-
-  if (mDestroyed || layer_manager()->IsDestroyed()) {
-    return true;
-  }
+  MOZ_LAYERS_LOG(("[ParentSide] recieved txn with %d edits", cset.Length()));
 
   EditReplyVector replyv;
 
@@ -166,41 +146,35 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     case Edit::TOpCreateThebesLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateThebesLayer"));
 
-      nsRefPtr<ShadowThebesLayer> layer =
-        layer_manager()->CreateShadowThebesLayer();
-      layer->SetAllocator(this);
+      nsRefPtr<ThebesLayer> layer = layer_manager()->CreateShadowThebesLayer();
       AsShadowLayer(edit.get_OpCreateThebesLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateContainerLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateContainerLayer"));
 
-      nsRefPtr<ContainerLayer> layer = layer_manager()->CreateShadowContainerLayer();
+      nsRefPtr<ContainerLayer> layer = layer_manager()->CreateContainerLayer();
       AsShadowLayer(edit.get_OpCreateContainerLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateImageLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateImageLayer"));
 
-      nsRefPtr<ShadowImageLayer> layer =
-        layer_manager()->CreateShadowImageLayer();
-      layer->SetAllocator(this);
-      AsShadowLayer(edit.get_OpCreateImageLayer())->Bind(layer);
+      AsShadowLayer(edit.get_OpCreateImageLayer())->Bind(
+        layer_manager()->CreateShadowImageLayer().get());
       break;
     }
     case Edit::TOpCreateColorLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateColorLayer"));
 
-      nsRefPtr<ShadowColorLayer> layer = layer_manager()->CreateShadowColorLayer();
+      nsRefPtr<ColorLayer> layer = layer_manager()->CreateColorLayer();
       AsShadowLayer(edit.get_OpCreateColorLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateCanvasLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateCanvasLayer"));
 
-      nsRefPtr<ShadowCanvasLayer> layer = 
-        layer_manager()->CreateShadowCanvasLayer();
-      layer->SetAllocator(this);
+      nsRefPtr<CanvasLayer> layer = layer_manager()->CreateShadowCanvasLayer();
       AsShadowLayer(edit.get_OpCreateCanvasLayer())->Bind(layer);
       break;
     }
@@ -211,7 +185,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowThebesLayer* thebes = static_cast<ShadowThebesLayer*>(
         AsShadowLayer(otb)->AsLayer());
 
-      thebes->SetFrontBuffer(otb.initialFront(), otb.frontValidRegion());
+      unused << thebes->Swap(new gfxSharedImageSurface(otb.initialFront()),
+                             otb.bufferRect(),
+                             nsIntPoint(0, 0));
 
       break;
     }
@@ -221,8 +197,13 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       const OpCreateCanvasBuffer& ocb = edit.get_OpCreateCanvasBuffer();
       ShadowCanvasLayer* canvas = static_cast<ShadowCanvasLayer*>(
         AsShadowLayer(ocb)->AsLayer());
+      nsRefPtr<gfxSharedImageSurface> front =
+        new gfxSharedImageSurface(ocb.initialFront());
+      CanvasLayer::Data data;
+      data.mSurface = front;
+      data.mSize = ocb.size();
 
-      canvas->Init(ocb.initialFront(), ocb.size(), ocb.needYFlip());
+      canvas->Initialize(data);
 
       break;
     }
@@ -233,43 +214,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowImageLayer* image = static_cast<ShadowImageLayer*>(
         AsShadowLayer(ocb)->AsLayer());
 
-      image->Init(ocb.initialFront(), ocb.size());
-
-      break;
-    }
-    case Edit::TOpDestroyThebesFrontBuffer: {
-      MOZ_LAYERS_LOG(("[ParentSide] DestroyThebesFrontBuffer"));
-
-      const OpDestroyThebesFrontBuffer& odfb =
-        edit.get_OpDestroyThebesFrontBuffer();
-      ShadowThebesLayer* thebes = static_cast<ShadowThebesLayer*>(
-        AsShadowLayer(odfb)->AsLayer());
-
-      thebes->DestroyFrontBuffer();
-
-      break;
-    }
-    case Edit::TOpDestroyCanvasFrontBuffer: {
-      MOZ_LAYERS_LOG(("[ParentSide] DestroyCanvasFrontBuffer"));
-
-      const OpDestroyCanvasFrontBuffer& odfb =
-        edit.get_OpDestroyCanvasFrontBuffer();
-      ShadowCanvasLayer* canvas = static_cast<ShadowCanvasLayer*>(
-        AsShadowLayer(odfb)->AsLayer());
-
-      canvas->DestroyFrontBuffer();
-
-      break;
-    }
-    case Edit::TOpDestroyImageFrontBuffer: {
-      MOZ_LAYERS_LOG(("[ParentSide] DestroyImageFrontBuffer"));
-
-      const OpDestroyImageFrontBuffer& odfb =
-        edit.get_OpDestroyImageFrontBuffer();
-      ShadowImageLayer* image = static_cast<ShadowImageLayer*>(
-        AsShadowLayer(odfb)->AsLayer());
-
-      image->DestroyFrontBuffer();
+      image->Init(new gfxSharedImageSurface(ocb.initialFront()), ocb.size());
 
       break;
     }
@@ -284,15 +229,10 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
       const CommonLayerAttributes& common = attrs.common();
       layer->SetVisibleRegion(common.visibleRegion());
-      layer->SetContentFlags(common.contentFlags());
+      layer->SetIsOpaqueContent(common.isOpaqueContent());
       layer->SetOpacity(common.opacity());
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetTransform(common.transform());
-      layer->SetTileSourceRect(common.useTileSourceRect() ? &common.tileSourceRect() : NULL);
-      static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
-      if (fixedPositionLayersEnabled) {
-        layer->SetIsFixedPosition(common.isFixedPosition());
-      }
 
       typedef SpecificLayerAttributes Specific;
       const SpecificLayerAttributes& specific = attrs.specific();
@@ -300,23 +240,11 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       case Specific::Tnull_t:
         break;
 
-      case Specific::TThebesLayerAttributes: {
+      case Specific::TThebesLayerAttributes:
         MOZ_LAYERS_LOG(("[ParentSide]   thebes layer"));
 
-        ShadowThebesLayer* thebesLayer =
-          static_cast<ShadowThebesLayer*>(layer);
-        const ThebesLayerAttributes& attrs =
-          specific.get_ThebesLayerAttributes();
-
-        thebesLayer->SetValidRegion(attrs.validRegion());
-
-        break;
-      }
-      case Specific::TContainerLayerAttributes:
-        MOZ_LAYERS_LOG(("[ParentSide]   container layer"));
-
-        static_cast<ContainerLayer*>(layer)->SetFrameMetrics(
-          specific.get_ContainerLayerAttributes().metrics());
+        static_cast<ShadowThebesLayer*>(layer)->SetValidRegion(
+          specific.get_ThebesLayerAttributes().validRegion());
         break;
 
       case Specific::TColorLayerAttributes:
@@ -350,7 +278,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     case Edit::TOpSetRoot: {
       MOZ_LAYERS_LOG(("[ParentSide] SetRoot"));
 
-      mRoot = AsShadowLayer(edit.get_OpSetRoot())->AsContainer();
+      layer_manager()->SetRoot(AsShadowLayer(edit.get_OpSetRoot())->AsLayer());
       break;
     }
     case Edit::TOpInsertAfter: {
@@ -387,18 +315,14 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
         static_cast<ShadowThebesLayer*>(shadow->AsLayer());
       const ThebesBuffer& newFront = op.newFrontBuffer();
 
-      ThebesBuffer newBack;
-      nsIntRegion newValidRegion;
-      OptionalThebesBuffer readonlyFront;
-      nsIntRegion frontUpdatedRegion;
-      thebes->Swap(newFront, op.updatedRegion(),
-                   &newBack, &newValidRegion,
-                   &readonlyFront, &frontUpdatedRegion);
-      replyv.push_back(
-        OpThebesBufferSwap(
-          shadow, NULL,
-          newBack, newValidRegion,
-          readonlyFront, frontUpdatedRegion));
+      nsRefPtr<gfxSharedImageSurface> newBack =
+        thebes->Swap(new gfxSharedImageSurface(newFront.buffer()),
+                     newFront.rect(),
+                     newFront.rotation());
+
+      // XXX figure me out
+      replyv.push_back(OpBufferSwap(shadow, NULL,
+                                    newBack->GetShmem()));
       break;
     }
     case Edit::TOpPaintCanvas: {
@@ -409,17 +333,12 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowCanvasLayer* canvas =
         static_cast<ShadowCanvasLayer*>(shadow->AsLayer());
 
-      SurfaceDescriptor newFront = op.newFrontBuffer();
-      SurfaceDescriptor newBack;
-      canvas->Swap(op.newFrontBuffer(), &newBack);
-      if (newFront == newBack) {
-        newFront = SurfaceDescriptor();
-      }
-
-      canvas->Updated();
+      nsRefPtr<gfxSharedImageSurface> newBack =
+        canvas->Swap(new gfxSharedImageSurface(op.newFrontBuffer()));
+      canvas->Updated(op.updated());
 
       replyv.push_back(OpBufferSwap(shadow, NULL,
-                                    newBack));
+                                    newBack->GetShmem()));
 
       break;
     }
@@ -431,15 +350,11 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowImageLayer* image =
         static_cast<ShadowImageLayer*>(shadow->AsLayer());
 
-      SharedImage newFront = op.newFrontBuffer();
-      SharedImage newBack;
-      image->Swap(op.newFrontBuffer(), &newBack);
-      if (newFront == newBack) {
-        newFront = SharedImage();
-      }
+      nsRefPtr<gfxSharedImageSurface> newBack =
+        image->Swap(new gfxSharedImageSurface(op.newFrontBuffer()));
 
-      replyv.push_back(OpImageSwap(shadow, NULL,
-                                   newBack));
+      replyv.push_back(OpBufferSwap(shadow, NULL,
+                                    newBack->GetShmem()));
 
       break;
     }
@@ -456,40 +371,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     reply->AppendElements(&replyv.front(), replyv.size());
   }
 
-  // Ensure that any pending operations involving back and front
-  // buffers have completed, so that neither process stomps on the
-  // other's buffer contents.
-  ShadowLayerManager::PlatformSyncBeforeReplyUpdate();
-
-  Frame()->ShadowLayersUpdated();
-
   return true;
-}
-
-bool
-ShadowLayersParent::RecvGetParentType(LayersBackend* aBackend)
-{
-  *aBackend = layer_manager()->GetBackendType();
-  return true;
-}
-
-PLayerParent*
-ShadowLayersParent::AllocPLayer()
-{
-  return new ShadowLayerParent();
-}
-
-bool
-ShadowLayersParent::DeallocPLayer(PLayerParent* actor)
-{
-  delete actor;
-  return true;
-}
-
-RenderFrameParent*
-ShadowLayersParent::Frame()
-{
-  return static_cast<RenderFrameParent*>(Manager());
 }
 
 } // namespace layers

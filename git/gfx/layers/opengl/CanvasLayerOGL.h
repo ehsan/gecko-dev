@@ -38,15 +38,8 @@
 #ifndef GFX_CANVASLAYEROGL_H
 #define GFX_CANVASLAYEROGL_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
-
 #include "LayerManagerOGL.h"
 #include "gfxASurface.h"
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-#include "GLXLibrary.h"
-#include "mozilla/X11Util.h"
-#endif
 
 namespace mozilla {
 namespace layers {
@@ -59,11 +52,7 @@ public:
   CanvasLayerOGL(LayerManagerOGL *aManager)
     : CanvasLayer(aManager, NULL),
       LayerOGL(aManager),
-      mTexture(0),
-      mDelayedUpdates(PR_FALSE)
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-      ,mPixmap(0)
-#endif
+      mTexture(0)
   { 
       mImplData = static_cast<LayerOGL*>(this);
   }
@@ -71,6 +60,7 @@ public:
 
   // CanvasLayer implementation
   virtual void Initialize(const Data& aData);
+  virtual void Updated(const nsIntRect& aRect);
 
   // LayerOGL implementation
   virtual void Destroy();
@@ -79,60 +69,16 @@ public:
                            const nsIntPoint& aOffset);
 
 protected:
-  void UpdateSurface();
-
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
-  gl::ShaderProgramType mLayerProgram;
 
   void MakeTexture();
   GLuint mTexture;
 
-  PRPackedBool mDelayedUpdates;
+  nsIntRect mBounds;
+  nsIntRect mUpdatedRect;
+
   PRPackedBool mGLBufferIsPremultiplied;
-  PRPackedBool mNeedsYFlip;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  GLXPixmap mPixmap;
-#endif
-};
-
-// NB: eventually we'll have separate shadow canvas2d and shadow
-// canvas3d layers, but currently they look the same from the
-// perspective of the compositor process
-class ShadowCanvasLayerOGL : public ShadowCanvasLayer,
-                             public LayerOGL
-{
-  typedef gl::TextureImage TextureImage;
-
-public:
-  ShadowCanvasLayerOGL(LayerManagerOGL* aManager);
-  virtual ~ShadowCanvasLayerOGL();
-
-  // CanvasLayer impl
-  virtual void Initialize(const Data& aData);
-  virtual void Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip);
-
-  // This isn't meaningful for shadow canvas.
-  virtual void Updated(const nsIntRect&) {}
-
-  // ShadowCanvasLayer impl
-  virtual void Swap(const SurfaceDescriptor& aNewFront,
-                    SurfaceDescriptor* aNewBack);
-
-  virtual void DestroyFrontBuffer();
-
-  virtual void Disconnect();
-
-  // LayerOGL impl
-  void Destroy();
-  Layer* GetLayer();
-  virtual void RenderLayer(int aPreviousFrameBuffer,
-                           const nsIntPoint& aOffset);
-
-private:
-  nsRefPtr<TextureImage> mTexImage;
-
-  SurfaceDescriptor mDeadweight;
   PRPackedBool mNeedsYFlip;
 };
 

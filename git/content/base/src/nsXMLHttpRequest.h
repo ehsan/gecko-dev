@@ -41,6 +41,7 @@
 #include "nsIXMLHttpRequest.h"
 #include "nsISupportsUtils.h"
 #include "nsString.h"
+#include "nsIDOMLoadListener.h"
 #include "nsIDOMDocument.h"
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
@@ -59,15 +60,84 @@
 #include "nsTArray.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsIDOMLSProgressEvent.h"
+#include "nsClassHashtable.h"
+#include "nsHashKeys.h"
+#include "prclist.h"
+#include "prtime.h"
 #include "nsIDOMNSEvent.h"
 #include "nsITimer.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
 #include "nsDOMEventTargetWrapperCache.h"
-#include "nsContentUtils.h"
 
 class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
+
+class nsAccessControlLRUCache
+{
+public:
+  struct TokenTime
+  {
+    nsCString token;
+    PRTime expirationTime;
+  };
+
+  struct CacheEntry : public PRCList
+  {
+    CacheEntry(nsCString& aKey)
+      : mKey(aKey)
+    {
+      MOZ_COUNT_CTOR(nsAccessControlLRUCache::CacheEntry);
+    }
+    
+    ~CacheEntry()
+    {
+      MOZ_COUNT_DTOR(nsAccessControlLRUCache::CacheEntry);
+    }
+
+    void PurgeExpired(PRTime now);
+    PRBool CheckRequest(const nsCString& aMethod,
+                        const nsTArray<nsCString>& aCustomHeaders);
+
+    nsCString mKey;
+    nsTArray<TokenTime> mMethods;
+    nsTArray<TokenTime> mHeaders;
+  };
+
+  nsAccessControlLRUCache()
+  {
+    MOZ_COUNT_CTOR(nsAccessControlLRUCache);
+    PR_INIT_CLIST(&mList);
+  }
+
+  ~nsAccessControlLRUCache()
+  {
+    Clear();
+    MOZ_COUNT_DTOR(nsAccessControlLRUCache);
+  }
+
+  PRBool Initialize()
+  {
+    return mTable.Init();
+  }
+
+  CacheEntry* GetEntry(nsIURI* aURI, nsIPrincipal* aPrincipal,
+                       PRBool aWithCredentials, PRBool aCreate);
+  void RemoveEntries(nsIURI* aURI, nsIPrincipal* aPrincipal);
+
+  void Clear();
+
+private:
+  static PLDHashOperator
+    RemoveExpiredEntries(const nsACString& aKey, nsAutoPtr<CacheEntry>& aValue,
+                         void* aUserData);
+
+  static PRBool GetCacheKey(nsIURI* aURI, nsIPrincipal* aPrincipal,
+                            PRBool aWithCredentials, nsACString& _retval);
+
+  nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;
+  PRCList mList;
+};
 
 class nsXHREventTarget : public nsDOMEventTargetWrapperCache,
                          public nsIXMLHttpRequestEventTarget
@@ -79,6 +149,7 @@ public:
                                            nsDOMEventTargetWrapperCache)
   NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
+  NS_FORWARD_NSIDOMNSEVENTTARGET(nsDOMEventTargetHelper::)
 
 protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadListener;
@@ -86,7 +157,6 @@ protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadStartListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnProgressListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnLoadendListener;
 };
 
 class nsXMLHttpRequestUpload : public nsXHREventTarget,
@@ -103,6 +173,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
+  NS_FORWARD_NSIDOMNSEVENTTARGET(nsXHREventTarget::)
   NS_DECL_NSIXMLHTTPREQUESTUPLOAD
 
   PRBool HasListeners()
@@ -114,6 +185,7 @@ public:
 class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsIXMLHttpRequest,
                          public nsIJSXMLHttpRequest,
+                         public nsIDOMLoadListener,
                          public nsIStreamListener,
                          public nsIChannelEventSink,
                          public nsIProgressEventSink,
@@ -136,6 +208,16 @@ public:
   NS_IMETHOD SetOnuploadprogress(nsIDOMEventListener* aOnuploadprogress);
 
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
+
+  // nsIDOMEventListener
+  NS_DECL_NSIDOMEVENTLISTENER
+
+  // nsIDOMLoadListener
+  NS_IMETHOD Load(nsIDOMEvent* aEvent);
+  NS_IMETHOD BeforeUnload(nsIDOMEvent* aEvent);
+  NS_IMETHOD Unload(nsIDOMEvent* aEvent);
+  NS_IMETHOD Abort(nsIDOMEvent* aEvent);
+  NS_IMETHOD Error(nsIDOMEvent* aEvent);
 
   // nsIStreamListener
   NS_DECL_NSISTREAMLISTENER
@@ -160,6 +242,7 @@ public:
                        PRUint32 argc, jsval* argv);
 
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
+  NS_FORWARD_NSIDOMNSEVENTTARGET(nsXHREventTarget::)
 
   // This creates a trusted readystatechange event, which is not cancelable and
   // doesn't bubble.
@@ -168,7 +251,7 @@ public:
   // and aTotalSize is LL_MAXUINT when unknown. Both those values are
   // used by nsXMLHttpProgressEvent. Normal progress event should not use
   // headers in aLoaded and aTotal is 0 when unknown.
-  void DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
+  void DispatchProgressEvent(nsPIDOMEventTarget* aTarget,
                              const nsAString& aType,
                              // Whether to use nsXMLHttpProgressEvent,
                              // which implements LS Progress Event.
@@ -178,7 +261,7 @@ public:
                              PRUint64 aLoaded, PRUint64 aTotal,
                              // For LS Progress Events
                              PRUint64 aPosition, PRUint64 aTotalSize);
-  void DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
+  void DispatchProgressEvent(nsPIDOMEventTarget* aTarget,
                              const nsAString& aType,
                              PRBool aLengthComputable,
                              PRUint64 aLoaded, PRUint64 aTotal)
@@ -193,11 +276,35 @@ public:
 
   void SetRequestObserver(nsIRequestObserver* aObserver);
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(nsXMLHttpRequest,
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXMLHttpRequest,
                                            nsXHREventTarget)
+
+  static PRBool EnsureACCache()
+  {
+    if (sAccessControlCache)
+      return PR_TRUE;
+
+    nsAutoPtr<nsAccessControlLRUCache> newCache(new nsAccessControlLRUCache());
+    NS_ENSURE_TRUE(newCache, PR_FALSE);
+
+    if (newCache->Initialize()) {
+      sAccessControlCache = newCache.forget();
+      return PR_TRUE;
+    }
+
+    return PR_FALSE;
+  }
+
+  static void ShutdownACCache()
+  {
+    delete sAccessControlCache;
+    sAccessControlCache = nsnull;
+  }
+
   PRBool AllowUploadProgress();
-  void RootResultArrayBuffer();
-  
+
+  static nsAccessControlLRUCache* sAccessControlCache;
+
 protected:
   friend class nsMultipartProxyListener;
 
@@ -209,11 +316,10 @@ protected:
                 PRUint32 toOffset,
                 PRUint32 count,
                 PRUint32 *writeCount);
-  nsresult CreateResponseArrayBuffer(JSContext* aCx);
-  void CreateResponseBlob(nsIRequest *request);
   // Change the state of the object with this. The broadcast argument
   // determines if the onreadystatechange listener should be called.
   nsresult ChangeState(PRUint32 aState, PRBool aBroadcast = PR_TRUE);
+  nsresult RequestCompleted();
   nsresult GetLoadGroup(nsILoadGroup **aLoadGroup);
   nsIURI *GetBaseURI();
 
@@ -225,10 +331,6 @@ protected:
                                  nsIDOMEventListener** aListener);
 
   already_AddRefed<nsIHttpChannel> GetCurrentHttpChannel();
-
-  bool IsSystemXHR() {
-    return !!nsContentUtils::IsSystemPrincipal(mPrincipal);
-  }
 
   /**
    * Check if aChannel is ok for a cross-site request by making sure no
@@ -249,8 +351,8 @@ protected:
   // mReadRequest is different from mChannel for multipart requests
   nsCOMPtr<nsIRequest> mReadRequest;
   nsCOMPtr<nsIDOMDocument> mResponseXML;
-  nsCOMPtr<nsIChannel> mCORSPreflightChannel;
-  nsTArray<nsCString> mCORSUnsafeHeaders;
+  nsCOMPtr<nsIChannel> mACGetChannel;
+  nsTArray<nsCString> mACUnsafeHeaders;
 
   nsRefPtr<nsDOMEventListenerWrapper> mOnUploadProgressListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnReadystatechangeListener;
@@ -278,16 +380,6 @@ protected:
   // point our charset can only change due to more data coming in, which
   // will cause us to clear the cached value anyway.
   nsString mResponseBodyUnicode;
-
-  enum {
-    XML_HTTP_RESPONSE_TYPE_DEFAULT,
-    XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER,
-    XML_HTTP_RESPONSE_TYPE_BLOB,
-    XML_HTTP_RESPONSE_TYPE_DOCUMENT,
-    XML_HTTP_RESPONSE_TYPE_TEXT
-  } mResponseType;
-
-  nsCOMPtr<nsIDOMBlob> mResponseBlob;
 
   nsCString mOverrideMimeType;
 
@@ -329,15 +421,6 @@ protected:
   
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
-  
-  JSObject* mResultArrayBuffer;
-
-  struct RequestHeader
-  {
-    nsCString header;
-    nsCString value;
-  };
-  nsTArray<RequestHeader> mModifiedRequestHeaders;
 };
 
 // helper class to expose a progress DOM Event

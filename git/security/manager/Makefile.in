@@ -68,7 +68,7 @@ NSSDBM3_CHK =
 endif
 
 ifndef MOZ_NATIVE_NSS
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
 SDK_LIBS = \
   $(DIST)/lib/$(LIB_PREFIX)crmf.$(LIB_SUFFIX) \
   $(DIST)/lib/$(LIB_PREFIX)smime3.$(LIB_SUFFIX) \
@@ -162,8 +162,11 @@ ifeq (WINNT_1,$(OS_TARGET)_$(MOZ_MEMORY))
 export DLLFLAGS
 endif
 
+ifndef WINCE
+# why is this disabled on WINCE?  See bug 514295.
 # To get debug symbols from NSS
 export MOZ_DEBUG_SYMBOLS
+endif
 
 ifdef .PYMAKE
 NSSMAKE = $(GMAKE)
@@ -223,6 +226,10 @@ ifdef MOZ_OS2_HIGH_MEMORY
 DEFAULT_GMAKE_FLAGS += MOZ_OS2_HIGH_MEMORY=1
 endif
 endif # OS2
+# OS_CFLAGS needs to be passed on down.
+ifeq ($(OS_ARCH),OpenVMS)
+DEFAULT_GMAKE_FLAGS += XCFLAGS="$(OS_CFLAGS)"
+endif
 ifeq ($(OS_ARCH),Darwin)
 # Make nsinstall use absolute symlinks by default when building NSS
 # for Mozilla on Mac OS X. (Bugzilla bug 193164)
@@ -243,6 +250,24 @@ DEFAULT_GMAKE_FLAGS += PROGRAMS=
 
 ifdef CROSS_COMPILE
 
+ifdef WINCE
+DEFAULT_GMAKE_FLAGS += \
+	NATIVE_CC="$(HOST_CC)" \
+	CC="$(CC)" \
+	CCC="$(CC)" \
+	LINK="$(LD)" \
+	LD="$(LD) -DLL" \
+	AS="$(AS) -Cp -Sn -Zi -coff $(INCLUDES)" \
+	AR='$(AR) -NOLOG0 -OUT:$$@' \
+	RANLIB="echo" \
+	RC="$(RC) $(RCFLAGS)" \
+	OS_ARCH="$(OS_ARCH)" \
+	OS_TEST="$(OS_TEST)" \
+	CPU_ARCH="ARM" \
+	USE_MSYS=1 \
+	WINCE=1 \
+	$(NULL)
+else
 DEFAULT_GMAKE_FLAGS += \
 	NATIVE_CC="$(HOST_CC)" \
 	CC="$(CC)" \
@@ -256,6 +281,7 @@ DEFAULT_GMAKE_FLAGS += \
 	OS_TEST="$(OS_TEST)" \
 	CPU_ARCH="$(TARGET_CPU)" \
 	$(NULL)
+endif
 
 # Android has pthreads integrated into -lc, so OS_LIBS is set to nothing
 ifeq ($(OS_TARGET), Android)
@@ -268,9 +294,7 @@ DEFAULT_GMAKE_FLAGS += \
 	$(NULL)
 endif
 
-ifndef UNIVERSAL_BINARY
 SKIP_CHK=1
-endif
 endif
 ifdef WRAP_MALLOC_CFLAGS
 DEFAULT_GMAKE_FLAGS += \
@@ -322,7 +346,6 @@ ifdef ENABLE_TESTS
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/lib $(DEFAULT_GMAKE_FLAGS)
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/certutil $(DEFAULT_GMAKE_FLAGS)
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/pk12util $(DEFAULT_GMAKE_FLAGS)
-	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/modutil $(DEFAULT_GMAKE_FLAGS)
 endif
 ifndef SKIP_CHK
 ifndef ENABLE_TESTS # Just avoid secondary compile

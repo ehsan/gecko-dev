@@ -45,18 +45,6 @@
  * getInterface on a DOMWindow.
  */
 
-%{C++
-#include "nsColor.h"
-#include "nsRect.h"
-#include "gfxContext.h"
-%}
-
-[ref] native nsConstRect(const nsRect);
-native nscolor(nscolor);
-[ptr] native gfxContext(gfxContext);
-typedef unsigned long long nsViewID;
-
-interface nsICycleCollectorListener;
 interface nsIDOMNode;
 interface nsIDOMNodeList;
 interface nsIDOMElement;
@@ -64,9 +52,8 @@ interface nsIDOMHTMLCanvasElement;
 interface nsIDOMEvent;
 interface nsITransferable;
 interface nsIQueryContentEventResult;
-interface nsIDOMWindow;
 
-[scriptable, uuid(b46050ea-6f18-11e0-bf00-f389b7004a12)]
+[scriptable, uuid(59e6f1be-ba0e-4102-9fe5-d5af8777742a)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -96,12 +83,6 @@ interface nsIDOMWindowUtils : nsISupports {
   readonly attribute boolean docCharsetIsForced;
 
   /**
-   * Get current cursor type from this window
-   * @return the current value of nsCursor
-   */
-  short getCursorType();
-
-  /**
    * Function to get metadata associated with the window's current document
    * @param aName the name of the metadata.  This should be all lowercase.
    * @return the value of the metadata, or the empty string if it's not set
@@ -118,72 +99,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * or is 0, it is taken to be 1.
    */
   unsigned long redraw([optional] in unsigned long aCount);
-
-  /**
-   * Set the CSS viewport to be |widthPx| x |heightPx| in units of CSS
-   * pixels, regardless of the size of the enclosing widget/view.
-   * This will trigger reflow.
-   *
-   * The caller of this method must have UniversalXPConnect
-   * privileges.
-   */
-  void setCSSViewport(in float aWidthPx, in float aHeightPx);
-
-  /**
-   * For any scrollable element, this allows you to override the
-   * visible region and draw more than what is visible, which is
-   * useful for asynchronous drawing. The "displayport" will be
-   * <xPx, yPx, widthPx, heightPx> in units of CSS pixels,
-   * regardless of the size of the enclosing container.  This
-   * will *not* trigger reflow.
-   *
-   * For the root scroll area, pass in the root document element.
-   * For scrollable elements, pass in the container element (for
-   * instance, the element with overflow: scroll).
-   *
-   * <x, y> is relative to the top-left of what would normally be
-   * the visible area of the element. This means that the pixels
-   * rendered to the displayport take scrolling into account,
-   * for example.
-   *
-   * It's legal to set a displayport that extends beyond the overflow
-   * area in any direction (left/right/top/bottom).
-   * 
-   * It's also legal to set a displayport that extends beyond the
-   * area's bounds.  No pixels are rendered outside the area bounds.
-   *
-   * The caller of this method must have UniversalXPConnect
-   * privileges.
-   */
-  void setDisplayPortForElement(in float aXPx, in float aYPx,
-                                in float aWidthPx, in float aHeightPx,
-                                in nsIDOMElement aElement);
-
-  /**
-   * Get/set the resolution at which rescalable web content is drawn.
-   * Currently this is only (some) thebes content.
-   *
-   * Setting a new resolution does *not* trigger reflow.  This API is
-   * entirely separate from textZoom and fullZoom; a resolution scale
-   * can be applied together with both textZoom and fullZoom.
-   *
-   * The effect of is API for gfx code to allocate more or fewer
-   * pixels for rescalable content by a factor of |resolution| in
-   * either or both dimensions.  setResolution() together with
-   * setDisplayport() can be used to implement a non-reflowing
-   * scale-zoom in concert with another entity that can draw with a
-   * scale.  For example, to scale a content |window| inside a
-   * <browser> by a factor of 2.0
-   *
-   *   window.setDisplayport(x, y, oldW / 2.0, oldH / 2.0);
-   *   window.setResolution(2.0, 2.0);
-   *   // elsewhere
-   *   browser.setViewportScale(2.0, 2.0);
-   *
-   * The caller of this method must have UniversalXPConnect
-   * privileges.
-   */
-  void setResolution(in float aXResolution, in float aYResolution);
 
   /** Synthesize a mouse event. The event types supported are:
    *    mousedown, mouseup, mousemove, mouseover, mouseout, contextmenu
@@ -352,16 +267,13 @@ interface nsIDOMWindowUtils : nsISupports {
   void focus(in nsIDOMElement aElement);
 
   /**
-   * Force a garbage collection followed by a cycle collection.
+   * Force a garbage collection. This will run the cycle-collector twice to
+   * make sure all garbage is collected.
    *
    * Will throw a DOM security error if called without UniversalXPConnect
    * privileges in non-debug builds. Available to all callers in debug builds.
-   *
-   * @param aListener listener that receives information about the CC graph
-   *                  (see @mozilla.org/cycle-collector-logger;1 for a logger
-   *                   component)
    */
-  void garbageCollect([optional] in nsICycleCollectorListener aListener);
+  void garbageCollect();
 
   /**
    * Force processing of any queued paints
@@ -476,6 +388,17 @@ interface nsIDOMWindowUtils : nsISupports {
    * @see nsIDOMWindow::scrollX/Y
    */
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
+
+  /**
+   * Creates a ChromeObjectWrapper for the object and returns it.
+   *
+   * @param scope The JavaScript object whose scope we'll use as the
+   *        parent of the wrapper.
+   * @param objToWrap The JavaScript object to wrap.
+   * @return the wrapped object.
+   */
+
+  void getCOWForObject(/* scope, objToWrap */);
 
   /**
    * Get IME open state. TRUE means 'Open', otherwise, 'Close'.
@@ -770,127 +693,22 @@ interface nsIDOMWindowUtils : nsISupports {
    * Put the window into a state where scripts are frozen and events
    * suppressed, for use when the window has launched a modal prompt.
    */
-  [noscript] void enterModalState();
+  void enterModalState();
 
   /**
    * Resume normal window state, where scripts can run and events are
    * delivered.
    */
-  [noscript] void leaveModalState();
-
-  /**
-   * Same as enterModalState, but returns the window associated with the
-   * current JS context.
-   */
-  nsIDOMWindow enterModalStateWithWindow();
-
-  /**
-   * Same as leaveModalState, but takes a window associated with the active
-   * context when enterModalStateWithWindow was called. The currently context
-   * might be different at the moment (see bug 621764).
-   */
-  void leaveModalStateWithWindow(in nsIDOMWindow aWindow);
+  void leaveModalState();
 
   /**
    * Is the window is in a modal state? [See enterModalState()]
    */
-  [noscript] boolean isInModalState();
+  boolean isInModalState();
 
   /**
    * Suspend/resume timeouts on this window and its descendant windows.
    */
   void suspendTimeouts();
   void resumeTimeouts();
-
-  /**
-   * Set the network status to online from the Offline mode error page.
-   *
-   * The caller of this method must be about:neterror.
-   */
-  void goOnline();
-
-  /**
-   * What type of layer manager the widget associated with this window is
-   * using. "Basic" is unaccelerated; other types are accelerated. Throws an
-   * error if there is no widget associated with this window.
-   */
-  readonly attribute AString layerManagerType;
-
-  /**
-   * The DPI of the display
-   */
-  readonly attribute float displayDPI;
-
-  /**
-   * Return the outer window with the given ID, if any.  Can return null.
-   */
-  nsIDOMWindow getOuterWindowWithId(in unsigned long long aOuterWindowID);
-
-  [noscript] void RenderDocument(in nsConstRect aRect,
-                                 in PRUint32 aFlags,
-                                 in nscolor aBackgroundColor,
-                                 in gfxContext aThebesContext);
-
-  /**
-   * advanceTimeAndRefresh allows the caller to take over the refresh
-   * driver timing for a window.  A call to advanceTimeAndRefresh does
-   * three things:
-   *  (1) It marks the refresh driver for this presentation so that it
-   *      no longer refreshes on its own, but is instead driven entirely
-   *      by the caller (except for the refresh that happens when a
-   *      document comes out of the bfcache).
-   *  (2) It advances the refresh driver's current refresh time by the
-   *      argument given.  Negative advances are permitted.
-   *  (3) It does a refresh (i.e., notifies refresh observers) at that
-   *      new time.
-   *
-   * Note that this affects other connected docshells of the same type
-   * in the same docshell tree, such as parent frames.
-   *
-   * When callers have completed their use of advanceTimeAndRefresh,
-   * they must call restoreNormalRefresh.
-   */
-  void advanceTimeAndRefresh(in long long aMilliseconds);
-
-  /**
-   * Undoes the effects of advanceTimeAndRefresh.
-   */
-  void restoreNormalRefresh();
-
-  /**
-   * Method for testing nsStyleAnimation::ComputeDistance.
-   *
-   * Returns the distance between the two values as reported by
-   * nsStyleAnimation::ComputeDistance for the given element and
-   * property.
-   */
-  double computeAnimationDistance(in nsIDOMElement element,
-                                  in AString property,
-                                  in AString value1,
-                                  in AString value2);
-
-  /**
-   * Get the type of the currently focused html input, if any.
-   */
-  readonly attribute string focusedInputType;
-
-  /**
-   * Given a view ID from the compositor process, retrieve the element
-   * associated with a view. For scrollpanes for documents, the root
-   * element of the document is returned.
-   */
-  nsIDOMElement findElementWithViewId(in nsViewID aId);
-
-  /**
-   * Checks the layer tree for this window and returns true
-   * if all layers have transforms that are translations by integers,
-   * no leaf layers overlap, and the union of the leaf layers is exactly
-   * the bounds of the window. Always returns true in non-DEBUG builds.
-   */
-  boolean leafLayersPartitionWindow();
-
-  /**
-   * true if the (current inner) window may have event listeners for touch events.
-   */
-  readonly attribute boolean mayHaveTouchEventListeners;
 };

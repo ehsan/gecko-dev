@@ -42,9 +42,7 @@
 #include "nsIDOMCSSRule.h"
 #include "nsCSSParser.h"
 #include "mozilla/css/Loader.h"
-#include "nsCSSStyleSheet.h"
 #include "nsIStyleRule.h"
-#include "mozilla/css/Rule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsCSSProps.h"
 #include "nsCOMPtr.h"
@@ -125,10 +123,18 @@ nsDOMCSSDeclaration::SetCssText(const nsAString& aCssText)
     return NS_ERROR_FAILURE;
   }
 
-  CSSParsingEnvironment env;
-  GetCSSParsingEnvironment(env);
-  if (!env.mPrincipal) {
-    return NS_ERROR_NOT_AVAILABLE;
+  nsresult result;
+  nsRefPtr<css::Loader> cssLoader;
+  nsCOMPtr<nsIURI> baseURI, sheetURI;
+  nsCOMPtr<nsIPrincipal> sheetPrincipal;
+
+  result = GetCSSParsingEnvironment(getter_AddRefs(sheetURI),
+                                    getter_AddRefs(baseURI),
+                                    getter_AddRefs(sheetPrincipal),
+                                    getter_AddRefs(cssLoader));
+
+  if (NS_FAILED(result)) {
+    return result;
   }
 
   // For nsDOMCSSAttributeDeclaration, SetCSSDeclaration will lead to
@@ -140,11 +146,10 @@ nsDOMCSSDeclaration::SetCssText(const nsAString& aCssText)
 
   nsAutoPtr<css::Declaration> decl(new css::Declaration());
   decl->InitializeEmpty();
-  nsCSSParser cssParser(env.mCSSLoader);
+  nsCSSParser cssParser(cssLoader);
   PRBool changed;
-  nsresult result = cssParser.ParseDeclarations(aCssText, env.mSheetURI,
-                                                env.mBaseURI,
-                                                env.mPrincipal, decl, &changed);
+  result = cssParser.ParseDeclarations(aCssText, sheetURI, baseURI,
+                                       sheetPrincipal, decl, &changed);
   if (NS_FAILED(result) || !changed) {
     return result;
   }
@@ -264,24 +269,6 @@ nsDOMCSSDeclaration::RemoveProperty(const nsAString& aPropertyName,
   return RemoveProperty(propID);
 }
 
-/* static */ void
-nsDOMCSSDeclaration::GetCSSParsingEnvironmentForRule(css::Rule* aRule,
-                                                     CSSParsingEnvironment& aCSSParseEnv)
-{
-  nsIStyleSheet* sheet = aRule ? aRule->GetStyleSheet() : nsnull;
-  nsRefPtr<nsCSSStyleSheet> cssSheet(do_QueryObject(sheet));
-  if (!cssSheet) {
-    aCSSParseEnv.mPrincipal = nsnull;
-    return;
-  }
-
-  nsIDocument* document = sheet->GetOwningDocument();
-  aCSSParseEnv.mSheetURI = sheet->GetSheetURI();
-  aCSSParseEnv.mBaseURI = sheet->GetBaseURI();
-  aCSSParseEnv.mPrincipal = cssSheet->Principal();
-  aCSSParseEnv.mCSSLoader = document ? document->CSSLoader() : nsnull;
-}
-
 nsresult
 nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
                                         const nsAString& aPropValue,
@@ -292,10 +279,17 @@ nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
     return NS_ERROR_FAILURE;
   }
 
-  CSSParsingEnvironment env;
-  GetCSSParsingEnvironment(env);
-  if (!env.mPrincipal) {
-    return NS_ERROR_NOT_AVAILABLE;
+  nsresult result;
+  nsRefPtr<css::Loader> cssLoader;
+  nsCOMPtr<nsIURI> baseURI, sheetURI;
+  nsCOMPtr<nsIPrincipal> sheetPrincipal;
+
+  result = GetCSSParsingEnvironment(getter_AddRefs(sheetURI),
+                                    getter_AddRefs(baseURI),
+                                    getter_AddRefs(sheetPrincipal),
+                                    getter_AddRefs(cssLoader));
+  if (NS_FAILED(result)) {
+    return result;
   }
 
   // For nsDOMCSSAttributeDeclaration, SetCSSDeclaration will lead to
@@ -306,11 +300,11 @@ nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
   mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
   css::Declaration* decl = olddecl->EnsureMutable();
 
-  nsCSSParser cssParser(env.mCSSLoader);
+  nsCSSParser cssParser(cssLoader);
   PRBool changed;
-  nsresult result = cssParser.ParseProperty(aPropID, aPropValue, env.mSheetURI,
-                                            env.mBaseURI, env.mPrincipal, decl,
-                                            &changed, aIsImportant);
+  result = cssParser.ParseProperty(aPropID, aPropValue, sheetURI, baseURI,
+                                   sheetPrincipal, decl, &changed,
+                                   aIsImportant);
   if (NS_FAILED(result) || !changed) {
     if (decl != olddecl) {
       delete decl;
@@ -343,9 +337,8 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
 
 // nsIDOMCSS2Properties
 
-#define CSS_PROP_DOMPROP_PREFIXED(prop_) Moz ## prop_
-#define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,       \
-                 stylestruct_, stylestructoffset_, animtype_)                \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,          \
+                 kwtable_, stylestruct_, stylestructoffset_, animtype_)      \
   NS_IMETHODIMP                                                              \
   nsDOMCSSDeclaration::Get##method_(nsAString& aValue)                       \
   {                                                                          \
@@ -360,18 +353,17 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
 
 #define CSS_PROP_LIST_EXCLUDE_INTERNAL
 #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_) \
-  CSS_PROP(name_, id_, method_, flags_, X, X, X, X, X)
+  CSS_PROP(name_, id_, method_, flags_, X, X, X, X, X, X)
 #include "nsCSSPropList.h"
 
 // Aliases
-CSS_PROP(X, opacity, MozOpacity, X, X, X, X, X, X)
-CSS_PROP(X, outline, MozOutline, X, X, X, X, X, X)
-CSS_PROP(X, outline_color, MozOutlineColor, X, X, X, X, X, X)
-CSS_PROP(X, outline_style, MozOutlineStyle, X, X, X, X, X, X)
-CSS_PROP(X, outline_width, MozOutlineWidth, X, X, X, X, X, X)
-CSS_PROP(X, outline_offset, MozOutlineOffset, X, X, X, X, X, X)
+CSS_PROP(X, opacity, MozOpacity, X, X, X, X, X, X, X)
+CSS_PROP(X, outline, MozOutline, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_color, MozOutlineColor, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_style, MozOutlineStyle, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_width, MozOutlineWidth, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_offset, MozOutlineOffset, X, X, X, X, X, X, X)
 
 #undef CSS_PROP_SHORTHAND
 #undef CSS_PROP_LIST_EXCLUDE_INTERNAL
 #undef CSS_PROP
-#undef CSS_PROP_DOMPROP_PREFIXED

@@ -12,18 +12,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=515116
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=515116">Mozilla Bug 515116</a>
 <p id="display"></p>
 <div id="content" style="display:none;">
-<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="100" height="100"
-     onload="this.pauseAnimations();">
-  <desc>
-    <filter>
-      <feComponentTransfer>
-        <feFuncR id="feFuncR" type="table"/>
-      </feComponentTransfer>
-    </filter>
-  </desc>
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="100" height="100">
   <text id="text">text</text>
-  <path id="path"/>
-  <polyline id="polyline"/>
 </svg>
 </div>
 <pre id="test">
@@ -80,16 +70,6 @@ To have the battery of generic tests run for a new list attribute, add an elemen
   attr_val_5a:
   attr_val_5b:
     Two attribute values containing five different items.
-  attr_val_5b_firstItem_x3_constructor:
-    Function to construct a list-item that should match the first item in a
-    SVGXxxList after three repeats of a cumulative animation to attr_val_5b.
-    This function takes t.item_constructor as its only argument.
-  item_constructor:
-    Function to create a dummy list item.
-  item_is:
-    Function to compare two list items for equality, like "is()". If this
-    property is omitted, it is assumed that we can just compare
-    "item.value" (which is the case for most list types).
 */
 
 var tests = [
@@ -108,18 +88,14 @@ var tests = [
     attr_val_3b: '30in 10, 20ex',
     attr_val_4 : '10 20ex, 30in ,40cm',
     attr_val_5a: '10 20ex, 30in ,40cm , 50%',
-    attr_val_5b: '20 50%, 20ex ,30in , 40cm',
-    attr_val_5b_firstItem_x3_constructor: function(constructor) {
-      var expected = constructor();
-      expected.value = 60;
-      return expected;
-    },
+    attr_val_5b: '50% 10, 20ex ,30in , 40cm',
     item_constructor: function() {
       // We need this function literal to avoid "Illegal operation on
       // WrappedNative prototype object" NS_ERROR_XPC_BAD_OP_ON_WN_PROTO.
       return document.getElementById('svg').createSVGLength();
     }
   },
+  /*
   {
     // SVGNumberList test:
     target_element_id: 'text',
@@ -131,48 +107,29 @@ var tests = [
     prop_type: 'SVGAnimatedNumberList',
     list_type: 'SVGNumberList',
     item_type: 'SVGNumber',
-    attr_val_3a: '0 20 40',
-    attr_val_3b: '60 40 20',
-    attr_val_4 : '40 20 10 80',
-    attr_val_5a: '90 30 60 20 70',
-    attr_val_5b: '30 20 70 30 90',
-    attr_val_5b_firstItem_x3_constructor: function(constructor) {
-      var expected = constructor();
-      expected.value = 90;
-      return expected;
-    },
-    item_constructor: function() {
-      // We need this function literal to avoid "Illegal operation on
-      // WrappedNative prototype object" NS_ERROR_XPC_BAD_OP_ON_WN_PROTO.
-      return document.getElementById('svg').createSVGNumber();
-    }
+    attr_val_3a: '',
+    attr_val_3b: '',
+    attr_val_4 : '',
+    attr_val_5a: '',
+    attr_val_5b: '',
+    item_constructor: document.getElementById('svg').createSVGNumber
   },
   {
     // SVGNumberList test:
-    target_element_id: 'feFuncR',
+    target_element_id: 'feComponentTransfer',
     attr_name: 'tableValues',
     prop_name: 'tableValues',
     bv_name: 'baseVal',
     av_name: 'animVal',
-    el_type: 'SVGFEComponentTransferElement',
     prop_type: 'SVGAnimatedNumberList',
     list_type: 'SVGNumberList',
     item_type: 'SVGNumber',
-    attr_val_3a: '0 .5 .2',
-    attr_val_3b: '1 .7 .1',
-    attr_val_4 : '.5 .3 .8 .2',
-    attr_val_5a: '3 4 5 6 7',
-    attr_val_5b: '7 6 5 4 3',
-    attr_val_5b_firstItem_x3_constructor: function(constructor) {
-      var expected = constructor();
-      expected.value = 21;
-      return expected;
-    },
-    item_constructor: function() {
-      // We need this function literal to avoid "Illegal operation on
-      // WrappedNative prototype object" NS_ERROR_XPC_BAD_OP_ON_WN_PROTO.
-      return document.getElementById('svg').createSVGNumber();
-    }
+    attr_val_3a: '',
+    attr_val_3b: '',
+    attr_val_4 : '',
+    attr_val_5a: '',
+    attr_val_5b: '',
+    item_constructor: document.getElementById('svg').createSVGNumber
   },
   {
     // SVGPointList test:
@@ -181,36 +138,15 @@ var tests = [
     prop_name: null, // SVGAnimatedPoints is an inherited interface!
     bv_name: 'points',
     av_name: 'animatedPoints',
-    el_type: 'SVGPolylineElement',
     prop_type: null,
     list_type: 'SVGPointList',
     item_type: 'SVGPoint',
-    attr_val_3a: ' 10,10 50,50 90,10 ',
-    attr_val_3b: ' 10,50 50,10 90,50 ',
-    attr_val_4 : ' 10,10 50,50 90,10 200,100 ',
-    attr_val_5a: ' 10,10 50,50 90,10 130,50 170,10 ',
-    attr_val_5b: ' 50,10 50,10 90,50 130,10 170,50 ',
-    attr_val_5b_firstItem_x3_constructor: function(constructor) {
-      var expected = constructor();
-      expected.x = 150;
-      expected.y = 30;
-      return expected;
-    },
-    item_constructor: function() {
-      // XXX return different values each time
-      return document.getElementById('svg').createSVGPoint();
-    },
-    item_is: function(itemA, itemB, message) {
-      ok(typeof(itemA.x) != 'undefined' &&
-         typeof(itemB.x) != 'undefined',
-         'expecting x property');
-      ok(typeof(itemA.y) != 'undefined' &&
-         typeof(itemB.y) != 'undefined',
-         'expecting y property');
-
-      is(itemA.x, itemB.x, message);
-      is(itemA.y, itemB.y, message);
-    }
+    attr_val_3a: '',
+    attr_val_3b: '',
+    attr_val_4 : '',
+    attr_val_5a: '',
+    attr_val_5b: '',
+    item_constructor: document.getElementById('svg').createSVGPoint
   },
   {
     // SVGPathSegList test:
@@ -219,63 +155,6 @@ var tests = [
     prop_name: null, // SVGAnimatedPathData is an inherited interface!
     bv_name: 'pathSegList',
     av_name: 'animatedPathSegList',
-    el_type: 'SVGPathElement',
-    prop_type: null,
-    list_type: 'SVGPathSegList',
-    item_type: 'SVGPathSeg',
-    attr_val_3a: 'M 10,10 L 50,50 L 90,10',
-    attr_val_3b: 'M 10,50 L 50,10 L 90,50',
-    attr_val_4 : 'M 10,10 L 50,50 L 90,10 M 200,100',
-    attr_val_5a: 'M 10,10 L 50,50 L 90,10 L 130,50 L 170,10',
-    attr_val_5b: 'M 50,10 L 50,10 L 90,50 L 130,10 L 170,50',
-    attr_val_5b_firstItem_x3_constructor: function(constructor) {
-      var expected = constructor();
-      is(expected.pathSegTypeAsLetter, "M",
-         "test error -- expected constructor to generate a segment of type M");
-      expected.x = 150;
-      expected.y = 30;
-      return expected;
-    },
-    item_constructor: function() {
-      // XXX return different values each time
-      return document.getElementById('path').createSVGPathSegMovetoAbs(1, 1);
-    },
-    item_is: function(itemA, itemB, message) {
-      ok(typeof(itemA.pathSegTypeAsLetter) != 'undefined' &&
-         typeof(itemB.pathSegTypeAsLetter) != 'undefined',
-         'expecting pathSegTypeAsLetter property');
-
-      // First: are we dealing  with the same type of segment?
-      is(itemA.pathSegTypeAsLetter, itemB.pathSegTypeAsLetter, message);
-      if (itemA.pathSegTypeAsLetter != itemB.pathSegTypeAsLetter)
-        return;  // The rest of this function is nonsense if types don't match.
-
-      // Make sure property-counts match (so we can iterate across itemA's
-      // properties and not worry about itemB having extra properties that
-      // we might be skipping over).
-      is(keys(itemA).length, keys(itemB).length,
-        'expecting same property-count when comparing path segs of same type.');
-
-      // Compare the properties, skipping the constant properties inherited
-      // from 'SVGPathSeg', and skipping the pathSegTypeAsLetter field since we
-      // already checked that above. 
-      for (var prop in itemA) {
-        if (!SVGPathSeg.hasOwnProperty(prop) &&
-            prop != 'pathSegTypeAsLetter') {
-          is(itemA[prop], itemB[prop], message);
-        }
-      }
-    }
-  },
-/*
-  {
-    // SVGPathSegList test:
-    target_element_id: 'path',
-    attr_name: 'd',
-    prop_name: null, // SVGAnimatedPathData is an inherited interface!
-    bv_name: 'normalizedPathSegList',
-    av_name: 'animatedNormalizedPathSegList',
-    el_type: 'SVGPathElement',
     prop_type: null,
     list_type: 'SVGPathSegList',
     item_type: 'SVGPathSeg',
@@ -287,32 +166,26 @@ var tests = [
     item_constructor: function() {
       // XXX return different values each time
       return SVGPathElement.createSVGPathSegLinetoAbs(1, 1);
-    },
-    item_is: function(itemA, itemB, message) {
-      ok(typeof(itemA.pathSegTypeAsLetter) != 'undefined' &&
-         typeof(itemB.pathSegTypeAsLetter) != 'undefined',
-         'expecting pathSegTypeAsLetter property');
-
-      // First: are we dealing  with the same type of segment?
-      is(itemA.pathSegTypeAsLetter, itemB.pathSegTypeAsLetter, message);
-      if (itemA.pathSegTypeAsLetter != itemB.pathSegTypeAsLetter)
-        return;  // The rest of this function is nonsense if types don't match.
-
-      // Make sure property-counts match (so we can iterate across itemA's
-      // properties and not worry about itemB having extra properties that
-      // we might be skipping over).
-      is(keys(itemA).length, keys(itemB).length,
-        'expecting same property-count when comparing path segs of same type.');
-
-      // Compare the properties, skipping the constant properties inherited
-      // from 'SVGPathSeg', and skipping the pathSegTypeAsLetter field since we
-      // already checked that above. 
-      for (var prop in itemA) {
-        if (!SVGPathSeg.hasOwnProperty(prop) &&
-            prop != 'pathSegTypeAsLetter') {
-          is(itemA[prop], itemB[prop], message);
-        }
-      }
+    }
+  },
+  {
+    // SVGPathSegList test:
+    target_element_id: 'path',
+    attr_name: 'd',
+    prop_name: null, // SVGAnimatedPathData is an inherited interface!
+    bv_name: 'normalizedPathSegList',
+    av_name: 'animatedNormalizedPathSegList',
+    prop_type: null,
+    list_type: 'SVGPathSegList',
+    item_type: 'SVGPathSeg',
+    attr_val_3a: '',
+    attr_val_3b: '',
+    attr_val_4 : '',
+    attr_val_5a: '',
+    attr_val_5b: '',
+    item_constructor: function() {
+      // XXX return different values each time
+      return SVGPathElement.createSVGPathSegLinetoAbs(1, 1);
     }
   },
   {
@@ -322,7 +195,6 @@ var tests = [
     prop_name: null, // SVGStringList attributes are not animatable
     bv_name: 'requiredFeatures',
     av_name: null,
-    el_type: 'SVGGElement',
     prop_type: null,
     list_type: 'SVGStringList',
     item_type: 'DOMString',
@@ -347,7 +219,6 @@ var tests = [
     prop_name: 'transform',
     bv_name: 'baseVal',
     av_name: 'animVal',
-    el_type: 'SVGGElement',
     prop_type: 'SVGAnimatedTransformList',
     list_type: 'SVGTransformList',
     item_type: 'SVGTransform',
@@ -368,12 +239,12 @@ var tests = [
 /*
 This function returns a DocumentFragment with three 'animate' element children. The duration of the three animations is as follows:
 
-  animation 1: |  *-----------*-----------*-----------*
+  animation 1: |  *-----------*-----------*
   animation 2: |     *--*
   animation 3: |                    *--*
-               |___________________________________________> time (s)
-               |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-               0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
+               |__________________________________> time (s)
+               |  |  |  |  |  |  |  |  |  |  |  |
+               0  1  2  3  4  5  6  7  8  9 10 11
 
 The first animation repeats once so that we can test state on a repeat animation.
 
@@ -381,7 +252,7 @@ The second animation overrides the first animation for a short time, and has few
 
 The third animation has additive="sum", with fewer items than the lower priority animation 1, allowing us to test object identity and other state in that scenario. TODO: some type aware tests to check whether the composite fails or works?
 
-At t=0s and t=1s we test the effect of an attribute value changes in the absence and presence of SMIL animation respectively.
+At t=0s and t=1s we test the affect of an attribute value changes in the absence and presence of SMIL animation respectively.
 
 At t=10s we programatically remove the fill="freeze" from animation 1.
 */
@@ -412,8 +283,7 @@ function create_animate_elements(test)
   animate1.setAttribute('to', test.attr_val_5b);
   animate1.setAttribute('begin', '1s');
   animate1.setAttribute('dur', '4s');
-  animate1.setAttribute('repeatCount', '3');
-  animate1.setAttribute('accumulate', 'sum');
+  animate1.setAttribute('repeatCount', '2');
   animate1.setAttribute('fill', 'freeze');
   df.appendChild(animate1);
 
@@ -873,7 +743,7 @@ function run_animVal_API_tests()
 
 
 /**
- * This function runs some basic tests to check the effect of setAttribute()
+ * This function runs some basic tests to check the affect of setAttribute()
  * calls on object identidy, without taking SMIL animation into consideration.
  */
 function run_basic_setAttribute_tests()
@@ -918,7 +788,7 @@ function run_basic_setAttribute_tests()
          'by a change in list length between the successive accesses.');
     }
 
-    // Test the effect of setting the attribute to new values:
+    // Test the affect of setting the attribute to new values:
 
     t.old_baseVal_items = get_array_of_list_items(t.baseVal);
     t.old_animVal_items = get_array_of_list_items(t.animVal);
@@ -965,95 +835,6 @@ function run_basic_setAttribute_tests()
   }
 }
 
-/**
- * This function verifies that a list's animVal is kept in sync with its
- * baseVal, when we add & remove items from the baseVal.
- */
-function run_list_mutation_tests()
-{
-  for each (var t in tests) {
-    if (t.animVal) {
-      // Test removeItem()
-      // =================
-      // Save second item in baseVal list; then make it the first item, and
-      // check that animVal is updated accordingly.
-      t.element.setAttribute(t.attr_name, t.attr_val_4);
-
-      var secondVal = t.baseVal.getItem(1);
-      var removedFirstVal = t.baseVal.removeItem(0);
-      t.item_is(t.animVal.getItem(0), secondVal,
-                'animVal for '+t.attr_name+' needs update after first item ' +
-                'removed');
-
-      // Repeat with last item
-      var secondToLastVal = t.baseVal.getItem(1);
-      var removedLastVal = t.baseVal.removeItem(2);
-
-      var threw = false;
-      try {
-        t.animVal.getItem(2);
-      } catch(e) {
-        threw = true;
-      }
-      ok(threw,
-         'The method '+t.attr_name+'.animVal.getItem() for previously-final ' +
-         'index should throw after final item is removed from baseVal.');
-
-      t.item_is(t.animVal.getItem(1), secondToLastVal,
-                'animVal for ' + t.attr_name +' needs update after last item ' +
-                'removed');
-
-      // Test insertItemBefore()
-      // =======================
-      // Reset base value, insert value @ start, check that animVal is updated.
-      t.element.setAttribute(t.attr_name, t.attr_val_3a);
-      t.baseVal.insertItemBefore(removedLastVal, 0);
-      t.item_is(t.animVal.getItem(0), removedLastVal,
-                'animVal for '+t.attr_name+' needs update after insert at ' +
-                'beginning');
-
-      // Repeat with insert at end
-      t.element.setAttribute(t.attr_name, t.attr_val_3a);
-      t.baseVal.insertItemBefore(removedFirstVal, t.baseVal.numberOfItems);
-      t.item_is(t.animVal.getItem(t.baseVal.numberOfItems - 1),
-                removedFirstVal,
-                'animVal for '+t.attr_name+' needs update after insert at end');
-
-      // Test appendItem()
-      // =================
-      var dummy = t.item_constructor();
-      t.baseVal.appendItem(dummy);
-      t.item_is(t.animVal.getItem(t.baseVal.numberOfItems - 1), dummy,
-                'animVal for '+t.attr_name+' needs update after appendItem');
-
-      // Test clear()
-      // ============
-      t.baseVal.clear();
-      threw = false;
-      try {
-        t.animVal.getItem(0);
-      } catch(e) {
-        threw = true;
-      }
-      ok(threw,
-         'The method '+t.attr_name+'.animVal.getItem() should throw after ' +
-         'we\'ve cleared baseVal.');
-
-      is(t.animVal.numberOfItems, 0,
-         'animVal for '+t.attr_name+' should be empty after baseVal cleared');
-
-      // Test initialize()
-      // =================
-      t.element.setAttribute(t.attr_name, t.attr_val_3a);
-      t.baseVal.initialize(dummy);
-
-      is(t.animVal.numberOfItems, 1,
-         'animVal for '+t.attr_name+' should have length 1 after initialize');
-      t.item_is(t.animVal.getItem(0), dummy,
-                'animVal for '+t.attr_name+' needs update after initialize');
-    }
-  }
-}
 
 /**
  * In this function we run a series of tests at various points along the SMIL
@@ -1097,15 +878,12 @@ function run_animation_timeline_tests()
        'The start of the animation should have changed the number of items '+
        'in the '+t.list_type+' for '+t.bv_path+' to 5.');
 
-    // TODO
-    if (t.list_type != 'SVGPathSegList') {
     ok(t.animVal.getItem(3) === t.old_animVal_items[3],
        'When affected by SMIL animation, list items in the '+t.list_type+
        ' for '+t.bv_path+' that are at indexes that existed prior to the '+
        'start of the animation should be the exact same objects as the '+
        'objects that were at those indexes prior to the start of the '+
        'animation.');
-    }
 
     t.old_animVal_items = get_array_of_list_items(t.animVal);
 
@@ -1264,13 +1042,11 @@ function run_animation_timeline_tests()
 
     } else {
 
-/* TODO
       ok(false,
          'Decide what to do here - see ' +
          'https://bugzilla.mozilla.org/show_bug.cgi?id=573716 - we ' +
          'probably should be discarding any animation sandwich layers from ' +
          'a layer that fails to add, on up.');
-*/
 
       // In other words, we wouldn't need the if-else check here.
 
@@ -1287,9 +1063,9 @@ function run_animation_timeline_tests()
   }
 
 
-  /********************    t = 13s    ********************/
+  /********************    t = 10s    ********************/
 
-  svg.setCurrentTime(13); // all animations have finished, but one is frozen
+  svg.setCurrentTime(10); // all animations have finished, but one is frozen
 
   for each (var t in tests) {
     if (!t.animVal)
@@ -1306,15 +1082,7 @@ function run_animation_timeline_tests()
        ' should still be more than the same as the number of items in '+
        t.bv_path+' since one of the animations is still frozen.');
 
-    var expected = t.attr_val_5b_firstItem_x3_constructor(t.item_constructor);
-    t.item_is(t.animVal.getItem(0), expected,
-      'animation with accumulate="sum" and repeatCount="3" for attribute "'+
-       t.attr_name+'" should end up at 3x the "to" value.');
-
-    // Unfreeze frozen animation (removing its effects)
-    var frozen_animate_element =
-      t.element.querySelector('animate[fill][attributeName="'+t.attr_name+'"]');
-    frozen_animate_element.removeAttribute('fill');
+    t.element.querySelector('animate').removeAttribute('fill');
 
     ok(t.animVal.numberOfItems == t.baseVal.numberOfItems,
        'Once all SMIL animation have finished and been un-frozen, the number '+
@@ -1332,6 +1100,8 @@ function run_animation_timeline_tests()
 
 function run_tests()
 {
+    document.getElementById('svg').pauseAnimations();
+
   // Initialize each test object with some useful properties, and create their
   // 'animate' elements. Note that 'prop' and 'animVal' may be null.
   for each (var t in tests) {
@@ -1349,16 +1119,6 @@ function run_tests()
     }
     t.prop_type = t.prop_type || null;
 
-    // use fallback 'is' function, if none was provided.
-    if (!t.item_is) {
-      t.item_is = function(itemA, itemB, message) {
-      ok(typeof(itemA.value) != 'undefined' &&
-         typeof(itemB.value) != 'undefined',
-         'expecting value property');
-        is(itemA.value, itemB.value, message);
-      };
-    }
-
     t.element.appendChild(create_animate_elements(t));
   }
 
@@ -1367,7 +1127,6 @@ function run_tests()
   run_baseVal_API_tests();
   run_animVal_API_tests();
   run_basic_setAttribute_tests();
-  run_list_mutation_tests();
   run_animation_timeline_tests();
 
   // After all the other test manipulations, we check that the following

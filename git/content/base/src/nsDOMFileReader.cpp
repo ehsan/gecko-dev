@@ -15,7 +15,7 @@
  * The Original Code is mozila.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation
+ * Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -51,6 +51,7 @@
 #include "nsIInputStream.h"
 #include "nsIMIMEService.h"
 #include "nsIPlatformCharset.h"
+#include "nsIUnicharInputStream.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
@@ -70,16 +71,13 @@
 #include "nsJSEnvironment.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMClassInfo.h"
+#include "nsIDOMFileInternal.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIStreamConverterService.h"
 #include "nsEventDispatcher.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsFileDataProtocolHandler.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
@@ -90,12 +88,12 @@ using namespace mozilla;
 #define LOADEND_STR "loadend"
 
 #define NS_PROGRESS_EVENT_INTERVAL 50
-const PRUint64 kUnknownSize = PRUint64(-1);
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileReader)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMFileReader,
                                                   nsXHREventTarget)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnLoadEndListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFile)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mProgressNotifier)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
@@ -104,6 +102,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMFileReader,
                                                 nsXHREventTarget)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnLoadEndListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFile)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mProgressNotifier)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
@@ -126,12 +125,25 @@ NS_INTERFACE_MAP_END_INHERITING(nsXHREventTarget)
 NS_IMPL_ADDREF_INHERITED(nsDOMFileReader, nsXHREventTarget)
 NS_IMPL_RELEASE_INHERITED(nsDOMFileReader, nsXHREventTarget)
 
+NS_IMETHODIMP
+nsDOMFileReader::GetOnloadend(nsIDOMEventListener** aOnloadend)
+{
+  return GetInnerEventListener(mOnLoadEndListener, aOnloadend);
+}
+
+NS_IMETHODIMP
+nsDOMFileReader::SetOnloadend(nsIDOMEventListener* aOnloadend)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(LOADEND_STR),
+                                mOnLoadEndListener, aOnloadend);
+}
+
 //nsICharsetDetectionObserver
 
 NS_IMETHODIMP
 nsDOMFileReader::Notify(const char *aCharset, nsDetectionConfident aConf)
 {
-  mCharset = aCharset;
+  CopyASCIItoUTF16(aCharset, mCharset);
   return NS_OK;
 }
 
@@ -179,8 +191,7 @@ nsDOMFileReader::Init()
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
-    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
+    secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   }
   NS_ENSURE_STATE(subjectPrincipal);
   mPrincipal = subjectPrincipal;
@@ -253,20 +264,20 @@ nsDOMFileReader::GetError(nsIDOMFileError** aError)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsBinaryString(nsIDOMBlob* aFile)
+nsDOMFileReader::ReadAsBinaryString(nsIDOMFile* aFile)
 {
   return ReadFileContent(aFile, EmptyString(), FILE_AS_BINARY);
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsText(nsIDOMBlob* aFile,
+nsDOMFileReader::ReadAsText(nsIDOMFile* aFile,
                             const nsAString &aCharset)
 {
   return ReadFileContent(aFile, aCharset, FILE_AS_TEXT);
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsDataURL(nsIDOMBlob* aFile)
+nsDOMFileReader::ReadAsDataURL(nsIDOMFile* aFile)
 {
   return ReadFileContent(aFile, EmptyString(), FILE_AS_DATAURL);
 }
@@ -275,7 +286,7 @@ NS_IMETHODIMP
 nsDOMFileReader::Abort()
 {
   if (mReadyState != nsIDOMFileReader::LOADING)
-    return NS_ERROR_DOM_FILE_ABORT_ERR;
+    return NS_OK;
 
   //Clear progress and file data
   mProgressEventWasDelayed = PR_FALSE;
@@ -452,8 +463,6 @@ nsDOMFileReader::OnStopRequest(nsIRequest *aRequest,
       rv = GetAsDataURL(mFile, mFileData, mDataLen, mResult);
       break;
   }
-  
-  mResult.SetIsVoid(PR_FALSE);
 
   FreeFileData();
 
@@ -472,11 +481,10 @@ nsDOMFileReader::OnStopRequest(nsIRequest *aRequest,
 // Helper methods
 
 nsresult
-nsDOMFileReader::ReadFileContent(nsIDOMBlob* aFile,
+nsDOMFileReader::ReadFileContent(nsIDOMFile* aFile,
                                  const nsAString &aCharset,
                                  eDataFormat aDataFormat)
 {
-  nsresult rv;
   NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
 
   //Implicit abort to clear any other activity going on
@@ -488,28 +496,26 @@ nsDOMFileReader::ReadFileContent(nsIDOMBlob* aFile,
   mReadyState = nsIDOMFileReader::EMPTY;
   FreeFileData();
 
-  mFile = aFile;
   mDataFormat = aDataFormat;
-  CopyUTF16toUTF8(aCharset, mCharset);
+  mCharset = aCharset;
+
+  //Obtain the nsDOMFile's underlying nsIFile
+  nsresult rv;
+  nsCOMPtr<nsIDOMFileInternal> domFile(do_QueryInterface(aFile));
+  rv = domFile->GetInternalFile(getter_AddRefs(mFile));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   //Establish a channel with our file
-  {
-    // Hold the internal URL alive only as long as necessary
-    // After the channel is created it will own whatever is backing
-    // the DOMFile.
-    nsDOMFileInternalUrlHolder urlHolder(mFile, mPrincipal);
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewFileURI(getter_AddRefs(uri), mFile);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), urlHolder.mUrl);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = NS_NewChannel(getter_AddRefs(mChannel), uri);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = NS_NewChannel(getter_AddRefs(mChannel), uri);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   //Obtain the total size of the file before reading
-  mReadTotal = kUnknownSize;
-  mFile->GetSize(&mReadTotal);
+  mReadTotal = -1;
+  mFile->GetFileSize(&mReadTotal);
 
   rv = mChannel->AsyncOpen(this, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -564,23 +570,14 @@ nsDOMFileReader::DispatchProgressEvent(const nsAString& aType)
   if (!progress)
     return;
 
-  PRBool known;
-  PRUint64 size;
-  if (mReadTotal != kUnknownSize) {
-    known = PR_TRUE;
-    size = mReadTotal;
-  } else {
-    known = PR_FALSE;
-    size = 0;
-  }
-  progress->InitProgressEvent(aType, PR_FALSE, PR_FALSE, known,
-                              mReadTransferred, size);
+  progress->InitProgressEvent(aType, PR_FALSE, PR_FALSE, mReadTotal >= 0,
+                              mReadTransferred, PR_MAX(mReadTotal, 0));
 
   this->DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }
 
 nsresult
-nsDOMFileReader::GetAsText(const nsACString &aCharset,
+nsDOMFileReader::GetAsText(const nsAString &aCharset,
                            const char *aFileData,
                            PRUint32 aDataLen,
                            nsAString& aResult)
@@ -588,7 +585,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
   nsresult rv;
   nsCAutoString charsetGuess;
   if (!aCharset.IsEmpty()) {
-    charsetGuess = aCharset;
+    CopyUTF16toUTF8(aCharset, charsetGuess);
   } else {
     rv = GuessCharset(aFileData, aDataLen, charsetGuess);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -607,7 +604,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
 }
 
 nsresult
-nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
+nsDOMFileReader::GetAsDataURL(nsIFile *aFile,
                               const char *aFileData,
                               PRUint32 aDataLen,
                               nsAString& aResult)
@@ -615,17 +612,21 @@ nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
   aResult.AssignLiteral("data:");
 
   nsresult rv;
-  nsString contentType;
-  rv = aFile->GetType(contentType);
-  if (NS_SUCCEEDED(rv) && !contentType.IsEmpty()) {
-    aResult.Append(contentType);
+  nsCOMPtr<nsIMIMEService> mimeService =
+    do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString contentType;
+  rv = mimeService->GetTypeFromFile(aFile, contentType);
+  if (NS_SUCCEEDED(rv)) {
+    AppendUTF8toUTF16(contentType, aResult);
   } else {
     aResult.AppendLiteral("application/octet-stream");
   }
   aResult.AppendLiteral(";base64,");
 
   PRUint32 totalRead = 0;
-  while (aDataLen > totalRead) {
+  do {
     PRUint32 numEncode = 4096;
     PRUint32 amtRemaining = aDataLen - totalRead;
     if (numEncode > amtRemaining)
@@ -643,7 +644,8 @@ nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
     PR_Free(base64);
 
     totalRead += numEncode;
-  }
+
+  } while (aDataLen > totalRead);
 
   return NS_OK;
 }
@@ -688,20 +690,18 @@ nsDOMFileReader::GuessCharset(const char *aFileData,
                         "universal_charset_detector");
   if (!detector) {
     // No universal charset detector, try the default charset detector
-    const nsAdoptingCString& detectorName =
-      Preferences::GetLocalizedCString("intl.charset.detector");
+    const nsAdoptingString& detectorName =
+      nsContentUtils::GetLocalizedStringPref("intl.charset.detector");
     if (!detectorName.IsEmpty()) {
       nsCAutoString detectorContractID;
       detectorContractID.AssignLiteral(NS_CHARSET_DETECTOR_CONTRACTID_BASE);
-      detectorContractID += detectorName;
+      AppendUTF16toUTF8(detectorName, detectorContractID);
       detector = do_CreateInstance(detectorContractID.get());
     }
   }
 
   nsresult rv;
-  // The charset detector doesn't work for empty (null) aFileData. Testing
-  // aDataLen instead of aFileData so that we catch potential errors.
-  if (detector && aDataLen != 0) {
+  if (detector) {
     mCharset.Truncate();
     detector->Init(this);
 
@@ -713,14 +713,26 @@ nsDOMFileReader::GuessCharset(const char *aFileData,
     rv = detector->Done();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    aCharset = mCharset;
+    CopyUTF16toUTF8(mCharset, aCharset);
   } else {
     // no charset detector available, check the BOM
-    unsigned char sniffBuf[3];
+    unsigned char sniffBuf[4];
     PRUint32 numRead = (aDataLen >= sizeof(sniffBuf) ? sizeof(sniffBuf) : aDataLen);
     memcpy(sniffBuf, aFileData, numRead);
 
-    if (numRead >= 2 &&
+    if (numRead >= 4 &&
+        sniffBuf[0] == 0x00 &&
+        sniffBuf[1] == 0x00 &&
+        sniffBuf[2] == 0xfe &&
+        sniffBuf[3] == 0xff) {
+      aCharset = "UTF-32BE";
+    } else if (numRead >= 4 &&
+               sniffBuf[0] == 0xff &&
+               sniffBuf[1] == 0xfe &&
+               sniffBuf[2] == 0x00 &&
+               sniffBuf[3] == 0x00) {
+      aCharset = "UTF-32LE";
+    } else if (numRead >= 2 &&
                sniffBuf[0] == 0xfe &&
                sniffBuf[1] == 0xff) {
       aCharset = "UTF-16BE";

@@ -4,7 +4,7 @@
 <!-- Firefox tabbrowser -->
 <?xml-stylesheet href="chrome://browser/content/browser.css"
                  type="text/css"?>
-<!-- SeaMonkey tabbrowser -->
+<!-- Seamonkey tabbrowser -->
 <?xml-stylesheet href="chrome://navigator/content/navigator.css"
                  type="text/css"?>
 
@@ -19,15 +19,12 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="chrome://mochitests/content/a11y/accessible/treeview.js" />
+          src="chrome://mochikit/content/a11y/accessible/treeview.js" />
 
   <script type="application/javascript"
-          src="../common.js" />
+          src="chrome://mochikit/content/a11y/accessible/common.js" />
   <script type="application/javascript"
-          src="../events.js" />
-
-  <script type="application/javascript"
-          src="chrome://mochikit/content/chrome-harness.js"/>
+          src="chrome://mochikit/content/a11y/accessible/events.js" />
 
   <script type="application/javascript">
   <![CDATA[
@@ -53,7 +50,6 @@
     var gScrollHandler = {
       handleEvent: function gScrollHandler_handleEvent(aEvent) {
         if (aEvent.DOMNode.getAttribute("name") == "link1") {
-          ok(true, "scrolling start event was handled on link1");
           unregisterA11yEventListener(EVENT_SCROLLING_START, this);
           SimpleTest.finish();
         }
@@ -64,20 +60,9 @@
     {
       registerA11yEventListener(EVENT_SCROLLING_START, gScrollHandler);
 
-      var rootDir = getRootDirectory(window.location.href);
+      var url =
+        "chrome://mochikit/content/a11y/accessible/events/scroll.html#link1";
 
-      /*
-       * When tests are packed in a .jar, we need to extract them so we 
-       * can access the specific url with a file:// protocol which appears
-       * to be required by loadURI() (at least a file without an embedded .jar)
-       */
-      var jar = getJar(rootDir);
-      if (jar) {
-        var tmpdir = extractJarToTmp(jar);
-        rootDir = "file://" + tmpdir.path + '/';
-      }
-
-      var url = rootDir + "scroll.html#link1";
       var tabBrowser = document.getElementById("tabBrowser");
       tabBrowser.loadURI(url);
     }
@@ -129,7 +114,6 @@
                   tabcontainer="tabbrowser-tabs"
                   flex="1"/>
     </vbox>
-    <toolbar id="addon-bar"/>
   </hbox>
 
 </window>

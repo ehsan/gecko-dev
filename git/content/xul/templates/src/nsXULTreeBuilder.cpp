@@ -90,8 +90,7 @@ public:
     // nsINativeTreeView: Untrusted code can use us
     NS_IMETHOD EnsureNative() { return NS_OK; }
 
-    // nsIMutationObserver
-    NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
+    virtual void NodeWillBeDestroyed(const nsINode* aNode);
 
 protected:
     friend nsresult
@@ -546,12 +545,14 @@ nsXULTreeBuilder::IsContainer(PRInt32 aIndex, PRBool* aResult)
 
     nsTreeRows::iterator iter = mRows[aIndex];
 
-    PRBool isContainer;
-    iter->mMatch->mResult->GetIsContainer(&isContainer);
+    if (iter->mContainerType == nsTreeRows::eContainerType_Unknown) {
+        PRBool isContainer;
+        iter->mMatch->mResult->GetIsContainer(&isContainer);
 
-    iter->mContainerType = isContainer
-        ? nsTreeRows::eContainerType_Container
-        : nsTreeRows::eContainerType_Noncontainer;
+        iter->mContainerType = isContainer
+            ? nsTreeRows::eContainerType_Container
+            : nsTreeRows::eContainerType_Noncontainer;
+    }
 
     *aResult = (iter->mContainerType == nsTreeRows::eContainerType_Container);
     return NS_OK;
@@ -1278,7 +1279,7 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
             if (mFlags & eDontRecurse)
                 return NS_OK;
 
-            if (result != mRootResult) {
+            if (result && (result != mRootResult)) {
                 // don't open containers if child processing isn't allowed
                 PRBool mayProcessChildren;
                 nsresult rv = result->GetMayProcessChildren(&mayProcessChildren);

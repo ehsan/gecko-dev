@@ -52,19 +52,6 @@ public:
 
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  NS_IMETHOD
-  TransmitAutomaticData() {
-    // The REC defines the following elements to be space-like:
-    // * an mtext, mspace, maligngroup, or malignmark element;
-    if (mContent->Tag() == nsGkAtoms::mtext_) {
-      mPresentationData.flags |= NS_MATHML_SPACE_LIKE;
-    }
-    return NS_OK;
-  }
-
-  NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent);
-
   virtual eMathMLFrameType GetMathMLFrameType();
 
   NS_IMETHOD
@@ -83,7 +70,7 @@ public:
          nsReflowStatus&          aStatus);
 
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 

@@ -39,11 +39,8 @@
 /* General Update Manager Tests */
 
 function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
-
-  logTestInfo("testing removal of an update download in progress for an " +
-              "older version of the application on startup (bug 485624)");
+  dump("Testing: removal of an update download in progress for an older " +
+       "version of the application on startup - bug 485624\n");
   removeUpdateDirsAndFiles();
   setUpdateChannel();
 
@@ -61,10 +58,5 @@ function run_test() {
 
   do_check_eq(gUpdateManager.activeUpdate, null);
   do_check_eq(gUpdateManager.updateCount, 0);
-
-  do_test_finished();
-}
-
-function end_test() {
   cleanUp();
 }

@@ -24,7 +24,6 @@
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
  *   Shyjan Mahamud <mahamud@cs.cmu.edu> (added TeX rendering rules)
  *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
- *   Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -79,7 +78,7 @@ public:
   // Overloaded nsMathMLFrame methods -- see documentation in nsIMathMLFrame.h
 
   NS_IMETHOD
-  Stretch(nsRenderingContext& aRenderingContext,
+  Stretch(nsIRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
           nsHTMLReflowMetrics& aDesiredStretchSize);
@@ -136,13 +135,13 @@ public:
    * Both GetMinWidth and GetPrefWidth return whatever
    * GetIntrinsicWidth returns.
    */
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   /**
    * Return the intrinsic width of the frame's content area.
    */
-  virtual nscoord GetIntrinsicWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetIntrinsicWidth(nsIRenderingContext *aRenderingContext);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
@@ -227,7 +226,7 @@ protected:
    *        return.
    */
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 
@@ -240,7 +239,7 @@ protected:
   // if in an <mrow>, and so their frames implement MeasureForWidth to use
   // nsMathMLContainerFrame::Place.
   virtual nsresult
-  MeasureForWidth(nsRenderingContext& aRenderingContext,
+  MeasureForWidth(nsIRenderingContext& aRenderingContext,
                   nsHTMLReflowMetrics& aDesiredSize);
 
 
@@ -252,21 +251,16 @@ protected:
   // helper to get the preferred size that a container frame should use to fire
   // the stretch on its stretchy child frames.
   void
-  GetPreferredStretchSize(nsRenderingContext& aRenderingContext,
+  GetPreferredStretchSize(nsIRenderingContext& aRenderingContext,
                           PRUint32             aOptions,
                           nsStretchDirection   aStretchDirection,
                           nsBoundingMetrics&   aPreferredStretchSize);
-
-  // helper used by mstyle, mphantom, mpadded and mrow in their implementation
-  // of TransmitAutomaticData() to determine whether they are space-like.
-  nsresult
-  TransmitAutomaticDataForMrowLikeElement();
 
 public:
   // error handlers to provide a visual feedback to the user when an error
   // (typically invalid markup) was encountered during reflow.
   nsresult
-  ReflowError(nsRenderingContext& aRenderingContext,
+  ReflowError(nsIRenderingContext& aRenderingContext,
               nsHTMLReflowMetrics& aDesiredSize);
 
   // helper method to reflow a child frame. We are inline frames, and we don't
@@ -293,7 +287,7 @@ protected:
   // helper method to complete the post-reflow hook and ensure that embellished
   // operators don't terminate their Reflow without receiving a Stretch command.
   virtual nsresult
-  FinalizeReflow(nsRenderingContext& aRenderingContext,
+  FinalizeReflow(nsIRenderingContext& aRenderingContext,
                  nsHTMLReflowMetrics& aDesiredSize);
 
   // Record metrics of a child frame for recovery through the following method

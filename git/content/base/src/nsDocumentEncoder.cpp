@@ -109,9 +109,6 @@ protected:
                                       nsAString& aStr,
                                       PRBool aDontSerializeRoot);
   nsresult SerializeNodeEnd(nsINode* aNode, nsAString& aStr);
-  // This serializes the content of aNode.
-  nsresult SerializeToStringIterative(nsINode* aNode,
-                                      nsAString& aStr);
   nsresult SerializeRangeToString(nsIRange *aRange,
                                   nsAString& aOutputString);
   nsresult SerializeRangeNodes(nsIRange* aRange, 
@@ -367,17 +364,19 @@ nsDocumentEncoder::SerializeNodeStart(nsINode* aNode,
   // or the caller did fixup themselves and aNode is already fixed
   if (!node)
     node = aNode;
-  
-  if (node->IsElement()) {
-    mozilla::dom::Element* originalElement =
-      aOriginalNode && aOriginalNode->IsElement() ?
-        aOriginalNode->AsElement() : nsnull;
-    mSerializer->AppendElementStart(node->AsElement(),
-                                    originalElement, aStr);
-    return NS_OK;
-  }
 
-  switch (node->NodeType()) {
+  PRUint16 type;
+  node->GetNodeType(&type);
+  switch (type) {
+    case nsIDOMNode::ELEMENT_NODE:
+    {
+      nsIContent* originalElement =
+        aOriginalNode && aOriginalNode->IsElement() ?
+          static_cast<nsIContent*>(aOriginalNode) : nsnull;
+      mSerializer->AppendElementStart(static_cast<nsIContent*>(node),
+                                      originalElement, aStr);
+      break;
+    }
     case nsIDOMNode::TEXT_NODE:
     {
       mSerializer->AppendText(static_cast<nsIContent*>(node),
@@ -420,7 +419,7 @@ nsDocumentEncoder::SerializeNodeEnd(nsINode* aNode,
     return NS_OK;
 
   if (aNode->IsElement()) {
-    mSerializer->AppendElementEnd(aNode->AsElement(), aStr);
+    mSerializer->AppendElementEnd(static_cast<nsIContent*>(aNode), aStr);
   }
   return NS_OK;
 }
@@ -482,33 +481,6 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   }
 
   return FlushText(aStr, PR_FALSE);
-}
-
-nsresult
-nsDocumentEncoder::SerializeToStringIterative(nsINode* aNode,
-                                              nsAString& aStr)
-{
-  nsresult rv;
-
-  nsINode* node = aNode->GetFirstChild();
-  while (node) {
-    nsINode* current = node;
-    rv = SerializeNodeStart(current, 0, -1, aStr, current);
-    NS_ENSURE_SUCCESS(rv, rv);
-    node = current->GetFirstChild();
-    while (!node && current && current != aNode) {
-      rv = SerializeNodeEnd(current, aStr);
-      NS_ENSURE_SUCCESS(rv, rv);
-      // Check if we have siblings.
-      node = current->GetNextSibling();
-      if (!node) {
-        // Perhaps parent node has siblings.
-        current = current->GetNodeParent();
-      }
-    }
-  }
-
-  return NS_OK;
 }
 
 PRBool 
@@ -1086,12 +1058,7 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
 
       mRange = nsnull;
   } else if (mNode) {
-    if (!mNodeFixup && !(mFlags & SkipInvisibleContent) && !mStream &&
-        mNodeIsContainer) {
-      rv = SerializeToStringIterative(mNode, output);
-    } else {
-      rv = SerializeToStringRecursive(mNode, output, mNodeIsContainer);
-    }
+    rv = SerializeToStringRecursive(mNode, output, mNodeIsContainer);
     mNode = nsnull;
   } else {
     rv = mSerializer->AppendDocumentStart(mDocument, output);
@@ -1104,26 +1071,16 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mSerializer->Flush(output);
  
-  mCachedBuffer = nsStringBuffer::FromString(output);
-  // We have to be careful how we set aOutputString, because we don't
-  // want it to end up sharing mCachedBuffer if we plan to reuse it.
-  PRBool setOutput = PR_FALSE;
-  // Try to cache the buffer.
-  if (mCachedBuffer) {
-    if (mCachedBuffer->StorageSize() == bufferSize &&
-        !mCachedBuffer->IsReadonly()) {
-      mCachedBuffer->AddRef();
-    } else {
-      if (NS_SUCCEEDED(rv)) {
-        mCachedBuffer->ToString(output.Length(), aOutputString);
-        setOutput = PR_TRUE;
-      }
-      mCachedBuffer = nsnull;
-    }
-  }
-
-  if (!setOutput && NS_SUCCEEDED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
     aOutputString.Append(output.get(), output.Length());
+  }
+  mCachedBuffer = nsStringBuffer::FromString(output);
+  // Try to cache the buffer.
+  if (mCachedBuffer && mCachedBuffer->StorageSize() == bufferSize &&
+      !mCachedBuffer->IsReadonly()) {
+    mCachedBuffer->AddRef();
+  } else {
+    mCachedBuffer = nsnull;
   }
 
   return rv;
@@ -1469,7 +1426,7 @@ nsHTMLCopyEncoder::IncludeInContext(nsINode *aNode)
           tag == nsGkAtoms::dfn      ||
           tag == nsGkAtoms::code     ||
           tag == nsGkAtoms::cite     ||
-          tag == nsGkAtoms::var      ||
+          tag == nsGkAtoms::variable ||
           tag == nsGkAtoms::abbr     ||
           tag == nsGkAtoms::font     ||
           tag == nsGkAtoms::script   ||

@@ -108,19 +108,6 @@ Declaration::RemoveProperty(nsCSSProperty aProperty)
 }
 
 PRBool
-Declaration::HasProperty(nsCSSProperty aProperty) const
-{
-  NS_ABORT_IF_FALSE(0 <= aProperty &&
-                    aProperty < eCSSProperty_COUNT_no_shorthands,
-                    "property ID out of range");
-
-  nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
-                                      ? mImportantData : mData;
-  const nsCSSValue *val = data->ValueFor(aProperty);
-  return !!val;
-}
-
-PRBool
 Declaration::AppendValueToString(nsCSSProperty aProperty,
                                  nsAString& aResult) const
 {
@@ -258,7 +245,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
       }
       break;
     }
-    case eCSSProperty_border_radius:
+    case eCSSProperty__moz_border_radius:
     case eCSSProperty__moz_outline_radius: {
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(aProperty);
@@ -483,6 +470,14 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
       AppendValueToString(eCSSProperty_background_color, aValue);
       break;
     }
+    case eCSSProperty_cue: {
+      if (AppendValueToString(eCSSProperty_cue_before, aValue)) {
+        aValue.Append(PRUnichar(' '));
+        if (!AppendValueToString(eCSSProperty_cue_after, aValue))
+          aValue.Truncate();
+      }
+      break;
+    }
     case eCSSProperty_font: {
       // systemFont might not be present; the others are guaranteed to be
       // based on the shorthand check at the beginning of the function
@@ -580,53 +575,11 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
         xValue.AppendToString(eCSSProperty_overflow_x, aValue);
       break;
     }
-    case eCSSProperty_text_decoration: {
-      // If text-decoration-color or text-decoration-style isn't initial value,
-      // we cannot serialize the text-decoration shorthand value.
-      const nsCSSValue &decorationColor =
-        *data->ValueFor(eCSSProperty_text_decoration_color);
-      const nsCSSValue &decorationStyle =
-        *data->ValueFor(eCSSProperty_text_decoration_style);
-
-      NS_ABORT_IF_FALSE(decorationStyle.GetUnit() == eCSSUnit_Enumerated,
-                        nsPrintfCString(32, "bad text-decoration-style unit %d",
-                                        decorationStyle.GetUnit()).get());
-
-      if (decorationColor.GetUnit() != eCSSUnit_Enumerated ||
-          decorationColor.GetIntValue() != NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR ||
-          decorationStyle.GetIntValue() !=
-            NS_STYLE_TEXT_DECORATION_STYLE_SOLID) {
-        return;
-      }
-
-      const nsCSSValue &textBlink =
-        *data->ValueFor(eCSSProperty_text_blink);
-      const nsCSSValue &decorationLine =
-        *data->ValueFor(eCSSProperty_text_decoration_line);
-
-      NS_ABORT_IF_FALSE(textBlink.GetUnit() == eCSSUnit_Enumerated,
-                        nsPrintfCString(32, "bad text-blink unit %d",
-                                        textBlink.GetUnit()).get());
-      NS_ABORT_IF_FALSE(decorationLine.GetUnit() == eCSSUnit_Enumerated,
-                        nsPrintfCString(32, "bad text-decoration-line unit %d",
-                                        decorationLine.GetUnit()).get());
-
-      PRBool blinkNone = (textBlink.GetIntValue() == NS_STYLE_TEXT_BLINK_NONE);
-      PRBool lineNone =
-        (decorationLine.GetIntValue() == NS_STYLE_TEXT_DECORATION_LINE_NONE);
-
-      if (blinkNone && lineNone) {
-        AppendValueToString(eCSSProperty_text_decoration_line, aValue);
-      } else {
-        if (!blinkNone) {
-          AppendValueToString(eCSSProperty_text_blink, aValue);
-        }
-        if (!lineNone) {
-          if (!aValue.IsEmpty()) {
-            aValue.Append(PRUnichar(' '));
-          }
-          AppendValueToString(eCSSProperty_text_decoration_line, aValue);
-        }
+    case eCSSProperty_pause: {
+      if (AppendValueToString(eCSSProperty_pause_before, aValue)) {
+        aValue.Append(PRUnichar(' '));
+        if (!AppendValueToString(eCSSProperty_pause_after, aValue))
+          aValue.Truncate();
       }
       break;
     }
@@ -708,56 +661,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
       }
       break;
     }
-    case eCSSProperty_animation: {
-      const nsCSSProperty* subprops =
-        nsCSSProps::SubpropertyEntryFor(eCSSProperty_animation);
-      static const size_t numProps = 7;
-      NS_ABORT_IF_FALSE(subprops[numProps] == eCSSProperty_UNKNOWN,
-                        "unexpected number of subproperties");
-      const nsCSSValue* values[numProps];
-      const nsCSSValueList* lists[numProps];
 
-      for (PRUint32 i = 0; i < numProps; ++i) {
-        values[i] = data->ValueFor(subprops[i]);
-        NS_ABORT_IF_FALSE(values[i]->GetUnit() == eCSSUnit_List ||
-                          values[i]->GetUnit() == eCSSUnit_ListDep,
-                          nsPrintfCString(32, "bad a-duration unit %d",
-                                          values[i]->GetUnit()).get());
-        lists[i] = values[i]->GetListValue();
-      }
-
-      for (;;) {
-        // We must serialize 'animation-name' last in case it has
-        // a value that conflicts with one of the other keyword properties.
-        NS_ABORT_IF_FALSE(subprops[numProps - 1] ==
-                            eCSSProperty_animation_name,
-                          "animation-name must be last");
-        bool done = false;
-        for (PRUint32 i = 0;;) {
-          lists[i]->mValue.AppendToString(subprops[i], aValue);
-          lists[i] = lists[i]->mNext;
-          if (!lists[i]) {
-            done = true;
-          }
-          if (++i == numProps) {
-            break;
-          }
-          aValue.Append(PRUnichar(' '));
-        }
-        if (done) {
-          break;
-        }
-        aValue.AppendLiteral(", ");
-      }
-      for (PRUint32 i = 0; i < numProps; ++i) {
-        if (lists[i]) {
-          // Lists not all the same length, can't use shorthand.
-          aValue.Truncate();
-          break;
-        }
-      }
-      break;
-    }
     case eCSSProperty_marker: {
       const nsCSSValue &endValue =
         *data->ValueFor(eCSSProperty_marker_end);
@@ -779,9 +683,6 @@ PRBool
 Declaration::GetValueIsImportant(const nsAString& aProperty) const
 {
   nsCSSProperty propID = nsCSSProps::LookupProperty(aProperty);
-  if (propID == eCSSProperty_UNKNOWN) {
-    return PR_FALSE;
-  }
   return GetValueIsImportant(propID);
 }
 

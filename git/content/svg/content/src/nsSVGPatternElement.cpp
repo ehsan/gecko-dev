@@ -44,16 +44,14 @@
 #include "nsSVGPatternElement.h"
 #include "nsIFrame.h"
 
-using namespace mozilla;
-
 //--------------------- Patterns ------------------------
 
 nsSVGElement::LengthInfo nsSVGPatternElement::sLengthInfo[4] =
 {
   { &nsGkAtoms::x, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::X },
   { &nsGkAtoms::y, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::Y },
-  { &nsGkAtoms::width, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::X },
-  { &nsGkAtoms::height, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::Y },
+  { &nsGkAtoms::width, 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::X },
+  { &nsGkAtoms::height, 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::Y },
 };
 
 nsSVGElement::EnumInfo nsSVGPatternElement::sEnumInfo[2] =
@@ -70,7 +68,7 @@ nsSVGElement::EnumInfo nsSVGPatternElement::sEnumInfo[2] =
 
 nsSVGElement::StringInfo nsSVGPatternElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Pattern)
@@ -273,7 +271,7 @@ nsSVGPatternElement::GetViewBox()
   return &mViewBox;
 }
 
-SVGAnimatedPreserveAspectRatio *
+nsSVGPreserveAspectRatio *
 nsSVGPatternElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;

@@ -38,14 +38,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_storage_Connection_h
-#define mozilla_storage_Connection_h
+#ifndef MOZSTORAGECONNECTION_H
+#define MOZSTORAGECONNECTION_H
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Mutex.h"
-#include "nsIInterfaceRequestor.h"
 
+#include "nsString.h"
 #include "nsDataHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "SQLiteMutex.h"
@@ -60,18 +60,15 @@ struct PRLock;
 class nsIFile;
 class nsIEventTarget;
 class nsIThread;
-class nsIMemoryReporter;
 
 namespace mozilla {
 namespace storage {
 
 class Connection : public mozIStorageConnection
-                 , public nsIInterfaceRequestor
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
-  NS_DECL_NSIINTERFACEREQUESTOR
 
   /**
    * Structure used to describe user functions on the database connection.
@@ -103,16 +100,11 @@ public:
    *        The nsIFile of the location of the database to open, or create if it
    *        does not exist.  Passing in nsnull here creates an in-memory
    *        database.
-   * @param aVFSName
-   *        The VFS that SQLite will use when opening this database. NULL means
-   *        "default".
    */
-  nsresult initialize(nsIFile *aDatabaseFile,
-                      const char* aVFSName = NULL);
+  nsresult initialize(nsIFile *aDatabaseFile);
 
   // fetch the native handle
   sqlite3 *GetNativeConnection() { return mDBConn; }
-  operator sqlite3 *() const { return mDBConn; }
 
   /**
    * Lazily creates and returns a background execution thread.  In the future,
@@ -202,8 +194,6 @@ private:
   sqlite3 *mDBConn;
   nsCOMPtr<nsIFile> mDatabaseFile;
 
-  nsTArray<nsCOMPtr<nsIMemoryReporter> > mMemoryReporters;
-
   /**
    * Lazily created thread for asynchronous statement execution.  Consumers
    * should use getAsyncExecutionTarget rather than directly accessing this
@@ -250,4 +240,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozilla_storage_Connection_h
+#endif /* MOZSTORAGECONNECTION_H */

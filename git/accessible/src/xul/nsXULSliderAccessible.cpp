@@ -39,7 +39,6 @@
 #include "nsXULSliderAccessible.h"
 
 #include "nsAccessibilityAtoms.h"
-#include "States.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
@@ -63,28 +62,31 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULSliderAccessible,
 
 // nsAccessible
 
-PRUint32
-nsXULSliderAccessible::NativeRole()
+nsresult
+nsXULSliderAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_SLIDER;
+  *aRole = nsIAccessibleRole::ROLE_SLIDER;
+  return NS_OK;
 }
 
-PRUint64
-nsXULSliderAccessible::NativeState()
+nsresult
+nsXULSliderAccessible::GetStateInternal(PRUint32 *aState,
+                                        PRUint32 *aExtraState)
 {
-  PRUint64 states = nsAccessibleWrap::NativeState();
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> sliderContent(GetSliderNode());
   NS_ENSURE_STATE(sliderContent);
 
   nsIFrame *frame = sliderContent->GetPrimaryFrame();
   if (frame && frame->IsFocusable())
-    states |= states::FOCUSABLE;
+    *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
 
   if (gLastFocusedNode == mContent)
-    states |= states::FOCUSED;
+    *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
-  return states;
+  return NS_OK;
 }
 
 // nsIAccessible
@@ -271,7 +273,7 @@ nsXULSliderAccessible::GetSliderAttr(nsIAtom *aName, double *aValue)
     return NS_OK;
 
   PRInt32 error = NS_OK;
-  double value = attrValue.ToDouble(&error);
+  double value = attrValue.ToFloat(&error);
   if (NS_SUCCEEDED(error))
     *aValue = value;
 
@@ -298,12 +300,12 @@ nsXULThumbAccessible::
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULThumbAccessible: nsAccessible
+// nsIAccessible
 
-PRUint32
-nsXULThumbAccessible::NativeRole()
+nsresult
+nsXULThumbAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_INDICATOR;
+  *aRole = nsIAccessibleRole::ROLE_INDICATOR;
+  return NS_OK;
 }
 

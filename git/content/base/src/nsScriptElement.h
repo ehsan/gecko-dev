@@ -59,11 +59,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
 
-  nsScriptElement(mozilla::dom::FromParser aFromParser)
-    : nsIScriptElement(aFromParser)
-  {
-  }
-
 protected:
   // Internal methods
 

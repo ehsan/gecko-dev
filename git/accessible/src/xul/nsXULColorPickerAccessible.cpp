@@ -38,11 +38,9 @@
 
 #include "nsXULColorPickerAccessible.h"
 
-#include "States.h"
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
 
 #include "nsIDOMElement.h"
 
@@ -75,34 +73,37 @@ nsXULColorPickerTileAccessible::GetValue(nsAString& aValue)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerTileAccessible: nsAccessible
 
-PRUint32
-nsXULColorPickerTileAccessible::NativeRole()
+nsresult
+nsXULColorPickerTileAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
 }
 
-PRUint64
-nsXULColorPickerTileAccessible::NativeState()
+nsresult
+nsXULColorPickerTileAccessible::GetStateInternal(PRUint32 *aState,
+                                                 PRUint32 *aExtraState)
 {
   // Possible states: focused, focusable, selected.
 
   // get focus and disable status from base class
-  PRUint64 states = nsAccessibleWrap::NativeState();
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  states |= states::FOCUSABLE;
+  *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
 
   // Focused?
   PRBool isFocused = mContent->HasAttr(kNameSpaceID_None,
                                        nsAccessibilityAtoms::hover);
   if (isFocused)
-    states |= states::FOCUSED;
+    *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
   PRBool isSelected = mContent->HasAttr(kNameSpaceID_None,
                                         nsAccessibilityAtoms::selected);
   if (isSelected)
-    states |= states::SELECTED;
+    *aState |= nsIAccessibleStates::STATE_SELECTED;
 
-  return states;
+  return NS_OK;
 }
 
 
@@ -117,25 +118,42 @@ nsXULColorPickerAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsXULColorPickerAccessible: nsAccessNode
+
+PRBool
+nsXULColorPickerAccessible::Init()
+{
+  if (!nsXULColorPickerTileAccessible::Init())
+    return PR_FALSE;
+
+  nsCoreUtils::GeneratePopupTree(mContent, PR_TRUE);
+  return PR_TRUE;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerAccessible: nsAccessible
 
-PRUint64
-nsXULColorPickerAccessible::NativeState()
+nsresult
+nsXULColorPickerAccessible::GetStateInternal(PRUint32 *aState,
+                                             PRUint32 *aExtraState)
 {
   // Possible states: focused, focusable, unavailable(disabled).
 
   // get focus and disable status from base class
-  PRUint64 states = nsAccessibleWrap::NativeState();
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  states |= states::FOCUSABLE | states::HASPOPUP;
+  *aState |= nsIAccessibleStates::STATE_FOCUSABLE |
+             nsIAccessibleStates::STATE_HASPOPUP;
 
-  return states;
+  return NS_OK;
 }
 
-PRUint32
-nsXULColorPickerAccessible::NativeRole()
+nsresult
+nsXULColorPickerAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
+  *aRole = nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,17 +164,16 @@ nsXULColorPickerAccessible::CacheChildren()
 {
   nsAccTreeWalker walker(mWeakShell, mContent, PR_TRUE);
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild())) {
-    PRUint32 role = child->Role();
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild())) {
+    // XXX: do not call nsAccessible::GetRole() while accessible not in tree
+    // (bug 574588).
+    PRUint32 role = nsAccUtils::Role(child);
 
-    // Get an accessible for menupopup or panel elements.
+    // Get an accessbile for menupopup or panel elements.
     if (role == nsIAccessibleRole::ROLE_ALERT) {
       AppendChild(child);
       return;
     }
-
-    // Unbind rejected accessibles from the document.
-    GetDocAccessible()->UnbindFromDocument(child);
   }
 }

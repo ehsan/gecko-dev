@@ -83,7 +83,7 @@ public:
     mMutex = aMutex;
   }
 
-#if !defined(DEBUG) || defined(MOZ_NATIVE_SQLITE)
+#ifndef DEBUG
   /**
    * Acquires the mutex.
    */

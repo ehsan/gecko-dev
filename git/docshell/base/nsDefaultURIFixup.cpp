@@ -44,18 +44,14 @@
 #include "nsEscape.h"
 #include "nsCRT.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsIPlatformCharset.h"
 #include "nsILocalFile.h"
-
-#ifdef MOZ_TOOLKIT_SEARCH
 #include "nsIBrowserSearchService.h"
-#endif
 
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsDefaultURIFixup, nsIURIFixup)
@@ -63,6 +59,9 @@ NS_IMPL_ISUPPORTS1(nsDefaultURIFixup, nsIURIFixup)
 nsDefaultURIFixup::nsDefaultURIFixup()
 {
   /* member initializers and constructor code */
+
+  // Try and get the pref service
+  mPrefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
 }
 
 
@@ -132,10 +131,13 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
     }
 
     // hide user:pass unless overridden by pref
-    if (Preferences::GetBool("browser.fixup.hide_user_pass", PR_TRUE))
+    PRBool hideUserPass = PR_TRUE;
+    if (mPrefBranch)
     {
-        uri->SetUserPass(EmptyCString());
+        mPrefBranch->GetBoolPref("browser.fixup.hide_user_pass", &hideUserPass);
     }
+    if (hideUserPass)
+        uri->SetUserPass(EmptyCString());
 
     // return the fixed-up URI
     *aReturn = uri;
@@ -269,8 +271,10 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
     // Test whether keywords need to be fixed up
     PRBool fixupKeywords = PR_FALSE;
     if (aFixupFlags & FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP) {
-        nsresult rv = Preferences::GetBool("keyword.enabled", &fixupKeywords);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+        if (mPrefBranch)
+        {
+            NS_ENSURE_SUCCESS(mPrefBranch->GetBoolPref("keyword.enabled", &fixupKeywords), NS_ERROR_FAILURE);
+        }
         if (fixupKeywords)
         {
             KeywordURIFixup(uriString, aURI);
@@ -347,39 +351,54 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
     return rv;
 }
 
+static nsresult MangleKeywordIntoURI(const char *aKeyword, const char *aURL,
+                                     nsCString& query)
+{
+    query = (*aKeyword == '?') ? (aKeyword + 1) : aKeyword;
+    query.Trim(" "); // pull leading/trailing spaces.
+
+    // encode
+    char * encQuery = nsEscape(query.get(), url_XPAlphas);
+    if (!encQuery) return NS_ERROR_OUT_OF_MEMORY;
+    query.Adopt(encQuery);
+
+    // prepend the query with the keyword url
+    // XXX this url should come from somewhere else
+    query.Insert(aURL, 0);
+    return NS_OK;
+}
+
 NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                                               nsIURI **aURI)
 {
     *aURI = nsnull;
-    NS_ENSURE_STATE(Preferences::GetRootBranch());
+    NS_ENSURE_STATE(mPrefBranch);
 
-    // Strip leading "?" and leading/trailing spaces from aKeyword
-    nsCAutoString keyword(aKeyword);
-    if (StringBeginsWith(keyword, NS_LITERAL_CSTRING("?"))) {
-        keyword.Cut(0, 1);
-    }
-    keyword.Trim(" ");
+    nsXPIDLCString url;
+    nsCOMPtr<nsIPrefLocalizedString> keywordURL;
+    mPrefBranch->GetComplexValue("keyword.URL", 
+                                 NS_GET_IID(nsIPrefLocalizedString),
+                                 getter_AddRefs(keywordURL));
 
-    nsAdoptingCString url = Preferences::GetLocalizedCString("keyword.URL");
-    if (!url) {
+    if (keywordURL) {
+        nsXPIDLString wurl;
+        keywordURL->GetData(getter_Copies(wurl));
+        CopyUTF16toUTF8(wurl, url);
+    } else {
         // Fall back to a non-localized pref, for backwards compat
-        url = Preferences::GetCString("keyword.URL");
+        mPrefBranch->GetCharPref("keyword.URL", getter_Copies(url));
     }
 
     // If the pref is set and non-empty, use it.
     if (!url.IsEmpty()) {
-        // Escape keyword, then prepend URL
         nsCAutoString spec;
-        if (!NS_Escape(keyword, spec, url_XPAlphas)) {
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
-
-        spec.Insert(url, 0);
+        nsresult rv = MangleKeywordIntoURI(PromiseFlatCString(aKeyword).get(),
+                                           url.get(), spec);
+        if (NS_FAILED(rv)) return rv;
 
         return NS_NewURI(aURI, spec);
     }
 
-#ifdef MOZ_TOOLKIT_SEARCH
     // Try falling back to the search service's default search engine
     nsCOMPtr<nsIBrowserSearchService> searchSvc = do_GetService("@mozilla.org/browser/search-service;1");
     if (searchSvc) {
@@ -392,13 +411,13 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
             // do this by first looking for a magic
             // "application/x-moz-keywordsearch" submission type. In the future,
             // we should instead use a solution that relies on bug 587780.
-            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(aKeyword),
                                          NS_LITERAL_STRING("application/x-moz-keywordsearch"),
                                          getter_AddRefs(submission));
             // If getting the special x-moz-keywordsearch submission type failed,
             // fall back to the default response type.
             if (!submission) {
-                defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(aKeyword),
                                              EmptyString(),
                                              getter_AddRefs(submission));
             }
@@ -417,7 +436,6 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
             }
         }
     }
-#endif
 
     // out of options
     return NS_ERROR_NOT_AVAILABLE;
@@ -425,11 +443,13 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
 
 PRBool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
 {
-    if (!Preferences::GetRootBranch())
+    if (!mPrefBranch)
     {
         return PR_FALSE;
     }
-    if (!Preferences::GetBool("browser.fixup.alternate.enabled", PR_TRUE))
+    PRBool makeAlternate = PR_TRUE;
+    mPrefBranch->GetBoolPref("browser.fixup.alternate.enabled", &makeAlternate);
+    if (!makeAlternate)
     {
         return PR_FALSE;
     }
@@ -471,17 +491,17 @@ PRBool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
     // are www. & .com but they could be any other value, e.g. www. & .org
 
     nsCAutoString prefix("www.");
-    nsAdoptingCString prefPrefix =
-        Preferences::GetCString("browser.fixup.alternate.prefix");
-    if (prefPrefix)
+    nsXPIDLCString prefPrefix;
+    rv = mPrefBranch->GetCharPref("browser.fixup.alternate.prefix", getter_Copies(prefPrefix));
+    if (NS_SUCCEEDED(rv))
     {
         prefix.Assign(prefPrefix);
     }
 
     nsCAutoString suffix(".com");
-    nsAdoptingCString prefSuffix =
-        Preferences::GetCString("browser.fixup.alternate.suffix");
-    if (prefSuffix)
+    nsXPIDLCString prefSuffix;
+    rv = mPrefBranch->GetCharPref("browser.fixup.alternate.suffix", getter_Copies(prefSuffix));
+    if (NS_SUCCEEDED(rv))
     {
         suffix.Assign(prefSuffix);
     }
@@ -589,7 +609,7 @@ nsresult nsDefaultURIFixup::ConvertFileToStringURI(const nsACString& aIn,
     {
         attemptFixup = PR_TRUE;
     }
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) || defined(XP_BEOS)
     // Check if it starts with / (UNIX)
     if(aIn.First() == '/')
     {
@@ -799,6 +819,16 @@ const char * nsDefaultURIFixup::GetFileSystemCharset()
 const char * nsDefaultURIFixup::GetCharsetForUrlBar()
 {
   const char *charset = GetFileSystemCharset();
+#ifdef XP_MAC
+  // check for "x-mac-" prefix
+  if ((strlen(charset) >= 6) && charset[0] == 'x' && charset[2] == 'm')
+  {
+    if (!strcmp("x-mac-roman", charset))
+      return "ISO-8859-1";
+    // we can do more x-mac-xxxx mapping here
+    // or somewhere in intl code like nsIPlatformCharset.
+  }
+#endif
   return charset;
 }
 

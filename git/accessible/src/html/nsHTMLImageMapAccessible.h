@@ -57,13 +57,13 @@ public:
   // nsISupports and cycle collector
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
+  // nsIAccessibleHyperLink
+  NS_IMETHOD GetAnchorCount(PRInt32 *aAnchorCount);
+  NS_IMETHOD GetURI(PRInt32 aIndex, nsIURI **aURI);
+  NS_IMETHOD GetAnchor(PRInt32 aIndex, nsIAccessible **aAccessible);
 
-  // HyperLinkAccessible
-  virtual PRUint32 AnchorCount();
-  virtual nsAccessible* AnchorAt(PRUint32 aAnchorIndex);
-  virtual already_AddRefed<nsIURI> AnchorURIAt(PRUint32 aAnchorIndex);
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
 protected:
 
@@ -82,23 +82,21 @@ private:
 class nsHTMLAreaAccessible : public nsHTMLLinkAccessible
 {
 public:
+  using nsAccessible::GetChildAtPoint;
 
   nsHTMLAreaAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
+  NS_IMETHOD GetDescription(nsAString& aDescription);
 
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
 
   // nsAccessible
-  virtual void Description(nsString& aDescription);
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint64 NativeState();
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
-
-  // HyperLinkAccessible
-  virtual PRUint32 StartOffset();
-  virtual PRUint32 EndOffset();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                   PRBool aDeepestChild,
+                                   nsIAccessible **aChild);
 
 protected:
 

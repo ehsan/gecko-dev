@@ -425,8 +425,7 @@ pixman_transform_is_inverse (const struct pixman_transform *a,
 {
     struct pixman_transform t;
 
-    if (!pixman_transform_multiply (&t, a, b))
-	return FALSE;
+    pixman_transform_multiply (&t, a, b);
 
     return pixman_transform_is_identity (&t);
 }
@@ -464,6 +463,9 @@ pixman_transform_from_pixman_f_transform (struct pixman_transform *        t,
     
     return TRUE;
 }
+
+static const int a[3] = { 3, 3, 2 };
+static const int b[3] = { 2, 1, 1 };
 
 PIXMAN_EXPORT pixman_bool_t
 pixman_f_transform_invert (struct pixman_f_transform *      dst,

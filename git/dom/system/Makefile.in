@@ -62,26 +62,19 @@ DIRS = android
 endif
 
 CPPSRCS     = \
-  nsDeviceMotion.cpp \
-  $(NULL)
+    nsAccelerometer.cpp \
+    $(NULL)
 
-# We fire the nsDOMDeviceAcceleration
-LOCAL_INCLUDES += -I$(topsrcdir)/content/events/src
-
-# On Systems that have build in geolocation providers,
-# we really do not need these.
-ifneq (Android,$(OS_TARGET))
 EXTRA_COMPONENTS = \
-  NetworkGeolocationProvider.js \
-  NetworkGeolocationProvider.manifest \
-  GPSDGeolocationProvider.js \
-  GPSDGeolocationProvider.manifest \
-  $(NULL)
-endif
+                 NetworkGeolocationProvider.js \
+                 NetworkGeolocationProvider.manifest \
+                 GPSDGeolocationProvider.js \
+                 GPSDGeolocationProvider.manifest \
+                 $(NULL)
 
 EXPORTS     = \
-  nsDeviceMotion.h \
-  $(NULL)
+    nsAccelerometer.h \
+    $(NULL)
 
 include $(topsrcdir)/config/config.mk
 

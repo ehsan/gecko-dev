@@ -52,6 +52,7 @@
 #include "nsPromiseFlatString.h"
 #include "nsProxiedService.h"
 #include "nsStringBuffer.h"
+#include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nspr.h"
 #include "pk11pub.h"
@@ -61,8 +62,6 @@
 
 #include "nsNSSCleaner.h"
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
-
-using namespace mozilla;
 
 static const char kCertOverrideFileName[] = "cert_override.txt";
 
@@ -120,12 +119,14 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsCertOverrideService,
                               nsISupportsWeakReference)
 
 nsCertOverrideService::nsCertOverrideService()
-  : monitor("nsCertOverrideService.monitor")
 {
+  monitor = PR_NewMonitor();
 }
 
 nsCertOverrideService::~nsCertOverrideService()
 {
+  if (monitor)
+    PR_DestroyMonitor(monitor);
 }
 
 nsresult
@@ -179,7 +180,7 @@ nsCertOverrideService::Observe(nsISupports     *aSubject,
     // The profile is about to change,
     // or is going away because the application is shutting down.
 
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
 
     if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
       RemoveAllFromMemory();
@@ -196,7 +197,7 @@ nsCertOverrideService::Observe(nsISupports     *aSubject,
     // Now read from the new profile location.
     // we also need to update the cached file location
 
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
 
     nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mSettingsFile));
     if (NS_SUCCEEDED(rv)) {
@@ -212,7 +213,7 @@ nsCertOverrideService::Observe(nsISupports     *aSubject,
 void
 nsCertOverrideService::RemoveAllFromMemory()
 {
-  ReentrantMonitorAutoEnter lock(monitor);
+  nsAutoMonitor lock(monitor);
   mSettingsTable.Clear();
 }
 
@@ -232,7 +233,7 @@ void
 nsCertOverrideService::RemoveAllTemporaryOverrides()
 {
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     mSettingsTable.EnumerateEntries(RemoveTemporariesCallback, nsnull);
     // no need to write, as temporaries are never written to disk
   }
@@ -241,7 +242,7 @@ nsCertOverrideService::RemoveAllTemporaryOverrides()
 nsresult
 nsCertOverrideService::Read()
 {
-  ReentrantMonitorAutoEnter lock(monitor);
+  nsAutoMonitor lock(monitor);
 
   nsresult rv;
   nsCOMPtr<nsIInputStream> fileInputStream;
@@ -360,7 +361,7 @@ WriteEntryCallback(nsCertOverrideEntry *aEntry,
 nsresult
 nsCertOverrideService::Write()
 {
-  ReentrantMonitorAutoEnter lock(monitor);
+  nsAutoMonitor lock(monitor);
 
   if (!mSettingsFile) {
     return NS_ERROR_NULL_POINTER;
@@ -512,25 +513,21 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
 
   CERTCertificateCleaner nsscertCleaner(nsscert);
 
-  char* nickname = nsNSSCertificate::defaultServerNickname(nsscert);
-  if (!aTemporary && nickname && *nickname)
+  nsCAutoString nickname;
+  nickname = nsNSSCertificate::defaultServerNickname(nsscert);
+  if (!aTemporary && !nickname.IsEmpty())
   {
     PK11SlotInfo *slot = PK11_GetInternalKeySlot();
-    if (!slot) {
-      PR_Free(nickname);
+    if (!slot)
       return NS_ERROR_FAILURE;
-    }
   
     SECStatus srv = PK11_ImportCert(slot, nsscert, CK_INVALID_HANDLE, 
-                                    nickname, PR_FALSE);
+                                    const_cast<char*>(nickname.get()), PR_FALSE);
     PK11_FreeSlot(slot);
   
-    if (srv != SECSuccess) {
-      PR_Free(nickname);
+    if (srv != SECSuccess)
       return NS_ERROR_FAILURE;
-    }
   }
-  PR_FREEIF(nickname);
 
   nsCAutoString fpStr;
   nsresult rv = GetCertFingerprintByOidTag(nsscert, 
@@ -554,7 +551,7 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
   }
 
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     AddEntryToList(aHostName, aPort,
                    aTemporary ? aCert : nsnull,
                      // keep a reference to the cert for temporary overrides
@@ -593,7 +590,7 @@ nsCertOverrideService::HasMatchingOverride(const nsACString & aHostName, PRInt32
   nsCertOverride settings;
 
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     nsCertOverrideEntry *entry = mSettingsTable.GetEntry(hostPort.get());
   
     if (!entry)
@@ -640,7 +637,7 @@ nsCertOverrideService::GetValidityOverride(const nsACString & aHostName, PRInt32
   nsCertOverride settings;
 
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     nsCertOverrideEntry *entry = mSettingsTable.GetEntry(hostPort.get());
   
     if (entry) {
@@ -672,7 +669,7 @@ nsCertOverrideService::AddEntryToList(const nsACString &aHostName, PRInt32 aPort
   GetHostWithPort(aHostName, aPort, hostPort);
 
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     nsCertOverrideEntry *entry = mSettingsTable.PutEntry(hostPort.get());
 
     if (!entry) {
@@ -699,15 +696,10 @@ nsCertOverrideService::AddEntryToList(const nsACString &aHostName, PRInt32 aPort
 NS_IMETHODIMP
 nsCertOverrideService::ClearValidityOverride(const nsACString & aHostName, PRInt32 aPort)
 {
-  if (aPort == 0 &&
-      aHostName.EqualsLiteral("all:temporary-certificates")) {
-    RemoveAllTemporaryOverrides();
-    return NS_OK;
-  }
   nsCAutoString hostPort;
   GetHostWithPort(aHostName, aPort, hostPort);
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     mSettingsTable.RemoveEntry(hostPort.get());
     Write();
   }
@@ -837,7 +829,7 @@ nsCertOverrideService::IsCertUsedForOverrides(nsIX509Cert *aCert,
   cai.mDottedOidForStoringNewHashes = mDottedOidForStoringNewHashes;
 
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     mSettingsTable.EnumerateEntries(FindMatchingCertCallback, &cai);
   }
   *_retval = cai.counter;
@@ -903,7 +895,7 @@ nsCertOverrideService::EnumerateCertOverrides(nsIX509Cert *aCert,
   capac.mDottedOidForStoringNewHashes = mDottedOidForStoringNewHashes;
 
   {
-    ReentrantMonitorAutoEnter lock(monitor);
+    nsAutoMonitor lock(monitor);
     mSettingsTable.EnumerateEntries(EnumerateCertOverridesCallback, &capac);
   }
   return NS_OK;
@@ -922,4 +914,3 @@ nsCertOverrideService::GetHostWithPort(const nsACString & aHostName, PRInt32 aPo
   }
   _retval.Assign(hostPort);
 }
-

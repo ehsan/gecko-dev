@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -48,7 +49,6 @@
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
 #include "nsAccessibilityService.h"
-#include "AtkSocketAccessible.h"
 
 #include <gtk/gtk.h>
 #include <atk/atk.h>
@@ -218,24 +218,6 @@ mai_util_get_type(void)
     return type;
 }
 
-static void
-window_added (AtkObject *atk_obj,
-              guint     index,
-              AtkObject *child)
-{
-  guint id =  g_signal_lookup ("create", MAI_TYPE_ATK_OBJECT);
-  g_signal_emit (child, id, 0);
-}
-
-static void
-window_removed (AtkObject *atk_obj,
-                guint     index,
-                AtkObject *child)
-{
-  guint id =  g_signal_lookup ("destroy", MAI_TYPE_ATK_OBJECT);
-  g_signal_emit (child, id, 0);
-}
-
 /* intialize the the atk interface (function pointers) with MAI implementation.
  * When atk bridge get loaded, these interface can be used.
  */
@@ -266,10 +248,6 @@ mai_util_class_init(MaiUtilClass *klass)
 
     listener_list = g_hash_table_new_full(g_int_hash, g_int_equal, NULL,
                                           _listener_info_destroy);
-    // Keep track of added/removed windows.
-    AtkObject *root = atk_get_root ();
-    g_signal_connect (root, "children-changed::add", (GCallback) window_added, NULL);
-    g_signal_connect (root, "children-changed::remove", (GCallback) window_removed, NULL);
 }
 
 static guint
@@ -705,7 +683,7 @@ nsApplicationAccessibleWrap::AppendChild(nsAccessible *aChild)
 PRBool
 nsApplicationAccessibleWrap::RemoveChild(nsAccessible* aChild)
 {
-    PRInt32 index = aChild->IndexInParent();
+    PRInt32 index = aChild->GetIndexInParent();
 
     AtkObject *atkAccessible = nsAccessibleWrap::GetAtkObject(aChild);
     atk_object_set_parent(atkAccessible, NULL);
@@ -722,23 +700,8 @@ nsApplicationAccessibleWrap::PreCreate()
         sATKLib = PR_LoadLibrary(sATKLibName);
         if (sATKLib) {
             AtkGetTypeType pfn_atk_hyperlink_impl_get_type = (AtkGetTypeType) PR_FindFunctionSymbol(sATKLib, sATKHyperlinkImplGetTypeSymbol);
-            if (pfn_atk_hyperlink_impl_get_type)
+            if (pfn_atk_hyperlink_impl_get_type) {
                 g_atk_hyperlink_impl_type = pfn_atk_hyperlink_impl_get_type();
-
-            AtkGetTypeType pfn_atk_socket_get_type;
-            pfn_atk_socket_get_type = (AtkGetTypeType)
-                                      PR_FindFunctionSymbol(sATKLib,
-                                                            AtkSocketAccessible::sATKSocketGetTypeSymbol);
-            if (pfn_atk_socket_get_type) {
-                AtkSocketAccessible::g_atk_socket_type =
-                  pfn_atk_socket_get_type();
-                AtkSocketAccessible::g_atk_socket_embed = (AtkSocketEmbedType)
-                  PR_FindFunctionSymbol(sATKLib,
-                                        AtkSocketAccessible
-                                          ::sATKSocketEmbedSymbol);
-            AtkSocketAccessible::gCanEmbed =
-              AtkSocketAccessible::g_atk_socket_type != G_TYPE_INVALID &&
-              AtkSocketAccessible::g_atk_socket_embed;
             }
         }
         sATKChecked = PR_TRUE;

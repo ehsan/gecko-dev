@@ -50,10 +50,9 @@ public:
   static PRBool
   GetMimeInfoForFileExt(const nsACString& aFileExt, 
                         nsMIMEInfoAndroid** aMimeInfo);
-
   static nsresult 
-  GetMimeInfoForURL(const nsACString &aURL, PRBool *found,
-                    nsIHandlerInfo **info);
+  GetMimeInfoForProtocol(const nsACString &aScheme, PRBool *found,
+                         nsIHandlerInfo **info);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMIMEINFO
@@ -65,7 +64,7 @@ protected:
   virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile* aFile);
   virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI);
   nsCOMPtr<nsIMutableArray> mHandlerApps;
-  nsCString mType;
+  nsCString mMimeType;
   nsTArray<nsCString> mExtensions;
   PRBool mAlwaysAsk;
   nsHandlerInfoAction mPrefAction;

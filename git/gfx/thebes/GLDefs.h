@@ -64,10 +64,8 @@ typedef double GLclampd;
 typedef void GLvoid;
 
 typedef char GLchar;
-#ifndef __gl2_h_
 typedef ptrdiff_t GLsizeiptr;
 typedef ptrdiff_t GLintptr;
-#endif
 
 #ifndef GLAPIENTRY
 # ifdef WIN32
@@ -552,7 +550,6 @@ typedef ptrdiff_t GLintptr;
 #define LOCAL_GL_RGBA2 0x8055
 #define LOCAL_GL_RGBA4 0x8056
 #define LOCAL_GL_RGB5_A1 0x8057
-#define LOCAL_GL_RGB565 0x8D62
 #define LOCAL_GL_RGBA8 0x8058
 #define LOCAL_GL_RGB10_A2 0x8059
 #define LOCAL_GL_RGBA12 0x805A
@@ -846,7 +843,6 @@ typedef ptrdiff_t GLintptr;
 #define LOCAL_GL_DYNAMIC_DRAW 0x88E8
 #define LOCAL_GL_DYNAMIC_READ 0x88E9
 #define LOCAL_GL_DYNAMIC_COPY 0x88EA
-#define LOCAL_GL_PIXEL_UNPACK_BUFFER 0x88EC
 #define LOCAL_GL_SAMPLES_PASSED 0x8914
 #define LOCAL_GL_VERSION_2_0 1
 #define LOCAL_GL_BLEND_EQUATION_RGB 0x8009
@@ -1813,7 +1809,6 @@ typedef ptrdiff_t GLintptr;
 #define LOCAL_GL_COLOR_ATTACHMENT15 0x8CEF
 #define LOCAL_GL_DEPTH_ATTACHMENT 0x8D00
 #define LOCAL_GL_STENCIL_ATTACHMENT 0x8D20
-#define LOCAL_GL_DEPTH_STENCIL_ATTACHMENT 0x821A
 #define LOCAL_GL_FRAMEBUFFER 0x8D40
 #define LOCAL_GL_RENDERBUFFER 0x8D41
 #define LOCAL_GL_RENDERBUFFER_WIDTH 0x8D42
@@ -1880,7 +1875,6 @@ typedef ptrdiff_t GLintptr;
 #define LOCAL_GL_MULTISAMPLE_BIT_EXT 0x20000000
 #define LOCAL_GL_EXT_packed_depth_stencil 1
 #define LOCAL_GL_DEPTH_STENCIL_EXT 0x84F9
-#define LOCAL_GL_DEPTH_STENCIL 0x84F9
 #define LOCAL_GL_UNSIGNED_INT_24_8_EXT 0x84FA
 #define LOCAL_GL_DEPTH24_STENCIL8_EXT 0x88F0
 #define LOCAL_GL_DEPTH24_STENCIL8 0x88F0
@@ -3188,13 +3182,5 @@ typedef ptrdiff_t GLintptr;
 #define LOCAL_EGL_IMAGE_PRESERVED_KHR         0x30D2
 #define LOCAL_EGL_FALSE                       0
 #define LOCAL_EGL_TRUE                        1
-#define LOCAL_EGL_BITMAP_POINTER_KHR          0x30C6
-#define LOCAL_EGL_BITMAP_PITCH_KHR            0x30C7
-#define LOCAL_EGL_BITMAP_PIXEL_SIZE_KHR       0x3110
-#define LOCAL_EGL_LOCK_USAGE_HINT_KHR         0x30C5
-#define LOCAL_EGL_MAP_PRESERVE_PIXELS_KHR     0x30C4
-#define LOCAL_EGL_READ_SURFACE_BIT_KHR        0x0001
-#define LOCAL_EGL_WRITE_SURFACE_BIT_KHR       0x0002
-#define LOCAL_EGL_LOCK_SURFACE_BIT_KHR        0x0080
 
 #endif

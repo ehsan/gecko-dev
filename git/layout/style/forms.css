@@ -19,7 +19,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -45,8 +44,6 @@
 
 *|*::-moz-fieldset-content {
   display: block;
-  unicode-bidi: inherit;
-  text-overflow: inherit;
   height: 100%;   /* Need this so percentage heights of kids work right */
 }
 
@@ -55,7 +52,16 @@
 fieldset > legend {
   padding-left: 2px;
   padding-right: 2px;
+  border: none;
+  position: static;
+  float: none;
   width: -moz-fit-content;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  white-space: nowrap;
 }
 
 legend {
@@ -108,20 +114,6 @@ input > .anonymous-div {
   line-height: -moz-block-height;
 }
 
-/* Make sure that the location bar's alignment in RTL mode changes according
-   to the input box direction if the user switches the text direction using
-   cmd_switchTextDirection (which applies a dir attribute to the input box's
-   anonymous div. */
-@-moz-document url-prefix(chrome://) {
-  input.uri-element-right-align:-moz-locale-dir(rtl) > .anonymous-div {
-    text-align: right !important;
-  }
-
-  input.uri-element-right-align:-moz-locale-dir(rtl) > .anonymous-div[dir=ltr] {
-    text-align: left !important;
-  }
-}
-
 textarea {
   margin: 1px 0 1px 0;
   border: 2px inset ThreeDFace;
@@ -159,8 +151,6 @@ input > .anonymous-div {
   /* XXXldb I'm not sure if we really want the 'text-decoration: inherit',
      but it's needed to make 'text-decoration' "work" on text inputs. */
   text-decoration: inherit;
-  -moz-text-decoration-color: inherit;
-  -moz-text-decoration-style: inherit;
   ime-mode: inherit;
   resize: inherit;
 }
@@ -206,12 +196,6 @@ select {
   background-color: -moz-Combobox;
   color: -moz-ComboboxText;
   font: -moz-list;
-  /*
-   * Note that the "UA !important" tests in
-   * layout/style/test/test_animations.html depend on this rule, because
-   * they need some UA !important rule to test.  If this changes, use a
-   * different one there.
-   */
   line-height: normal !important;
   white-space: nowrap !important;
   word-wrap: normal !important;
@@ -251,7 +235,7 @@ select[size="1"] {
   -moz-appearance: menulist;
 }
 
-select > button {
+select > input[type="button"] {
   width: 12px;
   height: 12px;
   white-space: nowrap;
@@ -273,7 +257,7 @@ select > button {
   vertical-align: top !important;
 }
 
-select > button:active {
+select > input[type="button"]:active {
   background-image: url("arrowd.gif") !important;
 }
 
@@ -372,13 +356,11 @@ optgroup:before {
   border-left-width: 2px ! important;
 } 
 
-input:disabled,
-textarea:disabled,
-option:disabled,
-optgroup:disabled,
-select:disabled:disabled /* Need the pseudo-class twice to have the specificity
-                            be at least the same as select[size][multiple] above */
-{
+input[disabled],
+textarea[disabled],
+option[disabled],
+optgroup[disabled],
+select[disabled] {
   -moz-user-input: disabled;
   -moz-user-focus: ignore;
   color: GrayText;
@@ -386,8 +368,8 @@ select:disabled:disabled /* Need the pseudo-class twice to have the specificity
   cursor: inherit;
 }
 
-option:disabled,
-optgroup:disabled {
+option[disabled],
+optgroup[disabled] {
   background-color: transparent;
 }
 
@@ -414,7 +396,7 @@ input[type="image"] {
   -moz-binding: none;
 }
 
-input[type="image"]:disabled {
+input[type="image"][disabled] {
   cursor: inherit;
 }
 
@@ -454,14 +436,14 @@ input[type="file"] > input[type="button"] {
 input[type="radio"] {
   -moz-appearance: radio;
   margin: 3px 3px 0px 5px;
-  border-radius: 100% !important;
+  -moz-border-radius: 100% !important;
 }
 
 /* check boxes */
 input[type="checkbox"] {
   -moz-appearance: checkbox;
   margin: 3px 3px 3px 4px;
-  border-radius: 0 !important;
+  -moz-border-radius: 0 !important;
 }
 
 /* common features of radio buttons and check boxes */
@@ -485,14 +467,14 @@ input[type="checkbox"] {
   border: 2px inset ThreeDFace ! important;
 }
 
-input[type="radio"]:disabled,
-input[type="radio"]:disabled:active,
-input[type="radio"]:disabled:hover,
-input[type="radio"]:disabled:hover:active,
-input[type="checkbox"]:disabled,
-input[type="checkbox"]:disabled:active,
-input[type="checkbox"]:disabled:hover,
-input[type="checkbox"]:disabled:hover:active {
+input[type="radio"][disabled],
+input[type="radio"][disabled]:active,
+input[type="radio"][disabled]:hover,
+input[type="radio"][disabled]:hover:active,
+input[type="checkbox"][disabled],
+input[type="checkbox"][disabled]:active,
+input[type="checkbox"][disabled]:hover,
+input[type="checkbox"][disabled]:hover:active {
   padding: 1px;
   border: 1px inset ThreeDShadow ! important;
   /* same as above, but !important */
@@ -530,7 +512,7 @@ input[type="submit"] {
   background-color: ButtonFace;
   color: ButtonText; 
   font: -moz-button;
-  line-height: normal;
+  line-height: normal !important;
   white-space: pre;
   cursor: default;
   -moz-box-sizing: border-box;
@@ -585,15 +567,15 @@ input[type="file"] > input[type="button"]:-moz-focusring::-moz-focus-inner {
   border-color: ButtonText;
 }
 
-button:disabled:active, button:disabled,
-input[type="reset"]:disabled:active,
-input[type="reset"]:disabled,
-input[type="button"]:disabled:active,
-input[type="button"]:disabled,
-select:disabled > button,
-select:disabled > button,
-input[type="submit"]:disabled:active,
-input[type="submit"]:disabled {
+button[disabled]:active, button[disabled],
+input[type="reset"][disabled]:active,
+input[type="reset"][disabled],
+input[type="button"][disabled]:active,
+input[type="button"][disabled],
+select[disabled] > input[type="button"],
+select[disabled] > input[type="button"]:active,
+input[type="submit"][disabled]:active,
+input[type="submit"][disabled] {
   /* The sum of border-top, border-bottom, padding-top, padding-bottom
      must be the same here and for text inputs */
   padding: 0px 6px 0px 6px;
@@ -626,7 +608,6 @@ input > .anonymous-div,
 *|*::-moz-display-comboboxcontrol-frame,
 optgroup:before {
   unicode-bidi: inherit;
-  text-overflow: inherit;
 }
 
  /*
@@ -641,17 +622,12 @@ input[type="file"] > input[type="text"] {
 
 /**
  * Set default style for invalid elements.
+ * <output> is the only element which may not follow this rule (but color: red).
+ * However it is barred from constraint validation per the specifications so, at
+ * least for now, it will not be affected by :invalid.
  */
-:not(output):-moz-ui-invalid {
-  box-shadow: 0 0 1.5px 1px red;
-}
-
-:not(output):-moz-ui-invalid:-moz-focusring {
-  box-shadow: 0 0 2px 2px rgba(255,0,0,0.4);
-}
-
-output:-moz-ui-invalid {
-  color: red;
+:invalid {
+  -moz-box-shadow: 0 0 2px 1px red;
 }
 
 @media print {
@@ -660,37 +636,6 @@ output:-moz-ui-invalid {
   }
 
   input[type="file"] { height: 2em; }
-}
-
-progress {
-  -moz-appearance: progressbar;
-  display: inline-block;
-  vertical-align: -0.2em;
-
-  /* Default style in case of there is -moz-appearance: none; */
-  border: 2px solid;
-  /* #e6e6e6 is a light gray. */
-  -moz-border-top-colors: ThreeDShadow #e6e6e6;
-  -moz-border-right-colors: ThreeDHighlight #e6e6e6;
-  -moz-border-bottom-colors: ThreeDHighlight #e6e6e6;
-  -moz-border-left-colors: ThreeDShadow #e6e6e6;
-  background-color: #e6e6e6;
-}
-
-::-moz-progress-bar {
-  /* Block styles that would change the type of frame we construct. */
-  display: inline-block ! important;
-  float: none ! important;
-  position: static ! important;
-  overflow: visible ! important;
-  -moz-box-sizing: border-box ! important;
-
-  -moz-appearance: progresschunk;
-  height: 100%;
-  width: 100%;
-
-  /* Default style in case of there is -moz-appearance: none; */
-  background-color: #0064b4; /* blue */
 }
 
 %if OSARCH==OS2

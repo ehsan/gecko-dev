@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "prmem.h"
 #include "nsString.h"
 #include "nsBidiUtils.h"
@@ -63,6 +62,14 @@
 
 #include "nsUnicodeRange.h"
 
+// Uncomment this to dump all text runs created to the log (if enabled)
+//#define DUMP_TEXT_RUNS
+
+#ifdef DUMP_TEXT_RUNS
+static PRLogModuleInfo *gCoreTextTextRunLog = PR_NewLogModule("coreTextTextRun");
+#endif
+
+
 // standard font descriptors that we construct the first time they're needed
 CTFontDescriptorRef gfxCoreTextShaper::sDefaultFeaturesDescriptor = NULL;
 CTFontDescriptorRef gfxCoreTextShaper::sDisableLigaturesDescriptor = NULL;
@@ -71,18 +78,10 @@ gfxCoreTextShaper::gfxCoreTextShaper(gfxMacFont *aFont)
     : gfxFontShaper(aFont)
 {
     // Create our CTFontRef
-    if (gfxMacPlatformFontList::UseATSFontEntry()) {
-        ATSFontEntry *fe = static_cast<ATSFontEntry*>(aFont->GetFontEntry());
-        mCTFont = ::CTFontCreateWithPlatformFont(fe->GetATSFontRef(),
-                                                 aFont->GetAdjustedSize(),
-                                                 NULL,
-                                                 GetDefaultFeaturesDescriptor());
-    } else {
-        mCTFont = ::CTFontCreateWithGraphicsFont(aFont->GetCGFontRef(),
-                                                 aFont->GetAdjustedSize(),
-                                                 NULL,
-                                                 GetDefaultFeaturesDescriptor());
-    }
+    mCTFont = ::CTFontCreateWithPlatformFont(aFont->GetATSFontRef(),
+                                             aFont->GetAdjustedSize(),
+                                             NULL,
+                                             GetDefaultFeaturesDescriptor());
 
     // Set up the default attribute dictionary that we will need each time we create a CFAttributedString
     mAttributesDict = ::CFDictionaryCreate(kCFAllocatorDefault,
@@ -169,8 +168,10 @@ gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
     if (disableLigatures) {
         // For letterspacing (or maybe other situations) we need to make a copy of the CTFont
         // with the ligature feature disabled
+        gfxMacFont *font = static_cast<gfxMacFont*>(mFont);
         CTFontRef ctFont =
-            CreateCTFontWithDisabledLigatures(::CTFontGetSize(mCTFont));
+            CreateCTFontWithDisabledLigatures(font->GetATSFontRef(),
+                                              ::CTFontGetSize(mCTFont));
 
         attrObj =
             ::CFDictionaryCreate(kCFAllocatorDefault,
@@ -385,7 +386,7 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
             // find the maximum glyph index covered by the clump so far
             for (PRInt32 i = charStart; i != charEnd; i += direction) {
                 if (charToGlyph[i] != NO_GLYPH) {
-                    glyphEnd = NS_MAX(glyphEnd, charToGlyph[i] + 1); // update extent of glyph range
+                    glyphEnd = PR_MAX(glyphEnd, charToGlyph[i] + 1); // update extent of glyph range
                 }
             }
 
@@ -460,8 +461,8 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
             continue;
         }
         // Ensure we won't try to go beyond the valid length of the textRun's text
-        baseCharIndex = NS_MAX(baseCharIndex, aRunStart);
-        endCharIndex = NS_MIN(endCharIndex, aRunStart + aRunLength);
+        baseCharIndex = PR_MAX(baseCharIndex, aRunStart);
+        endCharIndex = PR_MIN(endCharIndex, aRunStart + aRunLength);
 
         // Now we're ready to set the glyph info in the textRun; measure the glyph width
         // of the first (perhaps only) glyph, to see if it is "Simple"
@@ -601,9 +602,9 @@ gfxCoreTextShaper::CreateDefaultFeaturesDescriptor()
     ::CFRelease(attributesDict);
 }
 
-// Create a CTFontRef, with the Common Ligatures feature disabled
+// Create a CTFontRef, with the Common Ligatures feature disabled [static]
 CTFontRef
-gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(CGFloat aSize)
+gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(ATSFontRef aFontRef, CGFloat aSize)
 {
     if (sDisableLigaturesDescriptor == NULL) {
         // initialize cached descriptor to turn off the Common Ligatures feature
@@ -649,20 +650,11 @@ gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(CGFloat aSize)
         ::CFRelease(featuresArray);
 
         sDisableLigaturesDescriptor =
-            ::CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(),
-                                                       attributesDict);
+            ::CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(), attributesDict);
         ::CFRelease(attributesDict);
     }
-
-    if (gfxMacPlatformFontList::UseATSFontEntry()) {
-        ATSFontEntry *fe = static_cast<ATSFontEntry*>(mFont->GetFontEntry());
-        return ::CTFontCreateWithPlatformFont(fe->GetATSFontRef(), aSize, NULL,
-                                              sDisableLigaturesDescriptor);
-    }
-
-    gfxMacFont *f = static_cast<gfxMacFont*>(mFont);
-    return ::CTFontCreateWithGraphicsFont(f->GetCGFontRef(), aSize, NULL,
-                                          sDisableLigaturesDescriptor);
+    
+    return ::CTFontCreateWithPlatformFont(aFontRef, aSize, NULL, sDisableLigaturesDescriptor);
 }
 
 void

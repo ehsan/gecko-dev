@@ -43,9 +43,9 @@
 #include "xpcom-private.h"
 
 //-----------------------------------------------------------------------------
-// XP_MACOSX or ANDROID
+// XP_MACOSX or XP_BEOS or ANDROID
 //-----------------------------------------------------------------------------
-#if defined(XP_MACOSX) || defined(ANDROID)
+#if defined(XP_BEOS) || defined(XP_MACOSX) || defined(ANDROID)
 
 #include "nsAString.h"
 #include "nsReadableUtils.h"
@@ -83,12 +83,10 @@ NS_ShutdownNativeCharsetUtils()
 
 #include <stdlib.h>   // mbtowc, wctomb
 #include <locale.h>   // setlocale
-#include "mozilla/Mutex.h"
 #include "nscore.h"
+#include "prlock.h"
 #include "nsAString.h"
 #include "nsReadableUtils.h"
-
-using namespace mozilla;
 
 //
 // choose a conversion library.  we used to use mbrtowc/wcrtomb under Linux,
@@ -309,14 +307,14 @@ private:
     static iconv_t gUnicodeToUTF8;
     static iconv_t gUTF8ToUnicode;
 #endif
-    static Mutex  *gLock;
+    static PRLock *gLock;
     static PRBool  gInitialized;
     static PRBool  gIsNativeUTF8;
 
     static void LazyInit();
 
-    static void Lock()   { if (gLock) gLock->Lock();   }
-    static void Unlock() { if (gLock) gLock->Unlock(); }
+    static void Lock()   { if (gLock) PR_Lock(gLock);   }
+    static void Unlock() { if (gLock) PR_Unlock(gLock); }
 };
 
 iconv_t nsNativeCharsetConverter::gNativeToUnicode = INVALID_ICONV_T;
@@ -327,7 +325,7 @@ iconv_t nsNativeCharsetConverter::gUTF8ToNative    = INVALID_ICONV_T;
 iconv_t nsNativeCharsetConverter::gUnicodeToUTF8   = INVALID_ICONV_T;
 iconv_t nsNativeCharsetConverter::gUTF8ToUnicode   = INVALID_ICONV_T;
 #endif
-Mutex  *nsNativeCharsetConverter::gLock            = nsnull;
+PRLock *nsNativeCharsetConverter::gLock            = nsnull;
 PRBool  nsNativeCharsetConverter::gInitialized     = PR_FALSE;
 PRBool  nsNativeCharsetConverter::gIsNativeUTF8    = PR_FALSE;
 
@@ -409,14 +407,15 @@ nsNativeCharsetConverter::LazyInit()
 void
 nsNativeCharsetConverter::GlobalInit()
 {
-    gLock = new Mutex("nsNativeCharsetConverter.gLock");
+    gLock = PR_NewLock();
+    NS_ASSERTION(gLock, "lock creation failed");
 }
 
 void
 nsNativeCharsetConverter::GlobalShutdown()
 {
     if (gLock) {
-        delete gLock;
+        PR_DestroyLock(gLock);
         gLock = nsnull;
     }
 

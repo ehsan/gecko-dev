@@ -61,7 +61,6 @@ const daybefore = today - (DAY_MICROSEC * 2);
 const tomorrow = today + DAY_MICROSEC;
 const old = today - (DAY_MICROSEC * 3);
 const futureday = today + (DAY_MICROSEC * 3);
-const olderthansixmonths = today - (DAY_MICROSEC * 31 * 7);
 
 
 /**
@@ -70,177 +69,185 @@ const olderthansixmonths = today - (DAY_MICROSEC * 31 * 7);
  * appropriate.
  */
 function populateDB(aArray) {
-  PlacesUtils.history.runInBatchMode({
-    runBatched: function (aUserData)
-    {
-      aArray.forEach(function (data)
-      {
-        try {
-          // make the data object into a query data object in order to create proper
-          // default values for anything left unspecified
-          var qdata = new queryData(data);
-          if (qdata.isVisit) {
-            // Then we should add a visit for this node
-            var referrer = qdata.referrer ? uri(qdata.referrer) : null;
-            var visitId = PlacesUtils.history.addVisit(uri(qdata.uri), qdata.lastVisit,
-                                                       referrer, qdata.transType,
-                                                       qdata.isRedirect, qdata.sessionID);
-            if (qdata.title && !qdata.isDetails) {
-              PlacesUtils.history.setPageTitle(uri(qdata.uri), qdata.title);
-            }
-            if (qdata.visitCount && !qdata.isDetails) {
-              // Set a fake visit_count, this is not a real count but can be used
-              // to test sorting by visit_count.
-              let stmt = DBConn().createStatement(
-                "UPDATE moz_places SET visit_count = :vc WHERE url = :url");
-              stmt.params.vc = qdata.visitCount;
-              stmt.params.url = qdata.uri;
-              try {
-                stmt.execute();
-              }
-              catch (ex) {
-                print("Error while setting visit_count.");
-              }
-              finally {
-                stmt.finalize();
-              }
-            }
+  aArray.forEach(function(data) {
+    dump_table("moz_bookmarks");
+    try {
+      // make the data object into a query data object in order to create proper
+      // default values for anything left unspecified
+      var qdata = new queryData(data);
+      if (qdata.isVisit) {
+        // Then we should add a visit for this node
+        var referrer = qdata.referrer ? uri(qdata.referrer) : null;
+        var visitId = PlacesUtils.history.addVisit(uri(qdata.uri), qdata.lastVisit,
+                                                   referrer, qdata.transType,
+                                                   qdata.isRedirect, qdata.sessionID);
+        do_check_true(visitId > 0);
+        if (qdata.title && !qdata.isDetails) {
+          // Set the page title synchronously, otherwise setPageTitle is LAZY.
+          let stmt = DBConn().createStatement(
+            "UPDATE moz_places_view SET title = :title WHERE url = :url"
+          );
+          stmt.params.title = qdata.title;
+          stmt.params.url = qdata.uri;
+          try {
+            stmt.execute();
+            // Force a notification so results are updated.
+            PlacesUtils.history.runInBatchMode({runBatched: function(){}}, null);
           }
-
-          if (qdata.isDetails) {
-            // Then we add extraneous page details for testing
-            PlacesUtils.history.addPageWithDetails(uri(qdata.uri),
-                                                   qdata.title, qdata.lastVisit);
+          finally {
+            stmt.finalize();
           }
-
-          if (qdata.markPageAsTyped){
-            PlacesUtils.bhistory.markPageAsTyped(uri(qdata.uri));
-          }
-
-          if (qdata.hidePage){
-            PlacesUtils.bhistory.hidePage(uri(qdata.uri));
-          }
-
-          if (qdata.isPageAnnotation) {
-            if (qdata.removeAnnotation) 
-              PlacesUtils.annotations.removePageAnnotation(uri(qdata.uri),
-                                                           qdata.annoName);
-            else {
-              PlacesUtils.annotations.setPageAnnotation(uri(qdata.uri),
-                                                        qdata.annoName,
-                                                        qdata.annoVal,
-                                                        qdata.annoFlags,
-                                                        qdata.annoExpiration);
-            }
-          }
-
-          if (qdata.isItemAnnotation) {
-            if (qdata.removeAnnotation)
-              PlacesUtils.annotations.removeItemAnnotation(qdata.itemId,
-                                                           qdata.annoName);
-            else {
-              PlacesUtils.annotations.setItemAnnotation(qdata.itemId,
-                                                        qdata.annoName,
-                                                        qdata.annoVal,
-                                                        qdata.annoFlags,
-                                                        qdata.annoExpiration);
-            }
-          }
-
-          if (qdata.isPageBinaryAnnotation) {
-            if (qdata.removeAnnotation)
-              PlacesUtils.annotations.removePageAnnotation(uri(qdata.uri),
-                                                           qdata.annoName);
-            else {
-              PlacesUtils.annotations.setPageAnnotationBinary(uri(qdata.uri),
-                                                              qdata.annoName,
-                                                              qdata.binarydata,
-                                                              qdata.binaryDataLength,
-                                                              qdata.annoMimeType,
-                                                              qdata.annoFlags,
-                                                              qdata.annoExpiration);
-            }
-          }
-
-          if (qdata.isItemBinaryAnnotation) {
-            if (qdata.removeAnnotation)
-              PlacesUtils.annotations.removeItemAnnotation(qdata.itemId,
-                                                           qdata.annoName);
-            else {
-              PlacesUtils.annotations.setItemAnnotationBinary(qdata.itemId,
-                                                              qdata.annoName,
-                                                              qdata.binaryData,
-                                                              qdata.binaryDataLength,
-                                                              qdata.annoMimeType,
-                                                              qdata.annoFlags,
-                                                              qdata.annoExpiration);
-            }
-          }
-
-          if (qdata.isFavicon) {
-            // Not planning on doing deep testing of favIcon service so these two
-            // calls should be sufficient to get favicons into the database
-            try {
-              PlacesUtils.favicons.setFaviconData(uri(qdata.faviconURI),
-                                                  qdata.favicon,
-                                                  qdata.faviconLen,
-                                                  qdata.faviconMimeType,
-                                                  qdata.faviconExpiration);
-            } catch (ex) {}
-            PlacesUtils.favicons.setFaviconUrlForPage(uri(qdata.uri),
-                                                      uri(qdata.faviconURI));
-          }
-
-          if (qdata.isFolder) {
-            let folderId = PlacesUtils.bookmarks.createFolder(qdata.parentFolder,
-                                                              qdata.title,
-                                                              qdata.index);
-            if (qdata.readOnly)
-              PlacesUtils.bookmarks.setFolderReadonly(folderId, true);
-          }
-
-          if (qdata.isLivemark) {
-            PlacesUtils.livemarks.createLivemark(qdata.parentFolder,
-                                                 qdata.title,
-                                                 uri(qdata.uri),
-                                                 uri(qdata.feedURI),
-                                                 qdata.index);
-          }
-
-          if (qdata.isBookmark) {
-            let itemId = PlacesUtils.bookmarks.insertBookmark(qdata.parentFolder,
-                                                              uri(qdata.uri),
-                                                              qdata.index,
-                                                              qdata.title);
-            if (qdata.keyword)
-              PlacesUtils.bookmarks.setKeywordForBookmark(itemId, qdata.keyword);
-            if (qdata.dateAdded)
-              PlacesUtils.bookmarks.setItemDateAdded(itemId, qdata.dateAdded);
-            if (qdata.lastModified)
-              PlacesUtils.bookmarks.setItemLastModified(itemId, qdata.lastModified);
-          }
-
-          if (qdata.isTag) {
-            PlacesUtils.tagging.tagURI(uri(qdata.uri), qdata.tagArray);
-          }
-
-          if (qdata.isDynContainer) {
-            PlacesUtils.bookmarks.createDynamicContainer(qdata.parentFolder,
-                                                         qdata.title,
-                                                         qdata.contractId,
-                                                         qdata.index);
-          }
-
-          if (qdata.isSeparator)
-            PlacesUtils.bookmarks.insertSeparator(qdata.parentFolder, qdata.index);
-        } catch (ex) {
-          // use the data object here in case instantiation of qdata failed
-          LOG("Problem with this URI: " + data.uri);
-          do_throw("Error creating database: " + ex + "\n");
         }
-      }); // End of function and array
+        if (qdata.visitCount && !qdata.isDetails) {
+          // Set a fake visit_count, this is not a real count but can be used
+          // to test sorting by visit_count.
+          let stmt = DBConn().createStatement(
+            "UPDATE moz_places_view SET visit_count = :vc WHERE url = :url");
+          stmt.params.vc = qdata.visitCount;
+          stmt.params.url = qdata.uri;
+          try {
+            stmt.execute();
+            // Force a notification so results are updated.
+            PlacesUtils.history.runInBatchMode({runBatched: function(){}}, null);
+          }
+          finally {
+            stmt.finalize();
+          }
+        }
+      }
+
+      if (qdata.isDetails) {
+        // Then we add extraneous page details for testing
+        PlacesUtils.history.addPageWithDetails(uri(qdata.uri),
+                                               qdata.title, qdata.lastVisit);
+      }
+
+      if (qdata.markPageAsTyped){
+        PlacesUtils.bhistory.markPageAsTyped(uri(qdata.uri));
+      }
+
+      if (qdata.hidePage){
+        PlacesUtils.bhistory.hidePage(uri(qdata.uri));
+      }
+
+      if (qdata.isPageAnnotation) {
+        if (qdata.removeAnnotation) 
+          PlacesUtils.annotations.removePageAnnotation(uri(qdata.uri),
+                                                       qdata.annoName);
+        else {
+          PlacesUtils.annotations.setPageAnnotation(uri(qdata.uri),
+                                                    qdata.annoName,
+                                                    qdata.annoVal,
+                                                    qdata.annoFlags,
+                                                    qdata.annoExpiration);
+        }
+      }
+
+      if (qdata.isItemAnnotation) {
+        if (qdata.removeAnnotation)
+          PlacesUtils.annotations.removeItemAnnotation(qdata.itemId,
+                                                       qdata.annoName);
+        else {
+          PlacesUtils.annotations.setItemAnnotation(qdata.itemId,
+                                                    qdata.annoName,
+                                                    qdata.annoVal,
+                                                    qdata.annoFlags,
+                                                    qdata.annoExpiration);
+        }
+      }
+
+      if (qdata.isPageBinaryAnnotation) {
+        if (qdata.removeAnnotation)
+          PlacesUtils.annotations.removePageAnnotation(uri(qdata.uri),
+                                                       qdata.annoName);
+        else {
+          PlacesUtils.annotations.setPageAnnotationBinary(uri(qdata.uri),
+                                                          qdata.annoName,
+                                                          qdata.binarydata,
+                                                          qdata.binaryDataLength,
+                                                          qdata.annoMimeType,
+                                                          qdata.annoFlags,
+                                                          qdata.annoExpiration);
+        }
+      }
+
+      if (qdata.isItemBinaryAnnotation) {
+        if (qdata.removeAnnotation)
+          PlacesUtils.annotations.removeItemAnnotation(qdata.itemId,
+                                                       qdata.annoName);
+        else {
+          PlacesUtils.annotations.setItemAnnotationBinary(qdata.itemId,
+                                                          qdata.annoName,
+                                                          qdata.binaryData,
+                                                          qdata.binaryDataLength,
+                                                          qdata.annoMimeType,
+                                                          qdata.annoFlags,
+                                                          qdata.annoExpiration);
+        }
+      }
+
+      if (qdata.isFavicon) {
+        // Not planning on doing deep testing of favIcon service so these two
+        // calls should be sufficient to get favicons into the database
+        try {
+          PlacesUtils.favicons.setFaviconData(uri(qdata.faviconURI),
+                                              qdata.favicon,
+                                              qdata.faviconLen,
+                                              qdata.faviconMimeType,
+                                              qdata.faviconExpiration);
+        } catch (ex) {}
+        PlacesUtils.favicons.setFaviconUrlForPage(uri(qdata.uri),
+                                                  uri(qdata.faviconURI));
+      }
+
+      if (qdata.isFolder) {
+        let folderId = PlacesUtils.bookmarks.createFolder(qdata.parentFolder,
+                                                          qdata.title,
+                                                          qdata.index);
+        if (qdata.readOnly)
+          PlacesUtils.bookmarks.setFolderReadonly(folderId, true);
+      }
+
+      if (qdata.isLivemark) {
+        PlacesUtils.livemarks.createLivemark(qdata.parentFolder,
+                                             qdata.title,
+                                             uri(qdata.uri),
+                                             uri(qdata.feedURI),
+                                             qdata.index);
+      }
+
+      if (qdata.isBookmark) {
+        let itemId = PlacesUtils.bookmarks.insertBookmark(qdata.parentFolder,
+                                                          uri(qdata.uri),
+                                                          qdata.index,
+                                                          qdata.title);
+        if (qdata.keyword)
+          PlacesUtils.bookmarks.setKeywordForBookmark(itemId, qdata.keyword);
+        if (qdata.dateAdded)
+          PlacesUtils.bookmarks.setItemDateAdded(itemId, qdata.dateAdded);
+        if (qdata.lastModified)
+          PlacesUtils.bookmarks.setItemLastModified(itemId, qdata.lastModified);
+      }
+
+      if (qdata.isTag) {
+        PlacesUtils.tagging.tagURI(uri(qdata.uri), qdata.tagArray);
+      }
+
+      if (qdata.isDynContainer) {
+        PlacesUtils.bookmarks.createDynamicContainer(qdata.parentFolder,
+                                                     qdata.title,
+                                                     qdata.contractId,
+                                                     qdata.index);
+      }
+
+      if (qdata.isSeparator)
+        PlacesUtils.bookmarks.insertSeparator(qdata.parentFolder, qdata.index);
+    } catch (ex) {
+      // use the data object here in case instantiation of qdata failed
+      LOG("Problem with this URI: " + data.uri);
+      do_throw("Error creating database: " + ex + "\n");
     }
-  }, null);
+  }); // End of function and array
 }
 
 
@@ -329,33 +336,17 @@ function compareArrayToResult(aArray, aRoot) {
 
   // check expected number of results against actual
   var expectedResultCount = aArray.filter(function(aEl) { return aEl.isInQuery; }).length;
-  if (expectedResultCount != aRoot.childCount) {
-    // Debugging code for failures.
-    dump_table("moz_places");
-    dump_table("moz_historyvisits");
-    LOG("Found children:");
-    for (let i = 0; i < aRoot.childCount; i++) {
-      LOG(aRoot.getChild(i).uri);
-    }
-    LOG("Expected:");
-    for (let i = 0; i < aArray.length; i++) {
-      if (aArray[i].isInQuery)
-        LOG(aArray[i].uri);
-    }
-  }
   do_check_eq(expectedResultCount, aRoot.childCount);
 
   var inQueryIndex = 0;
   for (var i = 0; i < aArray.length; i++) {
     if (aArray[i].isInQuery) {
       var child = aRoot.getChild(inQueryIndex);
-      //LOG("testing testData[" + i + "] vs result[" + inQueryIndex + "]");
+      LOG("testing testData[" + i + "] vs result[" + inQueryIndex + "]");
       if (!aArray[i].isFolder && !aArray[i].isSeparator) {
         LOG("testing testData[" + aArray[i].uri + "] vs result[" + child.uri + "]");
-        if (aArray[i].uri != child.uri) {
-          dump_table("moz_places");
+        if (aArray[i].uri != child.uri)
           do_throw("Expected " + aArray[i].uri + " found " + child.uri);
-        }
       }
       if (!aArray[i].isSeparator && aArray[i].title != child.title)
         do_throw("Expected " + aArray[i].title + " found " + child.title);
@@ -389,8 +380,7 @@ function compareArrayToResult(aArray, aRoot) {
 function isInResult(aQueryData, aRoot) {
   var rv = false;
   var uri;
-  var wasOpen = aRoot.containerOpen;
-  if (!wasOpen)
+  if (!aRoot.containerOpen)
     aRoot.containerOpen = true;
 
   // If we have an array, pluck out the first item. If an object, pluc out the
@@ -407,8 +397,6 @@ function isInResult(aQueryData, aRoot) {
       break;
     }
   }
-  if (!wasOpen)
-    aRoot.containerOpen = false;
   return rv;
 }
 
@@ -419,8 +407,7 @@ function isInResult(aQueryData, aRoot) {
  */
 function displayResultSet(aRoot) {
 
-  var wasOpen = aRoot.containerOpen;
-  if (!wasOpen)
+  if (!aRoot.containerOpen)
     aRoot.containerOpen = true;
 
   if (!aRoot.hasChildren) {
@@ -433,6 +420,4 @@ function displayResultSet(aRoot) {
     LOG("Result Set URI: " + aRoot.getChild(i).uri + "   Title: " +
         aRoot.getChild(i).title + "   Visit Time: " + aRoot.getChild(i).time);
   }
-  if (!wasOpen)
-    aRoot.containerOpen = false;
 }

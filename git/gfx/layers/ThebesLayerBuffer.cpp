@@ -39,11 +39,22 @@
 #include "Layers.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
-#include "gfxUtils.h"
-#include "nsDeviceContext.h"
 
 namespace mozilla {
 namespace layers {
+
+/*static*/ void
+ThebesLayerBuffer::ClipToRegion(gfxContext* aContext,
+                                const nsIntRegion& aRegion)
+{
+  aContext->NewPath();
+  nsIntRegionRectIterator iter(aRegion);
+  const nsIntRect* r;
+  while ((r = iter.Next()) != nsnull) {
+    aContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
+  }
+  aContext->Clip();
+}
 
 nsIntRect
 ThebesLayerBuffer::GetQuadrantRectangle(XSide aXSide, YSide aYSide)
@@ -68,8 +79,7 @@ ThebesLayerBuffer::GetQuadrantRectangle(XSide aXSide, YSide aYSide)
  */
 void
 ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
-                                      XSide aXSide, YSide aYSide,
-                                      float aOpacity)
+                                      XSide aXSide, YSide aYSide, float aOpacity)
 {
   // The rectangle that we're going to fill. Basically we're going to
   // render the buffer at mBufferRect + quadrantTranslation to get the
@@ -81,27 +91,9 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
     return;
 
   aTarget->NewPath();
-  aTarget->Rectangle(gfxRect(fillRect.x, fillRect.y,
-                             fillRect.width, fillRect.height),
+  aTarget->Rectangle(gfxRect(fillRect.x, fillRect.y, fillRect.width, fillRect.height),
                      PR_TRUE);
-
-  gfxPoint quadrantTranslation(quadrantRect.x, quadrantRect.y);
-  nsRefPtr<gfxPattern> pattern = new gfxPattern(mBuffer);
-
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  gfxPattern::GraphicsFilter filter = gfxPattern::FILTER_NEAREST;
-  pattern->SetFilter(filter);
-#endif
-
-  gfxContextMatrixAutoSaveRestore saveMatrix(aTarget);
-
-  // Transform from user -> buffer space.
-  gfxMatrix transform;
-  transform.Translate(-quadrantTranslation);
-
-  pattern->SetMatrix(transform);
-  aTarget->SetPattern(pattern);
-
+  aTarget->SetSource(mBuffer, gfxPoint(quadrantRect.x, quadrantRect.y));
   if (aOpacity != 1.0) {
     aTarget->Save();
     aTarget->Clip();
@@ -123,23 +115,6 @@ ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity)
   DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity);
 }
 
-already_AddRefed<gfxContext>
-ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds)
-{
-  nsRefPtr<gfxContext> ctx = new gfxContext(mBuffer);
-
-  // Figure out which quadrant to draw in
-  PRInt32 xBoundary = mBufferRect.XMost() - mBufferRotation.x;
-  PRInt32 yBoundary = mBufferRect.YMost() - mBufferRotation.y;
-  XSide sideX = aBounds.XMost() <= xBoundary ? RIGHT : LEFT;
-  YSide sideY = aBounds.YMost() <= yBoundary ? BOTTOM : TOP;
-  nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
-  NS_ASSERTION(quadrantRect.Contains(aBounds), "Messed up quadrants");
-  ctx->Translate(-gfxPoint(quadrantRect.x, quadrantRect.y));
-
-  return ctx.forget();
-}
-
 static void
 WrapRotationAxis(PRInt32* aRotationPoint, PRInt32 aSize)
 {
@@ -151,77 +126,38 @@ WrapRotationAxis(PRInt32* aRotationPoint, PRInt32 aSize)
 }
 
 ThebesLayerBuffer::PaintState
-ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
-                              PRUint32 aFlags)
+ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType)
 {
   PaintState result;
-  // We need to disable rotation if we're going to be resampled when
-  // drawing, because we might sample across the rotation boundary.
-  PRBool canHaveRotation = !(aFlags & PAINT_WILL_RESAMPLE);
 
-  nsIntRegion validRegion = aLayer->GetValidRegion();
+  result.mRegionToDraw.Sub(aLayer->GetVisibleRegion(), aLayer->GetValidRegion());
 
-  ContentType contentType;
-  nsIntRegion neededRegion;
-  PRBool canReuseBuffer;
-  nsIntRect destBufferRect;
-
-  while (PR_TRUE) {
-    contentType = aContentType;
-    neededRegion = aLayer->GetVisibleRegion();
-    canReuseBuffer = mBuffer && BufferSizeOkFor(neededRegion.GetBounds().Size());
-
-    if (canReuseBuffer) {
-      if (mBufferRect.Contains(neededRegion.GetBounds())) {
-        // We don't need to adjust mBufferRect.
-        destBufferRect = mBufferRect;
-      } else if (neededRegion.GetBounds().Size() <= mBufferRect.Size()) {
-        // The buffer's big enough but doesn't contain everything that's
-        // going to be visible. We'll move it.
-        destBufferRect = nsIntRect(neededRegion.GetBounds().TopLeft(), mBufferRect.Size());
-      } else {
-        destBufferRect = neededRegion.GetBounds();
-      }
-    } else {
-      destBufferRect = neededRegion.GetBounds();
-    }
-
-    if ((aFlags & PAINT_WILL_RESAMPLE) &&
-        (!neededRegion.GetBounds().IsEqualInterior(destBufferRect) ||
-         neededRegion.GetNumRects() > 1)) {
-      // The area we add to neededRegion might not be painted opaquely
-      contentType = gfxASurface::CONTENT_COLOR_ALPHA;
-
-      // We need to validate the entire buffer, to make sure that only valid
-      // pixels are sampled
-      neededRegion = destBufferRect;
-    }
-
-    if (mBuffer && contentType != mBuffer->GetContentType()) {
-      // We're effectively clearing the valid region, so we need to draw
-      // the entire needed region now.
-      result.mRegionToInvalidate = aLayer->GetValidRegion();
-      validRegion.SetEmpty();
-      Clear();
-      // Restart decision process with the cleared buffer. We can only go
-      // around the loop one more iteration, since mBuffer is null now.
-      continue;
-    }
-
-    break;
+  if (mBuffer && aContentType != mBuffer->GetContentType()) {
+    // We're effectively clearing the valid region, so we need to draw
+    // the entire visible region now.
+    result.mRegionToDraw = aLayer->GetVisibleRegion();
+    result.mRegionToInvalidate = aLayer->GetValidRegion();
+    Clear();
   }
 
-  NS_ASSERTION(destBufferRect.Contains(neededRegion.GetBounds()),
-               "Destination rect doesn't contain what we need to paint");
-
-  result.mRegionToDraw.Sub(neededRegion, validRegion);
   if (result.mRegionToDraw.IsEmpty())
     return result;
-
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
+
+  nsIntRect visibleBounds = aLayer->GetVisibleRegion().GetBounds();
   nsRefPtr<gfxASurface> destBuffer;
-  PRUint32 bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
-  if (canReuseBuffer) {
+  nsIntRect destBufferRect;
+
+  if (BufferSizeOkFor(visibleBounds.Size())) {
+    // The current buffer is big enough to hold the visible area.
+    if (mBufferRect.Contains(visibleBounds)) {
+      // We don't need to adjust mBufferRect.
+      destBufferRect = mBufferRect;
+    } else {
+      // The buffer's big enough but doesn't contain everything that's
+      // going to be visible. We'll move it.
+      destBufferRect = nsIntRect(visibleBounds.TopLeft(), mBufferRect.Size());
+    }
     nsIntRect keepArea;
     if (keepArea.IntersectRect(destBufferRect, mBufferRect)) {
       // Set mBufferRotation so that the pixels currently in mBuffer
@@ -236,24 +172,16 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       PRInt32 xBoundary = destBufferRect.XMost() - newRotation.x;
       PRInt32 yBoundary = destBufferRect.YMost() - newRotation.y;
       if ((drawBounds.x < xBoundary && xBoundary < drawBounds.XMost()) ||
-          (drawBounds.y < yBoundary && yBoundary < drawBounds.YMost()) ||
-          (newRotation != nsIntPoint(0,0) && !canHaveRotation)) {
+          (drawBounds.y < yBoundary && yBoundary < drawBounds.YMost())) {
         // The stuff we need to redraw will wrap around an edge of the
-        // buffer, so move the pixels we can keep into a position that
-        // lets us redraw in just one quadrant.
+        // buffer, so we will need to do a self-copy
         if (mBufferRotation == nsIntPoint(0,0)) {
-          nsIntRect srcRect(nsIntPoint(0, 0), mBufferRect.Size());
-          nsIntPoint dest = mBufferRect.TopLeft() - destBufferRect.TopLeft();
-          mBuffer->MovePixels(srcRect, dest);
-          result.mDidSelfCopy = PR_TRUE;
-          // Don't set destBuffer; we special-case self-copies, and
-          // just did the necessary work above.
-          mBufferRect = destBufferRect;
+          destBuffer = mBuffer;
         } else {
           // We can't do a real self-copy because the buffer is rotated.
           // So allocate a new buffer for the destination.
-          destBufferRect = neededRegion.GetBounds();
-          destBuffer = CreateBuffer(contentType, destBufferRect.Size(), bufferFlags);
+          destBufferRect = visibleBounds;
+          destBuffer = CreateBuffer(aContentType, destBufferRect.Size());
           if (!destBuffer)
             return result;
         }
@@ -270,12 +198,11 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
     }
   } else {
     // The buffer's not big enough, so allocate a new one
-    destBuffer = CreateBuffer(contentType, destBufferRect.Size(), bufferFlags);
+    destBufferRect = visibleBounds;
+    destBuffer = CreateBuffer(aContentType, destBufferRect.Size());
     if (!destBuffer)
       return result;
   }
-  NS_ASSERTION(!(aFlags & PAINT_WILL_RESAMPLE) || destBufferRect == neededRegion.GetBounds(),
-               "If we're resampling, we need to validate the entire buffer");
 
   // If we have no buffered data already, then destBuffer will be a fresh buffer
   // and we do not need to clear it below.
@@ -295,17 +222,24 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
     mBufferRect = destBufferRect;
     mBufferRotation = nsIntPoint(0,0);
   }
-  NS_ASSERTION(canHaveRotation || mBufferRotation == nsIntPoint(0,0),
-               "Rotation disabled, but we have nonzero rotation?");
 
   nsIntRegion invalidate;
   invalidate.Sub(aLayer->GetValidRegion(), destBufferRect);
   result.mRegionToInvalidate.Or(result.mRegionToInvalidate, invalidate);
 
-  result.mContext = GetContextForQuadrantUpdate(drawBounds);
+  result.mContext = new gfxContext(mBuffer);
 
-  gfxUtils::ClipToRegionSnapped(result.mContext, result.mRegionToDraw);
-  if (contentType == gfxASurface::CONTENT_COLOR_ALPHA && !isClear) {
+  // Figure out which quadrant to draw in
+  PRInt32 xBoundary = mBufferRect.XMost() - mBufferRotation.x;
+  PRInt32 yBoundary = mBufferRect.YMost() - mBufferRotation.y;
+  XSide sideX = drawBounds.XMost() <= xBoundary ? RIGHT : LEFT;
+  YSide sideY = drawBounds.YMost() <= yBoundary ? BOTTOM : TOP;
+  nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
+  NS_ASSERTION(quadrantRect.Contains(drawBounds), "Messed up quadrants");
+  result.mContext->Translate(-gfxPoint(quadrantRect.x, quadrantRect.y));
+
+  ClipToRegion(result.mContext, result.mRegionToDraw);
+  if (aContentType == gfxASurface::CONTENT_COLOR_ALPHA && !isClear) {
     result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
     result.mContext->Paint();
     result.mContext->SetOperator(gfxContext::OPERATOR_OVER);

@@ -43,7 +43,6 @@
 %{ C++
 class nsPresContext;
 class nsIPresShell;
-struct JSContext;
 %}
 
 /**
@@ -72,7 +71,7 @@ interface nsIPrincipal;
 interface nsIWebBrowserPrint;
 interface nsIVariant;
 
-[scriptable, uuid(0666adf8-8738-4ca7-a917-0348f47d2f40)]
+[scriptable, uuid(74470127-87eb-4f79-8293-1616fe9cb689)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -175,7 +174,6 @@ interface nsIDocShell : nsISupports
    * Do either a history.pushState() or history.replaceState() operation,
    * depending on the value of aReplace.
    */
-  [implicit_jscontext]
   void addState(in nsIVariant aData, in DOMString aTitle,
                 in DOMString aURL, in boolean aReplace);
 
@@ -273,11 +271,6 @@ interface nsIDocShell : nsISupports
    * effect starting with the next document loaded in the docshell.
    */
   attribute boolean allowDNSPrefetch;
-
-  /**
-   * Attribute that determines whether window control (move/resize) is allowed.
-   */
-  attribute boolean allowWindowControl;
 
   /**
    * Get an enumerator over this docShell and its children.
@@ -536,21 +529,9 @@ interface nsIDocShell : nsISupports
    */
   attribute boolean isActive;
 
+
   /**
    * The ID of the docshell in the session history.
    */
   readonly attribute unsigned long long historyID;
-
-  /**
-   * Sets whether a docshell is an app tab. An app tab docshell may behave
-   * differently than a non-app tab docshell in some cases, such as when
-   * handling link clicks. Docshells are not app tabs unless told otherwise.
-   */
-  attribute boolean isAppTab;
-
-  /**
-   * Create a new about:blank document and content viewer.
-   * @param aPrincipal the principal to use for the new document.
-   */
-  void createAboutBlankContentViewer(in nsIPrincipal aPrincipal);
 };

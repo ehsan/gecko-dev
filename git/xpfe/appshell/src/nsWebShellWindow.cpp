@@ -56,6 +56,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIWebNavigation.h"
 #include "nsIWindowWatcher.h"
@@ -76,6 +77,7 @@
 #include "nsXULPopupManager.h"
 
 #include "prmem.h"
+#include "prlock.h"
 
 #include "nsIDOMXULDocument.h"
 
@@ -92,9 +94,6 @@
 #include "nsIDocumentLoaderFactory.h"
 #include "nsIObserverService.h"
 #include "prprf.h"
-
-#include "nsIScreenManager.h"
-#include "nsIScreen.h"
 
 #include "nsIContent.h" // for menus
 
@@ -114,8 +113,6 @@
 #define USE_NATIVE_MENUS
 #endif
 
-using namespace mozilla;
-
 /* Define Class IDs */
 static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
 
@@ -123,8 +120,8 @@ static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
 
 nsWebShellWindow::nsWebShellWindow(PRUint32 aChromeFlags)
   : nsXULWindow(aChromeFlags)
-  , mSPTimerLock("nsWebShellWindow.mSPTimerLock")
 {
+  mSPTimerLock = PR_NewLock();
 }
 
 
@@ -136,9 +133,13 @@ nsWebShellWindow::~nsWebShellWindow()
     mWindow = nsnull; // Force release here.
   }
 
-  MutexAutoLock lock(mSPTimerLock);
-  if (mSPTimer)
-    mSPTimer->Cancel();
+  if (mSPTimerLock) {
+    PR_Lock(mSPTimerLock);
+    if (mSPTimer)
+      mSPTimer->Cancel();
+    PR_Unlock(mSPTimerLock);
+    PR_DestroyLock(mSPTimerLock);
+  }
 }
 
 NS_IMPL_ADDREF_INHERITED(nsWebShellWindow, nsXULWindow)
@@ -161,7 +162,6 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   mIsHiddenWindow = aIsHiddenWindow;
 
-  PRInt32 initialX = 0, initialY = 0;
   nsCOMPtr<nsIBaseWindow> base(do_QueryInterface(aOpener));
   if (base) {
     rv = base->GetPositionAndSize(&mOpenerScreenRect.x,
@@ -169,17 +169,13 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                                   &mOpenerScreenRect.width,
                                   &mOpenerScreenRect.height);
     if (NS_FAILED(rv)) {
-      mOpenerScreenRect.SetEmpty();
-    } else {
-      initialX = mOpenerScreenRect.x;
-      initialY = mOpenerScreenRect.y;
-      ConstrainToOpenerScreen(&initialX, &initialY);
+      mOpenerScreenRect.Empty();
     }
   }
 
   // XXX: need to get the default window size from prefs...
   // Doesn't come from prefs... will come from CSS/XUL/RDF
-  nsIntRect r(initialX, initialY, aInitialWidth, aInitialHeight);
+  nsIntRect r(mOpenerScreenRect.x, mOpenerScreenRect.y, aInitialWidth, aInitialHeight);
   
   // Create top level window
   mWindow = do_CreateInstance(kWindowCID, &rv);
@@ -214,9 +210,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                   nsnull,                             // nsIToolkit
                   &widgetInitData);                   // Widget initialization data
   mWindow->GetClientBounds(r);
-  // Match the default background color of content. Important on windows
-  // since we no longer use content child widgets.
-  mWindow->SetBackgroundColor(NS_RGB(255,255,255));
+  mWindow->SetBackgroundColor(NS_RGB(192,192,192));
 
   // Create web shell
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
@@ -513,7 +507,10 @@ static void LoadNativeMenus(nsIDOMDocument *aDOMDoc, nsIWidget *aParentWindow)
 void
 nsWebShellWindow::SetPersistenceTimer(PRUint32 aDirtyFlags)
 {
-  MutexAutoLock lock(mSPTimerLock);
+  if (!mSPTimerLock)
+    return;
+
+  PR_Lock(mSPTimerLock);
   if (!mSPTimer) {
     nsresult rv;
     mSPTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
@@ -524,14 +521,18 @@ nsWebShellWindow::SetPersistenceTimer(PRUint32 aDirtyFlags)
   mSPTimer->InitWithFuncCallback(FirePersistenceTimer, this,
                                  SIZE_PERSISTENCE_TIMEOUT, nsITimer::TYPE_ONE_SHOT);
   PersistentAttributesDirty(aDirtyFlags);
+  PR_Unlock(mSPTimerLock);
 }
 
 void
 nsWebShellWindow::FirePersistenceTimer(nsITimer *aTimer, void *aClosure)
 {
   nsWebShellWindow *win = static_cast<nsWebShellWindow *>(aClosure);
-  MutexAutoLock lock(win->mSPTimerLock);
+  if (!win->mSPTimerLock)
+    return;
+  PR_Lock(win->mSPTimerLock);
   win->SavePersistentAttributes();
+  PR_Unlock(win->mSPTimerLock);
 }
 
 
@@ -743,7 +744,7 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
   nsCOMPtr<nsIXULWindow> kungFuDeathGrip(this);
 
   nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(mDocShell));
-  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(window);
+  nsCOMPtr<nsPIDOMEventTarget> eventTarget = do_QueryInterface(window);
 
   if (eventTarget) {
     nsCOMPtr<nsIContentViewer> contentViewer;
@@ -769,33 +770,6 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
   return PR_FALSE;
 } // ExecuteCloseHandler
 
-void nsWebShellWindow::ConstrainToOpenerScreen(PRInt32* aX, PRInt32* aY)
-{
-  if (mOpenerScreenRect.IsEmpty()) {
-    *aX = *aY = 0;
-    return;
-  }
-
-  PRInt32 left, top, width, height;
-  // Constrain initial positions to the same screen as opener
-  nsCOMPtr<nsIScreenManager> screenmgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
-  if (screenmgr) {
-    nsCOMPtr<nsIScreen> screen;
-    screenmgr->ScreenForRect(mOpenerScreenRect.x, mOpenerScreenRect.y,
-                             mOpenerScreenRect.width, mOpenerScreenRect.height,
-                             getter_AddRefs(screen));
-    if (screen) {
-      screen->GetAvailRect(&left, &top, &width, &height);
-      if (*aX < left || *aX > left + width) {
-        *aX = left;
-      }
-      if (*aY < top || *aY > top + height) {
-        *aY = top;
-      }
-    }
-  }
-}
-
 // nsIBaseWindow
 NS_IMETHODIMP nsWebShellWindow::Destroy()
 {
@@ -806,14 +780,17 @@ NS_IMETHODIMP nsWebShellWindow::Destroy()
   }
 
   nsCOMPtr<nsIXULWindow> kungFuDeathGrip(this);
-  {
-    MutexAutoLock lock(mSPTimerLock);
-    if (mSPTimer) {
-      mSPTimer->Cancel();
-      SavePersistentAttributes();
-      mSPTimer = nsnull;
-      NS_RELEASE_THIS(); // the timer held a reference to us
-    }
+  if (mSPTimerLock) {
+  PR_Lock(mSPTimerLock);
+  if (mSPTimer) {
+    mSPTimer->Cancel();
+    SavePersistentAttributes();
+    mSPTimer = nsnull;
+    NS_RELEASE_THIS(); // the timer held a reference to us
+  }
+  PR_Unlock(mSPTimerLock);
+  PR_DestroyLock(mSPTimerLock);
+  mSPTimerLock = nsnull;
   }
   return nsXULWindow::Destroy();
 }

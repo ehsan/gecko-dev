@@ -81,23 +81,23 @@ Var TmpVal
 !include defines.nsi
 !include common.nsh
 !include locales.nsi
+!include version.nsh
 
 ; This is named BrandShortName helper because we use this for software update
 ; post update cleanup.
 VIAddVersionKey "FileDescription" "${BrandShortName} Helper"
 VIAddVersionKey "OriginalFilename" "helper.exe"
 
+; Most commonly used macros for managing shortcuts
+!insertmacro _LoggingShortcutsCommon
+
 !insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
 !insertmacro ElevateUAC
+!insertmacro FindSMProgramsDir
 !insertmacro GetLongPath
 !insertmacro GetPathFromString
 !insertmacro IsHandlerForInstallDir
-!insertmacro IsPinnedToTaskBar
-!insertmacro LogDesktopShortcut
-!insertmacro LogQuickLaunchShortcut
-!insertmacro LogStartMenuShortcut
-!insertmacro PinnedToStartMenuLnkCount
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
@@ -107,7 +107,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro UnloadUAC
 !insertmacro WriteRegDWORD2
 !insertmacro WriteRegStr2
-!insertmacro CheckIfRegistryKeyExists
 
 !insertmacro un.ChangeMUIHeaderImage
 !insertmacro un.CheckForFilesInUse
@@ -267,7 +266,6 @@ Section "Uninstall"
     ${un.RegCleanFileHandler}  ".shtml" "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".xht"   "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".xhtml" "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".webm"  "FirefoxHTML"
   ${EndIf}
 
   SetShellVarContext all  ; Set SHCTX to HKLM
@@ -299,9 +297,6 @@ Section "Uninstall"
     DeleteRegKey HKLM "$0"
     DeleteRegKey HKCU "$0"
     StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\${FileMainEXE}"
-    DeleteRegKey HKLM "$0"
-    DeleteRegKey HKCU "$0"
-    StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\plugin-container.exe"
     DeleteRegKey HKLM "$0"
     DeleteRegKey HKCU "$0"
     StrCpy $0 "Software\Classes\MIME\Database\Content Type\application/x-xpinstall;app=firefox"

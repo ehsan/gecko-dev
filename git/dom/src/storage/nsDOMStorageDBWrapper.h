@@ -86,8 +86,8 @@ class nsSessionStorageEntry;
 class nsDOMStorageDBWrapper
 {
 public:
-  nsDOMStorageDBWrapper();
-  ~nsDOMStorageDBWrapper();
+  nsDOMStorageDBWrapper() {}
+  ~nsDOMStorageDBWrapper() {}
 
   nsresult
   Init();
@@ -96,7 +96,7 @@ public:
    * Retrieve a list of all the keys associated with a particular domain.
    */
   nsresult
-  GetAllKeys(DOMStorageImpl* aStorage,
+  GetAllKeys(nsDOMStorage* aStorage,
              nsTHashtable<nsSessionStorageEntry>* aKeys);
 
   /**
@@ -105,7 +105,7 @@ public:
    * @throws NS_ERROR_DOM_NOT_FOUND_ERR if key not found
    */
   nsresult
-  GetKeyValue(DOMStorageImpl* aStorage,
+  GetKeyValue(nsDOMStorage* aStorage,
               const nsAString& aKey,
               nsAString& aValue,
               PRBool* aSecure);
@@ -114,7 +114,7 @@ public:
    * Set the value and secure flag for a key in storage.
    */
   nsresult
-  SetKey(DOMStorageImpl* aStorage,
+  SetKey(nsDOMStorage* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
          PRBool aSecure,
@@ -127,7 +127,7 @@ public:
    * not found.
    */
   nsresult
-  SetSecure(DOMStorageImpl* aStorage,
+  SetSecure(nsDOMStorage* aStorage,
             const nsAString& aKey,
             const PRBool aSecure);
 
@@ -135,7 +135,7 @@ public:
    * Removes a key from storage.
    */
   nsresult
-  RemoveKey(DOMStorageImpl* aStorage,
+  RemoveKey(nsDOMStorage* aStorage,
             const nsAString& aKey,
             PRBool aExcludeOfflineFromUsage,
             PRInt32 aKeyUsage);
@@ -144,7 +144,7 @@ public:
     * Remove all keys belonging to this storage.
     */
   nsresult
-  ClearStorage(DOMStorageImpl* aStorage);
+  ClearStorage(nsDOMStorage* aStorage);
 
   /**
    * Drop session-only storage for a specific host and all it's subdomains
@@ -182,7 +182,7 @@ public:
     * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
+  GetUsage(nsDOMStorage* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
@@ -216,32 +216,10 @@ public:
   static nsresult GetDomainFromScopeKey(const nsACString& aScope,
                                          nsACString& aDomain);
 
-  /**
-   * Ensures the temp table flush timer is running. This is called when we add
-   * data that will need to be flushed.
-   */
-  void EnsureTempTableFlushTimer();
-
-  /**
-   * Called by the timer or on shutdown/profile change to flush all temporary
-   * tables that are too long in memory to disk.
-   * Set force to flush even a table doesn't meet the age limits.  Used during
-   * shutdown.
-   */
-  nsresult FlushAndDeleteTemporaryTables(bool force);
-
-  /**
-   * Stops the temp table flush timer.
-   */
-  void StopTempTableFlushTimer();
-
 protected:
-  nsDOMStoragePersistentDB mChromePersistentDB;
   nsDOMStoragePersistentDB mPersistentDB;
   nsDOMStorageMemoryDB mSessionOnlyDB;
   nsDOMStorageMemoryDB mPrivateBrowsingDB;
-
-  nsCOMPtr<nsITimer> mTempTableFlushTimer;
 };
 
 #endif /* nsDOMStorageDB_h___ */

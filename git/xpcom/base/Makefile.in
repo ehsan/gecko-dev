@@ -96,10 +96,6 @@ EXPORTS_mozilla = \
 	FunctionTimer.h \
 	$(NULL)
 
-ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-CPPSRCS += nsCrashOnException.cpp
-endif
-
 ifeq ($(OS_ARCH),WINNT)
 ifdef MOZ_DEBUG
 CSRCS		+= pure_api.c
@@ -122,7 +118,6 @@ SDK_HEADERS     = \
 		nsError.h \
 		nsISupportsBase.h \
 		nscore.h \
-		nsAtomicRefcnt.h \
 		nsCycleCollector.h \
 		nsObjCExceptions.h \
 
@@ -130,7 +125,6 @@ XPIDLSRCS	= \
 		nsIConsoleListener.idl \
 		nsIConsoleMessage.idl \
 		nsIConsoleService.idl \
-		nsICycleCollectorListener.idl \
 		nsIDebug2.idl \
 		nsIErrorService.idl \
 		nsIException.idl \

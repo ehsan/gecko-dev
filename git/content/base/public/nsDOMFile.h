@@ -40,145 +40,51 @@
 #define nsDOMFile_h__
 
 #include "nsICharsetDetectionObserver.h"
-#include "nsIFile.h"
 #include "nsIDOMFile.h"
+#include "nsIDOMFileInternal.h"
 #include "nsIDOMFileList.h"
 #include "nsIDOMFileError.h"
 #include "nsIInputStream.h"
-#include "nsIJSNativeInitializer.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "mozilla/AutoRestore.h"
 #include "nsString.h"
-#include "nsIXMLHttpRequest.h"
-#include "prmem.h"
-#include "nsAutoPtr.h"
+#include "nsIWeakReference.h"
+#include "nsIWeakReferenceUtils.h"
+#include "nsIDocument.h"
 
+class nsIDOMDocument;
 class nsIFile;
 class nsIInputStream;
-class nsIClassInfo;
-class nsIBlobBuilder;
-
-nsresult NS_NewBlobBuilder(nsISupports* *aSupports);
-void ParseSize(PRInt64 aSize, PRInt64& aStart, PRInt64& aEnd);
 
 class nsDOMFile : public nsIDOMFile,
-                  public nsIXHRSendable,
-                  public nsIJSNativeInitializer
+                  public nsIDOMFileInternal,
+                  public nsICharsetDetectionObserver
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMBLOB
   NS_DECL_NSIDOMFILE
-  NS_DECL_NSIXHRSENDABLE
+  NS_DECL_NSIDOMFILEINTERNAL
 
-  nsDOMFile(nsIFile *aFile, const nsAString& aContentType)
+  nsDOMFile(nsIFile *aFile, nsIDocument* aRelatedDoc)
     : mFile(aFile),
-      mContentType(aContentType),
-      mIsFullFile(true)
+      mRelatedDoc(do_GetWeakReference(aRelatedDoc))
   {}
+  ~nsDOMFile() {}
 
-  nsDOMFile(nsIFile *aFile)
-    : mFile(aFile),
-      mIsFullFile(true)
-  {}
+  // from nsICharsetDetectionObserver
+  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf);
 
-  nsDOMFile(const nsDOMFile* aOther, PRUint64 aStart, PRUint64 aLength,
-            const nsAString& aContentType)
-    : mFile(aOther->mFile),
-      mStart(aOther->mIsFullFile ? aStart :
-                                   (aOther->mStart + aStart)),
-      mLength(aLength),
-      mContentType(aContentType),
-      mIsFullFile(false)
-  {
-    NS_ASSERTION(mFile, "must have file");
-    // Ensure non-null mContentType
-    mContentType.SetIsVoid(PR_FALSE);
-  }
-
-  virtual ~nsDOMFile() {}
-
-  // nsIJSNativeInitializer
-  NS_IMETHOD Initialize(nsISupports* aOwner,
-                        JSContext* aCx,
-                        JSObject* aObj,
-                        PRUint32 aArgc,
-                        jsval* aArgv);
-
-  // DOMClassInfo constructor (for File("foo"))
-  static nsresult
-  NewFile(nsISupports* *aNewObject);
-
-protected:
+private:
   nsCOMPtr<nsIFile> mFile;
-
-  // start and length in 
-  PRUint64 mStart;
-  PRUint64 mLength;
-
+  nsWeakPtr mRelatedDoc;
   nsString mContentType;
-  
-  bool mIsFullFile;
-};
+  nsString mURL;
+  nsCString mCharset;
 
-class nsDOMMemoryFile : public nsDOMFile
-{
-public:
-  nsDOMMemoryFile(void *aMemoryBuffer,
-                  PRUint64 aLength,
-                  const nsAString& aName,
-                  const nsAString& aContentType)
-    : nsDOMFile(nsnull, aContentType),
-      mDataOwner(new DataOwner(aMemoryBuffer)),
-      mName(aName)
-  {
-    mStart = 0;
-    mLength = aLength;
-  }
-
-  nsDOMMemoryFile(const nsDOMMemoryFile* aOther, PRUint64 aStart,
-                  PRUint64 aLength, const nsAString& aContentType)
-    : nsDOMFile(nsnull, aContentType),
-      mDataOwner(aOther->mDataOwner)
-  {
-    NS_ASSERTION(mDataOwner && mDataOwner->mData, "must have data");
-
-    mIsFullFile = false;
-    mStart = aOther->mStart + aStart;
-    mLength = aLength;
-
-    // Ensure non-null mContentType
-    mContentType.SetIsVoid(PR_FALSE);
-  }
-
-  NS_IMETHOD GetName(nsAString&);
-  NS_IMETHOD GetSize(PRUint64*);
-  NS_IMETHOD GetInternalStream(nsIInputStream**);
-  NS_IMETHOD GetMozFullPathInternal(nsAString&);
-  NS_IMETHOD MozSlice(PRInt64 aStart, PRInt64 aEnd,
-                      const nsAString& aContentType, PRUint8 optional_argc,
-                      nsIDOMBlob **aBlob);
-
-protected:
-  friend class DataOwnerAdapter; // Needs to see DataOwner
-  class DataOwner {
-  public:
-    NS_INLINE_DECL_REFCOUNTING(DataOwner)
-    DataOwner(void* aMemoryBuffer)
-      : mData(aMemoryBuffer)
-    {
-    }
-    ~DataOwner() {
-      PR_Free(mData);
-    }
-    void* mData;
-  };
-
-  // Used when backed by a memory store
-  nsRefPtr<DataOwner> mDataOwner;
-
-  nsString mName;
+  nsresult GuessCharset(nsIInputStream *aStream,
+                        nsACString &aCharset);
+  nsresult ConvertStream(nsIInputStream *aStream, const char *aCharset,
+                         nsAString &aResult);
 };
 
 class nsDOMFileList : public nsIDOMFileList
@@ -228,16 +134,6 @@ public:
 
 private:
   PRUint16 mCode;
-};
-
-class NS_STACK_CLASS nsDOMFileInternalUrlHolder {
-public:
-  nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile, nsIPrincipal* aPrincipal
-                             MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM);
-  ~nsDOMFileInternalUrlHolder();
-  nsAutoString mUrl;
-private:
-  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 #endif

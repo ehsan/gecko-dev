@@ -480,8 +480,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCharsetMenu)
   cb.NoteXPCOMChild(nsCharsetMenu::mInner);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCharsetMenu)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCharsetMenu)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsCharsetMenu, nsIRDFDataSource)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsCharsetMenu, nsIRDFDataSource)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCharsetMenu)
   NS_INTERFACE_MAP_ENTRY(nsIRDFDataSource)
   NS_INTERFACE_MAP_ENTRY(nsICurrentCharsetListener)
@@ -1270,27 +1270,27 @@ nsresult nsCharsetMenu::InitMoreSubmenus(nsTArray<nsCString>& aDecs)
   res = NewRDFContainer(mInner, kNC_BrowserMore1CharsetMenuRoot, 
     getter_AddRefs(container1));
   if (NS_FAILED(res)) return res;
-  AddFromNolocPrefsToMenu(NULL, container1, key1, aDecs, NULL);
+  AddFromPrefsToMenu(NULL, container1, key1, aDecs, NULL);
 
   res = NewRDFContainer(mInner, kNC_BrowserMore2CharsetMenuRoot, 
     getter_AddRefs(container2));
   if (NS_FAILED(res)) return res;
-  AddFromNolocPrefsToMenu(NULL, container2, key2, aDecs, NULL);
+  AddFromPrefsToMenu(NULL, container2, key2, aDecs, NULL);
 
   res = NewRDFContainer(mInner, kNC_BrowserMore3CharsetMenuRoot, 
     getter_AddRefs(container3));
   if (NS_FAILED(res)) return res;
-  AddFromNolocPrefsToMenu(NULL, container3, key3, aDecs, NULL);
+  AddFromPrefsToMenu(NULL, container3, key3, aDecs, NULL);
 
   res = NewRDFContainer(mInner, kNC_BrowserMore4CharsetMenuRoot, 
     getter_AddRefs(container4));
   if (NS_FAILED(res)) return res;
-  AddFromNolocPrefsToMenu(NULL, container4, key4, aDecs, NULL);
+  AddFromPrefsToMenu(NULL, container4, key4, aDecs, NULL);
 
   res = NewRDFContainer(mInner, kNC_BrowserMore5CharsetMenuRoot, 
     getter_AddRefs(container5));
   if (NS_FAILED(res)) return res;
-  AddFromNolocPrefsToMenu(NULL, container5, key5, aDecs, NULL);
+  AddFromPrefsToMenu(NULL, container5, key5, aDecs, NULL);
 
   res = NewRDFContainer(mInner, kNC_BrowserUnicodeCharsetMenuRoot, 
     getter_AddRefs(containerU));

@@ -41,21 +41,12 @@
  * @version 1.0.0
  */
 
-const MODULE_NAME = 'ToolbarAPI';
+var MODULE_NAME = 'ToolbarAPI';
 
-const RELATIVE_ROOT = '.';
-const MODULE_REQUIRES = ['UtilsAPI'];
+const gTimeout = 5000;
 
-const TIMEOUT = 5000;
-
-const AUTOCOMPLETE_POPUP = '/id("main-window")/id("mainPopupSet")/id("PopupAutoCompleteRichResult")';
-const NOTIFICATION_POPUP = '/id("main-window")/id("mainPopupSet")/id("notification-popup")';
-const URLBAR_CONTAINER = '/id("main-window")/id("tab-view-deck")/{"flex":"1"}' +
-                         '/id("navigator-toolbox")/id("nav-bar")/id("urlbar-container")';
-const URLBAR_INPUTBOX = URLBAR_CONTAINER + '/id("urlbar")/anon({"anonid":"stack"})' + 
-                                           '/anon({"anonid":"textbox-container"})' + 
-                                           '/anon({"anonid":"textbox-input-box"})';
-const CONTEXT_MENU = URLBAR_INPUTBOX + '/anon({"anonid":"input-box-contextmenu"})';
+const autocompletePopup = '/id("main-window")/id("mainPopupSet")/id("PopupAutoCompleteRichResult")';
+const urlbarContainer = '/id("main-window")/id("navigator-toolbox")/id("nav-bar")/id("urlbar-container")';
 
 /**
  * Constructor
@@ -166,7 +157,7 @@ autoCompleteResults.prototype = {
         description = result.getNode().boxObject.firstChild.childNodes[1].childNodes[0];
         break;
       case "url":
-        description = result.getNode().boxObject.lastChild.childNodes[2].childNodes[0];
+        description = result.getNode().boxObject.lastChild.childNodes[1].childNodes[0];
         break;
       default:
         throw new Error(arguments.callee.name + ": Type unknown - " + type);
@@ -181,16 +172,6 @@ autoCompleteResults.prototype = {
     }
 
     return values;
-  },
-
-  /**
-   * Gets all the needed external DTD urls as an array
-   *
-   * @returns Array of external DTD urls
-   * @type [string]
-   */
-  getDtds : function autoCompleteResults_getDtds() {
-    return null;
   },
 
   /**
@@ -213,11 +194,11 @@ autoCompleteResults.prototype = {
        * value: value to match
        */
       case "popup":
-        elem = new elementslib.Lookup(this._controller.window.document, AUTOCOMPLETE_POPUP);
+        elem = new elementslib.Lookup(this._controller.window.document, autocompletePopup);
         break;
       case "results":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      AUTOCOMPLETE_POPUP + '/anon({"anonid":"richlistbox"})');
+                                      autocompletePopup + '/anon({"anonid":"richlistbox"})');
         break;
       case "result":
         elem = new elementslib.Elem(this._results.getNode().getItemAtIndex(spec.value));
@@ -252,7 +233,6 @@ function locationBar(controller)
 {
   this._controller = controller;
   this._autoCompleteResults = new autoCompleteResults(controller);
-  this._utilsApi = collector.getModule('UtilsAPI');
 }
 
 /**
@@ -306,15 +286,7 @@ locationBar.prototype = {
     this.focus({type: "shortcut"});
     this._controller.keypress(this.urlbar, "VK_DELETE", {});
     this._controller.waitForEval("subject.value == ''",
-                                 TIMEOUT, 100, this.urlbar.getNode());
-  },
-
-  /**
-   * Close the context menu of the urlbar input field
-   */
-  closeContextMenu : function locationBar_closeContextMenu() {
-    var menu = this.getElement({type: "contextMenu"});
-    this._controller.keypress(menu, "VK_ESCAPE", {});
+                                 gTimeout, 100, this.urlbar.getNode());
   },
 
   /**
@@ -339,8 +311,7 @@ locationBar.prototype = {
         this._controller.click(this.urlbar);
         break;
       case "shortcut":
-        var cmdKey = this._utilsApi.getEntity(this.getDtds(), "openCmd.commandkey");
-        this._controller.keypress(null, cmdKey, {accelKey: true});
+        this._controller.keypress(null, "l", {accelKey: true});
         break;
       default:
         throw new Error(arguments.callee.name + ": Unkown event type - " + event.type);
@@ -348,19 +319,7 @@ locationBar.prototype = {
 
     // Wait until the location bar has been focused
     this._controller.waitForEval("subject.getAttribute('focused') == 'true'",
-                                 TIMEOUT, 100, this.urlbar.getNode());
-  },
-
-  /**
-   * Gets all the needed external DTD urls as an array
-   *
-   * @returns Array of external DTD urls
-   * @type [string]
-   */
-  getDtds : function locationBar_getDtds() {
-    var dtds = ["chrome://branding/locale/brand.dtd",
-                "chrome://browser/locale/browser.dtd"];
-    return dtds;
+                                 gTimeout, 100, this.urlbar.getNode());
   },
 
   /**
@@ -382,13 +341,6 @@ locationBar.prototype = {
        * subtype: subtype to match
        * value: value to match
        */
-      case "contextMenu":
-        elem = new elementslib.Lookup(this._controller.window.document, CONTEXT_MENU);
-        break;
-      case "contextMenu_entry":
-        elem = new elementslib.Lookup(this._controller.window.document, CONTEXT_MENU +
-                                      '/{"cmd":"cmd_' + spec.subtype + '"}');
-        break;
       case "favicon":
         elem = new elementslib.ID(this._controller.window.document, "page-proxy-favicon");
         break;
@@ -396,18 +348,14 @@ locationBar.prototype = {
         elem = new elementslib.ID(this._controller.window.document, "feed-button");
         break;
       case "goButton":
-        elem = new elementslib.ID(this._controller.window.document, "urlbar-go-button");
+        elem = new elementslib.ID(this._controller.window.document, "go-button");
         break;
       case "historyDropMarker":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      URLBAR_CONTAINER + '/id("urlbar")/anon({"anonid":"historydropmarker"})');
+                                      urlbarContainer + '/id("urlbar")/anon({"anonid":"historydropmarker"})');
         break;
       case "identityBox":
         elem = new elementslib.ID(this._controller.window.document, "identity-box");
-        break;
-      case "notification_element":
-        elem = new elementslib.Lookup(this._controller.window.document, NOTIFICATION_POPUP +
-                                      spec.subtype);
         break;
       case "starButton":
         elem = new elementslib.ID(this._controller.window.document, "star-button");
@@ -415,36 +363,11 @@ locationBar.prototype = {
       case "urlbar":
         elem = new elementslib.ID(this._controller.window.document, "urlbar");
         break;
-      case "urlbar_input":
-        elem = new elementslib.Lookup(this._controller.window.document, URLBAR_INPUTBOX +
-                                      '/anon({"anonid":"input"})');
-        break;
       default:
         throw new Error(arguments.callee.name + ": Unknown element type - " + spec.type);
     }
 
     return elem;
-  },
-
-  /**
-   * Retrieves the specified element of the door hanger notification bar
-   *
-   * @param {string} aType
-   *        Type of the notification bar to look for
-   * @param {string} aLookupString
-   *        Lookup string of the notification bar's child element
-   *        [optional - default: ""]
-   *
-   * @return The created element
-   * @type {ElemBase}
-   */
-  getNotificationElement : function locationBar_getNotificationElement(aType, aLookupString)
-  {
-    var lookup = '/id("' + aType + '")';
-    lookup = aLookupString ? lookup + aLookupString : lookup;
-
-    // Get the notification and fetch the child element if wanted
-    return this.getElement({type: "notification_element", subtype: lookup});
   },
 
   /**
@@ -468,7 +391,7 @@ locationBar.prototype = {
 
     this._controller.click(dropdown);
     this._controller.waitForEval("subject.isOpened == " + stateOpen,
-                                 TIMEOUT, 100, this.autoCompleteResults);
+                                 gTimeout, 100, this.autoCompleteResults);
   },
 
   /**

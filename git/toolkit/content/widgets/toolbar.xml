@@ -24,11 +24,7 @@
       <field name="customToolbarCount">
         0
       </field>
-
-      <field name="externalToolbars">
-       []
-      </field>
-
+      
       <!-- Set by customizeToolbar.js -->
       <property name="customizing">
         <getter><![CDATA[
@@ -99,47 +95,13 @@
                 onget="return this.getAttribute('toolbarname');"
                 onset="this.setAttribute('toolbarname', val); return val;"/>
 
-      <field name="_toolbox">null</field>
-      <property name="toolbox" readonly="true">
-        <getter><![CDATA[
-          if (this._toolbox)
-            return this._toolbox;
-
-          let toolboxId = this.getAttribute("toolboxid");
-          if (toolboxId) {
-            let toolbox = document.getElementById(toolboxId);
-            if (!toolbox)
-              throw("toolboxid attribute points to a toolbox which doesn't exist");
-
-            toolbox.externalToolbars.push(this);
-            return this._toolbox = toolbox;
-          }
-
-          return this._toolbox = (this.parentNode &&
-                                  this.parentNode.localName == "toolbox") ?
-                                 this.parentNode : null;
-        ]]></getter>
-      </property>
+      <field name="toolbox" readonly="true">
+      <![CDATA[
+        this.parentNode && this.parentNode.localName == "toolbox" ? this.parentNode : null;
+      ]]>
+      </field>
 
       <constructor>
-        <![CDATA[
-          if (document.readyState == "complete") {
-            this._init();
-          } else {
-            // Need to wait until XUL overlays are loaded. See bug 554279.
-            let self = this;
-            document.addEventListener("readystatechange", function (event) {
-              if (document.readyState != "complete")
-                return;
-              document.removeEventListener("readystatechange", arguments.callee, false);
-              self._init();
-            }, false);
-          }
-        ]]>
-      </constructor>
-
-      <method name="_init">
-        <body>
         <![CDATA[
           // Searching for the toolbox palette in the toolbar binding because
           // toolbars are constructed first.
@@ -171,8 +133,7 @@
           if (currentSet)
             this.currentSet = currentSet;
         ]]>
-        </body>
-      </method>
+      </constructor>
 
       <method name="_idFromNode">
         <parameter name="aNode"/>
@@ -231,6 +192,7 @@
             // iterate over the ids to use on the toolbar
             for (let i = 0; i < ids.length; i++) {
               let  id = ids[i];
+
               // iterate over the existing nodes on the toolbar. nodeidx is the
               // spot where we want to insert items.
               for (let c = nodeidx; c < children.length; c++) {
@@ -278,7 +240,6 @@
         </setter>
       </property>
 
-      <field name="_newElementCount">0</field>
       <method name="_getToolbarItem">
         <parameter name="aId"/>
         <body>
@@ -293,10 +254,7 @@
               case "spring":
               case "spacer":
                 newItem = document.createElementNS(XUL_NS, "toolbar" + aId);
-                // Due to timers resolution Date.now() can be the same for
-                // elements created in small timeframes.  So ids are
-                // differentiated through a unique count suffix.
-                newItem.id = aId + Date.now() + (++this._newElementCount);
+                newItem.id = aId + Date.now() + this.childNodes.length;
                 if (aId == "spring")
                   newItem.flex = 1;
                 break;
@@ -475,7 +433,7 @@
   <binding id="toolbar-drag"
            extends="chrome://global/content/bindings/toolbar.xml#toolbar">
     <implementation>
-      <field name="_dragBindingAlive">true</field>
+      <field name="_alive">true</field>
       <constructor><![CDATA[
         if (!this._draggableStarted) {
           this._draggableStarted = true;
@@ -485,9 +443,8 @@
             let draggableThis = new tmp.WindowDraggingElement(this, window);
             draggableThis.mouseDownCheck = function(e) {
               // Don't move while customizing.
-              return this._dragBindingAlive &&
-                     this.getAttribute("customizing") != "true";
-            };
+              return !this.parentNode.customizing;
+            }
           } catch (e) {}
         }
       ]]></constructor>

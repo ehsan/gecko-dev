@@ -439,8 +439,8 @@ class TestTransaction : public nsITransaction
 {
 public:
 
-  TestTransaction() {}
-  virtual ~TestTransaction() {}
+  TestTransaction() { }
+  virtual ~TestTransaction()     {}
 
   NS_DECL_ISUPPORTS
 };
@@ -569,7 +569,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD Merge(nsITransaction *aTransaction, PRBool *aDidMerge)
+  NS_IMETHOD Merge(nsITransaction *aTransaction, PRBool *aDidMerge) 
   {
     if (aDidMerge)
       *aDidMerge = (mFlags & MERGE_FLAG) ? PR_TRUE : PR_FALSE;
@@ -784,8 +784,6 @@ reset_globals()
 nsresult
 quick_test(TestTransactionFactory *factory)
 {
-  nsresult result;
-
   /*******************************************************************
    *
    * Create a transaction manager implementation:
@@ -794,8 +792,15 @@ quick_test(TestTransactionFactory *factory)
 
   printf("Create transaction manager instance ... ");
 
-  nsCOMPtr<nsITransactionManager> mgr =
-    do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
+  PRInt32 i, numitems = 0;
+  nsCOMPtr<nsITransactionManager> mgr;
+  nsITransaction  *tx        = 0;
+  TestTransaction *tximpl    = 0;
+  nsITransaction *u1 = 0, *u2 = 0;
+  nsITransaction *r1 = 0, *r2 = 0;
+  nsresult result;
+
+  mgr = do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
   if (NS_FAILED(result) || !mgr) {
     printf("ERROR: Failed to create Transaction Manager instance.\n");
     return NS_ERROR_OUT_OF_MEMORY;
@@ -915,13 +920,13 @@ quick_test(TestTransactionFactory *factory)
 
   printf("passed\n");
 
-  PRInt32 numitems;
-
   /*******************************************************************
    *
    * Call GetNumberOfUndoItems() with an empty undo stack:
    *
    *******************************************************************/
+
+  numitems = 0;
 
   printf("Call GetNumberOfUndoItems() with empty undo stack ... ");
   result = mgr->GetNumberOfUndoItems(&numitems);
@@ -962,8 +967,6 @@ quick_test(TestTransactionFactory *factory)
   }
 
   printf("passed\n");
-
-  nsITransaction *tx;
 
   /*******************************************************************
    *
@@ -1048,11 +1051,6 @@ quick_test(TestTransactionFactory *factory)
   }
 
   printf("passed\n");
-
-  PRInt32 i;
-  TestTransaction *tximpl;
-  nsITransaction *u1, *u2;
-  nsITransaction *r1, *r2;
 
   /*******************************************************************
    *
@@ -1498,7 +1496,7 @@ quick_test(TestTransactionFactory *factory)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  tx = 0;
+  tx     = 0;
 
   result = tximpl->QueryInterface(NS_GET_IID(nsITransaction), (void **)&tx);
 
@@ -1704,7 +1702,7 @@ quick_test(TestTransactionFactory *factory)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  tx = 0;
+  tx     = 0;
 
   result = tximpl->QueryInterface(NS_GET_IID(nsITransaction), (void **)&tx);
 
@@ -1815,7 +1813,7 @@ quick_test(TestTransactionFactory *factory)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  tx = 0;
+  tx     = 0;
 
   result = tximpl->QueryInterface(NS_GET_IID(nsITransaction), (void **)&tx);
 
@@ -1933,7 +1931,7 @@ quick_test(TestTransactionFactory *factory)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  tx = 0;
+  tx     = 0;
 
   result = tximpl->QueryInterface(NS_GET_IID(nsITransaction), (void **)&tx);
 
@@ -1963,7 +1961,7 @@ quick_test(TestTransactionFactory *factory)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  tx = 0;
+  tx     = 0;
 
   result = tximpl->QueryInterface(NS_GET_IID(nsITransaction), (void **)&tx);
 
@@ -2766,8 +2764,6 @@ aggregation_test()
 nsresult
 quick_batch_test(TestTransactionFactory *factory)
 {
-  nsresult result;
-
   /*******************************************************************
    *
    * Create a transaction manager implementation:
@@ -2776,16 +2772,21 @@ quick_batch_test(TestTransactionFactory *factory)
 
   printf("Create transaction manager instance ... ");
 
-  nsCOMPtr<nsITransactionManager> mgr =
-    do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
+  PRInt32 i, numitems = 0;
+  nsCOMPtr<nsITransactionManager> mgr;
+  nsITransaction *tx          = 0;
+  TestTransaction *tximpl   = 0;
+  nsITransaction *u1 = 0, *u2 = 0;
+  nsITransaction *r1 = 0, *r2 = 0;
+  nsresult result;
+
+  mgr = do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
   if (NS_FAILED(result) || !mgr) {
     printf("ERROR: Failed to create Transaction Manager instance.\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   printf("passed\n");
-
-  PRInt32 numitems;
 
   /*******************************************************************
    *
@@ -2901,10 +2902,6 @@ quick_batch_test(TestTransactionFactory *factory)
 
   printf("passed\n");
 
-  PRInt32 i;
-  TestTransaction *tximpl;
-  nsITransaction *tx;
-
   /*******************************************************************
    *
    * Execute 20 transactions. Afterwards, we should have 1
@@ -2982,9 +2979,6 @@ quick_batch_test(TestTransactionFactory *factory)
   }
 
   printf("passed\n");
-
-  nsITransaction *u1, *u2;
-  nsITransaction *r1, *r2;
 
   /*******************************************************************
    *
@@ -4478,10 +4472,8 @@ aggregation_batch_test()
 nsresult
 stress_test(TestTransactionFactory *factory, PRInt32 iterations)
 {
-  printf("Stress test of %i iterations (may take a while) ... ", iterations);
+  printf("Stress test (may take a while) ... ");
   fflush(stdout);
-
-  nsresult result;
 
   /*******************************************************************
    *
@@ -4489,15 +4481,16 @@ stress_test(TestTransactionFactory *factory, PRInt32 iterations)
    *
    *******************************************************************/
 
-  nsCOMPtr<nsITransactionManager> mgr =
-    do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
+  PRInt32 i, j;
+  nsCOMPtr<nsITransactionManager> mgr;
+  nsITransaction *tx          = 0;
+  nsresult result;
+
+  mgr = do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
   if (NS_FAILED(result) || !mgr) {
     printf("ERROR: Failed to create Transaction Manager instance.\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
-  PRInt32 i, j;
-  nsITransaction *tx;
 
   for (i = 1; i <= iterations; i++) {
     /*******************************************************************
@@ -4575,11 +4568,7 @@ stress_test(TestTransactionFactory *factory, PRInt32 iterations)
         return result;
       }
     }
-
-    // Trivial feedback not to let the user think the test is stuck.
-    if (NS_UNLIKELY(j % 100 == 0))
-      printf("%i ", j);
-  } // for, iterations.
+  }
 
   result = mgr->Clear();
   if (NS_FAILED(result)) {
@@ -4623,17 +4612,10 @@ simple_stress_test()
 
   SimpleTransactionFactory factory;
 
-  PRInt32 iterations =
-#ifdef DEBUG
-  10
-#else
   //
   // 1500 iterations sends 1,125,750 transactions through the system!!
   //
-  1500
-#endif
-  ;
-  return stress_test(&factory, iterations);
+  return stress_test(&factory, 1500);
 }
 
 nsresult
@@ -4659,17 +4641,10 @@ aggregation_stress_test()
 
   AggregateTransactionFactory factory(3, 4);
 
-  PRInt32 iterations =
-#ifdef DEBUG
-  10
-#else
   //
   // 500 iterations sends 2,630,250 transactions through the system!!
   //
-  500
-#endif
-  ;
-  return stress_test(&factory, iterations);
+  return stress_test(&factory, 500);
 }
 
 nsresult
@@ -4695,17 +4670,10 @@ aggregation_batch_stress_test()
 
   AggregateTransactionFactory factory(3, 4, BATCH_FLAG);
 
-  PRInt32 iterations =
-#ifdef DEBUG
-  10
-#else
   //
   // 500 iterations sends 2,630,250 transactions through the system!!
   //
-  iterations = 500
-#endif
-  ;
-  return stress_test(&factory, iterations);
+  return stress_test(&factory, 500);
 }
 
 int

@@ -40,10 +40,7 @@ MODULES_ZLIB_SRC_LCSRCS = \
 		compress.c \
 		crc32.c \
 		deflate.c \
-		gzclose.c \
-		gzlib.c \
-		gzread.c \
-		gzwrite.c \
+		gzio.c \
 		infback.c \
 		inffast.c \
 		inflate.c \

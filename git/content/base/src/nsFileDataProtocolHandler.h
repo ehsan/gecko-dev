@@ -41,7 +41,7 @@
 
 #define FILEDATA_SCHEME "moz-filedata"
 
-class nsIDOMBlob;
+class nsIFile;
 class nsIPrincipal;
 
 class nsFileDataProtocolHandler : public nsIProtocolHandler
@@ -57,11 +57,9 @@ public:
   virtual ~nsFileDataProtocolHandler() {}
 
   // Methods for managing uri->file mapping
-  static void AddFileDataEntry(nsACString& aUri,
-			       nsIDOMBlob* aFile,
+  static void AddFileDataEntry(nsACString& aUri, nsIFile* aFile,
                                nsIPrincipal* aPrincipal);
   static void RemoveFileDataEntry(nsACString& aUri);
-  static nsIPrincipal* GetFileDataEntryPrincipal(nsACString& aUri);
   
 };
 

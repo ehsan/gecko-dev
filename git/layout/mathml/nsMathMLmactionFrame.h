@@ -53,9 +53,6 @@ public:
   friend nsIFrame* NS_NewMathMLmactionFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  TransmitAutomaticData();
-
-  NS_IMETHOD
   Init(nsIContent*      aContent,
        nsIFrame*        aParent,
        nsIFrame*        aPrevInFlow);
@@ -72,7 +69,7 @@ public:
                               const nsDisplayListSet& aLists);
 
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 

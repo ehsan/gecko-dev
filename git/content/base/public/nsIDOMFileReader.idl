@@ -38,15 +38,15 @@
 #include "nsIDOMEventTarget.idl"
 
 interface nsIDOMEventListener;
-interface nsIDOMBlob;
+interface nsIDOMFile;
 interface nsIDOMFileError;
 
-[scriptable, uuid(f186170f-f07c-4f0b-9e3c-08f7dd496e74)]
+[scriptable, uuid(5db0ce80-de44-40c0-a346-e28aac4aa978)]
 interface nsIDOMFileReader : nsISupports 
 {
-  void readAsBinaryString(in nsIDOMBlob filedata);
-  void readAsText(in nsIDOMBlob filedata, [optional] in DOMString encoding);
-  void readAsDataURL(in nsIDOMBlob file);
+  void readAsBinaryString(in nsIDOMFile filedata);
+  void readAsText(in nsIDOMFile filedata, [optional] in DOMString encoding);
+  void readAsDataURL(in nsIDOMFile file);
 
   void abort();
 
@@ -57,6 +57,9 @@ interface nsIDOMFileReader : nsISupports
 
   readonly attribute DOMString result;
   readonly attribute nsIDOMFileError error;
+
+  // event handler attributes
+  attribute nsIDOMEventListener onloadend;
 };
 
 %{ C++

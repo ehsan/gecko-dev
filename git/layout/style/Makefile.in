@@ -68,14 +68,19 @@ EXPORTS		= \
 		nsCSSPseudoElements.h \
 		nsCSSRuleProcessor.h \
 		nsCSSStyleSheet.h \
+		nsCSSStruct.h \
 		nsCSSValue.h \
 		nsDOMCSSAttrDeclaration.h \
 		nsDOMCSSDeclaration.h \
-		nsDOMMediaQueryList.h \
 		nsICSSDeclaration.h \
+		nsICSSGroupRule.h \
+		nsICSSImportRule.h \
 		nsICSSLoaderObserver.h \
+		nsICSSNameSpaceRule.h \
 		nsICSSPseudoComparator.h \
+		nsICSSRule.h \
 		nsICSSRuleList.h \
+		nsICSSStyleRule.h \
 		nsICSSStyleRuleDOMWrapper.h \
 		nsIStyleRule.h \
 		nsIStyleRuleProcessor.h \
@@ -98,29 +103,25 @@ EXPORTS		= \
 
 EXPORTS_mozilla/css = \
 		Declaration.h \
-		GroupRule.h \
-		ImportRule.h \
 		Loader.h \
-		NameSpaceRule.h \
-		Rule.h \
-		StyleRule.h \
 		$(NULL)
 
 CPPSRCS		= \
-		AnimationCommon.cpp \
 		nsCSSAnonBoxes.cpp \
 		nsCSSDataBlock.cpp \
 		Declaration.cpp \
 		nsCSSKeywords.cpp \
 		Loader.cpp \
-		nsAnimationManager.cpp \
 		nsCSSParser.cpp \
 		nsCSSProps.cpp \
 		nsCSSPseudoClasses.cpp \
 		nsCSSPseudoElements.cpp \
+		nsCSSRule.cpp \
 		nsCSSRuleProcessor.cpp \
 		nsCSSRules.cpp \
 		nsCSSScanner.cpp \
+		nsCSSStruct.cpp \
+		nsCSSStyleRule.cpp \
 		nsCSSStyleSheet.cpp \
 		nsCSSValue.cpp \
 		nsComputedDOMStyle.cpp \
@@ -129,13 +130,11 @@ CPPSRCS		= \
 		nsDOMCSSRGBColor.cpp \
 		nsDOMCSSRect.cpp \
 		nsDOMCSSValueList.cpp \
-		nsDOMMediaQueryList.cpp \
 		nsFontFaceLoader.cpp \
 		nsHTMLCSSStyleSheet.cpp \
 		nsHTMLStyleSheet.cpp \
 		nsLayoutStylesheetCache.cpp \
 		nsMediaFeatures.cpp \
-		nsNthIndexCache.cpp \
 		nsROCSSPrimitiveValue.cpp \
 		nsRuleData.cpp \
 		nsRuleNode.cpp \
@@ -147,7 +146,6 @@ CPPSRCS		= \
 		nsStyleTransformMatrix.cpp \
 		nsStyleUtil.cpp \
 		nsTransitionManager.cpp \
-		StyleRule.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

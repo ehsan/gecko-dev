@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Test harness for JSTests, controlled by manifest files.
 
 import datetime, os, sys, subprocess
@@ -43,18 +41,6 @@ def check_manifest(test_list):
     else:
         print 'All test files are listed in manifests'
 
-def print_tinderbox_result(label, path, message=None, skip=False, time=None):
-    result = label
-    result += " | " + path
-    result += " |" + OPTIONS.shell_args
-    if message:
-        result += " | " + message
-    if skip:
-        result += ' | (SKIP)'
-    if time > OPTIONS.timeout:
-        result += ' | (TIMEOUT)'
-    print result
-
 class TestTask:
     js_cmd_prefix = None
 
@@ -94,7 +80,7 @@ class ResultsSink:
     def push(self, output):
         if isinstance(output, NullTestOutput):
             if OPTIONS.tinderbox:
-                print_tinderbox_result('TEST-KNOWN-FAIL', output.test.path, time=output.dt, skip=True)
+                print '%s | %s (SKIP)' % ('TEST-KNOWN-FAIL', output.test.path)
             self.counts[2] += 1
             self.n += 1
         else:
@@ -109,8 +95,6 @@ class ResultsSink:
             result = TestResult.from_output(output)
             tup = (result.result, result.test.expect, result.test.random)
             dev_label = self.LABELS[tup][1]
-            if output.timed_out:
-                dev_label = 'TIMEOUTS'
             self.groups.setdefault(dev_label, []).append(result.test.path)
 
             self.n += 1
@@ -128,10 +112,10 @@ class ResultsSink:
                         label = self.LABELS[(sub_ok, result.test.expect, result.test.random)][0]
                         if label == 'TEST-UNEXPECTED-PASS':
                             label = 'TEST-PASS (EXPECTED RANDOM)'
-                        print_tinderbox_result(label, result.test.path, time=output.dt, message=msg)
-                print_tinderbox_result(self.LABELS[
-                    (result.result, result.test.expect, result.test.random)][0],
-                    result.test.path, time=output.dt)
+                        print '%s | %s | %s' % (label, result.test.path, msg)
+                print '%s | %s' % (self.LABELS[(result.result, 
+                                              result.test.expect, result.test.random)][0],
+                                 result.test.path)
            
         if self.pb:
             self.pb.label = '[%4d|%4d|%4d]'%tuple(self.counts)
@@ -168,7 +152,7 @@ class ResultsSink:
         if OPTIONS.failure_file:
               failure_file = open(OPTIONS.failure_file, 'w')
               if not self.all_passed():
-                  for path in self.groups['REGRESSIONS'] + self.groups['TIMEOUTS']:
+                  for path in self.groups['REGRESSIONS']:
                       print >> failure_file, path
               failure_file.close()
 
@@ -179,7 +163,7 @@ class ResultsSink:
             print 'FAIL' + suffix
 
     def all_passed(self):
-        return 'REGRESSIONS' not in self.groups and 'TIMEOUTS' not in self.groups
+        return 'REGRESSIONS' not in self.groups
 
 def run_tests(tests, results):
     """Run the given tests, sending raw results to the given results accumulator."""
@@ -245,10 +229,6 @@ if __name__ == '__main__':
                   help='write tests that have not passed to the given file')
     op.add_option('--run-slow-tests', dest='run_slow_tests', action='store_true',
                   help='run particularly slow tests as well as average-speed tests')
-    op.add_option('--xul-info', dest='xul_info_src',
-                  help='config data for xulRuntime (avoids search for config/autoconf.mk)')
-    op.add_option('--no-extensions', dest='no_extensions', action='store_true',
-                  help='run only tests conforming to the ECMAScript 5 standard')
     (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         if not OPTIONS.check_manifest:
@@ -275,7 +255,7 @@ if __name__ == '__main__':
         OPTIONS.show_output = True 
     else:
         debugger_prefix = []
-
+    
     TestTask.set_js_cmd_prefix(JS, OPTIONS.shell_args.split(), debugger_prefix)
 
     output_file = sys.stdout
@@ -299,12 +279,7 @@ if __name__ == '__main__':
     if JS is None:
         xul_tester = manifest.NullXULInfoTester()
     else:
-        if OPTIONS.xul_info_src is None:
-            xul_info = manifest.XULInfo.create(JS)
-        else:
-            xul_abi, xul_os, xul_debug = OPTIONS.xul_info_src.split(r':')
-            xul_debug = xul_debug.lower() is 'true'
-            xul_info = manifest.XULInfo(xul_abi, xul_os, xul_debug)
+        xul_info = manifest.XULInfo.create(JS)
         xul_tester = manifest.XULInfoTester(xul_info, JS)
     test_list = manifest.parse(OPTIONS.manifest, xul_tester)
 
@@ -330,10 +305,6 @@ if __name__ == '__main__':
     if OPTIONS.exclude_file:
         test_list = exclude_tests(test_list, OPTIONS.exclude_file)
 
-    if OPTIONS.no_extensions:
-        pattern = os.sep + 'extensions' + os.sep
-        test_list = [_ for _ in test_list if pattern not in _.path]
-
     if not OPTIONS.random:
         test_list = [ _ for _ in test_list if not _.random ]
 
@@ -354,13 +325,9 @@ if __name__ == '__main__':
         cmd = test_list[0].get_command(TestTask.js_cmd_prefix)
         if OPTIONS.show_cmd:
             print subprocess.list2cmdline(cmd)
-        manifest_dir = os.path.dirname(OPTIONS.manifest)
-        if manifest_dir not in ('', '.'):
-            os.chdir(os.path.dirname(OPTIONS.manifest))
         call(cmd)
         sys.exit()
 
-    results = None
     if not test_list:
         print 'no tests selected'
     else:
@@ -377,5 +344,5 @@ if __name__ == '__main__':
     if output_file != sys.stdout:
         output_file.close()
 
-    if results is None or not results.all_passed():
+    if not results.all_passed():
         sys.exit(1)

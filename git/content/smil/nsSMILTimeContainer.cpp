@@ -149,7 +149,7 @@ nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
 {
   // SVG 1.1 doesn't specify what to do for negative times so we adopt SVGT1.2's
   // behaviour of clamping negative times to 0.
-  aSeekTo = NS_MAX<nsSMILTime>(0, aSeekTo);
+  aSeekTo = PR_MAX(0, aSeekTo);
 
   // The following behaviour is consistent with:
   // http://www.w3.org/2003/01/REC-SVG11-20030114-errata
@@ -215,14 +215,6 @@ nsSMILTimeContainer::SetParent(nsSMILTimeContainer* aParent)
 {
   if (mParent) {
     mParent->RemoveChild(*this);
-    // When we're not attached to a parent time container, GetParentTime() will
-    // return 0. We need to adjust our pause state information to be relative to
-    // this new time base.
-    // Note that since "current time = parent time - parent offset" setting the
-    // parent offset and pause start as follows preserves our current time even
-    // while parent time = 0.
-    mParentOffset = -mCurrentTime;
-    mPauseStart = 0L;
   }
 
   mParent = aParent;
@@ -322,7 +314,6 @@ nsSMILTimeContainer::UpdateCurrentTime()
 {
   nsSMILTime now = IsPaused() ? mPauseStart : GetParentTime();
   mCurrentTime = now - mParentOffset;
-  NS_ABORT_IF_FALSE(mCurrentTime >= 0, "Container has negative time");
 }
 
 void

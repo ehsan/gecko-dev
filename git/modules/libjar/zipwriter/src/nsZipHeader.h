@@ -78,7 +78,6 @@ public:
         mDisk(0),
         mIAttr(0),
         mInited(PR_FALSE),
-        mWriteOnClose(PR_FALSE),
         mExtraField(NULL),
         mLocalExtraField(NULL)
     {
@@ -106,7 +105,6 @@ public:
     PRUint16 mDisk;
     PRUint16 mIAttr;
     PRPackedBool mInited;
-    PRPackedBool mWriteOnClose;
     nsCString mName;
     nsCString mComment;
     nsAutoArrayPtr<PRUint8> mExtraField;

@@ -40,9 +40,7 @@
 extern PLDHashTable			gHashTable;
 extern PRBool               gDirty;
 
-struct PrefTuple;
-
-enum pref_SaveTypes { SAVE_NONSHARED, SAVE_SHARED, SAVE_ALL, SAVE_ALL_AND_DEFAULTS };
+enum pref_SaveTypes { SAVE_NONSHARED, SAVE_SHARED, SAVE_ALL };
 
 // Passed as the arg to pref_savePref
 struct pref_saveArgs {
@@ -53,13 +51,4 @@ struct pref_saveArgs {
 PLDHashOperator
 pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg);
 
-PLDHashOperator
-pref_MirrorPrefs(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg);
-
-nsresult
-pref_SetPrefTuple(const PrefTuple &aPref,PRBool set_default = PR_FALSE);
-
 int pref_CompareStrings(const void *v1, const void *v2, void* unused);
-PrefHashEntry* pref_HashTableLookup(const void *key);
-
-void pref_GetTupleFromEntry(PrefHashEntry *aHashEntry, PrefTuple *aTuple);

@@ -34,7 +34,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsContentPermissionHelper.h"
+#ifdef MOZ_IPC
+#include "nsGeolocationOOP.h"
 #include "nsXULAppAPI.h"
 
 #include "mozilla/dom/PBrowserChild.h"
@@ -52,6 +53,7 @@
 
 #include "nsDOMEventTargetHelper.h"
 #include "TabChild.h"
+#endif
 
 #include "nsGeolocation.h"
 #include "nsAutoPtr.h"
@@ -69,12 +71,14 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "nsIJSContextStack.h"
-#include "nsThreadUtils.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
 
 #include <math.h>
+
+#ifdef WINCE_WINDOWS_MOBILE
+#include "WinMobileLocationProvider.h"
+#endif
 
 #ifdef MOZ_MAEMO_LIBLOCATION
 #include "MaemoLocationProvider.h"
@@ -92,79 +96,7 @@
 #define MAX_GEO_REQUESTS_PER_WINDOW  1500
 
 using mozilla::unused;          // <snicker>
-using namespace mozilla;
 using namespace mozilla::dom;
-
-class RequestPromptEvent : public nsRunnable
-{
-public:
-  RequestPromptEvent(nsGeolocationRequest* request)
-    : mRequest(request)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    nsCOMPtr<nsIContentPermissionPrompt> prompt = do_GetService(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
-    if (prompt) {
-      prompt->Prompt(mRequest);
-    }
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsGeolocationRequest> mRequest;
-};
-
-class RequestAllowEvent : public nsRunnable
-{
-public:
-  RequestAllowEvent(int allow, nsGeolocationRequest* request)
-    : mAllow(allow),
-      mRequest(request)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    if (mAllow)
-      mRequest->Allow();
-    else
-      mRequest->Cancel();
-    return NS_OK;
-  }
-
-private:
-  PRBool mAllow;
-  nsRefPtr<nsGeolocationRequest> mRequest;
-};
-
-class RequestSendLocationEvent : public nsRunnable
-{
-public:
-  // a bit funky.  if locator is passed, that means this
-  // event should remove the request from it.  If we ever
-  // have to do more, then we can change this around.
-  RequestSendLocationEvent(nsIDOMGeoPosition* aPosition,
-                           nsGeolocationRequest* aRequest,
-                           nsGeolocation* aLocator = nsnull)
-    : mPosition(aPosition),
-      mRequest(aRequest),
-      mLocator(aLocator)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    mRequest->SendLocation(mPosition);
-    if (mLocator)
-      mLocator->RemoveRequest(mRequest);
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIDOMGeoPosition>    mPosition;
-  nsRefPtr<nsGeolocationRequest> mRequest;
-
-  nsRefPtr<nsGeolocation>        mLocator;
-};
 
 ////////////////////////////////////////////////////
 // nsDOMGeoPositionError
@@ -235,11 +167,10 @@ nsDOMGeoPositionError::NotifyCallback(nsIDOMGeoPositionErrorCallback* aCallback)
 nsGeolocationRequest::nsGeolocationRequest(nsGeolocation* aLocator,
                                            nsIDOMGeoPositionCallback* aCallback,
                                            nsIDOMGeoPositionErrorCallback* aErrorCallback,
-                                           nsIDOMGeoPositionOptions* aOptions,
-                                           PRBool aWatchPositionRequest)
+                                           nsIDOMGeoPositionOptions* aOptions)
   : mAllowed(PR_FALSE),
     mCleared(PR_FALSE),
-    mIsWatchPositionRequest(aWatchPositionRequest),
+    mHasSentData(PR_FALSE),
     mCallback(aCallback),
     mErrorCallback(aErrorCallback),
     mOptions(aOptions),
@@ -255,12 +186,20 @@ nsresult
 nsGeolocationRequest::Init()
 {
   // This method is called before the user has given permission for this request.
+
+  // check to see if we have a geolocation provider, if not, notify an error and bail.
+  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
+  if (!geoService->HasGeolocationProvider()) {
+    NotifyError(nsIDOMGeoPositionError::POSITION_UNAVAILABLE);
+    return NS_ERROR_FAILURE;
+  }
+
   return NS_OK;
 }
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGeolocationRequest)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContentPermissionRequest)
-  NS_INTERFACE_MAP_ENTRY(nsIContentPermissionRequest)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIGeolocationRequest)
+  NS_INTERFACE_MAP_ENTRY(nsIGeolocationRequest)
   NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
 NS_INTERFACE_MAP_END
 
@@ -288,16 +227,18 @@ nsGeolocationRequest::Notify(nsITimer* aTimer)
   // provider yet, cancel the request.  Same logic as
   // ::Cancel, just a different error
   
-  // remove ourselves from the locator's callback lists.
-  mLocator->RemoveRequest(this);
-  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
+  if (!mHasSentData) {
+    NotifyError(nsIDOMGeoPositionError::TIMEOUT);
+    // remove ourselves from the locator's callback lists.
+    mLocator->RemoveRequest(this);
+  }
 
   mTimeoutTimer = nsnull;
   return NS_OK;
 }
  
 NS_IMETHODIMP
-nsGeolocationRequest::GetUri(nsIURI * *aRequestingURI)
+nsGeolocationRequest::GetRequestingURI(nsIURI * *aRequestingURI)
 {
   NS_ENSURE_ARG_POINTER(aRequestingURI);
 
@@ -308,14 +249,7 @@ nsGeolocationRequest::GetUri(nsIURI * *aRequestingURI)
 }
 
 NS_IMETHODIMP
-nsGeolocationRequest::GetType(nsACString & aType)
-{
-  aType = "geolocation";
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGeolocationRequest::GetWindow(nsIDOMWindow * *aRequestingWindow)
+nsGeolocationRequest::GetRequestingWindow(nsIDOMWindow * *aRequestingWindow)
 {
   NS_ENSURE_ARG_POINTER(aRequestingWindow);
 
@@ -326,7 +260,7 @@ nsGeolocationRequest::GetWindow(nsIDOMWindow * *aRequestingWindow)
 }
 
 NS_IMETHODIMP
-nsGeolocationRequest::GetElement(nsIDOMElement * *aRequestingElement)
+nsGeolocationRequest::GetRequestingElement(nsIDOMElement * *aRequestingElement)
 {
   NS_ENSURE_ARG_POINTER(aRequestingElement);
   *aRequestingElement = nsnull;
@@ -336,10 +270,10 @@ nsGeolocationRequest::GetElement(nsIDOMElement * *aRequestingElement)
 NS_IMETHODIMP
 nsGeolocationRequest::Cancel()
 {
+  NotifyError(nsIDOMGeoPositionError::PERMISSION_DENIED);
+
   // remove ourselves from the locators callback lists.
   mLocator->RemoveRequest(this);
-
-  NotifyError(nsIDOMGeoPositionError::PERMISSION_DENIED);
   return NS_OK;
 }
 
@@ -385,23 +319,10 @@ nsGeolocationRequest::Allow()
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
     
-    nsCOMPtr<nsIRunnable> ev = new RequestSendLocationEvent(lastPosition, this, mLocator);
-    NS_DispatchToMainThread(ev);
+    // send the cached location
+    SendLocation(lastPosition);
   }
 
-  SetTimeoutTimer();
-
-  mAllowed = PR_TRUE;
-  return NS_OK;
-}
-
-void
-nsGeolocationRequest::SetTimeoutTimer()
-{
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-    mTimeoutTimer = nsnull;
-  }
   PRInt32 timeout;
   if (mOptions && NS_SUCCEEDED(mOptions->GetTimeout(&timeout)) && timeout > 0) {
     
@@ -411,15 +332,14 @@ nsGeolocationRequest::SetTimeoutTimer()
     mTimeoutTimer = do_CreateInstance("@mozilla.org/timer;1");
     mTimeoutTimer->InitWithCallback(this, timeout, nsITimer::TYPE_ONE_SHOT);
   }
+
+  mAllowed = PR_TRUE;
+  return NS_OK;
 }
 
 void
 nsGeolocationRequest::MarkCleared()
 {
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-    mTimeoutTimer = nsnull;
-  }
   mCleared = PR_TRUE;
 }
 
@@ -428,11 +348,6 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 {
   if (mCleared || !mAllowed)
     return;
-
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-    mTimeoutTimer = nsnull;
-  }
 
   // we should not pass null back to the DOM.
   if (!aPosition) {
@@ -451,29 +366,18 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
   JSContext* cx;
   stack->Pop(&cx);
 
-  if (mIsWatchPositionRequest)
-    SetTimeoutTimer();
-}
-
-void
-nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
-{
-  nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition, this);
-  NS_DispatchToMainThread(ev);
+  mHasSentData = PR_TRUE;
 }
 
 void
 nsGeolocationRequest::Shutdown()
 {
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-    mTimeoutTimer = nsnull;
-  }
   mCleared = PR_TRUE;
   mCallback = nsnull;
   mErrorCallback = nsnull;
 }
 
+#ifdef MOZ_IPC
 bool nsGeolocationRequest::Recv__delete__(const bool& allow)
 {
   if (allow)
@@ -482,6 +386,7 @@ bool nsGeolocationRequest::Recv__delete__(const bool& allow)
     (void) Cancel();
   return true;
 }
+#endif
 ////////////////////////////////////////////////////
 // nsGeolocationService
 ////////////////////////////////////////////////////
@@ -496,35 +401,20 @@ NS_IMPL_THREADSAFE_RELEASE(nsGeolocationService)
 
 
 static PRBool sGeoEnabled = PR_TRUE;
-static PRBool sGeoIgnoreLocationFilter = PR_FALSE;
-
 static int
 GeoEnabledChangedCallback(const char *aPrefName, void *aClosure)
 {
-  sGeoEnabled = Preferences::GetBool("geo.enabled", PR_TRUE);
+  sGeoEnabled = nsContentUtils::GetBoolPref("geo.enabled", PR_TRUE);
   return 0;
 }
-
-static int
-GeoIgnoreLocationFilterChangedCallback(const char *aPrefName, void *aClosure)
-{
-  sGeoIgnoreLocationFilter =
-    Preferences::GetBool("geo.ignore.location_filter", PR_TRUE);
-  return 0;
-}
-
 
 nsresult nsGeolocationService::Init()
 {
-  mTimeout = Preferences::GetInt("geo.timeout", 6000);
+  mTimeout = nsContentUtils::GetIntPref("geo.timeout", 6000);
 
-  Preferences::RegisterCallback(GeoIgnoreLocationFilterChangedCallback,
-                                "geo.ignore.location_filter");
-
-  GeoIgnoreLocationFilterChangedCallback("geo.ignore.location_filter", nsnull);
-
-
-  Preferences::RegisterCallback(GeoEnabledChangedCallback, "geo.enabled");
+  nsContentUtils::RegisterPrefCallback("geo.enabled",
+                                       GeoEnabledChangedCallback,
+                                       nsnull);
 
   GeoEnabledChangedCallback("geo.enabled", nsnull);
 
@@ -571,6 +461,12 @@ nsresult nsGeolocationService::Init()
   }
 
   // we should move these providers outside of this file! dft
+
+#ifdef WINCE_WINDOWS_MOBILE
+  provider = new WinMobileLocationProvider();
+  if (provider)
+    mProviders.AppendObject(provider);
+#endif
 
 #ifdef MOZ_MAEMO_LIBLOCATION
   provider = new MaemoLocationProvider();
@@ -632,11 +528,98 @@ nsGeolocationService::Observe(nsISupports* aSubject,
 NS_IMETHODIMP
 nsGeolocationService::Update(nsIDOMGeoPosition *aSomewhere)
 {
+  // here we have to determine this aSomewhere is a "better"
+  // position than any previously recv'ed.
+
+  if (!IsBetterPosition(aSomewhere))
+    return NS_OK;
+
   SetCachedPosition(aSomewhere);
 
   for (PRUint32 i = 0; i< mGeolocators.Length(); i++)
     mGeolocators[i]->Update(aSomewhere);
   return NS_OK;
+}
+
+PRBool
+nsGeolocationService::IsBetterPosition(nsIDOMGeoPosition *aSomewhere)
+{
+  if (!aSomewhere)
+    return PR_FALSE;
+
+  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
+  if (!geoService)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMGeoPosition> lastPosition = geoService->GetCachedPosition();
+  if (!lastPosition)
+    return PR_TRUE;
+  
+  nsresult rv;
+  DOMTimeStamp oldTime;
+  rv = lastPosition->GetTimestamp(&oldTime);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  nsCOMPtr<nsIDOMGeoPositionCoords> coords;
+  lastPosition->GetCoords(getter_AddRefs(coords));
+  if (!coords)
+    return PR_FALSE;
+
+  double oldAccuracy;
+  rv = coords->GetAccuracy(&oldAccuracy);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  double oldLat, oldLon;
+  rv = coords->GetLongitude(&oldLon);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  rv = coords->GetLatitude(&oldLat);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+
+  DOMTimeStamp newTime;
+  rv = aSomewhere->GetTimestamp(&newTime);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  aSomewhere->GetCoords(getter_AddRefs(coords));
+  if (!coords)
+    return PR_FALSE;
+
+  double newAccuracy;
+  rv = coords->GetAccuracy(&newAccuracy);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  double newLat, newLon;
+  rv = coords->GetLongitude(&newLon);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  rv = coords->GetLatitude(&newLat);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  // check to see if there has been a large movement
+  // Use spherical law of cosines to calculate difference
+  // Not quite as correct as the Haversine but simpler and cheaper
+  double radsInDeg = 3.14159265 / 180.0;
+
+  double rNewLat = newLat * radsInDeg;
+  double rNewLon = newLon * radsInDeg;
+  double rOldLat = oldLat * radsInDeg;
+  double rOldLon = oldLon * radsInDeg;
+
+  // WGS84 equatorial radius of earth = 6378137m
+  double delta = acos( (sin(rNewLat) * sin(rOldLat)) + (cos(rNewLat) * cos(rOldLat) * cos(rOldLon - rNewLon)) ) * 6378137; 
+
+  // The threshold is when the distance between the two positions exceeds the
+  // worse (larger value) of the two accuracies.
+  double max_accuracy = NS_MAX(oldAccuracy, newAccuracy);
+  if (delta > max_accuracy)
+    return PR_TRUE;
+
+  // check to see if the aSomewhere position is more accurate
+  if (oldAccuracy >= newAccuracy)
+    return PR_TRUE;
+
+  return PR_FALSE;
 }
 
 void
@@ -651,35 +634,43 @@ nsGeolocationService::GetCachedPosition()
   return mLastPosition;
 }
 
+PRBool
+nsGeolocationService::HasGeolocationProvider()
+{
+  return mProviders.Count() > 0;
+}
+
 nsresult
 nsGeolocationService::StartDevice()
 {
   if (!sGeoEnabled)
     return NS_ERROR_NOT_AVAILABLE;
 
+  if (!HasGeolocationProvider())
+    return NS_ERROR_NOT_AVAILABLE;
+  
+  // if we have one, start it up.
+
+  // Start them up!
+  nsresult rv = NS_ERROR_NOT_AVAILABLE;
+  for (PRUint32 i = mProviders.Count() - 1; i != PRUint32(-1); --i) {
+    // If any provder gets started without error, go ahead
+    // and proceed without error
+    nsresult temp = mProviders[i]->Startup();
+    if (NS_SUCCEEDED(temp)) {
+      rv = NS_OK;
+
+      mProviders[i]->Watch(this);
+    }
+  }
+  
+  if (NS_FAILED(rv)) 
+    return NS_ERROR_NOT_AVAILABLE;
+  
   // we do not want to keep the geolocation devices online
   // indefinitely.  Close them down after a reasonable period of
   // inactivivity
   SetDisconnectTimer();
-
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendAddGeolocationListener();
-    return NS_OK;
-  }
-
-  // Start them up!
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (!obs)
-    return NS_ERROR_FAILURE;
-
-  for (PRInt32 i = 0; i < mProviders.Count(); i++) {
-    mProviders[i]->Startup();
-    mProviders[i]->Watch(this);
-    obs->NotifyObservers(mProviders[i],
-                         "geolocation-device-events",
-                         NS_LITERAL_STRING("starting").get());
-  }
 
   return NS_OK;
 }
@@ -700,26 +691,13 @@ nsGeolocationService::SetDisconnectTimer()
 void 
 nsGeolocationService::StopDevice()
 {
+  for (PRUint32 i = mProviders.Count() - 1; i != PRUint32(-1); --i) {
+    mProviders[i]->Shutdown();
+  }
+
   if(mDisconnectTimer) {
     mDisconnectTimer->Cancel();
     mDisconnectTimer = nsnull;
-  }
-
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendRemoveGeolocationListener();
-    return; // bail early
-  }
-
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (!obs)
-    return;
-
-  for (PRInt32 i = 0; i < mProviders.Count(); i++) {
-    mProviders[i]->Shutdown();
-    obs->NotifyObservers(mProviders[i],
-                         "geolocation-device-events",
-                         NS_LITERAL_STRING("shutdown").get());
   }
 }
 
@@ -786,13 +764,14 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGeolocation)
   PRUint32 i; 
   for (i = 0; i < tmp->mPendingCallbacks.Length(); ++i)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mPendingCallbacks[i], nsIContentPermissionRequest)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mPendingCallbacks[i], nsIGeolocationRequest)
 
   for (i = 0; i < tmp->mWatchingCallbacks.Length(); ++i)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mWatchingCallbacks[i], nsIContentPermissionRequest)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mWatchingCallbacks[i], nsIGeolocationRequest)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 nsGeolocation::nsGeolocation() 
+: mUpdateInProgress(PR_FALSE)
 {
 }
 
@@ -860,11 +839,7 @@ nsGeolocation::Shutdown()
 PRBool
 nsGeolocation::HasActiveCallbacks()
 {
-  for (PRUint32 i = 0; i < mWatchingCallbacks.Length(); i++)
-    if (mWatchingCallbacks[i]->IsActive())
-      return PR_TRUE;
-
-  return PR_FALSE;
+  return mWatchingCallbacks.Length() != 0;
 }
 
 void
@@ -884,18 +859,33 @@ nsGeolocation::RemoveRequest(nsGeolocationRequest* aRequest)
 void
 nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere)
 {
-  if (!WindowOwnerStillExists())
-    return Shutdown();
+  // This method calls out to objects which may spin and
+  // event loop which may add new location objects into
+  // mPendingCallbacks, and mWatchingCallbacks.  Since this
+  // function can only be called on the primary thread, we
+  // can lock this method with a member var.
 
-  for (PRUint32 i = 0; i< mPendingCallbacks.Length(); i++) {
-    mPendingCallbacks[i]->Update(aSomewhere);
+  if (mUpdateInProgress)
+    return;
+
+  mUpdateInProgress = PR_TRUE;
+
+  if (!WindowOwnerStillExists())
+  {
+    Shutdown();
+    return;
   }
+
+  // notify anyone that has been waiting
+  for (PRUint32 i = 0; i< mPendingCallbacks.Length(); i++)
+    mPendingCallbacks[i]->SendLocation(aSomewhere);
   mPendingCallbacks.Clear();
 
   // notify everyone that is watching
-  for (PRUint32 i = 0; i< mWatchingCallbacks.Length(); i++) {
-    mWatchingCallbacks[i]->Update(aSomewhere);
-  }
+  for (PRUint32 i = 0; i< mWatchingCallbacks.Length(); i++)
+    mWatchingCallbacks[i]->SendLocation(aSomewhere);
+
+  mUpdateInProgress = PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -911,11 +901,7 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
   if (mPendingCallbacks.Length() > MAX_GEO_REQUESTS_PER_WINDOW)
     return NS_ERROR_NOT_AVAILABLE;
 
-  nsRefPtr<nsGeolocationRequest> request = new nsGeolocationRequest(this,
-								    callback,
-								    errorCallback,
-								    options,
-								    PR_FALSE);
+  nsRefPtr<nsGeolocationRequest> request = new nsGeolocationRequest(this, callback, errorCallback, options);
   if (!request)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -923,20 +909,18 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
     return NS_ERROR_FAILURE; // this as OKAY.  not sure why we wouldn't throw. xxx dft
 
   if (mOwner) {
-    if (!RegisterRequestWithPrompt(request))
-      return NS_ERROR_NOT_AVAILABLE;
-    
+    RegisterRequestWithPrompt(request);
     mPendingCallbacks.AppendElement(request);
+
     return NS_OK;
   }
 
   if (!nsContentUtils::IsCallerChrome())
     return NS_ERROR_FAILURE;
 
-  mPendingCallbacks.AppendElement(request);
+  request->Allow();
 
-  nsCOMPtr<nsIRunnable> ev = new RequestAllowEvent(true, request);
-  NS_DispatchToMainThread(ev);
+  mPendingCallbacks.AppendElement(request);
 
   return NS_OK;
 }
@@ -956,11 +940,7 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
   if (mPendingCallbacks.Length() > MAX_GEO_REQUESTS_PER_WINDOW)
     return NS_ERROR_NOT_AVAILABLE;
 
-  nsRefPtr<nsGeolocationRequest> request = new nsGeolocationRequest(this,
-								    callback,
-								    errorCallback,
-								    options,
-								    PR_TRUE);
+  nsRefPtr<nsGeolocationRequest> request = new nsGeolocationRequest(this, callback, errorCallback, options);
   if (!request)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -968,8 +948,7 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
     return NS_ERROR_FAILURE; // this as OKAY.  not sure why we wouldn't throw. xxx dft
 
   if (mOwner) {
-    if (!RegisterRequestWithPrompt(request))
-      return NS_ERROR_NOT_AVAILABLE;
+    RegisterRequestWithPrompt(request);
 
     // need to hand back an index/reference.
     mWatchingCallbacks.AppendElement(request);
@@ -994,7 +973,7 @@ NS_IMETHODIMP
 nsGeolocation::ClearWatch(PRInt32 aWatchId)
 {
   PRUint32 count = mWatchingCallbacks.Length();
-  if (aWatchId < 0 || count == 0 || PRUint32(aWatchId) >= count)
+  if (aWatchId < 0 || count == 0 || PRUint32(aWatchId) > count)
     return NS_OK;
 
   mWatchingCallbacks[aWatchId]->MarkCleared();
@@ -1027,41 +1006,140 @@ nsGeolocation::WindowOwnerStillExists()
   return PR_TRUE;
 }
 
-bool
+void
 nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
 {
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mOwner);
     if (!window)
-      return true;
+      return;
 
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild.
     TabChild* child = GetTabChildFrom(window->GetDocShell());
-    if (!child)
-      return false;
+    
+    child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
     
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
-    // Corresponding release occurs in DeallocPContentPermissionRequest.
+    // Corresponding release occurs in DeallocPGeolocationRequest.
     request->AddRef();
 
-    nsCString type = NS_LITERAL_CSTRING("geolocation");
-    child->SendPContentPermissionRequestConstructor(request, type, IPC::URI(mURI));
-    
-    request->Sendprompt();
-    return true;
+    unused << request->Sendprompt();
+    return;
   }
+#endif
 
-  if (Preferences::GetBool("geo.prompt.testing", PR_FALSE)) {
-    nsCOMPtr<nsIRunnable> ev =
-      new RequestAllowEvent(Preferences::GetBool("geo.prompt.testing.allow",
-                                                 PR_FALSE), request);
-    NS_DispatchToMainThread(ev);
-    return true;
-  }
+  nsCOMPtr<nsIGeolocationPrompt> prompt = do_GetService(NS_GEOLOCATION_PROMPT_CONTRACTID);
+  NS_ASSERTION(prompt, "null geolocation prompt.  geolocation will not work without one.");
+  if (prompt)
+    prompt->Prompt(request);
+}
 
-  nsCOMPtr<nsIRunnable> ev  = new RequestPromptEvent(request);
-  NS_DispatchToMainThread(ev);
+#if !defined(WINCE_WINDOWS_MOBILE) && !defined(MOZ_MAEMO_LIBLOCATION) && !defined(ANDROID)
+DOMCI_DATA(GeoPositionCoords, void)
+DOMCI_DATA(GeoPosition, void)
+#endif
+
+#ifdef MOZ_IPC
+nsGeolocationRequestProxy::nsGeolocationRequestProxy()
+{
+  MOZ_COUNT_CTOR(nsGeolocationRequestProxy);
+}
+
+nsGeolocationRequestProxy::~nsGeolocationRequestProxy()
+{
+  MOZ_COUNT_DTOR(nsGeolocationRequestProxy);
+}
+
+nsresult
+nsGeolocationRequestProxy::Init(mozilla::dom::GeolocationRequestParent* parent)
+{
+  NS_ASSERTION(parent, "null parent");
+  mParent = parent;
+
+  nsCOMPtr<nsIGeolocationPrompt> prompt = do_GetService(NS_GEOLOCATION_PROMPT_CONTRACTID);
+  NS_ASSERTION(prompt, "null geolocation prompt.  geolocation will not work without one.");
+  if (!prompt)
+    return NS_ERROR_FAILURE;
+
+  (void) prompt->Prompt(this);
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS1(nsGeolocationRequestProxy, nsIGeolocationRequest);
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetRequestingWindow(nsIDOMWindow * *aRequestingWindow)
+{
+  NS_ENSURE_ARG_POINTER(aRequestingWindow);
+  *aRequestingWindow = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetRequestingURI(nsIURI * *aRequestingURI)
+{
+  NS_ENSURE_ARG_POINTER(aRequestingURI);
+  NS_ASSERTION(mParent, "No parent for request");
+
+  NS_ADDREF(*aRequestingURI = mParent->mURI);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetRequestingElement(nsIDOMElement * *aRequestingElement)
+{
+  NS_ENSURE_ARG_POINTER(aRequestingElement);
+  NS_ASSERTION(mParent && mParent->mElement.get(), "No parent for request");
+  NS_ADDREF(*aRequestingElement = mParent->mElement);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::Cancel()
+{
+  NS_ASSERTION(mParent, "No parent for request");
+  unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, false);
+  mParent = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::Allow()
+{
+  NS_ASSERTION(mParent, "No parent for request");
+  unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, true);
+  mParent = nsnull;
+  return NS_OK;
+}
+
+namespace mozilla {
+namespace dom {
+
+GeolocationRequestParent::GeolocationRequestParent(nsIDOMElement *element, const IPC::URI& uri)
+{
+  MOZ_COUNT_CTOR(GeolocationRequestParent);
+  
+  mURI       = uri;
+  mElement   = element;
+}
+
+GeolocationRequestParent::~GeolocationRequestParent()
+{
+  MOZ_COUNT_DTOR(GeolocationRequestParent);
+}
+  
+bool
+GeolocationRequestParent::Recvprompt()
+{
+  mProxy = new nsGeolocationRequestProxy();
+  NS_ASSERTION(mProxy, "Alloc of request proxy failed");
+  if (NS_FAILED(mProxy->Init(this)))
+    mProxy->Cancel();
   return true;
 }
 
+} // namespace dom
+} // namespace mozilla
+#endif

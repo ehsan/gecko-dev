@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Steve Clark <buster@netscape.com>
  *   Dan Rosen <dr@netscape.com>
- *   Mihai Sucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -64,7 +63,6 @@
 #include "nsEvent.h"
 #include "nsCompatibility.h"
 #include "nsFrameManagerBase.h"
-#include "nsRect.h"
 #include "mozFlushType.h"
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
@@ -77,7 +75,7 @@ class nsPresContext;
 class nsStyleSet;
 class nsIViewManager;
 class nsIView;
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsIPageSequenceFrame;
 class nsAString;
 class nsCaret;
@@ -101,12 +99,10 @@ class nsDisplayListBuilder;
 class nsPIDOMWindow;
 struct nsPoint;
 struct nsIntPoint;
+struct nsRect;
 struct nsIntRect;
 class nsRefreshDriver;
 class nsARefreshObserver;
-#ifdef ACCESSIBILITY
-class nsAccessibilityService;
-#endif
 
 typedef short SelectionType;
 typedef PRUint64 nsFrameState;
@@ -136,11 +132,15 @@ typedef struct CapturingContentInfo {
   PRPackedBool mRetargetToElement;
   PRPackedBool mPreventDrag;
   nsIContent* mContent;
+
+  CapturingContentInfo() :
+    mAllowed(PR_FALSE), mRetargetToElement(PR_FALSE), mPreventDrag(PR_FALSE),
+    mContent(nsnull) { }
 } CapturingContentInfo;
 
-#define NS_IPRESSHELL_IID    \
-{ 0x67eab923, 0x5c15, 0x4c13,\
-  { 0xb5, 0xcc, 0xb2, 0x75, 0xb3, 0x5a, 0xa5, 0x38 } }
+#define NS_IPRESSHELL_IID     \
+  { 0xe63a350c, 0x4e04, 0x4056, \
+    { 0x8d, 0xa0, 0x51, 0xcc, 0x55, 0x68, 0x68, 0x42 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -168,7 +168,7 @@ enum nsRectVisibility {
   nsRectVisibility_kBelowViewport, 
   nsRectVisibility_kLeftOfViewport, 
   nsRectVisibility_kRightOfViewport
-};
+}; 
 
 /**
  * Presentation shell interface. Presentation shells are the
@@ -195,11 +195,6 @@ class nsIPresShell : public nsIPresShell_base
 {
 protected:
   typedef mozilla::layers::LayerManager LayerManager;
-
-  enum {
-    STATE_IGNORING_VIEWPORT_SCROLLING = 0x1,
-    STATE_USING_DISPLAYPORT = 0x2
-  };
 
 public:
   virtual NS_HIDDEN_(nsresult) Init(nsIDocument* aDocument,
@@ -350,22 +345,6 @@ public:
    * coordinates for aWidth and aHeight must be in standard nscoord's.
    */
   virtual NS_HIDDEN_(nsresult) ResizeReflow(nscoord aWidth, nscoord aHeight) = 0;
-  /**
-   * Reflow, and also change presshell state so as to only permit
-   * reflowing off calls to ResizeReflowOverride() in the future.
-   * ResizeReflow() calls are ignored after ResizeReflowOverride().
-   */
-  virtual NS_HIDDEN_(nsresult) ResizeReflowOverride(nscoord aWidth, nscoord aHeight) = 0;
-
-  /**
-   * Returns true if ResizeReflowOverride has been called.
-   */
-  virtual PRBool GetIsViewportOverridden() = 0;
-
-  /**
-   * Return true if the presshell expects layout flush.
-   */
-  virtual PRBool IsLayoutFlushObserver() = 0;
 
   /**
    * Reflow the frame model with a reflow reason of eReflowReason_StyleChange
@@ -504,7 +483,7 @@ public:
    * be rendered to, but is suitable for measuring text and performing
    * other non-rendering operations.
    */
-  virtual already_AddRefed<nsRenderingContext> GetReferenceRenderingContext() = 0;
+  virtual already_AddRefed<nsIRenderingContext> GetReferenceRenderingContext() = 0;
 
   /**
    * Informs the pres shell that the document is now at the anchor with
@@ -554,26 +533,14 @@ public:
    *                  horizontally . A value of NS_PRESSHELL_SCROLL_ANYWHERE means move
    *                  the frame the minimum amount necessary in order for the entire
    *                  frame to be visible horizontally (if possible)
-   * @param aFlags    If SCROLL_FIRST_ANCESTOR_ONLY is set, only the nearest
-   *                  scrollable ancestor is scrolled, otherwise all
-   *                  scrollable ancestors may be scrolled if necessary.
-   *                  If SCROLL_OVERFLOW_HIDDEN is set then we may scroll in a
-   *                  direction even if overflow:hidden is specified in that
-   *                  direction; otherwise we will not scroll in that direction
-   *                  when overflow:hidden is set for that direction.
-   *                  If SCROLL_NO_PARENT_FRAMES is set then we only scroll
-   *                  nodes in this document, not in any parent documents which
-   *                  contain this document in a iframe or the like.
    */
   virtual NS_HIDDEN_(nsresult) ScrollContentIntoView(nsIContent* aContent,
                                                      PRIntn      aVPercent,
-                                                     PRIntn      aHPercent,
-                                                     PRUint32    aFlags) = 0;
+                                                     PRIntn      aHPercent) = 0;
 
   enum {
     SCROLL_FIRST_ANCESTOR_ONLY = 0x01,
-    SCROLL_OVERFLOW_HIDDEN = 0x02,
-    SCROLL_NO_PARENT_FRAMES = 0x04
+    SCROLL_OVERFLOW_HIDDEN = 0x02
   };
   /**
    * Scrolls the view of the document so that the given area of a frame
@@ -589,9 +556,6 @@ public:
    * even if overflow:hidden is specified in that direction; otherwise
    * we will not scroll in that direction when overflow:hidden is
    * set for that direction
-   * If SCROLL_NO_PARENT_FRAMES is set then we only scroll
-   * nodes in this document, not in any parent documents which
-   * contain this document in a iframe or the like.
    * @return true if any scrolling happened, false if no scrolling happened
    */
   virtual PRBool ScrollFrameRectIntoView(nsIFrame*     aFrame,
@@ -803,10 +767,9 @@ public:
   virtual NS_HIDDEN_(void) DumpReflows() = 0;
   virtual NS_HIDDEN_(void) CountReflows(const char * aName, nsIFrame * aFrame) = 0;
   virtual NS_HIDDEN_(void) PaintCount(const char * aName,
-                                      nsRenderingContext* aRenderingContext,
+                                      nsIRenderingContext* aRenderingContext,
                                       nsPresContext * aPresContext,
                                       nsIFrame * aFrame,
-                                      const nsPoint& aOffset,
                                       PRUint32 aColor) = 0;
   virtual NS_HIDDEN_(void) SetPaintFrameCount(PRBool aOn) = 0;
   virtual PRBool IsPaintingFrameCounts() = 0;
@@ -824,20 +787,12 @@ public:
   static PRBool gIsAccessibilityActive;
   static PRBool IsAccessibilityActive() { return gIsAccessibilityActive; }
 
-#ifdef ACCESSIBILITY
-  /**
-   * Return accessibility service if accessibility is active.
-   */
-  static nsAccessibilityService* AccService();
-#endif
-
   /**
    * Stop all active elements (plugins and the caret) in this presentation and
    * in the presentations of subdocuments.  Resets painting to a suppressed state.
    * XXX this should include image animations
    */
   virtual void Freeze() = 0;
-  PRBool IsFrozen() { return mFrozen; }
 
   /**
    * Restarts active elements (plugins) in this presentation and in the
@@ -886,8 +841,6 @@ public:
    *   set RENDER_ASYNC_DECODE_IMAGES to avoid having images synchronously
    * decoded during rendering.
    * (by default images decode synchronously with RenderDocument)
-   *   set RENDER_DOCUMENT_RELATIVE to interpret |aRect| relative to the
-   * document instead of the CSS viewport
    * @param aBackgroundColor a background color to render onto
    * @param aRenderedContext the gfxContext to render to. We render so that
    * one CSS pixel in the source document is rendered to one unit in the current
@@ -898,8 +851,7 @@ public:
     RENDER_IGNORE_VIEWPORT_SCROLLING = 0x02,
     RENDER_CARET = 0x04,
     RENDER_USE_WIDGET_LAYERS = 0x08,
-    RENDER_ASYNC_DECODE_IMAGES = 0x10,
-    RENDER_DOCUMENT_RELATIVE = 0x20
+    RENDER_ASYNC_DECODE_IMAGES = 0x10
   };
   virtual NS_HIDDEN_(nsresult) RenderDocument(const nsRect& aRect, PRUint32 aFlags,
                                               nscolor aBackgroundColor,
@@ -989,22 +941,18 @@ public:
   virtual void UpdateCanvasBackground() = 0;
 
   /**
-   * Add a solid color item to the bottom of aList with frame aFrame and bounds
-   * aBounds. Checks first if this needs to be done by checking if aFrame is a
-   * canvas frame (if the FORCE_DRAW flag is passed then this check is skipped).
-   * aBackstopColor is composed behind the background color of the canvas, it is
-   * transparent by default.
+   * Add a solid color item to the bottom of aList with frame aFrame and
+   * bounds aBounds. Checks first if this needs to be done by checking if
+   * aFrame is a canvas frame (if aForceDraw is true then this check is
+   * skipped). aBackstopColor is composed behind the background color of
+   * the canvas, it is transparent by default.
    */
-  enum {
-    FORCE_DRAW = 0x01
-  };
   virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                 nsDisplayList& aList,
                                                 nsIFrame* aFrame,
                                                 const nsRect& aBounds,
                                                 nscolor aBackstopColor = NS_RGBA(0,0,0,0),
-                                                PRUint32 aFlags = 0) = 0;
-
+                                                PRBool aForceDraw = PR_FALSE) = 0;
 
   /**
    * Add a solid color item to the bottom of aList with frame aFrame and
@@ -1106,35 +1054,6 @@ public:
   virtual LayerManager* GetLayerManager() = 0;
 
   /**
-   * Track whether we're ignoring viewport scrolling for the purposes
-   * of painting.  If we are ignoring, then layers aren't clipped to
-   * the CSS viewport and scrollbars aren't drawn.
-   */
-  virtual void SetIgnoreViewportScrolling(PRBool aIgnore) = 0;
-  PRBool IgnoringViewportScrolling() const
-  { return mRenderFlags & STATE_IGNORING_VIEWPORT_SCROLLING; }
-
-   /**
-   * Set a "resolution" for the document, which if not 1.0 will
-   * allocate more or fewer pixels for rescalable content by a factor
-   * of |resolution| in both dimensions.  Return NS_OK iff the
-   * resolution bounds are sane, and the resolution of this was
-   * actually updated.
-   *
-   * The resolution defaults to 1.0.
-   */
-  virtual nsresult SetResolution(float aXResolution, float aYResolution) = 0;
-  float GetXResolution() { return mXResolution; }
-  float GetYResolution() { return mYResolution; }
-
-  /**
-   * Dispatch a mouse move event based on the most recent mouse position if
-   * this PresShell is visible. This is used when the contents of the page
-   * moved (aFromScroll is false) or scrolled (aFromScroll is true).
-   */
-  virtual void SynthesizeMouseMove(PRBool aFromScroll) = 0;
-
-  /**
    * Refresh observer management.
    */
 protected:
@@ -1208,6 +1127,18 @@ protected:
   PRPackedBool              mIsActive;
   PRPackedBool              mFrozen;
 
+#ifdef ACCESSIBILITY
+  /**
+   * Call this when there have been significant changes in the rendering for
+   * a content subtree, so the matching accessibility subtree can be invalidated
+   */
+  void InvalidateAccessibleSubtree(nsIContent *aContent);
+#endif
+
+  // Set to true when the accessibility service is being used to mirror
+  // the dom/layout trees
+  PRPackedBool              mIsAccessibilityActive;
+
   PRPackedBool              mObservesMutationsForPrint;
 
   PRPackedBool              mReflowScheduled; // If true, we have a reflow
@@ -1222,18 +1153,6 @@ protected:
 
   // Most recent canvas background color.
   nscolor                   mCanvasBackgroundColor;
-
-  // Flags controlling how our document is rendered.  These persist
-  // between paints and so are tied with retained layer pixels.
-  // PresShell flushes retained layers when the rendering state
-  // changes in a way that prevents us from being able to (usefully)
-  // re-use old pixels.
-  PRUint32                  mRenderFlags;
-
-  // Used to force allocation and rendering of proportionally more or
-  // less pixels in the given dimension.
-  float                     mXResolution;
-  float                     mYResolution;
 
   // Live pres shells, for memory and other tracking
   typedef nsPtrHashKey<nsIPresShell> PresShellPtrKey;

@@ -49,10 +49,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 #include "mozilla/Services.h"
 
 #include "nsConsoleMessage.h"
@@ -489,10 +485,6 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
   nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
                                        gtk_major_version,
                                        gtk_minor_version);
-#elif defined(ANDROID)
-  if (mozilla::AndroidBridge::Bridge()) {
-    mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", osVersion);
-  }
 #endif
 
   // Because contracts must be registered after CIDs, we save and process them
@@ -611,8 +603,10 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
       continue;
 
     if (directive->regfunc) {
+#ifdef MOZ_IPC
       if (GeckoProcessType_Default != XRE_GetProcessType())
         continue;
+#endif
 
       if (!nsChromeRegistry::gChromeRegistry) {
         nsCOMPtr<nsIChromeRegistry> cr =
@@ -656,12 +650,14 @@ ParseManifest(NSLocationType type, nsILocalFile* file,
   ParseManifestCommon(type, file, mgrcx, chromecx, NULL, buf, aChromeOnly);
 }
 
+#ifdef MOZ_OMNIJAR
 void
-ParseManifest(NSLocationType type, nsIZipReader* reader, const char* jarPath,
+ParseManifest(NSLocationType type, const char* jarPath,
               char* buf, bool aChromeOnly)
 {
-  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, reader, jarPath, aChromeOnly);
-  nsChromeRegistry::ManifestProcessingContext chromecx(type, mgrcx.mFile, jarPath);
-  ParseManifestCommon(type, mgrcx.mFile, mgrcx, chromecx, jarPath,
+  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, jarPath, aChromeOnly);
+  nsChromeRegistry::ManifestProcessingContext chromecx(type, jarPath);
+  ParseManifestCommon(type, mozilla::OmnijarPath(), mgrcx, chromecx, jarPath,
                       buf, aChromeOnly);
 }
+#endif

@@ -206,15 +206,9 @@ nsLineBox::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, "{%d,%d,%d,%d} ",
           mBounds.x, mBounds.y, mBounds.width, mBounds.height);
   if (mData) {
-    fprintf(out, "vis-overflow={%d,%d,%d,%d} scr-overflow={%d,%d,%d,%d} ",
-            mData->mOverflowAreas.VisualOverflow().x,
-            mData->mOverflowAreas.VisualOverflow().y,
-            mData->mOverflowAreas.VisualOverflow().width,
-            mData->mOverflowAreas.VisualOverflow().height,
-            mData->mOverflowAreas.ScrollableOverflow().x,
-            mData->mOverflowAreas.ScrollableOverflow().y,
-            mData->mOverflowAreas.ScrollableOverflow().width,
-            mData->mOverflowAreas.ScrollableOverflow().height);
+    fprintf(out, "ca={%d,%d,%d,%d} ",
+            mData->mCombinedArea.x, mData->mCombinedArea.y,
+            mData->mCombinedArea.width, mData->mCombinedArea.height);
   }
   fprintf(out, "<\n");
 
@@ -408,8 +402,10 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
       if (!mBlockData) {
         mBlockData = new ExtraBlockData(mBounds);
       }
-      changed = aValue != mBlockData->mCarriedOutBottomMargin;
-      mBlockData->mCarriedOutBottomMargin = aValue;
+      if (mBlockData) {
+        changed = aValue != mBlockData->mCarriedOutBottomMargin;
+        mBlockData->mCarriedOutBottomMargin = aValue;
+      }
     }
     else if (mBlockData) {
       changed = aValue != mBlockData->mCarriedOutBottomMargin;
@@ -423,7 +419,7 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
 void
 nsLineBox::MaybeFreeData()
 {
-  if (mData && mData->mOverflowAreas == nsOverflowAreas(mBounds, mBounds)) {
+  if (mData && (mData->mCombinedArea == mBounds)) {
     if (IsInline()) {
       if (mInlineData->mFloats.IsEmpty()) {
         delete mInlineData;
@@ -467,7 +463,9 @@ nsLineBox::AppendFloats(nsFloatCacheFreeList& aFreeList)
       if (!mInlineData) {
         mInlineData = new ExtraInlineData(mBounds);
       }
-      mInlineData->mFloats.Append(aFreeList);
+      if (mInlineData) {
+        mInlineData->mFloats.Append(aFreeList);
+      }
     }
   }
 }
@@ -491,30 +489,29 @@ nsLineBox::RemoveFloat(nsIFrame* aFrame)
 }
 
 void
-nsLineBox::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
-{
-  NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-    NS_ASSERTION(aOverflowAreas.Overflow(otype).width >= 0,
-                 "illegal width for combined area");
-    NS_ASSERTION(aOverflowAreas.Overflow(otype).height >= 0,
-                 "illegal height for combined area");
-  }
-  if (!aOverflowAreas.VisualOverflow().IsEqualInterior(mBounds) ||
-      !aOverflowAreas.ScrollableOverflow().IsEqualEdges(mBounds)) {
-    if (!mData) {
+nsLineBox::SetCombinedArea(const nsRect& aCombinedArea)
+{  
+  NS_ASSERTION(aCombinedArea.width >= 0, "illegal width for combined area");
+  NS_ASSERTION(aCombinedArea.height >= 0, "illegal height for combined area");
+  if (aCombinedArea != mBounds) {
+    if (mData) {
+      mData->mCombinedArea = aCombinedArea;
+    }
+    else {
       if (IsInline()) {
-        mInlineData = new ExtraInlineData(mBounds);
+        mInlineData = new ExtraInlineData(aCombinedArea);
       }
       else {
-        mBlockData = new ExtraBlockData(mBounds);
+        mBlockData = new ExtraBlockData(aCombinedArea);
       }
     }
-    mData->mOverflowAreas = aOverflowAreas;
   }
-  else if (mData) {
-    // Store away new value so that MaybeFreeData compares against
-    // the right value.
-    mData->mOverflowAreas = aOverflowAreas;
+  else {
+    if (mData) {
+      // Store away new value so that MaybeFreeData compares against
+      // the right value.
+      mData->mCombinedArea = aCombinedArea;
+    }
     MaybeFreeData();
   }
 }
@@ -655,8 +652,10 @@ nsLineIterator::CheckLineOrder(PRInt32                  aLine,
     *aLastVisual = nsnull;
     return NS_OK;
   }
+  
+  nsPresContext* presContext = line->mFirstChild->PresContext();
 
-  nsBidiPresUtils* bidiUtils = line->mFirstChild->PresContext()->GetBidiUtils();
+  nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
 
   nsIFrame* leftmostFrame;
   nsIFrame* rightmostFrame;

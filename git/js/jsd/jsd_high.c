@@ -71,7 +71,7 @@ void JSD_ASSERT_VALID_CONTEXT(JSDContext* jsdc)
 
 static JSClass global_class = {
     "JSDGlobal", JSCLASS_GLOBAL_FLAGS,
-    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
@@ -86,12 +86,9 @@ _validateUserCallbacks(JSD_UserCallbacks* callbacks)
 static JSDContext*
 _newJSDContext(JSRuntime*         jsrt, 
                JSD_UserCallbacks* callbacks, 
-               void*              user,
-               JSObject*          scopeobj)
+               void*              user)
 {
     JSDContext* jsdc = NULL;
-    JSCrossCompartmentCall *call = NULL;
-    JSBool ok;
 
     if( ! jsrt )
         return NULL;
@@ -140,19 +137,11 @@ _newJSDContext(JSRuntime*         jsrt,
 
     JS_BeginRequest(jsdc->dumbContext);
 
-    jsdc->glob = JS_NewCompartmentAndGlobalObject(jsdc->dumbContext, &global_class, NULL);
-
+    jsdc->glob = JS_NewGlobalObject(jsdc->dumbContext, &global_class);
     if( ! jsdc->glob )
         goto label_newJSDContext_failure;
 
-    call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
-    if( ! call )
-        goto label_newJSDContext_failure;
-
-    ok = JS_InitStandardClasses(jsdc->dumbContext, jsdc->glob);
-
-    JS_LeaveCrossCompartmentCall(call);
-    if( ! ok )
+    if( ! JS_InitStandardClasses(jsdc->dumbContext, jsdc->glob) )
         goto label_newJSDContext_failure;
 
     JS_EndRequest(jsdc->dumbContext);
@@ -170,8 +159,7 @@ label_newJSDContext_failure:
     if( jsdc ) {
         jsd_DestroyObjectManager(jsdc);
         jsd_DestroyAtomTable(jsdc);
-        if( jsdc->dumbContext )
-            JS_EndRequest(jsdc->dumbContext);
+        JS_EndRequest(jsdc->dumbContext);
         free(jsdc);
     }
     return NULL;
@@ -206,13 +194,12 @@ _destroyJSDContext(JSDContext* jsdc)
 JSDContext*
 jsd_DebuggerOnForUser(JSRuntime*         jsrt, 
                       JSD_UserCallbacks* callbacks, 
-                      void*              user,
-                      JSObject*          scopeobj)
+                      void*              user)
 {
     JSDContext* jsdc;
     JSContext* iter = NULL;
 
-    jsdc = _newJSDContext(jsrt, callbacks, user, scopeobj);
+    jsdc = _newJSDContext(jsrt, callbacks, user);
     if( ! jsdc )
         return NULL;
 
@@ -239,7 +226,7 @@ jsd_DebuggerOn(void)
 {
     JS_ASSERT(_jsrt);
     JS_ASSERT(_validateUserCallbacks(&_callbacks));
-    return jsd_DebuggerOnForUser(_jsrt, &_callbacks, _user, NULL);
+    return jsd_DebuggerOnForUser(_jsrt, &_callbacks, _user);
 }
 
 void

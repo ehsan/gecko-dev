@@ -14,7 +14,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=490705
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=490705">Mozilla Bug 490705</a>
 
 <!-- mute audio, since there is no need to hear the sound for these tests -->
-<audio id='a1' controls></audio>
+<audio id='a1' onerror="event.stopPropagation();" controls></audio>
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
@@ -178,7 +178,7 @@ function audioAvailable(event) {
   spectrumMaxs.push({ value: maxValue, index: maxIndex, time: (currentSampleOffset / testFileSampleRate) });
 
   if( (typeof event.time !== "number") ||
-      (Math.abs(event.time - currentSampleOffset / testFileSampleRate) >= 0.001) ) {
+      (Math.abs(event.time - currentSampleOffset / testFileSampleRate) > 0.01) ) {
     isTimePropertyValid = false;
   }
 

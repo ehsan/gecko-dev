@@ -53,7 +53,7 @@ NS_SVG_VAL_IMPL_CYCLE_COLLECTION(DOMSVGAnimatedLengthList, mElement)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGAnimatedLengthList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGAnimatedLengthList)
 
-} // namespace mozilla
+}
 DOMCI_DATA(SVGAnimatedLengthList, mozilla::DOMSVGAnimatedLengthList)
 namespace mozilla {
 
@@ -67,7 +67,7 @@ NS_IMETHODIMP
 DOMSVGAnimatedLengthList::GetBaseVal(nsIDOMSVGLengthList **_retval)
 {
   if (!mBaseVal) {
-    mBaseVal = new DOMSVGLengthList(this, InternalAList().GetBaseValue());
+    mBaseVal = new DOMSVGLengthList(this);
   }
   NS_ADDREF(*_retval = mBaseVal);
   return NS_OK;
@@ -77,7 +77,7 @@ NS_IMETHODIMP
 DOMSVGAnimatedLengthList::GetAnimVal(nsIDOMSVGLengthList **_retval)
 {
   if (!mAnimVal) {
-    mAnimVal = new DOMSVGLengthList(this, InternalAList().GetAnimValue());
+    mAnimVal = new DOMSVGLengthList(this);
   }
   NS_ADDREF(*_retval = mAnimVal);
   return NS_OK;
@@ -122,13 +122,7 @@ DOMSVGAnimatedLengthList::InternalBaseValListWillChangeTo(const SVGLengthList& a
   // able to access "items" at indexes that are out of bounds (read/write to
   // bad memory)!!
 
-  nsRefPtr<DOMSVGAnimatedLengthList> kungFuDeathGrip;
   if (mBaseVal) {
-    if (!aNewValue.Length()) {
-      // InternalListLengthWillChange might clear last reference to |this|.
-      // Retain a temporary reference to keep from dying before returning.
-      kungFuDeathGrip = this;
-    }
     mBaseVal->InternalListLengthWillChange(aNewValue.Length());
   }
 

@@ -51,12 +51,8 @@
 
 #include "vprof.h"
 
-#ifndef MIN
 #define MIN(x,y) ((x) <= (y) ? x : y)
-#endif
-#ifndef MAX
 #define MAX(x,y) ((x) >= (y) ? x : y)
-#endif
 
 #ifndef MAXINT
 #define MAXINT int(unsigned(-1)>>1)
@@ -93,7 +89,7 @@ static long glock = LOCK_IS_FREE;
 #define Lock(lock) while (_InterlockedCompareExchange(lock, LOCK_IS_TAKEN, LOCK_IS_FREE) == LOCK_IS_TAKEN){};
 #define Unlock(lock) _InterlockedCompareExchange(lock, LOCK_IS_FREE, LOCK_IS_TAKEN);
 
-#if defined(WIN32)
+#if defined(WIN32) && !defined(UNDER_CE)
 	static void vprof_printf(const char* format, ...)
 	{
 		va_list args;

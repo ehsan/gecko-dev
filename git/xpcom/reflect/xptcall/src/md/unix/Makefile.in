@@ -45,7 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
 LIBRARY_NAME	= xptcmd
-EXPORT_LIBRARY	= ../..
 MOZILLA_INTERNAL_API = 1
 
 
@@ -130,6 +129,12 @@ ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDx86_64)
 CPPSRCS		:= xptcinvoke_amd64_openbsd.cpp xptcstubs_amd64_openbsd.cpp
 endif
 #
+# BeOS/Intel (uses the same unixish_x86 code)
+#
+ifeq ($(OS_ARCH)$(OS_TEST),BeOSBePC)
+CPPSRCS		:= xptcinvoke_unixish_x86.cpp xptcstubs_unixish_x86.cpp
+endif
+#
 # Neutrino/Intel (uses the same unixish_x86 code)
 #
 ifeq ($(OS_TARGET),NTO)
@@ -194,6 +199,13 @@ endif
 #
 ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDalpha)
 CPPSRCS		:= xptcinvoke_alpha_openbsd.cpp xptcstubs_alpha_openbsd.cpp
+endif
+#
+# OpenVMS/Alpha
+#
+ifeq ($(OS_ARCH)$(CPU_ARCH),OpenVMSAlpha)
+CPPSRCS		:= xptcinvoke_openvms_alpha.cpp xptcstubs_openvms_alpha.cpp
+ASFILES		:= xptcinvoke_asm_openvms_alpha.s xptcstubs_asm_openvms_alpha.s
 endif
 
 ######################################################################
@@ -303,13 +315,8 @@ endif
 
 ifeq ($(OS_ARCH),Linux)
 ifneq (,$(findstring mips, $(OS_TEST)))
-ifneq (,$(findstring mips64, $(OS_TEST)))
-CPPSRCS		:= xptcinvoke_mips64.cpp xptcstubs_mips64.cpp
-ASFILES		:= xptcinvoke_asm_mips64.s xptcstubs_asm_mips64.s
-else
 CPPSRCS		:= xptcinvoke_mips.cpp xptcstubs_mips.cpp
 ASFILES		:= xptcinvoke_asm_mips.s xptcstubs_asm_mips.s
-endif
 ASFLAGS		+= -I$(DIST)/include -x assembler-with-cpp
 endif
 endif
@@ -530,13 +537,27 @@ xptcstubs_asm_irix.o: $(DIST)/include/xptcstubsdef.inc $(srcdir)/xptcstubs_asm_i
 	@if test ! -f ./Makefile.in; then rm -f ./xptcstubs_asm_irix.s; else true; fi
 endif
 
+ifeq ($(OS_ARCH),OpenVMS)
+# Our assembler wants the include file to be of assembler syntax, not C/C++
+# syntax, so we have to massage it slightly.
+
+xptcstubs_asm_openvms_alpha.o: $(DIST)/include/xptcstubsdef.inc $(srcdir)/xptcstubs_asm_openvms_alpha.s
+	sed \
+	  -e 's/^\(.*_ENTRY\)(\([0-9]*\))/ \1 \2/' \
+	  -e 's/\/\*\(.*\)\*\//; \1/' \
+	$(DIST)/include/xptcstubsdef.inc > ./xptcstubsdef_asm.vms
+	$(AS) -o $@ $(ASFLAGS) $(AS_DASH_C_FLAG) $(srcdir)/xptcstubs_asm_openvms_alpha.s
+	@rm -f ./xptcstubsdef_asm.vms
+endif
+
 ifeq ($(OS_ARCH),SunOS)
 ifeq (86,$(findstring 86,$(OS_TEST)))
 ifndef GNU_CC
 ifeq (x86_64,$(OS_TEST))
 xptcstubs_asm_x86_64_solaris_SUNW.o: $(DIST)/include/xptcstubsdef.inc $(srcdir)/xptcstubs_asm_x86_64_solaris_SUNW.s
 	sed \
-	  -e 's/^\(STUB_ENTRY\)(\([0-9]\))/\11\(\2\)/' \
+	  -e 's/^\(STUB_ENTRY\)(\([0
+-9]\))/\11\(\2\)/' \
 	  -e 's/^\(STUB_ENTRY\)(\([0-9][0-9]\))/\12\(\2\)/' \
 	  -e 's/^\(STUB_ENTRY\)(\([0-9][0-9][0-9]\))/\13\(\2\)/' \
 	$(DIST)/include/xptcstubsdef.inc > ./xptcstubsdef_asm.solx86
@@ -554,3 +575,6 @@ endif
 endif
 endif
 endif
+
+libs:: $(LIBRARY)
+	$(INSTALL) $(LIBRARY) $(FAKE_LIBRARY) ../..

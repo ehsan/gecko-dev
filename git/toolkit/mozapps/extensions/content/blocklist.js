@@ -35,23 +35,12 @@
 #
 # ***** END LICENSE BLOCK *****
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 var gArgs;
 
 function init() {
   var hasHardBlocks = false;
   var hasSoftBlocks = false;
   gArgs = window.arguments[0].wrappedJSObject;
-
-  // NOTE: We use strings from the "updates.properties" bundleset to change the
-  // text on the "Cancel" button to "Restart Later". (bug 523784)
-  let bundle = Services.strings.
-              createBundle("chrome://mozapps/locale/update/updates.properties");
-  let cancelButton = document.documentElement.getButton("cancel");
-  cancelButton.setAttribute("label", bundle.GetStringFromName("restartLaterButton"));
-  cancelButton.setAttribute("accesskey",
-                            bundle.GetStringFromName("restartLaterButton.accesskey"));
 
   var richlist = document.getElementById("addonList");
   var list = gArgs.list;
@@ -79,18 +68,15 @@ function init() {
   else
     document.getElementById("softBlockMessage").hidden = false;
 
+  var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                            .getService(Components.interfaces.nsIURLFormatter);
+  var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
   var link = document.getElementById("moreInfo");
-  if (list.length == 1 && list[0].url) {
-    link.setAttribute("href", list[0].url);
-  }
-  else {
-    var url = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
-    link.setAttribute("href", url);
-  }
+  link.setAttribute("href", url);
 }
 
-function finish(shouldRestartNow) {
-  gArgs.restart = shouldRestartNow;
+function accept() {
+  gArgs.restart = true;
   var list = gArgs.list;
   var items = document.getElementById("addonList").childNodes;
   for (let i = 0; i < list.length; i++) {

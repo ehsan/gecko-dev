@@ -95,8 +95,8 @@ PRLock *_pr_dnsLock = NULL;
 
 #if defined(SOLARIS) || (defined(BSDI) && defined(_REENTRANT)) \
 	|| (defined(LINUX) && defined(_REENTRANT) \
-        && !(defined(__GLIBC__) && __GLIBC__ >= 2) \
-        && !defined(ANDROID))
+        && !(defined(__GLIBC__) && __GLIBC__ >= 2)) \
+        && !defined(ANDROID)
 #define _PR_HAVE_GETPROTO_R
 #define _PR_HAVE_GETPROTO_R_POINTER
 #endif
@@ -2039,32 +2039,7 @@ PR_IMPLEMENT(PRAddrInfo *) PR_GetAddrInfoByName(const char  *hostname,
          */
 
         memset(&hints, 0, sizeof(hints));
-        if (!(flags & PR_AI_NOCANONNAME))
-            hints.ai_flags |= AI_CANONNAME;
-#ifdef AI_ADDRCONFIG
-        /* 
-         * Propagate AI_ADDRCONFIG to the GETADDRINFO call if PR_AI_ADDRCONFIG
-         * is set.
-         * 
-         * Need a workaround for loopback host addresses:         
-         * The problem is that in glibc and Windows, AI_ADDRCONFIG applies the
-         * existence of an outgoing network interface to IP addresses of the
-         * loopback interface, due to a strict interpretation of the
-         * specification.  For example, if a computer does not have any
-         * outgoing IPv6 network interface, but its loopback network interface
-         * supports IPv6, a getaddrinfo call on "localhost" with AI_ADDRCONFIG
-         * won't return the IPv6 loopback address "::1", because getaddrinfo
-         * thinks the computer cannot connect to any IPv6 destination,
-         * ignoring the remote vs. local/loopback distinction.
-         */
-        if ((flags & PR_AI_ADDRCONFIG) &&
-            strcmp(hostname, "localhost") != 0 &&
-            strcmp(hostname, "localhost.localdomain") != 0 &&
-            strcmp(hostname, "localhost6") != 0 &&
-            strcmp(hostname, "localhost6.localdomain6") != 0) {
-            hints.ai_flags |= AI_ADDRCONFIG;
-        }
-#endif
+        hints.ai_flags = (flags & PR_AI_NOCANONNAME) ? 0: AI_CANONNAME;
         hints.ai_family = (af == PR_AF_INET) ? AF_INET : AF_UNSPEC;
 
         /*
@@ -2077,12 +2052,6 @@ PR_IMPLEMENT(PRAddrInfo *) PR_GetAddrInfoByName(const char  *hostname,
         hints.ai_socktype = SOCK_STREAM;
 
         rv = GETADDRINFO(hostname, NULL, &hints, &res);
-#ifdef AI_ADDRCONFIG
-        if (rv == EAI_BADFLAGS && (hints.ai_flags & AI_ADDRCONFIG)) {
-            hints.ai_flags &= ~AI_ADDRCONFIG;
-            rv = GETADDRINFO(hostname, NULL, &hints, &res);
-        }
-#endif
         if (rv == 0)
             return (PRAddrInfo *) res;
 

@@ -56,11 +56,6 @@ public:
   NS_IMETHOD
   InheritAutomaticData(nsIFrame* aParent);
 
-  NS_IMETHOD
-  TransmitAutomaticData() {
-    return TransmitAutomaticDataForMrowLikeElement();
-  }
-
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists) { return NS_OK; }

@@ -56,13 +56,9 @@ nsMIMEInfoAndroid::LoadUriInternal(nsIURI * aURI)
 {
   nsCString uriSpec;
   aURI->GetSpec(uriSpec);
-
-  nsCString uriScheme;
-  aURI->GetScheme(uriScheme);
-
   if (mozilla::AndroidBridge::Bridge())
     return mozilla::AndroidBridge::Bridge()->
-      OpenUriExternal(uriSpec, mType.Equals(uriScheme) ? EmptyCString() : mType) ? NS_OK : NS_ERROR_FAILURE;
+      OpenUriExternal(uriSpec, mMimeType) ? NS_OK : NS_ERROR_FAILURE;
 
   return NS_ERROR_FAILURE;
 }
@@ -78,25 +74,25 @@ nsMIMEInfoAndroid::GetMimeInfoForMimeType(const nsACString& aMimeType,
   // the mime type for now and let the system deal with it
   if (!bridge){
     info.forget(aMimeInfo);
+    return PR_TRUE;
+  }
+  nsStringArray stringArray;
+  bridge->GetHandlersForMimeType(nsCAutoString(aMimeType).get(), &stringArray);
+
+  nsString empty = EmptyString();
+  PRInt32 len = stringArray.Count();
+  if (len == 0) {
+    info.forget(aMimeInfo);
     return PR_FALSE;
   }
 
-  nsIHandlerApp* systemDefault = nsnull;
-  bridge->GetHandlersForMimeType(nsCAutoString(aMimeType).get(), 
-                                 info->mHandlerApps, &systemDefault);
-  
-  if (systemDefault)
-    info->mPrefApp = systemDefault;
-
-  nsCAutoString fileExt;
-  bridge->GetExtensionFromMimeType(nsDependentCString(aMimeType), fileExt);
-  info->SetPrimaryExtension(fileExt);
-  
-  PRUint32 len;
-  info->mHandlerApps->GetLength(&len);
-  if (len == 1) {
-    info.forget(aMimeInfo);
-    return PR_FALSE;
+  for (jsize i = 0; i < len; i+=4) {
+    nsAndroidHandlerApp* app =
+      new nsAndroidHandlerApp(*stringArray[i], empty, *stringArray[i + 2],
+                              *stringArray[i + 3], aMimeType);
+    info->mHandlerApps->AppendElement(app, PR_FALSE);
+    if (stringArray[i + 1] > 0)
+      info->mPrefApp = app;
   }
   
   info.forget(aMimeInfo);
@@ -110,62 +106,55 @@ nsMIMEInfoAndroid::GetMimeInfoForFileExt(const nsACString& aFileExt,
   nsCString mimeType;
   if (mozilla::AndroidBridge::Bridge())
     mozilla::AndroidBridge::Bridge()->
-      GetMimeTypeFromExtensions(aFileExt, mimeType);
-  
-  PRBool found = GetMimeInfoForMimeType(mimeType, aMimeInfo);
-  (*aMimeInfo)->SetPrimaryExtension(aFileExt);
-  return found;
+      GetMimeTypeFromExtension(aFileExt, mimeType);
+  return GetMimeInfoForMimeType(mimeType, aMimeInfo);
 }
 
-/**
- * Returns MIME info for the aURL, which may contain the whole URL or only a protocol
- */
 nsresult
-nsMIMEInfoAndroid::GetMimeInfoForURL(const nsACString &aURL,
-                                     PRBool *found,
-                                     nsIHandlerInfo **info)
+nsMIMEInfoAndroid::GetMimeInfoForProtocol(const nsACString &aScheme,
+                                          PRBool *found,
+                                          nsIHandlerInfo **info)
 {
-  nsMIMEInfoAndroid *mimeinfo = new nsMIMEInfoAndroid(aURL);
+  const nsString &empty = EmptyString();
+  const nsCString &emptyC = EmptyCString();
+  mozilla::AndroidBridge* bridge = mozilla::AndroidBridge::Bridge();
+  nsMIMEInfoAndroid *mimeinfo = new nsMIMEInfoAndroid(emptyC);
   NS_ADDREF(*info = mimeinfo);
   *found = PR_TRUE;
   
-  mozilla::AndroidBridge* bridge = mozilla::AndroidBridge::Bridge();
   if (!bridge) {
     // we don't have access to the bridge, so just assume we can handle
     // the protocol for now and let the system deal with it
     return NS_OK;
   }
 
-  nsIHandlerApp* systemDefault = nsnull;
-  bridge->GetHandlersForURL(nsCAutoString(aURL).get(), 
-                            mimeinfo->mHandlerApps, &systemDefault);
-  
-  if (systemDefault)
-    mimeinfo->mPrefApp = systemDefault;
 
+  nsStringArray stringArray;
+  bridge->GetHandlersForProtocol(nsCAutoString(aScheme).get(), &stringArray);
 
-  nsCAutoString fileExt;
-  nsCAutoString mimeType;
-  mimeinfo->GetType(mimeType);
-  bridge->GetExtensionFromMimeType(mimeType, fileExt);
-  mimeinfo->SetPrimaryExtension(fileExt);
-  
-  PRUint32 len;
-  mimeinfo->mHandlerApps->GetLength(&len);
-  if (len == 1) {
+  PRInt32 len = stringArray.Count();
+  if (len == 0) {
     // Code that calls this requires an object regardless if the OS has
     // something for us, so we return the empty object.
     *found = PR_FALSE;
     return NS_OK;
   }
   
+  for (jsize i = 0; i < len; i+=4) {
+    nsAndroidHandlerApp* app =
+      new nsAndroidHandlerApp(*stringArray[i], empty, *stringArray[i + 2],
+                              *stringArray[i + 3], emptyC);
+    mimeinfo->mHandlerApps->AppendElement(app, PR_FALSE);
+    if (!stringArray[i + 1]->IsEmpty())
+      mimeinfo->mPrefApp = app;
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMIMEInfoAndroid::GetType(nsACString& aType)
 {
-  aType.Assign(mType);
+  aType.Assign(mMimeType);
   return NS_OK;
 }
 
@@ -187,7 +176,11 @@ NS_IMETHODIMP
 nsMIMEInfoAndroid::GetPreferredApplicationHandler(nsIHandlerApp** aApp)
 {
   *aApp = mPrefApp;
-  NS_IF_ADDREF(*aApp);
+  if (*aApp) {
+    nsAutoString appName;
+    (*aApp)->GetName(appName);
+  }
+
   return NS_OK;
 }
 
@@ -357,7 +350,7 @@ nsMIMEInfoAndroid::SetPrimaryExtension(const nsACString & aExtension)
 NS_IMETHODIMP
 nsMIMEInfoAndroid::GetMIMEType(nsACString & aMIMEType)
 {
-  aMIMEType.Assign(mType);
+  aMIMEType.Assign(mMimeType);
   return NS_OK;
 }
 
@@ -370,7 +363,7 @@ nsMIMEInfoAndroid::Equals(nsIMIMEInfo *aMIMEInfo, PRBool *aRetVal)
   nsresult rv = aMIMEInfo->GetMIMEType(type);
   if (NS_FAILED(rv)) return rv;
 
-  *aRetVal = mType.Equals(type);
+  *aRetVal = mMimeType.Equals(type);
 
   return NS_OK;
 }
@@ -391,7 +384,7 @@ nsMIMEInfoAndroid::LaunchWithFile(nsIFile *aFile)
 }
 
 nsMIMEInfoAndroid::nsMIMEInfoAndroid(const nsACString& aMIMEType) :
-  mType(aMIMEType), mAlwaysAsk(PR_TRUE),
+  mMimeType(aMIMEType), mAlwaysAsk(PR_TRUE),
   mPrefAction(nsIMIMEInfo::useHelperApp)
 {
   mPrefApp = new nsMIMEInfoAndroid::SystemChooser(this);

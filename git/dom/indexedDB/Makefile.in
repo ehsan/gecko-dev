@@ -53,8 +53,6 @@ EXPORTS_NAMESPACES = mozilla/dom/indexedDB
 
 CPPSRCS = \
   AsyncConnectionHelper.cpp \
-  CheckPermissionsHelper.cpp \
-  CheckQuotaHelper.cpp \
   DatabaseInfo.cpp \
   IDBCursor.cpp \
   IDBDatabase.cpp \
@@ -65,7 +63,6 @@ CPPSRCS = \
   IDBRequest.cpp \
   IDBTransaction.cpp \
   IDBFactory.cpp \
-  IndexedDatabaseManager.cpp \
   LazyIdleThread.cpp \
   TransactionThreadPool.cpp \
   $(NULL)
@@ -80,16 +77,12 @@ EXPORTS_mozilla/dom/indexedDB = \
   IDBRequest.h \
   IDBTransaction.h \
   IndexedDatabase.h \
-  IndexedDatabaseManager.h \
   IDBFactory.h \
-  Key.h \
   LazyIdleThread.h \
   $(NULL)
 
 LOCAL_INCLUDES = \
-  -I$(topsrcdir)/xpcom/build \
   -I$(topsrcdir)/dom/base \
-  -I$(topsrcdir)/dom/src/storage \
   -I$(topsrcdir)/content/base/src \
   -I$(topsrcdir)/content/events/src \
   $(NULL)
@@ -100,24 +93,22 @@ DEFINES += -D_IMPL_NS_LAYOUT
 # js/src/xpconnect/src/dom_quickstubs.qsconf.
 XPIDLSRCS = \
   nsIIDBCursor.idl \
-  nsIIDBCursorWithValue.idl \
   nsIIDBDatabase.idl \
   nsIIDBDatabaseException.idl \
-  nsIIDBFactory.idl \
+  nsIIDBEvent.idl \
+  nsIIDBErrorEvent.idl \
   nsIIDBIndex.idl \
   nsIIDBKeyRange.idl \
   nsIIDBObjectStore.idl \
   nsIIDBRequest.idl \
+  nsIIDBSuccessEvent.idl \
   nsIIDBTransaction.idl \
-  nsIIDBVersionChangeEvent.idl \
-  nsIIDBVersionChangeRequest.idl \
-  nsIIndexedDatabaseManager.idl \
+  nsIIDBTransactionEvent.idl \
+  nsIIDBFactory.idl \
   $(NULL)
 
 ifdef ENABLE_TESTS
 DIRS += test
 endif
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk

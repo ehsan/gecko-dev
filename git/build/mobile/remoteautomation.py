@@ -42,17 +42,15 @@ import os
 import socket
 
 from automation import Automation
-from devicemanager import DeviceManager, NetworkTools
+from devicemanager import DeviceManager
 
 class RemoteAutomation(Automation):
     _devicemanager = None
     
-    def __init__(self, deviceManager, appName = '', remoteLog = None):
+    def __init__(self, deviceManager, appName = ''):
         self._devicemanager = deviceManager
         self._appName = appName
         self._remoteProfile = None
-        self._remoteLog = remoteLog
-
         # Default our product to fennec
         self._product = "fennec"
         Automation.__init__(self)
@@ -68,24 +66,6 @@ class RemoteAutomation(Automation):
 
     def setProduct(self, product):
         self._product = product
-        
-    def setRemoteLog(self, logfile):
-        self._remoteLog = logfile
-
-    # Set up what we need for the remote environment
-    def environment(self, env = None, xrePath = None, crashreporter = True):
-        # Because we are running remote, we don't want to mimic the local env
-        # so no copying of os.environ
-        if env is None:
-            env = {}
-
-        if crashreporter:
-            env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-            env['MOZ_CRASHREPORTER'] = '1'
-        else:
-            env['MOZ_CRASHREPORTER_DISABLE'] = '1'
-
-        return env
 
     def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsDir):
         # maxTime is used to override the default timeout, we should honor that
@@ -114,14 +94,33 @@ class RemoteAutomation(Automation):
 #        return app, ['--environ:NO_EM_RESTART=1'] + args
         return app, args
 
+    # Utilities to get the local ip address
+    def getInterfaceIp(self, ifname):
+        if os.name != "nt":
+            import fcntl
+            import struct
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            return socket.inet_ntoa(fcntl.ioctl(
+                                    s.fileno(),
+                                    0x8915,  # SIOCGIFADDR
+                                    struct.pack('256s', ifname[:15])
+                                    )[20:24])
+        else:
+            return None
+
     def getLanIp(self):
-        nettools = NetworkTools()
-        return nettools.getLanIp()
+        ip = socket.gethostbyname(socket.gethostname())
+        if ip.startswith("127.") and os.name != "nt":
+            interfaces = ["eth0","eth1","eth2","wlan0","wlan1","wifi0","ath0","ath1","ppp0"]
+            for ifname in interfaces:
+                try:
+                    ip = self.getInterfaceIp(ifname)
+                    break;
+                except IOError:
+                    pass
+        return ip
 
     def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
-        if stdout == None or stdout == -1 or stdout == subprocess.PIPE:
-          stdout = self._remoteLog
-
         return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd)
 
     # be careful here as this inner class doesn't have access to outer class members    
@@ -130,10 +129,8 @@ class RemoteAutomation(Automation):
         dm = None
         def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
             self.dm = dm
-            self.stdoutlen = 0
-            self.proc = dm.launchProcess(cmd, stdout, cwd, env, True)
-            if (self.proc is None):
-              raise Exception("unable to launch process")
+            print "going to launch process: " + str(self.dm.host)
+            self.proc = dm.launchProcess(cmd)
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name
@@ -145,18 +142,13 @@ class RemoteAutomation(Automation):
         @property
         def pid(self):
             hexpid = self.dm.processExist(self.procName)
-            if (hexpid == None):
+            if (hexpid == '' or hexpid == None):
                 hexpid = "0x0"
             return int(hexpid, 0)
     
         @property
         def stdout(self):
-            t = self.dm.getFile(self.proc)
-            if t == None: return ''
-            tlen = len(t)
-            retVal = t[self.stdoutlen:]
-            self.stdoutlen = tlen
-            return retVal.strip('\n').strip()
+            return self.dm.getFile(self.proc)
  
         def wait(self, timeout = None):
             timer = 0
@@ -166,8 +158,6 @@ class RemoteAutomation(Automation):
                 timeout = self.timeout
 
             while (self.dm.processExist(self.procName)):
-                t = self.stdout
-                if t != '': print t
                 time.sleep(interval)
                 timer += interval
                 if (timer > timeout):
@@ -179,3 +169,4 @@ class RemoteAutomation(Automation):
  
         def kill(self):
             self.dm.killProcess(self.procName)
+

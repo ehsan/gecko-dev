@@ -60,11 +60,6 @@
 
     nsIContent** AllocateContentHandle();
     
-    void accumulateCharactersForced(const PRUnichar* aBuf, PRInt32 aStart, PRInt32 aLength)
-    {
-      accumulateCharacters(aBuf, aStart, aLength);
-    }
-
   public:
 
     nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,
@@ -72,6 +67,8 @@
 
     ~nsHtml5TreeBuilder();
     
+    PRBool IsDiscretionaryFlushSafe();
+
     PRBool HasScript();
     
     void SetOpSink(nsAHtml5TreeOpSink* aOpSink) {
@@ -82,7 +79,7 @@
       mOpQueue.Clear();
     }
     
-    PRBool Flush(PRBool aDiscretionary = PR_FALSE);
+    PRBool Flush();
     
     void FlushLoads();
 
@@ -90,8 +87,6 @@
 
     void StreamEnded();
 
-    void NeedsCharsetSwitchTo(const nsACString& aEncoding, PRInt32 aSource);
+    void NeedsCharsetSwitchTo(const nsACString& aEncoding);
 
     void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
-
-    void DropHandles();

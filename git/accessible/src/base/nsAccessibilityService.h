@@ -60,8 +60,6 @@ public:
   // nsIAccessibilityService
   virtual nsAccessible* GetAccessibleInShell(nsINode* aNode,
                                              nsIPresShell* aPresShell);
-  virtual nsAccessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  PRBool aCanCreate);
 
   virtual already_AddRefed<nsAccessible>
     CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
@@ -84,7 +82,8 @@ public:
   virtual already_AddRefed<nsAccessible>
     CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
-    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell,
+                           const nsAString& aBulletText);
   virtual already_AddRefed<nsAccessible>
     CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
@@ -110,36 +109,15 @@ public:
   virtual nsAccessible* AddNativeRootAccessible(void* aAtkAccessible);
   virtual void RemoveNativeRootAccessible(nsAccessible* aRootAccessible);
 
-  virtual void ContentRangeInserted(nsIPresShell* aPresShell,
-                                    nsIContent* aContainer,
-                                    nsIContent* aStartChild,
-                                    nsIContent* aEndChild);
-
-  virtual void ContentRemoved(nsIPresShell* aPresShell, nsIContent* aContainer,
-                              nsIContent* aChild);
-
-  virtual void UpdateText(nsIPresShell* aPresShell, nsIContent* aContent);
-
-  /**
-   * Update list bullet accessible.
-   */
-  virtual void UpdateListBullet(nsIPresShell* aPresShell,
-                                nsIContent* aHTMLListItemContent,
-                                bool aHasBullet);
+  virtual nsresult InvalidateSubtreeFor(nsIPresShell *aPresShell,
+                                        nsIContent *aContent,
+                                        PRUint32 aChangeType);
 
   virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget);
 
   virtual void PresShellDestroyed(nsIPresShell* aPresShell);
 
-  /**
-   * Notify that presshell is activated.
-   */
-  virtual void PresShellActivated(nsIPresShell* aPresShell);
-
-  virtual void RecreateAccessible(nsIPresShell* aPresShell,
-                                  nsIContent* aContent);
-
-  virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget);
+  virtual nsresult FireAccessibleEvent(PRUint32 aEvent, nsIAccessible *aTarget);
 
   // nsAccessibiltiyService
 
@@ -152,15 +130,16 @@ public:
    * Return an accessible for the given DOM node from the cache or create new
    * one.
    *
-   * @param  aNode             [in] the given node
-   * @param  aPresShell        [in] the pres shell of the node
-   * @param  aWeakShell        [in] the weak shell for the pres shell
-   * @param  aIsSubtreeHidden  [out, optional] indicates whether the node's
-   *                             frame and its subtree is hidden
+   * @param  aNode       [in] the given node
+   * @param  aPresShell  [in] the pres shell of the node
+   * @param  aWeakShell  [in] the weak shell for the pres shell
+   * @param  aIsHidden   [out, optional] indicates whether the node's frame is
+   *                       hidden
    */
-  nsAccessible* GetOrCreateAccessible(nsINode* aNode, nsIPresShell* aPresShell,
-                                      nsIWeakReference* aWeakShell,
-                                      bool* aIsSubtreeHidden = nsnull);
+  already_AddRefed<nsAccessible>
+    GetOrCreateAccessible(nsINode* aNode, nsIPresShell* aPresShell,
+                          nsIWeakReference* aWeakShell,
+                          PRBool* aIsHidden = nsnull);
 
   /**
    * Return an accessible for the given DOM node.
@@ -176,16 +155,18 @@ public:
   inline nsAccessible* GetAccessibleInWeakShell(nsINode* aNode,
                                                 nsIWeakReference* aWeakShell)
   {
-    // XXX: weak shell is ignored until multiple shell documents are supported.
-    return GetAccessible(aNode);
+    return GetAccessibleByRule(aNode, aWeakShell, eGetAccForNode);
   }
 
   /**
    * Return an accessible for the given DOM node or container accessible if
    * the node is not accessible.
    */
-  nsAccessible* GetAccessibleOrContainer(nsINode* aNode,
-                                         nsIWeakReference* aWeakShell);
+  inline nsAccessible* GetAccessibleOrContainer(nsINode* aNode,
+                                                nsIWeakReference* aWeakShell)
+  {
+    return GetAccessibleByRule(aNode, aWeakShell, eGetAccForNodeOrContainer);
+  }
 
   /**
    * Return a container accessible for the given DOM node.
@@ -193,9 +174,40 @@ public:
   inline nsAccessible* GetContainerAccessible(nsINode* aNode,
                                               nsIWeakReference* aWeakShell)
   {
-    return aNode ?
-      GetAccessibleOrContainer(aNode->GetNodeParent(), aWeakShell) : nsnull;
+    return GetAccessibleByRule(aNode, aWeakShell, eGetAccForContainer);
   }
+
+  /**
+   * Return the first cached accessible parent of a DOM node.
+   *
+   * @param aDOMNode    [in] the DOM node to get an accessible for
+   */
+  nsAccessible* GetCachedContainerAccessible(nsINode *aNode);
+
+  /**
+   * Initialize an accessible and cache it. The method should be called for
+   * every created accessible.
+   *
+   * @param  aAccessible    [in] accessible to initialize.
+   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
+   *                          if none
+   *
+   * @return true if the accessible was initialized, otherwise false
+   */
+  PRBool InitAccessible(nsAccessible *aAccessible,
+                        nsRoleMapEntry *aRoleMapEntry);
+
+protected:
+  /**
+   * Return an accessible for the DOM node in the given presentation shell if
+   * the accessible already exists, otherwise null.
+   *
+   * @param  aNode       [in] the DOM node to get an access node for
+   * @param  aPresShell  [in] the presentation shell which contains layout info
+   *                       for the DOM node
+   */
+  nsAccessible *GetCachedAccessible(nsINode *aNode,
+                                    nsIWeakReference *aShell);
 
 private:
   // nsAccessibilityService creation is controlled by friend
@@ -214,6 +226,19 @@ private:
    * Shutdowns accessibility service.
    */
   void Shutdown();
+
+  enum EWhatAccToGet {
+    eGetAccForNode = 0x1,
+    eGetAccForContainer = 0x2,
+    eGetAccForNodeOrContainer = eGetAccForNode | eGetAccForContainer
+  };
+
+  /**
+   * Return accessible or accessible container for the given node in presshell.
+   */
+  nsAccessible* GetAccessibleByRule(nsINode* aNode,
+                                    nsIWeakReference* aWeakShell,
+                                    EWhatAccToGet aWhatToGet);
 
   /**
    * Return accessible for HTML area element associated with an image map.
@@ -416,8 +441,7 @@ static const char kRoleNames[][20] = {
   "listbox",             //ROLE_LISTBOX
   "flat equation",       //ROLE_FLAT_EQUATION
   "gridcell",            //ROLE_GRID_CELL
-  "embedded object",     //ROLE_EMBEDDED_OBJECT
-  "note"                 //ROLE_NOTE
+  "embedded object"      //ROLE_EMBEDDED_OBJECT
 };
 
 /**

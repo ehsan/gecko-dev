@@ -53,13 +53,12 @@ include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 CPPSRCS     = \
-        nsDeviceMotionSystem.cpp \
+        nsAccelerometerSystem.cpp \
         AndroidLocationProvider.cpp \
-        nsHapticFeedback.cpp \
         $(NULL)
 
-LOCAL_INCLUDES  += -I$(topsrcdir)/dom/src/geolocation \
-                     $(NULL)
+        LOCAL_INCLUDES  += -I$(topsrcdir)/dom/src/geolocation \
+                           $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

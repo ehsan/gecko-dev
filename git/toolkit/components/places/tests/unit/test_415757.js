@@ -76,9 +76,7 @@ function uri_in_db(aURI) {
   var result = histsvc.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;
-  var cc = root.childCount;
-  root.containerOpen = false;
-  return (cc == 1);
+  return (root.childCount == 1);
 }
 
 const TOTAL_SITES = 20;

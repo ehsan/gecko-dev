@@ -37,7 +37,7 @@
 /*
  * cert.h - public data structures and prototypes for the certificate library
  *
- * $Id: cert.h,v 1.80.2.3 2011/04/08 22:54:34 kaie%kuix.de Exp $
+ * $Id: cert.h,v 1.80 2010/04/30 07:47:47 nelson%bolyard.com Exp $
  */
 
 #ifndef _CERT_H_
@@ -607,16 +607,6 @@ CERTCertificate *
 CERT_FindCertByNicknameOrEmailAddr(CERTCertDBHandle *handle, const char *name);
 
 /*
-** Find a certificate in the database by a email address or nickname
-** and require it to have the given usage.
-**      "name" is the email address or nickname to look up
-*/
-CERTCertificate *
-CERT_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
-                                           const char *name, 
-                                           SECCertUsage lookingForUsage);
-
-/*
 ** Find a certificate in the database by a digest of a subject public key
 **	"spkDigest" is the digest to look up
 */
@@ -1112,7 +1102,7 @@ extern CERTCertificateList *
 CERT_CertListFromCert(CERTCertificate *cert);
 
 extern CERTCertificateList *
-CERT_DupCertList(const CERTCertificateList * oldList);
+CERT_DupCertList(CERTCertificateList * oldList);
 
 extern void CERT_DestroyCertificateList(CERTCertificateList *list);
 
@@ -1665,33 +1655,26 @@ extern SECStatus CERT_PKIXVerifyCert(
 	CERTValInParam *paramsIn,
 	CERTValOutParam *paramsOut,
 	void *wincx);
+/*
+ * This function changes the application defaults for the Verify function.
+ * It should be called once at app initialization time, and only changes
+ * if the default configuration changes.
+ *
+ * This changes the default values for the parameters specified. These
+ * defaults can be overridden in CERT_PKIXVerifyCert() by explicitly 
+ * setting the value in paramsIn.
+ */
+extern SECStatus CERT_PKIXSetDefaults(CERTValInParam *paramsIn);
 
 /* Makes old cert validation APIs(CERT_VerifyCert, CERT_VerifyCertificate)
  * to use libpkix validation engine. The function should be called ones at
  * application initialization time.
  * Function is not thread safe.*/
-extern SECStatus CERT_SetUsePKIXForValidation(PRBool enable);
+SECStatus CERT_SetUsePKIXForValidation(PRBool enable);
 
 /* The function return PR_TRUE if cert validation should use
  * libpkix cert validation engine. */
-extern PRBool CERT_GetUsePKIXForValidation(void);
-
-/*
- * Allocate a parameter container of type CERTRevocationFlags,
- * and allocate the inner arrays of the given sizes.
- * To cleanup call CERT_DestroyCERTRevocationFlags.
- */
-extern CERTRevocationFlags *
-CERT_AllocCERTRevocationFlags(
-    PRUint32 number_leaf_methods, PRUint32 number_leaf_pref_methods,
-    PRUint32 number_chain_methods, PRUint32 number_chain_pref_methods);
-
-/*
- * Destroy the arrays inside flags,
- * and destroy the object pointed to by flags, too.
- */
-extern void
-CERT_DestroyCERTRevocationFlags(CERTRevocationFlags *flags);
+PRBool CERT_GetUsePKIXForValidation(void);
 
 SEC_END_PROTOS
 

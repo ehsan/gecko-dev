@@ -14,7 +14,8 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is
+ *   Mozilla Corp
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -101,17 +102,10 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
 
   // Music download filter for vkontakte.ru - old instances
   // of this DLL cause crashes
-  {"vksaver.dll", MAKE_VERSION(2,2,2,0)},
+  {"vksaver.dll", MAKE_VERSION(1,0,0,1)},
 
   // Topcrash in Firefox 4.0b1
   {"rlxf.dll", MAKE_VERSION(1,2,323,1)},
-
-  // psicon.dll - Topcrashes in Thunderbird, and some crashes in Firefox
-  // Adobe photoshop library, now redundant in later installations
-  {"psicon.dll", ALL_VERSIONS},
-
-  // Topcrash in Firefox 4 betas (bug 618899)
-  {"accelerator.dll", MAKE_VERSION(3,2,1,6)},
   
   // leave these two in always for tests
   { "mozdllblockingtest.dll", ALL_VERSIONS },

@@ -85,8 +85,13 @@ function runTests()
        getDesciption(aPreventedOnBubbling) + "prevented on bubbling phase");
   }
 
-  SpecialPowers.addSystemEventListener(window, "keypress", listener, true);
-  SpecialPowers.addSystemEventListener(window, "keypress", listener, false);
+  var systemGroup =
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
+      systemEventGroup;
+  window.QueryInterface(Components.interfaces.nsIDOM3EventTarget);
+  window.addGroupedEventListener("keypress", listener, true, systemGroup);
+  window.addGroupedEventListener("keypress", listener, false, systemGroup);
 
   function doTest(aElement, aDescription,
                   aIsReadonly, aIsTabbable, aIsPlaintext)
@@ -165,11 +170,11 @@ function runTests()
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { ctrlKey: true });
-    check(aDescription + "Ctrl+Backspace", true, true, aIsReadonly);
+    check(aDescription + "Ctrl+Backspace", true, true, kIsWin || aIsReadonly);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { altKey: true });
-    check(aDescription + "Alt+Backspace", true, true, aIsReadonly);
+    check(aDescription + "Alt+Backspace", true, true, kIsLinux ? aIsReadonly : true);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { metaKey: true });
@@ -185,15 +190,15 @@ function runTests()
 
     reset("");
     synthesizeKey("VK_DELETE", { shiftKey: true });
-    check(aDescription + "Shift+Delete", true, true, false);
+    check(aDescription + "Shift+Delete", true, true, !kIsLinux);
 
     reset("");
     synthesizeKey("VK_DELETE", { ctrlKey: true });
-    check(aDescription + "Ctrl+Delete", true, true, false);
+    check(aDescription + "Ctrl+Delete", true, true, kIsWin);
 
     reset("");
     synthesizeKey("VK_DELETE", { altKey: true });
-    check(aDescription + "Alt+Delete", true, true, false);
+    check(aDescription + "Alt+Delete", true, true, kIsMac);
 
     reset("");
     synthesizeKey("VK_DELETE", { metaKey: true });
@@ -655,8 +660,8 @@ function runTests()
   doTest(htmlEditor, "readonly and non-tabbable HTML editor but plaintext mode",
          true, false, true);
 
-  SpecialPowers.removeSystemEventListener(window, "keypress", listener, true);
-  SpecialPowers.removeSystemEventListener(window, "keypress", listener, false);
+  window.removeGroupedEventListener("keypress", listener, true, systemGroup);
+  window.removeGroupedEventListener("keypress", listener, false, systemGroup);
 
   SimpleTest.finish();
 }

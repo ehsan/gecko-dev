@@ -1,33 +1,43 @@
-Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/resource.js");
+Cu.import("resource://services-sync/base_records/crypto.js");
+Cu.import("resource://services-sync/base_records/keys.js");
+Cu.import("resource://services-sync/auth.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
 
-let cryptoWrap;
+let keys, cryptoMeta, cryptoWrap;
+
+function pubkey_handler(metadata, response) {
+  let obj = {id: "ignore-me",
+             modified: keys.pubkey.modified,
+             payload: JSON.stringify(keys.pubkey.payload)};
+  return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
+}
+
+function privkey_handler(metadata, response) {
+  let obj = {id: "ignore-me-2",
+             modified: keys.privkey.modified,
+             payload: JSON.stringify(keys.privkey.payload)};
+  return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
+}
 
 function crypted_resource_handler(metadata, response) {
-  let obj = {id: "resource",
+  let obj = {id: "ignore-me-3",
              modified: cryptoWrap.modified,
              payload: JSON.stringify(cryptoWrap.payload)};
   return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
 }
 
-function prepareCryptoWrap(collection, id) {
-  let w = new CryptoWrapper();
-  w.cleartext.stuff = "my payload here";
-  w.collection = collection;
-  w.id = id;
-  return w;
+function crypto_meta_handler(metadata, response) {
+  let obj = {id: "ignore-me-4",
+             modified: cryptoMeta.modified,
+             payload: JSON.stringify(cryptoMeta.payload)};
+  return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
 }
 
 function run_test() {
   let server;
   do_test_pending();
-
-  let keyBundle = ID.set("WeaveCryptoID", new SyncKeyBundle(PWDMGR_PASSPHRASE_REALM, "john@example.com"));
-  keyBundle.keyStr = "a-abcde-abcde-abcde-abcde-abcde";
 
   try {
     let log = Log4Moz.repository.getLogger("Test");
@@ -35,118 +45,78 @@ function run_test() {
 
     log.info("Setting up server and authenticator");
 
-    server = httpd_setup({"/steam/resource": crypted_resource_handler});
+    server = httpd_setup({"/pubkey": pubkey_handler,
+                          "/privkey": privkey_handler,
+                          "/crypted-resource": crypted_resource_handler,
+                          "/crypto-meta": crypto_meta_handler});
 
     let auth = new BasicAuthenticator(new Identity("secret", "guest", "guest"));
     Auth.defaultAuthenticator = auth;
 
-    log.info("Creating a record");
+    log.info("Generating keypair + symmetric key");
 
-    let cryptoUri = "http://localhost:8080/crypto/steam";
-    cryptoWrap = prepareCryptoWrap("steam", "resource");
-    
-    log.info("cryptoWrap: " + cryptoWrap.toString());
+    PubKeys.defaultKeyUri = "http://localhost:8080/pubkey";
+    keys = PubKeys.createKeypair(passphrase,
+                                 "http://localhost:8080/pubkey",
+                                 "http://localhost:8080/privkey");
+    let crypto = Svc.Crypto;
+    keys.symkey = crypto.generateRandomKey();
+    keys.wrappedkey = crypto.wrapSymmetricKey(keys.symkey, keys.pubkey.keyData);
 
-    log.info("Encrypting a record");
+    log.info("Setting up keyring");
 
-    cryptoWrap.encrypt(keyBundle);
-    log.info("Ciphertext is " + cryptoWrap.ciphertext);
-    do_check_true(cryptoWrap.ciphertext != null);
-    
+    cryptoMeta = new CryptoMeta("http://localhost:8080/crypto-meta", auth);
+    cryptoMeta.addUnwrappedKey(keys.pubkey, keys.symkey);
+    CryptoMetas.set(cryptoMeta.uri, cryptoMeta);
+
+    log.info("Creating and encrypting a record");
+
+    cryptoWrap = new CryptoWrapper("http://localhost:8080/crypted-resource", auth);
+    cryptoWrap.encryption = "http://localhost:8080/crypto-meta";
+    cryptoWrap.cleartext.stuff = "my payload here";
+    cryptoWrap.encrypt(passphrase);
     let firstIV = cryptoWrap.IV;
 
     log.info("Decrypting the record");
 
-    let payload = cryptoWrap.decrypt(keyBundle);
+    let payload = cryptoWrap.decrypt(passphrase);
     do_check_eq(payload.stuff, "my payload here");
     do_check_neq(payload, cryptoWrap.payload); // wrap.data.payload is the encrypted one
-
-    log.info("Make sure multiple decrypts cause failures");
-    let error = "";
-    try {
-      payload = cryptoWrap.decrypt(keyBundle);
-    }
-    catch(ex) {
-      error = ex;
-    }
-    do_check_eq(error, "No ciphertext: nothing to decrypt?");
 
     log.info("Re-encrypting the record with alternate payload");
 
     cryptoWrap.cleartext.stuff = "another payload";
-    cryptoWrap.encrypt(keyBundle);
+    cryptoWrap.encrypt(passphrase);
     let secondIV = cryptoWrap.IV;
-    payload = cryptoWrap.decrypt(keyBundle);
+    payload = cryptoWrap.decrypt(passphrase);
     do_check_eq(payload.stuff, "another payload");
 
     log.info("Make sure multiple encrypts use different IVs");
     do_check_neq(firstIV, secondIV);
 
     log.info("Make sure differing ids cause failures");
-    cryptoWrap.encrypt(keyBundle);
+    cryptoWrap.encrypt(passphrase);
     cryptoWrap.data.id = "other";
-    error = "";
+    let error = "";
     try {
-      cryptoWrap.decrypt(keyBundle);
+      cryptoWrap.decrypt(passphrase);
     }
     catch(ex) {
       error = ex;
     }
-    do_check_eq(error, "Record id mismatch: resource != other");
+    do_check_eq(error, "Record id mismatch: crypted-resource,other");
 
     log.info("Make sure wrong hmacs cause failures");
-    cryptoWrap.encrypt(keyBundle);
+    cryptoWrap.encrypt(passphrase);
     cryptoWrap.hmac = "foo";
     error = "";
     try {
-      cryptoWrap.decrypt(keyBundle);
+      cryptoWrap.decrypt(passphrase);
     }
     catch(ex) {
       error = ex;
     }
-    do_check_eq(error.substr(0, 42), "Record SHA256 HMAC mismatch: should be foo");
-
-    // Checking per-collection keys and default key handling.
-    
-    generateNewKeys();
-    let bu = "http://localhost:8080/storage/bookmarks/foo";
-    let bookmarkItem = prepareCryptoWrap("bookmarks", "foo");
-    bookmarkItem.encrypt();
-    log.info("Ciphertext is " + bookmarkItem.ciphertext);
-    do_check_true(bookmarkItem.ciphertext != null);
-    log.info("Decrypting the record explicitly with the default key.");
-    do_check_eq(bookmarkItem.decrypt(CollectionKeys._default).stuff, "my payload here");
-    
-    // Per-collection keys.
-    // Generate a key for "bookmarks".
-    generateNewKeys(["bookmarks"]);
-    bookmarkItem = prepareCryptoWrap("bookmarks", "foo");
-    do_check_eq(bookmarkItem.collection, "bookmarks");
-    
-    // Encrypt. This'll use the "bookmarks" encryption key, because we have a
-    // special key for it. The same key will need to be used for decryption.
-    bookmarkItem.encrypt();
-    do_check_true(bookmarkItem.ciphertext != null);
-    
-    _("Default key is " + CollectionKeys._default.keyStr);
-    _("Bookmarks key is " + CollectionKeys.keyForCollection("bookmarks").keyStr);
-    _("Bookmarks key is " + CollectionKeys._collections["bookmarks"].keyStr);
-    
-    // Attempt to use the default key, because this is a collision that could
-    // conceivably occur in the real world. Decryption will error, because
-    // it's not the bookmarks key.
-    let err;
-    try {
-      bookmarkItem.decrypt(CollectionKeys._default);
-    } catch (ex) {
-      err = ex;
-    }
-    do_check_eq("Record SHA256 HMAC mismatch", err.substr(0, 27));
-    
-    // Explicitly check that it's using the bookmarks key.
-    // This should succeed.
-    do_check_eq(bookmarkItem.decrypt(CollectionKeys.keyForCollection("bookmarks")).stuff,
-        "my payload here");
+    do_check_eq(error, "Record SHA256 HMAC mismatch: foo");
 
     log.info("Done!");
   }

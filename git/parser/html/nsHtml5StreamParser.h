@@ -138,7 +138,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * Tree builder uses this to report a late <meta charset>
      */
-    PRBool internalEncodingDeclaration(nsString* aEncoding);
+    void internalEncodingDeclaration(nsString* aEncoding);
 
     // Not from an external interface
 
@@ -256,13 +256,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     nsresult WriteStreamBytes(const PRUint8* aFromSegment,
                               PRUint32 aCount,
                               PRUint32* aWriteCount);
-
-    /**
-     * Check whether every other byte in the sniffing buffer is zero.
-     */
-    void SniffBOMlessUTF16BasicLatin(const PRUint8* aFromSegment,
-                                     PRUint32 aCountToSniffingLimit);
-
+    
     /**
      * <meta charset> scan failed. Try chardet if applicable. After this, the
      * the parser will have some encoding even if a last resolt fallback.
@@ -471,11 +465,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * The chardet instance if chardet is enabled.
      */
     nsCOMPtr<nsICharsetDetector>  mChardet;
-
-    /**
-     * If false, don't push data to chardet.
-     */
-    PRBool                        mFeedChardet;
 
     /**
      * Timer for flushing tree ops once in a while when not speculating.

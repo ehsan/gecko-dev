@@ -55,13 +55,13 @@
 #include "nsFtpConnectionThread.h"
 #include "netCore.h"
 #include "nsIStreamListener.h"
+#include "nsAutoLock.h"
 #include "nsIFTPChannel.h"
 #include "nsIUploadChannel.h"
 #include "nsIProxyInfo.h"
 #include "nsIProxiedChannel.h"
 #include "nsIResumableChannel.h"
 #include "nsHashPropertyBag.h"
-#include "nsFtpProtocolHandler.h"
 
 class nsFtpChannel : public nsBaseChannel,
                      public nsIFTPChannel,

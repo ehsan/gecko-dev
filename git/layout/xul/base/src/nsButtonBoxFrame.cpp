@@ -48,7 +48,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsGUIEvent.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsIDOMElement.h"
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
@@ -92,10 +92,10 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
       if (NS_KEY_EVENT == aEvent->eventStructType) {
         nsKeyEvent* keyEvent = (nsKeyEvent*)aEvent;
         if (NS_VK_SPACE == keyEvent->keyCode) {
-          nsEventStateManager *esm = aPresContext->EventStateManager();
+          nsIEventStateManager *esm = aPresContext->EventStateManager();
           // :hover:active state
-          esm->SetContentState(mContent, NS_EVENT_STATE_HOVER);
-          esm->SetContentState(mContent, NS_EVENT_STATE_ACTIVE);
+          esm->SetContentState(mContent,
+                               NS_EVENT_STATE_HOVER |  NS_EVENT_STATE_ACTIVE);
         }
       }
       break;
@@ -121,14 +121,11 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
         nsKeyEvent* keyEvent = (nsKeyEvent*)aEvent;
         if (NS_VK_SPACE == keyEvent->keyCode) {
           // only activate on keyup if we're already in the :hover:active state
-          NS_ASSERTION(mContent->IsElement(), "How do we have a non-element?");
-          nsEventStates buttonState = mContent->AsElement()->State();
-          if (buttonState.HasAllStates(NS_EVENT_STATE_ACTIVE |
-                                       NS_EVENT_STATE_HOVER)) {
-            // return to normal state
-            nsEventStateManager *esm = aPresContext->EventStateManager();
-            esm->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-            esm->SetContentState(nsnull, NS_EVENT_STATE_HOVER);
+          const PRInt32 activeHover = NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_HOVER;
+          nsIEventStateManager *esm = aPresContext->EventStateManager();
+          PRInt32 buttonState = esm->GetContentState(mContent);
+          if ((buttonState & activeHover) == activeHover) {
+            esm->SetContentState(nsnull, activeHover);    // return to normal state
             MouseClicked(aPresContext, aEvent);
           }
         }

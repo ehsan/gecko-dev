@@ -54,10 +54,7 @@ CPPSRCS   = nsXULStub.cpp
 # for Mac OS X and 'xulrunner-stub' for all other platforms.
 PROGRAM   = $(XULRUNNER_STUB_NAME)$(BIN_SUFFIX)
 
-LOCAL_INCLUDES = \
-  -I$(topsrcdir)/xpcom/build \
-  -I$(topsrcdir)/xpcom/base \
-  $(NULL)
+LOCAL_INCLUDES = -I$(topsrcdir)/xpcom/build
 
 DEFINES  += -DXPCOM_GLUE
 STL_FLAGS=
@@ -73,7 +70,7 @@ LIBS            += \
 		$(NULL)
 endif
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 RCINCLUDE = xulrunner-stub.rc
 ifndef GNU_CC
 RCFLAGS += -DMOZ_XULRUNNER -I$(srcdir)
@@ -94,7 +91,11 @@ endif
 include $(topsrcdir)/config/config.mk
 
 ifdef _MSC_VER
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+else
 WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
 endif
 
 LIBS += $(JEMALLOC_LIBS)

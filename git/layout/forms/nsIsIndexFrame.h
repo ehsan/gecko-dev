@@ -83,7 +83,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFormControlFrame
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   
   virtual PRBool IsLeaf() const;
 
@@ -97,9 +97,8 @@ public:
   void           SetFocus(PRBool aOn, PRBool aRepaint);
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   NS_IMETHOD OnSubmit(nsPresContext* aPresContext);
 

@@ -88,13 +88,16 @@ class StubCompiler
     uint32 generation;
     uint32 lastGeneration;
 
-    Vector<CrossPatch, 64, mjit::CompilerAllocPolicy> exits;
-    Vector<CrossPatch, 64, mjit::CompilerAllocPolicy> joins;
-    Vector<CrossJumpInScript, 64, mjit::CompilerAllocPolicy> scriptJoins;
+    /* :TODO: oom check */
+    Vector<CrossPatch, 64, SystemAllocPolicy> exits;
+    Vector<CrossPatch, 64, SystemAllocPolicy> joins;
+    Vector<CrossJumpInScript, 64, SystemAllocPolicy> scriptJoins;
     Vector<Jump, 8, SystemAllocPolicy> jumpList;
 
   public:
     StubCompiler(JSContext *cx, mjit::Compiler &cc, FrameState &frame, JSScript *script);
+
+    bool init(uint32 nargs);
 
     size_t size() {
         return masm.size();
@@ -103,6 +106,24 @@ class StubCompiler
     uint8 *buffer() {
         return masm.buffer();
     }
+
+    Call vpInc(JSOp op, uint32 depth);
+
+#define STUB_CALL_TYPE(type)                                    \
+    Call call(type stub) {                                      \
+        return stubCall(JS_FUNC_TO_DATA_PTR(void *, stub));     \
+    }
+
+    STUB_CALL_TYPE(JSObjStub);
+    STUB_CALL_TYPE(VoidStub);
+    STUB_CALL_TYPE(VoidStubUInt32);
+    STUB_CALL_TYPE(VoidPtrStubUInt32);
+    STUB_CALL_TYPE(VoidPtrStub);
+    STUB_CALL_TYPE(BoolStub);
+    STUB_CALL_TYPE(VoidStubAtom);
+    STUB_CALL_TYPE(VoidStubPC);
+
+#undef STUB_CALL_TYPE
 
     /*
      * Force a frame sync and return a label before the syncing code.
@@ -134,11 +155,13 @@ class StubCompiler
 
     /* Finish all native code patching. */
     void fixCrossJumps(uint8 *ncode, size_t offset, size_t total);
-    bool jumpInScript(Jump j, jsbytecode *target);
+    void finalize(uint8 *ncode);
+    void jumpInScript(Jump j, jsbytecode *target);
     void crossJump(Jump j, Label l);
 
-    Call emitStubCall(void *ptr, uint32 id);
-    Call emitStubCall(void *ptr, int32 slots, uint32 id);
+  private:
+    Call stubCall(void *ptr);
+    Call stubCall(void *ptr, uint32 slots);
 };
 
 } /* namepsace mjit */

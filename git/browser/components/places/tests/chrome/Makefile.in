@@ -13,7 +13,7 @@
 #
 # The Original Code is Places test code.
 #
-# The Initial Developer of the Original Code is the Mozilla Foundation.
+# The Initial Developer of the Original Code is Mozilla Corp.
 # Portions created by the Initial Developer are Copyright (C) 2009
 # the Initial Developer. All Rights Reserved.
 #
@@ -51,8 +51,6 @@ _CHROME_TEST_FILES = \
 	test_0_bug510634.xul \
 	test_bug549192.xul \
 	test_bug549491.xul \
-	test_editBookmarkOverlay_tags_liveUpdate.xul \
-	test_bug631374_tags_selector_scroll.xul \
 	$(NULL)
 
 libs:: $(_CHROME_TEST_FILES)

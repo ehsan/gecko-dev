@@ -75,18 +75,22 @@ class nsChromeRegistryChrome : public nsChromeRegistry
                                           nsISimpleEnumerator **_retval);
 #endif
   
+#ifdef MOZ_IPC
   void SendRegisteredChrome(mozilla::dom::PContentParent* aChild);
+#endif
 
  private:
+#ifdef MOZ_IPC
   static PLDHashOperator CollectPackages(PLDHashTable *table,
                                          PLDHashEntryHdr *entry,
                                          PRUint32 number, void *arg);
+#endif
 
   nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
-  NS_OVERRIDE nsresult UpdateSelectedLocale();
-  NS_OVERRIDE nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,
+  NS_OVERRIDE nsresult GetBaseURIFromPackage(const nsCString& aPackage,
                                              const nsCString& aProvider,
-                                             const nsCString& aPath);
+                                             const nsCString& aPath,
+                                             nsIURI* *aResult);
   NS_OVERRIDE nsresult GetFlagsFromPackage(const nsCString& aPackage,
                                            PRUint32* aFlags);
 

@@ -37,7 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
+#endif
 
 #include "mozilla/XPCOM.h"
 #include "nsXULAppAPI.h"
@@ -56,7 +58,6 @@
 #include "nsBinaryStream.h"
 #include "nsStorageStream.h"
 #include "nsPipe.h"
-#include "nsScriptableBase64Encoder.h"
 
 #include "nsMemoryImpl.h"
 #include "nsDebugImpl.h"
@@ -107,6 +108,8 @@
 #include "nsStringStream.h"
 extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **);
 
+#include "nsFastLoadService.h"
+
 #include "nsAtomService.h"
 #include "nsAtomTable.h"
 #include "nsTraceRefcnt.h"
@@ -144,8 +147,11 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
 
+#ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
+#endif
 
+#ifdef MOZ_IPC
 #include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/message_loop.h"
@@ -163,6 +169,7 @@ static bool sCommandLineWasInitialized;
 static BrowserProcessSubThread* sIOThread;
 
 } /* anonymous namespace */
+#endif
 
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
@@ -172,8 +179,8 @@ static BrowserProcessSubThread* sIOThread;
 extern nsresult NS_RegistryGetFactory(nsIFactory** aFactory);
 extern nsresult NS_CategoryManagerGetFactory( nsIFactory** );
 
-#ifdef XP_WIN
-extern nsresult ScheduleMediaCacheRemover();
+#ifdef DEBUG
+extern void _FreeAutoLockStatics();
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsProcess)
@@ -204,7 +211,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsBinaryOutputStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBinaryInputStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsStorageStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVersionComparatorImpl)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableBase64Encoder)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
 
@@ -362,6 +368,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     NS_LogInit();
 
+#ifdef MOZ_IPC
     NS_TIME_FUNCTION_MARK("Next: IPC init");
 
     // Set up chromium libs
@@ -389,6 +396,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
         sIOThread = ioThread.release();
     }
+#endif
 
     NS_TIME_FUNCTION_MARK("Next: thread manager init");
 
@@ -402,7 +410,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     rv = nsTimerImpl::Startup();
     NS_ENSURE_SUCCESS(rv, rv);
 
-#ifndef ANDROID
+#if !defined(WINCE) && !defined(ANDROID)
     NS_TIME_FUNCTION_MARK("Next: setlocale");
 
     // If the locale hasn't already been setup by our embedder,
@@ -455,12 +463,27 @@ NS_InitXPCOM2(nsIServiceManager* *result,
         if (NS_FAILED(rv)) return rv;
     }
 
+#ifdef MOZ_OMNIJAR
     NS_TIME_FUNCTION_MARK("Next: Omnijar init");
 
-    if (!mozilla::Omnijar::IsInitialized()) {
-        mozilla::Omnijar::Init();
-    }
+    if (!mozilla::OmnijarPath()) {
+        nsCOMPtr<nsILocalFile> omnijar;
+        nsCOMPtr<nsIFile> file;
 
+        rv = NS_ERROR_FAILURE;
+        nsDirectoryService::gService->Get(NS_GRE_DIR,
+                                          NS_GET_IID(nsIFile),
+                                          getter_AddRefs(file));
+        if (file)
+            rv = file->Append(NS_LITERAL_STRING("omni.jar"));
+        if (NS_SUCCEEDED(rv))
+            omnijar = do_QueryInterface(file);
+        if (NS_SUCCEEDED(rv))
+            mozilla::SetOmnijar(omnijar);
+    }
+#endif
+
+#ifdef MOZ_IPC
     if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
         NS_TIME_FUNCTION_MARK("Next: IPC command line init");
 
@@ -484,6 +507,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
         CommandLine::Init(1, &argv);
 #endif
     }
+#endif
 
     NS_ASSERTION(nsComponentManagerImpl::gComponentManager == NULL, "CompMgr not null at init");
 
@@ -522,17 +546,16 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     // to the directory service.
     nsDirectoryService::gService->RegisterCategoryProviders();
 
+#ifdef MOZ_ENABLE_LIBXUL
     mozilla::scache::StartupCache::GetSingleton();
+#endif
     NS_TIME_FUNCTION_MARK("Next: create services from category");
 
     // Notify observers of xpcom autoregistration start
     NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY, 
                                   nsnull,
                                   NS_XPCOM_STARTUP_OBSERVER_ID);
-#ifdef XP_WIN
-    ScheduleMediaCacheRemover();
-#endif
-
+    
     return NS_OK;
 }
 
@@ -603,13 +626,13 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         }
 
         NS_ProcessPendingEvents(thread);
+#ifdef MOZ_ENABLE_LIBXUL
         mozilla::scache::StartupCache::DeleteSingleton();
+#endif
         if (observerService)
             (void) observerService->
                 NotifyObservers(nsnull, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,
                                 nsnull);
-
-        nsCycleCollector_shutdownThreads();
 
         NS_ProcessPendingEvents(thread);
 
@@ -712,12 +735,18 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     nsComponentManagerImpl::gComponentManager = nsnull;
     nsCategoryManager::Destroy();
 
+#ifdef DEBUG
+    // FIXME BUG 456272: this should disappear
+    _FreeAutoLockStatics();
+#endif
+
     ShutdownSpecialSystemDirectory();
 
     NS_PurgeAtomTable();
 
     NS_IF_RELEASE(gDebug);
 
+#ifdef MOZ_IPC
     if (sIOThread) {
         delete sIOThread;
         sIOThread = nsnull;
@@ -734,8 +763,11 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         delete sExitManager;
         sExitManager = nsnull;
     }
+#endif
 
-    mozilla::Omnijar::CleanUp();
+#ifdef MOZ_OMNIJAR
+    mozilla::SetOmnijar(nsnull);
+#endif
 
     NS_LogTerm();
 

@@ -47,9 +47,7 @@
 #include "jsstdint.h"
 #include "jsbit.h"
 #include "jsdhash.h"
-#include "jsutil.h"
-
-using namespace js;
+#include "jsutil.h"     /* for JS_ASSERT */
 
 #ifdef JS_DHASHMETER
 # if defined MOZILLA_CLIENT && defined DEBUG_XXXbrendan
@@ -113,13 +111,13 @@ using namespace js;
 JS_PUBLIC_API(void *)
 JS_DHashAllocTable(JSDHashTable *table, uint32 nbytes)
 {
-    return OffTheBooks::malloc_(nbytes);
+    return js_malloc(nbytes);
 }
 
 JS_PUBLIC_API(void)
 JS_DHashFreeTable(JSDHashTable *table, void *ptr)
 {
-    UnwantedForeground::free_(ptr);
+    js_free(ptr);
 }
 
 JS_PUBLIC_API(JSDHashNumber)
@@ -182,7 +180,7 @@ JS_DHashFreeStringKey(JSDHashTable *table, JSDHashEntryHdr *entry)
 {
     const JSDHashEntryStub *stub = (const JSDHashEntryStub *)entry;
 
-    UnwantedForeground::free_((void *) stub->key);
+    js_free((void *) stub->key);
     memset(entry, 0, table->entrySize);
 }
 
@@ -214,11 +212,11 @@ JS_NewDHashTable(const JSDHashTableOps *ops, void *data, uint32 entrySize,
 {
     JSDHashTable *table;
 
-    table = (JSDHashTable *) OffTheBooks::malloc_(sizeof *table);
+    table = (JSDHashTable *) js_malloc(sizeof *table);
     if (!table)
         return NULL;
     if (!JS_DHashTableInit(table, ops, data, entrySize, capacity)) {
-        Foreground::free_(table);
+        js_free(table);
         return NULL;
     }
     return table;
@@ -228,7 +226,7 @@ JS_PUBLIC_API(void)
 JS_DHashTableDestroy(JSDHashTable *table)
 {
     JS_DHashTableFinish(table);
-    UnwantedForeground::free_(table);
+    js_free(table);
 }
 
 JS_PUBLIC_API(JSBool)

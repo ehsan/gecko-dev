@@ -52,7 +52,6 @@ class nsIDocShell;
 class nsIRequest;
 class nsISaveAsCharset;
 class nsIMultiplexInputStream;
-class nsIDOMBlob;
 
 /**
  * Class for form submissions; encompasses the function to call to submit as
@@ -79,10 +78,10 @@ public:
    * Submit a name/file pair
    *
    * @param aName the name of the parameter
-   * @param aBlob the file to submit
+   * @param aFile the file to submit
    */
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMBlob* aBlob) = 0;
+                                   nsIFile* aFile) = 0;
   
   /**
    * Reports whether the instance supports AddIsindex().
@@ -162,12 +161,9 @@ public:
    * if there is no encoder).
    * @param aStr the string to encode
    * @param aResult the encoded string [OUT]
-   * @param aHeaderEncode If true, turns all linebreaks into spaces and escapes
-   *                      all quotes
    * @throws an error if UnicodeToNewBytes fails
    */
-  nsresult EncodeVal(const nsAString& aStr, nsCString& aResult,
-                     bool aHeaderEncode);
+  nsresult EncodeVal(const nsAString& aStr, nsACString& aResult);
 
 private:
   // The encoder that will encode Unicode names and values
@@ -191,7 +187,7 @@ public:
   virtual nsresult AddNameValuePair(const nsAString& aName,
                                     const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMBlob* aBlob);
+                                   nsIFile* aFile);
   virtual nsresult GetEncodedSubmission(nsIURI* aURI,
                                         nsIInputStream** aPostDataStream);
 

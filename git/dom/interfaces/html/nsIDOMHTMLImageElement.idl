@@ -43,14 +43,11 @@
  * The nsIDOMHTMLImageElement interface is the interface to a [X]HTML
  * img element.
  *
- * This interface is trying to follow the DOM Level 2 HTML specification:
+ * For more information on this interface please see
  * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-[scriptable, uuid(cf8a8744-ec3b-474e-8f2b-8def3da2344a)]
+[scriptable, uuid(3fc9c313-49b9-4315-b39f-7166cf362e10)]
 interface nsIDOMHTMLImageElement : nsIDOMHTMLElement
 {
            attribute DOMString        alt;
@@ -71,4 +68,9 @@ interface nsIDOMHTMLImageElement : nsIDOMHTMLElement
            attribute DOMString        longDesc;
            attribute long             vspace;
            attribute DOMString        lowsrc;
+
+  // These attributes are offsets from the closest view (to mimic
+  // NS4's "offset-from-layer" behavior).
+  readonly attribute long             x;
+  readonly attribute long             y;
 };

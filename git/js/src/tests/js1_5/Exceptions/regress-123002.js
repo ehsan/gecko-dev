@@ -58,6 +58,8 @@
  * To do this, just change the two LENGTH constants below -
  */
 //-----------------------------------------------------------------------------
+var LENGTH_RHINO = 1;
+var LENGTH_SPIDERMONKEY = 3;
 var UBound = 0;
 var BUGNUMBER = 123002;
 var summary = 'Testing Error.length';
@@ -70,7 +72,10 @@ var expect= '';
 var expectedvalues = [];
 
 
-var LENGTH_EXPECTED = 1;
+/*
+ * Are we in Rhino or SpiderMonkey?
+ */
+var LENGTH_EXPECTED = inRhino()? LENGTH_RHINO : LENGTH_SPIDERMONKEY;
 
 /*
  * The various NativeError objects; see ECMA-262 Edition 3, Section 15.11.6

@@ -52,9 +52,6 @@ _HTTP_FILES =	\
 		215405_nostore.html^headers^ \
 		215405_nocache.html \
 		215405_nocache.html^headers^ \
-		582176_dummy.html \
-		582176_xml.xml \
-		582176_xslt.xsl \
 		$(NULL)
 
 _TEST_FILES =	\
@@ -97,11 +94,7 @@ _TEST_FILES =	\
 		bug396519_window.xul \
 		test_bug396649.xul \
 		bug396649_window.xul \
-		test_bug582176.xul \
-		bug582176_window.xul \
 		test_bug428288.html \
-		test_bug608669.xul \
-		bug608669.xul \
 		test_bug449778.xul \
 		bug449778_window.xul \
 		test_bug449780.xul \
@@ -109,11 +102,6 @@ _TEST_FILES =	\
 		test_bug454235.xul \
 		bug454235-subframe.xul \
 		test_bug456980.xul \
-		test_bug662200.xul \
-		bug662200_window.xul \
-		662200a.html \
-		662200b.html \
-		662200c.html \
 		$(NULL)
 
 _DOCSHELL_SUBHARNESS = \

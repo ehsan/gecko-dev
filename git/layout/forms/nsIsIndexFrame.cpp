@@ -60,6 +60,7 @@
 #include "nsIComponentManager.h"
 #include "nsHTMLParts.h"
 #include "nsLinebreakConverter.h"
+#include "nsILinkHandler.h"
 #include "nsIHTMLDocument.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -76,8 +77,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsLayoutErrors.h"
-
-namespace dom = mozilla::dom;
 
 nsIFrame*
 NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -187,7 +186,7 @@ nsIsIndexFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 }
 
 nsresult
-nsIsIndexFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   // Get the node info manager (used to create hr's and input's)
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
@@ -195,11 +194,9 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // Create an hr
   nsCOMPtr<nsINodeInfo> hrInfo;
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML,
-                              nsIDOMNode::ELEMENT_NODE);
+  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
 
-  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(), PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -215,11 +212,10 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // Create text input field
   nsCOMPtr<nsINodeInfo> inputInfo;
-  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML,
-                                 nsIDOMNode::ELEMENT_NODE);
+  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML);
 
   NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+                    PR_FALSE);
   if (!mInputContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -234,10 +230,8 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   mInputContent->AddEventListenerByIID(mListener, NS_GET_IID(nsIDOMKeyListener));
 
   // Create an hr
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML,
-                              nsIDOMNode::ELEMENT_NODE);
-  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
+  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(), PR_FALSE);
   if (!mPostHr || !aElements.AppendElement(mPostHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -245,8 +239,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsIsIndexFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                         PRUint32 aFilter)
+nsIsIndexFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mTextContent);
   aElements.MaybeAppendElement(mInputContent);
@@ -262,7 +255,7 @@ NS_IMPL_ISUPPORTS2(nsIsIndexFrame::KeyListener,
                    nsIDOMEventListener)
 
 nscoord
-nsIsIndexFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -353,6 +346,8 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   // End ProcessAsURLEncoded
 
   // make the url string
+  nsILinkHandler *handler = aPresContext->GetLinkHandler();
+
   nsAutoString href;
 
   // Get the document.
@@ -430,9 +425,10 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
                      flatDocCharset.get(), baseURI);
   if (NS_FAILED(result)) return result;
 
-  // Now pretend we're triggering a link
-  nsContentUtils::TriggerLink(mContent, aPresContext, uri,
-                              EmptyString(), PR_TRUE, PR_TRUE);
+  // Now pass on absolute url to the click handler
+  if (handler) {
+    handler->OnLinkClick(mContent, uri, nsnull);
+  }
   return result;
 }
 
@@ -530,12 +526,11 @@ nsIsIndexFrame::SaveState(SpecialStateID aStateID, nsPresState** aState)
 {
   NS_ENSURE_ARG_POINTER(aState);
 
-  *aState = nsnull;
-
   // Get the value string
   nsAutoString stateString;
   GetInputValue(stateString);
 
+  nsresult res = NS_OK;
   if (! stateString.IsEmpty()) {
 
     // Construct a pres state and store value in it.
@@ -553,7 +548,7 @@ nsIsIndexFrame::SaveState(SpecialStateID aStateID, nsPresState** aState)
     (*aState)->SetStateProperty(state);
   }
 
-  return NS_OK;
+  return res;
 }
 
 NS_IMETHODIMP
@@ -564,12 +559,7 @@ nsIsIndexFrame::RestoreState(nsPresState* aState)
   // Set the value to the stored state.
   nsCOMPtr<nsISupportsString> stateString
     (do_QueryInterface(aState->GetStateProperty()));
-
-  if (!stateString) {
-    NS_ERROR("Not a <isindex> state!");
-    return NS_ERROR_FAILURE;
-  }
-
+  
   nsAutoString data;
   stateString->GetData(data);
   SetInputValue(data);

@@ -47,11 +47,10 @@
 #include "nsTArray.h"
 #include "gfxAtoms.h"
 
+#include "nsIServiceManager.h"
 #include "nsIPlatformCharset.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 
 /**********************************************************************
  * class gfxOS2Font
@@ -69,14 +68,18 @@ gfxOS2Font::gfxOS2Font(gfxOS2FontEntry *aFontEntry, const gfxFontStyle *aFontSty
            NS_LossyConvertUTF16toASCII(aFontEntry->Name()).get());
 #endif
     // try to get the preferences for hinting, antialias, and embolden options
-    PRInt32 value;
-    nsresult rv = Preferences::GetInt("gfx.os2.font.hinting", &value);
-    if (NS_SUCCEEDED(rv) && value >= FC_HINT_NONE && value <= FC_HINT_FULL) {
-        mHinting = value;
+    nsCOMPtr<nsIPrefBranch> prefbranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefbranch) {
+        int value;
+        nsresult rv = prefbranch->GetIntPref("gfx.os2.font.hinting", &value);
+        if (NS_SUCCEEDED(rv) && value >= FC_HINT_NONE && value <= FC_HINT_FULL)
+            mHinting = value;
+
+        PRBool enabled;
+        rv = prefbranch->GetBoolPref("gfx.os2.font.antialiasing", &enabled);
+        if (NS_SUCCEEDED(rv))
+            mAntialias = enabled;
     }
-
-    mAntialias = Preferences::GetBool("gfx.os2.font.antialiasing", mAntialias);
-
 #ifdef DEBUG_thebes_2
     printf("  font display options: hinting=%d, antialiasing=%s\n",
            mHinting, mAntialias ? "on" : "off");
@@ -94,7 +97,9 @@ gfxOS2Font::~gfxOS2Font()
     if (mScaledFont) {
         cairo_scaled_font_destroy(mScaledFont);
     }
-    delete mMetrics;
+    if (mMetrics) {
+        delete mMetrics;
+    }
     mFontFace = nsnull;
     mScaledFont = nsnull;
     mMetrics = nsnull;
@@ -127,7 +132,7 @@ static void FillMetricsDefaults(gfxFont::Metrics *aMetrics)
 // line as close to the original position as possible.
 static void SnapLineToPixels(gfxFloat& aOffset, gfxFloat& aSize)
 {
-    gfxFloat snappedSize = NS_MAX(NS_floor(aSize + 0.5), 1.0);
+    gfxFloat snappedSize = PR_MAX(NS_floor(aSize + 0.5), 1.0);
     // Correct offset for change in size
     gfxFloat offset = aOffset - 0.5 * (aSize - snappedSize);
     // Snap offset
@@ -157,13 +162,7 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
     // together with internal/external leading (see below)
     mMetrics->emHeight = NS_floor(GetStyle()->size + 0.5);
 
-    cairo_scaled_font_t* scaledFont = CairoScaledFont();
-    if (!scaledFont) {
-        FillMetricsDefaults(mMetrics);
-        return *mMetrics;
-    }
-
-    FT_Face face = cairo_ft_scaled_font_lock_face(scaledFont);
+    FT_Face face = cairo_ft_scaled_font_lock_face(CairoScaledFont());
     if (!face) {
         // Abort here already, otherwise we crash in the following
         // this can happen if the font-size requested is zero.
@@ -174,7 +173,7 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
         // Also abort, if the charmap isn't loaded; then the char
         // lookups won't work. This happens for fonts without Unicode
         // charmap.
-        cairo_ft_scaled_font_unlock_face(scaledFont);
+        cairo_ft_scaled_font_unlock_face(CairoScaledFont());
         FillMetricsDefaults(mMetrics);
         return *mMetrics;
     }
@@ -237,12 +236,12 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
     TT_OS2 *os2 = (TT_OS2 *)FT_Get_Sfnt_Table(face, ft_sfnt_os2);
     if (os2 && os2->version != 0xFFFF) { // should be there if not old Mac font
         // if we are here we can improve the avgCharWidth
-        mMetrics->aveCharWidth = NS_MAX(mMetrics->aveCharWidth,
+        mMetrics->aveCharWidth = PR_MAX(mMetrics->aveCharWidth,
                                         os2->xAvgCharWidth * xScale);
 
-        mMetrics->superscriptOffset = NS_MAX(os2->ySuperscriptYOffset * yScale, 1.0);
+        mMetrics->superscriptOffset = PR_MAX(os2->ySuperscriptYOffset * yScale, 1.0);
         // some fonts have the incorrect sign (from gfxPangoFonts)
-        mMetrics->subscriptOffset   = NS_MAX(fabs(os2->ySubscriptYOffset * yScale),
+        mMetrics->subscriptOffset   = PR_MAX(fabs(os2->ySubscriptYOffset * yScale),
                                              1.0);
         mMetrics->strikeoutOffset   = os2->yStrikeoutPosition * yScale;
         mMetrics->strikeoutSize     = os2->yStrikeoutSize * yScale;
@@ -264,11 +263,11 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
     mMetrics->emDescent       = -face->descender * yScale;
     mMetrics->maxHeight       = face->height * yScale;
     // the max units determine frame heights, better be generous
-    mMetrics->maxAscent       = NS_MAX(face->bbox.yMax * yScale,
+    mMetrics->maxAscent       = PR_MAX(face->bbox.yMax * yScale,
                                        mMetrics->emAscent);
-    mMetrics->maxDescent      = NS_MAX(-face->bbox.yMin * yScale,
+    mMetrics->maxDescent      = PR_MAX(-face->bbox.yMin * yScale,
                                        mMetrics->emDescent);
-    mMetrics->maxAdvance      = NS_MAX(face->max_advance_width * xScale,
+    mMetrics->maxAdvance      = PR_MAX(face->max_advance_width * xScale,
                                        mMetrics->aveCharWidth);
 
     // leadings are not available directly (only for WinFNTs);
@@ -306,7 +305,7 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
            mMetrics->maxAscent, mMetrics->maxDescent, mMetrics->maxAdvance
           );
 #endif
-    cairo_ft_scaled_font_unlock_face(scaledFont);
+    cairo_ft_scaled_font_unlock_face(CairoScaledFont());
     return *mMetrics;
 }
 
@@ -347,10 +346,12 @@ cairo_font_face_t *gfxOS2Font::CairoFontFace()
         FcPatternAddString(fcPattern, FC_FAMILY,
                            (FcChar8 *)NS_ConvertUTF16toUTF8(GetName()).get());
 
+        // adjust font weight using the offset
         // The requirements outlined in gfxFont.h are difficult to meet without
         // having a table of available font weights, so we map the gfxFont
         // weight to possible FontConfig weights.
-        PRInt8 weight = GetStyle()->ComputeWeight();
+        PRInt8 weight, offset;
+        GetStyle()->ComputeWeightAndOffset(&weight, &offset);
         // gfxFont weight   FC weight
         //    400              80
         //    700             200
@@ -360,6 +361,8 @@ cairo_font_face_t *gfxOS2Font::CairoFontFace()
         while (i < nFcWeight && fcWeight[i] < fcW) {
             i++;
         }
+        // add the offset, but observe the available number of weights
+        i += offset;
         if (i < 0) {
             i = 0;
         } else if (i >= nFcWeight) {
@@ -392,25 +395,6 @@ cairo_font_face_t *gfxOS2Font::CairoFontFace()
         // finally find a matching font
         FcResult fcRes;
         FcPattern *fcMatch = FcFontMatch(NULL, fcPattern, &fcRes);
-
-        // Most code that depends on FcFontMatch() assumes it won't fail,
-        // then crashes when it does.  For now, at least, substitute the
-        // default serif font when it fails to avoid those crashes.
-        if (!fcMatch) {
-//#ifdef DEBUG
-            printf("Could not match font for:\n"
-                   "  family=%s, weight=%d, slant=%d, size=%f\n",
-                   NS_LossyConvertUTF16toASCII(GetName()).get(),
-                   GetStyle()->weight, GetStyle()->style, GetStyle()->size);
-//#endif
-            // FcPatternAddString() will free the existing FC_FAMILY string
-            FcPatternAddString(fcPattern, FC_FAMILY, (FcChar8*)"SERIF");
-            fcMatch = FcFontMatch(NULL, fcPattern, &fcRes);
-//#ifdef DEBUG
-            printf("Attempt to substitute default SERIF font %s\n",
-                   fcMatch ? "succeeded" : "failed");
-//#endif
-        }
         FcPatternDestroy(fcPattern);
 
         if (fcMatch) {
@@ -428,6 +412,13 @@ cairo_font_face_t *gfxOS2Font::CairoFontFace()
             mFontFace = cairo_ft_font_face_create_for_pattern(fcMatch);
 
             FcPatternDestroy(fcMatch);
+        } else {
+#ifdef DEBUG
+            printf("Could not match font for:\n"
+                   "  family=%s, weight=%d, slant=%d, size=%f\n",
+                   NS_LossyConvertUTF16toASCII(GetName()).get(),
+                   GetStyle()->weight, GetStyle()->style, GetStyle()->size);
+#endif
         }
     }
 
@@ -461,19 +452,25 @@ cairo_scaled_font_t *gfxOS2Font::CairoScaledFont()
     } else {
         cairo_matrix_init_scale(&fontMatrix, size, size);
     }
-
-    cairo_font_face_t * face = CairoFontFace();
-    if (!face)
-        return nsnull;
-
     cairo_font_options_t *fontOptions = cairo_font_options_create();
-    mScaledFont = cairo_scaled_font_create(face, &fontMatrix,
+    mScaledFont = cairo_scaled_font_create(CairoFontFace(), &fontMatrix,
                                            &identityMatrix, fontOptions);
     cairo_font_options_destroy(fontOptions);
 
     NS_ASSERTION(cairo_scaled_font_status(mScaledFont) == CAIRO_STATUS_SUCCESS,
                  "Failed to make scaled font");
     return mScaledFont;
+}
+
+nsString gfxOS2Font::GetUniqueName()
+{
+#ifdef DEBUG_thebes
+    printf("gfxOS2Font::GetUniqueName()=%s\n", (char *)GetName().get());
+#endif
+    // gfxFont::GetName() should already be unique enough
+    // Atsui uses that, too, while Win appends size, and properties...
+    // doesn't seem to get called at all anyway
+    return GetName();
 }
 
 PRBool gfxOS2Font::SetupCairoFont(gfxContext *aContext)
@@ -486,7 +483,7 @@ PRBool gfxOS2Font::SetupCairoFont(gfxContext *aContext)
 
     // this implicitely ensures that mScaledFont is created if NULL
     cairo_scaled_font_t *scaledFont = CairoScaledFont();
-    if (!scaledFont || cairo_scaled_font_status(scaledFont) != CAIRO_STATUS_SUCCESS) {
+    if (cairo_scaled_font_status(scaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
         return PR_FALSE;

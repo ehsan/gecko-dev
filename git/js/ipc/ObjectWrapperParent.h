@@ -98,7 +98,7 @@ private:
     CPOW_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
     
     static JSBool
-    CPOW_SetProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
+    CPOW_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
     JSBool NewEnumerateInit(JSContext* cx, jsval* statep, jsid* idp);
     JSBool NewEnumerateNext(JSContext* cx, jsval* statep, jsid* idp);
@@ -118,10 +118,12 @@ private:
     CPOW_Finalize(JSContext* cx, JSObject* obj);
 
     static JSBool
-    CPOW_Call(JSContext* cx, uintN argc, jsval* vp);
+    CPOW_Call(JSContext* cx, JSObject* obj, uintN argc, jsval* argv,
+              jsval* rval);
 
     static JSBool
-    CPOW_Construct(JSContext *cx, uintN argc, jsval *vp);
+    CPOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                   jsval *rval);
     
     static JSBool
     CPOW_HasInstance(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);

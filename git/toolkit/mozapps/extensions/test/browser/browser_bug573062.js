@@ -32,7 +32,7 @@ function test() {
     operationsRequiringRestart: AddonManager.OP_NEEDS_RESTART_NONE
   }]);
   
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     let addonList = aWindow.document.getElementById("addon-list");
     let ed_r_Item, un_r_Item, no_r_Item;
     for (let i = 0; i < addonList.childNodes.length; i++) {
@@ -82,9 +82,9 @@ function test() {
 
     // Check the buttons in the details view.
     function checkTooltips2(aItem, aEnable, aDisable, aRemove) {
-        let detailEnable = aWindow.document.getElementById("detail-enable-btn");
-    let detailDisable = aWindow.document.getElementById("detail-disable-btn");
-    let detailUninstall = aWindow.document.getElementById("detail-uninstall-btn");
+        let detailEnable = aWindow.document.getElementById("detail-enable");
+    let detailDisable = aWindow.document.getElementById("detail-disable");
+    let detailUninstall = aWindow.document.getElementById("detail-uninstall");
       ok(detailEnable.getAttribute("tooltiptext") == aEnable);
       ok(detailDisable.getAttribute("tooltiptext") == aDisable);
       ok(detailUninstall.getAttribute("tooltiptext")  == aRemove);

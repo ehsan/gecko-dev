@@ -86,13 +86,12 @@ public:
   // nsAccessible
   virtual PRInt32 GetLevelInternal();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();
-  virtual PRBool RemoveChild(nsAccessible* aAccessible);
 
-  // nsHyperTextAccessible (static helper method)
+  // nsHyperTextAccessible
 
   // Convert content offset to rendered text offset  
   static nsresult ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
@@ -101,9 +100,6 @@ public:
   // Convert rendered text offset to content offset
   static nsresult RenderedToContentOffset(nsIFrame *aFrame, PRUint32 aRenderedOffset,
                                           PRInt32 *aContentOffset);
-
-  //////////////////////////////////////////////////////////////////////////////
-  // HyperLinkAccessible
 
   /**
    * Return link count within this hypertext accessible.
@@ -137,9 +133,6 @@ public:
     nsAccessible* child = GetChildAtOffset(aOffset);
     return child ? GetLinkIndex(child) : -1;
   }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // nsHyperTextAccessible: DOM point to text offset conversions.
 
   /**
     * Turn a DOM Node and offset into a character offset into this hypertext.
@@ -199,31 +192,6 @@ public:
                                       nsIDOMNode **aEndNode,
                                       PRInt32 *aEndOffset);
 
-  //////////////////////////////////////////////////////////////////////////////
-  // TextAccessible
-
-  /**
-   * Return character count within the hypertext accessible.
-   */
-  inline PRUint32 CharacterCount()
-  {
-    return GetChildOffset(GetChildCount());
-  }
-
-  /**
-   * Get a character before/at/after the given offset.
-   *
-   * @param aOffset       [in] the given offset
-   * @param aShift        [in] specifies whether to get a char before/at/after
-   *                        offset
-   * @param aChar         [out] the character
-   * @param aStartOffset  [out, optional] the start offset of the character
-   * @param aEndOffset    [out, optional] the end offset of the character
-   * @return               false if offset at the given shift is out of range
-   */
-  bool GetCharAt(PRInt32 aOffset, EGetTextType aShift, nsAString& aChar,
-                 PRInt32* aStartOffset = nsnull, PRInt32* aEndOffset = nsnull);
-
   /**
    * Return text offset of the given child accessible within hypertext
    * accessible.
@@ -264,23 +232,6 @@ public:
 
 protected:
   // nsHyperTextAccessible
-
-  /**
-   * Transform magic offset into text offset.
-   */
-  inline PRInt32 ConvertMagicOffset(PRInt32 aOffset)
-  {
-    if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT)
-      return CharacterCount();
-
-    if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
-      PRInt32 caretOffset = -1;
-      GetCaretOffset(&caretOffset);
-      return caretOffset;
-    }
-
-    return aOffset;
-  }
 
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
@@ -421,6 +372,11 @@ protected:
 
 private:
   /**
+   * Embedded objects collector.
+   */
+  nsAutoPtr<AccCollector> mLinks;
+
+  /**
    * End text offsets array.
    */
   nsTArray<PRUint32> mOffsets;
@@ -428,17 +384,6 @@ private:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsHyperTextAccessible,
                               NS_HYPERTEXTACCESSIBLE_IMPL_CID)
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible downcasting method
-
-inline nsHyperTextAccessible*
-nsAccessible::AsHyperText()
-{
-  return mFlags & eHyperTextAccessible ?
-    static_cast<nsHyperTextAccessible*>(this) : nsnull;
-}
 
 #endif  // _nsHyperTextAccessible_H_
 

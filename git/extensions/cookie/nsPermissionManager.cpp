@@ -37,9 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/dom/ContentParent.h"
+#ifdef MOZ_IPC
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/unused.h"
+#endif
 #include "nsPermissionManager.h"
 #include "nsPermission.h"
 #include "nsCRT.h"
@@ -59,11 +59,8 @@
 #include "mozStorageCID.h"
 #include "nsXULAppAPI.h"
 
-static nsPermissionManager *gPermissionManager = nsnull;
-
-using mozilla::dom::ContentParent;
+#ifdef MOZ_IPC
 using mozilla::dom::ContentChild;
-using mozilla::unused; // ha!
 
 static PRBool
 IsChildProcess()
@@ -87,38 +84,15 @@ ChildProcess()
 
   return nsnull;
 }
-
-
-/**
- * @returns The parent process object, or if we are not in the parent
- *          process, nsnull.
- */
-static ContentParent*
-ParentProcess()
-{
-  if (!IsChildProcess()) {
-    ContentParent* cpc = ContentParent::GetSingleton();
-    if (!cpc)
-      NS_RUNTIMEABORT("Content Process is NULL!");
-    return cpc;
-  }
-
-  return nsnull;
-}
-
-#define ENSURE_NOT_CHILD_PROCESS_(onError) \
-  PR_BEGIN_MACRO \
-  if (IsChildProcess()) { \
-    NS_ERROR("Cannot perform action in content process!"); \
-    onError \
-  } \
-  PR_END_MACRO
+#endif
 
 #define ENSURE_NOT_CHILD_PROCESS \
-  ENSURE_NOT_CHILD_PROCESS_({ return NS_ERROR_NOT_AVAILABLE; })
-
-#define ENSURE_NOT_CHILD_PROCESS_NORET \
-  ENSURE_NOT_CHILD_PROCESS_()
+  PR_BEGIN_MACRO \
+  if (IsChildProcess()) { \
+    NS_ERROR("cannot set permission from content process"); \
+    return NS_ERROR_NOT_AVAILABLE; \
+  } \
+  PR_END_MACRO
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,46 +144,12 @@ NS_IMPL_ISUPPORTS3(nsPermissionManager, nsIPermissionManager, nsIObserver, nsISu
 
 nsPermissionManager::nsPermissionManager()
  : mLargestID(0)
- , mUpdateChildProcess(PR_FALSE)
 {
 }
 
 nsPermissionManager::~nsPermissionManager()
 {
   RemoveAllFromMemory();
-}
-
-// static
-nsIPermissionManager*
-nsPermissionManager::GetXPCOMSingleton()
-{
-  return GetSingleton().get();
-}
-
-// static
-already_AddRefed<nsPermissionManager>
-nsPermissionManager::GetSingleton()
-{
-  if (gPermissionManager) {
-    NS_ADDREF(gPermissionManager);
-    return gPermissionManager;
-  }
-
-  // Create a new singleton nsPermissionManager.
-  // We AddRef only once since XPCOM has rules about the ordering of module
-  // teardowns - by the time our module destructor is called, it's too late to
-  // Release our members, since GC cycles have already been completed and
-  // would result in serious leaks.
-  // See bug 209571.
-  gPermissionManager = new nsPermissionManager();
-  if (gPermissionManager) {
-    NS_ADDREF(gPermissionManager);
-    if (NS_FAILED(gPermissionManager->Init())) {
-      NS_RELEASE(gPermissionManager);
-    }
-  }
-
-  return gPermissionManager;
 }
 
 nsresult
@@ -221,31 +161,22 @@ nsPermissionManager::Init()
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
-  if (NS_SUCCEEDED(rv)) {
-    mObserverService->AddObserver(this, "profile-before-change", PR_TRUE);
-    mObserverService->AddObserver(this, "profile-do-change", PR_TRUE);
-  }
-
-  if (IsChildProcess()) {
-    // Get the permissions from the parent process
-    InfallibleTArray<IPC::Permission> perms;
-    ChildProcess()->SendReadPermissions(&perms);
-
-    for (PRUint32 i = 0; i < perms.Length(); i++) {
-      const IPC::Permission &perm = perms[i];
-      AddInternal(perm.host, perm.type, perm.capability, 0, perm.expireType,
-                  perm.expireTime, eNotify, eNoDBOperation);
-    }
-
-    // Stop here; we don't need the DB in the child process
+#ifdef MOZ_IPC
+  // Child will route messages to parent, so no need for further initialization
+  if (IsChildProcess())
     return NS_OK;
-  }
+#endif
 
   // ignore failure here, since it's non-fatal (we can run fine without
   // persistent storage - e.g. if there's no profile).
   // XXX should we tell the user about this?
   InitDB(PR_FALSE);
+
+  mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
+  if (NS_SUCCEEDED(rv)) {
+    mObserverService->AddObserver(this, "profile-before-change", PR_TRUE);
+    mObserverService->AddObserver(this, "profile-do-change", PR_TRUE);
+  }
 
   return NS_OK;
 }
@@ -297,8 +228,8 @@ nsPermissionManager::InitDB(PRBool aRemoveFile)
   PRBool tableExists = PR_FALSE;
   mDBConn->TableExists(NS_LITERAL_CSTRING("moz_hosts"), &tableExists);
   if (!tableExists) {
-    rv = CreateTable();
-    NS_ENSURE_SUCCESS(rv, rv);
+      rv = CreateTable();
+      NS_ENSURE_SUCCESS(rv, rv);
 
   } else {
     // table already exists; check the schema version before reading
@@ -432,7 +363,9 @@ nsPermissionManager::Add(nsIURI     *aURI,
                          PRUint32    aExpireType,
                          PRInt64     aExpireTime)
 {
+#ifdef MOZ_IPC
   ENSURE_NOT_CHILD_PROCESS;
+#endif
 
   NS_ENSURE_ARG_POINTER(aURI);
   NS_ENSURE_ARG_POINTER(aType);
@@ -466,16 +399,6 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
                                  NotifyOperationType   aNotifyOperation,
                                  DBOperationType       aDBOperation)
 {
-  if (!IsChildProcess()) {
-    // In the parent, send the update now, if the child is ready
-    if (mUpdateChildProcess) {
-      IPC::Permission permission((aHost),
-                                 (aType),
-                                 aPermission, aExpireType, aExpireTime);
-      unused << ParentProcess()->SendAddPermission(permission);
-    }
-  }
-
   if (!gHostArena) {
     gHostArena = new PLArenaPool;
     if (!gHostArena)
@@ -615,7 +538,9 @@ NS_IMETHODIMP
 nsPermissionManager::Remove(const nsACString &aHost,
                             const char       *aType)
 {
+#ifdef MOZ_IPC
   ENSURE_NOT_CHILD_PROCESS;
+#endif
 
   NS_ENSURE_ARG_POINTER(aType);
 
@@ -633,7 +558,9 @@ nsPermissionManager::Remove(const nsACString &aHost,
 NS_IMETHODIMP
 nsPermissionManager::RemoveAll()
 {
+#ifdef MOZ_IPC
   ENSURE_NOT_CHILD_PROCESS;
+#endif
 
   nsresult rv = RemoveAllInternal();
   NotifyObservers(nsnull, NS_LITERAL_STRING("cleared").get());
@@ -666,6 +593,13 @@ nsPermissionManager::TestExactPermission(nsIURI     *aURI,
                                          const char *aType,
                                          PRUint32   *aPermission)
 {
+#ifdef MOZ_IPC
+  ContentChild* cpc = ChildProcess();
+  if (cpc) {
+    return cpc->SendTestPermission(aURI, nsDependentCString(aType), PR_TRUE,
+      aPermission) ? NS_OK : NS_ERROR_FAILURE;
+  }
+#endif
   return CommonTestPermission(aURI, aType, aPermission, PR_TRUE);
 }
 
@@ -674,6 +608,13 @@ nsPermissionManager::TestPermission(nsIURI     *aURI,
                                     const char *aType,
                                     PRUint32   *aPermission)
 {
+#ifdef MOZ_IPC
+  ContentChild* cpc = ChildProcess();
+  if (cpc) {
+    return cpc->SendTestPermission(aURI, nsDependentCString(aType), PR_FALSE,
+      aPermission) ? NS_OK : NS_ERROR_FAILURE;
+  }
+#endif
   return CommonTestPermission(aURI, aType, aPermission, PR_FALSE);
 }
 
@@ -790,7 +731,9 @@ AddPermissionsToList(nsHostEntry *entry, void *arg)
 
 NS_IMETHODIMP nsPermissionManager::GetEnumerator(nsISimpleEnumerator **aEnum)
 {
+#ifdef MOZ_IPC
   ENSURE_NOT_CHILD_PROCESS;
+#endif
 
   // roll an nsCOMArray of all our permissions, then hand out an enumerator
   nsCOMArray<nsIPermission> array;
@@ -803,7 +746,9 @@ NS_IMETHODIMP nsPermissionManager::GetEnumerator(nsISimpleEnumerator **aEnum)
 
 NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
+#ifdef MOZ_IPC
   ENSURE_NOT_CHILD_PROCESS;
+#endif
 
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
     // The profile is about to change,
@@ -900,8 +845,6 @@ nsPermissionManager::NotifyObservers(nsIPermission   *aPermission,
 nsresult
 nsPermissionManager::Read()
 {
-  ENSURE_NOT_CHILD_PROCESS;
-
   nsresult rv;
 
   // delete expired permissions before we read in the db
@@ -913,10 +856,10 @@ nsPermissionManager::Read()
           getter_AddRefs(stmtDeleteExpired));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stmtDeleteExpired->BindInt32ByIndex(0, nsIPermissionManager::EXPIRE_TIME);
+    rv = stmtDeleteExpired->BindInt32Parameter(0, nsIPermissionManager::EXPIRE_TIME);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stmtDeleteExpired->BindInt64ByIndex(1, PR_Now() / 1000);
+    rv = stmtDeleteExpired->BindInt64Parameter(1, PR_Now() / 1000);
     NS_ENSURE_SUCCESS(rv, rv);
 
     PRBool hasResult;
@@ -968,8 +911,6 @@ static const char kMatchTypeHost[] = "host";
 nsresult
 nsPermissionManager::Import()
 {
-  ENSURE_NOT_CHILD_PROCESS;
-
   nsresult rv;
 
   nsCOMPtr<nsIFile> permissionsFile;
@@ -1074,8 +1015,6 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
                               PRUint32              aExpireType,
                               PRInt64               aExpireTime)
 {
-  ENSURE_NOT_CHILD_PROCESS_NORET;
-
   nsresult rv;
 
   // no statement is ok - just means we don't have a profile
@@ -1085,43 +1024,43 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
   switch (aOp) {
   case eOperationAdding:
     {
-      rv = aStmt->BindInt64ByIndex(0, aID);
+      rv = aStmt->BindInt64Parameter(0, aID);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindUTF8StringByIndex(1, aHost);
+      rv = aStmt->BindUTF8StringParameter(1, aHost);
       if (NS_FAILED(rv)) break;
       
-      rv = aStmt->BindUTF8StringByIndex(2, aType);
+      rv = aStmt->BindUTF8StringParameter(2, aType);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindInt32ByIndex(3, aPermission);
+      rv = aStmt->BindInt32Parameter(3, aPermission);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindInt32ByIndex(4, aExpireType);
+      rv = aStmt->BindInt32Parameter(4, aExpireType);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindInt64ByIndex(5, aExpireTime);
+      rv = aStmt->BindInt64Parameter(5, aExpireTime);
       break;
     }
 
   case eOperationRemoving:
     {
-      rv = aStmt->BindInt64ByIndex(0, aID);
+      rv = aStmt->BindInt64Parameter(0, aID);
       break;
     }
 
   case eOperationChanging:
     {
-      rv = aStmt->BindInt64ByIndex(0, aID);
+      rv = aStmt->BindInt64Parameter(0, aID);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindInt32ByIndex(1, aPermission);
+      rv = aStmt->BindInt32Parameter(1, aPermission);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindInt32ByIndex(2, aExpireType);
+      rv = aStmt->BindInt32Parameter(2, aExpireType);
       if (NS_FAILED(rv)) break;
 
-      rv = aStmt->BindInt64ByIndex(3, aExpireTime);
+      rv = aStmt->BindInt64Parameter(3, aExpireTime);
       break;
     }
 

@@ -64,6 +64,7 @@
 #include "nsIUploadChannel.h"
 #include "nsSSLThread.h"
 #include "nsThreadUtils.h"
+#include "nsAutoLock.h"
 #include "nsIThread.h"
 #include "nsIWindowWatcher.h"
 #include "nsIPrompt.h"
@@ -74,10 +75,6 @@
 #include "cert.h"
 #include "ocsp.h"
 #include "nssb64.h"
-#include "secerr.h"
-#include "sslerr.h"
-
-using namespace mozilla;
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
@@ -237,14 +234,14 @@ SECStatus nsNSSHttpRequestSession::createFcn(SEC_HTTP_SERVER_SESSION session,
     rs->mTimeoutInterval = maxBug404059Timeout;
   }
 
-  rs->mURL.Assign(http_protocol_variant);
+  rs->mURL.Append(nsDependentCString(http_protocol_variant));
   rs->mURL.AppendLiteral("://");
   rs->mURL.Append(hss->mHost);
   rs->mURL.AppendLiteral(":");
   rs->mURL.AppendInt(hss->mPort);
   rs->mURL.Append(path_and_query_string);
 
-  rs->mRequestMethod = http_request_method;
+  rs->mRequestMethod = nsDependentCString(http_request_method);
 
   *pRequest = (void*)rs;
   return SECSuccess;
@@ -336,13 +333,13 @@ SECStatus nsNSSHttpRequestSession::trySendAndReceiveFcn(PRPollDesc **pPollDesc,
 void
 nsNSSHttpRequestSession::AddRef()
 {
-  NS_AtomicIncrementRefcnt(mRefCount);
+  PR_AtomicIncrement(&mRefCount);
 }
 
 void
 nsNSSHttpRequestSession::Release()
 {
-  PRInt32 newRefCount = NS_AtomicDecrementRefcnt(mRefCount);
+  PRInt32 newRefCount = PR_AtomicDecrement(&mRefCount);
   if (!newRefCount) {
     delete this;
   }
@@ -374,8 +371,11 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
   if (!mListener)
     return SECFailure;
 
-  Mutex& waitLock = mListener->mLock;
-  CondVar& waitCondition = mListener->mCondition;
+  if (NS_FAILED(mListener->InitLocks()))
+    return SECFailure;
+
+  PRLock *waitLock = mListener->mLock;
+  PRCondVar *waitCondition = mListener->mCondition;
   volatile PRBool &waitFlag = mListener->mWaitFlag;
   waitFlag = PR_TRUE;
 
@@ -397,7 +397,7 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
   PRBool request_canceled = PR_FALSE;
 
   {
-    MutexAutoLock locker(waitLock);
+    nsAutoLock locker(waitLock);
 
     const PRIntervalTime start_time = PR_IntervalNow();
     PRIntervalTime wait_interval;
@@ -425,18 +425,19 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
         // thread manager. Thanks a lot to Christian Biesinger who
         // made me aware of this possibility. (kaie)
 
-        MutexAutoUnlock unlock(waitLock);
+        locker.unlock();
         NS_ProcessNextEvent(nsnull);
+        locker.lock();
       }
 
-      waitCondition.Wait(wait_interval);
+      PR_WaitCondVar(waitCondition, wait_interval);
       
       if (!waitFlag)
         break;
 
       if (!request_canceled)
       {
-        PRBool wantExit = nsSSLThread::stoppedOrStopping();
+        PRBool wantExit = nsSSLThread::exitRequested();
         PRBool timeout = 
           (PRIntervalTime)(PR_IntervalNow() - start_time) > mTimeoutInterval;
 
@@ -555,8 +556,8 @@ void nsNSSHttpInterface::unregisterHttpClient()
 nsHTTPListener::nsHTTPListener()
 : mResultData(nsnull),
   mResultLen(0),
-  mLock("nsHTTPListener.mLock"),
-  mCondition(mLock, "nsHTTPListener.mCondition"),
+  mLock(nsnull),
+  mCondition(nsnull),
   mWaitFlag(PR_TRUE),
   mResponsibleForDoneSignal(PR_FALSE),
   mLoadGroup(nsnull),
@@ -564,10 +565,33 @@ nsHTTPListener::nsHTTPListener()
 {
 }
 
+nsresult nsHTTPListener::InitLocks()
+{
+  mLock = PR_NewLock();
+  if (!mLock)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
+  mCondition = PR_NewCondVar(mLock);
+  if (!mCondition)
+  {
+    PR_DestroyLock(mLock);
+    mLock = nsnull;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  
+  return NS_OK;
+}
+
 nsHTTPListener::~nsHTTPListener()
 {
   if (mResponsibleForDoneSignal)
     send_done_signal();
+
+  if (mCondition)
+    PR_DestroyCondVar(mCondition);
+  
+  if (mLock)
+    PR_DestroyLock(mLock);
 
   if (mLoader) {
     nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
@@ -582,16 +606,18 @@ nsHTTPListener::FreeLoadGroup(PRBool aCancelLoad)
 {
   nsILoadGroup *lg = nsnull;
 
-  MutexAutoLock locker(mLock);
+  if (mLock) {
+    nsAutoLock locker(mLock);
 
-  if (mLoadGroup) {
-    if (mLoadGroupOwnerThread != PR_GetCurrentThread()) {
-      NS_ASSERTION(PR_FALSE,
-                   "attempt to access nsHTTPDownloadEvent::mLoadGroup on multiple threads, leaking it!");
-    }
-    else {
-      lg = mLoadGroup;
-      mLoadGroup = nsnull;
+    if (mLoadGroup) {
+      if (mLoadGroupOwnerThread != PR_GetCurrentThread()) {
+        NS_ASSERTION(PR_FALSE,
+          "attempt to access nsHTTPDownloadEvent::mLoadGroup on multiple threads, leaking it!");
+      }
+      else {
+        lg = mLoadGroup;
+        mLoadGroup = nsnull;
+      }
     }
   }
 
@@ -661,9 +687,9 @@ void nsHTTPListener::send_done_signal()
   mResponsibleForDoneSignal = PR_FALSE;
 
   {
-    MutexAutoLock locker(mLock);
+    nsAutoLock locker(mLock);
     mWaitFlag = PR_FALSE;
-    mCondition.NotifyAll();
+    PR_NotifyAllCondVar(mCondition);
   }
 }
 
@@ -807,9 +833,7 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
       rv = NS_ERROR_NOT_AVAILABLE;
     }
     else {
-      // Although the exact value is ignored, we must not pass invalid
-      // PRBool values through XPConnect.
-      PRBool checkState = PR_FALSE;
+      PRBool checkState;
       rv = proxyPrompt->PromptPassword(nsnull, promptString.get(),
                                        &password, nsnull, &checkState, &value);
     }
@@ -914,7 +938,7 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
 
     CERTCertificate *serverCert = SSL_PeerCertificate(fd);
     if (serverCert) {
-      nsRefPtr<nsNSSCertificate> nssc = nsNSSCertificate::Create(serverCert);
+      nsRefPtr<nsNSSCertificate> nssc = new nsNSSCertificate(serverCert);
       CERT_DestroyCertificate(serverCert);
       serverCert = nsnull;
 
@@ -922,7 +946,7 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
       infoObject->GetPreviousCert(getter_AddRefs(prevcert));
 
       PRBool equals_previous = PR_FALSE;
-      if (prevcert && nssc) {
+      if (prevcert) {
         nsresult rv = nssc->Equals(prevcert, &equals_previous);
         if (NS_FAILED(rv)) {
           equals_previous = PR_FALSE;
@@ -961,132 +985,19 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
   PR_Free(signer);
 }
 
-SECStatus
-PSM_SSL_PKIX_AuthCertificate(PRFileDesc *fd, CERTCertificate *peerCert, PRBool checksig, PRBool isServer)
-{
-    SECStatus          rv;
-    SECCertUsage       certUsage;
-    SECCertificateUsage certificateusage;
-    void *             pinarg;
-    char *             hostname;
-    
-    pinarg = SSL_RevealPinArg(fd);
-    hostname = SSL_RevealURL(fd);
-    
-    /* this may seem backwards, but isn't. */
-    certUsage = isServer ? certUsageSSLClient : certUsageSSLServer;
-    certificateusage = isServer ? certificateUsageSSLClient : certificateUsageSSLServer;
-
-    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-        rv = CERT_VerifyCertNow(CERT_GetDefaultCertDB(), peerCert, checksig, certUsage,
-                                pinarg);
-    }
-    else {
-        nsresult nsrv;
-        nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-        if (!inss)
-          return SECFailure;
-        nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-        if (NS_FAILED(inss->GetDefaultCERTValInParam(survivingParams)))
-          return SECFailure;
-
-        CERTValOutParam cvout[1];
-        cvout[0].type = cert_po_end;
-
-        rv = CERT_PKIXVerifyCert(peerCert, certificateusage,
-                                survivingParams->GetRawPointerForNSS(),
-                                cvout, pinarg);
-    }
-
-    if ( rv == SECSuccess && !isServer ) {
-        /* cert is OK.  This is the client side of an SSL connection.
-        * Now check the name field in the cert against the desired hostname.
-        * NB: This is our only defense against Man-In-The-Middle (MITM) attacks!
-        */
-        if (hostname && hostname[0])
-            rv = CERT_VerifyCertName(peerCert, hostname);
-        else
-            rv = SECFailure;
-        if (rv != SECSuccess)
-            PORT_SetError(SSL_ERROR_BAD_CERT_DOMAIN);
-    }
-        
-    PORT_Free(hostname);
-    return rv;
-}
-
-struct nsSerialBinaryBlacklistEntry
-{
-  unsigned int len;
-  const char *binary_serial;
-};
-
-// bug 642395
-static struct nsSerialBinaryBlacklistEntry myUTNBlacklistEntries[] = {
-  { 17, "\x00\x92\x39\xd5\x34\x8f\x40\xd1\x69\x5a\x74\x54\x70\xe1\xf2\x3f\x43" },
-  { 17, "\x00\xd8\xf3\x5f\x4e\xb7\x87\x2b\x2d\xab\x06\x92\xe3\x15\x38\x2f\xb0" },
-  { 16, "\x72\x03\x21\x05\xc5\x0c\x08\x57\x3d\x8e\xa5\x30\x4e\xfe\xe8\xb0" },
-  { 17, "\x00\xb0\xb7\x13\x3e\xd0\x96\xf9\xb5\x6f\xae\x91\xc8\x74\xbd\x3a\xc0" },
-  { 16, "\x39\x2a\x43\x4f\x0e\x07\xdf\x1f\x8a\xa3\x05\xde\x34\xe0\xc2\x29" },
-  { 16, "\x3e\x75\xce\xd4\x6b\x69\x30\x21\x21\x88\x30\xae\x86\xa8\x2a\x71" },
-  { 17, "\x00\xe9\x02\x8b\x95\x78\xe4\x15\xdc\x1a\x71\x0a\x2b\x88\x15\x44\x47" },
-  { 17, "\x00\xd7\x55\x8f\xda\xf5\xf1\x10\x5b\xb2\x13\x28\x2b\x70\x77\x29\xa3" },
-  { 16, "\x04\x7e\xcb\xe9\xfc\xa5\x5f\x7b\xd0\x9e\xae\x36\xe1\x0c\xae\x1e" },
-  { 17, "\x00\xf5\xc8\x6a\xf3\x61\x62\xf1\x3a\x64\xf5\x4f\x6d\xc9\x58\x7c\x06" },
-  { 0, 0 } // end marker
-};
-
 SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
                                               PRBool checksig, PRBool isServer) {
   nsNSSShutDownPreventionLock locker;
 
-  CERTCertificate *serverCert = SSL_PeerCertificate(fd);
-  CERTCertificateCleaner serverCertCleaner(serverCert);
-
-  if (serverCert && 
-      serverCert->serialNumber.data &&
-      serverCert->issuerName &&
-      !strcmp(serverCert->issuerName, 
-        "CN=UTN-USERFirst-Hardware,OU=http://www.usertrust.com,O=The USERTRUST Network,L=Salt Lake City,ST=UT,C=US")) {
-
-    unsigned char *server_cert_comparison_start = (unsigned char*)serverCert->serialNumber.data;
-    unsigned int server_cert_comparison_len = serverCert->serialNumber.len;
-
-    while (server_cert_comparison_len) {
-      if (*server_cert_comparison_start != 0)
-        break;
-
-      ++server_cert_comparison_start;
-      --server_cert_comparison_len;
-    }
-
-    nsSerialBinaryBlacklistEntry *walk = myUTNBlacklistEntries;
-    for ( ; walk && walk->len; ++walk) {
-
-      unsigned char *locked_cert_comparison_start = (unsigned char*)walk->binary_serial;
-      unsigned int locked_cert_comparison_len = walk->len;
-      
-      while (locked_cert_comparison_len) {
-        if (*locked_cert_comparison_start != 0)
-          break;
-        
-        ++locked_cert_comparison_start;
-        --locked_cert_comparison_len;
-      }
-
-      if (server_cert_comparison_len == locked_cert_comparison_len &&
-          !memcmp(server_cert_comparison_start, locked_cert_comparison_start, locked_cert_comparison_len)) {
-        PR_SetError(SEC_ERROR_REVOKED_CERTIFICATE, 0);
-        return SECFailure;
-      }
-    }
-  }
-  
-  SECStatus rv = PSM_SSL_PKIX_AuthCertificate(fd, serverCert, checksig, isServer);
+  // first the default action
+  SECStatus rv = SSL_AuthCertificate(CERT_GetDefaultCertDB(), fd, checksig, isServer);
 
   // We want to remember the CA certs in the temp db, so that the application can find the
   // complete chain at any time it might need it.
   // But we keep only those CA certs in the temp db, that we didn't already know.
+  
+  CERTCertificate *serverCert = SSL_PeerCertificate(fd);
+  CERTCertificateCleaner serverCertCleaner(serverCert);
 
   if (serverCert) {
     nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
@@ -1094,7 +1005,7 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
     nsRefPtr<nsNSSCertificate> nsc;
 
     if (!status || !status->mServerCert) {
-      nsc = nsNSSCertificate::Create(serverCert);
+      nsc = new nsNSSCertificate(serverCert);
     }
 
     if (SECSuccess == rv) {
@@ -1128,16 +1039,16 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
         }
 
         // We have found a signer cert that we want to remember.
-        char* nickname = nsNSSCertificate::defaultServerNickname(node->cert);
-        if (nickname && *nickname) {
+        nsCAutoString nickname;
+        nickname = nsNSSCertificate::defaultServerNickname(node->cert);
+        if (!nickname.IsEmpty()) {
           PK11SlotInfo *slot = PK11_GetInternalKeySlot();
           if (slot) {
             PK11_ImportCert(slot, node->cert, CK_INVALID_HANDLE, 
-                            nickname, PR_FALSE);
+                            const_cast<char*>(nickname.get()), PR_FALSE);
             PK11_FreeSlot(slot);
           }
         }
-        PR_FREEIF(nickname);
       }
 
       CERT_DestroyCertList(certList);

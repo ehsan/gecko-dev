@@ -39,19 +39,8 @@
 
 #ifndef mozilla_FileUtils_h
 #define mozilla_FileUtils_h
-
-#if defined(XP_UNIX) || defined(XP_OS2)
-# include <unistd.h>
-#elif defined(XP_WIN)
-# include <io.h>
-#endif
-#include "prio.h"
-
 namespace mozilla {
 
-/**
- * AutoFDClose is a RAII wrapper for PRFileDesc.
- **/
 class AutoFDClose
 {
 public:
@@ -70,31 +59,6 @@ public:
 private:
   PRFileDesc *mFD;
 };
-
-/**
- * Instances close() their fds when they go out of scope.
- */
-struct ScopedClose
-{
-  ScopedClose(int aFd=-1) : mFd(aFd) {}
-  ~ScopedClose() {
-    if (0 <= mFd) {
-      close(mFd);
-    }
-  }
-  int mFd;
-};
-
-/**
- * Fallocate efficiently and continuously allocates files via fallocate-type APIs.
- * This is useful for avoiding fragmentation.
- * On sucess the file be padded with zeros to grow to aLength.
- *
- * @param aFD file descriptor.
- * @param aLength length of file to grow to.
- * @return true on success.
- */
-NS_COM_GLUE bool fallocate(PRFileDesc *aFD, PRInt64 aLength);
 
 } // namespace mozilla
 #endif

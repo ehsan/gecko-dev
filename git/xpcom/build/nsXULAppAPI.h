@@ -263,12 +263,6 @@ struct nsXREAppData
 #define XRE_USER_SYS_EXTENSION_DIR "XREUSysExt"
 
 /**
- * A directory service key which specifies the distribution specific files for
- * the application.
- */
-#define XRE_APP_DISTRIBUTION_DIR "XREAppDist"
-
-/**
  * Begin an XUL application. Does not return until the user exits the
  * application.
  *
@@ -379,27 +373,6 @@ enum NSLocationType
 XRE_API(nsresult,
         XRE_AddManifestLocation, (NSLocationType aType,
                                   nsILocalFile* aLocation))
-
-/**
- * Register XPCOM components found in a JAR.
- * This is similar to XRE_AddManifestLocation except the file specified
- * must be a zip archive with a manifest named chrome.manifest
- * This method may be called at any time before or after XRE_main or
- * XRE_InitEmbedding.
- *
- * @param aFiles An array of files or directories.
- * @param aFileCount the number of items in the aFiles array.
- * @note appdir/components is registered automatically.
- *
- * NS_COMPONENT_LOCATION specifies a location to search for binary XPCOM
- * components as well as component/chrome manifest files.
- *
- * NS_SKIN_LOCATION specifies a location to search for chrome manifest files
- * which are only allowed to register only skin packages and style overlays.
- */
-XRE_API(nsresult,
-        XRE_AddJarManifestLocation, (NSLocationType aType,
-                                     nsILocalFile* aLocation))
 
 /**
  * Fire notifications to inform the toolkit about a new profile. This
@@ -545,7 +518,7 @@ XRE_API(MessageLoop*,
         XRE_GetIOMessageLoop, ())
 
 struct JSContext;
-class JSString;
+struct JSString;
 
 XRE_API(bool,
         XRE_SendTestShellCommand, (JSContext* aCx,
@@ -562,14 +535,4 @@ XRE_API(bool,
 
 XRE_API(void,
         XRE_InstallX11ErrorHandler, ())
-
-#if defined(_MSC_VER) && defined(_M_IX86)
-#define XRE_HAS_DLL_BLOCKLIST
-XRE_API(void,
-        XRE_SetupDllBlocklist, ())
-#endif
-
-XRE_API(void,
-        XRE_TelemetryAccumulate, (int aID, PRUint32 aSample))
-
 #endif // _nsXULAppAPI_h__

@@ -180,7 +180,8 @@ nsSVGTransformList::SetValueString(const nsAString& aValue)
   if (NS_FAILED(rv)) {
     // there was a parse error.
     rv = NS_ERROR_DOM_SYNTAX_ERR;
-  } else {
+  }
+  else {
     WillModify();
     ReleaseTransforms();
     PRInt32 count = xforms.Count();
@@ -234,9 +235,6 @@ NS_IMETHODIMP nsSVGTransformList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 /* void clear (); */
 NS_IMETHODIMP nsSVGTransformList::Clear()
 {
-  if (mTransforms.IsEmpty()) {
-    return NS_OK;
-  }
   WillModify();
   ReleaseTransforms();
   DidModify();
@@ -305,10 +303,10 @@ NS_IMETHODIMP nsSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
 {
   NS_ENSURE_NATIVE_TRANSFORM(newItem, _retval);
 
+  nsSVGValueAutoNotifier autonotifier(this);
+
   if (index >= mTransforms.Length())
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
-
-  nsSVGValueAutoNotifier autonotifier(this);
 
   nsIDOMSVGTransform* oldItem = ElementAt(index);
 
@@ -329,12 +327,12 @@ NS_IMETHODIMP nsSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
 /* nsIDOMSVGTransform removeItem (in unsigned long index); */
 NS_IMETHODIMP nsSVGTransformList::RemoveItem(PRUint32 index, nsIDOMSVGTransform **_retval)
 {
+  nsSVGValueAutoNotifier autonotifier(this);
+
   if (index >= mTransforms.Length()) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
-
-  nsSVGValueAutoNotifier autonotifier(this);
 
   *_retval = ElementAt(index);
 

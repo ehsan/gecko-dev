@@ -47,11 +47,6 @@
 #include "nsHyperTextAccessibleWrap.h"
 
 /**
- * Used for XUL progressmeter element.
- */
-typedef ProgressMeterAccessible<100> XULProgressMeterAccessible;
-
-/**
  * Used for XUL button.
  *
  * @note  Don't inherit from nsFormControlAccessible - it doesn't allow children
@@ -71,9 +66,12 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
+  // nsAccessNode
+  virtual PRBool Init();
+
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
 
@@ -100,8 +98,8 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -119,8 +117,8 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 private:
   PRBool DropmarkerOpen(PRBool aToggleOpen);
@@ -139,8 +137,24 @@ public:
                                nsIAccessibleRelation **aRelation);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetNameInternal(nsAString& aName);
+};
+
+/**
+ * Used for XUL progressmeter element.
+ */
+class nsXULProgressMeterAccessible : public nsFormControlAccessible
+{
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLEVALUE
+
+public:
+  nsXULProgressMeterAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  NS_IMETHOD GetValue(nsAString &aValue);
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 /**
@@ -153,9 +167,9 @@ public:
   nsXULRadioButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
-  virtual PRUint64 NativeState();
 };
 
 /**
@@ -167,8 +181,8 @@ public:
   nsXULRadioGroupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -180,7 +194,7 @@ public:
   nsXULStatusBarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 /**
@@ -208,7 +222,7 @@ public:
   nsXULToolbarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetNameInternal(nsAString& aName);
 };
 
@@ -222,8 +236,8 @@ public:
                                   nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -248,9 +262,9 @@ public:
   NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsAccessible
-  virtual void ApplyARIAState(PRUint64* aState);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:

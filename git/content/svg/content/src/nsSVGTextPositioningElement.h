@@ -38,7 +38,8 @@
 
 #include "nsIDOMSVGTextPositionElem.h"
 #include "nsSVGTextContentElement.h"
-#include "SVGAnimatedNumberList.h"
+#include "nsIDOMSVGAnimatedLengthList.h"
+#include "nsIDOMSVGAnimatedNumberList.h"
 #include "SVGAnimatedLengthList.h"
 
 class nsSVGElement;
@@ -65,18 +66,17 @@ protected:
     : nsSVGTextPositioningElementBase(aNodeInfo)
   {}
 
+  nsresult Init();
+
   virtual LengthListAttributesInfo GetLengthListInfo();
-  virtual NumberListAttributesInfo GetNumberListInfo();
 
   // nsIDOMSVGTextPositioning properties:
 
   enum { X, Y, DX, DY };
-  SVGAnimatedLengthList mLengthListAttributes[4];
+  mozilla::SVGAnimatedLengthList mLengthListAttributes[4];
   static LengthListInfo sLengthListInfo[4];
 
-  enum { ROTATE };
-  SVGAnimatedNumberList mNumberListAttributes[1];
-  static NumberListInfo sNumberListInfo[1];
+  nsCOMPtr<nsIDOMSVGAnimatedNumberList> mRotate;
 };
 
 #endif

@@ -41,22 +41,19 @@
 #include "nsIDocument.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIExternalHelperAppService.h"
-#include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/TabParent.h"
 #include "nsIBrowserDOMWindow.h"
 #include "nsStringStream.h"
 
 #include "mozilla/unused.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS_INHERITED4(ExternalHelperAppParent,
+NS_IMPL_ISUPPORTS_INHERITED2(ExternalHelperAppParent,
                              nsHashPropertyBag,
                              nsIRequest,
-                             nsIChannel,
-                             nsIMultiPartChannel,
-                             nsIResumableChannel)
+                             nsIChannel)
 
 ExternalHelperAppParent::ExternalHelperAppParent(
     const IPC::URI& uri,
@@ -70,23 +67,23 @@ ExternalHelperAppParent::ExternalHelperAppParent(
 }
 
 void
-ExternalHelperAppParent::Init(ContentParent *parent,
+ExternalHelperAppParent::Init(TabParent *parent,
                               const nsCString& aMimeContentType,
-                              const nsCString& aContentDisposition,
-                              const PRBool& aForceSave,
-                              const IPC::URI& aReferrer)
+                              const PRBool& aForceSave)
 {
   nsHashPropertyBag::Init();
+
+  NS_ASSERTION(parent, "must have a non-null TabParent");
+  nsCOMPtr<nsIContent> frame = do_QueryInterface(parent->GetOwnerElement());
+  nsCOMPtr<nsISupports> container = frame->GetOwnerDoc()->GetContainer();
+  nsCOMPtr<nsIInterfaceRequestor> ir = do_QueryInterface(container);
 
   nsCOMPtr<nsIExternalHelperAppService> helperAppService =
     do_GetService(NS_EXTERNALHELPERAPPSERVICE_CONTRACTID);
   NS_ASSERTION(helperAppService, "No Helper App Service!");
 
   SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, mContentLength);
-  if (aReferrer)
-    SetPropertyAsInterface(NS_LITERAL_STRING("docshell.internalReferrer"), aReferrer);
-  SetContentDisposition(aContentDisposition);
-  helperAppService->DoContent(aMimeContentType, this, nsnull,
+  helperAppService->DoContent(aMimeContentType, this, ir,
                               aForceSave, getter_AddRefs(mListener));
 }
 
@@ -109,7 +106,7 @@ ExternalHelperAppParent::RecvOnDataAvailable(const nsCString& data,
 
   NS_ASSERTION(mPending, "must be pending!");
   nsCOMPtr<nsIInputStream> stringStream;
-  DebugOnly<nsresult> rv = NS_NewByteInputStream(getter_AddRefs(stringStream), data.get(), count, NS_ASSIGNMENT_DEPEND);
+  nsresult rv = NS_NewByteInputStream(getter_AddRefs(stringStream), data.get(), count, NS_ASSIGNMENT_DEPEND);
   NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create dependent string!");
   mStatus = mListener->OnDataAvailable(this, nsnull, stringStream, offset, count);
 
@@ -331,42 +328,6 @@ ExternalHelperAppParent::GetEntityID(nsACString& aEntityID)
 {
   aEntityID = mEntityID;
   return NS_OK;
-}
-
-//
-// nsIMultiPartChannel implementation
-//
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetBaseChannel(nsIChannel* *aChannel)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDisposition(nsACString& aContentDisposition)
-{
-  aContentDisposition = mContentDisposition;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::SetContentDisposition(const nsACString& aDisposition)
-{
-  mContentDisposition = aDisposition;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetPartID(PRUint32* aPartID)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetIsLastPart(PRBool* aIsLastPart)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 } // namespace dom

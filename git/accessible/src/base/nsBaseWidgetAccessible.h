@@ -55,6 +55,7 @@
 class nsLeafAccessible : public nsAccessibleWrap
 {
 public:
+  using nsAccessible::GetChildAtPoint;
 
   nsLeafAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
@@ -62,8 +63,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                   PRBool aDeepestChild,
+                                   nsIAccessible **aChild);
 
 protected:
 
@@ -94,23 +96,28 @@ public:
   NS_IMETHOD TakeFocus();
   NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
 
+  // nsIAccessibleHyperLink
+  NS_IMETHOD GetURI(PRInt32 i, nsIURI **aURI);
+
   // nsAccessNode
+  virtual PRBool Init();
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint64 NativeState();
-
-  // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> AnchorURIAt(PRUint32 aAnchorIndex);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  // nsAccessible
-  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
+  /**
+   * Return an accessible for cached action node.
+   */
+  nsAccessible *GetActionAccessible() const;
 
   /**
-   * Parent accessible that provides an action for this linkable accessible.
+   * Cache action node.
    */
-  nsAccessible* mActionAcc;
+  virtual void CacheActionContent();
+
+  nsCOMPtr<nsIContent> mActionContent;
   PRPackedBool mIsLink;
   PRPackedBool mIsOnclick;
 };
@@ -128,7 +135,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
 protected:
   PRUint32 mRole;

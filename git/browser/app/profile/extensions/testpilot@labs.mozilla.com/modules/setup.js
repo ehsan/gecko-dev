@@ -55,9 +55,7 @@ const POPUP_SHOW_ON_RESULTS = "extensions.testpilot.popup.showOnNewResults";
 const POPUP_CHECK_INTERVAL = "extensions.testpilot.popup.delayAfterStartup";
 const POPUP_REMINDER_INTERVAL = "extensions.testpilot.popup.timeBetweenChecks";
 const ALWAYS_SUBMIT_DATA = "extensions.testpilot.alwaysSubmitData";
-const UPDATE_CHANNEL_PREF = "app.update.channel";
 const LOG_FILE_NAME = "TestPilotErrorLog.log";
-const RANDOM_DEPLOY_PREFIX = "extensions.testpilot.deploymentRandomizer";
 
 let TestPilotSetup = {
   didReminderAfterStartup: false,
@@ -186,10 +184,15 @@ let TestPilotSetup = {
     return this.__obs;
   },
 
-  _isBetaChannel: function TPS__isBetaChannel() {
-    // Beta and aurora channels use feedback interface; nightly and release channels don't.
-    let channel = this._prefs.getValue(UPDATE_CHANNEL_PREF, "");
-    return (channel == "beta") || (channel == "betatest") || (channel == "aurora");
+  _isFfx4BetaVersion: function TPS__isFfx4BetaVersion() {
+    let result = Cc["@mozilla.org/xpcom/version-comparator;1"]
+                   .getService(Ci.nsIVersionComparator)
+                   .compare("3.7a1pre", this._application.version);
+    if (result < 0) {
+      return true;
+    } else {
+      return false;
+    }
   },
 
   _setPrefDefaultsForVersion: function TPS__setPrefDefaultsForVersion() {
@@ -201,7 +204,7 @@ let TestPilotSetup = {
     let prefBranch = ps.getDefaultBranch("");
     /* note we're setting default values, not current values -- these
      * get overridden by any user set values. */
-    if (this._isBetaChannel()) {
+    if (this._isFfx4BetaVersion()) {
       prefBranch.setBoolPref(POPUP_SHOW_ON_NEW, true);
       prefBranch.setIntPref(POPUP_CHECK_INTERVAL, 600000);
     } else {
@@ -254,15 +257,18 @@ let TestPilotSetup = {
       Ci.nsITimer.TYPE_REPEATING_SLACK);
 
       this.getVersion(function() {
-        /* Show first run page (in front window) only the first time after install;
-         * Don't show first run page in Feedback UI version. */
-        if ((self._prefs.getValue(VERSION_PREF, "") == "") &&
-           (!self._interfaceBuilder.channelUsesFeedback())) {
+      // Show first run page (in front window) if newly installed or upgraded.
+        let currVersion = self._prefs.getValue(VERSION_PREF, "firstrun");
+
+        if (currVersion != self.version) {
+          if(!self._isFfx4BetaVersion()) {
             self._prefs.setValue(VERSION_PREF, self.version);
             let browser = self._getFrontBrowserWindow().getBrowser();
             let url = self._prefs.getValue(FIRST_RUN_PREF, "");
             let tab = browser.addTab(url);
             browser.selectedTab = tab;
+          }
+          // Don't show first run page in ffx4 beta version.
         }
 
         // Install tasks. (This requires knowing the version, so it is
@@ -379,7 +385,7 @@ let TestPilotSetup = {
     let popup = doc.getElementById("pilot-notification-popup");
 
     let anchor;
-    if (this._isBetaChannel()) {
+    if (this._isFfx4BetaVersion()) {
       /* If we're in the Ffx4Beta version, popups come down from feedback
        * button, but if we're in the standalone extension version, they
        * come up from status bar icon. */
@@ -681,29 +687,22 @@ let TestPilotSetup = {
   },
 
   _experimentRequirementsAreMet: function TPS__requirementsMet(experiment) {
-    /* Returns true if we we meet the requirements to run this experiment
-     * (e.g. meet the minimum Test Pilot version and Firefox version)
-     * false if not.
-     * Default is always to run the study - return true UNLESS the study
-     * specifies a requirement that we don't meet. */
+    // Returns true if we we meet the requirements to run this experiment
+    // (e.g. meet the minimum Test Pilot version and Firefox version)
+    // false if not.
+    // If the experiment doesn't specify minimum versions, attempt to run it.
     let logger = this._logger;
     try {
-      let minTpVer, minFxVer, expName, runOrNotFunc, randomDeployment;
-      /* Could be an experiment, which specifies experimentInfo, or survey,
-       * which specifies surveyInfo. */
-      let info = experiment.experimentInfo ?
-                   experiment.experimentInfo :
-                   experiment.surveyInfo;
-      if (!info) {
-        // If neither one is supplied, study lacks metadata required to run
-        logger.warn("Study lacks minimum metadata to run.");
-        return false;
+      let minTpVer, minFxVer, expName;
+      if (experiment.experimentInfo) {
+        minTpVer = experiment.experimentInfo.minTPVersion;
+        minFxVer = experiment.experimentInfo.minFXVersion;
+        expName =  experiment.experimentInfo.testName;
+      } else if (experiment.surveyInfo) {
+        minTpVer = experiment.surveyInfo.minTPVersion;
+        minFxVer = experiment.surveyInfo.minFXVersion;
+        expName = experiment.surveyInfo.surveyName;
       }
-      minTpVer = info.minTPVersion;
-      minFxVer = info.minFXVersion;
-      expName =  info.testName;
-      runOrNotFunc = info.runOrNotFunc;
-      randomDeployment = info.randomDeployment;
 
       // Minimum test pilot version:
       if (minTpVer && this._isNewerThanMe(minTpVer)) {
@@ -728,31 +727,6 @@ let TestPilotSetup = {
         logger.warn("Not loading " + expName);
         logger.warn("Because it requires Firefox version " + minFxVer);
         return false;
-      }
-
-      // Random deployment (used to give study to random subsample of users)
-      if (randomDeployment) {
-        /* Roll a hundred-sided die. Remember what we roll for later reference.  A study
-         * using random subsample deployment will provide a range (say, 0 ~ 30) which means
-         * only users who roll within that range will run the study. */
-        let prefName = RANDOM_DEPLOY_PREFIX + "." + randomDeployment.rolloutCode;
-        let myRoll = this._prefs.getValue(prefName, null);
-        if (myRoll == null) {
-          myRoll = Math.floor(Math.random()*100);
-          this._prefs.setValue(prefName, myRoll);
-        }
-        if (myRoll < randomDeployment.minRoll) {
-          return false;
-        }
-        if (myRoll > randomDeployment.maxRoll) {
-          return false;
-        }
-      }
-
-      /* The all-purpose, arbitrary code "Should this study run?" function - if
-       * provided, use its return value. */
-      if (runOrNotFunc) {
-        return runOrNotFunc();
       }
     } catch (e) {
       logger.warn("Error in requirements check " +  e);

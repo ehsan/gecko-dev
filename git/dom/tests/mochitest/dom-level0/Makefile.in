@@ -53,8 +53,6 @@ _TEST_FILES	= \
 		idn_child.html \
 		file_location.html \
 		test_location.html \
-		test_innerWidthHeight_script.html \
-		innerWidthHeight_script.html \
 		$(NULL)
 
 libs:: 	$(_TEST_FILES)

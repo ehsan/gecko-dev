@@ -41,7 +41,6 @@
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterElement.h"
 #include "nsLayoutUtils.h"
-#include "gfxUtils.h"
 
 static double Square(double aX)
 {
@@ -140,13 +139,13 @@ nsSVGFilterInstance::ComputeFilterPrimitiveSubregion(PrimitiveInfo* aPrimitive)
   gfxRect region = UserSpaceToFilterSpace(feArea);
 
   if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::x))
-    region.x = defaultFilterSubregion.X();
+    region.pos.x = defaultFilterSubregion.X();
   if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::y))
-    region.y = defaultFilterSubregion.Y();
+    region.pos.y = defaultFilterSubregion.Y();
   if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::width))
-    region.width = defaultFilterSubregion.Width();
+    region.size.width = defaultFilterSubregion.Width();
   if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::height))
-    region.height = defaultFilterSubregion.Height();
+    region.size.height = defaultFilterSubregion.Height();
 
   // We currently require filter primitive subregions to be pixel-aligned.
   // Following the spec, any pixel partially in the region is included
@@ -166,7 +165,7 @@ nsSVGFilterInstance::BuildSources()
   gfxRect sourceBounds = UserSpaceToFilterSpace(mTargetBBox);
   sourceBounds.RoundOut();
   // Detect possible float->int overflow
-  if (!gfxUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt))
+  if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
     return NS_ERROR_FAILURE;
 
   mSourceColorAlpha.mResultBoundingBox = sourceBoundsInt;
@@ -343,7 +342,7 @@ nsSVGFilterInstance::BuildSourceImages()
     nsRefPtr<gfxASurface> offscreen =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(
               gfxIntSize(mSurfaceRect.width, mSurfaceRect.height),
-              gfxASurface::CONTENT_COLOR_ALPHA);
+              gfxASurface::ImageFormatARGB32);
     if (!offscreen || offscreen->CairoStatus())
       return NS_ERROR_OUT_OF_MEMORY;
     offscreen->SetDeviceOffset(gfxPoint(-mSurfaceRect.x, -mSurfaceRect.y));
@@ -357,8 +356,9 @@ nsSVGFilterInstance::BuildSourceImages()
     r = m.TransformBounds(r);
     r.RoundOut();
     nsIntRect dirty;
-    if (!gfxUtils::GfxRectToIntRect(r, &dirty))
-      return NS_ERROR_FAILURE;
+    nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &dirty);
+    if (NS_FAILED(rv))
+      return rv;
 
     // SVG graphics paint to device space, so we need to set an initial device
     // space to filter space transform on the gfxContext that SourceGraphic
@@ -494,19 +494,13 @@ nsSVGFilterInstance::Render(gfxASurface** aOutput)
       
       ColorModel desiredColorModel =
         primitive->mFE->GetInputColorModel(this, j, &input->mImage);
-      if (j == 0) {
-        // the output colour model is whatever in1 is if there is an in1
-        primitive->mImage.mColorModel = desiredColorModel;
-      }
       EnsureColorModel(input, desiredColorModel);
       NS_ASSERTION(input->mImage.mImage->Stride() == primitive->mImage.mImage->Stride(),
                    "stride mismatch");
       inputs.AppendElement(&input->mImage);
     }
 
-    if (primitive->mInputs.Length() == 0) {
-      primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
-    }
+    primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
 
     rv = primitive->mFE->Filter(this, inputs, &primitive->mImage, dataRect);
     if (NS_FAILED(rv))

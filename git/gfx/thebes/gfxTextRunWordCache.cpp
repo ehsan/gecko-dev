@@ -41,20 +41,17 @@
 
 #include "nsWeakReference.h"
 #include "nsCRT.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefService.h"
 #include "nsIObserver.h"
 
 #include "nsBidiUtils.h"
-#include "mozilla/Preferences.h"
-
-#if defined(XP_UNIX)
-#include <stdint.h>
-#endif
 
 #ifdef DEBUG
 #include <stdio.h>
 #endif
-
-using namespace mozilla;
 
 /**
  * Cache individual "words" (strings delimited by white-space or white-space-like
@@ -220,6 +217,8 @@ protected:
     nsTHashtable<CacheHashEntry> mCache;
 
     PRInt32 mBidiNumeral;
+    nsCOMPtr<nsIPrefBranch2> mPrefBranch;
+    nsCOMPtr<nsIPrefBranch2> mFontPrefBranch;
 
 #ifdef DEBUG
     static PLDHashOperator CacheDumpEntry(CacheHashEntry* aEntry, void* userArg);
@@ -232,12 +231,6 @@ static TextRunWordCache *gTextRunWordCache = nsnull;
 
 static PRLogModuleInfo *gWordCacheLog = PR_NewLogModule("wordCache");
 
-static const char* kObservedPrefs[] = {
-    "bidi.",
-    "font.",
-    nsnull
-};
-
 void
 TextRunWordCache::Init()
 {
@@ -245,14 +238,33 @@ TextRunWordCache::Init()
     mGeneration = 0;
 #endif
 
-    Preferences::AddWeakObservers(this, kObservedPrefs);
-    mBidiNumeral = Preferences::GetInt("bidi.numeral", mBidiNumeral);
+    nsCOMPtr<nsIPrefService> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefService)
+        return;
+
+    nsCOMPtr<nsIPrefBranch> branch;
+    prefService->GetBranch("bidi.", getter_AddRefs(branch));
+    mPrefBranch = do_QueryInterface(branch);
+    if (!mPrefBranch)
+        return;
+
+    mPrefBranch->AddObserver("", this, PR_TRUE);
+    mPrefBranch->GetIntPref("numeral", &mBidiNumeral);
+
+    nsCOMPtr<nsIPrefBranch> fontBranch;
+    prefService->GetBranch("font.", getter_AddRefs(fontBranch));
+    mFontPrefBranch = do_QueryInterface(fontBranch);
+    if (mFontPrefBranch)
+      mFontPrefBranch->AddObserver("", this, PR_TRUE);
 }
 
 void
 TextRunWordCache::Uninit()
 {
-    Preferences::RemoveObservers(this, kObservedPrefs);
+    if (mPrefBranch)
+        mPrefBranch->RemoveObserver("", this);
+    if (mFontPrefBranch)
+        mFontPrefBranch->RemoveObserver("", this);
 }
 
 NS_IMETHODIMP
@@ -261,8 +273,8 @@ TextRunWordCache::Observe(nsISupports     *aSubject,
                           const PRUnichar *aData)
 {
     if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
-        if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("bidi.numeral").get())) {
-          mBidiNumeral = Preferences::GetInt("bidi.numeral", mBidiNumeral);
+        if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("numeral").get())) {
+          mPrefBranch->GetIntPref("numeral", &mBidiNumeral);
         }
         mCache.Clear();
         PR_LOG(gWordCacheLog, PR_LOG_DEBUG, ("flushing the textrun cache"));
@@ -386,7 +398,7 @@ TextRunWordCache::LookupWord(gfxTextRun *aTextRun, gfxFont *aFirstFont,
             aDeferredWords->AppendElement(word);
         } else {
             aTextRun->CopyGlyphDataFrom(existingEntry->mTextRun,
-                existingEntry->mWordOffset, aEnd - aStart, aStart);
+                existingEntry->mWordOffset, aEnd - aStart, aStart, PR_FALSE);
         }
         return PR_TRUE;
     }
@@ -440,29 +452,22 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
         }
         // If the word starts inside a cluster we don't want this word
         // in the cache, so we'll remove the associated cache entry
-        PRBool wordStartsInsideCluster;
-        PRBool wordStartsInsideLigature;
-        if (aSuccessful) {
-            wordStartsInsideCluster =
-                !source->IsClusterStart(word->mSourceOffset);
-            wordStartsInsideLigature =
-                !source->IsLigatureGroupStart(word->mSourceOffset);
-        }
+        PRBool wordStartsInsideCluster =
+            !source->IsClusterStart(word->mSourceOffset);
+        PRBool wordStartsInsideLigature =
+            !source->IsLigatureGroupStart(word->mSourceOffset);
         if (source == aNewRun) {
             // We created a cache entry for this word based on the assumption
             // that the word matches GetFontAt(0). If this assumption is false,
             // we need to remove that cache entry and replace it with an entry
             // keyed off the fontgroup.
-            PRBool removeFontKey = !aSuccessful ||
-                wordStartsInsideCluster || wordStartsInsideLigature ||
-                (!useFontGroup && font != GetWordFontOrGroup(aNewRun,
-                                                             word->mSourceOffset,
-                                                             word->mLength));
-            if (removeFontKey) {
+            PRBool rekeyWithFontGroup =
+                GetWordFontOrGroup(aNewRun, word->mSourceOffset, word->mLength) != font && !useFontGroup;
+            if (!aSuccessful || rekeyWithFontGroup ||
+                wordStartsInsideCluster || wordStartsInsideLigature) {
                 // We need to remove the current placeholder cache entry
-                CacheHashKey key(aTextRun,
-                                 (useFontGroup ? (void*)fontGroup : (void*)font),
-                                 word->mDestOffset, word->mLength, word->mHash);
+                CacheHashKey key(aTextRun, (useFontGroup ? (void*)fontGroup : (void*)font), word->mDestOffset, word->mLength,
+                                 word->mHash);
                 NS_ASSERTION(mCache.GetEntry(key),
                              "This entry should have been added previously!");
                 mCache.RemoveEntry(key);
@@ -489,11 +494,14 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
             }
         }
         if (aSuccessful) {
-            // Copy the word.
+            // Copy the word. If the source is aNewRun, then
+            // allow CopyGlyphDataFrom to steal the internal data of
+            // aNewRun since that's only temporary anyway.
             PRUint32 sourceOffset = word->mSourceOffset;
             PRUint32 destOffset = word->mDestOffset;
             PRUint32 length = word->mLength;
             nsAutoPtr<gfxTextRun> tmpTextRun;
+            PRBool stealData = source == aNewRun;
             if (wordStartsInsideCluster || wordStartsInsideLigature) {
                 NS_ASSERTION(sourceOffset > 0, "How can the first character be inside a cluster?");
                 if (wordStartsInsideCluster && destOffset > 0 &&
@@ -514,32 +522,16 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
                     // cache). But now the data in aNewRun is no use to us.
                     // We need to find out what the platform would do
                     // if the characters were at the start of the text.
-                    if (source->GetFlags() & gfxFontGroup::TEXT_IS_8BIT) {
-                        tmpTextRun = fontGroup->
-                            MakeTextRun(source->GetText8Bit() + sourceOffset,
-                                        length, aParams, source->GetFlags());
-                    } else {
-                        tmpTextRun = fontGroup->
-                            MakeTextRun(source->GetTextUnicode() + sourceOffset,
-                                        length, aParams, source->GetFlags());
-                    }
-                    if (tmpTextRun) {
-                        source = tmpTextRun;
-                        sourceOffset = 0;
-                    } else {
-                        // If we failed to create the temporary run (OOM),
-                        // skip the word, as if aSuccessful had been FALSE.
-                        // (In practice this is only likely to occur if
-                        // we're on the verge of an OOM crash anyhow.
-                        // But ignoring gfxFontGroup::MakeTextRun() failure
-                        // is bad because it means we'd be using an invalid
-                        // source pointer.)
-                        continue;
-                    }
+                    tmpTextRun = aNewRun->GetFontGroup()->MakeTextRun(
+                        source->GetTextUnicode() + sourceOffset, length, aParams,
+                        aNewRun->GetFlags());
+                    source = tmpTextRun;
+                    sourceOffset = 0;
+                    stealData = PR_TRUE;
                 }
             }
             aTextRun->CopyGlyphDataFrom(source, sourceOffset, length,
-                                        destOffset);
+                destOffset, stealData);
             // Fill in additional spaces
             PRUint32 endCharIndex;
             if (i + 1 < aDeferredWords.Length()) {
@@ -569,7 +561,7 @@ MakeBlankTextRun(const void* aText, PRUint32 aLength,
     if (!textRun || !textRun->GetCharacterGlyphs())
         return nsnull;
     gfxFont *font = aFontGroup->GetFontAt(0);
-    textRun->AddGlyphRun(font, gfxTextRange::kFontGroup, 0, PR_FALSE);
+    textRun->AddGlyphRun(font, 0);
 #ifdef DEBUG
     textRun->mCachedWords = 0;
     textRun->mCacheGeneration = gTextRunWordCache ? gTextRunWordCache->mGeneration : 0;
@@ -603,8 +595,7 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
 #endif
 
     gfxFont *font = aFontGroup->GetFontAt(0);
-    nsresult rv =
-        textRun->AddGlyphRun(font, gfxTextRange::kFontGroup, 0, PR_FALSE);
+    nsresult rv = textRun->AddGlyphRun(font, 0);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
     nsAutoTArray<PRUnichar,200> tempString;
@@ -647,23 +638,11 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
                     aFontGroup->MakeTextRun(numString.get(), length, aParams,
                                             aFlags & ~(gfxTextRunFactory::TEXT_IS_PERSISTENT |
                                                        gfxTextRunFactory::TEXT_IS_8BIT));
-                // If MakeTextRun failed, numRun will be null, which is bad...
-                // we'll just pretend there wasn't a digit to process.
-                // This means we won't have the correct numerals, but at least
-                // we're not trying to copy glyph data from an invalid source.
-                // In practice it's unlikely to happen unless we're very close
-                // to crashing due to OOM.
-                if (numRun) {
-                    DeferredWord word = { numRun, 0, wordStart, length, hash };
-                    deferredWords.AppendElement(word);
-                    transientRuns.AppendElement(numRun);
-                } else {
-                    seenDigitToModify = PR_FALSE;
-                }
-            }
-
-            if (!seenDigitToModify) {
-                // didn't need to modify digits (or failed to do so)
+                DeferredWord word = { numRun, 0, wordStart, length, hash };
+                deferredWords.AppendElement(word);
+                transientRuns.AppendElement(numRun);
+                seenDigitToModify = PR_FALSE;
+            } else {
                 PRBool hit = LookupWord(textRun, font, wordStart, i, hash,
                                         deferredWords.Length() == 0 ? nsnull : &deferredWords);
                 if (!hit) {
@@ -688,10 +667,7 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
                     } // else we should set this character to be invisible missing,
                       // but it already is because the textrun is blank!
                 }
-            } else {
-                seenDigitToModify = PR_FALSE;
             }
-
             hash = 0;
             wordStart = i + 1;
         } else {
@@ -747,8 +723,7 @@ TextRunWordCache::MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
 #endif
 
     gfxFont *font = aFontGroup->GetFontAt(0);
-    nsresult rv =
-        textRun->AddGlyphRun(font, gfxTextRange::kFontGroup, 0, PR_FALSE);
+    nsresult rv = textRun->AddGlyphRun(font, 0);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
     nsAutoTArray<PRUint8,200> tempString;
@@ -787,16 +762,11 @@ TextRunWordCache::MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
                     aFontGroup->MakeTextRun(numString.get(), length, aParams,
                                             aFlags & ~(gfxTextRunFactory::TEXT_IS_PERSISTENT |
                                                        gfxTextRunFactory::TEXT_IS_8BIT));
-                if (numRun) {
-                    DeferredWord word = { numRun, 0, wordStart, length, hash };
-                    deferredWords.AppendElement(word);
-                    transientRuns.AppendElement(numRun);
-                } else {
-                    seenDigitToModify = PR_FALSE;
-                }
-            }
-
-            if (!seenDigitToModify) {
+                DeferredWord word = { numRun, 0, wordStart, length, hash };
+                deferredWords.AppendElement(word);
+                transientRuns.AppendElement(numRun);
+                seenDigitToModify = PR_FALSE;
+            } else {
                 PRBool hit = LookupWord(textRun, font, wordStart, i, hash,
                                         deferredWords.Length() == 0 ? nsnull : &deferredWords);
                 if (!hit) {
@@ -821,10 +791,7 @@ TextRunWordCache::MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
                     } // else we should set this character to be invisible missing,
                       // but it already is because the textrun is blank!
                 }
-            } else {
-                seenDigitToModify = PR_FALSE;
             }
-
             hash = 0;
             wordStart = i + 1;
         } else {

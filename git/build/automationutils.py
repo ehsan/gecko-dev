@@ -36,7 +36,7 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import glob, logging, os, platform, shutil, subprocess, sys
+import glob, logging, os, shutil, subprocess, sys
 import re
 from urlparse import urlparse
 
@@ -49,7 +49,6 @@ __all__ = [
   "getDebuggerInfo",
   "DEBUGGER_INFO",
   "replaceBackSlashes",
-  "wrapCommand",
   ]
 
 # Map of debugging programs to information about them, like default arguments
@@ -114,20 +113,11 @@ def checkForCrashes(dumpDir, symbolsPath, testName=None):
   dumps = glob.glob(os.path.join(dumpDir, '*.dmp'))
   for d in dumps:
     log.info("PROCESS-CRASH | %s | application crashed (minidump found)", testName)
-    print "Crash dump filename: " + d
     if symbolsPath and stackwalkPath and os.path.exists(stackwalkPath):
-      p = subprocess.Popen([stackwalkPath, d, symbolsPath],
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE)
-      (out, err) = p.communicate()
-      if len(out) > 3:
-        # minidump_stackwalk is chatty, so ignore stderr when it succeeds.
-        print out
-      else:
-        print "stderr from minidump_stackwalk:"
-        print err
-      if p.returncode != 0:
-        print "minidump_stackwalk exited with return code %d" % p.returncode
+      nullfd = open(os.devnull, 'w')
+      # eat minidump_stackwalk errors
+      subprocess.call([stackwalkPath, d, symbolsPath], stderr=nullfd)
+      nullfd.close()
     elif stackwalkCGI and symbolsPath and isURL(symbolsPath):
       f = None
       try:
@@ -140,11 +130,7 @@ def checkForCrashes(dumpDir, symbolsPath, testName=None):
         datagen, headers = multipart_encode({"minidump": f,
                                              "symbols": symbolsPath})
         request = urllib2.Request(stackwalkCGI, datagen, headers)
-        result = urllib2.urlopen(request).read()
-        if len(result) > 3:
-          print result
-        else:
-          print "stackwalkCGI returned nothing."
+        print urllib2.urlopen(request).read()
       finally:
         if f:
           f.close()
@@ -373,16 +359,3 @@ def processLeakLog(leakLogFile, leakThreshold = 0):
 
 def replaceBackSlashes(input):
   return input.replace('\\', '/')
-
-def wrapCommand(cmd):
-  """
-  If running on OS X 10.5 or older, wrap |cmd| so that it will
-  be executed as an i386 binary, in case it's a 32-bit/64-bit universal
-  binary.
-  """
-  if platform.system() == "Darwin" and \
-     hasattr(platform, 'mac_ver') and \
-     platform.mac_ver()[0][:4] < '10.6':
-    return ["arch", "-arch", "i386"] + cmd
-  # otherwise just execute the command normally
-  return cmd

@@ -50,24 +50,17 @@ LIBXUL_LIBRARY	= 1
 
 CPPSRCS		= \
 		DOMSVGAnimatedLengthList.cpp \
-		DOMSVGAnimatedNumberList.cpp \
 		DOMSVGLength.cpp \
 		DOMSVGLengthList.cpp \
-		DOMSVGNumber.cpp \
-		DOMSVGNumberList.cpp \
-		DOMSVGPathSeg.cpp \
-		DOMSVGPathSegList.cpp \
-		DOMSVGPoint.cpp \
-		DOMSVGPointList.cpp \
 		nsDOMSVGZoomEvent.cpp \
 		nsDOMSVGEvent.cpp \
 		nsSVGAElement.cpp \
 		nsSVGAltGlyphElement.cpp \
 		nsSVGAngle.cpp \
+		nsSVGAnimatedNumberList.cpp \
 		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGCircleElement.cpp \
-		nsSVGClass.cpp \
 		nsSVGClipPathElement.cpp \
 		nsSVGDataParser.cpp \
 		nsSVGDefsElement.cpp \
@@ -91,14 +84,21 @@ CPPSRCS		= \
 		nsSVGMaskElement.cpp \
 		nsSVGMatrix.cpp \
 		nsSVGMetadataElement.cpp \
+		nsSVGNumber.cpp \
 		nsSVGNumber2.cpp \
+		nsSVGNumberList.cpp \
 		nsSVGPathDataParser.cpp \
 		nsSVGPathElement.cpp \
 		nsSVGPathGeometryElement.cpp \
+		nsSVGPathSeg.cpp \
+		nsSVGPathSegList.cpp \
 		nsSVGPatternElement.cpp \
+		nsSVGPoint.cpp \
+		nsSVGPointList.cpp \
 		nsSVGPolyElement.cpp \
 		nsSVGPolygonElement.cpp \
 		nsSVGPolylineElement.cpp \
+		nsSVGPreserveAspectRatio.cpp \
 		nsSVGScriptElement.cpp \
 		nsSVGString.cpp \
 		nsSVGStringProxyValue.cpp \
@@ -123,16 +123,8 @@ CPPSRCS		= \
 		nsSVGValue.cpp \
 		nsSVGViewBox.cpp \
 		SVGAnimatedLengthList.cpp \
-		SVGAnimatedNumberList.cpp \
-		SVGAnimatedPathSegList.cpp \
-		SVGAnimatedPointList.cpp \
-		SVGAnimatedPreserveAspectRatio.cpp \
 		SVGLength.cpp \
 		SVGLengthList.cpp \
-		SVGNumberList.cpp \
-		SVGPathData.cpp \
-		SVGPathSegUtils.cpp \
-		SVGPointList.cpp \
 		$(NULL)
 
 ifdef MOZ_SMIL
@@ -149,10 +141,7 @@ CPPSRCS += nsSVGAnimateElement.cpp \
            SVGMotionSMILAttr.cpp \
            SVGMotionSMILAnimationFunction.cpp \
            SVGMotionSMILPathUtils.cpp \
-           SVGNumberListSMILType.cpp \
            SVGOrientSMILType.cpp \
-           SVGPathSegListSMILType.cpp \
-           SVGPointListSMILType.cpp \
            SVGViewBoxSMILType.cpp \
            $(NULL)
 endif
@@ -167,7 +156,9 @@ EXPORTS =  			\
 	nsISVGValueObserver.h      \
 	nsISVGValueUtils.h         \
 	nsSVGFeatures.h            \
+	nsSVGNumber.h              \
 	nsSVGRect.h                \
+	nsSVGPoint.h               \
 	nsSVGMatrix.h              \
 	$(NULL)
 

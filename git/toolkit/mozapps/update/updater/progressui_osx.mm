@@ -63,27 +63,14 @@ static const char *sUpdatePath;
 -(void)awakeFromNib
 {
   NSWindow *w = [progressBar window];
+  [w center];
   
   [w setTitle:[NSString stringWithUTF8String:sLabels.title]];
   [progressTextField setStringValue:[NSString stringWithUTF8String:sLabels.info]];
-
-  NSRect origTextFrame = [progressTextField frame];
-  [progressTextField sizeToFit];
-
-  int widthAdjust = progressTextField.frame.size.width - origTextFrame.size.width;
-
-  if (widthAdjust > 0) {
-    NSRect f;
-    f.size.width  = w.frame.size.width + widthAdjust;
-    f.size.height = w.frame.size.height;
-    [w setFrame:f display:YES];
-  }
-
-  [w center];
-
+  
   [progressBar setIndeterminate:NO];
   [progressBar setDoubleValue:0.0];
-
+  
   [[NSTimer scheduledTimerWithTimeInterval:TIMER_INTERVAL target:self
                                   selector:@selector(updateProgressUI:)
                                   userInfo:nil repeats:YES] retain];
@@ -133,23 +120,17 @@ InitProgressUI(int *pargc, char ***pargv)
 int
 ShowProgressUI()
 {
-  // Only show the Progress UI if the process is taking a significant amount of
-  // time where a significant amount of time is defined as .5 seconds after
-  // ShowProgressUI is called sProgress is less than 70.
+  // Only show the Progress UI if the process is taking significant time.
+  // Here we measure significant time as taking more than one second.
+  
   usleep(500000);
   
-  if (sQuit || sProgressVal > 70.0f)
+  if (sQuit || sProgressVal > 50.0f)
     return 0;
 
   char path[PATH_MAX];
   snprintf(path, sizeof(path), "%s/updater.ini", sUpdatePath);
   if (ReadStrings(path, &sLabels) != OK)
-    return -1;
-
-  // Continue the update without showing the Progress UI if any of the supplied
-  // strings are larger than MAX_TEXT_LEN (Bug 628829).
-  if (!(strlen(sLabels.title) < MAX_TEXT_LEN - 1 &&
-        strlen(sLabels.info) < MAX_TEXT_LEN - 1))
     return -1;
   
   [NSApplication sharedApplication];

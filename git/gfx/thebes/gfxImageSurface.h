@@ -43,8 +43,6 @@
 
 // ARGB -- raw buffer.. wont be changed.. good for storing data.
 
-class gfxSubimageSurface;
-
 /**
  * A raw image buffer. The format can be set in the constructor. Its main
  * purpose is for storing read-only images and using it as a source surface,
@@ -79,7 +77,7 @@ public:
     // ImageSurface methods
     gfxImageFormat Format() const { return mFormat; }
 
-    virtual const gfxIntSize GetSize() const { return mSize; }
+    const gfxIntSize& GetSize() const { return mSize; }
     PRInt32 Width() const { return mSize.width; }
     PRInt32 Height() const { return mSize.height; }
 
@@ -101,42 +99,16 @@ public:
     /* Fast copy from another image surface; returns TRUE if successful, FALSE otherwise */
     PRBool CopyFrom (gfxImageSurface *other);
 
-    /* return new Subimage with pointing to original image starting from aRect.pos
-     * and size of aRect.size. New subimage keeping current image reference
-     */
-    already_AddRefed<gfxSubimageSurface> GetSubimage(const gfxRect& aRect);
-
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
-
-    /** See gfxASurface.h. */
-    NS_OVERRIDE
-    virtual void MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft);
-
 protected:
     gfxImageSurface();
-    void InitWithData(unsigned char *aData, const gfxIntSize& aSize,
-                      long aStride, gfxImageFormat aFormat);
     void InitFromSurface(cairo_surface_t *csurf);
-    long ComputeStride() const { return ComputeStride(mSize, mFormat); }
-
-    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
+    long ComputeStride() const;
 
     gfxIntSize mSize;
     PRBool mOwnsData;
     unsigned char *mData;
     gfxImageFormat mFormat;
     long mStride;
-};
-
-class THEBES_API gfxSubimageSurface : public gfxImageSurface {
-protected:
-    friend class gfxImageSurface;
-    gfxSubimageSurface(gfxImageSurface* aParent,
-                       unsigned char* aData,
-                       const gfxIntSize& aSize);
-private:
-    nsRefPtr<gfxImageSurface> mParent;
 };
 
 #endif /* GFX_IMAGESURFACE_H */

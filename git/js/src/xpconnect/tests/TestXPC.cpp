@@ -72,65 +72,61 @@ FILE *gOutFile = NULL;
 FILE *gErrFile = NULL;
 
 static JSBool
-Print(JSContext *cx, uintN argc, jsval *vp)
+Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i, n;
     JSString *str;
 
-    jsval *argv = JS_ARGV(cx, vp);
     for (i = n = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
-            return false;
-        JSAutoByteString bytes(cx, str);
-        if (!bytes)
-            return false;
-        fprintf(gOutFile, "%s%s", i ? " " : "", bytes.ptr());
+            return JS_FALSE;
+        fprintf(gOutFile, "%s%s", i ? " " : "", JS_GetStringBytes(str));
     }
     n++;
     if (n)
         fputc('\n', gOutFile);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
 static JSBool
-Load(JSContext *cx, uintN argc, jsval *vp)
+Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i;
     JSString *str;
+    const char *filename;
+    JSScript *script;
+    JSBool ok;
     jsval result;
 
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    jsval *argv = JS_ARGV(cx, vp);
     for (i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return JS_FALSE;
         argv[i] = STRING_TO_JSVAL(str);
-        JSAutoByteString filename(cx, str);
-        if (!filename)
-            return false;
-        JSObject *scriptObj = JS_CompileFile(cx, obj, filename.ptr());
-        if (!scriptObj || !JS_ExecuteScript(cx, obj, scriptObj, &result))
-            return false;
+        filename = JS_GetStringBytes(str);
+        script = JS_CompileFile(cx, obj, filename);
+        if (!script)
+            ok = JS_FALSE;
+        else {
+            ok = JS_ExecuteScript(cx, obj, script, &result);
+            JS_DestroyScript(cx, script);
+        }
+        if (!ok)
+            return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec glob_functions[] = {
-    {"print",           Print,          0,0},
-    {"load",            Load,           1,0},
-    {nsnull,nsnull,0,0}
+    {"print",           Print,          0,0,0},
+    {"load",            Load,           1,0,0},
+    {nsnull,nsnull,0,0,0}
 };
 
 static JSClass global_class = {
-    "global", JSCLASS_GLOBAL_FLAGS,
-    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
+    "global", 0,
+    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
 };
 
@@ -544,11 +540,11 @@ TestArgFormatter(JSContext* jscontext, JSObject* glob, nsIXPConnect* xpc)
     const char*                  e_in = "another meaningless chunck of text";
     
 
-    JSBool                  a_match;
+    char*                   a_out;
     nsCOMPtr<nsISupports>   b_out;
     nsCOMPtr<nsIVariant>    c_out;
     nsAutoString            d_out;
-    JSBool                  e_match;
+    char*                   e_out;
 
     nsCOMPtr<nsITestXPCFoo> specified;
     PRInt32                 val;
@@ -580,8 +576,7 @@ TestArgFormatter(JSContext* jscontext, JSObject* glob, nsIXPConnect* xpc)
             return;
         }
 
-        JSString *a_out, *e_out;
-        ok = JS_ConvertArguments(jscontext, 5, argv, "S %ip %iv %is S",
+        ok = JS_ConvertArguments(jscontext, 5, argv, "s %ip %iv %is s",
                                 &a_out, 
                                 static_cast<nsISupports**>(getter_AddRefs(b_out)), 
                                 static_cast<nsIVariant**>(getter_AddRefs(c_out)),
@@ -597,13 +592,11 @@ TestArgFormatter(JSContext* jscontext, JSObject* glob, nsIXPConnect* xpc)
         TAF_CHECK(c_out, " JS to native for %%iv returned NULL -- FAILED!\n");
         TAF_CHECK(NS_SUCCEEDED(c_out->GetAsInt32(&val)) && val == 5, " JS to native for %%iv holds wrong value -- FAILED!\n");
         TAF_CHECK(d_in.Equals(d_out), " JS to native for %%is returned the wrong value -- FAILED!\n");
-        TAF_CHECK(JS_StringEqualsAscii(jscontext, a_out, a_in, &a_match), " oom -- FAILED!\n");
-        TAF_CHECK(JS_StringEqualsAscii(jscontext, e_out, e_in, &e_match), " oom -- FAILED!\n");
     } while (0);
     if (!ok)
         return;
 
-    if(a_match && e_match)
+    if(!strcmp(a_in, a_out) && !strcmp(e_in, e_out))
         printf("passed\n");
     else
         printf(" conversion OK, but surrounding was mangled -- FAILED!\n");
@@ -821,9 +814,7 @@ int main()
             if (!glob)
                 DIE("FAILED to create global object");
 
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(jscontext, glob))
-                DIE("FAILED to enter compartment");
+            JSAutoEnterCompartment autoCompartment(jscontext, glob);
 
             if (!JS_InitStandardClasses(jscontext, glob))
                 DIE("FAILED to init standard classes");

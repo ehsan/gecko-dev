@@ -38,8 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsMathMLmfencedFrame_h
-#define nsMathMLmfencedFrame_h
+#ifndef nsMathMLmfencedFrame_h___
+#define nsMathMLmfencedFrame_h___
 
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
@@ -78,7 +78,7 @@ public:
                               const nsDisplayListSet& aLists);
 
   virtual nscoord
-  GetIntrinsicWidth(nsRenderingContext* aRenderingContext);
+  GetIntrinsicWidth(nsIRenderingContext* aRenderingContext);
 
   NS_IMETHOD
   AttributeChanged(PRInt32         aNameSpaceID,
@@ -96,7 +96,7 @@ public:
   // helper routines to format the MathMLChars involved here
   static nsresult
   ReflowChar(nsPresContext*      aPresContext,
-             nsRenderingContext& aRenderingContext,
+             nsIRenderingContext& aRenderingContext,
              nsMathMLChar*        aMathMLChar,
              nsOperatorFlags      aForm,
              PRInt32              aScriptLevel,
@@ -129,8 +129,8 @@ protected:
   RemoveFencesAndSeparators();
 
   // add fences and separators when all child frames are known
-  void
+  nsresult
   CreateFencesAndSeparators(nsPresContext* aPresContext);
 };
 
-#endif /* nsMathMLmfencedFrame_h */
+#endif /* nsMathMLmfencedFrame_h___ */

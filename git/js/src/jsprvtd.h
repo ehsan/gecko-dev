@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -55,7 +55,6 @@
  */
 
 #include "jspubtd.h"
-#include "jsstaticcheck.h"
 #include "jsutil.h"
 
 JS_BEGIN_EXTERN_C
@@ -71,9 +70,9 @@ static const uintN JS_GCTHING_ALIGN = 8;
 static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
-typedef uint8       jsbytecode;
-typedef uint8       jssrcnote;
-typedef uintptr_t   jsatomid;
+typedef uint8  jsbytecode;
+typedef uint8  jssrcnote;
+typedef uint32 jsatomid;
 
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
@@ -85,17 +84,21 @@ typedef struct JSFunctionBox        JSFunctionBox;
 typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
 typedef struct JSProperty           JSProperty;
-typedef struct JSScript             JSScript;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
 typedef struct JSThread             JSThread;
+typedef struct JSThreadData         JSThreadData;
 typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
 
 /* Friend "Advanced API" typedefs. */
+typedef struct JSAtom               JSAtom;
+typedef struct JSAtomList           JSAtomList;
+typedef struct JSAtomListElement    JSAtomListElement;
 typedef struct JSAtomMap            JSAtomMap;
 typedef struct JSAtomState          JSAtomState;
 typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;
+typedef struct JSRegExpStatics      JSRegExpStatics;
 typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSNativeTraceInfo    JSNativeTraceInfo;
@@ -112,18 +115,7 @@ typedef struct JSXMLArrayCursor     JSXMLArrayCursor;
  * templates.
  */
 #ifdef __cplusplus
-
 extern "C++" {
-
-class JSDependentString;
-class JSExtensibleString;
-class JSExternalString;
-class JSLinearString;
-class JSFixedString;
-class JSStaticAtom;
-class JSRope;
-class JSAtom;
-struct JSDefinition;
 
 namespace js {
 
@@ -135,19 +127,10 @@ class AutoStringRooter;
 class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
-class InvokeSessionGuard;
-class StringBuffer;
 class TraceRecorder;
 struct TraceMonitor;
-
-class FrameRegs;
-class StackFrame;
-class StackSegment;
 class StackSpace;
-class ContextStack;
-class FrameRegsIter;
-class CallReceiver;
-class CallArgs;
+class StackSegment;
 
 struct Compiler;
 struct Parser;
@@ -156,12 +139,12 @@ struct Token;
 struct TokenPos;
 struct TokenPtr;
 
-class TempAllocPolicy;
-class RuntimeAllocPolicy;
+class ContextAllocPolicy;
+class SystemAllocPolicy;
 
 template <class T,
           size_t MinInlineCapacity = 0,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class Vector;
 
 template <class>
@@ -170,48 +153,28 @@ struct DefaultHasher;
 template <class Key,
           class Value,
           class HashPolicy = DefaultHasher<Key>,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class HashMap;
 
 template <class T,
           class HashPolicy = DefaultHasher<T>,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class HashSet;
 
-template <typename K,
-          typename V,
-          size_t InlineElems>
-class InlineMap;
+class DeflatedStringCache;
 
 class PropertyCache;
 struct PropertyCacheEntry;
 
 struct Shape;
 struct EmptyShape;
-class Bindings;
-
-class MultiDeclRange;
-class ParseMapPool;
-class DefnOrHeader;
-typedef js::InlineMap<JSAtom *, JSDefinition *, 24> AtomDefnMap;
-typedef js::InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
-typedef js::InlineMap<JSAtom *, DefnOrHeader, 24> AtomDOHMap;
-
-class Breakpoint;
-class BreakpointSite;
-class Debugger;
-
-typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, RuntimeAllocPolicy>
-    BreakpointSiteMap;
 
 } /* namespace js */
 
+/* Common instantiations. */
+typedef js::Vector<jschar, 32> JSCharBuffer;
+
 } /* export "C++" */
-
-#else
-
-typedef struct JSAtom JSAtom;
-
 #endif  /* __cplusplus */
 
 /* "Friend" types used by jscntxt.h and jsdbgapi.h. */
@@ -259,7 +222,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*
@@ -327,7 +290,8 @@ typedef struct JSDebugHooks {
  *
  * If JSLookupPropOp succeeds and returns with *propp non-null, that pointer
  * may be passed as the prop parameter to a JSAttributesOp, as a short-cut
- * that bypasses id re-lookup.
+ * that bypasses id re-lookup.  In any case, a non-null *propp result after a
+ * successful lookup must be dropped via JSObject::dropProperty.
  *
  * NB: successful return with non-null *propp means the implementation may
  * have locked *objp and added a reference count associated with *propp, so
@@ -339,11 +303,38 @@ typedef JSBool
                    JSProperty **propp);
 
 /*
+ * Define obj[id], a direct property of obj named id, having the given initial
+ * value, with the specified getter, setter, and attributes.
+ */
+typedef JSBool
+(* JSDefinePropOp)(JSContext *cx, JSObject *obj, jsid id, const jsval *value,
+                   JSPropertyOp getter, JSPropertyOp setter, uintN attrs);
+
+/*
+ * Get, set, or delete obj[id], returning false on error or exception, true
+ * on success.  If getting or setting, the new value is returned in *vp on
+ * success.  If deleting without error, *vp will be JSVAL_FALSE if obj[id] is
+ * permanent, and JSVAL_TRUE if id named a direct property of obj that was in
+ * fact deleted, or if id names no direct property of obj (id could name a
+ * prototype property, or no property in obj or its prototype chain).
+ */
+typedef JSBool
+(* JSPropertyIdOp)(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+
+/*
  * Get or set attributes of the property obj[id]. Return false on error or
  * exception, true with current attributes in *attrsp.
  */
 typedef JSBool
 (* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
+
+/*
+ * The type of ops->call. Same argument types as JSFastNative, but a different
+ * contract. A JSCallOp expects a dummy stack frame with the caller's
+ * scopeChain.
+ */
+typedef JSBool
+(* JSCallOp)(JSContext *cx, uintN argc, jsval *vp);
 
 /*
  * A generic type for functions mapping an object to another object, or null

@@ -41,7 +41,6 @@
 #define NSFILEPICKER_H
 
 #include <qfiledialog.h>
-#include <qpointer.h>
 #include "nsBaseFilePicker.h"
 #include "nsString.h"
 #include "nsIURI.h"
@@ -79,7 +78,7 @@ private:
     void InitNative(nsIWidget*, const nsAString&, short int);
 
 protected:
-    QPointer<QFileDialog> mDialog;
+    QFileDialog *mDialog;
     nsCOMArray<nsILocalFile> mFiles;
 
     PRInt16   mMode;

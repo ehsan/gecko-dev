@@ -56,12 +56,6 @@
 #include "nsIDocumentEncoder.h"
 #include "nsTArray.h"
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 class nsPlainTextSerializer : public nsIContentSerializer,
                               public nsIHTMLContentSink,
                               public nsIHTMLToTextSink
@@ -90,10 +84,10 @@ public:
                            PRInt32 aEndOffset, nsAString& aStr)  { return NS_OK; }
   NS_IMETHOD AppendDoctype(nsIContent *aDoctype,
                            nsAString& aStr)  { return NS_OK; }
-  NS_IMETHOD AppendElementStart(mozilla::dom::Element* aElement,
-                                mozilla::dom::Element* aOriginalElement,
+  NS_IMETHOD AppendElementStart(nsIContent *aElement,
+                                nsIContent *aOriginalElement,
                                 nsAString& aStr); 
-  NS_IMETHOD AppendElementEnd(mozilla::dom::Element* aElement,
+  NS_IMETHOD AppendElementEnd(nsIContent *aElement,
                               nsAString& aStr);
   NS_IMETHOD Flush(nsAString& aStr);
 
@@ -123,6 +117,7 @@ public:
 
   NS_IMETHOD BeginContext(PRInt32 aPosition) { return NS_OK; }
   NS_IMETHOD EndContext(PRInt32 aPosition) { return NS_OK; }
+  NS_IMETHOD WillProcessTokens(void) { return NS_OK; }
   NS_IMETHOD DidProcessTokens(void) { return NS_OK; }
   NS_IMETHOD WillProcessAToken(void) { return NS_OK; }
   NS_IMETHOD DidProcessAToken(void) { return NS_OK; }
@@ -240,7 +235,7 @@ protected:
                                           section.
                                           mHeaderCounter[1] for <h1> etc. */
 
-  nsRefPtr<mozilla::dom::Element> mContent;
+  nsCOMPtr<nsIContent> mContent;
 
   // For handling table rows
   nsAutoTArray<PRPackedBool, 8> mHasWrittenCellsForRow;
@@ -259,8 +254,6 @@ protected:
   // Content in the stack above this index should be ignored:
   PRUint32          mIgnoreAboveIndex;
 
-  // The stack for ordered lists
-  PRInt32         *mOLStack;
   PRUint32         mOLStackIndex;
 
   PRUint32         mULCount;

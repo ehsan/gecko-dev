@@ -53,7 +53,7 @@ JS_BEGIN_EXTERN_C
  * Try to get jsvals 64-bit aligned. We could almost assert that all values are
  * aligned, but MSVC and GCC occasionally break alignment.
  */
-#if defined(__GNUC__) || defined(__xlc__) || defined(__xlC__)
+#ifdef __GNUC__
 # define JSVAL_ALIGNMENT        __attribute__((aligned (8)))
 #elif defined(_MSC_VER)
   /*
@@ -62,8 +62,6 @@ JS_BEGIN_EXTERN_C
    */
 # define JSVAL_ALIGNMENT
 #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-# define JSVAL_ALIGNMENT
-#elif defined(__HP_cc) || defined(__HP_aCC)
 # define JSVAL_ALIGNMENT
 #endif
 
@@ -76,7 +74,7 @@ JS_BEGIN_EXTERN_C
  * nice symbolic type tags, however we can only do this when we can force the
  * underlying type of the enum to be the desired size.
  */
-#if defined(__cplusplus) && !defined(__SUNPRO_CC) && !defined(__xlC__)
+#if defined(__cplusplus) && !defined(__SUNPRO_CC)
 
 #if defined(_MSC_VER)
 # define JS_ENUM_HEADER(id, type)              enum id : type
@@ -110,7 +108,8 @@ JS_ENUM_HEADER(JSValueType, uint8)
     JSVAL_TYPE_STRORNULL           = 0x97,
     JSVAL_TYPE_OBJORNULL           = 0x98,
 
-    JSVAL_TYPE_BOXED               = 0x99
+    JSVAL_TYPE_BOXED               = 0x99,
+    JSVAL_TYPE_UNINITIALIZED       = 0xcd
 } JS_ENUM_FOOTER(JSValueType);
 
 JS_STATIC_ASSERT(sizeof(JSValueType) == 1);
@@ -223,7 +222,7 @@ typedef uint64 JSValueShiftedTag;
 #define JSVAL_LOWER_INCL_TYPE_OF_OBJ_OR_NULL_SET        JSVAL_TYPE_NULL
 #define JSVAL_UPPER_EXCL_TYPE_OF_PRIMITIVE_SET          JSVAL_TYPE_OBJECT
 #define JSVAL_UPPER_INCL_TYPE_OF_NUMBER_SET             JSVAL_TYPE_INT32
-#define JSVAL_LOWER_INCL_TYPE_OF_PTR_PAYLOAD_SET        JSVAL_TYPE_MAGIC
+#define JSVAL_LOWER_INCL_TYPE_OF_GCTHING_SET            JSVAL_TYPE_STRING
 #define JSVAL_UPPER_INCL_TYPE_OF_VALUE_SET              JSVAL_TYPE_OBJECT
 #define JSVAL_UPPER_INCL_TYPE_OF_BOXABLE_SET            JSVAL_TYPE_FUNOBJ
 
@@ -246,7 +245,6 @@ typedef uint64 JSValueShiftedTag;
 #define JSVAL_LOWER_INCL_SHIFTED_TAG_OF_OBJ_OR_NULL_SET  JSVAL_SHIFTED_TAG_NULL
 #define JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET    JSVAL_SHIFTED_TAG_OBJECT
 #define JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET       JSVAL_SHIFTED_TAG_UNDEFINED
-#define JSVAL_LOWER_INCL_SHIFTED_TAG_OF_PTR_PAYLOAD_SET  JSVAL_SHIFTED_TAG_MAGIC
 #define JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET      JSVAL_SHIFTED_TAG_STRING
 
 #endif /* JS_BITS_PER_WORD */
@@ -260,21 +258,15 @@ typedef enum JSWhyMagic
                                   * enumerated like a native object. */
     JS_NO_ITER_VALUE,            /* there is not a pending iterator value */
     JS_GENERATOR_CLOSING,        /* exception value thrown when closing a generator */
+    JS_FAST_CONSTRUCTOR,         /* 'this' value for fast natives invoked with 'new' */
     JS_NO_CONSTANT,              /* compiler sentinel value */
     JS_THIS_POISON,              /* used in debug builds to catch tracing errors */
-    JS_ARG_POISON,               /* used in debug builds to catch tracing errors */
     JS_SERIALIZE_NO_NODE,        /* an empty subnode in the AST serializer */
     JS_GENERIC_MAGIC             /* for local use */
 } JSWhyMagic;
 
-#ifdef __cplusplus
-class                       JSString;
-class                       JSFlatString;
-#else
-typedef struct JSString     JSString;
-typedef struct JSFlatString JSFlatString;
-#endif
-typedef struct JSObject     JSObject;
+typedef struct JSString JSString;
+typedef struct JSObject JSObject;
 
 #if defined(IS_LITTLE_ENDIAN)
 # if JS_BITS_PER_WORD == 32
@@ -290,18 +282,16 @@ typedef union jsval_layout
             JSObject       *obj;
             void           *ptr;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
         JSValueTag tag;
     } s;
     double asDouble;
-    void *asPtr;
 } jsval_layout;
 # elif JS_BITS_PER_WORD == 64
 typedef union jsval_layout
 {
     uint64 asBits;
-#if (!defined(_WIN64) && defined(__cplusplus))
+#ifndef _WIN64
     /* MSVC does not pack these correctly :-( */
     struct {
         uint64             payload47 : 47;
@@ -313,11 +303,9 @@ typedef union jsval_layout
             int32          i32;
             uint32         u32;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;
-    void *asPtr;
 } jsval_layout;
 # endif  /* JS_BITS_PER_WORD */
 #else   /* defined(IS_LITTLE_ENDIAN) */
@@ -335,30 +323,9 @@ typedef union jsval_layout
             JSObject       *obj;
             void           *ptr;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;
-    void *asPtr;
-} jsval_layout;
-# elif JS_BITS_PER_WORD == 64
-typedef union jsval_layout
-{
-    uint64 asBits;
-    struct {
-        JSValueTag         tag : 17;
-        uint64             payload47 : 47;
-    } debugView;
-    struct {
-        union {
-            int32          i32;
-            uint32         u32;
-            JSWhyMagic     why;
-            jsuword        word;
-        } payload;
-    } s;
-    double asDouble;
-    void *asPtr;
 } jsval_layout;
 # endif /* JS_BITS_PER_WORD */
 #endif  /* defined(IS_LITTLE_ENDIAN) */
@@ -377,7 +344,7 @@ typedef union jsval_layout
 static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_DOUBLE_IMPL(jsval_layout l)
 {
-    return (uint32)l.s.tag <= (uint32)JSVAL_TAG_CLEAR;
+    return (uint32)l.s.tag < (uint32)JSVAL_TAG_CLEAR;
 }
 
 static JS_ALWAYS_INLINE jsval_layout
@@ -434,7 +401,6 @@ static JS_ALWAYS_INLINE jsval_layout
 STRING_TO_JSVAL_IMPL(JSString *str)
 {
     jsval_layout l;
-    JS_ASSERT(str);
     l.s.tag = JSVAL_TAG_STRING;
     l.s.payload.str = str;
     return l;
@@ -462,23 +428,9 @@ static JS_ALWAYS_INLINE jsval_layout
 BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
-    JS_ASSERT(b == JS_TRUE || b == JS_FALSE);
     l.s.tag = JSVAL_TAG_BOOLEAN;
     l.s.payload.boo = b;
     return l;
-}
-
-static JS_ALWAYS_INLINE JSBool
-JSVAL_IS_MAGIC_IMPL(jsval_layout l)
-{
-    return l.s.tag == JSVAL_TAG_MAGIC;
-}
-
-static JS_ALWAYS_INLINE JSObject *
-MAGIC_JSVAL_TO_OBJECT_OR_NULL_IMPL(jsval_layout l)
-{
-    JS_ASSERT(JSVAL_IS_MAGIC_IMPL(l));
-    return l.s.payload.obj;
 }
 
 static JS_ALWAYS_INLINE JSBool
@@ -510,7 +462,6 @@ static JS_ALWAYS_INLINE jsval_layout
 OBJECT_TO_JSVAL_IMPL(JSObject *obj)
 {
     jsval_layout l;
-    JS_ASSERT(obj);
     l.s.tag = JSVAL_TAG_OBJECT;
     l.s.payload.obj = obj;
     return l;
@@ -627,7 +578,6 @@ STRING_TO_JSVAL_IMPL(JSString *str)
 {
     jsval_layout l;
     uint64 strBits = (uint64)str;
-    JS_ASSERT(str);
     JS_ASSERT((strBits >> JSVAL_TAG_SHIFT) == 0);
     l.asBits = strBits | JSVAL_SHIFTED_TAG_STRING;
     return l;
@@ -655,24 +605,8 @@ static JS_ALWAYS_INLINE jsval_layout
 BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
-    JS_ASSERT(b == JS_TRUE || b == JS_FALSE);
     l.asBits = ((uint64)(uint32)b) | JSVAL_SHIFTED_TAG_BOOLEAN;
     return l;
-}
-
-static JS_ALWAYS_INLINE JSBool
-JSVAL_IS_MAGIC_IMPL(jsval_layout l)
-{
-    return (l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_MAGIC;
-}
-
-static JS_ALWAYS_INLINE JSObject *
-MAGIC_JSVAL_TO_OBJECT_OR_NULL_IMPL(jsval_layout l)
-{
-    uint64 ptrBits = l.asBits & JSVAL_PAYLOAD_MASK;
-    JS_ASSERT(JSVAL_IS_MAGIC_IMPL(l));
-    JS_ASSERT((ptrBits >> JSVAL_TAG_SHIFT) == 0);
-    return (JSObject *)ptrBits;
 }
 
 static JS_ALWAYS_INLINE JSBool
@@ -708,7 +642,6 @@ OBJECT_TO_JSVAL_IMPL(JSObject *obj)
 {
     jsval_layout l;
     uint64 objBits = (uint64)obj;
-    JS_ASSERT(obj);
     JS_ASSERT((objBits >> JSVAL_TAG_SHIFT) == 0);
     l.asBits = objBits | JSVAL_SHIFTED_TAG_OBJECT;
     return l;
@@ -817,16 +750,16 @@ extern "C++"
 # endif /* defined(__cplusplus) */
 
 /* Internal helper macros */
-#define JSVAL_BITS(v)    ((v).asBits)
+#define JSVAL_BITS(v)    (v.asBits)
 #define JSVAL_FROM_LAYOUT(l) (l)
 #define IMPL_TO_JSVAL(v) (v)
-#define JSID_BITS(id)    ((id).asBits)
+#define JSID_BITS(id)    (id.asBits)
 
 #else /* defined(JS_USE_JSVAL_JSID_STRUCT_TYPES) */
 
 /* Use different primitive types so overloading works. */
-typedef JSVAL_ALIGNMENT JSUint64 jsval;
-typedef ptrdiff_t                jsid;
+typedef JSVAL_ALIGNMENT uint64 jsval;
+typedef ptrdiff_t              jsid;
 
 /* Internal helper macros */
 #define JSVAL_BITS(v)    (v)

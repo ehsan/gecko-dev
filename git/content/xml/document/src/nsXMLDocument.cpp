@@ -70,10 +70,12 @@
 #include "nsLayoutCID.h"
 #include "nsDOMAttribute.h"
 #include "nsGUIEvent.h"
+#include "nsIFIXptr.h"
+#include "nsIXPointer.h"
 #include "nsCExternalHandlerService.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsJSUtils.h"
@@ -119,13 +121,9 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   PRBool isHTML = PR_FALSE;
   PRBool isXHTML = PR_FALSE;
   if (aDoctype) {
-    nsAutoString publicId, name;
+    nsAutoString publicId;
     aDoctype->GetPublicId(publicId);
-    if (publicId.IsEmpty()) {
-      aDoctype->GetName(name);
-    }
-    if (name.EqualsLiteral("html") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
+    if (publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Frameset//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Transitional//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.0//EN") ||
@@ -140,9 +138,11 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
       isHTML = PR_TRUE;
       isXHTML = PR_TRUE;
     }
+#ifdef MOZ_SVG
     else if (publicId.EqualsLiteral("-//W3C//DTD SVG 1.1//EN")) {
       rv = NS_NewSVGDocument(getter_AddRefs(d));
     }
+#endif
     // XXX Add support for XUL documents.
     else {
       rv = NS_NewXMLDocument(getter_AddRefs(d));
@@ -278,6 +278,29 @@ nsXMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 }
 
 NS_IMETHODIMP
+nsXMLDocument::EvaluateFIXptr(const nsAString& aExpression, nsIDOMRange **aRange)
+{
+  nsresult rv;
+  nsCOMPtr<nsIFIXptrEvaluator> e =
+    do_CreateInstance("@mozilla.org/xmlextras/fixptrevaluator;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  return e->Evaluate(this, aExpression, aRange);
+}
+
+NS_IMETHODIMP
+nsXMLDocument::EvaluateXPointer(const nsAString& aExpression,
+                                nsIXPointerResult **aResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsIXPointerEvaluator> e =
+    do_CreateInstance("@mozilla.org/xmlextras/xpointerevaluator;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  return e->Evaluate(this, aExpression, aResult);
+}
+
+NS_IMETHODIMP
 nsXMLDocument::GetAsync(PRBool *aAsync)
 {
   NS_ENSURE_ARG_POINTER(aAsync);
@@ -298,20 +321,15 @@ ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
   nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                   aWarning,
                                   nsnull, 0,
-                                  nsnull,
+                                  aDoc->GetDocumentURI(),
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM3 Load", aDoc);
+                                  "DOM3 Load");
 }
 
 NS_IMETHODIMP
 nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
 {
-  PRBool hasHadScriptObject = PR_TRUE;
-  nsIScriptGlobalObject* scriptObject =
-    GetScriptHandlingObject(hasHadScriptObject);
-  NS_ENSURE_STATE(scriptObject || !hasHadScriptObject);
-
   ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
 
   NS_ENSURE_ARG_POINTER(aReturn);
@@ -376,24 +394,18 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
       nsAutoString error;
       error.AssignLiteral("Cross site loading using document.load is no "
                           "longer supported. Use XMLHttpRequest instead.");
-      nsCOMPtr<nsIScriptError2> errorObject =
+      nsCOMPtr<nsIScriptError> errorObject =
           do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = errorObject->InitWithWindowID(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
-                                         nsnull, 0, 0, nsIScriptError::warningFlag,
-                                         "DOM",
-                                         callingDoc ?
-                                           callingDoc->OuterWindowID() :
-                                           this->OuterWindowID());
-
+      rv = errorObject->Init(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
+                             nsnull, 0, 0, nsIScriptError::warningFlag,
+                             "DOM");
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIConsoleService> consoleService =
         do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
-      if (consoleService && logError) {
-        consoleService->LogMessage(logError);
+      if (consoleService) {
+        consoleService->LogMessage(errorObject);
       }
 
       return NS_ERROR_DOM_SECURITY_ERR;
@@ -407,7 +419,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   // be loaded.  Note that we need to hold a strong ref to |principal|
   // here, because ResetToURI will null out our node principal before
   // setting the new one.
-  nsRefPtr<nsEventListenerManager> elm(mListenerManager);
+  nsCOMPtr<nsIEventListenerManager> elm(mListenerManager);
   mListenerManager = nsnull;
 
   // When we are called from JS we can find the load group for the page,

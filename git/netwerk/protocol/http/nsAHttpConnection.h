@@ -44,10 +44,6 @@ class nsAHttpTransaction;
 class nsHttpRequestHead;
 class nsHttpResponseHead;
 class nsHttpConnectionInfo;
-class nsHttpConnection;
-class nsISocketTransport;
-class nsIAsyncInputStream;
-class nsIAsyncOutputStream;
 
 //-----------------------------------------------------------------------------
 // Abstract base class for a HTTP connection
@@ -96,12 +92,6 @@ public:
     // get a reference to the connection's connection info object.
     virtual void GetConnectionInfo(nsHttpConnectionInfo **) = 0;
 
-    // get the transport level information for this connection. This may fail
-    // if it is in use.
-    virtual nsresult TakeTransport(nsISocketTransport **,
-                                   nsIAsyncInputStream **,
-                                   nsIAsyncOutputStream **) = 0;
-
     // called by a transaction to get the security info from the socket.
     virtual void GetSecurityInfo(nsISupports **) = 0;
 
@@ -115,15 +105,6 @@ public:
     // called by a transaction when the transaction reads more from the socket
     // than it should have (eg. containing part of the next pipelined response).
     virtual nsresult PushBack(const char *data, PRUint32 length) = 0;
-
-    // Used by a transaction to manage the state of previous response bodies on
-    // the same connection and work around buggy servers.
-    virtual PRBool LastTransactionExpectedNoContent() = 0;
-    virtual void   SetLastTransactionExpectedNoContent(PRBool) = 0;
-
-    // Transfer the base http connection object along with a
-    // reference to it to the caller.
-    virtual nsHttpConnection *TakeHttpConnection() = 0;
 };
 
 #define NS_DECL_NSAHTTPCONNECTION \
@@ -132,15 +113,9 @@ public:
     nsresult ResumeRecv(); \
     void CloseTransaction(nsAHttpTransaction *, nsresult); \
     void GetConnectionInfo(nsHttpConnectionInfo **); \
-    nsresult TakeTransport(nsISocketTransport **,    \
-                           nsIAsyncInputStream **,   \
-                           nsIAsyncOutputStream **); \
     void GetSecurityInfo(nsISupports **); \
     PRBool IsPersistent(); \
     PRBool IsReused(); \
-    nsresult PushBack(const char *, PRUint32); \
-    PRBool LastTransactionExpectedNoContent(); \
-    void   SetLastTransactionExpectedNoContent(PRBool); \
-    nsHttpConnection *TakeHttpConnection();
+    nsresult PushBack(const char *, PRUint32);
 
 #endif // nsAHttpConnection_h__

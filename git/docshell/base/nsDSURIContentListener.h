@@ -68,10 +68,6 @@ protected:
         mDocShell = nsnull;
     }
 
-    // Determine if X-Frame-Options allows content to be framed
-    // as a subdocument
-    bool CheckFrameOptions(nsIRequest* request);
-
 protected:
     nsDocShell*                      mDocShell;
 

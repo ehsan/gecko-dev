@@ -41,52 +41,45 @@
 namespace mozilla {
 namespace layers {
 
-static void
-RenderColorLayer(ColorLayer* aLayer, LayerManagerOGL *aManager,
-                 const nsIntPoint& aOffset)
+Layer*
+ColorLayerOGL::GetLayer()
 {
-  aManager->MakeCurrent();
-
-  // XXX we might be able to improve performance by using glClear
-
-  nsIntRect visibleRect = aLayer->GetEffectiveVisibleRegion().GetBounds();
-  
-  /* Multiply color by the layer opacity, as the shader
-   * ignores layer opacity and expects a final color to
-   * write to the color buffer.  This saves a needless
-   * multiply in the fragment shader.
-   */
-  gfxRGBA color(aLayer->GetColor());
-  float opacity = aLayer->GetEffectiveOpacity() * color.a;
-  color.r *= opacity;
-  color.g *= opacity;
-  color.b *= opacity;
-  color.a = opacity;
-
-  SolidColorLayerProgram *program = aManager->GetColorLayerProgram();
-  program->Activate();
-  program->SetLayerQuadRect(visibleRect);
-  program->SetLayerTransform(aLayer->GetEffectiveTransform());
-  program->SetRenderOffset(aOffset);
-  program->SetRenderColor(color);
-
-  aManager->BindAndDrawQuad(program);
+  return this;
 }
 
 void
 ColorLayerOGL::RenderLayer(int,
                            const nsIntPoint& aOffset)
 {
-  return RenderColorLayer(this, mOGLManager, aOffset);
-}
+  mOGLManager->MakeCurrent();
 
-void
-ShadowColorLayerOGL::RenderLayer(int,
-                                 const nsIntPoint& aOffset)
-{
-  return RenderColorLayer(this, mOGLManager, aOffset);
-}
+  // XXX we might be able to improve performance by using glClear
 
+  nsIntRect visibleRect = mVisibleRegion.GetBounds();
+  
+  /* Multiply color by the layer opacity, as the shader
+   * ignores layer opacity and expects a final color to
+   * write to the color buffer.  This saves a needless
+   * multiply in the fragment shader.
+   */
+  float opacity = GetOpacity();
+  gfxRGBA color(mColor);
+  color.r *= opacity;
+  color.g *= opacity;
+  color.b *= opacity;
+  color.a *= opacity;
+
+  SolidColorLayerProgram *program = mOGLManager->GetColorLayerProgram();
+  program->Activate();
+  program->SetLayerQuadRect(visibleRect);
+  program->SetLayerTransform(mTransform);
+  program->SetRenderOffset(aOffset);
+  program->SetRenderColor(color);
+
+  mOGLManager->BindAndDrawQuad(program);
+
+  DEBUG_GL_ERROR_CHECK(gl());
+}
 
 } /* layers */
 } /* mozilla */

@@ -111,8 +111,7 @@ function eventOccurred(event)
     events = events();
   if (events) {
     if (events.length <= gTestEventIndex) {
-      ok(false, "Extra " + event.type + " event fired for " + event.target.id +
-                  " " +gPopupTests[gTestIndex].testname);
+      ok(false, "Extra " + event.type + " event fired " + gPopupTests[gTestIndex].testname);
       return;
     }
 
@@ -313,18 +312,6 @@ function convertPosition(anchor, align)
   return "";
 }
 
-/*
- * When checking position of the bottom or right edge of the popup's rect,
- * use this instead of strict equality check of rounded values,
- * because we snap the top/left edges to pixel boundaries,
- * which can shift the bottom/right up to 0.5px from its "ideal" location,
- * and could cause it to round differently. (See bug 622507.)
- */
-function isWithinHalfPixel(a, b)
-{
-  return Math.abs(a - b) <= 0.5;
-}
-
 function compareEdge(anchor, popup, edge, offsetX, offsetY, testname)
 {
   testname += " " + edge;
@@ -338,33 +325,6 @@ function compareEdge(anchor, popup, edge, offsetX, offsetY, testname)
   ok((Math.round(popuprect.right) - Math.round(popuprect.left)) &&
      (Math.round(popuprect.bottom) - Math.round(popuprect.top)),
      testname + " size");
-
-  var spaceIdx = edge.indexOf(" ");
-  if (spaceIdx > 0) {
-    let cornerX, cornerY;
-    let [anchor, align] = edge.split(" ");
-    switch (anchor) {
-      case "topleft": cornerX = anchorrect.left; cornerY = anchorrect.top; break;
-      case "topcenter": cornerX = anchorrect.left + anchorrect.width / 2; cornerY = anchorrect.top; break;
-      case "topright": cornerX = anchorrect.right; cornerY = anchorrect.top; break;
-      case "leftcenter": cornerX = anchorrect.left; cornerY = anchorrect.top + anchorrect.height / 2; break;
-      case "rightcenter": cornerX = anchorrect.right; cornerY = anchorrect.top + anchorrect.height / 2; break;
-      case "bottomleft": cornerX = anchorrect.left; cornerY = anchorrect.bottom; break;
-      case "bottomcenter": cornerX = anchorrect.left + anchorrect.width / 2; cornerY = anchorrect.bottom; break;
-      case "bottomright": cornerX = anchorrect.right; cornerY = anchorrect.bottom; break;
-    }
-
-    switch (align) {
-      case "topleft": cornerX += offsetX; cornerY += offsetY; break;
-      case "topright": cornerX += -popuprect.width + offsetX; cornerY += offsetY; break;
-      case "bottomleft": cornerX += offsetX; cornerY += -popuprect.height + offsetY; break;
-      case "bottomright": cornerX += -popuprect.width + offsetX; cornerY += -popuprect.height + offsetY; break;
-    }
-
-    is(Math.round(popuprect.left), Math.round(cornerX), testname + " x position");
-    is(Math.round(popuprect.top), Math.round(cornerY), testname + " y position");
-    return;
-  }
 
   if (edge == "after_pointer") {
     is(Math.round(popuprect.left), Math.round(anchorrect.left) + offsetX, testname + " x position");
@@ -380,22 +340,22 @@ function compareEdge(anchor, popup, edge, offsetX, offsetY, testname)
   }
 
   if (edge.indexOf("before") == 0)
-    check1 = isWithinHalfPixel(anchorrect.top + offsetY, popuprect.bottom);
+    check1 = (Math.round(anchorrect.top) + offsetY == Math.round(popuprect.bottom));
   else if (edge.indexOf("after") == 0)
     check1 = (Math.round(anchorrect.bottom) + offsetY == Math.round(popuprect.top));
   else if (edge.indexOf("start") == 0)
-    check1 = isWithinHalfPixel(anchorrect.left + offsetX, popuprect.right);
+    check1 = (Math.round(anchorrect.left) + offsetX == Math.round(popuprect.right));
   else if (edge.indexOf("end") == 0)
     check1 = (Math.round(anchorrect.right) + offsetX == Math.round(popuprect.left));
 
   if (0 < edge.indexOf("before"))
     check2 = (Math.round(anchorrect.top) + offsetY == Math.round(popuprect.top));
   else if (0 < edge.indexOf("after"))
-    check2 = isWithinHalfPixel(anchorrect.bottom + offsetY, popuprect.bottom);
+    check2 = (Math.round(anchorrect.bottom) + offsetY == Math.round(popuprect.bottom));
   else if (0 < edge.indexOf("start"))
     check2 = (Math.round(anchorrect.left) + offsetX == Math.round(popuprect.left));
   else if (0 < edge.indexOf("end"))
-    check2 = isWithinHalfPixel(anchorrect.right + offsetX, popuprect.right);
+    check2 = (Math.round(anchorrect.right) + offsetX == Math.round(popuprect.right));
 
   ok(check1 && check2, testname + " position");
 }

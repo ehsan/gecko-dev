@@ -45,10 +45,9 @@
 
 #include "nsQueryFrame.h"
 #include "nsIContent.h"
-#include "nsStyleContext.h"
 
 class nsIFrame;
-template <class T, class A> class nsTArray;
+template <class T> class nsTArray;
 
 /**
  * Any source for anonymous content can implement this interface to provide it.
@@ -61,19 +60,6 @@ class nsIAnonymousContentCreator
 public:
   NS_DECL_QUERYFRAME_TARGET(nsIAnonymousContentCreator)
 
-  struct ContentInfo {
-    ContentInfo(nsIContent* aContent) :
-      mContent(aContent)
-    {}
-
-    ContentInfo(nsIContent* aContent, nsStyleContext* aStyleContext) :
-      mContent(aContent), mStyleContext(aStyleContext)
-    {}
-
-    nsIContent* mContent;
-    nsRefPtr<nsStyleContext> mStyleContext;
-  };
-
   /**
    * Creates "native" anonymous content and adds the created content to
    * the aElements array. None of the returned elements can be nsnull.
@@ -83,16 +69,13 @@ public:
    *       from CreateAnonymousContent when appropriate (i.e. before releasing
    *       them).
    */
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements)=0;
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements)=0;
 
   /**
    * Appends "native" anonymous children created by CreateAnonymousContent()
-   * to the given content list depending on the filter.
-   *
-   * @see nsIContent::GetChildren for set of values used for filter.
+   * to the given content list.
    */
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter) = 0;
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements) = 0;
 
   /**
    * Implementations can override this method to create special frames for the

@@ -160,9 +160,13 @@ NS_IMPL_ISUPPORTS1(nsProfileMigrator, nsIProfileMigrator)
 
 #ifdef XP_WIN
 
+#define INTERNAL_NAME_FIREBIRD        "firebird"
+#define INTERNAL_NAME_FIREFOX         "firefox"
+#define INTERNAL_NAME_PHOENIX         "phoenix"
 #define INTERNAL_NAME_IEXPLORE        "iexplore"
 #define INTERNAL_NAME_MOZILLA_SUITE   "apprunner"
 #define INTERNAL_NAME_SEAMONKEY       "seamonkey"
+#define INTERNAL_NAME_DOGBERT         "netscape"
 #define INTERNAL_NAME_OPERA           "opera"
 #endif
 
@@ -248,11 +252,22 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
     aKey = "seamonkey";
     return NS_OK;
   }
+  if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_DOGBERT)) {
+    aKey = "dogbert";
+    return NS_OK;
+  }
   if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_OPERA)) {
     aKey = "opera";
     return NS_OK;
   }
 
+  // Migrate data from any existing Application Data\Phoenix\* installations.
+  if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_FIREBIRD)  ||
+      internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_FIREFOX)  ||
+      internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_PHOENIX)) { 
+    aKey = "phoenix";
+    return NS_OK;
+  }
 #else
   PRBool exists = PR_FALSE;
 #define CHECK_MIGRATOR(browser) do {\
@@ -266,7 +281,9 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
 
 #if defined(XP_MACOSX)
   CHECK_MIGRATOR("safari");
+  CHECK_MIGRATOR("macie");
 #endif
+  CHECK_MIGRATOR("phoenix");
   CHECK_MIGRATOR("seamonkey");
   CHECK_MIGRATOR("opera");
 
@@ -307,6 +324,12 @@ nsProfileMigrator::ImportRegistryProfiles(const nsACString& aAppName)
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
   regFile->AppendNative(aAppName);
   regFile->AppendNative(NS_LITERAL_CSTRING("registry.dat"));
+#elif defined(XP_BEOS)
+  rv = dirService->Get(NS_BEOS_SETTINGS_DIR, NS_GET_IID(nsILocalFile),
+                       getter_AddRefs(regFile));
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  regFile->AppendNative(aAppName);
+  regFile->AppendNative(NS_LITERAL_CSTRING("appreg"));
 #else
   rv = dirService->Get(NS_UNIX_HOME_DIR, NS_GET_IID(nsILocalFile),
                        getter_AddRefs(regFile));

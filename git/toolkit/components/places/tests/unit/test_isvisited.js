@@ -47,15 +47,12 @@ try {
   do_throw("Could not get the global history service\n");
 } 
 
-function add_uri_to_history(aURI, aCheckForGuid) {
+function add_uri_to_history(aURI) {
   var referrer = uri("about:blank");
   gh.addURI(aURI,
             false, // not redirect
             true, // top level 
             referrer);
-  if (aCheckForGuid === undefined) {
-    do_check_guid_for_uri(aURI);
-  }
 }
 
 // main
@@ -82,20 +79,15 @@ function run_test() {
   // check that certain schemes never show up as visited
   // even if we attempt to add them to history
   // see CanAddURI() in nsNavHistory.cpp
-  const URLS = [
-    "about:config",
-    "imap://cyrus.andrew.cmu.edu/archive.imap",
-    "news://new.mozilla.org/mozilla.dev.apps.firefox",
-    "mailbox:Inbox",
-    "moz-anno:favicon:http://mozilla.org/made-up-favicon",
-    "view-source:http://mozilla.org",
-    "chrome://browser/content/browser.xul",
-    "resource://gre-resources/hiddenWindow.html",
+  var urlsToIgnore = ["about:config", 
     "data:,Hello%2C%20World!",
-    "wyciwyg:/0/http://mozilla.org",
-    "javascript:alert('hello wolrd!');",
-  ];
-  URLS.forEach(function(currentURL) {
+    "imap://cyrus.andrew.cmu.edu/archive.imap",
+    "news://news.mozilla.org/mozilla.dev.apps.firefox",
+    "moz-anno:favicon:http://www.mozilla.org/2005/made-up-favicon/84-1321",
+    "chrome://browser/content/browser.xul",
+    "view-source:http://www.google.com/"];
+
+  for each (var currentURL in urlsToIgnore) {
     try {
       var cantAddUri = uri(currentURL);
     }
@@ -103,11 +95,11 @@ function run_test() {
       // nsIIOService.newURI() can throw if e.g. our app knows about imap://
       // but the account is not set up and so the URL is invalid for us.
       // Note this in the log but ignore as it's not the subject of this test.
-      do_log_info("Could not construct URI for '" + currentURL + "'; ignoring");
+      print("Exception thrown for '" + currentURL + "', ignored.");
     }
     if (cantAddUri) {
-      add_uri_to_history(cantAddUri, false);
+      add_uri_to_history(cantAddUri);
       do_check_false(gh.isVisited(cantAddUri));
     }
-  });
+  }
 }

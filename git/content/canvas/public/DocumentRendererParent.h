@@ -54,10 +54,10 @@ public:
 
     void SetCanvasContext(nsICanvasRenderingContextInternal* aCanvas,
 			  gfxContext* ctx);
-    void DrawToCanvas(const nsIntSize& renderedSize,
+    void DrawToCanvas(PRUint32 aWidth, PRUint32 aHeight,
 		      const nsCString& aData);
 
-    virtual bool Recv__delete__(const nsIntSize& renderedSize,
+    virtual bool Recv__delete__(const PRUint32& w, const PRUint32& h,
                                 const nsCString& data);
 
 private:

@@ -43,11 +43,8 @@
 #include "nsILayoutDebugger.h"
 #include "nsFrame.h"
 #include "nsDisplayList.h"
-#include "FrameLayerBuilder.h"
 
 #include <stdio.h>
-
-using namespace mozilla::layers;
 
 #ifdef NS_DEBUG
 class nsLayoutDebugger : public nsILayoutDebugger {
@@ -84,6 +81,9 @@ NS_NewLayoutDebugger(nsILayoutDebugger** aResult)
     return NS_ERROR_NULL_POINTER;
   }
   nsLayoutDebugger* it = new nsLayoutDebugger();
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   return it->QueryInterface(NS_GET_IID(nsILayoutDebugger), (void**)aResult);
 }
 
@@ -166,8 +166,7 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     }
     nsRect rect = i->GetBounds(aBuilder);
     switch (i->GetType()) {
-      case nsDisplayItem::TYPE_CLIP:
-      case nsDisplayItem::TYPE_CLIP_ROUNDED_RECT: {
+      case nsDisplayItem::TYPE_CLIP: {
         nsDisplayClip* c = static_cast<nsDisplayClip*>(i);
         rect = c->GetClipRect();
         break;
@@ -178,30 +177,18 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     nscolor color;
     nsRect vis = i->GetVisibleRect();
     nsDisplayList* list = i->GetList();
-    nsRegion opaque;
-    if (!list || list->DidComputeVisibility()) {
-      opaque = i->GetOpaqueRegion(aBuilder);
-    }
-    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
-      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
-      list = t->GetStoredList()->GetList();
-    }
-    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)%s%s",
+    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)%s%s\n",
             i->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
             rect.x, rect.y, rect.width, rect.height,
             vis.x, vis.y, vis.width, vis.height,
-            opaque.IsEmpty() ? "" : " opaque",
+            ((!list || list->DidComputeVisibility()) && i->IsOpaque(aBuilder)) ? " opaque" : "",
             i->IsUniform(aBuilder, &color) ? " uniform" : "");
-    if (f) {
-      PRUint32 key = i->GetPerFrameKey();
-      Layer* layer = aBuilder->LayerBuilder()->GetOldLayerFor(f, key);
-      if (layer) {
-        fprintf(aOutput, " layer=%p", layer);
-      }
-    }
-    fputc('\n', aOutput);
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
+    }
+    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
+      PrintDisplayListTo(aBuilder, *(t->GetStoredList()->GetList()), aIndent + 4, aOutput);
     }
   }
 }
@@ -210,7 +197,7 @@ void
 nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
                           const nsDisplayList& aList)
 {
-  PrintDisplayListTo(aBuilder, aList, 0, stdout);
+  PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }
 
 #endif

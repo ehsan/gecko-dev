@@ -88,9 +88,8 @@ public:
 #endif
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 };
 
 //----------------------------------------------------------------------
@@ -171,7 +170,7 @@ nsSVGUseFrame::IsLeaf() const
 // nsIAnonymousContentCreator methods:
 
 nsresult
-nsSVGUseFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsSVGUseFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   nsSVGUseElement *use = static_cast<nsSVGUseElement*>(mContent);
 
@@ -184,8 +183,7 @@ nsSVGUseFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsSVGUseFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter)
+nsSVGUseFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   nsSVGUseElement *use = static_cast<nsSVGUseElement*>(mContent);
   nsIContent* clone = use->GetAnonymousContent();

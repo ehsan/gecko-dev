@@ -37,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#if !defined jsjaeger_imm_sync_h__ && defined JS_METHODJIT && defined JS_NUNBOX32
+#if !defined jsjaeger_imm_sync_h__ && defined JS_METHODJIT
 #define jsjaeger_imm_sync_h__
 
 #include "methodjit/MachineRegs.h"
@@ -70,24 +70,16 @@ class ImmutableSync
          *
          * They are separated for readability.
          */
-        uint32 generation;
+        bool dataSynced;
+        bool typeSynced;
         bool dataClobbered;
         bool typeClobbered;
+        RegisterID dataReg;
+        RegisterID typeReg;
         bool hasDataReg;
         bool hasTypeReg;
         bool learnedType;
-        RegisterID dataReg;
-        RegisterID typeReg;
         JSValueType type;
-
-        void reset(uint32 gen) {
-            dataClobbered = false;
-            typeClobbered = false;
-            hasDataReg = false;
-            hasTypeReg = false;
-            learnedType = false;
-            generation = gen;
-        }
     };
 
   public:
@@ -95,7 +87,8 @@ class ImmutableSync
     ~ImmutableSync();
     bool init(uint32 nentries);
 
-    void reset(Assembler *masm, Registers avail, FrameEntry *top, FrameEntry *bottom);
+    void reset(Assembler *masm, Registers avail, uint32 n,
+               FrameEntry *bottom);
     void sync(FrameEntry *fe);
 
   private:
@@ -118,9 +111,7 @@ class ImmutableSync
     Registers avail;
     Assembler *masm;
     SyncEntry *regs[Assembler::TotalRegisters];
-    FrameEntry *top;
     FrameEntry *bottom;
-    uint32 generation;
 };
 
 } /* namespace mjit */

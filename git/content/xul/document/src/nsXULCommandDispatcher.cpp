@@ -50,6 +50,7 @@
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"
@@ -403,8 +404,6 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     if (NS_FAILED(rv)) return rv;
   }
 
-  nsCOMArray<nsIContent> updaters;
-
   for (Updater* updater = mUpdaters; updater != nsnull; updater = updater->mNext) {
     // Skip any nodes that don't match our 'events' or 'targets'
     // filters.
@@ -419,12 +418,6 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     if (! content)
       return NS_ERROR_UNEXPECTED;
 
-    updaters.AppendObject(content);
-  }
-
-  for (PRInt32 u = 0; u < updaters.Count(); u++) {
-    nsIContent* content = updaters[u];
-
     nsCOMPtr<nsIDocument> document = content->GetDocument();
 
     NS_ASSERTION(document != nsnull, "element has no document");
@@ -437,7 +430,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
       CopyUTF16toUTF8(aEventName, aeventnameC);
       PR_LOG(gLog, PR_LOG_NOTICE,
              ("xulcmd[%p] update %p event=%s",
-              this, content,
+              this, updater->mElement.get(),
               aeventnameC.get()));
     }
 #endif

@@ -103,8 +103,6 @@ static const PRUnichar sHTMLTagUnicodeName_colgroup[] =
   {'c', 'o', 'l', 'g', 'r', 'o', 'u', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_counter[] =
   {'c', 'o', 'u', 'n', 't', 'e', 'r', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_datalist[] =
-  {'d', 'a', 't', 'a', 'l', 'i', 's', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_dd[] =
   {'d', 'd', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_del[] =
@@ -229,8 +227,6 @@ static const PRUnichar sHTMLTagUnicodeName_plaintext[] =
   {'p', 'l', 'a', 'i', 'n', 't', 'e', 'x', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_pre[] =
   {'p', 'r', 'e', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_progress[] =
-  {'p', 'r', 'o', 'g', 'r', 'e', 's', 's', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_q[] =
   {'q', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_s[] =

@@ -63,24 +63,20 @@ class RefTest(object):
 
   def getManifestPath(self, path):
     "Get the path of the manifest, and for remote testing this function is subclassed to point to remote manifest"
-    path = self.getFullPath(path)
-    if os.path.isdir(path):
-      defaultManifestPath = os.path.join(path, 'reftest.list')
-      if os.path.exists(defaultManifestPath):
-        path = defaultManifestPath
-    return path
+    return self.getFullPath(path)
 
-  def createReftestProfile(self, options, profileDir, server='localhost'):
+  def createReftestProfile(self, options, profileDir):
     "Sets up a profile for reftest."
 
     self.automation.setupPermissionsDatabase(profileDir,
-      {'allowXULXBL': [(server, True), ('<file>', True)]})
+      {'allowXULXBL': ['localhost', '<file>']})
 
-    # Set preferences for communication between our command line arguments
-    # and the reftest harness.  Preferences that are required for reftest
-    # to work should instead be set in reftest-cmdline.js .
-    prefsFile = open(os.path.join(profileDir, "user.js"), "a")
+    # Set preferences.
+    prefsFile = open(os.path.join(profileDir, "user.js"), "w")
+    prefsFile.write("""user_pref("browser.dom.window.dump.enabled", true);
+    """)
     prefsFile.write('user_pref("reftest.timeout", %d);\n' % (options.timeout * 1000))
+    prefsFile.write('user_pref("ui.caretBlinkTime", -1);\n')
 
     if options.totalChunks != None:
       prefsFile.write('user_pref("reftest.totalChunks", %d);\n' % options.totalChunks)
@@ -96,6 +92,9 @@ class RefTest(object):
         sys.exit(1)
       part = 'user_pref("%s", %s);\n' % (thispref[0], thispref[1])
       prefsFile.write(part)
+    # no slow script dialogs
+    prefsFile.write('user_pref("dom.max_script_run_time", 0);')
+    prefsFile.write('user_pref("dom.max_chrome_script_run_time", 0);')
     prefsFile.close()
 
     # install the reftest extension bits into the profile
@@ -133,18 +132,17 @@ class RefTest(object):
 
   def cleanup(self, profileDir):
     if profileDir:
-      shutil.rmtree(profileDir, True)
+      shutil.rmtree(profileDir)
 
-  def runTests(self, testPath, options):
+  def runTests(self, manifest, options):
     debuggerInfo = getDebuggerInfo(self.oldcwd, options.debugger, options.debuggerArgs,
         options.debuggerInteractive);
 
     profileDir = None
     try:
       profileDir = mkdtemp()
-      self.copyExtraFilesToProfile(options, profileDir)
       self.createReftestProfile(options, profileDir)
-      self.installExtensionsToProfile(options, profileDir)
+      self.copyExtraFilesToProfile(options, profileDir)
 
       # browser environment
       browserEnv = self.buildBrowserEnv(options, profileDir)
@@ -153,7 +151,7 @@ class RefTest(object):
 
       # then again to actually run reftest
       self.automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
-      reftestlist = self.getManifestPath(testPath)
+      reftestlist = self.getManifestPath(manifest)
       status = self.automation.runApp(None, browserEnv, options.app, profileDir,
                                  ["-reftest", reftestlist],
                                  utilityPath = options.utilityPath,
@@ -173,26 +171,11 @@ class RefTest(object):
     "Copy extra files or dirs specified on the command line to the testing profile."
     for f in options.extraProfileFiles:
       abspath = self.getFullPath(f)
-      if os.path.isfile(abspath):
-        shutil.copy2(abspath, profileDir)
-      elif os.path.isdir(abspath):
-        dest = os.path.join(profileDir, os.path.basename(abspath))
+      dest = os.path.join(profileDir, os.path.basename(abspath))
+      if os.path.isdir(abspath):
         shutil.copytree(abspath, dest)
       else:
-        self.automation.log.warning("WARNING | runreftest.py | Failed to copy %s to profile", abspath)
-        continue
-
-  def installExtensionsToProfile(self, options, profileDir):
-    "Install application distributed extensions and specified on the command line ones to testing profile."
-    # Install distributed extensions, if application has any.
-    distExtDir = os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
-    if os.path.isdir(distExtDir):
-      for f in os.listdir(distExtDir):
-        self.automation.installExtension(os.path.join(distExtDir, f), profileDir)
-
-    # Install custom extensions.
-    for f in options.extensionsToInstall:
-      self.automation.installExtension(self.getFullPath(f), profileDir)
+        shutil.copy(abspath, dest)
 
 
 class ReftestOptions(OptionParser):
@@ -253,14 +236,6 @@ class ReftestOptions(OptionParser):
                     dest = "skipSlowTests", action = "store_true",
                     help = "skip tests marked as slow when running")
     defaults["skipSlowTests"] = False
-
-    self.add_option("--install-extension",
-                    action = "append", dest = "extensionsToInstall",
-                    help = "install the specified extension in the testing profile."
-                           "The extension file's name should be <id>.xpi where <id> is"
-                           "the extension's id as indicated in its install.rdf."
-                           "An optional path can be specified too.")
-    defaults["extensionsToInstall"] = []
 
     self.set_defaults(**defaults)
 

@@ -50,13 +50,13 @@ XPCOMUtils.defineLazyServiceGetter(this, "pb",
 
 let favicons = [
   {
-    uri: NetUtil.newURI(do_get_file("favicon-normal16.png")),
+    uri: uri(do_get_file("favicon-normal16.png")),
     data: readFileData(do_get_file("favicon-normal16.png")),
     mimetype: "image/png",
     size: 286
   },
   {
-    uri: NetUtil.newURI(do_get_file("favicon-normal32.png")),
+    uri: uri(do_get_file("favicon-normal32.png")),
     data: readFileData(do_get_file("favicon-normal32.png")),
     mimetype: "image/png",
     size: 344
@@ -67,7 +67,7 @@ let tests = [
 
   {
     desc: "test setAndLoadFaviconForPage for about: URIs",
-    pageURI: NetUtil.newURI("about:test1"),
+    pageURI: uri("about:test1"),
     go: function go1() {
 
       PlacesUtils.favicons.setAndLoadFaviconForPage(this.pageURI, favicons[0].uri, true);
@@ -77,7 +77,7 @@ let tests = [
 
   {
     desc: "test setAndLoadFaviconForPage with history disabled",
-    pageURI: NetUtil.newURI("http://test2.bar/"),
+    pageURI: uri("http://test2.bar/"),
     go: function go2() {
       // Temporarily disable history.
       Services.prefs.setBoolPref("places.history.enabled", false);
@@ -85,13 +85,15 @@ let tests = [
       PlacesUtils.favicons.setAndLoadFaviconForPage(this.pageURI, favicons[0].uri, true);
     },
     clean: function clean2() {
-      Services.prefs.setBoolPref("places.history.enabled", true);
+      try {
+        Services.prefs.clearUserPref("places.history.enabled");
+      } catch (ex) {}
     }
   },
 
   {
     desc: "test setAndLoadFaviconForPage in PB mode for non-bookmarked URI",
-    pageURI: NetUtil.newURI("http://test3.bar/"),
+    pageURI: uri("http://test3.bar/"),
     go: function go3() {
       if (!("@mozilla.org/privatebrowsing;1" in Cc))
         return;
@@ -110,25 +112,13 @@ let tests = [
     }
   },
 
-  {
-    desc: "test setAndLoadFaviconForPage with error icon",
-    pageURI: NetUtil.newURI("http://test4.bar/"),
-    go: function go4() {
-
-      PlacesUtils.favicons.setAndLoadFaviconForPage(
-        this.pageURI, NetUtil.newURI(FAVICON_ERRORPAGE_URL), true
-      );
-    },
-    clean: function clean4() {}
-  },
-
   { // This is a valid icon set test, that will cause the closing notification.
     desc: "test setAndLoadFaviconForPage for valid history uri",
-    pageURI: NetUtil.newURI("http://testfinal.bar/"),
-    go: function goFinal() {
+    pageURI: uri("http://test4.bar/"),
+    go: function go4() {
       PlacesUtils.favicons.setAndLoadFaviconForPage(this.pageURI, favicons[1].uri, true);
     },
-    clean: function cleanFinal() {}
+    clean: function clean4() {}
   },
 
 ];
@@ -148,11 +138,11 @@ let historyObserver = {
       return;
 
     // dump tables, useful if the test fails.
-    //dump_table("moz_places");
-    //dump_table("moz_favicons");
+    dump_table("moz_places_temp");
+    dump_table("moz_favicons");
 
     // Ensure we have been called by the last test.
-    do_check_true(pageURI.equals(NetUtil.newURI("http://testfinal.bar/")));
+    do_check_true(pageURI.equals(uri("http://test4.bar/")));
 
     // Ensure there is only one entry in favicons table.
     let stmt = DBConn().createStatement(
@@ -201,7 +191,7 @@ function runNextTest() {
 
   if (tests.length) {
     currentTest = tests.shift();
-    do_log_info(currentTest.desc);
+    print(currentTest.desc);
     currentTest.go();
     // Wait some time before calling the next test, this is needed to avoid
     // invoking clean() too early.  The first async step should run at least.

@@ -42,6 +42,7 @@
 #define mozilla_layers_ShadowLayersChild_h
 
 #include "mozilla/layers/PLayersChild.h"
+#include "mozilla/layers/ShadowLayerChild.h"
 
 namespace mozilla {
 namespace layers {
@@ -52,18 +53,17 @@ public:
   ShadowLayersChild() { }
   ~ShadowLayersChild() { }
 
-  /**
-   * Clean this up, finishing with Send__delete__().
-   *
-   * It is expected (checked with an assert) that all shadow layers
-   * created by this have already been destroyed and
-   * Send__delete__()d by the time this method is called.
-   */
-  void Destroy();
-
 protected:
-  NS_OVERRIDE virtual PLayerChild* AllocPLayer();
-  NS_OVERRIDE virtual bool DeallocPLayer(PLayerChild* actor);
+  NS_OVERRIDE virtual PLayerChild* AllocPLayer() {
+    // we always use the "power-user" ctor
+    NS_RUNTIMEABORT("not reached");
+    return NULL;
+  }
+
+  NS_OVERRIDE virtual bool DeallocPLayer(PLayerChild* actor) {
+    delete actor;
+    return true;
+  }
 };
 
 } // namespace layers

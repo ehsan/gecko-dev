@@ -78,7 +78,7 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
+#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
 #include "nsNativeConnectionHelper.h"
 #endif
 
@@ -174,7 +174,7 @@ PRUint32   nsIOService::gDefaultSegmentCount = 24;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsIOService::nsIOService()
-    : mOffline(PR_TRUE)
+    : mOffline(PR_FALSE)
     , mOfflineForProfileChange(PR_FALSE)
     , mManageOfflineStatus(PR_TRUE)
     , mSettingOffline(PR_FALSE)
@@ -182,7 +182,6 @@ nsIOService::nsIOService()
     , mShutdown(PR_FALSE)
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
     , mContentSniffers(NS_CONTENT_SNIFFER_CATEGORY)
-    , mAutoDialEnabled(PR_FALSE)
 {
 }
 
@@ -192,10 +191,20 @@ nsIOService::Init()
     NS_TIME_FUNCTION;
 
     nsresult rv;
-
-    // We need to get references to the DNS service so that we can shut it
+    
+    // We need to get references to these services so that we can shut them
     // down later. If we wait until the nsIOService is being shut down,
     // GetService will fail at that point.
+
+    // TODO(darin): Load the Socket and DNS services lazily.
+
+    mSocketTransportService = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) {
+        NS_WARNING("failed to get socket transport service");
+        return rv;
+    }
+
+    NS_TIME_FUNCTION_MARK("got SocketTransportService");
 
     mDNSService = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
@@ -263,19 +272,17 @@ nsIOService::Init()
 
     gIOService = this;
 
+#ifdef MOZ_IPC
     // go into managed mode if we can, and chrome process
     if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
         mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
 
     if (!mNetworkLinkService)
-        // We can't really determine if the machine has a usable network connection,
-        // so let's cross our fingers!
         mManageOfflineStatus = PR_FALSE;
 
     if (mManageOfflineStatus)
         TrackNetworkLinkStatusForOffline();
-    else
-        SetOffline(PR_FALSE);
     
     NS_TIME_FUNCTION_MARK("Set up network link service");
 
@@ -286,30 +293,7 @@ nsIOService::Init()
 nsIOService::~nsIOService()
 {
     gIOService = nsnull;
-}
-
-nsresult
-nsIOService::InitializeSocketTransportService()
-{
-    NS_TIME_FUNCTION;
-
-    nsresult rv = NS_OK;
-
-    if (!mSocketTransportService) {
-        mSocketTransportService = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("failed to get socket transport service");
-        }
-    }
-
-    if (mSocketTransportService) {
-        rv = mSocketTransportService->Init();
-        NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
-        mSocketTransportService->SetAutodialEnabled(mAutoDialEnabled);
-    }
-
-    return rv;
-}
+}   
 
 nsIOService*
 nsIOService::GetInstance() {
@@ -429,6 +413,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         return rv;
 
     PRBool externalProtocol = PR_FALSE;
+    PRBool listedProtocol   = PR_TRUE;
     nsCOMPtr<nsIPrefBranch2> prefBranch;
     GetPrefBranch(getter_AddRefs(prefBranch));
     if (prefBranch) {
@@ -437,6 +422,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         rv = prefBranch->GetBoolPref(externalProtocolPref.get(), &externalProtocol);
         if (NS_FAILED(rv)) {
             externalProtocol = PR_FALSE;
+            listedProtocol   = PR_FALSE;
         }
     }
 
@@ -452,27 +438,6 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         }
 
 #ifdef MOZ_X11
-        // check to see whether GVFS can handle this URI scheme.  if it can
-        // create a nsIURI for the "scheme:", then we assume it has support for
-        // the requested protocol.  otherwise, we failover to using the default
-        // protocol handler.
-
-        rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"moz-gio",
-                            result);
-        if (NS_SUCCEEDED(rv)) {
-            nsCAutoString spec(scheme);
-            spec.Append(':');
-
-            nsIURI *uri;
-            rv = (*result)->NewURI(spec, nsnull, nsnull, &uri);
-            if (NS_SUCCEEDED(rv)) {
-                NS_RELEASE(uri);
-                return rv;
-            }
-
-            NS_RELEASE(*result);
-        }
-
         // check to see whether GnomeVFS can handle this URI scheme.  if it can
         // create a nsIURI for the "scheme:", then we assume it has support for
         // the requested protocol.  otherwise, we failover to using the default
@@ -594,15 +559,6 @@ nsIOService::NewFileURI(nsIFile *file, nsIURI **result)
 NS_IMETHODIMP
 nsIOService::NewChannelFromURI(nsIURI *aURI, nsIChannel **result)
 {
-    return NewChannelFromURIWithProxyFlags(aURI, nsnull, 0, result);
-}
-
-NS_IMETHODIMP
-nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
-                                             nsIURI *aProxyURI,
-                                             PRUint32 proxyFlags,
-                                             nsIChannel **result)
-{
     nsresult rv;
     NS_ENSURE_ARG_POINTER(aURI);
     NS_TIMELINE_MARK_URI("nsIOService::NewChannelFromURI(%s)", aURI);
@@ -632,8 +588,7 @@ nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
                 NS_WARNING("failed to get protocol proxy service");
         }
         if (mProxyService) {
-            rv = mProxyService->Resolve(aProxyURI ? aProxyURI : aURI,
-                                        proxyFlags, getter_AddRefs(pi));
+            rv = mProxyService->Resolve(aURI, 0, getter_AddRefs(pi));
             if (NS_FAILED(rv))
                 pi = nsnull;
         }
@@ -738,6 +693,7 @@ nsIOService::SetOffline(PRBool offline)
 
     NS_ASSERTION(observerService, "The observer service should not be null");
 
+#ifdef MOZ_IPC
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
         if (observerService) {
             (void)observerService->NotifyObservers(nsnull,
@@ -746,6 +702,7 @@ nsIOService::SetOffline(PRBool offline)
                 NS_LITERAL_STRING("false").get());
         }
     }
+#endif
 
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;
@@ -785,7 +742,10 @@ nsIOService::SetOffline(PRBool offline)
                 rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
-            InitializeSocketTransportService();
+            if (mSocketTransportService) {
+                rv = mSocketTransportService->Init();
+                NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
+            }
             mOffline = PR_FALSE;    // indicate success only AFTER we've
                                     // brought up the services
 
@@ -860,7 +820,6 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         PRBool enableAutodial = PR_FALSE;
         nsresult rv = prefs->GetBoolPref(AUTODIAL_PREF, &enableAutodial);
         // If pref not found, default to disabled.
-        mAutoDialEnabled = enableAutodial;
         if (NS_SUCCEEDED(rv)) {
             if (mSocketTransportService)
                 mSocketTransportService->SetAutodialEnabled(enableAutodial);
@@ -1118,7 +1077,7 @@ nsIOService::TrackNetworkLinkStatusForOffline()
         // option is set to always autodial. If so, then we are 
         // always up for the purposes of offline management.
         if (autodialEnabled) {
-#if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
+#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
             // On Windows and Maemo (libconic) we should first check with the OS
             // to see if autodial is enabled.  If it is enabled then we are
             // allowed to manage the offline state.

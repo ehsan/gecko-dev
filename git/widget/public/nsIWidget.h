@@ -44,7 +44,6 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsRegion.h"
-#include "nsStringGlue.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -53,14 +52,13 @@
 #include "nsNativeWidget.h"
 #include "nsWidgetInitData.h"
 #include "nsTArray.h"
-#include "nsXULAppAPI.h"
 
 // forward declarations
 class   nsIAppShell;
 class   nsIToolkit;
-class   nsFontMetrics;
-class   nsRenderingContext;
-class   nsDeviceContext;
+class   nsIFontMetrics;
+class   nsIRenderingContext;
+class   nsIDeviceContext;
 struct  nsFont;
 class   nsIRollupListener;
 class   nsIMenuRollup;
@@ -73,9 +71,6 @@ class   ViewWrapper;
 namespace mozilla {
 namespace layers {
 class LayerManager;
-}
-namespace dom {
-class PBrowserChild;
 }
 }
 
@@ -97,7 +92,6 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
  */
 #define NS_NATIVE_WINDOW      0
 #define NS_NATIVE_GRAPHIC     1
-#define NS_NATIVE_TMP_WINDOW  2
 #define NS_NATIVE_WIDGET      3
 #define NS_NATIVE_DISPLAY     4
 #define NS_NATIVE_REGION      5
@@ -117,8 +111,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0xac809e35, 0x632c, 0x448d, \
-    { 0x9e, 0x34, 0x11, 0x62, 0x32, 0x60, 0x5e, 0xe6 } }
+  { 0xe1dda370, 0xdf16, 0x4c92, \
+    { 0x9b, 0x86, 0x4b, 0xd9, 0xcf, 0xff, 0x4e, 0xb1 } }
 
 /*
  * Window shadow styles
@@ -130,13 +124,6 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_STYLE_WINDOW_SHADOW_MENU             2
 #define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
 #define NS_STYLE_WINDOW_SHADOW_SHEET            4
-
-/**
- * nsIWidget::OnIMEFocusChange should be called during blur,
- * but other OnIME*Change methods should not be called
- */
-#define NS_SUCCESS_IME_NO_UPDATES \
-    NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_WIDGET, 1)
 
 /**
  * Cursor types.
@@ -195,98 +182,13 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 
 
 /**
- * Preference for receiving IME updates
- *
- * If mWantUpdates is true, PuppetWidget will forward
- * nsIWidget::OnIMETextChange and nsIWidget::OnIMESelectionChange to the chrome
- * process. This incurs overhead from observers and IPDL. If the IME
- * implementation on a particular platform doesn't care about OnIMETextChange
- * and OnIMESelectionChange from content processes, they should set
- * mWantUpdates to false to avoid these overheads.
- *
- * If mWantHints is true, PuppetWidget will forward the content of text fields
- * to the chrome process to be cached. This way we return the cached content
- * during query events. (see comments in bug 583976). This only makes sense
- * for IME implementations that do use query events, otherwise there's a
- * significant overhead. Platforms that don't use query events should set
- * mWantHints to false.
- */
-struct nsIMEUpdatePreference {
-
-  nsIMEUpdatePreference()
-    : mWantUpdates(PR_FALSE), mWantHints(PR_FALSE)
-  {
-  }
-  nsIMEUpdatePreference(PRBool aWantUpdates, PRBool aWantHints)
-    : mWantUpdates(aWantUpdates), mWantHints(aWantHints)
-  {
-  }
-  PRPackedBool mWantUpdates;
-  PRPackedBool mWantHints;
-};
-
-
-/* 
- * Contains IMEStatus plus information about the current 
- * input context that the IME can use as hints if desired.
- */
-struct IMEContext {
-  PRUint32 mStatus;
-
-  /* Does the change come from a trusted source */
-  enum {
-    FOCUS_REMOVED       = 0x0001,
-    FOCUS_MOVED_UNKNOWN = 0x0002,
-    FOCUS_MOVED_BY_MOVEFOCUS = 0x0004,
-    FOCUS_MOVED_BY_MOUSE = 0x0008,
-    FOCUS_MOVED_BY_KEY = 0x0010,
-    FOCUS_MOVED_TO_MENU = 0x0020,
-    FOCUS_MOVED_FROM_MENU = 0x0040,
-    EDITOR_STATE_MODIFIED = 0x0080,
-    FOCUS_FROM_CONTENT_PROCESS = 0x0100
-  };
-
-  PRBool FocusMovedByUser() const {
-    return (mReason & FOCUS_MOVED_BY_MOUSE) || (mReason & FOCUS_MOVED_BY_KEY);
-  };
-
-  PRBool FocusMovedInContentProcess() const {
-    return (mReason & FOCUS_FROM_CONTENT_PROCESS);
-  };
-
-  PRUint32 mReason;
-
-  /* The type of the input if the input is a html input field */
-  nsString mHTMLInputType;
-
-  /* A hint for the action that is performed when the input is submitted */
-  nsString mActionHint;
-};
-
-
-/**
  * The base class for all the widgets. It provides the interface for
  * all basic and necessary functionality.
  */
 class nsIWidget : public nsISupports {
-  protected:
-    typedef mozilla::dom::PBrowserChild PBrowserChild;
 
   public:
     typedef mozilla::layers::LayerManager LayerManager;
-
-    // Used in UpdateThemeGeometries.
-    struct ThemeGeometry {
-      // The -moz-appearance value for the themed widget
-      PRUint8 mWidgetType;
-      // The device-pixel rect within the window for the themed widget
-      nsIntRect mRect;
-
-      ThemeGeometry(PRUint8 aWidgetType, const nsIntRect& aRect)
-       : mWidgetType(aWidgetType)
-       , mRect(aRect)
-      { }
-    };
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_IID)
 
@@ -330,7 +232,7 @@ class nsIWidget : public nsISupports {
                       nsNativeWidget   aNativeParent,
                       const nsIntRect  &aRect,
                       EVENT_CALLBACK   aHandleEventFunction,
-                      nsDeviceContext *aContext,
+                      nsIDeviceContext *aContext,
                       nsIAppShell      *aAppShell = nsnull,
                       nsIToolkit       *aToolkit = nsnull,
                       nsWidgetInitData *aInitData = nsnull) = 0;
@@ -354,7 +256,7 @@ class nsIWidget : public nsISupports {
     virtual already_AddRefed<nsIWidget>
     CreateChild(const nsIntRect  &aRect,
                 EVENT_CALLBACK   aHandleEventFunction,
-                nsDeviceContext *aContext,
+                nsIDeviceContext *aContext,
                 nsIAppShell      *aAppShell = nsnull,
                 nsIToolkit       *aToolkit = nsnull,
                 nsWidgetInitData *aInitData = nsnull,
@@ -373,7 +275,7 @@ class nsIWidget : public nsISupports {
      * aContext The new device context for the view
      */
     NS_IMETHOD AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
-                                    nsDeviceContext *aContext) = 0;
+                                    nsIDeviceContext *aContext) = 0;
 
     /**
      * Accessor functions to get and set secondary client data. Used by
@@ -537,9 +439,6 @@ class nsIWidget : public nsISupports {
     /**
      * Move this widget.
      *
-     * Coordinates refer to the top-left of the widget.  For toplevel windows
-     * with decorations, this is the top-left of the titlebar and frame .
-     *
      * @param aX the new x position expressed in the parent's coordinate system
      * @param aY the new y position expressed in the parent's coordinate system
      *
@@ -654,9 +553,7 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD SetFocus(PRBool aRaise = PR_FALSE) = 0;
 
     /**
-     * Get this widget's outside dimensions relative to its parent widget. For
-     * popup widgets the returned rect is in screen coordinates and not
-     * relative to its parent widget.
+     * Get this widget's outside dimensions relative to its parent widget
      *
      * @param aRect   On return it holds the  x, y, width and height of
      *                this widget.
@@ -806,6 +703,16 @@ class nsIWidget : public nsISupports {
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
     /**
+     * Updates a region of the window that might not have opaque content drawn. Widgets should
+     * assume that the initial possibly transparent region is empty.
+     *
+     * @param aDirtyRegion the region of the window that aMaybeTransparentRegion pertains to
+     * @param aPossiblyTransparentRegion the region of the window that is possibly transparent
+     */
+    virtual void UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
+                                                 const nsIntRegion &aPossiblyTransparentRegion) {};
+
+    /**
      * This represents a command to set the bounds and clip region of
      * a child widget.
      */
@@ -897,53 +804,10 @@ class nsIWidget : public nsISupports {
     /**
      * Return the widget's LayerManager. The layer tree for that
      * LayerManager is what gets rendered to the widget.
-     *
-     * @param aAllowRetaining an outparam that states whether the returned
-     * layer manager should be used for retained layers
+     * The layer manager is guaranteed to be the same for the lifetime
+     * of the widget.
      */
-    inline LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull)
-    {
-        return GetLayerManager(LAYER_MANAGER_CURRENT, aAllowRetaining);
-    }
-
-
-    enum LayerManagerPersistence
-    {
-      LAYER_MANAGER_CURRENT = 0,
-      LAYER_MANAGER_PERSISTENT
-    };
-
-    virtual LayerManager *GetLayerManager(LayerManagerPersistence aPersistence,
-                                          bool* aAllowRetaining = nsnull) = 0;
-
-    /**
-     * Called after the LayerManager draws the layer tree
-     *
-     * @param aManager The drawing LayerManager.
-     * @param aRect Current widget rect that is being drawn.
-     */
-    virtual void DrawOver(LayerManager* aManager, nsIntRect aRect) = 0;
-
-    /**
-     * Called when Gecko knows which themed widgets exist in this window.
-     * The passed array contains an entry for every themed widget of the right
-     * type (currently only NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR and
-     * NS_THEME_TOOLBAR) within the window, except for themed widgets which are
-     * transformed or have effects applied to them (e.g. CSS opacity or
-     * filters).
-     * This could sometimes be called during display list construction
-     * outside of painting.
-     * If called during painting, it will be called before we actually
-     * paint anything.
-     */
-    virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) = 0;
-
-    /**
-     * Informs the widget about the region of the window that is opaque.
-     *
-     * @param aOpaqueRegion the region of the window that is opaque.
-     */
-    virtual void UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion) {};
+    virtual LayerManager* GetLayerManager() = 0;
 
     /** 
      * Internal methods
@@ -956,7 +820,7 @@ class nsIWidget : public nsISupports {
     virtual void FreeNativeData(void * data, PRUint32 aDataType) = 0;//~~~
 
     // GetDeviceContext returns a weak pointer to this widget's device context
-    virtual nsDeviceContext* GetDeviceContext() = 0;
+    virtual nsIDeviceContext* GetDeviceContext() = 0;
 
     //@}
 
@@ -1302,19 +1166,6 @@ class nsIWidget : public nsISupports {
      */
     NS_IMETHOD CancelIMEComposition() = 0;
 
-    /*
-     * Notifies the IME if the input context changes.
-     *
-     * aContext cannot be null.
-     * Set mStatus to 'Enabled' or 'Disabled' or 'Password'.
-     */
-    NS_IMETHOD SetInputMode(const IMEContext& aContext) = 0;
-
-    /*
-     * Get IME is 'Enabled' or 'Disabled' or 'Password' and other input context
-     */
-    NS_IMETHOD GetInputMode(IMEContext& aContext) = 0;
-
     /**
      * Set accelerated rendering to 'True' or 'False'
      */
@@ -1339,9 +1190,6 @@ class nsIWidget : public nsISupports {
      *
      * If this returns NS_ERROR_*, OnIMETextChange and OnIMESelectionChange
      * and OnIMEFocusChange(PR_FALSE) will be never called.
-     *
-     * If this returns NS_SUCCESS_IME_NO_UPDATES, OnIMEFocusChange(PR_FALSE)
-     * will be called but OnIMETextChange and OnIMESelectionChange will NOT.
      */
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus) = 0;
 
@@ -1359,11 +1207,6 @@ class nsIWidget : public nsISupports {
      * Selection has changed in the focused node
      */
     NS_IMETHOD OnIMESelectionChange(void) = 0;
-
-    /*
-     * Retrieves preference for IME updates
-     */
-    virtual nsIMEUpdatePreference GetIMEUpdatePreference() = 0;
 
     /*
      * Call this method when a dialog is opened which has a default button.
@@ -1394,39 +1237,9 @@ class nsIWidget : public nsISupports {
                                               PRBool aIsHorizontal,
                                               PRInt32 &aOverriddenDelta) = 0;
 
-    /**
-     * Return true if this process shouldn't use platform widgets, and
-     * so should use PuppetWidgets instead.  If this returns true, the
-     * result of creating and using a platform widget is undefined,
-     * and likely to end in crashes or other buggy behavior.
-     */
-    static bool
-    UsePuppetWidgets()
-    {
-      return XRE_GetProcessType() == GeckoProcessType_Content;
-    }
+    
 
-    /**
-     * Allocate and return a "puppet widget" that doesn't directly
-     * correlate to a platform widget; platform events and data must
-     * be fed to it.  Currently used in content processes.  NULL is
-     * returned if puppet widgets aren't supported in this build
-     * config, on this platform, or for this process type.
-     *
-     * This function is called "Create" to match CreateInstance().
-     * The returned widget must still be nsIWidget::Create()d.
-     */
-    static already_AddRefed<nsIWidget>
-    CreatePuppetWidget(PBrowserChild *aTabChild);
-
-    /**
-     * Reparent this widget's native widget.
-     * @param aNewParent the native widget of aNewParent is the new native
-     *                   parent widget
-     */
-    NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent) = 0;
 protected:
-
     // keep the list of children.  We also keep track of our siblings.
     // The ownership model is as follows: parent holds a strong ref to
     // the first element of the list, and each element holds a strong

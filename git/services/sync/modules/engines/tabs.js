@@ -20,7 +20,6 @@
  * Contributor(s):
  *  Myk Melez <myk@mozilla.org>
  *  Jono DiCarlo <jdicarlo@mozilla.com>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,21 +35,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['TabEngine', 'TabSetRecord'];
+const EXPORTED_SYMBOLS = ['TabEngine'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const TABS_TTL = 604800; // 7 days
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/resource.js");
+Cu.import("resource://services-sync/stores.js");
+Cu.import("resource://services-sync/trackers.js");
+Cu.import("resource://services-sync/type_records/tabs.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
 
 // It is safer to inspect the private browsing preferences rather than
@@ -59,19 +56,6 @@ Cu.import("resource://services-sync/ext/Preferences.js");
 // with the -private command line argument.  In both cases, the
 // "autoStarted" flag of nsIPrivateBrowsingService will be wrong.
 const PBPrefs = new Preferences("browser.privatebrowsing.");
-
-
-function TabSetRecord(collection, id) {
-  CryptoWrapper.call(this, collection, id);
-}
-TabSetRecord.prototype = {
-  __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Tabs",
-  ttl: TABS_TTL
-};
-
-Utils.deferGetSet(TabSetRecord, "cleartext", ["clientName", "tabs"]);
-
 
 function TabEngine() {
   SyncEngine.call(this, "Tabs");
@@ -85,14 +69,6 @@ TabEngine.prototype = {
   _trackerObj: TabTracker,
   _recordObj: TabSetRecord,
 
-  getChangedIDs: function getChangedIDs() {
-    // No need for a proper timestamp (no conflict resolution needed).
-    let changedIDs = {};
-    if (this._tracker.modified)
-      changedIDs[Clients.localID] = 0;
-    return changedIDs;
-  },
-
   // API for use by Weave UI code to give user choices of tabs to open:
   getAllClients: function TabEngine_getAllClients() {
     return this._store._remoteClients;
@@ -105,11 +81,6 @@ TabEngine.prototype = {
   _resetClient: function TabEngine__resetClient() {
     SyncEngine.prototype._resetClient.call(this);
     this._store.wipe();
-    this._tracker.modified = true;
-  },
-
-  removeClientData: function removeClientData() {
-    new Resource(this.engineURL + "/" + Clients.localID).delete();
   },
 
   /* The intent is not to show tabs in the menu if they're already
@@ -175,12 +146,12 @@ TabStore.prototype = {
     return allTabs;
   },
 
-  createRecord: function createRecord(id, collection) {
-    let record = new TabSetRecord(collection, id);
+  createRecord: function createRecord(guid) {
+    let record = new TabSetRecord();
     record.clientName = Clients.localName;
 
     // Don't provide any tabs to compare against and ignore the update later.
-    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
       record.tabs = [];
       return record;
     }
@@ -217,7 +188,7 @@ TabStore.prototype = {
   getAllIDs: function TabStore_getAllIds() {
     // Don't report any tabs if we're in private browsing for first syncs.
     let ids = {};
-    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
       return ids;
 
     ids[Clients.localID] = true;
@@ -266,14 +237,6 @@ TabTracker.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 
-  loadChangedIDs: function loadChangedIDs() {
-    // Don't read changed IDs from disk at start up.
-  },
-
-  clearChangedIDs: function clearChangedIDs() {
-    this.modified = false;
-  },
-
   _topics: ["pageshow", "TabOpen", "TabClose", "TabSelect"],
   _registerListenersForWindow: function registerListenersFW(window) {
     this._log.trace("Registering tab listeners in window");
@@ -302,7 +265,7 @@ TabTracker.prototype = {
         if (!this._enabled) {
           Svc.Obs.add("private-browsing", this);
           Svc.Obs.add("domwindowopened", this);
-          let wins = Services.wm.getEnumerator("navigator:browser");
+          let wins = Svc.WinMediator.getEnumerator("navigator:browser");
           while (wins.hasMoreElements())
             this._registerListenersForWindow(wins.getNext());
           this._enabled = true;
@@ -312,7 +275,7 @@ TabTracker.prototype = {
         if (this._enabled) {
           Svc.Obs.remove("private-browsing", this);
           Svc.Obs.remove("domwindowopened", this);
-          let wins = Services.wm.getEnumerator("navigator:browser");
+          let wins = Svc.WinMediator.getEnumerator("navigator:browser");
           while (wins.hasMoreElements())
             this._unregisterListenersForWindow(wins.getNext());
           this._enabled = false;
@@ -329,18 +292,18 @@ TabTracker.prototype = {
         break;
       case "private-browsing":
         if (aData == "enter" && !PBPrefs.get("autostart"))
-          this.modified = false;
+          this.clearChangedIDs();
     }
   },
 
   onTab: function onTab(event) {
-    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
       this._log.trace("Ignoring tab event from private browsing.");
       return;
     }
 
     this._log.trace("onTab event: " + event.type);
-    this.modified = true;
+    this.addChangedID(Clients.localID);
 
     // For pageshow events, only give a partial score bump (~.1)
     let chance = .1;
@@ -356,6 +319,6 @@ TabTracker.prototype = {
 
     // Only increase the score by whole numbers, so use random for partial score
     if (Math.random() < chance)
-      this.score += SCORE_INCREMENT_SMALL;
+      this.score++;
   },
 }

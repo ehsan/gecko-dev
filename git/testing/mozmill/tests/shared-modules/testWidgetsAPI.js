@@ -39,14 +39,7 @@
  * The WidgetsAPI adds support for handling objects like trees.
  */
 
-var EventUtils = {};
-try {
-  // The location of EventUtils has been changed with Mozmill 1.4.2. For the
-  // interim time lets check both locations.
-  Components.utils.import('resource://mozmill/stdlib/EventUtils.js', EventUtils);
-} catch (e) {
-  Components.utils.import('resource://mozmill/modules/EventUtils.js', EventUtils);
-}
+var EventUtils = {}; Components.utils.import('resource://mozmill/modules/EventUtils.js', EventUtils);
 
 var MODULE_NAME = 'WidgetsAPI';
 

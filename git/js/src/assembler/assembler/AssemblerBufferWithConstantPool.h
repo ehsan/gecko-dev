@@ -37,9 +37,6 @@
 
 #include "AssemblerBuffer.h"
 #include "assembler/wtf/SegmentedVector.h"
-#include "assembler/wtf/Assertions.h"
-
-#include "methodjit/Logging.h"
 
 #define ASSEMBLER_HAS_CONSTANT_POOL 1
 
@@ -106,9 +103,6 @@ public:
         , m_numConsts(0)
         , m_maxDistance(maxPoolSize)
         , m_lastConstDelta(0)
-#ifdef DEBUG
-        , m_allowFlush(true)
-#endif
     {
         m_pool = static_cast<uint32_t*>(malloc(maxPoolSize));
         m_mask = static_cast<char*>(malloc(maxPoolSize / sizeof(uint32_t)));
@@ -194,10 +188,10 @@ public:
         return AssemblerBuffer::size();
     }
 
-    void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp)
+    void* executableCopy(ExecutablePool* allocator)
     {
         flushConstantPool(false);
-        return AssemblerBuffer::executableAllocAndCopy(allocator, poolp);
+        return AssemblerBuffer::executableCopy(allocator);
     }
 
     void putIntWithConstantInt(uint32_t insn, uint32_t constant, bool isReusable = false)
@@ -227,7 +221,7 @@ public:
     void flushWithoutBarrier(bool isForced = false)
     {
         // Flush if constant pool is more than 60% full to avoid overuse of this function.
-        if (isForced || (5 * m_numConsts * sizeof(uint32_t)) > (3 * maxPoolSize))
+        if (isForced || 5 * m_numConsts > 3 * maxPoolSize / sizeof(uint32_t))
             flushConstantPool(false);
     }
 
@@ -240,15 +234,6 @@ public:
     {
         return m_numConsts;
     }
-
-#ifdef DEBUG
-    // Guard constant pool flushes to ensure that they don't occur during
-    // regions where offsets into the code have to be maintained (such as PICs).
-    void allowPoolFlush(bool allowFlush)
-    {
-        m_allowFlush = allowFlush;
-    }
-#endif
 
 private:
     void correctDeltas(int insnSize)
@@ -269,9 +254,6 @@ private:
 
     void flushConstantPool(bool useBarrier = true)
     {
-        js::JaegerSpew(js::JSpew_Insns, " -- FLUSHING CONSTANT POOL WITH %d CONSTANTS --\n",
-                       m_numConsts);
-        ASSERT(m_allowFlush);
         if (m_numConsts == 0)
             return;
         int alignPool = (AssemblerBuffer::size() + (useBarrier ? barrierSize : 0)) & (sizeof(uint64_t) - 1);
@@ -331,10 +313,6 @@ private:
     int m_numConsts;
     int m_maxDistance;
     int m_lastConstDelta;
-
-#ifdef DEBUG
-    bool    m_allowFlush;
-#endif
 };
 
 } // namespace JSC

@@ -107,7 +107,6 @@ public:
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
     PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     PRUint8        GetQoSBits()              { return mQoSBits; }
-    PRUint16       GetIdleSynTimeout()       { return mIdleSynTimeout; }
     
     PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
 
@@ -171,7 +170,10 @@ public:
     }
 
     // for anything that wants to know if we're in private browsing mode.
-    PRBool InPrivateBrowsingMode();
+    PRBool InPrivateBrowsingMode()
+    {
+      return mInPrivateBrowsingMode;
+    }
 
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
@@ -229,8 +231,11 @@ private:
     nsresult SetAccept(const char *);
     nsresult SetAcceptLanguages(const char *);
     nsresult SetAcceptEncodings(const char *);
+    nsresult SetAcceptCharsets(const char *);
 
     nsresult InitConnectionMgr();
+    void     StartPruneDeadConnectionsTimer();
+    void     StopPruneDeadConnectionsTimer();
 
     void     NotifyObservers(nsIHttpChannel *chan, const char *event);
 
@@ -242,6 +247,7 @@ private:
     nsCOMPtr<nsIObserverService>        mObserverService;
     nsCOMPtr<nsICookieService>          mCookieService;
     nsCOMPtr<nsIIDNService>             mIDNConverter;
+    nsCOMPtr<nsITimer>                  mTimer;
     nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
@@ -263,7 +269,6 @@ private:
     PRUint16 mIdleTimeout;
     PRUint16 mMaxRequestAttempts;
     PRUint16 mMaxRequestDelay;
-    PRUint16 mIdleSynTimeout;
 
     PRUint16 mMaxConnections;
     PRUint8  mMaxConnectionsPerServer;
@@ -272,6 +277,9 @@ private:
     PRUint8  mMaxPipelinedRequests;
 
     PRUint8  mRedirectionLimit;
+
+    // cached value of whether or not the browser is in private browsing mode.
+    PRBool   mInPrivateBrowsingMode;
 
     // we'll warn the user if we load an URL containing a userpass field
     // unless its length is less than this threshold.  this warning is
@@ -283,16 +291,10 @@ private:
 
     PRPackedBool mPipeliningOverSSL;
 
-    // cached value of whether or not the browser is in private browsing mode.
-    enum {
-        PRIVATE_BROWSING_OFF = PR_FALSE,
-        PRIVATE_BROWSING_ON = PR_TRUE,
-        PRIVATE_BROWSING_UNKNOWN = 2
-    } mInPrivateBrowsingMode;
-
     nsCString mAccept;
     nsCString mAcceptLanguages;
     nsCString mAcceptEncodings;
+    nsCString mAcceptCharsets;
 
     nsXPIDLCString mDefaultSocketType;
 
@@ -305,7 +307,10 @@ private:
     nsCString      mLegacyAppVersion;
     nsCString      mPlatform;
     nsCString      mOscpu;
+    nsCString      mLanguage;
     nsCString      mMisc;
+    nsXPIDLCString mVendor;
+    nsXPIDLCString mVendorSub;
     nsCString      mProduct;
     nsXPIDLCString mProductSub;
     nsXPIDLCString mAppName;
@@ -325,9 +330,6 @@ private:
 
     // Persistent HTTPS caching flag
     PRPackedBool   mEnablePersistentHttpsCaching;
-
-    // For broadcasting the preference to not be tracked
-    PRPackedBool   mDoNotTrackEnabled;
 };
 
 //-----------------------------------------------------------------------------

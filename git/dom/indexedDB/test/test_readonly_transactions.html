@@ -20,20 +20,21 @@
       const description = "My Test Database";
       const osName = "foo";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
       is(db.objectStoreNames.length, 0, "Correct objectStoreNames list");
 
-      request = db.setVersion("1");
+      request = db.createObjectStore(osName, "", true);
       request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
-
-      db.createObjectStore(osName, { autoIncrement: "true" });
+      request.onsuccess = function(event) {
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
+        testGenerator.next();
+      };
+      yield;
 
       let key1, key2;
 
@@ -42,37 +43,17 @@
                   .add({});
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
-        key1 = event.target.result;
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
+        key1 = event.result;
         testGenerator.next();
       }
       yield;
 
-      request = db.transaction(osName, READ_WRITE).objectStore(osName).add({});
+      request = db.objectStore(osName, READ_WRITE).add({});
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
-        key2 = event.target.result;
-        testGenerator.next();
-      }
-      yield;
-
-      request = db.transaction([osName], READ_WRITE)
-                  .objectStore(osName)
-                  .put({}, key1);
-      request.onerror = errorHandler;
-      request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
-        testGenerator.next();
-      }
-      yield;
-
-      request = db.transaction(osName, READ_WRITE)
-                  .objectStore(osName)
-                  .put({}, key2);
-      request.onerror = errorHandler;
-      request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
+        key2 = event.result;
         testGenerator.next();
       }
       yield;
@@ -82,37 +63,51 @@
                   .put({}, key1);
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
         testGenerator.next();
       }
       yield;
 
-      request = db.transaction(osName, READ_WRITE)
-                  .objectStore(osName)
-                  .put({}, key1);
+      request = db.objectStore(osName, READ_WRITE).put({}, key2);
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
         testGenerator.next();
       }
       yield;
 
       request = db.transaction([osName], READ_WRITE)
                   .objectStore(osName)
-                  .delete(key1);
+                  .put({}, key1);
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
         testGenerator.next();
       }
       yield;
 
-      request = db.transaction(osName, READ_WRITE)
-                  .objectStore(osName)
-                  .delete(key2);
+      request = db.objectStore(osName, READ_WRITE).put({}, key1);
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.transaction.mode, READ_WRITE, "Correct mode");
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
+        testGenerator.next();
+      }
+      yield;
+
+      request = db.transaction([osName], READ_WRITE)
+                  .objectStore(osName)
+                  .remove(key1);
+      request.onerror = errorHandler;
+      request.onsuccess = function(event) {
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
+        testGenerator.next();
+      }
+      yield;
+
+      request = db.objectStore(osName, READ_WRITE).remove(key2);
+      request.onerror = errorHandler;
+      request.onsuccess = function(event) {
+        is(event.transaction.mode, READ_WRITE, "Correct mode");
         testGenerator.next();
       }
       yield;
@@ -126,7 +121,7 @@
       }
 
       try {
-        request = db.transaction(osName).objectStore(osName).add({});
+        request = db.objectStore(osName).add({});
         ok(false, "Adding to a readonly transaction should fail!");
       }
       catch (e) {
@@ -142,7 +137,7 @@
       }
 
       try {
-        request = db.transaction(osName).objectStore(osName).put({});
+        request = db.objectStore(osName).put({});
         ok(false, "Adding or modifying a readonly transaction should fail!");
       }
       catch (e) {
@@ -158,7 +153,7 @@
       }
 
       try {
-        request = db.transaction(osName).objectStore(osName).put({}, key1);
+        request = db.objectStore(osName).put({}, key1);
         ok(false, "Modifying a readonly transaction should fail!");
       }
       catch (e) {
@@ -166,7 +161,7 @@
       }
 
       try {
-        request = db.transaction([osName]).objectStore(osName).delete(key1);
+        request = db.transaction([osName]).objectStore(osName).remove(key1);
         ok(false, "Removing from a readonly transaction should fail!");
       }
       catch (e) {
@@ -174,7 +169,7 @@
       }
 
       try {
-        request = db.transaction(osName).objectStore(osName).delete(key2);
+        request = db.objectStore(osName).remove(key2);
         ok(false, "Removing from a readonly transaction should fail!");
       }
       catch (e) {

@@ -49,15 +49,12 @@
 
 #include "nsGtkIMModule.h"
 #include "nsWindow.h"
-#include "mozilla/Preferences.h"
 
 #ifdef MOZ_PLATFORM_MAEMO
 #include "nsServiceManagerUtils.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #endif
-
-using namespace mozilla;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gGtkIMLog = nsnull;
@@ -111,7 +108,7 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
 #ifndef NS_IME_ENABLED_ON_PASSWORD_FIELD
     mSimpleContext(nsnull),
 #endif
-    mDummyContext(nsnull),
+    mDummyContext(nsnull), mEnabled(nsIWidget::IME_STATUS_ENABLED),
     mCompositionStart(PR_UINT32_MAX), mProcessingKeyEvent(nsnull),
     mIsComposing(PR_FALSE), mIsIMFocused(PR_FALSE),
     mIgnoreNativeCompositionEvent(PR_FALSE)
@@ -121,7 +118,6 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
         gGtkIMLog = PR_NewLogModule("nsGtkIMModuleWidgets");
     }
 #endif
-    mIMEContext.mStatus = nsIWidget::IME_STATUS_ENABLED;
     Init();
 }
 
@@ -235,14 +231,14 @@ nsGtkIMModule::OnDestroyWindow(nsWindow* aWindow)
     if (mContext) {
         PrepareToDestroyContext(mContext);
         gtk_im_context_set_client_window(mContext, nsnull);
-        g_object_unref(mContext);
+        g_object_unref(G_OBJECT(mContext));
         mContext = nsnull;
     }
 
 #ifndef NS_IME_ENABLED_ON_PASSWORD_FIELD
     if (mSimpleContext) {
         gtk_im_context_set_client_window(mSimpleContext, nsnull);
-        g_object_unref(mSimpleContext);
+        g_object_unref(G_OBJECT(mSimpleContext));
         mSimpleContext = nsnull;
     }
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
@@ -251,13 +247,13 @@ nsGtkIMModule::OnDestroyWindow(nsWindow* aWindow)
         // mContext and mDummyContext have the same slaveType and signal_data
         // so no need for another workaround_gtk_im_display_closed.
         gtk_im_context_set_client_window(mDummyContext, nsnull);
-        g_object_unref(mDummyContext);
+        g_object_unref(G_OBJECT(mDummyContext));
         mDummyContext = nsnull;
     }
 
     mOwnerWindow = nsnull;
     mLastFocusedWindow = nsnull;
-    mIMEContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
+    mEnabled = nsIWidget::IME_STATUS_DISABLED;
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("    SUCCEEDED, Completely destroyed"));
@@ -366,8 +362,7 @@ nsGtkIMModule::OnBlurWindow(nsWindow* aWindow)
 }
 
 PRBool
-nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
-                          PRBool aKeyDownEventWasSent /* = PR_FALSE */)
+nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent)
 {
     NS_PRECONDITION(aEvent, "aEvent must be non-null");
 
@@ -376,14 +371,13 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): OnKeyEvent, aCaller=%p, aKeyDownEventWasSent=%s",
-         this, aCaller, aKeyDownEventWasSent ? "TRUE" : "FALSE"));
+        ("GtkIMModule(%p): OnKeyEvent, aCaller=%p",
+         this, aCaller));
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("    aEvent: type=%s, keyval=%s, unicode=0x%X",
+        ("    aEvent: type=%s, keyval=0x%X, unicode=0x%X",
          aEvent->type == GDK_KEY_PRESS ? "GDK_KEY_PRESS" :
          aEvent->type == GDK_KEY_RELEASE ? "GDK_KEY_RELEASE" : "Unknown",
-         gdk_keyval_name(aEvent->keyval),
-         gdk_keyval_to_unicode(aEvent->keyval)));
+         aEvent->keyval, gdk_keyval_to_unicode(aEvent->keyval)));
 
     if (aCaller != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -399,7 +393,6 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
         return PR_FALSE;
     }
 
-    mKeyDownEventWasSent = aKeyDownEventWasSent;
     mFilterKeyEvent = PR_TRUE;
     mProcessingKeyEvent = aEvent;
     gboolean isFiltered = gtk_im_context_filter_keypress(im, aEvent);
@@ -410,32 +403,9 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
     // committed _and_ changed.  This way we still let key press
     // events go through as simple key press events instead of
     // composed characters.
-    PRBool filterThisEvent = isFiltered && mFilterKeyEvent;
-
-    if (mIsComposing && !isFiltered) {
-        if (aEvent->type == GDK_KEY_PRESS) {
-            if (!mCompositionString.IsEmpty()) {
-                // If there is composition string, we shouldn't dispatch
-                // any keydown events during composition.
-                filterThisEvent = PR_TRUE;
-            } else {
-                // A Hangul input engine for SCIM doesn't emit preedit_end
-                // signal even when composition string becomes empty.  On the
-                // other hand, we should allow to make composition with empty
-                // string for other languages because there *might* be such
-                // IM.  For compromising this issue, we should dispatch
-                // compositionend event, however, we don't need to reset IM
-                // actually.
-                CommitCompositionBy(EmptyString());
-                filterThisEvent = PR_FALSE;
-            }
-        } else {
-            // Key release event may not be consumed by IM, however, we
-            // shouldn't dispatch any keyup event during composition.
-            filterThisEvent = PR_TRUE;
-        }
-    }
-
+    // Note that we should eat all key events during composition.
+    PRBool filterThisEvent =
+        mIsComposing ? PR_TRUE : isFiltered && mFilterKeyEvent;
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("    filterThisEvent=%s (isFiltered=%s, mFilterKeyEvent=%s)",
          filterThisEvent ? "TRUE" : "FALSE", isFiltered ? "YES" : "NO",
@@ -542,15 +512,15 @@ nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
 }
 
 nsresult
-nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
+nsGtkIMModule::SetIMEEnabled(nsWindow* aCaller, PRUint32 aState)
 {
-    if (aContext->mStatus == mIMEContext.mStatus || NS_UNLIKELY(IsDestroyed())) {
+    if (aState == mEnabled || NS_UNLIKELY(IsDestroyed())) {
         return NS_OK;
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): SetInputMode, aCaller=%p, aState=%s mHTMLInputType=%s",
-         this, aCaller, GetEnabledStateName(aContext->mStatus), aContext->mHTMLInputType.get()));
+        ("GtkIMModule(%p): SetIMEEnabled, aCaller=%p, aState=%s",
+         this, aCaller, GetEnabledStateName(aState)));
 
     if (aCaller != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -567,7 +537,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
 
 
     if (sLastFocusedModule != this) {
-        mIMEContext = *aContext;
+        mEnabled = aState;
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    SUCCEEDED, but we're not active"));
         return NS_OK;
@@ -579,7 +549,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
         Blur();
     }
 
-    mIMEContext = *aContext;
+    mEnabled = aState;
 
     // Even when aState is not enabled state, we need to set IME focus.
     // Because some IMs are updating the status bar of them at this time.
@@ -587,33 +557,20 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
     // focus actually.
     Focus();
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
     GtkIMContext *im = GetContext();
     if (im) {
         if (IsEnabled()) {
-            // Ensure that opening the virtual keyboard is allowed for this specific
-            // IMEContext depending on the content.ime.strict.policy pref
-            if (mIMEContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
-                mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
-
-                PRBool useStrictPolicy =
-                    Preferences::GetBool("content.ime.strict_policy", PR_FALSE);
-                if (useStrictPolicy && !mIMEContext.FocusMovedByUser() && 
-                    mIMEContext.FocusMovedInContentProcess()) {
-                    return NS_OK;
-                }
-            }
-
             // It is not desired that the hildon's autocomplete mechanism displays
             // user previous entered passwds, so lets make completions invisible
             // in these cases.
             int mode;
-            g_object_get(im, "hildon-input-mode", &mode, NULL);
+            g_object_get(G_OBJECT(im), "hildon-input-mode", &mode, NULL);
 
-            if (mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
-                mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN) {
+            if (mEnabled == nsIWidget::IME_STATUS_ENABLED ||
+                mEnabled == nsIWidget::IME_STATUS_PLUGIN) {
                 mode &= ~HILDON_GTK_INPUT_MODE_INVISIBLE;
-            } else if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD) {
+            } else if (mEnabled == nsIWidget::IME_STATUS_PASSWORD) {
                mode |= HILDON_GTK_INPUT_MODE_INVISIBLE;
             }
 
@@ -623,7 +580,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
             // Turn off predictive dictionaries for editboxes
             mode &= ~HILDON_GTK_INPUT_MODE_DICTIONARY;
 
-            g_object_set(im, "hildon-input-mode",
+            g_object_set(G_OBJECT(im), "hildon-input-mode",
                          (HildonGtkInputMode)mode, NULL);
             gIsVirtualKeyboardOpened = PR_TRUE;
             hildon_gtk_im_context_show(im);
@@ -642,7 +599,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
         gdk_window_get_size(aCaller->GetGdkWindow(), &w, &h);
         rectBuf.Assign(NS_LITERAL_STRING("{\"left\": "));
         rectBuf.AppendInt(x);
-        rectBuf.Append(NS_LITERAL_STRING(", \"top\": "));
+        rectBuf.Append(NS_LITERAL_STRING(" \"top\": "));
         rectBuf.AppendInt(y);
         rectBuf.Append(NS_LITERAL_STRING(", \"right\": "));
         rectBuf.AppendInt(w);
@@ -658,10 +615,10 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
 }
 
 nsresult
-nsGtkIMModule::GetInputMode(IMEContext* aContext)
+nsGtkIMModule::GetIMEEnabled(PRUint32* aState)
 {
-    NS_ENSURE_ARG_POINTER(aContext);
-    *aContext = mIMEContext;
+    NS_ENSURE_ARG_POINTER(aState);
+    *aState = mEnabled;
     return NS_OK;
 }
 
@@ -684,7 +641,7 @@ nsGtkIMModule::GetContext()
     }
 
 #ifndef NS_IME_ENABLED_ON_PASSWORD_FIELD
-    if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD) {
+    if (mEnabled == nsIWidget::IME_STATUS_PASSWORD) {
         return mSimpleContext;
     }
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
@@ -695,19 +652,19 @@ nsGtkIMModule::GetContext()
 PRBool
 nsGtkIMModule::IsEnabled()
 {
-    return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
+    return mEnabled == nsIWidget::IME_STATUS_ENABLED ||
 #ifdef NS_IME_ENABLED_ON_PASSWORD_FIELD
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD ||
+           mEnabled == nsIWidget::IME_STATUS_PASSWORD ||
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN;
+           mEnabled == nsIWidget::IME_STATUS_PLUGIN;
 }
 
 PRBool
 nsGtkIMModule::IsEditable()
 {
-    return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN ||
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD;
+    return mEnabled == nsIWidget::IME_STATUS_ENABLED ||
+           mEnabled == nsIWidget::IME_STATUS_PLUGIN ||
+           mEnabled == nsIWidget::IME_STATUS_PASSWORD;
 }
 
 void
@@ -970,27 +927,15 @@ void
 nsGtkIMModule::OnCommitCompositionNative(GtkIMContext *aContext,
                                          const gchar *aUTF8Char)
 {
-    const gchar emptyStr = 0;
-    const gchar *commitString = aUTF8Char ? aUTF8Char : &emptyStr;
-
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): OnCommitCompositionNative, aContext=%p, current context=%p, commitString=\"%s\"",
-         this, aContext, GetContext(), commitString));
+        ("GtkIMModule(%p): OnCommitCompositionNative, aContext=%p, current context=%p",
+         this, aContext, GetContext()));
 
     // See bug 472635, we should do nothing if IM context doesn't match.
     if (GetContext() != aContext) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, given context doesn't match, GetContext()=%p",
              GetContext()));
-        return;
-    }
-
-    // If we are not in composition and committing with empty string,
-    // we need to do nothing because if we continued to handle this
-    // signal, we would dispatch compositionstart, text, compositionend
-    // events with empty string.  Of course, they are unnecessary events
-    // for Web applications and our editor.
-    if (!mIsComposing && !commitString[0]) {
         return;
     }
 
@@ -1010,7 +955,7 @@ nsGtkIMModule::OnCommitCompositionNative(GtkIMContext *aContext,
         keyval_utf8_len = g_unichar_to_utf8(keyval_unicode, keyval_utf8);
         keyval_utf8[keyval_utf8_len] = '\0';
 
-        if (!strcmp(commitString, keyval_utf8)) {
+        if (!strcmp(aUTF8Char, keyval_utf8)) {
             PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
                 ("GtkIMModule(%p): OnCommitCompositionNative, we'll send normal key event",
                  this));
@@ -1019,7 +964,7 @@ nsGtkIMModule::OnCommitCompositionNative(GtkIMContext *aContext,
         }
     }
 
-    NS_ConvertUTF8toUTF16 str(commitString);
+    NS_ConvertUTF8toUTF16 str(aUTF8Char);
     CommitCompositionBy(str); // Be aware, widget can be gone
 }
 
@@ -1094,16 +1039,13 @@ nsGtkIMModule::DispatchCompositionStart()
 
     mCompositionStart = selection.mReply.mOffset;
 
-    if (mProcessingKeyEvent && !mKeyDownEventWasSent &&
-        mProcessingKeyEvent->type == GDK_KEY_PRESS) {
+    if (mProcessingKeyEvent && mProcessingKeyEvent->type == GDK_KEY_PRESS) {
         // If this composition is started by a native keydown event, we need to
         // dispatch our keydown event here (before composition start).
         nsCOMPtr<nsIWidget> kungFuDeathGrip = mLastFocusedWindow;
         PRBool isCancelled;
         mLastFocusedWindow->DispatchKeyDownEvent(mProcessingKeyEvent,
                                                  &isCancelled);
-        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("    keydown event is dispatched"));
         if (static_cast<nsWindow*>(kungFuDeathGrip.get())->IsDestroyed() ||
             kungFuDeathGrip != mLastFocusedWindow) {
             PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1435,21 +1377,8 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, PRUint32& aCursorPos)
     mLastFocusedWindow->DispatchEvent(&querySelectedTextEvent, status);
     NS_ENSURE_TRUE(querySelectedTextEvent.mSucceeded, NS_ERROR_FAILURE);
 
-    PRUint32 selOffset = querySelectedTextEvent.mReply.mOffset;
+    aCursorPos = querySelectedTextEvent.mReply.mOffset;
     PRUint32 selLength = querySelectedTextEvent.mReply.mString.Length();
-
-    // XXX nsString::Find and nsString::RFind take PRInt32 for offset, so,
-    //     we cannot support this request when the current offset is larger
-    //     than PR_INT32_MAX.
-    if (selOffset > PR_INT32_MAX || selLength > PR_INT32_MAX ||
-        selOffset + selLength > PR_INT32_MAX) {
-        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("    FAILED, The selection is out of range"));
-        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("        selOffset=%u, selLength=%u",
-             selOffset, selLength));
-        return NS_ERROR_FAILURE;
-    }
 
     // Get all text contents of the focused editor
     nsQueryContentEvent queryTextContentEvent(PR_TRUE,
@@ -1460,27 +1389,21 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, PRUint32& aCursorPos)
     NS_ENSURE_TRUE(queryTextContentEvent.mSucceeded, NS_ERROR_FAILURE);
 
     nsAutoString textContent(queryTextContentEvent.mReply.mString);
-    if (selOffset + selLength > textContent.Length()) {
+    if (aCursorPos > textContent.Length()) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("    FAILED, The selection is invalid"));
-        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("        selOffset=%u, selLength=%u, textContent.Length()=%u",
-             selOffset, selLength, textContent.Length()));
+          ("GtkIMModule(%p): GetCurrentParagraph, FAILED (The caret offset is invalid)\n",
+           this));
         return NS_ERROR_FAILURE;
     }
 
     // Get only the focused paragraph, by looking for newlines
-    PRInt32 parStart = (selOffset == 0) ? 0 :
-        textContent.RFind("\n", PR_FALSE, selOffset - 1, -1) + 1;
-    PRInt32 parEnd = textContent.Find("\n", PR_FALSE, selOffset + selLength, -1);
+    PRInt32 parStart = textContent.RFind("\n", PR_FALSE, aCursorPos, -1) + 1;
+    PRInt32 parEnd = textContent.Find("\n", PR_FALSE, aCursorPos + selLength, -1);
     if (parEnd < 0) {
         parEnd = textContent.Length();
     }
     aText = nsDependentSubstring(textContent, parStart, parEnd - parStart);
-    aCursorPos = selOffset - PRUint32(parStart);
-
-    PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("    aText.Length()=%u, aCursorPos=%u", aText.Length(), aCursorPos));
+    aCursorPos -= parStart;
 
     return NS_OK;
 }

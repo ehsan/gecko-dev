@@ -61,16 +61,16 @@
 #include "jstypedarray.h"
 #include "nsJSUtils.h"
 
+#include "nsIRenderingContext.h"
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
-
-using namespace mozilla::dom;
 
 nsGenericHTMLElement*
 NS_NewHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+                       PRUint32 aFromParser)
 {
   /*
    * nsHTMLAudioElement's will be created without a nsINodeInfo passed in
@@ -84,8 +84,7 @@ NS_NewHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::audio, nsnull,
-                                                   kNameSpaceID_XHTML,
-                                                   nsIDOMNode::ELEMENT_NODE);
+                                                   kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
@@ -108,7 +107,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLAudioElement)
 
 
 nsHTMLAudioElement::nsHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }
@@ -139,10 +138,7 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   if (!jsstr)
     return NS_ERROR_FAILURE;
 
-  nsDependentJSString str;
-  if (!str.init(aContext, jsstr))
-    return NS_ERROR_FAILURE;
-
+  nsDependentJSString str(jsstr);
   rv = SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
@@ -170,7 +166,7 @@ nsHTMLAudioElement::MozSetup(PRUint32 aChannels, PRUint32 aRate)
     mAudioStream->Shutdown();
   }
 
-  mAudioStream = nsAudioStream::AllocateStream();
+  mAudioStream = new nsAudioStream();
   nsresult rv = mAudioStream->Init(aChannels, aRate,
                                    nsAudioStream::FORMAT_FLOAT32);
   if (NS_FAILED(rv)) {

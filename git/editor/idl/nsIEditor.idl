@@ -55,7 +55,13 @@ interface nsIEditActionListener;
 interface nsIInlineSpellChecker;
 interface nsITransferable;
 
-[scriptable, uuid(bd5d93f0-6451-11e0-ae3e-0800200c9a66)]
+%{C++
+class nsIPresShell;
+%}
+
+[ptr] native nsIPresShellPtr(nsIPresShell);
+
+[scriptable, uuid(972e54e1-dec3-4e3f-87ec-408a7dbcfd92)]
 
 interface nsIEditor  : nsISupports
 {
@@ -75,15 +81,19 @@ interface nsIEditor  : nsISupports
   /**
    * Init is to tell the implementation of nsIEditor to begin its services
    * @param aDoc          The dom document interface being observed
+   * @param aPresShell    TEMP: The presentation shell displaying the document.
+   *                      Once events can tell us from what pres shell
+   *                      they originated, this will no longer be
+   *                      necessary, and the editor will no longer be
+   *                      linked to a single pres shell.
    * @param aRoot         This is the root of the editable section of this
    *                      document. If it is null then we get root
    *                      from document body.
    * @param aSelCon       this should be used to get the selection location
-   *                      (will be null for HTML editors)
    * @param aFlags        A bitmask of flags for specifying the behavior
    *                      of the editor.
    */
-  [noscript] void init(in nsIDOMDocument doc,
+  [noscript] void init(in nsIDOMDocument doc, in nsIPresShellPtr shell,
                        in nsIContent aRoot,
                        in nsISelectionController aSelCon,
                        in unsigned long aFlags);
@@ -572,11 +582,4 @@ interface nsIEditor  : nsISupports
 
   /* checks if a node is read-only or not */
   [notxpcom] boolean isModifiableNode(in nsIDOMNode aNode);
-
-  /**
-   * Will be set to true if the last keypress event that the editor has handled
-   * has been trusted.  The value will only be valid when the edit action listeners
-   * are being called, and will throw upon access at all other times.
-   */
-  readonly attribute boolean lastKeypressEventTrusted;
 };

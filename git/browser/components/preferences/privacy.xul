@@ -57,11 +57,6 @@
             helpTopic="prefs-privacy">
 
     <preferences id="privacyPreferences">
-  
-      <!-- Tracking -->
-      <preference id="privacy.donottrackheader.enabled"
-                  name="privacy.donottrackheader.enabled"
-                  type="bool"/>
 
       <!-- XXX button prefs -->
       <preference id="pref.privacy.disable_button.cookie_exceptions"
@@ -121,16 +116,6 @@
     
     <script type="application/javascript" src="chrome://browser/content/preferences/privacy.js"/>
 
-    <!-- Tracking -->
-    <groupbox id="trackingGroup">
-      <caption label="&tracking.label;"/>
-
-      <checkbox id="privacyDoNotTrackPrefs"
-                label="&doNotTrack.label;"
-                accesskey="&doNotTrack.accesskey;"
-                preference="privacy.donottrackheader.enabled"/>
-    </groupbox>
-
     <!-- History -->
     <groupbox id="historyGroup">
       <caption label="&history.label;"/>
@@ -187,8 +172,8 @@
         <vbox id="historyCustomPane">
           <separator class="thin"/>
           <checkbox id="privateBrowsingAutoStart" class="indent"
-                    label="&privateBrowsingPermanent2.label;"
-                    accesskey="&privateBrowsingPermanent2.accesskey;"
+                    label="&privateBrowsingPermanent.label;"
+                    accesskey="&privateBrowsingPermanent.accesskey;"
                     preference="browser.privatebrowsing.autostart"/>
 
           <vbox class="indent">

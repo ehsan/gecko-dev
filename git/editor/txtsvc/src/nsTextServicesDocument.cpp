@@ -1203,8 +1203,7 @@ nsTextServicesDocument::ScrollSelectionIntoView()
 
   // After ScrollSelectionIntoView(), the pending notifications might be flushed
   // and PresShell/PresContext/Frames may be dead. See bug 418470.
-  result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION,
-                                            nsISelectionController::SCROLL_SYNCHRONOUS);
+  result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 
   UNLOCK_DOC(this);
 
@@ -1809,8 +1808,8 @@ nsTextServicesDocument::DidDeleteNode(nsIDOMNode *aChild, nsresult aResult)
 
   LOCK_DOC(this);
 
-  PRInt32 nodeIndex = 0;
-  PRBool hasEntry = PR_FALSE;
+  PRInt32 nodeIndex, tcount;
+  PRBool hasEntry;
   OffsetEntry *entry;
 
   nsresult result = NodeHasOffsetEntry(&mOffsetTable, aChild, &hasEntry, &nodeIndex);
@@ -1844,7 +1843,7 @@ nsTextServicesDocument::DidDeleteNode(nsIDOMNode *aChild, nsresult aResult)
     NS_ERROR("DeleteNode called for current iterator node."); 
   }
 
-  PRInt32 tcount = mOffsetTable.Length();
+  tcount = mOffsetTable.Length();
 
   while (nodeIndex < tcount)
   {
@@ -1924,10 +1923,8 @@ nsTextServicesDocument::DidJoinNodes(nsIDOMNode  *aLeftNode,
   // Note: The editor merges the contents of the left node into the
   //       contents of the right.
 
-  PRInt32 leftIndex = 0;
-  PRInt32 rightIndex = 0;
-  PRBool leftHasEntry = PR_FALSE;
-  PRBool rightHasEntry = PR_FALSE;
+  PRInt32 leftIndex, rightIndex;
+  PRBool leftHasEntry, rightHasEntry;
 
   result = NodeHasOffsetEntry(&mOffsetTable, aLeftNode, &leftHasEntry, &leftIndex);
 
@@ -2373,11 +2370,6 @@ nsTextServicesDocument::ClearDidSkip(nsIContentIterator* aFilteredIter)
 PRBool
 nsTextServicesDocument::IsBlockNode(nsIContent *aContent)
 {
-  if (!aContent) {
-    NS_ERROR("How did a null pointer get passed to IsBlockNode?");
-    return PR_FALSE;
-  }
-
   nsIAtom *atom = aContent->Tag();
 
   return (sAAtom       != atom &&
@@ -3821,7 +3813,11 @@ nsTextServicesDocument::NodeHasOffsetEntry(nsTArray<OffsetEntry*> *aOffsetTable,
 }
 
 // Spellchecker code has this. See bug 211343
+#ifdef XP_MAC
+#define IS_NBSP_CHAR(c) (((unsigned char)0xca)==(c))
+#else
 #define IS_NBSP_CHAR(c) (((unsigned char)0xa0)==(c))
+#endif
 
 nsresult
 nsTextServicesDocument::FindWordBounds(nsTArray<OffsetEntry*> *aOffsetTable,
@@ -3844,8 +3840,8 @@ nsTextServicesDocument::FindWordBounds(nsTArray<OffsetEntry*> *aOffsetTable,
   if (aWordEndOffset)
     *aWordEndOffset = 0;
 
-  PRInt32 entryIndex = 0;
-  PRBool hasEntry = PR_FALSE;
+  PRInt32 entryIndex;
+  PRBool hasEntry;
 
   // It's assumed that aNode is a text node. The first thing
   // we do is get it's index in the offset table so we can
@@ -3985,14 +3981,31 @@ void
 nsTextServicesDocument::PrintContentNode(nsIContent *aContent)
 {
   nsString tmpStr, str;
+  nsresult result;
 
   aContent->Tag()->ToString(tmpStr);
   printf("%s", NS_LossyConvertUTF16toASCII(tmpStr).get());
 
-  if (nsIDOMNode::TEXT_NODE == aContent->NodeType())
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aContent);
+
+  if (node)
   {
-    aContent->AppendTextTo(str);
-    printf(":  \"%s\"", NS_LossyConvertUTF16toASCII(str).get());
+    PRUint16 type;
+
+    result = node->GetNodeType(&type);
+
+    if (NS_FAILED(result))
+      return;
+
+    if (nsIDOMNode::TEXT_NODE == type)
+    {
+      result = node->GetNodeValue(str);
+
+      if (NS_FAILED(result))
+        return;
+
+      printf(":  \"%s\"", NS_LossyConvertUTF16toASCII(str).get());
+    }
   }
 
   printf("\n");

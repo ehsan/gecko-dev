@@ -48,6 +48,8 @@
 #include "nsIObserver.h"
 #include "nsIXPConnect.h"
 #include "nsIJSContextStack.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
@@ -74,10 +76,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIChromeRegistry.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 // Default URL for the hidden window, can be overridden by a pref on Mac
 #define DEFAULT_HIDDENWINDOW_URL "resource://gre-resources/hiddenWindow.html"
@@ -162,8 +160,11 @@ nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
     
 #ifdef XP_MACOSX
   PRUint32    chromeMask = 0;
-  nsAdoptingCString prefVal =
-      Preferences::GetCString("browser.hiddenWindowChromeURL");
+  nsCOMPtr<nsIPrefBranch> prefBranch;
+  nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
+  nsXPIDLCString prefVal;
+  rv = prefBranch->GetCharPref("browser.hiddenWindowChromeURL", getter_Copies(prefVal));
   const char* hiddenWindowURL = prefVal.get() ? prefVal.get() : DEFAULT_HIDDENWINDOW_URL;
   mApplicationProvidedHiddenWindow = prefVal.get() ? PR_TRUE : PR_FALSE;
 #else
@@ -182,6 +183,15 @@ nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
   NS_ENSURE_SUCCESS(rv, rv);
 
   mHiddenWindow.swap(newWindow);
+
+#ifdef XP_MACOSX
+  // hide the hidden window by launching it into outer space. This
+  // way, we can keep it visible and let the OS send it activates
+  // to keep menus happy. This will cause it to show up in window
+  // lists under osx, but I think that's ok.
+  mHiddenWindow->SetPosition ( -32000, -32000 );
+  mHiddenWindow->SetVisibility ( PR_TRUE );
+#endif
 
   // Set XPConnect's fallback JSContext (used for JS Components)
   // to the DOM JSContext for this thread, so that DOM-to-XPConnect
@@ -277,7 +287,6 @@ nsAppShellService::CalculateWindowZLevel(nsIXULWindow *aParent,
   return zLevel;
 }
 
-#ifdef XP_WIN
 /*
  * Checks to see if any existing window is currently in fullscreen mode.
  */
@@ -314,7 +323,6 @@ CheckForFullscreenWindow()
   }
   return PR_FALSE;
 }
-#endif
 
 /*
  * Just do the window-making part of CreateTopLevelWindow
@@ -377,6 +385,8 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
       widgetInitData.mWindowType == eWindowType_dialog)
     widgetInitData.clipChildren = PR_TRUE;
 #endif
+
+  widgetInitData.mContentType = eContentTypeUI;                
 
   // note default chrome overrides other OS chrome settings, but
   // not internal chrome

@@ -44,18 +44,16 @@
 #define PROCESSMODEL_WINAPI
 #endif
 
-#include "mozilla/Mutex.h"
 #include "nsIProcess.h"
 #include "nsIFile.h"
 #include "nsIThread.h"
 #include "nsIObserver.h"
+#include "nsIWeakReference.h"
 #include "nsIWeakReferenceUtils.h"
 #include "nsIObserver.h"
 #include "nsString.h"
-#ifndef XP_MACOSX
 #include "prproces.h"
-#endif
-#if defined(PROCESSMODEL_WINAPI)
+#if defined(PROCESSMODEL_WINAPI) 
 #include <windows.h>
 #include <shellapi.h>
 #endif
@@ -79,18 +77,17 @@ private:
   ~nsProcess();
   static void PR_CALLBACK Monitor(void *arg);
   void ProcessComplete();
-  nsresult CopyArgsAndRunProcess(PRBool blocking, const char** args,
-                                 PRUint32 count, nsIObserver* observer,
-                                 PRBool holdWeak);
-  nsresult CopyArgsAndRunProcessw(PRBool blocking, const PRUnichar** args,
-                                  PRUint32 count, nsIObserver* observer,
-                                  PRBool holdWeak);
-  // The 'args' array is null-terminated.
-  nsresult RunProcess(PRBool blocking, char **args, nsIObserver* observer,
-                      PRBool holdWeak, PRBool argsUTF8);
+  NS_IMETHOD CopyArgsAndRunProcess(PRBool blocking, const char** args,
+                                   PRUint32 count, nsIObserver* observer,
+                                   PRBool holdWeak);
+  NS_IMETHOD CopyArgsAndRunProcessw(PRBool blocking, const PRUnichar** args,
+                                    PRUint32 count, nsIObserver* observer,
+                                    PRBool holdWeak);
+  NS_IMETHOD RunProcess(PRBool blocking, char **args, PRUint32 count,
+                        nsIObserver* observer, PRBool holdWeak, PRBool argsUTF8);
 
   PRThread* mThread;
-  mozilla::Mutex mLock;
+  PRLock* mLock;
   PRBool mShutdown;
 
   nsCOMPtr<nsIFile> mExecutable;
@@ -102,10 +99,10 @@ private:
   // These members are modified by multiple threads, any accesses should be
   // protected with mLock.
   PRInt32 mExitValue;
-#if defined(PROCESSMODEL_WINAPI)
+#if defined(PROCESSMODEL_WINAPI) 
   typedef DWORD (WINAPI*GetProcessIdPtr)(HANDLE process);
   HANDLE mProcess;
-#elif !defined(XP_MACOSX)
+#else
   PRProcess *mProcess;
 #endif
 };

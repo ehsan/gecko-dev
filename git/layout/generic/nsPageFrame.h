@@ -81,13 +81,11 @@ public:
 
   virtual void SetSharedPageData(nsSharedPageData* aPD);
 
-  // We must allow Print Preview UI to have a background, no matter what the
-  // user's settings
-  virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
-
-  void PaintHeaderFooter(nsRenderingContext& aRenderingContext,
+  void PaintPrintPreviewBackground(nsIRenderingContext& aRenderingContext,
+                                   nsPoint aPt);
+  void PaintHeaderFooter(nsIRenderingContext& aRenderingContext,
                          nsPoint aPt);
-  void PaintPageContent(nsRenderingContext& aRenderingContext,
+  void PaintPageContent(nsIRenderingContext& aRenderingContext,
                         const nsRect&        aDirtyRect,
                         nsPoint              aPt);
 
@@ -100,12 +98,12 @@ protected:
     eFooter
   } nsHeaderFooterEnum;
 
-  nscoord GetXPosition(nsRenderingContext& aRenderingContext, 
+  nscoord GetXPosition(nsIRenderingContext& aRenderingContext, 
                        const nsRect&        aRect, 
                        PRInt32              aJust,
                        const nsString&      aStr);
 
-  void DrawHeaderFooter(nsRenderingContext& aRenderingContext,
+  void DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
                         nsHeaderFooterEnum   aHeaderFooter,
                         PRInt32              aJust,
                         const nsString&      sStr,
@@ -114,7 +112,7 @@ protected:
                         nscoord              aAscent,
                         nscoord              aWidth);
 
-  void DrawHeaderFooter(nsRenderingContext& aRenderingContext,
+  void DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
                         nsHeaderFooterEnum   aHeaderFooter,
                         const nsString&      aStrLeft,
                         const nsString&      aStrRight,

@@ -54,36 +54,6 @@ namespace layers {
 class LayerD3D9;
 class ThebesLayerD3D9;
 
-/**
- * This structure is used to pass rectangles to our shader constant. We can use
- * this for passing rectangular areas to SetVertexShaderConstant. In the format
- * of a 4 component float(x,y,width,height). Our vertex shader can then use
- * this to construct rectangular positions from the 0,0-1,1 quad that we source
- * it with.
- */
-struct ShaderConstantRect
-{
-  float mX, mY, mWidth, mHeight;
-
-  // Provide all the commonly used argument types to prevent all the local
-  // casts in the code.
-  ShaderConstantRect(float aX, float aY, float aWidth, float aHeight)
-    : mX(aX), mY(aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  ShaderConstantRect(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight)
-    : mX((float)aX), mY((float)aY)
-    , mWidth((float)aWidth), mHeight((float)aHeight)
-  { }
-
-  ShaderConstantRect(PRInt32 aX, PRInt32 aY, float aWidth, float aHeight)
-    : mX((float)aX), mY((float)aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  // For easy passing to SetVertexShaderConstantF.
-  operator float* () { return &mX; }
-};
-
 /*
  * This is the LayerManager used for Direct3D 9. For now this will render on
  * the main thread.
@@ -117,23 +87,19 @@ public:
   /*
    * LayerManager implementation.
    */
-  virtual void Destroy();
+  void BeginTransaction();
 
-  virtual void BeginTransaction();
-
-  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
+  void BeginTransactionWithTarget(gfxContext* aTarget);
 
   void EndConstruction();
-
-  virtual bool EndEmptyTransaction();
 
   struct CallbackInfo {
     DrawThebesLayerCallback Callback;
     void *CallbackData;
   };
 
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+  void EndTransaction(DrawThebesLayerCallback aCallback,
+                      void* aCallbackData);
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
@@ -149,13 +115,9 @@ public:
 
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
 
-  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
-
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
   virtual LayersBackend GetBackendType() { return LAYERS_D3D9; }
-  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 9"); }
-  bool DeviceWasRemoved() { return deviceManager()->DeviceWasRemoved(); }
 
   /*
    * Helper methods.
@@ -173,23 +135,19 @@ public:
    */ 
   Nv3DVUtils *GetNv3DVUtils()  { return mDeviceManager ? mDeviceManager->GetNv3DVUtils() : NULL; } 
 
+  /** 
+   * Indicate whether 3D is enabled or not 
+   */ 
+  PRBool Is3DEnabled() { return mIs3DEnabled; } 
+
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
-    if(aDeviceManager == mDefaultDeviceManager)
-      mDefaultDeviceManager = nsnull;
+    if(aDeviceManager == mDeviceManager)
+      mDeviceManager = nsnull;
   }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() const { return "D3D9"; }
-#endif // MOZ_LAYERS_HAVE_LOG
-
-  void ReportFailure(const nsACString &aMsg, HRESULT aCode);
-
 private:
-  /* Default device manager instance */
-  static DeviceManagerD3D9 *mDefaultDeviceManager;
-
-  /* Device manager instance for this layer manager */
-  nsRefPtr<DeviceManagerD3D9> mDeviceManager;
+  /* Device manager instance */
+  static DeviceManagerD3D9 *mDeviceManager;
 
   /* Swap chain associated with this layer manager */
   nsRefPtr<SwapChainD3D9> mSwapChain;
@@ -202,19 +160,19 @@ private:
    */
   nsRefPtr<gfxContext> mTarget;
 
+  /* Current root layer. */
+  LayerD3D9 *mRootLayer;
+
   /* Callback info for current transaction */
   CallbackInfo mCurrentCallbackInfo;
+
+  /* Flag that indicates whether 3D is enabled or not*/ 
+  PRBool mIs3DEnabled; 
 
   /*
    * Region we're clipping our current drawing to.
    */
   nsIntRegion mClippingRegion;
-
-  /*
-   * Device reset count at last paint. Whenever this changes, we need to
-   * do a full layer tree update.
-   */
-  PRUint32 mDeviceResetCount;
 
   /*
    * Render the current layer tree to the active target.
@@ -249,36 +207,7 @@ public:
 
   virtual void RenderLayer() = 0;
 
-  /**
-  /* This function may be used on device resets to clear all VRAM resources
-   * that a layer might be using.
-   */
-  virtual void CleanResources() {}
-
   IDirect3DDevice9 *device() const { return mD3DManager->device(); }
-
-  /* Called by the layer manager when it's destroyed */
-  virtual void LayerManagerDestroyed() {}
-
-  void ReportFailure(const nsACString &aMsg, HRESULT aCode) {
-    return mD3DManager->ReportFailure(aMsg, aCode);
-  }
-
-  void SetShaderTransformAndOpacity()
-  {
-    Layer* layer = GetLayer();
-    const gfx3DMatrix& transform = layer->GetEffectiveTransform();
-    device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
-
-    float opacity[4];
-    /*
-     * We always upload a 4 component float, but the shader will use only the
-     * first component since it's declared as a 'float'.
-     */
-    opacity[0] = layer->GetEffectiveOpacity();
-    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
-  }
-
 protected:
   LayerManagerD3D9 *mD3DManager;
 };

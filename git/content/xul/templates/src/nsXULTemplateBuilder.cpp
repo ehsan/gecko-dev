@@ -301,8 +301,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateBuilder)
     tmp->Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULTemplateBuilder)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULTemplateBuilder)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXULTemplateBuilder,
+                                          nsIXULTemplateBuilder)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXULTemplateBuilder,
+                                           nsIXULTemplateBuilder)
 
 DOMCI_DATA(XULTemplateBuilder, nsXULTemplateBuilder)
 
@@ -525,9 +527,6 @@ nsXULTemplateBuilder::UpdateResult(nsIXULTemplateResult* aOldResult,
     PR_LOG(gXULTemplateLog, PR_LOG_ALWAYS,
            ("nsXULTemplateBuilder::UpdateResult %p %p %p",
            aOldResult, aNewResult, aQueryNode));
-
-    if (!mRoot || !mQueriesCompiled)
-      return NS_OK;
 
     // get the containers where content may be inserted. If
     // GetInsertionLocations returns false, no container has generated
@@ -1025,9 +1024,6 @@ nsXULTemplateBuilder::ResultBindingChanged(nsIXULTemplateResult* aResult)
     // The new result will have the new values.
     NS_ENSURE_ARG_POINTER(aResult);
 
-    if (!mRoot || !mQueriesCompiled)
-      return NS_OK;
-
     return SynchronizeResult(aResult);
 }
 
@@ -1137,8 +1133,13 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
         // Check for a change to the 'datasources' attribute. If so, setup
         // mDB by parsing the new value and rebuild.
         else if (aAttribute == nsGkAtoms::datasources) {
-            nsContentUtils::AddScriptRunner(
-                NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableLoadAndRebuild));
+            Uninit(PR_FALSE);  // Reset results
+            
+            PRBool shouldDelay;
+            LoadDataSources(aDocument, &shouldDelay);
+            if (!shouldDelay)
+                nsContentUtils::AddScriptRunner(
+                    NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableRebuild));
         }
     }
 }
@@ -1156,9 +1157,8 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
         if (mQueryProcessor)
             mQueryProcessor->Done();
 
-        // Pass false to Uninit since content is going away anyway
-        nsContentUtils::AddScriptRunner(
-            NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitFalse));
+        // use false since content is going away anyway
+        Uninit(PR_FALSE);
 
         aDocument->RemoveObserver(this);
 
@@ -1174,6 +1174,7 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
 
         mDB = nsnull;
         mCompDB = nsnull;
+        mRoot = nsnull;
         mDataSource = nsnull;
     }
 }
@@ -1192,9 +1193,9 @@ nsXULTemplateBuilder::NodeWillBeDestroyed(const nsINode* aNode)
     mDataSource = nsnull;
     mDB = nsnull;
     mCompDB = nsnull;
+    mRoot = nsnull;
 
-    nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitTrue));
+    Uninit(PR_TRUE);
 }
 
 

@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,8 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009-2010
  * the Initial Developer. All Rights Reserved.
  *
@@ -37,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "prmem.h"
 #include "nsString.h"
 #include "nsBidiUtils.h"
@@ -54,22 +52,11 @@
 #include "harfbuzz/hb-unicode.h"
 #include "harfbuzz/hb-ot.h"
 
-#include "cairo.h"
-
 #include "nsUnicodeRange.h"
 #include "nsCRT.h"
 
-#if defined(XP_WIN)
-#include "gfxWindowsPlatform.h"
-#endif
-
 #define FloatToFixed(f) (65536 * (f))
 #define FixedToFloat(f) ((f) * (1.0 / 65536.0))
-// Right shifts of negative (signed) integers are undefined, as are overflows
-// when converting unsigned to negative signed integers.
-// (If speed were an issue we could make some 2's complement assumptions.)
-#define FixedToIntRound(f) ((f) > 0 ?  ((32768 + (f)) >> 16) \
-                                    : -((32767 - (f)) >> 16))
 
 using namespace mozilla; // for AutoSwap_* types
 
@@ -80,6 +67,7 @@ using namespace mozilla; // for AutoSwap_* types
 gfxHarfBuzzShaper::gfxHarfBuzzShaper(gfxFont *aFont)
     : gfxFontShaper(aFont),
       mHBFace(nsnull),
+      mHBLanguage(nsnull),
       mKernTable(nsnull),
       mHmtxTable(nsnull),
       mNumLongMetrics(0),
@@ -87,8 +75,7 @@ gfxHarfBuzzShaper::gfxHarfBuzzShaper(gfxFont *aFont)
       mCmapFormat(-1),
       mSubtableOffset(0),
       mUVSTableOffset(0),
-      mUseFontGetGlyph(aFont->ProvidesGetGlyph()),
-      mUseFontGlyphWidths(PR_FALSE)
+      mUseHintedWidths(aFont->ProvidesHintedWidths())
 {
 }
 
@@ -96,7 +83,6 @@ gfxHarfBuzzShaper::~gfxHarfBuzzShaper()
 {
     hb_blob_destroy(mCmapTable);
     hb_blob_destroy(mHmtxTable);
-    hb_blob_destroy(mKernTable);
     hb_face_destroy(mHBFace);
 }
 
@@ -110,17 +96,7 @@ static hb_blob_t *
 HBGetTable(hb_tag_t aTag, void *aUserData)
 {
     gfxHarfBuzzShaper *shaper = static_cast<gfxHarfBuzzShaper*>(aUserData);
-    gfxFont *font = shaper->GetFont();
-
-    // bug 589682 - ignore the GDEF table in buggy fonts (applies to
-    // Italic and BoldItalic faces of Times New Roman)
-    if (aTag == TRUETYPE_TAG('G','D','E','F') &&
-        font->GetFontEntry()->IgnoreGDEF())
-    {
-        return nsnull;
-    }
-
-    return font->GetFontTable(aTag);
+    return shaper->GetFont()->GetFontTable(aTag);
 }
 
 /*
@@ -143,10 +119,6 @@ hb_codepoint_t
 gfxHarfBuzzShaper::GetGlyph(hb_codepoint_t unicode,
                             hb_codepoint_t variation_selector) const
 {
-    if (mUseFontGetGlyph) {
-        return mFont->GetGlyph(unicode, variation_selector);
-    }
-
     // we only instantiate a harfbuzz shaper if there's a cmap available
     NS_ASSERTION(mFont->GetFontEntry()->HasCmapTable(),
                  "we cannot be using this font!");
@@ -225,13 +197,12 @@ struct HMetrics {
 };
 
 void
-gfxHarfBuzzShaper::GetGlyphAdvance(gfxContext *aContext,
+gfxHarfBuzzShaper::GetGlyphMetrics(gfxContext *aContext,
                                    hb_codepoint_t glyph,
-                                   hb_position_t *x_advance,
-                                   hb_position_t *y_advance) const
+                                   hb_glyph_metrics_t *metrics) const
 {
-    if (mUseFontGlyphWidths) {
-        *x_advance = mFont->GetGlyphWidth(aContext, glyph);
+    if (mUseHintedWidths) {
+        metrics->x_advance = mFont->GetHintedGlyphWidth(aContext, glyph);
         return;
     }
 
@@ -241,7 +212,7 @@ gfxHarfBuzzShaper::GetGlyphAdvance(gfxContext *aContext,
     NS_ASSERTION((mNumLongMetrics > 0) && mHmtxTable != nsnull,
                  "font is lacking metrics, we shouldn't be here");
 
-    if (glyph >= PRUint32(mNumLongMetrics)) {
+    if (glyph >= mNumLongMetrics) {
         glyph = mNumLongMetrics - 1;
     }
 
@@ -250,20 +221,21 @@ gfxHarfBuzzShaper::GetGlyphAdvance(gfxContext *aContext,
     // to contain mNumLongMetrics records
     const HMetrics* hmtx =
         reinterpret_cast<const HMetrics*>(hb_blob_lock(mHmtxTable));
-    *x_advance =
+    metrics->x_advance =
         FloatToFixed(mFont->FUnitsToDevUnitsFactor() *
                      PRUint16(hmtx->metrics[glyph].advanceWidth));
     hb_blob_unlock(mHmtxTable);
+
+    // TODO: set additional metrics if/when harfbuzz needs them
 }
 
 static void
-HBGetGlyphAdvance(hb_font_t *font, hb_face_t *face, const void *user_data,
-                  hb_codepoint_t glyph,
-                  hb_position_t *x_advance, hb_position_t *y_advance)
+HBGetGlyphMetrics(hb_font_t *font, hb_face_t *face, const void *user_data,
+                  hb_codepoint_t glyph, hb_glyph_metrics_t *metrics)
 {
     const FontCallbackData *fcd =
         static_cast<const FontCallbackData*>(user_data);
-    fcd->mShaper->GetGlyphAdvance(fcd->mContext, glyph, x_advance, y_advance);
+    fcd->mShaper->GetGlyphMetrics(fcd->mContext, glyph, metrics);
 }
 
 static hb_bool_t
@@ -311,7 +283,6 @@ GetKernValueFmt0(const void* aSubtable,
 
     const KernPair *lo = reinterpret_cast<const KernPair*>(hdr + 1);
     const KernPair *hi = lo + PRUint16(hdr->nPairs);
-    const KernPair *limit = hi;
 
     if (reinterpret_cast<const char*>(aSubtable) + aSubtableLen <
         reinterpret_cast<const char*>(hi)) {
@@ -332,11 +303,11 @@ GetKernValueFmt0(const void* aSubtable,
         }
     }
 
-    if (lo < limit && KERN_PAIR_KEY(lo->left, lo->right) == key) {
+    if (KERN_PAIR_KEY(lo->left, lo->right) == key) {
         if (aIsOverride) {
             aValue = PRInt16(lo->value);
         } else if (aIsMinimum) {
-            aValue = NS_MAX(aValue, PRInt32(lo->value));
+            aValue = PR_MAX(aValue, PRInt16(lo->value));
         } else {
             aValue += PRInt16(lo->value);
         }
@@ -724,23 +695,20 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
     mFont->SetupCairoFont(aContext);
 
     if (!mHBFace) {
-
-        mUseFontGlyphWidths = mFont->ProvidesGlyphWidths();
-
         // set up the harfbuzz face etc the first time we use the font
 
         if (!sHBFontFuncs) {
             // static function callback pointers, initialized by the first
             // harfbuzz shaper used
-            sHBFontFuncs = hb_font_funcs_create();
+            sHBFontFuncs = hb_font_funcs_copy(hb_font_funcs_create());
             hb_font_funcs_set_glyph_func(sHBFontFuncs, HBGetGlyph);
-            hb_font_funcs_set_glyph_advance_func(sHBFontFuncs,
-                                                 HBGetGlyphAdvance);
+            hb_font_funcs_set_glyph_metrics_func(sHBFontFuncs,
+                                                 HBGetGlyphMetrics);
             hb_font_funcs_set_contour_point_func(sHBFontFuncs,
                                                  HBGetContourPoint);
             hb_font_funcs_set_kerning_func(sHBFontFuncs, HBGetKerning);
 
-            sHBUnicodeFuncs = hb_unicode_funcs_create();
+            sHBUnicodeFuncs = hb_unicode_funcs_copy(hb_unicode_funcs_create());
             hb_unicode_funcs_set_mirroring_func(sHBUnicodeFuncs,
                                                 HBGetMirroring);
             hb_unicode_funcs_set_script_func(sHBUnicodeFuncs, HBGetScript);
@@ -754,24 +722,24 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
 
         mHBFace = hb_face_create_for_tables(HBGetTable, nsnull, this);
 
-        if (!mUseFontGetGlyph) {
-            // get the cmap table and find offset to our subtable
-            mCmapTable = mFont->GetFontTable(TRUETYPE_TAG('c','m','a','p'));
-            if (!mCmapTable) {
-                NS_WARNING("failed to load cmap, glyphs will be missing");
-                return PR_FALSE;
-            }
-            const PRUint8* data = (const PRUint8*)hb_blob_lock(mCmapTable);
-            PRBool symbol;
-            mCmapFormat = gfxFontUtils::
-                FindPreferredSubtable(data, hb_blob_get_length(mCmapTable),
-                                      &mSubtableOffset, &mUVSTableOffset,
-                                      &symbol);
-            hb_blob_unlock(mCmapTable);
+        // get the cmap table and find offset to our subtable
+        mCmapTable = mFont->GetFontTable(TRUETYPE_TAG('c','m','a','p'));
+        if (!mCmapTable) {
+            NS_WARNING("failed to load cmap, glyphs will be missing");
+            return PR_FALSE;
         }
+        const PRUint8* data = (const PRUint8*)hb_blob_lock(mCmapTable);
+        PRBool symbol;
+        mCmapFormat =
+            gfxFontUtils::FindPreferredSubtable(data,
+                                                hb_blob_get_length(mCmapTable),
+                                                &mSubtableOffset,
+                                                &mUVSTableOffset,
+                                                &symbol);
+        hb_blob_unlock(mCmapTable);
 
-        if (!mUseFontGlyphWidths) {
-            // if font doesn't implement GetGlyphWidth, we will be reading
+        if (!mUseHintedWidths) {
+            // if font doesn't implement hinted widths, we will be reading
             // the hmtx table directly;
             // read mNumLongMetrics from hhea table without caching its blob,
             // and preload/cache the hmtx table
@@ -803,10 +771,21 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
             }
             hb_blob_destroy(hheaTable);
         }
+
+        if (mFont->GetStyle()->languageOverride) {
+            mHBLanguage =
+                hb_ot_tag_to_language(mFont->GetStyle()->languageOverride);
+        } else if (mFont->GetFontEntry()->mLanguageOverride) {
+            mHBLanguage =
+                hb_ot_tag_to_language(mFont->GetFontEntry()->mLanguageOverride);
+        } else {
+            nsCString langString;
+            mFont->GetStyle()->language->ToUTF8String(langString);
+            mHBLanguage = hb_language_from_string(langString.get());
+        }
     }
 
-    if ((!mUseFontGetGlyph && mCmapFormat <= 0) ||
-        (!mUseFontGlyphWidths && !mHmtxTable)) {
+    if (mCmapFormat <= 0 || (!mUseHintedWidths && !mHmtxTable)) {
         // unable to shape with this font
         return PR_FALSE;
     }
@@ -837,23 +816,25 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
     }
 
     // css features need to be merged with the existing ones, if any
-    const gfxFontStyle *style = aTextRun->GetFontGroup()->GetStyle();
-    const nsTArray<gfxFontFeature> *cssFeatures = &style->featureSettings;
-    if (cssFeatures->IsEmpty()) {
-        cssFeatures = &mFont->GetFontEntry()->mFeatureSettings;
+    const nsTArray<gfxFontFeature> *cssFeatures =
+        mFont->GetStyle()->featureSettings;
+    if (!cssFeatures) {
+        cssFeatures = mFont->GetFontEntry()->mFeatureSettings;
     }
-    for (PRUint32 i = 0; i < cssFeatures->Length(); ++i) {
-        PRUint32 j;
-        for (j = 0; j < features.Length(); ++j) {
-            if (cssFeatures->ElementAt(i).mTag == features[j].tag) {
-                features[j].value = cssFeatures->ElementAt(i).mValue;
-                break;
+    if (cssFeatures) {
+        for (PRUint32 i = 0; i < cssFeatures->Length(); ++i) {
+            PRUint32 j;
+            for (j = 0; j < features.Length(); ++j) {
+                if (cssFeatures->ElementAt(i).mTag == features[j].tag) {
+                    features[j].value = cssFeatures->ElementAt(i).mValue;
+                    break;
+                }
             }
-        }
-        if (j == features.Length()) {
-            const gfxFontFeature& f = cssFeatures->ElementAt(i);
-            hb_feature_t hbf = { f.mTag, f.mValue, 0, -1 };
-            features.AppendElement(hbf);
+            if (j == features.Length()) {
+                const gfxFontFeature& f = cssFeatures->ElementAt(i);
+                hb_feature_t hbf = { f.mTag, f.mValue, 0, -1 };
+                features.AppendElement(hbf);
+            }
         }
     }
 
@@ -862,25 +843,8 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
     hb_buffer_set_direction(buffer,
                             aTextRun->IsRightToLeft() ?
                                 HB_DIRECTION_RTL : HB_DIRECTION_LTR);
-    // For unresolved "common" or "inherited" runs, default to Latin for now.
-    // (Should we somehow use the language or locale to try and infer
-    // a better default?)
-    hb_buffer_set_script(buffer,
-                         aRunScript <= HB_SCRIPT_INHERITED ? HB_SCRIPT_LATIN
-                         : hb_script_t(aRunScript));
-
-    hb_language_t language;
-    if (style->languageOverride) {
-        language = hb_ot_tag_to_language(style->languageOverride);
-    } else if (mFont->GetFontEntry()->mLanguageOverride) {
-        language =
-            hb_ot_tag_to_language(mFont->GetFontEntry()->mLanguageOverride);
-    } else {
-        nsCString langString;
-        style->language->ToUTF8String(langString);
-        language = hb_language_from_string(langString.get());
-    }
-    hb_buffer_set_language(buffer, language);
+    hb_buffer_set_script(buffer, hb_script_t(aRunScript));
+    hb_buffer_set_language(buffer, mHBLanguage);
 
     hb_buffer_add_utf16(buffer, reinterpret_cast<const uint16_t*>(aString + aRunStart),
                         aRunLength, 0, aRunLength);
@@ -891,89 +855,13 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
         hb_buffer_reverse(buffer);
     }
 
-#ifdef DEBUG
-    nsresult rv =
-#endif
-    SetGlyphsFromRun(aContext, aTextRun, buffer, aRunStart, aRunLength);
+    nsresult rv = SetGlyphsFromRun(aContext, aTextRun, buffer,
+                                   aRunStart, aRunLength);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to store glyphs into textrun");
     hb_buffer_destroy(buffer);
     hb_font_destroy(font);
 
     return PR_TRUE;
-}
-
-/**
- * Work out whether cairo will snap inter-glyph spacing to pixels.
- *
- * Layout does not align text to pixel boundaries, so, with font drawing
- * backends that snap glyph positions to pixels, it is important that
- * inter-glyph spacing within words is always an integer number of pixels.
- * This ensures that the drawing backend snaps all of the word's glyphs in the
- * same direction and so inter-glyph spacing remains the same.
- */
-static void
-GetRoundOffsetsToPixels(gfxContext *aContext,
-                        PRBool *aRoundX, PRBool *aRoundY)
-{
-    *aRoundX = PR_FALSE;
-    // Could do something fancy here for ScaleFactors of
-    // AxisAlignedTransforms, but we leave things simple.
-    // Not much point rounding if a matrix will mess things up anyway.
-    if (aContext->CurrentMatrix().HasNonTranslation()) {
-        *aRoundY = PR_FALSE;
-        return;
-    }
-
-    // All raster backends snap glyphs to pixels vertically.
-    // Print backends set CAIRO_HINT_METRICS_OFF.
-    *aRoundY = PR_TRUE;
-
-    cairo_t *cr = aContext->GetCairo();
-    cairo_scaled_font_t *scaled_font = cairo_get_scaled_font(cr);
-    // Sometimes hint metrics gets set for us, most notably for printing.
-    cairo_font_options_t *font_options = cairo_font_options_create();
-    cairo_scaled_font_get_font_options(scaled_font, font_options);
-    cairo_hint_metrics_t hint_metrics =
-        cairo_font_options_get_hint_metrics(font_options);
-    cairo_font_options_destroy(font_options);
-
-    switch (hint_metrics) {
-    case CAIRO_HINT_METRICS_OFF:
-        *aRoundY = PR_FALSE;
-        return;
-    case CAIRO_HINT_METRICS_DEFAULT:
-        // Here we mimic what cairo surface/font backends do.  Printing
-        // surfaces have already been handled by hint_metrics.  The
-        // fallback show_glyphs implementation composites pixel-aligned
-        // glyph surfaces, so we just pick surface/font combinations that
-        // override this.
-        switch (cairo_scaled_font_get_type(scaled_font)) {
-#if CAIRO_HAS_DWRITE_FONT // dwrite backend is not in std cairo releases yet
-        case CAIRO_FONT_TYPE_DWRITE:
-            // show_glyphs is implemented on the font and so is used for
-            // all surface types; however, it may pixel-snap depending on
-            // the dwrite rendering mode
-            if (!cairo_dwrite_scaled_font_get_force_GDI_classic(scaled_font) &&
-                gfxWindowsPlatform::GetPlatform()->DWriteMeasuringMode() ==
-                    DWRITE_MEASURING_MODE_NATURAL) {
-                return;
-            }
-#endif
-        case CAIRO_FONT_TYPE_QUARTZ:
-            // Quartz surfaces implement show_glyphs for Quartz fonts
-            if (cairo_surface_get_type(cairo_get_target(cr)) ==
-                CAIRO_SURFACE_TYPE_QUARTZ) {
-                return;
-            }
-        default:
-            break;
-        }
-        // fall through:
-    case CAIRO_HINT_METRICS_ON:
-        break;
-    }
-    *aRoundX = PR_TRUE;
-    return;
 }
 
 #define SMALL_GLYPH_RUN 128 // some testing indicates that 90%+ of text runs
@@ -1006,7 +894,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
     }
 
     for (PRInt32 i = 0; i < numGlyphs; ++i) {
-        PRUint32 loc = ginfo[i].cluster;
+        PRInt32 loc = ginfo[i].cluster;
         if (loc < aRunLength) {
             charToGlyph[loc] = i;
         }
@@ -1015,14 +903,8 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
     PRInt32 glyphStart = 0; // looking for a clump that starts at this glyph
     PRInt32 charStart = 0; // and this char index within the range of the run
 
-    PRBool roundX;
-    PRBool roundY;
-    GetRoundOffsetsToPixels(aContext, &roundX, &roundY);
-    // This is signed to avoid promotion to unsigned.
-    PRInt32 dev2appUnits = aTextRun->GetAppUnitsPerDevUnit();
     // factor to convert 16.16 fixed-point pixels to app units
-    // (only used if not rounding)
-    double hb2appUnits = FixedToFloat(aTextRun->GetAppUnitsPerDevUnit());
+    float hb2appUnits = aTextRun->GetAppUnitsPerDevUnit() / 65536.0;
 
     // keep track of y-position to set glyph offsets if needed
     nscoord yPos = 0;
@@ -1049,7 +931,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
             // find the maximum glyph index covered by the clump so far
             for (PRInt32 i = charStart; i < charEnd; ++i) {
                 if (charToGlyph[i] != NO_GLYPH) {
-                    glyphEnd = NS_MAX(glyphEnd, charToGlyph[i] + 1);
+                    glyphEnd = PR_MAX(glyphEnd, charToGlyph[i] + 1);
                     // update extent of glyph range
                 }
             }
@@ -1096,20 +978,20 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         // and endCharIndex to the limit (position beyond the last char),
         // adjusting for the offset of the stringRange relative to the textRun.
         PRInt32 baseCharIndex, endCharIndex;
-        while (charEnd < PRInt32(aRunLength) && charToGlyph[charEnd] == NO_GLYPH)
+        while (charEnd < aRunLength && charToGlyph[charEnd] == NO_GLYPH)
             charEnd++;
         baseCharIndex = charStart;
         endCharIndex = charEnd;
 
         // Then we check if the clump falls outside our actual string range;
         // if so, just go to the next.
-        if (baseCharIndex >= PRInt32(aRunLength)) {
+        if (baseCharIndex >= aRunLength) {
             glyphStart = glyphEnd;
             charStart = charEnd;
             continue;
         }
         // Ensure we won't try to go beyond the valid length of the textRun's text
-        endCharIndex = NS_MIN<PRInt32>(endCharIndex, aRunLength);
+        endCharIndex = PR_MIN(endCharIndex, aRunLength);
 
         // Now we're ready to set the glyph info in the textRun
         PRInt32 glyphsInClump = glyphEnd - glyphStart;
@@ -1125,11 +1007,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         }
 
         // Check if it's a simple one-to-one mapping
-        hb_position_t x_advance = posInfo[glyphStart].x_advance;
-        nscoord advance =
-            roundX ? dev2appUnits * FixedToIntRound(x_advance)
-            : NS_floor(hb2appUnits * x_advance + 0.5);
-
+        nscoord advance = NS_roundf(hb2appUnits * posInfo[glyphStart].x_advance);
         if (glyphsInClump == 1 &&
             gfxTextRun::CompressedGlyph::IsSimpleGlyphID(ginfo[glyphStart].codepoint) &&
             gfxTextRun::CompressedGlyph::IsSimpleAdvance(advance) &&
@@ -1150,34 +1028,18 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
                 gfxTextRun::DetailedGlyph* details =
                     detailedGlyphs.AppendElement();
                 details->mGlyphID = ginfo[glyphStart].codepoint;
-
-                // Rounding offsets independently of advances on the assumption
-                // that clusters use offsets and rounding of offsets should
-                // not accumulate, and that advances are typically between
-                // clusters.
-                hb_position_t x_offset = posInfo[glyphStart].x_offset;
-                details->mXOffset =
-                    roundX ? dev2appUnits * FixedToIntRound(x_offset)
-                    : NS_floor(hb2appUnits * x_offset + 0.5);
-                hb_position_t y_offset = posInfo[glyphStart].y_offset;
-                details->mYOffset = yPos -
-                    (roundY ? dev2appUnits * FixedToIntRound(y_offset)
-                     : NS_floor(hb2appUnits * y_offset + 0.5));
-
+                details->mXOffset = posInfo[glyphStart].x_offset == 0 ?
+                                        0 : hb2appUnits * posInfo[glyphStart].x_offset;
+                details->mYOffset = yPos - (posInfo[glyphStart].y_offset == 0 ?
+                                        0 : hb2appUnits * posInfo[glyphStart].y_offset);
                 details->mAdvance = advance;
-                hb_position_t y_advance = posInfo[glyphStart].y_advance;
-                if (y_advance != 0) {
-                    yPos -=
-                        roundY ? dev2appUnits * FixedToIntRound(y_advance)
-                        : NS_floor(hb2appUnits * y_advance + 0.5);
+                if (posInfo[glyphStart].y_advance != 0) {
+                    yPos -= hb2appUnits * posInfo[glyphStart].y_advance;
                 }
                 if (++glyphStart >= glyphEnd) {
                     break;
                 }
-                x_advance = posInfo[glyphStart].x_advance;
-                advance =
-                    roundX ? dev2appUnits * FixedToIntRound(x_advance)
-                    : NS_floor(hb2appUnits * x_advance + 0.5);
+                advance = NS_roundf(hb2appUnits * posInfo[glyphStart].x_advance);
             }
 
             gfxTextRun::CompressedGlyph g;
@@ -1191,8 +1053,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
 
         // the rest of the chars in the group are ligature continuations,
         // no associated glyphs
-        while (++baseCharIndex != endCharIndex &&
-               baseCharIndex < PRInt32(aRunLength)) {
+        while (++baseCharIndex != endCharIndex && baseCharIndex < aRunLength) {
             gfxTextRun::CompressedGlyph g;
             g.SetComplex(inOrder &&
                          aTextRun->IsClusterStart(aTextRunOffset + baseCharIndex),

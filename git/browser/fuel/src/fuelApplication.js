@@ -40,9 +40,6 @@ const Cc = Components.classes;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-const APPLICATION_CID = Components.ID("fe74cf80-aa2d-11db-abbd-0800200c9a66");
-const APPLICATION_CONTRACTID = "@mozilla.org/fuel/application;1";
-
 //=================================================
 // Singleton that holds services and utilities
 var Utilities = {
@@ -397,7 +394,7 @@ Bookmark.prototype = {
   onEndUpdateBatch : function bm_oeub() {
   },
 
-  onItemAdded : function bm_oia(aId, aFolder, aIndex, aItemType, aURI) {
+  onItemAdded : function bm_oia(aId, aFolder, aIndex) {
     // bookmark object doesn't exist at this point
   },
 
@@ -550,7 +547,7 @@ BookmarkFolder.prototype = {
   onEndUpdateBatch : function bmf_oeub() {
   },
 
-  onItemAdded : function bmf_oia(aId, aFolder, aIndex, aItemType, aURI) {
+  onItemAdded : function bmf_oia(aId, aFolder, aIndex) {
     // handle root folder events
     if (!this._parent)
       this._events.dispatch("add", aId);
@@ -671,22 +668,21 @@ function Application() {
 // Application implementation
 Application.prototype = {
   // for nsIClassInfo + XPCOMUtils
-  classID:          APPLICATION_CID,
+  classID:          Components.ID("fe74cf80-aa2d-11db-abbd-0800200c9a66"),
 
   // redefine the default factory for XPCOMUtils
   _xpcom_factory: ApplicationFactory,
 
   // for nsISupports
   QueryInterface : XPCOMUtils.generateQI([Ci.fuelIApplication, Ci.extIApplication,
-                                          Ci.nsIObserver]),
+                                          Ci.nsIObserver, Ci.nsIClassInfo]),
 
-  // for nsIClassInfo
-  classInfo: XPCOMUtils.generateCI({classID: APPLICATION_CID,
-                                    contractID: APPLICATION_CONTRACTID,
-                                    interfaces: [Ci.fuelIApplication,
-                                                 Ci.extIApplication,
-                                                 Ci.nsIObserver],
-                                    flags: Ci.nsIClassInfo.SINGLETON}),
+  getInterfaces : function app_gi(aCount) {
+    var interfaces = [Ci.fuelIApplication, Ci.extIApplication, Ci.nsIObserver,
+                      Ci.nsIClassInfo];
+    aCount.value = interfaces.length;
+    return interfaces;
+  },
 
   // for nsIObserver
   observe: function app_observe(aSubject, aTopic, aData) {
@@ -707,10 +703,10 @@ Application.prototype = {
 
   get windows() {
     var win = [];
-    var browserEnum = Utilities.windowMediator.getEnumerator("navigator:browser");
+    var enum = Utilities.windowMediator.getEnumerator("navigator:browser");
 
-    while (browserEnum.hasMoreElements())
-      win.push(new Window(browserEnum.getNext()));
+    while (enum.hasMoreElements())
+      win.push(new Window(enum.getNext()));
 
     return win;
   },

@@ -37,8 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
 #include "IPC/IPCMessageUtils.h"
+#endif
 #include "nsCOMPtr.h"
 #include "nsDOMEvent.h"
 #include "nsEventStateManager.h"
@@ -46,6 +48,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "prmem.h"
@@ -56,15 +59,11 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIScriptError.h"
 #include "nsDOMPopStateEvent.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static const char* const sEventNames[] = {
   "mousedown", "mouseup", "click", "dblclick", "mouseover",
   "mouseout", "MozMouseHittest", "mousemove", "contextmenu", "keydown", "keyup", "keypress",
-  "focus", "blur", "load", "popstate", "beforescriptexecute",
-  "afterscriptexecute", "beforeunload", "unload",
+  "focus", "blur", "load", "popstate", "beforeunload", "unload",
   "hashchange", "readystatechange", "abort", "error",
   "submit", "reset", "change", "select", "input", "invalid", "text",
   "compositionstart", "compositionend", "popupshowing", "popupshown",
@@ -77,9 +76,11 @@ static const char* const sEventNames[] = {
   "DOMAttrModified", "DOMCharacterDataModified",
   "DOMActivate", "DOMFocusIn", "DOMFocusOut",
   "pageshow", "pagehide", "DOMMouseScroll", "MozMousePixelScroll",
-  "offline", "online", "copy", "cut", "paste", "open", "message",
+  "offline", "online", "copy", "cut", "paste",
+#ifdef MOZ_SVG
   "SVGLoad", "SVGUnload", "SVGAbort", "SVGError", "SVGResize", "SVGScroll",
   "SVGZoom",
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
   "beginEvent", "endEvent", "repeatEvent",
 #endif // MOZ_SMIL
@@ -91,7 +92,6 @@ static const char* const sEventNames[] = {
 #endif // MOZ_MEDIA
   "MozAfterPaint",
   "MozBeforePaint",
-  "MozBeforeResize",
   "MozSwipeGesture",
   "MozMagnifyGestureStart",
   "MozMagnifyGestureUpdate",
@@ -105,10 +105,7 @@ static const char* const sEventNames[] = {
   "MozTouchMove",
   "MozTouchUp",
   "MozScrolledAreaChanged",
-  "transitionend",
-  "animationstart",
-  "animationend",
-  "animationiteration"
+  "transitionend"
 };
 
 static char *sPopupAllowedEvents;
@@ -273,20 +270,21 @@ NS_METHOD nsDOMEvent::GetType(nsAString& aType)
     mCachedType = aType;
     return NS_OK;
   }
-
-  aType.Truncate();
-  return NS_OK;
+  
+  return NS_ERROR_FAILURE;
 }
 
 static nsresult
-GetDOMEventTarget(nsIDOMEventTarget* aTarget,
+GetDOMEventTarget(nsPIDOMEventTarget* aTarget,
                   nsIDOMEventTarget** aDOMTarget)
 {
-  nsIDOMEventTarget* realTarget =
+  nsPIDOMEventTarget* realTarget =
     aTarget ? aTarget->GetTargetForDOMEvent() : aTarget;
+  if (realTarget) {
+    return CallQueryInterface(realTarget, aDOMTarget);
+  }
 
-  NS_IF_ADDREF(*aDOMTarget = realTarget);
-
+  *aDOMTarget = nsnull;
   return NS_OK;
 }
 
@@ -311,7 +309,8 @@ nsDOMEvent::GetTargetFromFrame()
   if (!mPresContext) { return nsnull; }
 
   // Get the target frame (have to get the ESM first)
-  nsIFrame* targetFrame = mPresContext->EventStateManager()->GetEventTarget();
+  nsIFrame* targetFrame = nsnull;
+  mPresContext->EventStateManager()->GetEventTarget(&targetFrame);
   if (!targetFrame) { return nsnull; }
 
   // get the real content
@@ -439,10 +438,10 @@ ReportUseOfDeprecatedMethod(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
   nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                   aWarning,
                                   strings, NS_ARRAY_LENGTH(strings),
-                                  nsnull,
+                                  doc ? doc->GetDocumentURI() : nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM Events", doc);
+                                  "DOM Events");
 }
 
 NS_IMETHODIMP
@@ -739,12 +738,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_FOCUS_EVENT:
     {
-      nsFocusEvent* newFocusEvent = new nsFocusEvent(PR_FALSE, msg);
-      NS_ENSURE_TRUE(newFocusEvent, NS_ERROR_OUT_OF_MEMORY);
-      nsFocusEvent* oldFocusEvent = static_cast<nsFocusEvent*>(mEvent);
-      newFocusEvent->fromRaise = oldFocusEvent->fromRaise;
-      newFocusEvent->isRefocus = oldFocusEvent->isRefocus;
-      newEvent = newFocusEvent;
+      newEvent = new nsFocusEvent(PR_FALSE, msg);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      static_cast<nsFocusEvent*>(newEvent)->fromRaise =
+        static_cast<nsFocusEvent*>(mEvent)->fromRaise;
       break;
     }
 
@@ -769,6 +766,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
                                static_cast<nsUIEvent*>(mEvent)->detail);
       break;
     }
+#ifdef MOZ_SVG
     case NS_SVG_EVENT:
     {
       newEvent = new nsEvent(PR_FALSE, msg);
@@ -783,6 +781,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent->eventStructType = NS_SVGZOOM_EVENT;
       break;
     }
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
     case NS_SMIL_TIME_EVENT:
     {
@@ -811,16 +810,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent = new nsTransitionEvent(PR_FALSE, msg,
                                        oldTransitionEvent->propertyName,
                                        oldTransitionEvent->elapsedTime);
-      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-    case NS_ANIMATION_EVENT:
-    {
-      nsAnimationEvent* oldAnimationEvent =
-        static_cast<nsAnimationEvent*>(mEvent);
-      newEvent = new nsAnimationEvent(PR_FALSE, msg,
-                                      oldAnimationEvent->animationName,
-                                      oldAnimationEvent->elapsedTime);
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
@@ -1079,7 +1068,8 @@ nsDOMEvent::PopupAllowedEventsChanged()
     nsMemory::Free(sPopupAllowedEvents);
   }
 
-  nsAdoptingCString str = Preferences::GetCString("dom.popup_allowed_events");
+  nsAdoptingCString str =
+    nsContentUtils::GetCharPref("dom.popup_allowed_events");
 
   // We'll want to do this even if str is empty to avoid looking up
   // this pref all the time if it's not set.
@@ -1137,10 +1127,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_load];
   case NS_POPSTATE:
     return sEventNames[eDOMEvents_popstate];
-  case NS_BEFORE_SCRIPT_EXECUTE:
-    return sEventNames[eDOMEvents_beforescriptexecute];
-  case NS_AFTER_SCRIPT_EXECUTE:
-    return sEventNames[eDOMEvents_afterscriptexecute];
   case NS_BEFORE_PAGE_UNLOAD:
     return sEventNames[eDOMEvents_beforeunload];
   case NS_PAGE_UNLOAD:
@@ -1251,10 +1237,7 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_cut];
   case NS_PASTE:
     return sEventNames[eDOMEvents_paste];
-  case NS_OPEN:
-    return sEventNames[eDOMEvents_open];
-  case NS_MESSAGE:
-    return sEventNames[eDOMEvents_message];
+#ifdef MOZ_SVG
   case NS_SVG_LOAD:
     return sEventNames[eDOMEvents_SVGLoad];
   case NS_SVG_UNLOAD:
@@ -1269,6 +1252,7 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_SVGScroll];
   case NS_SVG_ZOOM:
     return sEventNames[eDOMEvents_SVGZoom];
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
   case NS_SMIL_BEGIN:
     return sEventNames[eDOMEvents_beginEvent];
@@ -1325,8 +1309,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_afterpaint];
   case NS_BEFOREPAINT:
     return sEventNames[eDOMEvents_beforepaint];
-  case NS_BEFORERESIZE_EVENT:
-    return sEventNames[eDOMEvents_beforeresize];
   case NS_SIMPLE_GESTURE_SWIPE:
     return sEventNames[eDOMEvents_MozSwipeGesture];
   case NS_SIMPLE_GESTURE_MAGNIFY_START:
@@ -1355,12 +1337,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_MozScrolledAreaChanged];
   case NS_TRANSITION_END:
     return sEventNames[eDOMEvents_transitionend];
-  case NS_ANIMATION_START:
-    return sEventNames[eDOMEvents_animationstart];
-  case NS_ANIMATION_END:
-    return sEventNames[eDOMEvents_animationend];
-  case NS_ANIMATION_ITERATION:
-    return sEventNames[eDOMEvents_animationiteration];
   default:
     break;
   }
@@ -1372,6 +1348,25 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
   return nsnull;
 }
 
+nsresult
+nsDOMEvent::ReportWrongPropertyAccessWarning(const char* aPropertyName)
+{
+  nsCOMPtr<nsIDocument> doc(GetDocumentForReport(mEvent));
+
+  nsAutoString propertyName, type;
+  GetType(type);
+  propertyName.AssignASCII(aPropertyName);
+  const PRUnichar *strings[] = { propertyName.get(), type.get() };
+
+  return nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                         "WrongEventPropertyAccessWarning",
+                                         strings, NS_ARRAY_LENGTH(strings),
+                                         doc ? doc->GetDocumentURI() : nsnull,
+                                         EmptyString(), 0, 0,
+                                         nsIScriptError::warningFlag,
+                                         "DOM Events");
+}
+
 NS_IMETHODIMP
 nsDOMEvent::GetPreventDefault(PRBool* aReturn)
 {
@@ -1380,15 +1375,10 @@ nsDOMEvent::GetPreventDefault(PRBool* aReturn)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMEvent::GetDefaultPrevented(PRBool* aReturn)
-{
-  return GetPreventDefault(aReturn);
-}
-
 void
 nsDOMEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
 {
+#ifdef MOZ_IPC
   if (aSerializeInterfaceType) {
     IPC::WriteParam(aMsg, NS_LITERAL_STRING("event"));
   }
@@ -1410,11 +1400,13 @@ nsDOMEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
   IPC::WriteParam(aMsg, trusted);
 
   // No timestamp serialization for now!
+#endif
 }
 
 PRBool
 nsDOMEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 {
+#ifdef MOZ_IPC
   nsString type;
   NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &type), PR_FALSE);
 
@@ -1432,6 +1424,9 @@ nsDOMEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
   SetTrusted(trusted);
 
   return PR_TRUE;
+#else
+  return PR_FALSE;
+#endif
 }
 
 

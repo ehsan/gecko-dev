@@ -124,7 +124,7 @@ protected:
     nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                            nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                            nsIContent** aResult, PRBool* aAppendContent,
-                           mozilla::dom::FromParser aFromParser);
+                           PRUint32 aFromParser);
     
     nsresult AddAttributes(const PRUnichar** aAtts, 
                            nsIContent* aContent);
@@ -136,7 +136,7 @@ protected:
 #endif
 
     // Our own helpers for constructing XBL prototype objects.
-    nsresult ConstructBinding(PRUint32 aLineNumber);
+    nsresult ConstructBinding();
     void ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber);
     void ConstructResource(const PRUnichar **aAtts, nsIAtom* aResourceType);
     void ConstructImplementation(const PRUnichar **aAtts);

@@ -52,7 +52,7 @@
 #include "nsIPluginInstanceOwner.h"
 #include "nsIPluginWidget.h"
 #include "nsWeakPtr.h"
-#include "TextInputHandler.h"
+#include "nsCocoaTextInputHandler.h"
 #include "nsCocoaUtils.h"
 
 #include "nsIAppShell.h"
@@ -66,62 +66,10 @@
 #import <Cocoa/Cocoa.h>
 #import <AppKit/NSOpenGL.h>
 
-// The header files QuickdrawAPI.h and QDOffscreen.h are missing on OS X 10.7
-// and up (though the QuickDraw APIs defined in them are still present) -- so
-// we need to supply the relevant parts of their contents here.  It's likely
-// that Apple will eventually remove the APIs themselves (probably in OS X
-// 10.8), so we need to make them weak imports, and test for their presence
-// before using them.
-#ifdef __cplusplus
-extern "C" {
-#endif
-  #if !defined(__QUICKDRAWAPI__)
-
-  extern void SetPort(GrafPtr port)
-    __attribute__((weak_import));
-  extern void SetOrigin(short h, short v)
-    __attribute__((weak_import));
-  extern RgnHandle NewRgn(void)
-    __attribute__((weak_import));
-  extern void DisposeRgn(RgnHandle rgn)
-    __attribute__((weak_import));
-  extern void RectRgn(RgnHandle rgn, const Rect * r)
-    __attribute__((weak_import));
-  extern GDHandle GetMainDevice(void)
-    __attribute__((weak_import));
-  extern Boolean IsPortOffscreen(CGrafPtr port)
-    __attribute__((weak_import));
-  extern void SetPortVisibleRegion(CGrafPtr port, RgnHandle visRgn)
-    __attribute__((weak_import));
-  extern void SetPortClipRegion(CGrafPtr port, RgnHandle clipRgn)
-    __attribute__((weak_import));
-  extern CGrafPtr GetQDGlobalsThePort(void)
-    __attribute__((weak_import));
-
-  #endif /* __QUICKDRAWAPI__ */
-
-  #if !defined(__QDOFFSCREEN__)
-
-  extern void GetGWorld(CGrafPtr *  port, GDHandle *  gdh)
-    __attribute__((weak_import));
-  extern void SetGWorld(CGrafPtr port, GDHandle gdh)
-    __attribute__((weak_import));
-
-  #endif /* __QDOFFSCREEN__ */
-#ifdef __cplusplus
-}
-#endif
-
 class gfxASurface;
 class nsChildView;
 class nsCocoaWindow;
 union nsPluginPort;
-
-namespace mozilla {
-namespace gl {
-class TextureImage;
-}
-}
 
 #ifndef NP_NO_CARBON
 enum {
@@ -162,12 +110,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   - (CGFloat)deviceDeltaY;
 @end
 
-// Undocumented scrollPhase flag that lets us discern between real scrolls and
-// automatically firing momentum scroll events.
-@interface NSEvent (ScrollPhase)
-- (long long)_scrollPhase;
-@end
-
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
                               mozAccessible,
@@ -179,18 +121,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // the link back to it must be weak.
   nsChildView* mGeckoChild;
 
-  // Text input handler for mGeckoChild and us.  Note that this is a weak
-  // reference.  Ideally, this should be a strong reference but a ChildView
-  // object can live longer than the mGeckoChild that owns it.  And if
-  // mTextInputHandler were a strong reference, this would make it difficult
-  // for Gecko's leak detector to detect leaked TextInputHandler objects.
-  // This is initialized by [mozView installTextInputHandler:aHandler] and
-  // cleared by [mozView uninstallTextInputHandler].
-  mozilla::widget::TextInputHandler* mTextInputHandler;  // [WEAK]
-
   BOOL mIsPluginView;
   NPEventModel mPluginEventModel;
-  NPDrawingModel mPluginDrawingModel;
 
   // The following variables are only valid during key down event processing.
   // Their current usage needs to be fixed to avoid problems with nested event
@@ -206,6 +138,9 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // Valid when mKeyPressSent is true.
   PRBool mKeyPressHandled;
 
+  // needed for NSTextInput implementation
+  NSRange mMarkedRange;
+  
   // when mouseDown: is called, we store its event here (strong)
   NSEvent* mLastMouseDownEvent;
 
@@ -232,12 +167,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // Cocoa TSM documents (those created and managed by the NSTSMInputContext
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
-  BOOL mPluginTSMInComposition;
 #endif
   BOOL mPluginComplexTextInputRequested;
-
-  // When this is YES the next key up event (keyUp:) will be ignored.
-  BOOL mIgnoreNextKeyUpEvent;
 
   NSOpenGLContext *mGLContext;
 
@@ -263,8 +194,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   } mGestureState;
   float mCumulativeMagnification;
   float mCumulativeRotation;
-
-  BOOL mDidForceRefreshOpenGL;
 }
 
 // class initialization
@@ -281,7 +210,7 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 
 - (void)handleMouseMoved:(NSEvent*)aEvent;
 
-- (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
+- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext;
 
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
@@ -297,10 +226,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 - (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 - (BOOL)isPluginView;
-
-// Are we processing an NSLeftMouseDown event that will fail to click through?
-// If so, we shouldn't focus or unfocus a plugin.
-- (BOOL)isInFailingLeftClickThrough;
 
 // Simple gestures support
 //
@@ -360,7 +285,7 @@ public:
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
-                                 nsDeviceContext *aContext,
+                                 nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
                                  nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
@@ -373,6 +298,8 @@ public:
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
   virtual float           GetDPI();
+
+  LayerManager*           GetLayerManager();
 
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
@@ -397,7 +324,6 @@ public:
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
   NS_IMETHOD              Update();
-  virtual PRBool          GetShouldAccelerate();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
@@ -416,8 +342,8 @@ public:
   NS_IMETHOD        ResetInputState();
   NS_IMETHOD        SetIMEOpenState(PRBool aState);
   NS_IMETHOD        GetIMEOpenState(PRBool* aState);
-  NS_IMETHOD        SetInputMode(const IMEContext& aContext);
-  NS_IMETHOD        GetInputMode(IMEContext& aContext);
+  NS_IMETHOD        SetIMEEnabled(PRUint32 aState);
+  NS_IMETHOD        GetIMEEnabled(PRUint32* aState);
   NS_IMETHOD        CancelIMEComposition();
   NS_IMETHOD        GetToggledKeyState(PRUint32 aKeyCode,
                                        PRBool* aLEDState);
@@ -431,7 +357,6 @@ public:
 
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
-  NS_IMETHOD        SetPluginDrawingModel(int inDrawingModel);
 
   NS_IMETHOD        StartComplexTextInputForCurrentEvent();
 
@@ -457,9 +382,6 @@ public:
 #endif
 
   virtual gfxASurface* GetThebesSurface();
-  virtual void DrawOver(LayerManager* aManager, nsIntRect aRect);
-
-  virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
 
   NS_IMETHOD BeginSecureKeyboardInput();
   NS_IMETHOD EndSecureKeyboardInput();
@@ -473,15 +395,13 @@ public:
   static PRUint32 GetCurrentInputEventCount();
   static void UpdateCurrentInputEventCount();
 
+  static void ApplyConfiguration(nsIWidget* aExpectedParent,
+                                 const nsIWidget::Configuration& aConfiguration,
+                                 PRBool aRepaint);
+
+  nsCocoaTextInputHandler* TextInputHandler() { return &mTextInputHandler; }
   NSView<mozView>* GetEditorView();
 
-  PRBool IsPluginView() { return (mWindowType == eWindowType_plugin); }
-
-  void PaintQD();
-
-  nsCocoaWindow*    GetXULWindowWidget();
-
-  NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -492,6 +412,7 @@ protected:
   // caller must retain.
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
+  nsCocoaWindow*    GetXULWindowWidget();
 
   virtual already_AddRefed<nsIWidget>
   AllocateChildPopupWidget()
@@ -504,8 +425,7 @@ protected:
 protected:
 
   NSView<mozView>*      mView;      // my parallel cocoa view (ChildView or NativeScrollbarView), [STRONG]
-  nsRefPtr<mozilla::widget::TextInputHandler> mTextInputHandler;
-  IMEContext            mIMEContext;
+  nsCocoaTextInputHandler mTextInputHandler;
 
   NSView<mozView>*      mParentView;
   nsIWidget*            mParentWidget;
@@ -517,11 +437,11 @@ protected:
 #endif
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
-  nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
 
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
   PRPackedBool          mPluginDrawing;
+  PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
   PRPackedBool          mIsDispatchPaint; // Is a paint event being dispatched
 
   NP_CGContext          mPluginCGContext;

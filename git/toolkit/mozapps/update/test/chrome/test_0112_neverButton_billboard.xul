@@ -42,10 +42,11 @@ const TESTS = [ {
 } ];
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let url = URL_UPDATE + "?showBillboard=1&showNever=1" + getVersionParams();
   setUpdateURLOverride(url);
+  debugDump("Update URL: " + url);
 
   // add the never preference for this version to verify that checking for
   // updates clears the preference.

@@ -38,15 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-try {
-  // We might be running without privileges, in which case it's up to the
-  // harness to give us the 'ctypes' object.
-  Components.utils.import("resource://gre/modules/ctypes.jsm");
-} catch(e) {
-}
+Components.utils.import("resource://gre/modules/ctypes.jsm");
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 CTYPES_TEST_LIB = ctypes.libraryName("jsctypes-test");
-CTYPES_UNICODE_LIB = ctypes.libraryName("jsctyp\u00E8s-t\u00EB\u00DFt");
 
 function getParent(obj, fun)
 {
@@ -62,13 +59,8 @@ function checkParentIsCTypes(o)
 
 function do_check_throws(f, type, stack)
 {
-  if (!stack) {
-    try {
-      // We might not have a 'Components' object.
-      stack = Components.stack.caller;
-    } catch (e) {
-    }
-  }
+  if (!stack)
+    stack = Components.stack.caller;
 
   try {
     f();
@@ -82,12 +74,12 @@ function do_check_throws(f, type, stack)
   do_throw("expected " + type.name + " exception, none thrown", stack);
 }
 
-function do_check_class(obj, classname, stack)
+function do_check_class(obj, class, stack)
 {
   if (!stack)
     stack = Components.stack.caller;
 
-  do_check_eq(Object.prototype.toString.call(obj), "[object " + classname + "]", stack);
+  do_check_eq(Object.prototype.toString.call(obj), "[object " + class + "]", stack);
 }
 
 function run_test()
@@ -96,8 +88,8 @@ function run_test()
   run_abstract_class_tests();
 
   // open the library
-  let libfile = do_get_file(CTYPES_TEST_LIB);
-  let library = ctypes.open(libfile.path);
+  let libfile = do_get_file(CTYPES_TEST_LIB).path;
+  let library = ctypes.open(libfile);
 
   // Make sure we can call a function in the library.
   run_void_tests(library);
@@ -223,7 +215,7 @@ function run_test()
   }, Error);
 
   // test that library functions throw when bound to other objects
-  library = ctypes.open(libfile.path);
+  library = ctypes.open(libfile);
   let obj = {};
   obj.declare = library.declare;
   do_check_throws(function () { run_void_tests(obj); }, Error);
@@ -241,19 +233,6 @@ function run_test()
 
   // bug 522360
   do_check_eq(run_load_system_library(), true);
-
-  // Test loading a library with a unicode name (bug 589413). Note that nsIFile
-  // implementations are not available in some harnesses; if not, the harness
-  // should take care of the copy for us.
-  let unicodefile = do_get_file(CTYPES_UNICODE_LIB, true);
-  let copy = libfile.copyTo instanceof Function;
-  if (copy)
-    libfile.copyTo(null, unicodefile.leafName);
-  library = ctypes.open(unicodefile.path);
-  run_void_tests(library);
-  library.close();
-  if (copy)
-    unicodefile.remove(false);
 }
 
 function run_abstract_class_tests()
@@ -1478,10 +1457,6 @@ function run_StructType_tests() {
   do_check_throws(function() {
     opaque_t.define([{ a: ctypes.int32_t, b: ctypes.int64_t }]);
   }, Error);
-  do_check_throws(function() {
-    opaque_t.define([{ a: ctypes.int32_t }, { b: 0 }]);
-  }, Error);
-  do_check_false(opaque_t.hasOwnProperty("prototype"));
 
   // Check that circular references work with opaque structs...
   // but not crazy ones.
@@ -1494,14 +1469,9 @@ function run_StructType_tests() {
   do_check_eq(circular.a.toSource(), opaque.address().toSource());
   do_check_eq(opaque.b.toSource(), circular.toSource());
 
-  // Check that attempting to redefine a struct fails and if attempted, the
-  // original definition is preserved.
   do_check_throws(function() {
-    opaque_t.define([{ c: ctypes.int32_t.array(8) }]);
+    opaque_t.define([{ c: ctypes.int32_t }]);
   }, Error);
-  do_check_eq(opaque_t.size, circular_t.size);
-  do_check_true(opaque_t.prototype.hasOwnProperty("b"));
-  do_check_false(opaque_t.prototype.hasOwnProperty("c"));
 
   // StructType size, alignment, and offset calculations have already been
   // checked for each basic type. We do not need to check them again.
@@ -1526,12 +1496,10 @@ function run_StructType_tests() {
   do_check_true(t_t.fields[1].b === ctypes.int8_t);
   do_check_true(t_t.fields[2].c === g_t);
   do_check_true(t_t.fields[3].d === ctypes.int8_t);
-/* disabled temporarily per bug 598225.
   do_check_throws(function() { t_t.fields.z = 0; }, Error);
   do_check_throws(function() { t_t.fields[4] = 0; }, Error);
   do_check_throws(function() { t_t.fields[4].a = 0; }, Error);
   do_check_throws(function() { t_t.fields[4].e = 0; }, Error);
-*/
 
   // Check that struct size bounds work, and that large, but not illegal, sizes
   // are OK.
@@ -1858,15 +1826,17 @@ function run_FunctionType_tests() {
   do_check_eq(f.toSource(),
     'ctypes.FunctionType(ctypes.default_abi, g_t).ptr(ctypes.UInt64("0x0"))');
 
-  // Test ImplicitConvert from a function pointer of different type.
+  // Test ExplicitConvert from a function pointer of different type.
   let f2_t = ctypes.FunctionType(ctypes.default_abi, g_t, [ ctypes.int32_t ]);
   let f2 = f2_t.ptr();
+  do_check_throws(function() { fp_t(f2); }, Error);
   do_check_throws(function() { f.value = f2; }, Error);
   do_check_throws(function() { f2.value = f; }, Error);
 
-  // Test that converting to a voidptr_t works.
+  // Test that converting to a voidptr_t works, but not the other way.
   let v = ctypes.voidptr_t(f2);
   do_check_eq(v.toSource(), 'ctypes.voidptr_t(ctypes.UInt64("0x0"))');
+  do_check_throws(function() { f2_t.ptr(v); }, TypeError);
 
   // Test some more complex names.
   do_check_eq(fp_t.array().name, "g_t(*[])()");
@@ -1892,29 +1862,11 @@ function run_FunctionType_tests() {
   do_check_true(f4_t.argTypes.length == 2);
   do_check_true(f4_t.argTypes[0] === ctypes.int32_t);
   do_check_true(f4_t.argTypes[1] === fp_t);
-/* disabled temporarily per bug 598225.
   do_check_throws(function() { f4_t.argTypes.z = 0; }, Error);
   do_check_throws(function() { f4_t.argTypes[0] = 0; }, Error);
-*/
 
   let t4_t = f4_t.ptr.ptr.array(8).array();
   do_check_eq(t4_t.name, "char*(*(**[][8])(int32_t, g_t(*)()))[]");
-
-  // Not available in a Worker
-  if ("@mozilla.org/systemprincipal;1" in Components.classes) {
-    var sp = Components.classes["@mozilla.org/systemprincipal;1"].
-               createInstance(Components.interfaces.nsIPrincipal);
-    var s = new Components.utils.Sandbox(sp);
-    s.ctypes = ctypes;
-    s.do_check_eq = do_check_eq;
-    s.do_check_true = do_check_true;
-    Components.utils.evalInSandbox("var f5_t = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.int]);", s);
-    Components.utils.evalInSandbox("do_check_eq(f5_t.toSource(), 'ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.int])');", s);
-    Components.utils.evalInSandbox("do_check_eq(f5_t.name, 'int()(int)');", s);
-    Components.utils.evalInSandbox("function f5(aArg) { return 5; };", s);
-    Components.utils.evalInSandbox("var f = f5_t.ptr(f5);", s);
-    Components.utils.evalInSandbox("do_check_true(f(6) == 5);", s);
-  }
 }
 
 function run_ArrayType_tests() {
@@ -2234,19 +2186,15 @@ function run_function_tests(library)
     ctypes.FunctionType.prototype);
   do_check_eq(test_ansi_len.constructor.toSource(),
     "ctypes.FunctionType(ctypes.default_abi, ctypes.int32_t, [ctypes.char.ptr]).ptr");
-/* disabled temporarily per bug 598225.
   do_check_throws(function() { test_ansi_len.value = null; }, Error);
   do_check_eq(ptrValue(test_ansi_len), ptrValue(ptr));
-*/
 
   // Test that the library.declare(name, functionType) form works.
   let test_ansi_len_2 = library.declare("test_ansi_len", fn_t);
   do_check_true(test_ansi_len_2.constructor === fn_t);
   do_check_eq(ptrValue(test_ansi_len), ptrValue(test_ansi_len_2));
-/* disabled temporarily per bug 598225.
   do_check_throws(function() { test_ansi_len_2.value = null; }, Error);
   do_check_eq(ptrValue(test_ansi_len_2), ptrValue(ptr));
-*/
 }
 
 function run_closure_tests(library)

@@ -86,8 +86,8 @@
 #include "nsIContentSink.h"
 #include "nsIParserFilter.h"
 #include "nsCOMArray.h"
+#include "nsIUnicharStreamListener.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWeakReference.h"
 
 class nsICharsetConverterManager;
 class nsICharsetAlias;
@@ -102,8 +102,7 @@ class nsIThreadPool;
 
 
 class nsParser : public nsIParser,
-                 public nsIStreamListener,
-                 public nsSupportsWeakReference
+                 public nsIStreamListener
 {
   public:
     /**
@@ -382,6 +381,14 @@ class nsParser : public nsIParser,
      *  @update  kmcclusk 5/18/98
      */
     void HandleParserContinueEvent(class nsParserContinueEvent *);
+
+    /**
+     * Called by top-level scanners when data from necko is added to
+     * the scanner.
+     */
+    nsresult DataAdded(const nsSubstring& aData, nsIRequest *aRequest);
+
+    static nsCOMArray<nsIUnicharStreamListener> *sParserDataListeners;
 
     static nsICharsetAlias* GetCharsetAliasService() {
       return sCharsetAliasService;

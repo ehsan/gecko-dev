@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Roger B. Sidje <rbs@maths.uq.edu.au>
- *   Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -40,12 +39,12 @@
 #ifndef nsIMathMLFrame_h___
 #define nsIMathMLFrame_h___
 
+#include "nsIRenderingContext.h"
 #include "nsIFrame.h"
 
 struct nsPresentationData;
 struct nsEmbellishData;
 struct nsHTMLReflowMetrics;
-class nsRenderingContext;
 
 // For MathML, this 'type' will be used to determine the spacing between frames
 // Subclasses can return a 'type' that will give them a particular spacing
@@ -66,9 +65,6 @@ class nsIMathMLFrame
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsIMathMLFrame)
-
-  // helper to check whether the frame is "space-like", as defined by the spec.
-  virtual PRBool IsSpaceLike() = 0;
 
  /* SUPPORT FOR PRECISE POSITIONING */
  /*====================================================================*/
@@ -113,7 +109,7 @@ public:
   *        of the frame, on output the size after stretching.
   */
   NS_IMETHOD 
-  Stretch(nsRenderingContext& aRenderingContext,
+  Stretch(nsIRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
           nsHTMLReflowMetrics& aDesiredStretchSize) = 0;
@@ -327,9 +323,6 @@ struct nsPresentationData {
 // because they are the only tags where the attribute is allowed by the spec.
 #define NS_MATHML_EXPLICIT_DISPLAYSTYLE               0x00000020U
 
-// This bit is set if the frame is "space-like", as defined by the spec.
-#define NS_MATHML_SPACE_LIKE                          0x00000040U
-
 // This bit is set when the frame cannot be formatted due to an
 // error (e.g., invalid markup such as a <msup> without an overscript).
 // When set, a visual feedback will be provided to the user.
@@ -360,9 +353,6 @@ struct nsPresentationData {
 
 #define NS_MATHML_HAS_EXPLICIT_DISPLAYSTYLE(_flags) \
   (NS_MATHML_EXPLICIT_DISPLAYSTYLE == ((_flags) & NS_MATHML_EXPLICIT_DISPLAYSTYLE))
-
-#define NS_MATHML_IS_SPACE_LIKE(_flags) \
-  (NS_MATHML_SPACE_LIKE == ((_flags) & NS_MATHML_SPACE_LIKE))
 
 #define NS_MATHML_HAS_ERROR(_flags) \
   (NS_MATHML_ERROR == ((_flags) & NS_MATHML_ERROR))

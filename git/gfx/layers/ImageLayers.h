@@ -42,20 +42,9 @@
 
 #include "gfxPattern.h"
 #include "nsThreadUtils.h"
-#include "nsCoreAnimationSupport.h"
-#include "mozilla/ReentrantMonitor.h"
-#include "mozilla/TimeStamp.h"
 
 namespace mozilla {
 namespace layers {
-
-enum StereoMode {
-  STEREO_MODE_MONO,
-  STEREO_MODE_LEFT_RIGHT,
-  STEREO_MODE_RIGHT_LEFT,
-  STEREO_MODE_BOTTOM_TOP,
-  STEREO_MODE_TOP_BOTTOM
-};
 
 /**
  * A class representing a buffer of pixel data. The data can be in one
@@ -98,15 +87,7 @@ public:
      * manipulated on the main thread, since the underlying cairo surface
      * is main-thread-only.
      */
-    CAIRO_SURFACE,
-
-    /**
-     * The MAC_IO_SURFACE format creates a MacIOSurfaceImage. This
-     * is only supported on Mac with OpenGL layers.
-     *
-     * It wraps an IOSurface object and binds it directly to a GL texture.
-     */
-    MAC_IO_SURFACE
+    CAIRO_SURFACE
   };
 
   Format GetFormat() { return mFormat; }
@@ -133,12 +114,6 @@ class THEBES_API ImageContainer {
   THEBES_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageContainer)
 
 public:
-  ImageContainer() :
-    mReentrantMonitor("ImageContainer.mReentrantMonitor"),
-    mPaintCount(0),
-    mPreviousImagePainted(PR_FALSE)
-  {}
-
   virtual ~ImageContainer() {}
 
   /**
@@ -146,8 +121,6 @@ public:
    * Picks the "best" format from the list and creates an Image of that
    * format.
    * Returns null if this backend does not support any of the formats.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
    */
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
                                               PRUint32 aNumFormats) = 0;
@@ -155,28 +128,16 @@ public:
   /**
    * Set an Image as the current image to display. The Image must have
    * been created by this ImageContainer.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
    * 
    * The Image data must not be modified after this method is called!
    */
   virtual void SetCurrentImage(Image* aImage) = 0;
 
   /**
-   * Ask any PlanarYCbCr images created by this container to delay
-   * YUV -> RGB conversion until draw time. See PlanarYCbCrImage::SetDelayedConversion.
-   */
-  virtual void SetDelayedConversion(PRBool aDelayed) {}
-
-  /**
    * Get the current Image.
    * This has to add a reference since otherwise there are race conditions
    * where the current image is destroyed before the caller can add
    * a reference.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
-   * Implementations must call CurrentImageChanged() while holding
-   * mReentrantMonitor.
    */
   virtual already_AddRefed<Image> GetCurrentImage() = 0;
 
@@ -192,8 +153,6 @@ public:
    * Returns the size in aSize.
    * The returned surface will never be modified. The caller must not
    * modify it.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
    */
   virtual already_AddRefed<gfxASurface> GetCurrentAsSurface(gfxIntSize* aSizeResult) = 0;
 
@@ -210,111 +169,20 @@ public:
 
   /**
    * Returns the size of the image in pixels.
-   * Can be called on any thread. This method takes mReentrantMonitor when accessing
-   * thread-shared state.
    */
   virtual gfxIntSize GetCurrentSize() = 0;
 
   /**
    * Set a new layer manager for this image container.  It must be
    * either of the same type as the container's current layer manager,
-   * or null.  TRUE is returned on success. Main thread only.
+   * or null.  TRUE is returned on success.
    */
   virtual PRBool SetLayerManager(LayerManager *aManager) = 0;
 
-  /**
-   * Sets a size that the image is expected to be rendered at.
-   * This is a hint for image backends to optimize scaling.
-   * Default implementation in this class is to ignore the hint.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
-   */
-  virtual void SetScaleHint(const gfxIntSize& /* aScaleHint */) { }
-
-  /**
-   * Get the layer manager type this image container was created with,
-   * presumably its users might want to do something special if types do not
-   * match. Can be called on any thread.
-   */
-  virtual LayerManager::LayersBackend GetBackendType() = 0;
-
-  /**
-   * Returns the time at which the currently contained image was first
-   * painted.  This is reset every time a new image is set as the current
-   * image.  Note this may return a null timestamp if the current image
-   * has not yet been painted.  Can be called from any thread.
-   */
-  TimeStamp GetPaintTime() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    return mPaintTime;
-  }
-
-  /**
-   * Returns the number of images which have been contained in this container
-   * and painted at least once.  Can be called from any thread.
-   */
-  PRUint32 GetPaintCount() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    return mPaintCount;
-  }
-
-  /**
-   * Increments mPaintCount if this is the first time aPainted has been
-   * painted, and sets mPaintTime if the painted image is the current image.
-   * current image.  Can be called from any thread.
-   */
-  void NotifyPaintedImage(Image* aPainted) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    nsRefPtr<Image> current = GetCurrentImage();
-    if (aPainted == current) {
-      if (mPaintTime.IsNull()) {
-        mPaintTime = TimeStamp::Now();
-        mPaintCount++;
-      }
-    } else if (!mPreviousImagePainted) {
-      // While we were painting this image, the current image changed. We
-      // still must count it as painted, but can't set mPaintTime, since we're
-      // no longer the current image.
-      mPaintCount++;
-      mPreviousImagePainted = PR_TRUE;
-    }
-  }
-
 protected:
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
   LayerManager* mManager;
 
-  // ReentrantMonitor to protect thread safe access to the "current
-  // image", and any other state which is shared between threads.
-  ReentrantMonitor mReentrantMonitor;
-
-  ImageContainer(LayerManager* aManager) :
-    mManager(aManager),
-    mReentrantMonitor("ImageContainer.mReentrantMonitor"),
-    mPaintCount(0),
-    mPreviousImagePainted(PR_FALSE)
-  {}
-
-  // Performs necessary housekeeping to ensure the painted frame statistics
-  // are accurate. Must be called by SetCurrentImage() implementations with
-  // mReentrantMonitor held.
-  void CurrentImageChanged() {
-    mReentrantMonitor.AssertCurrentThreadIn();
-    mPreviousImagePainted = !mPaintTime.IsNull();
-    mPaintTime = TimeStamp();
-  }
-
-  // Number of contained images that have been painted at least once.  It's up
-  // to the ImageContainer implementation to ensure accesses to this are
-  // threadsafe.
-  PRUint32 mPaintCount;
-
-  // Time stamp at which the current image was first painted.  It's up to the
-  // ImageContainer implementation to ensure accesses to this are threadsafe.
-  TimeStamp mPaintTime;
-
-  // Denotes whether the previous image was painted.
-  PRPackedBool mPreviousImagePainted;
+  ImageContainer(LayerManager* aManager) : mManager(aManager) {}
 };
 
 /**
@@ -327,12 +195,7 @@ public:
    * Set the ImageContainer. aContainer must have the same layer manager
    * as this layer.
    */
-  void SetContainer(ImageContainer* aContainer) 
-  {
-    NS_ASSERTION(!aContainer->Manager() || aContainer->Manager() == Manager(), 
-                 "ImageContainer must have the same manager as the ImageLayer");
-    mContainer = aContainer;  
-  }
+  void SetContainer(ImageContainer* aContainer) { mContainer = aContainer; }
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the filter used to resample this image if necessary.
@@ -343,23 +206,6 @@ public:
   gfxPattern::GraphicsFilter GetFilter() { return mFilter; }
 
   MOZ_LAYER_DECL_NAME("ImageLayer", TYPE_IMAGE)
-
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // Snap image edges to pixel boundaries
-    gfxRect snap(0, 0, 0, 0);
-    if (mContainer) {
-      gfxIntSize size = mContainer->GetCurrentSize();
-      snap.SizeTo(gfxSize(size.width, size.height));
-    }
-    // Snap our local transform first, and snap the inherited transform as well.
-    // This makes our snapping equivalent to what would happen if our content
-    // was drawn into a ThebesLayer (gfxContext would snap using the local
-    // transform, then we'd snap again when compositing the ThebesLayer).
-    mEffectiveTransform =
-        SnapTransform(GetLocalTransform(), snap, nsnull)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
-  }
 
 protected:
   ImageLayer(LayerManager* aManager, void* aImplData)
@@ -406,7 +252,6 @@ public:
     PRUint32 mPicX;
     PRUint32 mPicY;
     gfxIntSize mPicSize;
-    StereoMode mStereoMode;
   };
 
   enum {
@@ -420,18 +265,6 @@ public:
    * does YCbCr conversion here anyway.
    */
   virtual void SetData(const Data& aData) = 0;
-
-  /**
-   * Ask this Image to not convert YUV to RGB during SetData, and make
-   * the original data available through GetData. This is optional,
-   * and not all PlanarYCbCrImages will support it.
-   */
-  virtual void SetDelayedConversion(PRBool aDelayed) { }
-
-  /**
-   * Grab the original YUV data. This is optional.
-   */
-  virtual const Data* GetData() { return nsnull; }
 
 protected:
   PlanarYCbCrImage(void* aImplData) : Image(aImplData, PLANAR_YCBCR) {}
@@ -458,35 +291,6 @@ public:
 protected:
   CairoImage(void* aImplData) : Image(aImplData, CAIRO_SURFACE) {}
 };
-
-#ifdef XP_MACOSX
-class THEBES_API MacIOSurfaceImage : public Image {
-public:
-  struct Data {
-    nsIOSurface* mIOSurface;
-  };
-
- /**
-  * This can only be called on the main thread. It may add a reference
-  * to the surface (which will eventually be released on the main thread).
-  * The surface must not be modified after this call!!!
-  */
-  virtual void SetData(const Data& aData) = 0;
-
-  /**
-   * Temporary hacks to force plugin drawing during an empty transaction.
-   * This should not be used for anything else, and will be removed
-   * when async plugin rendering is complete.
-   */
-  typedef void (*UpdateSurfaceCallback)(ImageContainer* aContainer, void* aInstanceOwner);
-  virtual void SetUpdateCallback(UpdateSurfaceCallback aCallback, void* aInstanceOwner) = 0;
-  typedef void (*DestroyCallback)(void* aInstanceOwner);
-  virtual void SetDestroyCallback(DestroyCallback aCallback) = 0;
-
-protected:
-  MacIOSurfaceImage(void* aImplData) : Image(aImplData, MAC_IO_SURFACE) {}
-};
-#endif
 
 }
 }

@@ -20,7 +20,6 @@ var gServer;
 var gAddonInstalled = false;
 
 function test() {
-  requestLongerTimeout(2);
   // Turn on searching for this test
   Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 15);
 
@@ -62,7 +61,7 @@ function test() {
 
   installs.forEach(function(aInstall) { aInstall.install(); });
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     gCategoryUtilities = new CategoryUtilities(gManagerWindow);
     run_next_test();
@@ -101,8 +100,12 @@ function getAnonymousElementByAttribute(aElement, aName, aValue) {
  *         The expected isSearching state
  */
 function check_is_searching(aExpectedSearching) {
-  var loading = gManagerWindow.document.getElementById("search-loading");
-  is(!is_hidden(loading), aExpectedSearching,
+  is(gManagerWindow.gHeader.isSearching, aExpectedSearching,
+     "Should get expected isSearching state");
+
+  var throbber = gManagerWindow.document.getElementById("header-searching");
+  var style = gManagerWindow.document.defaultView.getComputedStyle(throbber, "");
+  is(style.visibility, aExpectedSearching ? "visible" : "hidden",
      "Search throbber should be showing iff currently searching");
 }
 
@@ -130,7 +133,7 @@ function search(aQuery, aFinishImmediately, aCallback, aCategoryType) {
   var searchBox = gManagerWindow.document.getElementById("header-search");
   searchBox.value = aQuery;
 
-  EventUtils.synthesizeMouseAtCenter(searchBox, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(searchBox, 2, 2, { }, gManagerWindow);
   EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
 
   var finishImmediately = true;
@@ -212,8 +215,8 @@ function get_expected_results(aSortBy, aLocalExpected) {
   var expectedOrder = null, unknownOrder = null;
   switch (aSortBy) {
     case "relevancescore":
-      expectedOrder = [ "addon2"  , "remote1", "install2", "addon1",
-                        "install1", "remote2", "remote3" , "remote4" ];
+      expectedOrder = [ "remote4" , "addon2", "remote1" , "remote2",
+                        "install2", "addon1", "install1", "remote3" ];
       unknownOrder = [];
       break;
     case "name":
@@ -288,26 +291,6 @@ function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
   var totalExpectedResults = expectedOrder.length + unknownOrder.length;
   is(actualOrder.length, totalExpectedResults, "Should get correct number of results");
 
-  // Check the "first" and "last" attributes are set correctly
-  for (let i = 0; i < actualResults.length; i++) {
-    if (i == 0) {
-      is(actualResults[0].item.hasAttribute("first"), true,
-         "First item should have 'first' attribute set");
-      is(actualResults[0].item.hasAttribute("last"), false,
-         "First item should not have 'last' attribute set");
-    } else if (i == (actualResults.length - 1)) {
-      is(actualResults[actualResults.length - 1].item.hasAttribute("first"), false,
-         "Last item should not have 'first' attribute set");
-      is(actualResults[actualResults.length - 1].item.hasAttribute("last"), true,
-         "Last item should have 'last' attribute set");
-    } else {
-      is(actualResults[i].item.hasAttribute("first"), false,
-         "Item " + i + " should not have 'first' attribute set");
-      is(actualResults[i].item.hasAttribute("last"), false,
-         "Item " + i + " should not have 'last' attribute set");
-    }
-  }
-
   var i = 0;
   for (; i < expectedOrder.length; i++)
     is(actualOrder[i], expectedOrder[i], "Should have seen expected item");
@@ -344,11 +327,11 @@ function check_filtered_results(aQuery, aSortBy, aReverseOrder) {
   list.ensureElementIsVisible(localFilter);
 
   // Check with showing local add-ons
-  EventUtils.synthesizeMouseAtCenter(localFilter, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(localFilter, 2, 2, { }, gManagerWindow);
   check_results(aQuery, aSortBy, aReverseOrder, true);
 
   // Check with showing remote add-ons
-  EventUtils.synthesizeMouseAtCenter(remoteFilter, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(remoteFilter, 2, 2, { }, gManagerWindow);
   check_results(aQuery, aSortBy, aReverseOrder, false);
 }
 
@@ -402,7 +385,7 @@ function get_install_item(aName) {
 function get_install_button(aItem) {
   isnot(aItem, null, "Item should not be null when checking state of install button");
   var installStatus = getAnonymousElementByAttribute(aItem, "anonid", "install-status");
-  return getAnonymousElementByAttribute(installStatus, "anonid", "install-remote-btn");
+  return getAnonymousElementByAttribute(installStatus, "anonid", "install-remote");
 }
 
 
@@ -447,16 +430,15 @@ add_test(function() {
 
       var item = result.item;
       list.ensureElementIsVisible(item);
-      EventUtils.synthesizeMouseAtCenter(item, { clickCount: 1 }, gManagerWindow);
-      EventUtils.synthesizeMouseAtCenter(item, { clickCount: 2 }, gManagerWindow);
+      EventUtils.synthesizeMouse(item, 2, 2, { clickCount: 2 }, gManagerWindow);
       wait_for_view_load(gManagerWindow, function() {
-        var name = gManagerWindow.document.getElementById("detail-name").textContent;
+        var name = gManagerWindow.document.getElementById("detail-name").value;
         is(name, item.mAddon.name, "Name in detail view should be correct");
         var version = gManagerWindow.document.getElementById("detail-version").value;
         is(version, item.mAddon.version, "Version in detail view should be correct");
 
-        EventUtils.synthesizeMouseAtCenter(gManagerWindow.document.getElementById("category-search"),
-                                           { }, gManagerWindow);
+        EventUtils.synthesizeMouse(gManagerWindow.document.getElementById("back-btn"),
+                                   2, 2, { }, gManagerWindow);
         wait_for_view_load(gManagerWindow, run_next_double_click_test);
       });
     }
@@ -471,7 +453,7 @@ add_test(function() {
   var originalHandler = sorters.handler;
 
   var sorterNames = ["name", "dateUpdated"];
-  var buttonIds = ["name-btn", "date-btn"];
+  var buttonIds = ["btn-name", "btn-date"];
   var currentIndex = 0;
   var currentReversed = false;
 
@@ -479,14 +461,12 @@ add_test(function() {
     if (currentIndex >= sorterNames.length) {
       sorters.handler = originalHandler;
       run_next_test();
-      return;
     }
 
     // Simulate clicking on a specific sorter
     var buttonId = buttonIds[currentIndex];
     var sorter = getAnonymousElementByAttribute(sorters, "anonid", buttonId);
-    is_element_visible(sorter);
-    EventUtils.synthesizeMouseAtCenter(sorter, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(sorter, 2, 2, { }, gManagerWindow);
   }
 
   sorters.handler = {
@@ -568,7 +548,7 @@ add_test(function() {
     installBtn = get_install_button(remoteItem);
     is(installBtn.hidden, false, "Install button should be showing before install");
     remoteItem.mAddon.install.addListener(listener);
-    EventUtils.synthesizeMouseAtCenter(installBtn, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(installBtn, 2, 2, { }, gManagerWindow);
   });
 });
 
@@ -594,9 +574,6 @@ add_test(function() {
   restart_manager(gManagerWindow, null, function(aWindow) {
     gManagerWindow = aWindow;
     gCategoryUtilities = new CategoryUtilities(gManagerWindow);
-
-    // We never restore to the search pane
-    is(gCategoryUtilities.selectedCategory, "discover", "View should have changed to discover");
 
     // Installed add-on is considered local on new search
     gAddonInstalled = true;

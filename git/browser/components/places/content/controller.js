@@ -203,6 +203,10 @@ PlacesController.prototype = {
           !PlacesUtils.nodeIsLivemarkItem(selectedNode))
         return true;
       return false;
+    case "placesCmd_reloadMicrosummary":
+      var selectedNode = this._view.selectedNode;
+      return selectedNode && PlacesUtils.nodeIsBookmark(selectedNode) &&
+             PlacesUtils.microsummaries.hasMicrosummary(selectedNode.itemId);
     case "placesCmd_reload":
       // Livemark containers
       var selectedNode = this._view.selectedNode;
@@ -260,13 +264,13 @@ PlacesController.prototype = {
       this.selectAll();
       break;
     case "placesCmd_open":
-      PlacesUIUtils.openNodeIn(this._view.selectedNode, "current", this._view);
+      PlacesUIUtils.openNodeIn(this._view.selectedNode, "current");
       break;
     case "placesCmd_open:window":
-      PlacesUIUtils.openNodeIn(this._view.selectedNode, "window", this._view);
+      PlacesUIUtils.openNodeIn(this._view.selectedNode, "window");
       break;
     case "placesCmd_open:tab":
-      PlacesUIUtils.openNodeIn(this._view.selectedNode, "tab", this._view);
+      PlacesUIUtils.openNodeIn(this._view.selectedNode, "tab");
       break;
     case "placesCmd_new:folder":
       this.newItem("folder");
@@ -289,20 +293,15 @@ PlacesController.prototype = {
     case "placesCmd_reload":
       this.reloadSelectedLivemark();
       break;
+    case "placesCmd_reloadMicrosummary":
+      this.reloadSelectedMicrosummary();
+      break;
     case "placesCmd_sortBy:name":
       this.sortFolderByName();
       break;
     case "placesCmd_createBookmark":
-      let node = this._view.selectedNode;
-      PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                       , type: "bookmark"
-                                       , hiddenRows: [ "description"
-                                                     , "keyword"
-                                                     , "location"
-                                                     , "loadInSidebar" ]
-                                       , uri: PlacesUtils._uri(node.uri)
-                                       , title: node.title
-                                       }, window.top, true);
+      var node = this._view.selectedNode;
+      PlacesUIUtils.showMinimalAddBookmarkUI(PlacesUtils._uri(node.uri), node.title);
       break;
     }
   },
@@ -498,6 +497,9 @@ PlacesController.prototype = {
           if (PlacesUtils.nodeIsBookmark(node)) {
             nodeData["bookmark"] = true;
             PlacesUtils.nodeIsTagQuery(node.parent)
+            var mss = PlacesUtils.microsummaries;
+            if (mss.hasMicrosummary(node.itemId))
+              nodeData["microsummary"] = true;
 
             var parentNode = node.parent;
             if (parentNode) {
@@ -706,11 +708,8 @@ PlacesController.prototype = {
       itemId = concreteId;
     }
 
-    PlacesUIUtils.showBookmarkDialog({ action: "edit"
-                                     , type: itemType
-                                     , itemId: itemId
-                                     , readOnly: isRootItem
-                                     }, window.top);
+    PlacesUIUtils.showItemProperties(itemId, itemType,
+                                     isRootItem /* read only */);
   },
 
   /**
@@ -732,14 +731,70 @@ PlacesController.prototype = {
   },
 
   /**
+   * Reload the microsummary associated with the selection
+   */
+  reloadSelectedMicrosummary: function PC_reloadSelectedMicrosummary() {
+    var selectedNode = this._view.selectedNode;
+    var mss = PlacesUtils.microsummaries;
+    if (mss.hasMicrosummary(selectedNode.itemId))
+      mss.refreshMicrosummary(selectedNode.itemId);
+  },
+
+  /**
+   * Gives the user a chance to cancel loading lots of tabs at once
+   */
+  _confirmOpenTabs: function(numTabsToOpen) {
+    var pref = Cc["@mozilla.org/preferences-service;1"].
+               getService(Ci.nsIPrefBranch);
+
+    const kWarnOnOpenPref = "browser.tabs.warnOnOpen";
+    var reallyOpen = true;
+    if (pref.getBoolPref(kWarnOnOpenPref)) {
+      if (numTabsToOpen >= pref.getIntPref("browser.tabs.maxOpenBeforeWarn")) {
+        var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
+                            getService(Ci.nsIPromptService);
+
+        // default to true: if it were false, we wouldn't get this far
+        var warnOnOpen = { value: true };
+
+        var messageKey = "tabs.openWarningMultipleBranded";
+        var openKey = "tabs.openButtonMultiple";
+        const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
+        var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
+                             getService(Ci.nsIStringBundleService).
+                             createBundle(BRANDING_BUNDLE_URI).
+                             GetStringFromName("brandShortName");
+
+        var buttonPressed = promptService.confirmEx(window,
+          PlacesUIUtils.getString("tabs.openWarningTitle"),
+          PlacesUIUtils.getFormattedString(messageKey,
+            [numTabsToOpen, brandShortName]),
+          (promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0)
+          + (promptService.BUTTON_TITLE_CANCEL * promptService.BUTTON_POS_1),
+          PlacesUIUtils.getString(openKey),
+          null, null,
+          PlacesUIUtils.getFormattedString("tabs.openWarningPromptMeBranded",
+            [brandShortName]),
+          warnOnOpen);
+
+         reallyOpen = (buttonPressed == 0);
+         // don't set the pref unless they press OK and it's false
+         if (reallyOpen && !warnOnOpen.value)
+           pref.setBoolPref(kWarnOnOpenPref, false);
+      }
+    }
+    return reallyOpen;
+  },
+
+  /**
    * Opens the links in the selected folder, or the selected links in new tabs.
    */
   openSelectionInTabs: function PC_openLinksInTabs(aEvent) {
     var node = this._view.selectedNode;
     if (node && PlacesUtils.nodeIsContainer(node))
-      PlacesUIUtils.openContainerNodeInTabs(this._view.selectedNode, aEvent, this._view);
+      PlacesUIUtils.openContainerNodeInTabs(this._view.selectedNode, aEvent);
     else
-      PlacesUIUtils.openURINodesInTabs(this._view.selectedNodes, aEvent, this._view);
+      PlacesUIUtils.openURINodesInTabs(this._view.selectedNodes, aEvent);
   },
 
   /**
@@ -749,19 +804,21 @@ PlacesController.prototype = {
    *        the type of the new item (bookmark/livemark/folder)
    */
   newItem: function PC_newItem(aType) {
-    let ip = this._view.insertionPoint;
+    var ip = this._view.insertionPoint;
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
 
-    let performed =
-      PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                       , type: aType
-                                       , defaultInsertionPoint: ip
-                                       , hiddenRows: [ "folderPicker" ]
-                                       }, window);
+    var performed = false;
+    if (aType == "bookmark")
+      performed = PlacesUIUtils.showAddBookmarkUI(null, null, null, ip);
+    else if (aType == "livemark")
+      performed = PlacesUIUtils.showAddLivemarkUI(null, null, null, null, ip);
+    else // folder
+      performed = PlacesUIUtils.showAddFolderUI(null, ip);
+
     if (performed) {
-      // Select the new item.
-      let insertedNodeId = PlacesUtils.bookmarks
+      // select the new item
+      var insertedNodeId = PlacesUtils.bookmarks
                                       .getIdForItemAt(ip.itemId, ip.index);
       this._view.selectItems([insertedNodeId], false);
     }
@@ -773,9 +830,18 @@ PlacesController.prototype = {
    * of the folder.
    */
   newFolder: function PC_newFolder() {
-    Cu.reportError("PlacesController.newFolder is deprecated and will be \
-                   removed in a future release.  Use newItem instead.");
-    this.newItem("folder");
+    var ip = this._view.insertionPoint;
+    if (!ip)
+      throw Cr.NS_ERROR_NOT_AVAILABLE;
+
+    var performed = false;
+    performed = PlacesUIUtils.showAddFolderUI(null, ip);
+    if (performed) {
+      // select the new item
+      var insertedNodeId = PlacesUtils.bookmarks
+                                      .getIdForItemAt(ip.itemId, ip.index);
+      this._view.selectItems([insertedNodeId], false);
+    }
   },
 
   /**
@@ -1554,6 +1620,7 @@ function goUpdatePlacesCommands() {
   updatePlacesCommand("placesCmd_show:info");
   updatePlacesCommand("placesCmd_moveBookmarks");
   updatePlacesCommand("placesCmd_reload");
+  updatePlacesCommand("placesCmd_reloadMicrosummary");
   updatePlacesCommand("placesCmd_sortBy:name");
   updatePlacesCommand("placesCmd_cut");
   updatePlacesCommand("placesCmd_copy");
@@ -1563,21 +1630,19 @@ function goUpdatePlacesCommands() {
 
 function doGetPlacesControllerForCommand(aCommand)
 {
-  // A context menu may be built for non-focusable views.  Thus, we first try
-  // to look for a view associated with document.popupNode
-  let popupNode = document.popupNode;
-  if (popupNode) {
-    let view = PlacesUIUtils.getViewForNode(popupNode);
-    if (view && view._contextMenuShown)
-      return view.controllers.getControllerForCommand(aCommand);
-  }
-
-  // When we're not building a context menu, only focusable views
-  // are possible.  Thus, we can safely use the command dispatcher.
   let controller = top.document.commandDispatcher
                       .getControllerForCommand(aCommand);
   if (controller)
     return controller;
+
+  // If building commands for a context menu, look for an element in the
+  // current popup.
+  let element = document.popupNode;
+  if (element) {
+    let view = PlacesUIUtils.getViewForNode(element);
+    if (view && view._contextMenuShown)
+      return view.viewElt.controllers.getControllerForCommand(aCommand);
+  }
 
   return null;
 }

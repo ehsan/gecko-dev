@@ -44,7 +44,6 @@
 #ifndef _nsNSSComponent_h_
 #define _nsNSSComponent_h_
 
-#include "mozilla/Mutex.h"
 #include "nsCOMPtr.h"
 #include "nsISignatureVerifier.h"
 #include "nsIURIContentListener.h"
@@ -63,6 +62,7 @@
 #include "nsITimer.h"
 #include "nsNetUtil.h"
 #include "nsHashtable.h"
+#include "prlock.h"
 #include "nsICryptoHash.h"
 #include "nsICryptoHMAC.h"
 #include "hasht.h"
@@ -71,7 +71,6 @@
 
 #include "nsNSSHelper.h"
 #include "nsClientAuthRemember.h"
-#include "nsCERTValInParamWrapper.h"
 
 #define NS_NSSCOMPONENT_CID \
 {0xa277189c, 0x1dd1, 0x11b2, {0xa8, 0xc9, 0xe4, 0xe8, 0xbf, 0xb1, 0x33, 0x8e}}
@@ -98,12 +97,11 @@
 
 enum EnsureNSSOperator
 {
-  nssLoadingComponent = 0,
+  nssLoading = 0,
   nssInitSucceeded = 1,
   nssInitFailed = 2,
   nssShutdown = 3,
-  nssEnsure = 100,
-  nssEnsureOnChromeOnly = 101
+  nssEnsure = 4
 };
 
 extern PRBool EnsureNSSInitialized(EnsureNSSOperator op);
@@ -141,8 +139,6 @@ protected:
   nsCOMPtr<nsIURI> mURI;
   nsresult handleContentDownloadError(nsresult errCode);
 };
-
-class nsNSSComponent;
 
 class NS_NO_VTABLE nsINSSComponent : public nsISupports {
  public:
@@ -193,9 +189,6 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
   NS_IMETHOD EnsureIdentityInfoLoaded() = 0;
 
   NS_IMETHOD IsNSSInitialized(PRBool *initialized) = 0;
-
-  NS_IMETHOD GetDefaultCERTValInParam(nsRefPtr<nsCERTValInParamWrapper> &out) = 0;
-  NS_IMETHOD GetDefaultCERTValInParamLocalOnly(nsRefPtr<nsCERTValInParamWrapper> &out) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINSSComponent, NS_INSSCOMPONENT_IID)
@@ -234,6 +227,7 @@ private:
   void destructorSafeDestroyNSSReference();
 };
 
+struct PRLock;
 class nsNSSShutDownList;
 class nsSSLThread;
 class nsCertVerificationThread;
@@ -244,10 +238,9 @@ class nsNSSComponent : public nsISignatureVerifier,
                        public nsINSSComponent,
                        public nsIObserver,
                        public nsSupportsWeakReference,
-                       public nsITimerCallback
+                       public nsITimerCallback,
+                       public nsINSSErrorsService
 {
-  typedef mozilla::Mutex Mutex;
-
 public:
   NS_DEFINE_STATIC_CID_ACCESSOR( NS_NSSCOMPONENT_CID )
 
@@ -259,6 +252,7 @@ public:
   NS_DECL_NSIENTROPYCOLLECTOR
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
+  NS_DECL_NSINSSERRORSSERVICE
 
   NS_METHOD Init();
 
@@ -293,8 +287,6 @@ public:
   NS_IMETHOD EnsureIdentityInfoLoaded();
   NS_IMETHOD IsNSSInitialized(PRBool *initialized);
 
-  NS_IMETHOD GetDefaultCERTValInParam(nsRefPtr<nsCERTValInParamWrapper> &out);
-  NS_IMETHOD GetDefaultCERTValInParamLocalOnly(nsRefPtr<nsCERTValInParamWrapper> &out);
 private:
 
   nsresult InitializeNSS(PRBool showWarningBox);
@@ -317,7 +309,6 @@ private:
   void LaunchSmartCardThreads();
   void ShutdownSmartCardThreads();
   void CleanupIdentityInfo();
-  void setValidationOptions(nsIPrefBranch * pref);
   nsresult InitializePIPNSSBundle();
   nsresult ConfigureInternalPKCS11Token();
   nsresult RegisterPSMContentListener();
@@ -336,7 +327,7 @@ private:
   void DoProfileBeforeChange(nsISupports* aSubject);
   void DoProfileChangeNetRestore();
   
-  Mutex mutex;
+  PRLock *mutex;
   
   nsCOMPtr<nsIScriptSecurityManager> mScriptSecurityManager;
   nsCOMPtr<nsIStringBundle> mPIPNSSBundle;
@@ -349,7 +340,7 @@ private:
   PLHashTable *hashTableCerts;
   nsAutoString mDownloadURL;
   nsAutoString mCrlUpdateKey;
-  Mutex mCrlTimerLock;
+  PRLock *mCrlTimerLock;
   nsHashtable *crlsScheduledForDownload;
   PRBool crlDownloadTimerOn;
   PRBool mUpdateTimerInitialized;
@@ -357,22 +348,13 @@ private:
   nsNSSShutDownList *mShutdownObjectList;
   SmartCardThreadList *mThreadList;
   PRBool mIsNetworkDown;
-
-  void deleteBackgroundThreads();
-  void createBackgroundThreads();
   nsSSLThread *mSSLThread;
   nsCertVerificationThread *mCertVerificationThread;
-
   nsNSSHttpInterface mHttpForNSS;
   nsRefPtr<nsClientAuthRememberService> mClientAuthRememberService;
-  nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParam;
-  nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParamLocalOnly;
 
   static PRStatus PR_CALLBACK IdentityInfoInit(void);
   PRCallOnceType mIdentityInfoCallOnce;
-
-public:
-  static PRBool globalConstFlagUsePKIXVerification;
 };
 
 class PSMContentListener : public nsIURIContentListener,
@@ -397,15 +379,6 @@ public:
   static nsresult getErrorMessageFromCode(PRInt32 err,
                                           nsINSSComponent *component,
                                           nsString &returnedMessage);
-};
-
-class nsPSMInitPanic
-{
-private:
-  static PRBool isPanic;
-public:
-  static void SetPanic() {isPanic = PR_TRUE;}
-  static PRBool GetPanic() {return isPanic;}
 };
 
 #endif // _nsNSSComponent_h_

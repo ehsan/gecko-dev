@@ -43,7 +43,6 @@
 /*
  * JavaScript iterators.
  */
-#include "jscntxt.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jsversion.h"
@@ -63,16 +62,13 @@
  * For cacheable native iterators, whether the iterator is currently active.
  * Not serialized by XDR.
  */
-#define JSITER_ACTIVE       0x1000
-#define JSITER_UNREUSABLE   0x2000
-
-namespace js {
+#define JSITER_ACTIVE     0x1000
 
 struct NativeIterator {
     JSObject  *obj;
-    jsid      *props_array;
-    jsid      *props_cursor;
-    jsid      *props_end;
+    void      *props_array;
+    void      *props_cursor;
+    void      *props_end;
     uint32    *shapes_array;
     uint32    shapes_length;
     uint32    shapes_key;
@@ -81,29 +77,58 @@ struct NativeIterator {
 
     bool isKeyIter() const { return (flags & JSITER_FOREACH) == 0; }
 
-    inline jsid *begin() const {
-        return props_array;
+    inline jsid *beginKey() const {
+        JS_ASSERT(isKeyIter());
+        return (jsid *)props_array;
     }
 
-    inline jsid *end() const {
-        return props_end;
+    inline jsid *endKey() const {
+        JS_ASSERT(isKeyIter());
+        return (jsid *)props_end;
     }
 
     size_t numKeys() const {
-        return end() - begin();
+        return endKey() - beginKey();
     }
 
-    jsid *current() const {
-        JS_ASSERT(props_cursor < props_end);
-        return props_cursor;
+    jsid *currentKey() const {
+        JS_ASSERT(isKeyIter());
+        return reinterpret_cast<jsid *>(props_cursor);
     }
 
-    void incCursor() {
-        props_cursor = props_cursor + 1;
+    void incKeyCursor() {
+        JS_ASSERT(isKeyIter());
+        props_cursor = reinterpret_cast<jsid *>(props_cursor) + 1;
     }
 
-    static NativeIterator *allocateIterator(JSContext *cx, uint32 slength,
-                                            const js::AutoIdVector &props);
+    inline js::Value *beginValue() const {
+        JS_ASSERT(!isKeyIter());
+        return (js::Value *)props_array;
+    }
+
+    inline js::Value *endValue() const {
+        JS_ASSERT(!isKeyIter());
+        return (js::Value *)props_end;
+    }
+
+    size_t numValues() const {
+        return endValue() - beginValue();
+    }
+
+    js::Value *currentValue() const {
+        JS_ASSERT(!isKeyIter());
+        return reinterpret_cast<js::Value *>(props_cursor);
+    }
+
+    void incValueCursor() {
+        JS_ASSERT(!isKeyIter());
+        props_cursor = reinterpret_cast<js::Value *>(props_cursor) + 1;
+    }
+
+    static NativeIterator *allocateKeyIterator(JSContext *cx, uint32 slength,
+                                               const js::AutoIdVector &props);
+    static NativeIterator *allocateValueIterator(JSContext *cx,
+                                                 const js::AutoValueVector &props);
     void init(JSObject *obj, uintN flags, uint32 slength, uint32 key);
 
     void mark(JSTracer *trc);
@@ -112,8 +137,8 @@ struct NativeIterator {
 bool
 VectorToIdArray(JSContext *cx, js::AutoIdVector &props, JSIdArray **idap);
 
-JS_FRIEND_API(bool)
-GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *props);
+bool
+GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector &props);
 
 bool
 GetIterator(JSContext *cx, JSObject *obj, uintN flags, js::Value *vp);
@@ -122,7 +147,7 @@ bool
 VectorToKeyIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector &props, js::Value *vp);
 
 bool
-VectorToValueIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector &props, js::Value *vp);
+VectorToValueIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoValueVector &props, js::Value *vp);
 
 /*
  * Creates either a key or value iterator, depending on flags. For a value
@@ -130,8 +155,6 @@ VectorToValueIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVecto
  */
 bool
 EnumeratedIdVectorToIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector &props, js::Value *vp);
-
-}
 
 /*
  * Convert the value stored in *vp to its iteration object. The flags should
@@ -147,9 +170,6 @@ js_CloseIterator(JSContext *cx, JSObject *iterObj);
 
 bool
 js_SuppressDeletedProperty(JSContext *cx, JSObject *obj, jsid id);
-
-bool
-js_SuppressDeletedIndexProperties(JSContext *cx, JSObject *obj, jsint begin, jsint end);
 
 /*
  * IteratorMore() indicates whether another value is available. It might
@@ -181,19 +201,20 @@ typedef enum JSGeneratorState {
 struct JSGenerator {
     JSObject            *obj;
     JSGeneratorState    state;
-    js::FrameRegs       regs;
+    JSFrameRegs         savedRegs;
+    uintN               vplen;
+    JSStackFrame        *liveFrame;
     JSObject            *enumerators;
-    js::StackFrame      *floating;
     js::Value           floatingStack[1];
 
-    js::StackFrame *floatingFrame() {
-        return floating;
+    JSStackFrame *getFloatingFrame() {
+        return reinterpret_cast<JSStackFrame *>(floatingStack + vplen);
     }
 
-    js::StackFrame *liveFrame() {
+    JSStackFrame *getLiveFrame() {
         JS_ASSERT((state == JSGEN_RUNNING || state == JSGEN_CLOSING) ==
-                  (regs.fp() != floatingFrame()));
-        return regs.fp();
+                  (liveFrame != getFloatingFrame()));
+        return liveFrame;
     }
 };
 
@@ -211,22 +232,25 @@ js_NewGenerator(JSContext *cx);
  * Block and With objects must "normalize" to and from the floating/live frames
  * in the case of generators using the following functions.
  */
-inline js::StackFrame *
-js_FloatingFrameIfGenerator(JSContext *cx, js::StackFrame *fp)
+inline JSStackFrame *
+js_FloatingFrameIfGenerator(JSContext *cx, JSStackFrame *fp)
 {
-    if (JS_UNLIKELY(fp->isGeneratorFrame()))
-        return cx->generatorFor(fp)->floatingFrame();
+    JS_ASSERT(cx->stack().contains(fp));
+    if (JS_UNLIKELY(fp->isGenerator()))
+        return cx->generatorFor(fp)->getFloatingFrame();
     return fp;
 }
 
 /* Given a floating frame, given the JSGenerator containing it. */
 extern JSGenerator *
-js_FloatingFrameToGenerator(js::StackFrame *fp);
+js_FloatingFrameToGenerator(JSStackFrame *fp);
 
-inline js::StackFrame *
-js_LiveFrameIfGenerator(js::StackFrame *fp)
+inline JSStackFrame *
+js_LiveFrameIfGenerator(JSStackFrame *fp)
 {
-    return fp->isGeneratorFrame() ? js_FloatingFrameToGenerator(fp)->liveFrame() : fp;
+    if (fp->flags & JSFRAME_GENERATOR)
+        return js_FloatingFrameToGenerator(fp)->getLiveFrame();
+    return fp;
 }
 
 #endif

@@ -38,26 +38,10 @@
 // This test makes sure that the Forget This Site command is hidden for multiple
 // selections.
 
-/**
- * Clears history invoking callback when done.
- */
-function waitForClearHistory(aCallback) {
-  const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, TOPIC_EXPIRATION_FINISHED);
-      aCallback();
-    }
-  };
-  Services.obs.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
-
-  let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
-           getService(Ci.nsINavHistoryService);
-  hs.QueryInterface(Ci.nsIBrowserHistory).removeAllPages();
-}
-
 function test() {
   // initialization
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
   waitForExplicitFinish();
 
   // Add a history entry.
@@ -71,7 +55,14 @@ function test() {
   });
 
   function testForgetThisSiteVisibility(selectionCount, funcNext) {
-    openLibrary(function (organizer) {
+    function observer(aSubject, aTopic, aData) {
+      if (aTopic != "domwindowopened")
+        return;
+      ww.unregisterNotification(observer);
+      let organizer = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      organizer.addEventListener("load", function onLoad(event) {
+        organizer.removeEventListener("load", onLoad, false);
+        executeSoon(function () {
           // Select History in the left pane.
           organizer.PlacesOrganizer.selectLeftPaneQuery('History');
           let PO = organizer.PlacesOrganizer;
@@ -89,7 +80,7 @@ function test() {
           // Open the context menu
           let contextmenu = doc.getElementById("placesContext");
           contextmenu.addEventListener("popupshown", function() {
-            contextmenu.removeEventListener("popupshown", arguments.callee, true);
+            contextmenu.removeEventListener("popupshown", arguments.callee, false);
             let forgetThisSite = doc.getElementById("placesContext_deleteHost");
             let hideForgetThisSite = (selectionCount != 1);
             is(forgetThisSite.hidden, hideForgetThisSite,
@@ -97,28 +88,34 @@ function test() {
               "be hidden with " + selectionCount + " items selected");
             // Close the context menu
             contextmenu.hidePopup();
-            // Wait for the Organizer window to actually be closed
-            organizer.addEventListener("unload", function () {
-              organizer.removeEventListener("unload", arguments.callee, false);
-              // Proceed
-              funcNext();
-            }, false);
             // Close Library window.
             organizer.close();
-          }, true);
-          // Get cell coordinates
-          var x = {}, y = {}, width = {}, height = {};
-          tree.treeBoxObject.getCoordsForCellItem(0, tree.columns[0], "text",
-                                                  x, y, width, height);
-          // Initiate a context menu for the selected cell
-          EventUtils.synthesizeMouse(tree.body, x.value + width.value / 2, y.value + height.value / 2, {type: "contextmenu"}, organizer);
-    });
+            // Proceed
+            funcNext();
+          }, false);
+          let event = document.createEvent("MouseEvents");
+          event.initMouseEvent("contextmenu", true, true, organizer, 0,
+                               0, 0, 0, 0, false, false, false, false,
+                               0, null);
+          tree.dispatchEvent(event);
+        });
+      }, false);
+    }
+
+    ww.registerNotification(observer);
+    ww.openWindow(null,
+                  "chrome://browser/content/places/places.xul",
+                  "",
+                  "chrome,toolbar=yes,dialog=no,resizable",
+                  null);
   }
 
   testForgetThisSiteVisibility(1, function() {
     testForgetThisSiteVisibility(2, function() {
       // Cleanup
-      waitForClearHistory(finish);
+      history.QueryInterface(Ci.nsIBrowserHistory)
+             .removeAllPages();
+      finish();
     });
   });
 }

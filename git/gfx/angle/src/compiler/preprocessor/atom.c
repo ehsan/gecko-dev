@@ -1,3 +1,8 @@
+//
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
 /****************************************************************************\
 Copyright (c) 2002, NVIDIA Corporation.
 
@@ -50,7 +55,7 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include <string.h>
 
-#include "compiler/compilerdebug.h"
+#include "compiler/debug.h"
 #include "compiler/preprocessor/slglobals.h"
 
 #undef malloc
@@ -182,13 +187,12 @@ static int AddString(StringTable *stable, const char *s)
     char *str;
 
     len = (int) strlen(s);
-    while (stable->nextFree + len + 1 >= stable->size) {
+    if (stable->nextFree + len + 1 >= stable->size) {
         assert(stable->size < 1000000);
         str = (char *) malloc(stable->size*2);
         memcpy(str, stable->strings, stable->size);
         free(stable->strings);
         stable->strings = str;
-        stable->size = stable->size*2;
     }
     loc = stable->nextFree;
     strcpy(&stable->strings[loc], s);
@@ -335,7 +339,7 @@ static int GrowAtomTable(AtomTable *atable, int size)
             if (newmap)
                 atable->amap = newmap;
             if (newrev)
-                atable->arev = newrev;
+                atable->amap = newrev;
             return -1;
         }
         memset(&newmap[atable->size], 0, (size - atable->size) * sizeof(int));
@@ -620,7 +624,7 @@ static int AddAtomFixed(AtomTable *atable, const char *s, int atom)
 
 int InitAtomTable(AtomTable *atable, int htsize)
 {
-    unsigned int ii;
+    int ii;
 
     htsize = htsize <= 0 ? INIT_HASH_TABLE_SIZE : htsize;
     if (!InitStringTable(&atable->stable))

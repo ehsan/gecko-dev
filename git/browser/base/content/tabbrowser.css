@@ -11,47 +11,16 @@
   display: none;
 }
 
-.tabbrowser-tabs[closebuttons="activetab"] > * > * > * > .tab-close-button:not([pinned])[selected="true"],
-.tabbrowser-tabs[closebuttons="alltabs"] > * > * > * > .tab-close-button:not([pinned]) {
+.tabbrowser-tabs:not([closebuttons="noclose"]):not([closebuttons="closeatend"]) > .tabbrowser-tab[selected="true"]:not([pinned]) > .tab-close-button,
+.tabbrowser-tabs[closebuttons="alltabs"] > .tabbrowser-tab:not([pinned]) > .tab-close-button {
   display: -moz-box;
 }
 
-.tab-close-button[selected="true"] {
-  /* Make this button focusable so clicking on it will not focus the tab while
-     it's getting closed */
-  -moz-user-focus: normal;
-}
-
-.tab-label[pinned] {
-  width: 0;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-}
-
-.tab-stack {
-  vertical-align: top; /* for pinned tabs */
-}
-
 tabpanels {
-  background-color: transparent;
+  background-color: white;
 }
 
 .tab-drop-indicator {
   position: relative;
-  z-index: 2;
-}
-
-.tab-throbber:not([busy]),
-.tab-throbber[busy] + .tab-icon-image {
-  display: none;
-}
-
-.closing-tabs-spacer {
-  pointer-events: none;
-}
-
-.tabbrowser-tabs:not(:hover) > .tabbrowser-arrowscrollbox > .closing-tabs-spacer {
-  -moz-transition: width .15s ease-out;
+  z-index: 1;
 }

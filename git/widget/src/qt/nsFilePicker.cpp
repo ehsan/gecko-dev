@@ -38,6 +38,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <qfile.h>
+#include <qstringlist.h>
+#include <qapplication.h>
+#include <qgraphicsproxywidget.h>
+#include <qgraphicswidget.h>
+#include <qgraphicsscene.h>
+
 #include "nsFilePicker.h"
 
 #include "nsILocalFile.h"
@@ -48,13 +55,6 @@
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsIWidget.h"
-#include "mozqwidget.h"
-#include "nsWindow.h"
-#include "prlog.h"
-
-#ifdef PR_LOGGING
-static PRLogModuleInfo* sFilePickerLog = nsnull;
-#endif
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
@@ -63,19 +63,19 @@ nsFilePicker::nsFilePicker()
     : mDialog(0),
       mMode(nsIFilePicker::modeOpen)
 {
-#ifdef PR_LOGGING
-    if (!sFilePickerLog)
-        sFilePickerLog = PR_NewLogModule("nsQtFilePicker");
-#endif
+    qDebug("nsFilePicker constructor");
 }
 
 nsFilePicker::~nsFilePicker()
 {
+    qDebug("nsFilePicker destructor");
+    delete mDialog;
 }
 
 NS_IMETHODIMP
 nsFilePicker::Init(nsIDOMWindow *parent, const nsAString & title, PRInt16 mode)
 {
+    qDebug("nsFilePicker::Init()");
     return nsBaseFilePicker::Init(parent, title, mode);
 }
 
@@ -204,6 +204,7 @@ nsFilePicker::GetFiles(nsISimpleEnumerator * *aFiles)
 NS_IMETHODIMP
 nsFilePicker::Show(PRInt16 *aReturn)
 {
+    qDebug("nsFilePicker::Show()");
     nsCAutoString directory;
     if (mDisplayDirectory) {
         mDisplayDirectory->GetNativePath(directory);
@@ -247,7 +248,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
         }
 
         QString path = QFile::encodeName(selected);
-        PR_LOG(sFilePickerLog, PR_LOG_DEBUG, ("path is '%s'", path.toAscii().data()));
+        qDebug("path is '%s'", path.toAscii().data());
         mFile.Assign(path.toUtf8().data());
         *aReturn = nsIFilePicker::returnOK;
         if (mMode == modeSave) {
@@ -278,18 +279,15 @@ nsFilePicker::Show(PRInt16 *aReturn)
 
 void nsFilePicker::InitNative(nsIWidget *parent, const nsAString &title, PRInt16 mode)
 {
-    PR_LOG(sFilePickerLog, PR_LOG_DEBUG, ("nsFilePicker::InitNative"));
-
-    MozQWidget *parentMozWidget = (parent) ?
-        static_cast<MozQWidget*>(parent->GetNativeData(NS_NATIVE_WIDGET)) : nsnull;
-    QWidget *parentWidget = (parentMozWidget) ?
-        parentMozWidget->getReceiver()->GetViewWidget() : nsnull;
-    if (!parentWidget) {
-        NS_WARNING("Can't find parent for QFileDialog");
-    }
+    qDebug("nsFilePicker::InitNative()");
 
     nsAutoString str(title);
-    mDialog = new QFileDialog(parentWidget, QString::fromUtf16(str.get()));
+    mDialog = new QFileDialog(0, QString::fromUtf16(str.get()));
+
+    QGraphicsWidget *parentWidget = static_cast<QGraphicsWidget*>(parent->GetNativeData(NS_NATIVE_WIDGET));
+    if (parentWidget && parentWidget->scene()) {
+        parentWidget->scene()->addWidget(mDialog);
+    }
 
     mMode = mode;
 }

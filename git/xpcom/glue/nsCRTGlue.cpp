@@ -270,13 +270,11 @@ PRBool NS_IsAsciiDigit(PRUnichar aChar)
   return aChar >= '0' && aChar <= '9';
 }
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
 void
 printf_stderr(const char *fmt, ...)
 {
   FILE *fp = _fdopen(_dup(2), "a");
-  if (!fp)
-      return;
 
   va_list args;
   va_start(args, fmt);

@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   David Hyatt (hyatt@netscape.com)
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Michael Ventnor <m.ventnor@gmail.com>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
@@ -51,9 +51,10 @@
 #include "nsThemeConstants.h"
 #include "nsString.h"
 #include "nsPresContext.h"
+#include "nsIDeviceContext.h"
 #include "nsIWidget.h"
 #include "nsIStyleRule.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 #include "nsCSSProps.h"
 
 #include "nsCOMPtr.h"
@@ -61,7 +62,6 @@
 #include "nsHTMLReflowState.h"
 #include "prenv.h"
 
-#include "nsSVGUtils.h"
 #include "nsBidiUtils.h"
 
 #include "imgIRequest.h"
@@ -72,10 +72,10 @@
 PR_STATIC_ASSERT((((1 << nsStyleStructID_Length) - 1) &
                   ~(NS_STYLE_INHERIT_MASK)) == 0);
 
-inline PRBool IsFixedUnit(const nsStyleCoord& aCoord, PRBool aEnumOK)
+inline PRBool IsFixedUnit(nsStyleUnit aUnit, PRBool aEnumOK)
 {
-  return aCoord.ConvertsToLength() || 
-         (aEnumOK && aCoord.GetUnit() == eStyleUnit_Enumerated);
+  return PRBool((aUnit == eStyleUnit_Coord) || 
+                (aEnumOK && (aUnit == eStyleUnit_Enumerated)));
 }
 
 static PRBool EqualURIs(nsIURI *aURI1, nsIURI *aURI2)
@@ -109,15 +109,6 @@ static PRBool EqualImages(imgIRequest *aImage1, imgIRequest* aImage2)
   return EqualURIs(uri1, uri2);
 }
 
-// A nullsafe wrapper for strcmp. We depend on null-safety.
-static int safe_strcmp(const PRUnichar* a, const PRUnichar* b)
-{
-  if (!a || !b) {
-    return (int)(a - b);
-  }
-  return NS_strcmp(a, b);
-}
-
 static nsChangeHint CalcShadowDifference(nsCSSShadowArray* lhs,
                                          nsCSSShadowArray* rhs);
 
@@ -130,21 +121,25 @@ nsStyleFont::nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext)
 {
   MOZ_COUNT_CTOR(nsStyleFont);
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
+#ifdef MOZ_MATHML
   mScriptUnconstrainedSize = mSize;
   mScriptMinSize = aPresContext->CSSTwipsToAppUnits(
       NS_POINTS_TO_TWIPS(NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT));
   mScriptLevel = 0;
   mScriptSizeMultiplier = NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER;
+#endif
 }
 
 nsStyleFont::nsStyleFont(const nsStyleFont& aSrc)
   : mFont(aSrc.mFont)
   , mSize(aSrc.mSize)
   , mGenericID(aSrc.mGenericID)
+#ifdef MOZ_MATHML
   , mScriptLevel(aSrc.mScriptLevel)
   , mScriptUnconstrainedSize(aSrc.mScriptUnconstrainedSize)
   , mScriptMinSize(aSrc.mScriptMinSize)
   , mScriptSizeMultiplier(aSrc.mScriptSizeMultiplier)
+#endif
 {
   MOZ_COUNT_CTOR(nsStyleFont);
 }
@@ -155,11 +150,13 @@ nsStyleFont::nsStyleFont(nsPresContext* aPresContext)
 {
   MOZ_COUNT_CTOR(nsStyleFont);
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
+#ifdef MOZ_MATHML
   mScriptUnconstrainedSize = mSize;
   mScriptMinSize = aPresContext->CSSTwipsToAppUnits(
       NS_POINTS_TO_TWIPS(NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT));
   mScriptLevel = 0;
   mScriptSizeMultiplier = NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER;
+#endif
 }
 
 void* 
@@ -210,6 +207,7 @@ nsChangeHint nsStyleFont::CalcFontDifference(const nsFont& aFont1, const nsFont&
       (aFont1.sizeAdjust == aFont2.sizeAdjust) && 
       (aFont1.style == aFont2.style) &&
       (aFont1.variant == aFont2.variant) &&
+      (aFont1.familyNameQuirks == aFont2.familyNameQuirks) &&
       (aFont1.weight == aFont2.weight) &&
       (aFont1.stretch == aFont2.stretch) &&
       (aFont1.name == aFont2.name) &&
@@ -226,7 +224,7 @@ nsChangeHint nsStyleFont::CalcFontDifference(const nsFont& aFont1, const nsFont&
 static PRBool IsFixedData(const nsStyleSides& aSides, PRBool aEnumOK)
 {
   NS_FOR_CSS_SIDES(side) {
-    if (!IsFixedUnit(aSides.Get(side), aEnumOK))
+    if (!IsFixedUnit(aSides.GetUnit(side), aEnumOK))
       return PR_FALSE;
   }
   return PR_TRUE;
@@ -236,17 +234,22 @@ static nscoord CalcCoord(const nsStyleCoord& aCoord,
                          const nscoord* aEnumTable, 
                          PRInt32 aNumEnums)
 {
-  if (aCoord.GetUnit() == eStyleUnit_Enumerated) {
-    NS_ABORT_IF_FALSE(aEnumTable, "must have enum table");
-    PRInt32 value = aCoord.GetIntValue();
-    if (0 <= value && value < aNumEnums) {
-      return aEnumTable[aCoord.GetIntValue()];
-    }
-    NS_NOTREACHED("unexpected enum value");
-    return 0;
+  switch (aCoord.GetUnit()) {
+    case eStyleUnit_Coord:
+      return aCoord.GetCoordValue();
+    case eStyleUnit_Enumerated:
+      if (nsnull != aEnumTable) {
+        PRInt32 value = aCoord.GetIntValue();
+        if ((0 <= value) && (value < aNumEnums)) {
+          return aEnumTable[aCoord.GetIntValue()];
+        }
+      }
+      break;
+    default:
+      NS_ERROR("bad unit type");
+      break;
   }
-  NS_ABORT_IF_FALSE(aCoord.ConvertsToLength(), "unexpected unit");
-  return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
+  return 0;
 }
 
 nsStyleMargin::nsStyleMargin() {
@@ -283,7 +286,7 @@ void nsStyleMargin::RecalcData()
 {
   if (IsFixedData(mMargin, PR_FALSE)) {
     NS_FOR_CSS_SIDES(side) {
-      mCachedMargin.Side(side) = CalcCoord(mMargin.Get(side), nsnull, 0);
+      mCachedMargin.side(side) = CalcCoord(mMargin.Get(side), nsnull, 0);
     }
     mHasCachedMargin = PR_TRUE;
   }
@@ -346,9 +349,7 @@ void nsStylePadding::RecalcData()
 {
   if (IsFixedData(mPadding, PR_FALSE)) {
     NS_FOR_CSS_SIDES(side) {
-      // Clamp negative calc() to 0.
-      mCachedPadding.Side(side) =
-        NS_MAX(CalcCoord(mPadding.Get(side), nsnull, 0), 0);
+      mCachedPadding.side(side) = CalcCoord(mPadding.Get(side), nsnull, 0);
     }
     mHasCachedPadding = PR_TRUE;
   }
@@ -379,18 +380,15 @@ nsChangeHint nsStylePadding::MaxDifference()
 #endif
 
 nsStyleBorder::nsStyleBorder(nsPresContext* aPresContext)
-  : mHaveBorderImageWidth(PR_FALSE)
-#ifdef DEBUG
-  , mImageTracked(false)
-#endif
-  , mComputedBorder(0, 0, 0, 0)
-  , mBorderImage(nsnull)
+  : mHaveBorderImageWidth(PR_FALSE),
+    mComputedBorder(0, 0, 0, 0),
+    mBorderImage(nsnull)
 {
   MOZ_COUNT_CTOR(nsStyleBorder);
   nscoord medium =
     (aPresContext->GetBorderWidthTable())[NS_STYLE_BORDER_WIDTH_MEDIUM];
   NS_FOR_CSS_SIDES(side) {
-    mBorder.Side(side) = medium;
+    mBorder.side(side) = medium;
     mBorderStyle[side] = NS_STYLE_BORDER_STYLE_NONE | BORDER_COLOR_FOREGROUND;
     mBorderColor[side] = NS_RGB(0, 0, 0);
   }
@@ -458,8 +456,6 @@ nsStyleBorder::nsStyleBorder(const nsStyleBorder& aSrc)
 
 nsStyleBorder::~nsStyleBorder()
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "nsStyleBorder being destroyed while still tracking image!");
   MOZ_COUNT_DTOR(nsStyleBorder);
   if (mBorderColors) {
     for (PRInt32 i = 0; i < 4; i++)
@@ -478,8 +474,6 @@ nsStyleBorder::operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
   
 void 
 nsStyleBorder::Destroy(nsPresContext* aContext) {
-  if (mBorderImage)
-    UntrackImage(aContext);
   this->~nsStyleBorder();
   aContext->FreeToShell(sizeof(nsStyleBorder), this);
 }
@@ -565,42 +559,6 @@ nsStyleBorder::GetActualBorder() const
     return mComputedBorder;
 }
 
-void
-nsStyleBorder::TrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
-  NS_ABORT_IF_FALSE(mBorderImage, "Can't track null image!");
-
-  // Register the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->AddImage(mBorderImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = true;
-#endif
-}
-
-void
-nsStyleBorder::UntrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(mImageTracked, "Image not tracked!");
-  NS_ABORT_IF_FALSE(mBorderImage, "Can't track null image!");
-
-  // Unregister the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->RemoveImage(mBorderImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = false;
-#endif
-}
-
 nsStyleOutline::nsStyleOutline(nsPresContext* aPresContext)
 {
   MOZ_COUNT_CTOR(nsStyleOutline);
@@ -631,10 +589,9 @@ nsStyleOutline::RecalcData(nsPresContext* aContext)
   if (NS_STYLE_BORDER_STYLE_NONE == GetOutlineStyle()) {
     mCachedOutlineWidth = 0;
     mHasCachedOutline = PR_TRUE;
-  } else if (IsFixedUnit(mOutlineWidth, PR_TRUE)) {
-    // Clamp negative calc() to 0.
+  } else if (IsFixedUnit(mOutlineWidth.GetUnit(), PR_TRUE)) {
     mCachedOutlineWidth =
-      NS_MAX(CalcCoord(mOutlineWidth, aContext->GetBorderWidthTable(), 3), 0);
+      CalcCoord(mOutlineWidth, aContext->GetBorderWidthTable(), 3);
     mCachedOutlineWidth =
       NS_ROUND_BORDER_TO_PIXELS(mCachedOutlineWidth, mTwipsPerPixel);
     mHasCachedOutline = PR_TRUE;
@@ -701,7 +658,7 @@ nsChangeHint nsStyleList::CalcDifference(const nsStyleList& aOther) const
     return NS_STYLE_HINT_FRAMECHANGE;
   if (EqualImages(mListStyleImage, aOther.mListStyleImage) &&
       mListStyleType == aOther.mListStyleType) {
-    if (mImageRegion.IsEqualInterior(aOther.mImageRegion))
+    if (mImageRegion == aOther.mImageRegion)
       return NS_STYLE_HINT_NONE;
     if (mImageRegion.width == aOther.mImageRegion.width &&
         mImageRegion.height == aOther.mImageRegion.height)
@@ -1374,16 +1331,6 @@ nsStyleGradient::nsStyleGradient(void)
 {
 }
 
-PRBool
-nsStyleGradient::IsOpaque()
-{
-  for (PRUint32 i = 0; i < mStops.Length(); i++) {
-    if (NS_GET_A(mStops[i].mColor) < 255)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 // --------------------
 // nsStyleImage
 //
@@ -1453,7 +1400,7 @@ nsStyleImage::SetNull()
   else if (mType == eStyleImageType_Image)
     NS_RELEASE(mImage);
   else if (mType == eStyleImageType_Element)
-    NS_Free(mElementId);
+    nsCRT::free(mElementId);
 
   mType = eStyleImageType_Null;
   mCropRect = nsnull;
@@ -1536,7 +1483,7 @@ nsStyleImage::SetElementId(const PRUnichar* aElementId)
     SetNull();
 
   if (aElementId) {
-    mElementId = NS_strdup(aElementId);
+    mElementId = nsCRT::strdup(aElementId);
     mType = eStyleImageType_Element;
   }
 }
@@ -1601,7 +1548,7 @@ nsStyleImage::ComputeActualCropRect(nsIntRect& aActualCropRect,
   aActualCropRect.IntersectRect(imageRect, cropRect);
 
   if (aIsEntireImage)
-    *aIsEntireImage = aActualCropRect.IsEqualInterior(imageRect);
+    *aIsEntireImage = (aActualCropRect == imageRect);
   return PR_TRUE;
 }
 
@@ -1619,8 +1566,10 @@ nsStyleImage::IsOpaque() const
   if (!IsComplete())
     return PR_FALSE;
 
-  if (mType == eStyleImageType_Gradient)
-    return mGradient->IsOpaque();
+  if (mType == eStyleImageType_Gradient) {
+    // We could check if every stop color of the gradient is non-transparent.
+    return PR_FALSE;
+  }
 
   if (mType == eStyleImageType_Element)
     return PR_FALSE;
@@ -1694,7 +1643,7 @@ nsStyleImage::operator==(const nsStyleImage& aOther) const
     return *mGradient == *aOther.mGradient;
 
   if (mType == eStyleImageType_Element)
-    return NS_strcmp(mElementId, aOther.mElementId) == 0;
+    return nsCRT::strcmp(mElementId, aOther.mElementId) == 0;
 
   return PR_TRUE;
 }
@@ -1825,13 +1774,10 @@ PRBool nsStyleBackground::IsTransparent() const
 void
 nsStyleBackground::Position::SetInitialValues()
 {
-  // Initial value is "0% 0%"
-  mXPosition.mPercent = 0.0f;
-  mXPosition.mLength = 0;
-  mXPosition.mHasPercent = PR_TRUE;
-  mYPosition.mPercent = 0.0f;
-  mYPosition.mLength = 0;
-  mYPosition.mHasPercent = PR_TRUE;
+  mXPosition.mFloat = 0.0f;
+  mYPosition.mFloat = 0.0f;
+  mXIsPercent = PR_TRUE;
+  mYIsPercent = PR_TRUE;
 }
 
 void
@@ -1840,7 +1786,7 @@ nsStyleBackground::Size::SetInitialValues()
   mWidthType = mHeightType = eAuto;
 }
 
-bool
+PRBool
 nsStyleBackground::Size::operator==(const Size& aOther) const
 {
   NS_ABORT_IF_FALSE(mWidthType < eDimensionType_COUNT,
@@ -1852,10 +1798,26 @@ nsStyleBackground::Size::operator==(const Size& aOther) const
   NS_ABORT_IF_FALSE(aOther.mHeightType < eDimensionType_COUNT,
                     "bad mHeightType for aOther");
 
-  return mWidthType == aOther.mWidthType &&
-         mHeightType == aOther.mHeightType &&
-         (mWidthType != eLengthPercentage || mWidth == aOther.mWidth) &&
-         (mHeightType != eLengthPercentage || mHeight == aOther.mHeight);
+  if (mWidthType != aOther.mWidthType || mHeightType != aOther.mHeightType)
+    return PR_FALSE;
+
+  if (mWidthType == ePercentage) {
+    if (mWidth.mFloat != aOther.mWidth.mFloat)
+      return PR_FALSE;
+  } else if (mWidthType == eLength) {
+    if (mWidth.mCoord != aOther.mWidth.mCoord)
+      return PR_FALSE;
+  }
+
+  if (mHeightType == ePercentage) {
+    if (mHeight.mFloat != aOther.mHeight.mFloat)
+      return PR_FALSE;
+  } else if (mHeightType == eLength) {
+    if (mHeight.mCoord != aOther.mHeight.mCoord)
+      return PR_FALSE;
+  }
+
+  return PR_TRUE;
 }
 
 nsStyleBackground::Layer::Layer()
@@ -1878,39 +1840,7 @@ nsStyleBackground::Layer::SetInitialValues()
   mImage.SetNull();
 }
 
-PRBool
-nsStyleBackground::Layer::RenderingMightDependOnFrameSize() const
-{
-  // Do we even have an image?
-  if (mImage.IsEmpty()) {
-    return PR_FALSE;
-  }
-
-  // Does our position or size depend on frame size?
-  if (mPosition.DependsOnFrameSize() ||
-      mSize.DependsOnFrameSize(mImage.GetType())) {
-    return PR_TRUE;
-  }
-
-  // Are we an SVG image with a viewBox attribute?
-  if (mImage.GetType() == eStyleImageType_Image) {
-    nsCOMPtr<imgIContainer> imageContainer;
-    mImage.GetImageData()->GetImage(getter_AddRefs(imageContainer));
-    if (imageContainer &&
-        imageContainer->GetType() == imgIContainer::TYPE_VECTOR) {
-      nsIFrame* rootFrame = imageContainer->GetRootLayoutFrame();
-      if (rootFrame &&
-          nsSVGUtils::RootSVGElementHasViewbox(rootFrame->GetContent())) {
-        return PR_TRUE;
-      }
-    }
-  }
-
-  return PR_FALSE;
-}
-
-PRBool
-nsStyleBackground::Layer::operator==(const Layer& aOther) const
+PRBool nsStyleBackground::Layer::operator==(const Layer& aOther) const
 {
   return mAttachment == aOther.mAttachment &&
          mClip == aOther.mClip &&
@@ -1926,20 +1856,6 @@ nsStyleBackground::Layer::operator==(const Layer& aOther) const
 //
 void nsTimingFunction::AssignFromKeyword(PRInt32 aTimingFunctionType)
 {
-  switch (aTimingFunctionType) {
-    case NS_STYLE_TRANSITION_TIMING_FUNCTION_STEP_START:
-      mType = StepStart;
-      mSteps = 1;
-      return;
-    case NS_STYLE_TRANSITION_TIMING_FUNCTION_STEP_END:
-      mType = StepEnd;
-      mSteps = 1;
-      return;
-    default:
-      mType = Function;
-      break;
-  }
-
   PR_STATIC_ASSERT(NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE == 0);
   PR_STATIC_ASSERT(NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR == 1);
   PR_STATIC_ASSERT(NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN == 2);
@@ -1956,10 +1872,10 @@ void nsTimingFunction::AssignFromKeyword(PRInt32 aTimingFunctionType)
 
   NS_ABORT_IF_FALSE(0 <= aTimingFunctionType && aTimingFunctionType < 5,
                     "keyword out of range");
-  mFunc.mX1 = timingFunctionValues[aTimingFunctionType][0];
-  mFunc.mY1 = timingFunctionValues[aTimingFunctionType][1];
-  mFunc.mX2 = timingFunctionValues[aTimingFunctionType][2];
-  mFunc.mY2 = timingFunctionValues[aTimingFunctionType][3];
+  mX1 = timingFunctionValues[aTimingFunctionType][0];
+  mY1 = timingFunctionValues[aTimingFunctionType][1];
+  mX2 = timingFunctionValues[aTimingFunctionType][2];
+  mY2 = timingFunctionValues[aTimingFunctionType][3];
 }
 
 nsTransition::nsTransition(const nsTransition& aCopy)
@@ -1967,7 +1883,6 @@ nsTransition::nsTransition(const nsTransition& aCopy)
   , mDuration(aCopy.mDuration)
   , mDelay(aCopy.mDelay)
   , mProperty(aCopy.mProperty)
-  , mUnknownProperty(aCopy.mUnknownProperty)
 {
 }
 
@@ -1986,31 +1901,6 @@ void nsTransition::SetUnknownProperty(const nsAString& aUnknownProperty)
                "should be unknown property");
   mProperty = eCSSProperty_UNKNOWN;
   mUnknownProperty = do_GetAtom(aUnknownProperty);
-}
-
-nsAnimation::nsAnimation(const nsAnimation& aCopy)
-  : mTimingFunction(aCopy.mTimingFunction)
-  , mDuration(aCopy.mDuration)
-  , mDelay(aCopy.mDelay)
-  , mName(aCopy.mName)
-  , mDirection(aCopy.mDirection)
-  , mFillMode(aCopy.mFillMode)
-  , mPlayState(aCopy.mPlayState)
-  , mIterationCount(aCopy.mIterationCount)
-{
-}
-
-void
-nsAnimation::SetInitialValues()
-{
-  mTimingFunction = nsTimingFunction(NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE);
-  mDuration = 0.0;
-  mDelay = 0.0;
-  mName = EmptyString();
-  mDirection = NS_STYLE_ANIMATION_DIRECTION_NORMAL;
-  mFillMode = NS_STYLE_ANIMATION_FILL_MODE_NONE;
-  mPlayState = NS_STYLE_ANIMATION_PLAY_STATE_RUNNING;
-  mIterationCount = 1.0f;
 }
 
 nsStyleDisplay::nsStyleDisplay()
@@ -2033,8 +1923,6 @@ nsStyleDisplay::nsStyleDisplay()
   mSpecifiedTransform = nsnull;
   mTransformOrigin[0].SetPercentValue(0.5f); // Transform is centered on origin
   mTransformOrigin[1].SetPercentValue(0.5f); 
-  mOrient = NS_STYLE_ORIENT_HORIZONTAL;
-
   mTransitions.AppendElement();
   NS_ABORT_IF_FALSE(mTransitions.Length() == 1,
                     "appending within auto buffer should never fail");
@@ -2043,19 +1931,6 @@ nsStyleDisplay::nsStyleDisplay()
   mTransitionDurationCount = 1;
   mTransitionDelayCount = 1;
   mTransitionPropertyCount = 1;
-
-  mAnimations.AppendElement();
-  NS_ABORT_IF_FALSE(mAnimations.Length() == 1,
-                    "appending within auto buffer should never fail");
-  mAnimations[0].SetInitialValues();
-  mAnimationTimingFunctionCount = 1;
-  mAnimationDurationCount = 1;
-  mAnimationDelayCount = 1;
-  mAnimationNameCount = 1;
-  mAnimationDirectionCount = 1;
-  mAnimationFillModeCount = 1;
-  mAnimationPlayStateCount = 1;
-  mAnimationIterationCountCount = 1;
 }
 
 nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
@@ -2064,15 +1939,6 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mTransitionDurationCount(aSource.mTransitionDurationCount)
   , mTransitionDelayCount(aSource.mTransitionDelayCount)
   , mTransitionPropertyCount(aSource.mTransitionPropertyCount)
-  , mAnimations(aSource.mAnimations)
-  , mAnimationTimingFunctionCount(aSource.mAnimationTimingFunctionCount)
-  , mAnimationDurationCount(aSource.mAnimationDurationCount)
-  , mAnimationDelayCount(aSource.mAnimationDelayCount)
-  , mAnimationNameCount(aSource.mAnimationNameCount)
-  , mAnimationDirectionCount(aSource.mAnimationDirectionCount)
-  , mAnimationFillModeCount(aSource.mAnimationFillModeCount)
-  , mAnimationPlayStateCount(aSource.mAnimationPlayStateCount)
-  , mAnimationIterationCountCount(aSource.mAnimationIterationCountCount)
 {
   MOZ_COUNT_CTOR(nsStyleDisplay);
   mAppearance = aSource.mAppearance;
@@ -2090,7 +1956,6 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   mClipFlags = aSource.mClipFlags;
   mClip = aSource.mClip;
   mOpacity = aSource.mOpacity;
-  mOrient = aSource.mOrient;
 
   /* Copy over the transformation information. */
   mSpecifiedTransform = aSource.mSpecifiedTransform;
@@ -2110,8 +1975,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mPosition != aOther.mPosition
       || mDisplay != aOther.mDisplay
       || (mFloats == NS_STYLE_FLOAT_NONE) != (aOther.mFloats == NS_STYLE_FLOAT_NONE)
-      || (mOverflowX != aOther.mOverflowX && mDisplay != NS_STYLE_DISPLAY_INLINE)
-      || (mOverflowY != aOther.mOverflowY && mDisplay != NS_STYLE_DISPLAY_INLINE)
+      || mOverflowX != aOther.mOverflowX
+      || mOverflowY != aOther.mOverflowY
       || mResize != aOther.mResize)
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
 
@@ -2123,14 +1988,16 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
                                       nsChangeHint_NeedDirtyReflow)));
   }
 
+  if (mClipFlags != aOther.mClipFlags || mClip != aOther.mClip) {
+    // FIXME: Bug 507764.  Could we use a more precise hint here?
+    NS_UpdateHint(hint, nsChangeHint_ReflowFrame);
+  }
   // XXX the following is conservative, for now: changing float breaking shouldn't
   // necessarily require a repaint, reflow should suffice.
   if (mBreakType != aOther.mBreakType
       || mBreakBefore != aOther.mBreakBefore
       || mBreakAfter != aOther.mBreakAfter
-      || mAppearance != aOther.mAppearance
-      || mOrient != aOther.mOrient
-      || mClipFlags != aOther.mClipFlags || !mClip.IsEqualInterior(aOther.mClip))
+      || mAppearance != aOther.mAppearance)
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame, nsChangeHint_RepaintFrame));
 
   if (mOpacity != aOther.mOpacity) {
@@ -2171,11 +2038,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
   // We do handle changes to transition-property, but we don't need to
   // bother with anything here, since the transition manager is notified
   // of any style context change anyway.
-
-  // Note: Likewise, for animation-*, the animation manager gets
-  // notified about every new style context constructed, and it uses
-  // that opportunity to handle dynamic changes appropriately.
-
+  
   return hint;
 }
 
@@ -2232,30 +2095,25 @@ nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
 
 nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) const
 {
-  nsChangeHint hint = nsChangeHint(0);
-
-  if (mDirection != aOther.mDirection) {
-    NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
-  } else if (mLanguage == aOther.mLanguage) {
-    if (mVisible != aOther.mVisible) {
-      if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) ||
-          (NS_STYLE_VISIBILITY_COLLAPSE == aOther.mVisible)) {
-        NS_UpdateHint(hint, NS_STYLE_HINT_REFLOW);
-      } else {
-        NS_UpdateHint(hint, NS_STYLE_HINT_VISUAL);
-      }
+  if ((mDirection == aOther.mDirection) &&
+      (mLanguage == aOther.mLanguage)) {
+    if ((mVisible == aOther.mVisible)) {
+      return NS_STYLE_HINT_NONE;
     }
-  } else {
-    NS_UpdateHint(hint, NS_STYLE_HINT_REFLOW);
+    if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) || 
+        (NS_STYLE_VISIBILITY_COLLAPSE == aOther.mVisible)) {
+      return NS_STYLE_HINT_REFLOW;
+    }
+    return NS_STYLE_HINT_VISUAL;
   }
-  return hint;
+  return NS_STYLE_HINT_REFLOW;
 }
 
 #ifdef DEBUG
 /* static */
 nsChangeHint nsStyleVisibility::MaxDifference()
 {
-  return NS_STYLE_HINT_FRAMECHANGE;
+  return NS_STYLE_HINT_REFLOW;
 }
 #endif
 
@@ -2315,7 +2173,7 @@ PRBool nsStyleContentData::operator==(const nsStyleContentData& aOther) const
   if (mType == eStyleContentType_Counter ||
       mType == eStyleContentType_Counters)
     return *mContent.mCounters == *aOther.mContent.mCounters;
-  return safe_strcmp(mContent.mString, aOther.mContent.mString) == 0;
+  return nsCRT::strcmp(mContent.mString, aOther.mContent.mString) == 0;
 }
 
 void
@@ -2604,18 +2462,14 @@ nsStyleTextReset::nsStyleTextReset(void)
 { 
   MOZ_COUNT_CTOR(nsStyleTextReset);
   mVerticalAlign.SetIntValue(NS_STYLE_VERTICAL_ALIGN_BASELINE, eStyleUnit_Enumerated);
-  mTextBlink = NS_STYLE_TEXT_BLINK_NONE;
-  mTextDecorationLine = NS_STYLE_TEXT_DECORATION_LINE_NONE;
-  mTextDecorationColor = NS_RGB(0,0,0);
-  mTextDecorationStyle =
-    NS_STYLE_TEXT_DECORATION_STYLE_SOLID | BORDER_COLOR_FOREGROUND;
+  mTextDecoration = NS_STYLE_TEXT_DECORATION_NONE;
   mUnicodeBidi = NS_STYLE_UNICODE_BIDI_NORMAL;
 }
 
 nsStyleTextReset::nsStyleTextReset(const nsStyleTextReset& aSource) 
 { 
   MOZ_COUNT_CTOR(nsStyleTextReset);
-  *this = aSource;
+  memcpy((nsStyleTextReset*)this, &aSource, sizeof(nsStyleTextReset));
 }
 
 nsStyleTextReset::~nsStyleTextReset(void)
@@ -2627,40 +2481,14 @@ nsChangeHint nsStyleTextReset::CalcDifference(const nsStyleTextReset& aOther) co
 {
   if (mVerticalAlign == aOther.mVerticalAlign
       && mUnicodeBidi == aOther.mUnicodeBidi) {
-    // Reflow for blink changes
-    if (mTextBlink != aOther.mTextBlink) {
-      return NS_STYLE_HINT_REFLOW;
+    if (mTextDecoration != aOther.mTextDecoration) {
+      // Reflow for blink changes, repaint for others
+      return
+        (mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) ==
+        (aOther.mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) ?
+          NS_STYLE_HINT_VISUAL : NS_STYLE_HINT_REFLOW;
     }
 
-    PRUint8 lineStyle = GetDecorationStyle();
-    PRUint8 otherLineStyle = aOther.GetDecorationStyle();
-    if (mTextDecorationLine != aOther.mTextDecorationLine ||
-        lineStyle != otherLineStyle) {
-      // Reflow for decoration line style changes only to or from double or
-      // wave because that may cause overflow area changes
-      if (lineStyle == NS_STYLE_TEXT_DECORATION_STYLE_DOUBLE ||
-          lineStyle == NS_STYLE_TEXT_DECORATION_STYLE_WAVY ||
-          otherLineStyle == NS_STYLE_TEXT_DECORATION_STYLE_DOUBLE ||
-          otherLineStyle == NS_STYLE_TEXT_DECORATION_STYLE_WAVY) {
-        return NS_STYLE_HINT_REFLOW;
-      }
-      // Repaint for other style decoration lines because they must be in
-      // default overflow rect
-      return NS_STYLE_HINT_VISUAL;
-    }
-
-    // Repaint for decoration color changes
-    nscolor decColor, otherDecColor;
-    PRBool isFG, otherIsFG;
-    GetDecorationColor(decColor, isFG);
-    aOther.GetDecorationColor(otherDecColor, otherIsFG);
-    if (isFG != otherIsFG || (!isFG && decColor != otherDecColor)) {
-      return NS_STYLE_HINT_VISUAL;
-    }
-
-    if (mTextOverflow != aOther.mTextOverflow) {
-      return NS_STYLE_HINT_VISUAL;
-    }
     return NS_STYLE_HINT_NONE;
   }
   return NS_STYLE_HINT_REFLOW;
@@ -2706,7 +2534,6 @@ nsStyleText::nsStyleText(void)
   mTextTransform = NS_STYLE_TEXT_TRANSFORM_NONE;
   mWhiteSpace = NS_STYLE_WHITESPACE_NORMAL;
   mWordWrap = NS_STYLE_WORDWRAP_NORMAL;
-  mHyphens = NS_STYLE_HYPHENS_MANUAL;
 
   mLetterSpacing.SetNormalValue();
   mLineHeight.SetNormalValue();
@@ -2722,7 +2549,6 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mTextTransform(aSource.mTextTransform),
     mWhiteSpace(aSource.mWhiteSpace),
     mWordWrap(aSource.mWordWrap),
-    mHyphens(aSource.mHyphens),
     mTabSize(aSource.mTabSize),
     mLetterSpacing(aSource.mLetterSpacing),
     mLineHeight(aSource.mLineHeight),
@@ -2749,7 +2575,6 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
       (mTextTransform != aOther.mTextTransform) ||
       (mWhiteSpace != aOther.mWhiteSpace) ||
       (mWordWrap != aOther.mWordWrap) ||
-      (mHyphens != aOther.mHyphens) ||
       (mLetterSpacing != aOther.mLetterSpacing) ||
       (mLineHeight != aOther.mLineHeight) ||
       (mTextIndent != aOther.mTextIndent) ||

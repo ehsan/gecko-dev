@@ -120,10 +120,6 @@ var TestPilotTask = {
     return this._id;
   },
 
-  get version() {
-    return this._versionNumber;
-  },
-
   get taskType() {
     return null;
   },
@@ -249,36 +245,18 @@ var TestPilotTask = {
     }
 
     this.onDetailPageOpened();
-  },
-
-  getGuid: function TPS_getGuid(id) {
-    // If there is a guid for the task with the given id (not neccessarily this one!)
-    // then use it; if there isn't, generate it and store it.
-    let guid = Application.prefs.getValue(GUID_PREF_PREFIX + id, "");
-    if (guid == "") {
-      let uuidGenerator =
-        Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator);
-      guid = uuidGenerator.generateUUID().toString();
-      // remove the brackets from the generated UUID
-      if (guid.indexOf("{") == 0) {
-        guid = guid.substring(1, (guid.length - 1));
-      }
-      Application.prefs.setValue(GUID_PREF_PREFIX + id, guid);
-    }
-    return guid;
   }
 };
 
-function TestPilotExperiment(expInfo, dataStore, handlers, webContent, dateOverrideFunc) {
+function TestPilotExperiment(expInfo, dataStore, handlers, webContent) {
   // All four of these are objects defined in the remote experiment file
-  this._init(expInfo, dataStore, handlers, webContent, dateOverrideFunc);
+  this._init(expInfo, dataStore, handlers, webContent);
 }
 TestPilotExperiment.prototype = {
   _init: function TestPilotExperiment__init(expInfo,
 					    dataStore,
 					    handlers,
-                                            webContent,
-                                            dateOverrideFunc) {
+                                            webContent) {
     /* expInfo is a dictionary defined in the remote experiment code, which
      * should have the following properties:
      * startDate (string representation of date)
@@ -292,14 +270,6 @@ TestPilotExperiment.prototype = {
      * recursAutomatically (boolean)
      * recurrenceInterval (number of days)
      * versionNumber (int) */
-
-    // dateOverrideFunc: For unit testing. Optional. If provided, will be called
-    // instead of Date.now() for determining the current time.
-    if (dateOverrideFunc) {
-      this._now = dateOverrideFunc;
-    } else {
-      this._now = Date.now;
-    }
     this._taskInit(expInfo.testId, expInfo.testName, expInfo.testInfoUrl,
                    expInfo.summary, expInfo.thumbnail);
     this._webContent = webContent;
@@ -323,8 +293,8 @@ TestPilotExperiment.prototype = {
         this._startDate = Date.parse(expInfo.startDate);
         Application.prefs.setValue(prefName, expInfo.startDate);
       } else {
-        this._startDate = this._now();
-        Application.prefs.setValue(prefName, (new Date(this._startDate)).toString());
+        this._startDate = Date.now();
+        Application.prefs.setValue(prefName, (new Date()).toString());
       }
     }
 
@@ -407,7 +377,8 @@ TestPilotExperiment.prototype = {
                 getService(Components.interfaces.nsIStringBundleService).
 	          createBundle("chrome://testpilot/locale/main.properties");
 	    let link =
-	      '<a href="' + self.infoPageUrl + '">' + self.title + '</a>';
+	      '<a href="' + this.infoPageUrl + '">&quot;' + this.title +
+	      '&quot;</a>';
 	    content =
 	      '<h2>' + stringBundle.formatStringFromName(
 	        "testpilot.finishedTask.finishedStudy", [link], 1) + '</h2>' +
@@ -487,44 +458,29 @@ TestPilotExperiment.prototype = {
   onNewWindow: function TestPilotExperiment_onNewWindow(window) {
     this._logger.trace("Experiment.onNewWindow called.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onNewWindow(window);
-      } catch(e) {
-        this._dataStore.logException("onNewWindow: " + e);
-      }
+      this._handlers.onNewWindow(window);
     }
   },
 
   onWindowClosed: function TestPilotExperiment_onWindowClosed(window) {
     this._logger.trace("Experiment.onWindowClosed called.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onWindowClosed(window);
-      } catch(e) {
-        this._dataStore.logException("onWindowClosed: " + e);
-      }
+      this._handlers.onWindowClosed(window);
     }
   },
 
   onAppStartup: function TestPilotExperiment_onAppStartup() {
     this._logger.trace("Experiment.onAppStartup called.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onAppStartup();
-      } catch(e) {
-        this._dataStore.logException("onAppStartup: " + e);
-      }
+      this._handlers.onAppStartup();
     }
   },
 
   onAppShutdown: function TestPilotExperiment_onAppShutdown() {
     this._logger.trace("Experiment.onAppShutdown called.");
+    // TODO the caller for this is not yet implemented
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onAppShutdown();
-      } catch(e) {
-        this._dataStore.logException("onAppShutdown: " + e);
-      }
+      this._handlers.onAppShutdown();
     }
   },
 
@@ -533,11 +489,7 @@ TestPilotExperiment.prototype = {
     // Make sure not to call this if it's already been called:
     if (this.experimentIsRunning() && !this._startedUpHandlers) {
       this._logger.trace("  ... starting up handlers!");
-      try {
-        this._handlers.onExperimentStartup(this._dataStore);
-      } catch(e) {
-        this._dataStore.logException("onExperimentStartup: " + e);
-      }
+      this._handlers.onExperimentStartup(this._dataStore);
       this._startedUpHandlers = true;
     }
   },
@@ -545,11 +497,7 @@ TestPilotExperiment.prototype = {
   onExperimentShutdown: function TestPilotExperiment_onShutdown() {
     this._logger.trace("Experiment.onExperimentShutdown called.");
     if (this.experimentIsRunning() && this._startedUpHandlers) {
-      try {
-        this._handlers.onExperimentShutdown();
-      } catch(e) {
-        this._dataStore.logException("onExperimentShutdown: " + e);
-      }
+      this._handlers.onExperimentShutdown();
       this._startedUpHandlers = false;
     }
   },
@@ -557,49 +505,22 @@ TestPilotExperiment.prototype = {
   doExperimentCleanup: function TestPilotExperiment_doExperimentCleanup() {
     if (this._handlers.doExperimentCleanup) {
       this._logger.trace("Doing experiment cleanup.");
-      try {
-        this._handlers.doExperimentCleanup();
-      } catch(e) {
-        this._dataStore.logException("doExperimentCleanup: " + e);
-      }
+      this._handlers.doExperimentCleanup();
     }
   },
 
   onEnterPrivateBrowsing: function TestPilotExperiment_onEnterPrivate() {
     this._logger.trace("Task is entering private browsing.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onEnterPrivateBrowsing();
-      } catch(e) {
-        this._dataStore.logException("onEnterPrivateBrowsing: " + e);
-      }
+      this._handlers.onEnterPrivateBrowsing();
     }
   },
 
   onExitPrivateBrowsing: function TestPilotExperiment_onExitPrivate() {
     this._logger.trace("Task is exiting private browsing.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onExitPrivateBrowsing();
-      } catch(e) {
-        this._dataStore.logException("onExitPrivateBrowsing: " + e);
-      }
+      this._handlers.onExitPrivateBrowsing();
     }
-  },
-
-  getStudyMetadata: function TestPilotExperiment_getStudyMetadata() {
-    try {
-      if (this._handlers.getStudyMetadata) {
-        let metadata = this._handlers.getStudyMetadata();
-        if (metadata.length) {
-          // getStudyMetadata must return an array, otherwise it is invalid.
-          return metadata;
-        }
-      }
-    } catch(e) {
-      this._dataStore.logException("getStudyMetadata: " + e);
-    }
-    return null;
   },
 
   _reschedule: function TestPilotExperiment_reschedule() {
@@ -659,8 +580,7 @@ TestPilotExperiment.prototype = {
   checkDate: function TestPilotExperiment_checkDate() {
     // This method handles all date-related status changes and should be
     // called periodically.
-    let currentDate = this._now();
-    let self = this;
+    let currentDate = Date.now();
 
     // Reset automatically recurring tests:
     if (this._recursAutomatically &&
@@ -703,7 +623,16 @@ TestPilotExperiment.prototype = {
         currentDate >= this._startDate &&
         currentDate <= this._endDate) {
       this._logger.info("Study now starting.");
+      let uuidGenerator =
+        Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator);
+      let uuid = uuidGenerator.generateUUID().toString();
+      // remove the brackets from the generated UUID
+      if (uuid.indexOf("{") == 0) {
+        uuid = uuid.substring(1, (uuid.length - 1));
+      }
+      Application.prefs.setValue(GUID_PREF_PREFIX + this._id, uuid);
       // clear the data before starting.
+      let self = this;
       this._dataStore.wipeAllData(function() {
         // Experiment is now in progress.
         self.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
@@ -714,6 +643,7 @@ TestPilotExperiment.prototype = {
     // What happens when a test finishes:
     if (this._status < TaskConstants.STATUS_FINISHED &&
 	currentDate > this._endDate) {
+      let self = this;
       let setDataDeletionDate = true;
       this._logger.info("Passed End Date - Switched Task Status to Finished");
       this.changeStatus(TaskConstants.STATUS_FINISHED);
@@ -800,24 +730,13 @@ TestPilotExperiment.prototype = {
     let self = this;
     MetadataCollector.getMetadata(function(md) {
       json.metadata = md;
-      json.metadata.task_guid = self.getGuid(self._id);
+      let guid = Application.prefs.getValue(GUID_PREF_PREFIX + self._id, "");
+      json.metadata.task_guid = guid;
       json.metadata.event_headers = self._dataStore.getPropertyNames();
-      let moreMd = self.getStudyMetadata();
-      if (moreMd) {
-        for (let i = 0; i < moreMd.length; i++) {
-          if (moreMd[i].name && moreMd[i].value) {
-            json.metadata[ moreMd[i].name ] = moreMd[i].value; // TODO sanitize strings?
-            // TODO handle case where name or value are something other than strings?
-          }
-        }
-      }
       self._dataStore.getJSONRows(function(rows) {
-        json.events = rows;
-        self._dataStore.getExceptionsAsJson(function(errs) {
-          json.exceptions = errs;
-          callback( JSON.stringify(json) );
-        });
-      });
+                                    json.events = rows;
+                                    callback( JSON.stringify(json) );
+                                  });
     });
   },
 
@@ -855,7 +774,7 @@ TestPilotExperiment.prototype = {
               self._uploadRetryTimer.cancel(); // Stop retrying - it worked!
             }
             self.changeStatus(TaskConstants.STATUS_SUBMITTED);
-            self._dateForDataDeletion = self._now() + TIME_FOR_DATA_DELETION;
+            self._dateForDataDeletion = Date.now() + TIME_FOR_DATA_DELETION;
             self._expirationDateForDataSubmission = null;
             callback(true);
           } else {
@@ -895,6 +814,7 @@ TestPilotExperiment.prototype = {
   optOut: function TestPilotExperiment_optOut(reason, callback) {
     // Regardless of study ID, post the opt-out message to a special
     // database table of just opt-out messages; include study ID in metadata.
+    let url = Application.prefs.getValue(DATA_UPLOAD_PREF, "") + "opt-out";
     let logger = this._logger;
 
     this.onExperimentShutdown();
@@ -907,7 +827,6 @@ TestPilotExperiment.prototype = {
     if (reason) {
       // Send us the reason...
       // (TODO: include metadata?)
-      let url = Application.prefs.getValue(DATA_UPLOAD_PREF, "") + "opt-out";
       let answer = {id: this._id,
                     reason: reason};
       let dataString = JSON.stringify(answer);
@@ -923,23 +842,17 @@ TestPilotExperiment.prototype = {
         if (req.readyState == 4) {
           if (req.status == 200 || req.status == 201 || req.status == 202) {
 	    logger.info("Quit reason posted successfully " + req.responseText);
-            if (callback) {
-              callback(true);
-            }
+    	    callback(true);
 	  } else {
 	    logger.warn(req.status + " posting error " + req.responseText);
-            if (callback) {
-              callback(false);
-            }
+	    callback(false);
 	  }
 	}
       };
       logger.trace("Sending quit reason.");
       req.send(dataString);
     } else {
-      if (callback) {
-        callback(false);
-      }
+      callback(false);
     }
   },
 
@@ -966,7 +879,6 @@ TestPilotBuiltinSurvey.prototype = {
     this._versionNumber = surveyInfo.versionNumber;
     this._questions = surveyInfo.surveyQuestions;
     this._explanation = surveyInfo.surveyExplanation;
-    this._onPageLoad = surveyInfo.onPageLoad;
   },
 
   get taskType() {
@@ -994,12 +906,6 @@ TestPilotBuiltinSurvey.prototype = {
     return this._studyId;
   },
 
-  onPageLoad: function(task, document) {
-    if (this._onPageLoad) {
-      this._onPageLoad(task, document);
-    }
-  },
-
   onDetailPageOpened: function TPS_onDetailPageOpened() {
     if (this._status < TaskConstants.STATUS_IN_PROGRESS) {
       this.changeStatus( TaskConstants.STATUS_IN_PROGRESS, true );
@@ -1013,7 +919,8 @@ TestPilotBuiltinSurvey.prototype = {
       return null;
     } else {
       this._logger.info("Trying to json.parse this: " + surveyResults);
-      return sanitizeJSONStrings( JSON.parse(surveyResults) );
+      let surveyJson = sanitizeJSONStrings( JSON.parse(surveyResults) );
+      return surveyJson["answers"];
     }
   },
 
@@ -1044,11 +951,13 @@ TestPilotBuiltinSurvey.prototype = {
     let self = this;
     MetadataCollector.getMetadata(function(md) {
       json.metadata = md;
-      if (self._studyId) {
-        // Include guid of the study that this survey is related to, so we
-        // can match them up server-side.
-        json.metadata.task_guid = self.getGuid(self._studyId);
-      }
+      // Include guid of the study that this survey is related to, so we
+      // can match them up server-side.
+      let guid = Application.prefs.getValue(GUID_PREF_PREFIX + self._studyId, "");
+      /* TODO if the guid for that study ID hasn't been set yet, set it!  And
+       * then use it on the study.  That way it won't matter whether the
+       * study or the survey gets run first.*/
+      json.metadata.task_guid = guid;
       let pref = SURVEY_ANSWER_PREFIX + self._id;
       let surveyAnswers = JSON.parse(Application.prefs.getValue(pref, "{}"));
       json.survey_data = sanitizeJSONStrings(surveyAnswers);

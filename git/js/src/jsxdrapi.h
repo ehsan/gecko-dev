@@ -85,7 +85,8 @@ JS_BEGIN_EXTERN_C
 
 typedef enum JSXDRMode {
     JSXDR_ENCODE,
-    JSXDR_DECODE
+    JSXDR_DECODE,
+    JSXDR_FREE
 } JSXDRMode;
 
 typedef enum JSXDRWhence {
@@ -105,22 +106,6 @@ typedef struct JSXDROps {
     void        (*finalize)(JSXDRState *);
 } JSXDROps;
 
-struct JSXDRState;
-
-namespace js {
-
-class XDRScriptState {
-public:
-    XDRScriptState(JSXDRState *x);
-    ~XDRScriptState();
-
-    JSXDRState      *xdr;
-    const char      *filename;
-    bool             filenameSaved;
-};
-
-} /* namespace JS */
-
 struct JSXDRState {
     JSXDRMode   mode;
     JSXDROps    *ops;
@@ -131,7 +116,6 @@ struct JSXDRState {
     void        *reghash;
     void        *userdata;
     JSScript    *script;
-    js::XDRScriptState *state;
 };
 
 extern JS_PUBLIC_API(void)
@@ -186,7 +170,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_XDRValue(JSXDRState *xdr, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_XDRScriptObject(JSXDRState *xdr, JSObject **scriptObjp);
+JS_XDRScript(JSXDRState *xdr, JSScript **scriptp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_XDRRegisterClass(JSXDRState *xdr, JSClass *clasp, uint32 *lp);
@@ -210,8 +194,7 @@ JS_XDRFindClassById(JSXDRState *xdr, uint32 id);
 #define JSXDR_MAGIC_SCRIPT_8        0xdead0008
 #define JSXDR_MAGIC_SCRIPT_9        0xdead0009
 #define JSXDR_MAGIC_SCRIPT_10       0xdead000a
-#define JSXDR_MAGIC_SCRIPT_11       0xdead000b
-#define JSXDR_MAGIC_SCRIPT_CURRENT  JSXDR_MAGIC_SCRIPT_11
+#define JSXDR_MAGIC_SCRIPT_CURRENT  JSXDR_MAGIC_SCRIPT_10
 
 /*
  * Bytecode version number. Increment the subtrahend whenever JS bytecode
@@ -222,7 +205,7 @@ JS_XDRFindClassById(JSXDRState *xdr, uint32 id);
  * before deserialization of bytecode.  If the saved version does not match
  * the current version, abort deserialization and invalidate the file.
  */
-#define JSXDR_BYTECODE_VERSION      (0xb973c0de - 89)
+#define JSXDR_BYTECODE_VERSION      (0xb973c0de - 67)
 
 /*
  * Library-private functions.

@@ -36,10 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ReentrantMonitor.h"
 #include "mozilla/XPCOM.h"
 
 #include "nsMediaCache.h"
+#include "nsAutoLock.h"
+#include "nsContentUtils.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsNetUtil.h"
@@ -48,10 +49,6 @@
 #include "nsMediaStream.h"
 #include "nsMathUtils.h"
 #include "prlog.h"
-#include "nsIPrivateBrowsingService.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaCacheLog;
@@ -73,11 +70,14 @@ static const double NONSEEKABLE_READAHEAD_MAX = 0.5;
 static const PRUint32 REPLAY_DELAY = 30;
 
 // When looking for a reusable block, scan forward this many blocks
-// from the desired "best" block location to look for free blocks,
+// from the desired "best" block location to look for free blocks, 
 // before we resort to scanning the whole cache. The idea is to try to
 // store runs of stream blocks close-to-consecutively in the cache if we
 // can.
 static const PRUint32 FREE_BLOCK_SCAN_LIMIT = 16;
+
+using mozilla::TimeStamp;
+using mozilla::TimeDuration;
 
 #ifdef DEBUG
 // Turn this on to do very expensive cache state validation
@@ -89,42 +89,6 @@ static const PRUint32 FREE_BLOCK_SCAN_LIMIT = 16;
 // size limits).
 static nsMediaCache* gMediaCache;
 
-class nsMediaCacheFlusher : public nsIObserver,
-                            public nsSupportsWeakReference {
-  nsMediaCacheFlusher() {}
-  ~nsMediaCacheFlusher();
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  static void Init();
-};
-
-static nsMediaCacheFlusher* gMediaCacheFlusher;
-
-NS_IMPL_ISUPPORTS2(nsMediaCacheFlusher, nsIObserver, nsISupportsWeakReference)
-
-nsMediaCacheFlusher::~nsMediaCacheFlusher()
-{
-  gMediaCacheFlusher = nsnull;
-}
-
-void nsMediaCacheFlusher::Init()
-{
-  if (gMediaCacheFlusher) {
-    return;
-  }
-
-  gMediaCacheFlusher = new nsMediaCacheFlusher();
-  NS_ADDREF(gMediaCacheFlusher);
-
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->AddObserver(gMediaCacheFlusher, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-  }
-}
-
 class nsMediaCache {
 public:
   friend class nsMediaCacheStream::BlockList;
@@ -134,7 +98,7 @@ public:
   };
 
   nsMediaCache() : mNextResourceID(1),
-    mReentrantMonitor("nsMediaCache.mReentrantMonitor"),
+    mMonitor(nsAutoMonitor::NewMonitor("media.cache")),
     mFD(nsnull), mFDCurrentPos(0), mUpdateQueued(PR_FALSE)
 #ifdef DEBUG
     , mInUpdate(PR_FALSE)
@@ -149,12 +113,13 @@ public:
     if (mFD) {
       PR_Close(mFD);
     }
+    if (mMonitor) {
+      nsAutoMonitor::DestroyMonitor(mMonitor);
+    }
     MOZ_COUNT_DTOR(nsMediaCache);
   }
 
-  // Main thread only. Creates the backing cache file. If this fails,
-  // then the cache is still in a semi-valid state; mFD will be null,
-  // so all I/O on the cache file will fail.
+  // Main thread only. Creates the backing cache file.
   nsresult Init();
   // Shut down the global cache if it's no longer needed. We shut down
   // the cache as soon as there are no streams. This means that during
@@ -163,12 +128,8 @@ public:
   // shutting it down cleans things up and releases disk space.
   static void MaybeShutdown();
 
-  // Brutally flush the cache contents. Main thread only.
-  static void Flush();
-  void FlushInternal();
-
   // Cache-file access methods. These are the lowest-level cache methods.
-  // mReentrantMonitor must be held; these can be called on any thread.
+  // mMonitor must be held; these can be called on any thread.
   // This can return partial reads.
   nsresult ReadCacheFile(PRInt64 aOffset, void* aData, PRInt32 aLength,
                          PRInt32* aBytes);
@@ -177,7 +138,7 @@ public:
   // This will fail if all aLength bytes are not written
   nsresult WriteCacheFile(PRInt64 aOffset, const void* aData, PRInt32 aLength);
 
-  // mReentrantMonitor must be held, called on main thread.
+  // mMonitor must be held, called on main thread.
   // These methods are used by the stream to set up and tear down streams,
   // and to handle reads and writes.
   // Add aStream to the list of streams.
@@ -190,7 +151,7 @@ public:
   void AllocateAndWriteBlock(nsMediaCacheStream* aStream, const void* aData,
                              nsMediaCacheStream::ReadMode aMode);
 
-  // mReentrantMonitor must be held; can be called on any thread
+  // mMonitor must be held; can be called on any thread
   // Notify the cache that a seek has been requested. Some blocks may
   // need to change their class between PLAYED_BLOCK and READAHEAD_BLOCK.
   // This does not trigger channel seeks directly, the next Update()
@@ -227,7 +188,7 @@ public:
   void Verify() {}
 #endif
 
-  ReentrantMonitor& GetReentrantMonitor() { return mReentrantMonitor; }
+  PRMonitor* Monitor() { return mMonitor; }
 
   /**
    * An iterator that makes it easy to iterate through all streams that
@@ -350,7 +311,7 @@ protected:
   // The monitor protects all the data members here. Also, off-main-thread
   // readers that need to block will Wait() on this monitor. When new
   // data becomes available in the cache, we NotifyAll() on this monitor.
-  ReentrantMonitor         mReentrantMonitor;
+  PRMonitor*      mMonitor;
   // The Blocks describing the cache entries.
   nsTArray<Block> mIndex;
   // The file descriptor of the cache file. The file will be deleted
@@ -366,16 +327,6 @@ protected:
   PRPackedBool    mInUpdate;
 #endif
 };
-
-NS_IMETHODIMP
-nsMediaCacheFlusher::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar const *aData)
-{
-  if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0 &&
-      NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
-    nsMediaCache::Flush();
-  }
-  return NS_OK;
-}
 
 void nsMediaCacheStream::BlockList::AddFirstBlock(PRInt32 aBlock)
 {
@@ -543,45 +494,29 @@ nsresult
 nsMediaCache::Init()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  NS_ASSERTION(!mFD, "Cache file already open?");
+
+  if (!mMonitor) {
+    // the constructor failed
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsIFile> tmp;
   nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmp));
-  NS_ENSURE_SUCCESS(rv,rv);
-
+  if (NS_FAILED(rv))
+    return rv;
   nsCOMPtr<nsILocalFile> tmpFile = do_QueryInterface(tmp);
-  NS_ENSURE_TRUE(tmpFile != nsnull, NS_ERROR_FAILURE);
-
-  // We put the media cache file in
-  // ${TempDir}/mozilla-media-cache/media_cache
-  rv = tmpFile->AppendNative(nsDependentCString("mozilla-media-cache"));
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  rv = tmpFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
-  if (rv == NS_ERROR_FILE_ALREADY_EXISTS) {
-    // Ensure the permissions are 0700. If not, we won't be able to create,
-    // read to and write from the media cache file in its subdirectory on
-    // non-Windows platforms.
-    PRUint32 perms;
-    rv = tmpFile->GetPermissions(&perms);
-    NS_ENSURE_SUCCESS(rv,rv);
-    if (perms != 0700) {
-      rv = tmpFile->SetPermissions(0700);
-      NS_ENSURE_SUCCESS(rv,rv);
-    }
-  } else {
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-
-  rv = tmpFile->AppendNative(nsDependentCString("media_cache"));
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  rv = tmpFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0700);
-  NS_ENSURE_SUCCESS(rv,rv);
-
+  if (!tmpFile)
+    return NS_ERROR_FAILURE;
+  rv = tmpFile->AppendNative(nsDependentCString("moz_media_cache"));
+  if (NS_FAILED(rv))
+    return rv;
+  rv = tmpFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  if (NS_FAILED(rv))
+    return rv;
   rv = tmpFile->OpenNSPRFileDesc(PR_RDWR | nsILocalFile::DELETE_ON_CLOSE,
                                  PR_IRWXU, &mFD);
-  NS_ENSURE_SUCCESS(rv,rv);
+  if (NS_FAILED(rv))
+    return rv;
 
 #ifdef PR_LOGGING
   if (!gMediaCacheLog) {
@@ -589,45 +524,13 @@ nsMediaCache::Init()
   }
 #endif
 
-  nsMediaCacheFlusher::Init();
-
   return NS_OK;
-}
-
-void
-nsMediaCache::Flush()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-
-  if (!gMediaCache)
-    return;
-
-  gMediaCache->FlushInternal();
-}
-
-void
-nsMediaCache::FlushInternal()
-{
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-
-  for (PRUint32 blockIndex = 0; blockIndex < mIndex.Length(); ++blockIndex) {
-    FreeBlock(blockIndex);
-  }
-
-  // Truncate file, close it, and reopen
-  Truncate();
-  NS_ASSERTION(mIndex.Length() == 0, "Blocks leaked?");
-  if (mFD) {
-    PR_Close(mFD);
-    mFD = nsnull;
-  }
-  Init();
 }
 
 void
 nsMediaCache::MaybeShutdown()
 {
-  NS_ASSERTION(NS_IsMainThread(),
+  NS_ASSERTION(NS_IsMainThread(), 
                "nsMediaCache::MaybeShutdown called on non-main thread");
   if (!gMediaCache->mStreams.IsEmpty()) {
     // Don't shut down yet, streams are still alive
@@ -639,7 +542,6 @@ nsMediaCache::MaybeShutdown()
   // This function is static so we don't have to delete 'this'.
   delete gMediaCache;
   gMediaCache = nsnull;
-  NS_IF_RELEASE(gMediaCacheFlusher);
 }
 
 static void
@@ -663,7 +565,7 @@ nsresult
 nsMediaCache::ReadCacheFile(PRInt64 aOffset, void* aData, PRInt32 aLength,
                             PRInt32* aBytes)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   if (!mFD)
     return NS_ERROR_FAILURE;
@@ -685,7 +587,7 @@ nsMediaCache::ReadCacheFile(PRInt64 aOffset, void* aData, PRInt32 aLength,
 nsresult
 nsMediaCache::ReadCacheFileAllBytes(PRInt64 aOffset, void* aData, PRInt32 aLength)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   PRInt64 offset = aOffset;
   PRInt32 count = aLength;
@@ -708,7 +610,7 @@ nsMediaCache::ReadCacheFileAllBytes(PRInt64 aOffset, void* aData, PRInt32 aLengt
 nsresult
 nsMediaCache::WriteCacheFile(PRInt64 aOffset, const void* aData, PRInt32 aLength)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   if (!mFD)
     return NS_ERROR_FAILURE;
@@ -739,17 +641,17 @@ static PRInt32 GetMaxBlocks()
   // We look up the cache size every time. This means dynamic changes
   // to the pref are applied.
   // Cache size is in KB
-  PRInt32 cacheSize = Preferences::GetInt("media.cache_size", 500*1024);
-  PRInt64 maxBlocks = static_cast<PRInt64>(cacheSize)*1024/nsMediaCache::BLOCK_SIZE;
-  maxBlocks = NS_MAX<PRInt64>(maxBlocks, 1);
-  return PRInt32(NS_MIN<PRInt64>(maxBlocks, PR_INT32_MAX));
+  PRInt32 cacheSize = nsContentUtils::GetIntPref("media.cache_size", 500*1024);
+  PRInt64 maxBlocks = PRInt64(cacheSize)*1024/nsMediaCache::BLOCK_SIZE;
+  maxBlocks = PR_MAX(maxBlocks, 1);
+  return PRInt32(PR_MIN(maxBlocks, PR_INT32_MAX));
 }
 
 PRInt32
 nsMediaCache::FindBlockForIncomingData(TimeStamp aNow,
                                        nsMediaCacheStream* aStream)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   PRInt32 blockIndex = FindReusableBlock(aNow, aStream,
       aStream->mChannelOffset/BLOCK_SIZE, PR_INT32_MAX);
@@ -792,7 +694,7 @@ nsMediaCache::AppendMostReusableBlock(BlockList* aBlockList,
                                       nsTArray<PRUint32>* aResult,
                                       PRInt32 aBlockIndexLimit)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   PRInt32 blockIndex = aBlockList->GetLastBlock();
   if (blockIndex < 0)
@@ -816,16 +718,16 @@ nsMediaCache::FindReusableBlock(TimeStamp aNow,
                                 PRInt32 aForStreamBlock,
                                 PRInt32 aMaxSearchBlockIndex)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
-  PRUint32 length = NS_MIN(PRUint32(aMaxSearchBlockIndex), mIndex.Length());
+  PRUint32 length = PR_MIN(PRUint32(aMaxSearchBlockIndex), mIndex.Length());
 
   if (aForStream && aForStreamBlock > 0 &&
       PRUint32(aForStreamBlock) <= aForStream->mBlocks.Length()) {
     PRInt32 prevCacheBlock = aForStream->mBlocks[aForStreamBlock - 1];
     if (prevCacheBlock >= 0) {
       PRUint32 freeBlockScanEnd =
-        NS_MIN(length, prevCacheBlock + FREE_BLOCK_SCAN_LIMIT);
+        PR_MIN(length, prevCacheBlock + FREE_BLOCK_SCAN_LIMIT);
       for (PRUint32 i = prevCacheBlock; i < freeBlockScanEnd; ++i) {
         if (IsBlockFree(i))
           return i;
@@ -910,7 +812,7 @@ nsMediaCache::GetBlockOwner(PRInt32 aBlockIndex, nsMediaCacheStream* aStream)
 void
 nsMediaCache::SwapBlocks(PRInt32 aBlockIndex1, PRInt32 aBlockIndex2)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   Block* block1 = &mIndex[aBlockIndex1];
   Block* block2 = &mIndex[aBlockIndex2];
@@ -990,7 +892,7 @@ nsMediaCache::AddBlockOwnerAsReadahead(PRInt32 aBlockIndex,
 void
 nsMediaCache::FreeBlock(PRInt32 aBlock)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   Block* block = &mIndex[aBlock];
   if (block->mOwners.IsEmpty()) {
@@ -1013,7 +915,7 @@ nsMediaCache::FreeBlock(PRInt32 aBlock)
 TimeDuration
 nsMediaCache::PredictNextUse(TimeStamp aNow, PRInt32 aBlock)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
   NS_ASSERTION(!IsBlockFree(aBlock), "aBlock is free");
 
   Block* block = &mIndex[aBlock];
@@ -1032,7 +934,7 @@ nsMediaCache::PredictNextUse(TimeStamp aNow, PRInt32 aBlock)
     case PLAYED_BLOCK:
       // This block should be managed in LRU mode, and we should impose
       // a "replay delay" to reflect the likelihood of replay happening
-      NS_ASSERTION(static_cast<PRInt64>(bo->mStreamBlock)*BLOCK_SIZE <
+      NS_ASSERTION(PRInt64(bo->mStreamBlock)*BLOCK_SIZE <
                    bo->mStream->mStreamOffset,
                    "Played block after the current stream position?");
       prediction = aNow - bo->mLastUseTime +
@@ -1040,13 +942,13 @@ nsMediaCache::PredictNextUse(TimeStamp aNow, PRInt32 aBlock)
       break;
     case READAHEAD_BLOCK: {
       PRInt64 bytesAhead =
-        static_cast<PRInt64>(bo->mStreamBlock)*BLOCK_SIZE - bo->mStream->mStreamOffset;
+        PRInt64(bo->mStreamBlock)*BLOCK_SIZE - bo->mStream->mStreamOffset;
       NS_ASSERTION(bytesAhead >= 0,
                    "Readahead block before the current stream position?");
       PRInt64 millisecondsAhead =
         bytesAhead*1000/bo->mStream->mPlaybackBytesPerSecond;
       prediction = TimeDuration::FromMilliseconds(
-          NS_MIN<PRInt64>(millisecondsAhead, PR_INT32_MAX));
+          PR_MIN(millisecondsAhead, PR_INT32_MAX));
       break;
     }
     default:
@@ -1063,7 +965,7 @@ nsMediaCache::PredictNextUse(TimeStamp aNow, PRInt32 aBlock)
 TimeDuration
 nsMediaCache::PredictNextUseForIncomingData(nsMediaCacheStream* aStream)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   PRInt64 bytesAhead = aStream->mChannelOffset - aStream->mStreamOffset;
   if (bytesAhead <= -BLOCK_SIZE) {
@@ -1074,7 +976,7 @@ nsMediaCache::PredictNextUseForIncomingData(nsMediaCacheStream* aStream)
     return TimeDuration(0);
   PRInt64 millisecondsAhead = bytesAhead*1000/aStream->mPlaybackBytesPerSecond;
   return TimeDuration::FromMilliseconds(
-      NS_MIN<PRInt64>(millisecondsAhead, PR_INT32_MAX));
+      PR_MIN(millisecondsAhead, PR_INT32_MAX));
 }
 
 enum StreamAction { NONE, SEEK, RESUME, SUSPEND };
@@ -1091,7 +993,7 @@ nsMediaCache::Update()
   nsAutoTArray<StreamAction,10> actions;
 
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    nsAutoMonitor mon(mMonitor);
     mUpdateQueued = PR_FALSE;
 #ifdef DEBUG
     mInUpdate = PR_TRUE;
@@ -1124,7 +1026,7 @@ nsMediaCache::Update()
         continue;
       }
       TimeDuration predictedUse = PredictNextUse(now, blockIndex);
-      latestPredictedUseForOverflow = NS_MAX(latestPredictedUseForOverflow, predictedUse);
+      latestPredictedUseForOverflow = PR_MAX(latestPredictedUseForOverflow, predictedUse);
     }
 
     // Now try to move overflowing blocks to the main part of the cache.
@@ -1373,8 +1275,8 @@ nsMediaCache::Update()
       // Close the streams that failed due to error. This will cause all
       // client Read and Seek operations on those streams to fail. Blocked
       // Reads will also be woken up.
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      stream->CloseInternal(mon);
+      nsAutoMonitor mon(mMonitor);
+      stream->CloseInternal(&mon);
     }
   }
 }
@@ -1394,7 +1296,7 @@ public:
 void
 nsMediaCache::QueueUpdate()
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   // Queuing an update while we're in an update raises a high risk of
   // triggering endless events
@@ -1411,7 +1313,7 @@ nsMediaCache::QueueUpdate()
 void
 nsMediaCache::Verify()
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   mFreeBlocks.Verify();
   for (PRUint32 i = 0; i < mStreams.Length(); ++i) {
@@ -1443,7 +1345,7 @@ void
 nsMediaCache::InsertReadaheadBlock(BlockOwner* aBlockOwner,
                                    PRInt32 aBlockIndex)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   // Find the last block whose stream block is before aBlockIndex's
   // stream block, and insert after it
@@ -1469,7 +1371,7 @@ void
 nsMediaCache::AllocateAndWriteBlock(nsMediaCacheStream* aStream, const void* aData,
                                     nsMediaCacheStream::ReadMode aMode)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   PRInt32 streamBlockIndex = aStream->mChannelOffset/BLOCK_SIZE;
 
@@ -1495,7 +1397,7 @@ nsMediaCache::AllocateAndWriteBlock(nsMediaCacheStream* aStream, const void* aDa
   if (blockIndex >= 0) {
     FreeBlock(blockIndex);
 
-    Block* block = &mIndex[blockIndex];
+    Block* block = &mIndex[blockIndex];    
     LOG(PR_LOG_DEBUG, ("Allocated block %d to stream %p block %d(%lld)",
         blockIndex, aStream, streamBlockIndex, (long long)streamBlockIndex*BLOCK_SIZE));
 
@@ -1547,7 +1449,7 @@ nsMediaCache::OpenStream(nsMediaCacheStream* aStream)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  nsAutoMonitor mon(mMonitor);
   LOG(PR_LOG_DEBUG, ("Stream %p opened", aStream));
   mStreams.AppendElement(aStream);
   aStream->mResourceID = mNextResourceID++;
@@ -1561,7 +1463,7 @@ nsMediaCache::ReleaseStream(nsMediaCacheStream* aStream)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  nsAutoMonitor mon(mMonitor);
   LOG(PR_LOG_DEBUG, ("Stream %p closed", aStream));
   mStreams.RemoveElement(aStream);
 }
@@ -1569,7 +1471,7 @@ nsMediaCache::ReleaseStream(nsMediaCacheStream* aStream)
 void
 nsMediaCache::ReleaseStreamBlocks(nsMediaCacheStream* aStream)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   // XXX scanning the entire stream doesn't seem great, if not much of it
   // is cached, but the only easy alternative is to scan the entire cache
@@ -1609,7 +1511,7 @@ nsMediaCache::NoteBlockUsage(nsMediaCacheStream* aStream, PRInt32 aBlockIndex,
                              nsMediaCacheStream::ReadMode aMode,
                              TimeStamp aNow)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   if (aBlockIndex < 0) {
     // this block is not in the cache yet
@@ -1641,7 +1543,7 @@ nsMediaCache::NoteBlockUsage(nsMediaCacheStream* aStream, PRInt32 aBlockIndex,
 void
 nsMediaCache::NoteSeek(nsMediaCacheStream* aStream, PRInt64 aOldOffset)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
 
   if (aOldOffset < aStream->mStreamOffset) {
     // We seeked forward. Convert blocks from readahead to played.
@@ -1649,7 +1551,7 @@ nsMediaCache::NoteSeek(nsMediaCacheStream* aStream, PRInt64 aOldOffset)
     // be converted.
     PRInt32 blockIndex = aOldOffset/BLOCK_SIZE;
     PRInt32 endIndex =
-      NS_MIN<PRInt64>((aStream->mStreamOffset + BLOCK_SIZE - 1)/BLOCK_SIZE,
+      PR_MIN((aStream->mStreamOffset + BLOCK_SIZE - 1)/BLOCK_SIZE,
              aStream->mBlocks.Length());
     TimeStamp now = TimeStamp::Now();
     while (blockIndex < endIndex) {
@@ -1669,7 +1571,7 @@ nsMediaCache::NoteSeek(nsMediaCacheStream* aStream, PRInt64 aOldOffset)
     PRInt32 blockIndex =
       (aStream->mStreamOffset + BLOCK_SIZE - 1)/BLOCK_SIZE;
     PRInt32 endIndex =
-      NS_MIN<PRInt64>((aOldOffset + BLOCK_SIZE - 1)/BLOCK_SIZE,
+      PR_MIN((aOldOffset + BLOCK_SIZE - 1)/BLOCK_SIZE,
              aStream->mBlocks.Length());
     while (blockIndex < endIndex) {
       PRInt32 cacheBlockIndex = aStream->mBlocks[endIndex - 1];
@@ -1697,23 +1599,23 @@ nsMediaCacheStream::NotifyDataLength(PRInt64 aLength)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   mStreamLength = aLength;
 }
 
 void
-nsMediaCacheStream::NotifyDataStarted(PRInt64 aOffset)
+nsMediaCacheStream::NotifyDataStarted(PRInt64 aOffset) 
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   NS_WARN_IF_FALSE(aOffset == mChannelOffset,
                    "Server is giving us unexpected offset");
   mChannelOffset = aOffset;
   if (mStreamLength >= 0) {
     // If we started reading at a certain offset, then for sure
     // the stream is at least that long.
-    mStreamLength = NS_MAX(mStreamLength, mChannelOffset);
+    mStreamLength = PR_MAX(mStreamLength, mChannelOffset);
   }
 }
 
@@ -1757,7 +1659,7 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   PRInt64 size = aSize;
   const char* data = aData;
 
@@ -1768,7 +1670,7 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
   while (size > 0) {
     PRUint32 blockIndex = mChannelOffset/BLOCK_SIZE;
     PRInt32 blockOffset = PRInt32(mChannelOffset - blockIndex*BLOCK_SIZE);
-    PRInt32 chunkSize = NS_MIN<PRInt64>(BLOCK_SIZE - blockOffset, size);
+    PRInt32 chunkSize = PRInt32(PR_MIN(BLOCK_SIZE - blockOffset, size));
 
     // This gets set to something non-null if we have a whole block
     // of data to write to the cache
@@ -1809,7 +1711,7 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
   while (nsMediaCacheStream* stream = iter.Next()) {
     if (stream->mStreamLength >= 0) {
       // The stream is at least as long as what we've read
-      stream->mStreamLength = NS_MAX(stream->mStreamLength, mChannelOffset);
+      stream->mStreamLength = PR_MAX(stream->mStreamLength, mChannelOffset);
     }
     stream->UpdatePrincipal(aPrincipal);
     stream->mClient->CacheClientNotifyDataReceived();
@@ -1822,11 +1724,11 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
 }
 
 void
-nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
+nsMediaCacheStream::NotifyDataEnded(nsresult aStatus) 
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
 
   PRInt32 blockOffset = PRInt32(mChannelOffset%BLOCK_SIZE);
   if (blockOffset > 0) {
@@ -1864,7 +1766,7 @@ nsMediaCacheStream::~nsMediaCacheStream()
 void
 nsMediaCacheStream::SetSeekable(PRBool aIsSeekable)
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   NS_ASSERTION(mIsSeekable || aIsSeekable ||
                mChannelOffset == 0, "channel offset must be zero when we become non-seekable");
   mIsSeekable = aIsSeekable;
@@ -1876,7 +1778,7 @@ nsMediaCacheStream::SetSeekable(PRBool aIsSeekable)
 PRBool
 nsMediaCacheStream::IsSeekable()
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   return mIsSeekable;
 }
 
@@ -1885,8 +1787,8 @@ nsMediaCacheStream::Close()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
-  CloseInternal(mon);
+  nsAutoMonitor mon(gMediaCache->Monitor());
+  CloseInternal(&mon);
   // Queue an Update since we may have created more free space. Don't do
   // it from CloseInternal since that gets called by Update() itself
   // sometimes, and we try to not to queue updates from Update().
@@ -1894,7 +1796,7 @@ nsMediaCacheStream::Close()
 }
 
 void
-nsMediaCacheStream::CloseInternal(ReentrantMonitorAutoEnter& aReentrantMonitor)
+nsMediaCacheStream::CloseInternal(nsAutoMonitor* aMonitor)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
@@ -1903,13 +1805,13 @@ nsMediaCacheStream::CloseInternal(ReentrantMonitorAutoEnter& aReentrantMonitor)
   mClosed = PR_TRUE;
   gMediaCache->ReleaseStreamBlocks(this);
   // Wake up any blocked readers
-  aReentrantMonitor.NotifyAll();
+  aMonitor->NotifyAll();
 }
 
 void
 nsMediaCacheStream::Pin()
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   ++mPinCount;
   // Queue an Update since we may no longer want to read more into the
   // cache, if this stream's block have become non-evictable
@@ -1919,7 +1821,7 @@ nsMediaCacheStream::Pin()
 void
 nsMediaCacheStream::Unpin()
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   NS_ASSERTION(mPinCount > 0, "Unbalanced Unpin");
   --mPinCount;
   // Queue an Update since we may be able to read more into the
@@ -1930,28 +1832,28 @@ nsMediaCacheStream::Unpin()
 PRInt64
 nsMediaCacheStream::GetLength()
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   return mStreamLength;
 }
 
 PRInt64
 nsMediaCacheStream::GetNextCachedData(PRInt64 aOffset)
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   return GetNextCachedDataInternal(aOffset);
 }
 
 PRInt64
 nsMediaCacheStream::GetCachedDataEnd(PRInt64 aOffset)
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   return GetCachedDataEndInternal(aOffset);
 }
 
 PRBool
 nsMediaCacheStream::IsDataCachedToEndOfStream(PRInt64 aOffset)
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   if (mStreamLength < 0)
     return PR_FALSE;
   return GetCachedDataEndInternal(aOffset) >= mStreamLength;
@@ -1960,7 +1862,7 @@ nsMediaCacheStream::IsDataCachedToEndOfStream(PRInt64 aOffset)
 PRInt64
 nsMediaCacheStream::GetCachedDataEndInternal(PRInt64 aOffset)
 {
-  gMediaCache->GetReentrantMonitor().AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(gMediaCache->Monitor());
   PRUint32 startBlockIndex = aOffset/BLOCK_SIZE;
   PRUint32 blockIndex = startBlockIndex;
   while (blockIndex < mBlocks.Length() && mBlocks[blockIndex] != -1) {
@@ -1975,18 +1877,18 @@ nsMediaCacheStream::GetCachedDataEndInternal(PRInt64 aOffset)
   if (mStreamLength >= 0) {
     // The last block in the cache may only be partially valid, so limit
     // the cached range to the stream length
-    result = NS_MIN(result, mStreamLength);
+    result = PR_MIN(result, mStreamLength);
   }
-  return NS_MAX(result, aOffset);
+  return PR_MAX(result, aOffset);
 }
 
 PRInt64
 nsMediaCacheStream::GetNextCachedDataInternal(PRInt64 aOffset)
 {
-  gMediaCache->GetReentrantMonitor().AssertCurrentThreadIn();
+  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(gMediaCache->Monitor());
   if (aOffset == mStreamLength)
     return -1;
-
+  
   PRUint32 startBlockIndex = aOffset/BLOCK_SIZE;
   PRUint32 channelBlockIndex = mChannelOffset/BLOCK_SIZE;
 
@@ -2030,7 +1932,7 @@ nsMediaCacheStream::GetNextCachedDataInternal(PRInt64 aOffset)
 void
 nsMediaCacheStream::SetReadMode(ReadMode aMode)
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   if (aMode == mCurrentMode)
     return;
   mCurrentMode = aMode;
@@ -2041,7 +1943,7 @@ void
 nsMediaCacheStream::SetPlaybackRate(PRUint32 aBytesPerSecond)
 {
   NS_ASSERTION(aBytesPerSecond > 0, "Zero playback rate not allowed");
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   if (aBytesPerSecond == mPlaybackBytesPerSecond)
     return;
   mPlaybackBytesPerSecond = aBytesPerSecond;
@@ -2053,7 +1955,7 @@ nsMediaCacheStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   if (mClosed)
     return NS_ERROR_FAILURE;
 
@@ -2087,7 +1989,7 @@ nsMediaCacheStream::Tell()
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   return mStreamOffset;
 }
 
@@ -2096,7 +1998,7 @@ nsMediaCacheStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   if (mClosed)
     return NS_ERROR_FAILURE;
 
@@ -2106,7 +2008,7 @@ nsMediaCacheStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
     PRUint32 streamBlock = PRUint32(mStreamOffset/BLOCK_SIZE);
     PRUint32 offsetInStreamBlock =
       PRUint32(mStreamOffset - streamBlock*BLOCK_SIZE);
-    PRInt32 size = NS_MIN(aCount - count, BLOCK_SIZE - offsetInStreamBlock);
+    PRInt32 size = PR_MIN(aCount - count, BLOCK_SIZE - offsetInStreamBlock);
 
     if (mStreamLength >= 0) {
       // Don't try to read beyond the end of the stream
@@ -2115,7 +2017,7 @@ nsMediaCacheStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
         // Get out of here and return NS_OK
         break;
       }
-      size = NS_MIN(size, PRInt32(bytesRemaining));
+      size = PR_MIN(size, PRInt32(bytesRemaining));
     }
 
     PRInt32 bytes;
@@ -2125,7 +2027,7 @@ nsMediaCacheStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
       // We can just use the data in mPartialBlockBuffer. In fact we should
       // use it rather than waiting for the block to fill and land in
       // the cache.
-      bytes = NS_MIN<PRInt64>(size, mChannelOffset - mStreamOffset);
+      bytes = PR_MIN(size, mChannelOffset - mStreamOffset);
       memcpy(aBuffer + count,
         reinterpret_cast<char*>(mPartialBlockBuffer) + offsetInStreamBlock, bytes);
       if (mCurrentMode == MODE_METADATA) {
@@ -2181,7 +2083,7 @@ nsMediaCacheStream::ReadFromCache(char* aBuffer,
                                   PRInt64 aOffset,
                                   PRInt64 aCount)
 {
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
   if (mClosed)
     return NS_ERROR_FAILURE;
 
@@ -2192,7 +2094,7 @@ nsMediaCacheStream::ReadFromCache(char* aBuffer,
     PRUint32 streamBlock = PRUint32(streamOffset/BLOCK_SIZE);
     PRUint32 offsetInStreamBlock =
       PRUint32(streamOffset - streamBlock*BLOCK_SIZE);
-    PRInt32 size = NS_MIN<PRInt64>(aCount - count, BLOCK_SIZE - offsetInStreamBlock);
+    PRInt32 size = PR_MIN(aCount - count, BLOCK_SIZE - offsetInStreamBlock);
 
     if (mStreamLength >= 0) {
       // Don't try to read beyond the end of the stream
@@ -2200,7 +2102,7 @@ nsMediaCacheStream::ReadFromCache(char* aBuffer,
       if (bytesRemaining <= 0) {
         return NS_ERROR_FAILURE;
       }
-      size = NS_MIN(size, PRInt32(bytesRemaining));
+      size = PR_MIN(size, PRInt32(bytesRemaining));
     }
 
     PRInt32 bytes;
@@ -2210,7 +2112,7 @@ nsMediaCacheStream::ReadFromCache(char* aBuffer,
       // We can just use the data in mPartialBlockBuffer. In fact we should
       // use it rather than waiting for the block to fill and land in
       // the cache.
-      bytes = NS_MIN<PRInt64>(size, mChannelOffset - streamOffset);
+      bytes = PR_MIN(size, mChannelOffset - streamOffset);
       memcpy(aBuffer + count,
         reinterpret_cast<char*>(mPartialBlockBuffer) + offsetInStreamBlock, bytes);
     } else {
@@ -2227,7 +2129,7 @@ nsMediaCacheStream::ReadFromCache(char* aBuffer,
     streamOffset += bytes;
     count += bytes;
   }
-
+  
   return NS_OK;
 }
 
@@ -2259,7 +2161,7 @@ nsMediaCacheStream::InitAsClone(nsMediaCacheStream* aOriginal)
   mResourceID = aOriginal->mResourceID;
 
   // Grab cache blocks from aOriginal as readahead blocks for our stream
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+  nsAutoMonitor mon(gMediaCache->Monitor());
 
   mPrincipal = aOriginal->mPrincipal;
   mStreamLength = aOriginal->mStreamLength;
@@ -2282,28 +2184,5 @@ nsMediaCacheStream::InitAsClone(nsMediaCacheStream* aOriginal)
     gMediaCache->AddBlockOwnerAsReadahead(cacheBlockIndex, this, i);
   }
 
-  return NS_OK;
-}
-
-nsresult nsMediaCacheStream::GetCachedRanges(nsTArray<nsByteRange>& aRanges)
-{
-  // Take the monitor, so that the cached data ranges can't grow while we're
-  // trying to loop over them.
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
-
-  // We must be pinned while running this, otherwise the cached data ranges may
-  // shrink while we're trying to loop over them.
-  NS_ASSERTION(mPinCount > 0, "Must be pinned");
-
-  PRInt64 startOffset = GetNextCachedData(0);
-  while (startOffset >= 0) {
-    PRInt64 endOffset = GetCachedDataEnd(startOffset);
-    NS_ASSERTION(startOffset < endOffset, "Buffered range must end after its start");
-    // Bytes [startOffset..endOffset] are cached.
-    aRanges.AppendElement(nsByteRange(startOffset, endOffset));
-    startOffset = GetNextCachedData(endOffset);
-    NS_ASSERTION(startOffset == -1 || startOffset > endOffset,
-      "Must have advanced to start of next range, or hit end of stream");
-  }
   return NS_OK;
 }

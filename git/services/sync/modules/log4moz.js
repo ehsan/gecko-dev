@@ -11,17 +11,16 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is log4moz.
+ * The Original Code is log4moz
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Michael Johnston
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Michael Johnston <special.michael@gmail.com> (Original Author)
- *   Dan Mills <thunder@mozilla.com>
- *   Philipp von Weitershausen <philipp@weitershausen.de>
+ * Michael Johnston <special.michael@gmail.com>
+ * Dan Mills <thunder@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,6 +43,8 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
 const MODE_RDONLY   = 0x01;
 const MODE_WRONLY   = 0x02;
 const MODE_CREATE   = 0x08;
@@ -56,12 +57,6 @@ const PERMS_DIRECTORY = 0755;
 const ONE_BYTE = 1;
 const ONE_KILOBYTE = 1024 * ONE_BYTE;
 const ONE_MEGABYTE = 1024 * ONE_KILOBYTE;
-
-const STREAM_SEGMENT_SIZE = 4096;
-const PR_UINT32_MAX = 0xffffffff;
-
-Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/FileUtils.jsm");
 
 let Log4Moz = {
   Level: {
@@ -95,22 +90,18 @@ let Log4Moz = {
     Log4Moz.repository = value;
   },
 
-  LogMessage: LogMessage,
-  Logger: Logger,
-  LoggerRepository: LoggerRepository,
+  get LogMessage() { return LogMessage; },
+  get Logger() { return Logger; },
+  get LoggerRepository() { return LoggerRepository; },
 
-  Formatter: Formatter,
-  BasicFormatter: BasicFormatter,
+  get Formatter() { return Formatter; },
+  get BasicFormatter() { return BasicFormatter; },
 
-  Appender: Appender,
-  DumpAppender: DumpAppender,
-  ConsoleAppender: ConsoleAppender,
-  BlockingStreamAppender: BlockingStreamAppender,
-  StorageStreamAppender: StorageStreamAppender,
-
-  // Discouraged due to blocking I/O.
-  FileAppender: FileAppender,
-  RotatingFileAppender: RotatingFileAppender,
+  get Appender() { return Appender; },
+  get DumpAppender() { return DumpAppender; },
+  get ConsoleAppender() { return ConsoleAppender; },
+  get FileAppender() { return FileAppender; },
+  get RotatingFileAppender() { return RotatingFileAppender; },
 
   // Logging helper:
   // let logger = Log4Moz.repository.getLogger("foo");
@@ -164,6 +155,8 @@ function LogMessage(loggerName, level, message){
   this.time = Date.now();
 }
 LogMessage.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
   get levelDesc() {
     if (this.level in Log4Moz.Level.Desc)
       return Log4Moz.Level.Desc[this.level];
@@ -185,12 +178,14 @@ function Logger(name, repository) {
   if (!repository)
     repository = Log4Moz.repository;
   this._name = name;
-  this.children = [];
-  this.ownAppenders = [];
-  this.appenders = [];
+  this._appenders = [];
   this._repository = repository;
 }
 Logger.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
+  parent: null,
+
   get name() {
     return this._name;
   },
@@ -208,97 +203,59 @@ Logger.prototype = {
     this._level = level;
   },
 
-  _parent: null,
-  get parent() this._parent,
-  set parent(parent) {
-    if (this._parent == parent) {
-      return;
-    }
-    // Remove ourselves from parent's children
-    if (this._parent) {
-      let index = this._parent.children.indexOf(this);
-      if (index != -1) {
-        this._parent.children.splice(index, 1);
-      }
-    }
-    this._parent = parent;
-    parent.children.push(this);
-    this.updateAppenders();
-  },
-
-  updateAppenders: function updateAppenders() {
-    if (this._parent) {
-      let notOwnAppenders = this._parent.appenders.filter(function(appender) {
-        return this.ownAppenders.indexOf(appender) == -1;
-      }, this);
-      this.appenders = notOwnAppenders.concat(this.ownAppenders);
-    } else {
-      this.appenders = this.ownAppenders.slice();
-    }
-
-    // Update children's appenders.
-    for (let i = 0; i < this.children.length; i++) {
-      this.children[i].updateAppenders();
-    }
+  _appenders: null,
+  get appenders() {
+    if (!this.parent)
+      return this._appenders;
+    return this._appenders.concat(this.parent.appenders);
   },
 
   addAppender: function Logger_addAppender(appender) {
-    if (this.ownAppenders.indexOf(appender) != -1) {
-      return;
+    for (let i = 0; i < this._appenders.length; i++) {
+      if (this._appenders[i] == appender)
+        return;
     }
-    this.ownAppenders.push(appender);
-    this.updateAppenders();
+    this._appenders.push(appender);
   },
 
   removeAppender: function Logger_removeAppender(appender) {
-    let index = this.ownAppenders.indexOf(appender);
-    if (index == -1) {
-      return;
+    let newAppenders = [];
+    for (let i = 0; i < this._appenders.length; i++) {
+      if (this._appenders[i] != appender)
+        newAppenders.push(this._appenders[i]);
     }
-    this.ownAppenders.splice(index, 1);
-    this.updateAppenders();
+    this._appenders = newAppenders;
   },
 
-  log: function Logger_log(level, string) {
-    if (this.level > level)
+  log: function Logger_log(message) {
+    if (this.level > message.level)
       return;
-
-    // Hold off on creating the message object until we actually have
-    // an appender that's responsible.
-    let message;
     let appenders = this.appenders;
     for (let i = 0; i < appenders.length; i++){
-      let appender = appenders[i];
-      if (appender.level > level)
-        continue;
-
-      if (!message)
-        message = new LogMessage(this._name, level, string);
-
-      appender.append(message);
+      appenders[i].append(message);
     }
   },
 
   fatal: function Logger_fatal(string) {
-    this.log(Log4Moz.Level.Fatal, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Fatal, string));
   },
   error: function Logger_error(string) {
-    this.log(Log4Moz.Level.Error, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Error, string));
   },
   warn: function Logger_warn(string) {
-    this.log(Log4Moz.Level.Warn, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Warn, string));
   },
   info: function Logger_info(string) {
-    this.log(Log4Moz.Level.Info, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Info, string));
   },
   config: function Logger_config(string) {
-    this.log(Log4Moz.Level.Config, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Config, string));
   },
   debug: function Logger_debug(string) {
-    this.log(Log4Moz.Level.Debug, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Debug, string));
   },
   trace: function Logger_trace(string) {
-    this.log(Log4Moz.Level.Trace, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Trace, string));
   }
 };
 
@@ -309,6 +266,8 @@ Logger.prototype = {
 
 function LoggerRepository() {}
 LoggerRepository.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
   _loggers: {},
 
   _rootLogger: null,
@@ -319,9 +278,10 @@ LoggerRepository.prototype = {
     }
     return this._rootLogger;
   },
-  set rootLogger(logger) {
-    throw "Cannot change the root logger";
-  },
+  // FIXME: need to update all parent values if we do this
+  //set rootLogger(logger) {
+  //  this._rootLogger = logger;
+  //},
 
   _updateParents: function LogRep__updateParents(name) {
     let pieces = name.split('.');
@@ -353,6 +313,8 @@ LoggerRepository.prototype = {
   },
 
   getLogger: function LogRep_getLogger(name) {
+    if (!name)
+      name = this.getLogger.caller.name;
     if (name in this._loggers)
       return this._loggers[name];
     this._loggers[name] = new Logger(name, this);
@@ -370,10 +332,11 @@ LoggerRepository.prototype = {
 // Abstract formatter
 function Formatter() {}
 Formatter.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
   format: function Formatter_format(message) {}
 };
 
-// Basic formatter that doesn't do anything fancy
+// FIXME: should allow for formatting the whole string, not just the date
 function BasicFormatter(dateFormat) {
   if (dateFormat)
     this.dateFormat = dateFormat;
@@ -381,9 +344,32 @@ function BasicFormatter(dateFormat) {
 BasicFormatter.prototype = {
   __proto__: Formatter.prototype,
 
+  _dateFormat: null,
+
+  get dateFormat() {
+    if (!this._dateFormat)
+      this._dateFormat = "%Y-%m-%d %H:%M:%S";
+    return this._dateFormat;
+  },
+
+  set dateFormat(format) {
+    this._dateFormat = format;
+  },
+
   format: function BF_format(message) {
-    return message.time + "\t" + message.loggerName + "\t" + message.levelDesc 
-           + "\t" + message.message + "\n";
+    // Pad a string to a certain length (20) with a character (space)
+    let pad = function BF__pad(str, len, chr) str +
+      new Array(Math.max((len || 20) - str.length + 1, 0)).join(chr || " ");
+
+    // Generate a date string because toLocaleString doesn't work XXX 514803
+    let z = function(n) n < 10 ? "0" + n : n;
+    let d = new Date(message.time);
+    let dateStr = [d.getFullYear(), "-", z(d.getMonth() + 1), "-",
+      z(d.getDate()), " ", z(d.getHours()), ":", z(d.getMinutes()), ":",
+      z(d.getSeconds())].join("");
+
+    return dateStr + "\t" + pad(message.loggerName) + " " + message.levelDesc +
+      "\t" + message.message + "\n";
   }
 };
 
@@ -398,10 +384,15 @@ function Appender(formatter) {
   this._formatter = formatter? formatter : new BasicFormatter();
 }
 Appender.prototype = {
-  level: Log4Moz.Level.All,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
+  _level: Log4Moz.Level.All,
+  get level() { return this._level; },
+  set level(level) { this._level = level; },
 
   append: function App_append(message) {
-    this.doAppend(this._formatter.format(message));
+    if(this._level <= message.level)
+      this.doAppend(this._formatter.format(message));
   },
   toString: function App_toString() {
     return this._name + " [level=" + this._level +
@@ -417,7 +408,7 @@ Appender.prototype = {
 
 function DumpAppender(formatter) {
   this._name = "DumpAppender";
-  Appender.call(this, formatter);
+  this._formatter = formatter? formatter : new BasicFormatter();
 }
 DumpAppender.prototype = {
   __proto__: Appender.prototype,
@@ -434,7 +425,7 @@ DumpAppender.prototype = {
 
 function ConsoleAppender(formatter) {
   this._name = "ConsoleAppender";
-  Appender.call(this, formatter);
+  this._formatter = formatter;
 }
 ConsoleAppender.prototype = {
   __proto__: Appender.prototype,
@@ -449,159 +440,77 @@ ConsoleAppender.prototype = {
   }
 };
 
-/**
- * Base implementation for stream based appenders.
- * 
- * Caution: This writes to the output stream synchronously, thus logging calls
- * block as the data is written to the stream. This can have negligible impact
- * for in-memory streams, but should be taken into account for I/O streams
- * (files, network, etc.)
+/*
+ * FileAppender
+ * Logs to a file
  */
-function BlockingStreamAppender(formatter) {
-  this._name = "BlockingStreamAppender";
-  Appender.call(this, formatter);
-}
-BlockingStreamAppender.prototype = {
-  __proto__: Appender.prototype,
 
-  _converterStream: null, // holds the nsIConverterOutputStream
-  _outputStream: null,    // holds the underlying nsIOutputStream
-
-  /**
-   * Output stream to write to.
-   * 
-   * This will automatically open the stream if it doesn't exist yet by
-   * calling newOutputStream. The resulting raw stream is wrapped in a
-   * nsIConverterOutputStream to ensure text is written as UTF-8.
-   */
-  get outputStream() {
-    if (!this._outputStream) {
-      // First create a raw stream. We can bail out early if that fails.
-      this._outputStream = this.newOutputStream();
-      if (!this._outputStream) {
-        return null;
-      }
-
-      // Wrap the raw stream in an nsIConverterOutputStream. We can reuse
-      // the instance if we already have one.
-      if (!this._converterStream) {
-        this._converterStream = Cc["@mozilla.org/intl/converter-output-stream;1"]
-                                  .createInstance(Ci.nsIConverterOutputStream);
-      }
-      this._converterStream.init(
-        this._outputStream, "UTF-8", STREAM_SEGMENT_SIZE,
-        Ci.nsIConverterOutputStream.DEFAULT_REPLACEMENT_CHARACTER);      
-    }
-    return this._converterStream;
-  },
-
-  newOutputStream: function newOutputStream() {
-    throw "Stream-based appenders need to implement newOutputStream()!";
-  },
-
-  reset: function reset() {
-    if (!this._outputStream) {
-      return;
-    }
-    this.outputStream.close();
-    this._outputStream = null;
-  },
-
-  doAppend: function doAppend(message) {
-    if (!message) {
-      return;
-    }
-    try {
-      this.outputStream.writeString(message);
-    } catch(ex) {
-      if (ex.result == Cr.NS_BASE_STREAM_CLOSED) {
-        // The underlying output stream is closed, so let's open a new one
-        // and try again.
-        this._outputStream = null;
-        try {
-          this.outputStream.writeString(message);
-        } catch (ex) {
-          // Ah well, we tried, but something seems to be hosed permanently.
-        }
-      }
-    }
-  }
-};
-
-/**
- * Append to an nsIStorageStream
- * 
- * This writes logging output to an in-memory stream which can later be read
- * back as an nsIInputStream. It can be used to avoid expensive I/O operations
- * during logging. Instead, one can periodically consume the input stream and
- * e.g. write it to disk asynchronously.
- */
-function StorageStreamAppender(formatter) {
-  this._name = "StorageStreamAppender";
-  BlockingStreamAppender.call(this, formatter);
-}
-StorageStreamAppender.prototype = { 
-  __proto__: BlockingStreamAppender.prototype,
-
-  _ss: null,
-  newOutputStream: function newOutputStream() {
-    let ss = this._ss = Cc["@mozilla.org/storagestream;1"]
-                          .createInstance(Ci.nsIStorageStream);
-    ss.init(STREAM_SEGMENT_SIZE, PR_UINT32_MAX, null);
-    return ss.getOutputStream(0);
-  },
-
-  getInputStream: function getInputStream() {
-    if (!this._ss) {
-      return null;
-    }
-    return this._ss.newInputStream(0);
-  },
-
-  reset: function reset() {
-    BlockingStreamAppender.prototype.reset.call(this);
-    this._ss = null;
-  }
-};
-
-/**
- * File appender (discouraged)
- *
- * Writes otuput to a file using a regular nsIFileOutputStream (as opposed
- * to nsISafeFileOutputStream, since immediate durability is typically not
- * needed for logs.) Note that I/O operations block the logging caller.
- */
 function FileAppender(file, formatter) {
   this._name = "FileAppender";
   this._file = file; // nsIFile
-  BlockingStreamAppender.call(this, formatter);
+  this._formatter = formatter? formatter : new BasicFormatter();
 }
 FileAppender.prototype = {
-  __proto__: BlockingStreamAppender.prototype,
+  __proto__: Appender.prototype,
+  __fos: null,
+  get _fos() {
+    if (!this.__fos)
+      this.openStream();
+    return this.__fos;
+  },
 
-  newOutputStream: function newOutputStream() {
+  openStream: function FApp_openStream() {
     try {
-      return FileUtils.openFileOutputStream(this._file);
+      let __fos = Cc["@mozilla.org/network/file-output-stream;1"].
+        createInstance(Ci.nsIFileOutputStream);
+      let flags = MODE_WRONLY | MODE_CREATE | MODE_APPEND;
+      __fos.init(this._file, flags, PERMS_FILE, 0);
+
+      this.__fos = Cc["@mozilla.org/intl/converter-output-stream;1"]
+            .createInstance(Ci.nsIConverterOutputStream);
+      this.__fos.init(__fos, "UTF-8", 4096,
+            Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
     } catch(e) {
-      return null;
+      dump("Error opening stream:\n" + e);
     }
   },
 
-  reset: function reset() {
-    BlockingStreamAppender.prototype.reset.call(this);
+  closeStream: function FApp_closeStream() {
+    if (!this.__fos)
+      return;
+    try {
+      this.__fos.close();
+      this.__fos = null;
+    } catch(e) {
+      dump("Failed to close file output stream\n" + e);
+    }
+  },
+
+  doAppend: function FApp_doAppend(message) {
+    if (message === null || message.length <= 0)
+      return;
+    try {
+      this._fos.writeString(message);
+    } catch(e) {
+      dump("Error writing file:\n" + e);
+    }
+  },
+
+  clear: function FApp_clear() {
+    this.closeStream();
     try {
       this._file.remove(false);
     } catch (e) {
-      // File didn't exist in the first place, or we're on Windows. Meh.
+      // XXX do something?
     }
   }
 };
 
-/**
- * Rotating file appender (discouraged)
- * 
- * Similar to FileAppender, but rotates logs when they become too large.
+/*
+ * RotatingFileAppender
+ * Similar to FileAppender, but rotates logs when they become too large
  */
+
 function RotatingFileAppender(file, formatter, maxSize, maxBackups) {
   if (maxSize === undefined)
     maxSize = ONE_MEGABYTE * 2;
@@ -610,41 +519,42 @@ function RotatingFileAppender(file, formatter, maxSize, maxBackups) {
     maxBackups = 0;
 
   this._name = "RotatingFileAppender";
-  FileAppender.call(this, file, formatter);
+  this._file = file; // nsIFile
+  this._formatter = formatter? formatter : new BasicFormatter();
   this._maxSize = maxSize;
   this._maxBackups = maxBackups;
 }
 RotatingFileAppender.prototype = {
   __proto__: FileAppender.prototype,
 
-  doAppend: function doAppend(message) {
-    FileAppender.prototype.doAppend.call(this, message);
+  doAppend: function RFApp_doAppend(message) {
+    if (message === null || message.length <= 0)
+      return;
     try {
       this.rotateLogs();
+      FileAppender.prototype.doAppend.call(this, message);
     } catch(e) {
       dump("Error writing file:" + e + "\n");
     }
   },
 
-  rotateLogs: function rotateLogs() {
-    if (this._file.exists() && this._file.fileSize < this._maxSize) {
+  rotateLogs: function RFApp_rotateLogs() {
+    if(this._file.exists() &&
+       this._file.fileSize < this._maxSize)
       return;
-    }
 
-    BlockingStreamAppender.prototype.reset.call(this);
+    this.closeStream();
 
-    for (let i = this.maxBackups - 1; i > 0; i--) {
+    for (let i = this.maxBackups - 1; i > 0; i--){
       let backup = this._file.parent.clone();
       backup.append(this._file.leafName + "." + i);
-      if (backup.exists()) {
+      if (backup.exists())
         backup.moveTo(this._file.parent, this._file.leafName + "." + (i + 1));
-      }
     }
 
     let cur = this._file.clone();
-    if (cur.exists()) {
+    if (cur.exists())
       cur.moveTo(cur.parent, cur.leafName + ".1");
-    }
 
     // Note: this._file still points to the same file
   }

@@ -40,7 +40,6 @@
 #define GFX_PLATFORM_H
 
 #include "prtypes.h"
-#include "prlog.h"
 #include "nsTArray.h"
 
 #include "nsIObserver.h"
@@ -65,11 +64,7 @@ class gfxPlatformFontList;
 class gfxTextRun;
 class nsIURI;
 class nsIAtom;
-
-#include "gfx2DGlue.h"
-#include "mozilla/RefPtr.h"
-
-extern cairo_user_data_key_t kDrawTarget;
+class nsIPrefBranch;
 
 // pref lang id's for font prefs
 // !!! needs to match the list of pref font.default.xx entries listed in all.js !!!
@@ -123,23 +118,10 @@ enum eCMSMode {
     eCMSMode_AllCount     = 3
 };
 
-enum eGfxLog {
-    // all font enumerations, localized names, fullname/psnames, cmap loads
-    eGfxLog_fontlist         = 0,
-    // timing info on font initialization
-    eGfxLog_fontinit         = 1,
-    // dump text runs, font matching, system fallback for content
-    eGfxLog_textrun          = 2,
-    // dump text runs, font matching, system fallback for chrome
-    eGfxLog_textrunui        = 3
-};
-
 // when searching through pref langs, max number of pref langs
 const PRUint32 kMaxLenPrefLangList = 32;
 
 #define UNINITIALIZED_VALUE  (-1)
-
-typedef gfxASurface::gfxImageFormat gfxImageFormat;
 
 class THEBES_API gfxPlatform {
 public:
@@ -151,13 +133,12 @@ public:
     static gfxPlatform *GetPlatform();
 
     /**
-     * Start up Thebes.
+     * Start up Thebes. This can fail.
      */
-    static void Init();
+    static nsresult Init();
 
     /**
-     * Shut down Thebes.
-     * Init() arranges for this to be called at an appropriate time.
+     * Clean up static objects to shut down thebes.
      */
     static void Shutdown();
 
@@ -166,23 +147,11 @@ public:
      * and image format.
      */
     virtual already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                                 gfxASurface::gfxContentType contentType) = 0;
+                                                                 gfxASurface::gfxImageFormat imageFormat) = 0;
 
 
     virtual already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
                                                         gfxASurface::gfxImageFormat format);
-
-    virtual mozilla::RefPtr<mozilla::gfx::DrawTarget>
-      CreateDrawTargetForSurface(gfxASurface *aSurface);
-
-    virtual mozilla::RefPtr<mozilla::gfx::SourceSurface>
-      GetSourceSurfaceForSurface(mozilla::gfx::DrawTarget *aTarget, gfxASurface *aSurface);
-
-    virtual mozilla::RefPtr<mozilla::gfx::ScaledFont>
-      GetScaledFontForFont(gfxFont *aFont);
-
-    virtual already_AddRefed<gfxASurface>
-      GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
 
     /*
      * Font bits
@@ -205,9 +174,7 @@ public:
     virtual nsresult UpdateFontList();
 
     /**
-     * Create the platform font-list object (gfxPlatformFontList concrete subclass).
-     * This function is responsible to create the appropriate subclass of
-     * gfxPlatformFontList *and* to call its InitFontList() method.
+     * Create the platform font-list object (gfxPlatformFontList concrete subclass)
      */
     virtual gfxPlatformFontList *CreatePlatformFontList() {
         NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
@@ -266,19 +233,23 @@ public:
     /**
      * Whether to allow downloadable fonts via @font-face rules
      */
-    PRBool DownloadableFontsEnabled();
-
-    /**
-     * Whether to sanitize downloaded fonts using the OTS library
-     */
-    PRBool SanitizeDownloadedFonts();
+    virtual PRBool DownloadableFontsEnabled();
 
     /**
      * Whether to use the harfbuzz shaper (depending on script complexity).
      *
      * This allows harfbuzz to be enabled selectively via the preferences.
+     * Current "harfbuzz level" options:
+     * <= 0 will never use the harfbuzz shaper;
+     *  = 1 will use it for "simple" scripts (Latin, Cyrillic, CJK, etc);
+     * >= 2 will use it for all scripts, including those requiring complex
+     *      shaping for correct rendering (Arabic, Indic, etc).
+     *
+     * Depending how harfbuzz complex-script support evolves, we may want to
+     * update this mechanism - e.g., separating complex-bidi from Indic,
+     * or other distinctions.
      */
-    PRBool UseHarfBuzzForScript(PRInt32 aScriptCode);
+    PRInt8 UseHarfBuzzLevel();
 
     // check whether format is supported on a platform or not (if unclear, returns true)
     virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags) { return PR_FALSE; }
@@ -366,7 +337,7 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
-    virtual void FontsPrefsChanged(const char *aPref);
+    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
     /**
      * Returns a 1x1 surface that can be used to create graphics contexts
@@ -374,34 +345,26 @@ public:
      */
     gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
 
-    virtual gfxImageFormat GetOffscreenFormat()
-    { return gfxASurface::FormatFromContent(gfxASurface::CONTENT_COLOR); }
-
-    /**
-     * Returns a logger if one is available and logging is enabled
-     */
-    static PRLogModuleInfo* GetLog(eGfxLog aWhichLog);
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();
+
+    static PRBool GetBoolPref(const char *aPref, PRBool aDefault);
 
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
     PRBool  mAllowDownloadableFonts;
-    PRBool  mDownloadableFontsSanitize;
 
-    // which scripts should be shaped with harfbuzz
-    PRInt32 mUseHarfBuzzScripts;
+    // whether to use the HarfBuzz layout engine
+    PRInt8  mUseHarfBuzzLevel;
 
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
     nsRefPtr<gfxASurface> mScreenReferenceSurface;
     nsTArray<PRUint32> mCJKPrefLangs;
-    nsCOMPtr<nsIObserver> mSRGBOverrideObserver;
-    nsCOMPtr<nsIObserver> mFontPrefsObserver;
+    nsCOMPtr<nsIObserver> overrideObserver;
 };
 
 #endif /* GFX_PLATFORM_H */

@@ -40,10 +40,6 @@
 
 #include "nsDebugImpl.h"
 #include "nsDebug.h"
-#ifdef MOZ_CRASHREPORTER
-# include "nsExceptionHandler.h"
-#endif
-#include "nsStringGlue.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "prinit.h"
@@ -58,7 +54,12 @@
 #include <android/log.h>
 #endif
 
-#if defined(XP_UNIX) || defined(_WIN32) || defined(XP_OS2)
+#if defined(XP_BEOS)
+/* For DEBUGGER macros */
+#include <Debug.h>
+#endif
+
+#if defined(XP_UNIX) || defined(_WIN32) || defined(XP_OS2) || defined(XP_BEOS)
 /* for abort() and getenv() */
 #include <stdlib.h>
 #endif
@@ -328,27 +329,17 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      Break(buf.buffer);
      return;
 
-   case NS_DEBUG_ABORT: {
-#if defined(MOZ_CRASHREPORTER)
-     nsCString note("xpcom_runtime_abort(");
-     note += buf.buffer;
-     note += ")";
-     CrashReporter::AppendAppNotesToCrashReport(note);
-#endif  // MOZ_CRASHREPORTER
-
+   case NS_DEBUG_ABORT:
 #if defined(DEBUG) && defined(_WIN32)
      RealBreak();
 #endif
-#ifdef DEBUG
      nsTraceRefcntImpl::WalkTheStack(stderr);
-#endif
      Abort(buf.buffer);
      return;
    }
-   }
 
    // Now we deal with assertions
-   PR_ATOMIC_INCREMENT(&gAssertionCount);
+   PR_AtomicIncrement(&gAssertionCount);
 
    switch (GetAssertBehavior()) {
    case NS_ASSERT_WARN:
@@ -392,9 +383,12 @@ static void
 RealBreak()
 {
 #if defined(_WIN32)
+#ifndef WINCE
   ::DebugBreak();
+#endif
 #elif defined(XP_OS2)
    asm("int $3");
+#elif defined(XP_BEOS)
 #elif defined(XP_MACOSX)
    raise(SIGTRAP);
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
@@ -408,7 +402,7 @@ RealBreak()
    raise(SIGTRAP);
 #endif
 #else
-#warning do not know how to break on this platform
+#warning don't know how to break on this platform  
 #endif
 }
 
@@ -417,6 +411,7 @@ static void
 Break(const char *aMsg)
 {
 #if defined(_WIN32)
+#ifndef WINCE // we really just want to crash for now
   static int ignoreDebugger;
   if (!ignoreDebugger) {
     const char *shouldIgnoreDebugger = getenv("XPCOM_DEBUG_DLG");
@@ -472,6 +467,7 @@ Break(const char *aMsg)
   }
 
   RealBreak();
+#endif // WINCE
 #elif defined(XP_OS2)
    char msg[1200];
    PR_snprintf(msg, sizeof(msg),
@@ -494,6 +490,9 @@ Break(const char *aMsg)
      return;
 
    RealBreak();
+#elif defined(XP_BEOS)
+   DEBUGGER(aMsg);
+   RealBreak();
 #elif defined(XP_MACOSX)
    /* Note that we put this Mac OS X test above the GNUC/x86 test because the
     * GNUC/x86 test is also true on Intel Mac OS X and we want the PPC/x86
@@ -507,7 +506,7 @@ Break(const char *aMsg)
 #elif defined(SOLARIS)
    RealBreak();
 #else
-#warning do not know how to break on this platform
+#warning don't know how to break on this platform
 #endif
 }
 

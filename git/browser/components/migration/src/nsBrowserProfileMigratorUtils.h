@@ -39,7 +39,6 @@
 #define browserprofilemigratorutils___h___
 
 #define MIGRATION_ITEMBEFOREMIGRATE "Migration:ItemBeforeMigrate"
-#define MIGRATION_ITEMMIGRATEERROR  "Migration:ItemError"
 #define MIGRATION_ITEMAFTERMIGRATE  "Migration:ItemAfterMigrate"
 #define MIGRATION_STARTED           "Migration:Started"
 #define MIGRATION_ENDED             "Migration:Ended"
@@ -48,12 +47,11 @@
   mObserverService->NotifyObservers(nsnull, message, item)
 
 #define COPY_DATA(func, replace, itemIndex) \
-  if ((aItems & itemIndex || !aItems)) { \
+  if (NS_SUCCEEDED(rv) && (aItems & itemIndex || !aItems)) { \
     nsAutoString index; \
     index.AppendInt(itemIndex); \
     NOTIFY_OBSERVERS(MIGRATION_ITEMBEFOREMIGRATE, index.get()); \
-    if (NS_FAILED(func(replace))) \
-      NOTIFY_OBSERVERS(MIGRATION_ITEMMIGRATEERROR, index.get()); \
+    rv = func(replace); \
     NOTIFY_OBSERVERS(MIGRATION_ITEMAFTERMIGRATE, index.get()); \
   }
 

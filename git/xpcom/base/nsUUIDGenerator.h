@@ -39,8 +39,8 @@
 #ifndef _NSUUIDGENERATOR_H_
 #define _NSUUIDGENERATOR_H_
 
-#include "mozilla/Mutex.h"
 #include "nsIUUIDGenerator.h"
+#include "prlock.h"
 
 class nsUUIDGenerator : public nsIUUIDGenerator {
 public:
@@ -57,8 +57,9 @@ private:
 
 protected:
 
-    mozilla::Mutex mLock;
-#if !defined(XP_WIN) && !defined(XP_MACOSX) && !defined(ANDROID)
+    PRLock* mLock;
+#if defined(WINCE)
+#elif !defined(XP_WIN) && !defined(XP_MACOSX) && !defined(ANDROID)
     char mState[128];
     char *mSavedState;
     PRUint8 mRBytes;

@@ -77,7 +77,6 @@ public:
   {
     return mMessageManager ? mMessageManager->Dump(aStr) : NS_OK;
   }
-  NS_IMETHOD PrivateNoteIntentionalCrash();
   NS_DECL_NSIINPROCESSCONTENTFRAMEMESSAGEMANAGER
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -87,7 +86,7 @@ public:
   {
     // By default add listeners only for trusted events!
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
-                                                    aUseCapture, PR_FALSE, 2);
+                                                    aUseCapture, PR_FALSE, 1);
   }
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,

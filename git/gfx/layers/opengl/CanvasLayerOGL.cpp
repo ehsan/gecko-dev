@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "gfxSharedImageSurface.h"
-
 #include "CanvasLayerOGL.h"
 
 #include "gfxImageSurface.h"
@@ -52,10 +50,6 @@
 #include <OpenGL/OpenGL.h>
 #endif
 
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
-
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
@@ -69,12 +63,6 @@ CanvasLayerOGL::Destroy()
       cx->MakeCurrent();
       cx->fDeleteTextures(1, &mTexture);
     }
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    if (mPixmap) {
-        sGLXLibrary.DestroyPixmap(mPixmap);
-        mPixmap = 0;
-    }
-#endif
 
     mDestroyed = PR_TRUE;
   }
@@ -92,22 +80,9 @@ CanvasLayerOGL::Initialize(const Data& aData)
     return;
   }
 
-  mOGLManager->MakeCurrent();
-
   if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
     mNeedsYFlip = PR_FALSE;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    mPixmap = sGLXLibrary.CreatePixmap(aData.mSurface);
-    if (mPixmap) {
-        if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
-            mLayerProgram = gl::RGBALayerProgramType;
-        } else {
-            mLayerProgram = gl::RGBXLayerProgramType;
-        }
-        MakeTexture();
-    }
-#endif
   } else if (aData.mGLContext) {
     if (!aData.mGLContext->IsOffscreen()) {
       NS_WARNING("CanvasLayerOGL with a non-offscreen GL context given");
@@ -124,18 +99,6 @@ CanvasLayerOGL::Initialize(const Data& aData)
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
-      
-  // Check the maximum texture size supported by GL. glTexImage2D supports
-  // images of up to 2 + GL_MAX_TEXTURE_SIZE
-  GLint texSize = gl()->GetMaxTextureSize();
-  if (mBounds.width > (2 + texSize) || mBounds.height > (2 + texSize)) {
-    mDelayedUpdates = PR_TRUE;
-    MakeTexture();
-    // This should only ever occur with 2d canvas, WebGL can't already have a texture
-    // of this size can it?
-    NS_ABORT_IF_FALSE(mCanvasSurface, 
-                      "Invalid texture size when WebGL surface already exists at that size?");
-  }
 }
 
 void
@@ -156,23 +119,18 @@ CanvasLayerOGL::MakeTexture()
 }
 
 void
-CanvasLayerOGL::UpdateSurface()
+CanvasLayerOGL::Updated(const nsIntRect& aRect)
 {
-  if (!mDirty)
-    return;
-  mDirty = PR_FALSE;
-
-  if (mDestroyed || mDelayedUpdates) {
+  if (mDestroyed) {
     return;
   }
 
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (mPixmap) {
-    return;
-  }
-#endif
+  NS_ASSERTION(mUpdatedRect.IsEmpty(),
+               "CanvasLayer::Updated called more than once during a transaction!");
 
   mOGLManager->MakeCurrent();
+
+  mUpdatedRect.UnionRect(mUpdatedRect, aRect);
 
   if (mCanvasGLContext &&
       mCanvasGLContext->GetContextType() == gl()->GetContextType())
@@ -183,41 +141,101 @@ CanvasLayerOGL::UpdateSurface()
       MakeTexture();
     }
   } else {
-    nsRefPtr<gfxASurface> updatedAreaSurface;
-    if (mCanvasSurface) {
-      updatedAreaSurface = mCanvasSurface;
-    } else if (mCanvasGLContext) {
-      nsRefPtr<gfxImageSurface> updatedAreaImageSurface =
-        new gfxImageSurface(gfxIntSize(mBounds.width, mBounds.height),
-                            gfxASurface::ImageFormatARGB32);
-      mCanvasGLContext->ReadPixelsIntoImageSurface(0, 0,
-                                                   mBounds.width,
-                                                   mBounds.height,
-                                                   updatedAreaImageSurface);
-      updatedAreaSurface = updatedAreaImageSurface;
+    PRBool newTexture = mTexture == 0;
+    if (newTexture) {
+      MakeTexture();
+      mUpdatedRect = mBounds;
+    } else {
+      gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+      gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
     }
 
-    mLayerProgram =
-      gl()->UploadSurfaceToTexture(updatedAreaSurface,
-                                   mBounds,
-                                   mTexture,
-                                   false,
-                                   nsIntPoint(0, 0));
+    nsRefPtr<gfxImageSurface> updatedAreaImageSurface;
+    if (mCanvasSurface) {
+      nsRefPtr<gfxASurface> sourceSurface = mCanvasSurface;
+
+#ifdef XP_WIN
+      if (sourceSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
+        sourceSurface = static_cast<gfxWindowsSurface*>(sourceSurface.get())->GetImageSurface();
+        if (!sourceSurface)
+          sourceSurface = mCanvasSurface;
+      }
+#endif
+
+#if 0
+      // XXX don't copy, blah.
+      // but need to deal with stride on the gl side; do this later.
+      if (mCanvasSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+        gfxImageSurface *s = static_cast<gfxImageSurface*>(mCanvasSurface.get());
+        if (s->Format() == gfxASurface::ImageFormatARGB32 ||
+            s->Format() == gfxASurface::ImageFormatRGB24)
+        {
+          updatedAreaImageSurface = ...;
+        } else {
+          NS_WARNING("surface with format that we can't handle");
+          return;
+        }
+      } else
+#endif
+      {
+        updatedAreaImageSurface =
+          new gfxImageSurface(gfxIntSize(mUpdatedRect.width, mUpdatedRect.height),
+                              gfxASurface::ImageFormatARGB32);
+        nsRefPtr<gfxContext> ctx = new gfxContext(updatedAreaImageSurface);
+        ctx->Translate(gfxPoint(-mUpdatedRect.x, -mUpdatedRect.y));
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(sourceSurface);
+        ctx->Paint();
+      }
+    } else if (mCanvasGLContext) {
+      updatedAreaImageSurface =
+        new gfxImageSurface(gfxIntSize(mUpdatedRect.width, mUpdatedRect.height),
+                            gfxASurface::ImageFormatARGB32);
+      mCanvasGLContext->ReadPixelsIntoImageSurface(mUpdatedRect.x, mUpdatedRect.y,
+                                                   mUpdatedRect.width,
+                                                   mUpdatedRect.height,
+                                                   updatedAreaImageSurface);
+    }
+
+    if (newTexture) {
+      gl()->fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                        0,
+                        LOCAL_GL_RGBA,
+                        mUpdatedRect.width,
+                        mUpdatedRect.height,
+                        0,
+                        LOCAL_GL_RGBA,
+                        LOCAL_GL_UNSIGNED_BYTE,
+                        updatedAreaImageSurface->Data());
+    } else {
+      gl()->fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                           0,
+                           mUpdatedRect.x,
+                           mUpdatedRect.y,
+                           mUpdatedRect.width,
+                           mUpdatedRect.height,
+                           LOCAL_GL_RGBA,
+                           LOCAL_GL_UNSIGNED_BYTE,
+                           updatedAreaImageSurface->Data());
+    }
   }
+
+  // sanity
+  NS_ASSERTION(mBounds.Contains(mUpdatedRect),
+               "CanvasLayer: Updated rect bigger than bounds!");
 }
 
 void
 CanvasLayerOGL::RenderLayer(int aPreviousDestination,
                             const nsIntPoint& aOffset)
 {
-  UpdateSurface();
-  FireDidTransactionCallback();
-
   mOGLManager->MakeCurrent();
 
   // XXX We're going to need a different program depending on if
   // mGLBufferIsPremultiplied is TRUE or not.  The RGBLayerProgram
   // assumes that it's true.
+
+  ColorTextureLayerProgram *program = nsnull;
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
@@ -225,157 +243,31 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
   }
 
-  ColorTextureLayerProgram *program = nsnull;
-
   bool useGLContext = mCanvasGLContext &&
     mCanvasGLContext->GetContextType() == gl()->GetContextType();
 
-  nsIntRect drawRect = mBounds;
-
   if (useGLContext) {
-    mCanvasGLContext->MakeCurrent();
-    mCanvasGLContext->fFlush();
-
-    gl()->MakeCurrent();
     gl()->BindTex2DOffscreen(mCanvasGLContext);
-    program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), PR_TRUE);
-  } else if (mDelayedUpdates) {
-    NS_ABORT_IF_FALSE(mCanvasSurface, "WebGL canvases should always be using full texture upload");
-    
-    drawRect.IntersectRect(drawRect, GetEffectiveVisibleRegion().GetBounds());
-
-    mLayerProgram =
-      gl()->UploadSurfaceToTexture(mCanvasSurface,
-                                   nsIntRect(0, 0, drawRect.width, drawRect.height),
-                                   mTexture,
-                                   true,
-                                   drawRect.TopLeft());
+    DEBUG_GL_ERROR_CHECK(gl());
+    program = mOGLManager->GetRGBALayerProgram();
+  } else {
+    program = mOGLManager->GetBGRALayerProgram();
   }
-  if (!program) { 
-    program = mOGLManager->GetColorTextureLayerProgram(mLayerProgram);
-  }
-
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (mPixmap && !mDelayedUpdates) {
-    sGLXLibrary.BindTexImage(mPixmap);
-  }
-#endif
-
-  ApplyFilter(mFilter);
 
   program->Activate();
-  program->SetLayerQuadRect(drawRect);
-  program->SetLayerTransform(GetEffectiveTransform());
-  program->SetLayerOpacity(GetEffectiveOpacity());
+  program->SetLayerQuadRect(mBounds);
+  program->SetLayerTransform(mTransform);
+  program->SetLayerOpacity(GetOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
 
   mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
 
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (mPixmap && !mDelayedUpdates) {
-    sGLXLibrary.ReleaseTexImage(mPixmap);
-  }
-#endif
+  DEBUG_GL_ERROR_CHECK(gl());
 
   if (useGLContext) {
     gl()->UnbindTex2DOffscreen(mCanvasGLContext);
   }
-}
 
-
-ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
-  : ShadowCanvasLayer(aManager, nsnull)
-  , LayerOGL(aManager)
-  , mNeedsYFlip(PR_FALSE)
-{
-  mImplData = static_cast<LayerOGL*>(this);
-}
- 
-ShadowCanvasLayerOGL::~ShadowCanvasLayerOGL()
-{}
-
-void
-ShadowCanvasLayerOGL::Initialize(const Data& aData)
-{
-  NS_RUNTIMEABORT("Incompatibe surface type");
-}
-
-void
-ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip)
-{
-  mDeadweight = aNewFront;
-  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(mDeadweight);
-
-  mTexImage = gl()->CreateTextureImage(nsIntSize(aSize.width, aSize.height),
-                                       surf->GetContentType(),
-                                       LOCAL_GL_CLAMP_TO_EDGE);
-  mNeedsYFlip = needYFlip;
-}
-
-void
-ShadowCanvasLayerOGL::Swap(const SurfaceDescriptor& aNewFront,
-                           SurfaceDescriptor* aNewBack)
-{
-  if (!mDestroyed && mTexImage) {
-    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
-    gfxSize sz = surf->GetSize();
-    nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
-    mTexImage->DirectUpdate(surf, updateRegion);
-  }
-
-  *aNewBack = aNewFront;
-}
-
-void
-ShadowCanvasLayerOGL::DestroyFrontBuffer()
-{
-  mTexImage = nsnull;
-  if (IsSurfaceDescriptorValid(mDeadweight)) {
-    mOGLManager->DestroySharedSurface(&mDeadweight, mAllocator);
-  }
-}
-
-void
-ShadowCanvasLayerOGL::Disconnect()
-{
-  Destroy();
-}
-
-void
-ShadowCanvasLayerOGL::Destroy()
-{
-  if (!mDestroyed) {
-    mDestroyed = PR_TRUE;
-    mTexImage = nsnull;
-  }
-}
-
-Layer*
-ShadowCanvasLayerOGL::GetLayer()
-{
-  return this;
-}
-
-void
-ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
-                                  const nsIntPoint& aOffset)
-{
-  mOGLManager->MakeCurrent();
-
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
-  ColorTextureLayerProgram *program =
-    mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
-
-  ApplyFilter(mFilter);
-
-  program->Activate();
-  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mTexImage->GetSize()));
-  program->SetLayerTransform(GetEffectiveTransform());
-  program->SetLayerOpacity(GetEffectiveOpacity());
-  program->SetRenderOffset(aOffset);
-  program->SetTextureUnit(0);
-
-  mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
+  mUpdatedRect.Empty();
 }

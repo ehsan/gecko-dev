@@ -36,10 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
 #include "mozilla/net/NeckoCommon.h"
 #include "mozilla/net/NeckoChild.h"
-#include "nsURLHelper.h"
+#endif
 
 #include "nsHTMLDNSPrefetch.h"
 #include "nsCOMPtr.h"
@@ -54,6 +55,7 @@
 #include "nsIDNSRecord.h"
 #include "nsIDNSService.h"
 #include "nsICancelable.h"
+#include "nsContentUtils.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
@@ -61,11 +63,7 @@
 #include "nsIObserverService.h"
 #include "mozilla/dom/Link.h"
 
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::net;
 
 static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
 PRBool sDisablePrefetchHTTPSPref;
@@ -96,20 +94,22 @@ nsHTMLDNSPrefetch::Initialize()
 
   sPrefetches->Activate();
 
-  Preferences::AddBoolVarCache(&sDisablePrefetchHTTPSPref,
-                               "network.dns.disablePrefetchFromHTTPS");
+  nsContentUtils::AddBoolPrefVarCache("network.dns.disablePrefetchFromHTTPS", 
+                                      &sDisablePrefetchHTTPSPref);
   
   // Default is false, so we need an explicit call to prime the cache.
   sDisablePrefetchHTTPSPref = 
-    Preferences::GetBool("network.dns.disablePrefetchFromHTTPS", PR_TRUE);
+    nsContentUtils::GetBoolPref("network.dns.disablePrefetchFromHTTPS", PR_TRUE);
   
   NS_IF_RELEASE(sDNSService);
   nsresult rv;
   rv = CallGetService(kDNSServiceCID, &sDNSService);
   if (NS_FAILED(rv)) return rv;
   
-  if (IsNeckoChild())
-    NeckoChild::InitNeckoChild();
+#ifdef MOZ_IPC
+  if (mozilla::net::IsNeckoChild())
+    mozilla::net::NeckoChild::InitNeckoChild();
+#endif
 
   sInitialized = PR_TRUE;
   return NS_OK;
@@ -140,7 +140,8 @@ nsHTMLDNSPrefetch::IsAllowed (nsIDocument *aDocument)
 nsresult
 nsHTMLDNSPrefetch::Prefetch(Link *aElement, PRUint16 flags)
 {
-  if (IsNeckoChild()) {
+#ifdef MOZ_IPC
+  if (mozilla::net::IsNeckoChild()) {
     // Instead of transporting the Link object to the other process
     // we are using the hostname based function here, too. Compared to the 
     // IPC the performance hit should be negligible.
@@ -150,6 +151,7 @@ nsHTMLDNSPrefetch::Prefetch(Link *aElement, PRUint16 flags)
 
     return Prefetch(hostname, flags);
   }
+#endif
 
   if (!(sInitialized && sPrefetches && sDNSService && sDNSListener))
     return NS_ERROR_NOT_AVAILABLE;
@@ -178,15 +180,12 @@ nsHTMLDNSPrefetch::PrefetchHigh(Link *aElement)
 nsresult
 nsHTMLDNSPrefetch::Prefetch(nsAString &hostname, PRUint16 flags)
 {
-  if (IsNeckoChild()) {
-    // We need to check IsEmpty() because net_IsValidHostName()
-    // considers empty strings to be valid hostnames
-    if (!hostname.IsEmpty() &&
-        net_IsValidHostName(NS_ConvertUTF16toUTF8(hostname))) {
-      gNeckoChild->SendHTMLDNSPrefetch(nsAutoString(hostname), flags);
-    }
+#ifdef MOZ_IPC
+  if (mozilla::net::IsNeckoChild()) {
+    mozilla::net::gNeckoChild->SendHTMLDNSPrefetch(nsAutoString(hostname), flags);
     return NS_OK;
   }
+#endif
 
   if (!(sInitialized && sDNSService && sPrefetches && sDNSListener))
     return NS_ERROR_NOT_AVAILABLE;

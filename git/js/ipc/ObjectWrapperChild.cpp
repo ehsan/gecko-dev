@@ -50,7 +50,6 @@
 #include "nsTArray.h"
 #include "nsContentUtils.h"
 #include "nsIJSContextStack.h"
-#include "nsJSUtils.h"
 
 using namespace mozilla::jsipc;
 using namespace js;
@@ -63,7 +62,7 @@ namespace {
         JSAutoRequest mRequest;
         JSContext* const mContext;
         const uint32 mSavedOptions;
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
 
     public:
 
@@ -111,7 +110,7 @@ namespace {
 
     class AutoCheckOperation : public ACOBase
     {
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
     public:
         AutoCheckOperation(ObjectWrapperChild* owc,
                            OperationStatus* statusPtr
@@ -189,12 +188,8 @@ ObjectWrapperChild::jsval_to_JSVariant(JSContext* cx, jsval from, JSVariant* to)
     case JSTYPE_OBJECT:
         return JSObject_to_JSVariant(cx, JSVAL_TO_OBJECT(from), to);
     case JSTYPE_STRING:
-        {
-            nsDependentJSString depStr;
-            if (!depStr.init(cx, from))
-                return false;
-            *to = depStr;
-        }
+        *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(from)),
+                                JS_GetStringLength(JSVAL_TO_STRING(from)));
         return true;
     case JSTYPE_NUMBER:
         if (JSVAL_IS_INT(from))
@@ -287,10 +282,10 @@ ObjectWrapperChild::Manager()
 static bool
 jsid_to_nsString(JSContext* cx, jsid from, nsString* to)
 {
-    if (JSID_IS_STRING(from)) {
-        size_t length;
-        const jschar* chars = JS_GetInternedStringCharsAndLength(JSID_TO_STRING(from), &length);
-        *to = nsDependentString(chars, length);
+    jsval v;
+    if (JS_IdToValue(cx, from, &v) && JSVAL_IS_STRING(v)) {
+        *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(v)),
+                                JS_GetStringLength(JSVAL_TO_STRING(v)));
         return true;
     }
     return false;
@@ -429,7 +424,7 @@ static const JSClass sCPOW_NewEnumerateState_JSClass = {
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(sNumNewEnumerateStateSlots),
     JS_PropertyStub,  JS_PropertyStub,
-    JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
     JS_ConvertStub,   CPOW_NewEnumerateState_Finalize,
     JSCLASS_NO_OPTIONAL_MEMBERS
@@ -461,12 +456,12 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
                                   NULL, NULL, JSPROP_ENUMERATE | JSPROP_SHARED);
     }
 
-    InfallibleTArray<nsString>* strIds;
+    nsTArray<nsString>* strIds;
     {
         AutoIdArray ids(cx, JS_Enumerate(cx, state));
         if (!ids)
             return false;
-        strIds = new InfallibleTArray<nsString>(ids.length());
+        strIds = new nsTArray<nsString>(ids.length());
         for (uint i = 0; i < ids.length(); ++i)
             if (!jsid_to_nsString(cx, ids[i], strIds->AppendElement())) {
                 delete strIds;
@@ -500,8 +495,8 @@ ObjectWrapperChild::AnswerNewEnumerateNext(const JSVariant& in_state,
     if (!JSObject_from_JSVariant(cx, in_state, &state))
         return false;
 
-    InfallibleTArray<nsString>* strIds =
-        static_cast<InfallibleTArray<nsString>*>(JS_GetPrivate(cx, state));
+    nsTArray<nsString>* strIds =
+        static_cast<nsTArray<nsString>*>(JS_GetPrivate(cx, state));
 
     if (!strIds || !JS_GetReservedSlot(cx, state, sNextIdIndexSlot, &v))
         return false;
@@ -585,7 +580,7 @@ namespace {
 }
 
 bool
-ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTArray<JSVariant>& argv,
+ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const nsTArray<JSVariant>& argv,
                                OperationStatus* status, JSVariant* rval)
 {
     JSContext* cx = Manager()->GetContext();
@@ -615,7 +610,7 @@ ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTA
 }
 
 bool
-ObjectWrapperChild::AnswerConstruct(const InfallibleTArray<JSVariant>& argv,
+ObjectWrapperChild::AnswerConstruct(const nsTArray<JSVariant>& argv,
                                     OperationStatus* status, PObjectWrapperChild** rval)
 {
     JSContext* cx = Manager()->GetContext();

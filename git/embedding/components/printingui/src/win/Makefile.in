@@ -44,7 +44,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= embedcomponents
 LIBRARY_NAME	= printingui_s
-EXPORT_LIBRARY	= ..
 LIBXUL_LIBRARY	= 1
 
 
@@ -54,6 +53,11 @@ CPPSRCS		= \
       nsPrintProgress.cpp \
       nsPrintDialogUtil.cpp \
       $(NULL)
+
+OS_LIBS	+= \
+	comdlg32.lib \
+	winspool.lib \
+	$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a
 # static lib.

@@ -14,28 +14,25 @@
     function testSteps()
     {
       const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
-      const UNKNOWN_ERR =
-        Components.interfaces.nsIIDBDatabaseException.UNKNOWN_ERR;
 
       const name = window.location.pathname;
       const description = "My Test Database";
       const objectStoreName = "Objects";
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
       is(db.objectStoreNames.length, 0, "Correct objectStoreNames list");
 
-      request = db.setVersion("1");
+      request = db.createObjectStore(objectStoreName, "foo");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore(objectStoreName,
-                                             { keyPath: "foo" });
+      let objectStore = event.result;
 
       let addedCount = 0;
 
@@ -53,46 +50,39 @@
       is(db.objectStoreNames.length, 1, "Correct objectStoreNames list");
       is(db.objectStoreNames.item(0), objectStoreName, "Correct name");
 
-      request = db.setVersion("2");
+      request = db.removeObjectStore(objectStore.name);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      db.deleteObjectStore(objectStore.name);
+      is(event.result, undefined, "Correct result");
       is(db.objectStoreNames.length, 0, "Correct objectStores list");
 
-      objectStore = db.createObjectStore(objectStoreName, { keyPath: "foo" });
+      request = db.createObjectStore(objectStoreName, "foo");
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
       is(db.objectStoreNames.length, 1, "Correct objectStoreNames list");
       is(db.objectStoreNames.item(0), objectStoreName, "Correct name");
+
+      objectStore = event.result;
 
       request = objectStore.openCursor();
       request.onerror = errorHandler;
       request.onsuccess = function(event) {
-        is(event.target.result, undefined, "ObjectStore shouldn't have any items");
+        is(event.result, undefined, "ObjectStore shouldn't have any items");
         testGenerator.send(event);
       }
       event = yield;
 
-      db.deleteObjectStore(objectStore.name);
+      request = db.removeObjectStore(objectStore.name);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      is(event.result, undefined, "Correct result");
       is(db.objectStoreNames.length, 0, "Correct objectStores list");
-
-      continueToNextStep();
-      yield;
-
-      request = db.setVersion("3");
-      request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
-
-      objectStore = db.createObjectStore(objectStoreName, { keyPath: "foo" });
-
-      request = objectStore.add({foo:"bar"});
-      request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
-
-      db.deleteObjectStore(objectStoreName);
-
-      event = yield;
 
       finishTest();
       yield;

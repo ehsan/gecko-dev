@@ -69,23 +69,12 @@ void ReverseString(const nsCSubstring& source, nsCSubstring& result)
   }
 }
 
-nsDOMStorageDBWrapper::nsDOMStorageDBWrapper()
-{
-}
-
-nsDOMStorageDBWrapper::~nsDOMStorageDBWrapper()
-{
-}
-
 nsresult
 nsDOMStorageDBWrapper::Init()
 {
   nsresult rv;
 
-  rv = mPersistentDB.Init(NS_LITERAL_STRING("webappsstore.sqlite"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mChromePersistentDB.Init(NS_LITERAL_STRING("chromeappsstore.sqlite"));
+  rv = mPersistentDB.Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mSessionOnlyDB.Init(&mPersistentDB);
@@ -98,26 +87,9 @@ nsDOMStorageDBWrapper::Init()
 }
 
 nsresult
-nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTables(bool force)
-{
-  nsresult rv1, rv2;
-  rv1 = mChromePersistentDB.FlushTemporaryTables(force);
-  rv2 = mPersistentDB.FlushTemporaryTables(force);
-
-  // Everything flushed?  Then no need for a timer.
-  if (!mChromePersistentDB.mTempTableLoads.Count() && 
-      !mPersistentDB.mTempTableLoads.Count())
-    StopTempTableFlushTimer();
-
-  return NS_FAILED(rv1) ? rv1 : rv2;
-}
-
-nsresult
-nsDOMStorageDBWrapper::GetAllKeys(DOMStorageImpl* aStorage,
+nsDOMStorageDBWrapper::GetAllKeys(nsDOMStorage* aStorage,
                                   nsTHashtable<nsSessionStorageEntry>* aKeys)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.GetAllKeys(aStorage, aKeys);
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.GetAllKeys(aStorage, aKeys);
   if (aStorage->SessionOnly())
@@ -127,13 +99,11 @@ nsDOMStorageDBWrapper::GetAllKeys(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::GetKeyValue(DOMStorageImpl* aStorage,
+nsDOMStorageDBWrapper::GetKeyValue(nsDOMStorage* aStorage,
                                    const nsAString& aKey,
                                    nsAString& aValue,
                                    PRBool* aSecure)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.GetKeyValue(aStorage, aKey, aValue, aSecure);
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.GetKeyValue(aStorage, aKey, aValue, aSecure);
   if (aStorage->SessionOnly())
@@ -143,7 +113,7 @@ nsDOMStorageDBWrapper::GetKeyValue(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::SetKey(DOMStorageImpl* aStorage,
+nsDOMStorageDBWrapper::SetKey(nsDOMStorage* aStorage,
                               const nsAString& aKey,
                               const nsAString& aValue,
                               PRBool aSecure,
@@ -151,9 +121,6 @@ nsDOMStorageDBWrapper::SetKey(DOMStorageImpl* aStorage,
                               PRBool aExcludeOfflineFromUsage,
                               PRInt32 *aNewUsage)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.SetKey(aStorage, aKey, aValue, aSecure,
-                                      aQuota, aExcludeOfflineFromUsage, aNewUsage);
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.SetKey(aStorage, aKey, aValue, aSecure,
                                           aQuota, aExcludeOfflineFromUsage, aNewUsage);
@@ -166,12 +133,10 @@ nsDOMStorageDBWrapper::SetKey(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::SetSecure(DOMStorageImpl* aStorage,
+nsDOMStorageDBWrapper::SetSecure(nsDOMStorage* aStorage,
                                  const nsAString& aKey,
                                  const PRBool aSecure)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.SetSecure(aStorage, aKey, aSecure);
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.SetSecure(aStorage, aKey, aSecure);
   if (aStorage->SessionOnly())
@@ -181,13 +146,11 @@ nsDOMStorageDBWrapper::SetSecure(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::RemoveKey(DOMStorageImpl* aStorage,
+nsDOMStorageDBWrapper::RemoveKey(nsDOMStorage* aStorage,
                                  const nsAString& aKey,
                                  PRBool aExcludeOfflineFromUsage,
                                  PRInt32 aKeyUsage)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.RemoveKey(aStorage, aKey, aExcludeOfflineFromUsage, aKeyUsage);
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.RemoveKey(aStorage, aKey, aExcludeOfflineFromUsage, aKeyUsage);
   if (aStorage->SessionOnly())
@@ -197,10 +160,8 @@ nsDOMStorageDBWrapper::RemoveKey(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::ClearStorage(DOMStorageImpl* aStorage)
+nsDOMStorageDBWrapper::ClearStorage(nsDOMStorage* aStorage)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.ClearStorage(aStorage);
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.ClearStorage(aStorage);
   if (aStorage->SessionOnly())
@@ -285,11 +246,9 @@ nsDOMStorageDBWrapper::RemoveAll()
 }
 
 nsresult
-nsDOMStorageDBWrapper::GetUsage(DOMStorageImpl* aStorage,
+nsDOMStorageDBWrapper::GetUsage(nsDOMStorage* aStorage,
                                 PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.GetUsage(aStorage, aExcludeOfflineFromUsage, aUsage);    
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.GetUsage(aStorage, aExcludeOfflineFromUsage, aUsage);
   if (aStorage->SessionOnly())
@@ -359,9 +318,6 @@ nsDOMStorageDBWrapper::CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey)
         (NS_SUCCEEDED(aUri->SchemeIs("moz-safe-about", &isAboutUrl)) && isAboutUrl)) {
       rv = aUri->GetPath(domainScope);
       NS_ENSURE_SUCCESS(rv, rv);
-      // While the host is always canonicalized to lowercase, the path is not,
-      // thus need to force the casing.
-      ToLowerCase(domainScope);
     }
   }
 
@@ -434,30 +390,3 @@ nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
   ReverseString(reverseDomain, aDomain);
   return NS_OK;
 }
-
-void
-nsDOMStorageDBWrapper::EnsureTempTableFlushTimer()
-{
-  if (!mTempTableFlushTimer) {
-    nsresult rv;
-    mTempTableFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-
-    if (!NS_SUCCEEDED(rv)) {
-      mTempTableFlushTimer = nsnull;
-      return;
-    }
-
-    mTempTableFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
-                               nsITimer::TYPE_REPEATING_SLACK);
-  }
-}
-
-void
-nsDOMStorageDBWrapper::StopTempTableFlushTimer()
-{
-  if (mTempTableFlushTimer) {
-    mTempTableFlushTimer->Cancel();
-    mTempTableFlushTimer = nsnull;
-  }
-}
-

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -168,7 +169,6 @@ static const PRUint32 atkRoleMap[] = {
     ATK_ROLE_UNKNOWN,             // nsIAccessibleRole::ROLE_FLAT_EQUATION        120
     ATK_ROLE_TABLE_CELL,          // nsIAccessibleRole::ROLE_GRID_CELL            121
     ATK_ROLE_PANEL,               // nsIAccessibleRole::ROLE_EMBEDDED_OBJECT      122
-    ATK_ROLE_SECTION,             // nsIAccessibleRole::ROLE_NOTE                 123
     kROLE_ATK_LAST_ENTRY          // nsIAccessibleRole::ROLE_LAST_ENTRY
 };
 

@@ -41,8 +41,8 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 #include "nsPrintfCString.h"
+#include "nsIPrefService.h" 
 #include "Nv3DVUtils.h"
-#include "plstr.h"
 
 namespace mozilla {
 namespace layers {
@@ -180,9 +180,7 @@ SwapChainD3D9::Reset()
 #define LACKS_CAP(a, b) !(((a) & (b)) == (b))
 
 DeviceManagerD3D9::DeviceManagerD3D9()
-  : mDeviceResetCount(0)
-  , mHasDynamicTextures(false)
-  , mDeviceWasRemoved(false)
+  : mHasDynamicTextures(false)
 {
 }
 
@@ -190,9 +188,6 @@ DeviceManagerD3D9::~DeviceManagerD3D9()
 {
   LayerManagerD3D9::OnDeviceManagerDestroy(this);
 }
-
-NS_IMPL_ADDREF(DeviceManagerD3D9)
-NS_IMPL_RELEASE(DeviceManagerD3D9)
 
 bool
 DeviceManagerD3D9::Init()
@@ -260,19 +255,6 @@ DeviceManagerD3D9::Init()
     }
   }
 
-  D3DADAPTER_IDENTIFIER9 ident;
-  hr = mD3D9->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &ident);
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  if (!PL_strncasecmp(ident.Driver, "nvumdshim.dll", PL_strlen(ident.Driver))) {
-    // XXX - This is a device using NVidia Optimus. We have no idea how to do
-    // interop here so let's fail and use BasicLayers. See bug 597320.
-    return false;
-  }
-
   D3DPRESENT_PARAMETERS pp;
   memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
 
@@ -299,7 +281,7 @@ DeviceManagerD3D9::Init()
     }
 
     D3DCAPS9 caps;
-    if (mDeviceEx && mDeviceEx->GetDeviceCaps(&caps)) {
+    if (mDeviceEx->GetDeviceCaps(&caps)) {
       if (LACKS_CAP(caps.Caps2, D3DCAPS2_DYNAMICTEXTURES)) {
         // XXX - Should we actually hit this we'll need a CanvasLayer that
         // supports static D3DPOOL_DEFAULT textures.
@@ -331,14 +313,6 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
-  /* Grab the associated HMONITOR so that we can find out
-   * if it changed later */
-  D3DDEVICE_CREATION_PARAMETERS parameters;
-  if (FAILED(mDevice->GetCreationParameters(&parameters)))
-    return false;
-  mDeviceMonitor = mD3D9->GetAdapterMonitor(parameters.AdapterOrdinal);
-
-
   /* 
    * Do some post device creation setup 
    */ 
@@ -364,27 +338,6 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
-  hr = mDevice->CreatePixelShader((DWORD*)RGBAShaderPS,
-                                  getter_AddRefs(mRGBAPS));
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  hr = mDevice->CreatePixelShader((DWORD*)ComponentPass1ShaderPS,
-                                  getter_AddRefs(mComponentPass1PS));
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  hr = mDevice->CreatePixelShader((DWORD*)ComponentPass2ShaderPS,
-                                  getter_AddRefs(mComponentPass2PS));
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
   hr = mDevice->CreatePixelShader((DWORD*)YCbCrShaderPS,
                                   getter_AddRefs(mYCbCrPS));
 
@@ -399,9 +352,29 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
-  if (!CreateVertexBuffer()) {
+  hr = mDevice->CreateVertexBuffer(sizeof(vertex) * 4,
+                                   D3DUSAGE_WRITEONLY,
+                                   0,
+                                   D3DPOOL_DEFAULT,
+                                   getter_AddRefs(mVB),
+                                   NULL);
+
+  if (FAILED(hr)) {
     return false;
   }
+
+  vertex *vertices;
+  hr = mVB->Lock(0, 0, (void**)&vertices, 0);
+  if (FAILED(hr)) {
+    return false;
+  }
+
+  vertices[0].x = vertices[0].y = 0;
+  vertices[1].x = 1; vertices[1].y = 0;
+  vertices[2].x = 0; vertices[2].y = 1;
+  vertices[3].x = 1; vertices[3].y = 1;
+
+  mVB->Unlock();
 
   hr = mDevice->SetStreamSource(0, mVB, 0, sizeof(vertex));
   if (FAILED(hr)) {
@@ -458,12 +431,6 @@ DeviceManagerD3D9::SetupRenderState()
   mDevice->SetRenderState(D3DRS_SRCBLENDALPHA, D3DBLEND_ONE);
   mDevice->SetRenderState(D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA);
   mDevice->SetRenderState(D3DRS_BLENDOPALPHA, D3DBLENDOP_ADD);
-  mDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(1, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(1, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(2, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(2, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(1, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -477,15 +444,6 @@ DeviceManagerD3D9::CreateSwapChain(HWND hWnd)
 {
   nsRefPtr<SwapChainD3D9> swapChain = new SwapChainD3D9(this);
   
-  // See bug 604647. This line means that if we create a window while the
-  // device is lost LayerManager initialization will fail, this window
-  // will be permanently unaccelerated. This should be a rare situation
-  // though and the need for a low-risk fix for this bug outweighs the
-  // downside.
-  if (!VerifyReadyForRendering()) {
-    return nsnull;
-  }
-
   if (!swapChain->Init(hWnd)) {
     return nsnull;
   }
@@ -500,18 +458,6 @@ DeviceManagerD3D9::SetShaderMode(ShaderMode aMode)
     case RGBLAYER:
       mDevice->SetVertexShader(mLayerVS);
       mDevice->SetPixelShader(mRGBPS);
-      break;
-    case RGBALAYER:
-      mDevice->SetVertexShader(mLayerVS);
-      mDevice->SetPixelShader(mRGBAPS);
-      break;
-    case COMPONENTLAYERPASS1:
-      mDevice->SetVertexShader(mLayerVS);
-      mDevice->SetPixelShader(mComponentPass1PS);
-      break;
-    case COMPONENTLAYERPASS2:
-      mDevice->SetVertexShader(mLayerVS);
-      mDevice->SetPixelShader(mComponentPass2PS);
       break;
     case YCBCRLAYER:
       mDevice->SetVertexShader(mLayerVS);
@@ -532,25 +478,38 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   if (SUCCEEDED(hr)) {
     if (IsD3D9Ex()) {
       hr = mDeviceEx->CheckDeviceState(mFocusWnd);
-
       if (FAILED(hr)) {
-        mDeviceWasRemoved = true;
-        LayerManagerD3D9::OnDeviceManagerDestroy(this);
-        ++mDeviceResetCount;
-        return false;
+        D3DPRESENT_PARAMETERS pp;
+        memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
+
+        pp.BackBufferWidth = 1;
+        pp.BackBufferHeight = 1;
+        pp.BackBufferFormat = D3DFMT_A8R8G8B8;
+        pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+        pp.Windowed = TRUE;
+        pp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+        pp.hDeviceWindow = mFocusWnd;
+        
+        hr = mDeviceEx->ResetEx(&pp, NULL);
+        // Handle D3DERR_DEVICEREMOVED!
+        if (FAILED(hr)) {
+          return false;
+        }
       }
     }
     return true;
   }
 
-  for(unsigned int i = 0; i < mLayersWithResources.Length(); i++) {
-    mLayersWithResources[i]->CleanResources();
+  if (hr != D3DERR_DEVICENOTRESET) {
+    return false;
+  }
+
+  for(unsigned int i = 0; i < mThebesLayers.Length(); i++) {
+    mThebesLayers[i]->CleanResources();
   }
   for(unsigned int i = 0; i < mSwapChains.Length(); i++) {
     mSwapChains[i]->Reset();
   }
-
-  mVB = nsnull;
   
   D3DPRESENT_PARAMETERS pp;
   memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
@@ -564,34 +523,8 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   pp.hDeviceWindow = mFocusWnd;
 
   hr = mDevice->Reset(&pp);
-  ++mDeviceResetCount;
 
-  if (hr == D3DERR_DEVICELOST) {
-    /* It is not unusual for Reset to return DEVICELOST
-     * we're supposed to continue trying until we get
-     * DEVICENOTRESET and then Reset is supposed to succeed.
-     * Unfortunately, it seems like when we dock or undock
-     * DEVICELOST happens and we never get DEVICENOTRESET. */
-
-    HMONITOR hMonitorWindow;
-    hMonitorWindow = MonitorFromWindow(mFocusWnd, MONITOR_DEFAULTTOPRIMARY);
-    if (hMonitorWindow == mDeviceMonitor) {
-      /* The monitor has not changed. So, let's assume that the
-       * DEVICENOTRESET will be comming. */
-
-      /* jrmuizel: I'm not sure how to trigger this case. Usually, we get
-       * DEVICENOTRESET right away and Reset() succeeds without going through a
-       * set of DEVICELOSTs. This is presumeably because we don't call
-       * VerifyReadyForRendering when we don't have any reason to paint.
-       * Hopefully comparing HMONITORs is not overly aggressive. */
-      return false;
-    }
-    /* otherwise fall through and recreate the device */
-  }
-
-  if (FAILED(hr) || !CreateVertexBuffer()) {
-    mDeviceWasRemoved = true;
-    LayerManagerD3D9::OnDeviceManagerDestroy(this);
+  if (FAILED(hr)) {
     return false;
   }
 
@@ -655,38 +588,6 @@ DeviceManagerD3D9::VerifyCaps()
   if (HAS_CAP(caps.Caps2, D3DCAPS2_DYNAMICTEXTURES)) {
     mHasDynamicTextures = true;
   }
-
-  return true;
-}
-
-bool
-DeviceManagerD3D9::CreateVertexBuffer()
-{
-  HRESULT hr;
-
-  hr = mDevice->CreateVertexBuffer(sizeof(vertex) * 4,
-                                   D3DUSAGE_WRITEONLY,
-                                   0,
-                                   D3DPOOL_DEFAULT,
-                                   getter_AddRefs(mVB),
-                                   NULL);
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  vertex *vertices;
-  hr = mVB->Lock(0, 0, (void**)&vertices, 0);
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  vertices[0].x = vertices[0].y = 0;
-  vertices[1].x = 1; vertices[1].y = 0;
-  vertices[2].x = 0; vertices[2].y = 1;
-  vertices[3].x = 1; vertices[3].y = 1;
-
-  mVB->Unlock();
 
   return true;
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -36,13 +36,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #filter substitution
-package @ANDROID_PACKAGE_NAME@;
+package org.mozilla.@MOZ_APP_NAME@;
 
 import org.mozilla.gecko.GeckoApp;
 
 public class App extends GeckoApp {
-    public String getPackageName() {
-	return "@ANDROID_PACKAGE_NAME@";
+    public String getAppName() {
+	return "@MOZ_APP_NAME@";
     }
     public String getContentProcessName() {
         return "@MOZ_CHILD_PROCESS_NAME@";

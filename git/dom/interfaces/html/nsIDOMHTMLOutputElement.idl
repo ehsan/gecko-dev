@@ -42,7 +42,7 @@
  * <output> element.
  *
  * For more information on this interface, please see
- * http://www.whatwg.org/specs/web-apps/current-work/#the-output-element
+ * http://dev.w3.org/html5/spec/forms.html#the-output-element
  *
  * @status UNDER_DEVELOPMENT
  */
@@ -50,7 +50,7 @@
 interface nsIDOMDOMSettableTokenList;
 interface nsIDOMValidityState;
 
-[scriptable, uuid(546ce012-e7ce-4490-8530-75f2b1b135b6)]
+[scriptable, uuid(0f7f15a9-ea72-4feb-b2b5-2fcbc9c10ab8)]
 interface nsIDOMHTMLOutputElement : nsIDOMHTMLElement
 {
   readonly attribute nsIDOMDOMSettableTokenList htmlFor;

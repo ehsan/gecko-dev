@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -56,7 +55,6 @@
 #include "nsHashKeys.h"
 #include "nsNodeInfoManager.h"
 #include "nsIStreamListener.h"
-#include "nsIVariant.h"
 #include "nsIObserver.h"
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
@@ -66,9 +64,6 @@
 #endif // MOZ_SMIL
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
-#include "nsIAnimationFrameListener.h"
-#include "nsEventStates.h"
-#include "nsIStructuredCloneContainer.h"
 
 class nsIContent;
 class nsPresContext;
@@ -81,7 +76,7 @@ class nsCSSStyleSheet;
 class nsIViewManager;
 class nsIDOMEvent;
 class nsIDOMEventTarget;
-class nsDeviceContext;
+class nsIDeviceContext;
 class nsIParser;
 class nsIDOMNode;
 class nsIDOMElement;
@@ -110,8 +105,6 @@ struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
 class imgIRequest;
-class nsISHEntry;
-class nsDOMNavigationTiming;
 
 namespace mozilla {
 namespace css {
@@ -126,8 +119,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x2ec7872f, 0x97c3, 0x43de, \
-  { 0x81, 0x0a, 0x8f, 0x18, 0xa0, 0xa0, 0xdf, 0x30 } }
+{ 0xbd862a79, 0xc31b, 0x419b, \
+  { 0x92, 0x90, 0xa0, 0x77, 0x08, 0x62, 0xd4, 0xc4 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -135,9 +128,9 @@ class Element;
 // Document states
 
 // RTL locale: specific to the XUL localedir attribute
-#define NS_DOCUMENT_STATE_RTL_LOCALE              NS_DEFINE_EVENT_STATE_MACRO(0)
+#define NS_DOCUMENT_STATE_RTL_LOCALE              (1 << 0)
 // Window activation status
-#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         NS_DEFINE_EVENT_STATE_MACRO(1)
+#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         (1 << 1)
 
 //----------------------------------------------------------------------
 
@@ -166,10 +159,9 @@ public:
       // unless we get a window, and in that case the docshell value will get
       // &&-ed in, this is safe.
       mAllowDNSPrefetch(PR_TRUE),
-      mIsBeingUsedAsImage(PR_FALSE),
       mPartID(0)
   {
-    SetInDocument();
+    mParentPtrBits |= PARENT_BIT_INDOCUMENT;
   }
 #endif
   
@@ -218,13 +210,9 @@ public:
    * has just been bound to the document.
    */
   virtual void NotifyPossibleTitleChange(PRBool aBoundTitleElement) = 0;
-
+  
   /**
    * Return the URI for the document. May return null.
-   *
-   * The value returned corresponds to the "document's current address" in
-   * HTML5.  As such, it may change over the lifetime of the document, for
-   * instance as a result of a call to pushState() or replaceState().
    */
   nsIURI* GetDocumentURI() const
   {
@@ -232,21 +220,7 @@ public:
   }
 
   /**
-   * Return the original URI of the document.  This is the same as the
-   * document's URI unless history.pushState() or replaceState() is invoked on
-   * the document.
-   *
-   * This method corresponds to the "document's address" in HTML5 and, once
-   * set, doesn't change over the lifetime of the document.
-   */
-  nsIURI* GetOriginalURI() const
-  {
-    return mOriginalURI;
-  }
-
-  /**
-   * Set the URI for the document.  This also sets the document's original URI,
-   * if it's null.
+   * Set the URI for the document.
    */
   virtual void SetDocumentURI(nsIURI* aURI) = 0;
 
@@ -289,9 +263,6 @@ public:
    * Get/Set the base target of a link in a document.
    */
   virtual void GetBaseTarget(nsAString &aBaseTarget) = 0;
-  void SetBaseTarget(const nsString& aBaseTarget) {
-    mBaseTarget = aBaseTarget;
-  }
 
   /**
    * Return a standard name for the document's character set.
@@ -363,7 +334,7 @@ public:
   /**
    * Get the Content-Type of this document.
    * (This will always return NS_OK, but has this signature to be compatible
-   *  with nsIDOMDocument::GetContentType())
+   *  with nsIDOMNSDocument::GetContentType())
    */
   NS_IMETHOD GetContentType(nsAString& aContentType) = 0;
 
@@ -476,14 +447,11 @@ public:
 
   nsIPresShell* GetShell() const
   {
-    return GetBFCacheEntry() ? nsnull : mPresShell;
+    return mShellIsHidden ? nsnull : mPresShell;
   }
 
-  void SetBFCacheEntry(nsISHEntry* aSHEntry) {
-    mSHEntry = aSHEntry;
-  }
-
-  nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
+  void SetShellHidden(PRBool aHide) { mShellIsHidden = aHide; }
+  PRBool ShellIsHidden() const { return mShellIsHidden; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -690,7 +658,7 @@ public:
   /**
    * Return the window containing the document (the outer window).
    */
-  nsPIDOMWindow *GetWindow() const
+  nsPIDOMWindow *GetWindow()
   {
     return mWindow ? mWindow->GetOuterWindow() : GetWindowInternal();
   }
@@ -703,15 +671,6 @@ public:
   nsPIDOMWindow* GetInnerWindow()
   {
     return mRemovedFromDocShell ? GetInnerWindowInternal() : mWindow;
-  }
-
-  /**
-   * Return the outer window ID.
-   */
-  PRUint64 OuterWindowID() const
-  {
-    nsPIDOMWindow *window = GetWindow();
-    return window ? window->WindowID() : 0;
   }
 
   /**
@@ -758,15 +717,16 @@ public:
   virtual void SetReadyStateInternal(ReadyState rs) = 0;
   virtual ReadyState GetReadyStateEnum() = 0;
 
-  // notify that a content node changed state.  This must happen under
-  // a scriptblocker but NOT within a begin/end update.
-  virtual void ContentStateChanged(nsIContent* aContent,
-                                   nsEventStates aStateMask) = 0;
+  // notify that one or two content nodes changed state
+  // either may be nsnull, but not both
+  virtual void ContentStatesChanged(nsIContent* aContent1,
+                                    nsIContent* aContent2,
+                                    PRInt32 aStateMask) = 0;
 
   // Notify that a document state has changed.
   // This should only be called by callers whose state is also reflected in the
   // implementation of nsDocument::GetDocumentState.
-  virtual void DocumentStatesChanged(nsEventStates aStateMask) = 0;
+  virtual void DocumentStatesChanged(PRInt32 aStateMask) = 0;
 
   // Observation hooks for style data to propagate notifications
   // to document observers
@@ -1080,7 +1040,7 @@ public:
                                      nsIDOMNodeList** aResult) = 0;
 
   /**
-   * Helper for nsIDOMDocument::elementFromPoint implementation that allows
+   * Helper for nsIDOMNSDocument::elementFromPoint implementation that allows
    * ignoring the scroll frame and/or avoiding layout flushes.
    *
    * @see nsIDOMWindowUtils::elementFromPoint
@@ -1185,19 +1145,6 @@ public:
   PRBool IsRootDisplayDocument() const
   {
     return !mParentDocument && !mDisplayDocument;
-  }
-
-  PRBool IsBeingUsedAsImage() const {
-    return mIsBeingUsedAsImage;
-  }
-
-  void SetIsBeingUsedAsImage() {
-    mIsBeingUsedAsImage = PR_TRUE;
-  }
-
-  PRBool IsResourceDoc() const {
-    return IsBeingUsedAsImage() || // Are we a helper-doc for an SVG image?
-      !!mDisplayDocument;          // Are we an external resource doc?
   }
 
   /**
@@ -1317,11 +1264,6 @@ public:
   virtual nsSMILAnimationController* GetAnimationController() = 0;
 #endif // MOZ_SMIL
 
-  // Makes the images on this document capable of having their animation
-  // active or suspended. An Image will animate as long as at least one of its
-  // owning Documents needs it to animate; otherwise it can suspend.
-  virtual void SetImagesNeedAnimating(PRBool aAnimating) = 0;
-
   /**
    * Prevents user initiated events from being dispatched to the document and
    * subdocuments.
@@ -1424,13 +1366,25 @@ public:
   };
 
   /**
-   * Set the document's pending state object (as serialized using structured
-   * clone).
+   * Returns the document's pending state object (serialized to JSON), or the
+   * empty string if one doesn't exist.
+   *
+   * This field serves as a waiting place for the history entry's state object:
+   * We set the field's value to the history entry's state object early on in
+   * the load, then after we fire onload we deserialize the field's value and
+   * fire a popstate event containing the resulting object.
    */
-  void SetStateObject(nsIStructuredCloneContainer *scContainer)
+  nsAString& GetPendingStateObject()
   {
-    mStateObjectContainer = scContainer;
-    mStateObjectCached = nsnull;
+    return mPendingStateObject;
+  }
+
+  /**
+   * Set the document's pending state object (as serialized to JSON).
+   */
+  void SetPendingStateObject(nsAString &obj)
+  {
+    mPendingStateObject.Assign(obj);
   }
 
   /**
@@ -1446,18 +1400,17 @@ public:
    * Document state bits have the form NS_DOCUMENT_STATE_* and are declared in
    * nsIDocument.h.
    */
-  virtual nsEventStates GetDocumentState() = 0;
+  virtual PRInt32 GetDocumentState() = 0;
 
   virtual nsISupports* GetCurrentContentSink() = 0;
 
   /**
-   * Register/Unregister a filedata uri as being "owned" by this document. 
-   * I.e. that its lifetime is connected with this document. When the document
-   * goes away it should "kill" the uri by calling
+   * Register a filedata uri as being "owned" by this document. I.e. that its
+   * lifetime is connected with this document. When the document goes away it
+   * should "kill" the uri by calling
    * nsFileDataProtocolHandler::RemoveFileDataEntry
    */
-  virtual void RegisterFileDataUri(const nsACString& aUri) = 0;
-  virtual void UnregisterFileDataUri(const nsACString& aUri) = 0;
+  virtual void RegisterFileDataUri(nsACString& aUri) = 0;
 
   virtual void SetScrollToRef(nsIURI *aDocumentURI) = 0;
   virtual void ScrollToRef() = 0;
@@ -1481,18 +1434,11 @@ public:
    */
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
 
-  void ScheduleBeforePaintEvent(nsIAnimationFrameListener* aListener);
+  void ScheduleBeforePaintEvent();
   void BeforePaintEventFiring()
   {
     mHavePendingPaint = PR_FALSE;
   }
-
-  typedef nsTArray< nsCOMPtr<nsIAnimationFrameListener> > AnimationListenerList;
-  /**
-   * Put this documents animation frame listeners into the provided
-   * list, and forget about them.
-   */
-  void TakeAnimationFrameListeners(AnimationListenerList& aListeners);
 
   // This returns true when the document tree is being teared down.
   PRBool InUnlinkOrDeletion() { return mInUnlinkOrDeletion; }
@@ -1518,52 +1464,6 @@ public:
   // state is unlocked/false.
   virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
 
-  virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
-
-  virtual nsDOMNavigationTiming* GetNavigationTiming() const = 0;
-
-  virtual nsresult SetNavigationTiming(nsDOMNavigationTiming* aTiming) = 0;
-
-  virtual Element* FindImageMap(const nsAString& aNormalizedMapName) = 0;
-
-  enum DeprecatedOperations {
-    eGetAttributeNode = 0,
-    eSetAttributeNode,
-    eGetAttributeNodeNS,
-    eSetAttributeNodeNS,
-    eRemoveAttributeNode,
-    eCreateAttribute,
-    eCreateAttributeNS,
-    eSpecified,
-    eOwnerElement,
-    eNodeName,
-    eNodeValue,
-    eNodeType,
-    eParentNode,
-    eChildNodes,
-    eHasChildNodes,
-    eHasAttributes,
-    eFirstChild,
-    eLastChild,
-    ePreviousSibling,
-    eNextSibling,
-    eAttributes,
-    eInsertBefore,
-    eReplaceChild,
-    eRemoveChild,
-    eAppendChild,
-    eCloneNode,
-    eOwnerDocument,
-    eNormalize,
-    eIsSupported,
-    eIsEqualNode,
-    eTextContent
-  };
-  void WarnOnceAbout(DeprecatedOperations aOperation);
-
-private:
-  PRUint32 mWarnedAbout;
-
 protected:
   ~nsIDocument()
   {
@@ -1576,7 +1476,7 @@ protected:
   nsPropertyTable* GetExtraPropertyTable(PRUint16 aCategory);
 
   // Never ever call this. Only call GetWindow!
-  virtual nsPIDOMWindow *GetWindowInternal() const = 0;
+  virtual nsPIDOMWindow *GetWindowInternal() = 0;
 
   // Never ever call this. Only call GetInnerWindow!
   virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;
@@ -1613,7 +1513,6 @@ protected:
   }
 
   nsCOMPtr<nsIURI> mDocumentURI;
-  nsCOMPtr<nsIURI> mOriginalURI;
   nsCOMPtr<nsIURI> mDocumentBaseURI;
 
   nsWeakPtr mDocumentLoadGroup;
@@ -1666,6 +1565,8 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
+  PRPackedBool mShellIsHidden;
+
   PRPackedBool mIsRegularHTML;
   PRPackedBool mIsXUL;
 
@@ -1717,9 +1618,6 @@ protected:
   // True if we're waiting for a before-paint event.
   PRPackedBool mHavePendingPaint;
 
-  // True if we're an SVG document being used as an image.
-  PRPackedBool mIsBeingUsedAsImage;
-
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -1767,23 +1665,13 @@ protected:
    */
   PRUint32 mExternalScriptsBeingEvaluated;
 
+  nsString mPendingStateObject;
+
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mSecriptGlobalObject.
   nsPIDOMWindow *mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
-
-  AnimationListenerList mAnimationFrameListeners;
-
-  // The session history entry in which we're currently bf-cached. Non-null
-  // if and only if we're currently in the bfcache.
-  nsISHEntry* mSHEntry;
-
-  // Our base target.
-  nsString mBaseTarget;
-
-  nsCOMPtr<nsIStructuredCloneContainer> mStateObjectContainer;
-  nsCOMPtr<nsIVariant> mStateObjectCached;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
@@ -1837,8 +1725,10 @@ NS_NewHTMLDocument(nsIDocument** aInstancePtrResult);
 nsresult
 NS_NewXMLDocument(nsIDocument** aInstancePtrResult);
 
+#ifdef MOZ_SVG
 nsresult
 NS_NewSVGDocument(nsIDocument** aInstancePtrResult);
+#endif
 
 nsresult
 NS_NewImageDocument(nsIDocument** aInstancePtrResult);

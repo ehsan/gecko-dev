@@ -40,12 +40,11 @@
 #if !defined jsjaeger_compiler_h__ && defined JS_METHODJIT
 #define jsjaeger_compiler_h__
 
-#include "jsanalyze.h"
 #include "jscntxt.h"
 #include "jstl.h"
+#include "BytecodeAnalyzer.h"
 #include "MethodJIT.h"
 #include "CodeGenIncludes.h"
-#include "BaseCompiler.h"
 #include "StubCompiler.h"
 #include "MonoIC.h"
 #include "PolyIC.h"
@@ -53,9 +52,20 @@
 namespace js {
 namespace mjit {
 
-class Compiler : public BaseCompiler
+class Compiler
 {
-    friend class StubCompiler;
+    typedef JSC::MacroAssembler::Label Label;
+    typedef JSC::MacroAssembler::Imm32 Imm32;
+    typedef JSC::MacroAssembler::ImmPtr ImmPtr;
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
+    typedef JSC::MacroAssembler::FPRegisterID FPRegisterID;
+    typedef JSC::MacroAssembler::Address Address;
+    typedef JSC::MacroAssembler::BaseIndex BaseIndex;
+    typedef JSC::MacroAssembler::Jump Jump;
+    typedef JSC::MacroAssembler::JumpList JumpList;
+    typedef JSC::MacroAssembler::Call Call;
+    typedef JSC::MacroAssembler::DataLabelPtr DataLabelPtr;
+    typedef JSC::MacroAssembler::DataLabel32 DataLabel32;
 
     struct BranchPatch {
         BranchPatch(const Jump &j, jsbytecode *pc)
@@ -67,235 +77,79 @@ class Compiler : public BaseCompiler
     };
 
 #if defined JS_MONOIC
-    struct GlobalNameICInfo {
-        Label fastPathStart;
-        Call slowPathCall;
+    struct MICGenInfo {
+        MICGenInfo(ic::MICInfo::Kind kind) : kind(kind)
+        { }
+        Label entry;
+        Label stubEntry;
         DataLabel32 shape;
-        DataLabelPtr addrLabel;
-        bool usePropertyCache;
-
-        void copyTo(ic::GlobalNameIC &to, JSC::LinkBuffer &full, JSC::LinkBuffer &stub) {
-            to.fastPathStart = full.locationOf(fastPathStart);
-
-            int offset = full.locationOf(shape) - to.fastPathStart;
-            to.shapeOffset = offset;
-            JS_ASSERT(to.shapeOffset == offset);
-
-            to.slowPathCall = stub.locationOf(slowPathCall);
-            to.usePropertyCache = usePropertyCache;
-        }
-    };
-
-    struct GetGlobalNameICInfo : public GlobalNameICInfo {
+#if defined JS_PUNBOX64
+        uint32 patchValueOffset;
+#endif
         Label load;
-    };
-
-    struct SetGlobalNameICInfo : public GlobalNameICInfo {
-        Label slowPathStart;
-        Label fastPathRejoin;
-        DataLabel32 store;
-        Jump shapeGuardJump;
-        ValueRemat vr;
-        RegisterID objReg;
-        RegisterID shapeReg;
-        bool objConst;
-    };
-
-    struct EqualityGenInfo {
-        DataLabelPtr addrLabel;
-        Label stubEntry;
-        Call stubCall;
-        BoolStub stub;
-        MaybeJump jumpToStub;
-        Label fallThrough;
+        Call call;
+        ic::MICInfo::Kind kind;
         jsbytecode *jumpTarget;
-        ValueRemat lvr, rvr;
-        Assembler::Condition cond;
-        JSC::MacroAssembler::RegisterID tempReg;
-    };
-    
-    struct TraceGenInfo {
-        bool initialized;
-        Label stubEntry;
-        DataLabelPtr addrLabel;
-        jsbytecode *jumpTarget;
+        uint32 argc;
+        uint32 frameDepth;
+        Label knownObject;
+        Label callEnd;
+        JSC::MacroAssembler::RegisterID dataReg;
         Jump traceHint;
         MaybeJump slowTraceHint;
-
-        TraceGenInfo() : initialized(false) {}
+        union {
+            struct {
+                bool typeConst;
+                bool dataConst;
+            } name;
+            struct {
+                uint32 pcOffs;
+            } tracer;
+        } u;
     };
-
-    /* InlineFrameAssembler wants to see this. */
-  public:
-    struct CallGenInfo {
-        CallGenInfo(jsbytecode *pc) : pc(pc) {}
-
-        /*
-         * These members map to members in CallICInfo. See that structure for
-         * more comments.
-         */
-        jsbytecode   *pc;
-        DataLabelPtr funGuard;
-        Jump         funJump;
-        Jump         hotJump;
-        Call         oolCall;
-        Label        joinPoint;
-        Label        slowJoinPoint;
-        Label        slowPathStart;
-        Label        hotPathLabel;
-        DataLabelPtr addrLabel1;
-        DataLabelPtr addrLabel2;
-        Jump         oolJump;
-        Label        icCall;
-        RegisterID   funObjReg;
-        RegisterID   funPtrReg;
-        FrameSize    frameSize;
-    };
-
-  private:
 #endif
 
-    /*
-     * Writes of call return addresses which needs to be delayed until the final
-     * absolute address of the join point is known.
-     */
-    struct CallPatchInfo {
-        CallPatchInfo() : hasFastNcode(false), hasSlowNcode(false) {}
-        Label joinPoint;
-        DataLabelPtr fastNcodePatch;
-        DataLabelPtr slowNcodePatch;
-        bool hasFastNcode;
-        bool hasSlowNcode;
-    };
-
-    struct BaseICInfo {
-        BaseICInfo(JSOp op) : op(op)
-        { }
-        Label fastPathStart;
-        Label fastPathRejoin;
-        Label slowPathStart;
-        Call slowPathCall;
-        DataLabelPtr paramAddr;
-        JSOp op;
-
-        void copyTo(ic::BaseIC &to, JSC::LinkBuffer &full, JSC::LinkBuffer &stub) {
-            to.fastPathStart = full.locationOf(fastPathStart);
-            to.fastPathRejoin = full.locationOf(fastPathRejoin);
-            to.slowPathStart = stub.locationOf(slowPathStart);
-            to.slowPathCall = stub.locationOf(slowPathCall);
-            to.op = op;
-            JS_ASSERT(to.op == op);
-        }
-    };
-
-    struct GetElementICInfo : public BaseICInfo {
-        GetElementICInfo(JSOp op) : BaseICInfo(op)
-        { }
-        RegisterID  typeReg;
-        RegisterID  objReg;
-        ValueRemat  id;
-        MaybeJump   typeGuard;
-        Jump        claspGuard;
-    };
-
-    struct SetElementICInfo : public BaseICInfo {
-        SetElementICInfo(JSOp op) : BaseICInfo(op)
-        { }
-        RegisterID  objReg;
-        StateRemat  objRemat;
-        ValueRemat  vr;
-        Jump        capacityGuard;
-        Jump        claspGuard;
-        Jump        holeGuard;
-        Int32Key    key;
-        uint32      volatileMask;
-    };
-
-    struct PICGenInfo : public BaseICInfo {
-        PICGenInfo(ic::PICInfo::Kind kind, JSOp op, bool usePropCache)
-          : BaseICInfo(op), kind(kind), usePropCache(usePropCache)
+#if defined JS_POLYIC
+    struct PICGenInfo {
+        PICGenInfo(ic::PICInfo::Kind kind) : kind(kind)
         { }
         ic::PICInfo::Kind kind;
+        Label fastPathStart;
+        Label storeBack;
         Label typeCheck;
+        Label slowPathStart;
         RegisterID shapeReg;
         RegisterID objReg;
+        RegisterID idReg;
         RegisterID typeReg;
-        bool usePropCache;
         Label shapeGuard;
-        jsbytecode *pc;
         JSAtom *atom;
+        StateRemat objRemat;
+        StateRemat idRemat;
+        Call callReturn;
         bool hasTypeCheck;
         ValueRemat vr;
-#ifdef JS_HAS_IC_LABELS
-        union {
-            ic::GetPropLabels getPropLabels_;
-            ic::SetPropLabels setPropLabels_;
-            ic::BindNameLabels bindNameLabels_;
-            ic::ScopeNameLabels scopeNameLabels_;
-        };
+# if defined JS_CPU_X64
+        ic::PICLabels labels;
+# endif
 
-        ic::GetPropLabels &getPropLabels() {
-            JS_ASSERT(kind == ic::PICInfo::GET || kind == ic::PICInfo::CALL);
-            return getPropLabels_;
-        }
-        ic::SetPropLabels &setPropLabels() {
-            JS_ASSERT(kind == ic::PICInfo::SET || kind == ic::PICInfo::SETMETHOD);
-            return setPropLabels_;
-        }
-        ic::BindNameLabels &bindNameLabels() {
-            JS_ASSERT(kind == ic::PICInfo::BIND);
-            return bindNameLabels_;
-        }
-        ic::ScopeNameLabels &scopeNameLabels() {
-            JS_ASSERT(kind == ic::PICInfo::NAME || kind == ic::PICInfo::CALLNAME ||
-                      kind == ic::PICInfo::XNAME);
-            return scopeNameLabels_;
-        }
-#else
-        ic::GetPropLabels &getPropLabels() {
-            JS_ASSERT(kind == ic::PICInfo::GET || kind == ic::PICInfo::CALL);
-            return ic::PICInfo::getPropLabels_;
-        }
-        ic::SetPropLabels &setPropLabels() {
-            JS_ASSERT(kind == ic::PICInfo::SET || kind == ic::PICInfo::SETMETHOD);
-            return ic::PICInfo::setPropLabels_;
-        }
-        ic::BindNameLabels &bindNameLabels() {
-            JS_ASSERT(kind == ic::PICInfo::BIND);
-            return ic::PICInfo::bindNameLabels_;
-        }
-        ic::ScopeNameLabels &scopeNameLabels() {
-            JS_ASSERT(kind == ic::PICInfo::NAME || kind == ic::PICInfo::CALLNAME ||
-                      kind == ic::PICInfo::XNAME);
-            return ic::PICInfo::scopeNameLabels_;
-        }
-#endif
-
-        void copySimpleMembersTo(ic::PICInfo &ic) {
-            ic.kind = kind;
-            ic.shapeReg = shapeReg;
-            ic.objReg = objReg;
-            ic.atom = atom;
-            ic.usePropCache = usePropCache;
-            if (ic.isSet()) {
-                ic.u.vr = vr;
-            } else if (ic.isGet()) {
-                ic.u.get.typeReg = typeReg;
-                ic.u.get.hasTypeCheck = hasTypeCheck;
+        void copySimpleMembersTo(ic::PICInfo &pi) const {
+            pi.kind = kind;
+            pi.shapeReg = shapeReg;
+            pi.objReg = objReg;
+            pi.atom = atom;
+            if (kind == ic::PICInfo::SET) {
+                pi.u.vr = vr;
+            } else if (kind != ic::PICInfo::NAME) {
+                pi.u.get.idReg = idReg;
+                pi.u.get.typeReg = typeReg;
+                pi.u.get.hasTypeCheck = hasTypeCheck;
+                pi.u.get.objRemat = objRemat.offset;
             }
-#ifdef JS_HAS_IC_LABELS
-            if (ic.isGet())
-                ic.setLabels(getPropLabels());
-            else if (ic.isSet())
-                ic.setLabels(setPropLabels());
-            else if (ic.isBind())
-                ic.setLabels(bindNameLabels());
-            else if (ic.isScopeName())
-                ic.setLabels(scopeNameLabels());
-#endif
         }
 
     };
+#endif
 
     struct Defs {
         Defs(uint32 ndefs)
@@ -305,16 +159,10 @@ class Compiler : public BaseCompiler
     };
 
     struct InternalCallSite {
-        uint32 returnOffset;
+        bool stub;
+        Label location;
         jsbytecode *pc;
         uint32 id;
-        bool call;
-        bool ool;
-
-        InternalCallSite(uint32 returnOffset, jsbytecode *pc, uint32 id,
-                         bool call, bool ool)
-          : returnOffset(returnOffset), pc(pc), id(id), call(call), ool(ool)
-        { }
     };
 
     struct DoublePatch {
@@ -323,162 +171,105 @@ class Compiler : public BaseCompiler
         bool ool;
     };
 
-    struct JumpTable {
-        DataLabelPtr label;
-        size_t offsetIndex;
-    };
-
-    StackFrame *fp;
+    JSContext *cx;
     JSScript *script;
     JSObject *scopeChain;
     JSObject *globalObj;
     JSFunction *fun;
-    bool isConstructing;
-    analyze::Script *analysis;
+    BytecodeAnalyzer analysis;
     Label *jumpMap;
-    bool *savedTraps;
     jsbytecode *PC;
     Assembler masm;
     FrameState frame;
-    js::Vector<BranchPatch, 64, CompilerAllocPolicy> branchPatches;
+    js::Vector<BranchPatch, 64> branchPatches;
 #if defined JS_MONOIC
-    js::Vector<GetGlobalNameICInfo, 16, CompilerAllocPolicy> getGlobalNames;
-    js::Vector<SetGlobalNameICInfo, 16, CompilerAllocPolicy> setGlobalNames;
-    js::Vector<CallGenInfo, 64, CompilerAllocPolicy> callICs;
-    js::Vector<EqualityGenInfo, 64, CompilerAllocPolicy> equalityICs;
-    js::Vector<TraceGenInfo, 64, CompilerAllocPolicy> traceICs;
+    js::Vector<MICGenInfo, 64> mics;
 #endif
 #if defined JS_POLYIC
-    js::Vector<PICGenInfo, 16, CompilerAllocPolicy> pics;
-    js::Vector<GetElementICInfo, 16, CompilerAllocPolicy> getElemICs;
-    js::Vector<SetElementICInfo, 16, CompilerAllocPolicy> setElemICs;
+    js::Vector<PICGenInfo, 64> pics;
 #endif
-    js::Vector<CallPatchInfo, 64, CompilerAllocPolicy> callPatches;
-    js::Vector<InternalCallSite, 64, CompilerAllocPolicy> callSites;
-    js::Vector<DoublePatch, 16, CompilerAllocPolicy> doubleList;
-    js::Vector<JumpTable, 16> jumpTables;
-    js::Vector<uint32, 16> jumpTableOffsets;
+    js::Vector<InternalCallSite, 64> callSites;
+    js::Vector<DoublePatch, 16> doubleList;
+    js::Vector<uint32, 16> escapingList;
     StubCompiler stubcc;
     Label invokeLabel;
-    Label arityLabel;
-    bool debugMode_;
     bool addTraceHints;
-    bool oomInVector;       // True if we have OOM'd appending to a vector. 
-    enum { NoApplyTricks, LazyArgsObj } applyTricks;
-#ifdef DEBUG
-    int *pcProfile;
-#endif
 
-    Compiler *thisFromCtor() { return this; }
-
-    friend class CompilerAllocPolicy;
   public:
     // Special atom index used to indicate that the atom is 'length'. This
     // follows interpreter usage in JSOP_LENGTH.
     enum { LengthAtomIndex = uint32(-2) };
 
-    Compiler(JSContext *cx, StackFrame *fp);
+    Compiler(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain);
     ~Compiler();
 
-    CompileStatus compile();
+    CompileStatus Compile();
 
     jsbytecode *getPC() { return PC; }
     Label getLabel() { return masm.label(); }
     bool knownJump(jsbytecode *pc);
     Label labelOf(jsbytecode *target);
     void *findCallSite(const CallSite &callSite);
-    void addCallSite(const InternalCallSite &callSite);
-    void addReturnSite(Label joinPoint, uint32 id);
-    bool loadOldTraps(const Vector<CallSite> &site);
-
-    bool debugMode() { return debugMode_; }
 
   private:
-    CompileStatus performCompilation(JITScript **jitp);
     CompileStatus generatePrologue();
     CompileStatus generateMethod();
     CompileStatus generateEpilogue();
-    CompileStatus finishThisUp(JITScript **jitp);
+    CompileStatus finishThisUp();
 
     /* Non-emitting helpers. */
     uint32 fullAtomIndex(jsbytecode *pc);
-    bool jumpInScript(Jump j, jsbytecode *pc);
+    void jumpInScript(Jump j, jsbytecode *pc);
+    JSC::ExecutablePool *getExecPool(size_t size);
     bool compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const Value &rhs);
-    bool canUseApplyTricks();
+    void addCallSite(uint32 id, bool stub);
 
     /* Emitting helpers. */
+    void saveReturnAddress();
+    void restoreReturnAddress(Assembler &masm);
     void restoreFrameRegs(Assembler &masm);
-    bool emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused);
-    bool iter(uintN flags);
+    void emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused);
+    void iter(uintN flags);
     void iterNext();
-    bool iterMore();
+    void iterMore();
     void iterEnd();
     MaybeJump loadDouble(FrameEntry *fe, FPRegisterID fpReg);
-#ifdef JS_POLYIC
-    void passICAddress(BaseICInfo *ic);
-#endif
-#ifdef JS_MONOIC
-    void passMICAddress(GlobalNameICInfo &mic);
-#endif
-    bool constructThis();
 
     /* Opcode handlers. */
-    bool jumpAndTrace(Jump j, jsbytecode *target, Jump *slow = NULL);
-    void jsop_bindname(JSAtom *atom, bool usePropCache);
+    void jumpAndTrace(Jump j, jsbytecode *target, Jump *slow = NULL);
+    void jsop_bindname(uint32 index);
     void jsop_setglobal(uint32 index);
     void jsop_getglobal(uint32 index);
-    void jsop_getprop_slow(JSAtom *atom, bool usePropCache = true);
-    void jsop_getarg(uint32 slot);
-    void jsop_setarg(uint32 slot, bool popped);
+    void jsop_getprop_slow();
+    void jsop_getarg(uint32 index);
     void jsop_this();
-    void emitReturn(FrameEntry *fe);
-    void emitFinalReturn(Assembler &masm);
-    void loadReturnValue(Assembler *masm, FrameEntry *fe);
-    void emitReturnValue(Assembler *masm, FrameEntry *fe);
+    void emitReturn();
     void dispatchCall(VoidPtrStubUInt32 stub, uint32 argc);
     void interruptCheckHelper();
-    void emitUncachedCall(uint32 argc, bool callingNew);
-    void checkCallApplySpeculation(uint32 callImmArgc, uint32 speculatedArgc,
-                                   FrameEntry *origCallee, FrameEntry *origThis,
-                                   MaybeRegisterID origCalleeType, RegisterID origCalleeData,
-                                   MaybeRegisterID origThisType, RegisterID origThisData,
-                                   Jump *uncachedCallSlowRejoin, CallPatchInfo *uncachedCallPatch);
     void inlineCallHelper(uint32 argc, bool callingNew);
-    void fixPrimitiveReturn(Assembler *masm, FrameEntry *fe);
     void jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index);
-    bool jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index);
-    bool jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index);
+    void jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index);
+    void jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index);
     void jsop_eleminc(JSOp op, VoidStub);
     void jsop_getgname(uint32 index);
     void jsop_getgname_slow(uint32 index);
-    void jsop_callgname_epilogue();
-    void jsop_setgname(JSAtom *atom, bool usePropertyCache);
-    void jsop_setgname_slow(JSAtom *atom, bool usePropertyCache);
+    void jsop_setgname(uint32 index);
+    void jsop_setgname_slow(uint32 index);
     void jsop_bindgname();
     void jsop_setelem_slow();
     void jsop_getelem_slow();
-    void jsop_callelem_slow();
     void jsop_unbrand();
-    bool jsop_getprop(JSAtom *atom, bool typeCheck = true, bool usePropCache = true);
-    bool jsop_length();
-    bool jsop_setprop(JSAtom *atom, bool usePropCache = true);
-    void jsop_setprop_slow(JSAtom *atom, bool usePropCache = true);
+    void jsop_getprop(JSAtom *atom, bool typeCheck = true);
+    void jsop_length();
+    void jsop_setprop(JSAtom *atom);
+    void jsop_setprop_slow(JSAtom *atom);
     bool jsop_callprop_slow(JSAtom *atom);
     bool jsop_callprop(JSAtom *atom);
     bool jsop_callprop_obj(JSAtom *atom);
     bool jsop_callprop_str(JSAtom *atom);
     bool jsop_callprop_generic(JSAtom *atom);
-    bool jsop_instanceof();
-    void jsop_name(JSAtom *atom, bool isCall);
-    bool jsop_xname(JSAtom *atom);
-    void enterBlock(JSObject *obj);
-    void leaveBlock();
-    void emitEval(uint32 argc);
-    void jsop_arguments();
-    bool jsop_tableswitch(jsbytecode *pc);
-    void jsop_forprop(JSAtom *atom);
-    void jsop_forname(JSAtom *atom);
-    void jsop_forgname(JSAtom *atom);
+    void jsop_instanceof();
+    void jsop_name(JSAtom *atom);
 
     /* Fast arithmetic. */
     void jsop_binary(JSOp op, VoidStub stub);
@@ -491,10 +282,11 @@ class Compiler : public BaseCompiler
                              MaybeRegisterID &mreg);
     void maybeJumpIfNotDouble(Assembler &masm, MaybeJump &mj, FrameEntry *fe,
                               MaybeRegisterID &mreg);
-    bool jsop_relational(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
-    bool jsop_relational_self(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
-    bool jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
-    bool jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
+    void jsop_relational(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
+    void jsop_relational_int(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
+    void jsop_relational_self(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
+    void jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
+    void jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
 
     void emitLeftDoublePath(FrameEntry *lhs, FrameEntry *rhs, FrameState::BinaryAlloc &regs,
                             MaybeJump &lhsNotDouble, MaybeJump &rhsNotNumber,
@@ -516,54 +308,56 @@ class Compiler : public BaseCompiler
     void jsop_rsh_const_unknown(FrameEntry *lhs, FrameEntry *rhs);
     void jsop_rsh_unknown_const(FrameEntry *lhs, FrameEntry *rhs);
     void jsop_rsh_unknown_any(FrameEntry *lhs, FrameEntry *rhs);
+    void jsop_globalinc(JSOp op, uint32 index);
     void jsop_mod();
     void jsop_neg();
     void jsop_bitnot();
     void jsop_not();
     void jsop_typeof();
-    bool booleanJumpScript(JSOp op, jsbytecode *target);
-    bool jsop_ifneq(JSOp op, jsbytecode *target);
-    bool jsop_andor(JSOp op, jsbytecode *target);
+    void booleanJumpScript(JSOp op, jsbytecode *target);
+    void jsop_ifneq(JSOp op, jsbytecode *target);
+    void jsop_andor(JSOp op, jsbytecode *target);
     void jsop_arginc(JSOp op, uint32 slot, bool popped);
     void jsop_localinc(JSOp op, uint32 slot, bool popped);
-    void jsop_newinit();
-    void jsop_initmethod();
-    void jsop_initprop();
-    void jsop_initelem();
-    bool jsop_setelem(bool popGuaranteed);
-    bool jsop_getelem(bool isCall);
-    bool isCacheableBaseAndIndex(FrameEntry *obj, FrameEntry *id);
+    void jsop_setelem();
+    void jsop_getelem();
+    void jsop_getelem_known_type(FrameEntry *obj, FrameEntry *id, RegisterID tmpReg);
+    void jsop_getelem_with_pic(FrameEntry *obj, FrameEntry *id, RegisterID tmpReg);
+    void jsop_getelem_nopic(FrameEntry *obj, FrameEntry *id, RegisterID tmpReg);
+    void jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID objReg, RegisterID idReg,
+                          RegisterID shapeReg);
+    void jsop_getelem_dense(FrameEntry *obj, FrameEntry *id, RegisterID objReg,
+                            MaybeRegisterID &idReg, RegisterID shapeReg);
     void jsop_stricteq(JSOp op);
-    bool jsop_equality(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
-    bool jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
+    void jsop_equality(JSOp op, BoolStub stub, jsbytecode *target, JSOp fused);
     void jsop_pos();
 
-   
+#define STUB_CALL_TYPE(type)                                            \
+    Call stubCall(type stub) {                                          \
+        return stubCall(JS_FUNC_TO_DATA_PTR(void *, stub));             \
+    }
+
+    STUB_CALL_TYPE(JSObjStub);
+    STUB_CALL_TYPE(VoidStubUInt32);
+    STUB_CALL_TYPE(VoidStub);
+    STUB_CALL_TYPE(VoidPtrStubUInt32);
+    STUB_CALL_TYPE(VoidPtrStub);
+    STUB_CALL_TYPE(BoolStub);
+    STUB_CALL_TYPE(JSObjStubUInt32);
+    STUB_CALL_TYPE(JSObjStubFun);
+    STUB_CALL_TYPE(JSObjStubJSObj);
+    STUB_CALL_TYPE(VoidStubAtom);
+    STUB_CALL_TYPE(JSStrStub);
+    STUB_CALL_TYPE(JSStrStubUInt32);
+    STUB_CALL_TYPE(VoidStubJSObj);
+    STUB_CALL_TYPE(VoidPtrStubPC);
+    STUB_CALL_TYPE(VoidVpStub);
+    STUB_CALL_TYPE(VoidStubPC);
+
+#undef STUB_CALL_TYPE
     void prepareStubCall(Uses uses);
-    Call emitStubCall(void *ptr);
+    Call stubCall(void *ptr);
 };
-
-// Given a stub call, emits the call into the inline assembly path. If
-// debug mode is on, adds the appropriate instrumentation for recompilation.
-#define INLINE_STUBCALL(stub)                                               \
-    do {                                                                    \
-        Call cl = emitStubCall(JS_FUNC_TO_DATA_PTR(void *, (stub)));        \
-        if (debugMode()) {                                                  \
-            InternalCallSite site(masm.callReturnOffset(cl), PC, __LINE__,  \
-                                  true, false);                             \
-            addCallSite(site);                                              \
-        }                                                                   \
-    } while (0)                                                             \
-
-// Given a stub call, emits the call into the out-of-line assembly path. If
-// debug mode is on, adds the appropriate instrumentation for recompilation.
-// Unlike the INLINE_STUBCALL variant, this returns the Call offset.
-#define OOL_STUBCALL(stub)                                                      \
-    stubcc.emitStubCall(JS_FUNC_TO_DATA_PTR(void *, (stub)), __LINE__)          \
-
-// Same as OOL_STUBCALL, but specifies a slot depth.
-#define OOL_STUBCALL_LOCAL_SLOTS(stub, slots)                                   \
-    stubcc.emitStubCall(JS_FUNC_TO_DATA_PTR(void *, (stub)), (slots), __LINE__) \
 
 } /* namespace js */
 } /* namespace mjit */

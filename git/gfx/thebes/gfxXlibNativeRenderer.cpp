@@ -130,7 +130,7 @@ _get_rectangular_clip (cairo_t *cr,
             goto FINISH;
         }
 
-        if (rect.IsEqualInterior(bounds)) {
+        if (rect == bounds) {
             /* the bounds are entirely inside the clip region so we don't need to clip. */
             *need_clip = PR_FALSE;
             goto FINISH;
@@ -177,57 +177,6 @@ gfxXlibNativeRenderer::DrawDirect(gfxContext *ctx, nsIntSize size,
         return PR_FALSE;
     }
     
-    cairo_matrix_t matrix;
-    cairo_get_matrix (cr, &matrix);
-    double device_offset_x, device_offset_y;
-    cairo_surface_get_device_offset (target, &device_offset_x, &device_offset_y);
-
-    /* Draw() checked that the matrix contained only a very-close-to-integer
-       translation.  Here (and in several other places and thebes) device
-       offsets are assumed to be integer. */
-    NS_ASSERTION(PRInt32(device_offset_x) == device_offset_x &&
-                 PRInt32(device_offset_y) == device_offset_y,
-                 "Expected integer device offsets");
-    nsIntPoint offset(NS_lroundf(matrix.x0 + device_offset_x),
-                      NS_lroundf(matrix.y0 + device_offset_y));
-    
-    int max_rectangles = 0;
-    if (flags & DRAW_SUPPORTS_CLIP_RECT) {
-      max_rectangles = 1;
-    }
-    if (flags & DRAW_SUPPORTS_CLIP_LIST) {
-      max_rectangles = MAX_STATIC_CLIP_RECTANGLES;
-    }
-
-    /* The client won't draw outside the surface so consider this when
-       analysing clip rectangles. */
-    nsIntRect bounds(offset, size);
-    bounds.IntersectRect(bounds,
-                         nsIntRect(0, 0,
-                                   cairo_xlib_surface_get_width(target),
-                                   cairo_xlib_surface_get_height(target)));
-
-    PRBool needs_clip = PR_TRUE;
-    nsIntRect rectangles[MAX_STATIC_CLIP_RECTANGLES];
-    int rect_count = 0;
-
-    /* Check that the clip is rectangular and aligned on unit boundaries. */
-    /* Temporarily set the matrix for _get_rectangular_clip. It's basically
-       the identity matrix, but we must adjust for the fact that our
-       offset-rect is in device coordinates. */
-    cairo_identity_matrix (cr);
-    cairo_translate (cr, -device_offset_x, -device_offset_y);
-    PRBool have_rectangular_clip =
-        _get_rectangular_clip (cr, bounds, &needs_clip,
-                               rectangles, max_rectangles, &rect_count);
-    cairo_set_matrix (cr, &matrix);
-    if (!have_rectangular_clip)
-        return PR_FALSE;
-
-    /* Stop now if everything is clipped out */
-    if (needs_clip && rect_count == 0)
-        return PR_TRUE;
-      
     /* Check that the screen is supported.
        Visuals belong to screens, so, if alternate visuals are not supported,
        then alternate screens cannot be supported. */  
@@ -261,6 +210,57 @@ gfxXlibNativeRenderer::DrawDirect(gfxContext *ctx, nsIntSize size,
         }
     }
   
+    cairo_matrix_t matrix;
+    cairo_get_matrix (cr, &matrix);
+    double device_offset_x, device_offset_y;
+    cairo_surface_get_device_offset (target, &device_offset_x, &device_offset_y);
+
+    /* Draw() checked that the matrix contained only a very-close-to-integer
+       translation.  Here (and in several other places and thebes) device
+       offsets are assumed to be integer. */
+    NS_ASSERTION(PRUint32(device_offset_x) == device_offset_x &&
+                 PRUint32(device_offset_y) == device_offset_y,
+                 "Expected integer device offsets");
+    nsIntPoint offset(NS_lroundf(matrix.x0 + device_offset_x),
+                      NS_lroundf(matrix.y0 + device_offset_y));
+    
+    int max_rectangles = 0;
+    if (flags & DRAW_SUPPORTS_CLIP_RECT) {
+      max_rectangles = 1;
+    }
+    if (flags & DRAW_SUPPORTS_CLIP_LIST) {
+      max_rectangles = MAX_STATIC_CLIP_RECTANGLES;
+    }
+
+    /* The client won't draw outside the surface so consider this when
+       analysing clip rectangles. */
+    nsIntRect bounds(offset, size);
+    bounds.IntersectRect(bounds,
+                         nsIntRect(0, 0,
+                                   cairo_xlib_surface_get_width(target),
+                                   cairo_xlib_surface_get_height(target)));
+
+    PRBool needs_clip;
+    nsIntRect rectangles[MAX_STATIC_CLIP_RECTANGLES];
+    int rect_count;
+
+    /* Check that the clip is rectangular and aligned on unit boundaries. */
+    /* Temporarily set the matrix for _get_rectangular_clip. It's basically
+       the identity matrix, but we must adjust for the fact that our
+       offset-rect is in device coordinates. */
+    cairo_identity_matrix (cr);
+    cairo_translate (cr, -device_offset_x, -device_offset_y);
+    PRBool have_rectangular_clip =
+        _get_rectangular_clip (cr, bounds, &needs_clip,
+                               rectangles, max_rectangles, &rect_count);
+    cairo_set_matrix (cr, &matrix);
+    if (!have_rectangular_clip)
+        return PR_FALSE;
+
+    /* Draw only calls this function when the clip region is not empty. */
+    NS_ASSERTION(!needs_clip || rect_count != 0,
+                 "Where did the clip region go?");
+      
     /* we're good to go! */
     NATIVE_DRAWING_NOTE("TAKING FAST PATH\n");
     cairo_surface_flush (target);
@@ -367,7 +367,7 @@ CreateTempXlibSurface (gfxASurface *destination, nsIntSize size,
             target_visual = gfxXlibSurface::FindVisual(screen, imageFormat);
             Display *dpy = DisplayOfScreen(screen);
             if (target_visual) {
-                target_format = XRenderFindVisualFormat(dpy, target_visual);
+                target_format = XRenderFindVisualFormat(dpy, visual);
             } else {
                 target_format =
                     gfxXlibSurface::FindRenderFormat(dpy, imageFormat);
@@ -502,7 +502,7 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
     if (!matrixIsIntegerTranslation) {
         // The filter footprint means that the affected rectangle is a
         // little larger than the drawingRect;
-        affectedRect.Inflate(filterRadius);
+        affectedRect.Outset(filterRadius);
 
         NATIVE_DRAWING_NOTE("FALLBACK: matrix not integer translation");
     } else if (!canDrawOverBackground) {
@@ -531,7 +531,7 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
     if (!matrixIsIntegerTranslation) {
         // The source surface may need to be a little larger than the clip
         // extents due to the filter footprint.
-        clipExtents.Inflate(filterRadius);
+        clipExtents.Outset(filterRadius);
     }
     clipExtents.RoundOut();
 

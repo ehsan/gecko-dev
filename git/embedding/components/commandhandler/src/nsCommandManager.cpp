@@ -95,8 +95,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCommandManager)
   tmp->mObserversTable.EnumerateRead(TraverseCommandObservers, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCommandManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCommandManager)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsCommandManager, nsICommandManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsCommandManager, nsICommandManager)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCommandManager)
    NS_INTERFACE_MAP_ENTRY(nsICommandManager)
@@ -274,6 +274,10 @@ nsCommandManager::DoCommand(const char *aCommandName,
     rv = controller->DoCommand(aCommandName);
   return rv;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsresult
 nsCommandManager::IsCallerChrome(PRBool *is_caller_chrome)

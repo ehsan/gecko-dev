@@ -997,8 +997,6 @@ static txFunctionFactoryMapping kExtensionFunctions[] = {
     { "http://exslt.org/strings", kNameSpaceID_Unknown,
       TX_ConstructEXSLTFunction },
     { "http://exslt.org/math", kNameSpaceID_Unknown,
-      TX_ConstructEXSLTFunction },
-    { "http://exslt.org/dates-and-times", kNameSpaceID_Unknown,
       TX_ConstructEXSLTFunction }
 };
 

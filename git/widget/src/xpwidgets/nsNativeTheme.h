@@ -40,28 +40,20 @@
 // code duplication.
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nsIAtom.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsMargin.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetAtoms.h"
-#include "nsEventStates.h"
-#include "nsTArray.h"
-#include "nsITimer.h"
 
-class nsIContent;
 class nsIFrame;
 class nsIPresShell;
 class nsPresContext;
 
-class nsNativeTheme : public nsITimerCallback
+class nsNativeTheme
 {
  protected:
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSITIMERCALLBACK
 
   enum ScrollbarButtonType {
     eScrollbarButton_UpTop   = 0,
@@ -77,8 +69,8 @@ class nsNativeTheme : public nsITimerCallback
 
   nsNativeTheme();
 
-  // Returns the content state (hover, focus, etc), see nsEventStateManager.h
-  nsEventStates GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType);
+  // Returns the content state (hover, focus, etc), see nsIEventStateManager.h
+  PRInt32 GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType);
 
   // Returns whether the widget is already styled by content
   // Normally called from ThemeSupportsWidget to turn off native theming
@@ -88,7 +80,10 @@ class nsNativeTheme : public nsITimerCallback
 
   // Accessors to widget-specific state information
 
-  bool IsDisabled(nsIFrame* aFrame, nsEventStates aEventStates);
+  // all widgets:
+  PRBool IsDisabled(nsIFrame* aFrame) {
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::disabled);
+  }
 
   // RTL chrome direction
   PRBool IsFrameRTL(nsIFrame* aFrame);
@@ -161,8 +156,15 @@ class nsNativeTheme : public nsITimerCallback
   PRBool IsHorizontal(nsIFrame* aFrame);
 
   // progressbar:
-  PRBool IsIndeterminateProgress(nsIFrame* aFrame, nsEventStates aEventStates);
-  PRBool IsVerticalProgress(nsIFrame* aFrame);
+  PRBool IsIndeterminateProgress(nsIFrame* aFrame);
+
+  PRInt32 GetProgressValue(nsIFrame* aFrame) {
+    return CheckIntAttr(aFrame, nsWidgetAtoms::value, 0);
+  }
+  
+  PRInt32 GetProgressMaxValue(nsIFrame* aFrame) {
+    return PR_MAX(CheckIntAttr(aFrame, nsWidgetAtoms::max, 100), 1);
+  }
 
   // textfield:
   PRBool IsReadOnly(nsIFrame* aFrame) {
@@ -172,21 +174,10 @@ class nsNativeTheme : public nsITimerCallback
   // menupopup:
   PRBool IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent);
 
-  // True if it's not a menubar item or menulist item
-  PRBool IsRegularMenuItem(nsIFrame *aFrame);
-
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
   PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);
   PRBool CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom);
 
   PRBool GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected);
   PRBool GetIndeterminate(nsIFrame* aFrame);
-
-  PRBool QueueAnimatedContentForRefresh(nsIContent* aContent,
-                                        PRUint32 aMinimumFrameRate);
-
- private:
-  PRUint32 mAnimatedContentTimeout;
-  nsCOMPtr<nsITimer> mAnimatedContentTimer;
-  nsAutoTArray<nsCOMPtr<nsIContent>, 20> mAnimatedContentList;
 };

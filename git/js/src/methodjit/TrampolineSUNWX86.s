@@ -1,4 +1,4 @@
-/ -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/ -*- Mode: C++/ tab-width: 4/ indent-tabs-mode: nil/ c-basic-offset: 4 -*-
 / ***** BEGIN LICENSE BLOCK *****
 / Version: MPL 1.1/GPL 2.0/LGPL 2.1
 /
@@ -37,8 +37,8 @@
 
 .text
 
-/ JSBool JaegerTrampoline(JSContext *cx, StackFrame *fp, void *code,
-/                         FrameRegs *regs, uintptr_t inlineCallCount)
+/ JSBool JaegerTrampoline(JSContext *cx, JSStackFrame *fp, void *code,
+/                        JSFrameRegs *regs, uintptr_t inlineCallCount)
 .global JaegerTrampoline
 .type   JaegerTrampoline, @function
 JaegerTrampoline:
@@ -63,28 +63,26 @@ JaegerTrampoline:
     /* No fastcall for sunstudio. */
     pushl %esp
     call SetVMFrameRegs
+    popl  %edx
+    pushl %esp
     call PushActiveVMFrame
     popl  %edx
-    jmp  *16(%ebp)
-.size   JaegerTrampoline, . - JaegerTrampoline
-
-/ void JaegerTrampolineReturn()
-.global JaegerTrampolineReturn
-.type   JaegerTrampolineReturn, @function
-JaegerTrampolineReturn:
-    movl  %edx, 0x18(%ebx)
-    movl  %ecx, 0x1C(%ebx)
+    call  *16(%ebp)
     pushl %esp
     call PopActiveVMFrame
+    popl %ecx
+    pushl %esp
+    call UnsetVMFrameRegs
+    popl %ecx
 
-    addl $0x30, %esp
+    addl $0x2C, %esp
     popl %ebx
     popl %edi
     popl %esi
     popl %ebp
     movl $1, %eax
     ret
-.size   JaegerTrampolineReturn, . - JaegerTrampolineReturn
+.size   JaegerTrampoline, . - JaegerTrampoline
 
 
 / void *JaegerThrowpoline(js::VMFrame *vmFrame)
@@ -92,8 +90,8 @@ JaegerTrampolineReturn:
 .type   JaegerThrowpoline, @function
 JaegerThrowpoline:
     /* For Sun Studio there is no fast call. */
-    /* We add the stack by 16 before. */
-    addl $0x10, %esp
+    /* We add the stack by 8 before. */
+    addl $0x8, %esp
     /* Align the stack to 16 bytes. */
     pushl %esp 
     pushl (%esp)
@@ -111,7 +109,7 @@ throwpoline_exit:
     pushl %esp
     call PopActiveVMFrame
     popl %ebx
-    addl $0x2C, %esp
+    addl $0x2c, %esp
     popl %ebx
     popl %edi
     popl %esi
@@ -120,3 +118,29 @@ throwpoline_exit:
     ret
 .size   JaegerThrowpoline, . - JaegerThrowpoline
 
+.global InjectJaegerReturn
+.type   InjectJaegerReturn, @function
+InjectJaegerReturn:
+    movl 0x24(%ebx), %edx                        /* fp->rval data */
+    movl 0x28(%ebx), %ecx                        /* fp->rval type */
+    movl 0x38(%ebx), %eax                        /* fp->ncode */
+    /* For Sun Studio there is no fast call. */
+    /* We add the stack by 8 before. */
+    addl $0x8, %esp
+    /* Restore frame regs. */
+    movl 0x1C(%esp), %ebx                        /* f.fp */
+    pushl %eax
+    ret
+.size   InjectJaegerReturn, . - InjectJaegerReturn
+	
+/*
+ * Take the fifth parameter from JaegerShot() and jump to it. This makes it so
+ * we can jump into arbitrary JIT code, which won't have the frame-fixup prologue.
+ */
+.global SafePointTrampoline
+.type   SafePointTrampoline, @function
+SafePointTrampoline:
+    popl %eax
+    movl %eax, 0x38(%ebx)
+    jmp  *24(%ebp)
+.size   SafePointTrampoline, . - SafePointTrampoline

@@ -28,10 +28,3 @@ stack
 string
 vector
 set
-cassert
-climits
-cstdarg
-cstdio
-cstdlib
-cstring
-utility

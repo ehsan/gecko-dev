@@ -142,8 +142,7 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
                         const PRUnichar *aString,
                         PRUint32 aRunStart,
                         PRUint32 aRunLength,
-                        PRInt32 aRunScript,
-                        PRBool aPreferPlatformShaping)
+                        PRInt32 aRunScript)
 {
     if (!mMetrics) {
         Initialize();
@@ -155,12 +154,9 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
 
     PRBool ok = PR_FALSE;
 
-    // ensure the cairo font is set up, so there's no risk it'll fall back to
-    // creating a "toy" font internally (see bug 544617)
-    SetupCairoFont(aContext);
-
     if (mHarfBuzzShaper) {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
+            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
             ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
                                               aRunStart, aRunLength, 
                                               aRunScript);
@@ -169,11 +165,11 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
 
     if (!ok) {
         GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
-        PRBool preferUniscribe =
-            (!fe->IsTrueType() || fe->IsSymbolFont()) && !fe->mForceGDI;
+        PRBool useUniscribeOnly = !fe->IsTrueType() || fe->IsSymbolFont();
 
-        if (preferUniscribe ||
-            UseUniscribe(aTextRun, aString, aRunStart, aRunLength))
+        if (useUniscribeOnly ||
+            (UseUniscribe(aTextRun, aString, aRunStart, aRunLength)
+             && !fe->mForceGDI))
         {
             // first try Uniscribe
             if (!mUniscribeShaper) {
@@ -188,13 +184,16 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
             }
 
             // fallback to GDI shaping
-            if (!mPlatformShaper) {
-                CreatePlatformShaper();
+            if (!useUniscribeOnly) {
+                if (!mPlatformShaper) {
+                    CreatePlatformShaper();
+                }
+
+                ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                                  aRunStart, aRunLength, 
+                                                  aRunScript);
             }
 
-            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength, 
-                                              aRunScript);
         } else {
             // first use GDI
             if (!mPlatformShaper) {
@@ -209,7 +208,7 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
                 return PR_TRUE;
             }
 
-            // try Uniscribe if GDI failed
+            // first try Uniscribe
             if (!mUniscribeShaper) {
                 mUniscribeShaper = new gfxUniscribeShaper(this);
             }
@@ -268,33 +267,8 @@ gfxGDIFont::SetupCairoFont(gfxContext *aContext)
         return PR_FALSE;
     }
     cairo_set_scaled_font(aContext->GetCairo(), mScaledFont);
+    cairo_win32_scaled_font_select_font(mScaledFont, DCFromContext(aContext));
     return PR_TRUE;
-}
-
-gfxFont::RunMetrics
-gfxGDIFont::Measure(gfxTextRun *aTextRun,
-                    PRUint32 aStart, PRUint32 aEnd,
-                    BoundingBoxType aBoundingBoxType,
-                    gfxContext *aRefContext,
-                    Spacing *aSpacing)
-{
-    gfxFont::RunMetrics metrics =
-        gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing);
-
-    // if aBoundingBoxType is LOOSE_INK_EXTENTS
-    // and the underlying cairo font may be antialiased,
-    // we can't trust Windows to have considered all the pixels
-    // so we need to add "padding" to the bounds.
-    // (see bugs 475968, 439831, compare also bug 445087)
-    if (aBoundingBoxType == LOOSE_INK_EXTENTS &&
-        mAntialiasOption != kAntialiasNone &&
-        metrics.mBoundingBox.width > 0) {
-        metrics.mBoundingBox.x -= aTextRun->GetAppUnitsPerDevUnit();
-        metrics.mBoundingBox.width += aTextRun->GetAppUnitsPerDevUnit() * 3;
-    }
-
-    return metrics;
 }
 
 void
@@ -365,7 +339,7 @@ gfxGDIFont::Initialize()
         mMetrics->emAscent = ROUND(mMetrics->emHeight * (double)oMetrics.otmAscent / typEmHeight);
         mMetrics->emDescent = mMetrics->emHeight - mMetrics->emAscent;
         if (oMetrics.otmEMSquare > 0) {
-            mFUnitsConvFactor = float(mAdjustedSize / oMetrics.otmEMSquare);
+            mFUnitsConvFactor = float(GetAdjustedSize() / oMetrics.otmEMSquare);
         }
     } else {
         // Make a best-effort guess at extended metrics
@@ -400,7 +374,7 @@ gfxGDIFont::Initialize()
     mMetrics->maxAscent = metrics.tmAscent;
     mMetrics->maxDescent = metrics.tmDescent;
     mMetrics->maxAdvance = metrics.tmMaxCharWidth;
-    mMetrics->aveCharWidth = NS_MAX<gfxFloat>(1, metrics.tmAveCharWidth);
+    mMetrics->aveCharWidth = PR_MAX(1, metrics.tmAveCharWidth);
     // The font is monospace when TMPF_FIXED_PITCH is *not* set!
     // See http://msdn2.microsoft.com/en-us/library/ms534202(VS.85).aspx
     if (!(metrics.tmPitchAndFamily & TMPF_FIXED_PITCH)) {
@@ -501,7 +475,7 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
 }
 
 PRInt32
-gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
+gfxGDIFont::GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
 {
     if (!mGlyphWidths.IsInitialized()) {
         mGlyphWidths.Init(200);

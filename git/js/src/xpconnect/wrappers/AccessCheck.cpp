@@ -42,57 +42,23 @@
 #include "nsJSPrincipals.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
-#include "nsContentUtils.h"
 
 #include "XPCWrapper.h"
-#include "XrayWrapper.h"
-#include "FilteringWrapper.h"
-#include "WrapperFactory.h"
-
-#include "jsfriendapi.h"
 
 namespace xpc {
 
 static nsIPrincipal *
 GetCompartmentPrincipal(JSCompartment *compartment)
 {
-    return compartment->principals ? static_cast<nsJSPrincipals *>(compartment->principals)->nsIPrincipalPtr : 0;
+    return static_cast<nsJSPrincipals *>(compartment->principals)->nsIPrincipalPtr;
 }
 
 bool
 AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
 {
-    nsIPrincipal *aprin = GetCompartmentPrincipal(a);
-    nsIPrincipal *bprin = GetCompartmentPrincipal(b);
-
-    // If either a or b doesn't have principals, we don't have enough
-    // information to tell. Seeing as how this is Gecko, we are default-unsafe
-    // in this case.
-    if (!aprin || !bprin)
-        return true;
-
-    PRBool equals;
-    nsresult rv = aprin->EqualsIgnoringDomain(bprin, &equals);
-    if (NS_FAILED(rv)) {
-        NS_ERROR("unable to ask about equality");
-        return false;
-    }
-
-    return equals;
-}
-
-bool
-AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
-{
-    JSObject *obj = wrapper->unwrap()->getParent();
-    if (!obj->getClass()->ext.innerObject) {
-        obj = obj->unwrap();
-        JS_ASSERT(obj->getClass()->ext.innerObject);
-    }
-    OBJ_TO_INNER_OBJECT(cx, obj);
-    return obj &&
-           (isSameOrigin(wrapper->compartment(), obj->compartment()) ||
-            documentDomainMakesSameOrigin(cx, obj));
+    PRBool cond;
+    return NS_SUCCEEDED(GetCompartmentPrincipal(a)->Equals(GetCompartmentPrincipal(b), &cond)) &&
+           cond;
 }
 
 bool
@@ -108,45 +74,28 @@ AccessCheck::isChrome(JSCompartment *compartment)
     return NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) && privileged;
 }
 
-nsIPrincipal *
-AccessCheck::getPrincipal(JSCompartment *compartment)
-{
-    return GetCompartmentPrincipal(compartment);
-}
-
-#define NAME(ch, str, cases)                                                  \
-    case ch: if (!strcmp(name, str)) switch (propChars[0]) { cases }; break;
+#define NAME(ch, str, cases) case ch: if (!strcmp(name, str)) switch (prop[0]) { cases }; break;
 #define PROP(ch, actions) case ch: { actions }; break;
-#define RW(str) if (JS_FlatStringEqualsAscii(prop, str)) return true;
-#define R(str) if (!set && JS_FlatStringEqualsAscii(prop, str)) return true;
-#define W(str) if (set && JS_FlatStringEqualsAscii(prop, str)) return true;
+#define RW(str) if (!strcmp(prop, str)) return true;
+#define R(str) if (!set && !strcmp(prop, str)) return true;
+#define W(str) if (set && !strcmp(prop, str)) return true;
 
 // Hardcoded policy for cross origin property access. This was culled from the
 // preferences file (all.js). We don't want users to overwrite highly sensitive
 // security policies.
 static bool
-IsPermitted(const char *name, JSFlatString *prop, bool set)
+IsPermitted(const char *name, const char* prop, bool set)
 {
-    size_t propLength;
-    const jschar *propChars = JS_GetInternedStringCharsAndLength(prop, &propLength);
-    if (!propLength)
-        return false;
     switch(name[0]) {
         NAME('D', "DOMException",
              PROP('c', RW("code"))
              PROP('m', RW("message"))
              PROP('n', RW("name"))
-             PROP('r', RW("result"))
-             PROP('t', R("toString")))
-        NAME('E', "Error",
-             PROP('m', R("message")))
+             PROP('r', RW("result")))
         NAME('H', "History",
              PROP('b', R("back"))
              PROP('f', R("forward"))
              PROP('g', R("go")))
-        NAME('L', "Location",
-             PROP('h', W("hash") W("href"))
-             PROP('r', R("replace")))
         NAME('N', "Navigator",
              PROP('p', RW("preference")))
         NAME('W', "Window",
@@ -160,6 +109,10 @@ IsPermitted(const char *name, JSFlatString *prop, bool set)
              PROP('s', R("self"))
              PROP('t', R("top"))
              PROP('w', R("window")))
+         NAME('X', "XMLHttpRequest",
+             PROP('o', RW("open-uri")))
+         NAME('S', "SOAPCall",
+             PROP('i', RW("invokeVerifySourceHeader")))
     }
     return false;
 }
@@ -170,12 +123,9 @@ IsPermitted(const char *name, JSFlatString *prop, bool set)
 #undef W
 
 static bool
-IsFrameId(JSContext *cx, JSObject *obj, jsid id)
+IsFrameId(JSObject *obj, jsid id)
 {
-    XPCWrappedNative *wn = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
-    if (!wn) {
-        return false;
-    }
+    XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(obj->getPrivate());
 
     nsCOMPtr<nsIDOMWindow> domwin(do_QueryWrappedNative(wn));
     if (!domwin) {
@@ -191,7 +141,8 @@ IsFrameId(JSContext *cx, JSObject *obj, jsid id)
     if (JSID_IS_INT(id)) {
         col->Item(JSID_TO_INT(id), getter_AddRefs(domwin));
     } else if (JSID_IS_ATOM(id)) {
-        nsAutoString str(JS_GetInternedStringChars(JSID_TO_STRING(id)));
+        nsAutoString str(reinterpret_cast<PRUnichar *>
+                         (JS_GetStringChars(ATOM_TO_STRING(JSID_TO_ATOM(id)))));
         col->NamedItem(str, getter_AddRefs(domwin));
     } else {
         return false;
@@ -206,113 +157,30 @@ IsWindow(const char *name)
     return name[0] == 'W' && !strcmp(name, "Window");
 }
 
-static bool
-IsLocation(const char *name)
-{
-    return name[0] == 'L' && !strcmp(name, "Location");
-}
-
-static nsIPrincipal *
-GetPrincipal(JSObject *obj)
-{
-    NS_ASSERTION(!IS_SLIM_WRAPPER(obj), "global object is a slim wrapper?");
-    if (!IS_WN_WRAPPER(obj)) {
-        NS_ASSERTION(!(~obj->getClass()->flags &
-                       (JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_HAS_PRIVATE)),
-                     "bad object");
-        nsCOMPtr<nsIScriptObjectPrincipal> objPrin =
-            do_QueryInterface((nsISupports*)xpc_GetJSPrivate(obj));
-        NS_ASSERTION(objPrin, "global isn't nsIScriptObjectPrincipal?");
-        return objPrin->GetPrincipal();
-    }
-
-    nsIXPConnect *xpc = nsXPConnect::GetRuntimeInstance()->GetXPConnect();
-    return xpc->GetPrincipal(obj, PR_TRUE);
-}
-
 bool
-AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
+AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid id, bool set)
 {
-    JSObject *scope = nsnull;
-    JSStackFrame *fp = nsnull;
-    JS_FrameIterator(cx, &fp);
-    if (fp) {
-        while (!JS_IsScriptFrame(cx, fp)) {
-            if (!JS_FrameIterator(cx, &fp))
-                break;
-        }
-
-        if (fp)
-            scope = JS_GetFrameScopeChainRaw(fp);
-    }
-
-    if (!scope)
-        scope = JS_GetScopeChain(cx);
-
-    nsIPrincipal *subject;
-    nsIPrincipal *object;
-
-    {
-        JSAutoEnterCompartment ac;
-
-        if (!ac.enter(cx, scope))
-            return false;
-
-        subject = GetPrincipal(JS_GetGlobalForObject(cx, scope));
-    }
-
-    if (!subject)
-        return false;
-
-    {
-        JSAutoEnterCompartment ac;
-
-        if (!ac.enter(cx, obj))
-            return false;
-
-        object = GetPrincipal(JS_GetGlobalForObject(cx, obj));
-    }
-
-    PRBool subsumes;
-    return NS_SUCCEEDED(subject->Subsumes(object, &subsumes)) && subsumes;
-}
-
-bool
-AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid id,
-                                          JSWrapper::Action act)
-{
-    if (!XPCWrapper::GetSecurityManager())
-        return true;
-
-    if (act == JSWrapper::CALL)
-        return true;
-
     JSObject *obj = JSWrapper::wrappedObject(wrapper);
 
-    const char *name;
-    js::Class *clasp = obj->getClass();
-    NS_ASSERTION(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
-    if (clasp->ext.innerObject)
-        name = "Window";
-    else
-        name = clasp->name;
+    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+    if (!ssm) {
+         return true;
+    }
+
+    const char *name = obj->getClass()->name;
 
     if (JSID_IS_ATOM(id)) {
-        if (IsPermitted(name, JSID_TO_FLAT_STRING(id), act == JSWrapper::SET))
+        JSString *str = ATOM_TO_STRING(JSID_TO_ATOM(id));
+        const char *prop = JS_GetStringBytes(str);
+        if (IsPermitted(name, prop, set))
             return true;
     }
 
-    if (IsWindow(name) && IsFrameId(cx, obj, id))
+    if (IsWindow(name) && IsFrameId(obj, id))
         return true;
 
-    // We only reach this point for cross origin location objects (see
-    // SameOriginOrCrossOriginAccessiblePropertiesOnly::check).
-    if (!IsLocation(name) && documentDomainMakesSameOrigin(cx, obj))
-        return true;
-
-    return (act == JSWrapper::SET)
-           ? nsContentUtils::IsCallerTrustedForWrite()
-           : nsContentUtils::IsCallerTrustedForRead();
+    PRBool privileged;
+    return NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) && privileged;
 }
 
 bool
@@ -339,7 +207,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
         // Some code is running, we can't make the assumption, as above, but we
         // can't use a native frame, so clear fp.
         fp = NULL;
-    } else if (!JS_IsScriptFrame(cx, fp)) {
+    } else if (!fp->hasScript()) {
         fp = NULL;
     }
 
@@ -354,7 +222,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
     static const char prefix[] = "chrome://global/";
     const char *filename;
     if (fp &&
-        (filename = JS_GetFrameScript(cx, fp)->filename) &&
+        (filename = fp->getScript()->filename) &&
         !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
         return true;
     }
@@ -365,52 +233,9 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
 bool
 AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
 {
-    if (!IS_WN_WRAPPER(obj))
-        return false;
-
+    NS_ASSERTION(IS_WN_WRAPPER_OBJECT(obj), "expected a wrapped native here");
     XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(obj->getPrivate());
     return wn->NeedsSOW();
-}
-
-bool
-AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
-{
-    JS_ASSERT(wrapper->isWrapper());
-
-    uintN flags;
-    JSObject *obj = wrapper->unwrap(&flags);
-
-    // If the wrapper indicates script-only access, we are done.
-    if (flags & WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG) {
-        if (flags & WrapperFactory::SOW_FLAG)
-            return !isSystemOnlyAccessPermitted(cx);
-
-        if (flags & WrapperFactory::PARTIALLY_TRANSPARENT)
-            return !XrayUtils::IsTransparent(cx, wrapper);
-
-        nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-        if (!ssm)
-            return true;
-
-        // Bypass script-only status if UniversalXPConnect is enabled.
-        PRBool privileged;
-        return !NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) ||
-               !privileged;
-    }
-
-    // In addition, chrome objects can explicitly opt-in by setting .scriptOnly to true.
-    if (wrapper->getProxyHandler() == &FilteringWrapper<JSCrossCompartmentWrapper,
-        CrossOriginAccessiblePropertiesOnly>::singleton) {
-        jsid scriptOnlyId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_SCRIPTONLY);
-        jsval scriptOnly;
-        if (JS_LookupPropertyById(cx, obj, scriptOnlyId, &scriptOnly) &&
-            scriptOnly == JSVAL_TRUE)
-            return true; // script-only
-    }
-
-    // Allow non-script access to same-origin location objects and any other
-    // objects.
-    return WrapperFactory::IsLocationObject(obj) && !isLocationObjectSameOrigin(cx, wrapper);
 }
 
 void
@@ -425,83 +250,27 @@ AccessCheck::deny(JSContext *cx, jsid id)
         JSString *str = JS_ValueToString(cx, idval);
         if (!str)
             return;
-        const jschar *chars = JS_GetStringCharsZ(cx, str);
-        if (chars)
-            JS_ReportError(cx, "Permission denied to access property '%hs'", chars);
+        JS_ReportError(cx, "Permission denied to access property '%hs'", str);
     }
 }
 
-enum Access { READ = (1<<0), WRITE = (1<<1), NO_ACCESS = 0 };
-
-static bool
-Deny(JSContext *cx, jsid id, JSWrapper::Action act)
-{
-    // Refuse to perform the action and just return the default value.
-    if (act == JSWrapper::GET)
-        return true;
-    // If its a set, deny it and throw an exception.
-    AccessCheck::deny(cx, id);
-    return false;
-}
+typedef enum { READ = (1<<0), WRITE = (1<<1), NO_ACCESS = 0 } Access;
 
 bool
-PermitIfUniversalXPConnect(JSContext *cx, jsid id, JSWrapper::Action act,
-                           ExposedPropertiesOnly::Permission &perm)
+ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, bool set, Permission &perm)
 {
-    // If UniversalXPConnect is enabled, allow access even if __exposedProps__ doesn't
-    // exists.
-    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-    if (!ssm) {
-        return false;
-    }
-    PRBool privileged;
-    if (NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) &&
-        privileged) {
-        perm = ExposedPropertiesOnly::PermitPropertyAccess;
-        return true; // Allow
-    }
-
-    // Deny
-    return Deny(cx, id, act);
-}
-
-bool
-ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
-                             Permission &perm)
-{
-    JSObject *wrappedObject = JSWrapper::wrappedObject(wrapper);
-
-    if (act == JSWrapper::CALL) {
-        perm = PermitObjectAccess;
-        return true;
-    }
+    JSObject *holder = JSWrapper::wrappedObject(wrapper);
 
     perm = DenyAccess;
 
     jsid exposedPropsId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS);
 
     JSBool found = JS_FALSE;
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, wrappedObject) ||
-        !JS_HasPropertyById(cx, wrappedObject, exposedPropsId, &found))
+    if (!JS_HasPropertyById(cx, holder, exposedPropsId, &found))
         return false;
-
-    // Always permit access to "length" and indexed properties of arrays.
-    if (JS_IsArrayObject(cx, wrappedObject) &&
-        ((JSID_IS_INT(id) && JSID_TO_INT(id) >= 0) ||
-         (JSID_IS_ATOM(id) && JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "length")))) {
-        perm = PermitPropertyAccess;
-        return true; // Allow
-    }
-
-    // If no __exposedProps__ existed, deny access.
     if (!found) {
-        // For now, only do this on functions.
-        if (!JS_ObjectIsFunction(cx, wrappedObject)) {
-            perm = PermitPropertyAccess;
-            return true;
-        }
-        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
+        perm = PermitObjectAccess;
+        return true; // Allow
     }
 
     if (id == JSID_VOID) {
@@ -511,11 +280,11 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, JSWrappe
     }
 
     jsval exposedProps;
-    if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, &exposedProps))
+    if (!JS_LookupPropertyById(cx, holder, exposedPropsId, &exposedProps))
         return false;
 
     if (JSVAL_IS_VOID(exposedProps) || JSVAL_IS_NULL(exposedProps)) {
-        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
+        return true; // Deny
     }
 
     if (!JSVAL_IS_OBJECT(exposedProps)) {
@@ -527,25 +296,19 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, JSWrappe
 
     Access access = NO_ACCESS;
 
-    JSPropertyDescriptor desc;
-    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, JSRESOLVE_QUALIFIED, &desc)) {
+    jsval v;
+    if (!JS_LookupPropertyById(cx, hallpass, id, &v)) {
         return false; // Error
     }
-    if (desc.obj == NULL || !(desc.attrs & JSPROP_ENUMERATE)) {
-        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
-    }
 
-    if (!JSVAL_IS_STRING(desc.value)) {
+    if (!JSVAL_IS_STRING(v)) {
         JS_ReportError(cx, "property must be a string");
         return false;
     }
 
-    JSString *str = JSVAL_TO_STRING(desc.value);
-    size_t length;
-    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
-    if (!chars)
-        return false;
-
+    JSString *str = JSVAL_TO_STRING(v);
+    const jschar *chars = JS_GetStringChars(str);
+    size_t length = JS_GetStringLength(str);
     for (size_t i = 0; i < length; ++i) {
         switch (chars[i]) {
         case 'r':
@@ -575,9 +338,9 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, JSWrappe
         return false;
     }
 
-    if ((act == JSWrapper::SET && !(access & WRITE)) ||
-        (act != JSWrapper::SET && !(access & READ))) {
-        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
+    if ((set && !(access & WRITE)) ||
+        (!set && !(access & READ))) {
+        return true; // Deny
     }
 
     perm = PermitPropertyAccess;

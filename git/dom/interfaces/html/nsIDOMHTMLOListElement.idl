@@ -43,14 +43,11 @@
  * The nsIDOMHTMLOListElement interface is the interface to a [X]HTML
  * ol element.
  *
- * This interface is trying to follow the DOM Level 2 HTML specification:
+ * For more information on this interface please see
  * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-[scriptable, uuid(e0bc10a7-46c7-4d6a-99a7-621827594efe)]
+[scriptable, uuid(a6cf909a-15b3-11d2-932e-00805f8add32)]
 interface nsIDOMHTMLOListElement : nsIDOMHTMLElement
 {
            attribute boolean          compact;

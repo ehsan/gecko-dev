@@ -498,7 +498,7 @@ function queryCharsetFromCode(aCode) {
   codes[1286] = "windows-1256";
   codes[1536] = "us-ascii";
   codes[1584] = "GB2312";
-  codes[1585] = "gbk";
+  codes[1585] = "x-gbk";
   codes[1600] = "EUC-KR";
   codes[2080] = "ISO-2022-JP";
   codes[2096] = "ISO-2022-CN";
@@ -1867,7 +1867,7 @@ Engine.prototype = {
           // Adjust the start index to account for the opening quote
           valueStart = quoteStart + "\"".length;
           // Find the closing quote
-          var valueEnd = lLine.indexOf("\"", valueStart);
+          valueEnd = lLine.indexOf("\"", valueStart);
           // If there is no closing quote, just go to the end of the line
           if (valueEnd == -1)
             valueEnd = aLine.length;
@@ -1879,7 +1879,7 @@ Engine.prototype = {
 
       LOG("_parseAsSherlock::getInputs: Lines:\n" + aLines);
       // Filter out everything but non-inputs
-      let lines = aLines.filter(function (line) {
+      lines = aLines.filter(function (line) {
         return /^\s*<input/i.test(line);
       });
       LOG("_parseAsSherlock::getInputs: Filtered lines:\n" + lines);
@@ -2560,7 +2560,7 @@ SearchService.prototype = {
 
     try {
       LOG("_buildCache: Writing to cache file.");
-      ostream.init(cacheFile, (MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE), PERMS_FILE, ostream.DEFER_OPEN);
+      ostream.init(cacheFile, (MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE), PERMS_FILE, 0);
       converter.charset = "UTF-8";
       let data = converter.convertToInputStream(JSON.stringify(cache));
 
@@ -2867,9 +2867,8 @@ SearchService.prototype = {
       let chromeFile;
       try {
         let chromeURI = gChromeReg.convertChromeURL(makeURI(root));
-        let fileURI = chromeURI; // flat packaging
-        while (fileURI instanceof Ci.nsIJARURI)
-          fileURI = fileURI.JARFile; // JAR packaging
+        chromeURI.QueryInterface(Ci.nsIJARURI);
+        let fileURI = chromeURI.JARFile;
         fileURI.QueryInterface(Ci.nsIFileURL);
         chromeFile = fileURI.file;
       } catch (ex) {
@@ -3393,7 +3392,8 @@ SearchService.prototype = {
     var currentEnginePref = BROWSER_SEARCH_PREF + "selectedEngine";
 
     if (this._currentEngine == this.defaultEngine) {
-      gPrefSvc.clearUserPref(currentEnginePref);
+      if (gPrefSvc.prefHasUserValue(currentEnginePref))
+        gPrefSvc.clearUserPref(currentEnginePref);
     }
     else {
       setLocalizedPref(currentEnginePref, this._currentEngine.name);

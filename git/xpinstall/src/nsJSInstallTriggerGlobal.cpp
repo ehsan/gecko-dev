@@ -256,9 +256,8 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
   }
   // get the principal.  if it doesn't exist, die.
   nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = secman->GetSubjectPrincipal(getter_AddRefs(principal));
-
-  if (NS_FAILED(rv) || !principal)
+  secman->GetSubjectPrincipal(getter_AddRefs(principal));
+  if (!principal)
   {
     JS_ReportError(cx, "Could not get the Subject Principal during InstallTrigger.Install()");
     return JS_FALSE;
@@ -295,6 +294,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
       jsval v;
       const PRUnichar *name, *URL;
       const PRUnichar *iconURL = nsnull;
+      const char *hash;
 
       for (int i = 0; i < ida->length && !abortLoad; i++ )
       {
@@ -309,7 +309,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
         name = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( str ));
 
         URL = iconURL = nsnull;
-        JSAutoByteString hash;
+        hash = nsnull;
         JS_GetUCProperty( cx, JSVAL_TO_OBJECT(argv[0]), reinterpret_cast<const jschar*>(name), nsCRT::strlen(name), &v );
         if ( JSVAL_IS_OBJECT(v) && JSVAL_TO_OBJECT(v) )
         {
@@ -334,10 +334,11 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
 
           if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "Hash", &v2) && !JSVAL_IS_VOID(v2)) {
             JSString *str = JS_ValueToString(cx, v2);
-            if (!str || !hash.encode(cx, str)) {
+            if (!str) {
               abortLoad = PR_TRUE;
               break;
             }
+            hash = reinterpret_cast<const char*>(JS_GetStringBytes(str));
           }
         }
         else
@@ -370,7 +371,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
             }
 
             // Make sure we're allowed to load this URL and the icon URL
-            rv = InstallTriggerCheckLoadURIFromScript(cx, xpiURL);
+            nsresult rv = InstallTriggerCheckLoadURIFromScript(cx, xpiURL);
             if (NS_FAILED(rv))
                 abortLoad = PR_TRUE;
 
@@ -405,8 +406,8 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
     if (!abortLoad && trigger->Size() > 0)
     {
         nsCOMPtr<nsIURI> checkuri;
-        rv = nativeThis->GetOriginatingURI(globalObject,
-                                           getter_AddRefs(checkuri));
+        nsresult rv = nativeThis->GetOriginatingURI(globalObject,
+                                                    getter_AddRefs(checkuri));
         if (NS_SUCCEEDED(rv))
         {
             nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(globalObject));

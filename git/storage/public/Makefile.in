@@ -48,8 +48,6 @@ MODULE       = storage
 XPIDL_MODULE = storage
 GRE_MODULE   = 1
 
-# NOTE When adding something to this list, you probably need to add it to the
-#      storage.h file too.
 XPIDLSRCS = \
 	mozIStorageService.idl \
 	mozIStorageConnection.idl \
@@ -69,12 +67,9 @@ XPIDLSRCS = \
   mozIStorageCompletionCallback.idl \
   mozIStorageBaseStatement.idl \
   mozIStorageAsyncStatement.idl \
-  mozIStorageServiceQuotaManagement.idl \
-  mozIStorageVacuumParticipant.idl \
 	$(NULL)
-# SEE ABOVE NOTE!
 
-EXPORTS_NAMESPACES = mozilla mozilla/storage
+EXPORTS_NAMESPACES = mozilla
 
 EXPORTS = \
 	mozStorageHelper.h \
@@ -82,12 +77,5 @@ EXPORTS = \
 	$(NULL)
 
 EXPORTS_mozilla = storage.h
-
-# NOTE When adding something to this list, you probably need to add it to the
-#      storage.h file too.
-EXPORTS_mozilla/storage = \
-  StatementCache.h \
-  $(NULL)
-# SEE ABOVE NOTE!
 
 include $(topsrcdir)/config/rules.mk

@@ -55,15 +55,14 @@ class nsWindow :
     public nsBaseWidget
 {
 public:
-    using nsBaseWidget::GetLayerManager;
-
     nsWindow();
     virtual ~nsWindow();
 
     NS_DECL_ISUPPORTS_INHERITED
 
     static void OnGlobalAndroidEvent(mozilla::AndroidGeckoEvent *ae);
-    static gfxIntSize GetAndroidScreenBounds();
+    static void SetInitialAndroidBounds(const gfxIntSize& sz);
+    static gfxIntSize GetAndroidBounds();
 
     nsWindow* FindWindowForPoint(const nsIntPoint& pt);
 
@@ -86,7 +85,7 @@ public:
                       nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
-                      nsDeviceContext *aContext,
+                      nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
                       nsIToolkit *aToolkit,
                       nsWidgetInitData *aInitData);
@@ -94,7 +93,6 @@ public:
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
     NS_IMETHOD SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
-    virtual float GetDPI();
     NS_IMETHOD Show(PRBool aState);
     NS_IMETHOD SetModal(PRBool aModal);
     NS_IMETHOD IsVisible(PRBool & aState);
@@ -126,7 +124,6 @@ public:
     virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent);
-    NS_IMETHOD MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD SetWindowClass(const nsAString& xulWinType);
 
 
@@ -140,6 +137,7 @@ public:
     NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent) { return NS_OK; }
     NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent) { aTransparent = PR_FALSE; return NS_OK; }
     NS_IMETHOD HideWindowChrome(PRBool aShouldHide) { return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD MakeFullScreen(PRBool aFullScreen) { return NS_ERROR_NOT_IMPLEMENTED; }
     virtual void* GetNativeData(PRUint32 aDataType);
     NS_IMETHOD SetTitle(const nsAString& aTitle) { return NS_OK; }
     NS_IMETHOD SetIcon(const nsAString& aIconSpec) { return NS_OK; }
@@ -154,20 +152,16 @@ public:
     NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical) { return NS_ERROR_NOT_IMPLEMENTED; }
 
     NS_IMETHOD ResetInputState();
-    NS_IMETHOD SetInputMode(const IMEContext& aContext);
-    NS_IMETHOD GetInputMode(IMEContext& aContext);
+    NS_IMETHOD SetIMEEnabled(PRUint32 aState);
+    NS_IMETHOD GetIMEEnabled(PRUint32* aState);
     NS_IMETHOD CancelIMEComposition();
 
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
     NS_IMETHOD OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd);
     NS_IMETHOD OnIMESelectionChange(void);
-    virtual nsIMEUpdatePreference GetIMEUpdatePreference();
 
-    LayerManager* GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                  bool* aAllowRetaining = nsnull);
     gfxASurface* GetThebesSurface();
 
-    NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
     void BringToFront();
     nsWindow *FindTopLevel();
@@ -182,24 +176,18 @@ protected:
     PRPackedBool mIsVisible;
     nsTArray<nsWindow*> mChildren;
     nsWindow* mParent;
-    nsWindow* mFocus;
 
     bool mGestureFinished;
     double mStartDist;
     double mLastDist;
     nsAutoPtr<nsIntPoint> mStartPoint;
 
-    // Multitouch swipe thresholds in screen pixels
-    double mSwipeMaxPinchDelta;
-    double mSwipeMinDistance;
-
     nsCOMPtr<nsIdleService> mIdleService;
 
+    PRUint32 mIMEEnabled;
     PRBool mIMEComposing;
     nsString mIMEComposingText;
     nsAutoTArray<nsTextRange, 4> mIMERanges;
-
-    IMEContext mIMEContext;
 
     static void DumpWindows();
     static void DumpWindows(const nsTArray<nsWindow*>& wins, int indent = 0);

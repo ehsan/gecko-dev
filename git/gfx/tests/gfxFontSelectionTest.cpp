@@ -40,7 +40,9 @@
 #include "nsString.h"
 #include "nsDependentString.h"
 
-#include "mozilla/Preferences.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 
 #include "gfxContext.h"
 #include "gfxFont.h"
@@ -56,8 +58,6 @@
 #ifdef MOZ_WIDGET_GTK2
 #include "gtk/gtk.h"
 #endif
-
-using namespace mozilla;
 
 enum {
     S_UTF8 = 0,
@@ -230,9 +230,7 @@ MakeContext ()
 
     nsRefPtr<gfxASurface> surface;
 
-    surface = gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(gfxIntSize(size, size),
-                               gfxASurface::ContentFromFormat(gfxASurface::ImageFormatRGB24));
+    surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(size, size), gfxASurface::ImageFormatRGB24);
     gfxContext *ctx = new gfxContext(surface);
     NS_IF_ADDREF(ctx);
     return ctx;
@@ -312,7 +310,7 @@ RunTest (TestEntry *test, gfxContext *ctx) {
     }
 
     gfxFontTestStore::NewStore();
-    textRun->Draw(ctx, gfxPoint(0,0), 0, length, nsnull, nsnull);
+    textRun->Draw(ctx, gfxPoint(0,0), 0, length, nsnull, nsnull, nsnull);
     gfxFontTestStore *s = gfxFontTestStore::CurrentStore();
 
     gTextRunCache->RemoveTextRun(textRun);
@@ -358,7 +356,21 @@ main (int argc, char **argv) {
     if (0) {
         nsresult rv;
 
-        nsAdoptingCString str = Preferences::GetCString("font.name.sans-serif.x-western");
+        nsCOMPtr<nsIPrefService> prefsvc = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (!prefsvc) {
+            printf ("Pref svc get failed!\n");
+        }
+
+        nsCOMPtr<nsIPrefBranch> branch;
+        rv = prefsvc->GetBranch(nsnull, getter_AddRefs(branch));
+        if (NS_FAILED(rv))
+            printf ("Failed 0x%08x\n", rv);
+
+        nsXPIDLCString str;
+        rv = branch->GetCharPref("font.name.sans-serif.x-western", getter_Copies(str));
+        if (NS_FAILED(rv))
+            printf ("Failed[2] 0x%08x\n", rv);
+
         printf ("sans-serif.x-western: %s\n", nsPromiseFlatCString(str).get());
     }
 

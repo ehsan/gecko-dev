@@ -16,7 +16,7 @@ CounterAdd(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 static JSClass CounterClass = {
     "Counter",  /* name */
     0,  /* flags */
-    CounterAdd, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    CounterAdd, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
@@ -29,7 +29,7 @@ BEGIN_TEST(testPropCache_bug505798)
     EXEC("var arr = [x, y];\n"
          "for (var i = 0; i < arr.length; i++)\n"
          "    arr[i].p = 1;\n");
-    CHECK_EQUAL(g_counter, 1);
+    CHECK(g_counter == 1);
     return true;
 }
 END_TEST(testPropCache_bug505798)

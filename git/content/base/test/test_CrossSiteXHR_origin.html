@@ -110,8 +110,9 @@ function runTest() {
     ];
 
     if (isNullOrigin) {
-      passTests = ["*", "\t \t* \t ", "null"];
+      passTests = ["*", "\t \t* \t "];
       failTests = failTests.filter(function(v) { return v != origin });
+      failTests.push("null");
     }
     
     for each(allowOrigin in passTests) {
@@ -133,7 +134,7 @@ function runTest() {
       is(res.responseText, "<res>hello pass</res>\n",
          "wrong responseText in test for " + allowOrigin);
       is(res.events.join(","),
-         "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load,loadend",
+         "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load",
          "wrong responseText in test for " + allowOrigin);
     }
 
@@ -148,10 +149,10 @@ function runTest() {
       is(res.didFail, true, "should have failed for " + allowOrigin);
       is(res.responseText, "", "should have no text for " + allowOrigin);
       is(res.status, 0, "should have no status for " + allowOrigin);
-      is(res.statusText, "", "wrong status text for " + allowOrigin);
+      is(res.statusText, undefined, "wrong status text for " + allowOrigin);
       is(res.responseXML, null, "should have no XML for " + allowOrigin);
       is(res.events.join(","),
-         "opening,rs1,sending,rs1,loadstart,rs2,rs4,error,loadend",
+         "opening,rs1,sending,rs1,loadstart,rs2,rs4,error",
          "wrong events in test for " + allowOrigin);
       is(res.progressEvents, 0,
          "wrong events in test for " + allowOrigin);

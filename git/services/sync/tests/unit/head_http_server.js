@@ -1,10 +1,3 @@
-// Use the same method that record.js does, which mirrors the server.
-// The server returns timestamps with 1/100 sec granularity. Note that this is
-// subject to change: see Bug 650435.
-function new_timestamp() {
-  return Math.round(Date.now() / 10) / 100;
-}
-  
 function httpd_setup (handlers) {
   let server = new nsHttpServer();
   for (let path in handlers) {
@@ -14,15 +7,10 @@ function httpd_setup (handlers) {
   return server;
 }
 
-function httpd_handler(statusCode, status, body) {
-  return function(request, response) {
-    response.setStatusLine(request.httpVersion, statusCode, status);
-    response.bodyOutputStream.write(body, body.length);
-  };
-}
-
 function httpd_basic_auth_handler(body, metadata, response) {
-  if (basic_auth_matches(metadata, "guest", "guest")) {
+  // no btoa() in xpcshell.  it's guest:guest
+  if (metadata.hasHeader("Authorization") &&
+      metadata.getHeader("Authorization") == "Basic Z3Vlc3Q6Z3Vlc3Q=") {
     response.setStatusLine(metadata.httpVersion, 200, "OK, authorized");
     response.setHeader("WWW-Authenticate", 'Basic realm="secret"', false);
   } else {
@@ -48,13 +36,12 @@ function readBytesFromInputStream(inputStream, count) {
   return new BinaryInputStream(inputStream).readBytes(count);
 }
 
+
+
 /*
  * Represent a WBO on the server
  */
 function ServerWBO(id, initialPayload) {
-  if (!id) {
-    throw "No ID for ServerWBO!";
-  }
   this.id = id;
   if (!initialPayload) {
     return;
@@ -64,7 +51,7 @@ function ServerWBO(id, initialPayload) {
     initialPayload = JSON.stringify(initialPayload);
   }
   this.payload = initialPayload;
-  this.modified = new_timestamp();
+  this.modified = Date.now() / 1000;
 }
 ServerWBO.prototype = {
 
@@ -73,13 +60,13 @@ ServerWBO.prototype = {
   },
 
   get: function() {
-    return JSON.stringify(this, ["id", "modified", "payload"]);
+    return JSON.stringify(this, ['id', 'modified', 'payload']);
   },
 
   put: function(input) {
     input = JSON.parse(input);
     this.payload = input.payload;
-    this.modified = new_timestamp();
+    this.modified = Date.now() / 1000;
   },
 
   delete: function() {
@@ -87,9 +74,6 @@ ServerWBO.prototype = {
     delete this.modified;
   },
 
-  // This handler sets `newModified` on the response body if the collection
-  // timestamp has changed. This allows wrapper handlers to extract information
-  // that otherwise would exist only in the body stream.
   handler: function() {
     let self = this;
 
@@ -112,17 +96,14 @@ ServerWBO.prototype = {
         case "PUT":
           self.put(readBytesFromInputStream(request.bodyInputStream));
           body = JSON.stringify(self.modified);
-          response.newModified = self.modified;
           break;
 
         case "DELETE":
           self.delete();
-          let ts = new_timestamp();
-          body = JSON.stringify(ts);
-          response.newModified = ts;
+          body = JSON.stringify(Date.now() / 1000);
           break;
       }
-      response.setHeader("X-Weave-Timestamp", "" + new_timestamp(), false);
+      response.setHeader('X-Weave-Timestamp', ''+Date.now()/1000, false);
       response.setStatusLine(request.httpVersion, statusCode, status);
       response.bodyOutputStream.write(body, body.length);
     };
@@ -137,40 +118,22 @@ ServerWBO.prototype = {
  * 
  * Note that if you want these records to be accessible individually,
  * you need to register their handlers with the server separately!
- * 
- * Passing `true` for acceptNew will allow POSTs of new WBOs to this
- * collection. New WBOs will be created and wired in on the fly.
  */
-function ServerCollection(wbos, acceptNew) {
+function ServerCollection(wbos) {
   this.wbos = wbos || {};
-  this.acceptNew = acceptNew || false;
 }
 ServerCollection.prototype = {
 
   _inResultSet: function(wbo, options) {
-    return wbo.payload
-           && (!options.ids || (options.ids.indexOf(wbo.id) != -1))
-           && (!options.newer || (wbo.modified > options.newer));
-  },
-
-  count: function(options) {
-    options = options || {};
-    let c = 0;
-    for (let [id, wbo] in Iterator(this.wbos)) {
-      if (wbo.modified && this._inResultSet(wbo, options)) {
-        c++;
-      }
-    }
-    return c;
+    return ((!options.ids || (options.ids.indexOf(wbo.id) != -1))
+            && (!options.newer || (wbo.modified > options.newer)));
   },
 
   get: function(options) {
     let result;
     if (options.full) {
       let data = [wbo.get() for ([id, wbo] in Iterator(this.wbos))
-                            // Drop deleted.
-                            if (wbo.modified &&
-                                this._inResultSet(wbo, options))];
+                            if (this._inResultSet(wbo, options))];
       if (options.limit) {
         data = data.slice(0, options.limit);
       }
@@ -196,20 +159,15 @@ ServerCollection.prototype = {
     // registered with us as successful and all other records as failed.
     for each (let record in input) {
       let wbo = this.wbos[record.id];
-      if (!wbo && this.acceptNew) {
-        _("Creating WBO " + JSON.stringify(record.id) + " on the fly.");
-        wbo = new ServerWBO(record.id);
-        this.wbos[record.id] = wbo;
-      }
       if (wbo) {
         wbo.payload = record.payload;
-        wbo.modified = new_timestamp();
+        wbo.modified = Date.now() / 1000;
         success.push(record.id);
       } else {
         failed[record.id] = "no wbo configured";
       }
     }
-    return {modified: new_timestamp(),
+    return {modified: Date.now() / 1000,
             success: success,
             failed: failed};
   },
@@ -217,14 +175,11 @@ ServerCollection.prototype = {
   delete: function(options) {
     for (let [id, wbo] in Iterator(this.wbos)) {
       if (this._inResultSet(wbo, options)) {
-        _("Deleting " + JSON.stringify(wbo));
         wbo.delete();
       }
     }
   },
 
-  // This handler sets `newModified` on the response body if the collection
-  // timestamp has changed.
   handler: function() {
     let self = this;
 
@@ -235,11 +190,11 @@ ServerCollection.prototype = {
 
       // Parse queryString
       let options = {};
-      for each (let chunk in request.queryString.split("&")) {
+      for each (let chunk in request.queryString.split('&')) {
         if (!chunk) {
           continue;
         }
-        chunk = chunk.split("=");
+        chunk = chunk.split('=');
         if (chunk.length == 1) {
           options[chunk[0]] = "";
         } else {
@@ -247,7 +202,7 @@ ServerCollection.prototype = {
         }
       }
       if (options.ids) {
-        options.ids = options.ids.split(",");
+        options.ids = options.ids.split(',');
       }
       if (options.newer) {
         options.newer = parseFloat(options.newer);
@@ -264,92 +219,17 @@ ServerCollection.prototype = {
         case "POST":
           let res = self.post(readBytesFromInputStream(request.bodyInputStream));
           body = JSON.stringify(res);
-          response.newModified = res.modified;
           break;
 
         case "DELETE":
           self.delete(options);
-          let ts = new_timestamp();
-          body = JSON.stringify(ts);
-          response.newModified = ts;
+          body = JSON.stringify(Date.now() / 1000);
           break;
       }
-      response.setHeader("X-Weave-Timestamp",
-                         "" + new_timestamp(),
-                         false);
+      response.setHeader('X-Weave-Timestamp', ''+Date.now()/1000, false);
       response.setStatusLine(request.httpVersion, statusCode, status);
       response.bodyOutputStream.write(body, body.length);
     };
   }
 
 };
-
-/*
- * Test setup helpers.
- */
-function sync_httpd_setup(handlers) {
-  handlers["/1.1/foo/storage/meta/global"]
-      = (new ServerWBO("global", {})).handler();
-  return httpd_setup(handlers);
-}
-
-/*
- * Track collection modified times. Return closures.
- */
-function track_collections_helper() {
-  
-  /*
-   * Our tracking object.
-   */
-  let collections = {};
-
-  /*
-   * Update the timestamp of a collection.
-   */
-  function update_collection(coll, ts) {
-    _("Updating collection " + coll + " to " + ts);
-    let timestamp = ts || new_timestamp();
-    collections[coll] = timestamp;
-  }
-
-  /*
-   * Invoke a handler, updating the collection's modified timestamp unless
-   * it's a GET request.
-   */
-  function with_updated_collection(coll, f) {
-    return function(request, response) {
-      f.call(this, request, response);
-
-      // Update the collection timestamp to the appropriate modified time.
-      // This is either a value set by the handler, or the current time.
-      if (request.method != "GET") {
-        update_collection(coll, response.newModified)
-      }
-    };
-  }
-
-  /*
-   * Return the info/collections object.
-   */
-  function info_collections(request, response) {
-    let body = "Error.";
-    switch(request.method) {
-      case "GET":
-        body = JSON.stringify(collections);
-        break;
-      default:
-        throw "Non-GET on info_collections.";
-    }
-        
-    response.setHeader("X-Weave-Timestamp",
-                       "" + new_timestamp(),
-                       false);
-    response.setStatusLine(request.httpVersion, 200, "OK");
-    response.bodyOutputStream.write(body, body.length);
-  }
-  
-  return {"collections": collections,
-          "handler": info_collections,
-          "with_updated_collection": with_updated_collection,
-          "update_collection": update_collection};
-}

@@ -53,6 +53,10 @@
 
  ******/
 
+#ifdef WINCE
+#undef small
+#endif
+
 EDITOR_ATOM(a, "a")
 EDITOR_ATOM(abbr, "abbr")
 EDITOR_ATOM(acronym, "acronym")
@@ -111,7 +115,6 @@ EDITOR_ATOM(cssVerticalAlign, "vertical-align")
 EDITOR_ATOM(cssWhitespace, "white-space")
 EDITOR_ATOM(cssWidth, "width")
 EDITOR_ATOM(cssZIndex, "z-index")
-EDITOR_ATOM(datalist, "datalist")
 EDITOR_ATOM(dd, "dd")
 EDITOR_ATOM(dfn, "dfn")
 EDITOR_ATOM(div, "div")
@@ -141,7 +144,6 @@ EDITOR_ATOM(i, "i")
 EDITOR_ATOM(img, "img")
 EDITOR_ATOM(input, "input")
 EDITOR_ATOM(kbd, "kbd")
-EDITOR_ATOM(keygen, "keygen")
 EDITOR_ATOM(label, "label")
 EDITOR_ATOM(legend, "legend")
 EDITOR_ATOM(li, "li")
@@ -157,7 +159,6 @@ EDITOR_ATOM(ol, "ol")
 EDITOR_ATOM(output, "output")
 EDITOR_ATOM(p, "p")
 EDITOR_ATOM(pre, "pre")
-EDITOR_ATOM(progress, "progress")
 EDITOR_ATOM(q, "q")
 EDITOR_ATOM(samp, "samp")
 EDITOR_ATOM(script, "script")

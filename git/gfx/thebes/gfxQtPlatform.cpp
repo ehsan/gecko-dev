@@ -76,11 +76,12 @@
 #include FT_FREETYPE_H
 #endif
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 
-using namespace mozilla;
-
-#define DEFAULT_RENDER_MODE RENDER_DIRECT
+// Because the QPainter backend has some problems with glyphs rendering
+// it is better to use image or xlib cairo backends by default
+#define DEFAULT_RENDER_MODE RENDER_BUFFERED
 
 static QPaintEngine::Type sDefaultQtPaintEngineType = QPaintEngine::X11;
 gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
@@ -124,9 +125,15 @@ gfxQtPlatform::gfxQtPlatform()
 #endif
 
     nsresult rv;
+    PRInt32 ival;
     // 0 - default gfxQPainterSurface
     // 1 - gfxImageSurface
-    PRInt32 ival = Preferences::GetInt("mozilla.widget-qt.render-mode", DEFAULT_RENDER_MODE);
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+    if (prefs) {
+      rv = prefs->GetIntPref("mozilla.widget-qt.render-mode", &ival);
+      if (NS_FAILED(rv))
+          ival = DEFAULT_RENDER_MODE;
+    }
 
     const char *envTypeOverride = getenv("MOZ_QT_RENDER_TYPE");
     if (envTypeOverride)
@@ -138,9 +145,6 @@ gfxQtPlatform::gfxQtPlatform()
             break;
         case 1:
             mRenderMode = RENDER_BUFFERED;
-            break;
-        case 2:
-            mRenderMode = RENDER_DIRECT;
             break;
         default:
             mRenderMode = RENDER_QPAINTER;
@@ -186,24 +190,21 @@ gfxQtPlatform::~gfxQtPlatform()
 
 already_AddRefed<gfxASurface>
 gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
-                                      gfxASurface::gfxContentType contentType)
+                                      gfxASurface::gfxImageFormat imageFormat)
 {
     nsRefPtr<gfxASurface> newSurface = nsnull;
 
     // try to optimize it for 16bpp screen
-    gfxASurface::gfxImageFormat imageFormat = gfxASurface::FormatFromContent(contentType);
-    if (gfxASurface::CONTENT_COLOR == contentType) {
-      imageFormat = GetOffscreenFormat();
-    }
+    if (gfxASurface::ImageFormatRGB24 == imageFormat
+        && 16 == QX11Info().depth())
+        imageFormat = gfxASurface::ImageFormatRGB16_565;
 
-#ifdef CAIRO_HAS_QT_SURFACE
     if (mRenderMode == RENDER_QPAINTER) {
-      newSurface = new gfxQPainterSurface(size, imageFormat);
+      newSurface = new gfxQPainterSurface(size, gfxASurface::ContentFromFormat(imageFormat));
       return newSurface.forget();
     }
-#endif
 
-    if ((mRenderMode == RENDER_BUFFERED || mRenderMode == RENDER_DIRECT) &&
+    if (mRenderMode == RENDER_BUFFERED &&
         sDefaultQtPaintEngineType != QPaintEngine::X11) {
       newSurface = new gfxImageSurface(size, imageFormat);
       return newSurface.forget();
@@ -578,14 +579,4 @@ gfxQtPlatform::GetDPI()
     QDesktopWidget* rootWindow = qApp->desktop();
     PRInt32 dpi = rootWindow->logicalDpiY(); // y-axis DPI for fonts
     return dpi <= 0 ? 96 : dpi;
-}
-
-gfxImageFormat
-gfxQtPlatform::GetOffscreenFormat()
-{
-    if (QX11Info::appDepth() == 16) {
-        return gfxASurface::ImageFormatRGB16_565;
-    }
-
-    return gfxASurface::ImageFormatRGB24;
 }

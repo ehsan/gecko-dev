@@ -1,4 +1,3 @@
-# -*- Mode: js2; indent-tabs-mode: nil; js2-basic-offset: 2; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -39,11 +38,12 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
+let gPrefService = Cc["@mozilla.org/preferences-service;1"]
+                     .getService(Ci.nsIPrefService)
+                     .QueryInterface(Ci.nsIPrefBranch2);
 
-const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis",
-                                                Ci.nsIPrefLocalizedString).data;
+const ELLIPSIS = gPrefService.getComplexValue("intl.ellipsis",
+                                              Ci.nsIPrefLocalizedString).data;
 
 // We use a preferences whitelist to make sure we only show preferences that
 // are useful for support and won't compromise the user's privacy.  Note that
@@ -64,10 +64,7 @@ const PREFS_WHITELIST = [
   "extensions.lastAppVersion",
   "font.",
   "general.useragent.",
-  "gfx.",
-  "html5.",
-  "mozilla.widget.render-mode",
-  "layers.",
+  "gfx.color_management.mode",
   "javascript.",
   "keyword.",
   "layout.css.dpi",
@@ -75,8 +72,7 @@ const PREFS_WHITELIST = [
   "places.",
   "print.",
   "privacy.",
-  "security.",
-  "webgl."
+  "security."
 ];
 
 // The blacklist, unlike the whitelist, is a list of regular expressions.
@@ -92,15 +88,9 @@ window.onload = function () {
   let supportUrl = urlFormatter.formatURLPref("app.support.baseURL");
 
   // Update the application basics section.
-  document.getElementById("application-box").textContent = Services.appinfo.name;
-  document.getElementById("useragent-box").textContent = navigator.userAgent;
+  document.getElementById("application-box").textContent = Application.name;
+  document.getElementById("version-box").textContent = Application.version;
   document.getElementById("supportLink").href = supportUrl;
-  let version = Services.appinfo.version;
-  try {
-    version += " (" + Services.prefs.getCharPref("app.support.vendor") + ")";
-  } catch (e) {
-  }
-  document.getElementById("version-box").textContent = version;
 
   // Update the other sections.
   populatePreferencesSection();
@@ -109,24 +99,15 @@ window.onload = function () {
 }
 
 function populateExtensionsSection() {
-  AddonManager.getAddonsByTypes(["extension"], function(extensions) {
-    extensions.sort(function(a,b) {
-      if (a.isActive != b.isActive)
-        return b.isActive ? 1 : -1;
-      let lc = a.name.localeCompare(b.name);
-      if (lc != 0)
-        return lc;
-      if (a.version != b.version)
-        return a.version > b.version ? 1 : -1;
-      return 0;
-    });
+  Application.getExtensions(function (extensions) {
+    let all = extensions.all;
     let trExtensions = [];
-    for (let i = 0; i < extensions.length; i++) {
-      let extension = extensions[i];
+    for (let i = 0; i < all.length; i++) {
+      let extension = all[i];
       let tr = createParentElement("tr", [
         createElement("td", extension.name),
         createElement("td", extension.version),
-        createElement("td", extension.isActive),
+        createElement("td", extension.enabled),
         createElement("td", extension.id),
       ]);
       trExtensions.push(tr);
@@ -166,201 +147,59 @@ function populateGraphicsSection() {
     elem.className = "column";
     return elem;
   }
-
-  function pushInfoRow(table, name, value)
-  {
-    if(value) {
-      table.push(createParentElement("tr", [
-        createHeader(bundle.GetStringFromName(name)),
-        createElement("td", value),
-      ]));
-    }
-  }
-
-  function errorMessageForFeature(feature) {
-    var errorMessage;
-    var status;
-    try {
-      status = gfxInfo.getFeatureStatus(feature);
-    } catch(e) {}
-    switch (status) {
-      case gfxInfo.FEATURE_BLOCKED_DEVICE:
-      case gfxInfo.FEATURE_DISCOURAGED:
-        errorMessage = bundle.GetStringFromName("blockedGfxCard");
-        break;
-      case gfxInfo.FEATURE_BLOCKED_OS_VERSION:
-        errorMessage = bundle.GetStringFromName("blockedOSVersion");
-        break;
-      case gfxInfo.FEATURE_BLOCKED_DRIVER_VERSION:
-        var suggestedDriverVersion;
-        try {
-          suggestedDriverVersion = gfxInfo.getFeatureSuggestedDriverVersion(feature);
-        } catch(e) {}
-        if (suggestedDriverVersion)
-          errorMessage = bundle.formatStringFromName("tryNewerDriver", [suggestedDriverVersion], 1);
-        else
-          errorMessage = bundle.GetStringFromName("blockedDriver");
-        break;
-    }
-    return errorMessage;
-  }
-
-  function pushFeatureInfoRow(table, name, feature, isEnabled, message) {
-    message = message || isEnabled;
-    if (!isEnabled) {
-      var errorMessage = errorMessageForFeature(feature);
-      if (errorMessage)
-        message = errorMessage;
-    }
-    table.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName(name)),
-      createElement("td", message),
-    ]));
-  }
-
-  function hexValueToString(value)
-  {
-    return value
-           ? String('0000' + value.toString(16)).slice(-4)
-           : null;
-  }
-
-  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
-  let graphics_tbody = document.getElementById("graphics-tbody");
-
-  var gfxInfo = null;
+  
   try {
     // nsIGfxInfo is currently only implemented on Windows
-    gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
-  } catch(e) {}
-
-  if (gfxInfo) {
+    let gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
     let trGraphics = [];
-    pushInfoRow(trGraphics, "adapterDescription", gfxInfo.adapterDescription);
-    pushInfoRow(trGraphics, "adapterVendorID", hexValueToString(gfxInfo.adapterVendorID));
-    pushInfoRow(trGraphics, "adapterDeviceID", hexValueToString(gfxInfo.adapterDeviceID));
-    pushInfoRow(trGraphics, "adapterRAM", gfxInfo.adapterRAM);
-    pushInfoRow(trGraphics, "adapterDrivers", gfxInfo.adapterDriver);
-    pushInfoRow(trGraphics, "driverVersion", gfxInfo.adapterDriverVersion);
-    pushInfoRow(trGraphics, "driverDate", gfxInfo.adapterDriverDate);
+    var SBS = Cc["@mozilla.org/intl/stringbundle;1"].getService(Ci.nsIStringBundleService);
+    var bundle = SBS.createBundle("chrome://global/locale/aboutSupport.properties");
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("adapterDescription")),
+      createElement("td", gfxInfo.adapterDescription),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("adapterVendorID")),
+      // pad with zeros. (printf would be nicer)
+      createElement("td", String('0000'+gfxInfo.adapterVendorID.toString(16)).slice(-4)),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("adapterDeviceID")),
+      // pad with zeros. (printf would be nicer)
+      createElement("td", String('0000'+gfxInfo.adapterDeviceID.toString(16)).slice(-4)),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("adapterRAM")),
+      createElement("td", gfxInfo.adapterRAM),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("adapterDrivers")),
+      createElement("td", gfxInfo.adapterDriver),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("driverVersion")),
+      createElement("td", gfxInfo.adapterDriverVersion),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("driverDate")),
+      createElement("td", gfxInfo.adapterDriverDate),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("direct2DEnabled")),
+      createElement("td", gfxInfo.D2DEnabled),
+    ]));
+    trGraphics.push(createParentElement("tr", [
+      createHeader(bundle.GetStringFromName("directWriteEnabled")),
+      createElement("td", gfxInfo.DWriteEnabled),
+    ]));
 
-#ifdef XP_WIN
-    var version = Cc["@mozilla.org/system-info;1"]
-                  .getService(Ci.nsIPropertyBag2)
-                  .getProperty("version");
-    var isWindowsVistaOrHigher = (parseFloat(version) >= 6.0);
-    if (isWindowsVistaOrHigher) {
-      var d2dEnabled = "false";
-      try {
-        d2dEnabled = gfxInfo.D2DEnabled;
-      } catch(e) {}
-      pushFeatureInfoRow(trGraphics, "direct2DEnabled", gfxInfo.FEATURE_DIRECT2D, d2dEnabled);
+    appendChildren(document.getElementById("graphics-tbody"), trGraphics);
 
-      var dwEnabled = "false";
-      try {
-        dwEnabled = gfxInfo.DWriteEnabled + " (" + gfxInfo.DWriteVersion + ")";
-      } catch(e) {}
-      pushInfoRow(trGraphics, "directWriteEnabled", dwEnabled);  
-
-      var cleartypeParams = "";
-      try {
-        cleartypeParams = gfxInfo.cleartypeParameters;
-      } catch(e) {
-        cleartypeParams = bundle.GetStringFromName("clearTypeParametersNotFound");
-      }
-      pushInfoRow(trGraphics, "clearTypeParameters", cleartypeParams);  
-    }
-
-#endif
-
-    var webglrenderer;
-    var webglenabled;
-    try {
-      webglrenderer = gfxInfo.getWebGLParameter("full-renderer");
-      webglenabled = true;
-    } catch (e) {
-      webglrenderer = false;
-      webglenabled = false;
-    }
-#ifdef XP_WIN
-    // If ANGLE is not available but OpenGL is, we want to report on the OpenGL feature, because that's what's going to get used.
-    // In all other cases we want to report on the ANGLE feature.
-    var webglfeature = gfxInfo.FEATURE_WEBGL_ANGLE;
-    if (gfxInfo.getFeatureStatus(gfxInfo.FEATURE_WEBGL_ANGLE)  != gfxInfo.FEATURE_NO_INFO &&
-        gfxInfo.getFeatureStatus(gfxInfo.FEATURE_WEBGL_OPENGL) == gfxInfo.FEATURE_NO_INFO)
-      webglfeature = gfxInfo.FEATURE_WEBGL_OPENGL;
-#else
-    var webglfeature = gfxInfo.FEATURE_WEBGL_OPENGL;
-#endif
-    pushFeatureInfoRow(trGraphics, "webglRenderer", webglfeature, webglenabled, webglrenderer);
-
-    appendChildren(graphics_tbody, trGraphics);
-   
-    // display any failures that have occurred
-    let graphics_failures_tbody = document.getElementById("graphics-failures-tbody");
-    let trGraphicsFailures = gfxInfo.getFailures().map(function (value)
-        createParentElement("tr", [
-            createElement("td", value)
-        ])
-    );
-    appendChildren(graphics_failures_tbody, trGraphicsFailures);
-
-  } // end if (gfxInfo)
-
-  let windows = Services.ww.getWindowEnumerator();
-  let acceleratedWindows = 0;
-  let totalWindows = 0;
-  let mgrType;
-  while (windows.hasMoreElements()) {
-    totalWindows++;
-
-    let awindow = windows.getNext().QueryInterface(Ci.nsIInterfaceRequestor);
-    let windowutils = awindow.getInterface(Ci.nsIDOMWindowUtils);
-    if (windowutils.layerManagerType != "Basic") {
-      acceleratedWindows++;
-      mgrType = windowutils.layerManagerType;
-    }
+  } catch (e) {
   }
 
-  let msg = acceleratedWindows + "/" + totalWindows;
-  if (acceleratedWindows) {
-    msg += " " + mgrType;
-  } else {
-#ifdef XP_WIN
-    var feature = gfxInfo.FEATURE_DIRECT3D_9_LAYERS;
-#else
-    var feature = gfxInfo.FEATURE_OPENGL_LAYERS;
-#endif
-    var errMsg = errorMessageForFeature(feature);
-    if (errMsg)
-      msg += ". " + errMsg;
-  }
-
-  appendChildren(graphics_tbody, [
-    createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("acceleratedWindows")),
-      createElement("td", msg),
-    ])
-  ]);
 }
 
-function getPrefValue(aName) {
-  let value = "";
-  let type = Services.prefs.getPrefType(aName);
-  switch (type) {
-    case Ci.nsIPrefBranch2.PREF_STRING:
-      value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
-      break;
-    case Ci.nsIPrefBranch2.PREF_BOOL:
-      value = Services.prefs.getBoolPref(aName);
-      break;
-    case Ci.nsIPrefBranch2.PREF_INT:
-      value = Services.prefs.getIntPref(aName);
-      break;
-  }
-
-  return { name: aName, value: value };
-}
 
 function formatPrefValue(prefValue) {
   // Some pref values are really long and don't have spaces.  This can cause
@@ -380,9 +219,9 @@ function getModifiedPrefs() {
   // much, much slower.  Application.prefs.all also gets slower each
   // time it's called.  See bug 517312.
   let prefNames = getWhitelistedPrefNames();
-  let prefs = [getPrefValue(prefName)
+  let prefs = [Application.prefs.get(prefName)
                       for each (prefName in prefNames)
-                          if (Services.prefs.prefHasUserValue(prefName)
+                          if (gPrefService.prefHasUserValue(prefName)
                             && !isBlacklisted(prefName))];
   return prefs;
 }
@@ -390,7 +229,7 @@ function getModifiedPrefs() {
 function getWhitelistedPrefNames() {
   let results = [];
   PREFS_WHITELIST.forEach(function (prefStem) {
-    let prefNames = Services.prefs.getChildList(prefStem);
+    let prefNames = gPrefService.getChildList(prefStem);
     results = results.concat(prefNames);
   });
   return results;
@@ -507,7 +346,9 @@ function generateTextForTextNode(node, indent, textFragmentAccumulator) {
 
 function openProfileDirectory() {
   // Get the profile directory.
-  let currProfD = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  let propertiesService = Cc["@mozilla.org/file/directory_service;1"]
+                            .getService(Ci.nsIProperties);
+  let currProfD = propertiesService.get("ProfD", Ci.nsIFile);
   let profileDir = currProfD.path;
 
   // Show the profile directory.

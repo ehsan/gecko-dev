@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -162,10 +162,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_BOX_ORIENT_HORIZONTAL 0
 #define NS_STYLE_BOX_ORIENT_VERTICAL   1
 
-// orient
-#define NS_STYLE_ORIENT_HORIZONTAL 0
-#define NS_STYLE_ORIENT_VERTICAL   1
-
 // stack-sizing
 #define NS_STYLE_STACK_SIZING_IGNORE         0
 #define NS_STYLE_STACK_SIZING_STRETCH_TO_FIT 1
@@ -233,36 +229,16 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_VOLUME_X_LOUD            5
 
 // See nsStyleColor
-#define NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR 1
-#define NS_STYLE_COLOR_INHERIT_FROM_BODY  2  /* Can't come from CSS directly */
+#define NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR      1
 #ifdef GFX_HAS_INVERT
-#define NS_STYLE_COLOR_INVERT             3
+#define NS_STYLE_COLOR_INVERT             2
 #endif
 
 // See nsStyleColor
-#define NS_COLOR_CURRENTCOLOR                   -1
-#define NS_COLOR_MOZ_DEFAULT_COLOR              -2
-#define NS_COLOR_MOZ_DEFAULT_BACKGROUND_COLOR   -3
-#define NS_COLOR_MOZ_HYPERLINKTEXT              -4
-#define NS_COLOR_MOZ_VISITEDHYPERLINKTEXT       -5
-#define NS_COLOR_MOZ_ACTIVEHYPERLINKTEXT        -6
-
-// See nsStyleDisplay
-#define NS_STYLE_ANIMATION_DIRECTION_NORMAL       0
-#define NS_STYLE_ANIMATION_DIRECTION_ALTERNATE    1
-
-// See nsStyleDisplay
-#define NS_STYLE_ANIMATION_FILL_MODE_NONE         0
-#define NS_STYLE_ANIMATION_FILL_MODE_FORWARDS     1
-#define NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS    2
-#define NS_STYLE_ANIMATION_FILL_MODE_BOTH         3
-
-// See nsStyleDisplay
-#define NS_STYLE_ANIMATION_ITERATION_COUNT_INFINITE 0
-
-// See nsStyleDisplay
-#define NS_STYLE_ANIMATION_PLAY_STATE_RUNNING     0
-#define NS_STYLE_ANIMATION_PLAY_STATE_PAUSED      1
+#define NS_COLOR_MOZ_HYPERLINKTEXT              -1
+#define NS_COLOR_MOZ_VISITEDHYPERLINKTEXT       -2
+#define NS_COLOR_MOZ_ACTIVEHYPERLINKTEXT        -3
+#define NS_COLOR_CURRENTCOLOR                   -4
 
 // See nsStyleBackground
 #define NS_STYLE_BG_ATTACHMENT_SCROLL     0
@@ -399,6 +375,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_DISPLAY_INLINE                 2
 #define NS_STYLE_DISPLAY_INLINE_BLOCK           3
 #define NS_STYLE_DISPLAY_LIST_ITEM              4
+#define NS_STYLE_DISPLAY_MARKER                 5
+#define NS_STYLE_DISPLAY_RUN_IN                 6
+#define NS_STYLE_DISPLAY_COMPACT                7
 #define NS_STYLE_DISPLAY_TABLE                  8
 #define NS_STYLE_DISPLAY_INLINE_TABLE           9
 #define NS_STYLE_DISPLAY_TABLE_ROW_GROUP        10
@@ -443,9 +422,8 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // We should eventually stop using the NS_STYLE_* variants here.
 #define NS_STYLE_FONT_WEIGHT_NORMAL             NS_FONT_WEIGHT_NORMAL
 #define NS_STYLE_FONT_WEIGHT_BOLD               NS_FONT_WEIGHT_BOLD
-// The constants below appear only in style sheets and not computed style.
-#define NS_STYLE_FONT_WEIGHT_BOLDER             (-1)
-#define NS_STYLE_FONT_WEIGHT_LIGHTER            (-2)
+#define NS_STYLE_FONT_WEIGHT_BOLDER             NS_FONT_WEIGHT_BOLDER
+#define NS_STYLE_FONT_WEIGHT_LIGHTER            NS_FONT_WEIGHT_LIGHTER
 
 // See nsStyleFont
 #define NS_STYLE_FONT_SIZE_XXSMALL              0
@@ -470,6 +448,8 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_FONT_STRETCH_EXPANDED          NS_FONT_STRETCH_EXPANDED
 #define NS_STYLE_FONT_STRETCH_EXTRA_EXPANDED    NS_FONT_STRETCH_EXTRA_EXPANDED
 #define NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED    NS_FONT_STRETCH_ULTRA_EXPANDED
+#define NS_STYLE_FONT_STRETCH_WIDER             NS_FONT_STRETCH_WIDER
+#define NS_STYLE_FONT_STRETCH_NARROWER          NS_FONT_STRETCH_NARROWER
 
 // See nsStyleFont - system fonts
 #define NS_STYLE_FONT_CAPTION                   1		// css2
@@ -636,34 +616,17 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // Note: make sure that the largest NS_STYLE_TEXT_ALIGN_* value is smaller than
 // the smallest NS_STYLE_VERTICAL_ALIGN_* value below!
 
-// See nsStyleText
-#define NS_STYLE_TEXT_BLINK_NONE                0
-#define NS_STYLE_TEXT_BLINK_BLINK               1
-
 // See nsStyleText, nsStyleFont
-#define NS_STYLE_TEXT_DECORATION_LINE_NONE         0
-#define NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE    NS_FONT_DECORATION_UNDERLINE
-#define NS_STYLE_TEXT_DECORATION_LINE_OVERLINE     NS_FONT_DECORATION_OVERLINE
-#define NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH NS_FONT_DECORATION_LINE_THROUGH
-#define NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS 0x10
+#define NS_STYLE_TEXT_DECORATION_NONE           0
+#define NS_STYLE_TEXT_DECORATION_UNDERLINE      NS_FONT_DECORATION_UNDERLINE
+#define NS_STYLE_TEXT_DECORATION_OVERLINE       NS_FONT_DECORATION_OVERLINE
+#define NS_STYLE_TEXT_DECORATION_LINE_THROUGH   NS_FONT_DECORATION_LINE_THROUGH
+#define NS_STYLE_TEXT_DECORATION_BLINK          0x08
+#define NS_STYLE_TEXT_DECORATION_PREF_ANCHORS   0x10
 // OVERRIDE_ALL does not occur in stylesheets; it only comes from HTML
 // attribute mapping (and thus appears in computed data)
-#define NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL 0x20
-#define NS_STYLE_TEXT_DECORATION_LINE_LINES_MASK   (NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE | NS_STYLE_TEXT_DECORATION_LINE_OVERLINE | NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH)
-
-// See nsStyleText
-#define NS_STYLE_TEXT_DECORATION_STYLE_NONE     0 // not in CSS spec, mapped to -moz-none
-#define NS_STYLE_TEXT_DECORATION_STYLE_DOTTED   1
-#define NS_STYLE_TEXT_DECORATION_STYLE_DASHED   2
-#define NS_STYLE_TEXT_DECORATION_STYLE_SOLID    3
-#define NS_STYLE_TEXT_DECORATION_STYLE_DOUBLE   4
-#define NS_STYLE_TEXT_DECORATION_STYLE_WAVY     5
-#define NS_STYLE_TEXT_DECORATION_STYLE_MAX      NS_STYLE_TEXT_DECORATION_STYLE_WAVY
-
-// See nsStyleTextOverflow
-#define NS_STYLE_TEXT_OVERFLOW_CLIP     0
-#define NS_STYLE_TEXT_OVERFLOW_ELLIPSIS 1
-#define NS_STYLE_TEXT_OVERFLOW_STRING   2
+#define NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL   0x20
+#define NS_STYLE_TEXT_DECORATION_LINES_MASK     (NS_STYLE_TEXT_DECORATION_UNDERLINE | NS_STYLE_TEXT_DECORATION_OVERLINE | NS_STYLE_TEXT_DECORATION_LINE_THROUGH)
 
 // See nsStyleText
 #define NS_STYLE_TEXT_TRANSFORM_NONE            0
@@ -677,8 +640,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN      2
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_OUT     3
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN_OUT  4
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_STEP_START   5
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_STEP_END     6
 
 // See nsStyleText
 // Note: these values pickup after the text-align values because there
@@ -712,11 +673,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // See nsStyleText
 #define NS_STYLE_WORDWRAP_NORMAL                0
 #define NS_STYLE_WORDWRAP_BREAK_WORD            1
-
-// See nsStyleText
-#define NS_STYLE_HYPHENS_NONE                   0
-#define NS_STYLE_HYPHENS_MANUAL                 1
-#define NS_STYLE_HYPHENS_AUTO                   2
 
 // See nsStyleText
 #define NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT       0

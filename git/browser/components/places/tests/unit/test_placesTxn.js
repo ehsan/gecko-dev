@@ -40,6 +40,7 @@
 
 var bmsvc = PlacesUtils.bookmarks;
 var lmsvc = PlacesUtils.livemarks;
+var mss = PlacesUtils.microsummaries;
 var ptSvc = PlacesUIUtils.ptm;
 var tagssvc = PlacesUtils.tagging;
 var annosvc = PlacesUtils.annotations;
@@ -52,7 +53,7 @@ var observer = {
   onEndUpdateBatch: function() {
     this._endUpdateBatch = true;
   },
-  onItemAdded: function(id, folder, index, itemType, uri) {
+  onItemAdded: function(id, folder, index, itemType) {
     this._itemAddedId = id;
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
@@ -275,54 +276,27 @@ function run_test() {
   do_check_eq(observer._itemAddedParent, root);
   do_check_eq(observer._itemAddedIndex, 3);
 
-  // Test removing an item with a keyword and a tag.
-  // Notice in this case the tag persists since other bookmarks have same uri.
+  // Test removing an item with a keyword
   bmsvc.setKeywordForBookmark(bkmk2Id, "test_keyword");
-  tagssvc.tagURI(uri("http://www.example3.com"), ["test-tag"]);
   var txn5 = ptSvc.removeItem(bkmk2Id);
   txn5.doTransaction();
   do_check_eq(observer._itemRemovedId, bkmk2Id);
   do_check_eq(observer._itemRemovedFolder, root);
   do_check_eq(observer._itemRemovedIndex, 2);
   do_check_eq(bmsvc.getKeywordForBookmark(bkmk2Id), null);
-  do_check_eq(tagssvc.getTagsForURI(uri("http://www.example3.com"))[0], "test-tag");
   txn5.undoTransaction();
   var newbkmk2Id = observer._itemAddedId;
   do_check_eq(observer._itemAddedParent, root);
   do_check_eq(observer._itemAddedIndex, 2);
   do_check_eq(bmsvc.getKeywordForBookmark(newbkmk2Id), "test_keyword");
-  do_check_eq(tagssvc.getTagsForURI(uri("http://www.example3.com"))[0], "test-tag");
   txn5.redoTransaction();
   do_check_eq(observer._itemRemovedId, newbkmk2Id);
   do_check_eq(observer._itemRemovedFolder, root);
   do_check_eq(observer._itemRemovedIndex, 2);
   do_check_eq(bmsvc.getKeywordForBookmark(newbkmk2Id), null);
-  do_check_eq(tagssvc.getTagsForURI(uri("http://www.example3.com"))[0], "test-tag");
   txn5.undoTransaction();
   do_check_eq(observer._itemAddedParent, root);
   do_check_eq(observer._itemAddedIndex, 2);
-  do_check_eq(tagssvc.getTagsForURI(uri("http://www.example3.com"))[0], "test-tag");
-  tagssvc.untagURI(uri("http://www.example3.com"), ["test-tag"]);
-
-  {
-    // Test removing an item with a tag (last bookmark for a uri).
-    let testURI = uri("http://www.taggedbm.com/");
-    ptSvc.doTransaction(
-      ptSvc.createItem(testURI, fldrId, bmStartIndex, "TaggedBm")
-    );
-    tagssvc.tagURI(testURI, ["test-tag"]);
-    let itemId = observer._itemAddedId;
-    txn = ptSvc.removeItem(itemId);
-    txn.doTransaction();
-    do_check_true(tagssvc.getTagsForURI(testURI).length == 0);
-    txn.undoTransaction();
-    do_check_eq(tagssvc.getTagsForURI(testURI)[0], "test-tag");
-    txn.redoTransaction();
-    do_check_true(tagssvc.getTagsForURI(testURI).length == 0);
-    txn.undoTransaction();
-    do_check_eq(tagssvc.getTagsForURI(testURI)[0], "test-tag");
-    txn.redoTransaction();
-  }
 
   // Test creating a separator
   var txn6 = ptSvc.createSeparator(root, 1);
@@ -578,6 +552,22 @@ function run_test() {
   do_check_eq(0, bmsvc.getItemIndex(b1));
   do_check_eq(1, bmsvc.getItemIndex(b2));
   do_check_eq(2, bmsvc.getItemIndex(b3));
+
+  // editBookmarkMicrosummary
+  var tmpMs = mss.createMicrosummary(uri("http://testmicro.com"), 
+                                     uri("http://dietrich.ganx4.com/mozilla/test-microsummary.xml"));
+  ptSvc.doTransaction(
+  ptSvc.createItem(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php"),
+                   root, -1, "micro test", null, null, null));
+  var bId = (bmsvc.getBookmarkIdsForURI(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php")))[0];
+  do_check_true(!mss.hasMicrosummary(bId));
+  var txn18 = ptSvc.editBookmarkMicrosummary(bId, tmpMs);
+  txn18.doTransaction();
+  do_check_eq(observer._itemChangedId, bId);
+  do_check_true(mss.hasMicrosummary(bId));
+  txn18.undoTransaction();
+  do_check_eq(observer._itemChangedId, bId);
+  do_check_true(!mss.hasMicrosummary(bId));
 
   // Testing edit Post Data
   const POST_DATA_ANNO = "bookmarkProperties/POSTData";

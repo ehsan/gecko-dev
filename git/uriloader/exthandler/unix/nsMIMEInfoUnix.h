@@ -61,7 +61,7 @@ protected:
   nsresult LaunchDefaultWithDBus(const char *aFilePath);
   NS_IMETHOD GetPossibleApplicationHandlers(nsIMutableArray * *aPossibleAppHandlers);
 #endif
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
   NS_IMETHOD GetPossibleApplicationHandlers(nsIMutableArray * *aPossibleAppHandlers);
 #endif
 };

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -39,9 +38,6 @@
 
 #include "nsAccessNodeWrap.h"
 #include "nsApplicationAccessibleWrap.h"
-#include "nsMaiInterfaceText.h"
-
-PRBool nsAccessNodeWrap::gHaveNewTextSignals = PR_FALSE;
 
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
@@ -72,7 +68,6 @@ nsAccessNodeWrap::~nsAccessNodeWrap()
 void nsAccessNodeWrap::InitAccessibility()
 {
   nsAccessNode::InitXPAccessibility();
-  gHaveNewTextSignals = g_signal_lookup("text-insert", ATK_TYPE_TEXT);
 }
 
 void nsAccessNodeWrap::ShutdownAccessibility()

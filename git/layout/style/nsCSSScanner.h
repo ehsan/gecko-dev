@@ -44,9 +44,6 @@
 
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "mozilla/css/Loader.h"
-#include "nsCSSStyleSheet.h"
-
 class nsIUnicharInputStream;
 
 // XXX turn this off for minimo builds
@@ -90,8 +87,8 @@ enum nsCSSTokenType {
 
   eCSSToken_Function,       // mIdent
 
-  eCSSToken_URL,            // mIdent + mSymbol
-  eCSSToken_Bad_URL,        // mIdent + mSymbol
+  eCSSToken_URL,            // mIdent
+  eCSSToken_InvalidURL,     // doesn't matter
 
   eCSSToken_HTMLComment,    // "<!--" or "-->"
 
@@ -106,8 +103,9 @@ enum nsCSSTokenType {
                             // valid range; mIdent preserves the textual
                             // form of the token for error reporting
 
-  // An unterminated string, which is always an error.
-  eCSSToken_Bad_String      // mSymbol + mIdent
+  // A special token indicating that there was an error in tokenization.
+  // It's always an unterminated string.
+  eCSSToken_Error           // mSymbol + mIdent
 };
 
 struct nsCSSToken {
@@ -144,13 +142,13 @@ class nsCSSScanner {
   // Either aInput or (aBuffer and aCount) must be set.
   void Init(nsIUnicharInputStream* aInput, 
             const PRUnichar *aBuffer, PRUint32 aCount,
-            nsIURI* aURI, PRUint32 aLineNumber,
-            nsCSSStyleSheet* aSheet, mozilla::css::Loader* aLoader);
+            nsIURI* aURI, PRUint32 aLineNumber);
   void Close();
 
   static PRBool InitGlobals();
   static void ReleaseGlobals();
 
+#ifdef  MOZ_SVG
   // Set whether or not we are processing SVG
   void SetSVGMode(PRBool aSVGMode) {
     NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
@@ -161,6 +159,7 @@ class nsCSSScanner {
     return mSVGMode;
   }
 
+#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   void AddToError(const nsSubstring& aErrorText);
   void OutputError();
@@ -191,7 +190,7 @@ class nsCSSScanner {
   // is filled in with the data for the token.
   PRBool Next(nsCSSToken& aTokenResult);
 
-  // Get the next token that may be a string or unquoted URL
+  // Get the next token that may be a string or unquoted URL or whitespace
   PRBool NextURL(nsCSSToken& aTokenResult);
 
   // It's really ugly that we have to expose this, but it's the easiest
@@ -212,10 +211,9 @@ protected:
   PRInt32 Read();
   PRInt32 Peek();
   PRBool LookAhead(PRUnichar aChar);
-  PRBool LookAheadOrEOF(PRUnichar aChar); // expect either aChar or EOF
   void EatWhiteSpace();
-
-  PRBool ParseAndAppendEscape(nsString& aOutput, PRBool aInString);
+  
+  void ParseAndAppendEscape(nsString& aOutput);
   PRBool ParseIdent(PRInt32 aChar, nsCSSToken& aResult);
   PRBool ParseAtKeyword(PRInt32 aChar, nsCSSToken& aResult);
   PRBool ParseNumber(PRInt32 aChar, nsCSSToken& aResult);
@@ -240,18 +238,16 @@ protected:
   nsresult mLowLevelError;
 
   PRUint32 mLineNumber;
+#ifdef MOZ_SVG
   // True if we are in SVG mode; false in "normal" CSS
   PRPackedBool mSVGMode;
+#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   nsXPIDLCString mFileName;
   nsCOMPtr<nsIURI> mURI;  // Cached so we know to not refetch mFileName
   PRUint32 mErrorLineNumber, mColNumber, mErrorColNumber;
   nsFixedString mError;
   PRUnichar mErrorBuf[200];
-  PRUint64 mWindowID;
-  PRBool mWindowIDCached;
-  nsCSSStyleSheet* mSheet;
-  mozilla::css::Loader* mLoader;
 #endif
 };
 

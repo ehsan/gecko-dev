@@ -101,7 +101,7 @@ SessionStartup.prototype = {
     // do not need to initialize anything in auto-started private browsing sessions
     let pbs = Cc["@mozilla.org/privatebrowsing;1"].
               getService(Ci.nsIPrivateBrowsingService);
-    if (pbs.autoStarted || pbs.lastChangedByCommandLine)
+    if (pbs.autoStarted)
       return;
 
     let prefBranch = Cc["@mozilla.org/preferences-service;1"].
@@ -115,11 +115,12 @@ SessionStartup.prototype = {
     
     let doResumeSession = prefBranch.getBoolPref("sessionstore.resume_session_once") ||
                           prefBranch.getIntPref("startup.page") == 3;
-
-    // only continue if the session file exists
-    if (!sessionFile.exists())
+    
+    // only read the session file if config allows possibility of restoring
+    var resumeFromCrash = prefBranch.getBoolPref("sessionstore.resume_from_crash");
+    if (!resumeFromCrash && !doResumeSession || !sessionFile.exists())
       return;
-
+    
     // get string containing session state
     this._iniString = this._readStateFile(sessionFile);
     if (!this._iniString)
@@ -142,31 +143,30 @@ SessionStartup.prototype = {
     }
     catch (ex) { debug("The session file is invalid: " + ex); }
 
-    let resumeFromCrash = prefBranch.getBoolPref("sessionstore.resume_from_crash");
     let lastSessionCrashed =
       initialState && initialState.session && initialState.session.state &&
       initialState.session.state == STATE_RUNNING_STR;
-
+    
     // set the startup type
     if (lastSessionCrashed && resumeFromCrash)
       this._sessionType = Ci.nsISessionStartup.RECOVER_SESSION;
     else if (!lastSessionCrashed && doResumeSession)
       this._sessionType = Ci.nsISessionStartup.RESUME_SESSION;
-    else if (initialState)
-      this._sessionType = Ci.nsISessionStartup.DEFER_SESSION;
     else
       this._iniString = null; // reset the state string
 
-    // wait for the first browser window to open
-    // Don't reset the initial window's default args (i.e. the home page(s))
-    // if all stored tabs are pinned.
-    if (this.doRestore() &&
-        (!initialState.windows ||
-        !initialState.windows.every(function (win)
-           win.tabs.every(function (tab) tab.pinned))))
-      Services.obs.addObserver(this, "domwindowopened", true);
+    if (this._sessionType != Ci.nsISessionStartup.NO_SESSION) {
+      // wait for the first browser window to open
 
-    Services.obs.addObserver(this, "sessionstore-windows-restored", true);
+      // Don't reset the initial window's default args (i.e. the home page(s))
+      // if all stored tabs are pinned.
+      if (!initialState.windows ||
+          !initialState.windows.every(function (win)
+             win.tabs.every(function (tab) tab.pinned)))
+        Services.obs.addObserver(this, "domwindowopened", true);
+
+      Services.obs.addObserver(this, "browser:purge-session-history", true);
+    }
   },
 
   /**
@@ -196,11 +196,12 @@ SessionStartup.prototype = {
         window.removeEventListener("load", arguments.callee, false);
       }, false);
       break;
-    case "sessionstore-windows-restored":
-      Services.obs.removeObserver(this, "sessionstore-windows-restored");
-      // free _iniString after nsSessionStore is done with it
+    case "browser:purge-session-history":
+      // reset all state on sanitization
       this._iniString = null;
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
+      // no need in repeating this, since startup state won't change
+      Services.obs.removeObserver(this, "browser:purge-session-history");
       break;
     }
   },
@@ -234,12 +235,7 @@ SessionStartup.prototype = {
         aWindow.arguments[0] == defaultArgs)
       aWindow.arguments[0] = null;
 
-    try {
-      Services.obs.removeObserver(this, "domwindowopened");
-    } catch (e) {
-      // This might throw if we're removing the observer multiple times,
-      // but this is safe to ignore.
-    }
+    Services.obs.removeObserver(this, "domwindowopened");
   },
 
 /* ........ Public API ................*/
@@ -256,8 +252,7 @@ SessionStartup.prototype = {
    * @returns bool
    */
   doRestore: function sss_doRestore() {
-    return this._sessionType == Ci.nsISessionStartup.RECOVER_SESSION ||
-           this._sessionType == Ci.nsISessionStartup.RESUME_SESSION;
+    return this._sessionType != Ci.nsISessionStartup.NO_SESSION;
   },
 
   /**

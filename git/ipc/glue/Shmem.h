@@ -122,7 +122,7 @@ public:
     mSize(0),
     mId(aId)
   {
-    mSize = static_cast<size_t>(*PtrToSize(mSegment));
+    mSize = *PtrToSize(mSegment);
   }
 #else
   Shmem(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
@@ -228,7 +228,6 @@ public:
   Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
         size_t aNBytes,
         SharedMemoryType aType,
-        bool aUnsafe,
         bool aProtect=false);
 
   // Prepare this to be shared with |aProcess|.  Return an IPC message
@@ -275,12 +274,12 @@ private:
   void AssertInvariants() const
   { }
 
-  static uint32*
+  static size_t*
   PtrToSize(SharedMemory* aSegment)
   {
     char* endOfSegment =
       reinterpret_cast<char*>(aSegment->memory()) + aSegment->Size();
-    return reinterpret_cast<uint32*>(endOfSegment - sizeof(uint32));
+    return reinterpret_cast<size_t*>(endOfSegment - sizeof(size_t));
   }
 
 #else
@@ -291,6 +290,10 @@ private:
   void* mData;
   size_t mSize;
   id_t mId;
+
+  // disable these
+  static void* operator new(size_t) CPP_THROW_NEW;
+  static void operator delete(void*);  
 };
 
 

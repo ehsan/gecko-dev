@@ -46,7 +46,11 @@ extern "C" {
 #endif
 
 BOOL APIENTRY DllMain(  
+#ifdef WINCE
+                      HANDLE hModule, 
+#else 
                       HINSTANCE hModule, 
+#endif
                       DWORD reason, 
                       LPVOID lpReserved )
 {

@@ -50,7 +50,7 @@
 #  define NS_LINEBREAK           "\015\012"
 #  define NS_LINEBREAK_LEN       2
 #else
-#  ifdef XP_UNIX
+#  if defined(XP_UNIX) || defined(XP_BEOS)
 #    define NS_LINEBREAK         "\012"
 #    define NS_LINEBREAK_LEN     1
 #  endif /* XP_UNIX */
@@ -209,12 +209,6 @@ public:
   /// Like strcmp except for ucs2 strings
   static PRInt32 strncmp(const PRUnichar* s1, const PRUnichar* s2,
                          PRUint32 aMaxLen);
-
-  // The GNU libc has memmem, which is strstr except for binary data
-  // This is our own implementation that uses memmem on platforms
-  // where it's available.
-  static const char* memmem(const char* haystack, PRUint32 haystackLen,
-                            const char* needle, PRUint32 needleLen);
 
   // You must use nsCRT::free(PRUnichar*) to free memory allocated
   // by nsCRT::strdup(PRUnichar*).

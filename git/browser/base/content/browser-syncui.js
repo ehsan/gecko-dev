@@ -22,7 +22,6 @@
 #  Chris Beard <cbeard@mozilla.com>
 #  Dan Mosedale <dmose@mozilla.org>
 #  Paul O’Shannessy <paul@oshannessy.com>
-#  Philipp von Weitershausen <philipp@weitershausen.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,13 +40,8 @@
 // gSyncUI handles updating the tools menu
 let gSyncUI = {
   init: function SUI_init() {
-    // Proceed to set up the UI if Sync has already started up.
-    // Otherwise we'll do it when Sync is firing up.
-    if (Weave.Status.ready) {
-      this.initUI();
-      return;
-    }
-
+    // this will be the first notification fired during init
+    // we can set up everything else later
     Services.obs.addObserver(this, "weave:service:ready", true);
 
     // Remove the observer if the window is closed before the observer
@@ -57,13 +51,11 @@ let gSyncUI = {
       Services.obs.removeObserver(gSyncUI, "weave:service:ready");
     }, false);
   },
-
   initUI: function SUI_initUI() {
     let obs = ["weave:service:sync:start",
                "weave:service:sync:finish",
                "weave:service:sync:error",
                "weave:service:sync:delayed",
-               "weave:service:quota:remaining",
                "weave:service:setup-complete",
                "weave:service:login:start",
                "weave:service:login:finish",
@@ -73,41 +65,23 @@ let gSyncUI = {
 
     // If this is a browser window?
     if (gBrowser) {
-      obs.push("weave:notification:added");
+      obs.push("weave:notification:added", "weave:notification:removed");
     }
 
+    let self = this;
     obs.forEach(function(topic) {
-      Services.obs.addObserver(this, topic, true);
-    }, this);
+      Services.obs.addObserver(self, topic, true);
+    });
 
     // Find the alltabs-popup, only if there is a gBrowser
     if (gBrowser) {
       let popup = document.getElementById("alltabs-popup");
-      if (popup) {
-        popup.addEventListener(
-          "popupshowing", this.alltabsPopupShowing.bind(this), true);
-      }
-
-      if (Weave.Notifications.notifications.length)
-        this.initNotifications();
+      let self = this;
+      popup.addEventListener("popupshowing", function() {
+        self.alltabsPopupShowing();
+      }, true);
     }
     this.updateUI();
-  },
-  
-  initNotifications: function SUI_initNotifications() {
-    const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-    let notificationbox = document.createElementNS(XULNS, "notificationbox");
-    notificationbox.id = "sync-notifications";
-    notificationbox.setAttribute("flex", "1");
-
-    let bottombox = document.getElementById("browser-bottombox");
-    bottombox.insertBefore(notificationbox, bottombox.firstChild);
-
-    // Force a style flush to ensure that our binding is attached.
-    notificationbox.clientTop;
-
-    // notificationbox will listen to observers from now on.
-    Services.obs.removeObserver(this, "weave:notification:added");
   },
 
   _wasDelayed: false,
@@ -117,67 +91,64 @@ let gSyncUI = {
     try {
       firstSync = Services.prefs.getCharPref("services.sync.firstSync");
     } catch (e) { }
-    return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
+    return Weave.Status.service == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
   },
 
   updateUI: function SUI_updateUI() {
     let needsSetup = this._needsSetup();
-    document.getElementById("sync-setup-state").hidden = !needsSetup;
-    document.getElementById("sync-syncnow-state").hidden = needsSetup;
+    document.getElementById("sync-setup").hidden = !needsSetup;
+    document.getElementById("sync-menu").hidden = needsSetup;
 
-    if (!gBrowser)
-      return;
+    if (gBrowser) {
+      let showLabel = !Weave.Service.isLoggedIn && !needsSetup;
+      let button = document.getElementById("sync-status-button");
+      button.setAttribute("class", showLabel ? "statusbarpanel-iconic-text"
+                                             : "statusbarpanel-iconic");
+      button.image = "chrome://browser/skin/sync-16.png";
 
-    let button = document.getElementById("sync-button");
-    if (!button)
-      return;
-
-    button.removeAttribute("status");
-    this._updateLastSyncTime();
-    if (needsSetup)
-      button.removeAttribute("tooltiptext");
+      if (!Weave.Service.isLoggedIn) {
+        //XXXzpao When we move the string bundle, we can add more and make this
+        //        say "needs setup" or something similar. (bug 583381)
+        button.removeAttribute("tooltiptext");
+      }
+    }
   },
 
   alltabsPopupShowing: function(event) {
     // Should we show the menu item?
-    //XXXphilikon We should remove the check for isLoggedIn here and have
-    //            about:sync-tabs auto-login (bug 583344)
     if (!Weave.Service.isLoggedIn || !Weave.Engines.get("tabs").enabled)
       return;
 
     let label = this._stringBundle.GetStringFromName("tabs.fromOtherComputers.label");
 
     let popup = document.getElementById("alltabs-popup");
-    if (!popup)
-      return;
-    
     let menuitem = document.createElement("menuitem");
     menuitem.setAttribute("id", "sync-tabs-menuitem");
     menuitem.setAttribute("label", label);
     menuitem.setAttribute("class", "alltabs-item");
     menuitem.setAttribute("oncommand", "BrowserOpenSyncTabs();");
 
+    let sep = document.createElement("menuseparator");
+    sep.setAttribute("id", "sync-tabs-sep");
+
     // Fake the tab object on the menu entries, so that we don't have to worry
     // about removing them ourselves. They will just get cleaned up by popup
-    // binding.
+    // binding. This also makes sure the statusbar updates with the URL.
     menuitem.tab = { "linkedBrowser": { "currentURI": { "spec": label } } };
+    sep.tab = { "linkedBrowser": { "currentURI": { "spec": " " } } };
 
-    let sep = document.getElementById("alltabs-popup-separator");
+    popup.insertBefore(sep, popup.firstChild);
     popup.insertBefore(menuitem, sep);
   },
 
 
   // Functions called by observers
   onActivityStart: function SUI_onActivityStart() {
-    if (!gBrowser)
-      return;
-
-    let button = document.getElementById("sync-button");
-    if (!button)
-      return;
-
-    button.setAttribute("status", "active");
+    //XXXzpao Followup: Do this with a class. (bug 583384)
+    if (gBrowser)
+      document.getElementById("sync-status-button").image =
+        "chrome://browser/skin/sync-16-throbber.png";
   },
 
   onSyncFinish: function SUI_onSyncFinish() {
@@ -192,13 +163,7 @@ let gSyncUI = {
     // basically, we want to just inform users that stuff is going to take a while
     let title = this._stringBundle.GetStringFromName("error.sync.no_node_found.title");
     let description = this._stringBundle.GetStringFromName("error.sync.no_node_found");
-    let buttons = [new Weave.NotificationButton(
-      this._stringBundle.GetStringFromName("error.sync.serverStatusButton.label"),
-      this._stringBundle.GetStringFromName("error.sync.serverStatusButton.accesskey"),
-      function() { gSyncUI.openServerStatus(); return true; }
-    )];
-    let notification = new Weave.Notification(
-      title, description, null, Weave.Notifications.PRIORITY_INFO, buttons);
+    let notification = new Weave.Notification(title, description, null, Weave.Notifications.PRIORITY_INFO);
     Weave.Notifications.replaceTitle(notification);
     this._wasDelayed = true;
   },
@@ -209,6 +174,7 @@ let gSyncUI = {
     Weave.Notifications.removeAll(title);
 
     this.updateUI();
+    this._updateLastSyncItem();
   },
 
   onLoginError: function SUI_onLoginError() {
@@ -216,7 +182,7 @@ let gSyncUI = {
     Weave.Notifications.removeAll();
 
     // if we haven't set up the client, don't show errors
-    if (this._needsSetup() || Weave.Service.shouldIgnoreError()) {
+    if (this._needsSetup()) {
       this.updateUI();
       return;
     }
@@ -243,40 +209,85 @@ let gSyncUI = {
   },
 
   onStartOver: function SUI_onStartOver() {
-    Weave.Notifications.removeAll();
     this.updateUI();
   },
 
-  onQuotaNotice: function onQuotaNotice(subject, data) {
-    let title = this._stringBundle.GetStringFromName("warning.sync.quota.label");
-    let description = this._stringBundle.GetStringFromName("warning.sync.quota.description");
-    let buttons = [];
-    buttons.push(new Weave.NotificationButton(
-      this._stringBundle.GetStringFromName("error.sync.viewQuotaButton.label"),
-      this._stringBundle.GetStringFromName("error.sync.viewQuotaButton.accesskey"),
-      function() { gSyncUI.openQuotaDialog(); return true; }
-    ));
+  onNotificationAdded: function SUI_onNotificationAdded() {
+    if (!gBrowser)
+      return;
 
-    let notification = new Weave.Notification(
-      title, description, null, Weave.Notifications.PRIORITY_WARNING, buttons);
-    Weave.Notifications.replaceTitle(notification);
+    let notificationsButton = document.getElementById("sync-notifications-button");
+    notificationsButton.hidden = false;
+    let notification = Weave.Notifications.notifications.reduce(function(prev, cur) {
+      return prev.priority > cur.priority ? prev : cur;
+    });
+
+    let image = notification.priority >= Weave.Notifications.PRIORITY_WARNING ?
+                "chrome://global/skin/icons/warning-16.png" :
+                "chrome://global/skin/icons/information-16.png";
+    notificationsButton.image = image;
+    notificationsButton.label = notification.title;
   },
 
-  openServerStatus: function () {
-    let statusURL = Services.prefs.getCharPref("services.sync.statusURL");
-    window.openUILinkIn(statusURL, "tab");
+  onNotificationRemoved: function SUI_onNotificationRemoved() {
+    if (!gBrowser)
+      return;
+
+    if (Weave.Notifications.notifications.length == 0) {
+      document.getElementById("sync-notifications-button").hidden = true;
+    }
+    else {
+      // Display remaining notifications
+      this.onNotificationAdded();
+    }
   },
 
   // Commands
-  doSync: function SUI_doSync() {
-    setTimeout(function() Weave.Service.sync(), 0);
+  doUpdateMenu: function SUI_doUpdateMenu(event) {
+    this._updateLastSyncItem();
+
+    let loginItem = document.getElementById("sync-loginitem");
+    let logoutItem = document.getElementById("sync-logoutitem");
+    let syncItem = document.getElementById("sync-syncnowitem");
+
+    // Don't allow "login" to be selected in some cases
+    let offline = Services.io.offline;
+    let locked = Weave.Service.locked;
+    let noUser = Weave.Service.username == "";
+    let notReady = offline || locked || noUser;
+    loginItem.setAttribute("disabled", notReady);
+    logoutItem.setAttribute("disabled", notReady);
+
+    // Don't allow "sync now" to be selected in some cases
+    let loggedIn = Weave.Service.isLoggedIn;
+    let noNode = Weave.Status.sync == Weave.NO_SYNC_NODE_FOUND;
+    let disableSync = notReady || !loggedIn || noNode;
+    syncItem.setAttribute("disabled", disableSync);
+
+    // Only show one of login/logout
+    loginItem.setAttribute("hidden", loggedIn);
+    logoutItem.setAttribute("hidden", !loggedIn);
   },
 
-  handleToolbarButton: function SUI_handleStatusbarButton() {
-    if (this._needsSetup())
+  doLogin: function SUI_doLogin() {
+    Weave.Service.login();
+  },
+
+  doLogout: function SUI_doLogout() {
+    Weave.Service.logout();
+  },
+
+  doSync: function SUI_doSync() {
+    Weave.Service.sync();
+  },
+
+  handleStatusbarButton: function SUI_handleStatusbarButton() {
+    if (Weave.Service.isLoggedIn)
+      Weave.Service.sync();
+    else if (this._needsSetup())
       this.openSetup();
     else
-      this.doSync();
+      Weave.Service.login();
   },
 
   //XXXzpao should be part of syncCommon.js - which we might want to make a module...
@@ -291,46 +302,34 @@ let gSyncUI = {
     }
   },
 
-  openQuotaDialog: function SUI_openQuotaDialog() {
-    let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
-    if (win)
-      win.focus();
-    else 
-      Services.ww.activeWindow.openDialog(
-        "chrome://browser/content/syncQuota.xul", "",
-        "centerscreen,chrome,dialog,modal");
-  },
-
   openPrefs: function SUI_openPrefs() {
     openPreferences("paneSync");
   },
 
 
   // Helpers
-  _updateLastSyncTime: function SUI__updateLastSyncTime() {
-    if (!gBrowser)
-      return;
-
-    let syncButton = document.getElementById("sync-button");
-    if (!syncButton)
-      return;
-
+  _updateLastSyncItem: function SUI__updateLastSyncItem() {
     let lastSync;
     try {
       lastSync = Services.prefs.getCharPref("services.sync.lastSync");
     }
     catch (e) { };
-    if (!lastSync || this._needsSetup()) {
-      syncButton.removeAttribute("tooltiptext");
+    if (!lastSync)
       return;
-    }
+
+    let lastSyncItem = document.getElementById("sync-lastsyncitem");
 
     // Show the day-of-week and time (HH:MM) of last sync
     let lastSyncDate = new Date(lastSync).toLocaleFormat("%a %H:%M");
     let lastSyncLabel =
-      this._stringBundle.formatStringFromName("lastSync2.label", [lastSyncDate], 1);
+      this._stringBundle.formatStringFromName("lastSync.label", [lastSyncDate], 1);
+    lastSyncItem.setAttribute("label", lastSyncLabel);
+    lastSyncItem.setAttribute("hidden", "false");
+    document.getElementById("sync-lastsyncsep").hidden = false;
 
-    syncButton.setAttribute("tooltiptext", lastSyncLabel);
+    if (gBrowser)
+      document.getElementById("sync-status-button").
+               setAttribute("tooltiptext", lastSyncLabel);
   },
 
   _onSyncEnd: function SUI__onSyncEnd(success) {
@@ -340,14 +339,6 @@ let gSyncUI = {
         this.onLoginError();
         return;
       }
-
-      // Ignore network related errors unless we haven't been able to
-      // sync for a while.
-      if (Weave.Service.shouldIgnoreError()) {
-        this.updateUI();
-        return;
-      }
-
       let error = Weave.Utils.getErrorString(Weave.Status.sync);
       let description =
         this._stringBundle.formatStringFromName("error.sync.description", [error], 1);
@@ -355,40 +346,7 @@ let gSyncUI = {
       let priority = Weave.Notifications.PRIORITY_WARNING;
       let buttons = [];
 
-      // Check if the client is outdated in some way
-      let outdated = Weave.Status.sync == Weave.VERSION_OUT_OF_DATE;
-      for (let [engine, reason] in Iterator(Weave.Status.engines))
-        outdated = outdated || reason == Weave.VERSION_OUT_OF_DATE;
-
-      if (outdated) {
-        description = this._stringBundle.GetStringFromName(
-          "error.sync.needUpdate.description");
-        buttons.push(new Weave.NotificationButton(
-          this._stringBundle.GetStringFromName("error.sync.needUpdate.label"),
-          this._stringBundle.GetStringFromName("error.sync.needUpdate.accesskey"),
-          function() { window.openUILinkIn("https://services.mozilla.com/update/", "tab"); return true; }
-        ));
-      }
-      else if (Weave.Status.sync == Weave.OVER_QUOTA) {
-        description = this._stringBundle.GetStringFromName(
-          "error.sync.quota.description");
-        buttons.push(new Weave.NotificationButton(
-          this._stringBundle.GetStringFromName(
-            "error.sync.viewQuotaButton.label"),
-          this._stringBundle.GetStringFromName(
-            "error.sync.viewQuotaButton.accesskey"),
-          function() { gSyncUI.openQuotaDialog(); return true; } )
-        );
-      }
-      else if (Weave.Status.enforceBackoff) {
-        priority = Weave.Notifications.PRIORITY_INFO;
-        buttons.push(new Weave.NotificationButton(
-          this._stringBundle.GetStringFromName("error.sync.serverStatusButton.label"),
-          this._stringBundle.GetStringFromName("error.sync.serverStatusButton.accesskey"),
-          function() { gSyncUI.openServerStatus(); return true; }
-        ));
-      }
-      else {
+      if (!Weave.Status.enforceBackoff) {
         priority = Weave.Notifications.PRIORITY_INFO;
         buttons.push(new Weave.NotificationButton(
           this._stringBundle.GetStringFromName("error.sync.tryAgainButton.label"),
@@ -413,6 +371,7 @@ let gSyncUI = {
     }
 
     this.updateUI();
+    this._updateLastSyncItem();
   },
   
   observe: function SUI_observe(subject, topic, data) {
@@ -428,9 +387,6 @@ let gSyncUI = {
         break;
       case "weave:service:sync:delayed":
         this.onSyncDelay();
-        break;
-      case "weave:service:quota:remaining":
-        this.onQuotaNotice();
         break;
       case "weave:service:setup-complete":
         this.onLoginFinish();
@@ -454,7 +410,10 @@ let gSyncUI = {
         this.initUI();
         break;
       case "weave:notification:added":
-        this.initNotifications();
+        this.onNotificationAdded();
+        break;
+      case "weave:notification:removed":
+        this.onNotificationRemoved();
         break;
     }
   },

@@ -92,8 +92,7 @@ public:
     PRUint32 ExpirationTime()                     { return mExpirationTime; }
     void     SetExpirationTime( PRUint32 expires) { mExpirationTime = expires; }
 
-    PRUint32 Size()                               
-        { return mDataSize + mMetaData.Size() + (mKey ? mKey->Length() : 0); }
+    PRUint32 Size()                               { return mDataSize + mMetaData.Size(); }
 
     nsCacheDevice * CacheDevice()                            { return mCacheDevice; }
     void            SetCacheDevice( nsCacheDevice * device)  { mCacheDevice = device; }
@@ -104,9 +103,6 @@ public:
      */
     nsISupports *Data()                           { return mData; }
     void         SetData( nsISupports * data);
-
-    PRInt64  PredictedDataSize()                  { return mPredictedDataSize; }
-    void     SetPredictedDataSize(PRInt64 size)   { mPredictedDataSize = size; }
 
     PRUint32 DataSize()                           { return mDataSize; }
     void     SetDataSize( PRUint32  size)         { mDataSize = size; }
@@ -243,7 +239,6 @@ private:
     PRUint32                mLastValidated;  // 4
     PRUint32                mExpirationTime; // 4
     PRUint32                mFlags;          // 4
-    PRInt64                 mPredictedDataSize;  // Size given by ContentLength.
     PRUint32                mDataSize;       // 4
     nsCacheDevice *         mCacheDevice;    // 4
     nsCOMPtr<nsISupports>   mSecurityInfo;   // 

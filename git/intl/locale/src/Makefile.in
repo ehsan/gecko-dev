@@ -57,18 +57,12 @@ DIRS		= unix
 endif
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT), qt)
-OS_INCLUDES	+= $(MOZ_QT_CFLAGS)
-endif
-
 CPPSRCS		= \
 		nsCollation.cpp \
 		nsScriptableDateFormat.cpp \
 		nsLanguageAtomService.cpp \
 		nsLocale.cpp \
 		nsLocaleService.cpp \
-		nsCharsetAliasImp.cpp \
-		nsUConvPropertySearch.cpp \
 		$(NULL)
 
 EXPORTS		= \
@@ -88,15 +82,6 @@ EXTRA_JS_MODULES = \
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
-
-nsCharsetAliasImp.$(OBJ_SUFFIX): charsetalias.properties.h
-
-charsetalias.properties.h: props2arrays.py charsetalias.properties
-	$(PYTHON) $^ $@
-
-GARBAGE += \
-	charsetalias.properties.h \
-	$(NULL)
 
 libs::
 	$(INSTALL) $(EXPORT_RESOURCE) $(DIST)/bin/res

@@ -60,16 +60,17 @@
 #include "nsCRT.h"
 #include "prtime.h"
 #include "prlog.h"
+#include "nsInt64.h"
 #include "nsNodeUtils.h"
 #include "nsIContent.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 
 #include "nsGenericHTMLElement.h"
 
 #include "nsIDOMText.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMDOMImplementation.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMHTMLScriptElement.h"
@@ -102,6 +103,7 @@
 #include "nsIScriptGlobalObjectOwner.h"
 
 #include "nsIParserService.h"
+#include "nsISelectElement.h"
 
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsITimer.h"
@@ -122,7 +124,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 #ifdef NS_DEBUG
@@ -138,12 +139,11 @@ static PRLogModuleInfo* gSinkLogModuleInfo;
 //----------------------------------------------------------------------
 
 typedef nsGenericHTMLElement*
-  (*contentCreatorCallback)(already_AddRefed<nsINodeInfo>,
-                            FromParser aFromParser);
+  (*contentCreatorCallback)(already_AddRefed<nsINodeInfo>, PRUint32 aFromParser);
 
 nsGenericHTMLElement*
 NS_NewHTMLNOTUSEDElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                         FromParser aFromParser)
+                         PRUint32 aFromParser)
 {
   NS_NOTREACHED("The element ctor should never be called");
   return nsnull;
@@ -345,6 +345,7 @@ public:
   nsresult FlushTags();
 
   PRBool   IsCurrentContainer(nsHTMLTag mType);
+  PRBool   IsAncestorContainer(nsHTMLTag mType);
 
   void DidAddContent(nsIContent* aContent);
   void UpdateChildCounts();
@@ -534,8 +535,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     nsAutoString lower;
     nsContentUtils::ASCIIToLower(aNode.GetText(), lower);
     nsCOMPtr<nsIAtom> name = do_GetAtom(lower);
-    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML,
-                                             nsIDOMNode::ELEMENT_NODE);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML);
   }
   else if (mNodeInfoCache[aNodeType]) {
     nodeInfo = mNodeInfoCache[aNodeType];
@@ -548,20 +548,19 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     nsIAtom *name = parserService->HTMLIdToAtomTag(aNodeType);
     NS_ASSERTION(name, "What? Reverse mapping of id to string broken!!!");
 
-    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML,
-                                             nsIDOMNode::ELEMENT_NODE);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML);
     NS_IF_ADDREF(mNodeInfoCache[aNodeType] = nodeInfo);
   }
 
   NS_ENSURE_TRUE(nodeInfo, nsnull);
 
   // Make the content object
-  return CreateHTMLElement(aNodeType, nodeInfo.forget(), FROM_PARSER_NETWORK);
+  return CreateHTMLElement(aNodeType, nodeInfo.forget(), PR_TRUE);
 }
 
 nsresult
 NS_NewHTMLElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                  FromParser aFromParser)
+                  PRUint32 aFromParser)
 {
   *aResult = nsnull;
 
@@ -584,7 +583,7 @@ NS_NewHTMLElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
 
 already_AddRefed<nsGenericHTMLElement>
 CreateHTMLElement(PRUint32 aNodeType, already_AddRefed<nsINodeInfo> aNodeInfo,
-                  FromParser aFromParser)
+                  PRUint32 aFromParser)
 {
   NS_ASSERTION(aNodeType <= NS_HTML_TAG_MAX ||
                aNodeType == eHTMLTag_userdefined,
@@ -661,6 +660,21 @@ SinkContext::IsCurrentContainer(nsHTMLTag aTag)
 {
   if (aTag == mStack[mStackPos - 1].mType) {
     return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
+PRBool
+SinkContext::IsAncestorContainer(nsHTMLTag aTag)
+{
+  PRInt32 stackPos = mStackPos - 1;
+
+  while (stackPos >= 0) {
+    if (aTag == mStack[stackPos].mType) {
+      return PR_TRUE;
+    }
+    stackPos--;
   }
 
   return PR_FALSE;
@@ -1600,12 +1614,11 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 
   // Changed from 8192 to greatly improve page loading performance on
   // large pages.  See bugzilla bug 77540.
-  mMaxTextRun = Preferences::GetInt("content.maxtextrun", 8191);
+  mMaxTextRun = nsContentUtils::GetIntPref("content.maxtextrun", 8191);
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
-                                           kNameSpaceID_XHTML,
-                                           nsIDOMNode::ELEMENT_NODE);
+                                           kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Make root part
@@ -1621,8 +1634,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 
   // Make head part
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head,
-                                           nsnull, kNameSpaceID_XHTML,
-                                           nsIDOMNode::ELEMENT_NODE);
+                                           nsnull, kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mHead = NS_NewHTMLHeadElement(nodeInfo.forget());
@@ -1749,6 +1761,12 @@ HTMLContentSink::BeginContext(PRInt32 aPosition)
 {
   NS_PRECONDITION(aPosition > -1, "out of bounds");
 
+  // Create new context
+  SinkContext* sc = new SinkContext(this);
+  if (!sc) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   if (!mCurrentContext) {
     NS_ERROR("Nonexistent context");
 
@@ -1776,7 +1794,6 @@ HTMLContentSink::BeginContext(PRInt32 aPosition)
     insertionPoint = content->GetChildCount() - 1;
   }
 
-  SinkContext* sc = new SinkContext(this);
   sc->Begin(nodeType,
             content,
             mCurrentContext->mStack[aPosition].mNumFlushed,
@@ -2454,8 +2471,9 @@ HTMLContentSink::AddDocTypeDecl(const nsIParserNode& aNode)
     nsAutoString voidString;
     voidString.SetIsVoid(PR_TRUE);
     rv = NS_NewDOMDocumentType(getter_AddRefs(docType),
-                               mDocument->NodeInfoManager(), nsnull, nameAtom,
-                               publicId, systemId, voidString);
+                               mDocument->NodeInfoManager(), nsnull,
+                               nameAtom, nsnull, nsnull, publicId, systemId,
+                               voidString);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (oldDocType) {
@@ -2599,12 +2617,9 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     // Create content object
     nsCOMPtr<nsIContent> element;
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull,
-                                             kNameSpaceID_XHTML,
-                                             nsIDOMNode::ELEMENT_NODE);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_XHTML);
 
-    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo.forget(),
-                               NOT_FROM_PARSER);
+    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo.forget(), PR_FALSE);
     NS_ENSURE_SUCCESS(result, result);
 
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(element));

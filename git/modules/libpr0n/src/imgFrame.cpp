@@ -48,11 +48,18 @@
 
 static PRBool gDisableOptimize = PR_FALSE;
 
+/*XXX get CAIRO_HAS_DDRAW_SURFACE */
 #include "cairo.h"
 
-#if defined(XP_WIN)
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+#include "gfxDDrawSurface.h"
+#endif
 
+#if defined(XP_WIN) || defined(WINCE)
 #include "gfxWindowsPlatform.h"
+#endif
+
+#if defined(XP_WIN) && !defined(WINCE)
 
 /* Whether to use the windows surface; only for desktop win32 */
 #define USE_WIN_SURFACE 1
@@ -110,7 +117,14 @@ static PRBool AllowedImageSize(PRInt32 aWidth, PRInt32 aHeight)
 // optimized platform-specific surfaces.
 static PRBool ShouldUseImageSurfaces()
 {
-#if defined(USE_WIN_SURFACE)
+#if defined(WINCE)
+  // There is no test on windows mobile to check for Gui resources.
+  // Allocate, until we run out of memory.
+  gfxWindowsPlatform::RenderMode rmode = gfxWindowsPlatform::GetPlatform()->GetRenderMode();
+  return rmode != gfxWindowsPlatform::RENDER_DDRAW &&
+      rmode != gfxWindowsPlatform::RENDER_DDRAW_GL;
+
+#elif defined(USE_WIN_SURFACE)
   static const DWORD kGDIObjectsHighWaterMark = 7000;
 
   if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
@@ -178,6 +192,17 @@ nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
   if (!AllowedImageSize(aWidth, aHeight))
     return NS_ERROR_FAILURE;
 
+  // Check to see if we are running OOM
+  nsCOMPtr<nsIMemory> mem;
+  NS_GetMemoryManager(getter_AddRefs(mem));
+  if (!mem)
+    return NS_ERROR_UNEXPECTED;
+
+  PRBool lowMemory;
+  mem->IsLowMemory(&lowMemory);
+  if (lowMemory)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   mOffset.MoveTo(aX, aY);
   mSize.SizeTo(aWidth, aHeight);
 
@@ -203,7 +228,7 @@ nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
       mWinSurface = new gfxWindowsSurface(gfxIntSize(mSize.width, mSize.height), mFormat);
       if (mWinSurface && mWinSurface->CairoStatus() == 0) {
         // no error
-        mImageSurface = mWinSurface->GetAsImageSurface();
+        mImageSurface = mWinSurface->GetImageSurface();
       } else {
         mWinSurface = nsnull;
       }
@@ -399,7 +424,7 @@ imgFrame::SurfaceForDrawing(PRBool             aDoPadding,
     // transparent pixels in the padding or undecoded area
     gfxImageSurface::gfxImageFormat format = gfxASurface::ImageFormatARGB32;
     nsRefPtr<gfxASurface> surface =
-      gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxImageSurface::ContentFromFormat(format));
+      gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, format);
     if (!surface || surface->CairoStatus())
       return SurfaceWithFormat();
 
@@ -528,6 +553,17 @@ nsresult imgFrame::Extract(const nsIntRect& aRegion, imgFrame** aResult)
 
 nsresult imgFrame::ImageUpdated(const nsIntRect &aUpdateRect)
 {
+  // Check to see if we are running OOM
+  nsCOMPtr<nsIMemory> mem;
+  NS_GetMemoryManager(getter_AddRefs(mem));
+  if (!mem)
+    return NS_ERROR_UNEXPECTED;
+
+  PRBool lowMemory;
+  mem->IsLowMemory(&lowMemory);
+  if (lowMemory)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   mDecoded.UnionRect(mDecoded, aUpdateRect);
 
   // clamp to bounds, in case someone sends a bogus updateRect (I'm looking at
@@ -755,7 +791,7 @@ void imgFrame::SetBlendMethod(PRInt32 aBlendMethod)
 
 PRBool imgFrame::ImageComplete() const
 {
-  return mDecoded.IsEqualInterior(nsIntRect(mOffset, mSize));
+  return mDecoded == nsIntRect(mOffset, mSize);
 }
 
 // A hint from the image decoders that this image has no alpha, even

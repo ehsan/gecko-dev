@@ -43,26 +43,38 @@
 #include "jsatom.h"
 #include "jsnum.h"
 
+/*
+ * Convert v to an atomized string and wrap it as an id.
+ */
 inline bool
 js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp)
 {
-    if (!v.isString()) {
-        JSString *str = js_ValueToString(cx, v);
+    JSString *str;
+    JSAtom *atom;
+
+    /*
+     * Optimize for the common case where v is an already-atomized string. The
+     * comment in jsstr.h before JSString::flatSetAtomized explains why this is
+     * thread-safe. The extra rooting via lastAtom (which would otherwise be
+     * done in js_js_AtomizeString) ensures the caller that the resulting id at
+     * is least weakly rooted.
+     */
+    if (v.isString()) {
+        str = v.toString();
+        if (str->isAtomized()) {
+            *atomp = STRING_TO_ATOM(str);
+            return true;
+        }
+    } else {
+        str = js_ValueToString(cx, v);
         if (!str)
             return false;
-        JS::Anchor<JSString *> anchor(str);
-        *atomp = js_AtomizeString(cx, str);
-        return !!*atomp;
     }
-
-    JSString *str = v.toString();
-    if (str->isAtom()) {
-        *atomp = &str->asAtom();
-        return true;
-    }
-
-    *atomp = js_AtomizeString(cx, str);
-    return !!*atomp;
+    atom = js_AtomizeString(cx, str, 0);
+    if (!atom)
+        return false;
+    *atomp = atom;
+    return true;
 }
 
 inline bool
@@ -109,7 +121,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
     JSAtom *atom;
     if (js_ValueToAtom(cx, idval, &atom)) {
         *idp = ATOM_TO_JSID(atom);
-        vp->setString(atom);
+        vp->setString(ATOM_TO_STRING(atom));
         return true;
     }
     return false;
@@ -129,38 +141,5 @@ js_Int32ToId(JSContext* cx, int32 index, jsid* id)
 
     return js_ValueToStringId(cx, js::StringValue(str), id);
 }
-
-namespace js {
-
-inline bool
-IndexToId(JSContext *cx, uint32 index, jsid *idp)
-{
-    if (index <= JSID_INT_MAX) {
-        *idp = INT_TO_JSID(index);
-        return true;
-    }
-
-    JSString *str = js_NumberToString(cx, index);
-    if (!str)
-        return false;
-
-    JSAtom *atom = js_AtomizeString(cx, str);
-    if (!atom)
-        return false;
-    *idp = ATOM_TO_JSID(atom);
-    return true;
-}
-
-static JS_ALWAYS_INLINE JSString *
-IdToString(JSContext *cx, jsid id)
-{
-    if (JSID_IS_STRING(id))
-        return JSID_TO_STRING(id);
-    if (JS_LIKELY(JSID_IS_INT(id)))
-        return js_IntToString(cx, JSID_TO_INT(id));
-    return js_ValueToString(cx, IdToValue(id));
-}
-
-} // namespace js
 
 #endif /* jsatominlines_h___ */

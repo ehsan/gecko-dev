@@ -60,10 +60,8 @@
 
 class nsIURI;
 class nsCSSFontFaceRule;
-class nsCSSKeyframesRule;
 class nsRuleWalker;
 struct RuleProcessorData;
-struct TreeMatchContext;
 
 class nsEmptyStyleRule : public nsIStyleRule
 {
@@ -101,11 +99,6 @@ class nsStyleSet
   already_AddRefed<nsStyleContext>
   ResolveStyleFor(mozilla::dom::Element* aElement,
                   nsStyleContext* aParentContext);
-
-  already_AddRefed<nsStyleContext>
-  ResolveStyleFor(mozilla::dom::Element* aElement,
-                  nsStyleContext* aParentContext,
-                  TreeMatchContext& aTreeMatchContext);
 
   // Get a style context (with the given parent) for the
   // sequence of style rules in the |aRules| array.
@@ -145,11 +138,6 @@ class nsStyleSet
   ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
                           nsCSSPseudoElements::Type aType,
                           nsStyleContext* aParentContext);
-  already_AddRefed<nsStyleContext>
-  ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
-                          nsCSSPseudoElements::Type aType,
-                          nsStyleContext* aParentContext,
-                          TreeMatchContext& aTreeMatchContext);
   
   // Get a style context for an anonymous box.  aPseudoTag is the
   // pseudo-tag to use and must be non-null.
@@ -171,11 +159,6 @@ class nsStyleSet
   // true for success and false for failure.
   PRBool AppendFontFaceRules(nsPresContext* aPresContext,
                              nsTArray<nsFontFaceRuleContainer>& aArray);
-
-  // Append all the currently-active keyframes rules to aArray.  Return
-  // true for success and false for failure.
-  PRBool AppendKeyframesRules(nsPresContext* aPresContext,
-                              nsTArray<nsCSSKeyframesRule*>& aArray);
 
   // Begin ignoring style context destruction, to avoid lots of unnecessary
   // work on document teardown.
@@ -202,12 +185,12 @@ class nsStyleSet
   // Test if style is dependent on a document state.
   PRBool HasDocumentStateDependentStyle(nsPresContext* aPresContext,
                                         nsIContent*    aContent,
-                                        nsEventStates  aStateMask);
+                                        PRInt32        aStateMask);
 
   // Test if style is dependent on content state
   nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
                                        mozilla::dom::Element* aElement,
-                                       nsEventStates aStateMask);
+                                       PRInt32 aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
   nsRestyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
@@ -234,12 +217,12 @@ class nsStyleSet
   // highest (for non-!important rules).
   enum sheetType {
     eAgentSheet, // CSS
-    eUserSheet, // CSS
     ePresHintSheet,
+    eUserSheet, // CSS
+    eHTMLPresHintSheet,
     eDocSheet, // CSS
     eStyleAttrSheet,
     eOverrideSheet, // CSS
-    eAnimationSheet,
     eTransitionSheet,
     eSheetTypeCount
     // be sure to keep the number of bits in |mDirty| below and in
@@ -255,7 +238,7 @@ class nsStyleSet
   nsresult ReplaceSheets(sheetType aType,
                          const nsCOMArray<nsIStyleSheet> &aNewSheets);
 
-  // Enable/Disable entire author style level (Doc & PresHint levels)
+  //Enable/Disable entire author style level (Doc & PresHint levels)
   PRBool GetAuthorStyleDisabled();
   nsresult SetAuthorStyleDisabled(PRBool aStyleDisabled);
 
@@ -339,7 +322,7 @@ class nsStyleSet
   
   // Just like AddImportantRules except it doesn't actually add anything; it
   // just asserts that there are no CSS rules between aCurrLevelNode and
-  // aLastPrevLevelNode.  Mostly useful for the preshint level.
+  // aLastPrevLevelNode.  Mostly useful for the preshint levels.
   void AssertNoCSSRules(nsRuleNode* aCurrLevelNode,
                         nsRuleNode* aLastPrevLevelNode);
 #endif
@@ -365,9 +348,7 @@ class nsStyleSet
              PRBool aIsLink,
              PRBool aIsVisitedLink,
              nsIAtom* aPseudoTag,
-             nsCSSPseudoElements::Type aPseudoType,
-             PRBool aDoAnimation,
-             mozilla::dom::Element* aElementForAnimation);
+             nsCSSPseudoElements::Type aPseudoType);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
 

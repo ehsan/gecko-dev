@@ -50,7 +50,6 @@
 #include "mozilla/Mutex.h"
 
 #include "mozIStorageService.h"
-#include "mozIStorageServiceQuotaManagement.h"
 
 class nsIXPConnect;
 
@@ -59,7 +58,6 @@ namespace storage {
 
 class Service : public mozIStorageService
               , public nsIObserver
-              , public mozIStorageServiceQuotaManagement
 {
 public:
   /**
@@ -89,18 +87,12 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGESERVICE
   NS_DECL_NSIOBSERVER
-  NS_DECL_MOZISTORAGESERVICEQUOTAMANAGEMENT
 
   /**
    * Obtains an already AddRefed pointer to XPConnect.  This is used by
    * language helpers.
    */
   static already_AddRefed<nsIXPConnect> getXPConnect();
-
-  /**
-   * Obtains the cached data for the toolkit.storage.synchronous preference.
-   */
-  static PRInt32 getSynchronousPref();
 
 private:
   Service();
@@ -141,8 +133,6 @@ private:
   static Service *gService;
 
   static nsIXPConnect *sXPConnect;
-
-  static PRInt32 sSynchronousPref;
 };
 
 } // namespace storage

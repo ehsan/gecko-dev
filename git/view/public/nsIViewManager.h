@@ -41,16 +41,17 @@
 #include "nscore.h"
 #include "nsIView.h"
 #include "nsEvent.h"
+#include "nsIRenderingContext.h"
 
 class nsIWidget;
 struct nsRect;
 class nsRegion;
-class nsDeviceContext;
+class nsIDeviceContext;
 class nsIViewObserver;
 
-#define NS_IVIEWMANAGER_IID \
-{ 0x144ef328, 0xbece, 0x43d6, \
-  { 0xac, 0xac, 0x1a, 0x90, 0x4b, 0x5c, 0xc1, 0x11 } }
+#define NS_IVIEWMANAGER_IID   \
+  { 0x4017112c, 0x64d7, 0x47bc, \
+   { 0xab, 0x66, 0x4e, 0x5f, 0xff, 0x83, 0xec, 0x7c } }
 
 class nsIViewManager : public nsISupports
 {
@@ -63,7 +64,7 @@ public:
    * because it holds a reference to this instance.
    * @result The result of the initialization, NS_OK if no errors
    */
-  NS_IMETHOD  Init(nsDeviceContext* aContext) = 0;
+  NS_IMETHOD  Init(nsIDeviceContext* aContext) = 0;
 
   /**
    * Create an ordinary view
@@ -85,7 +86,7 @@ public:
    * Get the root of the view tree.
    * @result the root view
    */
-  NS_IMETHOD_(nsIView*) GetRootView() = 0;
+  NS_IMETHOD  GetRootView(nsIView *&aView) = 0;
 
   /**
    * Set the root of the view tree. Does not destroy the current root view.
@@ -260,21 +261,24 @@ public:
   /**
    * Set the view observer associated with this manager
    * @param aObserver - new observer
+   * @result error status
    */
-  virtual void SetViewObserver(nsIViewObserver *aObserver) = 0;
+  NS_IMETHOD SetViewObserver(nsIViewObserver *aObserver) = 0;
 
   /**
    * Get the view observer associated with this manager
+   * @param aObserver - out parameter for observer
+   * @result error status
    */
-  virtual nsIViewObserver* GetViewObserver() = 0;
+  NS_IMETHOD GetViewObserver(nsIViewObserver *&aObserver) = 0;
 
   /**
    * Get the device context associated with this manager
    * @result device context
    */
-  NS_IMETHOD  GetDeviceContext(nsDeviceContext *&aContext) = 0;
+  NS_IMETHOD  GetDeviceContext(nsIDeviceContext *&aContext) = 0;
 
-  class UpdateViewBatch {
+  class NS_STACK_CLASS UpdateViewBatch {
   public:
     UpdateViewBatch() {}
   /**
@@ -380,10 +384,11 @@ public:
   NS_IMETHOD GetLastUserEventTime(PRUint32& aTime)=0;
 
   /**
-   * Find the nearest display root view for the view aView. This is the view for
-   * the nearest enclosing popup or the root view for the root document.
+   * Dispatch a mouse move event based on the most recent mouse
+   * position.  This is used when the contents of the page moved
+   * (aFromScroll is false) or scrolled (aFromScroll is true).
    */
-  static nsIView* GetDisplayRootFor(nsIView* aView);
+  NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll)=0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewManager, NS_IVIEWMANAGER_IID)

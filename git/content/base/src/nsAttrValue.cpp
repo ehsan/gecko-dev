@@ -44,7 +44,7 @@
 #include "nsAttrValue.h"
 #include "nsIAtom.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/css/StyleRule.h"
+#include "nsICSSStyleRule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
@@ -52,7 +52,9 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "prprf.h"
+#ifdef MOZ_SVG
 #include "nsISVGValue.h"
+#endif
 
 namespace css = mozilla::css;
 
@@ -78,17 +80,19 @@ nsAttrValue::nsAttrValue(const nsAString& aValue)
   SetTo(aValue);
 }
 
-nsAttrValue::nsAttrValue(css::StyleRule* aValue, const nsAString* aSerialized)
+nsAttrValue::nsAttrValue(nsICSSStyleRule* aValue, const nsAString* aSerialized)
     : mBits(0)
 {
   SetTo(aValue, aSerialized);
 }
 
+#ifdef MOZ_SVG
 nsAttrValue::nsAttrValue(nsISVGValue* aValue)
     : mBits(0)
 {
   SetTo(aValue);
 }
+#endif
 
 nsAttrValue::nsAttrValue(const nsIntMargin& aValue)
     : mBits(0)
@@ -251,14 +255,16 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       }
       break;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       NS_ADDREF(cont->mSVGValue = otherCont->mSVGValue);
       break;
     }
-    case eDoubleValue:
+#endif
+    case eFloatValue:
     {
-      cont->mDoubleValue = otherCont->mDoubleValue;
+      cont->mFloatValue = otherCont->mFloatValue;
       break;
     }
     case eIntMarginValue:
@@ -307,7 +313,7 @@ nsAttrValue::SetTo(PRInt16 aInt)
 }
 
 void
-nsAttrValue::SetTo(css::StyleRule* aValue, const nsAString* aSerialized)
+nsAttrValue::SetTo(nsICSSStyleRule* aValue, const nsAString* aSerialized)
 {
   if (EnsureEmptyMiscContainer()) {
     MiscContainer* cont = GetMiscContainer();
@@ -317,6 +323,7 @@ nsAttrValue::SetTo(css::StyleRule* aValue, const nsAString* aSerialized)
   }
 }
 
+#ifdef MOZ_SVG
 void
 nsAttrValue::SetTo(nsISVGValue* aValue)
 {
@@ -326,6 +333,7 @@ nsAttrValue::SetTo(nsISVGValue* aValue)
     cont->mType = eSVGValue;
   }
 }
+#endif
 
 void
 nsAttrValue::SetTo(const nsIntMargin& aValue)
@@ -428,15 +436,18 @@ nsAttrValue::ToString(nsAString& aResult) const
 
       break;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       GetMiscContainer()->mSVGValue->GetValueString(aResult);
       break;
     }
-    case eDoubleValue:
+#endif
+    case eFloatValue:
     {
-      aResult.Truncate();
-      aResult.AppendFloat(GetDoubleValue());
+      nsAutoString str;
+      str.AppendFloat(GetFloatValue());
+      aResult = str;
       break;
     }
     default:
@@ -591,14 +602,16 @@ nsAttrValue::HashValue() const
       }
       return retval;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       return NS_PTR_TO_INT32(cont->mSVGValue);
     }
-    case eDoubleValue:
+#endif
+    case eFloatValue:
     {
       // XXX this is crappy, but oh well
-      return cont->mDoubleValue;
+      return cont->mFloatValue;
     }
     case eIntMarginValue:
     {
@@ -688,13 +701,15 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
       needsStringComparison = PR_TRUE;
       break;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       return thisCont->mSVGValue == otherCont->mSVGValue;
     }
-    case eDoubleValue:
+#endif
+    case eFloatValue:
     {
-      return thisCont->mDoubleValue == otherCont->mDoubleValue;
+      return thisCont->mFloatValue == otherCont->mFloatValue;
     }
     case eIntMarginValue:
     {
@@ -1040,7 +1055,8 @@ nsAttrValue::ParseEnumValue(const nsAString& aValue,
 }
 
 PRBool
-nsAttrValue::ParseSpecialIntValue(const nsAString& aString)
+nsAttrValue::ParseSpecialIntValue(const nsAString& aString,
+                                  PRBool aCanBePercent)
 {
   ResetIfSet();
 
@@ -1048,7 +1064,7 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString)
   PRBool strict;
   PRBool isPercent = PR_FALSE;
   nsAutoString tmp(aString);
-  PRInt32 originalVal = StringToInteger(aString, &strict, &ec, PR_TRUE, &isPercent);
+  PRInt32 originalVal = StringToInteger(aString, &strict, &ec, aCanBePercent, &isPercent);
 
   if (NS_FAILED(ec)) {
     return PR_FALSE;
@@ -1057,7 +1073,11 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString)
   PRInt32 val = NS_MAX(originalVal, 0);
 
   // % (percent)
-  if (isPercent || tmp.RFindChar('%') >= 0) {
+  // XXX RFindChar means that 5%x will be parsed!
+  if (aCanBePercent && (isPercent || tmp.RFindChar('%') >= 0)) {
+    if (val > 100) {
+      val = 100;
+    }
     isPercent = PR_TRUE;
   }
 
@@ -1192,19 +1212,19 @@ nsAttrValue::ParseColor(const nsAString& aString)
   return PR_FALSE;
 }
 
-PRBool nsAttrValue::ParseDoubleValue(const nsAString& aString)
+PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
 {
   ResetIfSet();
 
   PRInt32 ec;
-  double val = PromiseFlatString(aString).ToDouble(&ec);
+  float val = PromiseFlatString(aString).ToFloat(&ec);
   if (NS_FAILED(ec)) {
     return PR_FALSE;
   }
   if (EnsureEmptyMiscContainer()) {
     MiscContainer* cont = GetMiscContainer();
-    cont->mDoubleValue = val;
-    cont->mType = eDoubleValue;
+    cont->mFloatValue = val;
+    cont->mType = eFloatValue;
     nsAutoString serializedFloat;
     serializedFloat.AppendFloat(val);
     SetMiscAtomOrString(serializedFloat.Equals(aString) ? nsnull : &aString);
@@ -1295,11 +1315,13 @@ nsAttrValue::EnsureEmptyMiscContainer()
         delete cont->mAtomArray;
         break;
       }
+#ifdef MOZ_SVG
       case eSVGValue:
       {
         NS_RELEASE(cont->mSVGValue);
         break;
       }
+#endif
       case eIntMarginValue:
       {
         delete cont->mIntMargin;

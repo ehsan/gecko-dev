@@ -40,27 +40,35 @@ function run_test() {
 
         let addonDir = gProfD.clone();
         addonDir.append("extensions");
-        let rootUri = do_get_addon_root_uri(addonDir, "addon1@tests.mozilla.org");
+        addonDir.append("addon1@tests.mozilla.org");
 
-        let uri = a1.getResourceURI("/");
-        do_check_eq(uri.spec, rootUri);
+        let uri = a1.getResourceURI();
+        do_check_true(uri instanceof AM_Ci.nsIFileURL);
+        do_check_eq(uri.file.path, addonDir.path);
 
-        let file = rootUri + "install.rdf";
+        let file = addonDir.clone();
+        file.append("install.rdf");
         do_check_true(a1.hasResource("install.rdf"));
         uri = a1.getResourceURI("install.rdf")
-        do_check_eq(uri.spec, file);
+        do_check_true(uri instanceof AM_Ci.nsIFileURL);
+        do_check_eq(uri.file.path, file.path);
 
-        file = rootUri + "icon.png";
+        file = addonDir.clone();
+        file.append("icon.png");
         do_check_true(a1.hasResource("icon.png"));
         uri = a1.getResourceURI("icon.png")
-        do_check_eq(uri.spec, file);
+        do_check_true(uri instanceof AM_Ci.nsIFileURL);
+        do_check_eq(uri.file.path, file.path);
 
         do_check_false(a1.hasResource("missing.txt"));
 
-        file = rootUri + "subdir/subfile.txt";
+        file = addonDir.clone();
+        file.append("subdir");
+        file.append("subfile.txt");
         do_check_true(a1.hasResource("subdir/subfile.txt"));
         uri = a1.getResourceURI("subdir/subfile.txt")
-        do_check_eq(uri.spec, file);
+        do_check_true(uri instanceof AM_Ci.nsIFileURL);
+        do_check_eq(uri.file.path, file.path);
 
         do_check_false(a1.hasResource("subdir/missing.txt"));
 

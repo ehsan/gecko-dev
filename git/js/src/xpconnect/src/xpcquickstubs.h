@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -51,12 +51,12 @@ class XPCCallContext;
 struct xpc_qsPropertySpec {
     const char *name;
     JSPropertyOp getter;
-    JSStrictPropertyOp setter;
+    JSPropertyOp setter;
 };
 
 struct xpc_qsFunctionSpec {
     const char *name;
-    JSNative native;
+    JSFastNative native;
     uintN arity;
 };
 
@@ -229,7 +229,7 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
 
 
 JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
@@ -313,6 +313,33 @@ public:
         return *Ptr();
     }
 
+protected:
+    /*
+     * Neither field is initialized; that is left to the derived class
+     * constructor. However, the destructor destroys the string object
+     * stored in mBuf, if mValid is true.
+     */
+    void *mBuf[JS_HOWMANY(sizeof(implementation_type), sizeof(void *))];
+    JSBool mValid;
+};
+
+/**
+ * Class for converting a jsval to DOMString.
+ *
+ *     xpc_qsDOMString arg0(cx, &argv[0]);
+ *     if (!arg0.IsValid())
+ *         return JS_FALSE;
+ *
+ * The second argument to the constructor is an in-out parameter. It must
+ * point to a rooted jsval, such as a JSNative argument or return value slot.
+ * The value in the jsval on entry is converted to a string. The constructor
+ * may overwrite that jsval with a string value, to protect the characters of
+ * the string from garbage collection. The caller must leave the jsval alone
+ * for the lifetime of the xpc_qsDOMString.
+ */
+class xpc_qsDOMString : public xpc_qsBasicString<nsAString, nsDependentString>
+{
+public:
     /* Enum that defines how JS |null| and |undefined| should be treated.  See
      * the WebIDL specification.  eStringify means convert to the string "null"
      * or "undefined" respectively, via the standard JS ToString() operation;
@@ -333,88 +360,6 @@ public:
         eDefaultUndefinedBehavior = eStringify
     };
 
-protected:
-    /*
-     * Neither field is initialized; that is left to the derived class
-     * constructor. However, the destructor destroys the string object
-     * stored in mBuf, if mValid is true.
-     */
-    void *mBuf[JS_HOWMANY(sizeof(implementation_type), sizeof(void *))];
-    JSBool mValid;
-
-    /*
-     * If null is returned, then we either failed or fully initialized
-     * |this|; in either case the caller should return immediately
-     * without doing anything else. Otherwise, the JSString* created
-     * from |v| will be returned.  It'll be rooted, as needed, in
-     * *pval.  nullBehavior and undefinedBehavior control what happens
-     * when |v| is JSVAL_IS_NULL and JSVAL_IS_VOID respectively.
-     */
-    template<class traits>
-    JSString* InitOrStringify(JSContext* cx, jsval v, jsval* pval,
-                              StringificationBehavior nullBehavior,
-                              StringificationBehavior undefinedBehavior) {
-        JSString *s;
-        if(JSVAL_IS_STRING(v))
-        {
-            s = JSVAL_TO_STRING(v);
-        }
-        else
-        {
-            StringificationBehavior behavior = eStringify;
-            if(JSVAL_IS_NULL(v))
-            {
-                behavior = nullBehavior;
-            }
-            else if(JSVAL_IS_VOID(v))
-            {
-                behavior = undefinedBehavior;
-            }
-
-            // If pval is null, that means the argument was optional and
-            // not passed; turn those into void strings if they're
-            // supposed to be stringified.
-            if (behavior != eStringify || !pval)
-            {
-                // Here behavior == eStringify implies !pval, so both eNull and
-                // eStringify should end up with void strings.
-                (new(mBuf) implementation_type(
-                    traits::sEmptyBuffer, PRUint32(0)))->
-                    SetIsVoid(behavior != eEmpty);
-                mValid = JS_TRUE;
-                return nsnull;
-            }
-
-            s = JS_ValueToString(cx, v);
-            if(!s)
-            {
-                mValid = JS_FALSE;
-                return nsnull;
-            }
-            *pval = STRING_TO_JSVAL(s);  // Root the new string.
-        }
-
-        return s;
-    }
-};
-
-/**
- * Class for converting a jsval to DOMString.
- *
- *     xpc_qsDOMString arg0(cx, &argv[0]);
- *     if (!arg0.IsValid())
- *         return JS_FALSE;
- *
- * The second argument to the constructor is an in-out parameter. It must
- * point to a rooted jsval, such as a JSNative argument or return value slot.
- * The value in the jsval on entry is converted to a string. The constructor
- * may overwrite that jsval with a string value, to protect the characters of
- * the string from garbage collection. The caller must leave the jsval alone
- * for the lifetime of the xpc_qsDOMString.
- */
-class xpc_qsDOMString : public xpc_qsBasicString<nsAString, nsDependentString>
-{
-public:
     xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
                     StringificationBehavior nullBehavior,
                     StringificationBehavior undefinedBehavior);
@@ -439,19 +384,7 @@ public:
 class xpc_qsACString : public xpc_qsBasicString<nsACString, nsCString>
 {
 public:
-    xpc_qsACString(JSContext *cx, jsval v, jsval *pval,
-                   StringificationBehavior nullBehavior = eNull,
-                   StringificationBehavior undefinedBehavior = eNull);
-};
-
-/**
- * And similar for AUTF8String.
- */
-class xpc_qsAUTF8String :
-  public xpc_qsBasicString<nsACString, NS_ConvertUTF16toUTF8>
-{
-public:
-  xpc_qsAUTF8String(JSContext* cx, jsval v, jsval *pval);
+    xpc_qsACString(JSContext *cx, jsval v, jsval *pval);
 };
 
 struct xpc_qsSelfRef
@@ -463,19 +396,32 @@ struct xpc_qsSelfRef
     nsISupports* ptr;
 };
 
+template<size_t N>
+struct xpc_qsArgValArray
+{
+    xpc_qsArgValArray(JSContext *cx) : tvr(cx, N, array)
+    {
+        memset(array, 0, N * sizeof(jsval));
+    }
+
+    js::AutoArrayRooter tvr;
+    jsval array[N];
+};
+
 /**
  * Convert a jsval to char*, returning JS_TRUE on success.
  *
  * @param cx
- *     A context.
- * @param v
- *     A value to convert.
- * @param bytes
- *     Out. On success it receives the converted string unless v is null or
- *     undefinedin which case bytes->ptr() remains null.
+ *      A context.
+ * @param pval
+ *     In/out. *pval is the jsval to convert; the function may write to *pval,
+ *     using it as a GC root (like xpc_qsDOMString's constructor).
+ * @param pstr
+ *     Out. On success *pstr receives the converted string or NULL if *pval is
+ *     null or undefined. Unicode data is garbled as with JS_GetStringBytes.
  */
 JSBool
-xpc_qsJsvalToCharStr(JSContext *cx, jsval v, JSAutoByteString *bytes);
+xpc_qsJsvalToCharStr(JSContext *cx, jsval v, jsval *pval, char **pstr);
 
 JSBool
 xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
@@ -681,12 +627,6 @@ xpc_qsGetWrapperCache(nsWrapperCache *cache)
     return cache;
 }
 
-// nsGlobalWindow implements nsWrapperCache, but doesn't always use it. Don't
-// try to use it without fixing that first.
-class nsGlobalWindow;
-inline nsWrapperCache*
-xpc_qsGetWrapperCache(nsGlobalWindow *not_allowed);
-
 inline nsWrapperCache*
 xpc_qsGetWrapperCache(void *p)
 {
@@ -711,66 +651,6 @@ JSBool
 xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
                      nsIVariant *p,
                      jsval *rval);
-
-/**
- * Convert a jsval to PRInt64. Return JS_TRUE on success.
- */
-inline JSBool
-xpc_qsValueToInt64(JSContext *cx,
-                   jsval v,
-                   PRInt64 *result)
-{
-    if (JSVAL_IS_INT(v)) {
-        int32 intval;
-        if (!JS_ValueToECMAInt32(cx, v, &intval))
-            return JS_FALSE;
-        *result = static_cast<PRInt64>(intval);
-    }
-    else {
-        jsdouble doubleval;
-        if (!JS_ValueToNumber(cx, v, &doubleval))
-            return JS_FALSE;
-        *result = static_cast<PRInt64>(doubleval);
-    }
-    return JS_TRUE;
-}
-
-/**
- * Convert a jsdouble to PRUint64. Needed for traceable quickstubs too.
- */
-inline PRUint64
-xpc_qsDoubleToUint64(jsdouble doubleval)
-{
-#ifdef XP_WIN
-    // Note: Win32 can't handle double to uint64 directly
-    return static_cast<PRUint64>(static_cast<PRInt64>(doubleval));
-#else
-    return static_cast<PRUint64>(doubleval);
-#endif
-}
-
-/**
- * Convert a jsval to PRUint64. Return JS_TRUE on success.
- */
-inline JSBool
-xpc_qsValueToUint64(JSContext *cx,
-                    jsval v,
-                    PRUint64 *result)
-{
-    if (JSVAL_IS_INT(v)) {
-        uint32 intval;
-        if (!JS_ValueToECMAUint32(cx, v, &intval))
-            return JS_FALSE;
-        *result = static_cast<PRUint64>(intval);
-    }
-    else {
-        jsdouble doubleval;
-        if (!JS_ValueToNumber(cx, v, &doubleval))
-            return JS_FALSE;
-        *result = xpc_qsDoubleToUint64(doubleval);
-    }
-    return JS_TRUE;
-}
 
 #ifdef DEBUG
 void

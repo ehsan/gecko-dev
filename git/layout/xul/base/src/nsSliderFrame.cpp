@@ -70,9 +70,6 @@
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 PRBool nsSliderFrame::gMiddlePref = PR_FALSE;
 PRInt32 nsSliderFrame::gSnapMultiplier;
@@ -120,8 +117,8 @@ nsSliderFrame::Init(nsIContent*      aContent,
   if (!gotPrefs) {
     gotPrefs = PR_TRUE;
 
-    gMiddlePref = Preferences::GetBool("middlemouse.scrollbarPosition");
-    gSnapMultiplier = Preferences::GetInt("slider.snapMultiplier");
+    gMiddlePref = nsContentUtils::GetBoolPref("middlemouse.scrollbarPosition");
+    gSnapMultiplier = nsContentUtils::GetIntPref("slider.snapMultiplier");
   }
 
   mCurPos = GetCurrentPosition(aContent);
@@ -442,7 +439,7 @@ nsSliderFrame::DoLayout(nsBoxLayoutState& aState)
   SyncLayout(aState);
 
   // Redraw only if thumb changed size.
-  if (!oldThumbRect.IsEqualInterior(thumbRect))
+  if (oldThumbRect != thumbRect)
     Redraw(aState);
 
   return NS_OK;

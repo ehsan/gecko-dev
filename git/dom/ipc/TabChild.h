@@ -36,8 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_TabChild_h
-#define mozilla_dom_TabChild_h
+#ifndef mozilla_tabs_TabChild_h
+#define mozilla_tabs_TabChild_h
 
 #ifndef _IMPL_NS_LAYOUT
 #include "mozilla/dom/PBrowserChild.h"
@@ -48,7 +48,8 @@
 #include "nsIWebBrowserChrome2.h"
 #include "nsIEmbeddingSiteWindow2.h"
 #include "nsIWebBrowserChromeFocus.h"
-#include "nsIWidget.h"
+#include "nsIWebProgressListener.h"
+#include "nsIWebProgressListener2.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIInterfaceRequestor.h"
@@ -78,10 +79,6 @@
 struct gfxMatrix;
 
 namespace mozilla {
-namespace layout {
-class RenderFrameChild;
-}
-
 namespace dom {
 
 class TabChild;
@@ -94,7 +91,6 @@ class TabChildGlobal : public nsDOMEventTargetHelper,
 {
 public:
   TabChildGlobal(TabChild* aTabChild);
-  ~TabChildGlobal();
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TabChildGlobal, nsDOMEventTargetHelper)
   NS_FORWARD_SAFE_NSIFRAMEMESSAGEMANAGER(mMessageManager)
@@ -109,7 +105,6 @@ public:
   {
     return mMessageManager ? mMessageManager->Dump(aStr) : NS_OK;
   }
-  NS_IMETHOD PrivateNoteIntentionalCrash();
 
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
@@ -117,7 +112,7 @@ public:
   {
     // By default add listeners only for trusted events!
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
-                                                    aUseCapture, PR_FALSE, 2);
+                                                    aUseCapture, PR_FALSE, 1);
   }
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
@@ -150,6 +145,7 @@ protected:
 
 class TabChild : public PBrowserChild,
                  public nsFrameScriptExecutor,
+                 public nsIWebProgressListener2,
                  public nsIWebBrowserChrome2,
                  public nsIEmbeddingSiteWindow2,
                  public nsIWebBrowserChromeFocus,
@@ -159,14 +155,15 @@ class TabChild : public PBrowserChild,
                  public nsIDialogCreator,
                  public nsITabChild
 {
-    typedef mozilla::layout::RenderFrameChild RenderFrameChild;
-
 public:
     TabChild(PRUint32 aChromeFlags);
     virtual ~TabChild();
+    bool DestroyWidget();
     nsresult Init();
 
     NS_DECL_ISUPPORTS
+    NS_DECL_NSIWEBPROGRESSLISTENER
+    NS_DECL_NSIWEBPROGRESSLISTENER2
     NS_DECL_NSIWEBBROWSERCHROME
     NS_DECL_NSIWEBBROWSERCHROME2
     NS_DECL_NSIEMBEDDINGSITEWINDOW
@@ -176,9 +173,12 @@ public:
     NS_DECL_NSIWINDOWPROVIDER
     NS_DECL_NSIDIALOGCREATOR
 
+    virtual bool RecvCreateWidget(const MagicWindowHandle& parentWidget);
     virtual bool RecvLoadURL(const nsCString& uri);
-    virtual bool RecvShow(const nsIntSize& size);
-    virtual bool RecvMove(const nsIntSize& size);
+    virtual bool RecvMove(const PRUint32& x,
+                          const PRUint32& y,
+                          const PRUint32& width,
+                          const PRUint32& height);
     virtual bool RecvActivate();
     virtual bool RecvMouseEvent(const nsString& aType,
                                 const float&    aX,
@@ -194,47 +194,97 @@ public:
                               const bool&     aPreventDefault);
     virtual bool RecvCompositionEvent(const nsCompositionEvent& event);
     virtual bool RecvTextEvent(const nsTextEvent& event);
+    virtual bool RecvQueryContentEvent(const nsQueryContentEvent& event);
     virtual bool RecvSelectionEvent(const nsSelectionEvent& event);
     virtual bool RecvActivateFrameEvent(const nsString& aType, const bool& capture);
     virtual bool RecvLoadRemoteScript(const nsString& aURL);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const nsString& aJSON);
-
-    virtual PDocumentRendererChild*
-    AllocPDocumentRenderer(const nsRect& documentRect, const gfxMatrix& transform,
-                           const nsString& bgcolor,
-                           const PRUint32& renderFlags, const bool& flushLayout,
-                           const nsIntSize& renderSize);
+    virtual mozilla::ipc::PDocumentRendererChild* AllocPDocumentRenderer(
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush);
     virtual bool DeallocPDocumentRenderer(PDocumentRendererChild* actor);
-    virtual bool RecvPDocumentRendererConstructor(PDocumentRendererChild* actor,
-                                                  const nsRect& documentRect,
-                                                  const gfxMatrix& transform,
-                                                  const nsString& bgcolor,
-                                                  const PRUint32& renderFlags,
-                                                  const bool& flushLayout,
-                                                  const nsIntSize& renderSize);
-
+    virtual bool RecvPDocumentRendererConstructor(
+            mozilla::ipc::PDocumentRendererChild *__a,
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush);
     virtual PContentDialogChild* AllocPContentDialog(const PRUint32&,
                                                      const nsCString&,
                                                      const nsCString&,
-                                                     const InfallibleTArray<int>&,
-                                                     const InfallibleTArray<nsString>&);
+                                                     const nsTArray<int>&,
+                                                     const nsTArray<nsString>&);
     virtual bool DeallocPContentDialog(PContentDialogChild* aDialog);
+    virtual PExternalHelperAppChild *AllocPExternalHelperApp(
+            const IPC::URI& uri,
+            const nsCString& aMimeContentType,
+            const bool& aForceSave,
+            const PRInt64& aContentLength);
+    virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
     static void ParamsToArrays(nsIDialogParamBlock* aParams,
-                               InfallibleTArray<int>& aIntParams,
-                               InfallibleTArray<nsString>& aStringParams);
-    static void ArraysToParams(const InfallibleTArray<int>& aIntParams,
-                               const InfallibleTArray<nsString>& aStringParams,
+                               nsTArray<int>& aIntParams,
+                               nsTArray<nsString>& aStringParams);
+    static void ArraysToParams(const nsTArray<int>& aIntParams,
+                               const nsTArray<nsString>& aStringParams,
                                nsIDialogParamBlock* aParams);
 
-    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
-    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
+    virtual PDocumentRendererShmemChild* AllocPDocumentRendererShmem(
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            Shmem& buf);
+    virtual bool DeallocPDocumentRendererShmem(PDocumentRendererShmemChild* actor);
+    virtual bool RecvPDocumentRendererShmemConstructor(
+            PDocumentRendererShmemChild *__a,
+            const PRInt32& aX,
+            const PRInt32& aY,
+            const PRInt32& aW,
+            const PRInt32& aH,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            Shmem& aBuf);
 
-    virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdate(const URI& manifestURI,
-            const URI& documentURI,
-            const nsCString& clientID,
-            const bool& stickDocument);
-    virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateChild* offlineCacheUpdate);
+    virtual PDocumentRendererNativeIDChild* AllocPDocumentRendererNativeID(
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            const PRUint32& nativeID);
+    virtual bool DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDChild* actor);
+    virtual bool RecvPDocumentRendererNativeIDConstructor(
+            PDocumentRendererNativeIDChild *__a,
+            const PRInt32& aX,
+            const PRInt32& aY,
+            const PRInt32& aW,
+            const PRInt32& aH,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            const PRUint32& aNativeID);
+
+    virtual PGeolocationRequestChild* AllocPGeolocationRequest(const IPC::URI& uri);
+    virtual bool DeallocPGeolocationRequest(PGeolocationRequestChild* actor);
 
     nsIWebNavigation* WebNavigation() { return mWebNav; }
 
@@ -244,10 +294,6 @@ public:
 
 protected:
     NS_OVERRIDE
-    virtual PRenderFrameChild* AllocPRenderFrame();
-    NS_OVERRIDE
-    virtual bool DeallocPRenderFrame(PRenderFrameChild* aFrame);
-    NS_OVERRIDE
     virtual bool RecvDestroy();
 
     bool DispatchWidgetEvent(nsGUIEvent& event);
@@ -256,12 +302,8 @@ private:
     void ActorDestroy(ActorDestroyReason why);
 
     bool InitTabChildGlobal();
-    bool InitWidget(const nsIntSize& size);
-    void DestroyWindow();
 
     nsCOMPtr<nsIWebNavigation> mWebNav;
-    nsCOMPtr<nsIWidget> mWidget;
-    RenderFrameChild* mRemoteFrame;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     PRUint32 mChromeFlags;
 
@@ -290,4 +332,4 @@ GetTabChildFrom(nsIPresShell* aPresShell)
 }
 }
 
-#endif // mozilla_dom_TabChild_h
+#endif // mozilla_tabs_TabChild_h

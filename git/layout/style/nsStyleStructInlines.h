@@ -53,13 +53,20 @@ nsStyleBorder::SetBorderImage(imgIRequest* aImage)
 {
   mBorderImage = aImage;
   mSubImages.Clear();
+
+  /*
+   * Request a decode to jump start decoding, and lock it to make sure it
+   * stays decoded.
+   */
+  if (mBorderImage) {
+    mBorderImage->RequestDecode();
+    mBorderImage->LockImage();
+  }
 }
 
 inline imgIRequest*
 nsStyleBorder::GetBorderImage() const
 {
-  NS_ABORT_IF_FALSE(!mBorderImage || mImageTracked,
-                    "Should be tracking any images we're going to use!");
   return mBorderImage;
 }
 
@@ -68,8 +75,7 @@ inline PRBool nsStyleBorder::IsBorderImageLoaded() const
   PRUint32 status;
   return mBorderImage &&
          NS_SUCCEEDED(mBorderImage->GetImageStatus(&status)) &&
-         (status & imgIRequest::STATUS_LOAD_COMPLETE) &&
-         !(status & imgIRequest::STATUS_ERROR);
+         (status & imgIRequest::STATUS_LOAD_COMPLETE);
 }
 
 inline void

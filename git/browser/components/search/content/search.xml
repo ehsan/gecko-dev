@@ -121,7 +121,7 @@
                Components.classes["@mozilla.org/observer-service;1"]
                          .getService(Components.interfaces.nsIObserverService);
           os.addObserver(this, "browser-search-engine-modified", false);
-
+          
           this._addedObserver = true;
         ]]></body>
       </method>
@@ -275,6 +275,7 @@
               }
             }
           }
+          BrowserSearch.updateSearchButton();
         ]]></body>
       </method>
 
@@ -302,6 +303,7 @@
               }
             }
           }
+          BrowserSearch.updateSearchButton();
         ]]></body>
       </method>
 
@@ -474,12 +476,8 @@
 
           // Save the current value in the form history
           if (textValue) {
-            try {
-              textBox._formHistSvc.addEntry(textBox.getAttribute("autocompletesearchparam"),
-                                            textValue);
-            } catch (ex) {
-              Components.utils.reportError("Saving search to form history failed: " + ex);
-            }
+            textBox._formHistSvc.addEntry(textBox.getAttribute("autocompletesearchparam"),
+                                          textValue);
           }
 
           this.doSearch(textValue, where);
@@ -523,8 +521,11 @@
 
       <handler event="DOMMouseScroll"
                phase="capturing"
-               modifiers="accel"
-               action="this.selectEngine(event, (event.detail > 0));"/>
+#ifdef XP_MACOSX
+               action="if (event.metaKey) this.selectEngine(event, (event.detail > 0));"/>
+#else
+               action="if (event.ctrlKey) this.selectEngine(event, (event.detail > 0));"/>
+#endif
     </handlers>
   </binding>
 
@@ -579,44 +580,16 @@
                                                 "anonid", "textbox-input-box");
           var cxmenu = document.getAnonymousElementByAttribute(textBox,
                                             "anonid", "input-box-contextmenu");
-          var pasteAndSearch;
-          cxmenu.addEventListener("popupshowing", function() {
-            if (!pasteAndSearch)
-              return;
-            var controller = document.commandDispatcher.getControllerForCommand("cmd_paste");
-            var enabled = controller.isCommandEnabled("cmd_paste");
-            if (enabled)
-              pasteAndSearch.removeAttribute("disabled");
-            else
-              pasteAndSearch.setAttribute("disabled", "true");
-          }, false);
 
-          var element, label, akey;
-
-          element = document.createElementNS(kXULNS, "menuseparator");
+          var element = document.createElementNS(kXULNS, "menuseparator");
           cxmenu.appendChild(element);
-
-          var insertLocation = cxmenu.firstChild;
-          while (insertLocation.nextSibling &&
-                 insertLocation.getAttribute("cmd") != "cmd_paste")
-            insertLocation = insertLocation.nextSibling;
-          if (insertLocation) {
-            element = document.createElementNS(kXULNS, "menuitem");
-            label = this._stringBundle.getString("cmd_pasteAndSearch");
-            element.setAttribute("label", label);
-            element.setAttribute("anonid", "paste-and-search");
-            element.setAttribute("oncommand",
-                "BrowserSearch.searchBar.select(); goDoCommand('cmd_paste'); BrowserSearch.searchBar.handleSearchCommand();");
-            cxmenu.insertBefore(element, insertLocation.nextSibling);
-            pasteAndSearch = element;
-          }
-
           element = document.createElementNS(kXULNS, "menuitem");
-          label = this._stringBundle.getString("cmd_clearHistory");
-          akey = this._stringBundle.getString("cmd_clearHistory_accesskey");
+          var label = this._stringBundle.getString("cmd_clearHistory");
+          var akey = this._stringBundle.getString("cmd_clearHistory_accesskey");
           element.setAttribute("label", label);
           element.setAttribute("accesskey", akey);
           element.setAttribute("cmd", "cmd_clearhistory");
+
           cxmenu.appendChild(element);
 
           element = document.createElementNS(kXULNS, "menuitem");
@@ -629,6 +602,7 @@
           element.setAttribute("type", "checkbox");
           element.setAttribute("checked", this._suggestEnabled);
           element.setAttribute("autocheck", "false");
+
           this._suggestMenuItem = element;
           cxmenu.appendChild(element);
 
@@ -641,12 +615,6 @@
         ]]></body>
       </method>
 
-      <!--
-        This method overrides the autocomplete binding's openPopup (essentially
-        duplicating the logic from the autocomplete popup binding's
-        openAutocompletePopup method), modifying it so that the popup is aligned with
-        the inner textbox, but sized to not extend beyond the search bar border.
-      -->
       <method name="openPopup">
         <body><![CDATA[
           var popup = this.popup;
@@ -663,24 +631,16 @@
             popup.mInput = this;
             popup.view = this.controller.QueryInterface(Components.interfaces.nsITreeView);
             popup.invalidate();
-
+            
             popup.showCommentColumn = this.showCommentColumn;
             popup.showImageColumn = this.showImageColumn;
 
             document.popupNode = null;
 
-            const isRTL = getComputedStyle(this, "").direction == "rtl";
-
             var outerRect = this.getBoundingClientRect();
             var innerRect = this.inputField.getBoundingClientRect();
-            if (isRTL) {
-              var width = innerRect.right - outerRect.left;
-            } else {
-              var width = outerRect.right - innerRect.left;
-            }
+            var width = outerRect.right - innerRect.left;
             popup.setAttribute("width", width > 100 ? width : 100);
-
-            var yOffset = outerRect.bottom - innerRect.bottom;
 
             // setConsumeRollupEvent() before we call openPopup(), 
             // see bug #404438 for more details
@@ -688,7 +648,7 @@
               this.consumeRollupEvent ? 
                 Ci.nsIPopupBoxObject.ROLLUP_CONSUME : 
                 Ci.nsIPopupBoxObject.ROLLUP_NO_CONSUME);
-            popup.openPopup(this.inputField, "after_start", 0, yOffset, false, false);
+            popup.openPopup(null, "", innerRect.left, outerRect.bottom, false, false);
           }
         ]]></body>
       </method>

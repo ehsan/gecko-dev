@@ -58,6 +58,17 @@ MODULE_NAME	= nsLayoutModule
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+ifndef MOZ_ENABLE_LIBXUL
+EXTRA_DSO_LIBS	= gkgfx
+
+ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
+EXTRA_DSO_LIBS += angle
+endif
+
+endif
+
+EXTRA_DSO_LIBS	+= thebes ycbcr
+
 
 CPPSRCS		= \
 		nsLayoutModule.cpp \
@@ -73,13 +84,11 @@ EXPORTS		= \
 
 SHARED_LIBRARY_LIBS = \
 	../base/$(LIB_PREFIX)gkbase_s.$(LIB_SUFFIX) \
-	../forms/$(LIB_PREFIX)gkforms_s.$(LIB_SUFFIX) \
 	../generic/$(LIB_PREFIX)gkgeneric_s.$(LIB_SUFFIX) \
-	../ipc/$(LIB_PREFIX)gkipc_s.$(LIB_SUFFIX) \
+	../forms/$(LIB_PREFIX)gkforms_s.$(LIB_SUFFIX) \
 	../style/$(LIB_PREFIX)gkstyle_s.$(LIB_SUFFIX) \
 	../tables/$(LIB_PREFIX)gktable_s.$(LIB_SUFFIX) \
 	../xul/base/src/$(LIB_PREFIX)gkxulbase_s.$(LIB_SUFFIX) \
-	../mathml/$(LIB_PREFIX)gkmathml_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/base/src/$(LIB_PREFIX)gkconbase_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/canvas/src/$(LIB_PREFIX)gkconcvs_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/events/src/$(LIB_PREFIX)gkconevents_s.$(LIB_SUFFIX) \
@@ -101,7 +110,6 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/src/storage/$(LIB_PREFIX)jsdomstorage_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/offline/$(LIB_PREFIX)jsdomoffline_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/geolocation/$(LIB_PREFIX)jsdomgeolocation_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/src/notification/$(LIB_PREFIX)jsdomnotification_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/system/$(LIB_PREFIX)domsystem_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/threads/$(LIB_PREFIX)domthreads_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/indexedDB/$(LIB_PREFIX)dom_indexeddb_s.$(LIB_SUFFIX) \
@@ -109,9 +117,6 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/editor/libeditor/base/$(LIB_PREFIX)editorbase_s.$(LIB_SUFFIX) \
 	$(DEPTH)/parser/html/$(LIB_PREFIX)html5p_s.$(LIB_SUFFIX) \
 	$(DEPTH)/caps/src/$(LIB_PREFIX)caps_s.$(LIB_SUFFIX) \
-	$(DEPTH)/editor/libeditor/html/$(LIB_PREFIX)htmleditor_s.$(LIB_SUFFIX) \
-	$(DEPTH)/editor/txtsvc/src/$(LIB_PREFIX)txtsvc_s.$(LIB_SUFFIX) \
-	$(DEPTH)/content/mathml/content/src/$(LIB_PREFIX)gkcontentmathml_s.$(LIB_SUFFIX) \
 	$(NULL)
 
 ifneq (,$(filter qt gtk2,$(MOZ_WIDGET_TOOLKIT)))
@@ -151,13 +156,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_TREMOR
-SHARED_LIBRARY_LIBS	+= \
-	$(DEPTH)/media/libtremor/lib/$(LIB_PREFIX)tremor.$(LIB_SUFFIX) \
-	$(DEPTH)/media/libogg/src/$(LIB_PREFIX)ogg.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
 ifdef MOZ_MEDIA
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/$(LIB_PREFIX)gkconmedia_s.$(LIB_SUFFIX) \
@@ -171,20 +169,16 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_RAW
 SHARED_LIBRARY_LIBS     += \
        $(DEPTH)/content/media/raw/$(LIB_PREFIX)gkconraw_s.$(LIB_SUFFIX)\
        $(NULL)
-endif
 
 ifdef MOZ_WEBM
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/webm/$(LIB_PREFIX)gkconwebm_s.$(LIB_SUFFIX) \
 	$(DEPTH)/media/libnestegg/src/$(LIB_PREFIX)nestegg.$(LIB_SUFFIX) \
+	$(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX) \
 	$(NULL)
-ifndef MOZ_NATIVE_LIBVPX
-SHARED_LIBRARY_LIBS 	+= $(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX)
-endif
 endif
 
 ifdef MOZ_WAVE
@@ -220,18 +214,39 @@ LOCAL_INCLUDES  += \
       $(NULL)
 SHARED_LIBRARY_LIBS += ../inspector/src/$(LIB_PREFIX)inspector_s.$(LIB_SUFFIX)
 
+ifdef MOZ_MATHML
+SHARED_LIBRARY_LIBS += \
+		../mathml/$(LIB_PREFIX)gkmathml_s.$(LIB_SUFFIX) \
+		$(DEPTH)/content/mathml/content/src/$(LIB_PREFIX)gkcontentmathml_s.$(LIB_SUFFIX) \
+		$(NULL)
+endif
+
 ifdef MOZ_XTF
 SHARED_LIBRARY_LIBS += \
 		$(DEPTH)/content/xtf/src/$(LIB_PREFIX)gkcontentxtf_s.$(LIB_SUFFIX) \
 		$(NULL)
 endif
 
+ifdef MOZ_SVG
 SHARED_LIBRARY_LIBS += \
 		../svg/base/src/$(LIB_PREFIX)gksvgbase_s.$(LIB_SUFFIX) \
 		$(DEPTH)/content/svg/document/src/$(LIB_PREFIX)gkconsvgdoc_s.$(LIB_SUFFIX) \
 		$(DEPTH)/content/svg/content/src/$(LIB_PREFIX)gkcontentsvg_s.$(LIB_SUFFIX) \
+		$(NULL)
+endif
+
+SHARED_LIBRARY_LIBS += \
 		$(DEPTH)/content/smil/$(LIB_PREFIX)gkconsmil_s.$(LIB_SUFFIX) \
 		$(NULL)
+
+ifdef MOZ_PLAINTEXT_EDITOR_ONLY
+DEFINES += -DMOZILLA_PLAINTEXT_EDITOR_ONLY
+else
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/editor/libeditor/html/$(LIB_PREFIX)htmleditor_s.$(LIB_SUFFIX) \
+	$(DEPTH)/editor/txtsvc/src/$(LIB_PREFIX)txtsvc_s.$(LIB_SUFFIX) \
+	$(NULL)
+endif
 
 ifdef ENABLE_EDITOR_API_LOG
 DEFINES += -DENABLE_EDITOR_API_LOG
@@ -240,8 +255,43 @@ endif
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/js/src/xpconnect/src/$(LIB_PREFIX)xpconnect_s.$(LIB_SUFFIX)
 
+EXTRA_DSO_LDOPTS = \
+		$(LIBS_DIR) \
+		$(EXTRA_DSO_LIBS) \
+		$(MOZ_UNICHARUTIL_LIBS) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(MOZ_JS_LIBS) \
+		$(NULL)
+
+EXTRA_DSO_LDOPTS += $(TK_LIBS)
+
+ifdef MOZ_ENABLE_GTK2
+EXTRA_DSO_LDOPTS += -lXrender
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+EXTRA_DSO_LDOPTS += $(TK_LIBS)
+OS_LIBS += -framework OpenGL
+endif
+
+# Add explicit X11 dependency when building against X11 toolkits
+ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
+EXTRA_DSO_LDOPTS += $(XLDFLAGS) $(XLIBS)
+endif
+
+ifdef MOZ_SYDNEYAUDIO
+ifeq ($(OS_ARCH),Linux)
+EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
+endif
+ifeq ($(OS_ARCH),Darwin)
+OS_LIBS += -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon -framework IOKit
+endif
+endif
+
+ifdef MOZ_IPC
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 
 include $(topsrcdir)/config/rules.mk
 
@@ -252,9 +302,7 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   -I$(srcdir)/../style \
 		   -I$(srcdir)/../xul/content/src \
 		   -I$(srcdir)/../xul/base/src \
-		   -I$(srcdir)/../mathml \
 		   -I$(topsrcdir)/content/base/src \
- 		   -I$(topsrcdir)/content/canvas/src \
 		   -I$(topsrcdir)/content/html/content/src \
 		   -I$(topsrcdir)/content/html/document/src \
 		   -I$(topsrcdir)/content/html/style/src \
@@ -284,9 +332,15 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   -I$(topsrcdir)/js/src/xpconnect/src \
 		   -I$(topsrcdir)/js/src/xpconnect/loader \
 		   -I$(topsrcdir)/caps/include \
-		   -I$(topsrcdir)/netwerk/base/src \
-		   -I$(topsrcdir)/content/svg/content/src \
 		   $(NULL)
+
+ifdef MOZ_MATHML
+LOCAL_INCLUDES	+= -I$(srcdir)/../mathml
+endif
+
+ifdef MOZ_SVG
+LOCAL_INCLUDES	+= -I$(topsrcdir)/content/svg/content/src
+endif
 
 DEFINES += -D_IMPL_NS_LAYOUT
 

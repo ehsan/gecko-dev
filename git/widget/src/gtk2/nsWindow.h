@@ -40,8 +40,6 @@
 #ifndef __nsWindow_h__
 #define __nsWindow_h__
 
-#include "mozilla/ipc/SharedMemorySysV.h"
-
 #include "nsAutoPtr.h"
 
 #include "mozcontainer.h"
@@ -99,11 +97,6 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 
 #endif /* MOZ_LOGGING */
 
-#if defined(MOZ_X11) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)
-#  define MOZ_HAVE_SHMIMAGE
-
-class nsShmImage;
-#endif
 
 class nsWindow : public nsBaseWidget, public nsSupportsWeakReference
 {
@@ -137,7 +130,7 @@ public:
                               nsNativeWidget   aNativeParent,
                               const nsIntRect  &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
-                              nsDeviceContext *aContext,
+                              nsIDeviceContext *aContext,
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
@@ -241,7 +234,7 @@ public:
                                          gint             aX,
                                          gint             aY,
                                          guint            aTime,
-                                         gpointer         aData);
+                                         void            *aData);
     void               OnDragLeaveEvent(GtkWidget *      aWidget,
                                         GdkDragContext   *aDragContext,
                                         guint            aTime,
@@ -251,7 +244,7 @@ public:
                                        gint             aX,
                                        gint             aY,
                                        guint            aTime,
-                                       gpointer         aData);
+                                       gpointer         *aData);
     void               OnDragDataReceivedEvent(GtkWidget       *aWidget,
                                                GdkDragContext  *aDragContext,
                                                gint             aX,
@@ -279,6 +272,7 @@ public:
 
     void               EnsureGrabs  (void);
     void               GrabPointer  (void);
+    void               GrabKeyboard (void);
     void               ReleaseGrabs (void);
 
     enum PluginType {
@@ -320,8 +314,8 @@ public:
                                             PRBool *aIsCancelled);
 
     NS_IMETHOD ResetInputState();
-    NS_IMETHOD SetInputMode(const IMEContext& aContext);
-    NS_IMETHOD GetInputMode(IMEContext& aContext);
+    NS_IMETHOD SetIMEEnabled(PRUint32 aState);
+    NS_IMETHOD GetIMEEnabled(PRUint32* aState);
     NS_IMETHOD CancelIMEComposition();
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
     NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
@@ -334,21 +328,16 @@ public:
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
 
+    virtual LayerManager*   GetLayerManager();
     gfxASurface       *GetThebesSurface();
 
     static already_AddRefed<gfxASurface> GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                                                   const nsIntSize& aSize);
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 
 #ifdef ACCESSIBILITY
     static PRBool      sAccessibilityEnabled;
 #endif
 protected:
-    // Helper for SetParent and ReparentNativeWidget.
-    void ReparentNativeWidgetInternal(nsIWidget* aNewParent,
-                                      GtkWidget* aNewContainer,
-                                      GdkWindow* aNewParentWindow,
-                                      GtkWidget* aOldContainer);
     nsCOMPtr<nsIWidget> mParent;
     // Is this a toplevel window?
     PRPackedBool        mIsTopLevel;
@@ -370,6 +359,9 @@ protected:
     PRPackedBool        mEnabled;
     // has the native window for this been created yet?
     PRPackedBool        mCreated;
+    // Has anyone set an x/y location for this widget yet? Toplevels
+    // shouldn't be automatically set to 0,0 for first show.
+    PRPackedBool        mPlaced;
 
 private:
     void               DestroyChildWindows();
@@ -387,7 +379,6 @@ private:
     PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
                                    GdkWindow** aWindow, gint* aButton,
                                    gint* aRootX, gint* aRootY);
-    void               ClearCachedResources();
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
@@ -397,7 +388,8 @@ private:
 
     PRUint32            mHasMappedToplevel : 1,
                         mIsFullyObscured : 1,
-                        mRetryPointerGrab : 1;
+                        mRetryPointerGrab : 1,
+                        mRetryKeyboardGrab : 1;
     GtkWindow          *mTransientParent;
     PRInt32             mSizeState;
     PluginType          mPluginType;
@@ -405,10 +397,6 @@ private:
     PRInt32             mTransparencyBitmapWidth;
     PRInt32             mTransparencyBitmapHeight;
 
-#ifdef MOZ_HAVE_SHMIMAGE
-    // If we're using xshm rendering, mThebesSurface wraps mShmImage
-    nsRefPtr<nsShmImage>  mShmImage;
-#endif
     nsRefPtr<gfxASurface> mThebesSurface;
 
 #ifdef MOZ_DFB
@@ -451,24 +439,6 @@ private:
      * accessible.
      */
     void                DispatchDeactivateEventAccessible();
-
-    /**
-     * Dispatch accessible window maximize event for the top level window
-     * accessible.
-     */
-    void                DispatchMaximizeEventAccessible();
-
-    /**
-     * Dispatch accessible window minize event for the top level window
-     * accessible.
-     */
-    void                DispatchMinimizeEventAccessible();
-
-    /**
-     * Dispatch accessible window restore event for the top level window
-     * accessible.
-     */
-    void                DispatchRestoreEventAccessible();
 #endif
 
     // The cursor cache
@@ -483,11 +453,19 @@ private:
  
     // all of our DND stuff
     // this is the last window that had a drag event happen on it.
-    static nsWindow    *sLastDragMotionWindow;
+    static nsWindow    *mLastDragMotionWindow;
     void   InitDragEvent         (nsDragEvent &aEvent);
     void   UpdateDragStatus      (GdkDragContext *aDragContext,
                                   nsIDragService *aDragService);
 
+    // this is everything we need to be able to fire motion events
+    // repeatedly
+    GtkWidget         *mDragMotionWidget;
+    GdkDragContext    *mDragMotionContext;
+    gint               mDragMotionX;
+    gint               mDragMotionY;
+    guint              mDragMotionTime;
+    guint              mDragMotionTimerID;
     nsCOMPtr<nsITimer> mDragLeaveTimer;
     float              mLastMotionPressure;
 
@@ -499,8 +477,47 @@ private:
     // drag in progress
     static PRBool DragInProgress(void);
 
+    void         ResetDragMotionTimer     (GtkWidget      *aWidget,
+                                           GdkDragContext *aDragContext,
+                                           gint           aX,
+                                           gint           aY,
+                                           guint          aTime);
+    void         FireDragMotionTimer      (void);
     void         FireDragLeaveTimer       (void);
+    static guint DragMotionTimerCallback (gpointer aClosure);
     static void  DragLeaveTimerCallback  (nsITimer *aTimer, void *aClosure);
+
+    /* Key Down event is DOM Virtual Key driven, needs 256 bits. */
+    PRUint32 mKeyDownFlags[8];
+
+    /* Helper methods for DOM Key Down event suppression. */
+    PRUint32* GetFlagWord32(PRUint32 aKeyCode, PRUint32* aMask) {
+        /* Mozilla DOM Virtual Key Code is from 0 to 224. */
+        NS_ASSERTION((aKeyCode <= 0xFF), "Invalid DOM Key Code");
+        aKeyCode &= 0xFF;
+
+        /* 32 = 2^5 = 0x20 */
+        *aMask = PRUint32(1) << (aKeyCode & 0x1F);
+        return &mKeyDownFlags[(aKeyCode >> 5)];
+    }
+
+    PRBool IsKeyDown(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        return ((*flag) & mask) != 0;
+    }
+
+    void SetKeyDownFlag(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        *flag |= mask;
+    }
+
+    void ClearKeyDownFlag(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        *flag &= ~mask;
+    }
 
     void DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent);
 

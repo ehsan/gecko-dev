@@ -43,7 +43,6 @@
 // use XPCOM assertion/debugging macros, etc.
 
 #include "nscore.h"
-#include "mozilla/SSE.h"
 
 #include "nsCharTraits.h"
 
@@ -443,16 +442,14 @@ class CalculateUTF8Length
                 p += 5;
             else if ( UTF8traits::is6byte(*p) )
                 p += 6;
-            else // error
+            else
               {
-                ++mLength; // to account for the decrement below
                 break;
               }
           }
         if ( p != end )
           {
             NS_ERROR("Not a UTF-8 string. This code should only be used for converting from known UTF-8 strings.");
-            --mLength; // The last multi-byte char wasn't complete, discard it.
             mErrorEncountered = PR_TRUE;
           }
       }
@@ -665,89 +662,39 @@ class CalculateUTF8Size
 
 #ifdef MOZILLA_INTERNAL_API
 /**
- * A character sink that performs a |reinterpret_cast|-style conversion
- * from char to PRUnichar.
+ * A character sink that performs a |reinterpret_cast| style conversion
+ * between character types.
  */
-class LossyConvertEncoding8to16
+template <class FromCharT, class ToCharT>
+class LossyConvertEncoding
   {
     public:
-      typedef char      value_type;
-      typedef char      input_type;
-      typedef PRUnichar output_type;
+      typedef FromCharT value_type;
+ 
+      typedef FromCharT input_type;
+      typedef ToCharT   output_type;
+
+      typedef typename nsCharTraits<FromCharT>::unsigned_char_type unsigned_input_type;
 
     public:
-      LossyConvertEncoding8to16( PRUnichar* aDestination ) :
-        mDestination(aDestination) { }
+      LossyConvertEncoding( output_type* aDestination ) : mDestination(aDestination) { }
 
       void
-      write( const char* aSource, PRUint32 aSourceLength )
+      write( const input_type* aSource, PRUint32 aSourceLength )
         {
-#ifdef MOZILLA_MAY_SUPPORT_SSE2
-          if (mozilla::supports_sse2())
-            {
-              write_sse2(aSource, aSourceLength);
-              return;
-            }
-#endif
-          const char* done_writing = aSource + aSourceLength;
+          const input_type* done_writing = aSource + aSourceLength;
           while ( aSource < done_writing )
-            *mDestination++ = (PRUnichar)(unsigned char)(*aSource++);
+            *mDestination++ = (output_type)(unsigned_input_type)(*aSource++);  // use old-style cast to mimic old |ns[C]String| behavior
         }
-
-      void
-      write_sse2( const char* aSource, PRUint32 aSourceLength );
 
       void
       write_terminator()
         {
-          *mDestination = (PRUnichar)(0);
+          *mDestination = output_type(0);
         }
 
     private:
-      PRUnichar* mDestination;
-  };
-
-/**
- * A character sink that performs a |reinterpret_cast|-style conversion
- * from PRUnichar to char.
- */
-class LossyConvertEncoding16to8
-  {
-    public:
-      typedef PRUnichar value_type;
-      typedef PRUnichar input_type;
-      typedef char      output_type;
-
-      LossyConvertEncoding16to8( char* aDestination ) : mDestination(aDestination) { }
-
-      void
-      write( const PRUnichar* aSource, PRUint32 aSourceLength)
-        {
-#ifdef MOZILLA_MAY_SUPPORT_SSE2
-          if (mozilla::supports_sse2())
-            {
-              write_sse2(aSource, aSourceLength);
-              return;
-            }
-#endif
-            const PRUnichar* done_writing = aSource + aSourceLength;
-            while ( aSource < done_writing )
-              *mDestination++ = (char)(*aSource++);
-        }
-
-#ifdef MOZILLA_MAY_SUPPORT_SSE2
-      void
-      write_sse2( const PRUnichar* aSource, PRUint32 aSourceLength );
-#endif
-
-      void
-      write_terminator()
-        {
-          *mDestination = '\0';
-        }
-
-    private:
-      char *mDestination;
+      output_type* mDestination;
   };
 #endif // MOZILLA_INTERNAL_API
 

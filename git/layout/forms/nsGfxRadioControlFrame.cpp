@@ -39,9 +39,8 @@
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
 #include "nsCSSRendering.h"
-#include "nsRenderingContext.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsITheme.h"
@@ -69,7 +68,9 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 already_AddRefed<nsAccessible>
 nsGfxRadioControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService
+    = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLRadioButtonAccessible(mContent,
                                                        PresContext()->PresShell());
@@ -83,7 +84,7 @@ nsGfxRadioControlFrame::CreateAccessible()
 // Draw the dot for a non-native radio button in the checked state.
 static void
 PaintCheckedRadioButton(nsIFrame* aFrame,
-                        nsRenderingContext* aCtx,
+                        nsIRenderingContext* aCtx,
                         const nsRect& aDirtyRect,
                         nsPoint aPt)
 {

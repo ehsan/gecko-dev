@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -87,36 +87,6 @@
 // should be reported as being margin-left, etc.  Call
 // nsCSSProps::OtherNameFor to get the other property.
 #define CSS_PROPERTY_REPORT_OTHER_NAME            (1<<7)
-
-// This property allows calc() between lengths and percentages and
-// stores such calc() expressions in its style structs (typically in an
-// nsStyleCoord, although this is not the case for 'background-position'
-// and 'background-size').
-#define CSS_PROPERTY_STORES_CALC                  (1<<8)
-
-// Define what mechanism the CSS parser uses for parsing the property.
-// See CSSParserImpl::ParseProperty(nsCSSProperty).  Don't use 0 so that
-// we can verify that every property sets one of the values.
-#define CSS_PROPERTY_PARSE_PROPERTY_MASK          (7<<9)
-#define CSS_PROPERTY_PARSE_INACCESSIBLE           (1<<9)
-#define CSS_PROPERTY_PARSE_FUNCTION               (2<<9)
-#define CSS_PROPERTY_PARSE_VALUE                  (3<<9)
-#define CSS_PROPERTY_PARSE_VALUE_LIST             (4<<9)
-
-// See CSSParserImpl::ParseSingleValueProperty
-#define CSS_PROPERTY_VALUE_PARSER_FUNCTION        (1<<12)
-PR_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
-                  CSS_PROPERTY_VALUE_PARSER_FUNCTION) == 0);
-
-#define CSS_PROPERTY_VALUE_RESTRICTION_MASK       (3<<13)
-// The parser (in particular, CSSParserImpl::ParseSingleValueProperty)
-// should enforce that the value of this property must be 0 or larger.
-#define CSS_PROPERTY_VALUE_NONNEGATIVE            (1<<13)
-// The parser (in particular, CSSParserImpl::ParseSingleValueProperty)
-// should enforce that the value of this property must be 1 or larger.
-#define CSS_PROPERTY_VALUE_AT_LEAST_ONE           (2<<13)
-
-// NOTE: next free bit is (1<<15)
 
 /**
  * Types of animatable values.
@@ -231,34 +201,6 @@ public:
     return (nsCSSProps::kFlagsTable[aProperty] & aFlags) == aFlags;
   }
 
-  static inline PRUint32 PropertyParseType(nsCSSProperty aProperty)
-  {
-    NS_ABORT_IF_FALSE(0 <= aProperty && aProperty < eCSSProperty_COUNT,
-                      "out of range");
-    return nsCSSProps::kFlagsTable[aProperty] &
-           CSS_PROPERTY_PARSE_PROPERTY_MASK;
-  }
-
-  static inline PRUint32 ValueRestrictions(nsCSSProperty aProperty)
-  {
-    NS_ABORT_IF_FALSE(0 <= aProperty && aProperty < eCSSProperty_COUNT,
-                      "out of range");
-    return nsCSSProps::kFlagsTable[aProperty] &
-           CSS_PROPERTY_VALUE_RESTRICTION_MASK;
-  }
-
-private:
-  // Lives in nsCSSParser.cpp for the macros it depends on.
-  static const PRUint32 kParserVariantTable[eCSSProperty_COUNT_no_shorthands];
-
-public:
-  static inline PRUint32 ParserVariant(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(0 <= aProperty &&
-                      aProperty < eCSSProperty_COUNT_no_shorthands,
-                      "out of range");
-    return nsCSSProps::kParserVariantTable[aProperty];
-  }
-
 private:
   // A table for shorthand properties.  The appropriate index is the
   // property ID minus eCSSProperty_COUNT_no_shorthands.
@@ -295,30 +237,6 @@ private:
   static nsCSSProperty* gShorthandsContainingPool;
   static PRBool BuildShorthandsContainingTable();
 
-private:
-  static const size_t gPropertyCountInStruct[nsStyleStructID_Length];
-  static const size_t gPropertyIndexInStruct[eCSSProperty_COUNT_no_shorthands];
-public:
-  /**
-   * Return the number of properties that must be cascaded when
-   * nsRuleNode builds the nsStyle* for aSID.
-   */
-  static size_t PropertyCountInStruct(nsStyleStructID aSID) {
-    NS_ABORT_IF_FALSE(0 <= aSID && aSID < nsStyleStructID_Length,
-                      "out of range");
-    return gPropertyCountInStruct[aSID];
-  }
-  /**
-   * Return an index for aProperty that is unique within its SID and in
-   * the range 0 <= index < PropertyCountInStruct(aSID).
-   */
-  static size_t PropertyIndexInStruct(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(0 <= aProperty &&
-                         aProperty < eCSSProperty_COUNT_no_shorthands,
-                      "out of range");
-    return gPropertyIndexInStruct[aProperty];
-  }
-
 public:
 
 #define CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(iter_, prop_)                    \
@@ -326,11 +244,6 @@ public:
        *iter_ != eCSSProperty_UNKNOWN; ++iter_)
 
   // Keyword/Enum value tables
-  static const PRInt32 kAnimationDirectionKTable[];
-  static const PRInt32 kAnimationFillModeKTable[];
-  static const PRInt32 kAnimationIterationCountKTable[];
-  static const PRInt32 kAnimationPlayStateKTable[];
-  static const PRInt32 kAnimationTimingFunctionKTable[];
   static const PRInt32 kAppearanceKTable[];
   static const PRInt32 kAzimuthKTable[];
   static const PRInt32 kBackgroundAttachmentKTable[];
@@ -381,7 +294,6 @@ public:
   static const PRInt32 kLineHeightKTable[];
   static const PRInt32 kListStylePositionKTable[];
   static const PRInt32 kListStyleKTable[];
-  static const PRInt32 kOrientKTable[];
   static const PRInt32 kOutlineStyleKTable[];
   static const PRInt32 kOutlineColorKTable[];
   static const PRInt32 kOverflowKTable[];
@@ -404,10 +316,7 @@ public:
   static const PRInt32 kStackSizingKTable[];
   static const PRInt32 kTableLayoutKTable[];
   static const PRInt32 kTextAlignKTable[];
-  static const PRInt32 kTextBlinkKTable[];
-  static const PRInt32 kTextDecorationLineKTable[];
-  static const PRInt32 kTextDecorationStyleKTable[];
-  static const PRInt32 kTextOverflowKTable[];
+  static const PRInt32 kTextDecorationKTable[];
   static const PRInt32 kTextTransformKTable[];
   static const PRInt32 kTransitionTimingFunctionKTable[];
   static const PRInt32 kUnicodeBidiKTable[];
@@ -422,7 +331,6 @@ public:
   static const PRInt32 kWidthKTable[]; // also min-width, max-width
   static const PRInt32 kWindowShadowKTable[];
   static const PRInt32 kWordwrapKTable[];
-  static const PRInt32 kHyphensKTable[];
 };
 
 #endif /* nsCSSProps_h___ */

@@ -44,15 +44,15 @@ VPATH            = @srcdir@
 relativesrcdir   = dom/src/threads/test
 
 include $(DEPTH)/config/autoconf.mk
-
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = \
   test_404.html \
-  test_atob.html \
-  atob_worker.js \
   test_close.html \
   close_worker.js \
+  test_closeOnGC.html \
+  closeOnGC_worker.js \
+  closeOnGC_server.sjs \
   test_errorPropagation.html \
   errorPropagation_worker1.js \
   errorPropagation_worker2.js \
@@ -108,9 +108,6 @@ _TEST_FILES = \
   test_newError.html \
   newError_worker.js \
   test_chromeWorker.html \
-  WorkerTest_badworker.js \
-  test_xpcom.html \
-  xpcom_worker.js \
   $(NULL)
 
 _SUBDIR_TEST_FILES = \
@@ -121,22 +118,9 @@ _SUBDIR_TEST_FILES = \
 
 _CHROME_TEST_FILES = \
   test_chromeWorker.xul \
-  test_chromeWorkerComponent.xul \
-  test_chromeWorkerJSM.xul \
-  WorkerTest.jsm \
-  WorkerTest_worker.js \
-  WorkerTest_subworker.js \
   chromeWorker_worker.js \
   chromeWorker_subworker.js \
   $(NULL)
-
-ifneq ($(OS_ARCH),WINNT)
-_TEST_FILES += \
-  test_closeOnGC.html \
-  closeOnGC_worker.js \
-  closeOnGC_server.sjs \
-  $(NULL)
-endif
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

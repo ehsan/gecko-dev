@@ -52,10 +52,6 @@ interface imgIDecoderObserver;
 #include "gfxPattern.h"
 #include "gfxASurface.h"
 #include "nsRect.h"
-#include "nsSize.h"
-#include "limits.h"
-
-class nsIFrame;
 %}
 
 [ptr] native gfxImageSurface(gfxImageSurface);
@@ -66,8 +62,6 @@ native gfxImageFormat(gfxASurface::gfxImageFormat);
 [ref] native gfxRect(gfxRect);
 native gfxGraphicsFilter(gfxPattern::GraphicsFilter);
 [ref] native nsIntRect(nsIntRect);
-[ref] native nsIntSize(nsIntSize);
-[ptr] native nsIFrame(nsIFrame);
 
 /**
  * imgIContainer is the interface that represents an image. It allows
@@ -77,18 +71,16 @@ native gfxGraphicsFilter(gfxPattern::GraphicsFilter);
  *
  * Internally, imgIContainer also manages animation of images.
  */
-[scriptable, uuid(239dfa70-2285-4d63-99cd-e9b7ff9555c7)]
+[scriptable, uuid(362e5b5f-f677-49e0-9a3c-03249c794624)]
 interface imgIContainer : nsISupports
 {
   /**
-   * The width of the container rectangle.  In the case of any error,
-   * zero is returned, and an exception will be thrown.
+   * The width of the container rectangle.
    */
   readonly attribute PRInt32 width;
 
   /**
-   * The height of the container rectangle.  In the case of any error,
-   * zero is returned, and an exception will be thrown.
+   * The height of the container rectangle.
    */
   readonly attribute PRInt32 height;
 
@@ -106,7 +98,10 @@ interface imgIContainer : nsISupports
   /**
    * Direct C++ accessor for 'type' attribute, for convenience.
    */
-  [noscript, notxpcom] PRUint16 GetType();
+%{C++
+  virtual PRUint16 GetType() = 0;
+%}
+
 
   /**
    * Whether this image is animated. You can only be guaranteed that querying
@@ -133,19 +128,10 @@ interface imgIContainer : nsISupports
    * available data before the call returns. It is an error to pass this flag
    * from a call stack that originates in a decoder (ie, from a decoder
    * observer event).
-   *
-   * FLAG_DECODE_NO_PREMULTIPLY_ALPHA: Do not premultiply alpha if
-   * it's not already premultiplied in the image data.
-   *
-   * FLAG_DECODE_NO_COLORSPACE_CONVERSION: Do not do any colorspace conversion;
-   * ignore any embedded profiles, and don't convert to any particular destination
-   * space.
    */
 
   const long FLAG_NONE            = 0x0;
   const long FLAG_SYNC_DECODE     = 0x1;
-  const long FLAG_DECODE_NO_PREMULTIPLY_ALPHA = 0x2;
-  const long FLAG_DECODE_NO_COLORSPACE_CONVERSION = 0x4;
 
   /**
     * Constants for specifying various "special" frames.
@@ -204,13 +190,6 @@ interface imgIContainer : nsISupports
    *              automatically tiled as necessary.
    * @param aSubimage The area of the image, in pixels, that we are allowed to
    *                  sample from.
-   * @param aViewportSize
-   *          The size (in CSS pixels) of the viewport that would be available
-   *          for the full image to occupy, if we were drawing the full image.
-   *          (Note that we might not actually be drawing the full image -- we
-   *          might be restricted by aSubimage -- but we still need the full
-   *          image's viewport-size in order for SVG images with the "viewBox"
-   *          attribute to position their content correctly.)
    * @param aFlags Flags of the FLAG_* variety
    */
   [noscript] void draw(in gfxContext aContext,
@@ -218,18 +197,7 @@ interface imgIContainer : nsISupports
                        [const] in gfxMatrix aUserSpaceToImageSpace,
                        [const] in gfxRect aFill,
                        [const] in nsIntRect aSubimage,
-                       [const] in nsIntSize aViewportSize,
                        in PRUint32 aFlags);
-
-  /**
-   * If this image is TYPE_VECTOR, i.e. is really an embedded SVG document,
-   * this method returns a pointer to the root nsIFrame of that document. If
-   * not (or if the root nsIFrame isn't available for some reason), this method
-   * returns nsnull.
-   *
-   * "notxpcom" for convenience, since we have no need for nsresult return-val.
-   */
-  [notxpcom] nsIFrame GetRootLayoutFrame();
 
   /*
    * Ensures that an image is decoding. Calling this function guarantees that
@@ -274,5 +242,7 @@ interface imgIContainer : nsISupports
   attribute unsigned short animationMode;
 
   /* Methods to control animation */
+  void startAnimation();
+  void stopAnimation();
   void resetAnimation();
 };

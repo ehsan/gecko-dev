@@ -40,7 +40,7 @@ const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
 const NS_APP_HISTORY_50_FILE = "UHist";
 const NS_APP_BOOKMARKS_50_FILE = "BMarks";
 
-// Shortcuts to transitions type.
+// Shortcuts to transactions type.
 const TRANSITION_LINK = Ci.nsINavHistoryService.TRANSITION_LINK;
 const TRANSITION_TYPED = Ci.nsINavHistoryService.TRANSITION_TYPED;
 const TRANSITION_BOOKMARK = Ci.nsINavHistoryService.TRANSITION_BOOKMARK;
@@ -49,10 +49,6 @@ const TRANSITION_FRAMED_LINK = Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK;
 const TRANSITION_REDIRECT_PERMANENT = Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT;
 const TRANSITION_REDIRECT_TEMPORARY = Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY;
 const TRANSITION_DOWNLOAD = Ci.nsINavHistoryService.TRANSITION_DOWNLOAD;
-
-// This error icon must stay in sync with FAVICON_ERRORPAGE_URL in
-// nsIFaviconService.idl, aboutCertError.xhtml and netError.xhtml.
-const FAVICON_ERRORPAGE_URL = "chrome://global/skin/icons/warning-16.png";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -81,8 +77,6 @@ function LOG(aMsg) {
 
 let gTestDir = do_get_cwd();
 
-// Ensure history is enabled.
-Services.prefs.setBoolPref("places.history.enabled", true);
 
 // Initialize profile.
 let gProfD = do_get_profile();
@@ -126,27 +120,16 @@ function uri(aSpec) NetUtil.newURI(aSpec);
  *
  * @return The database connection or null if unable to get one.
  */
-let gDBConn;
 function DBConn() {
   let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
                               .DBConnection;
   if (db.connectionReady)
     return db;
 
-  // If the Places database connection has been closed, create a new connection.
-  if (!gDBConn) {
-    let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
-    file.append("places.sqlite");
-    gDBConn = Services.storage.openDatabase(file);
-
-    // Be sure to cleanly close this connection.
-    Services.obs.addObserver(function (aSubject, aTopic, aData) {
-      Services.obs.removeObserver(arguments.callee, aTopic);
-      gDBConn.asyncClose();
-    }, "profile-before-change", false);
-  }
-
-  return gDBConn.connectionReady ? gDBConn : null;
+  // If the database has been closed, then we need to open a new connection.
+  let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
+  file.append("places.sqlite");
+  return Services.storage.openDatabase(file);
 };
 
 
@@ -267,17 +250,16 @@ function dump_table(aName)
 
 /**
  * Checks if an address is found in the database.
- * @param aURI
- *        nsIURI or address to look for.
+ * @param aUrl
+ *        Address to look for.
  * @return place id of the page or 0 if not found
  */
-function page_in_database(aURI)
+function page_in_database(aUrl)
 {
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
   let stmt = DBConn().createStatement(
-    "SELECT id FROM moz_places WHERE url = :url"
+    "SELECT id FROM moz_places_view WHERE url = :url"
   );
-  stmt.params.url = url;
+  stmt.params.url = aUrl;
   try {
     if (!stmt.executeStep())
       return 0;
@@ -288,30 +270,6 @@ function page_in_database(aURI)
   }
 }
 
-/**
- * Checks how many visits exist for a specified page.
- * @param aURI
- *        nsIURI or address to look for.
- * @return number of visits found.
- */
-function visits_in_database(aURI)
-{
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
-  let stmt = DBConn().createStatement(
-    "SELECT count(*) FROM moz_historyvisits v "
-  + "JOIN moz_places h ON h.id = v.place_id "
-  + "WHERE url = :url"
-  );
-  stmt.params.url = url;
-  try {
-    if (!stmt.executeStep())
-      return 0;
-    return stmt.getInt64(0);
-  }
-  finally {
-    stmt.finalize();
-  }
-}
 
 /**
  * Removes all bookmarks and checks for correct cleanup
@@ -342,8 +300,7 @@ function check_no_bookmarks() {
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   let root = PlacesUtils.history.executeQuery(query, options).root;
   root.containerOpen = true;
-  if (root.childCount != 0)
-    do_throw("Unable to remove all bookmarks");
+  do_check_eq(root.childCount, 0);
   root.containerOpen = false;
 }
 
@@ -461,7 +418,7 @@ function create_JSON_backup(aFilename) {
   let bookmarksBackupDir = gProfD.clone();
   bookmarksBackupDir.append("bookmarkbackups");
   if (!bookmarksBackupDir.exists()) {
-    bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, parseInt("0755"));
+    bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0777);
     do_check_true(bookmarksBackupDir.exists());
   }
   let bookmarksJSONFile = gTestDir.clone();
@@ -503,80 +460,6 @@ function check_JSON_backup() {
 
 
 /**
- * Waits for a frecency update then calls back.
- *
- * @param aURI
- *        URI or spec of the page we are waiting frecency for.
- * @param aValidator
- *        Validator function for the current frecency. If it returns true we
- *        have the expected frecency, otherwise we wait for next update.
- * @param aCallback
- *        function invoked when frecency update finishes.
- * @param aCbScope
- *        "this" scope for the callback
- * @param aCbArguments
- *        array of arguments to be passed to the callback
- *
- * @note since frecency is something that can be changed by a bunch of stuff
- *       like adding and removing visits, bookmarks we use a polling strategy.
- */
-function waitForFrecency(aURI, aValidator, aCallback, aCbScope, aCbArguments) {
-  Services.obs.addObserver(function (aSubject, aTopic, aData) {
-    let frecency = frecencyForUrl(aURI);
-    if (!aValidator(frecency)) {
-      print("Has to wait for frecency...");
-      return;
-    }
-    Services.obs.removeObserver(arguments.callee, aTopic);
-    aCallback.apply(aCbScope, aCbArguments);
-  }, "places-frecency-updated", false);
-}
-
-/**
- * Returns the frecency of a url.
- *
- * @param aURI
- *        The URI or spec to get frecency for.
- * @return the frecency value.
- */
-function frecencyForUrl(aURI)
-{
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
-  let stmt = DBConn().createStatement(
-    "SELECT frecency FROM moz_places WHERE url = ?1"
-  );
-  stmt.bindByIndex(0, url);
-  if (!stmt.executeStep())
-    throw new Error("No result for frecency.");
-  let frecency = stmt.getInt32(0);
-  stmt.finalize();
-
-  return frecency;
-}
-
-/**
- * Returns the hidden status of a url.
- *
- * @param aURI
- *        The URI or spec to get hidden for.
- * @return @return true if the url is hidden, false otherwise.
- */
-function isUrlHidden(aURI)
-{
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
-  let stmt = DBConn().createStatement(
-    "SELECT hidden FROM moz_places WHERE url = ?1"
-  );
-  stmt.bindByIndex(0, url);
-  if (!stmt.executeStep())
-    throw new Error("No result for hidden.");
-  let hidden = stmt.getInt32(0);
-  stmt.finalize();
-
-  return !!hidden;
-}
-
-/**
  * Compares two times in usecs, considering eventual platform timers skews.
  *
  * @param aTimeBefore
@@ -595,135 +478,33 @@ function is_time_ordered(before, after) {
   return after - before > -skew;
 }
 
-/**
- * Waits for all pending async statements on the default connection, before
- * proceeding with aCallback.
- *
- * @param aCallback
- *        Function to be called when done.
- * @param aScope
- *        Scope for the callback.
- * @param aArguments
- *        Arguments array for the callback.
- *
- * @note The result is achieved by asynchronously executing a query requiring
- *       a write lock.  Since all statements on the same connection are
- *       serialized, the end of this write operation means that all writes are
- *       complete.  Note that WAL makes so that writers don't block readers, but
- *       this is a problem only across different connections.
- */
-function waitForAsyncUpdates(aCallback, aScope, aArguments)
-{
-  let scope = aScope || this;
-  let args = aArguments || [];
-  let db = DBConn();
-  db.createAsyncStatement("BEGIN EXCLUSIVE").executeAsync();
-  db.createAsyncStatement("COMMIT").executeAsync({
-    handleResult: function() {},
-    handleError: function() {},
-    handleCompletion: function(aReason)
-    {
-      aCallback.apply(scope, args);
-    }
-  });
-}
 
-/**
- * Tests if a given guid is valid for use in Places or not.
- *
- * @param aGuid
- *        The guid to test.
- * @param [optional] aStack
- *        The stack frame used to report the error.
- */
-function do_check_valid_places_guid(aGuid,
-                                    aStack)
-{
-  if (!aStack) {
-    aStack = Components.stack.caller;
-  }
-  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), aStack);
-}
-
-/**
- * Retrieves the guid for a given uri.
- *
- * @param aURI
- *        The uri to check.
- * @param [optional] aStack
- *        The stack frame used to report the error.
- * @return the associated the guid.
- */
-function do_get_guid_for_uri(aURI,
-                             aStack)
-{
-  if (!aStack) {
-    aStack = Components.stack.caller;
-  }
-  let stmt = DBConn().createStatement(
-    "SELECT guid "
-  + "FROM moz_places "
-  + "WHERE url = :url "
-  );
-  stmt.params.url = aURI.spec;
-  do_check_true(stmt.executeStep(), aStack);
-  let guid = stmt.row.guid;
-  stmt.finalize();
-  do_check_valid_places_guid(guid, aStack);
-  return guid;
-}
-
-/**
- * Tests that a guid was set in moz_places for a given uri.
- *
- * @param aURI
- *        The uri to check.
- * @param [optional] aGUID
- *        The expected guid in the database.
- */
-function do_check_guid_for_uri(aURI,
-                               aGUID)
-{
-  let caller = Components.stack.caller;
-  let guid = do_get_guid_for_uri(aURI, caller);
-  if (aGUID) {
-    do_check_valid_places_guid(aGUID, caller);
-    do_check_eq(guid, aGUID, caller);
-  }
-}
-
-/**
- * Logs info to the console in the standard way (includes the filename).
- *
- * @param aMessage
- *        The message to log to the console.
- */
-function do_log_info(aMessage)
-{
-  print("TEST-INFO | " + _TEST_FILE + " | " + aMessage);
-}
-
-/**
- * Compares 2 arrays returning whether they contains the same elements.
- *
- * @param a1
- *        First array to compare.
- * @param a2
- *        Second array to compare.
- * @param [optional] sorted
- *        Whether the comparison should take in count position of the elements.
- * @return true if the arrays contain the same elements, false otherwise.
- */
-function do_compare_arrays(a1, a2, sorted)
-{
-  if (a1.length != a2.length)
-    return false;
-
-  if (sorted) {
-    return a1.every(function (e, i) e == a2[i]);
-  }
-  else {
-    return a1.filter(function (e) a2.indexOf(e) == -1).length == 0 &&
-           a2.filter(function (e) a1.indexOf(e) == -1).length == 0;
+// These tests are known to randomly fail due to bug 507790 when database
+// flushes are active, so we turn off syncing for them.
+let (randomFailingSyncTests = [
+  "test_multi_word_tags.js",
+  "test_removeVisitsByTimeframe.js",
+  "test_utils_getURLsForContainerNode.js",
+  "test_exclude_livemarks.js",
+  "test_402799.js",
+  "test_results-as-visit.js",
+  "test_sorting.js",
+  "test_redirectsMode.js",
+  "test_384228.js",
+  "test_395593.js",
+  "test_containersQueries_sorting.js",
+  "test_browserGlue_smartBookmarks.js",
+  "test_browserGlue_distribution.js",
+  "test_331487.js",
+  "test_tags.js",
+  "test_385829.js",
+  "test_405938_restore_queries.js",
+]) {
+  let currentTestFilename = do_get_file(_TEST_FILE[0], true).leafName;
+  if (randomFailingSyncTests.indexOf(currentTestFilename) != -1) {
+    print("Test " + currentTestFilename +
+          " is known random due to bug 507790, disabling PlacesDBFlush.");
+    let sync = Cc["@mozilla.org/places/sync;1"].getService(Ci.nsIObserver);
+    sync.observe(null, "places-debug-stop-sync", null);
   }
 }

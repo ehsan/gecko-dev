@@ -62,7 +62,7 @@
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
 #include "nsIInlineSpellChecker.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsStubMutationObserver.h"
 #include "nsIViewManager.h"
 #include "nsCycleCollectionParticipant.h"
@@ -87,7 +87,6 @@ class nsISelectionController;
 class nsIDOMEventTarget;
 class nsCSSStyleSheet;
 class nsKeyEvent;
-class nsIDOMNSEvent;
 
 #define kMOZEditorBogusNodeAttrAtom nsEditProperty::mozEditorBogusNode
 #define kMOZEditorBogusNodeValue NS_LITERAL_STRING("TRUE")
@@ -145,8 +144,8 @@ public:
                                            nsIEditor)
 
   /* ------------ utility methods   -------------- */
-  already_AddRefed<nsIPresShell> GetPresShell();
-  void NotifyEditorObservers();
+  NS_IMETHOD GetPresShell(nsIPresShell **aPS);
+  void NotifyEditorObservers(void);
 
   /* ------------ nsIEditor methods -------------- */
   NS_DECL_NSIEDITOR
@@ -199,29 +198,6 @@ public:
   virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
                                         nsIPrivateTextRangeList *aTextRange)=0;
   nsresult EndIMEComposition();
-
-  void BeginKeypressHandling() { mLastKeypressEventWasTrusted = eTriTrue; }
-  void BeginKeypressHandling(nsIDOMNSEvent* aEvent);
-  void EndKeypressHandling() { mLastKeypressEventWasTrusted = eTriUnset; }
-
-  class FireTrustedInputEvent {
-  public:
-    explicit FireTrustedInputEvent(nsEditor* aSelf, PRBool aActive = PR_TRUE)
-      : mEditor(aSelf)
-      , mShouldAct(aActive && mEditor->mLastKeypressEventWasTrusted == eTriUnset) {
-      if (mShouldAct) {
-        mEditor->BeginKeypressHandling();
-      }
-    }
-    ~FireTrustedInputEvent() {
-      if (mShouldAct) {
-        mEditor->EndKeypressHandling();
-      }
-    }
-  private:
-    nsEditor* mEditor;
-    PRBool mShouldAct;
-  };
 
 protected:
   nsCString mContentMIMEType;       // MIME type of the doc we are editing.
@@ -613,7 +589,7 @@ public:
                                     nsIDOMNode *aEndNode,
                                     PRInt32 aEndOffset);
 
-  virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget() = 0;
+  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget() = 0;
 
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
@@ -690,11 +666,11 @@ public:
            IsInteractionAllowed();
   }
 
-  // Get the focused content, if we're focused.  Returns null otherwise.
-  virtual already_AddRefed<nsIContent> GetFocusedContent();
+  // Whether the editor has application level focus or not.
+  virtual PRBool HasFocus();
 
   // Whether the editor is active on the DOM window.  Note that when this
-  // returns true but GetFocusedContent() returns null, it means that this editor was
+  // returns true but HasFocus() returns false, it means that this editor was
   // focused when the DOM window was active.
   virtual PRBool IsActiveInDOMWindow();
 
@@ -720,7 +696,8 @@ protected:
 
   PRUint32        mModCount;		// number of modifications (for undo/redo stack)
   PRUint32        mFlags;		// behavior flags. See nsIPlaintextEditor.idl for the flags we use.
-
+  
+  nsWeakPtr       mPresShellWeak;   // weak reference to the nsIPresShell
   nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
   PRInt32         mUpdateCount;
   nsIViewManager::UpdateViewBatch mBatch;
@@ -755,7 +732,6 @@ protected:
 
   PRPackedBool                  mShouldTxnSetSelection;  // turn off for conservative selection adjustment by txns
   PRPackedBool                  mDidPreDestroy;    // whether PreDestroy has been called
-  PRPackedBool                  mDidPostCreate;    // whether PostCreate has been called
    // various listeners
   nsCOMArray<nsIEditActionListener> mActionListeners;  // listens to all low level actions on the doc
   nsCOMArray<nsIEditorObserver> mEditorObservers;  // just notify once per high level change
@@ -764,13 +740,11 @@ protected:
   PRInt8                        mDocDirtyState;		// -1 = not initialized
   nsWeakPtr        mDocWeak;  // weak reference to the nsIDOMDocument
   // The form field as an event receiver
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
 
   nsString* mPhonetic;
 
  nsCOMPtr<nsIDOMEventListener> mEventListener;
-
-  Tristate mLastKeypressEventWasTrusted;
 
   friend PRBool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;

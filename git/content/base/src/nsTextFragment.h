@@ -45,7 +45,6 @@
 #define nsTextFragment_h___
 
 #include "nsString.h"
-#include "nsReadableUtils.h"
 #include "nsTraceRefcnt.h"
 class nsString;
 class nsCString;
@@ -113,7 +112,7 @@ public:
   /**
    * Return PR_TRUE if this fragment contains Bidi text
    * For performance reasons this flag is not set automatically, but
-   * requires an explicit call to UpdateBidiFlag()
+   * requires an explicit call to SetBidiFlag()
    */
   PRBool IsBidi() const
   {
@@ -210,7 +209,7 @@ public:
    * Scan the contents of the fragment and turn on mState.mIsBidi if it
    * includes any Bidi characters.
    */
-  void UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength);
+  void SetBidiFlag();
 
   struct FragmentBits {
     // PRUint32 to ensure that the values are unsigned, because we

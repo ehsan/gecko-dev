@@ -48,7 +48,7 @@
 #include "nsXPCOMCIDInternal.h"
 #include "prmon.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 using namespace mozilla;
 
 #ifdef DEBUG
@@ -89,30 +89,30 @@ NS_DEFINE_CID(kFactoryCID2, FACTORY_CID2);
 PRInt32 gComponent1Count = 0;
 PRInt32 gComponent2Count = 0;
 
-ReentrantMonitor* gReentrantMonitor = nsnull;
+Monitor* gMonitor = nsnull;
 
 PRBool gCreateInstanceCalled = PR_FALSE;
 PRBool gMainThreadWaiting = PR_FALSE;
 
-class AutoCreateAndDestroyReentrantMonitor
+class AutoCreateAndDestroyMonitor
 {
 public:
-  AutoCreateAndDestroyReentrantMonitor(ReentrantMonitor** aReentrantMonitorPtr)
-  : mReentrantMonitorPtr(aReentrantMonitorPtr) {
-    *aReentrantMonitorPtr =
-      new ReentrantMonitor("TestRacingServiceManager::AutoMon");
-    TEST_ASSERTION(*aReentrantMonitorPtr, "Out of memory!");
+  AutoCreateAndDestroyMonitor(Monitor** aMonitorPtr)
+  : mMonitorPtr(aMonitorPtr) {
+    *aMonitorPtr =
+      new Monitor("TestRacingServiceManager::AutoMon");
+    TEST_ASSERTION(*aMonitorPtr, "Out of memory!");
   }
 
-  ~AutoCreateAndDestroyReentrantMonitor() {
-    if (*mReentrantMonitorPtr) {
-      delete *mReentrantMonitorPtr;
-      *mReentrantMonitorPtr = nsnull;
+  ~AutoCreateAndDestroyMonitor() {
+    if (*mMonitorPtr) {
+      delete *mMonitorPtr;
+      *mMonitorPtr = nsnull;
     }
   }
 
 private:
-  ReentrantMonitor** mReentrantMonitorPtr;
+  Monitor** mMonitorPtr;
 };
 
 class Factory : public nsIFactory
@@ -185,7 +185,7 @@ Factory::CreateInstance(nsISupports* aDelegate,
   TEST_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
     gCreateInstanceCalled = PR_TRUE;
     mon.Notify();
@@ -226,7 +226,7 @@ NS_IMETHODIMP
 Runnable::Run()
 {
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
     while (!gMainThreadWaiting) {
       mon.Wait();
@@ -285,7 +285,7 @@ int main(int argc, char** argv)
   ScopedXPCOM xpcom("RacingServiceManager");
   NS_ENSURE_FALSE(xpcom.failed(), 1);
 
-  AutoCreateAndDestroyReentrantMonitor mon(&gReentrantMonitor);
+  AutoCreateAndDestroyMonitor mon(&gMonitor);
 
   nsRefPtr<Runnable> runnable = new Runnable();
   NS_ENSURE_TRUE(runnable, 1);
@@ -296,7 +296,7 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
     gMainThreadWaiting = PR_TRUE;
     mon.Notify();
@@ -318,7 +318,7 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
     gMainThreadWaiting = PR_TRUE;
     mon.Notify();

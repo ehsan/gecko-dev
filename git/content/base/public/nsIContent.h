@@ -48,8 +48,9 @@
 class nsIAtom;
 class nsIDOMEvent;
 class nsIContent;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIURI;
+class nsICSSStyleRule;
 class nsRuleWalker;
 class nsAttrValue;
 class nsAttrName;
@@ -61,12 +62,6 @@ class nsISMILAttr;
 class nsIDOMCSSStyleDeclaration;
 #endif // MOZ_SMIL
 
-namespace mozilla {
-namespace css {
-class StyleRule;
-}
-}
-
 enum nsLinkState {
   eLinkState_Unknown    = 0,
   eLinkState_Unvisited  = 1,
@@ -76,8 +71,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x860ee35b, 0xe505, 0x438f, \
- { 0xa7, 0x7b, 0x65, 0xb9, 0xf5, 0x0b, 0xe5, 0x29 } }
+{ 0xdd254504, 0xe273, 0x4923, \
+  { 0x9e, 0xc1, 0xd8, 0x42, 0x1a, 0x66, 0x35, 0xf1 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -180,18 +175,12 @@ public:
      *   3. native anonymous nodes
      *   4. :after generated node
      */
-    eAllButXBL = 1,
-
-    /**
-     * Skip native anonymous content created for placeholder of HTML input,
-     * used in conjunction with eAllChildren or eAllButXBL.
-     */
-    eSkipPlaceholderContent = 2
+    eAllButXBL = 1
   };
 
   /**
    * Return either the XBL explicit children of the node or the XBL flattened
-   * tree children of the node, depending on the filter, as well as
+   * tree children of the node, depending on the child type, as well as any
    * native anonymous children.
    *
    * @note calling this method with eAllButXBL will return children that are
@@ -199,7 +188,7 @@ public:
    *  of this node in the tree, but those other nodes cannot be reached from the
    *  eAllButXBL child list.
    */
-  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter) = 0;
+  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType) = 0;
 
   /**
    * Get whether this content is C++-generated anonymous content
@@ -313,10 +302,6 @@ public:
 
   inline PRBool IsHTML() const {
     return IsInNamespace(kNameSpaceID_XHTML);
-  }
-
-  inline PRBool IsHTML(nsIAtom* aTag) const {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_XHTML);
   }
 
   inline PRBool IsSVG() const {
@@ -787,12 +772,22 @@ public:
   }
 
   /**
+   * Method to get the _intrinsic_ content state of this content node.  This is
+   * the state that is independent of the node's presentation.  To get the full
+   * content state, use nsIEventStateManager.  Also see nsIEventStateManager
+   * for the possible bits that could be set here.
+   */
+  // XXXbz this is PRInt32 because all the ESM content state APIs use
+  // PRInt32.  We should really use PRUint32 instead.
+  virtual PRInt32 IntrinsicState() const;
+
+  /**
    * Get the ID of this content node (the atom corresponding to the
    * value of the null-namespace attribute whose name is given by
    * GetIDAttributeName().  This may be null if there is no ID.
    */
   nsIAtom* GetID() const {
-    if (HasID()) {
+    if (HasFlag(NODE_HAS_ID)) {
       return DoGetID();
     }
     return nsnull;
@@ -820,13 +815,13 @@ public:
   /**
    * Get the inline style rule, if any, for this content node
    */
-  virtual mozilla::css::StyleRule* GetInlineStyleRule() = 0;
+  virtual nsICSSStyleRule* GetInlineStyleRule() = 0;
 
   /**
    * Set the inline style rule for this node.  This will send an
    * appropriate AttributeChanged notification if aNotify is true.
    */
-  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule, PRBool aNotify) = 0;
+  NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify) = 0;
 
   /**
    * Is the attribute named stored in the mapped attributes?
@@ -856,10 +851,9 @@ public:
   /**
    * Should be called when the node can become editable or when it can stop
    * being editable (for example when its contentEditable attribute changes,
-   * when it is moved into an editable parent, ...).  If aNotify is true and
-   * the node is an element, this will notify the state change.
+   * when it is moved into an editable parent, ...).
    */
-  virtual void UpdateEditableState(PRBool aNotify);
+  virtual void UpdateEditableState();
 
   /**
    * Destroy this node and its children. Ideally this shouldn't be needed
@@ -897,36 +891,42 @@ public:
    *
    * The CALLER OWNS the result and is responsible for deleting it.
    */
-  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName) = 0;
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName) = 0;
 
-  /**
-   * Get the SMIL override style for this content node.  This is a style
-   * declaration that is applied *after* the inline style, and it can be used
-   * e.g. to store animated style values.
-   *
-   * Note: This method is analogous to the 'GetStyle' method in
-   * nsGenericHTMLElement and nsStyledElement.
-   */
-  virtual nsIDOMCSSStyleDeclaration* GetSMILOverrideStyle() = 0;
+   /**
+    * Get the SMIL override style for this content node.  This is a style
+    * declaration that is applied *after* the inline style, and it can be used
+    * e.g. to store animated style values.
+    *
+    * Note: This method is analogous to the 'GetStyle' method in
+    * nsGenericHTMLElement and nsStyledElement.
+    */
+  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle) = 0;
 
   /**
    * Get the SMIL override style rule for this content node.  If the rule
    * hasn't been created (or if this nsIContent object doesn't support SMIL
    * override style), this method simply returns null.
    */
-  virtual mozilla::css::StyleRule* GetSMILOverrideStyleRule() = 0;
+  virtual nsICSSStyleRule* GetSMILOverrideStyleRule() = 0;
 
   /**
    * Set the SMIL override style rule for this node.  If aNotify is true, this
    * method will notify the document's pres context, so that the style changes
    * will be noticed.
    */
-  virtual nsresult SetSMILOverrideStyleRule(mozilla::css::StyleRule* aStyleRule,
+  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                             PRBool aNotify) = 0;
 #endif // MOZ_SMIL
 
   nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
                               nsAString& aNamespaceURI) const;
+
+  nsIAtom* LookupPrefix(const nsAString& aNamespaceURI);
+
+  PRBool IsEqual(nsIContent *aOther);
+
+  virtual PRBool IsEqualNode(nsINode* aOther);
 
   /**
    * If this content has independent selection, e.g., if this is input field
@@ -941,15 +941,10 @@ public:
    */
   nsIContent* GetEditingHost();
 
-  // Overloaded from nsINode
-  virtual already_AddRefed<nsIURI> GetBaseURI() const;
-
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
-
 protected:
   /**
    * Hook for implementing GetID.  This is guaranteed to only be
-   * called if HasID() is true.
+   * called if the NODE_HAS_ID flag is set.
    */
   virtual nsIAtom* DoGetID() const = 0;
 

@@ -43,18 +43,17 @@
 #include "nsSocketTransportService2.h"
 #include "nsSocketTransport2.h"
 #include "nsReadableUtils.h"
+#include "nsAutoLock.h"
 #include "nsNetError.h"
 #include "prnetdb.h"
+#include "prlock.h"
 #include "prerror.h"
 #include "plstr.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIOService.h"
 
 #include "mozilla/FunctionTimer.h"
-
-using namespace mozilla;
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gSocketTransportLog = nsnull;
@@ -64,11 +63,6 @@ nsSocketTransportService *gSocketTransportService = nsnull;
 PRThread                 *gSocketThread           = nsnull;
 
 #define SEND_BUFFER_PREF "network.tcp.sendbuffer"
-#define SOCKET_LIMIT_TARGET 550U
-#define SOCKET_LIMIT_MIN     50U
-
-PRUint32 nsSocketTransportService::gMaxCount;
-PRCallOnceType nsSocketTransportService::gMaxCountInitOnce;
 
 //-----------------------------------------------------------------------------
 // ctor/dtor (called on the main/UI thread by the service manager)
@@ -77,11 +71,9 @@ nsSocketTransportService::nsSocketTransportService()
     : mThread(nsnull)
     , mThreadEvent(nsnull)
     , mAutodialEnabled(PR_FALSE)
-    , mLock("nsSocketTransportService::mLock")
+    , mLock(PR_NewLock())
     , mInitialized(PR_FALSE)
     , mShuttingDown(PR_FALSE)
-    , mActiveListSize(SOCKET_LIMIT_MIN)
-    , mIdleListSize(SOCKET_LIMIT_MIN)
     , mActiveCount(0)
     , mIdleCount(0)
     , mSendBufferSize(0)
@@ -92,14 +84,6 @@ nsSocketTransportService::nsSocketTransportService()
 
     NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
-    PR_CallOnce(&gMaxCountInitOnce, DiscoverMaxCount);
-    mActiveList = (SocketContext *)
-        moz_xmalloc(sizeof(SocketContext) * mActiveListSize);
-    mIdleList = (SocketContext *)
-        moz_xmalloc(sizeof(SocketContext) * mIdleListSize);
-    mPollList = (PRPollDesc *)
-        moz_xmalloc(sizeof(PRPollDesc) * (mActiveListSize + 1));
-
     NS_ASSERTION(!gSocketTransportService, "must not instantiate twice");
     gSocketTransportService = this;
 }
@@ -108,13 +92,13 @@ nsSocketTransportService::~nsSocketTransportService()
 {
     NS_ASSERTION(NS_IsMainThread(), "wrong thread");
     NS_ASSERTION(!mInitialized, "not shutdown properly");
+
+    if (mLock)
+        PR_DestroyLock(mLock);
     
     if (mThreadEvent)
         PR_DestroyPollableEvent(mThreadEvent);
 
-    moz_free(mActiveList);
-    moz_free(mIdleList);
-    moz_free(mPollList);
     gSocketTransportService = nsnull;
 }
 
@@ -124,7 +108,7 @@ nsSocketTransportService::~nsSocketTransportService()
 already_AddRefed<nsIThread>
 nsSocketTransportService::GetThreadSafely()
 {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     nsIThread* result = mThread;
     NS_IF_ADDREF(result);
     return result;
@@ -133,7 +117,7 @@ nsSocketTransportService::GetThreadSafely()
 NS_IMETHODIMP
 nsSocketTransportService::Dispatch(nsIRunnable *event, PRUint32 flags)
 {
-    SOCKET_LOG(("STS dispatch [%p]\n", event));
+    LOG(("STS dispatch [%p]\n", event));
 
     nsCOMPtr<nsIThread> thread = GetThreadSafely();
     NS_ENSURE_TRUE(thread, NS_ERROR_NOT_INITIALIZED);
@@ -160,7 +144,7 @@ nsSocketTransportService::IsOnCurrentThread(PRBool *result)
 NS_IMETHODIMP
 nsSocketTransportService::NotifyWhenCanAttachSocket(nsIRunnable *event)
 {
-    SOCKET_LOG(("nsSocketTransportService::NotifyWhenCanAttachSocket\n"));
+    LOG(("nsSocketTransportService::NotifyWhenCanAttachSocket\n"));
 
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
@@ -175,7 +159,7 @@ nsSocketTransportService::NotifyWhenCanAttachSocket(nsIRunnable *event)
 NS_IMETHODIMP
 nsSocketTransportService::AttachSocket(PRFileDesc *fd, nsASocketHandler *handler)
 {
-    SOCKET_LOG(("nsSocketTransportService::AttachSocket [handler=%x]\n", handler));
+    LOG(("nsSocketTransportService::AttachSocket [handler=%x]\n", handler));
 
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
@@ -195,11 +179,9 @@ nsSocketTransportService::AttachSocket(PRFileDesc *fd, nsASocketHandler *handler
 }
 
 nsresult
-nsSocketTransportService::DetachSocket(SocketContext *listHead, SocketContext *sock)
+nsSocketTransportService::DetachSocket(SocketContext *sock)
 {
-    SOCKET_LOG(("nsSocketTransportService::DetachSocket [handler=%x]\n", sock->mHandler));
-    NS_ABORT_IF_FALSE((listHead == mActiveList) || (listHead == mIdleList),
-                      "DetachSocket invalid head");
+    LOG(("nsSocketTransportService::DetachSocket [handler=%x]\n", sock->mHandler));
 
     // inform the handler that this socket is going away
     sock->mHandler->OnSocketDetached(sock->mFD);
@@ -208,7 +190,9 @@ nsSocketTransportService::DetachSocket(SocketContext *listHead, SocketContext *s
     sock->mFD = nsnull;
     NS_RELEASE(sock->mHandler);
 
-    if (listHead == mActiveList)
+    // find out what list this is on.
+    PRUint32 index = sock - mActiveList;
+    if (index < NS_SOCKET_MAX_COUNT)
         RemoveFromPollList(sock);
     else
         RemoveFromIdleList(sock);
@@ -229,18 +213,13 @@ nsSocketTransportService::DetachSocket(SocketContext *listHead, SocketContext *s
 nsresult
 nsSocketTransportService::AddToPollList(SocketContext *sock)
 {
-    NS_ABORT_IF_FALSE(!(((PRUint32)(sock - mActiveList)) < mActiveListSize),
-                      "AddToPollList Socket Already Active");
+    LOG(("nsSocketTransportService::AddToPollList [handler=%x]\n", sock->mHandler));
 
-    SOCKET_LOG(("nsSocketTransportService::AddToPollList [handler=%x]\n", sock->mHandler));
-    if (mActiveCount == mActiveListSize) {
-        SOCKET_LOG(("  Active List size of %d met\n", mActiveCount));
-        if (!GrowActiveList()) {
-            NS_ERROR("too many active sockets");
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
+    if (mActiveCount == NS_SOCKET_MAX_COUNT) {
+        NS_ERROR("too many active sockets");
+        return NS_ERROR_UNEXPECTED;
     }
-    
+
     mActiveList[mActiveCount] = *sock;
     mActiveCount++;
 
@@ -248,19 +227,19 @@ nsSocketTransportService::AddToPollList(SocketContext *sock)
     mPollList[mActiveCount].in_flags = sock->mHandler->mPollFlags;
     mPollList[mActiveCount].out_flags = 0;
 
-    SOCKET_LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
+    LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
     return NS_OK;
 }
 
 void
 nsSocketTransportService::RemoveFromPollList(SocketContext *sock)
 {
-    SOCKET_LOG(("nsSocketTransportService::RemoveFromPollList [handler=%x]\n", sock->mHandler));
+    LOG(("nsSocketTransportService::RemoveFromPollList [handler=%x]\n", sock->mHandler));
 
     PRUint32 index = sock - mActiveList;
-    NS_ABORT_IF_FALSE(index < mActiveListSize, "invalid index");
+    NS_ASSERTION(index < NS_SOCKET_MAX_COUNT, "invalid index");
 
-    SOCKET_LOG(("  index=%u mActiveCount=%u\n", index, mActiveCount));
+    LOG(("  index=%u mActiveCount=%u\n", index, mActiveCount));
 
     if (index != mActiveCount-1) {
         mActiveList[index] = mActiveList[mActiveCount-1];
@@ -268,44 +247,39 @@ nsSocketTransportService::RemoveFromPollList(SocketContext *sock)
     }
     mActiveCount--;
 
-    SOCKET_LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
+    LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
 }
 
 nsresult
 nsSocketTransportService::AddToIdleList(SocketContext *sock)
 {
-    NS_ABORT_IF_FALSE(!(((PRUint32)(sock - mIdleList)) < mIdleListSize),
-                      "AddToIdlelList Socket Already Idle");
+    LOG(("nsSocketTransportService::AddToIdleList [handler=%x]\n", sock->mHandler));
 
-    SOCKET_LOG(("nsSocketTransportService::AddToIdleList [handler=%x]\n", sock->mHandler));
-    if (mIdleCount == mIdleListSize) {
-        SOCKET_LOG(("  Idle List size of %d met\n", mIdleCount));
-        if (!GrowIdleList()) {
-            NS_ERROR("too many idle sockets");
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
+    if (mIdleCount == NS_SOCKET_MAX_COUNT) {
+        NS_ERROR("too many idle sockets");
+        return NS_ERROR_UNEXPECTED;
     }
 
     mIdleList[mIdleCount] = *sock;
     mIdleCount++;
 
-    SOCKET_LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
+    LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
     return NS_OK;
 }
 
 void
 nsSocketTransportService::RemoveFromIdleList(SocketContext *sock)
 {
-    SOCKET_LOG(("nsSocketTransportService::RemoveFromIdleList [handler=%x]\n", sock->mHandler));
+    LOG(("nsSocketTransportService::RemoveFromIdleList [handler=%x]\n", sock->mHandler));
 
-    PRUint32 index = sock - mIdleList;
-    NS_ASSERTION(index < mIdleListSize, "invalid index in idle list");
+    PRUint32 index = sock - &mIdleList[0];
+    NS_ASSERTION(index < NS_SOCKET_MAX_COUNT, "invalid index");
 
     if (index != mIdleCount-1)
         mIdleList[index] = mIdleList[mIdleCount-1];
     mIdleCount--;
 
-    SOCKET_LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
+    LOG(("  active=%u idle=%u\n", mActiveCount, mIdleCount));
 }
 
 void
@@ -313,7 +287,7 @@ nsSocketTransportService::MoveToIdleList(SocketContext *sock)
 {
     nsresult rv = AddToIdleList(sock);
     if (NS_FAILED(rv))
-        DetachSocket(mActiveList, sock);
+        DetachSocket(sock);
     else
         RemoveFromPollList(sock);
 }
@@ -323,41 +297,9 @@ nsSocketTransportService::MoveToPollList(SocketContext *sock)
 {
     nsresult rv = AddToPollList(sock);
     if (NS_FAILED(rv))
-        DetachSocket(mIdleList, sock);
+        DetachSocket(sock);
     else
         RemoveFromIdleList(sock);
-}
-
-PRBool
-nsSocketTransportService::GrowActiveList()
-{
-    PRInt32 toAdd = gMaxCount - mActiveListSize;
-    if (toAdd > 100)
-        toAdd = 100;
-    if (toAdd < 1)
-        return PR_FALSE;
-    
-    mActiveListSize += toAdd;
-    mActiveList = (SocketContext *)
-        moz_xrealloc(mActiveList, sizeof(SocketContext) * mActiveListSize);
-    mPollList = (PRPollDesc *)
-        moz_xrealloc(mPollList, sizeof(PRPollDesc) * (mActiveListSize + 1));
-    return PR_TRUE;
-}
-
-PRBool
-nsSocketTransportService::GrowIdleList()
-{
-    PRInt32 toAdd = gMaxCount - mIdleListSize;
-    if (toAdd > 100)
-        toAdd = 100;
-    if (toAdd < 1)
-        return PR_FALSE;
-
-    mIdleListSize += toAdd;
-    mIdleList = (SocketContext *)
-        moz_xrealloc(mIdleList, sizeof(SocketContext) * mIdleListSize);
-    return PR_TRUE;
 }
 
 PRIntervalTime
@@ -378,7 +320,7 @@ nsSocketTransportService::PollTimeout()
         if (r < minR)
             minR = r;
     }
-    SOCKET_LOG(("poll timeout: %lu\n", minR));
+    LOG(("poll timeout: %lu\n", minR));
     return PR_SecondsToInterval(minR);
 }
 
@@ -410,13 +352,13 @@ nsSocketTransportService::Poll(PRBool wait, PRUint32 *interval)
 
     PRIntervalTime ts = PR_IntervalNow();
 
-    SOCKET_LOG(("    timeout = %i milliseconds\n",
+    LOG(("    timeout = %i milliseconds\n",
          PR_IntervalToMilliseconds(pollTimeout)));
     PRInt32 rv = PR_Poll(pollList, pollCount, pollTimeout);
 
     PRIntervalTime passedInterval = PR_IntervalNow() - ts;
 
-    SOCKET_LOG(("    ...returned after %i milliseconds\n",
+    LOG(("    ...returned after %i milliseconds\n",
          PR_IntervalToMilliseconds(passedInterval))); 
 
     *interval = PR_IntervalToSeconds(passedInterval);
@@ -440,6 +382,8 @@ nsSocketTransportService::Init()
 {
     NS_TIME_FUNCTION;
 
+    NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
+
     if (!NS_IsMainThread()) {
         NS_ERROR("wrong thread");
         return NS_ERROR_UNEXPECTED;
@@ -450,10 +394,6 @@ nsSocketTransportService::Init()
 
     if (mShuttingDown)
         return NS_ERROR_UNEXPECTED;
-
-    // Don't initialize inside the offline mode
-    if (gIOService->IsOffline() && !gIOService->IsComingOnline())
-        return NS_ERROR_OFFLINE;
 
     if (!mThreadEvent) {
         mThreadEvent = PR_NewPollableEvent();
@@ -469,7 +409,7 @@ nsSocketTransportService::Init()
         //
         if (!mThreadEvent) {
             NS_WARNING("running socket transport thread without a pollable event");
-            SOCKET_LOG(("running socket transport thread without a pollable event"));
+            LOG(("running socket transport thread without a pollable event"));
         }
     }
     
@@ -480,7 +420,7 @@ nsSocketTransportService::Init()
     if (NS_FAILED(rv)) return rv;
     
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         // Install our mThread, protecting against concurrent readers
         thread.swap(mThread);
     }
@@ -500,7 +440,7 @@ nsSocketTransportService::Init()
 NS_IMETHODIMP
 nsSocketTransportService::Shutdown()
 {
-    SOCKET_LOG(("nsSocketTransportService::Shutdown\n"));
+    LOG(("nsSocketTransportService::Shutdown\n"));
 
     NS_ENSURE_STATE(NS_IsMainThread());
 
@@ -511,7 +451,7 @@ nsSocketTransportService::Shutdown()
         return NS_ERROR_UNEXPECTED;
 
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
 
         // signal the socket thread to shutdown
         mShuttingDown = PR_TRUE;
@@ -524,7 +464,7 @@ nsSocketTransportService::Shutdown()
     // join with thread
     mThread->Shutdown();
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         // Drop our reference to mThread and make sure that any concurrent
         // readers are excluded
         mThread = nsnull;
@@ -583,7 +523,7 @@ nsSocketTransportService::SetAutodialEnabled(PRBool value)
 NS_IMETHODIMP
 nsSocketTransportService::OnDispatchedEvent(nsIThreadInternal *thread)
 {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     if (mThreadEvent)
         PR_SetPollableEvent(mThreadEvent);
     return NS_OK;
@@ -593,6 +533,19 @@ NS_IMETHODIMP
 nsSocketTransportService::OnProcessNextEvent(nsIThreadInternal *thread,
                                              PRBool mayWait, PRUint32 depth)
 {
+    // DoPollIteration doesn't support being called recursively.  This case
+    // should only happen when someone (e.g., PSM) is issuing a synchronous
+    // proxy call from this thread to the main thread.
+    if (depth > 1)
+        return NS_OK;
+
+    // Favor processing existing sockets before other events.
+    DoPollIteration(PR_FALSE);
+
+    PRBool val;
+    while (mayWait && NS_SUCCEEDED(thread->HasPendingEvents(&val)) && !val)
+        DoPollIteration(PR_TRUE);
+
     return NS_OK;
 }
 
@@ -606,7 +559,7 @@ nsSocketTransportService::AfterProcessNextEvent(nsIThreadInternal* thread,
 NS_IMETHODIMP
 nsSocketTransportService::Run()
 {
-    SOCKET_LOG(("STS thread init\n"));
+    LOG(("STS thread init\n"));
 
     gSocketThread = PR_GetCurrentThread();
 
@@ -622,41 +575,28 @@ nsSocketTransportService::Run()
     threadInt->SetObserver(this);
 
     for (;;) {
-        PRBool pendingEvents = PR_FALSE;
-        thread->HasPendingEvents(&pendingEvents);
-
-        do {
-            // If there are pending events for this thread then
-            // DoPollIteration() should service the network without blocking.
-            DoPollIteration(!pendingEvents);
-            
-            // If nothing was pending before the poll, it might be now
-            if (!pendingEvents)
-                thread->HasPendingEvents(&pendingEvents);
-
-            if (pendingEvents) {
-                NS_ProcessNextEvent(thread);
-                pendingEvents = PR_FALSE;
-                thread->HasPendingEvents(&pendingEvents);
-            }
-        } while (pendingEvents);
+        // process all pending events
+        NS_ProcessPendingEvents(thread);
 
         // now that our event queue is empty, check to see if we should exit
         {
-            MutexAutoLock lock(mLock);
+            nsAutoLock lock(mLock);
             if (mShuttingDown)
                 break;
         }
+
+        // wait for and process the next pending event
+        NS_ProcessNextEvent(thread);
     }
 
-    SOCKET_LOG(("STS shutting down thread\n"));
+    LOG(("STS shutting down thread\n"));
 
     // detach any sockets
     PRInt32 i;
     for (i=mActiveCount-1; i>=0; --i)
-        DetachSocket(mActiveList, &mActiveList[i]);
+        DetachSocket(&mActiveList[i]);
     for (i=mIdleCount-1; i>=0; --i)
-        DetachSocket(mIdleList, &mIdleList[i]);
+        DetachSocket(&mIdleList[i]);
 
     // Final pass over the event queue. This makes sure that events posted by
     // socket detach handlers get processed.
@@ -664,14 +604,14 @@ nsSocketTransportService::Run()
 
     gSocketThread = nsnull;
 
-    SOCKET_LOG(("STS thread exit\n"));
+    LOG(("STS thread exit\n"));
     return NS_OK;
 }
 
 nsresult
 nsSocketTransportService::DoPollIteration(PRBool wait)
 {
-    SOCKET_LOG(("STS poll iter [%d]\n", wait));
+    LOG(("STS poll iter [%d]\n", wait));
 
     PRInt32 i, count;
 
@@ -689,13 +629,13 @@ nsSocketTransportService::DoPollIteration(PRBool wait)
     count = mIdleCount;
     for (i=mActiveCount-1; i>=0; --i) {
         //---
-        SOCKET_LOG(("  active [%u] { handler=%x condition=%x pollflags=%hu }\n", i,
+        LOG(("  active [%u] { handler=%x condition=%x pollflags=%hu }\n", i,
             mActiveList[i].mHandler,
             mActiveList[i].mHandler->mCondition,
             mActiveList[i].mHandler->mPollFlags));
         //---
         if (NS_FAILED(mActiveList[i].mHandler->mCondition))
-            DetachSocket(mActiveList, &mActiveList[i]);
+            DetachSocket(&mActiveList[i]);
         else {
             PRUint16 in_flags = mActiveList[i].mHandler->mPollFlags;
             if (in_flags == 0)
@@ -709,25 +649,25 @@ nsSocketTransportService::DoPollIteration(PRBool wait)
     }
     for (i=count-1; i>=0; --i) {
         //---
-        SOCKET_LOG(("  idle [%u] { handler=%x condition=%x pollflags=%hu }\n", i,
+        LOG(("  idle [%u] { handler=%x condition=%x pollflags=%hu }\n", i,
             mIdleList[i].mHandler,
             mIdleList[i].mHandler->mCondition,
             mIdleList[i].mHandler->mPollFlags));
         //---
         if (NS_FAILED(mIdleList[i].mHandler->mCondition))
-            DetachSocket(mIdleList, &mIdleList[i]);
+            DetachSocket(&mIdleList[i]);
         else if (mIdleList[i].mHandler->mPollFlags != 0)
             MoveToPollList(&mIdleList[i]);
     }
 
-    SOCKET_LOG(("  calling PR_Poll [active=%u idle=%u]\n", mActiveCount, mIdleCount));
+    LOG(("  calling PR_Poll [active=%u idle=%u]\n", mActiveCount, mIdleCount));
 
     // Measures seconds spent while blocked on PR_Poll
     PRUint32 pollInterval;
 
     PRInt32 n = Poll(wait, &pollInterval);
     if (n < 0) {
-        SOCKET_LOG(("  PR_Poll error [%d]\n", PR_GetError()));
+        LOG(("  PR_Poll error [%d]\n", PR_GetError()));
         pollError = PR_TRUE;
     }
     else {
@@ -762,7 +702,7 @@ nsSocketTransportService::DoPollIteration(PRBool wait)
         //
         for (i=mActiveCount-1; i>=0; --i) {
             if (NS_FAILED(mActiveList[i].mHandler->mCondition))
-                DetachSocket(mActiveList, &mActiveList[i]);
+                DetachSocket(&mActiveList[i]);
         }
 
         if (n != 0 && mPollList[0].out_flags == PR_POLL_READ) {
@@ -775,14 +715,14 @@ nsSocketTransportService::DoPollIteration(PRBool wait)
                 // new pollable event.  If that fails, we fall back
                 // on "busy wait".
                 {
-                    MutexAutoLock lock(mLock);
+                    nsAutoLock lock(mLock);
                     PR_DestroyPollableEvent(mThreadEvent);
                     mThreadEvent = PR_NewPollableEvent();
                 }
                 if (!mThreadEvent) {
                     NS_WARNING("running socket transport thread without "
                                "a pollable event");
-                    SOCKET_LOG(("running socket transport thread without "
+                    LOG(("running socket transport thread without "
                          "a pollable event"));
                 }
                 mPollList[0].fd = mThreadEvent;
@@ -831,66 +771,3 @@ nsSocketTransportService::GetSendBufferSize(PRInt32 *value)
 }
 
 
-/// ugly OS specific includes are placed at the bottom of the src for clarity
-
-#if defined(XP_WIN)
-#include <windows.h>
-#elif defined(XP_UNIX) && !defined(AIX) && !defined(NEXTSTEP) && !defined(QNX)
-#include <sys/resource.h>
-#endif
-
-PRStatus
-nsSocketTransportService::DiscoverMaxCount()
-{
-    gMaxCount = SOCKET_LIMIT_MIN;
-
-#if defined(XP_UNIX) && !defined(AIX) && !defined(NEXTSTEP) && !defined(QNX)
-    // On unix and os x network sockets and file
-    // descriptors are the same. OS X comes defaulted at 256,
-    // most linux at 1000. We can reliably use [sg]rlimit to
-    // query that and raise it. We will try to raise it 250 past
-    // our target number of SOCKET_LIMIT_TARGET so that some descriptors
-    // are still available for other things.
-
-    struct rlimit rlimitData;
-    if (getrlimit(RLIMIT_NOFILE, &rlimitData) == -1)
-        return PR_SUCCESS;
-    if (rlimitData.rlim_cur >=  SOCKET_LIMIT_TARGET + 250) {
-        gMaxCount = SOCKET_LIMIT_TARGET;
-        return PR_SUCCESS;
-    }
-
-    PRInt32 maxallowed = rlimitData.rlim_max;
-    if (maxallowed == -1) {                       /* no limit */
-        maxallowed = SOCKET_LIMIT_TARGET + 250;
-    } else if ((PRUint32)maxallowed < SOCKET_LIMIT_MIN + 250) {
-        return PR_SUCCESS;
-    } else if ((PRUint32)maxallowed > SOCKET_LIMIT_TARGET + 250) {
-        maxallowed = SOCKET_LIMIT_TARGET + 250;
-    }
-
-    rlimitData.rlim_cur = maxallowed;
-    setrlimit(RLIMIT_NOFILE, &rlimitData);
-    if (getrlimit(RLIMIT_NOFILE, &rlimitData) != -1)
-        if (rlimitData.rlim_cur > SOCKET_LIMIT_MIN + 250)
-            gMaxCount = rlimitData.rlim_cur - 250;
-
-#elif defined(XP_WIN) && !defined(WIN_CE)
-    // win 95, 98, etc had a limit of 100 - so we will just
-    // use the historical 50 in every case older than XP (0x501).
-    // >= XP is confirmed to have at least 1000
-
-    OSVERSIONINFO osInfo = { sizeof(OSVERSIONINFO) };
-    if (GetVersionEx(&osInfo)) {
-        PRInt32 version = 
-            (osInfo.dwMajorVersion & 0xff) << 8 | 
-            (osInfo.dwMinorVersion & 0xff);
-        if (version >= 0x501)                    /* xp or later */
-            gMaxCount = SOCKET_LIMIT_TARGET;
-    }
-#else
-    // other platforms are harder to test - so leave at safe legacy value
-#endif
-
-    return PR_SUCCESS;
-}

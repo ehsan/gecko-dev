@@ -485,16 +485,10 @@ pr_LoadMachDyldModule(const char *name)
             == NSObjectFileImageSuccess) {
         h = NSLinkModule(ofi, name, NSLINKMODULE_OPTION_PRIVATE
                          | NSLINKMODULE_OPTION_RETURN_ON_ERROR);
-        if (h == NULL) {
-            NSLinkEditErrors linkEditError;
-            int errorNum;
-            const char *fileName;
-            const char *errorString;
-            NSLinkEditError(&linkEditError, &errorNum, &fileName, &errorString);
-            PR_LOG(_pr_linker_lm, PR_LOG_MIN, 
-                   ("LoadMachDyldModule error %d:%d for file %s:\n%s",
-                    linkEditError, errorNum, fileName, errorString));
-        }
+        /*
+         * TODO: If NSLinkModule fails, use NSLinkEditError to retrieve
+         * error information.
+         */
         if (NSDestroyObjectFileImage(ofi) == FALSE) {
             if (h) {
                 (void)NSUnLinkModule(h, NSUNLINKMODULE_OPTION_NONE);
@@ -654,8 +648,8 @@ pr_LoadViaDyld(const char *name, PRLibrary *lm)
         if (lm->image == NULL) {
             NSLinkEditErrors linkEditError;
             int errorNum;
-            const char *fileName;
             const char *errorString;
+            const char *fileName;
             NSLinkEditError(&linkEditError, &errorNum, &fileName, &errorString);
             PR_LOG(_pr_linker_lm, PR_LOG_MIN, 
                    ("LoadMachDyldModule error %d:%d for file %s:\n%s",
@@ -1360,8 +1354,7 @@ PR_LoadStaticLibrary(const char *name, const PRStaticLinkTable *slt)
 PR_IMPLEMENT(char *)
 PR_GetLibraryFilePathname(const char *name, PRFuncPtr addr)
 {
-#if defined(USE_DLFCN) && !defined(ANDROID) \
-        && (defined(SOLARIS) || defined(FREEBSD) \
+#if defined(USE_DLFCN) && !defined(ANDROID) && (defined(SOLARIS) || defined(FREEBSD) \
         || defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
         || defined(DARWIN))
     Dl_info dli;

@@ -10,7 +10,6 @@
     COMPONENT(BINARYOUTPUTSTREAM, nsBinaryOutputStreamConstructor)
     COMPONENT(STORAGESTREAM, nsStorageStreamConstructor)
     COMPONENT(VERSIONCOMPARATOR, nsVersionComparatorImplConstructor)
-    COMPONENT(SCRIPTABLEBASE64ENCODER, nsScriptableBase64EncoderConstructor)
     COMPONENT(PIPE, nsPipeConstructor)
 
     COMPONENT(PROPERTIES, nsPropertiesConstructor)
@@ -64,6 +63,10 @@
     COMPONENT(STRINGINPUTSTREAM, nsStringInputStreamConstructor)
     COMPONENT(MULTIPLEXINPUTSTREAM, nsMultiplexInputStreamConstructor)
 
+#ifndef MOZ_NO_FAST_LOAD
+    COMPONENT(FASTLOADSERVICE, nsFastLoadService::Create)
+#endif
+
     COMPONENT(VARIANT, nsVariantConstructor)
     COMPONENT(INTERFACEINFOMANAGER_SERVICE, nsXPTIInterfaceInfoManagerGetSingleton)
 
@@ -84,4 +87,3 @@
     COMPONENT(SYSTEMINFO, nsSystemInfoConstructor)
     COMPONENT(MEMORY_REPORTER_MANAGER, nsMemoryReporterManagerConstructor)
     COMPONENT(IOUTIL, nsIOUtilConstructor)
-    COMPONENT(CYCLE_COLLECTOR_LOGGER, nsCycleCollectorLoggerConstructor)

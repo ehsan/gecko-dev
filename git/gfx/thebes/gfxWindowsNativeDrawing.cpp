@@ -90,29 +90,25 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
              (surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA &&
               (mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA))))
         {
-            // grab the DC. This can fail if there is a complex clipping path,
-            // in which case we'll have to fall back.
-            mWinSurface = static_cast<gfxWindowsSurface*>(static_cast<gfxASurface*>(surf.get()));
-            mDC = mWinSurface->GetDCWithClip(mContext);
+            if (mTransformType == TRANSLATION_ONLY) {
+                mRenderState = RENDER_STATE_NATIVE_DRAWING;
 
-            if (mDC) {
-                if (mTransformType == TRANSLATION_ONLY) {
-                    mRenderState = RENDER_STATE_NATIVE_DRAWING;
+                mTranslation = m.GetTranslation();
 
-                    mTranslation = m.GetTranslation();
-                } else if (((mTransformType == AXIS_ALIGNED_SCALE)
-                            && (mNativeDrawFlags & CAN_AXIS_ALIGNED_SCALE)) ||
-                           (mNativeDrawFlags & CAN_COMPLEX_TRANSFORM))
-                {
-                    mWorldTransform.eM11 = (FLOAT) m.xx;
-                    mWorldTransform.eM12 = (FLOAT) m.yx;
-                    mWorldTransform.eM21 = (FLOAT) m.xy;
-                    mWorldTransform.eM22 = (FLOAT) m.yy;
-                    mWorldTransform.eDx  = (FLOAT) m.x0;
-                    mWorldTransform.eDy  = (FLOAT) m.y0;
+                mWinSurface = static_cast<gfxWindowsSurface*>(static_cast<gfxASurface*>(surf.get()));
+            } else if (((mTransformType == AXIS_ALIGNED_SCALE)
+                        && (mNativeDrawFlags & CAN_AXIS_ALIGNED_SCALE)) ||
+                       (mNativeDrawFlags & CAN_COMPLEX_TRANSFORM))
+            {
+                mWorldTransform.eM11 = (FLOAT) m.xx;
+                mWorldTransform.eM12 = (FLOAT) m.yx;
+                mWorldTransform.eM21 = (FLOAT) m.xy;
+                mWorldTransform.eM22 = (FLOAT) m.yy;
+                mWorldTransform.eDx  = (FLOAT) m.x0;
+                mWorldTransform.eDy  = (FLOAT) m.y0;
 
-                    mRenderState = RENDER_STATE_NATIVE_DRAWING;
-                }
+                mRenderState = RENDER_STATE_NATIVE_DRAWING;
+                mWinSurface = static_cast<gfxWindowsSurface*>(static_cast<gfxASurface*>(surf.get()));
             }
         }
 
@@ -137,9 +133,8 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
                 // and it fixes bug 382458
                 // There's probably a better fix, but I haven't figured out
                 // the root cause of the problem.
-                mTempSurfaceSize =
-                    gfxIntSize((PRInt32) NS_ceil(mNativeRect.Width() + 1),
-                               (PRInt32) NS_ceil(mNativeRect.Height() + 1));
+                mTempSurfaceSize.width = (PRInt32) NS_ceil(mNativeRect.size.width + 1);
+                mTempSurfaceSize.height = (PRInt32) NS_ceil(mNativeRect.size.height + 1);
             } else {
                 // figure out the scale factors
                 mScale = m.ScaleFactors(PR_TRUE);
@@ -152,9 +147,8 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
                 mWorldTransform.eDy  = 0.0f;
 
                 // See comment above about "+1"
-                mTempSurfaceSize =
-                    gfxIntSize((PRInt32) NS_ceil(mNativeRect.Width() * mScale.width + 1),
-                               (PRInt32) NS_ceil(mNativeRect.Height() * mScale.height + 1));
+                mTempSurfaceSize.width = (PRInt32) NS_ceil(mNativeRect.size.width * mScale.width + 1);
+                mTempSurfaceSize.height = (PRInt32) NS_ceil(mNativeRect.size.height * mScale.height + 1);
             }
         }
     }
@@ -162,13 +156,21 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
     if (mRenderState == RENDER_STATE_NATIVE_DRAWING) {
         // we can just do native drawing directly to the context's surface
 
+        // grab the DC
+        mDC = mWinSurface->GetDCWithClip(mContext);
+
         // do we need to use SetWorldTransform?
         if (mTransformType != TRANSLATION_ONLY) {
             SetGraphicsMode(mDC, GM_ADVANCED);
             GetWorldTransform(mDC, &mOldWorldTransform);
             SetWorldTransform(mDC, &mWorldTransform);
         }
+
+#ifdef WINCE
+        SetViewportOrgEx(mDC, 0, 0, &mOrigViewportOrigin);
+#else
         GetViewportOrgEx(mDC, &mOrigViewportOrigin);
+#endif
         SetViewportOrgEx(mDC,
                          mOrigViewportOrigin.x + (int)mDeviceOffset.x,
                          mOrigViewportOrigin.y + (int)mDeviceOffset.y,
@@ -279,8 +281,8 @@ gfxWindowsNativeDrawing::PaintToContext()
         // nothing to do, it already went to the context
         mRenderState = RENDER_STATE_DONE;
     } else if (mRenderState == RENDER_STATE_ALPHA_RECOVERY_WHITE_DONE) {
-        nsRefPtr<gfxImageSurface> black = mBlackSurface->GetAsImageSurface();
-        nsRefPtr<gfxImageSurface> white = mWhiteSurface->GetAsImageSurface();
+        nsRefPtr<gfxImageSurface> black = mBlackSurface->GetImageSurface();
+        nsRefPtr<gfxImageSurface> white = mWhiteSurface->GetImageSurface();
         if (!gfxAlphaRecovery::RecoverAlpha(black, white)) {
             NS_ERROR("Alpha recovery failure");
             return;
@@ -291,9 +293,9 @@ gfxWindowsNativeDrawing::PaintToContext()
                                 gfxASurface::ImageFormatARGB32);
 
         mContext->Save();
-        mContext->Translate(mNativeRect.TopLeft());
+        mContext->Translate(mNativeRect.pos);
         mContext->NewPath();
-        mContext->Rectangle(gfxRect(gfxPoint(0.0, 0.0), mNativeRect.Size()));
+        mContext->Rectangle(gfxRect(gfxPoint(0.0, 0.0), mNativeRect.size));
 
         nsRefPtr<gfxPattern> pat = new gfxPattern(alphaSurface);
 
@@ -304,7 +306,6 @@ gfxWindowsNativeDrawing::PaintToContext()
         if (mNativeDrawFlags & DO_NEAREST_NEIGHBOR_FILTERING)
             pat->SetFilter(gfxPattern::FILTER_FAST);
 
-        pat->SetExtend(gfxPattern::EXTEND_PAD);
         mContext->SetPattern(pat);
         mContext->Fill();
         mContext->Restore();
@@ -331,7 +332,7 @@ gfxWindowsNativeDrawing::TransformToNativeRect(const gfxRect& r,
             roundedRect.MoveBy(mTranslation);
         }
     } else {
-        roundedRect.MoveBy(-mNativeRect.TopLeft());
+        roundedRect.MoveBy(- mNativeRect.pos);
     }
 
     roundedRect.Round();

@@ -44,21 +44,17 @@
 #include <hildon-mime.h>
 #include <libosso.h>
 #endif
-#ifdef MOZ_WIDGET_QT
+#if (MOZ_PLATFORM_MAEMO == 6)
 #include <QDesktopServices>
 #include <QUrl>
 #include <QString>
-#if (MOZ_ENABLE_CONTENTACTION)
 #include <contentaction/contentaction.h>
 #include "nsContentHandlerApp.h"
-#endif
 #endif
 
 #include "nsMIMEInfoUnix.h"
 #include "nsGNOMERegistry.h"
 #include "nsIGIOService.h"
-#include "nsNetCID.h"
-#include "nsIIOService.h"
 #include "nsIGnomeVFSService.h"
 #include "nsAutoPtr.h"
 #ifdef MOZ_ENABLE_DBUS
@@ -83,7 +79,7 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
   }
 #endif
 
-#ifdef MOZ_WIDGET_QT
+#if (MOZ_PLATFORM_MAEMO == 6)
   if (NS_FAILED(rv)) {
     nsCAutoString spec;
     aURI->GetAsciiSpec(spec);
@@ -123,7 +119,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
   }
 #endif
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
   ContentAction::Action action = 
     ContentAction::Action::defaultActionForFile(QUrl(), QString(mSchemeOrType.get()));
   if (action.isValid()) {
@@ -147,7 +143,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
     return NS_OK;
 #endif
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
   QUrl uri = QUrl::fromLocalFile(QString::fromUtf8(nativePath.get()));
   ContentAction::Action action =
     ContentAction::Action::defaultActionForFile(uri, QString(mSchemeOrType.get()));
@@ -159,23 +155,11 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 #endif
 
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCAutoString uriSpec;
-  if (giovfs) {
-    // nsGIOMimeApp->Launch wants a URI string instead of local file
-    nsresult rv;
-    nsCOMPtr<nsIIOService> ioservice = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIURI> uri;
-    rv = ioservice->NewFileURI(aFile, getter_AddRefs(uri));
-    NS_ENSURE_SUCCESS(rv, rv);
-    uri->GetSpec(uriSpec);
-  }
-
   nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
   if (giovfs) {
     nsCOMPtr<nsIGIOMimeApp> app;
     if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mSchemeOrType, getter_AddRefs(app))) && app)
-      return app->Launch(uriSpec);
+      return app->Launch(nativePath);
   } else if (gnomevfs) {
     /* Fallback to GnomeVFS */
     nsCOMPtr<nsIGnomeVFSMimeApp> app;
@@ -192,7 +176,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
     if (giovfs) {
       nsCOMPtr<nsIGIOMimeApp> app;
       if (NS_SUCCEEDED(giovfs->GetAppForMimeType(type, getter_AddRefs(app))) && app)
-        return app->Launch(uriSpec);
+        return app->Launch(nativePath);
     } else if (gnomevfs) {
       nsCOMPtr<nsIGnomeVFSMimeApp> app;
       if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(type, getter_AddRefs(app))) && app)
@@ -303,7 +287,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
 }
 #endif
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
 NS_IMETHODIMP
 nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHandlers)
 {

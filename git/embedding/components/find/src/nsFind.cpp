@@ -44,6 +44,8 @@
 #include "nsIEnumerator.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
+#include "nsIDOMDocumentRange.h"
+#include "nsIDOMDocumentTraversal.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
 #include "nsIFrame.h"
@@ -972,6 +974,9 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
   // (only matters when we're matching)
   PRBool inWhitespace = PR_FALSE;
 
+  // Have we extended a search past the endpoint?
+  PRBool continuing = PR_FALSE;
+
   // Place to save the range start point in case we find a match:
   nsCOMPtr<nsIDOMNode> matchAnchorNode;
   PRInt32 matchAnchorOffset = 0;
@@ -999,7 +1004,7 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
       {
         // Are we in the middle of a match?
         // If so, try again with continuation.
-        if (matchAnchorNode)
+        if (matchAnchorNode && !continuing)
           NextNode(aSearchRange, aStartPoint, aEndPoint, PR_TRUE);
 
         // Reset the iterator, so this nsFind will be usable if
@@ -1120,7 +1125,7 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
 
     // Have we gone past the endpoint yet?
     // If we have, and we're not in the middle of a match, return.
-    if (mIterNode == endNode &&
+    if (mIterNode == endNode && !continuing &&
         ((mFindBackward && (findex < endOffset)) ||
          (!mFindBackward && (findex > endOffset))))
     {
@@ -1273,6 +1278,11 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
 #ifdef DEBUG_FIND
     printf("NOT: %c == %c\n", c, patc);
 #endif
+    // If we were continuing, then this ends our search.
+    if (continuing) {
+      ResetAll();
+      return NS_OK;
+    }
 
     // If we didn't match, go back to the beginning of patStr,
     // and set findex back to the next char after

@@ -55,8 +55,8 @@ public:
   NS_IMETHOD GetValue(nsAString& _retval);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -68,9 +68,12 @@ class nsXULColorPickerAccessible : public nsXULColorPickerTileAccessible
 public:
   nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
+  // nsAccessNode
+  virtual PRBool Init();
+
   // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
 

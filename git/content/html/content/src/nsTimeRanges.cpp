@@ -51,14 +51,6 @@ NS_INTERFACE_MAP_BEGIN(nsTimeRanges)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TimeRanges)
 NS_INTERFACE_MAP_END
 
-nsTimeRanges::nsTimeRanges() {
-  MOZ_COUNT_CTOR(nsTimeRanges);
-}
-
-nsTimeRanges::~nsTimeRanges() {
-  MOZ_COUNT_DTOR(nsTimeRanges);
-}
-
 NS_IMETHODIMP
 nsTimeRanges::GetLength(PRUint32* aLength) {
   *aLength = mRanges.Length();
@@ -66,7 +58,7 @@ nsTimeRanges::GetLength(PRUint32* aLength) {
 }
 
 NS_IMETHODIMP
-nsTimeRanges::Start(PRUint32 aIndex, double* aTime) {
+nsTimeRanges::Start(PRUint32 aIndex, float* aTime) {
   if (aIndex >= mRanges.Length())
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   *aTime = mRanges[aIndex].mStart;
@@ -74,7 +66,7 @@ nsTimeRanges::Start(PRUint32 aIndex, double* aTime) {
 }
 
 NS_IMETHODIMP
-nsTimeRanges::End(PRUint32 aIndex, double* aTime) {
+nsTimeRanges::End(PRUint32 aIndex, float* aTime) {
   if (aIndex >= mRanges.Length())
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   *aTime = mRanges[aIndex].mEnd;
@@ -82,6 +74,6 @@ nsTimeRanges::End(PRUint32 aIndex, double* aTime) {
 }
 
 void
-nsTimeRanges::Add(double aStart, double aEnd) {
+nsTimeRanges::Add(float aStart, float aEnd) {
   mRanges.AppendElement(TimeRange(aStart,aEnd));
 }

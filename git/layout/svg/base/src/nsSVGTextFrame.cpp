@@ -43,7 +43,7 @@
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsISVGGlyphFragmentNode.h"
-#include "nsSVGGlyphFrame.h"
+#include "nsISVGGlyphFragmentLeaf.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsIDOMSVGRect.h"
 #include "nsSVGRect.h"
@@ -101,8 +101,7 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
              aAttribute == nsGkAtoms::dx ||
-             aAttribute == nsGkAtoms::dy ||
-             aAttribute == nsGkAtoms::rotate) {
+             aAttribute == nsGkAtoms::dy) {
     NotifyGlyphMetricsChange();
   }
 
@@ -295,63 +294,40 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
 }
 
 void
-nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
-{
-  SetWhitespaceCompression();
-
-  PRBool trimLeadingWhitespace = PR_TRUE;
-  nsSVGGlyphFrame* lastNonWhitespaceFrame = aFrame;
-
-  while (aFrame) {
-    if (!aFrame->IsAllWhitespace()) {
-      lastNonWhitespaceFrame = aFrame;
-    }
-
-    aFrame->SetTrimLeadingWhitespace(trimLeadingWhitespace);
-    trimLeadingWhitespace = aFrame->EndsWithWhitespace();
-
-    aFrame = aFrame->GetNextGlyphFrame();
-  }
-
-  lastNonWhitespaceFrame->SetTrimTrailingWhitespace(PR_TRUE);
-}
-
-void
 nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 {
   if (mMetricsState == suspended || !mPositioningDirty)
     return;
 
-  mPositioningDirty = PR_FALSE;
+  SetWhitespaceHandling();
 
   nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
-  if (!node)
-    return;
+  if (!node) return;
 
-  nsSVGGlyphFrame *frame, *firstFrame;
+  mPositioningDirty = PR_FALSE;
 
-  firstFrame = node->GetFirstGlyphFrame();
-  if (!firstFrame) {
+  nsISVGGlyphFragmentLeaf *fragment, *firstFragment;
+
+  firstFragment = node->GetFirstGlyphFragment();
+  if (!firstFragment) {
     return;
   }
 
-  SetWhitespaceHandling(firstFrame);
-
-  BuildPositionList(0, 0);
-
   gfxPoint ctp(0.0, 0.0);
 
-  // loop over chunks
-  while (firstFrame) {
-    nsSVGTextPathFrame *textPath = firstFrame->FindTextPathParent();
+  SVGUserUnitList xLengthList, yLengthList;
+  GetXY(&xLengthList, &yLengthList);
+  if (xLengthList.Length() > 0) ctp.x = xLengthList[0];
+  if (yLengthList.Length() > 0) ctp.y = yLengthList[0];
 
-    nsTArray<float> effectiveXList, effectiveYList;
-    firstFrame->GetEffectiveXY(firstFrame->GetNumberOfChars(),
-                               effectiveXList, effectiveYList);
-    if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
-    if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
+  // loop over chunks
+  while (firstFragment) {
+    firstFragment->GetXY(&xLengthList, &yLengthList);
+    if (xLengthList.Length() > 0) ctp.x = xLengthList[0];
+    if (yLengthList.Length() > 0) ctp.y = yLengthList[0];
 
     // check for startOffset on textPath
+    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
     if (textPath) {
       if (!textPath->GetPathFrame()) {
         // invalid text path, give up
@@ -362,50 +338,17 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 
     // determine x offset based on text_anchor:
   
-    PRUint8 anchor = firstFrame->GetTextAnchor();
-
-    /**
-     * XXXsmontagu: The SVG spec is very vague as to how 'text-anchor'
-     *  interacts with bidirectional text. It says:
-     *
-     *   "For scripts that are inherently right to left such as Hebrew and
-     *   Arabic [text-anchor: start] is equivalent to right alignment."
-     * and
-     *   "For scripts that are inherently right to left such as Hebrew and
-     *   Arabic, [text-anchor: end] is equivalent to left alignment.
-     *
-     * It's not clear how this should be implemented in terms of defined
-     * properties, i.e. how one should determine that a particular element
-     * contains a script that is inherently right to left.
-     *
-     * The code below follows http://www.w3.org/TR/SVGTiny12/text.html#TextAnchorProperty
-     * and swaps the values of text-anchor: end and  text-anchor: start
-     * whenever the 'direction' property is rtl.
-     *
-     * This is probably the "right" thing to do, but other browsers don't do it,
-     * so I am leaving it inside #if 0 for now for interoperability.
-     *
-     * See also XXXsmontagu comments in nsSVGGlyphFrame::EnsureTextRun
-     */
-#if 0
-    if (GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-      if (anchor == NS_STYLE_TEXT_ANCHOR_END) {
-        anchor = NS_STYLE_TEXT_ANCHOR_START;
-      } else if (anchor == NS_STYLE_TEXT_ANCHOR_START) {
-        anchor = NS_STYLE_TEXT_ANCHOR_END;
-      }
-    }
-#endif
+    PRUint8 anchor = firstFragment->GetTextAnchor();
 
     float chunkLength = 0.0f;
     if (anchor != NS_STYLE_TEXT_ANCHOR_START) {
       // need to get the total chunk length
     
-      frame = firstFrame;
-      while (frame) {
-        chunkLength += frame->GetAdvance(aForceGlobalTransform);
-        frame = frame->GetNextGlyphFrame();
-        if (frame && frame->IsAbsolutelyPositioned())
+      fragment = firstFragment;
+      while (fragment) {
+        chunkLength += fragment->GetAdvance(aForceGlobalTransform);
+        fragment = fragment->GetNextGlyphFragment();
+        if (fragment && fragment->IsAbsolutelyPositioned())
           break;
       }
     }
@@ -415,17 +358,17 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     else if (anchor == NS_STYLE_TEXT_ANCHOR_END)
       ctp.x -= chunkLength;
   
-    // set position of each frame in this chunk:
+    // set position of each fragment in this chunk:
   
-    frame = firstFrame;
-    while (frame) {
+    fragment = firstFragment;
+    while (fragment) {
 
-      frame->SetGlyphPosition(&ctp, aForceGlobalTransform);
-      frame = frame->GetNextGlyphFrame();
-      if (frame && frame->IsAbsolutelyPositioned())
+      fragment->SetGlyphPosition(&ctp, aForceGlobalTransform);
+      fragment = fragment->GetNextGlyphFragment();
+      if (fragment && fragment->IsAbsolutelyPositioned())
         break;
     }
-    firstFrame = frame;
+    firstFragment = fragment;
   }
   nsSVGUtils::UpdateGraphic(this);
 }

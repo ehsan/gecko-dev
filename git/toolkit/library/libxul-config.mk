@@ -41,7 +41,7 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
 REQUIRES += widget gfx
 CPPSRCS += \
 	nsDllMain.cpp \
@@ -50,6 +50,7 @@ endif
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 CPPSRCS += \
+	dlldeps.cpp \
 	nsGFXDeps.cpp \
 	$(NULL)
 
@@ -57,10 +58,10 @@ RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
+DEFINES += -DZLIB_INTERNAL
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
@@ -72,21 +73,25 @@ ifeq ($(OS_ARCH),OS2)
 REQUIRES += widget gfx
 
 CPPSRCS += \
+	dlldeps.cpp \
 	nsGFXDeps.cpp \
 	$(NULL)
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
+DEFINES += -DZLIB_INTERNAL
 endif
 
+ifdef MOZ_ENABLE_LIBXUL
 RESFILE = xulrunos2.res
 RCFLAGS += -i $(topsrcdir)/widget/src/os2
+endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/os2
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 # dependent libraries
+ifdef MOZ_IPC
 STATIC_LIBS += \
   jsipc_s \
   domipc_s \
@@ -94,7 +99,6 @@ STATIC_LIBS += \
   mozipc_s \
   mozipdlgen_s \
   ipcshell_s \
-  gfx2d \
   gfxipc_s \
   $(NULL)
 
@@ -107,13 +111,26 @@ ifneq (Android,$(OS_TARGET))
 OS_LIBS += -lrt
 endif
 endif
+ifeq (WINNT,$(OS_ARCH))
+OS_LIBS += dbghelp.lib
+endif
+endif
 
 STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
-	chromium_s \
+	gkgfx \
+	$(NULL)
+
+ifdef MOZ_IPC
+STATIC_LIBS += chromium_s
+endif
+
+ifndef WINCE
+STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
+endif
 
 # component libraries
 COMPONENT_LIBS += \
@@ -126,7 +143,6 @@ COMPONENT_LIBS += \
 	pref \
 	htmlpars \
 	imglib2 \
-	gkgfx \
 	gklayout \
 	docshell \
 	embedcomponents \
@@ -138,11 +154,11 @@ COMPONENT_LIBS += \
 	pipboot \
 	pipnss \
 	appcomps \
-	jsreflect \
-	composer \
-	jetpack_s \
-	telemetry \
 	$(NULL)
+
+ifdef MOZ_IPC
+COMPONENT_LIBS +=  jetpack_s
+endif
 
 ifdef BUILD_CTYPES
 COMPONENT_LIBS += \
@@ -150,10 +166,14 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
+COMPONENT_LIBS += jsperf
+
+ifdef MOZ_PLUGINS
+DEFINES += -DMOZ_PLUGINS
 COMPONENT_LIBS += \
-  jsperf \
-  gkplugin \
-  $(NULL)
+	gkplugin \
+	$(NULL)
+endif
 
 ifdef MOZ_XUL
 ifdef MOZ_ENABLE_GTK2
@@ -212,6 +232,12 @@ COMPONENT_LIBS += universalchardet
 DEFINES += -DMOZ_UNIVERSALCHARDET
 endif
 
+ifndef MOZ_PLAINTEXT_EDITOR_ONLY
+COMPONENT_LIBS += composer
+else
+DEFINES += -DMOZ_PLAINTEXT_EDITOR_ONLY
+endif
+
 ifdef MOZ_RDF
 COMPONENT_LIBS += \
 	rdf \
@@ -219,7 +245,7 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
-ifeq (,$(filter android qt os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 COMPONENT_LIBS += fileview
 DEFINES += -DMOZ_FILEVIEW
@@ -237,13 +263,13 @@ STATIC_LIBS += morkreader_s
 COMPONENT_LIBS += \
 	places \
 	$(NULL)
-endif
-
+else
 ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
 	$(NULL)
+endif
 endif
 endif
 
@@ -269,7 +295,7 @@ endif
 endif
 
 # Platform-specific icon channel stuff - supported mostly-everywhere
-ifneq (,$(filter windows os2 mac cocoa gtk2 qt android,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter beos windows os2 mac cocoa gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
@@ -280,10 +306,17 @@ endif
 
 STATIC_LIBS += thebes ycbcr
 
+ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
 STATIC_LIBS += angle
+endif
+
+COMPONENT_LIBS += gkgfxthebes
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += gkwidget
+endif
+ifeq (beos,$(MOZ_WIDGET_TOOLKIT))
+COMPONENT_LIBS += widget_beos
 endif
 ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += wdgtos2
@@ -313,16 +346,10 @@ DEFINES += -DMOZ_ZIPWRITER
 COMPONENT_LIBS += zipwriter
 endif
 
-COMPONENT_LIBS += services-crypto
-
 ifdef MOZ_DEBUG
 ifdef ENABLE_TESTS
 COMPONENT_LIBS += gkdebug
 endif
-endif
-
-ifdef MOZ_APP_COMPONENT_LIBS
-COMPONENT_LIBS += $(MOZ_APP_COMPONENT_LIBS)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -338,8 +365,6 @@ EXTRA_DSO_LDOPTS += \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
 	$(MOZ_HARFBUZZ_LIBS) \
-	$(MOZ_OTS_LIBS) \
-	$(MOZ_APP_EXTRA_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB
@@ -354,10 +379,6 @@ endif
 
 ifdef MOZ_NATIVE_LIBEVENT
 EXTRA_DSO_LDOPTS += $(MOZ_LIBEVENT_LIBS)
-endif
-
-ifdef MOZ_NATIVE_LIBVPX
-EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
 ifdef MOZ_SYDNEYAUDIO

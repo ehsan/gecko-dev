@@ -37,7 +37,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsImgBuildDefines.h"
+
+#include "nsIDeviceContext.h"
 #include "mozilla/ModuleUtils.h"
+#include "nsXPCOMCID.h"
+#include "nsServiceManagerUtils.h"
 
 #include "RasterImage.h"
 
@@ -55,8 +60,14 @@
 #include "imgTools.h"
 #include "DiscardTracker.h"
 
+#ifdef IMG_BUILD_ENCODER_png
+// png
 #include "nsPNGEncoder.h"
+#endif
+#ifdef IMG_BUILD_ENCODER_jpeg
+// jpeg
 #include "nsJPEGEncoder.h"
+#endif
 
 // objects that just require generic constructors
 namespace mozilla {
@@ -69,22 +80,40 @@ using namespace mozilla::imagelib;
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(imgLoader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(imgRequestProxy)
 NS_GENERIC_FACTORY_CONSTRUCTOR(imgTools)
+
+#ifdef IMG_BUILD_ENCODER_jpeg
+// jpeg
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsJPEGEncoder)
+#endif
+
+#ifdef IMG_BUILD_ENCODER_png
+// png
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPNGEncoder)
+#endif
+
 NS_DEFINE_NAMED_CID(NS_IMGLOADER_CID);
 NS_DEFINE_NAMED_CID(NS_IMGREQUESTPROXY_CID);
 NS_DEFINE_NAMED_CID(NS_IMGTOOLS_CID);
 NS_DEFINE_NAMED_CID(NS_RASTERIMAGE_CID);
+#ifdef IMG_BUILD_ENCODER_jpeg
 NS_DEFINE_NAMED_CID(NS_JPEGENCODER_CID);
+#endif
+#ifdef IMG_BUILD_ENCODER_png
 NS_DEFINE_NAMED_CID(NS_PNGENCODER_CID);
+#endif
+
 
 static const mozilla::Module::CIDEntry kImageCIDs[] = {
   { &kNS_IMGLOADER_CID, false, NULL, imgLoaderConstructor, },
   { &kNS_IMGREQUESTPROXY_CID, false, NULL, imgRequestProxyConstructor, },
   { &kNS_IMGTOOLS_CID, false, NULL, imgToolsConstructor, },
   { &kNS_RASTERIMAGE_CID, false, NULL, RasterImageConstructor, },
+#ifdef IMG_BUILD_ENCODER_jpeg
   { &kNS_JPEGENCODER_CID, false, NULL, nsJPEGEncoderConstructor, },
+#endif
+#ifdef IMG_BUILD_ENCODER_png
   { &kNS_PNGENCODER_CID, false, NULL, nsPNGEncoderConstructor, },
+#endif
   { NULL }
 };
 
@@ -94,8 +123,12 @@ static const mozilla::Module::ContractIDEntry kImageContracts[] = {
   { "@mozilla.org/image/request;1", &kNS_IMGREQUESTPROXY_CID },
   { "@mozilla.org/image/tools;1", &kNS_IMGTOOLS_CID },
   { "@mozilla.org/image/rasterimage;1", &kNS_RASTERIMAGE_CID },
+#ifdef IMG_BUILD_ENCODER_jpeg
   { "@mozilla.org/image/encoder;2?type=image/jpeg", &kNS_JPEGENCODER_CID },
+#endif
+#ifdef IMG_BUILD_ENCODER_png
   { "@mozilla.org/image/encoder;2?type=image/png", &kNS_PNGENCODER_CID },
+#endif
   { NULL }
 };
 
@@ -118,6 +151,12 @@ static const mozilla::Module::CategoryEntry kImageCategories[] = {
 static nsresult
 imglib_Initialize()
 {
+  // Hack: We need the gfx module to be initialized because we use gfxPlatform
+  // in imgFrame. Request something from the gfx module to ensure that
+  // everything's set up for us.
+  nsCOMPtr<nsIDeviceContext> devctx = 
+    do_CreateInstance("@mozilla.org/gfx/devicecontext;1");
+
   imgLoader::InitCache();
   return NS_OK;
 }

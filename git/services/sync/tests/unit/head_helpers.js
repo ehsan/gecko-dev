@@ -1,27 +1,78 @@
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/engines.js");
-var btoa;
+// initialize nss
+let ch = Cc["@mozilla.org/security/hash;1"].
+         createInstance(Ci.nsICryptoHash);
+
+let ds = Cc["@mozilla.org/file/directory_service;1"]
+  .getService(Ci.nsIProperties);
 
 let provider = {
   getFile: function(prop, persistent) {
     persistent.value = true;
     switch (prop) {
       case "ExtPrefDL":
-        return [Services.dirsvc.get("CurProcD", Ci.nsIFile)];
+        return [ds.get("CurProcD", Ci.nsIFile)];
+      case "ProfD":
+        return ds.get("CurProcD", Ci.nsIFile);
       case "UHist":
-        let histFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+        let histFile = ds.get("CurProcD", Ci.nsIFile);
         histFile.append("history.dat");
         return histFile;
       default:
         throw Cr.NS_ERROR_FAILURE;
     }
   },
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDirectoryServiceProvider])
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsIDirectoryServiceProvider) ||
+        iid.equals(Ci.nsISupports)) {
+      return this;
+    }
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  }
 };
-Services.dirsvc.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
+ds.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
 
-btoa = Cu.import("resource://services-sync/log4moz.js").btoa;
+function loadInSandbox(aUri) {
+  var sandbox = Components.utils.Sandbox(this);
+  var request = Components.
+                classes["@mozilla.org/xmlextras/xmlhttprequest;1"].
+                createInstance();
+
+  request.open("GET", aUri, false);
+  request.overrideMimeType("application/javascript");
+  request.send(null);
+  Components.utils.evalInSandbox(request.responseText, sandbox, "1.8");
+
+  return sandbox;
+}
+
+function FakeTimerService() {
+  Cu.import("resource://services-sync/util.js");
+
+  this.callbackQueue = [];
+
+  var self = this;
+
+  this.__proto__ = {
+    makeTimerForCall: function FTS_makeTimerForCall(cb) {
+      // Just add the callback to our queue and we'll call it later, so
+      // as to simulate a real nsITimer.
+      self.callbackQueue.push(cb);
+      return "fake nsITimer";
+    },
+    processCallback: function FTS_processCallbacks() {
+      var cb = self.callbackQueue.pop();
+      if (cb) {
+        cb();
+        return true;
+      }
+      return false;
+    }
+  };
+
+  Utils.makeTimerForCall = self.makeTimerForCall;
+};
+
+Cu.import("resource://services-sync/log4moz.js");
 function getTestLogger(component) {
   return Log4Moz.repository.getLogger("Testing");
 }
@@ -51,29 +102,99 @@ function initTestLogging(level) {
   log.level = Log4Moz.Level.Trace;
   appender.level = Log4Moz.Level.Trace;
   // Overwrite any other appenders (e.g. from previous incarnations)
-  log.ownAppenders = [appender];
-  log.updateAppenders();
+  log._appenders = [appender];
 
   return logStats;
 }
 
-function FakeFilesystemService(contents) {
+function FakePrefService(contents) {
+  Cu.import("resource://services-sync/util.js");
+  this.fakeContents = contents;
+  Utils.__prefs = this;
+}
+
+FakePrefService.prototype = {
+  _getPref: function fake__getPref(pref) {
+    getTestLogger().trace("Getting pref: " + pref);
+    return this.fakeContents[pref];
+  },
+  getCharPref: function fake_getCharPref(pref) {
+    return this._getPref(pref);
+  },
+  getBoolPref: function fake_getBoolPref(pref) {
+    return this._getPref(pref);
+  },
+  getIntPref: function fake_getIntPref(pref) {
+    return this._getPref(pref);
+  },
+  addObserver: function fake_addObserver() {}
+};
+
+function FakePasswordService(contents) {
+  Cu.import("resource://services-sync/util.js");
+
   this.fakeContents = contents;
   let self = this;
 
-  Utils.jsonSave = function jsonSave(filePath, that, obj, callback) {
-    let json = typeof obj == "function" ? obj.call(that) : obj;
-    self.fakeContents["weave/" + filePath + ".json"] = JSON.stringify(json);
-    callback.call(that);
+  Utils.findPassword = function fake_findPassword(realm, username) {
+    getTestLogger().trace("Password requested for " +
+                          realm + ":" + username);
+    if (realm in self.fakeContents && username in self.fakeContents[realm])
+      return self.fakeContents[realm][username];
+    else
+      return null;
+  };
+};
+
+function FakeFilesystemService(contents) {
+  this.fakeContents = contents;
+
+  let self = this;
+
+  Utils.getProfileFile = function fake_getProfileFile(arg) {
+    let fakeNsILocalFile = {
+      exists: function() {
+        return this._fakeFilename in self.fakeContents;
+      },
+      _fakeFilename: (typeof(arg) == "object") ? arg.path : arg
+    };
+    return fakeNsILocalFile;
   };
 
-  Utils.jsonLoad = function jsonLoad(filePath, that, callback) {
-    let obj;
-    let json = self.fakeContents["weave/" + filePath + ".json"];
-    if (json) {
-      obj = JSON.parse(json);
+  Utils.readStream = function fake_readStream(stream) {
+    getTestLogger().info("Reading from stream.");
+    return stream._fakeData;
+  };
+
+  Utils.open = function fake_open(file, mode) {
+    switch (mode) {
+    case "<":
+      mode = "reading";
+      break;
+    case ">":
+      mode = "writing";
+      break;
+    default:
+      throw new Error("Unexpected mode: " + mode);
     }
-    callback.call(that, obj);
+
+    getTestLogger().info("Opening '" + file._fakeFilename + "' for " +
+                         mode + ".");
+    var contents = "";
+    if (file._fakeFilename in self.fakeContents && mode == "reading")
+      contents = self.fakeContents[file._fakeFilename];
+    let fakeStream = {
+      writeString: function(data) {
+        contents += data;
+        getTestLogger().info("Writing data to local file '" +
+                             file._fakeFilename +"': " + data);
+      },
+      close: function() {
+        self.fakeContents[file._fakeFilename] = contents;
+      },
+      get _fakeData() { return contents; }
+    };
+    return [fakeStream];
   };
 };
 
@@ -87,8 +208,8 @@ function FakeGUIDService() {
 
 
 /*
- * Mock implementation of WeaveCrypto. It does not encrypt or
- * decrypt, merely returning the input verbatim.
+ * Mock implementation of IWeaveCrypto.  It does not encrypt or
+ * decrypt, just returns the input verbatimly.
  */
 function FakeCryptoService() {
   this.counter = 0;
@@ -96,21 +217,15 @@ function FakeCryptoService() {
   delete Svc.Crypto;  // get rid of the getter first
   Svc.Crypto = this;
   Utils.sha256HMAC = this.sha256HMAC;
-
-  CryptoWrapper.prototype.ciphertextHMAC = this.ciphertextHMAC;
 }
 FakeCryptoService.prototype = {
 
-  sha256HMAC: function Utils_sha256HMAC(message, hasher) {
+  sha256HMAC: function(message, key) {
      message = message.substr(0, 64);
      while (message.length < 64) {
        message += " ";
      }
      return message;
-  },
-
-  ciphertextHMAC: function CryptoWrapper_ciphertextHMAC(keyBundle) {
-    return Utils.sha256HMAC(this.ciphertext);
   },
 
   encrypt: function(aClearText, aSymmetricKey, aIV) {
@@ -121,56 +236,166 @@ FakeCryptoService.prototype = {
     return aCipherText;
   },
 
+  generateKeypair: function(aPassphrase, aSalt, aIV,
+                            aEncodedPublicKey, aWrappedPrivateKey) {
+      aEncodedPublicKey.value = aPassphrase;
+      aWrappedPrivateKey.value = aPassphrase;
+  },
+
   generateRandomKey: function() {
-    return btoa("fake-symmetric-key-" + this.counter++);
+    return "fake-symmetric-key-" + this.counter++;
   },
 
   generateRandomIV: function() {
     // A base64-encoded IV is 24 characters long
-    return btoa("fake-fake-fake-random-iv");
-  },
-
-  expandData : function expandData(data, len) {
-    return data;
-  },
-
-  deriveKeyFromPassphrase : function (passphrase, salt, keyLength) {
-    return "some derived key string composed of bytes";
+    return "fake-fake-fake-random-iv";
   },
 
   generateRandomBytes: function(aByteCount) {
     return "not-so-random-now-are-we-HA-HA-HA! >:)".slice(aByteCount);
+  },
+
+  wrapSymmetricKey: function(aSymmetricKey, aEncodedPublicKey) {
+    return aSymmetricKey;
+  },
+
+  unwrapSymmetricKey: function(aWrappedSymmetricKey, aWrappedPrivateKey,
+                               aPassphrase, aSalt, aIV) {
+    if (!this.verifyPassphrase(aWrappedPrivateKey, aPassphrase)) {
+      throw Components.Exception("Unwrapping the private key failed",
+                                 Cr.NS_ERROR_FAILURE);
+    }
+    return aWrappedSymmetricKey;
+  },
+
+  rewrapPrivateKey: function(aWrappedPrivateKey, aPassphrase, aSalt, aIV,
+                             aNewPassphrase) {
+    return aNewPassphrase;
+  },
+
+  verifyPassphrase: function(aWrappedPrivateKey, aPassphrase, aSalt, aIV) {
+    return aWrappedPrivateKey == aPassphrase;
   }
+
 };
 
 
-function SyncTestingInfrastructure() {
+function SyncTestingInfrastructure(engineFactory) {
+  let __fakePasswords = {
+    'Mozilla Services Password': {foo: "bar"},
+    'Mozilla Services Encryption Passphrase': {foo: "passphrase"}
+  };
+
+  let __fakePrefs = {
+    "encryption" : "none",
+    "log.logger.service.crypto" : "Debug",
+    "log.logger.service.engine" : "Debug",
+    "log.logger.async" : "Debug",
+    "xmpp.enabled" : false
+  };
+
   Cu.import("resource://services-sync/identity.js");
+  Cu.import("resource://services-sync/util.js");
 
   ID.set('WeaveID',
          new Identity('Mozilla Services Encryption Passphrase', 'foo'));
   ID.set('WeaveCryptoID',
          new Identity('Mozilla Services Encryption Passphrase', 'foo'));
 
+  this.fakePasswordService = new FakePasswordService(__fakePasswords);
+  this.fakePrefService = new FakePrefService(__fakePrefs);
+  this.fakeTimerService = new FakeTimerService();
   this.logStats = initTestLogging();
   this.fakeFilesystem = new FakeFilesystemService({});
   this.fakeGUIDService = new FakeGUIDService();
   this.fakeCryptoService = new FakeCryptoService();
-}
 
-/*
- * Ensure exceptions from inside callbacks leads to test failures.
- */
-function ensureThrows(func) {
-  return function() {
-    try {
-      func.apply(this, arguments);
-    } catch (ex) {
-      do_throw(ex);
+  this._logger = getTestLogger();
+  this._engineFactory = engineFactory;
+  this._clientStates = [];
+
+  this.saveClientState = function pushClientState(label) {
+    let state = Utils.deepCopy(this.fakeFilesystem.fakeContents);
+    let currContents = this.fakeFilesystem.fakeContents;
+    this.fakeFilesystem.fakeContents = [];
+    let engine = this._engineFactory();
+    let snapshot = Utils.deepCopy(engine._store.wrap());
+    this._clientStates[label] = {state: state, snapshot: snapshot};
+    this.fakeFilesystem.fakeContents = currContents;
+  };
+
+  this.restoreClientState = function restoreClientState(label) {
+    let state = this._clientStates[label].state;
+    let snapshot = this._clientStates[label].snapshot;
+
+    function _restoreState() {
+      let self = yield;
+
+      this.fakeFilesystem.fakeContents = [];
+      let engine = this._engineFactory();
+      engine._store.wipe();
+      let originalSnapshot = Utils.deepCopy(engine._store.wrap());
+
+      engine._core.detectUpdates(self.cb, originalSnapshot, snapshot);
+      let commands = yield;
+
+      engine._store.applyCommands.async(engine._store, self.cb, commands);
+      yield;
+
+      this.fakeFilesystem.fakeContents = Utils.deepCopy(state);
     }
+
+    let self = this;
+
+    function restoreState(cb) {
+      _restoreState.async(self, cb);
+    }
+
+    this.runAsyncFunc("restore client state of " + label,
+                      restoreState);
+  };
+
+  this.__makeCallback = function __makeCallback() {
+    this.__callbackCalled = false;
+    let self = this;
+    return function callback() {
+      self.__callbackCalled = true;
+    };
+  };
+
+  this.doSync = function doSync(name) {
+    let self = this;
+
+    function freshEngineSync(cb) {
+      let engine = self._engineFactory();
+      engine.sync(cb);
+    }
+
+    this.runAsyncFunc(name, freshEngineSync);
+  };
+
+  this.runAsyncFunc = function runAsyncFunc(name, func) {
+    let logger = this._logger;
+
+    logger.info("-----------------------------------------");
+    logger.info("Step '" + name + "' starting.");
+    logger.info("-----------------------------------------");
+    func(this.__makeCallback());
+    while (this.fakeTimerService.processCallback()) {}
+    do_check_true(this.__callbackCalled);
+    for (name in Async.outstandingGenerators)
+      logger.warn("Outstanding generator exists: " + name);
+    do_check_eq(this.logStats.errorsLogged, 0);
+    do_check_eq(Async.outstandingGenerators.length, 0);
+    logger.info("Step '" + name + "' succeeded.");
+  };
+
+  this.resetClientState = function resetClientState() {
+    this.fakeFilesystem.fakeContents = {};
+    let engine = this._engineFactory();
+    engine._store.wipe();
   };
 }
-
 
 /**
  * Print some debug message to the console. All arguments will be printed,
@@ -185,140 +410,6 @@ let _ = function(some, debug, text, to) print(Array.slice(arguments).join(" "));
 
 _("Setting the identity for passphrase");
 Cu.import("resource://services-sync/identity.js");
+let passphrase = ID.set("WeaveCryptoID", new Identity());
+passphrase.password = "passphrase";
 
-
-/*
- * Test setup helpers.
- */
-
-// Turn WBO cleartext into "encrypted" payload as it goes over the wire
-function encryptPayload(cleartext) {
-  if (typeof cleartext == "object") {
-    cleartext = JSON.stringify(cleartext);
-  }
-
-  return {ciphertext: cleartext, // ciphertext == cleartext with fake crypto
-          IV: "irrelevant",
-          hmac: Utils.sha256HMAC(cleartext, Utils.makeHMACKey(""))};
-}
-
-function generateNewKeys(collections) {
-  let wbo = CollectionKeys.generateNewKeysWBO(collections);
-  let modified = new_timestamp();
-  CollectionKeys.setContents(wbo.cleartext, modified);
-}
-
-function basic_auth_header(user, password) {
-  return "Basic " + btoa(user + ":" + Utils.encodeUTF8(password));
-}
-
-function basic_auth_matches(req, user, password) {
-  return req.hasHeader("Authorization") &&
-         (req.getHeader("Authorization") == basic_auth_header(user, password));
-}
-
-function do_check_throws(aFunc, aResult, aStack)
-{
-  if (!aStack) {
-    try {
-      // We might not have a 'Components' object.
-      aStack = Components.stack.caller;
-    } catch (e) {}
-  }
-
-  try {
-    aFunc();
-  } catch (e) {
-    do_check_eq(e.result, aResult, aStack);
-    return;
-  }
-  do_throw("Expected result " + aResult + ", none thrown.", aStack);
-}
-
-/*
- * A fake engine implementation.
- * This is used all over the place.
- * 
- * Complete with record, store, and tracker implementations.
- */
-
-function RotaryRecord(collection, id) {
-  CryptoWrapper.call(this, collection, id);
-}
-RotaryRecord.prototype = {
-  __proto__: CryptoWrapper.prototype
-};
-Utils.deferGetSet(RotaryRecord, "cleartext", ["denomination"]);
-
-function RotaryStore() {
-  Store.call(this, "Rotary");
-  this.items = {};
-}
-RotaryStore.prototype = {
-  __proto__: Store.prototype,
-
-  create: function Store_create(record) {
-    this.items[record.id] = record.denomination;
-  },
-
-  remove: function Store_remove(record) {
-    delete this.items[record.id];
-  },
-
-  update: function Store_update(record) {
-    this.items[record.id] = record.denomination;
-  },
-
-  itemExists: function Store_itemExists(id) {
-    return (id in this.items);
-  },
-
-  createRecord: function(id, collection) {
-    let record = new RotaryRecord(collection, id);
-    record.denomination = this.items[id] || "Data for new record: " + id;
-    return record;
-  },
-
-  changeItemID: function(oldID, newID) {
-    this.items[newID] = this.items[oldID];
-    delete this.items[oldID];
-  },
-
-  getAllIDs: function() {
-    let ids = {};
-    for (let id in this.items) {
-      ids[id] = true;
-    }
-    return ids;
-  },
-
-  wipe: function() {
-    this.items = {};
-  }
-};
-
-function RotaryTracker() {
-  Tracker.call(this, "Rotary");
-}
-RotaryTracker.prototype = {
-  __proto__: Tracker.prototype
-};
-
-
-function RotaryEngine() {
-  SyncEngine.call(this, "Rotary");
-}
-RotaryEngine.prototype = {
-  __proto__: SyncEngine.prototype,
-  _storeObj: RotaryStore,
-  _trackerObj: RotaryTracker,
-  _recordObj: RotaryRecord,
-
-  _findDupe: function(item) {
-    for (let [id, value] in Iterator(this._store.items)) {
-      if (item.denomination == value) {
-        return id;
-      }
-    }
-  }
-};

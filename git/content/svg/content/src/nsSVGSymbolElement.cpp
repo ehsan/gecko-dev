@@ -37,11 +37,10 @@
 #include "nsIDOMSVGSymbolElement.h"
 #include "nsSVGStylableElement.h"
 #include "nsSVGViewBox.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
 #include "nsIDOMSVGFitToViewBox.h"
 #include "nsGkAtoms.h"
 
-using namespace mozilla;
 typedef nsSVGStylableElement nsSVGSymbolElementBase;
 
 class nsSVGSymbolElement : public nsSVGSymbolElementBase,
@@ -73,10 +72,10 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
   nsSVGViewBox mViewBox;
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+  nsSVGPreserveAspectRatio mPreserveAspectRatio;
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Symbol)
@@ -160,7 +159,7 @@ nsSVGSymbolElement::GetViewBox()
   return &mViewBox;
 }
 
-SVGAnimatedPreserveAspectRatio *
+nsSVGPreserveAspectRatio *
 nsSVGSymbolElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;

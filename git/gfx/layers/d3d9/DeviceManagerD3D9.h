@@ -48,16 +48,8 @@ namespace mozilla {
 namespace layers {
 
 class DeviceManagerD3D9;
-class LayerD3D9;
+class ThebesLayerD3D9;
 class Nv3DVUtils;
-
-// Shader Constant locations
-const int CBmLayerTransform = 0;
-const int CBmProjection = 4;
-const int CBvRenderTargetOffset = 8;
-const int CBvTextureCoords = 9;
-const int CBvLayerQuad = 10;
-const int CBfLayerOpacity = 0;
 
 /**
  * SwapChain class, this class manages the swap chain belonging to a
@@ -114,13 +106,9 @@ class THEBES_API DeviceManagerD3D9
 {
 public:
   DeviceManagerD3D9();
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
-protected:
-  nsAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
 
-public:
+  NS_INLINE_DECL_REFCOUNTING(DeviceManagerD3D9)
+
   bool Init();
 
   /**
@@ -141,9 +129,6 @@ public:
 
   enum ShaderMode {
     RGBLAYER,
-    RGBALAYER,
-    COMPONENTLAYERPASS1,
-    COMPONENTLAYERPASS2,
     YCBCRLAYER,
     SOLIDCOLORLAYER
   };
@@ -153,21 +138,13 @@ public:
   /** 
    * Return pointer to the Nv3DVUtils instance 
    */ 
-  Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; }
+  Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; } 
 
   /**
-   * Returns true if this device was removed.
+   * We keep a list of all thebes layers since we need their D3DPOOL_DEFAULT
+   * surfaces to be released when we want to reset the device.
    */
-  bool DeviceWasRemoved() { return mDeviceWasRemoved; }
-
-  PRUint32 GetDeviceResetCount() { return mDeviceResetCount; }
-
-  /**
-   * We keep a list of all layers here that may have hardware resource allocated
-   * so we can clean their resources on reset.
-   */
-  nsTArray<LayerD3D9*> mLayersWithResources;
-
+  nsTArray<ThebesLayerD3D9*> mThebesLayers;
 private:
   friend class SwapChainD3D9;
 
@@ -179,12 +156,6 @@ private:
    * needed. If this returns false subsequent rendering calls may return errors.
    */
   bool VerifyReadyForRendering();
-
-  /**
-   * This will fill our vertex buffer with the data of our quad, it may be
-   * called when the vertex buffer is recreated.
-   */
-  bool CreateVertexBuffer();
 
   /* Array used to store all swap chains for device resets */
   nsTArray<SwapChainD3D9*> mSwapChains;
@@ -207,15 +178,6 @@ private:
   /* Pixel shader used for RGB textures */
   nsRefPtr<IDirect3DPixelShader9> mRGBPS;
 
-  /* Pixel shader used for RGBA textures */
-  nsRefPtr<IDirect3DPixelShader9> mRGBAPS;
-
-  /* Pixel shader used for component alpha textures (pass 1) */
-  nsRefPtr<IDirect3DPixelShader9> mComponentPass1PS;
-
-  /* Pixel shader used for component alpha textures (pass 2) */
-  nsRefPtr<IDirect3DPixelShader9> mComponentPass2PS;
-
   /* Pixel shader used for RGB textures */
   nsRefPtr<IDirect3DPixelShader9> mYCbCrPS;
 
@@ -233,16 +195,8 @@ private:
    */
   HWND mFocusWnd;
 
-  /* we use this to help track if our device temporarily or permanently lost */
-  HMONITOR mDeviceMonitor;
-
-  PRUint32 mDeviceResetCount;
-
   /* If this device supports dynamic textures */
   bool mHasDynamicTextures;
-
-  /* If this device was removed */
-  bool mDeviceWasRemoved;
 
   /* Nv3DVUtils instance */ 
   nsAutoPtr<Nv3DVUtils> mNv3DVUtils; 

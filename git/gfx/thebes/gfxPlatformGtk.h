@@ -64,7 +64,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxASurface::gfxContentType contentType);
+                                                         gfxASurface::gfxImageFormat imageFormat);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -110,8 +110,8 @@ public:
     FontFamily *FindFontFamily(const nsAString& aName);
     FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
     already_AddRefed<gfxFont> FindFontForChar(PRUint32 aCh, gfxFont *aFont);
-    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
-    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
+    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
+    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
 #endif
 
 #ifndef MOZ_PANGO
@@ -123,22 +123,6 @@ public:
     static GdkDrawable *GetGdkDrawable(gfxASurface *target);
 
     static PRInt32 GetDPI();
-
-    static PRBool UseClientSideRendering() {
-#if defined(MOZ_X11) && defined(MOZ_GFX_OPTIMIZE_MOBILE)
-        // XRender is not accelerated on the platforms we care about
-        // at the moment, and X server pixman is out of our control;
-        // it's likely to be older than (our) cairo's.  So fall back
-        // on software rendering for more predictable performance.
-        // This setting will likely not be relevant when we have
-        // GL-accelerated compositing.
-        return PR_TRUE;
-#else
-        return PR_FALSE;
-#endif
-    }
-
-    virtual gfxImageFormat GetOffscreenFormat();
 
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;

@@ -680,9 +680,9 @@
       /*      broken fonts like `Keystrokes MT' :-(           */
       /*                                                      */
       /*   We allocate 64 function entries by default when    */
-      /*   the maxFunctionDefs value is smaller.              */
+      /*   the maxFunctionDefs field is null.                 */
 
-      if ( maxProfile->maxFunctionDefs < 64 )
+      if ( maxProfile->maxFunctionDefs == 0 )
         maxProfile->maxFunctionDefs = 64;
 
       /* we add 4 phantom points later */

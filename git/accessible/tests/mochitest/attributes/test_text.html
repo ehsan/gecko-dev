@@ -2,7 +2,6 @@
 
 <head>
   <title>Text attributes tests</title>
-  <meta charset="utf-8" />
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
@@ -11,14 +10,67 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
-          src="../common.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/common.js"></script>
   <script type="application/javascript"
-          src="../attributes.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/attributes.js"></script>
   <script type="application/javascript"
-          src="../events.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/events.js"></script>
 
   <script type="application/javascript">
+
+    const nsIDOMNSEditableElement =
+      Components.interfaces.nsIDOMNSEditableElement;
+
     var gComputedStyle = null;
+
+    var gTextAttrChangedEventHandler = {
+      handleEvent: function gTextAttrChangedEventHandler_handleEvent(aEvent)
+      {
+        this.eventNumber++;
+      },
+
+      eventNumber: 0
+    };
+
+    function testSpellTextAttrs()
+    {
+      registerA11yEventListener(nsIAccessibleEvent.EVENT_TEXT_ATTRIBUTE_CHANGED,
+                                gTextAttrChangedEventHandler);
+
+      ID = "area8";
+  
+      var node = document.getElementById(ID);
+      node.setAttribute("value", "valid text inalid tixt");
+      node.focus();
+
+      var editor = node.QueryInterface(nsIDOMNSEditableElement).editor;
+      var spellchecker = editor.getInlineSpellChecker(true);
+      spellchecker.enableRealTimeSpell = true;
+
+      window.setTimeout(function()
+        {
+          var defAttrs = buildDefaultTextAttrs(node, kInputFontSize);
+          testDefaultTextAttrs(ID, defAttrs);
+
+          var attrs = { };
+          var misspelledAttrs = {
+            "invalid": "spelling"
+          };
+
+          testTextAttrs(ID, 0, attrs, defAttrs, 0, 11);
+          testTextAttrs(ID, 11, misspelledAttrs, defAttrs, 11, 17);
+          testTextAttrs(ID, 17, attrs, defAttrs, 17, 18);
+          testTextAttrs(ID, 18, misspelledAttrs, defAttrs, 18, 22);
+
+          is(gTextAttrChangedEventHandler.eventNumber, 2,
+             "Wrong count of 'text attribute changed' events for " + ID);
+
+          unregisterA11yEventListener(nsIAccessibleEvent.EVENT_TEXT_ATTRIBUTE_CHANGED,
+                                      gTextAttrChangedEventHandler);
+
+          SimpleTest.finish();
+        }, 0);
+    }
 
     function doTest()
     {
@@ -191,43 +243,43 @@
       testDefaultTextAttrs(ID, defAttrs);
 
       attrs = {"language": "ru"};
-      testTextAttrs(ID, 0, attrs, defAttrs, 0, 6);
+      testTextAttrs(ID, 0, attrs, defAttrs, 0, 12);
 
       attrs = {};
-      testTextAttrs(ID, 6, attrs, defAttrs, 6, 7);
+      testTextAttrs(ID, 12, attrs, defAttrs, 12, 13);
 
       tempElem = getNode(ID).firstChild.nextSibling.nextSibling.nextSibling;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = { "background-color": gComputedStyle.backgroundColor};
-      testTextAttrs(ID, 13, attrs, defAttrs, 7, 20);
+      testTextAttrs(ID, 13, attrs, defAttrs, 13, 26);
 
       attrs = {};
-      testTextAttrs(ID, 20, attrs, defAttrs, 20, 21);
+      testTextAttrs(ID, 26, attrs, defAttrs, 26, 27);
 
       attrs = {"language": "de"};
-      testTextAttrs(ID, 21, attrs, defAttrs, 21, 36);
+      testTextAttrs(ID, 27, attrs, defAttrs, 27, 42);
 
       attrs = {};
-      testTextAttrs(ID, 36, attrs, defAttrs, 36, 44);
+      testTextAttrs(ID, 42, attrs, defAttrs, 42, 50);
 
       attrs = {};
-      testTextAttrs(ID, 37, attrs, defAttrs, 36, 44);
+      testTextAttrs(ID, 43, attrs, defAttrs, 42, 50);
 
       tempElem = tempElem.nextSibling.nextSibling.nextSibling.nextSibling.firstChild.nextSibling;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = {"color": gComputedStyle.color};
-      testTextAttrs(ID, 44, attrs, defAttrs, 44, 51);
+      testTextAttrs(ID, 50, attrs, defAttrs, 50, 57);
 
       tempElem = tempElem.firstChild.nextSibling;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = {"font-weight": kBoldFontWeight,
                "color": gComputedStyle.color};
-      testTextAttrs(ID, 51, attrs, defAttrs, 51, 55);
+      testTextAttrs(ID, 57, attrs, defAttrs, 57, 61);
 
       tempElem = tempElem.parentNode;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = {"color": gComputedStyle.color};
-      testTextAttrs(ID, 55, attrs, defAttrs, 55, 62);
+      testTextAttrs(ID, 61, attrs, defAttrs, 61, 68);
 
       //////////////////////////////////////////////////////////////////////////
       // area9, different single style spans in styled paragraph
@@ -377,8 +429,11 @@
       ID = "area14";
       defAttrs = buildDefaultTextAttrs(ID, kInputFontSize);
 
-      attrs = { };
-      testTextAttrs(ID, 0, attrs, defAttrs, 0, 0);
+      // XXX: While we expose text leaf accessibles for placeholder we grab its
+      // style, bug 545817.
+      // attrs = { color: "rgb(109, 109, 109)" };
+      //testTextAttrs(ID, 0, attrs, defAttrs, 0, 0);
+      todo(false, "enable commented tests when bug 545817 is fixed");
 
       //////////////////////////////////////////////////////////////////////////
       // area15, embed char tests, "*plain*plain**bold*bold*"
@@ -406,7 +461,9 @@
       // p
       testTextAttrs(ID, 23, { }, { }, 23, 24);
 
-      SimpleTest.finish();
+      //////////////////////////////////////////////////////////////////////////
+      // test spelling text attributes
+      testSpellTextAttrs(); // Will call SimpleTest.finish();
     }
 
     SimpleTest.waitForExplicitFinish();
@@ -466,6 +523,8 @@
       <span style="color: magenta">Magenta<b>Bold</b>Magenta</span>
     </span>
   </p>
+
+  <input id="area8"/>
 
   <p id="area9" style="font-size: smaller">Small
     <span style="font-size: 120%">bigger</span> smaller

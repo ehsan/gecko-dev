@@ -15,7 +15,7 @@
    -
    - The Original Code is the Places test code.
    -
-   - The Initial Developer of the Original Code is the Mozilla Foundation.
+   - The Initial Developer of the Original Code is Mozilla Corp.
    - Portions created by the Initial Developer are Copyright (C) 2009
    - the Initial Developer. All Rights Reserved.
    -
@@ -72,6 +72,9 @@
   <![CDATA[
 
     function runTest() {
+      const Cc = Components.classes;
+      const Ci = Components.interfaces;
+
       var bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
                getService(Ci.nsINavBookmarksService);
       var ts = Cc["@mozilla.org/browser/tagging-service;1"].
@@ -82,7 +85,7 @@
         return ios.newURI(spec, null, null);
       }
 
-      var testURI = uri("http://www.example.com/");
+      var testURI = uri("http://www.mozilla.org/");
       var testTag = "foo";
       var testTagUpper = "Foo";
 

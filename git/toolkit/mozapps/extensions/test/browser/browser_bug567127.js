@@ -128,7 +128,7 @@ function test() {
                           "@mozilla.org/filepicker;1",
                           gMockFilePickerFactory);
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     run_next_test();
   });

@@ -61,63 +61,42 @@ public:
 
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption);
 
+    virtual nsString GetUniqueName();
+
     virtual const gfxFont::Metrics& GetMetrics();
 
     virtual PRUint32 GetSpaceGlyph();
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 
-    virtual PRBool IsValid();
+    virtual PRBool IsValid() { return mFontFace != NULL; }
 
-    gfxFloat GetAdjustedSize() {
-        return mAdjustedSize;
-    }
+    gfxFloat GetAdjustedSize() const { return mAdjustedSize; }
 
-    IDWriteFontFace *GetFontFace();
+    IDWriteFontFace *GetFontFace() { return mFontFace.get(); }
 
     // override gfxFont table access function to bypass gfxFontEntry cache,
     // use DWrite API to get direct access to system font data
     virtual hb_blob_t *GetFontTable(PRUint32 aTag);
 
-    virtual PRBool ProvidesGlyphWidths();
-
-    virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID);
-
 protected:
-    friend class gfxDWriteShaper;
-
     virtual void CreatePlatformShaper();
 
-    PRBool GetFakeMetricsForArialBlack(DWRITE_FONT_METRICS *aFontMetrics);
-
-    void ComputeMetrics(AntialiasOption anAAOption);
-
-    PRBool HasBitmapStrikeForSize(PRUint32 aSize);
+    void ComputeMetrics();
 
     cairo_font_face_t *CairoFontFace();
 
     cairo_scaled_font_t *CairoScaledFont();
 
-    gfxFloat MeasureGlyphWidth(PRUint16 aGlyph);
-
     static void DestroyBlobFunc(void* userArg);
-
-    DWRITE_MEASURING_MODE GetMeasuringMode();
-    bool GetForceGDIClassic();
 
     nsRefPtr<IDWriteFontFace> mFontFace;
     cairo_font_face_t *mCairoFontFace;
     cairo_scaled_font_t *mCairoScaledFont;
 
-    gfxFont::Metrics          *mMetrics;
-
-    // cache of glyph widths in 16.16 fixed-point pixels
-    nsDataHashtable<nsUint32HashKey,PRInt32>    mGlyphWidths;
-
-    PRPackedBool mNeedsOblique;
-    PRPackedBool mNeedsBold;
-    PRPackedBool mUseSubpixelPositions;
-    PRPackedBool mAllowManualShowGlyphs;
+    gfxFont::Metrics mMetrics;
+    PRBool mNeedsOblique;
+    PRBool mNeedsBold;
 };
 
 #endif

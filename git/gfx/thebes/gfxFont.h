@@ -42,13 +42,13 @@
 #define GFX_FONT_H
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "nsString.h"
 #include "gfxPoint.h"
 #include "gfxFontUtils.h"
 #include "nsTArray.h"
 #include "nsTHashtable.h"
+#include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "gfxSkipChars.h"
 #include "gfxRect.h"
@@ -112,10 +112,15 @@ struct THEBES_API gfxFontStyle {
     gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, PRInt16 aStretch,
                  gfxFloat aSize, nsIAtom *aLanguage,
                  float aSizeAdjust, PRPackedBool aSystemFont,
+                 PRPackedBool aFamilyNameQuirks,
                  PRPackedBool aPrinterFont,
                  const nsString& aFeatureSettings,
                  const nsString& aLanguageOverride);
     gfxFontStyle(const gfxFontStyle& aStyle);
+
+    ~gfxFontStyle() {
+        delete featureSettings;
+    }
 
     // The style of font (normal, italic, oblique)
     PRUint8 style : 7;
@@ -128,7 +133,15 @@ struct THEBES_API gfxFontStyle {
     // Say that this font is used for print or print preview.
     PRPackedBool printerFont : 1;
 
-    // The weight of the font: 100, 200, ... 900.
+    // True if the character set quirks (for treatment of "Symbol",
+    // "Wingdings", etc.) should be applied.
+    PRPackedBool familyNameQuirks : 1;
+
+    // The weight of the font.  100, 200, ... 900 are the weights, and
+    // single integer offsets request the next bolder/lighter font
+    // available.  For example, for a font available in weights 200,
+    // 400, 700, and 900, a weight of 898 should lead to the weight 400
+    // font being used, since it is two weights lighter than 900.
     PRUint16 weight;
 
     // The stretch of the font (the sum of various NS_FONT_STRETCH_*
@@ -147,7 +160,7 @@ struct THEBES_API gfxFontStyle {
     // the language (may be an internal langGroup code rather than an actual
     // language code) specified in the document or element's lang property,
     // or inferred from the charset
-    nsRefPtr<nsIAtom> language;
+    nsIAtom *language;
 
     // Language system tag, to override document language;
     // an OpenType "language system" tag represented as a 32-bit integer
@@ -162,34 +175,38 @@ struct THEBES_API gfxFontStyle {
     PRUint32 languageOverride;
 
     // custom opentype feature settings
-    nsTArray<gfxFontFeature> featureSettings;
+    nsTArray<gfxFontFeature> *featureSettings;
 
     // Return the final adjusted font size for the given aspect ratio.
     // Not meant to be called when sizeAdjust = 0.
     gfxFloat GetAdjustedSize(gfxFloat aspect) const {
         NS_ASSERTION(sizeAdjust != 0.0, "Not meant to be called when sizeAdjust = 0");
-        gfxFloat adjustedSize = NS_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
-        return NS_MIN(adjustedSize, FONT_MAX_SIZE);
+        gfxFloat adjustedSize = PR_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
+        return PR_MIN(adjustedSize, FONT_MAX_SIZE);
     }
 
     PLDHashNumber Hash() const {
-        return ((style + (systemFont << 7) +
-            (weight << 8)) + PRUint32(size*1000) + PRUint32(sizeAdjust*1000)) ^
+        return ((style + (systemFont << 7) + (familyNameQuirks << 8) +
+            (weight << 9)) + PRUint32(size*1000) + PRUint32(sizeAdjust*1000)) ^
             nsISupportsHashKey::HashKey(language);
     }
 
-    PRInt8 ComputeWeight() const;
+    void ComputeWeightAndOffset(PRInt8 *outBaseWeight,
+                                PRInt8 *outOffset) const;
 
     PRBool Equals(const gfxFontStyle& other) const {
         return (size == other.size) &&
             (style == other.style) &&
             (systemFont == other.systemFont) &&
             (printerFont == other.printerFont) &&
+            (familyNameQuirks == other.familyNameQuirks) &&
             (weight == other.weight) &&
             (stretch == other.stretch) &&
             (language == other.language) &&
             (sizeAdjust == other.sizeAdjust) &&
-            (featureSettings == other.featureSettings) &&
+            ((!featureSettings && !other.featureSettings) ||
+             (featureSettings && other.featureSettings &&
+              (*featureSettings == *other.featureSettings))) &&
             (languageOverride == other.languageOverride);
     }
 
@@ -210,27 +227,20 @@ public:
         mIsBadUnderlineFont(PR_FALSE), mIsUserFont(PR_FALSE),
         mIsLocalUserFont(PR_FALSE), mStandardFace(aIsStandardFace),
         mSymbolFont(PR_FALSE),
-        mIgnoreGDEF(PR_FALSE),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
         mHasCmapTable(PR_FALSE),
         mCmapInitialized(PR_FALSE),
         mUVSOffset(0), mUVSData(nsnull),
         mUserFontData(nsnull),
+        mFeatureSettings(nsnull),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(aFamily)
     { }
 
     virtual ~gfxFontEntry();
 
-    // unique name for the face, *not* the family; not necessarily the
-    // "real" or user-friendly name, may be an internal identifier
+    // unique name for the face, *not* the family
     const nsString& Name() const { return mName; }
-
-    // the "real" name of the face, if available from the font resource
-    // (may be expensive); returns Name() if nothing better is available
-    virtual nsString RealFaceName();
-
-    gfxFontFamily* Family() const { return mFamily; }
 
     PRUint16 Weight() const { return mWeight; }
     PRInt16 Stretch() const { return mStretch; }
@@ -240,9 +250,7 @@ public:
     PRBool IsFixedPitch() const { return mFixedPitch; }
     PRBool IsItalic() const { return mItalic; }
     PRBool IsBold() const { return mWeight >= 600; } // bold == weights 600 and above
-    PRBool IgnoreGDEF() const { return mIgnoreGDEF; }
-
-    virtual PRBool IsSymbolFont();
+    PRBool IsSymbolFont() const { return mSymbolFont; }
 
     inline PRBool HasCmapTable() {
         if (!mCmapInitialized) {
@@ -271,7 +279,7 @@ public:
         return PR_TRUE;
     }
 
-    virtual nsresult GetFontTable(PRUint32 aTableTag, FallibleTArray<PRUint8>& aBuffer) {
+    virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer) {
         return NS_ERROR_FAILURE; // all platform subclasses should reimplement this!
     }
 
@@ -279,28 +287,17 @@ public:
         mFamily = aFamily;
     }
 
-    virtual nsString FamilyName() const;
+    const nsString& FamilyName() const;
 
     already_AddRefed<gfxFont> FindOrMakeFont(const gfxFontStyle *aStyle,
                                              PRBool aNeedsBold);
 
-    // Get an existing font table cache entry in aBlob if it has been
-    // registered, or return PR_FALSE if not.  Callers must call
-    // hb_blob_destroy on aBlob if PR_TRUE is returned.
+    // Subclasses should override this if they can do something more efficient
+    // than getting tables with GetFontTable() and caching them in the entry.
     //
     // Note that some gfxFont implementations may not call this at all,
     // if it is more efficient to get the table from the OS at that level.
-    PRBool GetExistingFontTable(PRUint32 aTag, hb_blob_t** aBlob);
-
-    // Elements of aTable are transferred (not copied) to and returned in a
-    // new hb_blob_t which is registered on the gfxFontEntry, but the initial
-    // reference is owned by the caller.  Removing the last reference
-    // unregisters the table from the font entry.
-    //
-    // Pass NULL for aBuffer to indicate that the table is not present and
-    // NULL will be returned.  Also returns NULL on OOM.
-    hb_blob_t *ShareFontTableAndGetBlob(PRUint32 aTag,
-                                        FallibleTArray<PRUint8>* aTable);
+    virtual hb_blob_t *GetFontTable(PRUint32 aTag);
 
     nsString         mName;
 
@@ -313,7 +310,6 @@ public:
     PRPackedBool     mIsLocalUserFont  : 1;
     PRPackedBool     mStandardFace : 1;
     PRPackedBool     mSymbolFont  : 1;
-    PRPackedBool     mIgnoreGDEF  : 1;
 
     PRUint16         mWeight;
     PRInt16          mStretch;
@@ -325,13 +321,13 @@ public:
     nsAutoArrayPtr<PRUint8> mUVSData;
     gfxUserFontData* mUserFontData;
 
-    nsTArray<gfxFontFeature> mFeatureSettings;
+    nsTArray<gfxFontFeature> *mFeatureSettings;
     PRUint32         mLanguageOverride;
 
 protected:
     friend class gfxPlatformFontList;
     friend class gfxMacPlatformFontList;
-    friend class gfxUserFcFontEntry;
+    friend class gfxFcFontEntry;
     friend class gfxFontFamily;
     friend class gfxSingleFaceMacFontFamily;
 
@@ -343,12 +339,12 @@ protected:
         mIsLocalUserFont(PR_FALSE),
         mStandardFace(PR_FALSE),
         mSymbolFont(PR_FALSE),
-        mIgnoreGDEF(PR_FALSE),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
         mHasCmapTable(PR_FALSE),
         mCmapInitialized(PR_FALSE),
         mUVSOffset(0), mUVSData(nsnull),
         mUserFontData(nsnull),
+        mFeatureSettings(nsnull),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(nsnull)
     { }
@@ -360,10 +356,8 @@ protected:
 
     gfxFontFamily *mFamily;
 
-private:
-
-    /**
-     * Font table hashtable, to support GetFontTable for harfbuzz.
+    /*
+     * Font table cache, to support GetFontTable for harfbuzz.
      *
      * The harfbuzz shaper (and potentially other clients) needs access to raw
      * font table data. This needs to be cached so that it can be used
@@ -374,86 +368,50 @@ private:
      * Because we may instantiate many gfxFonts for the same physical font
      * file (at different sizes), we should ensure that they can share a
      * single cached copy of the font tables. To do this, we implement table
-     * access and sharing on the fontEntry rather than the font itself.
+     * access and caching on the fontEntry rather than the font itself.
      *
      * The default implementation uses GetFontTable() to read font table
-     * data into byte arrays, and wraps them in blobs which are registered in
-     * a hashtable.  The hashtable can then return pre-existing blobs to
-     * harfbuzz.
+     * data into byte arrays, and caches these in a hashtable along with
+     * hb_blob_t wrappers. The entry can then return blobs to harfbuzz.
      *
-     * Harfbuzz will "destroy" the blobs when it is finished with them.  When
-     * the last blob reference is removed, the FontTableBlobData user data
-     * will remove the blob from the hashtable if still registered.
+     * Harfbuzz will "destroy" the blobs when it is finished with them;
+     * they are created with a destroy callback that removes them from
+     * the hashtable when all references are released.
      */
-
-    class FontTableBlobData;
-
-    /**
-     * FontTableHashEntry manages the entries of hb_blob_ts for two
-     * different situations:
-     *
-     * The common situation is to share font table across fonts with the same
-     * font entry (but different sizes) for use by HarfBuzz.  The hashtable
-     * does not own a strong reference to the blob, but keeps a weak pointer,
-     * managed by FontTableBlobData.  Similarly FontTableBlobData keeps only a
-     * weak pointer to the hashtable, managed by FontTableHashEntry.
-     *
-     * Some font tables are saved here before they would get stripped by OTS
-     * sanitizing.  These are retained for harfbuzz, which does its own
-     * sanitizing.  The hashtable owns a reference, so ownership is simple.
-     */
-
-    class FontTableHashEntry : public nsUint32HashKey
-    {
+    class FontTableCacheEntry {
     public:
-        // Declarations for nsTHashtable
+        // create a cache entry by adopting the content of an existing buffer
+        FontTableCacheEntry(nsTArray<PRUint8>& aBuffer,
+                            PRUint32 aTag,
+            nsClassHashtable<nsUint32HashKey,FontTableCacheEntry>& aCache);
 
-        typedef nsUint32HashKey KeyClass;
-        typedef KeyClass::KeyType KeyType;
-        typedef KeyClass::KeyTypePointer KeyTypePointer;
-
-        FontTableHashEntry(KeyTypePointer aTag)
-            : KeyClass(aTag), mBlob() { };
-        // Copying transfers blob association.
-        FontTableHashEntry(FontTableHashEntry& toCopy)
-            : KeyClass(toCopy), mBlob(toCopy.mBlob)
-        {
-            toCopy.mBlob = nsnull;
+        ~FontTableCacheEntry() {
+            MOZ_COUNT_DTOR(FontTableCacheEntry);
         }
 
-        ~FontTableHashEntry() { Clear(); }
+        hb_blob_t *GetBlob() const { return mBlob; }
 
-        // FontTable/Blob API
-
-        // Transfer (not copy) elements of aTable to a new hb_blob_t and
-        // return ownership to the caller.  A weak reference to the blob is
-        // recorded in the hashtable entry so that others may use the same
-        // table.
-        hb_blob_t *
-        ShareTableAndGetBlob(FallibleTArray<PRUint8>& aTable,
-                             nsTHashtable<FontTableHashEntry> *aHashtable);
-
-        // Transfer (not copy) elements of aTable to a new hb_blob_t that is
-        // owned by the hashtable entry.
-        void SaveTable(FallibleTArray<PRUint8>& aTable);
-
-        // Return a strong reference to the blob.
-        // Callers must hb_blob_destroy the returned blob.
-        hb_blob_t *GetBlob() const;
-
-        void Clear();
+    protected:
+        // the data block, owned (via adoption) by the entry
+        nsTArray<PRUint8>  mData;
+        // a harfbuzz blob wrapper that we can return to clients
+        hb_blob_t         *mBlob;
+        // the blob destroy function needs to know the table tag
+        // and the owning hashtable, so that it can remove the entry
+        PRUint32           mTag;
+        nsClassHashtable<nsUint32HashKey,FontTableCacheEntry>&
+                           mCache;
 
     private:
-        static void DeleteFontTableBlobData(void *aBlobData);
         // not implemented
-        FontTableHashEntry& operator=(FontTableHashEntry& toCopy);
+        FontTableCacheEntry(const FontTableCacheEntry&);
 
-        FontTableBlobData *mSharedBlobData;
-        hb_blob_t *mBlob;
+        static void Destroy(void *aUserData);
     };
 
-    nsTHashtable<FontTableHashEntry> mFontTableCache;
+    nsClassHashtable<nsUint32HashKey,FontTableCacheEntry> mFontTableCache;
 
+private:
     gfxFontEntry(const gfxFontEntry&);
     gfxFontEntry& operator=(const gfxFontEntry&);
 };
@@ -462,13 +420,12 @@ private:
 // used when picking fallback font
 struct FontSearch {
     FontSearch(const PRUint32 aCharacter, gfxFont *aFont) :
-        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0), mCount(0) {
+        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0) {
     }
     const PRUint32         mCh;
     gfxFont*               mFontToMatch;
     PRInt32                mMatchRank;
     nsRefPtr<gfxFontEntry> mBestMatch;
-    PRUint32               mCount;
 };
 
 class gfxFontFamily {
@@ -495,15 +452,7 @@ public:
     nsTArray<nsRefPtr<gfxFontEntry> >& GetFontList() { return mAvailableFonts; }
     
     void AddFontEntry(nsRefPtr<gfxFontEntry> aFontEntry) {
-        // bug 589682 - set the IgnoreGDEF flag on entries for Italic faces
-        // of Times New Roman, because of buggy table in those fonts
-        if (aFontEntry->IsItalic() && !aFontEntry->IsUserFont() &&
-            Name().EqualsLiteral("Times New Roman"))
-        {
-            aFontEntry->mIgnoreGDEF = PR_TRUE;
-        }
         mAvailableFonts.AppendElement(aFontEntry);
-        aFontEntry->SetFamily(this);
     }
 
     // note that the styles for this family have been added
@@ -523,11 +472,6 @@ public:
 
     // read in other family names, if any, and use functor to add each into cache
     virtual void ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList);
-
-    // set when other family names have been read in
-    void SetOtherFamilyNamesInitialized() {
-        mOtherFamilyNamesInitialized = PR_TRUE;
-    }
 
     // read in other localized family names, fullnames and Postscript names
     // for all faces and append to lookup tables
@@ -575,7 +519,7 @@ protected:
                                        PRBool anItalic, PRInt16 aStretch);
 
     PRBool ReadOtherFamilyNamesForFace(gfxPlatformFontList *aPlatformFontList,
-                                       FallibleTArray<PRUint8>& aNameTable,
+                                       nsTArray<PRUint8>& aNameTable,
                                        PRBool useFullName = PR_FALSE);
 
     // set whether this font family is in "bad" underline offset blacklist.
@@ -611,23 +555,10 @@ protected:
 };
 
 struct gfxTextRange {
-    enum {
-        // flags for recording the kind of font-matching that was used
-        kFontGroup      = 0x0001,
-        kPrefsFallback  = 0x0002,
-        kSystemFallback = 0x0004
-    };
-    gfxTextRange(PRUint32 aStart, PRUint32 aEnd,
-                 gfxFont* aFont, PRUint8 aMatchType)
-        : start(aStart),
-          end(aEnd),
-          font(aFont),
-          matchType(aMatchType)
-    { }
+    gfxTextRange(PRUint32 aStart,  PRUint32 aEnd) : start(aStart), end(aEnd) { }
     PRUint32 Length() const { return end - start; }
-    PRUint32 start, end;
     nsRefPtr<gfxFont> font;
-    PRUint8 matchType;
+    PRUint32 start, end;
 };
 
 
@@ -984,12 +915,14 @@ public:
     const nsString& GetName() const { return mFontEntry->Name(); }
     const gfxFontStyle *GetStyle() const { return &mStyle; }
 
+    virtual nsString GetUniqueName() { return GetName(); }
+
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption) {
         // platforms where this actually matters should override
         return nsnull;
     }
 
-    virtual gfxFloat GetAdjustedSize() {
+    gfxFloat GetAdjustedSize() const {
         return mAdjustedSize > 0.0 ? mAdjustedSize : mStyle.size;
     }
 
@@ -1008,43 +941,26 @@ public:
     // returns a pointer to data owned by the fontEntry or the OS,
     // which will remain valid until released.
     //
-    // Default implementations forward to the font entry,
-    // and maintain a shared table.
-    //
-    // Subclasses should override this if they can provide more efficient
-    // access than getting tables with mFontEntry->GetFontTable() and sharing
-    // them via the entry.
-    //
-    // Get pointer to a specific font table, or NULL if
+    // Default implementations forward to the font entry, which
+    // maintains a shared table cache; however, subclasses may
+    // override if they can provide more efficient table access.
+
+    // Get pointer to a specific font table, or an empty blob if
     // the table doesn't exist in the font
-    virtual hb_blob_t *GetFontTable(PRUint32 aTag);
-
-    // Subclasses may choose to look up glyph ids for characters.
-    // If they do not override this, gfxHarfBuzzShaper will fetch the cmap
-    // table and use that.
-    virtual PRBool ProvidesGetGlyph() const {
-        return PR_FALSE;
-    }
-    // Map unicode character to glyph ID.
-    // Only used if ProvidesGetGlyph() returns PR_TRUE.
-    virtual PRUint32 GetGlyph(PRUint32 unicode, PRUint32 variation_selector) {
-        return 0;
+    virtual hb_blob_t *GetFontTable(PRUint32 aTag) {
+        return mFontEntry->GetFontTable(aTag);
     }
 
-    // subclasses may provide (possibly hinted) glyph widths (in font units);
+    // subclasses may provide hinted glyph widths (in font units);
     // if they do not override this, harfbuzz will use unhinted widths
     // derived from the font tables
-    virtual PRBool ProvidesGlyphWidths() {
+    virtual PRBool ProvidesHintedWidths() const {
         return PR_FALSE;
     }
 
-    // The return value is interpreted as a horizontal advance in 16.16 fixed
-    // point format.
-    virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
+    virtual PRInt32 GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
         return -1;
     }
-
-    gfxFloat SynthesizeSpaceWidth(PRUint32 aCh);
 
     // Font metrics
     struct Metrics {
@@ -1210,10 +1126,12 @@ public:
         return mFontEntry->GetUVSGlyph(aCh, aVS); 
     }
 
-    // call the (virtual) InitTextRun method to do glyph generation/shaping,
-    // limiting the length of text passed by processing the run in multiple
-    // segments if necessary
-    PRBool SplitAndInitTextRun(gfxContext *aContext,
+    // Default simply calls m[Platform|HarfBuzz]Shaper->InitTextRun().
+    // Override if the font class wants to give special handling
+    // to shaper failure.
+    // Returns PR_FALSE if shaping failed (though currently we
+    // don't have any good way to handle that situation).
+    virtual PRBool InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
@@ -1269,19 +1187,6 @@ protected:
     // some fonts have bad metrics, this method sanitize them.
     // if this font has bad underline offset, aIsBadUnderlineFont should be true.
     void SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont);
-
-    // Default simply calls m[Platform|HarfBuzz]Shaper->InitTextRun().
-    // Override if the font class wants to give special handling
-    // to shaper failure.
-    // Returns PR_FALSE if shaping failed (though currently we
-    // don't have any good way to handle that situation).
-    virtual PRBool InitTextRun(gfxContext *aContext,
-                               gfxTextRun *aTextRun,
-                               const PRUnichar *aString,
-                               PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript,
-                               PRBool aPreferPlatformShaping = PR_FALSE);
 };
 
 // proportion of ascent used for x-height, if unable to read value from font
@@ -1427,13 +1332,7 @@ public:
     }
     PRBool CanBreakLineBefore(PRUint32 aPos) {
         NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
-        return mCharacterGlyphs[aPos].CanBreakBefore() ==
-            CompressedGlyph::FLAG_BREAK_TYPE_NORMAL;
-    }
-    PRBool CanHyphenateBefore(PRUint32 aPos) {
-        NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
-        return mCharacterGlyphs[aPos].CanBreakBefore() ==
-            CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
+        return mCharacterGlyphs[aPos].CanBreakBefore();
     }
 
     PRUint32 GetLength() { return mCharacterCount; }
@@ -1457,7 +1356,7 @@ public:
      * breaks are the same as the old
      */
     virtual PRBool SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
-                                          PRUint8 *aBreakBefore,
+                                          PRPackedBool *aBreakBefore,
                                           gfxContext *aRefContext);
 
     /**
@@ -1477,11 +1376,6 @@ public:
         virtual void GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
                                           PRPackedBool *aBreakBefore) = 0;
 
-        // Returns the provider's hyphenation setting, so callers can decide
-        // whether it is necessary to call GetHyphenationBreaks.
-        // Result is an NS_STYLE_HYPHENS_* value.
-        virtual PRInt8 GetHyphensOption() = 0;
-
         // Returns the extra width that will be consumed by a hyphen. This should
         // be constant for a given textrun.
         virtual gfxFloat GetHyphenWidth() = 0;
@@ -1498,31 +1392,14 @@ public:
                                 Spacing *aSpacing) = 0;
     };
 
-    class ClusterIterator {
-    public:
-        ClusterIterator(gfxTextRun *aTextRun);
-
-        void Reset();
-
-        PRBool NextCluster();
-
-        PRUint32 Position() const {
-            return mCurrentChar;
-        }
-
-        PRUint32 ClusterLength() const;
-
-        gfxFloat ClusterAdvance(PropertyProvider *aProvider) const;
-
-    private:
-        gfxTextRun *mTextRun;
-        PRUint32    mCurrentChar;
-    };
-
     /**
      * Draws a substring. Uses only GetSpacing from aBreakProvider.
      * The provided point is the baseline origin on the left of the string
      * for LTR, on the right of the string for RTL.
+     * @param aDirtyRect if non-null, drawing outside of the rectangle can be
+     * (but does not need to be) dropped. Note that if this is null, we cannot
+     * draw partial ligatures and we will assert if partial ligatures
+     * are detected.
      * @param aAdvanceWidth if non-null, the advance width of the substring
      * is returned here.
      * 
@@ -1542,6 +1419,7 @@ public:
      */
     void Draw(gfxContext *aContext, gfxPoint aPt,
               PRUint32 aStart, PRUint32 aLength,
+              const gfxRect *aDirtyRect,
               PropertyProvider *aProvider,
               gfxFloat *aAdvanceWidth);
 
@@ -1730,6 +1608,15 @@ public:
     static gfxTextRun *Create(const gfxTextRunFactory::Parameters *aParams,
         const void *aText, PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags);
 
+    // Clone this textrun, according to the given parameters. This textrun's
+    // glyph data is copied, so the text and length must be the same as this
+    // textrun's. If there's a problem, return null. Actual linebreaks will
+    // be set as per aParams; there will be no potential linebreaks.
+    // If aText is not persistent (aFlags & TEXT_IS_PERSISTENT), the
+    // textrun will copy it.
+    virtual gfxTextRun *Clone(const gfxTextRunFactory::Parameters *aParams, const void *aText,
+                              PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags);
+
     /**
      * This class records the information associated with a character in the
      * input string. It's optimized for the case where there is one glyph
@@ -1753,22 +1640,14 @@ public:
             // Indicates that a cluster and ligature group starts at this
             // character; this character has a single glyph with a reasonable
             // advance and zero offsets. A "reasonable" advance
-            // is one that fits in the available bits (currently 13) (specified
+            // is one that fits in the available bits (currently 14) (specified
             // in appunits).
             FLAG_IS_SIMPLE_GLYPH  = 0x80000000U,
-
-            // Indicates whether a linebreak is allowed before this character;
-            // this is a two-bit field that holds a FLAG_BREAK_TYPE_xxx value
-            // indicating the kind of linebreak (if any) allowed here.
-            FLAGS_CAN_BREAK_BEFORE = 0x60000000U,
-
-            FLAGS_CAN_BREAK_SHIFT = 29,
-            FLAG_BREAK_TYPE_NONE   = 0,
-            FLAG_BREAK_TYPE_NORMAL = 1,
-            FLAG_BREAK_TYPE_HYPHEN = 2,
+            // Indicates that a linebreak is allowed before this character
+            FLAG_CAN_BREAK_BEFORE = 0x40000000U,
 
             // The advance is stored in appunits
-            ADVANCE_MASK  = 0x1FFF0000U,
+            ADVANCE_MASK  = 0x3FFF0000U,
             ADVANCE_SHIFT = 16,
 
             GLYPH_MASK = 0x0000FFFFU,
@@ -1822,15 +1701,13 @@ public:
                     (FLAG_NOT_LIGATURE_GROUP_START | FLAG_NOT_MISSING);
         }
 
-        PRUint8 CanBreakBefore() const {
-            return (mValue & FLAGS_CAN_BREAK_BEFORE) >> FLAGS_CAN_BREAK_SHIFT;
-        }
-        // Returns FLAGS_CAN_BREAK_BEFORE if the setting changed, 0 otherwise
-        PRUint32 SetCanBreakBefore(PRUint8 aCanBreakBefore) {
-            NS_ASSERTION(aCanBreakBefore <= 2,
+        PRBool CanBreakBefore() const { return (mValue & FLAG_CAN_BREAK_BEFORE) != 0; }
+        // Returns FLAG_CAN_BREAK_BEFORE if the setting changed, 0 otherwise
+        PRUint32 SetCanBreakBefore(PRBool aCanBreakBefore) {
+            NS_ASSERTION(aCanBreakBefore == PR_FALSE || aCanBreakBefore == PR_TRUE,
                          "Bogus break-before value!");
-            PRUint32 breakMask = (PRUint32(aCanBreakBefore) << FLAGS_CAN_BREAK_SHIFT);
-            PRUint32 toggle = breakMask ^ (mValue & FLAGS_CAN_BREAK_BEFORE);
+            PRUint32 breakMask = aCanBreakBefore*FLAG_CAN_BREAK_BEFORE;
+            PRUint32 toggle = breakMask ^ (mValue & FLAG_CAN_BREAK_BEFORE);
             mValue ^= toggle;
             return toggle;
         }
@@ -1838,26 +1715,23 @@ public:
         CompressedGlyph& SetSimpleGlyph(PRUint32 aAdvanceAppUnits, PRUint32 aGlyph) {
             NS_ASSERTION(IsSimpleAdvance(aAdvanceAppUnits), "Advance overflow");
             NS_ASSERTION(IsSimpleGlyphID(aGlyph), "Glyph overflow");
-            mValue = (mValue & FLAGS_CAN_BREAK_BEFORE) |
-                FLAG_IS_SIMPLE_GLYPH |
+            mValue = (mValue & FLAG_CAN_BREAK_BEFORE) | FLAG_IS_SIMPLE_GLYPH |
                 (aAdvanceAppUnits << ADVANCE_SHIFT) | aGlyph;
             return *this;
         }
         CompressedGlyph& SetComplex(PRBool aClusterStart, PRBool aLigatureStart,
                 PRUint32 aGlyphCount) {
-            mValue = (mValue & FLAGS_CAN_BREAK_BEFORE) |
-                FLAG_NOT_MISSING |
+            mValue = (mValue & FLAG_CAN_BREAK_BEFORE) | FLAG_NOT_MISSING |
                 (aClusterStart ? 0 : FLAG_NOT_CLUSTER_START) |
                 (aLigatureStart ? 0 : FLAG_NOT_LIGATURE_GROUP_START) |
                 (aGlyphCount << GLYPH_COUNT_SHIFT);
             return *this;
         }
         /**
-         * Missing glyphs are treated as ligature group starts; don't mess with
-         * the cluster-start flag (see bugs 618870 and 619286).
+         * Missing glyphs are treated as cluster and ligature group starts.
          */
         CompressedGlyph& SetMissing(PRUint32 aGlyphCount) {
-            mValue = (mValue & (FLAGS_CAN_BREAK_BEFORE | FLAG_NOT_CLUSTER_START)) |
+            mValue = (mValue & FLAG_CAN_BREAK_BEFORE) |
                 (aGlyphCount << GLYPH_COUNT_SHIFT);
             return *this;
         }
@@ -1881,7 +1755,7 @@ public:
         /** The advance, x-offset and y-offset of the glyph, in appunits
          *  mAdvance is in the text direction (RTL or LTR)
          *  mXOffset is always from left to right
-         *  mYOffset is always from top to bottom */   
+         *  mYOffset is always from bottom to top */   
         PRInt32  mAdvance;
         float    mXOffset, mYOffset;
     };
@@ -1890,7 +1764,6 @@ public:
     struct GlyphRun {
         nsRefPtr<gfxFont> mFont;   // never null
         PRUint32          mCharacterOffset; // into original UTF16 string
-        PRUint8           mMatchType;
     };
 
     class THEBES_API GlyphRunIterator {
@@ -1946,8 +1819,7 @@ public:
      * are added before any further operations are performed with this
      * TextRun.
      */
-    nsresult AddGlyphRun(gfxFont *aFont, PRUint8 aMatchType,
-                         PRUint32 aStartCharIndex, PRBool aForceNewRun);
+    nsresult AddGlyphRun(gfxFont *aFont, PRUint32 aStartCharIndex, PRBool aForceNewRun = PR_FALSE);
     void ResetGlyphRuns() { mGlyphRuns.Clear(); }
     void SortGlyphRuns();
     void SanitizeGlyphRuns();
@@ -1963,6 +1835,9 @@ public:
         NS_ASSERTION(aGlyph.IsSimpleGlyph(), "Should be a simple glyph here");
         if (mCharacterGlyphs) {
             mCharacterGlyphs[aCharIndex] = aGlyph;
+        }
+        if (mDetailedGlyphs) {
+            mDetailedGlyphs[aCharIndex] = nsnull;
         }
     }
     void SetGlyphs(PRUint32 aCharIndex, CompressedGlyph aGlyph,
@@ -1985,19 +1860,10 @@ public:
     // API for access to the raw glyph data, needed by gfxFont::Draw
     // and gfxFont::GetBoundingBox
     const CompressedGlyph *GetCharacterGlyphs() { return mCharacterGlyphs; }
-
-    // NOTE that this must not be called for a character offset that does
-    // not have any DetailedGlyph records; callers must have verified that
-    // mCharacterGlyphs[aCharIndex].GetGlyphCount() is greater than zero.
-    DetailedGlyph *GetDetailedGlyphs(PRUint32 aCharIndex) {
-        NS_ASSERTION(mDetailedGlyphs != nsnull &&
-                     !mCharacterGlyphs[aCharIndex].IsSimpleGlyph() &&
-                     mCharacterGlyphs[aCharIndex].GetGlyphCount() > 0,
-                     "invalid use of GetDetailedGlyphs; check the caller!");
-        return mDetailedGlyphs->Get(aCharIndex);
+    const DetailedGlyph *GetDetailedGlyphs(PRUint32 aCharIndex) {
+        return mDetailedGlyphs ? mDetailedGlyphs[aCharIndex].get() : nsnull;
     }
-
-    PRBool HasDetailedGlyphs() { return mDetailedGlyphs != nsnull; }
+    PRBool HasDetailedGlyphs() { return mDetailedGlyphs.get() != nsnull; }
     PRUint32 CountMissingGlyphs();
     const GlyphRun *GetGlyphRuns(PRUint32 *aNumGlyphRuns) {
         *aNumGlyphRuns = mGlyphRuns.Length();
@@ -2007,9 +1873,12 @@ public:
     // Returns mGlyphRuns.Length() when aOffset is mCharacterCount.
     PRUint32 FindFirstGlyphRunContaining(PRUint32 aOffset);
     // Copy glyph data for a range of characters from aSource to this
-    // textrun.
+    // textrun. If aStealData is true then we actually steal the glyph data,
+    // setting the data in aSource to "missing". aDest should be in the last
+    // glyphrun.
     virtual void CopyGlyphDataFrom(gfxTextRun *aSource, PRUint32 aStart,
-                                   PRUint32 aLength, PRUint32 aDest);
+                                   PRUint32 aLength, PRUint32 aDest,
+                                   PRBool aStealData);
 
     nsExpirationState *GetExpirationState() { return &mExpirationState; }
 
@@ -2071,9 +1940,6 @@ private:
     // Allocate aCount DetailedGlyphs for the given index
     DetailedGlyph *AllocateDetailedGlyphs(PRUint32 aCharIndex, PRUint32 aCount);
 
-    // Get the total advance for a range of glyphs.
-    PRInt32 GetAdvanceForGlyphs(PRUint32 aStart, PRUint32 aEnd);
-
     // Spacing for characters outside the range aSpacingStart/aSpacingEnd
     // is assumed to be zero; such characters are not passed to aProvider.
     // This is useful to protect aProvider from being passed character indices
@@ -2092,8 +1958,8 @@ private:
                                      PropertyProvider *aProvider);
     gfxFloat ComputePartialLigatureWidth(PRUint32 aPartStart, PRUint32 aPartEnd,
                                          PropertyProvider *aProvider);
-    void DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
-                             PRUint32 aStart, PRUint32 aEnd, gfxPoint *aPt,
+    void DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx, PRUint32 aStart,
+                             PRUint32 aEnd, const gfxRect *aDirtyRect, gfxPoint *aPt,
                              PropertyProvider *aProvider);
     // Advance aStart to the start of the nearest ligature; back up aEnd
     // to the nearest ligature end; may result in *aStart == *aEnd
@@ -2127,126 +1993,10 @@ private:
     // however, ownership passes to the textrun during construction and so
     // it must be deleted in the destructor.
     CompressedGlyph*                               mCharacterGlyphs;
-
-    // For characters whose glyph data does not fit the "simple" glyph criteria
-    // in CompressedGlyph, we use a sorted array to store the association
-    // between the source character offset and an index into an array 
-    // DetailedGlyphs. The CompressedGlyph record includes a count of
-    // the number of DetailedGlyph records that belong to the character,
-    // starting at the given index.
-    class DetailedGlyphStore {
-    public:
-        DetailedGlyphStore()
-            : mLastUsed(0)
-        { }
-
-        // This is optimized for the most common calling patterns:
-        // we rarely need random access to the records, access is most commonly
-        // sequential through the textRun, so we record the last-used index
-        // and check whether the caller wants the same record again, or the
-        // next; if not, it's most likely we're starting over from the start
-        // of the run, so we check the first entry before resorting to binary
-        // search as a last resort.
-        // NOTE that this must not be called for a character offset that does
-        // not have any DetailedGlyph records; callers must have verified that
-        // mCharacterGlyphs[aOffset].GetGlyphCount() is greater than zero
-        // before calling this, otherwise the assertions here will fire (in a
-        // debug build), and we'll probably crash.
-        DetailedGlyph* Get(PRUint32 aOffset) {
-            NS_ASSERTION(mOffsetToIndex.Length() > 0,
-                         "no detailed glyph records!");
-            DetailedGlyph* details = mDetails.Elements();
-            // check common cases (fwd iteration, initial entry, etc) first
-            if (mLastUsed < mOffsetToIndex.Length() - 1 &&
-                aOffset == mOffsetToIndex[mLastUsed + 1].mOffset) {
-                ++mLastUsed;
-            } else if (aOffset == mOffsetToIndex[0].mOffset) {
-                mLastUsed = 0;
-            } else if (aOffset == mOffsetToIndex[mLastUsed].mOffset) {
-                // do nothing
-            } else if (mLastUsed > 0 &&
-                       aOffset == mOffsetToIndex[mLastUsed - 1].mOffset) {
-                --mLastUsed;
-            } else {
-                mLastUsed =
-                    mOffsetToIndex.BinaryIndexOf(aOffset, CompareToOffset());
-            }
-            NS_ASSERTION(mLastUsed != nsTArray<DGRec>::NoIndex,
-                         "detailed glyph record missing!");
-            return details + mOffsetToIndex[mLastUsed].mIndex;
-        }
-
-        DetailedGlyph* Allocate(PRUint32 aOffset, PRUint32 aCount) {
-            PRUint32 detailIndex = mDetails.Length();
-            DetailedGlyph *details = mDetails.AppendElements(aCount);
-            if (!details) {
-                return nsnull;
-            }
-            // We normally set up glyph records sequentially, so the common case
-            // here is to append new records to the mOffsetToIndex array;
-            // test for that before falling back to the InsertElementSorted
-            // method.
-            if (mOffsetToIndex.Length() == 0 ||
-                aOffset > mOffsetToIndex[mOffsetToIndex.Length() - 1].mOffset) {
-                if (!mOffsetToIndex.AppendElement(DGRec(aOffset, detailIndex))) {
-                    return nsnull;
-                }
-            } else {
-                if (!mOffsetToIndex.InsertElementSorted(DGRec(aOffset, detailIndex),
-                                                        CompareRecordOffsets())) {
-                    return nsnull;
-                }
-            }
-            return details;
-        }
-
-    private:
-        struct DGRec {
-            DGRec(const PRUint32& aOffset, const PRUint32& aIndex)
-                : mOffset(aOffset), mIndex(aIndex) { }
-            PRUint32 mOffset; // source character offset in the textrun
-            PRUint32 mIndex;  // index where this char's DetailedGlyphs begin
-        };
-
-        struct CompareToOffset {
-            PRBool Equals(const DGRec& a, const PRUint32& b) const {
-                return a.mOffset == b;
-            }
-            PRBool LessThan(const DGRec& a, const PRUint32& b) const {
-                return a.mOffset < b;
-            }
-        };
-
-        struct CompareRecordOffsets {
-            PRBool Equals(const DGRec& a, const DGRec& b) const {
-                return a.mOffset == b.mOffset;
-            }
-            PRBool LessThan(const DGRec& a, const DGRec& b) const {
-                return a.mOffset < b.mOffset;
-            }
-        };
-
-        // Concatenated array of all the DetailedGlyph records needed for the
-        // textRun; individual character offsets are associated with indexes
-        // into this array via the mOffsetToIndex table.
-        nsTArray<DetailedGlyph>     mDetails;
-
-        // For each character offset that needs DetailedGlyphs, we record the
-        // index in mDetails where the list of glyphs begins. This array is
-        // sorted by mOffset.
-        nsTArray<DGRec>             mOffsetToIndex;
-
-        // Records the most recently used index into mOffsetToIndex, so that
-        // we can support sequential access more quickly than just doing
-        // a binary search each time.
-        nsTArray<DGRec>::index_type mLastUsed;
-    };
-
-    nsAutoPtr<DetailedGlyphStore>   mDetailedGlyphs;
-
+    nsAutoArrayPtr<nsAutoArrayPtr<DetailedGlyph> > mDetailedGlyphs; // only non-null if needed
     // XXX this should be changed to a GlyphRun plus a maybe-null GlyphRun*,
     // for smaller size especially in the super-common one-glyphrun case
-    nsAutoTArray<GlyphRun,1>        mGlyphRuns;
+    nsAutoTArray<GlyphRun,1>                       mGlyphRuns;
     // When TEXT_IS_8BIT is set, we use mSingle, otherwise we use mDouble.
     // When TEXT_IS_PERSISTENT is set, we don't own the text, otherwise we
     // own the text. When we own the text, it's allocated fused with the
@@ -2265,10 +2015,6 @@ private:
     PRUint32          mCharacterCount;
     PRUint32          mHashCode;
     PRUint64          mUserFontSetGeneration; // user font set generation when text run created
-
-    PRBool            mSkipDrawing; // true if the font group we used had a user font
-                                    // download that's in progress, so we should hide text
-                                    // until the download completes (or timeout fires)
 };
 
 class THEBES_API gfxFontGroup : public gfxTextRunFactory {
@@ -2371,19 +2117,14 @@ public:
         return mUnderlineOffset;
     }
 
-    virtual already_AddRefed<gfxFont>
-        FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRInt32 aRunScript,
-                        gfxFont *aPrevMatchedFont,
-                        PRUint8 *aMatchType);
+    already_AddRefed<gfxFont> FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxFont *aPrevMatchedFont);
 
     // search through pref fonts for a character, return nsnull if no matching pref font
     virtual already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
 
     virtual already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
 
-    void ComputeRanges(nsTArray<gfxTextRange>& mRanges,
-                       const PRUnichar *aString, PRUint32 begin, PRUint32 end,
-                       PRInt32 aRunScript);
+    void ComputeRanges(nsTArray<gfxTextRange>& mRanges, const PRUnichar *aString, PRUint32 begin, PRUint32 end);
 
     gfxUserFontSet* GetUserFontSet();
 
@@ -2396,10 +2137,6 @@ public:
     // If there is a user font set, check to see whether the font list or any
     // caches need updating.
     virtual void UpdateFontList();
-
-    PRBool ShouldSkipDrawing() const {
-        return mSkipDrawing;
-    }
 
 protected:
     nsString mFamilies;
@@ -2414,12 +2151,8 @@ protected:
     nsRefPtr<gfxFontFamily> mLastPrefFamily;
     nsRefPtr<gfxFont>       mLastPrefFont;
     eFontPrefLang           mLastPrefLang;       // lang group for last pref font
+    PRBool                  mLastPrefFirstFont;  // is this the first font in the list of pref fonts for this lang group?
     eFontPrefLang           mPageLang;
-    PRPackedBool            mLastPrefFirstFont;  // is this the first font in the list of pref fonts for this lang group?
-
-    PRPackedBool            mSkipDrawing; // hide text while waiting for a font
-                                          // download to complete (or fallback
-                                          // timer to fire)
 
     // Used for construction/destruction.  Not intended to change the font set
     // as invalidation of font lists and caches is not considered.
@@ -2433,22 +2166,21 @@ protected:
     // you should call this with the *first* bad font.
     void InitMetricsForBadFont(gfxFont* aBadFont);
 
-    // Set up the textrun glyphs for an entire text run:
-    // find script runs, and then call InitScriptRun for each
+    // Set up the textrun glyphs, by finding script and font ranges
+    // and calling each font's InitTextRun() as appropriate
     void InitTextRun(gfxContext *aContext,
                      gfxTextRun *aTextRun,
                      const PRUnichar *aString,
                      PRUint32 aLength);
 
-    // InitTextRun helper to handle a single script run, by finding font ranges
-    // and calling each font's InitTextRun() as appropriate
-    void InitScriptRun(gfxContext *aContext,
-                       gfxTextRun *aTextRun,
-                       const PRUnichar *aString,
-                       PRUint32 aTotalLength,
-                       PRUint32 aScriptRunStart,
-                       PRUint32 aScriptRunEnd,
-                       PRInt32 aRunScript);
+    // InitTextRun helper to handle a single script run
+    void InitTextRun(gfxContext *aContext,
+                     gfxTextRun *aTextRun,
+                     const PRUnichar *aString,
+                     PRUint32 aTotalLength,
+                     PRUint32 aScriptRunStart,
+                     PRUint32 aScriptRunEnd,
+                     PRInt32 aRunScript);
 
     /* If aResolveGeneric is true, then CSS/Gecko generic family names are
      * replaced with preferred fonts.
@@ -2470,6 +2202,16 @@ protected:
     static PRBool FindPlatformFont(const nsAString& aName,
                                    const nsACString& aGenericName,
                                    void *closure);
+
+    inline gfxFont* WhichFontSupportsChar(nsTArray< nsRefPtr<gfxFont> >& aFontList, PRUint32 aCh) {
+        PRUint32 len = aFontList.Length();
+        for (PRUint32 i = 0; i < len; i++) {
+            gfxFont* font = aFontList.ElementAt(i);
+            if (font && font->HasCharacter(aCh))
+                return font;
+        }
+        return nsnull;
+    }
 
     static NS_HIDDEN_(nsILanguageAtomService*) gLangService;
 };

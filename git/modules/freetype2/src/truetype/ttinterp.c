@@ -224,10 +224,9 @@
 
   /*************************************************************************/
   /*                                                                       */
-  /* Two simple bounds-checking macros.                                    */
+  /* A simple bounds-checking macro.                                       */
   /*                                                                       */
-#define BOUNDS( x, n )   ( (FT_UInt)(x)  >= (FT_UInt)(n)  )
-#define BOUNDSL( x, n )  ( (FT_ULong)(x) >= (FT_ULong)(n) )
+#define BOUNDS( x, n )  ( (FT_UInt)(x) >= (FT_UInt)(n) )
 
 #undef  SUCCESS
 #define SUCCESS  0
@@ -3282,39 +3281,39 @@
     args[0] = FT_PIX_CEIL( args[0] );
 
 
-#define DO_RS                           \
-   {                                    \
-     FT_ULong  I = (FT_ULong)args[0];   \
-                                        \
-                                        \
-     if ( BOUNDSL( I, CUR.storeSize ) ) \
-     {                                  \
-       if ( CUR.pedantic_hinting )      \
-       {                                \
-         ARRAY_BOUND_ERROR;             \
-       }                                \
-       else                             \
-         args[0] = 0;                   \
-     }                                  \
-     else                               \
-       args[0] = CUR.storage[I];        \
+#define DO_RS                          \
+   {                                   \
+     FT_ULong  I = (FT_ULong)args[0];  \
+                                       \
+                                       \
+     if ( BOUNDS( I, CUR.storeSize ) ) \
+     {                                 \
+       if ( CUR.pedantic_hinting )     \
+       {                               \
+         ARRAY_BOUND_ERROR;            \
+       }                               \
+       else                            \
+         args[0] = 0;                  \
+     }                                 \
+     else                              \
+       args[0] = CUR.storage[I];       \
    }
 
 
-#define DO_WS                           \
-   {                                    \
-     FT_ULong  I = (FT_ULong)args[0];   \
-                                        \
-                                        \
-     if ( BOUNDSL( I, CUR.storeSize ) ) \
-     {                                  \
-       if ( CUR.pedantic_hinting )      \
-       {                                \
-         ARRAY_BOUND_ERROR;             \
-       }                                \
-     }                                  \
-     else                               \
-       CUR.storage[I] = args[1];        \
+#define DO_WS                          \
+   {                                   \
+     FT_ULong  I = (FT_ULong)args[0];  \
+                                       \
+                                       \
+     if ( BOUNDS( I, CUR.storeSize ) ) \
+     {                                 \
+       if ( CUR.pedantic_hinting )     \
+       {                               \
+         ARRAY_BOUND_ERROR;            \
+       }                               \
+     }                                 \
+     else                              \
+       CUR.storage[I] = args[1];       \
    }
 
 
@@ -3323,7 +3322,7 @@
      FT_ULong  I = (FT_ULong)args[0];    \
                                          \
                                          \
-     if ( BOUNDSL( I, CUR.cvtSize ) )    \
+     if ( BOUNDS( I, CUR.cvtSize ) )     \
      {                                   \
        if ( CUR.pedantic_hinting )       \
        {                                 \
@@ -3342,7 +3341,7 @@
      FT_ULong  I = (FT_ULong)args[0];    \
                                          \
                                          \
-     if ( BOUNDSL( I, CUR.cvtSize ) )    \
+     if ( BOUNDS( I, CUR.cvtSize ) )     \
      {                                   \
        if ( CUR.pedantic_hinting )       \
        {                                 \
@@ -3359,7 +3358,7 @@
      FT_ULong  I = (FT_ULong)args[0];                           \
                                                                 \
                                                                 \
-     if ( BOUNDSL( I, CUR.cvtSize ) )                           \
+     if ( BOUNDS( I, CUR.cvtSize ) )                            \
      {                                                          \
        if ( CUR.pedantic_hinting )                              \
        {                                                        \
@@ -4680,7 +4679,7 @@
     /* first of all, check the index */
 
     F = args[0];
-    if ( BOUNDSL( F, CUR.maxFunc + 1 ) )
+    if ( BOUNDS( F, CUR.maxFunc + 1 ) )
       goto Fail;
 
     /* Except for some old Apple fonts, all functions in a TrueType */
@@ -4756,7 +4755,7 @@
 
     /* first of all, check the index */
     F = args[1];
-    if ( BOUNDSL( F, CUR.maxFunc + 1 ) )
+    if ( BOUNDS( F, CUR.maxFunc + 1 ) )
       goto Fail;
 
     /* Except for some old Apple fonts, all functions in a TrueType */
@@ -5031,7 +5030,7 @@
 
     L = (FT_ULong)args[0];
 
-    if ( BOUNDSL( L, CUR.zp2.n_points ) )
+    if ( BOUNDS( L, CUR.zp2.n_points ) )
     {
       if ( CUR.pedantic_hinting )
       {
@@ -5115,8 +5114,8 @@
     K = (FT_UShort)args[1];
     L = (FT_UShort)args[0];
 
-    if ( BOUNDS( L, CUR.zp0.n_points ) ||
-         BOUNDS( K, CUR.zp1.n_points ) )
+    if( BOUNDS( L, CUR.zp0.n_points ) ||
+        BOUNDS( K, CUR.zp1.n_points ) )
     {
       if ( CUR.pedantic_hinting )
       {
@@ -5770,12 +5769,12 @@
   static void
   Ins_SHZ( INS_ARG )
   {
-    TT_GlyphZoneRec  zp;
-    FT_UShort        refp;
-    FT_F26Dot6       dx,
-                     dy;
+    TT_GlyphZoneRec zp;
+    FT_UShort       refp;
+    FT_F26Dot6      dx,
+                    dy;
 
-    FT_UShort        last_point, i;
+    FT_UShort       last_point, i;
 
 
     if ( BOUNDS( args[0], 2 ) )
@@ -5795,16 +5794,7 @@
     if ( CUR.GS.gep2 == 0 && CUR.zp2.n_points > 0 )
       last_point = (FT_UShort)( CUR.zp2.n_points - 1 );
     else if ( CUR.GS.gep2 == 1 && CUR.zp2.n_contours > 0 )
-    {
       last_point = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] );
-
-      if ( BOUNDS( last_point, CUR.zp2.n_points ) )
-      {
-        if ( CUR.pedantic_hinting )
-          CUR.error = TT_Err_Invalid_Reference;
-        return;
-      }
-    }
     else
       last_point = 0;
 
@@ -5986,8 +5976,8 @@
     cvtEntry = (FT_ULong)args[1];
     point    = (FT_UShort)args[0];
 
-    if ( BOUNDS( point,     CUR.zp0.n_points ) ||
-         BOUNDSL( cvtEntry, CUR.cvtSize )      )
+    if ( BOUNDS( point,    CUR.zp0.n_points ) ||
+         BOUNDS( cvtEntry, CUR.cvtSize )      )
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
@@ -6179,7 +6169,7 @@
     /* XXX: UNDOCUMENTED! cvt[-1] = 0 always */
 
     if ( BOUNDS( point,      CUR.zp1.n_points ) ||
-         BOUNDSL( cvtEntry,  CUR.cvtSize + 1 )  ||
+         BOUNDS( cvtEntry,   CUR.cvtSize + 1 )  ||
          BOUNDS( CUR.GS.rp0, CUR.zp0.n_points ) )
     {
       if ( CUR.pedantic_hinting )
@@ -6430,8 +6420,8 @@
     p1 = (FT_UShort)args[0];
     p2 = (FT_UShort)args[1];
 
-    if ( BOUNDS( p1, CUR.zp1.n_points ) ||
-         BOUNDS( p2, CUR.zp0.n_points ) )
+    if ( BOUNDS( args[0], CUR.zp1.n_points ) ||
+         BOUNDS( args[1], CUR.zp0.n_points ) )
     {
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
@@ -6782,11 +6772,12 @@
         {
           if ( ( CUR.pts.tags[point] & mask ) != 0 )
           {
-            _iup_worker_interpolate( &V,
-                                     cur_touched + 1,
-                                     point - 1,
-                                     cur_touched,
-                                     point );
+            if ( point > 0 )
+              _iup_worker_interpolate( &V,
+                                       cur_touched + 1,
+                                       point - 1,
+                                       cur_touched,
+                                       point );
             cur_touched = point;
           }
 
@@ -6959,7 +6950,7 @@
       A = (FT_ULong)CUR.stack[CUR.args + 1];
       B = CUR.stack[CUR.args];
 
-      if ( BOUNDSL( A, CUR.cvtSize ) )
+      if ( BOUNDS( A, CUR.cvtSize ) )
       {
         if ( CUR.pedantic_hinting )
         {
@@ -8135,15 +8126,6 @@
 #ifdef TT_CONFIG_OPTION_STATIC_RASTER
     *exc = cur;
 #endif
-
-    /* If any errors have occurred, function tables may be broken. */
-    /* Force a re-execution of `prep' and `fpgm' tables if no      */
-    /* bytecode debugger is run.                                   */
-    if ( CUR.error && !CUR.instruction_trap )
-    {
-      FT_TRACE1(( "  The interpreter returned error 0x%x\n", CUR.error ));
-      exc->size->cvt_ready      = FALSE;  
-    }
 
     return CUR.error;
   }

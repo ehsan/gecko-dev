@@ -174,7 +174,7 @@ public:
   // one in its parent popup. This will carry out the command attached to
   // the menuitem. If the menu should be opened, this frame will be returned,
   // otherwise null will be returned.
-  nsMenuFrame* Enter(nsGUIEvent* aEvent);
+  nsMenuFrame* Enter();
 
   virtual void SetParent(nsIFrame* aParent);
 
@@ -185,12 +185,14 @@ public:
 
   // nsMenuFrame methods 
 
+  nsresult DestroyPopupFrames(nsPresContext* aPresContext);
+
   virtual PRBool IsOnMenuBar() { return mMenuParent && mMenuParent->IsMenuBar(); }
   virtual PRBool IsOnActiveMenuBar() { return IsOnMenuBar() && mMenuParent->IsActive(); }
   virtual PRBool IsOpen();
   virtual PRBool IsMenu();
-  virtual nsMenuListType GetParentMenuListType();
   PRBool IsDisabled();
+  PRBool IsGenerated();
   void ToggleMenuState();
 
   // indiciate that the menu's popup has just been opened, so that the menu
@@ -239,7 +241,7 @@ protected:
   void UpdateMenuSpecialState(nsPresContext* aPresContext);
 
   // Examines the key node and builds the accelerator.
-  void BuildAcceleratorText(PRBool aNotify);
+  void BuildAcceleratorText();
 
   // Called to execute our command handler. This method can destroy the frame.
   void Execute(nsGUIEvent *aEvent);
@@ -266,7 +268,6 @@ protected:
 
   PRPackedBool mIsMenu; // Whether or not we can even have children or not.
   PRPackedBool mChecked;              // are we checked?
-  PRPackedBool mIgnoreAccelTextChange; // temporarily set while determining the accelerator key
   nsMenuType mType;
 
   nsMenuParent* mMenuParent; // Our parent menu.

@@ -65,15 +65,11 @@ PARALLEL_DIRS += \
   perf \
   places \
   prompts \
-  reflect \
   startup \
   statusfilter \
   typeaheadfind \
   urlformatter \
   viewconfig \
-  viewsource \
-  webapps \
-  telemetry \
   $(NULL)
 
 ifdef BUILD_CTYPES
@@ -100,6 +96,10 @@ ifdef NS_PRINTING
 PARALLEL_DIRS += printing
 endif
 
+ifdef MOZ_VIEW_SOURCE
+PARALLEL_DIRS += viewsource
+endif
+
 ifdef MOZ_XUL
 PARALLEL_DIRS += \
   autocomplete \
@@ -120,6 +120,10 @@ endif
 
 ifdef MOZ_URL_CLASSIFIER
 PARALLEL_DIRS += url-classifier
+endif
+
+ifdef MOZ_FASTSTART
+PARALLEL_DIRS += faststart
 endif
 
 DIRS += \

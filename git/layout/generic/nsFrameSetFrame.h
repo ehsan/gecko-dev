@@ -45,11 +45,12 @@
 #include "nsColor.h"
 #include "nsIObserver.h"
 #include "nsWeakPtr.h"
+#include "nsIFrameSetElement.h"
 
 class  nsIContent;
 class  nsIFrame;
 class  nsPresContext;
-class  nsRenderingContext;
+class  nsIRenderingContext;
 struct nsRect;
 struct nsHTMLReflowState;
 struct nsSize;
@@ -59,9 +60,6 @@ class  nsGUIEvent;
 class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA
-
-// defined at nsHTMLFrameSetElement.h
-struct nsFramesetSpec;
 
 struct nsBorderColor 
 {
@@ -86,6 +84,7 @@ struct nsFramesetDrag {
   PRInt32              mIndex;     // index of left col or top row of effected area
   PRInt32              mChange;    // pos for left to right or top to bottom, neg otherwise
   PRPackedBool         mVertical;  // vertical if true, otherwise horizontal
+  PRPackedBool         mActive;
 
   nsFramesetDrag();
   void Reset(PRBool               aVertical, 

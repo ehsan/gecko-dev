@@ -7,17 +7,6 @@ from subprocess import *
 
 from tests import TestCase
 
-
-def split_path_into_dirs(path):
-    dirs = [path]
-   
-    while True:
-        path, tail = os.path.split(path)
-        if not tail:
-            break
-        dirs.append(path)
-    return dirs
-
 class XULInfo:
     def __init__(self, abi, os, isdebug):
         self.abi = abi
@@ -28,11 +17,10 @@ class XULInfo:
         """Return JS that when executed sets up variables so that JS expression
         predicates on XUL build info evaluate properly."""
 
-        return 'var xulRuntime = { OS: "%s", XPCOMABI: "%s", shell: true }; var isDebugBuild=%s; var Android=%s;' % (
+        return 'var xulRuntime = { OS: "%s", XPCOMABI: "%s", shell: true }; var isDebugBuild=%s;' % (
             self.os,
             self.abi,
-            str(self.isdebug).lower(),
-            self.os == "Android")
+            str(self.isdebug).lower())
 
     @classmethod
     def create(cls, jsdir):
@@ -40,20 +28,17 @@ class XULInfo:
 
         # Our strategy is to find the autoconf.mk generated for the build and
         # read the values from there.
-
+        
         # Find config/autoconf.mk.
-        dirs = split_path_into_dirs(os.getcwd()) + split_path_into_dirs(jsdir)
-
-        path = None
-        for dir in dirs:
-          _path = os.path.join(dir, 'config/autoconf.mk')
-          if os.path.isfile(_path):
-              path = _path
-              break
-
-        if path == None:
-            print "Can't find config/autoconf.mk on a directory containing the JS shell (searched from %s)"%jsdir
-            sys.exit(1)
+        dir = jsdir
+        while True:
+            path = os.path.join(dir, 'config/autoconf.mk')
+            if os.path.isfile(path):
+                break
+            if os.path.dirname(dir) == dir:
+                print "Can't find config/autoconf.mk on a directory containing the JS shell (searched from %s)"%jsdir
+                sys.exit(1)
+            dir = os.path.dirname(dir)
 
         # Read the values.
         val_re = re.compile(r'(TARGET_XPCOM_ABI|OS_TARGET|MOZ_DEBUG)\s*=\s*(.*)')
@@ -90,9 +75,7 @@ class XULInfoTester:
             elif out in ('false\n', 'false\r\n'):
                 ans = False
             else:
-                raise Exception(("Failed to test XUL condition %r;"
-                                 + " output was %r, stderr was %r")
-                                 % (cond, out, err))
+                raise Exception("Failed to test XUL condition '%s'"%cond)
             self.cache[cond] = ans
         return ans
 
@@ -115,10 +98,7 @@ def parse(filename, xul_tester, reldir = ''):
     for line in f:
         sline = comment_re.sub('', line)
         parts = sline.split()
-        if len(parts) == 0:
-            # line is empty or just a comment, skip
-            pass
-        elif parts[0] == 'include':
+        if parts[0] == 'include':
             include_file = parts[1]
             include_reldir = os.path.join(reldir, os.path.dirname(include_file))
             ans += parse(os.path.join(dir, include_file), xul_tester, include_reldir)
@@ -131,7 +111,6 @@ def parse(filename, xul_tester, reldir = ''):
             expect = True
             random = False
             slow = False
-            debugMode = False
 
             pos = 0
             while pos < len(parts):
@@ -163,41 +142,17 @@ def parse(filename, xul_tester, reldir = ''):
                     if xul_tester.test(cond):
                         random = True
                     pos += 1
-                elif parts[pos].startswith('require-or'):
-                    cond = parts[pos][len('require-or('):-1]
-                    (preconditions, fallback_action) = re.split(",", cond)
-                    for precondition in re.split("&&", preconditions):
-                        if precondition == 'debugMode':
-                            debugMode = True
-                        elif precondition == 'true':
-                            pass
-                        else:
-                            if fallback_action == "skip":
-                                expect = enable = False
-                            elif fallback_action == "fail":
-                                expect = False
-                            elif fallback_action == "random":
-                                random = True
-                            else:
-                                raise Exception("Invalid precondition '%s' or fallback action '%s'" % (precondition, fallback_action))
-                            break
-                    pos += 1
                 elif parts[pos] == 'script':
                     script = parts[pos+1]
                     pos += 2
                 elif parts[pos] == 'slow':
                     slow = True
                     pos += 1
-                elif parts[pos] == 'silentfail':
-                    # silentfails use tons of memory, and Darwin doesn't support ulimit.
-                    if xul_tester.test("xulRuntime.OS == 'Darwin'"):
-                        expect = enable = False
-                    pos += 1
                 else:
                     print 'warning: invalid manifest line element "%s"'%parts[pos]
                     pos += 1
 
             assert script is not None
-            ans.append(TestCase(os.path.join(reldir, script),
-                                enable, expect, random, slow, debugMode))
+            ans.append(TestCase(os.path.join(reldir, script), 
+                                enable, expect, random, slow))
     return ans

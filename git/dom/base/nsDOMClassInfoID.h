@@ -73,19 +73,19 @@ enum nsDOMClassInfoID {
  *          that implements one of these interfaces must be directly castable
  *          to that interface from the *canonical* nsISupports!
  */
-#undef DOMCI_CASTABLE_INTERFACE
 #define DOMCI_CASTABLE_INTERFACES(_extra)                                     \
 DOMCI_CASTABLE_INTERFACE(nsINode, nsINode, 0, _extra)                         \
 DOMCI_CASTABLE_INTERFACE(nsIContent, nsIContent, 1, _extra)                   \
 DOMCI_CASTABLE_INTERFACE(nsIDocument, nsIDocument, 2, _extra)                 \
 DOMCI_CASTABLE_INTERFACE(nsINodeList, nsINodeList, 3, _extra)                 \
 DOMCI_CASTABLE_INTERFACE(nsICSSDeclaration, nsICSSDeclaration, 4, _extra)     \
-DOMCI_CASTABLE_INTERFACE(nsDocument, nsIDocument, 5, _extra)                  \
-DOMCI_CASTABLE_INTERFACE(nsGenericHTMLElement, nsGenericHTMLElement, 6,       \
+DOMCI_CASTABLE_INTERFACE(nsGenericTextNode, nsGenericTextNode, 5, _extra)     \
+DOMCI_CASTABLE_INTERFACE(nsDocument, nsIDocument, 6, _extra)                  \
+DOMCI_CASTABLE_INTERFACE(nsGenericHTMLElement, nsGenericHTMLElement, 7,       \
                          _extra)                                              \
-DOMCI_CASTABLE_INTERFACE(nsHTMLDocument, nsIDocument, 7, _extra)              \
-DOMCI_CASTABLE_INTERFACE(nsStyledElement, nsStyledElement, 8, _extra)         \
-DOMCI_CASTABLE_INTERFACE(nsSVGStylableElement, nsIContent, 9, _extra)
+DOMCI_CASTABLE_INTERFACE(nsHTMLDocument, nsIDocument, 8, _extra)              \
+DOMCI_CASTABLE_INTERFACE(nsStyledElement, nsStyledElement, 9, _extra)         \
+DOMCI_CASTABLE_INTERFACE(nsSVGStylableElement, nsIContent, 10, _extra)
 
 // Make sure all classes mentioned in DOMCI_CASTABLE_INTERFACES
 // have been declared.
@@ -158,17 +158,6 @@ NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 #define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(_class)                          \
   if (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                                \
       aIID.Equals(NS_GET_IID(nsXPCClassInfo))) {                              \
-    foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
-    if (!foundInterface) {                                                    \
-      *aInstancePtr = nsnull;                                                 \
-      return NS_ERROR_OUT_OF_MEMORY;                                          \
-    }                                                                         \
-  } else
-
-#define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(_class, condition)   \
-  if ((condition) &&                                                          \
-      (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                               \
-       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {                            \
     foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
     if (!foundInterface) {                                                    \
       *aInstancePtr = nsnull;                                                 \

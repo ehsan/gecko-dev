@@ -42,24 +42,15 @@
 #include <QtGui/QGraphicsView>
 #include <QtGui/QGraphicsWidget>
 
-#include "nsIWidget.h"
-#include "prenv.h"
-
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
-
-#ifdef MOZ_ENABLE_QTMOBILITY
-#include "mozqorientationsensorfilter.h"
-#endif
-
 #ifdef MOZ_ENABLE_MEEGOTOUCH
 #include <QtGui/QGraphicsSceneResizeEvent>
 #include <MSceneWindow>
-#include <MScene>
 #include <QTimer>
-#include <MInputMethodState>
-#include <MApplication>
+#include <mstatusbar.h>
 #endif
+
+#include "nsIWidget.h"
+#include "prenv.h"
 
 class QEvent;
 class QPixmap;
@@ -98,10 +89,6 @@ public:
 public slots:
     void showVKB();
 
-#ifdef MOZ_ENABLE_QTMOBILITY
-    void orientationChanged();
-#endif
-
 protected:
     virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent* aEvent);
     virtual void dragEnterEvent(QGraphicsSceneDragDropEvent* aEvent);
@@ -119,7 +106,6 @@ protected:
     virtual void mouseMoveEvent(QGraphicsSceneMouseEvent* aEvent);
     virtual void mousePressEvent(QGraphicsSceneMouseEvent* aEvent);
     virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent* aEvent);
-    virtual void inputMethodEvent(QInputMethodEvent* aEvent);
 
     virtual void wheelEvent(QGraphicsSceneWheelEvent* aEvent);
     virtual void paint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget = 0);
@@ -132,7 +118,6 @@ protected:
     bool SetCursor(const QPixmap& aPixmap, int, int);
 
 private:
-    void sendPressReleaseKeyEvent(int key, const QChar* letter = 0, bool autorep = false, ushort count = 1);
     nsWindow *mReceiver;
 };
 
@@ -210,8 +195,6 @@ public:
      , mTopLevelWidget(aTopLevel)
     {
         scene()->addItem(aTopLevel);
-        setMouseTracking(true);
-        setFrameShape(QFrame::NoFrame);
     }
 
 protected:
@@ -247,19 +230,18 @@ public:
     MozMSceneWindow(MozQWidget* aTopLevel)
      : MSceneWindow(aTopLevel->parentItem())
      , mTopLevelWidget(aTopLevel)
+     , mStatusBar(nsnull)
     {
         mTopLevelWidget->setParentItem(this);
         mTopLevelWidget->installEventFilter(this);
-        MInputMethodState* inputMethodState = MInputMethodState::instance();
-        if (inputMethodState) {
-            connect(inputMethodState, SIGNAL(inputMethodAreaChanged(const QRect&)),
-                    this, SLOT(VisibleScreenAreaChanged(const QRect&)));
-        }
+        mStatusBar = new MStatusBar();
+        mStatusBar->appear();
+        connect(mStatusBar, SIGNAL(appeared()), this, SLOT(CheckTopLevelSize()));
+        connect(mStatusBar, SIGNAL(disappeared()), this, SLOT(CheckTopLevelSize()));
     }
 
 protected:
-    virtual void resizeEvent(QGraphicsSceneResizeEvent* aEvent)
-    {
+    virtual void resizeEvent(QGraphicsSceneResizeEvent* aEvent) {
         mCurrentSize = aEvent->newSize();
         MSceneWindow::resizeEvent(aEvent);
         CheckTopLevelSize();
@@ -274,51 +256,41 @@ protected:
             QTimer::singleShot(0, this, SLOT(CheckTopLevelSize()));
         }
 
+        //false == let event processing continue
         return false;
     }
 
 private slots:
-    void CheckTopLevelSize()
-    {
+    void CheckTopLevelSize() {
         if (mTopLevelWidget) {
             qreal xpos = 0;
             qreal ypos = 0;
             qreal width = mCurrentSize.width();
             qreal height = mCurrentSize.height();
 
+            //If statusbar is visible, move toplevel widget down
+            if (mStatusBar->isVisible()) {
+                ypos = mStatusBar->size().height();
+                height -= ypos;
+            }
+
             // transfer new size to graphics widget if changed
             QRectF r = mTopLevelWidget->geometry();
-            if (r != QRectF(xpos, ypos, width, height)) {
+            if (r != QRectF(xpos, ypos, width, height))
                 mTopLevelWidget->setGeometry(xpos, ypos, width, height);
-            }
-        }
-    }
-
-    void VisibleScreenAreaChanged(const QRect& rect) {
-        if (mTopLevelWidget) {
-            QRect r = mTopLevelWidget->geometry().toRect();
-            if (rect.height()) {
-                r.setHeight(rect.height());
-            }
-
-            nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-            if (observerService) {
-                QString rect = QString("{\"left\": %1, \"top\": %2, \"right\": %3, \"bottom\": %4}")
-                                       .arg(r.x()).arg(r.y()).arg(r.width()).arg(r.height());
-                observerService->NotifyObservers(nsnull, "softkb-change", rect.utf16());
-            }
         }
     }
 
 private:
     MozQWidget* mTopLevelWidget;
+    MStatusBar* mStatusBar;
     QSizeF mCurrentSize;
 };
 
 /**
-  This is a helper class to synchronize the MWindow window with
-  its contained QGraphicsWidget for things like resizing and closing
-  by the user.
+    This is a helper class to synchronize the MWindow window with
+    its contained QGraphicsWidget for things like resizing and closing
+    by the user.
 */
 class MozMGraphicsView : public MWindow
 {
@@ -329,8 +301,9 @@ public:
      , mEventHandler(this)
      , mTopLevelWidget(aTopLevel)
     {
-        MozMSceneWindow* page = new MozMSceneWindow(aTopLevel);
-        page->appear(this);
+        MozMSceneWindow *page = new MozMSceneWindow(aTopLevel);
+        if (page)
+            page->appear(this);
     }
 
 protected:
@@ -347,9 +320,8 @@ protected:
 
     virtual void closeEvent (QCloseEvent* aEvent)
     {
-        if (!mEventHandler.handleCloseEvent(aEvent, mTopLevelWidget)) {
+        if (!mEventHandler.handleCloseEvent(aEvent, mTopLevelWidget))
             MWindow::closeEvent(aEvent);
-        }
     }
 
 private:
@@ -358,4 +330,5 @@ private:
 };
 
 #endif /* MOZ_ENABLE_MEEGOTOUCH */
+
 #endif

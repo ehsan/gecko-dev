@@ -42,15 +42,10 @@
 #include <AppKit/NSOpenGL.h>
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
-#include "gfxQuartzSurface.h"
 #include "gfxPlatform.h"
-#include "gfxFailure.h"
-#include "prenv.h"
 
 namespace mozilla {
 namespace gl {
-
-static PRBool gUseDoubleBufferedWindows = PR_TRUE;
 
 class CGLLibrary
 {
@@ -73,10 +68,7 @@ public:
                 return PR_FALSE;
             }
         }
-
-        const char* db = PR_GetEnv("MOZ_CGL_DB");
-        gUseDoubleBufferedWindows = (!db || *db != '0');
-
+        
         mInitialized = PR_TRUE;
         return PR_TRUE;
     }
@@ -86,13 +78,8 @@ public:
         if (mPixelFormat == nsnull) {
             NSOpenGLPixelFormatAttribute attribs[] = {
                 NSOpenGLPFAAccelerated,
-                NSOpenGLPFADoubleBuffer,
                 (NSOpenGLPixelFormatAttribute)nil 
             };
-
-            if (!gUseDoubleBufferedWindows) {
-              attribs[1] = (NSOpenGLPixelFormatAttribute)nil;
-            }
 
             mPixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];
         }
@@ -134,7 +121,10 @@ public:
 
     ~GLContextCGL()
     {
-        MarkDestroyed();
+        if (mOffscreenFBO) {
+            MakeCurrent();
+            DeleteOffscreenFBO();
+        }
 
         if (mContext)
             [mContext release];
@@ -164,12 +154,8 @@ public:
         }
     }
 
-    PRBool MakeCurrentImpl(PRBool aForce = PR_FALSE)
+    PRBool MakeCurrent()
     {
-        if (!aForce && [NSOpenGLContext currentContext] == mContext) {
-            return PR_TRUE;
-        }
-
         if (mContext) {
             [mContext makeCurrentContext];
         }
@@ -181,17 +167,6 @@ public:
         return PR_FALSE;
     }
 
-    PRBool IsDoubleBuffered() 
-    { 
-      return gUseDoubleBufferedWindows; 
-    }
-
-    PRBool SwapBuffers()
-    {
-      [mContext flushBuffer];
-      return PR_TRUE;
-    }
-
     PRBool BindTex2DOffscreen(GLContext *aOffscreen);
     void UnbindTex2DOffscreen(GLContext *aOffscreen);
     PRBool ResizeOffscreen(const gfxIntSize& aNewSize);
@@ -199,7 +174,6 @@ public:
     virtual already_AddRefed<TextureImage>
     CreateBasicTextureImage(GLuint aTexture,
                             const nsIntSize& aSize,
-                            GLenum aWrapMode,
                             TextureImage::ContentType aContentType,
                             GLContext* aContext);
 
@@ -296,115 +270,53 @@ class TextureImageCGL : public BasicTextureImage
     friend already_AddRefed<TextureImage>
     GLContextCGL::CreateBasicTextureImage(GLuint,
                                           const nsIntSize&,
-                                          GLenum,
                                           TextureImage::ContentType,
                                           GLContext*);
-public:
-    ~TextureImageCGL()
-    {
-        if (mPixelBuffer) {
-            mGLContext->MakeCurrent();
-            mGLContext->fDeleteBuffers(1, &mPixelBuffer);
-        }
-    }
 
 protected:
-    already_AddRefed<gfxASurface>
-    GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
+    virtual already_AddRefed<gfxASurface>
+    CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
     {
-        mGLContext->MakeCurrent();
-        if (!mGLContext->
-            IsExtensionSupported(GLContext::ARB_pixel_buffer_object)) 
-        {
-            return gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(aSize, 
-                                       gfxASurface::ContentFromFormat(aFmt));
-        }
-
-        if (!mPixelBuffer) {
-            mGLContext->fGenBuffers(1, &mPixelBuffer);
-        }
-        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
-        PRInt32 size = aSize.width * 4 * aSize.height;
-
-        if (size > mPixelBufferSize) {
-            mGLContext->fBufferData(LOCAL_GL_PIXEL_UNPACK_BUFFER, size,
-                                    NULL, LOCAL_GL_STREAM_DRAW);
-            mPixelBufferSize = size;
-        }
-        unsigned char* data = 
-            (unsigned char*)mGLContext->
-                fMapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 
-                           LOCAL_GL_WRITE_ONLY);
-
-        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-
-        if (!data) {
-            nsCAutoString failure;
-            failure += "Pixel buffer binding failed: ";
-            failure.AppendPrintf("%dx%d\n", aSize.width, aSize.height);
-            gfx::LogFailure(failure);
-
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-            return gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(aSize, 
-                                       gfxASurface::ContentFromFormat(aFmt));
-        }
-
-        nsRefPtr<gfxQuartzSurface> surf = 
-            new gfxQuartzSurface(data, aSize,
-                                 aSize.width * 4, aFmt);
-
-        mBoundPixelBuffer = true;
-        return surf.forget();
-    }
-  
-    bool FinishedSurfaceUpdate()
-    {
-        if (mBoundPixelBuffer) {
-            mGLContext->MakeCurrent();
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
-            mGLContext->fUnmapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER);
-            return true;
-        }
-        return false;
+        mUpdateFormat = aFmt;
+        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, aFmt);
     }
 
-    void FinishedSurfaceUpload()
+    virtual already_AddRefed<gfxImageSurface>
+    GetImageForUpload(gfxASurface* aUpdateSurface)
     {
-        if (mBoundPixelBuffer) {
-            mGLContext->MakeCurrent();
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-            mBoundPixelBuffer = false;
-        }
+        // FIXME/bug 575521: make me fast!
+        nsRefPtr<gfxImageSurface> image =
+            new gfxImageSurface(gfxIntSize(mUpdateRect.width,
+                                           mUpdateRect.height),
+                                mUpdateFormat);
+        nsRefPtr<gfxContext> tmpContext = new gfxContext(image);
+
+        tmpContext->SetSource(aUpdateSurface);
+        tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
+        tmpContext->Paint();
+
+        return image.forget();
     }
 
 private:
     TextureImageCGL(GLuint aTexture,
                     const nsIntSize& aSize,
-                    GLenum aWrapMode,
                     ContentType aContentType,
                     GLContext* aContext)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
-        , mPixelBuffer(0)
-        , mPixelBufferSize(0)
-        , mBoundPixelBuffer(false)
+        : BasicTextureImage(aTexture, aSize, aContentType, aContext)
     {}
-    
-    GLuint mPixelBuffer;
-    PRInt32 mPixelBufferSize;
-    bool mBoundPixelBuffer;
+
+    ImageFormat mUpdateFormat;
 };
 
 already_AddRefed<TextureImage>
 GLContextCGL::CreateBasicTextureImage(GLuint aTexture,
                                       const nsIntSize& aSize,
-                                      GLenum aWrapMode,
                                       TextureImage::ContentType aContentType,
                                       GLContext* aContext)
 {
-    nsRefPtr<TextureImageCGL> teximage
-        (new TextureImageCGL(aTexture, aSize, aWrapMode, aContentType, aContext));
+    nsRefPtr<TextureImageCGL> teximage(
+        new TextureImageCGL(aTexture, aSize, aContentType, aContext));
     return teximage.forget();
 }
 
@@ -433,7 +345,6 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
     NSView *childView = (NSView *)aWidget->GetNativeData(NS_NATIVE_WIDGET);
     [context setView:childView];
 
-    // make the context transparent
     nsRefPtr<GLContextCGL> glContext = new GLContextCGL(ContextFormat(ContextFormat::BasicRGB24),
                                                         shareContext,
                                                         context);
@@ -604,7 +515,7 @@ GLContextProviderCGL::GetGlobalContext()
         gGlobalContext = CreateOffscreenFBOContext(gfxIntSize(16, 16),
                                                    ContextFormat(ContextFormat::BasicRGB24),
                                                    PR_FALSE);
-        if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
+        if (gGlobalContext && !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
             gGlobalContext = nsnull;
             return nsnull; 
@@ -619,7 +530,6 @@ GLContextProviderCGL::GetGlobalContext()
 void
 GLContextProviderCGL::Shutdown()
 {
-  gGlobalContext = nsnull;
 }
 
 } /* namespace gl */

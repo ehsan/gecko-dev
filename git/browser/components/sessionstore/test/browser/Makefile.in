@@ -20,7 +20,7 @@
 #
 # Contributor(s):
 #   Simon Bünzli <zeniko@gmail.com>
-#   Michael Kraft <morac99-firefox2@yahoo.com>
+#   Michael Kraft <morac99-firefox@yahoo.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -49,7 +49,6 @@ include $(topsrcdir)/config/rules.mk
 # browser_526613.js is disabled because of frequent failures (bug 534489)
 
 _BROWSER_TEST_FILES = \
-	head.js \
 	browser_248970_a.js \
 	browser_248970_b.js \
 	browser_248970_b_sample.html \
@@ -62,9 +61,7 @@ _BROWSER_TEST_FILES = \
 	browser_354894.js \
 	browser_367052.js \
 	browser_393716.js \
-	browser_394759_basic.js \
-	browser_394759_behavior.js \
-	browser_394759_purge.js \
+	browser_394759.js \
 	browser_394759_privatebrowsing.js \
 	browser_408470.js \
 	browser_408470_sample.html \
@@ -114,50 +111,13 @@ _BROWSER_TEST_FILES = \
 	browser_495495.js \
 	browser_500328.js \
 	browser_514751.js \
-	browser_522375.js \
 	browser_522545.js \
 	browser_524745.js \
 	browser_528776.js \
-	browser_579868.js \
 	browser_579879.js \
 	browser_580512.js \
-	browser_581593.js \
-	browser_581937.js \
 	browser_586147.js \
-	browser_586068-cascaded_restore.js \
-	browser_588426.js \
-	browser_589246.js \
-	browser_590268.js \
-	browser_590563.js \
-	browser_595601-restore_hidden.js \
-	browser_597315.js \
-	browser_597315_index.html \
-	browser_597315_a.html \
-	browser_597315_b.html \
-	browser_597315_c.html \
-	browser_597315_c1.html \
-	browser_597315_c2.html \
-	browser_599909.js \
-	browser_600545.js \
-	browser_601955.js \
-	browser_607016.js \
-	browser_615394-SSWindowState_events.js \
-	browser_618151.js \
-	browser_623779.js \
-	browser_624727.js \
-	browser_625257.js \
-	browser_628270.js \
-	browser_635418.js \
-	browser_636279.js \
-	browser_659591.js \
 	$(NULL)
-
-ifneq ($(OS_ARCH),Darwin)
-_BROWSER_TEST_FILES += \
-	browser_597071.js \
-	browser_625016.js \
-	$(NULL)
-endif
 
 libs:: $(_BROWSER_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

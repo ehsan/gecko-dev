@@ -23,7 +23,6 @@
 #  Jonathan Wilson <jonwil@tpgi.com.au>
 #  Dan Mosedale <dmose@mozilla.org>
 #  Benjamin Smedberg <benjamin@smedbergs.us>
-#  Jared Wein <jwein@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -78,13 +77,6 @@ ifdef SOURCE_REPO
 DEFINES += -DMOZ_SOURCE_REPO="$(SOURCE_REPO)"
 endif
 
-DEFINES += -DMOZ_APP_BASENAME="$(MOZ_APP_BASENAME)" \
-           -DMOZ_APP_VENDOR="$(MOZ_APP_VENDOR)"
-
-ifdef MOZ_APP_PROFILE
-DEFINES += -DMOZ_APP_PROFILE="$(MOZ_APP_PROFILE)"
-endif
-
 LIBS += $(JEMALLOC_LIBS)
 
 ifdef LIBXUL_SDK
@@ -92,21 +84,59 @@ include $(topsrcdir)/config/rules.mk
 else
 # Build a binary bootstrapping with XRE_main
 
+ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
 PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
+else
+PROGRAM = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
+endif
 
 CPPSRCS = nsBrowserApp.cpp
 
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/build
 
-DEFINES += -DXPCOM_GLUE
-STL_FLAGS=
+ifdef BUILD_STATIC_LIBS
+ifdef _MSC_VER
+STATIC_COMPONENTS_LINKER_PATH = -LIBPATH:$(DEPTH)/staticlib
+else
+STATIC_COMPONENTS_LINKER_PATH = -L$(DEPTH)/staticlib
+endif
+LIBS += $(DEPTH)/toolkit/xre/$(LIB_PREFIX)xulapp_s.$(LIB_SUFFIX)
+else
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+LIBS += $(DIST)/bin/XUL
+else
+EXTRA_DSO_LIBS += xul
+endif
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+TK_LIBS := $(TK_LIBS)
+endif
+
+ifdef MOZ_ENABLE_LIBXUL
+APP_XPCOM_LIBS = $(XPCOM_GLUE_LDOPTS)
+else
+MOZILLA_INTERNAL_API = 1
+APP_XPCOM_LIBS = $(XPCOM_LIBS)
+endif
 
 LIBS += \
+	$(STATIC_COMPONENTS_LINKER_PATH) \
 	$(EXTRA_DSO_LIBS) \
-	$(XPCOM_STANDALONE_GLUE_LDOPTS) \
+	$(MOZ_JS_LIBS) \
+	$(APP_XPCOM_LIBS) \
+	$(NSPR_LIBS) \
+	$(TK_LIBS) \
 	$(NULL)
+
+# Add explicit X11 dependency when building against X11 toolkits
+ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
+LIBS += $(XLDFLAGS) $(XLIBS) $(ZLIB_LIBS)
+endif
+
+ifdef MOZ_JPROF
+LIBS += -ljprof
+endif
 
 ifndef MOZ_WINCONSOLE
 ifdef MOZ_DEBUG
@@ -125,7 +155,27 @@ include $(topsrcdir)/config/config.mk
 ifdef _MSC_VER
 # Always enter a Windows program through wmain, whether or not we're
 # a console application.
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+else
 WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
+endif
+
+ifdef WINCE
+EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,corelibc)
+endif
+
+ifdef BUILD_STATIC_LIBS
+include $(topsrcdir)/config/static-config.mk
+
+EXTRA_DEPS	+= \
+	$(STATIC_EXTRA_DEPS) \
+	$(NULL)
+DEFINES		+= $(STATIC_DEFINES)
+CPPSRCS		+= $(STATIC_CPPSRCS)
+EXTRA_DSO_LIBS	+= $(STATIC_EXTRA_DSO_LIBS)
+EXTRA_LIBS	+= $(STATIC_EXTRA_LIBS)
 endif
 
 ifeq ($(OS_ARCH),WINNT)
@@ -133,21 +183,34 @@ OS_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 oleaut32 v
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 msimg32)
 endif
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 RCINCLUDE = splash.rc
 ifndef GNU_CC
 RCFLAGS += -DMOZ_PHOENIX -I$(srcdir)
 else
 RCFLAGS += -DMOZ_PHOENIX --include-dir $(srcdir)
 endif
+ifdef BUILD_STATIC_LIBS
+RCFLAGS += -DMOZ_STATIC_BUILD
+endif
 ifdef DEBUG
 RCFLAGS += -DDEBUG
+endif
+endif
+
+ifeq ($(OS_ARCH),BeOS)
+BEOS_PROGRAM_RESOURCE = $(srcdir)/apprunner-beos.rsrc
+ifdef BUILD_STATIC_LIBS
+OS_LIBS += -ltracker -lgame
 endif
 endif
 
 ifeq ($(OS_ARCH),OS2)
 RESFILE=splashos2.res
 RCFLAGS += -DMOZ_PHOENIX
+ifdef BUILD_STATIC_LIBS
+RCFLAGS += -DMOZ_STATIC_BUILD -i $(DIST)/include
+endif
 ifdef DEBUG
 RCFLAGS += -DDEBUG
 endif
@@ -155,6 +218,12 @@ RCFLAGS += -DFIREFOX_ICO=\"$(DIST)/branding/firefox-os2.ico\" -DDOCUMENT_ICO=\"$
 endif
 
 include $(topsrcdir)/config/rules.mk
+
+ifdef BUILD_STATIC_LIBS
+include $(topsrcdir)/config/static-rules.mk
+
+DEFINES += -DIMPL_XREAPI
+endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),photon)
 LIBS += -lphexlib
@@ -180,11 +249,22 @@ endif
 endif
 endif
 
-ifneq (,$(filter-out OS2 WINNT,$(OS_ARCH)))
+$(PROGRAM): $(DEPTH)/toolkit/xre/$(LIB_PREFIX)xulapp_s.$(LIB_SUFFIX)
 
-libs:: 
-	cp -p $(MOZ_APP_NAME)$(BIN_SUFFIX) $(DIST)/bin/$(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
+ifneq (,$(filter-out OS2 WINNT WINCE,$(OS_ARCH)))
 
+$(MOZ_APP_NAME):: $(topsrcdir)/build/unix/mozilla.in $(GLOBAL_DEPS)
+	cat $< | sed -e "s|%MOZAPPDIR%|$(installdir)|" \
+		-e "s|%MOZ_APP_DISPLAYNAME%|$(MOZ_APP_DISPLAYNAME)|" > $@
+	chmod +x $@
+
+libs:: $(MOZ_APP_NAME)
+	$(INSTALL) $< $(DIST)/bin
+
+install:: $(MOZ_APP_NAME)
+	$(SYSINSTALL) $< $(DESTDIR)$(bindir)
+
+GARBAGE += $(MOZ_APP_NAME)
 GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/, firefox.js)
 
 endif
@@ -200,6 +280,7 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(DIST)/bin/icons
+	$(INSTALL) $(IFLAGS1) $(DIST)/branding/document.png   $(DIST)/bin/icons
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png  $(DIST)/bin/chrome/icons/default
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png  $(DIST)/bin/chrome/icons/default
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default48.png  $(DIST)/bin/chrome/icons/default
@@ -209,6 +290,13 @@ ifdef MOZ_SPLASHSCREEN
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/splash.bmp $(DIST)/bin
+endif
+endif
+
+ifdef WINCE
+ifdef MOZ_FASTSTART
+libs::
+	cp -f $(DIST)/bin/faststartstub.exe $(DIST)/bin/$(MOZ_APP_NAME)faststart.exe
 endif
 endif
 
@@ -233,7 +321,7 @@ AB_CD = $(MOZ_UI_LOCALE)
 AB := $(firstword $(subst -, ,$(AB_CD)))
 
 clean clobber repackage::
-	$(RM) -r $(DIST)/$(APP_NAME).app
+	rm -rf $(DIST)/$(APP_NAME).app
 
 ifdef LIBXUL_SDK
 APPFILES = Resources
@@ -242,18 +330,18 @@ APPFILES = MacOS
 endif
 
 libs repackage:: $(PROGRAM) application.ini
-	$(MKDIR) -p $(DIST)/$(APP_NAME).app/Contents/MacOS
+	mkdir -p $(DIST)/$(APP_NAME).app/Contents/MacOS
 	rsync -a --exclude CVS --exclude "*.in" $(srcdir)/macbuild/Contents $(DIST)/$(APP_NAME).app --exclude English.lproj
-	$(MKDIR) -p $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj
+	mkdir -p $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj
 	rsync -a --exclude CVS --exclude "*.in" $(srcdir)/macbuild/Contents/Resources/English.lproj/ $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj
 	sed -e "s/%APP_VERSION%/$(APP_VERSION)/" -e "s/%APP_NAME%/$(APP_NAME)/" -e "s/%LOWER_APP_NAME%/$(LOWER_APP_NAME)/" $(srcdir)/macbuild/Contents/Info.plist.in > $(DIST)/$(APP_NAME).app/Contents/Info.plist
 	sed -e "s/%APP_NAME%/$(APP_NAME)/" $(srcdir)/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in | iconv -f UTF-8 -t UTF-16 > $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj/InfoPlist.strings
 	rsync -a $(DIST)/bin/ $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)
 	$(RM) $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)/mangle $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)/shlibsign
 ifdef LIBXUL_SDK
-	cp $(LIBXUL_DIST)/bin/$(XR_STUB_NAME) $(DIST)/$(APP_NAME).app/Contents/MacOS/firefox
+	cp $(LIBXUL_DIST)/bin/$(XR_STUB_NAME) $(DIST)/$(APP_NAME).app/Contents/MacOS/firefox-bin
 else
-	$(RM) $(DIST)/$(APP_NAME).app/Contents/MacOS/$(PROGRAM)
+	rm -f $(DIST)/$(APP_NAME).app/Contents/MacOS/$(PROGRAM)
 	rsync -aL $(PROGRAM) $(DIST)/$(APP_NAME).app/Contents/MacOS
 endif
 	-cp -L $(DIST)/bin/mangle $(DIST)/bin/shlibsign $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)

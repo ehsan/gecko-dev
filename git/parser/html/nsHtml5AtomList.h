@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2008-2010 Mozilla Foundation
- *
- * Permission is hereby granted, free of charge, to any person obtaining a 
- * copy of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the 
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in 
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
- * DEALINGS IN THE SOFTWARE.
- */
-
 HTML5_ATOM(emptystring, "")
 HTML5_ATOM(title, "title")
 HTML5_ATOM(textarea, "textarea")
@@ -44,7 +22,6 @@ HTML5_ATOM(select, "select")
 HTML5_ATOM(optgroup, "optgroup")
 HTML5_ATOM(table, "table")
 HTML5_ATOM(frameset, "frameset")
-HTML5_ATOM(button, "button")
 HTML5_ATOM(ul, "ul")
 HTML5_ATOM(ol, "ol")
 HTML5_ATOM(html, "html")
@@ -845,7 +822,6 @@ HTML5_ATOM(param, "param")
 HTML5_ATOM(power, "power")
 HTML5_ATOM(reals, "reals")
 HTML5_ATOM(small_, "small")
-HTML5_ATOM(track, "track")
 HTML5_ATOM(tspan, "tspan")
 HTML5_ATOM(times, "times")
 HTML5_ATOM(union_, "union")
@@ -859,6 +835,7 @@ HTML5_ATOM(arccos, "arccos")
 HTML5_ATOM(applet, "applet")
 HTML5_ATOM(arccot, "arccot")
 HTML5_ATOM(approx, "approx")
+HTML5_ATOM(button, "button")
 HTML5_ATOM(circle, "circle")
 HTML5_ATOM(center, "center")
 HTML5_ATOM(canvas, "canvas")
@@ -893,6 +870,7 @@ HTML5_ATOM(strike, "strike")
 HTML5_ATOM(strong, "strong")
 HTML5_ATOM(switch_, "switch")
 HTML5_ATOM(symbol, "symbol")
+HTML5_ATOM(spacer, "spacer")
 HTML5_ATOM(subset, "subset")
 HTML5_ATOM(tbreak, "tbreak")
 HTML5_ATOM(vector, "vector")
@@ -952,6 +930,7 @@ HTML5_ATOM(basefont, "basefont")
 HTML5_ATOM(clippath, "clippath")
 HTML5_ATOM(clipPath, "clipPath")
 HTML5_ATOM(codomain, "codomain")
+HTML5_ATOM(datagrid, "datagrid")
 HTML5_ATOM(emptyset, "emptyset")
 HTML5_ATOM(factorof, "factorof")
 HTML5_ATOM(fieldset, "fieldset")
@@ -995,7 +974,6 @@ HTML5_ATOM(blockquote, "blockquote")
 HTML5_ATOM(divergence, "divergence")
 HTML5_ATOM(eulergamma, "eulergamma")
 HTML5_ATOM(equivalent, "equivalent")
-HTML5_ATOM(figcaption, "figcaption")
 HTML5_ATOM(imaginaryi, "imaginaryi")
 HTML5_ATOM(malignmark, "malignmark")
 HTML5_ATOM(munderover, "munderover")

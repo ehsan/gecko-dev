@@ -49,7 +49,7 @@
 #  include <unistd.h>           // for _exit
 #endif
 
-#if defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
 #  define MOZALLOC_EXPORT __declspec(dllexport)
 #endif
 
@@ -61,9 +61,8 @@ static void
 TouchBadMemory()
 {
     // XXX this should use the frame poisoning code
-    volatile int *p = 0;
-    gDummyCounter += *p;   // TODO annotation saying we know 
-                           // this is crazy
+    gDummyCounter += *((int *) 0);   // TODO annotation saying we know 
+                                     // this is crazy
 }
 
 void

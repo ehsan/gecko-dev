@@ -54,6 +54,7 @@
 #include "prenv.h"
 #include "prlock.h"
 #include "prcvar.h"
+#include "nsAutoLock.h"
 #include "nsParserCIID.h"
 #include "nsReadableUtils.h"
 #include "nsCOMPtr.h"
@@ -71,11 +72,10 @@
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsMimeTypes.h"
-#include "nsViewSourceHTML.h"
-#include "mozilla/CondVar.h"
-#include "mozilla/Mutex.h"
 
-using namespace mozilla;
+#ifdef MOZ_VIEW_SOURCE
+#include "nsViewSourceHTML.h"
+#endif
 
 #define NS_PARSER_FLAG_PARSER_ENABLED         0x00000002
 #define NS_PARSER_FLAG_OBSERVERS_ENABLED      0x00000004
@@ -87,6 +87,10 @@ using namespace mozilla;
 static NS_DEFINE_IID(kISupportsIID, NS_ISUPPORTS_IID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 static NS_DEFINE_IID(kIParserIID, NS_IPARSER_IID);
+
+//-------------------------------------------------------------------
+
+nsCOMArray<nsIUnicharStreamListener> *nsParser::sParserDataListeners;
 
 //-------------- Begin ParseContinue Event Definition ------------------------
 /*
@@ -197,8 +201,8 @@ private:
 class nsSpeculativeScriptThread : public nsIRunnable {
 public:
   nsSpeculativeScriptThread()
-    : mLock("nsSpeculativeScriptThread.mLock"),
-      mCVar(mLock, "nsSpeculativeScriptThread.mCVar"),
+    : mLock(nsAutoLock::DestroyLock),
+      mCVar(PR_DestroyCondVar),
       mKeepParsing(PR_FALSE),
       mCurrentlyParsing(PR_FALSE),
       mNumConsumed(0),
@@ -267,8 +271,8 @@ private:
 
   // The following members are shared across the main thread and the
   // speculatively parsing thread.
-  Mutex mLock;
-  CondVar mCVar;
+  Holder<PRLock> mLock;
+  Holder<PRCondVar> mCVar;
 
   volatile PRBool mKeepParsing;
   volatile PRBool mCurrentlyParsing;
@@ -411,10 +415,10 @@ nsSpeculativeScriptThread::Run()
   }
 
   {
-    MutexAutoLock al(mLock);
+    nsAutoLock al(mLock.get());
 
     mCurrentlyParsing = PR_FALSE;
-    mCVar.Notify();
+    PR_NotifyCondVar(mCVar.get());
   }
   return NS_OK;
 }
@@ -441,7 +445,17 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
 
   nsAutoString toScan;
   CParserContext *context = aParser->PeekContext();
-  if (!mTokenizer) {
+  if (!mLock.get()) {
+    mLock = nsAutoLock::NewLock("nsSpeculativeScriptThread::mLock");
+    if (!mLock.get()) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    mCVar = PR_NewCondVar(mLock.get());
+    if (!mCVar.get()) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
     if (!mPreloadedURIs.Init(15)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -508,12 +522,17 @@ nsSpeculativeScriptThread::StopParsing(PRBool /*aFromDocWrite*/)
 {
   NS_ASSERTION(NS_IsMainThread(), "Can't stop parsing from another thread");
 
+  if (!mLock.get()) {
+    // If we bailed early out of StartParsing, don't do anything.
+    return;
+  }
+
   {
-    MutexAutoLock al(mLock);
+    nsAutoLock al(mLock.get());
 
     mKeepParsing = PR_FALSE;
     if (mCurrentlyParsing) {
-      mCVar.Wait();
+      PR_WaitCondVar(mCVar.get(), PR_INTERVAL_NO_TIMEOUT);
       NS_ASSERTION(!mCurrentlyParsing, "Didn't actually stop parsing?");
     }
   }
@@ -668,6 +687,47 @@ nsresult
 nsParser::Init()
 {
   nsresult rv;
+  nsCOMPtr<nsICategoryManager> cm =
+    do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISimpleEnumerator> e;
+  rv = cm->EnumerateCategory("Parser data listener", getter_AddRefs(e));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString categoryEntry;
+  nsXPIDLCString contractId;
+  nsCOMPtr<nsISupports> entry;
+
+  while (NS_SUCCEEDED(e->GetNext(getter_AddRefs(entry)))) {
+    nsCOMPtr<nsISupportsCString> category(do_QueryInterface(entry));
+
+    if (!category) {
+      NS_WARNING("Category entry not an nsISupportsCString!");
+      continue;
+    }
+
+    rv = category->GetData(categoryEntry);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = cm->GetCategoryEntry("Parser data listener", categoryEntry.get(),
+                              getter_Copies(contractId));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIUnicharStreamListener> listener =
+      do_CreateInstance(contractId.get());
+
+    if (listener) {
+      if (!sParserDataListeners) {
+        sParserDataListeners = new nsCOMArray<nsIUnicharStreamListener>();
+
+        if (!sParserDataListeners)
+          return NS_ERROR_OUT_OF_MEMORY;
+      }
+
+      sParserDataListeners->AppendObject(listener);
+    }
+  }
 
   nsCOMPtr<nsICharsetAlias> charsetAlias =
     do_GetService(NS_CHARSETALIAS_CONTRACTID, &rv);
@@ -705,6 +765,9 @@ nsParser::Init()
 // static
 void nsParser::Shutdown()
 {
+  delete sParserDataListeners;
+  sParserDataListeners = nsnull;
+
   NS_IF_RELEASE(sCharsetAliasService);
   NS_IF_RELEASE(sCharsetConverterManager);
   if (sSpeculativeThreadPool) {
@@ -821,13 +884,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsParser)
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsParser)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsParser)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsParser, nsIParser)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsParser, nsIParser)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsParser)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
   NS_INTERFACE_MAP_ENTRY(nsIParser)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIParser)
 NS_INTERFACE_MAP_END
 
@@ -1373,10 +1435,12 @@ FindSuitableDTD(CParserContext& aParserContext)
   // We always find a DTD.
   aParserContext.mAutoDetectStatus = ePrimaryDetect;
 
+#ifdef MOZ_VIEW_SOURCE
   // Quick check for view source.
   if (aParserContext.mParserCommand == eViewSource) {
     return new CViewSourceHTML();
   }
+#endif
 
   // Now see if we're parsing HTML (which, as far as we're concerned, simply
   // means "not XML").
@@ -1799,6 +1863,35 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
   ContinueInterruptedParsing();
 }
 
+nsresult
+nsParser::DataAdded(const nsSubstring& aData, nsIRequest *aRequest)
+{
+  NS_ASSERTION(sParserDataListeners,
+               "Don't call this with no parser data listeners!");
+
+  if (!mSink || !aRequest) {
+    return NS_OK;
+  }
+
+  nsISupports *ctx = mSink->GetTarget();
+  PRInt32 count = sParserDataListeners->Count();
+  nsresult rv = NS_OK;
+  PRBool canceled = PR_FALSE;
+
+  while (count--) {
+    rv |= sParserDataListeners->ObjectAt(count)->
+      OnUnicharDataAvailable(aRequest, ctx, aData);
+
+    if (NS_FAILED(rv) && !canceled) {
+      aRequest->Cancel(rv);
+
+      canceled = PR_TRUE;
+    }
+  }
+
+  return rv;
+}
+
 PRBool
 nsParser::CanInterrupt()
 {
@@ -1879,6 +1972,12 @@ nsParser::Parse(nsIURI* aURL,
       pc->mContextType = CParserContext::eCTURL;
       pc->mDTDMode = aMode;
       PushContext(*pc);
+
+      // Here, and only here, hand this parser off to the scanner. We
+      // only want to do that here since the only reason the scanner
+      // needs the parser is to call DataAdded() on it, and that's
+      // only ever wanted when parsing from an URI.
+      theScanner->SetParser(this);
 
       result = NS_OK;
     } else {
@@ -2364,6 +2463,16 @@ nsParser::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 
   rv = NS_OK;
 
+  if (sParserDataListeners && mSink) {
+    nsISupports *ctx = mSink->GetTarget();
+    PRInt32 count = sParserDataListeners->Count();
+
+    while (count--) {
+      rv |= sParserDataListeners->ObjectAt(count)->
+              OnStartRequest(request, ctx);
+    }
+  }
+
   return rv;
 }
 
@@ -2371,6 +2480,11 @@ nsParser::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 #define UTF16_BOM "UTF-16"
 #define UTF16_BE "UTF-16BE"
 #define UTF16_LE "UTF-16LE"
+#define UCS4_BOM "UTF-32"
+#define UCS4_BE "UTF-32BE"
+#define UCS4_LE "UTF-32LE"
+#define UCS4_2143 "X-ISO-10646-UCS-4-2143"
+#define UCS4_3412 "X-ISO-10646-UCS-4-3412"
 #define UTF8 "UTF-8"
 
 static inline PRBool IsSecondMarker(unsigned char aChar)
@@ -2400,13 +2514,32 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
  switch(aBytes[0])
 	 {
    case 0x00:
-     if((0x3C==aBytes[1]) && (0x00==aBytes[2])) {
+     if(0x00==aBytes[1]) {
+        // 00 00
+        if((0xFE==aBytes[2]) && (0xFF==aBytes[3])) {
+           // 00 00 FE FF UCS-4, big-endian machine (1234 order)
+           oCharset.Assign(UCS4_BOM);
+        } else if((0x00==aBytes[2]) && (0x3C==aBytes[3])) {
+           // 00 00 00 3C UCS-4, big-endian machine (1234 order)
+           oCharset.Assign(UCS4_BE);
+        } else if((0xFF==aBytes[2]) && (0xFE==aBytes[3])) {
+           // 00 00 FF FE UCS-4, unusual octet order (2143)
+           oCharset.Assign(UCS4_2143);
+        } else if((0x3C==aBytes[2]) && (0x00==aBytes[3])) {
+           // 00 00 3C 00 UCS-4, unusual octet order (2143)
+           oCharset.Assign(UCS4_2143);
+        } 
+        oCharsetSource = kCharsetFromByteOrderMark;
+     } else if((0x3C==aBytes[1]) && (0x00==aBytes[2])) {
         // 00 3C 00
         if(IsSecondMarker(aBytes[3])) {
            // 00 3C 00 SM UTF-16,  big-endian, no Byte Order Mark 
            oCharset.Assign(UTF16_BE); 
-           oCharsetSource = kCharsetFromByteOrderMark;
+        } else if((0x00==aBytes[3])) {
+           // 00 3C 00 00 UCS-4, unusual octet order (3412)
+           oCharset.Assign(UCS4_3412);
         } 
+        oCharsetSource = kCharsetFromByteOrderMark;
      }
    break;
    case 0x3C:
@@ -2415,8 +2548,11 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
         if(IsSecondMarker(aBytes[2])) {
            // 3C 00 SM 00 UTF-16,  little-endian, no Byte Order Mark 
            oCharset.Assign(UTF16_LE); 
-           oCharsetSource = kCharsetFromByteOrderMark;
+        } else if((0x00==aBytes[2])) {
+           // 3C 00 00 00 UCS-4, little-endian machine (4321 order)
+           oCharset.Assign(UCS4_LE); 
         } 
+        oCharsetSource = kCharsetFromByteOrderMark;
      // For html, meta tag detector is invoked before this so that we have 
      // to deal only with XML here.
      } else if(                     (0x3F==aBytes[1]) &&
@@ -2508,17 +2644,26 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
    break;
    case 0xFE:
      if(0xFF==aBytes[1]) {
-        // FE FF UTF-16, big-endian 
-        oCharset.Assign(UTF16_BOM); 
+        if(0x00==aBytes[2] && 0x00==aBytes[3]) {
+          // FE FF 00 00  UCS-4, unusual octet order (3412)
+          oCharset.Assign(UCS4_3412);
+        } else {
+          // FE FF UTF-16, big-endian 
+          oCharset.Assign(UTF16_BOM); 
+        }
         oCharsetSource= kCharsetFromByteOrderMark;
      }
    break;
    case 0xFF:
      if(0xFE==aBytes[1]) {
-       // FF FE
-       // UTF-16, little-endian 
-       oCharset.Assign(UTF16_BOM); 
-       oCharsetSource= kCharsetFromByteOrderMark;
+        if(0x00==aBytes[2] && 0x00==aBytes[3]) 
+         // FF FE 00 00  UTF-32, little-endian
+           oCharset.Assign(UCS4_BOM); 
+        else
+        // FF FE
+        // UTF-16, little-endian 
+           oCharset.Assign(UTF16_BOM); 
+        oCharsetSource= kCharsetFromByteOrderMark;
      }
    break;
    // case 0x4C: if((0x6F==aBytes[1]) && ((0xA7==aBytes[2] && (0x94==aBytes[3])) {
@@ -2711,7 +2856,10 @@ ParserWriteFunc(nsIInputStream* in,
           ((kCharsetFromByteOrderMark == guessSource) ||
            (!preferred.EqualsLiteral("UTF-16") &&
             !preferred.EqualsLiteral("UTF-16BE") &&
-            !preferred.EqualsLiteral("UTF-16LE")))) {
+            !preferred.EqualsLiteral("UTF-16LE") &&
+            !preferred.EqualsLiteral("UTF-32") &&
+            !preferred.EqualsLiteral("UTF-32BE") &&
+            !preferred.EqualsLiteral("UTF-32LE")))) {
         guess = preferred;
         pws->mParser->SetDocumentCharset(guess, guessSource);
         pws->mParser->SetSinkCharset(preferred);
@@ -2861,6 +3009,16 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   // parser isn't yet enabled?
   if (mObserver) {
     mObserver->OnStopRequest(request, aContext, status);
+  }
+
+  if (sParserDataListeners && mSink) {
+    nsISupports *ctx = mSink->GetTarget();
+    PRInt32 count = sParserDataListeners->Count();
+
+    while (count--) {
+      rv |= sParserDataListeners->ObjectAt(count)->OnStopRequest(request, ctx,
+                                                                 status);
+    }
   }
 
   return rv;

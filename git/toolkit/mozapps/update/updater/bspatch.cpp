@@ -55,10 +55,14 @@
 # define SSIZE_MAX LONG_MAX
 #endif
 
+#ifdef WINCE
+#include "updater_wince.h"
+#endif
+
 int
 MBS_ReadHeader(FILE* file, MBSPatchHeader *header)
 {
-  size_t s = fread(header, 1, sizeof(MBSPatchHeader), file);
+  int s = fread(header, 1, sizeof(MBSPatchHeader), file);
   if (s != sizeof(MBSPatchHeader))
     return READ_ERROR;
 
@@ -100,10 +104,10 @@ MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
 
   int rv = OK;
 
-  size_t r = header->cblen + header->difflen + header->extralen;
+  int r = header->cblen + header->difflen + header->extralen;
   unsigned char *wb = buf;
   while (r) {
-    size_t c = fread(wb, 1, (r > SSIZE_MAX) ? SSIZE_MAX : r, patchFile);
+    int c = fread(wb, 1, (r > SSIZE_MAX) ? SSIZE_MAX : r, patchFile);
     if (c < 0) {
       rv = READ_ERROR;
       goto end;

@@ -5,7 +5,6 @@
 // Bug 557943 - Searching for addons can result in wrong results
 
 var gManagerWindow;
-var gProvider;
 
 function test() {
   waitForExplicitFinish();
@@ -27,7 +26,7 @@ function test() {
     description: ""
   }]);
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     run_next_test();
   });
@@ -41,18 +40,16 @@ function end_test() {
 
 
 function perform_search(aQuery, aCallback) {
-  waitForFocus(function() {
-    var searchBox = gManagerWindow.document.getElementById("header-search");
-    searchBox.value = aQuery;
+  var searchBox = gManagerWindow.document.getElementById("header-search");
+  searchBox.value = aQuery;
 
-    EventUtils.synthesizeMouseAtCenter(searchBox, { }, gManagerWindow);
-    EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
-    wait_for_view_load(gManagerWindow, function() {
-      var list = gManagerWindow.document.getElementById("search-list");
-      var rows = list.getElementsByTagName("richlistitem");
-      aCallback(rows);
-    });
-  }, gManagerWindow);
+  EventUtils.synthesizeMouse(searchBox, 2, 2, { }, gManagerWindow);
+  EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
+  wait_for_view_load(gManagerWindow, function() {
+    var list = gManagerWindow.document.getElementById("search-list");
+    var rows = list.getElementsByTagName("richlistitem");
+    aCallback(rows);
+  });
 }
 
 

@@ -83,24 +83,27 @@ public:
         /* [in] */ BSTR __RPC_FAR *commaSeparatedMediaTypes);
 
     // IAccessible
+    // Override get_accChild so that it can get any child via the unique ID
+    virtual /* [id][propget] */ HRESULT STDMETHODCALLTYPE get_accChild( 
+        /* [in] */ VARIANT varChild,
+        /* [retval][out] */ IDispatch __RPC_FAR *__RPC_FAR *ppdispChild);
 
     // Override get_accValue to provide URL when no other value is available
     virtual /* [id][propget] */ HRESULT STDMETHODCALLTYPE get_accValue( 
         /* [optional][in] */ VARIANT varChild,
         /* [retval][out] */ BSTR __RPC_FAR *pszValue);
 
-  // nsAccessNode
-  virtual void Shutdown();
+  // nsAccessibleWrap
+  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& varChild);
 
-  // nsDocAccessible
-  virtual void* GetNativeWindow() const;
+  // nsDocAccessibleWrap
 
-protected:
-  // nsDocAccessible
-  virtual void NotifyOfInitialUpdate();
-
-protected:
-  void* mHWND;
+  /**
+   * Find an accessible by the given child ID in cached documents.
+   *
+   * @param  aVarChild    [in] variant pointing to the child ID
+   */
+  static nsAccessible *GetXPAccessibleForChildID(const VARIANT& aVarChild);
 };
 
 #endif

@@ -63,45 +63,24 @@ class nsHtml5Portability;
 class nsHtml5MetaScanner
 {
   private:
-    static staticJArray<PRUnichar,PRInt32> CHARSET;
-    static staticJArray<PRUnichar,PRInt32> CONTENT;
-    static staticJArray<PRUnichar,PRInt32> HTTP_EQUIV;
-    static staticJArray<PRUnichar,PRInt32> CONTENT_TYPE;
+    static PRUnichar CHARSET[];
+    static PRUnichar CONTENT[];
   protected:
     nsHtml5ByteReadable* readable;
   private:
     PRInt32 metaState;
     PRInt32 contentIndex;
     PRInt32 charsetIndex;
-    PRInt32 httpEquivIndex;
-    PRInt32 contentTypeIndex;
   protected:
     PRInt32 stateSave;
   private:
     PRInt32 strBufLen;
-    autoJArray<PRUnichar,PRInt32> strBuf;
-    nsString* content;
-    nsString* charset;
-    PRInt32 httpEquivState;
-  public:
-    nsHtml5MetaScanner();
-    ~nsHtml5MetaScanner();
+    jArray<PRUnichar,PRInt32> strBuf;
   protected:
     void stateLoop(PRInt32 state);
   private:
-    void handleCharInAttributeValue(PRInt32 c);
-    inline PRInt32 toAsciiLowerCase(PRInt32 c)
-    {
-      if (c >= 'A' && c <= 'Z') {
-        return c + 0x20;
-      }
-      return c;
-    }
-
     void addToBuffer(PRInt32 c);
-    void handleAttributeValue();
-    PRBool handleTag();
-    PRBool handleTagInner();
+    PRBool tryCharset();
   protected:
     PRBool tryCharset(nsString* encoding);
   public:
@@ -110,6 +89,11 @@ class nsHtml5MetaScanner
 
 #include "nsHtml5MetaScannerHSupplement.h"
 };
+
+#ifdef nsHtml5MetaScanner_cpp__
+PRUnichar nsHtml5MetaScanner::CHARSET[] = { 'c', 'h', 'a', 'r', 's', 'e', 't' };
+PRUnichar nsHtml5MetaScanner::CONTENT[] = { 'c', 'o', 'n', 't', 'e', 'n', 't' };
+#endif
 
 #define NS_HTML5META_SCANNER_NO 0
 #define NS_HTML5META_SCANNER_M 1
@@ -136,9 +120,6 @@ class nsHtml5MetaScanner
 #define NS_HTML5META_SCANNER_COMMENT_END_DASH 18
 #define NS_HTML5META_SCANNER_COMMENT_END 19
 #define NS_HTML5META_SCANNER_SELF_CLOSING_START_TAG 20
-#define NS_HTML5META_SCANNER_HTTP_EQUIV_NOT_SEEN 0
-#define NS_HTML5META_SCANNER_HTTP_EQUIV_CONTENT_TYPE 1
-#define NS_HTML5META_SCANNER_HTTP_EQUIV_OTHER 2
 
 
 #endif

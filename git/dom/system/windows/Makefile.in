@@ -52,7 +52,14 @@ EXPORT_LIBRARY = 1
 include $(topsrcdir)/config/config.mk
 
 CPPSRCS     = \
-        nsDeviceMotionSystem.cpp \
+        nsAccelerometerSystem.cpp \
         $(NULL)
+
+ifdef WINCE_WINDOWS_MOBILE
+CPPSRCS         += WinMobileLocationProvider.cpp 
+
+LOCAL_INCLUDES  += -I$(topsrcdir)/dom/src/geolocation \
+                   $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -47,13 +47,20 @@
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsNetUtil.h"
 #include "nsHTMLMediaElement.h"
+#include "nsAutoLock.h"
+#include "nsIRenderingContext.h"
 #include "gfxContext.h"
+#include "gfxImageSurface.h"
 #include "nsPresContext.h"
 #include "nsDOMError.h"
 #include "nsDisplayList.h"
+#ifdef MOZ_SVG
 #include "nsSVGEffects.h"
+#endif
 
-using namespace mozilla;
+#if defined(XP_MACOSX)
+#include "gfxQuartzImageSurface.h"
+#endif
 
 // Number of milliseconds between progress events as defined by spec
 #define PROGRESS_MS 350
@@ -61,23 +68,17 @@ using namespace mozilla;
 // Number of milliseconds of no data before a stall event is fired as defined by spec
 #define STALL_MS 3000
 
-// Number of estimated seconds worth of data we need to have buffered 
-// ahead of the current playback position before we allow the media decoder
-// to report that it can play through the entire media without the decode
-// catching up with the download. Having this margin make the
-// nsMediaDecoder::CanPlayThrough() calculation more stable in the case of
-// fluctuating bitrates.
-#define CAN_PLAY_THROUGH_MARGIN 10
-
 nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
-  mVideoUpdateLock("nsMediaDecoder.mVideoUpdateLock"),
+  mProgressTime(),
+  mDataTime(),
+  mVideoUpdateLock(nsnull),
+  mPixelAspectRatio(1.0),
   mFrameBufferLength(0),
   mPinnedForSeek(PR_FALSE),
   mSizeChanged(PR_FALSE),
-  mImageContainerSizeChanged(PR_FALSE),
   mShuttingDown(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsMediaDecoder);
@@ -85,13 +86,19 @@ nsMediaDecoder::nsMediaDecoder() :
 
 nsMediaDecoder::~nsMediaDecoder()
 {
+  if (mVideoUpdateLock) {
+    PR_DestroyLock(mVideoUpdateLock);
+    mVideoUpdateLock = nsnull;
+  }
   MOZ_COUNT_DTOR(nsMediaDecoder);
 }
 
 PRBool nsMediaDecoder::Init(nsHTMLMediaElement* aElement)
 {
   mElement = aElement;
-  return PR_TRUE;
+  mVideoUpdateLock = PR_NewLock();
+
+  return mVideoUpdateLock != nsnull;
 }
 
 void nsMediaDecoder::Shutdown()
@@ -115,25 +122,40 @@ nsresult nsMediaDecoder::RequestFrameBufferLength(PRUint32 aLength)
   return NS_OK;
 }
 
+
+static PRInt32 ConditionDimension(float aValue, PRInt32 aDefault)
+{
+  // This will exclude NaNs and infinities
+  if (aValue >= 1.0 && aValue <= 10000.0)
+    return PRInt32(NS_round(aValue));
+  return aDefault;
+}
+
 void nsMediaDecoder::Invalidate()
 {
   if (!mElement)
     return;
 
   nsIFrame* frame = mElement->GetPrimaryFrame();
-  PRBool invalidateFrame = PR_FALSE;
 
   {
-    MutexAutoLock lock(mVideoUpdateLock);
-
-    // Get mImageContainerSizeChanged while holding the lock.
-    invalidateFrame = mImageContainerSizeChanged;
-    mImageContainerSizeChanged = PR_FALSE;
-
+    nsAutoLock lock(mVideoUpdateLock);
     if (mSizeChanged) {
-      mElement->UpdateMediaSize(nsIntSize(mRGBWidth, mRGBHeight));
-      mSizeChanged = PR_FALSE;
+      nsIntSize scaledSize(mRGBWidth, mRGBHeight);
+      // Apply the aspect ratio to produce the intrinsic size we report
+      // to the element.
+      if (mPixelAspectRatio > 1.0) {
+        // Increase the intrinsic width
+        scaledSize.width =
+          ConditionDimension(mPixelAspectRatio*scaledSize.width, scaledSize.width);
+      } else {
+        // Increase the intrinsic height
+        scaledSize.height =
+          ConditionDimension(scaledSize.height/mPixelAspectRatio, scaledSize.height);
+      }
+      mElement->UpdateMediaSize(scaledSize);
 
+      mSizeChanged = PR_FALSE;
       if (frame) {
         nsPresContext* presContext = frame->PresContext();
         nsIPresShell *presShell = presContext->PresShell();
@@ -146,14 +168,13 @@ void nsMediaDecoder::Invalidate()
 
   if (frame) {
     nsRect contentRect = frame->GetContentRect() - frame->GetPosition();
-    if (invalidateFrame) {
-      frame->Invalidate(contentRect);
-    } else {
-      frame->InvalidateLayer(contentRect, nsDisplayItem::TYPE_VIDEO);
-    }
+    // Only the layer needs to be updated here
+    frame->InvalidateLayer(contentRect, nsDisplayItem::TYPE_VIDEO);
   }
 
+#ifdef MOZ_SVG
   nsSVGEffects::InvalidateDirectRenderingObservers(mElement);
+#endif
 }
 
 static void ProgressCallback(nsITimer* aTimer, void* aClosure)
@@ -179,7 +200,7 @@ void nsMediaDecoder::Progress(PRBool aTimer)
        now - mProgressTime >= TimeDuration::FromMilliseconds(PROGRESS_MS)) &&
       !mDataTime.IsNull() &&
       now - mDataTime <= TimeDuration::FromMilliseconds(PROGRESS_MS)) {
-    mElement->DispatchAsyncEvent(NS_LITERAL_STRING("progress"));
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
     mProgressTime = now;
   }
 
@@ -214,46 +235,22 @@ nsresult nsMediaDecoder::StopProgress()
   return rv;
 }
 
-void nsMediaDecoder::FireTimeUpdate()
-{
-  if (!mElement)
-    return;
-  mElement->FireTimeUpdate(PR_TRUE);
-}
-
 void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
-                                  Image* aImage,
-                                  TimeStamp aTarget)
+                                  float aPixelAspectRatio,
+                                  Image* aImage)
 {
-  MutexAutoLock lock(mVideoUpdateLock);
+  nsAutoLock lock(mVideoUpdateLock);
 
-  if (mRGBWidth != aSize.width || mRGBHeight != aSize.height) {
+  if (mRGBWidth != aSize.width || mRGBHeight != aSize.height ||
+      mPixelAspectRatio != aPixelAspectRatio) {
     mRGBWidth = aSize.width;
     mRGBHeight = aSize.height;
+    mPixelAspectRatio = aPixelAspectRatio;
     mSizeChanged = PR_TRUE;
   }
   if (mImageContainer && aImage) {
-    gfxIntSize oldFrameSize = mImageContainer->GetCurrentSize();
-
-    TimeStamp paintTime = mImageContainer->GetPaintTime();
-    if (!paintTime.IsNull() && !mPaintTarget.IsNull()) {
-      mPaintDelay = paintTime - mPaintTarget;
-    }
-
     mImageContainer->SetCurrentImage(aImage);
-    gfxIntSize newFrameSize = mImageContainer->GetCurrentSize();
-    if (oldFrameSize != newFrameSize) {
-      mImageContainerSizeChanged = PR_TRUE;
-    }
   }
-
-  mPaintTarget = aTarget;
-}
-
-double nsMediaDecoder::GetFrameDelay()
-{
-  MutexAutoLock lock(mVideoUpdateLock);
-  return mPaintDelay.ToSeconds();
 }
 
 void nsMediaDecoder::PinForSeek()
@@ -276,6 +273,11 @@ void nsMediaDecoder::UnpinForSeek()
   stream->Unpin();
 }
 
+// Number of bytes to add to the download size when we're computing
+// when the download will finish --- a safety margin in case bandwidth
+// or other conditions are worse than expected
+static const PRInt32 gDownloadSizeSafetyMargin = 1000000;
+
 PRBool nsMediaDecoder::CanPlayThrough()
 {
   Statistics stats = GetStatistics();
@@ -284,24 +286,8 @@ PRBool nsMediaDecoder::CanPlayThrough()
   }
   PRInt64 bytesToDownload = stats.mTotalBytes - stats.mDownloadPosition;
   PRInt64 bytesToPlayback = stats.mTotalBytes - stats.mPlaybackPosition;
-  double timeToDownload = bytesToDownload / stats.mDownloadRate;
-  double timeToPlay = bytesToPlayback / stats.mPlaybackRate;
-
-  if (timeToDownload > timeToPlay) {
-    // Estimated time to download is greater than the estimated time to play.
-    // We probably can't play through without having to stop to buffer.
-    return PR_FALSE;
-  }
-
-  // Estimated time to download is less than the estimated time to play.
-  // We can probably play through without having to buffer, but ensure that
-  // we've got a reasonable amount of data buffered after the current
-  // playback position, so that if the bitrate of the media fluctuates, or if
-  // our download rate or decode rate estimation is otherwise inaccurate,
-  // we don't suddenly discover that we need to buffer. This is particularly
-  // required near the start of the media, when not much data is downloaded.
-  PRInt64 readAheadMargin =
-    static_cast<PRInt64>(stats.mPlaybackRate * CAN_PLAY_THROUGH_MARGIN);
-  return stats.mTotalBytes == stats.mDownloadPosition ||
-         stats.mDownloadPosition > stats.mPlaybackPosition + readAheadMargin;
+  double timeToDownload =
+    (bytesToDownload + gDownloadSizeSafetyMargin)/stats.mDownloadRate;
+  double timeToPlay = bytesToPlayback/stats.mPlaybackRate;
+  return timeToDownload <= timeToPlay;
 }

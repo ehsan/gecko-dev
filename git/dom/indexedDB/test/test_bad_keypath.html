@@ -15,20 +15,21 @@
     {
       const name = window.location.pathname;
       const description = "My Test Database";
+      const NS_ERROR_INVALID_ARG = 0x80070057;
 
-      let request = mozIndexedDB.open(name, description);
+      let request = moz_indexedDB.open(name, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = request.result;
+      let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "keyPath");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore("foo", { keyPath: "keyPath" });
+      let objectStore = event.result;
 
       request = objectStore.add({keyPath:"foo"});
       request.onerror = errorHandler;
@@ -39,7 +40,7 @@
         request = objectStore.add({});
       }
       catch (e) {
-        is(e.code, IDBDatabaseException.DATA_ERR, "Good error");
+        is(e.result, NS_ERROR_INVALID_ARG, "Good error");
       }
 
       finishTest();

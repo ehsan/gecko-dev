@@ -66,18 +66,16 @@ struct WalkState
 
 nsAccTreeWalker::
   nsAccTreeWalker(nsIWeakReference* aShell, nsIContent* aContent,
-                  PRBool aWalkAnonContent, bool aWalkCache) :
-  mWeakShell(aShell), mWalkCache(aWalkCache), mState(nsnull)
+                  PRBool aWalkAnonContent) :
+  mWeakShell(aShell), mState(nsnull)
 {
   NS_ASSERTION(aContent, "No node for the accessible tree walker!");
 
   if (aContent)
     mState = new WalkState(aContent);
 
-  mChildFilter = aWalkAnonContent ? nsIContent::eAllChildren :
+  mChildType = aWalkAnonContent ? nsIContent::eAllChildren :
                                   nsIContent::eAllButXBL;
-
-  mChildFilter |= nsIContent::eSkipPlaceholderContent;
 
   MOZ_COUNT_CTOR(nsAccTreeWalker);
 }
@@ -94,14 +92,14 @@ nsAccTreeWalker::~nsAccTreeWalker()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccTreeWalker: private
 
-nsAccessible*
-nsAccTreeWalker::NextChildInternal(bool aNoWalkUp)
+already_AddRefed<nsAccessible>
+nsAccTreeWalker::GetNextChildInternal(PRBool aNoWalkUp)
 {
   if (!mState || !mState->content)
     return nsnull;
 
   if (!mState->childList)
-    mState->childList = mState->content->GetChildren(mChildFilter);
+    mState->childList = mState->content->GetChildren(mChildType);
 
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
 
@@ -113,30 +111,29 @@ nsAccTreeWalker::NextChildInternal(bool aNoWalkUp)
     nsIContent* childNode = mState->childList->GetNodeAt(mState->childIdx);
     mState->childIdx++;
 
-    bool isSubtreeHidden = false;
-    nsAccessible* accessible = mWalkCache ?
-      GetAccService()->GetAccessibleInWeakShell(childNode, mWeakShell) :
+    PRBool isHidden = PR_FALSE;
+    nsRefPtr<nsAccessible> accessible =
       GetAccService()->GetOrCreateAccessible(childNode, presShell, mWeakShell,
-                                             &isSubtreeHidden);
+                                             &isHidden);
 
     if (accessible)
-      return accessible;
+      return accessible.forget();
 
     // Walk down into subtree to find accessibles.
-    if (!isSubtreeHidden) {
+    if (!isHidden) {
       if (!PushState(childNode))
         break;
 
-      accessible = NextChildInternal(true);
+      accessible = GetNextChildInternal(PR_TRUE);
       if (accessible)
-        return accessible;
+        return accessible.forget();
     }
   }
 
   // No more children, get back to the parent.
   PopState();
 
-  return aNoWalkUp ? nsnull : NextChildInternal(false);
+  return aNoWalkUp ? nsnull : GetNextChildInternal(PR_FALSE);
 }
 
 void

@@ -42,7 +42,6 @@
 #include "mozilla/jsipc/ContextWrapperParent.h"
 #include "mozilla/jsipc/CPOWTypes.h"
 #include "mozilla/unused.h"
-#include "nsJSUtils.h"
 
 #include "jsobj.h"
 #include "jsfun.h"
@@ -63,7 +62,7 @@ namespace {
         JSContext* mContext;
         JSObject* mObj;
         uintN mOldFlags;
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
 
         static uintN GetFlags(JSContext* cx, JSObject* obj) {
             jsval v;
@@ -119,7 +118,7 @@ namespace {
 
     class AutoCheckOperation : public ACOBase
     {
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
     public:
         AutoCheckOperation(JSContext* cx,
                            ObjectWrapperParent* owp
@@ -174,23 +173,23 @@ const js::Class ObjectWrapperParent::sCPOW_JSClass = {
       "CrossProcessObjectWrapper",
       JSCLASS_NEW_RESOLVE | JSCLASS_NEW_ENUMERATE |
       JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(sNumSlots),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_AddProperty),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_DelProperty),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_GetProperty),
-      JS_VALUEIFY(js::StrictPropertyOp, ObjectWrapperParent::CPOW_SetProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_AddProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_DelProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_GetProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_SetProperty),
       (JSEnumerateOp) ObjectWrapperParent::CPOW_NewEnumerate,
       (JSResolveOp) ObjectWrapperParent::CPOW_NewResolve,
-      JS_VALUEIFY(js::ConvertOp, ObjectWrapperParent::CPOW_Convert),
+      js::Valueify(ObjectWrapperParent::CPOW_Convert),
       ObjectWrapperParent::CPOW_Finalize,
       nsnull, // reserved1
       nsnull, // checkAccess
-      JS_VALUEIFY(js::CallOp, ObjectWrapperParent::CPOW_Call),
-      JS_VALUEIFY(js::CallOp, ObjectWrapperParent::CPOW_Construct),
+      js::Valueify(ObjectWrapperParent::CPOW_Call),
+      js::Valueify(ObjectWrapperParent::CPOW_Construct),
       nsnull, // xdrObject
-      JS_VALUEIFY(js::HasInstanceOp, ObjectWrapperParent::CPOW_HasInstance),
+      js::Valueify(ObjectWrapperParent::CPOW_HasInstance),
       nsnull, // mark
       {
-          JS_VALUEIFY(js::EqualityOp, ObjectWrapperParent::CPOW_Equality),
+          js::Valueify(ObjectWrapperParent::CPOW_Equality),
           nsnull, // outerObject
           nsnull, // innerObject
           nsnull, // iteratorObject
@@ -266,12 +265,8 @@ ObjectWrapperParent::jsval_to_JSVariant(JSContext* cx, jsval from,
         }
         return true;
     case JSTYPE_STRING:
-        {
-            nsDependentJSString depStr;
-            if (!depStr.init(cx, from))
-                return false;
-            *to = depStr;
-        }
+        *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(from)),
+                                JS_GetStringLength(JSVAL_TO_STRING(from)));
         return true;
     case JSTYPE_NUMBER:
         if (JSVAL_IS_INT(from))
@@ -384,12 +379,10 @@ static bool
 jsval_to_nsString(JSContext* cx, jsid from, nsString* to)
 {
     JSString* str;
-    const jschar* chars;
     jsval idval;
     if (JS_IdToValue(cx, from, &idval) &&
-        (str = JS_ValueToString(cx, idval)) &&
-        (chars = JS_GetStringCharsZ(cx, str))) {
-        *to = chars;
+        (str = JS_ValueToString(cx, idval))) {
+        *to = JS_GetStringChars(str);
         return true;
     }
     return false;
@@ -450,8 +443,8 @@ ObjectWrapperParent::CPOW_GetProperty(JSContext *cx, JSObject *obj, jsid id,
 }
 
 /*static*/ JSBool
-ObjectWrapperParent::CPOW_SetProperty(JSContext *cx, JSObject *obj, jsid id, 
-                                      JSBool strict, jsval *vp)
+ObjectWrapperParent::CPOW_SetProperty(JSContext *cx, JSObject *obj, jsid id,
+                                      jsval *vp)
 {
     CPOW_LOG(("Calling CPOW_SetProperty (%s)...",
               JSVAL_TO_CSTR(cx, id)));
@@ -649,22 +642,19 @@ ObjectWrapperParent::CPOW_Finalize(JSContext* cx, JSObject* obj)
 }
 
 /*static*/ JSBool
-ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
+ObjectWrapperParent::CPOW_Call(JSContext* cx, JSObject* obj, uintN argc,
+                               jsval* argv, jsval* rval)
 {
     CPOW_LOG(("Calling CPOW_Call..."));
 
-    JSObject* thisobj = JS_THIS_OBJECT(cx, vp);
-    if (!thisobj)
-        return JS_FALSE;
-
     ObjectWrapperParent* function =
-        Unwrap(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+        Unwrap(cx, JSVAL_TO_OBJECT(JS_ARGV_CALLEE(argv)));
     if (!function)
         return with_error(cx, JS_FALSE, "Could not unwrap CPOW function");
 
     AutoCheckOperation aco(cx, function);
 
-    ObjectWrapperParent* receiver = Unwrap(cx, thisobj);
+    ObjectWrapperParent* receiver = Unwrap(cx, obj);
     if (!receiver) {
         // Substitute child global for parent global object.
         // TODO First make sure we're really replacing the global object?
@@ -673,8 +663,7 @@ ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
         receiver = manager->GetGlobalObjectWrapper();
     }
 
-    InfallibleTArray<JSVariant> in_argv(argc);
-    jsval* argv = JS_ARGV(cx, vp);
+    nsTArray<JSVariant> in_argv(argc);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))
             return JS_FALSE;
@@ -685,22 +674,23 @@ ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
             function->CallCall(receiver, in_argv,
                                aco.StatusPtr(), &out_rval) &&
             aco.Ok() &&
-            jsval_from_JSVariant(cx, out_rval, vp));
+            jsval_from_JSVariant(cx, out_rval, rval));
 }
 
 /*static*/ JSBool
-ObjectWrapperParent::CPOW_Construct(JSContext* cx, uintN argc, jsval* vp)
+ObjectWrapperParent::CPOW_Construct(JSContext *cx, JSObject *obj, uintN argc,
+                                    jsval *argv, jsval *rval)
 {
     CPOW_LOG(("Calling CPOW_Construct..."));
     
-    ObjectWrapperParent* constructor = Unwrap(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+    ObjectWrapperParent* constructor =
+        Unwrap(cx, JSVAL_TO_OBJECT(JS_ARGV_CALLEE(argv)));
     if (!constructor)
         return with_error(cx, JS_FALSE, "Could not unwrap CPOW constructor function");
 
     AutoCheckOperation aco(cx, constructor);
 
-    InfallibleTArray<JSVariant> in_argv(argc);
-    jsval* argv = JS_ARGV(cx, vp);
+    nsTArray<JSVariant> in_argv(argc);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))
             return JS_FALSE;
@@ -708,9 +698,10 @@ ObjectWrapperParent::CPOW_Construct(JSContext* cx, uintN argc, jsval* vp)
     PObjectWrapperParent* out_powp;
 
     return (constructor->Manager()->RequestRunToCompletion() &&
-            constructor->CallConstruct(in_argv, aco.StatusPtr(), &out_powp) &&
+            constructor->CallConstruct(in_argv,
+                                       aco.StatusPtr(), &out_powp) &&
             aco.Ok() &&
-            jsval_from_PObjectWrapperParent(cx, out_powp, vp));
+            jsval_from_PObjectWrapperParent(cx, out_powp, rval));
 }
 
 /*static*/ JSBool

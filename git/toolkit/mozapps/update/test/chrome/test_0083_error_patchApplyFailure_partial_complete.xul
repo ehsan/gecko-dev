@@ -32,20 +32,17 @@ const TESTS = [ {
 } ];
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   // Specify the url to update.sjs with a slowDownloadMar param so the ui can
   // load before the download completes.
   let slowDownloadURL = URL_UPDATE + "?slowDownloadMar=1";
   let patches = getLocalPatchString("partial", null, null, null, null, null,
                                     STATE_PENDING) +
-                getLocalPatchString("complete", slowDownloadURL, null, null,
-                                    null, "false");
+                getLocalPatchString("complete", slowDownloadURL);
   let updates = getLocalUpdateString(patches, null, null, null,
                                      Services.appinfo.version,
-                                     Services.appinfo.platformVersion, null,
-                                     null, null, null, null, null, null,
-                                     "false");
+                                     Services.appinfo.platformVersion);
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
 

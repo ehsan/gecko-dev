@@ -50,12 +50,15 @@
 #include "nsSVGLength2.h"
 #include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
-#include "mozilla/dom/FromParser.h"
+#include "nsSVGPreserveAspectRatio.h"
 
 #ifdef MOZ_SMIL
 class nsSMILTimeContainer;
 #endif // MOZ_SMIL
+
+#define QI_AND_CAST_TO_NSSVGSVGELEMENT(base)                                  \
+  (nsCOMPtr<nsIDOMSVGSVGElement>(do_QueryInterface(base)) ?                   \
+   static_cast<nsSVGSVGElement*>(base.get()) : nsnull)
 
 typedef nsSVGStylableElement nsSVGSVGElementBase;
 
@@ -126,18 +129,14 @@ class nsSVGSVGElement : public nsSVGSVGElementBase,
 {
   friend class nsSVGOuterSVGFrame;
   friend class nsSVGInnerSVGFrame;
-  friend class nsSVGImageFrame;
 
 protected:
   friend nsresult NS_NewSVGSVGElement(nsIContent **aResult,
                                       already_AddRefed<nsINodeInfo> aNodeInfo,
-                                      mozilla::dom::FromParser aFromParser);
-  nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                  mozilla::dom::FromParser aFromParser);
+                                      PRUint32 aFromParser);
+  nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo, PRUint32 aFromParser);
   
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-  typedef mozilla::SVGPreserveAspectRatio SVGPreserveAspectRatio;
 
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED
@@ -192,7 +191,7 @@ public:
 #endif // MOZ_SMIL
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeViewBox(PRBool aDoSetAttr);
@@ -205,13 +204,7 @@ public:
   float GetLength(PRUint8 mCtxType);
 
   // public helpers:
-  gfxMatrix GetViewBoxTransform() const;
-  PRBool    HasValidViewbox() const { return mViewBox.IsValid(); }
-
-  // This services any pending notifications for the transform on on this root
-  // <svg> node needing to be recalculated.  (Only applicable in
-  // SVG-as-an-image documents.)
-  virtual void FlushImageTransformInvalidation();
+  gfxMatrix GetViewBoxTransform();
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -225,21 +218,6 @@ public:
   }
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-private:
-  // Methods for <image> elements to override my "PreserveAspectRatio" value.
-  // These are private so that only our friends (nsSVGImageFrame in
-  // particular) have access.
-  void SetImageOverridePreserveAspectRatio(const SVGPreserveAspectRatio& aPAR);
-  void ClearImageOverridePreserveAspectRatio();
-  const SVGPreserveAspectRatio* GetImageOverridePreserveAspectRatio() const;
-
-  // Returns PR_TRUE if we should synthesize a viewBox for ourselves (that is,
-  // if we're the outermost <svg> in an image document, and we're not currently
-  // being painted by an <svg:image> element). This method also assumes that we
-  // lack a valid viewBox attribute.
-  PRBool ShouldSynthesizeViewBox() const;
-
 protected:
   // nsSVGElement overrides
   PRBool IsEventName(nsIAtom* aName);
@@ -253,21 +231,11 @@ protected:
 
   // implementation helpers:
 
-  PRBool IsRoot() const {
+  PRBool IsRoot() {
     NS_ASSERTION((IsInDoc() && !GetParent()) ==
                  (GetOwnerDoc() && (GetOwnerDoc()->GetRootElement() == this)),
                  "Can't determine if we're root");
     return IsInDoc() && !GetParent();
-  }
-
-  /**
-   * Returns true if this is an SVG <svg> element that is the child of
-   * another non-foreignObject SVG element.
-   */
-  PRBool IsInner() const {
-    const nsIContent *parent = GetFlattenedTreeParent();
-    return parent && parent->GetNameSpaceID() == kNameSpaceID_SVG &&
-           parent->Tag() != nsGkAtoms::foreignObject;
   }
 
 #ifdef MOZ_SMIL
@@ -287,11 +255,6 @@ protected:
   // invalidate viewbox -> viewport xform & inform frames
   void InvalidateTransformNotifyFrame();
 
-  // Returns PR_TRUE if we have at least one of the following:
-  // - a (valid or invalid) value for the preserveAspectRatio attribute
-  // - a SMIL-animated value for the preserveAspectRatio attribute
-  PRBool HasPreserveAspectRatio();
-
   virtual LengthAttributesInfo GetLengthInfo();
 
   enum { X, Y, WIDTH, HEIGHT };
@@ -306,12 +269,12 @@ protected:
   static EnumInfo sEnumInfo[1];
 
   virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
-  nsSVGViewBox                   mViewBox;
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+  nsSVGViewBox             mViewBox;
+  nsSVGPreserveAspectRatio mPreserveAspectRatio;
 
-  nsSVGSVGElement               *mCoordCtx;
+  nsSVGSVGElement                  *mCoordCtx;
 
   // The size of the rectangular SVG viewport into which we render. This is
   // not (necessarily) the same as the content area. See:
@@ -345,8 +308,6 @@ protected:
   // to manually kick off animation when they are bound to the tree.
   PRPackedBool                      mStartAnimationOnBindToTree;
 #endif // MOZ_SMIL
-  PRPackedBool                      mImageNeedsTransformInvalidation;
-  PRPackedBool                      mIsPaintingSVGImageElement;
 };
 
 #endif

@@ -57,11 +57,10 @@
 #include "nsFont.h"
 #include "nsCOMPtr.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsDisplayList.h"
-#include "nsRenderingContext.h"
 
 class nsLegendFrame;
 
@@ -75,11 +74,11 @@ public:
                                  nsFrameList&   aChildList);
 
   NS_HIDDEN_(nscoord)
-    GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
+    GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
                       nsLayoutUtils::IntrinsicWidthType);
-  virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext* aRenderingContext);
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsIRenderingContext* aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext* aRenderingContext);
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -94,7 +93,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  void PaintBorderBackground(nsRenderingContext& aRenderingContext,
+  void PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags);
 
   NS_IMETHOD AppendFrames(nsIAtom*       aListName,
@@ -191,7 +190,7 @@ public:
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("FieldSetBorderBackground", TYPE_FIELDSET_BORDER_BACKGROUND)
 };
 
@@ -206,7 +205,7 @@ void nsDisplayFieldSetBorderBackground::HitTest(nsDisplayListBuilder* aBuilder, 
 
 void
 nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                         nsRenderingContext* aCtx)
+                                         nsIRenderingContext* aCtx)
 {
   static_cast<nsFieldSetFrame*>(mFrame)->
     PaintBorderBackground(*aCtx, ToReferenceFrame(),
@@ -268,7 +267,7 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
+nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags)
 {
   PRIntn skipSides = GetSkipSides();
@@ -280,8 +279,6 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
      
   // if the border is smaller than the legend. Move the border down
   // to be centered on the legend. 
-  // FIXME: This means border-radius clamping is incorrect; we should
-  // override nsIFrame::GetBorderRadii.
   if (topBorder < mLegendRect.height)
     yoff = (mLegendRect.height - topBorder)/2;
       
@@ -308,7 +305,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.height = topBorder;
 
     aRenderingContext.PushState();
-    aRenderingContext.IntersectClip(clipRect);
+    aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
 
@@ -322,7 +319,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.height = topBorder;
 
     aRenderingContext.PushState();
-    aRenderingContext.IntersectClip(clipRect);
+    aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
 
@@ -335,7 +332,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.height = mRect.height - (yoff + topBorder);
     
     aRenderingContext.PushState();
-    aRenderingContext.IntersectClip(clipRect);
+    aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
 
@@ -350,7 +347,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
 }
 
 nscoord
-nsFieldSetFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
+nsFieldSetFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
                                    nsLayoutUtils::IntrinsicWidthType aType)
 {
   nscoord legendWidth = 0;
@@ -372,7 +369,7 @@ nsFieldSetFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
 
 
 nscoord
-nsFieldSetFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
+nsFieldSetFrame::GetMinWidth(nsIRenderingContext* aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -382,7 +379,7 @@ nsFieldSetFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
 }
 
 nscoord
-nsFieldSetFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
+nsFieldSetFrame::GetPrefWidth(nsIRenderingContext* aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -392,7 +389,7 @@ nsFieldSetFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 }
 
 /* virtual */ nsSize
-nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsFieldSetFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap)
@@ -497,7 +494,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     FinishReflowChild(mLegendFrame, aPresContext, &legendReflowState, 
                       legendDesiredSize, 0, 0, NS_FRAME_NO_MOVE_FRAME);    
   } else if (!mLegendFrame) {
-    mLegendRect.SetEmpty();
+    mLegendRect.Empty();
     mLegendSpace = 0;
   } else {
     // mLegendSpace and mLegendRect haven't changed, but we need
@@ -598,14 +595,14 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
       aDesiredSize.height = min;
   }
   aDesiredSize.width = contentRect.width + borderPadding.LeftRight();
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   if (mLegendFrame)
-    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mLegendFrame);
+    ConsiderChildOverflow(aDesiredSize.mOverflowArea, mLegendFrame);
   if (mContentFrame)
-    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mContentFrame);
+    ConsiderChildOverflow(aDesiredSize.mOverflowArea, mContentFrame);
   FinishAndStoreOverflow(&aDesiredSize);
 
-  Invalidate(aDesiredSize.VisualOverflow());
+  Invalidate(aDesiredSize.mOverflowArea);
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
@@ -656,7 +653,8 @@ nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
 already_AddRefed<nsAccessible>
 nsFieldSetFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLGroupboxAccessible(mContent,
                                                     PresContext()->PresShell());

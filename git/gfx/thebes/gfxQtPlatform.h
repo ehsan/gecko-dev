@@ -60,8 +60,6 @@ public:
         RENDER_QPAINTER = 0,
         /* Use offscreen buffer for rendering with image or xlib gfx backend */
         RENDER_BUFFERED,
-        /* Direct rendering to Widget surface */
-        RENDER_DIRECT,
         /* max */
         RENDER_MODE_MAX
     };
@@ -74,7 +72,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxASurface::gfxContentType contentType);
+                                                         gfxASurface::gfxImageFormat imageFormat);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -134,8 +132,6 @@ public:
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
     static PRInt32 GetDPI();
-
-    virtual gfxImageFormat GetOffscreenFormat();
 
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;

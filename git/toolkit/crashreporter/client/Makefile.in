@@ -41,7 +41,6 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = toolkit/crashreporter/client
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -51,19 +50,12 @@ MODULE = crashreporter
 # link with -lmozalloc, and it really doesn't matter here anyway.
 STL_FLAGS =
 
-ifneq ($(OS_TARGET),Android)
 PROGRAM = crashreporter$(BIN_SUFFIX)
 DIST_PROGRAM = crashreporter$(BIN_SUFFIX)
-endif
 
 LOCAL_INCLUDES = -I$(srcdir)/../google-breakpad/src
 
-VPATH += $(topsrcdir)/build/
-
-CPPSRCS = \
-  crashreporter.cpp \
-  $(STDCXX_COMPAT) \
-  $(NULL)
+CPPSRCS = crashreporter.cpp
 
 ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += crashreporter_win.cpp
@@ -82,16 +74,15 @@ ifeq ($(OS_ARCH),Darwin)
 CPPSRCS += crashreporter_unix_common.cpp
 CMMSRCS += crashreporter_osx.mm
 OS_LIBS += -framework Cocoa
-OS_LIBS += -lcrypto
 LIBS += \
-  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/mac/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/mac/$(LIB_PREFIX)breakpad_mac_common_s.$(LIB_SUFFIX) \
   $(NULL)
 
 LOCAL_INCLUDES += -I$(srcdir) -I$(srcdir)/../google-breakpad/src/common/mac/
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+ifeq ($(OS_ARCH),Linux)
 CPPSRCS += crashreporter_gtk_common.cpp crashreporter_unix_common.cpp
 
 ifdef MOZ_PLATFORM_MAEMO

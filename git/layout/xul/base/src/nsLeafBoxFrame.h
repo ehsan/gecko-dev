@@ -71,11 +71,11 @@ public:
   // nsIHTMLReflow overrides
 
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   // Our auto size is that provided by nsFrame, not nsLeafFrame
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -100,6 +100,7 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
+  virtual PRBool GetMouseThrough() const;
   virtual PRBool ComputesOwnOverflowArea() { return PR_FALSE; }
 
 protected:
@@ -113,6 +114,9 @@ protected:
   virtual nscoord GetIntrinsicWidth();
 
  nsLeafBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
+
+protected:
+  eMouseThrough mMouseThrough;
 
 private:
 

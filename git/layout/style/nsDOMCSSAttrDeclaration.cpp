@@ -42,8 +42,8 @@
 
 #include "mozilla/css/Declaration.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/css/StyleRule.h"
 #include "mozilla/dom/Element.h"
+#include "nsICSSStyleRule.h"
 #include "nsIDocument.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsIPrincipal.h"
@@ -87,14 +87,14 @@ nsresult
 nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 {
   NS_ASSERTION(mElement, "Must have Element to set the declaration!");
-  css::StyleRule* oldRule =
+  nsICSSStyleRule* oldRule =
 #ifdef MOZ_SMIL
     mIsSMILOverride ? mElement->GetSMILOverrideStyleRule() :
 #endif // MOZ_SMIL
     mElement->GetInlineStyleRule();
   NS_ASSERTION(oldRule, "Element must have rule");
 
-  nsRefPtr<css::StyleRule> newRule =
+  nsCOMPtr<nsICSSStyleRule> newRule =
     oldRule->DeclarationChanged(aDecl, PR_FALSE);
   if (!newRule) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -134,7 +134,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
   if (!mElement)
     return nsnull;
 
-  css::StyleRule* cssRule;
+  nsICSSStyleRule* cssRule;
 #ifdef MOZ_SMIL
   if (mIsSMILOverride)
     cssRule = mElement->GetSMILOverrideStyleRule();
@@ -152,7 +152,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
   // cannot fail
   css::Declaration *decl = new css::Declaration();
   decl->InitializeEmpty();
-  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nsnull, decl);
+  nsCOMPtr<nsICSSStyleRule> newRule = NS_NewCSSStyleRule(nsnull, decl);
 
   // this *can* fail (inside SetAttrAndNotify, at least).
   nsresult rv;
@@ -170,22 +170,40 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
   return decl;
 }
 
-void
-nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv)
+/*
+ * This is a utility function.  It will only fail if it can't get a
+ * parser.  This means it can return NS_OK without aURI or aCSSLoader
+ * being initialized.
+ */
+nsresult
+nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
+                                                       nsIURI** aBaseURI,
+                                                       nsIPrincipal** aSheetPrincipal,
+                                                       mozilla::css::Loader** aCSSLoader)
 {
   NS_ASSERTION(mElement, "Something is severely broken -- there should be an Element here!");
+  // null out the out params since some of them may not get initialized below
+  *aSheetURI = nsnull;
+  *aBaseURI = nsnull;
+  *aSheetPrincipal = nsnull;
+  *aCSSLoader = nsnull;
 
   nsIDocument* doc = mElement->GetOwnerDoc();
   if (!doc) {
     // document has been destroyed
-    aCSSParseEnv.mPrincipal = nsnull;
-    return;
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
-  aCSSParseEnv.mSheetURI = doc->GetDocumentURI();
-  aCSSParseEnv.mBaseURI = mElement->GetBaseURI();
-  aCSSParseEnv.mPrincipal = mElement->NodePrincipal();
-  aCSSParseEnv.mCSSLoader = doc->CSSLoader();
+  nsCOMPtr<nsIURI> baseURI = mElement->GetBaseURI();
+  nsCOMPtr<nsIURI> sheetURI = doc->GetDocumentURI();
+
+  NS_ADDREF(*aCSSLoader = doc->CSSLoader());
+
+  baseURI.swap(*aBaseURI);
+  sheetURI.swap(*aSheetURI);
+  NS_ADDREF(*aSheetPrincipal = mElement->NodePrincipal());
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -53,10 +53,10 @@ nsIContentIterator.h \
 nsContentErrors.h \
 nsContentPolicyUtils.h \
 nsContentUtils.h \
+nsIContentUtils.h \
 nsIDocument.h \
 nsIDocumentObserver.h \
 nsIMutationObserver.h \
-nsIMutationObserver2.h \
 nsINameSpaceManager.h \
 nsINode.h \
 nsINodeInfo.h \
@@ -83,9 +83,8 @@ $(NULL)
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-		Element.h \
-		FromParser.h \
-		$(NULL)
+Element.h \
+$(NULL)
 
 ifndef DISABLE_XFORMS_HOOKS
 EXPORTS += nsIXFormsUtilityService.h
@@ -100,6 +99,7 @@ XPIDLSRCS	= \
 		nsIDocumentEncoder.idl      \
 		nsIDOMFile.idl \
 		nsIDOMFileReader.idl \
+		nsIDOMFileInternal.idl \
 		nsIDOMFileList.idl \
 		nsIDOMFileException.idl \
 		nsIDOMFileError.idl \
@@ -113,6 +113,7 @@ XPIDLSRCS	= \
 		nsISelectionListener.idl  \
 		nsISelectionPrivate.idl  \
 		nsIScriptLoaderObserver.idl  \
+		nsISyncLoadDOMService.idl  \
 		nsIDroppedLinkHandler.idl \
 		nsIScriptEventHandler.idl \
 		nsIScriptEventManager.idl \
@@ -123,7 +124,6 @@ XPIDLSRCS	= \
 		nsIContentSecurityPolicy.idl \
 		nsIFrameMessageManager.idl \
 		nsIWebSocket.idl \
-		nsIEventSource.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

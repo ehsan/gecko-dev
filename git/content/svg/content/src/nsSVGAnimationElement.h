@@ -47,6 +47,8 @@
 #include "nsISMILAnimationElement.h"
 #include "nsSMILTimedElement.h"
 
+class nsSMILTimeContainer;
+
 typedef nsSVGElement nsSVGAnimationElementBase;
 
 class nsSVGAnimationElement : public nsSVGAnimationElementBase,
@@ -92,8 +94,7 @@ public:
   virtual PRBool GetAnimAttr(nsIAtom* aAttName, nsAString& aResult) const;
   virtual PRBool HasAnimAttr(nsIAtom* aAttName) const;
   virtual Element* GetTargetElementContent();
-  virtual PRBool GetTargetAttributeName(PRInt32* aNamespaceID,
-                                        nsIAtom** aLocalName) const;
+  virtual nsIAtom* GetTargetAttributeName() const;
   virtual nsSMILTargetAttrType GetTargetAttributeType() const;
   virtual nsSMILTimedElement& TimedElement();
   virtual nsSMILTimeContainer* GetTimeContainer();
@@ -128,6 +129,7 @@ protected:
 
   TargetReference      mHrefTarget;
   nsSMILTimedElement   mTimedElement;
+  nsSMILTimeContainer* mTimedDocumentRoot;
 };
 
 #endif // NS_SVGANIMATIONELEMENT_H_

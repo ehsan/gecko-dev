@@ -41,7 +41,9 @@
 #include "nsDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLBodyElement.h"
+#include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
 #include "jsapi.h"
@@ -68,11 +70,10 @@ class nsICachingChannel;
 
 class nsHTMLDocument : public nsDocument,
                        public nsIHTMLDocument,
-                       public nsIDOMHTMLDocument
+                       public nsIDOMHTMLDocument,
+                       public nsIDOMNSHTMLDocument
 {
 public:
-  using nsDocument::SetDocumentURI;
-
   nsHTMLDocument();
   virtual nsresult Init();
 
@@ -84,6 +85,7 @@ public:
   virtual void Reset(nsIChannel* aChannel, nsILoadGroup* aLoadGroup);
   virtual void ResetToURI(nsIURI* aURI, nsILoadGroup* aLoadGroup,
                           nsIPrincipal* aPrincipal);
+  virtual nsStyleSet::sheetType GetAttrSheetType();
 
   virtual nsresult CreateShell(nsPresContext* aContext,
                                nsIViewManager* aViewManager,
@@ -103,6 +105,8 @@ public:
 
   virtual void EndLoad();
 
+  virtual nsIDOMHTMLMapElement *GetImageMap(const nsAString& aMapName);
+
   virtual void SetCompatibilityMode(nsCompatibility aMode);
 
   virtual PRBool IsWriting()
@@ -118,13 +122,38 @@ public:
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
   // nsIDOMDocument interface
-  NS_FORWARD_NSIDOMDOCUMENT(nsDocument::)
+  NS_DECL_NSIDOMDOCUMENT
+
+  // nsIDOM3Document interface
+  NS_IMETHOD GetXmlEncoding(nsAString& aXmlVersion);
+  NS_IMETHOD GetXmlStandalone(PRBool *aXmlStandalone);
+  NS_IMETHOD SetXmlStandalone(PRBool aXmlStandalone);
+  NS_IMETHOD GetXmlVersion(nsAString& aXmlVersion);
+  NS_IMETHOD SetXmlVersion(const nsAString& aXmlVersion);
 
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
   // nsIDOMHTMLDocument interface
-  NS_DECL_NSIDOMHTMLDOCUMENT
+  NS_IMETHOD GetTitle(nsAString & aTitle);
+  NS_IMETHOD SetTitle(const nsAString & aTitle);
+  NS_IMETHOD GetReferrer(nsAString & aReferrer);
+  NS_IMETHOD GetURL(nsAString & aURL);
+  NS_IMETHOD GetBody(nsIDOMHTMLElement * *aBody);
+  NS_IMETHOD SetBody(nsIDOMHTMLElement * aBody);
+  NS_IMETHOD GetImages(nsIDOMHTMLCollection * *aImages);
+  NS_IMETHOD GetApplets(nsIDOMHTMLCollection * *aApplets);
+  NS_IMETHOD GetLinks(nsIDOMHTMLCollection * *aLinks);
+  NS_IMETHOD GetForms(nsIDOMHTMLCollection * *aForms);
+  NS_IMETHOD GetAnchors(nsIDOMHTMLCollection * *aAnchors);
+  NS_IMETHOD GetCookie(nsAString & aCookie);
+  NS_IMETHOD SetCookie(const nsAString & aCookie);
+  NS_IMETHOD Open(void);
+  NS_IMETHOD Close(void);
+  NS_IMETHOD Write(const nsAString & text);
+  NS_IMETHOD Writeln(const nsAString & text);
+  NS_IMETHOD GetElementsByName(const nsAString & elementName,
+                               nsIDOMNodeList **_retval);
 
   /**
    * Returns the result of document.all[aID] which can either be a node
@@ -142,9 +171,11 @@ public:
                                        UseExistingNameString, aName);
   }
 
+  // nsIDOMNSHTMLDocument interface
+  NS_DECL_NSIDOMNSHTMLDOCUMENT
 
   virtual nsresult ResolveName(const nsAString& aName,
-                               nsIContent *aForm,
+                               nsIDOMHTMLFormElement *aForm,
                                nsISupports **aResult,
                                nsWrapperCache **aCache);
 
@@ -173,6 +204,8 @@ public:
   {
     mDisableCookieAccess = PR_TRUE;
   }
+
+  virtual nsIContent* GetBodyContentExternal();
 
   class nsAutoEditingState {
   public:
@@ -217,6 +250,8 @@ protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);
 
+  nsresult PrePopulateIdentifierMap();
+
   nsIContent *MatchId(nsIContent *aContent, const nsAString& aId);
 
   static PRBool MatchLinks(nsIContent *aContent, PRInt32 aNamespaceID,
@@ -231,8 +266,9 @@ protected:
 
   void GetDomainURI(nsIURI **uri);
 
-  nsresult WriteCommon(JSContext *cx, const nsAString& aText,
+  nsresult WriteCommon(const nsAString& aText,
                        PRBool aNewlineTerminate);
+  nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
@@ -256,6 +292,7 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
+  nsRefPtr<nsContentList> mImageMaps;
 
   /** # of forms in the document, synchronously set */
   PRInt32 mNumForms;
@@ -272,6 +309,10 @@ protected:
   static PRBool TryCacheCharset(nsICachingChannel* aCachingChannel,
                                 PRInt32& aCharsetSource,
                                 nsACString& aCharset);
+  static PRBool TryBookmarkCharset(nsIDocShell* aDocShell,
+                                   nsIChannel* aChannel,
+                                   PRInt32& aCharsetSource,
+                                   nsACString& aCharset);
   // aParentDocument could be null.
   PRBool TryParentCharset(nsIDocumentCharsetInfo*  aDocInfo,
                           nsIDocument* aParentDocument,
@@ -350,6 +391,7 @@ protected:
 #define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \
     NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                                 \
     NS_INTERFACE_TABLE_ENTRY(_class, nsIHTMLDocument)                         \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)                      \
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNSHTMLDocument)
 
 #endif /* nsHTMLDocument_h___ */

@@ -64,14 +64,14 @@ namespace Library
 
 static JSClass sLibraryClass = {
   "Library",
-  JSCLASS_HAS_RESERVED_SLOTS(LIBRARY_SLOTS),
-  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JSCLASS_HAS_RESERVED_SLOTS(LIBRARY_SLOTS) | JSCLASS_MARK_IS_TRACE,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
   JS_EnumerateStub,JS_ResolveStub, JS_ConvertStub, Library::Finalize,
   JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 #define CTYPESFN_FLAGS \
-  (JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)
+  (JSFUN_FAST_NATIVE | JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)
 
 static JSFunctionSpec sLibraryFunctions[] = {
   JS_FN("close",   Library::Close,   0, CTYPESFN_FLAGS),
@@ -112,7 +112,7 @@ Library::Name(JSContext* cx, uintN argc, jsval *vp)
 }
 
 JSObject*
-Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
+Library::Create(JSContext* cx, jsval aPath)
 {
   JSObject* libraryObj = JS_NewObject(cx, &sLibraryClass, NULL, NULL);
   if (!libraryObj)
@@ -127,59 +127,35 @@ Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
   if (!JS_DefineFunctions(cx, libraryObj, sLibraryFunctions))
     return NULL;
 
-  if (!JSVAL_IS_STRING(path)) {
+  if (!JSVAL_IS_STRING(aPath)) {
     JS_ReportError(cx, "open takes a string argument");
     return NULL;
   }
 
   PRLibSpec libSpec;
-  JSFlatString* pathStr = JS_FlattenString(cx, JSVAL_TO_STRING(path));
-  if (!pathStr)
-    return NULL;
 #ifdef XP_WIN
   // On Windows, converting to native charset may corrupt path string.
   // So, we have to use Unicode path directly.
-  const PRUnichar* pathChars = JS_GetFlatStringChars(pathStr);
-  if (!pathChars)
+  const PRUnichar* path = reinterpret_cast<const PRUnichar*>(
+    JS_GetStringCharsZ(cx, JSVAL_TO_STRING(aPath)));
+  if (!path)
     return NULL;
 
-  libSpec.value.pathname_u = pathChars;
+  libSpec.value.pathname_u = path;
   libSpec.type = PR_LibSpec_PathnameU;
 #else
-  // Convert to platform native charset if the appropriate callback has been
-  // provided.
-  char* pathBytes;
-  if (callbacks && callbacks->unicodeToNative) {
-    pathBytes = 
-      callbacks->unicodeToNative(cx, pathStr->chars(), pathStr->length());
-    if (!pathBytes)
-      return NULL;
+  // Assume the JS string is not UTF-16, but is in the platform's native
+  // charset. (This basically means ASCII.) It would be nice to have a
+  // UTF-16 -> native charset implementation available. :(
+  const char* path = JS_GetStringBytesZ(cx, JSVAL_TO_STRING(aPath));
+  if (!path)
+    return NULL;
 
-  } else {
-    // Fallback: assume the platform native charset is UTF-8. This is true
-    // for Mac OS X, Android, and probably Linux.
-    size_t nbytes =
-      GetDeflatedUTF8StringLength(cx, pathStr->chars(), pathStr->length());
-    if (nbytes == (size_t) -1)
-      return NULL;
-
-    pathBytes = static_cast<char*>(JS_malloc(cx, nbytes + 1));
-    if (!pathBytes)
-      return NULL;
-
-    ASSERT_OK(DeflateStringToUTF8Buffer(cx, pathStr->chars(),
-                pathStr->length(), pathBytes, &nbytes));
-    pathBytes[nbytes] = 0;
-  }
-
-  libSpec.value.pathname = pathBytes;
+  libSpec.value.pathname = path;
   libSpec.type = PR_LibSpec_Pathname;
 #endif
 
   PRLibrary* library = PR_LoadLibraryWithFlags(libSpec, 0);
-#ifndef XP_WIN
-  JS_free(cx, pathBytes);
-#endif
   if (!library) {
     JS_ReportError(cx, "couldn't open library");
     return NULL;
@@ -221,18 +197,12 @@ Library::Finalize(JSContext* cx, JSObject* obj)
 JSBool
 Library::Open(JSContext* cx, uintN argc, jsval *vp)
 {
-  JSObject* ctypesObj = JS_THIS_OBJECT(cx, vp);
-  if (!ctypesObj || !IsCTypesGlobal(cx, ctypesObj)) {
-    JS_ReportError(cx, "not a ctypes object");
-    return JS_FALSE;
-  }
-
   if (argc != 1 || JSVAL_IS_VOID(JS_ARGV(cx, vp)[0])) {
     JS_ReportError(cx, "open requires a single argument");
     return JS_FALSE;
   }
 
-  JSObject* library = Create(cx, JS_ARGV(cx, vp)[0], GetCallbacks(cx, ctypesObj));
+  JSObject* library = Create(cx, JS_ARGV(cx, vp)[0]);
   if (!library)
     return JS_FALSE;
 
@@ -244,7 +214,7 @@ JSBool
 Library::Close(JSContext* cx, uintN argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj || !IsLibrary(cx, obj)) {
+  if (!IsLibrary(cx, obj)) {
     JS_ReportError(cx, "not a library");
     return JS_FALSE;
   }
@@ -266,7 +236,7 @@ JSBool
 Library::Declare(JSContext* cx, uintN argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj || !IsLibrary(cx, obj)) {
+  if (!IsLibrary(cx, obj)) {
     JS_ReportError(cx, "not a library");
     return JS_FALSE;
   }
@@ -285,8 +255,8 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
   //    declares a symbol of 'type', and resolves it. The object that comes
   //    back will be of type 'type', and will point into the symbol data.
   //    This data will be both readable and writable via the usual CData
-  //    accessors. If 'type' is a PointerType to a FunctionType, the result will
-  //    be a function pointer, as with 1). 
+  //    accessors. If 'type' is a FunctionType, the result will be a function
+  //    pointer, as with 1). 
   if (argc < 2) {
     JS_ReportError(cx, "declare requires at least two arguments");
     return JS_FALSE;
@@ -374,7 +344,7 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
   // change the pointer value.
   // XXX This will need to change when bug 541212 is fixed -- CData::ValueSetter
   // could be called on a sealed object.
-  if (isFunction && !JS_FreezeObject(cx, result))
+  if (isFunction && !JS_SealObject(cx, result, JS_FALSE))
     return JS_FALSE;
 
   return JS_TRUE;

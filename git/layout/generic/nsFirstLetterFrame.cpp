@@ -58,10 +58,6 @@ NS_NewFirstLetterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsFirstLetterFrame)
 
-NS_QUERYFRAME_HEAD(nsFirstLetterFrame)
-  NS_QUERYFRAME_ENTRY(nsFirstLetterFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsFirstLetterFrameSuper)
-
 #ifdef NS_DEBUG
 NS_IMETHODIMP
 nsFirstLetterFrame::GetFrameName(nsAString& aResult) const
@@ -137,7 +133,7 @@ nsFirstLetterFrame::GetChildFrameContainingOffset(PRInt32 inContentOffset,
 // Needed for non-floating first-letter frames and for the continuations
 // following the first-letter that we also use nsFirstLetterFrame for.
 /* virtual */ void
-nsFirstLetterFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+nsFirstLetterFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                       nsIFrame::InlineMinWidthData *aData)
 {
   DoInlineIntrinsicWidth(aRenderingContext, aData, nsLayoutUtils::MIN_WIDTH);
@@ -146,7 +142,7 @@ nsFirstLetterFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
 // Needed for non-floating first-letter frames and for the continuations
 // following the first-letter that we also use nsFirstLetterFrame for.
 /* virtual */ void
-nsFirstLetterFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+nsFirstLetterFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                        nsIFrame::InlinePrefWidthData *aData)
 {
   DoInlineIntrinsicWidth(aRenderingContext, aData, nsLayoutUtils::PREF_WIDTH);
@@ -154,20 +150,20 @@ nsFirstLetterFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
 
 // Needed for floating first-letter frames.
 /* virtual */ nscoord
-nsFirstLetterFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsFirstLetterFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   return nsLayoutUtils::MinWidthFromInline(this, aRenderingContext);
 }
 
 // Needed for floating first-letter frames.
 /* virtual */ nscoord
-nsFirstLetterFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsFirstLetterFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   return nsLayoutUtils::PrefWidthFromInline(this, aRenderingContext);
 }
 
 /* virtual */ nsSize
-nsFirstLetterFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsFirstLetterFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
                                 PRBool aShrinkWrap)
@@ -253,8 +249,9 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
   // Ensure that the overflow rect contains the child textframe's overflow rect.
   // Note that if this is floating, the overline/underline drawable area is in
   // the overflow rect of the child textframe.
-  aMetrics.UnionOverflowAreasWithDesiredBounds();
-  ConsiderChildOverflow(aMetrics.mOverflowAreas, kid);
+  aMetrics.mOverflowArea.UnionRect(aMetrics.mOverflowArea,
+                           nsRect(0, 0, aMetrics.width, aMetrics.height));
+  ConsiderChildOverflow(aMetrics.mOverflowArea, kid);
 
   // Create a continuation or remove existing continuations based on
   // the reflow completion status.
@@ -369,8 +366,8 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
 
       // When pushing and pulling frames we need to check for whether any
       // views need to be reparented.
-      nsContainerFrame::ReparentFrameViewList(aPresContext, *overflowFrames,
-                                              prevInFlow, this);
+      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *overflowFrames,
+                                                  prevInFlow, this);
       mFrames.InsertFrames(this, nsnull, *overflowFrames);
     }
   }
@@ -398,10 +395,4 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
       }
     }
   }
-}
-
-nscoord
-nsFirstLetterFrame::GetBaseline() const
-{
-  return mBaseline;
 }

@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
 #include "ImageLayers.h"
 #include "BasicLayers.h"
@@ -48,11 +48,8 @@
 #include "cairo.h"
 
 #include "yuv_convert.h"
-#include "ycbcr_to_rgb565.h"
 
-#include "gfxPlatform.h"
-
-using mozilla::ReentrantMonitor;
+using mozilla::Monitor;
 
 namespace mozilla {
 namespace layers {
@@ -106,38 +103,18 @@ protected:
  * in a memory buffer and converted to a cairo surface lazily.
  */
 class BasicPlanarYCbCrImage : public PlanarYCbCrImage, public BasicImageImplData {
-   typedef gfxASurface::gfxImageFormat gfxImageFormat;
 public:
-   /** 
-    * aScaleHint is a size that the image is expected to be rendered at.
-    * This is a hint for image backends to optimize scaling.
-    */
-  BasicPlanarYCbCrImage(const gfxIntSize& aScaleHint) :
-    PlanarYCbCrImage(static_cast<BasicImageImplData*>(this)),
-    mScaleHint(aScaleHint),
-    mOffscreenFormat(gfxASurface::ImageFormatUnknown),
-    mDelayedConversion(PR_FALSE)
+  BasicPlanarYCbCrImage() :
+    PlanarYCbCrImage(static_cast<BasicImageImplData*>(this))
     {}
 
   virtual void SetData(const Data& aData);
-  virtual void SetDelayedConversion(PRBool aDelayed) { mDelayedConversion = aDelayed; }
 
   virtual already_AddRefed<gfxASurface> GetAsSurface();
-
-  const Data* GetData() { return &mData; }
-
-  void SetOffscreenFormat(gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
-  gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
 
 protected:
   nsAutoArrayPtr<PRUint8>              mBuffer;
   nsCountedRef<nsMainThreadSurfaceRef> mSurface;
-  gfxIntSize                           mScaleHint;
-  PRInt32                              mStride;
-  gfxImageFormat                       mOffscreenFormat;
-  Data                                 mData;
-  PRUint32                             mBufferSize;
-  PRPackedBool                         mDelayedConversion;
 };
 
 void
@@ -148,197 +125,44 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
     NS_ERROR("Illegal width or height");
     return;
   }
-  
-  gfx::YUVType type = gfx::YV12;
-  int width_shift = 0;
-  int height_shift = 0;
-  if (aData.mYSize.width == aData.mCbCrSize.width &&
-      aData.mYSize.height == aData.mCbCrSize.height) {
-    type = gfx::YV24;
-    width_shift = 0;
-    height_shift = 0;
-  }
-  else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
-           aData.mYSize.height == aData.mCbCrSize.height) {
-    type = gfx::YV16;
-    width_shift = 1;
-    height_shift = 0;
-  }
-  else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
-           aData.mYSize.height / 2 == aData.mCbCrSize.height ) {
-    type = gfx::YV12;
-    width_shift = 1;
-    height_shift = 1;
-  }
-  else {
-    NS_ERROR("YCbCr format not supported");
-  }
-
-  if (mDelayedConversion) {
-
-    mData = aData;
-    mData.mCbCrStride = mData.mCbCrSize.width = aData.mPicSize.width >> width_shift;
-    // Round up the values for width and height to make sure we sample enough data
-    // for the last pixel - See bug 590735
-    if (width_shift && (aData.mPicSize.width & 1)) {
-      mData.mCbCrStride++;
-      mData.mCbCrSize.width++;
-    }
-    mData.mCbCrSize.height = aData.mPicSize.height >> height_shift;
-    if (height_shift && (aData.mPicSize.height & 1)) {
-        mData.mCbCrSize.height++;
-    }
-    mData.mYSize = aData.mPicSize;
-    mData.mYStride = mData.mYSize.width;
-    mBufferSize = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
-                  mData.mYStride * mData.mYSize.height;
-    mBuffer = new PRUint8[mBufferSize];
-    
-    mData.mYChannel = mBuffer;
-    mData.mCbChannel = mData.mYChannel + mData.mYStride * mData.mYSize.height;
-    mData.mCrChannel = mData.mCbChannel + mData.mCbCrStride * mData.mCbCrSize.height;
-    int cbcr_x = aData.mPicX >> width_shift;
-    int cbcr_y = aData.mPicY >> height_shift;
-
-    for (int i = 0; i < mData.mYSize.height; i++) {
-      memcpy(mData.mYChannel + i * mData.mYStride,
-             aData.mYChannel + ((aData.mPicY + i) * aData.mYStride) + aData.mPicX,
-             mData.mYStride);
-    }
-    for (int i = 0; i < mData.mCbCrSize.height; i++) {
-      memcpy(mData.mCbChannel + i * mData.mCbCrStride,
-             aData.mCbChannel + ((cbcr_y + i) * aData.mCbCrStride) + cbcr_x,
-             mData.mCbCrStride);
-    }
-    for (int i = 0; i < mData.mCbCrSize.height; i++) {
-      memcpy(mData.mCrChannel + i * mData.mCbCrStride,
-             aData.mCrChannel + ((cbcr_y + i) * aData.mCbCrStride) + cbcr_x,
-             mData.mCbCrStride);
-    }
-
-    // Fix picture rect to be correct
-    mData.mPicX = mData.mPicY = 0;
-    mSize = aData.mPicSize;
-    return;
-  }
-
-  gfxASurface::gfxImageFormat format = GetOffscreenFormat();
-
-  // 'prescale' is true if the scaling is to be done as part of the
-  // YCbCr to RGB conversion rather than on the RGB data when rendered.
-  PRBool prescale = mScaleHint.width > 0 && mScaleHint.height > 0 &&
-                    mScaleHint != aData.mPicSize;
-  if (format == gfxASurface::ImageFormatRGB16_565) {
-#if defined(HAVE_YCBCR_TO_RGB565)
-    if (prescale &&
-        !gfx::IsScaleYCbCrToRGB565Fast(aData.mPicX,
-                                       aData.mPicY,
-                                       aData.mPicSize.width,
-                                       aData.mPicSize.height,
-                                       mScaleHint.width,
-                                       mScaleHint.height,
-                                       type,
-                                       gfx::FILTER_BILINEAR) &&
-        gfx::IsConvertYCbCrToRGB565Fast(aData.mPicX,
-                                        aData.mPicY,
-                                        aData.mPicSize.width,
-                                        aData.mPicSize.height,
-                                        type)) {
-      prescale = PR_FALSE;
-    }
-#else
-    // yuv2rgb16 function not available
-    format = gfxASurface::ImageFormatRGB24;
-#endif
-  }
-  else if (format != gfxASurface::ImageFormatRGB24) {
-    // No other formats are currently supported.
-    format = gfxASurface::ImageFormatRGB24;
-  }
-  if (format == gfxASurface::ImageFormatRGB24) {
-    /* ScaleYCbCrToRGB32 does not support a picture offset, nor 4:4:4 data.
-       See bugs 639415 and 640073. */
-    if (aData.mPicX != 0 || aData.mPicY != 0 || type == gfx::YV24)
-      prescale = PR_FALSE;
-  }
-
-  gfxIntSize size(prescale ? mScaleHint.width : aData.mPicSize.width,
-                  prescale ? mScaleHint.height : aData.mPicSize.height);
-
-  mStride = gfxASurface::FormatStrideForWidth(format, size.width);
-  mBuffer = new PRUint8[size.height * mStride];
+  size_t size = aData.mPicSize.width*aData.mPicSize.height*4;
+  mBuffer = new PRUint8[size];
   if (!mBuffer) {
     // out of memory
     return;
   }
 
-  // Convert from YCbCr to RGB now, scaling the image if needed.
-  if (size != aData.mPicSize) {
-#if defined(HAVE_YCBCR_TO_RGB565)
-    if (format == gfxASurface::ImageFormatRGB16_565) {
-      gfx::ScaleYCbCrToRGB565(aData.mYChannel,
-                              aData.mCbChannel,
-                              aData.mCrChannel,
-                              mBuffer,
-                              aData.mPicX,
-                              aData.mPicY,
-                              aData.mPicSize.width,
-                              aData.mPicSize.height,
-                              size.width,
-                              size.height,
-                              aData.mYStride,
-                              aData.mCbCrStride,
-                              mStride,
-                              type,
-                              gfx::FILTER_BILINEAR);
-    } else
-#endif
-      gfx::ScaleYCbCrToRGB32(aData.mYChannel,
-                             aData.mCbChannel,
-                             aData.mCrChannel,
-                             mBuffer,
-                             aData.mPicSize.width,
-                             aData.mPicSize.height,
-                             size.width,
-                             size.height,
-                             aData.mYStride,
-                             aData.mCbCrStride,
-                             mStride,
-                             type,
-                             gfx::ROTATE_0,
-                             gfx::FILTER_BILINEAR);
-  } else { // no prescale
-#if defined(HAVE_YCBCR_TO_RGB565)
-    if (format == gfxASurface::ImageFormatRGB16_565) {
-      gfx::ConvertYCbCrToRGB565(aData.mYChannel,
-                                aData.mCbChannel,
-                                aData.mCrChannel,
-                                mBuffer,
-                                aData.mPicX,
-                                aData.mPicY,
-                                aData.mPicSize.width,
-                                aData.mPicSize.height,
-                                aData.mYStride,
-                                aData.mCbCrStride,
-                                mStride,
-                                type);
-    } else // format != gfxASurface::ImageFormatRGB16_565
-#endif
-      gfx::ConvertYCbCrToRGB32(aData.mYChannel,
-                               aData.mCbChannel,
-                               aData.mCrChannel,
-                               mBuffer,
-                               aData.mPicX,
-                               aData.mPicY,
-                               aData.mPicSize.width,
-                               aData.mPicSize.height,
-                               aData.mYStride,
-                               aData.mCbCrStride,
-                               mStride,
-                               type);
+  gfx::YUVType type = gfx::YV12;
+  if (aData.mYSize.width == aData.mCbCrSize.width &&
+      aData.mYSize.height == aData.mCbCrSize.height) {
+    type = gfx::YV24;
   }
-  SetOffscreenFormat(format);
-  mSize = size;
+  else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
+           aData.mYSize.height == aData.mCbCrSize.height) {
+    type = gfx::YV16;
+  }
+  else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
+           aData.mYSize.height / 2 == aData.mCbCrSize.height ) {
+    type = gfx::YV12;
+  }
+  else {
+    NS_ERROR("YCbCr format not supported");
+  }
+ 
+  // Convert from YCbCr to RGB now
+  gfx::ConvertYCbCrToRGB32(aData.mYChannel,
+                           aData.mCbChannel,
+                           aData.mCrChannel,
+                           mBuffer,
+                           aData.mPicX,
+                           aData.mPicY,
+                           aData.mPicSize.width,
+                           aData.mPicSize.height,
+                           aData.mYStride,
+                           aData.mCbCrStride,
+                           aData.mPicSize.width*4,
+                           type);                                                          
+  mSize = aData.mPicSize;
 }
 
 static cairo_user_data_key_t imageSurfaceDataKey;
@@ -359,17 +183,14 @@ BasicPlanarYCbCrImage::GetAsSurface()
     return result.forget();
   }
 
-  // XXX: If we forced delayed conversion, are we ever going to hit this?
-  // We may need to implement the conversion here.
-  if (!mBuffer || mDelayedConversion) {
+  if (!mBuffer) {
     return nsnull;
   }
-
-  gfxASurface::gfxImageFormat format = GetOffscreenFormat();
-
   nsRefPtr<gfxImageSurface> imgSurface =
-      new gfxImageSurface(mBuffer, mSize, mStride, format);
-  if (!imgSurface || imgSurface->CairoStatus() != 0) {
+      new gfxImageSurface(mBuffer, mSize,
+                          mSize.width * gfxASurface::BytePerPixelFromFormat(gfxASurface::ImageFormatRGB24),
+                          gfxASurface::ImageFormatRGB24);
+  if (!imgSurface) {
     return nsnull;
   }
 
@@ -391,36 +212,25 @@ BasicPlanarYCbCrImage::GetAsSurface()
 
 /**
  * Our image container is very simple. It's really just a factory
- * for the image objects. We use a ReentrantMonitor to synchronize access to
+ * for the image objects. We use a Monitor to synchronize access to
  * mImage.
  */
 class BasicImageContainer : public ImageContainer {
 public:
-  typedef gfxASurface::gfxImageFormat gfxImageFormat;
-
-  BasicImageContainer() :
-    ImageContainer(nsnull),
-    mScaleHint(-1, -1),
-    mOffscreenFormat(gfxASurface::ImageFormatUnknown),
-    mDelayed(PR_FALSE)
+  BasicImageContainer(BasicLayerManager* aManager) :
+    ImageContainer(aManager), mMonitor("BasicImageContainer")
   {}
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
                                               PRUint32 aNumFormats);
-  virtual void SetDelayedConversion(PRBool aDelayed) { mDelayed = aDelayed; }
   virtual void SetCurrentImage(Image* aImage);
   virtual already_AddRefed<Image> GetCurrentImage();
   virtual already_AddRefed<gfxASurface> GetCurrentAsSurface(gfxIntSize* aSize);
   virtual gfxIntSize GetCurrentSize();
   virtual PRBool SetLayerManager(LayerManager *aManager);
-  virtual void SetScaleHint(const gfxIntSize& aScaleHint);
-  void SetOffscreenFormat(gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
-  virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_BASIC; }
 
 protected:
+  Monitor mMonitor;
   nsRefPtr<Image> mImage;
-  gfxIntSize mScaleHint;
-  gfxImageFormat mOffscreenFormat;
-  PRPackedBool mDelayed;
 };
 
 /**
@@ -447,10 +257,7 @@ BasicImageContainer::CreateImage(const Image::Format* aFormats,
   if (FormatInList(aFormats, aNumFormats, Image::CAIRO_SURFACE)) {
     image = new BasicCairoImage();
   } else if (FormatInList(aFormats, aNumFormats, Image::PLANAR_YCBCR)) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    image = new BasicPlanarYCbCrImage(mScaleHint);
-    static_cast<BasicPlanarYCbCrImage*>(image.get())->SetOffscreenFormat(mOffscreenFormat);
-    static_cast<BasicPlanarYCbCrImage*>(image.get())->SetDelayedConversion(mDelayed);
+    image = new BasicPlanarYCbCrImage();
   }
   return image.forget();
 }
@@ -458,15 +265,14 @@ BasicImageContainer::CreateImage(const Image::Format* aFormats,
 void
 BasicImageContainer::SetCurrentImage(Image* aImage)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   mImage = aImage;
-  CurrentImageChanged();
 }
 
 already_AddRefed<Image>
 BasicImageContainer::GetCurrentImage()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   nsRefPtr<Image> image = mImage;
   return image.forget();
 }
@@ -482,7 +288,7 @@ BasicImageContainer::GetCurrentAsSurface(gfxIntSize* aSizeResult)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Must be called on main thread");
 
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   if (!mImage) {
     return nsnull;
   }
@@ -493,14 +299,8 @@ BasicImageContainer::GetCurrentAsSurface(gfxIntSize* aSizeResult)
 gfxIntSize
 BasicImageContainer::GetCurrentSize()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   return !mImage ? gfxIntSize(0,0) : ToImageData(mImage)->GetSize();
-}
-
-void BasicImageContainer::SetScaleHint(const gfxIntSize& aScaleHint)
-{
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  mScaleHint = aScaleHint;
 }
 
 PRBool
@@ -512,15 +312,15 @@ BasicImageContainer::SetLayerManager(LayerManager *aManager)
     return PR_FALSE;
   }
 
+  // for basic layers, we can just swap; no magic needed.
+  mManager = aManager;
   return PR_TRUE;
 }
 
 already_AddRefed<ImageContainer>
 BasicLayerManager::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> container = new BasicImageContainer();
-  static_cast<BasicImageContainer*>(container.get())->
-    SetOffscreenFormat(gfxPlatform::GetPlatform()->GetOffscreenFormat());
+  nsRefPtr<ImageContainer> container = new BasicImageContainer(this);
   return container.forget();
 }
 

@@ -50,20 +50,19 @@ interface nsIDOMDOMStringList;
  * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBTransaction
  * for more information.
  */
-[scriptable, uuid(13e551a1-1a58-42ec-b0bd-7102ec0f64d6)]
+[scriptable, uuid(99bb825e-56aa-4cb9-b640-4fadb00b874d)]
 interface nsIIDBTransaction : nsISupports
 {
   readonly attribute nsIIDBDatabase db;
 
   const unsigned short INITIAL = 0;
   const unsigned short LOADING = 1;
-  const unsigned short COMMITTING = 2;
-  const unsigned short DONE = 3;
+  const unsigned short DONE = 2;
   readonly attribute unsigned short readyState;
 
-  const unsigned short READ_ONLY = 0;
-  const unsigned short READ_WRITE = 1;
-  const unsigned short VERSION_CHANGE = 2;
+  const unsigned short READ_WRITE = 0;
+  const unsigned short READ_ONLY = 1;
+  const unsigned short SNAPSHOT_READ = 2;
   readonly attribute unsigned short mode;
 
   readonly attribute nsIDOMDOMStringList objectStoreNames;
@@ -73,8 +72,6 @@ interface nsIIDBTransaction : nsISupports
 
   // Don't commit the transaction.
   void abort();
-
-  attribute nsIDOMEventListener onerror;
 
   // Event listener that fires when the transaction is completed
   // successfully. Receives an Event.

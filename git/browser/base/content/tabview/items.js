@@ -22,8 +22,6 @@
  * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
- * Sean Dunn <seanedunn@yahoo.com>
- * Tim Taubert <tim.taubert@gmx.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,7 +45,7 @@
 // Superclass for all visible objects (<TabItem>s and <GroupItem>s).
 //
 // If you subclass, in addition to the things Item provides, you need to also provide these methods:
-//   setBounds - function(rect, immediately, options)
+//   setBounds - function(rect, immediately)
 //   setZ - function(value)
 //   close - function()
 //   save - function()
@@ -56,25 +54,43 @@
 //
 // ... and this property:
 //   defaultSize - a Point
+//   locked - an object (see below)
 //
 // Make sure to call _init() from your subclass's constructor.
-function Item() {
+window.Item = function() {
   // Variable: isAnItem
   // Always true for Items
   this.isAnItem = true;
 
   // Variable: bounds
   // The position and size of this Item, represented as a <Rect>.
-  // This should never be modified without using setBounds()
   this.bounds = null;
 
   // Variable: zIndex
   // The z-index for this item.
   this.zIndex = 0;
 
+  // Variable: debug
+  // When set to true, displays a rectangle on the screen that corresponds with bounds.
+  // May be used for additional debugging features in the future.
+  this.debug = false;
+
+  // Variable: $debug
+  // If <debug> is true, this will be the iQ object for the visible rectangle.
+  this.$debug = null;
+
   // Variable: container
   // The outermost DOM element that describes this item on screen.
   this.container = null;
+
+  // Variable: locked
+  // Affects whether an item can be pushed, closed, renamed, etc
+  //
+  // The object may have properties to specify what can't be changed:
+  //   .bounds - true if it can't be pushed, dragged, resized, etc
+  //   .close - true if it can't be closed
+  //   .title - true if it can't be renamed
+  this.locked = null;
 
   // Variable: parent
   // The groupItem that this item is a child of
@@ -122,14 +138,14 @@ function Item() {
   this.isDragging = false;
 };
 
-Item.prototype = {
+window.Item.prototype = {
   // ----------
   // Function: _init
   // Initializes the object. To be called from the subclass's intialization function.
   //
   // Parameters:
   //   container - the outermost DOM element that describes this item onscreen.
-  _init: function Item__init(container) {
+  _init: function(container) {
     Utils.assert(typeof this.addSubscriber == 'function' && 
         typeof this.removeSubscriber == 'function' && 
         typeof this._sendToSubscribers == 'function',
@@ -140,10 +156,20 @@ Item.prototype = {
     Utils.assert(typeof this.close == 'function', 'Subclass must provide close');
     Utils.assert(typeof this.save == 'function', 'Subclass must provide save');
     Utils.assert(Utils.isPoint(this.defaultSize), 'Subclass must provide defaultSize');
+    Utils.assert(this.locked, 'Subclass must provide locked');
     Utils.assert(Utils.isRect(this.bounds), 'Subclass must provide bounds');
 
     this.container = container;
-    this.$container = iQ(container);
+
+    if (this.debug) {
+      this.$debug = iQ('<div>')
+        .css({
+          border: '2px solid green',
+          zIndex: -10,
+          position: 'absolute'
+        })
+        .appendTo('body');
+    }
 
     iQ(this.container).data('item', this);
 
@@ -151,12 +177,8 @@ Item.prototype = {
     this.dragOptions = {
       cancelClass: 'close stackExpander',
       start: function(e, ui) {
-        UI.setActive(this);
         if (this.isAGroupItem)
-          this._unfreezeItemSize();
-        // if we start dragging a tab within a group, start with dropSpace on.
-        else if (this.parent != null)
-          this.parent._dropSpaceActive = true;
+          GroupItems.setActiveGroupItem(this);
         drag.info = new Drag(this, e);
       },
       drag: function(e) {
@@ -165,21 +187,17 @@ Item.prototype = {
       stop: function() {
         drag.info.stop();
         drag.info = null;
-        if (!this.isAGroupItem && !this.parent)
-          gTabView.firstUseExperienced = true;
-      },
-      // The minimum the mouse must move after mouseDown in order to move an 
-      // item
-      minDragDistance: 3
+      }
     };
 
     // ___ drop
     this.dropOptions = {
       over: function() {},
       out: function() {
-        let groupItem = drag.info.item.parent;
+        var groupItem = drag.info.item.parent;
         if (groupItem)
-          groupItem.remove(drag.info.$el);
+          groupItem.remove(drag.info.$el, {dontClose: true});
+
         iQ(this.container).removeClass("acceptsDrop");
       },
       drop: function(event) {
@@ -195,22 +213,25 @@ Item.prototype = {
 
     // ___ resize
     var self = this;
+    var resizeInfo = null;
     this.resizeOptions = {
       aspectRatio: self.keepProportional,
       minWidth: 90,
       minHeight: 90,
       start: function(e,ui) {
-        UI.setActive(this);
-        resize.info = new Drag(this, e);
+        if (this.isAGroupItem)
+          GroupItems.setActiveGroupItem(this);
+        resizeInfo = new Drag(this, e, true); // true = isResizing
       },
       resize: function(e,ui) {
-        resize.info.snap(UI.rtl ? 'topright' : 'topleft', false, self.keepProportional);
+        // TODO: maybe the stationaryCorner should be topright for rtl langs?
+        resizeInfo.snap('topleft', false, self.keepProportional);
       },
       stop: function() {
         self.setUserSize();
         self.pushAway();
-        resize.info.stop();
-        resize.info = null;
+        resizeInfo.stop();
+        resizeInfo = null;
       }
     };
   },
@@ -218,15 +239,15 @@ Item.prototype = {
   // ----------
   // Function: getBounds
   // Returns a copy of the Item's bounds as a <Rect>.
-  getBounds: function Item_getBounds() {
-    Utils.assert(Utils.isRect(this.bounds), 'this.bounds should be a rect');
+  getBounds: function() {
+    Utils.assert(Utils.isRect(this.bounds), 'this.bounds');
     return new Rect(this.bounds);
   },
 
   // ----------
   // Function: overlapsWithOtherItems
   // Returns true if this Item overlaps with any other Item on the screen.
-  overlapsWithOtherItems: function Item_overlapsWithOtherItems() {
+  overlapsWithOtherItems: function() {
     var self = this;
     var items = Items.getTopLevelItems();
     var bounds = this.getBounds();
@@ -247,7 +268,7 @@ Item.prototype = {
   //   top - the new top coordinate relative to the window
   //   immediately - if false or omitted, animates to the new position;
   //   otherwise goes there immediately
-  setPosition: function Item_setPosition(left, top, immediately) {
+  setPosition: function(left, top, immediately) {
     Utils.assert(Utils.isRect(this.bounds), 'this.bounds');
     this.setBounds(new Rect(left, top, this.bounds.width, this.bounds.height), immediately);
   },
@@ -261,7 +282,7 @@ Item.prototype = {
   //   height - the new height in pixels
   //   immediately - if false or omitted, animates to the new size;
   //   otherwise resizes immediately
-  setSize: function Item_setSize(width, height, immediately) {
+  setSize: function(width, height, immediately) {
     Utils.assert(Utils.isRect(this.bounds), 'this.bounds');
     this.setBounds(new Rect(this.bounds.left, this.bounds.top, width, height), immediately);
   },
@@ -269,7 +290,7 @@ Item.prototype = {
   // ----------
   // Function: setUserSize
   // Remembers the current size as one the user has chosen.
-  setUserSize: function Item_setUserSize() {
+  setUserSize: function() {
     Utils.assert(Utils.isRect(this.bounds), 'this.bounds');
     this.userSize = new Point(this.bounds.width, this.bounds.height);
     this.save();
@@ -278,14 +299,14 @@ Item.prototype = {
   // ----------
   // Function: getZ
   // Returns the zIndex of the Item.
-  getZ: function Item_getZ() {
+  getZ: function() {
     return this.zIndex;
   },
 
   // ----------
   // Function: setRotation
   // Rotates the object to the given number of degrees.
-  setRotation: function Item_setRotation(degrees) {
+  setRotation: function(degrees) {
     var value = degrees ? "rotate(%deg)".replace(/%/, degrees) : null;
     iQ(this.container).css({"-moz-transform": value});
   },
@@ -293,7 +314,7 @@ Item.prototype = {
   // ----------
   // Function: setParent
   // Sets the receiver's parent to the given <Item>.
-  setParent: function Item_setParent(parent) {
+  setParent: function(parent) {
     this.parent = parent;
     this.removeTrenches();
     this.save();
@@ -302,10 +323,7 @@ Item.prototype = {
   // ----------
   // Function: pushAway
   // Pushes all other items away so none overlap this Item.
-  //
-  // Parameters:
-  //  immediately - boolean for doing the pushAway without animation
-  pushAway: function Item_pushAway(immediately) {
+  pushAway: function() {
     var buffer = Math.floor(Items.defaultGutter / 2);
 
     var items = Items.getTopLevelItems();
@@ -323,7 +341,7 @@ Item.prototype = {
     var itemsToPush = [this];
     this.pushAwayData.generation = 0;
 
-    var pushOne = function Item_pushAway_pushOne(baseItem) {
+    var pushOne = function(baseItem) {
       // the baseItem is an n-generation pushed item. (n could be 0)
       var baseData = baseItem.pushAwayData;
       var bb = new Rect(baseData.bounds);
@@ -333,8 +351,8 @@ Item.prototype = {
       // bbc = center of the base's bounds
       var bbc = bb.center();
 
-      items.forEach(function Item_pushAway_pushOne_pushEach(item) {
-        if (item == baseItem)
+      items.forEach(function(item) {
+        if (item == baseItem || item.locked.bounds)
           return;
 
         var data = item.pushAwayData;
@@ -395,12 +413,12 @@ Item.prototype = {
 
     // ___ Squish!
     var pageBounds = Items.getSafeWindowBounds();
-    items.forEach(function Item_pushAway_squish(item) {
+    items.forEach(function(item) {
       var data = item.pushAwayData;
-      if (data.generation == 0)
+      if (data.generation == 0 || item.locked.bounds)
         return;
 
-      let apply = function Item_pushAway_squish_apply(item, posStep, posStep2, sizeStep) {
+      function apply(item, posStep, posStep2, sizeStep) {
         var data = item.pushAwayData;
         if (data.generation == 0)
           return;
@@ -411,21 +429,15 @@ Item.prototype = {
         bounds.left += posStep.x;
         bounds.top += posStep.y;
 
-        let validSize;
-        if (item.isAGroupItem) {
-          validSize = GroupItems.calcValidSize(
-            new Point(bounds.width, bounds.height));
-          bounds.width = validSize.x;
-          bounds.height = validSize.y;
-        } else {
+        if (!item.isAGroupItem) {
           if (sizeStep.y > sizeStep.x) {
-            validSize = TabItems.calcValidSize(new Point(-1, bounds.height));
-            bounds.left += (bounds.width - validSize.x) / 2;
-            bounds.width = validSize.x;
+            var newWidth = bounds.height * (TabItems.tabWidth / TabItems.tabHeight);
+            bounds.left += (bounds.width - newWidth) / 2;
+            bounds.width = newWidth;
           } else {
-            validSize = TabItems.calcValidSize(new Point(bounds.width, -1));
-            bounds.top += (bounds.height - validSize.y) / 2;
-            bounds.height = validSize.y;        
+            var newHeight = bounds.width * (TabItems.tabHeight / TabItems.tabWidth);
+            bounds.top += (bounds.height - newHeight) / 2;
+            bounds.height = newHeight;
           }
         }
 
@@ -445,7 +457,7 @@ Item.prototype = {
         posStep.x = pageBounds.left - bounds.left;
         sizeStep.x = posStep.x / data.generation;
         posStep2.x = -sizeStep.x;
-      } else if (bounds.right > pageBounds.right) { // this may be less of a problem post-601534
+      } else if (bounds.right > pageBounds.right) {
         posStep.x = pageBounds.right - bounds.right;
         sizeStep.x = -posStep.x / data.generation;
         posStep.x += sizeStep.x;
@@ -456,7 +468,7 @@ Item.prototype = {
         posStep.y = pageBounds.top - bounds.top;
         sizeStep.y = posStep.y / data.generation;
         posStep2.y = -sizeStep.y;
-      } else if (bounds.bottom > pageBounds.bottom) { // this may be less of a problem post-601534
+      } else if (bounds.bottom > pageBounds.bottom) {
         posStep.y = pageBounds.bottom - bounds.bottom;
         sizeStep.y = -posStep.y / data.generation;
         posStep.y += sizeStep.y;
@@ -464,12 +476,12 @@ Item.prototype = {
       }
 
       if (posStep.x || posStep.y || sizeStep.x || sizeStep.y)
-        apply(item, posStep, posStep2, sizeStep);        
+        apply(item, posStep, posStep2, sizeStep);
     });
 
     // ___ Unsquish
     var pairs = [];
-    items.forEach(function Item_pushAway_setupUnsquish(item) {
+    items.forEach(function(item) {
       var data = item.pushAwayData;
       pairs.push({
         item: item,
@@ -480,19 +492,29 @@ Item.prototype = {
     Items.unsquish(pairs);
 
     // ___ Apply changes
-    items.forEach(function Item_pushAway_setBounds(item) {
+    items.forEach(function(item) {
       var data = item.pushAwayData;
       var bounds = data.bounds;
       if (!bounds.equals(data.startBounds)) {
-        item.setBounds(bounds, immediately);
+        item.setBounds(bounds);
       }
     });
   },
 
   // ----------
+  // Function: _updateDebugBounds
+  // Called by a subclass when its bounds change, to update the debugging rectangles on screen.
+  // This functionality is enabled only by the debug property.
+  _updateDebugBounds: function() {
+    if (this.$debug) {
+      this.$debug.css(this.bounds.css());
+    }
+  },
+
+  // ----------
   // Function: setTrenches
   // Sets up/moves the trenches for snapping to this item.
-  setTrenches: function Item_setTrenches(rect) {
+  setTrenches: function(rect) {
     if (this.parent !== null)
       return;
 
@@ -519,7 +541,7 @@ Item.prototype = {
   // ----------
   // Function: removeTrenches
   // Removes the trenches for snapping to this item.
-  removeTrenches: function Item_removeTrenches() {
+  removeTrenches: function() {
     for (var edge in this.borderTrenches) {
       Trenches.unregister(this.borderTrenches[edge]); // unregister can take an array
     }
@@ -533,19 +555,16 @@ Item.prototype = {
   // ----------
   // Function: snap
   // The snap function used during groupItem creation via drag-out
-  //
-  // Parameters:
-  //  immediately - bool for having the drag do the final positioning without animation
-  snap: function Item_snap(immediately) {
+  snap: function Item_snap() {
     // make the snapping work with a wider range!
     var defaultRadius = Trenches.defaultRadius;
     Trenches.defaultRadius = 2 * defaultRadius; // bump up from 10 to 20!
 
     var event = {startPosition:{}}; // faux event
-    var FauxDragInfo = new Drag(this, event, true);
-    // true == isFauxDrag
-    FauxDragInfo.snap('none', false);
-    FauxDragInfo.stop(immediately);
+    var FauxDragInfo = new Drag(this,event,false,true);
+    // false == isDragging, true == isFauxDrag
+    FauxDragInfo.snap('none',false);
+    FauxDragInfo.stop();
 
     Trenches.defaultRadius = defaultRadius;
   },
@@ -553,7 +572,7 @@ Item.prototype = {
   // ----------
   // Function: draggable
   // Enables dragging on this item. Note: not to be called multiple times on the same item!
-  draggable: function Item_draggable() {
+  draggable: function() {
     try {
       Utils.assert(this.dragOptions, 'dragOptions');
 
@@ -570,8 +589,28 @@ Item.prototype = {
       var droppables;
       var dropTarget;
 
-      // determine the best drop target based on the current mouse coordinates
-      let determineBestDropTarget = function (e, box) {
+      // ___ mousemove
+      var handleMouseMove = function(e) {
+        // positioning
+        var mouse = new Point(e.pageX, e.pageY);
+        var box = self.getBounds();
+        box.left = startPos.x + (mouse.x - startMouse.x);
+        box.top = startPos.y + (mouse.y - startMouse.y);
+
+        self.setBounds(box, true);
+
+        // drag events
+        if (!startSent) {
+          if (typeof self.dragOptions.start == "function")
+            self.dragOptions.start.apply(self,
+                [startEvent, {position: {left: startPos.x, top: startPos.y}}]);
+
+          startSent = true;
+        }
+
+        if (typeof self.dragOptions.drag == "function")
+          self.dragOptions.drag.apply(self, [e]);
+
         // drop events
         var best = {
           dropTarget: null,
@@ -596,57 +635,20 @@ Item.prototype = {
           }
         });
 
-        return best.dropTarget;
-      }
-
-      // ___ mousemove
-      var handleMouseMove = function(e) {
-        // global drag tracking
-        drag.lastMoveTime = Date.now();
-
-        // positioning
-        var mouse = new Point(e.pageX, e.pageY);
-        if (!startSent) {
-          if(Math.abs(mouse.x - startMouse.x) > self.dragOptions.minDragDistance ||
-             Math.abs(mouse.y - startMouse.y) > self.dragOptions.minDragDistance) {
-            if (typeof self.dragOptions.start == "function")
-              self.dragOptions.start.apply(self,
-                  [startEvent, {position: {left: startPos.x, top: startPos.y}}]);
-            startSent = true;
-          }
-        }
-        if (startSent) {
-          // drag events
-          var box = self.getBounds();
-          box.left = startPos.x + (mouse.x - startMouse.x);
-          box.top = startPos.y + (mouse.y - startMouse.y);
-          self.setBounds(box, true);
-
-          if (typeof self.dragOptions.drag == "function")
-            self.dragOptions.drag.apply(self, [e]);
-
-          let bestDropTarget = determineBestDropTarget(e, box);
-
-          if (bestDropTarget != dropTarget) {
-            var dropOptions;
-            if (dropTarget) {
-              dropOptions = dropTarget.dropOptions;
-              if (dropOptions && typeof dropOptions.out == "function")
-                dropOptions.out.apply(dropTarget, [e]);
-            }
-
-            dropTarget = bestDropTarget;
-
-            if (dropTarget) {
-              dropOptions = dropTarget.dropOptions;
-              if (dropOptions && typeof dropOptions.over == "function")
-                dropOptions.over.apply(dropTarget, [e]);
-            }
-          }
+        if (best.dropTarget != dropTarget) {
+          var dropOptions;
           if (dropTarget) {
             dropOptions = dropTarget.dropOptions;
-            if (dropOptions && typeof dropOptions.move == "function")
-              dropOptions.move.apply(dropTarget, [e]);
+            if (dropOptions && typeof dropOptions.out == "function")
+              dropOptions.out.apply(dropTarget, [e]);
+          }
+
+          dropTarget = best.dropTarget;
+
+          if (dropTarget) {
+            dropOptions = dropTarget.dropOptions;
+            if (dropOptions && typeof dropOptions.over == "function")
+              dropOptions.over.apply(dropTarget, [e]);
           }
         }
 
@@ -659,7 +661,7 @@ Item.prototype = {
           .unbind('mousemove', handleMouseMove)
           .unbind('mouseup', handleMouseUp);
 
-        if (startSent && dropTarget) {
+        if (dropTarget) {
           var dropOptions = dropTarget.dropOptions;
           if (dropOptions && typeof dropOptions.drop == "function")
             dropOptions.drop.apply(dropTarget, [e]);
@@ -673,7 +675,7 @@ Item.prototype = {
 
       // ___ mousedown
       $container.mousedown(function(e) {
-        if (!Utils.isLeftClick(e))
+        if (Utils.isRightClick(e))
           return;
 
         var cancel = false;
@@ -689,10 +691,10 @@ Item.prototype = {
         }
 
         startMouse = new Point(e.pageX, e.pageY);
-        let bounds = self.getBounds();
-        startPos = bounds.position();
+        startPos = self.getBounds().position();
         startEvent = e;
         startSent = false;
+        dropTarget = null;
 
         droppables = [];
         iQ('.iq-droppable').each(function(elem) {
@@ -704,8 +706,6 @@ Item.prototype = {
             });
           }
         });
-
-        dropTarget = determineBestDropTarget(e, bounds);
 
         iQ(gWindow)
           .mousemove(handleMouseMove)
@@ -721,14 +721,16 @@ Item.prototype = {
   // ----------
   // Function: droppable
   // Enables or disables dropping on this item.
-  droppable: function Item_droppable(value) {
+  droppable: function(value) {
     try {
       var $container = iQ(this.container);
-      if (value) {
-        Utils.assert(this.dropOptions, 'dropOptions');
+      if (value)
         $container.addClass('iq-droppable');
-      } else
+      else {
+        Utils.assert(this.dropOptions, 'dropOptions');
+
         $container.removeClass('iq-droppable');
+      }
     } catch(e) {
       Utils.log(e);
     }
@@ -737,7 +739,7 @@ Item.prototype = {
   // ----------
   // Function: resizable
   // Enables or disables resizing of this item.
-  resizable: function Item_resizable(value) {
+  resizable: function(value) {
     try {
       var $container = iQ(this.container);
       iQ('.iq-resizable-handle', $container).remove();
@@ -752,25 +754,12 @@ Item.prototype = {
         var self = this;
         var startMouse;
         var startSize;
-        var startAspect;
 
         // ___ mousemove
         var handleMouseMove = function(e) {
-          // global resize tracking
-          resize.lastMoveTime = Date.now();
-
           var mouse = new Point(e.pageX, e.pageY);
           var box = self.getBounds();
-          if (UI.rtl) {
-            var minWidth = (self.resizeOptions.minWidth || 0);
-            var oldWidth = box.width;
-            if (minWidth != oldWidth || mouse.x < startMouse.x) {
-              box.width = Math.max(minWidth, startSize.x - (mouse.x - startMouse.x));
-              box.left -= box.width - oldWidth;
-            }
-          } else {
-            box.width = Math.max(self.resizeOptions.minWidth || 0, startSize.x + (mouse.x - startMouse.x));
-          }
+          box.width = Math.max(self.resizeOptions.minWidth || 0, startSize.x + (mouse.x - startMouse.x));
           box.height = Math.max(self.resizeOptions.minHeight || 0, startSize.y + (mouse.y - startMouse.y));
 
           if (self.resizeOptions.aspectRatio) {
@@ -807,7 +796,7 @@ Item.prototype = {
           .addClass('iq-resizable-handle iq-resizable-se')
           .appendTo($container)
           .mousedown(function(e) {
-            if (!Utils.isLeftClick(e))
+            if (Utils.isRightClick(e))
               return;
 
             startMouse = new Point(e.pageX, e.pageY);
@@ -834,14 +823,7 @@ Item.prototype = {
 // ##########
 // Class: Items
 // Keeps track of all Items.
-let Items = {
-  // ----------
-  // Function: toString
-  // Prints [Items] for debug use
-  toString: function Items_toString() {
-    return "[Items]";
-  },
-
+window.Items = {
   // ----------
   // Variable: defaultGutter
   // How far apart Items should be from each other and from bounds
@@ -850,14 +832,14 @@ let Items = {
   // ----------
   // Function: item
   // Given a DOM element representing an Item, returns the Item.
-  item: function Items_item(el) {
+  item: function(el) {
     return iQ(el).data('item');
   },
 
   // ----------
   // Function: getTopLevelItems
   // Returns an array of all Items not grouped into groupItems.
-  getTopLevelItems: function Items_getTopLevelItems() {
+  getTopLevelItems: function() {
     var items = [];
 
     iQ('.tab, .groupItem, .info-item').each(function(elem) {
@@ -873,7 +855,7 @@ let Items = {
   // ----------
   // Function: getPageBounds
   // Returns a <Rect> defining the area of the page <Item>s should stay within.
-  getPageBounds: function Items_getPageBounds() {
+  getPageBounds: function() {
     var width = Math.max(100, window.innerWidth);
     var height = Math.max(100, window.innerHeight);
     return new Rect(0, 0, width, height);
@@ -882,7 +864,7 @@ let Items = {
   // ----------
   // Function: getSafeWindowBounds
   // Returns the bounds within which it is safe to place all non-stationary <Item>s.
-  getSafeWindowBounds: function Items_getSafeWindowBounds() {
+  getSafeWindowBounds: function() {
     // the safe bounds that would keep it "in the window"
     var gutter = Items.defaultGutter;
     // Here, I've set the top gutter separately, as the top of the window has its own
@@ -900,51 +882,41 @@ let Items = {
   // maximizing item size but maintaining standard tab aspect ratio for each
   //
   // Parameters:
-  //   items - an array of <Item>s. Can be null, in which case we won't
-  //     actually move anything.
+  //   items - an array of <Item>s. Can be null if the pretend and count options are set.
   //   bounds - a <Rect> defining the space to arrange within
   //   options - an object with various properites (see below)
   //
   // Possible "options" properties:
   //   animate - whether to animate; default: true.
   //   z - the z index to set all the items; default: don't change z.
-  //   return - if set to 'widthAndColumns', it'll return an object with the
-  //     width of children and the columns.
-  //   count - overrides the item count for layout purposes;
-  //     default: the actual item count
-  //   columns - (int) a preset number of columns to use
-  //   dropPos - a <Point> which should have a one-tab space left open, used
-  //             when a tab is dragged over.
+  //   pretend - whether to collect and return the rectangle rather than moving the items; default: false
+  //   count - overrides the item count for layout purposes; default: the actual item count
+  //   padding - pixels between each item
   //
   // Returns:
-  //   By default, an object with three properties: `rects`, the list of <Rect>s,
-  //   `dropIndex`, the index which a dragged tab should have if dropped
-  //   (null if no `dropPos` was specified), and the number of columns (`columns`).
-  //   If the `return` option is set to 'widthAndColumns', an object with the
-  //   width value of the child items (`childWidth`) and the number of columns
-  //   (`columns`) is returned.
-  arrange: function Items_arrange(items, bounds, options) {
-    if (!options)
+  //   the list of rectangles if the pretend option is set; otherwise null
+  arrange: function(items, bounds, options) {
+    var animate;
+    if (!options || typeof options.animate == 'undefined')
+      animate = true;
+    else
+      animate = options.animate;
+
+    if (typeof options == 'undefined')
       options = {};
-    var animate = "animate" in options ? options.animate : true;
-    var immediately = !animate;
 
-    var rects = [];
+    var rects = null;
+    if (options.pretend)
+      rects = [];
 
+    var tabAspect = TabItems.tabHeight / TabItems.tabWidth;
     var count = options.count || (items ? items.length : 0);
-    if (options.addTab)
-      count++;
-    if (!count) {
-      let dropIndex = (Utils.isPoint(options.dropPos)) ? 0 : null;
-      return {rects: rects, dropIndex: dropIndex};
-    }
+    if (!count)
+      return rects;
 
-    var columns = options.columns || 1;
-    // We'll assume for the time being that all the items have the same styling
-    // and that the margin is the same width around.
-    var itemMargin = items && items.length ?
-                       parseInt(iQ(items[0].container).css('margin-left')) : 0;
-    var padding = itemMargin * 2;
+    var columns = 1;
+    var padding = options.padding || 0;
+    var yScale = 1.1; // to allow for titles
     var rows;
     var tabWidth;
     var tabHeight;
@@ -952,13 +924,9 @@ let Items = {
 
     function figure() {
       rows = Math.ceil(count / columns);
-      let validSize = TabItems.calcValidSize(
-        new Point((bounds.width - (padding * columns)) / columns, -1),
-        options);
-      tabWidth = validSize.x;
-      tabHeight = validSize.y;
-
-      totalHeight = (tabHeight * rows) + (padding * rows);    
+      tabWidth = (bounds.width - (padding * (columns - 1))) / columns;
+      tabHeight = tabWidth * tabAspect;
+      totalHeight = (tabHeight * yScale * rows) + (padding * (rows - 1));
     }
 
     figure();
@@ -969,51 +937,43 @@ let Items = {
     }
 
     if (rows == 1) {
-      let validSize = TabItems.calcValidSize(new Point(tabWidth,
-        bounds.height - 2 * itemMargin), options);
-      tabWidth = validSize.x;
-      tabHeight = validSize.y;
+      var maxWidth = Math.max(TabItems.tabWidth, bounds.width / 2);
+      tabWidth = Math.min(Math.min(maxWidth, bounds.width / count), bounds.height / tabAspect);
+      tabHeight = tabWidth * tabAspect;
     }
-    
-    if (options.return == 'widthAndColumns')
-      return {childWidth: tabWidth, columns: columns};
 
-    let initialOffset = 0;
-    if (UI.rtl) {
-      initialOffset = bounds.width - tabWidth - padding;
-    }
-    var box = new Rect(bounds.left + initialOffset, bounds.top, tabWidth, tabHeight);
-
+    var box = new Rect(bounds.left, bounds.top, tabWidth, tabHeight);
+    var row = 0;
     var column = 0;
+    var immediately;
 
-    var dropIndex = false;
-    var dropRect = false;
-    if (Utils.isPoint(options.dropPos))
-      dropRect = new Rect(options.dropPos.x, options.dropPos.y, 1, 1);
-    for (let a = 0; a < count; a++) {
-      // If we had a dropPos, see if this is where we should place it
-      if (dropRect) {
-        let activeBox = new Rect(box);
-        activeBox.inset(-itemMargin - 1, -itemMargin - 1);
-        // if the designated position (dropRect) is within the active box,
-        // this is where, if we drop the tab being dragged, it should land!
-        if (activeBox.contains(dropRect))
-          dropIndex = a;
+    var a;
+    for (a = 0; a < count; a++) {
+      immediately = !animate;
+
+      if (rects)
+        rects.push(new Rect(box));
+      else if (items && a < items.length) {
+        var item = items[a];
+        if (!item.locked.bounds) {
+          item.setBounds(box, immediately);
+          item.setRotation(0);
+          if (options.z)
+            item.setZ(options.z);
+        }
       }
-      
-      // record the box.
-      rects.push(new Rect(box));
 
-      box.left += (UI.rtl ? -1 : 1) * (box.width + padding);
+      box.left += box.width + padding;
       column++;
       if (column == columns) {
-        box.left = bounds.left + initialOffset;
-        box.top += box.height + padding;
+        box.left = bounds.left;
+        box.top += (box.height * yScale) + padding;
         column = 0;
+        row++;
       }
     }
 
-    return {rects: rects, dropIndex: dropIndex, columns: columns};
+    return rects;
   },
 
   // ----------
@@ -1025,7 +985,7 @@ let Items = {
   //     modified as appropriate, but the items are not changed. If pairs is null, the
   //     operation is performed directly on all of the top level items.
   //   ignore - an <Item> to not include in calculations (because it's about to be closed, for instance)
-  unsquish: function Items_unsquish(pairs, ignore) {
+  unsquish: function(pairs, ignore) {
     var pairsProvided = (pairs ? true : false);
     if (!pairsProvided) {
       var items = Items.getTopLevelItems();
@@ -1041,7 +1001,7 @@ let Items = {
     var pageBounds = Items.getSafeWindowBounds();
     pairs.forEach(function(pair) {
       var item = pair.item;
-      if (item == ignore)
+      if (item.locked.bounds || item == ignore)
         return;
 
       var bounds = pair.bounds;
@@ -1050,12 +1010,8 @@ let Items = {
       var newSize;
       if (Utils.isPoint(item.userSize))
         newSize = new Point(item.userSize);
-      else if (item.isAGroupItem)
-        newSize = GroupItems.calcValidSize(
-          new Point(GroupItems.minGroupWidth, -1));
       else
-        newSize = TabItems.calcValidSize(
-          new Point(TabItems.tabWidth, -1));
+        newSize = new Point(TabItems.tabWidth, TabItems.tabHeight);
 
       if (item.isAGroupItem) {
           newBounds.width = Math.max(newBounds.width, newSize.x);

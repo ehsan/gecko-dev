@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 var gParser = new DOMParser;
+var gProc = new XSLTProcessor;
 var gTimeout;
 
 function Test(aTitle, aSourceURL, aStyleURL, aNumber, aObserver)
@@ -60,10 +61,9 @@ function runTest(aTitle, aSourceURL, aStyleURL, aNumber, aObserver)
 
 function onNextTransform(aTest, aNumber)
 {
-    var proc = new XSLTProcessor;
+    res = document.implementation.createDocument('', '', null);
     var startTime = Date.now();
-    proc.importStylesheet(aTest.mStyle);
-    var res = proc.transformToDocument(aTest.mSource);
+    gProc.transformDocument(aTest.mSource, aTest.mStyle, res, null);
     var endTime = Date.now();
     aNumber++;
     var progress = aNumber / aTest.mTotal * 100;

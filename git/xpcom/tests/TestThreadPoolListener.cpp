@@ -48,7 +48,7 @@
 #include "prmon.h"
 #include "prthread.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 using namespace mozilla;
 
 #define NUMBER_OF_THREADS 4
@@ -59,7 +59,7 @@ using namespace mozilla;
 static nsIThread** gCreatedThreadList = nsnull;
 static nsIThread** gShutDownThreadList = nsnull;
 
-static ReentrantMonitor* gReentrantMonitor = nsnull;
+static Monitor* gMonitor = nsnull;
 
 static PRBool gAllRunnablesPosted = PR_FALSE;
 static PRBool gAllThreadsCreated = PR_FALSE;
@@ -92,7 +92,7 @@ Listener::OnThreadCreated()
   nsCOMPtr<nsIThread> current(do_GetCurrentThread());
   TEST_ASSERTION(current, "Couldn't get current thread!");
 
-  ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+  MonitorAutoEnter mon(*gMonitor);
 
   while (!gAllRunnablesPosted) {
     mon.Wait();
@@ -122,7 +122,7 @@ Listener::OnThreadShuttingDown()
   nsCOMPtr<nsIThread> current(do_GetCurrentThread());
   TEST_ASSERTION(current, "Couldn't get current thread!");
 
-  ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+  MonitorAutoEnter mon(*gMonitor);
 
   for (PRUint32 i = 0; i < NUMBER_OF_THREADS; i++) {
     nsIThread* thread = gShutDownThreadList[i];
@@ -142,24 +142,24 @@ Listener::OnThreadShuttingDown()
   return NS_ERROR_FAILURE;
 }
 
-class AutoCreateAndDestroyReentrantMonitor
+class AutoCreateAndDestroyMonitor
 {
 public:
-  AutoCreateAndDestroyReentrantMonitor(ReentrantMonitor** aReentrantMonitorPtr)
-  : mReentrantMonitorPtr(aReentrantMonitorPtr) {
-    *aReentrantMonitorPtr = new ReentrantMonitor("TestThreadPoolListener::AutoMon");
-    TEST_ASSERTION(*aReentrantMonitorPtr, "Out of memory!");
+  AutoCreateAndDestroyMonitor(Monitor** aMonitorPtr)
+  : mMonitorPtr(aMonitorPtr) {
+    *aMonitorPtr = new Monitor("TestThreadPoolListener::AutoMon");
+    TEST_ASSERTION(*aMonitorPtr, "Out of memory!");
   }
 
-  ~AutoCreateAndDestroyReentrantMonitor() {
-    if (*mReentrantMonitorPtr) {
-      delete *mReentrantMonitorPtr;
-      *mReentrantMonitorPtr = nsnull;
+  ~AutoCreateAndDestroyMonitor() {
+    if (*mMonitorPtr) {
+      delete *mMonitorPtr;
+      *mMonitorPtr = nsnull;
     }
   }
 
 private:
-  ReentrantMonitor** mReentrantMonitorPtr;
+  Monitor** mMonitorPtr;
 };
 
 int main(int argc, char** argv)
@@ -173,8 +173,8 @@ int main(int argc, char** argv)
   nsIThread* shutDownThreadList[NUMBER_OF_THREADS] = { nsnull };
   gShutDownThreadList = shutDownThreadList;
 
-  AutoCreateAndDestroyReentrantMonitor newMon(&gReentrantMonitor);
-  NS_ENSURE_TRUE(gReentrantMonitor, 1);
+  AutoCreateAndDestroyMonitor newMon(&gMonitor);
+  NS_ENSURE_TRUE(gMonitor, 1);
 
   nsresult rv;
 
@@ -205,7 +205,7 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
     for (PRUint32 i = 0; i < NUMBER_OF_THREADS; i++) {
       nsCOMPtr<nsIRunnable> runnable = new nsRunnable();
@@ -220,7 +220,7 @@ int main(int argc, char** argv)
   }
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
     while (!gAllThreadsCreated) {
       mon.Wait();
     }
@@ -230,7 +230,7 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
     while (!gAllThreadsShutDown) {
       mon.Wait();
     }

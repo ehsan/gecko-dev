@@ -11,13 +11,14 @@ function run_test() {
   const profileDir = gProfD.clone();
   profileDir.append("extensions");
 
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("addon1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
     optionsURL: "chrome://test/content/options.xul",
     aboutURL: "chrome://test/content/about.xul",
     iconURL: "chrome://test/skin/icon.png",
-    icon64URL: "chrome://test/skin/icon64.png",
     targetApplications: [{
       id: "xpcshell@tests.mozilla.org",
       minVersion: "1",
@@ -39,9 +40,11 @@ function run_test() {
       "Test Contributor 1",
       "Test Contributor 2"
     ]
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon2@tests.mozilla.org",
     version: "1.0",
     updateURL: "https://www.foo.com",
@@ -51,9 +54,11 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 2"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon3@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon3@tests.mozilla.org",
     version: "1.0",
     updateURL: "http://www.foo.com",
@@ -63,9 +68,11 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 3"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon4@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon4@tests.mozilla.org",
     version: "1.0",
     updateURL: "http://www.foo.com",
@@ -76,9 +83,11 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 4"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon5@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon5@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -87,9 +96,11 @@ function run_test() {
       maxVersion: "*"
     }],
     name: "Test Addon 5"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon6@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon6@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -98,9 +109,11 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 6"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon7@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon7@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -109,9 +122,11 @@ function run_test() {
       maxVersion: "0"
     }],
     name: "Test Addon 7"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon8@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon8@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -120,9 +135,11 @@ function run_test() {
       maxVersion: "*"
     }],
     name: "Test Addon 8"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon9@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon9@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -131,9 +148,11 @@ function run_test() {
       maxVersion: "1.9.*"
     }],
     name: "Test Addon 9"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon10@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon10@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -142,9 +161,11 @@ function run_test() {
       maxVersion: "1.9.*"
     }],
     name: "Test Addon 10"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon11@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon11@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -153,9 +174,11 @@ function run_test() {
       maxVersion: "1.9.2"
     }],
     name: "Test Addon 11"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon12@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon12@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -164,9 +187,11 @@ function run_test() {
       maxVersion: "1.9.1.*"
     }],
     name: "Test Addon 12"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon13@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon13@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -179,9 +204,11 @@ function run_test() {
       maxVersion: "0.5"
     }],
     name: "Test Addon 13"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon14@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon14@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -194,9 +221,11 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 14"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon15@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon15@tests.mozilla.org",
     version: "1.0",
     updateKey: "foo",
@@ -206,9 +235,11 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 15"
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("addon16@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon16@tests.mozilla.org",
     version: "1.0",
     updateKey: "foo",
@@ -219,69 +250,7 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 16"
-  }, profileDir);
-
-  writeInstallRDFForExtension({
-    id: "addon17@tests.mozilla.org",
-    version: "1.0",
-    optionsURL: "chrome://test/content/options.xul",
-    optionsType: "2",
-    targetApplications: [{
-      id: "xpcshell@tests.mozilla.org",
-      minVersion: "1",
-      maxVersion: "1"
-    }],
-    name: "Test Addon 17"
-  }, profileDir);
-
-  writeInstallRDFForExtension({
-    id: "addon18@tests.mozilla.org",
-    version: "1.0",
-    targetApplications: [{
-      id: "xpcshell@tests.mozilla.org",
-      minVersion: "1",
-      maxVersion: "1"
-    }],
-    name: "Test Addon 18"
-  }, profileDir, null, "options.xul");
-
-  writeInstallRDFForExtension({
-    id: "addon19@tests.mozilla.org",
-    version: "1.0",
-    optionsType: "99",
-    targetApplications: [{
-      id: "xpcshell@tests.mozilla.org",
-      minVersion: "1",
-      maxVersion: "1"
-    }],
-    name: "Test Addon 19"
-  }, profileDir);
-
-  writeInstallRDFForExtension({
-    id: "addon20@tests.mozilla.org",
-    version: "1.0",
-    optionsType: "1",
-    optionsURL: "chrome://test/content/options.xul",
-    targetApplications: [{
-      id: "xpcshell@tests.mozilla.org",
-      minVersion: "1",
-      maxVersion: "1"
-    }],
-    name: "Test Addon 20"
-  }, profileDir);
-
-  writeInstallRDFForExtension({
-    id: "addon21@tests.mozilla.org",
-    version: "1.0",
-    optionsType: "3",
-    optionsURL: "chrome://test/content/options.xul",
-    targetApplications: [{
-      id: "xpcshell@tests.mozilla.org",
-      minVersion: "1",
-      maxVersion: "1"
-    }],
-    name: "Test Addon 21"
-  }, profileDir);
+  }, dest);
 
   do_test_pending();
   startupManager();
@@ -300,25 +269,17 @@ function run_test() {
                                "addon13@tests.mozilla.org",
                                "addon14@tests.mozilla.org",
                                "addon15@tests.mozilla.org",
-                               "addon16@tests.mozilla.org",
-                               "addon17@tests.mozilla.org",
-                               "addon18@tests.mozilla.org",
-                               "addon19@tests.mozilla.org",
-                               "addon20@tests.mozilla.org",
-                               "addon21@tests.mozilla.org"],
+                               "addon16@tests.mozilla.org"],
                                function([a1, a2, a3, a4, a5, a6, a7, a8, a9, a10,
-                                         a11, a12, a13, a14, a15, a16, a17, a18, a19, a20,
-                                         a21]) {
+                                         a11, a12, a13, a14, a15, a16]) {
 
     do_check_neq(a1, null);
     do_check_eq(a1.id, "addon1@tests.mozilla.org");
     do_check_eq(a1.type, "extension");
     do_check_eq(a1.version, "1.0");
     do_check_eq(a1.optionsURL, "chrome://test/content/options.xul");
-    do_check_eq(a1.optionsType, AddonManager.OPTIONS_TYPE_DIALOG);
     do_check_eq(a1.aboutURL, "chrome://test/content/about.xul");
     do_check_eq(a1.iconURL, "chrome://test/skin/icon.png");
-    do_check_eq(a1.icon64URL, "chrome://test/skin/icon64.png");
     do_check_eq(a1.name, "Test Addon 1");
     do_check_eq(a1.description, "Test Description");
     do_check_eq(a1.creator, "Test Creator");
@@ -430,46 +391,6 @@ function run_test() {
     do_check_false(a16.appDisabled);
     do_check_true(a16.isCompatible);
     do_check_true(a16.providesUpdatesSecurely);
-
-    do_check_neq(a17, null);
-    do_check_true(a17.isActive);
-    do_check_false(a17.userDisabled);
-    do_check_false(a17.appDisabled);
-    do_check_true(a17.isCompatible);
-    do_check_eq(a17.optionsURL, "chrome://test/content/options.xul");
-    do_check_eq(a17.optionsType, AddonManager.OPTIONS_TYPE_INLINE);
-
-    do_check_neq(a18, null);
-    do_check_true(a18.isActive);
-    do_check_false(a18.userDisabled);
-    do_check_false(a18.appDisabled);
-    do_check_true(a18.isCompatible);
-    if (Services.prefs.getBoolPref("extensions.alwaysUnpack")) {
-      do_check_eq(a18.optionsURL, Services.io.newFileURI(profileDir).spec +
-                                  "addon18@tests.mozilla.org/options.xul");
-    } else {
-      do_check_eq(a18.optionsURL, "jar:" + Services.io.newFileURI(profileDir).spec +
-                                  "addon18@tests.mozilla.org.xpi!/options.xul");
-    }
-    do_check_eq(a18.optionsType, AddonManager.OPTIONS_TYPE_INLINE);
-
-    do_check_eq(a19, null);
-
-    do_check_neq(a20, null);
-    do_check_true(a20.isActive);
-    do_check_false(a20.userDisabled);
-    do_check_false(a20.appDisabled);
-    do_check_true(a20.isCompatible);
-    do_check_eq(a20.optionsURL, "chrome://test/content/options.xul");
-    do_check_eq(a20.optionsType, AddonManager.OPTIONS_TYPE_DIALOG);
-
-    do_check_neq(a21, null);
-    do_check_true(a21.isActive);
-    do_check_false(a21.userDisabled);
-    do_check_false(a21.appDisabled);
-    do_check_true(a21.isCompatible);
-    do_check_eq(a21.optionsURL, "chrome://test/content/options.xul");
-    do_check_eq(a21.optionsType, AddonManager.OPTIONS_TYPE_TAB);
 
     do_test_finished();
   });

@@ -50,7 +50,7 @@ namespace js {
 
 enum ASTType {
     AST_ERROR = -1,
-#define ASTDEF(ast, str, method) ast,
+#define ASTDEF(ast, str) ast,
 #include "jsast.tbl"
 #undef ASTDEF
     AST_LIMIT
@@ -111,7 +111,6 @@ enum VarDeclKind {
     VARDECL_VAR = 0,
     VARDECL_CONST,
     VARDECL_LET,
-    VARDECL_LET_HEAD,
     VARDECL_LIMIT
 };
 
@@ -129,6 +128,11 @@ extern char const *unopNames[];
 extern char const *nodeTypeNames[];
 
 } /* namespace js */
+
+extern js::Class js_ReflectClass;
+
+extern JSObject *
+js_InitReflectClass(JSContext *cx, JSObject *obj);
 
 
 #endif /* jsreflect_h___ */

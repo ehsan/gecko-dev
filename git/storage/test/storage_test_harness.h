@@ -50,7 +50,6 @@
 #include "mozIStorageAsyncStatement.h"
 #include "mozIStorageStatement.h"
 #include "mozIStoragePendingStatement.h"
-#include "mozIStorageError.h"
 #include "nsThreadUtils.h"
 
 static int gTotalTests = 0;
@@ -62,7 +61,7 @@ static int gPassedTests = 0;
     if (aCondition) { \
       gPassedTests++; \
     } else { \
-      fail("%s | Expected true, got false at line %d", __FILE__, __LINE__); \
+      fail("Expected true, got false at %s:%d!", __FILE__, __LINE__); \
     } \
   PR_END_MACRO
 
@@ -72,34 +71,15 @@ static int gPassedTests = 0;
     if (!aCondition) { \
       gPassedTests++; \
     } else { \
-      fail("%s | Expected false, got true at line %d", __FILE__, __LINE__); \
+      fail("Expected false, got true at %s:%d!", __FILE__, __LINE__); \
     } \
   PR_END_MACRO
 
 #define do_check_success(aResult) \
   do_check_true(NS_SUCCEEDED(aResult))
 
-#ifdef LINUX
-// XXX Linux opt builds on tinderbox are orange due to linking with stdlib.
-// This is sad and annoying, but it's a workaround that works.
-#define do_check_eq(aExpected, aActual) \
-  do_check_true(aExpected == aActual)
-#else
-#include <sstream>
-
-#define do_check_eq(aExpected, aActual) \
-  PR_BEGIN_MACRO \
-    gTotalTests++; \
-    if (aExpected == aActual) { \
-      gPassedTests++; \
-    } else { \
-      std::ostringstream temp; \
-      temp << __FILE__ << " | Expected '" << aExpected << "', got '"; \
-      temp << aActual <<"' at line " << __LINE__; \
-      fail(temp.str().c_str()); \
-    } \
-  PR_END_MACRO
-#endif
+#define do_check_eq(aFirst, aSecond) \
+  do_check_true(aFirst == aSecond)
 
 already_AddRefed<mozIStorageService>
 getService()
@@ -177,20 +157,6 @@ AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
 NS_IMETHODIMP
 AsyncStatementSpinner::HandleError(mozIStorageError *aError)
 {
-  PRInt32 result;
-  nsresult rv = aError->GetResult(&result);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCAutoString message;
-  rv = aError->GetMessage(message);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString warnMsg;
-  warnMsg.Append("An error occurred while executing an async statement: ");
-  warnMsg.AppendInt(result);
-  warnMsg.Append(" ");
-  warnMsg.Append(message);
-  NS_WARNING(warnMsg.get());
-
   return NS_OK;
 }
 
@@ -221,33 +187,3 @@ void AsyncStatementSpinner::SpinUntilCompleted()
 
 #define NS_DECL_ASYNCSTATEMENTSPINNER \
   NS_IMETHOD HandleResult(mozIStorageResultSet *aResultSet);
-
-////////////////////////////////////////////////////////////////////////////////
-//// Async Helpers
-
-/**
- * Execute an async statement, blocking the main thread until we get the
- * callback completion notification.
- */
-void
-blocking_async_execute(mozIStorageBaseStatement *stmt)
-{
-  nsRefPtr<AsyncStatementSpinner> spinner(new AsyncStatementSpinner());
-
-  nsCOMPtr<mozIStoragePendingStatement> pendy;
-  (void)stmt->ExecuteAsync(spinner, getter_AddRefs(pendy));
-  spinner->SpinUntilCompleted();
-}
-
-/**
- * Invoke AsyncClose on the given connection, blocking the main thread until we
- * get the completion notification.
- */
-void
-blocking_async_close(mozIStorageConnection *db)
-{
-  nsRefPtr<AsyncStatementSpinner> spinner(new AsyncStatementSpinner());
-
-  db->AsyncClose(spinner);
-  spinner->SpinUntilCompleted();
-}

@@ -51,7 +51,7 @@ using namespace js;
 /* static */ inline bool
 PropertyCache::matchShape(JSContext *cx, JSObject *obj, uint32 shape)
 {
-    return obj->shape() == shape;
+    return CX_OWNS_OBJECT_TITLE(cx, obj) && obj->shape() == shape;
 }
 
 /*
@@ -112,15 +112,19 @@ PropertyCache::testForSet(JSContext *cx, jsbytecode *pc, JSObject *obj,
     PCMETER(tests++);
     PCMETER(settests++);
     JS_ASSERT(entry->kshape < SHAPE_OVERFLOW_BIT);
-    if (entry->kpc == pc && entry->kshape == shape)
+    if (entry->kpc == pc && entry->kshape == shape && CX_OWNS_OBJECT_TITLE(cx, obj))
         return true;
 
+#ifdef DEBUG
+    JSObject *orig = obj;
+#endif
     JSAtom *atom = fullTest(cx, pc, &obj, obj2p, entry);
-    JS_ASSERT(atom);
-
-    PCMETER(misses++);
-    PCMETER(setmisses++);
-
+    if (atom) {
+        PCMETER(misses++);
+        PCMETER(setmisses++);
+    } else {
+        JS_ASSERT(obj == orig);
+    }
     *atomp = atom;
     return false;
 }
@@ -129,8 +133,8 @@ JS_ALWAYS_INLINE bool
 PropertyCache::testForInit(JSRuntime *rt, jsbytecode *pc, JSObject *obj,
                            const js::Shape **shapep, PropertyCacheEntry **entryp)
 {
-    JS_ASSERT(obj->slotSpan() >= JSSLOT_FREE(obj->getClass()));
-    JS_ASSERT(obj->isExtensible());
+    JS_ASSERT(obj->freeslot >= JSSLOT_FREE(obj->getClass()));
+    JS_ASSERT(!obj->sealed());
     uint32 kshape = obj->shape();
     PropertyCacheEntry *entry = &table[hash(pc, kshape)];
     *entryp = entry;

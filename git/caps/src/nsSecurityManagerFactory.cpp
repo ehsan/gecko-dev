@@ -52,7 +52,6 @@
 #include "nsString.h"
 #include "nsNetCID.h"
 #include "nsIClassInfoImpl.h"
-#include "jsobj.h"
 
 ///////////////////////
 // nsSecurityNameSet //
@@ -68,7 +67,7 @@ nsSecurityNameSet::~nsSecurityNameSet()
 
 NS_IMPL_ISUPPORTS1(nsSecurityNameSet, nsIScriptExternalNameSet)
 
-static JSString *
+static char *
 getStringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum, uintN argc, jsval *argv)
 {
     if (argc <= argNum || !JSVAL_IS_STRING(argv[argNum])) {
@@ -80,25 +79,20 @@ getStringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum, uintN argc, jsv
      * We don't want to use JS_ValueToString because we want to be able
      * to have an object to represent a target in subsequent versions.
      */
-    return JSVAL_TO_STRING(argv[argNum]);
-}
+    JSString *str = JSVAL_TO_STRING(argv[argNum]);
+    if (!str)
+        return nsnull;
 
-static bool
-getBytesArgument(JSContext *cx, JSObject *obj, PRUint16 argNum, uintN argc, jsval *argv,
-                 JSAutoByteString *bytes)
-{
-    JSString *str = getStringArgument(cx, obj, argNum, argc, argv);
-    return str && bytes->encode(cx, str);
+    return JS_GetStringBytes(str);
 }
 
 static void
 getUTF8StringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum,
                       uintN argc, jsval *argv, nsCString& aRetval)
 {
-    aRetval.Truncate();
-
     if (argc <= argNum || !JSVAL_IS_STRING(argv[argNum])) {
         JS_ReportError(cx, "String argument expected");
+        aRetval.Truncate();
         return;
     }
 
@@ -107,54 +101,44 @@ getUTF8StringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum,
      * to have an object to represent a target in subsequent versions.
      */
     JSString *str = JSVAL_TO_STRING(argv[argNum]);
-    if (!str)
+    if (!str) {
+        aRetval.Truncate();
         return;
+    }
 
-    const PRUnichar *data = JS_GetStringCharsZ(cx, str);
-    if (!data)
-        return;
-
+    PRUnichar *data = (PRUnichar*)JS_GetStringChars(str);
     CopyUTF16toUTF8(data, aRetval);
 }
 
 static JSBool
-netscape_security_isPrivilegeEnabled(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_isPrivilegeEnabled(JSContext *cx, JSObject *obj, uintN argc,
+                                     jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
     JSBool result = JS_FALSE;
-    if (JSString *str = getStringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp))) {
-        JSAutoByteString cap(cx, str);
-        if (!cap)
-            return JS_FALSE;
-
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
+    if (cap) {
         nsresult rv;
         nsCOMPtr<nsIScriptSecurityManager> securityManager = 
                  do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
         if (NS_SUCCEEDED(rv)) {
             //            NS_ASSERTION(cx == GetCurrentContext(), "unexpected context");
 
-            rv = securityManager->IsCapabilityEnabled(cap.ptr(), &result);
+            rv = securityManager->IsCapabilityEnabled(cap, &result);
             if (NS_FAILED(rv)) 
                 result = JS_FALSE;
         }
     }
-    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(result));
+    *rval = BOOLEAN_TO_JSVAL(result);
     return JS_TRUE;
 }
 
 
 static JSBool
-netscape_security_enablePrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_enablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                  jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    JSAutoByteString cap;
-    if (!getBytesArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), &cap))
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
+    if (!cap)
         return JS_FALSE;
 
     nsresult rv;
@@ -165,22 +149,18 @@ netscape_security_enablePrivilege(JSContext *cx, uintN argc, jsval *vp)
 
     //    NS_ASSERTION(cx == GetCurrentContext(), "unexpected context");
 
-    rv = securityManager->EnableCapability(cap.ptr());
+    rv = securityManager->EnableCapability(cap);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_disablePrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_disablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                   jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    JSAutoByteString cap;
-    if (!getBytesArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), &cap))
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
+    if (!cap)
         return JS_FALSE;
 
     nsresult rv;
@@ -191,22 +171,18 @@ netscape_security_disablePrivilege(JSContext *cx, uintN argc, jsval *vp)
 
     //    NS_ASSERTION(cx == GetCurrentContext(), "unexpected context");
 
-    rv = securityManager->DisableCapability(cap.ptr());
+    rv = securityManager->DisableCapability(cap);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_revertPrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_revertPrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                  jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    JSAutoByteString cap;
-    if (!getBytesArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), &cap))
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
+    if (!cap)
         return JS_FALSE;
 
     nsresult rv;
@@ -217,25 +193,20 @@ netscape_security_revertPrivilege(JSContext *cx, uintN argc, jsval *vp)
 
     //    NS_ASSERTION(cx == GetCurrentContext(), "unexpected context");
 
-    rv = securityManager->RevertCapability(cap.ptr());
+    rv = securityManager->RevertCapability(cap);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_setCanEnablePrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_setCanEnablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                        jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
     if (argc < 2) return JS_FALSE;
     nsCAutoString principalFingerprint;
-    getUTF8StringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), principalFingerprint);
-    JSAutoByteString cap;
-    getBytesArgument(cx, obj, 1, argc, JS_ARGV(cx, vp), &cap);
+    getUTF8StringArgument(cx, obj, 0, argc, argv, principalFingerprint);
+    char *cap = getStringArgument(cx, obj, 1, argc, argv);
     if (principalFingerprint.IsEmpty() || !cap)
         return JS_FALSE;
 
@@ -247,24 +218,19 @@ netscape_security_setCanEnablePrivilege(JSContext *cx, uintN argc, jsval *vp)
 
     //    NS_ASSERTION(cx == GetCurrentContext(), "unexpected context");
 
-    rv = securityManager->SetCanEnableCapability(principalFingerprint,
-                                                 cap.ptr(), 
+    rv = securityManager->SetCanEnableCapability(principalFingerprint, cap, 
                                                  nsIPrincipal::ENABLE_GRANTED);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_invalidate(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_invalidate(JSContext *cx, JSObject *obj, uintN argc,
+                             jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
     nsCAutoString principalFingerprint;
-    getUTF8StringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), principalFingerprint);
+    getUTF8StringArgument(cx, obj, 0, argc, argv, principalFingerprint);
     if (principalFingerprint.IsEmpty())
         return JS_FALSE;
 
@@ -281,20 +247,19 @@ netscape_security_invalidate(JSContext *cx, uintN argc, jsval *vp)
                                                  nsIPrincipal::ENABLE_GRANTED);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec PrivilegeManager_static_methods[] = {
-    { "isPrivilegeEnabled", netscape_security_isPrivilegeEnabled,   1,0},
-    { "enablePrivilege",    netscape_security_enablePrivilege,      1,0},
-    { "disablePrivilege",   netscape_security_disablePrivilege,     1,0},
-    { "revertPrivilege",    netscape_security_revertPrivilege,      1,0},
+    { "isPrivilegeEnabled", netscape_security_isPrivilegeEnabled,   1,0,0},
+    { "enablePrivilege",    netscape_security_enablePrivilege,      1,0,0},
+    { "disablePrivilege",   netscape_security_disablePrivilege,     1,0,0},
+    { "revertPrivilege",    netscape_security_revertPrivilege,      1,0,0},
     //-- System Cert Functions
     { "setCanEnablePrivilege", netscape_security_setCanEnablePrivilege,
-                                                                    2,0},
-    { "invalidate",            netscape_security_invalidate,        1,0},
-    {nsnull,nsnull,0,0}
+                                                                    2,0,0},
+    { "invalidate",            netscape_security_invalidate,        1,0,0},
+    {nsnull,nsnull,0,0,0}
 };
 
 /*
@@ -306,7 +271,6 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
 {
     JSContext *cx = (JSContext *) aScriptContext->GetNativeContext();
     JSObject *global = JS_GetGlobalObject(cx);
-    OBJ_TO_INNER_OBJECT(cx, global);
 
     /*
      * Find Object.prototype's class by walking up the global object's

@@ -42,7 +42,7 @@
 #include "nsSMILValue.h"
 #include "nsComputedDOMStyle.h"
 #include "nsStyleAnimation.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIDOMElement.h"
 
 using namespace mozilla::dom;
@@ -102,19 +102,16 @@ nsSMILCSSProperty::GetBaseValue() const
   // from ALL return points. This function must only return THIS variable:
   nsSMILValue baseValue;
 
-  // SPECIAL CASE: (a) Shorthands
-  //               (b) 'display'
-  if (nsCSSProps::IsShorthand(mPropID) || mPropID == eCSSProperty_display) {
+  // SPECIAL CASE: Shorthands
+  if (nsCSSProps::IsShorthand(mPropID)) {
     // We can't look up the base (computed-style) value of shorthand
-    // properties because they aren't guaranteed to have a consistent computed
-    // value.
-    //
-    // Also, although we can look up the base value of the display property,
-    // doing so involves clearing and resetting the property which can cause
-    // frames to be recreated which we'd like to avoid.
-    //
-    // In either case, just return a dummy value (initialized with the right
-    // type, so as not to indicate failure).
+    // properties, because they aren't guaranteed to have a consistent computed
+    // value.  However, that's not a problem, because it turns out the caller
+    // isn't going to end up using the value we return anyway. Base values only
+    // get used when there's interpolation or addition, and the shorthand
+    // properties we know about don't support those operations. So, we can just
+    // return a dummy value (initialized with the right type, so as not to
+    // indicate failure).
     nsSMILValue tmpVal(&nsSMILCSSValueType::sSingleton);
     baseValue.Swap(tmpVal);
     return baseValue;
@@ -123,8 +120,9 @@ nsSMILCSSProperty::GetBaseValue() const
   // GENERAL CASE: Non-Shorthands
   // (1) Put empty string in override style for property mPropID
   // (saving old override style value, so we can set it again when we're done)
-  nsCOMPtr<nsICSSDeclaration> overrideDecl =
-    do_QueryInterface(mElement->GetSMILOverrideStyle());
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
+  mElement->GetSMILOverrideStyle(getter_AddRefs(overrideStyle));
+  nsCOMPtr<nsICSSDeclaration> overrideDecl = do_QueryInterface(overrideStyle);
   nsAutoString cachedOverrideStyleVal;
   if (overrideDecl) {
     overrideDecl->GetPropertyValue(mPropID, cachedOverrideStyleVal);
@@ -191,8 +189,11 @@ nsSMILCSSProperty::SetAnimValue(const nsSMILValue& aValue)
   }
 
   // Use string value to style the target element
-  nsCOMPtr<nsICSSDeclaration> overrideDecl =
-    do_QueryInterface(mElement->GetSMILOverrideStyle());
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
+  mElement->GetSMILOverrideStyle(getter_AddRefs(overrideStyle));
+  NS_ABORT_IF_FALSE(overrideStyle, "Need a non-null overrideStyle");
+
+  nsCOMPtr<nsICSSDeclaration> overrideDecl = do_QueryInterface(overrideStyle);
   if (overrideDecl) {
     overrideDecl->SetPropertyValue(mPropID, valStr);
   }
@@ -203,8 +204,9 @@ void
 nsSMILCSSProperty::ClearAnimValue()
 {
   // Put empty string in override style for our property
-  nsCOMPtr<nsICSSDeclaration> overrideDecl =
-    do_QueryInterface(mElement->GetSMILOverrideStyle());
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
+  mElement->GetSMILOverrideStyle(getter_AddRefs(overrideStyle));
+  nsCOMPtr<nsICSSDeclaration> overrideDecl = do_QueryInterface(overrideStyle);
   if (overrideDecl) {
     overrideDecl->SetPropertyValue(mPropID, EmptyString());
   }
@@ -273,9 +275,7 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_stroke_opacity:
     case eCSSProperty_stroke_width:
     case eCSSProperty_text_anchor:
-    case eCSSProperty_text_blink:
     case eCSSProperty_text_decoration:
-    case eCSSProperty_text_decoration_line:
     case eCSSProperty_text_rendering:
     case eCSSProperty_visibility:
     case eCSSProperty_word_spacing:

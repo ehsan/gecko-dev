@@ -93,7 +93,7 @@ protected:
   // that was started without using a data transfer, either an external drag,
   // that is, a drag where the source is another application, or a drag
   // started by calling the drag service directly.
-  nsDOMDataTransfer(PRUint32 aEventType);
+  nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction);
 
   // this constructor is used only by the Clone method to copy the fields as
   // needed to a new data transfer.
@@ -152,7 +152,7 @@ protected:
   }
 
   // returns a weak reference to the current principal
-  nsIPrincipal* GetCurrentPrincipal(nsresult* rv);
+  nsIPrincipal* GetCurrentPrincipal();
 
   // converts some formats used for compatibility in aInFormat into aOutFormat.
   // Text and text/unicode become text/plain, and URL becomes text/uri-list

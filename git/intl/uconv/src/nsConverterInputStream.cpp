@@ -248,14 +248,13 @@ nsConverterInputStream::Fill(nsresult * aErrorCode)
       ++srcConsumed;
       // XXX this is needed to make sure we don't underrun our buffer;
       // bug 160784 again
-      srcConsumed = NS_MAX<PRUint32>(srcConsumed, 0);
+      srcConsumed = PR_MAX(srcConsumed, 0);
       mConverter->Reset();
     }
     NS_ASSERTION(srcConsumed <= mByteData->GetLength(),
                  "Whoa.  The converter should have returned NS_OK_UDEC_MOREINPUT before this point!");
   } while (mReplacementChar &&
-           NS_FAILED(*aErrorCode) &&
-           mUnicharData->GetBufferSize() > mUnicharDataLength);
+           NS_FAILED(*aErrorCode));
 
   mLeftOverBytes = mByteData->GetLength() - srcConsumed;
 

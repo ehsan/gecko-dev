@@ -62,8 +62,6 @@ var gPlayTests = [
 
   // oggz-chop stream
   { name:"bug482461.ogv", type:"video/ogg", duration:4.34 },
-  // Theora only oggz-chop stream
-  { name:"bug482461-theora.ogv", type:"video/ogg", duration:4.138 },
   // With first frame a "duplicate" (empty) frame.
   { name:"bug500311.ogv", type:"video/ogg", duration:1.96 },
   // Small audio file
@@ -74,8 +72,6 @@ var gPlayTests = [
   { name:"bug504613.ogv", type:"video/ogg", duration:Number.NaN },
   // Multiple audio streams.
   { name:"bug516323.ogv", type:"video/ogg", duration:4.208 },
-  // oggz-chop with non-keyframe as first frame
-  { name:"bug556821.ogv", type:"video/ogg", duration:2.551 },
 
   // Encoded with vorbis beta1, includes unusually sized codebooks
   { name:"beta-phrasebook.ogg", type:"audio/ogg", duration:4.01 },
@@ -111,16 +107,8 @@ var gPlayTests = [
   // Test playback of a webm file
   { name:"seek.webm", type:"video/webm", duration:3.966 },
 
-  // Test playback of a WebM file with non-zero start time.
-  { name:"split.webm", type:"video/webm", duration:1.967 },
-  
   // Test playback of a raw file
   { name:"seek.yuv", type:"video/x-raw-yuv", duration:1.833 },
-  
-  // A really short, low sample rate, single channel file. This tests whether
-  // we can handle playing files when only push very little audio data to the
-  // hardware.
-  { name:"spacestorm-1000Hz-100ms.ogg", type:"audio/ogg", duration:0.099 },
 
   { name:"bogus.duh", type:"bogus/duh", duration:Number.NaN }
   
@@ -206,20 +194,16 @@ var gErrorTests = [
   { name:"bug504843.ogv", type:"video/ogg" },
   { name:"bug501279.ogg", type:"audio/ogg" },
   { name:"bug580982.webm", type:"video/webm" },
-  { name:"bug603918.webm", type:"video/webm" },
-  { name:"bug604067.webm", type:"video/webm" },
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 
 // These are files that have nontrivial duration and are useful for seeking within.
 var gSeekTests = [
   { name:"r11025_s16_c1.wav", type:"audio/x-wav", duration:1.0 },
-  { name:"audio.wav", type:"audio/x-wav", duration:0.031247 },
   { name:"seek.ogv", type:"video/ogg", duration:3.966 },
   { name:"320x240.ogv", type:"video/ogg", duration:0.233 },
   { name:"seek.webm", type:"video/webm", duration:3.966 },
   { name:"bug516323.indexed.ogv", type:"video/ogg", duration:4.208 },
-  { name:"split.webm", type:"video/webm", duration:1.967 },
   { name:"bogus.duh", type:"bogus/duh", duration:123 }
 ];
 
@@ -230,7 +214,7 @@ var gAudioTests = [
   { name:"bogus.duh", type:"bogus/duh", duration:123 }
 ];
 
-// These files ensure our handling of 404 errors is consistent across the
+// These files ensure our hanlding of 404 errors is consistent across the
 // various backends.
 var g404Tests = [
   { name:"404.wav", type:"audio/x-wav" },
@@ -281,10 +265,6 @@ function getPlayableVideo(candidates) {
 // at least 3 threads (4 on Linux), and on Linux each thread uses 10MB of
 // virtual address space. Beware!
 var PARALLEL_TESTS = 2;
-
-// When true, we'll loop forever on whatever test we run. Use this to debug
-// intermittent test failures.
-const DEBUG_TEST_LOOP_FOREVER = false;
 
 // Manages a run of media tests. Runs them in chunks in order to limit
 // the number of media elements/threads running in parallel. This limits peak
@@ -350,7 +330,7 @@ function MediaTestManager() {
     // thread stacks' address space.
     netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     Components.utils.forceGC();
-    if (this.testNum == this.tests.length && !DEBUG_TEST_LOOP_FOREVER) {
+    if (this.testNum == this.tests.length) {
       if (this.onFinished) {
         this.onFinished();
       }
@@ -363,10 +343,6 @@ function MediaTestManager() {
       var token = (test.name ? (test.name + "-"): "") + this.testNum;
       this.testNum++;
 
-      if (DEBUG_TEST_LOOP_FOREVER && this.testNum == this.tests.length) {
-        this.testNum = 0;
-      }
-      
       // Ensure we can play the resource type.
       if (test.type && !document.createElement('video').canPlayType(test.type))
         continue;
@@ -399,25 +375,3 @@ function mediaTestCleanup() {
     netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     Components.utils.forceGC();
 }
-
-(function() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  // Ensure that preload preferences are comsistent
-  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
-                               .getService(Components.interfaces.nsIPrefService);
-  var branch = prefService.getBranch("media.");
-  var oldDefault = 2;
-  var oldAuto = 3;
-  try {
-    oldDefault = branch.getIntPref("preload.default");
-    oldAuto    = branch.getIntPref("preload.auto");
-  } catch(ex) { }
-  branch.setIntPref("preload.default", 2); // preload_metadata
-  branch.setIntPref("preload.auto", 3); // preload_enough
-
-  window.addEventListener("unload", function() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    branch.setIntPref("preload.default", oldDefault);
-    branch.setIntPref("preload.auto", oldAuto);
-  }, false);
- })();

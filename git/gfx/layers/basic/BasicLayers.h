@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -45,7 +45,9 @@
 #include "nsAutoRef.h"
 #include "nsThreadUtils.h"
 
+#ifdef MOZ_IPC
 #include "mozilla/layers/ShadowLayers.h"
+#endif
 
 class nsIWidget;
 
@@ -54,11 +56,8 @@ namespace layers {
 
 class BasicShadowableLayer;
 class ShadowThebesLayer;
-class ShadowContainerLayer;
 class ShadowImageLayer;
 class ShadowCanvasLayer;
-class ShadowColorLayer;
-class ReadbackProcessor;
 
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
@@ -69,7 +68,11 @@ class ReadbackProcessor;
  * between layers).
  */
 class THEBES_API BasicLayerManager :
+#ifdef MOZ_IPC
     public ShadowLayerManager
+#else
+    public LayerManager
+#endif
 {
 public:
   /**
@@ -120,7 +123,6 @@ public:
 
   virtual void BeginTransaction();
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
@@ -132,20 +134,14 @@ public:
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
-  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer()
-  { return nsnull; }
-  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer()
-  { return nsnull; }
+  { return NULL; }
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
-  { return nsnull; }
-  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
-  { return nsnull; }
+  { return NULL; }
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
-  { return nsnull; }
+  { return NULL; }
 
   virtual LayersBackend GetBackendType() { return LAYERS_BASIC; }
-  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Basic"); }
 
 #ifdef DEBUG
   PRBool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
@@ -163,19 +159,6 @@ public:
   // Clear the cached contents of this layer.
   void ClearCachedResources();
 
-  void SetTransactionIncomplete() { mTransactionIncomplete = true; }
-
-  already_AddRefed<gfxContext> PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
-                                                 const nsIntRegion& aRegion,
-                                                 PRBool* aNeedsClipToVisibleRegion);
-  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
-                                                          gfxASurface::gfxContentType aContent);
-  void PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxContext *aPushed);
-
-  virtual PRBool IsCompositingCheap() { return PR_FALSE; }
-  virtual bool HasShadowManagerInternal() const { return false; }
-  bool HasShadowManager() const { return HasShadowManagerInternal(); }
-
 protected:
 #ifdef DEBUG
   enum TransactionPhase {
@@ -184,18 +167,21 @@ protected:
   TransactionPhase mPhase;
 #endif
 
+private:
   // Paints aLayer to mTarget.
-  void PaintLayer(gfxContext* aTarget,
-                  Layer* aLayer,
+  void PaintLayer(Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
                   void* aCallbackData,
-                  ReadbackProcessor* aReadback);
+                  float aOpacity);
 
   // Clear the contents of a layer
   void ClearLayer(Layer* aLayer);
 
-  bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
+                                                          gfxASurface::gfxContentType aContent,
+                                                          gfxPoint *aSavedOffset);
+  void PopGroupWithCachedSurface(gfxContext *aTarget,
+                                 const gfxPoint& aSavedOffset);
 
   // Widget whose surface should be used as the basis for ThebesLayer
   // buffers.
@@ -210,11 +196,10 @@ protected:
 
   BufferMode   mDoubleBuffering;
   PRPackedBool mUsingDefaultTarget;
-  PRPackedBool mCachedSurfaceInUse;
-  bool         mTransactionIncomplete;
 };
  
 
+#ifdef MOZ_IPC
 class BasicShadowLayerManager : public BasicLayerManager,
                                 public ShadowLayerForwarder
 {
@@ -225,7 +210,6 @@ public:
   virtual ~BasicShadowLayerManager();
 
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
@@ -239,32 +223,17 @@ public:
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
-  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
-  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer();
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
+
+  virtual const char* Name() const { return "BasicShadowLayerManager"; }
 
   ShadowableLayer* Hold(Layer* aLayer);
 
-  bool HasShadowManager() const { return ShadowLayerForwarder::HasShadowManager(); }
-  PLayersChild* GetShadowManager() const { return mShadowManager; }
-
-  void SetShadowManager(PLayersChild* aShadowManager)
-  {
-    mShadowManager = aShadowManager;
-  }
-
-  virtual PRBool IsCompositingCheap();
-  virtual bool HasShadowManagerInternal() const { return HasShadowManager(); }
-
 private:
-  /**
-   * Forward transaction results to the parent context.
-   */
-  void ForwardTransaction();
-
   LayerRefArray mKeepAlive;
 };
+#endif  // MOZ_IPC
 
 }
 }

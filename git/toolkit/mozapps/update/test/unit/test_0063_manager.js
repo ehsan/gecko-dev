@@ -39,11 +39,8 @@
 /* General Update Manager Tests */
 
 function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
-
-  logTestInfo("testing removing an active update for a channel that is not" +
-              "valid due to switching channels (bug 486275)");
+  dump("Testing: removing an active update for a channel that is not valid " +
+       "due to switching channels - bug 486275\n");
   removeUpdateDirsAndFiles();
   setUpdateChannel("original_channel");
 
@@ -51,7 +48,9 @@ function run_test() {
 
   patches = getLocalPatchString(null, null, null, null, null, null,
                                 STATE_DOWNLOADING);
-  updates = getLocalUpdateString(patches, null, null, "version 1.0", "1.0");
+  updates = getLocalUpdateString(patches, null, null, "version 1.0", "1.0", null,
+                                 null, null, null,
+                                 URL_HOST + URL_PATH + "/empty.mar");
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeStatusFile(STATE_DOWNLOADING);
 
@@ -73,12 +72,7 @@ function run_test() {
   // channel removed.
   file = getCurrentProcessDir();
   file.append(FILE_UPDATE_ACTIVE);
-  logTestInfo("verifying contents of " + FILE_UPDATE_ACTIVE);
+  dump("Testing: verifying contents of " + FILE_UPDATE_ACTIVE + "\n");
   do_check_eq(readFile(file), getLocalUpdatesXMLString(""));
-
-  do_test_finished();
-}
-
-function end_test() {
   cleanUp();
 }

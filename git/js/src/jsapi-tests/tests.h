@@ -41,14 +41,13 @@
 #include "jsapi.h"
 #include "jsprvtd.h"
 #include "jsvector.h"
-#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 class jsvalRoot
 {
-  public:
+public:
     explicit jsvalRoot(JSContext *context, jsval value = JSVAL_NULL)
         : cx(context), v(value)
     {
@@ -70,7 +69,7 @@ class jsvalRoot
     jsval * addr() { return &v; }
     jsval value() const { return v; }
 
-  private:
+private:
     JSContext *cx;
     jsval v;
 };
@@ -78,7 +77,7 @@ class jsvalRoot
 /* Note: Aborts on OOM. */
 class JSAPITestString {
     js::Vector<char, 0, js::SystemAllocPolicy> chars;
-  public:
+public:
     JSAPITestString() {}
     JSAPITestString(const char *s) { *this += s; }
     JSAPITestString(const JSAPITestString &s) { *this += s; }
@@ -105,7 +104,7 @@ inline JSAPITestString operator+(JSAPITestString a, const JSAPITestString &b) { 
 
 class JSAPITest
 {
-  public:
+public:
     static JSAPITest *list;
     JSAPITest *next;
 
@@ -172,97 +171,12 @@ class JSAPITest
                fail(bytes, filename, lineno);
     }
 
-    JSAPITestString jsvalToSource(jsval v) {
+    JSAPITestString toSource(jsval v) {
         JSString *str = JS_ValueToSource(cx, v);
-        if (str) {
-            JSAutoByteString bytes(cx, str);
-            if (!!bytes)
-                return JSAPITestString(bytes.ptr());
-        }
+        if (str)
+            return JSAPITestString(JS_GetStringBytes(str));
         JS_ClearPendingException(cx);
         return JSAPITestString("<<error converting value to string>>");
-    }
-
-    JSAPITestString toSource(long v) {
-        char buf[40];
-        sprintf(buf, "%ld", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(unsigned long v) {
-        char buf[40];
-        sprintf(buf, "%lu", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(long long v) {
-        char buf[40];
-        sprintf(buf, "%lld", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(unsigned long long v) {
-        char buf[40];
-        sprintf(buf, "%llu", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(unsigned int v) {
-        return toSource((unsigned long)v);
-    }
-
-    JSAPITestString toSource(int v) {
-        return toSource((long)v);
-    }
-
-    JSAPITestString toSource(bool v) {
-        return JSAPITestString(v ? "true" : "false");
-    }
-
-    JSAPITestString toSource(JSAtom *v) {
-        return jsvalToSource(STRING_TO_JSVAL((JSString*)v));
-    }
-
-    JSAPITestString toSource(JSVersion v) {
-        return JSAPITestString(JS_VersionToString(v));
-    }
-
-    template<typename T>
-    bool checkEqual(const T &actual, const T &expected,
-                    const char *actualExpr, const char *expectedExpr,
-                    const char *filename, int lineno) {
-        return (actual == expected) ||
-            fail(JSAPITestString("CHECK_EQUAL failed: expected (") +
-                 expectedExpr + ") = " + toSource(expected) +
-                 ", got (" + actualExpr + ") = " + toSource(actual), filename, lineno);
-    }
-
-    // There are many cases where the static types of 'actual' and 'expected'
-    // are not identical, and C++ is understandably cautious about automatic
-    // coercions. So catch those cases and forcibly coerce, then use the
-    // identical-type specialization. This may do bad things if the types are
-    // actually *not* compatible.
-    template<typename T, typename U>
-    bool checkEqual(const T &actual, const U &expected,
-                   const char *actualExpr, const char *expectedExpr,
-                   const char *filename, int lineno) {
-        return checkEqual(U(actual), expected, actualExpr, expectedExpr, filename, lineno);
-    }
-
-#define CHECK_EQUAL(actual, expected) \
-    do { \
-        if (!checkEqual(actual, expected, #actual, #expected, __FILE__, __LINE__)) \
-            return false; \
-    } while (false)
-
-    bool checkSame(jsval actual, jsval expected,
-                   const char *actualExpr, const char *expectedExpr,
-                   const char *filename, int lineno) {
-        JSBool same;
-        return (JS_SameValue(cx, actual, expected, &same) && same) ||
-               fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
-                    actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
-                    jsvalToSource(actual) + ", " + jsvalToSource(expected) + ")", filename, lineno);
     }
 
 #define CHECK_SAME(actual, expected) \
@@ -270,6 +184,15 @@ class JSAPITest
         if (!checkSame(actual, expected, #actual, #expected, __FILE__, __LINE__)) \
             return false; \
     } while (false)
+
+    bool checkSame(jsval actual, jsval expected,
+                   const char *actualExpr, const char *expectedExpr,
+                   const char *filename, int lineno) {
+        return JS_SameValue(cx, actual, expected) ||
+               fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
+                    actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
+                    toSource(actual) + ", " + toSource(expected) + ")", filename, lineno);
+    }
 
 #define CHECK(expr) \
     do { \
@@ -283,11 +206,8 @@ class JSAPITest
             JS_GetPendingException(cx, v.addr());
             JS_ClearPendingException(cx);
             JSString *s = JS_ValueToString(cx, v);
-            if (s) {
-                JSAutoByteString bytes(cx, s);
-                if (!!bytes)
-                    msg += bytes.ptr();
-            }
+            if (s)
+                msg += JS_GetStringBytes(s);
         }
         fprintf(stderr, "%s:%d:%.*s\n", filename, lineno, (int) msg.length(), msg.begin());
         msgs += msg;
@@ -296,17 +216,7 @@ class JSAPITest
 
     JSAPITestString messages() const { return msgs; }
 
-    static JSClass * basicGlobalClass() {
-        static JSClass c = {
-            "global", JSCLASS_GLOBAL_FLAGS,
-            JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-            JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
-            JSCLASS_NO_OPTIONAL_MEMBERS
-        };
-        return &c;
-    }
-
-  protected:
+protected:
     static JSBool
     print(JSContext *cx, uintN argc, jsval *vp)
     {
@@ -353,22 +263,6 @@ class JSAPITest
         JSContext *cx = JS_NewContext(rt, 8192);
         if (!cx)
             return NULL;
-
-        const size_t MAX_STACK_SIZE =
-/* Assume we can't use more than 5e5 bytes of C stack by default. */
-#if (defined(DEBUG) && defined(__SUNPRO_CC))  || defined(JS_CPU_SPARC)
-            /*
-             * Sun compiler uses a larger stack space for js::Interpret() with
-             * debug.  Use a bigger gMaxStackSize to make "make check" happy.
-             */
-            5000000
-#else
-            500000
-#endif
-        ;
-
-        JS_SetNativeStackQuota(cx, MAX_STACK_SIZE);
-
         JS_SetOptions(cx, JSOPTION_VAROBJFIX | JSOPTION_JIT);
         JS_SetVersion(cx, JSVERSION_LATEST);
         JS_SetErrorReporter(cx, &reportError);
@@ -376,7 +270,13 @@ class JSAPITest
     }
 
     virtual JSClass * getGlobalClass() {
-        return basicGlobalClass();
+        static JSClass basicGlobalClass = {
+            "global", JSCLASS_GLOBAL_FLAGS,
+            JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+            JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
+            JSCLASS_NO_OPTIONAL_MEMBERS
+        };
+        return &basicGlobalClass;
     }
 
     virtual JSObject * createGlobal() {
@@ -385,10 +285,7 @@ class JSAPITest
         if (!global)
             return NULL;
 
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, global))
-            return NULL;
-
+        JSAutoEnterCompartment enter(cx, global);
         /* Populate the global object with the standard globals,
            like Object and Array. */
         if (!JS_InitStandardClasses(cx, global))
@@ -399,7 +296,7 @@ class JSAPITest
 
 #define BEGIN_TEST(testname)                                            \
     class cls_##testname : public JSAPITest {                           \
-      public:                                                           \
+    public:                                                             \
         virtual const char * name() { return #testname; }               \
         virtual bool run()
 
@@ -407,79 +304,4 @@ class JSAPITest
     };                                                                  \
     static cls_##testname cls_##testname##_instance;
 
-/*
- * A "fixture" is a subclass of JSAPITest that holds common definitions for a
- * set of tests. Each test that wants to use the fixture should use
- * BEGIN_FIXTURE_TEST and END_FIXTURE_TEST, just as one would use BEGIN_TEST and
- * END_TEST, but include the fixture class as the first argument. The fixture
- * class's declarations are then in scope for the test bodies.
- */
 
-#define BEGIN_FIXTURE_TEST(fixture, testname)                           \
-    class cls_##testname : public fixture {                             \
-      public:                                                           \
-        virtual const char * name() { return #testname; }               \
-        virtual bool run()
-
-#define END_FIXTURE_TEST(fixture, testname)                             \
-    };                                                                  \
-    static cls_##testname cls_##testname##_instance;
-
-/*
- * A class for creating and managing one temporary file.
- * 
- * We could use the ISO C temporary file functions here, but those try to
- * create files in the root directory on Windows, which fails for users
- * without Administrator privileges.
- */
-class TempFile {
-    const char *name;
-    FILE *stream;
-
-  public:
-    TempFile() : name(), stream() { }
-    ~TempFile() {
-        if (stream)
-            close();
-        if (name)
-            remove();
-    }
-
-    /*
-     * Return a stream for a temporary file named |fileName|. Infallible.
-     * Use only once per TempFile instance. If the file is not explicitly
-     * closed and deleted via the member functions below, this object's
-     * destructor will clean them up.
-     */
-    FILE *open(const char *fileName)
-    {
-        stream = fopen(fileName, "wb+");
-        if (!stream) {
-            fprintf(stderr, "error opening temporary file '%s': %s\n",
-                    fileName, strerror(errno));
-            exit(1);
-        }            
-        name = fileName;
-        return stream;
-    }
-
-    /* Close the temporary file's stream. */
-    void close() {
-        if (fclose(stream) == EOF) {
-            fprintf(stderr, "error closing temporary file '%s': %s\n",
-                    name, strerror(errno));
-            exit(1);
-        }
-        stream = NULL;
-    }
-
-    /* Delete the temporary file. */
-    void remove() {
-        if (::remove(name) != 0) {
-            fprintf(stderr, "error deleting temporary file '%s': %s\n",
-                    name, strerror(errno));
-            exit(1);
-        }
-        name = NULL;
-    }
-};

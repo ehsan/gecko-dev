@@ -116,6 +116,18 @@ enum nsBorderStyle {
 };
 
 /**
+ * Content types
+ *
+ * Exposed so screen readers know what's UI
+ */
+enum nsContentType {
+  eContentTypeInherit      = -1,
+  eContentTypeUI           = 0,
+  eContentTypeContent      = 1,
+  eContentTypeContentFrame = 2
+};
+
+/**
  * Basic struct for widget initialization data.
  * @see Create member function of nsIWidget
  */
@@ -124,6 +136,7 @@ struct nsWidgetInitData {
   nsWidgetInitData() :
       mWindowType(eWindowType_child),
       mBorderStyle(eBorderStyle_default),
+      mContentType(eContentTypeInherit),
       mPopupHint(ePopupTypePanel),
       mPopupLevel(ePopupLevelTop),
       clipChildren(PR_FALSE), 
@@ -138,6 +151,7 @@ struct nsWidgetInitData {
 
   nsWindowType  mWindowType;
   nsBorderStyle mBorderStyle;
+  nsContentType mContentType;  // Exposed so screen readers know what's UI
   nsPopupType   mPopupHint;
   nsPopupLevel  mPopupLevel;
   // when painting exclude area occupied by child windows and sibling windows

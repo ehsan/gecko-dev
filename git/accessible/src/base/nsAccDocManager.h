@@ -38,14 +38,14 @@
 #ifndef nsAccDocManager_h_
 #define nsAccDocManager_h_
 
+#include "nsAccessible.h"
+
 #include "nsIDocument.h"
 #include "nsIDOMEventListener.h"
-#include "nsRefPtrHashtable.h"
 #include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 
-class nsAccessible;
 class nsDocAccessible;
 
 //#define DEBUG_ACCDOCMGR
@@ -73,22 +73,21 @@ public:
    * Search through all document accessibles for an accessible with the given
    * unique id.
    */
-  nsAccessible* FindAccessibleInCache(nsINode* aNode) const;
+  nsAccessible *FindAccessibleInCache(void *aUniqueID) const;
+
+  /**
+   * Shutdown document accessibles in the tree starting from the given one.
+   *
+   * @param  aDocument  [in] the DOM document of start document accessible
+   */
+  void ShutdownDocAccessiblesInTree(nsIDocument *aDocument);
 
   /**
    * Return document accessible from the cache. Convenient method for testing.
    */
   inline nsDocAccessible* GetDocAccessibleFromCache(nsIDocument* aDocument) const
   {
-    return mDocAccessibleCache.GetWeak(aDocument);
-  }
-
-  /**
-   * Called by document accessible when it gets shutdown.
-   */
-  inline void NotifyOfDocumentShutdown(nsIDocument* aDocument)
-  {
-    mDocAccessibleCache.Remove(aDocument);
+    return mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));
   }
 
 protected:
@@ -104,6 +103,11 @@ protected:
    */
   void Shutdown();
 
+  /**
+   * Shutdown the document accessible.
+   */
+  void ShutdownDocAccessible(nsIDocument* aDocument);
+
 private:
   nsAccDocManager(const nsAccDocManager&);
   nsAccDocManager& operator =(const nsAccDocManager&);
@@ -116,9 +120,13 @@ private:
    * @param  aDocument       [in] loaded DOM document
    * @param  aLoadEventType  [in] specifies the event type to fire load event,
    *                           if 0 then no event is fired
+   * @param  aMarkAsLoaded   [in] indicates whether we should mark forcedly
+   *                           an accessible document as loaded (used for error
+   *                           pages only which do not get 'pageshow' event)
    */
   void HandleDOMDocumentLoad(nsIDocument *aDocument,
-                             PRUint32 aLoadEventType);
+                             PRUint32 aLoadEventType,
+                             PRBool aMarkAsLoaded = PR_FALSE);
 
   /**
    * Return true if accessibility events accompanying document accessible
@@ -148,30 +156,39 @@ private:
    */
   nsDocAccessible *CreateDocOrRootAccessible(nsIDocument *aDocument);
 
-  typedef nsRefPtrHashtable<nsPtrHashKey<const nsIDocument>, nsDocAccessible>
+  /**
+   * Shutdown document accessibles in the tree starting from given tree item.
+   */
+  void ShutdownDocAccessiblesInTree(nsIDocShellTreeItem *aTreeItem,
+                                    nsIDocument *aDocument);
+
+  typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible>
     nsDocAccessibleHashtable;
 
   /**
-   * Get first entry of the document accessible from cache.
+   * Shutdown and remove the document accessible from cache.
    */
   static PLDHashOperator
-    GetFirstEntryInDocCache(const nsIDocument* aKey,
-                            nsDocAccessible* aDocAccessible,
-                            void* aUserArg);
+    ClearDocCacheEntry(const void* aKey,
+                       nsRefPtr<nsDocAccessible>& aDocAccessible,
+                       void* aUserArg);
 
   /**
    * Clear the cache and shutdown the document accessibles.
    */
-  void ClearDocCache();
+  void ClearDocCache()
+  {
+    mDocAccessibleCache.Enumerate(ClearDocCacheEntry, static_cast<void*>(this));
+  }
 
   struct nsSearchAccessibleInCacheArg
   {
     nsAccessible *mAccessible;
-    nsINode* mNode;
+    void *mUniqueID;
   };
 
   static PLDHashOperator
-    SearchAccessibleInDocCache(const nsIDocument* aKey,
+    SearchAccessibleInDocCache(const void* aKey,
                                nsDocAccessible* aDocAccessible,
                                void* aUserArg);
 
@@ -199,32 +216,23 @@ private:
   printf("uri: %s", spec);
 
 #define NS_LOG_ACCDOC_TYPE(aDocument)                                          \
-  if (aDocument->IsActive()) {                                                 \
-    PRBool isContent = nsCoreUtils::IsContentDocument(aDocument);              \
-    printf("%s document", (isContent ? "content" : "chrome"));                 \
-  } else {                                                                     \
-    printf("document type: [failed]");                                         \
-  }
+  PRBool isContent = nsCoreUtils::IsContentDocument(aDocument);                \
+  printf("%s document", (isContent ? "content" : "chrome"));
 
 #define NS_LOG_ACCDOC_SHELLSTATE(aDocument)                                    \
-  nsCAutoString docShellBusy;                                                  \
   nsCOMPtr<nsISupports> container = aDocument->GetContainer();                 \
-  if (container) {                                                             \
-    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);             \
-    PRUint32 busyFlags = nsIDocShell::BUSY_FLAGS_NONE;                         \
-    docShell->GetBusyFlags(&busyFlags);                                        \
-    if (busyFlags == nsIDocShell::BUSY_FLAGS_NONE)                             \
-      docShellBusy.AppendLiteral("'none'");                                    \
-    if (busyFlags & nsIDocShell::BUSY_FLAGS_BUSY)                              \
-      docShellBusy.AppendLiteral("'busy'");                                    \
-    if (busyFlags & nsIDocShell::BUSY_FLAGS_BEFORE_PAGE_LOAD)                  \
-      docShellBusy.AppendLiteral(", 'before page load'");                      \
-    if (busyFlags & nsIDocShell::BUSY_FLAGS_PAGE_LOADING)                      \
-      docShellBusy.AppendLiteral(", 'page loading'");                          \
-  }                                                                            \
-  else {                                                                       \
-    docShellBusy.AppendLiteral("[failed]");                                    \
-  }                                                                            \
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);               \
+  PRUint32 busyFlags = nsIDocShell::BUSY_FLAGS_NONE;                           \
+  docShell->GetBusyFlags(&busyFlags);                                          \
+  nsCAutoString docShellBusy;                                                  \
+  if (busyFlags == nsIDocShell::BUSY_FLAGS_NONE)                               \
+    docShellBusy.AppendLiteral("'none'");                                      \
+  if (busyFlags & nsIDocShell::BUSY_FLAGS_BUSY)                                \
+    docShellBusy.AppendLiteral("'busy'");                                      \
+  if (busyFlags & nsIDocShell::BUSY_FLAGS_BEFORE_PAGE_LOAD)                    \
+    docShellBusy.AppendLiteral(", 'before page load'");                        \
+  if (busyFlags & nsIDocShell::BUSY_FLAGS_PAGE_LOADING)                        \
+    docShellBusy.AppendLiteral(", 'page loading'");                            \
   printf("docshell busy: %s", docShellBusy.get());
 
 #define NS_LOG_ACCDOC_DOCSTATES(aDocument)                                     \
@@ -345,22 +353,20 @@ private:
     printf("    ");                                                            \
     NS_LOG_ACCDOC_ADDRESS(aDocument, aDocAcc)                                  \
     printf("\n    ");                                                          \
-    if (aDocument) {                                                           \
-      NS_LOG_ACCDOC_URI(aDocument)                                             \
-      printf("\n    ");                                                        \
-      NS_LOG_ACCDOC_SHELLSTATE(aDocument)                                      \
-      printf("; ");                                                            \
-      NS_LOG_ACCDOC_TYPE(aDocument)                                            \
-      printf("\n    ");                                                        \
-      NS_LOG_ACCDOC_DOCSTATES(aDocument)                                       \
-      printf("\n    ");                                                        \
-      NS_LOG_ACCDOC_DOCPRESSHELL(aDocument)                                    \
-      printf("\n    ");                                                        \
-      NS_LOG_ACCDOC_DOCLOADGROUP(aDocument)                                    \
-      printf(", ");                                                            \
-      NS_LOG_ACCDOC_DOCPARENT(aDocument)                                       \
-      printf("\n");                                                            \
-    }                                                                          \
+    NS_LOG_ACCDOC_URI(aDocument)                                               \
+    printf("\n    ");                                                          \
+    NS_LOG_ACCDOC_SHELLSTATE(aDocument)                                        \
+    printf("; ");                                                              \
+    NS_LOG_ACCDOC_TYPE(aDocument)                                              \
+    printf("\n    ");                                                          \
+    NS_LOG_ACCDOC_DOCSTATES(aDocument)                                         \
+    printf("\n    ");                                                          \
+    NS_LOG_ACCDOC_DOCPRESSHELL(aDocument)                                      \
+    printf("\n    ");                                                          \
+    NS_LOG_ACCDOC_DOCLOADGROUP(aDocument)                                      \
+    printf(", ");                                                              \
+    NS_LOG_ACCDOC_DOCPARENT(aDocument)                                         \
+    printf("\n");                                                              \
   }
 #define NS_LOG_ACCDOC_DOCINFO_END                                              \
   printf("  }\n");
@@ -381,7 +387,7 @@ private:
       strEventType.AssignLiteral("reload");                                    \
   } else if (type == nsIAccessibleEvent::EVENT_STATE_CHANGE) {                 \
     AccStateChangeEvent* event = downcast_accEvent(aEvent);                    \
-    if (event->GetState() == states::BUSY) {                                   \
+    if (event->GetState() == nsIAccessibleStates::STATE_BUSY) {                \
       strEventType.AssignLiteral("busy ");                                     \
       if (event->IsStateEnabled())                                             \
         strEventType.AppendLiteral("true");                                    \

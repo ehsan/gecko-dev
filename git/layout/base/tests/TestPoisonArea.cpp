@@ -134,12 +134,6 @@ typedef unsigned int uint32_t;
 
 #ifdef _WIN32
 #include <windows.h>
-#elif defined(__OS2__)
-#include <sys/types.h>
-#include <unistd.h>
-#include <setjmp.h>
-#define INCL_DOS
-#include <os2.h>
 #else
 #include <sys/types.h>
 #include <fcntl.h>
@@ -162,8 +156,6 @@ typedef unsigned int uint32_t;
 
 /* This program assumes that a whole number of return instructions fit into
  * 32 bits, and that 32-bit alignment is sufficient for a branch destination.
- * For architectures where this is not true, fiddling with RETURN_INSTR_TYPE
- * can be enough.
  */
 
 #if defined __i386__ || defined __x86_64__ ||   \
@@ -182,38 +174,8 @@ typedef unsigned int uint32_t;
 #elif defined __sparc || defined __sparcv9
 #define RETURN_INSTR 0x81c3e008 /* retl */
 
-#elif defined __alpha
-#define RETURN_INSTR 0x6bfa8001 /* ret */
-
-#elif defined __hppa
-#define RETURN_INSTR 0xe840c002 /* bv,n r0(rp) */
-
-#elif defined __mips
-#define RETURN_INSTR 0x03e00008 /* jr ra */
-
-#ifdef __MIPSEL
-/* On mipsel, jr ra needs to be followed by a nop.
-   0x03e00008 as a 64 bits integer just does that */
-#define RETURN_INSTR_TYPE uint64_t
-#endif
-
-#elif defined __s390__
-#define RETURN_INSTR 0x07fe0000 /* br %r14 */
-
-#elif defined __ia64
-struct ia64_instr { uint32_t i[4]; };
-static const ia64_instr _return_instr =
-  {{ 0x00000011, 0x00000001, 0x80000200, 0x00840008 }}; /* br.ret.sptk.many b0 */
-
-#define RETURN_INSTR _return_instr
-#define RETURN_INSTR_TYPE ia64_instr
-
 #else
 #error "Need return instruction for this architecture"
-#endif
-
-#ifndef RETURN_INSTR_TYPE
-#define RETURN_INSTR_TYPE uint32_t
 #endif
 
 // Miscellaneous Windows/Unix portability gumph
@@ -224,6 +186,8 @@ static LPSTR
 StrW32Error(DWORD errcode)
 {
   LPSTR errmsg;
+
+#ifndef WINCE
   FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
                  FORMAT_MESSAGE_FROM_SYSTEM |
                  FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -234,6 +198,14 @@ StrW32Error(DWORD errcode)
   size_t n = strlen(errmsg)-1;
   while (errmsg[n] == '\r' || errmsg[n] == '\n') n--;
   errmsg[n+1] = '\0';
+#else
+  // CE doesn't have FormatMessageA so we just stringify the error code.
+  // Use LocalAlloc for consistency with the regular Windows code path.
+  // "code \0" is 6 bytes, and a 32-bit number might need 10 more.
+  errmsg = (LPSTR)LocalAlloc(LMEM_FIXED, 16);
+  _snprintf(errmsg, 16, "code %u", errcode);
+#endif
+
   return errmsg;
 }
 #define LastErrMsg() (StrW32Error(GetLastError()))
@@ -279,76 +251,7 @@ MakeRegionExecutable(void *)
 #undef MAP_FAILED
 #define MAP_FAILED 0
 
-#elif defined(__OS2__)
-
-// page size is always 4k
-#undef PAGESIZE
-#define PAGESIZE 0x1000
-static unsigned long rc = 0;
-
-char * LastErrMsg()
-{
-  char * errmsg = (char *)malloc(16);
-  sprintf(errmsg, "rc= %ld", rc);
-  rc = 0;
-  return errmsg;
-}
-
-static void *
-ReserveRegion(uintptr_t request, bool accessible)
-{
-  // OS/2 doesn't support allocation at an arbitrary address,
-  // so return an address that is known to be invalid.
-  if (request) {
-    return (void*)0xFFFD0000;
-  }
-  void * mem = 0;
-  rc = DosAllocMem(&mem, PAGESIZE,
-                   (accessible ? PAG_COMMIT : 0) | PAG_READ | PAG_WRITE);
-  return rc ? 0 : mem;
-}
-
-static void
-ReleaseRegion(void *page)
-{
-  return;
-}
-
-static bool
-ProbeRegion(uintptr_t page)
-{
-  // There's no reliable way to probe an address in the system
-  // arena other than by touching it and seeing if a trap occurs.
-  return false;
-}
-
-static bool
-MakeRegionExecutable(void *page)
-{
-  rc = DosSetMem(page, PAGESIZE, PAG_READ | PAG_WRITE | PAG_EXECUTE);
-  return rc ? true : false;
-}
-
-typedef struct _XCPT {
-  EXCEPTIONREGISTRATIONRECORD regrec;
-  jmp_buf                     jmpbuf;
-} XCPT;
-
-static unsigned long _System
-ExceptionHandler(PEXCEPTIONREPORTRECORD pReport,
-                 PEXCEPTIONREGISTRATIONRECORD pRegRec,
-                 PCONTEXTRECORD pContext, PVOID pVoid)
-{
-  if (pReport->fHandlerFlags == 0) {
-    longjmp(((XCPT*)pRegRec)->jmpbuf, pReport->ExceptionNum);
-  }
-  return XCPT_CONTINUE_SEARCH;
-}
-
-#undef MAP_FAILED
-#define MAP_FAILED 0
-
-#else // Unix
+#else
 
 #define LastErrMsg() (strerror(errno))
 
@@ -473,8 +376,8 @@ ReserveNegativeControl()
   }
 
   // Fill the page with return instructions.
-  RETURN_INSTR_TYPE *p = (RETURN_INSTR_TYPE *)result;
-  RETURN_INSTR_TYPE *limit = (RETURN_INSTR_TYPE *)(((char *)result) + PAGESIZE);
+  uint32_t *p = (uint32_t *)result;
+  uint32_t *limit = (uint32_t *)(((char *)result) + PAGESIZE);
   while (p < limit)
     *p++ = RETURN_INSTR;
 
@@ -491,20 +394,6 @@ ReserveNegativeControl()
   return (uintptr_t)result;
 }
 
-static void
-JumpTo(uintptr_t opaddr)
-{
-#ifdef __ia64
-  struct func_call {
-    uintptr_t func;
-    uintptr_t gp;
-  } call = { opaddr, };
-  ((void (*)())&call)();
-#else
-  ((void (*)())opaddr)();
-#endif
-}
-
 #ifdef _WIN32
 static BOOL
 IsBadExecPtr(uintptr_t ptr)
@@ -513,7 +402,7 @@ IsBadExecPtr(uintptr_t ptr)
 
 #ifdef _MSC_VER
   __try {
-    JumpTo(ptr);
+    ((void (*)())ptr)();
   } __except (EXCEPTION_EXECUTE_HANDLER) {
     ret = true;
   }
@@ -570,41 +459,6 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
         failed = true;
       }
     }
-#elif defined(__OS2__)
-    XCPT xcpt;
-    volatile int code = setjmp(xcpt.jmpbuf);
-
-    if (!code) {
-      xcpt.regrec.prev_structure = 0;
-      xcpt.regrec.ExceptionHandler = ExceptionHandler;
-      DosSetExceptionHandler(&xcpt.regrec);
-      unsigned char scratch;
-      switch (test) {
-        case 0: scratch = *(volatile unsigned char *)opaddr; break;
-        case 1: ((void (*)())opaddr)(); break;
-        case 2: *(volatile unsigned char *)opaddr = 0; break;
-        default: abort();
-      }
-    }
-
-    if (code) {
-      if (should_succeed) {
-        printf("TEST-UNEXPECTED-FAIL | %s %s | exception code %x\n",
-               oplabel, pagelabel, code);
-        failed = true;
-      } else {
-        printf("TEST-PASS | %s %s | exception code %x\n",
-               oplabel, pagelabel, code);
-      }
-    } else {
-      if (should_succeed) {
-        printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
-      } else {
-        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
-        failed = true;
-      }
-      DosUnsetExceptionHandler(&xcpt.regrec);
-    }
 #else
     pid_t pid = fork();
     if (pid == -1) {
@@ -615,7 +469,7 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
       volatile unsigned char scratch;
       switch (test) {
       case 0: scratch = *(volatile unsigned char *)opaddr; break;
-      case 1: JumpTo(opaddr); break;
+      case 1: ((void (*)())opaddr)(); break;
       case 2: *(volatile unsigned char *)opaddr = 0; break;
       default: abort();
       }
@@ -665,7 +519,7 @@ main()
 {
 #ifdef _WIN32
   GetSystemInfo(&_sinfo);
-#elif !defined(__OS2__)
+#else
   _pagesize = sysconf(_SC_PAGESIZE);
 #endif
 

@@ -76,8 +76,6 @@ private:
 // Class to allow us to propagate the base URI to about:blank correctly
 class nsNestedAboutURI : public nsSimpleNestedURI {
 public:
-    NS_DECL_NSIIPCSERIALIZABLE
-
     nsNestedAboutURI(nsIURI* aInnerURI, nsIURI* aBaseURI)
         : nsSimpleNestedURI(aInnerURI)
         , mBaseURI(aBaseURI)
@@ -94,7 +92,7 @@ public:
     // Override StartClone(), the nsISerializable methods, and
     // GetClassIDNoAlloc; this last is needed to make our nsISerializable impl
     // work right.
-    virtual nsSimpleURI* StartClone(RefHandlingEnum aRefHandlingMode);
+    virtual nsSimpleURI* StartClone();
     NS_IMETHOD Read(nsIObjectInputStream* aStream);
     NS_IMETHOD Write(nsIObjectOutputStream* aStream);
     NS_IMETHOD GetClassIDNoAlloc(nsCID *aClassIDNoAlloc);

@@ -47,38 +47,32 @@ LIBRARY_NAME	= widget_windows
 LIBXUL_LIBRARY = 1
 
 
-CPPSRCS = \
-  nsWindow.cpp \
-  nsWindowGfx.cpp \
-  nsWindowDbg.cpp \
-  nsAppShell.cpp \
-  nsToolkit.cpp \
-  nsFilePicker.cpp \
-  nsScreenWin.cpp  \
-  nsScreenManagerWin.cpp \
-  nsLookAndFeel.cpp \
-  nsUXThemeData.cpp \
-  nsNativeThemeWin.cpp \
-  nsWinGesture.cpp \
-  nsIdleServiceWin.cpp \
-  nsSound.cpp \
-  nsIMM32Handler.cpp \
-  WindowHook.cpp \
-  WinTaskbar.cpp \
-  TaskbarPreview.cpp \
-  TaskbarTabPreview.cpp \
-  TaskbarWindowPreview.cpp \
-  TaskbarPreviewButton.cpp \
-  JumpListBuilder.cpp \
-  JumpListItem.cpp \
-  GfxInfo.cpp \
-  WidgetTraceEvent.cpp \
-  AudioSession.cpp \
-  $(NULL)
-
-ifdef MOZ_CRASHREPORTER
-CPPSRCS += LSPAnnotator.cpp
-endif
+CPPSRCS		= \
+	nsWindow.cpp \
+	nsWindowGfx.cpp \
+	nsWindowDbg.cpp \
+	nsAppShell.cpp \
+	nsToolkit.cpp \
+	nsFilePicker.cpp \
+	nsScreenWin.cpp	\
+	nsScreenManagerWin.cpp \
+	nsLookAndFeel.cpp \
+	nsUXThemeData.cpp \
+	nsNativeThemeWin.cpp \
+	nsWinGesture.cpp \
+	nsIdleServiceWin.cpp \
+	nsSound.cpp \
+	nsIMM32Handler.cpp \
+	WindowHook.cpp \
+	WinTaskbar.cpp \
+	TaskbarPreview.cpp \
+	TaskbarTabPreview.cpp \
+	TaskbarWindowPreview.cpp \
+	TaskbarPreviewButton.cpp \
+ 	JumpListBuilder.cpp \
+ 	JumpListItem.cpp \
+	GfxInfo.cpp \
+	$(NULL)
 
 ifdef NS_PRINTING
 CPPSRCS		+= \
@@ -88,6 +82,12 @@ CPPSRCS		+= \
 	$(NULL)
 endif
 
+ifeq ($(OS_ARCH), WINCE)
+CPPSRCS += \
+	nsWindowCE.cpp \
+	nsClipboardCE.cpp \
+	$(NULL)
+else
 CPPSRCS += \
 	KeyboardLayout.cpp \
 	IEnumFE.cpp  \
@@ -103,6 +103,7 @@ CPPSRCS += \
 ifdef NS_ENABLE_TSF
 CPPSRCS		+= nsTextStore.cpp
 endif
+endif
 
 
 DEFINES		+= -D_IMPL_NS_WIDGET -DMOZ_UNICODE 
@@ -111,27 +112,34 @@ ifdef MOZ_ENABLE_D3D9_LAYER
 DEFINES		+= -DMOZ_ENABLE_D3D9_LAYER
 endif
 
-ifdef MOZ_ENABLE_D3D10_LAYER
-DEFINES		+= -DMOZ_ENABLE_D3D10_LAYER
-endif
+ifdef BUILD_STATIC_LIBS
+DEFINES		+= -DMOZ_STATIC_COMPONENT_LIBS
+endif # BUILD_STATIC_LIBS
 
 
 EXPORTS		= nsdefs.h WindowHook.h
-EXPORTS_NAMESPACES = mozilla/widget
-EXPORTS_mozilla/widget = AudioSession.h
 
 LOCAL_INCLUDES	= \
 		-I. \
 		-I$(srcdir)/../xpwidgets \
 		-I$(srcdir) \
 		-I$(topsrcdir)/toolkit/xre \
-		-I$(topsrcdir)/xpcom/base \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
 
+ifdef WINCE
+EXTRA_DSO_LDOPTS += ddraw.lib
+endif
+
+ifndef WINCE
+ENABLE_CXX_EXCEPTIONS = 1
+endif
+
+ifdef MOZ_IPC
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 
 ifdef ENABLE_TESTS
 TOOL_DIRS  += tests

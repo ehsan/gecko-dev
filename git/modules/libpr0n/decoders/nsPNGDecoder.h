@@ -62,8 +62,9 @@ public:
   nsPNGDecoder();
   virtual ~nsPNGDecoder();
 
-  virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, PRUint32 aCount);
+  virtual nsresult InitInternal();
+  virtual nsresult WriteInternal(const char* aBuffer, PRUint32 aCount);
+  virtual nsresult FinishInternal();
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                    PRInt32 width, PRInt32 height,
@@ -71,6 +72,7 @@ public:
   void SetAnimFrameInfo();
 
   void EndImageFrame();
+  void NotifyDone(PRBool aSuccess);
 
 public:
   png_structp mPNG;
@@ -89,13 +91,11 @@ public:
   PRUint32 mHeaderBytesRead;
 
   PRUint8 mChannels;
+  PRPackedBool mError;
   PRPackedBool mFrameHasNoAlpha;
   PRPackedBool mFrameIsHidden;
+  PRPackedBool mNotifiedDone;
 
-  // whether CMS or premultiplied alpha are forced off
-  PRUint32 mCMSMode;
-  PRPackedBool mDisablePremultipliedAlpha;
-  
   /*
    * libpng callbacks
    *

@@ -307,7 +307,6 @@ nsSVGLength2::SetBaseValueInSpecifiedUnits(float aValue,
                                            nsSVGElement *aSVGElement)
 {
   mBaseVal = aValue;
-  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
@@ -345,7 +344,6 @@ nsSVGLength2::NewValueSpecifiedUnits(PRUint16 unitType,
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 
   mBaseVal = valueInSpecifiedUnits;
-  mIsBaseSet = PR_TRUE;
   mSpecifiedUnitType = PRUint8(unitType);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -415,7 +413,6 @@ nsSVGLength2::SetBaseValueString(const nsAString &aValueAsString,
   }
   
   mBaseVal = value;
-  mIsBaseSet = PR_TRUE;
   mSpecifiedUnitType = PRUint8(unitType);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -426,7 +423,9 @@ nsSVGLength2::SetBaseValueString(const nsAString &aValueAsString,
   }
 #endif
 
-  aSVGElement->DidChangeLength(mAttrEnum, aDoSetAttr);
+  // We don't need to call DidChange* here - we're only called by
+  // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
+  // which takes care of notifying.
   return NS_OK;
 }
 
@@ -445,26 +444,24 @@ nsSVGLength2::GetAnimValueString(nsAString & aValueAsString)
 void
 nsSVGLength2::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
 {
-  SetBaseValueInSpecifiedUnits(aValue * GetUnitScaleFactor(aSVGElement,
-                                                           mSpecifiedUnitType),
-                               aSVGElement);
-}
-
-void
-nsSVGLength2::SetAnimValueInSpecifiedUnits(float aValue,
-                                           nsSVGElement* aSVGElement)
-{
-  mAnimVal = aValue;
-  mIsAnimated = PR_TRUE;
-  aSVGElement->DidAnimateLength(mAttrEnum);
+  mBaseVal = aValue * GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType);
+  if (!mIsAnimated) {
+    mAnimVal = mBaseVal;
+  }
+#ifdef MOZ_SMIL
+  else {
+    aSVGElement->AnimationNeedsResample();
+  }
+#endif
+  aSVGElement->DidChangeLength(mAttrEnum, PR_TRUE);
 }
 
 void
 nsSVGLength2::SetAnimValue(float aValue, nsSVGElement *aSVGElement)
 {
-  SetAnimValueInSpecifiedUnits(aValue * GetUnitScaleFactor(aSVGElement,
-                                                           mSpecifiedUnitType),
-                               aSVGElement);
+  mAnimVal = aValue * GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType);
+  mIsAnimated = PR_TRUE;
+  aSVGElement->DidAnimateLength(mAttrEnum);
 }
 
 nsresult
@@ -532,7 +529,7 @@ void
 nsSVGLength2::SMILLength::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
-    mVal->SetAnimValueInSpecifiedUnits(mVal->mBaseVal, mSVGElement);
+    mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
     mVal->mIsAnimated = PR_FALSE;
   }  
 }

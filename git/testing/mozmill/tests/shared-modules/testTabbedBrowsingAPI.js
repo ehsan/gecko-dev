@@ -41,22 +41,15 @@
  * @version 1.0.0
  */
 
-const MODULE_NAME = 'TabbedBrowsingAPI';
+var MODULE_NAME = 'TabbedBrowsingAPI';
 
-// Include necessary modules
-const RELATIVE_ROOT = '.';
-const MODULE_REQUIRES = ['PrefsAPI', 'UtilsAPI'];
+const gTimeout = 5000;
 
-const TIMEOUT = 5000;
+const tabsBrowser = '/id("main-window")/id("browser")/id("appcontent")/id("content")';
+const tabsStrip = tabsBrowser + '/anon({"anonid":"tabbox"})/anon({"anonid":"strip"})';
+const tabsContainer = tabsStrip + '/anon({"anonid":"tabcontainer"})/anon({"class":"tabs-stack"})/{"class":"tabs-container"}';
+const tabsArrowScrollbox = tabsContainer + '/anon({"anonid":"arrowscrollbox"})';
 
-const PREF_TABS_ANIMATE = "browser.tabs.animate";
-
-const TABS_VIEW = '/id("main-window")/id("tab-view-deck")/{"flex":"1"}';
-const TABS_BROWSER = TABS_VIEW + '/id("browser")/id("appcontent")/id("content")';
-const TABS_TOOLBAR = TABS_VIEW + '/id("navigator-toolbox")/id("TabsToolbar")';
-const TABS_TABS = TABS_TOOLBAR + '/id("tabbrowser-tabs")';
-const TABS_ARROW_SCROLLBOX = TABS_TABS + '/anon({"anonid":"arrowscrollbox"})';
-const TABS_STRIP = TABS_ARROW_SCROLLBOX + '/anon({"anonid":"scrollbox"})/anon({"flex":"1"})';
 
 /**
  * Close all tabs and open about:blank
@@ -71,48 +64,6 @@ function closeAllTabs(controller)
 }
 
 /**
- * Check and return all open tabs with the specified URL
- *
- * @param {string} aUrl
- *        URL to check for
- *
- * @returns Array of tabs
- */
-function getTabsWithURL(aUrl) {
-  var tabs = [ ];
-
-  var utilsAPI = collector.getModule('UtilsAPI');
-  var uri = utilsAPI.createURI(aUrl, null, null);
-
-  var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-           getService(Ci.nsIWindowMediator);
-  var winEnum = wm.getEnumerator("navigator:browser");
-
-  // Iterate through all windows
-  while (winEnum.hasMoreElements()) {
-    var window = winEnum.getNext();
- 
-    // Don't check windows which are about to close or don't have gBrowser set
-    if (window.closed || !("gBrowser" in window))
-      continue;
-
-    // Iterate through all tabs in the current window
-    var browsers = window.gBrowser.browsers;
-    for (var i = 0; i < browsers.length; i++) {
-      var browser = browsers[i];
-      if (browser.currentURI.equals(uri)) {
-        tabs.push({
-          controller : new mozmill.controller.MozMillController(window),
-          index : i
-        });
-      }
-    }
-  }
-
-  return tabs;
-}
-
-/**
  * Constructor
  * 
  * @param {MozMillController} controller
@@ -122,9 +73,6 @@ function tabBrowser(controller)
 {
   this._controller = controller;
   this._tabs = this.getElement({type: "tabs"});
-
-  this._UtilsAPI = collector.getModule('UtilsAPI');
-  this._PrefsAPI = collector.getModule('PrefsAPI');
 }
 
 /**
@@ -168,7 +116,7 @@ tabBrowser.prototype = {
    *        Index of the tab which should be selected
    */
   set selectedIndex(index) {
-    this._controller.click(this.getTab(index));
+    this._controller.click(this.getTab(index), 2, 2);
   },
 
   /**
@@ -176,9 +124,8 @@ tabBrowser.prototype = {
    */
   closeAllTabs : function tabBrowser_closeAllTabs()
   {
-    while (this._controller.tabs.length > 1) {
+    while (this._controller.tabs.length > 1)
       this.closeTab({type: "menu"});
-    }
 
     this._controller.open("about:blank");
     this._controller.waitForPageLoad();
@@ -187,28 +134,17 @@ tabBrowser.prototype = {
   /**
    * Close an open tab
    *
-   * @param {object} aEvent
-   *        The event specifies how to close a tab
-   *        Elements: type - Type of event (closeButton, menu, middleClick, shortcut)
-   *                         [optional - default: menu]
+   * @param {object} event
+   *        The event specifies how to close a tab (menu, middle click,
+   *        shortcut, or the tab close button). Only with middle click an
+   *        inactive tab can be closed.
    */
-  closeTab : function tabBrowser_closeTab(aEvent) {
-    var event = aEvent || { };
-    var type = (event.type == undefined) ? "menu" : event.type;
-
-    // Disable tab closing animation for default behavior
-    this._PrefsAPI.preferences.setPref(PREF_TABS_ANIMATE, false);
-
-    // Add event listener to wait until the tab has been closed
-    var self = { closed: false };
-    function checkTabClosed() { self.closed = true; }
-    this._controller.window.addEventListener("TabClose", checkTabClosed, false);
-
-    switch (type) {
+  closeTab : function tabBrowser_closeTab(event) {
+    switch (event.type) {
       case "closeButton":
         var button = this.getElement({type: "tabs_tabCloseButton",
                                      subtype: "tab", value: this.getTab()});
-        this._controller.click(button);
+        controller.click(button);
         break;
       case "menu":
         var menuitem = new elementslib.Elem(this._controller.menus['file-menu'].menu_close);
@@ -219,33 +155,11 @@ tabBrowser.prototype = {
         this._controller.middleClick(tab);
         break;
       case "shortcut":
-        var cmdKey = this._UtilsAPI.getEntity(this.getDtds(), "closeCmd.key");
-        this._controller.keypress(null, cmdKey, {accelKey: true});
+        this._controller.keypress(null, "w", {accelKey: true});
         break;
       default:
-        throw new Error(arguments.callee.name + ": Unknown event type - " + type);
+        throw new Error(arguments.callee.name + ": Unknown event - " + event.type);
     }
-
-    try {
-      this._controller.waitForEval("subject.tab.closed == true", TIMEOUT, 100,
-                                   {tab: self});
-    } finally {
-      this._controller.window.removeEventListener("TabClose", checkTabClosed, false);
-      this._PrefsAPI.preferences.clearUserPref(PREF_TABS_ANIMATE);
-    }
-  },
-
-  /**
-   * Gets all the needed external DTD urls as an array
-   *
-   * @returns Array of external DTD urls
-   * @type [string]
-   */
-  getDtds : function tabBrowser_getDtds() {
-    var dtds = ["chrome://browser/locale/browser.dtd",
-                "chrome://browser/locale/tabbrowser.dtd",
-                "chrome://global/locale/global.dtd"];
-    return dtds;
   },
 
   /**
@@ -260,7 +174,6 @@ tabBrowser.prototype = {
    * @type {ElemBase}
    */
   getElement : function tabBrowser_getElement(spec) {
-    var document = this._controller.window.document;
     var elem = null;
 
     switch(spec.type) {
@@ -270,27 +183,35 @@ tabBrowser.prototype = {
        */
       case "tabs":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_TABS);
+                                      tabsStrip + '/anon({"anonid":"tabcontainer"})');
         break;
       case "tabs_allTabsButton":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_TOOLBAR + '/id("alltabs-button")');
+                                      tabsContainer + '/{"pack":"end"}/anon({"anonid":"alltabs-button"})');
         break;
       case "tabs_allTabsPopup":
-        elem = new elementslib.Lookup(this._controller.window.document, TABS_TOOLBAR +
-                                      '/id("alltabs-button")/id("alltabs-popup")');
+        elem = new elementslib.Lookup(this._controller.window.document,
+                                      tabsContainer + '/{"pack":"end"}/anon({"anonid":"alltabs-button"})' +
+                                      '/anon({"anonid":"alltabs-popup"})');
+        break;
+      case "tabs_animateBox":
+        elem = new elementslib.Lookup(this._controller.window.document, tabsContainer +
+                                      '/{"pack":"end"}/anon({"anonid":"alltabs-box-animate"})');
+        break;
+      case "tabs_container":
+        elem = new elementslib.Lookup(this._controller.window.document, tabsContainer);
         break;
       case "tabs_newTabButton":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_ARROW_SCROLLBOX + '/anon({"class":"tabs-newtab-button"})');
+                                      tabsArrowScrollbox + '/anon({"class":"tabs-newtab-button"})');
         break;
       case "tabs_scrollButton":
-        elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_ARROW_SCROLLBOX +
+        elem = new elementslib.Lookup(controller.window.document,
+                                      tabsArrowScrollbox +
                                       '/anon({"anonid":"scrollbutton-' + spec.subtype + '"})');
         break;
       case "tabs_strip":
-        elem = new elementslib.Lookup(this._controller.window.document, TABS_STRIP);
+        elem = new elementslib.Lookup(this._controller.window.document, tabsStrip);
         break;
       case "tabs_tab":
         switch (spec.subtype) {
@@ -300,25 +221,14 @@ tabBrowser.prototype = {
         }
         break;
       case "tabs_tabCloseButton":
-        var node = document.getAnonymousElementByAttribute(
-                     spec.value.getNode(),
-                     "anonid",
-                     "close-button"
-                   );
-        elem = new elementslib.Elem(node);
+        elem = new elementslib.Elem(spec.value.getNode().boxObject.lastChild);
         break;
       case "tabs_tabFavicon":
-        var node = document.getAnonymousElementByAttribute(
-                     spec.value.getNode(),
-                     "class",
-                     "tab-icon-image"
-                   );
-
-        elem = new elementslib.Elem(node);
+        elem = new elementslib.Elem(spec.value.getNode().boxObject.firstChild);
         break;
       case "tabs_tabPanel":
         var panelId = spec.value.getNode().getAttribute("linkedpanel");
-        elem = new elementslib.Lookup(this._controller.window.document, TABS_BROWSER +
+        elem = new elementslib.Lookup(this._controller.window.document, tabsBrowser +
                                       '/anon({"anonid":"tabbox"})/anon({"anonid":"panelcontainer"})' +
                                       '/{"id":"' + panelId + '"}');
         break;
@@ -361,83 +271,26 @@ tabBrowser.prototype = {
 
     // Get the tab panel and check if an element has to be fetched
     var panel = this.getElement({type: "tabs_tabPanel", subtype: "tab", value: this.getTab(index)});
-    var elem = new elementslib.Lookup(this._controller.window.document, panel.expression + elemStr);
+    var elem = new elementslib.Lookup(controller.window.document, panel.expression + elemStr);
 
     return elem;
   },
 
   /**
-   * Open element (link) in a new tab
-   *
-   * @param {object} aEvent
-   *        The event specifies how to open the element in a new tab
-   *        Elements: type - Type of event (contextMenu, middleClick)
-   *                         [optional - default: middleClick]
-   */
-  openInNewTab : function tabBrowser_openInNewTab(aEvent) {
-    var event = aEvent || { };
-    var type = (event.type == undefined) ? "middleClick" : event.type;
-
-    // Disable tab closing animation for default behavior
-    this._PrefsAPI.preferences.setPref(PREF_TABS_ANIMATE, false);
-
-    // Add event listener to wait until the tab has been opened
-    var self = { opened: false };
-    function checkTabOpened() { self.opened = true; }
-    this._controller.window.addEventListener("TabOpen", checkTabOpened, false);
-
-    switch (type) {
-      case "contextMenu":
-        var contextMenuItem = new elementslib.ID(this._controller.window.document,
-                                                 "context-openlinkintab");
-        this._controller.rightClick(event.target);
-        this._controller.click(contextMenuItem);
-        this._UtilsAPI.closeContentAreaContextMenu(this._controller);
-        break;
-      case "middleClick":
-        this._controller.middleClick(event.target);
-        break;
-      default:
-        throw new Error(arguments.callee.name + ": Unknown event type - " + type);
-    }
-
-    try {
-      this._controller.waitForEval("subject.tab.opened == true", TIMEOUT, 100,
-                                   {tab: self});
-    } finally {
-      this._controller.window.removeEventListener("TabOpen", checkTabOpened, false);
-      this._PrefsAPI.preferences.clearUserPref(PREF_TABS_ANIMATE);
-    }
-  },
-
-  /**
    * Open a new tab
    *
-   * @param {object} aEvent
+   * @param {object} event
    *        The event specifies how to open a new tab (menu, shortcut,
-   *        Elements: type - Type of event (menu, newTabButton, shortcut, tabStrip)
-   *                         [optional - default: menu]
+   *        new tab button, or double click on the tabstrip)
    */
-  openTab : function tabBrowser_openTab(aEvent) {
-    var event = aEvent || { };
-    var type = (event.type == undefined) ? "menu" : event.type;
-
-    // Disable tab closing animation for default behavior
-    this._PrefsAPI.preferences.setPref(PREF_TABS_ANIMATE, false);
-
-    // Add event listener to wait until the tab has been opened
-    var self = { opened: false };
-    function checkTabOpened() { self.opened = true; }
-    this._controller.window.addEventListener("TabOpen", checkTabOpened, false);
-
-    switch (type) {
+  openTab : function tabBrowser_openTab(event) {
+    switch (event.type) {
       case "menu":
         var menuitem = new elementslib.Elem(this._controller.menus['file-menu'].menu_newNavigatorTab);
         this._controller.click(menuitem);
         break;
       case "shortcut":
-        var cmdKey = this._UtilsAPI.getEntity(this.getDtds(), "tabCmd.commandkey");
-        this._controller.keypress(null, cmdKey, {accelKey: true});
+        this._controller.keypress(null, "t", {accelKey: true});
         break;
       case "newTabButton":
         var newTabButton = this.getElement({type: "tabs_newTabButton"});
@@ -445,30 +298,13 @@ tabBrowser.prototype = {
         break;
       case "tabStrip":
         var tabStrip = this.getElement({type: "tabs_strip"});
-        
-        // RTL-locales need to be treated separately
-        if (this._UtilsAPI.getEntity(this.getDtds(), "locale.dir") == "rtl") {
-          // XXX: Workaround until bug 537968 has been fixed
-          this._controller.click(tabStrip, 100, 3);
-          // Todo: Calculate the correct x position
-          this._controller.doubleClick(tabStrip, 100, 3);
-        } else {
-          // XXX: Workaround until bug 537968 has been fixed
-          this._controller.click(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
-          // Todo: Calculate the correct x position
-          this._controller.doubleClick(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
-        }
-        break;
-      default:
-        throw new Error(arguments.callee.name + ": Unknown event type - " + type);
-    }
 
-    try {
-      this._controller.waitForEval("subject.tab.opened == true", TIMEOUT, 100,
-                                   {tab: self});
-    } finally {
-      this._controller.window.removeEventListener("TabOpen", checkTabOpened, false);
-      this._PrefsAPI.preferences.clearUserPref(PREF_TABS_ANIMATE);
+        // XXX: Workaround until bug 537968 has been fixed
+        this._controller.click(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
+
+        // Todo: Calculate the correct x position
+        this._controller.doubleClick(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
+        break;
     }
   }
 }

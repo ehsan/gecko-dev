@@ -79,20 +79,11 @@ public:
   nsRefreshDriver(nsPresContext *aPresContext);
   ~nsRefreshDriver();
 
-  static void InitializeStatics();
-
   // nsISupports implementation
   NS_DECL_ISUPPORTS
 
   // nsITimerCallback implementation
   NS_DECL_NSITIMERCALLBACK
-
-  /**
-   * Methods for testing, exposed via nsIDOMWindowUtils.  See
-   * nsIDOMWindowUtils.advanceTimeAndRefresh for description.
-   */
-  void AdvanceTimeAndRefresh(PRInt64 aMilliseconds);
-  void RestoreNormalRefresh();
 
   /**
    * Return the time of the most recent refresh.  This is intended to be
@@ -135,7 +126,7 @@ public:
     NS_ASSERTION(!mStyleFlushObservers.Contains(aShell),
 		 "Double-adding style flush observer");
     PRBool appended = mStyleFlushObservers.AppendElement(aShell) != nsnull;
-    EnsureTimerStarted(false);
+    EnsureTimerStarted();
     return appended;
   }
   void RemoveStyleFlushObserver(nsIPresShell* aShell) {
@@ -145,7 +136,7 @@ public:
     NS_ASSERTION(!IsLayoutFlushObserver(aShell),
 		 "Double-adding layout flush observer");
     PRBool appended = mLayoutFlushObservers.AppendElement(aShell) != nsnull;
-    EnsureTimerStarted(false);
+    EnsureTimerStarted();
     return appended;
   }
   void RemoveLayoutFlushObserver(nsIPresShell* aShell) {
@@ -161,19 +152,9 @@ public:
   PRBool ScheduleBeforePaintEvent(nsIDocument* aDocument);
 
   /**
-   * Add a document for which we have nsIAnimationFrameListeners
-   */
-  void ScheduleAnimationFrameListeners(nsIDocument* aDocument);
-
-  /**
    * Remove a document for which we should fire a MozBeforePaint event.
    */
   void RevokeBeforePaintEvent(nsIDocument* aDocument);
-
-  /**
-   * Remove a document for which we have nsIAnimationFrameListeners
-   */
-  void RevokeAnimationFrameListeners(nsIDocument* aDocument);
 
   /**
    * Tell the refresh driver that it is done driving refreshes and
@@ -219,20 +200,13 @@ public:
 private:
   typedef nsTObserverArray<nsARefreshObserver*> ObserverArray;
 
-  void EnsureTimerStarted(bool aAdjustingTimer);
+  void EnsureTimerStarted();
   void StopTimer();
   PRUint32 ObserverCount() const;
   void UpdateMostRecentRefresh();
   ObserverArray& ArrayFor(mozFlushType aFlushType);
   // Trigger a refresh immediately, if haven't been disconnected or frozen.
   void DoRefresh();
-
-  PRInt32 GetRefreshTimerInterval() const;
-  PRInt32 GetRefreshTimerType() const;
-
-  bool HaveAnimationFrameListeners() const {
-    return mAnimationFrameListenerDocs.Length() != 0;
-  }
 
   nsCOMPtr<nsITimer> mTimer;
   mozilla::TimeStamp mMostRecentRefresh; // only valid when mTimer non-null
@@ -244,24 +218,13 @@ private:
 
   bool mFrozen;
   bool mThrottled;
-  bool mTestControllingRefreshes;
-  /* If mTimer is non-null, this boolean indicates whether the timer is
-     a precise timer.  If mTimer is null, this boolean's value can be
-     anything.  */
-  bool mTimerIsPrecise;
 
   // separate arrays for each flush type we support
   ObserverArray mObservers[3];
   nsAutoTArray<nsIPresShell*, 16> mStyleFlushObservers;
   nsAutoTArray<nsIPresShell*, 16> mLayoutFlushObservers;
   // nsTArray on purpose, because we want to be able to swap.
-  nsTArray< nsCOMPtr<nsIDocument> > mBeforePaintTargets;
-  // nsTArray on purpose, because we want to be able to swap.
-  nsTArray<nsIDocument*> mAnimationFrameListenerDocs;
-
-  // This is the last interval we used for our timer.  May be 0 if we
-  // haven't computed a timer interval yet.
-  mutable PRInt32 mLastTimerInterval;
+  nsTArray<nsIDocument*> mBeforePaintTargets;
 };
 
 #endif /* !defined(nsRefreshDriver_h_) */

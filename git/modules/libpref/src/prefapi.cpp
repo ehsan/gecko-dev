@@ -37,7 +37,6 @@
 
 #include "prefapi.h"
 #include "prefapi_private_data.h"
-#include "PrefTuple.h"
 #include "prefread.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
@@ -45,8 +44,12 @@
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "plarena.h"
 
-#ifdef XP_OS2
-  #include <sys/types.h>
+#if defined(XP_MAC)
+  #include <stat.h>
+#else
+  #ifdef XP_OS2
+    #include <sys/types.h>
+  #endif
 #endif
 #ifdef _WIN32
   #include "windows.h"
@@ -66,6 +69,10 @@
 #ifdef XP_OS2
 #define INCL_DOS
 #include <os2.h>
+#endif
+
+#ifdef XP_BEOS
+#include "Alert.h"
 #endif
 
 #define BOGUS_DEFAULT_INT_PREF_VALUE (-5632)
@@ -177,6 +184,7 @@ static nsresult pref_DoCallback(const char* changed_pref);
 
 
 static nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRBool defaultPref);
+static inline PrefHashEntry* pref_HashTableLookup(const void *key);
 
 #define PREF_HASHTABLE_INITIAL_SIZE	2048
 
@@ -303,23 +311,6 @@ PREF_SetBoolPref(const char *pref_name, PRBool value, PRBool set_default)
     return pref_HashPref(pref_name, pref, PREF_BOOL, set_default);
 }
 
-nsresult
-pref_SetPrefTuple(const PrefTuple &aPref, PRBool set_default)
-{
-    switch (aPref.type) {
-        case PrefTuple::PREF_STRING:
-            return PREF_SetCharPref(aPref.key.get(), aPref.stringVal.get(), set_default);
-
-        case PrefTuple::PREF_INT:
-            return PREF_SetIntPref(aPref.key.get(), aPref.intVal, set_default);
-
-        case PrefTuple::PREF_BOOL:
-            return PREF_SetBoolPref(aPref.key.get(), aPref.boolVal, set_default);
-    }
-
-    NS_NOTREACHED("Unknown type");
-    return NS_ERROR_INVALID_ARG;
-}
 
 PLDHashOperator
 pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
@@ -332,8 +323,6 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
         return PL_DHASH_NEXT;
 
     nsCAutoString prefValue;
-    nsCAutoString prefPrefix;
-    prefPrefix.Assign(NS_LITERAL_CSTRING("user_pref(\""));
 
     // where we're getting our pref from
     PrefValue* sourcePref;
@@ -341,17 +330,11 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
     if (PREF_HAS_USER_VALUE(pref) &&
         pref_ValueChanged(pref->defaultPref,
                           pref->userPref,
-                          (PrefType) PREF_TYPE(pref))) {
+                          (PrefType) PREF_TYPE(pref)))
         sourcePref = &pref->userPref;
-    } else {
-        if (argData->saveTypes == SAVE_ALL_AND_DEFAULTS) {
-            prefPrefix.Assign(NS_LITERAL_CSTRING("pref(\""));
-            sourcePref = &pref->defaultPref;
-        }
-        else
-            // do not save default prefs that haven't changed
-            return PL_DHASH_NEXT;
-    }
+    else
+        // do not save default prefs that haven't changed
+        return PL_DHASH_NEXT;
 
     // strings are in quotes!
     if (pref->flags & PREF_STRING) {
@@ -369,57 +352,13 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
     nsCAutoString prefName;
     str_escape(pref->key, prefName);
 
-    argData->prefArray[i] = ToNewCString(prefPrefix +
-                                         prefName +
-                                         NS_LITERAL_CSTRING("\", ") +
-                                         prefValue +
-                                         NS_LITERAL_CSTRING(");"));
-
+    argData->prefArray[i] = ToNewCString(NS_LITERAL_CSTRING("user_pref(\"") +
+                                prefName +
+                                NS_LITERAL_CSTRING("\", ") +
+                                prefValue +
+                                NS_LITERAL_CSTRING(");"));
     return PL_DHASH_NEXT;
 }
-
-PLDHashOperator
-pref_MirrorPrefs(PLDHashTable *table,
-                 PLDHashEntryHdr *heh,
-                 PRUint32 i,
-                 void *arg)
-{
-    if (heh) {
-        PrefHashEntry *entry = static_cast<PrefHashEntry *>(heh);
-        PrefTuple *newEntry =
-            static_cast<nsTArray<PrefTuple> *>(arg)->AppendElement();
-
-        pref_GetTupleFromEntry(entry, newEntry);
-    }
-    return PL_DHASH_NEXT;
-}
-
-void
-pref_GetTupleFromEntry(PrefHashEntry *aHashEntry, PrefTuple *aTuple)
-{
-    aTuple->key = aHashEntry->key;
-
-    PrefValue *value = PREF_HAS_USER_VALUE(aHashEntry) ?
-        &(aHashEntry->userPref) : &(aHashEntry->defaultPref);
-
-    switch (aHashEntry->flags & PREF_VALUETYPE_MASK) {
-        case PREF_STRING:
-            aTuple->stringVal = value->stringVal;
-            aTuple->type = PrefTuple::PREF_STRING;
-            return;
-
-        case PREF_INT:
-            aTuple->intVal = value->intVal;
-            aTuple->type = PrefTuple::PREF_INT;
-            return;
-
-        case PREF_BOOL:
-            aTuple->boolVal = !!value->boolVal;
-            aTuple->type = PrefTuple::PREF_BOOL;
-            return;
-    }
-}
-
 
 int
 pref_CompareStrings(const void *v1, const void *v2, void *unused)
@@ -439,6 +378,7 @@ pref_CompareStrings(const void *v1, const void *v2, void *unused)
     else
         return strcmp(s1, s2);
 }
+
 
 PRBool PREF_HasUserPref(const char *pref_name)
 {
@@ -475,7 +415,7 @@ nsresult PREF_GetCharPref(const char *pref_name, char * return_buffer, int * len
                 *length = PL_strlen(stringVal) + 1;
             else
             {
-                PL_strncpy(return_buffer, stringVal, NS_MIN<size_t>(*length - 1, PL_strlen(stringVal) + 1));
+                PL_strncpy(return_buffer, stringVal, PR_MIN((size_t)*length - 1, PL_strlen(stringVal) + 1));
                 return_buffer[*length - 1] = '\0';
             }
             rv = NS_OK;
@@ -609,6 +549,7 @@ PREF_ClearUserPref(const char *pref_name)
     if (!gHashTable.ops)
         return NS_ERROR_NOT_INITIALIZED;
 
+    nsresult rv = NS_ERROR_UNEXPECTED;
     PrefHashEntry* pref = pref_HashTableLookup(pref_name);
     if (pref && PREF_HAS_USER_VALUE(pref))
     {
@@ -624,8 +565,9 @@ PREF_ClearUserPref(const char *pref_name)
 
         pref_DoCallback(pref_name);
         gDirty = PR_TRUE;
+        rv = NS_OK;
     }
-    return NS_OK;
+    return rv;
 }
 
 static PLDHashOperator
@@ -728,7 +670,7 @@ static void pref_SetValue(PrefValue* oldValue, PrefValue newValue, PrefType type
     gDirty = PR_TRUE;
 }
 
-PrefHashEntry* pref_HashTableLookup(const void *key)
+static inline PrefHashEntry* pref_HashTableLookup(const void *key)
 {
     PrefHashEntry* result =
         static_cast<PrefHashEntry*>(PL_DHashTableOperate(&gHashTable, key, PL_DHASH_LOOKUP));

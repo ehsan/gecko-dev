@@ -47,12 +47,14 @@ XPIDL_MODULE	= content_events
 
 EXPORTS		= \
 		nsMutationEvent.h \
+		nsIEventListenerManager.h \
+		nsIEventStateManager.h \
 		nsIPrivateDOMEvent.h \
 		nsIPrivateTextEvent.h \
 		nsIPrivateTextRange.h \
 		nsPLDOMEvent.h \
 		nsEventDispatcher.h \
-		nsEventStates.h \
+		nsPIDOMEventTarget.h \
 		$(NULL)
 
 XPIDLSRCS	= \

@@ -65,8 +65,9 @@ class nsIWidget;
 //   ePopupShowing - during the period when the popupshowing event fires
 //   ePopupOpen - between the popupshowing event and being visible. Creation
 //                of the child frames, layout and reflow occurs in this state.
-//   ePopupOpenAndVisible - layout is done and the popup's view and widget are
-//                          made visible. The popupshown event fires.
+//   ePopupOpenAndVisible - layout is done and AdjustView is called to make
+//                          the popup's widget visible. The popup is now
+//                          visible and the popupshown event fires.
 // When closing a popup:
 //   ePopupHidden - during the period when the popuphiding event fires and
 //                  the popup is removed.
@@ -92,15 +93,6 @@ enum nsPopupState {
   ePopupInvisible
 };
 
-// How a popup may be flipped. Flipping to the outside edge is like how
-// a submenu would work. The entire popup is flipped to the opposite side
-// of the anchor.
-enum FlipStyle {
-  FlipStyle_None = 0,
-  FlipStyle_Outside = 1,
-  FlipStyle_Inside = 2
-};
-
 // values are selected so that the direction can be flipped just by
 // changing the sign
 #define POPUPALIGNMENT_NONE 0
@@ -108,11 +100,6 @@ enum FlipStyle {
 #define POPUPALIGNMENT_TOPRIGHT -1
 #define POPUPALIGNMENT_BOTTOMLEFT 2
 #define POPUPALIGNMENT_BOTTOMRIGHT -2
-
-#define POPUPALIGNMENT_LEFTCENTER 16
-#define POPUPALIGNMENT_RIGHTCENTER 17
-#define POPUPALIGNMENT_TOPCENTER 18
-#define POPUPALIGNMENT_BOTTOMCENTER 19
 
 #define INC_TYP_INTERVAL  1000  // 1s. If the interval between two keypresses is shorter than this, 
                                 //   treat as a continue typing
@@ -216,6 +203,9 @@ public:
   // layout, position and display the popup as needed
   void LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, PRBool aSizedToPopup);
 
+  // AdjustView is called by LayoutPopup to position and show the popup's view.
+  void AdjustView();
+
   nsIView* GetRootViewForPopup(nsIFrame* aStartFrame);
 
   // set the position of the popup either relative to the anchor aAnchorFrame
@@ -234,7 +224,7 @@ public:
   // that menu, or null if no menu should be opened. Also, calling Enter will
   // reset the current incremental search string, calculated in
   // FindMenuWithShortcut.
-  nsMenuFrame* Enter(nsGUIEvent* aEvent);
+  nsMenuFrame* Enter();
 
   nsPopupType PopupType() const { return mPopupType; }
   PRBool IsMenu() { return mPopupType == ePopupTypeMenu; }
@@ -249,8 +239,8 @@ public:
     return nsnull;
   }
 
-  static nsIContent* GetTriggerContent(nsMenuPopupFrame* aMenuPopupFrame);
-  void ClearTriggerContent() { mTriggerContent = nsnull; }
+  nsIContent* GetTriggerContent() { return mTriggerContent; }
+  void SetTriggerContent(nsIContent* aTriggerContent) { mTriggerContent = aTriggerContent; }
 
   // returns true if the popup is in a content shell, or false for a popup in
   // a chrome shell
@@ -279,7 +269,7 @@ public:
                                       PRInt32 aXPos, PRInt32 aYPos);
 
   // indicate that the popup should be opened
-  void ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem);
+  PRBool ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem);
   // indicate that the popup should be hidden. The new state should either be
   // ePopupClosed or ePopupInvisible.
   void HidePopup(PRBool aDeselectMenu, nsPopupState aNewState);
@@ -339,9 +329,6 @@ public:
   // Return true if the popup is positioned relative to an anchor.
   PRBool IsAnchored() const { return mScreenXPos == -1 && mScreenYPos == -1; }
 
-  // Return the anchor if there is one.
-  nsIContent* GetAnchor() const { return mAnchorContent; }
-
   // Return the screen coordinates of the popup, or (-1, -1) if anchored.
   nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
 
@@ -359,8 +346,8 @@ protected:
   // return the position where the popup should be, when it should be
   // anchored at anchorRect. aHFlip and aVFlip will be set if the popup may be
   // flipped in that direction if there is not enough space available.
-  nsPoint AdjustPositionForAnchorAlign(nsRect& anchorRect,
-                                       FlipStyle& aHFlip, FlipStyle& aVFlip);
+  nsPoint AdjustPositionForAnchorAlign(const nsRect& anchorRect, PRBool& aHFlip, PRBool& aVFlip);
+
 
   // check if the popup will fit into the available space and resize it. This
   // method handles only one axis at a time so is called twice, once for
@@ -375,34 +362,17 @@ protected:
   //   aMarginBegin - the left or top margin of the popup
   //   aMarginEnd - the right or bottom margin of the popup
   //   aOffsetForContextMenu - the additional offset to add for context menus
-  //   aFlip - how to flip or resize the popup when there isn't space
+  //   aFlip - whether to flip or resize the popup when there isn't space
   //   aFlipSide - pointer to where current flip mode is stored
   nscoord FlipOrResize(nscoord& aScreenPoint, nscoord aSize, 
                        nscoord aScreenBegin, nscoord aScreenEnd,
                        nscoord aAnchorBegin, nscoord aAnchorEnd,
                        nscoord aMarginBegin, nscoord aMarginEnd,
-                       nscoord aOffsetForContextMenu, FlipStyle aFlip,
+                       nscoord aOffsetForContextMenu, PRBool aFlip,
                        PRPackedBool* aFlipSide);
 
   // Move the popup to the position specified in its |left| and |top| attributes.
   void MoveToAttributePosition();
-
-  /**
-   * Return whether the popup direction should be RTL.
-   * If the popup has an anchor, its direction is the anchor direction.
-   * Otherwise, its the general direction of the UI.
-   *
-   * Return whether the popup direction should be RTL.
-   */
-  bool IsDirectionRTL() const {
-    return mAnchorContent && mAnchorContent->GetPrimaryFrame()
-      ? mAnchorContent->GetPrimaryFrame()->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL
-      : GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
-  }
-
-  // Create a popup view for this frame. The view is added a child of the root
-  // view, and is initially hidden.
-  nsresult CreatePopupViewForFrame();
 
   nsString     mIncrementalString;  // for incremental typing navigation
 
@@ -435,7 +405,6 @@ protected:
   // popup alignment relative to the anchor node
   PRInt8 mPopupAlignment;
   PRInt8 mPopupAnchor;
-  PRPackedBool mFlipBoth; // flip in both directions
 
   PRPackedBool mIsOpenChanged; // true if the open state changed since the last layout
   PRPackedBool mIsContextMenu; // true for context menus

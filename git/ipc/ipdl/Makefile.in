@@ -55,25 +55,18 @@ EXPORT_LIBRARY = 1
 ##
 IPDLDIRS =  \
   uriloader/exthandler \
-  dom/plugins/ipc  \
+  dom/src/geolocation \
+  dom/plugins  \
   dom/ipc  \
-  dom/src/storage \
   gfx/layers/ipc \
+  ipc/ipdl/test/cxx  \
   ipc/testshell  \
   js/ipc  \
   js/jetpack \
-  layout/ipc \
   netwerk/ipc  \
-  netwerk/protocol/ftp \
   netwerk/protocol/http  \
-  netwerk/protocol/wyciwyg \
   netwerk/cookie  \
-  uriloader/prefetch  \
   $(NULL)
-
-ifdef MOZ_IPDL_TESTS #{
-IPDLDIRS += ipc/ipdl/test/cxx
-endif #}
 ##-----------------------------------------------------------------------------
 
 ifdef MOZ_IPDL_TESTS
@@ -97,7 +90,6 @@ $(foreach IPDLDIR,$(IPDLDIRS),$(eval $(ADD_IPDLDIR)))
 CPPSRCS =					\
   $(PROTOCOLS:%.ipdl=%Parent.cpp)		\
   $(PROTOCOLS:%.ipdl=%Child.cpp)		\
-  $(PROTOCOLS:%.ipdl=%.cpp)			\
   $(NULL)
 
 GARBAGE += $(CPPSRCS)

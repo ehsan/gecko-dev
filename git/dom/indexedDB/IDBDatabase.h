@@ -40,120 +40,69 @@
 #ifndef mozilla_dom_indexeddb_idbdatabase_h__
 #define mozilla_dom_indexeddb_idbdatabase_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
+#include "mozilla/dom/indexedDB/LazyIdleThread.h"
 
+#include "mozIStorageConnection.h"
 #include "nsIIDBDatabase.h"
+#include "nsIObserver.h"
 
-#include "nsCycleCollectionParticipant.h"
-#include "nsDOMEventTargetHelper.h"
 #include "nsDOMLists.h"
-#include "nsIDocument.h"
-
-class nsIScriptContext;
-class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
 struct DatabaseInfo;
-class IDBIndex;
-class IDBObjectStore;
 class IDBTransaction;
-class IndexedDatabaseManager;
 
-class IDBDatabase : public nsDOMEventTargetHelper,
-                    public nsIIDBDatabase
+class IDBDatabase : public IDBRequest::Generator,
+                    public nsIIDBDatabase,
+                    public nsIObserver
 {
   friend class AsyncConnectionHelper;
-  friend class IndexedDatabaseManager;
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIIDBDATABASE
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBDatabase,
-                                           nsDOMEventTargetHelper)
+  NS_DECL_NSIOBSERVER
 
   static already_AddRefed<IDBDatabase>
-  Create(nsIScriptContext* aScriptContext,
-         nsPIDOMWindow* aOwner,
-         DatabaseInfo* aDatabaseInfo,
-         const nsACString& aASCIIOrigin);
+  Create(DatabaseInfo* aDatabaseInfo,
+         LazyIdleThread* aThread,
+         nsCOMPtr<mozIStorageConnection>& aConnection);
 
-  // nsIDOMEventTarget
-  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  nsIThread* ConnectionThread() {
+    return mConnectionThread;
+  }
 
-  PRUint32 Id()
-  {
+  void CloseConnection();
+
+  PRUint32 Id() {
     return mDatabaseId;
   }
 
-  const nsString& Name()
-  {
-    return mName;
-  }
-
-  const nsString& FilePath()
-  {
+  const nsString& FilePath() {
     return mFilePath;
   }
 
-  nsIScriptContext* ScriptContext()
-  {
-    NS_ASSERTION(mScriptContext, "This should never be null!");
-    return mScriptContext;
-  }
-
-  nsPIDOMWindow* Owner()
-  {
-    NS_ASSERTION(mOwner, "This should never be null!");
-    return mOwner;
-  }
-
-  already_AddRefed<nsIDocument> GetOwnerDocument()
-  {
-    NS_ASSERTION(mOwner, "This should never be null!");
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mOwner->GetExtantDocument());
-    return doc.forget();
-  }
-
-  bool IsQuotaDisabled();
-
-  nsCString& Origin()
-  {
-    return mASCIIOrigin;
-  }
-
-  void Invalidate();
-
-  // Whether or not the database has been invalidated. If it has then no further
-  // transactions for this database will be allowed to run.
-  bool IsInvalidated();
-
-  void CloseInternal();
-
-  // Whether or not the database has had Close called on it.
-  bool IsClosed();
-
-private:
+protected:
   IDBDatabase();
   ~IDBDatabase();
 
-  void OnUnlink();
+  // Only meant to be called on mStorageThread!
+  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
 
+private:
   PRUint32 mDatabaseId;
   nsString mName;
+  nsString mDescription;
   nsString mFilePath;
-  nsCString mASCIIOrigin;
 
-  PRInt32 mInvalidated;
-  bool mRegistered;
-  bool mClosed;
+  nsRefPtr<LazyIdleThread> mConnectionThread;
 
-  // Only touched on the main thread.
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnVersionChangeListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnBlockedListener;
+  // Only touched on mStorageThread! These must be destroyed in the
+  // FireCloseConnectionRunnable method.
+  nsCOMPtr<mozIStorageConnection> mConnection;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -38,7 +38,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLElement.h"
 
-using namespace mozilla::dom;
 
 class nsHTMLElement : public nsGenericHTMLElement,
                       public nsIDOMHTMLElement
@@ -70,7 +69,7 @@ public:
 // (Calling the macro directly (with no args) produces compiler warnings.)
 nsGenericHTMLElement*
 NS_NewHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                  FromParser aFromParser)
+                  PRUint32 aFromParser)
 {
   return new nsHTMLElement(aNodeInfo);
 }

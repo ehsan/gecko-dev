@@ -43,12 +43,12 @@
 #include "nsColor.h"
 #include "nsRect.h"
 
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsGUIEvent;
 
 #define NS_IVIEWOBSERVER_IID  \
-  { 0xdc283a18, 0x61cb, 0x468c, \
-    { 0x8d, 0xb8, 0x9b, 0x81, 0xf7, 0xc9, 0x33, 0x25 } }
+  { 0x6af699da, 0x8bfe, 0x43c9, \
+    { 0xae, 0xc1, 0x76, 0x1b, 0x03, 0x62, 0x8d, 0x64 } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -76,7 +76,8 @@ public:
    * which is to paint some default background color over the dirty region.
    * @return error status
    */
-  NS_IMETHOD Paint(nsIView*           aViewToPaint,
+  NS_IMETHOD Paint(nsIView*           aDisplayRoot,
+                   nsIView*           aViewToPaint,
                    nsIWidget*         aWidgetToPaint,
                    const nsRegion&    aDirtyRegion,
                    const nsIntRegion& aIntDirtyRegion,
@@ -96,7 +97,6 @@ public:
    */
   NS_IMETHOD HandleEvent(nsIView*       aView,
                          nsGUIEvent*    aEvent,
-                         PRBool         aDontRetargetEvents,
                          nsEventStatus* aEventStatus) = 0;
 
   /* called when the view has been resized and the
@@ -106,6 +106,12 @@ public:
    * @return error status
    */
   NS_IMETHOD ResizeReflow(nsIView * aView, nscoord aWidth, nscoord aHeight) = 0;
+
+  /**
+   * Hack to find out if the view observer is itself visible, in lieu
+   * of having the view trees linked.
+   */
+  NS_IMETHOD_(PRBool) IsVisible() = 0;
 
   /**
    * Returns true if the view observer wants to drop all invalidation right now

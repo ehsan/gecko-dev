@@ -38,12 +38,8 @@
 #ifndef GFX_IMAGELAYEROGL_H
 #define GFX_IMAGELAYEROGL_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
-
 #include "LayerManagerOGL.h"
 #include "ImageLayers.h"
-#include "yuv_convert.h"
 #include "mozilla/Mutex.h"
 
 namespace mozilla {
@@ -154,11 +150,14 @@ public:
 
   virtual PRBool SetLayerManager(LayerManager *aManager);
 
-  virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_OPENGL; }
-
 private:
+  typedef mozilla::Mutex Mutex;
 
   nsRefPtr<RecycleBin> mRecycleBin;
+
+  // This protects mActiveImage
+  Mutex mActiveImageLock;
+
   nsRefPtr<Image> mActiveImage;
 };
 
@@ -214,7 +213,6 @@ public:
   Data mData;
   gfxIntSize mSize;
   PRPackedBool mHasData;
-  gfx::YUVType mType; 
 };
 
 
@@ -229,45 +227,7 @@ public:
 
   GLTexture mTexture;
   gfxIntSize mSize;
-  gl::ShaderProgramType mLayerProgram;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  nsRefPtr<gfxASurface> mSurface;
-#endif
-  void SetTiling(bool aTiling);
-private:
-  bool mTiling;
-};
-
-class ShadowImageLayerOGL : public ShadowImageLayer,
-                            public LayerOGL
-{
-  typedef gl::TextureImage TextureImage;
-
-public:
-  ShadowImageLayerOGL(LayerManagerOGL* aManager);
-  virtual ~ShadowImageLayerOGL();
-
-  // ShadowImageLayer impl
-  virtual PRBool Init(const SharedImage& aFront, const nsIntSize& aSize);
-
-  virtual void Swap(const SharedImage& aFront, SharedImage* aNewBack);
-
-  virtual void DestroyFrontBuffer();
-
-  virtual void Disconnect();
-
-  // LayerOGL impl
-  virtual void Destroy();
-
-  virtual Layer* GetLayer();
-
-  virtual void RenderLayer(int aPreviousFrameBuffer,
-                           const nsIntPoint& aOffset);
-
-private:
-  nsRefPtr<TextureImage> mTexImage;
-  GLTexture mYUVTexture[3];
-  gfxIntSize mSize;
+  nsRefPtr<GLContext> mASurfaceAsGLContext;
 };
 
 } /* layers */

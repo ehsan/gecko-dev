@@ -94,9 +94,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "private-browsing", true);
   this._obs.addObserver(this, "command-line-startup", true);
   this._obs.addObserver(this, "sessionstore-browser-state-restored", true);
-
-  // List of nsIXULWindows we are going to be closing during the transition
-  this._windowsToClose = [];
 }
 
 PrivateBrowsingService.prototype = {
@@ -129,8 +126,8 @@ PrivateBrowsingService.prototype = {
   // List of view source window URIs for restoring later
   _viewSrcURLs: [],
 
-  // Whether private browsing has been turned on from the command line
-  _lastChangedByCommandLine: false,
+  // List of nsIXULWindows we are going to be closing during the transition
+  _windowsToClose: [],
 
   // XPCOM registration
   classID: Components.ID("{c31f4883-839b-45f6-82ad-a6a9bc5ad599}"),
@@ -234,9 +231,6 @@ PrivateBrowsingService.prototype = {
       // to be restored, do it now
       if (!this._inPrivateBrowsing) {
         this._currentStatus = STATE_WAITING_FOR_RESTORE;
-        if (!this._getBrowserWindow()) {
-          ss.init(null);
-        }
         ss.setBrowserState(this._savedBrowserState);
         this._savedBrowserState = null;
 
@@ -279,9 +273,6 @@ PrivateBrowsingService.prototype = {
         };
         // Transition into private browsing mode
         this._currentStatus = STATE_WAITING_FOR_RESTORE;
-        if (!this._getBrowserWindow()) {
-          ss.init(null);
-        }
         ss.setBrowserState(JSON.stringify(privateBrowsingState));
       }
     }
@@ -448,10 +439,6 @@ PrivateBrowsingService.prototype = {
         if (aSubject.findFlag("private", false) >= 0) {
           this.privateBrowsingEnabled = true;
           this._autoStarted = true;
-          this._lastChangedByCommandLine = true;
-        }
-        else if (aSubject.findFlag("private-toggle", false) >= 0) {
-          this._lastChangedByCommandLine = true;
         }
         break;
       case "sessionstore-browser-state-restored":
@@ -467,13 +454,10 @@ PrivateBrowsingService.prototype = {
 
   handle: function PBS_handle(aCmdLine) {
     if (aCmdLine.handleFlag("private", false))
-      aCmdLine.preventDefault = true; // It has already been handled
+      ; // It has already been handled
     else if (aCmdLine.handleFlag("private-toggle", false)) {
-      if (this._autoStarted) {
-        throw Cr.NS_ERROR_ABORT;
-      }
       this.privateBrowsingEnabled = !this.privateBrowsingEnabled;
-      this._lastChangedByCommandLine = true;
+      this._autoStarted = false;
     }
   },
 
@@ -550,7 +534,6 @@ PrivateBrowsingService.prototype = {
     } finally {
       this._windowsToClose = [];
       this._notifyIfTransitionComplete();
-      this._lastChangedByCommandLine = false;
     }
   },
 
@@ -559,13 +542,6 @@ PrivateBrowsingService.prototype = {
    */
   get autoStarted() {
     return this._inPrivateBrowsing && this._autoStarted;
-  },
-
-  /**
-   * Whether the latest transition was initiated from the command line.
-   */
-  get lastChangedByCommandLine() {
-    return this._lastChangedByCommandLine;
   },
 
   removeDataFromDomain: function PBS_removeDataFromDomain(aDomain)
@@ -616,22 +592,6 @@ PrivateBrowsingService.prototype = {
       }
     }
 
-    // Plugin data
-    let (ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost)) {
-      const phInterface = Ci.nsIPluginHost;
-      const FLAG_CLEAR_ALL = phInterface.FLAG_CLEAR_ALL;
-      ph.QueryInterface(phInterface);
-
-      let tags = ph.getPluginTags();
-      for (let i = 0; i < tags.length; i++) {
-        try {
-          ph.clearSiteData(tags[i], aDomain, FLAG_CLEAR_ALL, -1);
-        } catch (e) {
-          // Ignore errors from the plugin
-        }
-      }
-    }
-
     // Downloads
     let (dm = Cc["@mozilla.org/download-manager;1"].
               getService(Ci.nsIDownloadManager)) {
@@ -656,10 +616,10 @@ PrivateBrowsingService.prototype = {
         "AND state NOT IN (?2, ?3, ?4)"
       );
       let pattern = stmt.escapeStringForLIKE(aDomain, "/");
-      stmt.bindByIndex(0, "%" + pattern + "%");
-      stmt.bindByIndex(1, Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING);
-      stmt.bindByIndex(2, Ci.nsIDownloadManager.DOWNLOAD_PAUSED);
-      stmt.bindByIndex(3, Ci.nsIDownloadManager.DOWNLOAD_QUEUED);
+      stmt.bindStringParameter(0, "%" + pattern + "%");
+      stmt.bindInt32Parameter(1, Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING);
+      stmt.bindInt32Parameter(2, Ci.nsIDownloadManager.DOWNLOAD_PAUSED);
+      stmt.bindInt32Parameter(3, Ci.nsIDownloadManager.DOWNLOAD_QUEUED);
       try {
         stmt.execute();
       }
@@ -719,7 +679,7 @@ PrivateBrowsingService.prototype = {
         "WHERE name LIKE ?1 ESCAPE '/'"
       );
       let pattern = stmt.escapeStringForLIKE(aDomain, "/");
-      stmt.bindByIndex(0, "%" + pattern);
+      stmt.bindStringParameter(0, "%" + pattern);
       try {
         while (stmt.executeStep())
           if (stmt.getString(0).hasRootDomain(aDomain))
@@ -738,21 +698,6 @@ PrivateBrowsingService.prototype = {
           cp.removePref(uri, pref.name);
         }
       }
-    }
-
-    // Indexed DB
-    let (idbm = Cc["@mozilla.org/dom/indexeddb/manager;1"].
-                getService(Ci.nsIIndexedDatabaseManager)) {
-      // delete data from both HTTP and HTTPS sites
-      let caUtils = {};
-      let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                         getService(Ci.mozIJSSubScriptLoader);
-      scriptLoader.loadSubScript("chrome://global/content/contentAreaUtils.js",
-                                 caUtils);
-      let httpURI = caUtils.makeURI("http://" + aDomain);
-      let httpsURI = caUtils.makeURI("https://" + aDomain);
-      idbm.clearDatabasesForURI(httpURI);
-      idbm.clearDatabasesForURI(httpsURI);
     }
 
     // Everybody else (including extensions)

@@ -20,8 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Aaron Leventhal <aaronl@netscape.com> (original author)
- *   Alexander Surkov <surkov.alexander@gmail.com>
+ *   Original Author: Aaron Leventhal (aaronl@netscape.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -37,20 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* For documentation of the accessibility architecture, 
+ * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
+ */
+
 #ifndef _nsRootAccessibleWrap_H_
 #define _nsRootAccessibleWrap_H_
 
 #include "nsRootAccessible.h"
 
-class nsRootAccessibleWrap : public nsRootAccessible
-{
-public:
-  nsRootAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
-                       nsIWeakReference* aShell);
-  virtual ~nsRootAccessibleWrap();
-
-  // nsRootAccessible
-  virtual void DocumentActivated(nsDocAccessible* aDocument);
-};
+typedef class nsRootAccessible nsRootAccessibleWrap;
 
 #endif

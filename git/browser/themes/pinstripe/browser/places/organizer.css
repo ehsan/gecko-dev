@@ -2,6 +2,12 @@
 
 /* Places Organizer Sidebars */
 
+#placesList {
+  -moz-appearance: none;
+  border: none;
+  margin: 0;
+}
+
 #placesList > treechildren::-moz-tree-row {
   background-color: transparent;
   border-color: transparent;
@@ -82,8 +88,8 @@
   margin: 4px 4px 5px;
   padding: 1px 3px;
   border: 1px solid @toolbarbuttonBorderColor@;
-  border-radius: @toolbarbuttonCornerRadius@;
-  box-shadow: @loweredShadow@;
+  -moz-border-radius: @toolbarbuttonCornerRadius@;
+  -moz-box-shadow: @loweredShadow@;
   background: @toolbarbuttonBackground@;
   background-origin: border-box;
 }
@@ -92,7 +98,7 @@
 #placesToolbar > toolbarbutton[open="true"] {
   background: @toolbarbuttonPressedBackgroundColor@;
   text-shadow: @loweredShadow@;
-  box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
+  -moz-box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
 }
 
 #placesToolbar > toolbarbutton:-moz-window-inactive {
@@ -105,7 +111,7 @@
 }
 
 #placesToolbar > toolbarbutton > .toolbarbutton-icon {
-  margin: 1px 4px;
+  margin: 0 4px;
 }
 
 #placesToolbar > toolbarbutton > .toolbarbutton-text {
@@ -127,8 +133,8 @@
 #back-button:-moz-locale-dir(ltr),
 #forward-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(0px, 16px, 16px, 0px);
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  -moz-border-radius-topright: 0;
+  -moz-border-radius-bottomright: 0;
   margin-right: 0;
   border-right: 0;
 }
@@ -136,8 +142,8 @@
 #forward-button:-moz-locale-dir(ltr),
 #back-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(0px, 32px, 16px, 16px);
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  -moz-border-radius-topleft: 0;
+  -moz-border-radius-bottomleft: 0;
   margin-left: 0;
 }
 
@@ -173,17 +179,23 @@
 }
 
 /* Place List, Place Content */
+.placesTree {
+  margin: 0px;
+}
+
 #placesList {
+  -moz-appearance: none;
   background-color: #d2d8e2;
   width: 160px;
+  margin: 0px;
+  border: 0px;
 }
 
 #placesList:-moz-window-inactive {
   background-color: #e8e8e8;
 }
 
-/* Info box */
-#detailsDeck {
+#infoPaneBox {
   border-top: 1px solid #919191;
   background-color: #f0f0f0;
   padding: 10px;
@@ -223,6 +235,19 @@
   border-color: transparent;
 }
 
+.small {
+  min-width: 0px;
+  padding: 0px 4px 0px 4px;
+  margin: 0px;  
+  border: 0px;
+}
+
+.small .button-text,
+.small .button-box {
+  padding: 0px;
+  border: 0px;
+}
+
 /* Scope Bar */
 
 #advancedSearch > hbox, 
@@ -258,7 +283,7 @@
   font: icon;
   font-weight: bold;
   color: #2D2D2D;
-  border-radius: 10000px;
+  -moz-border-radius: 100%;
   padding: 0 10px 1px;
   margin: 1px;
   font-weight: bold;
@@ -277,7 +302,7 @@
 
 #organizerScopeBar > toolbarbutton:active:hover,
 #organizerScopeBar > toolbarbutton[checked="true"] {
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.4), 0 1px rgba(255, 255,
+  -moz-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.4), 0 1px rgba(255, 255,
 255, 0.4);
 }
 
@@ -311,11 +336,11 @@
   margin: 0 4px;
   padding: 0 10px;
   -moz-appearance: none;
-  border-radius: 10000px;
+  -moz-border-radius: 100%;
   border: @roundButtonBorder@;
   text-shadow: @loweredShadow@;
   background: @roundButtonBackground@;
-  box-shadow: @roundButtonShadow@;
+  -moz-box-shadow: @roundButtonShadow@;
 }
 
 #saveSearch > .button-box > .button-text {
@@ -324,15 +349,15 @@
 
 #saveSearch:active:hover {
   background: @roundButtonPressedBackground@;
-  box-shadow: @roundButtonPressedShadow@;
+  -moz-box-shadow: @roundButtonPressedShadow@;
 }
 
 #saveSearch:focus {
-  box-shadow: @focusRingShadow@, @roundButtonShadow@;
+  -moz-box-shadow: @focusRingShadow@, @roundButtonShadow@;
 }
 
 #saveSearch:active:hover:focus {
-  box-shadow: @focusRingShadow@, @roundButtonPressedShadow@;
+  -moz-box-shadow: @focusRingShadow@, @roundButtonPressedShadow@;
 }
 
 /**** expanders ****/

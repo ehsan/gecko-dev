@@ -48,8 +48,6 @@ typedef struct _cairo_user_data_key cairo_user_data_key_t;
 typedef void (*thebes_destroy_func_t) (void *data);
 
 class gfxImageSurface;
-struct nsIntPoint;
-struct nsIntRect;
 
 /**
  * A surface is something you can draw on. Instantiate a subclass of this
@@ -91,15 +89,7 @@ public:
         SurfaceTypeQuartzImage,
         SurfaceTypeScript,
         SurfaceTypeQPainter,
-        SurfaceTypeRecording,
-        SurfaceTypeVG,
-        SurfaceTypeGL,
-        SurfaceTypeDRM,
-        SurfaceTypeTee,
-        SurfaceTypeXML,
-        SurfaceTypeSkia,
-        SurfaceTypeSubsurface,
-        SurfaceTypeD2D,
+        SurfaceTypeDDraw,
         SurfaceTypeMax
     } gfxSurfaceType;
 
@@ -152,15 +142,18 @@ public:
      */
     virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
                                                                const gfxIntSize& aSize);
-
     /**
-     * Returns an image surface for this surface, or nsnull if not supported.
-     * This will not copy image data, just wraps an image surface around
-     * pixel data already available in memory.
+     * Return trues if offscreen surfaces created from this surface
+     * would behave differently depending on the gfxContentType. Returns
+     * false if they don't (i.e. the surface returned by
+     * CreateOffscreenSurface is always as if you passed
+     * CONTENT_COLOR_ALPHA). Knowing this can be useful to avoid
+     * recreating a surface just because it changed from opaque to
+     * transparent.
      */
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface()
+    virtual PRBool AreSimilarSurfacesSensitiveToContentType()
     {
-      return nsnull;
+      return PR_TRUE;
     }
 
     int CairoStatus();
@@ -171,11 +164,6 @@ public:
      */
     static PRBool CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit = 0);
 
-    /* Provide a stride value that will respect all alignment requirements of
-     * the accelerated image-rendering code.
-     */
-    static PRInt32 FormatStrideForWidth(gfxImageFormat format, PRInt32 width);
-
     /* Return the default set of context flags for this surface; these are
      * hints to the context about any special rendering considerations.  See
      * gfxContext::SetFlag for documentation.
@@ -183,10 +171,6 @@ public:
     virtual PRInt32 GetDefaultContextFlags() const { return 0; }
 
     static gfxContentType ContentFromFormat(gfxImageFormat format);
-    static gfxImageFormat FormatFromContent(gfxContentType format);
-
-    void SetSubpixelAntialiasingEnabled(PRBool aEnabled);
-    PRBool GetSubpixelAntialiasingEnabled();
 
     /**
      * Record number of bytes for given surface type.  Use positive bytes
@@ -208,48 +192,8 @@ public:
 
     static PRInt32 BytePerPixelFromFormat(gfxImageFormat format);
 
-    virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
-
-    void DumpAsDataURL();
-
-    void SetOpaqueRect(const gfxRect& aRect) {
-        if (aRect.IsEmpty()) {
-            mOpaqueRect = nsnull;
-        } else if (mOpaqueRect) {
-            *mOpaqueRect = aRect;
-        } else {
-            mOpaqueRect = new gfxRect(aRect);
-        }
-    }
-    const gfxRect& GetOpaqueRect() {
-        if (mOpaqueRect)
-            return *mOpaqueRect;
-        static const gfxRect empty(0, 0, 0, 0);
-        return empty;
-    }
-
-    /**
-     * Move the pixels in |aSourceRect| to |aDestTopLeft|.  Like with
-     * memmove(), |aSourceRect| and the rectangle defined by
-     * |aDestTopLeft| are allowed to overlap, and the effect is
-     * equivalent to copying |aSourceRect| to a scratch surface and
-     * then back to |aDestTopLeft|.
-     *
-     * |aSourceRect| and the destination rectangle defined by
-     * |aDestTopLeft| are clipped to this surface's bounds.
-     */
-    virtual void MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft);
-
-    /**
-     * Mark the surface as being allowed/not allowed to be used as a source.
-     */
-    void SetAllowUseAsSource(PRBool aAllow) { mAllowUseAsSource = aAllow; }
-    PRBool GetAllowUseAsSource() { return mAllowUseAsSource; }
-
 protected:
-    gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mBytesRecorded(0),
-                    mSurfaceValid(PR_FALSE), mAllowUseAsSource(PR_TRUE)
+    gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mBytesRecorded(0), mSurfaceValid(PR_FALSE)
     {
         MOZ_COUNT_CTOR(gfxASurface);
     }
@@ -257,17 +201,6 @@ protected:
     static gfxASurface* GetSurfaceWrapper(cairo_surface_t *csurf);
     static void SetSurfaceWrapper(cairo_surface_t *csurf, gfxASurface *asurf);
 
-    /**
-     * An implementation of MovePixels that assumes the backend can
-     * internally handle this operation and doesn't allocate any
-     * temporary surfaces.
-     */
-    void FastMovePixels(const nsIntRect& aSourceRect,
-                        const nsIntPoint& aDestTopLeft);
-
-    // NB: Init() *must* be called from within subclass's
-    // constructors.  It's unsafe to call it after the ctor finishes;
-    // leaks and use-after-frees are possible.
     void Init(cairo_surface_t *surface, PRBool existingSurface = PR_FALSE);
 
     virtual ~gfxASurface()
@@ -278,7 +211,6 @@ protected:
     }
 
     cairo_surface_t *mSurface;
-    nsAutoPtr<gfxRect> mOpaqueRect;
 
 private:
     static void SurfaceDestroyFunc(void *data);
@@ -288,7 +220,6 @@ private:
 
 protected:
     PRPackedBool mSurfaceValid;
-    PRPackedBool mAllowUseAsSource;
 };
 
 /**

@@ -52,10 +52,10 @@
 #include "nsILocalFile.h"
 #include "nsAppRunner.h"
 #include "AndroidBridge.h"
-#include "APKOpen.h"
-#include "nsExceptionHandler.h"
 
 #define LOG(args...) __android_log_print(ANDROID_LOG_INFO, MOZ_APP_NAME, args)
+
+static pthread_t gGeckoThread = 0;
 
 struct AutoAttachJavaThread {
     AutoAttachJavaThread() {
@@ -72,15 +72,6 @@ struct AutoAttachJavaThread {
 static void*
 GeckoStart(void *data)
 {
-#ifdef MOZ_CRASHREPORTER
-    const struct mapping_info *info = getLibraryMapping();
-    while (info->name) {
-      CrashReporter::AddLibraryMapping(info->name, info->file_id, info->base,
-                                       info->len, info->offset);
-      info++;
-    }
-#endif
-
     AutoAttachJavaThread attacher;
     if (!attacher.attached)
         return 0;
@@ -92,14 +83,9 @@ GeckoStart(void *data)
 
     nsresult rv;
     nsCOMPtr<nsILocalFile> appini;
-    char* greHome = getenv("GRE_HOME");
-    if (!greHome) {
-        LOG("Failed to get GRE_HOME from the env vars");
-        return 0;
-    }
-    nsCAutoString appini_path(greHome);
-    appini_path.AppendLiteral("/application.ini");
-    rv = NS_NewNativeLocalFile(appini_path, PR_FALSE, getter_AddRefs(appini));
+    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/org.mozilla." MOZ_APP_NAME "/application.ini"),
+                         PR_FALSE,
+                         getter_AddRefs(appini));
     if (NS_FAILED(rv)) {
         LOG("Failed to create nsILocalFile for appdata\n");
         return 0;
@@ -108,18 +94,21 @@ GeckoStart(void *data)
     nsXREAppData *appData;
     rv = XRE_CreateAppData(appini, &appData);
     if (NS_FAILED(rv)) {
-        LOG("Failed to load application.ini from %s\n", appini_path.get());
+        LOG("Failed to load application.ini from /data/data/org.mozilla." MOZ_APP_NAME "/application.ini\n");
         return 0;
     }
 
     nsCOMPtr<nsILocalFile> xreDir;
-    rv = NS_NewNativeLocalFile(nsDependentCString(greHome), PR_FALSE, getter_AddRefs(xreDir));
+    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/org.mozilla." MOZ_APP_NAME),
+                         PR_FALSE,
+                         getter_AddRefs(xreDir));
     if (NS_FAILED(rv)) {
         LOG("Failed to create nsIFile for xreDirectory");
         return 0;
     }
 
     appData->xreDirectory = xreDir.get();
+
 
     nsTArray<char *> targs;
     char *arg = strtok(static_cast<char *>(data), " ");
@@ -128,7 +117,7 @@ GeckoStart(void *data)
         arg = strtok(NULL, " ");
     }
     targs.AppendElement(static_cast<char *>(nsnull));
-
+    
     int result = XRE_main(targs.Length() - 1, targs.Elements(), appData);
 
     if (result)
@@ -160,6 +149,8 @@ Java_org_mozilla_gecko_GeckoAppShell_nativeRun(JNIEnv *jenv, jclass jc, jstring 
     jenv->GetStringRegion(jargs, 0, len, wargs.BeginWriting());
     char *args = ToNewUTF8String(wargs);
 
-    GeckoStart(args);
+    if (pthread_create(&gGeckoThread, NULL, GeckoStart, args) != 0) {
+        LOG("pthread_create failed!");
+    }
 }
 

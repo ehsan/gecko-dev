@@ -52,7 +52,6 @@
 #include "nsPK11TokenDB.h"
 #include "nsPKCS11Slot.h"
 #include "nsNSSCertificate.h"
-#include "nsNSSCertificateFakeTransport.h"
 #include "nsNSSCertificateDB.h"
 #include "nsNSSCertCache.h"
 #include "nsCMS.h"
@@ -78,62 +77,17 @@
 #include "nsRecentBadCerts.h"
 #include "nsSSLStatus.h"
 #include "nsNSSIOLayer.h"
-#include "NSSErrorsService.h"
-
-#include "nsXULAppAPI.h"
-#define NS_IS_PROCESS_DEFAULT                                                 \
-    (GeckoProcessType_Default == XRE_GetProcessType())
-
-#define NS_NSS_INSTANTIATE(ensureOperator, _InstanceClass)                    \
-    PR_BEGIN_MACRO                                                            \
-        _InstanceClass * inst;                                                \
-        inst = new _InstanceClass();                                          \
-        if (NULL == inst) {                                                   \
-            if (ensureOperator == nssLoadingComponent)                        \
-                EnsureNSSInitialized(nssInitFailed);                          \
-            rv = NS_ERROR_OUT_OF_MEMORY;                                      \
-            return rv;                                                        \
-        }                                                                     \
-        NS_ADDREF(inst);                                                      \
-        rv = inst->QueryInterface(aIID, aResult);                             \
-        NS_RELEASE(inst);                                                     \
-    PR_END_MACRO
-
-#define NS_NSS_INSTANTIATE_INIT(ensureOperator, _InstanceClass, _InitMethod)  \
-    PR_BEGIN_MACRO                                                            \
-        _InstanceClass * inst;                                                \
-        inst = new _InstanceClass();                                          \
-        if (NULL == inst) {                                                   \
-            if (ensureOperator == nssLoadingComponent)                        \
-                EnsureNSSInitialized(nssInitFailed);                          \
-            rv = NS_ERROR_OUT_OF_MEMORY;                                      \
-            return rv;                                                        \
-        }                                                                     \
-        NS_ADDREF(inst);                                                      \
-        rv = inst->_InitMethod();                                             \
-        if(NS_SUCCEEDED(rv)) {                                                \
-            rv = inst->QueryInterface(aIID, aResult);                         \
-        }                                                                     \
-        NS_RELEASE(inst);                                                     \
-   PR_END_MACRO
-
-
-#define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(ensureOperator,                    \
-                                           _InstanceClass)                    \
-   NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_BYPROCESS(ensureOperator,               \
-                                                _InstanceClass,               \
-                                                _InstanceClass)
 
 // These two macros are ripped off from nsIGenericFactory.h and slightly
 // modified.
-#define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_BYPROCESS(ensureOperator,          \
-                                                     _InstanceClassChrome,    \
-                                                     _InstanceClassContent)   \
+#define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(triggeredByNSSComponent,           \
+                                                      _InstanceClass)         \
 static nsresult                                                               \
-_InstanceClassChrome##Constructor(nsISupports *aOuter, REFNSIID aIID,         \
-                                  void **aResult)                             \
+_InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
+                            void **aResult)                                   \
 {                                                                             \
     nsresult rv;                                                              \
+    _InstanceClass * inst;                                                    \
                                                                               \
     *aResult = NULL;                                                          \
     if (NULL != aOuter) {                                                     \
@@ -141,15 +95,29 @@ _InstanceClassChrome##Constructor(nsISupports *aOuter, REFNSIID aIID,         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
-    if (!EnsureNSSInitialized(ensureOperator))                                \
-        return NS_ERROR_FAILURE;                                              \
-                                                                              \
-    if (NS_IS_PROCESS_DEFAULT)                                                \
-        NS_NSS_INSTANTIATE(ensureOperator, _InstanceClassChrome);             \
+    if (triggeredByNSSComponent)                                              \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssLoading))                                \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
     else                                                                      \
-        NS_NSS_INSTANTIATE(ensureOperator, _InstanceClassContent);            \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssEnsure))                                 \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
                                                                               \
-    if (ensureOperator == nssLoadingComponent)                                \
+    inst = new _InstanceClass();                                              \
+    if (NULL == inst) {                                                       \
+        if (triggeredByNSSComponent)                                          \
+            EnsureNSSInitialized(nssInitFailed);                              \
+        rv = NS_ERROR_OUT_OF_MEMORY;                                          \
+        return rv;                                                            \
+    }                                                                         \
+    NS_ADDREF(inst);                                                          \
+    rv = inst->QueryInterface(aIID, aResult);                                 \
+    NS_RELEASE(inst);                                                         \
+                                                                              \
+    if (triggeredByNSSComponent)                                              \
     {                                                                         \
         if (NS_SUCCEEDED(rv))                                                 \
             EnsureNSSInitialized(nssInitSucceeded);                           \
@@ -158,26 +126,17 @@ _InstanceClassChrome##Constructor(nsISupports *aOuter, REFNSIID aIID,         \
     }                                                                         \
                                                                               \
     return rv;                                                                \
-}
+}                                                                             \
 
  
-#define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(ensureOperator,               \
-                                                _InstanceClass,               \
-                                                _InitMethod)                  \
-    NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT_BYPROCESS(ensureOperator,         \
-                                                      _InstanceClass,         \
-                                                      _InstanceClass,         \
-                                                      _InitMethod)
-
-#define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT_BYPROCESS(ensureOperator,     \
-                                                _InstanceClassChrome,         \
-                                                _InstanceClassContent,        \
-                                                _InitMethod)                  \
+#define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(triggeredByNSSComponent,      \
+                                                _InstanceClass, _InitMethod)  \
 static nsresult                                                               \
-_InstanceClassChrome##Constructor(nsISupports *aOuter, REFNSIID aIID,         \
-                                  void **aResult)                             \
+_InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
+                            void **aResult)                                   \
 {                                                                             \
     nsresult rv;                                                              \
+    _InstanceClass * inst;                                                    \
                                                                               \
     *aResult = NULL;                                                          \
     if (NULL != aOuter) {                                                     \
@@ -185,19 +144,32 @@ _InstanceClassChrome##Constructor(nsISupports *aOuter, REFNSIID aIID,         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
-    if (!EnsureNSSInitialized(ensureOperator))                                \
-        return NS_ERROR_FAILURE;                                              \
-                                                                              \
-    if (NS_IS_PROCESS_DEFAULT)                                                \
-        NS_NSS_INSTANTIATE_INIT(ensureOperator,                               \
-                                _InstanceClassChrome,                         \
-                                _InitMethod);                                 \
+    if (triggeredByNSSComponent)                                              \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssLoading))                                \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
     else                                                                      \
-        NS_NSS_INSTANTIATE_INIT(ensureOperator,                               \
-                                _InstanceClassContent,                        \
-                                _InitMethod);                                 \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssEnsure))                                 \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
                                                                               \
-    if (ensureOperator == nssLoadingComponent)                                \
+    inst = new _InstanceClass();                                              \
+    if (NULL == inst) {                                                       \
+        if (triggeredByNSSComponent)                                          \
+            EnsureNSSInitialized(nssInitFailed);                              \
+        rv = NS_ERROR_OUT_OF_MEMORY;                                          \
+        return rv;                                                            \
+    }                                                                         \
+    NS_ADDREF(inst);                                                          \
+    rv = inst->_InitMethod();                                                 \
+    if(NS_SUCCEEDED(rv)) {                                                    \
+        rv = inst->QueryInterface(aIID, aResult);                             \
+    }                                                                         \
+    NS_RELEASE(inst);                                                         \
+                                                                              \
+    if (triggeredByNSSComponent)                                              \
     {                                                                         \
         if (NS_SUCCEEDED(rv))                                                 \
             EnsureNSSInitialized(nssInitSucceeded);                           \
@@ -206,10 +178,9 @@ _InstanceClassChrome##Constructor(nsISupports *aOuter, REFNSIID aIID,         \
     }                                                                         \
                                                                               \
     return rv;                                                                \
-}
+}                                                                             \
 
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssLoadingComponent, nsNSSComponent,
-                                        Init)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(PR_TRUE, nsNSSComponent, Init)
 
 // Use the special factory constructor for everything this module implements,
 // because all code could potentially require the NSS library.
@@ -217,44 +188,39 @@ NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssLoadingComponent, nsNSSComponent,
 // Only for the nsNSSComponent, set this to PR_TRUE.
 // All other classes must have this set to PR_FALSE.
 
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsSSLSocketProvider)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsTLSSocketProvider)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsSecretDecoderRing)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsPK11TokenDB)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsPKCS11ModuleDB)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, PSMContentListener, init)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_BYPROCESS(nssEnsureOnChromeOnly,
-                                             nsNSSCertificate,
-                                             nsNSSCertificateFakeTransport)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsNSSCertificateDB)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsNSSCertCache)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsSSLSocketProvider)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsTLSSocketProvider)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsSecretDecoderRing)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsPK11TokenDB)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsPKCS11ModuleDB)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(PR_FALSE, PSMContentListener, init)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsNSSCertificate)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsNSSCertificateDB)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsNSSCertCache)
 #ifdef MOZ_XUL
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCertTree)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCertTree)
 #endif
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCrypto)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsPkcs11)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCMSSecureMessage)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCMSDecoder)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCMSEncoder)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCMSMessage)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCertPicker)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCRLManager)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCipherInfoService)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, nsNTLMAuthModule, InitTest)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCryptoHash)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCryptoHMAC)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsStreamCipher)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsKeyObject)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsKeyObjectFactory)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsDataSignatureVerifier)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, nsCertOverrideService, Init)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsRandomGenerator)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, nsRecentBadCertsService, Init)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsureOnChromeOnly, nsSSLStatus)
-NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsureOnChromeOnly, nsNSSSocketInfo)
-
-typedef mozilla::psm::NSSErrorsService NSSErrorsService;
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(NSSErrorsService, Init)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCrypto)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsPkcs11)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCMSSecureMessage)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCMSDecoder)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCMSEncoder)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCMSMessage)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCertPicker)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCRLManager)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCipherInfoService)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(PR_FALSE, nsNTLMAuthModule, InitTest)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCryptoHash)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCryptoHMAC)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsStreamCipher)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsKeyObject)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsKeyObjectFactory)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsDataSignatureVerifier)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(PR_FALSE, nsCertOverrideService, Init)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsRandomGenerator)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(PR_FALSE, nsRecentBadCertsService, Init)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsSSLStatus)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsNSSSocketInfo)
 
 NS_DEFINE_NAMED_CID(NS_NSSCOMPONENT_CID);
 NS_DEFINE_NAMED_CID(NS_SSLSOCKETPROVIDER_CID);
@@ -291,7 +257,6 @@ NS_DEFINE_NAMED_CID(NS_RANDOMGENERATOR_CID);
 NS_DEFINE_NAMED_CID(NS_RECENTBADCERTS_CID);
 NS_DEFINE_NAMED_CID(NS_SSLSTATUS_CID);
 NS_DEFINE_NAMED_CID(NS_NSSSOCKETINFO_CID);
-NS_DEFINE_NAMED_CID(NS_NSSERRORSSERVICE_CID);
 
 
 static const mozilla::Module::CIDEntry kNSSCIDs[] = {
@@ -330,13 +295,12 @@ static const mozilla::Module::CIDEntry kNSSCIDs[] = {
   { &kNS_RECENTBADCERTS_CID, false, NULL, nsRecentBadCertsServiceConstructor },
   { &kNS_SSLSTATUS_CID, false, NULL, nsSSLStatusConstructor },
   { &kNS_NSSSOCKETINFO_CID, false, NULL, nsNSSSocketInfoConstructor },
-  { &kNS_NSSERRORSSERVICE_CID, false, NULL, NSSErrorsServiceConstructor },
   { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kNSSContracts[] = {
   { PSM_COMPONENT_CONTRACTID, &kNS_NSSCOMPONENT_CID },
-  { NS_NSS_ERRORS_SERVICE_CONTRACTID, &kNS_NSSERRORSSERVICE_CID },
+  { NS_NSS_ERRORS_SERVICE_CONTRACTID, &kNS_NSSCOMPONENT_CID },
   { NS_SSLSOCKETPROVIDER_CONTRACTID, &kNS_SSLSOCKETPROVIDER_CID },
   { NS_STARTTLSSOCKETPROVIDER_CONTRACTID, &kNS_STARTTLSSOCKETPROVIDER_CID },
   { NS_SDR_CONTRACTID, &kNS_SDR_CID },

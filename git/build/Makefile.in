@@ -45,7 +45,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = build
 
-ifeq (,$(filter WINNT OS2,$(OS_ARCH)))
+ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 DIRS		= unix
 endif
 
@@ -53,14 +53,26 @@ ifeq (WINNT,$(OS_ARCH))
 DIRS = win32
 endif
 
+ifdef WINCE
+# We need jemalloc built before the shunt
+ifdef MOZ_MEMORY
+DIRS += wince/tools \
+	$(DEPTH)/memory/jemalloc \
+	wince/shunt \
+	$(DEPTH)/memory/mozalloc \
+	$(NULL)
+else
+DIRS += wince/tools \
+	wince/shunt \
+	$(DEPTH)/memory/mozalloc \
+	$(NULL)
+endif
+endif
+
 DIRS += pgo
 
 ifeq (Android,$(OS_TARGET))
-  DIRS += mobile/sutagent/android \
-          mobile/sutagent/android/watcher \
-          mobile/sutagent/android/ffxcp \
-          mobile/sutagent/android/fencp \
-          $(NULL)
+  DIRS += mobile/sutagent/android
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -78,18 +90,6 @@ _LEAKTEST_FILES =    \
 		leaktest.py \
 		bloatcycle.html \
 		$(topsrcdir)/build/pgo/server-locations.txt \
-		$(topsrcdir)/build/pgo/favicon.ico \
-		$(topsrcdir)/build/pgo/blueprint/sample.html \
-		$(topsrcdir)/build/pgo/blueprint/elements.html \
-		$(topsrcdir)/build/pgo/blueprint/forms.html \
-		$(topsrcdir)/build/pgo/blueprint/grid.html \
-		$(topsrcdir)/build/pgo/blueprint/test.jpg \
-		$(topsrcdir)/build/pgo/blueprint/test-small.jpg \
-		$(topsrcdir)/build/pgo/blueprint/valid.png \
-		$(topsrcdir)/build/pgo/blueprint/screen.css \
-		$(topsrcdir)/build/pgo/blueprint/print.css \
-		$(topsrcdir)/build/pgo/blueprint/grid.png \
-		$(topsrcdir)/build/pgo/blueprint/fancytype-screen.css \
 		$(NULL)
 
 leaktest.py: leaktest.py.in
@@ -100,18 +100,17 @@ GARBAGE += leaktest.py
 libs:: $(_LEAKTEST_FILES)
 	$(INSTALL) $^ $(_LEAKTEST_DIR)
 
-_VALGRIND_DIR = $(DEPTH)/_valgrind
-GARBAGE_DIRS += $(_VALGRIND_DIR)
-
-_VALGRIND_FILES = \
-		$(topsrcdir)/build/valgrind/i686-redhat-linux-gnu.sup \
-		$(topsrcdir)/build/valgrind/x86_64-redhat-linux-gnu.sup \
-		$(NULL)
-
-libs:: $(_VALGRIND_FILES)
-	$(INSTALL) $^ $(_VALGRIND_DIR)
-
 ifdef ENABLE_TESTS
+# Install bloaturls.txt file for tinderbox bloat test.
+libs:: bloaturls.txt
+	$(INSTALL) $< $(DIST)/bin
+
+# Install bloatcycle.html into dist/bin/res, for auto-cycling
+# of bloaturls.txt.  This is for browsers that can't do -f
+# autocycling of URLs.
+libs:: bloatcycle.html
+	$(INSTALL) $< $(DIST)/bin/res
+
 libs:: $(topsrcdir)/tools/rb/fix_stack_using_bpsyms.py
 	$(INSTALL) $< $(DIST)/bin
 
@@ -123,11 +122,11 @@ libs:: $(topsrcdir)/tools/rb/fix_macosx_stack.py
 
 # Basic unit tests for some stuff in the unify script
 check::
-# build x64/i386 binaries, and unify them
-	rm -f unify-test-x64 unify-test-i386 unify-test-universal
-	$(HOST_CC) -arch x86_64 $(srcdir)/unify-test.c -o unify-test-x64
+# build ppc/i386 binaries, and unify them
+	rm -f unify-test-ppc unify-test-i386 unify-test-universal
+	$(HOST_CC) -arch ppc $(srcdir)/unify-test.c -o unify-test-ppc
 	$(HOST_CC) -arch i386 $(srcdir)/unify-test.c -o unify-test-i386
-	@if ! $(srcdir)/macosx/universal/unify ./unify-test-x64 ./unify-test-i386 \
+	@if ! $(srcdir)/macosx/universal/unify ./unify-test-ppc ./unify-test-i386 \
           ./unify-test-universal; then \
           echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary!"; \
           false; \

@@ -60,7 +60,6 @@ xhtml|link {
 }
 
 .addon[status="installing"] {
-  -moz-box-orient: vertical;
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#addon-installing");
 }
 
@@ -76,64 +75,12 @@ xhtml|link {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#rating");
 }
 
-.download-progress, .download-progress[mode="undetermined"] {
+.download-progress {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#download-progress");
 }
 
 .install-status {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#install-status");
-}
-
-.detail-row {
-  -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#detail-row");
-}
-
-settings {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#settings");
-}
-
-setting[type="bool"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-bool");
-}
-
-setting[type="bool"][localized="true"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-localized-bool");
-}
-
-setting[type="boolint"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-boolint");
-}
-
-setting[type="integer"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-integer");
-}
-
-setting[type="control"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-control");
-}
-
-setting[type="string"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-string");
-}
-
-setting[type="color"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-color");
-}
-
-setting[type="file"],
-setting[type="directory"] {
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-path");
-}
-
-#addonitem-popup > menuitem[disabled="true"] {
-  display: none;
-}
-
-#addonitem-popup[addontype="theme"] > #menuitem_enableItem,
-#addonitem-popup[addontype="theme"] > #menuitem_disableItem,
-#addonitem-popup:not([addontype="theme"]) > #menuitem_enableTheme,
-#addonitem-popup:not([addontype="theme"]) > #menuitem_disableTheme {
-  display: none;
 }
 
 #header-searching:not([active]) {
@@ -145,10 +92,6 @@ setting[type="directory"] {
   visibility: collapse;
 }
 
-#detail-view {
-  overflow: auto;
-}
-
 .addon:not([notification="warning"]) .warning,
 .addon:not([notification="error"]) .error,
 .addon:not([notification="info"]) .info,
@@ -157,66 +100,10 @@ setting[type="directory"] {
 .addon[active="true"] .disabled-postfix,
 .addon[pending="install"] .update-postfix,
 .addon[pending="install"] .disabled-postfix,
-#detail-view:not([notification="warning"]) .warning,
-#detail-view:not([notification="error"]) .error,
-#detail-view:not([notification="info"]) .info,
-#detail-view:not([pending]) .pending,
-#detail-view:not([upgrade="true"]) .update-postfix,
-#detail-view[active="true"] .disabled-postfix,
-#detail-view[loading] .detail-view-container,
-#detail-view:not([loading]) .alert-container,
-.detail-row:not([value]),
-#search-list[remote="false"] #search-allresults-link {
+#detail-view[loading] > .detail-view-container {
   display: none;
 }
 
-#addons-page:not([warning]) #list-view > .global-warning-container {
+.view-pane:not(#updates-view) .addon .relnotes-toggle {
   display: none;
-}
-#addon-list .date-updated {
-  display: none;
-}
-
-.view-pane:not(#updates-view) .addon .relnotes-toggle,
-.view-pane:not(#updates-view) .addon .include-update,
-#updates-view:not([updatetype="available"]) .addon .include-update,
-#updates-view[updatetype="available"] .addon .update-available-notice {
-  display: none;
-}
-
-#addons-page:not([warning]) .global-warning,
-#addons-page:not([warning="safemode"]) .global-warning-safemode,
-#addons-page:not([warning="checkcompatibility"]) .global-warning-checkcompatibility,
-#addons-page:not([warning="updatesecurity"]) .global-warning-updatesecurity {
-  display: none;
-}
-
-/* Plugins aren't yet disabled by safemode (bug 342333),
-   so don't show that warning when viewing plugins. */
-#addons-page[warning="safemode"] .view-pane[type="plugin"] .global-warning-container,
-#addons-page[warning="safemode"] #detail-view[loading="true"] .global-warning {
-  display: none;
-}
-
-#addons-page .view-pane:not([type="plugin"]) .global-info-container {
-  display: none;
-}
-
-.addon .relnotes {
-  -moz-user-select: text;
-}
-
-/* Make sure we're not animating hidden images. See bug 623739. */
-#view-port:not([selectedIndex="0"]) #discover-view .loading,
-#discover-view:not([selectedIndex="0"]) .loading {
-  display: none;
-}
-
-/* Elements in unselected richlistitems cannot be focused */
-richlistitem:not([selected]) * {
-  -moz-user-focus: ignore;
-}
-
-#header-search {
-  width: 22em;
 }

@@ -37,7 +37,7 @@
 /*
  * Interface to the OCSP implementation.
  *
- * $Id: ocsp.h,v 1.17.2.1 2010/09/27 21:22:20 wtc%google.com Exp $
+ * $Id: ocsp.h,v 1.17 2010/02/01 20:09:32 wtc%google.com Exp $
  */
 
 #ifndef _OCSP_H_
@@ -476,10 +476,9 @@ CERT_RegisterAlternateOCSPAIAInfoCallBack(
 
 /*
  * FUNCTION: CERT_ParseURL
- *   Parse a URI into hostname, port, and path.  The scheme in the URI must
- *   be "http".
+ *   Parse the URI of a OCSP responder into hostname, port, and path.
  * INPUTS:
- *   const char *url
+ *   const char *location
  *     The URI to be parsed
  * OUTPUTS:
  *   char *pHostname
@@ -491,8 +490,9 @@ CERT_RegisterAlternateOCSPAIAInfoCallBack(
  *     Pointer to store the path obtained from the URI.
  *     This result should be freed (via PORT_Free) when no longer in use.
  * RETURN:
- *   Returns SECSuccess when parsing was successful. Returns SECFailure when
+ *   Returns SECSuccess when parsing was successful. Anything else means
  *   problems were encountered.
+ *     
  */
 extern SECStatus
 CERT_ParseURL(const char *url, char **pHostname, PRUint16 *pPort, char **pPath);

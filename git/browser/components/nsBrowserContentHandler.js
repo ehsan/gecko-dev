@@ -62,6 +62,7 @@ const nsIURIFixup            = Components.interfaces.nsIURIFixup;
 const nsIWebNavigation       = Components.interfaces.nsIWebNavigation;
 const nsIWindowMediator      = Components.interfaces.nsIWindowMediator;
 const nsIWindowWatcher       = Components.interfaces.nsIWindowWatcher;
+const nsICategoryManager     = Components.interfaces.nsICategoryManager;
 const nsIWebNavigationInfo   = Components.interfaces.nsIWebNavigationInfo;
 const nsIBrowserSearchService = Components.interfaces.nsIBrowserSearchService;
 const nsICommandLineValidator = Components.interfaces.nsICommandLineValidator;
@@ -530,7 +531,8 @@ nsBrowserContentHandler.prototype = {
     }
     if (cmdLine.handleFlag("silent", false))
       cmdLine.preventDefault = true;
-    if (cmdLine.findFlag("private-toggle", false) >= 0)
+    if (cmdLine.findFlag("private-toggle", false) >= 0 &&
+        cmdLine.state != cmdLine.STATE_INITIAL_LAUNCH)
       cmdLine.preventDefault = true;
 
     var searchParam = cmdLine.handleFlagWithParam("search", false);
@@ -566,21 +568,15 @@ nsBrowserContentHandler.prototype = {
 #endif
   },
 
-  helpInfo : "  -browser           Open a browser window.\n" +
-             "  -new-window  <url> Open <url> in a new window.\n" +
-             "  -new-tab     <url> Open <url> in a new tab.\n" +
-#ifdef XP_WIN
-             "  -preferences       Open Options dialog.\n" +
-#else
-             "  -preferences       Open Preferences dialog.\n" +
-#endif
-             "  -search     <term> Search <term> with your default search engine.\n",
+  helpInfo : "  -browser           Open a browser window.\n",
 
   /* nsIBrowserHandler */
 
   get defaultArgs() {
     var prefb = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(nsIPrefBranch);
+    var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                              .getService(Components.interfaces.nsIURLFormatter);
 
     var overridePage = "";
     var haveUpdateSession = false;
@@ -589,12 +585,11 @@ nsBrowserContentHandler.prototype = {
       if (override != OVERRIDE_NONE) {
         // Setup the default search engine to about:home page.
         AboutHomeUtils.loadDefaultSearchEngine();
-        AboutHomeUtils.loadSnippetsURL();
 
         switch (override) {
           case OVERRIDE_NEW_PROFILE:
             // New profile.
-            overridePage = Services.urlFormatter.formatURLPref("startup.homepage_welcome_url");
+            overridePage = formatter.formatURLPref("startup.homepage_welcome_url");
             break;
           case OVERRIDE_NEW_MSTONE:
             // Existing profile, new milestone build.
@@ -605,17 +600,10 @@ nsBrowserContentHandler.prototype = {
             var ss = Components.classes["@mozilla.org/browser/sessionstartup;1"]
                                .getService(Components.interfaces.nsISessionStartup);
             haveUpdateSession = ss.doRestore();
-            overridePage = Services.urlFormatter.formatURLPref("startup.homepage_override_url");
+            overridePage = formatter.formatURLPref("startup.homepage_override_url");
             if (prefb.prefHasUserValue("app.update.postupdate"))
               overridePage = getPostUpdateOverridePage(overridePage);
             break;
-        }
-      }
-      else {
-        // No need to override homepage, but update snippets url if the pref has
-        // been manually changed.
-        if (Services.prefs.prefHasUserValue(AboutHomeUtils.SNIPPETS_URL_PREF)) {
-          AboutHomeUtils.loadSnippetsURL();
         }
       }
     } catch (ex) {}
@@ -738,6 +726,8 @@ nsBrowserContentHandler.prototype = {
   },
 };
 var gBrowserContentHandler = new nsBrowserContentHandler();
+
+const CONTRACTID_PREFIX = "@mozilla.org/uriloader/content-handler;1?type=";
 
 function handURIToExistingBrowser(uri, location, cmdLine)
 {
@@ -892,7 +882,6 @@ nsDefaultCommandLineHandler.prototype = {
 };
 
 let AboutHomeUtils = {
-  SNIPPETS_URL_PREF: "browser.aboutHomeSnippets.updateUrl",
   get _storage() {
     let aboutHomeURI = Services.io.newURI("moz-safe-about:home", null, null);
     let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
@@ -914,17 +903,7 @@ let AboutHomeUtils = {
     , searchUrl: submission.uri.spec
     }
     this._storage.setItem("search-engine", JSON.stringify(engine));
-  },
-
-  loadSnippetsURL: function AHU_loadSnippetsURL()
-  {
-    const STARTPAGE_VERSION = 1;
-    let updateURL = Services.prefs
-                            .getCharPref(this.SNIPPETS_URL_PREF)
-                            .replace("%STARTPAGE_VERSION%", STARTPAGE_VERSION);
-    updateURL = Services.urlFormatter.formatURL(updateURL);
-    this._storage.setItem("snippets-update-url", updateURL);
-  },
+  }
 };
 
 var components = [nsBrowserContentHandler, nsDefaultCommandLineHandler];

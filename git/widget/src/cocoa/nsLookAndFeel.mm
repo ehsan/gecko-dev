@@ -40,7 +40,6 @@
 #include "nsObjCExceptions.h"
 #include "nsIServiceManager.h"
 #include "nsNativeThemeColors.h"
-#include "nsStyleConsts.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -252,7 +251,11 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     }
       break;
     case eColor__moz_mac_focusring:
-      aColor = GetColorFromNSColor([NSColor keyboardFocusIndicatorColor]);
+      aColor = nsToolkit::OnSnowLeopardOrLater() ?
+                 ([NSColor currentControlTint] == NSGraphiteControlTint ?
+                    NS_RGB(0x6C,0x7E,0x8D) : NS_RGB(0x3F,0x98,0xDD)) :
+                 ([NSColor currentControlTint] == NSGraphiteControlTint ?
+                    NS_RGB(0x5F,0x70,0x82) : NS_RGB(0x53,0x90,0xD2));
       break;
     case eColor__moz_mac_menushadow:
       aColor = NS_RGB(0xA3,0xA3,0xA3);
@@ -314,6 +317,60 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
   res = NS_OK;
   
   switch (aID) {
+    case eMetric_WindowTitleHeight:
+      aMetric = 0;
+      break;
+    case eMetric_WindowBorderWidth:
+      aMetric = 4;
+      break;
+    case eMetric_WindowBorderHeight:
+      aMetric = 4;
+      break;
+    case eMetric_Widget3DBorder:
+      aMetric = 4;
+      break;
+    case eMetric_TextFieldHeight:
+      aMetric = 16;
+      break;
+    case eMetric_TextFieldBorder:
+      aMetric = 2;
+      break;
+    case eMetric_ButtonHorizontalInsidePaddingNavQuirks:
+      aMetric = 20;
+      break;
+    case eMetric_ButtonHorizontalInsidePaddingOffsetNavQuirks:
+      aMetric = 0;
+      break;
+    case eMetric_CheckboxSize:
+      aMetric = 14;
+      break;
+    case eMetric_RadioboxSize:
+      aMetric = 14;
+      break;
+    case eMetric_TextHorizontalInsideMinimumPadding:
+      aMetric = 4;
+      break;
+    case eMetric_TextVerticalInsidePadding:
+      aMetric = 4;
+      break;
+    case eMetric_TextShouldUseVerticalInsidePadding:
+      aMetric = 1;
+      break;
+    case eMetric_TextShouldUseHorizontalInsideMinimumPadding:
+      aMetric = 1;
+      break;
+    case eMetric_ListShouldUseHorizontalInsideMinimumPadding:
+      aMetric = 0;
+      break;
+    case eMetric_ListHorizontalInsideMinimumPadding:
+      aMetric = 4;
+      break;
+    case eMetric_ListShouldUseVerticalInsidePadding:
+      aMetric = 1;
+      break;
+    case eMetric_ListVerticalInsidePadding:
+      aMetric = 3;
+      break;
     case eMetric_CaretBlinkTime:
       aMetric = 567;
       break;
@@ -343,25 +400,22 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       aMetric = 4;
       break;
     case eMetric_ScrollArrowStyle:
-      if (nsToolkit::OnLionOrLater()) {
-        // OS X Lion's scrollbars have no arrows
-        aMetric = eMetric_ScrollArrowNone;
+    {
+      NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
+      if ([buttonPlacement isEqualToString:@"Single"]) {
+        aMetric = eMetric_ScrollArrowStyleSingle;
+      } else if ([buttonPlacement isEqualToString:@"DoubleMin"]) {
+        aMetric = eMetric_ScrollArrowStyleBothAtTop;
+      } else if ([buttonPlacement isEqualToString:@"DoubleBoth"]) {
+        aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
       } else {
-        NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
-        if ([buttonPlacement isEqualToString:@"Single"]) {
-          aMetric = eMetric_ScrollArrowStyleSingle;
-        } else if ([buttonPlacement isEqualToString:@"DoubleMin"]) {
-          aMetric = eMetric_ScrollArrowStyleBothAtTop;
-        } else if ([buttonPlacement isEqualToString:@"DoubleBoth"]) {
-          aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
-        } else {
-          aMetric = eMetric_ScrollArrowStyleBothAtBottom; // The default is BothAtBottom.
-        }
+        aMetric = eMetric_ScrollArrowStyleBothAtBottom; // The default is BothAtBottom.
       }
-      break;
+    }
+        break;
     case eMetric_ScrollSliderStyle:
-      aMetric = eMetric_ScrollThumbStyleProportional;
-      break;
+        aMetric = eMetric_ScrollThumbStyleProportional;
+        break;
     case eMetric_TreeOpenDelay:
       aMetric = 1000;
       break;
@@ -382,7 +436,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_WindowsDefaultTheme:
     case eMetric_TouchEnabled:
     case eMetric_MaemoClassic:
-    case eMetric_WindowsThemeIdentifier:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;
@@ -421,10 +474,10 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMEConvertedTextUnderlineStyle:
     case eMetric_IMESelectedRawTextUnderlineStyle:
     case eMetric_IMESelectedConvertedTextUnderline:
-      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
+      aMetric = NS_UNDERLINE_STYLE_SOLID;
       break;
     case eMetric_SpellCheckerUnderlineStyle:
-      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_DOTTED;
+      aMetric = NS_UNDERLINE_STYLE_DOTTED;
       break;
     default:
       aMetric = 0;
@@ -443,6 +496,30 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
   res = NS_OK;
   
   switch (aID) {
+    case eMetricFloat_TextFieldVerticalInsidePadding:
+      aMetric = 0.25f;
+      break;
+    case eMetricFloat_TextFieldHorizontalInsidePadding:
+      aMetric = 0.95f;
+      break;
+    case eMetricFloat_TextAreaVerticalInsidePadding:
+      aMetric = 0.40f;
+      break;
+    case eMetricFloat_TextAreaHorizontalInsidePadding:
+      aMetric = 0.40f;
+      break;
+    case eMetricFloat_ListVerticalInsidePadding:
+      aMetric = 0.08f;
+      break;
+    case eMetricFloat_ListHorizontalInsidePadding:
+      aMetric = 0.40f;
+      break;
+    case eMetricFloat_ButtonVerticalInsidePadding:
+      aMetric = 0.5f;
+      break;
+    case eMetricFloat_ButtonHorizontalInsidePadding:
+      aMetric = 0.5f;
+      break;
     case eMetricFloat_IMEUnderlineRelativeSize:
       aMetric = 2.0f;
       break;

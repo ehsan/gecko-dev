@@ -1558,9 +1558,9 @@ public:
         return m_formatter.size();
     }
 
-    void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp)
+    void* executableCopy(ExecutablePool* allocator)
     {
-        void* copy = m_formatter.executableAllocAndCopy(allocator, poolp);
+        void* copy = m_formatter.executableCopy(allocator);
 
         unsigned jumpCount = m_jumpsToLink.size();
         for (unsigned i = 0; i < jumpCount; ++i) {
@@ -1627,11 +1627,6 @@ public:
         linkJumpAbsolute(reinterpret_cast<uint16_t*>(from), to);
 
         ExecutableAllocator::cacheFlush(reinterpret_cast<uint16_t*>(from) - 5, 5 * sizeof(uint16_t));
-    }
-
-    static bool canRelinkJump(void* from, void* to)
-    {
-        return true;
     }
     
     static void relinkCall(void* from, void* to)
@@ -1909,10 +1904,7 @@ private:
         size_t size() const { return m_buffer.size(); }
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
-        void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp) {
-            return m_buffer.executableAllocAndCopy(allocator, poolp);
-        }
-        bool oom() const { return m_buffer.oom(); }
+        void* executableCopy(ExecutablePool* allocator) { return m_buffer.executableCopy(allocator); }
 
     private:
         AssemblerBuffer m_buffer;

@@ -21,7 +21,7 @@ include backgrounds/reftest.list
 include bidi/reftest.list
 
 # border-image
-skip-if(Android) include border-image/reftest.list
+include border-image/reftest.list
 
 # border-radius/
 include border-radius/reftest.list
@@ -33,10 +33,10 @@ include box-ordinal/reftest.list
 include box-properties/reftest.list
 
 # box-shadow/
-skip-if(Android) include box-shadow/reftest.list
+include box-shadow/reftest.list
 
 # bugs/
-skip-if(Android) include bugs/reftest.list
+include bugs/reftest.list
 
 # canvas 2D
 include canvas/reftest.list
@@ -49,12 +49,6 @@ include css-charset/reftest.list
 
 # css default pseudo class tests
 include css-default/reftest.list
-
-# css :disable tests
-skip-if(Android) include css-disabled/reftest.list
-
-# css :enable tests
-skip-if(Android) include css-enabled/reftest.list
 
 # css @import tests
 include css-import/reftest.list
@@ -81,25 +75,13 @@ include css-required/reftest.list
 include css-optional/reftest.list
 
 # css valid
-skip-if(Android) include css-valid/reftest.list
+include css-valid/reftest.list
 
 # css invalid
-skip-if(Android) include css-invalid/reftest.list
-
-# css-submit-invalid
-include css-submit-invalid/reftest.list
-
-# css text-overflow
-include text-overflow/reftest.list
+include css-invalid/reftest.list
 
 # css transitions
 include css-transitions/reftest.list
-
-# css :-moz-ui-invalid
-skip-if(Android) include css-ui-invalid/reftest.list
-
-# css :-moz-ui-valid
-skip-if(Android) include css-ui-valid/reftest.list
 
 # css values and units
 include css-valuesandunits/reftest.list
@@ -107,8 +89,6 @@ include css-valuesandunits/reftest.list
 # Reftests in css-visited are run using
 # layout/style/test/test_visited_reftests instead of using the reftest
 # harness.
-
-include cssom/reftest.list
 
 # columns/
 include columns/reftest.list
@@ -118,9 +98,6 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
-
-# datalist
-include datalist/reftest.list
 
 # dom/
 include dom/reftest.list
@@ -132,13 +109,10 @@ include editor/reftest.list
 include generated-content/reftest.list
 
 # first-letter/
-skip-if(Android) include first-letter/reftest.list
+include first-letter/reftest.list
 
 # first-line/
 include first-line/reftest.list
-
-# flexbox/
-include flexbox/reftest.list
 
 # floats/
 include floats/reftest.list
@@ -153,10 +127,7 @@ include font-features/reftest.list
 include font-matching/reftest.list
 
 # forms
-skip-if(Android) include forms/reftest.list
-
-# gfx
-include ../../gfx/tests/reftest/reftest.list
+include forms/reftest.list
 
 # block-inside-inline splits
 include ib-split/reftest.list
@@ -182,9 +153,6 @@ include layers/reftest.list
 # line-breaking/
 include line-breaking/reftest.list
 
-# list-item/
-include list-item/reftest.list
-
 # mathml/
 include mathml/reftest.list
 
@@ -195,7 +163,7 @@ include margin-collapsing/reftest.list
 include marquee/reftest.list
 
 # native-theme/
-skip-if(Android) include native-theme/reftest.list
+include native-theme/reftest.list
 
 # netwerk/
 include ../../netwerk/test/reftest/reftest.list
@@ -216,7 +184,7 @@ include percent-overflow-sizing/reftest.list
 include pixel-rounding/reftest.list
 
 # plugin/
-include ../../dom/plugins/test/reftest/reftest.list
+include ../../modules/plugin/test/reftest/reftest.list
 
 # printing
 include printing/reftest.list
@@ -259,7 +227,7 @@ include text-decoration/reftest.list
 include text-indent/reftest.list
 
 # text-shadow/
-skip-if(Android) include text-shadow/reftest.list
+include text-shadow/reftest.list
 
 # theme (pinstripe)
 include ../../toolkit/themes/pinstripe/reftests/reftest.list
@@ -281,9 +249,6 @@ include ../../content/test/reftest/xml-stylesheet/reftest.list
 
 # xul-document-load/
 include xul-document-load/reftest.list
-
-# xul/
-include xul/reftest.list
 
 # xul grid
 include ../xul/base/src/grid/reftests/reftest.list

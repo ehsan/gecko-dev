@@ -73,9 +73,9 @@
 #include "nsCRT.h"
 #include "nsContentUtils.h"
 #include "nsSyncLoadService.h"
+#include "nsIDOM3Node.h"
 #include "nsContentPolicyUtils.h"
 #include "nsTArray.h"
-#include "nsContentErrors.h"
 
 #include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
@@ -87,10 +87,8 @@
 #ifdef MOZ_XUL
 #include "nsXULPrototypeCache.h"
 #endif
-#include "nsIDOMEventListener.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
+#include "nsIDOMLoadListener.h"
+#include "nsIDOMEventGroup.h"
 
 #define NS_MAX_XBL_BINDING_RECURSION 20
 
@@ -135,10 +133,10 @@ IsAncestorBinding(nsIDocument* aDocument,
       nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                       "TooDeepBindingRecursion",
                                       params, NS_ARRAY_LENGTH(params),
-                                      nsnull,
+                                      aDocument->GetDocumentURI(),
                                       EmptyString(), 0, 0,
                                       nsIScriptError::warningFlag,
-                                      "XBL", aDocument);
+                                      "XBL");
       return PR_TRUE;
     }
   }
@@ -163,10 +161,12 @@ PRBool CheckTagNameWhiteList(PRInt32 aNameSpaceID, nsIAtom *aTagName)
       }
     }
   }
+#ifdef MOZ_SVG
   else if (aNameSpaceID == kNameSpaceID_SVG &&
            aTagName == nsGkAtoms::generic) {
     return PR_TRUE;
   }
+#endif
 
   return PR_FALSE;
 }
@@ -272,13 +272,19 @@ int nsXBLBindingRequest::gRefCnt = 0;
 // nsXBLStreamListener, a helper class used for 
 // asynchronous parsing of URLs
 /* Header file */
-class nsXBLStreamListener : public nsIStreamListener, public nsIDOMEventListener
+class nsXBLStreamListener : public nsIStreamListener, public nsIDOMLoadListener
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSIDOMEVENTLISTENER
+
+  NS_IMETHOD Load(nsIDOMEvent* aEvent);
+  NS_IMETHOD BeforeUnload(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD Unload(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD Abort(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD Error(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
 
   nsXBLStreamListener(nsXBLService* aXBLService,
                       nsIDocument* aBoundDocument,
@@ -301,10 +307,7 @@ private:
 };
 
 /* Implementation file */
-NS_IMPL_ISUPPORTS3(nsXBLStreamListener,
-                   nsIStreamListener,
-                   nsIRequestObserver,
-                   nsIDOMEventListener)
+NS_IMPL_ISUPPORTS4(nsXBLStreamListener, nsIStreamListener, nsIRequestObserver, nsIDOMLoadListener, nsIDOMEventListener)
 
 nsXBLStreamListener::nsXBLStreamListener(nsXBLService* aXBLService,
                                          nsIDocument* aBoundDocument,
@@ -398,7 +401,7 @@ nsXBLStreamListener::HasRequest(nsIURI* aURI, nsIContent* aElt)
 }
 
 nsresult
-nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
+nsXBLStreamListener::Load(nsIDOMEvent* aEvent)
 {
   nsresult rv = NS_OK;
   PRUint32 i;
@@ -478,7 +481,7 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
     }
   }
 
-  target->RemoveEventListener(NS_LITERAL_STRING("load"), this, PR_FALSE);
+  target->RemoveEventListener(NS_LITERAL_STRING("load"), (nsIDOMLoadListener*)this, PR_FALSE);
 
   return rv;
 }
@@ -507,8 +510,9 @@ nsXBLService::nsXBLService(void)
   if (gRefCnt == 1) {
     gClassTable = new nsHashtable();
   }
-
-  Preferences::AddBoolVarCache(&gAllowDataURIs, "layout.debug.enable_data_xbl");
+  
+  nsContentUtils::AddBoolPrefVarCache("layout.debug.enable_data_xbl",
+                                      &gAllowDataURIs);
 }
 
 nsXBLService::~nsXBLService(void)
@@ -705,22 +709,20 @@ nsXBLService::ResolveTag(nsIContent* aContent, PRInt32* aNameSpaceID,
 // then extra work needs to be done to hook it up to the document (XXX WHY??)
 //
 NS_IMETHODIMP
-nsXBLService::AttachGlobalKeyHandler(nsIDOMEventTarget* aTarget)
+nsXBLService::AttachGlobalKeyHandler(nsPIDOMEventTarget* aTarget)
 {
   // check if the receiver is a content node (not a document), and hook
   // it to the document if that is the case.
-  nsCOMPtr<nsIDOMEventTarget> piTarget = aTarget;
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = aTarget;
   nsCOMPtr<nsIContent> contentNode(do_QueryInterface(aTarget));
   if (contentNode) {
     // Only attach if we're really in a document
     nsCOMPtr<nsIDocument> doc = contentNode->GetCurrentDoc();
     if (doc)
-      piTarget = doc; // We're a XUL keyset. Attach to our document.
+      piTarget = do_QueryInterface(doc); // We're a XUL keyset. Attach to our document.
   }
-
-  nsEventListenerManager* manager = piTarget->GetListenerManager(PR_TRUE);
     
-  if (!piTarget || !manager)
+  if (!piTarget)
     return NS_ERROR_FAILURE;
 
   // the listener already exists, so skip this
@@ -736,15 +738,16 @@ nsXBLService::AttachGlobalKeyHandler(nsIDOMEventTarget* aTarget)
     return NS_ERROR_FAILURE;
 
   // listen to these events
-  manager->AddEventListenerByType(handler, NS_LITERAL_STRING("keydown"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  manager->AddEventListenerByType(handler, NS_LITERAL_STRING("keyup"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  manager->AddEventListenerByType(handler, NS_LITERAL_STRING("keypress"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> target = do_QueryInterface(piTarget);
+
+  target->AddGroupedEventListener(NS_LITERAL_STRING("keydown"), handler,
+                                  PR_FALSE, systemGroup);
+  target->AddGroupedEventListener(NS_LITERAL_STRING("keyup"), handler, 
+                                  PR_FALSE, systemGroup);
+  target->AddGroupedEventListener(NS_LITERAL_STRING("keypress"), handler, 
+                                  PR_FALSE, systemGroup);
 
   if (contentNode)
     return contentNode->SetProperty(nsGkAtoms::listener, handler,
@@ -762,9 +765,9 @@ nsXBLService::AttachGlobalKeyHandler(nsIDOMEventTarget* aTarget)
 // Removes a key handler added by DeatchGlobalKeyHandler.
 //
 NS_IMETHODIMP
-nsXBLService::DetachGlobalKeyHandler(nsIDOMEventTarget* aTarget)
+nsXBLService::DetachGlobalKeyHandler(nsPIDOMEventTarget* aTarget)
 {
-  nsCOMPtr<nsIDOMEventTarget> piTarget = aTarget;
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = aTarget;
   nsCOMPtr<nsIContent> contentNode(do_QueryInterface(aTarget));
   if (!contentNode) // detaching is only supported for content nodes
     return NS_ERROR_FAILURE;
@@ -773,10 +776,7 @@ nsXBLService::DetachGlobalKeyHandler(nsIDOMEventTarget* aTarget)
   nsCOMPtr<nsIDocument> doc = contentNode->GetCurrentDoc();
   if (doc)
     piTarget = do_QueryInterface(doc);
-
-  nsEventListenerManager* manager = piTarget->GetListenerManager(PR_TRUE);
-    
-  if (!piTarget || !manager)
+  if (!piTarget)
     return NS_ERROR_FAILURE;
 
   nsIDOMEventListener* handler =
@@ -784,15 +784,16 @@ nsXBLService::DetachGlobalKeyHandler(nsIDOMEventTarget* aTarget)
   if (!handler)
     return NS_ERROR_FAILURE;
 
-  manager->RemoveEventListenerByType(handler, NS_LITERAL_STRING("keydown"),
-                                     NS_EVENT_FLAG_BUBBLE |
-                                     NS_EVENT_FLAG_SYSTEM_EVENT);
-  manager->RemoveEventListenerByType(handler, NS_LITERAL_STRING("keyup"),
-                                     NS_EVENT_FLAG_BUBBLE |
-                                     NS_EVENT_FLAG_SYSTEM_EVENT);
-  manager->RemoveEventListenerByType(handler, NS_LITERAL_STRING("keypress"),
-                                     NS_EVENT_FLAG_BUBBLE |
-                                     NS_EVENT_FLAG_SYSTEM_EVENT);
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> target = do_QueryInterface(piTarget);
+
+  target->RemoveGroupedEventListener(NS_LITERAL_STRING("keydown"), handler,
+                                     PR_FALSE, systemGroup);
+  target->RemoveGroupedEventListener(NS_LITERAL_STRING("keyup"), handler, 
+                                     PR_FALSE, systemGroup);
+  target->RemoveGroupedEventListener(NS_LITERAL_STRING("keypress"), handler, 
+                                     PR_FALSE, systemGroup);
 
   contentNode->DeleteProperty(nsGkAtoms::listener);
 
@@ -860,7 +861,9 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
     return NS_ERROR_FAILURE;
 
   nsCAutoString ref;
-  aURI->GetRef(ref);
+  nsCOMPtr<nsIURL> url(do_QueryInterface(aURI));
+  if (url)
+    url->GetRef(ref);
 
   nsCOMPtr<nsIDocument> boundDocument = aBoundElement->GetOwnerDoc();
 
@@ -875,10 +878,11 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
 
   // Get our doc info and determine our script access.
   nsCOMPtr<nsIDocument> doc = docInfo->GetDocument();
+  PRBool allowScripts = docInfo->GetScriptAccess();
 
   nsXBLPrototypeBinding* protoBinding = docInfo->GetPrototypeBinding(ref);
 
-  NS_WARN_IF_FALSE(protoBinding, "Unable to locate an XBL binding");
+  NS_ASSERTION(protoBinding, "Unable to locate an XBL binding.");
   if (!protoBinding)
     return NS_ERROR_FAILURE;
 
@@ -949,36 +953,42 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
       nsAutoString nameSpace;
 
       if (!prefix.IsEmpty()) {
-        child->LookupNamespaceURI(prefix, nameSpace);
+        nsCOMPtr<nsIAtom> prefixAtom = do_GetAtom(prefix);
 
-        if (!nameSpace.IsEmpty()) {
-          if (!hasDisplay) {
-            // We extend some widget/frame. We don't really have a
-            // base binding.
-            protoBinding->SetHasBasePrototype(PR_FALSE);
-            //child->UnsetAttr(kNameSpaceID_None, nsGkAtoms::extends, PR_FALSE);
+        nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(child));
+
+        if (node) {
+          node->LookupNamespaceURI(prefix, nameSpace);
+
+          if (!nameSpace.IsEmpty()) {
+            if (!hasDisplay) {
+              // We extend some widget/frame. We don't really have a
+              // base binding.
+              protoBinding->SetHasBasePrototype(PR_FALSE);
+              //child->UnsetAttr(kNameSpaceID_None, nsGkAtoms::extends, PR_FALSE);
+            }
+
+            PRInt32 nameSpaceID =
+              nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
+
+            nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);
+            // Check the white list
+            if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
+              const PRUnichar* params[] = { display.get() };
+              nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
+                                              "InvalidExtendsBinding",
+                                              params, NS_ARRAY_LENGTH(params),
+                                              doc->GetDocumentURI(),
+                                              EmptyString(), 0, 0,
+                                              nsIScriptError::errorFlag,
+                                              "XBL");
+              NS_ASSERTION(!IsChromeOrResourceURI(aURI),
+                           "Invalid extends value");
+              return NS_ERROR_ILLEGAL_VALUE;
+            }
+
+            protoBinding->SetBaseTag(nameSpaceID, tagName);
           }
-
-          PRInt32 nameSpaceID =
-            nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
-
-          nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);
-          // Check the white list
-          if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
-            const PRUnichar* params[] = { display.get() };
-            nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
-                                            "InvalidExtendsBinding",
-                                            params, NS_ARRAY_LENGTH(params),
-                                            nsnull,
-                                            EmptyString(), 0, 0,
-                                            nsIScriptError::errorFlag,
-                                            "XBL", doc);
-            NS_ASSERTION(!IsChromeOrResourceURI(aURI),
-                         "Invalid extends value");
-            return NS_ERROR_ILLEGAL_VALUE;
-          }
-
-          protoBinding->SetBaseTag(nameSpaceID, tagName);
         }
       }
 
@@ -1004,10 +1014,10 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
             nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                             "CircularExtendsBinding",
                                             params, NS_ARRAY_LENGTH(params),
-                                            nsnull,
+                                            boundDocument->GetDocumentURI(),
                                             EmptyString(), 0, 0,
                                             nsIScriptError::warningFlag,
-                                            "XBL", boundDocument);
+                                            "XBL");
             return NS_ERROR_ILLEGAL_VALUE;
           }
         }
@@ -1097,7 +1107,7 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
                               gAllowDataURIs,
                               nsIContentPolicy::TYPE_XBL,
                               aBoundDocument);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_XBL_BLOCKED);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (!IsSystemOrChromeURLPrincipal(aOriginPrincipal)) {
       // Also make sure that we're same-origin with the bound document
@@ -1106,12 +1116,12 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
           !SchemeIs(aBindingURI, "chrome")) {
         rv = aBoundDocument->NodePrincipal()->CheckMayLoad(aBindingURI,
                                                            PR_TRUE);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_XBL_BLOCKED);
+        NS_ENSURE_SUCCESS(rv, rv);
       }
 
       // Finally check if this document is allowed to use XBL at all.
       NS_ENSURE_TRUE(aBoundDocument->AllowXULXBL(),
-                     NS_ERROR_XBL_BLOCKED);
+                     NS_ERROR_NOT_AVAILABLE);
     }
   }
 
@@ -1119,8 +1129,12 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
   nsRefPtr<nsXBLDocumentInfo> info;
 
   nsCOMPtr<nsIURI> documentURI;
-  rv = aBindingURI->CloneIgnoringRef(getter_AddRefs(documentURI));
+  rv = aBindingURI->Clone(getter_AddRefs(documentURI));
   NS_ENSURE_SUCCESS(rv, rv);
+  
+  nsCOMPtr<nsIURL> documentURL(do_QueryInterface(documentURI));
+  if (documentURL)
+    documentURL->SetRef(EmptyCString());
 
 #ifdef MOZ_XUL
   // We've got a file.  Check our XBL document cache.

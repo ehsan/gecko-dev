@@ -42,6 +42,8 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsCSSRendering.h"
 #include "prprf.h"         // For PR_snprintf()
@@ -160,27 +162,6 @@ nsMathMLmactionFrame::Init(nsIContent*      aContent,
   return nsMathMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 }
 
-NS_IMETHODIMP
-nsMathMLmactionFrame::TransmitAutomaticData() {
-  // The REC defines the following element to be space-like:
-  // * an maction element whose selected sub-expression exists and is
-  //   space-like;
-  nsIMathMLFrame* mathMLFrame = do_QueryFrame(mSelectedFrame);
-  if (mathMLFrame && mathMLFrame->IsSpaceLike()) {
-    mPresentationData.flags |= NS_MATHML_SPACE_LIKE;
-  } else {
-    mPresentationData.flags &= ~NS_MATHML_SPACE_LIKE;
-  }
-
-  // The REC defines the following element to be an embellished operator:
-  // * an maction element whose selected sub-expression exists and is an
-  //   embellished operator;
-  mPresentationData.baseFrame = mSelectedFrame;
-  GetEmbellishDataFrom(mSelectedFrame, mEmbellishData);
-
-  return NS_OK;
-}
-
 nsresult
 nsMathMLmactionFrame::ChildListChanged(PRInt32 aModType)
 {
@@ -200,8 +181,7 @@ nsMathMLmactionFrame::GetSelectedFrame()
   nsAutoString value;
   PRInt32 selection; 
 
-  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::selection_,
-               value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::selection_, value);
   if (!value.IsEmpty()) {
     PRInt32 errorCode;
     selection = value.ToInteger(&errorCode);
@@ -236,6 +216,11 @@ nsMathMLmactionFrame::GetSelectedFrame()
 
   mChildCount = count;
   mSelection = selection;
+
+  // if the selected child is an embellished operator,
+  // we become embellished as well
+  mPresentationData.baseFrame = mSelectedFrame;
+  GetEmbellishDataFrom(mSelectedFrame, mEmbellishData);
 
   return mSelectedFrame;
 }
@@ -296,7 +281,7 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
   aStatus = NS_FRAME_COMPLETE;
   aDesiredSize.width = aDesiredSize.height = 0;
   aDesiredSize.ascent = 0;
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
     nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
@@ -315,13 +300,13 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
 
 // Only place the selected child ...
 /* virtual */ nsresult
-nsMathMLmactionFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmactionFrame::Place(nsIRenderingContext& aRenderingContext,
                             PRBool               aPlaceOrigin,
                             nsHTMLReflowMetrics& aDesiredSize)
 {
   aDesiredSize.width = aDesiredSize.height = 0;
   aDesiredSize.ascent = 0;
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
     GetReflowAndBoundingMetricsFor(childFrame, aDesiredSize, mBoundingMetrics);

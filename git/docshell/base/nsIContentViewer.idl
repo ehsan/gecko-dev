@@ -15,7 +15,7 @@ struct nsIntRect;
 [ptr] native nsIDocumentPtr(nsIDocument);
 [ref] native nsIntRectRef(nsIntRect);
 
-[scriptable, uuid(75306a89-e3ad-4a2b-9daf-ac4de06661a4)]
+[scriptable, uuid(e2e5dd7d-8140-4fc5-b2c3-3a3b4f946fc7)]
 interface nsIContentViewer : nsISupports
 {
 
@@ -133,13 +133,4 @@ interface nsIContentViewer : nsISupports
    * destroyed.  Can return null
    */
   readonly attribute nsISHEntry historyEntry;
-
-  /*
-   * Indicates when we're in a state where content shouldn't be allowed to
-   * trigger a tab-modal prompt (as opposed to a window-modal prompt) because
-   * we're part way through some operation (eg beforeunload) that shouldn't be
-   * rentrant if the user closes the tab while the prompt is showing.
-   * See bug 613800.
-   */
-  readonly attribute boolean isTabModalPromptAllowed;
 };

@@ -54,8 +54,13 @@ DIRS		= \
 		cache \
 		protocol \
 		system \
-		ipc  \
         $(NULL)
+
+ifdef MOZ_IPC
+DIRS 		+= \
+	        ipc  \
+	        $(NULL)
+endif
 
 ifdef NECKO_WIFI
 DIRS 		+= wifi

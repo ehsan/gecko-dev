@@ -47,6 +47,7 @@
 #include "nsHTMLVideoElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsDisplayList.h"
+#include "nsIRenderingContext.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
@@ -57,16 +58,14 @@
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsDisplayList.h"
-#include "nsCSSRendering.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 using namespace mozilla;
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 nsIFrame*
 NS_NewHTMLVideoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -90,7 +89,7 @@ NS_QUERYFRAME_HEAD(nsVideoFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 nsresult
-nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   nsNodeInfoManager *nodeInfoManager = GetContent()->GetCurrentDoc()->NodeInfoManager();
   nsCOMPtr<nsINodeInfo> nodeInfo;
@@ -100,18 +99,10 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     // before we load, or on a subsequent load.
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::img,
                                             nsnull,
-                                            kNameSpaceID_XHTML,
-                                            nsIDOMNode::ELEMENT_NODE);
+                                            kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-    Element* element = NS_NewHTMLImageElement(nodeInfo.forget());
-    mPosterImage = element;
+    mPosterImage = NS_NewHTMLImageElement(nodeInfo.forget());
     NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
-
-    // Push a null JSContext on the stack so that code that runs
-    // within the below code doesn't think it's being called by
-    // JS. See bug 604262.
-    nsCxPusher pusher;
-    pusher.PushNull();
 
     // Set the nsImageLoadingContent::ImageState() to 0. This means that the
     // image will always report its state as 0, so it will never be reframed
@@ -121,8 +112,6 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     NS_ENSURE_TRUE(imgContent, NS_ERROR_FAILURE);
 
     imgContent->ForceImageState(PR_TRUE, 0);
-    // And now have it update its internal state
-    element->UpdateState(false);
 
     nsresult res = UpdatePosterSource(PR_FALSE);
     NS_ENSURE_SUCCESS(res,res);
@@ -135,8 +124,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // actual controls.
   nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::videocontrols,
                                           nsnull,
-                                          kNameSpaceID_XUL,
-                                          nsIDOMNode::ELEMENT_NODE);
+                                          kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   NS_TrustedNewXULElement(getter_AddRefs(mVideoControls), nodeInfo.forget());
@@ -147,8 +135,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                       PRUint32 aFliter)
+nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mPosterImage);
   aElements.MaybeAppendElement(mVideoControls);
@@ -204,15 +191,11 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     container->SetLayerManager(aManager);
   }
 
-  // If we have a container of the correct type already, we don't need
-  // to do anything here. Otherwise we need to set up a temporary
+  // If we have a container with the right layer manager already, we don't
+  // need to do anything here. Otherwise we need to set up a temporary
   // ImageContainer, capture the video data and store it in the temp
-  // container. For now we also check if the manager is equal since not all
-  // image containers are manager independent yet.
-  if (!container || 
-      (container->Manager() && container->Manager() != aManager) ||
-      container->GetBackendType() != aManager->GetBackendType())
-  {
+  // container.
+  if (!container || container->Manager() != aManager) {
     nsRefPtr<ImageContainer> tmpContainer = aManager->CreateImageContainer();
     if (!tmpContainer)
       return nsnull;
@@ -266,10 +249,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.width),
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
-  r.Round();
-  gfxIntSize scaleHint(static_cast<PRInt32>(r.Width()),
-                       static_cast<PRInt32>(r.Height()));
-  container->SetScaleHint(scaleHint);
 
   nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
     (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
@@ -281,13 +260,11 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   layer->SetContainer(container);
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
-  layer->SetContentFlags(Layer::CONTENT_OPAQUE);
   // Set a transform on the layer to draw the video in the right place
   gfxMatrix transform;
-  transform.Translate(r.TopLeft());
+  transform.Translate(r.pos);
   transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
   layer->SetTransform(gfx3DMatrix::From2D(transform));
-  layer->SetVisibleRegion(nsIntRect(0, 0, videoSize.width, videoSize.height));
   nsRefPtr<Layer> result = layer.forget();
   return result.forget();
 }
@@ -357,7 +334,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
                                        aReflowState.ComputedHeight()));
     }
   }
-  aMetrics.SetOverflowAreasToDesiredBounds();
+  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
 
   FinishAndStoreOverflow(&aMetrics);
 
@@ -388,10 +365,10 @@ public:
   
   NS_DISPLAY_DECL_NAME("Video", TYPE_VIDEO)
 
-  // It would be great if we could override GetOpaqueRegion to return nonempty here,
+  // It would be great if we could override IsOpaque to return false here,
   // but it's probably not safe to do so in general. Video frames are
   // updated asynchronously from decoder threads, and it's possible that
-  // we might have an opaque video frame when GetOpaqueRegion is called, but
+  // we might have an opaque video frame when IsOpaque is called, but
   // when we come to paint, the video frame is transparent or has gone
   // away completely (e.g. because of a decoder error). The problem would
   // be especially acute if we have off-main-thread rendering.
@@ -403,8 +380,7 @@ public:
   }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerParameters& aContainerParameters)
+                                             LayerManager* aManager)
   {
     return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
   }
@@ -441,10 +417,8 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDisplayList replacedContent;
-
   if (HasVideoElement() && !ShouldDisplayPoster()) {
-    rv = replacedContent.AppendNewToTop(
+    rv = aLists.Content()->AppendNewToTop(
       new (aBuilder) nsDisplayVideo(aBuilder, this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -457,17 +431,15 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (child->GetType() == nsGkAtoms::imageFrame && ShouldDisplayPoster()) {
       rv = child->BuildDisplayListForStackingContext(aBuilder,
                                                      aDirtyRect - child->GetOffsetTo(this),
-                                                     &replacedContent);
+                                                     aLists.Content());
       NS_ENSURE_SUCCESS(rv,rv);
     } else if (child->GetType() == nsGkAtoms::boxFrame) {
       rv = child->BuildDisplayListForStackingContext(aBuilder,
                                                      aDirtyRect - child->GetOffsetTo(this),
-                                                     &replacedContent);
+                                                     aLists.Content());
       NS_ENSURE_SUCCESS(rv,rv);
     }
   }
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 
   return NS_OK;
 }
@@ -482,7 +454,8 @@ nsVideoFrame::GetType() const
 already_AddRefed<nsAccessible>
 nsVideoFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService =
+    do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
     nsnull;
@@ -497,7 +470,7 @@ nsVideoFrame::GetFrameName(nsAString& aResult) const
 }
 #endif
 
-nsSize nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aCBSize,
                                      nscoord aAvailableWidth,
                                      nsSize aMargin,
@@ -523,14 +496,14 @@ nsSize nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                                            aPadding);
 }
 
-nscoord nsVideoFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nscoord nsVideoFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = GetVideoIntrinsicSize(aRenderingContext).width;
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
 
-nscoord nsVideoFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nscoord nsVideoFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = GetVideoIntrinsicSize(aRenderingContext).width;
   DISPLAY_PREF_WIDTH(this, result);
@@ -570,7 +543,7 @@ PRBool nsVideoFrame::ShouldDisplayPoster()
 }
 
 nsSize
-nsVideoFrame::GetVideoIntrinsicSize(nsRenderingContext *aRenderingContext)
+nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
   nsIntSize size(300, 150);
@@ -581,9 +554,8 @@ nsVideoFrame::GetVideoIntrinsicSize(nsRenderingContext *aRenderingContext)
     if (child && child->GetType() == nsGkAtoms::imageFrame) {
       nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
       nsSize imgsize;
-      if (NS_SUCCEEDED(imageFrame->GetIntrinsicImageSize(imgsize))) {
-        return imgsize;
-      }
+      imageFrame->GetIntrinsicImageSize(imgsize);
+      return imgsize;
     }
   }
 

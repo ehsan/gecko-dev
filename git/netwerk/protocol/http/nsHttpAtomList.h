@@ -51,6 +51,7 @@
  ******/
 
 HTTP_ATOM(Accept,                    "Accept")
+HTTP_ATOM(Accept_Charset,            "Accept-Charset")
 HTTP_ATOM(Accept_Encoding,           "Accept-Encoding")
 HTTP_ATOM(Accept_Language,           "Accept-Language")
 HTTP_ATOM(Accept_Ranges,             "Accept-Ranges")
@@ -76,7 +77,6 @@ HTTP_ATOM(DAV,                       "DAV")
 HTTP_ATOM(Depth,                     "Depth")
 HTTP_ATOM(Derived_From,              "Derived-From")
 HTTP_ATOM(Destination,               "Destination")
-HTTP_ATOM(DoNotTrack,                "DNT")
 HTTP_ATOM(ETag,                      "Etag")
 HTTP_ATOM(Expect,                    "Expect")
 HTTP_ATOM(Expires,                   "Expires")

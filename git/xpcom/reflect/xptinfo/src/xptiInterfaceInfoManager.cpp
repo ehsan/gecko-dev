@@ -47,8 +47,6 @@
 #include "mozilla/FunctionTimer.h"
 #include "nsDirectoryService.h"
 
-using namespace mozilla;
-
 NS_IMPL_THREADSAFE_ISUPPORTS2(xptiInterfaceInfoManager, 
                               nsIInterfaceInfoManager,
                               nsIInterfaceInfoSuperManager)
@@ -79,9 +77,10 @@ xptiInterfaceInfoManager::FreeInterfaceInfoManager()
 
 xptiInterfaceInfoManager::xptiInterfaceInfoManager()
     :   mWorkingSet(),
-        mResolveLock("xptiInterfaceInfoManager.mResolveLock"),
-        mAdditionalManagersLock(
-            "xptiInterfaceInfoManager.mAdditionalManagersLock")
+        mResolveLock(PR_NewLock()),
+        mAutoRegLock(PR_NewLock()),
+        mInfoMonitor(nsAutoMonitor::NewMonitor("xptiInfoMonitor")),
+        mAdditionalManagersLock(PR_NewLock())
 {
 }
 
@@ -89,6 +88,15 @@ xptiInterfaceInfoManager::~xptiInterfaceInfoManager()
 {
     // We only do this on shutdown of the service.
     mWorkingSet.InvalidateInterfaceInfos();
+
+    if (mResolveLock)
+        PR_DestroyLock(mResolveLock);
+    if (mAutoRegLock)
+        PR_DestroyLock(mAutoRegLock);
+    if (mInfoMonitor)
+        nsAutoMonitor::DestroyMonitor(mInfoMonitor);
+    if (mAdditionalManagersLock)
+        PR_DestroyLock(mAdditionalManagersLock);
 
     gInterfaceInfoManager = nsnull;
 #ifdef DEBUG
@@ -233,7 +241,6 @@ xptiInterfaceInfoManager::RegisterXPTHeader(XPTHeader* aHeader)
 
     xptiTypelibGuts* typelib = xptiTypelibGuts::Create(aHeader);
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     for(PRUint16 k = 0; k < aHeader->num_interfaces; k++)
         VerifyAndAddEntryIfNew(aHeader->interface_directory + k, k, typelib);
 }
@@ -254,7 +261,6 @@ xptiInterfaceInfoManager::VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* ifa
     if (!iface->interface_descriptor)
         return;
     
-    mWorkingSet.mTableReentrantMonitor.AssertCurrentThreadIn();
     xptiInterfaceEntry* entry = mWorkingSet.mIIDTable.Get(iface->iid);
     if (entry) {
         // XXX validate this info to find possible inconsistencies
@@ -273,7 +279,6 @@ xptiInterfaceInfoManager::VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* ifa
 
     //XXX  We should SetHeader too as part of the validation, no?
     entry->SetScriptableFlag(XPT_ID_IS_SCRIPTABLE(iface->interface_descriptor->flags));
-    entry->SetBuiltinClassFlag(XPT_ID_IS_BUILTINCLASS(iface->interface_descriptor->flags));
 
     mWorkingSet.mIIDTable.Put(entry->IID(), entry);
     mWorkingSet.mNameTable.Put(entry->GetTheName(), entry);
@@ -307,7 +312,6 @@ EntryToInfo(xptiInterfaceEntry* entry, nsIInterfaceInfo **_retval)
 xptiInterfaceEntry*
 xptiInterfaceInfoManager::GetInterfaceEntryForIID(const nsIID *iid)
 {
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     return mWorkingSet.mIIDTable.Get(*iid);
 }
 
@@ -317,8 +321,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::GetInfoForIID(const nsIID * iid, nsIInte
     NS_ASSERTION(iid, "bad param");
     NS_ASSERTION(_retval, "bad param");
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
-    xptiInterfaceEntry* entry = mWorkingSet.mIIDTable.Get(*iid);
+    xptiInterfaceEntry* entry = GetInterfaceEntryForIID(iid);
     return EntryToInfo(entry, _retval);
 }
 
@@ -328,7 +331,6 @@ NS_IMETHODIMP xptiInterfaceInfoManager::GetInfoForName(const char *name, nsIInte
     NS_ASSERTION(name, "bad param");
     NS_ASSERTION(_retval, "bad param");
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     xptiInterfaceEntry* entry = mWorkingSet.mNameTable.Get(name);
     return EntryToInfo(entry, _retval);
 }
@@ -339,7 +341,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::GetIIDForName(const char *name, nsIID * 
     NS_ASSERTION(name, "bad param");
     NS_ASSERTION(_retval, "bad param");
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
+
     xptiInterfaceEntry* entry = mWorkingSet.mNameTable.Get(name);
     if (!entry) {
         *_retval = nsnull;
@@ -355,7 +357,6 @@ NS_IMETHODIMP xptiInterfaceInfoManager::GetNameForIID(const nsIID * iid, char **
     NS_ASSERTION(iid, "bad param");
     NS_ASSERTION(_retval, "bad param");
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     xptiInterfaceEntry* entry = mWorkingSet.mIIDTable.Get(*iid);
     if (!entry) {
         *_retval = nsnull;
@@ -389,7 +390,6 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfaces(nsIEnumerator **_ret
     if (!array)
         return NS_ERROR_UNEXPECTED;
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     mWorkingSet.mNameTable.EnumerateRead(xpti_ArrayAppender, array);
 
     return array->Enumerate(_retval);
@@ -425,7 +425,6 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfacesWhoseNamesStartWith(c
     if (!array)
         return NS_ERROR_UNEXPECTED;
 
-    ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     ArrayAndPrefix args = {array, prefix, PL_strlen(prefix)};
     mWorkingSet.mNameTable.EnumerateRead(xpti_ArrayPrefixAppender, &args);
 
@@ -450,7 +449,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::AddAdditionalManager(nsIInterfaceInfoMan
                     static_cast<nsISupports*>(weakRef) :
                     static_cast<nsISupports*>(manager);
     { // scoped lock...
-        MutexAutoLock lock(mAdditionalManagersLock);
+        nsAutoLock lock(mAdditionalManagersLock);
         if (mAdditionalManagers.IndexOf(ptrToAdd) != -1)
             return NS_ERROR_FAILURE;
         if (!mAdditionalManagers.AppendObject(ptrToAdd))
@@ -467,7 +466,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::RemoveAdditionalManager(nsIInterfaceInfo
                     static_cast<nsISupports*>(weakRef) :
                     static_cast<nsISupports*>(manager);
     { // scoped lock...
-        MutexAutoLock lock(mAdditionalManagersLock);
+        nsAutoLock lock(mAdditionalManagersLock);
         if (!mAdditionalManagers.RemoveObject(ptrToRemove))
             return NS_ERROR_FAILURE;
     }
@@ -484,7 +483,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::HasAdditionalManagers(PRBool *_retval)
 /* nsISimpleEnumerator enumerateAdditionalManagers (); */
 NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateAdditionalManagers(nsISimpleEnumerator **_retval)
 {
-    MutexAutoLock lock(mAdditionalManagersLock);
+    nsAutoLock lock(mAdditionalManagersLock);
 
     nsCOMArray<nsISupports> managerArray(mAdditionalManagers);
     /* Resolve all the weak references in the array. */

@@ -167,11 +167,10 @@ ReadStrings(const NS_tchar *path,
   if (fseek(fp, 0, SEEK_END) != 0)
     return READ_ERROR;
 
-  long len = ftell(fp);
-  if (len <= 0)
+  long flen = ftell(fp);
+  if (flen == 0)
     return READ_ERROR;
 
-  size_t flen = size_t(len);
   char *fileContents = new char[flen + 1];
   if (!fileContents)
     return MEM_ERROR;
@@ -180,7 +179,7 @@ ReadStrings(const NS_tchar *path,
   if (fseek(fp, 0, SEEK_SET) != 0)
     return READ_ERROR;
 
-  size_t rd = fread(fileContents, sizeof(char), flen, fp);
+  int rd = fread(fileContents, sizeof(char), flen, fp);
   if (rd != flen)
     return READ_ERROR;
 
