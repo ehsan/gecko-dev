@@ -87,7 +87,7 @@ public class AndroidBrowserBookmarksDataAccessor extends AndroidBrowserRepositor
     context.getContentResolver().delete(uri, EXCLUDE_SPECIAL_GUIDS_WHERE_CLAUSE, null);
   }
 
-  private final String[] GUID_AND_ID = new String[] { BrowserContract.Bookmarks.GUID,
+  private String[] GUID_AND_ID = new String[] { BrowserContract.Bookmarks.GUID,
                                                 BrowserContract.Bookmarks._ID };
 
   protected Cursor getGuidsIDsForFolders() throws NullCursorException {

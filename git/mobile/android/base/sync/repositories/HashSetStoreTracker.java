@@ -15,7 +15,7 @@ public class HashSetStoreTracker implements StoreTracker {
   // Used to store GUIDs that were not locally modified but
   // have been modified by a call to `store`, and thus
   // should not be returned by a subsequent fetch.
-  private final HashSet<String> guids;
+  private HashSet<String> guids;
 
   public HashSetStoreTracker() {
     guids = new HashSet<String>();

@@ -79,7 +79,7 @@ public class TabsPanel extends LinearLayout
         public void onTabsLayoutChange(int width, int height);
     }
 
-    private final Context mContext;
+    private Context mContext;
     private final GeckoApp mActivity;
     private final LightweightTheme mTheme;
     private RelativeLayout mHeader;
@@ -90,7 +90,7 @@ public class TabsPanel extends LinearLayout
     private PanelView mPanelRemote;
     private RelativeLayout mFooter;
     private TabsLayoutChangeListener mLayoutChangeListener;
-    private final AppStateListener mAppStateListener;
+    private AppStateListener mAppStateListener;
 
     private IconTabWidget mTabWidget;
     private static ImageButton mMenuButton;
@@ -101,7 +101,7 @@ public class TabsPanel extends LinearLayout
     private boolean mVisible;
     private boolean mHeaderVisible;
 
-    private final GeckoPopupMenu mPopupMenu;
+    private GeckoPopupMenu mPopupMenu;
 
     public TabsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);

@@ -45,8 +45,8 @@ public abstract class SessionTest extends BaseTest {
     }
 
     protected class PageInfo {
-        private final String url;
-        private final String title;
+        private String url;
+        private String title;
 
         public PageInfo(String key) {
             if (key.startsWith("about:")) {

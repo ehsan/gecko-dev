@@ -16,20 +16,22 @@
 
 <dialog id="resetProfileDialog"
             xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-            title="&refreshProfile.dialog.title;"
+            title="&resetProfile.dialog.title;"
             buttons="accept,cancel"
             defaultButton="cancel"
-            buttonlabelaccept="&refreshProfile.dialog.button.label;"
+            buttonlabelaccept="&resetProfile.dialog.button.label;"
             ondialogaccept="return onResetProfileAccepted();"
-            ondialogcancel="window.close();">
+            ondialogcancel="window.close();"
+            onload="onResetProfileLoad();">
 
   <script type="application/javascript" src="chrome://global/content/resetProfile.js"/>
 
-  <description value="&refreshProfile.dialog.description1;"></description>
-  <label value="&refreshProfile.dialog.description2;"/>
+  <description>&resetProfile.dialog.description;</description>
 
+  <label value="&resetProfile.dialog.items2.label;"/>
   <vbox id="migratedItems">
-    <label class="migratedLabel" value="&refreshProfile.dialog.items.label1;"/>
-    <label class="migratedLabel" value="&refreshProfile.dialog.items.label2;"/>
   </vbox>
+
+  <label id="resetProfileFooter" value="&resetProfile.dialog.footer.label;"/>
+
 </dialog>

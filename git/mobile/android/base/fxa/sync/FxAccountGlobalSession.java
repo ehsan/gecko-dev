@@ -7,9 +7,7 @@ package org.mozilla.gecko.fxa.sync;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.Map;
 
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.GlobalSession;
@@ -36,7 +34,7 @@ public class FxAccountGlobalSession extends GlobalSession {
   @Override
   public void prepareStages() {
     super.prepareStages();
-    Map<Stage, GlobalSyncStage> stages = new EnumMap<>(Stage.class);
+    HashMap<Stage, GlobalSyncStage> stages = new HashMap<Stage, GlobalSyncStage>();
     stages.putAll(this.stages);
     stages.put(Stage.ensureClusterURL, new CheckPreconditionsStage());
     this.stages = Collections.unmodifiableMap(stages);

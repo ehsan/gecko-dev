@@ -909,7 +909,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
    * Cache the lookup from measurement and field specifier to field instance.
    * This allows us to memoize the field ID lookup, too.
    */
-  private final HashMap<String, Field> fields = new HashMap<String, Field>();
+  private HashMap<String, Field> fields = new HashMap<String, Field>();
   private boolean fieldsCacheUpdated = false;
 
   private void invalidateFieldsCache() {

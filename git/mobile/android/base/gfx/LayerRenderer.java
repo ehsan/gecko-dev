@@ -69,10 +69,10 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private long mLastFrameTime;
     private final CopyOnWriteArrayList<RenderTask> mTasks;
 
-    private final CopyOnWriteArrayList<Layer> mExtraLayers = new CopyOnWriteArrayList<Layer>();
+    private CopyOnWriteArrayList<Layer> mExtraLayers = new CopyOnWriteArrayList<Layer>();
 
     // Dropped frames display
-    private final int[] mFrameTimings;
+    private int[] mFrameTimings;
     private int mCurrentFrame, mFrameTimingsSum, mDroppedFrames;
 
     // Render profiling output
@@ -417,9 +417,9 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         // The timestamp recording the start of this frame.
         private long mFrameStartTime;
         // A fixed snapshot of the viewport metrics that this frame is using to render content.
-        private final ImmutableViewportMetrics mFrameMetrics;
+        private ImmutableViewportMetrics mFrameMetrics;
         // A rendering context for page-positioned layers, and one for screen-positioned layers.
-        private final RenderContext mPageContext, mScreenContext;
+        private RenderContext mPageContext, mScreenContext;
         // Whether a layer was updated.
         private boolean mUpdated;
         private final Rect mPageRect;

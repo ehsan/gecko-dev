@@ -67,7 +67,7 @@ public class DataStorageManager {
 
     private ReportBatch mCurrentReportsSendBuffer;
     private ReportBatchIterator mReportBatchIterator;
-    private final ReportFileList mFileList;
+    private ReportFileList mFileList;
     private Timer mFlushMemoryBuffersToDiskTimer;
 
     static final String SEP_REPORT_COUNT = "-r";

@@ -165,7 +165,7 @@ public class ButtonToast {
         }
     }
 
-    private final Runnable mHideRunnable = new Runnable() {
+    private Runnable mHideRunnable = new Runnable() {
         @Override
         public void run() {
             hide(false, ReasonHidden.TIMEOUT);

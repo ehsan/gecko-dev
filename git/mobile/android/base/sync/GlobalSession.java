@@ -10,7 +10,6 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -175,7 +174,7 @@ public class GlobalSession implements HttpResponseObserver {
   }
 
   protected void prepareStages() {
-    Map<Stage, GlobalSyncStage> stages = new EnumMap<Stage, GlobalSyncStage>(Stage.class);
+    HashMap<Stage, GlobalSyncStage> stages = new HashMap<Stage, GlobalSyncStage>();
 
     stages.put(Stage.checkPreconditions,      new CheckPreconditionsStage());
     stages.put(Stage.ensureClusterURL,        new EnsureClusterURLStage(nodeAssignmentCallback));

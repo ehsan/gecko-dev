@@ -45,10 +45,10 @@ public class FaviconView extends ImageView {
     private static float sStrokeWidth;
 
     // Paint for drawing the stroke.
-    private static final Paint sStrokePaint;
+    private static Paint sStrokePaint;
 
     // Paint for drawing the background.
-    private static final Paint sBackgroundPaint;
+    private static Paint sBackgroundPaint;
 
     // Size of the stroke rectangle.
     private final RectF mStrokeRect;
