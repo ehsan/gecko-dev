@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 const gDashboard = Cc['@mozilla.org/network/dashboard;1']
   .getService(Ci.nsIDashboard);
@@ -85,12 +84,7 @@ function run_test() {
 
   let uri = ioService.newURI("http://localhost:" + gHttpServer.identity.primaryPort,
                              null, null);
-  let channel = ioService.newChannelFromURI2(uri,
-                                             null,      // aLoadingNode
-                                             Services.scriptSecurityManager.getSystemPrincipal(),
-                                             null,      // aTriggeringPrincipal
-                                             Ci.nsILoadInfo.SEC_NORMAL,
-                                             Ci.nsIContentPolicy.TYPE_OTHER);
+  let channel = ioService.newChannelFromURI(uri);
 
   channel.open();
 

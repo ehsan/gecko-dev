@@ -1,5 +1,4 @@
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 const sentCookieVal     = "foo=bar";
 const responseBody      = "response body";
@@ -64,14 +63,7 @@ function run_test()
   // the channel both to set a cookie (since nsICookieService::setCookieString
   // requires such a channel in order to successfully set a cookie) and then
   // to load the pre-redirect URI.
-  var chan = ioService.newChannel2(preRedirectURL,
-                                   "",
-                                   null,
-                                   null,      // aLoadingNode
-                                   Services.scriptSecurityManager.getSystemPrincipal(),
-                                   null,      // aTriggeringPrincipal
-                                   Ci.nsILoadInfo.SEC_NORMAL,
-                                   Ci.nsIContentPolicy.TYPE_OTHER).
+  var chan = ioService.newChannel(preRedirectURL, "", null).
              QueryInterface(Ci.nsIHttpChannel).
              QueryInterface(Ci.nsIHttpChannelInternal);
   chan.forceAllowThirdPartyCookie = true;

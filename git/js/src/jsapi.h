@@ -2256,7 +2256,8 @@ extern JS_PUBLIC_API(bool)
 JS_IsExternalString(JSString *str);
 
 /*
- * Return the 'fin' arg passed to JS_NewExternalString.
+ * Return the 'closure' arg passed to JS_NewExternalStringWithClosure or
+ * nullptr if the external string was created via JS_NewExternalString.
  */
 extern JS_PUBLIC_API(const JSStringFinalizer *)
 JS_GetExternalStringFinalizer(JSString *str);

@@ -36,9 +36,8 @@ const NS_DIRECTORY_SERVICE_CONTRACTID =
 const NS_OBSERVER_SERVICE_CONTRACTID =
           "@mozilla.org/observer-service;1";
 
-CU.import("resource://gre/modules/FileUtils.jsm");
-CU.import("chrome://reftest/content/httpd.jsm", this);
-CU.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/FileUtils.jsm");
+Components.utils.import("chrome://reftest/content/httpd.jsm", this);
 
 var gLoadTimeout = 0;
 var gTimeoutHook = null;
@@ -799,12 +798,7 @@ function ReadManifest(aURL, inherited_status)
                      .getService(CI.nsIScriptSecurityManager);
 
     var listURL = aURL;
-    var channel = gIOService.newChannelFromURI2(aURL,
-                                                null,      // aLoadingNode
-                                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                                null,      // aTriggeringPrincipal
-                                                CI.nsILoadInfo.SEC_NORMAL,
-                                                CI.nsIContentPolicy.TYPE_OTHER);
+    var channel = gIOService.newChannelFromURI(aURL);
     var inputStream = channel.open();
     if (channel instanceof Components.interfaces.nsIHttpChannel
         && channel.responseStatus != 200) {

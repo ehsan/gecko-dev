@@ -244,8 +244,6 @@ this.NetUtil = {
         let channel = aSource;
         if (!(channel instanceof Ci.nsIChannel)) {
             channel = this.newChannel2(aSource,
-                                       "",   // aOriginCharset
-                                       null, // aBaseURI
                                        aLoadingNode,
                                        aLoadingPrincipal,
                                        aTriggeringPrincipal,

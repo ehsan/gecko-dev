@@ -3,7 +3,7 @@
 TEST_BEGIN(test_stats_summary)
 {
 	size_t *cactive;
-	size_t sz, allocated, active, mapped, bookkeeping;
+	size_t sz, allocated, active, mapped;
 	int expected = config_stats ? 0 : ENOENT;
 
 	sz = sizeof(cactive);
@@ -17,8 +17,6 @@ TEST_BEGIN(test_stats_summary)
 	    "Unexpected mallctl() result");
 	assert_d_eq(mallctl("stats.mapped", &mapped, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
-	assert_d_eq(mallctl("stats.bookkeeping", &bookkeeping, &sz, NULL, 0),
-	    expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
 		assert_zu_le(active, *cactive,
