@@ -42,25 +42,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QtGui/QApplication>
-#include <QtGui/QDesktopWidget>
-#include <QtGui/QCursor>
-#include <QtGui/QIcon>
-#include <QtGui/QX11Info>
-#include <QtGui/QGraphicsScene>
-#include <QtGui/QGraphicsView>
-#include <QtGui/QGraphicsSceneContextMenuEvent>
-#include <QtGui/QGraphicsSceneDragDropEvent>
-#include <QtGui/QGraphicsSceneMouseEvent>
-#include <QtGui/QGraphicsSceneHoverEvent>
-#include <QtGui/QGraphicsSceneWheelEvent>
-#include <QtGui/QGraphicsSceneResizeEvent>
-#include <QtGui/QStyleOptionGraphicsItem>
-
-#include <QtCore/QDebug>
-#include <QtCore/QEvent>
-#include <QtCore/QVariant>
-
 #include "prlink.h"
 
 #include "nsWindow.h"
@@ -84,6 +65,25 @@
 #include "nsGfxCIID.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
+
+#include <QtGui/QApplication>
+#include <QtGui/QDesktopWidget>
+#include <QtGui/QCursor>
+#include <QtGui/QIcon>
+#include <QtGui/QX11Info>
+#include <QtGui/QGraphicsScene>
+#include <QtGui/QGraphicsView>
+#include <QtGui/QGraphicsSceneContextMenuEvent>
+#include <QtGui/QGraphicsSceneDragDropEvent>
+#include <QtGui/QGraphicsSceneMouseEvent>
+#include <QtGui/QGraphicsSceneHoverEvent>
+#include <QtGui/QGraphicsSceneWheelEvent>
+#include <QtGui/QGraphicsSceneResizeEvent>
+#include <QtGui/QStyleOptionGraphicsItem>
+
+#include <QtCore/QDebug>
+#include <QtCore/QEvent>
+#include <QtCore/QVariant>
 
 #include "gfxQtPlatform.h"
 #include "gfxXlibSurface.h"

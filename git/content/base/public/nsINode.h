@@ -905,12 +905,12 @@ protected:
       return FlagsAsSlots();
     }
 
-    nsSlots* newSlots = CreateSlots();
-    if (newSlots) {
-      mFlagsOrSlots = reinterpret_cast<PtrBits>(newSlots);
+    nsSlots* slots = CreateSlots();
+    if (slots) {
+      mFlagsOrSlots = reinterpret_cast<PtrBits>(slots);
     }
 
-    return newSlots;
+    return slots;
   }
 
   nsTObserverArray<nsIMutationObserver*> *GetMutationObservers()
