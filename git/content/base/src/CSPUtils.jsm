@@ -386,17 +386,32 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
           // The resulting CSPRep instance will have only absolute URIs.
           uri = gIoService.newURI(uriStrings[i],null,selfUri);
 
-          // if there's no host, this will throw NS_ERROR_FAILURE, causing a
-          // parse failure.
+          // if there's no host, don't do the ETLD+ check.  This will throw
+          // NS_ERROR_FAILURE if the URI doesn't have a host, causing a parse
+          // failure.
           uri.host;
 
-          // warn about, but do not prohibit non-http and non-https schemes for
-          // reporting URIs.  The spec allows unrestricted URIs resolved
-          // relative to "self", but we should let devs know if the scheme is
-          // abnormal and may fail a POST.
-          if (!uri.schemeIs("http") && !uri.schemeIs("https")) {
-            cspWarn(aCSPR, CSPLocalizer.getFormatStr("reportURInotHttpsOrHttp",
-                                                     [uri.asciiSpec]));
+          // Verify that each report URI is in the same etld + 1 and that the
+          // scheme and port match "self" if "self" is defined, and just that
+          // it's valid otherwise.
+          if (self) {
+            if (gETLDService.getBaseDomain(uri) !==
+                gETLDService.getBaseDomain(selfUri)) {
+              cspWarn(aCSPR,
+                      CSPLocalizer.getFormatStr("reportURInotETLDPlus1",
+                                                [gETLDService.getBaseDomain(uri)]));
+              continue;
+            }
+            if (!uri.schemeIs(selfUri.scheme)) {
+              cspWarn(aCSPR, CSPLocalizer.getFormatStr("reportURInotSameSchemeAsSelf",
+                                                       [uri.asciiSpec]));
+              continue;
+            }
+            if (uri.port && uri.port !== selfUri.port) {
+              cspWarn(aCSPR, CSPLocalizer.getFormatStr("reportURInotSamePortAsSelf",
+                                                       [uri.asciiSpec]));
+              continue;
+            }
           }
         } catch(e) {
           switch (e.result) {
@@ -416,7 +431,7 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
               continue;
           }
         }
-        // all verification passed
+        // all verification passed: same ETLD+1, scheme, and port.
         okUriStrings.push(uri.asciiSpec);
       }
       aCSPR._directives[UD.REPORT_URI] = okUriStrings.join(' ');
@@ -634,17 +649,34 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, reportOnly, docRequest, cs
           // The resulting CSPRep instance will have only absolute URIs.
           uri = gIoService.newURI(uriStrings[i],null,selfUri);
 
-          // if there's no host, this will throw NS_ERROR_FAILURE, causing a
-          // parse failure.
+          // if there's no host, don't do the ETLD+ check.  This will throw
+          // NS_ERROR_FAILURE if the URI doesn't have a host, causing a parse
+          // failure.
           uri.host;
 
-          // warn about, but do not prohibit non-http and non-https schemes for
-          // reporting URIs.  The spec allows unrestricted URIs resolved
-          // relative to "self", but we should let devs know if the scheme is
-          // abnormal and may fail a POST.
-          if (!uri.schemeIs("http") && !uri.schemeIs("https")) {
-            cspWarn(aCSPR, CSPLocalizer.getFormatStr("reportURInotHttpsOrHttp",
-                                                     [uri.asciiSpec]));
+          // Verify that each report URI is in the same etld + 1 and that the
+          // scheme and port match "self" if "self" is defined, and just that
+          // it's valid otherwise.
+          if (self) {
+            if (gETLDService.getBaseDomain(uri) !==
+                gETLDService.getBaseDomain(selfUri)) {
+              cspWarn(aCSPR, 
+                      CSPLocalizer.getFormatStr("reportURInotETLDPlus1",
+                                                [gETLDService.getBaseDomain(uri)]));
+              continue;
+            }
+            if (!uri.schemeIs(selfUri.scheme)) {
+              cspWarn(aCSPR,
+                      CSPLocalizer.getFormatStr("reportURInotSameSchemeAsSelf",
+                                                [uri.asciiSpec]));
+              continue;
+            }
+            if (uri.port && uri.port !== selfUri.port) {
+              cspWarn(aCSPR,
+                      CSPLocalizer.getFormatStr("reportURInotSamePortAsSelf",
+                                                [uri.asciiSpec]));
+              continue;
+            }
           }
         } catch(e) {
           switch (e.result) {
@@ -663,7 +695,7 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, reportOnly, docRequest, cs
               continue;
           }
         }
-        // all verification passed.
+        // all verification passed: same ETLD+1, scheme, and port.
        okUriStrings.push(uri.asciiSpec);
       }
       aCSPR._directives[UD.REPORT_URI] = okUriStrings.join(' ');

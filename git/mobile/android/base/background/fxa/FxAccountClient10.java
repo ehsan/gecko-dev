@@ -17,8 +17,6 @@ import java.util.concurrent.Executor;
 import javax.crypto.Mac;
 
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientMalformedResponseException;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.HKDF;
@@ -28,7 +26,6 @@ import org.mozilla.gecko.sync.net.BaseResourceDelegate;
 import org.mozilla.gecko.sync.net.HawkAuthHeaderProvider;
 import org.mozilla.gecko.sync.net.Resource;
 import org.mozilla.gecko.sync.net.SyncResponse;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
@@ -60,15 +57,6 @@ public class FxAccountClient10 {
   public static final String JSON_KEY_SESSIONTOKEN = "sessionToken";
   public static final String JSON_KEY_UID = "uid";
   public static final String JSON_KEY_VERIFIED = "verified";
-  public static final String JSON_KEY_ERROR = "error";
-  public static final String JSON_KEY_MESSAGE = "message";
-  public static final String JSON_KEY_INFO = "info";
-  public static final String JSON_KEY_CODE = "code";
-  public static final String JSON_KEY_ERRNO = "errno";
-
-
-  protected static final String[] requiredErrorStringFields = { JSON_KEY_ERROR, JSON_KEY_MESSAGE, JSON_KEY_INFO };
-  protected static final String[] requiredErrorLongFields = { JSON_KEY_CODE, JSON_KEY_ERRNO };
 
   protected final String serverURI;
   protected final Executor executor;
@@ -90,7 +78,7 @@ public class FxAccountClient10 {
    */
   public interface RequestDelegate<T> {
     public void handleError(Exception e);
-    public void handleFailure(FxAccountClientRemoteException e);
+    public void handleFailure(int status, HttpResponse response);
     public void handleSuccess(T result);
   }
 
@@ -193,24 +181,27 @@ public class FxAccountClient10 {
 
     @Override
     public void handleHttpResponse(HttpResponse response) {
-      try {
-        final int status = validateResponse(response);
+      final int status = response.getStatusLine().getStatusCode();
+      switch (status) {
+      case 200:
         skewHandler.updateSkew(response, now());
         invokeHandleSuccess(status, response);
-      } catch (FxAccountClientRemoteException e) {
+        return;
+      default:
         if (!skewHandler.updateSkew(response, now())) {
           // If we couldn't update skew, but we got a failure, let's try clearing the skew.
           skewHandler.resetSkew();
         }
-        invokeHandleFailure(e);
+        invokeHandleFailure(status, response);
+        return;
       }
     }
 
-    protected void invokeHandleFailure(final FxAccountClientRemoteException e) {
+    protected void invokeHandleFailure(final int status, final HttpResponse response) {
       executor.execute(new Runnable() {
         @Override
         public void run() {
-          delegate.handleFailure(e);
+          delegate.handleFailure(status, response);
         }
       });
     }
@@ -261,40 +252,6 @@ public class FxAccountClient10 {
   @SuppressWarnings("static-method")
   public long now() {
     return System.currentTimeMillis();
-  }
-
-  /**
-   * Intepret a response from the auth server.
-   * <p>
-   * Throw an appropriate exception on errors; otherwise, return the response's
-   * status code.
-   *
-   * @return response's HTTP status code.
-   * @throws FxAccountClientException
-   */
-  public static int validateResponse(HttpResponse response) throws FxAccountClientRemoteException {
-    final int status = response.getStatusLine().getStatusCode();
-    if (status == 200) {
-      return status;
-    }
-    int code;
-    int errno;
-    String error;
-    String message;
-    String info;
-    try {
-      ExtendedJSONObject body = new SyncStorageResponse(response).jsonObjectBody();
-      body.throwIfFieldsMissingOrMisTyped(requiredErrorStringFields, String.class);
-      body.throwIfFieldsMissingOrMisTyped(requiredErrorLongFields, Long.class);
-      code = body.getLong(JSON_KEY_CODE).intValue();
-      errno = body.getLong(JSON_KEY_ERRNO).intValue();
-      error = body.getString(JSON_KEY_ERROR);
-      message = body.getString(JSON_KEY_MESSAGE);
-      info = body.getString(JSON_KEY_INFO);
-    } catch (Exception e) {
-      throw new FxAccountClientMalformedResponseException(response);
-    }
-    throw new FxAccountClientRemoteException(response, code, errno, error, message, info);
   }
 
   public void createAccount(final String email, final byte[] stretchedPWBytes,
@@ -422,11 +379,11 @@ public class FxAccountClient10 {
       }
 
       @Override
-      public void handleFailure(final FxAccountClientRemoteException e) {
+      public void handleFailure(final int status, final HttpResponse response) {
         executor.execute(new Runnable() {
           @Override
           public void run() {
-            delegate.handleFailure(e);
+            delegate.handleFailure(status, response);
           }
         });
       }
@@ -581,8 +538,8 @@ public class FxAccountClient10 {
       @Override
       public void handleSuccess(int status, HttpResponse response, ExtendedJSONObject body) {
         try {
-          byte[] kA = new byte[FxAccountUtils.CRYPTO_KEY_LENGTH_BYTES];
-          byte[] wrapkB = new byte[FxAccountUtils.CRYPTO_KEY_LENGTH_BYTES];
+          byte[] kA = new byte[32];
+          byte[] wrapkB = new byte[32];
           unbundleBody(body, requestKey, FxAccountUtils.KW("account/keys"), kA, wrapkB);
           delegate.handleSuccess(new TwoKeys(kA, wrapkB));
           return;

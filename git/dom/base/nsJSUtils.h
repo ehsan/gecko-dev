@@ -90,25 +90,6 @@ public:
 
 };
 
-class MOZ_STACK_CLASS AutoDontReportUncaught {
-  JSContext* mContext;
-  bool mWasSet;
-
-public:
-  AutoDontReportUncaught(JSContext* aContext) : mContext(aContext) {
-    MOZ_ASSERT(aContext);
-    mWasSet = JS::ContextOptionsRef(mContext).dontReportUncaught();
-    if (!mWasSet) {
-      JS::ContextOptionsRef(mContext).setDontReportUncaught(true);
-    }
-  }
-  ~AutoDontReportUncaught() {
-    if (!mWasSet) {
-      JS::ContextOptionsRef(mContext).setDontReportUncaught(false);
-    }
-  }
-};
-
 
 class nsDependentJSString : public nsDependentString
 {
