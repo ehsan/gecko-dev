@@ -6,18 +6,12 @@
 #ifndef MOZILLA_GFX_TEXTURECLIENTOGL_H
 #define MOZILLA_GFX_TEXTURECLIENTOGL_H
 
-#include "GLContext.h"                  // for SharedTextureHandle, etc
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/gfx/Point.h"          // for IntSize
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
-#include "mozilla/layers/TextureClient.h"  // for DeprecatedTextureClient, etc
+#include "mozilla/layers/TextureClient.h"
+#include "ISurfaceAllocator.h" // For IsSurfaceDescriptorValid
+#include "GLContext.h" // For SharedTextureHandle
 
 namespace mozilla {
 namespace layers {
-
-class CompositableForwarder;
 
 /**
  * A TextureClient implementation to share TextureMemory that is already

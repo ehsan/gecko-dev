@@ -207,9 +207,7 @@ IsNullOrUndefined(MIRType type)
 
 // Make sure registers are not modified between an instruction and
 // its OsiPoint.
-#  ifdef JS_ION
-#    define CHECK_OSIPOINT_REGISTERS 1
-#  endif
+#define CHECK_OSIPOINT_REGISTERS 1
 #endif
 
 } // namespace ion

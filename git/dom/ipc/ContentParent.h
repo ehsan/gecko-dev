@@ -55,7 +55,6 @@ class PCompositorParent;
 
 namespace dom {
 
-class Element;
 class TabParent;
 class PStorageParent;
 class ClonedMessageData;

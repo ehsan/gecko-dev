@@ -53,7 +53,7 @@ ThrowTypeError(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
-TestProtoGetterThis(HandleValue v)
+TestProtoGetterThis(const Value &v)
 {
     return !v.isNullOrUndefined();
 }
@@ -63,7 +63,7 @@ ProtoGetterImpl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(TestProtoGetterThis(args.thisv()));
 
-    HandleValue thisv = args.thisv();
+    const Value &thisv = args.thisv();
     if (thisv.isPrimitive() && !BoxNonStrictThis(cx, args))
         return false;
 
@@ -90,7 +90,7 @@ size_t sSetProtoCalled = 0;
 } // namespace js
 
 static bool
-TestProtoSetterThis(HandleValue v)
+TestProtoSetterThis(const Value &v)
 {
     if (v.isNullOrUndefined())
         return false;
@@ -108,7 +108,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(TestProtoSetterThis(args.thisv()));
 
-    HandleValue thisv = args.thisv();
+    const Value &thisv = args.thisv();
     if (thisv.isPrimitive()) {
         JS_ASSERT(!thisv.isNullOrUndefined());
 

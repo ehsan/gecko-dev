@@ -592,6 +592,11 @@ class IonBuilder : public MIRGenerator
 
     MGetPropertyCache *getInlineableGetPropertyCache(CallInfo &callInfo);
 
+    MPolyInlineDispatch *
+    makePolyInlineDispatch(JSContext *cx, CallInfo &callInfo,
+                           MGetPropertyCache *getPropCache, MBasicBlock *bottom,
+                           Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
+
     types::StackTypeSet *cloneTypeSet(types::StackTypeSet *types);
 
     // Use one of the below methods for updating the current block, rather than

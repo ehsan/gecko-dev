@@ -158,7 +158,6 @@ enum IPCMessageStart {
 
 for name in allprotocols:
     print >>ipcmsgstart, "  %s," % name
-    print >>ipcmsgstart, "  %sChild," % name
 
 print >>ipcmsgstart, """
   LastMsgIndex
