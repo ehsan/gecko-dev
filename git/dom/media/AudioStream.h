@@ -22,9 +22,11 @@ class SoundTouch;
 
 namespace mozilla {
 
-struct DestroyPolicy
+template<>
+struct DefaultDelete<cubeb_stream>
 {
-  void operator()(cubeb_stream* aStream) const {
+  void operator()(cubeb_stream* aStream) const
+  {
     cubeb_stream_destroy(aStream);
   }
 };
@@ -360,7 +362,7 @@ private:
   CircularByteBuffer mBuffer;
 
   // Owning reference to a cubeb_stream.
-  UniquePtr<cubeb_stream, DestroyPolicy> mCubebStream;
+  UniquePtr<cubeb_stream> mCubebStream;
 
   uint32_t mBytesPerFrame;
 

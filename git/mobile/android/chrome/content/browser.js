@@ -2270,9 +2270,14 @@ var NativeWindow = {
   contextmenus: {
     items: {}, //  a list of context menu items that we may show
     DEFAULT_HTML5_ORDER: -1, // Sort order for HTML5 context menu items
+    _isLongPressEnabled: 1, // Android longpress events can be ignored during robocop tests.
 
     init: function() {
       BrowserApp.deck.addEventListener("contextmenu", this.show.bind(this), false);
+
+      Messaging.addListener((data) => {
+        return {result: (this._isLongPressEnabled = data.isLongPressEnabled)};
+      }, "ContextMenu:SetIsLongpressEnabled");
     },
 
     add: function() {
@@ -2565,6 +2570,11 @@ var NativeWindow = {
      * for chrome consumers to do lazy menuitem construction
      */
     show: function(event) {
+      if (!this._isLongPressEnabled) {
+        dump("Longpress Event is ignored by request");
+        return;
+      }
+
       // Android Long-press / contextmenu event provides clientX/Y data. This is not provided
       // by mochitest: test_browserElement_inproc_ContextmenuEvents.html.
       if (!event.clientX || !event.clientY) {
@@ -6533,12 +6543,20 @@ var IndexedDB = {
   _permissionsPrompt: "indexedDB-permissions-prompt",
   _permissionsResponse: "indexedDB-permissions-response",
 
+  _quotaPrompt: "indexedDB-quota-prompt",
+  _quotaResponse: "indexedDB-quota-response",
+  _quotaCancel: "indexedDB-quota-cancel",
+
   init: function IndexedDB_init() {
     Services.obs.addObserver(this, this._permissionsPrompt, false);
+    Services.obs.addObserver(this, this._quotaPrompt, false);
+    Services.obs.addObserver(this, this._quotaCancel, false);
   },
 
   observe: function IndexedDB_observe(subject, topic, data) {
-    if (topic != this._permissionsPrompt) {
+    if (topic != this._permissionsPrompt &&
+        topic != this._quotaPrompt &&
+        topic != this._quotaCancel) {
       throw new Error("Unexpected topic!");
     }
 
@@ -6558,6 +6576,11 @@ var IndexedDB = {
     if (topic == this._permissionsPrompt) {
       message = strings.formatStringFromName("offlineApps.ask", [host], 1);
       responseTopic = this._permissionsResponse;
+    } else if (topic == this._quotaPrompt) {
+      message = strings.formatStringFromName("indexedDBQuota.wantsTo", [ host, data ], 2);
+      responseTopic = this._quotaResponse;
+    } else if (topic == this._quotaCancel) {
+      responseTopic = this._quotaResponse;
     }
 
     const firstTimeoutDuration = 300000; // 5 minutes
@@ -6582,6 +6605,13 @@ var IndexedDB = {
 
       // And tell the page that the popup timed out.
       observer.observe(null, responseTopic, Ci.nsIPermissionManager.UNKNOWN_ACTION);
+    }
+
+    if (topic == this._quotaCancel) {
+      NativeWindow.doorhanger.hide(notificationID, tab.id);
+      timeoutNotification();
+      observer.observe(null, responseTopic, Ci.nsIPermissionManager.UNKNOWN_ACTION);
+      return;
     }
 
     let buttons = [{

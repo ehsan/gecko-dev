@@ -2562,7 +2562,7 @@ WebSocketChannel::ApplyForAdmission()
 
   MOZ_ASSERT(!mCancelable);
 
-  return pps->AsyncResolve(mHttpChannel,
+  return pps->AsyncResolve(mURI,
                            nsIProtocolProxyService::RESOLVE_PREFER_HTTPS_PROXY |
                            nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL,
                            this, getter_AddRefs(mCancelable));
@@ -2683,7 +2683,7 @@ WebSocketChannel::OnLookupComplete(nsICancelable *aRequest,
 
 // nsIProtocolProxyCallback
 NS_IMETHODIMP
-WebSocketChannel::OnProxyAvailable(nsICancelable *aRequest, nsIChannel *aChannel,
+WebSocketChannel::OnProxyAvailable(nsICancelable *aRequest, nsIURI *aURI,
                                    nsIProxyInfo *pi, nsresult status)
 {
   if (mStopped) {

@@ -13266,12 +13266,7 @@ nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
         elm->ListenerCount();
     }
     if (mDoc) {
-      // Multiple global windows can share a document. So only measure the
-      // document if it (a) doesn't have a global window, or (b) it's the
-      // primary document for the window.
-      if (!mDoc->GetInnerWindow() || mDoc->GetInnerWindow() == this) {
-        mDoc->DocAddSizeOfIncludingThis(aWindowSizes);
-      }
+      mDoc->DocAddSizeOfIncludingThis(aWindowSizes);
     }
   }
 

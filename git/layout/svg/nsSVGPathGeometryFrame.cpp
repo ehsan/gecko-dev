@@ -471,17 +471,9 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
 
   bool gotSimpleBounds = false;
   if (!StyleSVGReset()->HasNonScalingStroke()) {
-    SVGContentUtils::AutoStrokeOptions strokeOptions;
-    strokeOptions.mLineWidth = 0.f;
-    if (getStroke) {
-      SVGContentUtils::GetStrokeOptions(&strokeOptions, element,
-        StyleContext(), nullptr,
-        SVGContentUtils::eIgnoreStrokeDashing);
-    }
+    Float strokeWidth = getStroke ? nsSVGUtils::GetStrokeWidth(this) : 0.f;
     Rect simpleBounds;
-    gotSimpleBounds = element->GetGeometryBounds(&simpleBounds,
-                                                 strokeOptions.mLineWidth,
-                                                 strokeOptions.mLineCap,
+    gotSimpleBounds = element->GetGeometryBounds(&simpleBounds, strokeWidth,
                                                  aToBBoxUserspace);
     if (gotSimpleBounds) {
       bbox = simpleBounds;

@@ -211,10 +211,6 @@ public:
   // suspended the channel.
   virtual void NotifySuspendedByCache(bool aIsSuspended) MOZ_FINAL MOZ_OVERRIDE;
 
-  virtual bool IsActive() MOZ_FINAL MOZ_OVERRIDE;
-
-  virtual bool IsHidden() MOZ_FINAL MOZ_OVERRIDE;
-
   // Called by the media decoder and the video frame to get the
   // ImageContainer containing the video data.
   virtual VideoFrameContainer* GetVideoFrameContainer() MOZ_FINAL MOZ_OVERRIDE;
@@ -340,11 +336,7 @@ public:
 
   MediaStream* GetSrcMediaStream() const
   {
-    NS_ASSERTION(mSrcStream, "Don't call this when not playing a stream");
-    if (!mPlaybackStream) {
-      // XXX Remove this check with CameraPreviewMediaStream per bug 1124630.
-      return mSrcStream->GetStream();
-    }
+    NS_ASSERTION(mPlaybackStream, "Don't call this when not playing a stream");
     return mPlaybackStream->GetStream();
   }
 
@@ -382,7 +374,7 @@ public:
 
   // Called by the media decoder object, on the main thread,
   // when the connection between Rtsp server and client gets lost.
-  virtual void ResetConnectionState() MOZ_FINAL MOZ_OVERRIDE;
+  void ResetConnectionState() MOZ_FINAL MOZ_OVERRIDE;
 
   // XPCOM GetPreload() is OK
   void SetPreload(const nsAString& aValue, ErrorResult& aRv)

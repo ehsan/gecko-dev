@@ -3800,15 +3800,6 @@ TypeNewScript::make(JSContext *cx, TypeObject *type, JSFunction *fun)
     gc::TraceTypeNewScript(type);
 }
 
-size_t
-TypeNewScript::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const
-{
-    size_t n = mallocSizeOf(this);
-    n += mallocSizeOf(preliminaryObjects);
-    n += mallocSizeOf(initializerList);
-    return n;
-}
-
 void
 TypeNewScript::registerNewObject(PlainObject *res)
 {
@@ -5110,8 +5101,7 @@ TypeCompartment::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
 size_t
 TypeObject::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const
 {
-    TypeNewScript *newScript = newScriptDontCheckGeneration();
-    return newScript ? newScript->sizeOfIncludingThis(mallocSizeOf) : 0;
+    return mallocSizeOf(newScriptDontCheckGeneration());
 }
 
 TypeZone::TypeZone(Zone *zone)

@@ -9,7 +9,6 @@
 interface nsICancelable;
 interface nsIProtocolProxyCallback;
 interface nsIProtocolProxyFilter;
-interface nsIProtocolProxyChannelFilter;
 interface nsIProxyInfo;
 interface nsIChannel;
 interface nsIURI;
@@ -18,7 +17,7 @@ interface nsIURI;
  * nsIProtocolProxyService provides methods to access information about
  * various network proxies.
  */
-[scriptable, uuid(ab363090-c331-489f-aabb-7fe4481795b8)]
+[scriptable, uuid(e77c642b-026f-41ce-9b23-f829a6e3f300)]
 interface nsIProtocolProxyService : nsISupports
 {
     /** Flag 1 << 0 is unused **/
@@ -65,11 +64,11 @@ interface nsIProtocolProxyService : nsISupports
 
     /**
      * This method returns via callback a nsIProxyInfo instance that identifies
-     * a proxy to be used for the given channel.  Otherwise, this method returns
+     * a proxy to be used for loading the given URI.  Otherwise, this method returns
      * null indicating that a direct connection should be used.
      *
-     * @param aChannel
-     *        The channel for which a proxy is to be found.
+     * @param aURI
+     *        The URI to test.
      * @param aFlags
      *        A bit-wise combination of the RESOLVE_ flags defined above.  Pass
      *        0 to specify the default behavior.  Any additional bits that do
@@ -95,7 +94,7 @@ interface nsIProtocolProxyService : nsISupports
      *
      * @see nsIProxiedProtocolHandler::newProxiedChannel 
      */
-    nsICancelable asyncResolve(in nsIChannel aChannel, in unsigned long aFlags,
+    nsICancelable asyncResolve(in nsIURI aURI, in unsigned long aFlags,
                                in nsIProtocolProxyCallback aCallback);
 
     /**
@@ -193,18 +192,6 @@ interface nsIProtocolProxyService : nsISupports
                         in unsigned long aPosition);
 
     /**
-     * Similar to registerFilter, but accepts an nsIProtocolProxyChannelFilter,
-     * which selects proxies according to channel rather than URI.
-     *
-     * @param aFilter
-     *        The nsIProtocolProxyChannelFilter instance to be registered.
-     * @param aPosition
-     *        The position of the filter.
-     */
-    void registerChannelFilter(in nsIProtocolProxyChannelFilter aFilter,
-                               in unsigned long aPosition);
-
-    /**
      * This method may be used to unregister a proxy filter instance.  All
      * filters will be automatically unregistered at XPCOM shutdown.
      *
@@ -212,15 +199,6 @@ interface nsIProtocolProxyService : nsISupports
      *        The nsIProtocolProxyFilter instance to be unregistered.
      */
     void unregisterFilter(in nsIProtocolProxyFilter aFilter);
-
-    /**
-     * This method may be used to unregister a proxy channel filter instance.  All
-     * filters will be automatically unregistered at XPCOM shutdown.
-     *
-     * @param aFilter
-     *        The nsIProtocolProxyChannelFilter instance to be unregistered.
-     */
-    void unregisterChannelFilter(in nsIProtocolProxyChannelFilter aFilter);
 
      /**
       * These values correspond to the possible integer values for the

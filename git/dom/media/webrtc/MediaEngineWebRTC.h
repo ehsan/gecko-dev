@@ -79,7 +79,7 @@ public:
   virtual bool IsTextureSupported() MOZ_OVERRIDE { return false; }
 
   MediaEngineWebRTCVideoSource(webrtc::VideoEngine* aVideoEnginePtr, int aIndex,
-                               dom::MediaSourceEnum aMediaSource = dom::MediaSourceEnum::Camera)
+                               MediaSourceType aMediaSource = MediaSourceType::Camera)
     : MediaEngineCameraVideoSource(aIndex, "WebRTCCamera.Monitor")
     , mVideoEngine(aVideoEnginePtr)
     , mMinFps(-1)
@@ -99,7 +99,7 @@ public:
                           TrackID aId,
                           StreamTime aDesiredTime) MOZ_OVERRIDE;
 
-  virtual const dom::MediaSourceEnum GetMediaSource() MOZ_OVERRIDE {
+  virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
     return mMediaSource;
   }
   virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
@@ -127,7 +127,7 @@ private:
   webrtc::ViERender* mViERender;
 
   int mMinFps; // Min rate we want to accept
-  dom::MediaSourceEnum mMediaSource; // source of media (camera | application | screen)
+  MediaSourceType mMediaSource; // source of media (camera | application | screen)
 
   static bool SatisfiesConstraintSet(const dom::MediaTrackConstraintSet& aConstraints,
                                      const webrtc::CaptureCapability& aCandidate);
@@ -185,8 +185,8 @@ public:
     return false;
   }
 
-  virtual const dom::MediaSourceEnum GetMediaSource() MOZ_OVERRIDE {
-    return dom::MediaSourceEnum::Microphone;
+  virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
+    return MediaSourceType::Microphone;
   }
 
   virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
@@ -254,9 +254,9 @@ public:
   // before invoking Shutdown on this class.
   void Shutdown();
 
-  virtual void EnumerateVideoDevices(dom::MediaSourceEnum,
+  virtual void EnumerateVideoDevices(MediaSourceType,
                                     nsTArray<nsRefPtr<MediaEngineVideoSource> >*);
-  virtual void EnumerateAudioDevices(dom::MediaSourceEnum,
+  virtual void EnumerateAudioDevices(MediaSourceType,
                                     nsTArray<nsRefPtr<MediaEngineAudioSource> >*);
 private:
   ~MediaEngineWebRTC() {

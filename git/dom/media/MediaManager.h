@@ -116,7 +116,7 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Camera &&
+           mVideoSource->GetMediaSource() == MediaSourceType::Camera &&
            (!mVideoSource->IsFake() ||
             Preferences::GetBool("media.navigator.permission.fake"));
   }
@@ -131,19 +131,19 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped && !mVideoSource->IsAvailable() &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Screen;
+           mVideoSource->GetMediaSource() == MediaSourceType::Screen;
   }
   bool CapturingWindow()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped && !mVideoSource->IsAvailable() &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Window;
+           mVideoSource->GetMediaSource() == MediaSourceType::Window;
   }
   bool CapturingApplication()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped && !mVideoSource->IsAvailable() &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Application;
+           mVideoSource->GetMediaSource() == MediaSourceType::Application;
   }
 
   void SetStopped()
@@ -508,7 +508,7 @@ protected:
   nsString mID;
   bool mHasFacingMode;
   dom::VideoFacingModeEnum mFacingMode;
-  dom::MediaSourceEnum mMediaSource;
+  MediaSourceType mMediaSource;
   nsRefPtr<MediaEngineSource> mSource;
 };
 

@@ -84,3 +84,9 @@ nsDeviceContextSpecAndroid::EndDocument()
   destFile->SetPermissions(0666);
   return NS_OK;
 }
+
+NS_IMETHODIMP
+nsDeviceContextSpecAndroid::GetPath (const char** aPath)
+{
+  return NS_OK;
+}

@@ -39,6 +39,16 @@ enum MediaEngineState {
   kReleased
 };
 
+// includes everything from dom::MediaSourceEnum (really video sources), plus audio sources
+enum MediaSourceType {
+  Camera = (int) dom::MediaSourceEnum::Camera,
+  Screen = (int) dom::MediaSourceEnum::Screen,
+  Application = (int) dom::MediaSourceEnum::Application,
+  Window, // = (int) dom::MediaSourceEnum::Window, // XXX bug 1038926
+  Browser = (int) dom::MediaSourceEnum::Browser, // proposed in WG, unclear if it's useful
+  Microphone
+};
+
 class MediaEngine
 {
 public:
@@ -54,12 +64,12 @@ public:
 
   /* Populate an array of video sources in the nsTArray. Also include devices
    * that are currently unavailable. */
-  virtual void EnumerateVideoDevices(dom::MediaSourceEnum,
+  virtual void EnumerateVideoDevices(MediaSourceType,
                                      nsTArray<nsRefPtr<MediaEngineVideoSource> >*) = 0;
 
   /* Populate an array of audio sources in the nsTArray. Also include devices
    * that are currently unavailable. */
-  virtual void EnumerateAudioDevices(dom::MediaSourceEnum,
+  virtual void EnumerateAudioDevices(MediaSourceType,
                                      nsTArray<nsRefPtr<MediaEngineAudioSource> >*) = 0;
 
 protected:
@@ -117,7 +127,7 @@ public:
   virtual bool IsFake() = 0;
 
   /* Returns the type of media source (camera, microphone, screen, window, etc) */
-  virtual const dom::MediaSourceEnum GetMediaSource() = 0;
+  virtual const MediaSourceType GetMediaSource() = 0;
 
   // Callback interface for TakePhoto(). Either PhotoComplete() or PhotoError()
   // should be called.

@@ -2047,7 +2047,7 @@ ThreadActor.prototype = {
       // Limit the search to the line numbers contained in the new script.
       if (bpActor.location.line >= aScript.startLine
           && bpActor.location.line <= endLine) {
-        source.setBreakpoint(bpActor.location, bpActor.condition);
+        source.setBreakpoint(bpActor.location);
       }
     }
 
@@ -2740,7 +2740,8 @@ SourceActor.prototype = {
       return this.setBreakpoint({
         line: loc.line,
         column: loc.column,
-      }, condition);
+        condition: condition
+      });
     }).then(response => {
       var actual = response.actualLocation;
       if (actual) {
@@ -2809,20 +2810,21 @@ SourceActor.prototype = {
    *        for more information.
    * @returns BreakpointActor
    */
-  _getOrCreateBreakpointActor: function (location, condition) {
+  _getOrCreateBreakpointActor: function (location) {
     let actor = this.breakpointActorMap.getActor(location);
     if (!actor) {
       actor = new BreakpointActor(this.threadActor, {
         sourceActor: this,
         line: location.line,
         column: location.column,
-      }, condition);
+        condition: location.condition
+      });
       this.threadActor.threadLifetimePool.addActor(actor);
       this.breakpointActorMap.setActor(location, actor);
       return actor;
     }
 
-    actor.condition = condition;
+    actor.condition = location.condition;
     return actor;
   },
 
@@ -2939,13 +2941,14 @@ SourceActor.prototype = {
    *        The location of the breakpoint (in the generated source, if source
    *        mapping).
    */
-  setBreakpoint: function (aLocation, aCondition) {
+  setBreakpoint: function (aLocation) {
     const location = {
       sourceActor: this,
       line: aLocation.line,
-      column: aLocation.column
+      column: aLocation.column,
+      condition: aLocation.condition
     };
-    const actor = location.actor = this._getOrCreateBreakpointActor(location, aCondition);
+    const actor = location.actor = this._getOrCreateBreakpointActor(location);
 
     // Find all scripts matching the given location. We will almost always have
     // a `source` object to query, but multiple inline HTML scripts are all
@@ -4715,15 +4718,15 @@ FrameActor.prototype.requestTypes = {
  *        - column: the specified column
  *        - condition: a condition which, when false, will skip the breakpoint
  */
-function BreakpointActor(aThreadActor, aLocation, aCondition)
+function BreakpointActor(aThreadActor, { sourceActor, line, column, condition })
 {
   // The set of Debugger.Script instances that this breakpoint has been set
   // upon.
   this.scripts = new Set();
 
   this.threadActor = aThreadActor;
-  this.location = aLocation;
-  this.condition = aCondition;
+  this.location = { sourceActor, line, column };
+  this.condition = condition;
 }
 
 BreakpointActor.prototype = {

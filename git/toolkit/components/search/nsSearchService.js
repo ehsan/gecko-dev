@@ -407,8 +407,9 @@ loadListener.prototype = {
   onStatus: function (aRequest, aContext, aStatus, aStatusArg) {}
 }
 
-// Method to determine if we should be using geo-specific defaults
-function geoSpecificDefaultsEnabled() {
+// Hacky method that tries to determine if this user is in a US geography, and
+// using an en-US build.
+function getIsUS() {
   let geoSpecificDefaults = false;
   try {
     geoSpecificDefaults = Services.prefs.getBoolPref("browser.search.geoSpecificDefaults");
@@ -419,12 +420,10 @@ function geoSpecificDefaultsEnabled() {
     distroID = Services.prefs.getCharPref("distribution.id");
   } catch (e) {}
 
-  return (geoSpecificDefaults && !distroID);
-}
+  if (!geoSpecificDefaults || distroID) {
+    return false;
+  }
 
-// Hacky method that tries to determine if this user is in a US geography, and
-// using an en-US build.
-function getIsUS() {
   // If we've set the pref before, just return that result.
   let cachePref = "browser.search.isUS";
   try {
@@ -438,15 +437,6 @@ function getIsUS() {
   let isNA = isUSTimezone();
   Services.prefs.setBoolPref(cachePref, isNA);
   return isNA;
-}
-
-// Helper method to modify preference keys with geo-specific modifiers, if needed
-function getGeoSpecificPrefName(basepref) {
-  if (!geoSpecificDefaultsEnabled())
-    return basepref;
-  if (getIsUS())
-    return basepref + ".US";
-  return basepref;
 }
 
 function isUSTimezone() {
@@ -1973,7 +1963,10 @@ Engine.prototype = {
     let defaultPrefB = Services.prefs.getDefaultBranch(BROWSER_SEARCH_PREF);
     let nsIPLS = Ci.nsIPrefLocalizedString;
     let defaultEngine;
-    let pref = getGeoSpecificPrefName("defaultenginename");
+    let pref = "defaultenginename";
+    if (getIsUS()) {
+      pref += ".US";
+    }
     try {
       defaultEngine = defaultPrefB.getComplexValue(pref, nsIPLS).data;
     } catch (ex) {}
@@ -3193,7 +3186,13 @@ SearchService.prototype = {
     let nsIPLS = Ci.nsIPrefLocalizedString;
     let defaultEngine;
 
-    let defPref = getGeoSpecificPrefName("defaultenginename");
+    let defPref;
+    if (getIsUS()) {
+      defPref = "defaultenginename.US";
+    } else {
+      defPref = "defaultenginename";
+    }
+
     try {
       defaultEngine = defaultPrefB.getComplexValue(defPref, nsIPLS).data;
     } catch (ex) {
@@ -3974,10 +3973,12 @@ SearchService.prototype = {
       }
       catch (e) { }
 
-      let prefNameBase = getGeoSpecificPrefName(BROWSER_SEARCH_PREF + "order");
       while (true) {
-        prefName = prefNameBase + "." + (++i);
-        engineName = getLocalizedPref(prefName);
+        prefName = BROWSER_SEARCH_PREF + "order.";
+        if (getIsUS()) {
+          prefName += "US.";
+        }
+        engineName = getLocalizedPref(prefName + (++i));
         if (!engineName)
           break;
 
@@ -4138,9 +4139,12 @@ SearchService.prototype = {
     }
 
     // Now look through the "browser.search.order" branch.
-    let prefNameBase = getGeoSpecificPrefName(BROWSER_SEARCH_PREF + "order");
     for (var j = 1; ; j++) {
-      let prefName = prefNameBase + "." + j;
+      var prefName = BROWSER_SEARCH_PREF + "order.";
+      if (getIsUS()) {
+        prefName += "US.";
+      }
+      prefName += j;
       engineName = getLocalizedPref(prefName);
       if (!engineName)
         break;
@@ -4353,7 +4357,7 @@ SearchService.prototype = {
   get defaultEngine() {
     this._ensureInitialized();
     if (!this._defaultEngine) {
-      let defPref = getGeoSpecificPrefName(BROWSER_SEARCH_PREF + "defaultenginename");
+      let defPref = BROWSER_SEARCH_PREF + "defaultenginename";
       let defaultEngine = this.getEngineByName(getLocalizedPref(defPref, ""))
       if (!defaultEngine)
         defaultEngine = this._getSortedEngines(false)[0] || null;
@@ -4381,8 +4385,7 @@ SearchService.prototype = {
 
     this._defaultEngine = newDefaultEngine;
 
-    let defPref = getGeoSpecificPrefName(BROWSER_SEARCH_PREF + "defaultenginename");
-
+    let defPref = BROWSER_SEARCH_PREF + "defaultenginename";
     // If we change the default engine in the future, that change should impact
     // users who have switched away from and then back to the build's "default"
     // engine. So clear the user pref when the defaultEngine is set to the

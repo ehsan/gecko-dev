@@ -3939,6 +3939,7 @@ protected:
   nsCString mDatabaseId;
   State mState;
   bool mIsApp;
+  bool mHasUnlimStoragePerm;
   bool mEnforcingQuota;
   const bool mDeleting;
   bool mBlockedQuotaManager;
@@ -10502,6 +10503,7 @@ FactoryOp::FactoryOp(Factory* aFactory,
   , mCommonParams(aCommonParams)
   , mState(State_Initial)
   , mIsApp(false)
+  , mHasUnlimStoragePerm(false)
   , mEnforcingQuota(true)
   , mDeleting(aDeleting)
   , mBlockedQuotaManager(false)
@@ -10817,13 +10819,15 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
     }
 
     if (State_Initial == mState) {
-      QuotaManager::GetInfoForChrome(&mGroup, &mOrigin, &mIsApp);
+      QuotaManager::GetInfoForChrome(&mGroup, &mOrigin, &mIsApp,
+                                     &mHasUnlimStoragePerm);
 
       MOZ_ASSERT(!QuotaManager::IsFirstPromptRequired(persistenceType, mOrigin,
                                                       mIsApp));
 
       mEnforcingQuota =
-        QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp);
+        QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp,
+                                      mHasUnlimStoragePerm);
     }
 
     *aPermission = PermissionRequestBase::kPermissionAllowed;
@@ -10842,7 +10846,9 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
   nsCString group;
   nsCString origin;
   bool isApp;
-  rv = QuotaManager::GetInfoFromPrincipal(principal, &group, &origin, &isApp);
+  bool hasUnlimStoragePerm;
+  rv = QuotaManager::GetInfoFromPrincipal(principal, &group, &origin,
+                                          &isApp, &hasUnlimStoragePerm);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -10887,9 +10893,11 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
     mGroup = group;
     mOrigin = origin;
     mIsApp = isApp;
+    mHasUnlimStoragePerm = hasUnlimStoragePerm;
 
     mEnforcingQuota =
-      QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp);
+      QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp,
+                                    mHasUnlimStoragePerm);
   }
 
   *aPermission = permission;
@@ -11281,6 +11289,7 @@ OpenDatabaseOp::DoDatabaseWork()
                                             mGroup,
                                             mOrigin,
                                             mIsApp,
+                                            mHasUnlimStoragePerm,
                                             getter_AddRefs(dbDirectory));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;

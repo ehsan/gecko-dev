@@ -46,9 +46,9 @@ private:
   {
   }
 
-  struct MOZ_STACK_CLASS ReadSegmentsState
+  struct ReadSegmentsState
   {
-    nsCOMPtr<nsIInputStream> mThisStream;
+    nsIInputStream* mThisStream;
     uint32_t mOffset;
     nsWriteSegmentFun mWriter;
     void* mClosure;

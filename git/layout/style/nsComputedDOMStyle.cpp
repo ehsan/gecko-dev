@@ -3079,9 +3079,14 @@ nsComputedDOMStyle::DoGetLineHeight()
 CSSValue*
 nsComputedDOMStyle::DoGetRubyPosition()
 {
-  nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-    StyleText()->mRubyPosition, nsCSSProps::kRubyPositionKTable));
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  int32_t intValue = StyleText()->mRubyPosition;
+  nsAutoString valueStr;
+  nsStyleUtil::AppendBitmaskCSSValue(eCSSProperty_ruby_position,
+                                     intValue,
+                                     NS_STYLE_RUBY_POSITION_OVER,
+                                     NS_STYLE_RUBY_POSITION_LEFT, valueStr);
+  val->SetString(valueStr);
   return val;
 }
 

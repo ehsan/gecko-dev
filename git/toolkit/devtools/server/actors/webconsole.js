@@ -83,8 +83,7 @@ function WebConsoleActor(aConnection, aParentActor)
 
   this.traits = {
     customNetworkRequest: !this._parentIsContentActor,
-    evaluateJSAsync: true,
-    transferredResponseSize: true
+    evaluateJSAsync: true
   };
 }
 
@@ -2010,7 +2009,6 @@ NetworkEventActor.prototype =
       updateType: "responseContent",
       mimeType: aContent.mimeType,
       contentSize: aContent.text.length,
-      transferredSize: aContent.transferredSize,
       discardResponseBody: aDiscardedResponseBody,
     };
 
