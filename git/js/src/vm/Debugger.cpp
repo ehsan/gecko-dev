@@ -21,6 +21,7 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "gc/Marking.h"
+#include "methodjit/Retcon.h"
 #include "ion/BaselineJIT.h"
 #include "js/Vector.h"
 
@@ -236,6 +237,13 @@ BreakpointSite::BreakpointSite(JSScript *script, jsbytecode *pc)
 void
 BreakpointSite::recompile(FreeOp *fop)
 {
+#ifdef JS_METHODJIT
+    if (script->hasMJITInfo()) {
+        mjit::Recompiler::clearStackReferences(fop, script);
+        mjit::ReleaseScriptCode(fop, script);
+    }
+#endif
+
 #ifdef JS_ION
     if (script->hasBaselineScript())
         script->baselineScript()->toggleDebugTraps(script, pc);
@@ -4497,7 +4505,7 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
         ac.construct(cx, obj);
         RootedId id(cx);
         for (size_t i = 0; i < n; i++) {
-            if (!rewrappedIds.append(JSID_VOID) || !rewrappedDescs.append())
+            if (!rewrappedIds.append(jsid()) || !rewrappedDescs.append())
                 return false;
             id = ids[i];
             if (!unwrappedDescs[i].wrapInto(cx, obj, id, &rewrappedIds[i], &rewrappedDescs[i]))

@@ -77,7 +77,7 @@ int
 sv_PrintTime(FILE *out, SECItem *t, char *m)
 {
     PRExplodedTime printableTime; 
-    PRTime time;
+    int64 time;
     char *timeString;
     int rv;
 
@@ -314,7 +314,7 @@ sv_PrintDSAPublicKey(FILE *out, SECKEYPublicKey *pk, char *m)
 }
 
 int
-sv_PrintSubjectPublicKeyInfo(FILE *out, PLArenaPool *arena,
+sv_PrintSubjectPublicKeyInfo(FILE *out, PRArenaPool *arena,
                              CERTSubjectPublicKeyInfo *i,  char *msg)
 {
     SECKEYPublicKey *pk;
@@ -358,7 +358,7 @@ sv_PrintInvalidDateExten  (FILE *out, SECItem *value, char *msg)
 {
     SECItem decodedValue;
     SECStatus rv;
-    PRTime invalidTime;
+    int64 invalidTime;
     char *formattedTime = NULL;
 
     decodedValue.data = NULL;
@@ -454,7 +454,7 @@ sv_PrintCRLInfo(FILE *out, CERTCrl *crl, char *m)
 int
 sv_PrintCertificate(FILE *out, SECItem *der, char *m, int level)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTCertificate *c;
     int rv;
     int iv;
@@ -503,7 +503,7 @@ sv_PrintCertificate(FILE *out, SECItem *der, char *m, int level)
 int
 sv_PrintSignedData(FILE *out, SECItem *der, char *m, SECU_PPFunc inner)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTSignedData *sd;
     int rv;
 

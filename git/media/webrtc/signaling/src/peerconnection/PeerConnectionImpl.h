@@ -281,7 +281,7 @@ private:
   NS_IMETHODIMP CreateAnswerInt(MediaConstraints& constraints);
   NS_IMETHODIMP EnsureDataConnection(uint16_t aNumstreams);
 
-  nsresult CloseInt();
+  nsresult CloseInt(bool aIsSynchronous);
   void ChangeReadyState(ReadyState aReadyState);
   nsresult CheckApiState(bool assert_ice_ready) const;
   void CheckThread() const {
@@ -303,8 +303,8 @@ private:
   void virtualDestroyNSSReference() MOZ_FINAL;
 #endif
 
-  // Shut down media - called on main thread only
-  void ShutdownMedia();
+  // Shut down media. Called on any thread.
+  void ShutdownMedia(bool isSynchronous);
 
   // ICE callbacks run on the right thread.
   nsresult IceStateChange_m(IceState aState);

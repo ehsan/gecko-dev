@@ -237,8 +237,7 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     RootedScript inlineScript(cx, target->nonLazyScript());
     ExecutionMode executionMode = info().executionMode();
     if (!CanIonCompile(inlineScript, executionMode)) {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline due to disable Ion compilation",
-                                  inlineScript->filename(), inlineScript->lineno);
+        IonSpew(IonSpew_Inlining, "Cannot inline due to disable Ion compilation");
         return false;
     }
 
@@ -247,8 +246,7 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
         ion::IsBaselineEnabled(cx) &&
         !inlineScript->hasBaselineScript())
     {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline target with no baseline jitcode",
-                                  inlineScript->filename(), inlineScript->lineno);
+        IonSpew(IonSpew_Inlining, "Cannot inline target with no baseline jitcode");
         return false;
     }
 
@@ -256,20 +254,18 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     IonBuilder *builder = callerBuilder_;
     while (builder) {
         if (builder->script() == inlineScript) {
-            IonSpew(IonSpew_Inlining, "%s:%d Not inlining recursive call",
-                                       inlineScript->filename(), inlineScript->lineno);
+            IonSpew(IonSpew_Inlining, "Not inlining recursive call");
             return false;
         }
         builder = builder->callerBuilder_;
     }
 
     if (!canEnterInlinedFunction(target)) {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline due to oracle veto %d",
-                                  inlineScript->filename(), inlineScript->lineno,
-                                  script()->lineno);
+        IonSpew(IonSpew_Inlining, "Cannot inline due to analysis data %d", script()->lineno);
         return false;
     }
 
+    IonSpew(IonSpew_Inlining, "Inlining good to go!");
     return true;
 }
 
@@ -3433,12 +3429,6 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
 
     // Accumulate return values.
     MIRGraphExits &exits = *inlineBuilder.graph().exitAccumulator();
-    if (exits.length() == 0) {
-        // Inlining of functions that have no exit is not supported.
-        calleeScript->analysis()->setIonUninlineable();
-        abortReason_ = AbortReason_Inlining;
-        return false;
-    }
     MDefinition *retvalDefn = patchInlinedReturns(callInfo, exits, returnBlock);
     if (!retvalDefn)
         return false;
@@ -3547,13 +3537,11 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
                                       targetScript->filename(), targetScript->lineno);
             return false;
         }
-
-        if (targetScript->analysis()->hasLoops()) {
-            IonSpew(IonSpew_Inlining, "%s:%d - Vetoed: big function that contains a loop",
-                                      targetScript->filename(), targetScript->lineno);
-            return false;
-        }
      }
+
+    // Always inline the empty script up to the inlining depth.
+    if (targetScript->length == 1)
+        return true;
 
     // Callee must not be excessively large.
     // This heuristic also applies to the callsite as a whole.
@@ -7480,8 +7468,13 @@ IonBuilder::getPropTryInlineAccess(bool *emitted, HandlePropertyName name, Handl
         return true;
 
     Vector<Shape *> shapes(cx);
-    if (!inspector->maybeShapesForPropertyOp(pc, shapes))
-        return false;
+    if (Shape *objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
+        if (!shapes.append(objShape))
+            return false;
+    } else {
+        if (!inspector->maybeShapesForPropertyOp(pc, shapes))
+            return false;
+    }
 
     if (shapes.empty() || !CanInlinePropertyOpShapes(shapes))
         return true;
@@ -7677,8 +7670,13 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
     }
 
     Vector<Shape *> shapes(cx);
-    if (!inspector->maybeShapesForPropertyOp(pc, shapes))
-        return false;
+    if (Shape *objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
+        if (!shapes.append(objShape))
+            return false;
+    } else {
+        if (!inspector->maybeShapesForPropertyOp(pc, shapes))
+            return false;
+    }
 
     if (!shapes.empty() && CanInlinePropertyOpShapes(shapes)) {
         if (shapes.length() == 1) {

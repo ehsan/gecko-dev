@@ -58,6 +58,7 @@
 #include "gc/GCInternals.h"
 #include "gc/Marking.h"
 #include "gc/Memory.h"
+#include "methodjit/MethodJIT.h"
 #include "vm/Debugger.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
@@ -857,6 +858,12 @@ js::SetGCZeal(JSRuntime *rt, uint8_t zeal, uint32_t frequency)
         if (rt->gcVerifyPostData)
             VerifyBarriers(rt, PostBarrierVerifier);
     }
+
+#ifdef JS_METHODJIT
+    /* In case Zone::compileBarriers() changed... */
+    for (ZonesIter zone(rt); !zone.done(); zone.next())
+        mjit::ClearAllFrames(zone);
+#endif
 
     bool schedule = zeal >= js::gc::ZealAllocValue;
     rt->gcZeal_ = zeal;
@@ -4827,24 +4834,29 @@ void PreventGCDuringInteractiveDebug()
 void
 js::ReleaseAllJITCode(FreeOp *fop)
 {
-#ifdef JS_ION
+#ifdef JS_METHODJIT
     for (ZonesIter zone(fop->runtime()); !zone.done(); zone.next()) {
+        mjit::ClearAllFrames(zone);
+# ifdef JS_ION
 
-# ifdef DEBUG
+#  ifdef DEBUG
         /* Assert no baseline scripts are marked as active. */
         for (CellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
             JS_ASSERT_IF(script->hasBaselineScript(), !script->baselineScript()->active());
         }
-# endif
+#  endif
 
         /* Mark baseline scripts on the stack as active. */
         ion::MarkActiveBaselineScripts(zone);
 
         ion::InvalidateAll(fop, zone);
+# endif
 
         for (CellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
+            mjit::ReleaseScriptCode(fop, script);
+# ifdef JS_ION
             ion::FinishInvalidation(fop, script);
 
             /*
@@ -4852,6 +4864,7 @@ js::ReleaseAllJITCode(FreeOp *fop)
              * this also resets the active flag.
              */
             ion::FinishDiscardBaselineScript(fop, script);
+# endif
         }
     }
 #endif
@@ -4959,12 +4972,19 @@ js::PurgePCCounts(JSContext *cx)
 void
 js::PurgeJITCaches(Zone *zone)
 {
-#ifdef JS_ION
+#ifdef JS_METHODJIT
+    mjit::ClearAllFrames(zone);
+
     for (CellIterUnderGC i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
 
+        /* Discard JM caches. */
+        mjit::PurgeCaches(script);
+
+#ifdef JS_ION
         /* Discard Ion caches. */
         ion::PurgeCaches(script, zone);
+#endif
     }
 #endif
 }
@@ -5069,11 +5089,9 @@ AutoSuppressGC::AutoSuppressGC(JSCompartment *comp)
 }
 
 #ifdef DEBUG
-AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime *rt
-                                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime *rt)
   : count(rt->gcDisableStrictProxyCheckingCount)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     count++;
 }
 #endif

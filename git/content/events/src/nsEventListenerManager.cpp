@@ -858,10 +858,11 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     options.setFileAndLine(url.get(), lineNo)
            .setVersion(SCRIPTVERSION_DEFAULT);
 
-    JS::Rooted<JSObject*> handlerFun(cx);
-    result = nsJSUtils::CompileFunction(cx, JS::NullPtr(), options,
+    JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+    JSObject *handlerFun = nullptr;
+    result = nsJSUtils::CompileFunction(cx, rootedNull, options,
                                         nsAtomCString(aListenerStruct->mTypeAtom),
-                                        argCount, argNames, *body, handlerFun.address());
+                                        argCount, argNames, *body, &handlerFun);
     NS_ENSURE_SUCCESS(result, result);
     handler = handlerFun;
     NS_ENSURE_TRUE(handler, NS_ERROR_FAILURE);
@@ -870,8 +871,8 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
   if (handler) {
     // Bind it
     JS::Rooted<JSObject*> boundHandler(cx);
-    JS::Rooted<JSObject*> scope(cx, listener->GetEventScope());
-    context->BindCompiledEventHandler(mTarget, scope, handler, &boundHandler);
+    context->BindCompiledEventHandler(mTarget, listener->GetEventScope(),
+                                      handler, &boundHandler);
     if (listener->EventName() == nsGkAtoms::onerror && win) {
       nsRefPtr<OnErrorEventHandlerNonNull> handlerCallback =
         new OnErrorEventHandlerNonNull(boundHandler);

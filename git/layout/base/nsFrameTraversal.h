@@ -5,7 +5,6 @@
 #ifndef NSFRAMETRAVERSAL_H
 #define NSFRAMETRAVERSAL_H
 
-#include "mozilla/Attributes.h"
 #include "nsIFrame.h"
 #include "nsIFrameTraversal.h"
 
@@ -33,7 +32,7 @@ public:
                                int32_t aType,
                                bool aVisual,
                                bool aLockInScrollView,
-                               bool aFollowOOFs) MOZ_OVERRIDE;
+                               bool aFollowOOFs);
 };
 
 #endif //NSFRAMETRAVERSAL_H

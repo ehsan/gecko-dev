@@ -63,8 +63,6 @@ function finishTest()
 {
   do_execute_soon(function(){
     testGenerator.close();
-    SpecialPowers.notifyObserversInParentProcess(null, "disk-space-watcher",
-                                                 "free");
     do_test_finished();
   })
 }
@@ -203,11 +201,5 @@ var SpecialPowers = {
     var obsvc = Cc['@mozilla.org/observer-service;1']
                    .getService(Ci.nsIObserverService);
     obsvc.notifyObservers(subject, topic, data);
-  },
-  notifyObserversInParentProcess: function(subject, topic, data) {
-    if (subject) {
-      throw new Error("Can't send subject to another process!");
-    }
-    return this.notifyObservers(subject, topic, data);
   }
 };

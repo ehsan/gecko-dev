@@ -85,12 +85,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-// Maximum size that we'll grow an ArrayBuffer instead of doubling,
-// once doubling reaches this threshold
-#define XML_HTTP_REQUEST_ARRAYBUFFER_MAX_GROWTH (32*1024*1024)
-// start at 32k to avoid lots of doubling right at the start
-#define XML_HTTP_REQUEST_ARRAYBUFFER_MIN_SIZE (32*1024)
-
 #define LOAD_STR "load"
 #define ERROR_STR "error"
 #define ABORT_STR "abort"
@@ -324,17 +318,15 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
   NS_ABORT_IF_FALSE(!(mState & XML_HTTP_REQUEST_SYNCLOOPING), "we rather crash than hang");
   mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
 
-  mResultJSON = JSVAL_VOID;
-  mResultArrayBuffer = nullptr;
-  NS_DROP_JS_OBJECTS(this, nsXMLHttpRequest);
-
   nsLayoutStatics::Release();
 }
 
 void
 nsXMLHttpRequest::RootJSResultObjects()
 {
-  NS_HOLD_JS_OBJECTS(this, nsXMLHttpRequest);
+  nsContentUtils::PreserveWrapper(
+    static_cast<EventTarget*>(
+      static_cast<nsDOMEventTargetHelper*>(this)), this);
 }
 
 /**
@@ -984,10 +976,9 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
 
     if (!mResultArrayBuffer) {
       RootJSResultObjects();
-
-      mResultArrayBuffer = mArrayBufferBuilder.getArrayBuffer(aCx);
-      if (!mResultArrayBuffer) {
-        aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      aRv = nsContentUtils::CreateArrayBuffer(aCx, mResponseBody,
+                                              &mResultArrayBuffer);
+      if (aRv.Failed()) {
         return JSVAL_NULL;
       }
     }
@@ -1748,17 +1739,16 @@ nsXMLHttpRequest::StreamReaderFunc(nsIInputStream* in,
     if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_MOZ_BLOB) {
       xmlHttpRequest->mResponseBlob = nullptr;
     }
-  } else if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER ||
-             xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER) {
-    // get the initial capacity to something reasonable to avoid a bunch of reallocs right
-    // at the start
-    if (xmlHttpRequest->mArrayBufferBuilder.length() == 0)
-      xmlHttpRequest->mArrayBufferBuilder.setCapacity(PR_MAX(count, XML_HTTP_REQUEST_ARRAYBUFFER_MIN_SIZE));
+    if (NS_SUCCEEDED(rv)) {
+      *writeCount = count;
+    }
+    return rv;
+  }
 
-    xmlHttpRequest->mArrayBufferBuilder.append(reinterpret_cast<const uint8_t*>(fromRawSegment), count,
-                                               XML_HTTP_REQUEST_ARRAYBUFFER_MAX_GROWTH);
-  } else if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT &&
-             xmlHttpRequest->mResponseXML) {
+  if ((xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT &&
+       xmlHttpRequest->mResponseXML) ||
+      xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER ||
+      xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER) {
     // Copy for our own use
     uint32_t previousLength = xmlHttpRequest->mResponseBody.Length();
     xmlHttpRequest->mResponseBody.Append(fromRawSegment,count);
@@ -2123,15 +2113,6 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
     }
     NS_ASSERTION(mResponseBody.IsEmpty(), "mResponseBody should be empty");
     NS_ASSERTION(mResponseText.IsEmpty(), "mResponseText should be empty");
-  } else if (NS_SUCCEEDED(status) &&
-             (mResponseType == XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER ||
-              mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER)) {
-    // set the capacity down to the actual length, to realloc back
-    // down to the actual size
-    if (!mArrayBufferBuilder.setCapacity(mArrayBufferBuilder.length())) {
-      // this should never happen!
-      status = NS_ERROR_UNEXPECTED;
-    }
   }
 
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
@@ -2647,8 +2628,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
   mLoadLengthComputable = false;
   mLoadTotal = 0;
   if ((aVariant || !aBody.IsNull()) && httpChannel &&
-      !method.LowerCaseEqualsLiteral("get") &&
-      !method.LowerCaseEqualsLiteral("head")) {
+      !method.EqualsLiteral("GET")) {
 
     nsAutoCString charset;
     nsAutoCString defaultContentType;

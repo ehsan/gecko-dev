@@ -29,7 +29,7 @@ mozilla::RefPtr<VideoSessionConduit> VideoSessionConduit::Create()
   {
     CSFLogError(logTag,  "%s VideoConduit Init Failed ", __FUNCTION__);
     delete obj;
-    return nullptr;
+    return NULL;
   }
   CSFLogDebug(logTag,  "%s Successfully created VideoConduit ", __FUNCTION__);
   return obj;
@@ -51,16 +51,14 @@ WebrtcVideoConduit::~WebrtcVideoConduit()
   {
     mPtrViECapture->DisconnectCaptureDevice(mCapId);
     mPtrViECapture->ReleaseCaptureDevice(mCapId);
-    mPtrExtCapture = nullptr;
+    mPtrExtCapture = NULL;
     mPtrViECapture->Release();
   }
 
   //Deal with External Renderer
   if(mPtrViERender)
   {
-    if(mRenderer) {
-      mPtrViERender->StopRender(mChannel);
-    }
+    mPtrViERender->StopRender(mChannel);
     mPtrViERender->RemoveRenderer(mChannel);
     mPtrViERender->Release();
   }
@@ -115,12 +113,9 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
       CSFLogError(logTag,  "%s: could not get Java environment", __FUNCTION__);
       return kMediaConduitSessionNotInited;
   }
-  jvm->AttachCurrentThread(&env, nullptr);
+  jvm->AttachCurrentThread(&env, NULL);
 
-  if (webrtc::VideoEngine::SetAndroidObjects(jvm, (void*)context) != 0) {
-    CSFLogError(logTag,  "%s: could not set Android objects", __FUNCTION__);
-    return kMediaConduitSessionNotInited;
-  }
+  webrtc::VideoEngine::SetAndroidObjects(jvm, (void*)context);
 
   env->DeleteGlobalRef(context);
 #endif
@@ -294,35 +289,23 @@ WebrtcVideoConduit::AttachRenderer(mozilla::RefPtr<VideoRenderer> aVideoRenderer
     MOZ_ASSERT(PR_FALSE);
     return kMediaConduitInvalidRenderer;
   }
+  //Assign the new renderer - overwrites if there is already one
+  mRenderer = aVideoRenderer;
 
   //Start Rendering if we haven't already
-  if(!mRenderer)
+  if(!mEngineRendererStarted)
   {
-    mRenderer = aVideoRenderer; // must be done before StartRender()
-
     if(mPtrViERender->StartRender(mChannel) == -1)
     {
       CSFLogError(logTag, "%s Starting the Renderer Failed %d ", __FUNCTION__,
                                                       mPtrViEBase->LastError());
-      mRenderer = nullptr;
+      mRenderer = NULL;
       return kMediaConduitRendererFail;
     }
-  } else {
-    //Assign the new renderer - overwrites if there is already one
-    mRenderer = aVideoRenderer;
+    mEngineRendererStarted = true;
   }
 
   return kMediaConduitNoError;
-}
-
-void
-WebrtcVideoConduit::DetachRenderer()
-{
-  if(mRenderer)
-  {
-    mPtrViERender->StopRender(mChannel);
-    mRenderer = nullptr;
-  }
 }
 
 MediaConduitErrorCode

@@ -1016,7 +1016,6 @@ public:
         OES_EGL_sync,
         OES_EGL_image_external,
         EXT_packed_depth_stencil,
-        OES_element_index_uint,
         Extensions_Max
     };
 

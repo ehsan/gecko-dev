@@ -109,15 +109,14 @@ class TestAgent {
   void Stop() {
     MOZ_MTLOG(PR_LOG_DEBUG, "Stopping");
 
-    if (audio_pipeline_)
-      audio_pipeline_->ShutdownMedia_m();
-    if (video_pipeline_)
-      video_pipeline_->ShutdownMedia_m();
-
     mozilla::SyncRunnable::DispatchToThread(
       test_utils->sts_target(),
       WrapRunnable(this, &TestAgent::StopInt));
 
+    if (audio_pipeline_)
+      audio_pipeline_->ShutdownMedia_m();
+    if (video_pipeline_)
+      video_pipeline_->ShutdownMedia_m();
     audio_pipeline_ = NULL;
     video_pipeline_ = NULL;
 

@@ -43,7 +43,7 @@ struct PreAllocatorStr
     PRSize len;
     void* data;
     PRSize used;
-    PLArenaPool* arena;
+    PRArenaPool* arena;
     PRSize extra;
 };
 
@@ -232,11 +232,11 @@ cert_FindDERCertBySubjectKeyID(SECItem *subjKeyID);
 extern int cert_AVAOidTagToMaxLen(SECOidTag tag);
 
 /* Make an AVA, allocated from pool, from OID and DER encoded value */
-extern CERTAVA * CERT_CreateAVAFromRaw(PLArenaPool *pool, 
+extern CERTAVA * CERT_CreateAVAFromRaw(PRArenaPool *pool, 
                                const SECItem * OID, const SECItem * value);
 
 /* Make an AVA from binary input specified by SECItem */
-extern CERTAVA * CERT_CreateAVAFromSECItem(PLArenaPool *arena, SECOidTag kind, 
+extern CERTAVA * CERT_CreateAVAFromSECItem(PRArenaPool *arena, SECOidTag kind, 
                                            int valueType, SECItem *value);
 
 /*
@@ -244,7 +244,7 @@ extern CERTAVA * CERT_CreateAVAFromSECItem(PLArenaPool *arena, SECOidTag kind,
  * Automatically creates the cache object if it doesn't exist yet.
  */
 SECStatus AcquireDPCache(CERTCertificate* issuer, const SECItem* subject,
-                         const SECItem* dp, PRTime t, void* wincx,
+                         const SECItem* dp, int64 t, void* wincx,
                          CRLDPCache** dpcache, PRBool* writeLocked);
 
 /* check if a particular SN is in the CRL cache and return its entry */
@@ -357,7 +357,7 @@ SECStatus cert_ReleaseNamedCRLCache(NamedCRLCache* ncc);
 
 /* This is private for now.  Maybe shoule be public. */
 CERTGeneralName *
-cert_GetSubjectAltNameList(const CERTCertificate *cert, PLArenaPool *arena);
+cert_GetSubjectAltNameList(const CERTCertificate *cert, PRArenaPool *arena);
 
 /* Count DNS names and IP addresses in a list of GeneralNames */
 PRUint32

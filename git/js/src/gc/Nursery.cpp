@@ -181,8 +181,7 @@ class MinorCollectionTracer : public JSTracer
     RelocationOverlay **tail;
 
     /* Save and restore all of the runtime state we use during MinorGC. */
-    bool savedNeedsBarrier;
-    AutoDisableProxyCheck disableStrictProxyChecking;
+    bool priorNeedsBarrier;
 
     /* Insert the given relocation entry into the list of things to visit. */
     JS_ALWAYS_INLINE void insertIntoFixupList(RelocationOverlay *entry) {
@@ -198,22 +197,19 @@ class MinorCollectionTracer : public JSTracer
         session(runtime, MinorCollecting),
         head(NULL),
         tail(&head),
-        savedNeedsBarrier(runtime->needsBarrier()),
-        disableStrictProxyChecking(runtime)
+        priorNeedsBarrier(runtime->needsBarrier())
     {
         JS_TracerInit(this, runtime, Nursery::MinorGCCallback);
         eagerlyTraceWeakMaps = TraceWeakMapKeysValues;
 
         runtime->gcNumber++;
         runtime->setNeedsBarrier(false);
-        for (ZonesIter zone(rt); !zone.done(); zone.next())
-            zone->saveNeedsBarrier(false);
+        ++runtime->gcDisableStrictProxyCheckingCount;
     }
 
     ~MinorCollectionTracer() {
-        runtime->setNeedsBarrier(savedNeedsBarrier);
-        for (ZonesIter zone(runtime); !zone.done(); zone.next())
-            zone->restoreNeedsBarrier();
+        --runtime->gcDisableStrictProxyCheckingCount;
+        runtime->setNeedsBarrier(priorNeedsBarrier);
     }
 };
 
@@ -246,14 +242,6 @@ js::Nursery::allocateFromTenured(Zone *zone, AllocKind thingKind)
         zone->allocator.arenas.checkEmptyFreeList(thingKind);
         t = zone->allocator.arenas.allocateFromArena(zone, thingKind);
     }
-
-    /*
-     * Pre barriers are disabled during minor collection, however, we still
-     * want objects to be allocated black if an incremental GC is in progress.
-     */
-    if (zone->savedNeedsBarrier())
-        static_cast<Cell *>(t)->markIfUnmarked();
-
     return t;
 }
 

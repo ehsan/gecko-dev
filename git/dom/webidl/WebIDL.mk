@@ -155,7 +155,7 @@ webidl_files = \
   ImageData.webidl \
   ImageDocument.webidl \
   InspectorUtils.webidl \
-  KeyboardEvent.webidl \
+  KeyEvent.webidl \
   LinkStyle.webidl \
   LocalMediaStream.webidl \
   Location.webidl \
@@ -315,7 +315,6 @@ webidl_files = \
   URLUtils.webidl \
   USSDReceivedEvent.webidl \
   VideoStreamTrack.webidl \
-  WaveShaperNode.webidl \
   Window.webidl \
   XMLDocument.webidl \
   XMLHttpRequest.webidl \

@@ -1254,7 +1254,7 @@ nsJSContext::GetCCRefcnt()
 
 nsresult
 nsJSContext::EvaluateString(const nsAString& aScript,
-                            JS::Handle<JSObject*> aScopeObject,
+                            JSObject& aScopeObject,
                             JS::CompileOptions& aOptions,
                             bool aCoerceToString,
                             JS::Value* aRetValue)
@@ -1278,10 +1278,10 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   nsCxPusher pusher;
   pusher.Push(mContext);
 
-  xpc_UnmarkGrayObject(aScopeObject);
+  xpc_UnmarkGrayObject(&aScopeObject);
   nsAutoMicroTask mt;
 
-  JSPrincipals* p = JS_GetCompartmentPrincipals(js::GetObjectCompartment(aScopeObject));
+  JSPrincipals* p = JS_GetCompartmentPrincipals(js::GetObjectCompartment(&aScopeObject));
   aOptions.setPrincipals(p);
 
   bool ok = false;
@@ -1295,11 +1295,11 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   // cx and potentially call JS_RestoreFrameChain.
   XPCAutoRequest ar(mContext);
   {
-    JSAutoCompartment ac(mContext, aScopeObject);
+    JSAutoCompartment ac(mContext, &aScopeObject);
 
     ++mExecuteDepth;
 
-    JS::RootedObject rootedScope(mContext, aScopeObject);
+    JS::RootedObject rootedScope(mContext, &aScopeObject);
     ok = JS::Evaluate(mContext, rootedScope, aOptions,
                       PromiseFlatString(aScript).get(),
                       aScript.Length(), aRetValue);
@@ -1389,11 +1389,9 @@ nsJSContext::CompileScript(const PRUnichar* aText,
 }
 
 nsresult
-nsJSContext::ExecuteScript(JSScript* aScriptObject_,
-                           JSObject* aScopeObject_)
+nsJSContext::ExecuteScript(JSScript* aScriptObject,
+                           JSObject* aScopeObject)
 {
-  JS::Rooted<JSObject*> aScopeObject(mContext, aScopeObject_);
-  JS::Rooted<JSScript*> aScriptObject(mContext, aScriptObject_);
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   if (!mScriptsEnabled) {
@@ -1498,9 +1496,8 @@ nsJSContext::JSObjectFromInterface(nsISupports* aTarget,
 
 
 nsresult
-nsJSContext::BindCompiledEventHandler(nsISupports* aTarget,
-                                      JS::Handle<JSObject*> aScope,
-                                      JS::Handle<JSObject*> aHandler,
+nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, JSObject* aScope,
+                                      JSObject* aHandler,
                                       JS::MutableHandle<JSObject*> aBoundHandler)
 {
   NS_ENSURE_ARG(aHandler);
@@ -1661,7 +1658,7 @@ nsJSContext::InitializeExternalClasses()
 }
 
 nsresult
-nsJSContext::SetProperty(JS::Handle<JSObject*> aTarget, const char* aPropName, nsISupports* aArgs)
+nsJSContext::SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aArgs)
 {
   uint32_t  argc;
   JS::Value *argv = nullptr;
@@ -2320,7 +2317,7 @@ static const JSFunctionSpec JProfFunctions[] = {
 #endif /* defined(MOZ_JPROF) */
 
 nsresult
-nsJSContext::InitClasses(JS::Handle<JSObject*> aGlobalObj)
+nsJSContext::InitClasses(JSObject* aGlobalObj)
 {
   nsresult rv = InitializeExternalClasses();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3196,7 +3193,7 @@ DOMGCSliceCallback(JSRuntime *aRt, JS::GCProgress aProgress, const JS::GCDescrip
 }
 
 static void
-DOMAnalysisPurgeCallback(JSRuntime *aRt, JS::Handle<JSFlatString*> aDesc)
+DOMAnalysisPurgeCallback(JSRuntime *aRt, JSFlatString *aDesc)
 {
   NS_ASSERTION(NS_IsMainThread(), "GCs must run on the main thread");
 
@@ -3440,7 +3437,7 @@ NS_DOMWriteStructuredClone(JSContext* cx,
   // Prepare the ImageData internals.
   uint32_t width = imageData->Width();
   uint32_t height = imageData->Height();
-  JS::Rooted<JSObject*> dataArray(cx, imageData->GetDataObject());
+  JSObject *dataArray = imageData->GetDataObject();
 
   // Write the internals to the stream.
   JSAutoCompartment ac(cx, dataArray);

@@ -51,7 +51,7 @@ public:
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
   
   virtual nsresult
   MeasureForWidth(nsRenderingContext& aRenderingContext,
@@ -64,9 +64,9 @@ public:
   
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
+                            nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
+  GetAdditionalStyleContext(int32_t aIndex) const;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,

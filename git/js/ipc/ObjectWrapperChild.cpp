@@ -294,14 +294,15 @@ bool
 ObjectWrapperChild::AnswerAddProperty(const nsString& id,
                                       OperationStatus* status)
 {
+    jsid interned_id;
+
     JSContext* cx = Manager()->GetContext();
-    JS::RootedId interned_id(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
 
-    if (!jsid_from_nsString(cx, id, interned_id.address()))
+    if (!jsid_from_nsString(cx, id, &interned_id))
         return false;
-
+    
     *status = JS_DefinePropertyById(cx, mObj, interned_id, JSVAL_VOID,
                                     NULL, NULL, 0);
     return true;
@@ -311,16 +312,17 @@ bool
 ObjectWrapperChild::AnswerGetProperty(const nsString& id,
                                       OperationStatus* status, JSVariant* vp)
 {
+    jsid interned_id;
+    jsval val;
+
     JSContext* cx = Manager()->GetContext();
-    JS::RootedId interned_id(cx);
-    JS::RootedValue val(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
 
-    if (!jsid_from_nsString(cx, id, interned_id.address()))
+    if (!jsid_from_nsString(cx, id, &interned_id))
         return false;
 
-    *status = JS_GetPropertyById(cx, mObj, interned_id, val.address());
+    *status = JS_GetPropertyById(cx, mObj, interned_id, &val);
 
     // Since we fully expect this call to jsval_to_JSVariant to return
     // true, we can't just leave vp uninitialized when JS_GetPropertyById
@@ -334,20 +336,20 @@ bool
 ObjectWrapperChild::AnswerSetProperty(const nsString& id, const JSVariant& v,
                                       OperationStatus* status, JSVariant* vp)
 {
+    jsid interned_id;
+    jsval val;
+
     *vp = v;
 
     JSContext* cx = Manager()->GetContext();
-    JS::RootedId interned_id(cx);
-    JS::RootedValue val(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
 
-    if (!jsid_from_nsString(cx, id, interned_id.address()) ||
-        !jsval_from_JSVariant(cx, v, val.address())) {
+    if (!jsid_from_nsString(cx, id, &interned_id) ||
+        !jsval_from_JSVariant(cx, v, &val))
         return false;
-    }
 
-    *status = JS_SetPropertyById(cx, mObj, interned_id, val.address());
+    *status = JS_SetPropertyById(cx, mObj, interned_id, &val);
 
     return jsval_to_JSVariant(cx, aco.Ok() ? val : JSVAL_VOID, vp);
 }
@@ -356,16 +358,17 @@ bool
 ObjectWrapperChild::AnswerDelProperty(const nsString& id,
                                       OperationStatus* status, JSVariant* vp)
 {
+    jsid interned_id;
+    jsval val;
+
     JSContext* cx = Manager()->GetContext();
-    JS::RootedId interned_id(cx);
-    JS::RootedValue val(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
 
-    if (!jsid_from_nsString(cx, id, interned_id.address()))
+    if (!jsid_from_nsString(cx, id, &interned_id))
         return false;
 
-    *status = JS_DeletePropertyById2(cx, mObj, interned_id, val.address());
+    *status = JS_DeletePropertyById2(cx, mObj, interned_id, &val);
 
     return jsval_to_JSVariant(cx, aco.Ok() ? val : JSVAL_VOID, vp);
 }
@@ -417,13 +420,13 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
     if (!state)
         return false;
 
-    for (JS::RootedObject proto(cx, mObj); proto; ) {
+    for (JSObject* proto = mObj; proto; ) {
         AutoIdArray ids(cx, JS_Enumerate(cx, proto));
         for (size_t i = 0; i < ids.length(); ++i)
             JS_DefinePropertyById(cx, state, ids[i], JSVAL_VOID,
                                   NULL, NULL, JSPROP_ENUMERATE | JSPROP_SHARED);
 
-        if (!JS_GetPrototype(cx, proto, proto.address()))
+        if (!JS_GetPrototype(cx, proto, &proto))
             return false;
     }
 
@@ -508,27 +511,28 @@ bool
 ObjectWrapperChild::AnswerNewResolve(const nsString& id, const int& flags,
                                      OperationStatus* status, PObjectWrapperChild** obj2)
 {
+    jsid interned_id;
+    
     *obj2 = NULL;
 
     JSContext* cx = Manager()->GetContext();
-    JS::RootedId interned_id(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
 
-    if (!jsid_from_nsString(cx, id, interned_id.address()))
+    if (!jsid_from_nsString(cx, id, &interned_id))
         return false;
 
     CPOW_LOG(("new-resolving \"%s\"...",
               NS_ConvertUTF16toUTF8(id).get()));
 
-    JS::Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, mObj, interned_id, flags, desc.address()))
+    JSPropertyDescriptor desc;
+    if (!JS_GetPropertyDescriptorById(cx, mObj, interned_id, flags, &desc))
         return true;
 
     *status = JS_TRUE;
 
-    if (desc.get().obj)
-        *obj2 = Manager()->GetOrCreateWrapper(desc.get().obj);
+    if (desc.obj)
+        *obj2 = Manager()->GetOrCreateWrapper(desc.obj);
 
     return true;
 }
@@ -537,11 +541,11 @@ bool
 ObjectWrapperChild::AnswerConvert(const JSType& type,
                                   OperationStatus* status, JSVariant* vp)
 {
+    jsval v;
     JSContext* cx = Manager()->GetContext();
-    JS::RootedValue v(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
-    *status = JS_ConvertValue(cx, OBJECT_TO_JSVAL(mObj), type, v.address());
+    *status = JS_ConvertValue(cx, OBJECT_TO_JSVAL(mObj), type, &v);
     return jsval_to_JSVariant(cx, aco.Ok() ? v : JSVAL_VOID, vp);
 }
 
@@ -558,8 +562,8 @@ ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTA
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
 
-    JS::RootedObject obj(cx);
-    if (!JSObject_from_PObjectWrapperChild(cx, receiver, obj.address()))
+    JSObject* obj;
+    if (!JSObject_from_PObjectWrapperChild(cx, receiver, &obj))
         return false;
 
     AutoJSArgs args;
@@ -573,9 +577,9 @@ ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTA
         if (!jsval_from_JSVariant(cx, argv.ElementAt(i), jsargs + i))
             return false;
 
-    JS::RootedValue rv(cx);
+    jsval rv;
     *status = JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(mObj),
-                                   argv.Length(), jsargs, rv.address());
+                                   argv.Length(), jsargs, &rv);
 
     return jsval_to_JSVariant(cx, aco.Ok() ? rv : JSVAL_VOID, rval);
 }
@@ -611,11 +615,11 @@ bool
 ObjectWrapperChild::AnswerHasInstance(const JSVariant& v,
                                       OperationStatus* status, JSBool* bp)
 {
+    jsval candidate;
     JSContext* cx = Manager()->GetContext();
-    JS::RootedValue candidate(cx);
     AutoContextPusher acp(cx);
     AutoCheckOperation aco(this, status);
-    if (!jsval_from_JSVariant(cx, v, candidate.address()))
+    if (!jsval_from_JSVariant(cx, v, &candidate))
         return false;
     *status = JS_HasInstance(cx, mObj, candidate, bp);
     return true;

@@ -32,21 +32,16 @@
 extern "C" {
 #endif
 
-# if !defined(_MSC_VER) || _MSC_VER >= 1600
-/**
- * For non-MSVC compilers, or MSVC2010 or later, assume we have
- * stdint.h
- */
-#   define WEBVTT_HAVE_STDINT 1
-#   include <stdint.h>
-# endif
-
-# if defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__) ||\
-     defined(__WINDOWS__)
+# if defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__) || defined(__WINDOWS__)
+#   if !WEBVTT_NO_CONFIG_H
+#     include "webvtt-config-win32.h"
+#   endif
 #   define WEBVTT_OS_WIN32 1
 #   if defined(_WIN64)
 #     define WEBVTT_OS_WIN64 1
 #   endif
+# elif !WEBVTT_NO_CONFIG_H
+#   include <webvtt/webvtt-config.h>
 # endif
 
 # if defined(_MSC_VER)
@@ -59,8 +54,12 @@ extern "C" {
 #   else
 #     define WEBVTT_EXPORT
 #   endif
+#   if _MSC_VER >= 1600
+#     define WEBVTT_HAVE_STDINT 1
+#   endif
 # elif defined(__GNUC__)
 #   define WEBVTT_CC_GCC 1
+#   define WEBVTT_HAVE_STDINT 1
 #   if WEBVTT_OS_WIN32
 #     if WEBVTT_BUILD_LIBRARY
 #       define WEBVTT_EXPORT __declspec(dllexport)
@@ -97,7 +96,8 @@ extern "C" {
 #   define WEBVTT_INLINE __inline__
 # endif
 
-# ifdef WEBVTT_HAVE_STDINT
+# if WEBVTT_HAVE_STDINT
+#   include <stdint.h>
   typedef int8_t webvtt_int8;
   typedef int16_t webvtt_int16;
   typedef int32_t webvtt_int32;

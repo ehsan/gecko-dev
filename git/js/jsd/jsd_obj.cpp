@@ -84,7 +84,7 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
                  JSAbstractFramePtr frame)
 {
     JSDObject* jsdobj;
-    JS::RootedScript script(cx);
+    JSScript* script;
     JSDScript* jsdscript;
     const char* ctorURL;
     JSString* ctorNameStr;

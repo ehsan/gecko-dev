@@ -83,9 +83,6 @@ void LocalSourceStreamInfo::DetachMedia_m()
        ++it) {
     it->second->ShutdownMedia_m();
   }
-  mAudioTracks.Clear();
-  mVideoTracks.Clear();
-  mMediaStream = nullptr;
 }
 
 void RemoteSourceStreamInfo::DetachTransport_s()
@@ -111,7 +108,6 @@ void RemoteSourceStreamInfo::DetachMedia_m()
        ++it) {
     it->second->ShutdownMedia_m();
   }
-  mMediaStream = nullptr;
 }
 
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
@@ -301,16 +297,7 @@ PeerConnectionMedia::SelfDestruct()
 
   CSFLogDebug(logTag, "%s: ", __FUNCTION__);
 
-  // Shut down the media
-  for (uint32_t i=0; i < mLocalSourceStreams.Length(); ++i) {
-    mLocalSourceStreams[i]->DetachMedia_m();
-  }
-
-  for (uint32_t i=0; i < mRemoteSourceStreams.Length(); ++i) {
-    mRemoteSourceStreams[i]->DetachMedia_m();
-  }
-
-  // Shutdown the transport (async)
+  // Shutdown the transport.
   RUN_ON_THREAD(mSTSThread, WrapRunnable(
       this, &PeerConnectionMedia::ShutdownMediaTransport_s),
                 NS_DISPATCH_NORMAL);
@@ -321,9 +308,19 @@ PeerConnectionMedia::SelfDestruct()
 void
 PeerConnectionMedia::SelfDestruct_m()
 {
+  ASSERT_ON_THREAD(mMainThread);
+
   CSFLogDebug(logTag, "%s: ", __FUNCTION__);
 
-  ASSERT_ON_THREAD(mMainThread);
+  // Shut down the media
+  for (uint32_t i=0; i < mLocalSourceStreams.Length(); ++i) {
+    mLocalSourceStreams[i]->DetachMedia_m();
+  }
+
+  for (uint32_t i=0; i < mRemoteSourceStreams.Length(); ++i) {
+    mRemoteSourceStreams[i]->DetachMedia_m();
+  }
+
   mLocalSourceStreams.Clear();
   mRemoteSourceStreams.Clear();
 

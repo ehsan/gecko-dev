@@ -125,7 +125,7 @@ public class LastTabsSection extends AboutHomeSection {
         if (favicon != null) {
             FaviconView faviconView = (FaviconView) tabView.findViewById(R.id.last_tab_favicon);
             Bitmap bitmap = Favicons.getInstance().scaleImage(favicon);
-            faviconView.updateImage(bitmap, url);
+            faviconView.updateImage(favicon, url);
         }
 
         tabView.setOnClickListener(new View.OnClickListener() {

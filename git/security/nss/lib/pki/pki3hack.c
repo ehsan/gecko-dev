@@ -228,7 +228,7 @@ STAN_GetCertIdentifierFromDER(NSSArena *arenaOpt, NSSDER *der)
     SECItem secDER;
     SECItem secKey = { 0 };
     SECStatus secrv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
     SECITEM_FROM_NSSITEM(&secDER, der);
 
@@ -550,7 +550,7 @@ nssDecodedPKIXCertificate_Destroy (
     if (cert) {
 	PRBool freeSlot = cert->ownSlot;
 	PK11SlotInfo *slot = cert->slot;
-	PLArenaPool *arena  = cert->arena;
+	PRArenaPool *arena  = cert->arena;
 	/* zero cert before freeing. Any stale references to this cert
 	 * after this point will probably cause an exception.  */
 	PORT_Memset(cert, 0, sizeof *cert);
@@ -585,7 +585,7 @@ get_nss3trust_from_nss4trust(nssTrustLevel t)
 }
 
 static CERTCertTrust *
-cert_trust_from_stan_trust(NSSTrust *t, PLArenaPool *arena)
+cert_trust_from_stan_trust(NSSTrust *t, PRArenaPool *arena)
 {
     CERTCertTrust *rvTrust;
     unsigned int client;

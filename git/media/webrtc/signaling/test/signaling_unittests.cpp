@@ -599,7 +599,7 @@ class SignalingAgent {
     if (pc) {
       cout << "Close" << endl;
 
-      pc->Close();
+      pc->Close(false);
       pc = nullptr;
     }
 

@@ -84,8 +84,6 @@ function finishTest()
 {
   resetUnlimitedQuota();
   resetArchiveReader();
-  SpecialPowers.notifyObserversInParentProcess(null, "disk-space-watcher",
-                                               "free");
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();

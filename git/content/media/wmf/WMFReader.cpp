@@ -51,8 +51,8 @@ WMFReader::WMFReader(AbstractMediaDecoder* aDecoder)
     mHasAudio(false),
     mHasVideo(false),
     mCanSeek(false),
-    mUseHwAccel(false),
-    mIsMP3Enabled(WMFDecoder::IsMP3Supported())
+    mIsMP3Enabled(WMFDecoder::IsMP3Supported()),
+    mUseHwAccel(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be on main thread.");
   MOZ_COUNT_CTOR(WMFReader);
@@ -789,6 +789,7 @@ WMFReader::CreateD3DVideoFrame(IMFSample* aSample,
   *aOutVideoData = nullptr;
   HRESULT hr;
 
+  ImageFormat format = D3D9_RGB32_TEXTURE;
   nsRefPtr<Image> image;
   hr = mDXVA2Manager->CopyToImage(aSample,
                                   nsIntSize(mPictureRegion.width, mPictureRegion.height),

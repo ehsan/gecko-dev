@@ -66,10 +66,6 @@ public:
   }
 #endif
 
-  static already_AddRefed<Comment>
-  Constructor(const GlobalObject& aGlobal, const nsAString& aData,
-              ErrorResult& aRv);
-
 protected:
   virtual JSObject* WrapNode(JSContext *aCx,
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;

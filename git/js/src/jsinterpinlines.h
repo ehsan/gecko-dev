@@ -17,6 +17,7 @@
 #include "jsprobes.h"
 #include "jsstr.h"
 
+#include "methodjit/MethodJIT.h"
 #include "vm/ForkJoin.h"
 
 #include "jsatominlines.h"

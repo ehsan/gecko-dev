@@ -1477,6 +1477,7 @@ nsGlobalWindow::FreeInnerObjects()
   }
 
   if (mScreen) {
+    mScreen->Reset();
     mScreen = nullptr;
   }
 
@@ -1753,8 +1754,8 @@ nsGlobalWindow::UnmarkGrayTimers()
       Function* f = timeout->mScriptHandler->GetCallback();
       if (f) {
         // Callable() already does xpc_UnmarkGrayObject.
-        DebugOnly<JS::Handle<JSObject*> > o = f->Callable();
-        MOZ_ASSERT(!xpc_IsGrayGCThing(o.value), "Should have been unmarked");
+        DebugOnly<JSObject*> o = f->Callable();
+        MOZ_ASSERT(!xpc_IsGrayGCThing(o), "Should have been unmarked");
       }
     }
   }
@@ -2028,7 +2029,7 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
   AutoPushJSContext cx(mContext->GetNativeContext());
 
   JS::Rooted<JSObject*> global(cx, aNewInner->FastGetGlobalJSObject());
-  JS::Rooted<JSObject*> outer(cx, NewOuterWindowProxy(cx, global, IsChromeWindow()));
+  JSObject* outer = NewOuterWindowProxy(cx, global, IsChromeWindow());
   if (!outer) {
     return NS_ERROR_FAILURE;
   }
@@ -2039,7 +2040,7 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
 }
 
 nsresult
-nsGlobalWindow::SetOuterObject(JSContext* aCx, JS::Handle<JSObject*> aOuterObject)
+nsGlobalWindow::SetOuterObject(JSContext* aCx, JSObject* aOuterObject)
 {
   // Force our context's global object to be the outer.
   // NB: JS_SetGlobalObject sets aCx->compartment.
@@ -2392,8 +2393,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
         JS_SetParent(cx, mJSObject, newInnerWindow->mJSObject);
 
-        JS::Rooted<JSObject*> obj(cx, mJSObject);
-        rv = SetOuterObject(cx, obj);
+        rv = SetOuterObject(cx, mJSObject);
         NS_ENSURE_SUCCESS(rv, rv);
 
         NS_ASSERTION(!JS_IsExceptionPending(cx),
@@ -2503,8 +2503,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       newInnerWindow->InnerSetNewDocument(aDocument);
 
       // Initialize DOM classes etc on the inner window.
-      JS::Rooted<JSObject*> obj(cx, newInnerWindow->mJSObject);
-      rv = mContext->InitClasses(obj);
+      rv = mContext->InitClasses(newInnerWindow->mJSObject);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -3189,8 +3188,7 @@ nsGlobalWindow::DefineArgumentsProperty(nsIArray *aArguments)
     return NS_OK;
   }
 
-  JS::Rooted<JSObject*> obj(cx, mJSObject);
-  return GetContextInternal()->SetProperty(obj, "arguments", aArguments);
+  return GetContextInternal()->SetProperty(mJSObject, "arguments", aArguments);
 }
 
 //*****************************************************************************
@@ -6122,6 +6120,49 @@ nsGlobalWindow::SetResizable(bool aResizable)
   return NS_OK;
 }
 
+static void
+ReportUseOfDeprecatedMethod(nsGlobalWindow* aWindow, const char* aWarning)
+{
+  nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  "DOM Events", doc,
+                                  nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning);
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::CaptureEvents(int32_t aEventFlags)
+{
+  ReportUseOfDeprecatedMethod(this, "UseOfCaptureEventsWarning");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::ReleaseEvents(int32_t aEventFlags)
+{
+  ReportUseOfDeprecatedMethod(this, "UseOfReleaseEventsWarning");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::RouteEvent(nsIDOMEvent* aEvt)
+{
+  ReportUseOfDeprecatedMethod(this, "UseOfRouteEventWarning");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::EnableExternalCapture()
+{
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::DisableExternalCapture()
+{
+  return NS_ERROR_FAILURE;
+}
+
 static
 bool IsPopupBlocked(nsIDocument* aDoc)
 {
@@ -7425,10 +7466,9 @@ nsGlobalWindow::NotifyDOMWindowThawed(nsGlobalWindow* aWindow) {
 JSObject*
 nsGlobalWindow::GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey)
 {
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> handler(cx);
+  JSObject* handler = nullptr;
   if (mCachedXBLPrototypeHandlers.IsInitialized()) {
-    mCachedXBLPrototypeHandlers.Get(aKey, handler.address());
+    mCachedXBLPrototypeHandlers.Get(aKey, &handler);
   }
   return handler;
 }
@@ -10193,8 +10233,7 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     JS::CompileOptions options(cx);
     options.setFileAndLine(filename, lineNo)
            .setVersion(JSVERSION_DEFAULT);
-    JS::Rooted<JSObject*> global(cx, FastGetGlobalJSObject());
-    aScx->EvaluateString(nsDependentString(script), global,
+    aScx->EvaluateString(nsDependentString(script), *FastGetGlobalJSObject(),
                          options, /*aCoerceToString = */ false, nullptr);
   } else {
     // Hold strong ref to ourselves while we call the callback.
@@ -11479,13 +11518,26 @@ nsGlobalChromeWindow::SetCursor(const nsAString& aCursor)
   nsresult rv = NS_OK;
   int32_t cursor;
 
-  if (aCursor.EqualsLiteral("auto"))
+  // use C strings to keep the code/data size down
+  NS_ConvertUTF16toUTF8 cursorString(aCursor);
+
+  if (cursorString.Equals("auto"))
     cursor = NS_STYLE_CURSOR_AUTO;
   else {
     nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(aCursor);
     if (eCSSKeyword_UNKNOWN == keyword ||
         !nsCSSProps::FindKeyword(keyword, nsCSSProps::kCursorKTable, cursor)) {
-      return NS_OK;
+      // XXX remove the following three values (leave return NS_OK) after 1.8
+      // XXX since they should have been -moz- prefixed (covered by FindKeyword).
+      // XXX (also remove |cursorString| at that point?).
+      if (cursorString.Equals("grab"))
+        cursor = NS_STYLE_CURSOR_GRAB;
+      else if (cursorString.Equals("grabbing"))
+        cursor = NS_STYLE_CURSOR_GRABBING;
+      else if (cursorString.Equals("spinning"))
+        cursor = NS_STYLE_CURSOR_SPINNING;
+      else
+        return NS_OK;
     }
   }
 
@@ -11740,7 +11792,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
                                              JS::Value *vp) {                \
     EventHandlerNonNull* h = GetOn##name_();                                 \
-    vp->setObjectOrNull(h ? h->Callable().get() : nullptr);                  \
+    vp->setObjectOrNull(h ? h->Callable() : nullptr);                        \
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \

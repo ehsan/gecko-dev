@@ -1774,14 +1774,14 @@ public:
    * getting generic data like a device context or widget from it is OK, but it
    * might not be this document's actual presentation.
    */
-  static nsIPresShell* FindPresShellForDocument(const nsIDocument* aDoc);
+  static nsIPresShell* FindPresShellForDocument(nsIDocument* aDoc);
 
   /**
    * Returns the widget for this document if there is one. Looks at all ancestor
    * documents to try to find a widget, so for example this can still find a
    * widget for documents in display:none frames that have no presentation.
    */
-  static nsIWidget* WidgetForDocument(const nsIDocument* aDoc);
+  static nsIWidget* WidgetForDocument(nsIDocument* aDoc);
 
   /**
    * Returns a layer manager to use for the given document. Basically we
@@ -1794,7 +1794,7 @@ public:
    * layer manager should be used for retained layers
    */
   static already_AddRefed<mozilla::layers::LayerManager>
-  LayerManagerForDocument(const nsIDocument *aDoc, bool *aAllowRetaining = nullptr);
+  LayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining = nullptr);
 
   /**
    * Returns a layer manager to use for the given document. Basically we
@@ -1864,14 +1864,6 @@ public:
    * Returns true if the idle observers API is enabled.
    */
   static bool IsIdleObserverAPIEnabled() { return sIsIdleObserverAPIEnabled; }
-
-  /*
-   * Returns true if the performance timing APIs are enabled.
-   */
-  static bool IsPerformanceTimingEnabled()
-  {
-    return sIsPerformanceTimingEnabled;
-  }
   
   /**
    * Returns true if the doc tree branch which contains aDoc contains any
@@ -2236,7 +2228,6 @@ private:
   static bool sFullscreenApiIsContentOnly;
   static uint32_t sHandlingInputTimeout;
   static bool sIsIdleObserverAPIEnabled;
-  static bool sIsPerformanceTimingEnabled;
 
   static nsHtml5StringParser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;

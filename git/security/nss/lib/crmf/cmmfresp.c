@@ -19,7 +19,7 @@ CMMFCertRepContent*
 CMMF_CreateCertRepContent(void)
 {
     CMMFCertRepContent *retCertRep;
-    PLArenaPool        *poolp;
+    PRArenaPool        *poolp;
 
     poolp = PORT_NewArena(CRMF_DEFAULT_ARENA_SIZE);
     if (poolp == NULL) {
@@ -40,7 +40,7 @@ CMMF_CreateCertRepContent(void)
 
 SECStatus 
 cmmf_CertOrEncCertSetCertificate(CMMFCertOrEncCert *certOrEncCert,
-				 PLArenaPool       *poolp,
+				 PRArenaPool       *poolp,
 				 CERTCertificate   *inCert)
 {
     SECItem               *derDest = NULL;
@@ -80,7 +80,7 @@ cmmf_CertOrEncCertSetCertificate(CMMFCertOrEncCert *certOrEncCert,
 
 SECStatus
 cmmf_ExtractCertsFromList(CERTCertList      *inCertList,
-			  PLArenaPool       *poolp,
+			  PRArenaPool       *poolp,
 			  CERTCertificate ***certArray)
 {
     CERTCertificate  **arrayLocalCopy;
@@ -124,7 +124,7 @@ CMMF_CertRepContentSetCertResponses(CMMFCertRepContent *inCertRepContent,
 				    CMMFCertResponse  **inCertResponses,
 				    int                 inNumResponses)
 {
-    PLArenaPool       *poolp;
+    PRArenaPool       *poolp;
     CMMFCertResponse **respArr, *newResp;
     void              *mark;
     SECStatus          rv;
@@ -243,7 +243,7 @@ SECStatus
 CMMF_CertRepContentSetCAPubs(CMMFCertRepContent *inCertRepContent,
 			     CERTCertList       *inCAPubs)
 {
-    PLArenaPool      *poolp;
+    PRArenaPool      *poolp;
     void             *mark;
     SECStatus         rv;
 

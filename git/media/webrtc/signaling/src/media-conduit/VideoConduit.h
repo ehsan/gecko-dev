@@ -60,8 +60,7 @@ public:
    * Note: Multiple invocations of this API shall remove an existing renderer
    * and attaches the new to the Conduit.
    */
-  virtual MediaConduitErrorCode AttachRenderer(mozilla::RefPtr<VideoRenderer> aVideoRenderer);
-  virtual void DetachRenderer();
+   MediaConduitErrorCode AttachRenderer(mozilla::RefPtr<VideoRenderer> aVideoRenderer);
 
   /**
    * APIs used by the registered external transport to this Conduit to
@@ -146,21 +145,16 @@ public:
 
 
   WebrtcVideoConduit():
-                      mVideoEngine(nullptr),
-                      mTransport(nullptr),
-                      mRenderer(nullptr),
+                      mVideoEngine(NULL),
+                      mTransport(NULL),
+                      mRenderer(NULL),
                       mEngineTransmitting(false),
                       mEngineReceiving(false),
+                      mEngineRendererStarted(false),
                       mChannel(-1),
                       mCapId(-1),
-                      mCurSendCodecConfig(nullptr),
-                      mPtrViEBase(nullptr),
-                      mPtrViECapture(nullptr),
-                      mPtrViECodec(nullptr),
-                      mPtrViENetwork(nullptr),
-                      mPtrViERender(nullptr),
-                      mPtrExtCapture(nullptr),
-                      mPtrRTP(nullptr)
+                      mCurSendCodecConfig(NULL)
+
   {
   }
 
@@ -213,6 +207,7 @@ private:
   // Engine state we are concerned with.
   bool mEngineTransmitting; //If true ==> Transmit Sub-system is up and running
   bool mEngineReceiving;    // if true ==> Receive Sus-sysmtem up and running
+  bool mEngineRendererStarted; // If true ==> Rendering Sub-system is up and running
 
   int mChannel; // Video Channel for this conduit
   int mCapId;   // Capturer for this conduit

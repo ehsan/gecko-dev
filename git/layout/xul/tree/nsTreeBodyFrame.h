@@ -120,9 +120,9 @@ public:
   nsresult EndUpdateBatch();
   nsresult ClearStyleAndImageCaches();
 
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual void SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
-                         bool aRemoveOverflowArea = false) MOZ_OVERRIDE;
+                         bool aRemoveOverflowArea = false);
 
   // nsIReflowCallback
   virtual bool ReflowFinished() MOZ_OVERRIDE;
@@ -132,7 +132,7 @@ public:
   virtual bool PseudoMatches(nsCSSSelector* aSelector) MOZ_OVERRIDE;
 
   // nsIScrollbarMediator
-  NS_IMETHOD PositionChanged(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t& aNewIndex) MOZ_OVERRIDE;
+  NS_IMETHOD PositionChanged(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t& aNewIndex);
   NS_IMETHOD ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t aNewIndex) MOZ_OVERRIDE;
   NS_IMETHOD VisibilityChanged(bool aVisible) MOZ_OVERRIDE { Invalidate(); return NS_OK; }
 
@@ -146,20 +146,20 @@ public:
   virtual void Init(nsIContent*     aContent,
                     nsIFrame*       aParent,
                     nsIFrame*       aPrevInFlow) MOZ_OVERRIDE;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
-                       nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
+                       nsIFrame::Cursor& aCursor);
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
                          nsGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                         nsEventStatus* aEventStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   friend nsIFrame* NS_NewTreeBodyFrame(nsIPresShell* aPresShell);
   friend class nsTreeColumn;

@@ -111,8 +111,8 @@ typedef struct _extNode {
 typedef struct {
     void (*setExts)(void *object, CERTCertExtension **exts);
     void *object;
-    PLArenaPool *ownerArena;
-    PLArenaPool *arena;
+    PRArenaPool *ownerArena;
+    PRArenaPool *arena;
     extNode *head;
     int count;
 }extRec;
@@ -124,10 +124,10 @@ typedef struct {
  *   about callers data structures (owner objects)
  */
 void *
-cert_StartExtensions(void *owner, PLArenaPool *ownerArena,
+cert_StartExtensions(void *owner, PRArenaPool *ownerArena,
    void (*setExts)(void *object, CERTCertExtension **exts))
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     extRec *handle;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -397,7 +397,7 @@ CERT_FindBitStringExtension (CERTCertExtension **extensions, int tag,
 {
     SECItem wrapperItem, tmpItem = {siBuffer,0};
     SECStatus rv;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     
     wrapperItem.data = NULL;
     tmpItem.data = NULL;

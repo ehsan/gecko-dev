@@ -716,12 +716,11 @@ XRE_SendTestShellCommand(JSContext* aCx,
                          JSString* aCommand,
                          void* aCallback)
 {
-    JS::RootedString cmd(aCx, aCommand);
     TestShellParent* tsp = GetOrCreateTestShellParent();
     NS_ENSURE_TRUE(tsp, false);
 
     nsDependentJSString command;
-    NS_ENSURE_TRUE(command.init(aCx, cmd), false);
+    NS_ENSURE_TRUE(command.init(aCx, aCommand), false);
 
     if (!aCallback) {
         return tsp->SendExecuteCommand(command);

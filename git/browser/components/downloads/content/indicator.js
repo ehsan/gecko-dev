@@ -530,6 +530,8 @@ const DownloadsIndicatorView = {
     browserDragAndDrop.dragOver(aEvent);
   },
 
+  onDragExit: function () { },
+
   onDrop: function DIV_onDrop(aEvent)
   {
     let dt = aEvent.dataTransfer;

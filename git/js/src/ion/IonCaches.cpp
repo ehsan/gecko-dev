@@ -370,7 +370,7 @@ DispatchIonCache::updateBaseAddress(IonCode *code, MacroAssembler &masm)
 }
 
 void
-IonCache::attachStub(MacroAssembler &masm, StubAttacher &attacher, Handle<IonCode *> code)
+IonCache::attachStub(MacroAssembler &masm, StubAttacher &attacher, IonCode *code)
 {
     JS_ASSERT(canAttachStub());
     incrementStubCount();
@@ -391,8 +391,8 @@ bool
 IonCache::linkAndAttachStub(JSContext *cx, MacroAssembler &masm, StubAttacher &attacher,
                             IonScript *ion, const char *attachKind)
 {
-    Rooted<IonCode *> code(cx);
-    LinkStatus status = linkCode(cx, masm, ion, code.address());
+    IonCode *code = NULL;
+    LinkStatus status = linkCode(cx, masm, ion, &code);
     if (status != LINK_GOOD)
         return status != LINK_ERROR;
 
@@ -2386,8 +2386,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
             if (!cache.attachArgumentsElement(cx, ion, obj))
                 return false;
             attachedStub = true;
-        }
-        if (!attachedStub && obj->isNative() && cache.monitoredResult()) {
+        } else if (obj->isNative() && cache.monitoredResult()) {
             uint32_t dummy;
             if (idval.isString() && JSID_IS_ATOM(id) && !JSID_TO_ATOM(id)->isIndex(&dummy)) {
                 RootedPropertyName name(cx, JSID_TO_ATOM(id)->asPropertyName());
@@ -2395,13 +2394,11 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
                     return false;
                 attachedStub = true;
             }
-        }
-        if (!attachedStub && !cache.hasDenseStub() && obj->isNative() && idval.isInt32()) {
+        } else if (!cache.hasDenseStub() && obj->isNative() && idval.isInt32()) {
             if (!cache.attachDenseElement(cx, ion, obj, idval))
                 return false;
             attachedStub = true;
-        }
-        if (!attachedStub && obj->isTypedArray()) {
+        } else if (obj->isTypedArray()) {
             if ((idval.isInt32()) ||
                 (idval.isString() && GetIndexFromString(idval.toString()) != UINT32_MAX))
             {

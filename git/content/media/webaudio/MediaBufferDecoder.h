@@ -31,6 +31,7 @@ struct WebAudioDecodeJob
   // You may omit both the success and failure callback, or you must pass both.
   // The callbacks are only necessary for asynchronous operation.
   WebAudioDecodeJob(const nsACString& aContentType,
+                    const dom::ArrayBuffer& aBuffer,
                     dom::AudioContext* aContext,
                     dom::DecodeSuccessCallback* aSuccessCallback = nullptr,
                     dom::DecodeErrorCallback* aFailureCallback = nullptr);
@@ -45,15 +46,21 @@ struct WebAudioDecodeJob
   };
 
   typedef void (WebAudioDecodeJob::*ResultFn)(ErrorCode);
-  typedef nsAutoArrayPtr<float> ChannelBuffer;
+  typedef std::pair<void*, float*> ChannelBuffer;
 
   void OnSuccess(ErrorCode /* ignored */);
   void OnFailure(ErrorCode aErrorCode);
 
   bool AllocateBuffer();
+  bool FinalizeBufferData();
 
   nsCString mContentType;
-  uint32_t mWriteIndex;
+  uint8_t* mBuffer;
+  uint32_t mLength;
+  uint32_t mChannels;
+  uint32_t mSourceSampleRate;
+  uint32_t mFrames;
+  uint32_t mResampledFrames; // The number of frames in the resampled buffer
   nsRefPtr<dom::AudioContext> mContext;
   nsRefPtr<dom::DecodeSuccessCallback> mSuccessCallback;
   nsRefPtr<dom::DecodeErrorCallback> mFailureCallback; // can be null

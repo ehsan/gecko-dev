@@ -45,6 +45,7 @@
 
 #include "ion/IonSpewer.h"
 #include "js/RootingAPI.h"
+#include "methodjit/Logging.h"
 
 #define PRETTY_PRINT_OFFSET(os) (((os)<0)?"-":""), (((os)<0)?-(os):(os))
 
@@ -285,7 +286,8 @@ namespace JSC {
             __attribute__ ((format (printf, 2, 3)))
 #endif
         {
-            if (printer
+            if (printer ||
+                js::IsJaegerSpewChannelActive(js::JSpew_Insns)
 #ifdef JS_ION
                 || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
 #endif
@@ -304,8 +306,14 @@ namespace JSC {
                     if (printer)
                         printer->printf("%s\n", buf);
 
+                    // The assembler doesn't know which compiler it is for, so if
+                    // both JM and Ion spew are on, just print via one channel
+                    // (Use JM to pick up isOOLPath).
+                    if (js::IsJaegerSpewChannelActive(js::JSpew_Insns))
+                        js::JaegerSpew(js::JSpew_Insns, "%s       %s\n", isOOLPath ? ">" : " ", buf);
 #ifdef JS_ION
-                    js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
+                    else
+                        js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
                 }
             }
@@ -316,8 +324,12 @@ namespace JSC {
             __attribute__ ((format (printf, 1, 2)))
 #endif
         {
+            if (js::IsJaegerSpewChannelActive(js::JSpew_Insns)
 #ifdef JS_ION
-            if (js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)) {
+                || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
+#endif
+                )
+            {
                 char buf[200];
 
                 va_list va;
@@ -325,10 +337,15 @@ namespace JSC {
                 int i = vsnprintf(buf, sizeof(buf), fmt, va);
                 va_end(va);
 
-                if (i > -1)
-                    js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
-            }
+                if (i > -1) {
+                    if (js::IsJaegerSpewChannelActive(js::JSpew_Insns))
+                        js::JaegerSpew(js::JSpew_Insns, "        %s\n", buf);
+#ifdef JS_ION
+                    else
+                        js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
+                }
+            }
         }
     };
 

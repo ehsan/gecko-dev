@@ -160,30 +160,17 @@ public class WebAppImpl extends GeckoApp {
             case SELECTED:
             case LOCATION_CHANGE:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    final String urlString = tab.getURL();
-                    final URL url;
-
                     try {
-                        url = new URL(urlString);
-                    } catch (java.net.MalformedURLException ex) {
-                        mTitlebarText.setText(urlString);
+                        String title = tab.getURL();
+                        URL page = new URL(title);
+                        mTitlebarText.setText(page.getProtocol() + "://" + page.getHost());
 
-                        // If we can't parse the url, and its an app protocol hide
-                        // the titlebar and return, otherwise show the titlebar
-                        // and the full url
-                        if (!urlString.startsWith("app://")) {
-                            mTitlebar.setVisibility(View.VISIBLE);
-                        } else {
+                        if (mOrigin != null && mOrigin.getHost().equals(page.getHost()))
                             mTitlebar.setVisibility(View.GONE);
-                        }
-                        return;
-                    }
-
-                    if (mOrigin != null && mOrigin.getHost().equals(url.getHost())) {
-                        mTitlebar.setVisibility(View.GONE);
-                    } else {
-                        mTitlebarText.setText(url.getProtocol() + "://" + url.getHost());
-                        mTitlebar.setVisibility(View.VISIBLE);
+                        else
+                            mTitlebar.setVisibility(View.VISIBLE);
+                    } catch (java.net.MalformedURLException ex) {
+                        Log.e(LOGTAG, "Unable to parse url: ", ex);
                     }
                 }
                 break;

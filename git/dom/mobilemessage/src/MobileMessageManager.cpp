@@ -105,8 +105,7 @@ MobileMessageManager::GetSegmentInfoForText(const nsAString& aText,
 }
 
 nsresult
-MobileMessageManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
-                           JS::Handle<JSString*> aNumber,
+MobileMessageManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
                            const nsAString& aMessage, JS::Value* aRequest)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
@@ -135,7 +134,7 @@ MobileMessageManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
 }
 
 NS_IMETHODIMP
-MobileMessageManager::Send(const JS::Value& aNumber_, const nsAString& aMessage, JS::Value* aReturn)
+MobileMessageManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value* aReturn)
 {
   nsresult rv;
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
@@ -143,39 +142,36 @@ MobileMessageManager::Send(const JS::Value& aNumber_, const nsAString& aMessage,
   AutoPushJSContext cx(sc->GetNativeContext());
   NS_ASSERTION(cx, "Failed to get a context!");
 
-  JS::Rooted<JS::Value> aNumber(cx, aNumber_);
   if (!aNumber.isString() &&
       !(aNumber.isObject() && JS_IsArrayObject(cx, &aNumber.toObject()))) {
     return NS_ERROR_INVALID_ARG;
   }
 
-  JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
+  JSObject* global = sc->GetNativeGlobal();
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
   if (aNumber.isString()) {
-    JS::Rooted<JSString*> str(cx, aNumber.toString());
-    return Send(cx, global, str, aMessage, aReturn);
+    return Send(cx, global, aNumber.toString(), aMessage, aReturn);
   }
 
   // Must be an array then.
-  JS::Rooted<JSObject*> numbers(cx, &aNumber.toObject());
+  JSObject& numbers = aNumber.toObject();
 
   uint32_t size;
-  JS_ALWAYS_TRUE(JS_GetArrayLength(cx, numbers, &size));
+  JS_ALWAYS_TRUE(JS_GetArrayLength(cx, &numbers, &size));
 
   JS::Value* requests = new JS::Value[size];
 
-  JS::Rooted<JS::Value> number(cx);
   for (uint32_t i=0; i<size; ++i) {
-    if (!JS_GetElement(cx, numbers, i, number.address())) {
+    JS::Value number;
+    if (!JS_GetElement(cx, &numbers, i, &number)) {
       return NS_ERROR_INVALID_ARG;
     }
 
-    JS::Rooted<JSString*> str(cx, number.toString());
-    nsresult rv = Send(cx, global, str, aMessage, &requests[i]);
+    nsresult rv = Send(cx, global, number.toString(), aMessage, &requests[i]);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -266,14 +262,14 @@ MobileMessageManager::Delete(const JS::Value& aParam, nsIDOMDOMRequest** aReques
     idArray = &id;
   } else {
     // Int32[], SmsMessage[], or MmsMessage[]
-    JS::Rooted<JSObject*> ids(cx, &aParam.toObject());
+    JSObject& ids = aParam.toObject();
 
-    JS_ALWAYS_TRUE(JS_GetArrayLength(cx, ids, &size));
+    JS_ALWAYS_TRUE(JS_GetArrayLength(cx, &ids, &size));
     nsAutoArrayPtr<int32_t> idAutoArray(new int32_t[size]);
 
-    JS::Rooted<JS::Value> idJsValue(cx);
+    JS::Value idJsValue;
     for (uint32_t i = 0; i < size; i++) {
-      if (!JS_GetElement(cx, ids, i, idJsValue.address())) {
+      if (!JS_GetElement(cx, &ids, i, &idJsValue)) {
         return NS_ERROR_INVALID_ARG;
       }
 

@@ -967,20 +967,15 @@ SpecialPowersAPI.prototype = {
     return this._getTopChromeWindow(window).document
                                            .getElementById("PopupAutoComplete");
   },
-  addAutoCompletePopupEventListener: function(window, eventname, listener) {
-    this._getAutoCompletePopup(window).addEventListener(eventname,
+  addAutoCompletePopupEventListener: function(window, listener) {
+    this._getAutoCompletePopup(window).addEventListener("popupshowing",
                                                         listener,
                                                         false);
   },
-  removeAutoCompletePopupEventListener: function(window, eventname, listener) {
-    this._getAutoCompletePopup(window).removeEventListener(eventname,
+  removeAutoCompletePopupEventListener: function(window, listener) {
+    this._getAutoCompletePopup(window).removeEventListener("popupshowing",
                                                            listener,
                                                            false);
-  },
-  get formHistory() {
-    let tmp = {};
-    Cu.import("resource://gre/modules/FormHistory.jsm", tmp);
-    return wrapPrivileged(tmp.FormHistory);
   },
   getFormFillController: function(window) {
     return Components.classes["@mozilla.org/satchel/form-fill-controller;1"]
@@ -1484,20 +1479,5 @@ SpecialPowersAPI.prototype = {
 
   isWindowPrivate: function(win) {
     return PrivateBrowsingUtils.isWindowPrivate(win);
-  },
-
-  notifyObserversInParentProcess: function(subject, topic, data) {
-    if (subject) {
-      throw new Error("Can't send subject to another process!");
-    }
-    if (this.isMainProcess()) {
-      return this.notifyObservers(subject, topic, data);
-    }
-    var msg = {
-      'op': 'notify',
-      'observerTopic': topic,
-      'observerData': data
-    };
-    this._sendSyncMessage('SPObserverService', msg);
   },
 };

@@ -1492,6 +1492,9 @@ FindStartPC(JSContext *cx, ScriptFrameIter &iter, int spindex, int skipStackHits
     if (iter.isIonOptimizedJS())
         return true;
 
+    if (!iter.isIonBaselineJS() && iter.interpFrame()->jitRevisedStack())
+        return true;
+
     *valuepc = NULL;
 
     PCStack pcstack;

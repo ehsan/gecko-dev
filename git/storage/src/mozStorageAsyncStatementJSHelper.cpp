@@ -44,11 +44,10 @@ AsyncStatementJSHelper::getParams(AsyncStatement *aStatement,
       new AsyncStatementParams(aStatement);
     NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::RootedObject scope(aCtx, aScopeObj);
     nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
     rv = xpc->WrapNative(
       aCtx,
-      ::JS_GetGlobalForObject(aCtx, scope),
+      ::JS_GetGlobalForObject(aCtx, aScopeObj),
       params,
       NS_GET_IID(mozIStorageStatementParams),
       getter_AddRefs(aStatement->mStatementParamsHolder)
@@ -92,8 +91,6 @@ AsyncStatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
     return NS_OK;
 
   // Cast to async via mozI* since direct from nsISupports is ambiguous.
-  JS::RootedObject scope(aCtx, aScopeObj);
-  JS::RootedId id(aCtx, aId);
   mozIStorageAsyncStatement *iAsyncStmt =
     static_cast<mozIStorageAsyncStatement *>(aWrapper->Native());
   AsyncStatement *stmt = static_cast<AsyncStatement *>(iAsyncStmt);
@@ -106,8 +103,8 @@ AsyncStatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
   }
 #endif
 
-  if (::JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "params"))
-    return getParams(stmt, aCtx, scope, _result);
+  if (::JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(aId), "params"))
+    return getParams(stmt, aCtx, aScopeObj, _result);
 
   return NS_OK;
 }

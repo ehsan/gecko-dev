@@ -106,7 +106,6 @@ public:
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
     uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
     bool           CritialRequestPrioritization() { return mCritialRequestPrioritization; }
-    double         BypassCacheLockThreshold() { return mBypassCacheLockThreshold; }
 
     bool           UseRequestTokenBucket() { return mRequestTokenBucketEnabled; }
     uint16_t       RequestTokenBucketMinParallelism() { return mRequestTokenBucketMinParallelism; }
@@ -272,13 +271,6 @@ public:
             uint32_t appId,
             bool inBrowser,
             nsACString& sessionName);
-
-    // When the disk cache is responding slowly its use is suppressed
-    // for 1 minute for most requests. Callable from main thread only.
-    mozilla::TimeStamp GetCacheSkippedUntil() { return mCacheSkippedUntil; }
-    void SetCacheSkippedUntil(mozilla::TimeStamp arg) { mCacheSkippedUntil = arg; }
-    void ClearCacheSkippedUntil() { mCacheSkippedUntil = mozilla::TimeStamp(); }
-
 private:
 
     //
@@ -425,10 +417,6 @@ private:
     // established. In milliseconds.
     uint32_t       mConnectTimeout;
 
-    // The maximum amount of time the nsICacheSession lock can be held
-    // before a new transaction bypasses the cache. In milliseconds.
-    double         mBypassCacheLockThreshold;
-
     // The maximum number of current global half open sockets allowable
     // when starting a new speculative connection.
     uint32_t       mParallelSpeculativeConnectLimit;
@@ -443,10 +431,6 @@ private:
     // Whether or not to block requests for non head js/css items (e.g. media)
     // while those elements load.
     bool           mCritialRequestPrioritization;
-
-    // When the disk cache is responding slowly its use is suppressed
-    // for 1 minute for most requests.
-    mozilla::TimeStamp                mCacheSkippedUntil;
 
 private:
     // For Rate Pacing Certain Network Events. Only assign this pointer on

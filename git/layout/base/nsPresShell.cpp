@@ -1877,7 +1877,7 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
         DoReflow(rootFrame, true);
       }
 
-      DidDoReflow(true, false);
+      DidDoReflow(true);
     }
   }
 
@@ -2226,7 +2226,7 @@ PresShell::CompleteScroll(bool aForward)
   if (scrollFrame) {
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                           nsIScrollableFrame::WHOLE,
-                          nsIScrollableFrame::SMOOTH);
+                          nsIScrollableFrame::INSTANT);
   }
   return NS_OK;
 }
@@ -2313,6 +2313,19 @@ PresShell::CheckVisibilityContent(nsIContent* aNode, int16_t aStartOffset,
 }
 
 //end implementations nsISelectionController
+
+
+void
+PresShell::StyleChangeReflow()
+{
+  nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
+  // At the moment at least, we don't have a root frame before the initial
+  // reflow; it's safe to just ignore the request in that case
+  if (!rootFrame)
+    return;
+
+  FrameNeedsReflow(rootFrame, eStyleChange, NS_FRAME_IS_DIRTY);
+}
 
 nsIFrame*
 nsIPresShell::GetRootFrameExternal() const
@@ -6551,7 +6564,6 @@ PresShell::HandleEventWithTarget(nsEvent* aEvent, nsIFrame* aFrame,
     NS_ASSERTION(!doc || doc->GetShell() == this, "wrong shell");
   }
 #endif
-  NS_ENSURE_STATE(!aContent || aContent->GetCurrentDoc() == mDocument);
 
   PushCurrentEventInfo(aFrame, aContent);
   nsresult rv = HandleEventInternal(aEvent, aStatus);
@@ -7628,7 +7640,7 @@ PresShell::WillDoReflow()
 }
 
 void
-PresShell::DidDoReflow(bool aInterruptible, bool aWasInterrupted)
+PresShell::DidDoReflow(bool aInterruptible)
 {
   mFrameConstructor->EndUpdate();
   
@@ -7641,10 +7653,6 @@ PresShell::DidDoReflow(bool aInterruptible, bool aWasInterrupted)
     // the reflow.
     mCaret->InvalidateOutsideCaret();
     mCaret->UpdateCaretPosition();
-  }
-
-  if (!aWasInterrupted) {
-    ClearReflowOnZoomPending();
   }
 }
 
@@ -7938,7 +7946,7 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
 
     // Exiting the scriptblocker might have killed us
     if (!mIsDestroying) {
-      DidDoReflow(aInterruptible, interrupted);
+      DidDoReflow(aInterruptible);
     }
 
     // DidDoReflow might have killed us
@@ -9481,7 +9489,6 @@ nsIPresShell::SetMaxLineBoxWidth(nscoord aMaxLineBoxWidth)
 
   if (mMaxLineBoxWidth != aMaxLineBoxWidth) {
     mMaxLineBoxWidth = aMaxLineBoxWidth;
-    mReflowOnZoomPending = true;
-    FrameNeedsReflow(GetRootFrame(), eResize, NS_FRAME_HAS_DIRTY_CHILDREN);
+    FrameNeedsReflow(GetRootFrame(), eResize, NS_FRAME_IS_DIRTY);
   }
 }

@@ -992,19 +992,17 @@ jsdScript::~jsdScript ()
  */
 PCMapEntry *
 jsdScript::CreatePPLineMap()
-{
+{    
     JSContext  *cx  = JSD_GetDefaultJSContext (mCx);
     JSAutoRequest ar(cx);
-    JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
-    if (!obj)
-        return nullptr;
-    JS::RootedFunction fun(cx, JSD_GetJSFunction (mCx, mScript));
-    JS::RootedScript script(cx); /* In JSD compartment */
+    JSObject   *obj = JS_NewObject(cx, NULL, NULL, NULL);
+    JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
+    JSScript   *script; /* In JSD compartment */
     uint32_t    baseLine;
-    JS::RootedString jsstr(cx);
+    JSString   *jsstr;
     size_t      length;
     const jschar *chars;
-
+    
     if (fun) {
         unsigned nargs;
 
@@ -1135,7 +1133,7 @@ jsdScript::GetVersion (int32_t *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
     JSContext *cx = JSD_GetDefaultJSContext (mCx);
-    JS::RootedScript script(cx, JSD_GetJSScript(mCx, mScript));
+    JSScript *script = JSD_GetJSScript(mCx, mScript);
     JSAutoCompartment ac(cx, script);
     *_rval = static_cast<int32_t>(JS_GetScriptVersion(cx, script));
     return NS_OK;
@@ -1232,7 +1230,7 @@ jsdScript::GetParameterNames(uint32_t* count, PRUnichar*** paramNames)
         NS_WARNING("No default context !?");
         return NS_ERROR_FAILURE;
     }
-    JS::RootedFunction fun(cx, JSD_GetJSFunction (mCx, mScript));
+    JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
     if (!fun) {
         *count = 0;
         *paramNames = nullptr;

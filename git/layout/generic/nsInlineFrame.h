@@ -184,7 +184,7 @@ public:
   friend nsIFrame* NS_NewFirstLineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
   NS_IMETHOD Reflow(nsPresContext* aPresContext,

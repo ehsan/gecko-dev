@@ -93,7 +93,7 @@ jsd_NewThreadState(JSDContext* jsdc, JSContext *cx )
     while(!iter.done())
     {
         JSAbstractFramePtr frame = iter.abstractFramePtr();
-        JS::RootedScript script(cx, frame.script());
+        JSScript* script = frame.script();
         uintptr_t  pc = (uintptr_t)iter.pc();
         JS::RootedValue dummyThis(cx);
 
@@ -282,7 +282,7 @@ jsd_GetScopeChainForStackFrame(JSDContext* jsdc,
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe)
 {
-    JS::RootedObject obj(jsdthreadstate->context);
+    JSObject* obj;
     JSDValue* jsdval = NULL;
 
     JSD_LOCK_THREADSTATES(jsdc);

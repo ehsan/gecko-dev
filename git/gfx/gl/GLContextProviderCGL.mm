@@ -375,7 +375,8 @@ GLContextCGL::CreateTextureImage(const nsIntSize& aSize,
       return t.forget();
     }
 
-    return CreateBasicTextureImage(this, aSize, aContentType, aWrapMode, aFlags);
+    return CreateTextureImageInternal(aSize, aContentType,
+                                      aWrapMode, aFlags);
 }
 
 already_AddRefed<TextureImage>

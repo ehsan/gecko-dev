@@ -93,7 +93,9 @@ NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 void
 nsDOMFileReader::RootResultArrayBuffer()
 {
-  NS_HOLD_JS_OBJECTS(this, nsDOMFileReader);
+  nsContentUtils::PreserveWrapper(
+    static_cast<EventTarget*>(
+      static_cast<nsDOMEventTargetHelper*>(this)), this);
 }
 
 //nsDOMFileReader constructors/initializers
@@ -111,8 +113,7 @@ nsDOMFileReader::nsDOMFileReader()
 nsDOMFileReader::~nsDOMFileReader()
 {
   FreeFileData();
-  mResultArrayBuffer = nullptr;
-  NS_DROP_JS_OBJECTS(this, nsDOMFileReader);
+
   nsLayoutStatics::Release();
 }
 

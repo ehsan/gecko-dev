@@ -22,7 +22,6 @@
 #include "ScriptProcessorNode.h"
 #include "ChannelMergerNode.h"
 #include "ChannelSplitterNode.h"
-#include "WaveShaperNode.h"
 #include "nsNetUtil.h"
 
 // Note that this number is an arbitrary large value to protect against OOM
@@ -126,10 +125,10 @@ AudioContext::CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
                   aBuffer.Data(), aBuffer.Length(),
                   contentType);
 
-  WebAudioDecodeJob job(contentType, this);
+  WebAudioDecodeJob job(contentType, aBuffer, this);
 
   if (mDecoder.SyncDecodeMedia(contentType.get(),
-                               aBuffer.Data(), aBuffer.Length(), job) &&
+                               job.mBuffer, job.mLength, job) &&
       job.mOutput) {
     nsRefPtr<AudioBuffer> buffer = job.mOutput.forget();
     if (aMixToMono) {
@@ -194,13 +193,6 @@ AudioContext::CreateGain()
 {
   nsRefPtr<GainNode> gainNode = new GainNode(this);
   return gainNode.forget();
-}
-
-already_AddRefed<WaveShaperNode>
-AudioContext::CreateWaveShaper()
-{
-  nsRefPtr<WaveShaperNode> waveShaperNode = new WaveShaperNode(this);
-  return waveShaperNode.forget();
 }
 
 already_AddRefed<DelayNode>
@@ -292,10 +284,10 @@ AudioContext::DecodeAudioData(const ArrayBuffer& aBuffer,
     failureCallback = aFailureCallback.Value().get();
   }
   nsAutoPtr<WebAudioDecodeJob> job(
-    new WebAudioDecodeJob(contentType, this,
+    new WebAudioDecodeJob(contentType, aBuffer, this,
                           &aSuccessCallback, failureCallback));
   mDecoder.AsyncDecodeMedia(contentType.get(),
-                            aBuffer.Data(), aBuffer.Length(), *job);
+                            job->mBuffer, job->mLength, *job);
   // Transfer the ownership to mDecodeJobs
   mDecodeJobs.AppendElement(job.forget());
 }

@@ -108,7 +108,7 @@ class CGNativePropertyHooks(CGThing):
             prototypeID += "_ID_Count"
         parent = self.descriptor.interface.parent
         parentHooks = ("&" + toBindingNamespace(parent.identifier.name) + "::sNativePropertyHooks"
-                       if parent else 'nullptr')
+                       if parent else 'NULL')
 
         return CGWrapper(CGIndenter(CGList([CGGeneric(resolveOwnProperty),
                                             CGGeneric(enumerateOwnProperties),
@@ -183,10 +183,10 @@ DOMJSClass Class = {
     %s,
     JS_ConvertStub,
     %s, /* finalize */
-    nullptr,               /* checkAccess */
+    NULL,                  /* checkAccess */
     %s, /* call */
-    nullptr,               /* hasInstance */
-    nullptr,               /* construct */
+    NULL,                  /* hasInstance */
+    NULL,                  /* construct */
     %s, /* trace */
     JSCLASS_NO_INTERNAL_MEMBERS
   },
@@ -1393,7 +1393,7 @@ class PropertyDefiner:
             # And the actual spec
             specs.append(specTemplate % getDataTuple(member))
         specs.append(specTerminator)
-        prefableSpecs.append("  { false, nullptr }");
+        prefableSpecs.append("  { false, NULL }");
 
         specType = "const " + specType
         arrays = (("static %s %s_specs[] = {\n" +
@@ -1847,7 +1847,7 @@ if (!unforgeableHolder) {
             domClass,
             properties,
             chromeProperties,
-            '"' + self.descriptor.interface.identifier.name + '"' if needInterfaceObject else "nullptr"))
+            '"' + self.descriptor.interface.identifier.name + '"' if needInterfaceObject else "NULL"))
         if UseHolderForUnforgeable(self.descriptor):
             assert needInterfacePrototypeObject
             setUnforgeableHolder = CGGeneric(
@@ -2009,7 +2009,7 @@ def CreateBindingJSObject(descriptor, properties, parent):
         create = """  obj = NewProxyObject(aCx, DOMProxyHandler::getInstance(),
                        JS::PrivateValue(aObject), proto, %s);
   if (!obj) {
-    return nullptr;
+    return NULL;
   }
 
 """
@@ -2021,7 +2021,7 @@ def CreateBindingJSObject(descriptor, properties, parent):
     else:
         create = """  obj = JS_NewObject(aCx, &Class.mBase, proto, %s);
   if (!obj) {
-    return nullptr;
+    return NULL;
   }
 
   js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
@@ -2148,7 +2148,7 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
     GetRealParentObject(aObject,
                         WrapNativeParent(aCx, aScope, aObject->GetParentObject())));
   if (!parent) {
-    return nullptr;
+    return NULL;
   }
 
   // That might have ended up wrapping us already, due to the wonders
@@ -2165,7 +2165,7 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
   JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, parent));
   JS::Handle<JSObject*> proto = GetProtoObject(aCx, global);
   if (!proto) {
-    return nullptr;
+    return NULL;
   }
 
 %s
@@ -2213,7 +2213,7 @@ class CGWrapNonWrapperCacheMethod(CGAbstractMethod):
   JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, aScope));
   JS::Handle<JSObject*> proto = GetProtoObject(aCx, global);
   if (!proto) {
-    return nullptr;
+    return NULL;
   }
 
 %s
@@ -3011,7 +3011,7 @@ for (uint32_t i = 0; i < length; ++i) {
             templateBody += "${declName} = tmp;"
 
         templateBody = wrapObjectTemplate(templateBody, type,
-                                          "${declName} = nullptr",
+                                          "${declName} = NULL",
                                           failureCode)
 
         declType = CGGeneric(declType)
@@ -3066,7 +3066,7 @@ for (uint32_t i = 0; i < length; ++i) {
         elif not isOptional:
             template += "${declName} = ${holderName}.addr();"
         template = wrapObjectTemplate(template, type,
-                                      "%s = nullptr" % nullableTarget,
+                                      "%s = NULL" % nullableTarget,
                                       failureCode)
 
         if holderType is not None:
@@ -5403,7 +5403,7 @@ MOZ_END_ENUM_CLASS(%s)
         strings = """
   const EnumEntry %s[%d] = {
     %s,
-    { nullptr, 0 }
+    { NULL, 0 }
   };
 """ % (ENUM_ENTRY_VARIABLE_NAME, self.nEnumStrings(),
        ",\n    ".join(['{"' + val + '", ' + str(len(val)) + '}' for val in self.enum.values()]))
@@ -6650,7 +6650,7 @@ if (!isXray && (expando = GetExpandoObject(proxy))) {
   }
 }
 """ + namedGet + """
-desc->obj = nullptr;
+desc->obj = NULL;
 return true;"""
 
 class CGDOMJSProxyHandler_defineProperty(ClassMethod):
@@ -7863,11 +7863,6 @@ class CGBindingRoot(CGThing):
         descriptors = config.getDescriptors(webIDLFile=webIDLFile,
                                             hasInterfaceOrInterfacePrototypeObject=True,
                                             skipGen=False)
-        def descriptorRequiresPreferences(desc):
-            iface = desc.interface
-            return any(m.getExtendedAttribute("Pref") for m in iface.members + [iface]);
-        requiresPreferences = any(descriptorRequiresPreferences(d) for d in descriptors)
-        hasOwnedDescriptors = any(d.nativeOwnership == 'owned' for d in descriptors)
         hasWorkerStuff = len(config.getDescriptors(webIDLFile=webIDLFile,
                                                    workers=True)) != 0
         mainDictionaries = config.getDictionaries(webIDLFile=webIDLFile,
@@ -7967,6 +7962,7 @@ class CGBindingRoot(CGThing):
                           'mozilla/dom/DOMJSClass.h',
                           'mozilla/dom/DOMJSProxyHandler.h'],
                          ['mozilla/dom/BindingUtils.h',
+                          'mozilla/dom/NonRefcountedDOMObject.h',
                           'mozilla/dom/Nullable.h',
                           'PrimitiveConversions.h',
                           'XPCQuickStubs.h',
@@ -7974,13 +7970,12 @@ class CGBindingRoot(CGThing):
                           'nsDOMQS.h',
                           'AccessCheck.h',
                           'nsContentUtils.h',
+                          'mozilla/Preferences.h',
                           # Have to include nsDOMQS.h to get fast arg unwrapping
                           # for old-binding things with castability.
                           'nsDOMQS.h'
                           ] + (['WorkerPrivate.h',
-                                'nsThreadUtils.h'] if hasWorkerStuff else [])
-                            + (['mozilla/Preferences.h'] if requiresPreferences else [])
-                            + (['mozilla/dom/NonRefcountedDOMObject.h'] if hasOwnedDescriptors else []),
+                                'nsThreadUtils.h'] if hasWorkerStuff else []),
                          curr,
                          config,
                          jsImplemented)

@@ -101,10 +101,6 @@ public:
 
     already_AddRefed<gfxASurface> GetSurface();
 
-    bool IsAzure() { return !mPattern; }
-
-    mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetAzureSurface() { return mSourceSurface; }
-
 protected:
     cairo_pattern_t *mPattern;
 

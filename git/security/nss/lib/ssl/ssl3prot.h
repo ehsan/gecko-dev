@@ -9,12 +9,12 @@
 #ifndef __ssl3proto_h_
 #define __ssl3proto_h_
 
-typedef PRUint8 SSL3Opaque;
+typedef uint8 SSL3Opaque;
 
-typedef PRUint16 SSL3ProtocolVersion;
+typedef uint16 SSL3ProtocolVersion;
 /* version numbers are defined in sslproto.h */
 
-typedef PRUint16 ssl3CipherSuite;
+typedef uint16 ssl3CipherSuite;
 /* The cipher suites are defined in sslproto.h */
 
 #define MAX_CERT_TYPES			10
@@ -42,14 +42,14 @@ typedef enum {
 typedef struct {
     SSL3ContentType     type;
     SSL3ProtocolVersion version;
-    PRUint16            length;
+    uint16              length;
     SECItem             fragment;
 } SSL3Plaintext;
 
 typedef struct {
     SSL3ContentType     type;
     SSL3ProtocolVersion version;
-    PRUint16            length;
+    uint16              length;
     SECItem             fragment;
 } SSL3Compressed;
 
@@ -61,8 +61,8 @@ typedef struct {
 typedef struct {
     SECItem    content;
     SSL3Opaque MAC[MAX_MAC_LENGTH];
-    PRUint8    padding[MAX_PADDING_LENGTH];
-    PRUint8    padding_length;
+    uint8      padding[MAX_PADDING_LENGTH];
+    uint8      padding_length;
 } SSL3GenericBlockCipher;
 
 typedef enum { change_cipher_spec_choice = 1 } SSL3ChangeCipherSpecChoice;
@@ -133,7 +133,7 @@ typedef enum {
 } SSL3HandshakeType;
 
 typedef struct {
-    PRUint8 empty;
+    uint8 empty;
 } SSL3HelloRequest;
      
 typedef struct {
@@ -142,7 +142,7 @@ typedef struct {
      
 typedef struct {
     SSL3Opaque id[32];
-    PRUint8 length;
+    uint8 length;
 } SSL3SessionID;
      
 typedef struct {
@@ -150,7 +150,7 @@ typedef struct {
     SSL3Random            random;
     SSL3SessionID         session_id;
     SECItem               cipher_suites;
-    PRUint8                 cm_count;
+    uint8                 cm_count;
     SSLCompressionMethod  compression_methods[MAX_COMPRESSION_METHODS];
 } SSL3ClientHello;
      
@@ -211,8 +211,8 @@ typedef struct {
 } SSL3ServerParams;
 
 typedef struct {
-    PRUint8 md5[16];
-    PRUint8 sha[20];
+    uint8 md5[16];
+    uint8 sha[20];
 } SSL3Hashes;
      
 typedef struct {
@@ -286,9 +286,9 @@ typedef struct {
 
 /* NewSessionTicket handshake message. */
 typedef struct {
-    PRUint32 received_timestamp;
-    PRUint32 ticket_lifetime_hint;
-    SECItem  ticket;
+    uint32  received_timestamp;
+    uint32  ticket_lifetime_hint;
+    SECItem ticket;
 } NewSessionTicket;
 
 typedef enum {

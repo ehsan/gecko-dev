@@ -40,7 +40,6 @@ CPPSRCS += \
 	WebGLExtensionCompressedTextureS3TC.cpp \
 	WebGLExtensionDebugRendererInfo.cpp \
 	WebGLExtensionDepthTexture.cpp \
-	WebGLExtensionElementIndexUint.cpp \
 	WebGLExtensionLoseContext.cpp \
 	WebGLExtensionStandardDerivatives.cpp \
 	WebGLExtensionTextureFilterAnisotropic.cpp \
