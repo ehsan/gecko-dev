@@ -15,7 +15,7 @@ protocol PBlobStream
 {
   manager PBlob;
 
-child:
+both:
   __delete__(InputStreamParams params, OptionalFileDescriptorSet fds);
 };
 

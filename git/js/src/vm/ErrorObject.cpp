@@ -76,6 +76,9 @@ js::ErrorObject::init(JSContext *cx, Handle<ErrorObject*> obj, JSExnType type,
     if (message)
         obj->nativeSetSlotWithType(cx, messageShape, StringValue(message));
 
+    if (report && report->originPrincipals)
+        JS_HoldPrincipals(report->originPrincipals);
+
     return true;
 }
 

@@ -776,10 +776,9 @@ EventListenerManager::CompileEventHandlerInternal(Listener* aListener,
   // Activate JSAPI, and make sure that exceptions are reported on the right
   // Window.
   AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(global))) {
+  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(global))) {
     return NS_ERROR_UNEXPECTED;
   }
-  jsapi.TakeOwnershipOfErrorReporting();
   JSContext* cx = jsapi.cx();
 
   nsCOMPtr<nsIAtom> typeAtom = aListener->mTypeAtom;
@@ -896,7 +895,7 @@ EventListenerManager::CompileEventHandlerInternal(Listener* aListener,
          .setDefineOnScope(false);
 
   JS::Rooted<JSObject*> handler(cx);
-  result = nsJSUtils::CompileFunction(jsapi, target, options,
+  result = nsJSUtils::CompileFunction(cx, target, options,
                                       nsAtomCString(typeAtom),
                                       argCount, argNames, *body, handler.address());
   NS_ENSURE_SUCCESS(result, result);

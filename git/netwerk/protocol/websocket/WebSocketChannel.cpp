@@ -1115,12 +1115,6 @@ WebSocketChannel::~WebSocketChannel()
     mLoadGroup.forget(&forgettableGroup);
     NS_ProxyRelease(mainThread, forgettableGroup, false);
   }
-
-  if (mLoadInfo) {
-    nsILoadInfo *forgetableLoadInfo;
-    mLoadInfo.forget(&forgetableLoadInfo);
-    NS_ProxyRelease(mainThread, forgetableLoadInfo, false);
-  }
 }
 
 NS_IMETHODIMP

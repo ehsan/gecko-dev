@@ -1698,10 +1698,10 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     RootedScript maybeScript(cx);
     const char *filename;
     unsigned lineno;
-    bool mutedErrors;
+    JSPrincipals *originPrincipals;
     uint32_t pcOffset;
     DescribeScriptedCallerForCompilation(cx, &maybeScript, &filename, &lineno, &pcOffset,
-                                         &mutedErrors);
+                                         &originPrincipals);
 
     const char *introductionType = "Function";
     if (generatorKind != NotGenerator)
@@ -1712,7 +1712,7 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
         introducerFilename = maybeScript->scriptSource()->introducerFilename();
 
     CompileOptions options(cx);
-    options.setMutedErrors(mutedErrors)
+    options.setOriginPrincipals(originPrincipals)
            .setFileAndLine(filename, 1)
            .setNoScriptRval(false)
            .setCompileAndGo(true)

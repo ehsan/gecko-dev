@@ -39,11 +39,11 @@ UserDataKey gfxContext::sDontUseAsSourceKey;
 /* This class lives on the stack and allows gfxContext users to easily, and
  * performantly get a gfx::Pattern to use for drawing in their current context.
  */
-class PatternFromState
+class GeneralPattern
 {
 public:    
-  explicit PatternFromState(gfxContext *aContext) : mContext(aContext), mPattern(nullptr) {}
-  ~PatternFromState() { if (mPattern) { mPattern->~Pattern(); } }
+  explicit GeneralPattern(gfxContext *aContext) : mContext(aContext), mPattern(nullptr) {}
+  ~GeneralPattern() { if (mPattern) { mPattern->~Pattern(); } }
 
   operator mozilla::gfx::Pattern&()
   {
@@ -262,23 +262,17 @@ gfxContext::CurrentPoint()
 void
 gfxContext::Stroke()
 {
-  Stroke(PatternFromState(this));
-}
-
-void
-gfxContext::Stroke(const Pattern& aPattern)
-{
   AzureState &state = CurrentState();
   if (mPathIsRect) {
     MOZ_ASSERT(!mTransformChanged);
 
-    mDT->StrokeRect(mRect, aPattern,
+    mDT->StrokeRect(mRect, GeneralPattern(this),
                     state.strokeOptions,
                     DrawOptions(1.0f, GetOp(), state.aaMode));
   } else {
     EnsurePath();
 
-    mDT->Stroke(mPath, aPattern, state.strokeOptions,
+    mDT->Stroke(mPath, GeneralPattern(this), state.strokeOptions,
                 DrawOptions(1.0f, GetOp(), state.aaMode));
   }
 }
@@ -286,27 +280,15 @@ gfxContext::Stroke(const Pattern& aPattern)
 void
 gfxContext::Fill()
 {
-  Fill(PatternFromState(this));
-}
-
-void
-gfxContext::Fill(const Pattern& aPattern)
-{
   PROFILER_LABEL("gfxContext", "Fill",
     js::ProfileEntry::Category::GRAPHICS);
-  FillAzure(aPattern, 1.0f);
+  FillAzure(1.0f);
 }
 
 void
 gfxContext::FillWithOpacity(gfxFloat aOpacity)
 {
-  FillWithOpacity(PatternFromState(this), aOpacity);
-}
-
-void
-gfxContext::FillWithOpacity(const Pattern& aPattern, gfxFloat aOpacity)
-{
-  FillAzure(aPattern, Float(aOpacity));
+  FillAzure(Float(aOpacity));
 }
 
 void
@@ -741,13 +723,13 @@ gfxContext::CurrentMiterLimit() const
 void
 gfxContext::SetFillRule(FillRule rule)
 {
-  CurrentState().fillRule = rule;
+  CurrentState().fillRule = rule == FILL_RULE_WINDING ? gfx::FillRule::FILL_WINDING : gfx::FillRule::FILL_EVEN_ODD;
 }
 
-FillRule
+gfxContext::FillRule
 gfxContext::CurrentFillRule() const
 {
-  return CurrentState().fillRule;
+  return FILL_RULE_WINDING;
 }
 
 // clipping
@@ -944,7 +926,7 @@ gfxContext::Mask(SourceSurface* aSurface, const Matrix& aTransform)
   Matrix mat = aTransform * mTransform;
 
   ChangeTransform(mat);
-  mDT->MaskSurface(PatternFromState(this), aSurface, Point(),
+  mDT->MaskSurface(GeneralPattern(this), aSurface, Point(),
                    DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
   ChangeTransform(old);
 }
@@ -972,7 +954,7 @@ void
 gfxContext::Mask(SourceSurface *surface, const Point& offset)
 {
   // We clip here to bind to the mask surface bounds, see above.
-  mDT->MaskSurface(PatternFromState(this),
+  mDT->MaskSurface(GeneralPattern(this),
             surface,
             offset,
             DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
@@ -1013,7 +995,7 @@ gfxContext::Paint(gfxFloat alpha)
   if (state.opIsClear) {
     mDT->ClearRect(paintRect);
   } else {
-    mDT->FillRect(paintRect, PatternFromState(this),
+    mDT->FillRect(paintRect, GeneralPattern(this),
                   DrawOptions(Float(alpha), GetOp()));
   }
 }
@@ -1403,7 +1385,7 @@ gfxContext::EnsurePathBuilder()
 }
 
 void
-gfxContext::FillAzure(const Pattern& aPattern, Float aOpacity)
+gfxContext::FillAzure(Float aOpacity)
 {
   AzureState &state = CurrentState();
 
@@ -1417,16 +1399,16 @@ gfxContext::FillAzure(const Pattern& aPattern, Float aOpacity)
     } else if (op == CompositionOp::OP_SOURCE) {
       // Emulate cairo operator source which is bound by mask!
       mDT->ClearRect(mRect);
-      mDT->FillRect(mRect, aPattern, DrawOptions(aOpacity));
+      mDT->FillRect(mRect, GeneralPattern(this), DrawOptions(aOpacity));
     } else {
-      mDT->FillRect(mRect, aPattern, DrawOptions(aOpacity, op, state.aaMode));
+      mDT->FillRect(mRect, GeneralPattern(this), DrawOptions(aOpacity, op, state.aaMode));
     }
   } else {
     EnsurePath();
 
     NS_ASSERTION(!state.opIsClear, "We shouldn't be clearing complex paths!");
 
-    mDT->Fill(mPath, aPattern, DrawOptions(aOpacity, op, state.aaMode));
+    mDT->Fill(mPath, GeneralPattern(this), DrawOptions(aOpacity, op, state.aaMode));
   }
 }
 

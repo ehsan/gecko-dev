@@ -231,8 +231,10 @@ js::CopyErrorReport(JSContext *cx, JSErrorReport *report)
     }
     JS_ASSERT(cursor + filenameSize == (uint8_t *)copy + mallocSize);
 
+    /* HOLD called by the destination error object. */
+    copy->originPrincipals = report->originPrincipals;
+
     /* Copy non-pointer members. */
-    copy->isMuted = report->isMuted;
     copy->lineno = report->lineno;
     copy->column = report->column;
     copy->errorNumber = report->errorNumber;
@@ -325,8 +327,12 @@ js::ComputeStackString(JSContext *cx)
 static void
 exn_finalize(FreeOp *fop, JSObject *obj)
 {
-    if (JSErrorReport *report = obj->as<ErrorObject>().getErrorReport())
+    if (JSErrorReport *report = obj->as<ErrorObject>().getErrorReport()) {
+        /* These were held by ErrorObject::init. */
+        if (JSPrincipals *prin = report->originPrincipals)
+            JS_DropPrincipals(fop->runtime(), prin);
         fop->free_(report);
+    }
 }
 
 JSErrorReport *
@@ -869,7 +875,7 @@ ErrorReport::populateUncaughtExceptionReportVA(JSContext *cx, va_list ap)
     if (!iter.done()) {
         ownedReport.filename = iter.scriptFilename();
         ownedReport.lineno = iter.computeLine(&ownedReport.column);
-        ownedReport.isMuted = iter.mutedErrors();
+        ownedReport.originPrincipals = iter.originPrincipals();
     }
 
     if (!js_ExpandErrorArguments(cx, js_GetErrorMessage, nullptr,

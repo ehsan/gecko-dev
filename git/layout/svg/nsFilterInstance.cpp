@@ -10,11 +10,9 @@
 #include "mozilla/UniquePtr.h"
 
 // Keep others in (case-insensitive) order:
-#include "gfx2DGlue.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "mozilla/gfx/Helpers.h"
-#include "mozilla/gfx/PatternHelpers.h"
 #include "nsISVGChildFrame.h"
 #include "nsRenderingContext.h"
 #include "nsCSSFilterInstance.h"
@@ -369,18 +367,16 @@ nsFilterInstance::BuildSourcePaint(SourceInfo *aSource,
     gfx->Multiply(mPaintTransform *
                   deviceToFilterSpace *
                   gfxMatrix::Translation(-neededRect.TopLeft()));
-    GeneralPattern pattern;
-    if (aSource == &mFillPaint) {
-      nsSVGUtils::MakeFillPatternFor(mTargetFrame, gfx, &pattern);
-    } else if (aSource == &mStrokePaint) {
-      nsSVGUtils::MakeStrokePatternFor(mTargetFrame, gfx, &pattern);
-    }
-    if (pattern.GetPattern()) {
-      offscreenDT->FillRect(ToRect(FilterSpaceToUserSpace(neededRect)),
-                            pattern);
+    gfx->Rectangle(FilterSpaceToUserSpace(neededRect));
+    if ((aSource == &mFillPaint &&
+         nsSVGUtils::SetupCairoFillPaint(mTargetFrame, gfx)) ||
+        (aSource == &mStrokePaint &&
+         nsSVGUtils::SetupCairoStrokePaint(mTargetFrame, gfx))) {
+      gfx->Fill();
     }
     gfx->Restore();
   }
+
 
   aSource->mSourceSurface = offscreenDT->Snapshot();
   aSource->mSurfaceRect = ToIntRect(neededRect);

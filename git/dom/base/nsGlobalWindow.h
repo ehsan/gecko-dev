@@ -785,9 +785,6 @@ public:
     return nullptr;
   }
 
-  static JSObject*
-    CreateNamedPropertiesObject(JSContext *aCx, JS::Handle<JSObject*> aProto);
-
   nsIDOMWindow* GetWindow(mozilla::ErrorResult& aError);
   nsIDOMWindow* GetSelf(mozilla::ErrorResult& aError);
   nsIDocument* GetDocument()

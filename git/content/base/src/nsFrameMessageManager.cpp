@@ -29,14 +29,13 @@
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMFile.h"
 #include "xpcpublic.h"
-#include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/nsIContentParent.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
-#include "mozilla/dom/ipc/BlobChild.h"
-#include "mozilla/dom/ipc/BlobParent.h"
+#include "mozilla/dom/PBlobChild.h"
+#include "mozilla/dom/PBlobParent.h"
 #include "JavaScriptChild.h"
 #include "JavaScriptParent.h"
 #include "mozilla/dom/DOMStringList.h"
@@ -1433,8 +1432,8 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL,
     return;
   }
 
-  JSRuntime* rt = CycleCollectedJSRuntime::Get()->Runtime();
-  JS::Rooted<JSScript*> script(rt);
+  AutoSafeJSContext cx;
+  JS::Rooted<JSScript*> script(cx);
 
   nsFrameScriptObjectExecutorHolder* holder = sCachedScripts->Get(aURL);
   if (holder && holder->WillRunInGlobalScope() == aRunInGlobalScope) {
@@ -1447,22 +1446,25 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL,
                                  shouldCache, &script);
   }
 
-  JS::Rooted<JSObject*> global(rt, mGlobal->GetJSObject());
+  JS::Rooted<JSObject*> global(cx, mGlobal->GetJSObject());
   if (global) {
-    AutoEntryScript aes(xpc::NativeGlobal(global));
-    aes.TakeOwnershipOfErrorReporting();
-    JSContext* cx = aes.cx();
+    JSAutoCompartment ac(cx, global);
+    bool ok = true;
     if (script) {
       if (aRunInGlobalScope) {
-        JS::CloneAndExecuteScript(cx, global, script);
+        ok = JS::CloneAndExecuteScript(cx, global, script);
       } else {
         JS::Rooted<JSObject*> scope(cx);
-        bool ok = js::ExecuteInGlobalAndReturnScope(cx, global, script, &scope);
-        if (ok) {
+        ok = js::ExecuteInGlobalAndReturnScope(cx, global, script, &scope);
+        if (ok){
           // Force the scope to stay alive.
           mAnonymousGlobalScopes.AppendElement(scope);
         }
       }
+    }
+
+    if (!ok) {
+      nsJSUtils::ReportPendingException(cx);
     }
   }
 }

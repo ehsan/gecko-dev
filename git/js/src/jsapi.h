@@ -3544,18 +3544,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     friend class CompileOptions;
 
   protected:
-    // The Web Platform allows scripts to be loaded from arbitrary cross-origin
-    // sources. This allows an attack by which a malicious website loads a
-    // sensitive file (say, a bank statement) cross-origin (using the user's
-    // cookies), and sniffs the generated syntax errors (via a window.onerror
-    // handler) for juicy morsels of its contents.
-    //
-    // To counter this attack, HTML5 specifies that script errors should be
-    // sanitized ("muted") when the script is not same-origin with the global
-    // for which it is loaded. Callers should set this flag for cross-origin
-    // scripts, and it will be propagated appropriately to child scripts and
-    // passed back in JSErrorReports.
-    bool mutedErrors_;
+    JSPrincipals *originPrincipals_;
     const char *filename_;
     const char *introducerFilename_;
     const char16_t *sourceMapURL_;
@@ -3565,7 +3554,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     // classes' constructors take care of that, in ways appropriate to their
     // purpose.
     ReadOnlyCompileOptions()
-      : mutedErrors_(false),
+      : originPrincipals_(nullptr),
         filename_(nullptr),
         introducerFilename_(nullptr),
         sourceMapURL_(nullptr),
@@ -3600,7 +3589,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
   public:
     // Read-only accessors for non-POD options. The proper way to set these
     // depends on the derived type.
-    bool mutedErrors() const { return mutedErrors_; }
+    JSPrincipals *originPrincipals(js::ExclusiveContext *cx) const;
     const char *filename() const { return filename_; }
     const char *introducerFilename() const { return introducerFilename_; }
     const char16_t *sourceMapURL() const { return sourceMapURL_; }
@@ -3695,8 +3684,10 @@ class JS_FRIEND_API(OwningCompileOptions) : public ReadOnlyCompileOptions
         introductionScriptRoot = s;
         return *this;
     }
-    OwningCompileOptions &setMutedErrors(bool mute) {
-        mutedErrors_ = mute;
+    OwningCompileOptions &setOriginPrincipals(JSPrincipals *p) {
+        if (p) JS_HoldPrincipals(p);
+        if (originPrincipals_) JS_DropPrincipals(runtime, originPrincipals_);
+        originPrincipals_ = p;
         return *this;
     }
     OwningCompileOptions &setVersion(JSVersion v) {
@@ -3752,7 +3743,7 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
     {
         copyPODOptions(rhs);
 
-        mutedErrors_ = rhs.mutedErrors_;
+        originPrincipals_ = rhs.originPrincipals_;
         filename_ = rhs.filename();
         sourceMapURL_ = rhs.sourceMapURL();
         elementRoot = rhs.element();
@@ -3779,8 +3770,8 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
         introductionScriptRoot = s;
         return *this;
     }
-    CompileOptions &setMutedErrors(bool mute) {
-        mutedErrors_ = mute;
+    CompileOptions &setOriginPrincipals(JSPrincipals *p) {
+        originPrincipals_ = p;
         return *this;
     }
     CompileOptions &setVersion(JSVersion v) {
@@ -4647,7 +4638,7 @@ JS_ReportAllocationOverflow(JSContext *cx);
 
 struct JSErrorReport {
     const char      *filename;      /* source file name, URL, etc., or null */
-    bool            isMuted;        /* See the comment in ReadOnlyCompileOptions. */
+    JSPrincipals    *originPrincipals; /* see 'originPrincipals' comment above */
     unsigned        lineno;         /* source line number */
     const char      *linebuf;       /* offending source line without final \n */
     const char      *tokenptr;      /* pointer to error token in linebuf */
@@ -5073,10 +5064,11 @@ extern JS_PUBLIC_API(void *)
 JS_EncodeInterpretedFunction(JSContext *cx, JS::HandleObject funobj, uint32_t *lengthp);
 
 extern JS_PUBLIC_API(JSScript *)
-JS_DecodeScript(JSContext *cx, const void *data, uint32_t length);
+JS_DecodeScript(JSContext *cx, const void *data, uint32_t length, JSPrincipals *originPrincipals);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_DecodeInterpretedFunction(JSContext *cx, const void *data, uint32_t length);
+JS_DecodeInterpretedFunction(JSContext *cx, const void *data, uint32_t length,
+                             JSPrincipals *originPrincipals);
 
 namespace JS {
 

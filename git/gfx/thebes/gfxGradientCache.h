@@ -17,12 +17,12 @@ namespace gfx {
 class gfxGradientCache {
 public:
     static gfx::GradientStops*
-    GetGradientStops(const gfx::DrawTarget *aDT,
+    GetGradientStops(gfx::DrawTarget *aDT,
                      nsTArray<gfx::GradientStop>& aStops,
                      gfx::ExtendMode aExtend);
 
     static gfx::GradientStops*
-    GetOrCreateGradientStops(const gfx::DrawTarget *aDT,
+    GetOrCreateGradientStops(gfx::DrawTarget *aDT,
                              nsTArray<gfx::GradientStop>& aStops,
                              gfx::ExtendMode aExtend);
 

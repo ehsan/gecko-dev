@@ -1548,7 +1548,6 @@ private:
                 nsRefPtr<gfxPattern> fillPattern;
                 if (!mFontParams.contextPaint ||
                     !(fillPattern = mFontParams.contextPaint->GetFillPattern(
-                                        mRunParams.context->GetDrawTarget(),
                                         mRunParams.context->CurrentMatrix()))) {
                     if (state.pattern) {
                         pat = state.pattern->GetPattern(mRunParams.dt,
@@ -1631,7 +1630,6 @@ private:
         if (mFontParams.contextPaint) {
             nsRefPtr<gfxPattern> strokePattern =
                 mFontParams.contextPaint->GetStrokePattern(
-                    mRunParams.context->GetDrawTarget(),
                     mRunParams.context->CurrentMatrix());
             if (strokePattern) {
                 mRunParams.dt->Stroke(path,
