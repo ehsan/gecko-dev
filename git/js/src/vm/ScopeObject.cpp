@@ -1508,7 +1508,7 @@ DebugScopeObject::create(JSContext *cx, ScopeObject &scope, HandleObject enclosi
     JS_ASSERT(scope.compartment() == cx->compartment());
     RootedValue priv(cx, ObjectValue(scope));
     JSObject *obj = NewProxyObject(cx, &DebugScopeProxy::singleton, priv,
-                                   nullptr /* proto */, &scope.global());
+                                   nullptr /* proto */, &scope.global(), ProxyNotCallable);
     if (!obj)
         return nullptr;
 
@@ -1555,9 +1555,9 @@ DebugScopeObject::isForDeclarative() const
 }
 
 bool
-js_IsDebugScopeSlow(ProxyObject *proxy)
+js_IsDebugScopeSlow(ObjectProxyObject *proxy)
 {
-    JS_ASSERT(proxy->hasClass(&ProxyObject::uncallableClass_));
+    JS_ASSERT(proxy->hasClass(&ObjectProxyObject::class_));
     return proxy->handler() == &DebugScopeProxy::singleton;
 }
 

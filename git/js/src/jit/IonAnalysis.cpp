@@ -1893,21 +1893,12 @@ LinearSum::print(Sprinter &sp) const
         sp.printf("%d", constant_);
 }
 
-void
-LinearSum::dump(FILE *fp) const
-{
-    Sprinter sp(GetIonContext()->cx);
-    sp.init();
-    print(sp);
-    fprintf(fp, "%s\n", sp.string());
-}
-
 static bool
 AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
                   MDefinition *thisValue, MInstruction *ins, bool definitelyExecuted,
                   HandleObject baseobj,
                   Vector<types::TypeNewScript::Initializer> *initializerList,
-                  Vector<PropertyName *> *accessedProperties,
+                  Vector<jsid> *accessedProperties,
                   bool *phandled)
 {
     // Determine the effect that a use of the |this| value when calling |new|
@@ -1922,15 +1913,17 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         // Don't use GetAtomId here, we need to watch for SETPROP on
         // integer properties and bail out. We can't mark the aggregate
         // JSID_VOID type property as being in a definite slot.
-        if (setprop->name() == cx->names().classPrototype ||
-            setprop->name() == cx->names().proto ||
-            setprop->name() == cx->names().constructor)
+        RootedId id(cx, NameToId(setprop->name()));
+        if (types::IdToTypeId(id) != id ||
+            id == NameToId(cx->names().classPrototype) ||
+            id == NameToId(cx->names().proto) ||
+            id == NameToId(cx->names().constructor))
         {
             return true;
         }
 
         // Ignore assignments to properties that were already written to.
-        if (baseobj->nativeLookup(cx, NameToId(setprop->name()))) {
+        if (baseobj->nativeLookup(cx, id)) {
             *phandled = true;
             return true;
         }
@@ -1938,7 +1931,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         // Don't add definite properties for properties that were already
         // read in the constructor.
         for (size_t i = 0; i < accessedProperties->length(); i++) {
-            if ((*accessedProperties)[i] == setprop->name())
+            if ((*accessedProperties)[i] == id)
                 return true;
         }
 
@@ -1951,14 +1944,13 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         if (!definitelyExecuted)
             return true;
 
-        if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, type, NameToId(setprop->name()))) {
+        if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, type, id)) {
             // The prototype chain already contains a getter/setter for this
             // property, or type information is too imprecise.
             return true;
         }
 
         DebugOnly<unsigned> slotSpan = baseobj->slotSpan();
-        RootedId id(cx, NameToId(setprop->name()));
         RootedValue value(cx, UndefinedValue());
         if (!DefineNativeProperty(cx, baseobj, id, value, nullptr, nullptr,
                                   JSPROP_ENUMERATE, 0, 0, DNP_SKIP_TYPE))
@@ -2014,7 +2006,9 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
          *   definite property before it is assigned could incorrectly hit.
          */
         RootedId id(cx, NameToId(get->name()));
-        if (!baseobj->nativeLookup(cx, id) && !accessedProperties->append(get->name()))
+        if (types::IdToTypeId(id) != id)
+            return true;
+        if (!baseobj->nativeLookup(cx, id) && !accessedProperties->append(id.get()))
             return false;
 
         if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, type, id)) {
@@ -2063,7 +2057,7 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
 
     types::TypeScript::SetThis(cx, fun->nonLazyScript(), types::Type::ObjectType(type));
 
-    Vector<PropertyName *> accessedProperties(cx);
+    Vector<jsid> accessedProperties(cx);
 
     LifoAlloc alloc(types::TypeZone::TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
 
@@ -2082,10 +2076,8 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
 
     AutoTempAllocatorRooter root(cx, &temp);
 
-    types::CompilerConstraintList constraints;
     BaselineInspector inspector(cx, fun->nonLazyScript());
-    IonBuilder builder(cx, &temp, &graph, &constraints,
-                       &inspector, &info, /* baselineFrame = */ nullptr);
+    IonBuilder builder(cx, &temp, &graph, &inspector, &info, /* baselineFrame = */ nullptr);
 
     if (!builder.build()) {
         if (builder.abortReason() == AbortReason_Alloc)

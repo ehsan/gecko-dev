@@ -620,7 +620,7 @@ extern JSObject *
 GetDebugScopeForFrame(JSContext *cx, AbstractFramePtr frame);
 
 /* Provides debugger access to a scope. */
-class DebugScopeObject : public ProxyObject
+class DebugScopeObject : public ObjectProxyObject
 {
     /*
      * The enclosing scope on the dynamic scope chain. This slot is analogous
@@ -732,11 +732,11 @@ template<>
 inline bool
 JSObject::is<js::DebugScopeObject>() const
 {
-    extern bool js_IsDebugScopeSlow(js::ProxyObject *proxy);
+    extern bool js_IsDebugScopeSlow(js::ObjectProxyObject *proxy);
 
-    // Note: don't use is<ProxyObject>() here -- it also matches subclasses!
-    return hasClass(&js::ProxyObject::uncallableClass_) &&
-           js_IsDebugScopeSlow(&const_cast<JSObject*>(this)->as<js::ProxyObject>());
+    // Note: don't use is<ObjectProxyObject>() here -- it also matches subclasses!
+    return hasClass(&js::ObjectProxyObject::class_) &&
+           js_IsDebugScopeSlow(&const_cast<JSObject*>(this)->as<js::ObjectProxyObject>());
 }
 
 template<>

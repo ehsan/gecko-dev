@@ -206,7 +206,6 @@ class IonBuilder : public MIRGenerator
 
   public:
     IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
-               types::CompilerConstraintList *constraints,
                BaselineInspector *inspector, CompileInfo *info, BaselineFrame *baselineFrame,
                size_t inliningDepth = 0, uint32_t loopDepth = 0);
 
@@ -359,15 +358,13 @@ class IonBuilder : public MIRGenerator
 
     // jsop_getprop() helpers.
     bool getPropTryArgumentsLength(bool *emitted);
-    bool getPropTryConstant(bool *emitted, PropertyName *name,
-                            types::TemporaryTypeSet *types);
+    bool getPropTryConstant(bool *emitted, jsid id, types::TemporaryTypeSet *types);
     bool getPropTryDefiniteSlot(bool *emitted, PropertyName *name,
                                 bool barrier, types::TemporaryTypeSet *types);
-    bool getPropTryCommonGetter(bool *emitted, PropertyName *name,
-                                types::TemporaryTypeSet *types);
-    bool getPropTryInlineAccess(bool *emitted, PropertyName *name,
+    bool getPropTryCommonGetter(bool *emitted, jsid id, types::TemporaryTypeSet *types);
+    bool getPropTryInlineAccess(bool *emitted, PropertyName *name, jsid id,
                                 bool barrier, types::TemporaryTypeSet *types);
-    bool getPropTryTypedObject(bool *emitted, PropertyName *name,
+    bool getPropTryTypedObject(bool *emitted, jsid id,
                                types::TemporaryTypeSet *resultTypes);
     bool getPropTryScalarPropOfTypedObject(bool *emitted,
                                            int32_t fieldOffset,
@@ -378,13 +375,14 @@ class IonBuilder : public MIRGenerator
                                             TypeRepresentationSet fieldTypeReprs,
                                             size_t fieldIndex,
                                             types::TemporaryTypeSet *resultTypes);
-    bool getPropTryCache(bool *emitted, PropertyName *name,
+    bool getPropTryCache(bool *emitted, PropertyName *name, jsid id,
                          bool barrier, types::TemporaryTypeSet *types);
     bool needsToMonitorMissingProperties(types::TemporaryTypeSet *types);
 
     // jsop_setprop() helpers.
     bool setPropTryCommonSetter(bool *emitted, MDefinition *obj,
-                                PropertyName *name, MDefinition *value);
+                                PropertyName *name, jsid id,
+                                MDefinition *value);
     bool setPropTryCommonDOMSetter(bool *emitted, MDefinition *obj,
                                    MDefinition *value, JSFunction *setter,
                                    bool isDOM);
@@ -392,10 +390,11 @@ class IonBuilder : public MIRGenerator
                                 PropertyName *name, MDefinition *value,
                                 bool barrier, types::TemporaryTypeSet *objTypes);
     bool setPropTryInlineAccess(bool *emitted, MDefinition *obj,
-                                PropertyName *name, MDefinition *value, bool barrier,
+                                PropertyName *name, jsid id,
+                                MDefinition *value, bool barrier,
                                 types::TemporaryTypeSet *objTypes);
     bool setPropTryTypedObject(bool *emitted, MDefinition *obj,
-                               PropertyName *name, MDefinition *value);
+                               jsid id, MDefinition *value);
     bool setPropTryCache(bool *emitted, MDefinition *obj,
                          PropertyName *name, MDefinition *value,
                          bool barrier, types::TemporaryTypeSet *objTypes);
@@ -404,7 +403,7 @@ class IonBuilder : public MIRGenerator
     bool lookupTypeRepresentationSet(MDefinition *typedObj,
                                      TypeRepresentationSet *out);
     bool lookupTypedObjectField(MDefinition *typedObj,
-                                PropertyName *name,
+                                jsid id,
                                 int32_t *fieldOffset,
                                 TypeRepresentationSet *fieldTypeReprs,
                                 size_t *fieldIndex);
@@ -624,7 +623,7 @@ class IonBuilder : public MIRGenerator
     MDefinition *patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasicBlock *bottom);
 
     inline bool testCommonPropFunc(JSContext *cx, types::TemporaryTypeSet *types,
-                                   PropertyName *name, JSFunction **funcp,
+                                   jsid id, JSFunction **funcp,
                                    bool isGetter, bool *isDOM,
                                    MDefinition **guardOut);
 
@@ -632,17 +631,6 @@ class IonBuilder : public MIRGenerator
                                   types::TemporaryTypeSet *objTypes, types::TemporaryTypeSet *pushedTypes);
 
     MGetPropertyCache *getInlineableGetPropertyCache(CallInfo &callInfo);
-
-    bool testSingletonProperty(JSObject *obj, JSObject *singleton, PropertyName *name,
-                               bool *isKnownConstant);
-    bool testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton,
-                                    JSObject *globalObj, PropertyName *name,
-                                    bool *isKnownConstant, bool *testObject,
-                                    bool *testString);
-    bool getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name,
-                         types::HeapTypeSetKey *property);
-    bool freezePropTypeSets(types::TemporaryTypeSet *types,
-                            JSObject *foundProto, PropertyName *name);
 
     types::TemporaryTypeSet *bytecodeTypes(jsbytecode *pc);
     types::TemporaryTypeSet *cloneTypeSet(types::StackTypeSet *types);
@@ -671,6 +659,9 @@ class IonBuilder : public MIRGenerator
     CodeGenerator *backgroundCodegen_;
 
   public:
+    // Compilation index for this attempt.
+    types::RecompileInfo const recompileInfo;
+
     void clearForBackEnd();
 
     JSScript *script() const { return script_.get(); }
@@ -681,10 +672,6 @@ class IonBuilder : public MIRGenerator
     AbortReason abortReason() { return abortReason_; }
 
     TypeRepresentationSetHash *getOrCreateReprSetHash(); // fallible
-
-    types::CompilerConstraintList *constraints() {
-        return constraints_;
-    }
 
     bool isInlineBuilder() const {
         return callerBuilder_ != NULL;
@@ -697,9 +684,6 @@ class IonBuilder : public MIRGenerator
     BaselineFrame *baselineFrame_;
     AbortReason abortReason_;
     ScopedJSDeletePtr<TypeRepresentationSetHash> reprSetHash_;
-
-    // Constraints for recording dependencies on type information.
-    types::CompilerConstraintList *constraints_;
 
     // Basic analysis information about the script.
     BytecodeAnalysis analysis_;

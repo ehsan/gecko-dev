@@ -39,10 +39,7 @@ using namespace js;
 using namespace js::jit;
 
 using mozilla::DebugOnly;
-using mozilla::DoubleExponentBias;
 using mozilla::Maybe;
-using mozilla::NegativeInfinity;
-using mozilla::PositiveInfinity;
 using JS::GenericNaN;
 
 namespace js {
@@ -5708,17 +5705,16 @@ CodeGenerator::generate()
 }
 
 bool
-CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
+CodeGenerator::link()
 {
-    JSScript *script = gen->info().script();
-    ExecutionMode executionMode = gen->info().executionMode();
-    JS_ASSERT(!HasIonScript(script, executionMode));
+    JSContext *cx = GetIonContext()->cx;
 
     // Check to make sure we didn't have a mid-build invalidation. If so, we
     // will trickle to jit::Compile() and return Method_Skipped.
-    types::RecompileInfo recompileInfo;
-    if (!types::FinishCompilation(cx, script, executionMode, constraints, &recompileInfo))
+    if (cx->compartment()->types.compiledInfo.compilerOutput(cx)->isInvalidated())
         return true;
+
+    ExecutionMode executionMode = gen->info().executionMode();
 
     uint32_t scriptFrameSize = frameClass_ == FrameSizeClass::None()
                            ? frameDepth_
@@ -5734,8 +5730,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
         AddPossibleCallees(cx, graph.mir(), callTargets);
 
     IonScript *ionScript =
-      IonScript::New(cx, recompileInfo,
-                     graph.totalSlotCount(), scriptFrameSize, snapshots_.size(),
+      IonScript::New(cx, graph.totalSlotCount(), scriptFrameSize, snapshots_.size(),
                      bailouts_.length(), graph.numConstants(),
                      safepointIndices_.length(), osiIndices_.length(),
                      cacheList_.length(), runtimeData_.length(),
@@ -5767,6 +5762,9 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
         js_free(ionScript);
         return false;
     }
+
+    JSScript *script = gen->info().script();
+    JS_ASSERT(!HasIonScript(script, executionMode));
 
     ionScript->setMethod(code);
     ionScript->setSkipArgCheckEntryOffset(getSkipArgCheckEntryOffset());
@@ -7519,7 +7517,7 @@ bool
 CodeGenerator::emitAssertRangeI(const Range *r, Register input)
 {
     // Check the lower bound.
-    if (r->hasInt32LowerBound() && r->lower() > INT32_MIN) {
+    if (r->lower() != INT32_MIN) {
         Label success;
         masm.branch32(Assembler::GreaterThanOrEqual, input, Imm32(r->lower()), &success);
         masm.breakpoint();
@@ -7527,7 +7525,7 @@ CodeGenerator::emitAssertRangeI(const Range *r, Register input)
     }
 
     // Check the upper bound.
-    if (r->hasInt32UpperBound() && r->upper() < INT32_MAX) {
+    if (r->upper() != INT32_MAX) {
         Label success;
         masm.branch32(Assembler::LessThanOrEqual, input, Imm32(r->upper()), &success);
         masm.breakpoint();
@@ -7568,7 +7566,7 @@ CodeGenerator::emitAssertRangeD(const Range *r, FloatRegister input, FloatRegist
     // This code does not yet check r->canHaveFractionalPart(). This would require new
     // assembler interfaces to make rounding instructions available.
 
-    if (!r->hasInt32Bounds() && !r->canBeInfiniteOrNaN() && r->exponent() < DoubleExponentBias) {
+    if (!r->canBeInfiniteOrNaN()) {
         // Check the bounds implied by the maximum exponent.
         Label exponentLoOk;
         masm.loadConstantDouble(pow(2.0, r->exponent() + 1), temp);
@@ -7583,27 +7581,6 @@ CodeGenerator::emitAssertRangeD(const Range *r, FloatRegister input, FloatRegist
         masm.branchDouble(Assembler::DoubleGreaterThanOrEqual, input, temp, &exponentHiOk);
         masm.breakpoint();
         masm.bind(&exponentHiOk);
-    } else if (!r->hasInt32Bounds() && !r->canBeNaN()) {
-        // If we think the value can't be NaN, check that it isn't.
-        Label notnan;
-        masm.branchDouble(Assembler::DoubleOrdered, input, input, &notnan);
-        masm.breakpoint();
-        masm.bind(&notnan);
-
-        // If we think the value also can't be an infinity, check that it isn't.
-        if (!r->canBeInfiniteOrNaN()) {
-            Label notposinf;
-            masm.loadConstantDouble(PositiveInfinity(), temp);
-            masm.branchDouble(Assembler::DoubleLessThan, input, temp, &notposinf);
-            masm.breakpoint();
-            masm.bind(&notposinf);
-
-            Label notneginf;
-            masm.loadConstantDouble(NegativeInfinity(), temp);
-            masm.branchDouble(Assembler::DoubleGreaterThan, input, temp, &notneginf);
-            masm.breakpoint();
-            masm.bind(&notneginf);
-        }
     }
 
     return true;

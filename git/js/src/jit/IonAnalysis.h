@@ -118,7 +118,6 @@ class LinearSum
     LinearTerm term(size_t i) const { return terms_[i]; }
 
     void print(Sprinter &sp) const;
-    void dump(FILE *) const;
 
   private:
     Vector<LinearTerm, 2, IonAllocPolicy> terms_;

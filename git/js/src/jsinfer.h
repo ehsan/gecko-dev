@@ -104,20 +104,6 @@ class CallObject;
 
 namespace jit {
     struct IonScript;
-    class IonAllocPolicy;
-
-    enum ExecutionMode {
-        // Normal JavaScript execution
-        SequentialExecution,
-
-        // JavaScript code to be executed in parallel worker threads,
-        // e.g. by ParallelArray
-        ParallelExecution,
-
-        // MIR analysis performed when invoking 'new' on a script, to determine
-        // definite properties
-        DefinitePropertiesAnalysis
-    };
 }
 
 namespace analyze {
@@ -129,7 +115,11 @@ namespace types {
 class TypeCompartment;
 class TypeSet;
 
-struct TypeObjectKey;
+/* Type set entry for either a JSObject with singleton type or a non-singleton TypeObject. */
+struct TypeObjectKey {
+    static intptr_t keyBits(TypeObjectKey *obj) { return (intptr_t) obj; }
+    static TypeObjectKey *getKey(TypeObjectKey *obj) { return obj; }
+};
 
 /*
  * Information about a single concrete type. We pack this into a single word,
@@ -270,7 +260,7 @@ public:
 
     /*
      * For constraints attached to an object property's type set, mark the
-     * property as having been configured.
+     * property as having been configured or received an own property.
      */
     virtual void newPropertyState(JSContext *cx, TypeSet *source) {}
 
@@ -563,9 +553,47 @@ class HeapTypeSet : public TypeSet
 {
   public:
     HeapTypeSet() { flags |= TYPE_FLAG_HEAP_SET; }
-};
 
-class CompilerConstraintList;
+    /* Completely freeze the contents of this type set. */
+    void addFreeze(JSContext *cx);
+
+    /*
+     * Watch for a generic object state change on a type object. This currently
+     * includes reallocations of slot pointers for global objects, and changes
+     * to newScript data on types.
+     */
+    static void WatchObjectStateChange(JSContext *cx, TypeObject *object);
+
+    /* Whether an object has any of a set of flags. */
+    static bool HasObjectFlags(JSContext *cx, TypeObject *object, TypeObjectFlags flags);
+
+    /*
+     * For type sets on a property, return true if the property has any 'own'
+     * values assigned. If configurable is set, return 'true' if the property
+     * has additionally been reconfigured as non-configurable, non-enumerable
+     * or non-writable (this only applies to properties that have changed after
+     * having been created, not to e.g. properties non-writable on creation).
+     */
+    bool isConfiguredProperty(JSContext *cx, TypeObject *object);
+
+    /* Get whether this type set is non-empty. */
+    bool knownNonEmpty(JSContext *cx);
+
+    /* Get whether this type set is known to be a subset of other. */
+    bool knownSubset(JSContext *cx, HeapTypeSet *other);
+
+    /* Get the single value which can appear in this type set, otherwise NULL. */
+    JSObject *getSingleton(JSContext *cx);
+
+    /*
+     * Whether a location with this TypeSet needs a write barrier (i.e., whether
+     * it can hold GC things). The type set is frozen if no barrier is needed.
+     */
+    bool needsBarrier(JSContext *cx);
+
+    /* Get any type tag which all values in this set must have. */
+    JSValueType getKnownTypeTag(JSContext *cx);
+};
 
 class TemporaryTypeSet : public TypeSet
 {
@@ -616,7 +644,7 @@ class TemporaryTypeSet : public TypeSet
     }
 
     /* Whether the type set contains objects with any of a set of flags. */
-    bool hasObjectFlags(CompilerConstraintList *constraints, TypeObjectFlags flags);
+    bool hasObjectFlags(JSContext *cx, TypeObjectFlags flags);
 
     /* Get the class shared by all objects in this set, or NULL. */
     const Class *getKnownClass();
@@ -640,7 +668,7 @@ class TemporaryTypeSet : public TypeSet
     JSObject *getSingleton();
 
     /* Whether any objects in the type set needs a barrier on id. */
-    bool propertyNeedsBarrier(CompilerConstraintList *constraints, jsid id);
+    bool propertyNeedsBarrier(JSContext *cx, jsid id);
 
     /*
      * Whether this set contains all types in other, except (possibly) the
@@ -666,7 +694,7 @@ class TemporaryTypeSet : public TypeSet
      * Whether known double optimizations are possible for element accesses on
      * objects in this type set.
      */
-    DoubleConversion convertDoubleElements(CompilerConstraintList *constraints);
+    DoubleConversion convertDoubleElements(JSContext *cx);
 };
 
 inline StackTypeSet *
@@ -965,6 +993,15 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
     inline unsigned getPropertyCount();
     inline Property *getProperty(unsigned i);
 
+    /* Get the typed array element type if clasp is a typed array. */
+    inline int getTypedArrayType();
+
+    /*
+     * Get the global object which all objects of this type are parented to,
+     * or NULL if there is none known.
+     */
+    //inline JSObject *getGlobal();
+
     /* Tenure counter management. */
 
     /*
@@ -1082,11 +1119,11 @@ UseNewTypeForClone(JSFunction *fun);
  * indexed property.
  */
 bool
-ArrayPrototypeHasIndexedProperty(CompilerConstraintList *constraints, HandleScript script);
+ArrayPrototypeHasIndexedProperty(JSContext *cx, HandleScript script);
 
 /* Whether obj or any of its prototypes have an indexed property. */
 bool
-TypeCanHaveExtraIndexedProperties(CompilerConstraintList *constraints, TemporaryTypeSet *types);
+TypeCanHaveExtraIndexedProperties(JSContext *cx, TemporaryTypeSet *types);
 
 /* Persistent type information for a script, retained across GCs. */
 class TypeScript
@@ -1167,116 +1204,56 @@ typedef HashMap<ObjectTableKey,ObjectTableEntry,ObjectTableKey,SystemAllocPolicy
 struct AllocationSiteKey;
 typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
 
-class HeapTypeSetKey;
-
-/* Type set entry for either a JSObject with singleton type or a non-singleton TypeObject. */
-struct TypeObjectKey {
-    static intptr_t keyBits(TypeObjectKey *obj) { return (intptr_t) obj; }
-    static TypeObjectKey *getKey(TypeObjectKey *obj) { return obj; }
-
-    static TypeObjectKey *get(JSObject *obj) {
-        JS_ASSERT(obj);
-        return (TypeObjectKey *) (uintptr_t(obj) | 1);
-    }
-    static TypeObjectKey *get(TypeObject *obj) {
-        JS_ASSERT(obj);
-        return (TypeObjectKey *) obj;
-    }
-
-    bool isTypeObject() {
-        return (uintptr_t(this) & 1) == 0;
-    }
-    bool isSingleObject() {
-        return (uintptr_t(this) & 1) != 0;
-    }
-
-    TypeObject *asTypeObject() {
-        JS_ASSERT(isTypeObject());
-        return (TypeObject *) this;
-    }
-    JSObject *asSingleObject() {
-        JS_ASSERT(isSingleObject());
-        return (JSObject *) (uintptr_t(this) & ~1);
-    }
-
-    const Class *clasp();
-    TaggedProto proto();
-    JSObject *singleton();
-    TypeNewScript *newScript();
-
-    bool unknownProperties();
-    bool hasFlags(CompilerConstraintList *constraints, TypeObjectFlags flags);
-    void watchStateChange(CompilerConstraintList *constraints);
-    HeapTypeSetKey property(jsid id);
-};
-
-class HeapTypeSetKey
-{
-  public:
-    HeapTypeSet *actualTypes;
-
-    void freeze(CompilerConstraintList *constraints);
-    JSValueType knownTypeTag(CompilerConstraintList *constraints);
-    bool configured(CompilerConstraintList *constraints, TypeObjectKey *type);
-    bool notEmpty(CompilerConstraintList *constraints);
-    bool knownSubset(CompilerConstraintList *constraints, const HeapTypeSetKey &other);
-    JSObject *singleton(CompilerConstraintList *constraints);
-    bool needsBarrier(CompilerConstraintList *constraints);
-};
-
 /*
  * Information about the result of the compilation of a script.  This structure
  * stored in the TypeCompartment is indexed by the RecompileInfo. This
- * indirection enables the invalidation of all constraints related to the same
- * compilation.
+ * indirection enable the invalidation of all constraints related to the same
+ * compilation. The compiler output is build by the AutoEnterCompilation.
  */
-class CompilerOutput
+struct CompilerOutput
 {
-    // If this compilation has not been invalidated, the associated script and
-    // kind of compilation being performed.
-    JSScript *script_;
-    unsigned mode_ : 2;
+    enum Kind {
+        Ion,
+        ParallelIon
+    };
 
-    // Whether this compilation is about to be invalidated.
-    bool pendingInvalidation_ : 1;
+    JSScript *script;
 
-  public:
-    CompilerOutput()
-      : script_(NULL), mode_(0), pendingInvalidation_(false)
-    {}
+    // This integer will always be a member of CompilerOutput::Kind,
+    // but, for portability, bitfields are limited to bool, int, and
+    // unsigned int.  You should really use the accessor below.
+    unsigned kindInt : 2;
+    bool pendingRecompilation : 1;
 
-    CompilerOutput(JSScript *script, jit::ExecutionMode mode)
-      : script_(script), mode_(mode), pendingInvalidation_(false)
-    {}
+    CompilerOutput();
 
-    JSScript *script() const { return script_; }
-    inline jit::ExecutionMode mode() const { return static_cast<jit::ExecutionMode>(mode_); }
+    Kind kind() const { return static_cast<Kind>(kindInt); }
+    void setKind(Kind k) { kindInt = k; }
 
-    inline jit::IonScript *ion() const;
+    jit::IonScript *ion() const;
 
-    bool isValid() const {
-        return script_ != NULL;
+    bool isValid() const;
+
+    void setPendingRecompilation() {
+        pendingRecompilation = true;
     }
     void invalidate() {
-        script_ = NULL;
+        script = NULL;
     }
-
-    void setPendingInvalidation() {
-        pendingInvalidation_ = true;
-    }
-    bool pendingInvalidation() {
-        return pendingInvalidation_;
+    bool isInvalidated() const {
+        return script == NULL;
     }
 };
 
-class RecompileInfo
+struct RecompileInfo
 {
+    static const uint32_t NoCompilerRunning = uint32_t(-1);
     uint32_t outputIndex;
 
-  public:
-    RecompileInfo(uint32_t outputIndex = uint32_t(-1))
-      : outputIndex(outputIndex)
-    {}
+    RecompileInfo()
+      : outputIndex(NoCompilerRunning)
+    {
+    }
 
     bool operator == (const RecompileInfo &o) const {
         return outputIndex == o.outputIndex;
@@ -1315,6 +1292,13 @@ struct TypeCompartment
 
     /* Pending recompilations to perform before execution of JIT code can resume. */
     Vector<RecompileInfo> *pendingRecompiles;
+
+    /*
+     * Script currently being compiled. All constraints which look for type
+     * changes inducing recompilation are keyed to this script. Note: script
+     * compilation is not reentrant.
+     */
+    RecompileInfo compiledInfo;
 
     /* Table for referencing types of objects keyed to an allocation site. */
     AllocationSiteTable *allocationSiteTable;
@@ -1375,7 +1359,7 @@ struct TypeCompartment
 
     void sweep(FreeOp *fop);
     void sweepShapes(FreeOp *fop);
-    void clearCompilerOutputs(FreeOp *fop);
+    void sweepCompilerOutputs(FreeOp *fop, bool discardConstraints);
 
     void finalizeObjects();
 
