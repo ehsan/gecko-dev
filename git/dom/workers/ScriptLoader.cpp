@@ -755,7 +755,7 @@ NS_IMETHODIMP
 ScriptExecutorRunnable::Cancel()
 {
   ShutdownScriptLoader(mWorkerPrivate->GetJSContext(), mWorkerPrivate, false);
-  return MainThreadWorkerSyncRunnable::Cancel();
+  return NS_OK;
 }
 
 void

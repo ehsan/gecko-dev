@@ -50,17 +50,6 @@ private:
     MOZ_COUNT_DTOR(QuotaObject);
   }
 
-  already_AddRefed<QuotaObject>
-  LockedAddRef()
-  {
-    AssertCurrentThreadOwnsQuotaMutex();
-
-    ++mRefCnt;
-
-    nsRefPtr<QuotaObject> result = dont_AddRef(this);
-    return result.forget();
-  }
-
   mozilla::ThreadSafeAutoRefCnt mRefCnt;
 
   OriginInfo* mOriginInfo;

@@ -118,11 +118,6 @@ public:
 
   void SetHash(const nsAString& aArg);
 
-  void Stringify(nsString& aRetval) const
-  {
-    GetHref(aRetval);
-  }
-
   // URLSearchParamsObserver
   void URLSearchParamsUpdated() MOZ_OVERRIDE;
   void URLSearchParamsNeedsUpdates() MOZ_OVERRIDE;

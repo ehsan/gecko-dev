@@ -2599,7 +2599,7 @@ nsLayoutUtils::GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
                                        uint32_t aFlags)
 {
   const nsStyleText* textStyle = aFrame->StyleText();
-  if (!textStyle->HasTextShadow())
+  if (!textStyle->HasTextShadow(aFrame))
     return aTextAndDecorationsRect;
 
   nsRect resultRect = aTextAndDecorationsRect;
@@ -3814,7 +3814,7 @@ nsLayoutUtils::PaintTextShadow(const nsIFrame* aFrame,
                                void* aCallbackData)
 {
   const nsStyleText* textStyle = aFrame->StyleText();
-  if (!textStyle->HasTextShadow())
+  if (!textStyle->HasTextShadow(aFrame))
     return;
 
   // Text shadow happens with the last value being painted at the back,

@@ -786,11 +786,7 @@ var AlertsHelper = {
             clicked: (detail.type === "desktop-notification-click"),
             title: listener.title,
             body: listener.text,
-            imageURL: listener.imageURL,
-            lang: listener.lang,
-            dir: listener.dir,
-            id: listener.id,
-            tag: listener.tag
+            imageURL: listener.imageURL
           },
           Services.io.newURI(listener.target, null, null),
           Services.io.newURI(listener.manifestURL, null, null)
@@ -915,11 +911,7 @@ var AlertsHelper = {
       title: data.title,
       text: data.text,
       manifestURL: details.manifestURL,
-      imageURL: data.imageURL,
-      lang: details.lang || undefined,
-      id: details.id || undefined,
-      dir: details.dir || undefined,
-      tag: details.tag || undefined
+      imageURL: data.imageURL
     };
     this.registerAppListener(data.uid, listener);
 

@@ -57,14 +57,19 @@ nsStyleBorder::GetSubImage(uint8_t aIndex) const
 }
 
 bool
-nsStyleText::HasTextShadow() const
+nsStyleText::HasTextShadow(const nsIFrame* aContextFrame) const
 {
-  return mTextShadow;
+  NS_ASSERTION(aContextFrame->StyleText() == this, "unexpected aContextFrame");
+  return mTextShadow && !aContextFrame->IsSVGText();
 }
 
 nsCSSShadowArray*
-nsStyleText::GetTextShadow() const
+nsStyleText::GetTextShadow(const nsIFrame* aContextFrame) const
 {
+  NS_ASSERTION(aContextFrame->StyleText() == this, "unexpected aContextFrame");
+  if (aContextFrame->IsSVGText()) {
+    return nullptr;
+  }
   return mTextShadow;
 }
 

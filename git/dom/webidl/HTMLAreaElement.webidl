@@ -14,6 +14,7 @@
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-area-element
 interface HTMLAreaElement : HTMLElement {
+stringifier;
            [SetterThrows]
            attribute DOMString alt;
            [SetterThrows]
