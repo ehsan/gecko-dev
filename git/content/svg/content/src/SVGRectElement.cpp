@@ -153,7 +153,7 @@ SVGRectElement::ConstructPath(gfxContext *aCtx)
 }
 
 TemporaryRef<Path>
-SVGRectElement::BuildPath(PathBuilder* aBuilder)
+SVGRectElement::BuildPath()
 {
   float x, y, width, height, rx, ry;
   GetAnimatedLengthValues(&x, &y, &width, &height, &rx, &ry, nullptr);
@@ -162,7 +162,7 @@ SVGRectElement::BuildPath(PathBuilder* aBuilder)
     return nullptr;
   }
 
-  RefPtr<PathBuilder> pathBuilder = aBuilder ? aBuilder : CreatePathBuilder();
+  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
 
   rx = std::max(rx, 0.0f);
   ry = std::max(ry, 0.0f);

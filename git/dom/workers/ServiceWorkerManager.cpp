@@ -213,9 +213,6 @@ class ServiceWorkerUpdateInstance MOZ_FINAL : public nsISupports
   nsCOMPtr<nsPIDOMWindow> mWindow;
 
   bool mAborted;
-
-  ~ServiceWorkerUpdateInstance() {}
-
 public:
   NS_DECL_ISUPPORTS
 
