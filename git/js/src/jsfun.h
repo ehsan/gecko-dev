@@ -160,13 +160,8 @@ struct JSFunction : public JSObject {
     } u;
     JSAtom          *atom;        /* name for diagnostics and decompiling */
 
-    bool optimizedClosure() const { return FUN_KIND(this) > JSFUN_INTERPRETED; }
-    bool needsWrapper()     const { return FUN_NULL_CLOSURE(this) && u.i.skipmin != 0; }
-
-    uintN countVars() const { 
-        JS_ASSERT(FUN_INTERPRETED(this));
-        return u.i.nvars; 
-    }
+    bool optimizedClosure() { return FUN_KIND(this) > JSFUN_INTERPRETED; }
+    bool needsWrapper()     { return FUN_NULL_CLOSURE(this) && u.i.skipmin != 0; }
 
     uintN countArgsAndVars() const {
         JS_ASSERT(FUN_INTERPRETED(this));
@@ -226,19 +221,6 @@ extern JS_FRIEND_DATA(JSClass) js_FunctionClass;
     (JS_ASSERT(HAS_FUNCTION_CLASS(funobj)),                                   \
      (JSFunction *) (funobj)->getPrivate())
 
-/*
- * Return true if this is a compiler-created internal function accessed by
- * its own object. Such a function object must not be accessible to script
- * or embedding code.
- */
-inline bool
-js_IsInternalFunctionObject(JSObject *funobj)
-{
-    JS_ASSERT(HAS_FUNCTION_CLASS(funobj));
-    JSFunction *fun = (JSFunction *) funobj->getPrivate();
-    return funobj == fun && (fun->flags & JSFUN_LAMBDA) && !funobj->getParent();
-}
-
 struct js_ArgsPrivateNative;
 
 inline js_ArgsPrivateNative *
@@ -265,7 +247,7 @@ js_TraceFunction(JSTracer *trc, JSFunction *fun);
 extern void
 js_FinalizeFunction(JSContext *cx, JSFunction *fun);
 
-extern JSObject * JS_FASTCALL
+extern JSObject *
 js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent);
 
 extern JS_REQUIRES_STACK JSObject *
@@ -302,15 +284,8 @@ js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags);
 extern JSObject *
 js_GetCallObject(JSContext *cx, JSStackFrame *fp);
 
-extern JSObject * JS_FASTCALL
-js_CreateCallObjectOnTrace(JSContext *cx, JSFunction *fun, JSObject *callee, JSObject *scopeChain);
-
 extern void
 js_PutCallObject(JSContext *cx, JSStackFrame *fp);
-
-extern JSBool JS_FASTCALL
-js_PutCallObjectOnTrace(JSContext *cx, JSObject *scopeChain, uint32 nargs, jsval *argv, 
-                        uint32 nvars, jsval *slots);
 
 extern JSFunction *
 js_GetCallObjectFunction(JSObject *obj);
@@ -357,9 +332,6 @@ js_GetArgsObject(JSContext *cx, JSStackFrame *fp);
 
 extern void
 js_PutArgsObject(JSContext *cx, JSStackFrame *fp);
-
-inline bool
-js_IsNamedLambda(JSFunction *fun) { return (fun->flags & JSFUN_LAMBDA) && fun->atom; }
 
 /*
  * Reserved slot structure for Arguments objects:
