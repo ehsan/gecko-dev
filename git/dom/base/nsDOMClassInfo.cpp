@@ -3645,7 +3645,7 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
   }
 
   nsGlobalWindow* win = static_cast<nsGlobalWindow*>(document->GetWindow());
-  NS_ENSURE_TRUE(win, JS_TRUE);
+  MOZ_ASSERT(win);
   if (win->GetLength() > 0) {
     nsCOMPtr<nsIDOMWindow> child_win = win->GetChildWindow(id);
     if (child_win) {

@@ -144,10 +144,7 @@ function testExpectPopupPart1() {
   var notification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
   ok(notification, "should have a click-to-play notification (" + getCurrentTestLocation() + ")");
 
-  var condition = function() {
-    var notification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
-    return !notification.dismissed;
-  };
+  var condition = function() !notification.dismissed;
   waitForCondition(condition, testExpectPopupPart2, "waited too long for popup notification to show (" + getCurrentTestLocation() + ")");
 }
 
