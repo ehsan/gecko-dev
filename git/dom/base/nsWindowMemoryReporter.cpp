@@ -141,7 +141,7 @@ CollectWindowReports(nsGlobalWindow *aWindow,
     location = GetWindowURI(aWindow);
   }
 
-  if (addonManager && location) {
+  if (location) {
     bool ok;
     nsAutoCString id;
     if (NS_SUCCEEDED(addonManager->MapURIToAddonID(location, id, &ok)) && ok) {

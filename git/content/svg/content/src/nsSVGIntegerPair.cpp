@@ -13,7 +13,19 @@
 #include "SVGIntegerPairSMILType.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGIntegerPair::DOMAnimatedInteger, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGIntegerPair::DOMAnimatedInteger)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGIntegerPair::DOMAnimatedInteger)
+
+DOMCI_DATA(SVGAnimatedIntegerPair, nsSVGIntegerPair::DOMAnimatedInteger)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGIntegerPair::DOMAnimatedInteger)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedInteger)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedInteger)
+NS_INTERFACE_MAP_END
 
 static nsSVGAttrTearoffTable<nsSVGIntegerPair, nsSVGIntegerPair::DOMAnimatedInteger>
   sSVGFirstAnimatedIntegerTearoffTable;
@@ -156,7 +168,16 @@ nsSVGIntegerPair::SetAnimValue(const int32_t aValue[2], nsSVGElement *aSVGElemen
   aSVGElement->DidAnimateIntegerPair(mAttrEnum);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+nsresult
+nsSVGIntegerPair::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
+                                       PairIndex aIndex,
+                                       nsSVGElement *aSVGElement)
+{
+  *aResult = ToDOMAnimatedInteger(aIndex, aSVGElement).get();
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 nsSVGIntegerPair::ToDOMAnimatedInteger(PairIndex aIndex,
                                        nsSVGElement* aSVGElement)
 {

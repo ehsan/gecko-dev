@@ -42,11 +42,11 @@ public:
 
   // WebIDL
   already_AddRefed<SVGAnimatedString> In1();
-  already_AddRefed<SVGAnimatedNumber> SurfaceScale();
-  already_AddRefed<SVGAnimatedNumber> SpecularConstant();
-  already_AddRefed<SVGAnimatedNumber> SpecularExponent();
-  already_AddRefed<SVGAnimatedNumber> KernelUnitLengthX();
-  already_AddRefed<SVGAnimatedNumber> KernelUnitLengthY();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SurfaceScale();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SpecularConstant();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SpecularExponent();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> KernelUnitLengthX();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> KernelUnitLengthY();
 
 protected:
   virtual void LightPixel(const float *N, const float *L,

@@ -39,7 +39,6 @@
 #include "nsAttrValue.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsIHTMLCollection.h"
-#include "Units.h"
 
 class nsIDOMEventListener;
 class nsIFrame;
@@ -675,8 +674,8 @@ public:
   {
     nsIScrollableFrame* sf = GetScrollFrame();
     if (sf) {
-      sf->ScrollToCSSPixels(CSSIntPoint(sf->GetScrollPositionCSSPixels().x,
-                                        aScrollTop));
+      sf->ScrollToCSSPixels(nsIntPoint(sf->GetScrollPositionCSSPixels().x,
+                                       aScrollTop));
     }
   }
   int32_t ScrollLeft()
@@ -688,8 +687,8 @@ public:
   {
     nsIScrollableFrame* sf = GetScrollFrame();
     if (sf) {
-      sf->ScrollToCSSPixels(CSSIntPoint(aScrollLeft,
-                                        sf->GetScrollPositionCSSPixels().y));
+      sf->ScrollToCSSPixels(nsIntPoint(aScrollLeft,
+                                       sf->GetScrollPositionCSSPixels().y));
     }
   }
   int32_t ScrollWidth();

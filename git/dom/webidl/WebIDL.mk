@@ -163,7 +163,6 @@ webidl_files = \
   HTMLVideoElement.webidl \
   IDBDatabase.webidl \
   IDBFactory.webidl \
-  IDBFileHandle.webidl \
   IDBVersionChangeEvent.webidl \
   ImageData.webidl \
   ImageDocument.webidl \
@@ -228,11 +227,8 @@ webidl_files = \
   SVGAngle.webidl \
   SVGAnimatedAngle.webidl \
   SVGAnimatedBoolean.webidl \
-  SVGAnimatedEnumeration.webidl \
-  SVGAnimatedInteger.webidl \
   SVGAnimatedLength.webidl \
   SVGAnimatedLengthList.webidl \
-  SVGAnimatedNumber.webidl \
   SVGAnimatedNumberList.webidl \
   SVGAnimatedPathData.webidl \
   SVGAnimatedPoints.webidl \
