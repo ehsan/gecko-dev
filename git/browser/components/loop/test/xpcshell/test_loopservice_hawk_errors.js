@@ -74,6 +74,7 @@ add_task(function* guest_401() {
       Assert.strictEqual(err.code, 401);
       Assert.strictEqual(err.friendlyMessage, getLoopString("session_expired_error_description"));
       Assert.equal(err.friendlyDetails, null);
+      Assert.equal(err.friendlyDetailsButtonLabel, null);
   });
 });
 
@@ -114,6 +115,7 @@ add_task(function* error_404() {
       Assert.strictEqual(err.code, 404);
       Assert.strictEqual(err.friendlyMessage, getLoopString("generic_failure_title"));
       Assert.equal(err.friendlyDetails, null);
+      Assert.equal(err.friendlyDetailsButtonLabel, null);
   });
 });
 
@@ -147,6 +149,7 @@ add_task(function* profile_500() {
       Assert.strictEqual(err.code, 500);
       Assert.strictEqual(err.friendlyMessage, getLoopString("problem_accessing_account"));
       Assert.equal(err.friendlyDetails, null);
+      Assert.equal(err.friendlyDetailsButtonLabel, null);
   });
 });
 

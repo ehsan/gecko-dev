@@ -70,13 +70,12 @@ protected:
     ~MediaEngineTabVideoSource() {}
 
 private:
-    int mBufWidthMax;
-    int mBufHeightMax;
+    int mBufW;
+    int mBufH;
     int64_t mWindowId;
     bool mScrollWithPage;
     int mTimePerFrame;
     ScopedFreePtr<unsigned char> mData;
-    size_t mDataSize;
     nsCOMPtr<nsIDOMWindow> mWindow;
     nsRefPtr<layers::CairoImage> mImage;
     nsCOMPtr<nsITimer> mTimer;

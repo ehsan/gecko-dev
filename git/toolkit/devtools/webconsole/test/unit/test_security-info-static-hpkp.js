@@ -34,12 +34,14 @@ const MockSecurityInfo = {
   }
 };
 
-const MockHttpInfo = {
-  hostname: "include-subdomains.pinning.example.com",
-  private: false,
+const MockRequest = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIPrivateBrowsingChannel]),
+  URI: {
+    host: "include-subdomains.pinning.example.com"
+  }
 };
 
 function run_test() {
-  let result = NetworkHelper.parseSecurityInfo(MockSecurityInfo, MockHttpInfo);
+  let result = NetworkHelper.parseSecurityInfo(MockSecurityInfo, MockRequest);
   equal(result.hpkp, true, "Static HPKP detected.");
 }

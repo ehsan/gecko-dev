@@ -11,11 +11,15 @@ loop.store.ActiveRoomStore = (function() {
   "use strict";
 
   var sharedActions = loop.shared.actions;
-  var FAILURE_DETAILS = loop.shared.utils.FAILURE_DETAILS;
+  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
 
   // Error numbers taken from
   // https://github.com/mozilla-services/loop-server/blob/master/loop/errno.json
-  var REST_ERRNOS = loop.shared.utils.REST_ERRNOS;
+  var SERVER_CODES = loop.store.SERVER_CODES = {
+    INVALID_TOKEN: 105,
+    EXPIRED: 111,
+    ROOM_FULL: 202
+  };
 
   var ROOM_STATES = loop.store.ROOM_STATES;
   /**
@@ -80,11 +84,11 @@ loop.store.ActiveRoomStore = (function() {
     roomFailure: function(actionData) {
       function getReason(serverCode) {
         switch (serverCode) {
-          case REST_ERRNOS.INVALID_TOKEN:
-          case REST_ERRNOS.EXPIRED:
-            return FAILURE_DETAILS.EXPIRED_OR_INVALID;
+          case SERVER_CODES.INVALID_TOKEN:
+          case SERVER_CODES.EXPIRED:
+            return FAILURE_REASONS.EXPIRED_OR_INVALID;
           default:
-            return FAILURE_DETAILS.UNKNOWN;
+            return FAILURE_REASONS.UNKNOWN;
         }
       }
 
@@ -96,7 +100,7 @@ loop.store.ActiveRoomStore = (function() {
         failureReason: getReason(actionData.error.errno)
       });
 
-      this._leaveRoom(actionData.error.errno === REST_ERRNOS.ROOM_FULL ?
+      this._leaveRoom(actionData.error.errno === SERVER_CODES.ROOM_FULL ?
           ROOM_STATES.FULL : ROOM_STATES.FAILED);
     },
 

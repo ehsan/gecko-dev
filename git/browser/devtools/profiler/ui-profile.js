@@ -452,21 +452,20 @@ let ProfileView = {
    *        The <panel> element in this <tabbox>.
    * @param object profilerData
    *        The data source for this tree.
-   * @param number startTime
+   * @param number beginAt
    *        The earliest time in the data source to start at (in milliseconds).
-   * @param number endTime
+   * @param number endAt
    *        The latest time in the data source to end at (in milliseconds).
    * @param object options
    *        Additional options supported by this operation.
    *        @see ProfileView._populatePanelWidgets
    */
-  _populateCallTree: function(panel, profilerData, startTime, endTime, options = {}) {
+  _populateCallTree: function(panel, profilerData, beginAt, endAt, options = {}) {
     let threadSamples = profilerData.profile.threads[0].samples;
     let contentOnly = !Prefs.showPlatformData;
     let invertChecked = this._invertTree.hasAttribute("checked");
-    let threadNode = new ThreadNode(threadSamples,
-      { startTime, endTime, contentOnly, invertChecked });
-
+    let threadNode = new ThreadNode(threadSamples, contentOnly, beginAt, endAt,
+                                    invertChecked);
     // If we have an empty profile (no samples), then don't invert the tree, as
     // it would hide the root node and a completely blank call tree space can be
     // mis-interpreted as an error.
