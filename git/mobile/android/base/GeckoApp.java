@@ -83,7 +83,6 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -164,7 +163,7 @@ abstract public class GeckoApp
     protected RelativeLayout mMainLayout;
     protected RelativeLayout mGeckoLayout;
     public View getView() { return mGeckoLayout; }
-    private View mCameraView;
+    public SurfaceView mCameraView;
     public List<GeckoAppShell.AppStateListener> mAppStateListeners;
     private static GeckoApp sAppContext;
     protected MenuPanel mMenuPanel;
@@ -258,7 +257,7 @@ abstract public class GeckoApp
         return GeckoApp.sAppContext.getSharedPreferences(PREFS_NAME, 0);
     }
 
-    public View getCameraView() {
+    public SurfaceView getCameraView() {
         return mCameraView;
     }
 
@@ -1304,12 +1303,8 @@ abstract public class GeckoApp
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         if (mCameraView == null) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
-                mCameraView = new SurfaceView(this);
-                ((SurfaceView)mCameraView).getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-            } else {
-                mCameraView = new TextureView(this);
-            }
+            mCameraView = new SurfaceView(this);
+            mCameraView.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         }
 
         if (mLayerView == null) {
@@ -1693,23 +1688,12 @@ abstract public class GeckoApp
     }
 
     public void enableCameraView() {
-        if (mCameraView instanceof SurfaceView) {
-            // Try to make it fully transparent.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                mCameraView.setAlpha(0.0f);
-            }
-        } else if (mCameraView instanceof TextureView) {
-            mCameraView.setAlpha(0.0f);
-        }
-        RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
         // Some phones (eg. nexus S) need at least a 8x16 preview size
-        mCameraLayout.addView(mCameraView,
-                              new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
+        mMainLayout.addView(mCameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
     }
 
     public void disableCameraView() {
-        RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
-        mCameraLayout.removeView(mCameraView);
+        mMainLayout.removeView(mCameraView);
     }
 
     public String getDefaultUAString() {
@@ -2075,12 +2059,6 @@ abstract public class GeckoApp
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
             refreshChrome();
-        }
-
-        if (mAppStateListeners != null) {
-            for (GeckoAppShell.AppStateListener listener: mAppStateListeners) {
-                listener.onConfigurationChanged();
-            }
         }
     }
 

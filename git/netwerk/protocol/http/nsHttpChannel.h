@@ -34,7 +34,6 @@
 #include "mozilla/Telemetry.h"
 
 class nsAHttpConnection;
-class nsIPrincipal;
 
 namespace mozilla { namespace net {
 
@@ -175,9 +174,6 @@ private:
     nsresult ContinueProcessFallback(nsresult);
     void     HandleAsyncAbort();
     nsresult EnsureAssocReq();
-    void     ProcessSSLInformation();
-    bool     IsHTTPS();
-    void     RetrieveSSLOptions();
 
     nsresult ContinueOnStartRequest1(nsresult);
     nsresult ContinueOnStartRequest2(nsresult);
@@ -377,10 +373,6 @@ protected:
 
 private: // cache telemetry
     bool mDidReval;
-
-private:
-    nsIPrincipal *GetPrincipal();
-    nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
 } } // namespace mozilla::net

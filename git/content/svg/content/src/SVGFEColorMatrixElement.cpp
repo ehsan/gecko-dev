@@ -63,7 +63,7 @@ SVGFEColorMatrixElement::In1()
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFEColorMatrixElement::Type()
 {
   return mEnumAttributes[TYPE].ToDOMAnimatedEnum(this);

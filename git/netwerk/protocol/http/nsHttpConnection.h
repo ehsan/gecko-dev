@@ -158,7 +158,6 @@ public:
     void    SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks);
     void    PrintDiagnostics(nsCString &log);
 
-    void    SetTransactionCaps(uint32_t aCaps) { mTransactionCaps = aCaps; }
 private:
     // called to cause the underlying socket to start speaking SSL
     nsresult ProxyStartSSL();
@@ -176,7 +175,7 @@ private:
     // Makes certain the SSL handshake is complete and NPN negotiation
     // has had a chance to happen
     bool     EnsureNPNComplete();
-    void     SetupSSL(uint32_t caps);
+    void     SetupNPN(uint32_t caps);
 
     // Start the Spdy transaction handler when NPN indicates spdy/*
     void     StartSpdy(uint8_t versionLevel);
@@ -241,7 +240,7 @@ private:
 
     // SPDY related
     bool                            mNPNComplete;
-    bool                            mSetupSSLCalled;
+    bool                            mSetupNPNCalled;
 
     // version level in use, 0 if unused
     uint8_t                         mUsingSpdyVersion;
@@ -252,9 +251,6 @@ private:
 
     // mUsingSpdyVersion is cleared when mSpdySession is freed, this is permanent
     bool                            mEverUsedSpdy;
-
-    // The capabailities associated with the most recent transaction
-    uint32_t                        mTransactionCaps;
 };
 
 #endif // nsHttpConnection_h__

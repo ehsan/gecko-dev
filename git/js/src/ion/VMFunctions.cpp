@@ -76,13 +76,7 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
     // we use InvokeConstructor that creates it at the callee side.
     if (thisv.isMagic(JS_IS_CONSTRUCTING))
         return InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
-
-    RootedValue rv(cx);
-    if (!Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, &rv))
-        return false;
-
-    *rval = rv;
-    return true;
+    return Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, rval);
 }
 
 JSObject *

@@ -225,7 +225,10 @@
               class="tabpanel-summary-container"
               align="center">
           <textbox id="custom-method-value"
-                   oninput="NetMonitorView.CustomRequest.onUpdate('method');"/>
+                   oninput="NetMonitorView.CustomRequest.onUpdate('method');"
+                   multiline="true"
+                   cols="6"
+                   rows="1"/>
           <textbox id="custom-url-value"
                    flex="1"
                    oninput="NetMonitorView.CustomRequest.onUpdate('url');"/>
@@ -248,7 +251,7 @@
           <textbox id="custom-headers-value"
                    class="tabpanel-summary-input"
                    multiline="true"
-                   rows="8"
+                   rows="6"
                    wrap="off"
                    oninput="NetMonitorView.CustomRequest.onUpdate('headers');"/>
         </vbox>
