@@ -3039,8 +3039,7 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
 
             if (useXULCache) {
                 PRUint32 newLangID = nsIProgrammingLanguage::UNKNOWN;
-                JSScript* newScriptObject =
-                    cache->GetScript(mSrcURI, &newLangID);
+                void *newScriptObject = cache->GetScript(mSrcURI, &newLangID);
                 if (newScriptObject) {
                     // Things may blow here if we simply change the script
                     // language - other code may already have pre-fetched the
@@ -3171,7 +3170,7 @@ nsXULPrototypeScript::UnlinkJSObjects()
 }
 
 void
-nsXULPrototypeScript::Set(JSScript* aObject)
+nsXULPrototypeScript::Set(void *aObject)
 {
     NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
     if (!aObject) {

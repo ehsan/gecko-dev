@@ -354,8 +354,6 @@ class nsHtml5Parser : public nsIParser,
      */
     bool                          mDocumentClosed;
 
-    bool                          mInDocumentWrite;
-
     // Gecko integration
     void*                         mRootContextKey;
 

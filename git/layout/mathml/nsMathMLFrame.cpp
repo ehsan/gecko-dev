@@ -516,7 +516,7 @@ void nsDisplayMathMLBar::Paint(nsDisplayListBuilder* aBuilder,
                                nsRenderingContext* aCtx)
 {
   // paint the bar with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
   aCtx->FillRect(mRect + ToReferenceFrame());
 }
 

@@ -1326,7 +1326,7 @@ public:
 
 protected:
   double ProgressAt(TimeStamp aTime) {
-    return clamped((aTime - mStartTime) / mDuration, 0.0, 1.0);
+    return NS_MIN(1.0, NS_MAX(0.0, (aTime - mStartTime) / mDuration));
   }
 
   nscoord VelocityComponent(double aTimeProgress,

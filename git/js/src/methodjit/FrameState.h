@@ -614,6 +614,14 @@ class FrameState
     void takeReg(AnyRegisterID reg);
 
     /*
+     * Gets an FP register which the compiler does not own but can freely write
+     * over. Can only be used in the inline path, and must be matched with a
+     * restoreScratchFPReg. (Emits sync/restore code if the reg is in use).
+     */
+    FPRegisterID getScratchFPReg();
+    void restoreScratchFPReg(FPRegisterID reg);
+
+    /*
      * Returns a FrameEntry * for a slot on the operation stack.
      */
     inline FrameEntry *peek(int32 depth);
@@ -990,7 +998,8 @@ class FrameState
     inline void forgetAllRegs(FrameEntry *fe);
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
 #if defined JS_NUNBOX32
-    void syncFancy(Assembler &masm, Registers avail, int trackerIndex) const;
+    void syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
+                   FrameEntry *bottom) const;
 #endif
     inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
     void resetInternalState();

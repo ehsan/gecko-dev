@@ -148,7 +148,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   JSContext* cx = mScriptContext->GetNativeContext();
   NS_ASSERTION(cx, "Failed to get a context!");
 
-  JSObject* global = mScriptContext->GetNativeGlobal();
+  JSObject* global = static_cast<JSObject*>(mScriptContext->GetNativeGlobal());
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);

@@ -254,6 +254,7 @@
 #include "nsIDOMLinkStyle.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -2193,6 +2194,7 @@ nsDOMClassInfo::RegisterExternalClasses()
 
 
 #define DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES                                \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLElement)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                                  \
@@ -2513,6 +2515,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLElement, nsIDOMHTMLElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 

@@ -197,20 +197,12 @@ struct CompartmentStats
     PRInt64 gcHeapArenaPadding;
     PRInt64 gcHeapArenaUnused;
 
-    PRInt64 gcHeapObjectsNonFunction;
-    PRInt64 gcHeapObjectsFunction;
-    PRInt64 gcHeapStrings;
-    PRInt64 gcHeapShapesTree;
-    PRInt64 gcHeapShapesDict;
-    PRInt64 gcHeapScripts;
-    PRInt64 gcHeapTypeObjects;
-    PRInt64 gcHeapXML;
+    PRInt64 gcHeapKinds[JSTRACE_LAST + 1];
 
     PRInt64 objectSlots;
     PRInt64 stringChars;
-    PRInt64 shapesExtraTreeTables;
-    PRInt64 shapesExtraDictTables;
-    PRInt64 shapesExtraTreeShapeKids;
+    PRInt64 propertyTables;
+    PRInt64 shapeKids;
     PRInt64 scriptData;
 
 #ifdef JS_METHODJIT
@@ -240,15 +232,6 @@ struct IterateData
         gcHeapArenaUnused(0),
         gcHeapChunkAdmin(0),
         gcHeapUnusedPercentage(0),
-        totalObjects(0),
-        totalShapes(0),
-        totalScripts(0),
-        totalStrings(0),
-#ifdef JS_METHODJIT
-        totalMjit(0),
-#endif
-        totalTypeInference(0),
-        totalAnalysisTemp(0),
         compartmentStatsVector(),
         currCompartmentStats(NULL) { }
 
@@ -261,15 +244,6 @@ struct IterateData
     PRInt64 gcHeapArenaUnused;
     PRInt64 gcHeapChunkAdmin;
     PRInt64 gcHeapUnusedPercentage;
-    PRInt64 totalObjects;
-    PRInt64 totalShapes;
-    PRInt64 totalScripts;
-    PRInt64 totalStrings;
-#ifdef JS_METHODJIT
-    PRInt64 totalMjit;
-#endif
-    PRInt64 totalTypeInference;
-    PRInt64 totalAnalysisTemp;
 
     nsTArray<CompartmentStats> compartmentStatsVector;
     CompartmentStats *currCompartmentStats;

@@ -45,6 +45,7 @@
 #include "nsCoreUtils.h"
 #include "nsHyperTextAccessibleWrap.h"
 
+#include "nsIDOMNSHTMLElement.h"
 #include "nsGUIEvent.h"
 #include "nsILink.h"
 #include "nsIFrame.h"

@@ -84,7 +84,7 @@ public:
     virtual void OnFinalize(JSObject* aObject);
     virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
-    virtual JSObject* GetGlobalJSObject();
+    virtual void *GetScriptGlobal(PRUint32 lang);
     virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
     virtual nsIScriptContext *GetScriptContext(PRUint32 lang);
@@ -695,16 +695,16 @@ nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScrip
 
   NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
 
-  JSObject* global = NULL;
+  void* script_glob = NULL;
 
   if (aScriptContext) {
     aScriptContext->SetGCOnDestruction(false);
     aScriptContext->DidInitializeContext();
-    global = aScriptContext->GetNativeGlobal();
-    NS_ASSERTION(global, "GetNativeGlobal returned NULL!");
+    script_glob = aScriptContext->GetNativeGlobal();
+    NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");
   }
   mContext = aScriptContext;
-  mJSObject = global;
+  mJSObject = static_cast<JSObject*>(script_glob);
   return NS_OK;
 }
 
@@ -769,9 +769,11 @@ nsXULPDGlobalObject::GetScriptContext(PRUint32 lang_id)
   return mContext;
 }
 
-JSObject*
-nsXULPDGlobalObject::GetGlobalJSObject()
+void*
+nsXULPDGlobalObject::GetScriptGlobal(PRUint32 lang_id)
 {
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
   return mJSObject;
 }
 

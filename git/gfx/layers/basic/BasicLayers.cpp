@@ -2776,6 +2776,7 @@ public:
 
     if (IsSurfaceDescriptorValid(mFrontBufferDescriptor)) {
       mAllocator->DestroySharedSurface(&mFrontBufferDescriptor);
+      mFrontBufferDescriptor = SurfaceDescriptor();
     }
   }
 
@@ -2934,7 +2935,7 @@ public:
 
   virtual void Disconnect()
   {
-    DestroyFrontBuffer();
+    mFrontBuffer = SurfaceDescriptor();
     ShadowImageLayer::Disconnect();
   }
 
@@ -3042,12 +3043,13 @@ public:
   }
   virtual ~BasicShadowCanvasLayer()
   {
+    DestroyFrontBuffer();
     MOZ_COUNT_DTOR(BasicShadowCanvasLayer);
   }
 
   virtual void Disconnect()
   {
-    DestroyFrontBuffer();
+    mFrontSurface = SurfaceDescriptor();
     ShadowCanvasLayer::Disconnect();
   }
 

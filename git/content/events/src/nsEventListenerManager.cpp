@@ -392,7 +392,7 @@ nsEventListenerManager::FindJSEventListener(PRUint32 aEventType,
 
 nsresult
 nsEventListenerManager::SetJSEventListener(nsIScriptContext *aContext,
-                                           JSObject* aScopeObject,
+                                           void *aScopeObject,
                                            nsIAtom* aName,
                                            JSObject *aHandler,
                                            bool aPermitUntrustedEvents,
@@ -442,6 +442,7 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
 {
   NS_PRECONDITION(aLanguage != nsIProgrammingLanguage::UNKNOWN,
                   "Must know the language for the script event listener");
+  nsIScriptContext *context = nsnull;
 
   // |aPermitUntrustedEvents| is set to False for chrome - events
   // *generated* from an unknown source are not allowed.
@@ -531,10 +532,10 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
     // but fall through and let the inevitable failure below handle it.
   }
 
-  nsIScriptContext* context = global->GetScriptContext(aLanguage);
+  context = global->GetScriptContext(aLanguage);
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-  JSObject* scope = global->GetGlobalJSObject();
+  void *scope = global->GetScriptGlobal(aLanguage);
 
   nsListenerStruct *ls;
   rv = SetJSEventListener(context, scope, aName, nsnull,
@@ -704,10 +705,8 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     nsScriptObjectHolder boundHandler(context);
     context->BindCompiledEventHandler(mTarget, listener->GetEventScope(),
                                       handler, boundHandler);
-    listener->SetHandler(
-      static_cast<JSObject*>(
-        static_cast<void*>(boundHandler)));
-  }
+    listener->SetHandler(boundHandler);
+  }    
 
   return result;
 }
@@ -994,7 +993,7 @@ nsEventListenerManager::GetJSEventListener(nsIAtom *aEventName, jsval *vp)
     CompileEventHandlerInternal(ls, true, nsnull);
   }
 
-  *vp = OBJECT_TO_JSVAL(listener->GetHandler());
+  *vp = OBJECT_TO_JSVAL(static_cast<JSObject*>(listener->GetHandler()));
 }
 
 PRInt64

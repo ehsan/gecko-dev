@@ -123,6 +123,16 @@ nsDOMTokenList::CheckToken(const nsAString& aStr)
   return NS_OK;
 }
 
+bool
+nsDOMTokenList::ContainsInternal(const nsAttrValue* aAttr,
+                                 const nsAString& aToken)
+{
+  NS_ABORT_IF_FALSE(aAttr, "Need an attribute");
+
+  nsCOMPtr<nsIAtom> atom = do_GetAtom(aToken);
+  return aAttr->Contains(atom, eCaseMatters);
+}
+
 NS_IMETHODIMP
 nsDOMTokenList::Contains(const nsAString& aToken, bool* aResult)
 {
@@ -135,7 +145,7 @@ nsDOMTokenList::Contains(const nsAString& aToken, bool* aResult)
     return NS_OK;
   }
 
-  *aResult = attr->Contains(aToken);
+  *aResult = ContainsInternal(attr, aToken);
 
   return NS_OK;
 }
@@ -172,7 +182,7 @@ nsDOMTokenList::Add(const nsAString& aToken)
 
   const nsAttrValue* attr = GetParsedAttr();
 
-  if (attr && attr->Contains(aToken)) {
+  if (attr && ContainsInternal(attr, aToken)) {
     return NS_OK;
   }
 
@@ -254,7 +264,7 @@ nsDOMTokenList::Remove(const nsAString& aToken)
     return NS_OK;
   }
 
-  if (!attr->Contains(aToken)) {
+  if (!ContainsInternal(attr, aToken)) {
     return NS_OK;
   }
 
@@ -271,7 +281,7 @@ nsDOMTokenList::Toggle(const nsAString& aToken, bool* aResult)
 
   const nsAttrValue* attr = GetParsedAttr();
 
-  if (attr && attr->Contains(aToken)) {
+  if (attr && ContainsInternal(attr, aToken)) {
     RemoveInternal(attr, aToken);
     *aResult = false;
   } else {

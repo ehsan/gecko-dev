@@ -534,7 +534,6 @@ private:
     /* Analysis helpers. */
     CompileStatus prepareInferenceTypes(JSScript *script, ActiveFrame *a);
     void ensureDoubleArguments();
-    void markUndefinedLocals();
     void fixDoubleTypes(jsbytecode *target);
     void watchGlobalReallocation();
     void updateVarType();
@@ -557,7 +556,6 @@ private:
         RegisterID dataReg;
     };
 
-    MaybeJump trySingleTypeTest(types::TypeSet *types, RegisterID typeReg);
     Jump addTypeTest(types::TypeSet *types, RegisterID typeReg, RegisterID dataReg);
     BarrierState pushAddressMaybeBarrier(Address address, JSValueType type, bool reuseBase,
                                          bool testUndefined = false);

@@ -161,7 +161,8 @@ class FrameRegsIter;
 class CallReceiver;
 class CallArgs;
 
-struct BytecodeEmitter;
+struct BytecodeCompiler;
+struct CodeGenerator;
 struct Definition;
 struct FunctionBox;
 struct ObjectBox;

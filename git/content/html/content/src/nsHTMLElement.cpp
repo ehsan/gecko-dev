@@ -59,26 +59,9 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
-  NS_SCRIPTABLE NS_IMETHOD Click() {
-    return nsGenericHTMLElement::Click();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
-    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
-    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD Focus() {
-    return nsGenericHTMLElement::Focus();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLElement::GetDraggable(aDraggable);
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
-  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
-    return nsGenericHTMLElement::SetInnerHTML(aInnerHTML);
-  }
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
