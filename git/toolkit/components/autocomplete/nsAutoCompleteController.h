@@ -48,7 +48,6 @@ protected:
   nsresult StartSearches();
   void AfterSearches();
   nsresult ClearSearchTimer();
-  void MaybeCompletePlaceholder();
 
   nsresult ProcessResult(int32_t aSearchIndex, nsIAutoCompleteResult *aResult);
   nsresult PostSearchCleanup();
@@ -135,7 +134,6 @@ protected:
   nsCOMPtr<nsITreeBoxObject> mTree;
 
   nsString mSearchString;
-  nsString mPlaceholderCompletionString;
   bool mDefaultIndexCompleted;
   bool mBackspaced;
   bool mPopupClosedByCompositionStart;

@@ -38,11 +38,12 @@ PluginContent.prototype = {
     global.addEventListener("PluginOutdated",        this, true);
     global.addEventListener("PluginInstantiated",    this, true);
     global.addEventListener("PluginRemoved",         this, true);
-    global.addEventListener("pagehide",              this, true);
-    global.addEventListener("pageshow",              this, true);
     global.addEventListener("unload",                this);
 
+    global.addEventListener("pageshow", (event) => this.onPageShow(event), true);
+
     global.addMessageListener("BrowserPlugins:ActivatePlugins", this);
+    global.addMessageListener("BrowserPlugins:NotificationRemoved", this);
     global.addMessageListener("BrowserPlugins:NotificationShown", this);
     global.addMessageListener("BrowserPlugins:ContextMenuCommand", this);
   },
@@ -56,6 +57,9 @@ PluginContent.prototype = {
     switch (msg.name) {
       case "BrowserPlugins:ActivatePlugins":
         this.activatePlugins(msg.data.pluginInfo, msg.data.newState);
+        break;
+      case "BrowserPlugins:NotificationRemoved":
+        this.clearPluginDataCache();
         break;
       case "BrowserPlugins:NotificationShown":
         setTimeout(() => this.updateNotificationUI(), 0);
@@ -75,7 +79,7 @@ PluginContent.prototype = {
 
   onPageShow: function (event) {
     // Ignore events that aren't from the main document.
-    if (!this.content || event.target != this.content.document) {
+    if (this.global.content && event.target != this.global.content.document) {
       return;
     }
 
@@ -85,15 +89,6 @@ PluginContent.prototype = {
     if (event.persisted) {
       this.reshowClickToPlayNotification();
     }
-  },
-
-  onPageHide: function (event) {
-    // Ignore events that aren't from the main document.
-    if (!this.content || event.target != this.content.document) {
-      return;
-    }
-
-    this.clearPluginDataCache();
   },
 
   getPluginUI: function (plugin, anonid) {
@@ -286,16 +281,6 @@ PluginContent.prototype = {
 
     if (eventType == "unload") {
       this.uninit();
-      return;
-    }
-
-    if (eventType == "pagehide") {
-      this.onPageHide(event);
-      return;
-    }
-
-    if (eventType == "pageshow") {
-      this.onPageShow(event);
       return;
     }
 
@@ -662,7 +647,7 @@ PluginContent.prototype = {
     // If plugin is null, that means the user has navigated back to a page with
     // plugins, and we need to collect all the plugins.
     if (plugin === null) {
-      let contentWindow = this.content;
+      let contentWindow = this.global.content;
       let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                              .getInterface(Ci.nsIDOMWindowUtils);
       // cwu.plugins may contain non-plugin <object>s, filter them out
@@ -679,9 +664,8 @@ PluginContent.prototype = {
 
     let pluginData = this.pluginData;
 
-    let principal = this.content.document.nodePrincipal;
+    let principal = this.global.content.document.nodePrincipal;
     let principalHost = this._getHostFromPrincipal(principal);
-    let location = this.content.document.location.href;
 
     for (let p of plugins) {
       let pluginInfo = this._getPluginInfo(p);
@@ -711,7 +695,6 @@ PluginContent.prototype = {
       plugins: [... this.pluginData.values()],
       showNow: showNow,
       host: principalHost,
-      location: location,
     }, null, principal);
   },
 
@@ -727,13 +710,16 @@ PluginContent.prototype = {
    *        to the current top-level document.
    */
   updateNotificationUI: function (document) {
-    document = document || this.content.document;
+    let principal;
 
-    // We're only interested in the top-level document, since that's
-    // the one that provides the Principal that we send back to the
-    // parent.
-    let principal = document.defaultView.top.document.nodePrincipal;
-    let location = document.location.href;
+    if (document) {
+      // We're only interested in the top-level document, since that's
+      // the one that provides the Principal that we send back to the
+      // parent.
+      principal = document.defaultView.top.document.nodePrincipal;
+    } else {
+      principal = this.content.document.nodePrincipal;
+    }
 
     // Make a copy of the actions from the last popup notification.
     let haveInsecure = false;
@@ -794,7 +780,6 @@ PluginContent.prototype = {
       haveInsecure: haveInsecure,
       actions: [... actions.values()],
       host: this._getHostFromPrincipal(principal),
-      location: location,
     }, null, principal);
   },
 

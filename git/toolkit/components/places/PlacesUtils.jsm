@@ -1921,7 +1921,6 @@ XPCOMUtils.defineLazyGetter(this, "gAsyncDBConnPromised", () => {
     catch(ex) {
       // It's too late to block shutdown, just close the connection.
       return conn.close();
-      throw (ex);
     }
     return Promise.resolve();
   }).then(null, Cu.reportError);
