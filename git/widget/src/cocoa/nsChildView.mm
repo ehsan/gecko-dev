@@ -1716,40 +1716,39 @@ NS_IMETHODIMP nsChildView::Update()
 
 #pragma mark -
 
-void nsChildView::ApplyConfiguration(nsIWidget* aExpectedParent,
-                                     const nsIWidget::Configuration& aConfiguration,
-                                     PRBool aRepaint)
-{
-#ifdef DEBUG
-  nsWindowType kidType;
-  aConfiguration.mChild->GetWindowType(kidType);
-#endif
-  NS_ASSERTION(kidType == eWindowType_plugin,
-               "Configured widget is not a plugin type");
-  NS_ASSERTION(aConfiguration.mChild->GetParent() == aExpectedParent,
-               "Configured widget is not a child of the right widget");
-
-  // nsIWidget::Show() doesn't get called on plugin widgets unless we call
-  // it from here.  See bug 592563.
-  nsChildView* child = static_cast<nsChildView*>(aConfiguration.mChild);
-  child->Show(!aConfiguration.mClipRegion.IsEmpty());
-
-  child->Resize(
-      aConfiguration.mBounds.x, aConfiguration.mBounds.y,
-      aConfiguration.mBounds.width, aConfiguration.mBounds.height,
-      aRepaint);
-
-  // Store the clip region here in case GetPluginClipRect needs it.
-  child->StoreWindowClipRegion(aConfiguration.mClipRegion);
-}
-
 nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 {
   for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-    nsChildView::ApplyConfiguration(this, aConfigurations[i], PR_TRUE);
+    const Configuration& config = aConfigurations[i];
+    nsChildView* child = static_cast<nsChildView*>(config.mChild);
+#ifdef DEBUG
+    nsWindowType kidType;
+    child->GetWindowType(kidType);
+#endif
+    NS_ASSERTION(kidType == eWindowType_plugin,
+                 "Configured widget is not a plugin type");
+    NS_ASSERTION(child->GetParent() == this,
+                 "Configured widget is not a child of the right widget");
+
+    // nsIWidget::Show() doesn't get called on plugin widgets unless we call
+    // it from here.  See bug 592563.
+    child->Show(!config.mClipRegion.IsEmpty());
+
+    PRBool repaint = PR_FALSE;
+#ifndef NP_NO_QUICKDRAW
+    repaint = child->mView &&
+      [(ChildView*)child->mView pluginDrawingModel] == NPDrawingModelQuickDraw;
+#endif
+    child->Resize(
+        config.mBounds.x, config.mBounds.y,
+        config.mBounds.width, config.mBounds.height,
+        repaint);
+
+    // Store the clip region here in case GetPluginClipRect needs it.
+    child->StoreWindowClipRegion(config.mClipRegion);
   }
   return NS_OK;
-}  
+}
 
 // Invokes callback and ProcessEvent methods on Event Listener object
 NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
@@ -5151,32 +5150,31 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 
   BOOL nonDeadKeyPress = [[theEvent characters] length] > 0;
   if (nonDeadKeyPress && !mGeckoChild->TextInputHandler()->IsIMEComposing()) {
-    if (![theEvent isARepeat]) {
-      NSResponder* firstResponder = [[self window] firstResponder];
+    NSResponder* firstResponder = [[self window] firstResponder];
 
-      nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_DOWN, nsnull);
-      [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
+    nsKeyEvent geckoKeydown(PR_TRUE, NS_KEY_DOWN, nsnull);
+    [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoKeydown];
 
 #ifndef NP_NO_CARBON
-      EventRecord carbonEvent;
-      if (mPluginEventModel == NPEventModelCarbon) {
-        ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
-      }
+    EventRecord carbonEvent;
+    if (mPluginEventModel == NPEventModelCarbon) {
+      ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
+      geckoKeydown.pluginEvent = &carbonEvent;
+    }
 #endif
 
-      mKeyDownHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
-      if (!mGeckoChild)
-        return mKeyDownHandled;
+    mKeyDownHandled = mGeckoChild->DispatchWindowEvent(geckoKeydown);
+    if (!mGeckoChild) {
+      return mKeyDownHandled;
+    }
 
-      // The key down event may have shifted the focus, in which
-      // case we should not fire the key press.
-      if (firstResponder != [[self window] firstResponder]) {
-        PRBool handled = mKeyDownHandled;
-        mCurKeyEvent = nil;
-        mKeyDownHandled = PR_FALSE;
-        return handled;
-      }
+    // The key down event may have shifted the focus, in which
+    // case we should not fire the key press.
+    if (firstResponder != [[self window] firstResponder]) {
+      PRBool handled = mKeyDownHandled;
+      mCurKeyEvent = nil;
+      mKeyDownHandled = PR_FALSE;
+      return handled;
     }
 
     // If this is the context menu key command, send a context menu key event.
@@ -5193,18 +5191,18 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       return handled;
     }
 
-    nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
-    [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
+    nsKeyEvent geckoKeypress(PR_TRUE, NS_KEY_PRESS, nsnull);
+    [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoKeypress];
 
     // if this is a non-letter keypress, or the control key is down,
     // dispatch the keydown to gecko, so that we trap delete,
     // control-letter combinations etc before Cocoa tries to use
     // them for keybindings.
-    if ((!geckoEvent.isChar || geckoEvent.isControl) &&
+    if ((!geckoKeypress.isChar || geckoKeypress.isControl) &&
         !mGeckoChild->TextInputHandler()->IsIMEComposing()) {
       if (mKeyDownHandled)
-        geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
-      mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
+        geckoKeypress.flags |= NS_EVENT_FLAG_NO_DEFAULT;
+      mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoKeypress);
       mKeyPressSent = YES;
       if (!mGeckoChild)
         return (mKeyDownHandled || mKeyPressHandled);
@@ -5226,16 +5224,17 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 
   if (!mKeyPressSent && nonDeadKeyPress && !wasComposing &&
       !mGeckoChild->TextInputHandler()->IsIMEComposing()) {
-    nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
-    [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
+    nsKeyEvent geckoKeypress(PR_TRUE, NS_KEY_PRESS, nsnull);
+    [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoKeypress];
 
     // If we called interpretKeyEvents and this isn't normal character input
     // then IME probably ate the event for some reason. We do not want to
     // send a key press event in that case.
-    if (!(interpretKeyEventsCalled && IsNormalCharInputtingEvent(geckoEvent))) {
-      if (mKeyDownHandled)
-        geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
-      mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
+    if (!(interpretKeyEventsCalled && IsNormalCharInputtingEvent(geckoKeypress))) {
+      if (mKeyDownHandled) {
+        geckoKeypress.flags |= NS_EVENT_FLAG_NO_DEFAULT;
+      }
+      mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoKeypress);
     }
   }
 

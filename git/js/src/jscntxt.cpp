@@ -510,6 +510,16 @@ JSThreadData::init()
     return true;
 }
 
+MathCache *
+JSThreadData::allocMathCache(JSContext *cx)
+{
+    JS_ASSERT(!mathCache);
+    mathCache = new MathCache;
+    if (!mathCache)
+        js_ReportOutOfMemory(cx);
+    return mathCache;
+}
+
 void
 JSThreadData::finish()
 {
@@ -530,6 +540,7 @@ JSThreadData::finish()
     jmData.Finish();
 #endif
     stackSpace.finish();
+    delete mathCache;
 }
 
 void
@@ -2035,8 +2046,39 @@ JSContext::JSContext(JSRuntime *rt)
   : runtime(rt),
     compartment(rt->defaultCompartment),
     regs(NULL),
-    busyArrays(this)
+    busyArrays(thisInInitializer())
 {}
+
+void
+JSContext::resetCompartment()
+{
+    JSObject *scopeobj;
+    if (hasfp()) {
+        scopeobj = &fp()->scopeChain();
+    } else {
+        scopeobj = globalObject;
+        if (!scopeobj) {
+            compartment = runtime->defaultCompartment;
+            return;
+        }
+
+        /*
+         * Innerize. Assert, but check anyway, that this succeeds. (It
+         * can only fail due to bugs in the engine or embedding.)
+         */
+        OBJ_TO_INNER_OBJECT(this, scopeobj);
+        if (!scopeobj) {
+            /*
+             * Bug. Return NULL, not defaultCompartment, to crash rather
+             * than open a security hole.
+             */
+            JS_ASSERT(0);
+            compartment = NULL;
+            return;
+        }
+    }
+    compartment = scopeobj->getCompartment();
+}
 
 void
 JSContext::pushSegmentAndFrame(js::StackSegment *newseg, JSFrameRegs &newregs)
@@ -2214,6 +2256,7 @@ ComputeIsJITBroken()
                 "SGH-I897",     // Samsung i9000, Captivate device
                 "SCH-I500",     // Samsung i9000, Fascinate device
                 "SPH-D700",     // Samsung i9000, Epic device
+                "GT-I9000",     // Samsung i9000, UK/Europe device
                 NULL
             };
             for (const char** hw = &blacklist[0]; *hw; ++hw) {
