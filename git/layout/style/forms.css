@@ -106,7 +106,6 @@ input {
 
 input > .anonymous-div {
   white-space: pre;
-  word-wrap: normal !important;
 }
 
 textarea {
@@ -160,7 +159,6 @@ select {
   font: -moz-list;
   line-height: normal !important;
   white-space: nowrap !important;
-  word-wrap: normal !important;
   text-align: start; 
   cursor: default;
   -moz-box-sizing: border-box;
@@ -254,7 +252,6 @@ option {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
-  word-wrap: normal !important;
 }
 
 select > option {
@@ -287,7 +284,6 @@ optgroup {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
-  word-wrap: normal !important;
 }
 
 optgroup > option {
