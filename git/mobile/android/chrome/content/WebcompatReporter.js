@@ -13,15 +13,12 @@ var WebcompatReporter = {
   menuItemEnabled: null,
   init: function() {
     Services.obs.addObserver(this, "DesktopMode:Change", false);
-    Services.obs.addObserver(this, "chrome-document-global-created", false);
-    Services.obs.addObserver(this, "content-document-global-created", false);
+    Services.obs.addObserver(this, "content-page-shown", false);
     this.addMenuItem();
   },
 
   uninit: function() {
     Services.obs.removeObserver(this, "DesktopMode:Change");
-    Services.obs.removeObserver(this, "chrome-document-global-created");
-    Services.obs.removeObserver(this, "content-document-global-created");
 
     if (this.menuItem) {
       NativeWindow.menu.remove(this.menuItem);
@@ -30,15 +27,8 @@ var WebcompatReporter = {
   },
 
   observe: function(subject, topic, data) {
-    if (topic == "content-document-global-created" || topic == "chrome-document-global-created") {
-      let win = subject;
-      let currentURI = win.document.documentURI;
-
-      // Ignore non top-level documents
-      if (currentURI !== win.top.location.href) {
-        return;
-      }
-
+    if (topic === "content-page-shown") {
+      let currentURI = subject.documentURI;
       if (!this.menuItemEnabled && this.isReportableUrl(currentURI)) {
         NativeWindow.menu.update(this.menuItem, {enabled: true});
         this.menuItemEnabled = true;
