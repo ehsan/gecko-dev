@@ -360,7 +360,6 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
 
     Call call(void *fun) {
         Call cl = JSC::MacroAssembler::call();
-        // XXX
         callPatches.append(CallPatch(cl, fun));
         return cl;
     }
