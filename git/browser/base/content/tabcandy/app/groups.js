@@ -33,7 +33,6 @@ window.Group = function(listOfEls, options) {
   this._children = []; // an array of Items
   this._container = null;
   this._padding = 30;
-  this.defaultSize = new Point(TabItems.tabWidth * 1.5, TabItems.tabHeight * 1.5);
 
   var self = this;
 
@@ -49,6 +48,7 @@ window.Group = function(listOfEls, options) {
       zIndex: -100,
       opacity: 0,
     })
+    .data("group", this)
     .data('item', this)
     .appendTo("body")
     .animate({opacity:1.0}).dequeue();
@@ -112,7 +112,7 @@ window.Group = function(listOfEls, options) {
 };
 
 // ----------
-window.Group.prototype = $.extend(new Item(), new Subscribable(), {  
+window.Group.prototype = $.extend(new Item(), {  
   // ----------  
   _getBoundingBox: function(els) {
     var el;
@@ -160,14 +160,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   // ----------  
   setBounds: function(rect, immediately) {
     this.setPosition(rect.left, rect.top, immediately);
-    this.setSize(rect.width, rect.height, immediately, {dontArrange: true});
-
-    var $titlebar = $('.titlebar', this._container);
-    var titleHeight = $titlebar.height();
-    var box = new Rect(rect);
-    box.top += titleHeight;
-    box.height -= titleHeight;
-    this.arrange({animate: !immediately, bounds: box});
+    this.setSize(rect.width, rect.height, immediately);
   },
   
   // ----------  
@@ -185,14 +178,11 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     if(immediately)
       $(this._container).css(options);
     else
-      $(this._container).animate(options).dequeue();
+      $(this._container).animate(options);
   },
 
   // ----------  
-  setSize: function(width, height, immediately, options) {
-    if(typeof(options) == 'undefined')
-      options = {};
-      
+  setSize: function(width, height, immediately) {
     var $titlebar = $('.titlebar', this._container);
     var titleHeight = $titlebar.height();
     
@@ -202,18 +192,11 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       $(this._container).css(containerOptions);
       $titlebar.css(titleOptions);
     } else {
-      $(this._container).animate(containerOptions).dequeue();
-      $titlebar.animate(titleOptions).dequeue();
+      $(this._container).animate(containerOptions);
+      $titlebar.animate(titleOptions);
     }
-    
-    if(!options.dontArrange) {
-      //TODO sort out the bounds and titlebar stuff for real 
-      var box = this.getBounds();
-      box.width = width;
-      box.top += titleHeight;
-      box.height = height - titleHeight;
-      this.arrange({animate: !immediately, bounds: box});
-    }
+      
+    this.arrange({animate: !immediately});
   },
 
   // ----------  
@@ -222,8 +205,16 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     $.each(toClose, function(index, child) {
       child.close();
     });
-    
-    this._sendOnClose();
+  },
+  
+  // ----------
+  addOnClose: function(referenceObject, callback) {
+    Utils.error('Group.addOnClose not implemented');
+  },
+
+  // ----------
+  removeOnClose: function(referenceObject) {
+    Utils.error('Group.removeOnClose not implemented');
   },
   
   // ----------  
@@ -310,7 +301,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       this._children.splice(index, 1); 
 
     $el.data("group", null);
-    item.setSize(item.defaultSize.x, item.defaultSize.y);
+    scaleTab( $el, 160/$el.width());
     $el.droppable("enable");    
     item.removeOnClose(this);
     
@@ -334,16 +325,13 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   },
     
   // ----------  
-  arrange: function(options) {
-    if( options && options.animate == false ) 
-      animate = false;
-    else 
-      animate = true;
-
-    if(typeof(options) == 'undefined')
-      options = {};
+  arrange: function(options){
+    if( options && options.animate == false ) animate = false;
+    else animate = true;
     
-    var bb = (options.bounds ? options.bounds : this._getContainerBox());
+    //Utils.log(speed);
+    /*if( this._children.length < 2 ) return;*/
+    var bb = this._getContainerBox();
 
     var count = this._children.length;
     var bbAspect = bb.width/bb.height;
@@ -381,12 +369,14 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     
     var x = pad; var y=pad; var numInCol = 0;
     for each(var item in this._children){
-      item.setBounds(new Rect(x + bb.left, y + bb.top, tabW, tabH), !animate);
+      var sizeOptions = {width:tabW, height:tabH, top:y+bb.top, left:x+bb.left};
+      
+      if( animate ) $(item.getContainer()).animate(sizeOptions).dequeue();
+      else $(item.getContainer()).css(sizeOptions).dequeue();
       
       x += tabW + pad;
       numInCol += 1;
-      if( numInCol >= best.numCols ) 
-        [x, numInCol, y] = [pad, 0, y+tabH+pad];
+      if( numInCol >= best.numCols ) [x, numInCol, y] = [pad, 0, y+tabH+pad];
     }
   },
   
@@ -396,7 +386,6 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     
     $(container).draggable({
       start: function(){
-        $dragged = $(this);
         $(container).data("origPosition", $(container).position());
         $.each(self._children, function(index, child) {
           child.dragData = {startBounds: child.getBounds()};
@@ -411,17 +400,10 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
             child.dragData.startBounds.top + dY, 
             true);
         });
-
-/*         $(this).css({zIndex: zIndex}); */
-/*         zIndex += 1; */
       }, 
       stop: function() {
-        if(!$dragged.hasClass('willGroup') && !$dragged.data('group'))
-          Items.item(this).pushAway();
-
-        $dragged = null; 
-      },
-/*       zIndex: 999 */
+        self.pushAway();
+      }
     });
     
     $(container).droppable({
@@ -438,7 +420,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
         $dragged.removeClass("willGroup");
         self.add( $dragged, {left:event.pageX, top:event.pageY} )
       },
-      accept: ".tab, .group",
+      accept: ".tab",
     });
         
     $(container).resizable({
@@ -487,46 +469,19 @@ window.Groups = {
     tolerance: "pointer",
     greedy: true,
     drop: function(e){
-      $target = $(e.target);
+    $target = $(e.target);  
+    $dragged.removeClass("willGroup")   
   
-      // Only drop onto the top z-index
-      if( $target.css("zIndex") < $dragged.data("topDropZIndex") ) return;
-      $dragged.data("topDropZIndex", $target.css("zIndex") );
-      $dragged.data("topDrop", $target);
-      
-      // This strange timeout thing solves the problem of when
-      // something is dropped onto multiple potential drop targets.
-      // We wait a little bit to see get all drops, and then we have saved
-      // the top-most one and drop onto that.
-      clearTimeout( timeout );
-      var dragged = $dragged;
-      var target = $target;
-      timeout = setTimeout( function(){
-        dragged.removeClass("willGroup")   
-  
-        dragged.animate({
-          top: target.position().top+15,
-          left: target.position().left+15,      
-        }, 100);
-        
-        setTimeout( function(){
-          var group = $(target).data("group");
-          if( group == null ){
-            var group = new Group([target, dragged]);
-          } else {
-            group.add( dragged );
-          }
-          
-        }, 100);
-        
-        
-      }, 10 );
-      
+    var group = $target.data("group");
+    if( group == null ){
+      var group = new Group([$target, $dragged]);
+    } else {
+      group.add( $dragged );
+    }
       
     },
     over: function(e){
-      $dragged.addClass("willGroup");
-      $dragged.data("topDropZIndex", 0);    
+      $dragged.addClass("willGroup");    
     },
     out: function(){      
       $dragged.removeClass("willGroup");
@@ -581,8 +536,20 @@ window.Groups = {
 };
 
 // ##########
+function scaleTab( el, factor ){  
+  var $el = $(el);
+
+  $el.animate({
+    width: $el.width()*factor,
+    height: $el.height()*factor,
+    fontSize: parseInt($el.css("fontSize"))*factor,
+  },250).dequeue();
+}
+
+
 $(".tab").data('isDragging', false)
   .draggable(window.Groups.dragOptions)
   .droppable(window.Groups.dropOptions);
+
 
 })();
