@@ -82,10 +82,7 @@ TranslationUI.prototype = {
     let callback = aTopic => {
       if (aTopic != "showing")
         return false;
-      let notification = this.notificationBox.getNotificationWithValue("translation");
-      if (notification)
-        notification.close();
-      else
+      if (!this.notificationBox.getNotificationWithValue("translation"))
         this.showTranslationInfoBar();
       return true;
     };

@@ -586,13 +586,9 @@ struct Function {
 };
 
 struct Atom {
-    static const uint32_t INLINE_CHARS_BIT = JS_BIT(2);
-    uint32_t flags;
-    uint32_t length;
-    union {
-        const jschar *nonInlineChars;
-        char inlineStorage[1];
-    };
+    static const size_t LENGTH_SHIFT = 4;
+    size_t lengthAndFlags;
+    const jschar *chars;
 };
 
 } /* namespace shadow */
@@ -771,19 +767,14 @@ GetObjectSlot(JSObject *obj, size_t slot)
 inline const jschar *
 GetAtomChars(JSAtom *atom)
 {
-    using shadow::Atom;
-    Atom *atom_ = reinterpret_cast<Atom *>(atom);
-    if (atom_->flags & Atom::INLINE_CHARS_BIT) {
-        char *p = reinterpret_cast<char *>(atom);
-        return reinterpret_cast<const jschar *>(p + offsetof(Atom, inlineStorage));
-    }
-    return atom_->nonInlineChars;
+    return reinterpret_cast<shadow::Atom *>(atom)->chars;
 }
 
 inline size_t
 GetAtomLength(JSAtom *atom)
 {
-    return reinterpret_cast<shadow::Atom*>(atom)->length;
+    using shadow::Atom;
+    return reinterpret_cast<Atom*>(atom)->lengthAndFlags >> Atom::LENGTH_SHIFT;
 }
 
 inline JSLinearString *

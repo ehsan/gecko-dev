@@ -382,10 +382,6 @@ Experiments.Experiments = function (policy=new Experiments.Policy()) {
 
   this._shutdown = false;
 
-  // We need to tell when we first evaluated the experiments to fire an
-  // experiments-changed notification when we only loaded completed experiments.
-  this._firstEvaluate = true;
-
   this.init();
 };
 
@@ -1179,9 +1175,8 @@ Experiments.Experiments.prototype = {
 
     gPrefs.set(PREF_ACTIVE_EXPERIMENT, activeExperiment != null);
 
-    if (activeChanged || this._firstEvaluate) {
+    if (activeChanged) {
       Services.obs.notifyObservers(null, EXPERIMENTS_CHANGED_TOPIC, null);
-      this._firstEvaluate = false;
     }
 
     if ("@mozilla.org/toolkit/crash-reporter;1" in Cc && activeExperiment) {

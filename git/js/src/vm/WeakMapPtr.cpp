@@ -58,6 +58,7 @@ JS::WeakMapPtr<K, V>::destroy()
     // of known live weakmaps. If we are, remove ourselves before deleting.
     if (map->isInList())
         WeakMapBase::removeWeakMapFromList(map);
+    map->check();
     js_delete(map);
     ptr = nullptr;
 }

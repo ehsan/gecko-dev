@@ -63,11 +63,6 @@ Zone::~Zone()
 #endif
 }
 
-bool Zone::init()
-{
-    return gcZoneGroupEdges.init();
-}
-
 void
 Zone::setNeedsBarrier(bool needs, ShouldUpdateIon updateIon)
 {
