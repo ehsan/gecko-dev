@@ -1572,6 +1572,7 @@ public abstract class GeckoApp
 
         //register for events
         registerEventListener("log");
+        registerEventListener("Reader:ListCountRequest");
         registerEventListener("Reader:ListStatusRequest");
         registerEventListener("Reader:Added");
         registerEventListener("Reader:Removed");
@@ -2106,6 +2107,7 @@ public abstract class GeckoApp
     public void onDestroy()
     {
         unregisterEventListener("log");
+        unregisterEventListener("Reader:ListCountRequest");
         unregisterEventListener("Reader:ListStatusRequest");
         unregisterEventListener("Reader:Added");
         unregisterEventListener("Reader:Removed");

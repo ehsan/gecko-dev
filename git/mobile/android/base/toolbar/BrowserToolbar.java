@@ -146,7 +146,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
     private OnStartEditingListener startEditingListener;
     private OnStopEditingListener stopEditingListener;
 
-    private final BrowserApp activity;
+    final private BrowserApp activity;
     private boolean hasSoftMenuButton;
 
     private UIMode uiMode;
@@ -581,7 +581,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
         }
     }
 
-    private boolean isVisible() {
+    public boolean isVisible() {
         return ViewHelper.getTranslationY(this) == 0;
     }
 
@@ -1200,7 +1200,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
         contentAnimator.start();
     }
 
-    private void setButtonEnabled(ImageButton button, boolean enabled) {
+    public void setButtonEnabled(ImageButton button, boolean enabled) {
         final Drawable drawable = button.getDrawable();
         if (drawable != null) {
             // This alpha value has to be in sync with the one used

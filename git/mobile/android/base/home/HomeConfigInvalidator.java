@@ -16,23 +16,21 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.db.HomeProvider;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.PanelInfoManager.PanelInfo;
-import org.mozilla.gecko.home.PanelInfoManager.RequestCallback;
+import org.mozilla.gecko.home.PanelManager.PanelInfo;
+import org.mozilla.gecko.home.PanelManager.RequestCallback;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
 
-public class HomePanelsManager implements GeckoEventListener {
-    public static final String LOGTAG = "HomePanelsManager";
+public class HomeConfigInvalidator implements GeckoEventListener {
+    public static final String LOGTAG = "HomeConfigInvalidator";
 
-    private static final HomePanelsManager sInstance = new HomePanelsManager();
+    private static final HomeConfigInvalidator sInstance = new HomeConfigInvalidator();
 
     private static final int INVALIDATION_DELAY_MSEC = 500;
     private static final int PANEL_INFO_TIMEOUT_MSEC = 1000;
@@ -40,7 +38,6 @@ public class HomePanelsManager implements GeckoEventListener {
     private static final String EVENT_HOMEPANELS_INSTALL = "HomePanels:Install";
     private static final String EVENT_HOMEPANELS_UNINSTALL = "HomePanels:Uninstall";
     private static final String EVENT_HOMEPANELS_UPDATE = "HomePanels:Update";
-    private static final String EVENT_HOMEPANELS_REFRESH = "HomePanels:RefreshDataset";
 
     private static final String JSON_KEY_PANEL = "panel";
     private static final String JSON_KEY_PANEL_ID = "id";
@@ -77,7 +74,7 @@ public class HomePanelsManager implements GeckoEventListener {
     private final Queue<ConfigChange> mPendingChanges = new ConcurrentLinkedQueue<ConfigChange>();
     private final Runnable mInvalidationRunnable = new InvalidationRunnable();
 
-    public static HomePanelsManager getInstance() {
+    public static HomeConfigInvalidator getInstance() {
         return sInstance;
     }
 
@@ -88,7 +85,6 @@ public class HomePanelsManager implements GeckoEventListener {
         GeckoAppShell.getEventDispatcher().registerEventListener(EVENT_HOMEPANELS_INSTALL, this);
         GeckoAppShell.getEventDispatcher().registerEventListener(EVENT_HOMEPANELS_UNINSTALL, this);
         GeckoAppShell.getEventDispatcher().registerEventListener(EVENT_HOMEPANELS_UPDATE, this);
-        GeckoAppShell.getEventDispatcher().registerEventListener(EVENT_HOMEPANELS_REFRESH, this);
     }
 
     public void onLocaleReady(final String locale) {
@@ -116,9 +112,6 @@ public class HomePanelsManager implements GeckoEventListener {
             } else if (event.equals(EVENT_HOMEPANELS_UPDATE)) {
                 Log.d(LOGTAG, EVENT_HOMEPANELS_UPDATE);
                 handlePanelUpdate(createPanelConfigFromMessage(message));
-            } else if (event.equals(EVENT_HOMEPANELS_REFRESH)) {
-                Log.d(LOGTAG, EVENT_HOMEPANELS_REFRESH);
-                handleDatasetRefresh(message);
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Failed to handle event " + event, e);
@@ -180,28 +173,6 @@ public class HomePanelsManager implements GeckoEventListener {
         Log.d(LOGTAG, "handleLocaleChange: " + mPendingChanges.size());
 
         scheduleInvalidation(InvalidationMode.IMMEDIATE);
-    }
-
-
-    /**
-     * Handles a dataset refresh request from Gecko. This is usually
-     * triggered by a HomeStorage.save() call in an add-on.
-     *
-     * Runs in the gecko thread.
-     */
-    private void handleDatasetRefresh(JSONObject message) {
-        final String datasetId;
-        try {
-            datasetId = message.getString("datasetId");
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "Failed to handle dataset refresh", e);
-            return;
-        }
-
-        Log.d(LOGTAG, "Refresh request for dataset: " + datasetId);
-
-        final ContentResolver cr = mContext.getContentResolver();
-        cr.notifyChange(HomeProvider.getDatasetNotificationUri(datasetId), null);
     }
 
     /**
@@ -321,7 +292,7 @@ public class HomePanelsManager implements GeckoEventListener {
         final Object panelRequestLock = new Object();
         final List<PanelInfo> latestPanelInfos = new ArrayList<PanelInfo>();
 
-        final PanelInfoManager pm = new PanelInfoManager();
+        final PanelManager pm = new PanelManager();
         pm.requestPanelsById(ids, new RequestCallback() {
             @Override
             public void onComplete(List<PanelInfo> panelInfos) {
