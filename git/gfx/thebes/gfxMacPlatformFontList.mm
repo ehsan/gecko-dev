@@ -380,7 +380,7 @@ MacOSFontEntry::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 class gfxMacFontFamily : public gfxFontFamily
 {
 public:
-    explicit gfxMacFontFamily(nsAString& aName) :
+    gfxMacFontFamily(nsAString& aName) :
         gfxFontFamily(aName)
     {}
 
@@ -543,7 +543,7 @@ gfxMacFontFamily::FindStyleVariations(FontInfoData *aFontInfoData)
 class gfxSingleFaceMacFontFamily : public gfxFontFamily
 {
 public:
-    explicit gfxSingleFaceMacFontFamily(nsAString& aName) :
+    gfxSingleFaceMacFontFamily(nsAString& aName) :
         gfxFontFamily(aName)
     {
         mFaceNamesInitialized = true; // omit from face name lists

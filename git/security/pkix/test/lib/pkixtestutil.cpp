@@ -96,17 +96,21 @@ OpenFile(const char* dir, const char* filename, const char* mode)
   return file.release();
 }
 
-Result
+SECStatus
 TamperOnce(SECItem& item,
            const uint8_t* from, size_t fromLen,
            const uint8_t* to, size_t toLen)
 {
   if (!item.data || !from || !to || fromLen != toLen) {
-    return Result::FATAL_ERROR_INVALID_ARGS;
+    PR_NOT_REACHED("invalid args to TamperOnce");
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
+    return SECFailure;
   }
 
   if (fromLen < 8) {
-    return Result::FATAL_ERROR_INVALID_ARGS;
+    PR_NOT_REACHED("invalid parameter to TamperOnce; fromLen must be at least 8");
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
+    return SECFailure;
   }
 
   uint8_t* p = item.data;
@@ -117,20 +121,23 @@ TamperOnce(SECItem& item,
                                                            remaining));
     if (!foundFirstByte) {
       if (alreadyFoundMatch) {
-        return Success;
+        return SECSuccess;
       }
-      return Result::FATAL_ERROR_INVALID_ARGS;
+      PR_SetError(SEC_ERROR_BAD_DATA, 0);
+      return SECFailure;
     }
     remaining -= (foundFirstByte - p);
     if (remaining < fromLen) {
       if (alreadyFoundMatch) {
-        return Success;
+        return SECSuccess;
       }
-      return Result::FATAL_ERROR_INVALID_ARGS;
+      PR_SetError(SEC_ERROR_BAD_DATA, 0);
+      return SECFailure;
     }
     if (!memcmp(foundFirstByte, from, fromLen)) {
       if (alreadyFoundMatch) {
-        return Result::FATAL_ERROR_INVALID_ARGS;
+        PR_SetError(SEC_ERROR_BAD_DATA, 0);
+        return SECFailure;
       }
       alreadyFoundMatch = true;
       memmove(foundFirstByte, to, toLen);
@@ -664,13 +671,13 @@ MaybeLogOutput(SECItem* result, const char* suffix)
 ///////////////////////////////////////////////////////////////////////////////
 // Key Pairs
 
-Result
+SECStatus
 GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
                 /*out*/ ScopedSECKEYPrivateKey& privateKey)
 {
   ScopedPtr<PK11SlotInfo, PK11_FreeSlot> slot(PK11_GetInternalSlot());
   if (!slot) {
-    return MapPRErrorCodeToResult(PR_GetError());
+    return SECFailure;
   }
 
   // Bug 1012786: PK11_GenerateKeyPair can fail if there is insufficient
@@ -687,22 +694,21 @@ GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
     if (privateKey) {
       publicKey = publicKeyTemp;
       assert(publicKey);
-      return Success;
+      return SECSuccess;
     }
 
     assert(!publicKeyTemp);
 
     if (PR_GetError() != SEC_ERROR_PKCS11_FUNCTION_FAILED) {
-      break;
+      return SECFailure;
     }
 
     PRTime now = PR_Now();
     if (PK11_RandomUpdate(&now, sizeof(PRTime)) != SECSuccess) {
-      break;
+      return SECFailure;
     }
   }
-
-  return MapPRErrorCodeToResult(PR_GetError());
+  return SECFailure;
 }
 
 
@@ -743,7 +749,7 @@ CreateEncodedCertificate(PLArenaPool* arena, long version,
   // privateKeyResult until after we're done with issuerPrivateKey.
   ScopedSECKEYPublicKey publicKey;
   ScopedSECKEYPrivateKey privateKeyTemp;
-  if (GenerateKeyPair(publicKey, privateKeyTemp) != Success) {
+  if (GenerateKeyPair(publicKey, privateKeyTemp) != SECSuccess) {
     return nullptr;
   }
 

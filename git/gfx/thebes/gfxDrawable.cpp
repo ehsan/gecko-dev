@@ -125,7 +125,7 @@ gfxPatternDrawable::~gfxPatternDrawable()
 
 class DrawingCallbackFromDrawable : public gfxDrawingCallback {
 public:
-    explicit DrawingCallbackFromDrawable(gfxDrawable* aDrawable)
+    DrawingCallbackFromDrawable(gfxDrawable* aDrawable)
      : mDrawable(aDrawable) {
         NS_ASSERTION(aDrawable, "aDrawable is null!");
     }

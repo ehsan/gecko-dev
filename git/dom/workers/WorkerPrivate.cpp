@@ -3630,17 +3630,17 @@ WorkerPrivate::Constructor(JSContext* aCx,
 
   Maybe<LoadInfo> stackLoadInfo;
   if (!aLoadInfo) {
-    stackLoadInfo.emplace();
+    stackLoadInfo.construct();
 
     nsresult rv = GetLoadInfo(aCx, nullptr, parent, aScriptURL,
-                              aIsChromeWorker, stackLoadInfo.ptr());
+                              aIsChromeWorker, stackLoadInfo.addr());
     if (NS_FAILED(rv)) {
       scriptloader::ReportLoadError(aCx, aScriptURL, rv, !parent);
       aRv.Throw(rv);
       return nullptr;
     }
 
-    aLoadInfo = stackLoadInfo.ptr();
+    aLoadInfo = stackLoadInfo.addr();
   }
 
   // NB: This has to be done before creating the WorkerPrivate, because it will
@@ -3939,9 +3939,9 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
   for (;;) {
     // Workers lazily create a global object in CompileScriptRunnable. We need
     // to enter the global's compartment as soon as it has been created.
-    if (!workerCompartment) {
+    if (workerCompartment.empty()) {
       if (JSObject* global = js::DefaultObjectForContextOrNull(aCx)) {
-        workerCompartment.emplace(aCx, global);
+        workerCompartment.construct(aCx, global);
       }
     }
 
@@ -4028,7 +4028,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
     if (NS_HasPendingEvents(mThread)) {
       // Now *might* be a good time to GC. Let the JS engine make the decision.
-      if (workerCompartment) {
+      if (!workerCompartment.empty()) {
         JS_MaybeGC(aCx);
       }
     }

@@ -41,7 +41,7 @@ class GLReadTexImageHelper MOZ_FINAL
 
 public:
 
-    explicit GLReadTexImageHelper(GLContext* gl);
+    GLReadTexImageHelper(GLContext* gl);
     ~GLReadTexImageHelper();
 
     /**

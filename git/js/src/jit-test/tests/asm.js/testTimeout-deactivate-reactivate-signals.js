@@ -2,8 +2,6 @@
 
 load(libdir + "asm.js");
 
-setCachingEnabled(true);
-
 var jco = getJitCompilerOptions();
 if (jco["signals.enable"] === 0 || !isCachingEnabled() || !isAsmJSCompilationAvailable())
     quit(6);

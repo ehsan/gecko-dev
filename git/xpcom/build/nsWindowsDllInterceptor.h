@@ -67,7 +67,7 @@ namespace internal {
 
 class WindowsDllNopSpacePatcher
 {
-  typedef unsigned char* byteptr_t;
+  typedef unsigned char *byteptr_t;
   HMODULE mModule;
 
   // Dumb array for remembering the addresses of functions we've patched.
@@ -109,45 +109,43 @@ public:
     }
   }
 
-  void Init(const char* aModuleName)
+  void Init(const char *modulename)
   {
-    mModule = LoadLibraryExA(aModuleName, nullptr, 0);
+    mModule = LoadLibraryExA(modulename, nullptr, 0);
     if (!mModule) {
-      //printf("LoadLibraryEx for '%s' failed\n", aModuleName);
+      //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;
     }
   }
 
 #if defined(_M_IX86)
-  bool AddHook(const char* aName, intptr_t aHookDest, void** aOrigFunc)
+  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
   {
-    if (!mModule) {
+    if (!mModule)
       return false;
-    }
 
     if (mPatchedFnsLen == maxPatchedFns) {
       // printf ("No space for hook in mPatchedFns.\n");
       return false;
     }
 
-    byteptr_t fn = reinterpret_cast<byteptr_t>(GetProcAddress(mModule, aName));
+    byteptr_t fn = reinterpret_cast<byteptr_t>(GetProcAddress(mModule, pname));
     if (!fn) {
       //printf ("GetProcAddress failed\n");
       return false;
     }
-
+  
     // Ensure we can read and write starting at fn - 5 (for the long jmp we're
     // going to write) and ending at fn + 2 (for the short jmp up to the long
     // jmp).
     DWORD op;
-    if (!VirtualProtectEx(GetCurrentProcess(), fn - 5, 7,
-                          PAGE_EXECUTE_READWRITE, &op)) {
+    if (!VirtualProtectEx(GetCurrentProcess(), fn - 5, 7, PAGE_EXECUTE_READWRITE, &op)) {
       //printf ("VirtualProtectEx failed! %d\n", GetLastError());
       return false;
     }
 
-    bool rv = WriteHook(fn, aHookDest, aOrigFunc);
-
+    bool rv = WriteHook(fn, hookDest, origFunc);
+    
     // Re-protect, and we're done.
     VirtualProtectEx(GetCurrentProcess(), fn - 5, 7, op, &op);
 
@@ -159,18 +157,17 @@ public:
     return rv;
   }
 
-  bool WriteHook(byteptr_t aFn, intptr_t aHookDest, void** aOrigFunc)
+  bool WriteHook(byteptr_t fn, intptr_t hookDest, void **origFunc)
   {
-    // Check that the 5 bytes before aFn are NOP's or INT 3's,
-    // and that the 2 bytes after aFn are mov(edi, edi).
+    // Check that the 5 bytes before fn are NOP's or INT 3's,
+    // and that the 2 bytes after fn are mov(edi, edi).
     //
-    // It's safe to read aFn[-5] because we set it to PAGE_EXECUTE_READWRITE
+    // It's safe to read fn[-5] because we set it to PAGE_EXECUTE_READWRITE
     // before calling WriteHook.
 
     for (int i = -5; i <= -1; i++) {
-      if (aFn[i] != 0x90 && aFn[i] != 0xcc) { // nop or int 3
+      if (fn[i] != 0x90 && fn[i] != 0xcc) // nop or int 3
         return false;
-      }
     }
 
     // mov edi, edi.  Yes, there are two ways to encode the same thing:
@@ -180,20 +177,20 @@ public:
     //
     // where "r" is register and "r/m" is register or memory.  Windows seems to
     // use 8bff; I include 89ff out of paranoia.
-    if ((aFn[0] != 0x8b && aFn[0] != 0x89) || aFn[1] != 0xff) {
+    if ((fn[0] != 0x8b && fn[0] != 0x89) || fn[1] != 0xff) {
       return false;
     }
 
     // Write a long jump into the space above the function.
-    aFn[-5] = 0xe9; // jmp
-    *((intptr_t*)(aFn - 4)) = aHookDest - (uintptr_t)(aFn); // target displacement
+    fn[-5] = 0xe9; // jmp
+    *((intptr_t*)(fn - 4)) = hookDest - (uintptr_t)(fn); // target displacement
 
-    // Set aOrigFunc here, because after this point, aHookDest might be called,
-    // and aHookDest might use the aOrigFunc pointer.
-    *aOrigFunc = aFn + 2;
+    // Set origFunc here, because after this point, hookDest might be called,
+    // and hookDest might use the origFunc pointer.
+    *origFunc = fn + 2;
 
     // Short jump up into our long jump.
-    *((uint16_t*)(aFn)) = 0xf9eb; // jmp $-5
+    *((uint16_t*)(fn)) = 0xf9eb; // jmp $-5
 
     // I think this routine is safe without this, but it can't hurt.
     FlushInstructionCache(GetCurrentProcess(),
@@ -203,7 +200,7 @@ public:
     return true;
   }
 #else
-  bool AddHook(const char* aName, intptr_t aHookDest, void** aOrigFunc)
+  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
   {
     // Not implemented except on x86-32.
     return false;
@@ -213,9 +210,9 @@ public:
 
 class WindowsDllDetourPatcher
 {
-  typedef unsigned char* byteptr_t;
+  typedef unsigned char *byteptr_t;
 public:
-  WindowsDllDetourPatcher()
+  WindowsDllDetourPatcher() 
     : mModule(0), mHookPage(0), mMaxHooks(0), mCurHooks(0)
   {
   }
@@ -232,22 +229,20 @@ public:
 #else
 #error "Unknown processor type"
 #endif
-      byteptr_t origBytes = *((byteptr_t*)p);
+      byteptr_t origBytes = *((byteptr_t *)p);
       // ensure we can modify the original code
       DWORD op;
-      if (!VirtualProtectEx(GetCurrentProcess(), origBytes, nBytes,
-                            PAGE_EXECUTE_READWRITE, &op)) {
+      if (!VirtualProtectEx(GetCurrentProcess(), origBytes, nBytes, PAGE_EXECUTE_READWRITE, &op)) {
         //printf ("VirtualProtectEx failed! %d\n", GetLastError());
         continue;
       }
       // Remove the hook by making the original function jump directly
       // in the trampoline.
-      intptr_t dest = (intptr_t)(p + sizeof(void*));
+      intptr_t dest = (intptr_t)(p + sizeof(void *));
 #if defined(_M_IX86)
-      *((intptr_t*)(origBytes + 1)) =
-        dest - (intptr_t)(origBytes + 5); // target displacement
+      *((intptr_t*)(origBytes+1)) = dest - (intptr_t)(origBytes+5); // target displacement
 #elif defined(_M_X64)
-      *((intptr_t*)(origBytes + 2)) = dest;
+      *((intptr_t*)(origBytes+2)) = dest;
 #else
 #error "Unknown processor type"
 #endif
@@ -256,64 +251,63 @@ public:
     }
   }
 
-  void Init(const char* aModuleName, int aNumHooks = 0)
+  void Init(const char *modulename, int nhooks = 0)
   {
-    if (mModule) {
+    if (mModule)
       return;
-    }
 
-    mModule = LoadLibraryExA(aModuleName, nullptr, 0);
+    mModule = LoadLibraryExA(modulename, nullptr, 0);
     if (!mModule) {
-      //printf("LoadLibraryEx for '%s' failed\n", aModuleName);
+      //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;
     }
 
     int hooksPerPage = 4096 / kHookSize;
-    if (aNumHooks == 0) {
-      aNumHooks = hooksPerPage;
-    }
+    if (nhooks == 0)
+      nhooks = hooksPerPage;
 
-    mMaxHooks = aNumHooks + (hooksPerPage % aNumHooks);
+    mMaxHooks = nhooks + (hooksPerPage % nhooks);
 
-    mHookPage = (byteptr_t)VirtualAllocEx(GetCurrentProcess(), nullptr,
-                                          mMaxHooks * kHookSize,
-                                          MEM_COMMIT | MEM_RESERVE,
-                                          PAGE_EXECUTE_READWRITE);
+    mHookPage = (byteptr_t) VirtualAllocEx(GetCurrentProcess(), nullptr,
+             mMaxHooks * kHookSize,
+             MEM_COMMIT | MEM_RESERVE,
+             PAGE_EXECUTE_READWRITE);
+
     if (!mHookPage) {
       mModule = 0;
       return;
     }
   }
 
-  bool Initialized() { return !!mModule; }
+  bool Initialized()
+  {
+    return !!mModule;
+  }
 
   void LockHooks()
   {
-    if (!mModule) {
+    if (!mModule)
       return;
-    }
 
     DWORD op;
-    VirtualProtectEx(GetCurrentProcess(), mHookPage, mMaxHooks * kHookSize,
-                     PAGE_EXECUTE_READ, &op);
+    VirtualProtectEx(GetCurrentProcess(), mHookPage, mMaxHooks * kHookSize, PAGE_EXECUTE_READ, &op);
 
     mModule = 0;
   }
 
-  bool AddHook(const char* aName, intptr_t aHookDest, void** aOrigFunc)
+  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
   {
-    if (!mModule) {
+    if (!mModule)
       return false;
-    }
 
-    void* pAddr = (void*)GetProcAddress(mModule, aName);
+    void *pAddr = (void *) GetProcAddress(mModule, pname);
     if (!pAddr) {
       //printf ("GetProcAddress failed\n");
       return false;
     }
 
-    CreateTrampoline(pAddr, aHookDest, aOrigFunc);
-    if (!*aOrigFunc) {
+    CreateTrampoline(pAddr, hookDest, origFunc);
+    if (!*origFunc) {
       //printf ("CreateTrampoline failed\n");
       return false;
     }
@@ -330,16 +324,17 @@ protected:
   int mMaxHooks;
   int mCurHooks;
 
-  void CreateTrampoline(void* aOrigFunction, intptr_t aDest, void** aOutTramp)
+  void CreateTrampoline(void *origFunction,
+                        intptr_t dest,
+                        void **outTramp)
   {
-    *aOutTramp = nullptr;
+    *outTramp = nullptr;
 
     byteptr_t tramp = FindTrampolineSpace();
-    if (!tramp) {
+    if (!tramp)
       return;
-    }
 
-    byteptr_t origBytes = (byteptr_t)aOrigFunction;
+    byteptr_t origBytes = (byteptr_t) origFunction;
 
     int nBytes = 0;
     int pJmp32 = -1;
@@ -353,10 +348,11 @@ protected:
       // need to rewrite the displacement argument.
       if (origBytes[nBytes] >= 0x88 && origBytes[nBytes] <= 0x8B) {
         // various MOVs
-        unsigned char b = origBytes[nBytes + 1];
+        unsigned char b = origBytes[nBytes+1];
         if (((b & 0xc0) == 0xc0) ||
             (((b & 0xc0) == 0x00) &&
-             ((b & 0x07) != 0x04) && ((b & 0x07) != 0x05))) {
+             ((b & 0x07) != 0x04) && ((b & 0x07) != 0x05)))
+        {
           // REG=r, R/M=r or REG=r, R/M=[r]
           nBytes += 2;
         } else if ((b & 0xc0) == 0x40) {
@@ -376,7 +372,7 @@ protected:
         nBytes += 5;
       } else if (origBytes[nBytes] == 0x83) {
         // ADD|ODR|ADC|SBB|AND|SUB|XOR|CMP r/m, imm8
-        unsigned char b = origBytes[nBytes + 1];
+        unsigned char b = origBytes[nBytes+1];
         if ((b & 0xc0) == 0xc0) {
           // ADD|ODR|ADC|SBB|AND|SUB|XOR|CMP r, imm8
           nBytes += 3;
@@ -407,14 +403,13 @@ protected:
 
     while (nBytes < 13) {
 
-      // if found JMP 32bit offset, next bytes must be NOP
+      // if found JMP 32bit offset, next bytes must be NOP 
       if (pJmp32 >= 0) {
-        if (origBytes[nBytes++] != 0x90) {
+        if (origBytes[nBytes++] != 0x90)
           return;
-        }
 
         continue;
-      }
+      } 
       if (origBytes[nBytes] == 0x0f) {
         nBytes++;
         if (origBytes[nBytes] == 0x1f) {
@@ -459,32 +454,30 @@ protected:
         // REX.W | REX.WR
         nBytes++;
 
-        if (origBytes[nBytes] == 0x81 &&
-            (origBytes[nBytes + 1] & 0xf8) == 0xe8) {
+        if (origBytes[nBytes] == 0x81 && (origBytes[nBytes+1] & 0xf8) == 0xe8) {
           // sub r, dword
           nBytes += 6;
         } else if (origBytes[nBytes] == 0x83 &&
-                   (origBytes[nBytes + 1] & 0xf8) == 0xe8) {
+                  (origBytes[nBytes+1] & 0xf8) == 0xe8) {
           // sub r, byte
           nBytes += 3;
         } else if (origBytes[nBytes] == 0x83 &&
-                   (origBytes[nBytes + 1] & 0xf8) == 0x60) {
+                  (origBytes[nBytes+1] & 0xf8) == 0x60) {
           // and [r+d], imm8
           nBytes += 5;
         } else if ((origBytes[nBytes] & 0xfd) == 0x89) {
           // MOV r/m64, r64 | MOV r64, r/m64
-          if ((origBytes[nBytes + 1] & 0xc0) == 0x40) {
-            if ((origBytes[nBytes + 1] & 0x7) == 0x04) {
+          if ((origBytes[nBytes+1] & 0xc0) == 0x40) {
+            if ((origBytes[nBytes+1] & 0x7) == 0x04) {
               // R/M=[SIB+disp8], REG=r64
               nBytes += 4;
             } else {
               // R/M=[r64+disp8], REG=r64
               nBytes += 3;
             }
-          } else if (((origBytes[nBytes + 1] & 0xc0) == 0xc0) ||
-                     (((origBytes[nBytes + 1] & 0xc0) == 0x00) &&
-                      ((origBytes[nBytes + 1] & 0x07) != 0x04) &&
-                      ((origBytes[nBytes + 1] & 0x07) != 0x05))) {
+          } else if (((origBytes[nBytes+1] & 0xc0) == 0xc0) ||
+                     (((origBytes[nBytes+1] & 0xc0) == 0x00) &&
+                      ((origBytes[nBytes+1] & 0x07) != 0x04) && ((origBytes[nBytes+1] & 0x07) != 0x05))) {
             // REG=r64, R/M=r64 or REG=r64, R/M=[r64]
             nBytes += 2;
           } else {
@@ -503,13 +496,11 @@ protected:
         } else if (origBytes[nBytes] == 0xff) {
           pJmp32 = nBytes - 1;
           // JMP /4
-          if ((origBytes[nBytes + 1] & 0xc0) == 0x0 &&
-              (origBytes[nBytes + 1] & 0x07) == 0x5) {
+          if ((origBytes[nBytes+1] & 0xc0) == 0x0 &&
+              (origBytes[nBytes+1] & 0x07) == 0x5) {
             // [rip+disp32]
             // convert JMP 32bit offset to JMP 64bit direct
-            directJmpAddr =
-              (byteptr_t)*((uint64_t*)(origBytes + nBytes + 6 +
-                                       (*((int32_t*)(origBytes + nBytes + 2)))));
+            directJmpAddr = (byteptr_t)*((uint64_t*)(origBytes + nBytes + 6 + (*((int32_t*)(origBytes + nBytes + 2)))));
             nBytes += 6;
           } else {
             // not support yet!
@@ -560,10 +551,10 @@ protected:
 
     // We keep the address of the original function in the first bytes of
     // the trampoline buffer
-    *((void**)tramp) = aOrigFunction;
-    tramp += sizeof(void*);
+    *((void **)tramp) = origFunction;
+    tramp += sizeof(void *);
 
-    memcpy(tramp, aOrigFunction, nBytes);
+    memcpy(tramp, origFunction, nBytes);
 
     // OrigFunction+N, the target of the trampoline
     byteptr_t trampDest = origBytes + nBytes;
@@ -573,44 +564,42 @@ protected:
       // Jump directly to the original target of the jump instead of jumping to the
       // original function.
       // Adjust jump target displacement to jump location in the trampoline.
-      *((intptr_t*)(tramp + pJmp32 + 1)) += origBytes - tramp;
+      *((intptr_t*)(tramp+pJmp32+1)) += origBytes - tramp;
     } else {
       tramp[nBytes] = 0xE9; // jmp
-      *((intptr_t*)(tramp + nBytes + 1)) =
-        (intptr_t)trampDest - (intptr_t)(tramp + nBytes + 5); // target displacement
+      *((intptr_t*)(tramp+nBytes+1)) = (intptr_t)trampDest - (intptr_t)(tramp+nBytes+5); // target displacement
     }
 #elif defined(_M_X64)
-    // If JMP32 opcode found, we don't insert to trampoline jump
+    // If JMP32 opcode found, we don't insert to trampoline jump 
     if (pJmp32 >= 0) {
       // mov r11, address
       tramp[pJmp32]   = 0x49;
-      tramp[pJmp32 + 1] = 0xbb;
-      *((intptr_t*)(tramp + pJmp32 + 2)) = (intptr_t)directJmpAddr;
+      tramp[pJmp32+1] = 0xbb;
+      *((intptr_t*)(tramp+pJmp32+2)) = (intptr_t)directJmpAddr;
 
       // jmp r11
-      tramp[pJmp32 + 10] = 0x41;
-      tramp[pJmp32 + 11] = 0xff;
-      tramp[pJmp32 + 12] = 0xe3;
+      tramp[pJmp32+10] = 0x41;
+      tramp[pJmp32+11] = 0xff;
+      tramp[pJmp32+12] = 0xe3;
     } else {
       // mov r11, address
       tramp[nBytes] = 0x49;
-      tramp[nBytes + 1] = 0xbb;
-      *((intptr_t*)(tramp + nBytes + 2)) = (intptr_t)trampDest;
+      tramp[nBytes+1] = 0xbb;
+      *((intptr_t*)(tramp+nBytes+2)) = (intptr_t)trampDest;
 
       // jmp r11
-      tramp[nBytes + 10] = 0x41;
-      tramp[nBytes + 11] = 0xff;
-      tramp[nBytes + 12] = 0xe3;
+      tramp[nBytes+10] = 0x41;
+      tramp[nBytes+11] = 0xff;
+      tramp[nBytes+12] = 0xe3;
     }
 #endif
 
     // The trampoline is now valid.
-    *aOutTramp = tramp;
+    *outTramp = tramp;
 
     // ensure we can modify the original code
     DWORD op;
-    if (!VirtualProtectEx(GetCurrentProcess(), aOrigFunction, nBytes,
-                          PAGE_EXECUTE_READWRITE, &op)) {
+    if (!VirtualProtectEx(GetCurrentProcess(), origFunction, nBytes, PAGE_EXECUTE_READWRITE, &op)) {
       //printf ("VirtualProtectEx failed! %d\n", GetLastError());
       return;
     }
@@ -618,14 +607,13 @@ protected:
 #if defined(_M_IX86)
     // now modify the original bytes
     origBytes[0] = 0xE9; // jmp
-    *((intptr_t*)(origBytes + 1)) =
-      aDest - (intptr_t)(origBytes + 5); // target displacement
+    *((intptr_t*)(origBytes+1)) = dest - (intptr_t)(origBytes+5); // target displacement
 #elif defined(_M_X64)
     // mov r11, address
     origBytes[0] = 0x49;
     origBytes[1] = 0xbb;
 
-    *((intptr_t*)(origBytes + 2)) = aDest;
+    *((intptr_t*)(origBytes+2)) = dest;
 
     // jmp r11
     origBytes[10] = 0x41;
@@ -634,16 +622,15 @@ protected:
 #endif
 
     // restore protection; if this fails we can't really do anything about it
-    VirtualProtectEx(GetCurrentProcess(), aOrigFunction, nBytes, op, &op);
+    VirtualProtectEx(GetCurrentProcess(), origFunction, nBytes, op, &op);
   }
 
   byteptr_t FindTrampolineSpace()
   {
-    if (mCurHooks >= mMaxHooks) {
+    if (mCurHooks >= mMaxHooks)
       return 0;
-    }
 
-    byteptr_t p = mHookPage + mCurHooks * kHookSize;
+    byteptr_t p = mHookPage + mCurHooks*kHookSize;
 
     mCurHooks++;
 
@@ -658,7 +645,7 @@ class WindowsDllInterceptor
   internal::WindowsDllNopSpacePatcher mNopSpacePatcher;
   internal::WindowsDllDetourPatcher mDetourPatcher;
 
-  const char* mModuleName;
+  const char *mModuleName;
   int mNHooks;
 
 public:
@@ -667,15 +654,15 @@ public:
     , mNHooks(0)
   {}
 
-  void Init(const char* aModuleName, int aNumHooks = 0)
+  void Init(const char *moduleName, int nhooks = 0)
   {
     if (mModuleName) {
       return;
     }
 
-    mModuleName = aModuleName;
-    mNHooks = aNumHooks;
-    mNopSpacePatcher.Init(aModuleName);
+    mModuleName = moduleName;
+    mNHooks = nhooks;
+    mNopSpacePatcher.Init(moduleName);
 
     // Lazily initialize mDetourPatcher, since it allocates memory and we might
     // not need it.
@@ -683,12 +670,11 @@ public:
 
   void LockHooks()
   {
-    if (mDetourPatcher.Initialized()) {
+    if (mDetourPatcher.Initialized())
       mDetourPatcher.LockHooks();
-    }
   }
 
-  bool AddHook(const char* aName, intptr_t aHookDest, void** aOrigFunc)
+  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
   {
     // Use a nop space patch if possible, otherwise fall back to a detour.
     // This should be the preferred method for adding hooks.
@@ -697,14 +683,14 @@ public:
       return false;
     }
 
-    if (mNopSpacePatcher.AddHook(aName, aHookDest, aOrigFunc)) {
+    if (mNopSpacePatcher.AddHook(pname, hookDest, origFunc)) {
       return true;
     }
 
-    return AddDetour(aName, aHookDest, aOrigFunc);
+    return AddDetour(pname, hookDest, origFunc);
   }
 
-  bool AddDetour(const char* aName, intptr_t aHookDest, void** aOrigFunc)
+  bool AddDetour(const char *pname, intptr_t hookDest, void **origFunc)
   {
     // Generally, code should not call this method directly. Use AddHook unless
     // there is a specific need to avoid nop space patches.
@@ -717,7 +703,7 @@ public:
       mDetourPatcher.Init(mModuleName, mNHooks);
     }
 
-    return mDetourPatcher.AddHook(aName, aHookDest, aOrigFunc);
+    return mDetourPatcher.AddHook(pname, hookDest, origFunc);
   }
 };
 

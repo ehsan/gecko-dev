@@ -76,7 +76,7 @@ struct ForkJoinNurseryChunk
 class ForkJoinGCShared
 {
   public:
-    explicit ForkJoinGCShared(ForkJoinShared *shared) : shared_(shared) {}
+    ForkJoinGCShared(ForkJoinShared *shared) : shared_(shared) {}
 
     JSRuntime *runtime();
     JS::Zone *zone();

@@ -395,13 +395,13 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // reflow the legend only if needed
   Maybe<nsHTMLReflowState> legendReflowState;
   if (legend) {
-    legendReflowState.emplace(aPresContext, aReflowState, legend,
+    legendReflowState.construct(aPresContext, aReflowState, legend,
                                 legendAvailSize);
   }
   if (reflowLegend) {
     nsHTMLReflowMetrics legendDesiredSize(aReflowState);
 
-    ReflowChild(legend, aPresContext, legendDesiredSize, *legendReflowState,
+    ReflowChild(legend, aPresContext, legendDesiredSize, legendReflowState.ref(),
                 0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
 #ifdef NOISY_REFLOW
     printf("  returned (%d, %d)\n",
@@ -430,7 +430,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     }
 
     FinishReflowChild(legend, aPresContext, legendDesiredSize,
-                      legendReflowState.ptr(), 0, 0, NS_FRAME_NO_MOVE_FRAME);    
+                      &legendReflowState.ref(), 0, 0, NS_FRAME_NO_MOVE_FRAME);    
   } else if (!legend) {
     mLegendRect.SetEmpty();
     mLegendSpace = 0;
@@ -529,7 +529,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     nsRect actualLegendRect(mLegendRect);
     actualLegendRect.Deflate(legendMargin);
     nsPoint actualLegendPos(actualLegendRect.TopLeft());
-    legendReflowState->ApplyRelativePositioning(&actualLegendPos);
+    legendReflowState.ref().ApplyRelativePositioning(&actualLegendPos);
     legend->SetPosition(actualLegendPos);
     nsContainerFrame::PositionFrameView(legend);
     nsContainerFrame::PositionChildViews(legend);

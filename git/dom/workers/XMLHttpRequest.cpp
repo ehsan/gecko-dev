@@ -1849,8 +1849,8 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
   nsCOMPtr<nsIEventTarget> syncLoopTarget;
   bool isSyncXHR = mProxy->mIsSyncXHR;
   if (isSyncXHR) {
-    autoSyncLoop.emplace(mWorkerPrivate);
-    syncLoopTarget = autoSyncLoop->EventTarget();
+    autoSyncLoop.construct(mWorkerPrivate);
+    syncLoopTarget = autoSyncLoop.ref().EventTarget();
   }
 
   mProxy->mOuterChannelId++;
@@ -1867,13 +1867,13 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
 
   if (!isSyncXHR)  {
     autoUnpin.Clear();
-    MOZ_ASSERT(!autoSyncLoop);
+    MOZ_ASSERT(autoSyncLoop.empty());
     return;
   }
 
   autoUnpin.Clear();
 
-  if (!autoSyncLoop->Run()) {
+  if (!autoSyncLoop.ref().Run()) {
     aRv.Throw(NS_ERROR_FAILURE);
   }
 }

@@ -53,14 +53,8 @@ class ReadOnlyDict(dict):
     def __init__(self, *args, **kwargs):
         dict.__init__(self, *args, **kwargs)
 
-    def __delitem__(self, key):
-        raise Exception('Object does not support deletion.')
-
-    def __setitem__(self, key, value):
+    def __setitem__(self, name, value):
         raise Exception('Object does not support assignment.')
-
-    def update(self, *args, **kwargs):
-        raise Exception('Object does not support update.')
 
 
 class undefined_default(object):

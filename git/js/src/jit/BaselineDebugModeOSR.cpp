@@ -133,7 +133,7 @@ class UniqueScriptOSREntryIter
     size_t index_;
 
   public:
-    explicit UniqueScriptOSREntryIter(const DebugModeOSREntryVector &entries)
+    UniqueScriptOSREntryIter(const DebugModeOSREntryVector &entries)
       : entries_(entries),
         index_(0)
     { }

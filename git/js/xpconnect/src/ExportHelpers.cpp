@@ -185,7 +185,7 @@ StackScopedClone(JSContext *cx, StackScopedCloneOptions &options,
         // (unless it's a primitive)
         Maybe<JSAutoCompartment> ac;
         if (val.isObject()) {
-            ac.emplace(cx, &val.toObject());
+            ac.construct(cx, &val.toObject());
         } else if (val.isString() && !JS_WrapValue(cx, val)) {
             return false;
         }
