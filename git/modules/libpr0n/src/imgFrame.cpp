@@ -424,7 +424,8 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
 
   PRBool doTile = !imageRect.Contains(sourceRect);
   if (doPadding || doPartialDecode) {
-    gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height);
+    gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height) +
+      gfxPoint(aPadding.left, aPadding.top);
 
     if (!doTile && !mSinglePixel) {
       // Not tiling, and we have a surface, so we can account for
@@ -718,7 +719,7 @@ nsresult imgFrame::ImageUpdated(const nsIntRect &aUpdateRect)
 
   // clamp to bounds, in case someone sends a bogus updateRect (I'm looking at
   // you, gif decoder)
-  nsIntRect boundsRect(mOffset, mSize);
+  nsIntRect boundsRect(0, 0, mSize.width, mSize.height);
   mDecoded.IntersectRect(mDecoded, boundsRect);
 
 #ifdef XP_MACOSX
@@ -929,7 +930,7 @@ void imgFrame::SetBlendMethod(PRInt32 aBlendMethod)
 
 PRBool imgFrame::ImageComplete() const
 {
-  return mDecoded == nsIntRect(mOffset, mSize);
+  return mDecoded == nsIntRect(0, 0, mSize.width, mSize.height);
 }
 
 // A hint from the image decoders that this image has no alpha, even

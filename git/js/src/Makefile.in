@@ -365,7 +365,7 @@ check-valgrind::
 endif
 
 ifdef ENABLE_TRACEJIT
-ifndef WINCE
+ifndef CROSS_COMPILE
 check::
 	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
 	        --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)

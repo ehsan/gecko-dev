@@ -817,7 +817,7 @@ MAKE_JARS_FLAGS += -c $(topsrcdir)/$(relativesrcdir)/en-US
 endif
 endif
 
-ifdef WINCE
+ifdef CROSS_COMPILE
 RUN_TEST_PROGRAM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-run-test.py
 else
 ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))

@@ -8,8 +8,7 @@
 <body>
 <p id="display"></p>
 <div id="content" style="display: none">
-<svg id="svg" xmlns="http://www.w3.org/2000/svg"
-     onload="this.pauseAnimations()" />
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" />
 </div>
 <pre id="test">
 <script class="testbody" type="text/javascript">
@@ -25,8 +24,9 @@ var gSvg = document.getElementById("svg");
 SimpleTest.waitForExplicitFinish();
 
 function main() {
-  ok(gSvg.animationsPaused(), "should be paused by <svg> load handler");
-  is(gSvg.getCurrentTime(), 0, "should be paused at 0 in <svg> load handler");
+  // Pause our document, so that the setCurrentTime calls are the only
+  // thing affecting document time
+  gSvg.pauseAnimations();
 
   // Test that seeking takes effect immediately
   for (var i = 0; i < gTimes.length; i++) {
