@@ -86,16 +86,16 @@ ArgToRootedString(JSContext *cx, CallArgs &args, unsigned argno)
 /*
  * Forward declarations for URI encode/decode and helper routines
  */
-static bool
+static JSBool
 str_decodeURI(JSContext *cx, unsigned argc, Value *vp);
 
-static bool
+static JSBool
 str_decodeURI_Component(JSContext *cx, unsigned argc, Value *vp);
 
-static bool
+static JSBool
 str_encodeURI(JSContext *cx, unsigned argc, Value *vp);
 
-static bool
+static JSBool
 str_encodeURI_Component(JSContext *cx, unsigned argc, Value *vp);
 
 /*
@@ -104,7 +104,7 @@ str_encodeURI_Component(JSContext *cx, unsigned argc, Value *vp);
 
 
 /* ES5 B.2.1 */
-static bool
+static JSBool
 str_escape(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -230,7 +230,7 @@ Unhex2(const jschar *chars, jschar *result)
 }
 
 /* ES5 B.2.2 */
-static bool
+static JSBool
 str_unescape(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -332,7 +332,7 @@ str_unescape(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if JS_HAS_UNEVAL
-static bool
+static JSBool
 str_uneval(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -385,7 +385,7 @@ str_enumerate(JSContext *cx, HandleObject obj)
     return true;
 }
 
-static bool
+static JSBool
 str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp)
 {
@@ -473,7 +473,7 @@ IsString(const Value &v)
  * String.prototype.quote is generic (as are most string methods), unlike
  * toSource, toString, and valueOf.
  */
-static bool
+static JSBool
 str_quote(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -511,7 +511,7 @@ str_toSource_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 str_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -531,7 +531,7 @@ str_toString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 js_str_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -616,7 +616,7 @@ DoSubstr(JSContext *cx, JSString *str, size_t begin, size_t len)
     return js_NewDependentString(cx, str, begin, len);
 }
 
-static bool
+static JSBool
 str_substring(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -712,13 +712,13 @@ ToLowerCaseHelper(JSContext *cx, CallReceiver call)
     return true;
 }
 
-static bool
+static JSBool
 str_toLowerCase(JSContext *cx, unsigned argc, Value *vp)
 {
     return ToLowerCaseHelper(cx, CallArgsFromVp(argc, vp));
 }
 
-static bool
+static JSBool
 str_toLocaleLowerCase(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -779,13 +779,13 @@ ToUpperCaseHelper(JSContext *cx, CallReceiver call)
     return true;
 }
 
-static bool
+static JSBool
 str_toUpperCase(JSContext *cx, unsigned argc, Value *vp)
 {
     return ToUpperCaseHelper(cx, CallArgsFromVp(argc, vp));
 }
 
-static bool
+static JSBool
 str_toLocaleUpperCase(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -811,7 +811,7 @@ str_toLocaleUpperCase(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if !ENABLE_INTL_API
-static bool
+static JSBool
 str_localeCompare(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -841,7 +841,7 @@ str_localeCompare(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-bool
+JSBool
 js_str_charAt(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -878,7 +878,7 @@ js_str_charAt(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js_str_charCodeAt(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1197,7 +1197,7 @@ RopeMatch(JSContext *cx, JSString *textstr, const jschar *pat, uint32_t patlen, 
 }
 
 /* ES6 20121026 draft 15.5.4.24. */
-static bool
+static JSBool
 str_contains(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1248,7 +1248,7 @@ str_contains(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES6 20120927 draft 15.5.4.7. */
-static bool
+static JSBool
 str_indexOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1298,7 +1298,7 @@ str_indexOf(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 str_lastIndexOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1376,7 +1376,7 @@ str_lastIndexOf(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES6 20120927 draft 15.5.4.22. */
-static bool
+static JSBool
 str_startsWith(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1430,7 +1430,7 @@ str_startsWith(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES6 20120708 draft 15.5.4.23. */
-static bool
+static JSBool
 str_endsWith(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1521,19 +1521,19 @@ js_TrimString(JSContext *cx, Value *vp, JSBool trimLeft, JSBool trimRight)
     return true;
 }
 
-static bool
+static JSBool
 str_trim(JSContext *cx, unsigned argc, Value *vp)
 {
     return js_TrimString(cx, vp, JS_TRUE, JS_TRUE);
 }
 
-static bool
+static JSBool
 str_trimLeft(JSContext *cx, unsigned argc, Value *vp)
 {
     return js_TrimString(cx, vp, JS_TRUE, JS_FALSE);
 }
 
-static bool
+static JSBool
 str_trimRight(JSContext *cx, unsigned argc, Value *vp)
 {
     return js_TrimString(cx, vp, JS_FALSE, JS_TRUE);
@@ -1848,7 +1848,7 @@ BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, Ca
     return true;
 }
 
-bool
+JSBool
 js::str_match(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1880,7 +1880,7 @@ js::str_match(JSContext *cx, unsigned argc, Value *vp)
     return DoMatchLocal(cx, args, res, linearStr, g.regExp());
 }
 
-bool
+JSBool
 js::str_search(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -2738,7 +2738,7 @@ LambdaIsGetElem(JSContext *cx, JSObject &lambda, MutableHandleObject pobj)
     return true;
 }
 
-bool
+JSBool
 js::str_replace(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3033,7 +3033,7 @@ class SplitStringMatcher
 };
 
 /* ES5 15.5.4.14 */
-bool
+JSBool
 js::str_split(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3117,7 +3117,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 str_substr(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3168,7 +3168,7 @@ str_substr(JSContext *cx, unsigned argc, Value *vp)
 /*
  * Python-esque sequence operations.
  */
-static bool
+static JSBool
 str_concat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3201,7 +3201,7 @@ str_concat(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 str_slice(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3355,79 +3355,79 @@ tagify_value(JSContext *cx, CallArgs args, const char *begin, const char *end)
     return tagify(cx, begin, param, end, args);
 }
 
-static bool
+static JSBool
 str_bold(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "b", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_italics(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "i", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_fixed(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "tt", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_fontsize(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify_value(cx, CallArgsFromVp(argc, vp), "font size", "font");
 }
 
-static bool
+static JSBool
 str_fontcolor(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify_value(cx, CallArgsFromVp(argc, vp), "font color", "font");
 }
 
-static bool
+static JSBool
 str_link(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify_value(cx, CallArgsFromVp(argc, vp), "a href", "a");
 }
 
-static bool
+static JSBool
 str_anchor(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify_value(cx, CallArgsFromVp(argc, vp), "a name", "a");
 }
 
-static bool
+static JSBool
 str_strike(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "strike", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_small(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "small", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_big(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "big", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_blink(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "blink", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_sup(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "sup", NullPtr(), NULL, CallReceiverFromVp(vp));
 }
 
-static bool
+static JSBool
 str_sub(JSContext *cx, unsigned argc, Value *vp)
 {
     return tagify(cx, "sub", NullPtr(), NULL, CallReceiverFromVp(vp));
@@ -3497,7 +3497,7 @@ static const JSFunctionSpec string_methods[] = {
     JS_FS_END
 };
 
-bool
+JSBool
 js_String(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3523,7 +3523,7 @@ js_String(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::str_fromCharCode(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4326,7 +4326,7 @@ Decode(JSContext *cx, Handle<JSLinearString*> str, const bool *reservedSet, Muta
     return false;
 }
 
-static bool
+static JSBool
 str_decodeURI(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4337,7 +4337,7 @@ str_decodeURI(JSContext *cx, unsigned argc, Value *vp)
     return Decode(cx, str, js_isUriReservedPlusPound, args.rval());
 }
 
-static bool
+static JSBool
 str_decodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4348,7 +4348,7 @@ str_decodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
     return Decode(cx, str, NULL, args.rval());
 }
 
-static bool
+static JSBool
 str_encodeURI(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4359,7 +4359,7 @@ str_encodeURI(JSContext *cx, unsigned argc, Value *vp)
     return Encode(cx, str, js_isUriUnescaped, js_isUriReservedPlusPound, args.rval());
 }
 
-static bool
+static JSBool
 str_encodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

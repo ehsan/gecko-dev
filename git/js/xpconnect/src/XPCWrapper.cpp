@@ -25,7 +25,7 @@ ThrowException(nsresult ex, JSContext *cx)
   return false;
 }
 
-static bool
+static JSBool
 UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (argc != 1) {
@@ -47,7 +47,7 @@ UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
   return true;
 }
 
-static bool
+static JSBool
 XrayWrapperConstructor(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (argc == 0) {

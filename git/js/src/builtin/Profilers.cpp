@@ -216,72 +216,72 @@ struct RequiredStringArg {
     }
 };
 
-static bool
+static JSBool
 StartProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
         args.rval().setBoolean(JS_StartProfiling(NULL));
-        return true;
+        return JS_TRUE;
     }
 
     RequiredStringArg profileName(cx, args, 0, "startProfiling");
     if (!profileName)
-        return false;
+        return JS_FALSE;
     args.rval().setBoolean(JS_StartProfiling(profileName.mBytes));
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 StopProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
         args.rval().setBoolean(JS_StopProfiling(NULL));
-        return true;
+        return JS_TRUE;
     }
 
     RequiredStringArg profileName(cx, args, 0, "stopProfiling");
     if (!profileName)
-        return false;
+        return JS_FALSE;
     args.rval().setBoolean(JS_StopProfiling(profileName.mBytes));
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 PauseProfilers(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
         args.rval().setBoolean(JS_PauseProfilers(NULL));
-        return true;
+        return JS_TRUE;
     }
 
     RequiredStringArg profileName(cx, args, 0, "pauseProfiling");
     if (!profileName)
-        return false;
+        return JS_FALSE;
     args.rval().setBoolean(JS_PauseProfilers(profileName.mBytes));
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 ResumeProfilers(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
         args.rval().setBoolean(JS_ResumeProfilers(NULL));
-        return true;
+        return JS_TRUE;
     }
 
     RequiredStringArg profileName(cx, args, 0, "resumeProfiling");
     if (!profileName)
-        return false;
+        return JS_FALSE;
     args.rval().setBoolean(JS_ResumeProfilers(profileName.mBytes));
-    return true;
+    return JS_TRUE;
 }
 
 /* Usage: DumpProfile([filename[, profileName]]) */
-static bool
+static JSBool
 DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
 {
     bool ret;
@@ -291,14 +291,14 @@ DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
     } else {
         RequiredStringArg filename(cx, args, 0, "dumpProfile");
         if (!filename)
-            return false;
+            return JS_FALSE;
 
         if (args.length() == 1) {
             ret = JS_DumpProfile(filename.mBytes, NULL);
         } else {
             RequiredStringArg profileName(cx, args, 1, "dumpProfile");
             if (!profileName)
-                return false;
+                return JS_FALSE;
 
             ret = JS_DumpProfile(filename.mBytes, profileName.mBytes);
         }
@@ -310,7 +310,7 @@ DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
 
 #if defined(MOZ_SHARK) || defined(MOZ_INSTRUMENTS)
 
-static bool
+static JSBool
 IgnoreAndReturnTrue(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -321,37 +321,37 @@ IgnoreAndReturnTrue(JSContext *cx, unsigned argc, jsval *vp)
 #endif
 
 #ifdef MOZ_CALLGRIND
-static bool
+static JSBool
 StartCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     args.rval().setBoolean(js_StartCallgrind());
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 StopCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     args.rval().setBoolean(js_StopCallgrind());
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 DumpCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
         args.rval().setBoolean(js_DumpCallgrind(NULL));
-        return true;
+        return JS_TRUE;
     }
 
     RequiredStringArg outFile(cx, args, 0, "dumpCallgrind");
     if (!outFile)
-        return false;
+        return JS_FALSE;
 
     args.rval().setBoolean(js_DumpCallgrind(outFile.mBytes));
-    return true;
+    return JS_TRUE;
 }
 #endif
 

@@ -256,7 +256,7 @@ js::GetDecimalInteger(ExclusiveContext *cx, const jschar *start, const jschar *e
     return ComputeAccurateDecimalInteger(cx, start, s, dp);
 }
 
-static bool
+static JSBool
 num_isNaN(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -274,7 +274,7 @@ num_isNaN(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 num_isFinite(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -292,7 +292,7 @@ num_isFinite(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 num_parseFloat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -321,7 +321,7 @@ num_parseFloat(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.1.2.2. */
-bool
+JSBool
 js::num_parseInt(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -454,7 +454,7 @@ Class NumberObject::class_ = {
     JS_ConvertStub
 };
 
-static bool
+static JSBool
 Number(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -515,7 +515,7 @@ num_toSource_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+static JSBool
 num_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -648,7 +648,7 @@ num_toString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 js_num_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -782,7 +782,7 @@ num_toLocaleString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -798,7 +798,7 @@ num_valueOf_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 js_num_valueOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -861,7 +861,7 @@ num_toFixed_impl(JSContext *cx, CallArgs args)
     return DToStrResult(cx, Extract(args.thisv()), DTOSTR_FIXED, precision, args);
 }
 
-bool
+JSBool
 num_toFixed(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -887,7 +887,7 @@ num_toExponential_impl(JSContext *cx, CallArgs args)
     return DToStrResult(cx, Extract(args.thisv()), mode, precision + 1, args);
 }
 
-bool
+JSBool
 num_toExponential(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -925,7 +925,7 @@ num_toPrecision_impl(JSContext *cx, CallArgs args)
     return DToStrResult(cx, d, mode, precision, args);
 }
 
-bool
+JSBool
 num_toPrecision(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -951,7 +951,7 @@ static const JSFunctionSpec number_methods[] = {
 
 
 // ES6 draft ES6 15.7.3.10
-static bool
+static JSBool
 Number_isNaN(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -964,7 +964,7 @@ Number_isNaN(JSContext *cx, unsigned argc, Value *vp)
 }
 
 // ES6 draft ES6 15.7.3.11
-static bool
+static JSBool
 Number_isFinite(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -978,7 +978,7 @@ Number_isFinite(JSContext *cx, unsigned argc, Value *vp)
 }
 
 // ES6 draft ES6 15.7.3.12
-static bool
+static JSBool
 Number_isInteger(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -994,7 +994,7 @@ Number_isInteger(JSContext *cx, unsigned argc, Value *vp)
 }
 
 // ES6 drafult ES6 15.7.3.13
-static bool
+static JSBool
 Number_toInteger(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

@@ -488,6 +488,10 @@ gfxMacFontFamily::FindStyleVariations()
     int faceCount = [fontfaces count];
     int faceIndex;
 
+    // Bug 420981 - under 10.5, UltraLight and Light have the same weight value
+    bool needToCheckLightFaces =
+        (gfxPlatformMac::GetPlatform()->OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX);
+
     for (faceIndex = 0; faceIndex < faceCount; faceIndex++) {
         NSArray *face = [fontfaces objectAtIndex:faceIndex];
         NSString *psname = [face objectAtIndex:INDEX_FONT_POSTSCRIPT_NAME];
@@ -496,7 +500,7 @@ gfxMacFontFamily::FindStyleVariations()
         NSString *facename = [face objectAtIndex:INDEX_FONT_FACE_NAME];
         bool isStandardFace = false;
 
-        if (appKitWeight == kAppleExtraLightWeight) {
+        if (needToCheckLightFaces && appKitWeight == kAppleExtraLightWeight) {
             // if the facename contains UltraLight, set the weight to the ultralight weight value
             NSRange range = [facename rangeOfString:@"ultralight" options:NSCaseInsensitiveSearch];
             if (range.location != NSNotFound) {

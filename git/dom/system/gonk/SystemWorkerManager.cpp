@@ -88,7 +88,7 @@ private:
   unsigned long mClientId;
 };
 
-bool
+JSBool
 PostToRIL(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
@@ -160,7 +160,7 @@ ConnectWorkerToRIL::RunTask(JSContext *aCx)
 
 #ifdef MOZ_WIDGET_GONK
 
-bool
+JSBool
 DoNetdCommand(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");

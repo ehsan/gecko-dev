@@ -3194,7 +3194,7 @@ Class js::OuterWindowProxyObject::class_ = {
 
 JS_FRIEND_DATA(Class* const) js::OuterWindowProxyClassPtr = &OuterWindowProxyObject::class_;
 
-static bool
+static JSBool
 proxy_Call(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3203,7 +3203,7 @@ proxy_Call(JSContext *cx, unsigned argc, Value *vp)
     return Proxy::call(cx, proxy, args);
 }
 
-static bool
+static JSBool
 proxy_Construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3373,7 +3373,7 @@ ProxyObject::renew(JSContext *cx, BaseProxyHandler *handler, Value priv)
     setSlot(EXTRA_SLOT + 1, UndefinedValue());
 }
 
-static bool
+static JSBool
 proxy(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3402,7 +3402,7 @@ proxy(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 proxy_create(JSContext *cx, unsigned argc, Value *vp)
 {
     if (argc < 1) {
@@ -3433,7 +3433,7 @@ proxy_create(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 proxy_createFunction(JSContext *cx, unsigned argc, Value *vp)
 {
     if (argc < 2) {

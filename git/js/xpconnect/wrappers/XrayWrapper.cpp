@@ -1227,7 +1227,7 @@ HasNativeProperty(JSContext *cx, HandleObject wrapper, HandleId id, bool *hasPro
 
 } // namespace XrayUtils
 
-static bool
+static JSBool
 XrayToString(JSContext *cx, unsigned argc, jsval *vp)
 {
     RootedObject  wrapper(cx, JS_THIS_OBJECT(cx, vp));

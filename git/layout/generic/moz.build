@@ -12,7 +12,6 @@ EXPORTS += [
     'ScrollbarActivity.h',
     'Selection.h',
     'nsCanvasFrame.h',
-    'nsDirection.h',
     'nsFrameIdList.h',
     'nsFrameList.h',
     'nsFrameSelection.h',

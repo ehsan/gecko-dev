@@ -894,8 +894,7 @@ TabChild::GetTitle(PRUnichar** aTitle)
 NS_IMETHODIMP
 TabChild::SetTitle(const PRUnichar* aTitle)
 {
-  // JavaScript sends the "DOMTitleChanged" event to the parent
-  // via the message manager.
+  // FIXME/bug 617804: should the platform support this?
   return NS_OK;
 }
 

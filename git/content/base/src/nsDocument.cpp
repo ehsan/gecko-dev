@@ -5155,7 +5155,7 @@ nsIDocument::CreateAttributeNS(const nsAString& aNamespaceURI,
   return attribute.forget();
 }
 
-static bool
+static JSBool
 CustomElementConstructor(JSContext *aCx, unsigned aArgc, JS::Value* aVp)
 {
   JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);

@@ -30,7 +30,7 @@ WebGLContext::BindVertexArray(WebGLVertexArray *array)
         return;
     }
 
-    InvalidateBufferFetching();
+    InvalidateCachedMinInUseAttribArrayLength();
 
     MakeContextCurrent();
 

@@ -13,13 +13,11 @@
 #include "nsISelectionController.h"
 #include "nsISelectionPrivate.h"
 #include "nsRange.h"
-#include "nsThreadUtils.h"
 
 struct CachedOffsetForFrame;
 class nsAutoScrollTimer;
 class nsIContentIterator;
 class nsIFrame;
-class nsFrameSelection;
 struct SelectionDetails;
 
 struct RangeData

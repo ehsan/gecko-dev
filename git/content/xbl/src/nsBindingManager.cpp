@@ -1208,7 +1208,7 @@ nsBindingManager::FindNestedInsertionPoint(nsIContent* aContainer,
                   "Wrong container");
 
   nsIContent* parent = aContainer;
-  if (aContainer->IsActiveChildrenElement()) {
+  if (aContainer->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
     if (static_cast<XBLChildrenElement*>(aContainer)->
           HasInsertedChildren()) {
       return nullptr;
@@ -1244,7 +1244,7 @@ nsBindingManager::FindNestedSingleInsertionPoint(nsIContent* aContainer,
   *aMulti = false;
 
   nsIContent* parent = aContainer;
-  if (aContainer->IsActiveChildrenElement()) {
+  if (aContainer->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
     if (static_cast<XBLChildrenElement*>(aContainer)->
           HasInsertedChildren()) {
       return nullptr;

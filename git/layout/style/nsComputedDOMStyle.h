@@ -180,7 +180,6 @@ private:
   mozilla::dom::CSSValue* DoGetMaxWidth();
   mozilla::dom::CSSValue* DoGetMinHeight();
   mozilla::dom::CSSValue* DoGetMinWidth();
-  mozilla::dom::CSSValue* DoGetMixBlendMode();
   mozilla::dom::CSSValue* DoGetLeft();
   mozilla::dom::CSSValue* DoGetTop();
   mozilla::dom::CSSValue* DoGetRight();

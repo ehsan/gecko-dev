@@ -462,8 +462,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   if (!maybeFixedNode)
     maybeFixedNode = aNode;
 
-  if ((mFlags & SkipInvisibleContent) &&
-      !(mFlags & OutputNonTextContentAsPlaceholder)) {
+  if (mFlags & SkipInvisibleContent & ~OutputNonTextContentAsPlaceholder) {
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
       nsIFrame* frame = static_cast<nsIContent*>(aNode)->GetPrimaryFrame();
       if (frame) {

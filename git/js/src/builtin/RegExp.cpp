@@ -318,14 +318,14 @@ regexp_compile_impl(JSContext *cx, CallArgs args)
     return CompileRegExpObject(cx, builder, args);
 }
 
-static bool
+JSBool
 regexp_compile(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsRegExp, regexp_compile_impl>(cx, args);
 }
 
-static bool
+static JSBool
 regexp_construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -362,7 +362,7 @@ regexp_toString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+JSBool
 regexp_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -644,14 +644,14 @@ regexp_exec_impl(JSContext *cx, CallArgs args)
     return regexp_exec_impl(cx, args, regexp, string, UpdateRegExpStatics);
 }
 
-bool
+JSBool
 js::regexp_exec(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod(cx, IsRegExp, regexp_exec_impl, args);
 }
 
-bool
+JSBool
 js::regexp_exec_no_statics(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -687,14 +687,14 @@ js::regexp_test_raw(JSContext *cx, HandleObject regexp, HandleString input, bool
     return (status != RegExpRunStatus_Error);
 }
 
-bool
+JSBool
 js::regexp_test(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod(cx, IsRegExp, regexp_test_impl, args);
 }
 
-bool
+JSBool
 js::regexp_test_no_statics(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

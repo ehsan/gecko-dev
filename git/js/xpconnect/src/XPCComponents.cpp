@@ -2800,7 +2800,7 @@ NS_IMPL_ISUPPORTS3(SandboxPrivate,
                    nsIGlobalObject,
                    nsISupportsWeakReference)
 
-static bool
+static JSBool
 SandboxDump(JSContext *cx, unsigned argc, jsval *vp)
 {
     JSString *str;
@@ -2838,7 +2838,7 @@ SandboxDump(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 SandboxDebug(JSContext *cx, unsigned argc, jsval *vp)
 {
 #ifdef DEBUG
@@ -2848,7 +2848,7 @@ SandboxDebug(JSContext *cx, unsigned argc, jsval *vp)
 #endif
 }
 
-static bool
+static JSBool
 SandboxImport(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -2905,7 +2905,7 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 CreateXMLHttpRequest(JSContext *cx, unsigned argc, jsval *vp)
 {
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
@@ -4225,7 +4225,7 @@ nsXPCComponents_Utils::CreateDateIn(const Value &vobj, int64_t msec, JSContext *
     return NS_OK;
 }
 
-bool
+JSBool
 FunctionWrapper(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4235,7 +4235,7 @@ FunctionWrapper(JSContext *cx, unsigned argc, Value *vp)
 
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj) {
-        return false;
+        return JS_FALSE;
     }
     return JS_CallFunctionValue(cx, obj, v, args.length(), args.array(), vp);
 }

@@ -15,7 +15,7 @@ extern const JSFunctionSpec object_methods[];
 extern const JSFunctionSpec object_static_methods[];
 
 /* Object constructor native. Exposed only so the JIT can know its address. */
-extern bool
+extern JSBool
 obj_construct(JSContext *cx, unsigned argc, js::Value *vp);
 
 } /* namespace js */

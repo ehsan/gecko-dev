@@ -8,7 +8,7 @@
 
 int count = 0;
 
-static bool
+static JSBool
 IterNext(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (count++ == 100)
@@ -52,7 +52,7 @@ js::Class HasCustomIterClass = {
     }
 };
 
-bool
+JSBool
 IterClassConstructor(JSContext *cx, unsigned argc, jsval *vp)
 {
     JSObject *obj = JS_NewObjectForConstructor(cx, Jsvalify(&HasCustomIterClass), vp);

@@ -478,9 +478,9 @@ namespace CData {
   bool IsCDataProto(JSObject* obj);
 
   // Attached by JSAPI as the function 'ctypes.cast'
-  bool Cast(JSContext* cx, unsigned argc, jsval* vp);
+  JSBool Cast(JSContext* cx, unsigned argc, jsval* vp);
   // Attached by JSAPI as the function 'ctypes.getRuntime'
-  bool GetRuntime(JSContext* cx, unsigned argc, jsval* vp);
+  JSBool GetRuntime(JSContext* cx, unsigned argc, jsval* vp);
 }
 
 namespace Int64 {

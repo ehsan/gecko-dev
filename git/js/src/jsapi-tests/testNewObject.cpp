@@ -12,7 +12,7 @@
 const size_t N = 1000;
 static jsval argv[N];
 
-static bool
+static JSBool
 constructHook(JSContext *cx, unsigned argc, jsval *vp)
 {
     // Check that arguments were passed properly from JS_New.

@@ -117,7 +117,7 @@ static JSClass self_hosting_global_class = {
     JS_ConvertStub,   NULL
 };
 
-bool
+JSBool
 js::intrinsic_ToObject(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -129,7 +129,7 @@ js::intrinsic_ToObject(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 intrinsic_ToInteger(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -140,7 +140,7 @@ intrinsic_ToInteger(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intrinsic_IsCallable(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -150,7 +150,7 @@ js::intrinsic_IsCallable(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -185,7 +185,7 @@ js::intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp)
  * Handles an assertion failure in self-hosted code just like an assertion
  * failure in C++ code. Information about the failure can be provided in args[0].
  */
-static bool
+static JSBool
 intrinsic_AssertionFailed(JSContext *cx, unsigned argc, Value *vp)
 {
 #ifdef DEBUG
@@ -207,7 +207,7 @@ intrinsic_AssertionFailed(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
-static bool
+static JSBool
 intrinsic_MakeConstructible(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -231,7 +231,7 @@ intrinsic_MakeConstructible(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 intrinsic_MakeWrappable(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -251,7 +251,7 @@ intrinsic_MakeWrappable(JSContext *cx, unsigned argc, Value *vp)
  * The user must supply the argument number of the value in question; it
  * _cannot_ be automatically determined.
  */
-static bool
+static JSBool
 intrinsic_DecompileArg(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -283,7 +283,7 @@ intrinsic_DecompileArg(JSContext *cx, unsigned argc, Value *vp)
  * - |inline: true| will hint that |fun| be inlined regardless of
  *   JIT heuristics.
  */
-static bool
+static JSBool
 intrinsic_SetScriptHints(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -318,7 +318,7 @@ intrinsic_SetScriptHints(JSContext *cx, unsigned argc, Value *vp)
 /*
  * Dump(val): Dumps a value for debugging, even in parallel mode.
  */
-bool
+JSBool
 intrinsic_Dump(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -334,7 +334,7 @@ intrinsic_Dump(ThreadSafeContext *cx, unsigned argc, Value *vp)
 const JSJitInfo intrinsic_Dump_jitInfo =
     JS_JITINFO_NATIVE_PARALLEL(JSParallelNativeThreadSafeWrapper<intrinsic_Dump>);
 
-bool
+JSBool
 intrinsic_ParallelSpew(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -361,7 +361,7 @@ const JSJitInfo intrinsic_ParallelSpew_jitInfo =
  *
  * See ForkJoin.cpp for details and ParallelArray.js for examples.
  */
-static bool
+static JSBool
 intrinsic_ForkJoin(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -372,7 +372,7 @@ intrinsic_ForkJoin(JSContext *cx, unsigned argc, Value *vp)
  * ForkJoinSlices(): Returns the number of parallel slices that will
  * be created by ForkJoin().
  */
-static bool
+static JSBool
 intrinsic_ForkJoinSlices(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -386,7 +386,7 @@ intrinsic_ForkJoinSlices(JSContext *cx, unsigned argc, Value *vp)
  * passed to |init|. The new instance will be passed as the |this|
  * argument.
  */
-bool
+JSBool
 js::intrinsic_NewParallelArray(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -405,7 +405,7 @@ js::intrinsic_NewParallelArray(JSContext *cx, unsigned argc, Value *vp)
  * NewDenseArray(length): Allocates and returns a new dense array with
  * the given length where all values are initialized to holes.
  */
-bool
+JSBool
 js::intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -456,7 +456,7 @@ js::intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp)
  * If |arr| is a typed array, the index must be an int32 less than the
  * length of |arr|.
  */
-bool
+JSBool
 js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -495,7 +495,7 @@ js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intrinsic_UnsafeSetReservedSlot(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -508,7 +508,7 @@ js::intrinsic_UnsafeSetReservedSlot(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intrinsic_UnsafeGetReservedSlot(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -520,7 +520,7 @@ js::intrinsic_UnsafeGetReservedSlot(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 intrinsic_NewClassPrototype(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -535,7 +535,7 @@ intrinsic_NewClassPrototype(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intrinsic_NewObjectWithClassPrototype(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -551,7 +551,7 @@ js::intrinsic_NewObjectWithClassPrototype(JSContext *cx, unsigned argc, Value *v
     return true;
 }
 
-bool
+JSBool
 js::intrinsic_HaveSameClass(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -576,7 +576,7 @@ js::intrinsic_HaveSameClass(JSContext *cx, unsigned argc, Value *vp)
  * disable them entirely.  Instead, we simply disable the assertions
  * that state that no bailouts etc should occur.
  */
-static bool
+static JSBool
 intrinsic_ParallelTestsShouldPass(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -588,7 +588,7 @@ intrinsic_ParallelTestsShouldPass(JSContext *cx, unsigned argc, Value *vp)
  * ShouldForceSequential(): Returns true if parallel ops should take
  * the sequential fallback path.
  */
-bool
+JSBool
 js::intrinsic_ShouldForceSequential(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -605,7 +605,7 @@ js::intrinsic_ShouldForceSequential(JSContext *cx, unsigned argc, Value *vp)
  * Returns the default locale as a well-formed, but not necessarily canonicalized,
  * BCP-47 language tag.
  */
-static bool
+static JSBool
 intrinsic_RuntimeDefaultLocale(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

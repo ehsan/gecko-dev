@@ -238,8 +238,6 @@ extern UnwMode sUnwindMode;       /* what mode? */
 extern int     sUnwindInterval;   /* in milliseconds */
 extern int     sUnwindStackScan;  /* max # of dubious frames allowed */
 
-extern int     sProfileEntries;   /* how many entries do we store? */
-
 
 // ----------------------------------------------------------------------------
 // Sampler

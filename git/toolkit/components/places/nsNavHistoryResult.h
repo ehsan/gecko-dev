@@ -18,7 +18,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/storage.h"
 #include "Helpers.h"
-#include "mozilla/TimeStamp.h"
 
 class nsNavHistory;
 class nsNavHistoryQuery;
@@ -173,16 +172,8 @@ public:
                                bool aExpand);
 
   void InvalidateTree();
-
+  
   bool mBatchInProgress;
-  int32_t mRelatedNotificationsCount;
-  TimeStamp mLastNotificationTimeStamp;
-  nsCOMPtr<nsITimer> mEndBatchTimer;
-
-  void MaybeBeginBatch();
-  static void MaybeEndBatchCallback(nsITimer* aTimer, void* aClosure);
-  nsresult BeginBatch();
-  nsresult EndBatch();
 
   nsMaybeWeakPtrArray<nsINavHistoryResultObserver> mObservers;
   bool mSuppressNotifications;
@@ -680,6 +671,8 @@ public:
 
   nsCOMPtr<nsIURI> mRemovingURI;
   nsresult NotifyIfTagsChanged(nsIURI* aURI);
+
+  uint32_t mBatchChanges;
 
   // Tracks transition type filters shared by all mQueries.
   nsTArray<uint32_t> mTransitions;

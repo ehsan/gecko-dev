@@ -19,7 +19,6 @@ CPP_SOURCES += [
 ]
 
 IPDL_SOURCES += [
-    'IndexedDBParams.ipdlh',
     'PIndexedDB.ipdl',
     'PIndexedDBCursor.ipdl',
     'PIndexedDBDatabase.ipdl',
