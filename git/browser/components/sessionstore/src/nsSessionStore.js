@@ -57,6 +57,7 @@ const Cu = Components.utils;
 const STATE_STOPPED = 0;
 const STATE_RUNNING = 1;
 const STATE_QUITTING = -1;
+const STATE_DISABLED = -2;
 
 const STATE_STOPPED_STR = "stopped";
 const STATE_RUNNING_STR = "running";
@@ -158,6 +159,9 @@ SessionStoreService.prototype = {
    * Initialize the component
    */
   init: function sss_init(aWindow) {
+    if (this._loadState == STATE_DISABLED)
+      return;
+
     if (!aWindow || this._loadState == STATE_RUNNING) {
       // make sure that all browser windows which try to initialize
       // SessionStore are really tracked by it
@@ -172,6 +176,15 @@ SessionStoreService.prototype = {
 
     var observerService = Cc["@mozilla.org/observer-service;1"].
                           getService(Ci.nsIObserverService);
+
+    // if the service is disabled, do not init 
+    if (!this._prefBranch.getBoolPref("sessionstore.enabled")) {
+      // Notify observers that the sessionstore has done everything it is going to.
+      observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
+      // Mark as disabled so we don't even try to initialise again.
+      this._loadState = STATE_DISABLED;
+      return;
+    }
 
     OBSERVING.forEach(function(aTopic) {
       observerService.addObserver(this, aTopic, true);
@@ -572,7 +585,7 @@ SessionStoreService.prototype = {
     delete tabState._tab;
     
     // store closed-tab data for undo
-    if (tabState.entries.length > 0) {
+    if (tabState.entries.length > 1 || tabState.entries[0].url != "about:blank") {
       this._windows[aWindow.__SSi]._closedTabs.unshift({
         state: tabState,
         title: aTab.getAttribute("label"),
@@ -688,7 +701,7 @@ SessionStoreService.prototype = {
 
   setTabState: function sss_setTabState(aTab, aState) {
     var tabState = this._safeEval("(" + aState + ")");
-    if (!tabState.entries) {
+    if (!tabState.entries || !tabState.entries.length) {
       Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
       return;
     }
@@ -857,7 +870,7 @@ SessionStoreService.prototype = {
    * @returns object
    */
   _collectTabData: function sss_collectTabData(aTab, aFullData) {
-    var tabData = { entries: [] };
+    var tabData = { entries: [], index: 0 };
     var browser = aTab.linkedBrowser;
     
     if (!browser || !browser.currentURI)
@@ -888,8 +901,7 @@ SessionStoreService.prototype = {
       if (!aFullData)
         browser.parentNode.__SS_data = tabData;
     }
-    else if (browser.currentURI.spec != "about:blank" ||
-             browser.contentDocument.body.hasChildNodes()) {
+    else {
       tabData.entries[0] = { url: browser.currentURI.spec };
       tabData.index = 1;
     }
@@ -1093,7 +1105,8 @@ SessionStoreService.prototype = {
     for (var i = 0; i < browsers.length; i++) {
       try {
         var tabData = this._windows[aWindow.__SSi].tabs[i];
-        if (browsers[i].parentNode.__SS_data && browsers[i].parentNode.__SS_data._tab)
+        if (tabData.entries.length == 0 ||
+            browsers[i].parentNode.__SS_data && browsers[i].parentNode.__SS_data._tab)
           continue; // ignore incompletely initialized tabs
         this._updateTextAndScrollDataForTab(aWindow, browsers[i], tabData);
       }
@@ -1407,9 +1420,11 @@ SessionStoreService.prototype = {
     }
     // don't restore a single blank tab when we've had an external
     // URL passed in for loading at startup (cf. bug 357419)
-    else if (root._firstTabs && !aOverwriteTabs && winData.tabs.length == 1 &&
-             (!winData.tabs[0].entries || winData.tabs[0].entries.length == 0)) {
-      winData.tabs = [];
+    else if (root._firstTabs && !aOverwriteTabs && winData.tabs.length == 1) {
+      let tabEntries = winData.tabs[0].entries || [];
+      if (tabEntries.length == 0 ||
+          tabEntries.length == 1 && tabEntries[0].url == "about:blank")
+        winData.tabs = [];
     }
     
     var tabbrowser = aWindow.getBrowser();
@@ -1488,16 +1503,11 @@ SessionStoreService.prototype = {
     
     // mark the tabs as loading
     for (t = 0; t < aTabs.length; t++) {
+      if (!aTabs[t].entries || !aTabs[t].entries[0])
+        continue; // there won't be anything to load
+      
       var tab = aTabs[t]._tab;
       var browser = tabbrowser.getBrowserForTab(tab);
-      
-      if (!aTabs[t].entries || aTabs[t].entries.length == 0) {
-        // make sure to blank out this tab's content
-        // (just purging the tab's history won't be enough)
-        browser.contentDocument.location = "about:blank";
-        continue;
-      }
-      
       browser.stop(); // in case about:blank isn't done yet
       
       tab.setAttribute("busy", "true");
@@ -1585,21 +1595,19 @@ SessionStoreService.prototype = {
     tab.dispatchEvent(event);
     
     var activeIndex = (tabData.index || tabData.entries.length) - 1;
-    if (activeIndex >= tabData.entries.length)
-      activeIndex = tabData.entries.length - 1;
-    if (activeIndex >= 0)
+    try {
       browser.webNavigation.gotoIndex(activeIndex);
-    
-    if (tabData.entries.length > 0) {
-      // restore those aspects of the currently active documents
-      // which are not preserved in the plain history entries
-      // (mainly scroll state and text data)
-      browser.__SS_restore_data = tabData.entries[activeIndex] || {};
-      browser.__SS_restore_text = tabData.text || "";
-      browser.__SS_restore_tab = tab;
-      browser.__SS_restore = this.restoreDocument_proxy;
-      browser.addEventListener("load", browser.__SS_restore, true);
     }
+    catch (ex) { } // ignore an invalid tabData.index
+    
+    // restore those aspects of the currently active documents
+    // which are not preserved in the plain history entries
+    // (mainly scroll state and text data)
+    browser.__SS_restore_data = tabData.entries[activeIndex] || {};
+    browser.__SS_restore_text = tabData.text || "";
+    browser.__SS_restore_tab = tab;
+    browser.__SS_restore = this.restoreDocument_proxy;
+    browser.addEventListener("load", browser.__SS_restore, true);
     
     aWindow.setTimeout(function(){ _this.restoreHistory(aWindow, aTabs, aIdMap); }, 0);
   },
@@ -1897,19 +1905,7 @@ SessionStoreService.prototype = {
     this._dirty = aUpdateAll;
     var oState = this._getCurrentState();
     oState.session = { state: ((this._loadState == STATE_RUNNING) ? STATE_RUNNING_STR : STATE_STOPPED_STR) };
-    
-    var stateString = Cc["@mozilla.org/supports-string;1"].
-                        createInstance(Ci.nsISupportsString);
-    stateString.data = oState.toSource();
-    
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-    observerService.notifyObservers(stateString, "sessionstore-state-write", "");
-    
-    // don't touch the file if an observer has deleted all state data
-    if (stateString.data)
-      this._writeFile(this._sessionFile, stateString.data);
-    
+    this._writeFile(this._sessionFile, oState.toSource());
     this._lastSaveTime = Date.now();
   },
 
@@ -2089,15 +2085,9 @@ SessionStoreService.prototype = {
       return;
     }
     try {
-      var currentURI = aWindow.getBrowser().currentURI.clone();
-      // if the current URI contains a username/password, remove it
-      try { 
-        currentURI.userPass = ""; 
-      } 
-      catch (ex) { } // ignore failures on about: URIs
-
+      var currentUrl = aWindow.getBrowser().currentURI.spec;
       var cr = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsICrashReporter);
-      cr.annotateCrashReport("URL", currentURI.spec);
+      cr.annotateCrashReport("URL", currentUrl);
     }
     catch (ex) {
       // don't make noise when crashreporter is built but not enabled

@@ -8346,7 +8346,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
           if (item == child)
             // Call ContentInserted with this index.
             ContentInserted(aContainer, child,
-                            iter.position(), mTempFrameTreeState);
+                            iter.index(), mTempFrameTreeState);
           LAYOUT_PHASE_TEMP_REENTER();
         }
       }
