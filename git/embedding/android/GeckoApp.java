@@ -70,6 +70,7 @@ abstract public class GeckoApp
     public static GeckoApp mAppContext;
     public static boolean mFullscreen = false;
     static Thread mLibLoadThread = null;
+    private static MemoryWatcher mMemoryWatcher = null;
 
     enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
@@ -200,16 +201,21 @@ abstract public class GeckoApp
                 GeckoAppShell.loadGeckoLibs(
                     getApplication().getPackageResourcePath());
             }});
-        File libxulFile = new File(getCacheDir(), "libxul.so");
-        if (!libxulFile.exists() || 
-            libxulFile.lastModified() < 
-            new File(getApplication().getPackageResourcePath()).lastModified())
+        File cacheFile = GeckoAppShell.getCacheDir();
+        File libxulFile = new File(cacheFile, "libxul.so");
+
+        if (GeckoAppShell.getFreeSpace() > GeckoAppShell.kFreeSpaceThreshold &&
+            (!libxulFile.exists() || 
+             new File(getApplication().getPackageResourcePath()).lastModified()
+             >= libxulFile.lastModified()))
             surfaceView.mSplashStatusMsg =
                 getResources().getString(R.string.splash_screen_installing);
         else
             surfaceView.mSplashStatusMsg =
                 getResources().getString(R.string.splash_screen_label);
-        mLibLoadThread.start();   
+        mLibLoadThread.start();
+
+        mMemoryWatcher = new MemoryWatcher(this);
     }
 
     @Override
@@ -269,6 +275,8 @@ abstract public class GeckoApp
 
         // onPause will be followed by either onResume or onStop.
         super.onPause();
+
+        mMemoryWatcher.StopMemoryWatcher();
     }
 
     @Override
@@ -285,6 +293,8 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.PreLaunch) ||
             checkLaunchState(LaunchState.Launching))
             onNewIntent(getIntent());
+
+        mMemoryWatcher.StartMemoryWatcher();
     }
 
     @Override
@@ -343,7 +353,9 @@ abstract public class GeckoApp
     @Override
     public void onLowMemory()
     {
-        Log.i("GeckoApp", "low memory");
+        // if you change this handler, please take a look at
+        // MemoryWatcher too.
+        Log.e("GeckoApp", "low memory");
         if (checkLaunchState(LaunchState.GeckoRunning))
             GeckoAppShell.onLowMemory();
         super.onLowMemory();

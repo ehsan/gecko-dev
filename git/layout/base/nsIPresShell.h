@@ -22,7 +22,7 @@
  * Contributor(s):
  *   Steve Clark <buster@netscape.com>
  *   Dan Rosen <dr@netscape.com>
- *   Mihai Șucan <mihai.sucan@gmail.com>
+ *   Mihai Sucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -143,6 +143,10 @@ typedef struct CapturingContentInfo {
  { 0x5e445910, 0xfbee, 0x11df, \
     { 0x8c, 0xff, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
 
+#define NS_IPRESSHELL_MOZILLA_2_0_BRANCH2_IID     \
+ { 0x5ff6fd00, 0x1ba9, 0x11e0, \
+    { 0xac, 0x64, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
+
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
 #define NS_PRESSHELL_SCROLL_BOTTOM   100
@@ -180,6 +184,19 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_MOZILLA_2_0_BRANCH,
                               NS_IPRESSHELL_MOZILLA_2_0_BRANCH_IID)
+
+class nsIPresShell_MOZILLA_2_0_BRANCH2 : public nsISupports {
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IPRESSHELL_MOZILLA_2_0_BRANCH2_IID)
+
+  /**
+   * Return true if the presshell expects layout flush.
+   */
+  virtual PRBool IsLayoutFlushObserver() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_MOZILLA_2_0_BRANCH2,
+                              NS_IPRESSHELL_MOZILLA_2_0_BRANCH2_IID)
 
 /**
  * Presentation shell interface. Presentation shells are the

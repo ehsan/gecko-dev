@@ -50,6 +50,7 @@
  * nsWindow - Native window management and event handling.
  */
 
+#include "nsAutoPtr.h"
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
 #include "nsIdleService.h"
@@ -505,10 +506,8 @@ protected:
   PRPackedBool          mIsTopWidgetWindow;
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
-  PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
-  PRPackedBool          mExitToNonClientArea;
   PRPackedBool          mTouchWindow;
   PRPackedBool          mDisplayPanFeedback;
   PRPackedBool          mHideChrome;
@@ -534,6 +533,7 @@ protected:
   static PRBool         sSwitchKeyboardLayout;
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
+  static PRBool         sIsInMouseCapture;
   static int            sTrimOnMinimize;
   static PRBool         sDefaultTrackPointHack;
   static const char*    sDefaultMainWindowClass;
@@ -659,7 +659,7 @@ protected:
     }
 
     PRBool mCancel;
-    nsCOMPtr<nsWindow> mWindow;
+    nsRefPtr<nsWindow> mWindow;
     const MSG &mMsg;
   };
 

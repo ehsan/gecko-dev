@@ -70,7 +70,7 @@ pref("extensions.blocklist.interval", 86400);
 // Controls what level the blocklist switches from warning about items to forcibly
 // blocking them.
 pref("extensions.blocklist.level", 2);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 pref("extensions.update.autoUpdateDefault", true);
@@ -244,8 +244,8 @@ pref("browser.aboutHomeSnippets.updateUrl", "http://snippets.mozilla.com/%STARTP
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
-pref("browser.warnOnQuit", true);
-pref("browser.warnOnRestart", true);
+pref("browser.warnOnQuit", false);
+pref("browser.warnOnRestart", false);
 pref("browser.fullscreen.autohide", true);
 pref("browser.fullscreen.animateUp", 1);
 
@@ -538,6 +538,9 @@ pref("alerts.totalOpenTime", 4000);
 
 pref("browser.xul.error_pages.enabled", true);
 pref("browser.xul.error_pages.expert_bad_cert", false);
+
+// Work Offline is best manually managed by the user.
+pref("network.manage-offline-status", false);
 
 // We want to make sure mail URLs are handled externally...
 pref("network.protocol-handler.external.mailto", true); // for mail
@@ -903,6 +906,8 @@ pref("browser.shell.checkDefaultBrowser", false);
 
 // disable bfcache for memory
 pref("browser.sessionhistory.max_total_viewers", 0);
+
+pref("browser.sessionhistory.optimize_eviction", false);
 
 // tweak default content sink prefs
 pref("content.sink.interactive_deflect_count", 10); /* default 0 */
