@@ -229,7 +229,6 @@ TabParent::TabParent(nsIContentParent* aManager,
   , mFrameElement(nullptr)
   , mIMESelectionAnchor(0)
   , mIMESelectionFocus(0)
-  , mWritingMode()
   , mIMEComposing(false)
   , mIMECompositionEnding(false)
   , mIMECompositionStart(0)
@@ -601,19 +600,7 @@ TabParent::Show(const nsIntSize& size)
           unused << SendPRenderFrameConstructor(renderFrame);
         }
     }
-
-    ShowInfo info(EmptyString(), false, false);
-    if (mFrameElement) {
-      nsAutoString name;
-      mFrameElement->GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-      bool allowFullscreen =
-        mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::allowfullscreen) ||
-        mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen);
-      bool isPrivate = mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::mozprivatebrowsing);
-      info = ShowInfo(name, allowFullscreen, isPrivate);
-    }
-
-    unused << SendShow(size, info, scrolling, textureFactoryIdentifier, layersId, renderFrame);
+    unused << SendShow(size, scrolling, textureFactoryIdentifier, layersId, renderFrame);
 }
 
 void
@@ -1396,7 +1383,6 @@ bool
 TabParent::RecvNotifyIMESelection(const uint32_t& aSeqno,
                                   const uint32_t& aAnchor,
                                   const uint32_t& aFocus,
-                                  const mozilla::WritingMode& aWritingMode,
                                   const bool& aCausedByComposition)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
@@ -1406,7 +1392,6 @@ TabParent::RecvNotifyIMESelection(const uint32_t& aSeqno,
   if (aSeqno == mIMESeqno) {
     mIMESelectionAnchor = aAnchor;
     mIMESelectionFocus = aFocus;
-    mWritingMode = aWritingMode;
     const nsIMEUpdatePreference updatePreference =
       widget->GetIMEUpdatePreference();
     if (updatePreference.WantSelectionChange() &&
@@ -1588,7 +1573,6 @@ TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
       }
       aEvent.mReply.mReversed = mIMESelectionFocus < mIMESelectionAnchor;
       aEvent.mReply.mHasSelection = true;
-      aEvent.mReply.mWritingMode = mWritingMode;
       aEvent.mSucceeded = true;
     }
     break;

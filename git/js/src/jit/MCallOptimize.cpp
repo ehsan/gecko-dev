@@ -260,18 +260,14 @@ IonBuilder::inlineNativeGetter(CallInfo &callInfo, JSFunction *target)
         Scalar::Type type;
 
         type = thisTypes->getTypedArrayType();
-        if (type != Scalar::MaxTypedArrayViewType &&
-            TypedArrayObject::isOriginalLengthGetter(native))
-        {
+        if (type != Scalar::TypeMax && TypedArrayObject::isOriginalLengthGetter(native)) {
             MInstruction *length = addTypedArrayLength(callInfo.thisArg());
             current->push(length);
             return InliningStatus_Inlined;
         }
 
         type = thisTypes->getSharedTypedArrayType();
-        if (type != Scalar::MaxTypedArrayViewType &&
-            SharedTypedArrayObject::isOriginalLengthGetter(type, native))
-        {
+        if (type != Scalar::TypeMax && SharedTypedArrayObject::isOriginalLengthGetter(type, native)) {
             MInstruction *length = addTypedArrayLength(callInfo.thisArg());
             current->push(length);
             return InliningStatus_Inlined;

@@ -502,8 +502,9 @@ LIRGeneratorARM::visitAsmJSLoadHeap(MAsmJSLoadHeap *ins)
 
     // For the ARM it is best to keep the 'ptr' in a register if a bounds check is needed.
     if (ptr->isConstant() && !ins->needsBoundsCheck()) {
+        int32_t ptrValue = ptr->toConstant()->value().toInt32();
         // A bounds check is only skipped for a positive index.
-        MOZ_ASSERT(ptr->toConstant()->value().toInt32() >= 0);
+        MOZ_ASSERT(ptrValue >= 0);
         ptrAlloc = LAllocation(ptr->toConstant()->vp());
     } else
         ptrAlloc = useRegisterAtStart(ptr);
@@ -651,7 +652,7 @@ LIRGeneratorARM::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArra
 bool
 LIRGeneratorARM::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 {
-    MOZ_ASSERT(ins->viewType() < Scalar::Float32);
+    MOZ_ASSERT(ins->viewType() < AsmJSHeapAccess::Float32);
 
     MDefinition *ptr = ins->ptr();
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
@@ -667,7 +668,7 @@ LIRGeneratorARM::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 bool
 LIRGeneratorARM::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins)
 {
-    MOZ_ASSERT(ins->viewType() < Scalar::Float32);
+    MOZ_ASSERT(ins->viewType() < AsmJSHeapAccess::Float32);
 
     MDefinition *ptr = ins->ptr();
     MOZ_ASSERT(ptr->type() == MIRType_Int32);

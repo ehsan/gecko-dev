@@ -253,7 +253,8 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     if (type == EnterJitBaseline) {
         // Baseline OSR will return here.
         masm.bind(returnLabel.src());
-        masm.addCodeLabel(returnLabel);
+        if (!masm.addCodeLabel(returnLabel))
+            return nullptr;
     }
 
     // Pop arguments and padding from stack.

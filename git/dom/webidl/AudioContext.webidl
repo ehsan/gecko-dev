@@ -42,8 +42,6 @@ interface AudioContext : EventTarget {
                                               optional unsigned long numberOfOutputChannels = 2);
 
     [NewObject]
-    StereoPannerNode createStereoPanner();
-    [NewObject]
     AnalyserNode createAnalyser();
     [NewObject, Throws]
     MediaElementAudioSourceNode createMediaElementSource(HTMLMediaElement mediaElement);

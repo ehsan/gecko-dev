@@ -13,18 +13,9 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 this.EXPORTED_SYMBOLS = ["SettingsDB", "SETTINGSDB_NAME", "SETTINGSSTORE_NAME"];
 
-let DEBUG = false;
-let VERBOSE = false;
-
-try {
-  DEBUG   =
-    Services.prefs.getBoolPref("dom.mozSettings.SettingsDB.debug.enabled");
-  VERBOSE =
-    Services.prefs.getBoolPref("dom.mozSettings.SettingsDB.verbose.enabled");
-} catch (ex) { }
-
+const DEBUG = false;
 function debug(s) {
-  dump("-*- SettingsDB: " + s + "\n");
+  if (DEBUG) dump("-*- SettingsDB: " + s + "\n");
 }
 
 const TYPED_ARRAY_THINGS = new Set([
@@ -57,13 +48,13 @@ SettingsDB.prototype = {
     let objectStore;
     if (aOldVersion == 0) {
       objectStore = aDb.createObjectStore(SETTINGSSTORE_NAME, { keyPath: "settingName" });
-      if (VERBOSE) debug("Created object stores");
+      if (DEBUG) debug("Created object stores");
     } else if (aOldVersion == 1) {
-      if (VERBOSE) debug("Get object store for upgrade and remove old index");
+      if (DEBUG) debug("Get object store for upgrade and remove old index");
       objectStore = aTransaction.objectStore(SETTINGSSTORE_NAME);
       objectStore.deleteIndex("settingValue");
     } else {
-      if (VERBOSE) debug("Get object store for upgrade");
+      if (DEBUG) debug("Get object store for upgrade");
       objectStore = aTransaction.objectStore(SETTINGSSTORE_NAME);
     }
 
@@ -103,7 +94,7 @@ SettingsDB.prototype = {
       if (cursor) {
         let value = cursor.value;
         if (value.settingName in settings) {
-          if (VERBOSE) debug("Upgrade " +settings[value.settingName]);
+          if (DEBUG) debug("Upgrade " +settings[value.settingName]);
           value.defaultValue = this.prepareValue(settings[value.settingName]);
           delete settings[value.settingName];
           if ("settingValue" in value) {
@@ -125,7 +116,7 @@ SettingsDB.prototype = {
       } else {
         for (let name in settings) {
           let value = this.prepareValue(settings[name]);
-          if (VERBOSE) debug("Set new:" + name +", " + value);
+          if (DEBUG) debug("Set new:" + name +", " + value);
           objectStore.add({ settingName: name, defaultValue: value, userValue: undefined });
         }
       }

@@ -50,8 +50,8 @@ class SharedTypedArrayObject : public NativeObject
 
     static bool is(HandleValue v);
 
-    static const Class classes[Scalar::MaxTypedArrayViewType];
-    static const Class protoClasses[Scalar::MaxTypedArrayViewType];
+    static const Class classes[Scalar::TypeMax];
+    static const Class protoClasses[Scalar::TypeMax];
 
     static SharedArrayBufferObject *bufferObject(JSContext *cx, Handle<SharedTypedArrayObject *> obj);
 
@@ -110,14 +110,14 @@ inline bool
 IsSharedTypedArrayClass(const Class *clasp)
 {
     return &SharedTypedArrayObject::classes[0] <= clasp &&
-           clasp < &SharedTypedArrayObject::classes[Scalar::MaxTypedArrayViewType];
+           clasp < &SharedTypedArrayObject::classes[Scalar::TypeMax];
 }
 
 inline bool
 IsSharedTypedArrayProtoClass(const Class *clasp)
 {
     return &SharedTypedArrayObject::protoClasses[0] <= clasp &&
-           clasp < &SharedTypedArrayObject::protoClasses[Scalar::MaxTypedArrayViewType];
+           clasp < &SharedTypedArrayObject::protoClasses[Scalar::TypeMax];
 }
 
 bool

@@ -226,8 +226,9 @@ LIRGeneratorX86::visitAsmJSLoadHeap(MAsmJSLoadHeap *ins)
 
     // For the x86 it is best to keep the 'ptr' in a register if a bounds check is needed.
     if (ptr->isConstant() && !ins->needsBoundsCheck()) {
+        int32_t ptrValue = ptr->toConstant()->value().toInt32();
         // A bounds check is only skipped for a positive index.
-        MOZ_ASSERT(ptr->toConstant()->value().toInt32() >= 0);
+        MOZ_ASSERT(ptrValue >= 0);
         ptrAlloc = LAllocation(ptr->toConstant()->vp());
     } else {
         ptrAlloc = useRegisterAtStart(ptr);
@@ -244,42 +245,41 @@ LIRGeneratorX86::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
 
     if (ptr->isConstant() && !ins->needsBoundsCheck()) {
-        MOZ_ASSERT(ptr->toConstant()->value().toInt32() >= 0);
+        int32_t ptrValue = ptr->toConstant()->value().toInt32();
+        MOZ_ASSERT(ptrValue >= 0);
         LAllocation ptrAlloc = LAllocation(ptr->toConstant()->vp());
         switch (ins->viewType()) {
-          case Scalar::Int8: case Scalar::Uint8:
+          case AsmJSHeapAccess::Int8: case AsmJSHeapAccess::Uint8:
             // See comment below.
             lir = new(alloc()) LAsmJSStoreHeap(ptrAlloc, useFixed(ins->value(), eax));
             break;
-          case Scalar::Int16: case Scalar::Uint16:
-          case Scalar::Int32: case Scalar::Uint32:
-          case Scalar::Float32: case Scalar::Float64:
-          case Scalar::Float32x4: case Scalar::Int32x4:
+          case AsmJSHeapAccess::Int16: case AsmJSHeapAccess::Uint16:
+          case AsmJSHeapAccess::Int32: case AsmJSHeapAccess::Uint32:
+          case AsmJSHeapAccess::Float32: case AsmJSHeapAccess::Float64:
+          case AsmJSHeapAccess::Float32x4: case AsmJSHeapAccess::Int32x4:
             // See comment below.
             lir = new(alloc()) LAsmJSStoreHeap(ptrAlloc, useRegisterAtStart(ins->value()));
             break;
-          case Scalar::Uint8Clamped:
-          case Scalar::MaxTypedArrayViewType:
+          case AsmJSHeapAccess::Uint8Clamped:
             MOZ_CRASH("unexpected array type");
         }
         return add(lir, ins);
     }
 
     switch (ins->viewType()) {
-      case Scalar::Int8: case Scalar::Uint8:
+      case AsmJSHeapAccess::Int8: case AsmJSHeapAccess::Uint8:
         // See comment for LIRGeneratorX86::useByteOpRegister.
         lir = new(alloc()) LAsmJSStoreHeap(useRegister(ins->ptr()), useFixed(ins->value(), eax));
         break;
-      case Scalar::Int16: case Scalar::Uint16:
-      case Scalar::Int32: case Scalar::Uint32:
-      case Scalar::Float32: case Scalar::Float64:
-      case Scalar::Float32x4: case Scalar::Int32x4:
+      case AsmJSHeapAccess::Int16: case AsmJSHeapAccess::Uint16:
+      case AsmJSHeapAccess::Int32: case AsmJSHeapAccess::Uint32:
+      case AsmJSHeapAccess::Float32: case AsmJSHeapAccess::Float64:
+      case AsmJSHeapAccess::Float32x4: case AsmJSHeapAccess::Int32x4:
         // For now, don't allow constant values. The immediate operand
         // affects instruction layout which affects patching.
         lir = new(alloc()) LAsmJSStoreHeap(useRegisterAtStart(ptr), useRegisterAtStart(ins->value()));
         break;
-      case Scalar::Uint8Clamped:
-      case Scalar::MaxTypedArrayViewType:
+      case AsmJSHeapAccess::Uint8Clamped:
         MOZ_CRASH("unexpected array type");
     }
 

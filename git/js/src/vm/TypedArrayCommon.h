@@ -735,9 +735,7 @@ class TypedArrayMethods
             return ElementSpecific<Float64ArrayType>::setFromTypedArray(cx, target, source, offset);
           case Scalar::Uint8Clamped:
             return ElementSpecific<Uint8ClampedArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Float32x4:
-          case Scalar::Int32x4:
-          case Scalar::MaxTypedArrayViewType:
+          case Scalar::TypeMax:
             break;
         }
 
@@ -769,9 +767,7 @@ class TypedArrayMethods
             return ElementSpecific<Float64ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
           case Scalar::Uint8Clamped:
             return ElementSpecific<Uint8ClampedArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Float32x4:
-          case Scalar::Int32x4:
-          case Scalar::MaxTypedArrayViewType:
+          case Scalar::TypeMax:
             break;
         }
 

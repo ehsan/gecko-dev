@@ -127,7 +127,8 @@ CodeGeneratorShared::generateOutOfLineCode()
         outOfLineCode_[i]->bind(&masm);
 
         oolIns = outOfLineCode_[i];
-        outOfLineCode_[i]->generate(this);
+        if (!outOfLineCode_[i]->generate(this))
+            return false;
         sps_.finishOOL();
     }
     sps_.setPushed(topScript);
@@ -136,20 +137,20 @@ CodeGeneratorShared::generateOutOfLineCode()
     return true;
 }
 
-void
+bool
 CodeGeneratorShared::addOutOfLineCode(OutOfLineCode *code, const MInstruction *mir)
 {
     MOZ_ASSERT(mir);
-    addOutOfLineCode(code, mir->trackedSite());
+    return addOutOfLineCode(code, mir->trackedSite());
 }
 
-void
+bool
 CodeGeneratorShared::addOutOfLineCode(OutOfLineCode *code, const BytecodeSite *site)
 {
     code->setFramePushed(masm.framePushed());
     code->setBytecodeSite(site);
     MOZ_ASSERT_IF(!gen->compilingAsmJS(), code->script()->containsPC(code->pc()));
-    masm.propagateOOM(outOfLineCode_.append(code));
+    return outOfLineCode_.append(code);
 }
 
 bool
@@ -278,7 +279,7 @@ ToStackIndex(LAllocation *a)
     return -int32_t(sizeof(JitFrameLayout) + a->toArgument()->index());
 }
 
-void
+bool
 CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
                                       uint32_t *allocIndex)
 {
@@ -342,7 +343,8 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
         } else {
             MConstant *constant = mir->toConstant();
             uint32_t index;
-            masm.propagateOOM(graph.addConstantToPool(constant->value(), &index));
+            if (!graph.addConstantToPool(constant->value(), &index))
+                return false;
             alloc = RValueAllocation::ConstantPool(index);
         }
         break;
@@ -357,7 +359,8 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
                              : (type == MIRType_MagicOptimizedOut
                                 ? JS_OPTIMIZED_OUT
                                 : JS_UNINITIALIZED_LEXICAL));
-        masm.propagateOOM(graph.addConstantToPool(v, &index));
+        if (!graph.addConstantToPool(v, &index))
+            return false;
         alloc = RValueAllocation::ConstantPool(index);
         break;
       }
@@ -390,13 +393,14 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
 
     snapshots_.add(alloc);
     *allocIndex += mir->isRecoveredOnBailout() ? 0 : 1;
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::encode(LRecoverInfo *recover)
 {
     if (recover->recoverOffset() != INVALID_RECOVER_OFFSET)
-        return;
+        return true;
 
     uint32_t numInstructions = recover->numInstructions();
     JitSpew(JitSpew_IonSnapshots, "Encoding LRecoverInfo %p (frameCount %u, instructions %u)",
@@ -408,22 +412,25 @@ CodeGeneratorShared::encode(LRecoverInfo *recover)
 
     RecoverOffset offset = recovers_.startRecover(numInstructions, resumeAfter);
 
-    for (MNode **it = recover->begin(), **end = recover->end(); it != end; ++it)
-        recovers_.writeInstruction(*it);
+    for (MNode **it = recover->begin(), **end = recover->end(); it != end; ++it) {
+        if (!recovers_.writeInstruction(*it))
+            return false;
+    }
 
     recovers_.endRecover();
     recover->setRecoverOffset(offset);
-    masm.propagateOOM(!recovers_.oom());
+    return !recovers_.oom();
 }
 
-void
+bool
 CodeGeneratorShared::encode(LSnapshot *snapshot)
 {
     if (snapshot->snapshotOffset() != INVALID_SNAPSHOT_OFFSET)
-        return;
+        return true;
 
     LRecoverInfo *recoverInfo = snapshot->recoverInfo();
-    encode(recoverInfo);
+    if (!encode(recoverInfo))
+        return false;
 
     RecoverOffset recoverOffset = recoverInfo->recoverOffset();
     MOZ_ASSERT(recoverOffset != INVALID_RECOVER_OFFSET);
@@ -456,14 +463,15 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
     uint32_t allocIndex = 0;
     for (LRecoverInfo::OperandIter it(recoverInfo); !it; ++it) {
         DebugOnly<uint32_t> allocWritten = snapshots_.allocWritten();
-        encodeAllocation(snapshot, *it, &allocIndex);
+        if (!encodeAllocation(snapshot, *it, &allocIndex))
+            return false;
         MOZ_ASSERT(allocWritten + 1 == snapshots_.allocWritten());
     }
 
     MOZ_ASSERT(allocIndex == snapshot->numSlots());
     snapshots_.endSnapshot();
     snapshot->setSnapshotOffset(offset);
-    masm.propagateOOM(!snapshots_.oom());
+    return !snapshots_.oom();
 }
 
 bool
@@ -718,18 +726,18 @@ CodeGeneratorShared::verifyCompactNativeToBytecodeMap(JitCode *code)
 #endif // DEBUG
 }
 
-void
+bool
 CodeGeneratorShared::markSafepoint(LInstruction *ins)
 {
-    markSafepointAt(masm.currentOffset(), ins);
+    return markSafepointAt(masm.currentOffset(), ins);
 }
 
-void
+bool
 CodeGeneratorShared::markSafepointAt(uint32_t offset, LInstruction *ins)
 {
     MOZ_ASSERT_IF(!safepointIndices_.empty(),
                   offset - safepointIndices_.back().displacement() >= sizeof(uint32_t));
-    masm.propagateOOM(safepointIndices_.append(SafepointIndex(offset, ins->safepoint())));
+    return safepointIndices_.append(SafepointIndex(offset, ins->safepoint()));
 }
 
 void
@@ -760,17 +768,17 @@ CodeGeneratorShared::ensureOsiSpace()
     lastOsiPointOffset_ = masm.currentOffset();
 }
 
-uint32_t
-CodeGeneratorShared::markOsiPoint(LOsiPoint *ins)
+bool
+CodeGeneratorShared::markOsiPoint(LOsiPoint *ins, uint32_t *callPointOffset)
 {
-    encode(ins->snapshot());
+    if (!encode(ins->snapshot()))
+        return false;
+
     ensureOsiSpace();
 
-    uint32_t offset = masm.currentOffset();
+    *callPointOffset = masm.currentOffset();
     SnapshotOffset so = ins->snapshot()->snapshotOffset();
-    masm.propagateOOM(osiIndices_.append(OsiIndex(offset, so)));
-
-    return offset;
+    return osiIndices_.append(OsiIndex(*callPointOffset, so));
 }
 
 #ifdef CHECK_OSIPOINT_REGISTERS
@@ -984,7 +992,7 @@ CodeGeneratorShared::resetOsiPointRegs(LSafepoint *safepoint)
 
 // Before doing any call to Cpp, you should ensure that volatile
 // registers are evicted by the register allocator.
-void
+bool
 CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Register *dynStack)
 {
     // Different execution modes have different sets of VM functions.
@@ -1003,7 +1011,8 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
 #endif
 
 #ifdef JS_TRACE_LOGGING
-    emitTracelogStartEvent(TraceLogger::VM);
+    if (!emitTracelogStartEvent(TraceLogger::VM))
+        return false;
 #endif
 
     // Stack is:
@@ -1016,10 +1025,8 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
 
     // Get the wrapper of the VM function.
     JitCode *wrapper = gen->jitRuntime()->getVMWrapper(fun);
-    if (!wrapper) {
-        masm.setOOM();
-        return;
-    }
+    if (!wrapper)
+        return false;
 
 #ifdef CHECK_OSIPOINT_REGISTERS
     if (shouldVerifyOsiPointRegs(ins->safepoint()))
@@ -1036,7 +1043,8 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
     else
         callOffset = masm.callWithExitFrame(wrapper);
 
-    markSafepointAt(callOffset, ins);
+    if (!markSafepointAt(callOffset, ins))
+        return false;
 
     // Remove rest of the frame left on the stack. We remove the return address
     // which is implicitly poped when returning.
@@ -1048,8 +1056,11 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
     //    ... frame ...
 
 #ifdef JS_TRACE_LOGGING
-    emitTracelogStopEvent(TraceLogger::VM);
+    if (!emitTracelogStopEvent(TraceLogger::VM))
+        return false;
 #endif
+
+    return true;
 }
 
 class OutOfLineTruncateSlow : public OutOfLineCodeBase<CodeGeneratorShared>
@@ -1063,8 +1074,8 @@ class OutOfLineTruncateSlow : public OutOfLineCodeBase<CodeGeneratorShared>
       : src_(src), dest_(dest), needFloat32Conversion_(needFloat32Conversion)
     { }
 
-    void accept(CodeGeneratorShared *codegen) {
-        codegen->visitOutOfLineTruncateSlow(this);
+    bool accept(CodeGeneratorShared *codegen) {
+        return codegen->visitOutOfLineTruncateSlow(this);
     }
     FloatRegister src() const {
         return src_;
@@ -1082,30 +1093,36 @@ OutOfLineCode *
 CodeGeneratorShared::oolTruncateDouble(FloatRegister src, Register dest, MInstruction *mir)
 {
     OutOfLineTruncateSlow *ool = new(alloc()) OutOfLineTruncateSlow(src, dest);
-    addOutOfLineCode(ool, mir);
+    if (!addOutOfLineCode(ool, mir))
+        return nullptr;
     return ool;
 }
 
-void
+bool
 CodeGeneratorShared::emitTruncateDouble(FloatRegister src, Register dest, MInstruction *mir)
 {
     OutOfLineCode *ool = oolTruncateDouble(src, dest, mir);
+    if (!ool)
+        return false;
 
     masm.branchTruncateDouble(src, dest, ool->entry());
     masm.bind(ool->rejoin());
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::emitTruncateFloat32(FloatRegister src, Register dest, MInstruction *mir)
 {
     OutOfLineTruncateSlow *ool = new(alloc()) OutOfLineTruncateSlow(src, dest, true);
-    addOutOfLineCode(ool, mir);
+    if (!addOutOfLineCode(ool, mir))
+        return false;
 
     masm.branchTruncateFloat32(src, dest, ool->entry());
     masm.bind(ool->rejoin());
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
 {
     FloatRegister src = ool->src();
@@ -1139,6 +1156,7 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
     restoreVolatile(dest);
 
     masm.jump(ool->rejoin());
+    return true;
 }
 
 bool

@@ -5,16 +5,7 @@
 "use strict"
 
 /* static functions */
-let DEBUG = false;
-let VERBOSE = false;
-
-try {
-  DEBUG   =
-    Services.prefs.getBoolPref("dom.mozSettings.SettingsService.debug.enabled");
-  VERBOSE =
-    Services.prefs.getBoolPref("dom.mozSettings.SettingsService.verbose.enabled");
-} catch (ex) { }
-
+const DEBUG = false;
 function debug(s) {
   dump("-*- SettingsService: " + s + "\n");
 }
@@ -48,14 +39,14 @@ function makeSettingsServiceRequest(aCallback, aName, aValue) {
 };
 
 function SettingsServiceLock(aSettingsService, aTransactionCallback) {
-  if (VERBOSE) debug("settingsServiceLock constr!");
+  if (DEBUG) debug("settingsServiceLock constr!");
   this._open = true;
   this._settingsService = aSettingsService;
   this._id = uuidgen.generateUUID().toString();
   this._transactionCallback = aTransactionCallback;
   this._requests = {};
   let closeHelper = function() {
-    if (VERBOSE) debug("closing lock " + this._id);
+    if (DEBUG) debug("closing lock " + this._id);
     this._open = false;
     this.runOrFinalizeQueries();
   }.bind(this);
@@ -99,13 +90,13 @@ SettingsServiceLock.prototype = {
     if(msg.lockID != this._id) {
       return;
     }
-    if (VERBOSE) debug("receiveMessage (" + this._id + "): " + aMessage.name);
+    if (DEBUG) debug("receiveMessage (" + this._id + "): " + aMessage.name);
     // Finalizing a transaction does not return a request ID since we are
     // supposed to fire callbacks.
     if (!msg.requestID) {
       switch (aMessage.name) {
         case "Settings:Finalize:OK":
-          if (VERBOSE) debug("Lock finalize ok!");
+          if (DEBUG) debug("Lock finalize ok!");
           this.callTransactionHandle();
           break;
         case "Settings:Finalize:KO":
@@ -158,7 +149,7 @@ SettingsServiceLock.prototype = {
   },
 
   get: function get(aName, aCallback) {
-    if (VERBOSE) debug("get (" + this._id + "): " + aName);
+    if (DEBUG) debug("get (" + this._id + "): " + aName);
     if (!this._open) {
       dump("Settings lock not open!\n");
       throw Components.results.NS_ERROR_ABORT;
@@ -173,7 +164,7 @@ SettingsServiceLock.prototype = {
   },
 
   set: function set(aName, aValue, aCallback) {
-    if (VERBOSE) debug("set: " + aName + " " + aValue);
+    if (DEBUG) debug("set: " + aName + " " + aValue);
     if (!this._open) {
       throw "Settings lock not open";
     }
@@ -228,7 +219,7 @@ const SETTINGSSERVICE_CID        = Components.ID("{f656f0c0-f776-11e1-a21f-08002
 
 function SettingsService()
 {
-  if (VERBOSE) debug("settingsService Constructor");
+  if (DEBUG) debug("settingsService Constructor");
 }
 
 SettingsService.prototype = {

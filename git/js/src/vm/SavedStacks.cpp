@@ -392,16 +392,12 @@ SavedFrame::toStringMethod(JSContext *cx, unsigned argc, Value *vp)
             || !NumberValueToStringBuffer(cx, NumberValue(frame->getLine()), sb)
             || !sb.append(':')
             || !NumberValueToStringBuffer(cx, NumberValue(frame->getColumn()), sb)
-            || !sb.append('\n'))
-        {
+            || !sb.append('\n')) {
             return false;
         }
     } while ((frame = frame->getParent()));
 
-    JSString *str = sb.finishString();
-    if (!str)
-        return false;
-    args.rval().setString(str);
+    args.rval().setString(sb.finishString());
     return true;
 }
 

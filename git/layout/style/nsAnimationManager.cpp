@@ -414,6 +414,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
   ResolvedStyleCache resolvedStyles;
 
   const nsStyleDisplay *disp = aStyleContext->StyleDisplay();
+  Nullable<TimeDuration> now = aTimeline->GetCurrentTime();
 
   for (size_t animIdx = 0, animEnd = disp->mAnimationNameCount;
        animIdx != animEnd; ++animIdx) {
@@ -449,11 +450,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
                     aStyleContext->GetPseudoType(), timing, src.GetName());
     dest->SetSource(destAnim);
 
-    // Even in the case where we call PauseFromStyle below, we still need to
-    // call PlayFromStyle first. This is because a newly-created player is idle
-    // and has no effect until it is played (or otherwise given a start time).
-    dest->PlayFromStyle();
-
+    dest->mStartTime = now;
     if (src.GetPlayState() == NS_STYLE_ANIMATION_PLAY_STATE_PAUSED) {
       dest->PauseFromStyle();
     }
