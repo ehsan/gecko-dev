@@ -1436,7 +1436,7 @@ LoopState::restoreInvariants(jsbytecode *pc, Assembler &masm,
 
           case InvariantEntry::INVARIANT_ARGS_LENGTH: {
             Address address = frame.addressOf(frame.getTemporary(entry.u.array.temporary));
-            masm.load32(Address(JSFrameReg, StackFrame::offsetOfArgs()), T0);
+            masm.load32(Address(JSFrameReg, StackFrame::offsetOfNumActual()), T0);
             masm.storeValueFromComponents(ImmType(JSVAL_TYPE_INT32), T0, address);
             break;
           }
@@ -1897,6 +1897,7 @@ LoopState::analyzeLoopBody(unsigned frame)
             break;
 
           case JSOP_LOOPHEAD:
+          case JSOP_LOOPENTRY:
           case JSOP_POP:
           case JSOP_ZERO:
           case JSOP_ONE:

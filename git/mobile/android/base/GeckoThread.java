@@ -40,8 +40,10 @@ package org.mozilla.gecko;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.content.res.Configuration;
+import android.os.SystemClock;
 import android.util.Log;
 import android.widget.AbsoluteLayout;
+
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.PrintWriter;
@@ -84,15 +86,16 @@ public class GeckoThread extends Thread {
         // At some point while loading the gecko libs our default locale gets set
         // so just save it to locale here and reset it as default after the join
         Locale locale = Locale.getDefault();
-        GeckoAppShell.loadGeckoLibs(
-            app.getApplication().getPackageResourcePath());
+        String resourcePath = app.getApplication().getPackageResourcePath();
+        GeckoAppShell.ensureSQLiteLibsLoaded(resourcePath);
+        GeckoAppShell.loadGeckoLibs(resourcePath);
         Locale.setDefault(locale);
         Resources res = app.getBaseContext().getResources();
         Configuration config = res.getConfiguration();
         config.locale = locale;
         res.updateConfiguration(config, res.getDisplayMetrics());
 
-        Log.w(LOGTAG, "zerdatime " + new Date().getTime() + " - runGecko");
+        Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - runGecko");
 
         // and then fire us up
         try {
@@ -103,12 +106,7 @@ public class GeckoThread extends Thread {
                                    mUri,
                                    mRestoreSession);
         } catch (Exception e) {
-            Log.e(LOGTAG, "top level exception", e);
-            StringWriter sw = new StringWriter();
-            PrintWriter pw = new PrintWriter(sw);
-            e.printStackTrace(pw);
-            pw.flush();
-            GeckoAppShell.reportJavaCrash(sw.toString());
+            GeckoAppShell.reportJavaCrash(e);
         }
     }
 }

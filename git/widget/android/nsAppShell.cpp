@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "mozilla/Hal.h"
 #include "nsAppShell.h"
 #include "nsWindow.h"
 #include "nsThreadUtils.h"
@@ -385,6 +386,12 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         // of flushing data
         nsIPrefService* prefs = Preferences::GetService();
         if (prefs) {
+            // reset the crash loop state
+            nsCOMPtr<nsIPrefBranch> prefBranch;
+            prefs->GetBranch("browser.sessionstore.", getter_AddRefs(prefBranch));
+            if (prefBranch)
+                prefBranch->SetIntPref("recent_crashes", 0);
+
             prefs->SavePrefFile(nsnull);
         }
 
@@ -453,6 +460,12 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 #ifdef MOZ_ANDROID_HISTORY
         nsAndroidHistory::NotifyURIVisited(nsString(curEvent->Characters()));
 #endif
+        break;
+    }
+
+    case AndroidGeckoEvent::NETWORK_CHANGED: {
+        hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->Bandwidth(),
+                                                         curEvent->CanBeMetered()));
         break;
     }
 

@@ -50,11 +50,9 @@
 #include "nsWrapperCacheInlines.h"
 
 #include "jsapi.h"
-
-#include "jscntxt.h" // js::AutoIdVector
+#include "jsatom.h"
 
 using namespace JS;
-using js::AutoIdVector;
 
 namespace mozilla {
 namespace dom {
@@ -742,7 +740,7 @@ ListBase<LC>::getOwnPropertyNames(JSContext *cx, JSObject *proxy, AutoIdVector &
 
     JSObject *expando;
     if (!xpc::WrapperFactory::IsXrayWrapper(proxy) && (expando = getExpandoObject(proxy)) &&
-        !GetPropertyNames(cx, expando, JSITER_OWNONLY | JSITER_HIDDEN, &props))
+        !js::GetPropertyNames(cx, expando, JSITER_OWNONLY | JSITER_HIDDEN, &props))
         return false;
 
     // FIXME: Add named items
@@ -772,8 +770,9 @@ template<class LC>
 bool
 ListBase<LC>::enumerate(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 {
-    // FIXME: enumerate proto as well
-    return getOwnPropertyNames(cx, proxy, props);
+    JSObject *proto = JS_GetPrototype(cx, proxy);
+    return getOwnPropertyNames(cx, proxy, props) &&
+           (!proto || js::GetPropertyNames(cx, proto, 0, &props));
 }
 
 template<class LC>

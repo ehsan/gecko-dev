@@ -117,8 +117,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "nsIOUtil.h"
 
-#include "nsRecyclingAllocator.h"
-
 #include "SpecialSystemDirectory.h"
 
 #if defined(XP_WIN)
@@ -151,6 +149,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/MapsMemoryReporter.h"
 #include "mozilla/AvailableMemoryTracker.h"
+#include "mozilla/ClearOnShutdown.h"
 
 using base::AtExitManager;
 using mozilla::ipc::BrowserProcessSubThread;
@@ -207,8 +206,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsVersionComparatorImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableBase64Encoder)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
-
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsRecyclingAllocatorImpl)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHashPropertyBag, Init)
 
@@ -644,6 +641,11 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         }
     }
 
+    // Free ClearOnShutdown()'ed smart pointers.  This needs to happen *after*
+    // we've finished notifying observers of XPCOM shutdown, because shutdown
+    // observers themselves might call ClearOnShutdown().
+    mozilla::KillClearOnShutdown();
+
     // XPCOM is officially in shutdown mode NOW
     // Set this only after the observers have been notified as this
     // will cause servicemanager to become inaccessible.
@@ -716,8 +718,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     }
     nsComponentManagerImpl::gComponentManager = nsnull;
     nsCategoryManager::Destroy();
-
-    ShutdownSpecialSystemDirectory();
 
     NS_PurgeAtomTable();
 

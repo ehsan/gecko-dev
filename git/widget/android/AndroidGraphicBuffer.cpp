@@ -39,6 +39,8 @@
 #include <android/log.h>
 #include <GLES2/gl2.h>
 #include "AndroidGraphicBuffer.h"
+#include "AndroidBridge.h"
+#include "mozilla/Preferences.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AndroidGraphicBuffer" , ## args)
 
@@ -62,9 +64,9 @@ typedef gfxASurface::gfxImageFormat gfxImageFormat;
 #define EGL_NO_CONTEXT (EGLContext)0
 #define EGL_DEFAULT_DISPLAY  (void*)0
 
-#define ANDROID_LIBUI_PATH "/system/lib/libui.so"
-#define ANDROID_GLES_PATH "/system/lib/libGLESv2.so"
-#define ANDROID_EGL_PATH "/system/lib/libEGL.so"
+#define ANDROID_LIBUI_PATH "libui.so"
+#define ANDROID_GLES_PATH "libGLESv2.so"
+#define ANDROID_EGL_PATH "libEGL.so"
 
 // Really I have no idea, but this should be big enough
 #define GRAPHIC_BUFFER_SIZE 1024
@@ -110,12 +112,12 @@ enum {
     HAL_PIXEL_FORMAT_RGBA_4444          = 7,
 };
 
-typedef struct AndroidRect {
+typedef struct ARect {
     int32_t left;
     int32_t top;
     int32_t right;
     int32_t bottom;
-} AndroidRect;
+} ARect;
 
 static bool gTryRealloc = true;
 
@@ -154,7 +156,7 @@ public:
   typedef int (*pfnGraphicBufferLock)(void*, PRUint32 usage, unsigned char **addr);
   pfnGraphicBufferLock fGraphicBufferLock;
 
-  typedef int (*pfnGraphicBufferLockRect)(void*, PRUint32 usage, const AndroidRect&, unsigned char **addr);
+  typedef int (*pfnGraphicBufferLockRect)(void*, PRUint32 usage, const ARect&, unsigned char **addr);
   pfnGraphicBufferLockRect fGraphicBufferLockRect;
 
   typedef int (*pfnGraphicBufferUnlock)(void*);
@@ -324,37 +326,37 @@ AndroidGraphicBuffer::EnsureInitialized()
   return true;
 }
 
-bool
+int
 AndroidGraphicBuffer::Lock(PRUint32 aUsage, unsigned char **bits)
 {
   if (!EnsureInitialized())
     return true;
 
-  return sGLFunctions.fGraphicBufferLock(mHandle, GetAndroidUsage(aUsage), bits) == 0;
+  return sGLFunctions.fGraphicBufferLock(mHandle, GetAndroidUsage(aUsage), bits);
 }
 
-bool
+int
 AndroidGraphicBuffer::Lock(PRUint32 aUsage, const nsIntRect& aRect, unsigned char **bits)
 {
   if (!EnsureInitialized())
     return false;
 
-  AndroidRect rect;
+  ARect rect;
   rect.left = aRect.x;
   rect.top = aRect.y;
   rect.right = aRect.x + aRect.width;
   rect.bottom = aRect.y + aRect.height;
 
-  return sGLFunctions.fGraphicBufferLockRect(mHandle, GetAndroidUsage(aUsage), rect, bits) == 0;
+  return sGLFunctions.fGraphicBufferLockRect(mHandle, GetAndroidUsage(aUsage), rect, bits);
 }
 
-bool
+int
 AndroidGraphicBuffer::Unlock()
 {
   if (!EnsureInitialized())
     return false;
 
-  return sGLFunctions.fGraphicBufferUnlock(mHandle) == 0;
+  return sGLFunctions.fGraphicBufferUnlock(mHandle);
 }
 
 bool
@@ -451,6 +453,53 @@ AndroidGraphicBuffer::Bind()
   clearGLError();
   sGLFunctions.fImageTargetTexture2DOES(GL_TEXTURE_2D, mEGLImage);
   return ensureNoGLError("glEGLImageTargetTexture2DOES");
+}
+
+static const char* const sAllowedBoards[] = {
+  "venus2",     // Motorola Droid Pro
+  "tuna",       // Galaxy Nexus
+  "omap4sdp",   // Amazon Kindle Fire
+  "droid2",     // Motorola Droid 2
+  "targa",      // Motorola Droid Bionic
+  "spyder",     // Motorola Razr
+  "shadow",     // Motorola Droid X
+  "SGH-I897",   // Samsung Galaxy S
+  "GT-I9100",   // Samsung Galaxy SII
+  "sgh-i997",   // Samsung Infuse 4G
+  "herring",    // Samsung Nexus S
+  "sgh-t839",   // Samsung Sidekick 4G
+  NULL
+};
+
+bool
+AndroidGraphicBuffer::IsBlacklisted()
+{
+  nsAutoString board;
+  if (!AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "BOARD", board))
+    return true;
+
+  const char* boardUtf8 = NS_ConvertUTF16toUTF8(board).get();
+
+  if (Preferences::GetBool("direct-texture.force.enabled", false)) {
+    LOG("allowing board '%s' due to prefs override", boardUtf8);
+    return false;
+  }
+
+  if (Preferences::GetBool("direct-texture.force.disabled", false)) {
+    LOG("disallowing board '%s' due to prefs override", boardUtf8);
+    return true;
+  }
+
+  // FIXME: (Bug 722605) use something better than a linear search
+  for (int i = 0; sAllowedBoards[i]; i++) {
+    if (board.Find(sAllowedBoards[i]) >= 0) {
+      LOG("allowing board '%s' based on '%s'\n", boardUtf8, sAllowedBoards[i]);
+      return false;
+    }
+  }
+
+  LOG("disallowing board: %s\n", boardUtf8);
+  return true;
 }
 
 } /* mozilla */

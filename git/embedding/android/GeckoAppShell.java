@@ -113,7 +113,8 @@ public class GeckoAppShell
     public static native void onLowMemory();
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
-    public static native void loadLibs(String apkName, boolean shouldExtract);
+    public static native void loadGeckoLibsNative(String apkName);
+    public static native void loadSQLiteLibsNative(String apkName, boolean shouldExtract);
     public static native void onChangeNetworkLinkStatus(String status);
     public static native void reportJavaCrash(String stack);
 
@@ -122,6 +123,18 @@ public class GeckoAppShell
     public static native void notifyBatteryChange(double aLevel, boolean aCharging, double aRemainingTime);
 
     public static native void notifySmsReceived(String aSender, String aBody, long aTimestamp);
+    public static native int  saveMessageInSentbox(String aReceiver, String aBody, long aTimestamp);
+    public static native void notifySmsSent(int aId, String aReceiver, String aBody, long aTimestamp, int aRequestId, long aProcessId);
+    public static native void notifySmsDelivered(int aId, String aReceiver, String aBody, long aTimestamp);
+    public static native void notifySmsSendFailed(int aError, int aRequestId, long aProcessId);
+    public static native void notifyGetSms(int aId, String aReceiver, String aSender, String aBody, long aTimestamp, int aRequestId, long aProcessId);
+    public static native void notifyGetSmsFailed(int aError, int aRequestId, long aProcessId);
+    public static native void notifySmsDeleted(boolean aDeleted, int aRequestId, long aProcessId);
+    public static native void notifySmsDeleteFailed(int aError, int aRequestId, long aProcessId);
+    public static native void notifyNoMessageInList(int aRequestId, long aProcessId);
+    public static native void notifyListCreated(int aListId, int aMessageId, String aReceiver, String aSender, String aBody, long aTimestamp, int aRequestId, long aProcessId);
+    public static native void notifyGotNextMessage(int aMessageId, String aReceiver, String aSender, String aBody, long aTimestamp, int aRequestId, long aProcessId);
+    public static native void notifyReadingMessageListFailed(int aError, int aRequestId, long aProcessId);
 
     // A looper thread, accessed by GeckoAppShell.getHandler
     private static class LooperThread extends Thread {
@@ -349,7 +362,7 @@ public class GeckoAppShell
         GeckoAppShell.putenv("EXTERNAL_STORAGE=" + f.getPath());
 
         File cacheFile = getCacheDir();
-        GeckoAppShell.putenv("CACHE_PATH=" + cacheFile.getPath());
+        GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + cacheFile.getPath());
 
         // gingerbread introduces File.getUsableSpace(). We should use that.
         long freeSpace = getFreeSpace();
@@ -384,7 +397,8 @@ public class GeckoAppShell
                 }
             }
         }
-        loadLibs(apkName, extractLibs);
+        loadSQLiteLibsNative(apkName, extractLibs);
+        loadGeckoLibsNative(apkName);
     }
 
     private static void putLocaleEnv() {
@@ -1689,11 +1703,67 @@ public class GeckoAppShell
      * WebSMS related methods.
      */
     public static int getNumberOfMessagesForText(String aText) {
-        return GeckoSmsManager.getNumberOfMessagesForText(aText);
+        if (SmsManager.getInstance() == null) {
+            return 0;
+        }
+
+        return SmsManager.getInstance().getNumberOfMessagesForText(aText);
     }
 
-    public static void sendMessage(String aNumber, String aMessage) {
-        GeckoSmsManager.send(aNumber, aMessage);
+    public static void sendMessage(String aNumber, String aMessage, int aRequestId, long aProcessId) {
+        if (SmsManager.getInstance() == null) {
+            return;
+        }
+
+        SmsManager.getInstance().send(aNumber, aMessage, aRequestId, aProcessId);
+    }
+
+    public static int saveSentMessage(String aRecipient, String aBody, long aDate) {
+        if (SmsManager.getInstance() == null) {
+            return -1;
+        }
+
+        return SmsManager.getInstance().saveSentMessage(aRecipient, aBody, aDate);
+    }
+
+    public static void getMessage(int aMessageId, int aRequestId, long aProcessId) {
+        if (SmsManager.getInstance() == null) {
+            return;
+        }
+
+        SmsManager.getInstance().getMessage(aMessageId, aRequestId, aProcessId);
+    }
+
+    public static void deleteMessage(int aMessageId, int aRequestId, long aProcessId) {
+        if (SmsManager.getInstance() == null) {
+            return;
+        }
+
+        SmsManager.getInstance().deleteMessage(aMessageId, aRequestId, aProcessId);
+    }
+
+    public static void createMessageList(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, int aDeliveryState, boolean aReverse, int aRequestId, long aProcessId) {
+        if (SmsManager.getInstance() == null) {
+            return;
+        }
+
+        SmsManager.getInstance().createMessageList(aStartDate, aEndDate, aNumbers, aNumbersCount, aDeliveryState, aReverse, aRequestId, aProcessId);
+    }
+
+    public static void getNextMessageInList(int aListId, int aRequestId, long aProcessId) {
+        if (SmsManager.getInstance() == null) {
+            return;
+        }
+
+        SmsManager.getInstance().getNextMessageInList(aListId, aRequestId, aProcessId);
+    }
+
+    public static void clearMessageList(int aListId) {
+        if (SmsManager.getInstance() == null) {
+            return;
+        }
+
+        SmsManager.getInstance().clearMessageList(aListId);
     }
 
     public static boolean isTablet() {
@@ -1708,4 +1778,19 @@ public class GeckoAppShell
         }
         return false;
     }
+
+    public static double[] getCurrentNetworkInformation() {
+        return GeckoNetworkManager.getInstance().getCurrentInformation();
+    }
+
+    public static void enableNetworkNotifications() {
+        GeckoNetworkManager.getInstance().enableNotifications();
+    }
+
+    public static void disableNetworkNotifications() {
+        GeckoNetworkManager.getInstance().disableNotifications();
+    }
+
+    // This is only used in Native Fennec.
+    public static void setPreventPanning(final boolean aPreventPanning) { }
 }

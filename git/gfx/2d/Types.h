@@ -55,6 +55,7 @@ enum SurfaceType
   SURFACE_CAIRO, /* Surface wrapping a cairo surface */
   SURFACE_CAIRO_IMAGE, /* Data surface wrapping a cairo image surface */
   SURFACE_COREGRAPHICS_IMAGE, /* Surface wrapping a CoreGraphics Image */
+  SURFACE_COREGRAPHICS_CGCONTEXT, /* Surface wrapping a CG context */
   SURFACE_SKIA /* Surface wrapping a Skia bitmap */
 };
 
@@ -68,6 +69,7 @@ enum SurfaceFormat
 
 enum BackendType
 {
+  BACKEND_NONE,
   BACKEND_DIRECT2D,
   BACKEND_COREGRAPHICS,
   BACKEND_CAIRO,
@@ -80,13 +82,15 @@ enum FontType
   FONT_GDI,
   FONT_MAC,
   FONT_SKIA,
-  FONT_CAIRO
+  FONT_CAIRO,
+  FONT_COREGRAPHICS
 };
 
 enum NativeSurfaceType
 {
   NATIVE_SURFACE_D3D10_TEXTURE,
-  NATIVE_SURFACE_CAIRO_SURFACE
+  NATIVE_SURFACE_CAIRO_SURFACE,
+  NATIVE_SURFACE_CGCONTEXT
 };
 
 enum NativeFontType

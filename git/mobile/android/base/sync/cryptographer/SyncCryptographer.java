@@ -46,17 +46,18 @@ import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 
-import org.mozilla.apache.commons.codec.binary.Base64;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.mozilla.apache.commons.codec.binary.Base64;
+import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.CryptoInfo;
 import org.mozilla.gecko.sync.crypto.Cryptographer;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.crypto.Utils;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.cryptographer.CryptoStatusBundle.CryptoStatus;
+import java.security.GeneralSecurityException;
 
 /*
  * This class acts as a wrapper for the Cryptographer class.
@@ -190,6 +191,10 @@ public class SyncCryptographer {
       json = (JSONObject) new JSONParser().parse(in);
     } catch (Exception e) {
       e.printStackTrace();
+    }
+
+    if (json == null) {
+      throw new CryptoException(new GeneralSecurityException("Could not decrypt JSON payload"));
     }
 
     // Verify that this is indeed the crypto/keys bundle and that
@@ -339,7 +344,7 @@ public class SyncCryptographer {
   /*
    * Get the keys needed to encrypt the crypto/keys bundle.
    */
-  public KeyBundle getCryptoKeysBundleKeys() {
+  public KeyBundle getCryptoKeysBundleKeys() throws CryptoException {
     return new KeyBundle(username, syncKey);
   }
 

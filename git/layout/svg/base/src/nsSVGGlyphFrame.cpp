@@ -137,8 +137,16 @@ public:
    * We are scaling the glyphs up/down to the size we want so we need to
    * inverse scale the outline widths of those glyphs so they are invariant
    */
-  void SetLineWidthForDrawing(gfxContext *aContext) {
+  void SetLineWidthAndDashesForDrawing(gfxContext *aContext) {
     aContext->SetLineWidth(aContext->CurrentLineWidth() / mDrawScale);
+    AutoFallibleTArray<gfxFloat, 10> dashes;
+    gfxFloat dashOffset;
+    if (aContext->CurrentDash(dashes, &dashOffset)) {
+      for (PRUint32 i = 0; i <  dashes.Length(); i++) {
+        dashes[i] /= mDrawScale;
+      }
+      aContext->SetDash(dashes.Elements(), dashes.Length(), dashOffset / mDrawScale);
+    }
   }
 
   /**
@@ -374,12 +382,7 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
     // there is a pattern or gradient on the text
     iter.Reset();
 
-    gfx->NewPath();
-    AddCharactersToPath(&iter, gfx);
-    gfx->Stroke();
-    // We need to clear the context's path so state doesn't leak
-    // out. See bug 337753.
-    gfx->NewPath();
+    StrokeCharacters(&iter, gfx);
   }
   gfx->Restore();
 
@@ -464,11 +467,9 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
     return NS_OK;
   }
 
-  mPropagateTransform = false;
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(tmpCtx);
   AddBoundingBoxesToPath(&iter, tmpCtx);
-  mPropagateTransform = true;
   tmpCtx->IdentityMatrix();
 
   // Be careful when replacing the following logic to get the fill and stroke
@@ -548,18 +549,17 @@ void
 nsSVGGlyphFrame::AddCharactersToPath(CharacterIterator *aIter,
                                      gfxContext *aContext)
 {
-  aIter->SetLineWidthForDrawing(aContext);
   if (aIter->SetupForDirectTextRunDrawing(aContext)) {
-    mTextRun->DrawToPath(aContext, gfxPoint(0, 0), 0,
-                         mTextRun->GetLength(), nsnull, nsnull);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_PATH, 0,
+                   mTextRun->GetLength(), nsnull, nsnull);
     return;
   }
 
   PRUint32 i;
   while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
     aIter->SetupForDrawing(aContext);
-    mTextRun->DrawToPath(aContext, gfxPoint(0, 0), i, aIter->ClusterLength(),
-                         nsnull, nsnull);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_PATH, i,
+                   aIter->ClusterLength(), nsnull, nsnull);
   }
 }
 
@@ -590,7 +590,7 @@ nsSVGGlyphFrame::FillCharacters(CharacterIterator *aIter,
                                 gfxContext *aContext)
 {
   if (aIter->SetupForDirectTextRunDrawing(aContext)) {
-    mTextRun->Draw(aContext, gfxPoint(0, 0), 0,
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_FILL, 0,
                    mTextRun->GetLength(), nsnull, nsnull);
     return;
   }
@@ -598,8 +598,27 @@ nsSVGGlyphFrame::FillCharacters(CharacterIterator *aIter,
   PRUint32 i;
   while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
     aIter->SetupForDrawing(aContext);
-    mTextRun->Draw(aContext, gfxPoint(0, 0), i, aIter->ClusterLength(),
-                   nsnull, nsnull);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_FILL, i,
+                   aIter->ClusterLength(), nsnull, nsnull);
+  }
+}
+
+void
+nsSVGGlyphFrame::StrokeCharacters(CharacterIterator *aIter,
+                                gfxContext *aContext)
+{
+  aIter->SetLineWidthAndDashesForDrawing(aContext);
+  if (aIter->SetupForDirectTextRunDrawing(aContext)) {
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_STROKE, 0,
+                   mTextRun->GetLength(), nsnull, nsnull);
+    return;
+  }
+
+  PRUint32 i;
+  while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
+    aIter->SetupForDrawing(aContext);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_STROKE, i,
+                   aIter->ClusterLength(), nsnull, nsnull);
   }
 }
 
@@ -1462,23 +1481,10 @@ nsSVGGlyphFrame::NotifyGlyphMetricsChange()
     containerFrame->NotifyGlyphMetricsChange();
 }
 
-bool
-nsSVGGlyphFrame::GetGlobalTransform(gfxMatrix *aMatrix)
-{
-  if (!mPropagateTransform) {
-    aMatrix->Reset();
-    return true;
-  }
-
-  *aMatrix = GetCanvasTM();
-  return !aMatrix->IsSingular();
-}
-
 void
 nsSVGGlyphFrame::SetupGlobalTransform(gfxContext *aContext)
 {
-  gfxMatrix matrix;
-  GetGlobalTransform(&matrix);
+  gfxMatrix matrix = GetCanvasTM();
   if (!matrix.IsSingular()) {
     aContext->Multiply(matrix);
   }
@@ -1557,7 +1563,8 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     gfxMatrix m;
     if (aForceGlobalTransform ||
         !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      if (!GetGlobalTransform(&m))
+      m = GetCanvasTM();
+      if (m.IsSingular())
         return false;
     }
 
@@ -1580,7 +1587,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     bool printerFont = (presContext->Type() == nsPresContext::eContext_PrintPreview ||
                           presContext->Type() == nsPresContext::eContext_Print);
     gfxFontStyle fontStyle(font.style, font.weight, font.stretch, textRunSize,
-                           mStyleContext->GetStyleVisibility()->mLanguage,
+                           mStyleContext->GetStyleFont()->mLanguage,
                            font.sizeAdjust, font.systemFont,
                            printerFont,
                            font.featureSettings,

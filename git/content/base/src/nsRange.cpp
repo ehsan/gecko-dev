@@ -235,52 +235,6 @@ nsRange::IsNodeSelected(nsINode* aNode, PRUint32 aStartOffset,
 }
 
 /******************************************************
- * non members
- ******************************************************/
-
-nsresult
-NS_NewRangeUtils(nsIRangeUtils** aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-
-  nsRangeUtils* rangeUtil = new nsRangeUtils();
-  if (!rangeUtil) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  return CallQueryInterface(rangeUtil, aResult);
-}
-
-/******************************************************
- * nsISupports
- ******************************************************/
-NS_IMPL_ISUPPORTS1(nsRangeUtils, nsIRangeUtils)
-
-/******************************************************
- * nsIRangeUtils methods
- ******************************************************/
- 
-NS_IMETHODIMP_(PRInt32) 
-nsRangeUtils::ComparePoints(nsIDOMNode* aParent1, PRInt32 aOffset1,
-                            nsIDOMNode* aParent2, PRInt32 aOffset2)
-{
-  nsCOMPtr<nsINode> parent1 = do_QueryInterface(aParent1);
-  nsCOMPtr<nsINode> parent2 = do_QueryInterface(aParent2);
-
-  NS_ENSURE_TRUE(parent1 && parent2, -1);
-
-  return nsContentUtils::ComparePoints(parent1, aOffset1, parent2, aOffset2);
-}
-
-NS_IMETHODIMP
-nsRangeUtils::CompareNodeToRange(nsIContent* aNode, nsRange* aRange,
-                                 bool *outNodeBefore, bool *outNodeAfter)
-{
-  return nsRange::CompareNodeToRange(aNode, aRange, outNodeBefore,
-                                     outNodeAfter);
-}
-
-/******************************************************
  * constructor/destructor
  ******************************************************/
 
@@ -291,6 +245,40 @@ nsRange::~nsRange()
   // we want the side effects (releases and list removals)
   DoSetRange(nsnull, 0, nsnull, 0, nsnull);
 } 
+
+/* static */
+nsresult
+nsRange::CreateRange(nsIDOMNode* aStartParent, PRInt32 aStartOffset,
+                     nsIDOMNode* aEndParent, PRInt32 aEndOffset,
+                     nsRange** aRange)
+{
+  MOZ_ASSERT(aRange);
+  *aRange = NULL;
+
+  nsRefPtr<nsRange> range = new nsRange();
+
+  nsresult rv = range->SetStart(aStartParent, aStartOffset);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = range->SetEnd(aEndParent, aEndOffset);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  range.forget(aRange);
+  return NS_OK;
+}
+
+/* static */
+nsresult
+nsRange::CreateRange(nsIDOMNode* aStartParent, PRInt32 aStartOffset,
+                     nsIDOMNode* aEndParent, PRInt32 aEndOffset,
+                     nsIDOMRange** aRange)
+{
+  nsRefPtr<nsRange> range;
+  nsresult rv = nsRange::CreateRange(aStartParent, aStartOffset, aEndParent,
+                                     aEndOffset, getter_AddRefs(range));
+  range.forget(aRange);
+  return rv;
+}
 
 /******************************************************
  * nsISupports
@@ -762,7 +750,8 @@ nsRange::DoSetRange(nsINode* aStartN, PRInt32 aStartOffset,
       if (newCommonAncestor) {
         RegisterCommonAncestor(newCommonAncestor);
       } else {
-        NS_ASSERTION(mIsDetached, "unexpected disconnected nodes");
+        NS_ASSERTION(mIsDetached || !mIsPositioned,
+                     "unexpected disconnected nodes");
         mInSelection = false;
       }
     }

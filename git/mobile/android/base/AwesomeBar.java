@@ -49,7 +49,6 @@ import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
@@ -65,20 +64,20 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
-import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ExpandableListView;
 import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 import android.widget.ListView;
+import android.widget.TabWidget;
+import android.widget.Toast;
 
 import java.util.Map;
 
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.db.BrowserDB;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class AwesomeBar extends Activity implements GeckoEventListener {
@@ -106,7 +105,6 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         if (Build.VERSION.SDK_INT >= 11) {
             RelativeLayout actionBarLayout = (RelativeLayout) getLayoutInflater().inflate(R.layout.awesomebar_search, null);
 
-            GeckoActionBar.setBackgroundDrawable(this, getResources().getDrawable(R.drawable.gecko_actionbar_bg));
             GeckoActionBar.setDisplayOptions(this, ActionBar.DISPLAY_SHOW_CUSTOM, ActionBar.DISPLAY_SHOW_CUSTOM |
                                                                                   ActionBar.DISPLAY_SHOW_HOME |
                                                                                   ActionBar.DISPLAY_SHOW_TITLE |
@@ -120,10 +118,13 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             mText = (AwesomeBarEditText) findViewById(R.id.awesomebar_text);
         }
 
+        TabWidget tabWidget = (TabWidget) findViewById(android.R.id.tabs);
+        tabWidget.setDividerDrawable(null);
+
         mAwesomeTabs = (AwesomeBarTabs) findViewById(R.id.awesomebar_tabs);
         mAwesomeTabs.setOnUrlOpenListener(new AwesomeBarTabs.OnUrlOpenListener() {
             public void onUrlOpen(String url) {
-                submitAndFinish(url);
+                openUrlAndFinish(url);
             }
 
             public void onSearch(String engine) {
@@ -133,7 +134,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
 
         mGoButton.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                submitAndFinish(mText.getText().toString());
+                openUrlAndFinish(mText.getText().toString());
             }
         });
 
@@ -167,7 +168,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
                         (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
                 if (keyCode == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
-                    submitAndFinish(mText.getText().toString());
+                    openUrlAndFinish(mText.getText().toString());
                     return true;
                 }
 
@@ -207,7 +208,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
                     if (event.getAction() != KeyEvent.ACTION_DOWN)
                         return true;
 
-                    submitAndFinish(mText.getText().toString());
+                    openUrlAndFinish(mText.getText().toString());
                     return true;
                 } else {
                     return false;
@@ -305,13 +306,6 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         }
     }
 
-    private void submitAndFinish(String url) {
-        if (isSearchUrl(url))
-            openSearchAndFinish(url, "__default__");
-        else
-            openUrlAndFinish(url);
-    }
-
     private void cancelAndFinish() {
         setResult(Activity.RESULT_CANCELED);
         finish();
@@ -399,18 +393,34 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         String title = "";
 
         if (view == (ListView)findViewById(R.id.history_list)) {
+            if (! (menuInfo instanceof ExpandableListView.ExpandableListContextMenuInfo)) {
+                Log.e(LOGTAG, "menuInfo is not ExpandableListContextMenuInfo");
+                return;
+            }
             ExpandableListView.ExpandableListContextMenuInfo info = (ExpandableListView.ExpandableListContextMenuInfo) menuInfo;
             ExpandableListView exList = (ExpandableListView)list;
-            int childPosition = exList.getPackedPositionChild(info.packedPosition);
-            int groupPosition = exList.getPackedPositionGroup(info.packedPosition);
+            int childPosition = ExpandableListView.getPackedPositionChild(info.packedPosition);
+            int groupPosition = ExpandableListView.getPackedPositionGroup(info.packedPosition);
+
+            // Check if long tap is on a header row
+            if (groupPosition < 0 || childPosition < 0)
+                return;
+
             selectedItem = exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
 
             Map map = (Map)selectedItem;
             title = (String)map.get(URLColumns.TITLE);
         } else {
+            if (! (menuInfo instanceof AdapterView.AdapterContextMenuInfo)) {
+                Log.e(LOGTAG, "menuInfo is not AdapterContextMenuInfo");
+                return;
+            }
             AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
             selectedItem = list.getItemAtPosition(info.position);
-
+            if (! (selectedItem instanceof Cursor)) {
+                Log.e(LOGTAG, "item at " + info.position + " is not a Cursor");
+                return;
+            }
             Cursor cursor = (Cursor)selectedItem;
             title = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE));
         }
@@ -424,6 +434,11 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
 
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.awesomebar_contextmenu, menu);
+        
+        if (view != (ListView)findViewById(R.id.bookmarks_list)) {
+            MenuItem removeBookmarkItem = menu.findItem(R.id.remove_bookmark);
+            removeBookmarkItem.setVisible(false);
+        }
 
         menu.setHeaderTitle(title);
     }
@@ -455,6 +470,13 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         switch (item.getItemId()) {
             case R.id.open_new_tab: {
                 GeckoApp.mAppContext.loadUrl(url, AwesomeBar.Type.ADD);
+                Toast.makeText(this, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
+                break;
+            }
+            case R.id.remove_bookmark: {
+                ContentResolver resolver = Tabs.getInstance().getContentResolver();
+                BrowserDB.removeBookmark(resolver, url);
+                Toast.makeText(this, R.string.bookmark_removed, Toast.LENGTH_SHORT).show();
                 break;
             }
             case R.id.add_to_launcher: {

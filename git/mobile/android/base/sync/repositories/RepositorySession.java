@@ -38,6 +38,10 @@
 
 package org.mozilla.gecko.sync.repositories;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
@@ -71,8 +75,30 @@ public abstract class RepositorySession {
   }
 
   private static final String LOG_TAG = "RepositorySession";
+
+  private static void error(String message) {
+    Utils.error(LOG_TAG, message);
+  }
+
+  protected static void trace(String message) {
+    Utils.trace(LOG_TAG, message);
+  }
+
   protected SessionStatus status = SessionStatus.UNSTARTED;
   protected Repository repository;
+  protected RepositorySessionStoreDelegate delegate;
+
+  /**
+   * A queue of Runnables which call out into delegates.
+   */
+  protected ExecutorService delegateQueue  = Executors.newSingleThreadExecutor();
+
+  /**
+   * A queue of Runnables which effect storing.
+   * This includes actual store work, and also the consequences of storeDone.
+   * This provides strict ordering.
+   */
+  protected ExecutorService storeWorkQueue = Executors.newSingleThreadExecutor();
 
   // The time that the last sync on this collection completed, in milliseconds since epoch.
   public long lastSyncTimestamp;
@@ -89,7 +115,48 @@ public abstract class RepositorySession {
   public abstract void fetchSince(long timestamp, RepositorySessionFetchRecordsDelegate delegate);
   public abstract void fetch(String[] guids, RepositorySessionFetchRecordsDelegate delegate);
   public abstract void fetchAll(RepositorySessionFetchRecordsDelegate delegate);
-  public abstract void store(Record record, RepositorySessionStoreDelegate delegate);
+
+  /**
+   * Override this if you wish to short-circuit a sync when you know --
+   * e.g., by inspecting the database or info/collections -- that no new
+   * data are available.
+   *
+   * @return true if a sync should proceed.
+   */
+  public boolean dataAvailable() {
+    return true;
+  }
+
+  /*
+   * Store operations proceed thusly:
+   *
+   * * Set a delegate
+   * * Store an arbitrary number of records. At any time the delegate can be
+   *   notified of an error.
+   * * Call storeDone to notify the session that no more items are forthcoming.
+   * * The store delegate will be notified of error or completion.
+   *
+   * This arrangement of calls allows for batching at the session level.
+   *
+   * Store success calls are not guaranteed.
+   */
+  public void setStoreDelegate(RepositorySessionStoreDelegate delegate) {
+    Log.d(LOG_TAG, "Setting store delegate to " + delegate);
+    this.delegate = delegate;
+  }
+  public abstract void store(Record record) throws NoStoreDelegateException;
+
+  public void storeDone() {
+    Log.d(LOG_TAG, "Scheduling onStoreCompleted for after storing is done.");
+    Runnable command = new Runnable() {
+      @Override
+      public void run() {
+        delegate.onStoreCompleted();
+      }
+    };
+    storeWorkQueue.execute(command);
+  }
+
   public abstract void wipe(RepositorySessionWipeDelegate delegate);
 
   public void unbundle(RepositorySessionBundle bundle) {
@@ -104,11 +171,6 @@ public abstract class RepositorySession {
         // Defaults to 0 above.
       }
     }
-  }
-
-  private static void error(String msg) {
-    System.err.println("ERROR: " + msg);
-    Log.e(LOG_TAG, msg);
   }
 
   /**
@@ -128,10 +190,9 @@ public abstract class RepositorySession {
   public void begin(RepositorySessionBeginDelegate delegate) {
     try {
       sharedBegin();
-      delegate.deferredBeginDelegate().onBeginSucceeded(this);
-
+      delegate.deferredBeginDelegate(delegateQueue).onBeginSucceeded(this);
     } catch (Exception e) {
-      delegate.deferredBeginDelegate().onBeginFailed(e);
+      delegate.deferredBeginDelegate(delegateQueue).onBeginFailed(e);
     }
   }
 
@@ -168,17 +229,21 @@ public abstract class RepositorySession {
    */
   public void abort(RepositorySessionFinishDelegate delegate) {
     this.status = SessionStatus.DONE;    // TODO: ABORTED?
-    delegate.deferredFinishDelegate().onFinishSucceeded(this, this.getBundle(null));
+    delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
   }
 
-  public void finish(RepositorySessionFinishDelegate delegate) {
+  public void finish(final RepositorySessionFinishDelegate delegate) {
     if (this.status == SessionStatus.ACTIVE) {
       this.status = SessionStatus.DONE;
-      delegate.deferredFinishDelegate().onFinishSucceeded(this, this.getBundle(null));
+      delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
     } else {
       Log.e(LOG_TAG, "Tried to finish() an unstarted or already finished session");
-      delegate.deferredFinishDelegate().onFinishFailed(new InvalidSessionTransitionException(null));
+      Exception e = new InvalidSessionTransitionException(null);
+      delegate.deferredFinishDelegate(delegateQueue).onFinishFailed(e);
     }
+    Log.i(LOG_TAG, "Shutting down work queues.");
+ //   storeWorkQueue.shutdown();
+ //   delegateQueue.shutdown();
   }
 
   public boolean isActive() {
@@ -188,5 +253,94 @@ public abstract class RepositorySession {
   public void abort() {
     // TODO: do something here.
     status = SessionStatus.ABORTED;
+    storeWorkQueue.shutdown();
+    delegateQueue.shutdown();
+  }
+
+  /**
+   * Produce a record that is some combination of the remote and local records
+   * provided.
+   *
+   * The returned record must be produced without mutating either remoteRecord
+   * or localRecord. It is acceptable to return either remoteRecord or localRecord
+   * if no modifications are to be propagated.
+   *
+   * The returned record *should* have the local androidID and the remote GUID,
+   * and some optional merge of data from the two records.
+   *
+   * This method can be called with records that are identical, or differ in
+   * any regard.
+   *
+   * This method will not be called if:
+   *
+   * * either record is marked as deleted, or
+   * * there is no local mapping for a new remote record.
+   *
+   * Otherwise, it will be called precisely once.
+   *
+   * Side-effects (e.g., for transactional storage) can be hooked in here.
+   *
+   * @param remoteRecord
+   *        The record retrieved from upstream, already adjusted for clock skew.
+   * @param localRecord
+   *        The record retrieved from local storage.
+   * @param lastRemoteRetrieval
+   *        The timestamp of the last retrieved set of remote records, adjusted for
+   *        clock skew.
+   * @param lastLocalRetrieval
+   *        The timestamp of the last retrieved set of local records.
+   * @return
+   *        A Record instance to apply, or null to apply nothing.
+   */
+  protected Record reconcileRecords(final Record remoteRecord,
+                                    final Record localRecord,
+                                    final long lastRemoteRetrieval,
+                                    final long lastLocalRetrieval) {
+    Log.d(LOG_TAG, "Reconciling remote " + remoteRecord.guid + " against local " + localRecord.guid);
+
+    if (localRecord.equalPayloads(remoteRecord)) {
+      if (remoteRecord.lastModified > localRecord.lastModified) {
+        Log.d(LOG_TAG, "Records are equal. No record application needed.");
+        return null;
+      }
+
+      // Local wins.
+      return null;
+    }
+
+    // TODO: Decide what to do based on:
+    // * Which of the two records is modified;
+    // * Whether they are equal or congruent;
+    // * The modified times of each record (interpreted through the lens of clock skew);
+    // * ...
+    boolean localIsMoreRecent = localRecord.lastModified > remoteRecord.lastModified;
+    Log.d(LOG_TAG, "Local record is more recent? " + localIsMoreRecent);
+    Record donor = localIsMoreRecent ? localRecord : remoteRecord;
+
+    // Modify the local record to match the remote record's GUID and values.
+    // Preserve the local Android ID, and merge data where possible.
+    // It sure would be nice if copyWithIDs didn't give a shit about androidID, mm?
+    Record out = donor.copyWithIDs(remoteRecord.guid, localRecord.androidID);
+
+    // We don't want to upload the record if the remote record was
+    // applied without changes.
+    // This logic will become more complicated as reconciling becomes smarter.
+    if (!localIsMoreRecent) {
+      trackRecord(out);
+    }
+    return out;
+  }
+
+  /**
+   * Depending on the RepositorySession implementation, track
+   * that a record — most likely a brand-new record that has been
+   * applied unmodified — should be tracked so as to not be uploaded
+   * redundantly.
+   *
+   * The default implementation does nothing.
+   *
+   * @param record
+   */
+  protected synchronized void trackRecord(Record record) {
   }
 }

@@ -71,6 +71,9 @@ class gfxTextRun;
 class nsIURI;
 class nsIAtom;
 
+extern mozilla::gfx::UserDataKey kThebesSurfaceKey;
+void DestroyThebesSurface(void *data);
+
 extern cairo_user_data_key_t kDrawTarget;
 
 // pref lang id's for font prefs
@@ -155,6 +158,8 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
         return "cairo";
       case mozilla::gfx::BACKEND_SKIA:
         return "skia";
+      case mozilla::gfx::BACKEND_NONE:
+        return "none";
       default:
         NS_ERROR("Invalid backend type!");
         return "";
@@ -444,6 +449,9 @@ protected:
 
     // which scripts should be shaped with harfbuzz
     PRInt32 mUseHarfBuzzScripts;
+
+    // The preferred draw target backend to use
+    mozilla::gfx::BackendType mPreferredDrawTargetBackend;
 
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();

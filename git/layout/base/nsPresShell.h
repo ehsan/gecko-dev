@@ -138,10 +138,10 @@ public:
     size_t n = 0;
     StackBlock *block = mBlocks;
     while (block) {
-      n += aMallocSizeOf(block, sizeof(StackBlock));
+      n += aMallocSizeOf(block);
       block = block->mNext;
     }
-    n += aMallocSizeOf(mMarks, mMarkLength * sizeof(StackMark));
+    n += aMallocSizeOf(mMarks);
     return n;
   }
 
@@ -316,7 +316,7 @@ public:
 
   virtual void Paint(nsIView* aViewToPaint, nsIWidget* aWidget,
                      const nsRegion& aDirtyRegion, const nsIntRegion& aIntDirtyRegion,
-                     bool aPaintDefaultBackground, bool aWillSendDidPaint);
+                     bool aWillSendDidPaint);
   virtual nsresult HandleEvent(nsIFrame*       aFrame,
                                nsGUIEvent*     aEvent,
                                bool            aDontRetargetEvents,
@@ -365,6 +365,8 @@ public:
   NS_IMETHOD CompleteMove(bool aForward, bool aExtend);
   NS_IMETHOD SelectAll();
   NS_IMETHOD CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOffset, bool *_retval);
+  virtual nsresult CheckVisibilityContent(nsIContent* aNode, PRInt16 aStartOffset,
+                                          PRInt16 aEndOffset, bool* aRetval);
 
   // nsIDocumentObserver
   NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
@@ -457,6 +459,12 @@ protected:
   }
   nsresult DidCauseReflow();
   friend class nsAutoCauseReflowNotifier;
+
+  bool TouchesAreEqual(nsIDOMTouch *aTouch1, nsIDOMTouch *aTouch2);
+  void DispatchTouchEvent(nsEvent *aEvent,
+                          nsEventStatus* aStatus,
+                          nsPresShellEventCB* aEventCB,
+                          bool aTouchIsNew);
 
   void     WillDoReflow();
   void     DidDoReflow(bool aInterruptible);
@@ -852,17 +860,28 @@ private:
   // over our window or there is no last observed mouse location for some
   // reason.
   nsPoint mMouseLocation;
-  class nsSynthMouseMoveEvent : public nsRunnable {
+  class nsSynthMouseMoveEvent : public nsARefreshObserver {
   public:
     nsSynthMouseMoveEvent(PresShell* aPresShell, bool aFromScroll)
       : mPresShell(aPresShell), mFromScroll(aFromScroll) {
       NS_ASSERTION(mPresShell, "null parameter");
     }
-    void Revoke() { mPresShell = nsnull; }
-    NS_IMETHOD Run() {
+    ~nsSynthMouseMoveEvent() {
+      Revoke();
+    }
+
+    NS_INLINE_DECL_REFCOUNTING(nsSynthMouseMoveEvent)
+    
+    void Revoke() {
+      if (mPresShell) {
+        mPresShell->GetPresContext()->RefreshDriver()->
+          RemoveRefreshObserver(this, Flush_Display);
+        mPresShell = nsnull;
+      }
+    }
+    virtual void WillRefresh(mozilla::TimeStamp aTime) {
       if (mPresShell)
         mPresShell->ProcessSynthMouseMoveEvent(mFromScroll);
-      return NS_OK;
     }
   private:
     PresShell* mPresShell;
@@ -884,7 +903,7 @@ public:
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     size_t n = 0;
 
-    n += aMallocSizeOf(this, sizeof(PresShell));
+    n += aMallocSizeOf(this);
     n += mStackArena.SizeOfExcludingThis(aMallocSizeOf);
     n += mFrameArena.SizeOfExcludingThis(aMallocSizeOf);
 

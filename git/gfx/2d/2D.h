@@ -41,7 +41,7 @@
 #include "Point.h"
 #include "Rect.h"
 #include "Matrix.h"
-
+#include "UserData.h"
 // This RefPtr class isn't ideal for usage in Azure, as it doesn't allow T**
 // outparams using the &-operator. But it will have to do as there's no easy
 // solution.
@@ -49,6 +49,9 @@
 
 struct _cairo_surface;
 typedef _cairo_surface cairo_surface_t;
+
+struct _cairo_scaled_font;
+typedef _cairo_scaled_font cairo_scaled_font_t;
 
 struct ID3D10Device1;
 struct ID3D10Texture2D;
@@ -744,7 +747,14 @@ public:
    */
   virtual void *GetNativeSurface(NativeSurfaceType aType) { return NULL; }
 
+  void AddUserData(UserDataKey *key, void *userData, void (*destroy)(void*)) {
+    mUserData.Add(key, userData, destroy);
+  }
+  void *GetUserData(UserDataKey *key) {
+    return mUserData.Get(key);
+  }
 protected:
+  UserData mUserData;
   Matrix mTransform;
   bool mTransformDirty : 1;
 
@@ -764,6 +774,14 @@ public:
 
   static TemporaryRef<ScaledFont>
     CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSize);
+
+  /*
+   * This creates a scaled font with an associated cairo_scaled_font_t, and
+   * must be used when using the Cairo backend. The NativeFont and
+   * cairo_scaled_font_t* parameters must correspond to the same font.
+   */
+  static TemporaryRef<ScaledFont>
+    CreateScaledFontWithCairo(const NativeFont &aNativeFont, Float aSize, cairo_scaled_font_t* aScaledFont);
 
   /*
    * This creates a simple data source surface for a certain size. It allocates

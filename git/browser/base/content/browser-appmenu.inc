@@ -176,7 +176,8 @@
       <menuseparator class="appmenu-menuseparator"/>
       <menu id="appmenu_webDeveloper"
             label="&appMenuWebDeveloper.label;">
-        <menupopup id="appmenu_webDeveloper_popup">
+        <menupopup id="appmenu_webDeveloper_popup"
+                   onpopupshowing="onWebDeveloperMenuShowing();">
           <menuitem id="appmenu_webConsole"
                     label="&webConsoleCmd.label;"
                     type="checkbox"
@@ -341,6 +342,13 @@
                       key="key_sanitize"
                       command="Tools:Sanitize"/>
             <menuseparator class="hide-if-empty-places-result"/>
+#ifdef MOZ_SERVICES_SYNC
+            <menuitem id="appmenu_sync-tabs"
+                      class="syncTabsMenuItem"
+                      label="&syncTabsMenu.label;"
+                      oncommand="BrowserOpenSyncTabs();"
+                      disabled="true"/>
+#endif
             <menuitem id="appmenu_restoreLastSession"
                       class="restoreLastSession"
                       label="&historyRestoreLastSession.label;"

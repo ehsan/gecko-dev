@@ -884,7 +884,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
         nsIContent* content = aFrame->GetContent();
         nsIContent* parent = content->GetParent();
         // XXXzeniko hiding the first toolbar will result in an unwanted margin
-        if (parent && parent->GetChildAt(0) == content) {
+        if (parent && parent->GetFirstChild() == content) {
           aState = 1;
         }
       }
@@ -1803,8 +1803,9 @@ nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext,
   if (aWidgetType == NS_THEME_WINDOW_TITLEBAR ||
       aWidgetType == NS_THEME_WINDOW_TITLEBAR_MAXIMIZED) {
     aResult->SizeTo(0, 0, 0, 0);
-    // Maximized windows have an offscreen offset equal to
-    // the border padding. (windows quirk)
+    // XXX Maximized windows have an offscreen offset equal to
+    // the border padding. This should be addressed in nsWindow,
+    // but currently can't be, see UpdateNonClientMargins.
     if (aWidgetType == NS_THEME_WINDOW_TITLEBAR_MAXIMIZED)
       aResult->top = GetSystemMetrics(SM_CXFRAME);
     return true;

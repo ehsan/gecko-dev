@@ -101,28 +101,42 @@ mjit::Compiler::ensureInteger(FrameEntry *fe, Uses uses)
         frame.freeReg(fptemp);
         frame.learnType(fe, JSVAL_TYPE_INT32, data);
     } else if (!fe->isType(JSVAL_TYPE_INT32)) {
-        FPRegisterID fptemp = frame.allocFPReg();
-        RegisterID typeReg = frame.tempRegForType(fe);
-        frame.pinReg(typeReg);
-        RegisterID dataReg = frame.copyDataIntoReg(fe);
-        frame.unpinReg(typeReg);
+        if (masm.supportsFloatingPoint()) {
+            FPRegisterID fptemp = frame.allocFPReg();
+            RegisterID typeReg = frame.tempRegForType(fe);
+            frame.pinReg(typeReg);
+            RegisterID dataReg = frame.copyDataIntoReg(fe);
+            frame.unpinReg(typeReg);
 
-        Jump intGuard = masm.testInt32(Assembler::NotEqual, typeReg);
+            Jump intGuard = masm.testInt32(Assembler::NotEqual, typeReg);
 
-        Label syncPath = stubcc.syncExitAndJump(uses);
-        stubcc.linkExitDirect(intGuard, stubcc.masm.label());
+            Label syncPath = stubcc.syncExitAndJump(uses);
+            stubcc.linkExitDirect(intGuard, stubcc.masm.label());
 
-        /* Try an OOL path to truncate doubles representing int32s. */
-        Jump doubleGuard = stubcc.masm.testDouble(Assembler::NotEqual, typeReg);
-        doubleGuard.linkTo(syncPath, &stubcc.masm);
+            /* Try an OOL path to truncate doubles representing int32s. */
+            Jump doubleGuard = stubcc.masm.testDouble(Assembler::NotEqual, typeReg);
+            doubleGuard.linkTo(syncPath, &stubcc.masm);
 
-        frame.loadDouble(fe, fptemp, stubcc.masm);
-        Jump truncateGuard = stubcc.masm.branchTruncateDoubleToInt32(fptemp, dataReg);
-        truncateGuard.linkTo(syncPath, &stubcc.masm);
-        stubcc.crossJump(stubcc.masm.jump(), masm.label());
+            frame.loadDouble(fe, fptemp, stubcc.masm);
+            Jump truncateGuard = stubcc.masm.branchTruncateDoubleToInt32(fptemp, dataReg);
+            truncateGuard.linkTo(syncPath, &stubcc.masm);
+            stubcc.crossJump(stubcc.masm.jump(), masm.label());
 
-        frame.freeReg(fptemp);
-        frame.learnType(fe, JSVAL_TYPE_INT32, dataReg);
+            frame.freeReg(fptemp);
+            frame.learnType(fe, JSVAL_TYPE_INT32, dataReg);
+        } else {
+            RegisterID typeReg = frame.tempRegForType(fe);
+            frame.pinReg(typeReg);
+            RegisterID dataReg = frame.copyDataIntoReg(fe);
+            frame.unpinReg(typeReg);
+
+            Jump intGuard = masm.testInt32(Assembler::NotEqual, typeReg);
+
+            Label syncPath = stubcc.syncExitAndJump(uses);
+            stubcc.linkExitDirect(intGuard, syncPath);
+
+            frame.learnType(fe, JSVAL_TYPE_INT32, dataReg);
+        }
     }
 }
 
@@ -562,6 +576,8 @@ mjit::Compiler::jsop_relational(JSOp op, BoolStub stub,
     } else if (lhs->isType(JSVAL_TYPE_STRING) || rhs->isType(JSVAL_TYPE_STRING)) {
         return emitStubCmpOp(stub, target, fused);
     } else if (lhs->isType(JSVAL_TYPE_DOUBLE) || rhs->isType(JSVAL_TYPE_DOUBLE)) {
+        if (!masm.supportsFloatingPoint())
+            return emitStubCmpOp(stub, target, fused);
         return jsop_relational_double(op, stub, target, fused);
     } else if (cx->typeInferenceEnabled() &&
                lhs->isType(JSVAL_TYPE_INT32) && rhs->isType(JSVAL_TYPE_INT32)) {
@@ -752,9 +768,10 @@ mjit::Compiler::jsop_typeof()
                 cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
             }
 
-            if (type != JSVAL_TYPE_UNKNOWN) {
-                PC += JSOP_STRING_LENGTH;;
-                PC += JSOP_EQ_LENGTH;
+            jsbytecode *afterPC = PC + JSOP_STRING_LENGTH + JSOP_EQ_LENGTH;
+
+            if (type != JSVAL_TYPE_UNKNOWN && bytecodeInChunk(afterPC)) {
+                PC = afterPC;
 
                 RegisterID result = frame.allocReg(Registers::SingleByteRegs).reg();
 
@@ -1171,17 +1188,26 @@ mjit::Compiler::jsop_setelem_dense()
 
         /*
          * The sync call below can potentially clobber key.reg() and slotsReg.
-         * So we save and restore them. Additionally, the WriteBarrier stub can
-         * clobber both registers. The rejoin call will restore key.reg() but
-         * not slotsReg. So we restore it again after the stub call.
+         * We pin key.reg() to avoid it being clobbered. If |hoisted| is true,
+         * we can also pin slotsReg. If not, then slotsReg is owned by the
+         * compiler and we save in manually to VMFrame::scratch.
+         *
+         * Additionally, the WriteBarrier stub can clobber both registers. The
+         * rejoin call will restore key.reg() but not slotsReg. So we save
+         * slotsReg in the frame and restore it after the stub call.
          */
         stubcc.masm.storePtr(slotsReg, FrameAddress(offsetof(VMFrame, scratch)));
+        if (hoisted)
+            frame.pinReg(slotsReg);
         if (!key.isConstant())
-            stubcc.masm.push(key.reg());
+            frame.pinReg(key.reg());
         frame.sync(stubcc.masm, Uses(3));
         if (!key.isConstant())
-            stubcc.masm.pop(key.reg());
-        stubcc.masm.loadPtr(FrameAddress(offsetof(VMFrame, scratch)), slotsReg);
+            frame.unpinReg(key.reg());
+        if (hoisted)
+            frame.unpinReg(slotsReg);
+        else
+            stubcc.masm.loadPtr(FrameAddress(offsetof(VMFrame, scratch)), slotsReg);
 
         if (key.isConstant())
             stubcc.masm.lea(Address(slotsReg, key.index() * sizeof(Value)), Registers::ArgReg1);
@@ -1896,7 +1922,7 @@ mjit::Compiler::jsop_getelem_args()
 
     // Guard on nactual.
     if (!hoistedLength) {
-        Address nactualAddr(JSFrameReg, StackFrame::offsetOfArgs());
+        Address nactualAddr(JSFrameReg, StackFrame::offsetOfNumActual());
         MaybeJump rangeGuard;
         if (key.isConstant()) {
             JS_ASSERT(key.index() >= 0);
@@ -2283,7 +2309,7 @@ mjit::Compiler::jsop_stricteq(JSOp op)
 
     /* Constant-fold. */
     if (lhs->isConstant() && rhs->isConstant()) {
-        JSBool b;
+        bool b;
         StrictlyEqual(cx, lhs->getValue(), rhs->getValue(), &b);
         frame.popn(2);
         frame.push(BooleanValue((op == JSOP_STRICTEQ) ? b : !b));
@@ -2324,6 +2350,12 @@ mjit::Compiler::jsop_stricteq(JSOp op)
             masm.or32(result1, result);
         }
         frame.freeReg(result1);
+#elif defined(JS_CPU_MIPS)
+        /* On MIPS the result 0.0/0.0 is 0x7FF7FFFF.
+           We need to manually set it to 0x7FF80000. */
+        static const int ShiftedCanonicalNaNType = 0x7FF80000 << 1;
+        masm.setShiftedCanonicalNaN(treg, treg);
+        masm.setPtr(oppositeCond, treg, Imm32(ShiftedCanonicalNaNType), result);
 #elif !defined(JS_CPU_X64)
         static const int ShiftedCanonicalNaNType = 0x7FF80000 << 1;
         masm.setPtr(oppositeCond, treg, Imm32(ShiftedCanonicalNaNType), result);

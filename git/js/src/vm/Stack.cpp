@@ -88,13 +88,13 @@ StackFrame::initExecuteFrame(JSScript *script, StackFrame *prev, FrameRegs *regs
     if (isFunctionFrame()) {
         dstvp[0] = prev->calleev();
         exec = prev->exec;
-        args.script = script;
+        u.evalScript = script;
     } else {
         JS_ASSERT(isGlobalFrame());
         dstvp[0] = NullValue();
         exec.script = script;
 #ifdef DEBUG
-        args.script = (JSScript *)0xbad;
+        u.evalScript = (JSScript *)0xbad;
 #endif
     }
 
@@ -234,26 +234,7 @@ StackSegment::contains(const CallArgsList *call) const
 
     /* NB: this depends on the continuity of segments in memory. */
     Value *vp = call->array();
-    bool ret = vp > slotsBegin() && vp <= calls_->array();
-
-    /*
-     * :XXX: Disabled. Including this check changes the asymptotic complexity
-     * of code which calls this function.
-     */
-#if 0
-#ifdef DEBUG
-    bool found = false;
-    for (CallArgsList *c = maybeCalls(); c->argv() > slotsBegin(); c = c->prev()) {
-        if (c == call) {
-            found = true;
-            break;
-        }
-    }
-    JS_ASSERT(found == ret);
-#endif
-#endif
-
-    return ret;
+    return vp > slotsBegin() && vp <= calls_->array();
 }
 
 StackFrame *
@@ -511,38 +492,14 @@ StackSpace::sizeOfCommitted()
 
 ContextStack::ContextStack(JSContext *cx)
   : seg_(NULL),
-    space_(&JS_THREAD_DATA(cx)->stackSpace),
+    space_(&cx->runtime->stackSpace),
     cx_(cx)
-{
-    threadReset();
-}
+{}
 
 ContextStack::~ContextStack()
 {
     JS_ASSERT(!seg_);
 }
-
-void
-ContextStack::threadReset()
-{
-#ifdef JS_THREADSAFE
-    if (cx_->thread())
-        space_ = &JS_THREAD_DATA(cx_)->stackSpace;
-    else
-        space_ = NULL;
-#else
-    space_ = &JS_THREAD_DATA(cx_)->stackSpace;
-#endif
-}
-
-#ifdef DEBUG
-void
-ContextStack::assertSpaceInSync() const
-{
-    JS_ASSERT(space_);
-    JS_ASSERT(space_ == &JS_THREAD_DATA(cx_)->stackSpace);
-}
-#endif
 
 bool
 ContextStack::onTop() const
@@ -588,7 +545,8 @@ ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, uintN nvars,
     if (FrameRegs *regs = cx->maybeRegs()) {
         JSFunction *fun = NULL;
         if (JSInlinedSite *site = regs->inlined()) {
-            fun = regs->fp()->jit()->inlineFrames()[site->inlineIndex].fun;
+            mjit::JITChunk *chunk = regs->fp()->jit()->chunk(regs->pc);
+            fun = chunk->inlineFrames()[site->inlineIndex].fun;
         } else {
             StackFrame *fp = regs->fp();
             if (fp->isFunctionFrame()) {
@@ -811,6 +769,17 @@ ContextStack::pushGeneratorFrame(JSContext *cx, JSGenerator *gen, GeneratorFrame
     /* Save this for popGeneratorFrame. */
     gfg->gen_ = gen;
     gfg->stackvp_ = stackvp;
+
+    /*
+     * Trigger incremental barrier on the floating frame's generator object.
+     * This is normally traced through only by associated arguments/call
+     * objects, but only when the generator is not actually on the stack.
+     * We don't need to worry about generational barriers as the generator
+     * object has a trace hook and cannot be nursery allocated.
+     */
+    JSObject *genobj = js_FloatingFrameToGenerator(genfp)->obj;
+    JS_ASSERT(genobj->getClass()->trace);
+    JSObject::writeBarrierPre(genobj);
 
     /* Copy from the generator's floating frame to the stack. */
     stackfp->stealFrameAndSlots(stackvp, genfp, genvp, gen->regs.sp);
@@ -1140,22 +1109,27 @@ StackIter::operator==(const StackIter &rhs) const
 AllFramesIter::AllFramesIter(StackSpace &space)
   : seg_(space.seg_),
     fp_(seg_ ? seg_->maybefp() : NULL)
-{}
+{
+    settle();
+}
 
 AllFramesIter&
 AllFramesIter::operator++()
 {
     JS_ASSERT(!done());
     fp_ = fp_->prev();
-    if (!seg_->contains(fp_)) {
-        seg_ = seg_->prevInMemory();
-        while (seg_) {
-            fp_ = seg_->maybefp();
-            if (fp_)
-                return *this;
-            seg_ = seg_->prevInMemory();
-        }
-        JS_ASSERT(!fp_);
-    }
+    settle();
     return *this;
+}
+
+void
+AllFramesIter::settle()
+{
+    while (seg_ && (!fp_ || !seg_->contains(fp_))) {
+        seg_ = seg_->prevInMemory();
+        fp_ = seg_ ? seg_->maybefp() : NULL;
+    }
+
+    JS_ASSERT(!!seg_ == !!fp_);
+    JS_ASSERT_IF(fp_, seg_->contains(fp_));
 }

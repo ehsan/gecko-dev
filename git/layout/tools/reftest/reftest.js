@@ -149,6 +149,7 @@ const EXPECTED_PASS = 0;
 const EXPECTED_FAIL = 1;
 const EXPECTED_RANDOM = 2;
 const EXPECTED_DEATH = 3;  // test must be skipped to avoid e.g. crash/hang
+const EXPECTED_FUZZY = 4;
 
 // types of preference value we might want to set for a specific test
 const PREF_BOOLEAN = 0;
@@ -345,13 +346,9 @@ function InitAndStartRefTests()
         gThisChunk = 0;
     }
 
-    try {
-        gWindowUtils = gContainingWindow.QueryInterface(CI.nsIInterfaceRequestor).getInterface(CI.nsIDOMWindowUtils);
-        if (gWindowUtils && !gWindowUtils.compareCanvases)
-            gWindowUtils = null;
-    } catch (e) {
-        gWindowUtils = null;
-    }
+    gWindowUtils = gContainingWindow.QueryInterface(CI.nsIInterfaceRequestor).getInterface(CI.nsIDOMWindowUtils);
+    if (!gWindowUtils || !gWindowUtils.compareCanvases)
+        throw "nsIDOMWindowUtils inteface missing";
 
     gIOService = CC[IO_SERVICE_CONTRACTID].getService(CI.nsIIOService);
     gDebug = CC[DEBUG_CONTRACTID].getService(CI.nsIDebug2);
@@ -512,18 +509,20 @@ function BuildConditionSandbox(aURL) {
     } catch(e) {
         sandbox.xulRuntime.XPCOMABI = "";
     }
-  
+ 
+    
+    var gfxInfo = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo);
     try {
-        // nsIGfxInfo is currently only implemented on Windows
-        sandbox.d2d = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo).D2DEnabled;
-    } catch(e) {
-        sandbox.d2d = false;
+      sandbox.d2d = gfxInfo.D2DEnabled;
+    } catch (e) {
+      sandbox.d2d = false;
     }
+    sandbox.azureQuartz = gfxInfo.getInfo().AzureBackend == "quartz";
 
     sandbox.layersGPUAccelerated =
-      gWindowUtils && gWindowUtils.layerManagerType != "Basic";
+      gWindowUtils.layerManagerType != "Basic";
     sandbox.layersOpenGL =
-      gWindowUtils && gWindowUtils.layerManagerType == "OpenGL";
+      gWindowUtils.layerManagerType == "OpenGL";
 
     // Shortcuts for widget toolkits.
     sandbox.Android = xr.OS == "Android";
@@ -689,8 +688,10 @@ function ReadManifest(aURL, inherited_status)
         var needs_focus = false;
         var slow = false;
         var prefSettings = [];
+        var fuzzy_max_delta = 2;
+        var fuzzy_max_pixels = 1;
         
-        while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|require-or|silentfail|pref)/)) {
+        while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|require-or|silentfail|pref|fuzzy)/)) {
             var item = items.shift();
             var stat;
             var cond;
@@ -770,6 +771,18 @@ function ReadManifest(aURL, inherited_status)
                 prefSettings.push( { name: prefName,
                                      type: prefType,
                                      value: prefVal } );
+            } else if ((m = item.match(/^fuzzy\((\d+),(\d+)\)$/))) {
+              cond = false;
+              expected_status = EXPECTED_FUZZY;
+              fuzzy_max_delta = Number(m[1]);
+              fuzzy_max_pixels = Number(m[2]);
+            } else if ((m = item.match(/^fuzzy-if\((.*?),(\d+),(\d+)\)$/))) {
+              cond = false;
+              if (Components.utils.evalInSandbox("(" + m[1] + ")", sandbox)) {
+                expected_status = EXPECTED_FUZZY;
+                fuzzy_max_delta = Number(m[2]);
+                fuzzy_max_pixels = Number(m[3]);
+              }
             } else {
                 throw "Error 1 in manifest file " + aURL.spec + " line " + lineNo;
             }
@@ -849,6 +862,8 @@ function ReadManifest(aURL, inherited_status)
                           needsFocus: needs_focus,
                           slow: slow,
                           prefSettings: prefSettings,
+                          fuzzyMaxDelta: fuzzy_max_delta,
+                          fuzzyMaxPixels: fuzzy_max_pixels,
                           url1: testURI,
                           url2: null } );
         } else if (items[0] == TYPE_SCRIPT) {
@@ -872,6 +887,8 @@ function ReadManifest(aURL, inherited_status)
                           needsFocus: needs_focus,
                           slow: slow,
                           prefSettings: prefSettings,
+                          fuzzyMaxDelta: fuzzy_max_delta,
+                          fuzzyMaxPixels: fuzzy_max_pixels,
                           url1: testURI,
                           url2: null } );
         } else if (items[0] == TYPE_REFTEST_EQUAL || items[0] == TYPE_REFTEST_NOTEQUAL) {
@@ -898,6 +915,8 @@ function ReadManifest(aURL, inherited_status)
                           needsFocus: needs_focus,
                           slow: slow,
                           prefSettings: prefSettings,
+                          fuzzyMaxDelta: fuzzy_max_delta,
+                          fuzzyMaxPixels: fuzzy_max_pixels,
                           url1: testURI,
                           url2: refURI } );
         } else {
@@ -985,7 +1004,7 @@ function Focus()
     }
 
     var fm = CC["@mozilla.org/focus-manager;1"].getService(CI.nsIFocusManager);
-    fm.activeWindow = gContainingWindow;
+    fm.focusedWindow = gContainingWindow;
     try {
         var dock = CC["@mozilla.org/widget/macdocksupport;1"].getService(CI.nsIMacDockSupport);
         dock.activateApplication(true);
@@ -1300,6 +1319,8 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
         true:  {s: "TEST-PASS" + randomMsg      , n: "Random"},
         false: {s: "TEST-KNOWN-FAIL" + randomMsg, n: "Random"}
     };
+    outputs[EXPECTED_FUZZY] = outputs[EXPECTED_PASS];
+
     var output;
 
     if (gURLs[0].type == TYPE_LOAD) {
@@ -1402,21 +1423,26 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
             var differences;
             // whether the two renderings match:
             var equal;
+            var maxDifference = {};
 
-            if (gWindowUtils) {
-                differences = gWindowUtils.compareCanvases(gCanvas1, gCanvas2, {});
-                equal = (differences == 0);
-            } else {
-                differences = -1;
-                var k1 = gCanvas1.toDataURL();
-                var k2 = gCanvas2.toDataURL();
-                equal = (k1 == k2);
+            differences = gWindowUtils.compareCanvases(gCanvas1, gCanvas2, maxDifference);
+            equal = (differences == 0);
+
+            // what is expected on this platform (PASS, FAIL, or RANDOM)
+            var expected = gURLs[0].expected;
+
+            if (maxDifference.value > 0 && maxDifference.value <= gURLs[0].fuzzyMaxDelta &&
+                differences <= gURLs[0].fuzzyMaxPixels) {
+                if (equal) {
+                    throw "Inconsistent result from compareCanvases.";
+                }
+                equal = expected == EXPECTED_FUZZY;
+                gDumpLog("REFTEST fuzzy match\n");
             }
 
             // whether the comparison result matches what is in the manifest
             var test_passed = (equal == (gURLs[0].type == TYPE_REFTEST_EQUAL));
-            // what is expected on this platform (PASS, FAIL, or RANDOM)
-            var expected = gURLs[0].expected;
+
             output = outputs[expected][test_passed];
 
             ++gTestResults[output.n];
@@ -1434,11 +1460,12 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
             gDumpLog(result + "\n");
 
             if (!test_passed && expected == EXPECTED_PASS ||
+                !test_passed && expected == EXPECTED_FUZZY ||
                 test_passed && expected == EXPECTED_FAIL) {
                 if (!equal) {
                     gDumpLog("REFTEST   IMAGE 1 (TEST): " + gCanvas1.toDataURL() + "\n");
                     gDumpLog("REFTEST   IMAGE 2 (REFERENCE): " + gCanvas2.toDataURL() + "\n");
-                    gDumpLog("REFTEST number of differing pixels: " + differences + "\n");
+                    gDumpLog("REFTEST number of differing pixels: " + differences + " max difference: " + maxDifference.value + "\n");
                 } else {
                     gDumpLog("REFTEST   IMAGE: " + gCanvas1.toDataURL() + "\n");
                 }

@@ -59,6 +59,9 @@
 #include "js/MemoryMetrics.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Retcon.h"
+#ifdef JS_METHODJIT
+# include "assembler/assembler/MacroAssembler.h"
+#endif
 
 #include "jsatominlines.h"
 #include "jsgcinlines.h"
@@ -1401,13 +1404,13 @@ TypeConstraintTransformThis::newType(JSContext *cx, TypeSet *source, Type type)
 class TypeConstraintFreeze : public TypeConstraint
 {
 public:
-    JSScript *script;
+    RecompileInfo info;
 
     /* Whether a new type has already been added, triggering recompilation. */
     bool typeAdded;
 
-    TypeConstraintFreeze(JSScript *script)
-        : TypeConstraint("freeze"), script(script), typeAdded(false)
+    TypeConstraintFreeze(RecompileInfo info)
+        : TypeConstraint("freeze"), info(info), typeAdded(false)
     {}
 
     void newType(JSContext *cx, TypeSet *source, Type type)
@@ -1416,7 +1419,7 @@ public:
             return;
 
         typeAdded = true;
-        cx->compartment->types.addPendingRecompile(cx, script);
+        cx->compartment->types.addPendingRecompile(cx, info);
     }
 };
 
@@ -1424,7 +1427,7 @@ void
 TypeSet::addFreeze(JSContext *cx)
 {
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreeze>(
-                cx->compartment->types.compiledScript), false);
+                cx->compartment->types.compiledInfo), false);
 }
 
 /*
@@ -1434,7 +1437,7 @@ TypeSet::addFreeze(JSContext *cx)
 class TypeConstraintFreezeTypeTag : public TypeConstraint
 {
 public:
-    JSScript *script;
+    RecompileInfo info;
 
     /*
      * Whether the type tag has been marked unknown due to a type change which
@@ -1442,8 +1445,8 @@ public:
      */
     bool typeUnknown;
 
-    TypeConstraintFreezeTypeTag(JSScript *script)
-        : TypeConstraint("freezeTypeTag"), script(script), typeUnknown(false)
+    TypeConstraintFreezeTypeTag(RecompileInfo info)
+        : TypeConstraint("freezeTypeTag"), info(info), typeUnknown(false)
     {}
 
     void newType(JSContext *cx, TypeSet *source, Type type)
@@ -1458,7 +1461,7 @@ public:
         }
 
         typeUnknown = true;
-        cx->compartment->types.addPendingRecompile(cx, script);
+        cx->compartment->types.addPendingRecompile(cx, info);
     }
 };
 
@@ -1508,9 +1511,9 @@ TypeSet::getKnownTypeTag(JSContext *cx)
     bool empty = flags == 0 && baseObjectCount() == 0;
     JS_ASSERT_IF(empty, type == JSVAL_TYPE_UNKNOWN);
 
-    if (cx->compartment->types.compiledScript && (empty || type != JSVAL_TYPE_UNKNOWN)) {
+    if (cx->compartment->types.compiledInfo.script && (empty || type != JSVAL_TYPE_UNKNOWN)) {
         add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeTypeTag>(
-                  cx->compartment->types.compiledScript), false);
+                  cx->compartment->types.compiledInfo), false);
     }
 
     return type;
@@ -1520,7 +1523,7 @@ TypeSet::getKnownTypeTag(JSContext *cx)
 class TypeConstraintFreezeObjectFlags : public TypeConstraint
 {
 public:
-    JSScript *script;
+    RecompileInfo info;
 
     /* Flags we are watching for on this object. */
     TypeObjectFlags flags;
@@ -1529,13 +1532,13 @@ public:
     bool *pmarked;
     bool localMarked;
 
-    TypeConstraintFreezeObjectFlags(JSScript *script, TypeObjectFlags flags, bool *pmarked)
-        : TypeConstraint("freezeObjectFlags"), script(script), flags(flags),
+    TypeConstraintFreezeObjectFlags(RecompileInfo info, TypeObjectFlags flags, bool *pmarked)
+        : TypeConstraint("freezeObjectFlags"), info(info), flags(flags),
           pmarked(pmarked), localMarked(false)
     {}
 
-    TypeConstraintFreezeObjectFlags(JSScript *script, TypeObjectFlags flags)
-        : TypeConstraint("freezeObjectFlags"), script(script), flags(flags),
+    TypeConstraintFreezeObjectFlags(RecompileInfo info, TypeObjectFlags flags)
+        : TypeConstraint("freezeObjectFlags"), info(info), flags(flags),
           pmarked(&localMarked), localMarked(false)
     {}
 
@@ -1545,9 +1548,9 @@ public:
     {
         if (object->hasAnyFlags(flags) && !*pmarked) {
             *pmarked = true;
-            cx->compartment->types.addPendingRecompile(cx, script);
+            cx->compartment->types.addPendingRecompile(cx, info);
         } else if (force) {
-            cx->compartment->types.addPendingRecompile(cx, script);
+            cx->compartment->types.addPendingRecompile(cx, info);
         }
     }
 };
@@ -1559,13 +1562,13 @@ public:
 class TypeConstraintFreezeObjectFlagsSet : public TypeConstraint
 {
 public:
-    JSScript *script;
+    RecompileInfo info;
 
     TypeObjectFlags flags;
     bool marked;
 
-    TypeConstraintFreezeObjectFlagsSet(JSScript *script, TypeObjectFlags flags)
-        : TypeConstraint("freezeObjectKindSet"), script(script), flags(flags), marked(false)
+    TypeConstraintFreezeObjectFlagsSet(RecompileInfo info, TypeObjectFlags flags)
+        : TypeConstraint("freezeObjectKindSet"), info(info), flags(flags), marked(false)
     {}
 
     void newType(JSContext *cx, TypeSet *source, Type type)
@@ -1590,7 +1593,7 @@ public:
                 if (!types)
                     return;
                 types->add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeObjectFlags>(
-                                  script, flags, &marked), false);
+                                  info, flags, &marked), false);
                 return;
             }
         } else {
@@ -1598,7 +1601,7 @@ public:
         }
 
         marked = true;
-        cx->compartment->types.addPendingRecompile(cx, script);
+        cx->compartment->types.addPendingRecompile(cx, info);
     }
 };
 
@@ -1632,7 +1635,7 @@ TypeSet::hasObjectFlags(JSContext *cx, TypeObjectFlags flags)
      * in this set to add any needed FreezeArray constraints.
      */
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeObjectFlagsSet>(
-                 cx->compartment->types.compiledScript, flags));
+                 cx->compartment->types.compiledInfo, flags));
 
     return false;
 }
@@ -1647,7 +1650,7 @@ TypeSet::HasObjectFlags(JSContext *cx, TypeObject *object, TypeObjectFlags flags
     if (!types)
         return true;
     types->add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeObjectFlags>(
-                      cx->compartment->types.compiledScript, flags), false);
+                      cx->compartment->types.compiledInfo, flags), false);
     return false;
 }
 
@@ -1729,21 +1732,21 @@ TypeSet::WatchObjectStateChange(JSContext *cx, TypeObject *obj)
      * called, which will set 'force' to true.
      */
     types->add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeObjectFlags>(
-                     cx->compartment->types.compiledScript,
+                     cx->compartment->types.compiledInfo,
                      0));
 }
 
 class TypeConstraintFreezeOwnProperty : public TypeConstraint
 {
 public:
-    JSScript *script;
+    RecompileInfo info;
 
     bool updated;
     bool configurable;
 
-    TypeConstraintFreezeOwnProperty(JSScript *script, bool configurable)
+    TypeConstraintFreezeOwnProperty(RecompileInfo info, bool configurable)
         : TypeConstraint("freezeOwnProperty"),
-          script(script), updated(false), configurable(configurable)
+          info(info), updated(false), configurable(configurable)
     {}
 
     void newType(JSContext *cx, TypeSet *source, Type type) {}
@@ -1754,7 +1757,7 @@ public:
             return;
         if (source->isOwnProperty(configurable)) {
             updated = true;
-            cx->compartment->types.addPendingRecompile(cx, script);
+            cx->compartment->types.addPendingRecompile(cx, info);
         }
     }
 };
@@ -1784,7 +1787,7 @@ TypeSet::isOwnProperty(JSContext *cx, TypeObject *object, bool configurable)
         return true;
 
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeOwnProperty>(
-                                                      cx->compartment->types.compiledScript,
+                                                      cx->compartment->types.compiledInfo,
                                                       configurable), false);
     return false;
 }
@@ -1878,7 +1881,7 @@ TypeSet::getSingleton(JSContext *cx, bool freeze)
 
     if (freeze) {
         add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreeze>(
-                                               cx->compartment->types.compiledScript), false);
+                                               cx->compartment->types.compiledInfo), false);
     }
 
     return obj;
@@ -1903,11 +1906,11 @@ TypeHasGlobal(Type type, JSObject *global)
 class TypeConstraintFreezeGlobal : public TypeConstraint
 {
 public:
-    JSScript *script;
+    RecompileInfo info;
     JSObject *global;
 
-    TypeConstraintFreezeGlobal(JSScript *script, JSObject *global)
-        : TypeConstraint("freezeGlobal"), script(script), global(global)
+    TypeConstraintFreezeGlobal(RecompileInfo info, JSObject *global)
+        : TypeConstraint("freezeGlobal"), info(info), global(global)
     {
         JS_ASSERT(global);
     }
@@ -1918,7 +1921,7 @@ public:
             return;
 
         global = NULL;
-        cx->compartment->types.addPendingRecompile(cx, script);
+        cx->compartment->types.addPendingRecompile(cx, info);
     }
 };
 
@@ -1936,7 +1939,7 @@ TypeSet::hasGlobalObject(JSContext *cx, JSObject *global)
     }
 
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeGlobal>(
-              cx->compartment->types.compiledScript, global), false);
+              cx->compartment->types.compiledInfo, global), false);
 
     return true;
 }
@@ -1961,8 +1964,13 @@ TypeCompartment::init(JSContext *cx)
 {
     PodZero(this);
 
-    if (cx && cx->getRunOptions() & JSOPTION_TYPE_INFERENCE)
-        inferenceEnabled = true;
+    if (cx && cx->getRunOptions() & JSOPTION_TYPE_INFERENCE) {
+#ifdef JS_METHODJIT
+        JSC::MacroAssembler masm;
+        if (masm.supportsFloatingPoint())
+#endif
+            inferenceEnabled = true;
+    }
 }
 
 TypeObject *
@@ -2120,7 +2128,7 @@ TypeCompartment::growPendingArray(JSContext *cx)
         return false;
     }
 
-    memcpy(newArray, pendingArray, pendingCount * sizeof(PendingWork));
+    PodCopy(newArray, pendingArray, pendingCount);
     cx->free_(pendingArray);
 
     pendingArray = newArray;
@@ -2133,7 +2141,7 @@ void
 TypeCompartment::processPendingRecompiles(JSContext *cx)
 {
     /* Steal the list of scripts to recompile, else we will try to recursively recompile them. */
-    Vector<JSScript*> *pending = pendingRecompiles;
+    Vector<RecompileInfo> *pending = pendingRecompiles;
     pendingRecompiles = NULL;
 
     JS_ASSERT(!pending->empty());
@@ -2143,10 +2151,10 @@ TypeCompartment::processPendingRecompiles(JSContext *cx)
     mjit::ExpandInlineFrames(cx->compartment);
 
     for (unsigned i = 0; i < pending->length(); i++) {
-        JSScript *script = (*pending)[i];
-        mjit::Recompiler recompiler(cx, script);
-        if (script->hasJITCode())
-            recompiler.recompile();
+        const RecompileInfo &info = (*pending)[i];
+        mjit::JITScript *jit = info.script->getJIT(info.constructing);
+        if (jit && jit->chunkDescriptor(info.chunkIndex).chunk)
+            mjit::Recompiler::clearStackReferencesAndChunk(cx, info.script, jit, info.chunkIndex);
     }
 
 #endif /* JS_METHODJIT */
@@ -2212,31 +2220,31 @@ TypeCompartment::nukeTypes(JSContext *cx)
 
     JSCompartment *compartment = cx->compartment;
     mjit::ExpandInlineFrames(compartment);
+    mjit::ClearAllFrames(compartment);
 
     /* Throw away all JIT code in the compartment, but leave everything else alone. */
 
     for (gc::CellIter i(cx, cx->compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        if (script->hasJITCode()) {
-            mjit::Recompiler recompiler(cx, script);
-            recompiler.recompile();
-        }
+        if (script->hasJITCode())
+            mjit::ReleaseScriptCode(cx, script);
     }
 #endif /* JS_METHODJIT */
 
 }
 
 void
-TypeCompartment::addPendingRecompile(JSContext *cx, JSScript *script)
+TypeCompartment::addPendingRecompile(JSContext *cx, const RecompileInfo &info)
 {
 #ifdef JS_METHODJIT
-    if (!script->jitNormal && !script->jitCtor) {
+    mjit::JITScript *jit = info.script->getJIT(info.constructing);
+    if (!jit || !jit->chunkDescriptor(info.chunkIndex).chunk) {
         /* Scripts which haven't been compiled yet don't need to be recompiled. */
         return;
     }
 
     if (!pendingRecompiles) {
-        pendingRecompiles = cx->new_< Vector<JSScript*> >(cx);
+        pendingRecompiles = cx->new_< Vector<RecompileInfo> >(cx);
         if (!pendingRecompiles) {
             cx->compartment->types.setPendingNukeTypes(cx);
             return;
@@ -2244,13 +2252,34 @@ TypeCompartment::addPendingRecompile(JSContext *cx, JSScript *script)
     }
 
     for (unsigned i = 0; i < pendingRecompiles->length(); i++) {
-        if (script == (*pendingRecompiles)[i])
+        if (info == (*pendingRecompiles)[i])
             return;
     }
 
-    if (!pendingRecompiles->append(script)) {
+    if (!pendingRecompiles->append(info)) {
         cx->compartment->types.setPendingNukeTypes(cx);
         return;
+    }
+#endif
+}
+
+void
+TypeCompartment::addPendingRecompile(JSContext *cx, JSScript *script, jsbytecode *pc)
+{
+#ifdef JS_METHODJIT
+    RecompileInfo info;
+    info.script = script;
+
+    if (script->jitNormal) {
+        info.constructing = false;
+        info.chunkIndex = script->jitNormal->chunkIndex(pc);
+        addPendingRecompile(cx, info);
+    }
+
+    if (script->jitCtor) {
+        info.constructing = true;
+        info.chunkIndex = script->jitCtor->chunkIndex(pc);
+        addPendingRecompile(cx, info);
     }
 #endif
 }
@@ -2281,7 +2310,7 @@ TypeCompartment::monitorBytecode(JSContext *cx, JSScript *script, uint32_t offse
     if (!returnOnly)
         code.monitoredTypes = true;
 
-    cx->compartment->types.addPendingRecompile(cx, script);
+    cx->compartment->types.addPendingRecompile(cx, script, pc);
 
     /* Trigger recompilation of any inline callers. */
     if (script->function() && !script->function()->hasLazyType())
@@ -2375,7 +2404,7 @@ ScriptAnalysis::addTypeBarrier(JSContext *cx, const jsbytecode *pc, TypeSet *tar
          * however, do not trigger recompilation (the script will be recompiled
          * if any of the barriers is ever violated).
          */
-        cx->compartment->types.addPendingRecompile(cx, script);
+        cx->compartment->types.addPendingRecompile(cx, script, const_cast<jsbytecode*>(pc));
 
         /* Trigger recompilation of any inline callers. */
         if (script->function() && !script->function()->hasLazyType())
@@ -2410,7 +2439,7 @@ ScriptAnalysis::addSingletonTypeBarrier(JSContext *cx, const jsbytecode *pc, Typ
 
     if (!code.typeBarriers) {
         /* Trigger recompilation as for normal type barriers. */
-        cx->compartment->types.addPendingRecompile(cx, script);
+        cx->compartment->types.addPendingRecompile(cx, script, const_cast<jsbytecode*>(pc));
         if (script->function() && !script->function()->hasLazyType())
             ObjectStateChange(cx, script->function()->type(), false, true);
     }
@@ -3226,7 +3255,7 @@ GetInitializerType(JSContext *cx, JSScript *script, jsbytecode *pc)
     JSOp op = JSOp(*pc);
     JS_ASSERT(op == JSOP_NEWARRAY || op == JSOP_NEWOBJECT || op == JSOP_NEWINIT);
 
-    bool isArray = (op == JSOP_NEWARRAY || (op == JSOP_NEWINIT && pc[1] == JSProto_Array));
+    bool isArray = (op == JSOP_NEWARRAY || (op == JSOP_NEWINIT && GET_UINT8(pc) == JSProto_Array));
     return TypeScript::InitObject(cx, script, pc, isArray ? JSProto_Array : JSProto_Object);
 }
 
@@ -3301,6 +3330,9 @@ ScriptAnalysis::resolveNameAccess(JSContext *cx, jsid id, bool addDependency)
                 if (TypeSet::HasObjectFlags(cx, obj, OBJECT_FLAG_REENTRANT_FUNCTION))
                     return access;
             }
+
+            if (!script->isOuterFunction)
+                return access;
 
             access.script = script;
             access.nesting = script->nesting();
@@ -3399,6 +3431,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_POP:
       case JSOP_NOP:
       case JSOP_LOOPHEAD:
+      case JSOP_LOOPENTRY:
       case JSOP_GOTO:
       case JSOP_IFEQ:
       case JSOP_IFNE:
@@ -3417,7 +3450,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_STARTXML:
       case JSOP_STARTXMLEXPR:
       case JSOP_DEFXMLNS:
-      case JSOP_SHARPINIT:
       case JSOP_INDEXBASE:
       case JSOP_INDEXBASE1:
       case JSOP_INDEXBASE2:
@@ -3530,7 +3562,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
 
       case JSOP_SWAP:
       case JSOP_PICK: {
-        unsigned pickedDepth = (op == JSOP_SWAP ? 1 : pc[1]);
+        unsigned pickedDepth = (op == JSOP_SWAP ? 1 : GET_UINT8(pc));
         /* The last popped value is the last pushed. */
         poppedTypes(pc, pickedDepth)->addSubset(cx, &pushed[pickedDepth]);
         for (unsigned i = 0; i < pickedDepth; i++)
@@ -3993,7 +4025,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
               return false;
         }
 
-        if (pc[1] & JSITER_FOREACH)
+        if (GET_UINT8(pc) & JSITER_FOREACH)
             state.forTypes->addType(cx, Type::UnknownType());
         else
             state.forTypes->addType(cx, Type::StringType());
@@ -4064,8 +4096,11 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         pushed[0].addType(cx, Type::UnknownType());
         break;
 
-      case JSOP_XMLNAME:
       case JSOP_CALLXMLNAME:
+        pushed[1].addType(cx, Type::UnknownType());
+        /* FALLTHROUGH */
+
+      case JSOP_XMLNAME:
         pushed[0].addType(cx, Type::UnknownType());
         break;
 
@@ -4098,13 +4133,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
 
       case JSOP_ENDFILTER:
         poppedTypes(pc, 1)->addSubset(cx, &pushed[0]);
-        break;
-
-      case JSOP_DEFSHARP:
-        break;
-
-      case JSOP_USESHARP:
-        pushed[0].addType(cx, Type::UnknownType());
         break;
 
       case JSOP_CALLEE:
@@ -4298,7 +4326,7 @@ ScriptAnalysis::followEscapingArguments(JSContext *cx, const SSAValue &v, Vector
         return true;
 
     for (unsigned i = 0; i < seen->length(); i++) {
-        if (v.equals((*seen)[i]))
+        if (v == (*seen)[i])
             return true;
     }
     if (!seen->append(v)) {
@@ -4538,6 +4566,12 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op != JSOP_THIS)
             continue;
 
+        /* Maintain ordering property on how 'this' is used, as described above. */
+        if (offset < lastThisPopped) {
+            *pbaseobj = NULL;
+            return false;
+        }
+
         SSAValue thisv = SSAValue::PushedValue(offset, 0);
         SSAUseChain *uses = analysis->useChain(thisv);
 
@@ -4547,11 +4581,6 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
             return false;
         }
 
-        /* Maintain ordering property on how 'this' is used, as described above. */
-        if (offset < lastThisPopped) {
-            *pbaseobj = NULL;
-            return false;
-        }
         lastThisPopped = uses->offset;
 
         /* Only handle 'this' values popped in unconditional code. */
@@ -6233,12 +6262,12 @@ TypeScript::destroy()
 }
 
 inline size_t
-TypeSet::dynamicSize()
+TypeSet::computedSizeOfExcludingThis()
 {
     /*
      * This memory is allocated within the temp pool (but accounted for
      * elsewhere) so we can't use a JSMallocSizeOfFun to measure it.  We must
-     * do it analytically.
+     * compute its size analytically.
      */
     uint32_t count = baseObjectCount();
     if (count >= 2)
@@ -6247,12 +6276,12 @@ TypeSet::dynamicSize()
 }
 
 inline size_t
-TypeObject::dynamicSize()
+TypeObject::computedSizeOfExcludingThis()
 {
     /*
      * This memory is allocated within the temp pool (but accounted for
      * elsewhere) so we can't use a JSMallocSizeOfFun to measure it.  We must
-     * do it analytically.
+     * compute its size analytically.
      */
     size_t bytes = 0;
 
@@ -6264,14 +6293,15 @@ TypeObject::dynamicSize()
     for (unsigned i = 0; i < count; i++) {
         Property *prop = getProperty(i);
         if (prop)
-            bytes += sizeof(Property) + prop->types.dynamicSize();
+            bytes += sizeof(Property) + prop->types.computedSizeOfExcludingThis();
     }
 
     return bytes;
 }
 
 static void
-GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
+SizeOfScriptTypeInferenceData(JSScript *script, TypeInferenceSizes *sizes,
+                              JSMallocSizeOfFun mallocSizeOf)
 {
     TypeScript *typeScript = script->types;
     if (!typeScript)
@@ -6279,18 +6309,18 @@ GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMalloc
 
     /* If TI is disabled, a single TypeScript is still present. */
     if (!script->compartment()->types.inferenceEnabled) {
-        stats->scripts += mallocSizeOf(typeScript, sizeof(TypeScript));
+        sizes->scripts += mallocSizeOf(typeScript);
         return;
     }
 
-    stats->scripts += mallocSizeOf(typeScript->nesting, sizeof(TypeScriptNesting));
+    sizes->scripts += mallocSizeOf(typeScript->nesting);
 
     unsigned count = TypeScript::NumTypeSets(script);
-    stats->scripts += mallocSizeOf(typeScript, sizeof(TypeScript) + count * sizeof(TypeSet));
+    sizes->scripts += mallocSizeOf(typeScript);
 
     TypeResult *result = typeScript->dynamicList;
     while (result) {
-        stats->scripts += mallocSizeOf(result, sizeof(TypeResult));
+        sizes->scripts += mallocSizeOf(result);
         result = result->next;
     }
 
@@ -6300,15 +6330,14 @@ GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMalloc
      */
     TypeSet *typeArray = typeScript->typeArray();
     for (unsigned i = 0; i < count; i++) {
-        size_t bytes = typeArray[i].dynamicSize();
-        stats->scripts += bytes;
-        stats->temporary -= bytes;
+        size_t bytes = typeArray[i].computedSizeOfExcludingThis();
+        sizes->scripts += bytes;
+        sizes->temporary -= bytes;
     }
 }
 
-JS_PUBLIC_API(void)
-JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment,
-                                       TypeInferenceMemoryStats *stats,
+void
+JSCompartment::sizeOfTypeInferenceData(JSContext *cx, TypeInferenceSizes *sizes,
                                        JSMallocSizeOfFun mallocSizeOf)
 {
     /*
@@ -6316,29 +6345,27 @@ JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment
      * by being copied to the replacement pool. This memory will be counted
      * elsewhere and deducted from the amount of temporary data.
      */
-    stats->temporary += compartment->typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    sizes->temporary += typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
     /* Pending arrays are cleared on GC along with the analysis pool. */
-    stats->temporary +=
-        mallocSizeOf(compartment->types.pendingArray, 
-                     sizeof(TypeCompartment::PendingWork) * compartment->types.pendingCapacity);
+    sizes->temporary += mallocSizeOf(types.pendingArray);
 
     /* TypeCompartment::pendingRecompiles is non-NULL only while inference code is running. */
-    JS_ASSERT(!compartment->types.pendingRecompiles);
+    JS_ASSERT(!types.pendingRecompiles);
 
-    for (gc::CellIter i(cx, compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next())
-        GetScriptMemoryStats(i.get<JSScript>(), stats, mallocSizeOf);
+    for (gc::CellIter i(cx, this, gc::FINALIZE_SCRIPT); !i.done(); i.next())
+        SizeOfScriptTypeInferenceData(i.get<JSScript>(), sizes, mallocSizeOf);
 
-    if (compartment->types.allocationSiteTable)
-        stats->tables += compartment->types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
+    if (types.allocationSiteTable)
+        sizes->tables += types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
 
-    if (compartment->types.arrayTypeTable)
-        stats->tables += compartment->types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
+    if (types.arrayTypeTable)
+        sizes->tables += types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
-    if (compartment->types.objectTypeTable) {
-        stats->tables += compartment->types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
+    if (types.objectTypeTable) {
+        sizes->tables += types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
-        for (ObjectTypeTable::Enum e(*compartment->types.objectTypeTable);
+        for (ObjectTypeTable::Enum e(*types.objectTypeTable);
              !e.empty();
              e.popFront())
         {
@@ -6346,43 +6373,31 @@ JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment
             const ObjectTableEntry &value = e.front().value;
 
             /* key.ids and values.types have the same length. */
-            stats->tables += mallocSizeOf(key.ids, key.nslots * sizeof(jsid)) +
-                             mallocSizeOf(value.types, key.nslots * sizeof(Type));
+            sizes->tables += mallocSizeOf(key.ids) + mallocSizeOf(value.types);
         }
     }
 }
 
-JS_PUBLIC_API(void)
-JS::SizeOfObjectTypeInferenceData(void *object_, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
+void
+TypeObject::sizeOfExcludingThis(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf)
 {
-    TypeObject *object = (TypeObject *) object_;
-
-    if (object->singleton) {
+    if (singleton) {
         /*
          * Properties and associated type sets for singletons are cleared on
          * every GC. The type object is normally destroyed too, but we don't
          * charge this to 'temporary' as this is not for GC heap values.
          */
-        JS_ASSERT(!object->newScript);
+        JS_ASSERT(!newScript);
         return;
     }
 
-    if (object->newScript) {
-        /* The initializerList is tacked onto the end of the TypeNewScript. */
-        size_t computedSize = sizeof(TypeNewScript);
-        for (TypeNewScript::Initializer *init = object->newScript->initializerList; ; init++) {
-            computedSize += sizeof(TypeNewScript::Initializer);
-            if (init->kind == TypeNewScript::Initializer::DONE)
-                break;
-        }
-        stats->objects += mallocSizeOf(object->newScript, computedSize);
-    }
+    sizes->objects += mallocSizeOf(newScript);
 
     /*
      * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JS_GetTypeInferenceMemoryStats for more details.
+     * elsewhere.  See JSCompartment::sizeOfTypeInferenceData for more details.
      */
-    size_t bytes = object->dynamicSize();
-    stats->objects += bytes;
-    stats->temporary -= bytes;
+    size_t bytes = computedSizeOfExcludingThis();
+    sizes->objects += bytes;
+    sizes->temporary -= bytes;
 }

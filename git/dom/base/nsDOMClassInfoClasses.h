@@ -433,6 +433,11 @@ DOMCI_CLASS(MozBatteryManager)
 DOMCI_CLASS(MozSmsManager)
 DOMCI_CLASS(MozSmsMessage)
 DOMCI_CLASS(MozSmsEvent)
+DOMCI_CLASS(MozSmsRequest)
+DOMCI_CLASS(MozSmsFilter)
+DOMCI_CLASS(MozSmsCursor)
+
+DOMCI_CLASS(MozConnection)
 
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)
@@ -532,3 +537,5 @@ DOMCI_CLASS(Telephony)
 DOMCI_CLASS(TelephonyCall)
 DOMCI_CLASS(CallEvent)
 #endif
+
+DOMCI_CLASS(DOMError)

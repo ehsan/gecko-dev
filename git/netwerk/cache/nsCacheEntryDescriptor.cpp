@@ -333,6 +333,10 @@ nsCacheEntryDescriptor::OpenOutputStream(PRUint32 offset, nsIOutputStream ** res
     if ((compressionLevel > 0) && val) {
         cacheOutput = new nsCompressOutputStreamWrapper(this, offset);
     } else {
+        // clear compression flag when compression disabled - see bug #715198
+        if (val) {
+            mCacheEntry->SetMetaDataElement("uncompressed-len", nsnull);
+        }
         cacheOutput = new nsOutputStreamWrapper(this, offset);
     }
     if (!cacheOutput) return NS_ERROR_OUT_OF_MEMORY;
@@ -911,6 +915,8 @@ nsCompressOutputStreamWrapper::Write(const char * buf,
     while (mZstream.avail_in > 0) {
         zerr = deflate(&mZstream, Z_NO_FLUSH);
         if (zerr == Z_STREAM_ERROR) {
+            deflateEnd(&mZstream);
+            mStreamInitialized = PR_FALSE;
             return NS_ERROR_FAILURE;
         }
         // Note: Z_BUF_ERROR is non-fatal and sometimes expected here.
@@ -920,6 +926,8 @@ nsCompressOutputStreamWrapper::Write(const char * buf,
         if (mZstream.avail_out == 0) {
             rv = WriteBuffer();
             if (NS_FAILED(rv)) {
+                deflateEnd(&mZstream);
+                mStreamInitialized = PR_FALSE;
                 return rv;
             }
         }
