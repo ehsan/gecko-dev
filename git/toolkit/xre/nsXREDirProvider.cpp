@@ -457,12 +457,8 @@ LoadDirsIntoArray(nsCOMArray<nsIFile>& aSourceDirs,
     if (!appended)
       continue;
 
-    nsCAutoString leaf;
-    appended->GetNativeLeafName(leaf);
-    if (!Substring(leaf, leaf.Length() - 4).Equals(NS_LITERAL_CSTRING(".xpi"))) {
-      for (const char *const *a = aAppendList; *a; ++a)
-        appended->AppendNative(nsDependentCString(*a));
-    }
+    for (const char *const *a = aAppendList; *a; ++a)
+      appended->AppendNative(nsDependentCString(*a));
 
     if (NS_SUCCEEDED(appended->Exists(&exists)) && exists)
       aDirectories.AppendObject(appended);
@@ -514,6 +510,8 @@ LoadExtensionDirectories(nsINIParser &parser,
 {
   nsresult rv;
   PRInt32 i = 0;
+  nsCOMPtr<nsIPrefService> prefs =
+    do_GetService("@mozilla.org/preferences-service;1");
   do {
     nsCAutoString buf("Extension");
     buf.AppendInt(i++);
@@ -531,11 +529,15 @@ LoadExtensionDirectories(nsINIParser &parser,
     if (NS_FAILED(rv))
       continue;
 
-    aDirectories.AppendObject(dir);
     if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_CSTRING(".xpi"))) {
       XRE_AddJarManifestLocation(aType, dir);
+      if (!prefs)
+        continue;
+      mozilla::Preferences::ReadExtensionPrefs(dir);
     }
     else {
+      aDirectories.AppendObject(dir);
+
       nsCOMPtr<nsILocalFile> manifest =
         CloneAndAppend(dir, "chrome.manifest");
       XRE_AddManifestLocation(aType, manifest);

@@ -2567,6 +2567,7 @@ var gDetailView = {
     }, true);
     
     this._updatePrefs = Services.prefs.getBranch("extensions.update.");
+    this._updatePrefs.QueryInterface(Ci.nsIPrefBranch2);
   },
   
   shutdown: function() {

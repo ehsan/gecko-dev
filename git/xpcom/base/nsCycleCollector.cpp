@@ -141,8 +141,10 @@
 #include "prenv.h"
 #include "prprf.h"
 #include "plstr.h"
+#include "prtime.h"
 #include "nsPrintfCString.h"
 #include "nsTArray.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsIObserverService.h"
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
@@ -309,36 +311,6 @@ struct nsCycleCollectorStats
 static bool nsCycleCollector_shouldSuppress(nsISupports *s);
 static void InitMemHook(void);
 #endif
-
-#ifdef COLLECT_TIME_DEBUG
-class TimeLog
-{
-public:
-    TimeLog() : mLastCheckpoint(TimeStamp::Now()) {}
-
-    void
-    Checkpoint(const char* aEvent)
-    {
-        TimeStamp now = TimeStamp::Now();
-        PRUint32 dur = (PRUint32) ((now - mLastCheckpoint).ToMilliseconds());
-        if (dur > 0) {
-            printf("cc: %s took %dms\n", aEvent, dur);
-        }
-        mLastCheckpoint = now;
-    }
-
-private:
-    TimeStamp mLastCheckpoint;
-};
-#else
-class TimeLog
-{
-public:
-    TimeLog() {}
-    void Checkpoint(const char* aEvent) {}
-};
-#endif
-
 
 ////////////////////////////////////////////////////////////////////////
 // Base types
@@ -2006,7 +1978,7 @@ nsPurpleBuffer::RemoveSkippable()
                     nsISupports* o = canonicalize(e->mObject);
                     nsXPCOMCycleCollectionParticipant* cp;
                     ToParticipant(o, &cp);
-                    if (!cp->CanSkip(o, false)) {
+                    if (!cp->CanSkip(o)) {
                         continue;
                     }
                     cp->UnmarkPurple(o);
@@ -2225,7 +2197,6 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
     //   - Unroot(whites), which returns the whites to normal GC.
 
     nsresult rv;
-    TimeLog timeLog;
 
     NS_ASSERTION(mWhiteNodes->IsEmpty(),
                  "FinishCollection wasn't called?");
@@ -2244,11 +2215,9 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
             }
         }
     }
-    timeLog.Checkpoint("CollectWhite::Root");
 
     if (mBeforeUnlinkCB) {
         mBeforeUnlinkCB();
-        timeLog.Checkpoint("CollectWhite::BeforeUnlinkCB");
     }
 #if defined(DEBUG_CC) && !defined(__MINGW32__) && defined(WIN32)
     struct _CrtMemState ms1, ms2;
@@ -2280,7 +2249,6 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
 #endif
         }
     }
-    timeLog.Checkpoint("CollectWhite::Unlink");
 
     for (i = 0; i < count; ++i) {
         PtrInfo *pinfo = mWhiteNodes->ElementAt(i);
@@ -2288,7 +2256,6 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
         if (NS_FAILED(rv))
             Fault("Failed unroot call while unlinking", pinfo);
     }
-    timeLog.Checkpoint("CollectWhite::Unroot");
 
 #if defined(DEBUG_CC) && !defined(__MINGW32__) && defined(WIN32)
     _CrtMemCheckpoint(&ms2);
@@ -2875,13 +2842,16 @@ nsCycleCollector::GCIfNeeded(bool aForceGC)
             return;
     }
 
-    TimeLog timeLog;
-
+#ifdef COLLECT_TIME_DEBUG
+    PRTime start = PR_Now();
+#endif
     // rt->Collect() must be called from the main thread,
     // because it invokes XPCJSRuntime::GCCallback(cx, JSGC_BEGIN)
     // which returns false if not in the main thread.
     rt->Collect(js::gcreason::CC_FORCED, nsGCNormal);
-    timeLog.Checkpoint("GC()");
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: GC() took %lldms\n", (PR_Now() - start) / PR_USEC_PER_MSEC);
+#endif
 }
 
 bool
@@ -2896,8 +2866,11 @@ nsCycleCollector::PrepareForCollection(nsTArray<PtrInfo*> *aWhiteNodes)
     if (mCollectionInProgress)
         return false;
 
-    TimeLog timeLog;
+    NS_TIME_FUNCTION;
 
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: nsCycleCollector::PrepareForCollection()\n");
+#endif
     mCollectionStart = TimeStamp::Now();
     mVisitedRefCounted = 0;
     mVisitedGCed = 0;
@@ -2913,8 +2886,6 @@ nsCycleCollector::PrepareForCollection(nsTArray<PtrInfo*> *aWhiteNodes)
     mCollectedObjects = 0;
 
     mWhiteNodes = aWhiteNodes;
-
-    timeLog.Checkpoint("PrepareForCollection()");
 
     return true;
 }
@@ -2932,12 +2903,9 @@ nsCycleCollector::CleanupAfterCollection()
     _heapmin();
 #endif
 
-    PRUint32 interval = (PRUint32) ((TimeStamp::Now() - mCollectionStart).ToMilliseconds());
+    PRUint32 interval((TimeStamp::Now() - mCollectionStart).ToMilliseconds());
 #ifdef COLLECT_TIME_DEBUG
-    printf("cc: total cycle collector time was %ums\n", interval);
-    printf("cc: visited %u ref counted and %u GCed objects, freed %d.\n",
-           mVisitedRefCounted, mVisitedGCed, mWhiteNodeCount);
-    printf("cc: \n");
+    printf("cc: CleanupAfterCollection(), total time %ums\n", interval);
 #endif
     Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR, interval);
     Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_VISITED_REF_COUNTED, mVisitedRefCounted);
@@ -2980,8 +2948,6 @@ bool
 nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
 {
     // aListener should be Begin()'d before this
-    TimeLog timeLog;
-
     if (mParams.mDoNothing)
         return false;
 
@@ -2989,12 +2955,20 @@ nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
     if (!builder.Initialized())
         return false;
 
+#ifdef COLLECT_TIME_DEBUG
+    PRTime now = PR_Now();
+#endif
     for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
         if (mRuntimes[i])
             mRuntimes[i]->BeginCycleCollection(builder, false);
     }
 
-    timeLog.Checkpoint("mRuntimes[*]->BeginCycleCollection()");
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: mRuntimes[*]->BeginCycleCollection() took %lldms\n",
+           (PR_Now() - now) / PR_USEC_PER_MSEC);
+
+    now = PR_Now();
+#endif
 
 #ifdef DEBUG_CC
     PRUint32 purpleStart = builder.Count();
@@ -3025,16 +2999,35 @@ nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
     }
 #endif
 
-    timeLog.Checkpoint("SelectPurple()");
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: SelectPurple() took %lldms\n",
+           (PR_Now() - now) / PR_USEC_PER_MSEC);
+#endif
 
     if (builder.Count() > 0) {
         // The main Bacon & Rajan collection algorithm.
 
+#ifdef COLLECT_TIME_DEBUG
+        now = PR_Now();
+#endif
+
         MarkRoots(builder);
-        timeLog.Checkpoint("MarkRoots()");
+
+#ifdef COLLECT_TIME_DEBUG
+        {
+            PRTime then = PR_Now();
+            printf("cc: MarkRoots() took %lldms\n",
+                   (then - now) / PR_USEC_PER_MSEC);
+            now = then;
+        }
+#endif
 
         ScanRoots();
-        timeLog.Checkpoint("ScanRoots()");
+
+#ifdef COLLECT_TIME_DEBUG
+        printf("cc: ScanRoots() took %lldms\n",
+               (PR_Now() - now) / PR_USEC_PER_MSEC);
+#endif
 
         mScanInProgress = false;
 
@@ -3076,7 +3069,6 @@ nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
             if (mRuntimes[i])
                 mRuntimes[i]->FinishTraverse();
         }
-        timeLog.Checkpoint("mRuntimes[*]->FinishTraverse()");
     }
     else {
         mScanInProgress = false;
@@ -3088,9 +3080,16 @@ nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
 bool
 nsCycleCollector::FinishCollection(nsICycleCollectorListener *aListener)
 {
-    TimeLog timeLog;
+#ifdef COLLECT_TIME_DEBUG
+    PRTime now = PR_Now();
+#endif
+
     bool collected = CollectWhite(aListener);
-    timeLog.Checkpoint("CollectWhite()");
+
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: CollectWhite() took %lldms\n",
+           (PR_Now() - now) / PR_USEC_PER_MSEC);
+#endif
 
 #ifdef DEBUG_CC
     mStats.mCollection++;
@@ -3102,7 +3101,6 @@ nsCycleCollector::FinishCollection(nsICycleCollectorListener *aListener)
         if (mRuntimes[i])
             mRuntimes[i]->FinishCycleCollection();
     }
-    timeLog.Checkpoint("mRuntimes[*]->FinishCycleCollection()");
 
     mFollowupCollection = true;
 
@@ -3127,7 +3125,6 @@ nsCycleCollector::FinishCollection(nsICycleCollectorListener *aListener)
 
     mWhiteNodes->Clear();
     ClearGraph();
-    timeLog.Checkpoint("ClearGraph()");
 
     mParams.mDoNothing = false;
 
@@ -3868,9 +3865,7 @@ nsCycleCollector_forgetSkippable()
 {
     if (sCollector) {
         SAMPLE_LABEL("CC", "nsCycleCollector_forgetSkippable");
-        TimeLog timeLog;
         sCollector->ForgetSkippable();
-        timeLog.Checkpoint("ForgetSkippable()");
     }
 }
 

@@ -477,7 +477,8 @@ function nsPlacesExpiration()
 
   this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
                      getService(Ci.nsIPrefService).
-                     getBranch(PREF_BRANCH);
+                     getBranch(PREF_BRANCH).
+                     QueryInterface(Ci.nsIPrefBranch2);
   this._loadPrefs();
 
   // Observe our preferences branch for changes.

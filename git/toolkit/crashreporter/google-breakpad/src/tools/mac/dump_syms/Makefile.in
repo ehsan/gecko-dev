@@ -60,6 +60,7 @@ HOST_LIBS += \
 
 HOST_LDFLAGS += \
   -framework Foundation \
+  -lcrypto \
   $(NULL)
 
 # force C++ linking

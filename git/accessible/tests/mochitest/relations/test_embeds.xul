@@ -21,11 +21,27 @@
           src="../events.js"></script>
   <script type="application/javascript"
           src="../relations.js"></script>
-  <script type="application/javascript"
-          src="../browser.js"></script>
 
   <script type="application/javascript">
   <![CDATA[
+    ////////////////////////////////////////////////////////////////////////////
+    // Helpers
+
+    function tabBrowser()
+    {
+      return gBrowserWnd.gBrowser;
+    }
+
+    function currentBrowser()
+    {
+      return tabBrowser().selectedBrowser;
+    }
+
+    function currentTabDocument()
+    {
+      return currentBrowser().contentDocument;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Invokers
 
@@ -42,7 +58,7 @@
 
       this.finalCheck = function loadURI_finalCheck()
       {
-        testRelation(browserDocument(), RELATION_EMBEDS,
+        testRelation(gBrowserWnd.document, RELATION_EMBEDS,
                      getAccessible(currentTabDocument()));
       }
 
@@ -65,7 +81,7 @@
 
       this.finalCheck = function loadURI_finalCheck()
       {
-        testRelation(browserDocument(), RELATION_EMBEDS,
+        testRelation(gBrowserWnd.document, RELATION_EMBEDS,
                      getAccessible(currentTabDocument()));
       }
 
@@ -78,12 +94,28 @@
     ////////////////////////////////////////////////////////////////////////////
     // Testing
 
+    var gBrowserWnd = null;
+    function loadBrowser()
+    {
+      gBrowserWnd = window.openDialog("chrome://browser/content/", "_blank",
+                                      "chrome,all,dialog=no", "about:");
+
+      addA11yLoadEvent(startTests, gBrowserWnd);
+    }
+
+    function startTests()
+    {
+      // Wait for tab load.
+      var browser = currentBrowser();
+      addA11yLoadEvent(doTests, browser.contentWindow);
+    }
+
     //gA11yEventDumpToConsole = true; // debug
 
     var gQueue = null;
     function doTests()
     {
-      testRelation(browserDocument(), RELATION_EMBEDS,
+      testRelation(gBrowserWnd.document, RELATION_EMBEDS,
                    getAccessible(currentTabDocument()));
 
       gQueue = new eventQueue();
@@ -93,13 +125,13 @@
 
       gQueue.onFinish = function()
       {
-        closeBrowserWindow();
+        gBrowserWnd.close();
       }
       gQueue.invoke();
     }
 
     SimpleTest.waitForExplicitFinish();
-    openBrowserWindow(doTests, "about:");
+    addLoadEvent(loadBrowser);
   ]]>
   </script>
 

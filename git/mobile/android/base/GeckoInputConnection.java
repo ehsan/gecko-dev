@@ -159,9 +159,9 @@ public class GeckoInputConnection
                 // If selection is empty, we'll select everything
                 if (a >= b)
                     GeckoAppShell.sendEventToGecko(
-                        GeckoEvent.createIMEEvent(GeckoEvent.IME_SET_SELECTION, 0, text.length()));
+                        new GeckoEvent(GeckoEvent.IME_SET_SELECTION, 0, text.length()));
                 GeckoAppShell.sendEventToGecko(
-                    GeckoEvent.createIMEEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
+                    new GeckoEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
                 break;
             case R.id.paste:
                 commitText(GeckoAppShell.getClipboardText(), 1);
@@ -222,7 +222,7 @@ public class GeckoInputConnection
     @Override
     public boolean setSelection(int start, int end) {
         GeckoAppShell.sendEventToGecko(
-            GeckoEvent.createIMEEvent(GeckoEvent.IME_SET_SELECTION, start, end - start));
+            new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start, end - start));
 
         return super.setSelection(start, end);
     }
@@ -459,26 +459,26 @@ public class GeckoInputConnection
         if (!mComposing) {
             if (DEBUG) Log.d(LOGTAG, ". . . onTextChanged: IME_COMPOSITION_BEGIN");
             GeckoAppShell.sendEventToGecko(
-                GeckoEvent.createIMEEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
+                new GeckoEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
             mComposing = true;
             mCompositionStart = start;
 
             if (DEBUG) Log.d(LOGTAG, ". . . onTextChanged: IME_SET_SELECTION, start=" + start + ", len=" + before);
             GeckoAppShell.sendEventToGecko(
-                GeckoEvent.createIMEEvent(GeckoEvent.IME_SET_SELECTION, start, before));
+                new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start, before));
         }
 
         if (count == 0) {
             if (DEBUG) Log.d(LOGTAG, ". . . onTextChanged: IME_DELETE_TEXT");
             GeckoAppShell.sendEventToGecko(
-                GeckoEvent.createIMEEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
+                new GeckoEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
         } else {
             sendTextToGecko(s.subSequence(start, start + count), start + count);
         }
 
         if (DEBUG) Log.d(LOGTAG, ". . . onTextChanged: IME_SET_SELECTION, start=" + (start + count) + ", 0");
         GeckoAppShell.sendEventToGecko(
-            GeckoEvent.createIMEEvent(GeckoEvent.IME_SET_SELECTION, start + count, 0));
+            new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start + count, 0));
 
         // Block this thread until all pending events are processed
         GeckoAppShell.geckoEventSync();
@@ -487,7 +487,7 @@ public class GeckoInputConnection
     private void endComposition() {
         if (DEBUG) Log.d(LOGTAG, "IME: endComposition: IME_COMPOSITION_END");
         GeckoAppShell.sendEventToGecko(
-            GeckoEvent.createIMEEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
+            new GeckoEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
         mComposing = false;
         mCompositionStart = -1;
     }
@@ -541,9 +541,9 @@ public class GeckoInputConnection
                 if (DEBUG) Log.d(LOGTAG, String.format(". . . sendTextToGecko: IME_ADD_RANGE, %d, %d, %d, %d, %d, %d",
                                                        spanStart, spanEnd - spanStart, rangeType, rangeStyles, rangeForeColor, rangeBackColor));
                 GeckoAppShell.sendEventToGecko(
-                    GeckoEvent.createIMERangeEvent(spanStart, spanEnd - spanStart,
-                                                  rangeType, rangeStyles,
-                                                  rangeForeColor, rangeBackColor));
+                    new GeckoEvent(spanStart, spanEnd - spanStart,
+                                   rangeType, rangeStyles,
+                                   rangeForeColor, rangeBackColor));
 
                 spanStart = spanEnd;
             } while (spanStart < text.length());
@@ -551,17 +551,17 @@ public class GeckoInputConnection
             if (DEBUG) Log.d(LOGTAG, ". . . sendTextToGecko: IME_ADD_RANGE, 0, " + text.length() +
                                      ", IME_RANGE_RAWINPUT, IME_RANGE_UNDERLINE)");
             GeckoAppShell.sendEventToGecko(
-                GeckoEvent.createIMERangeEvent(0, text == null ? 0 : text.length(),
-                                               GeckoEvent.IME_RANGE_RAWINPUT,
-                                               GeckoEvent.IME_RANGE_UNDERLINE, 0, 0));
+                new GeckoEvent(0, text == null ? 0 : text.length(),
+                               GeckoEvent.IME_RANGE_RAWINPUT,
+                               GeckoEvent.IME_RANGE_UNDERLINE, 0, 0));
         }
 
         // Change composition (treating selection end as where the caret is)
         if (DEBUG) Log.d(LOGTAG, ". . . sendTextToGecko: IME_SET_TEXT, IME_RANGE_CARETPOSITION, \"" + text + "\")");
         GeckoAppShell.sendEventToGecko(
-            GeckoEvent.createIMERangeEvent(caretPos, 0,
-                                           GeckoEvent.IME_RANGE_CARETPOSITION, 0, 0, 0,
-                                           text.toString()));
+            new GeckoEvent(caretPos, 0,
+                           GeckoEvent.IME_RANGE_CARETPOSITION, 0, 0, 0,
+                           text.toString()));
     }
 
     public void afterTextChanged(Editable s)
@@ -683,9 +683,9 @@ public class GeckoInputConnection
             int a = Selection.getSelectionStart(content);
             int b = Selection.getSelectionEnd(content);
             GeckoAppShell.sendEventToGecko(
-                GeckoEvent.createIMEEvent(GeckoEvent.IME_SET_SELECTION, a, b - a));
+                new GeckoEvent(GeckoEvent.IME_SET_SELECTION, a, b - a));
 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createKeyEvent(event));
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         }
         return true;
     }
@@ -718,12 +718,12 @@ public class GeckoInputConnection
             keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyUp(v, mEditable, keyCode, event))
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createKeyEvent(event));
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         return true;
     }
 
     public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createKeyEvent(event));
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         return true;
     }
 

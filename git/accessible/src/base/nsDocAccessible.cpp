@@ -378,7 +378,7 @@ NS_IMETHODIMP nsDocAccessible::TakeFocus()
     return NS_ERROR_FAILURE;
 
   // Focus the document.
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   NS_ENSURE_STATE(fm);
 
   nsCOMPtr<nsIDOMElement> newFocus;

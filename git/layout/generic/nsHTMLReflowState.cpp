@@ -103,7 +103,13 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
   availableHeight = aAvailableSpace.height;
   mFloatManager = nsnull;
   mLineLayout = nsnull;
-  memset(&mFlags, 0, sizeof(mFlags));
+  mFlags.mSpecialHeightReflow = false;
+  mFlags.mIsTopOfPage = false;
+  mFlags.mTableIsSplittable = false;
+  mFlags.mNextInFlowUntouched = false;
+  mFlags.mAssumingHScrollbar = mFlags.mAssumingVScrollbar = false;
+  mFlags.mHasClearance = false;
+  mFlags.mHeightDependsOnAncestorCell = false;
   mDiscoveredClearance = nsnull;
   mPercentHeightObserver = nsnull;
   Init(aPresContext);
@@ -168,7 +174,6 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
     CheckNextInFlowParenthood(aFrame, aParentReflowState.frame);
   mFlags.mAssumingHScrollbar = mFlags.mAssumingVScrollbar = false;
   mFlags.mHasClearance = false;
-  mFlags.mIsColumnBalancing = false;
 
   mDiscoveredClearance = nsnull;
   mPercentHeightObserver = (aParentReflowState.mPercentHeightObserver && 

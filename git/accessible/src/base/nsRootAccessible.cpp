@@ -203,7 +203,7 @@ nsRootAccessible::NativeState()
     states |= states::MODAL;
 #endif
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm) {
     nsCOMPtr<nsIDOMWindow> rootWindow;
     GetWindow(getter_AddRefs(rootWindow));

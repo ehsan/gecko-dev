@@ -87,7 +87,7 @@ public:
               PRInt64 aLastModifiedTime = 0,
               bool aCanUnload = true,
               bool aArgsAreUTF8 = false);
-  virtual ~nsPluginTag();
+  ~nsPluginTag();
   
   void SetHost(nsPluginHost * aHost);
   void TryUnloadPlugin();

@@ -634,7 +634,6 @@ pref("privacy.popups.disable_from_plugins", 2);
 pref("privacy.donottrackheader.enabled",    false);
 
 pref("dom.event.contextmenu.enabled",       true);
-pref("dom.event.clipboardevents.enabled",   true);
 
 pref("javascript.enabled",                  true);
 pref("javascript.options.strict",           false);

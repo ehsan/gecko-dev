@@ -148,10 +148,9 @@ public:
     // If CanSkip returns true, p is removed from the purple buffer during
     // a call to nsCycleCollector_forgetSkippable().
     // Note, calling CanSkip may remove objects from the purple buffer!
-    // If aRemovingAllowed is true, p can be removed from the purple buffer.
-    bool CanSkip(void *p, bool aRemovingAllowed)
+    bool CanSkip(void *p)
     {
-        return mMightSkip ? CanSkipReal(p, aRemovingAllowed) : false;
+        return mMightSkip ? CanSkipReal(p) : false;
     }
 
     // If CanSkipInCC returns true, p is skipped when selecting roots for the
@@ -170,7 +169,7 @@ public:
         return mMightSkip ? CanSkipThisReal(p) : false;
     }
 protected:
-    NS_IMETHOD_(bool) CanSkipReal(void *p, bool aRemovingAllowed)
+    NS_IMETHOD_(bool) CanSkipReal(void *p)
     {
         NS_ASSERTION(false, "Forgot to implement CanSkipReal?");
         return false;
@@ -301,8 +300,7 @@ public:
 
 #define NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(_class)                        \
   NS_IMETHODIMP_(bool)                                                         \
-  NS_CYCLE_COLLECTION_CLASSNAME(_class)::CanSkipReal(void *p,                  \
-                                                     bool aRemovingAllowed)    \
+  NS_CYCLE_COLLECTION_CLASSNAME(_class)::CanSkipReal(void *p)                  \
   {                                                                            \
     nsISupports *s = static_cast<nsISupports*>(p);                             \
     NS_ASSERTION(CheckForRightISupports(s),                                    \
@@ -655,7 +653,7 @@ public:                                                                         
   NS_DECL_CYCLE_COLLECTION_CLASS_BODY(_class, _base)                                      \
   NS_IMETHOD_(void) Trace(void *p, TraceCallback cb, void *closure);                      \
 protected:                                                                                \
-  NS_IMETHOD_(bool) CanSkipReal(void *p, bool aRemovingAllowed);                          \
+  NS_IMETHOD_(bool) CanSkipReal(void *p);                                                 \
   NS_IMETHOD_(bool) CanSkipInCCReal(void *p);                                             \
   NS_IMETHOD_(bool) CanSkipThisReal(void *p);                                             \
 };                                                                                        \
@@ -678,7 +676,7 @@ public:                                                                         
   NS_IMETHOD_(void) Trace(void *p, TraceCallback cb, void *closure);                  \
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_BODY(_class, _base_class)                  \
 protected:                                                                            \
-  NS_IMETHOD_(bool) CanSkipReal(void *p, bool aRemovingAllowed);                      \
+  NS_IMETHOD_(bool) CanSkipReal(void *p);                                             \
   NS_IMETHOD_(bool) CanSkipInCCReal(void *p);                                         \
   NS_IMETHOD_(bool) CanSkipThisReal(void *p);                                         \
 };                                                                                    \

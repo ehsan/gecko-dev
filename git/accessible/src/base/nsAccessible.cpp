@@ -852,7 +852,8 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 
   // Get accessible for the node with the point or the first accessible in
   // the DOM parent chain.
-  nsAccessible* accessible = accDocument->GetAccessibleOrContainer(content);
+  nsAccessible* accessible =
+    GetAccService()->GetAccessibleOrContainer(content, accDocument);
   if (!accessible)
     return fallbackAnswer;
 
@@ -1146,7 +1147,7 @@ nsAccessible::TakeFocus()
   }
 
   nsCOMPtr<nsIDOMElement> element(do_QueryInterface(focusContent));
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm)
     fm->SetFocus(element, 0);
 

@@ -836,7 +836,7 @@ public class PanZoomController
             return;
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(event, json));
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(event, json));
     }
 
     @Override
@@ -864,7 +864,7 @@ public class PanZoomController
     }
 
     public void cancelTouch() {
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Gesture:CancelTouch", "");
+        GeckoEvent e = new GeckoEvent("Gesture:CancelTouch", "");
         GeckoAppShell.sendEventToGecko(e);
     }
 

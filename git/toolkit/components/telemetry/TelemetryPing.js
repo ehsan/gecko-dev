@@ -182,9 +182,6 @@ TelemetryPing.prototype = {
   // Generate a unique id once per session so the server can cope with
   // duplicate submissions.
   _uuid: generateUUID(),
-  // Regex that matches histograms we carea bout during startup.
-  _startupHistogramRegex: /SQLITE|HTTP|SPDY|CACHE|DNS/,
-  _slowSQLStartup: {},
 
   /**
    * Returns a set of histograms that can be converted into JSON
@@ -384,28 +381,17 @@ TelemetryPing.prototype = {
       this.addValue(mr.path, id, val);
     }
   },
-
-  /**
-   * Return true if we're interested in having a STARTUP_* histogram for
-   * the given histogram name.
-   */
-  isInterestingStartupHistogram: function isInterestingStartupHistogram(name) {
-    return this._startupHistogramRegex.test(name);
-  },
   
   /** 
-   * Make a copy of interesting histograms at startup.
+   * Make a copy of sqlite histograms on startup
    */
-  gatherStartupInformation: function gatherStartupInformation() {
+  gatherStartupSqlite: function gatherStartupSqlite() {
     let info = Telemetry.registeredHistograms;
-    let snapshots = Telemetry.histogramSnapshots;
+    let sqlite_re = /SQLITE/;
     for (let name in info) {
-      // Only duplicate histograms with actual data.
-      if (this.isInterestingStartupHistogram(name) && name in snapshots) {
+      if (sqlite_re.test(name))
         Telemetry.histogramFrom("STARTUP_" + name, name);
-      }
     }
-    this._slowSQLStartup = Telemetry.slowSQL;
   },
 
   getSessionPayloadAndSlug: function getSessionPayloadAndSlug(reason) {
@@ -418,10 +404,6 @@ TelemetryPing.prototype = {
       histograms: this.getHistograms(),
       slowSQL: Telemetry.slowSQL
     };
-    if (Object.keys(this._slowSQLStartup.mainThread).length
-	|| Object.keys(this._slowSQLStartup.otherThreads).length) {
-      payloadObj.slowSQLStartup = this._slowSQLStartup;
-    }
 
     return { slug: slug, payload: JSON.stringify(payloadObj) };
   },
@@ -564,7 +546,7 @@ TelemetryPing.prototype = {
       }
       break;
     case "sessionstore-windows-restored":
-      this.gatherStartupInformation();
+      this.gatherStartupSqlite();
       break;
     case "idle-daily":
       // Enqueue to main-thread, otherwise components may be inited by the
@@ -579,7 +561,6 @@ TelemetryPing.prototype = {
       break;
     case "get-payload":
       this.gatherMemory();
-      this.gatherStartupInformation();
       let data = this.getSessionPayloadAndSlug("gather-payload");
 
       aSubject.QueryInterface(Ci.nsISupportsString).data = data.payload;

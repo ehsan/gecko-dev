@@ -376,7 +376,7 @@ public final class Tab {
     public boolean doReload() {
         if (mHistory.isEmpty())
             return false;
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", "");
+        GeckoEvent e = new GeckoEvent("Session:Reload", "");
         GeckoAppShell.sendEventToGecko(e);
         return true;
     }
@@ -385,13 +385,13 @@ public final class Tab {
         if (mHistoryIndex < 1) {
             return false;
         }
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Back", "");
+        GeckoEvent e = new GeckoEvent("Session:Back", "");
         GeckoAppShell.sendEventToGecko(e);
         return true;
     }
 
     public boolean doStop() {
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Stop", "");
+        GeckoEvent e = new GeckoEvent("Session:Stop", "");
         GeckoAppShell.sendEventToGecko(e);
         return true;
     }
@@ -404,7 +404,7 @@ public final class Tab {
         if (mHistoryIndex + 1 >= mHistory.size()) {
             return false;
         }
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Forward", "");
+        GeckoEvent e = new GeckoEvent("Session:Forward", "");
         GeckoAppShell.sendEventToGecko(e);
         return true;
     }
