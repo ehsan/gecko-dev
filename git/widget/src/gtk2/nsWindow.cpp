@@ -2165,7 +2165,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         while (children) {
             GdkWindow *gdkWin = GDK_WINDOW(children->data);
             nsWindow *kid = get_window_for_gdk_window(gdkWin);
-            if (kid && gdk_window_is_visible(gdkWin)) {
+            if (kid) {
                 nsAutoTArray<nsIntRect,1> clipRects;
                 kid->GetWindowClipRegion(&clipRects);
                 nsIntRect bounds;
