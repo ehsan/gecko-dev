@@ -118,7 +118,6 @@ loop.conversation = (function(mozL10n) {
     var dispatcher = new loop.Dispatcher();
     var client = new loop.Client();
     var sdkDriver = new loop.OTSdkDriver({
-      isDesktop: true,
       dispatcher: dispatcher,
       sdk: OT
     });
@@ -138,12 +137,10 @@ loop.conversation = (function(mozL10n) {
     });
     var conversationStore = new loop.store.ConversationStore(dispatcher, {
       client: client,
-      isDesktop: true,
       mozLoop: navigator.mozLoop,
       sdkDriver: sdkDriver
     });
     var activeRoomStore = new loop.store.ActiveRoomStore(dispatcher, {
-      isDesktop: true,
       mozLoop: navigator.mozLoop,
       sdkDriver: sdkDriver
     });

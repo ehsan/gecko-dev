@@ -1102,6 +1102,13 @@ public:
   }
 
   bool
+  DOMFetchEnabled() const
+  {
+    AssertIsOnWorkerThread();
+    return mPreferences[WORKERPREF_DOM_FETCH];
+  }
+
+  bool
   DOMCachesEnabled() const
   {
     AssertIsOnWorkerThread();

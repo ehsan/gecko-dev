@@ -18,6 +18,3 @@ EXTRA_JS_MODULES += [
     'DownloadsTaskbar.jsm',
     'DownloadsViewUI.jsm',
 ]
-
-with Files('**'):
-    BUG_COMPONENT = ('Firefox', 'Downloads Panel')

@@ -42,9 +42,9 @@ function spawnTest () {
   let firstInterval = OverviewView.getTimeInterval();
   info("First interval start time: " + firstInterval.startTime);
   info("First interval end time: " + firstInterval.endTime);
-  is(Math.round(firstInterval.startTime), 10,
+  ok(firstInterval.startTime - 10 < Number.EPSILON,
     "The interval's start time was properly set.");
-  is(Math.round(firstInterval.endTime), 20,
+  ok(firstInterval.endTime - 20 < Number.EPSILON,
     "The interval's end time was properly set.");
 
   // Get/set another time interval and make sure there's no event propagation.

@@ -453,9 +453,9 @@ pref("media.mediasource.enabled", false);
 #endif
 
 #ifdef RELEASE_BUILD
-pref("media.mediasource.whitelist", true);
+pref("media.mediasource.youtubeonly", true);
 #else
-pref("media.mediasource.whitelist", false);
+pref("media.mediasource.youtubeonly", false);
 #endif // RELEASE_BUILD
 
 pref("media.mediasource.mp4.enabled", true);
@@ -4456,6 +4456,8 @@ pref("beacon.enabled", true);
 // Camera prefs
 pref("camera.control.face_detection.enabled", true);
 
+// Fetch API.
+pref("dom.fetch.enabled", false);
 
 // SW Cache API
 pref("dom.caches.enabled", false);

@@ -220,25 +220,13 @@ New_HTMLTableHeaderCellIfScope(nsIContent* aContent, Accessible* aContext)
 ////////////////////////////////////////////////////////////////////////////////
 // Markup maps array.
 
-#define Attr(name, value) \
-  { &nsGkAtoms::name, &nsGkAtoms::value }
-
-#define AttrFromDOM(name, DOMAttrName) \
-  { &nsGkAtoms::name, nullptr, &nsGkAtoms::DOMAttrName }
-
-#define AttrFromDOMIf(name, DOMAttrName, DOMAttrValue) \
-  { &nsGkAtoms::name, nullptr,  &nsGkAtoms::DOMAttrName, &nsGkAtoms::DOMAttrValue }
-
-#define MARKUPMAP(atom, new_func, r, ... ) \
-  { &nsGkAtoms::atom, new_func, static_cast<a11y::role>(r), { __VA_ARGS__ } },
+#define MARKUPMAP(atom, new_func, r) \
+  { &nsGkAtoms::atom, new_func, static_cast<a11y::role>(r) },
 
 static const MarkupMapInfo sMarkupMapList[] = {
   #include "MarkupMap.h"
 };
 
-#undef Attr
-#undef AttrFromDOM
-#undef AttrFromDOMIf
 #undef MARKUPMAP
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1170,21 +1158,11 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
       } else if (content->IsSVGElement(nsGkAtoms::svg)) {
         newAcc = new EnumRoleAccessible<roles::DIAGRAM>(content, document);
       }
-
     } else if (content->IsMathMLElement()) {
-      const MarkupMapInfo* markupMap =
-        mMarkupMaps.Get(content->NodeInfo()->NameAtom());
-      if (markupMap && markupMap->new_func)
-        newAcc = markupMap->new_func(content, aContext);
-
-      // Fall back to text when encountering Content MathML.
-      if (!newAcc && !content->IsAnyOfMathMLElements(nsGkAtoms::mpadded_,
-                                                     nsGkAtoms::mphantom_,
-                                                     nsGkAtoms::maligngroup_,
-                                                     nsGkAtoms::malignmark_,
-                                                     nsGkAtoms::mspace_)) {
+      if (content->IsMathMLElement(nsGkAtoms::math))
+        newAcc = new EnumRoleAccessible<roles::EQUATION>(content, document);
+      else
         newAcc = new HyperTextAccessible(content, document);
-      }
     }
   }
 
@@ -1630,41 +1608,6 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
   }
 
   return newAcc.forget();
-}
-
-void
-nsAccessibilityService::MarkupAttributes(const nsIContent* aContent,
-                                         nsIPersistentProperties* aAttributes) const
-{
-  const mozilla::a11y::MarkupMapInfo* markupMap =
-    mMarkupMaps.Get(aContent->NodeInfo()->NameAtom());
-  if (!markupMap)
-    return;
-
-  for (uint32_t i = 0; i < ArrayLength(markupMap->attrs); i++) {
-    const MarkupAttrInfo* info = markupMap->attrs + i;
-    if (!info->name)
-      break;
-
-    if (info->DOMAttrName) {
-      if (info->DOMAttrValue) {
-        if (aContent->AttrValueIs(kNameSpaceID_None, *info->DOMAttrName,
-                                  *info->DOMAttrValue, eCaseMatters)) {
-          nsAccUtils::SetAccAttr(aAttributes, *info->name, *info->DOMAttrValue);
-        }
-        continue;
-      }
-
-      nsAutoString value;
-      aContent->GetAttr(kNameSpaceID_None, *info->DOMAttrName, value);
-      if (!value.IsEmpty())
-        nsAccUtils::SetAccAttr(aAttributes, *info->name, value);
-
-      continue;
-    }
-
-    nsAccUtils::SetAccAttr(aAttributes, *info->name, *info->value);
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
