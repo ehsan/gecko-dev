@@ -164,6 +164,7 @@ EXPORTS		= \
 		jsgc.h \
 		jshash.h \
 		jsinterp.h \
+		jsinterpinlines.h \
 		jsiter.h \
 		jslock.h \
 		jslong.h \
@@ -185,6 +186,7 @@ EXPORTS		= \
 		jsstddef.h \
 		jsstr.h \
 		jstracer.h \
+		jstracerinlines.h \
 		jstypes.h \
 		jsutil.h \
 		jsxdrapi.h \
