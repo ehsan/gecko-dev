@@ -22,7 +22,6 @@
 #include "BasicThebesLayer.h"
 #include "BasicContainerLayer.h"
 #include "mozilla/Preferences.h"
-#include "nsIWidget.h"
 
 using namespace mozilla::gfx;
 
@@ -133,8 +132,7 @@ BasicLayerManager::~BasicLayerManager()
 
 void
 BasicLayerManager::SetDefaultTarget(gfxContext* aContext,
-                                    BufferMode aDoubleBuffering,
-                                    ScreenRotation aRotation)
+                                    BufferMode aDoubleBuffering)
 {
   NS_ASSERTION(!InTransaction(),
                "Must set default target outside transaction");
@@ -924,7 +922,7 @@ BasicLayerManager::CreateReadbackLayer()
 }
 
 BasicShadowLayerManager::BasicShadowLayerManager(nsIWidget* aWidget) :
-  BasicLayerManager(aWidget), mTargetRotation(ROTATION_0)
+  BasicLayerManager(aWidget)
 {
   MOZ_COUNT_CTOR(BasicShadowLayerManager);
 }
@@ -942,18 +940,6 @@ BasicShadowLayerManager::GetMaxTextureSize() const
   }
 
   return PR_INT32_MAX;
-}
-
-void
-BasicShadowLayerManager::SetDefaultTarget(gfxContext* aContext,
-                                          BufferMode aDoubleBuffering,
-                                          ScreenRotation aRotation)
-{
-  BasicLayerManager::SetDefaultTarget(aContext, aDoubleBuffering, aRotation);
-  mTargetRotation = aRotation;
-  if (mWidget) {
-    mTargetBounds = mWidget->GetNaturalBounds();
-  }
 }
 
 void
@@ -995,7 +981,7 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // don't signal a new transaction to ShadowLayerForwarder. Carry on adding
   // to the previous transaction.
   if (HasShadowManager()) {
-    ShadowLayerForwarder::BeginTransaction(mTargetBounds, mTargetRotation);
+    ShadowLayerForwarder::BeginTransaction();
 
     // If we have a non-default target, we need to let our shadow manager draw
     // to it. This will happen at the end of the transaction.

@@ -9400,7 +9400,9 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
 
     nsRefPtr<nsTimeout> copy = timeout;
 
-    rv = timeout->InitTimer(TimerCallback, realInterval);
+    rv = timeout->mTimer->InitWithFuncCallback(TimerCallback, timeout,
+                                               realInterval,
+                                               nsITimer::TYPE_ONE_SHOT);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -9635,7 +9637,10 @@ nsGlobalWindow::RescheduleTimeout(nsTimeout* aTimeout, const TimeStamp& now,
   // platforms whether delay is positive or negative (which we
   // know is always positive here, but cast anyways for
   // consistency).
-  nsresult rv = aTimeout->InitTimer(TimerCallback, delay.ToMilliseconds());
+  nsresult rv = aTimeout->mTimer->
+    InitWithFuncCallback(TimerCallback, aTimeout,
+                         delay.ToMilliseconds(),
+                         nsITimer::TYPE_ONE_SHOT);
 
   if (NS_FAILED(rv)) {
     NS_ERROR("Error initializing timer for DOM timeout!");
@@ -9977,7 +9982,11 @@ nsresult nsGlobalWindow::ResetTimersForNonBackgroundWindow()
       timeout->mFiringDepth = firingDepth;
       timeout->Release();
 
-      nsresult rv = timeout->InitTimer(TimerCallback, delay.ToMilliseconds());
+      nsresult rv =
+        timeout->mTimer->InitWithFuncCallback(TimerCallback,
+                                              timeout,
+                                              delay.ToMilliseconds(),
+                                              nsITimer::TYPE_ONE_SHOT);
 
       if (NS_FAILED(rv)) {
         NS_WARNING("Error resetting non background timer for DOM timeout!");
@@ -10490,7 +10499,8 @@ nsGlobalWindow::ResumeTimeouts(bool aThawChildren)
       t->mTimer = do_CreateInstance("@mozilla.org/timer;1");
       NS_ENSURE_TRUE(t->mTimer, NS_ERROR_OUT_OF_MEMORY);
 
-      rv = t->InitTimer(TimerCallback, delay);
+      rv = t->mTimer->InitWithFuncCallback(TimerCallback, t, delay,
+                                           nsITimer::TYPE_ONE_SHOT);
       if (NS_FAILED(rv)) {
         t->mTimer = nsnull;
         return rv;

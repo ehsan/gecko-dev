@@ -529,13 +529,20 @@ abstract public class GeckoApp
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            if (getChildCount() == 0) {
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+                return;
+            }
+
+            int restrictedHeightSpec;
+            int childHeight = getChildAt(0).getHeight();
 
             DisplayMetrics metrics = new DisplayMetrics();
             ((Activity) GeckoApp.mAppContext).getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
             // heightPixels changes during rotation.
-            int restrictedHeightSpec = MeasureSpec.makeMeasureSpec((int) (0.75 * metrics.heightPixels), MeasureSpec.AT_MOST);
+            int preferredHeight = (int) (0.75 * metrics.heightPixels);
+            restrictedHeightSpec = MeasureSpec.makeMeasureSpec(childHeight <= preferredHeight ? childHeight : preferredHeight, MeasureSpec.EXACTLY);
 
             super.onMeasure(widthMeasureSpec, restrictedHeightSpec);
         }
@@ -703,17 +710,6 @@ abstract public class GeckoApp
             default:
                 return super.onOptionsItemSelected(item);
         }
-    }
- 
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Custom Menu should be opened when hardware menu key is pressed.
-        if (Build.VERSION.SDK_INT >= 11 && keyCode == KeyEvent.KEYCODE_MENU) {
-            openOptionsMenu();
-            return true;
-        }
-
-        return super.onKeyDown(keyCode, event);
     }
 
     private void shareCurrentUrl() {

@@ -29,12 +29,17 @@ AbstractPort.prototype = {
   _JSONParse: function fw_AbstractPort_JSONParse(data) JSON.parse(data),
 
  _postControlMessage: function fw_AbstractPort_postControlMessage(topic, data) {
-    let postData = {
-      portTopic: topic,
-      portId: this._portid,
-      portFromType: this._portType,
-      data: data
-    };
+    let postData = {portTopic: topic,
+                    portId: this._portid,
+                    portFromType: this._portType,
+                    data: data,
+                    __exposedProps__: {
+                      portTopic: 'r',
+                      portId: 'r',
+                      portFromType: 'r',
+                      data: 'r'
+                    }
+                   };
     this._dopost(postData);
   },
 
@@ -47,15 +52,14 @@ AbstractPort.prototype = {
     data = this._JSONParse(data);
     if (!this._handler) {
       this._pendingMessagesIncoming.push(data);
-    } else {
+    }
+    else {
       try {
-        this._handler({
-          data: data,
-          __exposedProps__: {
-            data: 'r'
-          }
-        });
-      } catch (ex) {
+        this._handler({data: data,
+                       __exposedProps__: {data: 'r'}
+                      });
+      }
+      catch (ex) {
         this._onerror(ex);
       }
     }
@@ -66,9 +70,6 @@ AbstractPort.prototype = {
     while (this._pendingMessagesIncoming.length) {
       this._onmessage(this._pendingMessagesIncoming.shift());
     }
-  },
-  get onmessage() {
-    return this._handler;
   },
 
   /**

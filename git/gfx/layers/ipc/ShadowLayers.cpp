@@ -41,12 +41,7 @@ public:
     , mOpen(false)
   {}
 
-  void Begin(const nsIntRect& aTargetBounds, ScreenRotation aRotation)
-  {
-    mOpen = true;
-    mTargetBounds = aTargetBounds;
-    mTargetRotation = aRotation;
-  }
+  void Begin() { mOpen = true; }
 
   void AddEdit(const Edit& aEdit)
   {
@@ -97,8 +92,6 @@ public:
   EditVector mPaints;
   BufferArray mDyingBuffers;
   ShadowableLayerSet mMutants;
-  nsIntRect mTargetBounds;
-  ScreenRotation mTargetRotation;
   bool mSwapRequired;
 
 private:
@@ -130,12 +123,11 @@ ShadowLayerForwarder::~ShadowLayerForwarder()
 }
 
 void
-ShadowLayerForwarder::BeginTransaction(const nsIntRect& aTargetBounds,
-                                       ScreenRotation aRotation)
+ShadowLayerForwarder::BeginTransaction()
 {
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(mTxn->Finished(), "uncommitted txn?");
-  mTxn->Begin(aTargetBounds, aRotation);
+  mTxn->Begin();
 }
 
 static PLayerChild*
@@ -333,16 +325,13 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     cset.AppendElements(&mTxn->mPaints.front(), mTxn->mPaints.size());
   }
 
-  TargetConfig targetConfig(mTxn->mTargetBounds, mTxn->mTargetRotation);
-
   MOZ_LAYERS_LOG(("[LayersForwarder] syncing before send..."));
   PlatformSyncBeforeUpdate();
 
   if (mTxn->mSwapRequired) {
     MOZ_LAYERS_LOG(("[LayersForwarder] sending transaction..."));
     RenderTraceScope rendertrace3("Forward Transaction", "000093");
-    if (!mShadowManager->SendUpdate(cset, targetConfig, mIsFirstPaint,
-                                    aReplies)) {
+    if (!mShadowManager->SendUpdate(cset, mIsFirstPaint, aReplies)) {
       MOZ_LAYERS_LOG(("[LayersForwarder] WARNING: sending transaction failed!"));
       return false;
     }
@@ -351,7 +340,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     // assumes that aReplies is empty (DEBUG assertion)
     MOZ_LAYERS_LOG(("[LayersForwarder] sending no swap transaction..."));
     RenderTraceScope rendertrace3("Forward NoSwap Transaction", "000093");
-    if (!mShadowManager->SendUpdateNoSwap(cset, targetConfig, mIsFirstPaint)) {
+    if (!mShadowManager->SendUpdateNoSwap(cset, mIsFirstPaint)) {
       MOZ_LAYERS_LOG(("[LayersForwarder] WARNING: sending transaction failed!"));
       return false;
     }

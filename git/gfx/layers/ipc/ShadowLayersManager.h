@@ -10,14 +10,13 @@
 namespace mozilla {
 namespace layers {
 
-class TargetConfig;
 class ShadowLayersParent;
 
 class ShadowLayersManager
 {
 public:
     virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
-                                     const TargetConfig& aTargetConfig,
+                                     // FIXME nuke this
                                      bool isFirstPaint) = 0;
 };
 

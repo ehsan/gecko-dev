@@ -7,8 +7,6 @@
 
 #include "mozilla/Util.h"
 
-#include <QtOpenGL/QGLWidget>
-#include <QtOpenGL/QGLContext>
 #include <QApplication>
 #include <QDesktopWidget>
 #include <QtGui/QCursor>
@@ -100,6 +98,8 @@ static Atom sPluginIMEAtom = nsnull;
 #endif
 #endif //MOZ_X11
 
+#include <QtOpenGL/QGLWidget>
+#include <QtOpenGL/QGLContext>
 #define GLdouble_defined 1
 #include "Layers.h"
 #include "LayerManagerOGL.h"

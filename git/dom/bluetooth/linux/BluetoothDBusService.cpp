@@ -403,10 +403,8 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 
     DBusMessageIter iter;
 
-    if (!dbus_message_iter_init(aMsg, &iter)) {
-      NS_WARNING("Can't create iterator!");
-      return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-    }
+    NS_ASSERTION(dbus_message_iter_init(aMsg, &iter),
+                 "Can't create message iterator!");
 
     InfallibleTArray<BluetoothNamedValue> value;
     const char* addr;

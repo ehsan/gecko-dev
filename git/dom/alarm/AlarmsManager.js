@@ -45,11 +45,6 @@ AlarmsManager.prototype = {
   add: function add(aDate, aRespectTimezone, aData) {
     debug("add()");
 
-    if (!this._manifestURL) {
-      debug("Cannot add alarms for non-installed apps.");
-      throw Components.results.NS_ERROR_FAILURE;
-    }
-
     let isIgnoreTimezone = true;
     switch (aRespectTimezone) {
       case "honorTimezone":
@@ -155,7 +150,8 @@ AlarmsManager.prototype = {
 
     // Get the manifest URL if this is an installed app
     this._manifestURL = null;
-    let utils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    let utils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
     let app = utils.getApp();
     if (app)
       this._manifestURL = app.manifestURL;

@@ -1301,7 +1301,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
         return false;
     if (found) {
         hasEnumerable_ = true;
-        if (ToBoolean(v))
+        if (js_ValueToBoolean(v))
             attrs |= JSPROP_ENUMERATE;
     }
 
@@ -1311,7 +1311,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
         return false;
     if (found) {
         hasConfigurable_ = true;
-        if (ToBoolean(v))
+        if (js_ValueToBoolean(v))
             attrs &= ~JSPROP_PERMANENT;
     }
 
@@ -1330,7 +1330,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
         return false;
     if (found) {
         hasWritable_ = true;
-        if (ToBoolean(v))
+        if (js_ValueToBoolean(v))
             attrs &= ~JSPROP_READONLY;
     }
 

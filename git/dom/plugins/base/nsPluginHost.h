@@ -267,12 +267,6 @@ private:
 
   // Checks to see if a tag object is in our list of live tags.
   bool IsLiveTag(nsIPluginTag* tag);
-  
-  // Checks our list of live tags for an equivalent tag.
-  nsPluginTag* HaveSamePlugin(const nsPluginTag * aPluginTag);
-    
-  // Returns the first plugin at |path|
-  nsPluginTag* FirstPluginWithPath(const nsCString& path);
 
   nsresult EnsurePrivateDirServiceProvider();
 

@@ -425,7 +425,7 @@ public:
   /** routines for managing the preservation of selection across 
    *  various editor actions */
   bool     ArePreservingSelection();
-  void     PreserveSelectionAcrossActions(mozilla::Selection* aSel);
+  void     PreserveSelectionAcrossActions(nsISelection *aSel);
   nsresult RestorePreservedSelection(nsISelection *aSel);
   void     StopPreservingSelection();
 

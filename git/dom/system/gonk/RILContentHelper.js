@@ -140,17 +140,17 @@ function RILContentHelper() {
   this.initMessageListener(RIL_IPC_MSG_NAMES);
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 
-  // Request initial context.
-  let rilContext = cpmm.QueryInterface(Ci.nsISyncMessageSender)
-                       .sendSyncMessage("RIL:GetRilContext")[0];
+  // Request initial state.
+  let radioState = cpmm.QueryInterface(Ci.nsISyncMessageSender)
+                       .sendSyncMessage("RIL:GetRadioState")[0];
 
-  if (!rilContext) {
-    debug("Received null rilContext from chrome process.");
+  if (!radioState) {
+    debug("Received null radioState from chrome process.");
     return;
   }
-  this.cardState = rilContext.cardState;
-  this.updateConnectionInfo(rilContext.voice, this.voiceConnectionInfo);
-  this.updateConnectionInfo(rilContext.data, this.dataConnectionInfo);
+  this.cardState = radioState.cardState;
+  this.updateConnectionInfo(radioState.voice, this.voiceConnectionInfo);
+  this.updateConnectionInfo(radioState.data, this.dataConnectionInfo);
 }
 
 RILContentHelper.prototype = {
