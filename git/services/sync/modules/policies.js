@@ -117,6 +117,7 @@ let SyncScheduler = {
       case "weave:service:sync:start":
         // Clear out any potentially pending syncs now that we're syncing
         this.clearSyncTriggers();
+        this.nextSync = 0;
 
         // reset backoff info, if the server tells us to continue backing off,
         // we'll handle that later
@@ -125,7 +126,6 @@ let SyncScheduler = {
         this.globalScore = 0;
         break;
       case "weave:service:sync:finish":
-        this.nextSync = 0;
         this.adjustSyncInterval();
 
         let sync_interval;
@@ -164,15 +164,12 @@ let SyncScheduler = {
         // should still be updated so that the next sync has a correct interval.
         this.updateClientMode();
         this.adjustSyncInterval();
-        this.nextSync = 0;
         this.handleSyncError();
         break;
       case "weave:service:backoff:interval":
-        let requested_interval = subject * 1000;
-        // Leave up to 25% more time for the back off.
-        let interval = requested_interval * (1 + Math.random() * 0.25);
+        let interval = (data + Math.random() * data * 0.25) * 1000; // required backoff + up to 25%
         Status.backoffInterval = interval;
-        Status.minimumNextSync = Date.now() + requested_interval;
+        Status.minimumNextSync = Date.now() + data;
         break;
       case "weave:service:ready":
         // Applications can specify this preference if they want autoconnect
@@ -204,21 +201,12 @@ let SyncScheduler = {
         this.adjustSyncInterval();
         break;
       case "back":
-        this._log.trace("Received notification that we're back from idle.");
+        this._log.trace("We're no longer idle.");
         this.idle = false;
-        Utils.namedTimer(function onBack() {
-          if (this.idle) {
-            this._log.trace("... and we're idle again. " +
-                            "Ignoring spurious back notification.");
-            return;
-          }
-
-          this._log.trace("Genuine return from idle. Syncing.");
-          // Trigger a sync if we have multiple clients.
-          if (this.numClients > 1) {
-            this.scheduleNextSync(0);
-          }
-        }, IDLE_OBSERVER_BACK_DELAY, this, "idleDebouncerTimer");
+        // Trigger a sync if we have multiple clients.
+        if (this.numClients > 1) {
+          Utils.nextTick(Weave.Service.sync, Weave.Service);
+        }
         break;
     }
   },
@@ -328,23 +316,14 @@ let SyncScheduler = {
    * Set a timer for the next sync
    */
   scheduleNextSync: function scheduleNextSync(interval) {
-    // If no interval was specified, use the current sync interval.
-    if (interval == null) {
-      interval = this.syncInterval;
-    }
-
-    // Ensure the interval is set to no less than the backoff.
-    if (Status.backoffInterval && interval < Status.backoffInterval) {
-      interval = Status.backoffInterval;
-    }
-
-    if (this.nextSync != 0) {
-      // There's already a sync scheduled. Don't reschedule if that's already
-      // going to happen sooner than requested.
-      let currentInterval = this.nextSync - Date.now();
-      if (currentInterval < interval) {
-        return;
-      }
+    // Figure out when to sync next if not given a interval to wait
+    if (interval == null || interval == undefined) {
+      // Check if we had a pending sync from last time
+      if (this.nextSync != 0)
+        interval = Math.min(this.syncInterval, (this.nextSync - Date.now()));
+      // Use the bigger of default sync interval and backoff
+      else
+        interval = Math.max(this.syncInterval, Status.backoffInterval);
     }
 
     // Start the sync right away if we're already late
