@@ -2278,7 +2278,6 @@ NSEvent* gLastDragEvent = nil;
 {
   nsTSMManager::OnDestroyView(self);
   mGeckoChild = nsnull;
-  mWindow = nil;
   // Just in case we're destroyed abruptly and missed the draggingExited
   // or performDragOperation message.
   NS_IF_RELEASE(mDragService);
@@ -2494,7 +2493,7 @@ NSEvent* gLastDragEvent = nil;
 
   // check to see if the user has hand scroll modifiers held down; if so, 
   // find out if the cursor is in an ChildView
-  if ([ChildView areHandScrollModifiers:nsCocoaUtils::GetCocoaEventModifierFlags(theEvent)]) {
+  if ([ChildView areHandScrollModifiers:[theEvent modifierFlags]]) {
     NSPoint pointInWindow = [[self window] mouseLocationOutsideOfEventStream];
 
     NSView* mouseView = [[[self window] contentView] hitTest:pointInWindow];
@@ -2862,7 +2861,7 @@ NSEvent* gLastDragEvent = nil;
     // click-hold context menu by triggering the right mouseDown action.
     NSEvent* clickHoldEvent = [NSEvent mouseEventWithType:NSRightMouseDown
                                                   location:[theEvent locationInWindow]
-                                             modifierFlags:nsCocoaUtils::GetCocoaEventModifierFlags(theEvent)
+                                             modifierFlags:[theEvent modifierFlags]
                                                  timestamp:[theEvent timestamp]
                                               windowNumber:[theEvent windowNumber]
                                                    context:[theEvent context]
@@ -2935,7 +2934,7 @@ NSEvent* gLastDragEvent = nil;
   NSPoint newWindowLocation = nsCocoaUtils::EventLocationForWindow(anEvent, targetWindow);
   NSEvent *newEvent = [NSEvent mouseEventWithType:[anEvent type]
                                          location:newWindowLocation
-                                    modifierFlags:nsCocoaUtils::GetCocoaEventModifierFlags(anEvent)
+                                    modifierFlags:[anEvent modifierFlags]
                                         timestamp:GetCurrentEventTime()
                                      windowNumber:[targetWindow windowNumber]
                                           context:nil
@@ -3058,7 +3057,7 @@ NSEvent* gLastDragEvent = nil;
   if ([self maybeRollup:theEvent])
     return;
 
-  unsigned int modifierFlags = nsCocoaUtils::GetCocoaEventModifierFlags(theEvent);
+  unsigned int modifierFlags = [theEvent modifierFlags];
 
   // if the command and alt keys are held down, initiate hand scrolling
   if ([ChildView areHandScrollModifiers:modifierFlags]) {
@@ -3121,7 +3120,7 @@ NSEvent* gLastDragEvent = nil;
 
   nsMouseEvent geckoEvent(PR_TRUE, NS_MOUSE_BUTTON_UP, nsnull, nsMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
-  if (nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSControlKeyMask)
+  if ([theEvent modifierFlags] & NSControlKeyMask)
     geckoEvent.button = nsMouseEvent::eRightButton;
   else
     geckoEvent.button = nsMouseEvent::eLeftButton;
@@ -3286,7 +3285,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   // check if we are in a hand scroll or if the user
   // has command and alt held down; if so,  we do not want
   // gecko messing with the cursor.
-  if ([ChildView areHandScrollModifiers:nsCocoaUtils::GetCocoaEventModifierFlags(theEvent)])
+  if ([ChildView areHandScrollModifiers:[theEvent modifierFlags]])
     return;
 
   nsMouseEvent geckoEvent(PR_TRUE, NS_MOUSE_MOVE, nsnull, nsMouseEvent::eReal);
@@ -3786,7 +3785,7 @@ static void ConvertCocoaKeyEventToMacEvent(NSEvent* cocoaEvent, EventRecord& mac
             break;
         }
     }
-    macEvent.message = (charCode & 0x00FF) | (nsCocoaUtils::GetCocoaEventKeyCode(cocoaEvent) << 8);
+    macEvent.message = (charCode & 0x00FF) | ([cocoaEvent keyCode] << 8);
     macEvent.when = ::TickCount();
     ::GetGlobalMouse(&macEvent.where);
     macEvent.modifiers = ::GetCurrentEventKeyModifiers();
@@ -4128,7 +4127,7 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
   outGeckoEvent->nativeMsg = inEvent;
 
   if (inEvent) {
-    unsigned int modifiers = nsCocoaUtils::GetCocoaEventModifierFlags(inEvent);
+    unsigned int modifiers = [inEvent modifierFlags];
     outGeckoEvent->isShift   = ((modifiers & NSShiftKeyMask) != 0);
     outGeckoEvent->isControl = ((modifiers & NSControlKeyMask) != 0);
     outGeckoEvent->isAlt     = ((modifiers & NSAlternateKeyMask) != 0);
@@ -4364,8 +4363,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 
   // Check to see if the message is a key press that does not involve
   // one of our special key codes.
-  if (outGeckoEvent->message == NS_KEY_PRESS &&
-      !IsSpecialGeckoKey(nsCocoaUtils::GetCocoaEventKeyCode(aKeyEvent))) {
+  if (outGeckoEvent->message == NS_KEY_PRESS && !IsSpecialGeckoKey([aKeyEvent keyCode])) {
     outGeckoEvent->isChar = PR_TRUE; // this is not a special key
     
     outGeckoEvent->charCode = 0;
@@ -4471,13 +4469,13 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       if (kt.mUchr.mLayout)
         kt.mUchr.mKbType = gOverrideKeyboardLayout.mOverrideEnabled ? 40 : ::LMGetKbdType();
 
-      UInt32 key = nsCocoaUtils::GetCocoaEventKeyCode(aKeyEvent);
+      UInt32 key = [aKeyEvent keyCode];
 
       // Caps lock and num lock modifier state:
       UInt32 lockState = 0;
-      if (nsCocoaUtils::GetCocoaEventModifierFlags(aKeyEvent) & NSAlphaShiftKeyMask)
+      if ([aKeyEvent modifierFlags] & NSAlphaShiftKeyMask)
         lockState |= alphaLock;
-      if (nsCocoaUtils::GetCocoaEventModifierFlags(aKeyEvent) & NSNumericPadKeyMask)
+      if ([aKeyEvent modifierFlags] & NSNumericPadKeyMask)
         lockState |= kEventKeyModifierNumLockMask;
 
       // normal chars
@@ -4607,8 +4605,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     if ([aKeyEvent type] != NSFlagsChanged)
       characters = [aKeyEvent charactersIgnoringModifiers];
     
-    outGeckoEvent->keyCode =
-      ConvertMacToGeckoKeyCode(nsCocoaUtils::GetCocoaEventKeyCode(aKeyEvent), outGeckoEvent, characters);
+    outGeckoEvent->keyCode = ConvertMacToGeckoKeyCode([aKeyEvent keyCode], outGeckoEvent, characters);
     outGeckoEvent->charCode = 0;
   } 
 
@@ -4798,10 +4795,10 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       // doesn't match to this gecko event...
       ConvertCocoaKeyEventToMacEvent(mCurKeyEvent, macEvent);
       geckoEvent.nativeMsg = &macEvent;
-      geckoEvent.isShift   = (nsCocoaUtils::GetCocoaEventModifierFlags(mCurKeyEvent) & NSShiftKeyMask) != 0;
+      geckoEvent.isShift   = ([mCurKeyEvent modifierFlags] & NSShiftKeyMask) != 0;
       if (!IsPrintableChar(geckoEvent.charCode)) {
         geckoEvent.keyCode = 
-          ConvertMacToGeckoKeyCode(nsCocoaUtils::GetCocoaEventKeyCode(mCurKeyEvent), &geckoEvent,
+          ConvertMacToGeckoKeyCode([mCurKeyEvent keyCode], &geckoEvent,
                                    [mCurKeyEvent charactersIgnoringModifiers]);
         geckoEvent.charCode = 0;
       }
@@ -5148,14 +5145,14 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 
   NSEvent* newEvent = [NSEvent keyEventWithType:type
                                        location:[theEvent locationInWindow] 
-                                  modifierFlags:nsCocoaUtils::GetCocoaEventModifierFlags(theEvent)
+                                  modifierFlags:[theEvent modifierFlags]
                                       timestamp:[theEvent timestamp]
                                    windowNumber:[theEvent windowNumber]
                                         context:[theEvent context]
                                      characters:[theEvent characters]
                     charactersIgnoringModifiers:[theEvent charactersIgnoringModifiers]
                                       isARepeat:[theEvent isARepeat]
-                                        keyCode:nsCocoaUtils::GetCocoaEventKeyCode(theEvent)];
+                                        keyCode:[theEvent keyCode]];
   return newEvent;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
@@ -5190,8 +5187,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 #endif
   PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
          ("ChildView processKeyDownEvent: keycode=%d,modifiers=%x,chars=%s,charsIgnoringModifiers=%s\n",
-          nsCocoaUtils::GetCocoaEventKeyCode(theEvent),
-          nsCocoaUtils::GetCocoaEventModifierFlags(theEvent),
+          [theEvent keyCode], [theEvent modifierFlags],
           ToEscapedString([theEvent characters], str1),
           ToEscapedString([theEvent charactersIgnoringModifiers], str2)));
 
@@ -5226,8 +5222,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     }
 
     // If this is the context menu key command, send a context menu key event.
-    unsigned int modifierFlags =
-      nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
+    unsigned int modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
     if (modifierFlags == NSControlKeyMask && [[theEvent charactersIgnoringModifiers] isEqualToString:@" "]) {
       nsMouseEvent contextMenuEvent(PR_TRUE, NS_CONTEXTMENU, [self widget], nsMouseEvent::eReal, nsMouseEvent::eContextMenuKey);
       contextMenuEvent.isShift = contextMenuEvent.isControl = contextMenuEvent.isAlt = contextMenuEvent.isMeta = PR_FALSE;
@@ -5407,8 +5402,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 #endif
   PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
          ("ChildView keyUp: keycode=%d,modifiers=%x,chars=%s,charsIgnoringModifiers=%s\n",
-          nsCocoaUtils::GetCocoaEventKeyCode(theEvent),
-          nsCocoaUtils::GetCocoaEventModifierFlags(theEvent),
+          [theEvent keyCode], [theEvent modifierFlags],
           ToEscapedString([theEvent characters], str1),
           ToEscapedString([theEvent charactersIgnoringModifiers], str2)));
 
@@ -5456,8 +5450,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // Cocoa doesn't send an NSKeyDown event for control-tab on 10.4, so if this
   // is an NSKeyUp event for control-tab, send a down event to gecko first.
   if (!nsToolkit::OnLeopardOrLater() && !keyUpAlreadySentKeyDown &&
-      nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSControlKeyMask &&
-      nsCocoaUtils::GetCocoaEventKeyCode(theEvent) == kTabKeyCode) {
+      [theEvent modifierFlags] & NSControlKeyMask && [theEvent keyCode] == kTabKeyCode) {
     // We'll need an NSKeyDown copy of our native event so we convert to a gecko event correctly.
     NSEvent* nativeKeyDownEvent = [ChildView makeNewCocoaEventWithType:NSKeyDown fromEvent:theEvent];
 
@@ -5577,9 +5570,8 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // With Cmd key or Ctrl+Tab or Ctrl+Esc, keyDown will be never called.
   // Therefore, we need to call processKeyDownEvent from performKeyEquivalent.
-  UInt32 modifierFlags =
-    nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
-  UInt32 keyCode = nsCocoaUtils::GetCocoaEventKeyCode(theEvent);
+  UInt32 modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
+  UInt32 keyCode = [theEvent keyCode];
   PRBool keyDownNeverFiredEvent = (modifierFlags & NSCommandKeyMask) ||
            ((modifierFlags & NSControlKeyMask) &&
             (keyCode == kEscapeKeyCode || keyCode == kTabKeyCode));
@@ -5626,7 +5618,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // Fire key up/down events for the modifier keys (shift, alt, ctrl, command).
   if ([theEvent type] == NSFlagsChanged) {
     unsigned int modifiers =
-      nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
+      [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
     const PRUint32 kModifierMaskTable[] =
       { NSShiftKeyMask, NSControlKeyMask, NSAlternateKeyMask, NSCommandKeyMask };
     const PRUint32 kModifierCount = sizeof(kModifierMaskTable) /
@@ -5794,8 +5786,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       }
     }
     
-    unsigned int modifierFlags =
-      nsCocoaUtils::GetCocoaEventModifierFlags([NSApp currentEvent]);
+    unsigned int modifierFlags = [[NSApp currentEvent] modifierFlags];
     PRUint32 action = nsIDragService::DRAGDROP_ACTION_MOVE;
     // force copy = option, alias = cmd-option, default is move
     if (modifierFlags & NSAlternateKeyMask) {

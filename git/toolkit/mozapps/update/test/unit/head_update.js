@@ -154,8 +154,7 @@ xhr.prototype = {
   implementationLanguage: AUS_Ci.nsIProgrammingLanguage.JAVASCRIPT,
   getHelperForLanguage: function(language) null,
   getInterfaces: function(count) {
-    var interfaces = [AUS_Ci.nsIXMLHttpRequest, AUS_Ci.nsIJSXMLHttpRequest,
-                      AUS_Ci.nsIXMLHttpRequestEventTarget];
+    var interfaces = [AUS_Ci.nsIXMLHttpRequest, AUS_Ci.nsIJSXMLHttpRequest];
     count.value = interfaces.length;
     return interfaces;
   },
@@ -170,7 +169,6 @@ xhr.prototype = {
   QueryInterface: function(aIID) {
     if (aIID.equals(AUS_Ci.nsIXMLHttpRequest) ||
         aIID.equals(AUS_Ci.nsIJSXMLHttpRequest) ||
-        aIID.equals(AUS_Ci.nsIXMLHttpRequestEventTarget) ||
         aIID.equals(AUS_Ci.nsIClassInfo) ||
         aIID.equals(AUS_Ci.nsISupports))
       return gXHR;

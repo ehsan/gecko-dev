@@ -44,7 +44,6 @@
 
 #include "gfxTextRunCache.h"
 #include "gfxPlatform.h"
-#include "gfxUserFontSet.h"
 
 NS_IMPL_ISUPPORTS1(nsThebesFontMetrics, nsIFontMetrics)
 
@@ -64,8 +63,7 @@ nsThebesFontMetrics::~nsThebesFontMetrics()
 
 NS_IMETHODIMP
 nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
-                          nsIDeviceContext *aContext, 
-                          gfxUserFontSet *aUserFontSet)
+                          nsIDeviceContext *aContext)
 {
     mFont = aFont;
     mLangGroup = aLangGroup;
@@ -88,8 +86,7 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
                                   aFont.familyNameQuirks);
 
     mFontGroup =
-        gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle, 
-                                                    aUserFontSet);
+        gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle);
 
     return NS_OK;
 }

@@ -85,8 +85,8 @@ function test() {
     ok(newcount > count, "after closing a tab, getClosedTabCount has been incremented");
     
     // undoCloseTab
-    tab = test(function() ss.undoCloseTab(window, 0));
-    ok(tab, "undoCloseTab doesn't throw")
+    ok(test(function() ss.undoCloseTab(window, 0)), "undoCloseTab doesn't throw")
+    tab = tabbrowser.selectedTab;
     
     tab.linkedBrowser.addEventListener("load", function(aEvent) {
       is(this.currentURI.spec, testURL, "correct tab was reopened");

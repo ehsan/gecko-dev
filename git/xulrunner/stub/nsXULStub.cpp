@@ -87,7 +87,7 @@ static void Output(PRBool isError, const char *fmt, ... )
   va_list ap;
   va_start(ap, fmt);
 
-#if (defined(XP_WIN) && !MOZ_WINCONSOLE) || defined(WINCE)
+#if defined(XP_WIN) && !MOZ_WINCONSOLE
   char msg[2048];
 
   vsnprintf(msg, sizeof(msg), fmt, ap);
@@ -97,16 +97,7 @@ static void Output(PRBool isError, const char *fmt, ... )
     flags |= MB_ICONERROR;
   else
     flags |= MB_ICONINFORMATION;
-
-  wchar_t wide_msg[1024];
-  MultiByteToWideChar(CP_ACP,
-		      0,
-		      msg,
-		      -1,
-		      wide_msg,
-		      sizeof(wide_msg) / sizeof(wchar_t));
-  
-  MessageBoxW(NULL, wide_msg, L"XULRunner", flags);
+  MessageBox(NULL, msg, "XULRunner", flags);
 #else
   vfprintf(stderr, fmt, ap);
 #endif
@@ -185,15 +176,7 @@ main(int argc, char **argv)
 #else
 
 #ifdef XP_WIN
-  wchar_t wide_path[MAX_PATH];
-  MultiByteToWideChar(CP_ACP,
-		      0,
-		      iniPath,
-		      -1,
-		      wide_path,
-		      MAX_PATH);
-  
-  if (!::GetModuleFileNameW(NULL, wide_path, MAX_PATH))
+  if (!::GetModuleFileName(NULL, iniPath, sizeof(iniPath)))
     return 1;
 
 #elif defined(XP_OS2)

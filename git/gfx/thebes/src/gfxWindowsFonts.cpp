@@ -49,6 +49,10 @@
 #include "gfxWindowsSurface.h"
 #include "gfxWindowsPlatform.h"
 
+#ifdef MOZ_ENABLE_GLITZ
+#include "gfxGlitzSurface.h"
+#endif
+
 #include "gfxFontTest.h"
 
 #include "cairo.h"
@@ -192,8 +196,21 @@ FontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
     // Some fonts claim to support things > 900, but we don't so clamp the sizes
     logFont.lfWeight = PR_MAX(PR_MIN(logFont.lfWeight, 900), 100);
 
-
-    gfxWindowsFontType feType = FontEntry::DetermineFontType(metrics, fontType);
+    gfxWindowsFontType feType;
+    if (metrics.ntmFlags & NTM_TYPE1)
+        feType = GFX_FONT_TYPE_TYPE1;
+    else if (metrics.ntmFlags & (NTM_PS_OPENTYPE))
+        feType = GFX_FONT_TYPE_PS_OPENTYPE;
+    else if (metrics.ntmFlags & (NTM_TT_OPENTYPE))
+        feType = GFX_FONT_TYPE_TT_OPENTYPE;
+    else if (fontType == TRUETYPE_FONTTYPE)
+        feType = GFX_FONT_TYPE_TRUETYPE;
+    else if (fontType == RASTER_FONTTYPE)
+        feType = GFX_FONT_TYPE_RASTER;
+    else if (fontType == DEVICE_FONTTYPE)
+        feType = GFX_FONT_TYPE_DEVICE;
+    else
+        feType = GFX_FONT_TYPE_UNKNOWN;
 
     FontEntry *fe = nsnull;
     for (PRUint32 i = 0; i < ff->mVariations.Length(); ++i) {
@@ -219,14 +236,15 @@ FontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         }
     }
 
-    logFont.lfCharSet = DEFAULT_CHARSET;
-    logFont.lfOutPrecision = FontTypeToOutPrecision(feType);
-    fe = FontEntry::CreateFontEntry(ff->mName, feType, (logFont.lfItalic == 0xFF), (PRUint16) (logFont.lfWeight), nsnull, hdc, &logFont);
-
-    if (!fe)
-        return 1;
-
+    fe = new FontEntry(ff->mName);
     ff->mVariations.AppendElement(fe);
+    fe->mFontType = feType;
+
+    fe->mItalic = (logFont.lfItalic == 0xFF);
+    fe->mWeight = logFont.lfWeight;
+
+    if (fe->IsType1())
+        fe->mForceGDI = PR_TRUE;
 
     // mark the charset bit
     fe->mCharset[metrics.tmCharSet] = 1;
@@ -249,7 +267,39 @@ FontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         }
     }
 
-    fe->mIsBadUnderlineFont = ff->mIsBadUnderlineFontFamily;
+    fe->mIsBadUnderlineFont = ff->mIsBadUnderlineFont;
+
+    // read in the character map
+    logFont.lfCharSet = DEFAULT_CHARSET;
+    logFont.lfOutPrecision = FontTypeToOutPrecision(fe->mFontType);
+
+    HFONT font = CreateFontIndirectW(&logFont);
+
+    NS_ASSERTION(font, "This font creation should never ever ever fail");
+    if (font) {
+        HFONT oldFont = (HFONT)SelectObject(hdc, font);
+
+        // ReadCMAP may change the values of mUnicodeFont and mSymbolFont
+        if (NS_FAILED(ReadCMAP(hdc, fe))) {
+            // Type1 fonts aren't necessarily Unicode but
+            // this is the best guess we can make here
+            if (fe->IsType1())
+                fe->mUnicodeFont = PR_TRUE;
+            else
+                fe->mUnicodeFont = PR_FALSE;
+
+            // For fonts where we failed to read the character map,
+            // we can take a slow path to look up glyphs character by character
+            fe->mUnknownCMAP = PR_TRUE;
+
+            //printf("(fontinit-cmap) %s failed to get cmap, type1:%d \n", NS_ConvertUTF16toUTF8(fe->mFaceName).get(), (PRUint32)(fe->mIsType1));
+        } else {
+            //printf("(fontinit-cmap) %s cmap loaded, italic:%d, weight:%d\n", NS_ConvertUTF16toUTF8(fe->mFaceName).get(), (PRUint32)(fe->mItalic), (PRUint32)(fe->mWeight));
+        }
+
+        SelectObject(hdc, oldFont);
+        DeleteObject(font);
+    }
 
     return 1;
 }
@@ -346,102 +396,6 @@ FontFamily::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gfxFontS
 
     return matchesSomething;
 }
-
-FontEntry* 
-FontEntry::CreateFontEntry(const nsAString& aName, gfxWindowsFontType aFontType, PRBool aItalic, PRUint16 aWeight, gfxUserFontData* aUserFontData, HDC hdc, LOGFONTW *aLogFont)
-{
-    LOGFONTW logFont;
-    PRBool needRelease = PR_FALSE;
-
-    // jtdfix - need to set charset, unicode ranges, pitch/family
-
-    FontEntry *fe;
-
-    fe = new FontEntry(aName);
-    fe->mFontType = aFontType;
-    fe->mUserFontData = aUserFontData;
-
-    fe->mItalic = aItalic;
-    fe->mWeight = aWeight;
-
-    if (fe->IsType1())
-        fe->mForceGDI = PR_TRUE;
-
-    if (!aLogFont) {
-        aLogFont = &logFont;
-        FontEntry::FillLogFont(aLogFont, fe, 0, aItalic);
-    }
-
-    if (!hdc) {
-        hdc = GetDC(nsnull);
-        SetGraphicsMode(hdc, GM_ADVANCED);
-        needRelease = PR_TRUE;
-    }
-
-    HFONT font = CreateFontIndirectW(aLogFont);
-
-    if (font) {
-        HFONT oldFont = (HFONT)SelectObject(hdc, font);
-
-        // ReadCMAP may change the values of mUnicodeFont and mSymbolFont
-        if (NS_FAILED(::ReadCMAP(hdc, fe))) {
-            // Type1 fonts aren't necessarily Unicode but
-            // this is the best guess we can make here
-            if (fe->IsType1())
-                fe->mUnicodeFont = PR_TRUE;
-            else
-                fe->mUnicodeFont = PR_FALSE;
-
-            // For fonts where we failed to read the character map,
-            // we can take a slow path to look up glyphs character by character
-            fe->mUnknownCMAP = PR_TRUE;
-
-        } 
-
-        SelectObject(hdc, oldFont);
-        DeleteObject(font);
-    }
-
-    if (needRelease)
-        ReleaseDC(nsnull, hdc);
-
-    return fe;
-}
-
-
-void
-FontEntry::FillLogFont(LOGFONTW *aLogFont, FontEntry *aFontEntry, gfxFloat aSize, PRBool aItalic)
-{
-#define CLIP_TURNOFF_FONTASSOCIATION 0x40
-    
-    aLogFont->lfHeight = (LONG)-ROUND(aSize);
-
-    if (aLogFont->lfHeight == 0)
-        aLogFont->lfHeight = -1;
-
-    // Fill in logFont structure
-    aLogFont->lfWidth          = 0;
-    aLogFont->lfEscapement     = 0;
-    aLogFont->lfOrientation    = 0;
-    aLogFont->lfUnderline      = FALSE;
-    aLogFont->lfStrikeOut      = FALSE;
-    aLogFont->lfCharSet        = DEFAULT_CHARSET;
-    aLogFont->lfOutPrecision   = FontTypeToOutPrecision(aFontEntry->mFontType);
-    aLogFont->lfClipPrecision  = CLIP_TURNOFF_FONTASSOCIATION;
-    aLogFont->lfQuality        = DEFAULT_QUALITY;
-    aLogFont->lfPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;
-    // always force lfItalic if we want it.  Font selection code will
-    // do its best to give us an italic font entry, but if no face exists
-    // it may give us a regular one based on weight.  Windows should
-    // do fake italic for us in that case.
-    aLogFont->lfItalic         = aItalic;
-    aLogFont->lfWeight         = aFontEntry->mWeight;
-
-    int len = PR_MIN(aFontEntry->Name().Length(), LF_FACESIZE - 1);
-    memcpy(aLogFont->lfFaceName, nsPromiseFlatString(aFontEntry->Name()).get(), len * 2);
-    aLogFont->lfFaceName[len] = '\0';
-}
-
 
 PRBool 
 FontEntry::TestCharacterMap(PRUint32 aCh)
@@ -714,13 +668,40 @@ gfxWindowsFont::ComputeMetrics()
 
     ReleaseDC((HWND)nsnull, dc);
 
-    SanitizeMetrics(mMetrics, GetFontEntry()->mIsBadUnderlineFont);
+    SanitizeMetrics(mMetrics, GetFontEntry()->IsBadUnderlineFont());
 }
 
 void
 gfxWindowsFont::FillLogFont(gfxFloat aSize)
 {
-    FontEntry::FillLogFont(&mLogFont, GetFontEntry(), aSize, (GetStyle()->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
+#define CLIP_TURNOFF_FONTASSOCIATION 0x40
+    
+    mLogFont.lfHeight = (LONG)-ROUND(aSize);
+
+    if (mLogFont.lfHeight == 0)
+        mLogFont.lfHeight = -1;
+
+    // Fill in logFont structure
+    mLogFont.lfWidth          = 0;
+    mLogFont.lfEscapement     = 0;
+    mLogFont.lfOrientation    = 0;
+    mLogFont.lfUnderline      = FALSE;
+    mLogFont.lfStrikeOut      = FALSE;
+    mLogFont.lfCharSet        = DEFAULT_CHARSET;
+    mLogFont.lfOutPrecision   = FontTypeToOutPrecision(GetFontEntry()->mFontType);
+    mLogFont.lfClipPrecision  = CLIP_TURNOFF_FONTASSOCIATION;
+    mLogFont.lfQuality        = DEFAULT_QUALITY;
+    mLogFont.lfPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;
+    // always force lfItalic if we want it.  Font selection code will
+    // do its best to give us an italic font entry, but if no face exists
+    // it may give us a regular one based on weight.  Windows should
+    // do fake italic for us in that case.
+    mLogFont.lfItalic         = (GetStyle()->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)) ? TRUE : FALSE;
+    mLogFont.lfWeight         = GetFontEntry()->mWeight;
+
+    int len = PR_MIN(GetName().Length(), LF_FACESIZE - 1);
+    memcpy(mLogFont.lfFaceName, nsPromiseFlatString(mFontEntry->Name()).get(), len * 2);
+    mLogFont.lfFaceName[len] = '\0';
 }
 
 
@@ -829,7 +810,6 @@ AddFontNameToArray(const nsAString& aName,
     return PR_TRUE;
 }
 
-
 void
 gfxWindowsFontGroup::GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list)
 {
@@ -838,25 +818,8 @@ gfxWindowsFontGroup::GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *
 
     PRUint32 len = fonts.Length();
     for (PRUint32 i = 0; i < len; ++i) {
-        nsRefPtr<FontEntry> fe;
-        
-        // first, look up in the user font set
-        gfxFontEntry *gfe;
-        PRBool needsBold;
-        if (mUserFontSet && (gfe = mUserFontSet->FindFontEntry(fonts[i], mStyle, needsBold))) {
-            // assume for now platform font if not SVG
-            fe = static_cast<FontEntry*> (gfe);
-        }
-    
-        // nothing in the user font set ==> check system fonts
-        if (!fe) {
-            fe = gfxWindowsPlatform::GetPlatform()->FindFontEntry(fonts[i], mStyle);
-        }
-
-        // if found, add to the list
-        if (fe) {
-            list->AppendElement(fe);
-        }
+        nsRefPtr<FontEntry> fe = gfxWindowsPlatform::GetPlatform()->FindFontEntry(fonts[i], mStyle);
+        list->AppendElement(fe);
     }
 }
 
@@ -876,50 +839,8 @@ gfxWindowsFontGroup::FamilyListToArrayList(const nsString& aFamilies,
     }
 }
 
-gfxWindowsFontGroup::gfxWindowsFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet)
-    : gfxFontGroup(aFamilies, aStyle, aUserFontSet)
-{
-    InitFontList();
-}
-
-gfxWindowsFontGroup::~gfxWindowsFontGroup()
-{
-}
-
-gfxWindowsFont *
-gfxWindowsFontGroup::GetFontAt(PRInt32 i)
-{
-    if (!mFonts[i]) {
-        nsRefPtr<gfxWindowsFont> font =
-            gfxWindowsFont::GetOrMakeFont(mFontEntries[i], &mStyle);
-        mFonts[i] = font;
-    }
-
-    return static_cast<gfxWindowsFont*>(mFonts[i].get());
-}
-
-gfxFontGroup *
-gfxWindowsFontGroup::Copy(const gfxFontStyle *aStyle)
-{
-    return new gfxWindowsFontGroup(mFamilies, aStyle, mUserFontSet);
-}
-
-void 
-gfxWindowsFontGroup::UpdateFontList()
-{
-    // if user font set is set, check to see if font list needs updating
-    if (mUserFontSet && mCurrGeneration != GetGeneration()) {
-        // xxx - can probably improve this to detect when all fonts were found, so no need to update list
-        mFonts.Clear();
-        mFontEntries.Clear();
-        InitFontList();
-        mCurrGeneration = GetGeneration();
-    }
-
-}
-
-void 
-gfxWindowsFontGroup::InitFontList()
+gfxWindowsFontGroup::gfxWindowsFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle)
+    : gfxFontGroup(aFamilies, aStyle)
 {
     GroupFamilyListToArrayList(&mFontEntries);
 
@@ -975,7 +896,7 @@ gfxWindowsFontGroup::InitFontList()
 
     if (!mStyle.systemFont) {
         for (PRUint32 i = 0; i < mFontEntries.Length(); ++i) {
-            if (mFontEntries[i]->mIsBadUnderlineFont) {
+            if (mFontEntries[i]->IsBadUnderlineFont()) {
                 gfxFloat first = GetFontAt(0)->GetMetrics().underlineOffset;
                 gfxFloat bad = GetFontAt(i)->GetMetrics().underlineOffset;
                 mUnderlineOffset = PR_MIN(first, bad);
@@ -983,7 +904,28 @@ gfxWindowsFontGroup::InitFontList()
             }
         }
     }
+}
 
+gfxWindowsFontGroup::~gfxWindowsFontGroup()
+{
+}
+
+gfxWindowsFont *
+gfxWindowsFontGroup::GetFontAt(PRInt32 i)
+{
+    if (!mFonts[i]) {
+        nsRefPtr<gfxWindowsFont> font =
+            gfxWindowsFont::GetOrMakeFont(mFontEntries[i], &mStyle);
+        mFonts[i] = font;
+    }
+
+    return static_cast<gfxWindowsFont*>(mFonts[i].get());
+}
+
+gfxFontGroup *
+gfxWindowsFontGroup::Copy(const gfxFontStyle *aStyle)
+{
+    return new gfxWindowsFontGroup(mFamilies, aStyle);
 }
 
 static PRBool

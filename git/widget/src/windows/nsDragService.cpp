@@ -80,7 +80,7 @@
 //
 //-------------------------------------------------------------------------
 nsDragService::nsDragService()
-  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull), mSentLocalDropEvent(PR_FALSE)
+  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull)
 {
 }
 
@@ -278,7 +278,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   mNativeDragSrc->AddRef();
 
   // Now figure out what the native drag effect should be
-  DWORD winDropRes;
+  DWORD dropRes;
   DWORD effects = DROPEFFECT_SCROLL;
   if (aActionType & DRAGDROP_ACTION_COPY) {
     effects |= DROPEFFECT_COPY;
@@ -294,7 +294,6 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   // the drag
   mDragAction = aActionType;
   mDoingDrag  = PR_TRUE;
-  mSentLocalDropEvent = PR_FALSE;
 
   // Start dragging
   StartDragSession();
@@ -312,7 +311,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   }
 
   // Call the native D&D method
-  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &winDropRes);
+  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &dropRes);
 
   if (isAsyncAvailable)
   {
@@ -327,31 +326,6 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     }
   }
 
-  // In  cases where the drop operation completed outside the application, update
-  // the source node's nsIDOMNSDataTransfer dropEffect value so it is up to date.  
-  if (!mSentLocalDropEvent) {
-    PRUint32 dropResult;
-    // Order is important, since multiple flags can be returned.
-    if (winDropRes & DROPEFFECT_COPY)
-        dropResult = DRAGDROP_ACTION_COPY;
-    else if (winDropRes & DROPEFFECT_LINK)
-        dropResult = DRAGDROP_ACTION_LINK;
-    else if (winDropRes & DROPEFFECT_MOVE)
-        dropResult = DRAGDROP_ACTION_MOVE;
-    else
-        dropResult = DRAGDROP_ACTION_NONE;
-    
-    nsCOMPtr<nsIDOMNSDataTransfer> dataTransfer =
-      do_QueryInterface(mDataTransfer);
-
-    if (dataTransfer) {
-      if (res == DRAGDROP_S_DROP) // Success 
-        dataTransfer->SetDropEffectInt(dropResult);
-      else
-        dataTransfer->SetDropEffectInt(DRAGDROP_ACTION_NONE);
-    }
-  }
-      
   // We're done dragging
   EndDragSession(PR_TRUE);
 
@@ -492,16 +466,6 @@ nsDragService::SetIDataObject(IDataObject * aDataObj)
   NS_IF_ADDREF(mDataObject);
 
   return NS_OK;
-}
-
-//---------------------------------------------------------
-void
-nsDragService::SetDroppedLocal()
-{
-  // Sent from the native drag handler, letting us know
-  // a drop occured within the application vs. outside of it.
-  mSentLocalDropEvent = PR_TRUE;
-  return;
 }
 
 //-------------------------------------------------------------------------

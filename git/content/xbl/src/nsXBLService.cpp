@@ -988,8 +988,7 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
                                               EmptyString(), 0, 0,
                                               nsIScriptError::errorFlag,
                                               "XBL");
-              NS_ASSERTION(!IsChromeOrResourceURI(aURI),
-                           "Invalid extends value");
+              NS_ERROR("Invalid extends value");
               return NS_ERROR_ILLEGAL_VALUE;
             }
 

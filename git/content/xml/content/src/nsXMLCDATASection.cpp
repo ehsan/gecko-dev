@@ -84,7 +84,7 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
   nsCOMPtr<nsINodeInfo> ni;
   ni = aNodeInfoManager->GetNodeInfo(nsGkAtoms::cdataTagName,
                                      nsnull, kNameSpaceID_None);
-  NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
 
   nsXMLCDATASection *instance = new nsXMLCDATASection(ni);
   if (!instance) {

@@ -54,8 +54,17 @@
 
 #include "vr_stubs.h"
 
-#ifdef XP_MACOSX
-#include <Carbon/Carbon.h>
+#if defined(XP_MAC)
+#include <Folders.h>
+#include <Script.h>
+#include <stdlib.h>
+#include <Errors.h>
+#include "MoreFiles.h"
+#include "FullPath.h"  /* For FSpLocationFromFullPath() */
+#endif
+
+#if defined(XP_MACOSX)
+#include <Folders.h>
 #include <stdlib.h>
 #endif
 

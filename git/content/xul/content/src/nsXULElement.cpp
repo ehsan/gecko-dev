@@ -334,7 +334,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
         nodeInfo = aDocument->NodeInfoManager()->GetNodeInfo(ni->NameAtom(),
                                                              ni->GetPrefixAtom(),
                                                              ni->NamespaceID());
-        NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+        NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
     }
     else {
         nodeInfo = aPrototype->mNodeInfo;

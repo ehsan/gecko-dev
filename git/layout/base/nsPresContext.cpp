@@ -83,7 +83,6 @@
 #include "nsStyleChangeList.h"
 #include "nsRuleNode.h"
 #include "nsEventDispatcher.h"
-#include "gfxUserFontSet.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -227,7 +226,6 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
     mNeverAnimate = PR_FALSE;
   }
   NS_ASSERTION(mDocument, "Null document");
-  mUserFontSet = nsnull;
 }
 
 nsPresContext::~nsPresContext()
@@ -285,8 +283,6 @@ nsPresContext::~nsPresContext()
   NS_IF_RELEASE(mDeviceContext);
   NS_IF_RELEASE(mLookAndFeel);
   NS_IF_RELEASE(mLangGroup);
-  
-  SetUserFontSet(nsnull);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsPresContext)
@@ -1578,19 +1574,6 @@ nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) 
 {
   return nsRuleNode::
     HasAuthorSpecifiedRules(aFrame->GetStyleContext(), ruleTypeMask);
-}
-
-gfxUserFontSet* 
-nsPresContext::GetUserFontSet() {
-  return mUserFontSet;
-}
-
-void 
-nsPresContext::SetUserFontSet(gfxUserFontSet *aUserFontSet)
-{
-  NS_IF_RELEASE(mUserFontSet);
-  mUserFontSet = aUserFontSet;
-  NS_IF_ADDREF(mUserFontSet);
 }
 
 void

@@ -709,6 +709,10 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
+
+  nsCOMPtr<nsIDocumentCharsetInfo> dcInfo;
+  docShell->GetDocumentCharsetInfo(getter_AddRefs(dcInfo));
   PRInt32 textType = GET_BIDI_OPTION_TEXTTYPE(GetBidiOptions());
 
   // Look for the parent document.  Note that at this point we don't have our
@@ -718,17 +722,11 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   // in this block of code, if we get an error result, we return it
   // but if we get a null pointer, that's perfectly legal for parent
   // and parentContentViewer
-  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
-
-  // No support yet for docshell-less HTML
-  NS_ENSURE_TRUE(docShell || IsXHTML(), NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(docShell));
+  NS_ENSURE_TRUE(docShellAsItem, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDocShellTreeItem> parentAsItem;
-  if (docShellAsItem) {
-    docShellAsItem->GetSameTypeParent(getter_AddRefs(parentAsItem));
-  }
+  docShellAsItem->GetSameTypeParent(getter_AddRefs(parentAsItem));
 
   nsCOMPtr<nsIDocShell> parent(do_QueryInterface(parentAsItem));
   nsCOMPtr<nsIDocument> parentDocument;
@@ -749,9 +747,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   nsCOMPtr<nsIMarkupDocumentViewer> muCV;
   PRBool muCVIsParent = PR_FALSE;
   nsCOMPtr<nsIContentViewer> cv;
-  if (docShell) {
-    docShell->GetContentViewer(getter_AddRefs(cv));
-  }
+  docShell->GetContentViewer(getter_AddRefs(cv));
   if (cv) {
      muCV = do_QueryInterface(cv);
   } else {
@@ -788,11 +784,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     parserCharsetSource = charsetSource;
     parserCharset = charset;
   } else {
-    NS_ASSERTION(docShell && docShellAsItem, "Unexpected null value");
-    
-    nsCOMPtr<nsIDocumentCharsetInfo> dcInfo;
-    docShell->GetDocumentCharsetInfo(getter_AddRefs(dcInfo));
-
     charsetSource = kCharsetUninitialized;
     wyciwygChannel = do_QueryInterface(aChannel);
 
@@ -1713,10 +1704,6 @@ nsHTMLDocument::GetCookie(nsAString& aCookie)
   aCookie.Truncate(); // clear current cookie in case service fails;
                       // no cookie isn't an error condition.
 
-  if (mDisableCookieAccess) {
-    return NS_OK;
-  }
-
   // not having a cookie service isn't an error
   nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
   if (service) {
@@ -1743,10 +1730,6 @@ nsHTMLDocument::GetCookie(nsAString& aCookie)
 NS_IMETHODIMP
 nsHTMLDocument::SetCookie(const nsAString& aCookie)
 {
-  if (mDisableCookieAccess) {
-    return NS_OK;
-  }
-
   // not having a cookie service isn't an error
   nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
   if (service && mDocumentURI) {

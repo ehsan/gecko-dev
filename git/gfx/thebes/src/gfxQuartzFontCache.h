@@ -83,15 +83,13 @@ public:
     ATSUFontID GetFontID();
     nsresult ReadCMAP();
 
+    MacOSFamilyEntry* FamilyEntry() { return mFamily; }
 protected:
-    // for use with data fonts
-    MacOSFontEntry(ATSUFontID aFontID, PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle, gfxUserFontData *aUserFontData);
-
     PRUint32 mTraits;
     MacOSFamilyEntry *mFamily;
 
-    ATSUFontID mATSUFontID;
     PRPackedBool mATSUIDInitialized;
+    ATSUFontID mATSUFontID;
 };
 
 // helper class for adding other family names back into font cache
@@ -105,8 +103,9 @@ public:
     friend class gfxQuartzFontCache;
 
     // name is canonical font family name returned from NSFontManager
-    MacOSFamilyEntry(nsAString &aName) :
-        gfxFontFamily(aName), mOtherFamilyNamesInitialized(PR_FALSE), mHasOtherFamilyNames(PR_FALSE)
+    MacOSFamilyEntry(nsString &aName) :
+        gfxFontFamily(aName), mOtherFamilyNamesInitialized(PR_FALSE), mHasOtherFamilyNames(PR_FALSE),
+        mIsBadUnderlineFontFamily(PR_FALSE)
     {}
   
     virtual ~MacOSFamilyEntry() {}
@@ -133,7 +132,7 @@ public:
     virtual void ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFunctor);
     
     // search for a specific face using the Postscript name
-    MacOSFontEntry* FindFont(const nsAString& aPostscriptName);
+    MacOSFontEntry* FindFont(const nsString& aPostscriptName);
 
     // read in cmaps for all the faces
     void ReadCMAP() {
@@ -142,12 +141,9 @@ public:
             mAvailableFonts[i]->ReadCMAP();
     }
 
-    // set whether this font family is in "bad" underline offset blacklist.
-    void SetBadUnderlineFont(PRBool aIsBadUnderlineFont) {
-        PRUint32 i, numFonts = mAvailableFonts.Length();
-        for (i = 0; i < numFonts; i++)
-            mAvailableFonts[i]->mIsBadUnderlineFont = aIsBadUnderlineFont;
-    }
+
+    // whether this font family is in "bad" underline offset blacklist.
+    PRBool IsBadUnderlineFontFamily() { return mIsBadUnderlineFontFamily != 0; }
 
 protected:
     
@@ -162,13 +158,14 @@ protected:
     nsTArray<nsRefPtr<MacOSFontEntry> >  mAvailableFonts;
     PRPackedBool mOtherFamilyNamesInitialized;
     PRPackedBool mHasOtherFamilyNames;
+    PRPackedBool mIsBadUnderlineFontFamily;
 };
 
 // special-case situation where specific faces need to be treated as separate font family
 class SingleFaceFamily : public MacOSFamilyEntry
 {
 public:
-    SingleFaceFamily(nsAString &aName) :
+    SingleFaceFamily(nsString &aName) :
         MacOSFamilyEntry(aName)
     {}
     
@@ -225,10 +222,6 @@ public:
     
     void AddOtherFamilyName(MacOSFamilyEntry *aFamilyEntry, nsAString& aOtherFamilyName);
 
-    gfxFontEntry* LookupLocalFont(const nsAString& aFontName);
-    
-    gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const gfxDownloadedFontData* aFontData);
-
 private:
     static PLDHashOperator PR_CALLBACK FindFontForCharProc(nsStringHashKey::KeyType aKey,
                                                              nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
@@ -251,7 +244,7 @@ private:
     // commonly used fonts for which the name table should be loaded at startup
     void PreloadNamesList();
 
-    // initialize the bad underline blacklist from pref.
+    // initialize the MacOSFamilyEntry::mIsBadUnderlineFontFamily from pref.
     void InitBadUnderlineList();
 
     // eliminate faces which have the same ATSUI id
@@ -300,13 +293,6 @@ private:
     PRUint32 mStartIndex;
     PRUint32 mIncrement;
     PRUint32 mNumFamilies;
-    
-    // keep track of ATS generation to prevent unneeded updates when loading downloaded fonts
-    PRUint32 mATSGeneration;
-    
-    enum {
-        kATSGenerationInitial = -1
-    };
 };
 
 #endif /* GFXQUARTZFONTCACHE_H_ */

@@ -208,9 +208,9 @@ var gMainPane = {
    *     2 - The default download location is elsewhere as specified in
    *         browser.download.dir.
    * browser.download.downloadDir
-   *   deprecated.
+   *   depreciated.
    * browser.download.defaultFolder
-   *   deprecated.
+   *   depreciated.
    */
 
   /**

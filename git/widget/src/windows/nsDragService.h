@@ -75,9 +75,6 @@ public:
   NS_IMETHOD StartInvokingDragSession(IDataObject * aDataObj,
                                       PRUint32 aActionType);
 
-  // A drop occured within the application vs. outside of it.
-  void SetDroppedLocal();
-
 protected:
   nsDataObjCollection* GetDataObjCollection(IDataObject * aDataObj);
 
@@ -96,7 +93,6 @@ protected:
   IDropSource * mNativeDragSrc;
   nsNativeDragTarget * mNativeDragTarget;
   IDataObject * mDataObject;
-  PRPackedBool mSentLocalDropEvent;
 };
 
 #endif // nsDragService_h__

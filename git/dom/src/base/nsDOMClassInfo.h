@@ -75,7 +75,7 @@ struct nsDOMClassInfoData
   const nsIID *mProtoChainInterface;
   const nsIID **mInterfaces;
   PRUint32 mScriptableFlags : 31; // flags must not use more than 31 bits!
-  PRUint32 mHasClassInterface : 1;
+  PRBool mHasClassInterface : 1;
 #ifdef NS_DEBUG
   PRUint32 mDebugID;
 #endif
@@ -388,7 +388,6 @@ public:
 
 // Adds support for 4th parameter of addEventListener.
 // Simpler than nsEventReceiverSH
-// Makes also sure that the wrapper is preserved if new properties are added.
 class nsEventTargetSH : public nsDOMGenericSH
 {
 protected:
@@ -403,8 +402,6 @@ public:
   NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, jsval id, PRUint32 flags,
                         JSObject **objp, PRBool *_retval);
-  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {

@@ -83,7 +83,7 @@ class FontFamily : public gfxFontFamily
 {
 public:
     FontFamily(const nsAString& aName) :
-        gfxFontFamily(aName), mIsBadUnderlineFontFamily(PR_FALSE), mHasStyles(PR_FALSE) { }
+        gfxFontFamily(aName), mHasStyles(PR_FALSE), mIsBadUnderlineFont(PR_FALSE) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
@@ -101,18 +101,18 @@ protected:
 
 public:
     nsTArray<nsRefPtr<FontEntry> > mVariations;
-    PRPackedBool mIsBadUnderlineFontFamily;
+    PRPackedBool mIsBadUnderlineFont;
 
 private:
-    PRPackedBool mHasStyles;
+    PRBool mHasStyles;
 };
 
 class FontEntry : public gfxFontEntry
 {
 public:
-    FontEntry(const nsAString& aFaceName) : 
+    FontEntry(const nsString& aFaceName) : 
         gfxFontEntry(aFaceName), mFontType(GFX_FONT_TYPE_UNKNOWN),
-        mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
+        mIsBadUnderlineFont(PR_FALSE), mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
         mCharset(0), mUnicodeRanges(0)
     {
         mUnicodeFont = PR_FALSE;
@@ -124,37 +124,13 @@ public:
         mWindowsFamily(aFontEntry.mWindowsFamily),
         mWindowsPitch(aFontEntry.mWindowsPitch),
         mFontType(aFontEntry.mFontType),
+        mIsBadUnderlineFont(aFontEntry.mIsBadUnderlineFont),
         mForceGDI(aFontEntry.mForceGDI),
         mUnknownCMAP(aFontEntry.mUnknownCMAP),
         mCharset(aFontEntry.mCharset),
         mUnicodeRanges(aFontEntry.mUnicodeRanges)
     {
 
-    }
-
-    static FontEntry* CreateFontEntry(const nsAString& aName, gfxWindowsFontType aFontType, PRBool aItalic, PRUint16 aWeight, gfxUserFontData* aUserFontData, HDC hdc = 0, LOGFONTW *aLogFont = nsnull);
-
-    static void FillLogFont(LOGFONTW *aLogFont, FontEntry *aFontEntry, gfxFloat aSize, PRBool aItalic);
-
-    static gfxWindowsFontType DetermineFontType(const NEWTEXTMETRICW& metrics, DWORD fontType)
-    {
-        gfxWindowsFontType feType;
-        if (metrics.ntmFlags & NTM_TYPE1)
-            feType = GFX_FONT_TYPE_TYPE1;
-        else if (metrics.ntmFlags & NTM_PS_OPENTYPE)
-            feType = GFX_FONT_TYPE_PS_OPENTYPE;
-        else if (metrics.ntmFlags & NTM_TT_OPENTYPE)
-            feType = GFX_FONT_TYPE_TT_OPENTYPE;
-        else if (fontType == TRUETYPE_FONTTYPE)
-            feType = GFX_FONT_TYPE_TRUETYPE;
-        else if (fontType == RASTER_FONTTYPE)
-            feType = GFX_FONT_TYPE_RASTER;
-        else if (fontType == DEVICE_FONTTYPE)
-            feType = GFX_FONT_TYPE_DEVICE;
-        else
-            feType = GFX_FONT_TYPE_UNKNOWN;
-        
-        return feType;
     }
 
     PRBool IsType1() const {
@@ -256,12 +232,16 @@ public:
         return mUnicodeRanges[range];
     }
 
+    // whether this font family is in "bad" underline offset blacklist.
+    PRBool IsBadUnderlineFont() { return mIsBadUnderlineFont != 0; }
+
     PRBool TestCharacterMap(PRUint32 aCh);
 
     PRUint8 mWindowsFamily;
     PRUint8 mWindowsPitch;
 
     gfxWindowsFontType mFontType;
+    PRPackedBool mIsBadUnderlineFont : 1;
     PRPackedBool mForceGDI    : 1;
     PRPackedBool mUnknownCMAP : 1;
 
@@ -337,7 +317,7 @@ private:
 class THEBES_API gfxWindowsFontGroup : public gfxFontGroup {
 
 public:
-    gfxWindowsFontGroup(const nsAString& aFamilies, const gfxFontStyle* aStyle, gfxUserFontSet *aUserFontSet);
+    gfxWindowsFontGroup(const nsAString& aFamilies, const gfxFontStyle* aStyle);
     virtual ~gfxWindowsFontGroup();
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
@@ -369,10 +349,8 @@ public:
                                const nsCString& aLangGroup,
                                nsTArray<nsRefPtr<FontEntry> > *list);
 
-    void UpdateFontList();
 
 protected:
-    void InitFontList();
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const char *aString, PRUint32 aLength);
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
 

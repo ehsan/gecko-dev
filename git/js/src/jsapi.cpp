@@ -657,8 +657,6 @@ JS_TypeOfValue(JSContext *cx, jsval v)
                     type = JSTYPE_FUNCTION;
                 } else {
 #ifdef NARCISSUS
-                    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
                     if (!OBJ_GET_PROPERTY(cx, obj,
                                           ATOM_TO_JSID(cx->runtime->atomState
                                                        .callAtom),
@@ -897,8 +895,6 @@ JS_BeginRequest(JSContext *cx)
 
     JS_ASSERT(cx->thread->id == js_CurrentThreadId());
     if (!cx->requestDepth) {
-        JS_ASSERT(cx->gcLocalFreeLists == &js_GCEmptyFreeListSet);
-
         /* Wait until the GC is finished. */
         rt = cx->runtime;
         JS_LOCK_GC(rt);
@@ -966,8 +962,6 @@ JS_EndRequest(JSContext *cx)
         }
         if (shared)
             JS_NOTIFY_ALL_CONDVAR(rt->titleSharingDone);
-
-        js_RevokeGCLocalFreeLists(cx);
 
         /* Give the GC a chance to run if this was the last request running. */
         JS_ASSERT(rt->requestCount > 0);
@@ -2980,14 +2974,10 @@ JS_GetConstructor(JSContext *cx, JSObject *proto)
     jsval cval;
 
     CHECK_REQUEST(cx);
-    {
-        JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
-        if (!OBJ_GET_PROPERTY(cx, proto,
-                              ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                              &cval)) {
-            return NULL;
-        }
+    if (!OBJ_GET_PROPERTY(cx, proto,
+                          ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
+                          &cval)) {
+        return NULL;
     }
     if (!VALUE_IS_FUNCTION(cx, cval)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NO_CONSTRUCTOR,
@@ -3127,7 +3117,6 @@ DefineProperty(JSContext *cx, JSObject *obj, const char *name, jsval value,
         id = ATOM_TO_JSID(atom);
     }
     if (flags != 0 && OBJ_IS_NATIVE(obj)) {
-        JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DECLARING);
         return js_DefineNativeProperty(cx, obj, id, value, getter, setter,
                                        attrs, flags, tinyid, NULL);
     }
@@ -3149,7 +3138,6 @@ DefineUCProperty(JSContext *cx, JSObject *obj,
     if (!atom)
         return JS_FALSE;
     if (flags != 0 && OBJ_IS_NATIVE(obj)) {
-        JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DECLARING);
         return js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(atom), value,
                                        getter, setter, attrs, flags, tinyid,
                                        NULL);
@@ -3183,17 +3171,17 @@ JS_DefineConstDoubles(JSContext *cx, JSObject *obj, JSConstDoubleSpec *cds)
 {
     JSBool ok;
     jsval value;
-    uintN attrs;
+    uintN flags;
 
     CHECK_REQUEST(cx);
     for (ok = JS_TRUE; cds->name; cds++) {
         ok = js_NewNumberInRootedValue(cx, cds->dval, &value);
         if (!ok)
             break;
-        attrs = cds->flags;
-        if (!attrs)
-            attrs = JSPROP_READONLY | JSPROP_PERMANENT;
-        ok = DefineProperty(cx, obj, cds->name, value, NULL, NULL, attrs, 0, 0);
+        flags = cds->flags;
+        if (!flags)
+            flags = JSPROP_READONLY | JSPROP_PERMANENT;
+        ok = DefineProperty(cx, obj, cds->name, value, NULL, NULL, flags, 0, 0);
         if (!ok)
             break;
     }
@@ -3236,28 +3224,20 @@ JS_DefinePropertyWithTinyId(JSContext *cx, JSObject *obj, const char *name,
 }
 
 static JSBool
-LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
-                   JSObject **objp, JSProperty **propp)
-{
-    JSAutoResolveFlags rf(cx, flags);
-    return OBJ_LOOKUP_PROPERTY(cx, obj, id, objp, propp);
-}
-
-static JSBool
-LookupProperty(JSContext *cx, JSObject *obj, const char *name, uintN flags,
-               JSObject **objp, JSProperty **propp)
+LookupProperty(JSContext *cx, JSObject *obj, const char *name, JSObject **objp,
+               JSProperty **propp)
 {
     JSAtom *atom;
 
     atom = js_Atomize(cx, name, strlen(name), 0);
     if (!atom)
         return JS_FALSE;
-    return LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), flags, objp, propp);
+    return OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), objp, propp);
 }
 
 static JSBool
 LookupUCProperty(JSContext *cx, JSObject *obj,
-                 const jschar *name, size_t namelen, uintN flags,
+                 const jschar *name, size_t namelen,
                  JSObject **objp, JSProperty **propp)
 {
     JSAtom *atom;
@@ -3265,7 +3245,7 @@ LookupUCProperty(JSContext *cx, JSObject *obj,
     atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
     if (!atom)
         return JS_FALSE;
-    return LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), flags, objp, propp);
+    return OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), objp, propp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3279,7 +3259,7 @@ JS_AliasProperty(JSContext *cx, JSObject *obj, const char *name,
     JSScopeProperty *sprop;
 
     CHECK_REQUEST(cx);
-    if (!LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop))
+    if (!LookupProperty(cx, obj, name, &obj2, &prop))
         return JS_FALSE;
     if (!prop) {
         js_ReportIsNotDefined(cx, name);
@@ -3341,10 +3321,8 @@ GetPropertyAttributes(JSContext *cx, JSObject *obj, JSAtom *atom,
 
     if (!atom)
         return JS_FALSE;
-    if (!LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), JSRESOLVE_QUALIFIED,
-                            &obj2, &prop)) {
+    if (!OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &obj2, &prop))
         return JS_FALSE;
-    }
 
     if (!prop || obj != obj2) {
         *attrsp = 0;
@@ -3382,10 +3360,8 @@ SetPropertyAttributes(JSContext *cx, JSObject *obj, JSAtom *atom,
 
     if (!atom)
         return JS_FALSE;
-    if (!LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), JSRESOLVE_QUALIFIED,
-                            &obj2, &prop)) {
+    if (!OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &obj2, &prop))
         return JS_FALSE;
-    }
     if (!prop || obj != obj2) {
         *foundp = JS_FALSE;
         if (prop)
@@ -3442,11 +3418,8 @@ AlreadyHasOwnPropertyHelper(JSContext *cx, JSObject *obj, jsid id,
         JSObject *obj2;
         JSProperty *prop;
 
-        if (!LookupPropertyById(cx, obj, id,
-                                JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
-                                &obj2, &prop)) {
+        if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
             return JS_FALSE;
-        }
         *foundp = (obj == obj2);
         if (prop)
             OBJ_DROP_PROPERTY(cx, obj2, prop);
@@ -3481,9 +3454,7 @@ JS_HasProperty(JSContext *cx, JSObject *obj, const char *name, JSBool *foundp)
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupProperty(cx, obj, name,
-                        JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
-                        &obj2, &prop);
+    ok = LookupProperty(cx, obj, name, &obj2, &prop);
     if (ok) {
         *foundp = (prop != NULL);
         if (prop)
@@ -3500,7 +3471,7 @@ JS_LookupProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp)
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop);
+    ok = LookupProperty(cx, obj, name, &obj2, &prop);
     if (ok)
         *vp = LookupResult(cx, obj, obj2, prop);
     return ok;
@@ -3511,27 +3482,20 @@ JS_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, const char *name,
                            uintN flags, jsval *vp)
 {
     JSAtom *atom;
-    JSObject *obj2;
-
-    atom = js_Atomize(cx, name, strlen(name), 0);
-    return atom &&
-           JS_LookupPropertyByIdWithFlags(cx, obj, ATOM_TO_JSID(atom), flags,
-                                          &obj2, vp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_LookupPropertyByIdWithFlags(JSContext *cx, JSObject *obj, jsid id,
-                               uintN flags, JSObject **objp, jsval *vp)
-{
     JSBool ok;
+    JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
+    atom = js_Atomize(cx, name, strlen(name), 0);
+    if (!atom)
+        return JS_FALSE;
     ok = OBJ_IS_NATIVE(obj)
-         ? js_LookupPropertyWithFlags(cx, obj, id, flags, objp, &prop) >= 0
-         : OBJ_LOOKUP_PROPERTY(cx, obj, id, objp, &prop);
+         ? js_LookupPropertyWithFlags(cx, obj, ATOM_TO_JSID(atom), flags,
+                                      &obj2, &prop) >= 0
+         : OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &obj2, &prop);
     if (ok)
-        *vp = LookupResult(cx, obj, *objp, prop);
+        *vp = LookupResult(cx, obj, obj2, prop);
     return ok;
 }
 
@@ -3544,8 +3508,6 @@ JS_GetProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp)
     atom = js_Atomize(cx, name, strlen(name), 0);
     if (!atom)
         return JS_FALSE;
-
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     return OBJ_GET_PROPERTY(cx, obj, ATOM_TO_JSID(atom), vp);
 }
 
@@ -3553,9 +3515,8 @@ JS_PUBLIC_API(JSBool)
 JS_GetMethodById(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                  jsval *vp)
 {
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
     CHECK_REQUEST(cx);
+
 #if JS_HAS_XML_SUPPORT
     if (OBJECT_IS_XML(cx, obj)) {
         JSXMLObjectOps *ops;
@@ -3596,8 +3557,6 @@ JS_SetProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp)
     atom = js_Atomize(cx, name, strlen(name), 0);
     if (!atom)
         return JS_FALSE;
-
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
     return OBJ_SET_PROPERTY(cx, obj, ATOM_TO_JSID(atom), vp);
 }
 
@@ -3620,8 +3579,6 @@ JS_DeleteProperty2(JSContext *cx, JSObject *obj, const char *name,
     atom = js_Atomize(cx, name, strlen(name), 0);
     if (!atom)
         return JS_FALSE;
-
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     return OBJ_DELETE_PROPERTY(cx, obj, ATOM_TO_JSID(atom), rval);
 }
 
@@ -3707,9 +3664,7 @@ JS_HasUCProperty(JSContext *cx, JSObject *obj,
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupUCProperty(cx, obj, name, namelen, 
-                          JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
-                          &obj2, &prop);
+    ok = LookupUCProperty(cx, obj, name, namelen, &obj2, &prop);
     if (ok) {
         *vp = (prop != NULL);
         if (prop)
@@ -3728,8 +3683,7 @@ JS_LookupUCProperty(JSContext *cx, JSObject *obj,
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupUCProperty(cx, obj, name, namelen, JSRESOLVE_QUALIFIED,
-                          &obj2, &prop);
+    ok = LookupUCProperty(cx, obj, name, namelen, &obj2, &prop);
     if (ok)
         *vp = LookupResult(cx, obj, obj2, prop);
     return ok;
@@ -3746,8 +3700,6 @@ JS_GetUCProperty(JSContext *cx, JSObject *obj,
     atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
     if (!atom)
         return JS_FALSE;
-
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     return OBJ_GET_PROPERTY(cx, obj, ATOM_TO_JSID(atom), vp);
 }
 
@@ -3762,8 +3714,6 @@ JS_SetUCProperty(JSContext *cx, JSObject *obj,
     atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
     if (!atom)
         return JS_FALSE;
-
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
     return OBJ_SET_PROPERTY(cx, obj, ATOM_TO_JSID(atom), vp);
 }
 
@@ -3778,8 +3728,6 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *obj,
     atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
     if (!atom)
         return JS_FALSE;
-
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     return OBJ_DELETE_PROPERTY(cx, obj, ATOM_TO_JSID(atom), rval);
 }
 
@@ -3822,8 +3770,6 @@ JS_PUBLIC_API(JSBool)
 JS_DefineElement(JSContext *cx, JSObject *obj, jsint index, jsval value,
                  JSPropertyOp getter, JSPropertyOp setter, uintN attrs)
 {
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DECLARING);
-
     CHECK_REQUEST(cx);
     return OBJ_DEFINE_PROPERTY(cx, obj, INT_TO_JSID(index), value,
                                getter, setter, attrs, NULL);
@@ -3838,7 +3784,7 @@ JS_AliasElement(JSContext *cx, JSObject *obj, const char *name, jsint alias)
     JSBool ok;
 
     CHECK_REQUEST(cx);
-    if (!LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop))
+    if (!LookupProperty(cx, obj, name, &obj2, &prop))
         return JS_FALSE;
     if (!prop) {
         js_ReportIsNotDefined(cx, name);
@@ -3877,9 +3823,7 @@ JS_HasElement(JSContext *cx, JSObject *obj, jsint index, JSBool *foundp)
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupPropertyById(cx, obj, INT_TO_JSID(index),
-                            JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
-                            &obj2, &prop);
+    ok = OBJ_LOOKUP_PROPERTY(cx, obj, INT_TO_JSID(index), &obj2, &prop);
     if (ok) {
         *foundp = (prop != NULL);
         if (prop)
@@ -3896,8 +3840,7 @@ JS_LookupElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupPropertyById(cx, obj, INT_TO_JSID(index), JSRESOLVE_QUALIFIED,
-                            &obj2, &prop);
+    ok = OBJ_LOOKUP_PROPERTY(cx, obj, INT_TO_JSID(index), &obj2, &prop);
     if (ok)
         *vp = LookupResult(cx, obj, obj2, prop);
     return ok;
@@ -3906,8 +3849,6 @@ JS_LookupElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 JS_PUBLIC_API(JSBool)
 JS_GetElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
     CHECK_REQUEST(cx);
     return OBJ_GET_PROPERTY(cx, obj, INT_TO_JSID(index), vp);
 }
@@ -3915,8 +3856,6 @@ JS_GetElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 JS_PUBLIC_API(JSBool)
 JS_SetElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
-
     CHECK_REQUEST(cx);
     return OBJ_SET_PROPERTY(cx, obj, INT_TO_JSID(index), vp);
 }
@@ -3926,14 +3865,13 @@ JS_DeleteElement(JSContext *cx, JSObject *obj, jsint index)
 {
     jsval junk;
 
+    CHECK_REQUEST(cx);
     return JS_DeleteElement2(cx, obj, index, &junk);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeleteElement2(JSContext *cx, JSObject *obj, jsint index, jsval *rval)
 {
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
     CHECK_REQUEST(cx);
     return OBJ_DELETE_PROPERTY(cx, obj, INT_TO_JSID(index), rval);
 }

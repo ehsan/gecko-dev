@@ -2201,7 +2201,7 @@ nsDocument::GetElementsByClassNameHelper(nsINode* aRootNode,
 
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
     classes->AppendObjects(*(attrValue.GetAtomArrayValue()));
-  } else if (attrValue.Type() == nsAttrValue::eAtom) {
+  } else if (!attrValue.IsEmptyString()) {
     classes->AppendObject(attrValue.GetAtomValue());
   }
   
@@ -5727,7 +5727,9 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
 
   // Should we be flushing pending binding constructors in here?
 
-  if (aType <= Flush_ContentAndNotify) {
+  nsPIDOMWindow *window = GetWindow();
+
+  if (aType <= Flush_ContentAndNotify || !window) {
     // Nothing to do here
     return;
   }
@@ -6185,7 +6187,7 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
 
   return NS_NewElement(aResult, elementType, nodeInfo, PR_FALSE);
 }

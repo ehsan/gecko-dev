@@ -250,6 +250,7 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 void
 nsGfxCheckboxControlFrame::PaintCheckBoxFromStyle(
     nsIRenderingContext& aRenderingContext, nsPoint aPt, const nsRect& aDirtyRect) {
+  const nsStylePadding* myPadding = mCheckButtonFaceStyle->GetStylePadding();
   const nsStylePosition* myPosition = mCheckButtonFaceStyle->GetStylePosition();
   const nsStyleBorder* myBorder = mCheckButtonFaceStyle->GetStyleBorder();
   const nsStyleBackground* myBackground = mCheckButtonFaceStyle->GetStyleBackground();
@@ -266,7 +267,7 @@ nsGfxCheckboxControlFrame::PaintCheckBoxFromStyle(
 
   nsCSSRendering::PaintBackgroundWithSC(PresContext(), aRenderingContext,
                                         this, aDirtyRect, rect, *myBackground,
-                                        *myBorder, PR_FALSE);
+                                        *myBorder, *myPadding, PR_FALSE);
   nsCSSRendering::PaintBorder(PresContext(), aRenderingContext, this,
                               aDirtyRect, rect, *myBorder,
                               mCheckButtonFaceStyle);

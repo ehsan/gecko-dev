@@ -1208,8 +1208,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(XMLHttpProgressEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(XMLHttpRequest, nsEventTargetSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ADDPROPERTY)
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(ClientRect, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1282,8 +1281,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(XMLHttpRequestUpload, nsEventTargetSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ADDPROPERTY)
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   // DOM Traversal NodeIterator class  
   NS_DEFINE_CLASSINFO_DATA(NodeIterator, nsDOMGenericSH,
@@ -3387,6 +3385,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIJSXMLHttpRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestUploadGetter)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
   DOM_CLASSINFO_MAP_END
@@ -5918,17 +5917,20 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 #endif
 
       jsid interned_id;
-      JSObject *pobj = NULL;
-      jsval val;
+      JSObject *pobj;
+      JSProperty *prop = nsnull;
 
       *_retval = (::JS_ValueToId(cx, id, &interned_id) &&
-                  ::JS_LookupPropertyByIdWithFlags(cx, innerObj, interned_id,
-                                                   flags, &pobj, &val));
+                  OBJ_LOOKUP_PROPERTY(cx, innerObj, interned_id, &pobj,
+                                      &prop));
 
-      if (*_retval && pobj) {
+      if (*_retval && prop) {
 #ifdef DEBUG_SH_FORWARDING
         printf(" --- Resolve on inner window found property.\n");
 #endif
+
+        OBJ_DROP_PROPERTY(cx, pobj, prop);
+
         *objp = pobj;
       }
 
@@ -6407,9 +6409,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // binding a name) a new undefined property that's not already
   // defined on our prototype chain. This way we can access this
   // expando w/o ever getting back into XPConnect.
-  if ((flags & (JSRESOLVE_ASSIGNING)) &&
-      !(cx->fp && cx->fp->regs && (JSOp)*cx->fp->regs->pc == JSOP_BINDNAME) &&
-      win->IsInnerWindow()) {
+  if ((flags & (JSRESOLVE_ASSIGNING)) && cx->fp->regs &&
+      (JSOp)*cx->fp->regs->pc != JSOP_BINDNAME && win->IsInnerWindow()) {
     JSObject *realObj;
     wrapper->GetJSObject(&realObj);
 
@@ -6417,20 +6418,21 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       JSObject *proto = STOBJ_GET_PROTO(obj);
       if (proto) {
         jsid interned_id;
-        JSObject *pobj = NULL;
-        jsval val;
+        JSProperty *prop = nsnull;
 
         if (!::JS_ValueToId(cx, id, &interned_id) ||
-            !::JS_LookupPropertyByIdWithFlags(cx, proto, interned_id, flags,
-                                              &pobj, &val)) {
+            !OBJ_LOOKUP_PROPERTY(cx, proto, interned_id, objp, &prop)) {
           *_retval = JS_FALSE;
 
           return NS_OK;
         }
 
-        if (pobj) {
-          // A property was found on the prototype chain.
-          *objp = pobj;
+        if (prop) {
+          // A property was found on the prototype chain, and *objp is
+          // already set to point to the prototype where the property
+          // was found.
+          OBJ_DROP_PROPERTY(cx, proto, prop);
+
           return NS_OK;
         }
       }
@@ -7340,33 +7342,6 @@ nsEventTargetSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                     _retval);
 }
 
-NS_IMETHODIMP
-nsEventTargetSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                             JSObject *obj, jsval id, jsval *vp, PRBool *_retval)
-{
-  if (id == sAddEventListener_id) {
-    return NS_OK;
-  }
-  nsISupports* native = wrapper->Native();
-  nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(native);
-  if (target) {
-    nsCOMPtr<nsIScriptContext> scriptContext;
-    target->GetContextForEventHandlers(getter_AddRefs(scriptContext));
-    if (scriptContext) {
-      nsCOMPtr<nsPIDOMWindow> window =
-        do_QueryInterface(scriptContext->GetGlobalObject());
-      if (window) {
-        nsCOMPtr<nsIDocument> doc =
-          do_QueryInterface(window->GetExtantDocument());
-        if (doc) {
-          doc->AddReference(native, wrapper);
-        }
-      }
-    }
-  }
-  return NS_OK;
-}
-
 // Element helper
 
 NS_IMETHODIMP
@@ -7611,9 +7586,7 @@ nsArraySH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
                      nsISupports **aResult)
 {
   nsCOMPtr<nsINodeList> list(do_QueryInterface(aNative));
-  if (!list) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  NS_ENSURE_TRUE(list, NS_ERROR_UNEXPECTED);
 
   NS_IF_ADDREF(*aResult = list->GetNodeAt(aIndex));
 

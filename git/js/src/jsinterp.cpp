@@ -2472,7 +2472,6 @@ js_Interpret(JSContext *cx)
 #if JS_HAS_GETTER_SETTER
     JSPropertyOp getter, setter;
 #endif
-    JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
 
 #ifdef __GNUC__
 # define JS_EXTENSION __extension__
@@ -5337,14 +5336,9 @@ js_Interpret(JSContext *cx)
              * (This opcode is emitted only for dense jsint-domain switches.)
              */
             rval = POP_OPND();
-            if (JSVAL_IS_INT(rval)) {
-                i = JSVAL_TO_INT(rval);
-            } else if (JSVAL_IS_DOUBLE(rval) && *JSVAL_TO_DOUBLE(rval) == 0) {
-                /* Treat -0 (double) as 0. */
-                i = 0;
-            } else {
+            if (!JSVAL_IS_INT(rval))
                 DO_NEXT_OP(len);
-            }
+            i = JSVAL_TO_INT(rval);
 
             pc2 += JUMP_OFFSET_LEN;
             low = GET_JUMP_OFFSET(pc2);
@@ -5370,14 +5364,9 @@ js_Interpret(JSContext *cx)
              * (This opcode is emitted only for dense jsint-domain switches.)
              */
             rval = POP_OPND();
-            if (JSVAL_IS_INT(rval)) {
-                i = JSVAL_TO_INT(rval);
-            } else if (JSVAL_IS_DOUBLE(rval) && *JSVAL_TO_DOUBLE(rval) == 0) {
-                /* Treat -0 (double) as 0. */
-                i = 0;
-            } else {
+            if (!JSVAL_IS_INT(rval))
                 DO_NEXT_OP(len);
-            }
+            i = JSVAL_TO_INT(rval);
 
             pc2 += JUMPX_OFFSET_LEN;
             low = GET_JUMP_OFFSET(pc2);

@@ -416,8 +416,7 @@ var PlacesCommandHook = {
     }
 
     // Revert the contents of the location bar
-    if (gURLBar)
-      gURLBar.handleRevert();
+    handleURLBarRevert();
 
     // dock the panel to the star icon when possible, otherwise dock
     // it to the content area
@@ -768,7 +767,7 @@ var BookmarksEventHandler = {
     var tooltipTitle = document.getElementById("btTitleText");
     if (title && title != url) {
       tooltipTitle.hidden = false;
-      tooltipTitle.textContent = title;
+      tooltipTitle.value = title;
     }
     else
       tooltipTitle.hidden = true;
