@@ -851,8 +851,6 @@ DestroyGCChunk(jsuword chunk)
     if (js_gcUseMmap) {
 # if defined(XP_WIN)
         VirtualFree((void *) chunk, 0, MEM_RELEASE);
-# elif defined(SOLARIS)
-        munmap((char *) chunk, js_gcArenasPerChunk << GC_ARENA_SHIFT);
 # else
         munmap((void *) chunk, js_gcArenasPerChunk << GC_ARENA_SHIFT);
 # endif
@@ -1566,7 +1564,6 @@ js_named_root_dumper(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
     return JS_DHASH_NEXT;
 }
 
-JS_BEGIN_EXTERN_C
 void
 js_DumpNamedRoots(JSRuntime *rt,
                   void (*dump)(const char *name, void *rp, void *data),
@@ -1578,7 +1575,6 @@ js_DumpNamedRoots(JSRuntime *rt,
     args.data = data;
     JS_DHashTableEnumerate(&rt->gcRootsHash, js_named_root_dumper, &args);
 }
-JS_END_EXTERN_C
 
 #endif /* DEBUG */
 

@@ -80,7 +80,6 @@
 static PRUintn threadTPIndex;
 static JSBool  tpIndexInited = JS_FALSE;
 
-JS_BEGIN_EXTERN_C
 JSBool
 js_InitThreadPrivateIndex(void (JS_DLL_CALLBACK *ptr)(void *))
 {
@@ -95,7 +94,6 @@ js_InitThreadPrivateIndex(void (JS_DLL_CALLBACK *ptr)(void *))
         tpIndexInited = JS_TRUE;
     return status == PR_SUCCESS;
 }
-JS_END_EXTERN_C
 
 /*
  * Callback function to delete a JSThread info when the thread that owns it
