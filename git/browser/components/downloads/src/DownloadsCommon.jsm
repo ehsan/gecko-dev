@@ -53,6 +53,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadUIHelper",
+                                  "resource://gre/modules/DownloadUIHelper.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
                                   "resource://gre/modules/DownloadUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
@@ -63,6 +65,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
                                   "resource:///modules/RecentWindow.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadsLogger",
                                   "resource:///modules/DownloadsLogger.jsm");
 
@@ -231,15 +235,12 @@ this.DownloadsCommon = {
   },
 
   /**
-   * Indicates whether we should show the full Download Manager window interface
-   * instead of the simplified panel interface.  The behavior of downloads
-   * across browsing session is consistent with the selected interface.
+   * Indicates that we should show the simplified panel interface instead of the
+   * full Download Manager window interface.  The code associated with the
+   * Download Manager window interface will be removed in bug 899110.
    */
   get useToolkitUI()
   {
-    try {
-      return Services.prefs.getBoolPref("browser.download.useToolkitUI");
-    } catch (ex) { }
     return false;
   },
 
@@ -480,65 +481,44 @@ this.DownloadsCommon = {
     if (!(aOwnerWindow instanceof Ci.nsIDOMWindow))
       throw new Error("aOwnerWindow must be a dom-window object");
 
-    // Confirm opening executable files if required.
+    let promiseShouldLaunch;
     if (aFile.isExecutable()) {
-      let showAlert = true;
-      try {
-        showAlert = Services.prefs.getBoolPref(kPrefBdmAlertOnExeOpen);
-      } catch (ex) { }
-
-      // On Vista and above, we rely on native security prompting for
-      // downloaded content unless it's disabled.
-      if (DownloadsCommon.isWinVistaOrHigher) {
-        try {
-          if (Services.prefs.getBoolPref(kPrefBdmScanWhenDone)) {
-            showAlert = false;
-          }
-        } catch (ex) { }
-      }
-
-      if (showAlert) {
-        let name = aFile.leafName;
-        let message =
-          DownloadsCommon.strings.fileExecutableSecurityWarning(name, name);
-        let title =
-          DownloadsCommon.strings.fileExecutableSecurityWarningTitle;
-        let dontAsk =
-          DownloadsCommon.strings.fileExecutableSecurityWarningDontAsk;
-
-        let checkbox = { value: false };
-        let open = Services.prompt.confirmCheck(aOwnerWindow, title, message,
-                                                dontAsk, checkbox);
-        if (!open) {
-          return;
-        }
-
-        Services.prefs.setBoolPref(kPrefBdmAlertOnExeOpen,
-                                   !checkbox.value);
-      }
+      // We get a prompter for the provided window here, even though anchoring
+      // to the most recently active window should work as well.
+      promiseShouldLaunch =
+        DownloadUIHelper.getPrompter(aOwnerWindow)
+                        .confirmLaunchExecutable(aFile.path);
+    } else {
+      promiseShouldLaunch = Promise.resolve(true);
     }
 
-    // Actually open the file.
-    try {
-      if (aMimeInfo && aMimeInfo.preferredAction == aMimeInfo.useHelperApp) {
-        aMimeInfo.launchWithFile(aFile);
+    promiseShouldLaunch.then(shouldLaunch => {
+      if (!shouldLaunch) {
         return;
       }
-    }
-    catch(ex) { }
-
-    // If either we don't have the mime info, or the preferred action failed,
-    // attempt to launch the file directly.
-    try {
-      aFile.launch();
-    }
-    catch(ex) {
-      // If launch fails, try sending it through the system's external "file:"
-      // URL handler.
-      Cc["@mozilla.org/uriloader/external-protocol-service;1"]
-        .getService(Ci.nsIExternalProtocolService)
-        .loadUrl(NetUtil.newURI(aFile));
-    }
+  
+      // Actually open the file.
+      try {
+        if (aMimeInfo && aMimeInfo.preferredAction == aMimeInfo.useHelperApp) {
+          aMimeInfo.launchWithFile(aFile);
+          return;
+        }
+      }
+      catch(ex) { }
+  
+      // If either we don't have the mime info, or the preferred action failed,
+      // attempt to launch the file directly.
+      try {
+        aFile.launch();
+      }
+      catch(ex) {
+        // If launch fails, try sending it through the system's external "file:"
+        // URL handler.
+        Cc["@mozilla.org/uriloader/external-protocol-service;1"]
+          .getService(Ci.nsIExternalProtocolService)
+          .loadUrl(NetUtil.newURI(aFile));
+      }
+    }).then(null, Cu.reportError);
   },
 
   /**
@@ -587,17 +567,12 @@ XPCOMUtils.defineLazyGetter(DownloadsCommon, "isWinVistaOrHigher", function () {
 });
 
 /**
- * Returns true if we should hook the panel to the JavaScript API for downloads
- * instead of the nsIDownloadManager back-end.  In order for the logic to work
- * properly, this value never changes during the execution of the application,
- * even if the underlying preference value has changed.  A restart is required
- * for the change to take effect.
+ * Returns true to indicate that we should hook the panel to the JavaScript API
+ * for downloads instead of the nsIDownloadManager back-end.  The code
+ * associated with nsIDownloadManager will be removed in bug 899110.
  */
 XPCOMUtils.defineLazyGetter(DownloadsCommon, "useJSTransfer", function () {
-  try {
-    return Services.prefs.getBoolPref("browser.download.useJSTransfer");
-  } catch (ex) { }
-  return false;
+  return true;
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -656,15 +631,19 @@ DownloadsDataCtor.prototype = {
   {
     // Start receiving real-time events.
     if (DownloadsCommon.useJSTransfer) {
-      let promiseList = this._isPrivate ? Downloads.getPrivateDownloadList()
-                                        : Downloads.getPublicDownloadList();
-      promiseList.then(list => list.addView(this)).then(null, Cu.reportError);
+      if (!this._dataLinkInitialized) {
+        let promiseList = Downloads.getList(this._isPrivate ? Downloads.PRIVATE
+                                                            : Downloads.PUBLIC);
+        promiseList.then(list => list.addView(this)).then(null, Cu.reportError);
+        this._dataLinkInitialized = true;
+      }
     } else {
       aDownloadManagerService.addPrivacyAwareListener(this);
       Services.obs.addObserver(this, "download-manager-remove-download-guid",
                                false);
     }
   },
+  _dataLinkInitialized: false,
 
   /**
    * Stops receiving events for current downloads and cancels any pending read.
@@ -681,6 +660,46 @@ DownloadsDataCtor.prototype = {
     // Stop receiving real-time events.
     Services.obs.removeObserver(this, "download-manager-remove-download-guid");
     Services.downloads.removeListener(this);
+  },
+
+  /**
+   * True if there are finished downloads that can be removed from the list.
+   */
+  get canRemoveFinished()
+  {
+    if (DownloadsCommon.useJSTransfer) {
+      for (let [, dataItem] of Iterator(this.dataItems)) {
+        if (dataItem && !dataItem.inProgress) {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      if (this._isPrivate) {
+        return Services.downloads.canCleanUpPrivate;
+      } else {
+        return Services.downloads.canCleanUp;
+      }
+    }
+  },
+
+  /**
+   * Asks the back-end to remove finished downloads from the list.
+   */
+  removeFinished: function DD_removeFinished()
+  {
+    if (DownloadsCommon.useJSTransfer) {
+      let promiseList = Downloads.getList(this._isPrivate ? Downloads.PRIVATE
+                                                          : Downloads.PUBLIC);
+      promiseList.then(list => list.removeFinished())
+                 .then(null, Cu.reportError);
+    } else {
+      if (this._isPrivate) {
+        Services.downloads.cleanUpPrivate();
+      } else {
+        Services.downloads.cleanUp();
+      }
+    }
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -718,7 +737,7 @@ DownloadsDataCtor.prototype = {
       return;
     }
 
-    this._downloadToDataItemMap.remove(aDownload);
+    this._downloadToDataItemMap.delete(aDownload);
     this.dataItems[dataItem.downloadGuid] = null;
     for (let view of this._views) {
       view.onDataItemRemoved(dataItem);
@@ -730,6 +749,7 @@ DownloadsDataCtor.prototype = {
    */
   _updateDataItemState: function (aDataItem)
   {
+    let oldState = aDataItem.state;
     let wasInProgress = aDataItem.inProgress;
     let wasDone = aDataItem.done;
 
@@ -739,11 +759,13 @@ DownloadsDataCtor.prototype = {
       aDataItem.endTime = Date.now();
     }
 
-    for (let view of this._views) {
-      try {
-        view.getViewItem(aDataItem).onStateChange({});
-      } catch (ex) {
-        Cu.reportError(ex);
+    if (oldState != aDataItem.state) {
+      for (let view of this._views) {
+        try {
+          view.getViewItem(aDataItem).onStateChange(oldState);
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
       }
     }
 
@@ -1344,7 +1366,7 @@ DownloadsDataItem.prototype = {
     this.currBytes = this._download.currentBytes;
     this.maxBytes = this._download.totalBytes;
     this.resumable = this._download.hasPartialData;
-    this.speed = 0;
+    this.speed = this._download.speed;
     this.percentComplete = this._download.progress;
   },
 
@@ -1688,12 +1710,10 @@ DownloadsDataItem.prototype = {
    */
   remove: function DDI_remove() {
     if (DownloadsCommon.useJSTransfer) {
-      let promiseList = this._download.source.isPrivate
-                          ? Downloads.getPrivateDownloadList()
-                          : Downloads.getPublicDownloadList();
-      promiseList.then(list => list.remove(this._download))
-                 .then(() => this._download.finalize(true))
-                 .then(null, Cu.reportError);
+      Downloads.getList(Downloads.ALL)
+               .then(list => list.remove(this._download))
+               .then(() => this._download.finalize(true))
+               .then(null, Cu.reportError);
       return;
     }
 

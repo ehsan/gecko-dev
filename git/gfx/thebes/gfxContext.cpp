@@ -8,6 +8,7 @@
 #endif
 #include <math.h>
 
+#include "mozilla/Alignment.h"
 #include "mozilla/Constants.h"
 
 #include "cairo.h"
@@ -137,7 +138,19 @@ gfxContext::~gfxContext()
 gfxASurface *
 gfxContext::OriginalSurface()
 {
-    return mSurface;
+    if (mCairo || mSurface) {
+        return mSurface;
+    }
+
+    if (mOriginalDT && mOriginalDT->GetType() == BACKEND_CAIRO) {
+        cairo_surface_t *s =
+            (cairo_surface_t*)mOriginalDT->GetNativeSurface(NATIVE_SURFACE_CAIRO_SURFACE);
+        if (s) {
+            mSurface = gfxASurface::Wrap(s);
+            return mSurface;
+        }
+    }
+    return nullptr;
 }
 
 already_AddRefed<gfxASurface>
@@ -156,6 +169,16 @@ gfxContext::CurrentSurface(gfxFloat *dx, gfxFloat *dy)
         cairo_surface_get_device_offset(s, dx, dy);
     return gfxASurface::Wrap(s);
   } else {
+    if (mDT->GetType() == BACKEND_CAIRO) {
+        cairo_surface_t *s =
+            (cairo_surface_t*)mDT->GetNativeSurface(NATIVE_SURFACE_CAIRO_SURFACE);
+        if (s) {
+            if (dx && dy)
+                cairo_surface_get_device_offset(s, dx, dy);
+            return gfxASurface::Wrap(s);
+        }
+    }
+
     if (dx && dy) {
       *dx = *dy = 0;
     }
@@ -169,6 +192,14 @@ gfxContext::GetCairo()
 {
   if (mCairo) {
     return mCairo;
+  }
+
+  if (mDT->GetType() == BACKEND_CAIRO) {
+    cairo_t *ctx =
+      (cairo_t*)mOriginalDT->GetNativeSurface(NATIVE_SURFACE_CAIRO_CONTEXT);
+    if (ctx) {
+      return ctx;
+    }
   }
 
   if (mRefCairo) {
@@ -726,9 +757,9 @@ gfxContext::UserToDevice(const gfxSize& size) const
   } else {
     const Matrix &matrix = mTransform;
 
-    gfxSize newSize = size;
-    newSize.width = newSize.width * matrix._11 + newSize.height * matrix._12;
-    newSize.height = newSize.width * matrix._21 + newSize.height * matrix._22;
+    gfxSize newSize;
+    newSize.width = size.width * matrix._11 + size.height * matrix._12;
+    newSize.height = size.width * matrix._21 + size.height * matrix._22;
     return newSize;
   }
 }
@@ -1233,6 +1264,7 @@ gfxContext::ClipContainsRect(const gfxRect& aRect)
     for (int i = mStateStack.Length() - 2; i > 0; i--) {
       if (mStateStack[i].clipWasReset) {
         lastReset = i;
+        break;
       }
     }
 
@@ -1473,6 +1505,27 @@ gfxContext::Paint(gfxFloat alpha)
   } else {
     AzureState &state = CurrentState();
 
+    if (state.sourceSurface && !state.sourceSurfCairo &&
+        !state.patternTransformChanged && !state.opIsClear)
+    {
+      // This is the case where a PopGroupToSource has been done and this
+      // paint is executed without changing the transform or the source.
+      Matrix oldMat = mDT->GetTransform();
+
+      IntSize surfSize = state.sourceSurface->GetSize();
+
+      Matrix mat;
+      mat.Translate(-state.deviceOffset.x, -state.deviceOffset.y);
+      mDT->SetTransform(mat);
+
+      mDT->DrawSurface(state.sourceSurface,
+                       Rect(state.sourceSurfaceDeviceOffset, Size(surfSize.width, surfSize.height)),
+                       Rect(Point(), Size(surfSize.width, surfSize.height)),
+                       DrawSurfaceOptions(), DrawOptions(alpha, GetOp()));
+      mDT->SetTransform(oldMat);
+      return;
+    }
+
     Matrix mat = mDT->GetTransform();
     mat.Invert();
     Rect paintRect = mat.TransformBounds(Rect(Point(0, 0), Size(mDT->GetSize())));
@@ -1624,6 +1677,7 @@ gfxContext::PopGroupToSource()
     Restore();
     CurrentState().sourceSurfCairo = nullptr;
     CurrentState().sourceSurface = src;
+    CurrentState().sourceSurfaceDeviceOffset = deviceOffset;
     CurrentState().pattern = nullptr;
     CurrentState().patternTransformChanged = false;
 
@@ -2074,6 +2128,7 @@ gfxContext::PushClipsToDT(DrawTarget *aDT)
   for (int i = mStateStack.Length() - 2; i > 0; i--) {
     if (mStateStack[i].clipWasReset) {
       lastReset = i;
+      break;
     }
   }
 
@@ -2185,6 +2240,7 @@ gfxContext::GetAzureDeviceSpaceClipBounds()
   for (int i = mStateStack.Length() - 1; i > 0; i--) {
     if (mStateStack[i].clipWasReset) {
       lastReset = i;
+      break;
     }
   }
 

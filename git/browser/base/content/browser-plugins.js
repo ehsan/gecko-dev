@@ -12,9 +12,9 @@ var gPluginHandler = {
   PREF_SESSION_PERSIST_MINUTES: "plugin.sessionPermissionNow.intervalInMinutes",
   PREF_PERSISTENT_DAYS: "plugin.persistentPermissionAlways.intervalInDays",
 
-  getPluginUI: function (plugin, className) {
+  getPluginUI: function (plugin, anonid) {
     return plugin.ownerDocument.
-           getAnonymousElementByAttribute(plugin, "class", className);
+           getAnonymousElementByAttribute(plugin, "anonid", anonid);
   },
 
 #ifdef MOZ_CRASHREPORTER
@@ -236,7 +236,7 @@ var gPluginHandler = {
       // The plugin binding fires this event when it is created.
       // As an untrusted event, ensure that this object actually has a binding
       // and make sure we don't handle it twice
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      let overlay = this.getPluginUI(plugin, "main");
       if (!overlay || overlay._bindingHandled) {
         return;
       }
@@ -264,12 +264,12 @@ var gPluginHandler = {
         // plugin. Object tags can, and often do, deal with that themselves,
         // so don't stomp on the page developers toes.
         if (installable && !(plugin instanceof HTMLObjectElement)) {
-          let installStatus = doc.getAnonymousElementByAttribute(plugin, "class", "installStatus");
+          let installStatus = this.getPluginUI(plugin, "installStatus");
           installStatus.setAttribute("installable", "true");
-          let iconStatus = doc.getAnonymousElementByAttribute(plugin, "class", "icon");
+          let iconStatus = this.getPluginUI(plugin, "icon");
           iconStatus.setAttribute("installable", "true");
 
-          let installLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "installPluginLink");
+          let installLink = this.getPluginUI(plugin, "installPluginLink");
           this.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
         }
         break;
@@ -280,22 +280,22 @@ var gPluginHandler = {
         break;
 
       case "PluginVulnerableUpdatable":
-        let updateLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "checkForUpdatesLink");
+        let updateLink = this.getPluginUI(plugin, "checkForUpdatesLink");
         this.addLinkClickCallback(updateLink, "openPluginUpdatePage");
         /* FALLTHRU */
 
       case "PluginVulnerableNoUpdate":
       case "PluginClickToPlay":
         this._handleClickToPlayEvent(plugin);
-        let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+        let overlay = this.getPluginUI(plugin, "main");
         let pluginName = this._getPluginInfo(plugin).pluginName;
         let messageString = gNavigatorBundle.getFormattedString("PluginClickToActivate", [pluginName]);
-        let overlayText = doc.getAnonymousElementByAttribute(plugin, "class", "msg msgClickToPlay");
+        let overlayText = this.getPluginUI(plugin, "clickToPlay");
         overlayText.textContent = messageString;
         if (eventType == "PluginVulnerableUpdatable" ||
             eventType == "PluginVulnerableNoUpdate") {
           let vulnerabilityString = gNavigatorBundle.getString(eventType);
-          let vulnerabilityText = doc.getAnonymousElementByAttribute(plugin, "anonid", "vulnerabilityStatus");
+          let vulnerabilityText = this.getPluginUI(plugin, "vulnerabilityStatus");
           vulnerabilityText.textContent = vulnerabilityString;
         }
         shouldShowNotification = true;
@@ -306,7 +306,7 @@ var gPluginHandler = {
         break;
 
       case "PluginDisabled":
-        let manageLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "managePluginsLink");
+        let manageLink = this.getPluginUI(plugin, "managePluginsLink");
         this.addLinkClickCallback(manageLink, "managePlugins");
         shouldShowNotification = true;
         break;
@@ -317,11 +317,24 @@ var gPluginHandler = {
         break;
     }
 
-    // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
+    // Show the in-content UI if it's not too big. The crashed plugin handler already did this.
     if (eventType != "PluginCrashed" && eventType != "PluginRemoved") {
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-      if (overlay != null && this.isTooSmall(plugin, overlay))
-        overlay.style.visibility = "hidden";
+      let overlay = this.getPluginUI(plugin, "main");
+      if (overlay != null) {
+        if (!this.isTooSmall(plugin, overlay))
+          overlay.style.visibility = "visible";
+
+        plugin.addEventListener("overflow", function(event) {
+          overlay.style.visibility = "hidden";
+        });
+        plugin.addEventListener("underflow", function(event) {
+          // this is triggered if only one dimension underflows,
+          // the other dimension might still overflow
+          if (!gPluginHandler.isTooSmall(plugin, overlay)) {
+            overlay.style.visibility = "visible";
+          }
+        });
+      }
     }
 
     // Only show the notification after we've done the isTooSmall check, so
@@ -364,7 +377,7 @@ var gPluginHandler = {
   },
 
   hideClickToPlayOverlay: function(aPlugin) {
-    let overlay = aPlugin.ownerDocument.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
+    let overlay = this.getPluginUI(aPlugin, "main");
     if (overlay)
       overlay.style.visibility = "hidden";
   },
@@ -514,7 +527,7 @@ var gPluginHandler = {
     let principal = doc.defaultView.top.document.nodePrincipal;
     let pluginPermission = Services.perms.testPermissionFromPrincipal(principal, permissionString);
 
-    let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
+    let overlay = this.getPluginUI(aPlugin, "main");
 
     if (pluginPermission == Ci.nsIPermissionManager.DENY_ACTION) {
       if (overlay)
@@ -524,7 +537,7 @@ var gPluginHandler = {
 
     if (overlay) {
       overlay.addEventListener("click", gPluginHandler._overlayClickListener, true);
-      let closeIcon = doc.getAnonymousElementByAttribute(aPlugin, "anonid", "closeIcon");
+      let closeIcon = this.getPluginUI(aPlugin, "closeIcon");
       closeIcon.addEventListener("click", function(aEvent) {
         if (aEvent.button == 0 && aEvent.isTrusted)
           gPluginHandler.hideClickToPlayOverlay(aPlugin);
@@ -567,7 +580,7 @@ var gPluginHandler = {
     let pluginInfo = this._getPluginInfo(aPlugin);
     let playPreviewInfo = pluginHost.getPlayPreviewInfo(pluginInfo.mimetype);
 
-    let previewContent = doc.getAnonymousElementByAttribute(aPlugin, "class", "previewPluginContent");
+    let previewContent = this.getPluginUI(aPlugin, "previewPluginContent");
     let iframe = previewContent.getElementsByClassName("previewPluginContentFrame")[0];
     if (!iframe) {
       // lazy initialization of the iframe
@@ -607,10 +620,9 @@ var gPluginHandler = {
     let contentWindow = browser.contentWindow;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
-    let doc = contentWindow.document;
     let plugins = cwu.plugins;
     for (let plugin of plugins) {
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      let overlay = this.getPluginUI(plugin, "main");
       if (overlay)
         overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
       let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
@@ -623,6 +635,8 @@ var gPluginHandler = {
   _clickToPlayNotificationEventCallback: function PH_ctpEventCallback(event) {
     if (event == "showing") {
       gPluginHandler._makeCenterActions(this);
+      Services.telemetry.getHistogramById("PLUGINS_NOTIFICATION_SHOWN")
+        .add(!this.options.primaryPlugin);
     }
     else if (event == "dismissed") {
       // Once the popup is dismissed, clicking the icon should show the full
@@ -694,15 +708,35 @@ var gPluginHandler = {
       else if (pluginInfo.blocklistState != Ci.nsIBlocklistService.STATE_NOT_BLOCKED) {
         url = Services.blocklist.getPluginBlocklistURL(pluginInfo.pluginTag);
       }
+      else {
+        url = Services.urlFormatter.formatURLPref("app.support.baseURL") + "clicktoplay";
+      }
       pluginInfo.detailsLink = url;
 
       centerActions.push(pluginInfo);
     }
+
+    if (centerActions.length == 0) {
+      // TODO: this is a temporary band-aid to avoid broken doorhangers
+      // until bug 926605 is landed.
+      notification.options.centerActions = [];
+      setTimeout(() => PopupNotifications.remove(notification), 0);
+      return;
+    }
+
     centerActions.sort(function(a, b) {
       return a.pluginName.localeCompare(b.pluginName);
     });
 
     notification.options.centerActions = centerActions;
+
+    // Histograms always start at 0, even though our data starts at 1
+    let histogramCount = centerActions.length - 1;
+    if (histogramCount > 4) {
+      histogramCount = 4;
+    }
+    Services.telemetry.getHistogramById("PLUGINS_NOTIFICATION_PLUGIN_COUNT")
+      .add(histogramCount);
   },
 
   /**
@@ -714,12 +748,15 @@ var gPluginHandler = {
     let permission;
     let expireType;
     let expireTime;
+    let histogram =
+      Services.telemetry.getHistogramById("PLUGINS_NOTIFICATION_USER_ACTION");
 
     switch (aNewState) {
       case "allownow":
         permission = Ci.nsIPermissionManager.ALLOW_ACTION;
         expireType = Ci.nsIPermissionManager.EXPIRE_SESSION;
         expireTime = Date.now() + Services.prefs.getIntPref(this.PREF_SESSION_PERSIST_MINUTES) * 60 * 1000;
+        histogram.add(0);
         break;
 
       case "allowalways":
@@ -727,12 +764,14 @@ var gPluginHandler = {
         expireType = Ci.nsIPermissionManager.EXPIRE_TIME;
         expireTime = Date.now() +
           Services.prefs.getIntPref(this.PREF_PERSISTENT_DAYS) * 24 * 60 * 60 * 1000;
+        histogram.add(1);
         break;
 
       case "block":
         permission = Ci.nsIPermissionManager.PROMPT_ACTION;
         expireType = Ci.nsIPermissionManager.EXPIRE_NEVER;
         expireTime = 0;
+        histogram.add(2);
         break;
 
       // In case a plugin has already been allowed in another tab, the "continue allowing" button
@@ -769,6 +808,10 @@ var gPluginHandler = {
       // so the pluginHost.getPermissionStringForType call is protected
       if (gPluginHandler.canActivatePlugin(plugin) &&
           aPluginInfo.permissionString == pluginHost.getPermissionStringForType(plugin.actualType)) {
+        let overlay = this.getPluginUI(plugin, "main");
+        if (overlay) {
+          overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
+        }
         plugin.playPlugin();
       }
     }
@@ -781,7 +824,9 @@ var gPluginHandler = {
     let contentDoc = aBrowser.contentDocument;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
-    let plugins = cwu.plugins;
+    // cwu.plugins may contain non-plugin <object>s, filter them out
+    let plugins = cwu.plugins.filter((plugin) =>
+      plugin.getContentTypeForMIMEType(plugin.actualType) == Ci.nsIObjectLoadingContent.TYPE_PLUGIN);
     if (plugins.length == 0) {
       if (notification) {
         PopupNotifications.remove(notification);
@@ -799,7 +844,7 @@ var gPluginHandler = {
         break;
       }
       if (fallbackType == plugin.PLUGIN_CLICK_TO_PLAY) {
-        let overlay = contentDoc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+        let overlay = this.getPluginUI(plugin, "main");
         if (!overlay || overlay.style.visibility == 'hidden') {
           icon = 'alert-plugins-notification-icon';
         }
@@ -873,9 +918,9 @@ var gPluginHandler = {
 
     // Force a layout flush so the binding is attached.
     plugin.clientTop;
+    let overlay = this.getPluginUI(plugin, "main");
+    let statusDiv = this.getPluginUI(plugin, "submitStatus");
     let doc = plugin.ownerDocument;
-    let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-    let statusDiv = doc.getAnonymousElementByAttribute(plugin, "class", "submitStatus");
 #ifdef MOZ_CRASHREPORTER
     let status;
 
@@ -908,7 +953,7 @@ var gPluginHandler = {
 
     statusDiv.setAttribute("status", status);
 
-    let helpIcon = doc.getAnonymousElementByAttribute(plugin, "class", "helpIcon");
+    let helpIcon = this.getPluginUI(plugin, "helpIcon");
     this.addLinkClickCallback(helpIcon, "openHelpPage");
 
     // If we're showing the link to manually trigger report submission, we'll
@@ -944,12 +989,12 @@ var gPluginHandler = {
     }
 #endif
 
-    let crashText = doc.getAnonymousElementByAttribute(plugin, "class", "msgCrashedText");
+    let crashText = this.getPluginUI(plugin, "crashedText");
     crashText.textContent = messageString;
 
     let browser = gBrowser.getBrowserForDocument(doc.defaultView.top.document);
 
-    let link = doc.getAnonymousElementByAttribute(plugin, "class", "reloadLink");
+    let link = this.getPluginUI(plugin, "reloadLink");
     this.addLinkClickCallback(link, "reloadPage", browser);
 
     let notificationBox = gBrowser.getNotificationBox(browser);
@@ -964,12 +1009,12 @@ var gPluginHandler = {
       if (this.isTooSmall(plugin, overlay)) {
         // Hide the overlay's contents. Use visibility style, so that it doesn't
         // collapse down to 0x0.
-        overlay.style.visibility = "hidden";
         isShowing = false;
       }
     }
 
     if (isShowing) {
+      overlay.style.visibility = "visible";
       // If a previous plugin on the page was too small and resulted in adding a
       // notification bar, then remove it because this plugin instance it big
       // enough to serve as in-content notification.

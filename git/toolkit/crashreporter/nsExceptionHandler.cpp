@@ -802,9 +802,19 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
   if (gExceptionHandler)
     return NS_ERROR_ALREADY_INITIALIZED;
 
+#if defined(DEBUG)
+  // In debug builds, disable the crash reporter by default, and allow to
+  // enable it with the MOZ_CRASHREPORTER environment variable.
+  const char *envvar = PR_GetEnv("MOZ_CRASHREPORTER");
+  if ((!envvar || !*envvar) && !force)
+    return NS_OK;
+#else
+  // In non-debug builds, enable the crash reporter by default, and allow
+  // to disable it with the MOZ_CRASHREPORTER_DISABLE environment variable.
   const char *envvar = PR_GetEnv("MOZ_CRASHREPORTER_DISABLE");
   if (envvar && *envvar && !force)
     return NS_OK;
+#endif
 
 #if defined(MOZ_WIDGET_GONK)
   doReport = false;
@@ -834,8 +844,6 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
   crashReporterAPIData_Hash =
     new nsDataHashtable<nsCStringHashKey,nsCString>();
   NS_ENSURE_TRUE(crashReporterAPIData_Hash, NS_ERROR_OUT_OF_MEMORY);
-
-  crashReporterAPIData_Hash->Init();
 
   notesField = new nsCString();
   NS_ENSURE_TRUE(notesField, NS_ERROR_OUT_OF_MEMORY);
@@ -2290,7 +2298,6 @@ OOPInit()
     NS_RUNTIMEABORT("can't start crash reporter server()");
 
   pidToMinidump = new ChildMinidumpMap();
-  pidToMinidump->Init();
 
   dumpMapLock = new Mutex("CrashReporter::dumpMapLock");
 

@@ -13,9 +13,7 @@
 #include "nsIObserver.h"
 #include "nsServiceManagerUtils.h"
 #include "nsWidgetsCID.h"
-#include "nsXPCOMCIDInternal.h"
 #include "prlog.h"
-#include "VideoUtils.h"
 #include "mozilla/Attributes.h"
 #include "TrackUnionStream.h"
 #include "ImageContainer.h"
@@ -2129,6 +2127,21 @@ SourceMediaStream::EndAllTrackAndFinish()
   }
   FinishWithLockHeld();
   // we will call NotifyFinished() to let GetUserMedia know
+}
+
+TrackTicks
+SourceMediaStream::GetBufferedTicks(TrackID aID)
+{
+  StreamBuffer::Track* track  = mBuffer.FindTrack(aID);
+  if (track) {
+    MediaSegment* segment = track->GetSegment();
+    if (segment) {
+      return segment->GetDuration() -
+        track->TimeToTicksRoundDown(
+          GraphTimeToStreamTime(GraphImpl()->mStateComputedTime));
+    }
+  }
+  return 0;
 }
 
 void
