@@ -70,17 +70,14 @@ static RedirEntry kRedirMap[] = {
 #ifdef MOZ_SAFE_BROWSING
   { "blocked", "chrome://browser/content/safebrowsing/blockedSite.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-    nsIAboutModule::ALLOW_SCRIPT |
-    nsIAboutModule::HIDE_FROM_ABOUTABOUT },
+    nsIAboutModule::ALLOW_SCRIPT },
 #endif
   { "certerror", "chrome://browser/content/certerror/aboutCertError.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-    nsIAboutModule::ALLOW_SCRIPT |
-    nsIAboutModule::HIDE_FROM_ABOUTABOUT },
+    nsIAboutModule::ALLOW_SCRIPT },
   { "feeds", "chrome://browser/content/feeds/subscribe.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-    nsIAboutModule::ALLOW_SCRIPT |
-    nsIAboutModule::HIDE_FROM_ABOUTABOUT },
+    nsIAboutModule::ALLOW_SCRIPT },
   { "privatebrowsing", "chrome://browser/content/aboutPrivateBrowsing.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },
   { "rights",

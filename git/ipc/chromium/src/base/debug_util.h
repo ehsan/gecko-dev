@@ -78,7 +78,7 @@ public:
   void print(const char* format, ...);
 
 private:
-  std::string fname_;
+  FILE* fd_;
 
   DISALLOW_EVIL_CONSTRUCTORS(EnvironmentLog);
 };

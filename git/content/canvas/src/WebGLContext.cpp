@@ -15,6 +15,8 @@
 #include "CanvasUtils.h"
 #include "NativeJSContext.h"
 
+#include "WebGLArray.h"
+
 using namespace mozilla;
 
 nsresult NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult);

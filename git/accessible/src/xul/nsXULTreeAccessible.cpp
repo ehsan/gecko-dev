@@ -935,8 +935,7 @@ nsXULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
       (aIndex != eAction_Expand || !IsExpandable()))
     return NS_ERROR_INVALID_ARG;
 
-  DoCommand(nsnull, aIndex);
-  return NS_OK;
+  return DoCommand(nsnull, aIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

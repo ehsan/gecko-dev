@@ -56,6 +56,7 @@
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
+#include "nsIDocumentViewer.h"
 #include "nsIContentViewer.h"
 #include "nsIEventListenerManager.h"
 #include "nsIPresShell.h"
@@ -559,12 +560,17 @@ nsCoreUtils::GetDOMNodeForContainer(nsIDocShellTreeItem *aContainer)
   if (!cv)
     return nsnull;
 
-  nsIDocument* doc = cv->GetDocument();
+  nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
+  if (!docv)
+    return nsnull;
+
+  nsCOMPtr<nsIDocument> doc;
+  docv->GetDocument(getter_AddRefs(doc));
   if (!doc)
     return nsnull;
 
   nsIDOMNode* node = nsnull;
-  CallQueryInterface(doc, &node);
+  CallQueryInterface(doc.get(), &node);
   return node;
 }
 

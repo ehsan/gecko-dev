@@ -233,8 +233,8 @@ nsXULLinkAccessible::DoAction(PRUint8 aIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  DoCommand();
-  return NS_OK;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  return DoCommand(content);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
