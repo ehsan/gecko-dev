@@ -13,14 +13,6 @@
 using namespace JS;
 using namespace js;
 
-struct AutoIgnoreRootingHazards {
-    // Force a nontrivial destructor so the compiler sees the whole RAII scope
-    static volatile int depth;
-    AutoIgnoreRootingHazards() { depth++; }
-    ~AutoIgnoreRootingHazards() { depth--; }
-};
-volatile int AutoIgnoreRootingHazards::depth = 0;
-
 BEGIN_TEST(testGCStoreBufferRemoval)
 {
     // Sanity check - objects start in the nursery and then become tenured.
@@ -32,12 +24,12 @@ BEGIN_TEST(testGCStoreBufferRemoval)
     JS::RootedObject tenuredObject(cx, obj);
 
     // Hide the horrors herein from the static rooting analysis.
-    AutoIgnoreRootingHazards ignore;
+    typedef JSObject *ObjectPtr;
 
     // Test removal of store buffer entries added by RelocatablePtr<T>.
     {
-        JSObject *badObject = reinterpret_cast<JSObject*>(1);
-        JSObject *punnedPtr = nullptr;
+        ObjectPtr badObject = reinterpret_cast<JSObject*>(1);
+        ObjectPtr punnedPtr = nullptr;
         RelocatablePtrObject* relocPtr =
             reinterpret_cast<RelocatablePtrObject*>(&punnedPtr);
         new (relocPtr) RelocatablePtrObject;
@@ -88,8 +80,8 @@ BEGIN_TEST(testGCStoreBufferRemoval)
 
     // Test removal of store buffer entries added by Heap<T>.
     {
-        JSObject *badObject = reinterpret_cast<JSObject*>(1);
-        JSObject *punnedPtr = nullptr;
+        ObjectPtr badObject = reinterpret_cast<JSObject*>(1);
+        ObjectPtr punnedPtr = nullptr;
         Heap<JSObject*>* heapPtr =
             reinterpret_cast<Heap<JSObject*>*>(&punnedPtr);
         new (heapPtr) Heap<JSObject*>;

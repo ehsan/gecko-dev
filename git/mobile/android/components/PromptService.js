@@ -139,22 +139,6 @@ InternalPrompt.prototype = {
     return aPrompt;
   },
 
-  addTextbox: function(prompt, value, autofocus, hint) {
-    prompt.addTextbox({
-      value: (value !== null) ? value : "",
-      autofocus: autofocus,
-      hint: hint
-    });
-  },
-
-  addPassword: function(prompt, value, autofocus, hint) {
-    prompt.addPassword({
-      value: (value !== null) ? value : "",
-      autofocus: autofocus,
-      hint: hint
-    });
-  },
-
   /* Shows a native prompt, and then spins the event loop for this thread while we wait
    * for a response
    */
@@ -304,7 +288,10 @@ InternalPrompt.prototype = {
   nsIPrompt_prompt: function nsIPrompt_prompt(aTitle, aText, aValue, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
     p.setHint("prompt");
-    this.addTextbox(p, aValue.value, true);
+    p.addTextbox({
+      value: aValue.value,
+      autofocus: true
+    });
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
@@ -319,7 +306,11 @@ InternalPrompt.prototype = {
   nsIPrompt_promptPassword: function nsIPrompt_promptPassword(
       aTitle, aText, aPassword, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null);
-    this.addPassword(p, aPassword.value, true, PromptUtils.getLocaleString("password", "passwdmgr"));
+    p.addPassword({
+      value: aPassword.value || "",
+      autofocus: true,
+      hint: PromptUtils.getLocaleString("password", "passwdmgr")
+    });
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
@@ -334,8 +325,14 @@ InternalPrompt.prototype = {
   nsIPrompt_promptUsernameAndPassword: function nsIPrompt_promptUsernameAndPassword(
       aTitle, aText, aUsername, aPassword, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null);
-    this.addTextbox(p, aUsername.value, true, PromptUtils.getLocaleString("username", "passwdmgr"));
-    this.addPassword(p, aPassword.value, true, PromptUtils.getLocaleString("password", "passwdmgr"));
+    p.addTextbox({
+      value: aUsername.value,
+      autofocus: true,
+      hint: PromptUtils.getLocaleString("username", "passwdmgr")
+    }).addPassword({
+      value: aPassword.value,
+      hint: PromptUtils.getLocaleString("password", "passwdmgr")
+    });
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
