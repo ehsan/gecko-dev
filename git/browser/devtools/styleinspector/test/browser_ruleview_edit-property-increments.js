@@ -23,22 +23,18 @@ let test = asyncTest(function*() {
 });
 
 function createDocument() {
-  content.document.body.innerHTML = '' +
-    '<style>' +
-    '  #test {' +
-    '    margin-top:0px;' +
-    '    padding-top: 0px;' +
-    '    color:#000000;' +
-    '    background-color: #000000;' +
-    '  }' +
-    '</style>' +
-    '<div id="test"></div>';
+  content.document.body.innerHTML = '<div id="test" style="' +
+                           'margin-top:0px;' +
+                           'padding-top: 0px;' +
+                           'color:#000000;' +
+                           'background-color: #000000;" >'+
+                       '</div>';
 }
 
 function* testMarginIncrements(view) {
   info("Testing keyboard increments on the margin property");
 
-  let idRuleEditor = getRuleViewRuleEditor(view, 1);
+  let idRuleEditor = getRuleViewRuleEditor(view, 0);
   let marginPropEditor = idRuleEditor.rule.textProps[0].editor;
 
   yield runIncrementTest(marginPropEditor, view, {
@@ -56,7 +52,7 @@ function* testMarginIncrements(view) {
 function* testVariousUnitIncrements(view) {
   info("Testing keyboard increments on values with various units");
 
-  let idRuleEditor = getRuleViewRuleEditor(view, 1);
+  let idRuleEditor = getRuleViewRuleEditor(view, 0);
   let paddingPropEditor = idRuleEditor.rule.textProps[1].editor;
 
   yield runIncrementTest(paddingPropEditor, view, {
@@ -75,7 +71,7 @@ function* testVariousUnitIncrements(view) {
 function* testHexIncrements(view) {
   info("Testing keyboard increments with hex colors");
 
-  let idRuleEditor = getRuleViewRuleEditor(view, 1);
+  let idRuleEditor = getRuleViewRuleEditor(view, 0);
   let hexColorPropEditor = idRuleEditor.rule.textProps[2].editor;
 
   yield runIncrementTest(hexColorPropEditor, view, {
@@ -91,7 +87,7 @@ function* testHexIncrements(view) {
 function* testRgbIncrements(view) {
   info("Testing keyboard increments with rgb colors");
 
-  let idRuleEditor = getRuleViewRuleEditor(view, 1);
+  let idRuleEditor = getRuleViewRuleEditor(view, 0);
   let rgbColorPropEditor = idRuleEditor.rule.textProps[3].editor;
 
   yield runIncrementTest(rgbColorPropEditor, view, {
@@ -107,7 +103,7 @@ function* testRgbIncrements(view) {
 function* testShorthandIncrements(view) {
   info("Testing keyboard increments within shorthand values");
 
-  let idRuleEditor = getRuleViewRuleEditor(view, 1);
+  let idRuleEditor = getRuleViewRuleEditor(view, 0);
   let paddingPropEditor = idRuleEditor.rule.textProps[1].editor;
 
   yield runIncrementTest(paddingPropEditor, view, {
@@ -123,7 +119,7 @@ function* testShorthandIncrements(view) {
 function* testOddCases(view) {
   info("Testing some more odd cases");
 
-  let idRuleEditor = getRuleViewRuleEditor(view, 1);
+  let idRuleEditor = getRuleViewRuleEditor(view, 0);
   let marginPropEditor = idRuleEditor.rule.textProps[0].editor;
 
   yield runIncrementTest(marginPropEditor, view, {
@@ -148,11 +144,14 @@ function* runIncrementTest(propertyEditor, view, tests) {
   let editor = yield focusEditableField(propertyEditor.valueSpan);
 
   for(let test in tests) {
-    yield testIncrement(editor, tests[test], view, propertyEditor);
+    yield testIncrement(editor, tests[test], view);
   }
+
+  // Once properties have been set, wait for the inspector to update
+  yield view.inspector.once("inspector-updated");
 }
 
-function* testIncrement(editor, options, view, {ruleEditor}) {
+function* testIncrement(editor, options, view) {
   editor.input.value = options.start;
   let input = editor.input;
 
@@ -164,15 +163,14 @@ function* testIncrement(editor, options, view, {ruleEditor}) {
 
   is(input.value, options.start, "Value initialized at " + options.start);
 
-  let onModifications = ruleEditor.rule._applyingModifications;
   let onKeyUp = once(input, "keyup");
+
   let key;
   key = options.down ? "VK_DOWN" : "VK_UP";
   key = options.pageDown ? "VK_PAGE_DOWN" : options.pageUp ? "VK_PAGE_UP" : key;
-  EventUtils.synthesizeKey(key, {altKey: options.alt, shiftKey: options.shift},
-    view.doc.defaultView);
-  yield onKeyUp;
-  yield onModifications;
+  EventUtils.synthesizeKey(key, {altKey: options.alt, shiftKey: options.shift}, view.doc.defaultView);
 
-  is(editor.input.value, options.end, "Value changed to " + options.end);
+  yield onKeyUp;
+  input = editor.input;
+  is(input.value, options.end, "Value changed to " + options.end);
 }

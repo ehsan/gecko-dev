@@ -13,7 +13,6 @@
 
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/PromiseWorkerProxy.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/ErrorResult.h"
 
 #include "WorkerPrivate.h"
@@ -218,13 +217,16 @@ protected:
   {
     AssertIsOnMainThread();
 
-    // Initialise an AutoJSAPI with the target window.
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.Init(mBackingStore->GetParentObject()))) {
-      mRv.Throw(NS_ERROR_UNEXPECTED);
-      return true;
-    }
-    JSContext* cx = jsapi.cx();
+    // Get the JSContext for the target window
+    nsCOMPtr<nsIScriptGlobalObject> sgo =
+      do_QueryInterface(static_cast<DOMEventTargetHelper*>
+                        (mBackingStore.get())->GetOwner());
+    MOZ_ASSERT(sgo);
+
+    nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
+    AutoPushJSContext cx(scriptContext ? scriptContext->GetNativeContext()
+                                       : nsContentUtils::GetSafeJSContext());
+    MOZ_ASSERT(cx);
 
     JS::Rooted<JS::Value> value(cx);
     if (!mObjBuffer.read(cx, &value)) {
@@ -285,13 +287,16 @@ protected:
   {
     AssertIsOnMainThread();
 
-    // Initialise an AutoJSAPI with the target window.
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.Init(mBackingStore->GetParentObject()))) {
-      mRv.Throw(NS_ERROR_UNEXPECTED);
-      return true;
-    }
-    JSContext* cx = jsapi.cx();
+    // Get the JSContext for the target window
+    nsCOMPtr<nsIScriptGlobalObject> sgo =
+      do_QueryInterface(static_cast<DOMEventTargetHelper*>
+                        (mBackingStore.get())->GetOwner());
+    MOZ_ASSERT(sgo);
+
+    nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
+    AutoPushJSContext cx(scriptContext ? scriptContext->GetNativeContext()
+                                       : nsContentUtils::GetSafeJSContext());
+    MOZ_ASSERT(cx);
 
     JS::Rooted<JS::Value> value(cx);
     if (!mObjBuffer.read(cx, &value)) {

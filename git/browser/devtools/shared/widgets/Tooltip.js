@@ -257,9 +257,7 @@ Tooltip.prototype = {
   },
 
   isShown: function() {
-    return this.panel &&
-           this.panel.state !== "closed" &&
-           this.panel.state !== "hiding";
+    return this.panel.state !== "closed" && this.panel.state !== "hiding";
   },
 
   setSize: function(width, height) {

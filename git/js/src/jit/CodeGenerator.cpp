@@ -7769,9 +7769,8 @@ CodeGenerator::emitLoadElementT(LLoadElementT *lir, const T &source)
 {
     if (LIRGenerator::allowTypedElementHoleCheck()) {
         if (lir->mir()->needsHoleCheck()) {
-            Label bail;
-            masm.branchTestMagic(Assembler::Equal, source, &bail);
-            if (!bailoutFrom(&bail, lir->snapshot()))
+            Assembler::Condition cond = masm.testMagic(Assembler::Equal, source);
+            if (!bailoutIf(cond, lir->snapshot()))
                 return false;
         }
     } else {
