@@ -1,4 +1,3 @@
-
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -411,10 +410,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   nsLineLayout* lineLayout = aReflowState.mLineLayout;
   PRBool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
   nscoord leftEdge = 0;
-  // Don't offset by our start borderpadding if we have a prev continuation or
-  // if we're in the last part of an {ib} split.
-  if (!GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsInLastPartOfIBSplit(this)) {
+  if (nsnull == GetPrevContinuation()) {
     leftEdge = ltr ? aReflowState.mComputedBorderPadding.left
                    : aReflowState.mComputedBorderPadding.right;
   }
@@ -561,28 +557,12 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // whitespace in an inline element don't affect the line-height.
   aMetrics.width = lineLayout->EndSpan(this);
 
-  // Compute final width.
-
-  // Make sure to not include our start border and padding if we have a prev
-  // continuation or if we're in the last part of an {ib} split.
-  if (!GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsInLastPartOfIBSplit(this)) {
+  // Compute final width
+  if (nsnull == GetPrevContinuation()) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
                           : aReflowState.mComputedBorderPadding.right;
   }
-
-  /*
-   * We want to only apply the end border and padding if we're the last
-   * continuation and not in the first part of an {ib} split.  To be the last
-   * continuation we have to be complete (so that we won't get a next-in-flow)
-   * and have no non-fluid continuations.
-   *
-   * FIXME the check for non-fluid continuations is not quite correct in the
-   * code (though the comment above describes it correctly); see bug 492469.
-   */
-  if (NS_FRAME_IS_COMPLETE(aStatus) &&
-      (!GetNextContinuation() || GetNextInFlow()) &&
-      !nsLayoutUtils::FrameIsInFirstPartOfIBSplit(this)) {
+  if (NS_FRAME_IS_COMPLETE(aStatus) && (!GetNextContinuation() || GetNextInFlow())) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.right
                           : aReflowState.mComputedBorderPadding.left;
   }
@@ -811,28 +791,6 @@ nsInlineFrame::GetSkipSides() const
       // edge border render.
     }
   }
-
-  if (GetStateBits() & NS_FRAME_IS_SPECIAL) {
-    // The first part of an {ib} split should always skip the "end" side (as
-    // determined by this frame's direction) and the last part of such a split
-    // should alwas skip the "start" side.  But figuring out which part of the
-    // split we are involves getting our first continuation, which might be
-    // expensive.  So don't bother if we already have the relevant bits set.
-    PRBool ltr = (NS_STYLE_DIRECTION_LTR == GetStyleVisibility()->mDirection);
-    PRIntn startBit = (1 << (ltr ? NS_SIDE_LEFT : NS_SIDE_RIGHT));
-    PRIntn endBit = (1 << (ltr ? NS_SIDE_RIGHT : NS_SIDE_LEFT));
-    if (((startBit | endBit) & skip) != (startBit | endBit)) {
-      // We're missing one of the skip bits, so check whether we need to set it.
-      if (nsLayoutUtils::FrameIsInFirstPartOfIBSplit(this)) {
-        skip |= endBit;
-      } else {
-        NS_ASSERTION(nsLayoutUtils::FrameIsInLastPartOfIBSplit(this),
-                     "How did that happen?");
-        skip |= startBit;
-      }
-    }
-  }
-
   return skip;
 }
 

@@ -40,9 +40,7 @@ const nsIDOMDocument = Components.interfaces.nsIDOMDocument;
 const nsIDOMEvent = Components.interfaces.nsIDOMEvent;
 const nsIDOMHTMLDocument = Components.interfaces.nsIDOMHTMLDocument;
 const nsIDOMNode = Components.interfaces.nsIDOMNode;
-const nsIDOMNSHTMLElement = Components.interfaces.nsIDOMNSHTMLElement;
 const nsIDOMWindow = Components.interfaces.nsIDOMWindow;
-const nsIDOMXULElement = Components.interfaces.nsIDOMXULElement;
 
 const nsIPropertyElement = Components.interfaces.nsIPropertyElement;
 
@@ -123,25 +121,22 @@ function addA11yLoadEvent(aFunc)
 // Get DOM node/accesible helpers
 
 /**
- * Return the DOM node by identifier (may be accessible, DOM node or ID).
+ * Return the DOM node.
  */
-function getNode(aAccOrNodeOrID)
+function getNode(aNodeOrID)
 {
-  if (!aAccOrNodeOrID)
+  if (!aNodeOrID)
     return null;
 
-  if (aAccOrNodeOrID instanceof nsIDOMNode)
-    return aAccOrNodeOrID;
+  var node = aNodeOrID;
 
-  if (aAccOrNodeOrID instanceof nsIAccessible) {
-    aAccOrNodeOrID.QueryInterface(nsIAccessNode);
-    return aAccOrNodeOrID.DOMNode;
-  }
+  if (!(aNodeOrID instanceof nsIDOMNode)) {
+    node = document.getElementById(aNodeOrID);
 
-  node = document.getElementById(aAccOrNodeOrID);
-  if (!node) {
-    ok(false, "Can't get DOM element for " + aAccOrNodeOrID);
-    return null;
+    if (!node) {
+      ok(false, "Can't get DOM element for " + aNodeOrID);
+      return null;
+    }
   }
 
   return node;
@@ -348,7 +343,7 @@ function prettyName(aIdentifier)
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier, [nsIAccessNode]);
     return getNodePrettyName(acc.DOMNode) + ", role: " +
-      roleToString(acc.role);
+      roleToString(acc.finalRole);
   }
 
   if (aIdentifier instanceof nsIDOMNode)
@@ -374,12 +369,8 @@ addLoadEvent(initialize);
 
 function getNodePrettyName(aNode)
 {
-  try {
-    if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
-      return " '" + aNode.getAttribute("id") + "' ";
+  if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
+    return " '" + aNode.getAttribute("id") + "' ";
 
-    return " '" + aNode.localName + " node' ";
-  } catch (e) {
-    return "no node info";
-  }
+  return " '" + aNode.localName + " node' ";
 }

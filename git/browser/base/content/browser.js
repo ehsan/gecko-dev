@@ -5764,10 +5764,6 @@ function AddKeywordForSearchField()
                 && (node.form.enctype == "application/x-www-form-urlencoded" ||
                     node.form.enctype == ""));
 
-  var title = gNavigatorBundle.getFormattedString("addKeywordTitleAutoFill",
-                                                  [node.ownerDocument.title]);
-  var description = PlacesUIUtils.getDescriptionFromDocument(node.ownerDocument);
-
   var el, type;
   var formData = [];
 
@@ -5805,7 +5801,8 @@ function AddKeywordForSearchField()
   else
     spec += "?" + formData.join("&");
 
-  PlacesUIUtils.showMinimalAddBookmarkUI(makeURI(spec), title, description, null,
+  var description = PlacesUIUtils.getDescriptionFromDocument(node.ownerDocument);
+  PlacesUIUtils.showMinimalAddBookmarkUI(makeURI(spec), "", description, null,
                                          null, null, "", postData, charset);
 }
 

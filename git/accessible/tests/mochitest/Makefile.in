@@ -50,13 +50,13 @@ _TEST_FILES =\
 		moz.png \
 		$(topsrcdir)/content/media/video/test/bug461281.ogg \
 		longdesc_src.html \
-		actions.js \
 		attributes.js \
 		common.js \
 		events.js \
 		grid.js \
 		layout.js \
 		namerules.xml \
+		nsIAccessible_actions.js \
 		nsIAccessible_name.css \
 		nsIAccessible_name.js \
 		nsIAccessible_name.xbl \
@@ -76,7 +76,6 @@ _TEST_FILES =\
 		test_aria_role_grid.html \
 		test_aria_token_attrs.html \
 		test_bug420863.html \
-	$(warning   test_childAtPoint.html temporarily disabled) \
 	$(warning	test_childAtPoint.xul temporarily disabled) \
 		test_cssattrs.html \
 		test_descr.html \

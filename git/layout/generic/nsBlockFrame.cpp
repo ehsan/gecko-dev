@@ -2286,11 +2286,9 @@ nsBlockFrame::MarkLineDirtyForInterrupt(nsLineBox* aLine)
     for (nsIFrame* f = aLine->mFirstChild; n > 0;
          f = f->GetNextSibling(), --n) {
       f->AddStateBits(NS_FRAME_IS_DIRTY);
-    }
-    // And mark all the floats whose reflows we might be skipping dirty too.
-    if (aLine->HasFloats()) {
-      for (nsFloatCache* fc = aLine->GetFirstFloat(); fc; fc = fc->Next()) {
-        fc->mPlaceholder->GetOutOfFlowFrame()->AddStateBits(NS_FRAME_IS_DIRTY);
+      nsIFrame* oof = nsPlaceholderFrame::GetRealFrameFor(f);
+      if (oof != f && oof->GetParent() == this) {
+        oof->AddStateBits(NS_FRAME_IS_DIRTY);
       }
     }
   } else {
@@ -4082,8 +4080,7 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
 #ifdef IBMBIDI
   // XXXldb Why don't we do this earlier?
   if (aState.mPresContext->BidiEnabled()) {
-    if (!aState.mPresContext->IsVisualMode() ||
-        GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
+    if (!aState.mPresContext->IsVisualMode()) {
       nsBidiPresUtils* bidiUtils = aState.mPresContext->GetBidiUtils();
 
       if (bidiUtils && bidiUtils->IsSuccessful() ) {
