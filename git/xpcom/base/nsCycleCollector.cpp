@@ -658,8 +658,6 @@ CanonicalizeParticipant(void **parti, nsCycleCollectionParticipant **cp)
     }
 }
 
-class nsCycleCollector;
-
 struct nsPurpleBuffer
 {
 private:
@@ -777,16 +775,14 @@ public:
 
     void SelectPointers(GCGraphBuilder &builder);
 
-    // RemoveSkippable removes entries from the purple buffer synchronously
-    // (1) if aAsyncSnowWhiteFreeing is false and nsPurpleBufferEntry::mRefCnt is 0 or
-    // (2) if the object's nsXPCOMCycleCollectionParticipant::CanSkip() returns true or
-    // (3) if nsPurpleBufferEntry::mRefCnt->IsPurple() is false.
-    // (4) If removeChildlessNodes is true, then any nodes in the purple buffer
-    //     that will have no children in the cycle collector graph will also be
-    //     removed. CanSkip() may be run on these children.
-    void RemoveSkippable(nsCycleCollector* aCollector,
-                         bool removeChildlessNodes,
-                         bool aAsyncSnowWhiteFreeing,
+    // RemoveSkippable removes entries from the purple buffer if
+    // nsPurpleBufferEntry::mRefCnt is 0 or if the object's
+    // nsXPCOMCycleCollectionParticipant::CanSkip() returns true or
+    // if nsPurpleBufferEntry::mRefCnt->IsPurple() is false.
+    // If removeChildlessNodes is true, then any nodes in the purple buffer
+    // that will have no children in the cycle collector graph will also be
+    // removed. CanSkip() may be run on these children.
+    void RemoveSkippable(bool removeChildlessNodes,
                          CC_ForgetSkippableCallback aCb);
 
     nsPurpleBufferEntry* NewEntry()
@@ -978,8 +974,6 @@ public:
 // Top level structure for the cycle collector.
 ////////////////////////////////////////////////////////////////////////
 
-class AsyncFreeSnowWhite;
-
 class nsCycleCollector
 {
     friend class GCGraphBuilder;
@@ -1001,8 +995,6 @@ public:
     nsCycleCollectorParams mParams;
 
 private:
-    nsRefPtr<AsyncFreeSnowWhite> mAsyncSnowWhiteFreer;
-
     nsTArray<PtrInfo*> *mWhiteNodes;
     uint32_t mWhiteNodeCount;
 
@@ -1045,7 +1037,7 @@ public:
     void ScanRoots();
     void ScanWeakMaps();
 
-    void ForgetSkippable(bool aRemoveChildlessNodes, bool aAsyncSnowWhiteFreeing);
+    void ForgetSkippable(bool removeChildlessNodes);
 
     // returns whether anything was collected
     bool CollectWhite(nsICycleCollectorListener *aListener);
@@ -1080,17 +1072,11 @@ public:
     bool BeginCollection(ccType aCCType, nsICycleCollectorListener *aListener);
     bool FinishCollection(nsICycleCollectorListener *aListener);
 
-    AsyncFreeSnowWhite* AsyncSnowWhiteFreer()
-    {
-        return mAsyncSnowWhiteFreer;
-    }
-
-    bool FreeSnowWhite(bool aUntilNoSWInPurpleBuffer);
+    void FreeSnowWhite(bool aUntilNoSWInPurpleBuffer);
 
     // If there is a cycle collector available in the current thread,
-    // this calls FreeSnowWhite(false). Returns true if some
-    // snow-white objects were found.
-    static bool TryToFreeSnowWhite();
+    // this calls FreeSnowWhite(false).
+    static void TryToFreeSnowWhite();
 
     uint32_t SuspectedCount();
     void Shutdown();
@@ -1531,16 +1517,6 @@ public:
             d->mToAddress.AppendInt(aToAddress, 16);
             d->mName.Append(aEdgeName);
         }
-        return NS_OK;
-    }
-    NS_IMETHOD NoteWeakMapEntry(uint64_t aMap, uint64_t aKey,
-                                uint64_t aKeyDelegate, uint64_t aValue)
-    {
-        if (!mDisableLog) {
-            fprintf(mStream, "WeakMapEntry map=%p key=%p keyDelegate=%p value=%p\n",
-                    (void*)aMap, (void*)aKey, (void*)aKeyDelegate, (void*)aValue);
-        }
-        // We don't support after-processing for weak map entries.
         return NS_OK;
     }
     NS_IMETHOD BeginResults()
@@ -2094,11 +2070,6 @@ GCGraphBuilder::NoteWeakMapping(void *map, void *key, void *kdelegate, void *val
     mapping->mKey = key ? AddWeakMapNode(key) : nullptr;
     mapping->mKeyDelegate = kdelegate ? AddWeakMapNode(kdelegate) : mapping->mKey;
     mapping->mVal = val ? AddWeakMapNode(val) : nullptr;
-
-    if (mListener) {
-        mListener->NoteWeakMapEntry((uint64_t)map, (uint64_t)key,
-                                    (uint64_t)kdelegate, (uint64_t)val);
-    }
 }
 
 static bool
@@ -2177,44 +2148,6 @@ MayHaveChild(void *o, nsCycleCollectionParticipant* cp)
     return cf.MayHaveChild();
 }
 
-class AsyncFreeSnowWhite : public nsRunnable
-{
-public:
-  NS_IMETHOD Run()
-  {
-      TimeStamp start = TimeStamp::Now();
-      bool hadSnowWhiteObjects = nsCycleCollector::TryToFreeSnowWhite();
-      Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_ASYNC_SNOW_WHITE_FREEING,
-                            uint32_t((TimeStamp::Now() - start).ToMilliseconds()));
-      if (hadSnowWhiteObjects && !mContinuation) {
-          mContinuation = true;
-          if (NS_FAILED(NS_DispatchToCurrentThread(this))) {
-              mActive = false;
-          }
-      } else {
-          mActive = false;
-      }
-      return NS_OK;
-  }
-
-  static void Dispatch(nsCycleCollector* aCollector, bool aContinuation = false)
-  {
-      AsyncFreeSnowWhite* swf = aCollector->AsyncSnowWhiteFreer();
-      if (swf->mContinuation) {
-          swf->mContinuation = aContinuation;
-      }
-      if (!swf->mActive && NS_SUCCEEDED(NS_DispatchToCurrentThread(swf))) {
-          swf->mActive = true;
-      }
-  }
-
-  AsyncFreeSnowWhite() : mContinuation(false), mActive(false) {}
-
-public:
-  bool mContinuation;
-  bool mActive;
-};
-
 struct SnowWhiteObject
 {
   void* mPointer;
@@ -2275,15 +2208,10 @@ private:
 class RemoveSkippableVisitor : public SnowWhiteKiller
 {
 public:
-    RemoveSkippableVisitor(nsCycleCollector* aCollector,
-                           uint32_t aMaxCount, bool aRemoveChildlessNodes,
-                           bool aAsyncSnowWhiteFreeing,
+    RemoveSkippableVisitor(uint32_t aMaxCount, bool aRemoveChildlessNodes,
                            CC_ForgetSkippableCallback aCb)
-        : SnowWhiteKiller(aAsyncSnowWhiteFreeing ? 0 : aMaxCount),
-          mCollector(aCollector),
+        : SnowWhiteKiller(aMaxCount),
           mRemoveChildlessNodes(aRemoveChildlessNodes),
-          mAsyncSnowWhiteFreeing(aAsyncSnowWhiteFreeing),
-          mDispatchedDeferredDeletion(false),
           mCallback(aCb)
     {}
 
@@ -2294,10 +2222,6 @@ public:
         if (mCallback) {
             mCallback();
         }
-        if (HasSnowWhiteObjects()) {
-            // Effectively a continuation.
-            AsyncFreeSnowWhite::Dispatch(mCollector, true);
-        }
     }
 
     void
@@ -2305,12 +2229,7 @@ public:
     {
         MOZ_ASSERT(aEntry->mObject, "null mObject in purple buffer");
         if (!aEntry->mRefCnt->get()) {
-            if (!mAsyncSnowWhiteFreeing) {
-                SnowWhiteKiller::Visit(aBuffer, aEntry);
-            } else if (!mDispatchedDeferredDeletion) {
-                mDispatchedDeferredDeletion = true;
-                nsCycleCollector_dispatchDeferredDeletion();
-            }
+            SnowWhiteKiller::Visit(aBuffer, aEntry);
             return;
         }
         void *o = aEntry->mObject;
@@ -2324,47 +2243,58 @@ public:
     }
 
 private:
-    nsCycleCollector* mCollector;
     bool mRemoveChildlessNodes;
-    bool mAsyncSnowWhiteFreeing;
-    bool mDispatchedDeferredDeletion;
     CC_ForgetSkippableCallback mCallback;
 };
 
 void
-nsPurpleBuffer::RemoveSkippable(nsCycleCollector* aCollector,
-                                bool aRemoveChildlessNodes,
-                                bool aAsyncSnowWhiteFreeing,
+nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes,
                                 CC_ForgetSkippableCallback aCb)
 {
-    RemoveSkippableVisitor visitor(aCollector, Count(), aRemoveChildlessNodes,
-                                   aAsyncSnowWhiteFreeing, aCb);
+    RemoveSkippableVisitor visitor(Count(), removeChildlessNodes, aCb);
     VisitEntries(visitor);
+    // If we're about to delete some objects when visitor goes out of scope,
+    // try to delete some more soon.
+    if (visitor.HasSnowWhiteObjects()) {
+        nsCycleCollector_dispatchDeferredDeletion();
+    }
 }
 
-bool
+class AsyncFreeSnowWhite : public nsRunnable
+{
+public:
+  NS_IMETHOD Run()
+  {
+      nsCycleCollector::TryToFreeSnowWhite();
+      return NS_OK;
+  }
+
+  static void Dispatch()
+  {
+      nsRefPtr<AsyncFreeSnowWhite> ev = new AsyncFreeSnowWhite();
+      NS_DispatchToCurrentThread(ev);
+  }
+};
+
+void
 nsCycleCollector::FreeSnowWhite(bool aUntilNoSWInPurpleBuffer)
 {
-    bool hadSnowWhiteObjects = false;
     do {
         SnowWhiteKiller visitor(mPurpleBuf.Count());
         mPurpleBuf.VisitEntries(visitor);
-        hadSnowWhiteObjects = hadSnowWhiteObjects ||
-                              visitor.HasSnowWhiteObjects();
         if (!visitor.HasSnowWhiteObjects()) {
             break;
         }
     } while (aUntilNoSWInPurpleBuffer);
-    return hadSnowWhiteObjects;
 }
 
-/* static */ bool
+/* static */ void
 nsCycleCollector::TryToFreeSnowWhite()
 {
   CollectorData* data = sCollectorData.get();
-  return data->mCollector ?
-      data->mCollector->FreeSnowWhite(false) :
-      false;
+  if (data->mCollector) {
+      data->mCollector->FreeSnowWhite(false);
+  }
 }
 
 void
@@ -2374,14 +2304,12 @@ nsCycleCollector::SelectPurple(GCGraphBuilder &builder)
 }
 
 void
-nsCycleCollector::ForgetSkippable(bool aRemoveChildlessNodes,
-                                  bool aAsyncSnowWhiteFreeing)
+nsCycleCollector::ForgetSkippable(bool removeChildlessNodes)
 {
     if (mJSRuntime) {
         mJSRuntime->PrepareForForgetSkippable();
     }
-    mPurpleBuf.RemoveSkippable(this, aRemoveChildlessNodes,
-                               aAsyncSnowWhiteFreeing, mForgetSkippableCB);
+    mPurpleBuf.RemoveSkippable(removeChildlessNodes, mForgetSkippableCB);
 }
 
 MOZ_NEVER_INLINE void
@@ -2708,7 +2636,6 @@ nsCycleCollector::nsCycleCollector(CCThreadingModel aModel) :
     mJSRuntime(nullptr),
     mRunner(nullptr),
     mThread(PR_GetCurrentThread()),
-    mAsyncSnowWhiteFreer(new AsyncFreeSnowWhite()),
     mWhiteNodes(nullptr),
     mWhiteNodeCount(0),
     mVisitedRefCounted(0),
@@ -3330,8 +3257,7 @@ nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB)
 }
 
 void
-nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes,
-                                 bool aAsyncSnowWhiteFreeing)
+nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes)
 {
     CollectorData *data = sCollectorData.get();
 
@@ -3341,18 +3267,14 @@ nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes,
 
     PROFILER_LABEL("CC", "nsCycleCollector_forgetSkippable");
     TimeLog timeLog;
-    data->mCollector->ForgetSkippable(aRemoveChildlessNodes,
-                                      aAsyncSnowWhiteFreeing);
+    data->mCollector->ForgetSkippable(aRemoveChildlessNodes);
     timeLog.Checkpoint("ForgetSkippable()");
 }
 
 void
 nsCycleCollector_dispatchDeferredDeletion()
 {
-    CollectorData* data = sCollectorData.get();
-    if (data && data->mCollector) {
-        AsyncFreeSnowWhite::Dispatch(data->mCollector);
-    }
+    AsyncFreeSnowWhite::Dispatch();
 }
 
 void

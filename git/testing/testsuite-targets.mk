@@ -285,7 +285,6 @@ xpcshell-tests:
 	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
 	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  --no-logfiles \
-	  --test-plugin-path="$(DIST)/plugins" \
 	  --tests-root-dir=$(call core_abspath,_tests/xpcshell) \
 	  --testing-modules-dir=$(call core_abspath,_tests/modules) \
 	  --xunit-file=$(call core_abspath,_tests/xpcshell/results.xml) \

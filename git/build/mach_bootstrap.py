@@ -65,7 +65,6 @@ MACH_MODULES = [
     'testing/marionette/mach_commands.py',
     'testing/mochitest/mach_commands.py',
     'testing/xpcshell/mach_commands.py',
-    'testing/talos/mach_commands.py',
     'tools/mach_commands.py',
 ]
 

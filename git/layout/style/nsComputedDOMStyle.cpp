@@ -1710,8 +1710,16 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     if (needSep) {
       aString.AppendLiteral(" ");
     }
-    SetCssTextToCoord(tokenString, aGradient->mAngle);
+    tmpVal->SetNumber(aGradient->mAngle.GetAngleValue());
+    tmpVal->GetCssText(tokenString);
     aString.Append(tokenString);
+    switch (aGradient->mAngle.GetUnit()) {
+    case eStyleUnit_Degree: aString.AppendLiteral("deg"); break;
+    case eStyleUnit_Grad: aString.AppendLiteral("grad"); break;
+    case eStyleUnit_Radian: aString.AppendLiteral("rad"); break;
+    case eStyleUnit_Turn: aString.AppendLiteral("turn"); break;
+    default: NS_NOTREACHED("unrecognized angle unit");
+    }
     needSep = true;
   }
 
@@ -3999,23 +4007,6 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         SetValueToCalc(calc, aValue);
       }
       break;
-
-    case eStyleUnit_Degree:
-      aValue->SetDegree(aCoord.GetAngleValue());
-      break;
-
-    case eStyleUnit_Grad:
-      aValue->SetGrad(aCoord.GetAngleValue());
-      break;
-
-    case eStyleUnit_Radian:
-      aValue->SetRadian(aCoord.GetAngleValue());
-      break;
-
-    case eStyleUnit_Turn:
-      aValue->SetTurn(aCoord.GetAngleValue());
-      break;
-
     default:
       NS_ERROR("Can't handle this unit");
       break;
@@ -4504,9 +4495,6 @@ GetFilterFunctionName(nsAString& aString, nsStyleFilter::Type mType)
     case nsStyleFilter::Type::eGrayscale:
       aString.AssignLiteral("grayscale(");
       break;
-    case nsStyleFilter::Type::eHueRotate:
-      aString.AssignLiteral("hue-rotate(");
-      break;
     case nsStyleFilter::Type::eInvert:
       aString.AssignLiteral("invert(");
       break;
@@ -4542,7 +4530,7 @@ nsComputedDOMStyle::CreatePrimitiveValueForStyleFilter(
 
   // Filter function argument.
   nsAutoString argumentString;
-  SetCssTextToCoord(argumentString, aStyleFilter.mFilterParameter);
+  SetCssTextToCoord(argumentString, aStyleFilter.mCoord);
   filterFunctionString.Append(argumentString);
 
   // Filter function closing parenthesis.

@@ -41,14 +41,14 @@ let tasks = {
   }
 };
 
-let manager;
+let mozMobileMessage;
 
 function getAllMessages(callback, filter, reverse) {
   if (!filter) {
     filter = new MozSmsFilter;
   }
   let messages = [];
-  let request = manager.getMessages(filter, reverse || false);
+  let request = mozMobileMessage.getMessages(filter, reverse || false);
   request.onsuccess = function(event) {
     if (request.result) {
       messages.push(request.result);
@@ -69,7 +69,7 @@ function deleteAllMessages() {
       return;
     }
 
-    let request = manager.delete(message.id);
+    let request = mozMobileMessage.delete(message.id);
     request.onsuccess = deleteAll.bind(null, messages);
     request.onerror = function (event) {
       ok(false, "failed to delete all messages");
@@ -79,10 +79,10 @@ function deleteAllMessages() {
 }
 
 function testInvalidAddressForSMS(aInvalidAddr)  {
-  log("manager.send(...) should get 'InvalidAddressError' error " +
+  log("mozMobileMessage.send(...) should get 'InvalidAddressError' error " +
       "when attempting to send SMS to: " + aInvalidAddr);
 
-  let request = manager.send(aInvalidAddr, "Test");
+  let request = mozMobileMessage.send(aInvalidAddr, "Test");
 
   request.onerror = function(event) {
     log("Received 'onerror' DOMRequest event.");
@@ -94,10 +94,10 @@ function testInvalidAddressForSMS(aInvalidAddr)  {
 }
 
 function testInvalidAddressForMMS(aInvalidAddrs)  {
-  log("manager.sendMMS(...) should get 'InvalidAddressError' error " +
+  log("mozMobileMessage.sendMMS(...) should get 'InvalidAddressError' error " +
       "when attempting to send MMS to: " + aInvalidAddrs);
 
-  let request = manager.sendMMS({
+  let request = mozMobileMessage.sendMMS({
     subject: "Test",
     receivers: aInvalidAddrs,
     attachments: [],
@@ -115,9 +115,8 @@ function testInvalidAddressForMMS(aInvalidAddrs)  {
 tasks.push(function () {
   log("Verifying initial state.");
 
-  manager = window.navigator.mozMobileMessage;
-  ok(manager instanceof MozMobileMessageManager,
-     "manager is instance of " + manager.constructor);
+  mozMobileMessage = window.navigator.mozMobileMessage;
+  ok(mozMobileMessage instanceof MozMobileMessageManager);
 
   tasks.next();
 });

@@ -39,7 +39,6 @@ const ROLE_BUTTONDROPDOWNGRID = Ci.nsIAccessibleRole.ROLE_BUTTONDROPDOWNGRID;
 const ROLE_LISTBOX = Ci.nsIAccessibleRole.ROLE_LISTBOX;
 const ROLE_SLIDER = Ci.nsIAccessibleRole.ROLE_SLIDER;
 const ROLE_HEADING = Ci.nsIAccessibleRole.ROLE_HEADING;
-const ROLE_HEADER = Ci.nsIAccessibleRole.ROLE_HEADER;
 const ROLE_TERM = Ci.nsIAccessibleRole.ROLE_TERM;
 const ROLE_SEPARATOR = Ci.nsIAccessibleRole.ROLE_SEPARATOR;
 const ROLE_TABLE = Ci.nsIAccessibleRole.ROLE_TABLE;
@@ -104,8 +103,6 @@ var gSimpleTraversalRoles =
    ROLE_RADIO_MENU_ITEM,
    ROLE_TOGGLE_BUTTON,
    ROLE_ENTRY,
-   ROLE_HEADER,
-   ROLE_HEADING,
    // Used for traversing in to child OOP frames.
    ROLE_INTERNAL_FRAME];
 
@@ -113,16 +110,6 @@ this.TraversalRules = {
   Simple: new BaseTraversalRule(
     gSimpleTraversalRoles,
     function Simple_match(aAccessible) {
-      function hasZeroOrSingleChildDescendants () {
-        for (let acc = aAccessible; acc.childCount > 0; acc = acc.firstChild) {
-          if (acc.childCount > 1) {
-            return false;
-          }
-        }
-
-        return true;
-      }
-
       switch (aAccessible.role) {
       case ROLE_COMBOBOX:
         // We don't want to ignore the subtree because this is often
@@ -137,6 +124,13 @@ this.TraversalRules = {
           else
             return FILTER_IGNORE;
         }
+      case ROLE_LINK:
+        // If the link has children we should land on them instead.
+        // Image map links don't have children so we need to match those.
+        if (aAccessible.childCount == 0)
+          return FILTER_MATCH;
+        else
+          return FILTER_IGNORE;
       case ROLE_STATICTEXT:
         {
           let parent = aAccessible.parent;
@@ -149,17 +143,20 @@ this.TraversalRules = {
         }
       case ROLE_GRAPHIC:
         return TraversalRules._shouldSkipImage(aAccessible);
-      case ROLE_LINK:
-      case ROLE_HEADER:
-      case ROLE_HEADING:
-        return hasZeroOrSingleChildDescendants() ?
-          (FILTER_MATCH | FILTER_IGNORE_SUBTREE) : (FILTER_IGNORE);
       default:
         // Ignore the subtree, if there is one. So that we don't land on
         // the same content that was already presented by its parent.
         return FILTER_MATCH |
           FILTER_IGNORE_SUBTREE;
       }
+    }
+  ),
+
+  SimpleTouch: new BaseTraversalRule(
+    gSimpleTraversalRoles,
+    function Simple_match(aAccessible) {
+      return FILTER_MATCH |
+        FILTER_IGNORE_SUBTREE;
     }
   ),
 

@@ -277,8 +277,7 @@ class Descriptor(DescriptorProvider):
             'NamedCreator': None,
             'NamedDeleter': None,
             'Stringifier': None,
-            'LegacyCaller': None,
-            'Jsonifier': None
+            'LegacyCaller': None
             }
         if self.concrete:
             self.proxy = False
@@ -291,8 +290,6 @@ class Descriptor(DescriptorProvider):
             for m in iface.members:
                 if m.isMethod() and m.isStringifier():
                     addOperation('Stringifier', m)
-                if m.isMethod() and m.isJsonifier():
-                    addOperation('Jsonifier', m)
                 # Don't worry about inheriting legacycallers either: in
                 # practice these are on most-derived prototypes.
                 if m.isMethod() and m.isLegacycaller():

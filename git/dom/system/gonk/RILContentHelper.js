@@ -102,9 +102,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:IccCloseChannel",
   "RIL:IccExchangeAPDU",
   "RIL:ReadIccContacts",
-  "RIL:UpdateIccContact",
-  "RIL:SetRoamingPreference",
-  "RIL:GetRoamingPreference"
+  "RIL:UpdateIccContact"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
@@ -618,48 +616,6 @@ RILContentHelper.prototype = {
 
     this._selectingNetwork = "automatic";
     cpmm.sendAsyncMessage("RIL:SelectNetworkAuto", {
-      clientId: 0,
-      data: {
-        requestId: requestId
-      }
-    });
-    return request;
-  },
-
-  setRoamingPreference: function setRoamingPreference(window, mode) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    if (!mode) {
-      this.dispatchFireRequestError(requestId, "InvalidParameter");
-      return request;
-    }
-
-    cpmm.sendAsyncMessage("RIL:SetRoamingPreference", {
-      clientId: 0,
-      data: {
-        requestId: requestId,
-        mode: mode
-      }
-    });
-    return request;
-  },
-
-  getRoamingPreference: function getRoamingPreference(window) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    cpmm.sendAsyncMessage("RIL:GetRoamingPreference", {
       clientId: 0,
       data: {
         requestId: requestId
@@ -1585,12 +1541,6 @@ RILContentHelper.prototype = {
                            [message]);
         break;
       }
-      case "RIL:SetRoamingPreference":
-        this.handleSetRoamingPreference(msg.json);
-        break;
-      case "RIL:GetRoamingPreference":
-        this.handleGetRoamingPreference(msg.json);
-        break;
     }
   },
 
@@ -1924,22 +1874,6 @@ RILContentHelper.prototype = {
 
   _getRandomId: function _getRandomId() {
     return gUUIDGenerator.generateUUID().toString();
-  },
-
-  handleSetRoamingPreference: function handleSetRoamingPreference(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, null);
-    }
-  },
-
-  handleGetRoamingPreference: function handleGetRoamingPreference(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, message.mode);
-    }
   },
 
   _deliverEvent: function _deliverEvent(listenerType, name, args) {

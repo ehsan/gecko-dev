@@ -106,9 +106,7 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:SetCallWaitingOption",
   "RIL:GetCallWaitingOption",
   "RIL:SetCallingLineIdRestriction",
-  "RIL:GetCallingLineIdRestriction",
-  "RIL:SetRoamingPreference",
-  "RIL:GetRoamingPreference"
+  "RIL:GetCallingLineIdRestriction"
 ];
 
 const RIL_IPC_ICCMANAGER_MSG_NAMES = [
@@ -878,14 +876,6 @@ RadioInterface.prototype = {
       case "RIL:GetVoicemailInfo":
         // This message is sync.
         return this.voicemailInfo;
-      case "RIL:SetRoamingPreference":
-        gMessageManager.saveRequestTarget(msg);
-        this.setRoamingPreference(msg.json.data);
-        break;
-      case "RIL:GetRoamingPreference":
-        gMessageManager.saveRequestTarget(msg);
-        this.getRoamingPreference(msg.json.data);
-        break;
     }
   },
 
@@ -1081,12 +1071,6 @@ RadioInterface.prototype = {
       case "setRadioEnabled":
         let lock = gSettingsService.createLock();
         lock.set("ril.radio.disabled", !message.on, null, null);
-        break;
-      case "setRoamingPreference":
-        this.handleSetRoamingPreference(message);
-        break;
-      case "queryRoamingPreference":
-        this.handleQueryRoamingPreference(message);
         break;
       default:
         throw new Error("Don't know about this message type: " +
@@ -2284,16 +2268,6 @@ RadioInterface.prototype = {
                                        message);
   },
 
-  handleSetRoamingPreference: function handleSetRoamingPreference(message) {
-    if (DEBUG) this.debug("handleSetRoamingPreference: " + JSON.stringify(message));
-    gMessageManager.sendRequestResults("RIL:SetRoamingPreference", message);
-  },
-
-  handleQueryRoamingPreference: function handleQueryRoamingPreference(message) {
-    if (DEBUG) this.debug("handleQueryRoamingPreference: " + JSON.stringify(message));
-    gMessageManager.sendRequestResults("RIL:GetRoamingPreference", message);
-  },
-
   // nsIObserver
 
   observe: function observe(subject, topic, data) {
@@ -2680,18 +2654,6 @@ RadioInterface.prototype = {
       this.debug("getCallingLineIdRestriction: " + JSON.stringify(message));
     }
     message.rilMessageType = "getCLIR";
-    this.worker.postMessage(message);
-  },
-
-  getRoamingPreference: function getRoamingPreference(message) {
-    if (DEBUG) this.debug("getRoamingPreference: " + JSON.stringify(message));
-    message.rilMessageType = "queryRoamingPreference";
-    this.worker.postMessage(message);
-  },
-
-  setRoamingPreference: function setRoamingPreference(message) {
-    if (DEBUG) this.debug("setRoamingPreference: " + JSON.stringify(message));
-    message.rilMessageType = "setRoamingPreference";
     this.worker.postMessage(message);
   },
 
