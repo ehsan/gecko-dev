@@ -30,9 +30,7 @@ BrowserCLH.prototype = {
     let urlParam = "about:home";
     try {
         urlParam = aCmdLine.handleFlagWithParam("remote", false);
-    } catch (e) {
-      // Optional so not a real error
-    }
+    } catch (e) { dump("" + e); }
     dump("fs_handle: " + urlParam);
     try {
       let urifixup = Cc["@mozilla.org/docshell/urifixup;1"].getService(Ci.nsIURIFixup);
