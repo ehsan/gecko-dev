@@ -11,14 +11,11 @@
 #define SkBlitter_DEFINED
 
 #include "SkBitmap.h"
-#include "SkBitmapProcShader.h"
-#include "SkMask.h"
 #include "SkMatrix.h"
 #include "SkPaint.h"
 #include "SkRefCnt.h"
 #include "SkRegion.h"
-#include "SkShader.h"
-#include "SkSmallAllocator.h"
+#include "SkMask.h"
 
 /** SkBlitter and its subclasses are responsible for actually writing pixels
     into memory. Besides efficiency, they handle clipping and antialiasing.
@@ -72,15 +69,21 @@ public:
      */
     static SkBlitter* Choose(const SkBitmap& device,
                              const SkMatrix& matrix,
+                             const SkPaint& paint) {
+        return Choose(device, matrix, paint, NULL, 0);
+    }
+
+    static SkBlitter* Choose(const SkBitmap& device,
+                             const SkMatrix& matrix,
                              const SkPaint& paint,
-                             SkTBlitterAllocator*,
+                             void* storage, size_t storageSize,
                              bool drawCoverage = false);
 
     static SkBlitter* ChooseSprite(const SkBitmap& device,
                                    const SkPaint&,
                                    const SkBitmap& src,
                                    int left, int top,
-                                   SkTBlitterAllocator*);
+                                   void* storage, size_t storageSize);
     ///@}
 
 private:

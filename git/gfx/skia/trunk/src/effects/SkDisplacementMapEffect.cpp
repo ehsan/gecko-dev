@@ -15,11 +15,10 @@
 #include "GrCoordTransform.h"
 #include "gl/GrGLEffect.h"
 #include "GrTBackendEffectFactory.h"
+#include "SkImageFilterUtils.h"
 #endif
 
 namespace {
-
-#define kChannelSelectorKeyBits 3; // Max value is 4, so 3 bits are required at most
 
 template<SkDisplacementMapEffect::ChannelSelectorType type>
 uint32_t getValue(SkColor, const SkUnPreMultiply::Scale*) {
@@ -194,36 +193,39 @@ void SkDisplacementMapEffect::flatten(SkWriteBuffer& buffer) const {
 
 bool SkDisplacementMapEffect::onFilterImage(Proxy* proxy,
                                             const SkBitmap& src,
-                                            const Context& ctx,
+                                            const SkMatrix& ctm,
                                             SkBitmap* dst,
                                             SkIPoint* offset) const {
     SkBitmap displ = src, color = src;
     const SkImageFilter* colorInput = getColorInput();
     const SkImageFilter* displInput = getDisplacementInput();
     SkIPoint colorOffset = SkIPoint::Make(0, 0), displOffset = SkIPoint::Make(0, 0);
-    if ((colorInput && !colorInput->filterImage(proxy, src, ctx, &color, &colorOffset)) ||
-        (displInput && !displInput->filterImage(proxy, src, ctx, &displ, &displOffset))) {
+    if ((colorInput && !colorInput->filterImage(proxy, src, ctm, &color, &colorOffset)) ||
+        (displInput && !displInput->filterImage(proxy, src, ctm, &displ, &displOffset))) {
         return false;
     }
-    if ((displ.colorType() != kPMColor_SkColorType) ||
-        (color.colorType() != kPMColor_SkColorType)) {
+    if ((displ.config() != SkBitmap::kARGB_8888_Config) ||
+        (color.config() != SkBitmap::kARGB_8888_Config)) {
+        return false;
+    }
+
+    SkAutoLockPixels alp_displacement(displ), alp_color(color);
+    if (!displ.getPixels() || !color.getPixels()) {
         return false;
     }
     SkIRect bounds;
-    // Since computeDisplacement does bounds checking on color pixel access, we don't need to pad
-    // the color bitmap to bounds here.
-    if (!this->applyCropRect(ctx, color, colorOffset, &bounds)) {
+    color.getBounds(&bounds);
+    bounds.offset(colorOffset);
+    if (!this->applyCropRect(&bounds, ctm)) {
         return false;
     }
     SkIRect displBounds;
-    if (!this->applyCropRect(ctx, proxy, displ, &displOffset, &displBounds, &displ)) {
+    displ.getBounds(&displBounds);
+    displBounds.offset(displOffset);
+    if (!this->applyCropRect(&displBounds, ctm)) {
         return false;
     }
     if (!bounds.intersect(displBounds)) {
-        return false;
-    }
-    SkAutoLockPixels alp_displacement(displ), alp_color(color);
-    if (!displ.getPixels() || !color.getPixels()) {
         return false;
     }
 
@@ -233,7 +235,7 @@ bool SkDisplacementMapEffect::onFilterImage(Proxy* proxy,
     }
 
     SkVector scale = SkVector::Make(fScale, fScale);
-    ctx.ctm().mapVectors(&scale, 1);
+    ctm.mapVectors(&scale, 1);
     SkIRect colorBounds = bounds;
     colorBounds.offset(-colorOffset);
 
@@ -251,18 +253,14 @@ void SkDisplacementMapEffect::computeFastBounds(const SkRect& src, SkRect* dst) 
     } else {
         *dst = src;
     }
-    dst->outset(fScale * SK_ScalarHalf, fScale * SK_ScalarHalf);
 }
 
 bool SkDisplacementMapEffect::onFilterBounds(const SkIRect& src, const SkMatrix& ctm,
                                    SkIRect* dst) const {
-    SkIRect bounds = src;
-    if (getColorInput() && !getColorInput()->filterBounds(src, ctm, &bounds)) {
-        return false;
+    if (getColorInput()) {
+        return getColorInput()->filterBounds(src, ctm, dst);
     }
-    bounds.outset(SkScalarCeilToInt(fScale * SK_ScalarHalf),
-                  SkScalarCeilToInt(fScale * SK_ScalarHalf));
-    *dst = bounds;
+    *dst = src;
     return true;
 }
 
@@ -349,36 +347,21 @@ private:
     typedef GrEffect INHERITED;
 };
 
-bool SkDisplacementMapEffect::filterImageGPU(Proxy* proxy, const SkBitmap& src, const Context& ctx,
+bool SkDisplacementMapEffect::filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
                                              SkBitmap* result, SkIPoint* offset) const {
-    SkBitmap colorBM = src;
+    SkBitmap colorBM;
     SkIPoint colorOffset = SkIPoint::Make(0, 0);
-    if (getColorInput() && !getColorInput()->getInputResultGPU(proxy, src, ctx, &colorBM,
-                                                               &colorOffset)) {
-        return false;
-    }
-    SkBitmap displacementBM = src;
-    SkIPoint displacementOffset = SkIPoint::Make(0, 0);
-    if (getDisplacementInput() &&
-        !getDisplacementInput()->getInputResultGPU(proxy, src, ctx, &displacementBM,
-                                                   &displacementOffset)) {
-        return false;
-    }
-    SkIRect bounds;
-    // Since GrDisplacementMapEffect does bounds checking on color pixel access, we don't need to
-    // pad the color bitmap to bounds here.
-    if (!this->applyCropRect(ctx, colorBM, colorOffset, &bounds)) {
-        return false;
-    }
-    SkIRect displBounds;
-    if (!this->applyCropRect(ctx, proxy, displacementBM,
-                             &displacementOffset, &displBounds, &displacementBM)) {
-        return false;
-    }
-    if (!bounds.intersect(displBounds)) {
+    if (!SkImageFilterUtils::GetInputResultGPU(getColorInput(), proxy, src, ctm, &colorBM,
+                                               &colorOffset)) {
         return false;
     }
     GrTexture* color = colorBM.getTexture();
+    SkBitmap displacementBM;
+    SkIPoint displacementOffset = SkIPoint::Make(0, 0);
+    if (!SkImageFilterUtils::GetInputResultGPU(getDisplacementInput(), proxy, src, ctm,
+                                               &displacementBM, &displacementOffset)) {
+        return false;
+    }
     GrTexture* displacement = displacementBM.getTexture();
     GrContext* context = color->getContext();
 
@@ -394,7 +377,22 @@ bool SkDisplacementMapEffect::filterImageGPU(Proxy* proxy, const SkBitmap& src, 
     GrContext::AutoRenderTarget art(context, dst->asRenderTarget());
 
     SkVector scale = SkVector::Make(fScale, fScale);
-    ctx.ctm().mapVectors(&scale, 1);
+    ctm.mapVectors(&scale, 1);
+    SkIRect bounds;
+    colorBM.getBounds(&bounds);
+    bounds.offset(colorOffset);
+    if (!this->applyCropRect(&bounds, ctm)) {
+        return false;
+    }
+    SkIRect displBounds;
+    displacementBM.getBounds(&displBounds);
+    displBounds.offset(displacementOffset);
+    if (!this->applyCropRect(&displBounds, ctm)) {
+        return false;
+    }
+    if (!bounds.intersect(displBounds)) {
+        return false;
+    }
 
     GrPaint paint;
     SkMatrix offsetMatrix = GrEffect::MakeDivByTextureWHMatrix(displacement);
@@ -417,8 +415,7 @@ bool SkDisplacementMapEffect::filterImageGPU(Proxy* proxy, const SkBitmap& src, 
     context->drawRect(paint, SkRect::Make(colorBounds));
     offset->fX = bounds.left();
     offset->fY = bounds.top();
-    WrapTexture(dst, bounds.width(), bounds.height(), result);
-    return true;
+    return SkImageFilterUtils::WrapTexture(dst, bounds.width(), bounds.height(), result);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -604,7 +601,7 @@ GrGLEffect::EffectKey GrGLDisplacementMapEffect::GenKey(const GrDrawEffect& draw
         drawEffect.castEffect<GrDisplacementMapEffect>();
 
     EffectKey xKey = displacementMap.xChannelSelector();
-    EffectKey yKey = displacementMap.yChannelSelector() << kChannelSelectorKeyBits;
+    EffectKey yKey = displacementMap.yChannelSelector() << SkDisplacementMapEffect::kKeyBits;
 
     return xKey | yKey;
 }

@@ -23,9 +23,10 @@ public:
         uint8_t     fSpecular;      // exponent, 4.4 right now
     };
 
-    static SkEmbossMaskFilter* Create(SkScalar blurSigma, const Light& light) {
-        return SkNEW_ARGS(SkEmbossMaskFilter, (blurSigma, light));
-    }
+    SkEmbossMaskFilter(SkScalar blurSigma, const Light& light);
+
+    SK_ATTR_DEPRECATED("use sigma version")
+    SkEmbossMaskFilter(const Light& light, SkScalar blurRadius);
 
     // overrides from SkMaskFilter
     //  This method is not exported to java.
@@ -34,17 +35,12 @@ public:
     virtual bool filterMask(SkMask* dst, const SkMask& src, const SkMatrix&,
                             SkIPoint* margin) const SK_OVERRIDE;
 
-    SK_TO_STRING_OVERRIDE()
+    SkDEVCODE(virtual void toString(SkString* str) const SK_OVERRIDE;)
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkEmbossMaskFilter)
 
 protected:
     SkEmbossMaskFilter(SkReadBuffer&);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
-
-#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
-public:
-#endif
-    SkEmbossMaskFilter(SkScalar blurSigma, const Light& light);
 
 private:
     Light       fLight;

@@ -73,9 +73,9 @@
            fm.mCompositionBounds.x, fm.mCompositionBounds.y, fm.mCompositionBounds.width, fm.mCompositionBounds.height, \
            fm.mDisplayPort.x, fm.mDisplayPort.y, fm.mDisplayPort.width, fm.mDisplayPort.height, \
            fm.mViewport.x, fm.mViewport.y, fm.mViewport.width, fm.mViewport.height, \
-           fm.GetScrollOffset().x, fm.GetScrollOffset().y, \
+           fm.mScrollOffset.x, fm.mScrollOffset.y, \
            fm.mScrollableRect.x, fm.mScrollableRect.y, fm.mScrollableRect.width, fm.mScrollableRect.height, \
-           fm.mDevPixelsPerCSSPixel.scale, fm.mResolution.scale, fm.mCumulativeResolution.scale, fm.GetZoom().scale, \
+           fm.mDevPixelsPerCSSPixel.scale, fm.mResolution.scale, fm.mCumulativeResolution.scale, fm.mZoom.scale, \
            fm.GetScrollOffsetUpdated(), fm.GetScrollGeneration()); \
 
 // Static helper functions
@@ -1757,8 +1757,8 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     // we want to take the new scroll offset.
     if (aLayerMetrics.GetScrollOffsetUpdated()) {
       APZC_LOG("%p updating scroll offset from (%f, %f) to (%f, %f)\n", this,
-        mFrameMetrics.GetScrollOffset().x, mFrameMetrics.GetScrollOffset().y,
-        aLayerMetrics.GetScrollOffset().x, aLayerMetrics.GetScrollOffset().y);
+        mFrameMetrics.mScrollOffset.x, mFrameMetrics.mScrollOffset.y,
+        aLayerMetrics.mScrollOffset.x, aLayerMetrics.mScrollOffset.y);
 
       mFrameMetrics.SetScrollOffset(aLayerMetrics.GetScrollOffset());
 

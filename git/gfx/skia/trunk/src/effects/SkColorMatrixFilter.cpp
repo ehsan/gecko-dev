@@ -424,7 +424,6 @@ public:
                                    builder->getUniformCStr(fMatrixHandle),
                                    inputColor,
                                    builder->getUniformCStr(fVectorHandle));
-            builder->fsCodeAppendf("\t%s = clamp(%s, 0.0, 1.0);\n", outputColor, outputColor);
             builder->fsCodeAppendf("\t%s.rgb *= %s.a;\n", outputColor, outputColor);
         }
 
@@ -484,7 +483,7 @@ GrEffectRef* SkColorMatrixFilter::asNewEffect(GrContext*) const {
 
 #endif
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkColorMatrixFilter::toString(SkString* str) const {
     str->append("SkColorMatrixFilter: ");
 

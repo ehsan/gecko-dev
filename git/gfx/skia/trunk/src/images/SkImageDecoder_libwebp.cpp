@@ -444,8 +444,6 @@ bool SkWEBPImageDecoder::onDecode(SkStream* stream, SkBitmap* decodedBitmap,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "SkUnPreMultiply.h"
-
 typedef void (*ScanlineImporter)(const uint8_t* in, uint8_t* out, int width,
                                  const SkPMColor* SK_RESTRICT ctable);
 
@@ -458,31 +456,6 @@ static void ARGB_8888_To_RGB(const uint8_t* in, uint8_t* rgb, int width,
       rgb[1] = SkGetPackedG32(c);
       rgb[2] = SkGetPackedB32(c);
       rgb += 3;
-  }
-}
-
-static void ARGB_8888_To_RGBA(const uint8_t* in, uint8_t* rgb, int width,
-                              const SkPMColor*) {
-  const uint32_t* SK_RESTRICT src = (const uint32_t*)in;
-  const SkUnPreMultiply::Scale* SK_RESTRICT table =
-      SkUnPreMultiply::GetScaleTable();
-  for (int i = 0; i < width; ++i) {
-      const uint32_t c = *src++;
-      uint8_t a = SkGetPackedA32(c);
-      uint8_t r = SkGetPackedR32(c);
-      uint8_t g = SkGetPackedG32(c);
-      uint8_t b = SkGetPackedB32(c);
-      if (0 != a && 255 != a) {
-        SkUnPreMultiply::Scale scale = table[a];
-        r = SkUnPreMultiply::ApplyScale(scale, r);
-        g = SkUnPreMultiply::ApplyScale(scale, g);
-        b = SkUnPreMultiply::ApplyScale(scale, b);
-      }
-      rgb[0] = r;
-      rgb[1] = g;
-      rgb[2] = b;
-      rgb[3] = a;
-      rgb += 4;
   }
 }
 
@@ -510,31 +483,6 @@ static void ARGB_4444_To_RGB(const uint8_t* in, uint8_t* rgb, int width,
   }
 }
 
-static void ARGB_4444_To_RGBA(const uint8_t* in, uint8_t* rgb, int width,
-                              const SkPMColor*) {
-  const SkPMColor16* SK_RESTRICT src = (const SkPMColor16*)in;
-  const SkUnPreMultiply::Scale* SK_RESTRICT table =
-      SkUnPreMultiply::GetScaleTable();
-  for (int i = 0; i < width; ++i) {
-      const SkPMColor16 c = *src++;
-      uint8_t a = SkPacked4444ToA32(c);
-      uint8_t r = SkPacked4444ToR32(c);
-      uint8_t g = SkPacked4444ToG32(c);
-      uint8_t b = SkPacked4444ToB32(c);
-      if (0 != a && 255 != a) {
-        SkUnPreMultiply::Scale scale = table[a];
-        r = SkUnPreMultiply::ApplyScale(scale, r);
-        g = SkUnPreMultiply::ApplyScale(scale, g);
-        b = SkUnPreMultiply::ApplyScale(scale, b);
-      }
-      rgb[0] = r;
-      rgb[1] = g;
-      rgb[2] = b;
-      rgb[3] = a;
-      rgb += 4;
-  }
-}
-
 static void Index8_To_RGB(const uint8_t* in, uint8_t* rgb, int width,
                           const SkPMColor* SK_RESTRICT ctable) {
   const uint8_t* SK_RESTRICT src = (const uint8_t*)in;
@@ -547,31 +495,15 @@ static void Index8_To_RGB(const uint8_t* in, uint8_t* rgb, int width,
   }
 }
 
-static ScanlineImporter ChooseImporter(const SkBitmap::Config& config,
-                                       bool  hasAlpha,
-                                       int*  bpp) {
+static ScanlineImporter ChooseImporter(const SkBitmap::Config& config) {
     switch (config) {
         case SkBitmap::kARGB_8888_Config:
-            if (hasAlpha) {
-                *bpp = 4;
-                return ARGB_8888_To_RGBA;
-            } else {
-                *bpp = 3;
-                return ARGB_8888_To_RGB;
-            }
-        case SkBitmap::kARGB_4444_Config:
-            if (hasAlpha) {
-                *bpp = 4;
-                return ARGB_4444_To_RGBA;
-            } else {
-                *bpp = 3;
-                return ARGB_4444_To_RGB;
-            }
+            return ARGB_8888_To_RGB;
         case SkBitmap::kRGB_565_Config:
-            *bpp = 3;
             return RGB_565_To_RGB;
+        case SkBitmap::kARGB_4444_Config:
+            return ARGB_4444_To_RGB;
         case SkBitmap::kIndex8_Config:
-            *bpp = 3;
             return Index8_To_RGB;
         default:
             return NULL;
@@ -595,14 +527,8 @@ private:
 bool SkWEBPImageEncoder::onEncode(SkWStream* stream, const SkBitmap& bm,
                                   int quality) {
     const SkBitmap::Config config = bm.config();
-    const bool hasAlpha = !bm.isOpaque();
-    int bpp = -1;
-    const ScanlineImporter scanline_import = ChooseImporter(config, hasAlpha,
-                                                            &bpp);
+    const ScanlineImporter scanline_import = ChooseImporter(config);
     if (NULL == scanline_import) {
-        return false;
-    }
-    if (-1 == bpp) {
         return false;
     }
 
@@ -626,7 +552,7 @@ bool SkWEBPImageEncoder::onEncode(SkWStream* stream, const SkBitmap& bm,
 
     const SkPMColor* colors = ctLocker.lockColors(bm);
     const uint8_t* src = (uint8_t*)bm.getPixels();
-    const int rgbStride = pic.width * bpp;
+    const int rgbStride = pic.width * 3;
 
     // Import (for each scanline) the bit-map image (in appropriate color-space)
     // to RGB color space.
@@ -636,12 +562,7 @@ bool SkWEBPImageEncoder::onEncode(SkWStream* stream, const SkBitmap& bm,
                         pic.width, colors);
     }
 
-    bool ok;
-    if (bpp == 3) {
-        ok = SkToBool(WebPPictureImportRGB(&pic, rgb, rgbStride));
-    } else {
-        ok = SkToBool(WebPPictureImportRGBA(&pic, rgb, rgbStride));
-    }
+    bool ok = SkToBool(WebPPictureImportRGB(&pic, rgb, rgbStride));
     delete[] rgb;
 
     ok = ok && WebPEncode(&webp_config, &pic);

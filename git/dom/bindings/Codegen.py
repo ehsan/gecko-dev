@@ -5169,8 +5169,6 @@ class CGPerSignatureCall(CGThing):
                  setter=False, isConstructor=False):
         assert idlNode.isMethod() == (not getter and not setter)
         assert idlNode.isAttr() == (getter or setter)
-        # Constructors are always static
-        assert not isConstructor or static
 
         CGThing.__init__(self)
         self.returnType = returnType
@@ -5194,20 +5192,11 @@ class CGPerSignatureCall(CGThing):
         if static:
             nativeMethodName = "%s::%s" % (descriptor.nativeType,
                                            nativeMethodName)
-            # If we're a constructor, "obj" may not be a function, so calling
-            # XrayAwareCalleeGlobal() on it is not safe.  Of course in the
-            # constructor case either "obj" is an Xray or we're already in the
-            # content compartment, not the Xray compartment, so just
-            # constructing the GlobalObject from "obj" is fine.
-            if isConstructor:
-                objForGlobalObject = "obj"
-            else:
-                objForGlobalObject = "xpc::XrayAwareCalleeGlobal(obj)"
-            cgThings.append(CGGeneric("""GlobalObject global(cx, %s);
+            cgThings.append(CGGeneric("""GlobalObject global(cx, obj);
 if (global.Failed()) {
   return false;
 }
-""" % objForGlobalObject))
+"""))
             argsPre.append("global")
 
         # For JS-implemented interfaces we do not want to base the
@@ -6008,10 +5997,11 @@ class CGAbstractStaticBindingMethod(CGAbstractStaticMethod):
         CGAbstractStaticMethod.__init__(self, descriptor, name, "bool", args)
 
     def definition_body(self):
-        # Make sure that "obj" is in the same compartment as "cx", since we'll
-        # later use it to wrap return values.
         unwrap = CGGeneric("""JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-JS::Rooted<JSObject*> obj(cx, &args.callee());""")
+JS::Rooted<JSObject*> obj(cx, args.computeThis(cx).toObjectOrNull());
+if (!obj) {
+  return false;
+}""")
         return CGList([ CGIndenter(unwrap),
                         self.generate_code() ], "\n\n").define()
 
@@ -10568,92 +10558,25 @@ class CGExampleClass(CGBindingImplClass):
     def __init__(self, descriptor):
         CGBindingImplClass.__init__(self, descriptor, CGExampleMethod, CGExampleGetter, CGExampleSetter)
 
-        self.refcounted = descriptor.nativeOwnership == "refcounted"
+        extradeclarations=(
+            "public:\n"
+            "  NS_DECL_CYCLE_COLLECTING_ISUPPORTS\n"
+            "  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(%s)\n"
+            "\n" % descriptor.nativeType.split('::')[-1])
 
-        self.parentIface = descriptor.interface.parent
-        if self.parentIface:
-            self.parentDesc = descriptor.getDescriptor(
-                self.parentIface.identifier.name)
-            bases = [ClassBase(self.nativeLeafName(self.parentDesc))]
-        else:
-            bases = []
-            if self.refcounted:
-                bases.append(ClassBase("nsISupports /* Change nativeOwnership in the binding configuration if you don't want this */"))
-                if descriptor.wrapperCache:
-                    bases.append(ClassBase("nsWrapperCache /* Change wrapperCache in the binding configuration if you don't want this */"))
-            else:
-                bases.append(ClassBase("NonRefcountedDOMObject"))
-
-        if self.refcounted:
-            if self.parentIface:
-                extradeclarations=(
-                    "public:\n"
-                    "  NS_DECL_ISUPPORTS_INHERITED\n"
-                    "  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(%s, %s)\n"
-                    "\n" % (self.nativeLeafName(descriptor),
-                            self.nativeLeafName(self.parentDesc)))
-            else:
-                extradeclarations=(
-                    "public:\n"
-                    "  NS_DECL_CYCLE_COLLECTING_ISUPPORTS\n"
-                    "  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(%s)\n"
-                    "\n" % self.nativeLeafName(descriptor))
-        else:
-            extradeclarations=""
-
-        if descriptor.interface.hasChildInterfaces():
-            decorators = ""
-        else:
-            decorators = "MOZ_FINAL"
-
-        CGClass.__init__(self, self.nativeLeafName(descriptor),
-                         bases=bases,
+        CGClass.__init__(self, descriptor.nativeType.split('::')[-1],
+                         bases=[ClassBase("nsISupports /* Change nativeOwnership in the binding configuration if you don't want this */"),
+                                ClassBase("nsWrapperCache /* Change wrapperCache in the binding configuration if you don't want this */")],
                          constructors=[ClassConstructor([],
                                                         visibility="public")],
                          destructor=ClassDestructor(visibility="public"),
                          methods=self.methodDecls,
-                         decorators=decorators,
+                         decorators="MOZ_FINAL",
                          extradeclarations=extradeclarations)
 
     def define(self):
         # Just override CGClass and do our own thing
-        if self.descriptor.wrapperCache:
-            setDOMBinding = "  SetIsDOMBinding();\n"
-        else:
-            setDOMBinding = ""
-        if self.refcounted:
-            ctordtor = """${nativeType}::${nativeType}()
-{
-%s}
-
-${nativeType}::~${nativeType}()
-{
-}
-""" % setDOMBinding
-        else:
-            ctordtor = """${nativeType}::${nativeType}()
-{
-  MOZ_COUNT_CTOR(${nativeType});
-}
-
-${nativeType}::~${nativeType}()
-{
-  MOZ_COUNT_DTOR(${nativeType});
-}
-"""
-
-        if self.refcounted:
-            if self.parentIface:
-                classImpl = """
-NS_IMPL_CYCLE_COLLECTION_INHERITED_0(${nativeType}, ${parentType})
-NS_IMPL_ADDREF_INHERITED(${nativeType}, ${parentType})
-NS_IMPL_RELEASE_INHERITED(${nativeType}, ${parentType})
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(${nativeType})
-NS_INTERFACE_MAP_END_INHERITING(${parentType})
-
-"""
-            else:
-                classImpl = """
+        classImpl = """
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(${nativeType})
 NS_IMPL_CYCLE_COLLECTING_ADDREF(${nativeType})
 NS_IMPL_CYCLE_COLLECTING_RELEASE(${nativeType})
@@ -10662,28 +10585,27 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(${nativeType})
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-"""
-        else:
-            classImpl = ""
+${nativeType}::${nativeType}()
+{
+  SetIsDOMBinding();
+}
 
-        classImpl += """%s
+${nativeType}::~${nativeType}()
+{
+}
+
 JSObject*
 ${nativeType}::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return ${ifaceName}Binding::Wrap(aCx, aScope, this);
 }
 
-""" % ctordtor
+"""
         return string.Template(classImpl).substitute(
             { "ifaceName": self.descriptor.name,
-              "nativeType": self.nativeLeafName(self.descriptor),
-              "parentType": self.nativeLeafName(self.parentDesc) if self.parentIface else "",
-              }
+              "nativeType": self.descriptor.nativeType.split('::')[-1] }
             )
 
-    @staticmethod
-    def nativeLeafName(descriptor):
-        return descriptor.nativeType.split('::')[-1]
 
 class CGExampleRoot(CGThing):
     """

@@ -16,27 +16,13 @@
 #include "GrCoordTransform.h"
 #include "gl/GrGLEffect.h"
 #include "GrTBackendEffectFactory.h"
+#include "SkImageFilterUtils.h"
 #endif
 
 static const bool gUseUnpremul = false;
 
 class SkArithmeticMode_scalar : public SkXfermode {
 public:
-    static SkArithmeticMode_scalar* Create(SkScalar k1, SkScalar k2, SkScalar k3, SkScalar k4) {
-        return SkNEW_ARGS(SkArithmeticMode_scalar, (k1, k2, k3, k4));
-    }
-
-    virtual void xfer32(SkPMColor dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) const SK_OVERRIDE;
-
-    SK_TO_STRING_OVERRIDE()
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkArithmeticMode_scalar)
-
-#if SK_SUPPORT_GPU
-    virtual bool asNewEffect(GrEffectRef** effect, GrTexture* background) const SK_OVERRIDE;
-#endif
-
-private:
     SkArithmeticMode_scalar(SkScalar k1, SkScalar k2, SkScalar k3, SkScalar k4) {
         fK[0] = k1;
         fK[1] = k2;
@@ -44,6 +30,17 @@ private:
         fK[3] = k4;
     }
 
+    virtual void xfer32(SkPMColor dst[], const SkPMColor src[], int count,
+                        const SkAlpha aa[]) const SK_OVERRIDE;
+
+    SK_DEVELOPER_TO_STRING()
+    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkArithmeticMode_scalar)
+
+#if SK_SUPPORT_GPU
+    virtual bool asNewEffect(GrEffectRef** effect, GrTexture* background) const SK_OVERRIDE;
+#endif
+
+private:
     SkArithmeticMode_scalar(SkReadBuffer& buffer) : INHERITED(buffer) {
         fK[0] = buffer.readScalar();
         fK[1] = buffer.readScalar();
@@ -173,7 +170,7 @@ void SkArithmeticMode_scalar::xfer32(SkPMColor dst[], const SkPMColor src[],
     }
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkArithmeticMode_scalar::toString(SkString* str) const {
     str->append("SkArithmeticMode_scalar: ");
     for (int i = 0; i < 4; ++i) {
@@ -219,7 +216,7 @@ SkXfermode* SkArithmeticMode::Create(SkScalar k1, SkScalar k2,
         return SkNEW_ARGS(SkArithmeticMode_linear, (i2, i3, i4));
 #endif
     }
-    return SkArithmeticMode_scalar::Create(k1, k2, k3, k4);
+    return SkNEW_ARGS(SkArithmeticMode_scalar, (k1, k2, k3, k4));
 }
 
 

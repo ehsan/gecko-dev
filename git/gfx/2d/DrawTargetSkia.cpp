@@ -218,7 +218,7 @@ SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern, TempBitmap& aTmpBitmap
       shader->setLocalMatrix(mat);
       SkSafeUnref(aPaint.setShader(shader));
       if (pat.mFilter == Filter::POINT) {
-        aPaint.setFilterLevel(SkPaint::kNone_FilterLevel);
+        aPaint.setFilterBitmap(false);
       }
       break;
     }
@@ -273,7 +273,7 @@ struct AutoPaintSetup {
       mPaint.setAlpha(U8CPU(aOptions.mAlpha*255.0));
       mAlpha = aOptions.mAlpha;
     }
-    mPaint.setFilterLevel(SkPaint::kLow_FilterLevel);
+    mPaint.setFilterBitmap(true);
   }
 
   // TODO: Maybe add an operator overload to access this easier?
@@ -314,7 +314,7 @@ DrawTargetSkia::DrawSurface(SourceSurface *aSurface,
  
   AutoPaintSetup paint(mCanvas.get(), aOptions);
   if (aSurfOptions.mFilter == Filter::POINT) {
-    paint.mPaint.setFilterLevel(SkPaint::kNone_FilterLevel);
+    paint.mPaint.setFilterBitmap(false);
   }
 
   mCanvas->drawBitmapRectToRect(bitmap.mBitmap, &sourceRect, destRect, &paint.mPaint);
@@ -351,8 +351,8 @@ DrawTargetSkia::DrawSurfaceWithShadow(SourceSurface *aSurface,
 
   SkPaint paint;
 
-  SkImageFilter* filter = SkDropShadowImageFilter::Create(aOffset.x, aOffset.y,
-                                                          aSigma, ColorToSkColor(aColor, 1.0));
+  SkImageFilter* filter = new SkDropShadowImageFilter(aOffset.x, aOffset.y,
+                                                      aSigma, ColorToSkColor(aColor, 1.0));
 
   paint.setImageFilter(filter);
   paint.setXfermodeMode(GfxOpToSkiaOp(aOperator));

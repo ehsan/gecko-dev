@@ -14,6 +14,7 @@
 #include "SkBlurImage_opts.h"
 #if SK_SUPPORT_GPU
 #include "GrContext.h"
+#include "SkImageFilterUtils.h"
 #endif
 
 SkBlurImageFilter::SkBlurImageFilter(SkReadBuffer& buffer)
@@ -134,25 +135,27 @@ static void getBox3Params(SkScalar s, int *kernelSize, int* kernelSize3, int *lo
 }
 
 bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
-                                      const SkBitmap& source, const Context& ctx,
+                                      const SkBitmap& source, const SkMatrix& ctm,
                                       SkBitmap* dst, SkIPoint* offset) const {
     SkBitmap src = source;
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (getInput(0) && !getInput(0)->filterImage(proxy, source, ctx, &src, &srcOffset)) {
+    if (getInput(0) && !getInput(0)->filterImage(proxy, source, ctm, &src, &srcOffset)) {
         return false;
     }
 
-    if (src.colorType() != kPMColor_SkColorType) {
-        return false;
-    }
-
-    SkIRect srcBounds, dstBounds;
-    if (!this->applyCropRect(ctx, proxy, src, &srcOffset, &srcBounds, &src)) {
+    if (src.config() != SkBitmap::kARGB_8888_Config) {
         return false;
     }
 
     SkAutoLockPixels alp(src);
     if (!src.getPixels()) {
+        return false;
+    }
+
+    SkIRect srcBounds, dstBounds;
+    src.getBounds(&srcBounds);
+    srcBounds.offset(srcOffset);
+    if (!this->applyCropRect(&srcBounds, ctm)) {
         return false;
     }
 
@@ -163,7 +166,7 @@ bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
     }
 
     SkVector sigma, localSigma = SkVector::Make(fSigma.width(), fSigma.height());
-    ctx.ctm().mapVectors(&sigma, &localSigma, 1);
+    ctm.mapVectors(&sigma, &localSigma, 1);
 
     int kernelSizeX, kernelSizeX3, lowOffsetX, highOffsetX;
     int kernelSizeY, kernelSizeY3, lowOffsetY, highOffsetY;
@@ -175,7 +178,7 @@ bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
     }
 
     if (kernelSizeX == 0 && kernelSizeY == 0) {
-        src.copyTo(dst, dst->colorType());
+        src.copyTo(dst, dst->config());
         offset->fX = srcBounds.fLeft;
         offset->fY = srcBounds.fTop;
         return true;
@@ -248,21 +251,23 @@ bool SkBlurImageFilter::onFilterBounds(const SkIRect& src, const SkMatrix& ctm,
     return true;
 }
 
-bool SkBlurImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const Context& ctx,
+bool SkBlurImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
                                        SkBitmap* result, SkIPoint* offset) const {
 #if SK_SUPPORT_GPU
-    SkBitmap input = src;
+    SkBitmap input;
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (getInput(0) && !getInput(0)->getInputResultGPU(proxy, src, ctx, &input, &srcOffset)) {
-        return false;
-    }
-    SkIRect rect;
-    if (!this->applyCropRect(ctx, proxy, input, &srcOffset, &rect, &input)) {
+    if (!SkImageFilterUtils::GetInputResultGPU(getInput(0), proxy, src, ctm, &input, &srcOffset)) {
         return false;
     }
     GrTexture* source = input.getTexture();
+    SkIRect rect;
+    src.getBounds(&rect);
+    rect.offset(srcOffset);
+    if (!this->applyCropRect(&rect, ctm)) {
+        return false;
+    }
     SkVector sigma, localSigma = SkVector::Make(fSigma.width(), fSigma.height());
-    ctx.ctm().mapVectors(&sigma, &localSigma, 1);
+    ctm.mapVectors(&sigma, &localSigma, 1);
     offset->fX = rect.fLeft;
     offset->fY = rect.fTop;
     rect.offset(-srcOffset);
@@ -273,8 +278,7 @@ bool SkBlurImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const 
                                                              true,
                                                              sigma.x(),
                                                              sigma.y()));
-    WrapTexture(tex, rect.width(), rect.height(), result);
-    return true;
+    return SkImageFilterUtils::WrapTexture(tex, rect.width(), rect.height(), result);
 #else
     SkDEBUGFAIL("Should not call in GPU-less build");
     return false;

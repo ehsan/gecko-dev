@@ -30,11 +30,10 @@
 #include "nsIDocShellTreeOwner.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/EventTarget.h"
-#include "nsIDOMCustomEvent.h"
+#include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDocument.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIPropertyBag2.h"
 #include "nsIServiceManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsIWebBrowserChrome.h"
@@ -658,30 +657,25 @@ void
 RootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent* aEvent,
                                                XULTreeAccessible* aAccessible)
 {
-  nsCOMPtr<nsIDOMCustomEvent> customEvent(do_QueryInterface(aEvent));
-  if (!customEvent)
+  nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
+  if (!dataEvent)
     return;
 
-  nsCOMPtr<nsIVariant> detailVariant;
-  customEvent->GetDetail(getter_AddRefs(detailVariant));
-  if (!detailVariant)
+  nsCOMPtr<nsIVariant> indexVariant;
+  dataEvent->GetData(NS_LITERAL_STRING("index"),
+                     getter_AddRefs(indexVariant));
+  if (!indexVariant)
     return;
 
-  nsCOMPtr<nsISupports> supports;
-  detailVariant->GetAsISupports(getter_AddRefs(supports));
-  nsCOMPtr<nsIPropertyBag2> propBag(do_QueryInterface(supports));
-  if (!propBag)
+  nsCOMPtr<nsIVariant> countVariant;
+  dataEvent->GetData(NS_LITERAL_STRING("count"),
+                     getter_AddRefs(countVariant));
+  if (!countVariant)
     return;
 
-  nsresult rv;
   int32_t index, count;
-  rv = propBag->GetPropertyAsInt32(NS_LITERAL_STRING("index"), &index);
-  if (NS_FAILED(rv))
-    return;
-
-  rv = propBag->GetPropertyAsInt32(NS_LITERAL_STRING("count"), &count);
-  if (NS_FAILED(rv))
-    return;
+  indexVariant->GetAsInt32(&index);
+  countVariant->GetAsInt32(&count);
 
   aAccessible->InvalidateCache(index, count);
 }
@@ -690,30 +684,35 @@ void
 RootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent* aEvent,
                                            XULTreeAccessible* aAccessible)
 {
-  nsCOMPtr<nsIDOMCustomEvent> customEvent(do_QueryInterface(aEvent));
-  if (!customEvent)
-    return;
-
-  nsCOMPtr<nsIVariant> detailVariant;
-  customEvent->GetDetail(getter_AddRefs(detailVariant));
-  if (!detailVariant)
-    return;
-
-  nsCOMPtr<nsISupports> supports;
-  detailVariant->GetAsISupports(getter_AddRefs(supports));
-  nsCOMPtr<nsIPropertyBag2> propBag(do_QueryInterface(supports));
-  if (!propBag)
+  nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
+  if (!dataEvent)
     return;
 
   int32_t startRow = 0, endRow = -1, startCol = 0, endCol = -1;
-  propBag->GetPropertyAsInt32(NS_LITERAL_STRING("startrow"),
-                              &startRow);
-  propBag->GetPropertyAsInt32(NS_LITERAL_STRING("endrow"),
-                              &endRow);
-  propBag->GetPropertyAsInt32(NS_LITERAL_STRING("startcolumn"),
-                              &startCol);
-  propBag->GetPropertyAsInt32(NS_LITERAL_STRING("endcolumn"),
-                              &endCol);
+
+  nsCOMPtr<nsIVariant> startRowVariant;
+  dataEvent->GetData(NS_LITERAL_STRING("startrow"),
+                     getter_AddRefs(startRowVariant));
+  if (startRowVariant)
+    startRowVariant->GetAsInt32(&startRow);
+
+  nsCOMPtr<nsIVariant> endRowVariant;
+  dataEvent->GetData(NS_LITERAL_STRING("endrow"),
+                     getter_AddRefs(endRowVariant));
+  if (endRowVariant)
+    endRowVariant->GetAsInt32(&endRow);
+
+  nsCOMPtr<nsIVariant> startColVariant;
+  dataEvent->GetData(NS_LITERAL_STRING("startcolumn"),
+                     getter_AddRefs(startColVariant));
+  if (startColVariant)
+    startColVariant->GetAsInt32(&startCol);
+
+  nsCOMPtr<nsIVariant> endColVariant;
+  dataEvent->GetData(NS_LITERAL_STRING("endcolumn"),
+                     getter_AddRefs(endColVariant));
+  if (endColVariant)
+    endColVariant->GetAsInt32(&endCol);
 
   aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
 }

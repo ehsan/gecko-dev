@@ -1,4 +1,4 @@
-y = new Float32Array(11);
+y = Float32Array(11);
 x = [];
 
 Object.defineProperty(x, 18, {

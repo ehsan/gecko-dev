@@ -5,7 +5,6 @@
 this.EXPORTED_SYMBOLS = ["LightweightThemeConsumer"];
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeImageOptimizer",
   "resource://gre/modules/addons/LightweightThemeImageOptimizer.jsm");
@@ -42,9 +41,7 @@ LightweightThemeConsumer.prototype = {
   _lastData: null,
   _lastScreenWidth: null,
   _lastScreenHeight: null,
-  // Whether the active lightweight theme should be shown on the window.
   _enabled: true,
-  // Whether a lightweight theme is enabled.
   _active: false,
 
   enable: function() {
@@ -73,11 +70,7 @@ LightweightThemeConsumer.prototype = {
     if (this._lastScreenWidth != width || this._lastScreenHeight != height) {
       this._lastScreenWidth = width;
       this._lastScreenHeight = height;
-      if (!this._active)
-        return;
       this._update(this._lastData);
-      Services.obs.notifyObservers(this._win, "lightweight-theme-optimized",
-                                   JSON.stringify(this._lastData));
     }
   },
 

@@ -76,7 +76,7 @@ exports["test:communication with worker global scope"] = function(assert, done) 
   let window = makeWindow();
   let contentSymbiont;
 
-  assert.ok(!!window, 'there is a window');
+  console.log(window)
 
   function onMessage1(message) {
     assert.equal(message, 1, "Program gets message via onMessage.");

@@ -65,7 +65,7 @@ void SkCanvasStack::clipToZOrderedBounds() {
  * canvas unlike all other matrix operations (i.e. translate, scale, etc) which
  * just pre-concatenate with the existing matrix.
  */
-void SkCanvasStack::didSetMatrix(const SkMatrix& matrix) {
+void SkCanvasStack::setMatrix(const SkMatrix& matrix) {
     SkASSERT(fList.count() == fCanvasData.count());
     for (int i = 0; i < fList.count(); ++i) {
 
@@ -74,25 +74,28 @@ void SkCanvasStack::didSetMatrix(const SkMatrix& matrix) {
                                  SkIntToScalar(-fCanvasData[i].origin.y()));
         fList[i]->setMatrix(tempMatrix);
     }
-    this->SkCanvas::didSetMatrix(matrix);
+    this->SkCanvas::setMatrix(matrix);
 }
 
-void SkCanvasStack::onClipRect(const SkRect& r, SkRegion::Op op, ClipEdgeStyle edgeStyle) {
-    this->INHERITED::onClipRect(r, op, edgeStyle);
+bool SkCanvasStack::clipRect(const SkRect& r, SkRegion::Op op, bool aa) {
+    bool result = this->INHERITED::clipRect(r, op, aa);
     this->clipToZOrderedBounds();
+    return result;
 }
 
-void SkCanvasStack::onClipRRect(const SkRRect& rr, SkRegion::Op op, ClipEdgeStyle edgeStyle) {
-    this->INHERITED::onClipRRect(rr, op, edgeStyle);
+bool SkCanvasStack::clipRRect(const SkRRect& rr, SkRegion::Op op, bool aa) {
+    bool result = this->INHERITED::clipRRect(rr, op, aa);
     this->clipToZOrderedBounds();
+    return result;
 }
 
-void SkCanvasStack::onClipPath(const SkPath& p, SkRegion::Op op, ClipEdgeStyle edgeStyle) {
-    this->INHERITED::onClipPath(p, op, edgeStyle);
+bool SkCanvasStack::clipPath(const SkPath& p, SkRegion::Op op, bool aa) {
+    bool result = this->INHERITED::clipPath(p, op, aa);
     this->clipToZOrderedBounds();
+    return result;
 }
 
-void SkCanvasStack::onClipRegion(const SkRegion& deviceRgn, SkRegion::Op op) {
+bool SkCanvasStack::clipRegion(const SkRegion& deviceRgn, SkRegion::Op op) {
     SkASSERT(fList.count() == fCanvasData.count());
     for (int i = 0; i < fList.count(); ++i) {
         SkRegion tempRegion;
@@ -101,5 +104,5 @@ void SkCanvasStack::onClipRegion(const SkRegion& deviceRgn, SkRegion::Op op) {
         tempRegion.op(fCanvasData[i].requiredClip, SkRegion::kIntersect_Op);
         fList[i]->clipRegion(tempRegion, op);
     }
-    this->SkCanvas::onClipRegion(deviceRgn, op);
+    return this->SkCanvas::clipRegion(deviceRgn, op);
 }

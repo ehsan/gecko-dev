@@ -18,6 +18,7 @@
 #include "GrTBackendEffectFactory.h"
 #include "gl/GrGLEffect.h"
 #include "effects/Gr1DKernelEffect.h"
+#include "SkImageFilterUtils.h"
 #endif
 
 SkMorphologyImageFilter::SkMorphologyImageFilter(SkReadBuffer& buffer)
@@ -140,21 +141,23 @@ bool SkMorphologyImageFilter::filterImageGeneric(SkMorphologyImageFilter::Proc p
                                                  SkMorphologyImageFilter::Proc procY,
                                                  Proxy* proxy,
                                                  const SkBitmap& source,
-                                                 const Context& ctx,
+                                                 const SkMatrix& ctm,
                                                  SkBitmap* dst,
                                                  SkIPoint* offset) const {
     SkBitmap src = source;
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (getInput(0) && !getInput(0)->filterImage(proxy, source, ctx, &src, &srcOffset)) {
+    if (getInput(0) && !getInput(0)->filterImage(proxy, source, ctm, &src, &srcOffset)) {
         return false;
     }
 
-    if (src.colorType() != kPMColor_SkColorType) {
+    if (src.config() != SkBitmap::kARGB_8888_Config) {
         return false;
     }
 
     SkIRect bounds;
-    if (!this->applyCropRect(ctx, proxy, src, &srcOffset, &bounds, &src)) {
+    src.getBounds(&bounds);
+    bounds.offset(srcOffset);
+    if (!this->applyCropRect(&bounds, ctm)) {
         return false;
     }
 
@@ -171,7 +174,7 @@ bool SkMorphologyImageFilter::filterImageGeneric(SkMorphologyImageFilter::Proc p
 
     SkVector radius = SkVector::Make(SkIntToScalar(this->radius().width()),
                                      SkIntToScalar(this->radius().height()));
-    ctx.ctm().mapVectors(&radius, 1);
+    ctm.mapVectors(&radius, 1);
     int width = SkScalarFloorToInt(radius.fX);
     int height = SkScalarFloorToInt(radius.fY);
 
@@ -210,7 +213,7 @@ bool SkMorphologyImageFilter::filterImageGeneric(SkMorphologyImageFilter::Proc p
 }
 
 bool SkErodeImageFilter::onFilterImage(Proxy* proxy,
-                                       const SkBitmap& source, const Context& ctx,
+                                       const SkBitmap& source, const SkMatrix& ctm,
                                        SkBitmap* dst, SkIPoint* offset) const {
     Proc erodeXProc = SkMorphologyGetPlatformProc(kErodeX_SkMorphologyProcType);
     if (!erodeXProc) {
@@ -220,11 +223,11 @@ bool SkErodeImageFilter::onFilterImage(Proxy* proxy,
     if (!erodeYProc) {
         erodeYProc = erode<kY>;
     }
-    return this->filterImageGeneric(erodeXProc, erodeYProc, proxy, source, ctx, dst, offset);
+    return this->filterImageGeneric(erodeXProc, erodeYProc, proxy, source, ctm, dst, offset);
 }
 
 bool SkDilateImageFilter::onFilterImage(Proxy* proxy,
-                                        const SkBitmap& source, const Context& ctx,
+                                        const SkBitmap& source, const SkMatrix& ctm,
                                         SkBitmap* dst, SkIPoint* offset) const {
     Proc dilateXProc = SkMorphologyGetPlatformProc(kDilateX_SkMorphologyProcType);
     if (!dilateXProc) {
@@ -234,7 +237,7 @@ bool SkDilateImageFilter::onFilterImage(Proxy* proxy,
     if (!dilateYProc) {
         dilateYProc = dilate<kY>;
     }
-    return this->filterImageGeneric(dilateXProc, dilateYProc, proxy, source, ctx, dst, offset);
+    return this->filterImageGeneric(dilateXProc, dilateYProc, proxy, source, ctm, dst, offset);
 }
 
 void SkMorphologyImageFilter::computeFastBounds(const SkRect& src, SkRect* dst) const {
@@ -527,8 +530,7 @@ bool apply_morphology(const SkBitmap& input,
                               morphType, Gr1DKernelEffect::kY_Direction);
         src.reset(ast.detach());
     }
-    SkImageFilter::WrapTexture(src, rect.width(), rect.height(), dst);
-    return true;
+    return SkImageFilterUtils::WrapTexture(src, rect.width(), rect.height(), dst);
 }
 
 };
@@ -536,21 +538,23 @@ bool apply_morphology(const SkBitmap& input,
 bool SkMorphologyImageFilter::filterImageGPUGeneric(bool dilate,
                                                     Proxy* proxy,
                                                     const SkBitmap& src,
-                                                    const Context& ctx,
+                                                    const SkMatrix& ctm,
                                                     SkBitmap* result,
                                                     SkIPoint* offset) const {
-    SkBitmap input = src;
+    SkBitmap input;
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (getInput(0) && !getInput(0)->getInputResultGPU(proxy, src, ctx, &input, &srcOffset)) {
+    if (!SkImageFilterUtils::GetInputResultGPU(getInput(0), proxy, src, ctm, &input, &srcOffset)) {
         return false;
     }
     SkIRect bounds;
-    if (!this->applyCropRect(ctx, proxy, input, &srcOffset, &bounds, &input)) {
+    input.getBounds(&bounds);
+    bounds.offset(srcOffset);
+    if (!this->applyCropRect(&bounds, ctm)) {
         return false;
     }
     SkVector radius = SkVector::Make(SkIntToScalar(this->radius().width()),
                                      SkIntToScalar(this->radius().height()));
-    ctx.ctm().mapVectors(&radius, 1);
+    ctm.mapVectors(&radius, 1);
     int width = SkScalarFloorToInt(radius.fX);
     int height = SkScalarFloorToInt(radius.fY);
 
@@ -577,14 +581,14 @@ bool SkMorphologyImageFilter::filterImageGPUGeneric(bool dilate,
     return true;
 }
 
-bool SkDilateImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const Context& ctx,
+bool SkDilateImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
                                          SkBitmap* result, SkIPoint* offset) const {
-    return this->filterImageGPUGeneric(true, proxy, src, ctx, result, offset);
+    return this->filterImageGPUGeneric(true, proxy, src, ctm, result, offset);
 }
 
-bool SkErodeImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const Context& ctx,
+bool SkErodeImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
                                         SkBitmap* result, SkIPoint* offset) const {
-    return this->filterImageGPUGeneric(false, proxy, src, ctx, result, offset);
+    return this->filterImageGPUGeneric(false, proxy, src, ctm, result, offset);
 }
 
 #endif

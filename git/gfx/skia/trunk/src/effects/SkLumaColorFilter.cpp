@@ -51,7 +51,7 @@ SkLumaColorFilter::SkLumaColorFilter(SkReadBuffer& buffer)
 void SkLumaColorFilter::flatten(SkWriteBuffer&) const {
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkLumaColorFilter::toString(SkString* str) const {
     str->append("SkLumaColorFilter ");
 }

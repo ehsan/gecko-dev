@@ -710,7 +710,7 @@ GrEffectRef* SkTwoPointConicalGradient::asNewEffect(GrContext*, const SkPaint&) 
 
 #endif
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkTwoPointConicalGradient::toString(SkString* str) const {
     str->append("SkTwoPointConicalGradient: (");
 

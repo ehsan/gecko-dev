@@ -15,6 +15,7 @@
 #include "SkUnPreMultiply.h"
 
 SkLayerDrawLooper::LayerInfo::LayerInfo() {
+    fFlagsMask = 0;                     // ignore our paint flags
     fPaintBits = 0;                     // ignore our paint fields
     fColorMode = SkXfermode::kDst_Mode; // ignore our color
     fOffset.set(0, 0);
@@ -24,7 +25,8 @@ SkLayerDrawLooper::LayerInfo::LayerInfo() {
 SkLayerDrawLooper::SkLayerDrawLooper()
         : fRecs(NULL),
           fTopRec(NULL),
-          fCount(0) {
+          fCount(0),
+          fCurrRec(NULL) {
 }
 
 SkLayerDrawLooper::~SkLayerDrawLooper() {
@@ -74,9 +76,9 @@ SkPaint* SkLayerDrawLooper::addLayerOnTop(const LayerInfo& info) {
     return &rec->fPaint;
 }
 
-SkLayerDrawLooper::Context* SkLayerDrawLooper::createContext(SkCanvas* canvas, void* storage) const {
+void SkLayerDrawLooper::init(SkCanvas* canvas) {
+    fCurrRec = fRecs;
     canvas->save(SkCanvas::kMatrix_SaveFlag);
-    return SkNEW_PLACEMENT_ARGS(storage, LayerDrawLooperContext, (this));
 }
 
 static SkColor xferColor(SkColor src, SkColor dst, SkXfermode::Mode mode) {
@@ -97,9 +99,11 @@ static SkColor xferColor(SkColor src, SkColor dst, SkXfermode::Mode mode) {
 // Even with kEntirePaint_Bits, we always ensure that the master paint's
 // text-encoding is respected, since that controls how we interpret the
 // text/length parameters of a draw[Pos]Text call.
-void SkLayerDrawLooper::LayerDrawLooperContext::ApplyInfo(
-        SkPaint* dst, const SkPaint& src, const LayerInfo& info) {
+void SkLayerDrawLooper::ApplyInfo(SkPaint* dst, const SkPaint& src,
+                                  const LayerInfo& info) {
 
+    uint32_t mask = info.fFlagsMask;
+    dst->setFlags((dst->getFlags() & ~mask) | (src.getFlags() & mask));
     dst->setColor(xferColor(src.getColor(), dst->getColor(), info.fColorMode));
 
     BitFlags bits = info.fPaintBits;
@@ -166,11 +170,7 @@ static void postTranslate(SkCanvas* canvas, SkScalar dx, SkScalar dy) {
     canvas->setMatrix(m);
 }
 
-SkLayerDrawLooper::LayerDrawLooperContext::LayerDrawLooperContext(
-        const SkLayerDrawLooper* looper) : fCurrRec(looper->fRecs) {}
-
-bool SkLayerDrawLooper::LayerDrawLooperContext::next(SkCanvas* canvas,
-                                                     SkPaint* paint) {
+bool SkLayerDrawLooper::next(SkCanvas* canvas, SkPaint* paint) {
     canvas->restore();
     if (NULL == fCurrRec) {
         return false;
@@ -183,8 +183,7 @@ bool SkLayerDrawLooper::LayerDrawLooperContext::next(SkCanvas* canvas,
         postTranslate(canvas, fCurrRec->fInfo.fOffset.fX,
                       fCurrRec->fInfo.fOffset.fY);
     } else {
-        canvas->translate(fCurrRec->fInfo.fOffset.fX,
-                          fCurrRec->fInfo.fOffset.fY);
+        canvas->translate(fCurrRec->fInfo.fOffset.fX, fCurrRec->fInfo.fOffset.fY);
     }
     fCurrRec = fCurrRec->fNext;
 
@@ -212,9 +211,7 @@ void SkLayerDrawLooper::flatten(SkWriteBuffer& buffer) const {
 
     Rec* rec = fRecs;
     for (int i = 0; i < fCount; i++) {
-        // Legacy "flagsmask" field -- now ignored, remove when we bump version
-        buffer.writeInt(0);
-
+        buffer.writeInt(rec->fInfo.fFlagsMask);
         buffer.writeInt(rec->fInfo.fPaintBits);
         buffer.writeInt(rec->fInfo.fColorMode);
         buffer.writePoint(rec->fInfo.fOffset);
@@ -224,27 +221,28 @@ void SkLayerDrawLooper::flatten(SkWriteBuffer& buffer) const {
     }
 }
 
-SkFlattenable* SkLayerDrawLooper::CreateProc(SkReadBuffer& buffer) {
+SkLayerDrawLooper::SkLayerDrawLooper(SkReadBuffer& buffer)
+        : INHERITED(buffer),
+          fRecs(NULL),
+          fTopRec(NULL),
+          fCount(0),
+          fCurrRec(NULL) {
     int count = buffer.readInt();
 
-    Builder builder;
     for (int i = 0; i < count; i++) {
         LayerInfo info;
-        // Legacy "flagsmask" field -- now ignored, remove when we bump version
-        (void)buffer.readInt();
-
+        info.fFlagsMask = buffer.readInt();
         info.fPaintBits = buffer.readInt();
         info.fColorMode = (SkXfermode::Mode)buffer.readInt();
         buffer.readPoint(&info.fOffset);
         info.fPostTranslate = buffer.readBool();
-        buffer.readPaint(builder.addLayerOnTop(info));
+        buffer.readPaint(this->addLayerOnTop(info));
     }
-    SkLayerDrawLooper* looper = builder.detachLooper();
-    SkASSERT(count == looper->fCount);
+    SkASSERT(count == fCount);
 
 #ifdef SK_DEBUG
     {
-        Rec* rec = looper->fRecs;
+        Rec* rec = fRecs;
         int n = 0;
         while (rec) {
             rec = rec->fNext;
@@ -253,17 +251,52 @@ SkFlattenable* SkLayerDrawLooper::CreateProc(SkReadBuffer& buffer) {
         SkASSERT(count == n);
     }
 #endif
-
-    return looper;
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkLayerDrawLooper::toString(SkString* str) const {
     str->appendf("SkLayerDrawLooper (%d): ", fCount);
 
     Rec* rec = fRecs;
     for (int i = 0; i < fCount; i++) {
-        str->appendf("%d: paintBits: (", i);
+        str->appendf("%d: ", i);
+
+        str->append("flagsMask: (");
+        if (0 == rec->fInfo.fFlagsMask) {
+            str->append("None");
+        } else {
+            bool needSeparator = false;
+            SkAddFlagToString(str, SkToBool(SkPaint::kAntiAlias_Flag & rec->fInfo.fFlagsMask),
+                              "AntiAlias", &needSeparator);
+//            SkAddFlagToString(str, SkToBool(SkPaint::kFilterBitmap_Flag & rec->fInfo.fFlagsMask), "FilterBitmap", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kDither_Flag & rec->fInfo.fFlagsMask),
+                              "Dither", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kUnderlineText_Flag & rec->fInfo.fFlagsMask),
+                              "UnderlineText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kStrikeThruText_Flag & rec->fInfo.fFlagsMask),
+                              "StrikeThruText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kFakeBoldText_Flag & rec->fInfo.fFlagsMask),
+                              "FakeBoldText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kLinearText_Flag & rec->fInfo.fFlagsMask),
+                              "LinearText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kSubpixelText_Flag & rec->fInfo.fFlagsMask),
+                              "SubpixelText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kDevKernText_Flag & rec->fInfo.fFlagsMask),
+                              "DevKernText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kLCDRenderText_Flag & rec->fInfo.fFlagsMask),
+                              "LCDRenderText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kEmbeddedBitmapText_Flag & rec->fInfo.fFlagsMask),
+                              "EmbeddedBitmapText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kAutoHinting_Flag & rec->fInfo.fFlagsMask),
+                              "Autohinted", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kVerticalText_Flag & rec->fInfo.fFlagsMask),
+                              "VerticalText", &needSeparator);
+            SkAddFlagToString(str, SkToBool(SkPaint::kGenA8FromLCD_Flag & rec->fInfo.fFlagsMask),
+                              "GenA8FromLCD", &needSeparator);
+        }
+        str->append(") ");
+
+        str->append("paintBits: (");
         if (0 == rec->fInfo.fPaintBits) {
             str->append("None");
         } else if (kEntirePaint_Bits == rec->fInfo.fPaintBits) {
@@ -314,68 +347,3 @@ void SkLayerDrawLooper::toString(SkString* str) const {
     }
 }
 #endif
-
-SkLayerDrawLooper::Builder::Builder()
-        : fRecs(NULL),
-          fTopRec(NULL),
-          fCount(0) {
-}
-
-SkLayerDrawLooper::Builder::~Builder() {
-    Rec* rec = fRecs;
-    while (rec) {
-        Rec* next = rec->fNext;
-        SkDELETE(rec);
-        rec = next;
-    }
-}
-
-SkPaint* SkLayerDrawLooper::Builder::addLayer(const LayerInfo& info) {
-    fCount += 1;
-
-    Rec* rec = SkNEW(Rec);
-    rec->fNext = fRecs;
-    rec->fInfo = info;
-    fRecs = rec;
-    if (NULL == fTopRec) {
-        fTopRec = rec;
-    }
-
-    return &rec->fPaint;
-}
-
-void SkLayerDrawLooper::Builder::addLayer(SkScalar dx, SkScalar dy) {
-    LayerInfo info;
-
-    info.fOffset.set(dx, dy);
-    (void)this->addLayer(info);
-}
-
-SkPaint* SkLayerDrawLooper::Builder::addLayerOnTop(const LayerInfo& info) {
-    fCount += 1;
-
-    Rec* rec = SkNEW(Rec);
-    rec->fNext = NULL;
-    rec->fInfo = info;
-    if (NULL == fRecs) {
-        fRecs = rec;
-    } else {
-        SkASSERT(NULL != fTopRec);
-        fTopRec->fNext = rec;
-    }
-    fTopRec = rec;
-
-    return &rec->fPaint;
-}
-
-SkLayerDrawLooper* SkLayerDrawLooper::Builder::detachLooper() {
-    SkLayerDrawLooper* looper = SkNEW(SkLayerDrawLooper);
-    looper->fCount = fCount;
-    looper->fRecs = fRecs;
-
-    fCount = 0;
-    fRecs = NULL;
-    fTopRec = NULL;
-
-    return looper;
-}

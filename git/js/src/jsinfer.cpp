@@ -3923,7 +3923,7 @@ JSCompartment::checkNewTypeObjectTableAfterMovingGC()
 #endif
 
 TypeObject *
-ExclusiveContext::getSingletonType(const Class *clasp, TaggedProto proto)
+ExclusiveContext::getLazyType(const Class *clasp, TaggedProto proto)
 {
     JS_ASSERT_IF(proto.isObject(), compartment() == proto.toObject()->compartment());
 
@@ -3951,7 +3951,6 @@ ExclusiveContext::getSingletonType(const Class *clasp, TaggedProto proto)
         return nullptr;
 
     type->initSingleton((JSObject *) TypeObject::LAZY_SINGLETON);
-    MOZ_ASSERT(type->singleton(), "created type must be a proper singleton");
 
     return type;
 }

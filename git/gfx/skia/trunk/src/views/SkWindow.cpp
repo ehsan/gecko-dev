@@ -51,9 +51,9 @@ SkWindow::SkWindow() : fFocusView(NULL) {
     fWaitingOnInval = false;
 
 #ifdef SK_BUILD_FOR_WINCE
-    fColorType = kRGB_565_SkColorType;
+    fConfig = SkBitmap::kRGB_565_Config;
 #else
-    fColorType = kPMColor_SkColorType;
+    fConfig = SkBitmap::kARGB_8888_Config;
 #endif
 
     fMatrix.reset();
@@ -87,18 +87,18 @@ void SkWindow::postConcat(const SkMatrix& matrix) {
     this->setMatrix(m);
 }
 
-void SkWindow::setColorType(SkColorType ct) {
-    this->resize(fBitmap.width(), fBitmap.height(), ct);
+void SkWindow::setConfig(SkBitmap::Config config) {
+    this->resize(fBitmap.width(), fBitmap.height(), config);
 }
 
-void SkWindow::resize(int width, int height, SkColorType ct) {
-    if (ct == kUnknown_SkColorType)
-        ct = fColorType;
+void SkWindow::resize(int width, int height, SkBitmap::Config config) {
+    if (config == SkBitmap::kNo_Config)
+        config = fConfig;
 
-    if (width != fBitmap.width() || height != fBitmap.height() || ct != fColorType) {
-        fColorType = ct;
-        fBitmap.allocPixels(SkImageInfo::Make(width, height,
-                                              ct, kPremul_SkAlphaType));
+    if (width != fBitmap.width() || height != fBitmap.height() || config != fConfig) {
+        fConfig = config;
+        fBitmap.setConfig(config, width, height, 0, kOpaque_SkAlphaType);
+        fBitmap.allocPixels();
 
         this->setSize(SkIntToScalar(width), SkIntToScalar(height));
         this->inval(NULL);

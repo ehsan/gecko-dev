@@ -8,11 +8,8 @@
 #ifndef SkCoreBlitters_DEFINED
 #define SkCoreBlitters_DEFINED
 
-#include "SkBitmapProcShader.h"
 #include "SkBlitter.h"
 #include "SkBlitRow.h"
-#include "SkShader.h"
-#include "SkSmallAllocator.h"
 
 class SkRasterBlitter : public SkBlitter {
 public:
@@ -178,7 +175,8 @@ private:
     SkBlitter::Choose(...)
  */
 
-SkBlitter* SkBlitter_ChooseD565(const SkBitmap& device, const SkPaint& paint,
-                                SkTBlitterAllocator* allocator);
+extern SkBlitter* SkBlitter_ChooseD565(const SkBitmap& device,
+                                       const SkPaint& paint,
+                                       void* storage, size_t storageSize);
 
 #endif

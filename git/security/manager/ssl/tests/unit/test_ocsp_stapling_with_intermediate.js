@@ -44,10 +44,10 @@ function run_test() {
   run_next_test();
 }
 
-function add_tests_in_mode(useMozillaPKIX) {
+function add_tests_in_mode(useInsanity) {
   add_test(function () {
-    Services.prefs.setBoolPref("security.use_mozillapkix_verification",
-                               useMozillaPKIX);
+    Services.prefs.setBoolPref("security.use_insanity_verification",
+                               useInsanity);
     run_next_test();
   });
 

@@ -45,10 +45,6 @@ public:
                                      GrPaint* grp,
                                      const SkStrokeRec& strokeRec,
                                      const SkPath& path) const SK_OVERRIDE;
-    virtual bool directFilterRRectMaskGPU(GrContext* context,
-                                          GrPaint* grp,
-                                          const SkStrokeRec& strokeRec,
-                                          const SkRRect& rrect) const SK_OVERRIDE;
 
     virtual bool filterMaskGPU(GrTexture* src,
                                const SkMatrix& ctm,
@@ -59,7 +55,7 @@ public:
 
     virtual void computeFastBounds(const SkRect&, SkRect*) const SK_OVERRIDE;
 
-    SK_TO_STRING_OVERRIDE()
+    SkDEVCODE(virtual void toString(SkString* str) const SK_OVERRIDE;)
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkBlurMaskFilterImpl)
 
 protected:
@@ -72,8 +68,6 @@ protected:
                                            NinePatch*) const SK_OVERRIDE;
 
     bool filterRectMask(SkMask* dstM, const SkRect& r, const SkMatrix& matrix,
-                        SkIPoint* margin, SkMask::CreateMode createMode) const;
-    bool filterRRectMask(SkMask* dstM, const SkRRect& r, const SkMatrix& matrix,
                         SkIPoint* margin, SkMask::CreateMode createMode) const;
 
 private:
@@ -174,15 +168,6 @@ bool SkBlurMaskFilterImpl::filterRectMask(SkMask* dst, const SkRect& r,
                                 margin, createMode);
 }
 
-bool SkBlurMaskFilterImpl::filterRRectMask(SkMask* dst, const SkRRect& r,
-                                          const SkMatrix& matrix,
-                                          SkIPoint* margin, SkMask::CreateMode createMode) const{
-    SkScalar sigma = computeXformedSigma(matrix);
-
-    return SkBlurMask::BlurRRect(sigma, dst, r, (SkBlurMask::Style)fBlurStyle,
-                                margin, createMode);
-}
-
 #include "SkCanvas.h"
 
 static bool prepare_to_draw_into_mask(const SkRect& bounds, SkMask* mask) {
@@ -210,7 +195,10 @@ static bool draw_rrect_into_mask(const SkRRect rrect, SkMask* mask) {
     // FIXME: This code duplicates code in draw_rects_into_mask, below. Is there a
     // clean way to share more code?
     SkBitmap bitmap;
-    bitmap.installMaskPixels(*mask);
+    bitmap.setConfig(SkBitmap::kA8_Config,
+                     mask->fBounds.width(), mask->fBounds.height(),
+                     mask->fRowBytes);
+    bitmap.setPixels(mask->fImage);
 
     SkCanvas canvas(bitmap);
     canvas.translate(-SkIntToScalar(mask->fBounds.left()),
@@ -228,11 +216,10 @@ static bool draw_rects_into_mask(const SkRect rects[], int count, SkMask* mask) 
     }
 
     SkBitmap bitmap;
-    bitmap.installPixels(SkImageInfo::Make(mask->fBounds.width(),
-                                           mask->fBounds.height(),
-                                           kAlpha_8_SkColorType,
-                                           kPremul_SkAlphaType),
-                         mask->fImage, mask->fRowBytes, NULL, NULL);
+    bitmap.setConfig(SkBitmap::kA8_Config,
+                     mask->fBounds.width(), mask->fBounds.height(),
+                     mask->fRowBytes);
+    bitmap.setPixels(mask->fImage);
 
     SkCanvas canvas(bitmap);
     canvas.translate(-SkIntToScalar(mask->fBounds.left()),
@@ -258,12 +245,6 @@ static bool rect_exceeds(const SkRect& r, SkScalar v) {
     return r.fLeft < -v || r.fTop < -v || r.fRight > v || r.fBottom > v ||
            r.width() > v || r.height() > v;
 }
-
-#ifdef SK_IGNORE_FAST_RRECT_BLUR
-SK_CONF_DECLARE( bool, c_analyticBlurRRect, "mask.filter.blur.analyticRRect", false, "Use the faster analytic blur approach for ninepatch rects" );
-#else
-SK_CONF_DECLARE( bool, c_analyticBlurRRect, "mask.filter.blur.analyticRRect", true, "Use the faster analytic blur approach for ninepatch round rects" );
-#endif
 
 SkMaskFilter::FilterReturn
 SkBlurMaskFilterImpl::filterRRectToNine(const SkRRect& rrect, const SkMatrix& matrix,
@@ -314,19 +295,7 @@ SkBlurMaskFilterImpl::filterRRectToNine(const SkRRect& rrect, const SkMatrix& ma
     srcM.fFormat = SkMask::kA8_Format;
     srcM.fRowBytes = 0;
 
-    bool filterResult = false;
-    if (c_analyticBlurRRect) {
-        // special case for fast round rect blur
-        // don't actually do the blur the first time, just compute the correct size
-        filterResult = this->filterRRectMask(&dstM, rrect, matrix, &margin,
-                                            SkMask::kJustComputeBounds_CreateMode);
-    }
-
-    if (!filterResult) {
-        filterResult = this->filterMask(&dstM, srcM, matrix, &margin);
-    }
-
-    if (!filterResult) {
+    if (!this->filterMask(&dstM, srcM, matrix, &margin)) {
         return kFalse_FilterReturn;
     }
 
@@ -370,23 +339,14 @@ SkBlurMaskFilterImpl::filterRRectToNine(const SkRRect& rrect, const SkMatrix& ma
     radii[SkRRect::kLowerLeft_Corner] = LL;
     smallRR.setRectRadii(smallR, radii);
 
-    bool analyticBlurWorked = false;
-    if (c_analyticBlurRRect) {
-        analyticBlurWorked =
-            this->filterRRectMask(&patch->fMask, smallRR, matrix, &margin,
-                                  SkMask::kComputeBoundsAndRenderImage_CreateMode);
+    if (!draw_rrect_into_mask(smallRR, &srcM)) {
+        return kFalse_FilterReturn;
     }
 
-    if (!analyticBlurWorked) {
-        if (!draw_rrect_into_mask(smallRR, &srcM)) {
-            return kFalse_FilterReturn;
-        }
+    SkAutoMaskFreeImage amf(srcM.fImage);
 
-        SkAutoMaskFreeImage amf(srcM.fImage);
-
-        if (!this->filterMask(&patch->fMask, srcM, matrix, &margin)) {
-            return kFalse_FilterReturn;
-        }
+    if (!this->filterMask(&patch->fMask, srcM, matrix, &margin)) {
+        return kFalse_FilterReturn;
     }
 
     patch->fMask.fBounds.offsetTo(0, 0);
@@ -396,7 +356,11 @@ SkBlurMaskFilterImpl::filterRRectToNine(const SkRRect& rrect, const SkMatrix& ma
     return kTrue_FilterReturn;
 }
 
+#ifdef SK_IGNORE_FAST_RECT_BLUR
+SK_CONF_DECLARE( bool, c_analyticBlurNinepatch, "mask.filter.analyticNinePatch", false, "Use the faster analytic blur approach for ninepatch rects" );
+#else
 SK_CONF_DECLARE( bool, c_analyticBlurNinepatch, "mask.filter.analyticNinePatch", true, "Use the faster analytic blur approach for ninepatch rects" );
+#endif
 
 SkMaskFilter::FilterReturn
 SkBlurMaskFilterImpl::filterRectsToNine(const SkRect rects[], int count,
@@ -819,13 +783,6 @@ bool SkBlurMaskFilterImpl::directFilterMaskGPU(GrContext* context,
     return true;
 }
 
-bool SkBlurMaskFilterImpl::directFilterRRectMaskGPU(GrContext* context,
-                                                    GrPaint* grp,
-                                                    const SkStrokeRec& strokeRec,
-                                                    const SkRRect& rrect) const {
-    return false;
-}
-
 bool SkBlurMaskFilterImpl::canFilterMaskGPU(const SkRect& srcBounds,
                                             const SkIRect& clipBounds,
                                             const SkMatrix& ctm,
@@ -915,7 +872,7 @@ bool SkBlurMaskFilterImpl::filterMaskGPU(GrTexture* src,
 #endif // SK_SUPPORT_GPU
 
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkBlurMaskFilterImpl::toString(SkString* str) const {
     str->append("SkBlurMaskFilterImpl: (");
 
