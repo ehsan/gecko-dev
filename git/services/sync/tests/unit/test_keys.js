@@ -4,11 +4,6 @@ Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/constants.js");
 btoa = Cu.import("resource://services-sync/util.js").btoa;
 
-function sha256HMAC(message, key) {
-  let h = Utils.makeHMACHasher(Ci.nsICryptoHMAC.SHA256, key);
-  return Utils.digestBytes(message, h);
-}
-
 function test_time_keyFromString(iterations) {
   let k;
   let o;
@@ -16,10 +11,10 @@ function test_time_keyFromString(iterations) {
   let d = Utils.decodeKeyBase32("ababcdefabcdefabcdefabcdef");
   b.generateRandom();
   
-  _("Running " + iterations + " iterations of hmacKeyObject + sha256HMAC.");
+  _("Running " + iterations + " iterations of hmacKeyObject + sha256HMACBytes.");
   for (let i = 0; i < iterations; ++i) {
     let k = b.hmacKeyObject;
-    o = sha256HMAC(d, k);
+    o = Utils.sha256HMACBytes(d, k);
   }
   do_check_true(!!o);
   _("Done.");
@@ -28,8 +23,8 @@ function test_time_keyFromString(iterations) {
 function test_repeated_hmac() {
   let testKey = "ababcdefabcdefabcdefabcdef";
   let k = Utils.makeHMACKey("foo");
-  let one = sha256HMAC(Utils.decodeKeyBase32(testKey), k);
-  let two = sha256HMAC(Utils.decodeKeyBase32(testKey), k);
+  let one = Utils.sha256HMACBytes(Utils.decodeKeyBase32(testKey), k);
+  let two = Utils.sha256HMACBytes(Utils.decodeKeyBase32(testKey), k);
   do_check_eq(one, two);
 }
 
@@ -50,10 +45,10 @@ function test_keymanager() {
   
   let sha256inputE = "" + HMAC_INPUT + username + "\x01";
   let key = Utils.makeHMACKey(Utils.decodeKeyBase32(testKey));
-  let encryptKey = sha256HMAC(sha256inputE, key);
+  let encryptKey = Utils.sha256HMACBytes(sha256inputE, key);
   
   let sha256inputH = encryptKey + HMAC_INPUT + username + "\x02";
-  let hmacKey = sha256HMAC(sha256inputH, key);
+  let hmacKey = Utils.sha256HMACBytes(sha256inputH, key);
   
   // Encryption key is stored in base64 for WeaveCrypto convenience.
   do_check_eq(btoa(encryptKey), new SyncKeyBundle(null, username, testKey).encryptionKey);

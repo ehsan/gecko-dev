@@ -464,10 +464,8 @@ function BookmarksStore(name) {
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
-    for each ([query, stmt] in Iterator(this._stmts)) {
+    for each ([query, stmt] in Iterator(this._stmts))
       stmt.finalize();
-    }
-    this._stmts = {};
   }, this);
 }
 BookmarksStore.prototype = {
@@ -691,7 +689,7 @@ BookmarksStore.prototype = {
           PlacesUtils.annotations.EXPIRE_NEVER);
       }
 
-      if (Array.isArray(record.tags)) {
+      if (Utils.isArray(record.tags)) {
         this._tagURI(uri, record.tags);
       }
       PlacesUtils.bookmarks.setKeywordForBookmark(newId, record.keyword);
@@ -839,7 +837,7 @@ BookmarksStore.prototype = {
         PlacesUtils.bookmarks.changeBookmarkURI(itemId, Utils.makeURI(val));
         break;
       case "tags":
-        if (Array.isArray(val)) {
+        if (Utils.isArray(val)) {
           this._tagURI(PlacesUtils.bookmarks.getBookmarkURI(itemId), val);
         }
         break;
@@ -1069,9 +1067,8 @@ BookmarksStore.prototype = {
 
   _stmts: {},
   _getStmt: function(query) {
-    if (query in this._stmts) {
+    if (query in this._stmts)
       return this._stmts[query];
-    }
 
     this._log.trace("Creating SQL statement: " + query);
     let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)

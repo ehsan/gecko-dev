@@ -1009,9 +1009,6 @@ pref("devtools.errorconsole.enabled", false);
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
 
-// Enable the style inspector
-pref("devtools.styleinspector.enabled", true);
-
 // Enable the Scratchpad tool.
 pref("devtools.scratchpad.enabled", true);
 
