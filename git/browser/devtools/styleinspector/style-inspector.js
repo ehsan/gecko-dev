@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const {Cc, Cu, Ci} = require("chrome");
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 
 let ToolDefinitions = require("main").Tools;
 

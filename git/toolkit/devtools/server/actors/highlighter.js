@@ -107,6 +107,7 @@ let HighlighterActor = protocol.ActorClass({
   }, {
     request: {
       node: Arg(0, "domnode"),
+      scrollIntoView: Option(1),
       region: Option(1)
     }
   }),
@@ -474,6 +475,10 @@ BoxModelHighlighter.prototype = {
     this._attachPageListeners();
     this._update();
     this._trackMutations();
+
+    if (options.scrollIntoView) {
+      this.chromeLayoutHelper.scrollIntoViewIfNeeded(node);
+    }
   },
 
   _trackMutations: function() {

@@ -643,17 +643,19 @@ void BluetoothHfpManager::ProcessDialCall(char *aNumber)
 void
 BluetoothHfpManager::ProcessAtCnum()
 {
-  if (!mMsisdn.IsEmpty()) {
-    nsAutoCString message("+CNUM: ,\"");
-    message.Append(NS_ConvertUTF16toUTF8(mMsisdn).get());
-    message.AppendLiteral("\",");
-    message.AppendInt(BTHF_CALL_ADDRTYPE_UNKNOWN);
-    message.AppendLiteral(",,4");
+  NS_ENSURE_TRUE_VOID(!mMsisdn.IsEmpty());
+  NS_ENSURE_TRUE_VOID(sBluetoothHfpInterface);
 
-    SendLine(message.get());
-  }
+  nsAutoCString message("+CNUM: ,\"");
+  message.Append(NS_ConvertUTF16toUTF8(mMsisdn).get());
+  message.AppendLiteral("\",");
+  message.AppendInt(BTHF_CALL_ADDRTYPE_UNKNOWN);
+  message.AppendLiteral(",,4");
 
-  SendResponse(BTHF_AT_RESPONSE_OK);
+  NS_ENSURE_TRUE_VOID(BT_STATUS_SUCCESS ==
+    sBluetoothHfpInterface->formatted_at_response(message.get()));
+  NS_ENSURE_TRUE_VOID(BT_STATUS_SUCCESS ==
+    sBluetoothHfpInterface->at_response(BTHF_AT_RESPONSE_OK, 0));
 }
 
 void

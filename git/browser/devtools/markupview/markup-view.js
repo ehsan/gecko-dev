@@ -289,7 +289,9 @@ MarkupView.prototype = {
     let done = this._inspector.updating("markup-view");
     if (selection.isNode()) {
       if (this._shouldNewSelectionBeHighlighted()) {
-        this._brieflyShowBoxModel(selection.nodeFront, {});
+        this._brieflyShowBoxModel(selection.nodeFront, {
+          scrollIntoView: true
+        });
       }
 
       this.showNode(selection.nodeFront, true).then(() => {

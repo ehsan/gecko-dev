@@ -6,6 +6,16 @@ MARIONETTE_HEAD_JS = 'head.js';
 
 let connection;
 
+function receivedPending(received, pending, nextAction) {
+  let index = pending.indexOf(received);
+  if (index != -1) {
+    pending.splice(index, 1);
+  }
+  if (pending.length === 0) {
+    nextAction();
+  }
+}
+
 function setRadioEnabled(enabled, callback) {
   let request  = connection.setRadioEnabled(enabled);
   let desiredRadioState = enabled ? 'enabled' : 'disabled';
@@ -18,12 +28,12 @@ function setRadioEnabled(enabled, callback) {
     log("Received 'radiostatechange' event, radioState: " + state);
 
     if (state == desiredRadioState) {
-      gReceivedPending('onradiostatechange', pending, done);
+      receivedPending('onradiostatechange', pending, done);
     }
   };
 
   request.onsuccess = function onsuccess() {
-    gReceivedPending('onsuccess', pending, done);
+    receivedPending('onsuccess', pending, done);
   };
 
   request.onerror = function onerror() {
