@@ -26,8 +26,6 @@ var Page = {
     
     var zIndex = 100;
     function mod($div){
-      Utils.log("hi!")
-      
       $div.draggable({
         start:function(){ isDragging = true; },
         stop: function(){
