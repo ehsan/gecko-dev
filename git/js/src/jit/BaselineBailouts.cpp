@@ -796,11 +796,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
 #ifdef DEBUG
     uint32_t expectedDepth;
-    bool reachablePC;
-    if (!ReconstructStackDepth(cx, script, resumeAfter ? GetNextPc(pc) : pc, &expectedDepth, &reachablePC))
-        return false;
-
-    if (reachablePC) {
+    if (ReconstructStackDepth(cx, script, resumeAfter ? GetNextPc(pc) : pc, &expectedDepth)) {
         if (op != JSOP_FUNAPPLY || !iter.moreFrames() || resumeAfter) {
             if (op == JSOP_FUNCALL) {
                 // For fun.call(this, ...); the reconstructStackDepth will

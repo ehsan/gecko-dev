@@ -102,7 +102,8 @@ MobileConnection::Init(nsPIDOMWindow* aWindow)
   mWindow = do_GetWeakReference(aWindow);
   mListener = new Listener(this);
 
-  if (CheckPermission("mobileconnection")) {
+  if (!CheckPermission("mobilenetwork") &&
+      CheckPermission("mobileconnection")) {
     DebugOnly<nsresult> rv = mProvider->RegisterMobileConnectionMsg(mClientId, mListener);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                      "Failed registering mobile connection messages with provider");
@@ -133,7 +134,8 @@ MobileConnection::GetLastKnownNetwork(nsAString& aNetwork)
     return NS_OK;
   }
 
-  return mProvider->GetLastKnownNetwork(mClientId, aNetwork);
+  aNetwork = mozilla::Preferences::GetString("ril.lastKnownNetwork");
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -145,7 +147,8 @@ MobileConnection::GetLastKnownHomeNetwork(nsAString& aNetwork)
     return NS_OK;
   }
 
-  return mProvider->GetLastKnownHomeNetwork(mClientId, aNetwork);
+  aNetwork = mozilla::Preferences::GetString("ril.lastKnownHomeNetwork");
+  return NS_OK;
 }
 
 // All fields below require the "mobileconnection" permission.
@@ -266,39 +269,6 @@ MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** aRequest)
   }
 
   return mProvider->SelectNetworkAutomatically(mClientId, GetOwner(), aRequest);
-}
-
-NS_IMETHODIMP
-MobileConnection::SetPreferredNetworkType(const nsAString& aType,
-                                          nsIDOMDOMRequest** aDomRequest)
-{
-  *aDomRequest = nullptr;
-
-  if (!CheckPermission("mobileconnection")) {
-    return NS_OK;
-  }
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->SetPreferredNetworkType(mClientId, GetOwner(), aType, aDomRequest);
-}
-
-NS_IMETHODIMP
-MobileConnection::GetPreferredNetworkType(nsIDOMDOMRequest** aDomRequest)
-{
-  *aDomRequest = nullptr;
-
-  if (!CheckPermission("mobileconnection")) {
-    return NS_OK;
-  }
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetPreferredNetworkType(mClientId, GetOwner(), aDomRequest);
 }
 
 NS_IMETHODIMP

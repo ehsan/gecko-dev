@@ -347,8 +347,7 @@ class CodeGenerator : public CodeGeneratorSpecific
                              PropertyName *name, TypedOrValueRegister output,
                              bool allowGetters);
     bool addGetElementCache(LInstruction *ins, Register obj, ConstantOrRegister index,
-                            TypedOrValueRegister output, bool monitoredResult,
-                            bool allowDoubleResult);
+                            TypedOrValueRegister output, bool monitoredResult);
     bool addSetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Register objReg,
                              PropertyName *name, ConstantOrRegister value, bool strict,
                              bool needsTypeBarrier);

@@ -3571,10 +3571,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // For now, do this only for dragover.
         //XXXsmaug dragenter needs some more work.
         if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
-          // Someone has called preventDefault(), check whether is was on
-          // content or chrome.
+          // Someone has called preventDefault(), check whether is was content.
           dragSession->SetOnlyChromeDrop(
-            !dragEvent->mDefaultPreventedOnContent);
+            !aEvent->mFlags.mDefaultPreventedByContent);
         }
       } else if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
         // No one called preventDefault(), so handle drop only in chrome.

@@ -360,7 +360,10 @@ public class BrowserToolbar extends GeckoRelativeLayout
                         menu.findItem(R.id.add_to_launcher).setVisible(false);
                     }
 
-                    menu.findItem(R.id.subscribe).setVisible(tab.hasFeeds());
+                    if (!tab.hasFeeds()) {
+                        menu.findItem(R.id.subscribe).setVisible(false);
+                    }
+
                     menu.findItem(R.id.add_search_engine).setVisible(tab.hasOpenSearch());
                 } else {
                     // if there is no tab, remove anything tab dependent

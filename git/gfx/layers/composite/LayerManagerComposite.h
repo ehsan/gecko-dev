@@ -53,6 +53,7 @@ namespace layers {
 
 class CanvasLayerComposite;
 class ColorLayerComposite;
+class Composer2D;
 class CompositableHost;
 class Compositor;
 class ContainerLayerComposite;
@@ -270,6 +271,9 @@ private:
   void WorldTransformRect(nsIntRect& aRect);
 
   RefPtr<Compositor> mCompositor;
+
+  /** Our more efficient but less powerful alter ego, if one is available. */
+  nsRefPtr<Composer2D> mComposer2D;
 
   /* Thebes layer callbacks; valid at the end of a transaciton,
    * while rendering */

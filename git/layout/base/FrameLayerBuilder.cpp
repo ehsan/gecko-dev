@@ -1674,7 +1674,8 @@ ContainerState::SetFixedPositionLayerData(Layer* aLayer,
   }
 
   nsLayoutUtils::SetFixedPositionLayerData(aLayer,
-      viewportFrame, viewportSize, aFixedPosFrame, presContext, mParameters);
+      viewportFrame, viewportSize, aFixedPosFrame, mContainerReferenceFrame,
+      presContext, mParameters);
 }
 
 void

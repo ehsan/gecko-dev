@@ -2968,10 +2968,6 @@
     "kind": "flag",
     "description": "Whether the decoder for IBM862 has been instantiated in this session."
   },
-  "DECODER_INSTANTIATED_IBM866": {
-    "kind": "flag",
-    "description": "Whether the decoder for IBM866 has been instantiated in this session."
-  },
   "DECODER_INSTANTIATED_MACGREEK": {
     "kind": "flag",
     "description": "Whether the decoder for MACGREEK has been instantiated in this session."
@@ -2999,10 +2995,6 @@
   "DECODER_INSTANTIATED_MACCROATIAN": {
     "kind": "flag",
     "description": "Whether the decoder for MACCROATIAN has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACCYRILLIC": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACCYRILLIC has been instantiated in this session."
   },
   "DECODER_INSTANTIATED_MACROMANIAN": {
     "kind": "flag",
@@ -3043,18 +3035,6 @@
   "DECODER_INSTANTIATED_VIETVPS": {
     "kind": "flag",
     "description": "Whether the decoder for VIETVPS has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_KOI8R": {
-    "kind": "flag",
-    "description": "Whether the decoder for KOI8R has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_KOI8U": {
-    "kind": "flag",
-    "description": "Whether the decoder for KOI8U has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISO_8859_5": {
-    "kind": "flag",
-    "description": "Whether the decoder for ISO-8859-5 has been instantiated in this session."
   },
   "XUL_FOREGROUND_REFLOW_MS": {
     "kind": "exponential",
@@ -4695,18 +4675,5 @@
     "kind": "enumerated",
     "n_values": 8,
     "description": "Type of handshake (1=resumption, 2=false started, 3=chose not to false start, 4=not allowed to false start)"
-  },
-  "SSL_OCSP_STAPLING": {
-    "kind": "enumerated",
-    "n_values": 8,
-    "description": "Status of OCSP stapling on this handshake (1=present, good; 2=none; 3=present, expired; 4=present, other error)"
-  },
-  "CERT_OCSP_ENABLED": {
-    "kind": "boolean",
-    "description": "Is OCSP fetching enabled? (pref security.OCSP.enabled)"
-  },
-  "CERT_OCSP_REQUIRED": {
-    "kind": "boolean",
-    "description": "Is OCSP required when the cert has an OCSP URI? (pref security.OCSP.require)"
   }
 }

@@ -61,56 +61,40 @@ ManifestEditor.prototype = {
     return this.update();
   },
 
-  _onEval: function(variable, value) {
-    let parent = this._descend(variable.ownerView.symbolicPath);
-    try {
-      parent[variable.name] = JSON.parse(value);
-    } catch(e) {
-      Cu.reportError(e);
-    }
-
+  _onEval: function(evalString) {
+    let manifest = this.manifest;
+    eval("manifest" + evalString);
     this.update();
   },
 
   _onSwitch: function(variable, newName) {
-    if (variable.name == newName) {
+    let manifest = this.manifest;
+    let newSymbolicName = variable.ownerView.symbolicName +
+                          "['" + newName + "']";
+    if (newSymbolicName == variable.symbolicName) {
       return;
     }
 
-    let parent = this._descend(variable.ownerView.symbolicPath);
-    parent[newName] = parent[variable.name];
-    delete parent[variable.name];
+    let evalString = "manifest" + newSymbolicName + " = " +
+                     "manifest" + variable.symbolicName + ";" +
+                     "delete manifest" + variable.symbolicName;
 
+    eval(evalString);
     this.update();
   },
 
   _onDelete: function(variable) {
-    let parent = this._descend(variable.ownerView.symbolicPath);
-    delete parent[variable.name];
+    let manifest = this.manifest;
+    let evalString = "delete manifest" + variable.symbolicName;
+    eval(evalString);
   },
 
   _onNew: function(variable, newName, newValue) {
-    let parent = this._descend(variable.symbolicPath);
-    try {
-      parent[newName] = JSON.parse(newValue);
-    } catch(e) {
-      Cu.reportError(e);
-    }
-
+    let manifest = this.manifest;
+    let symbolicName = variable.symbolicName + "['" + newName + "']";
+    let evalString = "manifest" + symbolicName + " = " + newValue + ";";
+    eval(evalString);
     this.update();
-  },
-
-  /**
-   * Returns the value located at a given path in the manifest.
-   * @param path array
-   *        A string for each path component: ["developer", "name"]
-   */
-  _descend: function(path) {
-    let parent = this.manifest;
-    while (path.length) {
-      parent = parent[path.shift()];
-    }
-    return parent;
   },
 
   update: function() {

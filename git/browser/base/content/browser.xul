@@ -104,7 +104,8 @@
                 oncommand="gBrowser.removeAllTabsBut(TabContextMenu.contextTab);"/>
       <menuseparator/>
       <menuitem id="context_undoCloseTab"
-                label="&undoCloseTab.label;"
+                singletablabel="&undoCloseTab.label;"
+                multipletablabel="&undoCloseTabs.label;"
                 accesskey="&undoCloseTab.accesskey;"
                 observes="History:UndoCloseTab"/>
       <menuitem id="context_closeTab" label="&closeTab.label;" accesskey="&closeTab.accesskey;"
@@ -1095,6 +1096,7 @@
   <vbox id="browser-bottombox" layer="true">
     <notificationbox id="global-notificationbox"/>
     <toolbar id="developer-toolbar"
+             class="devtools-toolbar"
              hidden="true">
 #ifdef XP_MACOSX
           <toolbarbutton id="developer-toolbar-closebutton"

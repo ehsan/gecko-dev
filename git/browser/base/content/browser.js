@@ -2517,15 +2517,8 @@ function _checkDefaultAndSwitchToMetro() {
       getService(Components.interfaces.nsIAppStartup);
 
     Services.prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
-
-    let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                     .createInstance(Ci.nsISupportsPRBool);
-    Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
-
-    if (!cancelQuit.data) {
-      appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                      Components.interfaces.nsIAppStartup.eRestartTouchEnvironment);
-    }
+    appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
+                    Components.interfaces.nsIAppStartup.eRestartTouchEnvironment);
     return true;
   }
   return false;
@@ -3373,7 +3366,7 @@ function BrowserCustomizeToolbar() {
   var customizeURL = "chrome://global/content/customizeToolbar.xul";
   gCustomizeSheet = getBoolPref("toolbar.customization.usesheet", false);
 
-  BrowserUITelemetry.startCustomizing(window);
+  BrowserUITelemetry.countCustomizationEvent("start");
 
   if (gCustomizeSheet) {
     let sheetFrame = document.createElement("iframe");
@@ -3404,8 +3397,6 @@ function BrowserCustomizeToolbar() {
 }
 
 function BrowserToolboxCustomizeDone(aToolboxChanged) {
-  BrowserUITelemetry.stopCustomizing(window);
-
   if (gCustomizeSheet) {
     document.getElementById("customizeToolbarSheetPopup").hidePopup();
     let iframe = document.getElementById("customizeToolbarSheetIFrame");
@@ -6227,16 +6218,33 @@ function undoCloseTab(aIndex) {
   if (gBrowser.tabs.length == 1 && isTabEmpty(gBrowser.selectedTab))
     blankTabToRemove = gBrowser.selectedTab;
 
-  var tab = null;
-  if (SessionStore.getClosedTabCount(window) > (aIndex || 0)) {
-    TabView.prepareUndoCloseTab(blankTabToRemove);
-    tab = SessionStore.undoCloseTab(window, aIndex || 0);
-    TabView.afterUndoCloseTab();
+  let numberOfTabsToUndoClose = 0;
+  let index = Number(aIndex);
 
-    if (blankTabToRemove)
-      gBrowser.removeTab(blankTabToRemove);
+
+  if (isNaN(index)) {
+    index = 0;
+    numberOfTabsToUndoClose = SessionStore.getNumberOfTabsClosedLast(window);
+  } else {
+    if (0 > index || index >= SessionStore.getClosedTabCount(window))
+      return null;
+    numberOfTabsToUndoClose = 1;
   }
 
+  let tab = null;
+  while (numberOfTabsToUndoClose > 0 &&
+         numberOfTabsToUndoClose--) {
+    TabView.prepareUndoCloseTab(blankTabToRemove);
+    tab = SessionStore.undoCloseTab(window, index);
+    TabView.afterUndoCloseTab();
+    if (blankTabToRemove) {
+      gBrowser.removeTab(blankTabToRemove);
+      blankTabToRemove = null;
+    }
+  }
+
+  // Reset the number of tabs closed last time to the default.
+  SessionStore.setNumberOfTabsClosedLast(window, 1);
   return tab;
 }
 
@@ -7066,8 +7074,13 @@ var TabContextMenu = {
       menuItem.disabled = disabled;
 
     // Session store
-    document.getElementById("context_undoCloseTab").disabled =
-      SessionStore.getClosedTabCount(window) == 0;
+    let undoCloseTabElement = document.getElementById("context_undoCloseTab");
+    let closedTabCount = SessionStore.getNumberOfTabsClosedLast(window);
+    undoCloseTabElement.disabled = closedTabCount == 0;
+    // Change the label of "Undo Close Tab" to specify if it will undo a batch-close
+    // or a single close.
+    let visibleLabel = closedTabCount <= 1 ? "singletablabel" : "multipletablabel";
+    undoCloseTabElement.setAttribute("label", undoCloseTabElement.getAttribute(visibleLabel));
 
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;

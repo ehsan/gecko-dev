@@ -189,7 +189,7 @@ private:
   bool mCMER;
   bool mConnectScoRequest;
   bool mSlcConnected;
-  bool mIsHsp;
+  bool mHspConnected;
 #ifdef MOZ_B2G_RIL
   bool mFirstCKPD;
   int mNetworkSelectionMode;

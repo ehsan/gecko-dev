@@ -473,6 +473,3 @@ SettingsListener.observe("debug.paint-flashing.enabled", false, function(value) 
 SettingsListener.observe("layers.draw-borders", false, function(value) {
   Services.prefs.setBoolPref("layers.draw-borders", value);
 });
-SettingsListener.observe("layers.composer2d.enabled", true, function(value) {
-  Services.prefs.setBoolPref("layers.composer2d.enabled", value);
-});

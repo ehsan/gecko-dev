@@ -25,9 +25,8 @@
 .devtools-horizontal-splitter {
   -moz-appearance: none;
   background-image: none;
-  background-color: transparent;
-  border: 1px solid black;
-  border-width: 1px 0 0 0;
+  border-top: 1px solid black;
+  border-bottom-width: 0;
   min-height: 3px;
   height: 3px;
   margin-bottom: -3px;

@@ -73,7 +73,7 @@ class RegExpObjectBuilder
     Rooted<RegExpObject*> reobj_;
 
     bool getOrCreate();
-    bool getOrCreateClone(HandleTypeObject type);
+    bool getOrCreateClone(RegExpObject *proto);
 
   public:
     RegExpObjectBuilder(ExclusiveContext *cx, RegExpObject *reobj = nullptr);

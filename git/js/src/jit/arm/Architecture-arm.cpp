@@ -71,8 +71,7 @@ uint32_t GetARMFlags()
         return false;
 
     char buf[1024];
-    memset(buf, 0, sizeof(buf));
-    fread(buf, sizeof(char), sizeof(buf)-1, fp);
+    fread(buf, sizeof(char), sizeof(buf), fp);
     fclose(fp);
     if (strstr(buf, "vfp"))
         flags |= HWCAP_VFP;

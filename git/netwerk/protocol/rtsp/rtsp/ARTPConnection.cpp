@@ -115,10 +115,7 @@ void ARTPConnection::MakePortPair(
 
     bumpSocketBufferSize(*rtcpSocket);
 
-    // Reduce the chance of using duplicate port numbers.
-    srand(time(NULL));
-    // rand() * 1000 may overflow int type, use long long.
-    unsigned start = (unsigned)((rand() * 1000ll) / RAND_MAX) + 15550;
+    unsigned start = (rand() * 1000)/ RAND_MAX + 15550;
     start &= ~1;
 
     for (unsigned port = start; port < 65536; port += 2) {

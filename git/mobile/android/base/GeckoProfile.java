@@ -138,9 +138,6 @@ public final class GeckoProfile {
         if (sMozillaDir.exists() || sMozillaDir.mkdirs()) {
             return sMozillaDir;
         }
-
-        // Although this leaks a path to the system log, the path is
-        // predictable (unlike a profile directory), so this is fine.
         throw new IOException("Unable to create mozilla directory at " + sMozillaDir.getAbsolutePath());
     }
 
@@ -307,7 +304,7 @@ public final class GeckoProfile {
         if (dir != null && dir.exists() && dir.isDirectory()) {
             mProfileDir = dir;
         } else {
-            Log.w(LOGTAG, "Requested profile directory missing.");
+            Log.w(LOGTAG, "requested profile directory missing: " + dir);
         }
     }
 
@@ -333,7 +330,7 @@ public final class GeckoProfile {
                 // otherwise create it
                 mProfileDir = createProfileDir(mozillaDir);
             } else {
-                Log.d(LOGTAG, "Found profile dir.");
+                Log.d(LOGTAG, "Found profile dir: " + mProfileDir.getAbsolutePath());
             }
         } catch (IOException ioe) {
             Log.e(LOGTAG, "Error getting profile dir", ioe);
@@ -470,7 +467,7 @@ public final class GeckoProfile {
             parser.write();
             return true;
         } catch (IOException ex) {
-            Log.w(LOGTAG, "Failed to remove profile.", ex);
+            Log.w(LOGTAG, "Failed to remove profile " + mName + ":\n" + ex);
             return false;
         }
     }
@@ -538,10 +535,10 @@ public final class GeckoProfile {
         }
 
         // Attempt to create the salted profile dir
-        if (!profileDir.mkdirs()) {
-            throw new IOException("Unable to create profile.");
+        if (! profileDir.mkdirs()) {
+            throw new IOException("Unable to create profile at " + profileDir.getAbsolutePath());
         }
-        Log.d(LOGTAG, "Created new profile dir.");
+        Log.d(LOGTAG, "Created new profile dir at " + profileDir.getAbsolutePath());
 
         // Now update profiles.ini
         // If this is the first time its created, we also add a General section

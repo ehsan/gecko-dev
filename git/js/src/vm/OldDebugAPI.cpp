@@ -1352,11 +1352,7 @@ JSAbstractFramePtr::evaluateUCInStackFrame(JSContext *cx,
 
 JSBrokenFrameIterator::JSBrokenFrameIterator(JSContext *cx)
 {
-    // Show all frames on the stack whose principal is subsumed by the current principal.
-    NonBuiltinScriptFrameIter iter(cx,
-                                   ScriptFrameIter::ALL_CONTEXTS,
-                                   ScriptFrameIter::GO_THROUGH_SAVED,
-                                   cx->compartment()->principals);
+    NonBuiltinScriptFrameIter iter(cx);
     data_ = iter.copyData();
 }
 

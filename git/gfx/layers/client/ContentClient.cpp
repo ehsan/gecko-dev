@@ -87,26 +87,6 @@ ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
   }
 }
 
-#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 18
-void
-DeprecatedContentClientRemoteBuffer::WaitAndResetReleaseFence()
-{
-  if (mReleaseFence.get() && mReleaseFence->isValid()) {
-    mReleaseFence->waitForever("DeprecatedContentClientRemoteBuffer::WaitAndResetReleaseFence()");
-    mReleaseFence = android::Fence::NO_FENCE;
-  }
-}
-
-void
-DeprecatedContentClientRemoteBuffer::SetReleaseFence(FenceHandle aReleaseFenceHandle)
-{
-  if (!aReleaseFenceHandle.IsValid()) {
-    return;
-  }
-  mReleaseFence = aReleaseFenceHandle.mFence;
-}
-#endif
-
 // We pass a null pointer for the ContentClient Forwarder argument, which means
 // this client will not have a ContentHost on the other side.
 ContentClientBasic::ContentClientBasic()
@@ -852,7 +832,6 @@ private:
 void
 DeprecatedContentClientDoubleBuffered::SyncFrontBufferToBackBuffer()
 {
-  WaitAndResetReleaseFence();
   mIsNewBuffer = false;
 
   if (!mFrontAndBackBufferDiffer) {
@@ -989,8 +968,6 @@ DeprecatedContentClientSingleBuffered::CreateFrontBufferAndNotify(const nsIntRec
 void
 DeprecatedContentClientSingleBuffered::SyncFrontBufferToBackBuffer()
 {
-  WaitAndResetReleaseFence();
-
   mIsNewBuffer = false;
   if (!mFrontAndBackBufferDiffer) {
     return;

@@ -151,11 +151,9 @@ SelectionPrototype.prototype = {
     let containedCoords = this._restrictCoordinateToEditBounds(aX, aY);
     let cp = this._contentWindow.document.caretPositionFromPoint(containedCoords.xPos,
                                                                  containedCoords.yPos);
-    if (cp) {
-      let input = cp.offsetNode;
-      let offset = cp.offset;
-      input.selectionStart = input.selectionEnd = offset;
-    }
+    let input = cp.offsetNode;
+    let offset = cp.offset;
+    input.selectionStart = input.selectionEnd = offset;
   },
 
   /*
@@ -299,19 +297,20 @@ SelectionPrototype.prototype = {
       let constrainedPoint =
         this._constrainPointWithinControl(aAdjustedClientPoint);
 
-      //  Add or subtract selection
-      let cp =
-        this._contentWindow.document.caretPositionFromPoint(constrainedPoint.xPos,
-                                                            constrainedPoint.yPos);
-
-      // For textareas or if cpfp fails we fall back on the selectAtPoint
-      // logic (bugs 882149, 943071).
-      if (Util.isMultilineInput(this._targetElement) || !cp ||
-          !this._offsetNodeIsValid(cp.offsetNode)) {
+      // For textareas we fall back on the selectAtPoint logic due to various
+      // issues with caretPositionFromPoint (bug 882149).
+      if (Util.isMultilineInput(this._targetElement)) {
         this._adjustSelectionAtPoint(aMarker, constrainedPoint, aEndOfSelection);
         return;
       }
 
+      //  Add or subtract selection
+      let cp =
+        this._contentWindow.document.caretPositionFromPoint(constrainedPoint.xPos,
+                                                            constrainedPoint.yPos);
+      if (!cp || !this._offsetNodeIsValid(cp.offsetNode)) {
+        return;
+      }
       if (aMarker == "start") {
         this._targetElement.selectionStart = cp.offset;
       } else {

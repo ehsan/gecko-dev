@@ -8,10 +8,9 @@
 
 #ifdef MOZ_WIDGET_GONK
 
-#include "FenceUtils.h"
+#include "mozilla/layers/LayersSurfaces.h"
 #include "ImageLayers.h"
 #include "ImageContainer.h"
-#include "mozilla/layers/LayersSurfaces.h"
 
 #include <ui/GraphicBuffer.h>
 
@@ -46,19 +45,8 @@ public:
     return mSurfaceDescriptor;
   }
 
-  void SetReleaseFenceHandle(const FenceHandle& aReleaseFenceHandle)
-  {
-    mReleaseFenceHandle = aReleaseFenceHandle;
-  }
-
-  const FenceHandle& GetReleaseFenceHandle() const
-  {
-    return mReleaseFenceHandle;
-  }
-
 protected:
   SurfaceDescriptor mSurfaceDescriptor;
-  FenceHandle mReleaseFenceHandle;
 };
 
 /**

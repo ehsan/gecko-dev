@@ -416,7 +416,7 @@ gfxPlatform::Init()
 
     if (useOffMainThreadCompositing && (XRE_GetProcessType() == GeckoProcessType_Default)) {
         CompositorParent::StartUp();
-        if (AsyncVideoEnabled()) {
+        if (Preferences::GetBool("layers.async-video.enabled", false)) {
             ImageBridgeChild::StartUp();
         }
     }
@@ -2038,7 +2038,6 @@ static bool sPrefLayersPreferOpenGL = false;
 static bool sPrefLayersPreferD3D9 = false;
 static bool sPrefLayersDump = false;
 static bool sPrefLayersScrollGraph = false;
-static bool sPrefLayersEnableTiles = false;
 static bool sLayersSupportsD3D9 = false;
 static int  sPrefLayoutFrameRate = -1;
 static bool sBufferRotationEnabled = false;
@@ -2067,7 +2066,6 @@ InitLayersAccelerationPrefs()
     sPrefLayersPreferD3D9 = Preferences::GetBool("layers.prefer-d3d9", false);
     sPrefLayersDump = Preferences::GetBool("layers.dump", false);
     sPrefLayersScrollGraph = Preferences::GetBool("layers.scroll-graph", false);
-    sPrefLayersEnableTiles = Preferences::GetBool("layers.enable-tiles", false);
     sPrefLayoutFrameRate = Preferences::GetInt("layout.frame_rate", -1);
     sBufferRotationEnabled = Preferences::GetBool("layers.bufferrotation.enabled", true);
     sComponentAlphaEnabled = Preferences::GetBool("layers.componentalpha.enabled", true);
@@ -2182,13 +2180,6 @@ gfxPlatform::GetPrefLayersScrollGraph()
 }
 
 bool
-gfxPlatform::GetPrefLayersEnableTiles()
-{
-  InitLayersAccelerationPrefs();
-  return sPrefLayersEnableTiles;
-}
-
-bool
 gfxPlatform::BufferRotationEnabled()
 {
   MutexAutoLock autoLock(*gGfxPlatformPrefsLock);
@@ -2214,14 +2205,4 @@ gfxPlatform::ComponentAlphaEnabled()
 
   InitLayersAccelerationPrefs();
   return sComponentAlphaEnabled;
-}
-
-bool
-gfxPlatform::AsyncVideoEnabled()
-{
-#ifdef XP_WIN
-  return false;
-#else
-  return Preferences::GetBool("layers.async-video.enabled", false);
-#endif
 }

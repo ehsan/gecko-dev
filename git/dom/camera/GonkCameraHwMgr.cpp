@@ -168,10 +168,8 @@ GonkCameraHardware::Init()
   mRawSensorOrientation = info.orientation;
   mSensorOrientation = mRawSensorOrientation;
 
-  /**
-   * Non-V4L2-based camera driver adds extra offset onto picture orientation
-   * set by gecko, so we have to adjust it back.
-   */
+  // Some kernels report the wrong sensor orientation through
+  // get_camera_info()...
   char propname[PROP_NAME_MAX];
   char prop[PROP_VALUE_MAX];
   int offset = 0;

@@ -134,26 +134,16 @@ namespace gl {
 static bool
 CreateConfig(EGLConfig* aConfig);
 
-// append three zeros at the end of attribs list to work around
-// EGL implementation bugs that iterate until they find 0, instead of
-// EGL_NONE. See bug 948406.
-#define EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS \
-     LOCAL_EGL_NONE, 0, 0, 0
-
-static EGLint gTerminationAttribs[] = {
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
-};
-
 static EGLint gContextAttribs[] = {
     LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
+    LOCAL_EGL_NONE
 };
 
 static EGLint gContextAttribsRobustness[] = {
     LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
     //LOCAL_EGL_CONTEXT_ROBUST_ACCESS_EXT, LOCAL_EGL_TRUE,
     LOCAL_EGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_EXT, LOCAL_EGL_LOSE_CONTEXT_ON_RESET_EXT,
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
+    LOCAL_EGL_NONE
 };
 
 static int
@@ -605,9 +595,7 @@ protected:
             pbattrs.AppendElement(bindToTextureFormat);
         }
 
-        for (size_t i = 0; i < MOZ_ARRAY_LENGTH(gTerminationAttribs); i++) {
-          pbattrs.AppendElement(gTerminationAttribs[i]);
-        }
+        pbattrs.AppendElement(LOCAL_EGL_NONE);
 
         surface = sEGLLibrary.fCreatePbufferSurface(EGL_DISPLAY(), config, &pbattrs[0]);
         if (!surface) {
@@ -640,7 +628,7 @@ GLContextEGL::ResizeOffscreen(const gfxIntSize& aNewSize)
 static const EGLint kEGLConfigAttribsOffscreenPBuffer[] = {
     LOCAL_EGL_SURFACE_TYPE,    LOCAL_EGL_PBUFFER_BIT,
     LOCAL_EGL_RENDERABLE_TYPE, LOCAL_EGL_OPENGL_ES2_BIT,
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
+    LOCAL_EGL_NONE
 };
 
 static const EGLint kEGLConfigAttribsRGB16[] = {
@@ -650,7 +638,7 @@ static const EGLint kEGLConfigAttribsRGB16[] = {
     LOCAL_EGL_GREEN_SIZE,      6,
     LOCAL_EGL_BLUE_SIZE,       5,
     LOCAL_EGL_ALPHA_SIZE,      0,
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
+    LOCAL_EGL_NONE
 };
 
 static const EGLint kEGLConfigAttribsRGB24[] = {
@@ -660,7 +648,7 @@ static const EGLint kEGLConfigAttribsRGB24[] = {
     LOCAL_EGL_GREEN_SIZE,      8,
     LOCAL_EGL_BLUE_SIZE,       8,
     LOCAL_EGL_ALPHA_SIZE,      0,
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
+    LOCAL_EGL_NONE
 };
 
 static const EGLint kEGLConfigAttribsRGBA32[] = {
@@ -673,7 +661,7 @@ static const EGLint kEGLConfigAttribsRGBA32[] = {
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
     LOCAL_EGL_FRAMEBUFFER_TARGET_ANDROID, LOCAL_EGL_TRUE,
 #endif
-    EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
+    LOCAL_EGL_NONE
 };
 
 static bool
@@ -925,4 +913,3 @@ GLContextProviderEGL::Shutdown()
 } /* namespace gl */
 } /* namespace mozilla */
 
-#undef EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS

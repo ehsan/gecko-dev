@@ -86,12 +86,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'WindowsVersion.h',
     ]
 
-# nsDebugImpl isn't unified because we disable PGO so that NS_ABORT_OOM isn't
-# optimized away oddly.
-SOURCES += [
-    'nsDebugImpl.cpp',
-]
-
 UNIFIED_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
@@ -100,6 +94,7 @@ UNIFIED_SOURCES += [
     'nsConsoleMessage.cpp',
     'nsConsoleService.cpp',
     'nsCycleCollector.cpp',
+    'nsDebugImpl.cpp',
     'nsErrorService.cpp',
     'nsGZFileWriter.cpp',
     'nsInterfaceRequestorAgg.cpp',

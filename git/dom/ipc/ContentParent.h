@@ -84,9 +84,6 @@ public:
      */
     static void JoinAllSubprocesses();
 
-    static bool PreallocatedProcessReady();
-    static void RunAfterPreallocatedProcessReady(nsIRunnable* aRequest);
-
     static already_AddRefed<ContentParent>
     GetNewOrUsed(bool aForBrowserElement = false);
 
@@ -267,11 +264,6 @@ private:
 
     // The common initialization for the constructors.
     void InitializeMembers();
-
-    // The common initialization logic shared by all constuctors.
-    void InitInternal(ProcessPriority aPriority,
-                      bool aSetupOffMainThreadCompositing,
-                      bool aSendRegisteredChrome);
 
     virtual ~ContentParent();
 

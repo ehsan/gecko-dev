@@ -246,8 +246,7 @@ void
 StringToBdAddressType(const nsAString& aBdAddress,
                       bt_bdaddr_t *aRetBdAddressType)
 {
-  NS_ConvertUTF16toUTF8 bdAddressUTF8(aBdAddress);
-  const char* str = bdAddressUTF8.get();
+  const char* str = NS_ConvertUTF16toUTF8(aBdAddress).get();
 
   for (int i = 0; i < 6; i++) {
     aRetBdAddressType->address[i] = (uint8_t) strtoul(str, (char **)&str, 16);
@@ -990,7 +989,7 @@ BluetoothServiceBluedroid::SetProperty(BluetoothObjectType aType,
   const nsString propName = aValue.name();
   bt_property_t prop;
   bt_scan_mode_t scanMode;
-  nsCString str;
+  nsString str;
 
   // For Bluedroid, it's necessary to check property name for SetProperty
   if (propName.EqualsLiteral("Name")) {
@@ -1008,8 +1007,8 @@ BluetoothServiceBluedroid::SetProperty(BluetoothObjectType aType,
     prop.val = (void*)aValue.value().get_uint32_t();
   } else if (aValue.value().type() == BluetoothValue::TnsString) {
     // Set name
-    str = NS_ConvertUTF16toUTF8(aValue.value().get_nsString());
-    const char* name = str.get();
+    str = aValue.value().get_nsString();
+    const char* name = NS_ConvertUTF16toUTF8(str).get();
     prop.val = (void*)name;
     prop.len = strlen(name);
   } else if (aValue.value().type() == BluetoothValue::Tbool) {

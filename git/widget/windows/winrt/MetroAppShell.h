@@ -28,7 +28,6 @@ public:
   static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);
   static bool ProcessOneNativeEventIfPresent();
   static void MarkEventQueueForPurge();
-  static void InputEventsDispatched();
 
 protected:
   NS_IMETHOD Run();

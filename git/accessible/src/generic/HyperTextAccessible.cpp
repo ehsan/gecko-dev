@@ -606,47 +606,46 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
                                 nsSelectionAmount aAmount,
                                 EWordMovementType aWordMovementType)
 {
-  // Find a leaf accessible frame to start with. PeekOffset wants this.
-  HyperTextAccessible* text = this;
-  Accessible* child = nullptr;
-  int32_t innerOffset = aOffset;
-
-  do {
-    int32_t childIdx = text->GetChildIndexAtOffset(innerOffset);
-    NS_ASSERTION(childIdx != -1, "Bad in offset!");
-    if (childIdx == -1)
+  // Convert hypertext offset to frame-relative offset.
+  int32_t offsetInFrame = aOffset, notUsedOffset = aOffset;
+  nsRefPtr<Accessible> accAtOffset;
+  nsIFrame* frameAtOffset =
+    GetPosAndText(offsetInFrame, notUsedOffset, nullptr, nullptr,
+                  getter_AddRefs(accAtOffset));
+  if (!frameAtOffset) {
+    if (aOffset == CharacterCount()) {
+      // Asking for start of line, while on last character.
+      if (accAtOffset)
+        frameAtOffset = accAtOffset->GetFrame();
+    }
+    NS_ASSERTION(frameAtOffset, "No start frame for text getting!");
+    if (!frameAtOffset)
       return -1;
 
-    child = text->GetChildAt(childIdx);
-    innerOffset -= text->GetChildOffset(childIdx);
-
-    text = child->AsHyperText();
-  } while (text);
-
-  nsIFrame* childFrame = child->GetFrame();
-  NS_ENSURE_TRUE(childFrame, -1);
-
-  int32_t innerContentOffset = innerOffset;
-  if (child->IsTextLeaf()) {
-    NS_ASSERTION(childFrame->GetType() == nsGkAtoms::textFrame, "Wrong frame!");
-    RenderedToContentOffset(childFrame, innerOffset, &innerContentOffset);
+    // We're on the last continuation since we're on the last character.
+    frameAtOffset = frameAtOffset->LastContinuation();
   }
 
-  nsIFrame* frameAtOffset = childFrame;
-  int32_t unusedOffsetInFrame = 0;
-  childFrame->GetChildFrameContainingOffset(innerContentOffset, true,
-                                            &unusedOffsetInFrame,
-                                            &frameAtOffset);
+  // Return hypertext offset of the boundary of the found word.
+  int32_t contentOffset = offsetInFrame;
+  nsIFrame* primaryFrame = accAtOffset->GetFrame();
+  NS_ENSURE_TRUE(primaryFrame, -1);
+
+  nsresult rv = NS_OK;
+  if (primaryFrame->GetType() == nsGkAtoms::textFrame) {
+    rv = RenderedToContentOffset(primaryFrame, offsetInFrame, &contentOffset);
+    NS_ENSURE_SUCCESS(rv, -1);
+  }
 
   const bool kIsJumpLinesOk = true; // okay to jump lines
   const bool kIsScrollViewAStop = false; // do not stop at scroll views
   const bool kIsKeyboardSelect = true; // is keyboard selection
   const bool kIsVisualBidi = false; // use visual order for bidi text
-  nsPeekOffsetStruct pos(aAmount, aDirection, innerContentOffset,
+  nsPeekOffsetStruct pos(aAmount, aDirection, contentOffset,
                          0, kIsJumpLinesOk, kIsScrollViewAStop,
                          kIsKeyboardSelect, kIsVisualBidi,
                          aWordMovementType);
-  nsresult rv = frameAtOffset->PeekOffset(&pos);
+  rv = frameAtOffset->PeekOffset(&pos);
 
   // PeekOffset fails on last/first lines of the text in certain cases.
   if (NS_FAILED(rv) && aAmount == eSelectLine) {
@@ -659,15 +658,30 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
   // Turn the resulting node and offset into a hyperTextOffset
   // If finalAccessible is nullptr, then DOMPointToHypertextOffset() searched
   // through the hypertext children without finding the node/offset position.
-  int32_t hyperTextOffset = 0;
+  int32_t hyperTextOffset;
   Accessible* finalAccessible =
     DOMPointToHypertextOffset(pos.mResultContent, pos.mContentOffset,
                               &hyperTextOffset, aDirection == eDirNext);
 
-  // If we reached the end during search, this means we didn't find the DOM point
-  // and we're actually at the start of the paragraph
-  if (!finalAccessible && aDirection == eDirPrevious)
-    return 0;
+  if (!finalAccessible && aDirection == eDirPrevious) {
+    // If we reached the end during search, this means we didn't find the DOM point
+    // and we're actually at the start of the paragraph
+    hyperTextOffset = 0;
+  }  
+  else if (aAmount == eSelectBeginLine) {
+    Accessible* firstChild = mChildren.SafeElementAt(0, nullptr);
+    // For line selection with needsStart, set start of line exactly to line break
+    if (pos.mContentOffset == 0 && firstChild &&
+        firstChild->Role() == roles::STATICTEXT &&
+        static_cast<int32_t>(nsAccUtils::TextLength(firstChild)) == hyperTextOffset) {
+      // XXX Bullet hack -- we should remove this once list bullets use anonymous content
+      hyperTextOffset = 0;
+    }
+    if (aWordMovementType != eStartWord && aAmount != eSelectBeginLine &&
+        hyperTextOffset > 0) {
+      -- hyperTextOffset;
+    }
+  }
 
   return hyperTextOffset;
 }

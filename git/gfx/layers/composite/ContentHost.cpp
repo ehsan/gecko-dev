@@ -699,7 +699,6 @@ DeprecatedContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
   if (mNewFrontHost) {
     DestroyFrontHost();
     mDeprecatedTextureHost = mNewFrontHost;
-    mDeprecatedTextureHost->SetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
     mNewFrontHost = nullptr;
     if (mNewFrontHostOnWhite) {
       mDeprecatedTextureHostOnWhite = mNewFrontHostOnWhite;
@@ -901,7 +900,6 @@ DeprecatedContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   RefPtr<DeprecatedTextureHost> oldFront = mDeprecatedTextureHost;
   mDeprecatedTextureHost = mBackHost;
-  mDeprecatedTextureHost->SetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
   mBackHost = oldFront;
 
   oldFront = mDeprecatedTextureHostOnWhite;

@@ -295,15 +295,6 @@ let manifestCache = {
         delete this._cache[aManifestURL];
       }
     }
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    // Clear the cache on memory pressure.
-    this._cache = { };
-  },
-
-  init: function() {
-    Services.obs.addObserver(this, "memory-pressure", false);
   }
 };
 
@@ -809,8 +800,6 @@ WebappsApplicationMgmt.prototype = {
                                     flags: Ci.nsIClassInfo.DOM_OBJECT,
                                     classDescription: "Webapps Application Mgmt"})
 }
-
-manifestCache.init();
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry,
                                                      WebappsApplication]);

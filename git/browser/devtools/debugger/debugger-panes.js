@@ -1388,9 +1388,8 @@ VariableBubbleView.prototype = {
       this._tooltip.setVariableContent(objectActor, {
         searchPlaceholder: L10N.getStr("emptyPropertiesFilterText"),
         searchEnabled: Prefs.variablesSearchboxVisible,
-        eval: (variable, value) => {
-          let string = variable.evaluationMacro(variable, value);
-          DebuggerController.StackFrames.evaluate(string);
+        eval: aString => {
+          DebuggerController.StackFrames.evaluate(aString);
           DebuggerView.VariableBubble.hideContents();
         }
       }, {

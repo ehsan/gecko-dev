@@ -28,8 +28,7 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment,
     performsAsmJSCall_(false),
     asmJSHeapAccesses_(*alloc),
     asmJSGlobalAccesses_(*alloc),
-    minAsmJSHeapLength_(AsmJSAllocationGranularity),
-    modifiesFrameArguments_(false)
+    minAsmJSHeapLength_(AsmJSAllocationGranularity)
 { }
 
 bool

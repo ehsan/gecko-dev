@@ -320,8 +320,6 @@ getHandlersFromStringArray(JNIEnv *aJNIEnv, jobjectArray jArr, jsize aLen,
 {
     nsString empty = EmptyString();
     for (jsize i = 0; i < aLen; i+=4) {
-
-        AutoLocalJNIFrame jniFrame(aJNIEnv, 4);
         nsJNIString name(
             static_cast<jstring>(aJNIEnv->GetObjectArrayElement(jArr, i)), aJNIEnv);
         nsJNIString isDefault(
@@ -352,7 +350,6 @@ AndroidBridge::GetHandlersForMimeType(const nsAString& aMimeType,
     if (!env)
         return false;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jobjectArray arr = GeckoAppShell::GetHandlersForMimeTypeWrapper(aMimeType, aAction);
     if (!arr)
         return false;
@@ -365,6 +362,8 @@ AndroidBridge::GetHandlersForMimeType(const nsAString& aMimeType,
     getHandlersFromStringArray(env, arr, len, aHandlersArray,
                                aDefaultApp, aAction,
                                NS_ConvertUTF16toUTF8(aMimeType));
+
+    env->DeleteLocalRef(arr);
     return true;
 }
 
@@ -380,7 +379,6 @@ AndroidBridge::GetHandlersForURL(const nsAString& aURL,
     if (!env)
         return false;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jobjectArray arr = GeckoAppShell::GetHandlersForURLWrapper(aURL, aAction);
     if (!arr)
         return false;
@@ -392,6 +390,8 @@ AndroidBridge::GetHandlersForURL(const nsAString& aURL,
 
     getHandlersFromStringArray(env, arr, len, aHandlersArray,
                                aDefaultApp, aAction);
+
+    env->DeleteLocalRef(arr);
     return true;
 }
 
@@ -404,13 +404,14 @@ AndroidBridge::GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& 
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jstring jstrType = GeckoAppShell::GetMimeTypeFromExtensionsWrapper(NS_ConvertUTF8toUTF16(aFileExt));
     if (!jstrType) {
         return;
     }
     nsJNIString jniStr(jstrType, env);
     CopyUTF16toUTF8(jniStr.get(), aMimeType);
+
+    env->DeleteLocalRef(jstrType);
 }
 
 void
@@ -422,13 +423,14 @@ AndroidBridge::GetExtensionFromMimeType(const nsACString& aMimeType, nsACString&
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jstring jstrExt = GeckoAppShell::GetExtensionFromMimeTypeWrapper(NS_ConvertUTF8toUTF16(aMimeType));
     if (!jstrExt) {
         return;
     }
     nsJNIString jniStr(jstrExt, env);
     CopyUTF16toUTF8(jniStr.get(), aFileExt);
+
+    env->DeleteLocalRef(jstrExt);
 }
 
 bool
@@ -440,13 +442,14 @@ AndroidBridge::GetClipboardText(nsAString& aText)
     if (!env)
         return false;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jstring result = Clipboard::GetClipboardTextWrapper();
     if (!result)
         return false;
 
     nsJNIString jniStr(result, env);
     aText.Assign(jniStr);
+
+    env->DeleteLocalRef(result);
     return true;
 }
 
@@ -508,13 +511,13 @@ AndroidBridge::ShowFilePickerForExtensions(nsAString& aFilePath, const nsAString
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jstring jstr = GeckoAppShell::ShowFilePickerForExtensionsWrapper(aExtensions);
     if (jstr == nullptr) {
         return;
     }
 
     aFilePath.Assign(nsJNIString(jstr, env));
+    env->DeleteLocalRef(jstr);
 }
 
 void
@@ -524,13 +527,13 @@ AndroidBridge::ShowFilePickerForMimeType(nsAString& aFilePath, const nsAString& 
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jstring jstr = GeckoAppShell::ShowFilePickerForMimeTypeWrapper(aMimeType);
     if (jstr == nullptr) {
         return;
     }
 
     aFilePath.Assign(nsJNIString(jstr, env));
+    env->DeleteLocalRef(jstr);
 }
 
 void
@@ -555,7 +558,7 @@ AndroidBridge::Vibrate(const nsTArray<uint32_t>& aPattern)
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     // It's clear if this worth special-casing, but it creates less
     // java junk, so dodges the GC.
@@ -606,7 +609,7 @@ AndroidBridge::GetSystemColors(AndroidSystemColors *aColors)
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     jintArray arr = GeckoAppShell::GetSystemColoursWrapper();
     if (!arr)
@@ -644,7 +647,7 @@ AndroidBridge::GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSiz
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     jbyteArray arr = GeckoAppShell::GetIconForExtensionWrapper(NS_ConvertUTF8toUTF16(aFileExt), aIconSize);
 
@@ -717,12 +720,12 @@ AndroidBridge::CreateEGLSurfaceForCompositor()
         return nullptr;
     }
 
-    AutoLocalJNIFrame jniFrame(env, 1);
     jobject eglSurface = mGLControllerObj->CreateEGLSurfaceForCompositorWrapper();
     if (!eglSurface)
         return nullptr;
 
     EGLSurface ret = reinterpret_cast<EGLSurface>(env->GetIntField(eglSurface, jEGLSurfacePointerField));
+    env->DeleteLocalRef(eglSurface);
     return ret;
 }
 
@@ -763,7 +766,6 @@ AndroidBridge::GetStaticStringField(const char *className, const char *fieldName
             return false;
     }
 
-    AutoLocalJNIFrame jniFrame(jEnv, 1);
     initInit();
     getClassGlobalRef(className);
     jfieldID field = getStaticField(fieldName, "Ljava/lang/String;");
@@ -779,6 +781,7 @@ AndroidBridge::GetStaticStringField(const char *className, const char *fieldName
         return false;
 
     result.Assign(nsJNIString(jstr, jEnv));
+    jEnv->DeleteLocalRef(jstr);
     return true;
 }
 
@@ -984,7 +987,7 @@ AndroidBridge::InitCamera(const nsCString& contentType, uint32_t camera, uint32_
     if (!env)
         return false;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
     jintArray arr = GeckoAppShell::InitCameraWrapper(NS_ConvertUTF8toUTF16(contentType), (int32_t) camera, (int32_t) width, (int32_t) height);
 
     if (!arr)
@@ -1012,7 +1015,7 @@ AndroidBridge::GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInf
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     // To prevent calling too many methods through JNI, the Java method returns
     // an array of double even if we actually want a double and a boolean.
@@ -1039,7 +1042,7 @@ AndroidBridge::HandleGeckoMessage(const nsAString &aMessage, nsAString &aRet)
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
     jstring returnMessage = GeckoAppShell::HandleGeckoMessageWrapper(aMessage);
 
     if (!returnMessage)
@@ -1069,7 +1072,7 @@ AndroidBridge::GetSegmentInfoForText(const nsAString& aText,
     if (!env)
         return NS_ERROR_FAILURE;
 
-    AutoLocalJNIFrame jniFrame(env, 2);
+    AutoLocalJNIFrame jniFrame(env);
     jstring jText = NewJavaString(&jniFrame, aText);
     jobject obj = env->CallStaticObjectMethod(mAndroidSmsMessageClass,
                                               jCalculateLength, jText, JNI_FALSE);
@@ -1148,7 +1151,7 @@ AndroidBridge::CreateMessageList(const dom::mobilemessage::SmsFilterData& aFilte
     if (!QueueSmsRequest(aRequest, &requestId))
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 2);
+    AutoLocalJNIFrame jniFrame(env);
 
     jobjectArray numbers =
         (jobjectArray)env->NewObjectArray(aFilter.numbers().Length(),
@@ -1156,9 +1159,8 @@ AndroidBridge::CreateMessageList(const dom::mobilemessage::SmsFilterData& aFilte
                                           NewJavaString(&jniFrame, EmptyString()));
 
     for (uint32_t i = 0; i < aFilter.numbers().Length(); ++i) {
-        jstring elem = NewJavaString(&jniFrame, aFilter.numbers()[i]);
-        env->SetObjectArrayElement(numbers, i, elem);
-        env->DeleteLocalRef(elem);
+        env->SetObjectArrayElement(numbers, i,
+                                   NewJavaString(&jniFrame, aFilter.numbers()[i]));
     }
 
     GeckoAppShell::CreateMessageListWrapper(aFilter.startDate(), aFilter.endDate(),
@@ -1222,7 +1224,7 @@ AndroidBridge::GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInf
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     // To prevent calling too many methods through JNI, the Java method returns
     // an array of double even if we actually want a double, two booleans, and an integer.
@@ -1249,7 +1251,7 @@ AndroidBridge::LockBitmap(jobject bitmap)
     if (!env)
         return nullptr;
 
-    AutoLocalJNIFrame jniFrame(env, 0);
+    AutoLocalJNIFrame jniFrame(env);
 
     int err;
     void *buf;
@@ -1269,7 +1271,7 @@ AndroidBridge::UnlockBitmap(jobject bitmap)
     if (!env)
         return;
 
-    AutoLocalJNIFrame jniFrame(env, 0);
+    AutoLocalJNIFrame jniFrame(env);
 
     int err;
 
@@ -1650,7 +1652,7 @@ AndroidBridge::GetProxyForURI(const nsACString & aSpec,
     if (!env)
         return NS_ERROR_FAILURE;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
     jstring jstrRet = GeckoAppShell::GetProxyForURIWrapper(NS_ConvertUTF8toUTF16(aSpec),
                                             NS_ConvertUTF8toUTF16(aScheme),
                                             NS_ConvertUTF8toUTF16(aHost),
@@ -1702,7 +1704,7 @@ AndroidBridge::GetThreadNameJavaProfiling(uint32_t aThreadId, nsCString & aResul
     if (!env)
         return false;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     jstring jstrThreadName = GeckoJavaSampler::GetThreadNameJavaProfilingWrapper(aThreadId);
 
@@ -1722,7 +1724,7 @@ AndroidBridge::GetFrameNameJavaProfiling(uint32_t aThreadId, uint32_t aSampleId,
     if (!env)
         return false;
 
-    AutoLocalJNIFrame jniFrame(env, 1);
+    AutoLocalJNIFrame jniFrame(env);
 
     jstring jstrSampleName = GeckoJavaSampler::GetFrameNameJavaProfilingWrapper(aThreadId, aSampleId, aFrameId);
 
@@ -1731,6 +1733,7 @@ AndroidBridge::GetFrameNameJavaProfiling(uint32_t aThreadId, uint32_t aSampleId,
 
     nsJNIString jniStr(jstrSampleName, env);
     CopyUTF16toUTF8(jniStr.get(), aResult);
+    env->DeleteLocalRef(jstrSampleName);
     return true;
 }
 
@@ -1997,11 +2000,6 @@ AndroidBridge::HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers)
     nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:LongPress"), data));
-}
-
-void
-AndroidBridge::HandleLongTapUp(const CSSIntPoint& aPoint, int32_t aModifiers)
-{
 }
 
 void

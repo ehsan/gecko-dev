@@ -1534,9 +1534,6 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
     case eHTMLRangeType:
       newAcc = new HTMLRangeAccessible(aContent, document);
       break;
-    case eHTMLSpinnerType:
-      newAcc = new HTMLSpinnerAccessible(aContent, document);
-      break;
     case eHTMLTableType:
       newAcc = new HTMLTableAccessibleWrap(aContent, document);
       break;

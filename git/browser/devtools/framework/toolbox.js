@@ -237,20 +237,8 @@ Toolbox.prototype = {
     }, true);
   },
 
-  _isResponsiveModeActive: function() {
-    let responsiveModeActive = false;
-    if (this.target.isLocalTab) {
-      let tab = this.target.tab;
-      let browserWindow = tab.ownerDocument.defaultView;
-      let responsiveUIManager = browserWindow.ResponsiveUI.ResponsiveUIManager;
-      responsiveModeActive = responsiveUIManager.isActiveForTab(tab);
-    }
-    return responsiveModeActive;
-  },
-
   _splitConsoleOnKeypress: function(e) {
-    let responsiveModeActive = this._isResponsiveModeActive();
-    if (e.keyCode === e.DOM_VK_ESCAPE && !responsiveModeActive) {
+    if (e.keyCode === e.DOM_VK_ESCAPE) {
       this.toggleSplitConsole();
     }
   },

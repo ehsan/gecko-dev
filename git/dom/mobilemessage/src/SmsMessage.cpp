@@ -260,16 +260,27 @@ SmsMessage::GetMessageClass(nsAString& aMessageClass)
 }
 
 NS_IMETHODIMP
-SmsMessage::GetTimestamp(DOMTimeStamp* aDate)
+SmsMessage::GetTimestamp(JSContext* cx, JS::Value* aDate)
 {
-  *aDate = mData.timestamp();
+  JSObject *obj = JS_NewDateObjectMsec(cx, mData.timestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
+
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsMessage::GetDeliveryTimestamp(DOMTimeStamp* aDate)
+SmsMessage::GetDeliveryTimestamp(JSContext* aCx, JS::Value* aDate)
 {
-  *aDate = mData.deliveryTimestamp();
+  if (mData.deliveryTimestamp() == 0) {
+    *aDate = JSVAL_NULL;
+    return NS_OK;
+  }
+
+  JSObject *obj = JS_NewDateObjectMsec(aCx, mData.deliveryTimestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
+
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 

@@ -218,7 +218,7 @@ SyncScheduler.prototype = {
         // were just active.)
         this.adjustSyncInterval();
         break;
-      case "active":
+      case "back":
         this._log.trace("Received notification that we're back from idle.");
         this.idle = false;
         Utils.namedTimer(function onBack() {

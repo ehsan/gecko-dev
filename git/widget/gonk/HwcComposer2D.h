@@ -23,9 +23,6 @@
 #include <list>
 
 #include <hardware/hwcomposer.h>
-#if ANDROID_VERSION >= 18
-#include <ui/Fence.h>
-#endif
 
 namespace mozilla {
 
@@ -66,7 +63,6 @@ public:
     bool Render(EGLDisplay dpy, EGLSurface sur);
 
 private:
-    void Reset();
     void Prepare(buffer_handle_t fbHandle, int fence);
     bool Commit();
     bool TryHwComposition();
@@ -85,12 +81,9 @@ private:
     //Holds all the dynamically allocated RectVectors needed
     //to render the current frame
     std::list<RectVector>   mVisibleRegions;
-#if ANDROID_VERSION >= 18
-    android::sp<android::Fence>       mPrevRetireFence;
-    android::sp<android::Fence>       mPrevDisplayFence;
-#endif
+    nsTArray<int>           mPrevReleaseFds;
+    int                     mPrevRetireFence;
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
-    bool                    mPrepared;
 };
 
 } // namespace mozilla

@@ -88,7 +88,7 @@ jit::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
             // parameter passing might be live. Rewriting uses of these terms
             // in resume points may affect the interpreter's behavior. Rather
             // than doing a more sophisticated analysis, just ignore these.
-            if (ins->isUnbox() || ins->isParameter() || ins->isTypeBarrier() || ins->isComputeThis())
+            if (ins->isUnbox() || ins->isParameter() || ins->isTypeBarrier())
                 continue;
 
             // If the instruction's behavior has been constant folded into a
@@ -2123,8 +2123,6 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, HandleFunction fun,
             return false;
         return true;
     }
-
-    types::FinishDefinitePropertiesAnalysis(cx, constraints);
 
     if (!SplitCriticalEdges(graph))
         return false;

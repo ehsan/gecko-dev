@@ -1537,7 +1537,6 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
   , mResizerBox(nullptr)
   , mOuter(aOuter)
   , mAsyncScroll(nullptr)
-  , mOriginOfLastScroll(nullptr)
   , mDestination(0, 0)
   , mScrollPosAtLastPaint(0, 0)
   , mRestorePos(-1, -1)
@@ -1653,13 +1652,12 @@ ScrollFrameHelper::ScrollToCSSPixels(const CSSIntPoint& aScrollPosition)
 }
 
 void
-ScrollFrameHelper::ScrollToCSSPixelsApproximate(const CSSPoint& aScrollPosition,
-                                                nsIAtom *aOrigin)
+ScrollFrameHelper::ScrollToCSSPixelsApproximate(const CSSPoint& aScrollPosition)
 {
   nsPoint pt = CSSPoint::ToAppUnits(aScrollPosition);
   nscoord halfRange = nsPresContext::CSSPixelsToAppUnits(1000);
   nsRect range(pt.x - halfRange, pt.y - halfRange, 2*halfRange - 1, 2*halfRange - 1);
-  ScrollToWithOrigin(pt, nsIScrollableFrame::INSTANT, aOrigin, &range);
+  ScrollTo(pt, nsIScrollableFrame::INSTANT, &range);
   // 'this' might be destroyed here
 }
 
@@ -1689,7 +1687,7 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
     // async-scrolling process and do an instant scroll.
     mAsyncScroll = nullptr;
     nsWeakFrame weakFrame(mOuter);
-    ScrollToImpl(mDestination, range, aOrigin);
+    ScrollToImpl(mDestination, range);
     if (!weakFrame.IsAlive()) {
       return;
     }
@@ -1709,7 +1707,7 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
       mAsyncScroll = nullptr;
       // Observer setup failed. Scroll the normal way.
       nsWeakFrame weakFrame(mOuter);
-      ScrollToImpl(mDestination, range, aOrigin);
+      ScrollToImpl(mDestination, range);
       if (!weakFrame.IsAlive()) {
         return;
       }
@@ -1984,15 +1982,8 @@ ScrollFrameHelper::ScheduleSyntheticMouseMove()
 }
 
 void
-ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOrigin)
+ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange)
 {
-  if (aOrigin == nullptr) {
-    // If no origin was specified, we still want to set it to something that's
-    // non-null, so that we can use nullness to distinguish if the frame was scrolled
-    // at all. Default it to some generic placeholder.
-    aOrigin = nsGkAtoms::other;
-  }
-
   nsPresContext* presContext = mOuter->PresContext();
   nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   // 'scale' is our estimate of the scale factor that will be applied
@@ -2047,7 +2038,6 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
   nsPoint oldScrollFramePos = mScrolledFrame->GetPosition();
   // Update frame position for scrolling
   mScrolledFrame->SetPosition(mScrollPort.TopLeft() - pt);
-  mOriginOfLastScroll = aOrigin;
 
   // We pass in the amount to move visually
   ScrollVisual(oldScrollFramePos);
@@ -2068,15 +2058,13 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
 
 static void
 AppendToTop(nsDisplayListBuilder* aBuilder, nsDisplayList* aDest,
-            nsDisplayList* aSource, nsIFrame* aSourceFrame, bool aOwnLayer,
-            uint32_t aFlags, mozilla::layers::FrameMetrics::ViewID aScrollTargetId)
+            nsDisplayList* aSource, nsIFrame* aSourceFrame, bool aOwnLayer)
 {
   if (aSource->IsEmpty())
     return;
   if (aOwnLayer) {
     aDest->AppendNewToTop(
-        new (aBuilder) nsDisplayOwnLayer(aBuilder, aSourceFrame, aSource,
-                                         aFlags, aScrollTargetId));
+        new (aBuilder) nsDisplayOwnLayer(aBuilder, aSourceFrame, aSource));
   } else {
     aDest->AppendToTop(aSource);
   }
@@ -2125,10 +2113,6 @@ ScrollFrameHelper::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
     scrollParts.AppendElement(kid);
   }
 
-  mozilla::layers::FrameMetrics::ViewID scrollTargetId = aCreateLayer
-    ? nsLayoutUtils::FindOrCreateIDFor(mScrolledFrame->GetContent())
-    : mozilla::layers::FrameMetrics::NULL_SCROLL_ID;
-
   scrollParts.Sort(HoveredStateComparator());
 
   for (uint32_t i = 0; i < scrollParts.Length(); ++i) {
@@ -2145,19 +2129,11 @@ ScrollFrameHelper::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
     nsDisplayList* dest = appendToPositioned ?
       aLists.PositionedDescendants() : aLists.BorderBackground();
 
-    uint32_t flags = 0;
-    if (scrollParts[i] == mVScrollbarBox) {
-      flags |= nsDisplayOwnLayer::VERTICAL_SCROLLBAR;
-    }
-    if (scrollParts[i] == mHScrollbarBox) {
-      flags |= nsDisplayOwnLayer::HORIZONTAL_SCROLLBAR;
-    }
-
     // DISPLAY_CHILD_FORCE_STACKING_CONTEXT put everything into
     // partList.PositionedDescendants().
     ::AppendToTop(aBuilder, dest,
                   partList.PositionedDescendants(), scrollParts[i],
-                  aCreateLayer, flags, scrollTargetId);
+                  aCreateLayer);
   }
 }
 
@@ -2250,19 +2226,6 @@ ScrollFrameHelper::ExpandRect(const nsRect& aRect) const
   nsRect rect = aRect;
   rect.Inflate(expand);
   return rect;
-}
-
-static bool IsFocused(nsIContent* aContent)
-{
-  // Some content elements, like the GetContent() of a scroll frame
-  // for a text input field, are inside anonymous subtrees, but the focus
-  // manager always reports a non-anonymous element as the focused one, so
-  // walk up the tree until we reach a non-anonymous element.
-  while (aContent && aContent->IsInAnonymousSubtree()) {
-    aContent = aContent->GetParent();
-  }
-
-  return aContent ? nsContentUtils::IsFocusedContent(aContent) : false;
 }
 
 void
@@ -2407,16 +2370,10 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   } else {
     nsRect scrollRange = GetScrollRange();
     ScrollbarStyles styles = GetScrollbarStylesFromFrame();
-    bool isFocused = IsFocused(mOuter->GetContent());
-    bool isVScrollable = (scrollRange.height > 0)
-                      && (styles.mVertical != NS_STYLE_OVERFLOW_HIDDEN);
-    bool isHScrollable = (scrollRange.width > 0)
-                      && (styles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN);
-    // The check for scroll bars was added in bug 825692 to prevent layerization
-    // of text inputs for performance reasons. However, if a text input is
-    // focused we want to layerize it so we can async scroll it (bug 946408).
-    bool wantLayerV = isVScrollable && (mVScrollbarBox || isFocused);
-    bool wantLayerH = isHScrollable && (mHScrollbarBox || isFocused);
+    bool hasScrollableOverflow =
+      (scrollRange.width > 0 || scrollRange.height > 0) &&
+      ((styles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN && mHScrollbarBox) ||
+       (styles.mVertical   != NS_STYLE_OVERFLOW_HIDDEN && mVScrollbarBox));
     // TODO Turn this on for inprocess OMTC on all platforms
     bool wantSubAPZC = (XRE_GetProcessType() == GeckoProcessType_Content);
 #ifdef XP_WIN
@@ -2426,7 +2383,7 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #endif
     shouldBuildLayer =
       wantSubAPZC &&
-      (wantLayerV || wantLayerH) &&
+      hasScrollableOverflow &&
       (!mIsRoot || !mOuter->PresContext()->IsRootContentDocument());
   }
 
@@ -2468,12 +2425,6 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   scrolledContent.MoveTo(aLists);
 
   // Now display overlay scrollbars and the resizer, if we have one.
-#ifdef MOZ_WIDGET_GONK
-  // TODO: only layerize the overlay scrollbars if this scrollframe can be
-  // panned asynchronously. For now just always layerize on B2G because.
-  // that's where we want the layerized scrollbars
-  createLayersForScrollbars = true;
-#endif
   AppendScrollPartsTo(aBuilder, aDirtyRect, aLists, createLayersForScrollbars,
                       true);
 }

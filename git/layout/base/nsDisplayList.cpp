@@ -630,13 +630,6 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
     metrics.mScrollableRect = CSSRect::FromAppUnits(contentBounds);
     nsPoint scrollPosition = scrollableFrame->GetScrollPosition();
     metrics.mScrollOffset = CSSPoint::FromAppUnits(scrollPosition);
-
-    // If the frame was scrolled since the last layers update, and by
-    // something other than the APZ code, we want to tell the APZ to update
-    // its scroll offset.
-    nsIAtom* originOfLastScroll = scrollableFrame->OriginOfLastScroll();
-    metrics.mUpdateScrollOffset = (originOfLastScroll && originOfLastScroll != nsGkAtoms::apz);
-    scrollableFrame->ResetOriginOfLastScroll();
   }
   else {
     nsRect contentBounds = aForFrame->GetRect();
@@ -713,7 +706,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
       ScreenIntRect screenBounds = ScreenIntRect::FromUnknownRect(mozilla::gfx::IntRect(
           bounds.x, bounds.y, bounds.width, bounds.height));
       AdjustForScrollBars(screenBounds, scrollableFrame);
-      metrics.mCompositionBounds = metrics.mCompositionBounds.ForceInside(screenBounds);
+      metrics.mCompositionBounds = screenBounds.ClampRect(metrics.mCompositionBounds);
       useWidgetBounds = true;
     }
   }
@@ -3260,10 +3253,9 @@ bool nsDisplayBlendContainer::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplay
 
 nsDisplayOwnLayer::nsDisplayOwnLayer(nsDisplayListBuilder* aBuilder,
                                      nsIFrame* aFrame, nsDisplayList* aList,
-                                     uint32_t aFlags, ViewID aScrollTarget)
+                                     uint32_t aFlags)
     : nsDisplayWrapList(aBuilder, aFrame, aList)
-    , mFlags(aFlags)
-    , mScrollTarget(aScrollTarget) {
+    , mFlags(aFlags) {
   MOZ_COUNT_CTOR(nsDisplayOwnLayer);
 }
 
@@ -3281,12 +3273,6 @@ nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsRefPtr<ContainerLayer> layer = aManager->GetLayerBuilder()->
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList,
                            aContainerParameters, nullptr);
-  if (mFlags & VERTICAL_SCROLLBAR) {
-    layer->SetScrollbarData(mScrollTarget, Layer::ScrollDirection::VERTICAL);
-  }
-  if (mFlags & HORIZONTAL_SCROLLBAR) {
-    layer->SetScrollbarData(mScrollTarget, Layer::ScrollDirection::HORIZONTAL);
-  }
 
   if (mFlags & GENERATE_SUBDOC_INVALIDATIONS) {
     mFrame->PresContext()->SetNotifySubDocInvalidationData(layer);
@@ -3364,8 +3350,9 @@ nsDisplayStickyPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
   }
 
   nsLayoutUtils::SetFixedPositionLayerData(layer, scrollFrame, scrollFrameSize,
-                                           mStickyPosFrame,
-                                           presContext, aContainerParameters);
+                                           mStickyPosFrame, ReferenceFrame(),
+                                           presContext,
+                                           aContainerParameters);
 
   ViewID scrollId = nsLayoutUtils::FindOrCreateIDFor(
     stickyScrollContainer->ScrollFrame()->GetScrolledFrame()->GetContent());
@@ -3500,16 +3487,6 @@ nsDisplayScrollLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
 }
 
 bool
-nsDisplayScrollLayer::ShouldBuildLayerEvenIfInvisible(nsDisplayListBuilder* aBuilder)
-{
-  if (nsLayoutUtils::GetDisplayPort(mScrolledFrame->GetContent(), nullptr)) {
-    return true;
-  }
-
-  return nsDisplayWrapList::ShouldBuildLayerEvenIfInvisible(aBuilder);
-}
-
-bool
 nsDisplayScrollLayer::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                         nsRegion* aVisibleRegion,
                                         const nsRect& aAllowVisibleRegionExpansion)
@@ -3583,33 +3560,10 @@ nsDisplayScrollLayer::TryMerge(nsDisplayListBuilder* aBuilder,
   return true;
 }
 
-void
-PropagateClip(nsDisplayListBuilder* aBuilder, const DisplayItemClip& aClip,
-              nsDisplayList* aList)
-{
-  for (nsDisplayItem* i = aList->GetBottom(); i != nullptr; i = i->GetAbove()) {
-    DisplayItemClip clip(i->GetClip());
-    clip.IntersectWith(aClip);
-    i->SetClip(aBuilder, clip);
-    nsDisplayList* list = i->GetSameCoordinateSystemChildren();
-    if (list) {
-      PropagateClip(aBuilder, aClip, list);
-    }
-  }
-}
-
 bool
 nsDisplayScrollLayer::ShouldFlattenAway(nsDisplayListBuilder* aBuilder)
 {
-  if (GetScrollLayerCount() > 1) {
-    // Propagate our clip to our children. The clip for the scroll frame is
-    // on this item, but not our child items so that they can draw non-visible
-    // parts of the display port. But if we are flattening we failed and can't
-    // draw the extra content, so it needs to be clipped.
-    PropagateClip(aBuilder, GetClip(), &mList);
-    return true;
-  }
-  return false;
+  return GetScrollLayerCount() > 1;
 }
 
 intptr_t

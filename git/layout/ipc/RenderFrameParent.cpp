@@ -567,24 +567,6 @@ public:
     }
   }
 
-  virtual void HandleLongTapUp(const CSSIntPoint& aPoint,
-                             int32_t aModifiers) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      // We have to send this message from the "UI thread" (main
-      // thread).
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::HandleLongTapUp,
-                          aPoint, aModifiers));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleLongTapUp(aPoint, aModifiers);
-    }
-  }
-
   void ClearRenderFrame() { mRenderFrame = nullptr; }
 
   virtual void SendAsyncScrollDOMEvent(bool aIsRoot,
@@ -631,36 +613,6 @@ public:
       *aOutMaxZoom = mMaxZoom;
     }
     return mHaveZoomConstraints;
-  }
-
-  virtual void NotifyTransformBegin(const ScrollableLayerGuid& aGuid)
-  {
-    if (MessageLoop::current() != mUILoop) {
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::NotifyTransformBegin,
-                          aGuid));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->NotifyTransformBegin(aGuid.mScrollId);
-    }
-  }
-
-  virtual void NotifyTransformEnd(const ScrollableLayerGuid& aGuid)
-  {
-    if (MessageLoop::current() != mUILoop) {
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::NotifyTransformEnd,
-                          aGuid));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->NotifyTransformEnd(aGuid.mScrollId);
-    }
   }
 
 private:
@@ -909,6 +861,15 @@ RenderFrameParent::NotifyInputEvent(const WidgetInputEvent& aEvent,
 }
 
 void
+RenderFrameParent::NotifyDimensionsChanged(ScreenIntSize size)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateRootCompositionBounds(
+      mLayersId, ScreenIntRect(ScreenIntPoint(), size));
+  }
+}
+
+void
 RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 {
   if (mLayersId != 0) {
@@ -1101,6 +1062,15 @@ RenderFrameParent::UpdateZoomConstraints(uint32_t aPresShellId,
   if (GetApzcTreeManager()) {
     GetApzcTreeManager()->UpdateZoomConstraints(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
                                                 aAllowZoom, aMinZoom, aMaxZoom);
+  }
+}
+
+void
+RenderFrameParent::UpdateScrollOffset(uint32_t aPresShellId, ViewID aViewId, const CSSIntPoint& aScrollOffset)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateScrollOffset(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
+                                             aScrollOffset);
   }
 }
 

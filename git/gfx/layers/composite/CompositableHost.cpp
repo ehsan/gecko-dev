@@ -41,13 +41,8 @@ CompositableHost::~CompositableHost()
   while (it) {
     if (!(it->GetFlags() & TEXTURE_DEALLOCATE_CLIENT)) {
       it->DeallocateSharedData();
-      // Clear strong refrence to CompositableBackendSpecificData
-      it->SetCompositableBackendSpecificData(nullptr);
     }
     it = it->GetNextSibling();
-  }
-  if (mBackendData) {
-    mBackendData->ClearData();
   }
 }
 
@@ -60,6 +55,7 @@ CompositableHost::AddTextureHost(TextureHost* aTexture)
   RefPtr<TextureHost> second = mFirstTexture;
   mFirstTexture = aTexture;
   aTexture->SetNextSibling(second);
+  aTexture->SetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
 }
 
 void
@@ -79,8 +75,6 @@ CompositableHost::RemoveTextureHost(TextureHost* aTexture)
     }
     it = it->GetNextSibling();
   }
-  // Clear strong refrence to CompositableBackendSpecificData
-  aTexture->SetCompositableBackendSpecificData(nullptr);
   if (!mFirstTexture && mBackendData) {
     mBackendData->ClearData();
   }

@@ -238,6 +238,7 @@ nsXPCWrappedJS::GetJSObject()
 nsresult
 nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
                              REFNSIID aIID,
+                             nsISupports* aOuter,
                              nsXPCWrappedJS** wrapperResult)
 {
     // Do a release-mode assert against accessing nsXPCWrappedJS off-main-thread.
@@ -281,7 +282,8 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
         // build the root wrapper
         if (rootJSObj == jsObj) {
             // the root will do double duty as the interface wrapper
-            wrapper = root = new nsXPCWrappedJS(cx, jsObj, clazz, nullptr);
+            wrapper = root = new nsXPCWrappedJS(cx, jsObj, clazz, nullptr,
+                                                aOuter);
             if (!root)
                 goto return_wrapper;
 
@@ -296,7 +298,7 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
             if (!rootClazz)
                 goto return_wrapper;
 
-            root = new nsXPCWrappedJS(cx, rootJSObj, rootClazz, nullptr);
+            root = new nsXPCWrappedJS(cx, rootJSObj, rootClazz, nullptr, aOuter);
             NS_RELEASE(rootClazz);
 
             if (!root)
@@ -313,7 +315,7 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
     MOZ_ASSERT(clazz,"bad clazz");
 
     if (!wrapper) {
-        wrapper = new nsXPCWrappedJS(cx, jsObj, clazz, root);
+        wrapper = new nsXPCWrappedJS(cx, jsObj, clazz, root, aOuter);
         if (!wrapper)
             goto return_wrapper;
     }
@@ -338,12 +340,13 @@ return_wrapper:
 nsXPCWrappedJS::nsXPCWrappedJS(JSContext* cx,
                                JSObject* aJSObj,
                                nsXPCWrappedJSClass* aClass,
-                               nsXPCWrappedJS* root)
+                               nsXPCWrappedJS* root,
+                               nsISupports* aOuter)
     : mJSObj(aJSObj),
       mClass(aClass),
       mRoot(root ? root : this),
       mNext(nullptr),
-      mOuter(nullptr)
+      mOuter(root ? nullptr : aOuter)
 {
     InitStub(GetClass()->GetIID());
 
@@ -351,6 +354,7 @@ nsXPCWrappedJS::nsXPCWrappedJS(JSContext* cx,
     NS_ADDREF_THIS();
     NS_ADDREF_THIS();
     NS_ADDREF(aClass);
+    NS_IF_ADDREF(mOuter);
 
     if (mRoot != this)
         NS_ADDREF(mRoot);

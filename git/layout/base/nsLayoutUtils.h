@@ -369,6 +369,7 @@ public:
   static void SetFixedPositionLayerData(Layer* aLayer, const nsIFrame* aViewportFrame,
                                         nsSize aViewportSize,
                                         const nsIFrame* aFixedPosFrame,
+                                        const nsIFrame* aReferenceFrame,
                                         nsPresContext* aPresContext,
                                         const ContainerLayerParameters& aContainerParameters);
 

@@ -51,16 +51,14 @@ RegExpObjectBuilder::getOrCreate()
 }
 
 bool
-RegExpObjectBuilder::getOrCreateClone(HandleTypeObject type)
+RegExpObjectBuilder::getOrCreateClone(RegExpObject *proto)
 {
     JS_ASSERT(!reobj_);
-    JS_ASSERT(type->clasp == &RegExpObject::class_);
-
-    JSObject *parent = type->proto->getParent();
 
     // Note: RegExp objects are always allocated in the tenured heap. This is
     // not strictly required, but simplifies embedding them in jitcode.
-    JSObject *clone = NewObjectWithType(cx->asJSContext(), type, parent, TenuredObject);
+    JSObject *clone = NewObjectWithGivenProto(cx, &RegExpObject::class_, proto, proto->getParent(),
+                                              TenuredObject);
     if (!clone)
         return false;
     clone->initPrivate(nullptr);
@@ -94,10 +92,7 @@ RegExpObjectBuilder::build(HandleAtom source, RegExpFlag flags)
 RegExpObject *
 RegExpObjectBuilder::clone(Handle<RegExpObject *> other, Handle<RegExpObject *> proto)
 {
-    RootedTypeObject type(cx, other->type());
-    JS_ASSERT(type->proto == proto);
-
-    if (!getOrCreateClone(type))
+    if (!getOrCreateClone(proto))
         return nullptr;
 
     /*
@@ -743,9 +738,7 @@ js::CloneRegExpObject(JSContext *cx, JSObject *obj_, JSObject *proto_)
     RegExpObjectBuilder builder(cx);
     Rooted<RegExpObject*> regex(cx, &obj_->as<RegExpObject>());
     Rooted<RegExpObject*> proto(cx, &proto_->as<RegExpObject>());
-    JSObject *res = builder.clone(regex, proto);
-    JS_ASSERT(res->type() == regex->type());
-    return res;
+    return builder.clone(regex, proto);
 }
 
 bool

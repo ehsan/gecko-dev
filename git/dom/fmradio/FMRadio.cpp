@@ -234,8 +234,7 @@ FMRadio::Enabled()
 bool
 FMRadio::AntennaAvailable() const
 {
-  return mHasInternalAntenna ? true : (mHeadphoneState != SWITCH_STATE_OFF) &&
-    (mHeadphoneState != SWITCH_STATE_UNKNOWN);
+  return mHasInternalAntenna ? true : mHeadphoneState != SWITCH_STATE_OFF;
 }
 
 Nullable<double>

@@ -1208,44 +1208,48 @@ public:
         JS::Rooted<JSObject*> target(aCx, JS::CurrentGlobalOrNull(aCx));
         NS_ASSERTION(target, "This should never be null!");
 
-        nsEventStatus status = nsEventStatus_eIgnore;
+        bool preventDefaultCalled;
         nsIScriptGlobalObject* sgo;
 
-        if (aWorkerPrivate) {
+        if (aWorkerPrivate ||
+            !(sgo = nsJSUtils::GetStaticScriptGlobal(target))) {
           WorkerGlobalScope* globalTarget = aWorkerPrivate->GlobalScope();
           MOZ_ASSERT(target == globalTarget->GetWrapperPreserveColor());
 
           // Icky, we have to fire an InternalScriptErrorEvent...
-          MOZ_ASSERT(!NS_IsMainThread());
-          InternalScriptErrorEvent event(true, NS_USER_DEFINED_EVENT);
+          InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
           event.lineNr = aLineNumber;
           event.errorMsg = aMessage.get();
           event.fileName = aFilename.get();
           event.typeString = NS_LITERAL_STRING("error");
 
+          nsEventStatus status = nsEventStatus_eIgnore;
           nsIDOMEventTarget* target = static_cast<nsIDOMEventTarget*>(globalTarget);
           if (NS_FAILED(nsEventDispatcher::Dispatch(target, nullptr, &event,
                                                     nullptr, &status))) {
             NS_WARNING("Failed to dispatch worker thread error event!");
             status = nsEventStatus_eIgnore;
           }
+
+          preventDefaultCalled = status == nsEventStatus_eConsumeNoDefault;
         }
-        else if ((sgo = nsJSUtils::GetStaticScriptGlobal(target))) {
+        else {
           // Icky, we have to fire an InternalScriptErrorEvent...
-          MOZ_ASSERT(NS_IsMainThread());
           InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
           event.lineNr = aLineNumber;
           event.errorMsg = aMessage.get();
           event.fileName = aFilename.get();
 
+          nsEventStatus status = nsEventStatus_eIgnore;
           if (NS_FAILED(sgo->HandleScriptError(&event, &status))) {
             NS_WARNING("Failed to dispatch main thread error event!");
             status = nsEventStatus_eIgnore;
           }
+
+          preventDefaultCalled = status == nsEventStatus_eConsumeNoDefault;
         }
 
-        // Was preventDefault() called?
-        if (status == nsEventStatus_eConsumeNoDefault) {
+        if (preventDefaultCalled) {
           return true;
         }
       }
@@ -3124,7 +3128,6 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
       do_QueryInterface(windowAction.mWindow);
     MOZ_ASSERT(sgo);
 
-    MOZ_ASSERT(NS_IsMainThread());
     InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
     event.lineNr = aLineNumber;
     event.errorMsg = aMessage.BeginReading();

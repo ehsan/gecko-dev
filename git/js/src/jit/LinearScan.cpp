@@ -581,15 +581,9 @@ LinearScanAllocator::populateSafepoints()
 
                 // If the payload is an argument, we'll scan that explicitly as
                 // part of the frame. It is therefore safe to not add any
-                // safepoint entry, as long as the vreg does not have a stack
-                // slot as canonical spill slot.
-                if (payloadAlloc->isArgument() &&
-                    (!payload->canonicalSpill() || payload->canonicalSpill() == payloadAlloc))
-                {
-                    JS_ASSERT(typeAlloc->isArgument());
-                    JS_ASSERT(!type->canonicalSpill() || type->canonicalSpill() == typeAlloc);
+                // safepoint entry.
+                if (payloadAlloc->isArgument())
                     continue;
-                }
 
                 if (isSpilledAt(typeInterval, inputOf(ins)) &&
                     isSpilledAt(payloadInterval, inputOf(ins)))
@@ -767,13 +761,7 @@ LinearScanAllocator::assign(LAllocation allocation)
         }
     }
 
-    bool useAsCanonicalSpillSlot = allocation.isMemory();
-    // Only canonically spill argument values when frame arguments are not
-    // modified in the body.
-    if (mir->modifiesFrameArguments())
-        useAsCanonicalSpillSlot = allocation.isStackSlot();
-
-    if (reg && useAsCanonicalSpillSlot) {
+    if (reg && allocation.isMemory()) {
         if (reg->canonicalSpill()) {
             JS_ASSERT(allocation == *reg->canonicalSpill());
 

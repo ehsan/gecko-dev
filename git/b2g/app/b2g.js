@@ -81,7 +81,7 @@ pref("mozilla.widget.force-24bpp", true);
 pref("mozilla.widget.use-buffer-pixmap", true);
 pref("mozilla.widget.disable-native-theme", true);
 pref("layout.reflow.synthMouseMove", false);
-pref("layers.enable-tiles", false);
+pref("layers.force-tiles", false);
 
 /* download manager (don't show the window or alert) */
 pref("browser.download.useDownloadDir", true);
@@ -268,7 +268,6 @@ pref("layers.offmainthreadcomposition.async-animations", true);
 pref("layers.async-video.enabled", true);
 pref("layers.async-pan-zoom.enabled", true);
 pref("gfx.content.azure.backends", "cairo");
-pref("layers.composer2d.enabled", true);
 #endif
 
 // Web Notifications
@@ -845,24 +844,12 @@ pref("b2g.neterror.url", "app://system.gaiamobile.org/net_error.html");
 // Enable Web Speech synthesis API
 pref("media.webspeech.synth.enabled", true);
 
+// Downloads API
+pref("dom.mozDownloads.enabled", true);
+pref("dom.downloads.max_retention_days", 7);
+
 // Inactivity time in milliseconds after which we shut down the OS.File worker.
 pref("osfile.reset_worker_delay", 5000);
 
 // The URL of the Firefox Accounts auth server backend
 pref("identity.fxaccounts.auth.uri", "https://api-accounts.dev.lcip.org/v1");
-
-// APZC preferences.
-//
-// Gaia relies heavily on scroll events for now, so lets fire them
-// more often than the default value (100).
-pref("apz.asyncscroll.throttle", 40);
-
-// This preference allows FirefoxOS apps (and content, I think) to force
-// the use of software (instead of hardware accelerated) 2D canvases by
-// creating a context like this:
-//
-//   canvas.getContext('2d', { willReadFrequently: true })
-//
-// Using a software canvas can save memory when JS calls getImageData()
-// on the canvas frequently. See bug 884226.
-pref("gfx.canvas.willReadFrequently.enable", true);

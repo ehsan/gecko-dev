@@ -396,11 +396,7 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
         return &obj->as<PropertyIteratorObject>();
     }
 
-    JSObject *obj = NewBuiltinClassInstance(cx, &PropertyIteratorObject::class_);
-    if (!obj)
-        return nullptr;
-
-    return &obj->as<PropertyIteratorObject>();
+    return &NewBuiltinClassInstance(cx, &PropertyIteratorObject::class_)->as<PropertyIteratorObject>();
 }
 
 NativeIterator *

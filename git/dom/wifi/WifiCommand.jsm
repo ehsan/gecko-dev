@@ -310,13 +310,8 @@ this.WifiCommand = function(aControlMessage, aInterface) {
     doBooleanCommand("BLACKLIST clear", "OK", callback);
   };
 
-  command.setSuspendOptimizationsICS = function (enabled, callback) {
+  command.setSuspendOptimizations = function (enabled, callback) {
     doBooleanCommand("DRIVER SETSUSPENDOPT " + (enabled ? 0 : 1),
-                     "OK", callback);
-  };
-
-  command.setSuspendOptimizationsJB = function (enabled, callback) {
-    doBooleanCommand("DRIVER SETSUSPENDMODE " + (enabled ? 1 : 0),
                      "OK", callback);
   };
 

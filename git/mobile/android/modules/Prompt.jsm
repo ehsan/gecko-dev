@@ -117,14 +117,6 @@ Prompt.prototype = {
     });
   },
 
-  addColorPicker: function(aOptions) {
-    return this._addInput({
-      type: "color",
-      value: aOptions.value,
-      id: aOptions.id
-    });
-  },
-
   addLabel: function(aOptions) {
     return this._addInput({
       type: "label",

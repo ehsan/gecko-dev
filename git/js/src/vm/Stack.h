@@ -1461,15 +1461,14 @@ class ScriptFrameIter
      */
     struct Data
     {
-        PerThreadData * perThread_;
-        JSContext *     cx_;
-        SavedOption     savedOption_;
-        ContextOption   contextOption_;
-        JSPrincipals *  principals_;
+        PerThreadData *perThread_;
+        JSContext    *cx_;
+        SavedOption  savedOption_;
+        ContextOption contextOption_;
 
-        State           state_;
+        State        state_;
 
-        jsbytecode *    pc_;
+        jsbytecode   *pc_;
 
         InterpreterFrameIterator interpFrames_;
         ActivationIterator activations_;
@@ -1479,7 +1478,7 @@ class ScriptFrameIter
 #endif
 
         Data(JSContext *cx, PerThreadData *perThread, SavedOption savedOption,
-             ContextOption contextOption, JSPrincipals *principals);
+             ContextOption contextOption);
         Data(const Data &other);
     };
 
@@ -1500,7 +1499,7 @@ class ScriptFrameIter
 
   public:
     ScriptFrameIter(JSContext *cx, SavedOption = STOP_AT_SAVED);
-    ScriptFrameIter(JSContext *cx, ContextOption, SavedOption, JSPrincipals* = nullptr);
+    ScriptFrameIter(JSContext *cx, ContextOption, SavedOption);
     ScriptFrameIter(const ScriptFrameIter &iter);
     ScriptFrameIter(const Data &data);
     ScriptFrameIter(AbstractFramePtr frame);
@@ -1624,12 +1623,6 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
   public:
     NonBuiltinScriptFrameIter(JSContext *cx, ScriptFrameIter::SavedOption opt = ScriptFrameIter::STOP_AT_SAVED)
       : ScriptFrameIter(cx, opt) { settle(); }
-
-    NonBuiltinScriptFrameIter(JSContext *cx,
-                              ScriptFrameIter::ContextOption contextOption,
-                              ScriptFrameIter::SavedOption savedOption,
-                              JSPrincipals *principals = nullptr)
-      : ScriptFrameIter(cx, contextOption, savedOption, principals) { settle(); }
 
     NonBuiltinScriptFrameIter(const ScriptFrameIter::Data &data)
       : ScriptFrameIter(data)

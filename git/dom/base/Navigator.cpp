@@ -1539,6 +1539,13 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
         }
       }
 
+      if (name.EqualsLiteral("mozDownloadManager")) {
+        if (!CheckPermission("downloads")) {
+          aValue.setNull();
+          return true;
+        }
+      }
+
       domObject = construct(aCx, naviObj);
       if (!domObject) {
         return Throw(aCx, NS_ERROR_FAILURE);
@@ -1799,12 +1806,6 @@ Navigator::HasFMRadioSupport(JSContext* /* unused */, JSObject* aGlobal)
 bool
 Navigator::HasNfcSupport(JSContext* /* unused */, JSObject* aGlobal)
 {
-  // Do not support NFC if NFC content helper does not exist.
-  nsCOMPtr<nsISupports> contentHelper = do_GetService("@mozilla.org/nfc/content-helper;1");
-  if (!contentHelper) {
-    return false;
-  }
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && (CheckPermission(win, "nfc-read") ||
                  CheckPermission(win, "nfc-write"));

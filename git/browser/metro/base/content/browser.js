@@ -11,7 +11,7 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/PageThumbs.jsm");
 
 // Page for which the start UI is shown
-const kStartURI = "about:newtab";
+const kStartURI = "about:start";
 
 // allow panning after this timeout on pages with registered touch listeners
 const kTouchTimeout = 300;
@@ -1208,17 +1208,16 @@ var SessionHistoryObserver = {
     if (aTopic != "browser:purge-session-history")
       return;
 
-    let newTab = Browser.addTab("about:start", true);
-    let tab = Browser._tabs[0];
-    while(tab != newTab) {
-      Browser.closeTab(tab, { forceClose: true } );
-      tab = Browser._tabs[0];
+    let back = document.getElementById("cmd_back");
+    back.setAttribute("disabled", "true");
+    let forward = document.getElementById("cmd_forward");
+    forward.setAttribute("disabled", "true");
+
+    let urlbar = document.getElementById("urlbar-edit");
+    if (urlbar) {
+      // Clear undo history of the URL bar
+      urlbar.editor.transactionManager.clear();
     }
-
-    PlacesUtils.history.removeAllPages();
-
-    // Clear undo history of the URL bar
-    BrowserUI._edit.editor.transactionManager.clear();
   }
 };
 
@@ -1306,7 +1305,6 @@ Tab.prototype = {
     }
     browser.addEventListener("pageshow", onPageShowEvent, true);
     browser.addEventListener("DOMWindowCreated", this, false);
-    browser.addEventListener("StartUIChange", this, false);
     Elements.browsers.addEventListener("SizeChanged", this, false);
 
     browser.messageManager.addMessageListener("Content:StateChange", this);
@@ -1318,19 +1316,12 @@ Tab.prototype = {
 
   updateViewport: function (aEvent) {
     // <meta name=viewport> is not yet supported; just use the browser size.
-    let browser = this.browser;
-
-    // On the start page we add padding to keep the browser above the navbar.
-    let paddingBottom = parseInt(getComputedStyle(browser).paddingBottom, 10);
-    let height = browser.clientHeight - paddingBottom;
-
-    browser.setWindowSize(browser.clientWidth, height);
+    this.browser.setWindowSize(this.browser.clientWidth, this.browser.clientHeight);
   },
 
   handleEvent: function (aEvent) {
     switch (aEvent.type) {
       case "DOMWindowCreated":
-      case "StartUIChange":
         this.updateViewport();
         break;
       case "SizeChanged":
@@ -1363,7 +1354,6 @@ Tab.prototype = {
   destroy: function destroy() {
     this._browser.messageManager.removeMessageListener("Content:StateChange", this);
     this._browser.removeEventListener("DOMWindowCreated", this, false);
-    this._browser.removeEventListener("StartUIChange", this, false);
     Elements.browsers.removeEventListener("SizeChanged", this, false);
     clearTimeout(this._updateThumbnailTimeout);
 

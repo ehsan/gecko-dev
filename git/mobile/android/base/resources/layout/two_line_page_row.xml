@@ -28,8 +28,7 @@
                   style="@style/Widget.TwoLinePageRow.Url"
                   android:layout_width="fill_parent"
                   android:layout_height="wrap_content"
-                  android:drawablePadding="5dp"
-                  android:maxLength="1024"/>
+                  android:drawablePadding="5dp"/>
 
     </LinearLayout>
 

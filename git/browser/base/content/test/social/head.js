@@ -555,24 +555,12 @@ function resizeAndCheckWidths(first, second, third, checks, cb) {
   resizeWindowToChatAreaWidth(width, function(sizedOk) {
     checkPopup();
     ok(sizedOk, count+": window resized correctly");
-    function collapsedObserver(r, m) {
-      if ([first, second, third].filter(function(item) !item.collapsed).length == numExpectedVisible) {
-        if (m) {
-          m.disconnect();
-        }
-        ok(true, count + ": " + "correct number of chats visible");
-        info(">> Check " + count);
-        resizeAndCheckWidths(first, second, third, checks, cb);
-        return true;
-      }
-      return false;
+    if (sizedOk) {
+      let numVisible = [first, second, third].filter(function(item) !item.collapsed).length;
+      is(numVisible, numExpectedVisible, count + ": " + "correct number of chats visible");
     }
-    if (!collapsedObserver()) {
-      let m = new MutationObserver(collapsedObserver);
-      m.observe(first, {attributes: true });
-      m.observe(second, {attributes: true });
-      m.observe(third, {attributes: true });
-    }
+    info(">> Check " + count);
+    resizeAndCheckWidths(first, second, third, checks, cb);
   }, count);
 }
 

@@ -29,18 +29,14 @@ if (!xhr.onload) {
   postMessage(message);
 }
 
-xhr.onerror = function(event) {
+xhr.addEventListener("error", function(event) {
   if (event.target != xhr) {
     throw "onerror event.target != xhr";
   }
   var message = { type: "error",
                   error: event.target.status };
   postMessage(message);
-};
-xhr.onerror = xhr.onerror;
-if (!xhr.onerror || xhr.onerror != xhr.onerror) {
-  throw "onerror wasn't set properly";
-}
+}, false);
 
 function onprogress(event) {
   if (event.target != xhr) {

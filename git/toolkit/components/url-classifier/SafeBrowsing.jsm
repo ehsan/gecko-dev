@@ -35,7 +35,7 @@ this.SafeBrowsing = {
       return;
     }
 
-    Services.prefs.addObserver("browser.safebrowsing", this.readPrefs.bind(this), false);
+    Services.prefs.addObserver("browser.safebrowsing", this.readPrefs, false);
     this.readPrefs();
 
     // Register our two types of tables, and add custom Mozilla entries

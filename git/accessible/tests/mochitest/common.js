@@ -79,8 +79,7 @@ const COORDTYPE_PARENT_RELATIVE = nsIAccessibleCoordinateType.COORDTYPE_PARENT_R
 
 const kEmbedChar = String.fromCharCode(0xfffc);
 
-const kDiscBulletChar = String.fromCharCode(0x2022);
-const kDiscBulletText = kDiscBulletChar + " ";
+const kDiscBulletText = String.fromCharCode(0x2022) + " ";
 const kCircleBulletText = String.fromCharCode(0x25e6) + " ";
 const kSquareBulletText = String.fromCharCode(0x25aa) + " ";
 

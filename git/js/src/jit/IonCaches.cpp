@@ -611,19 +611,8 @@ IsCacheableGetPropCallNative(JSObject *obj, JSObject *holder, Shape *shape)
     if (!shape->hasGetterValue() || !shape->getterValue().isObject())
         return false;
 
-    if (!shape->getterValue().toObject().is<JSFunction>())
-        return false;
-
-    JSFunction& getter = shape->getterValue().toObject().as<JSFunction>();
-    if (!getter.isNative())
-        return false;
-
-    // Check for a DOM method; those are OK with both inner and outer objects.
-    if (getter.jitInfo())
-        return true;
-
-    // For non-DOM methods, don't cache if obj has an outerObject hook.
-    return !obj->getClass()->ext.outerObject;
+    return shape->getterValue().toObject().is<JSFunction>() &&
+           shape->getterValue().toObject().as<JSFunction>().isNative();
 }
 
 static bool
@@ -3231,21 +3220,16 @@ GetElementIC::canAttachTypedArrayElement(JSObject *obj, const Value &idval,
 
     // The output register is not yet specialized as a float register, the only
     // way to accept float typed arrays for now is to return a Value type.
-    uint32_t arrayType = obj->as<TypedArrayObject>().type();
-    if (arrayType == ScalarTypeRepresentation::TYPE_FLOAT32 ||
-        arrayType == ScalarTypeRepresentation::TYPE_FLOAT64)
-    {
-        return output.hasValue();
-    }
-
-    return output.hasValue() || !output.typedReg().isFloat();
+    int arrayType = obj->as<TypedArrayObject>().type();
+    bool floatOutput = arrayType == ScalarTypeRepresentation::TYPE_FLOAT32 ||
+                       arrayType == ScalarTypeRepresentation::TYPE_FLOAT64;
+    return !floatOutput || output.hasValue();
 }
 
 static void
 GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
                              TypedArrayObject *tarr, const Value &idval, Register object,
-                             ConstantOrRegister index, TypedOrValueRegister output,
-                             bool allowDoubleResult)
+                             ConstantOrRegister index, TypedOrValueRegister output)
 {
     JS_ASSERT(GetElementIC::canAttachTypedArrayElement(tarr, idval, output));
 
@@ -3327,12 +3311,12 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     // register is necessary a non double register.
     int width = TypedArrayObject::slotWidth(arrayType);
     BaseIndex source(elementReg, indexReg, ScaleFromElemWidth(width));
-    if (output.hasValue()) {
-        masm.loadFromTypedArray(arrayType, source, output.valueReg(), allowDoubleResult,
+    if (output.hasValue())
+        masm.loadFromTypedArray(arrayType, source, output.valueReg(), true,
                                 elementReg, &popAndFail);
-    } else {
-        masm.loadFromTypedArray(arrayType, source, output.typedReg(), elementReg, &popAndFail);
-    }
+    else
+        masm.loadFromTypedArray(arrayType, source, output.typedReg(),
+                                elementReg, &popAndFail);
 
     masm.pop(object);
     attacher.jumpRejoin(masm);
@@ -3351,8 +3335,7 @@ GetElementIC::attachTypedArrayElement(JSContext *cx, IonScript *ion, TypedArrayO
 {
     MacroAssembler masm(cx);
     RepatchStubAppender attacher(*this);
-    GenerateGetTypedArrayElement(cx, masm, attacher, tarr, idval, object(), index(), output(),
-                                 allowDoubleResult());
+    GenerateGetTypedArrayElement(cx, masm, attacher, tarr, idval, object(), index(), output());
     return linkAndAttachStub(cx, masm, attacher, ion, "typed array");
 }
 
@@ -3476,9 +3459,6 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     jsbytecode *pc;
     cache.getScriptedLocation(&script, &pc);
 
-    // Override the return value when the script is invalidated (bug 728188).
-    AutoDetectInvalidation adi(cx, res.address(), ion);
-
     if (cache.isDisabled()) {
         if (!GetObjectElementOperation(cx, JSOp(*pc), obj, /* wasObject = */true, idval, res))
             return false;
@@ -3486,7 +3466,9 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
         return true;
     }
 
-    AutoFlushCache afc("GetElementCache", cx->runtime()->jitRuntime());
+    // Override the return value if we are invalidated (bug 728188).
+    AutoFlushCache afc ("GetElementCache", cx->runtime()->jitRuntime());
+    AutoDetectInvalidation adi(cx, res.address(), ion);
 
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, idval, &id))
@@ -3947,8 +3929,7 @@ GetElementParIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
 {
     MacroAssembler masm(cx);
     DispatchStubPrepender attacher(*this);
-    GenerateGetTypedArrayElement(cx, masm, attacher, tarr, idval, object(), index(), output(),
-                                 allowDoubleResult());
+    GenerateGetTypedArrayElement(cx, masm, attacher, tarr, idval, object(), index(), output());
     return linkAndAttachStub(cx, masm, attacher, ion, "parallel typed array");
 }
 
