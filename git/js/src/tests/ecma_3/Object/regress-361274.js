@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-361274.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 361274;
 var summary = 'Embedded nulls in property names';

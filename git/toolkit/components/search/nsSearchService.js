@@ -375,10 +375,9 @@ loadListener.prototype = {
   },
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
-                                                      aFlags, callback) {
+  onChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
+                                                 aFlags) {
     this._channel = aNewChannel;
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 
   // nsIInterfaceRequestor

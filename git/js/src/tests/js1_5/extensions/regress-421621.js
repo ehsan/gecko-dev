@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-421621.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 421621;
 var summary = 'Do not assert with setter, export/import: (sprop)->slot != SPROP_INVALID_SLOT || !SPROP_HAS_STUB_SETTER(sprop)';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-328249.js';
 
 var summary = "Crash due to infinite recursion in js_IsXMLName";
 var BUGNUMBER = 328249;

@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-565521.js';
 
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 565521;

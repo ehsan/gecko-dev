@@ -18,8 +18,7 @@ TestLatencyParent::TestLatencyParent() :
     mPP5TimeTotal(),
     mRpcTimeTotal(),
     mPPTrialsToGo(NR_TRIALS),
-    mPP5TrialsToGo(NR_TRIALS),
-    mSpamsToGo(NR_TRIALS)
+    mPP5TrialsToGo(NR_TRIALS)
 {
     MOZ_COUNT_CTOR(TestLatencyParent);
 }
@@ -69,6 +68,12 @@ TestLatencyParent::Ping5Pong5Trial()
         fail("sending Ping5()");
 }
 
+void
+TestLatencyParent::Exit()
+{
+    Close();
+}
+
 bool
 TestLatencyParent::RecvPong()
 {
@@ -110,45 +115,21 @@ TestLatencyParent::RecvPong5()
 void
 TestLatencyParent::RpcTrials()
 {
-    TimeStamp start = TimeStamp::Now();
     for (int i = 0; i < NR_TRIALS; ++i) {
+        TimeStamp start = TimeStamp::Now();
+
         if (!CallRpc())
             fail("can't call Rpc()");
+
+        TimeDuration thisTrial = (TimeStamp::Now() - start);
+
         if (0 == (i % 1000))
-            printf("  Rpc trial %d\n", i);
+            printf("  Rpc trial %d: %g\n", i, thisTrial.ToSecondsSigDigits());
+
+        mRpcTimeTotal += thisTrial;
     }
-    mRpcTimeTotal = (TimeStamp::Now() - start);
-
-    SpamTrial();
-}
-
-void
-TestLatencyParent::SpamTrial()
-{
-    TimeStamp start = TimeStamp::Now();
-    for (int i = 0; i < NR_SPAMS - 1; ++i) {
-        if (!SendSpam())
-            fail("sending Spam()");
-        if (0 == (i % 10000))
-            printf("  Spam trial %d\n", i);
-    }
-
-    // Synchronize with the child process to ensure all messages have
-    // been processed.  This adds the overhead of a reply message from
-    // child-->here, but should be insignificant compared to >>
-    // NR_SPAMS.
-    if (!CallSynchro())
-        fail("calling Synchro()");
-
-    mSpamTimeTotal = (TimeStamp::Now() - start);
 
     Exit();
-}
-
-void
-TestLatencyParent::Exit()
-{
-    Close();
 }
 
 //-----------------------------------------------------------------------------
@@ -189,19 +170,6 @@ TestLatencyChild::RecvPing5()
 
 bool
 TestLatencyChild::AnswerRpc()
-{
-    return true;
-}
-
-bool
-TestLatencyChild::RecvSpam()
-{
-    // no-op
-    return true;
-}
-
-bool
-TestLatencyChild::AnswerSynchro()
 {
     return true;
 }

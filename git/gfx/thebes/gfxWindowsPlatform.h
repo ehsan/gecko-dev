@@ -213,12 +213,6 @@ public:
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
-    inline PRBool DWriteEnabled() { return !!mDWriteFactory; }
-#else
-    inline PRBool DWriteEnabled() { return PR_FALSE; }
-#endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-    cairo_device_t *GetD2DDevice() { return mD2DDevice; }
 #endif
 
 #ifdef MOZ_FT2_FONTS
@@ -238,9 +232,6 @@ private:
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsRefPtr<IDWriteFactory> mDWriteFactory;
-#endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-    cairo_device_t *mD2DDevice;
 #endif
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();

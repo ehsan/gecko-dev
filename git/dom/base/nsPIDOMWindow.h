@@ -397,6 +397,11 @@ public:
   virtual PRBool CanClose() = 0;
   virtual nsresult ForceClose() = 0;
 
+  void SetModalContentWindow(PRBool aIsModalContentWindow)
+  {
+    mIsModalContentWindow = aIsModalContentWindow;
+  }
+
   PRBool IsModalContentWindow() const
   {
     return mIsModalContentWindow;

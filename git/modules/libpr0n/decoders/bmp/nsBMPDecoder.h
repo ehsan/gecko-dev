@@ -40,8 +40,9 @@
 #ifndef _nsBMPDecoder_h
 #define _nsBMPDecoder_h
 
-#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 #include "imgIDecoder.h"
+#include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
 #include "gfxColor.h"
 
@@ -139,12 +140,6 @@ enum ERLEState {
     eRLEStateAbsoluteModePadded ///< As above, but another byte of data has to be read as padding
 };
 
-namespace mozilla {
-namespace imagelib {
-class RasterImage;
-} // namespace imagelib
-} // namespace mozilla
-
 /**
  * Decoder for BMP-Files, as used by Windows and OS/2
  */
@@ -165,7 +160,7 @@ private:
 
     nsCOMPtr<imgIDecoderObserver> mObserver;
 
-    nsRefPtr<mozilla::imagelib::RasterImage> mImage;
+    nsCOMPtr<imgIContainer> mImage;
     PRUint32 mFlags;
 
     PRUint32 mPos;

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '9.5-2.js';
 
 /**
    File Name:          9.5-2.js

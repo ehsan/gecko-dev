@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'backspace.js';
 
 /**
    Filename:     backspace.js

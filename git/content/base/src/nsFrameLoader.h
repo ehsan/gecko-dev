@@ -84,7 +84,7 @@ class nsFrameLoader : public nsIFrameLoader
 #endif
 
 protected:
-  nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated) :
+  nsFrameLoader(nsIContent *aOwner) :
     mOwnerContent(aOwner),
     mDepthTooGreat(PR_FALSE),
     mIsTopLevelContent(PR_FALSE),
@@ -92,8 +92,7 @@ protected:
     mNeedsAsyncDestroy(PR_FALSE),
     mInSwap(PR_FALSE),
     mInShow(PR_FALSE),
-    mHideCalled(PR_FALSE),
-    mNetworkCreated(aNetworkCreated)
+    mHideCalled(PR_FALSE)
 #ifdef MOZ_IPC
     , mDelayRemoteDialogs(PR_FALSE)
     , mRemoteWidgetCreated(PR_FALSE)
@@ -114,7 +113,7 @@ public:
     nsFrameLoader::Destroy();
   }
 
-  static nsFrameLoader* Create(nsIContent* aOwner, PRBool aNetworkCreated);
+  static nsFrameLoader* Create(nsIContent* aOwner);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameLoader)
@@ -152,22 +151,6 @@ public:
 
   // When IPC is enabled, destroy any associated child process.
   void DestroyChild();
-
-  /**
-   * Return the primary frame for our owning content, or null if it
-   * can't be found.
-   */
-  nsIFrame* GetPrimaryFrameOfOwningContent() const
-  {
-    return mOwnerContent ? mOwnerContent->GetPrimaryFrame() : nsnull;
-  }
-
-  /** 
-   * Return the document that owns this, or null if we don't have
-   * an owner.
-   */
-  nsIDocument* GetOwnerDoc() const
-  { return mOwnerContent ? mOwnerContent->GetOwnerDoc() : nsnull; }
 
 #ifdef MOZ_IPC
   PBrowserParent* GetRemoteBrowser();
@@ -222,10 +205,6 @@ private:
   PRPackedBool mInSwap : 1;
   PRPackedBool mInShow : 1;
   PRPackedBool mHideCalled : 1;
-  // True when the object is created for an element which the parser has
-  // created using NS_FROM_PARSER_NETWORK flag. If the element is modified,
-  // it may lose the flag.
-  PRPackedBool mNetworkCreated : 1;
 
 #ifdef MOZ_IPC
   PRPackedBool mDelayRemoteDialogs : 1;

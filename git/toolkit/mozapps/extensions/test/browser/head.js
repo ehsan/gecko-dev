@@ -15,22 +15,14 @@ const CHROMEROOT = "chrome://mochikit/content/" + RELATIVE_DIR;
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
-const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
 
 var gPendingTests = [];
 var gTestsRun = 0;
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
-// Turn off remote results in searches
-Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 0);
 registerCleanupFunction(function() {
   Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
-  try {
-    Services.prefs.clearUserPref(PREF_SEARCH_MAXRESULTS);
-  }
-  catch (e) {
-  }
 });
 
 function add_test(test) {
@@ -80,11 +72,8 @@ function wait_for_manager_load(aManagerWindow, aCallback) {
   }, false);
 }
 
-function open_manager(aView, aCallback, aLoadCallback) {
+function open_manager(aView, aCallback) {
   function setup_manager(aManagerWindow) {
-    if (aLoadCallback)
-      aLoadCallback(aManagerWindow);
-
     if (aView)
       aManagerWindow.loadView(aView);
 
@@ -97,7 +86,6 @@ function open_manager(aView, aCallback, aLoadCallback) {
   }
 
   if ("switchToTabHavingURI" in window) {
-    gBrowser.selectedTab = gBrowser.addTab();
     switchToTabHavingURI(MANAGER_URI, true, function(aBrowser) {
       setup_manager(aBrowser.contentWindow.wrappedJSObject);
     });
@@ -122,15 +110,8 @@ function close_manager(aManagerWindow, aCallback) {
   aManagerWindow.close();
 }
 
-function restart_manager(aManagerWindow, aView, aCallback, aLoadCallback) {
-  if (!aManagerWindow) {
-    open_manager(aView, aCallback, aLoadCallback);
-    return;
-  }
-
-  close_manager(aManagerWindow, function() {
-    open_manager(aView, aCallback, aLoadCallback);
-  });
+function restart_manager(aManagerWindow, aView, aCallback) {
+  close_manager(aManagerWindow, function() { open_manager(aView, aCallback); });
 }
 
 function is_element_visible(aWindow, aElement, aExpected, aMsg) {

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-315990.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 315990;
 var summary = 'this.statement.is.an.error';

@@ -51,7 +51,6 @@
 #include "nsCSSParser.h"
 #include "mozilla/css/Loader.h"
 #include "nsIDOMMutationEvent.h"
-#include "nsXULElement.h"
 
 #ifdef MOZ_SVG
 #include "nsIDOMSVGStylable.h"
@@ -174,7 +173,7 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
     modification = !!mAttrsAndChildren.GetAttr(nsGkAtoms::style);
   }
 
-  nsAttrValue attrValue(aStyleRule, nsnull);
+  nsAttrValue attrValue(aStyleRule);
 
   // XXXbz do we ever end up with ADDITION here?  I doubt it.
   PRUint8 modType = modification ?
@@ -236,19 +235,11 @@ nsStyledElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 // ---------------------------------------------------------------
 // Others and helpers
 
-nsIDOMCSSStyleDeclaration*
-nsStyledElement::GetStyle(nsresult* retval)
+nsresult
+nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  nsXULElement* xulElement = nsXULElement::FromContent(this);
-  if (xulElement) {
-    nsresult rv = xulElement->EnsureLocalStyle();
-    if (NS_FAILED(rv)) {
-      *retval = rv;
-      return nsnull;
-    }
-  }
-    
   nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
   if (!slots->mStyle) {
     // Just in case...
@@ -259,11 +250,13 @@ nsStyledElement::GetStyle(nsresult* retval)
                                                      , PR_FALSE
 #endif // MOZ_SMIL
                                                      );
+    NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
     SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
-  *retval = NS_OK;
-  return slots->mStyle;
+  // Why bother with QI?
+  NS_ADDREF(*aStyle = slots->mStyle);
+  return NS_OK;
 }
 
 nsresult
@@ -322,7 +315,7 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
                                       NodePrincipal(),
                                       getter_AddRefs(rule));
         if (rule) {
-          aResult.SetTo(rule, &aValue);
+          aResult.SetTo(rule);
           return;
         }
       }

@@ -3,6 +3,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
+var gTestfile = '15.10.7.5-01.js';
 var BUGNUMBER = 465199;
 var summary = "RegExp lastIndex property set should not coerce type to number";
 

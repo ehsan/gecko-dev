@@ -43,6 +43,7 @@
  */
 //-----------------------------------------------------------------------------
 
+gTestsubsuite = 'Expressions';
 
 var CHAR_LBRACKET = '[';
 var CHAR_RBRACKET = ']';

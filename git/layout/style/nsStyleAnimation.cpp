@@ -1609,12 +1609,12 @@ BuildStyleRule(nsCSSProperty aProperty,
                PRBool aUseSVGMode)
 {
   // Set up an empty CSS Declaration
-  nsAutoPtr<css::Declaration> declaration(new css::Declaration());
-  declaration->InitializeEmpty();
+  css::Declaration* declaration = new css::Declaration();
 
   PRBool changed; // ignored, but needed as outparam for ParseProperty
   nsIDocument* doc = aTargetElement->GetOwnerDoc();
   nsCOMPtr<nsIURI> baseURI = aTargetElement->GetBaseURI();
+  nsCOMPtr<nsICSSStyleRule> styleRule;
   nsCSSParser parser(doc->CSSLoader());
 
   if (aUseSVGMode) {
@@ -1628,20 +1628,26 @@ BuildStyleRule(nsCSSProperty aProperty,
   nsCSSProperty propertyToCheck = nsCSSProps::IsShorthand(aProperty) ?
     nsCSSProps::SubpropertyEntryFor(aProperty)[0] : aProperty;
 
-  // Get a parser, parse the property, and check for CSS parsing errors.
-  // If any of these steps fails, we bail out and delete the declaration.
-  if (!parser ||
+  // The next clause performs the following, in sequence: Initialize our
+  // declaration, get a parser, parse property, check that parsing succeeded,
+  // and build a rule for the resulting declaration.  If any of these steps
+  // fails, we bail out and delete the declaration.
+  if (!declaration->InitializeEmpty() ||
+      !parser ||
       NS_FAILED(parser.ParseProperty(aProperty, aSpecifiedValue,
                                      doc->GetDocumentURI(), baseURI,
                                      aTargetElement->NodePrincipal(),
                                      declaration, &changed, PR_FALSE)) ||
       // check whether property parsed without CSS parsing errors
-      !declaration->HasNonImportantValueFor(propertyToCheck)) {
+      !declaration->HasNonImportantValueFor(propertyToCheck) ||
+      NS_FAILED(NS_NewCSSStyleRule(getter_AddRefs(styleRule), nsnull,
+                                   declaration))) {
     NS_WARNING("failure in BuildStyleRule");
+    declaration->RuleAbort();  // deletes declaration
     return nsnull;
   }
 
-  return NS_NewCSSStyleRule(nsnull, declaration.forget());
+  return styleRule.forget();
 }
 
 inline
@@ -1866,8 +1872,7 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
   }
   nsCSSValuePair vp;
   nsCSSRect rect;
-  nsCSSValueList* vl = nsnull;
-  nsCSSValuePairList* vpl = nsnull;
+  void *ptr = nsnull;
   void *storage;
   switch (nsCSSProps::kTypeTable[aProperty]) {
     case eCSSType_Value:
@@ -1880,10 +1885,8 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
       storage = &vp;
       break;
     case eCSSType_ValueList:
-      storage = &vl;
-      break;
     case eCSSType_ValuePairList:
-      storage = &vpl;
+      storage = &ptr;
       break;
     default:
       NS_ABORT_IF_FALSE(PR_FALSE, "unexpected case");
@@ -1891,32 +1894,13 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
       break;
   }
 
+  nsCSSValue value;
   if (!nsStyleAnimation::UncomputeValue(aProperty, aPresContext,
                                         aComputedValue, storage)) {
     return PR_FALSE;
   }
-
-  switch (nsCSSProps::kTypeTable[aProperty]) {
-    case eCSSType_Value:
-      vp.mXValue.AppendToString(aProperty, aSpecifiedValue);
-      break;
-    case eCSSType_Rect:
-      rect.AppendToString(aProperty, aSpecifiedValue);
-      break;
-    case eCSSType_ValuePair:
-      vp.AppendToString(aProperty, aSpecifiedValue);
-      break;
-    case eCSSType_ValueList:
-      vl->AppendToString(aProperty, aSpecifiedValue);
-      break;
-    case eCSSType_ValuePairList:
-      vpl->AppendToString(aProperty, aSpecifiedValue);
-      break;
-    default:
-      NS_ABORT_IF_FALSE(PR_FALSE, "unexpected case");
-      return PR_FALSE;
-  }
-  return PR_TRUE;
+  return css::Declaration::AppendStorageToString(aProperty, storage,
+                                                 aSpecifiedValue);
 }
 
 inline const void*
@@ -2795,9 +2779,11 @@ nsStyleAnimation::Value::operator==(const Value& aOther) const
     case eUnit_Dasharray:
     case eUnit_Shadow:
     case eUnit_Transform:
-      return *mValue.mCSSValueList == *aOther.mValue.mCSSValueList;
+      return nsCSSValueList::Equal(mValue.mCSSValueList,
+                                   aOther.mValue.mCSSValueList);
     case eUnit_CSSValuePairList:
-      return *mValue.mCSSValuePairList == *aOther.mValue.mCSSValuePairList;
+      return nsCSSValuePairList::Equal(mValue.mCSSValuePairList,
+                                       aOther.mValue.mCSSValuePairList);
     case eUnit_UnparsedString:
       return (NS_strcmp(GetStringBufferValue(),
                         aOther.GetStringBufferValue()) == 0);

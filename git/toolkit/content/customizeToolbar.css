@@ -59,6 +59,6 @@
 }
 
 /* Hide the toolbarbutton label because we replicate it on the wrapper */
-.toolbarbutton-text {
+toolbarpaletteitem[place="palette"] > .toolbarbutton-1 > .toolbarbutton-text {
   display: none;
 }

@@ -85,7 +85,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCSSAttributeDeclaration)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCSSAttributeDeclaration)
 
 nsresult
-nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
+nsDOMCSSAttributeDeclaration::DeclarationChanged()
 {
   NS_ASSERTION(mContent, "Must have content node to set the decl!");
   nsICSSStyleRule* oldRule =
@@ -95,12 +95,11 @@ nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
     mContent->GetInlineStyleRule();
   NS_ASSERTION(oldRule, "content must have rule");
 
-  nsCOMPtr<nsICSSStyleRule> newRule =
-    oldRule->DeclarationChanged(aDecl, PR_FALSE);
+  nsCOMPtr<nsICSSStyleRule> newRule = oldRule->DeclarationChanged(PR_FALSE);
   if (!newRule) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
+    
   return
 #ifdef MOZ_SMIL
     mIsSMILOverride ? mContent->SetSMILOverrideStyleRule(newRule, PR_TRUE) :
@@ -129,46 +128,51 @@ nsDOMCSSAttributeDeclaration::DocToUpdate()
   return mContent->GetOwnerDoc();
 }
 
-css::Declaration*
-nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
+nsresult
+nsDOMCSSAttributeDeclaration::GetCSSDeclaration(css::Declaration **aDecl,
+                                                PRBool aAllocate)
 {
-  if (!mContent)
-    return nsnull;
+  nsresult result = NS_OK;
 
-  nsICSSStyleRule* cssRule;
+  *aDecl = nsnull;
+  if (mContent) {
+    nsICSSStyleRule* cssRule =
 #ifdef MOZ_SMIL
-  if (mIsSMILOverride)
-    cssRule = mContent->GetSMILOverrideStyleRule();
-  else
+      mIsSMILOverride ? mContent->GetSMILOverrideStyleRule() :
 #endif // MOZ_SMIL
-    cssRule = mContent->GetInlineStyleRule();
+      mContent->GetInlineStyleRule();
+    if (cssRule) {
+      *aDecl = cssRule->GetDeclaration();
+    }
+    else if (aAllocate) {
+      css::Declaration *decl = new css::Declaration();
+      if (!decl)
+        return NS_ERROR_OUT_OF_MEMORY;
+      if (!decl->InitializeEmpty()) {
+        decl->RuleAbort();
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
 
-  if (cssRule) {
-    return cssRule->GetDeclaration();
-  }
-  if (!aAllocate) {
-    return nsnull;
-  }
+      nsCOMPtr<nsICSSStyleRule> newRule;
+      result = NS_NewCSSStyleRule(getter_AddRefs(newRule), nsnull, decl);
+      if (NS_FAILED(result)) {
+        decl->RuleAbort();
+        return result;
+      }
 
-  // cannot fail
-  css::Declaration *decl = new css::Declaration();
-  decl->InitializeEmpty();
-  nsCOMPtr<nsICSSStyleRule> newRule = NS_NewCSSStyleRule(nsnull, decl);
-
-  // this *can* fail (inside SetAttrAndNotify, at least).
-  nsresult rv;
+      result =
 #ifdef MOZ_SMIL
-  if (mIsSMILOverride)
-    rv = mContent->SetSMILOverrideStyleRule(newRule, PR_FALSE);
-  else
+        mIsSMILOverride ?
+          mContent->SetSMILOverrideStyleRule(newRule, PR_FALSE) :
 #endif // MOZ_SMIL
-    rv = mContent->SetInlineStyleRule(newRule, PR_FALSE);
-
-  if (NS_FAILED(rv)) {
-    return nsnull; // the decl will be destroyed along with the style rule
+          mContent->SetInlineStyleRule(newRule, PR_FALSE);
+      if (NS_SUCCEEDED(result)) {
+        *aDecl = decl;
+      }
+    }
   }
 
-  return decl;
+  return result;
 }
 
 /*

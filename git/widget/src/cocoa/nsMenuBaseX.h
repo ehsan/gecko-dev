@@ -92,13 +92,10 @@ class nsMenuGroupOwnerX;
 // Carbon from messing with our event handlers. See bug 346883.
 
 enum {
-  eCommand_ID_About      = 1,
-  eCommand_ID_Prefs      = 2,
-  eCommand_ID_Quit       = 3,
-  eCommand_ID_HideApp    = 4,
-  eCommand_ID_HideOthers = 5,
-  eCommand_ID_ShowAll    = 6,
-  eCommand_ID_Last       = 7
+  eCommand_ID_About = 1,
+  eCommand_ID_Prefs = 2,
+  eCommand_ID_Quit  = 3,
+  eCommand_ID_Last  = 4
 };
 
 #endif // nsMenuBaseX_h_

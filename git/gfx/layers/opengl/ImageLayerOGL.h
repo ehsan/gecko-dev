@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -102,7 +102,7 @@ public:
 
   void RecycleBuffer(PRUint8* aBuffer, PRUint32 aSize);
   // Returns a recycled buffer of the right size, or allocates a new buffer.
-  PRUint8* GetBuffer(PRUint32 aSize);
+  PRUint8* TakeBuffer(PRUint32 aSize);
 
   enum TextureType {
     TEXTURE_Y,
@@ -111,8 +111,8 @@ public:
 
   void RecycleTexture(GLTexture *aTexture, TextureType aType,
                       const gfxIntSize& aSize);
-  void GetTexture(TextureType aType, const gfxIntSize& aSize,
-                  GLContext *aContext, GLTexture *aOutTexture);
+  void TakeTexture(TextureType aType, const gfxIntSize& aSize,
+                   GLContext *aContext, GLTexture *aOutTexture);
 
 private:
   typedef mozilla::Mutex Mutex;
@@ -135,7 +135,7 @@ class THEBES_API ImageContainerOGL : public ImageContainer
 {
 public:
   ImageContainerOGL(LayerManagerOGL *aManager);
-  virtual ~ImageContainerOGL();
+  virtual ~ImageContainerOGL() {}
 
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
                                               PRUint32 aNumFormats);
@@ -147,8 +147,6 @@ public:
   virtual already_AddRefed<gfxASurface> GetCurrentAsSurface(gfxIntSize* aSize);
 
   virtual gfxIntSize GetCurrentSize();
-
-  virtual PRBool SetLayerManager(LayerManager *aManager);
 
 private:
   typedef mozilla::Mutex Mutex;
@@ -171,10 +169,8 @@ public:
   { 
     mImplData = static_cast<LayerOGL*>(this);
   }
-  ~ImageLayerOGL() { Destroy(); }
 
   // LayerOGL Implementation
-  virtual void Destroy() { mDestroyed = PR_TRUE; }
   virtual Layer* GetLayer();
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
@@ -186,8 +182,7 @@ class THEBES_API PlanarYCbCrImageOGL : public PlanarYCbCrImage
   typedef mozilla::gl::GLContext GLContext;
 
 public:
-  PlanarYCbCrImageOGL(LayerManagerOGL *aManager,
-                      RecycleBin *aRecycleBin);
+  PlanarYCbCrImageOGL(RecycleBin *aRecycleBin);
   ~PlanarYCbCrImageOGL();
 
   virtual void SetData(const Data &aData);
@@ -196,9 +191,7 @@ public:
    * Upload the data from out mData into our textures. For now we use this to
    * make sure the textures are created and filled on the main thread.
    */
-  void AllocateTextures(GLContext *gl);
-  void UpdateTextures(GLContext *gl);
-
+  void AllocateTextures(LayerManagerOGL *aManager);
   PRBool HasData() { return mHasData; }
   PRBool HasTextures()
   {

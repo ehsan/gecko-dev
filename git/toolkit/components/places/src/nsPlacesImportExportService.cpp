@@ -2182,33 +2182,6 @@ nsPlacesImportExportService::ImportHTMLFromFile(nsILocalFile* aFile,
 
 
 NS_IMETHODIMP
-nsPlacesImportExportService::ImportHTMLFromURI(nsIURI* aURI,
-                                               PRBool aIsInitialImport)
-{
-  NotifyImportObservers(RESTORE_BEGIN_NSIOBSERVER_TOPIC, -1, aIsInitialImport);
-
-  // this version is exposed on the interface and disallows changing of roots
-  nsresult rv = ImportHTMLFromURIInternal(aURI,
-                                          PR_FALSE,
-                                          0,
-                                          aIsInitialImport);
-
-  if (NS_FAILED(rv)) {
-    NotifyImportObservers(RESTORE_FAILED_NSIOBSERVER_TOPIC,
-                          -1,
-                          aIsInitialImport);
-  }
-  else {
-    NotifyImportObservers(RESTORE_SUCCESS_NSIOBSERVER_TOPIC,
-                          -1,
-                          aIsInitialImport);
-  }
-
-  return rv;
-}
-
-
-NS_IMETHODIMP
 nsPlacesImportExportService::ImportHTMLFromFileToFolder(nsILocalFile* aFile,
                                                         PRInt64 aFolderId,
                                                         PRBool aIsInitialImport)
@@ -2244,7 +2217,8 @@ nsPlacesImportExportService::ImportHTMLFromFileInternal(nsILocalFile* aFile,
                                                         PRInt64 aFolder,
                                                         PRBool aIsImportDefaults)
 {
-  nsresult rv;
+  nsresult rv = EnsureServiceState();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIFile> file = do_QueryInterface(aFile);
   NS_ENSURE_STATE(file);
@@ -2263,24 +2237,6 @@ nsPlacesImportExportService::ImportHTMLFromFileInternal(nsILocalFile* aFile,
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsCOMPtr<nsIIOService> ioservice = do_GetIOService(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIURI> fileURI;
-  rv = ioservice->NewFileURI(file, getter_AddRefs(fileURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return ImportHTMLFromURIInternal(fileURI, aAllowRootChanges, aFolder, aIsImportDefaults);
-}
-
-nsresult
-nsPlacesImportExportService::ImportHTMLFromURIInternal(nsIURI* aURI,
-                                                       PRBool aAllowRootChanges,
-                                                       PRInt64 aFolder,
-                                                       PRBool aIsImportDefaults)
-{
-  nsresult rv = EnsureServiceState();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIParser> parser = do_CreateInstance(kParserCID);
   NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
@@ -2294,13 +2250,16 @@ nsPlacesImportExportService::ImportHTMLFromURIInternal(nsIURI* aURI,
   // will confuse the parser.
   nsCOMPtr<nsIIOService> ioservice = do_GetIOService(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = ioservice->NewChannelFromURI(aURI, getter_AddRefs(mImportChannel));
+  nsCOMPtr<nsIURI> fileURI;
+  rv = ioservice->NewFileURI(file, getter_AddRefs(fileURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = ioservice->NewChannelFromURI(fileURI, getter_AddRefs(mImportChannel));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mImportChannel->SetContentType(NS_LITERAL_CSTRING("text/html"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Init parser.
-  rv = parser->Parse(aURI, nsnull);
+  rv = parser->Parse(fileURI, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Run the import in batch mode, so it will be executed in a transaction

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-480147.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 480147;
 var summary = 'TM: Do not assert: cx->bailExit';

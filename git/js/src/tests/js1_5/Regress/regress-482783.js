@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-482783.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 482783;
 var summary = 'TM: Do not crash @ js_ConcatStrings';

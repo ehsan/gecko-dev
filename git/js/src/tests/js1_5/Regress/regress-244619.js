@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-244619.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 244619;
 var summary = 'Don\'t Crash';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '15.2.2.2.js';
 
 /**
    File Name:          15.2.2.2.js

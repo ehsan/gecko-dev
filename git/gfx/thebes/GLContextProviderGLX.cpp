@@ -225,11 +225,6 @@ TRY_AGAIN_NO_SHARING:
 
     ~GLContextGLX()
     {
-        if (mOffscreenFBO) {
-            MakeCurrent();
-            DeleteOffscreenFBO();
-        }
-
         sGLXLibrary.xDeleteContext(mDisplay, mContext);
 
         if (mDeleteDrawable) {
@@ -292,6 +287,34 @@ TRY_AGAIN_NO_SHARING:
         return PR_TRUE;
     }
 
+    void WindowDestroyed()
+    {
+        for (unsigned int i=0; i<textures.Length(); i++) {
+            GLContext::DestroyTexture(textures.ElementAt(i));
+        }
+        textures.Clear();
+    }
+
+    // NB: we could set a flag upon WindowDestroyed() to dictate an
+    // early-return from CreateTexture(), but then we would need the
+    // same check before all GL calls, and that heads down a rabbit
+    // hole.
+    virtual GLuint CreateTexture()
+    {
+        GLuint tex = GLContext::CreateTexture();
+        NS_ASSERTION(!textures.Contains(tex), "");
+        textures.AppendElement(tex);
+        return tex;
+    }
+
+    virtual void DestroyTexture(GLuint texture)
+    {
+        if (textures.Contains(texture)) {
+            textures.RemoveElement(texture);
+            GLContext::DestroyTexture(texture);
+        }
+    }
+
     virtual already_AddRefed<TextureImage>
     CreateBasicTextureImage(GLuint aTexture,
                             const nsIntSize& aSize,
@@ -324,6 +347,7 @@ private:
     PRPackedBool mDeleteDrawable;
     PRPackedBool mDoubleBuffered;
 
+    nsTArray<GLuint> textures;
     nsRefPtr<gfxXlibSurface> mPixmap;
 };
 
@@ -716,8 +740,6 @@ GLContextProviderGLX::GetGlobalContext()
         gGlobalContext = CreateOffscreenPixmapContext(gfxIntSize(1, 1),
                                                       ContextFormat(ContextFormat::BasicRGB24),
                                                       PR_FALSE);
-        if (gGlobalContext)
-            gGlobalContext->SetIsGlobalSharedContext(PR_TRUE);
     }
 
     return gGlobalContext;

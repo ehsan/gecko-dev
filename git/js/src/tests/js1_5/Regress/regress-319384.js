@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-319384.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 319384;
 var summary = 'Do not crash converting string to number';

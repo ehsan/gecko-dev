@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-224676.js';
 var i = 0;
 var BUGNUMBER = 224676;
 var summary = 'Regexps with various disjunction + character class patterns';

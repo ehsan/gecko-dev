@@ -63,10 +63,6 @@ CMSRCS = \
   HTTPMultipartUpload.m \
   $(NULL)
 
-CMMSRCS = \
-  MachIPC.mm \
-  $(NULL)
-
 HOST_CPPSRCS = $(CPPSRCS)
 
 HOST_CMMSRCS = \
@@ -77,5 +73,3 @@ HOST_CMMSRCS = \
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
-
-COMPILE_CMFLAGS += -std=c99

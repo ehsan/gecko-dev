@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-367630.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 367630;
 var summary = 'Do not crash in js_PCToLineNumber with invalid sharp expression';

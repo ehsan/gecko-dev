@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-479252.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 479252;
 var summary = 'Avoid watchdog ticks when idle in shell';

@@ -70,7 +70,6 @@
 #endif
 
 #ifdef OS_MACOSX
-#include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
 
@@ -115,9 +114,6 @@ PluginModuleChild::PluginModuleChild() :
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-#ifdef XP_MACOSX
-    mac_plugin_interposing::child::SetUpCocoaInterposing();
-#endif
 }
 
 PluginModuleChild::~PluginModuleChild()

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-372331.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 372331;
 var summary = 'for-in should not bind name too early';

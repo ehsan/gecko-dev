@@ -383,8 +383,9 @@ protected:
   nsresult ScrollHorzInternal(const ScrollParts& aParts, PRInt32 aPosition);
   nsresult EnsureRowIsVisibleInternal(const ScrollParts& aParts, PRInt32 aRow);
   
-  // Convert client pixels into appunits in our coordinate space.
-  nsPoint AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY);
+  // Convert client pixels into twips in our coordinate space.
+  void AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY,
+                                         nscoord* aResultX, nscoord* aResultY);
 
   // Convert a border style into line style.
   nsLineStyle ConvertBorderStyleToLineStyle(PRUint8 aBorderStyle);

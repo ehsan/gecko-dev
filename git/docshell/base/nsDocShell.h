@@ -663,8 +663,6 @@ protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);
 
-    void ClearFrameHistory(nsISHEntry* aEntry);
-
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
     public:
@@ -751,7 +749,15 @@ protected:
     eCharsetReloadState        mCharsetReloadState;
 
     // Offset in the parent's child list.
-    // -1 if the docshell is added dynamically to the parent shell.
+    // XXXmats the line above is bogus, it's the offset in the parent's
+    // child list at the time this docshell was added to it,
+    // see nsDocShell::AddChild().  It isn't updated after that so if children
+    // with lower indices are removed this offset is no longer valid to be used
+    // as an index into the parent's child list (see bug 162283).  It MUST not
+    // be used for that purpose.  It's used as an index to get/add history
+    // entries into nsIDocShellHistory, although I very much doubt that it
+    // can be correct for that purpose as well...
+    // Try not to use it, we should get rid of it.
     PRUint32                   mChildOffset;
     PRUint32                   mBusyFlags;
     PRUint32                   mAppType;
@@ -781,7 +787,6 @@ protected:
     PRPackedBool               mAllowAuth;
     PRPackedBool               mAllowKeywordFixup;
     PRPackedBool               mIsOffScreenBrowser;
-    PRPackedBool               mIsActive;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation
@@ -806,13 +811,9 @@ protected:
     // presentation of the page, and to SetupNewViewer() that the old viewer
     // should be passed a SHEntry to save itself into.
     PRPackedBool               mSavingOldViewer;
-
-    // @see nsIDocShellHistory::createdDynamically
-    PRPackedBool               mDynamicallyCreated;
 #ifdef DEBUG
     PRPackedBool               mInEnsureScriptEnv;
 #endif
-    PRUint64                   mHistoryID;
 
     static nsIURIFixup *sURIFixup;
 

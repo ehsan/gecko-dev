@@ -638,12 +638,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 
 #if defined(OS_WIN)
     if (mWindowType == NPWindowTypeDrawable) {
-        if (DoublePassRenderingEvent() == npevent->event) {
-            CallPaint(npremoteevent, &handled);
-            return handled;
-        }
-
-        switch (npevent->event) {
+        switch(npevent->event) {
             case WM_PAINT:
             {
                 RECT rect;

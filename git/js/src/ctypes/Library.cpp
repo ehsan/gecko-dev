@@ -268,21 +268,24 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
   }
 
-  JSObject* fnObj = NULL;
+  const char* name = JS_GetStringBytesZ(cx, JSVAL_TO_STRING(argv[0]));
+  if (!name)
+    return JS_FALSE;
+
   JSObject* typeObj;
   js::AutoObjectRooter root(cx);
   bool isFunction = argc > 2;
   if (isFunction) {
     // Case 1).
     // Create a FunctionType representing the function.
-    fnObj = FunctionType::CreateInternal(cx,
-              argv[1], argv[2], &argv[3], argc - 3);
-    if (!fnObj)
+    typeObj = FunctionType::CreateInternal(cx,
+                argv[1], argv[2], &argv[3], argc - 3);
+    if (!typeObj)
       return JS_FALSE;
-    root.setObject(fnObj);
+    root.setObject(typeObj);
 
     // Make a function pointer type.
-    typeObj = PointerType::CreateInternal(cx, fnObj);
+    typeObj = PointerType::CreateInternal(cx, typeObj);
     if (!typeObj)
       return JS_FALSE;
     root.setObject(typeObj);
@@ -298,22 +301,16 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
 
     typeObj = JSVAL_TO_OBJECT(argv[1]);
     if (CType::GetTypeCode(cx, typeObj) == TYPE_pointer) {
-      fnObj = PointerType::GetBaseType(cx, typeObj);
-      isFunction = fnObj && CType::GetTypeCode(cx, fnObj) == TYPE_function;
+      JSObject* baseType = PointerType::GetBaseType(cx, typeObj);
+      isFunction = baseType && CType::GetTypeCode(cx, baseType) == TYPE_function;
     }
   }
 
   void* data;
   PRFuncPtr fnptr;
-  JSString* nameStr = JSVAL_TO_STRING(argv[0]);
-  AutoCString symbol;
   if (isFunction) {
-    // Build the symbol, with mangling if necessary.
-    FunctionType::BuildSymbolName(cx, nameStr, fnObj, symbol);
-    AppendString(symbol, "\0");
-
     // Look up the function symbol.
-    fnptr = PR_FindFunctionSymbol(library, symbol.begin());
+    fnptr = PR_FindFunctionSymbol(library, name);
     if (!fnptr) {
       JS_ReportError(cx, "couldn't find function symbol in library");
       return JS_FALSE;
@@ -322,10 +319,7 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
 
   } else {
     // 'typeObj' is another data type. Look up the data symbol.
-    AppendString(symbol, nameStr);
-    AppendString(symbol, "\0");
-
-    data = PR_FindSymbol(library, symbol.begin());
+    data = PR_FindSymbol(library, name);
     if (!data) {
       JS_ReportError(cx, "couldn't find symbol in library");
       return JS_FALSE;

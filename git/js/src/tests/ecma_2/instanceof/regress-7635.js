@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-7635.js';
 
 /**
  *  File Name:          regress-7635.js

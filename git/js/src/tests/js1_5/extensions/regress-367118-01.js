@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-367118-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 367118;
 var summary = 'memory corruption in script_compile';

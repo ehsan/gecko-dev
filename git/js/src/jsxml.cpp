@@ -1683,8 +1683,6 @@ ParseXMLSource(JSContext *cx, JSString *src)
         return NULL;
     uri = GetURI(JSVAL_TO_OBJECT(nsval));
     uri = js_EscapeAttributeValue(cx, uri, JS_FALSE);
-    if (!uri)
-        return NULL;
 
     urilen = uri->length();
     srclen = src->length();
@@ -7008,7 +7006,7 @@ NewXMLObject(JSContext *cx, JSXML *xml)
 {
     JSObject *obj;
 
-    obj = NewNonFunction<WithProto::Class>(cx, &js_XMLClass, NULL, NULL);
+    obj = NewObject(cx, &js_XMLClass, NULL, NULL);
     if (!obj)
         return NULL;
     obj->setPrivate(xml);
@@ -7370,7 +7368,7 @@ js_GetAnyName(JSContext *cx, jsid *idp)
                 return JS_FALSE;
 
             do {
-                obj = NewNonFunction<WithProto::Given>(cx, &js_AnyNameClass, NULL, NULL);
+                obj = NewObjectWithGivenProto(cx, &js_AnyNameClass, NULL, NULL);
                 if (!obj) {
                     ok = JS_FALSE;
                     break;
@@ -7664,7 +7662,7 @@ js_StepXMLListFilter(JSContext *cx, JSBool initialized)
                 return JS_FALSE;
         }
 
-        filterobj = NewNonFunction<WithProto::Given>(cx, &js_XMLFilterClass, NULL, NULL);
+        filterobj = NewObjectWithGivenProto(cx, &js_XMLFilterClass, NULL, NULL);
         if (!filterobj)
             return JS_FALSE;
 

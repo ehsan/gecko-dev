@@ -324,15 +324,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS5(nsIOService,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsresult
-nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                                    PRUint32 flags,
-                                    nsAsyncRedirectVerifyHelper *helper)
+nsIOService::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+                               PRUint32 flags)
 {
     nsCOMPtr<nsIChannelEventSink> sink =
         do_GetService(NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID);
     if (sink) {
-        nsresult rv = helper->DelegateOnChannelRedirect(sink, oldChan,
-                                                        newChan, flags);
+        nsresult rv = sink->OnChannelRedirect(oldChan, newChan, flags);
         if (NS_FAILED(rv))
             return rv;
     }
@@ -342,11 +340,11 @@ nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
         mChannelEventSinks.GetEntries();
     PRInt32 len = entries.Count();
     for (PRInt32 i = 0; i < len; ++i) {
-        nsresult rv = helper->DelegateOnChannelRedirect(entries[i], oldChan,
-                                                        newChan, flags);
+        nsresult rv = entries[i]->OnChannelRedirect(oldChan, newChan, flags);
         if (NS_FAILED(rv))
             return rv;
     }
+
     return NS_OK;
 }
 

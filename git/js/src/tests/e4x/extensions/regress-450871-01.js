@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-450871-01.js';
 
 var summary = 'Do not crash: __proto__ = <x/>; <x/>.lastIndexOf(this, false)';
 var BUGNUMBER = 450871;

@@ -1,6 +1,6 @@
-#include "TestDataStructures.h"
-
 #include "mozilla/unused.h"
+
+#include "TestDataStructures.h"
 
 #include "IPDLUnitTests.h"      // fail etc.
 

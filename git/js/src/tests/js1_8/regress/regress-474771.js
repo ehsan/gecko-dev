@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-474771.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 474771;
 var summary = 'gczeal, prototype mangling, for..in';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-390918.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 390918;
 var summary = 'Do not assert: !gen->frame.down" with gc in generator';

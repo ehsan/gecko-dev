@@ -45,7 +45,6 @@
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -122,12 +121,31 @@ const UPDATE_WINDOW_NAME      = "Update:Wizard";
 
 var gLocale     = null;
 
+XPCOMUtils.defineLazyServiceGetter(this, "gPref",
+                                   "@mozilla.org/preferences-service;1",
+                                   "nsIPrefBranch2");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gConsole",
+                                   "@mozilla.org/consoleservice;1",
+                                   "nsIConsoleService");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gVC",
+                                   "@mozilla.org/xpcom/version-comparator;1",
+                                   "nsIVersionComparator");
+
+XPCOMUtils.defineLazyGetter(this, "gApp", function aus_gApp() {
+  return Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).
+         QueryInterface(Ci.nsIXULRuntime);
+});
+
 XPCOMUtils.defineLazyGetter(this, "gLogEnabled", function aus_gLogEnabled() {
   return getPref("getBoolPref", PREF_APP_UPDATE_LOG, false);
 });
 
 XPCOMUtils.defineLazyGetter(this, "gUpdateBundle", function aus_gUpdateBundle() {
-  return Services.strings.createBundle(URI_UPDATES_PROPERTIES);
+  return Cc["@mozilla.org/intl/stringbundle;1"].
+         getService(Ci.nsIStringBundleService).
+         createBundle(URI_UPDATES_PROPERTIES);
 });
 
 // shared code for suppressing bad cert dialogs
@@ -140,7 +158,7 @@ XPCOMUtils.defineLazyGetter(this, "gCertUtils", function aus_gCertUtils() {
 XPCOMUtils.defineLazyGetter(this, "gABI", function aus_gABI() {
   let abi = null;
   try {
-    abi = Services.appinfo.XPCOMABI;
+    abi = gApp.XPCOMABI;
   }
   catch (e) {
     LOG("gABI - XPCOM ABI unknown: updates are not possible.");
@@ -219,7 +237,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
         // appDir is not under the Program Files, so we rely on that
         var dir = fileLocator.get(KEY_UPDROOT, Ci.nsIFile);
         // appDir is under Program Files, so check if the user can elevate
-        userCanElevate = Services.appinfo.QueryInterface(Ci.nsIWinAppHelper).
+        userCanElevate = gApp.QueryInterface(Ci.nsIWinAppHelper).
                          userCanElevate;
         LOG("gCanApplyUpdates - on Vista, userCanElevate: " + userCanElevate);
       }
@@ -279,7 +297,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanCheckForUpdates", function aus_gCanCheckF
   // OFF - this is not just a user setting, so disable the manual
   // UI too.
   var enabled = getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true);
-  if (!enabled && Services.prefs.prefIsLocked(PREF_APP_UPDATE_ENABLED)) {
+  if (!enabled && gPref.prefIsLocked(PREF_APP_UPDATE_ENABLED)) {
     LOG("gCanCheckForUpdates - unable to automatically check for updates, " +
         "disabled by pref");
     return false;
@@ -310,7 +328,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanCheckForUpdates", function aus_gCanCheckF
 function LOG(string) {
   if (gLogEnabled) {
     dump("*** AUS:SVC " + string + "\n");
-    Services.console.logStringMessage("AUS:SVC " + string);
+    gConsole.logStringMessage("AUS:SVC " + string);
   }
 }
 
@@ -328,11 +346,15 @@ function LOG(string) {
  */
 function getPref(func, preference, defaultValue) {
   try {
-    return Services.prefs[func](preference);
+    return gPref[func](preference);
   }
   catch (e) {
   }
   return defaultValue;
+}
+
+function getObserverService() {
+  return Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
 }
 
 /**
@@ -574,20 +596,19 @@ function getUpdateChannel() {
   var prefValue;
 
   try {
-    channel = Services.prefs.getDefaultBranch(null).
-              getCharPref(PREF_APP_UPDATE_CHANNEL);
+    channel = getDefaultPrefBranch().getCharPref(PREF_APP_UPDATE_CHANNEL);
   } catch (e) {
     // use default when pref not found
   }
 
   try {
-    var partners = Services.prefs.getChildList(PREF_PARTNER_BRANCH);
+    var partners = gPref.getChildList(PREF_PARTNER_BRANCH);
     if (partners.length) {
       channel += "-cck";
       partners.sort();
 
       for each (prefName in partners) {
-        prefValue = Services.prefs.getCharPref(prefName);
+        prefValue = gPref.getCharPref(prefName);
         channel += "-" + prefValue;
       }
     }
@@ -604,7 +625,7 @@ function getDistributionPrefValue(aPrefName) {
   var prefValue = "default";
 
   try {
-    prefValue = Services.prefs.getDefaultBranch(null).getCharPref(aPrefName);
+    prefValue = getDefaultPrefBranch().getCharPref(aPrefName);
   } catch (e) {
     // use default when pref not found
   }
@@ -673,6 +694,9 @@ function readStringFromFile(file) {
   return text;
 }
 
+function getDefaultPrefBranch() {
+  return gPref.QueryInterface(Ci.nsIPrefService).getDefaultBranch(null);
+}
 /**
  * Update Patch
  * @param   patch
@@ -902,7 +926,9 @@ function Update(update) {
   if (update.hasAttribute("name"))
     name = update.getAttribute("name");
   else {
-    var brandBundle = Services.strings.createBundle(URI_BRAND_PROPERTIES);
+    var brandBundle = Cc["@mozilla.org/intl/stringbundle;1"].
+                      getService(Ci.nsIStringBundleService).
+                      createBundle(URI_BRAND_PROPERTIES);
     var appName = brandBundle.GetStringFromName("brandShortName");
     name = gUpdateBundle.formatStringFromName("updateName",
                                               [appName, this.displayVersion], 2);
@@ -969,7 +995,9 @@ Update.prototype = {
       try {
         // Try using a default details URL supplied by the distribution
         // if the update XML does not supply one.
-        return Services.urlFormatter.formatURLPref(PREF_APP_UPDATE_URL_DETAILS);
+        var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
+                        getService(Ci.nsIURLFormatter);
+        return formatter.formatURLPref(PREF_APP_UPDATE_URL_DETAILS);
       }
       catch (e) {
       }
@@ -1087,7 +1115,8 @@ const UpdateServiceFactory = {
  * @constructor
  */
 function UpdateService() {
-  Services.obs.addObserver(this, "xpcom-shutdown", false);
+  let os = getObserverService();
+  os.addObserver(this, "xpcom-shutdown", false);
 }
 
 UpdateService.prototype = {
@@ -1118,7 +1147,8 @@ UpdateService.prototype = {
       this._postUpdateProcessing();
       break;
     case "xpcom-shutdown":
-      Services.obs.removeObserver(this, "xpcom-shutdown");
+      let os = getObserverService();
+      os.removeObserver(this, "xpcom-shutdown");
 
       // Prevent leaking the downloader (bug 454964)
       this._downloader = null;
@@ -1185,7 +1215,7 @@ UpdateService.prototype = {
 
       // Update the patch's metadata.
       um.activeUpdate = update;
-      Services.prefs.setBoolPref(PREF_APP_UPDATE_POSTUPDATE, true);
+      gPref.setBoolPref(PREF_APP_UPDATE_POSTUPDATE, true);
       prompter.showUpdateInstalled();
 
       // Done with this update. Clean it up.
@@ -1276,64 +1306,38 @@ UpdateService.prototype = {
   },
 
   /**
-   * Determine the update from the specified updates that should be offered.
-   * If both valid major and minor updates are available the minor update will
-   * be offered.
+   * Determine which of the specified updates should be installed.
    * @param   updates
-   *          An array of available nsIUpdate items
-   * @returns The nsIUpdate to offer.
+   *          An array of available updates
    */
   selectUpdate: function AUS_selectUpdate(updates) {
     if (updates.length == 0)
       return null;
 
     // Choose the newest of the available minor and major updates.
-    var majorUpdate = null;
-    var minorUpdate = null;
-    var vc = Services.vc;
+    var majorUpdate = null, minorUpdate = null;
+    var newestMinor = updates[0], newestMajor = updates[0];
 
-    updates.forEach(function(aUpdate) {
-      // Ignore updates for older versions of the application and updates for
-      // the same version of the application with the same build ID.
-      if (vc.compare(aUpdate.appVersion, Services.appinfo.version) < 0 ||
-          vc.compare(aUpdate.appVersion, Services.appinfo.version) == 0 &&
-          aUpdate.buildID == Services.appinfo.appBuildID) {
-        LOG("Checker:selectUpdate - skipping update because the update's " +
-            "application version is less than the current application version");
-        return;
-      }
+    for (var i = 0; i < updates.length; ++i) {
+      // Ignore updates for older versions of the application
+      if (gVC.compare(updates[i].appVersion, gApp.version) < 0)
+        continue;
+      if (updates[i].type == "major" &&
+          gVC.compare(newestMajor.appVersion, updates[i].appVersion) <= 0)
+        majorUpdate = newestMajor = updates[i];
+      if (updates[i].type == "minor" &&
+          gVC.compare(newestMinor.appVersion, updates[i].appVersion) <= 0)
+        minorUpdate = newestMinor = updates[i];
+    }
 
-      // Skip the update if the user responded with "never" to this update's
-      // application version and the update specifies showNeverForVersion
-      // (see bug 350636).
-      let neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + aUpdate.appVersion;
-      if (aUpdate.showNeverForVersion &&
-          getPref("getBoolPref", neverPrefName, false)) {
-        LOG("Checker:selectUpdate - skipping update because the " +
-            "preference " + neverPrefName + " is true");
-        return;
-      }
-
-      switch (aUpdate.type) {
-        case "major":
-          if (!majorUpdate)
-            majorUpdate = aUpdate;
-          else if (vc.compare(majorUpdate.appVersion, aUpdate.appVersion) <= 0)
-            majorUpdate = aUpdate;
-          break;
-        case "minor":
-          if (!minorUpdate)
-            minorUpdate = aUpdate;
-          else if (vc.compare(minorUpdate.appVersion, aUpdate.appVersion) <= 0)
-            minorUpdate = aUpdate;
-          break;
-        default:
-          LOG("Checker:selectUpdate - skipping unknown update type: " +
-              aUpdate.type);
-          break;
-      }
-    });
-
+    // IMPORTANT
+    // If there's a minor update, always try and fetch that one first,
+    // otherwise use the newest major update.
+    // selectUpdate() only returns one update.
+    // if major were to trump minor, and we said "never" to the major
+    // we'd never get the minor update, since selectUpdate()
+    // would return the major update that the user said "never" to
+    // (shadowing the important minor update with security fixes)
     return minorUpdate || majorUpdate;
   },
 
@@ -1365,6 +1369,28 @@ UpdateService.prototype = {
     if (!updateEnabled) {
       LOG("Checker:_selectAndInstallUpdate - not prompting because update is " +
           "disabled");
+      return;
+    }
+
+    /**
+#      Check if the user responded with "never" to this update version and if it
+#      is a major update. This check is done here and not in selectUpdate() so
+#      the user can get an update they had previously responded with "never" to
+#      when they manually perform a "Check for Updates...".
+#
+#      Notes:
+#      a) selectUpdate() only returns one update with minor updates trumping
+#         major updates. Otherwise, if major updates trumped minor updates and
+#         the user responded with "never" to the major update then they would
+#         never receive the minor update or the minor update they notification.
+#      b) the never decision only applies to major updates. See bug 350636 for
+#         a scenario where this could potentially be an issue.
+     */
+
+    var neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + update.appVersion;
+    if (getPref("getBoolPref", neverPrefName, false)) {
+      LOG("Checker:_selectAndInstallUpdate - not prompting because the " +
+          "preference " + neverPrefName + " is true");
       return;
     }
 
@@ -1418,8 +1444,7 @@ UpdateService.prototype = {
     }
 
     // Only check add-on compatibility when the version changes.
-    if (update.appVersion &&
-        Services.vc.compare(update.appVersion, Services.appinfo.version) != 0) {
+    if (update.appVersion && gVC.compare(update.appVersion, gApp.version) != 0) {
       this._update = update;
       this._checkAddonCompatibility();
     }
@@ -1614,14 +1639,14 @@ UpdateService.prototype = {
     // application's version and the build ID is the same as the application's
     // build ID.
     if (update.appVersion &&
-        (Services.vc.compare(update.appVersion, Services.appinfo.version) < 0 ||
-         update.buildID && update.buildID == Services.appinfo.appBuildID &&
-         update.appVersion == Services.appinfo.version)) {
+        (gVC.compare(update.appVersion, gApp.version) < 0 ||
+         update.buildID && update.buildID == gApp.appBuildID &&
+         update.appVersion == gApp.version)) {
       LOG("UpdateService:downloadUpdate - canceling download of update since " +
           "it is for an earlier or same application version and build ID.\n" +
-          "current application version: " + Services.appinfo.version + "\n" +
+          "current application version: " + gApp.version + "\n" +
           "update application version : " + update.appVersion + "\n" +
-          "current build ID: " + Services.appinfo.appBuildID + "\n" +
+          "current build ID: " + gApp.appBuildID + "\n" +
           "update build ID : " + update.buildID);
       cleanupActiveUpdate();
       return STATE_NONE;
@@ -1637,7 +1662,7 @@ UpdateService.prototype = {
       this._downloader.cancel();
     }
     // Set the previous application version prior to downloading the update.
-    update.previousAppVersion = Services.appinfo.version;
+    update.previousAppVersion = gApp.version;
     this._downloader = new Downloader(background);
     return this._downloader.downloadUpdate(update);
   },
@@ -1954,8 +1979,7 @@ Checker.prototype = {
     // Otherwise, construct the update URL from component parts.
     if (!url) {
       try {
-        url = Services.prefs.getDefaultBranch(null).
-              getCharPref(PREF_APP_UPDATE_URL);
+        url = getDefaultPrefBranch().getCharPref(PREF_APP_UPDATE_URL);
       } catch (e) {
       }
     }
@@ -1965,15 +1989,15 @@ Checker.prototype = {
       return null;
     }
 
-    url = url.replace(/%PRODUCT%/g, Services.appinfo.name);
-    url = url.replace(/%VERSION%/g, Services.appinfo.version);
-    url = url.replace(/%BUILD_ID%/g, Services.appinfo.appBuildID);
-    url = url.replace(/%BUILD_TARGET%/g, Services.appinfo.OS + "_" + gABI);
+    url = url.replace(/%PRODUCT%/g, gApp.name);
+    url = url.replace(/%VERSION%/g, gApp.version);
+    url = url.replace(/%BUILD_ID%/g, gApp.appBuildID);
+    url = url.replace(/%BUILD_TARGET%/g, gApp.OS + "_" + gABI);
     url = url.replace(/%OS_VERSION%/g, gOSVersion);
     if (/%LOCALE%/.test(url))
       url = url.replace(/%LOCALE%/g, getLocale());
     url = url.replace(/%CHANNEL%/g, getUpdateChannel());
-    url = url.replace(/%PLATFORM_VERSION%/g, Services.appinfo.platformVersion);
+    url = url.replace(/%PLATFORM_VERSION%/g, gApp.platformVersion);
     url = url.replace(/%DISTRIBUTION%/g,
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION));
     url = url.replace(/%DISTRIBUTION_VERSION%/g,
@@ -2090,14 +2114,13 @@ Checker.prototype = {
   onLoad: function UC_onLoad(event) {
     LOG("Checker:onLoad - request completed downloading document");
 
-    var prefs = Services.prefs;
     var certs = null;
-    if (!prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE) &&
-        prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH).getChildList("").length) {
+    if (!gPref.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE) &&
+        gPref.getBranch(PREF_APP_UPDATE_CERTS_BRANCH).getChildList("").length) {
       certs = [];
       let counter = 1;
       while (true) {
-        let prefBranchCert = prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH +
+        let prefBranchCert = gPref.getBranch(PREF_APP_UPDATE_CERTS_BRANCH +
                                              counter + ".");
         let prefCertAttrs = prefBranchCert.getChildList("");
         if (prefCertAttrs.length == 0)
@@ -2194,7 +2217,7 @@ Checker.prototype = {
       break;
     case Ci.nsIUpdateChecker.ANY_CHECKS:
       this._enabled = false;
-      Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, this._enabled);
+      gPref.setBoolPref(PREF_APP_UPDATE_ENABLED, this._enabled);
       break;
     }
   },
@@ -2421,7 +2444,9 @@ Downloader.prototype = {
     var patchFile = updateDir.clone();
     patchFile.append(FILE_UPDATE_ARCHIVE);
 
-    var uri = Services.io.newURI(this._patch.URL, null, null);
+    var ios = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
+    var uri = ios.newURI(this._patch.URL, null, null);
 
     this._request = Cc["@mozilla.org/network/incremental-download;1"].
                     createInstance(Ci.nsIIncrementalDownload);
@@ -2788,10 +2813,12 @@ UpdatePrompt.prototype = {
     }
     else {
       var openFeatures = "chrome,centerscreen,dialog=no,resizable=no,titlebar,toolbar=no";
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
       var arg = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
       arg.data = page;
-      Services.ww.openWindow(null, URI_UPDATE_PROMPT_DIALOG, null, openFeatures, arg);
+      ww.openWindow(null, URI_UPDATE_PROMPT_DIALOG, null, openFeatures, arg);
     }
   },
 
@@ -2806,9 +2833,10 @@ UpdatePrompt.prototype = {
     if (update.state == STATE_FAILED && update.errorCode == WRITE_ERROR) {
       var title = gUpdateBundle.GetStringFromName("updaterIOErrorTitle");
       var text = gUpdateBundle.formatStringFromName("updaterIOErrorMsg",
-                                                    [Services.appinfo.name,
-                                                     Services.appinfo.name], 2);
-      Services.ww.getNewPrompter(null).alert(title, text);
+                                                    [gApp.name, gApp.name], 2);
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.getNewPrompter(null).alert(title, text);
     } else {
       this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
                    "errors", update);
@@ -2834,7 +2862,9 @@ UpdatePrompt.prototype = {
    * Returns the update window if present.
    */
   _getUpdateWindow: function UP__getUpdateWindow() {
-    return Services.wm.getMostRecentWindow(UPDATE_WINDOW_NAME);
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+    return wm.getMostRecentWindow(UPDATE_WINDOW_NAME);
   },
 
   /**
@@ -2911,7 +2941,8 @@ UpdatePrompt.prototype = {
       return;
     }
 
-    observer.service = Services.obs;
+    observer.service = Cc["@mozilla.org/observer-service;1"].
+                       getService(Ci.nsIObserverService);
     observer.service.addObserver(observer, "quit-application", false);
 
     // bug 534090 - show the UI when idle for update available notifications.
@@ -2952,6 +2983,8 @@ UpdatePrompt.prototype = {
     if (idleService.idleTime / 1000 >= IDLE_TIME) {
       this._showUI(parent, uri, features, name, page, update);
     } else {
+      var observerService = Cc["@mozilla.org/observer-service;1"].
+                            getService(Ci.nsIObserverService);
       var observer = {
         updatePrompt: this,
         observe: function (aSubject, aTopic, aData) {
@@ -2963,13 +2996,13 @@ UpdatePrompt.prototype = {
               // fall thru
             case "quit-application":
               idleService.removeIdleObserver(this, IDLE_TIME);
-              Services.obs.removeObserver(this, "quit-application");
+              observerService.removeObserver(this, "quit-application");
               break;
           }
         }
       };
       idleService.addIdleObserver(observer, IDLE_TIME);
-      Services.obs.addObserver(observer, "quit-application", false);
+      observerService.addObserver(observer, "quit-application", false);
     }
   },
 
@@ -3006,7 +3039,9 @@ UpdatePrompt.prototype = {
       var openFeatures = "chrome,centerscreen,dialog=no,resizable=no,titlebar,toolbar=no";
       if (features)
         openFeatures += "," + features;
-      Services.ww.openWindow(parent, uri, "", openFeatures, ary);
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.openWindow(parent, uri, "", openFeatures, ary);
     }
   },
 

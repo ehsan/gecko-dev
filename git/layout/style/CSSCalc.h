@@ -38,7 +38,6 @@
 #define CSSCalc_h_
 
 #include "nsCSSValue.h"
-#include "nsStyleCoord.h"
 #include <math.h>
 
 namespace mozilla {
@@ -153,38 +152,6 @@ ComputeCalc(const typename CalcOps::input_type& aValue, CalcOps &aOps)
   }
 }
 
-#define CHECK_UNIT(u_)                                                        \
-  PR_STATIC_ASSERT(int(eCSSUnit_##u_) + 14 == int(eStyleUnit_##u_));          \
-  PR_STATIC_ASSERT(eCSSUnit_##u_ >= eCSSUnit_Calc);                           \
-  PR_STATIC_ASSERT(eCSSUnit_##u_ <= eCSSUnit_Calc_Maximum);
-
-CHECK_UNIT(Calc)
-CHECK_UNIT(Calc_Plus)
-CHECK_UNIT(Calc_Minus)
-CHECK_UNIT(Calc_Times_L)
-CHECK_UNIT(Calc_Times_R)
-CHECK_UNIT(Calc_Divided)
-CHECK_UNIT(Calc_Minimum)
-CHECK_UNIT(Calc_Maximum)
-
-#undef CHECK_UNIT
-
-inline nsStyleUnit
-ConvertCalcUnit(nsCSSUnit aUnit)
-{
-  NS_ABORT_IF_FALSE(eCSSUnit_Calc <= aUnit &&
-                    aUnit <= eCSSUnit_Calc_Maximum, "out of range");
-  return nsStyleUnit(aUnit + 14);
-}
-
-inline nsCSSUnit
-ConvertCalcUnit(nsStyleUnit aUnit)
-{
-  NS_ABORT_IF_FALSE(eStyleUnit_Calc <= aUnit &&
-                    aUnit <= eStyleUnit_Calc_Maximum, "out of range");
-  return nsCSSUnit(aUnit - 14);
-}
-
 /**
  * The input unit operation for input_type being nsCSSValue.
  */
@@ -198,30 +165,6 @@ struct CSSValueInputCalcOps
     return aValue.GetUnit();
   }
 
-};
-
-/**
- * The input unit operation for input_type being nsStyleCoord
- */
-struct StyleCoordInputCalcOps
-{
-  typedef nsStyleCoord input_type;
-  typedef nsStyleCoord::Array input_array_type;
-
-  static nsCSSUnit GetUnit(const nsStyleCoord& aValue)
-  {
-    if (aValue.IsCalcUnit()) {
-      return css::ConvertCalcUnit(aValue.GetUnit());
-    }
-    return eCSSUnit_Null;
-  }
-
-  float ComputeNumber(const nsStyleCoord& aValue)
-  {
-    NS_ABORT_IF_FALSE(PR_FALSE, "SpecifiedToComputedCalcOps should not "
-                                "leave numbers in structure");
-    return 0.0f;
-  }
 };
 
 /**
@@ -331,6 +274,37 @@ struct NumbersAlreadyNormalizedOps : public CSSValueInputCalcOps
     return aValue.GetFloatValue();
   }
 };
+
+#define CHECK_UNIT(u_)                                                        \
+  PR_STATIC_ASSERT(int(eCSSUnit_Calc_##u_) + 14 == int(eStyleUnit_Calc_##u_));\
+  PR_STATIC_ASSERT(eCSSUnit_Calc_##u_ >= eCSSUnit_Calc_Plus);                 \
+  PR_STATIC_ASSERT(eCSSUnit_Calc_##u_ <= eCSSUnit_Calc_Maximum);
+
+CHECK_UNIT(Plus)
+CHECK_UNIT(Minus)
+CHECK_UNIT(Times_L)
+CHECK_UNIT(Times_R)
+CHECK_UNIT(Divided)
+CHECK_UNIT(Minimum)
+CHECK_UNIT(Maximum)
+
+#undef CHECK_UNIT
+
+inline nsStyleUnit
+ConvertCalcUnit(nsCSSUnit aUnit)
+{
+  NS_ABORT_IF_FALSE(eCSSUnit_Calc_Plus <= aUnit &&
+                    aUnit <= eCSSUnit_Calc_Maximum, "out of range");
+  return nsStyleUnit(aUnit + 14);
+}
+
+inline nsCSSUnit
+ConvertCalcUnit(nsStyleUnit aUnit)
+{
+  NS_ABORT_IF_FALSE(eStyleUnit_Calc_Plus <= aUnit &&
+                    aUnit <= eStyleUnit_Calc_Maximum, "out of range");
+  return nsCSSUnit(aUnit - 14);
+}
 
 /**
  * SerializeCalc appends the serialization of aValue to a string.

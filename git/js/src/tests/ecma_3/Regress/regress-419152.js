@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-419152.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 419152;
 var summary = 'Shaver can not contain himself';

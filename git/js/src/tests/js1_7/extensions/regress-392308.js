@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-392308.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 392308;
 var summary = 'StopIteration should be catchable';

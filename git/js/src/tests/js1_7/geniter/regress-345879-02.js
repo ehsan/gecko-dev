@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-345879-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 345879;
 var summary = 'Crash when calling a function from a generator with less arguments than its arity ';

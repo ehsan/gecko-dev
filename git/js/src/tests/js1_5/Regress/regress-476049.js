@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-476049.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 476049;
 var summary = 'JSOP_DEFVAR enables gvar optimization for non-permanent properties';

@@ -222,7 +222,7 @@ function nsPlacesAutoComplete()
                   "h.frecency " +
            "FROM " + aTableName + " h " +
            "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id " +
-           "LEFT OUTER JOIN moz_openpages_temp t ON t.url = h.url " +
+           "LEFT OUTER JOIN moz_openpages_temp t ON t.place_id = h.id " +
            "WHERE h.frecency <> 0 " +
            "AND AUTOCOMPLETE_MATCH(:searchString, h.url, " +
                                   "IFNULL(bookmark, h.title), tags, " +
@@ -296,27 +296,9 @@ function nsPlacesAutoComplete()
   });
 
   XPCOMUtils.defineLazyGetter(this, "_openPagesQuery", function() {
+    let replacementText = "AND t.open_count > 0";
     return this._db.createStatement(
-      "/* do not warn (bug 487789) */ " +
-      "SELECT t.url, " +
-             "COALESCE(h_t.title, h.title, t.url) AS c_title, f.url, " +
-              kBookTagSQLFragment + ", " +
-              "IFNULL(h_t.visit_count, h.visit_count) AS c_visit_count, " +
-              "IFNULL(h_t.typed, h.typed) AS c_typed, " +
-              "IFNULL(h_t.id, h.id), :query_type, t.open_count, " +
-              "IFNULL(h_t.frecency, h.frecency) AS c_frecency " +
-      "FROM moz_openpages_temp t " +
-      "LEFT JOIN moz_places_temp h_t ON h_t.url = t.url " +
-      "LEFT JOIN moz_places h ON h.url = t.url " +
-      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " + 
-      "WHERE t.open_count > 0 " +
-        "AND AUTOCOMPLETE_MATCH(:searchString, t.url, " +
-                               "COALESCE(bookmark, c_title, t.url), tags, " +
-                               "c_visit_count, c_typed, parent, " +
-                               "t.open_count, " +
-                               ":matchBehavior, :searchBehavior) " +
-      "ORDER BY c_frecency DESC, t.ROWID DESC " +
-      "LIMIT :maxResults"
+      SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
   });
 
@@ -352,7 +334,7 @@ function nsPlacesAutoComplete()
       "LEFT JOIN moz_places h ON h.id = i.place_id " +
       "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id " +
       "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " + 
-      "LEFT JOIN moz_openpages_temp t ON t.url = c_url " +
+      "LEFT JOIN moz_openpages_temp t ON t.place_id = i.place_id " +
       "WHERE c_url NOTNULL " +
       "AND AUTOCOMPLETE_MATCH(:searchString, c_url, " +
                              "IFNULL(bookmark, c_title), tags, " +
@@ -380,7 +362,7 @@ function nsPlacesAutoComplete()
       "LEFT JOIN moz_places AS h ON h.url = search_url " +
       "LEFT JOIN moz_places_temp AS h_t ON h_t.url = search_url " +
       "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " +
-      "LEFT JOIN moz_openpages_temp t ON t.url = search_url " +
+      "LEFT JOIN moz_openpages_temp t ON t.place_id = IFNULL(h_t.id, h.id) " +
       "WHERE LOWER(k.keyword) = LOWER(:keyword) " +
       "ORDER BY IFNULL(h_t.frecency, h.frecency) DESC"
     );
@@ -446,19 +428,18 @@ nsPlacesAutoComplete.prototype = {
     else
       this._behavior = this._emptySearchDefaultBehavior;
 
-    // For any given search, we run up to four queries:
+    // For any given search, we run up to three queries:
     // 1) keywords (this._keywordQuery)
     // 2) adaptive learning (this._adaptiveQuery)
-    // 3) openPages (this._openPagesQuery)
-    // 4) query from this._getSearch
-    // (1) only gets ran if we get any filtered tokens from this._getSearch,
-    // since if there are no tokens, there is nothing to match, so there is no
-    // reason to run the query).
+    // 3) query from this._getSearch
+    // We always run (2) and (3), but (1) only gets ran if we get any filtered
+    // tokens from this._getSearch (if there are no tokens, there is nothing to
+    // match, so there is no reason to run the query).
     let {query, tokens} =
       this._getSearch(this._getUnfilteredSearchTokens(this._currentSearchString));
     let queries = tokens.length ?
-      [this._getBoundKeywordQuery(tokens), this._getBoundAdaptiveQuery(), this._getBoundOpenPagesQuery(), query] :
-      [this._getBoundAdaptiveQuery(), this._getBoundOpenPagesQuery(), query];
+      [this._getBoundKeywordQuery(tokens), this._getBoundAdaptiveQuery(), query] :
+      [this._getBoundAdaptiveQuery(), query];
 
     // Start executing our queries.
     this._executeQueries(queries);
@@ -516,8 +497,7 @@ nsPlacesAutoComplete.prototype = {
 
   handleError: function PAC_handleError(aError)
   {
-    Cu.reportError("Places AutoComplete: An async statement encountered an " +
-                   "error: " + aError.result + ", '" + aError.message + "'");
+    Components.utils.reportError("Places AutoComplete: " + aError);
   },
 
   handleCompletion: function PAC_handleCompletion(aReason)
@@ -851,23 +831,6 @@ nsPlacesAutoComplete.prototype = {
 
       // Limit the query to the the maximum number of desired results.
       // This way we can avoid doing more work than needed.
-      params.maxResults = this._maxRichResults;
-    }
-
-    return query;
-  },
-
-  _getBoundOpenPagesQuery: function PAC_getBoundOpenPagesQuery()
-  {
-    let query = this._openPagesQuery;
-
-    // Bind the needed parameters to the query so consumers can use it.
-    let (params = query.params) {
-      params.parent = this._bs.tagsFolder;
-      params.query_type = kQueryTypeFiltered;
-      params.matchBehavior = this._matchBehavior;
-      params.searchBehavior = this._behavior;
-      params.searchString = this._currentSearchString;
       params.maxResults = this._maxRichResults;
     }
 
