@@ -447,7 +447,7 @@ let Sync = {
 
     let settingids = ["device", "connect", "connected", "disconnect", "lastsync", "pairdevice",
                       "errordescription", "accountinfo", "disconnectwarnpanel", "disconnectthrobber",
-                      "disconnectwarntitle", "description"];
+                      "disconnectwarntitle"];
     settingids.forEach(function(id) {
       elements[id] = document.getElementById("sync-" + id);
     });
@@ -468,7 +468,6 @@ let Sync = {
     let lastsync = this._elements.lastsync;
     let pairdevice = this._elements.pairdevice;
     let accountinfo = this._elements.accountinfo;
-    let description = this._elements.description;
     let disconnectthrobber = this._elements.disconnectthrobber;
 
     // This gets updated when an error occurs
@@ -490,7 +489,6 @@ let Sync = {
     lastsync.collapsed = !isConfigured;
     device.collapsed = !isConfigured;
     disconnect.collapsed = !isConfigured;
-    description.collapsed = isConfigured;
 
     if (this._disconnecting) {
       connect.collapsed = true;

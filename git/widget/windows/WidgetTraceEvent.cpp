@@ -22,7 +22,6 @@
 #include "nsAutoPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "nsTraceRefcnt.h"
 #include "nsWindowDefs.h"
 
 namespace {
@@ -34,12 +33,7 @@ HANDLE sEventHandle = NULL;
 // thread.
 class HWNDGetter : public nsRunnable {
 public:
-  HWNDGetter() : hidden_window_hwnd(NULL) {
-    MOZ_COUNT_CTOR(HWNDGetter);
-  }
-  ~HWNDGetter() {
-    MOZ_COUNT_DTOR(HWNDGetter);
-  }
+  HWNDGetter() : hidden_window_hwnd(NULL) {}
 
   HWND hidden_window_hwnd;
 

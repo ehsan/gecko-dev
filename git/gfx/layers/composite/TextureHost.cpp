@@ -89,10 +89,9 @@ TextureHost::~TextureHost()
 
 void
 TextureHost::Update(const SurfaceDescriptor& aImage,
-                    nsIntRegion* aRegion,
-                    nsIntPoint* aOffset)
+                    nsIntRegion* aRegion)
 {
-  UpdateImpl(aImage, aRegion, aOffset);
+  UpdateImpl(aImage, aRegion);
 }
 
 void

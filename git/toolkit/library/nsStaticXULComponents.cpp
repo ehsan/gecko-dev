@@ -54,6 +54,12 @@
 #define ICON_MODULE
 #endif
 
+#ifdef ACCESSIBILITY
+#define ACCESS_MODULES MODULE(nsAccessibilityModule)
+#else
+#define ACCESS_MODULES
+#endif
+
 #ifdef MOZ_ENABLE_XREMOTE
 #define XREMOTE_MODULES MODULE(RemoteServiceModule)
 #else
@@ -202,6 +208,7 @@
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
+    ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
     MODULE(nsComposerModule)                 \
