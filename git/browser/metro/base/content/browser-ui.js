@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
+Cu.import("resource://gre/modules/PageThumbs.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm")
 
 /**
@@ -107,7 +108,6 @@ var BrowserUI = {
     PanelUI.init();
     FlyoutPanelsUI.init();
     PageThumbs.init();
-    NewTabUtils.init();
     SettingsCharm.init();
     NavButtonSlider.init();
 

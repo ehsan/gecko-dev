@@ -345,7 +345,7 @@ NS_MergeReflowStatusInto(nsReflowStatus* aPrimary, nsReflowStatus aSecondary)
 }
 
 void
-nsWeakFrame::Init(nsIFrame* aFrame)
+nsWeakFrame::InitInternal(nsIFrame* aFrame)
 {
   Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nullptr);
   mFrame = aFrame;
@@ -515,11 +515,6 @@ nsFrame::Init(nsIContent*      aContent,
   if (disp->mPosition == NS_STYLE_POSITION_STICKY &&
       !aPrevInFlow &&
       !(mState & NS_FRAME_IS_NONDISPLAY)) {
-    // Note that we only add first continuations, but we really only
-    // want to add first continuation-or-special-siblings.  But since we
-    // don't yet know if we're a later part of a block-in-inline split,
-    // we'll just add later members of a block-in-inline split here, and
-    // then StickyScrollContainer will remove them later.
     StickyScrollContainer* ssc =
       StickyScrollContainer::GetStickyScrollContainerForFrame(this);
     if (ssc) {
@@ -4251,10 +4246,15 @@ nsIFrame* nsFrame::GetPrevContinuation() const
   return nullptr;
 }
 
-void
-nsFrame::SetPrevContinuation(nsIFrame* aPrevContinuation)
+NS_IMETHODIMP nsFrame::SetPrevContinuation(nsIFrame* aPrevContinuation)
 {
-  MOZ_ASSERT(false, "not splittable");
+  // Ignore harmless requests to set it to NULL
+  if (aPrevContinuation) {
+    NS_ERROR("not splittable");
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+  
+  return NS_OK;
 }
 
 nsIFrame* nsFrame::GetNextContinuation() const
@@ -4262,10 +4262,10 @@ nsIFrame* nsFrame::GetNextContinuation() const
   return nullptr;
 }
 
-void
-nsFrame::SetNextContinuation(nsIFrame*)
+NS_IMETHODIMP nsFrame::SetNextContinuation(nsIFrame*)
 {
-  MOZ_ASSERT(false, "not splittable");
+  NS_ERROR("not splittable");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsIFrame* nsFrame::GetPrevInFlowVirtual() const
@@ -4273,10 +4273,15 @@ nsIFrame* nsFrame::GetPrevInFlowVirtual() const
   return nullptr;
 }
 
-void
-nsFrame::SetPrevInFlow(nsIFrame* aPrevInFlow)
+NS_IMETHODIMP nsFrame::SetPrevInFlow(nsIFrame* aPrevInFlow)
 {
-  MOZ_ASSERT(false, "not splittable");
+  // Ignore harmless requests to set it to NULL
+  if (aPrevInFlow) {
+    NS_ERROR("not splittable");
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  return NS_OK;
 }
 
 nsIFrame* nsFrame::GetNextInFlowVirtual() const
@@ -4284,10 +4289,10 @@ nsIFrame* nsFrame::GetNextInFlowVirtual() const
   return nullptr;
 }
 
-void
-nsFrame::SetNextInFlow(nsIFrame*)
+NS_IMETHODIMP nsFrame::SetNextInFlow(nsIFrame*)
 {
-  MOZ_ASSERT(false, "not splittable");
+  NS_ERROR("not splittable");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsIFrame* nsIFrame::GetTailContinuation()

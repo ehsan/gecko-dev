@@ -101,13 +101,12 @@ public:
 };
 
 class ProfilerMarkerPayload;
-template<typename T>
-class ProfilerLinkedList;
+class ProfilerMarkerLinkedList;
 class JSAObjectBuilder;
 class JSCustomArray;
 class ThreadProfile;
 class ProfilerMarker {
-  friend class ProfilerLinkedList<ProfilerMarker>;
+  friend class ProfilerMarkerLinkedList;
 public:
   ProfilerMarker(const char* aMarkerName,
          ProfilerMarkerPayload* aPayload = nullptr);
@@ -134,72 +133,24 @@ private:
   int mGenID;
 };
 
-// Foward declaration
-typedef struct _UnwinderThreadBuffer UnwinderThreadBuffer;
-
-/**
- * This struct is used to add a mNext field to UnwinderThreadBuffer objects for
- * use with ProfilerLinkedList. It is done this way so that UnwinderThreadBuffer
- * may continue to be opaque with respect to code outside of UnwinderThread2.cpp
- */
-struct LinkedUWTBuffer
-{
-  LinkedUWTBuffer()
-    :mNext(nullptr)
-  {}
-  virtual ~LinkedUWTBuffer() {}
-  virtual UnwinderThreadBuffer* GetBuffer() = 0;
-  LinkedUWTBuffer*  mNext;
-};
-
-template<typename T>
-class ProfilerLinkedList {
+class ProfilerMarkerLinkedList {
 public:
-  ProfilerLinkedList()
+  ProfilerMarkerLinkedList()
     : mHead(nullptr)
     , mTail(nullptr)
   {}
 
-  void insert(T* elem)
-  {
-    if (!mTail) {
-      mHead = elem;
-      mTail = elem;
-    } else {
-      mTail->mNext = elem;
-      mTail = elem;
-    }
-    elem->mNext = nullptr;
-  }
+  void insert(ProfilerMarker* elem);
+  ProfilerMarker* popHead();
 
-  T* popHead()
-  {
-    if (!mHead) {
-      MOZ_ASSERT(false);
-      return nullptr;
-    }
-
-    T* head = mHead;
-
-    mHead = head->mNext;
-    if (!mHead) {
-      mTail = nullptr;
-    }
-
-    return head;
-  }
-
-  const T* peek() {
+  const ProfilerMarker* peek() {
     return mHead;
   }
 
 private:
-  T* mHead;
-  T* mTail;
+  ProfilerMarker* mHead;
+  ProfilerMarker* mTail;
 };
-
-typedef ProfilerLinkedList<ProfilerMarker> ProfilerMarkerLinkedList;
-typedef ProfilerLinkedList<LinkedUWTBuffer> UWTBufferLinkedList;
 
 class PendingMarkers {
 public:
@@ -255,38 +206,6 @@ private:
   volatile mozilla::sig_safe_t mGenID;
 };
 
-class PendingUWTBuffers
-{
-public:
-  PendingUWTBuffers()
-    : mSignalLock(false)
-  {
-  }
-
-  void addLinkedUWTBuffer(LinkedUWTBuffer* aBuff)
-  {
-    MOZ_ASSERT(aBuff);
-    mSignalLock = true;
-    STORE_SEQUENCER();
-    mPendingUWTBuffers.insert(aBuff);
-    STORE_SEQUENCER();
-    mSignalLock = false;
-  }
-
-  // called within signal. Function must be reentrant
-  UWTBufferLinkedList* getLinkedUWTBuffers()
-  {
-    if (mSignalLock) {
-      return nullptr;
-    }
-    return &mPendingUWTBuffers;
-  }
-
-private:
-  UWTBufferLinkedList mPendingUWTBuffers;
-  volatile bool       mSignalLock;
-};
-
 // the PseudoStack members are read by signal
 // handlers, so the mutation of them needs to be signal-safe.
 struct PseudoStack
@@ -307,16 +226,6 @@ public:
       // get a use-after-free so better to crash now.
       abort();
     }
-  }
-
-  void addLinkedUWTBuffer(LinkedUWTBuffer* aBuff)
-  {
-    mPendingUWTBuffers.addLinkedUWTBuffer(aBuff);
-  }
-
-  UWTBufferLinkedList* getLinkedUWTBuffers()
-  {
-    return mPendingUWTBuffers.getLinkedUWTBuffers();
   }
 
   void addMarker(const char *aMarkerStr, ProfilerMarkerPayload *aPayload)
@@ -413,8 +322,6 @@ public:
   // Keep a list of pending markers that must be moved
   // to the circular buffer
   PendingMarkers mPendingMarkers;
-  // List of LinkedUWTBuffers that must be processed on the next tick
-  PendingUWTBuffers mPendingUWTBuffers;
   // This may exceed the length of mStack, so instead use the stackSize() method
   // to determine the number of valid samples in mStack
   mozilla::sig_safe_t mStackPointer;

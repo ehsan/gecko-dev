@@ -91,9 +91,8 @@ void ProfileEntry::log()
   // There is no compiler enforced mapping between tag chars
   // and union variant fields, so the following was derived
   // by looking through all the use points of TableTicker.cpp.
-  //   mTagMarker (ProfilerMarker*) m
-  //   mTagData   (const char*)  c,s
-  //   mTagPtr    (void*)        d,l,L,B (immediate backtrace), S(start-of-stack)
+  //   mTagData   (const char*)  m,c,s
+  //   mTagPtr    (void*)        d,l,L, S(start-of-stack)
   //   mTagLine   (int)          n,f
   //   mTagChar   (char)         h
   //   mTagFloat  (double)       r,t
@@ -102,7 +101,7 @@ void ProfileEntry::log()
       LOGF("%c \"%s\"", mTagName, mTagMarker->GetMarkerName()); break;
     case 'c': case 's':
       LOGF("%c \"%s\"", mTagName, mTagData); break;
-    case 'd': case 'l': case 'L': case 'B': case 'S':
+    case 'd': case 'l': case 'L': case 'S':
       LOGF("%c %p", mTagName, mTagPtr); break;
     case 'n': case 'f':
       LOGF("%c %d", mTagName, mTagLine); break;
@@ -144,7 +143,7 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 #define DYNAMIC_MAX_STRING 512
 
 ThreadProfile::ThreadProfile(const char* aName, int aEntrySize,
-                             PseudoStack *aStack, Thread::tid_t aThreadId,
+                             PseudoStack *aStack, int aThreadId,
                              PlatformData* aPlatform,
                              bool aIsMainThread, void *aStackTop)
   : mWritePos(0)
@@ -324,9 +323,8 @@ JSObject* ThreadProfile::ToJSObject(JSContext *aCx)
 }
 
 template <typename Builder>
-void ThreadProfile::BuildJSObject(Builder& b,
-                                  typename Builder::ObjectHandle profile)
-{
+void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle profile) {
+
   // Thread meta data
   if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
     // TODO Add the proper plugin name
@@ -335,7 +333,7 @@ void ThreadProfile::BuildJSObject(Builder& b,
     b.DefineProperty(profile, "name", mName);
   }
 
-  b.DefineProperty(profile, "tid", static_cast<int>(mThreadId));
+  b.DefineProperty(profile, "tid", mThreadId);
 
   typename Builder::RootedArray samples(b.context(), b.CreateArray());
   b.DefineProperty(profile, "samples", samples);
@@ -442,16 +440,6 @@ template void ThreadProfile::BuildJSObject<JSCustomObjectBuilder>(JSCustomObject
 PseudoStack* ThreadProfile::GetPseudoStack()
 {
   return mPseudoStack;
-}
-
-void ThreadProfile::BeginUnwind()
-{
-  mMutex.Lock();
-}
-
-void ThreadProfile::EndUnwind()
-{
-  mMutex.Unlock();
 }
 
 mozilla::Mutex* ThreadProfile::GetMutex()
