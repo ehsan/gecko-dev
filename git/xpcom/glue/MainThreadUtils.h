@@ -8,6 +8,7 @@
 #define MainThreadUtils_h_
 
 #include "nscore.h"
+#include "mozilla/threads/nsThreadIDs.h"
 
 class nsIThread;
 

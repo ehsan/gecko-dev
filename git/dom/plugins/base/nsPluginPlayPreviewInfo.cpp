@@ -60,13 +60,12 @@ nsPluginPlayPreviewInfo::GetWhitelist(nsACString& aWhitelist)
   return NS_OK;
 }
 
-/* static */ nsresult
+NS_IMETHODIMP
 nsPluginPlayPreviewInfo::CheckWhitelist(const nsACString& aPageURI,
                                         const nsACString& aObjectURI,
-                                        const nsACString& aWhitelist,
                                         bool *_retval)
 {
-  if (aWhitelist.Length() == 0) {
+  if (mWhitelist.Length() == 0) {
     // Considering empty whitelist as '*' entry.
     *_retval = true;
     return NS_OK;
@@ -77,8 +76,8 @@ nsPluginPlayPreviewInfo::CheckWhitelist(const nsACString& aPageURI,
   // where page_url and object_url pattern matches for aPageURI
   // and aObjectURI, and performs matching as the same time.
   nsACString::const_iterator start, end;
-  aWhitelist.BeginReading(start);
-  aWhitelist.EndReading(end);
+  mWhitelist.BeginReading(start);
+  mWhitelist.EndReading(end);
 
   nsAutoCString pageURI(aPageURI);
   nsAutoCString objectURI(aObjectURI);
@@ -143,12 +142,4 @@ nsPluginPlayPreviewInfo::CheckWhitelist(const nsACString& aPageURI,
 
   *_retval = false;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPluginPlayPreviewInfo::CheckWhitelist(const nsACString& aPageURI,
-                                        const nsACString& aObjectURI,
-                                        bool *_retval)
-{
-  return CheckWhitelist(aPageURI, aObjectURI, mWhitelist, _retval);
 }

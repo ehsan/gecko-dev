@@ -119,26 +119,22 @@ public class SiteIdentity {
     }
 
     public SiteIdentity() {
-        reset();
+        resetIdentityData();
+
+        mMixedMode = MixedMode.UNKNOWN;
+        mTrackingMode = TrackingMode.UNKNOWN;
     }
 
-    public void reset() {
+    private void resetIdentityData() {
         mSecurityMode = SecurityMode.UNKNOWN;
         mHost = null;
         mOwner = null;
         mSupplemental = null;
         mVerifier = null;
         mEncrypted = null;
-        mMixedMode = MixedMode.UNKNOWN;
-        mTrackingMode = TrackingMode.UNKNOWN;
     }
 
     void update(JSONObject identityData) {
-        if (identityData == null) {
-            reset();
-            return;
-        }
-
         try {
             JSONObject mode = identityData.getJSONObject("mode");
 
@@ -157,7 +153,7 @@ public class SiteIdentity {
             try {
                 mSecurityMode = SecurityMode.fromString(mode.getString("identity"));
             } catch (Exception e) {
-                reset();
+                resetIdentityData();
                 return;
             }
 
@@ -168,10 +164,10 @@ public class SiteIdentity {
                 mVerifier = identityData.getString("verifier");
                 mEncrypted = identityData.getString("encrypted");
             } catch (Exception e) {
-                reset();
+                resetIdentityData();
             }
         } catch (Exception e) {
-            reset();
+            resetIdentityData();
             mMixedMode = MixedMode.UNKNOWN;
             mTrackingMode = TrackingMode.UNKNOWN;
         }
