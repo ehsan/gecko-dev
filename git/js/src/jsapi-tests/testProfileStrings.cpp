@@ -141,8 +141,7 @@ END_TEST(testProfileStrings_isCalledWithInterpreter)
 BEGIN_TEST(testProfileStrings_isCalledWithJIT)
 {
     CHECK(initialize(cx));
-    ContextOptionsRef(cx).setBaseline(true)
-                         .setIon(true);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
 
     EXEC("function g() { var p = new Prof(); p.test_fn(); }");
     EXEC("function f() { g(); }");
@@ -190,13 +189,12 @@ END_TEST(testProfileStrings_isCalledWithJIT)
 BEGIN_TEST(testProfileStrings_isCalledWhenError)
 {
     CHECK(initialize(cx));
-    ContextOptionsRef(cx).setBaseline(true)
-                         .setIon(true);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
 
     EXEC("function check2() { throw 'a'; }");
 
     reset(cx);
-    ContextOptionsRef(cx).setDontReportUncaught(true);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
     {
         JS::RootedValue rval(cx);
         /* Make sure the stack resets and we have an entry for each stack */
@@ -214,8 +212,7 @@ END_TEST(testProfileStrings_isCalledWhenError)
 BEGIN_TEST(testProfileStrings_worksWhenEnabledOnTheFly)
 {
     CHECK(initialize(cx));
-    ContextOptionsRef(cx).setBaseline(true)
-                         .setIon(true);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
 
     EXEC("function b(p) { p.test_fn(); }");
     EXEC("function a() { var p = new Prof(); p.enable(); b(p); }");

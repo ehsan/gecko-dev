@@ -769,7 +769,7 @@ js::WouldDefinePastNonwritableLength(ThreadSafeContext *cx,
 
     JSContext *ncx = cx->asJSContext();
 
-    if (!strict && !ncx->options().extraWarnings())
+    if (!strict && !ncx->hasExtraWarningsOption())
         return true;
 
     // XXX include the index and maybe array length in the error message

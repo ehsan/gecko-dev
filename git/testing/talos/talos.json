@@ -54,7 +54,7 @@
         }
     },
     "mobile-suites": {
-        "remote-tspaint": {
+        "remote-ts": {
             "tests": ["ts_paint"]
         },
         "remote-tsvgx": {

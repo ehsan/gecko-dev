@@ -289,7 +289,7 @@ ExposeGCThingToActiveJS(void *thing, JSGCTraceKind kind)
      * All live objects in the nursery are moved to tenured at the beginning of
      * each GC slice, so the gray marker never sees nursery things.
      */
-    if (js::gc::IsInsideNursery(rt, thing))
+    if (uintptr_t(thing) >= rt->gcNurseryStart_ && uintptr_t(thing) < rt->gcNurseryEnd_)
         return;
 #endif
     if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))

@@ -1511,8 +1511,10 @@ ContextHolder::ContextHolder(JSContext *aOuterCx,
                                    IsSystemPrincipal(mPrincipal, &isChrome);
         MOZ_ASSERT(NS_SUCCEEDED(rv));
 
-        JS::ContextOptionsRef(mJSContext).setDontReportUncaught(true)
-                                         .setPrivateIsNSISupports(true);
+        JS_SetOptions(mJSContext,
+                      JS_GetOptions(mJSContext) |
+                      JSOPTION_DONT_REPORT_UNCAUGHT |
+                      JSOPTION_PRIVATE_IS_NSISUPPORTS);
         js::SetDefaultObjectForContext(mJSContext, aSandbox);
         JS_SetContextPrivate(mJSContext, this);
     }

@@ -149,16 +149,6 @@ GetGCThingArena(void *thing)
     return reinterpret_cast<JS::shadow::ArenaHeader *>(addr);
 }
 
-JS_ALWAYS_INLINE bool
-IsInsideNursery(const JS::shadow::Runtime *runtime, const void *p)
-{
-#ifdef JSGC_GENERATIONAL
-    return uintptr_t(p) >= runtime->gcNurseryStart_ && uintptr_t(p) < runtime->gcNurseryEnd_;
-#else
-    return false;
-#endif
-}
-
 } /* namespace gc */
 
 } /* namespace js */
@@ -188,7 +178,7 @@ GCThingIsMarkedGray(void *thing)
      * each GC slice, so the gray marker never sees nursery things.
      */
     JS::shadow::Runtime *rt = js::gc::GetGCThingRuntime(thing);
-    if (js::gc::IsInsideNursery(rt, thing))
+    if (uintptr_t(thing) >= rt->gcNurseryStart_ && uintptr_t(thing) < rt->gcNurseryEnd_)
         return false;
 #endif
     uintptr_t *word, mask;

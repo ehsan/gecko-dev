@@ -593,7 +593,7 @@ JSRuntime::initSelfHosting(JSContext *cx)
 {
     JS_ASSERT(!selfHostingGlobal_);
 
-    bool receivesDefaultObject = !cx->options().noDefaultCompartmentObject();
+    bool receivesDefaultObject = !cx->hasOption(JSOPTION_NO_DEFAULT_COMPARTMENT_OBJECT);
     RootedObject savedGlobal(cx, receivesDefaultObject
                                  ? js::DefaultObjectForContextOrNull(cx)
                                  : nullptr);
