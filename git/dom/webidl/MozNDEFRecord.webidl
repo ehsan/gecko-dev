@@ -42,12 +42,6 @@ interface MozNDEFRecord
    */
   [Constant]
   readonly attribute Uint8Array? payload;
-
-  /**
-   * Get the size of this NDEF Record.
-   */
-  [Constant]
-  readonly attribute unsigned long size;
 };
 
 dictionary MozNDEFRecordOptions {

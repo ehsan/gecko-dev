@@ -303,9 +303,10 @@ sandbox_enumerate(JSContext *cx, HandleObject obj)
 }
 
 static bool
-sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id)
 {
-    return JS_ResolveStandardClass(cx, obj, id, resolvedp);
+    bool resolved;
+    return JS_ResolveStandardClass(cx, obj, id, &resolved);
 }
 
 static void
@@ -466,6 +467,7 @@ static const js::Class SandboxClass = {
     {
       nullptr,      /* outerObject */
       nullptr,      /* innerObject */
+      nullptr,      /* iteratorObject */
       false,        /* isWrappedNative */
       nullptr,      /* weakmapKeyDelegateOp */
       sandbox_moved /* objectMovedOp */
@@ -485,6 +487,7 @@ static const js::Class SandboxWriteToProtoClass = {
     {
       nullptr,      /* outerObject */
       nullptr,      /* innerObject */
+      nullptr,      /* iteratorObject */
       false,        /* isWrappedNative */
       nullptr,      /* weakmapKeyDelegateOp */
       sandbox_moved /* objectMovedOp */

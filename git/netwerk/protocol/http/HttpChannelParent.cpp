@@ -562,7 +562,14 @@ HttpChannelParent::RecvDivertOnDataAvailable(const nsCString& data,
     return true;
   }
 
-  rv = mParentListener->OnDataAvailable(mChannel, nullptr, stringStream,
+  nsCOMPtr<nsIStreamListener> listener;
+  if (mConverterListener) {
+    listener = mConverterListener;
+  } else {
+    listener = mParentListener;
+    MOZ_ASSERT(listener);
+  }
+  rv = listener->OnDataAvailable(mChannel, nullptr, stringStream,
                                         offset, count);
   stringStream->Close();
   if (NS_FAILED(rv)) {
@@ -594,7 +601,14 @@ HttpChannelParent::RecvDivertOnStopRequest(const nsresult& statusCode)
     mChannel->ForcePending(false);
   }
 
-  mParentListener->OnStopRequest(mChannel, nullptr, status);
+  nsCOMPtr<nsIStreamListener> listener;
+  if (mConverterListener) {
+    listener = mConverterListener;
+  } else {
+    listener = mParentListener;
+    MOZ_ASSERT(listener);
+  }
+  listener->OnStopRequest(mChannel, nullptr, status);
   return true;
 }
 
@@ -615,6 +629,7 @@ HttpChannelParent::RecvDivertComplete()
     return false;
   }
 
+  mConverterListener = nullptr; 
   mParentListener = nullptr;
   return true;
 }
@@ -951,7 +966,8 @@ HttpChannelParent::DivertTo(nsIStreamListener *aListener)
     return;
   }
 
-  mDivertListener = aListener;
+  DebugOnly<nsresult> rv = mParentListener->DivertTo(aListener);
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
 
   if (NS_WARN_IF(mIPCClosed || !SendFlushedForDiversion())) {
     FailDiversion(NS_ERROR_UNEXPECTED);
@@ -980,7 +996,7 @@ HttpChannelParent::StartDiversion()
   }
 
   // Call OnStartRequest for the "DivertTo" listener.
-  nsresult rv = mDivertListener->OnStartRequest(mChannel, nullptr);
+  nsresult rv = mParentListener->OnStartRequest(mChannel, nullptr);
   if (NS_FAILED(rv)) {
     if (mChannel) {
       mChannel->Cancel(rv);
@@ -991,19 +1007,25 @@ HttpChannelParent::StartDiversion()
 
   // After OnStartRequest has been called, setup content decoders if needed.
   //
-  // Create a content conversion chain based on mDivertListener and update
-  // mDivertListener.
+  // We want to use the same decoders that the nsHttpChannel might use. There
+  // are two possible scenarios depending on whether OnStopRequest has been
+  // called or not.
+  //
+  // 1. nsHttpChannel has not called OnStopRequest yet.
+  // Create content conversion chain based on nsHttpChannel::mListener
+  // Get ptr to final listener and set that in mContentConverter, as well as
+  // nsHttpChannel::mListener.
+  //
+  // 2. nsHttpChannel has called OnStopRequest.
+  // Create a content conversion chain based on mParentListener.
+  // Get ptr to final listener and set that in mContentConverter.
+
   nsCOMPtr<nsIStreamListener> converterListener;
-  mChannel->DoApplyContentConversions(mDivertListener,
+  mChannel->DoApplyContentConversions(mParentListener,
                                       getter_AddRefs(converterListener));
   if (converterListener) {
-    mDivertListener = converterListener.forget();
+    mConverterListener = converterListener.forget();
   }
-
-  // Now mParentListener can be diverted to mDivertListener.
-  DebugOnly<nsresult> rvdbg = mParentListener->DivertTo(mDivertListener);
-  MOZ_ASSERT(NS_SUCCEEDED(rvdbg));
-  mDivertListener = nullptr;
 
   // The listener chain should now be setup; tell HttpChannelChild to divert
   // the OnDataAvailables and OnStopRequest to this HttpChannelParent.
@@ -1084,6 +1106,7 @@ HttpChannelParent::NotifyDiversionFailed(nsresult aErrorCode,
     mParentListener->OnStopRequest(mChannel, nullptr, aErrorCode);
   }
   mParentListener = nullptr;
+  mConverterListener = nullptr;
   mChannel = nullptr;
 
   if (!mIPCClosed) {

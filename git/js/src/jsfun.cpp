@@ -449,7 +449,7 @@ js::FunctionHasResolveHook(const JSAtomState &atomState, PropertyName *name)
 }
 
 bool
-js::fun_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+js::fun_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp)
 {
     if (!JSID_IS_ATOM(id))
         return true;
@@ -476,8 +476,7 @@ js::fun_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
 
         if (!ResolveInterpretedFunctionPrototype(cx, fun))
             return false;
-
-        *resolvedp = true;
+        objp.set(fun);
         return true;
     }
 
@@ -499,8 +498,7 @@ js::fun_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
                                   JSPROP_PERMANENT | JSPROP_READONLY)) {
             return false;
         }
-
-        *resolvedp = true;
+        objp.set(fun);
         return true;
     }
 
@@ -888,14 +886,14 @@ CreateFunctionPrototype(JSContext *cx, JSProtoKey key)
 
 const Class JSFunction::class_ = {
     js_Function_str,
-    JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
     JS_PropertyStub,         /* addProperty */
     JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     fun_enumerate,
-    js::fun_resolve,
+    (JSResolveOp)js::fun_resolve,
     JS_ConvertStub,
     nullptr,                 /* finalize    */
     nullptr,                 /* call        */
