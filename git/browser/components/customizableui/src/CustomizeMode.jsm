@@ -161,7 +161,8 @@ CustomizeMode.prototype = {
       let toolbarVisibilityBtn = document.getElementById(kToolbarVisibilityBtn);
       let togglableToolbars = window.getTogglableToolbars();
       let bookmarksToolbar = document.getElementById("PersonalToolbar");
-      if (togglableToolbars.length == 0) {
+      if (togglableToolbars.length == 0 ||
+          (togglableToolbars.length == 1 && togglableToolbars[0] == bookmarksToolbar)) {
         toolbarVisibilityBtn.setAttribute("hidden", "true");
       } else {
         toolbarVisibilityBtn.removeAttribute("hidden");

@@ -6111,15 +6111,6 @@ JS_SetGlobalJitCompilerOption(JSRuntime *rt, JSJitCompilerOption opt, uint32_t v
             IonSpew(js::jit::IonSpew_BaselineScripts, "Disable baseline");
         }
         break;
-      case JSJITCOMPILER_PARALLEL_COMPILATION_ENABLE:
-        if (value == 1) {
-            rt->setParallelIonCompilationEnabled(true);
-            IonSpew(js::jit::IonSpew_Scripts, "Enable parallel compilation");
-        } else if (value == 0) {
-            rt->setParallelIonCompilationEnabled(false);
-            IonSpew(js::jit::IonSpew_Scripts, "Disable parallel compilation");
-        }
-        break;
       default:
         break;
     }
@@ -6139,8 +6130,6 @@ JS_GetGlobalJitCompilerOption(JSRuntime *rt, JSJitCompilerOption opt)
         return JS::RuntimeOptionsRef(rt).ion();
       case JSJITCOMPILER_BASELINE_ENABLE:
         return JS::RuntimeOptionsRef(rt).baseline();
-      case JSJITCOMPILER_PARALLEL_COMPILATION_ENABLE:
-        return rt->canUseParallelIonCompilation();
       default:
         break;
     }

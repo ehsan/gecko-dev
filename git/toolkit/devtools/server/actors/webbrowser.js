@@ -6,14 +6,8 @@
 
 "use strict";
 
-let {Ci,Cu} = require("chrome");
-let {createExtraActors, appendExtraActors} = require("devtools/server/actors/common");
-let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
-
+let {Cu} = require("chrome");
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager", "resource://gre/modules/AddonManager.jsm");
 
 // Assumptions on events module:
@@ -22,10 +16,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonManager", "resource://gre/modules/
 XPCOMUtils.defineLazyGetter(this, "events", () => {
   return devtools.require("sdk/event/core");
 });
-
-// Also depends on following symbols, shared by common scope with main.js:
-// DebuggerServer, CommonCreateExtraActors, CommonAppendExtraActors, ActorPool,
-// ThreadActor
 
 /**
  * Browser-specific actors.
@@ -671,8 +661,8 @@ TabActor.prototype = {
   },
 
   /* Support for DebuggerServer.addTabActor. */
-  _createExtraActors: createExtraActors,
-  _appendExtraActors: appendExtraActors,
+  _createExtraActors: CommonCreateExtraActors,
+  _appendExtraActors: CommonAppendExtraActors,
 
   /**
    * Does the actual work of attching to a tab.
@@ -1050,15 +1040,9 @@ TabActor.prototype = {
    *         True if the window.console object is native, or false otherwise.
    */
   hasNativeConsoleAPI: function BTA_hasNativeConsoleAPI(aWindow) {
-    let isNative = false;
-    try {
-      // We are very explicitly examining the "console" property of
-      // the non-Xrayed object here.
-      let console = aWindow.wrappedJSObject.console;
-      isNative = console instanceof aWindow.Console;
-    }
-    catch (ex) { }
-    return isNative;
+    // Do not expose WebConsoleActor function directly as it is always
+    // loaded after the BrowserTabActor
+    return WebConsoleActor.prototype.hasNativeConsoleAPI(aWindow);
   }
 };
 

@@ -120,7 +120,7 @@ public:
    * output.  Those objects currently only support audio, and are used to
    * implement OfflineAudioContext.  They do not support MediaStream inputs.
    */
-  explicit MediaStreamGraphImpl(bool aRealtime, TrackRate aSampleRate);
+  explicit MediaStreamGraphImpl(bool aRealtime);
 
   /**
    * Unregisters memory reporting and deletes this instance. This should be
@@ -392,8 +392,6 @@ public:
    */
   void ResumeAllAudioOutputs();
 
-  TrackRate AudioSampleRate() { return mSampleRate; }
-
   // Data members
 
   /**
@@ -533,13 +531,6 @@ public:
    * The graph should stop processing at or after this time.
    */
   GraphTime mEndTime;
-
-  /**
-   * Sample rate at which this graph runs. For real time graphs, this is
-   * the rate of the audio mixer. For offline graphs, this is the rate specified
-   * at construction.
-   */
-  TrackRate mSampleRate;
   /**
    * True when another iteration of the control loop is required.
    */

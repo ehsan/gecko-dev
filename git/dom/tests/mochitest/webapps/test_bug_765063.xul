@@ -20,7 +20,7 @@
 
 SimpleTest.waitForExplicitFinish();
 
-SpecialPowers.setAllAppsLaunchable(true);
+makeAllAppsLaunchable();
 
 var mmListener = {
   receiveMessage: function(aMessage) {

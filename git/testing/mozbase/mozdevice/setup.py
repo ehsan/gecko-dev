@@ -9,7 +9,6 @@ PACKAGE_VERSION = '0.33'
 
 deps = ['mozfile >= 1.0',
         'mozlog',
-        'moznetwork >= 0.24'
        ]
 
 setup(name=PACKAGE_NAME,

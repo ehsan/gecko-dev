@@ -111,7 +111,7 @@ FillRectWithMask(DrawTarget* aDT,
     Matrix inverseMask = *aMaskTransform;
     inverseMask.Invert();
 
-    Matrix transform = oldTransform * inverseMask;
+    Matrix transform = inverseMask * oldTransform;
     if (aSurfaceTransform) {
       transform = transform * (*aSurfaceTransform);
     }

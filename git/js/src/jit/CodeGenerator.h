@@ -18,10 +18,8 @@
 # include "jit/x64/CodeGenerator-x64.h"
 #elif defined(JS_CODEGEN_ARM)
 # include "jit/arm/CodeGenerator-arm.h"
-#elif defined(JS_CODEGEN_MIPS)
-# include "jit/mips/CodeGenerator-mips.h"
 #else
-#error "Unknown architecture!"
+#error "CPU Not Supported"
 #endif
 
 namespace js {
@@ -190,7 +188,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool emitSetPropertyPolymorphic(LInstruction *lir, Register obj,
                                     Register scratch, const ConstantOrRegister &value);
     bool visitSetPropertyPolymorphicV(LSetPropertyPolymorphicV *ins);
-    bool visitArraySplice(LArraySplice *splice);
     bool visitSetPropertyPolymorphicT(LSetPropertyPolymorphicT *ins);
     bool visitAbsI(LAbsI *lir);
     bool visitAtan2D(LAtan2D *lir);

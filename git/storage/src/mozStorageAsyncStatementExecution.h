@@ -29,6 +29,14 @@ class Connection;
 class ResultSet;
 class StatementData;
 
+/**
+ * An instance of the mozStorageTransaction<> family dedicated
+ * to concrete class |Connection|.
+ */
+typedef mozStorageTransactionBase<mozilla::storage::Connection,
+                                  nsRefPtr<mozilla::storage::Connection> >
+    mozStorageAsyncTransaction;
+
 class AsyncExecuteStatements MOZ_FINAL : public nsIRunnable
                                        , public mozIStoragePendingStatement
 {
@@ -58,8 +66,6 @@ public:
    *        Ownership is transfered from the caller.
    * @param aConnection
    *        The connection that created the statements to execute.
-   * @param aNativeConnection
-   *        The native Sqlite connection that created the statements to execute.
    * @param aCallback
    *        The callback that is notified of results, completion, and errors.
    * @param _stmt
@@ -67,7 +73,6 @@ public:
    */
   static nsresult execute(StatementDataArray &aStatements,
                           Connection *aConnection,
-                          sqlite3 *aNativeConnection,
                           mozIStorageStatementCallback *aCallback,
                           mozIStoragePendingStatement **_stmt);
 
@@ -85,9 +90,7 @@ public:
 private:
   AsyncExecuteStatements(StatementDataArray &aStatements,
                          Connection *aConnection,
-                         sqlite3 *aNativeConnection,
                          mozIStorageStatementCallback *aCallback);
-  ~AsyncExecuteStatements();
 
   /**
    * Binds and then executes a given statement until completion, an error
@@ -184,8 +187,7 @@ private:
 
   StatementDataArray mStatements;
   nsRefPtr<Connection> mConnection;
-  sqlite3 *mNativeConnection;
-  bool mHasTransaction;
+  mozStorageAsyncTransaction *mTransactionManager;
   mozIStorageStatementCallback *mCallback;
   nsCOMPtr<nsIThread> mCallingThread;
   nsRefPtr<ResultSet> mResultSet;

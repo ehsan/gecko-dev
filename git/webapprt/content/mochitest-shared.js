@@ -85,5 +85,6 @@ function becomeWebapp(manifestURL, parameters, onBecome) {
   Services.obs.addObserver(observeInstall, "webapps-ask-install", false);
 
   // Step 1: Install the app at the URL specified by the manifest.
-  navigator.mozApps.install(manifestURL, parameters);
+  let url = Services.io.newURI(manifestURL, null, null);
+  navigator.mozApps.install(url.spec, parameters);
 }

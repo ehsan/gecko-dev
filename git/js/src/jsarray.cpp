@@ -2354,14 +2354,8 @@ CanOptimizeForDenseStorage(HandleObject arr, uint32_t startingIndex, uint32_t co
 }
 
 /* ES5 15.4.4.12. */
-bool
-js::array_splice(JSContext *cx, unsigned argc, Value *vp)
-{
-    return array_splice_impl(cx, argc, vp, true);
-}
-
-bool
-js::array_splice_impl(JSContext *cx, unsigned argc, Value *vp, bool returnValueIsUsed)
+static bool
+array_splice(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2408,12 +2402,10 @@ js::array_splice_impl(JSContext *cx, unsigned argc, Value *vp, bool returnValueI
     /* Steps 2, 8-9. */
     Rooted<ArrayObject*> arr(cx);
     if (CanOptimizeForDenseStorage(obj, actualStart, actualDeleteCount, cx)) {
-        if (returnValueIsUsed) {
-            arr = NewDenseCopiedArray(cx, actualDeleteCount, obj, actualStart);
-            if (!arr)
-                return false;
-            TryReuseArrayType(obj, arr);
-        }
+        arr = NewDenseCopiedArray(cx, actualDeleteCount, obj, actualStart);
+        if (!arr)
+            return false;
+        TryReuseArrayType(obj, arr);
     } else {
         arr = NewDenseAllocatedArray(cx, actualDeleteCount);
         if (!arr)
@@ -2566,9 +2558,7 @@ js::array_splice_impl(JSContext *cx, unsigned argc, Value *vp, bool returnValueI
         return false;
 
     /* Step 17. */
-    if (returnValueIsUsed)
-        args.rval().setObject(*arr);
-
+    args.rval().setObject(*arr);
     return true;
 }
 

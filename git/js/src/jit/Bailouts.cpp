@@ -167,49 +167,23 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
 
 uint32_t
 jit::ExceptionHandlerBailout(JSContext *cx, const InlineFrameIterator &frame,
-                             ResumeFromException *rfe,
                              const ExceptionBailoutInfo &excInfo,
-                             bool *overrecursed)
+                             BaselineBailoutInfo **bailoutInfo)
 {
-    // We can be propagating debug mode exceptions without there being an
-    // actual exception pending. For instance, when we return false from an
-    // operation callback like a timeout handler.
-    MOZ_ASSERT_IF(!excInfo.propagatingIonExceptionForDebugMode(), cx->isExceptionPending());
+    JS_ASSERT(cx->isExceptionPending());
 
     cx->mainThread().ionTop = nullptr;
     JitActivationIterator jitActivations(cx->runtime());
     IonBailoutIterator iter(jitActivations, frame.frame());
     JitActivation *activation = jitActivations.activation()->asJit();
 
-    BaselineBailoutInfo *bailoutInfo = nullptr;
-    uint32_t retval = BailoutIonToBaseline(cx, activation, iter, true, &bailoutInfo, &excInfo);
+    *bailoutInfo = nullptr;
+    uint32_t retval = BailoutIonToBaseline(cx, activation, iter, true, bailoutInfo, &excInfo);
+    JS_ASSERT(retval == BAILOUT_RETURN_OK ||
+              retval == BAILOUT_RETURN_FATAL_ERROR ||
+              retval == BAILOUT_RETURN_OVERRECURSED);
 
-    if (retval == BAILOUT_RETURN_OK) {
-        MOZ_ASSERT(bailoutInfo);
-
-        // Overwrite the kind so HandleException after the bailout returns
-        // false, jumping directly to the exception tail.
-        if (excInfo.propagatingIonExceptionForDebugMode())
-            bailoutInfo->bailoutKind = Bailout_IonExceptionDebugMode;
-
-        rfe->kind = ResumeFromException::RESUME_BAILOUT;
-        rfe->target = cx->runtime()->jitRuntime()->getBailoutTail()->raw();
-        rfe->bailoutInfo = bailoutInfo;
-    } else {
-        // Bailout failed. If there was a fatal error, clear the
-        // exception to turn this into an uncatchable error. If the
-        // overrecursion check failed, continue popping all inline
-        // frames and have the caller report an overrecursion error.
-        MOZ_ASSERT(!bailoutInfo);
-
-        if (!excInfo.propagatingIonExceptionForDebugMode())
-            cx->clearPendingException();
-
-        if (retval == BAILOUT_RETURN_OVERRECURSED)
-            *overrecursed = true;
-        else
-            MOZ_ASSERT(retval == BAILOUT_RETURN_FATAL_ERROR);
-    }
+    JS_ASSERT((retval == BAILOUT_RETURN_OK) == (*bailoutInfo != nullptr));
 
     return retval;
 }

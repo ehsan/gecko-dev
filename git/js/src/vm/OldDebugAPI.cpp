@@ -1050,7 +1050,7 @@ FormatFrame(JSContext *cx, const NonBuiltinScriptFrameIter &iter, char *buf, int
     RootedValue thisVal(cx);
     AutoPropertyDescArray thisProps(cx);
     if (iter.computeThis(cx)) {
-        thisVal = iter.computedThisValue();
+        thisVal = iter.thisv();
         if (showThisProps && !thisVal.isPrimitive()) {
             RootedObject thisObj(cx, &thisVal.toObject());
             thisProps.fetch(thisObj);

@@ -4,30 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// TODO: Get rid of this code once the marionette server loads transport.js as
-// an SDK module (see bug 1000814)
-(function (factory) { // Module boilerplate
-  if (this.module && module.id.indexOf("transport") >= 0) { // require
-    factory(require, exports);
-  } else { // loadSubScript
-    if (this.require) {
-      factory(require, this);
-    } else {
-      const Cu = Components.utils;
-      const { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-      factory(devtools.require, this);
-    }
-  }
-}).call(this, function (require, exports) {
-
 "use strict";
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-const { Cc, Ci, Cr, Cu } = require("chrome");
-const Services = require("Services");
-const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
-const { dumpn } = DevToolsUtils;
-
-Cu.import("resource://gre/modules/NetUtil.jsm");
+let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 
 /**
  * An adapter that handles data transfers between the debugger client and
@@ -63,7 +43,7 @@ Cu.import("resource://gre/modules/NetUtil.jsm");
  * ([length]:[packet]). The contents of the JSON packet are specified in
  * the Remote Debugging Protocol specification.
  */
-function DebuggerTransport(aInput, aOutput)
+this.DebuggerTransport = function DebuggerTransport(aInput, aOutput)
 {
   this._input = aInput;
   this._output = aOutput;
@@ -118,7 +98,7 @@ DebuggerTransport.prototype = {
     let written = 0;
     try {
       written = aStream.write(this._outgoing, this._outgoing.length);
-    } catch(e if e.result == Cr.NS_BASE_STREAM_CLOSED) {
+    } catch(e if e.result == Components.results.NS_BASE_STREAM_CLOSED) {
       dumpn("Connection closed.");
       this.close();
       return;
@@ -210,7 +190,7 @@ DebuggerTransport.prototype = {
       return true;
     }
 
-    if (dumpn.wantLogging) {
+    if (wantLogging) {
       dumpn("Got: " + JSON.stringify(parsed, null, 2));
     }
     let self = this;
@@ -226,7 +206,6 @@ DebuggerTransport.prototype = {
   }
 }
 
-exports.DebuggerTransport = DebuggerTransport;
 
 /**
  * An adapter that handles data transfers between the debugger client and
@@ -239,7 +218,7 @@ exports.DebuggerTransport = DebuggerTransport;
  *
  * @see DebuggerTransport
  */
-function LocalDebuggerTransport(aOther)
+this.LocalDebuggerTransport = function LocalDebuggerTransport(aOther)
 {
   this.other = aOther;
   this.hooks = null;
@@ -259,7 +238,7 @@ LocalDebuggerTransport.prototype = {
    */
   send: function LDT_send(aPacket) {
     let serial = this._serial.count++;
-    if (dumpn.wantLogging) {
+    if (wantLogging) {
       /* Check 'from' first, as 'echo' packets have both. */
       if (aPacket.from) {
         dumpn("Packet " + serial + " sent from " + uneval(aPacket.from));
@@ -272,7 +251,7 @@ LocalDebuggerTransport.prototype = {
     if (other) {
       Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(function() {
         // Avoid the cost of JSON.stringify() when logging is disabled.
-        if (dumpn.wantLogging) {
+        if (wantLogging) {
           dumpn("Received packet " + serial + ": " + JSON.stringify(aPacket, null, 2));
         }
         if (other.hooks) {
@@ -297,7 +276,7 @@ LocalDebuggerTransport.prototype = {
       try {
         this.hooks.onClosed();
       } catch(ex) {
-        Cu.reportError(ex);
+        Components.utils.reportError(ex);
       }
       this.hooks = null;
     }
@@ -326,8 +305,6 @@ LocalDebuggerTransport.prototype = {
   }
 };
 
-exports.LocalDebuggerTransport = LocalDebuggerTransport;
-
 /**
  * A transport for the debugging protocol that uses nsIMessageSenders to
  * exchange packets with servers running in child processes.
@@ -343,7 +320,7 @@ exports.LocalDebuggerTransport = LocalDebuggerTransport;
  * <prefix> is |aPrefix|, whose data is the protocol packet.
  */
 function ChildDebuggerTransport(aSender, aPrefix) {
-  this._sender = aSender.QueryInterface(Ci.nsIMessageSender);
+  this._sender = aSender.QueryInterface(Components.interfaces.nsIMessageSender);
   this._messageName = "debug:" + aPrefix + ":packet";
 }
 
@@ -374,7 +351,3 @@ ChildDebuggerTransport.prototype = {
     this._sender.sendAsyncMessage(this._messageName, packet);
   }
 };
-
-exports.ChildDebuggerTransport = ChildDebuggerTransport;
-
-});

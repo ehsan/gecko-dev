@@ -268,8 +268,6 @@ public:
 
     virtual bool IsSymbolFont();
 
-    virtual bool HasFontTable(uint32_t aTableTag);
-
     inline bool HasGraphiteTables() {
         if (!mCheckedForGraphiteTables) {
             CheckForGraphiteTables();

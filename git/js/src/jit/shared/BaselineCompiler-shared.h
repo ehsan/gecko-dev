@@ -19,7 +19,7 @@ class BaselineCompilerShared
 {
   protected:
     JSContext *cx;
-    JSScript *script;
+    RootedScript script;
     jsbytecode *pc;
     MacroAssembler masm;
     bool ionCompileable_;
@@ -69,14 +69,14 @@ class BaselineCompilerShared
 
     CodeOffsetLabel spsPushToggleOffset_;
 
-    BaselineCompilerShared(JSContext *cx, TempAllocator &alloc, JSScript *script);
+    BaselineCompilerShared(JSContext *cx, TempAllocator &alloc, HandleScript script);
 
-    ICEntry *allocateICEntry(ICStub *stub, ICEntry::Kind kind) {
+    ICEntry *allocateICEntry(ICStub *stub, bool isForOp) {
         if (!stub)
             return nullptr;
 
         // Create the entry and add it to the vector.
-        if (!icEntries_.append(ICEntry(script->pcToOffset(pc), kind)))
+        if (!icEntries_.append(ICEntry(script->pcToOffset(pc), isForOp)))
             return nullptr;
         ICEntry &vecEntry = icEntries_.back();
 

@@ -162,15 +162,15 @@ enum StackAdjustment { AdjustStack, DontAdjustStack };
 
 class FrameInfo
 {
-    JSScript *script;
+    RootedScript script;
     MacroAssembler &masm;
 
     FixedList<StackValue> stack;
     size_t spIndex;
 
   public:
-    FrameInfo(JSScript *script, MacroAssembler &masm)
-      : script(script),
+    FrameInfo(JSContext *cx, HandleScript script, MacroAssembler &masm)
+      : script(cx, script),
         masm(masm),
         stack(),
         spIndex(0)

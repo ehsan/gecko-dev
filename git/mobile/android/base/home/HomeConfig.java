@@ -1336,8 +1336,6 @@ public final class HomeConfig {
 
             mConfigOrder.remove(panelId);
             mConfigOrder.add(destIndex, panelId);
-            mHasChanged = true;
-
             return true;
         }
 

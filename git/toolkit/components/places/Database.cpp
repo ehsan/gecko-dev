@@ -215,17 +215,18 @@ SetJournalMode(nsCOMPtr<mozIStorageConnection>& aDBConn,
   return JOURNAL_DELETE;
 }
 
-class ConnectionCloseCallback MOZ_FINAL : public mozIStorageCompletionCallback {
+class BlockingConnectionCloseCallback MOZ_FINAL : public mozIStorageCompletionCallback {
   bool mDone;
 
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
-  ConnectionCloseCallback();
+  BlockingConnectionCloseCallback();
+  void Spin();
 };
 
 NS_IMETHODIMP
-ConnectionCloseCallback::Complete(nsresult, nsISupports*)
+BlockingConnectionCloseCallback::Complete(nsresult, nsISupports*)
 {
   mDone = true;
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -239,14 +240,21 @@ ConnectionCloseCallback::Complete(nsresult, nsISupports*)
   return NS_OK;
 }
 
-ConnectionCloseCallback::ConnectionCloseCallback()
+BlockingConnectionCloseCallback::BlockingConnectionCloseCallback()
   : mDone(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
 }
 
+void BlockingConnectionCloseCallback::Spin() {
+  nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
+  while (!mDone) {
+    NS_ProcessNextEvent(thread);
+  }
+}
+
 NS_IMPL_ISUPPORTS1(
-  ConnectionCloseCallback
+  BlockingConnectionCloseCallback
 , mozIStorageCompletionCallback
 )
 
@@ -1931,11 +1939,12 @@ Database::Shutdown()
         );
   DispatchToAsyncThread(event);
 
-  mClosed = true;
-
-  nsRefPtr<ConnectionCloseCallback> closeListener =
-    new ConnectionCloseCallback();
+  nsRefPtr<BlockingConnectionCloseCallback> closeListener =
+    new BlockingConnectionCloseCallback();
   (void)mMainConn->AsyncClose(closeListener);
+  closeListener->Spin();
+
+  mClosed = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
