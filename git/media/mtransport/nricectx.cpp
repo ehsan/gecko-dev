@@ -318,17 +318,6 @@ int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
   return 0;
 }
 
-int NrIceCtx::ice_checking(void *obj, nr_ice_peer_ctx *pctx) {
-  MOZ_MTLOG(ML_DEBUG, "ice_checking called");
-
-  // Get the ICE ctx
-  NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
-
-  ctx->SetConnectionState(ICE_CTX_CHECKING);
-
-  return 0;
-}
-
 int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
   MOZ_MTLOG(ML_DEBUG, "ice_completed called");
 
@@ -478,7 +467,6 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   ctx->ice_handler_vtbl_->stream_failed = &NrIceCtx::stream_failed;
   ctx->ice_handler_vtbl_->ice_completed = &NrIceCtx::ice_completed;
   ctx->ice_handler_vtbl_->msg_recvd = &NrIceCtx::msg_recvd;
-  ctx->ice_handler_vtbl_->ice_checking = &NrIceCtx::ice_checking;
 
   ctx->ice_handler_ = new nr_ice_handler();
   ctx->ice_handler_->vtbl = ctx->ice_handler_vtbl_;
@@ -701,6 +689,8 @@ nsresult NrIceCtx::StartChecks() {
       SetConnectionState(ICE_CTX_FAILED);
       return NS_ERROR_FAILURE;
     }
+  } else {
+    SetConnectionState(ICE_CTX_CHECKING);
   }
 
   return NS_OK;

@@ -166,7 +166,7 @@
       let func = message.objects.func;
       let result = func(n => 2*n);
       ok(result == 20, "result == 20");
-      let obj = {a:1, __exposedProps__: {"a": "r"}};
+      let obj = {a:1};
       savedMM.sendAsyncMessage("cpows:from_parent", {}, {obj: obj});
     }
 
@@ -191,7 +191,7 @@
     }
 
     let savedWilldieObj;
-    let wontDie = {f:2, __exposedProps__: {"f": "r"}};
+    let wontDie = {f:2};
     function recvLifetimeTest1(message) {
       let obj = message.objects.obj;
       savedWilldieObj = obj.will_die;

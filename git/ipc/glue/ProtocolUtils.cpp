@@ -17,19 +17,15 @@ using namespace IPC;
 namespace mozilla {
 namespace ipc {
 
-#ifdef MOZ_IPDL_TESTS
-bool IToplevelProtocol::sAllowNonMainThreadUse;
-#endif
-
 IToplevelProtocol::~IToplevelProtocol()
 {
-  MOZ_ASSERT(NS_IsMainThread() || AllowNonMainThreadUse());
+  MOZ_ASSERT(NS_IsMainThread());
   mOpenActors.clear();
 }
 
 void IToplevelProtocol::AddOpenedActor(IToplevelProtocol* aActor)
 {
-  MOZ_ASSERT(NS_IsMainThread() || AllowNonMainThreadUse());
+  MOZ_ASSERT(NS_IsMainThread());
 
 #ifdef DEBUG
   for (const IToplevelProtocol* actor = mOpenActors.getFirst();
@@ -65,14 +61,6 @@ IToplevelProtocol::CloneOpenedToplevels(IToplevelProtocol* aTemplate,
     AddOpenedActor(newactor);
   }
 }
-
-#ifdef MOZ_IPDL_TESTS
-void
-IToplevelProtocol::SetAllowNonMainThreadUse()
-{
-  sAllowNonMainThreadUse = true;
-}
-#endif
 
 class ChannelOpened : public IPC::Message
 {

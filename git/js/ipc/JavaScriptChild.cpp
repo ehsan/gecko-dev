@@ -57,9 +57,3 @@ JavaScriptChild::finalize(JSFreeOp *fop)
     objects_.finalize(fop);
     objectIds_.finalize(fop);
 }
-
-JSObject *
-JavaScriptChild::defaultScope()
-{
-    return xpc::PrivilegedJunkScope();
-}

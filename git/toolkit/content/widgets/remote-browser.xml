@@ -124,19 +124,11 @@
       <field name="_contentWindow">null</field>
 
       <property name="contentWindow"
-                onget="return null"
-                readonly="true"/>
-
-      <property name="contentWindowAsCPOW"
                 onget="return this._contentWindow"
                 readonly="true"/>
 
       <property name="contentDocument"
-                onget="return null"
-                readonly="true"/>
-
-      <property name="contentDocumentAsCPOW"
-                onget="return this.contentWindowAsCPOW ? this.contentWindowAsCPOW.document : null"
+                onget="return this.contentWindow ? this.contentWindow.document : null"
                 readonly="true"/>
 
       <field name="_syncHandler">null</field>
