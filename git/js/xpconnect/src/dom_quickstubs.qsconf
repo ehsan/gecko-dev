@@ -424,13 +424,12 @@ members = [
     'nsIIDBCursor.*',
     'nsIIDBCursorWithValue.*',
     'nsIIDBDatabase.*',
-    'nsIIDBFactory.*',
-    'nsIIDBFileHandle.*',
     'nsIIDBIndex.*',
     'nsIIDBKeyRange.*',
     'nsIIDBObjectStore.*',
     'nsIIDBRequest.*',
     'nsIIDBTransaction.*',
+    'nsIIDBFactory.*',
     'nsIIDBOpenDBRequest.*',
     'nsIIDBVersionChangeEvent.*',
     'nsIIndexedDatabaseUsageCallback.*',
@@ -442,13 +441,6 @@ members = [
     'nsIDOMPerformanceNavigation.*',
 
     'nsIDOMDOMError.*',
-
-    # dom/file
-    'nsIDOMFileHandle.*',
-    '-nsIDOMFileHandle.getFileId',
-    '-nsIDOMFileHandle.getFileInfo',
-    'nsIDOMFileRequest.*',
-    'nsIDOMLockedFile.*',
     ]
 
 # Most interfaces can be found by searching the includePath; to find

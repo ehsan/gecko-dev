@@ -169,7 +169,7 @@ BrowserElementChild.prototype = {
     if (whitelistedEvents.indexOf(e.keyCode) != -1 && !e.defaultPrevented) {
       sendAsyncMsg('keyevent', {
         type: e.type,
-        keyCode: e.keyCode,
+        code: e.keyCode,
         charCode: e.charCode,
       });
     }

@@ -11,17 +11,17 @@
 #include "nsIPersistentProperties2.h"
 #include "nsStyleConsts.h"
 
-class HyperTextAccessible;
+class nsHyperTextAccessible;
 
 namespace mozilla {
 namespace a11y {
 
 /**
  * Used to expose text attributes for the hyper text accessible (see
- * HyperTextAccessible class).
+ * nsHyperTextAccessible class).
  *
  * @note "invalid: spelling" text attribute is implemented entirely in
- *       HyperTextAccessible class.
+ *       nsHyperTextAccessible class.
  */
 class TextAttrsMgr
 {
@@ -29,7 +29,7 @@ public:
   /**
    * Constructor. Used to expose default text attributes.
    */
-  TextAttrsMgr(HyperTextAccessible* aHyperTextAcc) :
+  TextAttrsMgr(nsHyperTextAccessible* aHyperTextAcc) :
     mOffsetAcc(nsnull),  mHyperTextAcc(aHyperTextAcc),
     mOffsetAccIdx(-1), mIncludeDefAttrs(true) { }
 
@@ -45,7 +45,7 @@ public:
    *                          should be calculated for
    * @param oOffsetAccIdx    [optional] index in parent of offset accessible
    */
-  TextAttrsMgr(HyperTextAccessible* aHyperTextAcc,
+  TextAttrsMgr(nsHyperTextAccessible* aHyperTextAcc,
                bool aIncludeDefAttrs,
                Accessible* aOffsetAcc,
                PRInt32 aOffsetAccIdx) :
@@ -84,7 +84,7 @@ protected:
 
 private:
   Accessible* mOffsetAcc;
-  HyperTextAccessible* mHyperTextAcc;
+  nsHyperTextAccessible* mHyperTextAcc;
   PRInt32 mOffsetAccIdx;
   bool mIncludeDefAttrs;
 
@@ -191,7 +191,7 @@ protected:
   class LangTextAttr : public TTextAttr<nsString>
   {
   public:
-    LangTextAttr(HyperTextAccessible* aRoot, nsIContent* aRootElm,
+    LangTextAttr(nsHyperTextAccessible* aRoot, nsIContent* aRootElm,
                  nsIContent* aElm);
     virtual ~LangTextAttr() { }
 

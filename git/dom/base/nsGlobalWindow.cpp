@@ -569,10 +569,10 @@ nsPIDOMWindow::~nsPIDOMWindow() {}
 // nsOuterWindowProxy: Outer Window Proxy
 //*****************************************************************************
 
-class nsOuterWindowProxy : public js::DirectWrapper
+class nsOuterWindowProxy : public js::Wrapper
 {
 public:
-  nsOuterWindowProxy() : js::DirectWrapper(0) {}
+  nsOuterWindowProxy() : js::Wrapper(0) {}
 
   virtual bool isOuterWindow() {
     return true;
@@ -1083,7 +1083,6 @@ nsGlobalWindow::FreeInnerObjects()
   mHistory = nsnull;
 
   if (mNavigator) {
-    mNavigator->OnNavigation();
     mNavigator->Invalidate();
     mNavigator = nsnull;
   }
@@ -1748,10 +1747,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   mContext->WillInitializeContext();
 
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
-
-  if (currentInner && currentInner->mNavigator) {
-    currentInner->mNavigator->OnNavigation();
-  }
 
   nsRefPtr<nsGlobalWindow> newInnerWindow;
   bool createdInnerWindow = false;
@@ -8205,15 +8200,14 @@ NS_IMETHODIMP
 nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
 {
   if (!mIndexedDB) {
-    nsresult rv;
-
     if (!IsChromeWindow()) {
       nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
         do_GetService(THIRDPARTYUTIL_CONTRACTID);
       NS_ENSURE_TRUE(thirdPartyUtil, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       bool isThirdParty;
-      rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull, &isThirdParty);
+      nsresult rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull,
+                                                       &isThirdParty);
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       if (isThirdParty) {
@@ -8223,9 +8217,8 @@ nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
       }
     }
 
-    // This may be null if being created from a file.
-    rv = indexedDB::IDBFactory::Create(this, getter_AddRefs(mIndexedDB));
-    NS_ENSURE_SUCCESS(rv, rv);
+    mIndexedDB = indexedDB::IDBFactory::Create(this);
+    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
   nsCOMPtr<nsIIDBFactory> request(mIndexedDB);

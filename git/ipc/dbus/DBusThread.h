@@ -7,30 +7,18 @@
 #ifndef mozilla_ipc_dbus_gonk_dbusthread_h__
 #define mozilla_ipc_dbus_gonk_dbusthread_h__
 
-struct DBusMessage;
-
 namespace mozilla {
 namespace ipc {
 
-class nsCString;
 
-/** 
- * Starts the DBus thread, which handles returning signals to objects
- * that call asynchronous functions. This should be called from the
- * main thread at startup.
- *
- * @return True on thread starting correctly, false otherwise
- */
+// Starts the DBus thread, which handles returning signals to objects
+// that call asynchronous functions. This should be called from the
+// main thread at startup.
 bool StartDBus();
 
-/** 
- * Stop the DBus thread, assuming it's currently running. Should be
- * called from main thread.
- *
- * @return True on thread stopping correctly, false otherwise
- */
+// Stop the DBus thread, assuming it's currently running. Should be
+// called from main thread.
 bool StopDBus();
-
 }
 }
 #endif

@@ -18,7 +18,8 @@ function test() {
   waitForExplicitFinish();
 
   createTab(function() {
-    Services.obs.addObserver(finalize, DESTROYED, false);
+    Services.obs.addObserver(cleanup, DESTROYED, false);
+
     Services.obs.addObserver(obs_INITIALIZING, INITIALIZING, false);
     Services.obs.addObserver(obs_INITIALIZED, INITIALIZED, false);
     Services.obs.addObserver(obs_DESTROYING, DESTROYING, false);
@@ -26,11 +27,7 @@ function test() {
     Services.obs.addObserver(obs_DESTROYED, DESTROYED, false);
 
     info("Starting up the Tilt notifications test.");
-    createTilt({}, false, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
-    });
+    createTilt({});
   });
 }
 
@@ -61,26 +58,19 @@ function obs_DESTROYED() {
   tabEvents += "DESTROYED;";
 }
 
-function finalize() {
-  if (!tabEvents) {
-    return;
-  }
+function cleanup() {
+  info("Cleaning up the notifications test.");
 
   is(tabEvents, "INITIALIZING;INITIALIZED;DESTROYING;BEFORE_DESTROYED;DESTROYED;",
     "The notifications weren't fired in the correct order.");
 
-  cleanup();
-}
+  Services.obs.removeObserver(cleanup, DESTROYED);
 
-function cleanup() {
-  info("Cleaning up the notifications test.");
-
-  Services.obs.removeObserver(finalize, DESTROYED);
-  Services.obs.removeObserver(obs_INITIALIZING, INITIALIZING);
-  Services.obs.removeObserver(obs_INITIALIZED, INITIALIZED);
-  Services.obs.removeObserver(obs_DESTROYING, DESTROYING);
-  Services.obs.removeObserver(obs_BEFORE_DESTROYED, BEFORE_DESTROYED);
-  Services.obs.removeObserver(obs_DESTROYED, DESTROYED);
+  Services.obs.removeObserver(obs_INITIALIZING, INITIALIZING, false);
+  Services.obs.removeObserver(obs_INITIALIZED, INITIALIZED, false);
+  Services.obs.removeObserver(obs_DESTROYING, DESTROYING, false);
+  Services.obs.removeObserver(obs_BEFORE_DESTROYED, BEFORE_DESTROYED, false);
+  Services.obs.removeObserver(obs_DESTROYED, DESTROYED, false);
 
   gBrowser.removeCurrentTab();
   finish();

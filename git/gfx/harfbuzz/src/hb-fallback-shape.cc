@@ -31,8 +31,8 @@
 hb_bool_t
 _hb_fallback_shape (hb_font_t          *font,
 		    hb_buffer_t        *buffer,
-		    const hb_feature_t *features HB_UNUSED,
-		    unsigned int        num_features HB_UNUSED)
+		    const hb_feature_t *features,
+		    unsigned int        num_features)
 {
   buffer->guess_properties ();
 

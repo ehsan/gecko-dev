@@ -10,20 +10,13 @@ function executeSoon(aFun)
   SimpleTest.executeSoon(aFun);
 }
 
-if (!window.runTest) {
-  window.runTest = function(limitedQuota)
-  {
-    allowIndexedDB();
-    if (limitedQuota) {
-      denyUnlimitedQuota();
-    }
-    else {
-      allowUnlimitedQuota();
-    }
+function runTest()
+{
+  allowIndexedDB();
+  allowUnlimitedQuota();
 
-    SimpleTest.waitForExplicitFinish();
-    testGenerator.next();
-  }
+  SimpleTest.waitForExplicitFinish();
+  testGenerator.next();
 }
 
 function finishTest()
@@ -66,7 +59,7 @@ function continueToNextStepSync()
 
 function errorHandler(event)
 {
-  ok(false, "indexedDB error, '" + event.target.error.name + "'");
+  ok(false, "indexedDB error, code " + event.target.errorCode);
   finishTest();
 }
 
@@ -126,25 +119,61 @@ function compareKeys(k1, k2) {
   return false;
 }
 
+
 function addPermission(type, allow, url)
 {
-  if (!url) {
-    url = window.document;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  let uri;
+  if (url) {
+    uri = Components.classes["@mozilla.org/network/io-service;1"]
+                    .getService(Components.interfaces.nsIIOService)
+                    .newURI(url, null, null);
   }
-  SpecialPowers.addPermission(type, allow, url);
+  else {
+    uri = SpecialPowers.getDocumentURIObject(window.document);
+  }
+
+  let permission;
+  if (allow) {
+    permission = Components.interfaces.nsIPermissionManager.ALLOW_ACTION;
+  }
+  else {
+    permission = Components.interfaces.nsIPermissionManager.DENY_ACTION;
+  }
+
+  Components.classes["@mozilla.org/permissionmanager;1"]
+            .getService(Components.interfaces.nsIPermissionManager)
+            .add(uri, type, permission);
 }
 
-function removePermission(type, url)
+function removePermission(permission, url)
 {
-  if (!url) {
-    url = window.document;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  let uri;
+  if (url) {
+    uri = Components.classes["@mozilla.org/network/io-service;1"]
+                    .getService(Components.interfaces.nsIIOService)
+                    .newURI(url, null, null);
   }
-  SpecialPowers.removePermission(type, url);
+  else {
+    uri = SpecialPowers.getDocumentURIObject(window.document);
+  }
+
+  Components.classes["@mozilla.org/permissionmanager;1"]
+            .getService(Components.interfaces.nsIPermissionManager)
+            .remove(uri.host, permission);
 }
 
 function setQuota(quota)
 {
-  SpecialPowers.setIntPref("dom.indexedDB.warningQuota", quota);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  let prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                        .getService(Components.interfaces.nsIPrefBranch);
+
+  prefs.setIntPref("dom.indexedDB.warningQuota", quota);
 }
 
 function allowIndexedDB(url)

@@ -45,21 +45,18 @@
 #include "base/eintr_wrapper.h"
 #include "base/message_loop.h"
 #include "nsTArray.h"
-#include "nsDataHashtable.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Util.h"
 #include "mozilla/FileUtils.h"
-#include "nsThreadUtils.h"
+#include "nsAutoPtr.h"
 #include "nsIThread.h"
 #include "nsXULAppAPI.h"
-#include "nsServiceManagerUtils.h"
-#include "nsCOMPtr.h"
 
 #undef LOG
 #if defined(MOZ_WIDGET_GONK)
 #include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkBluetooth", args);
 #else
 #define BTDEBUG true
 #define LOG(args...) if(BTDEBUG) printf(args);
@@ -85,7 +82,6 @@ static const char* DBUS_SIGNALS[] =
 {
   "type='signal',interface='org.freedesktop.DBus'",
   "type='signal',interface='org.bluez.Adapter'",
-  "type='signal',interface='org.bluez.Manager'",
   "type='signal',interface='org.bluez.Device'",
   "type='signal',interface='org.bluez.Input'",
   "type='signal',interface='org.bluez.Network'",
@@ -295,6 +291,27 @@ static void HandleWatchRemove(DBusThread* aDbt) {
   aDbt->mWatchData.RemoveElementAt(index);
 }
 
+// Called by dbus during WaitForAndDispatchEventNative()
+static DBusHandlerResult
+EventFilter(DBusConnection *aConn, DBusMessage *aMsg,
+            void *aData)
+{
+  DBusError err;
+
+  dbus_error_init(&err);
+
+  if (dbus_message_get_type(aMsg) != DBUS_MESSAGE_TYPE_SIGNAL) {
+    LOG("%s: not interested (not a signal).\n", __FUNCTION__);
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+  }
+
+  LOG("%s: Received signal %s:%s from %s\n", __FUNCTION__,
+      dbus_message_get_interface(aMsg), dbus_message_get_member(aMsg),
+      dbus_message_get_path(aMsg));
+
+  return DBUS_HANDLER_RESULT_HANDLED;
+}
+
 // DBus Thread Implementation
 
 DBusThread::DBusThread() : mMutex("DBusGonk.mMutex")
@@ -320,9 +337,12 @@ DBusThread::SetUpEventLoop()
   dbus_error_init(&err);
 
   // If we can't establish a connection to dbus, nothing else will work
-  nsresult rv = EstablishDBusConnection();
-  if(NS_FAILED(rv)) {
-    NS_WARNING("Cannot create DBus Connection for DBus Thread!");
+  if(!Create()) {
+    return false;
+  }
+
+  // Add a filter for all incoming messages_base
+  if (!dbus_connection_add_filter(mConnection, EventFilter, this, NULL)){
     return false;
   }
 
@@ -345,7 +365,7 @@ DBusThread::SetUpEventLoop()
 bool
 DBusThread::TearDownData()
 {
-  LOG("Removing DBus Sockets\n");
+  LOG("Removing DBus Bluetooth Sockets\n");
   if (mControlFdW.get()) {
     mControlFdW.dispose();
   }
@@ -377,6 +397,7 @@ DBusThread::TearDownEventLoop()
     }
   }
 
+  dbus_connection_remove_filter(mConnection, EventFilter, this);
   return true;
 }
 
@@ -390,7 +411,7 @@ DBusThread::EventLoop(void *aPtr)
                                       RemoveWatch, ToggleWatch, aPtr, NULL);
 
   dbt->mIsRunning = true;
-  LOG("DBus Event Loop Starting\n");
+  LOG("DBus Bluetooth Event Loop Starting\n");
   while (1) {
     poll(dbt->mPollData.Elements(), dbt->mPollData.Length(), -1);
 
@@ -406,7 +427,7 @@ DBusThread::EventLoop(void *aPtr)
           switch (data) {
           case DBUS_EVENT_LOOP_EXIT:
           {
-            LOG("DBus Event Loop Exiting\n");
+            LOG("DBus Bluetooth Event Loop Exiting\n");
             dbus_connection_set_watch_functions(dbt->mConnection,
                                                 NULL, NULL, NULL, NULL, NULL);
             dbt->TearDownEventLoop();
@@ -474,7 +495,7 @@ DBusThread::StartEventLoop()
     TearDownData();
     return false;
   }
-  LOG("DBus Thread Starting\n");
+  LOG("DBus Bluetooth Thread Starting\n");
   pthread_create(&(mThread), NULL, DBusThread::EventLoop, this);
   return true;
 }
@@ -487,12 +508,12 @@ DBusThread::StopEventLoop()
     char data = DBUS_EVENT_LOOP_EXIT;
     ssize_t wret = write(mControlFdW.get(), &data, sizeof(char));
     if(wret < 0) {
-      LOG("Cannot write exit bit to DBus Thread!\n");
+      LOG("Cannot write exit bit to DBus Bluetooth Thread!\n");
     }
     void *ret;
-    LOG("DBus Thread Joining\n");
+    LOG("DBus Bluetooth Thread Joining\n");
     pthread_join(mThread, &ret);
-    LOG("DBus Thread Joined\n");
+    LOG("DBus Bluetooth Thread Joined\n");
     TearDownData();
   }
   mIsRunning = false;
@@ -514,7 +535,6 @@ ConnectDBus(Monitor* aMonitor, bool* aSuccess)
     NS_WARNING("Trying to start DBus Thread that is already currently running, skipping.");
     return;
   }
-
   sDBusThread = new DBusThread();
   *aSuccess = true;
   if(!sDBusThread->StartEventLoop())
@@ -534,7 +554,6 @@ DisconnectDBus(Monitor* aMonitor, bool* aSuccess)
     NS_WARNING("Trying to shutdown DBus Thread that is not currently running, skipping.");
     return;
   }
-
   *aSuccess = true;
   sDBusThread->StopEventLoop();
   sDBusThread = NULL;

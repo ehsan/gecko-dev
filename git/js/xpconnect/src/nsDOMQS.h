@@ -8,17 +8,10 @@
 #include "mozilla/dom/ImageData.h"
 #include "nsDOMClassInfoID.h"
 #include "nsGenericHTMLElement.h"
-#include "nsHTMLCanvasElement.h"
-#include "nsHTMLImageElement.h"
-#include "nsHTMLVideoElement.h"
 #include "nsHTMLDocument.h"
 #include "nsICSSDeclaration.h"
 #include "nsIDOMWebGLRenderingContext.h"
 #include "nsSVGStylableElement.h"
-#include "WebGLContext.h"
-// WebGLContext pulls in windows.h, which defines random crap, so nuke
-// those defines.
-#include "qsWinUndefs.h"
 
 #define DEFINE_UNWRAP_CAST(_interface, _base, _bit)                           \
 template <>                                                                   \
@@ -174,15 +167,11 @@ inline nsresult                                                               \
 xpc_qsUnwrapArg<_clazz>(JSContext *cx, jsval v, _clazz **ppArg,               \
                         _clazz **ppArgRef, jsval *vp)                         \
 {                                                                             \
-    nsISupports* argRef = static_cast<nsIContent*>(*ppArgRef);                \
+    nsISupports* argRef;                                                      \
     nsresult rv = xpc_qsUnwrapArg<_clazz>(cx, v, ppArg, &argRef, vp);         \
     *ppArgRef = static_cast<_clazz*>(static_cast<nsIContent*>(argRef));       \
     return rv;                                                                \
 }
-
-DEFINE_UNWRAP_CAST_HTML(canvas, nsHTMLCanvasElement)
-DEFINE_UNWRAP_CAST_HTML(img, nsHTMLImageElement)
-DEFINE_UNWRAP_CAST_HTML(video, nsHTMLVideoElement)
 
 inline nsISupports*
 ToSupports(nsContentList *p)
@@ -194,12 +183,6 @@ inline nsISupports*
 ToCanonicalSupports(nsINode* p)
 {
     return p;
-}
-
-inline nsISupports*
-ToSupports(nsINode* p)
-{
-  return p;
 }
 
 inline nsISupports*

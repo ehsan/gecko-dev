@@ -899,8 +899,7 @@ void nsBaseWidget::CreateCompositor()
 
       mLayerManager = lm;
     } else {
-      // We don't currently want to support not having a LayersChild
-      NS_RUNTIMEABORT("failed to construct LayersChild");
+      NS_WARNING("fail to construct LayersChild");
       delete lm;
       mCompositorChild = nsnull;
     }

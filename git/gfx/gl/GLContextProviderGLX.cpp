@@ -1355,7 +1355,7 @@ GLContextProviderGLX::CreateForNativePixmapSurface(gfxASurface *aSurface)
 static nsRefPtr<GLContext> gGlobalContext;
 
 GLContext *
-GLContextProviderGLX::GetGlobalContext(const ContextFlags)
+GLContextProviderGLX::GetGlobalContext()
 {
     static bool triedToCreateContext = false;
     if (!triedToCreateContext && !gGlobalContext) {

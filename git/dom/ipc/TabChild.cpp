@@ -59,14 +59,12 @@
 #include "nsEventListenerManager.h"
 #include "PCOMContentPermissionRequestChild.h"
 #include "xpcpublic.h"
-#include "IndexedDBChild.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
 using namespace mozilla::docshell;
-using namespace mozilla::dom::indexedDB;
 
 NS_IMPL_ISUPPORTS1(ContentListener, nsIDOMEventListener)
 
@@ -950,20 +948,6 @@ TabChild::GetMessageManager(nsIContentFrameMessageManager** aResult)
   }
   *aResult = nsnull;
   return NS_ERROR_FAILURE;
-}
-
-PIndexedDBChild*
-TabChild::AllocPIndexedDB(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
-{
-  NS_NOTREACHED("Should never get here!");
-  return NULL;
-}
-
-bool
-TabChild::DeallocPIndexedDB(PIndexedDBChild* aActor)
-{
-  delete aActor;
-  return true;
 }
 
 static bool

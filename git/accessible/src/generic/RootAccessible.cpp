@@ -11,7 +11,6 @@
 #include "nsIDOMDocument.h"
 
 #include "Accessible-inl.h"
-#include "DocAccessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
@@ -273,15 +272,24 @@ RootAccessible::HandleEvent(nsIDOMEvent* aDOMEvent)
     GetAccService()->GetDocAccessible(origTargetNode->OwnerDoc());
 
   if (document) {
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eDOMEvents)) {
+#ifdef DEBUG_NOTIFICATIONS
+    if (origTargetNode->IsElement()) {
+      nsIContent* elm = origTargetNode->AsElement();
+
+      nsAutoString tag;
+      elm->Tag()->ToString(tag);
+
+      nsIAtom* atomid = elm->GetID();
+      nsCAutoString id;
+      if (atomid)
+        atomid->ToUTF8String(id);
+
       nsAutoString eventType;
       aDOMEvent->GetType(eventType);
 
-      logging::MsgBegin("DOMEvents", "event '%s' handled",
-                        NS_ConvertUTF16toUTF8(eventType).get());
-      logging::Node("target", origTargetNode);
-      logging::MsgEnd();
+      printf("\nPend DOM event processing for %s@id='%s', type: %s\n\n",
+             NS_ConvertUTF16toUTF8(tag).get(), id.get(),
+             NS_ConvertUTF16toUTF8(eventType).get());
     }
 #endif
 

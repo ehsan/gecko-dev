@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "IDBKeyRange.h"
 
 #include "nsIXPConnect.h"
@@ -16,9 +14,6 @@
 #include "nsContentUtils.h"
 
 #include "Key.h"
-
-#include "mozilla/dom/indexedDB/PIndexedDBIndex.h"
-#include "mozilla/dom/indexedDB/PIndexedDBObjectStore.h"
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -262,9 +257,7 @@ IDBKeyRange::FromJSVal(JSContext* aCx,
     nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
     rv = xpc->GetWrappedNativeOfJSObject(aCx, JSVAL_TO_OBJECT(aVal),
                                          getter_AddRefs(wrapper));
-    if (NS_FAILED(rv)) {
-      return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
-    }
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     nsCOMPtr<nsIIDBKeyRange> iface;
     if (!wrapper || !(iface = do_QueryInterface(wrapper->Native()))) {
@@ -277,35 +270,6 @@ IDBKeyRange::FromJSVal(JSContext* aCx,
 
   keyRange.forget(aKeyRange);
   return NS_OK;
-}
-
-// static
-template <class T>
-already_AddRefed<IDBKeyRange>
-IDBKeyRange::FromSerializedKeyRange(const T& aKeyRange)
-{
-  nsRefPtr<IDBKeyRange> keyRange =
-    new IDBKeyRange(aKeyRange.lowerOpen(), aKeyRange.upperOpen(),
-                    aKeyRange.isOnly());
-  keyRange->Lower() = aKeyRange.lower();
-  if (!keyRange->IsOnly()) {
-    keyRange->Upper() = aKeyRange.upper();
-  }
-  return keyRange.forget();
-}
-
-template <class T>
-void
-IDBKeyRange::ToSerializedKeyRange(T& aKeyRange)
-{
-  aKeyRange.lowerOpen() = IsLowerOpen();
-  aKeyRange.upperOpen() = IsUpperOpen();
-  aKeyRange.isOnly() = IsOnly();
-
-  aKeyRange.lower() = Lower();
-  if (!IsOnly()) {
-    aKeyRange.upper() = Upper();
-  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBKeyRange)
@@ -416,20 +380,3 @@ IDBKeyRange::GetUpperOpen(bool* aUpperOpen)
   *aUpperOpen = mUpperOpen;
   return NS_OK;
 }
-
-// Explicitly instantiate for all our key range types... Grumble.
-template already_AddRefed<IDBKeyRange>
-IDBKeyRange::FromSerializedKeyRange<ipc::FIXME_Bug_521898_objectstore::KeyRange>
-(const ipc::FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
-
-template already_AddRefed<IDBKeyRange>
-IDBKeyRange::FromSerializedKeyRange<ipc::FIXME_Bug_521898_index::KeyRange>
-(const ipc::FIXME_Bug_521898_index::KeyRange& aKeyRange);
-
-template void
-IDBKeyRange::ToSerializedKeyRange<ipc::FIXME_Bug_521898_objectstore::KeyRange>
-(ipc::FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
-
-template void
-IDBKeyRange::ToSerializedKeyRange<ipc::FIXME_Bug_521898_index::KeyRange>
-(ipc::FIXME_Bug_521898_index::KeyRange& aKeyRange);

@@ -27,7 +27,8 @@ function createNewTab() {
   tab0 = gBrowser.selectedTab;
 
   tab1 = createTab(function() {
-    Services.obs.addObserver(finalize, DESTROYED, false);
+    Services.obs.addObserver(cleanup, DESTROYED, false);
+
     Services.obs.addObserver(tab_INITIALIZING, INITIALIZING, false);
     Services.obs.addObserver(tab_DESTROYING, DESTROYING, false);
     Services.obs.addObserver(tab_SHOWN, SHOWN, false);
@@ -40,10 +41,6 @@ function createNewTab() {
         testStep = 0;
         tabSelect();
       }
-    }, false, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
     });
   });
 }
@@ -83,30 +80,23 @@ let testSteps = [
   }
 ];
 
-function finalize() {
-  if (!tabEvents) {
-    return;
-  }
+function cleanup() {
+  info("Cleaning up the notifications test.");
 
   is(tabEvents, "INITIALIZING;HIDDEN;SHOWN;DESTROYING;",
     "The notifications weren't fired in the correct order.");
 
-  cleanup();
-}
-
-function cleanup() {
-  info("Cleaning up the notifications test.");
-
   tab0 = null;
   tab1 = null;
 
-  Services.obs.removeObserver(finalize, DESTROYED);
-  Services.obs.removeObserver(tab_INITIALIZING, INITIALIZING);
-  Services.obs.removeObserver(tab_DESTROYING, DESTROYING);
-  Services.obs.removeObserver(tab_SHOWN, SHOWN);
-  Services.obs.removeObserver(tab_HIDDEN, HIDDEN);
+  Services.obs.removeObserver(cleanup, DESTROYED);
 
-  gBrowser.tabContainer.removeEventListener("TabSelect", tabSelect);
+  Services.obs.removeObserver(tab_INITIALIZING, INITIALIZING, false);
+  Services.obs.removeObserver(tab_DESTROYING, DESTROYING, false);
+  Services.obs.removeObserver(tab_SHOWN, SHOWN, false);
+  Services.obs.removeObserver(tab_HIDDEN, HIDDEN, false);
+
+  gBrowser.tabContainer.removeEventListener("TabSelect", tabSelect, false);
   gBrowser.removeCurrentTab();
   finish();
 }

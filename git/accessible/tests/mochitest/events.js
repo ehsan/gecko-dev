@@ -53,11 +53,6 @@ var gA11yEventDumpToConsole = false;
 var gA11yEventDumpToAppConsole = false;
 
 /**
- * Semicolon separated set of logging features.
- */
-var gA11yEventDumpFeature = "";
-
-/**
  * Executes the function when requested event is handled.
  *
  * @param aEventType  [in] event type
@@ -545,8 +540,6 @@ function eventQueue(aEventType)
           var msg = "registered";
           if (this.isEventUnexpected(idx))
             msg += " unexpected";
-          if (this.mEventSeq[idx].async)
-            msg += " async";
 
           msg += ": event type: " + this.getEventTypeAsString(idx) +
             ", target: " + this.getEventTargetDescr(idx, true);
@@ -1528,15 +1521,6 @@ var gA11yEventObserver =
         if (listenersArray)
           info += ". Listeners count: " + listenersArray.length;
 
-        if (gLogger.hasFeature("parentchain:" + type)) {
-          info += "\nParent chain:\n";
-          var acc = event.accessible;
-          while (acc) {
-            info += "  " + prettyName(acc) + "\n";
-            acc = acc.parent;
-          }
-        }
-
         eventFromDumpArea = false;
         gLogger.log(info);
       }
@@ -1679,20 +1663,6 @@ var gLogger =
   {
     if (gA11yEventDumpToAppConsole)
       Services.console.logStringMessage("events: " + aMsg);
-  },
-
-  /**
-   * Return true if logging feature is enabled.
-   */
-  hasFeature: function logger_hasFeature(aFeature)
-  {
-    var startIdx = gA11yEventDumpFeature.indexOf(aFeature);
-    if (startIdx == - 1)
-      return false;
-
-    var endIdx = startIdx + aFeature.length;
-    return endIdx == gA11yEventDumpFeature.length ||
-      gA11yEventDumpFeature[endIdx] == ";";
   }
 };
 

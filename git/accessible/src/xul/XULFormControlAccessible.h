@@ -9,7 +9,7 @@
 // NOTE: alphabetically ordered
 #include "AccessibleWrap.h"
 #include "FormControlAccessible.h"
-#include "HyperTextAccessibleWrap.h"
+#include "nsHyperTextAccessibleWrap.h"
 #include "XULSelectControlAccessible.h"
 
 namespace mozilla {
@@ -213,7 +213,7 @@ public:
 /**
  * Used for XUL textbox element.
  */
-class XULTextFieldAccessible : public HyperTextAccessibleWrap
+class XULTextFieldAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
@@ -226,7 +226,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // HyperTextAccessible
+  // nsHyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
   // Accessible
@@ -243,7 +243,7 @@ protected:
   // Accessible
   virtual void CacheChildren();
 
-  // HyperTextAccessible
+  // nsHyperTextAccessible
   virtual already_AddRefed<nsFrameSelection> FrameSelection();
 
   // nsXULTextFieldAccessible

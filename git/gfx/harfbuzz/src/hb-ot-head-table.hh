@@ -1,6 +1,5 @@
 /*
  * Copyright © 2010  Red Hat, Inc.
- * Copyright © 2012  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -23,7 +22,6 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
  * Red Hat Author(s): Behdad Esfahbod
- * Google Author(s): Behdad Esfahbod
  */
 
 #ifndef HB_OT_HEAD_TABLE_HH
@@ -51,7 +49,7 @@ struct head
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (c->check_struct (this) && likely (version.major == 1));
+    return c->check_struct (this) && likely (version.major == 1);
   }
 
   private:

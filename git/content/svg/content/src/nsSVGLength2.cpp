@@ -460,9 +460,6 @@ void
 nsSVGLength2::SetAnimValueInSpecifiedUnits(float aValue,
                                            nsSVGElement* aSVGElement)
 {
-  if (mAnimVal == aValue && mIsAnimated) {
-    return;
-  }
   mAnimVal = aValue;
   mIsAnimated = true;
   aSVGElement->DidAnimateLength(mAttrEnum);

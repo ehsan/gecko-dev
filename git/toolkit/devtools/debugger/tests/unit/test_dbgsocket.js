@@ -6,8 +6,7 @@ Cu.import("resource:///modules/devtools/dbg-client.jsm");
 
 function run_test()
 {
-  // Allow incoming connections.
-  DebuggerServer.init(function () { return true; });
+  DebuggerServer.init();
   DebuggerServer.addActors("resource://test/testactors.js");
 
   add_test(test_socket_conn);

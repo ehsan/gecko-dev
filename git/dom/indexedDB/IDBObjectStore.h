@@ -22,15 +22,11 @@ class nsPIDOMWindow;
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
-class IDBCursor;
-class IDBKeyRange;
-class IndexedDBObjectStoreChild;
-class IndexedDBObjectStoreParent;
 class Key;
 
+struct ObjectStoreInfo;
 struct IndexInfo;
 struct IndexUpdateInfo;
-struct ObjectStoreInfo;
 struct StructuredCloneReadInfo;
 struct StructuredCloneWriteInfo;
 
@@ -45,8 +41,7 @@ public:
   static already_AddRefed<IDBObjectStore>
   Create(IDBTransaction* aTransaction,
          ObjectStoreInfo* aInfo,
-         nsIAtom* aDatabaseId,
-         bool aCreating);
+         nsIAtom* aDatabaseId);
 
   static bool
   IsValidKeyPath(JSContext* aCx, const nsAString& aKeyPath);
@@ -73,7 +68,7 @@ public:
   GetStructuredCloneReadInfoFromStatement(mozIStorageStatement* aStatement,
                                           PRUint32 aDataIndex,
                                           PRUint32 aFileIdsIndex,
-                                          IDBDatabase* aDatabase,
+                                          FileManager* aFileManager,
                                           StructuredCloneReadInfo& aInfo);
 
   static void
@@ -156,75 +151,6 @@ public:
     return mInfo;
   }
 
-  void
-  SetActor(IndexedDBObjectStoreChild* aActorChild)
-  {
-    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
-    mActorChild = aActorChild;
-  }
-
-  void
-  SetActor(IndexedDBObjectStoreParent* aActorParent)
-  {
-    NS_ASSERTION(!aActorParent || !mActorParent,
-                 "Shouldn't have more than one!");
-    mActorParent = aActorParent;
-  }
-
-  IndexedDBObjectStoreChild*
-  GetActorChild() const
-  {
-    return mActorChild;
-  }
-
-  IndexedDBObjectStoreParent*
-  GetActorParent() const
-  {
-    return mActorParent;
-  }
-
-  nsresult
-  CreateIndexInternal(const IndexInfo& aInfo,
-                      nsTArray<nsString>& aKeyPathArray,
-                      IDBIndex** _retval);
-
-  nsresult
-  IndexInternal(const nsAString& aName,
-                IDBIndex** _retval);
-
-  nsresult AddOrPutInternal(
-                      const SerializedStructuredCloneWriteInfo& aCloneWriteInfo,
-                      const Key& aKey,
-                      const InfallibleTArray<IndexUpdateInfo>& aUpdateInfoArray,
-                      bool aOverwrite,
-                      IDBRequest** _retval);
-
-  nsresult GetInternal(IDBKeyRange* aKeyRange,
-                       IDBRequest** _retval);
-
-  nsresult GetAllInternal(IDBKeyRange* aKeyRange,
-                          PRUint32 aLimit,
-                          IDBRequest** _retval);
-
-  nsresult DeleteInternal(IDBKeyRange* aKeyRange,
-                          IDBRequest** _retval);
-
-  nsresult ClearInternal(IDBRequest** _retval);
-
-  nsresult CountInternal(IDBKeyRange* aKeyRange,
-                         IDBRequest** _retval);
-
-  nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
-                              size_t aDirection,
-                              IDBRequest** _retval);
-
-  nsresult OpenCursorFromChildProcess(
-                            IDBRequest* aRequest,
-                            size_t aDirection,
-                            const Key& aKey,
-                            const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            IDBCursor** _retval);
-
 protected:
   IDBObjectStore();
   ~IDBObjectStore();
@@ -240,8 +166,8 @@ protected:
                     const jsval& aKey,
                     JSContext* aCx,
                     PRUint8 aOptionalArgCount,
-                    bool aOverwrite,
-                    IDBRequest** _retval);
+                    nsIIDBRequest** _retval,
+                    bool aOverwrite);
 
 private:
   nsRefPtr<IDBTransaction> mTransaction;
@@ -256,9 +182,6 @@ private:
   PRUint32 mStructuredCloneVersion;
 
   nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;
-
-  IndexedDBObjectStoreChild* mActorChild;
-  IndexedDBObjectStoreParent* mActorParent;
 };
 
 END_INDEXEDDB_NAMESPACE

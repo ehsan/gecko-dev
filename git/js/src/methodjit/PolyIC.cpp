@@ -440,13 +440,9 @@ class SetPropCompiler : public PICStubCompiler
         RecompilationMonitor monitor(cx);
         jsid id = NameToId(name);
 
-        types::TypeObject *type = obj->getType(cx);
-        if (monitor.recompiled())
-            return false;
-
-        if (!type->unknownProperties()) {
+        if (!obj->getType(cx)->unknownProperties()) {
             types::AutoEnterTypeInference enter(cx);
-            types::TypeSet *types = type->getProperty(cx, types::MakeTypeId(cx, id), true);
+            types::TypeSet *types = obj->getType(cx)->getProperty(cx, types::MakeTypeId(cx, id), true);
             if (!types)
                 return false;
             pic.rhsTypes->addSubset(cx, types);

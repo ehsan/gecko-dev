@@ -154,16 +154,12 @@ def reap_zombies(tasks, results, timeout):
         os.close(ended.stdout)
         os.close(ended.stderr)
 
-        returncode = os.WEXITSTATUS(status)
-        if os.WIFSIGNALED(status):
-            returncode = -os.WTERMSIG(status)
-
         out = TestOutput(
                    ended.test,
                    ended.cmd,
                    ''.join(ended.out),
                    ''.join(ended.err),
-                   returncode,
+                   os.WEXITSTATUS(status),
                    (datetime.now() - ended.start).total_seconds(),
                    timed_out(ended, timeout))
         results.push(out)

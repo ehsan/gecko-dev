@@ -508,8 +508,7 @@ var WebappsHelper = {
 // Start the debugger server.
 function startDebugger() {
   if (!DebuggerServer.initialized) {
-    // Allow remote connections.
-    DebuggerServer.init(function () { return true; });
+    DebuggerServer.init();
     DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
   }
 

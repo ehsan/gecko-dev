@@ -9,7 +9,6 @@
 
 #include "nsIProgrammingLanguage.h"
 
-#include "mozilla/Attributes.h"
 #include "jsapi.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -28,147 +27,57 @@
   using namespace mozilla::dom::indexedDB;
 
 class nsIDOMBlob;
-class nsIInputStream;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class FileInfo;
-class IDBDatabase;
-class IDBTransaction;
 
-template <class T>
-void SwapData(T& aData1, T& aData2)
-{
-  T temp = aData2;
-  aData2 = aData1;
-  aData1 = temp;
-}
-
-struct SerializedStructuredCloneReadInfo;
-
-struct StructuredCloneReadInfo
-{
-  // In IndexedDatabaseInlines.h
-  inline StructuredCloneReadInfo();
-
-  void Swap(StructuredCloneReadInfo& aCloneReadInfo)
-  {
+struct StructuredCloneReadInfo {
+  void Swap(StructuredCloneReadInfo& aCloneReadInfo) {
     mCloneBuffer.swap(aCloneReadInfo.mCloneBuffer);
     mFileInfos.SwapElements(aCloneReadInfo.mFileInfos);
-    SwapData(mDatabase, aCloneReadInfo.mDatabase);
   }
-
-  // In IndexedDatabaseInlines.h
-  inline bool
-  SetFromSerialized(const SerializedStructuredCloneReadInfo& aOther);
 
   JSAutoStructuredCloneBuffer mCloneBuffer;
   nsTArray<nsRefPtr<FileInfo> > mFileInfos;
-  IDBDatabase* mDatabase;
 };
 
-struct SerializedStructuredCloneReadInfo
-{
-  SerializedStructuredCloneReadInfo()
-  : data(nsnull), dataLength(0)
-  { }
-
-  bool
-  operator==(const SerializedStructuredCloneReadInfo& aOther) const
-  {
-    return this->data == aOther.data &&
-           this->dataLength == aOther.dataLength;
-  }
-
-  SerializedStructuredCloneReadInfo&
-  operator=(const StructuredCloneReadInfo& aOther)
-  {
-    data = aOther.mCloneBuffer.data();
-    dataLength = aOther.mCloneBuffer.nbytes();
-    return *this;
-  }
-
-  // Make sure to update ipc/SerializationHelpers.h when changing members here!
-  uint64_t* data;
-  size_t dataLength;
-};
-
-struct StructuredCloneFile
-{
-  bool operator==(const StructuredCloneFile& aOther) const
-  {
-    return this->mFile == aOther.mFile &&
-           this->mFileInfo == aOther.mFileInfo &&
-           this->mInputStream == aOther.mInputStream;
-  }
-
-  nsCOMPtr<nsIDOMBlob> mFile;
-  nsRefPtr<FileInfo> mFileInfo;
-  nsCOMPtr<nsIInputStream> mInputStream;
-};
-
-struct SerializedStructuredCloneWriteInfo;
-
-struct StructuredCloneWriteInfo
-{
-  // In IndexedDatabaseInlines.h
-  inline StructuredCloneWriteInfo();
-
-  void Swap(StructuredCloneWriteInfo& aCloneWriteInfo)
-  {
+struct StructuredCloneWriteInfo {
+  void Swap(StructuredCloneWriteInfo& aCloneWriteInfo) {
     mCloneBuffer.swap(aCloneWriteInfo.mCloneBuffer);
-    mFiles.SwapElements(aCloneWriteInfo.mFiles);
-    SwapData(mTransaction, aCloneWriteInfo.mTransaction);
-    SwapData(mOffsetToKeyProp, aCloneWriteInfo.mOffsetToKeyProp);
+    mBlobs.SwapElements(aCloneWriteInfo.mBlobs);
+    mOffsetToKeyProp = aCloneWriteInfo.mOffsetToKeyProp;
   }
-
-  bool operator==(const StructuredCloneWriteInfo& aOther) const
-  {
-    return this->mCloneBuffer.nbytes() == aOther.mCloneBuffer.nbytes() &&
-           this->mCloneBuffer.data() == aOther.mCloneBuffer.data() &&
-           this->mFiles == aOther.mFiles &&
-           this->mTransaction == aOther.mTransaction &&
-           this->mOffsetToKeyProp == aOther.mOffsetToKeyProp;
-  }
-
-  // In IndexedDatabaseInlines.h
-  inline bool
-  SetFromSerialized(const SerializedStructuredCloneWriteInfo& aOther);
 
   JSAutoStructuredCloneBuffer mCloneBuffer;
-  nsTArray<StructuredCloneFile> mFiles;
-  IDBTransaction* mTransaction;
+  nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;
   PRUint64 mOffsetToKeyProp;
 };
 
-struct SerializedStructuredCloneWriteInfo
+inline
+void
+AppendConditionClause(const nsACString& aColumnName,
+                      const nsACString& aArgName,
+                      bool aLessThan,
+                      bool aEquals,
+                      nsACString& aResult)
 {
-  SerializedStructuredCloneWriteInfo()
-  : data(nsnull), dataLength(0), offsetToKeyProp(0)
-  { }
+  aResult += NS_LITERAL_CSTRING(" AND ") + aColumnName +
+             NS_LITERAL_CSTRING(" ");
 
-  bool
-  operator==(const SerializedStructuredCloneWriteInfo& aOther) const
-  {
-    return this->data == aOther.data &&
-           this->dataLength == aOther.dataLength &&
-           this->offsetToKeyProp == aOther.offsetToKeyProp;
+  if (aLessThan) {
+    aResult.AppendLiteral("<");
+  }
+  else {
+    aResult.AppendLiteral(">");
   }
 
-  SerializedStructuredCloneWriteInfo&
-  operator=(const StructuredCloneWriteInfo& aOther)
-  {
-    data = aOther.mCloneBuffer.data();
-    dataLength = aOther.mCloneBuffer.nbytes();
-    offsetToKeyProp = aOther.mOffsetToKeyProp;
-    return *this;
+  if (aEquals) {
+    aResult.AppendLiteral("=");
   }
 
-  // Make sure to update ipc/SerializationHelpers.h when changing members here!
-  uint64_t* data;
-  size_t dataLength;
-  uint64_t offsetToKeyProp;
-};
+  aResult += NS_LITERAL_CSTRING(" :") + aArgName;
+}
 
 END_INDEXEDDB_NAMESPACE
 

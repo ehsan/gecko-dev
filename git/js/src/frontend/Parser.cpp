@@ -178,7 +178,6 @@ FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn,
     parent(tc->sc->funbox),
     bindings(tc->sc->context),
     level(tc->sc->staticLevel),
-    ndefaults(0),
     queued(false),
     inLoop(false),
     inWith(!!tc->innermostWith),
@@ -871,7 +870,7 @@ MakeDefIntoUse(Definition *dn, ParseNode *pn, JSAtom *atom, Parser *parser)
      * must rewrite it to be an assignment node, whose freshly allocated
      * left-hand side becomes a use of pn.
      */
-    if (dn->canHaveInitializer()) {
+    if (dn->isBindingForm()) {
         ParseNode *rhs = dn->expr();
         if (rhs) {
             ParseNode *lhs = MakeAssignment(dn, rhs, parser);
@@ -931,6 +930,14 @@ js::DefineArg(ParseNode *pn, JSAtom *atom, unsigned i, Parser *parser)
         return false;
 
     ParseNode *argsbody = pn->pn_body;
+    if (!argsbody) {
+        argsbody = ListNode::create(PNK_ARGSBODY, parser);
+        if (!argsbody)
+            return false;
+        argsbody->setOp(JSOP_NOP);
+        argsbody->makeEmpty();
+        pn->pn_body = argsbody;
+    }
     argsbody->append(argpn);
 
     argpn->setOp(JSOP_GETARG);
@@ -1279,24 +1286,17 @@ LeaveFunction(ParseNode *fn, Parser *parser, PropertyName *funName = NULL,
 }
 
 bool
-Parser::functionArguments(ParseNode **listp, bool &hasRest)
+Parser::functionArguments(ParseNode **listp, bool &hasDefaults, bool &hasRest)
 {
     if (tokenStream.getToken() != TOK_LP) {
         reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_PAREN_BEFORE_FORMAL);
         return false;
     }
 
+    hasDefaults = false;
     hasRest = false;
 
-    ParseNode *argsbody = ListNode::create(PNK_ARGSBODY, this);
-    if (!argsbody)
-        return false;
-    argsbody->setOp(JSOP_NOP);
-    argsbody->makeEmpty();
-    tc->sc->funbox->node->pn_body = argsbody;
-
     if (!tokenStream.matchToken(TOK_RP)) {
-        bool hasDefaults = false;
 #if JS_HAS_DESTRUCTURING
         JSAtom *duplicatedArg = NULL;
         bool destructuringArg = false;
@@ -1430,10 +1430,7 @@ Parser::functionArguments(ParseNode **listp, bool &hasRest)
                     ParseNode *def_expr = assignExprWithoutYield(JSMSG_YIELD_IN_DEFAULT);
                     if (!def_expr)
                         return false;
-                    ParseNode *arg = tc->sc->funbox->node->pn_body->last();
-                    arg->pn_dflags |= PND_DEFAULT;
-                    arg->pn_expr = def_expr;
-                    tc->sc->funbox->ndefaults++;
+                    tc->sc->funbox->node->pn_body->last()->pn_expr = def_expr;
                 } else if (!hasRest && hasDefaults) {
                     reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_NONDEFAULT_FORMAL_AFTER_DEFAULT);
                     return false;
@@ -1598,12 +1595,12 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
 
     /* Now parse formal argument list and compute fun->nargs. */
     ParseNode *prelude = NULL;
-    bool hasRest;
-    if (!functionArguments(&prelude, hasRest))
+    bool hasRest, hasDefaults;
+    if (!functionArguments(&prelude, hasDefaults, hasRest))
         return NULL;
 
     fun->setArgCount(funsc.bindings.numArgs());
-    if (funbox->ndefaults)
+    if (hasDefaults)
         fun->setHasDefaults();
     if (hasRest)
         fun->setHasRest();
@@ -1761,8 +1758,12 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
 
     pn->pn_funbox = funbox;
     pn->setOp(op);
-    pn->pn_body->append(body);
-    pn->pn_body->pn_pos = body->pn_pos;
+    if (pn->pn_body) {
+        pn->pn_body->append(body);
+        pn->pn_body->pn_pos = body->pn_pos;
+    } else {
+        pn->pn_body = body;
+    }
 
     JS_ASSERT_IF(!outertc->sc->inFunction && bodyLevel && kind == Statement,
                  pn->pn_cookie.isFree());
@@ -5566,7 +5567,6 @@ Parser::assignExprWithoutYield(unsigned msg)
     GenexpGuard yieldGuard(this);
 #endif
     ParseNode *res = assignExpr();
-    yieldGuard.endBody();
     if (res) {
 #ifdef JS_HAS_GENERATORS
         if (!yieldGuard.checkValidBody(res, msg)) {

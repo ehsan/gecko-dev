@@ -9,17 +9,7 @@ function createRootActor()
     sayHello: function() {
       this._globalActors = [];
       for each (let g in gTestGlobals) {
-        let addBreakpoint = function _addBreakpoint(aActor) {
-          this.conn.addActor(aActor);
-        }.bind(this);
-        let removeBreakpoint = function _removeBreakpoint(aActor) {
-          this.conn.removeActor(aActor);
-        }.bind(this);
-        let hooks = {
-          addToBreakpointPool: addBreakpoint,
-          removeFromBreakpointPool: removeBreakpoint
-        };
-        let actor = new ThreadActor(hooks);
+        let actor = new ThreadActor();
         actor.addDebuggee(g);
         actor._global = g;
         actor.json = function() {

@@ -688,13 +688,13 @@ XULToolbarSeparatorAccessible::NativeState()
 
 XULTextFieldAccessible::
  XULTextFieldAccessible(nsIContent* aContent, DocAccessible* aDoc) :
- HyperTextAccessibleWrap(aContent, aDoc)
+ nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
 NS_IMPL_ISUPPORTS_INHERITED3(XULTextFieldAccessible,
                              Accessible,
-                             HyperTextAccessible,
+                             nsHyperTextAccessible,
                              nsIAccessibleText,
                              nsIAccessibleEditableText)
 
@@ -722,7 +722,7 @@ XULTextFieldAccessible::Value(nsString& aValue)
 void
 XULTextFieldAccessible::ApplyARIAState(PRUint64* aState) const
 {
-  HyperTextAccessibleWrap::ApplyARIAState(aState);
+  nsHyperTextAccessibleWrap::ApplyARIAState(aState);
 
   aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
 }
@@ -730,7 +730,7 @@ XULTextFieldAccessible::ApplyARIAState(PRUint64* aState) const
 PRUint64
 XULTextFieldAccessible::NativeState()
 {
-  PRUint64 state = HyperTextAccessibleWrap::NativeState();
+  PRUint64 state = nsHyperTextAccessibleWrap::NativeState();
 
   nsCOMPtr<nsIContent> inputField(GetInputField());
   NS_ENSURE_TRUE(inputField, state);
@@ -846,7 +846,7 @@ XULTextFieldAccessible::CacheChildren()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULTextFieldAccessible: HyperTextAccessible protected
+// XULTextFieldAccessible: nsHyperTextAccessible protected
 
 already_AddRefed<nsFrameSelection>
 XULTextFieldAccessible::FrameSelection()

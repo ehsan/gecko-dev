@@ -45,7 +45,9 @@ function testTab1(callback) {
     is(DebuggerUI.getDebugger(), gPane1,
       "getDebugger() should return the same pane as toggleDebugger().");
 
-    wait_for_connect_and_resume(function dbgLoaded() {
+    gPane1._frame.addEventListener("Debugger:Loaded", function dbgLoaded() {
+      gPane1._frame.removeEventListener("Debugger:Loaded", dbgLoaded, true);
+
       info("First debugger has finished loading correctly.");
       executeSoon(function() {
         callback();
@@ -178,7 +180,7 @@ function testTab4(callback) {
         EventUtils.sendKey("SPACE");
         info("The open button on the notification was pressed.");
 
-        wait_for_connect_and_resume(function() {
+        executeSoon(function() {
           callback();
         });
       });
@@ -209,21 +211,18 @@ function lastTest(callback) {
 }
 
 function cleanup(callback) {
+  removeTab(gTab1);
+  removeTab(gTab2);
+  removeTab(gTab3);
+  removeTab(gTab4);
 
+  gTab1 = null;
+  gTab2 = null;
+  gTab3 = null;
+  gTab4 = null;
   gPane1 = null;
   gPane2 = null;
   gNbox = null;
 
-  closeDebuggerAndFinish(false, function() {
-    removeTab(gTab1);
-    removeTab(gTab2);
-    removeTab(gTab3);
-    removeTab(gTab4);
-    gTab1 = null;
-    gTab2 = null;
-    gTab3 = null;
-    gTab4 = null;
-
-    callback();
-  });
+  callback();
 }

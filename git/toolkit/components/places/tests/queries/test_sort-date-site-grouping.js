@@ -156,7 +156,7 @@ function run_test() {
 }
 
 function checkFirstLevel(index, node, roots) {
-    PlacesUtils.asContainer(node).containerOpen = true;
+    node.containerOpen = true;
 
     do_check_true(PlacesUtils.nodeIsDay(node));
     PlacesUtils.asQuery(node);
