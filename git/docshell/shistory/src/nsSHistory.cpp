@@ -311,7 +311,11 @@ nsSHistory::CalcMaxTotalViewers()
   if (bytes > INT64_MAX)
     bytes = INT64_MAX;
 
-  double kBytesD = (double)(bytes >> 10);
+  uint64_t kbytes;
+  LL_SHR(kbytes, bytes, 10);
+
+  double kBytesD;
+  LL_L2D(kBytesD, (int64_t) kbytes);
 
   // This is essentially the same calculation as for nsCacheService,
   // except that we divide the final memory calculation by 4, since

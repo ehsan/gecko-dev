@@ -213,13 +213,8 @@ bool IsValidBufferSize(uint32_t aBufferSize) {
 }
 
 already_AddRefed<MediaStreamAudioDestinationNode>
-AudioContext::CreateMediaStreamDestination(ErrorResult& aRv)
+AudioContext::CreateMediaStreamDestination()
 {
-  if (mIsOffline) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
-
   nsRefPtr<MediaStreamAudioDestinationNode> node =
       new MediaStreamAudioDestinationNode(this);
   return node.forget();
@@ -406,9 +401,6 @@ void
 AudioContext::UnregisterPannerNode(PannerNode* aNode)
 {
   mPannerNodes.RemoveEntry(aNode);
-  if (mListener) {
-    mListener->UnregisterPannerNode(aNode);
-  }
 }
 
 void

@@ -2,8 +2,8 @@
 
 "use strict";
 
-loadRelativeToScript('utility.js');
-loadRelativeToScript('annotations.js');
+load('utility.js');
+load('annotations.js');
 
 function processCSU(csu, body)
 {

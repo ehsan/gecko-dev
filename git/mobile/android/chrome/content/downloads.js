@@ -16,6 +16,7 @@ var Downloads = {
   _dlmgr: null,
   _progressAlert: null,
   _privateDownloads: [],
+  isForeground : true,
 
   _getLocalFile: function dl__getLocalFile(aFileURI) {
     // if this is a URL, get the file from that
@@ -34,6 +35,8 @@ var Downloads = {
     this._progressAlert = new AlertDownloadProgressListener();
     this._dlmgr.addPrivacyAwareListener(this._progressAlert);
     Services.obs.addObserver(this, "last-pb-context-exited", true);
+    Services.obs.addObserver(this, "application-background", false);
+    Services.obs.addObserver(this, "application-foreground", false);
   },
 
   openDownload: function dl_openDownload(aDownload) {
@@ -104,16 +107,29 @@ var Downloads = {
 
   // observer for last-pb-context-exited
   observe: function dl_observe(aSubject, aTopic, aData) {
-    let alertsService = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
-    let progressListener = alertsService.QueryInterface(Ci.nsIAlertsProgressListener);
-    let download;
-    while ((download = this._privateDownloads.pop())) {
-      try {
-        let notificationName = download.target.spec.replace("file:", "download:");
-        progressListener.onCancel(notificationName);
-      } catch (e) {
-        dump("Error removing private download: " + e);
+    switch (aTopic) {
+      case "last-pb-context-exited": {
+        let alertsService = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
+        let progressListener = alertsService.QueryInterface(Ci.nsIAlertsProgressListener);
+        let download;
+        while ((download = this._privateDownloads.pop())) {
+          try {
+            let notificationName = download.target.spec.replace("file:", "download:");
+            progressListener.onCancel(notificationName);
+          } catch (e) {
+            dump("Error removing private download: " + e);
+          }
+        }
+        break;
       }
+
+      case "application-foreground":
+        this.isForeground = true;
+        break;
+
+      case "application-background":
+        this.isForeground = false;
+        break;
     }
   },
 
@@ -181,8 +197,14 @@ AlertDownloadProgressListener.prototype = {
             this._privateDownloads.splice(index, 1);
           }
         }
+        // Checking existance of MimeInfo and if there is at least one application handler in addition
+        // to default one.
+        let existsAvailableHandler = (aDownload.MIMEInfo && aDownload.MIMEInfo.possibleApplicationHandlers.length > 1);
 
-        if (state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED) {
+        // We want to show the download finished notification only if it is not automatically opened.
+        // A download is automatically opened if it has a default handler and fennec is in foreground.
+        if (state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED &&
+            !(existsAvailableHandler && Downloads.isForeground)) {
           Downloads.showAlert(aDownload, Strings.browser.GetStringFromName("alertDownloadsDone2"),
                               aDownload.displayName);
         }

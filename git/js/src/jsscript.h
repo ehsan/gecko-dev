@@ -354,7 +354,7 @@ class ScriptSource
     }
 
     // Source maps
-    bool setSourceMap(JSContext *cx, jschar *sourceMapURL);
+    bool setSourceMap(JSContext *cx, jschar *sourceMapURL, const char *filename);
     const jschar *sourceMap();
     bool hasSourceMap() const { return sourceMap_ != NULL; }
 

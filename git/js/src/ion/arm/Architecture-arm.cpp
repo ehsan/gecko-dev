@@ -126,11 +126,7 @@ bool useConvReg()
 
 bool hasIDIV()
 {
-#if defined HWCAP_IDIVA
     return js::ion::getFlags() & HWCAP_IDIVA;
-#else
-    return false;
-#endif
 }
 
 } // namespace ion

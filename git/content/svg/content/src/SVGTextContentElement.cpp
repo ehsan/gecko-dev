@@ -8,6 +8,7 @@
 #include "nsSVGTextContainerFrame.h"
 #include "nsSVGTextFrame2.h"
 #include "mozilla/dom/SVGIRect.h"
+#include "nsIDOMSVGAnimatedEnum.h"
 
 namespace mozilla {
 namespace dom {

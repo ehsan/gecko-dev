@@ -8,6 +8,7 @@ XPIDL_SOURCES += [
     'nsIDOMMozVoicemail.idl',
     'nsIDOMMozVoicemailEvent.idl',
     'nsIDOMMozVoicemailStatus.idl',
+    'nsINavigatorVoicemail.idl',
     'nsIVoicemailProvider.idl',
 ]
 

@@ -37,6 +37,7 @@
 #endif /* HAVE_BOUTELL_GD */
 
 #include "nsQuickSort.h"
+#include "prlong.h"
 /*
 **  strcasecmp API please.
 */

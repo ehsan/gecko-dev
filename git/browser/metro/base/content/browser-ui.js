@@ -1219,6 +1219,7 @@ var PanelUI = {
 
   views: {
     "bookmarks-container": "BookmarksPanelView",
+    "downloads-container": "DownloadsPanelView",
     "console-container": "ConsolePanelView",
     "remotetabs-container": "RemoteTabsPanelView",
     "history-container" : "HistoryPanelView"

@@ -14,9 +14,6 @@
 #include "SharedSurfaceGralloc.h"
 #include "nsXULAppAPI.h"
 #endif
-#ifdef XP_MACOSX
-#include "SharedSurfaceIO.h"
-#endif
 
 using namespace mozilla::gfx;
 
@@ -42,13 +39,6 @@ GLScreenBuffer::Create(GLContext* gl,
         XRE_GetProcessType() != GeckoProcessType_Default)
     {
         factory = new SurfaceFactory_Gralloc(gl, caps);
-    }
-#endif
-#ifdef XP_MACOSX
-    /* On OSX, we want an IOSurface factory, and we want one right at the start */
-    if (!factory)
-    {
-        factory = new SurfaceFactory_IOSurface(gl, caps);
     }
 #endif
 
@@ -286,28 +276,6 @@ GLScreenBuffer::BeforeReadCall()
         return;
 
     AssureBlitted();
-}
-
-bool
-GLScreenBuffer::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
-                           GLenum format, GLenum type, GLvoid *pixels)
-{
-    // If the currently bound framebuffer is backed by a SharedSurface_GL
-    // then it might want to override how we read pixel data from it.
-    // This is normally only the default framebuffer, but we can also
-    // have SharedSurfaces bound to other framebuffers when doing
-    // readback for BasicLayers.
-    SharedSurface_GL* surf;
-    if (GetReadFB() == 0) {
-        surf = SharedSurf();
-    } else {
-        surf = mGL->mFBOMapping[GetReadFB()];
-    }
-    if (surf) {
-        return surf->ReadPixels(x, y, width, height, format, type, pixels);
-    }
-
-    return false;
 }
 
 void
@@ -597,12 +565,10 @@ ReadBuffer::Create(GLContext* gl,
 
     GLuint colorTex = 0;
     GLuint colorRB = 0;
-    GLenum target = 0;
 
     switch (surf->AttachType()) {
     case AttachmentType::GLTexture:
         colorTex = surf->Texture();
-        target = surf->TextureTarget();
         break;
     case AttachmentType::GLRenderbuffer:
         colorRB = surf->Renderbuffer();
@@ -614,8 +580,7 @@ ReadBuffer::Create(GLContext* gl,
 
     GLuint fb = 0;
     gl->fGenFramebuffers(1, &fb);
-    gl->AttachBuffersToFB(colorTex, colorRB, depthRB, stencilRB, fb, target);
-    gl->mFBOMapping[fb] = surf;
+    gl->AttachBuffersToFB(colorTex, colorRB, depthRB, stencilRB, fb);
 
     MOZ_ASSERT(gl->IsFramebufferComplete(fb));
 
@@ -636,7 +601,6 @@ ReadBuffer::~ReadBuffer()
 
     mGL->fDeleteFramebuffers(1, &fb);
     mGL->fDeleteRenderbuffers(2, rbs);
-    mGL->mFBOMapping.erase(mFB);
 }
 
 void
@@ -650,12 +614,10 @@ ReadBuffer::Attach(SharedSurface_GL* surf)
     if (surf->AttachType() != AttachmentType::Screen) {
         GLuint colorTex = 0;
         GLuint colorRB = 0;
-        GLenum target = 0;
 
         switch (surf->AttachType()) {
         case AttachmentType::GLTexture:
             colorTex = surf->Texture();
-            target = surf->TextureTarget();
             break;
         case AttachmentType::GLRenderbuffer:
             colorRB = surf->Renderbuffer();
@@ -664,8 +626,7 @@ ReadBuffer::Attach(SharedSurface_GL* surf)
             MOZ_CRASH("Unknown attachment type?");
         }
 
-        mGL->AttachBuffersToFB(colorTex, colorRB, 0, 0, mFB, target);
-        mGL->mFBOMapping[mFB] = surf;
+        mGL->AttachBuffersToFB(colorTex, colorRB, 0, 0, mFB);
         MOZ_ASSERT(mGL->IsFramebufferComplete(mFB));
     }
 

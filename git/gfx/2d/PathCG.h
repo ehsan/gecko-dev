@@ -48,7 +48,6 @@ public:
 
 private:
   friend class PathCG;
-  friend class ScaledFontMac;
 
   void EnsureActive(const Point &aPoint);
 

@@ -12,6 +12,7 @@
 #include "gfxPlatform.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
+#include "prlong.h"
 #include "nsNetUtil.h"
 #include "nsICacheService.h"
 #include "nsIProtocolHandler.h"

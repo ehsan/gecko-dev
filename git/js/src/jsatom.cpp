@@ -258,7 +258,7 @@ AtomizeAndTakeOwnership(ExclusiveContext *cx, jschar *tbchars, size_t length, In
         return atom;
     }
 
-    AutoCompartment ac(cx, cx->asJSContext()->runtime()->atomsCompartment);
+    AutoEnterAtomsCompartment ac(cx);
 
     JSFlatString *flat = js_NewString<CanGC>(cx, tbchars, length);
     if (!flat) {
@@ -302,7 +302,7 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, 
         return atom;
     }
 
-    AutoCompartment ac(cx, cx->asJSContext()->runtime()->atomsCompartment);
+    AutoEnterAtomsCompartment ac(cx);
 
     JSFlatString *flat = js_NewStringCopyN<allowGC>(cx, tbchars, length);
     if (!flat)
@@ -312,8 +312,7 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, 
 
     if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
                              AtomStateEntry(atom, bool(ib)))) {
-        if (allowGC)
-            js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
+        js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
         return NULL;
     }
 
