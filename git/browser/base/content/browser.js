@@ -157,6 +157,12 @@ let gInitialPages = [
 #include browser-thumbnails.js
 #include browser-webrtcUI.js
 
+#ifdef MOZ_DATA_REPORTING
+#include browser-data-submission-info-bar.js
+
+let gDataNotificationInfoBar = new DataNotificationInfoBar();
+#endif
+
 #ifdef MOZ_SERVICES_SYNC
 #include browser-syncui.js
 #endif
@@ -1173,8 +1179,8 @@ var gBrowserInit = {
     allTabs.readPref();
     TabsOnTop.init();
     BookmarksMenuButton.init();
-    TabsInTitlebar.init();
     gPrivateBrowsingUI.init();
+    TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
 
     // Wait until chrome is painted before executing code not critical to making the window visible
@@ -1393,6 +1399,10 @@ var gBrowserInit = {
 #ifdef MOZ_SERVICES_SYNC
     // initialize the sync UI
     gSyncUI.init();
+#endif
+
+#ifdef MOZ_DATA_REPORTING
+    gDataNotificationInfoBar.init();
 #endif
 
     gBrowserThumbnails.init();
@@ -4546,7 +4556,8 @@ var TabsProgressListener = {
       // or history.push/pop/replaceState.
       if (aRequest) {
         // Initialize the click-to-play state.
-        aBrowser._clickToPlayPluginsActivated = false;
+        aBrowser._clickToPlayPluginsActivated = new Map();
+        aBrowser._clickToPlayAllPluginsActivated = false;
         aBrowser._pluginScriptedState = gPluginHandler.PLUGIN_SCRIPTED_STATE_NONE;
       }
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);

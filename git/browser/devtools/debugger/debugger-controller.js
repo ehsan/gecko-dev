@@ -1050,6 +1050,7 @@ SourceScripts.prototype = {
       return;
     }
     dumpn("SourceScripts is disconnecting...");
+    window.clearTimeout(this._newScriptTimeout);
     this.debuggerClient.removeListener("newScript", this._onNewScript);
     this.debuggerClient.removeListener("newGlobal", this._onNewGlobal);
   },
@@ -1062,6 +1063,7 @@ SourceScripts.prototype = {
       return;
     }
     dumpn("Handling tab navigation in the SourceScripts");
+    window.clearTimeout(this._newScriptTimeout);
 
     // Retrieve the list of script sources known to the server from before
     // the client was ready to handle "newScript" notifications.
@@ -1095,7 +1097,8 @@ SourceScripts.prototype = {
     }
     // ..or the first entry if there's none selected yet after a while
     else {
-      window.setTimeout(function() {
+      window.clearTimeout(this._newScriptTimeout);
+      this._newScriptTimeout = window.setTimeout(function() {
         // If after a certain delay the preferred source still wasn't received,
         // just give up on waiting and display the first entry.
         if (!container.selectedValue) {
