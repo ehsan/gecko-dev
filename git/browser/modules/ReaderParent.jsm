@@ -132,10 +132,10 @@ let ReaderParent = {
       if (!originalURL) {
         Cu.reportError("Error finding original URL for about:reader URL: " + url);
       } else {
-        win.openUILinkIn(originalURL, "current", {"allowPinnedTabHostChange": true});
+        win.openUILinkIn(originalURL, "current");
       }
     } else {
-      win.openUILinkIn("about:reader?url=" + encodeURIComponent(url), "current", {"allowPinnedTabHostChange": true});
+      win.openUILinkIn("about:reader?url=" + encodeURIComponent(url), "current");
     }
   },
 

@@ -501,6 +501,8 @@ let AboutReaderListener = {
         break;
 
       case "pagehide":
+        // Reader mode is disabled until proven enabled.
+        this._savedArticle = null;
         sendAsyncMessage("Reader:UpdateReaderButton", { isArticle: false });
         break;
 
@@ -508,9 +510,6 @@ let AboutReaderListener = {
         if (!ReaderMode.isEnabledForParseOnLoad || this.isAboutReader) {
           return;
         }
-
-        // Reader mode is disabled until proven enabled.
-        this._savedArticle = null;
 
         ReaderMode.parseDocument(content.document).then(article => {
           // Do nothing if there is no article, or if the content window has been destroyed.
