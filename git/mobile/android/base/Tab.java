@@ -101,6 +101,7 @@ public final class Tab {
         mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
             public void onChange(boolean selfChange) {
                 updateBookmark();
+                updateReadingListItem();
             }
         };
         BrowserDB.registerBookmarkObserver(mContentResolver, mContentObserver);
@@ -247,6 +248,7 @@ public final class Tab {
             mUrl = url;
             Log.i(LOGTAG, "Updated url: " + url + " for tab with id: " + mId);
             updateBookmark();
+            updateReadingListItem();
             updateHistory(mUrl, mTitle);
         }
     }
@@ -377,11 +379,6 @@ public final class Tab {
 
     public void setReaderEnabled(boolean readerEnabled) {
         mReaderEnabled = readerEnabled;
-        GeckoAppShell.getMainHandler().post(new Runnable() {
-            public void run() {
-                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
-            }
-        });
     }
 
     private void updateBookmark() {
@@ -389,21 +386,29 @@ public final class Tab {
         if (url == null)
             return;
 
-        (new GeckoAsyncTask<Void, Void, Void>() {
-            @Override
-            public Void doInBackground(Void... params) {
+        GeckoBackgroundThread.getHandler().post(new Runnable() {
+            public void run() {
+                boolean bookmark = BrowserDB.isBookmark(mContentResolver, url);
                 if (url.equals(getURL())) {
-                    mBookmark = BrowserDB.isBookmark(mContentResolver, url);
-                    mReadingListItem = BrowserDB.isReadingListItem(mContentResolver, url);
+                    mBookmark = bookmark;
                 }
-                return null;
             }
+        });
+    }
 
-            @Override
-            public void onPostExecute(Void result) {
-                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
+    private void updateReadingListItem() {
+        final String url = getURL();
+        if (url == null)
+            return;
+
+        GeckoBackgroundThread.getHandler().post(new Runnable() {
+            public void run() {
+                boolean readingListItem = BrowserDB.isReadingListItem(mContentResolver, url);
+                if (url.equals(getURL())) {
+                    mReadingListItem = readingListItem;
+                }
             }
-        }).execute();
+        });
     }
 
     public void addBookmark() {

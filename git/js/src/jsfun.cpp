@@ -552,25 +552,23 @@ FindBody(JSContext *cx, HandleFunction fun, const jschar *chars, size_t length,
             break;
         }
     } while (onward);
-    TokenKind tt = ts.getToken();
-    if (tt == TOK_ERROR)
+    DebugOnly<bool> braced = ts.matchToken(TOK_LC);
+    if (ts.getToken() == TOK_ERROR)
         return false;
-    bool braced = tt == TOK_LC;
     JS_ASSERT(!!(fun->flags & JSFUN_EXPR_CLOSURE) ^ braced);
     *bodyStart = ts.offsetOfToken(ts.currentToken());
-    if (braced)
-        *bodyStart += 1;
-    RangedPtr<const jschar> end(chars, length);
-    end = chars + length;
-    if (end[-1] == '}') {
-        end--;
+    RangedPtr<const jschar> p(chars, length);
+    p = chars + length;
+    for (; unicode::IsSpaceOrBOM2(p[-1]); p--)
+        ;
+    if (p[-1] == '}') {
+        p--;
+        for (; unicode::IsSpaceOrBOM2(p[-1]); p--)
+            ;
     } else {
         JS_ASSERT(!braced);
-        for (; unicode::IsSpaceOrBOM2(end[-1]); end--)
-            ;
     }
-    *bodyEnd = end.get() - chars;
-    JS_ASSERT(*bodyStart <= *bodyEnd);
+    *bodyEnd = p.get() - chars;
     return true;
 }
 
@@ -674,7 +672,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
                     if (!out.append("/* use strict */ "))
                         return NULL;
                 } else {
-                    if (!out.append("\n\"use strict\";\n"))
+                    if (!out.append("\"use strict\";\n"))
                         return NULL;
                 }
             }
