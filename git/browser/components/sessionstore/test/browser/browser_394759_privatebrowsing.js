@@ -65,8 +65,7 @@ function test() {
   let os = Cc["@mozilla.org/observer-service;1"].
            getService(Ci.nsIObserverService);
   os.addObserver({observe: function(aSubject, aTopic, aData) {
-    if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
-      gPrefService.clearUserPref("browser.sessionstore.interval");
+    gPrefService.clearUserPref("browser.sessionstore.interval");
     os.removeObserver(this, aTopic);
     executeSoon(continue_test);
   }}, "sessionstore-state-write-complete", false);

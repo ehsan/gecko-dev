@@ -88,9 +88,7 @@ function test() {
                "chrome,titlebar", window);
   }
 
-
-  if (gPrefService.prefHasUserValue("general.open_location.last_url"))
-    gPrefService.clearUserPref("general.open_location.last_url");
+  gPrefService.clearUserPref("general.open_location.last_url");
 
   openLocation("http://example.com/", "", function() {
     openLocation("http://example.org/", "http://example.com/", function() {
@@ -102,8 +100,7 @@ function test() {
           pb.privateBrowsingEnabled = false;
           openLocation("about:blank", "http://example.org/", function() {
             gPrefService.clearUserPref("general.open_location.last_url");
-            if (gPrefService.prefHasUserValue("general.open_location.last_window_choice"))
-              gPrefService.clearUserPref("general.open_location.last_window_choice");
+            gPrefService.clearUserPref("general.open_location.last_window_choice");
             finish();
           });
         });

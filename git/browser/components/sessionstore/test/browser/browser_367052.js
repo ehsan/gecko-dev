@@ -65,8 +65,7 @@ function test() {
          "The closed blank tab wasn't added to Recently Closed Tabs");
       
       // clean up
-      if (gPrefService.prefHasUserValue("browser.sessionstore.max_tabs_undo"))
-        gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
+      gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
       finish();
     }, true);
   }, true);

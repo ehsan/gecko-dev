@@ -85,8 +85,7 @@ function runPrintPreviewTests() {
       testPrintPreview(gTab1, function() {
         // test print preview of HTML document with siteSpecific set to false
         testPrintPreview(gTab2, function() {
-          if (gPrefService.prefHasUserValue("browser.zoom.siteSpecific"))
-            gPrefService.clearUserPref("browser.zoom.siteSpecific");
+          gPrefService.clearUserPref("browser.zoom.siteSpecific");
           finishTest();
         });
       });

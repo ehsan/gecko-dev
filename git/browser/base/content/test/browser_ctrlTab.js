@@ -84,8 +84,7 @@ function test() {
   }
 
   // cleanup
-  if (gPrefService.prefHasUserValue("browser.ctrlTab.previews"))
-    gPrefService.clearUserPref("browser.ctrlTab.previews");
+  gPrefService.clearUserPref("browser.ctrlTab.previews");
 
   finish();
 

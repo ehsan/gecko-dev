@@ -86,8 +86,7 @@ function test() {
       // clean up
       gBrowser.removeTab(tab);
       os.removeObserver(this, aTopic, false);
-      if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
-        gPrefService.clearUserPref("browser.sessionstore.interval");
+      gPrefService.clearUserPref("browser.sessionstore.interval");
       finish();
     }
   };

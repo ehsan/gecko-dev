@@ -105,8 +105,7 @@ function continue_test() {
 
     urlbarBackspace(function () {
       is(gURLBar.value, "", 'gURLBar.value should be "" (just set)');
-      if (gPrefService.prefHasUserValue("browser.urlbar.clickSelectsAll"))
-        gPrefService.clearUserPref("browser.urlbar.clickSelectsAll");
+      gPrefService.clearUserPref("browser.urlbar.clickSelectsAll");
       cb();
     });
   }
@@ -131,8 +130,7 @@ function continue_test() {
         urlbarBackspace(arguments.callee);
       } else {
         is(gURLBar.value, testPartialURL, "gURLBar.value should be testPartialURL (just set)");
-        if (gPrefService.prefHasUserValue("browser.urlbar.clickSelectsAll"))
-          gPrefService.clearUserPref("browser.urlbar.clickSelectsAll");
+        gPrefService.clearUserPref("browser.urlbar.clickSelectsAll");
         cb();
       }
     });

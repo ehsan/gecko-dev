@@ -152,8 +152,7 @@ function test() {
       testWithState(state);
     }
     else {
-      if (gPrefService.prefHasUserValue("browser.sessionstore.max_windows_undo"))
-        gPrefService.clearUserPref("browser.sessionstore.max_windows_undo");
+      gPrefService.clearUserPref("browser.sessionstore.max_windows_undo");
       finish();
     }
   }

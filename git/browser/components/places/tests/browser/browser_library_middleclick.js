@@ -318,8 +318,7 @@ function runNextTest() {
     gBrowser.removeTabsProgressListener(gTabsListener);
 
     // Restore history.
-    if (gPrefService.prefHasUserValue(DISABLE_HISTORY_PREF))
-      gPrefService.clearUserPref(DISABLE_HISTORY_PREF);
+    gPrefService.clearUserPref(DISABLE_HISTORY_PREF);
 
     finish();
   }

@@ -2231,10 +2231,8 @@ ExtensionManager.prototype = {
       else {
         // Cancel any pending theme change and allow the lightweight theme
         // change to go ahead
-        if (gPref.prefHasUserValue(PREF_DSS_SWITCHPENDING))
-          gPref.clearUserPref(PREF_DSS_SWITCHPENDING);
-        if (gPref.prefHasUserValue(PREF_DSS_SKIN_TO_SELECT))
-          gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
+        gPref.clearUserPref(PREF_DSS_SWITCHPENDING);
+        gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
       }
       break;
     case "xpcom-shutdown":

@@ -103,8 +103,7 @@ function test() {
     
     // clean up
     newWin.close();
-    if (gPrefService.prefHasUserValue("browser.sessionstore.max_tabs_undo"))
-      gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
+    gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
     finish();
   }, false);
 }
