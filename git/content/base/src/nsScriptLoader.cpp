@@ -848,8 +848,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     if (aRequest->mOriginPrincipal) {
       options.setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
     }
-    JS::Rooted<JSObject*> global(cx, globalObject->GetGlobalJSObject());
-    rv = context->EvaluateString(aScript, global,
+    rv = context->EvaluateString(aScript, *globalObject->GetGlobalJSObject(),
                                  options, /* aCoerceToString = */ false, nullptr);
   }
 

@@ -30,10 +30,7 @@ def build_dict(env=os.environ):
                         ', '.join(missing))
 
     if 'MOZCONFIG' in env:
-        mozconfig = env["MOZCONFIG"]
-        if 'TOPSRCDIR' in env:
-            mozconfig = os.path.join(env["TOPSRCDIR"], mozconfig)
-        d['mozconfig'] = os.path.normpath(mozconfig)
+        d["mozconfig"] = env["MOZCONFIG"]
 
     if 'TOPSRCDIR' in env:
         d["topsrcdir"] = env["TOPSRCDIR"]

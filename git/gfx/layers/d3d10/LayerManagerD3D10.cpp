@@ -98,7 +98,7 @@ LayerManagerD3D10::~LayerManagerD3D10()
   Destroy();
 }
 
-static inline void
+_inline void
 SetHRESULT(HRESULT* aHresultPtr, HRESULT aHresult)
 {
   if (aHresultPtr) {

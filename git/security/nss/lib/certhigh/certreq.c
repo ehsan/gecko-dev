@@ -52,7 +52,7 @@ CERT_CreateCertificate(unsigned long serialNumber,
 {
     CERTCertificate *c;
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     
@@ -124,7 +124,7 @@ CERT_CreateCertificateRequest(CERTName *subject,
 			     SECItem **attributes)
 {
     CERTCertificateRequest *certreq;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTAttribute * attribute;
     SECOidData * oidData;
     SECStatus rv;
@@ -240,7 +240,7 @@ setCRExt(void *o, CERTCertExtension **exts)
 ** The list is created as CertExtensions and converted to an
 ** attribute list by CERT_FinishCRAttributes().
  */
-extern void *cert_StartExtensions(void *owner, PLArenaPool *ownerArena,
+extern void *cert_StartExtensions(void *owner, PRArenaPool *ownerArena,
                        void (*setExts)(void *object, CERTCertExtension **exts));
 void *
 CERT_StartCertificateRequestAttributes(CERTCertificateRequest *req)

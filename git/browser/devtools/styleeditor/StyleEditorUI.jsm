@@ -49,12 +49,12 @@ function StyleEditorUI(debuggee, panelDoc) {
   this.editors = [];
   this.selectedStyleSheetIndex = -1;
 
+  this._onStyleSheetAdded = this._onStyleSheetAdded.bind(this);
   this._onStyleSheetCreated = this._onStyleSheetCreated.bind(this);
   this._onStyleSheetsCleared = this._onStyleSheetsCleared.bind(this);
-  this._onDocumentLoad = this._onDocumentLoad.bind(this);
   this._onError = this._onError.bind(this);
 
-  debuggee.on("document-load", this._onDocumentLoad);
+  debuggee.on("stylesheet-added", this._onStyleSheetAdded);
   debuggee.on("stylesheets-cleared", this._onStyleSheetsCleared);
 
   this.createUI();
@@ -156,21 +156,17 @@ StyleEditorUI.prototype = {
   },
 
   /**
-   * Handler for debuggee's 'document-load' event. Add editors
-   * for all style sheets in the document
+   * Handler for debuggee's 'stylesheet-added' event. Add an editor.
    *
    * @param {string} event
    *        Event name
    * @param {StyleSheet} styleSheet
    *        StyleSheet object for new sheet
    */
-  _onDocumentLoad: function(event, styleSheets) {
-    for (let sheet of styleSheets) {
-      this._addStyleSheetEditor(sheet);
-    }
+  _onStyleSheetAdded: function(event, styleSheet) {
     // this might be the first stylesheet, so remove loading indicator
     this._root.classList.remove("loading");
-    this.emit("document-load");
+    this._addStyleSheetEditor(styleSheet);
   },
 
   /**
@@ -425,7 +421,7 @@ StyleEditorUI.prototype = {
   destroy: function() {
     this._clearStyleSheetEditors();
 
-    this._debuggee.off("document-load", this._onDocumentLoad);
+    this._debuggee.off("stylesheet-added", this._onStyleSheetAdded);
     this._debuggee.off("stylesheets-cleared", this._onStyleSheetsCleared);
   }
 }

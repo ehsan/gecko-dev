@@ -17,14 +17,14 @@ function invokeUsingCtrlD(phase) {
 function invokeUsingStarButton(phase) {
   switch (phase) {
   case 1:
-     EventUtils.synthesizeMouseAtCenter(BookmarkingUI.star, {});
+     EventUtils.synthesizeMouseAtCenter(BookmarksMenuButton.star, {});
     break;
   case 2:
   case 4:
     EventUtils.synthesizeKey("VK_ESCAPE", {});
     break;
   case 3:
-     EventUtils.synthesizeMouseAtCenter(BookmarkingUI.star,
+     EventUtils.synthesizeMouseAtCenter(BookmarksMenuButton.star,
                                         { clickCount: 2 });
     break;
   }
@@ -60,10 +60,10 @@ function initTest() {
 }
 
 function waitForStarChange(aValue, aCallback) {
-  let expectedStatus = aValue ? BookmarkingUI.STATUS_STARRED
-                              : BookmarkingUI.STATUS_UNSTARRED;
-  if (BookmarkingUI.status == BookmarkingUI.STATUS_UPDATING ||
-      BookmarkingUI.status != expectedStatus) {
+  let expectedStatus = aValue ? BookmarksMenuButton.STATUS_STARRED
+                              : BookmarksMenuButton.STATUS_UNSTARRED;
+  if (BookmarksMenuButton.status == BookmarksMenuButton.STATUS_UPDATING ||
+      BookmarksMenuButton.status != expectedStatus) {
     info("Waiting for star button change.");
     setTimeout(waitForStarChange, 50, aValue, aCallback);
     return;

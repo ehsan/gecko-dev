@@ -584,11 +584,11 @@ GenerateRequest(IDBObjectStore* aObjectStore, JSContext* aCx)
                             aObjectStore->Transaction(), aCx);
 }
 
-struct MOZ_STACK_CLASS GetAddInfoClosure
+struct GetAddInfoClosure
 {
   IDBObjectStore* mThis;
   StructuredCloneWriteInfo& mCloneWriteInfo;
-  JS::Handle<JS::Value> mValue;
+  jsval mValue;
 };
 
 nsresult
@@ -599,7 +599,8 @@ GetAddInfoCallback(JSContext* aCx, void* aClosure)
   data->mCloneWriteInfo.mOffsetToKeyProp = 0;
   data->mCloneWriteInfo.mTransaction = data->mThis->Transaction();
 
-  if (!IDBObjectStore::SerializeValue(aCx, data->mCloneWriteInfo, data->mValue)) {
+  if (!IDBObjectStore::SerializeValue(aCx, data->mCloneWriteInfo,
+                                      data->mValue)) {
     return NS_ERROR_DOM_DATA_CLONE_ERR;
   }
 
@@ -1240,7 +1241,7 @@ IDBObjectStore::DeserializeValue(JSContext* aCx,
 bool
 IDBObjectStore::SerializeValue(JSContext* aCx,
                                StructuredCloneWriteInfo& aCloneWriteInfo,
-                               JS::Handle<JS::Value> aValue)
+                               jsval aValue)
 {
   NS_ASSERTION(NS_IsMainThread(),
                "Should only be serializing on the main thread!");
@@ -1738,8 +1739,8 @@ IDBObjectStore::~IDBObjectStore()
 
 nsresult
 IDBObjectStore::GetAddInfo(JSContext* aCx,
-                           JS::Handle<JS::Value> aValue,
-                           JS::Handle<JS::Value> aKeyVal,
+                           jsval aValue,
+                           jsval aKeyVal,
                            StructuredCloneWriteInfo& aCloneWriteInfo,
                            Key& aKey,
                            nsTArray<IndexUpdateInfo>& aUpdateInfoArray)
@@ -1826,8 +1827,7 @@ IDBObjectStore::AddOrPut(const jsval& aValue,
   Key key;
   nsTArray<IndexUpdateInfo> updateInfo;
 
-  JS::Rooted<JS::Value> value(aCx, aValue);
-  nsresult rv = GetAddInfo(aCx, value, keyval, cloneWriteInfo, key,
+  nsresult rv = GetAddInfo(aCx, aValue, keyval, cloneWriteInfo, key,
                            updateInfo);
   if (NS_FAILED(rv)) {
     return rv;

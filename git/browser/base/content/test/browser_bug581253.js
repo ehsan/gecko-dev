@@ -34,10 +34,10 @@ function test() {
 }
 
 function waitForStarChange(aValue, aCallback) {
-  let expectedStatus = aValue ? BookmarkingUI.STATUS_STARRED
-                              : BookmarkingUI.STATUS_UNSTARRED;
-  if (BookmarkingUI.status == BookmarkingUI.STATUS_UPDATING ||
-      BookmarkingUI.status != expectedStatus) {
+  let expectedStatus = aValue ? BookmarksMenuButton.STATUS_STARRED
+                              : BookmarksMenuButton.STATUS_UNSTARRED;
+  if (BookmarksMenuButton.status == BookmarksMenuButton.STATUS_UPDATING ||
+      BookmarksMenuButton.status != expectedStatus) {
     info("Waiting for star button change.");
     setTimeout(waitForStarChange, 50, aValue, aCallback);
     return;
@@ -46,7 +46,7 @@ function waitForStarChange(aValue, aCallback) {
 }
 
 function onStarred() {
-  is(BookmarkingUI.status, BookmarkingUI.STATUS_STARRED,
+  is(BookmarksMenuButton.status, BookmarksMenuButton.STATUS_STARRED,
      "star button indicates that the page is bookmarked");
 
   let uri = makeURI(testURL);
@@ -54,7 +54,7 @@ function onStarred() {
   PlacesUtils.transactionManager.doTransaction(tagTxn);
 
   StarUI.panel.addEventListener("popupshown", onPanelShown, false);
-  BookmarkingUI.star.click();
+  BookmarksMenuButton.star.click();
 }
 
 function onPanelShown(aEvent) {
@@ -93,7 +93,7 @@ function onPanelHidden(aEvent) {
     executeSoon(function() {
       ok(!PlacesUtils.bookmarks.isBookmarked(makeURI(testURL)),
          "the bookmark for the test url has been removed");
-      is(BookmarkingUI.status, BookmarkingUI.STATUS_UNSTARRED,
+      is(BookmarksMenuButton.status, BookmarksMenuButton.STATUS_UNSTARRED,
          "star button indicates that the bookmark has been removed");
       gBrowser.removeCurrentTab();
       waitForClearHistory(finish);

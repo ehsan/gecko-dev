@@ -156,7 +156,7 @@ CERT_NewGeneralName(PLArenaPool *arena, CERTGeneralNameType type)
 ** This function does not change the destinate's GeneralName's list linkage.
 */
 SECStatus
-cert_CopyOneGeneralName(PLArenaPool      *arena,
+cert_CopyOneGeneralName(PRArenaPool      *arena, 
 		        CERTGeneralName  *dest, 
 		        CERTGeneralName  *src)
 {
@@ -221,7 +221,7 @@ CERT_DestroyGeneralNameList(CERTGeneralNameList *list)
 
 CERTGeneralNameList *
 CERT_CreateGeneralNameList(CERTGeneralName *name) {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTGeneralNameList *list = NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -288,7 +288,7 @@ CERT_GetPrevNameConstraint(CERTNameConstraint *current)
 }
 
 SECItem *
-CERT_EncodeGeneralName(CERTGeneralName *genName, SECItem *dest, PLArenaPool *arena)
+CERT_EncodeGeneralName(CERTGeneralName *genName, SECItem *dest, PRArenaPool *arena)
 {
 
     const SEC_ASN1Template * template;
@@ -345,7 +345,7 @@ loser:
 }
 
 SECItem **
-cert_EncodeGeneralNames(PLArenaPool *arena, CERTGeneralName *names)
+cert_EncodeGeneralNames(PRArenaPool *arena, CERTGeneralName *names)
 {
     CERTGeneralName  *current_name;
     SECItem          **items = NULL;
@@ -385,7 +385,7 @@ loser:
 }
 
 CERTGeneralName *
-CERT_DecodeGeneralName(PLArenaPool      *reqArena,
+CERT_DecodeGeneralName(PRArenaPool      *reqArena,
 		       SECItem          *encodedName,
 		       CERTGeneralName  *genName)
 {
@@ -447,7 +447,7 @@ loser:
 }
 
 CERTGeneralName *
-cert_DecodeGeneralNames (PLArenaPool  *arena,
+cert_DecodeGeneralNames (PRArenaPool  *arena,
 			 SECItem      **encodedGenName)
 {
     PRCList                           *head = NULL;
@@ -506,7 +506,7 @@ cert_DestroyGeneralNames(CERTGeneralName *name)
 static SECItem *
 cert_EncodeNameConstraint(CERTNameConstraint  *constraint, 
 			 SECItem             *dest,
-			 PLArenaPool         *arena)
+			 PRArenaPool         *arena)
 {
     PORT_Assert(arena);
     if (dest == NULL) {
@@ -524,7 +524,7 @@ cert_EncodeNameConstraint(CERTNameConstraint  *constraint,
 
 SECStatus 
 cert_EncodeNameConstraintSubTree(CERTNameConstraint  *constraints,
-			         PLArenaPool         *arena,
+			         PRArenaPool         *arena,
 				 SECItem             ***dest,
 				 PRBool              permited)
 {
@@ -570,7 +570,7 @@ loser:
 
 SECStatus 
 cert_EncodeNameConstraints(CERTNameConstraints  *constraints,
-			   PLArenaPool          *arena,
+			   PRArenaPool          *arena,
 			   SECItem              *dest)
 {
     SECStatus    rv = SECSuccess;
@@ -607,7 +607,7 @@ loser:
 
 
 CERTNameConstraint *
-cert_DecodeNameConstraint(PLArenaPool       *reqArena,
+cert_DecodeNameConstraint(PRArenaPool       *reqArena,
 			  SECItem           *encodedConstraint)
 {
     CERTNameConstraint     *constraint;
@@ -652,7 +652,7 @@ loser:
 }
 
 CERTNameConstraint *
-cert_DecodeNameConstraintSubTree(PLArenaPool   *arena,
+cert_DecodeNameConstraintSubTree(PRArenaPool   *arena,
 				 SECItem       **subTree,
 				 PRBool        permited)
 {
@@ -685,7 +685,7 @@ loser:
 }
 
 CERTNameConstraints *
-cert_DecodeNameConstraints(PLArenaPool   *reqArena,
+cert_DecodeNameConstraints(PRArenaPool   *reqArena,
 			   const SECItem *encodedConstraints)
 {
     CERTNameConstraints   *constraints;
@@ -751,7 +751,7 @@ loser:
 ** structs as the source list or some dest entries will be overwritten.
 */
 SECStatus
-CERT_CopyGeneralName(PLArenaPool      *arena,
+CERT_CopyGeneralName(PRArenaPool      *arena, 
 		     CERTGeneralName  *dest, 
 		     CERTGeneralName  *src)
 {
@@ -808,7 +808,7 @@ CERT_DupGeneralNameList(CERTGeneralNameList *list)
 
 /* Allocate space and copy CERTNameConstraint from src to dest */
 CERTNameConstraint *
-CERT_CopyNameConstraint(PLArenaPool         *arena,
+CERT_CopyNameConstraint(PRArenaPool         *arena, 
 			CERTNameConstraint  *dest, 
 			CERTNameConstraint  *src)
 {
@@ -915,7 +915,7 @@ SECStatus
 CERT_GetNameConstraintByType (CERTNameConstraint *constraints,
 			      CERTGeneralNameType type, 
 			      CERTNameConstraint **returnList,
-			      PLArenaPool *arena)
+			      PRArenaPool *arena)
 {
     CERTNameConstraint *current = NULL;
     void               *mark = NULL;
@@ -1055,7 +1055,7 @@ loser:
 ** in preparation for a name constraints test.
 */
 CERTGeneralName *
-CERT_GetCertificateNames(CERTCertificate *cert, PLArenaPool *arena)
+CERT_GetCertificateNames(CERTCertificate *cert, PRArenaPool *arena)
 {
     return CERT_GetConstrainedCertificateNames(cert, arena, PR_FALSE);
 }
@@ -1065,7 +1065,7 @@ CERT_GetCertificateNames(CERTCertificate *cert, PLArenaPool *arena)
 */
 CERTGeneralName *
 CERT_GetConstrainedCertificateNames(const CERTCertificate *cert,
-                                    PLArenaPool *arena,
+                                    PRArenaPool *arena,
                                     PRBool includeSubjectCommonName)
 {
     CERTGeneralName  *DN;
@@ -1525,7 +1525,7 @@ done:
 
 /* Extract the name constraints extension from the CA cert. */
 SECStatus
-CERT_FindNameConstraintsExten(PLArenaPool      *arena,
+CERT_FindNameConstraintsExten(PRArenaPool      *arena,
                               CERTCertificate  *cert,
                               CERTNameConstraints **constraints)
 {
@@ -1565,7 +1565,7 @@ CERT_FindNameConstraintsExten(PLArenaPool      *arena,
 ** the name.
 */
 SECStatus
-CERT_CheckNameSpace(PLArenaPool          *arena,
+CERT_CheckNameSpace(PRArenaPool          *arena,
                     const CERTNameConstraints *constraints,
                     const CERTGeneralName     *currentName)
 {
@@ -1614,7 +1614,7 @@ SECStatus
 CERT_CompareNameSpace(CERTCertificate  *cert,
 		      CERTGeneralName  *namesList,
  		      CERTCertificate **certsList,
- 		      PLArenaPool      *reqArena,
+ 		      PRArenaPool      *reqArena,
  		      CERTCertificate **pBadCert)
 {
     SECStatus            rv = SECSuccess;
@@ -1755,7 +1755,7 @@ CERT_CompareGeneralNameLists(CERTGeneralNameList *a, CERTGeneralNameList *b)
 void *
 CERT_GetGeneralNameFromListByType(CERTGeneralNameList *list,
 				  CERTGeneralNameType type,
-				  PLArenaPool *arena)
+				  PRArenaPool *arena)
 {
     CERTName *name = NULL; 
     SECItem *item = NULL;

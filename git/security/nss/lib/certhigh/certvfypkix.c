@@ -650,7 +650,7 @@ cert_PkixToNssCertsChain(
     CERTCertList **pvalidChain, 
     void *plContext)
 {
-    PLArenaPool     *arena = NULL;
+    PRArenaPool     *arena = NULL;
     CERTCertificate *nssCert = NULL;
     CERTCertList    *validChain = NULL;
     PKIX_PL_Object  *certItem = NULL;

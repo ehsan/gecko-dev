@@ -9,14 +9,15 @@ const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/UserAgentOverrides.jsm");
 
-const HTTP_PROTO_HANDLER = Cc["@mozilla.org/network/protocol;1?name=http"]
-                             .getService(Ci.nsIHttpProtocolHandler);
+const DEFAULT_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
+                     .getService(Ci.nsIHttpProtocolHandler)
+                     .userAgent;
 
 function SiteSpecificUserAgent() {}
 
 SiteSpecificUserAgent.prototype = {
   getUserAgentForURIAndWindow: function ssua_getUserAgentForURIAndWindow(aURI, aWindow) {
-    return UserAgentOverrides.getOverrideForURI(aURI) || HTTP_PROTO_HANDLER.userAgent;
+    return UserAgentOverrides.getOverrideForURI(aURI) || DEFAULT_UA;
   },
 
   classID: Components.ID("{506c680f-3d1c-4954-b351-2c80afbc37d3}"),

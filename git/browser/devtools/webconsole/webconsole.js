@@ -857,10 +857,6 @@ WebConsoleFrame.prototype = {
       isFiltered = true;
     }
 
-    if (isFiltered && aNode.classList.contains("webconsole-msg-inspector")) {
-      aNode.classList.add("hidden-message");
-    }
-
     return isFiltered;
   },
 
@@ -975,7 +971,7 @@ WebConsoleFrame.prototype = {
    *
    * @param object aMessage
    *        The message received from the server.
-   * @return nsIDOMElement|null
+   * @return nsIDOMElement|undefined
    *         The message element to display in the Web Console output.
    */
   logConsoleAPIMessage: function WCF_logConsoleAPIMessage(aMessage)
@@ -1050,11 +1046,11 @@ WebConsoleFrame.prototype = {
       case "time": {
         let timer = aMessage.timer;
         if (!timer) {
-          return null;
+          return;
         }
         if (timer.error) {
           Cu.reportError(l10n.getStr(timer.error));
-          return null;
+          return;
         }
         body = l10n.getFormatStr("timerStarted", [timer.name]);
         clipboardText = body;
@@ -1064,7 +1060,7 @@ WebConsoleFrame.prototype = {
       case "timeEnd": {
         let timer = aMessage.timer;
         if (!timer) {
-          return null;
+          return;
         }
         let duration = Math.round(timer.duration * 100) / 100;
         body = l10n.getFormatStr("timeEnd", [timer.name, duration]);
@@ -1074,7 +1070,7 @@ WebConsoleFrame.prototype = {
 
       default:
         Cu.reportError("Unknown Console API log level: " + level);
-        return null;
+        return;
     }
 
     // Release object actors for arguments coming from console API methods that
@@ -1093,7 +1089,7 @@ WebConsoleFrame.prototype = {
     }
 
     if (level == "groupEnd") {
-      return null; // no need to continue
+      return; // no need to continue
     }
 
     let node = this.createMessageNode(CATEGORY_WEBDEV, LEVELS[level], body,
@@ -1197,14 +1193,14 @@ WebConsoleFrame.prototype = {
    *
    * @param object aActorId
    *        The network event actor ID to log.
-   * @return nsIDOMElement|null
+   * @return nsIDOMElement|undefined
    *         The message element to display in the Web Console output.
    */
   logNetEvent: function WCF_logNetEvent(aActorId)
   {
     let networkInfo = this._networkRequests[aActorId];
     if (!networkInfo) {
-      return null;
+      return;
     }
 
     let request = networkInfo.request;
@@ -2178,12 +2174,8 @@ WebConsoleFrame.prototype = {
         targetElement: viewContainer,
         hideFilterInput: true,
       };
-      this.jsterm.openVariablesView(options).then((aView) => {
-        node._variablesView = aView;
-        if (node.classList.contains("hidden-message")) {
-          node.classList.remove("hidden-message");
-        }
-      });
+      this.jsterm.openVariablesView(options)
+        .then((aView) => node._variablesView = aView);
 
       let bodyContainer = this.document.createElement("vbox");
       bodyContainer.flex = 1;
@@ -2244,7 +2236,7 @@ WebConsoleFrame.prototype = {
       if (aItem && typeof aItem != "object" || !inspectable) {
         aContainer.appendChild(this.document.createTextNode(text));
 
-        if (aItem.type && aItem.type == "longString") {
+        if (aItem.type == "longString") {
           let ellipsis = this.document.createElement("description");
           ellipsis.classList.add("hud-clickable");
           ellipsis.classList.add("longStringEllipsis");
@@ -3047,9 +3039,8 @@ JSTerm.prototype = {
       aOptions.view = view;
       this._updateVariablesView(aOptions);
 
-      if (!aOptions.targetElement && aOptions.autofocus) {
-        aWindow.focus();
-      }
+      this.sidebar.show();
+      aOptions.autofocus && aWindow.focus();
 
       this.emit("variablesview-open", view, aOptions);
       return view;
@@ -3509,21 +3500,8 @@ JSTerm.prototype = {
 
     let client = new GripClient(this.hud.proxy.client, grip);
     client.getPrototypeAndProperties((aResponse) => {
-      let { ownProperties, prototype, safeGetterValues } = aResponse;
+      let { ownProperties, prototype } = aResponse;
       let sortable = VariablesView.NON_SORTABLE_CLASSES.indexOf(grip.class) == -1;
-
-      // Merge the safe getter values into one object such that we can use it
-      // in VariablesView.
-      for (let name of Object.keys(safeGetterValues)) {
-        if (name in ownProperties) {
-          ownProperties[name].getterValue = safeGetterValues[name].getterValue;
-          ownProperties[name].getterPrototypeLevel = safeGetterValues[name]
-                                                     .getterPrototypeLevel;
-        }
-        else {
-          ownProperties[name] = safeGetterValues[name];
-        }
-      }
 
       // Add all the variable properties.
       if (ownProperties) {
@@ -4444,7 +4422,7 @@ CommandController.prototype = {
       case "consoleCmd_copyURL": {
         // Only enable URL-related actions if node is Net Activity.
         let selectedItem = this.owner.outputNode.selectedItem;
-        return selectedItem && "url" in selectedItem;
+        return selectedItem && selectedItem.url;
       }
       case "cmd_fontSizeEnlarge":
       case "cmd_fontSizeReduce":
@@ -4454,7 +4432,6 @@ CommandController.prototype = {
       case "cmd_close":
         return this.owner.owner._browserConsole;
     }
-    return false;
   },
 
   doCommand: function CommandController_doCommand(aCommand)

@@ -205,7 +205,7 @@ decode_pqg_params(const char *str)
 {
     char *buf;
     unsigned int len;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECKEYPQGParams *params;
     SECStatus status;
  

@@ -20,7 +20,7 @@ function runTests(aTab) {
   let toolDefinition = {
     id: toolId,
     isTargetSupported: function() true,
-    visibilityswitch: "devtools.test-tool.enabled",
+    killswitch: "devtools.test-tool.enabled",
     url: "about:blank",
     label: "someLabel",
     build: function(iframeWindow, toolbox) {

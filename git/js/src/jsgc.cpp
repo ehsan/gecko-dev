@@ -5089,11 +5089,9 @@ AutoSuppressGC::AutoSuppressGC(JSCompartment *comp)
 }
 
 #ifdef DEBUG
-AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime *rt
-                                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime *rt)
   : count(rt->gcDisableStrictProxyCheckingCount)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     count++;
 }
 #endif

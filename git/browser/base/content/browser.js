@@ -8,7 +8,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
-Cu.import("resource://gre/modules/PushService.jsm");
 
 const nsIWebNavigation = Ci.nsIWebNavigation;
 
@@ -1314,7 +1313,7 @@ var gBrowserInit = {
     } catch (ex) {
     }
 
-    BookmarkingUI.uninit();
+    BookmarksMenuButton.uninit();
 
     TabsOnTop.uninit();
 
@@ -2232,7 +2231,7 @@ function UpdatePageProxyState()
 
 function SetPageProxyState(aState)
 {
-  BookmarkingUI.onPageProxyStateChanged(aState);
+  BookmarksMenuButton.onPageProxyStateChanged(aState);
 
   if (!gURLBar)
     return;
@@ -3328,7 +3327,7 @@ function BrowserCustomizeToolbar() {
   CombinedStopReload.uninit();
 
   PlacesToolbarHelper.customizeStart();
-  BookmarkingUI.customizeStart();
+  BookmarksMenuButton.customizeStart();
   DownloadsButton.customizeStart();
 
   TabsInTitlebar.allowedBy("customizing-toolbars", false);
@@ -3392,7 +3391,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   }
 
   PlacesToolbarHelper.customizeDone();
-  BookmarkingUI.customizeDone();
+  BookmarksMenuButton.customizeDone();
   DownloadsButton.customizeDone();
 
   // The url bar splitter state is dependent on whether stop/reload
@@ -3405,7 +3404,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (gURLBar) {
     URLBarSetURI();
     XULBrowserWindow.asyncUpdateUI();
-    BookmarkingUI.updateStarState();
+    BookmarksMenuButton.updateStarState();
     SocialMark.updateMarkState();
     SocialShare.update();
   }
@@ -3434,7 +3433,7 @@ function BrowserToolboxCustomizeChange(aType) {
       break;
     default:
       gHomeButton.updatePersonalToolbarStyle();
-      BookmarkingUI.customizeChange();
+      BookmarksMenuButton.customizeChange();
   }
 }
 
@@ -3880,7 +3879,7 @@ var XULBrowserWindow = {
         URLBarSetURI(aLocationURI);
 
         // Update starring UI
-        BookmarkingUI.updateStarState();
+        BookmarksMenuButton.updateStarState();
         SocialMark.updateMarkState();
         SocialShare.update();
       }
@@ -4508,7 +4507,7 @@ function setToolbarVisibility(toolbar, isVisible) {
   document.persist(toolbar.id, hidingAttribute);
 
   PlacesToolbarHelper.init();
-  BookmarkingUI.onToolbarVisibilityChange();
+  BookmarksMenuButton.onToolbarVisibilityChange();
   gBrowser.updateWindowResizers();
 
 #ifdef MENUBAR_CAN_AUTOHIDE

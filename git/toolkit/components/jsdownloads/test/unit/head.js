@@ -128,20 +128,6 @@ function promiseExecuteSoon()
 }
 
 /**
- * Waits for a pending events to be processed after a timeout.
- *
- * @return {Promise}
- * @resolves When pending events have been processed.
- * @rejects Never.
- */
-function promiseTimeout(aTime)
-{
-  let deferred = Promise.defer();
-  do_timeout(aTime, deferred.resolve);
-  return deferred.promise;
-}
-
-/**
  * Creates a new Download object, setting a temporary file as the target.
  *
  * @param aSourceURI
@@ -308,16 +294,6 @@ function registerInterruptibleHandler(aPath, aFirstPartFn, aSecondPartFn)
       do_print("Interruptible request aborted.");
     });
   });
-}
-
-/**
- * Ensure the given date object is valid.
- *
- * @param aDate
- *        The date object to be checked. This value can be null.
- */
-function isValidDate(aDate) {
-  return aDate && aDate.getTime && !isNaN(aDate.getTime());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
