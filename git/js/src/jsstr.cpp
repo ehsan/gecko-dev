@@ -2369,7 +2369,7 @@ LambdaIsGetElem(JSObject &lambda)
     if (!fun->isInterpreted())
         return NULL;
 
-    RawScript script = fun->script().get(nogc);
+    RawScript script = fun->script();
     jsbytecode *pc = script->code;
 
     /*
@@ -2757,8 +2757,8 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 10. */
     if (!sepDefined) {
-        RootedValue v(cx, StringValue(str));
-        JSObject *aobj = NewDenseCopiedArray(cx, 1, v.address());
+        Value v = StringValue(str);
+        JSObject *aobj = NewDenseCopiedArray(cx, 1, &v);
         if (!aobj)
             return false;
         aobj->setType(type);

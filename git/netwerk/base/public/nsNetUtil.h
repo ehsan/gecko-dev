@@ -2006,7 +2006,9 @@ NS_GetContentDispositionFromToken(const nsAString& aDispToken)
       // Broken sites just send
       // Content-Disposition: filename="file"
       // without a disposition token... screen those out.
-      StringHead(aDispToken, 8).LowerCaseEqualsLiteral("filename"))
+      StringHead(aDispToken, 8).LowerCaseEqualsLiteral("filename") ||
+      // Also in use is Content-Disposition: name="file"
+      StringHead(aDispToken, 4).LowerCaseEqualsLiteral("name"))
     return nsIChannel::DISPOSITION_INLINE;
 
   return nsIChannel::DISPOSITION_ATTACHMENT;
@@ -2075,6 +2077,11 @@ NS_GetFilenameFromDisposition(nsAString& aFilename,
   rv = mimehdrpar->GetParameter(aDisposition, "filename",
                                 fallbackCharset, true, nullptr,
                                 aFilename);
+  if (NS_FAILED(rv) || aFilename.IsEmpty()) {
+    // Try 'name' parameter, instead.
+    rv = mimehdrpar->GetParameter(aDisposition, "name", fallbackCharset,
+                                  true, nullptr, aFilename);
+  }
 
   if (NS_FAILED(rv)) {
     aFilename.Truncate();

@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import android.content.Context;
 import android.graphics.Color;
-import android.graphics.Bitmap;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -679,12 +678,12 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mAwesomeBar.setContentDescription(title != null ? title : mTitle.getHint());
     }
 
-    public void setFavicon(Bitmap image) {
+    public void setFavicon(Drawable image) {
         if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
             return;
 
         if (image != null)
-            mFavicon.setImageBitmap(image);
+            mFavicon.setImageDrawable(image);
         else
             mFavicon.setImageResource(R.drawable.favicon);
     }

@@ -1026,8 +1026,6 @@ public:
       value = &mCurrentValue;
     }
 
-    nsAutoScriptBlocker scriptBlocker;
-
     mState->PrepareEditor(value);
 
     mState->mValueTransferInProgress = false;
@@ -1200,7 +1198,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     preDestroyer.Init(newEditor);
 
     // Make sure we clear out the non-breaking space before we initialize the editor
-    rv = mBoundFrame->UpdateValueDisplay(true, true);
+    rv = mBoundFrame->UpdateValueDisplay(false, true);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     if (aValue || !mEditorInitialized) {

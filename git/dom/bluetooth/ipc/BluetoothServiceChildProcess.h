@@ -139,13 +139,13 @@ public:
   Disconnect(const uint16_t aProfileId,
              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual void
+  virtual bool
   SendFile(const nsAString& aDeviceAddress,
            BlobParent* aBlobParent,
            BlobChild* aBlobChild,
            BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual void
+  virtual bool
   StopSendingFile(const nsAString& aDeviceAddress,
                   BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 

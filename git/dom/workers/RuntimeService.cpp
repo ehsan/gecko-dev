@@ -19,7 +19,6 @@
 #include "nsISupportsPriority.h"
 #include "nsITimer.h"
 #include "nsPIDOMWindow.h"
-#include "nsLayoutStatics.h"
 
 #include "jsdbgapi.h"
 #include "mozilla/dom/EventTargetBinding.h"
@@ -1002,7 +1001,6 @@ nsresult
 RuntimeService::Init()
 {
   AssertIsOnMainThread();
-  nsLayoutStatics::AddRef();
 
   mIdleThreadTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   NS_ENSURE_STATE(mIdleThreadTimer);
@@ -1179,7 +1177,6 @@ RuntimeService::Cleanup()
   }
 
   CleanupOSFileConstants();
-  nsLayoutStatics::Release();
 }
 
 // static

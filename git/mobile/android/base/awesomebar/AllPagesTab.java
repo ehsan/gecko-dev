@@ -22,6 +22,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Handler;
@@ -53,7 +54,6 @@ import android.widget.TabHost.TabContentFactory;
 import android.widget.TextView;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -265,19 +265,9 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             if (keywordCol != -1)
                 keyword = mCursor.getString(keywordCol);
 
-            final String url = mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.URL));
-
-            Favicons favicons = GeckoApp.mAppContext.getFavicons();
-            Bitmap bitmap = favicons.getFaviconFromMemCache(url);
-            byte[] favicon = null;
-
-            if (bitmap != null) {
-                ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-                favicon = stream.toByteArray();
-            }
-
-            return new ContextMenuSubject(id, url, favicon,
+            return new ContextMenuSubject(id,
+                                          mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.URL)),
+                                          mCursor.getBlob(mCursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
                                           mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.TITLE)),
                                           keyword,
                                           mCursor.getInt(mCursor.getColumnIndexOrThrow(Combined.DISPLAY)));
@@ -780,7 +770,8 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                 if (favicon == null)
                     continue;
 
-                favicons.putFaviconInMemCache(url, favicon);
+                Drawable faviconDrawable = new BitmapDrawable(getResources(), favicon);
+                favicons.putFaviconInMemCache(url, faviconDrawable);
             } while (c.moveToNext());
         } finally {
             if (c != null)
@@ -810,7 +801,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     private void displayFavicon(AwesomeEntryViewHolder viewHolder) {
         final String url = viewHolder.urlView.getText().toString();
         Favicons favicons = GeckoApp.mAppContext.getFavicons();
-        viewHolder.faviconView.setImageBitmap(favicons.getFaviconFromMemCache(url));
+        viewHolder.faviconView.setImageDrawable(favicons.getFaviconFromMemCache(url));
     }
 
     private void updateFavicons() {

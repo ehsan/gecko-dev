@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QTransform>
 
+using namespace QtMobility;
 
 class MozQOrientationSensorFilter : public QObject, public QOrientationFilter
 {

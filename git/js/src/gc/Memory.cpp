@@ -35,10 +35,8 @@ InitMemorySubsystem()
 {
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
-    if (sysinfo.dwPageSize != PageSize) {
-        fprintf(stderr,"SpiderMonkey compiled with incorrect page size; please update js/public/HeapAPI.h.\n");
+    if (sysinfo.dwPageSize != PageSize)
         MOZ_CRASH();
-    }
     AllocationGranularity = sysinfo.dwAllocationGranularity;
 }
 
@@ -316,10 +314,8 @@ GetPageFaultCount()
 void
 InitMemorySubsystem()
 {
-    if (size_t(sysconf(_SC_PAGESIZE)) != PageSize) {
-        fprintf(stderr,"SpiderMonkey compiled with incorrect page size; please update js/public/HeapAPI.h.\n");
+    if (size_t(sysconf(_SC_PAGESIZE)) != PageSize)
         MOZ_CRASH();
-    }
 }
 
 void *

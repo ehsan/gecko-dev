@@ -919,7 +919,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     newDocShellItem->GetRootTreeItem(getter_AddRefs(childRoot));
     nsCOMPtr<nsILoadContext> childContext = do_QueryInterface(childRoot);
     if (childContext) {
-      childContext->SetPrivateBrowsing(isPrivateBrowsingWindow);
+      childContext->SetUsePrivateBrowsing(isPrivateBrowsingWindow);
     }
   }
 

@@ -195,10 +195,7 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
             return false;
 
         JSGlobalData globalData(execAlloc);
-        jitCompile(yarrPattern,
-                   JSC::Yarr::Char16,
-                   &globalData,
-                   codeBlock);
+        jitCompile(yarrPattern, &globalData, codeBlock);
         if (!codeBlock.isFallBack())
             return true;
     }
@@ -221,23 +218,21 @@ RegExpRunStatus
 RegExpCode::execute(JSContext *cx, StableCharPtr chars, size_t length, size_t start,
                     int *output, size_t outputCount)
 {
-    unsigned result;
+    int result;
 #if ENABLE_YARR_JIT
     (void) cx; /* Unused. */
-    if (codeBlock.isFallBack()) {
-        result = JSC::Yarr::interpret(byteCode, chars.get(), length, start,
-                                      reinterpret_cast<unsigned *>(output));
-    } else {
-        result = codeBlock.execute(chars.get(), start, length, output).start;
-    }
+    if (codeBlock.isFallBack())
+        result = JSC::Yarr::interpret(byteCode, chars.get(), start, length, output);
+    else
+        result = JSC::Yarr::execute(codeBlock, chars.get(), start, length, output);
 #else
-    result = JSC::Yarr::interpret(byteCode, chars.get(), length, start,
-                                  reinterpret_cast<unsigned *>(output));
+    result = JSC::Yarr::interpret(byteCode, chars.get(), start, length, output);
 #endif
 
-    if (result == JSC::Yarr::offsetNoMatch)
+    if (result == -1)
         return RegExpRunStatus_Success_NotFound;
 
+    JS_ASSERT(result >= 0);
     return RegExpRunStatus_Success;
 }
 
@@ -524,19 +519,18 @@ RegExpShared::execute(JSContext *cx, StableCharPtr chars, size_t length, size_t 
 /* RegExpCompartment */
 
 RegExpCompartment::RegExpCompartment(JSRuntime *rt)
-  : map_(rt), inUse_(rt)
+  : map_(rt)
 {}
 
 RegExpCompartment::~RegExpCompartment()
 {
-    JS_ASSERT(map_.empty());
-    JS_ASSERT(inUse_.empty());
+    map_.empty();
 }
 
 bool
 RegExpCompartment::init(JSContext *cx)
 {
-    if (!map_.init() || !inUse_.init()) {
+    if (!map_.init()) {
         js_ReportOutOfMemory(cx);
         return false;
     }
@@ -544,19 +538,12 @@ RegExpCompartment::init(JSContext *cx)
     return true;
 }
 
-/* See the comment on RegExpShared lifetime in RegExpObject.h. */
 void
 RegExpCompartment::sweep(JSRuntime *rt)
 {
-#ifdef DEBUG
-    for (Map::Range r = map_.all(); !r.empty(); r.popFront())
-        JS_ASSERT(inUse_.has(r.front().value));
-#endif
-
-    map_.clear();
-
-    for (PendingSet::Enum e(inUse_); !e.empty(); e.popFront()) {
-        RegExpShared *shared = e.front();
+    for (Map::Enum e(map_); !e.empty(); e.popFront()) {
+        /* See the comment on RegExpShared lifetime in RegExpObject.h. */
+        RegExpShared *shared = e.front().value;
         if (shared->activeUseCount == 0 && shared->gcNumberWhenUsed < rt->gcStartNumber) {
             js_delete(shared);
             e.removeFront();
@@ -584,12 +571,6 @@ RegExpCompartment::get(JSContext *cx, JSAtom *keyAtom, JSAtom *source, RegExpFla
 
     /* Re-lookup in case there was a GC. */
     if (!map_.relookupOrAdd(p, key, shared)) {
-        js_ReportOutOfMemory(cx);
-        return false;
-    }
-
-    if (!inUse_.put(shared)) {
-        map_.remove(key);
         js_ReportOutOfMemory(cx);
         return false;
     }

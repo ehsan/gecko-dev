@@ -46,6 +46,13 @@ ViewportFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
+void
+ViewportFrame::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  DestroyAbsoluteFrames(aDestructRoot);
+  nsContainerFrame::DestroyFrom(aDestructRoot);
+}
+
 NS_IMETHODIMP
 ViewportFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)

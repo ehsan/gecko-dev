@@ -870,7 +870,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
     void callWithExitFrame(IonCode *target, Register dynStack) {
         addPtr(Imm32(framePushed()), dynStack);
-        makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
+        makeFrameDescriptor(dynStack, IonFrame_JS);
         Push(dynStack);
         call(target);
     }

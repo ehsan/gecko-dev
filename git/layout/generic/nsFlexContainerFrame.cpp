@@ -930,6 +930,14 @@ nsFlexContainerFrame::~nsFlexContainerFrame()
 }
 
 /* virtual */
+void
+nsFlexContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  DestroyAbsoluteFrames(aDestructRoot);
+  nsFlexContainerFrameSuper::DestroyFrom(aDestructRoot);
+}
+
+/* virtual */
 nsIAtom*
 nsFlexContainerFrame::GetType() const
 {

@@ -42,15 +42,29 @@ class nsScanner {
   public:
 
       /**
-       *  Use this constructor for the XML fragment parsing case
+       *  Use this constructor if you want i/o to be based on 
+       *  a single string you hand in during construction.
+       *  This short cut was added for Javascript.
+       *
+       *  @update  ftang 3/02/99
+       *  @param   aCharset charset
+       *  @param   aCharsetSource - where the charset info came from 
+       *  @param   aMode represents the parser mode (nav, other)
+       *  @return  
        */
-      nsScanner(const nsAString& anHTMLString);
+      nsScanner(const nsAString& anHTMLString, const nsACString& aCharset, int32_t aSource);
 
       /**
        *  Use this constructor if you want i/o to be based on 
        *  a file (therefore a stream) or just data you provide via Append().
+       *
+       *  @update  ftang 3/02/99
+       *  @param   aCharset charset
+       *  @param   aCharsetSource - where the charset info came from 
+       *  @param   aMode represents the parser mode (nav, other)
+       *  @return  
        */
-      nsScanner(nsString& aFilename, bool aCreateStream);
+      nsScanner(nsString& aFilename,bool aCreateStream, const nsACString& aCharset, int32_t aSource);
 
       ~nsScanner();
 

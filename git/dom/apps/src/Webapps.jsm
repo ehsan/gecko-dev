@@ -138,14 +138,14 @@ this.DOMApplicationRegistry = {
   },
 
   // Registers all the activities and system messages.
-  registerAppsHandlers: function registerAppsHandlers(aRunUpdate) {
+  registerAppsHandlers: function registerAppsHandlers() {
     this.notifyAppsRegistryStart();
     let ids = [];
     for (let id in this.webapps) {
       ids.push({ id: id });
     }
 #ifdef MOZ_SYS_MSG
-    this._processManifestForIds(ids, aRunUpdate);
+    this._processManifestForIds(ids);
 #else
     // Read the CSPs. If MOZ_SYS_MSG is defined this is done on
     // _processManifestForIds so as to not reading the manifests
@@ -291,7 +291,7 @@ this.DOMApplicationRegistry = {
           this.updateOfflineCacheForApp(id);
         }
       }
-      this.registerAppsHandlers(runUpdate);
+      this.registerAppsHandlers();
     }).bind(this);
 
     this.loadCurrentRegistry((function() {
@@ -351,7 +351,7 @@ this.DOMApplicationRegistry = {
 
   // |aEntryPoint| is either the entry_point name or the null in which case we
   // use the root of the manifest.
-  _createActivitiesToRegister: function(aManifest, aApp, aEntryPoint, aRunUpdate) {
+  _createActivitiesToRegister: function(aManifest, aApp, aEntryPoint) {
     let activitiesToRegister = [];
     let root = aManifest;
     if (aEntryPoint && aManifest.entry_points[aEntryPoint]) {
@@ -369,16 +369,14 @@ this.DOMApplicationRegistry = {
         description.href = manifest.launch_path;
       }
       description.href = manifest.resolveFromOrigin(description.href);
+      activitiesToRegister.push({ "manifest": aApp.manifestURL,
+                                  "name": activity,
+                                  "title": manifest.name,
+                                  "icon": manifest.iconURLForSize(128),
+                                  "description": description });
 
-      if (aRunUpdate) {
-        activitiesToRegister.push({ "manifest": aApp.manifestURL,
-                                    "name": activity,
-                                    "title": manifest.name,
-                                    "icon": manifest.iconURLForSize(128),
-                                    "description": description });
-      }
-
-      let launchPath = Services.io.newURI(description.href, null, null);
+      let launchPath =
+        Services.io.newURI(manifest.resolveFromOrigin(description.href), null, null);
       let manifestURL = Services.io.newURI(aApp.manifestURL, null, null);
       msgmgr.registerPage("activity", launchPath, manifestURL);
     }
@@ -387,14 +385,14 @@ this.DOMApplicationRegistry = {
 
   // |aAppsToRegister| contains an array of apps to be registered, where
   // each element is an object in the format of {manifest: foo, app: bar}.
-  _registerActivitiesForApps: function(aAppsToRegister, aRunUpdate) {
+  _registerActivitiesForApps: function(aAppsToRegister) {
     // Collect the activities to be registered for root and entry_points.
     let activitiesToRegister = [];
     aAppsToRegister.forEach(function (aApp) {
       let manifest = aApp.manifest;
       let app = aApp.app;
       activitiesToRegister.push.apply(activitiesToRegister,
-        this._createActivitiesToRegister(manifest, app, null, aRunUpdate));
+        this._createActivitiesToRegister(manifest, app, null));
 
       if (!manifest.entry_points) {
         return;
@@ -402,14 +400,9 @@ this.DOMApplicationRegistry = {
 
       for (let entryPoint in manifest.entry_points) {
         activitiesToRegister.push.apply(activitiesToRegister,
-          this._createActivitiesToRegister(manifest, app, entryPoint, aRunUpdate));
+          this._createActivitiesToRegister(manifest, app, entryPoint));
       }
     }, this);
-
-    if (!aRunUpdate || activitiesToRegister.length == 0) {
-      this.notifyAppsRegistryReady();
-      return;
-    }
 
     // Send the array carrying all the activities to be registered.
     cpmm.sendAsyncMessage("Activities:Register", activitiesToRegister);
@@ -417,8 +410,8 @@ this.DOMApplicationRegistry = {
 
   // Better to directly use |_registerActivitiesForApps()| if we have
   // multiple apps to be registered for activities.
-  _registerActivities: function(aManifest, aApp, aRunUpdate) {
-    this._registerActivitiesForApps([{ manifest: aManifest, app: aApp }], aRunUpdate);
+  _registerActivities: function(aManifest, aApp) {
+    this._registerActivitiesForApps([{ manifest: aManifest, app: aApp }]);
   },
 
   // |aEntryPoint| is either the entry_point name or the null in which case we
@@ -473,7 +466,7 @@ this.DOMApplicationRegistry = {
     this._unregisterActivitiesForApps([{ manifest: aManifest, app: aApp }]);
   },
 
-  _processManifestForIds: function(aIds, aRunUpdate) {
+  _processManifestForIds: function(aIds) {
     this._readManifests(aIds, (function registerManifests(aResults) {
       let appsToRegister = [];
       aResults.forEach(function registerManifest(aResult) {
@@ -484,7 +477,7 @@ this.DOMApplicationRegistry = {
         this._registerSystemMessages(manifest, app);
         appsToRegister.push({ manifest: manifest, app: app });
       }, this);
-      this._registerActivitiesForApps(appsToRegister, aRunUpdate);
+      this._registerActivitiesForApps(appsToRegister);
     }).bind(this));
   },
 #endif
@@ -828,11 +821,6 @@ this.DOMApplicationRegistry = {
 
     let id = this._appIdForManifestURL(app.manifestURL);
 
-    // Clean up the deprecated manifest cache if needed.
-    if (id in this._manifestCache) {
-      delete this._manifestCache[id];
-    }
-
     // Move the application.zip and manifest.webapp files out of TmpD
     let tmpDir = FileUtils.getDir("TmpD", ["webapps", id], true, true);
     let manFile = tmpDir.clone();
@@ -927,17 +915,13 @@ this.DOMApplicationRegistry = {
       debug("updateHostedApp");
       let id = this._appId(app.origin);
 
-      if (id in this._manifestCache) {
-        delete this._manifestCache[id];
-      }
-
       // Update the web apps' registration.
       this.notifyAppsRegistryStart();
 #ifdef MOZ_SYS_MSG
       this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
         this._unregisterActivities(aResult[0].manifest, app);
         this._registerSystemMessages(aManifest, app);
-        this._registerActivities(aManifest, app, true);
+        this._registerActivities(aManifest, app);
       }).bind(this));
 #else
       // Nothing else to do but notifying we're ready.
@@ -1158,7 +1142,7 @@ this.DOMApplicationRegistry = {
       this.notifyAppsRegistryStart();
 #ifdef MOZ_SYS_MSG
       this._registerSystemMessages(app.manifest, app);
-      this._registerActivities(app.manifest, app, true);
+      this._registerActivities(app.manifest, app);
 #else
       // Nothing else to do but notifying we're ready.
       this.notifyAppsRegistryReady();
@@ -1245,9 +1229,6 @@ this.DOMApplicationRegistry = {
   /**
     * Asynchronously reads a list of manifests
     */
-
-  _manifestCache: {},
-
   _readManifests: function(aData, aFinalCallback, aIndex) {
     if (!aData.length) {
       aFinalCallback(aData);
@@ -1256,16 +1237,6 @@ this.DOMApplicationRegistry = {
 
     let index = aIndex || 0;
     let id = aData[index].id;
-
-    // Use the cached manifest instead of reading the file again from disk.
-    if (id in this._manifestCache) {
-      aData[index].manifest = this._manifestCache[id];
-      if (index == aData.length - 1)
-        aFinalCallback(aData);
-      else
-        this._readManifests(aData, aFinalCallback, index + 1);
-      return;
-    }
 
     // the manifest file used to be named manifest.json, so fallback on this.
     let baseDir = (this.webapps[id].removable ? DIRECTORY_NAME : "coreAppsDir");
@@ -1278,7 +1249,7 @@ this.DOMApplicationRegistry = {
     }
 
     this._loadJSONAsync(file, (function(aJSON) {
-      aData[index].manifest = this._manifestCache[id] = aJSON;
+      aData[index].manifest = aJSON;
       if (index == aData.length - 1)
         aFinalCallback(aData);
       else
@@ -1434,11 +1405,6 @@ this.DOMApplicationRegistry = {
 
       if (!this.webapps[id].removable)
         return;
-
-      // Clean up the deprecated manifest cache if needed.
-      if (id in this._manifestCache) {
-        delete this._manifestCache[id];
-      }
 
       // Clear private data first.
       this._clearPrivateData(app.localId, false);
@@ -1655,11 +1621,6 @@ this.DOMApplicationRegistry = {
         if (!this.webapps[record.id] || !this.webapps[record.id].removable)
           continue;
 
-        // Clean up the deprecated manifest cache if needed.
-        if (record.id in this._manifestCache) {
-          delete this._manifestCache[record.id];
-        }
-
         let origin = this.webapps[record.id].origin;
         delete this.webapps[record.id];
         let dir = this._getAppDir(record.id);
@@ -1706,10 +1667,6 @@ this.DOMApplicationRegistry = {
       } catch (e) {
       }
     }
-
-    // Clear the manifest cache.
-    this._manifestCache = { };
-
     this._saveApps(aCallback);
   },
 

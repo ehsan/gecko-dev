@@ -7,7 +7,9 @@
 #include "nsIDOMClassInfo.h"
 #include "nsError.h"
 #include "nsIDOMSmsMessage.h"
+#include "nsIDOMSmsRequest.h"
 #include "SmsRequest.h"
+#include "SmsRequestManager.h"
 #include "nsISmsDatabaseService.h"
 
 DOMCI_DATA(MozSmsCursor, mozilla::dom::sms::SmsCursor)
@@ -32,7 +34,7 @@ SmsCursor::SmsCursor()
 {
 }
 
-SmsCursor::SmsCursor(int32_t aListId, nsISmsRequest* aRequest)
+SmsCursor::SmsCursor(int32_t aListId, nsIDOMMozSmsRequest* aRequest)
   : mListId(aListId)
   , mRequest(aRequest)
 {
@@ -78,21 +80,21 @@ SmsCursor::Continue()
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  nsRefPtr<SmsRequest> request = static_cast<SmsRequest*>(mRequest.get());
-
   mMessage = nullptr;
-  request->Reset();
+  static_cast<SmsRequest*>(mRequest.get())->Reset();
+
+  nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+
+  int32_t requestId;
+  nsresult rv = requestManager->AddRequest(mRequest, &requestId);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISmsDatabaseService> smsDBService =
     do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(request);
-  smsDBService->GetNextMessageInList(mListId, forwarder);
+  smsDBService->GetNextMessageInList(mListId, requestId, 0);
 
-  // We intenionally increase the refcount. The release will be called
-  // in the corresponding callback.
-  request.forget();
   return NS_OK;
 }
 

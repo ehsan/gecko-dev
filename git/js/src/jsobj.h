@@ -368,10 +368,9 @@ struct JSObject : public js::ObjectImpl
 
     inline size_t computedSizeOfThisSlotsElements() const;
 
-    inline void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *slotsSize,
-                                    size_t *elementsSize, size_t *argumentsDataSize,
-                                    size_t *regExpStaticsSize,
-                                    size_t *propertyIteratorDataSize) const;
+    inline void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
+                                    size_t *slotsSize, size_t *elementsSize,
+                                    size_t *miscSize) const;
 
     bool hasIdempotentProtoChain() const;
 
@@ -1021,7 +1020,6 @@ struct JSObject : public js::ObjectImpl
     inline js::NormalArgumentsObject &asNormalArguments();
     inline js::NumberObject &asNumber();
     inline js::PropertyIteratorObject &asPropertyIterator();
-    inline const js::PropertyIteratorObject &asPropertyIterator() const;
     inline js::RegExpObject &asRegExp();
     inline js::ScopeObject &asScope();
     inline js::SetObject &asSet();
@@ -1295,7 +1293,7 @@ js_NativeGet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> pob
 
 extern JSBool
 js_NativeSet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> receiver,
-             js::Handle<js::Shape*> shape, bool added, bool strict, js::Value *vp);
+             js::Shape *shape, bool added, bool strict, js::Value *vp);
 
 namespace js {
 

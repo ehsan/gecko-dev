@@ -16,7 +16,6 @@ const MAX_RP_CALLS = 100;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/IdentityUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -79,30 +78,24 @@ nsDOMIdentity.prototype = {
 
     let message = this.DOMIdentityMessage();
 
-    // loggedInUser vs loggedInEmail
-    // https://developer.mozilla.org/en-US/docs/DOM/navigator.id.watch
-    // This parameter, loggedInUser, was renamed from loggedInEmail in early
-    // September, 2012. Both names will continue to work for the time being,
-    // but code should be changed to use loggedInUser instead.
-    checkRenamed(aOptions, "loggedInEmail", "loggedInUser");
-    message["loggedInUser"] = aOptions["loggedInUser"];
-
-    let emailType = typeof(aOptions["loggedInUser"]);
-    if (aOptions["loggedInUser"] && aOptions["loggedInUser"] !== "undefined") {
+    // loggedInEmail
+    message.loggedInEmail = null;
+    let emailType = typeof(aOptions["loggedInEmail"]);
+    if (aOptions["loggedInEmail"] && aOptions["loggedInEmail"] !== "undefined") {
       if (emailType !== "string") {
-        throw new Error("loggedInUser must be a String or null");
+        throw new Error("loggedInEmail must be a String or null");
       }
 
       // TODO: Bug 767610 - check email format.
       // See nsHTMLInputElement::IsValidEmailAddress
-      if (aOptions["loggedInUser"].indexOf("@") == -1
-          || aOptions["loggedInUser"].length > MAX_STRING_LENGTH) {
-        throw new Error("loggedInUser is not valid");
+      if (aOptions["loggedInEmail"].indexOf("@") == -1
+          || aOptions["loggedInEmail"].length > MAX_STRING_LENGTH) {
+        throw new Error("loggedInEmail is not valid");
       }
-      // Set loggedInUser in this block that "undefined" doesn't get through.
-      message.loggedInUser = aOptions.loggedInUser;
+      // Set loggedInEmail in this block that "undefined" doesn't get through.
+      message.loggedInEmail = aOptions.loggedInEmail;
     }
-    this._log("loggedInUser: " + message.loggedInUser);
+    this._log("loggedInEmail: " + message.loggedInEmail);
 
     this._rpWatcher = aOptions;
     this._identityInternal._mm.sendAsyncMessage("Identity:RP:Watch", message);

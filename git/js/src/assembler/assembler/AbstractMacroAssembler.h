@@ -418,8 +418,6 @@ public:
             masm->m_assembler.linkJump(m_jmp, label.m_label);
         }
 
-        bool isSet() const { return m_jmp.isSet(); }
-
     private:
         JmpSrc m_jmp;
     };

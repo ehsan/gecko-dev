@@ -378,10 +378,6 @@ public:
             return m_offset;
         }
 
-        bool isSet() const {
-            return m_offset != -1;
-        }
-
     private:
         int m_offset;
     };

@@ -424,11 +424,6 @@ Classifier::MarkSpoiled(nsTArray<nsCString>& aTables)
     LOG(("Spoiling table: %s", aTables[i].get()));
     // Spoil this table by marking it as no known freshness
     mTableFreshness.Remove(aTables[i]);
-    // Remove any cached Completes for this table
-    LookupCache *cache = GetLookupCache(aTables[i]);
-    if (cache) {
-      cache->ClearCompleteCache();
-    }
   }
   return NS_OK;
 }
@@ -671,7 +666,6 @@ Classifier::ApplyTableUpdates(nsTArray<TableUpdate*>* aUpdates,
 
   uint32_t applied = 0;
   bool updateFreshness = false;
-  bool hasCompletes = false;
 
   for (uint32_t i = 0; i < aUpdates->Length(); i++) {
     TableUpdate *update = aUpdates->ElementAt(i);
@@ -698,12 +692,6 @@ Classifier::ApplyTableUpdates(nsTArray<TableUpdate*>* aUpdates,
       LOG(("Remote update, updating freshness"));
     }
 
-    if (update->AddCompletes().Length() > 0
-        || update->SubCompletes().Length() > 0) {
-      hasCompletes = true;
-      LOG(("Contains Completes, keeping cache."));
-    }
-
     aUpdates->ElementAt(i) = nullptr;
     delete update;
   }
@@ -712,11 +700,6 @@ Classifier::ApplyTableUpdates(nsTArray<TableUpdate*>* aUpdates,
 
   rv = store->Rebuild();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Not an update with Completes, clear all completes data.
-  if (!hasCompletes) {
-    store->ClearCompletes();
-  }
 
   LOG(("Table %s now has:", store->TableName().get()));
   LOG(("  %d add chunks", store->AddChunks().Length()));
@@ -733,7 +716,6 @@ Classifier::ApplyTableUpdates(nsTArray<TableUpdate*>* aUpdates,
   // the data is still in memory.  Build our quick-lookup table here.
   rv = prefixSet->Build(store->AddPrefixes(), store->AddCompletes());
   NS_ENSURE_SUCCESS(rv, rv);
-
 #if defined(DEBUG) && defined(PR_LOGGING)
   prefixSet->Dump();
 #endif
@@ -802,9 +784,7 @@ Classifier::ReadNoiseEntries(const Prefix& aPrefix,
   for (int32_t i = 0; (i < aCount) && ((idx+i) < prefixes.Length()); i++) {
     Prefix newPref;
     newPref.FromUint32(prefixes[idx+i]);
-    if (newPref != aPrefix) {
-      aNoiseEntries->AppendElement(newPref);
-    }
+    aNoiseEntries->AppendElement(newPref);
   }
 
   return NS_OK;

@@ -28,7 +28,7 @@
 #include "mozilla/dom/StorageParent.h"
 #include "mozilla/dom/bluetooth/PBluetoothParent.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
-#include "SmsParent.h"
+#include "mozilla/dom/sms/SmsParent.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -1500,16 +1500,13 @@ ContentParent::AllocPSms()
     if (!AssertAppProcessPermission(this, "sms")) {
         return nullptr;
     }
-
-    SmsParent* parent = new SmsParent();
-    parent->AddRef();
-    return parent;
+    return new SmsParent();
 }
 
 bool
 ContentParent::DeallocPSms(PSmsParent* aSms)
 {
-    static_cast<SmsParent*>(aSms)->Release();
+    delete aSms;
     return true;
 }
 

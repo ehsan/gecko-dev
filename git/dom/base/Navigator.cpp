@@ -129,9 +129,7 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
 #endif
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorCamera)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorSystemMessages)
-#ifdef MOZ_TIME_MANAGER
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorTime)
-#endif
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Navigator)
 NS_INTERFACE_MAP_END
 
@@ -1336,7 +1334,6 @@ Navigator::MozSetMessageHandler(const nsAString& aType,
 //*****************************************************************************
 //    Navigator::nsIDOMNavigatorTime
 //*****************************************************************************
-#ifdef MOZ_TIME_MANAGER
 NS_IMETHODIMP
 Navigator::GetMozTime(nsIDOMMozTimeManager** aTime)
 {
@@ -1353,7 +1350,6 @@ Navigator::GetMozTime(nsIDOMMozTimeManager** aTime)
   NS_ADDREF(*aTime = mTimeManager);
   return NS_OK;
 }
-#endif
 
 //*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorCamera

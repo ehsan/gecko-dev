@@ -61,7 +61,7 @@ InlineFrameIterator::InlineFrameIterator(const IonBailoutIterator *iter)
 void
 IonBailoutIterator::dump() const
 {
-    if (type_ == IonFrame_OptimizedJS) {
+    if (type_ == IonFrame_JS) {
         InlineFrameIterator frames(this);
         for (;;) {
             frames.dump();
@@ -85,7 +85,7 @@ GetBailedJSScript(JSContext *cx)
     switch (GetCalleeTokenTag(frame->calleeToken())) {
       case CalleeToken_Function: {
         JSFunction *fun = CalleeTokenToFunction(frame->calleeToken());
-        return fun->script().get(nogc);
+        return fun->script();
       }
       case CalleeToken_Script:
         return CalleeTokenToScript(frame->calleeToken());
@@ -178,8 +178,8 @@ StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
         regs.pc = GetNextPc(regs.pc);
 
     IonSpew(IonSpew_Bailouts, " new PC is offset %u within script %p (line %d)",
-            pcOff, (void *)script().get(nogc), PCToLineNumber(script().get(nogc), regs.pc));
-    JS_ASSERT(exprStackSlots == js_ReconstructStackDepth(cx, script().get(nogc), regs.pc));
+            pcOff, (void *)script(), PCToLineNumber(script(), regs.pc));
+    JS_ASSERT(exprStackSlots == js_ReconstructStackDepth(cx, script(), regs.pc));
 }
 
 static StackFrame *
@@ -313,8 +313,8 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
         return BAILOUT_RETURN_RECOMPILE_CHECK;
       case Bailout_BoundsCheck:
         return BAILOUT_RETURN_BOUNDS_CHECK;
-      case Bailout_ShapeGuard:
-        return BAILOUT_RETURN_SHAPE_GUARD;
+      case Bailout_Invalidate:
+        return BAILOUT_RETURN_INVALIDATE;
       case Bailout_CachedShapeGuard:
         return BAILOUT_RETURN_CACHED_SHAPE_GUARD;
 
@@ -350,7 +350,7 @@ EnsureExitFrame(IonCommonFrameLayout *frame)
         return;
     }
 
-    JS_ASSERT(frame->prevType() == IonFrame_OptimizedJS);
+    JS_ASSERT(frame->prevType() == IonFrame_JS);
     frame->changePrevType(IonFrame_Bailed_JS);
 }
 
@@ -552,7 +552,7 @@ ion::BoundsCheckFailure()
 }
 
 uint32
-ion::ShapeGuardFailure()
+ion::ForceInvalidation()
 {
     JSContext *cx = GetIonContext()->cx;
     JSScript *script = GetBailedJSScript(cx);
@@ -560,9 +560,7 @@ ion::ShapeGuardFailure()
     JS_ASSERT(script->hasIonScript());
     JS_ASSERT(!script->ion->invalidated());
 
-    script->failedShapeGuard = true;
-
-    IonSpew(IonSpew_Invalidate, "Invalidating due to shape guard failure");
+    IonSpew(IonSpew_Invalidate, "Forced invalidation bailout");
 
     return Invalidate(cx, script);
 }
@@ -575,8 +573,6 @@ ion::CachedShapeGuardFailure()
 
     JS_ASSERT(script->hasIonScript());
     JS_ASSERT(!script->ion->invalidated());
-
-    script->failedShapeGuard = true;
 
     // Purge JM caches in the script and all inlined script, to avoid baking in
     // the same shape guard next time.
@@ -663,7 +659,7 @@ ion::ThunkToInterpreter(Value *vp)
 
         IonSpew(IonSpew_Bailouts, "Performing inline OSR %s:%d",
                 cx->fp()->script()->filename,
-                PCToLineNumber(cx->fp()->script().unsafeGet(), cx->regs().pc));
+                PCToLineNumber(cx->fp()->script(), cx->regs().pc));
 
         // We want to OSR again. We need to avoid the problem where frequent
         // bailouts cause recursive nestings of Interpret and EnterIon. The

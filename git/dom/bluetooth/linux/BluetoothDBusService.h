@@ -142,13 +142,13 @@ public:
   virtual void
   Disconnect(const uint16_t aProfileId, BluetoothReplyRunnable* aRunnable);
 
-  virtual void
+  virtual bool
   SendFile(const nsAString& aDeviceAddress,
            BlobParent* aBlobParent,
            BlobChild* aBlobChild,
            BluetoothReplyRunnable* aRunnable);
 
-  virtual void
+  virtual bool
   StopSendingFile(const nsAString& aDeviceAddress,
                   BluetoothReplyRunnable* aRunnable);
 

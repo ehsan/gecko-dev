@@ -36,6 +36,7 @@ SmsServicesFactory::CreateSmsService()
 SmsServicesFactory::CreateSmsDatabaseService()
 {
   nsCOMPtr<nsISmsDatabaseService> smsDBService;
+
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     smsDBService = new SmsIPCService();
   } else {

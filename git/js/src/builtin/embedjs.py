@@ -17,7 +17,7 @@ def replaceErrorMsgs(source_files, messages_file, output_file):
         if len(source_files) == 0:
             return
         for line in fileinput.input(source_files):
-            output.write(replaceMessages(line if line[-1] == '\n' else line + '\n', messages))
+            output.write(replaceMessages(line, messages))
 
 def buildMessagesTable(messages_file):
     table = {}

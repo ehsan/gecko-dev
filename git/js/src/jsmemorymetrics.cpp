@@ -155,23 +155,19 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         } else {
             cStats->gcHeapObjectsOrdinary += thingSize;
         }
-        size_t slotsSize, elementsSize, argumentsDataSize, regExpStaticsSize,
-               propertyIteratorDataSize;
-        obj->sizeOfExcludingThis(rtStats->mallocSizeOf, &slotsSize, &elementsSize,
-                                 &argumentsDataSize, &regExpStaticsSize,
-                                 &propertyIteratorDataSize);
-        cStats->objectsExtraSlots += slotsSize;
-        cStats->objectsExtraElements += elementsSize;
-        cStats->objectsExtraArgumentsData += argumentsDataSize;
-        cStats->objectsExtraRegExpStatics += regExpStaticsSize;
-        cStats->objectsExtraPropertyIteratorData += propertyIteratorDataSize;
+        size_t slotsSize, elementsSize, miscSize;
+        obj->sizeOfExcludingThis(rtStats->mallocSizeOf, &slotsSize,
+                                 &elementsSize, &miscSize);
+        cStats->objectSlots += slotsSize;
+        cStats->objectElements += elementsSize;
+        cStats->objectMisc += miscSize;
 
         if (ObjectPrivateVisitor *opv = closure->opv) {
             js::Class *clazz = js::GetObjectClass(obj);
             if (clazz->flags & JSCLASS_HAS_PRIVATE &&
                 clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS)
             {
-                cStats->objectsExtraPrivate += opv->sizeOfIncludingThis(GetObjectPrivate(obj));
+                cStats->objectPrivate += opv->sizeOfIncludingThis(GetObjectPrivate(obj));
             }
         }
         break;

@@ -44,6 +44,9 @@ function checkStyleEditorForSheetAndLine(aStyleSheetIndex, aLine, aCallback) {
   function doCheck(aEditor) {
     function checkLineAndCallback() {
       info("In checkLineAndCallback()");
+      ok(aEditor.sourceEditor != null, "sourceeditor not null");
+      ok(aEditor.sourceEditor.getCaretPosition() != null, "position not null");
+      ok(aEditor.sourceEditor.getCaretPosition().line != null, "line not null");
       is(aEditor.sourceEditor.getCaretPosition().line, aLine,
          "Correct line is selected");
       if (aCallback) {
@@ -51,7 +54,10 @@ function checkStyleEditorForSheetAndLine(aStyleSheetIndex, aLine, aCallback) {
       }
     }
 
-    function checkForCorrectSheet() {
+    ok(aEditor, "aEditor is defined.");
+
+    // Source-editor is already loaded, check the current line of caret.
+    if (aEditor.sourceEditor) {
       if (aEditor.styleSheetIndex != SEC.selectedStyleSheetIndex) {
         ok(false, "Correct Style Sheet was not selected.");
         if (aCallback) {
@@ -60,28 +66,30 @@ function checkStyleEditorForSheetAndLine(aStyleSheetIndex, aLine, aCallback) {
         return;
       }
 
+      info("Correct Style Sheet is selected in the editor");
       info("Editor is already loaded, check the current line of caret");
       executeSoon(checkLineAndCallback);
-    }
-
-    ok(aEditor, "aEditor is defined.");
-
-    // Source-editor is already loaded, check the current sheet and line.
-    if (aEditor.sourceEditor) {
-      checkForCorrectSheet();
       return;
     }
 
     info("source editor is not loaded, waiting for it.");
-    // Source-editor is not loaded, polling regularly and waiting for it to load
-    waitForSuccess({
-      name: "Wait for the source-editor to load",
-      validatorFn: function()
-      {
-        return aEditor.sourceEditor;
-      },
-      successFn: checkForCorrectSheet,
-      failureFn: aCallback,
+    // Wait for source editor to be loaded.
+    aEditor.addActionListener({
+      onAttach: function onAttach() {
+        info("on attach happened");
+        aEditor.removeActionListener(this);
+        info("this removed");
+        executeSoon(function() {
+          if (aEditor.styleSheetIndex != SEC.selectedStyleSheetIndex) {
+            ok(false, "Correct Style Sheet was not selected.");
+            if (aCallback) {
+              aCallback();
+            }
+            return;
+          }
+          checkLineAndCallback()
+        });
+      }
     });
   }
 
@@ -130,14 +138,18 @@ let observer = {
                              .getEditorForWindow(content.window);
       ok(styleEditorWin, "Style Editor Window is defined");
       waitForFocus(function() {
-        checkStyleEditorForSheetAndLine(0, 7, function() {
-          checkStyleEditorForSheetAndLine(1, 6, function() {
-            window.StyleEditor.toggle();
-            styleEditorWin = null;
-            finishTest();
+        //styleEditorWin.addEventListener("load", function onStyleEditorWinLoad() {
+          //styleEditorWin.removeEventListener("load", onStyleEditorWinLoad);
+
+          checkStyleEditorForSheetAndLine(0, 7, function() {
+            checkStyleEditorForSheetAndLine(1, 6, function() {
+              window.StyleEditor.toggle();
+              styleEditorWin = null;
+              finishTest();
+            });
+            EventUtils.sendMouseEvent({ type: "click" }, nodes[1]);
           });
-          EventUtils.sendMouseEvent({ type: "click" }, nodes[1]);
-        });
+        //});
       }, styleEditorWin);
     });
   }

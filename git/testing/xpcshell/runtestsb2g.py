@@ -154,7 +154,7 @@ def main():
     try:
         success = xpcsh.runTests(xpcshell='xpcshell', testdirs=args[0:], **options.__dict__)
     except:
-        print "Automation Error: Exception caught while running tests"
+        print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running tests." % sys.exc_info()[1]
         traceback.print_exc()
         sys.exit(1)
 

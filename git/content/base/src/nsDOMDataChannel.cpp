@@ -49,7 +49,7 @@ class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public mozilla::DataChannelListener
 {
 public:
-  nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel)
+  nsDOMDataChannel(mozilla::DataChannel* aDataChannel)
     : mDataChannel(aDataChannel)
     , mBinaryType(DC_BINARY_TYPE_BLOB)
   {}
@@ -92,7 +92,7 @@ private:
                          JSContext *aCx);
 
   // Owning reference
-  nsRefPtr<mozilla::DataChannel> mDataChannel;
+  nsAutoPtr<mozilla::DataChannel> mDataChannel;
   nsString  mOrigin;
   enum
   {
@@ -492,7 +492,7 @@ nsDOMDataChannel::AppReady()
 
 /* static */
 nsresult
-NS_NewDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel,
+NS_NewDOMDataChannel(mozilla::DataChannel* aDataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** aDomDataChannel)
 {

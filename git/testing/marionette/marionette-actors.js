@@ -153,7 +153,6 @@ function MarionetteDriverActor(aConnection)
   this.curFrame = null; //subframe that currently has focus
   this.importedScripts = FileUtils.getFile('TmpD', ['marionettescriptchrome']);
   this.currentRemoteFrame = null; // a member of remoteFrames
-  this.testName = null;
 
   //register all message listeners
   this.addMessageManagerListeners(this.messageManager);
@@ -692,7 +691,7 @@ MarionetteDriverActor.prototype = {
     let curWindow = this.getCurrentWindow();
     let marionette = new Marionette(this, curWindow, "chrome",
                                     this.marionetteLog, this.marionettePerf,
-                                    this.scriptTimeout, this.testName);
+                                    this.scriptTimeout);
     let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args, aRequest.specialPowers);
     if (!_chromeSandbox)
       return;
@@ -803,7 +802,7 @@ MarionetteDriverActor.prototype = {
     let that = this;
     let marionette = new Marionette(this, curWindow, "chrome",
                                     this.marionetteLog, this.marionettePerf,
-                                    this.scriptTimeout, this.testName);
+                                    this.scriptTimeout);
     marionette.command_id = this.command_id;
 
     function chromeAsyncReturnFunc(value, status) {
@@ -1383,16 +1382,6 @@ MarionetteDriverActor.prototype = {
   },
 
   /**
-   * Sets the test name
-   *
-   * The test name is used in logging messages.
-   */
-  setTestName: function MDA_setTestName(aRequest) {
-    this.testName = aRequest.value;
-    this.sendAsync("setTestName", {value: aRequest.value});
-  },
-
-  /**
    * Clear the text of an element
    *
    * @param object aRequest
@@ -1621,7 +1610,7 @@ MarionetteDriverActor.prototype = {
                                  .getInterface(Ci.nsIDOMWindowUtils)
                                  .getOuterWindowWithId(message.json.win);
         let thisFrame = frameWindow.document.getElementsByTagName("iframe")[message.json.frame];
-        let mm = thisFrame.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader.messageManager;
+        let mm = thisFrame.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader.messageManager
 
         // See if this frame already has our frame script loaded in it; if so,
         // just wake it up.
@@ -1742,8 +1731,7 @@ MarionetteDriverActor.prototype.requestTypes = {
   "emulatorCmdResult": MarionetteDriverActor.prototype.emulatorCmdResult,
   "importScript": MarionetteDriverActor.prototype.importScript,
   "getAppCacheStatus": MarionetteDriverActor.prototype.getAppCacheStatus,
-  "closeWindow": MarionetteDriverActor.prototype.closeWindow,
-  "setTestName": MarionetteDriverActor.prototype.setTestName
+  "closeWindow": MarionetteDriverActor.prototype.closeWindow
 };
 
 /**

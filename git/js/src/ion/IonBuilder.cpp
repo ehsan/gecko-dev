@@ -35,7 +35,6 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
     oracle(oracle),
     inliningDepth(inliningDepth),
     failedBoundsCheck_(info->script()->failedBoundsCheck),
-    failedShapeGuard_(info->script()->failedShapeGuard),
     lazyArguments_(NULL)
 {
     script_.init(info->script());
@@ -149,7 +148,7 @@ IonBuilder::getSingleCallTarget(uint32 argc, jsbytecode *pc)
 {
     AutoAssertNoGC nogc;
 
-    types::StackTypeSet *calleeTypes = oracle->getCallTarget(script().get(nogc), argc, pc);
+    types::StackTypeSet *calleeTypes = oracle->getCallTarget(script(), argc, pc);
     if (!calleeTypes)
         return NULL;
 
@@ -406,9 +405,6 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
 
     if (callerBuilder->failedBoundsCheck_)
         failedBoundsCheck_ = true;
-
-    if (callerBuilder->failedShapeGuard_)
-        failedShapeGuard_ = true;
 
     // Generate single entrance block.
     current = newBlock(pc);
@@ -4621,8 +4617,10 @@ IonBuilder::jsop_getgname(HandlePropertyName name)
 
     // If we have a property typeset, the isOwnProperty call will trigger recompilation if
     // the property is deleted or reconfigured.
-    if (!propertyTypes && shape->configurable())
-        global = addShapeGuard(global, globalObj->lastProperty(), Bailout_ShapeGuard);
+    if (!propertyTypes && shape->configurable()) {
+        MGuardShape *guard = MGuardShape::New(global, globalObj->lastProperty(), Bailout_Invalidate);
+        current->add(guard);
+    }
 
     JS_ASSERT(shape->slot() >= globalObj->numFixedSlots());
 
@@ -4672,8 +4670,10 @@ IonBuilder::jsop_setgname(HandlePropertyName name)
     // If we have a property type set, the isOwnProperty call will trigger recompilation
     // if the property is deleted or reconfigured. Without TI, we always need a shape guard
     // to guard against the property being reconfigured as non-writable.
-    if (!propertyTypes)
-        global = addShapeGuard(global, globalObj->lastProperty(), Bailout_ShapeGuard);
+    if (!propertyTypes) {
+        MGuardShape *guard = MGuardShape::New(global, globalObj->lastProperty(), Bailout_Invalidate);
+        current->add(guard);
+    }
 
     JS_ASSERT(shape->slot() >= globalObj->numFixedSlots());
 
@@ -5436,7 +5436,8 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types, Handle
     // are no lookup hooks for this property.
     MInstruction *wrapper = MConstant::New(ObjectValue(*foundProto));
     current->add(wrapper);
-    wrapper = addShapeGuard(wrapper, foundProto->lastProperty(), Bailout_ShapeGuard);
+    MGuardShape *guard = MGuardShape::New(wrapper, foundProto->lastProperty(), Bailout_Invalidate);
+    current->add(guard);
 
     // Now we have to freeze all the property typesets to ensure there isn't a
     // lower shadowing getter or setter installed in the future.
@@ -5960,7 +5961,8 @@ IonBuilder::getPropTryMonomorphic(bool *emitted, HandleId id, types::StackTypeSe
     // the shape is not in dictionary made. We cannot be sure that the shape is
     // still a lastProperty, and calling Shape::search() on dictionary mode
     // shapes that aren't lastProperty is invalid.
-    obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
+    MGuardShape *guard = MGuardShape::New(obj, objShape, Bailout_CachedShapeGuard);
+    current->add(guard);
 
     spew("Inlining monomorphic GETPROP");
     Shape *shape = objShape->search(cx, id);
@@ -6110,7 +6112,8 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
             // long as the shape is not in dictionary mode. We cannot be sure
             // that the shape is still a lastProperty, and calling Shape::search
             // on dictionary mode shapes that aren't lastProperty is invalid.
-            obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
+            MGuardShape *guard = MGuardShape::New(obj, objShape, Bailout_CachedShapeGuard);
+            current->add(guard);
 
             Shape *shape = objShape->search(cx, NameToId(name));
             JS_ASSERT(shape);
@@ -6437,17 +6440,4 @@ IonBuilder::addBoundsCheck(MDefinition *index, MDefinition *length)
         check->setNotMovable();
 
     return check;
-}
-
-MInstruction *
-IonBuilder::addShapeGuard(MDefinition *obj, const Shape *shape, BailoutKind bailoutKind)
-{
-    MGuardShape *guard = MGuardShape::New(obj, shape, bailoutKind);
-    current->add(guard);
-
-    // If a shape guard failed in the past, don't optimize shape guard.
-    if (failedShapeGuard_)
-        guard->setNotMovable();
-
-    return guard;
 }

@@ -35,9 +35,8 @@
 #include "nsPIWindowRoot.h"
 #include "nsFrameManager.h"
 #include "nsIObserverService.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/LookAndFeel.h"
 #include "mozilla/Services.h"
+#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 
@@ -1613,10 +1612,9 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
   // Walk all of the menu's children, checking to see if any of them has a
   // command attribute. If so, then several attributes must potentially be updated.
  
-  nsCOMPtr<nsIDocument> document = aPopup->GetCurrentDoc();
-  if (!document) {
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(aPopup->GetDocument()));
+  if (!domDoc)
     return;
-  }
 
   for (nsCOMPtr<nsIContent> grandChild = aPopup->GetFirstChild();
        grandChild;
@@ -1627,12 +1625,13 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
       grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
       if (!command.IsEmpty()) {
         // We do! Look it up in our document
-        nsRefPtr<dom::Element> commandElement =
-          document->GetElementById(command);
-        if (commandElement) {
+        nsCOMPtr<nsIDOMElement> commandElt;
+        domDoc->GetElementById(command, getter_AddRefs(commandElt));
+        nsCOMPtr<nsIContent> commandContent(do_QueryInterface(commandElt));
+        if (commandContent) {
           nsAutoString commandValue;
           // The menu's disabled state needs to be updated to match the command.
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandValue, true);
           else
             grandChild->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, true);
@@ -1640,16 +1639,16 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
           // The menu's label, accesskey checked and hidden states need to be updated
           // to match the command. Note that unlike the disabled state if the
           // command has *no* value, we assume the menu is supplying its own.
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue, true);
 
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, commandValue, true);
 
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandValue, true);
 
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue, true);
         }
       }

@@ -943,6 +943,8 @@ nsBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // clean up the container box's layout manager and child boxes
   SetLayoutManager(nullptr);
 
+  DestroyAbsoluteFrames(aDestructRoot);
+
   nsContainerFrame::DestroyFrom(aDestructRoot);
 } 
 

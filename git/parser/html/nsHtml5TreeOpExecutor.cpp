@@ -83,7 +83,7 @@ nsHtml5TreeOpExecutor::~nsHtml5TreeOpExecutor()
 {
   if (gBackgroundFlushList && isInList()) {
     mOpQueue.Clear();
-    removeFrom(*gBackgroundFlushList);
+    remove();
     if (gBackgroundFlushList->isEmpty()) {
       delete gBackgroundFlushList;
       gBackgroundFlushList = nullptr;

@@ -78,8 +78,6 @@ class PropertyIteratorObject : public JSObject
     inline NativeIterator *getNativeIterator() const;
     inline void setNativeIterator(js::NativeIterator *ni);
 
-    size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
-
   private:
     static void trace(JSTracer *trc, RawObject obj);
     static void finalize(FreeOp *fop, RawObject obj);

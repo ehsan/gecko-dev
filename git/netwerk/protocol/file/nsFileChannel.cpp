@@ -273,8 +273,7 @@ nsFileChannel::nsFileChannel(nsIURI *uri)
 nsresult
 nsFileChannel::MakeFileInputStream(nsIFile *file,
                                    nsCOMPtr<nsIInputStream> &stream,
-                                   nsCString &contentType,
-                                   bool async)
+                                   nsCString &contentType)
 {
   // we accept that this might result in a disk hit to stat the file
   bool isDir;
@@ -283,14 +282,7 @@ nsFileChannel::MakeFileInputStream(nsIFile *file,
     // canonicalize error message
     if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
       rv = NS_ERROR_FILE_NOT_FOUND;
-
-    if (async && (NS_ERROR_FILE_NOT_FOUND == rv)) {
-      // We don't return "Not Found" errors here. Since we could not find
-      // the file, it's not a directory anyway.
-      isDir = false;
-    } else {
-      return rv;
-    }
+    return rv;
   }
 
   if (isDir) {
@@ -298,8 +290,7 @@ nsFileChannel::MakeFileInputStream(nsIFile *file,
     if (NS_SUCCEEDED(rv) && !HasContentTypeHint())
       contentType.AssignLiteral(APPLICATION_HTTP_INDEX_FORMAT);
   } else {
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(stream), file, -1, -1,
-                                    async? nsIFileInputStream::DEFER_OPEN : 0);
+    rv = NS_NewLocalFileInputStream(getter_AddRefs(stream), file);
     if (NS_SUCCEEDED(rv) && !HasContentTypeHint()) {
       // Use file extension to infer content type
       nsCOMPtr<nsIMIMEService> mime = do_GetService("@mozilla.org/mime;1", &rv);
@@ -373,7 +364,7 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
       SetContentType(NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM));
   } else {
     nsAutoCString contentType;
-    rv = MakeFileInputStream(file, stream, contentType, async);
+    rv = MakeFileInputStream(file, stream, contentType);
     if (NS_FAILED(rv))
       return rv;
 
@@ -383,15 +374,8 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
     if (mContentLength < 0) {
       int64_t size;
       rv = file->GetFileSize(&size);
-      if (NS_FAILED(rv)) {
-        if (async && 
-            (NS_ERROR_FILE_NOT_FOUND == rv ||
-             NS_ERROR_FILE_TARGET_DOES_NOT_EXIST == rv)) {
-          size = 0;
-        } else {
-          return rv;
-        }
-      }
+      if (NS_FAILED(rv))
+        return rv;
       mContentLength = size;
     }
     if (!contentType.IsEmpty())

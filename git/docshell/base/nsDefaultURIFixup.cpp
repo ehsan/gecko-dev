@@ -20,7 +20,6 @@
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
 #include "mozilla/Preferences.h"
-#include "nsIObserverService.h"
 
 using namespace mozilla;
 
@@ -345,17 +344,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
 
         spec.Insert(url, 0);
 
-        nsresult rv = NS_NewURI(aURI, spec);
-        if (NS_FAILED(rv))
-            return rv;
-
-        nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
-        if (obsSvc) {
-            obsSvc->NotifyObservers(*aURI,
-                                    "defaultURIFixup-using-keyword-pref",
-                                    nullptr);
-        }
-        return NS_OK;
+        return NS_NewURI(aURI, spec);
     }
 
 #ifdef MOZ_TOOLKIT_SEARCH
@@ -817,10 +806,7 @@ nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
     if (((spaceLoc < dotLoc || quoteLoc < dotLoc) &&
          (spaceLoc < colonLoc || quoteLoc < colonLoc) &&
          (spaceLoc < qMarkLoc || quoteLoc < qMarkLoc)) ||
-        qMarkLoc == 0 ||
-        (dotLoc == uint32_t(kNotFound) &&
-                colonLoc == uint32_t(kNotFound) &&
-                qMarkLoc == uint32_t(kNotFound) ) )
+        qMarkLoc == 0)
     {
         KeywordToURI(aURIString, aURI);
     }

@@ -29,9 +29,11 @@ USING_BLUETOOTH_NAMESPACE
 static struct BluedroidFunctions
 {
   bool initialized;
+  bool tried_initialization;
 
   BluedroidFunctions() :
-    initialized(false)
+    initialized(false),
+    tried_initialization(false)
   {
   }
 
@@ -40,13 +42,17 @@ static struct BluedroidFunctions
   int (* bt_is_enabled)();
 } sBluedroidFunctions;
 
-static bool
+bool
 EnsureBluetoothInit()
 {
-  if (sBluedroidFunctions.initialized) {
-    return true;
+  if (sBluedroidFunctions.tried_initialization)
+  {
+    return sBluedroidFunctions.initialized;
   }
 
+  sBluedroidFunctions.initialized = false;
+  sBluedroidFunctions.tried_initialization = true;
+  
   void* handle = dlopen("libbluedroid.so", RTLD_LAZY);
 
   if (!handle) {
@@ -69,12 +75,29 @@ EnsureBluetoothInit()
     NS_ERROR("Failed to attach bt_is_enabled function");
     return false;
   }
-
   sBluedroidFunctions.initialized = true;
   return true;
 }
 
-static nsresult
+int
+IsBluetoothEnabled()
+{
+  return sBluedroidFunctions.bt_is_enabled();
+}
+
+int
+EnableBluetooth()
+{
+  return sBluedroidFunctions.bt_enable();
+}
+
+int
+DisableBluetooth()
+{
+  return sBluedroidFunctions.bt_disable();
+}
+
+nsresult
 StartStopGonkBluetooth(bool aShouldEnable)
 {
   bool result;
@@ -88,26 +111,16 @@ StartStopGonkBluetooth(bool aShouldEnable)
   }
 
   // return 1 if it's enabled, 0 if it's disabled, and -1 on error
-  int isEnabled = sBluedroidFunctions.bt_is_enabled();
+  int isEnabled = IsBluetoothEnabled();
 
   if ((isEnabled == 1 && aShouldEnable) || (isEnabled == 0 && !aShouldEnable)) {
-    return NS_OK;
-  }
-  if (aShouldEnable) {
-    result = (sBluedroidFunctions.bt_enable() == 0) ? true : false;
-    if (sBluedroidFunctions.bt_is_enabled() < 0) {
-      // if isEnabled < 0, this means we brought up the firmware, but something
-      // went wrong with bluetoothd. Post a warning message, but try to proceed
-      // with firmware unloading if that was requested, so we can retry later.
-      NS_WARNING("Bluetooth firmware up, but cannot connect to HCI socket! Check bluetoothd and try stopping/starting bluetooth again.");
-      // Just disable now, return an error.
-      if (sBluedroidFunctions.bt_disable() != 0) {
-        NS_WARNING("Problem shutting down bluetooth after error in bringup!");
-      }
-      return NS_ERROR_FAILURE;
-    }
+    result = true;
+  } else if (isEnabled < 0) {
+    result = false;
+  } else if (aShouldEnable) {
+    result = (EnableBluetooth() == 0) ? true : false;
   } else {
-    result = (sBluedroidFunctions.bt_disable() == 0) ? true : false;
+    result = (DisableBluetooth() == 0) ? true : false;
   }
   if (!result) {
     NS_WARNING("Could not set gonk bluetooth firmware!");

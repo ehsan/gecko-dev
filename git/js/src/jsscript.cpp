@@ -1826,11 +1826,8 @@ JSScript::isShortRunning()
 {
     return length < 100 &&
            hasAnalysis() &&
-           !analysis()->hasFunctionCalls()
-#ifdef JS_METHODJIT
-           && getMaxLoopCount() < 40
-#endif
-           ;
+           !analysis()->hasFunctionCalls() &&
+           getMaxLoopCount() < 40;
 }
 
 bool
@@ -1849,7 +1846,7 @@ JSScript::enclosingScriptsCompiledSuccessfully() const
     while (enclosing) {
         if (enclosing->isFunction()) {
             RawFunction fun = enclosing->toFunction();
-            if (!fun->script().get(nogc))
+            if (!fun->script())
                 return false;
             enclosing = fun->script()->enclosingScope_;
         } else {
@@ -2117,7 +2114,7 @@ unsigned
 CurrentLine(JSContext *cx)
 {
     AutoAssertNoGC nogc;
-    return PCToLineNumber(cx->fp()->script().get(nogc), cx->regs().pc);
+    return PCToLineNumber(cx->fp()->script(), cx->regs().pc);
 }
 
 void
@@ -2134,9 +2131,9 @@ CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *line
         return;
     }
 
-    RawScript script = iter.script().get(nogc);
+    RawScript script = iter.script();
     *file = script->filename;
-    *linenop = PCToLineNumber(iter.script().get(nogc), iter.pc());
+    *linenop = PCToLineNumber(iter.script(), iter.pc());
     *origin = script->originPrincipals;
 }
 

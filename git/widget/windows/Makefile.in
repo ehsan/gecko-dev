@@ -18,10 +18,6 @@ RESFILE		= widget.res
 MODULE_NAME	= nsWidgetWinModule
 LIBXUL_LIBRARY = 1
 
-ifdef MOZ_METRO
-DIRS = winrt
-endif
-
 CPPSRCS = \
   nsWindow.cpp \
   nsWindowGfx.cpp \

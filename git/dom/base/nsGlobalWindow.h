@@ -65,7 +65,6 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsIDOMApplicationRegistry.h"
 #include "nsIIdleObserver.h"
-#include "nsIDOMWakeLock.h"
 
 // JS includes
 #include "jsapi.h"
@@ -636,8 +635,6 @@ protected:
   bool mAddActiveEventFuzzTime;
 
   nsCOMPtr <nsIIdleService> mIdleService;
-
-  nsCOMPtr <nsIDOMMozWakeLock> mWakeLock;
 
   static bool sIdleObserversAPIFuzzTimeDisabled;
 

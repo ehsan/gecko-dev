@@ -811,7 +811,7 @@ XrayResolveNativeProperty(JSContext* cx, JSObject* wrapper, JSObject* obj,
 bool
 XrayEnumerateAttributes(Prefable<JSPropertySpec>* attributes,
                         jsid* attributeIds, JSPropertySpec* attributeSpecs,
-                        unsigned flags, JS::AutoIdVector& props)
+                        JS::AutoIdVector& props)
 {
   for (; attributes->specs; ++attributes) {
     if (attributes->enabled) {
@@ -819,8 +819,7 @@ XrayEnumerateAttributes(Prefable<JSPropertySpec>* attributes,
       // looking at now.
       size_t i = attributes->specs - attributeSpecs;
       for ( ; attributeIds[i] != JSID_VOID; ++i) {
-        if (((flags & JSITER_HIDDEN) ||
-             (attributeSpecs[i].flags & JSPROP_ENUMERATE)) &&
+        if ((attributeSpecs[i].flags & JSPROP_ENUMERATE) &&
             !props.append(attributeIds[i])) {
           return false;
         }
@@ -831,8 +830,7 @@ XrayEnumerateAttributes(Prefable<JSPropertySpec>* attributes,
 }
 
 bool
-XrayEnumerateProperties(unsigned flags, JS::AutoIdVector& props,
-                        DOMObjectType type,
+XrayEnumerateProperties(JS::AutoIdVector& props, DOMObjectType type,
                         const NativeProperties* nativeProperties)
 {
   Prefable<JSFunctionSpec>* methods;
@@ -855,8 +853,7 @@ XrayEnumerateProperties(unsigned flags, JS::AutoIdVector& props,
         // looking at now.
         size_t i = method->specs - methodsSpecs;
         for ( ; methodIds[i] != JSID_VOID; ++i) {
-          if (((flags & JSITER_HIDDEN) ||
-               (methodsSpecs[i].flags & JSPROP_ENUMERATE)) &&
+          if ((methodsSpecs[i].flags & JSPROP_ENUMERATE) &&
               !props.append(methodIds[i])) {
             return false;
           }
@@ -870,22 +867,21 @@ XrayEnumerateProperties(unsigned flags, JS::AutoIdVector& props,
         !XrayEnumerateAttributes(nativeProperties->staticAttributes,
                                  nativeProperties->staticAttributeIds,
                                  nativeProperties->staticAttributeSpecs,
-                                 flags, props)) {
+                                 props)) {
       return false;
     }
   } else {
     if (nativeProperties->attributes &&
         !XrayEnumerateAttributes(nativeProperties->attributes,
                                  nativeProperties->attributeIds,
-                                 nativeProperties->attributeSpecs,
-                                 flags, props)) {
+                                 nativeProperties->attributeSpecs, props)) {
       return false;
     }
     if (nativeProperties->unforgeableAttributes &&
         !XrayEnumerateAttributes(nativeProperties->unforgeableAttributes,
                                  nativeProperties->unforgeableAttributeIds,
                                  nativeProperties->unforgeableAttributeSpecs,
-                                 flags, props)) {
+                                 props)) {
       return false;
     }
   }
@@ -913,7 +909,7 @@ bool
 XrayEnumerateNativeProperties(JSContext* cx, JSObject* wrapper,
                               const NativePropertyHooks* nativePropertyHooks,
                               DOMObjectType type, JSObject* obj,
-                              unsigned flags, JS::AutoIdVector& props)
+                              JS::AutoIdVector& props)
 {
   if (type == eInterface &&
       nativePropertyHooks->mPrototypeID != prototypes::id::_ID_Count &&
@@ -923,7 +919,6 @@ XrayEnumerateNativeProperties(JSContext* cx, JSObject* wrapper,
 
   if (type == eInterfacePrototype &&
       nativePropertyHooks->mConstructorID != constructors::id::_ID_Count &&
-      (flags & JSITER_HIDDEN) &&
       !AddStringToIDVector(cx, props, "constructor")) {
     return false;
   }
@@ -932,13 +927,13 @@ XrayEnumerateNativeProperties(JSContext* cx, JSObject* wrapper,
     nativePropertyHooks->mNativeProperties;
 
   if (nativeProperties.regular &&
-      !XrayEnumerateProperties(flags, props, type, nativeProperties.regular)) {
+      !XrayEnumerateProperties(props, type, nativeProperties.regular)) {
     return false;
   }
 
   if (nativeProperties.chromeOnly &&
       xpc::AccessCheck::isChrome(js::GetObjectCompartment(wrapper)) &&
-      !XrayEnumerateProperties(flags, props, type, nativeProperties.chromeOnly)) {
+      !XrayEnumerateProperties(props, type, nativeProperties.chromeOnly)) {
     return false;
   }
 
@@ -947,7 +942,7 @@ XrayEnumerateNativeProperties(JSContext* cx, JSObject* wrapper,
 
 bool
 XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
-                        unsigned flags, JS::AutoIdVector& props)
+                        bool ownOnly, JS::AutoIdVector& props)
 {
   DOMObjectType type;
   const NativePropertyHooks* nativePropertyHooks =
@@ -960,7 +955,7 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
       return false;
     }
 
-    if (flags & JSITER_OWNONLY) {
+    if (ownOnly) {
       return true;
     }
 
@@ -972,12 +967,8 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
   if (type == eInterfacePrototype) {
     do {
       if (!XrayEnumerateNativeProperties(cx, wrapper, nativePropertyHooks, type,
-                                         obj, flags, props)) {
+                                         obj, props)) {
         return false;
-      }
-
-      if (flags & JSITER_OWNONLY) {
-        return true;
       }
     } while ((nativePropertyHooks = nativePropertyHooks->mProtoHooks));
 
@@ -985,7 +976,7 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
   }
 
   return XrayEnumerateNativeProperties(cx, wrapper, nativePropertyHooks, type,
-                                       obj, flags, props);
+                                       obj, props);
 }
 
 NativePropertyHooks sWorkerNativePropertyHooks = {
@@ -1172,8 +1163,7 @@ NativeToString(JSContext* cx, JSObject* wrapper, JSObject* obj, const char* pre,
         str = ConcatJSString(cx, "[object ",
                              JS_NewStringCopyZ(cx, JS_GetClass(obj)->name),
                                                "]");
-      } else {
-        MOZ_ASSERT(JS_IsNativeFunction(obj, Constructor));
+      } else if (JS_IsNativeFunction(obj, Constructor)) {
         str = JS_DecompileFunction(cx, JS_GetObjectFunction(obj), 0);
       }
       str = ConcatJSString(cx, pre, str, post);

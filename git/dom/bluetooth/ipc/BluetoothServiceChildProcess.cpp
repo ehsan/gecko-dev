@@ -323,7 +323,7 @@ BluetoothServiceChildProcess::Disconnect(
   SendRequest(aRunnable, DisconnectRequest(aProfileId));
 }
 
-void
+bool
 BluetoothServiceChildProcess::SendFile(
   const nsAString& aDeviceAddress,
   BlobParent* aBlobParent,
@@ -332,15 +332,17 @@ BluetoothServiceChildProcess::SendFile(
 {
   SendRequest(aRunnable,
               SendFileRequest(nsString(aDeviceAddress), nullptr, aBlobChild));
+  return true;
 }
 
-void
+bool
 BluetoothServiceChildProcess::StopSendingFile(
   const nsAString& aDeviceAddress,
   BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
               StopSendingFileRequest(nsString(aDeviceAddress)));
+  return true;
 }
 
 void

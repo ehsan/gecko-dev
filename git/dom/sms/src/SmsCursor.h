@@ -12,7 +12,7 @@
 #include "mozilla/Attributes.h"
 
 class nsIDOMMozSmsMessage;
-class nsISmsRequest;
+class nsIDOMMozSmsRequest;
 
 namespace mozilla {
 namespace dom {
@@ -27,7 +27,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(SmsCursor)
 
   SmsCursor();
-  SmsCursor(int32_t aListId, nsISmsRequest* aRequest);
+  SmsCursor(int32_t aListId, nsIDOMMozSmsRequest* aRequest);
 
   ~SmsCursor();
 
@@ -37,7 +37,7 @@ public:
 
 private:
   int32_t                       mListId;
-  nsCOMPtr<nsISmsRequest>       mRequest;
+  nsCOMPtr<nsIDOMMozSmsRequest> mRequest;
   nsCOMPtr<nsIDOMMozSmsMessage> mMessage;
 };
 

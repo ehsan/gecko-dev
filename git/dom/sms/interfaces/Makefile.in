@@ -22,7 +22,7 @@ XPIDLSRCS = \
   nsIDOMSmsFilter.idl \
   nsIDOMSmsCursor.idl \
   nsISmsDatabaseService.idl \
-  nsISmsRequest.idl \
+  nsISmsRequestManager.idl \
   nsISmsService.idl \
   $(NULL)
 

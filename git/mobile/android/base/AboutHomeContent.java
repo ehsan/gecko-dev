@@ -29,6 +29,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.Path;
 import android.graphics.Paint;
@@ -552,10 +553,10 @@ public class AboutHomeContent extends ScrollView
                         Favicons favicons = mActivity.getFavicons();
                         favicons.loadFavicon(pageUrl, iconUrl, true,
                                     new Favicons.OnFaviconLoadedListener() {
-                            public void onFaviconLoaded(String url, Bitmap favicon) {
+                            public void onFaviconLoaded(String url, Drawable favicon) {
                                 if (favicon != null) {
                                     ImageView icon = (ImageView) row.findViewById(R.id.addon_icon);
-                                    icon.setImageBitmap(favicon);
+                                    icon.setImageDrawable(favicon);
                                 }
                             }
                         });
@@ -589,7 +590,7 @@ public class AboutHomeContent extends ScrollView
                 }
 
                 ContentResolver resolver = mActivity.getContentResolver();
-                final Bitmap favicon = BrowserDB.getFaviconForUrl(resolver, url);
+                final BitmapDrawable favicon = BrowserDB.getFaviconForUrl(resolver, url);
                 lastTabUrlsList.add(url);
 
                 AboutHomeContent.this.post(new Runnable() {
@@ -598,7 +599,7 @@ public class AboutHomeContent extends ScrollView
                         ((TextView) container.findViewById(R.id.last_tab_title)).setText(tab.getSelectedTitle());
                         ((TextView) container.findViewById(R.id.last_tab_url)).setText(tab.getSelectedUrl());
                         if (favicon != null) {
-                            ((ImageView) container.findViewById(R.id.last_tab_favicon)).setImageBitmap(favicon);
+                            ((ImageView) container.findViewById(R.id.last_tab_favicon)).setImageDrawable(favicon);
                         }
 
                         container.setOnClickListener(new View.OnClickListener() {

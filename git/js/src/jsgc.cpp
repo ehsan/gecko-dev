@@ -82,8 +82,8 @@
 #include "ion/IonCode.h"
 #ifdef JS_ION
 # include "ion/IonMacroAssembler.h"
-#include "ion/IonFrameIterator.h"
 #endif
+#include "ion/IonFrameIterator.h"
 
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"

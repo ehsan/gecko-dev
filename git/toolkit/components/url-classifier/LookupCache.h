@@ -114,7 +114,6 @@ public:
   nsresult Build(AddPrefixArray& aAddPrefixes,
                  AddCompleteArray& aAddCompletes);
   nsresult GetPrefixes(nsTArray<uint32_t>* aAddPrefixes);
-  void ClearCompleteCache();
 
 #if DEBUG && defined(PR_LOGGING)
   void Dump();
@@ -128,7 +127,7 @@ public:
   bool IsPrimed();
 
 private:
-  void ClearAll();
+  void Clear();
   nsresult Reset();
   void UpdateHeader();
   nsresult ReadHeader(nsIInputStream* aInputStream);

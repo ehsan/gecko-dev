@@ -14,9 +14,7 @@
 
 #include "gc/Root.h"
 #include "vm/GlobalObject.h"
-#ifdef JS_ION
 #include "ion/IonFrames.h"
-#endif
 
 #include "vm/Stack-inl.h"
 
@@ -109,12 +107,8 @@ CompilerOutput::mjit() const
 inline ion::IonScript *
 CompilerOutput::ion() const
 {
-#ifdef JS_ION
     JS_ASSERT(isIon() && isValid());
     return script->ionScript();
-#else
-    return NULL;
-#endif
 }
 
 inline bool
@@ -123,7 +117,7 @@ CompilerOutput::isValid() const
     if (!script)
         return false;
 
-#if defined(DEBUG) && (defined(JS_METHODJIT) || defined(JS_ION))
+#ifdef DEBUG
     TypeCompartment &types = script->compartment()->types;
 #endif
 
@@ -140,7 +134,6 @@ CompilerOutput::isValid() const
     }
 #endif
 
-#ifdef JS_ION
     if (isIon()) {
         if (script->hasIonScript()) {
             JS_ASSERT(this == script->ion->recompileInfo().compilerOutput(types));
@@ -150,7 +143,6 @@ CompilerOutput::isValid() const
             return true;
         return false;
     }
-#endif
     return false;
 }
 
@@ -692,7 +684,7 @@ UseNewTypeForClone(JSFunction *fun)
      * instance a singleton type and clone the underlying script.
      */
 
-    RawScript script = fun->script().get(nogc);
+    RawScript script = fun->script();
 
     if (script->length >= 50)
         return false;
@@ -894,7 +886,7 @@ TypeScript::GetPcScript(JSContext *cx, MutableHandleScript script, jsbytecode **
         return;
     }
 #endif
-    script.set(cx->fp()->script().get(nogc));
+    script.set(cx->fp()->script());
     *pc = cx->regs().pc;
 }
 

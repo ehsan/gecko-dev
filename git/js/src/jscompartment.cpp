@@ -29,10 +29,8 @@
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
-#ifdef JS_ION
 #include "ion/IonCompartment.h"
 #include "ion/Ion.h"
-#endif
 
 #if ENABLE_YARR_JIT
 #include "assembler/jit/ExecutableAllocator.h"
@@ -563,11 +561,7 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
             ionCompartment_->sweep(fop);
 #endif
 
-        /*
-         * JIT code increments activeUseCount for any RegExpShared used by jit
-         * code for the lifetime of the JIT script. Thus, we must perform
-         * sweeping after clearing jit code.
-         */
+        /* JIT code can hold references on RegExpShared, so sweep regexps after clearing code. */
         regExps.sweep(rt);
     }
 

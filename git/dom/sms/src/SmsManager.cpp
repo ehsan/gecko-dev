@@ -13,13 +13,18 @@
 #include "Constants.h"
 #include "SmsEvent.h"
 #include "nsIDOMSmsMessage.h"
-#include "SmsRequest.h"
+#include "nsIDOMSmsRequest.h"
+#include "SmsRequestManager.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsISmsDatabaseService.h"
 #include "nsIXPConnect.h"
 #include "nsIPermissionManager.h"
 
+/**
+ * We have to use macros here because our leak analysis tool things we are
+ * leaking strings when we have |static const nsString|. Sad :(
+ */
 #define RECEIVED_EVENT_NAME         NS_LITERAL_STRING("received")
 #define SENT_EVENT_NAME             NS_LITERAL_STRING("sent")
 #define DELIVERY_SUCCESS_EVENT_NAME NS_LITERAL_STRING("deliverysuccess")
@@ -150,16 +155,24 @@ SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIDOMMozSmsRequest> request = SmsRequest::Create(this);
+  nsCOMPtr<nsIDOMMozSmsRequest> request;
+
+  nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+
+  int32_t requestId;
+  nsresult rv = requestManager->CreateRequest(this, getter_AddRefs(request),
+                                              &requestId);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Failed to create the request!");
+    return rv;
+  }
+
   nsDependentJSString number;
   number.init(aCx, aNumber);
 
-  nsCOMPtr<nsISmsRequest> forwarder =
-    new SmsRequestForwarder(static_cast<SmsRequest*>(request.get()));
+  smsService->Send(number, aMessage, requestId, 0);
 
-  smsService->Send(number, aMessage, forwarder);
-
-  nsresult rv = nsContentUtils::WrapNative(aCx, aGlobal, request, aRequest);
+  rv = nsContentUtils::WrapNative(aCx, aGlobal, request, aRequest);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the js value!");
     return rv;
@@ -219,27 +232,42 @@ SmsManager::Send(const jsval& aNumber, const nsAString& aMessage, jsval* aReturn
 NS_IMETHODIMP
 SmsManager::GetMessageMoz(int32_t aId, nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+
+  int32_t requestId;
+  nsresult rv = requestManager->CreateRequest(this, aRequest, &requestId);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Failed to create the request!");
+    return rv;
+  }
+
   nsCOMPtr<nsISmsDatabaseService> smsDBService =
     do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
-  nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  smsDBService->GetMessageMoz(aId, forwarder);
-  req.forget(aRequest);
+
+  smsDBService->GetMessageMoz(aId, requestId, 0);
+
   return NS_OK;
 }
 
 nsresult
 SmsManager::Delete(int32_t aId, nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+
+  int32_t requestId;
+  nsresult rv = requestManager->CreateRequest(this, aRequest, &requestId);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Failed to create the request!");
+    return rv;
+  }
+
   nsCOMPtr<nsISmsDatabaseService> smsDBService =
     do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  smsDBService->DeleteMessage(aId, forwarder);
-  req.forget(aRequest);
+  smsDBService->DeleteMessage(aId, requestId, 0);
+
   return NS_OK;
 }
 
@@ -273,18 +301,27 @@ SmsManager::GetMessages(nsIDOMMozSmsFilter* aFilter, bool aReverse,
                         nsIDOMMozSmsRequest** aRequest)
 {
   nsCOMPtr<nsIDOMMozSmsFilter> filter = aFilter;
-  
+
   if (!filter) {
     filter = new SmsFilter();
   }
 
-  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+
+  int32_t requestId;
+  nsresult rv = requestManager->CreateRequest(this, aRequest,
+                                              &requestId);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Failed to create the request!");
+    return rv;
+  }
+
   nsCOMPtr<nsISmsDatabaseService> smsDBService =
     do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
-  nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  smsDBService->CreateMessageList(filter, aReverse, forwarder);
-  req.forget(aRequest);
+
+  smsDBService->CreateMessageList(filter, aReverse, requestId, 0);
+
   return NS_OK;
 }
 
@@ -292,14 +329,22 @@ NS_IMETHODIMP
 SmsManager::MarkMessageRead(int32_t aId, bool aValue,
                             nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsISmsRequestManager> requestManager =
+    do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+
+  int32_t requestId;
+  nsresult rv = requestManager->CreateRequest(this, aRequest, &requestId);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Failed to create the request!");
+    return rv;
+  }
+
   nsCOMPtr<nsISmsDatabaseService> smsDBService =
     do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
-  nsCOMPtr<nsISmsRequest> forwarder =
-    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  smsDBService->MarkMessageRead(aId, aValue, forwarder);
-  req.forget(aRequest);
+
+  smsDBService->MarkMessageRead(aId, aValue, requestId, 0);
+
   return NS_OK;
 }
 

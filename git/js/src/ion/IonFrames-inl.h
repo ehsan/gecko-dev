@@ -29,7 +29,7 @@ SizeOfFramePrefix(FrameType type)
     switch (type) {
       case IonFrame_Entry:
         return IonEntryFrameLayout::Size();
-      case IonFrame_OptimizedJS:
+      case IonFrame_JS:
       case IonFrame_Bailed_JS:
         return IonJSFrameLayout::Size();
       case IonFrame_Rectifier:
@@ -97,9 +97,19 @@ GetTopIonJSScript(JSContext *cx, const SafepointIndex **safepointIndexOut, void 
     if (returnAddrOut)
         *returnAddrOut = (void *) iter.returnAddressToFp();
 
-    JS_ASSERT(iter.isScripted());
+    JS_ASSERT(iter.type() == IonFrame_JS);
     IonJSFrameLayout *frame = static_cast<IonJSFrameLayout*>(iter.current());
-    return ScriptFromCalleeToken(frame->calleeToken());
+    switch (GetCalleeTokenTag(frame->calleeToken())) {
+      case CalleeToken_Function: {
+        JSFunction *fun = CalleeTokenToFunction(frame->calleeToken());
+        return fun->script();
+      }
+      case CalleeToken_Script:
+        return CalleeTokenToScript(frame->calleeToken());
+      default:
+        JS_NOT_REACHED("unexpected callee token kind");
+        return NULL;
+    }
 }
 
 } // namespace ion

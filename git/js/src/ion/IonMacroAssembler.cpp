@@ -88,7 +88,7 @@ MacroAssembler::PushRegsInMask(RegisterSet set)
 }
 
 void
-MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
+MacroAssembler::PopRegsInMask(RegisterSet set)
 {
     size_t diff = set.gprs().size() * STACK_SLOT_SIZE +
                   set.fpus().size() * sizeof(double);
@@ -96,13 +96,11 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
 
     for (GeneralRegisterIterator iter(set.gprs()); iter.more(); iter++) {
         diff -= STACK_SLOT_SIZE;
-        if (!ignore.has(*iter))
-            loadPtr(Address(StackPointer, diff), *iter);
+        loadPtr(Address(StackPointer, diff), *iter);
     }
     for (FloatRegisterIterator iter(set.fpus()); iter.more(); iter++) {
         diff -= sizeof(double);
-        if (!ignore.has(*iter))
-            loadDouble(Address(StackPointer, diff), *iter);
+        loadDouble(Address(StackPointer, diff), *iter);
     }
 
     freeStack(reserved);
@@ -526,7 +524,7 @@ MacroAssembler::generateBailoutTail(Register scratch)
 
     branch32(Equal, ReturnReg, Imm32(BAILOUT_RETURN_BOUNDS_CHECK), &boundscheck);
     branch32(Equal, ReturnReg, Imm32(BAILOUT_RETURN_OVERRECURSED), &overrecursed);
-    branch32(Equal, ReturnReg, Imm32(BAILOUT_RETURN_SHAPE_GUARD), &invalidate);
+    branch32(Equal, ReturnReg, Imm32(BAILOUT_RETURN_INVALIDATE), &invalidate);
 
     // Fall-through: cached shape guard failure.
     {
@@ -541,7 +539,7 @@ MacroAssembler::generateBailoutTail(Register scratch)
     bind(&invalidate);
     {
         setupUnalignedABICall(0, scratch);
-        callWithABI(JS_FUNC_TO_DATA_PTR(void *, ShapeGuardFailure));
+        callWithABI(JS_FUNC_TO_DATA_PTR(void *, ForceInvalidation));
 
         branchTest32(Zero, ReturnReg, ReturnReg, &exception);
         jump(&interpret);

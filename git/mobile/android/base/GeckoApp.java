@@ -46,6 +46,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -2745,9 +2746,9 @@ abstract public class GeckoApp
                 if (tab != null) {
                     String url = tab.getURL();
                     String title = tab.getDisplayTitle();
-                    Bitmap favicon = tab.getFavicon();
+                    BitmapDrawable favicon = (BitmapDrawable)(tab.getFavicon());
                     if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
+                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon.getBitmap(), "");
                     }
                 }
                 return true;

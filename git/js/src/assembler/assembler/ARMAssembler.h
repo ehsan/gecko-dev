@@ -291,11 +291,6 @@ namespace JSC {
             {
             }
             int offset() {return m_offset;}
-
-            bool isSet() const {
-                return m_offset != -1;
-            }
-
         private:
             JmpSrc(int offset)
                 : m_offset(offset)

@@ -180,7 +180,7 @@ def addStubMember(memberId, member):
     # Add this member to the list.
     member.iface.stubMembers.append(member)
 
-def checkStubMember(member):
+def checkStubMember(member, isCustom):
     memberId = member.iface.name + "." + member.name
     if member.kind not in ('method', 'attribute'):
         raise UserError("Member %s is %r, not a method or attribute."
@@ -195,7 +195,8 @@ def checkStubMember(member):
 
     if (member.kind == 'attribute'
           and not member.readonly
-          and isSpecificInterfaceType(member.realtype, 'nsIVariant')):
+          and isSpecificInterfaceType(member.realtype, 'nsIVariant')
+          and not isCustom):
         raise UserError(
             "Attribute %s: Non-readonly attributes of type nsIVariant "
             "are not supported."
@@ -232,6 +233,7 @@ class Configuration:
         # optional settings
         self.irregularFilenames = config.get('irregularFilenames', {})
         self.customIncludes = config.get('customIncludes', [])
+        self.customQuickStubs = config.get('customQuickStubs', [])
         self.customReturnInterfaces = config.get('customReturnInterfaces', [])
         self.customMethodCalls = config.get('customMethodCalls', {})
 
@@ -315,7 +317,9 @@ def readConfigFile(filename, includePath, cachedir):
     # Now go through and check all the interfaces' members
     for iface in stubbedInterfaces:
         for member in iface.stubMembers:
-            checkStubMember(member)
+            cmc = conf.customMethodCalls.get(iface.name + "_" + header.methodNativeName(member), None)
+            skipgen = cmc is not None and cmc.get('skipgen', False)
+            checkStubMember(member, skipgen)
 
     for iface in conf.customReturnInterfaces:
         # just ensure that it exists so that we can grab it later
@@ -1025,15 +1029,20 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         f.write(callTemplate)
 
 def writeAttrStubs(f, customMethodCalls, stringtable, attr):
+    cmc = customMethodCalls.get(attr.iface.name + "_" + header.methodNativeName(attr), None)
+    custom = cmc and cmc.get('skipgen', False)
+
     getterName = (attr.iface.name + '_'
                   + header.attributeNativeName(attr, True))
-    writeQuickStub(f, customMethodCalls, attr, getterName)
+    if not custom:
+        writeQuickStub(f, customMethodCalls, attr, getterName)
     if attr.readonly:
         setterName = 'xpc_qsGetterOnlyPropertyStub'
     else:
         setterName = (attr.iface.name + '_'
                       + header.attributeNativeName(attr, False))
-        writeQuickStub(f, customMethodCalls, attr, setterName, isSetter=True)
+        if not custom:
+            writeQuickStub(f, customMethodCalls, attr, setterName, isSetter=True)
 
     ps = ('{%d, %s, %s}'
           % (stringtable.stringIndex(attr.name), getterName, setterName))
@@ -1042,8 +1051,12 @@ def writeAttrStubs(f, customMethodCalls, stringtable, attr):
 def writeMethodStub(f, customMethodCalls, stringtable, method):
     """ Write a method stub to `f`. Return an xpc_qsFunctionSpec initializer. """
 
+    cmc = customMethodCalls.get(method.iface.name + "_" + header.methodNativeName(method), None)
+    custom = cmc and cmc.get('skipgen', False)
+
     stubName = method.iface.name + '_' + header.methodNativeName(method)
-    writeQuickStub(f, customMethodCalls, method, stubName)
+    if not custom:
+        writeQuickStub(f, customMethodCalls, method, stubName)
     fs = '{%d, %d, %s}' % (stringtable.stringIndex(method.name),
                            len(method.params), stubName)
     return fs
@@ -1292,6 +1305,8 @@ def writeStubFile(filename, headerFilename, conf, interfaces):
             f.write('#include "%s"\n' % customInclude)
         f.write("\n\n")
         writeResultXPCInterfacesArray(f, conf, frozenset(resulttypes))
+        for customQS in conf.customQuickStubs:
+            f.write('#include "%s"\n' % customQS)
         stringtable = StringTable()
         for iface in interfaces:
             writeStubsForInterface(f, conf.customMethodCalls, stringtable, iface)

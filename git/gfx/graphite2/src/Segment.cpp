@@ -139,7 +139,14 @@ void Segment::appendSlot(int id, int cid, int gid, int iFeats, size_t coffset)
     m_charinfo[id].feats(iFeats);
     m_charinfo[id].base(coffset);
     const GlyphFace * theGlyph = m_face->glyphs().glyphSafe(gid);
-    m_charinfo[id].breakWeight(theGlyph ? theGlyph->attrs()[m_silf->aBreak()] : 0);
+    if (theGlyph)
+    {
+        m_charinfo[id].breakWeight(theGlyph->attrs()[m_silf->aBreak()]);
+    }
+    else
+    {
+        m_charinfo[id].breakWeight(0);
+    }
     
     aSlot->child(NULL);
     aSlot->setGlyph(this, gid, theGlyph);

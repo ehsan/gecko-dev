@@ -33,8 +33,6 @@ def abstractmethod(method):
 
 class DeviceManager:
 
-    logcatNeedsRoot = True
-
     @abstractmethod
     def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None, root=False):
         """
@@ -218,9 +216,13 @@ class DeviceManager:
         """
 
     @abstractmethod
-    def getFile(self, remoteFile, localFile):
+    def getFile(self, remoteFile, localFile = ''):
         """
         Copy file from device (remoteFile) to host (localFile)
+
+        returns:
+          success: contents of file, string
+          failure: None
         """
 
     @abstractmethod
@@ -489,24 +491,22 @@ class DeviceManager:
         #TODO: spawn this off in a separate thread/process so we can collect all the logcat information
 
         # Right now this is just clearing the logcat so we can only see what happens after this call.
-        self.shellCheckOutput(['/system/bin/logcat', '-c'], root=self.logcatNeedsRoot)
+        buf = StringIO.StringIO()
+        self.shell(['/system/bin/logcat', '-c'], buf, root=True)
 
-    def getLogcat(self, filterSpecs=["dalvikvm:S", "ConnectivityService:S",
-                                      "WifiMonitor:S", "WifiStateTracker:S",
-                                      "wpa_supplicant:S", "NetworkStateTracker:S"],
-                  format="time",
-                  filterOutRegexps=[]):
+    def getLogcat(self):
         """
-        Returns the contents of the logcat file as a list of strings
+        Returns the contents of the logcat file as a string
+
+        returns:
+          success: contents of logcat, string 
+          failure: None
         """
-        cmdline = ["/system/bin/logcat", "-v", format, "-d"] + filterSpecs
-        lines = self.shellCheckOutput(cmdline,
-                                      root=self.logcatNeedsRoot).split('\r')
+        buf = StringIO.StringIO()
+        if self.shell(["/system/bin/logcat", "-d", "dalvikvm:S", "ConnectivityService:S", "WifiMonitor:S", "WifiStateTracker:S", "wpa_supplicant:S", "NetworkStateTracker:S"], buf, root=True) != 0:
+            return None
 
-        for regex in filterOutRegexps:
-            lines = [line for line in lines if not re.search(regex, line)]
-
-        return lines
+        return str(buf.getvalue()[0:-1]).rstrip().split('\r')
 
     @staticmethod
     def _writePNG(buf, width, height):

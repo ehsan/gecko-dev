@@ -95,15 +95,6 @@ LoadContext::SetUsePrivateBrowsing(bool aUsePrivateBrowsing)
 }
 
 NS_IMETHODIMP
-LoadContext::SetPrivateBrowsing(bool aUsePrivateBrowsing)
-{
-  MOZ_ASSERT(mIsNotNull);
-
-  // We shouldn't need this on parent...
-  return NS_ERROR_UNEXPECTED;
-}
-
-NS_IMETHODIMP
 LoadContext::GetIsInBrowserElement(bool* aIsInBrowserElement)
 {
   MOZ_ASSERT(mIsNotNull);

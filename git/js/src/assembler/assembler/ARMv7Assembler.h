@@ -457,10 +457,6 @@ public:
         {
         }
 
-        bool isSet() const {
-            return m_offset != -1;
-        }
-
     private:
         JmpSrc(int offset)
             : m_offset(offset)

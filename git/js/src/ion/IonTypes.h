@@ -52,8 +52,8 @@ enum BailoutKind
     // A bailout triggered by a bounds-check failure.
     Bailout_BoundsCheck,
 
-    // A shape guard based on TI information failed.
-    Bailout_ShapeGuard,
+    // Like Bailout_Normal, but invalidate the current IonScript.
+    Bailout_Invalidate,
 
     // A shape guard based on JM ICs failed.
     Bailout_CachedShapeGuard

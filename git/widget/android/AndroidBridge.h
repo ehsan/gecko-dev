@@ -26,10 +26,8 @@
 #include "gfxRect.h"
 
 #include "nsIAndroidBridge.h"
-#include "nsISmsRequest.h"
 
 #include "mozilla/Likely.h"
-#include "mozilla/StaticPtr.h"
 
 // Some debug #defines
 // #define DEBUG_ANDROID_EVENTS
@@ -321,14 +319,13 @@ public:
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
     uint16_t GetNumberOfMessagesForText(const nsAString& aText);
-    void SendMessage(const nsAString& aNumber, const nsAString& aText, nsISmsRequest* aRequest);
+    void SendMessage(const nsAString& aNumber, const nsAString& aText, int32_t aRequestId, uint64_t aProcessId);
     int32_t SaveSentMessage(const nsAString& aRecipient, const nsAString& aBody, uint64_t aDate);
-    void GetMessage(int32_t aMessageId, nsISmsRequest* aRequest);
-    void DeleteMessage(int32_t aMessageId, nsISmsRequest* aRequest);
-    void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, nsISmsRequest* aRequest);
-    void GetNextMessageInList(int32_t aListId, nsISmsRequest* aRequest);
+    void GetMessage(int32_t aMessageId, int32_t aRequestId, uint64_t aProcessId);
+    void DeleteMessage(int32_t aMessageId, int32_t aRequestId, uint64_t aProcessId);
+    void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, int32_t aRequestId, uint64_t aProcessId);
+    void GetNextMessageInList(int32_t aListId, int32_t aRequestId, uint64_t aProcessId);
     void ClearMessageList(int32_t aListId);
-    already_AddRefed<nsISmsRequest> DequeueSmsRequest(int32_t aRequestId);
 
     bool IsTablet();
 
@@ -369,7 +366,6 @@ public:
 
 protected:
     static AndroidBridge *sBridge;
-    static StaticAutoPtr<nsTArray<nsCOMPtr<nsISmsRequest> > > sSmsRequests;
 
     // the global JavaVM
     JavaVM *mJavaVM;
@@ -400,8 +396,6 @@ protected:
     bool mHasNativeWindowFallback;
 
     int mAPIVersion;
-
-    int32_t QueueSmsRequest(nsISmsRequest* aRequest);
 
     // other things
     jmethodID jNotifyIME;

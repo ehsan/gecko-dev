@@ -297,15 +297,9 @@ LIRGeneratorARM::newLTableSwitchV(MTableSwitch *tableswitch)
 bool
 LIRGeneratorARM::visitGuardShape(MGuardShape *ins)
 {
-    JS_ASSERT(ins->obj()->type() == MIRType_Object);
-
     LDefinition tempObj = temp(LDefinition::OBJECT);
     LGuardShape *guard = new LGuardShape(useRegister(ins->obj()), tempObj);
-    if (!assignSnapshot(guard, ins->bailoutKind()))
-        return false;
-    if (!add(guard, ins))
-        return false;
-    return redefine(ins, ins->obj());
+    return assignSnapshot(guard, ins->bailoutKind()) && add(guard, ins);
 }
 
 bool

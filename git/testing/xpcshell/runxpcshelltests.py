@@ -588,15 +588,6 @@ class XPCShellTests(object):
     out = AutologOutput()
     out.post(out.make_testgroups(collection))
 
-  def logCommand(self, name, completeCmd, testdir):
-    self.log.info("TEST-INFO | %s | full command: %r" % (name, completeCmd))
-    self.log.info("TEST-INFO | %s | current directory: %r" % (name, testdir))
-    # Show only those environment variables that are changed from
-    # the ambient environment.
-    changedEnv = (set("%s=%s" % i for i in self.env.iteritems())
-                  - set("%s=%s" % i for i in os.environ.iteritems()))
-    self.log.info("TEST-INFO | %s | environment: %s" % (name, list(changedEnv)))
-
   def runTests(self, xpcshell, xrePath=None, appPath=None, symbolsPath=None,
                manifest=None, testdirs=None, testPath=None,
                interactive=False, verbose=False, keepGoing=False, logfiles=True,
@@ -794,7 +785,13 @@ class XPCShellTests(object):
       try:
         self.log.info("TEST-INFO | %s | running test ..." % name)
         if verbose:
-            self.logCommand(name, completeCmd, testdir)
+            self.log.info("TEST-INFO | %s | full command: %r" % (name, completeCmd))
+            self.log.info("TEST-INFO | %s | current directory: %r" % (name, testdir))
+            # Show only those environment variables that are changed from
+            # the ambient environment.
+            changedEnv = (set("%s=%s" % i for i in self.env.iteritems())
+                          - set("%s=%s" % i for i in os.environ.iteritems()))
+            self.log.info("TEST-INFO | %s | environment: %s" % (name, list(changedEnv)))
         startTime = time.time()
 
         proc = self.launchProcess(completeCmd,
@@ -898,7 +895,7 @@ class XPCShellTests(object):
           try:
             self.removeDir(self.profileDir)
           except Exception:
-            message = "TEST-UNEXPECTED-FAIL | %s | Failed to clean up the test profile directory: %s" % (name, sys.exc_info()[1])
+            message = "TEST-UNEXPECTED-FAIL | %s | Failed to clean up the test profile directory: %s" % (name, sys.exc_info()[0])
             self.log.error(message)
             print_stdout(stdout)
             print_stdout(traceback.format_exc())

@@ -879,9 +879,10 @@ bool
 IsDeviceConnectedTypeBoolean()
 {
 #if defined(MOZ_WIDGET_GONK)
+
   char connProp[PROPERTY_VALUE_MAX];
 
-  property_get(PROP_DEVICE_CONNECTED_TYPE, connProp, "boolean");
+  property_get(PROP_DEVICE_CONNECTED_TYPE, connProp, "array");
   if (strcmp(connProp, "boolean") == 0) {
     return true;
   }
@@ -2367,8 +2368,7 @@ void
 BluetoothDBusService::Disconnect(const uint16_t aProfileId,
                                  BluetoothReplyRunnable* aRunnable)
 {
-  if (aProfileId == (uint16_t)(BluetoothServiceUuid::Handsfree >> 32) ||
-      aProfileId == (uint16_t)(BluetoothServiceUuid::Headset >> 32)) {
+  if (aProfileId == (uint16_t)(BluetoothServiceUuid::Handsfree >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     hfp->Disconnect();
   } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::ObjectPush >> 32)) {
@@ -2557,7 +2557,7 @@ BluetoothDBusService::GetScoSocket(const nsAString& aAddress,
   return NS_OK;
 }
 
-void
+bool
 BluetoothDBusService::SendFile(const nsAString& aDeviceAddress,
                                BlobParent* aBlobParent,
                                BlobChild* aBlobChild,
@@ -2570,17 +2570,12 @@ BluetoothDBusService::SendFile(const nsAString& aDeviceAddress,
   // has been determined when calling 'Connect()'. Nevertheless, keep
   // it for future use.
   BluetoothOppManager* opp = BluetoothOppManager::Get();
-  BluetoothValue v = true;
-  nsString errorStr;
+  opp->SendFile(aBlobParent, aRunnable);
 
-  if (!opp->SendFile(aBlobParent)) {
-    errorStr.AssignLiteral("Calling SendFile() failed");
-  }
-
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  return true;
 }
 
-void
+bool
 BluetoothDBusService::StopSendingFile(const nsAString& aDeviceAddress,
                                       BluetoothReplyRunnable* aRunnable)
 {
@@ -2591,14 +2586,9 @@ BluetoothDBusService::StopSendingFile(const nsAString& aDeviceAddress,
   // has been determined when calling 'Connect()'. Nevertheless, keep
   // it for future use.
   BluetoothOppManager* opp = BluetoothOppManager::Get();
-  BluetoothValue v = true;
-  nsString errorStr;
+  opp->StopSendingFile(aRunnable);
 
-  if (!opp->StopSendingFile()) {
-    errorStr.AssignLiteral("Calling StopSendingFile() failed");
-  }
-
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  return true;
 }
 
 void
@@ -2613,14 +2603,7 @@ BluetoothDBusService::ConfirmReceivingFile(const nsAString& aDeviceAddress,
   // has been determined when calling 'Connect()'. Nevertheless, keep
   // it for future use.
   BluetoothOppManager* opp = BluetoothOppManager::Get();
-  BluetoothValue v = true;
-  nsString errorStr;
-
-  if (!opp->ConfirmReceivingFile(aConfirm)) {
-    errorStr.AssignLiteral("Calling ConfirmReceivingFile() failed");
-  }
-
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  opp->ConfirmReceivingFile(aConfirm, aRunnable);
 }
 
 nsresult

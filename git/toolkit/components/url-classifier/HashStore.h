@@ -111,9 +111,6 @@ public:
   // have a mess on your hands.
   nsresult WriteFile();
 
-  // Wipe out all Completes.
-  void ClearCompletes();
-
 private:
   nsresult Reset();
 

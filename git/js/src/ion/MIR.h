@@ -4484,7 +4484,6 @@ class MGuardShape
     {
         setGuard();
         setMovable();
-        setResultType(MIRType_Object);
     }
 
   public:

@@ -24,6 +24,7 @@
 #define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
 #define WAITFORTOPIC_TIMEOUT_SECONDS 5
 
+using namespace mozilla;
 
 static size_t gTotalTests = 0;
 static size_t gPassedTests = 0;
@@ -182,10 +183,10 @@ struct VisitRecord
   int32_t transitionType;
 };
 
-already_AddRefed<mozilla::IHistory>
+already_AddRefed<IHistory>
 do_get_IHistory()
 {
-  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
+  nsCOMPtr<IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
   do_check_true(history);
   return history.forget();
 }

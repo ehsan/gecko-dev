@@ -373,7 +373,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   nsCOMPtr<nsIWebNavigation> newWebNav = do_GetInterface(newDomWin);
   nsCOMPtr<nsILoadContext> thisContext = do_GetInterface(newWebNav);
   if (thisContext) {
-    thisContext->SetPrivateBrowsing(isPrivateBrowsingWindow);
+    thisContext->SetUsePrivateBrowsing(isPrivateBrowsingWindow);
   }
 
   window.swap(*aResult); // transfer reference

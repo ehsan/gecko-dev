@@ -67,11 +67,11 @@ public:
 
   // Called when a DOMString message is received.
   virtual nsresult OnMessageAvailable(nsISupports *aContext,
-                                      const nsACString& message) = 0;
+                                  const nsACString& message) = 0;
 
   // Called when a binary message is received.
   virtual nsresult OnBinaryMessageAvailable(nsISupports *aContext,
-                                            const nsACString& message) = 0;
+                                        const nsACString& message) = 0;
 
   // Called when the channel is connected
   virtual nsresult OnChannelConnected(nsISupports *aContext) = 0;
@@ -127,11 +127,10 @@ public:
     PARTIAL_RELIABLE_TIMED = 2
   } Type;
     
-  already_AddRefed<DataChannel> Open(const nsACString& label,
-                                     Type type, bool inOrder,
-                                     uint32_t prValue,
-                                     DataChannelListener *aListener,
-                                     nsISupports *aContext);
+  DataChannel *Open(const nsACString& label,
+                    Type type, bool inOrder, 
+                    uint32_t prValue, DataChannelListener *aListener,
+                    nsISupports *aContext);
 
   void Close(uint16_t stream);
   void CloseAll();
@@ -170,8 +169,8 @@ protected:
 private:
 #ifdef SCTP_DTLS_SUPPORTED
   static void DTLSConnectThread(void *data);
-  int SendPacket(const unsigned char* data, size_t len, bool release);
-  void SctpDtlsInput(TransportFlow *flow, const unsigned char *data, size_t len);
+  int SendPacket(const unsigned char* data, size_t len);
+  void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
   static int SctpDtlsOutput(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df);
 #endif
   DataChannel* FindChannelByStreamIn(uint16_t streamIn);
@@ -189,8 +188,9 @@ private:
                      uint32_t len);
   int32_t SendMsgCommon(uint16_t stream, const nsACString &aMsg, bool isBinary);
 
-  already_AddRefed<DataChannel> OpenFinish(already_AddRefed<DataChannel> channel);
+  DataChannel *OpenFinish(DataChannel *channel);
 
+  void SendOrQueue(DataChannel *aChannel, DataChannelOnMessageAvailable *aMessage);
   void StartDefer();
   bool SendDeferredMessages();
   void SendOutgoingStreamReset();
@@ -198,7 +198,7 @@ private:
   void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
                                 size_t length,
                                 uint16_t streamIn);
-  void OpenResponseFinish(already_AddRefed<DataChannel> channel);
+  void OpenResponseFinish(DataChannel *channel);
   void HandleOpenResponseMessage(const struct rtcweb_datachannel_open_response *rsp,
                                  size_t length, uint16_t streamIn);
   void HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
@@ -228,9 +228,9 @@ private:
 
   // NOTE: while these arrays will auto-expand, increases in the number of
   // channels available from the stack must be negotiated!
-  nsAutoTArray<nsRefPtr<DataChannel>,16> mStreamsOut;
-  nsAutoTArray<nsRefPtr<DataChannel>,16> mStreamsIn;
-  nsDeque mPending; // Holds already_AddRefed<DataChannel>s -- careful!
+  nsAutoTArray<DataChannel*,16> mStreamsOut;
+  nsAutoTArray<DataChannel*,16> mStreamsIn;
+  nsDeque mPending; // Holds DataChannels
 
   // Streams pending reset
   nsAutoTArray<uint16_t,4> mStreamsResetting;
@@ -285,9 +285,10 @@ public:
       NS_ASSERTION(mConnection,"NULL connection");
     }
 
-  ~DataChannel();
-
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DataChannel);
+  ~DataChannel()
+    {
+      Close();
+    }
 
   // Close this DataChannel.  Can be called multiple times.
   void Close();
@@ -343,8 +344,6 @@ public:
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
 
   void AppReady();
-
-  void SendOrQueue(DataChannelOnMessageAvailable *aMessage);
 
 protected:
   DataChannelListener *mListener;
@@ -466,7 +465,7 @@ private:
 
   int32_t                           mType;
   // XXX should use union
-  nsRefPtr<DataChannel>             mChannel;
+  DataChannel                       *mChannel;    // XXX careful of ownership! 
   nsRefPtr<DataChannelConnection>   mConnection;
   nsCString                         mData;
   int32_t                           mLen;

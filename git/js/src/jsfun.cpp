@@ -130,7 +130,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         // be compiled. IonMonkey does not guarantee |f.arguments| can be
         // fully recovered, so we try to mitigate observing this behavior by
         // detecting its use early.
-        RawScript script = iter.script().get(nogc);
+        RawScript script = iter.script();
         if (!script->hasIonScript())
             ion::ForbidCompilation(cx, script);
 #endif
@@ -619,7 +619,6 @@ FindBody(JSContext *cx, HandleFunction fun, StableCharPtr chars, size_t length,
 JSString *
 js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lambdaParen)
 {
-    AssertCanGC();
     StringBuffer out(cx);
     RootedScript script(cx);
 
@@ -1124,7 +1123,7 @@ fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
 
     bool result = false;
     if (fun->isInterpreted()) {
-        RawScript script = fun->script().get(nogc);
+        RawScript script = fun->script();
         JS_ASSERT(script->length != 0);
         result = script->isGenerator;
     }
@@ -1556,7 +1555,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
 
 JSFunction *
 js_DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
-                  unsigned nargs, unsigned attrs, Handle<PropertyName*> selfHostedName, AllocKind kind)
+                  unsigned nargs, unsigned attrs, const char *selfHostedName, AllocKind kind)
 {
     PropertyOp gop;
     StrictPropertyOp sop;

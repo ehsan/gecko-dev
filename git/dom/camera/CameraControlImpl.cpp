@@ -26,7 +26,6 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mStartRecordingOnErrorCb(nullptr)
   , mOnShutterCb(nullptr)
   , mOnClosedCb(nullptr)
-  , mOnRecorderStateChangeCb(nullptr)
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 }
@@ -222,20 +221,6 @@ CameraControlImpl::Get(nsICameraClosedCallback** aOnClosed)
   return NS_OK;
 }
 
-nsresult
-CameraControlImpl::Set(nsICameraRecorderStateChange* aOnRecorderStateChange)
-{
-  mOnRecorderStateChangeCb = aOnRecorderStateChange;
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Get(nsICameraRecorderStateChange** aOnRecorderStateChange)
-{
-  *aOnRecorderStateChange = mOnRecorderStateChangeCb;
-  return NS_OK;
-}
-
 already_AddRefed<RecorderProfileManager>
 CameraControlImpl::GetRecorderProfileManager()
 {
@@ -254,7 +239,6 @@ CameraControlImpl::Shutdown()
   mStartRecordingOnErrorCb = nullptr;
   mOnShutterCb = nullptr;
   mOnClosedCb = nullptr;
-  mOnRecorderStateChangeCb = nullptr;
 }
 
 void
@@ -292,18 +276,6 @@ CameraControlImpl::OnClosed()
   nsresult rv = NS_DispatchToMainThread(onClosed);
   if (NS_FAILED(rv)) {
     DOM_CAMERA_LOGW("Failed to dispatch onClosed event to main thread (%d)\n", rv);
-  }
-}
-
-void
-CameraControlImpl::OnRecorderStateChange(const nsString& aStateMsg, int32_t aStatus, int32_t aTrackNumber)
-{
-  DOM_CAMERA_LOGI("OnRecorderStateChange: '%s'\n", NS_ConvertUTF16toUTF8(aStateMsg).get());
-
-  nsCOMPtr<nsIRunnable> onRecorderStateChange = new CameraRecorderStateChange(mOnRecorderStateChangeCb, aStateMsg, aStatus, aTrackNumber, mWindowId);
-  nsresult rv = NS_DispatchToMainThread(onRecorderStateChange);
-  if (NS_FAILED(rv)) {
-    DOM_CAMERA_LOGE("Failed to dispatch onRecorderStateChange event to main thread (%d)\n", rv);
   }
 }
 

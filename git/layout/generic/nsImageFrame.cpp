@@ -1837,6 +1837,7 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                        nullptr,      /* Not associated with any particular document */
                        loadFlags,
                        nullptr,
+                       nullptr,
                        nullptr,      /* channel policy not needed */
                        aRequest);
 }

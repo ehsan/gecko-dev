@@ -39,7 +39,6 @@ class Shmem;
 namespace layers {
 
 class ImageContainerChild;
-class SharedPlanarYCbCrImage;
 
 struct ImageBackendData
 {
@@ -83,15 +82,11 @@ public:
 
   int32_t GetSerial() { return mSerial; }
 
-  void MarkSent() { mSent = true; }
-  bool IsSentToCompositor() { return mSent; }
-
 protected:
   Image(void* aImplData, ImageFormat aFormat) :
     mImplData(aImplData),
     mSerial(PR_ATOMIC_INCREMENT(&sSerialCounter)),
-    mFormat(aFormat),
-    mSent(false)
+    mFormat(aFormat)
   {}
 
   nsAutoPtr<ImageBackendData> mBackendData[mozilla::layers::LAYERS_LAST];
@@ -100,7 +95,6 @@ protected:
   int32_t mSerial;
   ImageFormat mFormat;
   static int32_t sSerialCounter;
-  bool mSent;
 };
 
 /**
@@ -701,8 +695,6 @@ public:
   virtual gfxIntSize GetSize() { return mSize; }
 
   PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
-
-  virtual SharedPlanarYCbCrImage *AsSharedPlanarYCbCrImage() { return nullptr; }
 
 protected:
   /**

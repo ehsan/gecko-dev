@@ -46,14 +46,8 @@ LIRGeneratorX86Shared::visitInterruptCheck(MInterruptCheck *ins)
 bool
 LIRGeneratorX86Shared::visitGuardShape(MGuardShape *ins)
 {
-    JS_ASSERT(ins->obj()->type() == MIRType_Object);
-
     LGuardShape *guard = new LGuardShape(useRegister(ins->obj()));
-    if (!assignSnapshot(guard, ins->bailoutKind()))
-        return false;
-    if (!add(guard, ins))
-        return false;
-    return redefine(ins, ins->obj());
+    return assignSnapshot(guard, ins->bailoutKind()) && add(guard, ins);
 }
 
 bool

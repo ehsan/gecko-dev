@@ -19,14 +19,11 @@ CPPSRCS := \
   AudioBufferSourceNode.cpp \
   AudioContext.cpp \
   AudioDestinationNode.cpp \
-  AudioListener.cpp \
   AudioNode.cpp \
   AudioParam.cpp \
   AudioSourceNode.cpp \
-  DelayNode.cpp \
   EnableWebAudioCheck.cpp \
   GainNode.cpp \
-  PannerNode.cpp \
   $(NULL)
 
 EXPORTS_NAMESPACES := mozilla/dom
@@ -34,13 +31,10 @@ EXPORTS_mozilla/dom := \
   AudioBuffer.h \
   AudioBufferSourceNode.h \
   AudioDestinationNode.h \
-  AudioListener.h \
   AudioNode.h \
   AudioParam.h \
   AudioSourceNode.h \
-  DelayNode.h \
   GainNode.h \
-  PannerNode.h \
   $(NULL)
 
 PARALLEL_DIRS := test

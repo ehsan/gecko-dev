@@ -91,6 +91,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
                                    "@mozilla.org/sms/smsservice;1",
                                    "nsISmsService");
 
+XPCOMUtils.defineLazyServiceGetter(this, "gSmsRequestManager",
+                                   "@mozilla.org/sms/smsrequestmanager;1",
+                                   "nsISmsRequestManager");
+
 XPCOMUtils.defineLazyServiceGetter(this, "gSmsDatabaseService",
                                    "@mozilla.org/sms/rilsmsdatabaseservice;1",
                                    "nsISmsDatabaseService");
@@ -1276,8 +1280,8 @@ RadioInterfaceLayer.prototype = {
     }
 
     debug("createSmsEnvelope: assigned " + i);
+    options.envelopeId = i;
     this._sentSmsEnvelopes[i] = options;
-    return i;
   },
 
   handleSmsSent: function handleSmsSent(message) {
@@ -1311,7 +1315,7 @@ RadioInterfaceLayer.prototype = {
       options.timestamp = timestamp;
     }
 
-    options.request.notifyMessageSent(sms);
+    gSmsRequestManager.notifySmsSent(options.requestId, sms);
 
     Services.obs.notifyObservers(sms, kSmsSentObserverTopic, null);
   },
@@ -1353,14 +1357,14 @@ RadioInterfaceLayer.prototype = {
     }
     delete this._sentSmsEnvelopes[message.envelopeId];
 
-    let error = Ci.nsISmsRequest.UNKNOWN_ERROR;
+    let error = gSmsRequestManager.UNKNOWN_ERROR;
     switch (message.error) {
       case RIL.ERROR_RADIO_NOT_AVAILABLE:
-        error = Ci.nsISmsRequest.NO_SIGNAL_ERROR;
+        error = gSmsRequestManager.NO_SIGNAL_ERROR;
         break;
     }
 
-    options.request.notifySendMessageFailed(error);
+    gSmsRequestManager.notifySmsSendFailed(options.requestId, error);
   },
 
   /**
@@ -2198,7 +2202,7 @@ RadioInterfaceLayer.prototype = {
     return this._fragmentText(text, null, strict7BitEncoding).segmentMaxSeq;
   },
 
-  sendSMS: function sendSMS(number, message, request) {
+  sendSMS: function sendSMS(number, message, requestId, processId) {
     let strict7BitEncoding;
     try {
       strict7BitEncoding = Services.prefs.getBoolPref("dom.sms.strict7BitEncoding");
@@ -2209,6 +2213,8 @@ RadioInterfaceLayer.prototype = {
     let options = this._calculateUserDataLength(message, strict7BitEncoding);
     options.rilMessageType = "sendSMS";
     options.number = number;
+    options.requestId = requestId;
+    options.processId = processId;
     options.requestStatusReport = true;
 
     this._fragmentText(message, options, strict7BitEncoding);
@@ -2218,10 +2224,7 @@ RadioInterfaceLayer.prototype = {
     }
 
     // Keep current SMS message info for sent/delivered notifications
-    options.envelopeId = this.createSmsEnvelope({request: request,
-                                                 number: options.number,
-                                                 fullBody: options.fullBody,
-                                                 requestStatusReport: options.requestStatusReport});
+    this.createSmsEnvelope(options);
 
     this.worker.postMessage(options);
   },

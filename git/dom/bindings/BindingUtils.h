@@ -1314,11 +1314,10 @@ XrayResolveNativeProperty(JSContext* cx, JSObject* wrapper, JSObject* obj,
  * wrapper is the Xray JS object.
  * obj is the target object of the Xray, a binding's instance object or a
  *     interface or interface prototype object.
- * flags are JSITER_* flags.
  */
 bool
 XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
-                        unsigned flags, JS::AutoIdVector& props);
+                        bool ownOnly, JS::AutoIdVector& props);
 
 extern NativePropertyHooks sWorkerNativePropertyHooks;
 

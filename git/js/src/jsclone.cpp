@@ -732,8 +732,7 @@ JSStructuredCloneWriter::writeTransferMap()
                 return false;
 
             void *content;
-            uint8_t *data;
-            if (!JS_StealArrayBufferContents(context(), obj, &content, &data))
+            if (!JS_StealArrayBufferContents(context(), obj, &content))
                return false;
 
             if (!out.writePair(SCTAG_TRANSFER_MAP, 0) || !out.writePtr(content))

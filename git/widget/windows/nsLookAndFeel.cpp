@@ -6,6 +6,7 @@
 #include "nsLookAndFeel.h"
 #include <windows.h>
 #include <shellapi.h>
+#include "nsWindow.h"
 #include "nsStyleConsts.h"
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"

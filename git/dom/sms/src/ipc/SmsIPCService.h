@@ -26,6 +26,7 @@ public:
 
 private:
   static PSmsChild* GetSmsChild();
+  static PSmsChild* sSmsChild;
 };
 
 } // namespace sms

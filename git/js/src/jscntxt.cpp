@@ -42,10 +42,8 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jsworkers.h"
-#ifdef JS_ION
 #include "ion/Ion.h"
 #include "ion/IonFrames.h"
-#endif
 
 #ifdef JS_METHODJIT
 # include "assembler/assembler/MacroAssembler.h"
@@ -380,10 +378,13 @@ JSRuntime::markSelfHostedGlobal(JSTracer *trc)
 }
 
 JSFunction *
-JSRuntime::getSelfHostedFunction(JSContext *cx, Handle<PropertyName*> name)
+JSRuntime::getSelfHostedFunction(JSContext *cx, const char *name)
 {
     RootedObject holder(cx, cx->global()->getIntrinsicsHolder());
-    RootedId id(cx, NameToId(name));
+    JSAtom *atom = Atomize(cx, name, strlen(name));
+    if (!atom)
+        return NULL;
+    RootedId id(cx, AtomToId(atom));
     RootedValue funVal(cx, NullValue());
     if (!cloneSelfHostedValueById(cx, id, holder, &funVal))
         return NULL;
@@ -439,8 +440,8 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
      * Here the GC lock is still held after js_InitContextThreadAndLockGC took it and
      * the GC is not running on another thread.
      */
-    bool first = rt->contextList.isEmpty();
-    rt->contextList.insertBack(cx);
+    bool first = JS_CLIST_IS_EMPTY(&rt->contextList);
+    JS_APPEND_LINK(&cx->link, &rt->contextList);
 
     js_InitRandom(cx);
 
@@ -502,7 +503,7 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
         }
     }
 
-    cx->remove();
+    JS_REMOVE_LINK(&cx->link);
     bool last = !rt->hasContexts();
     if (last) {
         JS_ASSERT(!rt->isHeapBusy());
@@ -617,7 +618,7 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
         return;
 
     report->filename = iter.script()->filename;
-    report->lineno = PCToLineNumber(iter.script().get(nogc), iter.pc(), &report->column);
+    report->lineno = PCToLineNumber(iter.script(), iter.pc(), &report->column);
     report->originPrincipals = iter.script()->originPrincipals;
 }
 
@@ -655,9 +656,8 @@ js_ReportOutOfMemory(JSContext *cx)
      */
     cx->clearPendingException();
     if (onError) {
-        ++cx->runtime->inOOMReport;
+        AutoAtomicIncrement incr(&cx->runtime->inOOMReport);
         onError(cx, msg, &report);
-        --cx->runtime->inOOMReport;
     }
 }
 
@@ -1304,6 +1304,7 @@ JSContext::JSContext(JSRuntime *rt)
 #endif
     activeCompilations(0)
 {
+    PodZero(&link);
 #ifdef JSGC_ROOT_ANALYSIS
     PodArrayZero(thingGCRooters);
 #if defined(JS_GC_ZEAL) && defined(DEBUG) && !defined(JS_THREADSAFE)

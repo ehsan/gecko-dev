@@ -27,7 +27,6 @@
 #include "jswrapper.h"
 
 #include "builtin/MapObject.h"
-#include "builtin/Iterator-inl.h"
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "gc/Root.h"
@@ -990,9 +989,9 @@ JSObject::computedSizeOfThisSlotsElements() const
 }
 
 inline void
-JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *slotsSize,
-                              size_t *elementsSize, size_t *argumentsDataSize,
-                              size_t *regExpStaticsSize, size_t *propertyIteratorDataSize) const
+JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
+                              size_t *slotsSize, size_t *elementsSize,
+                              size_t *miscSize) const
 {
     *slotsSize = 0;
     if (hasDynamicSlots()) {
@@ -1005,15 +1004,11 @@ JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *slotsSize,
     }
 
     /* Other things may be measured in the future if DMD indicates it is worthwhile. */
-    *argumentsDataSize = 0;
-    *regExpStaticsSize = 0;
-    *propertyIteratorDataSize = 0;
+    *miscSize = 0;
     if (isArguments()) {
-        *argumentsDataSize += asArguments().sizeOfMisc(mallocSizeOf);
+        *miscSize += asArguments().sizeOfMisc(mallocSizeOf);
     } else if (isRegExpStatics()) {
-        *regExpStaticsSize += js::SizeOfRegExpStaticsData(this, mallocSizeOf);
-    } else if (isPropertyIterator()) {
-        *propertyIteratorDataSize += asPropertyIterator().sizeOfMisc(mallocSizeOf);
+        *miscSize += js::SizeOfRegExpStaticsData(this, mallocSizeOf);
     }
 }
 

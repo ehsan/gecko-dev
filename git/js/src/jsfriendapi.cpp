@@ -373,7 +373,7 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *objArg, const char *name
     if (!atom)
         return NULL;
     Rooted<jsid> id(cx, AtomToId(atom));
-    return js_DefineFunction(cx, obj, id, call, nargs, attrs, NullPtr(), JSFunction::ExtendedFinalizeKind);
+    return js_DefineFunction(cx, obj, id, call, nargs, attrs, NULL, JSFunction::ExtendedFinalizeKind);
 }
 
 JS_FRIEND_API(JSFunction *)
@@ -597,14 +597,31 @@ js_DumpObject(JSObject *obj)
 
 #endif
 
-struct JSDumpHeapTracer : public JSTracer
-{
+struct DumpingChildInfo {
+    void *node;
+    JSGCTraceKind kind;
+
+    DumpingChildInfo (void *n, JSGCTraceKind k)
+        : node(n), kind(k)
+    {}
+};
+
+typedef HashSet<void *, DefaultHasher<void *>, SystemAllocPolicy> PtrSet;
+
+struct JSDumpHeapTracer : public JSTracer {
+    PtrSet visited;
     FILE   *output;
+    Vector<DumpingChildInfo, 0, SystemAllocPolicy> nodes;
+    char   buffer[200];
+    bool   rootTracing;
 
     JSDumpHeapTracer(FILE *fp)
       : output(fp)
     {}
 };
+
+static void
+DumpHeapVisitChild(JSTracer *trc, void **thingp, JSGCTraceKind kind);
 
 static char
 MarkDescriptor(void *thing)
@@ -617,72 +634,65 @@ MarkDescriptor(void *thing)
 }
 
 static void
-DumpHeapVisitCompartment(JSRuntime *rt, void *data, JSCompartment *comp)
+DumpHeapPushIfNew(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
-    char name[1024];
-    if (rt->compartmentNameCallback)
-        (*rt->compartmentNameCallback)(rt, comp, name, sizeof(name));
-    else
-        strcpy(name, "<unknown>");
+    JS_ASSERT(trc->callback == DumpHeapPushIfNew ||
+              trc->callback == DumpHeapVisitChild);
+    void *thing = *thingp;
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
 
-    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
-    fprintf(dtrc->output, "# compartment %s\n", name);
-}
+    /*
+     * If we're tracing roots, print root information.  Do this even if we've
+     * already seen thing, for complete root information.
+     */
+    if (dtrc->rootTracing) {
+        fprintf(dtrc->output, "%p %c %s\n", thing, MarkDescriptor(thing),
+                JS_GetTraceEdgeName(dtrc, dtrc->buffer, sizeof(dtrc->buffer)));
+    }
 
-static void
-DumpHeapVisitArena(JSRuntime *rt, void *data, gc::Arena *arena,
-                   JSGCTraceKind traceKind, size_t thingSize)
-{
-    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
-    fprintf(dtrc->output, "# arena allockind=%u size=%u\n",
-            unsigned(arena->aheader.getAllocKind()), unsigned(thingSize));
-}
+    PtrSet::AddPtr ptrEntry = dtrc->visited.lookupForAdd(thing);
+    if (ptrEntry || !dtrc->visited.add(ptrEntry, thing))
+        return;
 
-static void
-DumpHeapVisitCell(JSRuntime *rt, void *data, void *thing,
-                  JSGCTraceKind traceKind, size_t thingSize)
-{
-    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
-    char cellDesc[1024];
-    JS_GetTraceThingInfo(cellDesc, sizeof(cellDesc), dtrc, thing, traceKind, true);
-    fprintf(dtrc->output, "%p %c %s\n", thing, MarkDescriptor(thing), cellDesc);
-    JS_TraceChildren(dtrc, thing, traceKind);
+    dtrc->nodes.append(DumpingChildInfo(thing, kind));
 }
 
 static void
 DumpHeapVisitChild(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
+    JS_ASSERT(trc->callback == DumpHeapVisitChild);
     JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
-    char buffer[1024];
-    fprintf(dtrc->output, "> %p %c %s\n", *thingp, MarkDescriptor(*thingp),
-            JS_GetTraceEdgeName(dtrc, buffer, sizeof(buffer)));
-}
-
-static void
-DumpHeapVisitRoot(JSTracer *trc, void **thingp, JSGCTraceKind kind)
-{
-    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
-    char buffer[1024];
-    fprintf(dtrc->output, "%p %c %s\n", *thingp, MarkDescriptor(*thingp),
-            JS_GetTraceEdgeName(dtrc, buffer, sizeof(buffer)));
+    const char *edgeName = JS_GetTraceEdgeName(dtrc, dtrc->buffer, sizeof(dtrc->buffer));
+    fprintf(dtrc->output, "> %p %c %s\n", *thingp, MarkDescriptor(*thingp), edgeName);
+    DumpHeapPushIfNew(dtrc, thingp, kind);
 }
 
 void
 js::DumpHeapComplete(JSRuntime *rt, FILE *fp)
 {
     JSDumpHeapTracer dtrc(fp);
+    JS_TracerInit(&dtrc, rt, DumpHeapPushIfNew);
+    if (!dtrc.visited.init(10000))
+        return;
 
-    JS_TracerInit(&dtrc, rt, DumpHeapVisitRoot);
+    /* Store and log the root information. */
+    dtrc.rootTracing = true;
     TraceRuntime(&dtrc);
-
     fprintf(dtrc.output, "==========\n");
 
-    JS_TracerInit(&dtrc, rt, DumpHeapVisitChild);
-    IterateCompartmentsArenasCells(rt, &dtrc,
-                                   DumpHeapVisitCompartment,
-                                   DumpHeapVisitArena,
-                                   DumpHeapVisitCell);
+    /* Log the graph. */
+    dtrc.rootTracing = false;
+    dtrc.callback = DumpHeapVisitChild;
 
+    while (!dtrc.nodes.empty()) {
+        DumpingChildInfo dci = dtrc.nodes.popCopy();
+        JS_GetTraceThingInfo(dtrc.buffer, sizeof(dtrc.buffer),
+                             &dtrc, dci.node, dci.kind, JS_TRUE);
+        fprintf(fp, "%p %c %s\n", dci.node, MarkDescriptor(dci.node), dtrc.buffer);
+        JS_TraceChildren(&dtrc, dci.node, dci.kind);
+    }
+
+    dtrc.visited.finish();
     fflush(dtrc.output);
 }
 

@@ -10,8 +10,6 @@
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsError.h"
-#include "nsDisplayList.h"
-#include "FrameLayerBuilder.h"
 
 namespace mozilla {
 namespace css {
@@ -316,20 +314,6 @@ ImageLoader::GetPresContext()
   return shell->GetPresContext();
 }
 
-void InvalidateImagesCallback(nsIFrame* aFrame, 
-                              FrameLayerBuilder::DisplayItemData* aItem)
-{
-  nsDisplayItem::Type type = nsDisplayItem::GetDisplayItemTypeFromKey(aItem->GetDisplayItemKey());
-  uint8_t flags = nsDisplayItem::GetDisplayItemFlagsForType(type);
-
-  if (flags & nsDisplayItem::TYPE_RENDERS_NO_IMAGES) {
-    return;
-  }
-
-  aItem->Invalidate();
-  aFrame->SchedulePaint();
-}
-
 void
 ImageLoader::DoRedraw(FrameSet* aFrameSet)
 {
@@ -341,7 +325,7 @@ ImageLoader::DoRedraw(FrameSet* aFrameSet)
     nsIFrame* frame = aFrameSet->ElementAt(i);
 
     if (frame->GetStyleVisibility()->IsVisible()) {
-      FrameLayerBuilder::IterateRetainedDataFor(frame, InvalidateImagesCallback);
+      frame->InvalidateFrame();
     }
   }
 }

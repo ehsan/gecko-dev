@@ -100,7 +100,7 @@ function uuid() {
 function mock_doc(aIdentity, aOrigin, aDoFunc) {
   let mockedDoc = {};
   mockedDoc.id = uuid();
-  mockedDoc.loggedInUser = aIdentity;
+  mockedDoc.loggedInEmail = aIdentity;
   mockedDoc.origin = aOrigin;
   mockedDoc['do'] = aDoFunc;
   mockedDoc.doReady = partial(aDoFunc, 'ready');
