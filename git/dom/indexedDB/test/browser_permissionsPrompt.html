@@ -17,11 +17,11 @@
         request.onsuccess = grabEventAndContinueHandler;
         let event = yield;
 
-        if (event.type == "success") {
-          testResult = event.target.result;
+        if (event instanceof Components.interfaces.nsIIDBSuccessEvent) {
+          testResult = event.result;
         }
         else {
-          testException = event.target.errorCode;
+          testException = event.code + ": " + event.message;
         }
 
         finishTest()

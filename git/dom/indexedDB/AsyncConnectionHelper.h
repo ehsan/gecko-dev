@@ -48,6 +48,7 @@
 #include "mozIStorageProgressHandler.h"
 #include "nsIRunnable.h"
 #include "nsIThread.h"
+#include "nsIVariant.h"
 
 #include "mozilla/TimeStamp.h"
 
@@ -69,8 +70,6 @@ class IDBTransaction;
 class AsyncConnectionHelper : public nsIRunnable,
                               public mozIStorageProgressHandler
 {
-  friend class IDBRequest;
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
@@ -94,11 +93,6 @@ public:
     return mRequest ? mRequest->Source() : nsnull;
   }
 
-  nsresult GetResultCode()
-  {
-    return mResultCode;
-  }
-
 protected:
   AsyncConnectionHelper(IDBDatabase* aDatabase,
                         IDBRequest* aRequest);
@@ -119,36 +113,42 @@ protected:
   /**
    * This is called on the main thread after Dispatch is called but before the
    * runnable is actually dispatched to the database thread. Allows the subclass
-   * to initialize itself.
+   * to initialize itself. The default implementation does nothing and returns
+   * NS_OK.
    */
   virtual nsresult Init();
 
   /**
-   * This callback is run on the database thread.
+   * This callback is run on the database thread. It should return a valid error
+   * code from nsIIDBDatabaseError or one of the two special values above.
    */
   virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection) = 0;
 
   /**
-   * This callback is run on the main thread if DoDatabaseWork returned NS_OK.
-   * The default implementation fires a "success" DOM event with its target set
-   * to the request. Returning anything other than NS_OK from the OnSuccess
+   * This callback is run on the main thread if the DoDatabaseWork returned OK.
+   * The default implementation constructs an IDBSuccessEvent with its result
+   * property set to the value returned by GetSuccessResult. The event is then
+   * fired at the target. Returning anything other than OK from the OnSuccess
    * callback will trigger the OnError callback.
    */
-  virtual nsresult OnSuccess();
+  virtual nsresult OnSuccess(nsIDOMEventTarget* aTarget);
 
   /**
-   * This callback is run on the main thread if DoDatabaseWork or OnSuccess
-   * returned an error code. The default implementation fires an "error" DOM
-   * event with its target set to the request.
+   * This callback is run on the main thread if DoDatabaseWork returned an error
+   * code. The default implementation constructs an IDBErrorEvent for the error
+   * code and fires it at the target.
    */
-  virtual void OnError();
+  virtual void OnError(nsIDOMEventTarget* aTarget,
+                       nsresult aErrorCode);
 
   /**
-   * This function is called by the request on the main thread when script
-   * accesses the result property of the request.
+   * This function is called from the default implementation of OnSuccess. A
+   * valid nsIWritableVariant is passed into the function which can be modified
+   * by the subclass. The default implementation returns an nsIVariant that is
+   * set to nsIDataType::VTYPE_EMPTY. Returning anything other than OK from the
+   * GetSuccessResult function will trigger the OnError callback.
    */
-  virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    jsval* aVal);
+  virtual nsresult GetSuccessResult(nsIWritableVariant* aVariant);
 
   /**
    * Gives the subclass a chance to release any objects that must be released
@@ -156,30 +156,6 @@ protected:
    * implement this method *MUST* call the base class implementation as well.
    */
   virtual void ReleaseMainThreadObjects();
-
-  /**
-   * Helper to wrap a native into a jsval. Uses the global object of the given
-   * context.
-   */
-  static nsresult WrapNative(JSContext* aCx,
-                             nsISupports* aNative,
-                             jsval* aResult);
-
-  /**
-   * Helper to decode a clone buffer to a jsval.
-   */
-  static nsresult ConvertCloneBufferToJSVal(
-                                           JSContext* aCx,
-                                           JSAutoStructuredCloneBuffer& aBuffer,
-                                           jsval* aResult);
-
-  /**
-   * Helper to make a JS array object out of an array of clone buffers.
-   */
-  static nsresult ConvertCloneBuffersToArray(
-                                JSContext* aCx,
-                                nsTArray<JSAutoStructuredCloneBuffer>& aBuffers,
-                                jsval* aResult);
 
 protected:
   nsRefPtr<IDBDatabase> mDatabase;

@@ -150,7 +150,6 @@ public: // new functions
         return &entry->mData;
     }
 
-protected:
     virtual PRBool InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
@@ -159,6 +158,7 @@ protected:
                                PRInt32 aRunScript,
                                PRBool aPreferPlatformShaping = PR_FALSE);
 
+protected:
     void FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd);
 
     void AddRange(gfxTextRun *aTextRun, const PRUnichar *str, PRUint32 offset, PRUint32 len);

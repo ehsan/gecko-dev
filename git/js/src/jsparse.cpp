@@ -1909,8 +1909,8 @@ Parser::analyzeFunctions(JSFunctionBox *funbox, uint32& tcflags)
  * but without this extra marking phase, function g will not be marked as a
  * funarg since it is called from within its parent scope. But g reaches up to
  * f's parameter p, so if o_m escapes f's activation scope, g does too and
- * cannot assume that p's stack slot is still alive. In contast function h
- * neither escapes nor uses an upvar "above" o_m's level.
+ * cannot use JSOP_GETUPVAR to reach p. In contast function h neither escapes
+ * nor uses an upvar "above" o_m's level.
  *
  * If function g itself contained lambdas that contained non-lambdas that reach
  * up above its level, then those non-lambdas would have to be marked too. This
@@ -2050,8 +2050,9 @@ Parser::markFunArgs(JSFunctionBox *funbox, uintN tcflags)
                      PN_OP(lexdep) == JSOP_CALLEE)) {
                     /*
                      * Mark this formerly-Algol-like function as an escaping
-                     * function (i.e., as a funarg), because it is used from
-                     * another funarg.
+                     * function (i.e., as a funarg), because it is used from a
+                     * funarg and therefore can not use JSOP_{GET,CALL}UPVAR to
+                     * access upvars.
                      *
                      * Progress is guaranteed because we set the funarg flag
                      * here, which suppresses revisiting this function (thanks
@@ -2371,8 +2372,26 @@ Parser::setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags)
 
             if (!fn->isFunArg()) {
                 /*
-                 * This function is Algol-like, it never escapes.
+                 * This function is Algol-like, it never escapes. So long as it
+                 * does not assign to outer variables, it needs only an upvars
+                 * array in its script and JSOP_{GET,CALL}UPVAR opcodes in its
+                 * bytecode to reach up the frame stack at runtime based on
+                 * those upvars' cookies.
                  *
+                 * Any assignments to upvars from functions called by this one
+                 * will be coherent because of the JSOP_{GET,CALL}UPVAR ops,
+                 * which load from stack homes when interpreting or from native
+                 * stack slots when executing a trace.
+                 *
+                 * We could add JSOP_SETUPVAR, etc., but it is uncommon for a
+                 * nested function to assign to an outer lexical variable, so
+                 * we defer adding yet more code footprint in the absence of
+                 * evidence motivating these opcodes.
+                 */
+                bool mutation = !!(funbox->tcflags & TCF_FUN_SETS_OUTER_NAME);
+                uintN nupvars = 0;
+
+                /*
                  * Check that at least one outer lexical binding was assigned
                  * to (global variables don't count). This is conservative: we
                  * could limit assignments to those in the current function,
@@ -2385,13 +2404,30 @@ Parser::setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags)
 
                     if (!lexdep->isFreeVar()) {
                         JS_ASSERT(lexdep->frameLevel() <= funbox->level);
-                        break;
+                        ++nupvars;
+                        if (lexdep->isAssigned())
+                            break;
                     }
                 }
+                if (!ale)
+                    mutation = false;
 
-                if (!ale) {
+                if (nupvars == 0) {
                     FUN_METER(onlyfreevar);
                     FUN_SET_KIND(fun, JSFUN_NULL_CLOSURE);
+                } else if (!mutation &&
+                           !(funbox->tcflags & (TCF_FUN_IS_GENERATOR | TCF_FUN_ENTRAINS_SCOPES))) {
+                    /*
+                     * Algol-like functions can read upvars using the dynamic
+                     * link (cx->fp/fp->down), optimized using the cx->display
+                     * lookup table indexed by static level. They do not need
+                     * to entrain and search their environment objects.
+                     */
+                    FUN_METER(display);
+                    FUN_SET_KIND(fun, JSFUN_NULL_CLOSURE);
+                } else {
+                    if (!(funbox->tcflags & TCF_FUN_IS_GENERATOR))
+                        FUN_METER(setupvar);
                 }
             } else {
                 uintN nupvars = 0, nflattened = 0;
@@ -2866,8 +2902,8 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
     pn->pn_cookie.makeFree();
 
     /*
-     * If a lambda, mark this function as escaping (as a "funarg") unless it is
-     * immediately applied (we clear PND_FUNARG if so -- see memberExpr).
+     * If a lambda, give up on JSOP_{GET,CALL}UPVAR usage unless this function
+     * is immediately applied (we clear PND_FUNARG if so -- see memberExpr).
      *
      * Treat function sub-statements (non-lambda, non-body-level functions) as
      * escaping funargs, since we can't statically analyze their definitions
@@ -3208,13 +3244,6 @@ Parser::functionStmt()
         }
         tokenStream.ungetToken();
     }
-
-    /* We forbid function statements in strict mode code. */
-    if (!tc->atBodyLevel() && tc->inStrictMode()) {
-        reportErrorNumber(NULL, JSREPORT_STRICT_MODE_ERROR, JSMSG_STRICT_FUNCTION_STATEMENT);
-        return NULL;
-    }
-
     return functionDef(name, GENERAL, 0);
 }
 
@@ -3611,100 +3640,28 @@ DefineGlobal(JSParseNode *pn, JSCodeGenerator *cg, JSAtom *atom)
     return true;
 }
 
+/*
+ * If compile-and-go, and a global object is present, try to bake in either
+ * an already available slot or a predicted slot that will be defined after
+ * compiling is completed.
+ *
+ * If not compile-and-go, or compiling for eval, this optimization is invalid.
+ */
 static bool
-BindTopLevelVar(JSContext *cx, BindData *data, JSAtomListElement *ale, JSParseNode *pn,
-                JSAtom *varname, JSTreeContext *tc)
+BindGvar(JSParseNode *pn, JSTreeContext *tc)
 {
     JS_ASSERT(pn->pn_op == JSOP_NAME);
     JS_ASSERT(!tc->inFunction());
 
-    /* There's no need to optimize bindings if we're not compiling code. */
-    if (!tc->compiling())
+    if (!tc->compiling() || tc->parser->callerFrame)
         return true;
 
-    /*
-     * Bindings at top level in eval code aren't like bindings at top level in
-     * regular code, and we must handle them specially.
-     */
-    if (tc->parser->callerFrame) {
-        /*
-         * If the eval code is not strict mode code, such bindings are created
-         * from scratch in the the caller's environment (if the eval is direct)
-         * or in the global environment (if the eval is indirect) -- and they
-         * can be deleted.  Therefore we can't bind early.
-         */
-        if (!tc->inStrictMode())
-            return true;
-
-        /*
-         * But if the eval code is strict mode code, bindings are added to a
-         * new environment specifically for that eval code's compilation, and
-         * they can't be deleted.  Thus strict mode eval code does not affect
-         * the caller's environment, and we can bind such names early.  (But
-         * note: strict mode eval code can still affect the global environment
-         * by performing an indirect eval of non-strict mode code.)
-         *
-         * However, optimizing such bindings requires either precarious
-         * type-punning or, ideally, a new kind of Call object specifically for
-         * strict mode eval frames.  Further, strict mode eval is not (yet)
-         * common.  So for now (until we rewrite the scope chain to not use
-         * objects?) just disable optimizations for top-level names in eval
-         * code.
-         */
-        return true;
-    }
+    JSCodeGenerator *cg = tc->asCodeGenerator();
 
     if (pn->pn_dflags & PND_CONST)
         return true;
 
-    /*
-     * If this is a global variable, we're compile-and-go, and a global object
-     * is present, try to bake in either an already available slot or a
-     * predicted slot that will be defined after compiling is completed.
-     */
-    return DefineGlobal(pn, tc->asCodeGenerator(), pn->pn_atom);
-}
-
-static bool
-BindFunctionLocal(JSContext *cx, BindData *data, JSAtomListElement *ale, JSParseNode *pn,
-                  JSAtom *name, JSTreeContext *tc)
-{
-    JS_ASSERT(tc->inFunction());
-
-    if (name == cx->runtime->atomState.argumentsAtom) {
-        pn->pn_op = JSOP_ARGUMENTS;
-        pn->pn_dflags |= PND_BOUND;
-        return true;
-    }
-
-    BindingKind kind = tc->bindings.lookup(cx, name, NULL);
-    if (kind == NONE) {
-        /*
-         * Property not found in current variable scope: we have not seen this
-         * variable before, so bind a new local variable for it. Any locals
-         * declared in a with statement body are handled at runtime, by script
-         * prolog JSOP_DEFVAR opcodes generated for global and heavyweight-
-         * function-local vars.
-         */
-        kind = (data->op == JSOP_DEFCONST) ? CONSTANT : VARIABLE;
-
-        uintN index = tc->bindings.countVars();
-        if (!BindLocalVariable(cx, tc, name, kind, false))
-            return false;
-        pn->pn_op = JSOP_GETLOCAL;
-        pn->pn_cookie.set(tc->staticLevel, index);
-        pn->pn_dflags |= PND_BOUND;
-        return true;
-    }
-
-    if (kind == ARGUMENT) {
-        JS_ASSERT(tc->inFunction());
-        JS_ASSERT(ale && ALE_DEFN(ale)->kind() == JSDefinition::ARG);
-    } else {
-        JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
-    }
-
-    return true;
+    return DefineGlobal(pn, cg, pn->pn_atom);
 }
 
 static JSBool
@@ -3858,10 +3815,44 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     if (data->op == JSOP_DEFCONST)
         pn->pn_dflags |= PND_CONST;
 
-    if (tc->inFunction())
-        return BindFunctionLocal(cx, data, ale, pn, atom, tc);
+    if (!tc->inFunction())
+        return BindGvar(pn, tc);
 
-    return BindTopLevelVar(cx, data, ale, pn, atom, tc);
+    if (atom == cx->runtime->atomState.argumentsAtom) {
+        pn->pn_op = JSOP_ARGUMENTS;
+        pn->pn_dflags |= PND_BOUND;
+        return JS_TRUE;
+    }
+
+    BindingKind kind = tc->bindings.lookup(cx, atom, NULL);
+    if (kind == NONE) {
+        /*
+         * Property not found in current variable scope: we have not seen this
+         * variable before. Define a new local variable by adding a property to
+         * the function's scope and allocating one slot in the function's vars
+         * frame. Any locals declared in a with statement body are handled at
+         * runtime, by script prolog JSOP_DEFVAR opcodes generated for global
+         * and heavyweight-function-local vars.
+         */
+        kind = (data->op == JSOP_DEFCONST) ? CONSTANT : VARIABLE;
+
+        uintN index = tc->bindings.countVars();
+        if (!BindLocalVariable(cx, tc, atom, kind, false))
+            return JS_FALSE;
+        pn->pn_op = JSOP_GETLOCAL;
+        pn->pn_cookie.set(tc->staticLevel, index);
+        pn->pn_dflags |= PND_BOUND;
+        return JS_TRUE;
+    }
+
+    if (kind == ARGUMENT) {
+        /* We checked errors and strict warnings earlier -- see above. */
+        JS_ASSERT(ale && ALE_DEFN(ale)->kind() == JSDefinition::ARG);
+    } else {
+        /* Not an argument, must be a redeclared local var. */
+        JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
+    }
+    return JS_TRUE;
 }
 
 static bool
@@ -8394,15 +8385,13 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         JSParseNode *pnval;
 
         /*
-         * A map from property names we've seen thus far to a mask of property
-         * assignment types, stored and retrieved with ALE_SET_INDEX/ALE_INDEX.
+         * A map from property names we've seen thus far to bit masks.
+         * (We use ALE_INDEX/ALE_SET_INDEX).  An atom's mask includes
+         * JSPROP_SETTER if we've seen a setter for it, JSPROP_GETTER
+         * if we've seen as getter, and both of those if we've just
+         * seen an ordinary value.
          */
         JSAutoAtomList seen(tc->parser);
-        enum AssignmentType {
-            GET     = 0x1,
-            SET     = 0x2,
-            VALUE   = 0x4 | GET | SET
-        };
 
         pn = ListNode::create(tc);
         if (!pn)
@@ -8421,8 +8410,16 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                 if (!pn3)
                     return NULL;
                 pn3->pn_dval = tokenStream.currentToken().t_dval;
-                if (!js_ValueToAtom(context, DoubleValue(pn3->pn_dval), &atom))
-                    return NULL;
+                if (tc->needStrictChecks()) {
+                    /*
+                     * Use string-valued atoms for detecting duplicate
+                     * properties so that 1 and "1" properly collide.
+                     */
+                    if (!js_ValueToAtom(context, DoubleValue(pn3->pn_dval), &atom))
+                        return NULL;
+                } else {
+                    atom = NULL; /* for the compiler */
+                }
                 break;
               case TOK_NAME:
                 {
@@ -8445,8 +8442,16 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                         if (!pn3)
                             return NULL;
                         pn3->pn_dval = tokenStream.currentToken().t_dval;
-                        if (!js_ValueToAtom(context, DoubleValue(pn3->pn_dval), &atom))
-                            return NULL;
+                        if (tc->needStrictChecks()) {
+                            /*
+                             * Use string-valued atoms for detecting duplicate
+                             * properties so that 1 and "1" properly collide.
+                             */
+                            if (!js_ValueToAtom(context, DoubleValue(pn3->pn_dval), &atom))
+                                return NULL;
+                        } else {
+                            atom = NULL; /* for the compiler */
+                        }
                     } else {
                         tokenStream.ungetToken();
                         goto property_name;
@@ -8510,49 +8515,40 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
             pn->append(pn2);
 
             /*
-             * Check for duplicate property names.  Duplicate data properties
-             * only conflict in strict mode.  Duplicate getter or duplicate
-             * setter halves always conflict.  A data property conflicts with
-             * any part of an accessor property.
+             * In strict mode code, check for duplicate property names.  Treat
+             * getters and setters as distinct attributes of each property.  A
+             * plain old value conflicts with a getter or a setter.
              */
-            AssignmentType assignType;
-            if (op == JSOP_INITPROP) {
-                assignType = VALUE;
-            } else if (op == JSOP_GETTER) {
-                assignType = GET;
-            } else if (op == JSOP_SETTER) {
-                assignType = SET;
-            } else {
-                JS_NOT_REACHED("bad opcode in object initializer");
-                assignType = VALUE; /* try to error early */
-            }
-
-            if (JSAtomListElement *ale = seen.lookup(atom)) {
-                AssignmentType oldAssignType = AssignmentType(ALE_INDEX(ale));
-                if ((oldAssignType & assignType) &&
-                    (oldAssignType != VALUE || assignType != VALUE || tc->needStrictChecks()))
-                {
-                    JSAutoByteString name;
-                    if (!js_AtomToPrintableString(context, atom, &name))
-                        return NULL;
-
-                    uintN flags = (oldAssignType == VALUE &&
-                                   assignType == VALUE &&
-                                   !tc->inStrictMode())
-                                  ? JSREPORT_WARNING
-                                  : JSREPORT_ERROR;
-                    if (!ReportCompileErrorNumber(context, &tokenStream, NULL, flags,
-                                                  JSMSG_DUPLICATE_PROPERTY, name.ptr()))
-                    {
-                        return NULL;
-                    }
+            if (tc->needStrictChecks()) {
+                unsigned attributesMask;
+                if (op == JSOP_INITPROP) {
+                    attributesMask = JSPROP_GETTER | JSPROP_SETTER;
+                } else if (op == JSOP_GETTER) {
+                    attributesMask = JSPROP_GETTER;
+                } else if (op == JSOP_SETTER) {
+                    attributesMask = JSPROP_SETTER;
+                } else {
+                    JS_NOT_REACHED("bad opcode in object initializer");
+                    attributesMask = 0;
                 }
-                ALE_SET_INDEX(ale, assignType | oldAssignType);
-            } else {
-                ale = seen.add(tc->parser, atom);
-                if (!ale)
-                    return NULL;
-                ALE_SET_INDEX(ale, assignType);
+
+                JSAtomListElement *ale = seen.lookup(atom);
+                if (ale) {
+                    if (ALE_INDEX(ale) & attributesMask) {
+                        JSAutoByteString name;
+                        if (!js_AtomToPrintableString(context, atom, &name) ||
+                            !ReportStrictModeError(context, &tokenStream, tc, NULL,
+                                                   JSMSG_DUPLICATE_PROPERTY, name.ptr())) {
+                            return NULL;
+                        }
+                    }
+                    ALE_SET_INDEX(ale, attributesMask | ALE_INDEX(ale));
+                } else {
+                    ale = seen.add(tc->parser, atom);
+                    if (!ale)
+                        return NULL;
+                    ALE_SET_INDEX(ale, attributesMask);
+                }
             }
 
             tt = tokenStream.getToken();

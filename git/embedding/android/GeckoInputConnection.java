@@ -488,7 +488,7 @@ public class GeckoInputConnection
         //Log.d("GeckoAppJava", "IME: notifyTextChange");
 
         if (!text.contentEquals(GeckoApp.surfaceView.mEditable))
-            GeckoApp.surfaceView.setEditable(text);
+            GeckoApp.surfaceView.setupEditable(text);
 
         if (mUpdateRequest == null)
             return;

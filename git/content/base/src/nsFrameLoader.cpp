@@ -1067,7 +1067,10 @@ nsFrameLoader::DestroyChild()
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
     mRemoteBrowser->SetOwnerElement(nsnull);
-    mRemoteBrowser->Destroy();
+    // If this fails, it's most likely due to a content-process crash,
+    // and auto-cleanup will kick in.  Otherwise, the child side will
+    // destroy itself and send back __delete__().
+    unused << mRemoteBrowser->SendDestroy();
     mRemoteBrowser = nsnull;
   }
 #endif

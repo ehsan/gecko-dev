@@ -18,14 +18,14 @@
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
 
       request = db.setVersion("1");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let transaction = event.target.transaction;
+      let transaction = event.transaction;
 
       let objectStore1 = db.createObjectStore("foo");
       let objectStore2 = transaction.objectStore("foo");

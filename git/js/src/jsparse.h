@@ -832,8 +832,12 @@ struct LexicalScopeNode : public JSParseNode {
  * and because all uses are contained in the same block as the definition.
  *
  * We also analyze function uses to flag upward/downward funargs, optimizing
- * those lambdas that post-dominate their upvars inevitable only assignments or
- * initializations as flat closures (after Chez Scheme's display closures).
+ * Algol-like (not passed as funargs, only ever called) lightweight functions
+ * using cx->display. See JSOP_{GET,CALL}UPVAR.
+ *
+ * This means that closure optimizations may be frustrated by with, eval, or
+ * assignment to an outer var. Such hard cases require heavyweight functions
+ * and JSOP_NAME, etc.
  */
 #define dn_uses         pn_link
 

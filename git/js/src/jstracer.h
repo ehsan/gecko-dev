@@ -671,10 +671,7 @@ public:
     };
 
     /* The script in which the loop header lives. */
-    JSScript *entryScript;
-
-    /* The stack frame where we started profiling. Only valid while profiling! */
-    JSStackFrame *entryfp;
+    JSScript *script;
 
     /* The bytecode locations of the loop header and the back edge. */
     jsbytecode *top, *bottom;
@@ -731,13 +728,13 @@ public:
      * and how many iterations we execute it.
      */
     struct InnerLoop {
-        JSStackFrame *entryfp;
+        JSScript *script;
         jsbytecode *top, *bottom;
         uintN iters;
 
         InnerLoop() {}
-        InnerLoop(JSStackFrame *entryfp, jsbytecode *top, jsbytecode *bottom)
-            : entryfp(entryfp), top(top), bottom(bottom), iters(0) {}
+        InnerLoop(JSScript *script, jsbytecode *top, jsbytecode *bottom)
+            : script(script), top(top), bottom(bottom), iters(0) {}
     };
 
     /* These two variables track all the inner loops seen while profiling (up to a limit). */
@@ -787,9 +784,7 @@ public:
             return StackValue(false);
     }
     
-    LoopProfile(JSStackFrame *entryfp, jsbytecode *top, jsbytecode *bottom);
-
-    void reset();
+    LoopProfile(JSScript *script, jsbytecode *top, jsbytecode *bottom);
 
     enum ProfileAction {
         ProfContinue,
@@ -1472,7 +1467,7 @@ class TraceRecorder
                                                                            nanojit::LIns* obj_ins,
                                                                            VMSideExit *exit);
     JS_REQUIRES_STACK RecordingStatus guardNativeConversion(Value& v);
-    JS_REQUIRES_STACK void clearReturningFrameFromNativeveTracker();
+    JS_REQUIRES_STACK void clearCurrentFrameSlotsFromTracker(Tracker& which);
     JS_REQUIRES_STACK void putActivationObjects();
     JS_REQUIRES_STACK RecordingStatus guardCallee(Value& callee);
     JS_REQUIRES_STACK JSStackFrame      *guardArguments(JSObject *obj, nanojit::LIns* obj_ins,
@@ -1580,7 +1575,7 @@ class TraceRecorder
                                              bool *blacklist);
     friend AbortResult AbortRecording(JSContext*, const char*);
     friend class BoxArg;
-    friend void TraceMonitor::sweep(JSContext *cx);
+    friend void TraceMonitor::sweep();
 
   public:
     static bool JS_REQUIRES_STACK
@@ -1594,7 +1589,6 @@ class TraceRecorder
     TreeFragment*       getTree() const { return tree; }
     bool                outOfMemory() const { return traceMonitor->outOfMemory(); }
     Oracle*             getOracle() const { return oracle; }
-    JSObject*           getGlobal() const { return globalObj; }
 
     /* Entry points / callbacks from the interpreter. */
     JS_REQUIRES_STACK AbortableRecordingStatus monitorRecording(JSOp op);
@@ -1613,20 +1607,7 @@ class TraceRecorder
              * Do slot arithmetic manually to avoid getSlotRef assertions which
              * do not need to be satisfied for this purpose.
              */
-            Value *vp = globalObj->getSlots() + slot;
-
-            /* If this global is definitely being tracked, then the write is unexpected. */
-            if (tracker.has(vp))
-                return false;
-            
-            /*
-             * Otherwise, only abort if the global is not present in the
-             * import typemap. Just deep aborting false here is not acceptable,
-             * because the recorder does not guard on every operation that
-             * could lazily resolve. Since resolving adds properties to
-             * reserved slots, the tracer will never have imported them.
-             */
-            return tree->globalSlots->offsetOf(nativeGlobalSlot(vp)) == -1;
+            return !tracker.has(globalObj->getSlots() + slot);
         }
         pendingGlobalSlotToSet = -1;
         return true;
@@ -1882,7 +1863,7 @@ AbortRecordingIfUnexpectedGlobalWrite(JSContext *cx, JSObject *obj, unsigned slo
 {
 #ifdef JS_TRACER
     if (TraceRecorder *tr = TRACE_RECORDER(cx)) {
-        if (obj == tr->getGlobal() && !tr->globalSetExpected(slot))
+        if (!obj->parent && !tr->globalSetExpected(slot))
             AbortRecording(cx, "Global slot written outside tracer supervision");
     }
 #endif

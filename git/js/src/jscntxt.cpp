@@ -501,11 +501,9 @@ JSThreadData::init()
     }
     nativeStackBase = GetNativeStackBase();
 
-#ifdef JS_TRACER
     /* Set the default size for the code cache to 16MB. */
     maxCodeCacheBytes = 16 * 1024 * 1024;
-#endif
-
+    
     return true;
 }
 
@@ -1072,7 +1070,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 #endif
 
         if (last) {
-            js_GC(cx, NULL, GC_LAST_CONTEXT);
+            js_GC(cx, GC_LAST_CONTEXT);
             DUMP_EVAL_CACHE_METER(cx);
             DUMP_FUNCTION_METER(cx);
 
@@ -1082,7 +1080,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
         } else {
             if (mode == JSDCM_FORCE_GC)
-                js_GC(cx, NULL, GC_NORMAL);
+                js_GC(cx, GC_NORMAL);
             else if (mode == JSDCM_MAYBE_GC)
                 JS_MaybeGC(cx);
             JS_LOCK_GC(rt);
@@ -1357,7 +1355,7 @@ js_ReportOutOfMemory(JSContext *cx)
      * exception if any now so the hooks can replace the out-of-memory error
      * by a script-catchable exception.
      */
-    cx->clearPendingException();
+    cx->throwing = JS_FALSE;
     if (onError) {
         JSDebugErrorHook hook = cx->debugHooks->debugErrorHook;
         if (hook &&
@@ -1821,7 +1819,7 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_UNLOCK_GC(rt);
 
     if (rt->gcIsNeeded) {
-        js_GC(cx, rt->gcTriggerCompartment, GC_NORMAL);
+        js_GC(cx, GC_NORMAL);
 
         /*
          * On trace we can exceed the GC quota, see comments in NewGCArena. So
@@ -2005,46 +2003,27 @@ JSContext::resetCompartment()
         scopeobj = &fp()->scopeChain();
     } else {
         scopeobj = globalObject;
-        if (!scopeobj)
-            goto error;
+        if (!scopeobj) {
+            compartment = runtime->defaultCompartment;
+            return;
+        }
 
         /*
          * Innerize. Assert, but check anyway, that this succeeds. (It
          * can only fail due to bugs in the engine or embedding.)
          */
         OBJ_TO_INNER_OBJECT(this, scopeobj);
-        if (!scopeobj)
-            goto error;
+        if (!scopeobj) {
+            /*
+             * Bug. Return NULL, not defaultCompartment, to crash rather
+             * than open a security hole.
+             */
+            JS_ASSERT(0);
+            compartment = NULL;
+            return;
+        }
     }
-
-    compartment = scopeobj->compartment();
-
-    if (isExceptionPending())
-        wrapPendingException();
-    return;
-
-error:
-
-    /*
-     * If we try to use the context without a selected compartment,
-     * we will crash.
-     */
-    compartment = NULL;
-}
-
-/*
- * Since this function is only called in the context of a pending exception,
- * the caller must subsequently take an error path. If wrapping fails, we leave
- * the exception cleared, which, in the context of an error path, will be
- * interpreted as an uncatchable exception.
- */
-void
-JSContext::wrapPendingException()
-{
-    Value v = getPendingException();
-    clearPendingException();
-    if (compartment->wrap(this, &v))
-        setPendingException(v);
+    compartment = scopeobj->getCompartment();
 }
 
 void
@@ -2306,6 +2285,13 @@ LeaveTrace(JSContext *cx)
     if (JS_ON_TRACE(cx))
         DeepBail(cx);
 #endif
+}
+
+void
+SetPendingException(JSContext *cx, const Value &v)
+{
+    cx->throwing = JS_TRUE;
+    cx->exception = v;
 }
 
 } /* namespace js */

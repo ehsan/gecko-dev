@@ -91,7 +91,7 @@ Bindings::lookup(JSContext *cx, JSAtom *name, uintN *indexp) const
 
     if (shape->getter() == GetCallArg)
         return ARGUMENT;
-    if (shape->getter() == GetCallUpvar)
+    if (shape->getter() == GetFlatUpvar)
         return UPVAR;
 
     return shape->writable() ? VARIABLE : CONSTANT;
@@ -122,8 +122,8 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
         slot += nargs;
     } else if (kind == UPVAR) {
         indexp = &nupvars;
-        getter = GetCallUpvar;
-        setter = SetCallUpvar;
+        getter = GetFlatUpvar;
+        setter = SetFlatUpvar;
         slot = SHAPE_INVALID_SLOT;
     } else {
         JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
@@ -218,7 +218,7 @@ Bindings::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
 
         if (shape.getter() == GetCallArg) {
             JS_ASSERT(index < nargs);
-        } else if (shape.getter() == GetCallUpvar) {
+        } else if (shape.getter() == GetFlatUpvar) {
             JS_ASSERT(index < nupvars);
             index += nargs + nvars;
         } else {
@@ -267,7 +267,7 @@ Bindings::lastVariable() const
 
     const js::Shape *shape = lastUpvar();
     if (nupvars > 0) {
-        while (shape->getter() == GetCallUpvar)
+        while (shape->getter() == GetFlatUpvar)
             shape = shape->previous();
     }
     return shape;

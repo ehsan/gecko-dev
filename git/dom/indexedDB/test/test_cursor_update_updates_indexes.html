@@ -36,7 +36,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let db = event.target.result;
+      let db = event.result;
 
       for (let i = 0; i < objectStoreInfo.length; i++) {
         // Create our object stores.
@@ -58,6 +58,7 @@
                                             { unique: false });
         let uniqueIndex = objectStore.createIndex("unique_data_index", "data",
                                                   { unique: true });
+
         // Populate the object store with one entry of data.
         request = info.hasOwnProperty("key") ?
                   objectStore.add(info.entry, info.key) :
@@ -74,7 +75,7 @@
         event = yield;
         ok(true, "4");
 
-        let cursor = request.result;
+        let cursor = event.result;
         let obj = cursor.value;
         obj.data = END_DATA;
         request = cursor.update(obj);
@@ -89,7 +90,7 @@
         request.onsuccess = grabEventAndContinueHandler;
         event = yield;
         ok(true, "6");
-        SimpleTest.ok(obj.data, event.target.result.data,
+        SimpleTest.ok(obj.data, event.result.data,
                       "Non-unique index was properly updated.");
 
         request = uniqueIndex.get(END_DATA);
@@ -98,7 +99,7 @@
         event = yield;
 
         ok(true, "7");
-        SimpleTest.ok(obj.data, event.target.result.data,
+        SimpleTest.ok(obj.data, event.result.data,
                       "Unique index was properly updated.");
       }
 

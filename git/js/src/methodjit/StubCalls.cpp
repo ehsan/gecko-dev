@@ -1291,11 +1291,12 @@ stubs::Debugger(VMFrame &f, jsbytecode *pc)
         switch (handler(f.cx, f.cx->fp()->script(), pc, Jsvalify(&rval),
                         f.cx->debugHooks->debuggerHandlerData)) {
           case JSTRAP_THROW:
-            f.cx->setPendingException(rval);
+            f.cx->throwing = JS_TRUE;
+            f.cx->exception = rval;
             THROW();
 
           case JSTRAP_RETURN:
-            f.cx->clearPendingException();
+            f.cx->throwing = JS_FALSE;
             f.cx->fp()->setReturnValue(rval);
 #if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
             *f.returnAddressLocation() = JS_FUNC_TO_DATA_PTR(void *,
@@ -1307,7 +1308,7 @@ stubs::Debugger(VMFrame &f, jsbytecode *pc)
             break;
 
           case JSTRAP_ERROR:
-            f.cx->clearPendingException();
+            f.cx->throwing = JS_FALSE;
             THROW();
 
           default:
@@ -1351,11 +1352,12 @@ stubs::Trap(VMFrame &f, uint32 trapTypes)
 
     switch (result) {
       case JSTRAP_THROW:
-        f.cx->setPendingException(rval);
+        f.cx->throwing = JS_TRUE;
+        f.cx->exception = rval;
         THROW();
 
       case JSTRAP_RETURN:
-        f.cx->clearPendingException();
+        f.cx->throwing = JS_FALSE;
         f.cx->fp()->setReturnValue(rval);
 #if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
         *f.returnAddressLocation() = JS_FUNC_TO_DATA_PTR(void *,
@@ -1367,7 +1369,7 @@ stubs::Trap(VMFrame &f, uint32 trapTypes)
         break;
 
       case JSTRAP_ERROR:
-        f.cx->clearPendingException();
+        f.cx->throwing = JS_FALSE;
         THROW();
 
       default:
@@ -2333,8 +2335,9 @@ stubs::Throw(VMFrame &f)
 {
     JSContext *cx = f.cx;
 
-    JS_ASSERT(!cx->isExceptionPending());
-    cx->setPendingException(f.regs.sp[-1]);
+    JS_ASSERT(!cx->throwing);
+    cx->throwing = JS_TRUE;
+    cx->exception = f.regs.sp[-1];
     THROW();
 }
 
@@ -2766,66 +2769,4 @@ stubs::In(VMFrame &f)
 
 template void JS_FASTCALL stubs::DelElem<true>(VMFrame &f);
 template void JS_FASTCALL stubs::DelElem<false>(VMFrame &f);
-
-void JS_FASTCALL
-stubs::Exception(VMFrame &f)
-{
-    f.regs.sp[0] = f.cx->getPendingException();
-    f.cx->clearPendingException();
-}
-template <bool Clamped>
-int32 JS_FASTCALL
-stubs::ConvertToTypedInt(JSContext *cx, Value *vp)
-{
-    JS_ASSERT(!vp->isInt32());
-
-    if (vp->isDouble()) {
-        if (Clamped)
-            return js_TypedArray_uint8_clamp_double(vp->toDouble());
-        return js_DoubleToECMAInt32(vp->toDouble());
-    }
-
-    if (vp->isNull() || vp->isObject() || vp->isUndefined())
-        return 0;
-
-    if (vp->isBoolean())
-        return vp->toBoolean() ? 1 : 0;
-
-    JS_ASSERT(vp->isString());
-
-    int32 i32;
-#ifdef DEBUG
-    bool success = 
-#endif
-        StringToNumberType<jsint>(cx, vp->toString(), &i32);
-    JS_ASSERT(success);
-
-    return i32;
-}
-
-template int32 JS_FASTCALL stubs::ConvertToTypedInt<true>(JSContext *, Value *);
-template int32 JS_FASTCALL stubs::ConvertToTypedInt<false>(JSContext *, Value *);
-
-void JS_FASTCALL
-stubs::ConvertToTypedFloat(JSContext *cx, Value *vp)
-{
-    JS_ASSERT(!vp->isDouble() && !vp->isInt32());
-
-    if (vp->isNull()) {
-        vp->setDouble(0);
-    } else if (vp->isObject() || vp->isUndefined()) {
-        vp->setDouble(js_NaN);
-    } else if (vp->isBoolean()) {
-        vp->setDouble(vp->toBoolean() ? 1 : 0);
-    } else {
-        JS_ASSERT(vp->isString());
-        double d;
-#ifdef DEBUG
-        bool success = 
-#endif
-            StringToNumberType<double>(cx, vp->toString(), &d);
-        JS_ASSERT(success);
-        vp->setDouble(d);
-    }
-}
 

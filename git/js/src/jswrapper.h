@@ -168,6 +168,9 @@ class AutoCompartment
     JSFrameRegs regs;
     AutoStringRooter input;
     bool entered;
+#ifdef DEBUG
+    bool wasSane;
+#endif
 
   public:
     AutoCompartment(JSContext *cx, JSObject *target);

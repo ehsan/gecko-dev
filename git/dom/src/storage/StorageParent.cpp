@@ -62,15 +62,14 @@ StorageParent::StorageParent(const StorageConstructData& aData)
 bool
 StorageParent::RecvInit(const bool& aUseDB,
                         const bool& aCanUseChromePersist,
-                        const bool& aSessionOnly,
                         const nsCString& aDomain,
                         const nsCString& aScopeDBKey,
                         const nsCString& aQuotaDomainDBKey,
                         const nsCString& aQuotaETLDplus1DomainDBKey,
                         const PRUint32& aStorageType)
 {
-  mStorage->InitFromChild(aUseDB, aCanUseChromePersist, aSessionOnly, aDomain,
-                          aScopeDBKey, aQuotaDomainDBKey, aQuotaETLDplus1DomainDBKey,
+  mStorage->InitFromChild(aUseDB, aCanUseChromePersist, aDomain, aScopeDBKey,
+                          aQuotaDomainDBKey, aQuotaETLDplus1DomainDBKey,
                           aStorageType);
   return true;
 }
@@ -85,30 +84,25 @@ StorageParent::RecvGetKeys(const bool& aCallerSecure, InfallibleTArray<nsString>
 }
 
 bool
-StorageParent::RecvGetLength(const bool& aCallerSecure, const bool& aSessionOnly,
-                             PRUint32* aLength, nsresult* rv)
+StorageParent::RecvGetLength(const bool& aCallerSecure, PRUint32* aLength,
+                             nsresult* rv)
 {
-  mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->GetLength(aCallerSecure, aLength);
   return true;
 }
 
 bool
-StorageParent::RecvGetKey(const bool& aCallerSecure, const bool& aSessionOnly,
-                          const PRUint32& aIndex, nsString* aKey, nsresult* rv)
+StorageParent::RecvGetKey(const bool& aCallerSecure, const PRUint32& aIndex,
+                          nsString* aKey, nsresult* rv)
 {
-  mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->GetKey(aCallerSecure, aIndex, *aKey);
   return true;
 }
 
 bool
-StorageParent::RecvGetValue(const bool& aCallerSecure, const bool& aSessionOnly,
-                            const nsString& aKey, StorageItem* aItem,
-                            nsresult* rv)
+StorageParent::RecvGetValue(const bool& aCallerSecure, const nsString& aKey,
+                            StorageItem* aItem, nsresult* rv)
 {
-  mStorage->SetSessionOnly(aSessionOnly);
-
   // We need to ensure that a proper null representation is sent to the child
   // if no item is found or an error occurs.
 
@@ -129,30 +123,26 @@ StorageParent::RecvGetValue(const bool& aCallerSecure, const bool& aSessionOnly,
 }
 
 bool
-StorageParent::RecvSetValue(const bool& aCallerSecure, const bool& aSessionOnly,
-                            const nsString& aKey, const nsString& aData,
-                            nsString* aOldValue, nsresult* rv)
+StorageParent::RecvSetValue(const bool& aCallerSecure, const nsString& aKey,
+                            const nsString& aData, nsString* aOldValue,
+                            nsresult* rv)
 {
-  mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->SetValue(aCallerSecure, aKey, aData, *aOldValue);
   return true;
 }
 
 bool
-StorageParent::RecvRemoveValue(const bool& aCallerSecure, const bool& aSessionOnly,
-                               const nsString& aKey, nsString* aOldValue,
-                               nsresult* rv)
+StorageParent::RecvRemoveValue(const bool& aCallerSecure, const nsString& aKey,
+                               nsString* aOldValue, nsresult* rv)
 {
-  mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->RemoveValue(aCallerSecure, aKey, *aOldValue);
   return true;
 }
 
 bool
-StorageParent::RecvClear(const bool& aCallerSecure, const bool& aSessionOnly,
-                         PRInt32* aOldCount, nsresult* rv)
+StorageParent::RecvClear(const bool& aCallerSecure, PRInt32* aOldCount,
+                         nsresult* rv)
 {
-  mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->Clear(aCallerSecure, aOldCount);
   return true;
 }

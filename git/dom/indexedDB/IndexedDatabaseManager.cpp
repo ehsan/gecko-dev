@@ -196,8 +196,11 @@ public:
     // then fire the blocked event.
     for (PRUint32 index = 0; index < mWaitingDatabases.Length(); index++) {
       if (!mWaitingDatabases[index]->IsClosed()) {
+        nsISupports* source =
+          static_cast<nsPIDOMEventTarget*>(mRequestingDatabase);
+
         nsCOMPtr<nsIDOMEvent> event =
-          IDBVersionChangeEvent::CreateBlocked(mVersion);
+          IDBVersionChangeEvent::CreateBlocked(source, mVersion);
         NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 
         PRBool dummy;

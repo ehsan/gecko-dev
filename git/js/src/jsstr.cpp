@@ -178,9 +178,6 @@ JSString::flatten(JSContext *maybecx)
     wholeChars = AllocChars(maybecx, wholeCapacity);
     if (!wholeChars)
         return NULL;
-
-    if (maybecx)
-        maybecx->runtime->stringMemoryUsed += wholeLength * 2;
     pos = wholeChars;
     first_visit_node: {
         JSString *left = str->u.left;           /* Read before clobbered. */
@@ -305,7 +302,6 @@ JSString::undepend(JSContext *cx)
         if (!s)
             return NULL;
 
-        cx->runtime->stringMemoryUsed += size;
         js_strncpy(s, dependentChars(), n);
         s[n] = 0;
         initFlat(s, n);
@@ -1567,8 +1563,8 @@ class FlatMatch
     size_t patternLength() const { return patlen; }
 
     /*
-     * Note: The match is -1 when the match is performed successfully,
-     * but no match is found.
+     * @note    The match is -1 when the match is performed successfully,
+     *          but no match is found.
      */
     int32 match() const { return match_; }
 };
@@ -1576,32 +1572,16 @@ class FlatMatch
 /* A regexp and optional associated object. */
 class RegExpPair
 {
-    AutoRefCount<RegExp>    arc;
-    JSObject                *reobj_;
-    RegExp                  *re_;
+    JSObject    *reobj_;
+    RegExp      *re_;
 
-    explicit RegExpPair(RegExpPair &);
+    explicit RegExpPair(RegExp *re): re_(re) {}
+    friend class RegExpGuard;
 
   public:
-    explicit RegExpPair(JSContext *cx, RegExp *re) : arc(cx, re), re_(re) {}
-
-    void reset(JSObject &reobj) {
-        reobj_ = &reobj;
-        re_ = RegExp::extractFrom(&reobj);
-        JS_ASSERT(re_);
-        arc.reset(re_);
-    }
-
-    void reset(RegExp &re) {
-        re_ = &re;
-        reobj_ = NULL;
-        arc.reset(re_);
-    }
-
-    /* Note: May be null. */
+    /* @note    May be null. */
     JSObject *reobj() const { return reobj_; }
     RegExp &re() const { JS_ASSERT(re_); return *re_; }
-    bool hasRegExp() const { return !!re_; }
 };
 
 /*
@@ -1647,15 +1627,21 @@ class RegExpGuard
     }
 
   public:
-    explicit RegExpGuard(JSContext *cx) : cx(cx), rep(cx, NULL) {}
-    ~RegExpGuard() {}
+    explicit RegExpGuard(JSContext *cx) : cx(cx), rep(NULL) {}
+
+    ~RegExpGuard() {
+        if (rep.re_)
+            rep.re_->decref(cx);
+    }
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
     bool
     init(uintN argc, Value *vp)
     {
         if (argc != 0 && VALUE_IS_REGEXP(cx, vp[2])) {
-            rep.reset(vp[2].toObject());
+            rep.reobj_ = &vp[2].toObject();
+            rep.re_ = RegExp::extractFrom(rep.reobj_);
+            rep.re_->incref(cx);
         } else {
             fm.patstr = ArgToRootedString(cx, argc, vp, 0);
             if (!fm.patstr)
@@ -1671,13 +1657,13 @@ class RegExpGuard
      * @param checkMetaChars    Look for regexp metachars in the pattern string.
      * @return                  Whether flat matching could be used.
      *
-     * N.B. tryFlatMatch returns NULL on OOM, so the caller must check cx->isExceptionPending().
+     * N.B. tryFlatMatch returns NULL on OOM, so the caller must check cx->throwing.
      */
     const FlatMatch *
     tryFlatMatch(JSContext *cx, JSString *textstr, uintN optarg, uintN argc,
                  bool checkMetaChars = true)
     {
-        if (rep.hasRegExp())
+        if (rep.re_)
             return NULL;
 
         fm.pat = fm.patstr->chars();
@@ -1710,10 +1696,10 @@ class RegExpGuard
     const RegExpPair *
     normalizeRegExp(bool flat, uintN optarg, uintN argc, Value *vp)
     {
-        if (rep.hasRegExp())
+        /* If we don't have a RegExp, build RegExp from pattern string. */
+        if (rep.re_)
             return &rep;
 
-        /* Build RegExp from pattern string. */
         JSString *opt;
         if (optarg < argc) {
             opt = js_ValueToString(cx, vp[2 + optarg]);
@@ -1733,15 +1719,15 @@ class RegExpGuard
         }
         JS_ASSERT(patstr);
 
-        RegExp *re = RegExp::createFlagged(cx, patstr, opt);
-        if (!re)
+        rep.re_ = RegExp::createFlagged(cx, patstr, opt);
+        if (!rep.re_)
             return NULL;
-        rep.reset(*re);
+        rep.reobj_ = NULL;
         return &rep;
     }
 
 #if DEBUG
-    bool hasRegExpPair() const { return rep.hasRegExp(); }
+    bool hasRegExpPair() const { return rep.re_; }
 #endif
 };
 
@@ -1860,7 +1846,7 @@ str_match(JSContext *cx, uintN argc, Value *vp)
         return false;
     if (const FlatMatch *fm = g.tryFlatMatch(cx, str, 1, argc))
         return BuildFlatMatchArray(cx, str, *fm, vp);
-    if (cx->isExceptionPending())  /* from tryFlatMatch */
+    if (cx->throwing)  /* from tryFlatMatch */
         return false;
 
     const RegExpPair *rep = g.normalizeRegExp(false, 1, argc, vp);
@@ -1892,7 +1878,7 @@ str_search(JSContext *cx, uintN argc, Value *vp)
         vp->setInt32(fm->match());
         return true;
     }
-    if (cx->isExceptionPending())  /* from tryFlatMatch */
+    if (cx->throwing)  /* from tryFlatMatch */
         return false;
     const RegExpPair *rep = g.normalizeRegExp(false, 1, argc, vp);
     if (!rep)
@@ -2505,7 +2491,7 @@ js::str_replace(JSContext *cx, uintN argc, Value *vp)
 
     const FlatMatch *fm = rdata.g.tryFlatMatch(cx, rdata.str, optarg, argc, false);
     if (!fm) {
-        if (cx->isExceptionPending())  /* oom in RopeMatch in tryFlatMatch */
+        if (cx->throwing)  /* oom in RopeMatch in tryFlatMatch */
             return false;
         JS_ASSERT_IF(!rdata.g.hasRegExpPair(), argc > optarg);
         return str_replace_regexp(cx, argc, vp, rdata);
@@ -3419,7 +3405,6 @@ js_NewString(JSContext *cx, jschar *chars, size_t length)
     if (!str)
         return NULL;
     str->initFlat(chars, length);
-    cx->runtime->stringMemoryUsed += length * 2;
 #ifdef DEBUG
   {
     JSRuntime *rt = cx->runtime;

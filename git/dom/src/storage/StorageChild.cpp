@@ -112,7 +112,7 @@ StorageChild::InitRemote()
   ContentChild* child = ContentChild::GetSingleton();
   AddIPDLReference();
   child->SendPStorageConstructor(this, null_t());
-  SendInit(mUseDB, mCanUseChromePersist, mSessionOnly, mDomain, mScopeDBKey,
+  SendInit(mUseDB, mCanUseChromePersist, mDomain, mScopeDBKey,
            mQuotaDomainDBKey, mQuotaETLDplus1DomainDBKey, mStorageType);
 }
 
@@ -151,7 +151,7 @@ nsresult
 StorageChild::GetLength(bool aCallerSecure, PRUint32* aLength)
 {
   nsresult rv;
-  SendGetLength(aCallerSecure, mSessionOnly, aLength, &rv);
+  SendGetLength(aCallerSecure, aLength, &rv);
   return rv;
 }
 
@@ -160,7 +160,7 @@ StorageChild::GetKey(bool aCallerSecure, PRUint32 aIndex, nsAString& aKey)
 {
   nsresult rv;
   nsString key;
-  SendGetKey(aCallerSecure, mSessionOnly, aIndex, &key, &rv);
+  SendGetKey(aCallerSecure, aIndex, &key, &rv);
   if (NS_FAILED(rv))
     return rv;
   aKey = key;
@@ -180,7 +180,7 @@ StorageChild::GetValue(bool aCallerSecure, const nsAString& aKey, nsresult* rv)
 {
   nsresult rv2 = *rv = NS_OK;
   StorageItem storageItem;
-  SendGetValue(aCallerSecure, mSessionOnly, nsString(aKey), &storageItem, &rv2);
+  SendGetValue(aCallerSecure, nsString(aKey), &storageItem, &rv2);
   if (rv2 == NS_ERROR_DOM_SECURITY_ERR || rv2 == NS_ERROR_DOM_NOT_FOUND_ERR)
     return nsnull;
   *rv = rv2;
@@ -198,8 +198,7 @@ StorageChild::SetValue(bool aCallerSecure, const nsAString& aKey,
 {
   nsresult rv;
   nsString oldData;
-  SendSetValue(aCallerSecure, mSessionOnly, nsString(aKey), nsString(aData),
-               &oldData, &rv);
+  SendSetValue(aCallerSecure, nsString(aKey), nsString(aData), &oldData, &rv);
   if (NS_FAILED(rv))
     return rv;
   aOldData = oldData;
@@ -212,7 +211,7 @@ StorageChild::RemoveValue(bool aCallerSecure, const nsAString& aKey,
 {
   nsresult rv;
   nsString oldData;
-  SendRemoveValue(aCallerSecure, mSessionOnly, nsString(aKey), &oldData, &rv);
+  SendRemoveValue(aCallerSecure, nsString(aKey), &oldData, &rv);
   if (NS_FAILED(rv))
     return rv;
   aOldData = oldData;
@@ -224,7 +223,7 @@ StorageChild::Clear(bool aCallerSecure, PRInt32* aOldCount)
 {
   nsresult rv;
   PRInt32 oldCount;
-  SendClear(aCallerSecure, mSessionOnly, &oldCount, &rv);
+  SendClear(aCallerSecure, &oldCount, &rv);
   if (NS_FAILED(rv))
     return rv;
   *aOldCount = oldCount;
@@ -274,7 +273,7 @@ StorageChild::CloneFrom(bool aCallerSecure, DOMStorageBase* aThat)
   StorageClone clone(nsnull, other, aCallerSecure);
   AddIPDLReference();
   child->SendPStorageConstructor(this, clone);
-  SendInit(mUseDB, mCanUseChromePersist, mSessionOnly, mDomain, mScopeDBKey,
+  SendInit(mUseDB, mCanUseChromePersist, mDomain, mScopeDBKey,
            mQuotaDomainDBKey, mQuotaETLDplus1DomainDBKey, mStorageType);
   return NS_OK;
 }

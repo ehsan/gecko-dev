@@ -235,7 +235,7 @@ GDIFontEntry::ReadCMAP()
     mCmapInitialized = PR_TRUE;
 
     const PRUint32 kCmapTag = TRUETYPE_TAG('c','m','a','p');
-    AutoFallibleTArray<PRUint8,16384> buffer;
+    nsAutoTArray<PRUint8,16384> buffer;
     if (GetFontTable(kCmapTag, buffer) != NS_OK)
         return NS_ERROR_FAILURE;
     PRUint8 *cmap = buffer.Elements();
@@ -270,8 +270,7 @@ GDIFontEntry::CreateFontInstance(const gfxFontStyle* aFontStyle, PRBool aNeedsBo
 }
 
 nsresult
-GDIFontEntry::GetFontTable(PRUint32 aTableTag,
-                           FallibleTArray<PRUint8>& aBuffer)
+GDIFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 {
     if (!IsTrueType()) {
         return NS_ERROR_FAILURE;
@@ -690,15 +689,6 @@ gfxGDIFontList::EnumFontFamExProc(ENUMLOGFONTEXW *lpelfe,
         nsDependentString faceName(lf.lfFaceName);
         nsRefPtr<gfxFontFamily> family = new GDIFontFamily(faceName);
         fontList->mFontFamilies.Put(name, family);
-
-        // if locale is such that CJK font names are the default coming from
-        // GDI, then if a family name is non-ASCII immediately read in other
-        // family names.  This assures that MS Gothic, MS Mincho are all found
-        // before lookups begin.
-        if (!IsASCII(faceName)) {
-            family->ReadOtherFamilyNames(gfxPlatformFontList::PlatformFontList());
-        }
-
         if (fontList->mBadUnderlineFamilyNames.Contains(name))
             family->SetBadUnderlineFamily();
     }
@@ -876,7 +866,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     // for TTF fonts, first try using the t2embed library
     if (!isCFF) {
         // TrueType-style glyphs, use EOT library
-        AutoFallibleTArray<PRUint8,2048> eotHeader;
+        nsAutoTArray<PRUint8,2048> eotHeader;
         PRUint8 *buffer;
         PRUint32 eotlen;
 
@@ -916,7 +906,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     // load CFF fonts or fonts that failed with t2embed loader
     if (fontRef == nsnull) {
         // Postscript-style glyphs, swizzle name table, load directly
-        FallibleTArray<PRUint8> newFontData;
+        nsTArray<PRUint8> newFontData;
 
         isEmbedded = PR_FALSE;
         rv = gfxFontUtils::RenameFont(uniqueName, aFontData, aLength, &newFontData);

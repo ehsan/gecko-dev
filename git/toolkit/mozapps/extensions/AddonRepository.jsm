@@ -221,22 +221,6 @@ AddonSearchResult.prototype = {
   contributionAmount: null,
 
   /**
-   * The URL to visit in order to purchase the add-on
-   */
-  purchaseURL: null,
-
-  /**
-   * The numerical cost of the add-on in some currency, for sorting purposes
-   * only
-   */
-  purchaseAmount: null,
-
-  /**
-   * The display cost of the add-on, for display purposes only
-   */
-  purchaseDisplayAmount: null,
-
-  /**
    * The rating of the add-on, 0-5
    */
   averageRating: null,
@@ -294,15 +278,9 @@ AddonSearchResult.prototype = {
 
   /**
    * True or false depending on whether the add-on is compatible with the
-   * current version of the application
+   * current version and platform of the application
    */
   isCompatible: true,
-
-  /**
-   * True or false depending on whether the add-on is compatible with the
-   * current platform
-   */
-  isPlatformCompatible: true,
 
   /**
    * True if the add-on has a secure means of updating
@@ -945,20 +923,9 @@ var AddonRepository = {
         case "contribution_data":
           let meetDevelopers = this._getDescendantTextContent(node, "meet_developers");
           let suggestedAmount = this._getDescendantTextContent(node, "suggested_amount");
-          if (meetDevelopers != null) {
+          if (meetDevelopers != null && suggestedAmount != null) {
             addon.contributionURL = meetDevelopers;
             addon.contributionAmount = suggestedAmount;
-          }
-          break
-        case "payment_data":
-          let link = this._getDescendantTextContent(node, "link");
-          let amountTag = this._getUniqueDescendant(node, "amount");
-          let amount = parseFloat(amountTag.getAttribute("amount"));
-          let displayAmount = this._getTextContent(amountTag);
-          if (link != null && amount != null && displayAmount != null) {
-            addon.purchaseURL = link;
-            addon.purchaseAmount = amount;
-            addon.purchaseDisplayAmount = displayAmount;
           }
           break
         case "rating":
@@ -978,13 +945,6 @@ var AddonRepository = {
           let repositoryStatus = parseInt(node.getAttribute("id"));
           if (!isNaN(repositoryStatus))
             addon.repositoryStatus = repositoryStatus;
-          break;
-        case "all_compatible_os":
-          let nodes = node.getElementsByTagName("os");
-          addon.isPlatformCompatible = Array.some(nodes, function(aNode) {
-            let text = aNode.textContent.toLowerCase().trim();
-            return text == "all" || text == Services.appinfo.OS.toLowerCase();
-          });
           break;
         case "install":
           // No os attribute means the xpi is compatible with any os
@@ -1070,13 +1030,8 @@ var AddonRepository = {
       if (requiredAttributes.some(function(aAttribute) !result.addon[aAttribute]))
         continue;
 
-      // Add only if the add-on is compatible with the platform
-      if (!result.addon.isPlatformCompatible)
-        continue;
-
-      // Add only if there was an xpi compatible with this OS or there was a
-      // way to purchase the add-on
-      if (!result.xpiURL && !result.addon.purchaseURL)
+      // Add only if there was an xpi compatible with this OS
+      if (!result.xpiURL)
         continue;
 
       results.push(result);
@@ -1102,14 +1057,9 @@ var AddonRepository = {
           self._reportSuccess(results, aTotalResults);
       }
 
-      if (aResult.xpiURL) {
-        AddonManager.getInstallForURL(aResult.xpiURL, callback,
-                                      "application/x-xpinstall", aResult.xpiHash,
-                                      addon.name, addon.iconURL, addon.version);
-      }
-      else {
-        callback(null);
-      }
+      AddonManager.getInstallForURL(aResult.xpiURL, callback,
+                                    "application/x-xpinstall", aResult.xpiHash,
+                                    addon.name, addon.iconURL, addon.version);
     });
   },
 

@@ -82,9 +82,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult OnSuccess();
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult GetSuccessResult(nsIWritableVariant* aResult);
 
 private:
   // In-params
@@ -100,16 +98,8 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-
-  nsresult OnSuccess()
-  {
-    return NS_OK;
-  }
-
-  void OnError()
-  {
-    NS_ASSERTION(mTransaction->IsAborted(), "How else can this fail?!");
-  }
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
+  void OnError(nsIDOMEventTarget* aTarget, nsresult aErrorCode);
 
   void ReleaseMainThreadObjects()
   {
@@ -130,16 +120,8 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-
-  nsresult OnSuccess()
-  {
-    return NS_OK;
-  }
-
-  void OnError()
-  {
-    NS_ASSERTION(mTransaction->IsAborted(), "How else can this fail?!");
-  }
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
+  void OnError(nsIDOMEventTarget* aTarget, nsresult aErrorCode);
 
 private:
   // In-params.
@@ -919,20 +901,15 @@ IDBDatabase::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   NS_ENSURE_TRUE(aVisitor.mDOMEvent, NS_ERROR_UNEXPECTED);
 
   if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault) {
-    nsString type;
-    nsresult rv = aVisitor.mDOMEvent->GetType(type);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDOMEvent> duplicateEvent =
+      IDBErrorEvent::MaybeDuplicate(aVisitor.mDOMEvent);
 
-    if (type.EqualsLiteral(ERROR_EVT_STR)) {
-      nsRefPtr<nsDOMEvent> duplicateEvent = CreateGenericEvent(type);
-      NS_ENSURE_STATE(duplicateEvent);
-
+    if (duplicateEvent) {
       nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(mOwner));
       NS_ASSERTION(target, "How can this happen?!");
 
       PRBool dummy;
-      rv = target->DispatchEvent(duplicateEvent, &dummy);
-      NS_ENSURE_SUCCESS(rv, rv);
+      target->DispatchEvent(duplicateEvent, &dummy);
     }
   }
 
@@ -962,7 +939,7 @@ SetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-SetVersionHelper::OnSuccess()
+SetVersionHelper::GetSuccessResult(nsIWritableVariant* aResult)
 {
   DatabaseInfo* info;
   if (!DatabaseInfo::Get(mDatabase->Id(), &info)) {
@@ -971,15 +948,8 @@ SetVersionHelper::OnSuccess()
   }
   info->version = mVersion;
 
-  // We want an event, with a result, etc. Call the base class method.
-  return AsyncConnectionHelper::OnSuccess();
-}
-
-nsresult
-SetVersionHelper::GetSuccessResult(JSContext* aCx,
-                                   jsval* aVal)
-{
-  return WrapNative(aCx, static_cast<nsPIDOMEventTarget*>(mTransaction), aVal);
+  aResult->SetAsISupports(static_cast<nsPIDOMEventTarget*>(mTransaction));
+  return NS_OK;
 }
 
 nsresult
@@ -1016,6 +986,20 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
+CreateObjectStoreHelper::OnSuccess(nsIDOMEventTarget* aTarget)
+{
+  NS_ASSERTION(!aTarget, "Huh?!");
+  return NS_OK;
+}
+
+void
+CreateObjectStoreHelper::OnError(nsIDOMEventTarget* aTarget,
+                                 nsresult aErrorCode)
+{
+  NS_ASSERTION(!aTarget, "Huh?!");
+}
+
+nsresult
 DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
   nsCOMPtr<mozIStorageStatement> stmt =
@@ -1034,4 +1018,19 @@ DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
+}
+
+nsresult
+DeleteObjectStoreHelper::OnSuccess(nsIDOMEventTarget* aTarget)
+{
+  NS_ASSERTION(!aTarget, "Huh?!");
+
+  return NS_OK;
+}
+
+void
+DeleteObjectStoreHelper::OnError(nsIDOMEventTarget* aTarget,
+                                 nsresult aErrorCode)
+{
+  NS_NOTREACHED("Removing an object store should never fail here!");
 }

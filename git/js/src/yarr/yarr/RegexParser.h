@@ -39,28 +39,27 @@ enum BuiltInCharacterClassID {
     NewlineClassID
 };
 
-enum ErrorCode {
-    NoError,
-    PatternTooLarge,
-    QuantifierOutOfOrder,
-    QuantifierWithoutAtom,
-    MissingParentheses,
-    ParenthesesUnmatched,
-    ParenthesesTypeInvalid,
-    CharacterClassUnmatched,
-    CharacterClassOutOfOrder,
-    CharacterClassRangeSingleChar,
-    EscapeUnterminated,
-    QuantifierTooLarge,
-    NumberOfErrorCodes
-};
-
 // The Parser class should not be used directly - only via the Yarr::parse() method.
 template<class Delegate>
 class Parser {
 private:
     template<class FriendDelegate>
     friend int parse(FriendDelegate& delegate, const UString& pattern, unsigned backReferenceLimit);
+
+    enum ErrorCode {
+        NoError,
+        PatternTooLarge,
+        QuantifierOutOfOrder,
+        QuantifierWithoutAtom,
+        MissingParentheses,
+        ParenthesesUnmatched,
+        ParenthesesTypeInvalid,
+        CharacterClassUnmatched,
+        CharacterClassOutOfOrder,
+        EscapeUnterminated,
+        QuantifierTooLarge,
+        NumberOfErrorCodes
+    };
 
     /*
      * CharacterClassParserDelegate:
@@ -148,15 +147,6 @@ private:
          */
         void atomBuiltInCharacterClass(BuiltInCharacterClassID classID, bool invert)
         {
-            if (m_state == cachedCharacterHyphen) {
-                // If the RHS of a range does not contain exacly one character then a SyntaxError
-                // must be thrown. SpiderMonkey only errors out in the [c-\s] case as an extension.
-                // (This assumes none of the built in character classes contain a single
-                // character.)
-                m_err = CharacterClassRangeSingleChar;
-                m_state = empty;
-                return;
-            }
             flush();
             m_delegate.atomCharacterClassBuiltIn(classID, invert);
         }
@@ -414,7 +404,7 @@ private:
     /*
      * parseCharacterClass():
      *
-     * Helper for parseTokens(); calls directly and indirectly (via parseCharacterClassEscape)
+     * Helper for parseTokens(); calls dirctly and indirectly (via parseCharacterClassEscape)
      * to an instance of CharacterClassParserDelegate, to describe the character class to the
      * delegate.
      */

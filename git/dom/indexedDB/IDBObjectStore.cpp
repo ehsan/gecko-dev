@@ -81,8 +81,7 @@ public:
   }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult GetSuccessResult(nsIWritableVariant* aResult);
 
   void ReleaseMainThreadObjects()
   {
@@ -118,8 +117,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
 
   void ReleaseMainThreadObjects()
   {
@@ -149,9 +147,8 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult OnSuccess();
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
+  nsresult GetSuccessResult(nsIWritableVariant* aResult);
 };
 
 class ClearHelper : public AsyncConnectionHelper
@@ -193,8 +190,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult GetSuccessResult(nsIWritableVariant* aResult);
 
   void ReleaseMainThreadObjects()
   {
@@ -229,16 +225,8 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-
-  nsresult OnSuccess()
-  {
-    return NS_OK;
-  }
-
-  void OnError()
-  {
-    NS_ASSERTION(mTransaction->IsAborted(), "How else can this fail?!");
-  }
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
+  void OnError(nsIDOMEventTarget* aTarget, nsresult aErrorCode);
 
   void ReleaseMainThreadObjects()
   {
@@ -267,16 +255,8 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-
-  nsresult OnSuccess()
-  {
-    return NS_OK;
-  }
-
-  void OnError()
-  {
-    NS_ASSERTION(mTransaction->IsAborted(), "How else can this fail?!");
-  }
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
+  void OnError(nsIDOMEventTarget* aTarget, nsresult aErrorCode);
 
   void ReleaseMainThreadObjects()
   {
@@ -307,8 +287,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult OnSuccess(nsIDOMEventTarget* aTarget);
 
   void ReleaseMainThreadObjects()
   {
@@ -554,7 +533,7 @@ IDBObjectStore::GetKeyPathValueFromStructuredData(const PRUint8* aData,
   jsval clone;
   if (!JS_ReadStructuredClone(cx, reinterpret_cast<const uint64*>(aData),
                               aDataLength, JS_STRUCTURED_CLONE_VERSION,
-                              &clone, NULL, NULL)) {
+                              &clone)) {
     return NS_ERROR_DOM_DATA_CLONE_ERR;
   }
 
@@ -1709,11 +1688,20 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-AddHelper::GetSuccessResult(JSContext* aCx,
-                            jsval* aVal)
+AddHelper::GetSuccessResult(nsIWritableVariant* aResult)
 {
   NS_ASSERTION(!mKey.IsUnset(), "Badness!");
-  return IDBObjectStore::GetJSValFromKey(mKey, aCx, aVal);
+
+  if (mKey.IsString()) {
+    aResult->SetAsAString(mKey.StringValue());
+  }
+  else if (mKey.IsInt()) {
+    aResult->SetAsInt64(mKey.IntValue());
+  }
+  else {
+    NS_NOTREACHED("Unknown key type!");
+  }
+  return NS_OK;
 }
 
 nsresult
@@ -1813,10 +1801,20 @@ GetHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-GetHelper::GetSuccessResult(JSContext* aCx,
-                            jsval* aVal)
+GetHelper::OnSuccess(nsIDOMEventTarget* aTarget)
 {
-  return ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
+  if (!mCloneBuffer.data()) {
+    // Default is to have an undefined result.
+    return AsyncConnectionHelper::OnSuccess(aTarget);
+  }
+
+  nsRefPtr<GetSuccessEvent> event(new GetSuccessEvent(mCloneBuffer));
+  nsresult rv = event->Init(mRequest, mTransaction);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  PRBool dummy;
+  aTarget->DispatchEvent(static_cast<nsDOMEvent*>(event), &dummy);
+  return NS_OK;
 }
 
 nsresult
@@ -1857,17 +1855,26 @@ DeleteHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-DeleteHelper::OnSuccess()
+DeleteHelper::OnSuccess(nsIDOMEventTarget* aTarget)
 {
-  return AsyncConnectionHelper::OnSuccess();
+  return AsyncConnectionHelper::OnSuccess(aTarget);
 }
 
 nsresult
-DeleteHelper::GetSuccessResult(JSContext* aCx,
-                               jsval* aVal)
+DeleteHelper::GetSuccessResult(nsIWritableVariant* aResult)
 {
   NS_ASSERTION(!mKey.IsUnset(), "Badness!");
-  return IDBObjectStore::GetJSValFromKey(mKey, aCx, aVal);
+
+  if (mKey.IsString()) {
+    aResult->SetAsAString(mKey.StringValue());
+  }
+  else if (mKey.IsInt()) {
+    aResult->SetAsInt64(mKey.IntValue());
+  }
+  else {
+    NS_NOTREACHED("Unknown key type!");
+  }
+  return NS_OK;
 }
 
 nsresult
@@ -2071,11 +2078,10 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-OpenCursorHelper::GetSuccessResult(JSContext* aCx,
-                                   jsval* aVal)
+OpenCursorHelper::GetSuccessResult(nsIWritableVariant* aResult)
 {
   if (mKey.IsUnset()) {
-    *aVal = JSVAL_VOID;
+    aResult->SetAsEmpty();
     return NS_OK;
   }
 
@@ -2085,7 +2091,8 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
                       mCloneBuffer);
   NS_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  return WrapNative(aCx, cursor, aVal);
+  aResult->SetAsISupports(cursor);
+  return NS_OK;
 }
 
 nsresult
@@ -2234,6 +2241,20 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
 }
 
 nsresult
+CreateIndexHelper::OnSuccess(nsIDOMEventTarget* aTarget)
+{
+  NS_ASSERTION(!aTarget, "Huh?!");
+  return NS_OK;
+}
+
+void
+CreateIndexHelper::OnError(nsIDOMEventTarget* aTarget,
+                           nsresult aErrorCode)
+{
+  NS_ASSERTION(!aTarget, "Huh?!");
+}
+
+nsresult
 DeleteIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
   NS_PRECONDITION(!NS_IsMainThread(), "Wrong thread!");
@@ -2255,6 +2276,21 @@ DeleteIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
 
   return NS_OK;
+}
+
+nsresult
+DeleteIndexHelper::OnSuccess(nsIDOMEventTarget* aTarget)
+{
+  NS_ASSERTION(!aTarget, "Huh?!");
+
+  return NS_OK;
+}
+
+void
+DeleteIndexHelper::OnError(nsIDOMEventTarget* aTarget,
+                           nsresult aErrorCode)
+{
+  NS_NOTREACHED("Removing an index should never fail here!");
 }
 
 nsresult
@@ -2370,9 +2406,17 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-GetAllHelper::GetSuccessResult(JSContext* aCx,
-                               jsval* aVal)
+GetAllHelper::OnSuccess(nsIDOMEventTarget* aTarget)
 {
   NS_ASSERTION(mCloneBuffers.Length() <= mLimit, "Too many results!");
-  return ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
+
+  nsRefPtr<GetAllSuccessEvent> event = new GetAllSuccessEvent(mCloneBuffers);
+  NS_ASSERTION(mCloneBuffers.IsEmpty(), "Should have swapped!");
+
+  nsresult rv = event->Init(mRequest, mTransaction);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  PRBool dummy;
+  aTarget->DispatchEvent(static_cast<nsDOMEvent*>(event), &dummy);
+  return NS_OK;
 }

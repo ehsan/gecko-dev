@@ -417,7 +417,6 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
             nNmapLive++;
     }
 
-    /* Please keep in sync with JITScript::scriptDataSize! */
     size_t totalBytes = sizeof(JITScript) +
                         sizeof(NativeMapEntry) * nNmapLive +
 #if defined JS_MONOIC
@@ -711,9 +710,6 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
         to.inlineHoleGuard = inlineHoleGuard;
         JS_ASSERT(to.inlineHoleGuard == inlineHoleGuard);
 
-        to.volatileMask = from.volatileMask;
-        JS_ASSERT(to.volatileMask == from.volatileMask);
-
         stubCode.patch(from.paramAddr, &to);
     }
 
@@ -819,9 +815,6 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     jit->nNmapPairs = nNmapLive;
     *jitp = jit;
 
-    /* We tolerate a race in the stats. */
-    cx->runtime->mjitMemoryUsed += totalSize + totalBytes;
-
     return Compile_Okay;
 }
 
@@ -830,21 +823,21 @@ class SrcNoteLineScanner {
     jssrcnote *sn;
 
 public:
-    SrcNoteLineScanner(jssrcnote *sn) : offset(SN_DELTA(sn)), sn(sn) {}
+    SrcNoteLineScanner(jssrcnote *sn) : offset(0), sn(sn) {}
 
     bool firstOpInLine(ptrdiff_t relpc) {
         while ((offset < relpc) && !SN_IS_TERMINATOR(sn)) {
-            sn = SN_NEXT(sn);
             offset += SN_DELTA(sn);
+            sn = SN_NEXT(sn);
         }
 
         while ((offset == relpc) && !SN_IS_TERMINATOR(sn)) {
             JSSrcNoteType type = (JSSrcNoteType) SN_TYPE(sn);
             if (type == SRC_SETLINE || type == SRC_NEWLINE)
                 return true;
-
-            sn = SN_NEXT(sn);
+                
             offset += SN_DELTA(sn);
+            sn = SN_NEXT(sn);
         }
 
         return false;
@@ -1372,12 +1365,8 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GETELEM)
 
           BEGIN_CASE(JSOP_SETELEM)
-          {
-            jsbytecode *next = &PC[JSOP_SETELEM_LENGTH];
-            bool pop = (JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next));
-            if (!jsop_setelem(pop))
+            if (!jsop_setelem())
                 return Compile_Error;
-          }
           END_CASE(JSOP_SETELEM);
 
           BEGIN_CASE(JSOP_CALLNAME)
@@ -1724,9 +1713,16 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_INSTANCEOF)
 
           BEGIN_CASE(JSOP_EXCEPTION)
-            prepareStubCall(Uses(0));
-            INLINE_STUBCALL(stubs::Exception);
-            frame.pushSynced();
+          {
+            JS_STATIC_ASSERT(sizeof(cx->throwing) == 4);
+            RegisterID reg = frame.allocReg();
+            masm.loadPtr(FrameAddress(offsetof(VMFrame, cx)), reg);
+            masm.store32(Imm32(JS_FALSE), Address(reg, offsetof(JSContext, throwing)));
+
+            Address excn(reg, offsetof(JSContext, exception));
+            frame.freeReg(reg);
+            frame.push(excn);
+          }
           END_CASE(JSOP_EXCEPTION)
 
           BEGIN_CASE(JSOP_LINENO)
@@ -1748,7 +1744,7 @@ mjit::Compiler::generateMethod()
 
             // Before: VALUE OBJ ID VALUE
             // After:  VALUE VALUE
-            if (!jsop_setelem(true))
+            if (!jsop_setelem())
                 return Compile_Error;
 
             // Before: VALUE VALUE
@@ -1953,6 +1949,22 @@ mjit::Compiler::generateMethod()
             if (!jsop_callprop(script->getAtom(fullAtomIndex(PC))))
                 return Compile_Error;
           END_CASE(JSOP_CALLPROP)
+
+          BEGIN_CASE(JSOP_GETUPVAR)
+          BEGIN_CASE(JSOP_CALLUPVAR)
+          {
+            uint32 index = GET_UINT16(PC);
+            JSUpvarArray *uva = script->upvars();
+            JS_ASSERT(index < uva->length);
+
+            prepareStubCall(Uses(0));
+            masm.move(Imm32(uva->vector[index].asInteger()), Registers::ArgReg1);
+            INLINE_STUBCALL(stubs::GetUpvar);
+            frame.pushSynced();
+            if (op == JSOP_CALLUPVAR)
+                frame.push(UndefinedValue());
+          }
+          END_CASE(JSOP_CALLUPVAR)
 
           BEGIN_CASE(JSOP_UINT24)
             frame.push(Value(Int32Value((int32_t) GET_UINT24(PC))));
@@ -2319,12 +2331,6 @@ mjit::Compiler::emitReturn(FrameEntry *fe)
 
             emitReturnValue(&stubcc.masm, fe);
             emitFinalReturn(stubcc.masm);
-        }
-    } else {
-        if (fp->isEvalFrame() && script->strictModeCode) {
-            /* There will always be a call object. */
-            prepareStubCall(Uses(fe ? 1 : 0));
-            INLINE_STUBCALL(stubs::PutStrictEvalCallObject);
         }
     }
 
@@ -3284,14 +3290,9 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
         return true; 
     }
 
-    /*
-     * Bake in String.prototype. This is safe because of compileAndGo.
-     * We must pass an explicit scope chain only because JSD calls into
-     * here via the recompiler with a dummy context, and we need to use
-     * the global object for the script we are now compiling.
-     */
+    /* Bake in String.prototype. Is this safe? */
     JSObject *obj;
-    if (!js_GetClassPrototype(cx, &fp->scopeChain(), JSProto_String, &obj))
+    if (!js_GetClassPrototype(cx, NULL, JSProto_String, &obj))
         return false;
 
     /* Force into a register because getprop won't expect a constant. */
@@ -4885,12 +4886,8 @@ mjit::Compiler::enterBlock(JSObject *obj)
     // VMFrame::fp to the correct fp for the entry point. We need to copy
     // that value here to FpReg so that FpReg also has the correct sp.
     // Otherwise, we would simply be using a stale FpReg value.
-    // Additionally, we check the interrupt flag to allow interrupting
-    // deeply nested exception handling.
-    if (analysis->getCode(PC).exceptionEntry) {
+    if (analysis->getCode(PC).exceptionEntry)
         restoreFrameRegs(masm);
-        interruptCheckHelper();
-    }
 
     uint32 oldFrameDepth = frame.localSlots();
 

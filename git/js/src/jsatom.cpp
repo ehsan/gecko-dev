@@ -183,7 +183,6 @@ const char *const js_common_atom_names[] = {
     "line",                     /* lineAtom                     */
     "Infinity",                 /* InfinityAtom                 */
     "NaN",                      /* NaNAtom                      */
-    "builder",                  /* builderAtom                  */
 
 #if JS_HAS_XML_SUPPORT
     js_etago_str,               /* etagoAtom                    */
@@ -450,8 +449,8 @@ js_SweepAtomState(JSContext *cx)
         AtomEntryType entry = e.front();
         if (AtomEntryFlags(entry) & (ATOM_PINNED | ATOM_INTERNED)) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(cx, AtomEntryToKey(entry)));
-        } else if (IsAboutToBeFinalized(cx, AtomEntryToKey(entry))) {
+            JS_ASSERT(!IsAboutToBeFinalized(AtomEntryToKey(entry)));
+        } else if (IsAboutToBeFinalized(AtomEntryToKey(entry))) {
             e.removeFront();
         }
     }

@@ -116,25 +116,20 @@ private:
     typedef js::Vector<Allocation, 2 ,js::SystemAllocPolicy > AllocationList;
 
     // Reference count for automatic reclamation.
-    unsigned m_refCount;
+    jsrefcount m_refCount;
 
 public:
-    // It should be impossible for us to roll over, because only small
-    // pools have multiple holders, and they have one holder per chunk
-    // of generated code, and they only hold 16KB or so of code.
-    void addRef()
-    {
-        JS_ASSERT(m_refCount);
-        ++m_refCount;
-    }
+      // It should be impossible for us to roll over, because only small
+      // pools have multiple holders, and they have one holder per chunk
+      // of generated code, and they only hold 16KB or so of code.
+      void addRef() { JS_ATOMIC_INCREMENT(&m_refCount); }
+      void release() { 
+	  JS_ASSERT(m_refCount != 0);
+	  if (JS_ATOMIC_DECREMENT(&m_refCount) == 0) 
+	      delete this; 
+      }
 
-    void release()
-    { 
-        JS_ASSERT(m_refCount != 0);
-        if (--m_refCount == 0)
-            delete this;
-    }
-
+    //static PassRefPtr<ExecutablePool> create(size_t n)
     static ExecutablePool* create(size_t n)
     {
         ExecutablePool *pool = new ExecutablePool(n);

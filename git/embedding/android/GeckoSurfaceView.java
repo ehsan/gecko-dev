@@ -87,7 +87,7 @@ class GeckoSurfaceView
         mSurfaceLock = new ReentrantLock();
 
         mEditableFactory = Editable.Factory.getInstance();
-        initEditable("");
+        setupEditable("");
         mIMEState = IME_STATE_DISABLED;
         mIMETypeHint = "";
         mIMEActionHint = "";
@@ -375,15 +375,7 @@ class GeckoSurfaceView
         return inputConnection;
     }
 
-    public void setEditable(String contents)
-    {
-        mEditable.removeSpan(inputConnection);
-        mEditable.replace(0, mEditable.length(), contents);
-        mEditable.setSpan(inputConnection, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
-        Selection.setSelection(mEditable, contents.length());
-    }
-
-    public void initEditable(String contents)
+    public void setupEditable(String contents)
     {
         mEditable = mEditableFactory.newEditable(contents);
         mEditable.setSpan(inputConnection, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);

@@ -5572,6 +5572,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   info->mBuilder.EnterPresShell(ancestorFrame, ancestorRect);
   ancestorFrame->BuildDisplayListForStackingContext(&info->mBuilder,
                                                     ancestorRect, &info->mList);
+  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {
@@ -5581,8 +5582,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
 #endif
 
   nsRect rangeRect = ClipListToRange(&info->mBuilder, &info->mList, range);
-
-  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {

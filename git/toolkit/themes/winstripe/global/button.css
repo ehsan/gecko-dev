@@ -138,6 +138,8 @@ button[disabled="true"] > .button-box {
 /* ::::: menu/menu-button buttons ::::: */
 
 button[type="menu-button"] {
+  -moz-box-align: center;
+  -moz-box-pack: center;
   margin: 0;
   border: none;
 }
