@@ -218,8 +218,10 @@ function synthesizeDrop(srcElement, destElement, dragData, dropEffect, aWindow, 
   if (!aWindow)
     aWindow = window;
 
-  var synthesizeMouseAtCenter = (eventUtils || window).synthesizeMouseAtCenter;
-  var synthesizeMouse = (eventUtils || window).synthesizeMouse;
+  if (typeof(eventUtils) != 'undefined') {
+    synthesizeMouseAtCenter = eventUtils.synthesizeMouseAtCenter;
+    synthesizeMouse = eventUtils.synthesizeMouse;
+  }
 
   var gWindowUtils  = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
                              getInterface(Components.interfaces.nsIDOMWindowUtils);

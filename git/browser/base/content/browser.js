@@ -8909,10 +8909,9 @@ var TabContextMenu = {
 };
 
 XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
-  let tempScope = {};
-  Cu.import("resource:///modules/HUDService.jsm", tempScope);
+  Cu.import("resource:///modules/HUDService.jsm");
   try {
-    return tempScope.HUDService.consoleUI;
+    return HUDService.consoleUI;
   }
   catch (ex) {
     Components.utils.reportError(ex);

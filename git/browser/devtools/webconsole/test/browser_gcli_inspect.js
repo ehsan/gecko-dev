@@ -7,9 +7,7 @@
 
 // Tests that the inspect command works as it should
 
-let tempScope = {};
-Components.utils.import("resource:///modules/gcli.jsm", tempScope);
-let gcli = tempScope.gcli;
+Components.utils.import("resource:///modules/gcli.jsm");
 
 registerCleanupFunction(function() {
   gcliterm = undefined;

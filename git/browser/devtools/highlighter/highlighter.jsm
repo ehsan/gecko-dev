@@ -698,14 +698,12 @@ Highlighter.prototype = {
   {
     this.browser.addEventListener("resize", this, true);
     this.browser.addEventListener("scroll", this, true);
-    this.browser.addEventListener("MozAfterPaint", this, true);
   },
 
   detachPageListeners: function Highlighter_detachPageListeners()
   {
     this.browser.removeEventListener("resize", this, true);
     this.browser.removeEventListener("scroll", this, true);
-    this.browser.removeEventListener("MozAfterPaint", this, true);
   },
 
   attachKeysListeners: function Highlighter_attachKeysListeners()
@@ -736,10 +734,8 @@ Highlighter.prototype = {
         this.handleMouseMove(aEvent);
         break;
       case "resize":
-        this.computeZoomFactor();
-        break;
-      case "MozAfterPaint":
       case "scroll":
+        this.computeZoomFactor();
         this.brieflyDisableTransitions();
         this.invalidateSize();
         break;
@@ -748,6 +744,7 @@ Highlighter.prototype = {
       case "mouseup":
         aEvent.stopPropagation();
         aEvent.preventDefault();
+        break;
         break;
       case "keypress":
         switch (aEvent.keyCode) {
