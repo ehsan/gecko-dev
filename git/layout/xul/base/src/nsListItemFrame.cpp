@@ -43,7 +43,6 @@
 #include "nsINameSpaceManager.h" 
 #include "nsGkAtoms.h"
 #include "nsDisplayList.h"
-#include "nsIBoxLayout.h"
 
 nsListItemFrame::nsListItemFrame(nsIPresShell* aPresShell,
                                  nsStyleContext* aContext,
@@ -85,16 +84,9 @@ nsListItemFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
 
 // Creation Routine ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsIBoxLayout> NS_NewGridRowLeafLayout();
-
 nsIFrame*
-NS_NewListItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewListItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
-  nsCOMPtr<nsIBoxLayout> layout = NS_NewGridRowLeafLayout();
-  if (!layout) {
-    return nsnull;
-  }
-  
-  return new (aPresShell) nsListItemFrame(aPresShell, aContext, PR_FALSE, layout);
+  return new (aPresShell) nsListItemFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 } // NS_NewListItemFrame
 

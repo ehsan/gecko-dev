@@ -43,11 +43,11 @@
 #include "nsURLHelper.h"
 #include "nsEscape.h"
 #include "nsILocalFile.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsReadableUtils.h"
 #include <Files.h>
 
-static nsTArray<nsCString> *gVolumeList = nsnull;
+static nsCStringArray *gVolumeList = nsnull;
 
 static PRBool pathBeginsWithVolName(const nsACString& path, nsACString& firstPathComponent)
 {
@@ -57,14 +57,14 @@ static PRBool pathBeginsWithVolName(const nsACString& path, nsACString& firstPat
   // XXX Register an event handler to detect drives being mounted/unmounted?
   
   if (!gVolumeList) {
-    gVolumeList = new nsTArray<nsCString>;
+    gVolumeList = new nsCStringArray;
     if (!gVolumeList) {
       return PR_FALSE; // out of memory
     }
   }
 
   // Cache a list of volume names
-  if (!gVolumeList->Length()) {
+  if (!gVolumeList->Count()) {
     OSErr err;
     ItemCount volumeIndex = 1;
     
@@ -75,7 +75,7 @@ static PRBool pathBeginsWithVolName(const nsACString& path, nsACString& firstPat
       if (err == noErr) {
         NS_ConvertUTF16toUTF8 volNameStr(Substring((PRUnichar *)volName.unicode,
                                                    (PRUnichar *)volName.unicode + volName.length));
-        gVolumeList->AppendElement(volNameStr);
+        gVolumeList->AppendCString(volNameStr);
         volumeIndex++;
       }
     } while (err == noErr);

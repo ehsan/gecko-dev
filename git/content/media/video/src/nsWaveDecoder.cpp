@@ -1461,19 +1461,3 @@ nsWaveDecoder::GetSeekable()
 {
   return mSeekable;
 }
-
-void
-nsWaveDecoder::Suspend()
-{
-  if (mStream) {
-    mStream->Suspend();
-  }
-}
-
-void
-nsWaveDecoder::Resume()
-{
-  if (mStream) {
-    mStream->Resume();
-  }
-}

@@ -5103,9 +5103,8 @@ nsDocShell::OnStateChange(nsIWebProgress * aProgress, nsIRequest * aRequest,
                 SetCurrentURI(uri, aRequest, PR_TRUE);
                 // Save history state of the previous page
                 rv = PersistLayoutHistoryState();
-                // We'll never get an Embed() for this load, so just go ahead
-                // and SetHistoryEntry now.
-                SetHistoryEntry(&mOSHE, mLSHE);
+                if (mOSHE)
+                    SetHistoryEntry(&mOSHE, mLSHE);
             }
         
         }
@@ -5502,24 +5501,21 @@ nsDocShell::ReattachEditorToWindow(nsISHEntry *aSHEntry)
 }
 
 void
-nsDocShell::DetachEditorFromWindow()
+nsDocShell::DetachEditorFromWindow(nsISHEntry *aSHEntry)
 {
-    if (!mEditorData || mEditorData->WaitingForLoad()) {
-        // If there's nothing to detach, or if the editor data is actually set
-        // up for the _new_ page that's coming in, don't detach.
+    if (!mEditorData)
         return;
-    }
 
-    NS_ASSERTION(!mOSHE || !mOSHE->HasDetachedEditor(),
+    NS_ASSERTION(!aSHEntry || !aSHEntry->HasDetachedEditor(),
                  "Detaching editor when it's already detached.");
 
     nsresult res = mEditorData->DetachFromWindow();
     NS_ASSERTION(NS_SUCCEEDED(res), "Failed to detach editor");
 
     if (NS_SUCCEEDED(res)) {
-        // Make mOSHE hold the owning ref to the editor data.
-        if (mOSHE)
-            mOSHE->SetEditorData(mEditorData.forget());
+        // Make aSHEntry hold the owning ref to the editor data.
+        if (aSHEntry)
+            aSHEntry->SetEditorData(mEditorData.forget());
         else
             mEditorData = nsnull;
     }
@@ -5532,6 +5528,14 @@ nsDocShell::DetachEditorFromWindow()
                      "Window is still editable after detaching editor.");
     }
 #endif // DEBUG
+
+}
+
+void
+nsDocShell::DetachEditorFromWindow()
+{
+    if (mOSHE)
+        DetachEditorFromWindow(mOSHE);
 }
 
 nsresult

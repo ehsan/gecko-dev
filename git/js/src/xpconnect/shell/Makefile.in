@@ -65,8 +65,6 @@ LIBS		= \
 		$(NSPR_LIBS) \
 		$(NULL)
 
-NSDISTMODE = copy
-
 include $(topsrcdir)/config/rules.mk
 
 DEFINES		+= -DJS_THREADSAFE

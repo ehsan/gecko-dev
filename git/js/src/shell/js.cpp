@@ -229,9 +229,6 @@ struct JSShellContextData {
     PRIntervalTime          timeout;
     volatile PRIntervalTime startTime;      /* startTime + timeout is time when
                                                script must be stopped */
-    PRIntervalTime          maybeGCPeriod;
-    volatile PRIntervalTime lastMaybeGCTime;/* lastMaybeGCTime + maybeGCPeriod
-                                               is the time to call MaybeGC */
     PRIntervalTime          yieldPeriod;
     volatile PRIntervalTime lastYieldTime;  /* lastYieldTime + yieldPeriod is
                                                the time to call
@@ -239,7 +236,6 @@ struct JSShellContextData {
 #else
     int64                   stopTime;       /* time when script must be
                                                stopped */
-    int64                   nextMaybeGCTime;/* time to call JS_MaybeGC */
 #endif
 };
 
@@ -249,7 +245,6 @@ SetTimeoutValue(JSContext *cx, jsdouble t);
 #ifdef JS_THREADSAFE
 
 # define DEFAULT_YIELD_PERIOD()     (PR_TicksPerSecond() / 50)
-# define DEFAULT_MAYBEGC_PERIOD()   (PR_TicksPerSecond() / 10)
 
 /*
  * The function assumes that the GC lock is already held on entry. On a
@@ -260,8 +255,6 @@ static JSBool
 RescheduleWatchdog(JSContext *cx, JSShellContextData *data, PRIntervalTime now);
 
 #else
-
-# define DEFAULT_MAYBEGC_PERIOD()   (MICROSECONDS_PER_SECOND / 10)
 
 const int64 MICROSECONDS_PER_SECOND = 1000000LL;
 const int64 MAX_TIME_VALUE = 0x7FFFFFFFFFFFFFFFLL;
@@ -277,16 +270,13 @@ NewContextData()
         return NULL;
 #ifdef JS_THREADSAFE
     data->timeout = PR_INTERVAL_NO_TIMEOUT;
-    data->maybeGCPeriod = PR_INTERVAL_NO_TIMEOUT;
     data->yieldPeriod = PR_INTERVAL_NO_TIMEOUT;
 # ifdef DEBUG
     data->startTime = 0;
-    data->lastMaybeGCTime = 0;
     data->lastYieldTime = 0;
 # endif
 #else /* !JS_THREADSAFE */
     data->stopTime = MAX_TIME_VALUE;
-    data->nextMaybeGCTime = MAX_TIME_VALUE;
 #endif
 
     return data;
@@ -306,18 +296,12 @@ ShellOperationCallback(JSContext *cx)
 {
     JSShellContextData *data = GetContextData(cx);
     JSBool doStop;
-    JSBool doMaybeGC;
 #ifdef JS_THREADSAFE
     JSBool doYield;
     PRIntervalTime now = PR_IntervalNow();
 
     doStop = (data->timeout != PR_INTERVAL_NO_TIMEOUT &&
               now - data->startTime >= data->timeout);
-
-    doMaybeGC = (data->maybeGCPeriod != PR_INTERVAL_NO_TIMEOUT &&
-                 now - data->lastMaybeGCTime >= data->maybeGCPeriod);
-    if (doMaybeGC)
-        data->lastMaybeGCTime = now;
 
     doYield = (data->yieldPeriod != PR_INTERVAL_NO_TIMEOUT &&
                now - data->lastYieldTime >= data->yieldPeriod);
@@ -328,18 +312,12 @@ ShellOperationCallback(JSContext *cx)
     int64 now = JS_Now();
 
     doStop = (now >= data->stopTime);
-    doMaybeGC = (now >= data->nextMaybeGCTime);
-    if (doMaybeGC)
-        data->nextMaybeGCTime = now + DEFAULT_MAYBEGC_PERIOD();
 #endif
 
     if (doStop) {
         fputs("Error: script is running for too long\n", stderr);
         return JS_FALSE;
     }
-
-    if (doMaybeGC)
-        JS_MaybeGC(cx);
 
 #ifdef JS_THREADSAFE
     if (doYield)
@@ -439,11 +417,9 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
     /* It's an interactive filehandle; drop into read-eval-print loop. */
     lineno = 1;
     hitEOF = JS_FALSE;
+    size_t len;
     buffer = NULL;
-    size = 0;           /* assign here to avoid warnings */
     do {
-        size_t len = 0; /* initialize to avoid warnings */
-
         /*
          * Accumulate lines until we get a 'compilable unit' - one that either
          * generates an error (before running out of source) or that compiles
@@ -468,8 +444,8 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
                 len = strlen(buffer);
                 size = len + 1;
             } else {
-                /*
-                 * len + 1 is required to store '\n' in the end of line.
+                /**
+                 * len + 1 is required to store '\n' in the end of line
                  */
                 size_t newlen = strlen(line) + (len ? len + 1 : 0);
                 if (newlen + 1 > size) {
@@ -496,18 +472,10 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
         if (hitEOF)
             break;
 
-        /* Clear any pending exception from previous failed compiles. */
+        /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
-
-        /* Even though we're interactive, we have a compile-n-go opportunity. */
-        oldopts = JS_GetOptions(cx);
-        if (!compileOnly)
-            JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO);
         script = JS_CompileScript(cx, obj, buffer, len, "typein",
                                   startline);
-        if (!compileOnly)
-            JS_SetOptions(cx, oldopts);
-
         if (script) {
             if (!compileOnly) {
                 ok = JS_ExecuteScript(cx, obj, script, &result);
@@ -522,6 +490,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
             JS_DestroyScript(cx, script);
         }
         *buffer = '\0';
+        len = 0;
     } while (!gQuitting);
 
     free(buffer);
@@ -535,7 +504,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: js [-zKPswWxCij] [-t timeoutSeconds] [-c stackchunksize] [-o option] [-v version] [-f scriptfile] [-e script] [-S maxstacksize] "
+    fprintf(gErrFile, "usage: js [-zKPswWxCi] [-t timeoutSeconds] [-c stackchunksize] [-o option] [-v version] [-f scriptfile] [-e script] [-S maxstacksize] "
 #ifdef JS_GC_ZEAL
 "[-Z gczeal] "
 #endif
@@ -1099,24 +1068,49 @@ GCParameter(JSContext *cx, uintN argc, jsval *vp)
         param = JSGC_MAX_BYTES;
     } else if (strcmp(paramName, "maxMallocBytes") == 0) {
         param = JSGC_MAX_MALLOC_BYTES;
+    } else if (strcmp(paramName, "gcStackpoolLifespan") == 0) {
+        param = JSGC_STACKPOOL_LIFESPAN;
+    } else if (strcmp(paramName, "gcBytes") == 0) {
+        param = JSGC_BYTES;
+    } else if (strcmp(paramName, "gcNumber") == 0) {
+        param = JSGC_NUMBER;
+    } else if (strcmp(paramName, "gcTriggerFactor") == 0) {
+        param = JSGC_TRIGGER_FACTOR;
     } else {
         JS_ReportError(cx,
-                       "the first argument argument must be either maxBytes "
-                       "or maxMallocBytes");
+                       "the first argument argument must be maxBytes, "
+                       "maxMallocBytes, gcStackpoolLifespan, gcBytes, "
+                       "gcNumber or gcTriggerFactor");
         return JS_FALSE;
     }
 
-    if (!JS_ValueToECMAUint32(cx, argc < 2 ? JSVAL_VOID : vp[3], &value))
+    if (argc == 1) {
+        value = JS_GetGCParameter(cx->runtime, param);
+        return JS_NewNumberValue(cx, value, &vp[0]);
+    }
+
+    if (param == JSGC_NUMBER ||
+        param == JSGC_BYTES) {
+        JS_ReportError(cx, "Attempt to change read-only parameter %s",
+                       paramName);
         return JS_FALSE;
-    if (value == 0) {
+    }
+
+    if (!JS_ValueToECMAUint32(cx, vp[3], &value)) {
         JS_ReportError(cx,
-                       "the second argument must be convertable to uint32 with "
-                       "non-zero value");
+                       "the second argument must be convertable to uint32 "
+                       "with non-zero value");
+        return JS_FALSE;
+    }
+    if (param == JSGC_TRIGGER_FACTOR && value < 100) {
+        JS_ReportError(cx,
+                       "the gcTriggerFactor value must be >= 100");
         return JS_FALSE;
     }
     JS_SetGCParameter(cx->runtime, param, value);
     *vp = JSVAL_VOID;
     return JS_TRUE;
+
 }
 
 #ifdef JS_GC_ZEAL
@@ -3151,8 +3145,6 @@ CheckCallbackTime(JSContext *cx, JSShellContextData *data, PRIntervalTime now,
 
     UpdateSleepDuration(now, data->startTime, data->timeout,
                         sleepDuration, expired);
-    UpdateSleepDuration(now, data->lastMaybeGCTime, data->maybeGCPeriod,
-                        sleepDuration, expired);
     UpdateSleepDuration(now, data->lastYieldTime, data->yieldPeriod,
                         sleepDuration, expired);
     if (expired) {
@@ -3256,24 +3248,15 @@ SetTimeoutValue(JSContext *cx, jsdouble t)
         return JS_FALSE;
     }
 
-    /*
-     * For compatibility periodic MaybeGC calls are enabled only when the
-     * execution time is bounded.
-     */
     JSShellContextData *data = GetContextData(cx);
 #ifdef JS_THREADSAFE
     JS_LOCK_GC(cx->runtime);
     if (t < 0) {
         data->timeout = PR_INTERVAL_NO_TIMEOUT;
-        data->maybeGCPeriod = PR_INTERVAL_NO_TIMEOUT;
     } else {
         PRIntervalTime now = PR_IntervalNow();
         data->timeout = PRIntervalTime(t * PR_TicksPerSecond());
         data->startTime = now;
-        if (data->maybeGCPeriod == PR_INTERVAL_NO_TIMEOUT) {
-            data->maybeGCPeriod = DEFAULT_MAYBEGC_PERIOD();
-            data->lastMaybeGCTime = now;
-        }
         if (!RescheduleWatchdog(cx, data, now)) {
             /* The GC lock is already released here. */
             return JS_FALSE;
@@ -3284,13 +3267,10 @@ SetTimeoutValue(JSContext *cx, jsdouble t)
 #else /* !JS_THREADSAFE */
     if (t < 0) {
         data->stopTime = MAX_TIME_VALUE;
-        data->nextMaybeGCTime = MAX_TIME_VALUE;
         JS_SetOperationLimit(cx, JS_MAX_OPERATION_LIMIT);
     } else {
         int64 now = JS_Now();
         data->stopTime = now + int64(t * MICROSECONDS_PER_SECOND);
-        if (data->nextMaybeGCTime == MAX_TIME_VALUE)
-            data->nextMaybeGCTime = now + DEFAULT_MAYBEGC_PERIOD();
 
         /*
          * Call the callback infrequently enough to avoid the overhead of
@@ -3347,126 +3327,6 @@ Timeout(JSContext *cx, uintN argc, jsval *vp)
 JS_DEFINE_TRCINFO_1(Print, (2, (static, JSVAL_FAIL, Print_tn, CONTEXT, STRING, 0, 0)))
 JS_DEFINE_TRCINFO_1(ShapeOf, (1, (static, INT32, ShapeOf_tn, OBJECT, 0, 0)))
 
-#ifdef XP_UNIX
-
-#include <fcntl.h>
-#include <sys/stat.h>
-
-/*
- * Returns a JS_malloc'd string (that the caller needs to JS_free)
- * containing the directory (non-leaf) part of |from| prepended to |leaf|.
- * If |from| is empty or a leaf, MakeAbsolutePathname returns a copy of leaf.
- * Returns NULL to indicate an error.
- */
-static char *
-MakeAbsolutePathname(JSContext *cx, const char *from, const char *leaf)
-{
-    size_t dirlen;
-    char *dir;
-    const char *slash = NULL, *cp;
-
-    cp = from;
-    while (*cp) {
-        if (*cp == '/') {
-            slash = cp;
-        }
-
-        ++cp;
-    }
-
-    if (!slash) {
-        /* We were given a leaf or |from| was empty. */
-        return JS_strdup(cx, leaf);
-    }
-
-    /* Else, we were given a real pathname, return that + the leaf. */
-    dirlen = slash - from + 1;
-    dir = (char*) JS_malloc(cx, dirlen + strlen(leaf) + 1);
-    if (!dir)
-        return NULL;
-
-    strncpy(dir, from, dirlen);
-    strcpy(dir + dirlen, leaf); /* Note: we can't use strcat here. */
-
-    return dir;
-}
-
-#endif // XP_UNIX
-
-static JSBool
-Snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
-{
-    JSString *str;
-    const char *filename;
-    const char *pathname;
-    JSStackFrame *fp;
-    JSBool ok;
-    size_t cc, len;
-    char *buf;
-    FILE *file;
-
-    str = JS_ValueToString(cx, argv[0]);
-    if (!str)
-        return JS_FALSE;
-    filename = JS_GetStringBytes(str);
-
-    /* Get the currently executing script's name. */
-    fp = JS_GetScriptedCaller(cx, NULL);
-    JS_ASSERT(fp && fp->script->filename);
-#ifdef XP_UNIX
-    pathname = MakeAbsolutePathname(cx, fp->script->filename, filename);
-    if (!pathname)
-        return JS_FALSE;
-#else
-    pathname = filename;
-#endif
-
-    ok = JS_FALSE;
-    len = 0;
-    buf = NULL;
-    file = fopen(pathname, "rb");
-    if (!file) {
-        JS_ReportError(cx, "can't open %s: %s", pathname, strerror(errno));
-    } else {
-        if (fseek(file, 0, SEEK_END) == EOF) {
-            JS_ReportError(cx, "can't seek end of %s", pathname);
-        } else {
-            len = ftell(file);
-            if (fseek(file, 0, SEEK_SET) == EOF) {
-                JS_ReportError(cx, "can't seek start of %s", pathname);
-            } else {
-                buf = (char*) JS_malloc(cx, len + 1);
-                if (buf) {
-                    cc = fread(buf, 1, len, file);
-                    if (cc != len) {
-                        JS_free(cx, buf);
-                        JS_ReportError(cx, "can't read %s: %s", pathname,
-                                       (ptrdiff_t(cc) < 0) ? strerror(errno) : "short read");
-                    } else {
-                        len = (size_t)cc;
-                        ok = JS_TRUE;
-                    }
-                }
-            }
-        }
-        fclose(file);
-    }
-    JS_free(cx, (void*)pathname);
-    if (!ok) {
-        JS_free(cx, buf);
-        return ok;
-    }
-
-    buf[len] = '\0';
-    str = JS_NewString(cx, buf, len);
-    if (!str) {
-        JS_free(cx, buf);
-        return JS_FALSE;
-    }
-    *rval = STRING_TO_JSVAL(str);
-    return JS_TRUE;
-}
-
 /* We use a mix of JS_FS and JS_FN to test both kinds of natives. */
 static JSFunctionSpec shell_functions[] = {
     JS_FS("version",        Version,        0,0,0),
@@ -3513,30 +3373,29 @@ static JSFunctionSpec shell_functions[] = {
     JS_FS("evalcx",         EvalInContext,  1,0,0),
     JS_TN("shapeOf",        ShapeOf,        1,0, ShapeOf_trcinfo),
 #ifdef MOZ_SHARK
-    JS_FS("startShark",     js_StartShark,      0,0,0),
-    JS_FS("stopShark",      js_StopShark,       0,0,0),
-    JS_FS("connectShark",   js_ConnectShark,    0,0,0),
-    JS_FS("disconnectShark",js_DisconnectShark, 0,0,0),
+    JS_FS("startShark",      js_StartShark,      0,0,0),
+    JS_FS("stopShark",       js_StopShark,       0,0,0),
+    JS_FS("connectShark",    js_ConnectShark,    0,0,0),
+    JS_FS("disconnectShark", js_DisconnectShark, 0,0,0),
 #endif
 #ifdef MOZ_CALLGRIND
-    JS_FS("startCallgrind", js_StartCallgrind,  0,0,0),
-    JS_FS("stopCallgrind",  js_StopCallgrind,   0,0,0),
-    JS_FS("dumpCallgrind",  js_DumpCallgrind,   1,0,0),
+    JS_FS("startCallgrind",  js_StartCallgrind,  0,0,0),
+    JS_FS("stopCallgrind",   js_StopCallgrind,   0,0,0),
+    JS_FS("dumpCallgrind",   js_DumpCallgrind,   1,0,0),
 #endif
 #ifdef MOZ_VTUNE
-    JS_FS("startVtune",     js_StartVtune,    1,0,0),
-    JS_FS("stopVtune",      js_StopVtune,     0,0,0),
-    JS_FS("pauseVtune",     js_PauseVtune,    0,0,0),
-    JS_FS("resumeVtune",    js_ResumeVtune,   0,0,0),
+    JS_FS("startVtune",      js_StartVtune,    1,0,0),
+    JS_FS("stopVtune",       js_StopVtune,     0,0,0),
+    JS_FS("pauseVtune",      js_PauseVtune,    0,0,0),
+    JS_FS("resumeVtune",     js_ResumeVtune,   0,0,0),
 #endif
 #ifdef DEBUG_ARRAYS
-    JS_FS("arrayInfo",      js_ArrayInfo,       1,0,0),
+    JS_FS("arrayInfo",       js_ArrayInfo,       1,0,0),
 #endif
 #ifdef JS_THREADSAFE
     JS_FN("sleep",          Sleep_fn,       1,0),
     JS_FN("scatter",        Scatter,        1,0),
 #endif
-    JS_FS("snarf",          Snarf,        0,0,0),
     JS_FN("timeout",        Timeout,        1,0),
     JS_FS_END
 };
@@ -3625,7 +3484,6 @@ static const char *const shell_help_messages[] = {
 "sleep(dt)                Sleep for dt seconds",
 "scatter(fns)             Call functions concurrently (ignoring errors)",
 #endif
-"snarf(filename)          Read filename into returned string",
 "timeout([seconds])\n"
 "  Get/Set the limit in seconds for the execution time for the current context.\n"
 "  A negative value (default) means that the execution time is unlimited.",
@@ -4392,6 +4250,123 @@ Evaluate(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return ok;
 }
 
+#include <fcntl.h>
+#include <sys/stat.h>
+
+/*
+ * Returns a JS_malloc'd string (that the caller needs to JS_free)
+ * containing the directory (non-leaf) part of |from| prepended to |leaf|.
+ * If |from| is empty or a leaf, MakeAbsolutePathname returns a copy of leaf.
+ * Returns NULL to indicate an error.
+ */
+static char *
+MakeAbsolutePathname(JSContext *cx, const char *from, const char *leaf)
+{
+    size_t dirlen;
+    char *dir;
+    const char *slash = NULL, *cp;
+
+    cp = from;
+    while (*cp) {
+        if (*cp == '/'
+#ifdef XP_WIN
+            || *cp == '\\'
+#endif
+           ) {
+            slash = cp;
+        }
+
+        ++cp;
+    }
+
+    if (!slash) {
+        /* We were given a leaf or |from| was empty. */
+        return JS_strdup(cx, leaf);
+    }
+
+    /* Else, we were given a real pathname, return that + the leaf. */
+    dirlen = slash - from + 1;
+    dir = (char*) JS_malloc(cx, dirlen + strlen(leaf) + 1);
+    if (!dir)
+        return NULL;
+
+    strncpy(dir, from, dirlen);
+    strcpy(dir + dirlen, leaf); /* Note: we can't use strcat here. */
+
+    return dir;
+}
+
+static JSBool
+snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+{
+    JSString *str;
+    const char *filename;
+    char *pathname;
+    JSStackFrame *fp;
+    JSBool ok;
+    off_t cc, len;
+    char *buf;
+    FILE *file;
+
+    str = JS_ValueToString(cx, argv[0]);
+    if (!str)
+        return JS_FALSE;
+    filename = JS_GetStringBytes(str);
+
+    /* Get the currently executing script's name. */
+    fp = JS_GetScriptedCaller(cx, NULL);
+    JS_ASSERT(fp && fp->script->filename);
+    pathname = MakeAbsolutePathname(cx, fp->script->filename, filename);
+    if (!pathname)
+        return JS_FALSE;
+
+    ok = JS_FALSE;
+    len = 0;
+    buf = NULL;
+    file = fopen(pathname, "rb");
+    if (!file) {
+        JS_ReportError(cx, "can't open %s: %s", pathname, strerror(errno));
+    } else {
+        if (fseek(file, 0, SEEK_END) == EOF) {
+            JS_ReportError(cx, "can't seek end of %s", pathname);
+        } else {
+            len = ftell(file);
+            if (len == -1 || fseek(file, 0, SEEK_SET) == EOF) {
+                JS_ReportError(cx, "can't seek start of %s", pathname);
+            } else {
+                buf = (char*) JS_malloc(cx, len + 1);
+                if (buf) {
+                    cc = fread(buf, 1, len, file);
+                    if (cc != len) {
+                        JS_free(cx, buf);
+                        JS_ReportError(cx, "can't read %s: %s", pathname,
+                                       (cc < 0) ? strerror(errno)
+                                                : "short read");
+                    } else {
+                        len = (size_t)cc;
+                        ok = JS_TRUE;
+                    }
+                }
+            }
+        }
+        fclose(file);
+    }
+    JS_free(cx, pathname);
+    if (!ok) {
+        JS_free(cx, buf);
+        return ok;
+    }
+
+    buf[len] = '\0';
+    str = JS_NewString(cx, buf, len);
+    if (!str) {
+        JS_free(cx, buf);
+        return JS_FALSE;
+    }
+    *rval = STRING_TO_JSVAL(str);
+    return JS_TRUE;
+}
+
 #endif /* NARCISSUS */
 
 static JSBool
@@ -4549,6 +4524,8 @@ main(int argc, char **argv, char **envp)
         jsval v;
         static const char Object_prototype[] = "Object.prototype";
 
+        if (!JS_DefineFunction(cx, glob, "snarf", snarf, 1, 0))
+            return 1;
         if (!JS_DefineFunction(cx, glob, "evaluate", Evaluate, 3, 0))
             return 1;
 

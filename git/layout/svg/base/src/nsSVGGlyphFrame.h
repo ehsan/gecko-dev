@@ -57,7 +57,8 @@ class nsSVGGlyphFrame : public nsSVGGlyphFrameBase,
                         public nsISVGChildFrame
 {
   friend nsIFrame*
-  NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                      nsIFrame* parentFrame, nsStyleContext* aContext);
 protected:
   nsSVGGlyphFrame(nsStyleContext* aContext)
     : nsSVGGlyphFrameBase(aContext),
@@ -86,12 +87,6 @@ public:
                           SelectionType   aType);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame

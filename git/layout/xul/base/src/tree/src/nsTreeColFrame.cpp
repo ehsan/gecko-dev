@@ -59,9 +59,10 @@
 // Creates a new col frame
 //
 nsIFrame*
-NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
+                   PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
-  return new (aPresShell) nsTreeColFrame(aPresShell, aContext);
+  return new (aPresShell) nsTreeColFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 } // NS_NewTreeColFrame
 
 // Destructor

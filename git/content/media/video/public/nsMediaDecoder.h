@@ -171,20 +171,6 @@ class nsMediaDecoder : public nsIObserver
   // thread by the owning object before that object disposes of this object.  
   virtual void Shutdown();
 
-  // Suspend any media downloads that are in progress. Called by the
-  // media element when it is sent to the bfcache. Call on the main
-  // thread only.
-  virtual void Suspend() = 0;
-
-  // Resume any media downloads that have been suspended. Called by the
-  // media element when it is restored from the bfcache. Call on the
-  // main thread only.
-  virtual void Resume() = 0;
-
-  // Returns a weak reference to the media element we're decoding for,
-  // if it's available.
-  nsHTMLMediaElement* GetMediaElement();
-
 protected:
 
   // Start timer to update download progress information.

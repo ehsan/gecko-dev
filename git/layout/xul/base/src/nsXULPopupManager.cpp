@@ -421,7 +421,7 @@ nsXULPopupManager::ShowMenu(nsIContent *aMenu,
   if (aAsynchronous) {
     SetTriggerEvent(nsnull, nsnull);
     nsCOMPtr<nsIRunnable> event =
-      new nsXULPopupShowingEvent(popupFrame->GetContent(), aMenu, popupFrame->PopupType(),
+      new nsXULPopupShowingEvent(popupFrame->GetContent(), aMenu,
                                  parentIsContextMenu, aSelectFirstItem);
     NS_DispatchToCurrentThread(event);
   }
@@ -2010,7 +2010,9 @@ nsXULPopupShowingEvent::Run()
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   nsPresContext* context = GetPresContextFor(mPopup);
   if (pm && context) {
-    pm->FirePopupShowingEvent(mPopup, mMenu, context, mPopupType,
+    // the popupshowing event should only be fired asynchronously
+    // for menus, so just use ePopupTypeMenu as the type
+    pm->FirePopupShowingEvent(mPopup, mMenu, context, ePopupTypeMenu,
                               mIsContextMenu, mSelectFirstItem);
   }
 

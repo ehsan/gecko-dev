@@ -504,7 +504,7 @@ var PlacesOrganizer = {
       return;
 
     try {
-      PlacesUtils.restoreBookmarksFromJSONFile(aFile);
+      PlacesUtils.restoreBookmarksFromJSONFile(aFile, [PlacesUIUtils.leftPaneFolderId]);
     }
     catch(ex) {
       this._showErrorAlert(PlacesUIUtils.getString("bookmarksRestoreParseError"));
@@ -544,7 +544,7 @@ var PlacesOrganizer = {
                                                         [date]);
 
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
-      PlacesUtils.backupBookmarksToFile(fp.file);
+      PlacesUtils.backupBookmarksToFile(fp.file, [PlacesUIUtils.leftPaneFolderId]);
 
       // copy new backup to /backups dir (bug 424389)
       var latestBackup = PlacesUtils.getMostRecentBackup();
@@ -594,10 +594,14 @@ var PlacesOrganizer = {
      */
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-    var infoBoxExpanderWrapper = document.getElementById("infoBoxExpanderWrapper");
-
+#ifdef XP_WIN
+    var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
+#endif
     if (!aNode) {
-      infoBoxExpanderWrapper.hidden = true;
+      infoBoxExpander.hidden = true;
+#ifdef XP_WIN
+      infoBoxExpanderLabel.hidden = true;
+#endif
       return;
     }
     if (aNode.itemId != -1 &&
@@ -607,13 +611,19 @@ var PlacesOrganizer = {
       if (infoBox.getAttribute("minimal") == "true")
         infoBox.setAttribute("wasminimal", "true");
       infoBox.removeAttribute("minimal");
-      infoBoxExpanderWrapper.hidden = true;
+      infoBoxExpander.hidden = true;
+#ifdef XP_WIN
+      infoBoxExpanderLabel.hidden = true;
+#endif
     }
     else {
       if (infoBox.getAttribute("wasminimal") == "true")
         infoBox.setAttribute("minimal", "true");
       infoBox.removeAttribute("wasminimal");
-      infoBoxExpanderWrapper.hidden = false;
+      infoBoxExpander.hidden = false;
+#ifdef XP_WIN
+      infoBoxExpanderLabel.hidden = false;
+#endif
     }
   },
 
@@ -756,19 +766,30 @@ var PlacesOrganizer = {
   toggleAdditionalInfoFields: function PO_toggleAdditionalInfoFields() {
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
+#ifdef XP_WIN
     var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-
+#endif
     if (infoBox.getAttribute("minimal") == "true") {
       infoBox.removeAttribute("minimal");
+#ifdef XP_WIN
       infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("lesslabel");
       infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("lessaccesskey"));
       infoBoxExpander.className = "expander-up";
+#else
+      infoBoxExpander.label = infoBoxExpander.getAttribute("lesslabel");
+      infoBoxExpander.accessKey = infoBoxExpander.getAttribute("lessaccesskey");
+#endif
     }
     else {
       infoBox.setAttribute("minimal", "true");
+#ifdef XP_WIN
       infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("morelabel");
       infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("moreaccesskey"));
       infoBoxExpander.className = "expander-down";
+#else
+      infoBoxExpander.label = infoBoxExpander.getAttribute("morelabel");
+      infoBoxExpander.accessKey = infoBoxExpander.getAttribute("moreaccesskey");
+#endif
     }
   },
 

@@ -131,10 +131,6 @@ pref("browser.chrome.image_icons.max_size", 1024);
 
 pref("browser.triple_click_selects_paragraph", true);
 
-// When loading <video> or <audio>, check for Access-Control-Allow-Origin
-// header, and disallow the connection if not present or permitted.
-pref("media.enforce_same_site_origin", false);
-
 #ifdef MOZ_OGG
 pref("media.ogg.enabled", true);
 #endif
@@ -241,9 +237,6 @@ pref("browser.fixup.alternate.enabled", true);
 pref("browser.fixup.alternate.prefix", "www.");
 pref("browser.fixup.alternate.suffix", ".com");
 pref("browser.fixup.hide_user_pass", true);
-
-// Location Bar AutoComplete
-pref("browser.urlbar.autocomplete.enabled", true);
 
 // Print header customization
 // Use the following codes:

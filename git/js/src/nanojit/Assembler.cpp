@@ -1521,7 +1521,7 @@ namespace nanojit
 
 				for(uint32_t i=_activation.lowwatermark; i<_activation.tos;i++) {
 					LInsp ins = _activation.entry[i];
-					if (ins) {
+					if (ins /* && _activation.entry[i]!=_activation.entry[i+1]*/) {
 						sprintf(s, "%d(%s) ", -4*i,_thisfrag->lirbuf->names->formatRef(ins));
 						s += strlen(s);
 					}

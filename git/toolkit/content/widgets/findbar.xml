@@ -576,6 +576,7 @@
               var sel = controller.getSelection(this.nsISelectionController.SELECTION_FIND);
               sel.removeAllRanges();
             }
+            controller.setDisplaySelection(this.nsISelectionController.SELECTION_ON);
           }
 
           return textFound;

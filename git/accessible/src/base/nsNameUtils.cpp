@@ -73,7 +73,7 @@ PRUint32 nsNameUtils::gRoleToNameRulesMap[] =
   eFromSubtree,      // ROLE_ROWHEADER
   eFromSubtree,      // ROLE_COLUMN
   eFromSubtree,      // ROLE_ROW
-  eNoRule,           // ROLE_CELL
+  eFromSubtree,      // ROLE_CELL
   eFromSubtree,      // ROLE_LINK
   eFromSubtree,      // ROLE_HELPBALLOON
   eNoRule,           // ROLE_CHARACTER
@@ -164,6 +164,5 @@ PRUint32 nsNameUtils::gRoleToNameRulesMap[] =
   eFromSubtree,      // ROLE_OPTION
   eFromSubtree,      // ROLE_RICH_OPTION
   eNoRule,           // ROLE_LISTBOX
-  eNoRule,           // ROLE_FLAT_EQUATION
-  eFromSubtree       // ROLE_GRID_CELL
+  eNoRule            // ROLE_FLAT_EQUATION
 };

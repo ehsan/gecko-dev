@@ -1487,10 +1487,11 @@ ContextCallback(JSContext *cx, uintN contextOp)
 static bool
 GetCurrentWorkingDirectory(nsAString& workingDirectory)
 {
-#if (!defined(XP_WIN) && !defined(XP_UNIX)) || defined(WINCE)
+#if !defined(XP_WIN) && !defined(XP_UNIX)
     //XXX: your platform should really implement this
     return false;
-#elif XP_WIN
+#endif
+#ifdef XP_WIN
     DWORD requiredLength = GetCurrentDirectoryW(0, NULL);
     workingDirectory.SetLength(requiredLength);
     GetCurrentDirectoryW(workingDirectory.Length(),
@@ -1570,6 +1571,10 @@ main(int argc, char **argv, char **envp)
         }
 
         gOldJSContextCallback = JS_SetContextCallback(rt, ContextCallback);
+
+        //Set the GC trigger factor back to the initial value. 
+        //See the bug 474312.
+        JS_SetGCParameter(rt, JSGC_TRIGGER_FACTOR, (uint32) -1);
 
         cx = JS_NewContext(rt, 8192);
         if (!cx) {

@@ -95,7 +95,6 @@ struct nsStyleBackground;
 template <class T> class nsRunnableMethod;
 class nsIRunnable;
 class gfxUserFontSet;
-class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 
 #ifdef MOZ_REFLOW_PERF
@@ -871,7 +870,7 @@ protected:
   nsRegion              mCrossDocDirtyRegion;
 
   // container for per-context fonts (downloadable, SVG, etc.)
-  nsUserFontSet*        mUserFontSet;
+  gfxUserFontSet* mUserFontSet;
   // The list of @font-face rules that we put into mUserFontSet
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   

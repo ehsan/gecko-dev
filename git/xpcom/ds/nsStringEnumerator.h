@@ -37,8 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIStringEnumerator.h"
-#include "nsString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 // nsIStringEnumerator/nsIUTF8StringEnumerator implementations
 //
@@ -66,7 +65,7 @@
 // outlast the array.
 // For example:
 //
-// nsTArray<nsCString> array;
+// nsCStringArray array;
 // array.AppendCString("abc");
 // array.AppendCString("def");
 // NS_NewStringEnumerator(&enumerator, &array, PR_TRUE);
@@ -76,16 +75,12 @@
 // NS_RELEASE(enumerator);
 //
 NS_COM nsresult
-NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
-                       const nsTArray<nsString>* aArray,
-                       nsISupports* aOwner);
-NS_COM nsresult
 NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM,
-                           const nsTArray<nsCString>* aArray);
+                           const nsCStringArray* aArray);
 
 NS_COM nsresult
 NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
-                       const nsTArray<nsString>* aArray);
+                       const nsStringArray* aArray);
 
 // Adopting string enumerators assume ownership of the array and will
 // call |operator delete| on the array when the enumerator is destroyed
@@ -93,16 +88,16 @@ NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
 // purpose of creating the enumerator.
 // For example:
 //
-// nsTArray<nsCString>* array = new nsTArray<nsCString>;
+// nsCStringArray* array = new nsCStringArray;
 // array->AppendString("abcd");
 // NS_NewAdoptingStringEnumerator(&result, array);
 NS_COM nsresult
 NS_NewAdoptingStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
-                               nsTArray<nsString>* aArray);
+                               nsStringArray* aArray);
 
 NS_COM nsresult
 NS_NewAdoptingUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM,
-                                   nsTArray<nsCString>* aArray);
+                                   nsCStringArray* aArray);
 
 
 // these versions take a refcounted "owner" which will be addreffed
@@ -118,6 +113,10 @@ NS_NewAdoptingUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM
 // }
 //
 NS_COM nsresult
+NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
+                       const nsStringArray* aArray,
+                       nsISupports* aOwner);
+NS_COM nsresult
 NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM,
-                           const nsTArray<nsCString>* aArray,
+                           const nsCStringArray* aArray,
                            nsISupports* aOwner);

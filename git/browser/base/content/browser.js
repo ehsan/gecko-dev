@@ -1721,16 +1721,23 @@ function loadOneOrMoreURIs(aURIString)
   }
 }
 
-function openLocation() {
-  if (window.fullScreen)
-    FullScreen.mouseoverToggle(true);
-
+function focusAndSelectUrlBar()
+{
   if (gURLBar && isElementVisible(gURLBar) && !gURLBar.readOnly) {
     gURLBar.focus();
     gURLBar.select();
-    return;
+    return true;
   }
+  return false;
+}
 
+function openLocation()
+{
+  if (window.fullScreen)
+    FullScreen.mouseoverToggle(true);
+
+  if (focusAndSelectUrlBar())
+    return;
 #ifdef XP_MACOSX
   if (window.location.href != getBrowserURL()) {
     var win = getTopWin();
@@ -2700,38 +2707,6 @@ var bookmarksButtonObserver = {
     flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
     flavourSet.appendFlavour("text/x-moz-url");
     flavourSet.appendFlavour("text/unicode");
-    return flavourSet;
-  }
-}
-
-var newTabButtonObserver = {
-  onDragOver: function(aEvent, aFlavour, aDragSession) {
-    var statusTextFld = document.getElementById("statusbar-display");
-    statusTextFld.label = gNavigatorBundle.getString("droponnewtabbutton");
-    aEvent.target.setAttribute("dragover", "true");
-    return true;
-  },
-  onDragExit: function (aEvent, aDragSession) {
-    var statusTextFld = document.getElementById("statusbar-display");
-    statusTextFld.label = "";
-    aEvent.target.removeAttribute("dragover");
-  },
-  onDrop: function (aEvent, aXferData, aDragSession) {
-    var xferData = aXferData.data.split("\n");
-    var draggedText = xferData[0] || xferData[1];
-    var postData = {};
-    var url = getShortcutOrURI(draggedText, postData);
-    if (url) {
-      nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
-      // allow third-party services to fixup this URL
-      openNewTabWith(url, null, postData.value, aEvent, true);
-    }
-  },
-  getSupportedFlavours: function () {
-    var flavourSet = new FlavourSet();
-    flavourSet.appendFlavour("text/unicode");
-    flavourSet.appendFlavour("text/x-moz-url");
-    flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
     return flavourSet;
   }
 }
@@ -4346,17 +4321,7 @@ nsBrowserAccess.prototype =
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
-        let win, needToFocusWin;
-
-        // try the current window.  if we're in a popup, fall back on the most recent browser window
-        if (!window.document.documentElement.getAttribute("chromehidden"))
-          win = window;
-        else {
-          var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
-          win = browserGlue.getMostRecentBrowserWindow();
-          needToFocusWin = true;
-        }
-
+        var win = this._getMostRecentBrowserWindow();
         if (!win) {
           // we couldn't find a suitable window, a new one needs to be opened.
           return null;
@@ -4379,7 +4344,7 @@ nsBrowserAccess.prototype =
                      .getInterface(Ci.nsIWebNavigation)
                      .loadURI(aURI.spec, loadflags, referrer, null, null);
           }
-          if (needToFocusWin || (!loadInBackground && isExternal))
+          if (!loadInBackground && isExternal)
             newWindow.focus();
         } catch(e) {
         }
@@ -4414,6 +4379,16 @@ nsBrowserAccess.prototype =
         }
     }
     return newWindow;
+  },
+
+  // this returns the most recent non-popup browser window
+  _getMostRecentBrowserWindow : function ()
+  {
+    if (!window.document.documentElement.getAttribute("chromehidden"))
+      return window;
+ 
+    var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
+    return browserGlue.getMostRecentBrowserWindow();
   },
 
   isTabContentWindow : function(aWindow)
@@ -4930,27 +4905,7 @@ var contentAreaDNDObserver = {
       if (aEvent.getPreventDefault())
         return;
 
-      var dragType = aXferData.flavour.contentType;
-      var dragData = aXferData.data;
-      if (dragType == "application/x-moz-tabbrowser-tab") {
-        // If the tab was dragged from some other tab bar, its own dragend
-        // handler will take care of detaching the tab
-        if (dragData instanceof XULElement && dragData.localName == "tab" &&
-            dragData.ownerDocument.defaultView == window) {
-          // Detach only if the mouse pointer was released a little
-          // bit down in the content area (to be precise, by tab-height)
-          if (aEvent.screenY > gBrowser.mPanelContainer.boxObject.screenY +
-                               dragData.boxObject.height) {
-            gBrowser.replaceTabWithWindow(dragData);
-            aEvent.dataTransfer.dropEffect = "move";
-            return;
-          }
-        }
-        aEvent.dataTransfer.dropEffect = "none";
-        return;
-      }
-
-      var url = transferUtils.retrieveURLFromData(dragData, dragType);
+      var url = transferUtils.retrieveURLFromData(aXferData.data, aXferData.flavour.contentType);
 
       // valid urls don't contain spaces ' '; if we have a space it
       // isn't a valid url, or if it's a javascript: or data: url,
@@ -4980,9 +4935,8 @@ var contentAreaDNDObserver = {
   getSupportedFlavours: function ()
     {
       var flavourSet = new FlavourSet();
-      flavourSet.appendFlavour("application/x-moz-tabbrowser-tab");
       flavourSet.appendFlavour("text/x-moz-url");
-      flavourSet.appendFlavour("text/plain");
+      flavourSet.appendFlavour("text/unicode");
       flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
       return flavourSet;
     }
@@ -5607,14 +5561,7 @@ function WindowIsClosing()
 {
   var cn = gBrowser.tabContainer.childNodes;
   var numtabs = cn.length;
-  var reallyClose = 
-    closeWindow(false,
-                function () {
-                  return gBrowser.warnAboutClosingTabs(true);
-                });
-
-  if (!reallyClose)
-    return false;
+  var reallyClose = true;
 
   for (var i = 0; reallyClose && i < numtabs; ++i) {
     var ds = gBrowser.getBrowserForTab(cn[i]).docShell;
@@ -5623,7 +5570,16 @@ function WindowIsClosing()
       reallyClose = false;
   }
 
-  return reallyClose;
+  if (!reallyClose)
+    return false;
+
+  // closeWindow takes a second optional function argument to open up a
+  // window closing warning dialog if we're not quitting. (Quitting opens
+  // up another dialog so we don't need to.)
+  return closeWindow(false,
+    function () {
+      return gBrowser.warnAboutClosingTabs(true);
+    });
 }
 
 var MailIntegration = {

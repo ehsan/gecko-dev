@@ -41,20 +41,11 @@
 
 #include "gfxFontUtils.h"
 #include "gfxWindowsSurface.h"
-#ifdef MOZ_FT2_FONTS
-#include "gfxFT2Fonts.h"
-#else
 #include "gfxWindowsFonts.h"
-#endif
 #include "gfxPlatform.h"
 
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsDataHashtable.h"
-
-#ifdef MOZ_FT2_FONTS
-typedef struct FT_LibraryRec_ *FT_Library;
-#endif
 
 #include <windows.h>
 
@@ -71,7 +62,7 @@ public:
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsTArray<nsString>& aListOfFonts);
+                         nsStringArray& aListOfFonts);
 
     nsresult UpdateFontList();
 
@@ -113,8 +104,7 @@ public:
      * code points they support as well as looking at things like the font
      * family, style, weight, etc.
      */
-    already_AddRefed<gfxFont>
-    FindFontForChar(PRUint32 aCh, gfxFont *aFont);
+    already_AddRefed<gfxWindowsFont> FindFontForChar(PRUint32 aCh, gfxWindowsFont *aFont);
 
     /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
     FontFamily *FindFontFamily(const nsAString& aName);
@@ -124,13 +114,6 @@ public:
     void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array);
 
     typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
-
-#ifdef MOZ_FT2_FONTS
-    FT_Library GetFTLibrary();
-private:
-    void AppendFacesFromFontFile(const PRUnichar *aFileName);
-    void FindFonts();
-#endif
 
 private:
     void Init();
@@ -176,7 +159,7 @@ private:
     FontTable mFonts;
     FontTable mFontAliases;
     FontTable mFontSubstitutes;
-    nsTArray<nsString> mNonExistingFonts;
+    nsStringArray mNonExistingFonts;
 
     // when system-wide font lookup fails for a character, cache it to skip future searches
     gfxSparseBitSet mCodepointsWithNoFonts;

@@ -97,9 +97,7 @@ public:
   nsresult SetOwner(nsIPluginInstanceOwner *aOwner);
 
 private:
-  // Weak pointer to the owner. The owner nulls this out (by calling
-  // InvalidateOwner()) when it's no longer our owner.
-  nsIPluginInstanceOwner  *mOwner;
+  nsCOMPtr<nsIPluginInstanceOwner> mOwner;
   nsMIMEType              mMIMEType;
   PRUint32                mThreadID;
   PRBool                  mStopped;

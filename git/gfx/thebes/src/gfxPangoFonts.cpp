@@ -49,7 +49,6 @@
 #include "gfxTypes.h"
 
 #include "nsMathUtils.h"
-#include "nsTArray.h"
 #include "nsServiceManagerUtils.h"
 #include "nsILanguageAtomService.h"
 
@@ -1330,15 +1329,8 @@ gfxFcPangoFontSet::SortPreferredFonts()
 
     FcFontSet *sets[1] = { fontSet };
     FcResult result;
-#ifdef SOLARIS
-    // Get around a crash of FcFontSetSort when FcConfig is NULL
-    // Solaris's FcFontSetSort needs an FcConfig (bug 474758)
-    fontSet.own(FcFontSetSort(FcConfigGetCurrent(), sets, 1, mSortPattern,
-                              FcFalse, NULL, &result));
-#else
     fontSet.own(FcFontSetSort(NULL, sets, 1, mSortPattern,
                               FcFalse, NULL, &result));
-#endif
 
     if (truncateMarker != NULL && fontSet) {
         nsAutoRef<FcFontSet> truncatedSet(FcFontSetCreate());

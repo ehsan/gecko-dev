@@ -50,6 +50,12 @@ class nsIRadioControlFrame
 public:
   NS_DECLARE_FRAME_ACCESSOR(nsIRadioControlFrame)
 
+  /**
+   * Sets the Pseudo Style Contexts for the Radio button
+   */
+
+   NS_IMETHOD SetRadioButtonFaceStyleContext(nsStyleContext *aRadioButtonFaceStyleContext) = 0;
+
    /**
     * Called by content when the radio button's state changes
     */

@@ -48,7 +48,6 @@
 #ifndef nsAString_h___
 #include "nsAString.h"
 #endif
-#include "nsTArray.h"
 
 inline size_t Distance( const nsReadingIterator<PRUnichar>& start, const nsReadingIterator<PRUnichar>& end )
   {
@@ -253,8 +252,6 @@ NS_COM PRBool IsASCII( const nsACString& aString );
    */
 NS_COM PRBool IsUTF8( const nsACString& aString );
 
-NS_COM PRBool ParseString(const nsACString& aAstring, char aDelimiter, 
-                          nsTArray<nsCString>& aArray);
 
   /**
    * Converts case in place in the argument string.

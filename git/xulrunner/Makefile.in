@@ -56,8 +56,4 @@ DIRS += installer/windows
 endif
 endif
 
-ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
-DIRS += tools/redit
-endif
-
 include $(topsrcdir)/config/rules.mk

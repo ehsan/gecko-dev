@@ -222,7 +222,7 @@ class MochitestServer:
             "-f", "./" + "server.js"]
 
     xpcshell = automation.DIST_BIN + "/" + "xpcshell";
-    self._process = automation.Process([xpcshell] + args, env = env)
+    self._process = automation.Process(xpcshell, args, env = env)
     pid = self._process.pid
     if pid < 0:
       print "Error starting server."
@@ -465,8 +465,9 @@ def maybeForceLeakThreshold(options):
       # We don't leak running the --chrome tests.
       options.leakThreshold = 0
     elif options.browserChrome:
-      # We don't leak running the --browser-chrome tests.
-      options.leakThreshold = 0
+      # We still leak a nondeterministic amount running browser-chrome tests.
+      # But we are close to 0 (bug), so start to prevent/detect regressions. (Bug 460548)
+      options.leakThreshold = 74500
     elif options.a11y:
       # We don't leak running the --a11y tests.
       options.leakThreshold = 0

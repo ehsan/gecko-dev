@@ -378,7 +378,6 @@
 #include "nsIDOMSVGAnimatedString.h"
 #ifdef MOZ_SMIL
 #include "nsIDOMSVGAnimateElement.h"
-#include "nsIDOMSVGAnimateTransformElement.h"
 #include "nsIDOMSVGSetElement.h"
 #include "nsIDOMSVGAnimationElement.h"
 #include "nsIDOMElementTimeControl.h"
@@ -948,8 +947,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
 #ifdef MOZ_SMIL
   NS_DEFINE_CLASSINFO_DATA(SVGAnimateElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(SVGAnimateTransformElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGSetElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -2770,14 +2767,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(SVGAnimateElement, nsIDOMSVGAnimateElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimationElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimateElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementTimeControl)
-    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(SVGAnimateTransformElement,
-                          nsIDOMSVGAnimateTransformElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimationElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimateTransformElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementTimeControl)
     DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
@@ -9795,7 +9784,7 @@ nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
 
   // Check if the plugin can be safely scriptable, the plugin wrapper
   // must not have a shared prototype for this to work since we'll end
-  // up setting its prototype here, and we want this change to affect
+  // up setting it's prototype here, and we want this change to affect
   // this plugin object only.
 
   if (ci) {
@@ -9839,7 +9828,7 @@ nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
   // QI holder to nsIXPConnectWrappedNative so that we can reliably
-  // access its prototype
+  // access it's prototype
   nsCOMPtr<nsIXPConnectWrappedNative> pi_wrapper(do_QueryInterface(holder));
   NS_ENSURE_TRUE(pi_wrapper, NS_ERROR_UNEXPECTED);
 
@@ -10623,7 +10612,7 @@ nsOfflineResourceListSH::GetStringAt(nsISupports *aNative, PRInt32 aIndex,
   nsCOMPtr<nsIDOMOfflineResourceList> list(do_QueryInterface(aNative));
   NS_ENSURE_TRUE(list, NS_ERROR_UNEXPECTED);
 
-  return list->MozItem(aIndex, aResult);
+  return list->Item(aIndex, aResult);
 }
 
 // nsFileListSH
