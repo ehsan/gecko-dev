@@ -253,7 +253,7 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
       tempStr.StripChars("\r\n");
       *aResult = ToNewCString(tempStr);
       NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
-      // keep going, we may find a RFC 2231 encoded alternative
+      return NS_OK;
     }
     // case B, C, and D
     else if (tokenEnd - tokenStart > paramLen &&
@@ -300,12 +300,7 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
 
         if (sQuote2 && sQuote2 + 1 < valueEnd)
         {
-          if (*aResult)
-          {
-            // drop non-2231-encoded value, instead prefer the one using
-            // the RFC2231 encoding
-            nsMemory::Free(*aResult);
-          }
+          NS_ASSERTION(!*aResult, "This is the 1st line. result buffer should be null.");
           *aResult = (char *) nsMemory::Alloc(valueEnd - (sQuote2 + 1) + 1);
           if (*aResult)
           {

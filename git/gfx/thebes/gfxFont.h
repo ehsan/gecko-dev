@@ -223,8 +223,6 @@ public:
     // unique name for the face, *not* the family
     const nsString& Name() const { return mName; }
 
-    gfxFontFamily* Family() const { return mFamily; }
-
     PRUint16 Weight() const { return mWeight; }
     PRInt16 Stretch() const { return mStretch; }
 
