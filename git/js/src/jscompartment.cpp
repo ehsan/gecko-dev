@@ -394,8 +394,8 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
               !cx->runtime()->isSelfHostingGlobal(objGlobal));
 
     // Unwrap the object, but don't unwrap outer windows.
-    RootedObject objectPassedToWrap(cx, obj);
-    obj.set(UncheckedUnwrap(obj, /* stopAtOuter = */ true));
+    unsigned flags = 0;
+    obj.set(UncheckedUnwrap(obj, /* stopAtOuter = */ true, &flags));
 
     if (obj->compartment() == this) {
         MOZ_ASSERT(obj == GetOuterObject(cx, obj));
@@ -417,7 +417,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
     // recursion here, so we do a check - see bug 809295.
     JS_CHECK_CHROME_RECURSION(cx, return false);
     if (cb->preWrap) {
-        obj.set(cb->preWrap(cx, global, obj, objectPassedToWrap));
+        obj.set(cb->preWrap(cx, global, obj, flags));
         if (!obj)
             return false;
     }
@@ -449,7 +449,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
         }
     }
 
-    obj.set(cb->wrap(cx, existing, obj, global));
+    obj.set(cb->wrap(cx, existing, obj, global, flags));
     if (!obj)
         return false;
 

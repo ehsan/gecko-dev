@@ -45,13 +45,7 @@
       "oauth.twitter.com",
       "platform.twitter.com",
       "twimg.com",
-      "www.twitter.com",
-      // Tor
-      "torproject.org",
-      "blog.torproject.org",
-      "check.torproject.org",
-      "dist.torproject.org",
-      "www.torproject.org"
+      "www.twitter.com"
     ],
     "exclude_domains" : [
       // Chrome's entry for twitter.com doesn't include subdomains, so replace

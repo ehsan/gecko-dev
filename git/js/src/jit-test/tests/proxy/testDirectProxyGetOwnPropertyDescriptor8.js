@@ -1,13 +1,15 @@
 load(libdir + "asserts.js");
 
+/*
+ * Throw a TypeError if the trap reports a new own property on a non-extensible
+ * object
+ */
 var target = {};
-var handler = {
-    getOwnPropertyDescriptor: function () { return { value: 2, configurable: true}; }
-};
-
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    Object.getOwnPropertyDescriptor(p, 'foo');
-
 Object.preventExtensions(target);
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    assertThrowsInstanceOf(() => Object.getOwnPropertyDescriptor(p, 'foo'), TypeError);
+assertThrowsInstanceOf(function () {
+    Object.getOwnPropertyDescriptor(new Proxy(target, {
+        getOwnPropertyDescriptor: function (target, name) {
+            return {};
+        }
+    }), 'foo');
+}, TypeError);

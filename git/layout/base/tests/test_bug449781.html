@@ -41,7 +41,8 @@ addLoadEvent(function() {
                  .QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
                  .getInterface(SpecialPowers.Ci.nsIWebNavigation)
                  .QueryInterface(SpecialPowers.Ci.nsIDocShell)
-                 .contentViewer;
+                 .contentViewer
+                 .QueryInterface(SpecialPowers.Ci.nsIMarkupDocumentViewer);
   viewer.fullZoom = 2;
   
   s3 = snapshotWindow(window);

@@ -81,10 +81,6 @@ private:
   void ClipContentDescendants(const nsRect& aRect,
                               const nscoord* aRadii,
                               DisplayItemClip& aClipOnStack);
-  void ClipContentDescendants(const nsRect& aRect,
-                              const nsRect& aRoundedRect,
-                              const nscoord* aRadii,
-                              DisplayItemClip& aClipOnStack);
 
   /**
    * Clips containing-block descendants to the frame's content-box,
@@ -170,16 +166,6 @@ public:
     NS_ASSERTION(!mClipUsed, "mClip already used");
     mClipUsed = true;
     mState.ClipContentDescendants(aRect, aRadii, mClip);
-  }
-
-  void ClipContentDescendants(const nsRect& aRect,
-                              const nsRect& aRoundedRect,
-                              const nscoord* aRadii = nullptr)
-  {
-    NS_ASSERTION(!mRestored, "Already restored!");
-    NS_ASSERTION(!mClipUsed, "mClip already used");
-    mClipUsed = true;
-    mState.ClipContentDescendants(aRect, aRoundedRect, aRadii, mClip);
   }
 
   /**

@@ -8,6 +8,11 @@ var target = {};
 Object.defineProperty(target, 'foo', {
     configurable: false
 });
-var handler = { has: () => false };
-for (p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    assertThrowsInstanceOf(function () { 'foo' in p; }, TypeError);
+var caught = false;
+assertThrowsInstanceOf(function () {
+    'foo' in new Proxy(target, {
+        has: function (target, name) {
+            return false;
+        }
+    });
+}, TypeError);

@@ -59,7 +59,8 @@ function zoomTo(level) {
   let def = promise.defer();
 
   waitForBoxModelUpdate().then(def.resolve);
-  let contentViewer = gBrowser.selectedBrowser.docShell.contentViewer;
+  let contentViewer = gBrowser.selectedBrowser.docShell.contentViewer
+                              .QueryInterface(Ci.nsIMarkupDocumentViewer);
   contentViewer.fullZoom = level;
 
   return def.promise;

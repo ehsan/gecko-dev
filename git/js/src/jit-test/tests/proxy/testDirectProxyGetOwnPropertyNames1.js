@@ -21,10 +21,9 @@ var objCD = Object.create(objAB, {
     }
 });
 
+var outerProxy = new Proxy(objCD, {});
 objCD[Symbol("moon")] = "something";
-for (let p of [new Proxy(objCD, {}), Proxy.revocable(objCD, {}).proxy]) {
-    var names = Object.getOwnPropertyNames(p);
-    assertEq(names.length, 2);
-    assertEq(names[0], 'c');
-    assertEq(names[1], 'd');
-}
+var names = Object.getOwnPropertyNames(outerProxy);
+assertEq(names.length, 2);
+assertEq(names[0], 'c');
+assertEq(names[1], 'd');

@@ -13,6 +13,7 @@
 #include "nsIContentViewerContainer.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsHTMLParts.h"
 #include "nsIComponentManager.h"
 #include "nsIDOMElement.h"

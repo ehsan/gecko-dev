@@ -1,6 +1,6 @@
 load(libdir + "asserts.js");
 
-/*
+/* 
  * Throw a TypeError if the trap sets a non-configurable accessor property that
  * doest not have a setter
  */
@@ -11,7 +11,10 @@ Object.defineProperty(target, 'foo', {
     },
     configurable: false
 });
-
-var handler = { set: () => true };
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    assertThrowsInstanceOf(() => p['foo'] = 'baz', TypeError);
+assertThrowsInstanceOf(function () {
+    new Proxy(target, {
+        set: function (target, name, val, receiver) {
+            return true;
+        }
+    })['foo'] = 'baz';
+}, TypeError);

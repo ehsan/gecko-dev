@@ -6,7 +6,7 @@ MODULES = stlport
 
 # Force to build a static library, instead of a fake library, without
 # installing it in dist/lib.
-NO_EXPAND_LIBS = 1
+LIBRARY = $(LIB_PREFIX)$(LIBRARY_NAME).$(LIB_SUFFIX)
 
 include $(topsrcdir)/config/rules.mk
 

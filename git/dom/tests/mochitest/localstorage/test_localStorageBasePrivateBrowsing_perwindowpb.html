@@ -207,12 +207,14 @@ function doTest() {
       is(privateWin.content.localStorage.getItem(null), "test");
       is(privateWin.content.localStorage["null"], "test");
       privateWin.content.localStorage.removeItem(null, "test");
-      is("null" in privateWin.content.localStorage, false);
+      // bug 350023
+      todo_is("null" in privateWin.content.localStorage, false);
 
       privateWin.content.localStorage.setItem(null, "test");
       is("null" in privateWin.content.localStorage, true);
       privateWin.content.localStorage.removeItem("null", "test");
-      is("null" in privateWin.content.localStorage, false);
+      // bug 350023
+      todo_is("null" in privateWin.content.localStorage, false);
 
       // Clear the storage
       privateWin.content.localStorage.clear();

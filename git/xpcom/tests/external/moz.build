@@ -11,9 +11,3 @@ SIMPLE_PROGRAMS = [
 SOURCES += [
     '%s.cpp' % s for s in SIMPLE_PROGRAMS
 ]
-
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

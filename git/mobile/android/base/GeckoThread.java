@@ -22,7 +22,6 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class GeckoThread extends Thread implements GeckoEventListener {
     private static final String LOGTAG = "GeckoThread";
@@ -35,10 +34,9 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         GeckoRunning,
         GeckoExiting,
         GeckoExited
-    }
+    };
 
-    private static AtomicReference<LaunchState> sLaunchState =
-                                            new AtomicReference<LaunchState>(LaunchState.Launching);
+    private static LaunchState sLaunchState = LaunchState.Launching;
 
     private static GeckoThread sGeckoThread;
 
@@ -178,6 +176,8 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         GeckoAppShell.runGecko(path, args, mUri, type);
     }
 
+    private static Object sLock = new Object();
+
     @Override
     public void handleMessage(String event, JSONObject message) {
         if ("Gecko:Ready".equals(event)) {
@@ -189,11 +189,15 @@ public class GeckoThread extends Thread implements GeckoEventListener {
 
     @RobocopTarget
     public static boolean checkLaunchState(LaunchState checkState) {
-        return sLaunchState.get() == checkState;
+        synchronized (sLock) {
+            return sLaunchState == checkState;
+        }
     }
 
     static void setLaunchState(LaunchState setState) {
-        sLaunchState.set(setState);
+        synchronized (sLock) {
+            sLaunchState = setState;
+        }
     }
 
     /**
@@ -201,6 +205,11 @@ public class GeckoThread extends Thread implements GeckoEventListener {
      * state is <code>checkState</code>; otherwise do nothing and return false.
      */
     static boolean checkAndSetLaunchState(LaunchState checkState, LaunchState setState) {
-        return sLaunchState.compareAndSet(checkState, setState);
+        synchronized (sLock) {
+            if (sLaunchState != checkState)
+                return false;
+            sLaunchState = setState;
+            return true;
+        }
     }
 }

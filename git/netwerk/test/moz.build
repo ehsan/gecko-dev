@@ -52,19 +52,11 @@ SOURCES += [
 ]
 
 CPP_UNIT_TESTS += [
-    'TestSTSParser',
-    'TestUDPSocket',
+    'TestSTSParser.cpp',
+    'TestUDPSocket.cpp',
 ]
-
-SOURCES += sorted('%s.cpp' % t for t in CPP_UNIT_TESTS)
 
 RESOURCE_FILES += [
     'urlparse.dat',
     'urlparse_unx.dat',
-]
-
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
 ]

@@ -16,6 +16,8 @@ FAIL_ON_WARNINGS = True
 
 MSVC_ENABLE_PGO = True
 
+LIBRARY_NAME = 'necko'
+
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'

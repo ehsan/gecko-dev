@@ -5,10 +5,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 CPP_UNIT_TESTS += [
-    'TestAudioChannelService',
+    'TestAudioChannelService.cpp',
 ]
-
-SOURCES += sorted('%s.cpp' % t for t in CPP_UNIT_TESTS)
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     DEFINES['NOMINMAX'] = True
@@ -17,8 +15,3 @@ MOCHITEST_MANIFESTS += ['mochitest.ini']
 
 FAIL_ON_WARNINGS = True
 
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

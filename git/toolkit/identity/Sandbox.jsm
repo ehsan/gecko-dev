@@ -103,7 +103,8 @@ this.Sandbox.prototype = {
     docShell.allowWindowControl = false;
 
     // Disable stylesheet loading since the document is not visible.
-    let markupDocViewer = docShell.contentViewer;
+    let markupDocViewer = docShell.contentViewer
+                                  .QueryInterface(Ci.nsIMarkupDocumentViewer);
     markupDocViewer.authorStyleDisabled = true;
 
     // Set instance properties.

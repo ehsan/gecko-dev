@@ -51,4 +51,4 @@ LOCAL_INCLUDES += [
     '/layout/style',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'

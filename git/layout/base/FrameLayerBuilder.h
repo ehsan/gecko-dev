@@ -297,9 +297,11 @@ public:
    */
   void AddLayerDisplayItem(Layer* aLayer,
                            nsDisplayItem* aItem,
+                           const DisplayItemClip& aClip,
                            LayerState aLayerState,
                            const nsPoint& aTopLeft,
-                           BasicLayerManager* aManager);
+                           BasicLayerManager* aManager,
+                           nsAutoPtr<nsDisplayItemGeometry> aGeometry);
 
   /**
    * Record aItem as a display item that is rendered by the ThebesLayer
@@ -314,7 +316,8 @@ public:
                             const nsIntRect& aItemVisibleRect,
                             const ContainerState& aContainerState,
                             LayerState aLayerState,
-                            const nsPoint& aTopLeft);
+                            const nsPoint& aTopLeft,
+                            nsAutoPtr<nsDisplayItemGeometry> aGeometry);
 
   /**
    * Gets the frame property descriptor for the given manager, or for the current
@@ -329,9 +332,9 @@ public:
    */
   Layer* GetOldLayerFor(nsDisplayItem* aItem, 
                         nsDisplayItemGeometry** aOldGeometry = nullptr, 
-                        DisplayItemClip** aOldClip = nullptr);
-
-  void ClearCachedGeometry(nsDisplayItem* aItem);
+                        DisplayItemClip** aOldClip = nullptr,
+                        nsTArray<nsIFrame*>* aChangedFrames = nullptr,
+                        bool *aIsInvalid = nullptr);
 
   static Layer* GetDebugOldLayerFor(nsIFrame* aFrame, uint32_t aDisplayItemKey);
 
@@ -359,7 +362,7 @@ public:
    * of the active scrolled root frame. It must be an integer
    * translation.
    */
-  void SavePreviousDataForLayer(ThebesLayer* aLayer, uint32_t aClipCount);
+  void SaveLastPaintOffset(ThebesLayer* aLayer);
   /**
    * Get the translation transform that was in aLayer when we last painted. It's either
    * the transform saved by SaveLastPaintTransform, or else the transform
@@ -412,9 +415,7 @@ public:
     void Invalidate() { mIsInvalid = true; }
 
   private:
-    DisplayItemData(LayerManagerData* aParent,
-                    uint32_t aKey,
-                    nsIFrame* aFrame = nullptr);
+    DisplayItemData(LayerManagerData* aParent, uint32_t aKey, Layer* aLayer, LayerState aLayerState, uint32_t aGeneration);
     DisplayItemData(DisplayItemData &toCopy);
 
     /**
@@ -432,30 +433,17 @@ public:
      */
     void AddFrame(nsIFrame* aFrame);
     void RemoveFrame(nsIFrame* aFrame);
-    const nsTArray<nsIFrame*>& GetFrameListChanges();
+    void GetFrameListChanges(nsDisplayItem* aOther, nsTArray<nsIFrame*>& aOut);
 
     /**
      * Updates the contents of this item to a new set of data, instead of allocating a new
      * object.
-     * Set the passed in parameters, and clears the opt layer and inactive manager.
-     * Parent, and display item key are assumed to be the same.
-     *
-     * EndUpdate must be called before the end of the transaction to complete the update.
+     * Set the passed in parameters, and clears the opt layer, inactive manager, geometry
+     * and clip.
+     * Parent, frame list and display item key are assumed to be the same.
      */
-    void BeginUpdate(Layer* aLayer, LayerState aState,
-                     uint32_t aContainerLayerGeneration, nsDisplayItem* aItem = nullptr);
-
-    /**
-     * Completes the update of this, and removes any references to data that won't live
-     * longer than the transaction.
-     *
-     * Updates the geometry, frame list and clip.
-     * For items within a ThebesLayer, a geometry object must be specifed to retain
-     * until the next transaction.
-     *
-     */
-    void EndUpdate(nsAutoPtr<nsDisplayItemGeometry> aGeometry);
-    void EndUpdate();
+    void UpdateContents(Layer* aLayer, LayerState aState,
+                        uint32_t aContainerLayerGeneration, nsDisplayItem* aItem = nullptr);
 
     LayerManagerData* mParent;
     nsRefPtr<Layer> mLayer;
@@ -467,13 +455,6 @@ public:
     uint32_t        mDisplayItemKey;
     uint32_t        mContainerLayerGeneration;
     LayerState      mLayerState;
-
-    /**
-     * Temporary stoarage of the display item being referenced, only valid between
-     * BeginUpdate and EndUpdate.
-     */
-    nsDisplayItem* mItem;
-    nsAutoTArray<nsIFrame*, 1> mFrameListChanges;
 
     /**
      * Used to track if data currently stored in mFramesWithLayers (from an existing
@@ -563,7 +544,6 @@ protected:
     nsRefPtr<LayerManager> mInactiveLayerManager;
 
     uint32_t mContainerLayerGeneration;
-
   };
 
   static void RecomputeVisibilityForItems(nsTArray<ClippedDisplayItem>& aItems,
@@ -591,14 +571,10 @@ protected:
 public:
   class ThebesLayerItemsEntry : public nsPtrHashKey<ThebesLayer> {
   public:
-    ThebesLayerItemsEntry(const ThebesLayer *key)
-      : nsPtrHashKey<ThebesLayer>(key)
-      , mContainerLayerFrame(nullptr)
-      , mLastCommonClipCount(0)
-      , mContainerLayerGeneration(0)
-      , mHasExplicitLastPaintOffset(false)
-      , mCommonClipCount(0)
-    {}
+    ThebesLayerItemsEntry(const ThebesLayer *key) :
+        nsPtrHashKey<ThebesLayer>(key), mContainerLayerFrame(nullptr),
+        mContainerLayerGeneration(0),
+        mHasExplicitLastPaintOffset(false), mCommonClipCount(0) {}
     ThebesLayerItemsEntry(const ThebesLayerItemsEntry &toCopy) :
       nsPtrHashKey<ThebesLayer>(toCopy.mKey), mItems(toCopy.mItems)
     {
@@ -610,8 +586,6 @@ public:
     // The translation set on this ThebesLayer before we started updating the
     // layer tree.
     nsIntPoint mLastPaintOffset;
-    uint32_t mLastCommonClipCount;
-
     uint32_t mContainerLayerGeneration;
     bool mHasExplicitLastPaintOffset;
     /**
@@ -648,8 +622,6 @@ public:
    */
   void SetLayerTreeCompressionMode() { mInLayerTreeCompressionMode = true; }
   bool CheckInLayerTreeCompressionMode();
-
-  void ComputeGeometryChangeForItem(DisplayItemData* aData);
 
 protected:
   void RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,

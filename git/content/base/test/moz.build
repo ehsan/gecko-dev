@@ -16,13 +16,11 @@ if CONFIG['OS_ARCH'] != 'Darwin':
     XPCSHELL_TESTS_MANIFESTS += ['unit_ipc/xpcshell.ini']
 
 CPP_UNIT_TESTS += [
-    'TestCSPParser',
-    'TestGetURL',
-    'TestNativeXMLHttpRequest',
-    'TestPlainTextSerializer',
+    'TestCSPParser.cpp',
+    'TestGetURL.cpp',
+    'TestNativeXMLHttpRequest.cpp',
+    'TestPlainTextSerializer.cpp',
 ]
-
-SOURCES += sorted('%s.cpp' % t for t in CPP_UNIT_TESTS)
 
 MOCHITEST_MANIFESTS += [
     'chrome/mochitest.ini',
@@ -43,8 +41,3 @@ MOCHITEST_CHROME_MANIFESTS += [
 
 BROWSER_CHROME_MANIFESTS += ['browser.ini']
 
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

@@ -21,7 +21,7 @@ LOCAL_INCLUDES += [
     '/editor/txmgr',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
 
 MOCHITEST_MANIFESTS += ['tests/mochitest.ini']
 

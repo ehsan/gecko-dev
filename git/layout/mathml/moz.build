@@ -35,7 +35,7 @@ EXPORTS += [
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
 LOCAL_INCLUDES += [
     '../base',
     '../generic',

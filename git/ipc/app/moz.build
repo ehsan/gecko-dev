@@ -15,11 +15,6 @@ else:
     SOURCES += [
         'MozillaRuntimeMain.cpp',
     ]
-    USE_LIBS += [
-        'mozalloc',
-        'xul',
-    ]
-
 include('/ipc/chromium/chromium-config.mozbuild')
 
 LOCAL_INCLUDES += [
@@ -33,9 +28,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         '/security',
         '/security/sandbox',
         '/security/sandbox/chromium',
-    ]
-    USE_LIBS += [
-        'sandbox_s',
     ]
 
 if CONFIG['_MSC_VER']:

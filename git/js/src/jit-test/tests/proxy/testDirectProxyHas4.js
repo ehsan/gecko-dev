@@ -9,7 +9,10 @@ Object.defineProperty(target, 'foo', {
     configurable: true
 });
 Object.preventExtensions(target);
-
-var handler = { has: () => false };
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    assertThrowsInstanceOf(function () { 'foo' in p }, TypeError);
+assertThrowsInstanceOf(function () {
+    'foo' in new Proxy(target, {
+        has: function (target, name) {
+            return false;
+        }
+    });
+}, TypeError);

@@ -759,7 +759,7 @@ typedef bool
  */
 typedef JSObject *
 (* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
-                         JS::HandleObject parent);
+                         JS::HandleObject parent, unsigned flags);
 
 /*
  * Callback used by the wrap hook to ask the embedding to prepare an object
@@ -768,7 +768,7 @@ typedef JSObject *
  */
 typedef JSObject *
 (* JSPreWrapCallback)(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj,
-                      JS::HandleObject objectPassedToWrap);
+                      unsigned flags);
 
 struct JSWrapObjectCallbacks
 {

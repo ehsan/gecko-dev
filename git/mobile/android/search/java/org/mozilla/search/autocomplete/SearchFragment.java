@@ -4,6 +4,7 @@
 
 package org.mozilla.search.autocomplete;
 
+
 import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
@@ -11,13 +12,21 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.AsyncTaskLoader;
 import android.support.v4.content.Loader;
+import android.text.Editable;
 import android.text.SpannableString;
+import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.TextView;
 
 import org.mozilla.search.R;
 
@@ -30,7 +39,8 @@ import java.util.List;
  * <p/>
  * TODO: Add more search providers (other than the dictionary)
  */
-public class SearchFragment extends Fragment implements AcceptsJumpTaps {
+public class SearchFragment extends Fragment
+        implements TextView.OnEditorActionListener, AcceptsJumpTaps {
 
     private static final int LOADER_ID_SUGGESTION = 0;
     private static final String KEY_SEARCH_TERM = "search_term";
@@ -44,14 +54,16 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
     // Color of search term match in search suggestion
     private static final int SUGGESTION_HIGHLIGHT_COLOR = 0xFF999999;
 
-    private AcceptsSearchQuery searchListener;
     private SuggestClient suggestClient;
     private SuggestionLoaderCallbacks suggestionLoaderCallbacks;
 
+    private InputMethodManager inputMethodManager;
     private AutoCompleteAdapter autoCompleteAdapter;
 
     private View mainView;
-    private ClearableEditText editText;
+    private View searchBar;
+    private EditText editText;
+    private Button clearButton;
     private ListView suggestionDropdown;
 
     private State state = State.WAITING;
@@ -69,12 +81,6 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
     public void onAttach(Activity activity) {
         super.onAttach(activity);
 
-        if (activity instanceof AcceptsSearchQuery) {
-            searchListener = (AcceptsSearchQuery) activity;
-        } else {
-            throw new ClassCastException(activity.toString() + " must implement AcceptsSearchQuery.");
-        }
-
         // TODO: Don't hard-code this template string (bug 1039758)
         final String template = "https://search.yahoo.com/sugg/ff?" +
                 "output=fxjson&appid=ffm&command=__searchTerms__&nresults=" + SUGGESTION_MAX;
@@ -82,6 +88,7 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
         suggestClient = new SuggestClient(activity, template, SUGGESTION_TIMEOUT, SUGGESTION_MAX);
         suggestionLoaderCallbacks = new SuggestionLoaderCallbacks();
 
+        inputMethodManager = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
         autoCompleteAdapter = new AutoCompleteAdapter(activity, this);
     }
 
@@ -89,9 +96,9 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
     public void onDetach() {
         super.onDetach();
 
-        searchListener = null;
         suggestClient = null;
         suggestionLoaderCallbacks = null;
+        inputMethodManager = null;
         autoCompleteAdapter = null;
     }
 
@@ -108,33 +115,42 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
             }
         });
 
-        // Disable the click listener while the fragment is State.WAITING.
-        // We can't do this in the layout file because the setOnClickListener
-        // implementation calls setClickable(true).
-        mainView.setClickable(false);
+        searchBar = mainView.findViewById(R.id.search_bar);
+        editText = (EditText) mainView.findViewById(R.id.search_bar_edit_text);
 
-        editText = (ClearableEditText) mainView.findViewById(R.id.auto_complete_edit_text);
-        editText.setOnClickListener(new View.OnClickListener() {
+        final View.OnClickListener transitionToRunningListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 transitionToRunning();
             }
-        });
+        };
+        searchBar.setOnClickListener(transitionToRunningListener);
+        editText.setOnClickListener(transitionToRunningListener);
 
-        editText.setTextListener(new ClearableEditText.TextListener() {
+        // Attach a listener for the "search" key on the keyboard.
+        editText.addTextChangedListener(new TextWatcher() {
             @Override
-            public void onChange(String text) {
-                if (state == State.RUNNING) {
-                    final Bundle args = new Bundle();
-                    args.putString(KEY_SEARCH_TERM, text);
-                    getLoaderManager().restartLoader(LOADER_ID_SUGGESTION, args, suggestionLoaderCallbacks);
-                }
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
             }
 
             @Override
-            public void onSubmit(String text) {
-                transitionToWaiting();
-                searchListener.onSearch(text);
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                final Bundle args = new Bundle();
+                args.putString(KEY_SEARCH_TERM, s.toString());
+                getLoaderManager().restartLoader(LOADER_ID_SUGGESTION, args, suggestionLoaderCallbacks);
+            }
+        });
+        editText.setOnEditorActionListener(this);
+
+        clearButton = (Button) mainView.findViewById(R.id.search_bar_clear_button);
+        clearButton.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                editText.setText("");
             }
         });
 
@@ -146,9 +162,7 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 final Suggestion suggestion = (Suggestion) suggestionDropdown.getItemAtPosition(position);
-
-                transitionToWaiting();
-                searchListener.onSearch(suggestion.value);
+                startSearch(suggestion.value);
             }
         });
 
@@ -159,7 +173,9 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
     public void onDestroyView() {
         super.onDestroyView();
 
+        searchBar = null;
         editText = null;
+        clearButton = null;
 
         if (null != suggestionDropdown) {
             suggestionDropdown.setOnItemClickListener(null);
@@ -168,41 +184,78 @@ public class SearchFragment extends Fragment implements AcceptsJumpTaps {
         }
     }
 
+    /**
+     * Handler for the "search" button on the keyboard.
+     */
     @Override
-    public void onJumpTap(String suggestion) {
-        setSearchTerm(suggestion);
+    public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+        if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+            startSearch(v.getText().toString());
+            return true;
+        }
+        return false;
     }
 
     /**
-     * Sets the search term in the search bar. If the SearchFragment is
-     * in State.RUNNING, this will also update the search suggestions.
-     *
-     * @param searchTerm
+     * Send a search intent and put the widget into waiting.
      */
-    public void setSearchTerm(String searchTerm) {
-        editText.setText(searchTerm);
+    private void startSearch(String queryString) {
+        if (getActivity() instanceof AcceptsSearchQuery) {
+            editText.setText(queryString);
+            editText.setSelection(queryString.length());
+            transitionToWaiting();
+            ((AcceptsSearchQuery) getActivity()).onSearch(queryString);
+        } else {
+            throw new RuntimeException("Parent activity does not implement AcceptsSearchQuery.");
+        }
     }
 
     private void transitionToWaiting() {
         if (state == State.WAITING) {
             return;
         }
-        state = State.WAITING;
 
+        setEditTextFocusable(false);
         mainView.setClickable(false);
-        editText.setActive(false);
+
         suggestionDropdown.setVisibility(View.GONE);
+        clearButton.setVisibility(View.GONE);
+
+        state = State.WAITING;
     }
 
     private void transitionToRunning() {
         if (state == State.RUNNING) {
             return;
         }
-        state = State.RUNNING;
 
+        setEditTextFocusable(true);
         mainView.setClickable(true);
-        editText.setActive(true);
+
         suggestionDropdown.setVisibility(View.VISIBLE);
+        clearButton.setVisibility(View.VISIBLE);
+
+        state = State.RUNNING;
+    }
+
+    private void setEditTextFocusable(boolean focusable) {
+        editText.setFocusable(focusable);
+        editText.setFocusableInTouchMode(focusable);
+
+        if (focusable) {
+            editText.requestFocus();
+            inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
+        } else {
+            editText.clearFocus();
+            inputMethodManager.hideSoftInputFromWindow(editText.getWindowToken(), 0);
+        }
+    }
+
+    @Override
+    public void onJumpTap(String suggestion) {
+        editText.setText(suggestion);
+        // Move cursor to end of search input.
+        editText.setSelection(suggestion.length());
     }
 
     public static class Suggestion {

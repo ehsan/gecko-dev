@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 tw=80 et: */
+/* vim: set ts=4 sw=4 tw=80 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -35,6 +35,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMStorage.h"
+#include "nsPIDOMStorage.h"
 #include "nsIContentViewer.h"
 #include "nsIDocumentLoaderFactory.h"
 #include "nsCURILoader.h"
@@ -43,6 +44,7 @@
 #include "nsNetUtil.h"
 #include "nsRect.h"
 #include "prenv.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsIDOMWindow.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsPoint.h"
@@ -2789,27 +2791,20 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
         return NS_ERROR_UNEXPECTED;
     }
 
-    nsCOMPtr<nsIDOMWindow> domWin = do_GetInterface(GetAsSupports(this));
-
     if (aCreate) {
-        return manager->CreateStorage(domWin, aPrincipal, aDocumentURI,
+        return manager->CreateStorage(aPrincipal, aDocumentURI,
                                       mInPrivateBrowsing, aStorage);
     }
 
-    return manager->GetStorage(domWin, aPrincipal, mInPrivateBrowsing,
-                               aStorage);
+    return manager->GetStorage(aPrincipal, mInPrivateBrowsing, aStorage);
 }
 
 nsresult
 nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
                               nsIDOMStorage* aStorage)
 {
-    nsRefPtr<DOMStorage> storage = static_cast<DOMStorage*>(aStorage);
-    if (!storage) {
-        return NS_ERROR_UNEXPECTED;
-    }
-
-    nsIPrincipal* storagePrincipal = storage->GetPrincipal();
+    nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(aStorage);
+    nsIPrincipal* storagePrincipal = pistorage->GetPrincipal();
     if (storagePrincipal != aPrincipal) {
         NS_ERROR("Wanting to add a sessionStorage for different principal");
         return NS_ERROR_DOM_SECURITY_ERR;
@@ -7850,17 +7845,19 @@ nsDocShell::RestoreFromHistory()
         mSavingOldViewer = CanSavePresentation(mLoadType, request, doc);
     }
 
-    nsCOMPtr<nsIContentViewer> oldCv(mContentViewer);
-    nsCOMPtr<nsIContentViewer> newCv(viewer);
+    nsCOMPtr<nsIMarkupDocumentViewer> oldMUDV(
+        do_QueryInterface(mContentViewer));
+    nsCOMPtr<nsIMarkupDocumentViewer> newMUDV(
+        do_QueryInterface(viewer));
     int32_t minFontSize = 0;
     float textZoom = 1.0f;
     float pageZoom = 1.0f;
     bool styleDisabled = false;
-    if (oldCv && newCv) {
-        oldCv->GetMinFontSize(&minFontSize);
-        oldCv->GetTextZoom(&textZoom);
-        oldCv->GetFullZoom(&pageZoom);
-        oldCv->GetAuthorStyleDisabled(&styleDisabled);
+    if (oldMUDV && newMUDV) {
+        oldMUDV->GetMinFontSize(&minFontSize);
+        oldMUDV->GetTextZoom(&textZoom);
+        oldMUDV->GetFullZoom(&pageZoom);
+        oldMUDV->GetAuthorStyleDisabled(&styleDisabled);
     }
 
     // Protect against mLSHE going away via a load triggered from
@@ -8067,11 +8064,11 @@ nsDocShell::RestoreFromHistory()
         FavorPerformanceHint(true);
 
 
-    if (oldCv && newCv) {
-        newCv->SetMinFontSize(minFontSize);
-        newCv->SetTextZoom(textZoom);
-        newCv->SetFullZoom(pageZoom);
-        newCv->SetAuthorStyleDisabled(styleDisabled);
+    if (oldMUDV && newMUDV) {
+        newMUDV->SetMinFontSize(minFontSize);
+        newMUDV->SetTextZoom(textZoom);
+        newMUDV->SetFullZoom(pageZoom);
+        newMUDV->SetAuthorStyleDisabled(styleDisabled);
     }
 
     nsCOMPtr<nsIDocument> document = do_QueryInterface(domDoc);
@@ -8561,15 +8558,15 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
     float pageZoom;
     bool styleDisabled;
     // |newMUDV| also serves as a flag to set the data from the above vars
-    nsCOMPtr<nsIContentViewer> newCv;
+    nsCOMPtr<nsIMarkupDocumentViewer> newMUDV;
 
     if (mContentViewer || parent) {
-        nsCOMPtr<nsIContentViewer> oldCv;
+        nsCOMPtr<nsIMarkupDocumentViewer> oldMUDV;
         if (mContentViewer) {
             // Get any interesting state from old content viewer
             // XXX: it would be far better to just reuse the document viewer ,
             //      since we know we're just displaying the same document as before
-            oldCv = mContentViewer;
+            oldMUDV = do_QueryInterface(mContentViewer);
 
             // Tell the old content viewer to hibernate in session history when
             // it is destroyed.
@@ -8583,31 +8580,35 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
         }
         else {
             // No old content viewer, so get state from parent's content viewer
-            parent->GetContentViewer(getter_AddRefs(oldCv));
+            nsCOMPtr<nsIContentViewer> parentContentViewer;
+            parent->GetContentViewer(getter_AddRefs(parentContentViewer));
+            oldMUDV = do_QueryInterface(parentContentViewer);
         }
 
-        if (oldCv) {
-            newCv = aNewViewer;
-            if (newCv) {
-                NS_ENSURE_SUCCESS(oldCv->
+        if (oldMUDV) {
+            nsresult rv;
+
+            newMUDV = do_QueryInterface(aNewViewer,&rv);
+            if (newMUDV) {
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetForceCharacterSet(forceCharset),
                                   NS_ERROR_FAILURE);
-                NS_ENSURE_SUCCESS(oldCv->
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetHintCharacterSet(hintCharset),
                                   NS_ERROR_FAILURE);
-                NS_ENSURE_SUCCESS(oldCv->
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetHintCharacterSetSource(&hintCharsetSource),
                                   NS_ERROR_FAILURE);
-                NS_ENSURE_SUCCESS(oldCv->
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetMinFontSize(&minFontSize),
                                   NS_ERROR_FAILURE);
-                NS_ENSURE_SUCCESS(oldCv->
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetTextZoom(&textZoom),
                                   NS_ERROR_FAILURE);
-                NS_ENSURE_SUCCESS(oldCv->
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetFullZoom(&pageZoom),
                                   NS_ERROR_FAILURE);
-                NS_ENSURE_SUCCESS(oldCv->
+                NS_ENSURE_SUCCESS(oldMUDV->
                                   GetAuthorStyleDisabled(&styleDisabled),
                                   NS_ERROR_FAILURE);
             }
@@ -8663,21 +8664,21 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 
     // If we have old state to copy, set the old state onto the new content
     // viewer
-    if (newCv) {
-        NS_ENSURE_SUCCESS(newCv->SetForceCharacterSet(forceCharset),
+    if (newMUDV) {
+        NS_ENSURE_SUCCESS(newMUDV->SetForceCharacterSet(forceCharset),
                           NS_ERROR_FAILURE);
-        NS_ENSURE_SUCCESS(newCv->SetHintCharacterSet(hintCharset),
+        NS_ENSURE_SUCCESS(newMUDV->SetHintCharacterSet(hintCharset),
                           NS_ERROR_FAILURE);
-        NS_ENSURE_SUCCESS(newCv->
+        NS_ENSURE_SUCCESS(newMUDV->
                           SetHintCharacterSetSource(hintCharsetSource),
                           NS_ERROR_FAILURE);
-        NS_ENSURE_SUCCESS(newCv->SetMinFontSize(minFontSize),
+        NS_ENSURE_SUCCESS(newMUDV->SetMinFontSize(minFontSize),
                           NS_ERROR_FAILURE);
-        NS_ENSURE_SUCCESS(newCv->SetTextZoom(textZoom),
+        NS_ENSURE_SUCCESS(newMUDV->SetTextZoom(textZoom),
                           NS_ERROR_FAILURE);
-        NS_ENSURE_SUCCESS(newCv->SetFullZoom(pageZoom),
+        NS_ENSURE_SUCCESS(newMUDV->SetFullZoom(pageZoom),
                           NS_ERROR_FAILURE);
-        NS_ENSURE_SUCCESS(newCv->SetAuthorStyleDisabled(styleDisabled),
+        NS_ENSURE_SUCCESS(newMUDV->SetAuthorStyleDisabled(styleDisabled),
                           NS_ERROR_FAILURE);
     }
 
@@ -12909,16 +12910,23 @@ nsDocShell::ReloadDocument(const char* aCharset,
   // XXX hack. keep the aCharset and aSource wait to pick it up
   nsCOMPtr<nsIContentViewer> cv;
   NS_ENSURE_SUCCESS(GetContentViewer(getter_AddRefs(cv)), NS_ERROR_FAILURE);
-  if (cv) {
-    int32_t hint;
-    cv->GetHintCharacterSetSource(&hint);
-    if (aSource > hint) {
-      nsCString charset(aCharset);
-      cv->SetHintCharacterSet(charset);
-      cv->SetHintCharacterSetSource(aSource);
-      if(eCharsetReloadRequested != mCharsetReloadState) {
-        mCharsetReloadState = eCharsetReloadRequested;
-        return Reload(LOAD_FLAGS_CHARSET_CHANGE);
+  if (cv)
+  {
+    nsCOMPtr<nsIMarkupDocumentViewer> muDV = do_QueryInterface(cv);  
+    if (muDV)
+    {
+      int32_t hint;
+      muDV->GetHintCharacterSetSource(&hint);
+      if (aSource > hint)
+      {
+        nsCString charset(aCharset);
+        muDV->SetHintCharacterSet(charset);
+        muDV->SetHintCharacterSetSource(aSource);
+        if(eCharsetReloadRequested != mCharsetReloadState) 
+        {
+          mCharsetReloadState = eCharsetReloadRequested;
+          return Reload(LOAD_FLAGS_CHARSET_CHANGE);
+        }
       }
     }
   }

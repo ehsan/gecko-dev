@@ -5,14 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 CPP_UNIT_TESTS += [
-    'TestCOM',
-    'TestNtPathToDosPath',
+    'TestCOM.cpp',
+    'TestNtPathToDosPath.cpp',
 ]
 
-SOURCES += sorted('%s.cpp' % t for t in CPP_UNIT_TESTS)
-
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

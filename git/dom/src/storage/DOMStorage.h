@@ -7,16 +7,10 @@
 #define nsDOMStorage_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 #include "nsIDOMStorage.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
+#include "nsPIDOMStorage.h"
 #include "nsWeakReference.h"
-#include "nsWrapperCache.h"
-#include "nsISupports.h"
-
-class nsIPrincipal;
-class nsIDOMWindow;
+#include "nsAutoPtr.h"
 
 namespace mozilla {
 namespace dom {
@@ -24,95 +18,29 @@ namespace dom {
 class DOMStorageManager;
 class DOMStorageCache;
 
-class DOMStorage MOZ_FINAL
-  : public nsIDOMStorage
-  , public nsSupportsWeakReference
-  , public nsWrapperCache
+class DOMStorage MOZ_FINAL : public nsIDOMStorage
+                           , public nsPIDOMStorage
+                           , public nsSupportsWeakReference
 {
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(DOMStorage,
-                                                         nsIDOMStorage)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMSTORAGE
 
-  enum StorageType {
-    LocalStorage = 1,
-    SessionStorage = 2
-  };
+  // nsPIDOMStorage
+  virtual StorageType GetType() const MOZ_OVERRIDE;
+  virtual DOMStorageManager* GetManager() const MOZ_OVERRIDE { return mManager; }
+  virtual const DOMStorageCache* GetCache() const MOZ_OVERRIDE { return mCache; }
 
-  StorageType GetType() const;
+  virtual nsTArray<nsString>* GetKeys() MOZ_OVERRIDE;
+  virtual nsIPrincipal* GetPrincipal() MOZ_OVERRIDE;
+  virtual bool PrincipalEquals(nsIPrincipal* aPrincipal) MOZ_OVERRIDE;
+  virtual bool CanAccess(nsIPrincipal* aPrincipal) MOZ_OVERRIDE;
+  virtual bool IsPrivate() MOZ_OVERRIDE { return mIsPrivate; }
 
-  DOMStorageManager* GetManager() const
-  {
-    return mManager;
-  }
-
-  DOMStorageCache const* GetCache() const
-  {
-    return mCache;
-  }
-
-  nsIPrincipal* GetPrincipal();
-  bool PrincipalEquals(nsIPrincipal* aPrincipal);
-  bool CanAccess(nsIPrincipal* aPrincipal);
-  bool IsPrivate()
-  {
-    return mIsPrivate;
-  }
-
-  DOMStorage(nsIDOMWindow* aWindow,
-             DOMStorageManager* aManager,
+  DOMStorage(DOMStorageManager* aManager,
              DOMStorageCache* aCache,
              const nsAString& aDocumentURI,
              nsIPrincipal* aPrincipal,
              bool aIsPrivate);
-
-  // WebIDL
-  JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  nsIDOMWindow* GetParentObject() const
-  {
-    return mWindow;
-  }
-
-  uint32_t GetLength(ErrorResult& aRv);
-
-  void Key(uint32_t aIndex, nsAString& aResult, ErrorResult& aRv);
-
-  void GetItem(const nsAString& aKey, nsAString& aResult, ErrorResult& aRv);
-
-  bool NameIsEnumerable(const nsAString& aName) const
-  {
-    return true;
-  }
-
-  void GetSupportedNames(unsigned, nsTArray<nsString>& aKeys);
-
-  void NamedGetter(const nsAString& aKey, bool& aFound, nsAString& aResult,
-	           ErrorResult& aRv)
-  {
-    GetItem(aKey, aResult, aRv);
-    aFound = !aResult.IsVoid();
-  }
-
-  void SetItem(const nsAString& aKey, const nsAString& aValue,
-               ErrorResult& aRv);
-
-  void NamedSetter(const nsAString& aKey, const nsAString& aValue,
-                   ErrorResult& aRv)
-  {
-    SetItem(aKey, aValue, aRv);
-  }
-
-  void RemoveItem(const nsAString& aKey, ErrorResult& aRv);
-
-  void NamedDeleter(const nsAString& aKey, bool& aFound, ErrorResult& aRv)
-  {
-    RemoveItem(aKey, aRv);
-
-    aFound = (aRv.ErrorCode() != NS_SUCCESS_DOM_NO_OPERATION);
-  }
-
-  void Clear(ErrorResult& aRv);
 
   // The method checks whether the caller can use a storage.
   // CanUseStorage is called before any DOM initiated operation
@@ -132,7 +60,6 @@ private:
   friend class DOMStorageManager;
   friend class DOMStorageCache;
 
-  nsCOMPtr<nsIDOMWindow> mWindow;
   nsRefPtr<DOMStorageManager> mManager;
   nsRefPtr<DOMStorageCache> mCache;
   nsString mDocumentURI;

@@ -84,14 +84,6 @@ public:
   static
   void ShutdownStatic() {}
 
-  void AndWith(const nsRegion& aOther)
-  {
-    And(*this, aOther);
-  }
-  void AndWith(const nsRect& aOther)
-  {
-    And(*this, aOther);
-  }
   nsRegion& And(const nsRegion& aRgn1,   const nsRegion& aRgn2)
   {
     pixman_region32_intersect(&mImpl, aRgn1.Impl(), aRgn2.Impl());
@@ -114,14 +106,6 @@ public:
     return Copy(TmpRect);
   }
 
-  void OrWith(const nsRegion& aOther)
-  {
-    Or(*this, aOther);
-  }
-  void OrWith(const nsRect& aOther)
-  {
-    Or(*this, aOther);
-  }
   nsRegion& Or(const nsRegion& aRgn1, const nsRegion& aRgn2)
   {
     pixman_region32_union(&mImpl, aRgn1.Impl(), aRgn2.Impl());
@@ -142,14 +126,6 @@ public:
     return Or (*this, aRect2);
   }
 
-  void XorWith(const nsRegion& aOther)
-  {
-    Xor(*this, aOther);
-  }
-  void XorWith(const nsRect& aOther)
-  {
-    Xor(*this, aOther);
-  }
   nsRegion& Xor(const nsRegion& aRgn1,   const nsRegion& aRgn2)
   {
     // this could be implemented better if pixman had direct
@@ -174,15 +150,6 @@ public:
   }
 
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
-
-  void SubOut(const nsRegion& aOther)
-  {
-    Sub(*this, aOther);
-  }
-  void SubOut(const nsRect& aOther)
-  {
-    Sub(*this, aOther);
-  }
   nsRegion& Sub(const nsRegion& aRgn1, const nsRegion& aRgn2)
   {
     pixman_region32_subtract(&mImpl, aRgn1.Impl(), aRgn2.Impl());
@@ -202,15 +169,6 @@ public:
     return Sub(*this, aRect2);
   }
 
-  /**
-   * Returns true iff the given point is inside the region. A region
-   * created from a rect (x=0, y=0, w=100, h=100) will NOT contain
-   * the point x=100, y=100.
-   */
-  bool Contains (int aX, int aY) const
-  {
-    return pixman_region32_contains_point(Impl(), aX, aY, nullptr);
-  }
   bool Contains (const nsRect& aRect) const
   {
     pixman_box32_t box = RectToBox(aRect);
@@ -582,14 +540,9 @@ public:
     return Sub (*this, aRect2);
   }
 
-  /**
-   * Returns true iff the given point is inside the region. A region
-   * created from a rect (x=0, y=0, w=100, h=100) will NOT contain
-   * the point x=100, y=100.
-   */
   bool Contains (int aX, int aY) const
   {
-    return mImpl.Contains(aX, aY);
+    return Contains(nsIntRect(aX, aY, 1, 1));
   }
   bool Contains (const nsIntRect& aRect) const
   {

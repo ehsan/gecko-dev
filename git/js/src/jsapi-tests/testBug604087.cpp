@@ -39,8 +39,7 @@ wrap(JSContext *cx, JS::HandleObject toWrap, JS::HandleObject target)
 }
 
 static JSObject *
-PreWrap(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj,
-        JS::HandleObject objectPassedToWrap)
+PreWrap(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj, unsigned flags)
 {
     JS_GC(JS_GetRuntime(cx));
     return obj;
@@ -48,7 +47,7 @@ PreWrap(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj,
 
 static JSObject *
 Wrap(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
-     JS::HandleObject parent)
+     JS::HandleObject parent, unsigned flags)
 {
     return js::Wrapper::New(cx, obj, parent, &js::CrossCompartmentWrapper::singleton);
 }

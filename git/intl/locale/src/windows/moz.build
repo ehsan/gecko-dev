@@ -11,7 +11,7 @@ SOURCES += [
     'nsWinCharset.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'i18n'
 
 GENERATED_FILES = [
     'wincharset.properties.h',
