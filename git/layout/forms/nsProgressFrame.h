@@ -71,8 +71,6 @@ public:
    */
   bool ShouldUseNativeStyle() const;
 
-  virtual nsIContent* GetPseudoElementContent(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
-
 protected:
   // Helper function which reflow the anonymous div frame.
   void ReflowBarFrame(nsIFrame*                aBarFrame,

@@ -122,8 +122,6 @@ public:
    */
   void UpdateForValueChange();
 
-  virtual nsIContent* GetPseudoElementContent(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
-
 private:
 
   nsresult MakeAnonymousDiv(nsIContent** aResult,

@@ -564,8 +564,7 @@ JS_FRIEND_API(bool)
 js::GetOriginalEval(JSContext *cx, HandleObject scope, MutableHandleObject eval)
 {
     assertSameCompartment(cx, scope);
-    Rooted<GlobalObject *> global(cx, &scope->global());
-    return GlobalObject::getOrCreateEval(cx, global, eval);
+    return scope->global().getOrCreateEval(cx, eval);
 }
 
 JS_FRIEND_API(void)

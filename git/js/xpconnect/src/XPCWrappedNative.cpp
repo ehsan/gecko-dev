@@ -41,10 +41,6 @@ xpc_OkToHandOutWrapper(nsWrapperCache *cache)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(XPCWrappedNative)
 
-// No need to unlink the JS objects: if the XPCWrappedNative is cycle
-// collected then its mFlatJSObject will be cycle collected too and
-// finalization of the mFlatJSObject will unlink the JS objects (see
-// XPC_WN_NoHelper_Finalize and FlatJSObjectFinalized).
 NS_IMETHODIMP_(void)
 NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Unlink(void *p)
 {
@@ -604,8 +600,6 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mSet(aProto->GetSet()),
       mScriptableInfo(nullptr)
 {
-    MOZ_ASSERT(NS_IsMainThread());
-
     mIdentity = aIdentity.get();
     mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
@@ -622,8 +616,6 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mSet(aSet),
       mScriptableInfo(nullptr)
 {
-    MOZ_ASSERT(NS_IsMainThread());
-
     mIdentity = aIdentity.get();
     mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
@@ -913,14 +905,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(XPCWrappedNative)
   NS_INTERFACE_MAP_ENTRY(nsIXPConnectWrappedNative)
   NS_INTERFACE_MAP_ENTRY(nsIXPConnectJSObjectHolder)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPConnectWrappedNative)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_THREADSAFE
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(XPCWrappedNative)
-
-// Release calls Destroy() immediately when the refcount drops to 0 to
-// clear the weak references nsXPConnect has to XPCWNs and to ensure there
-// are no pointers to dying protos.
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(XPCWrappedNative, Destroy())
+NS_IMPL_ADDREF(XPCWrappedNative)
+NS_IMPL_RELEASE(XPCWrappedNative)
 
 /*
  *  Wrapped Native lifetime management is messy!

@@ -11,7 +11,6 @@
 
 #ifndef VPX_TIMER_H
 #define VPX_TIMER_H
-#include "vpx/vpx_integer.h"
 
 #if CONFIG_OS_SUPPORT
 
@@ -76,7 +75,7 @@ vpx_usec_timer_mark(struct vpx_usec_timer *t)
 }
 
 
-static int64_t
+static long
 vpx_usec_timer_elapsed(struct vpx_usec_timer *t)
 {
 #if defined(_WIN32)
@@ -84,13 +83,15 @@ vpx_usec_timer_elapsed(struct vpx_usec_timer *t)
 
     diff.QuadPart = t->end.QuadPart - t->begin.QuadPart;
 
-    QueryPerformanceFrequency(&freq);
-    return diff.QuadPart * 1000000 / freq.QuadPart;
+    if (QueryPerformanceFrequency(&freq) && diff.QuadPart < freq.QuadPart)
+        return (long)(diff.QuadPart * 1000000 / freq.QuadPart);
+
+    return 1000000;
 #else
     struct timeval diff;
 
     timersub(&t->end, &t->begin, &diff);
-    return diff.tv_sec * 1000000 + diff.tv_usec;
+    return diff.tv_sec ? 1000000 : diff.tv_usec;
 #endif
 }
 
