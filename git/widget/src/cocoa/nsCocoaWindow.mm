@@ -629,7 +629,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
       // -- see below).  Setting the window number to -1 and then back to its
       // original value seems to accomplish this.  The idea was "borrowed"
       // from the Java Embedding Plugin.
-      NSInteger windowNumber = [mWindow windowNumber];
+      int windowNumber = [mWindow windowNumber];
       [mWindow _setWindowNumber:-1];
       [mWindow _setWindowNumber:windowNumber];
       [mWindow setAcceptsMouseMovedEvents:YES];

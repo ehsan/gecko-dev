@@ -151,8 +151,7 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
     return (int)res;
 }
 
-#elif defined(__sparc)
-#if defined(__GNUC__)
+#elif defined(__sparc) && (defined(__GNUC__) || defined(__SUNPRO_CC))
 
 static JS_ALWAYS_INLINE int
 NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
@@ -171,14 +170,6 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
                   : "r" (w), "r" (ov), "r" (nv));
     return (int)res;
 }
-
-#elif defined(__SUNPRO_CC)
-
-/* Implementation in lock_sparc*.il */
-extern "C" int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv);
-
-#endif
 
 #elif defined(AIX)
 
