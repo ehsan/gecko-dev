@@ -772,6 +772,14 @@ TypedArrayObject::protoAccessors[] = {
 };
 
 /* static */ bool
+TypedArrayObject::copyWithin(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    return CallNonGenericMethod<TypedArrayObject::is,
+                                TypedArrayMethods<TypedArrayObject>::copyWithin>(cx, args);
+}
+
+/* static */ bool
 TypedArrayObject::set(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -779,11 +787,19 @@ TypedArrayObject::set(JSContext *cx, unsigned argc, Value *vp)
                                 TypedArrayMethods<TypedArrayObject>::set>(cx, args);
 }
 
+/* static */ bool
+TypedArrayObject::subarray(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    return CallNonGenericMethod<TypedArrayObject::is,
+                                TypedArrayMethods<TypedArrayObject>::subarray>(cx, args);
+}
+
 /* static */ const JSFunctionSpec
 TypedArrayObject::protoFunctions[] = {
-    JS_SELF_HOSTED_FN("subarray", "TypedArraySubarray", 2, 0),
+    JS_FN("subarray", TypedArrayObject::subarray, 2, 0),
     JS_FN("set", TypedArrayObject::set, 2, 0),
-    JS_SELF_HOSTED_FN("copyWithin", "TypedArrayCopyWithin", 3, 0),
+    JS_FN("copyWithin", TypedArrayObject::copyWithin, 2, 0),
     JS_SELF_HOSTED_FN("every", "TypedArrayEvery", 2, 0),
     JS_SELF_HOSTED_FN("fill", "TypedArrayFill", 3, 0),
     JS_SELF_HOSTED_FN("filter", "TypedArrayFilter", 2, 0),

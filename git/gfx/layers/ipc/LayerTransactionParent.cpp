@@ -843,8 +843,6 @@ LayerTransactionParent::RecvClearCachedResources()
     // context, it's just a subtree root.  We need to scope the clear
     // of resources to exactly that subtree, so we specify it here.
     mLayerManager->ClearCachedResources(mRoot);
-
-    mShadowLayersManager->NotifyClearCachedResources(this);
   }
   return true;
 }

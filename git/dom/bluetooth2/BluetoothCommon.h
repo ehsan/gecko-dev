@@ -534,11 +534,6 @@ struct BluetoothAvrcpPlayerSettings {
   uint8_t mValues[256];
 };
 
-enum BluetoothGattStatus {
-  GATT_STATUS_SUCCESS,
-  GATT_STATUS_ERROR
-};
-
 struct BluetoothGattAdvData {
   uint8_t mAdvData[62];
 };

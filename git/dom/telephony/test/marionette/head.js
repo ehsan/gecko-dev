@@ -167,7 +167,7 @@ let emulator = (function() {
     } else {
       return waitForEvent(aTarget, "callschanged",
                           event => event.call == aExpectedCall)
-               .then(event => event.call);
+               .then(event => event.call)
     }
   }
 
@@ -1053,21 +1053,6 @@ let emulator = (function() {
     return Promise.all(promises);
   }
 
-  function setRadioEnabledAll(enabled) {
-    let promises = [];
-    let numOfSim = navigator.mozMobileConnections.length;
-
-    for (let i = 0; i < numOfSim; i++) {
-      let connection = navigator.mozMobileConnections[i];
-      ok(connection instanceof MozMobileConnection,
-         "connection[" + i + "] is instanceof " + connection.constructor);
-
-         promises.push(setRadioEnabled(connection, enabled));
-    }
-
-    return Promise.all(promises);
-  }
-
   /**
    * Public members.
    */
@@ -1102,38 +1087,21 @@ let emulator = (function() {
   this.gHangUpConference = hangUpConference;
   this.gSetupConference = setupConference;
   this.gSetRadioEnabled = setRadioEnabled;
-  this.gSetRadioEnabledAll = setRadioEnabledAll;
 }());
 
 function _startTest(permissions, test) {
-  function typesToPermissions(types) {
-    return types.map(type => {
-      return {
-        "type": type,
-        "allow": 1,
-        "context": document
-      };
-    });
-  }
-
-  function ensureRadio() {
-    log("== Ensure Radio ==");
-    return new Promise(function(resolve, reject) {
-      SpecialPowers.pushPermissions(typesToPermissions(["mobileconnection"]), () => {
-        gSetRadioEnabledAll(true).then(() => {
-          SpecialPowers.popPermissions(() => {
-            resolve();
-          });
-        });
-      });
-    });
-  }
-
   function permissionSetUp() {
-    log("== Permission SetUp ==");
-    return new Promise(function(resolve, reject) {
-      SpecialPowers.pushPermissions(typesToPermissions(permissions), resolve);
-    });
+    SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
+    for (let per of permissions) {
+      SpecialPowers.addPermission(per, true, document);
+    }
+  }
+
+  function permissionTearDown() {
+    SpecialPowers.clearUserPref("dom.mozSettings.enabled");
+    for (let per of permissions) {
+      SpecialPowers.removePermission(per, document);
+    }
   }
 
   let debugPref;
@@ -1146,18 +1114,14 @@ function _startTest(permissions, test) {
     SpecialPowers.setBoolPref(kPrefRilDebuggingEnabled, true);
     log("Set debugging pref: " + debugPref + " => true");
 
-    return Promise.resolve()
-      .then(ensureRadio)
-      .then(permissionSetUp)
-      .then(() => {
-        // Make sure that we get the telephony after adding permission.
-        telephony = window.navigator.mozTelephony;
-        ok(telephony);
-        conference = telephony.conferenceGroup;
-        ok(conference);
-      })
-      .then(gClearCalls)
-      .then(gCheckInitialState);
+    permissionSetUp();
+
+    // Make sure that we get the telephony after adding permission.
+    telephony = window.navigator.mozTelephony;
+    ok(telephony);
+    conference = telephony.conferenceGroup;
+    ok(conference);
+    return gClearCalls().then(gCheckInitialState);
   }
 
   // Extend finish() with tear down.
@@ -1168,6 +1132,8 @@ function _startTest(permissions, test) {
       log("== Test TearDown ==");
       emulator.waitFinish()
         .then(() => {
+          permissionTearDown();
+
           // Restore debugging pref.
           SpecialPowers.setBoolPref(kPrefRilDebuggingEnabled, debugPref);
           log("Set debugging pref: true => " + debugPref);
