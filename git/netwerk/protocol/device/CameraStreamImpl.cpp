@@ -68,8 +68,6 @@ static CameraStreamImpl* mCamera1 = NULL;
  */
 
 void CameraStreamImpl::transmitFrame(JNIEnv *env, jbyteArray *data) {
-    if (!mCallback)
-      return;
     jboolean isCopy;
     jbyte* jFrame = env->GetByteArrayElements(*data, &isCopy);
     PRUint32 length = env->GetArrayLength(*data);

@@ -481,30 +481,10 @@ protected:
     bool mKeyPressDispatched;
     // Whether keypress event was consumed by web contents or chrome contents.
     bool mKeyPressHandled;
-    // Whether the key event causes other key events via IME or something.
-    bool mCausedOtherKeyEvents;
 
     KeyEventState() : mKeyEvent(nsnull)
     {
       Clear();
-    }    
-
-    KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nsnull)
-    {
-      Clear();
-      Set(aNativeKeyEvent);
-    }
-
-    KeyEventState(const KeyEventState &aOther) : mKeyEvent(nsnull)
-    {
-      Clear();
-      if (aOther.mKeyEvent) {
-        mKeyEvent = [aOther.mKeyEvent retain];
-      }
-      mKeyDownHandled = aOther.mKeyDownHandled;
-      mKeyPressDispatched = aOther.mKeyPressDispatched;
-      mKeyPressHandled = aOther.mKeyPressHandled;
-      mCausedOtherKeyEvents = aOther.mCausedOtherKeyEvents;
     }
 
     ~KeyEventState()
@@ -528,7 +508,6 @@ protected:
       mKeyDownHandled = false;
       mKeyPressDispatched = false;
       mKeyPressHandled = false;
-      mCausedOtherKeyEvents = false;
     }
 
     bool KeyDownOrPressHandled()
@@ -550,74 +529,15 @@ protected:
 
     ~AutoKeyEventStateCleaner()
     {
-      mHandler->RemoveCurrentKeyEvent();
+      mHandler->mCurrentKeyEvent.Clear();
     }
   private:
-    nsRefPtr<TextInputHandlerBase> mHandler;
+    TextInputHandlerBase* mHandler;
   };
 
-  /**
-   * mCurrentKeyEvents stores all key events which are being processed.
-   * When we call interpretKeyEvents, IME may generate other key events.
-   * mCurrentKeyEvents[0] is the latest key event.
-   */
-  nsTArray<KeyEventState*> mCurrentKeyEvents;
-
-  /**
-   * mFirstKeyEvent must be used for first key event.  This member prevents
-   * memory fragmentation for most key events.
-   */
-  KeyEventState mFirstKeyEvent;
-
-  /**
-   * PushKeyEvent() adds the current key event to mCurrentKeyEvents.
-   */
-  KeyEventState* PushKeyEvent(NSEvent* aNativeKeyEvent)
-  {
-    PRUint32 nestCount = mCurrentKeyEvents.Length();
-    for (PRUint32 i = 0; i < nestCount; i++) {
-      // When the key event is caused by another key event, all key events
-      // which are being handled should be marked as "consumed".
-      mCurrentKeyEvents[i]->mCausedOtherKeyEvents = true;
-    }
-
-    KeyEventState* keyEvent = nsnull;
-    if (nestCount == 0) {
-      mFirstKeyEvent.Set(aNativeKeyEvent);
-      keyEvent = &mFirstKeyEvent;
-    } else {
-      keyEvent = new KeyEventState(aNativeKeyEvent);
-    }
-    return *mCurrentKeyEvents.AppendElement(keyEvent);
-  }
-
-  /**
-   * RemoveCurrentKeyEvent() removes the current key event from
-   * mCurrentKeyEvents.
-   */
-  void RemoveCurrentKeyEvent()
-  {
-    NS_ASSERTION(mCurrentKeyEvents.Length() > 0,
-                 "RemoveCurrentKeyEvent() is called unexpectedly");
-    KeyEventState* keyEvent = GetCurrentKeyEvent();
-    mCurrentKeyEvents.RemoveElementAt(mCurrentKeyEvents.Length() - 1);
-    if (keyEvent == &mFirstKeyEvent) {
-      keyEvent->Clear();
-    } else {
-      delete keyEvent;
-    }
-  }
-
-  /**
-   * GetCurrentKeyEvent() returns current processing key event.
-   */
-  KeyEventState* GetCurrentKeyEvent()
-  {
-    if (mCurrentKeyEvents.Length() == 0) {
-      return nsnull;
-    }
-    return mCurrentKeyEvents[mCurrentKeyEvents.Length() - 1];
-  }
+  // XXX If keydown event was nested, the key event is overwritten by newer
+  //     event.  This is wrong behavior.  Some IMEs are making such situation.
+  KeyEventState mCurrentKeyEvent;
 
   /**
    * IsPrintableChar() checks whether the unicode character is
@@ -1199,8 +1119,7 @@ public:
    */
   bool KeyPressWasHandled()
   {
-    KeyEventState* currentKeyEvent = GetCurrentKeyEvent();
-    return currentKeyEvent && currentKeyEvent->mKeyPressHandled;
+    return mCurrentKeyEvent.mKeyPressHandled;
   }
 
 protected:

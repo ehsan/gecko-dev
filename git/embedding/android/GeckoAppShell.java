@@ -697,11 +697,11 @@ public class GeckoAppShell
 
     // "Installs" an application by creating a shortcut
     static void createShortcut(String aTitle, String aURI, String aIconData, String aType) {
-        Log.w("GeckoAppJava", "createShortcut for " + aURI + " [" + aTitle + "] > " + aType);
+        Log.w("GeckoAppJava", "createShortcut for " + aURI + " [" + aTitle + "]");
 
         // the intent to be launched by the shortcut
         Intent shortcutIntent = new Intent();
-        if (aType.equalsIgnoreCase("webapp")) {
+        if (aType == "webapp") {
             shortcutIntent.setAction("org.mozilla.gecko.WEBAPP");
             shortcutIntent.putExtra("args", "--webapp=" + aURI);
         } else {
@@ -1548,12 +1548,7 @@ public class GeckoAppShell
         }
 
         try {
-            // no front/back camera before API level 9
-            if (Build.VERSION.SDK_INT >= 9)
-                sCamera = android.hardware.Camera.open(aCamera);
-            else
-                sCamera = android.hardware.Camera.open();
-
+            sCamera = android.hardware.Camera.open(aCamera);
             android.hardware.Camera.Parameters params = sCamera.getParameters();
             params.setPreviewFormat(ImageFormat.NV21);
 
@@ -1584,7 +1579,7 @@ public class GeckoAppShell
                     bufferSize = size.width * size.height;
                 }
             }
-
+            
             sCamera.setParameters(params);
             sCameraBuffer = new byte[(bufferSize * 12) / 8];
             sCamera.addCallbackBuffer(sCameraBuffer);

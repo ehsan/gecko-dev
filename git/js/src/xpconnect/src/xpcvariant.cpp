@@ -63,7 +63,8 @@ XPCVariant::XPCVariant(XPCCallContext& ccx, jsval aJSVal)
     nsVariant::Initialize(&mData);
     if(!JSVAL_IS_PRIMITIVE(mJSVal))
     {
-        JSObject *obj = JS_ObjectToInnerObject(ccx, JSVAL_TO_OBJECT(mJSVal));
+        JSObject *obj = JSVAL_TO_OBJECT(mJSVal);
+        OBJ_TO_INNER_OBJECT(ccx, obj);
 
         mJSVal = OBJECT_TO_JSVAL(obj);
 
@@ -480,7 +481,7 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     JSBool success;
 
     JSContext* cx = lccx.GetJSContext();
-    NS_ABORT_IF_FALSE(js::GetObjectCompartment(lccx.GetScopeForNewJSObjects()) == cx->compartment,
+    NS_ABORT_IF_FALSE(lccx.GetScopeForNewJSObjects()->compartment() == cx->compartment,
                       "bad scope for new JSObjects");
 
     switch(type)

@@ -180,6 +180,13 @@ JSCompartment::getMjitCodeStats(size_t& method, size_t& regexp, size_t& unused) 
 }
 #endif
 
+static bool
+IsCrossCompartmentWrapper(JSObject *wrapper)
+{
+    return wrapper->isWrapper() &&
+           !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
+}
+
 bool
 JSCompartment::wrap(JSContext *cx, Value *vp)
 {
@@ -218,8 +225,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (cx->hasfp()) {
         global = cx->fp()->scopeChain().getGlobal();
     } else {
-        global = JS_ObjectToInnerObject(cx, cx->globalObject);
-        if (!global)
+        global = cx->globalObject;
+        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
             return false;
     }
 
@@ -237,9 +244,9 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 
         /* Don't unwrap an outer window proxy. */
         if (!obj->getClass()->ext.innerObject) {
-            obj = UnwrapObject(&vp->toObject(), &flags);
+            obj = vp->toObject().unwrap(&flags);
             vp->setObject(*obj);
-            if (obj->compartment() == this)
+            if (obj->getCompartment() == this)
                 return true;
 
             if (cx->runtime->preWrapObjectCallback) {
@@ -249,7 +256,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
             }
 
             vp->setObject(*obj);
-            if (obj->compartment() == this)
+            if (obj->getCompartment() == this)
                 return true;
         } else {
             if (cx->runtime->preWrapObjectCallback) {
@@ -276,12 +283,12 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         *vp = p->value;
         if (vp->isObject()) {
             JSObject *obj = &vp->toObject();
-            JS_ASSERT(obj->isCrossCompartmentWrapper());
+            JS_ASSERT(IsCrossCompartmentWrapper(obj));
             if (global->getJSClass() != &js_dummy_class && obj->getParent() != global) {
                 do {
                     obj->setParent(global);
                     obj = obj->getProto();
-                } while (obj && obj->isCrossCompartmentWrapper());
+                } while (obj && IsCrossCompartmentWrapper(obj));
             }
         }
         return true;
@@ -330,7 +337,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (wrapper->getProto() != proto && !SetProto(cx, wrapper, proto, false))
         return false;
 
-    if (!crossCompartmentWrappers.put(GetProxyPrivate(wrapper), *vp))
+    if (!crossCompartmentWrappers.put(wrapper->getProxyPrivate(), *vp))
         return false;
 
     wrapper->setParent(global);

@@ -1487,8 +1487,8 @@ Debugger::unwrapDebuggeeArgument(JSContext *cx, const Value &v)
                 return NULL;
             return &rv.toObject();
         }
-        if (IsCrossCompartmentWrapper(obj))
-            return &GetProxyPrivate(obj).toObject();
+        if (obj->isCrossCompartmentWrapper())
+            return &obj->getProxyPrivate().toObject();
     }
     return obj;
 }
@@ -1595,7 +1595,7 @@ Debugger::construct(JSContext *cx, uintN argc, Value *vp)
         if (!arg.isObject())
             return ReportObjectRequired(cx);
         JSObject *argobj = &arg.toObject();
-        if (!IsCrossCompartmentWrapper(argobj)) {
+        if (!argobj->isCrossCompartmentWrapper()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CCW_REQUIRED, "Debugger");
             return false;
         }
@@ -1630,7 +1630,7 @@ Debugger::construct(JSContext *cx, uintN argc, Value *vp)
 
     /* Add the initial debuggees, if any. */
     for (uintN i = 0; i < argc; i++) {
-        GlobalObject *debuggee = GetProxyPrivate(&args[i].toObject()).toObject().getGlobal();
+        GlobalObject *debuggee = args[i].toObject().getProxyPrivate().toObject().getGlobal();
         if (!dbg->addDebuggeeGlobal(cx, debuggee))
             return false;
     }
@@ -3326,7 +3326,7 @@ WrapIdAndPropDesc(JSContext *cx, JSObject *obj, jsid *idp, PropDesc *desc)
            comp->wrap(cx, &desc->value) &&
            comp->wrap(cx, &desc->get) &&
            comp->wrap(cx, &desc->set) &&
-           (!IsProxy(obj) || desc->makeObject(cx));
+           (!obj->isProxy() || desc->makeObject(cx));
 }
 
 static JSBool

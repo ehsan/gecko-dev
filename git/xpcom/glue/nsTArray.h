@@ -1284,11 +1284,6 @@ class nsAutoTArray : public nsAutoArrayBase<nsTArray<E, Alloc>, N>
 {
 public:
   nsAutoTArray() {}
-
-  template<typename Allocator>
-  nsAutoTArray(const nsTArray<E, Allocator>& other) {
-    AppendElements(other);
-  }
 };
 
 template<class E, PRUint32 N>
@@ -1296,11 +1291,6 @@ class AutoFallibleTArray : public nsAutoArrayBase<FallibleTArray<E>, N>
 {
 public:
   AutoFallibleTArray() {}
-
-  template<typename Allocator>
-  AutoFallibleTArray(const nsTArray<E, Allocator>& other) {
-    AppendElements(other);
-  }
 };
 
 #if defined(MOZALLOC_HAVE_XMALLOC)
@@ -1309,11 +1299,6 @@ class AutoInfallibleTArray : public nsAutoArrayBase<InfallibleTArray<E>, N>
 {
 public:
   AutoInfallibleTArray() {}
-
-  template<typename Allocator>
-  AutoInfallibleTArray(const nsTArray<E, Allocator>& other) {
-    AppendElements(other);
-  }
 };
 #endif
 

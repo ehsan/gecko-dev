@@ -55,7 +55,6 @@
 #include "jsstaticcheck.h"
 #include "jstypedarray.h"
 #include "jsxml.h"
-#include "jswrapper.h"
 
 /* Headers included for inline implementations used by this header. */
 #include "jsbool.h"
@@ -88,7 +87,7 @@ JSObject::preventExtensions(JSContext *cx, js::AutoIdVector *props)
             return false;
         }
     } else {
-        if (!js::GetPropertyNames(cx, this, JSITER_HIDDEN | JSITER_OWNONLY, props))
+        if (!GetPropertyNames(cx, this, JSITER_HIDDEN | JSITER_OWNONLY, props))
             return false;
     }
 
@@ -1144,24 +1143,6 @@ JSObject::getSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp)
     return getGeneric(cx, SPECIALID_TO_JSID(sid), vp);
 }
 
-inline bool
-JSObject::isProxy() const
-{
-    return js::IsProxy(this);
-}
-
-inline bool
-JSObject::isCrossCompartmentWrapper() const
-{
-    return js::IsCrossCompartmentWrapper(this);
-}
-
-inline bool
-JSObject::isWrapper() const
-{
-    return js::IsWrapper(this);
-}
-
 static inline bool
 js_IsCallable(const js::Value &v)
 {
@@ -1350,8 +1331,8 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::AllocKind kind)
     /* NB: inline-expanded and specialized version of js_GetClassPrototype. */
     JSObject *global;
     if (!cx->hasfp()) {
-        global = JS_ObjectToInnerObject(cx, cx->globalObject);
-        if (!global)
+        global = cx->globalObject;
+        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
             return NULL;
     } else {
         global = cx->fp()->scopeChain().getGlobal();
@@ -1734,7 +1715,7 @@ class PrimitiveBehavior<double> {
 } /* namespace detail */
 
 inline JSObject *
-NonGenericMethodGuard(JSContext *cx, CallArgs args, Native native, Class *clasp, bool *ok)
+NonGenericMethodGuard(JSContext *cx, CallArgs args, Class *clasp, bool *ok)
 {
     const Value &thisv = args.thisv();
     if (thisv.isObject()) {
@@ -1745,13 +1726,13 @@ NonGenericMethodGuard(JSContext *cx, CallArgs args, Native native, Class *clasp,
         }
     }
 
-    *ok = HandleNonGenericMethodClassMismatch(cx, args, native, clasp);
+    *ok = HandleNonGenericMethodClassMismatch(cx, args, clasp);
     return NULL;
 }
 
 template <typename T>
 inline bool
-BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, Native native, T *v, bool *ok)
+BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, T *v, bool *ok)
 {
     typedef detail::PrimitiveBehavior<T> Behavior;
 
@@ -1761,7 +1742,7 @@ BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, Native native, T *v, boo
         return true;
     }
 
-    if (!NonGenericMethodGuard(cx, args, native, Behavior::getClass(), ok))
+    if (!NonGenericMethodGuard(cx, args, Behavior::getClass(), ok))
         return false;
 
     *v = Behavior::extract(thisv.toObject().getPrimitiveThis());
@@ -1781,29 +1762,6 @@ ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
       case ESClass_Boolean: return obj.isBoolean();
     }
     JS_NOT_REACHED("bad classValue");
-    return false;
-}
-
-static JS_ALWAYS_INLINE bool
-ValueIsSpecial(JSObject *obj, Value *propval, SpecialId *sidp, JSContext *cx)
-{
-    if (!propval->isObject())
-        return false;
-
-#if JS_HAS_XML_SUPPORT
-    if (obj->isXML()) {
-        *sidp = SpecialId(propval->toObject());
-        return true;
-    }
-
-    JSObject &propobj = propval->toObject();
-    JSAtom *name;
-    if (propobj.isQName() && GetLocalNameFromFunctionQName(&propobj, &name, cx)) {
-        propval->setString(name);
-        return false;
-    }
-#endif
-
     return false;
 }
 

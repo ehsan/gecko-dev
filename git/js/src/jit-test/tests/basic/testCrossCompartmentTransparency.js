@@ -2,18 +2,16 @@
 
 var g1 = newGlobal('same-compartment');
 var g2 = newGlobal('new-compartment');
-var proxyStr = "Proxy.create(                                    "+
-"  { getOwnPropertyDescriptor: function() assertEq(true,false),  "+
-"    getPropertyDescriptor: function() assertEq(true,false),     "+
-"    getOwnPropertyNames: function() assertEq(true,false),       "+
-"    getPropertyNames: function() assertEq(true,false),          "+
-"    defineProperty: function() assertEq(true,false),            "+
-"    delete: function() assertEq(true,false),                    "+
-"    fix: function() assertEq(true,false), },                    "+
-"  Object.prototype                                              "+
-");                                                              ";
-var proxy1 = g1.eval(proxyStr);
-var proxy2 = g2.eval(proxyStr);
+var scriptedProxy = Proxy.create(
+  { getOwnPropertyDescriptor: function() assertEq(true,false),
+    getPropertyDescriptor: function() assertEq(true,false),
+    getOwnPropertyNames: function() assertEq(true,false),
+    getPropertyNames: function() assertEq(true,false),
+    defineProperty: function() assertEq(true,false),
+    delete: function() assertEq(true,false),
+    fix: function() assertEq(true,false), },
+  Object.prototype
+);
 
 function test(str, f) {
     "use strict";
@@ -42,16 +40,7 @@ function test(str, f) {
     assertEq(threw, true);
     threw = false;
     try {
-        f(proxy1);
-    } catch (e) {
-        assertEq(Object.prototype.toString.call(e), "[object Error]");
-        assertEq(e.name, "TypeError");
-        threw = true;
-    }
-    assertEq(threw, true);
-    threw = false;
-    try {
-        f(proxy2);
+        f(scriptedProxy);
     } catch (e) {
         assertEq(Object.prototype.toString.call(e), "[object Error]");
         assertEq(e.name, "TypeError");

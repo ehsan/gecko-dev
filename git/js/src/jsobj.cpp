@@ -128,21 +128,21 @@ Class js::ObjectClass = {
 };
 
 JS_FRIEND_API(JSObject *)
-JS_ObjectToInnerObject(JSContext *cx, JSObject *obj)
-{
-    if (!obj) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
-        return NULL;
-    }
-    OBJ_TO_INNER_OBJECT(cx, obj);
-    return obj;
-}
-
-JS_FRIEND_API(JSObject *)
-JS_ObjectToOuterObject(JSContext *cx, JSObject *obj)
+js_ObjectToOuterObject(JSContext *cx, JSObject *obj)
 {
     OBJ_TO_OUTER_OBJECT(cx, obj);
     return obj;
+}
+
+JS_FRIEND_API(bool)
+NULLABLE_OBJ_TO_INNER_OBJECT(JSContext *cx, JSObject *&obj)
+{
+    if (!obj) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
+        return false;
+    }
+    OBJ_TO_INNER_OBJECT(cx, obj);
+    return !!obj;
 }
 
 #if JS_HAS_OBJ_PROTO_PROP
@@ -1607,7 +1607,7 @@ const char js_lookupGetter_str[] = "__lookupGetter__";
 const char js_lookupSetter_str[] = "__lookupSetter__";
 
 JS_FRIEND_API(JSBool)
-js::obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
+js_obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (!BoxNonStrictThis(cx, args))
@@ -1641,7 +1641,7 @@ js::obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
 }
 
 JS_FRIEND_API(JSBool)
-js::obj_defineSetter(JSContext *cx, uintN argc, Value *vp)
+js_obj_defineSetter(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (!BoxNonStrictThis(cx, args))
@@ -2881,8 +2881,8 @@ JSFunctionSpec object_methods[] = {
     JS_FN(js_isPrototypeOf_str,        obj_isPrototypeOf,           1,0),
     JS_FN(js_propertyIsEnumerable_str, obj_propertyIsEnumerable,    1,0),
 #if OLD_GETTER_SETTER_METHODS
-    JS_FN(js_defineGetter_str,         js::obj_defineGetter,        2,0),
-    JS_FN(js_defineSetter_str,         js::obj_defineSetter,        2,0),
+    JS_FN(js_defineGetter_str,         js_obj_defineGetter,         2,0),
+    JS_FN(js_defineSetter_str,         js_obj_defineSetter,         2,0),
     JS_FN(js_lookupGetter_str,         obj_lookupGetter,            1,0),
     JS_FN(js_lookupSetter_str,         obj_lookupSetter,            1,0),
 #endif
@@ -3677,12 +3677,12 @@ JSObject::nonNativeSetElement(JSContext *cx, uint32 index, js::Value *vp, JSBool
     return getOps()->setElement(cx, this, index, vp, strict);
 }
 
-JS_FRIEND_API(bool)
-JS_CopyPropertiesFrom(JSContext *cx, JSObject *target, JSObject *obj)
+bool
+JSObject::copyPropertiesFrom(JSContext *cx, JSObject *obj)
 {
     // If we're not native, then we cannot copy properties.
-    JS_ASSERT(target->isNative() == obj->isNative());
-    if (!target->isNative())
+    JS_ASSERT(isNative() == obj->isNative());
+    if (!isNative())
         return true;
 
     AutoShapeVector shapes(cx);
@@ -3704,7 +3704,7 @@ JS_CopyPropertiesFrom(JSContext *cx, JSObject *target, JSObject *obj)
         Value v = shape->hasSlot() ? obj->getSlot(shape->slot) : UndefinedValue();
         if (!cx->compartment->wrap(cx, &v))
             return false;
-        if (!target->defineProperty(cx, shape->propid, v, getter, setter, attrs))
+        if (!defineProperty(cx, shape->propid, v, getter, setter, attrs))
             return false;
     }
     return true;
@@ -3735,38 +3735,38 @@ CopySlots(JSContext *cx, JSObject *from, JSObject *to)
     return true;
 }
 
-JS_FRIEND_API(JSObject *)
-JS_CloneObject(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent)
+JSObject *
+JSObject::clone(JSContext *cx, JSObject *proto, JSObject *parent)
 {
     /*
      * We can only clone native objects and proxies. Dense arrays are slowified if
      * we try to clone them.
      */
-    if (!obj->isNative()) {
-        if (obj->isDenseArray()) {
-            if (!obj->makeDenseArraySlow(cx))
+    if (!isNative()) {
+        if (isDenseArray()) {
+            if (!makeDenseArraySlow(cx))
                 return NULL;
-        } else if (!obj->isProxy()) {
+        } else if (!isProxy()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_CANT_CLONE_OBJECT);
             return NULL;
         }
     }
-    JSObject *clone = NewObject<WithProto::Given>(cx, obj->getClass(), proto, parent, obj->getAllocKind());
+    JSObject *clone = NewObject<WithProto::Given>(cx, getClass(), proto, parent, getAllocKind());
     if (!clone)
         return NULL;
-    if (obj->isNative()) {
-        if (clone->isFunction() && (obj->compartment() != clone->compartment())) {
+    if (isNative()) {
+        if (clone->isFunction() && (compartment() != clone->compartment())) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_CANT_CLONE_OBJECT);
             return NULL;
         }
 
-        if (obj->getClass()->flags & JSCLASS_HAS_PRIVATE)
-            clone->setPrivate(obj->getPrivate());
+        if (getClass()->flags & JSCLASS_HAS_PRIVATE)
+            clone->setPrivate(getPrivate());
     } else {
-        JS_ASSERT(obj->isProxy());
-        if (!CopySlots(cx, obj, clone))
+        JS_ASSERT(isProxy());
+        if (!CopySlots(cx, this, clone))
             return NULL;
     }
 
@@ -3970,16 +3970,16 @@ JSObject::swap(JSContext *cx, JSObject *other)
         AutoCompartment ac(cx, other);
         if (!ac.enter())
             return false;
-        thisClone = JS_CloneObject(cx, this, other->getProto(), other->getParent());
-        if (!thisClone || !JS_CopyPropertiesFrom(cx, thisClone, this))
+        thisClone = this->clone(cx, other->getProto(), other->getParent());
+        if (!thisClone || !thisClone->copyPropertiesFrom(cx, this))
             return false;
     }
     {
         AutoCompartment ac(cx, this);
         if (!ac.enter())
             return false;
-        otherClone = JS_CloneObject(cx, other, other->getProto(), other->getParent());
-        if (!otherClone || !JS_CopyPropertiesFrom(cx, otherClone, other))
+        otherClone = other->clone(cx, other->getProto(), other->getParent());
+        if (!otherClone || !otherClone->copyPropertiesFrom(cx, other))
             return false;
     }
 
@@ -5984,7 +5984,7 @@ js_GetMethod(JSContext *cx, JSObject *obj, jsid id, uintN getHow, Value *vp)
 }
 
 JS_FRIEND_API(bool)
-js::CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname)
+js_CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 {
     StackFrame *const fp = js_GetTopStackFrame(cx, FRAME_EXPAND_ALL);
     if (!fp)
@@ -6118,7 +6118,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
 
         if (!obj->getParent() &&
             (defineHow & DNP_UNQUALIFIED) &&
-            !js::CheckUndeclaredVarAssignment(cx, JSID_TO_STRING(id))) {
+            !js_CheckUndeclaredVarAssignment(cx, JSID_TO_STRING(id))) {
             return JS_FALSE;
         }
     }
@@ -6580,7 +6580,7 @@ DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
 } /* namespace js */
 
 JS_FRIEND_API(JSBool)
-JS_EnumerateState(JSContext *cx, JSObject *obj, JSIterateOp enum_op, Value *statep, jsid *idp)
+js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op, Value *statep, jsid *idp)
 {
     /* If the class has a custom JSCLASS_NEW_ENUMERATE hook, call it. */
     Class *clasp = obj->getClass();
@@ -7090,12 +7090,14 @@ js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
 }
 
 bool
-js::HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Native native, Class *clasp)
+js::HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Class *clasp)
 {
     if (args.thisv().isObject()) {
         JSObject &thisObj = args.thisv().toObject();
-        if (thisObj.isProxy())
+        if (thisObj.isProxy()) {
+            Native native = args.callee().getFunctionPrivate()->native();
             return Proxy::nativeCall(cx, &thisObj, clasp, native, args);
+        }
     }
 
     ReportIncompatibleMethod(cx, args, clasp);
