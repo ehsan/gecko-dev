@@ -355,9 +355,7 @@ protected:
   PRBool                  DispatchCommandEvent(PRUint32 aEventCommand);
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
   static void             RemoveNextCharMessage(HWND aWnd);
-  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
-                            UINT aLastMsg,
-                            nsFakeCharMessage* aFakeCharMessage = nsnull);
+  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg);
   static MSG              InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam);
   virtual PRBool          ProcessMessage(UINT msg, WPARAM &wParam,
                                          LPARAM &lParam, LRESULT *aRetValue);

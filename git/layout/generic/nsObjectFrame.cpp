@@ -446,10 +446,8 @@ public:
   PRBool SendNativeEvents()
   {
 #ifdef XP_WIN
-    // XXX we should remove the plugin name check
     return mPluginWindow->type == NPWindowTypeDrawable &&
-           (MatchPluginName("Shockwave Flash") ||
-            MatchPluginName("Test Plug-in"));
+           MatchPluginName("Shockwave Flash");
 #elif defined(MOZ_X11) || defined(XP_MACOSX)
     return PR_TRUE;
 #else

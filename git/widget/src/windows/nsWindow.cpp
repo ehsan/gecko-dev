@@ -3993,17 +3993,10 @@ PRBool nsWindow::DispatchPluginEvent(UINT aMessage,
 }
 
 void nsWindow::RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
-                 UINT aLastMsg, nsFakeCharMessage* aFakeCharMessage)
+                                                   UINT aLastMsg)
 {
   MSG msg;
-  if (aFakeCharMessage) {
-    if (aFirstMsg > WM_CHAR || aLastMsg < WM_CHAR) {
-      return;
-    }
-    msg = aFakeCharMessage->GetCharMessage(mWnd);
-  } else {
-    ::GetMessageW(&msg, mWnd, aFirstMsg, aLastMsg);
-  }
+  ::GetMessageW(&msg, mWnd, aFirstMsg, aLastMsg);
   DispatchPluginEvent(msg);
 }
 
@@ -6993,8 +6986,6 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
     PRBool anyCharMessagesRemoved = PR_FALSE;
 
     if (aFakeCharMessage) {
-      RemoveMessageAndDispatchPluginEvent(WM_KEYFIRST, WM_KEYLAST,
-                                          aFakeCharMessage);
       anyCharMessagesRemoved = PR_TRUE;
     } else {
       while (gotMsg && (msg.message == WM_CHAR || msg.message == WM_SYSCHAR))
@@ -7019,12 +7010,9 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   else if (gotMsg &&
            (aFakeCharMessage ||
             msg.message == WM_CHAR || msg.message == WM_SYSCHAR || msg.message == WM_DEADCHAR)) {
-    if (aFakeCharMessage) {
-      MSG msg = aFakeCharMessage->GetCharMessage(mWnd);
+    if (aFakeCharMessage)
       return OnCharRaw(aFakeCharMessage->mCharCode,
-                       aFakeCharMessage->mScanCode,
-                       aModKeyState, extraFlags, &msg);
-    }
+                       aFakeCharMessage->mScanCode, aModKeyState, extraFlags);
 
     // If prevent default set for keydown, do same for keypress
     ::GetMessageW(&msg, mWnd, msg.message, msg.message);

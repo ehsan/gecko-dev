@@ -7,9 +7,9 @@ Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/service.js");
 
 const MORE_THAN_CLIENTS_TTL_REFRESH = 691200; // 8 days
-const LESS_THAN_CLIENTS_TTL_REFRESH = 86400;  // 1 day
+const LESS_THAN_CLIENTS_TTL_REFRESH = 86400; // 1 day
 
-add_test(function test_bad_hmac() {
+function test_bad_hmac() {
   _("Ensure that Clients engine deletes corrupt records.");
   let global = new ServerWBO('global',
                              {engines: {clients: {version: Clients.version,
@@ -41,6 +41,7 @@ add_test(function test_bad_hmac() {
   };
 
   let server = httpd_setup(handlers);
+  do_test_pending();
 
   try {
     let passphrase = "abcdeabcdeabcdeabcdeabcdea";
@@ -132,15 +133,15 @@ add_test(function test_bad_hmac() {
     do_check_false(oldKey.equals(newKey));
 
   } finally {
+    server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_properties() {
-  _("Test lastRecordUpload property");
+function test_properties() {
   try {
+    _("Test lastRecordUpload property");
     do_check_eq(Svc.Prefs.get("clients.lastRecordUpload"), undefined);
     do_check_eq(Clients.lastRecordUpload, 0);
 
@@ -149,11 +150,10 @@ add_test(function test_properties() {
     do_check_eq(Clients.lastRecordUpload, Math.floor(now / 1000));
   } finally {
     Svc.Prefs.resetBranch("");
-    run_next_test();
   }
-});
+}
 
-add_test(function test_sync() {
+function test_sync() {
   _("Ensure that Clients engine uploads a new client record once a week.");
   Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
@@ -171,6 +171,8 @@ add_test(function test_sync() {
   });
   server.registerPathHandler(
     "/1.1/foo/storage/clients/" + Clients.localID, clientwbo.handler());
+
+  do_test_pending();
 
   try {
 
@@ -201,14 +203,17 @@ add_test(function test_sync() {
     do_check_eq(Clients.lastRecordUpload, yesterday);
 
   } finally {
+    server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
-    server.stop(run_next_test);
   }
-});
+}
+
 
 function run_test() {
   initTestLogging("Trace");
   Log4Moz.repository.getLogger("Engine.Clients").level = Log4Moz.Level.Trace;
-  run_next_test();
+  test_bad_hmac();
+  test_properties();
+  test_sync();
 }

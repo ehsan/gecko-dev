@@ -98,8 +98,10 @@ class Element;
 /* are we the child of a non-display container? */
 #define NS_STATE_SVG_NONDISPLAY_CHILD            NS_FRAME_STATE_BIT(22)
 
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM         NS_FRAME_STATE_BIT(23)
+
 // If this bit is set, we are a <clipPath> element or descendant.
-#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(23)
+#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(24)
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.

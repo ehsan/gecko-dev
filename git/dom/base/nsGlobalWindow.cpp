@@ -119,7 +119,6 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsIDOMPopupBlockedEvent.h"
 #include "nsIDOMPopStateEvent.h"
-#include "nsIDOMHashChangeEvent.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMDesktopNotification.h"
@@ -7682,59 +7681,19 @@ nsGlobalWindow::PageHidden()
   mNeedsFocus = PR_TRUE;
 }
 
-class HashchangeCallback : public nsRunnable
-{
-public:
-  HashchangeCallback(const nsAString &aOldURL,
-                     const nsAString &aNewURL,
-                     nsGlobalWindow* aWindow)
-    : mWindow(aWindow)
-  {
-    mOldURL.Assign(aOldURL);
-    mNewURL.Assign(aNewURL);
-  }
-
-  NS_IMETHOD Run()
-  {
-    NS_PRECONDITION(NS_IsMainThread(), "Should be called on the main thread.");
-    return mWindow->FireHashchange(mOldURL, mNewURL);
-  }
-
-private:
-  nsString mOldURL;
-  nsString mNewURL;
-  nsRefPtr<nsGlobalWindow> mWindow;
-};
-
 nsresult
-nsGlobalWindow::DispatchAsyncHashchange(nsIURI *aOldURI, nsIURI *aNewURI)
+nsGlobalWindow::DispatchAsyncHashchange()
 {
-  FORWARD_TO_INNER(DispatchAsyncHashchange, (aOldURI, aNewURI), NS_OK);
+  FORWARD_TO_INNER(DispatchAsyncHashchange, (), NS_OK);
 
-  // Make sure that aOldURI and aNewURI are identical up to the '#', and that
-  // their hashes are different.
-  nsCAutoString oldBeforeHash, oldHash, newBeforeHash, newHash;
-  nsContentUtils::SplitURIAtHash(aOldURI, oldBeforeHash, oldHash);
-  nsContentUtils::SplitURIAtHash(aNewURI, newBeforeHash, newHash);
+  nsCOMPtr<nsIRunnable> event =
+    NS_NewRunnableMethod(this, &nsGlobalWindow::FireHashchange);
 
-  NS_ENSURE_STATE(oldBeforeHash.Equals(newBeforeHash));
-  NS_ENSURE_STATE(!oldHash.Equals(newHash));
-
-  nsCAutoString oldSpec, newSpec;
-  aOldURI->GetSpec(oldSpec);
-  aNewURI->GetSpec(newSpec);
-
-  NS_ConvertUTF8toUTF16 oldWideSpec(oldSpec);
-  NS_ConvertUTF8toUTF16 newWideSpec(newSpec);
-
-  nsCOMPtr<nsIRunnable> callback =
-    new HashchangeCallback(oldWideSpec, newWideSpec, this);
-  return NS_DispatchToMainThread(callback);
+  return NS_DispatchToCurrentThread(event);
 }
 
 nsresult
-nsGlobalWindow::FireHashchange(const nsAString &aOldURL,
-                               const nsAString &aNewURL)
+nsGlobalWindow::FireHashchange()
 {
   NS_ENSURE_TRUE(IsInnerWindow(), NS_ERROR_FAILURE);
 
@@ -7742,40 +7701,11 @@ nsGlobalWindow::FireHashchange(const nsAString &aOldURL,
   if (IsFrozen())
     return NS_OK;
 
-  // Get a presentation shell for use in creating the hashchange event.
-  NS_ENSURE_STATE(mDoc);
-
-  nsIPresShell *shell = mDoc->GetShell();
-  nsRefPtr<nsPresContext> presContext;
-  if (shell) {
-    presContext = shell->GetPresContext();
-  }
-
-  // Create a new hashchange event.
-  nsCOMPtr<nsIDOMEvent> domEvent;
-  nsresult rv =
-    nsEventDispatcher::CreateEvent(presContext, nsnull,
-                                   NS_LITERAL_STRING("hashchangeevent"),
-                                   getter_AddRefs(domEvent));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(domEvent);
-  NS_ENSURE_TRUE(privateEvent, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIDOMHashChangeEvent> hashchangeEvent = do_QueryInterface(domEvent);
-  NS_ENSURE_TRUE(hashchangeEvent, NS_ERROR_UNEXPECTED);
-
-  // The hashchange event bubbles and isn't cancellable.
-  rv = hashchangeEvent->InitHashChangeEvent(NS_LITERAL_STRING("hashchange"),
-                                            PR_TRUE, PR_FALSE,
-                                            aOldURL, aNewURL);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = privateEvent->SetTrusted(PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool dummy;
-  return DispatchEvent(hashchangeEvent, &dummy);
+  // Dispatch the hashchange event, which doesn't bubble and isn't cancelable,
+  // to the outer window.
+  return nsContentUtils::DispatchTrustedEvent(mDoc, GetOuterWindow(),
+                                              NS_LITERAL_STRING("hashchange"),
+                                              PR_FALSE, PR_FALSE);
 }
 
 nsresult

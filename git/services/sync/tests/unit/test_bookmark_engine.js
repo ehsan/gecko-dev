@@ -14,7 +14,7 @@ function makeEngine() {
 }
 var syncTesting = new SyncTestingInfrastructure(makeEngine);
 
-add_test(function test_ID_caching() {
+function test_ID_caching() {
 
   _("Ensure that Places IDs are not cached.");
   let engine = new BookmarksEngine();
@@ -50,12 +50,12 @@ add_test(function test_ID_caching() {
   do_check_eq(newMobileID, store.idForGUID("mobile", false));
 
   do_check_eq(store.GUIDForId(mobileID), "abcdefghijkl");
-  run_next_test();
-});
+}
 
-add_test(function test_processIncoming_error_orderChildren() {
+function test_processIncoming_error_orderChildren() {
   _("Ensure that _orderChildren() is called even when _processIncoming() throws an error.");
 
+  do_test_pending();
   Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
@@ -126,15 +126,16 @@ add_test(function test_processIncoming_error_orderChildren() {
 
   } finally {
     store.wipe();
+    server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
     syncTesting = new SyncTestingInfrastructure(makeEngine);
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_restorePromptsReupload() {
+function test_restorePromptsReupload() {
   _("Ensure that restoring from a backup will reupload all records.");
+  do_test_pending();
   Svc.Prefs.set("username", "foo");
   Service.serverURL = "http://localhost:8080/";
   Service.clusterURL = "http://localhost:8080/";
@@ -265,15 +266,15 @@ add_test(function test_restorePromptsReupload() {
 
   } finally {
     store.wipe();
+    server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
     syncTesting = new SyncTestingInfrastructure(makeEngine);
-    server.stop(run_next_test);
   }
-});
+}
 
 // Bug 632287.
-add_test(function test_mismatched_types() {
+function test_mismatched_types() {
   _("Ensure that handling a record that changes type causes deletion " +
     "then re-adding.");
 
@@ -308,6 +309,7 @@ add_test(function test_mismatched_types() {
     "parentid": "toolbar"
   };
 
+  do_test_pending();
   Svc.Prefs.set("username", "foo");
   Service.serverURL = "http://localhost:8080/";
   Service.clusterURL = "http://localhost:8080/";
@@ -349,12 +351,12 @@ add_test(function test_mismatched_types() {
 
   } finally {
     store.wipe();
+    server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
     syncTesting = new SyncTestingInfrastructure(makeEngine);
-    server.stop(run_next_test);
   }
-});
+}
 
 function run_test() {
   initTestLogging("Trace");
@@ -362,5 +364,8 @@ function run_test() {
 
   CollectionKeys.generateNewKeys();
 
-  run_next_test();
+  test_processIncoming_error_orderChildren();
+  test_ID_caching();
+  test_mismatched_types();
+  test_restorePromptsReupload();
 }

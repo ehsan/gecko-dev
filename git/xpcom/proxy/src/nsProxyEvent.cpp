@@ -475,9 +475,6 @@ nsProxyObject::LockedFind(REFNSIID aIID, void **aResult)
     // linked-list check.
     for (peo = mFirst; peo; peo = peo->mNext) {
         if (peo->GetClass()->GetProxiedIID().Equals(aIID)) {
-            // Best to AddRef for our caller before unlocking.
-            peo->LockedAddRef();
-
             {
                 // Deleting an nsProxyEventObject can call Release on an
                 // nsProxyObject, which can only happen when not holding
@@ -486,6 +483,7 @@ nsProxyObject::LockedFind(REFNSIID aIID, void **aResult)
                 delete newpeo;
             }
             *aResult = static_cast<nsISupports*>(peo->mXPTCStub);
+            peo->LockedAddRef();
             return NS_OK;
         }
     }
