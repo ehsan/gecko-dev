@@ -10,8 +10,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-[Constructor(optional DOMString label = "utf-8", optional TextDecoderOptions options),
- Exposed=(Window,Worker)]
+[Constructor(optional DOMString label = "utf-8", optional TextDecoderOptions options)]
 interface TextDecoder {
   [Constant]
   readonly attribute DOMString encoding;

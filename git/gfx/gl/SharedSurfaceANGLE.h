@@ -64,8 +64,7 @@ public:
     virtual void UnlockProdImpl() MOZ_OVERRIDE;
 
     virtual void Fence() MOZ_OVERRIDE;
-    virtual bool WaitSync() MOZ_OVERRIDE { return true; } // Fence is glFinish.
-    virtual bool PollSync() MOZ_OVERRIDE { return true; }
+    virtual bool WaitSync() MOZ_OVERRIDE;
 
     // Implementation-specific functions below:
     HANDLE GetShareHandle() {

@@ -13,8 +13,7 @@
  * http://www.openwebfoundation.org/legal/the-owf-1-0-agreements/owfa-1-0.
  */
 
-[NoInterfaceObject,
- Exposed=(Window, Worker)]
+[NoInterfaceObject]
 interface URLUtilsNoSearchParams {
   // Bug 824857: no support for stringifier attributes yet.
   //  stringifier attribute DOMString href;
@@ -48,8 +47,7 @@ interface URLUtilsNoSearchParams {
   stringifier;
 };
 
-[NoInterfaceObject,
- Exposed=(Window, Worker)]
+[NoInterfaceObject]
 interface URLUtils : URLUtilsNoSearchParams
 {
            attribute URLSearchParams searchParams;

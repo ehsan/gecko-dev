@@ -14,8 +14,10 @@ static nsIAtom **gUnicodeRangeToLangGroupAtomTable[] =
 {
   &nsGkAtoms::x_cyrillic,
   &nsGkAtoms::el_,
+  &nsGkAtoms::tr,
   &nsGkAtoms::he,
   &nsGkAtoms::ar,
+  &nsGkAtoms::x_baltic,
   &nsGkAtoms::th,
   &nsGkAtoms::ko,
   &nsGkAtoms::Japanese,
@@ -41,8 +43,8 @@ static nsIAtom **gUnicodeRangeToLangGroupAtomTable[] =
 
 /**********************************************************************
  * Unicode subranges as defined in unicode 3.0
- * x-western  -> latin
- *  0000 - 036f
+ * x-western, x-central-euro, tr, x-baltic  -> latin 
+ *  0000 - 036f 
  *  1e00 - 1eff
  *  2000 - 206f  (general punctuation)
  *  20a0 - 20cf  (currency symbols)

@@ -169,8 +169,7 @@ SharedSurface_GLTexture::WaitSync()
 {
     MutexAutoLock lock(mMutex);
     if (!mSync) {
-        // We either used glFinish, or we passed this fence already.
-        // (PollSync/WaitSync returned true previously)
+        // We must have used glFinish instead of glFenceSync.
         return true;
     }
 
@@ -180,34 +179,6 @@ SharedSurface_GLTexture::WaitSync()
     mConsGL->fWaitSync(mSync,
                        0,
                        LOCAL_GL_TIMEOUT_IGNORED);
-    mConsGL->fDeleteSync(mSync);
-    mSync = 0;
-
-    return true;
-}
-
-bool
-SharedSurface_GLTexture::PollSync()
-{
-    MutexAutoLock lock(mMutex);
-    if (!mSync) {
-        // We either used glFinish, or we passed this fence already.
-        // (PollSync/WaitSync returned true previously)
-        return true;
-    }
-
-    mConsGL->MakeCurrent();
-    MOZ_ASSERT(mConsGL->IsExtensionSupported(GLContext::ARB_sync));
-
-    GLint status = 0;
-    mConsGL->fGetSynciv(mSync,
-                        LOCAL_GL_SYNC_STATUS,
-                        1,
-                        nullptr,
-                        &status);
-    if (status != LOCAL_GL_SIGNALED)
-        return false;
-
     mConsGL->fDeleteSync(mSync);
     mSync = 0;
 

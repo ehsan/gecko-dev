@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-[ChromeOnly,
- Exposed=(Window,Worker)]
+[ChromeOnly]
 interface Console {
   void log(any... data);
   void info(any... data);

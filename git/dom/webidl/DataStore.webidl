@@ -12,8 +12,7 @@ typedef (DOMString or unsigned long) DataStoreKey;
 //                   JS codes implemented by the DataStoreImpl WebIDL.
 
 [Func="Navigator::HasDataStoreSupport",
- ChromeConstructor,
- Exposed=(Window,Worker)]
+ ChromeConstructor]
 interface DataStore : EventTarget {
   // Returns the label of the DataSource.
   [GetterThrows]
@@ -66,9 +65,8 @@ partial interface DataStore {
 //                   which currently plays a role of C++ proxy directing to the
 //                   JS codes implemented by the DataStoreCursorImpl WebIDL.
 
-[Func="Navigator::HasDataStoreSupport",
- ChromeConstructor,
- Exposed=(Window,Worker)]
+[Pref="dom.datastore.enabled",
+ ChromeConstructor]
 interface DataStoreCursor {
   // the DataStore
   [GetterThrows]

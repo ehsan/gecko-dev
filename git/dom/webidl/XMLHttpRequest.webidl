@@ -54,8 +54,7 @@ dictionary MozXMLHttpRequestParameters
  // things like this:
  //   c = new(window.ActiveXObject || XMLHttpRequest)("Microsoft.XMLHTTP")
  // To handle that, we need a constructor that takes a string.
- Constructor(DOMString ignored),
- Exposed=(Window,Worker)]
+ Constructor(DOMString ignored)]
 interface XMLHttpRequest : XMLHttpRequestEventTarget {
   // event handler
   attribute EventHandler onreadystatechange;
@@ -130,7 +129,7 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   [Throws]
   readonly attribute DOMString? responseText;
 
-  [Throws, Exposed=Window]
+  [Throws=MainThread]
   readonly attribute Document? responseXML;
 
   // Mozilla-specific stuff
@@ -138,7 +137,7 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   [ChromeOnly, SetterThrows=Workers]
   attribute boolean mozBackgroundRequest;
 
-  [ChromeOnly, Exposed=Window]
+  [ChromeOnly]
   readonly attribute MozChannel? channel;
 
   [Throws]
