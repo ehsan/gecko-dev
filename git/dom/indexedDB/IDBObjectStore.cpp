@@ -428,9 +428,7 @@ GetKeyFromValue(JSContext* aCx,
                 Key& aKey)
 {
   NS_ASSERTION(aCx, "Null pointer!");
-  // aVal can be primitive iff the key path is empty.
-  NS_ASSERTION(!JSVAL_IS_PRIMITIVE(aVal) || aKeyPath.IsEmpty(),
-               "Why are we here!?");
+  NS_ASSERTION(!JSVAL_IS_PRIMITIVE(aVal), "Why are we here!?");
   NS_ASSERTION(IDBObjectStore::IsValidKeyPath(aCx, aKeyPath),
                "This will explode!");
 
@@ -582,6 +580,7 @@ IDBObjectStore::GetKeyPathValueFromStructuredData(const PRUint8* aData,
 {
   NS_ASSERTION(aData, "Null pointer!");
   NS_ASSERTION(aDataLength, "Empty data!");
+  NS_ASSERTION(!aKeyPath.IsEmpty(), "Empty keyPath!");
   NS_ASSERTION(aCx, "Null pointer!");
 
   JSAutoRequest ar(aCx);
@@ -593,7 +592,7 @@ IDBObjectStore::GetKeyPathValueFromStructuredData(const PRUint8* aData,
     return NS_ERROR_DOM_DATA_CLONE_ERR;
   }
 
-  if (JSVAL_IS_PRIMITIVE(clone) && !aKeyPath.IsEmpty()) {
+  if (JSVAL_IS_PRIMITIVE(clone)) {
     // This isn't an object, so just leave the key unset.
     aValue.Unset();
     return NS_OK;
@@ -615,7 +614,7 @@ IDBObjectStore::GetIndexUpdateInfo(ObjectStoreInfo* aObjectStoreInfo,
   JSObject* cloneObj = nsnull;
 
   PRUint32 count = aObjectStoreInfo->indexes.Length();
-  if (count) {
+  if (count && !JSVAL_IS_PRIMITIVE(aObject)) {
     if (!aUpdateInfoArray.SetCapacity(count)) {
       NS_ERROR("Out of memory!");
       return NS_ERROR_OUT_OF_MEMORY;
@@ -623,10 +622,6 @@ IDBObjectStore::GetIndexUpdateInfo(ObjectStoreInfo* aObjectStoreInfo,
 
     for (PRUint32 indexesIndex = 0; indexesIndex < count; indexesIndex++) {
       const IndexInfo& indexInfo = aObjectStoreInfo->indexes[indexesIndex];
-
-      if (JSVAL_IS_PRIMITIVE(aObject) && !indexInfo.keyPath.IsEmpty()) {
-        continue;
-      }
 
       Key value;
       nsresult rv = GetKeyFromValue(aCx, aObject, indexInfo.keyPath, value);
@@ -1338,6 +1333,10 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
                             nsIIDBIndex** _retval)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
+
+  if (aKeyPath.IsEmpty()) {
+    return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
+  }
 
   if (!IsValidKeyPath(aCx, aKeyPath)) {
     return NS_ERROR_DOM_SYNTAX_ERR;

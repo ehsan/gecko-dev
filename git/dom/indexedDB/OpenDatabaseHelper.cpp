@@ -1507,8 +1507,7 @@ void
 OpenDatabaseHelper::DispatchSuccessEvent()
 {
   nsRefPtr<nsDOMEvent> event =
-    CreateGenericEvent(NS_LITERAL_STRING(SUCCESS_EVT_STR),
-                       eDoesNotBubble, eNotCancelable);
+    CreateGenericEvent(NS_LITERAL_STRING(SUCCESS_EVT_STR));
   if (!event) {
     NS_ERROR("Failed to create event!");
     return;
@@ -1522,8 +1521,7 @@ void
 OpenDatabaseHelper::DispatchErrorEvent()
 {
   nsRefPtr<nsDOMEvent> event =
-    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR),
-                       eDoesBubble, eCancelable);
+    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR));
   if (!event) {
     NS_ERROR("Failed to create event!");
     return;

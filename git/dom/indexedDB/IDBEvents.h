@@ -59,20 +59,13 @@
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-enum Bubbles {
-  eDoesNotBubble,
-  eDoesBubble
-};
-
-enum Cancelable {
-  eNotCancelable,
-  eCancelable
-};
-
 already_AddRefed<nsDOMEvent>
 CreateGenericEvent(const nsAString& aType,
-                   Bubbles aBubbles,
-                   Cancelable aCancelable);
+                   bool aBubblesAndCancelable = false);
+
+already_AddRefed<nsIRunnable>
+CreateGenericEventRunnable(const nsAString& aType,
+                           nsIDOMEventTarget* aTarget);
 
 class IDBVersionChangeEvent : public nsDOMEvent,
                               public nsIIDBVersionChangeEvent
