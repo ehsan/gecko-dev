@@ -1026,9 +1026,9 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
     {
       // To keep pre Gecko 1.9 behavior, setup editor always when
       // mMakeWholeDocumentEditable.
-      bool needsSetup = false;
+      PRBool needsSetup;
       if (mMakeWholeDocumentEditable) {
-        needsSetup = true;
+        needsSetup = PR_TRUE;
       } else {
         // do we already have an editor here?
         nsCOMPtr<nsIEditor> editor;
