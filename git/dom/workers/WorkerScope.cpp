@@ -901,11 +901,4 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   return global;
 }
 
-bool
-ClassIsWorkerGlobalScope(JSClass* aClass)
-{
-  return WorkerGlobalScope::Class() == aClass ||
-         DedicatedWorkerGlobalScope::Class() == aClass;
-}
-
 END_WORKERS_NAMESPACE

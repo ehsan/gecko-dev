@@ -906,11 +906,4 @@ UpdateXHRState(JSContext* aCx, JSObject* aObj, bool aIsUpload,
 
 } // namespace xhr
 
-bool
-ClassIsXMLHttpRequest(JSClass* aClass)
-{
-  return XMLHttpRequest::Class() == aClass ||
-         XMLHttpRequestUpload::Class() == aClass;
-}
-
 END_WORKERS_NAMESPACE
