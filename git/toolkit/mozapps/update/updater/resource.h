@@ -15,7 +15,6 @@
 #define IDR_BACKUP_CERT                 1005
 #define IDS_UPDATER_IDENTITY            1006
 #define IDR_XPCSHELL_CERT               1007
-#define IDR_COMCTL32_MANIFEST           17
 
 // Next default values for new objects
 // 

@@ -2402,10 +2402,7 @@ function createUpdaterINI(aIsExeAsync) {
     }
   }
 
-  let updaterIniContents = "[Strings]\n" +
-                           "Title=Update Test\n" +
-                           "Info=Running update test " + gTestID + "\n\n" +
-                           "[PostUpdateMac]\n" +
+  let updaterIniContents = "[PostUpdateMac]\n" +
                            "ExeRelPath=" + DIR_RESOURCES + gPostUpdateBinFile + "\n" +
                            exeArg +
                            exeAsync +
