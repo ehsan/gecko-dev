@@ -7,12 +7,3 @@
 .scrubber .scale-thumb {
     -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#timeThumb");
 }
-
-.playButton, .muteButton,
-.scrubber .scale-slider, .volumeControl .scale-slider {
-    -moz-user-focus: none;
-}
-
-.mediaControlsFrame {
-    direction: ltr;
-}

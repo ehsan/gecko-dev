@@ -312,7 +312,9 @@ protected:
   } ScrollQuantity;
   nsresult DoScrollText(nsPresContext* aPresContext,
                         nsIFrame* aTargetFrame,
-                        nsMouseScrollEvent* aMouseEvent,
+                        nsInputEvent* aEvent,
+                        PRInt32 aNumLines,
+                        PRBool aScrollHorizontal,
                         ScrollQuantity aScrollQuantity);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);

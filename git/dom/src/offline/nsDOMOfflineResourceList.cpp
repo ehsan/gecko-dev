@@ -823,15 +823,6 @@ nsDOMOfflineResourceList::DispatchEvent(nsIDOMEvent *evt, PRBool *_retval)
   return NS_OK;
 }
 
-static nsresult
-CheckInnerWindowCorrectness(nsPIDOMWindow* aOwner)
-{
-  NS_ASSERTION(aOwner->IsInnerWindow(), "Should have inner window here!\n");
-  NS_ENSURE_STATE(aOwner && aOwner->GetOuterWindow() &&
-                  aOwner->GetOuterWindow()->GetCurrentInnerWindow() == aOwner);
-  return NS_OK;
-}
-
 void
 nsDOMOfflineResourceList::NotifyEventListeners(nsIDOMEventListener *aListener,
                                                const nsCOMArray<nsIDOMEventListener>& aListeners,
@@ -848,8 +839,7 @@ nsDOMOfflineResourceList::NotifyEventListeners(nsIDOMEventListener *aListener,
   JSContext *cx = nsnull;
 
   nsCOMPtr<nsIScriptGlobalObject> scriptGlobal = do_QueryReferent(mWindow);
-  nsCOMPtr<nsPIDOMWindow> owner = do_QueryReferent(mWindow);
-  if (!scriptGlobal ||  NS_FAILED(CheckInnerWindowCorrectness(owner)))
+  if (!scriptGlobal)
     return;
 
   nsCOMPtr<nsIScriptContext> context = scriptGlobal->GetContext();
@@ -865,20 +855,15 @@ nsDOMOfflineResourceList::NotifyEventListeners(nsIDOMEventListener *aListener,
     }
   }
 
-  nsCOMArray<nsIDOMEventListener> listeners = aListeners;
-  PRInt32 count = listeners.Count();
-
   if (aListener) {
     aListener->HandleEvent(aEvent);
   }
 
+  PRInt32 count = aListeners.Count();
   for (PRInt32 index = 0; index < count; ++index) {
-    nsIDOMEventListener* listener = listeners[index];
+    nsIDOMEventListener* listener = aListeners[index];
 
     if (listener) {
-      if (NS_FAILED(CheckInnerWindowCorrectness(owner))) {
-         break;
-      }
       listener->HandleEvent(aEvent);
     }
   }

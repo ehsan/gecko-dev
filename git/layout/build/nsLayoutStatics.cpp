@@ -83,7 +83,6 @@
 #include "nsIFocusEventSuppressor.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
-#include "nsCrossSiteListenerProxy.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -267,8 +266,6 @@ nsLayoutStatics::Initialize()
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::InitLibrary();
 #endif
-
-  nsCrossSiteListenerProxy::Startup();
 
   return NS_OK;
 }

@@ -1365,10 +1365,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsJSContext, nsIScriptContext)
 nsrefcnt
 nsJSContext::GetCCRefcnt()
 {
-  nsrefcnt refcnt = mRefCnt.get();
-  if (NS_LIKELY(mContext))
-    refcnt += mContext->outstandingRequests;
-  return refcnt;
+  return mRefCnt.get() + mContext->outstandingRequests;
 }
 
 nsresult
@@ -1456,14 +1453,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                             aURL,
                                             aLineNo,
                                             &val);
-
-    if (!ok) {
-      // Tell XPConnect about any pending exceptions. This is needed
-      // to avoid dropping JS exceptions in case we got here through
-      // nested calls through XPConnect.
-
-      ReportPendingException();
-    }
   }
 
   // Whew!  Finally done with these manually ref-counted things.
@@ -1635,7 +1624,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      ReportPendingException();
+      ReportPendingException(PR_FALSE);
     }
   }
 
@@ -1902,7 +1891,9 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                           aURL, aLineNo);
 
   if (!fun) {
-    ReportPendingException();
+    // Set aside the frame chain on cx while reporting, since it has
+    // nothing to do with the error we just hit.
+    ReportPendingException(PR_TRUE);
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
@@ -2039,7 +2030,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      ReportPendingException();
+      ReportPendingException(PR_FALSE);
 
       // Don't pass back results from failed calls.
       rval = JSVAL_VOID;
@@ -2113,7 +2104,7 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, void *aScope,
       !::JS_DefineProperty(mContext, target, charName,
                            OBJECT_TO_JSVAL(funobj), nsnull, nsnull,
                            JSPROP_ENUMERATE | JSPROP_PERMANENT)) {
-    ReportPendingException();
+    ReportPendingException(PR_TRUE);
     rv = NS_ERROR_FAILURE;
   }
 
@@ -3668,13 +3659,14 @@ nsJSContext::DropScriptObject(void* aScriptObject)
 }
 
 void
-nsJSContext::ReportPendingException()
+nsJSContext::ReportPendingException(PRBool aSetAsideFrameChain)
 {
-  // set aside the frame chain, since it has nothing to do with the
-  // exception we're reporting.
+  JSStackFrame* frame =
+    aSetAsideFrameChain ? JS_SaveFrameChain(mContext) : nsnull;
   if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
-    JSStackFrame* frame = JS_SaveFrameChain(mContext);
     ::JS_ReportPendingException(mContext);
+  }
+  if (aSetAsideFrameChain) {
     JS_RestoreFrameChain(mContext, frame);
   }
 }

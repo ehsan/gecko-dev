@@ -53,7 +53,7 @@ Sanitizer.prototype = {
     return this.items[aItemName].canClear;
   },
   
-  prefDomain: "",
+  prefDomain: "privacy.item.",
   
   getNameFromPreference: function (aPreferenceName)
   {
@@ -198,7 +198,7 @@ Sanitizer.prototype = {
         var globalHistory = Components.classes["@mozilla.org/browser/global-history;2"]
                                       .getService(Components.interfaces.nsIBrowserHistory);
         if (this.range)
-          globalHistory.removeVisitsByTimeframe(this.range[0], this.range[1]);
+          globalHistory.removePagesByTimeframe(this.range[0], this.range[1]);
         else
           globalHistory.removeAllPages();
         
@@ -488,9 +488,7 @@ Sanitizer._checkAndSanitize = function()
   if (prefs.getBoolPref(Sanitizer.prefShutdown) && 
       !prefs.prefHasUserValue(Sanitizer.prefDidShutdown)) {
     // this is a shutdown or a startup after an unclean exit
-    var s = new Sanitizer();
-    s.prefDomain = "privacy.clearOnShutdown.";
-    s.sanitize() || // sanitize() returns null on full success
+    new Sanitizer().sanitize() || // sanitize() returns null on full success
       prefs.setBoolPref(Sanitizer.prefDidShutdown, true);
   }
 };

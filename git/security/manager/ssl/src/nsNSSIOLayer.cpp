@@ -58,7 +58,6 @@
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsIClientAuthDialogs.h"
-#include "nsClientAuthRemember.h"
 #include "nsICertOverrideService.h"
 #include "nsIBadCertListener2.h"
 #include "nsISSLErrorListener.h"
@@ -240,7 +239,7 @@ void nsNSSSocketInfo::virtualDestroyNSSReference()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS9(nsNSSSocketInfo,
+NS_IMPL_THREADSAFE_ISUPPORTS8(nsNSSSocketInfo,
                               nsITransportSecurityInfo,
                               nsISSLSocketControl,
                               nsIInterfaceRequestor,
@@ -248,8 +247,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS9(nsNSSSocketInfo,
                               nsIIdentityInfo,
                               nsIAssociatedContentSecurity,
                               nsISerializable,
-                              nsIClassInfo,
-                              nsIClientAuthUserDecision)
+                              nsIClassInfo)
 
 nsresult
 nsNSSSocketInfo::GetHandshakePending(PRBool *aHandshakePending)
@@ -301,19 +299,6 @@ void nsNSSSocketInfo::SetCanceled(PRBool aCanceled)
 PRBool nsNSSSocketInfo::GetCanceled()
 {
   return mCanceled;
-}
-
-NS_IMETHODIMP nsNSSSocketInfo::GetRememberClientAuthCertificate(PRBool *aRememberClientAuthCertificate)
-{
-  NS_ENSURE_ARG_POINTER(aRememberClientAuthCertificate);
-  *aRememberClientAuthCertificate = mRememberClientAuthCertificate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsNSSSocketInfo::SetRememberClientAuthCertificate(PRBool aRememberClientAuthCertificate)
-{
-  mRememberClientAuthCertificate = aRememberClientAuthCertificate;
-  return NS_OK;
 }
 
 void nsNSSSocketInfo::SetHasCleartextPhase(PRBool aHasCleartextPhase)
@@ -796,11 +781,6 @@ void nsSSLIOLayerHelpers::Cleanup()
   if (mutex) {
     PR_DestroyLock(mutex);
     mutex = nsnull;
-  }
-
-  if (mHostsWithCertErrors) {
-    delete mHostsWithCertErrors;
-    mHostsWithCertErrors = nsnull;
   }
 }
 
@@ -1494,95 +1474,6 @@ nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
   return status;
 }
 
-// nsPSMRememberCertErrorsTable
-
-nsPSMRememberCertErrorsTable::nsPSMRememberCertErrorsTable()
-{
-  mErrorHosts.Init(16);
-}
-
-nsresult
-nsPSMRememberCertErrorsTable::GetHostPortKey(nsNSSSocketInfo* infoObject,
-                                             nsCAutoString &result)
-{
-  nsresult rv;
-
-  result.Truncate();
-
-  nsXPIDLCString hostName;
-  rv = infoObject->GetHostName(getter_Copies(hostName));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt32 port;
-  rv = infoObject->GetPort(&port);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  result.Assign(hostName);
-  result.Append(':');
-  result.AppendInt(port);
-
-  return NS_OK;
-}
-
-void
-nsPSMRememberCertErrorsTable::RememberCertHasError(nsNSSSocketInfo* infoObject,
-                                                   nsSSLStatus* status,
-                                                   SECStatus certVerificationResult)
-{
-  nsresult rv;
-
-  nsCAutoString hostPortKey;
-  rv = GetHostPortKey(infoObject, hostPortKey);
-  if (NS_FAILED(rv))
-    return;
-
-  if (certVerificationResult != SECSuccess) {
-    NS_ASSERTION(status,
-        "Must have nsSSLStatus object when remembering flags");
-
-    if (!status)
-      return;
-
-    CertStateBits bits;
-    bits.mIsDomainMismatch = status->mIsDomainMismatch;
-    bits.mIsNotValidAtThisTime = status->mIsNotValidAtThisTime;
-    bits.mIsUntrusted = status->mIsUntrusted;
-    mErrorHosts.Put(hostPortKey, bits);
-  }
-  else {
-    mErrorHosts.Remove(hostPortKey);
-  }
-}
-
-void
-nsPSMRememberCertErrorsTable::LookupCertErrorBits(nsNSSSocketInfo* infoObject,
-                                                  nsSSLStatus* status)
-{
-  // Get remembered error bits from our cache, because of SSL session caching
-  // the NSS library potentially hasn't notified us for this socket.
-  if (status->mHaveCertErrorBits)
-    // Rather do not modify bits if already set earlier
-    return;
-
-  nsresult rv;
-
-  nsCAutoString hostPortKey;
-  rv = GetHostPortKey(infoObject, hostPortKey);
-  if (NS_FAILED(rv))
-    return;
-
-  CertStateBits bits;
-  if (!mErrorHosts.Get(hostPortKey, &bits))
-    // No record was found, this host had no cert errors
-    return;
-
-  // This host had cert errors, update the bits correctly
-  status->mHaveCertErrorBits = PR_TRUE;
-  status->mIsDomainMismatch = bits.mIsDomainMismatch;
-  status->mIsNotValidAtThisTime = bits.mIsNotValidAtThisTime;
-  status->mIsUntrusted = bits.mIsUntrusted;
-}
-
 // Call this function to report a site that is possibly TLS intolerant.
 // This function will return true, if the given socket is currently using TLS.
 PRBool
@@ -1888,7 +1779,6 @@ PRDescIdentity nsSSLIOLayerHelpers::nsSSLIOLayerIdentity;
 PRIOMethods nsSSLIOLayerHelpers::nsSSLIOLayerMethods;
 PRLock *nsSSLIOLayerHelpers::mutex = nsnull;
 nsCStringHashSet *nsSSLIOLayerHelpers::mTLSIntolerantSites = nsnull;
-nsPSMRememberCertErrorsTable *nsSSLIOLayerHelpers::mHostsWithCertErrors = nsnull;
 PRFileDesc *nsSSLIOLayerHelpers::mSharedPollableEvent = nsnull;
 nsNSSSocketInfo *nsSSLIOLayerHelpers::mSocketOwningPollableEvent = nsnull;
 PRBool nsSSLIOLayerHelpers::mPollableEventCurrentlySet = PR_FALSE;
@@ -2097,10 +1987,6 @@ nsresult nsSSLIOLayerHelpers::Init()
     return NS_ERROR_OUT_OF_MEMORY;
 
   mTLSIntolerantSites->Init(1);
-
-  mHostsWithCertErrors = new nsPSMRememberCertErrorsTable();
-  if (!mHostsWithCertErrors || !mHostsWithCertErrors->mErrorHosts.IsInitialized())
-    return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
 }
@@ -2626,10 +2512,12 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
   nsNSSShutDownPreventionLock locker;
   void* wincx = NULL;
   SECStatus ret = SECFailure;
+  nsresult rv;
   nsNSSSocketInfo* info = NULL;
   PRArenaPool* arena = NULL;
   char** caNameStrings;
   CERTCertificate* cert = NULL;
+  CERTCertificate* serverCert = NULL;
   SECKEYPrivateKey* privKey = NULL;
   CERTCertList* certList = NULL;
   CERTCertListNode* node;
@@ -2753,89 +2641,13 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
         goto noCert;
     }
   }
-  else { // Not Auto => ask
-    /* Get the SSL Certificate */
-    CERTCertificate* serverCert = NULL;
-    CERTCertificateCleaner serverCertCleaner(serverCert);
-    serverCert = SSL_PeerCertificate(socket);
-    if (serverCert == NULL) {
-      /* couldn't get the server cert: what do I do? */
-      goto loser;
-    }
-
-    nsXPIDLCString hostname;
-    info->GetHostName(getter_Copies(hostname));
-
-    nsresult rv;
-    NS_DEFINE_CID(nssComponentCID, NS_NSSCOMPONENT_CID);
-    nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(nssComponentCID, &rv));
-    nsRefPtr<nsClientAuthRememberService> cars;
-    if (nssComponent) {
-      nssComponent->GetClientAuthRememberService(getter_AddRefs(cars));
-    }
-
-    PRBool hasRemembered = PR_FALSE;
-    nsCString rememberedDBKey;
-    if (cars) {
-      PRBool found;
-      nsresult rv = cars->HasRememberedDecision(hostname, 
-                                                serverCert,
-                                                rememberedDBKey, &found);
-      if (NS_SUCCEEDED(rv) && found) {
-        hasRemembered = PR_TRUE;
-      }
-    }
-
-    PRBool canceled = PR_FALSE;
-
-if (hasRemembered)
-{
-    if (rememberedDBKey.IsEmpty())
-    {
-      canceled = PR_TRUE;
-    }
-    else
-    {
-      nsCOMPtr<nsIX509CertDB> certdb;
-      certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
-      if (certdb)
-      {
-        nsCOMPtr<nsIX509Cert> found_cert;
-        nsresult find_rv = 
-          certdb->FindCertByDBKey(rememberedDBKey.get(), nsnull,
-                                  getter_AddRefs(found_cert));
-        if (NS_SUCCEEDED(find_rv) && found_cert) {
-          nsNSSCertificate *obj_cert = reinterpret_cast<nsNSSCertificate *>(found_cert.get());
-          if (obj_cert) {
-            cert = obj_cert->GetCert();
-
-#ifdef DEBUG_kaie
-            nsAutoString nick, nickWithSerial, details;
-            if (NS_SUCCEEDED(obj_cert->FormatUIStrings(nick, 
-                                                       nickWithSerial, 
-                                                       details))) {
-              NS_LossyConvertUTF16toASCII asc(nickWithSerial);
-              fprintf(stderr, "====> remembered serial %s\n", asc.get());
-            }
-#endif
-
-          }
-        }
-        
-        if (!cert) {
-          hasRemembered = PR_FALSE;
-        }
-      }
-    }
-}
-
-if (!hasRemembered)
-{
+  else {
     /* user selects a cert to present */
     nsIClientAuthDialogs *dialogs = NULL;
     PRInt32 selectedIndex = -1;
     PRUnichar **certNicknameList = NULL;
     PRUnichar **certDetailsList = NULL;
+    PRBool canceled;
 
     /* find all user certs that are for SSL */
     /* note that we are allowing expired certs in this list */
@@ -2892,6 +2704,13 @@ if (!hasRemembered)
 
     NS_ASSERTION(nicknames->numnicknames == NumberOfCerts, "nicknames->numnicknames != NumberOfCerts");
 
+    /* Get the SSL Certificate */
+    serverCert = SSL_PeerCertificate(socket);
+    if (serverCert == NULL) {
+      /* couldn't get the server cert: what do I do? */
+      goto loser;
+    }
+
     /* Get CN and O of the subject and O of the issuer */
     char *ccn = CERT_GetCommonName(&serverCert->subject);
     void *v = ccn;
@@ -2900,6 +2719,8 @@ if (!hasRemembered)
 
     PRInt32 port;
     info->GetPort(&port);
+    char *hostname = SSL_RevealURL(socket);
+    charCleaner hostnameCleaner(hostname);
 
     nsString cn_host_port;
     if (ccn && strcmp(ccn, hostname) == 0) {
@@ -2922,6 +2743,8 @@ if (!hasRemembered)
     char *cissuer = CERT_GetOrgName(&serverCert->issuer);
     NS_ConvertUTF8toUTF16 issuer(cissuer);
     if (cissuer) PORT_Free(cissuer);
+
+    CERT_DestroyCertificate(serverCert);
 
     certNicknameList = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * nicknames->numnicknames);
     if (!certNicknameList)
@@ -2990,12 +2813,9 @@ if (!hasRemembered)
     
     if (NS_FAILED(rv)) goto loser;
 
-    // even if the user has canceled, we want to remember that, to avoid repeating prompts
-    PRBool wantRemember = PR_FALSE;
-    info->GetRememberClientAuthCertificate(&wantRemember);
+    if (canceled) { rv = NS_ERROR_NOT_AVAILABLE; goto loser; }
 
     int i;
-    if (!canceled)
     for (i = 0, node = CERT_LIST_HEAD(certList);
          !CERT_LIST_END(node, certList);
          ++i, node = CERT_LIST_NEXT(node)) {
@@ -3005,15 +2825,6 @@ if (!hasRemembered)
         break;
       }
     }
-
-    if (cars && wantRemember) {
-      cars->RememberDecision(hostname, 
-                             serverCert, 
-                             canceled ? 0 : cert);
-    }
-}
-
-    if (canceled) { rv = NS_ERROR_NOT_AVAILABLE; goto loser; }
 
     if (cert == NULL) {
       goto loser;
@@ -3210,9 +3021,6 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
     status->mIsDomainMismatch = collected_errors & nsICertOverrideService::ERROR_MISMATCH;
     status->mIsNotValidAtThisTime = collected_errors & nsICertOverrideService::ERROR_TIME;
     status->mIsUntrusted = collected_errors & nsICertOverrideService::ERROR_UNTRUSTED;
-
-    nsSSLIOLayerHelpers::mHostsWithCertErrors->RememberCertHasError(
-      infoObject, status, SECFailure);
   }
 
   remaining_display_errors = collected_errors;

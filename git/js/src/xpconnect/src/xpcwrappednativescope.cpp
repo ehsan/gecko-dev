@@ -145,9 +145,6 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
         mPrototypeJSObject(nsnull),
         mPrototypeJSFunction(nsnull),
         mPrototypeNoHelper(nsnull)
-#ifndef XPCONNECT_STANDALONE
-        , mScriptObjectPrincipal(nsnull)
-#endif
 {
     // add ourselves to the scopes list
     {   // scoped lock
@@ -248,16 +245,14 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal)
         nsISupports* priv = (nsISupports*)xpc_GetJSPrivate(aGlobal);
         nsCOMPtr<nsIXPConnectWrappedNative> native =
             do_QueryInterface(priv);
-        nsCOMPtr<nsIScriptObjectPrincipal> sop;
         if(native)
         {
-            sop = do_QueryWrappedNative(native);
+            mScriptObjectPrincipal = do_QueryWrappedNative(native);
         }
-        if(!sop)
+        if(!mScriptObjectPrincipal)
         {
-            sop = do_QueryInterface(priv);
+            mScriptObjectPrincipal = do_QueryInterface(priv);
         }
-        mScriptObjectPrincipal = sop;
     }
 #endif
 
@@ -457,9 +452,7 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
            JS_IsAboutToBeFinalized(cx, cur->mGlobalJSObject))
         {
             cur->mGlobalJSObject = nsnull;
-#ifndef XPCONNECT_STANDALONE
-            cur->mScriptObjectPrincipal = nsnull;
-#endif
+
             // Move this scope from the live list to the dying list.
             if(prev)
                 prev->mNext = next;
@@ -979,3 +972,20 @@ XPCWrappedNativeScope::DebugDump(PRInt16 depth)
     XPC_LOG_OUTDENT();
 #endif
 }
+
+#ifndef XPCONNECT_STANDALONE
+// static
+void
+XPCWrappedNativeScope::TraverseScopes(XPCCallContext& ccx)
+{
+    // Hold the lock throughout.
+    XPCAutoLock lock(ccx.GetRuntime()->GetMapLock());
+
+    for(XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext)
+        if(cur->mGlobalJSObject && cur->mScriptObjectPrincipal)
+        {
+            ccx.GetXPConnect()->RecordTraversal(cur->mGlobalJSObject,
+                                                cur->mScriptObjectPrincipal);
+        }
+}
+#endif

@@ -85,7 +85,3 @@ endif
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 .NOTPARALLEL:
 endif
-
-ifdef _MSC_VER
-OS_COMPILE_CFLAGS += -Zl
-endif
