@@ -81,10 +81,6 @@ var UIManager = {
   // Used to facilitate zooming down from a previous tab.
   _currentTab : null,
 
-  // Variable: _eventListeners
-  // Keeps track of event listeners added to the AllTabs object.
-  _eventListeners: {},
-
   // ----------
   // Function: init
   // Must be called after the object is created.
@@ -242,7 +238,6 @@ var UIManager = {
     GroupItems.uninit();
     Storage.uninit();
 
-    this._removeTabActionHandlers();
     this._currentTab = null;
     this._pageBounds = null;
     this._reorderTabItemsOnShow = null;
@@ -412,7 +407,7 @@ var UIManager = {
   _addTabActionHandlers: function() {
     var self = this;
 
-    this._eventListeners.close = function(tab) {
+    AllTabs.register("close", function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
@@ -443,34 +438,23 @@ var UIManager = {
           }
         }
       }
-    };
+    });
 
-    this._eventListeners.move = function(tab) {
+    AllTabs.register("move", function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       let activeGroupItem = GroupItems.getActiveGroupItem();
       if (activeGroupItem)
         self.setReorderTabItemsOnShow(activeGroupItem);
-    };
+    });
 
-    this._eventListeners.select = function(tab) {
+    AllTabs.register("select", function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       self.onTabSelect(tab);
-    };
-
-    for (let name in this._eventListeners)
-      AllTabs.register(name, this._eventListeners[name]);
-  },
-
-  // ----------
-  // Function: _removeTabActionHandlers
-  // Removes handlers to handle tab actions.
-  _removeTabActionHandlers: function() {
-    for (let name in this._eventListeners)
-      AllTabs.unregister(name, this._eventListeners[name]);
+    });
   },
 
   // ----------

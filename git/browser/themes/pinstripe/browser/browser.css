@@ -1484,10 +1484,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   background-color: -moz-mac-chrome-inactive;
 }
 
-.tabbrowser-tab[pinned][titlechanged]:not([selected="true"]) {
-  background-color: rgba(255,0,0,.5) !important;
-}
-
 #tabbrowser-tabs[tabsontop="true"] > .tabbrowser-tab[selected="true"] {
   -moz-border-top-colors: rgba(0,0,0,.04) rgba(0,0,0,.17) rgba(255,255,255,.9);
   -moz-border-right-colors: rgba(0,0,0,.04) rgba(0,0,0,.17) rgba(255,255,255,.6);
@@ -1859,7 +1855,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 #notification-popup {
-  color: #fff;
   margin-top: -1px;
   margin-left: -27px;
 }
@@ -1883,12 +1878,12 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   list-style-image: url(chrome://browser/skin/Geolocation-16.png);
 }
 
-.geolocation-text-link {
-  color: #fff;
-}
-
 #addons-notification-icon {
   list-style-image: url(chrome://mozapps/skin/extensions/extensionGeneric-16.png);
+}
+
+.popup-notification-description {
+  color: #fff;
 }
 
 .popup-notification-icon {
