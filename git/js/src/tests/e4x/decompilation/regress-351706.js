@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-351706.js';
 
 var BUGNUMBER = 351706;
 var summary = 'decompilation of E4X literals with parens';

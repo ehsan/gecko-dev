@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE
 nsTSubstring_CharT::nsTSubstring_CharT( char_type *data, size_type length,
                                         PRUint32 flags)
   : mData(data),
@@ -50,7 +49,27 @@ nsTSubstring_CharT::nsTSubstring_CharT( char_type *data, size_type length,
 #endif
     }
   }
-#endif /* XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE */
+
+nsTSubstring_CharT::nsTSubstring_CharT(const substring_tuple_type& tuple)
+    : mData(nsnull),
+      mLength(0),
+      mFlags(F_NONE)
+{
+  Assign(tuple);
+}
+
+nsTSubstring_CharT::nsTSubstring_CharT()
+: mData(char_traits::sEmptyBuffer),
+  mLength(0),
+  mFlags(F_TERMINATED) {}
+
+nsTSubstring_CharT::nsTSubstring_CharT( PRUint32 flags )
+        : mFlags(flags) {}
+
+nsTSubstring_CharT::nsTSubstring_CharT( const self_type& str )
+  : mData(str.mData),
+    mLength(str.mLength),
+    mFlags(str.mFlags & (F_TERMINATED | F_VOIDED)) {}
 
   /**
    * helper function for down-casting a nsTSubstring to a nsTFixedString.
@@ -185,6 +204,11 @@ nsTSubstring_CharT::Finalize()
   {
     ::ReleaseData(mData, mFlags);
     // mData, mLength, and mFlags are purposefully left dangling
+  }
+
+nsTSubstring_CharT::~nsTSubstring_CharT()
+  {
+    Finalize();
   }
 
 PRBool

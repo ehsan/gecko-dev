@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-455981-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 455981;
 var summary = 'Do not assert: entry->localKind == JSLOCAL_ARG';

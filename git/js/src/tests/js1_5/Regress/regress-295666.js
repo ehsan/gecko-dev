@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-295666.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 295666;
 var summary = 'Check JS only recursion stack overflow';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-292455.js';
 
 var summary = "Regress - Do not crash on gc";
 var BUGNUMBER = 292455;

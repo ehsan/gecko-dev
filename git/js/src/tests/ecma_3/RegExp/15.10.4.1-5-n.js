@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '15.10.4.1-5-n.js';
 /*
  *
  * Date: 26 November 2000

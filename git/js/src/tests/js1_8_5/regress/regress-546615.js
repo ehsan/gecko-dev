@@ -3,6 +3,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  * Contributors: Gary Kwong and Jason Orendorff
  */
+gTestfile = 'regress-546615';
 
 try {
     <y a={0

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-469044.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 469044;
 var summary = 'type unstable globals';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-416705.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 416705;
 var summary = 'throw from xml filter crashes';

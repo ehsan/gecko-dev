@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-422269.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 422269;
 var summary = 'Compile-time let block should not capture runtime references';

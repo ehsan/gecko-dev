@@ -85,7 +85,6 @@
 #include "nsIAuthPrompt2.h"
 #include "nsTextFormatter.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIUploadChannel.h"
 #include "nsISecurityEventSink.h"
 #include "mozilla/FunctionTimer.h"
@@ -364,7 +363,7 @@ typedef void (* ForEachPingCallback)(void *closure, nsIContent *content,
 static void
 ForEachPing(nsIContent *content, ForEachPingCallback callback, void *closure)
 {
-  // NOTE: Using nsIDOMHTMLAnchorElement::GetPing isn't really worth it here
+  // NOTE: Using nsIDOMNSHTMLAnchorElement2::GetPing isn't really worth it here
   //       since we'd still need to parse the resulting string.  Instead, we
   //       just parse the raw attribute.  It might be nice if the content node
   //       implemented an interface that exposed an enumeration of nsIURIs.
@@ -503,9 +502,8 @@ nsPingListener::GetInterface(const nsIID &iid, void **result)
 }
 
 NS_IMETHODIMP
-nsPingListener::AsyncOnChannelRedirect(nsIChannel *oldChan, nsIChannel *newChan,
-                                       PRUint32 flags,
-                                       nsIAsyncVerifyRedirectCallback *callback)
+nsPingListener::OnChannelRedirect(nsIChannel *oldChan, nsIChannel *newChan,
+                                  PRUint32 flags)
 {
   nsCOMPtr<nsIURI> newURI;
   newChan->GetURI(getter_AddRefs(newURI));
@@ -513,10 +511,8 @@ nsPingListener::AsyncOnChannelRedirect(nsIChannel *oldChan, nsIChannel *newChan,
   if (!CheckPingURI(newURI, mContent))
     return NS_ERROR_ABORT;
 
-  if (!mRequireSameHost) {
-    callback->OnRedirectVerifyCallback(NS_OK);
+  if (!mRequireSameHost)
     return NS_OK;
-  }
 
   // XXXbz should this be using something more like the nsContentUtils
   // same-origin checker?
@@ -527,7 +523,6 @@ nsPingListener::AsyncOnChannelRedirect(nsIChannel *oldChan, nsIChannel *newChan,
   if (!IsSameHost(oldURI, newURI))
     return NS_ERROR_ABORT;
 
-  callback->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 
@@ -703,7 +698,6 @@ nsDocShell::nsDocShell():
     mAllowAuth(PR_TRUE),
     mAllowKeywordFixup(PR_FALSE),
     mIsOffScreenBrowser(PR_FALSE),
-    mIsActive(PR_TRUE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
@@ -2496,10 +2490,6 @@ nsDocShell::SetDocLoaderParent(nsDocLoader * aParent)
         if (NS_SUCCEEDED(parentAsDocShell->GetAllowImages(&value)))
         {
             SetAllowImages(value);
-        }
-        if (NS_SUCCEEDED(parentAsDocShell->GetIsActive(&value)))
-        {
-            SetIsActive(value);
         }
         if (NS_FAILED(parentAsDocShell->GetAllowDNSPrefetch(&value))) {
             value = PR_FALSE;
@@ -4621,40 +4611,6 @@ nsDocShell::GetIsOffScreenBrowser(PRBool *aIsOffScreen)
 {
     *aIsOffScreen = mIsOffScreenBrowser;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::SetIsActive(PRBool aIsActive)
-{
-  // We disallow setting active on chrome docshells.
-  if (mItemType == nsIDocShellTreeItem::typeChrome)
-    return NS_ERROR_INVALID_ARG;
-
-  // Keep track ourselves.
-  mIsActive = aIsActive;
-
-  // Tell the PresShell about it.
-  nsCOMPtr<nsIPresShell> pshell;
-  GetPresShell(getter_AddRefs(pshell));
-  if (pshell)
-    pshell->SetIsActive(aIsActive);
-
-  // Recursively tell all of our children
-  PRInt32 n = mChildList.Count();
-  for (PRInt32 i = 0; i < n; ++i) {
-      nsCOMPtr<nsIDocShell> docshell = do_QueryInterface(ChildAt(i));
-      if (docshell)
-        docshell->SetIsActive(aIsActive);
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetIsActive(PRBool *aIsActive)
-{
-  *aIsActive = mIsActive;
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -6948,10 +6904,7 @@ nsDocShell::RestoreFromHistory()
 
         PRBool allowDNSPrefetch;
         childShell->GetAllowDNSPrefetch(&allowDNSPrefetch);
-
-        // this.AddChild(child) calls child.SetDocLoaderParent(this), meaning
-        // that the child inherits our state. Among other things, this means
-        // that the child inherits our mIsActive, which is what we want.
+        
         AddChild(childItem);
 
         childShell->SetAllowPlugins(allowPlugins);
@@ -8098,11 +8051,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             /* Set the title for the Global History entry for this anchor url.
              */
-            nsCOMPtr<IHistory> history = services::GetHistoryService();
-            if (history) {
-                history->SetURITitle(aURI, mTitle);
-            }
-            else if (mGlobalHistory) {
+            if (mGlobalHistory) {
                 mGlobalHistory->SetPageTitle(aURI, mTitle);
             }
 
@@ -9049,7 +8998,7 @@ nsDocShell::OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
            ("  shAvailable=%i updateHistory=%i equalURI=%i\n",
             shAvailable, updateHistory, equalUri));
 
-    if (shAvailable && mCurrentURI && !mOSHE && aLoadType != LOAD_ERROR_PAGE) {
+    if (mCurrentURI && !mOSHE && aLoadType != LOAD_ERROR_PAGE) {
         NS_ASSERTION(IsAboutBlank(mCurrentURI), "no SHEntry for a non-transient viewer?");
     }
 #endif

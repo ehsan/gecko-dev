@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '12.3-01.js';
 
 var summary = '12.3 - for-each-in should not affect for-in';
 var BUGNUMBER = 292020;

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-454142.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 454142;
 var summary = 'Do not crash with gczeal, setter, watch';

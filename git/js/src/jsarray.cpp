@@ -1007,8 +1007,7 @@ Class js_ArrayClass = {
     "Array",
     Class::NON_NATIVE |
     JSCLASS_HAS_RESERVED_SLOTS(JSObject::DENSE_ARRAY_FIXED_RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Array) |
-    JSCLASS_FAST_CONSTRUCTOR,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     PropertyStub,   /* addProperty */
     PropertyStub,   /* delProperty */
     PropertyStub,   /* getProperty */
@@ -1043,9 +1042,7 @@ Class js_ArrayClass = {
 
 Class js_SlowArrayClass = {
     "Array",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Array) |
-    JSCLASS_FAST_CONSTRUCTOR,
+    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     slowarray_addProperty,
     PropertyStub,   /* delProperty */
     PropertyStub,   /* getProperty */
@@ -1379,13 +1376,14 @@ array_toString(JSContext *cx, uintN argc, Value *vp)
     if (!cx->stack().pushInvokeArgs(cx, 0, args))
         return false;
 
-    args.callee() = join;
-    args.thisv().setObject(*obj);
+    Value *sp = args.getvp();
+    sp[0] = join;
+    sp[1].setObject(*obj);
 
     /* Do the call. */
     if (!Invoke(cx, args, 0))
         return false;
-    *vp = args.rval();
+    *vp = *args.getvp();
     return true;
 }
 
@@ -1729,17 +1727,18 @@ sort_compare(void *arg, const void *a, const void *b, int *result)
     if (!JS_CHECK_OPERATION_LIMIT(cx))
         return JS_FALSE;
 
-    CallArgs &args = ca->args;
-    args.callee() = ca->fval;
-    args.thisv().setNull();
-    args[0] = *av;
-    args[1] = *bv;
+    Value *invokevp = ca->args.getvp();
+    Value *sp = invokevp;
+    *sp++ = ca->fval;
+    *sp++ = NullValue();
+    *sp++ = *av;
+    *sp++ = *bv;
 
     if (!Invoke(cx, ca->args, 0))
         return JS_FALSE;
 
     jsdouble cmp;
-    if (!ValueToNumber(cx, args.rval(), &cmp))
+    if (!ValueToNumber(cx, *invokevp, &cmp))
         return JS_FALSE;
 
     /* Clamp cmp to -1, 0, 1. */
@@ -2775,6 +2774,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
     MUST_FLOW_THROUGH("out");
     JSBool ok = JS_TRUE;
     JSBool cond;
+    Value *invokevp = args.getvp();
 
     Value calleev, thisv, objv;
     calleev.setObject(*callable);
@@ -2792,16 +2792,18 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
 
         /*
          * Push callable and 'this', then args. We must do this for every
-         * iteration around the loop since Invoke clobbers its arguments.
+         * iteration around the loop since js_Invoke uses invokevp[0] for return
+         * value storage, while some native functions use invokevp[1] for local
+         * rooting.
          */
-        args.callee() = calleev;
-        args.thisv() = thisv;
-        Value *sp = args.argv();
+        Value *sp = invokevp;
+        *sp++ = calleev;
+        *sp++ = thisv;
         if (REDUCE_MODE(mode))
             *sp++ = *vp;
-        sp[0] = tvr.value();
-        sp[1].setInt32(i);
-        sp[2] = objv;
+        *sp++ = tvr.value();
+        sp++->setInt32(i);
+        *sp++ = objv;
 
         /* Do the call. */
         ok = Invoke(cx, args, 0);
@@ -2809,7 +2811,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
             break;
 
         if (mode > MAP)
-            cond = js_ValueToBoolean(args.rval());
+            cond = js_ValueToBoolean(*invokevp);
 #ifdef __GNUC__ /* quell GCC overwarning */
         else
             cond = JS_FALSE;
@@ -2820,10 +2822,10 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
             break;
           case REDUCE:
           case REDUCE_RIGHT:
-            *vp = args.rval();
+            *vp = *invokevp;
             break;
           case MAP:
-            ok = SetArrayElement(cx, newarr, i, args.rval());
+            ok = SetArrayElement(cx, newarr, i, *invokevp);
             if (!ok)
                 goto out;
             break;
@@ -2952,33 +2954,35 @@ static JSFunctionSpec array_static_methods[] = {
 static inline JSObject *
 NewDenseArrayObject(JSContext *cx)
 {
-    return NewNonFunction<WithProto::Class>(cx, &js_ArrayClass, NULL, NULL);
+    return NewObject(cx, &js_ArrayClass, NULL, NULL);
 }
 
 JSBool
-js_Array(JSContext *cx, uintN argc, Value *vp)
+js_Array(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
 {
     jsuint length;
     const Value *vector;
 
-    /* Whether called with 'new' or not, use a new Array object. */
-    JSObject *obj = NewDenseArrayObject(cx);
-    if (!obj)
-        return JS_FALSE;
-    vp->setObject(*obj);
+    /* If called without new, replace obj with a new Array object. */
+    if (!JS_IsConstructing(cx)) {
+        obj = NewDenseArrayObject(cx);
+        if (!obj)
+            return JS_FALSE;
+        rval->setObject(*obj);
+    }
 
     if (argc == 0) {
         length = 0;
         vector = NULL;
     } else if (argc > 1) {
         length = (jsuint) argc;
-        vector = vp + 2;
-    } else if (!vp[2].isNumber()) {
+        vector = argv;
+    } else if (!argv[0].isNumber()) {
         length = 1;
-        vector = vp + 2;
+        vector = argv;
     } else {
-        length = ValueIsLength(cx, vp + 2);
-        if (vp[2].isNull())
+        length = ValueIsLength(cx, &argv[0]);
+        if (argv[0].isNull())
             return JS_FALSE;
         vector = NULL;
     }
@@ -3028,7 +3032,7 @@ JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewPreallocatedArray, CONTEXT, OBJECT, I
 JSObject *
 js_InitArrayClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto = js_InitClass(cx, obj, NULL, &js_ArrayClass, (Native) js_Array, 1,
+    JSObject *proto = js_InitClass(cx, obj, NULL, &js_ArrayClass, js_Array, 1,
                                    NULL, array_methods, NULL, array_static_methods);
     if (!proto)
         return NULL;
@@ -3061,7 +3065,7 @@ js_NewArrayObject(JSContext *cx, jsuint length, const Value *vector)
 JSObject *
 js_NewSlowArrayObject(JSContext *cx)
 {
-    JSObject *obj = NewNonFunction<WithProto::Class>(cx, &js_SlowArrayClass, NULL, NULL);
+    JSObject *obj = NewObject(cx, &js_SlowArrayClass, NULL, NULL);
     if (obj)
         obj->setArrayLength(0);
     return obj;

@@ -52,6 +52,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-122076.js';
 var BUGNUMBER = 122076;
 var summary = "Don't crash on invalid regexp literals /  \\/  /";
 var STRESS = 10;

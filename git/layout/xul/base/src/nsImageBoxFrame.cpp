@@ -547,8 +547,8 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *aContainer,
-                                            const nsIntRect *aDirtyRect)
+NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *container,
+                                            nsIntRect *dirtyRect)
 {
   nsBoxLayoutState state(PresContext());
   this->Redraw(state);
@@ -594,12 +594,12 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
   return mFrame->OnStopDecode(request, status, statusArg);
 }
 
-NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *aContainer,
-                                               const nsIntRect *aDirtyRect)
+NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *container,
+                                               nsIntRect *dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aContainer, aDirtyRect);
+  return mFrame->FrameChanged(container, dirtyRect);
 }
 

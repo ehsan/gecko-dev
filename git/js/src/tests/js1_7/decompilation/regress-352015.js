@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352015.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352015;
 var summary = 'decompilation of yield expressions with parens';

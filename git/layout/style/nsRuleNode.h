@@ -767,11 +767,7 @@ public:
   // Compute the value of an nsStyleCoord that is either a coord, a
   // percent, or a calc expression.
   static nscoord ComputeCoordPercentCalc(const nsStyleCoord& aCoord,
-                                         nscoord aPercentageBasis)
-  {
-    // ComputeComputedCalc will handle coords and percents correctly
-    return ComputeComputedCalc(aCoord, aPercentageBasis);
-  }
+                                         nscoord aPercentageBasis);
 
   // Return whether the rule tree for which this node is the root has
   // cached data such that we need to do dynamic change handling for

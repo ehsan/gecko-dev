@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-477758.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 477758;
 var summary = 'TM: RegExp source';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-392378.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 392378;
 var summary = 'Regular Expression Non-participating Capture Groups are inaccurate in edge cases';

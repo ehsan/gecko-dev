@@ -342,8 +342,6 @@ nsresult nsPluginStreamListenerPeer::InitializeEmbedded(nsIURI *aURL,
     mOwner = aOwner;
   }
   
-  mPendingRequests = 1;
-  
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
     return NS_ERROR_FAILURE;
@@ -365,8 +363,6 @@ nsresult nsPluginStreamListenerPeer::InitializeFullPage(nsIURI* aURL, nsNPAPIPlu
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
     return NS_ERROR_FAILURE;
-
-  mPendingRequests = 1;
   
   return NS_OK;
 }

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-367121.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 367121;
 var summary = 'self modifying script detection';

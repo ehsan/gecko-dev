@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-385729.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 385729;
 var summary = 'uneval(eval(expression closure))';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'whitespace.js';
 
 /**
    Filename:     whitespace.js

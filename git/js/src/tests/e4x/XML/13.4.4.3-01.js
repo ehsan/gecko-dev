@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.4.3-01.js';
 
 var summary = "13.4.4.3 - XML.appendChild should copy child";
 

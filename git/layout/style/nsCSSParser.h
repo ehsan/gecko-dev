@@ -130,17 +130,14 @@ public:
                                nsIPrincipal*     aNodePrincipal,
                                nsICSSStyleRule** aResult);
 
-  // Parse the body of a declaration block.  Very similar to
-  // ParseStyleAttribute, but used under different circumstances.
-  // The contents of aDeclaration will be erased and replaced with the
-  // results of parsing; aChanged will be set true if the aDeclaration
-  // argument was modified.
-  nsresult ParseDeclarations(const nsAString&  aBuffer,
-                             nsIURI*           aSheetURL,
-                             nsIURI*           aBaseURL,
-                             nsIPrincipal*     aSheetPrincipal,
-                             mozilla::css::Declaration* aDeclaration,
-                             PRBool*           aChanged);
+  nsresult ParseAndAppendDeclaration(const nsAString&  aBuffer,
+                                     nsIURI*           aSheetURL,
+                                     nsIURI*           aBaseURL,
+                                     nsIPrincipal*     aSheetPrincipal,
+                                     mozilla::css::Declaration* aDeclaration,
+                                     PRBool            aParseOnlyOneDecl,
+                                     PRBool*           aChanged,
+                                     PRBool            aClearOldDecl);
 
   nsresult ParseRule(const nsAString&        aRule,
                      nsIURI*                 aSheetURL,

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-394673.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 394673;
 var summary = 'Parsing long chains of "&&" or "||"';

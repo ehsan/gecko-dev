@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-421806.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 421806;
 var summary = 'Do not assert: *pcstack[pcdepth - 1] == JSOP_ENTERBLOCK';

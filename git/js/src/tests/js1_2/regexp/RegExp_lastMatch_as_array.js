@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'RegExp_lastMatch_as_array.js';
 
 /**
    Filename:     RegExp_lastMatch_as_array.js

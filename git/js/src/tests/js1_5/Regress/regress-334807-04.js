@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-334807-04.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 334807;
 var summary = '10.1.8 - arguments prototype is the original Object prototype.';

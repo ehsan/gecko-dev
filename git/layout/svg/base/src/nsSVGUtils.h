@@ -160,10 +160,6 @@ public:
    */
   nsSVGRenderState(nsIRenderingContext *aContext);
   /**
-   * Render SVG to a modern rendering context
-   */
-  nsSVGRenderState(gfxContext *aContext);
-  /**
    * Render SVG to a temporary surface
    */
   nsSVGRenderState(gfxASurface *aSurface);

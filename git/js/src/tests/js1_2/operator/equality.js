@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'equality.js';
 
 /**
    Filename:     equality.js

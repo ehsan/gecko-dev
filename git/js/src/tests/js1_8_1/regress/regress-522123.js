@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-522123.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 522123;
 var summary = 'Indirect eval confuses scope chain';

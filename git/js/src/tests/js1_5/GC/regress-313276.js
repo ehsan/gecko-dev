@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-313276.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 313276;
 var summary = 'Root strings';

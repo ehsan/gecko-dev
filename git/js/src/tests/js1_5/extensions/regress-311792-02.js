@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-311792-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 311792;
 var summary = 'Root Array.prototype methods';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-347155.js';
 
 var BUGNUMBER = 347155;
 var summary = 'Do not crash with deeply nested e4x literal';

@@ -68,11 +68,11 @@ PluginProcessParent::~PluginProcessParent()
 }
 
 bool
-PluginProcessParent::Launch(PRInt32 timeoutMs)
+PluginProcessParent::Launch()
 {
     vector<string> args;
     args.push_back(MungePluginDsoPath(mPluginFilePath));
-    return SyncLaunch(args, timeoutMs);
+    return SyncLaunch(args);
 }
 
 void

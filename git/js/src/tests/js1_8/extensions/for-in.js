@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'for-in.js';
 //-----------------------------------------------------------------------------
 
 var summary = "Contention among threads enumerating properties";

@@ -114,13 +114,11 @@
                       name="&view.discover.label;"/>
         <richlistitem id="category-languages" value="addons://list/locale"
                       class="category"
-                      name="&view.locales.label;"
-                      hidden="true" persist="hidden"/>
+                      name="&view.locales.label;" hidden="true"/>
         <richlistitem id="category-searchengines"
                       value="addons://list/searchengine"
                       class="category"
-                      name="&view.searchengines.label;"
-                      hidden="true" persist="hidden"/>
+                      name="&view.searchengines.label;" hidden="true"/>
         <richlistitem id="category-extensions" value="addons://list/extension"
                       class="category"
                       name="&view.features.label;"/>

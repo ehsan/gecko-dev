@@ -3,6 +3,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  * Contributors: Gary Kwong and Jason Orendorff
  */
+gTestfile = 'regress-541455';
 
 function f(x) { return eval('"mumble"; x + 42'); }
 

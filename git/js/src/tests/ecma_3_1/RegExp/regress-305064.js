@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-305064.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 305064;
 var summary = 'CharacterClassEscape \\s';

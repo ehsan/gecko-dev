@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-281487.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 281487;
 var summary = 'JSOP_ARGDEC assertion when tracing';

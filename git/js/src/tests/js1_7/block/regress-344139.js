@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-344139.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER     = "344139";
 var summary = "Basic let functionality";

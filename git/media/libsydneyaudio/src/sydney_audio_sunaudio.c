@@ -235,7 +235,7 @@ sa_stream_open(sa_stream_t *s) {
   s->using_oss = false;
   /* Try to use OSS if available */
   if (dsp_device_name) {
-    fd = open(dsp_device_name, O_WRONLY | O_NONBLOCK);
+    fd = open(dsp_device_name, O_WRONLY, 0);
     if (fd >= 0) {
       s->using_oss = true;
     }
@@ -560,8 +560,14 @@ sa_stream_pause(sa_stream_t *s) {
     return SA_ERROR_NO_INIT;
   }
 
+  if (s->using_oss) {
+    return SA_ERROR_NOT_SUPPORTED;
+  }
+
+  int result = SA_SUCCESS;
+
   pthread_mutex_lock(&s->mutex);
-  int result = shutdown_device(s);
+  result = shutdown_device(s);
   if (result == SA_SUCCESS) {
     s->output_fd = -1;
   }
@@ -575,6 +581,10 @@ int
 sa_stream_resume(sa_stream_t *s) {
   if (s == NULL) {
     return SA_ERROR_NO_INIT;
+  }
+
+  if (s->using_oss) {
+    return SA_ERROR_NOT_SUPPORTED;
   }
 
   pthread_mutex_lock(&s->mutex);
@@ -615,6 +625,10 @@ shutdown_device(sa_stream_t *s) {
   return SA_SUCCESS;
 }
 
+/*
+ * -----------------------------------------------------------------------------
+ * Startup and shutdown functions
+ * -----------------------------------------------------------------------------
 /*
  * -----------------------------------------------------------------------------
  * Extension functions

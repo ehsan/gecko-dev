@@ -330,12 +330,9 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     break;
 
                 if(!p->IsVoid()) {
-                    nsStringBuffer* buf;
-                    jsval str = XPCStringConvert::ReadableToJSVal(cx, *p, &buf);
+                    jsval str = XPCStringConvert::ReadableToJSVal(cx, *p);
                     if(JSVAL_IS_NULL(str))
                         return JS_FALSE;
-                    if(buf)
-                        buf->AddRef();
 
                     *d = str;
                 }

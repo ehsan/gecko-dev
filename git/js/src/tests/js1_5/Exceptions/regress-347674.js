@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-347674.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER     = "347674";
 var summary = "ReferenceError thrown when accessing exception bound in a " +

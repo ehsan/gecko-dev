@@ -162,7 +162,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIUGenCategory.h"
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIOfflineCacheUpdate.h"
 #include "nsCPrefetchService.h"
@@ -665,7 +664,6 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onvolumechange,                NS_VOLUMECHANGE, EventNameType_HTML, NS_EVENT_NULL },
 #endif // MOZ_MEDIA
     { nsGkAtoms::onMozAfterPaint,               NS_AFTERPAINT, EventNameType_None, NS_EVENT },
-    { nsGkAtoms::onMozBeforePaint,              NS_BEFOREPAINT, EventNameType_None, NS_EVENT_NULL },
 
     { nsGkAtoms::onMozScrolledAreaChanged,      NS_SCROLLEDAREACHANGED, EventNameType_None, NS_SCROLLAREA_EVENT },
 
@@ -1015,7 +1013,7 @@ nsContentUtils::ParseIntMarginValue(const nsAString& aString, nsIntMargin& resul
 
   PRInt32 start = 0, end = 0;
   for (int count = 0; count < 4; count++) {
-    if ((PRUint32)end >= marginStr.Length())
+    if (end >= marginStr.Length())
       return PR_FALSE;
 
     // top, right, bottom, left
@@ -5022,21 +5020,6 @@ nsContentUtils::GetCurrentJSContext()
 
 /* static */
 void
-nsContentUtils::ASCIIToLower(nsAString& aStr)
-{
-  PRUnichar* iter = aStr.BeginWriting();
-  PRUnichar* end = aStr.EndWriting();
-  while (iter != end) {
-    PRUnichar c = *iter;
-    if (c >= 'A' && c <= 'Z') {
-      *iter = c + ('a' - 'A');
-    }
-    ++iter;
-  }
-}
-
-/* static */
-void
 nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
 {
   PRUint32 len = aSource.Length();
@@ -5067,26 +5050,6 @@ nsContentUtils::ASCIIToUpper(nsAString& aStr)
       *iter = c + ('A' - 'a');
     }
     ++iter;
-  }
-}
-
-/* static */
-void
-nsContentUtils::ASCIIToUpper(const nsAString& aSource, nsAString& aDest)
-{
-  PRUint32 len = aSource.Length();
-  aDest.SetLength(len);
-  if (aDest.Length() == len) {
-    PRUnichar* dest = aDest.BeginWriting();
-    const PRUnichar* iter = aSource.BeginReading();
-    const PRUnichar* end = aSource.EndReading();
-    while (iter != end) {
-      PRUnichar c = *iter;
-      *dest = (c >= 'a' && c <= 'z') ?
-         c + ('A' - 'a') : c;
-      ++iter;
-      ++dest;
-    }
   }
 }
 
@@ -5151,14 +5114,14 @@ NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
                    nsIInterfaceRequestor)
 
 NS_IMETHODIMP
-nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                            nsIChannel *aNewChannel,
-                                            PRUint32 aFlags,
-                                            nsIAsyncVerifyRedirectCallback *cb)
+nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
+                                       nsIChannel *aNewChannel,
+                                       PRUint32    aFlags)
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-  if (!nsContentUtils::GetSecurityManager())
+  if (!nsContentUtils::GetSecurityManager()) {
     return NS_ERROR_NOT_AVAILABLE;
+  }
 
   nsCOMPtr<nsIPrincipal> oldPrincipal;
   nsContentUtils::GetSecurityManager()->
@@ -5175,12 +5138,7 @@ nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
   if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
     rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
   }
-
-  if (NS_FAILED(rv))
-      return rv;
-
-  cb->OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -5789,10 +5747,6 @@ CloneSimpleValues(JSContext* cx,
   // ArrayBuffer objects.
   if (js_IsArrayBuffer(obj)) {
     js::ArrayBuffer* src = js::ArrayBuffer::fromJSObject(obj);
-    if (!src) {
-      return NS_ERROR_FAILURE;
-    }
-
     JSObject* newBuffer = js_CreateArrayBuffer(cx, src->byteLength);
     if (!newBuffer) {
       return NS_ERROR_FAILURE;
@@ -6009,7 +5963,7 @@ nsContentUtils::ReparentClonedObjectToScope(JSContext* cx,
 }
 
 struct ClassMatchingInfo {
-  nsAttrValue::AtomArray mClasses;
+  nsCOMArray<nsIAtom> mClasses;
   nsCaseTreatment mCaseTreatment;
 };
 
@@ -6025,14 +5979,14 @@ MatchClassNames(nsIContent* aContent, PRInt32 aNamespaceID, nsIAtom* aAtom,
   
   // need to match *all* of the classes
   ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  PRUint32 length = info->mClasses.Length();
+  PRInt32 length = info->mClasses.Count();
   if (!length) {
     // If we actually had no classes, don't match.
     return PR_FALSE;
   }
-  PRUint32 i;
+  PRInt32 i;
   for (i = 0; i < length; ++i) {
-    if (!classAttr->Contains(info->mClasses[i],
+    if (!classAttr->Contains(info->mClasses.ObjectAt(i),
                              info->mCaseTreatment)) {
       return PR_FALSE;
     }
@@ -6059,9 +6013,9 @@ AllocClassMatchingInfo(nsINode* aRootNode,
   NS_ENSURE_TRUE(info, nsnull);
 
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
-    info->mClasses.SwapElements(*(attrValue.GetAtomArrayValue()));
+    info->mClasses.AppendObjects(*(attrValue.GetAtomArrayValue()));
   } else if (attrValue.Type() == nsAttrValue::eAtom) {
-    info->mClasses.AppendElement(attrValue.GetAtomValue());
+    info->mClasses.AppendObject(attrValue.GetAtomValue());
   }
 
   info->mCaseTreatment =
@@ -6323,7 +6277,7 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 #ifdef MOZ_MEDIA
 #ifdef MOZ_OGG
   if (nsHTMLMediaElement::IsOggEnabled()) {
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gOggTypes); ++i) {
+    for (int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gOggTypes); ++i) {
       const char* type = nsHTMLMediaElement::gOggTypes[i];
       if (!strcmp(aType, type)) {
         docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
@@ -6338,7 +6292,7 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 
 #ifdef MOZ_WEBM
   if (nsHTMLMediaElement::IsWebMEnabled()) {
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gWebMTypes); ++i) {
+    for (int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gWebMTypes); ++i) {
       const char* type = nsHTMLMediaElement::gWebMTypes[i];
       if (!strcmp(aType, type)) {
         docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");

@@ -681,17 +681,16 @@ function verifyTestsRan() {
  * set back to the original values when each test has finished.
  */
 function setupPrefs() {
-  gAppUpdateChannel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
-  setUpdateChannel();
-
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     gAppUpdateURL = Services.prefs.setIntPref(PREF_APP_UPDATE_URL_OVERRIDE);
   }
 
+  gAppUpdateChannel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
+  setUpdateChannel();
+
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     gAppUpdateEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED);
   }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true)
 
   if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
     gExtUpdateURL = Services.prefs.getCharPref(PREF_EXTENSIONS_UPDATE_URL);
@@ -708,25 +707,25 @@ function setupPrefs() {
  * Resets the most common preferences used by tests to their original values.
  */
 function resetPrefs() {
-  if (gAppUpdateURL !== undefined) {
+  if (gAppUpdateURL) {
     Services.prefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, gAppUpdateURL);
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_URL_OVERRIDE);
   }
 
-  if (gAppUpdateChannel !== undefined) {
+  if (gAppUpdateChannel) {
     setUpdateChannel(gAppUpdateChannel);
   }
 
-  if (gAppUpdateEnabled !== undefined) {
+  if (gAppUpdateEnabled) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, gAppUpdateEnabled);
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_ENABLED);
   }
 
-  if (gExtUpdateURL !== undefined) {
+  if (gExtUpdateURL) {
     Services.prefs.setCharPref(PREF_EXTENSIONS_UPDATE_URL, gExtUpdateURL);
   }
   else if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {

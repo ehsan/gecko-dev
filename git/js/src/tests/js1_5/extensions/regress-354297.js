@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-354297.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 354297;
 var summary = 'getter/setter can be on index';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-245795.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 245795;
 var summary = 'eval(uneval(function)) should be round-trippable';

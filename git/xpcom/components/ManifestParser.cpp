@@ -88,8 +88,6 @@ struct ManifestDirective
   bool isContract;
 };
 static const ManifestDirective kParsingTable[] = {
-  { "manifest", 1, false, true, false,
-    &nsComponentManagerImpl::ManifestManifest, NULL },
   { "binary-component", 1, true, false, false,
     &nsComponentManagerImpl::ManifestBinaryComponent, NULL },
   { "interfaces",       1, true, false, false,
@@ -602,7 +600,7 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
         stABI == eBad)
       continue;
 
-    if (directive->regfunc) {
+    if (directive->ischrome) {
 #ifdef MOZ_IPC
       if (GeckoProcessType_Default != XRE_GetProcessType())
         continue;
@@ -621,7 +619,7 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
       (nsChromeRegistry::gChromeRegistry->*(directive->regfunc))
 	(chromecx, line, argv, platform, contentAccessible);
     }
-    else if (directive->ischrome || !aChromeOnly) {
+    else if (!aChromeOnly) {
       if (directive->isContract) {
         CachedDirective* cd = contracts.AppendElement();
         cd->lineno = line;
@@ -645,7 +643,7 @@ void
 ParseManifest(NSLocationType type, nsILocalFile* file,
               char* buf, bool aChromeOnly)
 {
-  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, file, aChromeOnly);
+  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, file);
   nsChromeRegistry::ManifestProcessingContext chromecx(type, file);
   ParseManifestCommon(type, file, mgrcx, chromecx, NULL, buf, aChromeOnly);
 }
@@ -655,7 +653,7 @@ void
 ParseManifest(NSLocationType type, const char* jarPath,
               char* buf, bool aChromeOnly)
 {
-  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, jarPath, aChromeOnly);
+  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, jarPath);
   nsChromeRegistry::ManifestProcessingContext chromecx(type, jarPath);
   ParseManifestCommon(type, mozilla::OmnijarPath(), mgrcx, chromecx, jarPath,
                       buf, aChromeOnly);

@@ -926,7 +926,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   if (mCleanedUp)
     return;
   mCleanedUp = PR_TRUE;
-
+    
   mNavigator = nsnull;
   mScreen = nsnull;
   mHistory = nsnull;
@@ -1076,8 +1076,6 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     mListenerManager->Disconnect();
     mListenerManager = nsnull;
   }
-
-  mLocation = nsnull;
 
   if (mDocument) {
     NS_ASSERTION(mDoc, "Why is mDoc null?");
@@ -1306,6 +1304,13 @@ nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptCont
 
       aScriptContext->SetGCOnDestruction(PR_FALSE);
     }
+
+    nsCOMPtr<nsIPrincipal> principal =
+      do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+
+    aScriptContext->CreateOuterObject(this, principal);
+    aScriptContext->DidInitializeContext();
+    mJSObject = (JSObject *)aScriptContext->GetNativeGlobal();
   }
 
   mContext = aScriptContext;
@@ -1512,6 +1517,7 @@ public:
   WindowStateHolder(nsGlobalWindow *aWindow,
                     nsIXPConnectJSObjectHolder *aHolder,
                     nsNavigator *aNavigator,
+                    nsLocation *aLocation,
                     nsIXPConnectJSObjectHolder *aOuterProto);
 
   nsGlobalWindow* GetInnerWindow() { return mInnerWindow; }
@@ -1519,6 +1525,7 @@ public:
   { return mInnerWindowHolder; }
 
   nsNavigator* GetNavigator() { return mNavigator; }
+  nsLocation* GetLocation() { return mLocation; }
   nsIXPConnectJSObjectHolder* GetOuterProto() { return mOuterProto; }
 
   void DidRestoreWindow()
@@ -1527,6 +1534,7 @@ public:
 
     mInnerWindowHolder = nsnull;
     mNavigator = nsnull;
+    mLocation = nsnull;
     mOuterProto = nsnull;
   }
 
@@ -1538,6 +1546,7 @@ protected:
   // window ends up recalculating it anyway.
   nsCOMPtr<nsIXPConnectJSObjectHolder> mInnerWindowHolder;
   nsRefPtr<nsNavigator> mNavigator;
+  nsRefPtr<nsLocation> mLocation;
   nsCOMPtr<nsIXPConnectJSObjectHolder> mOuterProto;
 };
 
@@ -1546,9 +1555,11 @@ NS_DEFINE_STATIC_IID_ACCESSOR(WindowStateHolder, WINDOWSTATEHOLDER_IID)
 WindowStateHolder::WindowStateHolder(nsGlobalWindow *aWindow,
                                      nsIXPConnectJSObjectHolder *aHolder,
                                      nsNavigator *aNavigator,
+                                     nsLocation *aLocation,
                                      nsIXPConnectJSObjectHolder *aOuterProto)
   : mInnerWindow(aWindow),
     mNavigator(aNavigator),
+    mLocation(aLocation),
     mOuterProto(aOuterProto)
 {
   NS_PRECONDITION(aWindow, "null window");
@@ -1609,10 +1620,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   if (IsFrozen()) {
     // This outer is now getting its first inner, thaw the outer now
     // that it's ready and is getting an inner window.
-    mContext->CreateOuterObject(this, aDocument->NodePrincipal());
-    mContext->DidInitializeContext();
-    mJSObject = (JSObject *)mContext->GetNativeGlobal();
-
     Thaw();
   }
 
@@ -1738,7 +1745,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow = currentInner;
 
     if (aDocument != oldDoc) {
-      nsCommonWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
+      nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
   } else {
     if (aState) {
@@ -1750,6 +1757,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       // These assignments addref.
       mNavigator = wsh->GetNavigator();
+      mLocation = wsh->GetLocation();
 
       if (mNavigator) {
         // Update mNavigator's docshell pointer now.
@@ -1768,6 +1776,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
           newInnerWindow = new nsGlobalWindow(this);
         }
       }
+
+      mLocation = nsnull;
     }
 
     if (!newInnerWindow) {
@@ -1920,8 +1930,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   if ((!reUseInnerWindow || aDocument != oldDoc) && !aState) {
     nsCOMPtr<nsIHTMLDocument> html_doc(do_QueryInterface(mDocument));
-    nsCommonWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
-                                                 html_doc);
+    nsWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
+                                           html_doc);
   }
 
   // This code should not be called during shutdown any more (now that
@@ -2184,6 +2194,8 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
 
   if (mNavigator)
     mNavigator->SetDocShell(aDocShell);
+  if (mLocation)
+    mLocation->SetDocShell(aDocShell);
   if (mHistory)
     mHistory->SetDocShell(aDocShell);
   if (mFrames)
@@ -2459,7 +2471,7 @@ nsGlobalWindow::DefineArgumentsProperty(nsIArray *aArguments)
   if (mIsModalContentWindow) {
     // Modal content windows don't have an "arguments" property, they
     // have a "dialogArguments" property which is handled
-    // separately. See nsCommonWindowSH::NewResolve().
+    // separately. See nsWindowSH::NewResolve().
 
     return NS_OK;
   }
@@ -3497,38 +3509,6 @@ nsGlobalWindow::GetMozPaintCount(PRUint64* aResult)
     return NS_OK;
 
   *aResult = presShell->GetPaintCount();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::MozRequestAnimationFrame()
-{
-  FORWARD_TO_INNER(MozRequestAnimationFrame, (), NS_ERROR_NOT_INITIALIZED);
-
-  if (!mDoc) {
-    return NS_OK;
-  }
-
-  mDoc->ScheduleBeforePaintEvent();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::GetMozAnimationStartTime(PRInt64 *aTime)
-{
-  FORWARD_TO_INNER(GetMozAnimationStartTime, (aTime), NS_ERROR_NOT_INITIALIZED);
-
-  if (mDoc) {
-    nsIPresShell* presShell = mDoc->GetShell();
-    if (presShell) {
-      *aTime = presShell->GetPresContext()->RefreshDriver()->
-        MostRecentRefreshEpochTime() / PR_USEC_PER_MSEC;
-      return NS_OK;
-    }
-  }
-
-  // If all else fails, just be compatible with Date.now()
-  *aTime = JS_Now() / PR_USEC_PER_MSEC;
   return NS_OK;
 }
 
@@ -6834,13 +6814,12 @@ nsGlobalWindow::GetPrivateRoot()
 NS_IMETHODIMP
 nsGlobalWindow::GetLocation(nsIDOMLocation ** aLocation)
 {
-  FORWARD_TO_INNER(GetLocation, (aLocation), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetLocation, (aLocation), NS_ERROR_NOT_INITIALIZED);
 
   *aLocation = nsnull;
 
-  nsIDocShell *docShell = GetDocShell();
-  if (!mLocation && docShell) {
-    mLocation = new nsLocation(docShell);
+  if (!mLocation && mDocShell) {
+    mLocation = new nsLocation(mDocShell);
     if (!mLocation) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -9117,6 +9096,7 @@ nsGlobalWindow::SaveWindowState(nsISupports **aState)
   nsCOMPtr<nsISupports> state = new WindowStateHolder(inner,
                                                       mInnerWindowHolder,
                                                       mNavigator,
+                                                      mLocation,
                                                       proto);
   NS_ENSURE_TRUE(state, NS_ERROR_OUT_OF_MEMORY);
 
@@ -9777,10 +9757,6 @@ nsNavigator::nsNavigator(nsIDocShell *aDocShell)
 
 nsNavigator::~nsNavigator()
 {
-  if (mMimeTypes)
-    mMimeTypes->Invalidate();
-  if (mPlugins)
-    mPlugins->Invalidate();
 }
 
 //*****************************************************************************
@@ -10205,15 +10181,8 @@ nsNavigator::LoadingNewDocument()
   // Release these so that they will be recreated for the
   // new document (if requested).  The plugins or mime types
   // arrays may have changed.  See bug 150087.
-  if (mMimeTypes) {
-    mMimeTypes->Invalidate();
-    mMimeTypes = nsnull;
-  }
-
-  if (mPlugins) {
-    mPlugins->Invalidate();
-    mPlugins = nsnull;
-  }
+  mMimeTypes = nsnull;
+  mPlugins = nsnull;
 
   if (mGeolocation)
   {

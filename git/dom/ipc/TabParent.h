@@ -52,10 +52,7 @@
 #include "nsWeakReference.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIAuthPromptProvider.h"
-#include "nsISSLStatusProvider.h"
-#include "nsISecureBrowserUI.h"
 
-class nsFrameLoader;
 class nsIURI;
 class nsIDOMElement;
 struct gfxMatrix;
@@ -94,8 +91,6 @@ class TabParent : public PBrowserParent
                 , public nsITabParent 
                 , public nsIWebProgress
                 , public nsIAuthPromptProvider
-                , public nsISecureBrowserUI
-                , public nsISSLStatusProvider
 {
 public:
     TabParent();
@@ -116,11 +111,7 @@ public:
     virtual bool RecvNotifyLocationChange(const nsCString& aUri);
     virtual bool RecvNotifyStatusChange(const nsresult& status,
                                         const nsString& message);
-    virtual bool RecvNotifySecurityChange(const PRUint32& aState,
-                                          const PRBool& aUseSSLStatusObject,
-                                          const nsString& aTooltip,
-                                          const nsCString& aSecInfoAsString);
-
+    virtual bool RecvNotifySecurityChange(const PRUint32& aState);
     virtual bool RecvRefreshAttempted(const nsCString& aURI,
                                       const PRInt32& aMillis,
                                       const bool& aSameURI,
@@ -196,8 +187,6 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBPROGRESS
     NS_DECL_NSIAUTHPROMPTPROVIDER
-    NS_DECL_NSISECUREBROWSERUI
-    NS_DECL_NSISSLSTATUSPROVIDER
 
     void HandleDelayedDialogs();
 protected:
@@ -233,13 +222,6 @@ protected:
     nsTArray<DelayedDialogData*> mDelayedDialogs;
 
     PRBool ShouldDelayDialogs();
-
-    PRUint32 mSecurityState;
-    nsString mSecurityTooltipText;
-    nsCOMPtr<nsISupports> mSecurityStatusObject;
-
-private:
-    already_AddRefed<nsFrameLoader> GetFrameLoader() const;
 };
 
 } // namespace dom

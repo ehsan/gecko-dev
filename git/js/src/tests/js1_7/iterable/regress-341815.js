@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-341815.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 341815;
 var summary = 'Close hook crash';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-273931.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 273931;
 var summary = 'Pop scope chain in exception handling';

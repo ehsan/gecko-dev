@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'decompile-xml-escapes.js';
 
 //-----------------------------------------------------------------------------
 var BUGNUMBER     = "352285";

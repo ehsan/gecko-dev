@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-192414.js';
 var UBound = 0;
 var BUGNUMBER = 192414;
 var summary = 'Parser recursion should check stack overflow';

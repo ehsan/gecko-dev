@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.5.4.7.js';
 
 START("13.5.4.7 - XMLList contains()");
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'peterson.js';
 //-----------------------------------------------------------------------
 
 var summary = "Peterson's algorithm for mutual exclusion";

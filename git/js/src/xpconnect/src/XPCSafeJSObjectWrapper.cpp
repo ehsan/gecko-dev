@@ -324,12 +324,6 @@ WrapObject(JSContext *cx, JSObject *scope, jsval v, jsval *vp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  XPCWrappedNative *wn =
-    XPCWrappedNative::GetWrappedNativeOfJSObject(cx, objToWrap);
-  if (wn) {
-    CheckWindow(wn);
-  }
-
   JSObject *wrapperObj =
     JS_NewObjectWithGivenProto(cx, js::Jsvalify(&SJOWClass), nsnull, scope);
 
@@ -420,21 +414,13 @@ GetScopeFunction(JSContext *cx, JSObject *outerObj)
     return nsnull;
   }
 
-  JSObject *unsafeObj = GetUnsafeObject(cx, outerObj);
-  JSObject *scopeobj = JS_GetGlobalForObject(cx, unsafeObj);
-  OBJ_TO_INNER_OBJECT(cx, scopeobj);
-  if (!scopeobj) {
-    return nsnull;
-  }
-
   if (JSVAL_IS_OBJECT(v)) {
-    JSObject *funobj = JSVAL_TO_OBJECT(v);
-    if (JS_GetGlobalForObject(cx, funobj) == scopeobj) {
-      return funobj;
-    }
+    return JSVAL_TO_OBJECT(v);
   }
 
-  JSFunction *fun = JS_NewFunction(cx, DummyNative, 0, 0, scopeobj,
+  JSObject *unsafeObj = GetUnsafeObject(cx, outerObj);
+  JSFunction *fun = JS_NewFunction(cx, DummyNative, 0, 0,
+                                   JS_GetGlobalForObject(cx, unsafeObj),
                                    "SJOWContentBoundary");
   if (!fun) {
     return nsnull;
@@ -633,7 +619,7 @@ public:
 
 private:
   JSContext *cx;
-  js::RegExpStatics statics;
+  JSRegExpStatics statics;
   js::AutoStringRooter tvr;
   uint32 options;
   JSStackFrame *fp;

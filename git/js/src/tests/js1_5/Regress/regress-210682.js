@@ -46,6 +46,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-210682.js';
 var UBound = 0;
 var BUGNUMBER = 210682;
 var summary = 'testing line ending with |continue| and only terminated by CR';

@@ -7,10 +7,8 @@
 #feedback-menu-button .toolbarbutton-text {
   display: -moz-box;
   margin: 0;
-  color: -moz-dialogtext;
-  text-shadow: none;
 }
-
+ 
 #feedback-menu-button .toolbarbutton-icon {
   display: none;
 }

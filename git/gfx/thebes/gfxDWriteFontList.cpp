@@ -294,7 +294,10 @@ gfxDWriteFontEntry::ReadCMAP()
                                     isUnicode,
                                     isSymbol);
     }
-    fontFace->ReleaseFontTable(tableContext);
+
+    if (tableContext) {
+        fontFace->ReleaseFontTable(tableContext);
+    }
 
     mCmapInitialized = PR_TRUE;
     mHasCmapTable = NS_SUCCEEDED(rv);

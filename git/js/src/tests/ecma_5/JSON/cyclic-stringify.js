@@ -1,6 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 
+var gTestfile = 'cyclic-stringify.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 578273;
 var summary =

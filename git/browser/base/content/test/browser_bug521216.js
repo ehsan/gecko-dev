@@ -1,4 +1,4 @@
-var expected = ["TabOpen", "onStateChange", "onLocationChange", "onLinkIconAvailable"];
+var expected = ["TabOpen", "onLocationChange", "onStateChange", "onLinkIconAvailable"];
 var actual = [];
 var tabIndex = -1;
 __defineGetter__("tab", function () gBrowser.tabs[tabIndex]);

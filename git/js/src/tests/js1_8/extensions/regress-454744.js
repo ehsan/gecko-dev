@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-454744.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 454744;
 var summary = 'Do not assert with JIT: PCVAL_IS_SPROP(entry->vword)';

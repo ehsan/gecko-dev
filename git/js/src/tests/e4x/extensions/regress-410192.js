@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-410192.js';
 
 var summary = 'Proper quoting of attribute by uneval/toSource';
 var BUGNUMBER = 410192;

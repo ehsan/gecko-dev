@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-469239-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 469239;
 var summary = 'TM: Do not assert: entry->kpc == (jsbytecode*) atoms[index]';

@@ -238,13 +238,6 @@ nsIdentifierMapEntry::Traverse(nsCycleCollectionTraversalCallback* aCallback)
                                        "mIdentifierMap mIdContentList element");
     aCallback->NoteXPCOMChild(static_cast<nsIContent*>(mIdContentList[i]));
   }
-
-  if (mImageElement) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
-                                       "mIdentifierMap mImageElement element");
-    nsIContent* imageElement = mImageElement;
-    aCallback->NoteXPCOMChild(imageElement);
-  }
 }
 
 void
@@ -257,13 +250,6 @@ PRBool
 nsIdentifierMapEntry::IsInvalidName()
 {
   return mNameContentList == NAME_NOT_VALID;
-}
-
-PRBool
-nsIdentifierMapEntry::IsEmpty()
-{
-  return mIdContentList.Count() == 0 && !mNameContentList &&
-         !mChangeCallbacks && !mImageElement;
 }
 
 nsresult
@@ -281,12 +267,6 @@ nsIdentifierMapEntry::GetIdElement()
   return static_cast<Element*>(mIdContentList.SafeElementAt(0));
 }
 
-Element*
-nsIdentifierMapEntry::GetImageIdElement()
-{
-  return mImageElement ? mImageElement.get() : GetIdElement();
-}
-
 void
 nsIdentifierMapEntry::AppendAllIdContent(nsCOMArray<nsIContent>* aElements)
 {
@@ -297,7 +277,7 @@ nsIdentifierMapEntry::AppendAllIdContent(nsCOMArray<nsIContent>* aElements)
 
 void
 nsIdentifierMapEntry::AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
-                                               void* aData, PRBool aForImage)
+                                               void* aData)
 {
   if (!mChangeCallbacks) {
     mChangeCallbacks = new nsTHashtable<ChangeCallbackEntry>;
@@ -306,17 +286,17 @@ nsIdentifierMapEntry::AddContentChangeCallback(nsIDocument::IDTargetObserver aCa
     mChangeCallbacks->Init();
   }
 
-  ChangeCallback cc = { aCallback, aData, aForImage };
+  ChangeCallback cc = { aCallback, aData };
   mChangeCallbacks->PutEntry(cc);
 }
 
 void
 nsIdentifierMapEntry::RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
-                                                  void* aData, PRBool aForImage)
+                                                  void* aData)
 {
   if (!mChangeCallbacks)
     return;
-  ChangeCallback cc = { aCallback, aData, aForImage };
+  ChangeCallback cc = { aCallback, aData };
   mChangeCallbacks->RemoveEntry(cc);
   if (mChangeCallbacks->Count() == 0) {
     mChangeCallbacks = nsnull;
@@ -326,32 +306,24 @@ nsIdentifierMapEntry::RemoveContentChangeCallback(nsIDocument::IDTargetObserver 
 struct FireChangeArgs {
   Element* mFrom;
   Element* mTo;
-  PRBool mImageOnly;
-  PRBool mHaveImageOverride;
 };
 
 static PLDHashOperator
 FireChangeEnumerator(nsIdentifierMapEntry::ChangeCallbackEntry *aEntry, void *aArg)
 {
   FireChangeArgs* args = static_cast<FireChangeArgs*>(aArg);
-  // Don't fire image changes for non-image observers, and don't fire element
-  // changes for image observers when an image override is active.
-  if (aEntry->mKey.mForImage ? (args->mHaveImageOverride && !args->mImageOnly) :
-                               args->mImageOnly)
-    return PL_DHASH_NEXT;
   return aEntry->mKey.mCallback(args->mFrom, args->mTo, aEntry->mKey.mData)
       ? PL_DHASH_NEXT : PL_DHASH_REMOVE;
 }
 
 void
 nsIdentifierMapEntry::FireChangeCallbacks(Element* aOldElement,
-                                          Element* aNewElement,
-                                          PRBool aImageOnly)
+                                          Element* aNewElement)
 {
   if (!mChangeCallbacks)
     return;
 
-  FireChangeArgs args = { aOldElement, aNewElement, aImageOnly, !!mImageElement };
+  FireChangeArgs args = { aOldElement, aNewElement };
   mChangeCallbacks->EnumerateEntries(FireChangeEnumerator, &args);
 }
 
@@ -414,7 +386,7 @@ nsIdentifierMapEntry::AddIdElement(Element* aElement)
   return PR_TRUE;
 }
 
-void
+PRBool
 nsIdentifierMapEntry::RemoveIdElement(Element* aElement)
 {
   // This should only be called while the document is in an update.
@@ -425,7 +397,7 @@ nsIdentifierMapEntry::RemoveIdElement(Element* aElement)
   Element* currentElement =
     static_cast<Element*>(mIdContentList.SafeElementAt(0));
   if (!mIdContentList.RemoveElement(aElement))
-    return;
+    return PR_FALSE;
   if (currentElement == aElement) {
     FireChangeCallbacks(currentElement,
                         static_cast<Element*>(mIdContentList.SafeElementAt(0)));
@@ -433,17 +405,7 @@ nsIdentifierMapEntry::RemoveIdElement(Element* aElement)
   // Make sure the release happens after the check above, since it'll
   // null out aContent.
   NS_RELEASE(aElement);
-}
-
-void
-nsIdentifierMapEntry::SetImageElement(Element* aElement)
-{
-  Element* oldElement = GetImageIdElement();
-  mImageElement = aElement;
-  Element* newElement = GetImageIdElement();
-  if (oldElement != newElement) {
-    FireChangeCallbacks(oldElement, newElement, PR_TRUE);
-  }
+  return mIdContentList.Count() == 0 && !mNameContentList && !mChangeCallbacks;
 }
 
 void
@@ -821,36 +783,6 @@ nsExternalResourceMap::Traverse(nsCycleCollectionTraversalCallback* aCallback) c
   mMap.EnumerateRead(ExternalResourceTraverser, aCallback);
 }
 
-static PLDHashOperator
-ExternalResourceHider(nsIURI* aKey,
-                      nsExternalResourceMap::ExternalResource* aData,
-                      void* aClosure)
-{
-  aData->mViewer->Hide();
-  return PL_DHASH_NEXT;
-}
-
-void
-nsExternalResourceMap::HideViewers()
-{
-  mMap.EnumerateRead(ExternalResourceHider, nsnull);
-}
-
-static PLDHashOperator
-ExternalResourceShower(nsIURI* aKey,
-                       nsExternalResourceMap::ExternalResource* aData,
-                       void* aClosure)
-{
-  aData->mViewer->Show();
-  return PL_DHASH_NEXT;
-}
-
-void
-nsExternalResourceMap::ShowViewers()
-{
-  mMap.EnumerateRead(ExternalResourceShower, nsnull);
-}
-
 nsresult
 nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
                                            nsIDocumentViewer* aViewer,
@@ -878,9 +810,6 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
       rv = NS_ERROR_NOT_AVAILABLE;
     } else {
       doc->SetDisplayDocument(aDisplayDocument);
-
-      // Make sure that hiding our viewer will tear down its presentation.
-      aViewer->SetSticky(PR_FALSE);
 
       rv = aViewer->Init(nsnull, nsIntRect(0, 0, 0, 0));
       if (NS_SUCCEEDED(rv)) {
@@ -1790,13 +1719,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mPreloadingImages)
 
-  
-  if (tmp->mBoxObjectTable) {
-   tmp->mBoxObjectTable->EnumerateRead(ClearAllBoxObjects, nsnull);
-   delete tmp->mBoxObjectTable;
-   tmp->mBoxObjectTable = nsnull;
- }
-
   // nsDocument has a pretty complex destructor, so we're going to
   // assume that *most* cycles you actually want to break somewhere
   // else, and not unlink an awful lot here.
@@ -2520,8 +2442,7 @@ nsDocument::RemoveFromIdTable(Element *aElement, nsIAtom* aId)
   if (!entry) // Can be null for XML elements with changing ids.
     return;
 
-  entry->RemoveIdElement(aElement);
-  if (entry->IsEmpty()) {
+  if (entry->RemoveIdElement(aElement)) {
     mIdentifierMap.RawRemoveEntry(entry);
   }
 }
@@ -3111,26 +3032,9 @@ nsDocument::doCreateShell(nsPresContext* aContext,
   // Note: we don't hold a ref to the shell (it holds a ref to us)
   mPresShell = shell;
 
-  mExternalResourceMap.ShowViewers();
-
-  if (mHavePendingPaint) {
-    mPresShell->GetPresContext()->RefreshDriver()->
-      ScheduleBeforePaintEvent(this);
-  }
-
   shell.swap(*aInstancePtrResult);
 
   return NS_OK;
-}
-
-void
-nsDocument::DeleteShell()
-{
-  mExternalResourceMap.HideViewers();
-  if (mHavePendingPaint) {
-    mPresShell->GetPresContext()->RefreshDriver()->RevokeBeforePaintEvent(this);
-  }
-  mPresShell = nsnull;
 }
 
 static void
@@ -3914,7 +3818,7 @@ nsDocument::GetElementById(const nsAString& aId, nsIDOMElement** aReturn)
 
 Element*
 nsDocument::AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                void* aData, PRBool aForImage)
+                                void* aData)
 {
   nsDependentAtomString id(aID);
 
@@ -3924,13 +3828,13 @@ nsDocument::AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
   nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
   NS_ENSURE_TRUE(entry, nsnull);
 
-  entry->AddContentChangeCallback(aObserver, aData, aForImage);
-  return aForImage ? entry->GetImageIdElement() : entry->GetIdElement();
+  entry->AddContentChangeCallback(aObserver, aData);
+  return entry->GetIdElement();
 }
 
 void
-nsDocument::RemoveIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                   void* aData, PRBool aForImage)
+nsDocument::RemoveIDTargetObserver(nsIAtom* aID,
+                                   IDTargetObserver aObserver, void* aData)
 {
   nsDependentAtomString id(aID);
 
@@ -3942,35 +3846,7 @@ nsDocument::RemoveIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
     return;
   }
 
-  entry->RemoveContentChangeCallback(aObserver, aData, aForImage);
-}
-
-NS_IMETHODIMP
-nsDocument::MozSetImageElement(const nsAString& aImageElementId,
-                               nsIDOMElement* aImageElement)
-{
-  if (aImageElementId.IsEmpty())
-    return NS_OK;
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aImageElement);
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aImageElementId);
-  if (entry) {
-    entry->SetImageElement(content ? content->AsElement() : nsnull);
-    if (entry->IsEmpty()) {
-      mIdentifierMap.RemoveEntry(aImageElementId);
-    }
-  }
-  return NS_OK;
-}
-
-Element*
-nsDocument::LookupImageElement(const nsAString& aId)
-{
-  if (aId.IsEmpty())
-    return nsnull;
-
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aId);
-  return entry ? entry->GetImageIdElement() : nsnull;
+  entry->RemoveContentChangeCallback(aObserver, aData);
 }
 
 void
@@ -7933,16 +7809,3 @@ nsIDocument::CreateStaticClone(nsISupports* aCloneContainer)
   return clonedDoc.forget();
 }
 
-void
-nsIDocument::ScheduleBeforePaintEvent()
-{
-  if (!mHavePendingPaint) {
-    // We don't want to use GetShell() here, because we want to schedule the
-    // paint even if we're frozen.  Either we'll get unfrozen and then the
-    // event will fire, or we'll quietly go away at some point.
-    mHavePendingPaint =
-      !mPresShell ||
-      mPresShell->GetPresContext()->RefreshDriver()->
-        ScheduleBeforePaintEvent(this);
-  }
-}

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'function-001-n.js';
 
 /**
  *  File Name:          boolean-001.js

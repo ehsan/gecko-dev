@@ -1182,7 +1182,11 @@ MappedAttrParser::CreateStyleRule()
     return nsnull; // No mapped attributes were parsed
   }
 
-  nsCOMPtr<nsICSSStyleRule> rule = NS_NewCSSStyleRule(nsnull, mDecl);
+  nsCOMPtr<nsICSSStyleRule> rule;
+  if (NS_FAILED(NS_NewCSSStyleRule(getter_AddRefs(rule), nsnull, mDecl))) {
+    NS_WARNING("could not create style rule from mapped attributes");
+    mDecl->RuleAbort(); // deletes declaration
+  }
   mDecl = nsnull; // We no longer own the declaration -- drop our pointer to it
   return rule.forget();
 }

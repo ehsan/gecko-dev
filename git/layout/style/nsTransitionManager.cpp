@@ -52,6 +52,7 @@
 #include "gfxColor.h"
 #include "nsCSSPropertySet.h"
 #include "nsStyleAnimation.h"
+#include "nsCSSDataBlock.h"
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
 #include "mozilla/dom/Element.h"
@@ -241,7 +242,8 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
     if (aRuleData->mSIDs & nsCachedStyleData::GetBitForSID(
                              nsCSSProps::kSIDTable[cv.mProperty]))
     {
-      void *prop = aRuleData->StorageFor(cv.mProperty);
+      void *prop =
+        nsCSSExpandedDataBlock::RuleDataPropertyAt(aRuleData, cv.mProperty);
 #ifdef DEBUG
       PRBool ok =
 #endif

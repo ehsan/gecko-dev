@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349663.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349663;
 var summary = 'decompilation of Function with const *=';

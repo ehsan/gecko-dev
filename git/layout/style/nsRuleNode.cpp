@@ -510,19 +510,21 @@ SpecifiedCalcToComputedCalc(const nsCSSValue& aValue, nsStyleCoord& aCoord,
   SpecifiedToComputedCalcOps ops(aStyleContext, aStyleContext->PresContext(),
                                  aCanStoreInRuleTree);
   aCoord = ComputeCalc(aValue, ops);
-  if (!aCoord.IsCalcUnit()) {
-    // Some callers distinguish between calc(50%) and 50%, or calc(50px)
-    // and 50px.
-    nsStyleCoord::Array *array =
-      nsStyleCoord::Array::Create(aStyleContext, aCanStoreInRuleTree, 1);
-    array->Item(0) = aCoord;
-    aCoord.SetArrayValue(array, eStyleUnit_Calc);
-  }
 }
 
-struct ComputeComputedCalcCalcOps : public css::StyleCoordInputCalcOps,
-                                    public css::BasicCoordCalcOps
+struct ComputeComputedCalcCalcOps : public css::BasicCoordCalcOps
 {
+  typedef nsStyleCoord input_type;
+  typedef nsStyleCoord::Array input_array_type;
+
+  static nsCSSUnit GetUnit(const nsStyleCoord& aValue)
+  {
+    if (aValue.IsCalcUnit()) {
+      return css::ConvertCalcUnit(aValue.GetUnit());
+    }
+    return eCSSUnit_Null;
+  }
+
   const nscoord mPercentageBasis;
 
   ComputeComputedCalcCalcOps(nscoord aPercentageBasis)
@@ -541,6 +543,13 @@ struct ComputeComputedCalcCalcOps : public css::StyleCoordInputCalcOps,
     }
     return result;
   }
+
+  float ComputeNumber(const nsStyleCoord& aValue)
+  {
+    NS_ABORT_IF_FALSE(PR_FALSE, "SpecifiedToComputedCalcOps should not "
+                                "leave numbers in structure");
+    return 0.0f;
+  }
 };
 
 // This is our public API for handling calc() expressions that involve
@@ -551,6 +560,22 @@ nsRuleNode::ComputeComputedCalc(const nsStyleCoord& aValue,
 {
   ComputeComputedCalcCalcOps ops(aPercentageBasis);
   return css::ComputeCalc(aValue, ops);
+}
+
+/* static */ nscoord
+nsRuleNode::ComputeCoordPercentCalc(const nsStyleCoord& aCoord,
+                                    nscoord aPercentageBasis)
+{
+  switch (aCoord.GetUnit()) {
+    case eStyleUnit_Coord:
+      return aCoord.GetCoordValue();
+    case eStyleUnit_Percent:
+      return NSCoordSaturatingMultiply(aPercentageBasis,
+                                       aCoord.GetPercentValue());
+    default:
+      NS_ABORT_IF_FALSE(aCoord.IsCalcUnit(), "unexpected unit");
+      return nsRuleNode::ComputeComputedCalc(aCoord, aPercentageBasis);
+  }
 }
 
 #define SETCOORD_NORMAL                 0x01   // N
@@ -955,9 +980,6 @@ static void SetStyleImage(nsStyleContext* aStyleContext,
       }
       break;
     }
-    case eCSSUnit_Element:
-      aResult.SetElementId(aValue.GetStringBufferValue());
-      break;
     case eCSSUnit_None:
       break;
     default:
@@ -4547,7 +4569,7 @@ nsRuleNode::ComputeVisibilityData(void* aStartStruct,
       nsAutoString lang;
       displayData.mLang.GetStringValue(lang);
 
-      nsContentUtils::ASCIIToLower(lang);
+      ToLowerCase(lang);
       visibility->mLanguage = do_GetAtom(lang);
     }
   }
@@ -5534,8 +5556,8 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
   }
 
   SetCoord(posData.mWidth, pos->mWidth, parentPos->mWidth,
-           SETCOORD_LPAEH | SETCOORD_INITIAL_AUTO | SETCOORD_STORE_CALC,
-           aContext, mPresContext, canStoreInRuleTree);
+           SETCOORD_LPAEH | SETCOORD_INITIAL_AUTO, aContext,
+           mPresContext, canStoreInRuleTree);
   SetCoord(posData.mMinWidth, pos->mMinWidth, parentPos->mMinWidth,
            SETCOORD_LPEH | SETCOORD_INITIAL_ZERO, aContext,
            mPresContext, canStoreInRuleTree);

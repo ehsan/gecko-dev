@@ -270,10 +270,13 @@ nsSVGDisplayContainerFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspac
     nsISVGChildFrame* svgKid = do_QueryFrame(kid);
     if (svgKid) {
       gfxMatrix transform = aToBBoxUserspace;
-      nsIContent *content = kid->GetContent();
-      if (content->IsSVG() && !content->IsNodeOfType(nsINode::eTEXT)) {
-        transform = static_cast<nsSVGElement*>(content)->
-                      PrependLocalTransformTo(aToBBoxUserspace);
+      // nsSVGGlyphFrame's mContent is a nsTextNode!
+      if (kid->GetType() != nsGkAtoms::svgGlyphFrame) {
+        nsIContent *content = kid->GetContent();
+        if (content->IsSVG()) {
+          transform = static_cast<nsSVGElement*>(content)->
+                        PrependLocalTransformTo(aToBBoxUserspace);
+        }
       }
       bboxUnion = bboxUnion.Union(svgKid->GetBBoxContribution(transform));
     }

@@ -91,7 +91,6 @@
 #include "CertReader.h"
 
 #include "nsEmbedCID.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #define PREF_XPINSTALL_ENABLED                "xpinstall.enabled"
 #define PREF_XPINSTALL_CONFIRM_DLG            "xpinstall.dialog.confirm"
@@ -1324,19 +1323,11 @@ nsXPInstallManager::GetInterface(const nsIID & eventSinkIID, void* *_retval)
 
 // nsIChannelEventSink method
 NS_IMETHODIMP
-nsXPInstallManager::AsyncOnChannelRedirect(nsIChannel *oldChannel,
-                                           nsIChannel *newChannel,
-                                           PRUint32 flags,
-                                           nsIAsyncVerifyRedirectCallback *callback)
+nsXPInstallManager::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PRUint32 flags)
 {
     // Chrome triggered installs need to have their certificates checked
-    if (mFromChrome) {
-        nsresult rv = CheckCert(oldChannel);
-        if (NS_FAILED(rv()))
-            return rv;
-    }
-
-    callback->OnRedirectVerifyCallback(NS_OK);
+    if (mFromChrome)
+        return CheckCert(oldChannel);
     return NS_OK;
 }
 

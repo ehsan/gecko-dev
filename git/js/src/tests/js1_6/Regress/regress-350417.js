@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350417.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350417;
 var summary = 'Do not crash decompiling "is not function" msg';

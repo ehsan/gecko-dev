@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '15.9.5.5-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 398485;
 var summary = 'Date.prototype.toLocaleString should not clamp year';

@@ -1038,7 +1038,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
       if (frameList) {
         removed = frameList->RemoveFrameIfPresent(aChild);
         if (frameList->IsEmpty()) {
-          DestroyOverflowList(aPresContext, nsnull);
+          DestroyOverflowList(aPresContext);
         }
       }
     }
@@ -1091,12 +1091,8 @@ nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext,
 {
   nsFrameList* list =
     RemovePropTableFrames(aPresContext, OverflowProperty());
-  if (list) {
-    if (aDestructRoot)
-      list->DestroyFrom(aDestructRoot);
-    else
-      list->Destroy();
-  }
+  if (list)
+    list->DestroyFrom(aDestructRoot);
 }
 
 /**

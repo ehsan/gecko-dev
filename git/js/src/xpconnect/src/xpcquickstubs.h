@@ -425,9 +425,9 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
 JSBool
 xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval);
 
-/** Convert an nsString to JSString, returning JS_TRUE on success. This will sometimes modify |str| to be empty. */
+/** Convert an nsAString to JSString, returning JS_TRUE on success. */
 JSBool
-xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
+xpc_qsStringToJsstring(JSContext *cx, const nsAString &str, JSString **rval);
 
 nsresult
 getWrapper(JSContext *cx,

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'lamport.js'
 //-----------------------------------------------------------------------
 
 var summary = "Lamport Bakery's algorithm for mutual exclusion";

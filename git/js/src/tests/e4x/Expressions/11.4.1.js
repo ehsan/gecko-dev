@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.4.1.js';
 
 START("11.4.1 - Addition Operator");
 

@@ -5,6 +5,7 @@
  * Contributors: Blake Kaplan, Bob Clary
  */
 
+gTestfile = 'regress-302097.js';
 
 var summary = 'E4X - Function.prototype.toString should not quote {} ' +
     'attribute values';

@@ -498,15 +498,6 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                 {
                     return JS_FALSE;
                 }
-
-                // We seem to sometime lose the unrooted global flag. Restore it
-                // here. FIXME: bug 584495.
-                JSContext *iter = nsnull, *acx;
-
-                while((acx = JS_ContextIterator(cx->runtime, &iter))) {
-                    if (!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL))
-                        JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
-                }
                 break;
             }
             case JSGC_MARK_END:
@@ -803,22 +794,14 @@ XPCJSRuntime::WatchdogMain(void *arg)
     // Lock lasts until we return
     AutoLockJSGC lock(self->mJSRuntime);
 
-    PRIntervalTime sleepInterval;
     while (self->mWatchdogThread)
     {
-        // Sleep only 1 second if recently (or currently) active; otherwise, hibernate
-        if (self->mLastActiveTime == -1 || PR_Now() - self->mLastActiveTime <= 2*PR_USEC_PER_SEC)
-            sleepInterval = PR_TicksPerSecond();
-        else
-        {
-            sleepInterval = PR_INTERVAL_NO_TIMEOUT;
-            self->mWatchdogHibernating = PR_TRUE;
-        }
 #ifdef DEBUG
         PRStatus status =
 #endif
-            PR_WaitCondVar(self->mWatchdogWakeup, sleepInterval);
+            PR_WaitCondVar(self->mWatchdogWakeup, PR_TicksPerSecond());
         JS_ASSERT(status == PR_SUCCESS);
+
         JSContext* cx = nsnull;
         while((cx = js_NextActiveContext(self->mJSRuntime, cx)))
         {
@@ -828,23 +811,6 @@ XPCJSRuntime::WatchdogMain(void *arg)
 
     /* Wake up the main thread waiting for the watchdog to terminate. */
     PR_NotifyCondVar(self->mWatchdogWakeup);
-}
-
-//static
-void
-XPCJSRuntime::ActivityCallback(void *arg, PRBool active)
-{
-    XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
-    if (active) {
-        self->mLastActiveTime = -1;
-        if (self->mWatchdogHibernating)
-        {
-            self->mWatchdogHibernating = PR_FALSE;
-            PR_NotifyCondVar(self->mWatchdogWakeup);
-        }
-    } else {
-        self->mLastActiveTime = PR_Now();
-    }
 }
 
 
@@ -1133,9 +1099,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mWrappedJSRoots(nsnull),
    mObjectHolderRoots(nsnull),
    mWatchdogWakeup(nsnull),
-   mWatchdogThread(nsnull),
-   mWatchdogHibernating(PR_FALSE),
-   mLastActiveTime(-1)
+   mWatchdogThread(nsnull)
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     DEBUG_WrappedNativeHashtable =
@@ -1164,8 +1128,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         JS_SetGCCallbackRT(mJSRuntime, GCCallback);
         JS_SetExtraGCRoots(mJSRuntime, TraceJS, this);
         mWatchdogWakeup = JS_NEW_CONDVAR(mJSRuntime->gcLock);
-
-        mJSRuntime->setActivityCallback(ActivityCallback, this);
 
         mJSRuntime->setCustomGCChunkAllocator(&gXPCJSChunkAllocator);
 

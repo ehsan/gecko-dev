@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-306738.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 306738;
 var summary = 'uneval() on objects with getter or setter';

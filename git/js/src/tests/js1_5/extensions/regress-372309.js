@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-372309.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 372309;
 var summary = 'Root new array objects';

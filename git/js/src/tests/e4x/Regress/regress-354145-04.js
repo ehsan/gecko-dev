@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-354145-04.js';
 
 var BUGNUMBER = 354145;
 var summary = 'Immutable XML';

@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '10.1.3.js';
 
 /**
    ECMA Section: 10.1.3: Variable Instantiation

@@ -5,6 +5,7 @@
  * Contributor: Bob Clary
  */
 
+var gTestfile = 'regress-162392.js';
 
 //-----------------------------------------------------------------------------
 // SUMMARY: 10.1.8 Arguments Object length

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-243174.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 243174;
 var summary = 'Don\'t Crash on Regular Expression';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'flags.js';
 
 /**
    Filename:     regexp.js

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355341.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355341;
 var summary = 'Do not crash with watch and setter';

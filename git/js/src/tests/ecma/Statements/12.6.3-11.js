@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '12.6.3-11.js';
 
 /**
    File Name:          12.6.3-11.js

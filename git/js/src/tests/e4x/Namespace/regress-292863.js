@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-292863.js';
 
 var summary = "Undeclaring namespace prefix should cause parse error";
 var BUGNUMBER = 292863;

@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.4.12.js';
 
 START("13.4.4.12 - XML descendants");
 

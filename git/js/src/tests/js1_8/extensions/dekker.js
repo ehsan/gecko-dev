@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'dekker.js';
 //-----------------------------------------------------------------------------
 
 var summary = "Dekker's algorithm for mutual exclusion";

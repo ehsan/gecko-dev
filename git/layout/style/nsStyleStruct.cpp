@@ -1146,17 +1146,6 @@ nsChangeHint nsStylePosition::MaxDifference()
 }
 #endif
 
-/* static */ PRBool
-nsStylePosition::WidthCoordDependsOnContainer(const nsStyleCoord &aCoord)
-{
-  return aCoord.GetUnit() == eStyleUnit_Auto ||
-         aCoord.GetUnit() == eStyleUnit_Percent ||
-         (aCoord.IsCalcUnit() && aCoord.CalcHasPercent()) ||
-         (aCoord.GetUnit() == eStyleUnit_Enumerated &&
-          (aCoord.GetIntValue() == NS_STYLE_WIDTH_FIT_CONTENT ||
-           aCoord.GetIntValue() == NS_STYLE_WIDTH_AVAILABLE));
-}
-
 // --------------------
 // nsStyleTable
 //
@@ -1378,8 +1367,6 @@ nsStyleImage::DoCopy(const nsStyleImage& aOther)
     SetImageData(aOther.mImage);
   else if (aOther.mType == eStyleImageType_Gradient)
     SetGradientData(aOther.mGradient);
-  else if (aOther.mType == eStyleImageType_Element)
-    SetElementId(aOther.mElementId);
 
   SetCropRect(aOther.mCropRect);
 }
@@ -1391,8 +1378,6 @@ nsStyleImage::SetNull()
     mGradient->Release();
   else if (mType == eStyleImageType_Image)
     NS_RELEASE(mImage);
-  else if (mType == eStyleImageType_Element)
-    nsCRT::free(mElementId);
 
   mType = eStyleImageType_Null;
   mCropRect = nsnull;
@@ -1424,18 +1409,6 @@ nsStyleImage::SetGradientData(nsStyleGradient* aGradient)
   if (aGradient) {
     mGradient = aGradient;
     mType = eStyleImageType_Gradient;
-  }
-}
-
-void
-nsStyleImage::SetElementId(const PRUnichar* aElementId)
-{
-  if (mType != eStyleImageType_Null)
-    SetNull();
-
-  if (aElementId) {
-    mElementId = nsCRT::strdup(aElementId);
-    mType = eStyleImageType_Element;
   }
 }
 
@@ -1522,9 +1495,6 @@ nsStyleImage::IsOpaque() const
     return PR_FALSE;
   }
 
-  if (mType == eStyleImageType_Element)
-    return PR_FALSE;
-
   NS_ABORT_IF_FALSE(mType == eStyleImageType_Image, "unexpected image type");
 
   nsCOMPtr<imgIContainer> imageContainer;
@@ -1556,7 +1526,6 @@ nsStyleImage::IsComplete() const
     case eStyleImageType_Null:
       return PR_FALSE;
     case eStyleImageType_Gradient:
-    case eStyleImageType_Element:
       return PR_TRUE;
     case eStyleImageType_Image:
     {
@@ -1592,9 +1561,6 @@ nsStyleImage::operator==(const nsStyleImage& aOther) const
 
   if (mType == eStyleImageType_Gradient)
     return *mGradient == *aOther.mGradient;
-
-  if (mType == eStyleImageType_Element)
-    return nsCRT::strcmp(mElementId, aOther.mElementId) == 0;
 
   return PR_TRUE;
 }
@@ -1654,32 +1620,16 @@ nsStyleBackground::~nsStyleBackground()
 
 nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) const
 {
-  const nsStyleBackground* moreLayers =
-    mImageCount > aOther.mImageCount ? this : &aOther;
-  const nsStyleBackground* lessLayers =
-    mImageCount > aOther.mImageCount ? &aOther : this;
-
-  bool hasVisualDifference = false;
-
-  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, moreLayers) {
-    if (i < lessLayers->mImageCount) {
-      if (moreLayers->mLayers[i] != lessLayers->mLayers[i]) {
-        if ((moreLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element) ||
-            (lessLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element))
-          return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
-        hasVisualDifference = true;
-      }
-    } else {
-      if (moreLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element)
-        return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
-      hasVisualDifference = true;
-    }
-  }
-
-  if (hasVisualDifference ||
-      mBackgroundColor != aOther.mBackgroundColor ||
-      mBackgroundInlinePolicy != aOther.mBackgroundInlinePolicy)
+  if (mBackgroundColor != aOther.mBackgroundColor ||
+      mBackgroundInlinePolicy != aOther.mBackgroundInlinePolicy ||
+      mImageCount != aOther.mImageCount)
     return NS_STYLE_HINT_VISUAL;
+
+  // We checked the image count above.
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, this) {
+    if (mLayers[i] != aOther.mLayers[i])
+      return NS_STYLE_HINT_VISUAL;
+  }
 
   return NS_STYLE_HINT_NONE;
 }
@@ -1688,7 +1638,7 @@ nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) 
 /* static */
 nsChangeHint nsStyleBackground::MaxDifference()
 {
-  return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
+  return NS_STYLE_HINT_VISUAL;
 }
 #endif
 

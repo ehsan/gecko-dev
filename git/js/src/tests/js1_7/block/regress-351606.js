@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351606.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351606;
 var summary = 'Do not assert with nested for..in and throw';

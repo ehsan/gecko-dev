@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465261.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465261;
 var summary = 'TM: Do not assert: ';

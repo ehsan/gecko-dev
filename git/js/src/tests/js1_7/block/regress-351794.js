@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351794.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351794;
 var summary = 'Do not assert: CG_NOTE_COUNT(cg) == 0 || ' +

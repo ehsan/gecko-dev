@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-464096.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 464096;
 var summary = 'TM: Do not assert: tm->recoveryDoublePoolPtr > tm->recoveryDoublePool';

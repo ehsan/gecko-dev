@@ -112,7 +112,7 @@ class nsTSubstring_CharT
     public:
 
         // this acts like a virtual destructor
-      ~nsTSubstring_CharT() { Finalize(); }
+      NS_COM NS_CONSTRUCTOR_FASTCALL ~nsTSubstring_CharT();
 
         /**
          * reading iterators
@@ -558,13 +558,7 @@ class nsTSubstring_CharT
          * this is public to support automatic conversion of tuple to string
          * base type, which helps avoid converting to nsTAString.
          */
-      nsTSubstring_CharT(const substring_tuple_type& tuple)
-        : mData(nsnull),
-          mLength(0),
-          mFlags(F_NONE)
-        {
-          Assign(tuple);
-        }
+      NS_COM nsTSubstring_CharT(const substring_tuple_type& tuple);
 
         /**
          * allows for direct initialization of a nsTSubstring object. 
@@ -572,18 +566,11 @@ class nsTSubstring_CharT
          * NOTE: this constructor is declared public _only_ for convenience
          * inside the string implementation.
          */
-        // XXXbz or can I just include nscore.h and use NS_BUILD_REFCNT_LOGGING?
-#if defined(DEBUG) || defined(FORCE_BUILD_REFCNT_LOGGING)
-#define XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE
-       NS_COM nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags );
+#ifdef XP_OS2 /* Workaround for GCC 3.3.x bug. */
+       nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags ) NS_COM;
 #else
-#undef XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE
-       nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags )
-         : mData(data),
-           mLength(length),
-           mFlags(flags) {}
-#endif /* DEBUG || FORCE_BUILD_REFCNT_LOGGING */
-
+       NS_COM nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags );
+#endif
     protected:
 
       friend class nsTObsoleteAStringThunk_CharT;
@@ -597,29 +584,22 @@ class nsTSubstring_CharT
       PRUint32    mFlags;
 
         // default initialization 
-      nsTSubstring_CharT()
-        : mData(char_traits::sEmptyBuffer),
-          mLength(0),
-          mFlags(F_TERMINATED) {}
+      NS_COM nsTSubstring_CharT();
 
         // version of constructor that leaves mData and mLength uninitialized
       explicit
-      nsTSubstring_CharT( PRUint32 flags )
-        : mFlags(flags) {}
+      NS_COM nsTSubstring_CharT( PRUint32 flags );
 
         // copy-constructor, constructs as dependent on given object
         // (NOTE: this is for internal use only)
-      nsTSubstring_CharT( const self_type& str )
-        : mData(str.mData),
-          mLength(str.mLength),
-          mFlags(str.mFlags & (F_TERMINATED | F_VOIDED)) {}
+      NS_COM nsTSubstring_CharT( const self_type& str );
 
         /**
          * this function releases mData and does not change the value of
          * any of its member variables.  in other words, this function acts
          * like a destructor.
          */
-      void NS_COM NS_FASTCALL Finalize();
+      void NS_FASTCALL Finalize();
 
         /**
          * this function prepares mData to be mutated.

@@ -3,6 +3,7 @@
 // Contributor:
 //   Jeff Walden <jwalden+code@mit.edu>
 
+var gTestfile = 'named-accessor-function.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 999999;
 var summary = '{ get x y() { } } is not valid getter syntax';

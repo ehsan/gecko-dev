@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352640-04.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352640;
 var summary = 'Do not assert: scopeStmt or crash @ js_LexicalLookup';

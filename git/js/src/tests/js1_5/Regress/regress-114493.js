@@ -56,6 +56,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-114493.js';
 var UBound = 0;
 var BUGNUMBER = 114493;
 var summary = 'Regression test for bug 114493';

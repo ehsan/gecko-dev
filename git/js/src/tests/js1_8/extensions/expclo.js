@@ -5,6 +5,7 @@
  * Contributor: Brendan Eich
  */
 
+var gTestfile = 'expclo.js';
 var summary = "Flat expression closure source coordinate fencepost test";
 
 function f(a) {

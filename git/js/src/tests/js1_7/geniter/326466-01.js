@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '326466-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 326466;
 var summary = 'Implement Pythonic generators and iteration protocol support';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-346773.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 346773;
 var summary = 'Do not crash compiling with misplaced brances in function';

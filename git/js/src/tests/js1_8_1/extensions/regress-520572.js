@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-520572.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 520572;
 var summary = 'watch should innerize the object being watched';

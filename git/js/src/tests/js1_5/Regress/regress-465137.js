@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465137.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465137;
 var summary = '!NaN is not false';

@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-216320.js';
 var BUGNUMBER = 216320;
 var summary = "Just seeing we don't crash on this code";
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-415922.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 415922;
 var summary = 'Support exception from withing JSNewEnumerateOp on JSENUMERATE_NEXT';

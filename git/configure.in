@@ -74,18 +74,6 @@ TARGET_OS="${target_os}"
 MOZ_DEB_TIMESTAMP=`date +"%a, %d  %b %Y %T %z"   2>&1` 
 AC_SUBST(MOZ_DEB_TIMESTAMP)
 
-MOZ_ARG_ENABLE_BOOL(shared-js,
-[  --enable-shared-js
-                          Create a shared JavaScript library.],
-    ENABLE_SHARED_JS=1,
-    ENABLE_SHARED_JS=0)
-
-if test "$ENABLE_SHARED_JS" = "1" ; then
-  JS_SHARED_LIBRARY=1
-else
-  AC_DEFINE(MOZ_STATIC_JS)
-fi
-AC_SUBST(JS_SHARED_LIBRARY)
 
 dnl ========================================================
 dnl =
@@ -144,7 +132,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.7.0.1
+SQLITE_VERSION=3.6.23.1
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -1233,11 +1221,7 @@ MOZ_BZ2_LIBS='$(call EXPAND_LIBNAME_PATH,bz2,$(DEPTH)/modules/libbz2/src)'
 MOZ_PNG_CFLAGS=
 MOZ_PNG_LIBS='$(call EXPAND_LIBNAME_PATH,mozpng,$(DEPTH)/modules/libimg/png)'
 
-if test -z "$JS_SHARED_LIBRARY" ; then
-MOZ_JS_LIBS='-L$(LIBXUL_DIST)/bin -ljs_static'
-else
 MOZ_JS_LIBS='-L$(LIBXUL_DIST)/bin -lmozjs'
-fi
 DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/bin -lxpcom -lxpcom_core -lmozalloc'
 MOZ_FIX_LINK_PATHS='-Wl,-rpath-link,$(LIBXUL_DIST)/bin -Wl,-rpath-link,$(prefix)/lib'
 XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/bin -lxpcom -lmozalloc'
@@ -2284,11 +2268,7 @@ ia64*-hpux*)
     MOZ_DEBUG_FLAGS='-Zi'
     MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
     MOZ_FIX_LINK_PATHS=
-    if test -z "$JS_SHARED_LIBRARY" ; then
-       MOZ_JS_LIBS='$(LIBXUL_DIST)/lib/js_static.lib'
-    else
-       MOZ_JS_LIBS='$(LIBXUL_DIST)/lib/mozjs.lib'
-    fi
+    MOZ_JS_LIBS='$(LIBXUL_DIST)/lib/mozjs.lib'
     OBJ_SUFFIX=obj
     RANLIB='echo not_ranlib'
     STRIP='echo not_strip'
@@ -2348,11 +2328,7 @@ ia64*-hpux*)
         RCFLAGS='-O coff --use-temp-file'
         # mingw doesn't require kernel32, user32, and advapi32 explicitly
         LIBS="$LIBS -luuid -lgdi32 -lwinmm -lwsock32"
-        if test -z "$JS_SHARED_LIBRARY" ; then
-           MOZ_JS_LIBS='-L$(LIBXUL_DIST)/bin -ljs_static'
-        else
-           MOZ_JS_LIBS='-L$(LIBXUL_DIST)/bin -lmozjs'
-        fi
+        MOZ_JS_LIBS='-L$(LIBXUL_DIST)/lib -lmozjs'
         MOZ_FIX_LINK_PATHS=
         DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/lib -lxpcom -lxpcom_core -lmozalloc'
         XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/lib -lxpcom -lmozalloc'
@@ -2398,11 +2374,7 @@ ia64*-hpux*)
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
     	MOZ_OPTIMIZE_FLAGS='-O1'
-        if test -z "$JS_SHARED_LIBRARY" ; then
-           MOZ_JS_LIBS='$(LIBXUL_DIST)/lib/js_static.lib'
-        else
-           MOZ_JS_LIBS='$(LIBXUL_DIST)/lib/mozjs.lib'
-        fi
+        MOZ_JS_LIBS='$(LIBXUL_DIST)/lib/mozjs.lib'
         MOZ_FIX_LINK_PATHS=
         DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
@@ -2741,7 +2713,7 @@ alpha*-*-osf*)
        NS_USE_NATIVE=1
        AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
        CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all -D__FUNCTION__=__func__"
-       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__ -template=no%extdef"
+       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__"
        _MOZ_EXCEPTIONS_FLAGS_ON='-features=except'
        _MOZ_EXCEPTIONS_FLAGS_OFF='-features=no%except'
        LDFLAGS="-xildoff $LDFLAGS"
@@ -5570,29 +5542,6 @@ then
 fi
 
 dnl ========================================================
-dnl = libproxy support
-dnl ========================================================
-
-if test "$MOZ_ENABLE_GTK2"
-then
-    MOZ_ENABLE_LIBPROXY=
-
-    MOZ_ARG_ENABLE_BOOL(libproxy,
-    [  --enable-libproxy         Enable libproxy support ],
-    MOZ_ENABLE_LIBPROXY=1,
-    MOZ_ENABLE_LIBPROXY=)
-
-    if test "$MOZ_ENABLE_LIBPROXY"
-    then
-        PKG_CHECK_MODULES(MOZ_LIBPROXY, libproxy-1.0)
-        AC_DEFINE(MOZ_ENABLE_LIBPROXY)
-    fi
-fi
-AC_SUBST(MOZ_ENABLE_LIBPROXY)
-AC_SUBST(MOZ_LIBPROXY_CFLAGS)
-AC_SUBST(MOZ_LIBPROXY_LIBS)
-
-dnl ========================================================
 dnl = libnotify support
 dnl ========================================================
 
@@ -5724,6 +5673,12 @@ MOZ_ARG_DISABLE_BOOL(jsd,
 dnl ========================================================
 dnl = Disable IPC support for tabs and plugins
 dnl ========================================================
+case "${target}" in
+*-wince*)
+    MOZ_IPC=
+    ;;
+esac
+
 MOZ_ARG_DISABLE_BOOL(ipc,
 [  --disable-ipc           Disable IPC supports for tabs and plugins],
     MOZ_IPC=,
@@ -5943,43 +5898,42 @@ if test -n "$MOZ_WEBM"; then
       dnl For Darwin x86, Darwin x86_64, Linux x86, and WINNT x86_64
       dnl we can use YASM.
       AC_MSG_CHECKING([for YASM assembler])
-      AC_CHECK_PROGS(VPX_AS, $YASM yasm, "")
-      dnl We have YASM, see if we have assembly on this platform.  
-      case "$OS_ARCH:$OS_TEST" in
-      Linux:x86|Linux:i?86)
-        VPX_ASFLAGS="-f elf32 -rnasm -pnasm"
-        VPX_X86_ASM=1
-      ;;
-      Linux:x86_64)
-        VPX_ASFLAGS="-f elf64 -rnasm -pnasm -DPIC"
-        VPX_X86_ASM=1
-      ;;
-      SunOS:i?86)
-        VPX_ASFLAGS="-f elf32 -rnasm -pnasm"
-        VPX_X86_ASM=1
-      ;;
-      SunOS:x86_64)
-        VPX_ASFLAGS="-f elf64 -rnasm -pnasm -DPIC"
-        VPX_X86_ASM=1
-      ;;
-      Darwin:i?86)
-        VPX_ASFLAGS="-f macho32 -rnasm -pnasm -DPIC"
-        VPX_X86_ASM=1
-      ;;
-      Darwin:x86_64)
-        VPX_ASFLAGS="-f macho64 -rnasm -pnasm -DPIC"
-        VPX_X86_ASM=1
-      ;;
-      WINNT:x86_64)
-        if test -z "$GNU_CC"; then
-          VPX_ASFLAGS="-f x64 -rnasm -pnasm"
+      AC_CHECK_PROGS(VPX_AS, yasm, "")
+      if test -n "$VPX_AS"; then
+        dnl We have YASM, see if we have assembly on this platform.  
+        case "$OS_ARCH:$OS_TEST" in
+        Linux:x86|Linux:i?86)
+          VPX_ASFLAGS="-f elf32 -rnasm -pnasm"
           VPX_X86_ASM=1
-        fi
-      ;;
-      esac
-      if test -n "$VPX_X86_ASM" -a -z "$VPX_AS"; then
-        AC_MSG_ERROR([yasm is a required build tool for this architecture when webm is enabled. You may either install yasm or --disable-webm (which disables the WebM video format). See https://developer.mozilla.org/en/YASM for more details.])
-      fi
+        ;;
+        Linux:x86_64)
+          VPX_ASFLAGS="-f elf64 -rnasm -pnasm -DPIC"
+          VPX_X86_ASM=1
+        ;;
+        SunOS:i?86)
+          VPX_ASFLAGS="-f elf32 -rnasm -pnasm"
+          VPX_X86_ASM=1
+        ;;
+        SunOS:x86_64)
+          VPX_ASFLAGS="-f elf64 -rnasm -pnasm -DPIC"
+          VPX_X86_ASM=1
+        ;;
+        Darwin:i?86)
+          VPX_ASFLAGS="-f macho32 -rnasm -pnasm -DPIC"
+          VPX_X86_ASM=1
+        ;;
+        Darwin:x86_64)
+          VPX_ASFLAGS="-f macho64 -rnasm -pnasm -DPIC"
+          VPX_X86_ASM=1
+        ;;
+        WINNT:x86_64)
+          if test -z "$GNU_CC"; then
+            VPX_ASFLAGS="-f x64 -rnasm -pnasm"
+            VPX_X86_ASM=1
+          fi
+        ;;
+        esac
+      fi # end have YASM
     fi # end !WINNT_x86_MSVC
 
     if test -n "$VPX_X86_ASM"; then
@@ -6170,7 +6124,7 @@ case $target in
 i?86-*-mingw*)
   MOZ_CRASHREPORTER=1
   ;;
-i?86-apple-darwin*|powerpc-apple-darwin*|x86_64-apple-darwin*)
+i?86-apple-darwin*|powerpc-apple-darwin*)
   MOZ_CRASHREPORTER=1
   ;;
 i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
@@ -7365,17 +7319,6 @@ MOZ_ARG_WITH_STRING(wrap-malloc,
     WRAP_MALLOC_LIB=$withval)
 
 dnl ========================================================
-dnl = Use JS Call tracing
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(trace-jscalls,
-[  --enable-trace-jscalls  Enable JS call enter/exit callback (default=no)],
-    MOZ_TRACE_JSCALLS=1,
-    MOZ_TRACE_JSCALLS= )
-if test -n "$MOZ_TRACE_JSCALLS"; then
-    AC_DEFINE(MOZ_TRACE_JSCALLS)
-fi
-
-dnl ========================================================
 dnl = Use TraceVis
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(tracevis,
@@ -8024,12 +7967,6 @@ else
     _USE_CPP_INCLUDE_FLAG=
     _DEFINES_CFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
     _DEFINES_CXXFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
-  else
-    _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
-    dnl cl.py provides dependency generation for MSVC
-    CC_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
-    CXX_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
-    COMPILER_DEPEND=1
   fi
 fi
 fi # MOZ_AUTO_DEPS
@@ -8037,8 +7974,6 @@ MDDEPDIR='.deps'
 AC_SUBST(MOZ_AUTO_DEPS)
 AC_SUBST(COMPILER_DEPEND)
 AC_SUBST(MDDEPDIR)
-AC_SUBST(CC_WRAPPER)
-AC_SUBST(CXX_WRAPPER)
 
 
 dnl ========================================================
@@ -9260,9 +9195,6 @@ ac_configure_args="$ac_configure_args --enable-threadsafe"
 if test "$BUILD_CTYPES"; then
     # Build js-ctypes on the platforms we can.
     ac_configure_args="$ac_configure_args --enable-ctypes"
-fi
-if test -z "$JS_SHARED_LIBRARY" ; then
-    ac_configure_args="$ac_configure_args --disable-shared-js"
 fi
 if test -z "$MOZ_NATIVE_NSPR"; then
     ac_configure_args="$ac_configure_args --with-nspr-cflags='$NSPR_CFLAGS'"

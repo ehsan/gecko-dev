@@ -38,6 +38,7 @@
 
 // See http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Iterators_and_Generators
 
+var gTestfile = 'iterator-ctor.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER  = "410725";
 var summary = "Test of the global Iterator constructor";

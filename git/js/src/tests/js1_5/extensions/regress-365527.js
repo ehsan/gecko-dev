@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-365527.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 365527;
 var summary = 'JSOP_ARGUMENTS should set obj register';

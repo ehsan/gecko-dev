@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-340199.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 340199;
 var summary = 'User-defined __iterator__ can be called through XPCNativeWrappers';

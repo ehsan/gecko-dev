@@ -10,8 +10,6 @@ child:
     Ping();
     Ping5();
     rpc Rpc();
-    Spam();
-    rpc Synchro();
 
 parent:
     Pong();
@@ -47,16 +45,8 @@ state PONG3: recv Pong5 goto PONG4;
 state PONG4: recv Pong5 goto PONG5;
 state PONG5: recv Pong5 goto PING5;
 
-    // Trial 3: lotsa RPC
 state RPC:
     call Rpc goto RPC;
-    send Spam goto SPAM;
-
-state SPAM:
-    send Spam goto SPAM;
-    call Synchro goto DONE;
-
-state DONE:
     send __delete__;
 };
 

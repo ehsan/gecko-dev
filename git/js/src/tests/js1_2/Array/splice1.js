@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'splice1.js';
 
 /**
    Filename:     splice1.js

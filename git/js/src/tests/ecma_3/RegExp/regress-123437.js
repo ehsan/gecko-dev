@@ -46,6 +46,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-123437.js';
 var i = 0;
 var BUGNUMBER = 123437;
 var summary = 'regexp backreferences must hold |undefined| if not used';

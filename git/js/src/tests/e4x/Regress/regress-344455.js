@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-344455.js';
 
 var summary = "Error - tag name mismatch error message should include tag name";
 var BUGNUMBER = 344455;

@@ -327,11 +327,7 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         //printf("calling Flush\n");
         out->Flush();
         //printf("calling WaitForReceipt\n");
-
-#ifdef DEBUG
-        const PRUint32 received =
-#endif
-          receiver->WaitForReceipt(writeCount);
+        const PRUint32 received = receiver->WaitForReceipt(writeCount);
         NS_ASSERTION(received == writeCount, "received wrong amount");
     }
     rv = out->Close();

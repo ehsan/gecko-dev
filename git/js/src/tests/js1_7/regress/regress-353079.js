@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-353079.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 353079;
 var summary = 'Do not Assert op == JSOP_LEAVEBLOCKEXPR... with WAY_TOO_MUCH_GC';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-477048.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 477048;
 var summary = 'Do not assert: cg->stackDepth == loopDepth';

@@ -46,19 +46,18 @@
 #include "nsFrameManager.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 /**
  * Note that in the current setup there are two separate observer lists.
  *
  * In nsSVGRenderingObserver's ctor, the new object adds itself to the mutation
- * observer list maintained by the referenced element. In this way the
+ * observer list maintained by the referenced *element*. In this way the
  * nsSVGRenderingObserver is notified if there are any attribute or content
  * tree changes to the element or any of its *descendants*.
  *
- * In nsSVGRenderingObserver::GetReferencedElement() the nsSVGRenderingObserver
+ * In nsSVGRenderingObserver::GetReferencedFrame() the nsSVGRenderingObserver
  * object also adds itself to an nsSVGRenderingObserverList object belonging
- * to the referenced element.
+ * to the nsIFrame corresponding to the referenced element.
  *
  * XXX: it would be nice to have a clear and concise executive summary of the
  * benefits/necessity of maintaining a second observer list.
@@ -74,77 +73,60 @@ NS_IMPL_ISUPPORTS1(nsSVGRenderingObserver, nsIMutationObserver)
 #pragma warning(disable:4355)
 #endif
 nsSVGRenderingObserver::nsSVGRenderingObserver(nsIURI *aURI,
-                                               nsIFrame *aFrame,
-                                               PRBool aReferenceImage)
+                                               nsIFrame *aFrame)
   : mElement(this), mFrame(aFrame),
     mFramePresShell(aFrame->PresContext()->PresShell()),
-    mInObserverList(PR_FALSE)
+    mReferencedFrame(nsnull),
+    mReferencedFramePresShell(nsnull)
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
 {
   // Start watching the target element
-  mElement.Reset(aFrame->GetContent(), aURI, PR_TRUE, aReferenceImage);
-  StartListening();
-}
-
-nsSVGRenderingObserver::~nsSVGRenderingObserver()
-{
-  StopListening();
-}
-
-void
-nsSVGRenderingObserver::StartListening()
-{
+  mElement.Reset(aFrame->GetContent(), aURI);
   if (mElement.get()) {
     mElement.get()->AddMutationObserver(this);
   }
 }
 
-void
-nsSVGRenderingObserver::StopListening()
+nsSVGRenderingObserver::~nsSVGRenderingObserver()
 {
   if (mElement.get()) {
     mElement.get()->RemoveMutationObserver(this);
-    if (mInObserverList) {
-      nsSVGEffects::RemoveRenderingObserver(mElement.get(), this);
-      mInObserverList = PR_FALSE;
-    }
   }
-  NS_ASSERTION(!mInObserverList, "still in an observer list?");
-}
-
-static nsSVGRenderingObserverList *
-GetObserverList(Element *aElement)
-{
-  return static_cast<nsSVGRenderingObserverList*>
-    (aElement->GetProperty(nsGkAtoms::renderingobserverlist));
-}
-
-Element*
-nsSVGRenderingObserver::GetReferencedElement()
-{
-#ifdef DEBUG
-  if (mElement.get()) {
-    nsSVGRenderingObserverList *observerList = GetObserverList(mElement.get());
-    PRBool inObserverList = observerList && observerList->Contains(this);
-    NS_ASSERTION(inObserverList == mInObserverList, "failed to track whether we're in our referenced element's observer list!");
-  } else {
-    NS_ASSERTION(!mInObserverList, "In whose observer list are we, then?");
+  if (mReferencedFrame && !mReferencedFramePresShell->IsDestroying()) {
+    nsSVGEffects::RemoveRenderingObserver(mReferencedFrame, this);
   }
-#endif
-  if (mElement.get() && !mInObserverList) {
-    nsSVGEffects::AddRenderingObserver(mElement.get(), this);
-    mInObserverList = PR_TRUE;
-  }
-  return mElement.get();
 }
 
 nsIFrame*
 nsSVGRenderingObserver::GetReferencedFrame()
 {
-  Element* referencedElement = GetReferencedElement();
-  return referencedElement ? referencedElement->GetPrimaryFrame() : nsnull;
+  if (mReferencedFrame && !mReferencedFramePresShell->IsDestroying()) {
+    // Don't test this assertion if it's not a good time to call
+    // GetPrimaryFrame
+    if (!mReferencedFramePresShell->FrameManager()->IsDestroyingFrames()) {
+      NS_ASSERTION(mElement.get() &&
+                   static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame() == mReferencedFrame,
+                   "Cached frame is incorrect!");
+    }
+    return mReferencedFrame;
+  }
+
+  if (mElement.get()) {
+    nsIDocument* doc = mElement.get()->GetCurrentDoc();
+    nsIPresShell* shell = doc ? doc->GetShell() : nsnull;
+    if (shell && !shell->FrameManager()->IsDestroyingFrames()) {
+      nsIFrame* frame = mElement.get()->GetPrimaryFrame();
+      if (frame) {
+        mReferencedFrame = frame;
+        mReferencedFramePresShell = shell;
+        nsSVGEffects::AddRenderingObserver(mReferencedFrame, this);
+        return frame;
+      }
+    }
+  }
+  return nsnull;
 }
 
 nsIFrame*
@@ -167,9 +149,10 @@ nsSVGRenderingObserver::DoUpdate()
     mFrame = nsnull;
     return;
   }
-  if (mElement.get() && mInObserverList) {
-    nsSVGEffects::RemoveRenderingObserver(mElement.get(), this);
-    mInObserverList = PR_FALSE;
+  if (mReferencedFrame) {
+    nsSVGEffects::RemoveRenderingObserver(mReferencedFrame, this);
+    mReferencedFrame = nsnull;
+    mReferencedFramePresShell = nsnull;
   }
   if (mFrame && mFrame->IsFrameOfType(nsIFrame::eSVG)) {
     // Changes should propagate out to things that might be observing
@@ -179,9 +162,12 @@ nsSVGRenderingObserver::DoUpdate()
 }
 
 void
-nsSVGRenderingObserver::InvalidateViaReferencedElement()
+nsSVGRenderingObserver::InvalidateViaReferencedFrame()
 {
-  mInObserverList = PR_FALSE;
+  // Clear mReferencedFrame since the referenced frame has already
+  // dropped its reference back to us
+  mReferencedFrame = nsnull;
+  mReferencedFramePresShell = nsnull;
   DoUpdate();
 }
 
@@ -320,25 +306,25 @@ nsSVGPaintingProperty::DoUpdate()
 }
 
 static nsSVGRenderingObserver *
-CreateFilterProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-{ return new nsSVGFilterProperty(aURI, aFrame, aReferenceImage); }
+CreateFilterProperty(nsIURI *aURI, nsIFrame *aFrame)
+{ return new nsSVGFilterProperty(aURI, aFrame); }
 
 static nsSVGRenderingObserver *
-CreateMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-{ return new nsSVGMarkerProperty(aURI, aFrame, aReferenceImage); }
+CreateMarkerProperty(nsIURI *aURI, nsIFrame *aFrame)
+{ return new nsSVGMarkerProperty(aURI, aFrame); }
 
 static nsSVGRenderingObserver *
-CreateTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-{ return new nsSVGTextPathProperty(aURI, aFrame, aReferenceImage); }
+CreateTextPathProperty(nsIURI *aURI, nsIFrame *aFrame)
+{ return new nsSVGTextPathProperty(aURI, aFrame); }
 
 static nsSVGRenderingObserver *
-CreatePaintingProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-{ return new nsSVGPaintingProperty(aURI, aFrame, aReferenceImage); }
+CreatePaintingProperty(nsIURI *aURI, nsIFrame *aFrame)
+{ return new nsSVGPaintingProperty(aURI, aFrame); }
 
 static nsSVGRenderingObserver *
 GetEffectProperty(nsIURI *aURI, nsIFrame *aFrame,
                   const FramePropertyDescriptor *aProperty,
-                  nsSVGRenderingObserver * (* aCreate)(nsIURI *, nsIFrame *, PRBool))
+                  nsSVGRenderingObserver * (* aCreate)(nsIURI *, nsIFrame *))
 {
   if (!aURI)
     return nsnull;
@@ -348,7 +334,7 @@ GetEffectProperty(nsIURI *aURI, nsIFrame *aFrame,
     static_cast<nsSVGRenderingObserver*>(props.Get(aProperty));
   if (prop)
     return prop;
-  prop = aCreate(aURI, aFrame, PR_FALSE);
+  prop = aCreate(aURI, aFrame);
   if (!prop)
     return nsnull;
   NS_ADDREF(prop);
@@ -378,37 +364,6 @@ nsSVGEffects::GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame,
 {
   return static_cast<nsSVGPaintingProperty*>(
           GetEffectProperty(aURI, aFrame, aProp, CreatePaintingProperty));
-}
-
-static nsSVGRenderingObserver *
-GetEffectPropertyForURI(nsIURI *aURI, nsIFrame *aFrame,
-                        const FramePropertyDescriptor *aProperty,
-                        nsSVGRenderingObserver * (* aCreate)(nsIURI *, nsIFrame *, PRBool))
-{
-  FrameProperties props = aFrame->Properties();
-  nsSVGEffects::URIObserverHashtable *hashtable =
-    static_cast<nsSVGEffects::URIObserverHashtable*>(props.Get(aProperty));
-  if (!hashtable) {
-    hashtable = new nsSVGEffects::URIObserverHashtable();
-    hashtable->Init();
-    props.Set(aProperty, hashtable);
-  }
-  nsSVGRenderingObserver* prop =
-    static_cast<nsSVGRenderingObserver*>(hashtable->GetWeak(aURI));
-  if (!prop) {
-    PRBool watchImage = aProperty == nsSVGEffects::BackgroundImageProperty();
-    prop = aCreate(aURI, aFrame, watchImage);
-    hashtable->Put(aURI, prop);
-  }
-  return prop;
-}
-
-nsSVGPaintingProperty *
-nsSVGEffects::GetPaintingPropertyForURI(nsIURI *aURI, nsIFrame *aFrame,
-                                        const FramePropertyDescriptor *aProp)
-{
-  return static_cast<nsSVGPaintingProperty*>(
-          GetEffectPropertyForURI(aURI, aFrame, aProp, CreatePaintingProperty));
 }
 
 nsSVGEffects::EffectProperties
@@ -465,7 +420,6 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
   props.Delete(MarkerEndProperty());
   props.Delete(FillProperty());
   props.Delete(StrokeProperty());
-  props.Delete(BackgroundImageProperty());
 
   // Ensure that the filter is repainted correctly
   // We can't do that in DoUpdate as the referenced frame may not be valid
@@ -526,42 +480,56 @@ nsSVGRenderingObserverList::InvalidateAll()
   mObservers.EnumerateEntries(GatherEnumerator, &observers);
 
   for (PRUint32 i = 0; i < observers.Length(); ++i) {
-    observers[i]->InvalidateViaReferencedElement();
+    observers[i]->InvalidateViaReferencedFrame();
   }
 }
 
 static void
-DestroyObservers(void *aObject, nsIAtom *aPropertyName,
-                 void *aPropertyValue, void *aData)
+DestroyObservers(void* aPropertyValue)
 {
   delete static_cast<nsSVGRenderingObserverList*>(aPropertyValue);
 }
 
-void
-nsSVGEffects::AddRenderingObserver(Element *aElement, nsSVGRenderingObserver *aObserver)
+NS_DECLARE_FRAME_PROPERTY(ObserversProperty, DestroyObservers)
+
+static nsSVGRenderingObserverList *
+GetObserverList(nsIFrame *aFrame)
 {
-  nsSVGRenderingObserverList *observerList = GetObserverList(aElement);
+  if (!(aFrame->GetStateBits() & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS))
+    return nsnull;
+  return static_cast<nsSVGRenderingObserverList*>
+    (aFrame->Properties().Get(ObserversProperty()));
+}
+
+void
+nsSVGEffects::AddRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver)
+{
+  NS_ASSERTION(!aFrame->GetPrevContinuation(), "aFrame must be first continuation");
+
+  nsSVGRenderingObserverList *observerList = GetObserverList(aFrame);
   if (!observerList) {
     observerList = new nsSVGRenderingObserverList();
     if (!observerList)
       return;
-    aElement->SetProperty(nsGkAtoms::renderingobserverlist, observerList, DestroyObservers);
+    for (nsIFrame* f = aFrame; f; f = f->GetNextContinuation()) {
+      f->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS);
+    }
+    aFrame->Properties().Set(ObserversProperty(), observerList);
   }
-  aElement->SetHasRenderingObservers(true);
   observerList->Add(aObserver);
 }
 
 void
-nsSVGEffects::RemoveRenderingObserver(Element *aElement, nsSVGRenderingObserver *aObserver)
+nsSVGEffects::RemoveRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver)
 {
-  nsSVGRenderingObserverList *observerList = GetObserverList(aElement);
+  NS_ASSERTION(!aFrame->GetPrevContinuation(), "aFrame must be first continuation");
+
+  nsSVGRenderingObserverList *observerList = GetObserverList(aFrame);
   if (observerList) {
-    NS_ASSERTION(observerList->Contains(aObserver),
-                 "removing observer from an element we're not observing?");
     observerList->Remove(aObserver);
-    if (observerList->IsEmpty()) {
-      aElement->SetHasRenderingObservers(false);
-    }
+    // Don't remove the property even if the observer list is empty.
+    // This might not be a good time to modify the frame property
+    // hashtables.
   }
 }
 
@@ -570,11 +538,7 @@ nsSVGEffects::InvalidateRenderingObservers(nsIFrame *aFrame)
 {
   NS_ASSERTION(!aFrame->GetPrevContinuation(), "aFrame must be first continuation");
 
-  if (!aFrame->GetContent()->IsElement())
-    return;
-
-  nsSVGRenderingObserverList *observerList =
-    GetObserverList(aFrame->GetContent()->AsElement());
+  nsSVGRenderingObserverList *observerList = GetObserverList(aFrame);
   if (observerList) {
     observerList->InvalidateAll();
     return;
@@ -584,23 +548,10 @@ nsSVGEffects::InvalidateRenderingObservers(nsIFrame *aFrame)
   // eSVGContainer so we don't have to check f for null here.
   for (nsIFrame *f = aFrame->GetParent();
        f->IsFrameOfType(nsIFrame::eSVGContainer); f = f->GetParent()) {
-    if (f->GetContent()->IsElement()) {
-      observerList = GetObserverList(f->GetContent()->AsElement());
-      if (observerList) {
-        observerList->InvalidateAll();
-        return;
-      }
-    }
-  }
-}
-
-void
-nsSVGEffects::InvalidateDirectRenderingObservers(Element *aElement)
-{
-  if (aElement->HasRenderingObservers()) {
-    nsSVGRenderingObserverList *observerList = GetObserverList(aElement);
+    observerList = GetObserverList(f);
     if (observerList) {
       observerList->InvalidateAll();
+      return;
     }
   }
 }
@@ -608,7 +559,8 @@ nsSVGEffects::InvalidateDirectRenderingObservers(Element *aElement)
 void
 nsSVGEffects::InvalidateDirectRenderingObservers(nsIFrame *aFrame)
 {
-  if (aFrame->GetContent() && aFrame->GetContent()->IsElement()) {
-    InvalidateDirectRenderingObservers(aFrame->GetContent()->AsElement());
+  nsSVGRenderingObserverList *observerList = GetObserverList(aFrame);
+  if (observerList) {
+    observerList->InvalidateAll();
   }
 }

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'keywords-001.js';
 
 /**
  *  File Name:

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-303277.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 303277;
 var summary = 'Do not crash with crash with a watchpoint for __proto__ property ';

@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'regress-452498-053.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452498;
 var summary = 'TM: upvar2 regression tests';

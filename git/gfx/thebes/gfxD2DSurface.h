@@ -51,7 +51,6 @@ public:
     gfxD2DSurface(const gfxIntSize& size,
                   gfxImageFormat imageFormat = ImageFormatRGB24);
 
-    gfxD2DSurface(HANDLE handle, gfxContentType aContent);
 
     gfxD2DSurface(cairo_surface_t *csurf);
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-479487.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 479487;
 var summary = 'js_Array_dense_setelem can call arbitrary JS code';

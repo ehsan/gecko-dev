@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-317476.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 317476;
 var summary = 'The error thrown by JS_ReportError should be catchable';

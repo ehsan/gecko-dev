@@ -49,7 +49,6 @@
 #include "nsIComponentManager.h"
 #include "nsIInputStream.h"
 
-#include "RasterImage.h"
 #include "imgIContainerObserver.h"
 #include "nsIInterfaceRequestorUtils.h"
 
@@ -60,8 +59,6 @@
 #include "png.h"
 
 #include "gfxPlatform.h"
-
-using namespace mozilla::imagelib;
 
 static void PNGAPI info_callback(png_structp png_ptr, png_infop info_ptr);
 static void PNGAPI row_callback(png_structp png_ptr, png_bytep new_row,
@@ -194,18 +191,18 @@ void nsPNGDecoder::SetAnimFrameInfo()
 
   if (dispose_op == PNG_DISPOSE_OP_PREVIOUS)
       mImage->SetFrameDisposalMethod(numFrames - 1,
-                                     RasterImage::kDisposeRestorePrevious);
+                                     imgIContainer::kDisposeRestorePrevious);
   else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND)
       mImage->SetFrameDisposalMethod(numFrames - 1,
-                                     RasterImage::kDisposeClear);
+                                     imgIContainer::kDisposeClear);
   else
       mImage->SetFrameDisposalMethod(numFrames - 1,
-                                     RasterImage::kDisposeKeep);
+                                     imgIContainer::kDisposeKeep);
 
   if (blend_op == PNG_BLEND_OP_SOURCE)
-      mImage->SetFrameBlendMethod(numFrames - 1, RasterImage::kBlendSource);
+      mImage->SetFrameBlendMethod(numFrames - 1, imgIContainer::kBlendSource);
   /*else // 'over' is the default
-      mImage->SetFrameBlendMethod(numFrames - 1, RasterImage::kBlendOver); */
+      mImage->SetFrameBlendMethod(numFrames - 1, imgIContainer::kBlendOver); */
 }
 #endif
 
@@ -267,10 +264,8 @@ NS_IMETHODIMP nsPNGDecoder::Init(imgIContainer *aImage,
         116,  73,  77,  69, '\0',   /* tIME */
         122,  84,  88, 116, '\0'};  /* zTXt */
 #endif
-  NS_ABORT_IF_FALSE(aImage->GetType() == imgIContainer::TYPE_RASTER,
-                    "wrong type of imgIContainer for decoding into");
 
-  mImage = static_cast<RasterImage*>(aImage);
+  mImage = aImage;
   mObserver = aObserver;
   mFlags = aFlags;
 

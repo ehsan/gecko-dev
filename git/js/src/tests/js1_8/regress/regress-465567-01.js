@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465567-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465567;
 var summary = 'TM: Weirdness with var, let, multiple assignments';

@@ -43,6 +43,7 @@
  * Note: this is a non-ECMA extension to the language.
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'getset-003.js';
 var UBound = 0;
 var BUGNUMBER = '(none)';
 var summary = 'Testing obj.prop getter/setter';

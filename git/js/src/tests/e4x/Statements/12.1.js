@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '12.1.js';
 
 START("12.1 - Default XML Namespace");
 

@@ -1068,7 +1068,7 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  virtual PRBool OperatesOnPremultipledAlpha(PRInt32) { return PR_FALSE; }
+  virtual PRBool OperatesOnPremultipledAlpha() { return PR_FALSE; }
 
   virtual EnumAttributesInfo GetEnumInfo();
   virtual StringAttributesInfo GetStringInfo();
@@ -1695,7 +1695,7 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  virtual PRBool OperatesOnPremultipledAlpha(PRInt32) { return PR_FALSE; }
+  virtual PRBool OperatesOnPremultipledAlpha() { return PR_FALSE; }
 
   virtual StringAttributesInfo GetStringInfo();
 
@@ -2715,7 +2715,7 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual PRBool OperatesOnSRGB(nsSVGFilterInstance*,
-                                PRInt32, Image*) { return PR_TRUE; }
+                                PRUint32, Image*) { return PR_TRUE; }
 
   virtual StringAttributesInfo GetStringInfo();
 
@@ -3898,7 +3898,7 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  virtual PRBool OperatesOnPremultipledAlpha(PRInt32) {
+  virtual PRBool OperatesOnPremultipledAlpha() {
     return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
   }
 
@@ -5337,8 +5337,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *aDirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect *dirtyRect);
   // imgIContainerObserver
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
                               imgIContainer *aContainer);
@@ -5354,7 +5353,7 @@ private:
 
 protected:
   virtual PRBool OperatesOnSRGB(nsSVGFilterInstance*,
-                                PRInt32, Image*) { return PR_TRUE; }
+                                PRUint32, Image*) { return PR_TRUE; }
 
   virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
@@ -5607,10 +5606,10 @@ nsSVGFEImageElement::OnStopDecode(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsSVGFEImageElement::FrameChanged(imgIContainer *aContainer,
-                                  const nsIntRect *aDirtyRect)
+                                  nsIntRect *dirtyRect)
 {
   nsresult rv =
-    nsImageLoadingContent::FrameChanged(aContainer, aDirtyRect);
+    nsImageLoadingContent::FrameChanged(aContainer, dirtyRect);
   Invalidate();
   return rv;
 }
@@ -5689,15 +5688,12 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual PRBool OperatesOnSRGB(nsSVGFilterInstance* aInstance,
-                                PRInt32 aInput, Image* aImage) {
-    if (aInput == 0)
+                                PRUint32 aInput, Image* aImage) {
+    if (aInput == 0 && aImage)
       return aImage->mColorModel.mColorSpace == ColorModel::SRGB;
 
     return nsSVGFEDisplacementMapElementBase::OperatesOnSRGB(aInstance,
                                                              aInput, aImage);
-  }
-  virtual PRBool OperatesOnPremultipledAlpha(PRInt32 aInput) {
-    return !(aInput == 1);
   }
 
   virtual NumberAttributesInfo GetNumberInfo();

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350793-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350793;
 var summary = 'for-in loops must be yieldable';

@@ -2035,17 +2035,13 @@ namespace nanojit
     }
 
     void CseFilter::clearNL(NLKind nlkind) {
-        if (m_usedNL[nlkind] > 0) {
-            VMPI_memset(m_listNL[nlkind], 0, sizeof(LIns*)*m_capNL[nlkind]);
-            m_usedNL[nlkind] = 0;
-        }
+        VMPI_memset(m_listNL[nlkind], 0, sizeof(LIns*)*m_capNL[nlkind]);
+        m_usedNL[nlkind] = 0;
     }
 
     void CseFilter::clearL(CseAcc a) {
-        if (m_usedL[a] > 0) {
-            VMPI_memset(m_listL[a], 0, sizeof(LIns*)*m_capL[a]);
-            m_usedL[a] = 0;
-        }
+        VMPI_memset(m_listL[a], 0, sizeof(LIns*)*m_capL[a]);
+        m_usedL[a] = 0;
     }
 
     void CseFilter::clearAll() {
@@ -2482,12 +2478,9 @@ namespace nanojit
                 // Clear all normal (excludes CONST and MULTIPLE) loads
                 // aliased by stores and calls since the last time we were in
                 // this function.  
-                AccSet a = storesSinceLastLoad & ((1 << EMB_NUM_USED_ACCS) - 1);
-                while (a) {
-                    int acc = msbSet(a);
-                    clearL((CseAcc)acc);
-                    a &= ~(1 << acc);
-                }
+                for (CseAcc a = 0; a < EMB_NUM_USED_ACCS; a++)
+                    if (storesSinceLastLoad & (1 << a))
+                        clearL(a);
 
                 // No need to clear CONST loads (those in the CSE_ACC_CONST table).
 
@@ -2884,13 +2877,13 @@ namespace nanojit
 
     ValidateWriter::ValidateWriter(LirWriter *out, LInsPrinter* printer, const char* where)
         : LirWriter(out), printer(printer), whereInPipeline(where), 
-          checkAccSetExtras(0)
+          checkAccSetIns1(0), checkAccSetIns2(0)
     {}
 
     LIns* ValidateWriter::insLoad(LOpcode op, LIns* base, int32_t d, AccSet accSet,
                                   LoadQual loadQual)
     {
-        checkAccSet(op, base, d, accSet);
+        checkAccSet(op, base, accSet);
 
         switch (loadQual) {
         case LOAD_CONST:
@@ -2928,7 +2921,7 @@ namespace nanojit
 
     LIns* ValidateWriter::insStore(LOpcode op, LIns* value, LIns* base, int32_t d, AccSet accSet)
     {
-        checkAccSet(op, base, d, accSet);
+        checkAccSet(op, base, accSet);
 
         int nArgs = 2;
         LTy formals[2] = { LTy_V, LTy_P };     // LTy_V is overwritten shortly

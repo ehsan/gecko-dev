@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.5.4.14.js';
 
 START("13.5.4.14 - XMLList length()");
 

@@ -131,14 +131,12 @@ void GeckoChildProcessHost::InitWindowsGroupID()
 #endif
 
 bool
-GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts, int aTimeoutMs)
+GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts)
 {
 #ifdef XP_WIN
   InitWindowsGroupID();
 #endif
 
-  PRIntervalTime timeoutTicks = (aTimeoutMs > 0) ? 
-    PR_MillisecondsToInterval(aTimeoutMs) : PR_INTERVAL_NO_TIMEOUT;
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   NS_ASSERTION(MessageLoop::current() != ioLoop, "sync launch from the IO thread NYI");
 
@@ -146,29 +144,15 @@ GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts, int aTime
                    NewRunnableMethod(this,
                                      &GeckoChildProcessHost::PerformAsyncLaunch,
                                      aExtraOpts));
+
   // NB: this uses a different mechanism than the chromium parent
   // class.
   MonitorAutoEnter mon(mMonitor);
-  PRIntervalTime waitStart = PR_IntervalNow();
-  PRIntervalTime current;
-
-  // We'll receive several notifications, we need to exit when we
-  // have either successfully launched or have timed out.
   while (!mLaunched) {
-    mon.Wait(timeoutTicks);
-
-    if (timeoutTicks != PR_INTERVAL_NO_TIMEOUT) {
-      current = PR_IntervalNow();
-      PRIntervalTime elapsed = current - waitStart;
-      if (elapsed > timeoutTicks) {
-        break;
-      }
-      timeoutTicks = timeoutTicks - elapsed;
-      waitStart = current;
-    }
+    mon.Wait();
   }
 
-  return mLaunched;
+  return true;
 }
 
 bool
@@ -254,6 +238,14 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
 #elif OS_MACOSX
     newEnvVars["DYLD_LIBRARY_PATH"] = path.get();
 #endif
+#ifdef MOZ_OMNIJAR
+    // Make sure the child process can find the omnijar
+    // See ScopedXPCOMStartup::Initialize in nsAppRunner.cpp
+    nsCAutoString omnijarPath;
+    if (mozilla::OmnijarPath())
+      mozilla::OmnijarPath()->GetNativePath(omnijarPath);
+    newEnvVars["OMNIJAR_PATH"] = omnijarPath.get();
+#endif
   }
   else {
     exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
@@ -287,17 +279,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   childArgv.push_back(exePath.value());
 
   childArgv.insert(childArgv.end(), aExtraOpts.begin(), aExtraOpts.end());
-
-#ifdef MOZ_OMNIJAR
-  // Make sure the child process can find the omnijar
-  // See XRE_InitCommandLine in nsAppRunner.cpp
-  nsCAutoString omnijarPath;
-  if (mozilla::OmnijarPath()) {
-    mozilla::OmnijarPath()->GetNativePath(omnijarPath);
-    childArgv.push_back("-omnijar");
-    childArgv.push_back(omnijarPath.get());
-  }
-#endif
 
   childArgv.push_back(pidstring);
   childArgv.push_back(childProcessType);
@@ -349,18 +330,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   }
 
   cmdLine.AppendLooseValue(std::wstring(mGroupId.get()));
-
-#ifdef MOZ_OMNIJAR
-  // Make sure the child process can find the omnijar
-  // See XRE_InitCommandLine in nsAppRunner.cpp
-  nsAutoString omnijarPath;
-  if (mozilla::OmnijarPath()) {
-    mozilla::OmnijarPath()->GetPath(omnijarPath);
-    cmdLine.AppendLooseValue(UTF8ToWide("-omnijar"));
-    cmdLine.AppendLooseValue(omnijarPath.get());
-  }
-#endif
-
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 #if defined(MOZ_CRASHREPORTER)

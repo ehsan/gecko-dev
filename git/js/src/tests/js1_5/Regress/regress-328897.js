@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-328897.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 328897;
 var summary = 'JS_ReportPendingException should';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'control_characters.js';
 
 /**
    Filename:     control_characters.js

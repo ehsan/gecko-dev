@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-380833.js';
 
 var summary = "Crash during GC after uneval";
 var BUGNUMBER = 380833;

@@ -5,6 +5,7 @@
  * Contributor: 
  */
 
+gTestfile = 'template.js';
 
 /**
  *  File Name:          template.js

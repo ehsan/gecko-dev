@@ -57,7 +57,7 @@ public:
   nsTreeBoxObject();
   ~nsTreeBoxObject();
 
-  nsTreeBodyFrame* GetTreeBody(bool aFlushLayout = false);
+  nsTreeBodyFrame* GetTreeBody();
   nsTreeBodyFrame* GetCachedTreeBody() { return mTreeBody; }
 
   //NS_PIBOXOBJECT interfaces

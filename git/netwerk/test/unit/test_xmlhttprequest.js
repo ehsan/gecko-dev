@@ -5,44 +5,27 @@ var httpserver = new nsHttpServer();
 var testpath = "/simple";
 var httpbody = "<?xml version='1.0' ?><root>0123456789</root>";
 
-function createXHR(async)
-{
-  var xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-            .createInstance(Ci.nsIXMLHttpRequest);
-  xhr.open("GET", "http://localhost:4444" + testpath, async);
-  return xhr;
-}
-
-function checkResults(xhr)
-{
-  if (xhr.readyState != 4)
-    return false;
-
-  do_check_eq(xhr.status, 200);
-  do_check_eq(xhr.responseText, httpbody);
-
-  var root_node = xhr.responseXML.getElementsByTagName('root').item(0);
-  do_check_eq(root_node.firstChild.data, "0123456789");
-  return true;
-}
-
 function run_test()
 {
   httpserver.registerPathHandler(testpath, serverHandler);
   httpserver.start(4444);
 
-  // Test sync XHR sending
-  var sync = createXHR(false);
-  sync.send(null);
-  checkResults(sync);
+  var xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+              .createInstance(Ci.nsIXMLHttpRequest);
+  xhr.open("GET", "http://localhost:4444" + testpath, true);
+  xhr.onreadystatechange = function(event) {
+    if (xhr.readyState == 4) {
+      do_check_eq(xhr.status, 200);
+      do_check_eq(xhr.responseText, httpbody);
 
-  // Test async XHR sending
-  let async = createXHR(true);
-  async.onreadystatechange = function(event) {
-    if (checkResults(async))
+      var root_node = xhr.responseXML.getElementsByTagName('root').item(0);
+      do_check_eq(root_node.firstChild.data, "0123456789");
+
       httpserver.stop(do_test_finished);
-  };
-  async.send(null);
+    }
+  }
+  xhr.send(null);
+
   do_test_pending();
 }
 

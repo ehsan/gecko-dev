@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'tostring_2.js';
 
 /**
    File Name:          tostring_2.js

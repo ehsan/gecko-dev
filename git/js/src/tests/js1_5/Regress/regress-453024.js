@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-453024.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 453024;
 var summary = 'Do not assert: vp + 2 + argc <= (jsval *) cx->stackPool.current->avail';

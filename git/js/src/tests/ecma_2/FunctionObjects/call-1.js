@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'call-1.js';
 
 /**
    File Name:          call-1.js

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-315509-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 315509;
 var summary = 'Array.prototype.unshift on Arrays with holes';

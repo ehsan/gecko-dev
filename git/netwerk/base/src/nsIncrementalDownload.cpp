@@ -40,7 +40,6 @@
 #include "nsIRequestObserver.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
@@ -127,7 +126,6 @@ class nsIncrementalDownload : public nsIIncrementalDownload
                             , public nsIInterfaceRequestor
                             , public nsIChannelEventSink
                             , public nsSupportsWeakReference
-                            , public nsIAsyncVerifyRedirectCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -138,7 +136,6 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSICHANNELEVENTSINK
-  NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
   nsIncrementalDownload();
 
@@ -153,28 +150,26 @@ private:
   nsresult ReadCurrentSize();
   nsresult ClearRequestHeader(nsIHttpChannel *channel);
 
-  nsCOMPtr<nsIRequestObserver>             mObserver;
-  nsCOMPtr<nsISupports>                    mObserverContext;
-  nsCOMPtr<nsIProgressEventSink>           mProgressSink;
-  nsCOMPtr<nsIURI>                         mURI;
-  nsCOMPtr<nsIURI>                         mFinalURI;
-  nsCOMPtr<nsILocalFile>                   mDest;
-  nsCOMPtr<nsIChannel>                     mChannel;
-  nsCOMPtr<nsITimer>                       mTimer;
-  nsAutoArrayPtr<char>                     mChunk;
-  PRInt32                                  mChunkLen;
-  PRInt32                                  mChunkSize;
-  PRInt32                                  mInterval;
-  nsInt64                                  mTotalSize;
-  nsInt64                                  mCurrentSize;
-  PRUint32                                 mLoadFlags;
-  PRInt32                                  mNonPartialCount;
-  nsresult                                 mStatus;
-  PRPackedBool                             mIsPending;
-  PRPackedBool                             mDidOnStartRequest;
-  PRTime                                   mLastProgressUpdate;
-  nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
-  nsCOMPtr<nsIChannel>                     mNewRedirectChannel;
+  nsCOMPtr<nsIRequestObserver>   mObserver;
+  nsCOMPtr<nsISupports>          mObserverContext;
+  nsCOMPtr<nsIProgressEventSink> mProgressSink;
+  nsCOMPtr<nsIURI>               mURI;
+  nsCOMPtr<nsIURI>               mFinalURI;
+  nsCOMPtr<nsILocalFile>         mDest;
+  nsCOMPtr<nsIChannel>           mChannel;
+  nsCOMPtr<nsITimer>             mTimer;
+  nsAutoArrayPtr<char>           mChunk;
+  PRInt32                        mChunkLen;
+  PRInt32                        mChunkSize;
+  PRInt32                        mInterval;
+  nsInt64                        mTotalSize;
+  nsInt64                        mCurrentSize;
+  PRUint32                       mLoadFlags;
+  PRInt32                        mNonPartialCount;
+  nsresult                       mStatus;
+  PRPackedBool                   mIsPending;
+  PRPackedBool                   mDidOnStartRequest;
+  PRTime                         mLastProgressUpdate;
 };
 
 nsIncrementalDownload::nsIncrementalDownload()
@@ -189,8 +184,6 @@ nsIncrementalDownload::nsIncrementalDownload()
   , mIsPending(PR_FALSE)
   , mDidOnStartRequest(PR_FALSE)
   , mLastProgressUpdate(0)
-  , mRedirectCallback(nsnull)
-  , mNewRedirectChannel(nsnull)
 {
 }
 
@@ -335,7 +328,7 @@ nsIncrementalDownload::ReadCurrentSize()
 
 // nsISupports
 
-NS_IMPL_ISUPPORTS9(nsIncrementalDownload,
+NS_IMPL_ISUPPORTS8(nsIncrementalDownload,
                    nsIIncrementalDownload,
                    nsIRequest,
                    nsIStreamListener,
@@ -343,8 +336,7 @@ NS_IMPL_ISUPPORTS9(nsIncrementalDownload,
                    nsIObserver,
                    nsIInterfaceRequestor,
                    nsIChannelEventSink,
-                   nsISupportsWeakReference,
-                   nsIAsyncVerifyRedirectCallback)
+                   nsISupportsWeakReference)
 
 // nsIRequest
 
@@ -773,10 +765,9 @@ nsIncrementalDownload::ClearRequestHeader(nsIHttpChannel *channel)
 // nsIChannelEventSink
 
 NS_IMETHODIMP
-nsIncrementalDownload::AsyncOnChannelRedirect(nsIChannel *oldChannel,
-                                              nsIChannel *newChannel,
-                                              PRUint32 flags,
-                                              nsIAsyncVerifyRedirectCallback *cb)
+nsIncrementalDownload::OnChannelRedirect(nsIChannel *oldChannel,
+                                         nsIChannel *newChannel,
+                                         PRUint32 flags)
 {
   // In response to a redirect, we need to propagate the Range header.  See bug
   // 311595.  Any failure code returned from this function aborts the redirect.
@@ -801,38 +792,16 @@ nsIncrementalDownload::AsyncOnChannelRedirect(nsIChannel *oldChannel,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // Prepare to receive callback
-  mRedirectCallback = cb;
-  mNewRedirectChannel = newChannel;
-
   // Give the observer a chance to see this redirect notification.
   nsCOMPtr<nsIChannelEventSink> sink = do_GetInterface(mObserver);
-  if (sink) {
-    rv = sink->AsyncOnChannelRedirect(oldChannel, newChannel, flags, this);
-    if (NS_FAILED(rv)) {
-        mRedirectCallback = nsnull;
-        mNewRedirectChannel = nsnull;
-    }
-    return rv;
-  }
-  (void) OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsIncrementalDownload::OnRedirectVerifyCallback(nsresult result)
-{
-  NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
-  NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
+  if (sink)
+    rv = sink->OnChannelRedirect(oldChannel, newChannel, flags);
 
   // Update mChannel, so we can Cancel the new channel.
-  if (NS_SUCCEEDED(result))
-    mChannel = mNewRedirectChannel;
+  if (NS_SUCCEEDED(rv))
+    mChannel = newChannel;
 
-  mRedirectCallback->OnRedirectVerifyCallback(result);
-  mRedirectCallback = nsnull;
-  mNewRedirectChannel = nsnull;
-  return NS_OK;
+  return rv;
 }
 
 extern nsresult

@@ -11,7 +11,6 @@
 #include "base/singleton.h"
 #include "base/waitable_event.h"
 #ifdef CHROMIUM_MOZILLA_BUILD
-#include "mozilla/ipc/ProcessChild.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 typedef mozilla::ipc::BrowserProcessSubThread ChromeThread;
 #else
@@ -122,8 +121,6 @@ bool ChildProcessHost::Send(IPC::Message* msg) {
 void ChildProcessHost::Notify(NotificationType type) {
 #ifdef CHROMIUM_MOZILLA_BUILD
   MessageLoop* loop = ChromeThread::GetMessageLoop(ChromeThread::IO);
-  if (!loop)
-      loop = mozilla::ipc::ProcessChild::message_loop();
   if (!loop)
       loop = MessageLoop::current();
   loop->PostTask(

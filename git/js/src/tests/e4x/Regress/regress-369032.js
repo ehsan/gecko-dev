@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-369032.js';
 
 var summary = 'Do not assert: kid2->parent == xml || !kid2->parent';
 var BUGNUMBER = 369032;

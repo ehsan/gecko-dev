@@ -46,7 +46,7 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 
 static void
 PaintCheckMark(nsIFrame* aFrame,
@@ -173,7 +173,7 @@ nsGfxCheckboxControlFrame::IsChecked()
 PRBool
 nsGfxCheckboxControlFrame::IsIndeterminate()
 {
-  nsCOMPtr<nsIDOMHTMLInputElement> elem(do_QueryInterface(mContent));
+  nsCOMPtr<nsIDOMNSHTMLInputElement> elem(do_QueryInterface(mContent));
   PRBool retval = PR_FALSE;
   elem->GetIndeterminate(&retval);
   return retval;

@@ -164,7 +164,9 @@ nsSVGGradientFrame::GetGradientTransform(nsIFrame *aSource,
                  "Unknown gradientUnits type");
     // objectBoundingBox is the default anyway
 
-    gfxRect bbox = aOverrideBounds ? *aOverrideBounds : nsSVGUtils::GetBBox(aSource);
+    nsIFrame *frame = aSource->GetContent()->IsNodeOfType(nsINode::eTEXT) ?
+                        aSource->GetParent() : aSource;
+    gfxRect bbox = aOverrideBounds ? *aOverrideBounds : nsSVGUtils::GetBBox(frame);
     bboxMatrix = gfxMatrix(bbox.Width(), 0, 0, bbox.Height(), bbox.X(), bbox.Y());
   }
 

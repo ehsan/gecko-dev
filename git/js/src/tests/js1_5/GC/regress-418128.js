@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-418128.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 418128;
 var summary = 'GC hazard with ++/--';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-382532.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 382532;
 var summary = 'instanceof,... broken by use of |prototype| in heavyweight constructor';

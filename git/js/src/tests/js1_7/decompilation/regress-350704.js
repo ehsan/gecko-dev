@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350704.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350704;
 var summary = 'decompilation of let nested in for';

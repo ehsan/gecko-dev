@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '10.3.1.js';
 
 START("10.3.1 - toXML applied to String type");
 

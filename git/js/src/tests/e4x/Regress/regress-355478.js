@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-355478.js';
 
 var BUGNUMBER = 355478;
 var summary = 'Do not crash with hasOwnProperty';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-461108.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 461108;
 var summary = 'Decompilation of for (i = 0; a = as[i]; ++i)';

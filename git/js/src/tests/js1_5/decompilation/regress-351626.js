@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351626.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351626;
 var summary = 'decompilation of if(lamda)';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-464978.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 464978;
 var summary = 'Do not hang with [] + null';

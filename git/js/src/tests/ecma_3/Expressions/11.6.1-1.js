@@ -48,6 +48,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = '11.6.1-1.js';
 var UBound = 0;
 var BUGNUMBER = 196290;
 var summary = 'Testing left-associativity of the + operator';

@@ -23,9 +23,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/singleton.h"
-#ifndef CHROMIUM_MOZILLA_BUILD
 #include "base/third_party/dmg_fp/dmg_fp.h"
-#endif
 
 namespace {
 
@@ -249,7 +247,6 @@ class HexString16ToLongTraits {
   }
 };
 
-#ifndef CHROMIUM_MOZILLA_BUILD
 class StringToDoubleTraits {
  public:
   typedef std::string string_type;
@@ -288,7 +285,6 @@ class String16ToDoubleTraits {
     return !str.empty() && !iswspace(str[0]);
   }
 };
-#endif
 
 }  // namespace
 
@@ -1109,7 +1105,6 @@ std::wstring Uint64ToWString(uint64 value) {
       IntToString(value);
 }
 
-#ifndef CHROMIUM_MOZILLA_BUILD
 std::string DoubleToString(double value) {
   // According to g_fmt.cc, it is sufficient to declare a buffer of size 32.
   char buffer[32];
@@ -1120,7 +1115,6 @@ std::string DoubleToString(double value) {
 std::wstring DoubleToWString(double value) {
   return ASCIIToWide(DoubleToString(value));
 }
-#endif
 
 void StringAppendV(std::string* dst, const char* format, va_list ap) {
   StringAppendVT(dst, format, ap);
@@ -1650,7 +1644,6 @@ int HexStringToInt(const string16& value) {
   return result;
 }
 
-#ifndef CHROMIUM_MOZILLA_BUILD
 bool StringToDouble(const std::string& input, double* output) {
   return StringToNumber<StringToDoubleTraits>(input, output);
 }
@@ -1670,7 +1663,6 @@ double StringToDouble(const string16& value) {
   StringToDouble(value, &result);
   return result;
 }
-#endif
 
 // The following code is compatible with the OpenBSD lcpy interface.  See:
 //   http://www.gratisoft.us/todd/papers/strlcpy.html

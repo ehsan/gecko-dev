@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'uc-002-n.js';
 
 DESCRIPTION = "Non-character escapes in identifiers negative test.";
 EXPECTED = "error";

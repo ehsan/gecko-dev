@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-433279-03.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 433279;
 var summary = 'Do not assert: pn != tc->parseContext->nodeList';

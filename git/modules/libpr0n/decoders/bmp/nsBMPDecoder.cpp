@@ -47,14 +47,11 @@
 
 #include "nsIInputStream.h"
 #include "nsIComponentManager.h"
-#include "RasterImage.h"
 #include "imgIContainerObserver.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 
 #include "prlog.h"
-
-using namespace mozilla::imagelib;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo *gBMPLog = PR_NewLogModule("BMPDecoder");
@@ -89,12 +86,8 @@ NS_IMETHODIMP nsBMPDecoder::Init(imgIContainer *aImage,
                                  imgIDecoderObserver *aObserver,
                                  PRUint32 aFlags)
 {
-    NS_ABORT_IF_FALSE(aImage->GetType() == imgIContainer::TYPE_RASTER,
-                      "wrong type of imgIContainer for decoding into");
-
     PR_LOG(gBMPLog, PR_LOG_DEBUG, ("nsBMPDecoder::Init(%p)\n", aImage));
-
-    mImage = static_cast<RasterImage*>(aImage);
+    mImage = aImage;
     mObserver = aObserver;
     mFlags = aFlags;
 

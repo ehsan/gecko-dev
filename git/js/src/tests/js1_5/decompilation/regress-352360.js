@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352360.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352360;
 var summary = 'Decompilation of negative 0';

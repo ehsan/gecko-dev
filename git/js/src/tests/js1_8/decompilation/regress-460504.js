@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-460504.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 460504;
 var summary = 'Decompilation of genexp in for-loop condition';
