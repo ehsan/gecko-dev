@@ -103,13 +103,7 @@ this.WebappManager = {
     sendMessageToJava({
       type: "Webapps:InstallApk",
       filePath: filePath,
-      data: aMessage,
-    }, (data, error) => {
-      if (!!error) {
-        aMessage.error = error;
-        aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
-        debug("error downloading APK: " + error);
-      }
+      data: JSON.stringify(aMessage),
     });
   }).bind(this)); },
 
@@ -248,8 +242,8 @@ this.WebappManager = {
     message.app.manifest = aData.manifest;
     message.app.apkPackageName = aData.apkPackageName;
     message.profilePath = aData.profilePath;
+    message.autoInstall = true;
     message.mm = mm;
-    message.apkInstall = true;
 
     DOMApplicationRegistry.registryReady.then(() => {
       switch (aData.type) { // can be hosted or packaged.
@@ -499,7 +493,7 @@ this.WebappManager = {
         sendMessageToJava({
           type: "Webapps:InstallApk",
           filePath: apk.filePath,
-          data: msg,
+          data: JSON.stringify(msg),
         });
       }
     } else {

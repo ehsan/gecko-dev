@@ -3,16 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// Define service targets. We should consider moving these to their respective
-// JSM files, but we left them here to allow for better lazy JSM loading.
-var rokuTarget = {
-  target: "roku:ecp",
-  factory: function(aService) {
-    Cu.import("resource://gre/modules/RokuApp.jsm");
-    return new RokuApp(aService);
-  }
-};
-
 var CastingApps = {
   _castMenuId: -1,
 
@@ -21,8 +11,11 @@ var CastingApps = {
       return;
     }
 
-    // Register targets
-    SimpleServiceDiscovery.registerTarget(rokuTarget);
+    // Register a service target
+    SimpleServiceDiscovery.registerTarget("roku:ecp", function(aService) {
+      Cu.import("resource://gre/modules/RokuApp.jsm");
+      return new RokuApp(aService);
+    });
 
     // Search for devices continuously every 120 seconds
     SimpleServiceDiscovery.search(120 * 1000);
@@ -259,10 +252,6 @@ var CastingApps = {
   },
 
   _findCastableVideo: function _findCastableVideo(aBrowser) {
-      if (!aBrowser) {
-        return null;
-      }
-
       // Scan for a <video> being actively cast. Also look for a castable <video>
       // on the page.
       let castableVideo = null;
@@ -462,3 +451,4 @@ var CastingApps = {
     }
   }
 };
+

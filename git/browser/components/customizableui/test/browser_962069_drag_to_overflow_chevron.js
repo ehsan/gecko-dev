@@ -24,10 +24,10 @@ add_task(function*() {
   ChromeUtils.synthesizeDrop(identityBox, overflowChevron, [], null);
   yield panelShownPromise;
 
-  info("Overflow panel is shown.");
+  ok(true, "Overflow panel is shown.");
 
   let panelHiddenPromise = promisePanelElementHidden(window, widgetOverflowPanel);
-  widgetOverflowPanel.hidePopup();
+  EventUtils.synthesizeKey("VK_ESCAPE", {});
   yield panelHiddenPromise;
 });
 

@@ -750,12 +750,6 @@ public:
     nsJNIString(jstring jstr, JNIEnv *jenv);
 };
 
-class nsJNICString : public nsCString
-{
-public:
-    nsJNICString(jstring jstr, JNIEnv *jenv);
-};
-
 }
 
 #endif

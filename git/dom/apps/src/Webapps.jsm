@@ -664,29 +664,22 @@ this.DOMApplicationRegistry = {
     }
 
     let manifest = new ManifestHelper(aManifest, aApp.origin);
-    let launchPathURI = Services.io.newURI(manifest.fullLaunchPath(aEntryPoint), null, null);
-    let manifestURI = Services.io.newURI(aApp.manifestURL, null, null);
+    let launchPath = Services.io.newURI(manifest.fullLaunchPath(aEntryPoint), null, null);
+    let manifestURL = Services.io.newURI(aApp.manifestURL, null, null);
     root.messages.forEach(function registerPages(aMessage) {
-      let handlerPageURI = launchPathURI;
+      let href = launchPath;
       let messageName;
       if (typeof(aMessage) === "object" && Object.keys(aMessage).length === 1) {
         messageName = Object.keys(aMessage)[0];
-        let handlerPath = aMessage[messageName];
-        // Resolve the handler path from origin. If |handler_path| is absent,
-        // simply skip.
-        let fullHandlerPath;
+        let uri;
         try {
-          if (handlerPath && handlerPath.trim()) {
-            fullHandlerPath = manifest.resolveFromOrigin(handlerPath);
-          } else {
-            throw new Error("Empty or blank handler path.");
-          }
+          uri = manifest.resolveFromOrigin(aMessage[messageName]);
         } catch(e) {
-          debug("system message handler path (" + handlerPath + ") is " +
-                "invalid, skipping. Error is: " + e);
+          debug("system message url (" + aMessage[messageName] + ") is invalid, skipping. " +
+                "Error is: " + e);
           return;
         }
-        handlerPageURI = Services.io.newURI(fullHandlerPath, null, null);
+        href = Services.io.newURI(uri, null, null);
       } else {
         messageName = aMessage;
       }
@@ -695,7 +688,7 @@ this.DOMApplicationRegistry = {
             .isSystemMessagePermittedToRegister(messageName,
                                                 aApp.origin,
                                                 aManifest)) {
-        msgmgr.registerPage(messageName, handlerPageURI, manifestURI);
+        msgmgr.registerPage(messageName, href, manifestURL);
       }
     });
   },
@@ -834,14 +827,14 @@ this.DOMApplicationRegistry = {
                                     "description": newDesc });
       }
 
-      let launchPathURI = Services.io.newURI(href, null, null);
-      let manifestURI = Services.io.newURI(aApp.manifestURL, null, null);
+      let launchPath = Services.io.newURI(href, null, null);
+      let manifestURL = Services.io.newURI(aApp.manifestURL, null, null);
 
       if (SystemMessagePermissionsChecker
             .isSystemMessagePermittedToRegister("activity",
                                                 aApp.origin,
                                                 aManifest)) {
-        msgmgr.registerPage("activity", launchPathURI, manifestURI);
+        msgmgr.registerPage("activity", launchPath, manifestURL);
       }
     }
     return activitiesToRegister;
@@ -2536,9 +2529,7 @@ this.DOMApplicationRegistry = {
     yield this._saveApps();
 
     this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
-
-    // The presence of a requestID means that we have a page to update.
-    if (aData.isPackage && aData.apkInstall && !aData.requestID) {
+    if (aData.isPackage && aData.autoInstall) {
       // Skip directly to onInstallSuccessAck, since there isn't
       // a WebappsRegistry to receive Webapps:Install:Return:OK and respond
       // Webapps:Install:Return:Ack when an app is being auto-installed.
