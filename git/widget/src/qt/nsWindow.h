@@ -205,16 +205,15 @@ public:
     // utility methods
     //
 
-    void               LoseFocus();
     qint32             ConvertBorderStyles(nsBorderStyle aStyle);
+
+    void               QWidgetDestroyed();
 
 
     /***** from CommonWidget *****/
 
     // event handling code
 
-    void DispatchGotFocusEvent(void);
-    void DispatchLostFocusEvent(void);
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);

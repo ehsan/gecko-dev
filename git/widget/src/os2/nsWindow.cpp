@@ -603,15 +603,21 @@ nsWindow :: DealWithPopups ( ULONG inMsg, MRESULT* outResult )
       
       // If we're dealing with menus, we probably have submenus and we don't
       // want to rollup if the click is in a parent menu of the current submenu.
+      PRUint32 popupsToRollup = PR_UINT32_MAX;
       if (rollup) {
         nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
         if ( menuRollup ) {
           nsAutoTArray<nsIWidget*, 5> widgetChain;
-          menuRollup->GetSubmenuWidgetChain ( &widgetChain );
+          PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
           for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
             nsIWidget* widget = widgetChain[i];
             if ( nsWindow::EventIsInsideWindow((nsWindow*)widget) ) {
-              rollup = PR_FALSE;
+              if (i < sameTypeCount) {
+                rollup = PR_FALSE;
+              }
+              else {
+                popupsToRollup = sameTypeCount;
+              }
               break;
             }
           } // foreach parent menu widget
@@ -621,7 +627,7 @@ nsWindow :: DealWithPopups ( ULONG inMsg, MRESULT* outResult )
       // if we've determined that we should still rollup everything, do it.
       if ( rollup ) {
         // only need to deal with the last rollup for left mouse down events.
-        gRollupListener->Rollup(inMsg == WM_BUTTON1DOWN ? &mLastRollup : nsnull);
+        gRollupListener->Rollup(popupsToRollup, inMsg == WM_BUTTON1DOWN ? &mLastRollup : nsnull);
 
         // return TRUE tells Windows that the event is consumed, 
         // false allows the event to be dispatched
@@ -1254,7 +1260,7 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode)
     DEBUGFOCUS(deferred NS_ACTIVATE);
     gJustGotActivate = PR_FALSE;
     gJustGotDeactivate = PR_FALSE;
-    DispatchFocus(NS_ACTIVATE, TRUE);
+    DispatchFocus(NS_ACTIVATE);
   }
 
   // nothing to do in these cases
@@ -2686,7 +2692,6 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
 
         case WM_FOCUSCHANGED:
         {
-          PRBool isMozWindowTakingFocus = PR_TRUE;
           DEBUGFOCUS(WM_FOCUSCHANGED);
 
           // If the frame was activated earlier or mp1 is 0, dispatch
@@ -2696,42 +2701,29 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
           // restore it involuntarily.  
 
           if (SHORT1FROMMP(mp2)) {
-            DEBUGFOCUS(NS_GOTFOCUS);
-            result = DispatchFocus(NS_GOTFOCUS, isMozWindowTakingFocus);
-
             if (gJustGotActivate || mp1 == 0) {
               HWND hActive = WinQueryActiveWindow( HWND_DESKTOP);
               if (!(WinQueryWindowULong( hActive, QWL_STYLE) & WS_MINIMIZED)) {
                 DEBUGFOCUS(NS_ACTIVATE);
                 gJustGotActivate = PR_FALSE;
                 gJustGotDeactivate = PR_FALSE;
-                result = DispatchFocus(NS_ACTIVATE, isMozWindowTakingFocus);
+                result = DispatchFocus(NS_ACTIVATE);
               }
             }
 
             if ( WinIsChild( mWnd, HWNDFROMMP(mp1)) && mNextID == 1) {
               DEBUGFOCUS(NS_PLUGIN_ACTIVATE);
-              result = DispatchFocus(NS_PLUGIN_ACTIVATE, isMozWindowTakingFocus);
+              result = DispatchFocus(NS_PLUGIN_ACTIVATE);
               WinSetFocus(HWND_DESKTOP, mWnd);
             }
           }
           // We are losing focus
           else {
-            char className[19];
-            ::WinQueryClassName((HWND)mp1, 19, className);
-            if (strcmp(className, WindowClass()) != 0 && 
-                strcmp(className, WC_SCROLLBAR_STRING) != 0) {
-              isMozWindowTakingFocus = PR_FALSE;
-            }
-
             if (gJustGotDeactivate) {
               DEBUGFOCUS(NS_DEACTIVATE);
               gJustGotDeactivate = PR_FALSE;
-              result = DispatchFocus(NS_DEACTIVATE, isMozWindowTakingFocus);
+              result = DispatchFocus(NS_DEACTIVATE);
             }
-
-            DEBUGFOCUS(NS_LOSTFOCUS);
-            result = DispatchFocus(NS_LOSTFOCUS, isMozWindowTakingFocus);
           }
 
           break;
@@ -3183,27 +3175,25 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
 // Deal with focus messages
 //
 //-------------------------------------------------------------------------
-PRBool nsWindow::DispatchFocus(PRUint32 aEventType, PRBool isMozWindowTakingFocus)
+PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
 {
   // call the event callback 
   if (mEventCallback) {
-    nsFocusEvent event(PR_TRUE, aEventType, this);
+    nsGUIEvent event(PR_TRUE, aEventType, this);
     InitEvent(event);
 
     //focus and blur event should go to their base widget loc, not current mouse pos
     event.refPoint.x = 0;
     event.refPoint.y = 0;
 
-    event.isMozWindowTakingFocus = isMozWindowTakingFocus;
-
     nsPluginEvent pluginEvent;
 
     switch (aEventType)
     {
-      case NS_GOTFOCUS:
+      case NS_ACTIVATE:
         pluginEvent.event = WM_SETFOCUS;
         break;
-      case NS_LOSTFOCUS:
+      case NS_DEACTIVATE:
         pluginEvent.event = WM_FOCUSCHANGED;
         break;
       case NS_PLUGIN_ACTIVATE:

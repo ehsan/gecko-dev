@@ -578,6 +578,8 @@
         ]]></body>
       </method>
 
+      <field name="_result">null</field>
+
       <!-- nsIPlacesView -->
       <method name="getResult">
         <body><![CDATA[
@@ -1024,11 +1026,7 @@
         <body><![CDATA[
           this._ensureInitialized();
           this._contextMenuShown = true;
-          // Activate the controller
-          this.focus();
-          // The above call may not always fire a consumable event for
-          // commandUpdater, so we force a command update.
-          window.updateCommands("focus");
+          window.updateCommands("places");
           return this.controller.buildContextMenu(aPopup);
         ]]></body>
       </method>

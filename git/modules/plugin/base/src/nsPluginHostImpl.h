@@ -55,7 +55,6 @@
 #include "nsIPluginTagInfo2.h"
 #include "nsIPluginInstancePeer2.h"
 
-#include "nsIFileUtilities.h"
 #include "nsICookieStorage.h"
 #include "nsPluginsDir.h"
 #include "nsPluginDirServiceProvider.h"
@@ -218,7 +217,6 @@ public:
 
 class nsPluginHostImpl : public nsIPluginManager2,
                          public nsIPluginHost,
-                         public nsIFileUtilities,
                          public nsICookieStorage,
                          public nsIObserver,
                          public nsPIPluginHost,
@@ -296,7 +294,6 @@ public:
   NS_DECL_NSIPLUGINHOST
   NS_DECL_NSIPLUGINMANAGER2
   NS_DECL_NSIFACTORY
-  NS_DECL_NSIFILEUTILITIES
   NS_DECL_NSICOOKIESTORAGE
   NS_DECL_NSIOBSERVER
   NS_DECL_NSPIPLUGINHOST
@@ -337,9 +334,6 @@ public:
 private:
   NS_IMETHOD
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
-
-  nsresult
-  LoadXPCOMPlugins(nsIComponentManager* aComponentManager);
 
   nsresult
   NewEmbeddedPluginStreamListener(nsIURI* aURL, nsIPluginInstanceOwner *aOwner,
@@ -397,9 +391,9 @@ private:
   // Loads all cached plugins info into mCachedPlugins
   nsresult ReadPluginInfo();
 
-  // Given a filename, returns the plugins info from our cache
+  // Given a file path, returns the plugins info from our cache
   // and removes it from the cache.
-  void RemoveCachedPluginsInfo(const char *filename,
+  void RemoveCachedPluginsInfo(const char *filePath,
                                nsPluginTag **result);
 
   //checks if the list already have the same plugin as given
@@ -412,9 +406,6 @@ private:
   nsresult EnsurePrivateDirServiceProvider();
 
   nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
-
-  // one-off hack to include nppl3260.dll from the components folder
-  nsresult ScanForRealInComponentsFolder(nsIComponentManager * aCompManager);
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();

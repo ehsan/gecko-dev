@@ -291,14 +291,35 @@ struct FrameInfo {
     JSObject*       block;      // caller block chain head
     jsbytecode*     pc;         // caller fp->regs->pc
     jsbytecode*     imacpc;     // caller fp->imacpc
-    union {
-        struct {
-            uint16  spdist;     // distance from fp->slots to fp->regs->sp at JSOP_CALL
-            uint16  argc;       // actual argument count, may be < fun->nargs
-        } s;
-        uint32      word;       // for spdist/argc LIR store in record_JSOP_CALL
-    };
-    uint32          caller_argc;   // fp->argv - stackBase
+    uint16          spdist;     // distance from fp->slots to fp->regs->sp at JSOP_CALL
+
+    /*
+     * Bit  15 (0x8000) is a flag that is set if constructing (called through new).
+     * Bits 0-14 are the actual argument count. This may be less than fun->nargs.
+     */
+    uint16          argc;
+
+    /*
+     * Stack pointer adjustment needed for navigation of native stack in
+     * js_GetUpvarOnTrace. spoffset is the number of slots in the native
+     * stack frame for the caller *before* the slots covered by spdist.
+     * This may be negative if the caller is the top level script.
+     * The key fact is that if we let 'cpos' be the start of the caller's
+     * native stack frame, then (cpos + spoffset) points to the first 
+     * non-argument slot in the callee's native stack frame.
+     */
+    int32          spoffset;
+
+    // Safer accessors for argc.
+    enum { CONSTRUCTING_MASK = 0x8000 };
+    void   set_argc(uint16 argc, bool constructing) {
+        this->argc = argc | (constructing ? CONSTRUCTING_MASK : 0);
+    }
+    uint16 get_argc() const { return argc & ~CONSTRUCTING_MASK; }
+    bool   is_constructing() const { return (argc & CONSTRUCTING_MASK) != 0; }
+
+    // The typemap just before the callee is called.
+    uint8* get_typemap() { return (uint8*) (this+1); }
 };
 
 struct UnstableExit
@@ -309,8 +330,8 @@ struct UnstableExit
 };
 
 class TreeInfo MMGC_SUBCLASS_DECL {
-    nanojit::Fragment*      fragment;
 public:
+    nanojit::Fragment* const      fragment;
     JSScript*               script;
     unsigned                maxNativeStackSlots;
     ptrdiff_t               nativeStackBase;
@@ -513,6 +534,7 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK void arg(unsigned n, nanojit::LIns* i);
     JS_REQUIRES_STACK nanojit::LIns* var(unsigned n);
     JS_REQUIRES_STACK void var(unsigned n, nanojit::LIns* i);
+    JS_REQUIRES_STACK nanojit::LIns* upvar(JSScript* script, JSUpvarArray* uva, uintN index, jsval& v);
     JS_REQUIRES_STACK nanojit::LIns* stack(int n);
     JS_REQUIRES_STACK void stack(int n, nanojit::LIns* i);
 

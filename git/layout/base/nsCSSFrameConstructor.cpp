@@ -119,7 +119,6 @@
 #include "nsIPrincipal.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsStyleUtil.h"
-#include "nsIFocusEventSuppressor.h"
 #include "nsBox.h"
 #include "nsTArray.h"
 #include "nsGenericDOMDataNode.h"
@@ -163,7 +162,7 @@ NS_NewHTMLVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 #endif
 
 #ifdef MOZ_SVG
-#include "nsISVGTextContentMetrics.h"
+#include "nsSVGTextContainerFrame.h"
 
 PRBool
 NS_SVGEnabled();
@@ -1575,7 +1574,6 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mGfxScrollFrame(nsnull)
   , mPageSequenceFrame(nsnull)
   , mUpdateCount(0)
-  , mFocusSuppressCount(0)
   , mQuotesDirty(PR_FALSE)
   , mCountersDirty(PR_FALSE)
   , mIsDestroyingFrameTree(PR_FALSE)
@@ -3182,7 +3180,7 @@ nsCSSFrameConstructor::ConstructButtonFrame(nsFrameConstructorState& aState,
 #endif
 
     rv = ProcessChildren(aState, content, styleContext, blockFrame, PR_TRUE,
-                         childItems, aStyleDisplay->IsBlockOutside());
+                         childItems, aStyleDisplay->IsBlockInside());
     if (NS_FAILED(rv)) return rv;
   
     // Set the areas frame's initial child lists
@@ -3557,7 +3555,7 @@ nsCSSFrameConstructor::FindTextData(nsIFrame* aParentFrame)
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
+      nsSVGTextContainerFrame* metrics = do_QueryFrame(ancestorFrame);
       if (metrics) {
         static const FrameConstructionData sSVGGlyphData =
           SIMPLE_FCDATA(NS_NewSVGGlyphFrame);
@@ -4976,7 +4974,7 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
+      nsSVGTextContainerFrame* metrics = do_QueryFrame(ancestorFrame);
       // Text cannot be nested
       if (metrics) {
         return &sGenericContainerData;
@@ -4988,7 +4986,7 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
+      nsSVGTextContainerFrame* metrics = do_QueryFrame(ancestorFrame);
       if (!metrics) {
         return &sGenericContainerData;
       }
@@ -5423,7 +5421,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
       // it's conservative in the sense that anything that will really end up
       // as an in-flow non-inline will have false mIsAllInline.  It just might
       // be that even an inline that has mIsAllInline false doesn't need an
-      // {ib} split.  So this is just an optimization to keep from doint to
+      // {ib} split.  So this is just an optimization to keep from doing too
       // much work when that happens.
       (!(bits & FCDATA_DISALLOW_OUT_OF_FLOW) &&
        aState.GetGeometricParent(display, nsnull)) ||
@@ -5435,7 +5433,14 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     aItems.InlineItemAdded();
   }
 
-  if (bits & FCDATA_IS_LINE_PARTICIPANT) {
+  // Our item should be treated as a line participant if we have the relevant
+  // bit and are going to be in-flow.  Note that this really only matters if
+  // our ancestor is a box or some such, so the fact that we might have an
+  // inline ancestor that might become a containing block is not relevant here.
+  if ((bits & FCDATA_IS_LINE_PARTICIPANT) &&
+      ((bits & FCDATA_DISALLOW_OUT_OF_FLOW) ||
+       !aState.GetGeometricParent(display, nsnull))) {
+    item->mIsLineParticipant = PR_TRUE;
     aItems.LineParticipantItemAdded();
   }
 }
@@ -6030,6 +6035,32 @@ IsSpecialFramesetChild(nsIContent* aContent)
 static void
 InvalidateCanvasIfNeeded(nsIPresShell* presShell, nsIContent* node);
 
+#ifdef MOZ_XUL
+
+static
+nsListBoxBodyFrame*
+MaybeGetListBoxBodyFrame(nsIContent* aContainer, nsIContent* aChild)
+{
+  if (!aContainer)
+    return nsnull;
+
+  if (aContainer->IsNodeOfType(nsINode::eXUL) &&
+      aChild->IsNodeOfType(nsINode::eXUL) &&
+      aContainer->Tag() == nsGkAtoms::listbox &&
+      aChild->Tag() == nsGkAtoms::listitem) {
+    nsCOMPtr<nsIDOMXULElement> xulElement = do_QueryInterface(aContainer);
+    nsCOMPtr<nsIBoxObject> boxObject;
+    xulElement->GetBoxObject(getter_AddRefs(boxObject));
+    nsCOMPtr<nsPIListBoxObject> listBoxObject = do_QueryInterface(boxObject);
+    if (listBoxObject) {
+      return listBoxObject->GetListBoxBody(PR_FALSE);
+    }
+  }
+
+  return nsnull;
+}
+#endif
+
 nsresult
 nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
                                        PRInt32         aNewIndexInContainer)
@@ -6120,7 +6151,13 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
       PRUint32 containerCount = aContainer->GetChildCount();
       for (PRUint32 i = aNewIndexInContainer; i < containerCount; i++) {
         nsIContent* content = aContainer->GetChildAt(i);
-        if (mPresShell->GetPrimaryFrameFor(content)) {
+        if (mPresShell->GetPrimaryFrameFor(content)
+#ifdef MOZ_XUL
+            //  Except listboxes suck, so do NOT skip anything here if
+            //  we plan to notify a listbox.
+            && !MaybeGetListBoxBodyFrame(aContainer, content)
+#endif
+            ) {
           // Already have a frame for this content; a previous ContentInserted
           // in this loop must have reconstructed its insertion parent.  Skip
           // it.
@@ -6329,36 +6366,23 @@ PRBool NotifyListBoxBody(nsPresContext*    aPresContext,
                          nsIFrame*          aChildFrame,
                          content_operation  aOperation)
 {
-  if (!aContainer)
-    return PR_FALSE;
-
-  if (aContainer->IsNodeOfType(nsINode::eXUL) &&
-      aChild->IsNodeOfType(nsINode::eXUL) &&
-      aContainer->Tag() == nsGkAtoms::listbox &&
-      aChild->Tag() == nsGkAtoms::listitem) {
-    nsCOMPtr<nsIDOMXULElement> xulElement = do_QueryInterface(aContainer);
-    nsCOMPtr<nsIBoxObject> boxObject;
-    xulElement->GetBoxObject(getter_AddRefs(boxObject));
-    nsCOMPtr<nsPIListBoxObject> listBoxObject = do_QueryInterface(boxObject);
-    if (listBoxObject) {
-      nsListBoxBodyFrame* listBoxBodyFrame = listBoxObject->GetListBoxBody(PR_FALSE);
-      if (listBoxBodyFrame) {
-        if (aOperation == CONTENT_REMOVED) {
-          // Except if we have an aChildFrame and its parent is not the right
-          // thing, then we don't do this.  Pseudo frames are so much fun....
-          if (!aChildFrame || aChildFrame->GetParent() == listBoxBodyFrame) {
-            listBoxBodyFrame->OnContentRemoved(aPresContext, aChildFrame,
-                                               aIndexInContainer);
-            return PR_TRUE;
-          }
-        } else {
-          // If this codepath ever starts using aIndexInContainer, need to
-          // change ContentInserted to pass in something resembling a correct
-          // one in the XBL cases.
-          listBoxBodyFrame->OnContentInserted(aPresContext, aChild);
-          return PR_TRUE;
-        }
+  nsListBoxBodyFrame* listBoxBodyFrame =
+    MaybeGetListBoxBodyFrame(aContainer, aChild);
+  if (listBoxBodyFrame) {
+    if (aOperation == CONTENT_REMOVED) {
+      // Except if we have an aChildFrame and its parent is not the right
+      // thing, then we don't do this.  Pseudo frames are so much fun....
+      if (!aChildFrame || aChildFrame->GetParent() == listBoxBodyFrame) {
+        listBoxBodyFrame->OnContentRemoved(aPresContext, aChildFrame,
+                                           aIndexInContainer);
+        return PR_TRUE;
       }
+    } else {
+      // If this codepath ever starts using aIndexInContainer, need to
+      // change ContentInserted to pass in something resembling a correct
+      // one in the XBL cases.
+      listBoxBodyFrame->OnContentInserted(aPresContext, aChild);
+      return PR_TRUE;
     }
   }
 
@@ -6458,12 +6482,24 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
 
   nsIContent* container = parentFrame->GetContent();
 
-  if (parentFrame->GetType() == nsGkAtoms::frameSetFrame &&
+  nsIAtom* frameType = parentFrame->GetType();
+  if (frameType == nsGkAtoms::frameSetFrame &&
       IsSpecialFramesetChild(aChild)) {
     // Just reframe the parent, since framesets are weird like that.
     return RecreateFramesForContent(parentFrame->GetContent());
   }
-  
+
+  if (frameType == nsGkAtoms::fieldSetFrame &&
+      aChild->Tag() == nsGkAtoms::legend) {
+    // Just reframe the parent, since figuring out whether this
+    // should be the new legend and then handling it is too complex.
+    // We could do a little better here --- check if the fieldset already
+    // has a legend which occurs earlier in its child list than this node,
+    // and if so, proceed. But we'd have to extend nsFieldSetFrame
+    // to locate this legend in the inserted frames and extract it.
+    return RecreateFramesForContent(parentFrame->GetContent());
+  }
+
   // Don't construct kids of leaves
   if (parentFrame->IsLeaf()) {
     return NS_OK;
@@ -7237,7 +7273,17 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
         if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
           nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(aFrame);
           if (outerSVGFrame) {
-            // marker changes can change the covered region
+            // We need this to invalidate frames when their 'filter' or 'marker'
+            // property changes. XXX in theory changes to 'marker' should be
+            // handled in nsSVGPathGeometryFrame::DidSetStyleContext, but for
+            // some reason that's broken.
+            //
+            // This call is also currently the only mechanism for invalidating
+            // the area covered by a <foreignObject> when 'opacity' changes on
+            // it or one of its ancestors. (For 'opacity' changes on <image> or
+            // a graphical element such as <path>, or on one of their
+            // ancestors, this is redundant since
+            // nsSVGPathGeometryFrame::DidSetStyleContext also invalidates.)
             outerSVGFrame->UpdateAndInvalidateCoveredRegion(aFrame);
           }
         }
@@ -7755,8 +7801,9 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
 
 void
 nsCSSFrameConstructor::BeginUpdate() {
-  NS_SuppressFocusEvent();
-  ++mFocusSuppressCount;
+  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
+               "Someone forgot a script blocker");
+
   ++mUpdateCount;
 }
 
@@ -7771,10 +7818,6 @@ nsCSSFrameConstructor::EndUpdate()
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
   --mUpdateCount;
-  if (mFocusSuppressCount) {
-    NS_UnsuppressFocusEvent();
-    --mFocusSuppressCount;
-  }
 }
 
 void
@@ -7794,23 +7837,6 @@ nsCSSFrameConstructor::RecalcQuotesAndCounters()
   NS_ASSERTION(!mCountersDirty, "Counter updates will be lost");  
 }
 
-class nsFocusUnsuppressEvent : public nsRunnable {
-  public:
-    NS_DECL_NSIRUNNABLE
-    nsFocusUnsuppressEvent(PRUint32 aCount) : mCount(aCount) {}
-  private:
-    PRUint32 mCount;
-  };
-
-NS_IMETHODIMP nsFocusUnsuppressEvent::Run()
-{
-  while (mCount) {
-    --mCount;
-    NS_UnsuppressFocusEvent();
-  }
-  return NS_OK;
-}
-
 void
 nsCSSFrameConstructor::WillDestroyFrameTree()
 {
@@ -7826,14 +7852,6 @@ nsCSSFrameConstructor::WillDestroyFrameTree()
 
   // Cancel all pending re-resolves
   mRestyleEvent.Revoke();
-
-  if (mFocusSuppressCount && mPresShell->IsDestroying()) {
-    nsRefPtr<nsFocusUnsuppressEvent> ev =
-      new nsFocusUnsuppressEvent(mFocusSuppressCount);
-    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
-      mFocusSuppressCount = 0;
-    }
-  }
 }
 
 //STATIC
@@ -8694,6 +8712,14 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
 #endif
 
     *aResult = ReframeContainingBlock(aFrame);
+    return PR_TRUE;
+  }
+
+  if (aFrame->GetType() == nsGkAtoms::legendFrame &&
+      aFrame->GetParent()->GetType() == nsGkAtoms::fieldSetFrame) {
+    // When we remove the legend for a fieldset, we should reframe
+    // the fieldset to ensure another legend is used, if there is one
+    *aResult = RecreateFramesForContent(aFrame->GetParent()->GetContent());
     return PR_TRUE;
   }
 
@@ -11551,7 +11577,7 @@ AdjustCountsForItem(FrameConstructionItem* aItem, PRInt32 aDelta)
   if (aItem->mIsAllInline) {
     mInlineCount += aDelta;
   }
-  if (aItem->mFCData->mBits & FCDATA_IS_LINE_PARTICIPANT) {
+  if (aItem->mIsLineParticipant) {
     mLineParticipantCount += aDelta;
   }
   mDesiredParentCounts[aItem->DesiredParentType()] += aDelta;

@@ -92,6 +92,7 @@ CPP_UNIT_TESTS = \
                  TestFile.cpp \
                  TestHashtables.cpp \
                  TestID.cpp \
+                 TestObserverArray.cpp \
                  TestObserverService.cpp \
                  TestPipe.cpp \
                  TestServMgr.cpp \
@@ -149,6 +150,10 @@ LIBS += $(XPCOM_LIBS)
 # Needed to resolve __yylex (?)
 ifeq ($(OS_ARCH)$(OS_RELEASE),FreeBSD2)
 LIBS		+= -lpcap
+endif
+
+ifdef SOLARIS_SUNPRO_CXX
+CXXFLAGS += -features=extensions -D__FUNCTION__=__func__
 endif
 
 ENABLE_CXX_EXCEPTIONS = 1

@@ -128,7 +128,7 @@ placesTransactionsService.prototype = {
     
     // if the item is a livemark container we will not save its children and
     // will use createLivemark to undo.
-    if (PlacesUtils.livemarks.isLivemark(aItemId))
+    if (PlacesUtils.itemIsLivemark(aItemId))
       return new placesRemoveLivemarkTransaction(aItemId);
 
     return new placesRemoveItemTransaction(aItemId);
@@ -849,7 +849,7 @@ placesEditBookmarkPostDataTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PEUPDT_doTransaction() {
-    this._oldPostData = PlacesUtils.getPostDataForBookmark(this._id);
+    this._oldPostData = PlacesUtils.getPostDataForBookmark(this.id);
     PlacesUtils.setPostDataForBookmark(this.id, this._newPostData);
   },
 
