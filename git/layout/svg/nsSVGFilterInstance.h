@@ -39,15 +39,20 @@ class SVGFilterElement;
  *   CSS pixel space. The origin for an HTML element is the top left corner of
  *   its border box.
  *
- * "filter space"
+ * "intermediate space"
  *   User space scaled to device pixels. Shares the same origin as user space.
  *   This space is the same across chained SVG and CSS filters. To compute the
  *   overall filter space for a chain, we first need to build each filter's
  *   FilterPrimitiveDescriptions in some common space. That space is
- *   filter space.
+ *   intermediate space.
  *
- * To understand the spaces better, let's take an example filter:
- *   <filter id="f">...</filter>
+ * "filter space"
+ *   Intermediate space translated to the origin of this SVG filter's
+ *   filter region. This space may be different for each filter in a chain.
+ *
+ * To understand the spaces better, let's take an example filter that defines a
+ * filter region:
+ *   <filter id="f" x="-15" y="-15" width="130" height="130">...</filter>
  *
  * And apply the filter to a div element:
  *   <div style="filter: url(#f); ...">...</div>
@@ -60,10 +65,21 @@ class SVGFilterElement;
  * The point will be inset 10 CSS pixels from both the top and left edges of the
  * div element's border box.
  *
- * Now, let's transform the point from user space to filter space:
- *   "filter space point" = "user space point" * "device pixels per CSS pixel"
- *   "filter space point" = (10, 10) * 2
- *   "filter space point" = (20, 20)
+ * Now, let's transform the point from user space to intermediate space:
+ *   "intermediate space point" = "user space point" * "device pixels per CSS pixel"
+ *   "intermediate space point" = (10, 10) * 2
+ *   "intermediate space point" = (20, 20)
+ *
+ * Next, let's transform the point from user space to filter space:
+ *   "filter space point" = ("user space point" - "filter region position in user space") * "device pixels per CSS pixel"
+ *   "filter space point" = ((10, 10) - (-15, -15)) * 2
+ *   "filter space point" = (50, 50)
+ *
+ * Similarly, we can convert the point from intermediate space to filter space:
+ *   "filter space point" = "intermediate space point" - "filter region position in intermediate space"
+ *   "filter space point" = "intermediate space point" - ("filter region position in user space" * "device pixels per CSS pixel")
+ *   "filter space point" = (20, 20) - ((-15, -15) * 2)
+ *   "filter space point" = (50, 50)
  */
 class nsSVGFilterInstance
 {
@@ -81,9 +97,7 @@ public:
    */
   nsSVGFilterInstance(const nsStyleFilter& aFilter,
                       nsIFrame *aTargetFrame,
-                      const gfxRect& aTargetBBox,
-                      const gfxSize& aUserSpaceToFilterSpaceScale,
-                      const gfxSize& aFilterSpaceToUserSpaceScale);
+                      const gfxRect& aTargetBBox);
 
   /**
    * Returns true if the filter instance was created successfully.
@@ -162,9 +176,10 @@ private:
   float GetPrimitiveNumber(uint8_t aCtxType, float aValue) const;
 
   /**
-   * Transform a rect between user space and filter space.
+   * Transform a rect between user space and intermediate space.
    */
-  gfxRect FilterSpaceToUserSpace(const gfxRect& aFilterSpaceRect) const;
+  gfxRect UserSpaceToIntermediateSpace(const gfxRect& aUserSpaceRect) const;
+  gfxRect IntermediateSpaceToUserSpace(const gfxRect& aIntermediateSpaceRect) const;
 
   /**
    * Returns the transform from frame space to the coordinate space that
@@ -186,7 +201,12 @@ private:
                             nsTArray<int32_t>& aSourceIndices);
 
   /**
-   * Compute the filter region in user space, filter space, and filter
+   * Compute the scale factors between user space and intermediate space.
+   */
+  nsresult ComputeUserSpaceToIntermediateSpaceScale();
+
+  /**
+   * Compute the filter region in user space, intermediate space, and filter
    * space.
    */
   nsresult ComputeBounds();
@@ -220,13 +240,14 @@ private:
    * The "filter region" in various spaces.
    */
   gfxRect                 mUserSpaceBounds;
+  nsIntRect               mIntermediateSpaceBounds;
   nsIntRect               mFilterSpaceBounds;
 
   /**
-   * The scale factors between user space and filter space.
+   * The scale factors between user space and intermediate space.
    */
-  gfxSize                 mUserSpaceToFilterSpaceScale;
-  gfxSize                 mFilterSpaceToUserSpaceScale;
+  gfxSize                 mUserSpaceToIntermediateSpaceScale;
+  gfxSize                 mIntermediateSpaceToUserSpaceScale;
 
   /**
    * The 'primitiveUnits' attribute value (objectBoundingBox or userSpaceOnUse).

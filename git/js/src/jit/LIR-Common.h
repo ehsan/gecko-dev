@@ -870,6 +870,7 @@ class LToIdV : public LInstructionHelper<BOX_PIECES, 2 * BOX_PIECES, 1>
 {
   public:
     LIR_HEADER(ToIdV)
+    BOX_OUTPUT_ACCESSORS()
 
     LToIdV(const LDefinition &temp)
     {
@@ -2807,6 +2808,7 @@ class LBinaryV : public LCallInstructionHelper<BOX_PIECES, 2 * BOX_PIECES, 0>
 
   public:
     LIR_HEADER(BinaryV)
+    BOX_OUTPUT_ACCESSORS()
 
     LBinaryV(JSOp jsop)
       : jsop_(jsop)
@@ -3508,6 +3510,7 @@ class LImplicitThis : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(ImplicitThis)
+    BOX_OUTPUT_ACCESSORS()
 
     LImplicitThis(const LAllocation &callee) {
         setOperand(0, callee);
@@ -3797,6 +3800,7 @@ class LLoadElementV : public LInstructionHelper<BOX_PIECES, 2, 0>
 {
   public:
     LIR_HEADER(LoadElementV)
+    BOX_OUTPUT_ACCESSORS()
 
     LLoadElementV(const LAllocation &elements, const LAllocation &index) {
         setOperand(0, elements);
@@ -3854,6 +3858,7 @@ class LLoadElementHole : public LInstructionHelper<BOX_PIECES, 3, 0>
 {
   public:
     LIR_HEADER(LoadElementHole)
+    BOX_OUTPUT_ACCESSORS()
 
     LLoadElementHole(const LAllocation &elements, const LAllocation &index, const LAllocation &initLength) {
         setOperand(0, elements);
@@ -4195,6 +4200,7 @@ class LLoadTypedArrayElementHole : public LInstructionHelper<BOX_PIECES, 2, 0>
 {
   public:
     LIR_HEADER(LoadTypedArrayElementHole)
+    BOX_OUTPUT_ACCESSORS()
 
     LLoadTypedArrayElementHole(const LAllocation &object, const LAllocation &index) {
         setOperand(0, object);
@@ -4367,6 +4373,7 @@ class LLoadFixedSlotV : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(LoadFixedSlotV)
+    BOX_OUTPUT_ACCESSORS()
 
     LLoadFixedSlotV(const LAllocation &object) {
         setOperand(0, object);
@@ -4437,6 +4444,7 @@ class LGetNameCache : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(GetNameCache)
+    BOX_OUTPUT_ACCESSORS()
 
     LGetNameCache(const LAllocation &scopeObj) {
         setOperand(0, scopeObj);
@@ -4453,6 +4461,7 @@ class LCallGetIntrinsicValue : public LCallInstructionHelper<BOX_PIECES, 0, 0>
 {
   public:
     LIR_HEADER(CallGetIntrinsicValue)
+    BOX_OUTPUT_ACCESSORS()
 
     const MCallGetIntrinsicValue *mir() const {
         return mir_->toCallGetIntrinsicValue();
@@ -4481,6 +4490,7 @@ class LGetPropertyCacheV : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(GetPropertyCacheV)
+    BOX_OUTPUT_ACCESSORS()
 
     LGetPropertyCacheV(const LAllocation &object) {
         setOperand(0, object);
@@ -4515,6 +4525,7 @@ class LGetPropertyPolymorphicV : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(GetPropertyPolymorphicV)
+    BOX_OUTPUT_ACCESSORS()
 
     LGetPropertyPolymorphicV(const LAllocation &obj) {
         setOperand(0, obj);
@@ -4616,6 +4627,7 @@ class LGetElementCacheV : public LInstructionHelper<BOX_PIECES, 1 + BOX_PIECES, 
 {
   public:
     LIR_HEADER(GetElementCacheV)
+    BOX_OUTPUT_ACCESSORS()
 
     static const size_t Index = 1;
 
@@ -4679,6 +4691,7 @@ class LLoadSlotV : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(LoadSlotV)
+    BOX_OUTPUT_ACCESSORS()
 
     LLoadSlotV(const LAllocation &in) {
         setOperand(0, in);
@@ -4902,6 +4915,7 @@ class LCallGetElement : public LCallInstructionHelper<BOX_PIECES, 2 * BOX_PIECES
 {
   public:
     LIR_HEADER(CallGetElement)
+    BOX_OUTPUT_ACCESSORS()
 
     static const size_t LhsInput = 0;
     static const size_t RhsInput = BOX_PIECES;
@@ -4916,6 +4930,7 @@ class LCallSetElement : public LCallInstructionHelper<0, 1 + 2 * BOX_PIECES, 0>
 {
   public:
     LIR_HEADER(CallSetElement)
+    BOX_OUTPUT_ACCESSORS()
 
     static const size_t Index = 1;
     static const size_t Value = 1 + BOX_PIECES;
@@ -5156,6 +5171,7 @@ class LIteratorNext : public LInstructionHelper<BOX_PIECES, 1, 1>
 {
   public:
     LIR_HEADER(IteratorNext)
+    BOX_OUTPUT_ACCESSORS()
 
     LIteratorNext(const LAllocation &iterator, const LDefinition &temp) {
         setOperand(0, iterator);
@@ -5233,6 +5249,7 @@ class LGetFrameArgument : public LInstructionHelper<BOX_PIECES, 1, 0>
 {
   public:
     LIR_HEADER(GetFrameArgument)
+    BOX_OUTPUT_ACCESSORS()
 
     LGetFrameArgument(const LAllocation &index) {
         setOperand(0, index);
@@ -5283,6 +5300,7 @@ class LSetFrameArgumentV : public LInstructionHelper<0, BOX_PIECES, 0>
 {
   public:
     LIR_HEADER(SetFrameArgumentV)
+    BOX_OUTPUT_ACCESSORS()
 
     LSetFrameArgumentV() {}
 

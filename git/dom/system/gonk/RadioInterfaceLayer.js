@@ -1109,11 +1109,11 @@ DataConnectionHandler.prototype = {
       if (this._dataCallbacks.indexOf(callback) == -1) {
         continue;
       }
+      let handler = callback[name];
+      if (typeof handler !== "function") {
+        throw new Error("No handler for " + name);
+      }
       try {
-        let handler = callback[name];
-        if (typeof handler !== "function") {
-          throw new Error("No handler for " + name);
-        }
         handler.apply(callback, args);
       } catch (e) {
         if (DEBUG) {
@@ -1551,6 +1551,14 @@ DataConnectionHandler.prototype = {
         this.updateRILNetworkInterface();
       }
     }
+  },
+
+  /**
+   * Handle data call list.
+   */
+  handleDataCallList: function(message) {
+    this._deliverDataCallCallback("receiveDataCallList",
+                                  [message.datacalls, message.datacalls.length]);
   },
 };
 
@@ -2137,18 +2145,20 @@ RadioInterface.prototype = {
         connHandler.handleDataCallError(message);
         break;
       case "datacallstatechange":
-        let addresses = [];
-        for (let i = 0; i < message.addresses.length; i++) {
-          let [address, prefixLength] = message.addresses[i].split("/");
-          // From AOSP hardware/ril/include/telephony/ril.h, that address prefix
-          // is said to be OPTIONAL, but we never met such case before.
-          addresses.push({
-            address: address,
-            prefixLength: prefixLength ? parseInt(prefixLength, 10) : 0
-          });
+        message.ip = null;
+        message.prefixLength = 0;
+        message.broadcast = null;
+        if (message.ipaddr) {
+          message.ip = message.ipaddr.split("/")[0];
+          message.prefixLength = parseInt(message.ipaddr.split("/")[1], 10);
+          let ip_value = netHelpers.stringToIP(message.ip);
+          let mask_value = netHelpers.makeMask(message.prefixLength);
+          message.broadcast = netHelpers.ipToString((ip_value & mask_value) + ~mask_value);
         }
-        message.addresses = addresses;
         connHandler.handleDataCallState(message);
+        break;
+      case "datacalllist":
+        connHandler.handleDataCallList(message);
         break;
       case "emergencyCbModeChange":
         this.handleEmergencyCbModeChange(message);
@@ -4286,6 +4296,20 @@ RadioInterface.prototype = {
 
   // TODO: Bug 928861 - B2G NetworkManager: Provide a more generic function
   //                    for connecting
+  registerDataCallCallback: function(callback) {
+    let connHandler = gDataConnectionManager.getConnectionHandler(this.clientId);
+    connHandler.registerDataCallCallback(callback);
+  },
+
+  // TODO: Bug 928861 - B2G NetworkManager: Provide a more generic function
+  //                    for connecting
+  unregisterDataCallCallback: function(callback) {
+    let connHandler = gDataConnectionManager.getConnectionHandler(this.clientId);
+    connHandler.unregisterDataCallCallback(callback);
+  },
+
+  // TODO: Bug 928861 - B2G NetworkManager: Provide a more generic function
+  //                    for connecting
   setupDataCallByType: function(apntype) {
     let connHandler = gDataConnectionManager.getConnectionHandler(this.clientId);
     connHandler.setupDataCallByType(apntype);
@@ -4333,11 +4357,6 @@ function RILNetworkInterface(dataConnectionHandler, apnSetting) {
   this.dataConnectionHandler = dataConnectionHandler;
   this.apnSetting = apnSetting;
   this.connectedTypes = [];
-
-  this.ips = [];
-  this.prefixLengths = [];
-  this.dnses = [];
-  this.gateways = [];
 }
 
 RILNetworkInterface.prototype = {
@@ -4345,9 +4364,11 @@ RILNetworkInterface.prototype = {
   classInfo: XPCOMUtils.generateCI({classID: RILNETWORKINTERFACE_CID,
                                     classDescription: "RILNetworkInterface",
                                     interfaces: [Ci.nsINetworkInterface,
-                                                 Ci.nsIRilNetworkInterface]}),
+                                                 Ci.nsIRilNetworkInterface,
+                                                 Ci.nsIRILDataCallback]}),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsINetworkInterface,
-                                         Ci.nsIRilNetworkInterface]),
+                                         Ci.nsIRilNetworkInterface,
+                                         Ci.nsIRILDataCallback]),
 
   // nsINetworkInterface
 
@@ -4407,13 +4428,15 @@ RILNetworkInterface.prototype = {
 
   name: null,
 
-  ips: null,
+  ip: null,
 
-  prefixLengths: null,
+  prefixLength: 0,
 
-  gateways: null,
+  broadcast: null,
 
-  dnses: null,
+  dns1: null,
+
+  dns2: null,
 
   get httpProxyHost() {
     return this.apnSetting.proxy || "";
@@ -4490,31 +4513,12 @@ RILNetworkInterface.prototype = {
     return port;
   },
 
-  getAddresses: function (ips, prefixLengths) {
-    ips.value = this.ips.slice();
-    prefixLengths.value = this.prefixLengths.slice();
-
-    return this.ips.length;
-  },
-
-  getGateways: function (count) {
-    if (count) {
-      count.value = this.gateways.length;
-    }
-    return this.gateways.slice();
-  },
-
-  getDnses: function (count) {
-    if (count) {
-      count.value = this.dnses.length;
-    }
-    return this.dnses.slice();
-  },
-
   debug: function(s) {
     dump("-*- RILNetworkInterface[" + this.dataConnectionHandler.clientId + ":" +
          this.type + "]: " + s + "\n");
   },
+
+  // nsIRILDataCallback
 
   dataCallError: function(message) {
     if (message.apn != this.apnSetting.apn) {
@@ -4546,12 +4550,14 @@ RILNetworkInterface.prototype = {
       this.connecting = false;
       this.cid = datacall.cid;
       this.name = datacall.ifname;
-      for (let entry of datacall.addresses) {
-        this.ips.push(entry.address);
-        this.prefixLengths.push(entry.prefixLength);
+      this.ip = datacall.ip;
+      this.prefixLength = datacall.prefixLength;
+      this.broadcast = datacall.broadcast;
+      this.gateway = datacall.gw;
+      if (datacall.dns) {
+        this.dns1 = datacall.dns[0];
+        this.dns2 = datacall.dns[1];
       }
-      this.gateways = datacall.gateways.slice();
-      this.dnses = datacall.dnses.slice();
       if (!this.registeredAsNetworkInterface) {
         gNetworkManager.registerNetworkInterface(this);
         this.registeredAsNetworkInterface = true;
@@ -4570,28 +4576,17 @@ RILNetworkInterface.prototype = {
       }
       // State remains connected, check for minor changes.
       let changed = false;
-      if (this.ips.length != datacall.addresses.length) {
+      if (this.gateway != datacall.gw) {
+        this.gateway = datacall.gw;
         changed = true;
-        this.ips = [];
-        this.prefixLengths = [];
-        for (let entry of datacall.addresses) {
-          this.ips.push(entry.address);
-          this.prefixLengths.push(entry.prefixLength);
-        }
       }
-
-      let reduceFunc = function(aRhs, aChanged, aElement, aIndex) {
-        return aChanged || (aElement != aRhs[aIndex]);
-      };
-      for (let field of ["gateways", "dnses"]) {
-        let lhs = this[field], rhs = datacall[field];
-        if (lhs.length != rhs.length ||
-            lhs.reduce(reduceFunc.bind(null, rhs), false)) {
-          changed = true;
-          this[field] = rhs.slice();
-        }
+      if (datacall.dns &&
+          (this.dns1 != datacall.dns[0] ||
+           this.dns2 != datacall.dns[1])) {
+        this.dns1 = datacall.dns[0];
+        this.dns2 = datacall.dns[1];
+        changed = true;
       }
-
       if (changed) {
         if (DEBUG) this.debug("Notify for data call minor changes.");
         Services.obs.notifyObservers(this,
@@ -4614,11 +4609,6 @@ RILNetworkInterface.prototype = {
       this.registeredAsNetworkInterface = false;
       this.cid = null;
       this.connectedTypes = [];
-
-      this.ips = [];
-      this.prefixLengths = [];
-      this.dnses = [];
-      this.gateways = [];
     }
 
     // In case the data setting changed while the datacall was being started or
@@ -4629,6 +4619,9 @@ RILNetworkInterface.prototype = {
         (apnSettings.byType.default.apn == this.apnSetting.apn)) {
       this.dataConnectionHandler.updateRILNetworkInterface();
     }
+  },
+
+  receiveDataCallList: function(dataCalls, length) {
   },
 
   // Helpers

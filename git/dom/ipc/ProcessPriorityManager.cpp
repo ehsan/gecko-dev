@@ -102,9 +102,8 @@ class ParticularProcessPriorityManager;
  * can call StaticInit, but it won't do anything, and GetSingleton() will
  * return null.)
  *
- * ProcessPriorityManager::CurrentProcessIsForeground() and
- * ProcessPriorityManager::AnyProcessHasHighPriority() which can be called in
- * any process, are handled separately, by the ProcessPriorityManagerChild
+ * ProcessPriorityManager::CurrentProcessIsForeground(), which can be called in
+ * any process, is handled separately, by the ProcessPriorityManagerChild
  * class.
  */
 class ProcessPriorityManagerImpl MOZ_FINAL
@@ -143,11 +142,6 @@ public:
    */
   bool OtherProcessHasHighPriority(
     ParticularProcessPriorityManager* aParticularManager);
-
-  /**
-   * Does one of the child processes have priority FOREGROUND_HIGH?
-   */
-  bool ChildProcessHasHighPriority();
 
   /**
    * This must be called by a ParticularProcessPriorityManager when it changes
@@ -197,7 +191,6 @@ public:
   NS_DECL_NSIOBSERVER
 
   bool CurrentProcessIsForeground();
-  bool CurrentProcessIsHighPriority();
 
 private:
   static StaticRefPtr<ProcessPriorityManagerChild> sSingleton;
@@ -544,12 +537,6 @@ ProcessPriorityManagerImpl::OtherProcessHasHighPriority(
   if (mHighPriorityChildIDs.Contains(aParticularManager->ChildID())) {
     return mHighPriorityChildIDs.Count() > 1;
   }
-  return mHighPriorityChildIDs.Count() > 0;
-}
-
-bool
-ProcessPriorityManagerImpl::ChildProcessHasHighPriority( void )
-{
   return mHighPriorityChildIDs.Count() > 0;
 }
 
@@ -1217,13 +1204,6 @@ ProcessPriorityManagerChild::CurrentProcessIsForeground()
          mCachedPriority >= PROCESS_PRIORITY_FOREGROUND;
 }
 
-bool
-ProcessPriorityManagerChild::CurrentProcessIsHighPriority()
-{
-  return mCachedPriority == PROCESS_PRIORITY_UNKNOWN ||
-         mCachedPriority >= PROCESS_PRIORITY_FOREGROUND_HIGH;
-}
-
 /* static */ StaticAutoPtr<BackgroundProcessLRUPool>
 BackgroundProcessLRUPool::sSingleton;
 
@@ -1453,20 +1433,6 @@ ProcessPriorityManager::CurrentProcessIsForeground()
 {
   return ProcessPriorityManagerChild::Singleton()->
     CurrentProcessIsForeground();
-}
-
-/* static */ bool
-ProcessPriorityManager::AnyProcessHasHighPriority()
-{
-  ProcessPriorityManagerImpl* singleton =
-    ProcessPriorityManagerImpl::GetSingleton();
-
-  if (singleton) {
-    return singleton->ChildProcessHasHighPriority();
-  } else {
-    return ProcessPriorityManagerChild::Singleton()->
-      CurrentProcessIsHighPriority();
-  }
 }
 
 } // namespace mozilla

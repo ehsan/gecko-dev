@@ -106,4 +106,5 @@ LOCAL_INCLUDES += [
     '../../base/src',
     '/content/base/src',
     '/dom/events',
+    '/xpcom/ds',
 ]

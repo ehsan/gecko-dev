@@ -272,9 +272,8 @@ class HTMLInputElementState MOZ_FINAL : public nsISupports
     bool mCheckedSet;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(HTMLInputElementState, NS_INPUT_ELEMENT_STATE_IID)
-
 NS_IMPL_ISUPPORTS1(HTMLInputElementState, HTMLInputElementState)
+NS_DEFINE_STATIC_IID_ACCESSOR(HTMLInputElementState, NS_INPUT_ELEMENT_STATE_IID)
 
 HTMLInputElement::nsFilePickerShownCallback::nsFilePickerShownCallback(
   HTMLInputElement* aInput, nsIFilePicker* aFilePicker)

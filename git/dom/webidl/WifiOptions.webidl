@@ -43,6 +43,7 @@ dictionary WifiResultOptions
   DOMString ipaddr_str = "";    // The following are for the result of
                                 // dhcp_do_request.
   DOMString gateway_str = "";
+  DOMString broadcast_str = "";
   DOMString dns1_str = "";
   DOMString dns2_str = "";
   DOMString mask_str = "";

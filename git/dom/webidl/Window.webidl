@@ -65,9 +65,7 @@ typedef any Transferable;
 
   // the user agent
   [Throws] readonly attribute Navigator navigator; 
-#ifdef HAVE_SIDEBAR
-  [Replaceable, Throws] readonly attribute External external;
-#endif
+  //(Not implemented)readonly attribute External external;
   [Throws] readonly attribute ApplicationCache applicationCache;
 
   // user prompts
@@ -350,13 +348,6 @@ partial interface Window {
   readonly attribute Console console;
 };
 
-#ifdef HAVE_SIDEBAR
-// Mozilla extension
-partial interface Window {
-  [Replaceable, Throws]
-  readonly attribute (External or WindowProxy) sidebar;
-};
-#endif
 
 [ChromeOnly] interface ChromeWindow {
   [Func="nsGlobalWindow::IsChromeWindow"]

@@ -58,7 +58,7 @@ CacheFileHandle::DispatchRelease()
     return false;
   }
 
-  nsRefPtr<nsRunnableMethod<CacheFileHandle, MozExternalRefCountType, false> > event =
+  nsRefPtr<nsRunnableMethod<CacheFileHandle, nsrefcnt, false> > event =
     NS_NewNonOwningRunnableMethod(this, &CacheFileHandle::Release);
   nsresult rv = ioTarget->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
   if (NS_FAILED(rv)) {
@@ -69,7 +69,7 @@ CacheFileHandle::DispatchRelease()
 }
 
 NS_IMPL_ADDREF(CacheFileHandle)
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 CacheFileHandle::Release()
 {
   nsrefcnt count = mRefCnt - 1;
@@ -1753,13 +1753,11 @@ CacheFileIOManager::CloseHandleInternal(CacheFileHandle *aHandle)
     CacheIndex::RemoveEntry(aHandle->Hash());
   }
 
-  // Don't remove handles after shutdown
-  if (!mShuttingDown) {
-    if (aHandle->IsSpecialFile()) {
-      mSpecialHandles.RemoveElement(aHandle);
-    } else {
-      mHandles.RemoveHandle(aHandle);
-    }
+  // Remove the handle from hashtable
+  if (aHandle->IsSpecialFile()) {
+    mSpecialHandles.RemoveElement(aHandle);
+  } else if (!mShuttingDown) { // Don't touch after shutdown
+    mHandles.RemoveHandle(aHandle);
   }
 
   return NS_OK;
@@ -3295,7 +3293,7 @@ class SizeOfHandlesRunnable : public nsRunnable
 public:
   SizeOfHandlesRunnable(mozilla::MallocSizeOf mallocSizeOf,
                         CacheFileHandles const &handles,
-                        nsTArray<CacheFileHandle *> const &specialHandles)
+                        nsTArray<nsRefPtr<CacheFileHandle> > const &specialHandles)
     : mMonitor("SizeOfHandlesRunnable.mMonitor")
     , mMallocSizeOf(mallocSizeOf)
     , mHandles(handles)
@@ -3340,7 +3338,7 @@ private:
   mozilla::Monitor mMonitor;
   mozilla::MallocSizeOf mMallocSizeOf;
   CacheFileHandles const &mHandles;
-  nsTArray<CacheFileHandle *> const &mSpecialHandles;
+  nsTArray<nsRefPtr<CacheFileHandle> > const &mSpecialHandles;
   size_t mSize;
 };
 

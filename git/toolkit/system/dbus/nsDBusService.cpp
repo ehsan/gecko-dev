@@ -28,6 +28,7 @@ nsDBusService::~nsDBusService() {
 }
 
 NS_IMPL_ISUPPORTS1(nsDBusService, nsDBusService)
+NS_DEFINE_STATIC_IID_ACCESSOR(nsDBusService, NS_DBUS_IID)
 
 nsDBusService* nsDBusService::gSingleton = nullptr;
 

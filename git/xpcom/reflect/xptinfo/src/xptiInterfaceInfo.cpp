@@ -591,7 +591,7 @@ xptiInterfaceInfo::~xptiInterfaceInfo()
     NS_ASSERTION(!mEntry, "bad state in dtor");
 }
 
-MozExternalRefCountType
+nsrefcnt
 xptiInterfaceInfo::AddRef(void)
 {
     nsrefcnt cnt = ++mRefCnt;
@@ -599,7 +599,7 @@ xptiInterfaceInfo::AddRef(void)
     return cnt;
 }
 
-MozExternalRefCountType
+nsrefcnt
 xptiInterfaceInfo::Release(void)
 {
     xptiInterfaceEntry* entry = mEntry;

@@ -142,11 +142,12 @@ class AutoValueArray : public AutoGCRooter
 {
     const size_t length_;
     Value elements_[N];
+    js::SkipRoot skip_;
 
   public:
     AutoValueArray(JSContext *cx
                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, VALARRAY), length_(N)
+      : AutoGCRooter(cx, VALARRAY), length_(N), skip_(cx, elements_, N)
     {
         /* Always initialize in case we GC before assignment. */
         mozilla::PodArrayZero(elements_);
@@ -175,17 +176,20 @@ class AutoVectorRooter : protected AutoGCRooter
     typedef js::Vector<T, 8> VectorImpl;
     VectorImpl vector;
 
+    /* Prevent overwriting of inline elements in vector. */
+    js::SkipRoot vectorRoot;
+
   public:
     explicit AutoVectorRooter(JSContext *cx, ptrdiff_t tag
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, tag), vector(cx)
+      : AutoGCRooter(cx, tag), vector(cx), vectorRoot(cx, &vector)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     explicit AutoVectorRooter(js::ContextFriendFields *cx, ptrdiff_t tag
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, tag), vector(cx)
+      : AutoGCRooter(cx, tag), vector(cx), vectorRoot(cx, &vector)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -1035,6 +1039,10 @@ MOZ_ALWAYS_INLINE bool
 ToNumber(JSContext *cx, HandleValue v, double *out)
 {
     AssertArgumentsAreSane(cx, v);
+    {
+        js::SkipRoot root(cx, &v);
+        js::MaybeCheckStackRoots(cx);
+    }
 
     if (v.isNumber()) {
         *out = v.toNumber();
@@ -1109,6 +1117,7 @@ MOZ_ALWAYS_INLINE bool
 ToUint16(JSContext *cx, JS::HandleValue v, uint16_t *out)
 {
     AssertArgumentsAreSane(cx, v);
+    js::MaybeCheckStackRoots(cx);
 
     if (v.isInt32()) {
         *out = uint16_t(v.toInt32());
@@ -1121,6 +1130,7 @@ MOZ_ALWAYS_INLINE bool
 ToInt32(JSContext *cx, JS::HandleValue v, int32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
+    js::MaybeCheckStackRoots(cx);
 
     if (v.isInt32()) {
         *out = v.toInt32();
@@ -1133,6 +1143,7 @@ MOZ_ALWAYS_INLINE bool
 ToUint32(JSContext *cx, JS::HandleValue v, uint32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
+    js::MaybeCheckStackRoots(cx);
 
     if (v.isInt32()) {
         *out = uint32_t(v.toInt32());
@@ -1145,11 +1156,13 @@ MOZ_ALWAYS_INLINE bool
 ToInt64(JSContext *cx, JS::HandleValue v, int64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
+    js::MaybeCheckStackRoots(cx);
 
     if (v.isInt32()) {
         *out = int64_t(v.toInt32());
         return true;
     }
+
     return js::ToInt64Slow(cx, v, out);
 }
 
@@ -1157,12 +1170,14 @@ MOZ_ALWAYS_INLINE bool
 ToUint64(JSContext *cx, JS::HandleValue v, uint64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
+    js::MaybeCheckStackRoots(cx);
 
     if (v.isInt32()) {
         /* Account for sign extension of negatives into the longer 64bit space. */
         *out = uint64_t(int64_t(v.toInt32()));
         return true;
     }
+
     return js::ToUint64Slow(cx, v, out);
 }
 

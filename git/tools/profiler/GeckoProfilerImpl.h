@@ -10,8 +10,10 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <algorithm>
 #include "mozilla/ThreadLocal.h"
 #include "mozilla/Assertions.h"
+#include "nsAlgorithm.h"
 #include "nscore.h"
 #include "GeckoProfilerFunc.h"
 #include "PseudoStack.h"
@@ -181,18 +183,6 @@ static inline
 void profiler_unregister_thread()
 {
   mozilla_sampler_unregister_thread();
-}
-
-static inline
-void profiler_sleep_start()
-{
-  mozilla_sampler_sleep_start();
-}
-
-static inline
-void profiler_sleep_end()
-{
-  mozilla_sampler_sleep_end();
 }
 
 static inline

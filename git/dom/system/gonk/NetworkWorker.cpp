@@ -208,7 +208,7 @@ NetworkWorker::DispatchNetworkResult(const NetworkResultOptions& aOptions)
   mozilla::AutoSafeJSContext cx;
   JS::RootedValue val(cx);
 
-  if (!aOptions.ToObject(cx, &val)) {
+  if (!aOptions.ToObject(cx, JS::NullPtr(), &val)) {
     return;
   }
 

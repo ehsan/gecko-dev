@@ -24,7 +24,7 @@ MARIONETTE_HEAD_JS = "head.js";
  *
  * @return A deferred promise.
  */
-function doTest(aApnSettings, aHaveV4Address, aHaveV6Address) {
+function doTest(aApnSettings, aIsIPv6) {
   return setDataApnSettings([])
     .then(() => setDataApnSettings(aApnSettings))
     .then(() => setDataEnabledAndWait(true))
@@ -32,23 +32,13 @@ function doTest(aApnSettings, aHaveV4Address, aHaveV6Address) {
       let nm = getNetworkManager();
       let active = nm.active;
       ok(active, "Active network interface");
+
       log("  Interface: " + active.name);
-
-      let ips = {}, prefixLengths = {};
-      let num = active.getAddresses(ips, prefixLengths);
-      log("  Num addresses: " + num);
-      log("  Addresses: " + JSON.stringify(ips.value));
-      log("  PrefixLengths: " + JSON.stringify(prefixLengths.value));
-
-      if (aHaveV4Address) {
-        ok(ips.value.reduce(function(aFound, aAddress) {
-          return aFound || aAddress.indexOf(":") < 0;
-        }), "IPv4 address");
-      }
-      if (aHaveV6Address) {
-        ok(ips.value.reduce(function(aFound, aAddress) {
-          return aFound || aAddress.indexOf(":") > 0;
-        }), "IPv6 address");
+      log("  Address: " + active.ip);
+      if (aIsIPv6) {
+        ok(active.ip.indexOf(":") > 0, "IPv6 address");
+      } else {
+        ok(active.ip.indexOf(":") < 0, "IPv4 address");
       }
     })
     .then(() => setDataEnabledAndWait(false));
@@ -64,9 +54,7 @@ function doTestHome(aApnSettings, aProtocol) {
   aApnSettings[0][0].protocol = aProtocol;
   delete aApnSettings[0][0].roaming_protocol;
 
-  return doTest(aApnSettings,
-                aProtocol === "IP" || aProtocol === "IPV4V6",
-                aProtocol === "IPV4V6" || aProtocol === "IPV6");
+  return doTest(aApnSettings, aProtocol === "IPV6");
 }
 
 function doTestRoaming(aApnSettings, aRoaminProtocol) {
@@ -79,9 +67,7 @@ function doTestRoaming(aApnSettings, aRoaminProtocol) {
   delete aApnSettings[0][0].protocol;
   aApnSettings[0][0].roaming_protocol = aRoaminProtocol;
 
-  return doTest(aApnSettings,
-                aRoaminProtocol === "IP" || aRoaminProtocol === "IPV4V6",
-                aRoaminProtocol === "IPV4V6" || aRoaminProtocol === "IPV6");
+  return doTest(aApnSettings, aRoaminProtocol === "IPV6");
 }
 
 startTestCommon(function() {
@@ -106,14 +92,12 @@ startTestCommon(function() {
 
         .then(() => doTestHome(aApnSettings, "NoSuchProtocol"))
         .then(() => doTestHome(aApnSettings, "IP"))
-        .then(() => doTestHome(aApnSettings, "IPV4V6"))
         .then(() => doTestHome(aApnSettings, "IPV6"))
 
         .then(() => setEmulatorRoamingAndWait(true))
 
         .then(() => doTestRoaming(aApnSettings, "NoSuchProtocol"))
         .then(() => doTestRoaming(aApnSettings, "IP"))
-        .then(() => doTestRoaming(aApnSettings, "IPV4V6"))
         .then(() => doTestRoaming(aApnSettings, "IPV6"))
 
         .then(() => setEmulatorRoamingAndWait(false));

@@ -14,7 +14,6 @@
 namespace mozilla {
 namespace net {
 
-class ChannelEvent;
 class ChannelEventQueue;
 
 class WebSocketChannelChild : public BaseWebSocketChannel,
@@ -25,7 +24,6 @@ class WebSocketChannelChild : public BaseWebSocketChannel,
   ~WebSocketChannelChild();
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSITHREADRETARGETABLEREQUEST
 
   // nsIWebSocketChannel methods BaseWebSocketChannel didn't implement for us
   //
@@ -35,7 +33,6 @@ class WebSocketChannelChild : public BaseWebSocketChannel,
   NS_IMETHOD SendMsg(const nsACString &aMsg);
   NS_IMETHOD SendBinaryMsg(const nsACString &aMsg);
   NS_IMETHOD SendBinaryStream(nsIInputStream *aStream, uint32_t aLength);
-  nsresult SendBinaryStream(OptionalInputStreamParams *aStream, uint32_t aLength);
   NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
 
   void AddIPDLReference();
@@ -56,8 +53,6 @@ class WebSocketChannelChild : public BaseWebSocketChannel,
   void OnAcknowledge(const uint32_t& aSize);
   void OnServerClose(const uint16_t& aCode, const nsCString& aReason);
   void AsyncOpenFailed();  
-
-  void DispatchToTargetThread(ChannelEvent *aChannelEvent);
 
   nsRefPtr<ChannelEventQueue> mEventQ;
   bool mIPCOpen;
