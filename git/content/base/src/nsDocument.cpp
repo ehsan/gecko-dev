@@ -2177,8 +2177,6 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
   }
 #endif
 
-  SetReadyStateInternal(READYSTATE_LOADING);
-
   if (nsCRT::strcmp(kLoadAsData, aCommand) == 0) {
     mLoadedAsData = PR_TRUE;
     // We need to disable script & style loading in this case.
@@ -3973,8 +3971,6 @@ nsDocument::EndLoad()
   }
   
   NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
-  
-  SetReadyStateInternal(READYSTATE_INTERACTIVE);
 
   if (!mSynchronousDOMContentLoaded) {
     nsRefPtr<nsIRunnable> ev =
@@ -7391,32 +7387,6 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
   clone->mIsRegularHTML = mIsRegularHTML;
   clone->mXMLDeclarationBits = mXMLDeclarationBits;
   clone->mBaseTarget = mBaseTarget;
-  return NS_OK;
-}
 
-void
-nsDocument::SetReadyStateInternal(ReadyState rs)
-{
-  mReadyState = rs;
-  // TODO fire "readystatechange"
-}
-
-
-NS_IMETHODIMP
-nsDocument::GetReadyState(nsAString& aReadyState)
-{
-  switch(mReadyState) {
-  case READYSTATE_LOADING :
-    aReadyState.Assign(NS_LITERAL_STRING("loading"));
-    break;
-  case READYSTATE_INTERACTIVE :
-    aReadyState.Assign(NS_LITERAL_STRING("interactive"));
-    break;
-  case READYSTATE_COMPLETE :
-    aReadyState.Assign(NS_LITERAL_STRING("complete"));
-    break;  
-  default:
-    aReadyState.Assign(NS_LITERAL_STRING("uninitialized"));
-  }
   return NS_OK;
 }
