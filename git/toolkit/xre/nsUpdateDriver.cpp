@@ -403,10 +403,8 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
     rv = parentDir2->GetNativePath(applyToDir);
   }
 #elif defined(XP_WIN)
-  nsAutoString applyToDirW;
-  rv = appDir->GetPath(applyToDirW);
-
-  NS_ConvertUTF16toUTF8 applyToDir(applyToDirW);
+  nsAutoString applyToDir;
+  rv = appDir->GetPath(applyToDir);
 #else
   nsCAutoString applyToDir;
   rv = appDir->GetNativePath(applyToDir);
