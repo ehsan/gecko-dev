@@ -20,7 +20,7 @@ DIST_INSTALL = 1
 SDK_LIBRARY = $(LIBRARY)
 
 
-DISABLED_SDK_HEADERS = \
+SDK_HEADERS = \
 	nsUnicharUtils.h \
 	$(NULL)
 

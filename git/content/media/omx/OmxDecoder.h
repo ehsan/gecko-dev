@@ -158,8 +158,7 @@ class OmxDecoder : public OMXCodecProxy::EventListener {
                     int32_t aAudioChannels, int32_t aAudioSampleRate);
 
   //True if decoder is in a paused state
-  bool mAudioPaused;
-  bool mVideoPaused;
+  bool mPaused;
 
 public:
   OmxDecoder(MediaResource *aResource, AbstractMediaDecoder *aDecoder);

@@ -43,7 +43,6 @@
     <View android:id="@+id/divider_doorhanger"
           android:layout_width="fill_parent"
           android:layout_height="1dp"
-          android:background="#FFFF9500"
-          android:visibility="gone"/>
+          android:background="#FFFF9500"/>
 
 </merge>

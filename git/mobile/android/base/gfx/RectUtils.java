@@ -31,7 +31,7 @@ public final class RectUtils {
     }
 
     public static String toJSON(RectF rect) {
-        StringBuilder sb = new StringBuilder(256);
+        StringBuffer sb = new StringBuffer(256);
         sb.append("{ \"left\": ").append(rect.left)
           .append(", \"top\": ").append(rect.top)
           .append(", \"right\": ").append(rect.right)

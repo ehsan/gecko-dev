@@ -2789,15 +2789,9 @@ JS_SetFinalizeCallback(JSRuntime *rt, JSFinalizeCallback cb)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_IsAboutToBeFinalized(JS::Heap<JSObject *> *objp)
+JS_IsAboutToBeFinalized(JSObject **obj)
 {
-    return IsObjectAboutToBeFinalized(objp->unsafeGet());
-}
-
-JS_PUBLIC_API(JSBool)
-JS_IsAboutToBeFinalizedUnbarriered(JSObject **objp)
-{
-    return IsObjectAboutToBeFinalized(objp);
+    return IsObjectAboutToBeFinalized(obj);
 }
 
 JS_PUBLIC_API(void)

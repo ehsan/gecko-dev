@@ -9,8 +9,6 @@
 // minimum amount of movement using the mouse after which we cancel the button click handlers
 const kOnClickMargin = 3;
 
-const kNavButtonPref = "browser.display.overlaynavbuttons";
-
 var NavButtonSlider = {
   _back: document.getElementById("overlay-back"),
   _plus: document.getElementById("overlay-plus"),
@@ -68,24 +66,6 @@ var NavButtonSlider = {
     }, this);
 
     this._updateStops();
-    this._updateVisibility();
-    Services.prefs.addObserver(kNavButtonPref, this, false);
-  },
-
-  observe: function BrowserUI_observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed" && aData == kNavButtonPref) {
-      this._updateVisibility();
-    }
-  },
-
-  _updateVisibility: function () {
-    if (Services.prefs.getBoolPref(kNavButtonPref)) {
-      this._back.removeAttribute("hidden");
-      this._plus.removeAttribute("hidden");
-    } else {
-      this._back.setAttribute("hidden", true);
-      this._plus.setAttribute("hidden", true);
-    }
   },
 
   _updateStops: function () {

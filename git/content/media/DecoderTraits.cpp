@@ -518,9 +518,7 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
     IsOggType(aType) ||
 #endif
 #ifdef MOZ_OMX_DECODER
-    // We support amr inside WebApps on firefoxOS but not in general web content.
-    // Ensure we dont create a VideoDocument when accessing amr URLs directly.
-    (IsOmxSupportedType(aType) && !aType.EqualsASCII("audio/amr")) ||
+    IsOmxSupportedType(aType) ||
 #endif
 #ifdef MOZ_WEBM
     IsWebMType(aType) ||

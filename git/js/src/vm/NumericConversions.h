@@ -292,7 +292,9 @@ ToInteger(double d)
         return d;
     }
 
-    return d < 0 ? ceil(d) : floor(d);
+    bool neg = (d < 0);
+    d = floor(neg ? -d : d);
+    return neg ? -d : d;
 }
 
 } /* namespace js */

@@ -8,12 +8,6 @@ const Cu = Components.utils;
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-const EVENT_STATE_CHANGE = Ci.nsIAccessibleEvent.EVENT_STATE_CHANGE;
-
-const ROLE_CELL = Ci.nsIAccessibleRole.ROLE_CELL;
-const ROLE_COLUMNHEADER = Ci.nsIAccessibleRole.ROLE_COLUMNHEADER;
-const ROLE_ROWHEADER = Ci.nsIAccessibleRole.ROLE_ROWHEADER;
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, 'Services',
   'resource://gre/modules/Services.jsm');
@@ -316,7 +310,7 @@ this.Logger = {
 
   eventToString: function eventToString(aEvent) {
     let str = Utils.AccRetrieval.getStringEventType(aEvent.eventType);
-    if (aEvent.eventType == EVENT_STATE_CHANGE) {
+    if (aEvent.eventType == Ci.nsIAccessibleEvent.EVENT_STATE_CHANGE) {
       let event = aEvent.QueryInterface(Ci.nsIAccessibleStateChangeEvent);
       let stateStrings = event.isExtraState ?
         Utils.AccRetrieval.getStringStates(0, event.state) :
@@ -482,9 +476,11 @@ PivotContext.prototype = {
       if (!aAccessible) {
         return null;
       }
-      if ([ROLE_CELL, ROLE_COLUMNHEADER, ROLE_ROWHEADER].indexOf(
-        aAccessible.role) < 0) {
-          return null;
+      if ([Ci.nsIAccessibleRole.ROLE_CELL,
+           Ci.nsIAccessibleRole.ROLE_COLUMNHEADER,
+           Ci.nsIAccessibleRole.ROLE_ROWHEADER].indexOf(
+             aAccessible.role) < 0) {
+        return null;
       }
       try {
         return aAccessible.QueryInterface(Ci.nsIAccessibleTableCell);
@@ -543,12 +539,13 @@ PivotContext.prototype = {
 
     cellInfo.columnHeaders = [];
     if (cellInfo.columnChanged && cellInfo.current.role !==
-      ROLE_COLUMNHEADER) {
+      Ci.nsIAccessibleRole.ROLE_COLUMNHEADER) {
       cellInfo.columnHeaders = [headers for (headers of getHeaders(
         cellInfo.current.columnHeaderCells))];
     }
     cellInfo.rowHeaders = [];
-    if (cellInfo.rowChanged && cellInfo.current.role === ROLE_CELL) {
+    if (cellInfo.rowChanged && cellInfo.current.role ===
+      Ci.nsIAccessibleRole.ROLE_CELL) {
       cellInfo.rowHeaders = [headers for (headers of getHeaders(
         cellInfo.current.rowHeaderCells))];
     }

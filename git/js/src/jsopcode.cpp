@@ -1339,8 +1339,7 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
         JSObject *obj = (op == JSOP_REGEXP)
                         ? script->getRegExp(GET_UINT32_INDEX(pc))
                         : script->getObject(GET_UINT32_INDEX(pc));
-        RootedValue objv(cx, ObjectValue(*obj));
-        JSString *str = ValueToSource(cx, objv);
+        JSString *str = ValueToSource(cx, ObjectValue(*obj));
         if (!str)
             return false;
         return write(str);
@@ -2121,7 +2120,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
 
     AppendJSONProperty(buf, "file", NO_COMMA);
     JSString *str = JS_NewStringCopyZ(cx, script->filename());
-    if (!str || !(str = StringToSource(cx, str)))
+    if (!str || !(str = ValueToSource(cx, StringValue(str))))
         return NULL;
     buf.append(str);
 
@@ -2132,7 +2131,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
         JSAtom *atom = script->function()->displayAtom();
         if (atom) {
             AppendJSONProperty(buf, "name");
-            if (!(str = StringToSource(cx, atom)))
+            if (!(str = ValueToSource(cx, StringValue(atom))))
                 return NULL;
             buf.append(str);
         }
@@ -2219,7 +2218,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
     AppendJSONProperty(buf, "text", NO_COMMA);
 
     JSString *str = JS_DecompileScript(cx, script, NULL, 0);
-    if (!str || !(str = StringToSource(cx, str)))
+    if (!str || !(str = ValueToSource(cx, StringValue(str))))
         return false;
 
     buf.append(str);
@@ -2275,7 +2274,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
             AppendJSONProperty(buf, "text");
             JSString *str = JS_NewStringCopyZ(cx, text);
             js_free(text);
-            if (!str || !(str = StringToSource(cx, str)))
+            if (!str || !(str = ValueToSource(cx, StringValue(str))))
                 return false;
             buf.append(str);
         }
@@ -2336,7 +2335,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
 
                 AppendJSONProperty(buf, "code");
                 JSString *str = JS_NewStringCopyZ(cx, block.code());
-                if (!str || !(str = StringToSource(cx, str)))
+                if (!str || !(str = ValueToSource(cx, StringValue(str))))
                     return false;
                 buf.append(str);
 

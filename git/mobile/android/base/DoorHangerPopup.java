@@ -295,21 +295,15 @@ public class DoorHangerPopup extends ArrowPopup
         }
     }
 
-    //Show all inter-DoorHanger dividers (ie. Dividers on all visible DoorHangers except the last one)
     private void showDividers() {
         int count = mContent.getChildCount();
-        DoorHanger lastVisibleDoorHanger = null;
 
         for (int i = 0; i < count; i++) {
             DoorHanger dh = (DoorHanger) mContent.getChildAt(i);
             dh.showDivider();
-            if (dh.getVisibility() == View.VISIBLE) {
-                lastVisibleDoorHanger = dh;
-            }
         }
-        if (lastVisibleDoorHanger != null) {
-            lastVisibleDoorHanger.hideDivider();
-        }
+
+        ((DoorHanger) mContent.getChildAt(count-1)).hideDivider();
     }
 
     private void registerEventListener(String event) {
