@@ -43,6 +43,7 @@
 // TODO Merge into Sampler.h
 
 extern pthread_key_t pkey_stack;
+extern pthread_key_t pkey_ticker;
 
 #define SAMPLER_INIT() mozilla_sampler_init();
 #define SAMPLER_DEINIT() mozilla_sampler_deinit();
@@ -58,7 +59,7 @@ extern pthread_key_t pkey_stack;
 //      memory stores from being reordered
 // Uses: pLinuxKernelMemoryBarrier
 # define STORE_SEQUENCER() base::subtle::MemoryBarrier();
-#elif ARCH_CPU_X86_FAMILY
+#elif ARCH_CPU_ARM_FAMILY
 # define STORE_SEQUENCER() asm volatile("" ::: "memory");
 #else
 # error "Memory clobber not supported for your platform."

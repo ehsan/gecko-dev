@@ -601,11 +601,9 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
             JSObject* obj;
             const nsID* pid=nsnull;
 
-            // There's no good reason to pass a null IID.
             if (JSVAL_IS_VOID(s) || JSVAL_IS_NULL(s)) {
-                if (pErr)
-                  *pErr = NS_ERROR_XPC_BAD_CONVERT_JS;
-                return false;
+                *((const nsID**)d) = nsnull;
+                return true;
             }
 
             if (!JSVAL_IS_OBJECT(s) ||

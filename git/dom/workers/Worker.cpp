@@ -267,9 +267,6 @@ private:
   Terminate(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     const char*& name = sFunctions[0].name;
     WorkerPrivate* worker = GetInstancePrivate(aCx, obj, name);
@@ -284,9 +281,6 @@ private:
   PostMessage(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     const char*& name = sFunctions[1].name;
     WorkerPrivate* worker = GetInstancePrivate(aCx, obj, name);

@@ -1601,7 +1601,11 @@ void
 nsAccessible::ApplyARIAState(PRUint64* aState)
 {
   // Test for universal states first
-  *aState |= nsARIAMap::UniversalStatesFor(mContent);
+  PRUint32 index = 0;
+  while (nsStateMapEntry::MapToStates(mContent, aState,
+                                      nsARIAMap::gWAIUnivStateMap[index])) {
+    ++ index;
+  }
 
   if (mRoleMapEntry) {
 

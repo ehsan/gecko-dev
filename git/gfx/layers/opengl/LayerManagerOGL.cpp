@@ -1053,6 +1053,8 @@ LayerManagerOGL::CopyToTarget()
     mGLContext->fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
   }
 
+  mGLContext->fFinish();
+
   mGLContext->fReadPixels(0, 0,
                           width, height,
                           format,

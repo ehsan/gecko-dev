@@ -160,8 +160,12 @@ nsHyperTextAccessible::NativeRole()
 
   // Treat block frames as paragraphs
   nsIFrame *frame = GetFrame();
-  if (frame && frame->GetType() == nsGkAtoms::blockFrame)
+  if (frame && frame->GetType() == nsGkAtoms::blockFrame &&
+      frame->GetContent()->Tag() != nsGkAtoms::input) {
+    // An html:input @type="file" is the only input that is exposed as a
+    // blockframe. It must be exposed as ROLE_TEXT_CONTAINER for JAWS.
     return nsIAccessibleRole::ROLE_PARAGRAPH;
+  }
 
   return nsIAccessibleRole::ROLE_TEXT_CONTAINER; // In ATK this works
 }

@@ -257,8 +257,7 @@ ParseOptionalOffset(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
   if (aSpec.First() != '+' && aSpec.First() != '-')
     return NS_ERROR_FAILURE;
 
-  return nsSMILParserUtils::ParseClockValue(aSpec, &aResult.mOffset,
-     nsSMILParserUtils::kClockValueAllowSign);
+  return nsSMILParserUtils::ParseClockValue(aSpec, &aResult.mOffset, true);
 }
 
 nsresult
@@ -687,8 +686,7 @@ nsSMILParserUtils::ParseTimeValueSpecParams(const nsAString& aSpec,
 
   // offset type
   if (*start == '+' || *start == '-' || NS_IsAsciiDigit(*start)) {
-    rv = ParseClockValue(spec, &aResult.mOffset,
-                         nsSMILParserUtils::kClockValueAllowSign);
+    rv = ParseClockValue(spec, &aResult.mOffset, true);
     if (NS_SUCCEEDED(rv)) {
       aResult.mType = nsSMILTimeValueSpecParams::OFFSET;
     }
@@ -731,8 +729,6 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
   PRInt8 sign = 0;
   PRUint8 colonCount = 0;
 
-  // Indicates we have started parsing a clock-value (not including the optional
-  // +/- that precedes the clock-value) or keyword ("media", "indefinite")
   bool started = false;
 
   PRInt32 metricMultiplicand = MSEC_PER_SEC;
@@ -753,14 +749,22 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
 
   while (start != end) {
     if (IsSpace(*start)) {
-      ++start;
       if (started) {
+        ++start;
         break;
       }
-    } else if (!started && (aFlags & kClockValueAllowSign) &&
-               (*start == '+' || *start == '-')) {
-      // check sign has not already been set (e.g. ++10s)
+      // else, we haven't started yet, ignore initial whitespace
+      ++start;
+
+    } else if ((aFlags & kClockValueAllowSign)
+               && (*start == '+' || *start == '-')) {
+      // check sign has not already been set
       if (sign != 0) {
+        return NS_ERROR_FAILURE;
+      }
+
+      // check sign is not in middle of string
+      if (started) {
         return NS_ERROR_FAILURE;
       }
 
@@ -771,15 +775,20 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
       prevNumCouldBeMin = numCouldBeMin;
 
       if (!ParseClockComponent(start, end, component, numIsReal, numCouldBeMin,
-                               numCouldBeSec)) {
+                               numCouldBeSec))
         return NS_ERROR_FAILURE;
-      }
+
       started = true;
-    } else if (started && *start == ':') {
+    } else if (*start == ':') {
       ++colonCount;
 
       // Neither minutes nor hours can be reals
       if (numIsReal) {
+        return NS_ERROR_FAILURE;
+      }
+
+      // Clock value can't start with a ':'
+      if (!started) {
         return NS_ERROR_FAILURE;
       }
 
@@ -798,8 +807,8 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
         return NS_ERROR_FAILURE;
       }
 
-      if (!started && (aFlags & kClockValueAllowIndefinite) &&
-          ConsumeSubstring(start, end, "indefinite")) {
+      if ((aFlags & kClockValueAllowIndefinite)
+          && ConsumeSubstring(start, end, "indefinite")) {
         // We set a separate flag because we don't know what the state of the
         // passed in time value is and we shouldn't change it in the case of a
         // bad input string (so we can't initialise it to 0ms for example).
@@ -807,11 +816,8 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
         if (aResult) {
           aResult->SetIndefinite();
         }
-        started = true;
-      } else if (!started && aIsMedia &&
-                 ConsumeSubstring(start, end, "media")) {
+      } else if (aIsMedia && ConsumeSubstring(start, end, "media")) {
         *aIsMedia = true;
-        started = true;
       } else if (!ParseMetricMultiplicand(start, end, metricMultiplicand)) {
         return NS_ERROR_FAILURE;
       }
@@ -823,7 +829,6 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
     }
   }
 
-  // Whitespace/empty string
   if (!started) {
     return NS_ERROR_FAILURE;
   }
@@ -850,7 +855,7 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
 
   // Tack on the last component
   if (colonCount > 0) {
-    offset *= 60 * 1000;
+    offset = offset * 60 * 1000;
     component *= 1000;
     // rounding
     component = (component >= 0) ? component + 0.5 : component - 0.5;

@@ -1782,7 +1782,7 @@ LoopState::analyzeLoopBody(unsigned frame)
         skipAnalysis = true;
 
     /* Analyze the entire script for frames inlined in the loop body. */
-    unsigned start = (frame == CrossScriptSSA::OUTER_FRAME) ? lifetime->head + JSOP_LOOPHEAD_LENGTH : 0;
+    unsigned start = (frame == CrossScriptSSA::OUTER_FRAME) ? lifetime->head + JSOP_TRACE_LENGTH : 0;
     unsigned end = (frame == CrossScriptSSA::OUTER_FRAME) ? lifetime->backedge : script->length;
 
     unsigned offset = start;
@@ -1796,12 +1796,11 @@ LoopState::analyzeLoopBody(unsigned frame)
             continue;
         }
 
-        JSOp op = JSOp(*pc);
-
         /* Don't do any hoisting for outer loops in case of nesting. */
-        if (op == JSOP_LOOPHEAD)
+        if (opinfo->loopHead)
             skipAnalysis = true;
 
+        JSOp op = JSOp(*pc);
         switch (op) {
 
           case JSOP_CALL: {
@@ -1896,7 +1895,8 @@ LoopState::analyzeLoopBody(unsigned frame)
             unknownModset = true;
             break;
 
-          case JSOP_LOOPHEAD:
+          case JSOP_TRACE:
+          case JSOP_NOTRACE:
           case JSOP_POP:
           case JSOP_ZERO:
           case JSOP_ONE:

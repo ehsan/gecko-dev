@@ -1693,11 +1693,3 @@ nsConnectionHandle::SetLastTransactionExpectedNoContent(bool val)
 {
      mConn->SetLastTransactionExpectedNoContent(val);
 }
-
-nsISocketTransport *
-nsHttpConnectionMgr::nsConnectionHandle::Transport()
-{
-    if (!mConn)
-        return nsnull;
-    return mConn->Transport();
-}

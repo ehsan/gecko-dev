@@ -39,7 +39,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 const LOCAL_FILE_CID = "@mozilla.org/file/local;1";
 const FILE_INPUT_STREAM_CID = "@mozilla.org/network/file-input-stream;1";
@@ -73,7 +72,7 @@ XPCOMUtils.defineLazyGetter(this, "bookmarksSubfolderTitle", function () {
                                         1);
 });
 
-/**
+/*
  * Convert Chrome time format to Date object
  *
  * @param   aTime
@@ -87,7 +86,7 @@ function chromeTimeToDate(aTime)
   return new Date((aTime * S100NS_PER_MS - S100NS_FROM1601TO1970 ) / 10000);
 }
 
-/**
+/*
  * Insert bookmark items into specific folder.
  *
  * @param   aFolderId
@@ -130,38 +129,25 @@ ChromeProfileMigrator.prototype = {
     cookies : null,
     history : null,
     prefs : null,
-    userData : null,
   },
 
   _homepageURL : null,
   _replaceBookmarks : false,
-  _sourceProfile: null,
-  _profilesCache: null,
 
-  /**
+  /*
    * Notify to observers to start migration
    *
    * @param   aType
    *          notification type such as MIGRATE_BOOKMARKS
    */
+
   _notifyStart : function Chrome_notifyStart(aType)
   {
     Services.obs.notifyObservers(null, "Migration:ItemBeforeMigrate", aType);
     this._pendingCount++;
   },
 
-  /**
-   * Notify observers that a migration error occured with an item
-   *
-   * @param   aType
-   *          notification type such as MIGRATE_BOOKMARKS
-   */
-  _notifyError : function Chrome_notifyError(aType)
-  {
-    Services.obs.notifyObservers(null, "Migration:ItemError", aType);
-  },
-
-  /**
+  /*
    * Notify to observers to finish migration for item
    * If all items are finished, it sends migration end notification.
    *
@@ -177,7 +163,7 @@ ChromeProfileMigrator.prototype = {
     }
   },
 
-  /**
+  /*
    * Migrating bookmark items
    */
   _migrateBookmarks : function Chrome_migrateBookmarks()
@@ -238,12 +224,11 @@ ChromeProfileMigrator.prototype = {
       }, null);
     } catch (e) {
       Cu.reportError(e);
-      this._notifyError(MIGRATE_BOOKMARKS);
       this._notifyCompleted(MIGRATE_BOOKMARKS);
     }
   },
 
-  /**
+  /*
    * Migrating history
    */
   _migrateHistory : function Chrome_migrateHistory()
@@ -313,12 +298,11 @@ ChromeProfileMigrator.prototype = {
       }, null);
     } catch (e) {
       Cu.reportError(e);
-      this._notifyError(MIGRATE_HISTORY);
       this._notifyCompleted(MIGRATE_HISTORY);
     }
   },
 
-  /**
+  /*
    * Migrating cookies
    */
   _migrateCookies : function Chrome_migrateCookies()
@@ -375,24 +359,23 @@ ChromeProfileMigrator.prototype = {
       stmt.finalize();
     } catch (e) {
       Cu.reportError(e);
-      this._notifyError(MIGRATE_COOKIES);
       this._notifyCompleted(MIGRATE_COOKIES);
     }
   },
 
-  /**
+  /*
    * nsIBrowserProfileMigrator interface implementation
    */
 
-  /**
+  /*
    * Let's migrate all items
    *
    * @param   aItems
-   *          list of data items to migrate.
+   *          list of data items to migrate.  but this is unused.
    * @param   aStartup
    *          non-null if called during startup.
    * @param   aProfile
-   *          profile directory name to migrate
+   *          this is unused due to single profile support only
    */
   migrate : function Chrome_migrate(aItems, aStartup, aProfile)
   {
@@ -400,8 +383,6 @@ ChromeProfileMigrator.prototype = {
       aStartup.doStartup();
       this._replaceBookmarks = true;
     }
-
-    this._sourceProfile = aProfile;
 
     Services.obs.notifyObservers(null, "Migration:Started", null);
 
@@ -426,51 +407,53 @@ ChromeProfileMigrator.prototype = {
     }
   },
 
-  /**
+  /*
    * return supported migration types
    *
    * @param   aProfile
-   *          directory name of the profile
+   *          this is unused due to single profile support only
    * @param   aDoingStartup
    *          non-null if called during startup.
    * @return  supported migration types
    */
   getMigrateData: function Chrome_getMigrateData(aProfile, aDoingStartup)
   {
-    this._sourceProfile = aProfile;
-    let chromeProfileDir = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);
-    chromeProfileDir.initWithPath(this._paths.userData + aProfile);
+#ifdef XP_WIN
+    let chromepath = Services.dirsvc.get("LocalAppData", Ci.nsIFile).path +
+                     "\\Google\\Chrome\\User Data\\Default\\";
+#elifdef XP_MACOSX
+    let chromepath = Services.dirsvc.get("Home", Ci.nsIFile).path +
+                     "/Library/Application Support/Google/Chrome/Default/";
+#else
+    let chromepath = Services.dirsvc.get("Home", Ci.nsIFile).path +
+                     "/.config/google-chrome/Default/";
+#endif
 
     let result = 0;
-    if (!chromeProfileDir.exists() || !chromeProfileDir.isReadable())
-      return result;
 
     // bookmark and preference are JSON format
 
     try {
-      let file = chromeProfileDir.clone();
-      file.append("Bookmarks");
+      let file = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);
+      file.initWithPath(chromepath + "Bookmarks");
       if (file.exists()) {
-        this._paths.bookmarks = file.path;
+        this._paths.bookmarks = file.path
         result += MIGRATE_BOOKMARKS;
       }
     } catch (e) {
       Cu.reportError(e);
     }
 
-    if (!this._paths.prefs) {
-      let file = chromeProfileDir.clone();
-      file.append("Preferences");
-      this._paths.prefs = file.path;
-    }
+    if (!this._paths.prefs)
+      this._paths.prefs = chromepath + "Preferences";
 
     // history and cookies are SQLite database
 
     try {
-      let file = chromeProfileDir.clone();
-      file.append("History");
+      let file = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);
+      file.initWithPath(chromepath + "History");
       if (file.exists()) {
-        this._paths.history = file.path;
+        this._paths.history = file.path
         result += MIGRATE_HISTORY;
       }
     } catch (e) {
@@ -478,10 +461,10 @@ ChromeProfileMigrator.prototype = {
     }
 
     try {
-      let file = chromeProfileDir.clone();
-      file.append("Cookies");
+      let file = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);
+      file.initWithPath(chromepath + "Cookies");
       if (file.exists()) {
-        this._paths.cookies = file.path;
+        this._paths.cookies = file.path
         result += MIGRATE_COOKIES;
       }
     } catch (e) {
@@ -491,87 +474,23 @@ ChromeProfileMigrator.prototype = {
     return result;
   },
 
-  /**
+  /*
    * Whether we support migration of Chrome
    *
    * @return true if supported
    */
   get sourceExists()
   {
-#ifdef XP_WIN
-    this._paths.userData = Services.dirsvc.get("LocalAppData", Ci.nsIFile).path +
-                            "\\Google\\Chrome\\User Data\\";
-#elifdef XP_MACOSX
-    this._paths.userData = Services.dirsvc.get("Home", Ci.nsIFile).path +
-                            "/Library/Application Support/Google/Chrome/";
-#else
-    this._paths.userData = Services.dirsvc.get("Home", Ci.nsIFile).path +
-                            "/.config/google-chrome/";
-#endif
-    let result = 0;
-    try {
-      let userDataDir = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);
-      userDataDir.initWithPath(this._paths.userData);
-      if (!userDataDir.exists() || !userDataDir.isReadable())
-        return false;
-
-      let profiles = this.sourceProfiles;
-      if (profiles.length < 1)
-        return false;
-
-      // check that we can actually get data from the first profile
-      result = this.getMigrateData(profiles.queryElementAt(0, Ci.nsISupportsString), false);
-    } catch (e) {
-      Cu.reportError(e);
-    }
-    return result > 0;
+    let result = this.getMigrateData(null, false);
+    return result != 0;
   },
 
-  get sourceHasMultipleProfiles()
-  {
-    return this.sourceProfiles.length > 1;
-  },
+  // Although Chrome supports multi-profiles, there is no way
+  // to get profile lists.
+  sourceHasMultipleProfiles: false,
+  sourceProfiles: null,
 
-  get sourceProfiles()
-  {
-    let profiles = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
-    try {
-      if (!this._profilesCache) {
-        let localState = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);
-        // Local State is a JSON file that contains profile info.
-        localState.initWithPath(this._paths.userData + "Local State");
-        if (!localState.exists())
-          throw new Components.Exception("Chrome's 'Local State' file does not exist.",
-                                         Cr.NS_ERROR_FILE_NOT_FOUND);
-        if (!localState.isReadable())
-          throw new Components.Exception("Chrome's 'Local State' file could not be read.",
-                                         Cr.NS_ERROR_FILE_ACCESS_DENIED);
-        let fstream = Cc[FILE_INPUT_STREAM_CID].createInstance(Ci.nsIFileInputStream);
-        fstream.init(localState, -1, 0, 0);
-        let inputStream = NetUtil.readInputStreamToString(fstream, fstream.available(),
-                                                          { charset: "UTF-8" });
-        this._profilesCache = JSON.parse(inputStream).profile.info_cache;
-      }
-
-      for (let index in this._profilesCache) {
-        let str = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-        str.data = index;
-        profiles.appendElement(str, false);
-      }
-    } catch (e) {
-      Cu.reportError("Error detecting Chrome profiles: " + e);
-      // if we weren't able to detect any profiles above, fallback to the Default profile.
-      if (profiles.length < 1) {
-        let str = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-        // the default profile name is "Default"
-        str.data = "Default";
-        profiles.appendElement(str, false);
-      }
-    }
-    return profiles;
-  },
-
-  /**
+  /*
    * Return home page URL
    *
    * @return  home page URL
@@ -583,7 +502,7 @@ ChromeProfileMigrator.prototype = {
         return this._homepageURL;
 
       if (!this._paths.prefs)
-        this.getMigrateData(this._sourceProfile, false);
+        this.getMigrateData(null, false);
 
       // XXX reading and parsing JSON is synchronous.
       let file = Cc[LOCAL_FILE_CID].createInstance(Ci.nsILocalFile);

@@ -151,9 +151,8 @@ RPCChannel::Send(Message* msg, Message* reply)
 }
 
 bool
-RPCChannel::Call(Message* _msg, Message* reply)
+RPCChannel::Call(Message* msg, Message* reply)
 {
-    nsAutoPtr<Message> msg(_msg);
     AssertWorkerThread();
     mMonitor.AssertNotCurrentThreadOwns();
     RPC_ASSERT(!ProcessingSyncMessage(),
@@ -179,7 +178,7 @@ RPCChannel::Call(Message* _msg, Message* reply)
     msg->set_rpc_local_stack_depth(1 + StackDepth());
     mStack.push(*msg);
 
-    SendThroughTransport(msg.forget());
+    SendThroughTransport(msg);
 
     while (1) {
         // if a handler invoked by *Dispatch*() spun a nested event

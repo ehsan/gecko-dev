@@ -451,9 +451,6 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
     mElement->FirstFrameLoaded(resourceIsLoaded);
   }
 
-  // This can run cache callbacks.
-  mStream->EnsureCacheUpToDate();
-
   // The element can run javascript via events
   // before reaching here, so only change the
   // state if we're still set to the original
@@ -470,10 +467,6 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
   if (resourceIsLoaded) {
     ResourceLoaded();
   }
-
-  // Run NotifySuspendedStatusChanged now to give us a chance to notice
-  // that autoplay should run.
-  NotifySuspendedStatusChanged();
 }
 
 void nsBuiltinDecoder::ResourceLoaded()
@@ -644,9 +637,7 @@ void nsBuiltinDecoder::NotifySuspendedStatusChanged()
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (!mStream)
     return;
-  bool suspended = mStream->IsSuspendedByCache();
-  printf("*** nsBuiltinDecoder::NotifySuspendedStatusChanged(%p), suspended=%d\n", this, suspended);
-  if (suspended && mElement) {
+  if (mStream->IsSuspendedByCache() && mElement) {
     // if this is an autoplay element, we need to kick off its autoplaying
     // now so we consume data and hopefully free up cache space
     mElement->NotifyAutoplayDataReady();

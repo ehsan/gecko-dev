@@ -498,7 +498,7 @@ StackSpace::tryBumpLimit(JSContext *cx, Value *from, uintN nvals, Value **limit)
 }
 
 size_t
-StackSpace::sizeOfCommitted()
+StackSpace::committedSize()
 {
 #ifdef XP_WIN
     return (commitEnd_ - base_) * sizeof(Value);

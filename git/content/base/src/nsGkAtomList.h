@@ -704,6 +704,7 @@ GK_ATOM(onmouseover, "onmouseover")
 GK_ATOM(onMozMouseHittest, "onMozMouseHittest")
 GK_ATOM(onmouseup, "onmouseup")
 GK_ATOM(onMozAfterPaint, "onMozAfterPaint")
+GK_ATOM(onMozBeforePaint, "onMozBeforePaint")
 GK_ATOM(onmozfullscreenchange, "onmozfullscreenchange")
 GK_ATOM(onmozfullscreenerror, "onmozfullscreenerror")
 GK_ATOM(onMozMousePixelScroll, "onMozMousePixelScroll")
@@ -1671,6 +1672,8 @@ GK_ATOM(veryverythinmathspace_, "veryverythinmathspace")
 GK_ATOM(voffset_, "voffset")
 GK_ATOM(xref_, "xref")
 GK_ATOM(math, "math") // the only one without an underscore
+
+#ifndef DISABLE_XFORMS_HOOKS
 GK_ATOM(avg, "avg")
 GK_ATOM(booleanFromString, "boolean-from-string")
 GK_ATOM(countNonEmpty, "count-non-empty")
@@ -1681,6 +1684,7 @@ GK_ATOM(months, "months")
 GK_ATOM(now, "now")
 GK_ATOM(seconds, "seconds")
 GK_ATOM(secondsFromDateTime, "seconds-from-dateTime")
+#endif
 
 // Simple gestures support
 GK_ATOM(onMozSwipeGesture, "onMozSwipeGesture")

@@ -227,11 +227,6 @@ struct ThreadData {
         propertyCache.purge(cx);
     }
 
-#ifdef JS_THREADSAFE
-    void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, size_t *temporary,
-                             size_t *regexpCode, size_t *stackCommitted);
-#endif
-
     /* This must be called with the GC lock held. */
     void triggerOperationCallback(JSRuntime *rt);
 
@@ -262,7 +257,7 @@ struct JSThread {
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
     void                *id;
 
-    /* Number of JS_SuspendRequest calls without JS_ResumeRequest. */
+    /* Number of JS_SuspendRequest calls withot JS_ResumeRequest. */
     unsigned            suspendCount;
 
 # ifdef DEBUG
@@ -291,10 +286,6 @@ struct JSThread {
     bool init() {
         return data.init();
     }
-
-    JS_FRIEND_API(void) sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal,
-                                            size_t *temporary, size_t *regexpCode,
-                                            size_t *stackCommitted);
 };
 
 #define JS_THREAD_DATA(cx)      (&(cx)->thread()->data)
@@ -1277,8 +1268,6 @@ struct JSContext
      * Note: !cx->compartment is treated as trusted.
      */
     bool runningWithTrustedPrincipals() const;
-
-    JS_FRIEND_API(size_t) sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
     static inline JSContext *fromLinkField(JSCList *link) {
         JS_ASSERT(link);

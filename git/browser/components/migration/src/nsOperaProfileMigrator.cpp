@@ -170,12 +170,12 @@ nsOperaProfileMigrator::GetMigrateData(const PRUnichar* aProfile,
 NS_IMETHODIMP
 nsOperaProfileMigrator::GetSourceExists(bool* aResult)
 {
-  nsCOMPtr<nsIArray> profiles;
+  nsCOMPtr<nsISupportsArray> profiles;
   GetSourceProfiles(getter_AddRefs(profiles));
 
   if (profiles) { 
     PRUint32 count;
-    profiles->GetLength(&count);
+    profiles->Count(&count);
     *aResult = count > 0;
   }
   else
@@ -187,13 +187,13 @@ nsOperaProfileMigrator::GetSourceExists(bool* aResult)
 NS_IMETHODIMP
 nsOperaProfileMigrator::GetSourceHasMultipleProfiles(bool* aResult)
 {
-  nsCOMPtr<nsIArray> profiles;
+  nsCOMPtr<nsISupportsArray> profiles;
   GetSourceProfiles(getter_AddRefs(profiles));
 
 #ifdef XP_WIN
   if (profiles) {
     PRUint32 count;
-    profiles->GetLength(&count);
+    profiles->Count(&count);
     *aResult = count > 1;
   }
   else
@@ -204,12 +204,12 @@ nsOperaProfileMigrator::GetSourceHasMultipleProfiles(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
+nsOperaProfileMigrator::GetSourceProfiles(nsISupportsArray** aResult)
 {
   if (!mProfiles) {
     nsresult rv;
 
-    mProfiles = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+    mProfiles = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIProperties> fileLocator(do_GetService("@mozilla.org/file/directory_service;1"));
@@ -238,7 +238,7 @@ nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
         nsAutoString leafName;
         curr->GetLeafName(leafName);
         string->SetData(leafName);
-        mProfiles->AppendElement(string, false);
+        mProfiles->AppendElement(string);
       }
 
       e->HasMoreElements(&hasMore);
@@ -255,7 +255,7 @@ nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
     if (exists) {
       nsCOMPtr<nsISupportsString> string(do_CreateInstance("@mozilla.org/supports-string;1"));
       string->SetData(OPERA_PREFERENCES_FOLDER_NAME);
-      mProfiles->AppendElement(string, false);
+      mProfiles->AppendElement(string);
     }
 #elif defined (XP_UNIX)
     fileLocator->Get(NS_UNIX_HOME_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(file));
@@ -268,7 +268,7 @@ nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
     if (exists) {
       nsCOMPtr<nsISupportsString> string(do_CreateInstance("@mozilla.org/supports-string;1"));
       string->SetData(OPERA_PREFERENCES_FOLDER_NAME);
-      mProfiles->AppendElement(string, false);
+      mProfiles->AppendElement(string);
     }
 #endif
   }

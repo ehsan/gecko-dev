@@ -50,13 +50,12 @@
 #include "nsIDOMNavigatorBattery.h"
 #include "nsIDOMNavigatorSms.h"
 #include "nsAutoPtr.h"
-#include "nsWeakReference.h"
 
 class nsPluginArray;
 class nsMimeTypeArray;
 class nsGeolocation;
 class nsDesktopNotificationCenter;
-class nsPIDOMWindow;
+class nsIDocShell;
 
 //*****************************************************************************
 // Navigator: Script "navigator" object
@@ -81,7 +80,7 @@ class Navigator : public nsIDOMNavigator,
                   public nsIDOMMozNavigatorSms
 {
 public:
-  Navigator(nsPIDOMWindow *aInnerWindow);
+  Navigator(nsIDocShell *aDocShell);
   virtual ~Navigator();
 
   NS_DECL_ISUPPORTS
@@ -94,10 +93,14 @@ public:
 
   static void Init();
 
-  void Invalidate();
-  nsPIDOMWindow *GetWindow();
+  void SetDocShell(nsIDocShell *aDocShell);
+  nsIDocShell *GetDocShell()
+  {
+    return mDocShell;
+  }
 
-  void RefreshMIMEArray();
+  void LoadingNewDocument();
+  nsresult RefreshMIMEArray();
 
   static bool HasDesktopNotificationSupport();
 
@@ -115,7 +118,7 @@ private:
   nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;
   nsRefPtr<sms::SmsManager> mSmsManager;
-  nsWeakPtr mWindow;
+  nsIDocShell* mDocShell; // weak reference
 };
 
 } // namespace dom

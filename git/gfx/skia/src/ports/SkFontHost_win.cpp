@@ -22,7 +22,7 @@
 #ifdef WIN32
 #include "windows.h"
 #include "tchar.h"
-#include "usp10.h"
+#include "Usp10.h"
 
 // always packed xxRRGGBB
 typedef uint32_t SkGdiRGB;
@@ -1033,10 +1033,6 @@ SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
     HFONT savefont = (HFONT)SelectObject(hdc, font);
     HFONT designFont = NULL;
 
-    const char stem_chars[] = {'i', 'I', '!', '1'};
-    int16_t min_width;
-    unsigned glyphCount;
-
     // To request design units, create a logical font whose height is specified
     // as unitsPerEm.
     OUTLINETEXTMETRIC otm;
@@ -1050,7 +1046,7 @@ SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
     if (!GetOutlineTextMetrics(hdc, sizeof(otm), &otm)) {
         goto Error;
     }
-    glyphCount = calculateGlyphCount(hdc);
+    const unsigned glyphCount = calculateGlyphCount(hdc);
 
     info = new SkAdvancedTypefaceMetrics;
     info->fEmSize = otm.otmEMSquare;
@@ -1119,8 +1115,9 @@ SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
 
     // Figure out a good guess for StemV - Min width of i, I, !, 1.
     // This probably isn't very good with an italic font.
-    min_width = SHRT_MAX;
+    int16_t min_width = SHRT_MAX;
     info->fStemV = 0;
+    char stem_chars[] = {'i', 'I', '!', '1'};
     for (size_t i = 0; i < SK_ARRAY_COUNT(stem_chars); i++) {
         ABC abcWidths;
         if (GetCharABCWidths(hdc, stem_chars[i], stem_chars[i], &abcWidths)) {

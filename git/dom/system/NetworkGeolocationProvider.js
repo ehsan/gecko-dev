@@ -100,10 +100,10 @@ function WifiGeoPositionProvider() {
     gTestingEnabled = Services.prefs.getBoolPref("geo.wifi.testing");
   } catch (e) {}
 
-  this.wifiService = null;
-  this.timer = null;
-  this.hasSeenWiFi = false;
-  this.started = false;
+  wifiService = null;
+  timer = null;
+  hasSeenWiFi = false;
+  started = false;
 }
 
 WifiGeoPositionProvider.prototype = {

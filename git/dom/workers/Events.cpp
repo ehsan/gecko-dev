@@ -317,9 +317,6 @@ private:
   StopPropagation(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     Event* event = GetInstancePrivate(aCx, obj, sFunctions[0].name);
     if (!event) {
@@ -335,9 +332,6 @@ private:
   StopImmediatePropagation(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     Event* event = GetInstancePrivate(aCx, obj, sFunctions[3].name);
     if (!event) {
@@ -353,9 +347,6 @@ private:
   PreventDefault(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     Event* event = GetInstancePrivate(aCx, obj, sFunctions[1].name);
     if (!event) {
@@ -376,9 +367,6 @@ private:
   InitEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     Event* event = GetInstancePrivate(aCx, obj, sFunctions[2].name);
     if (!event) {
@@ -639,9 +627,6 @@ private:
   InitMessageEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     MessageEvent* event = GetInstancePrivate(aCx, obj, sFunctions[0].name);
     if (!event) {
@@ -838,9 +823,6 @@ private:
   InitErrorEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     ErrorEvent* event = GetInstancePrivate(aCx, obj, sFunctions[0].name);
     if (!event) {
@@ -1028,9 +1010,6 @@ private:
   InitProgressEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     ProgressEvent* event = GetInstancePrivate(aCx, obj, sFunctions[0].name);
     if (!event) {

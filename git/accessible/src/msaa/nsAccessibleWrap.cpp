@@ -312,25 +312,22 @@ STDMETHODIMP nsAccessibleWrap::get_accValue(
 {
 __try {
   *pszValue = NULL;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  if (xpAccessible) {
+    nsAutoString value;
+    if (NS_FAILED(xpAccessible->GetValue(value)))
+      return E_FAIL;
 
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
-    return E_FAIL;
+    // see bug 438784: Need to expose URL on doc's value attribute.
+    // For this, reverting part of fix for bug 425693 to make this MSAA method 
+    // behave IAccessible2-style.
+    if (value.IsEmpty())
+      return S_FALSE;
 
-  nsAutoString value;
-  if (NS_FAILED(xpAccessible->GetValue(value)))
-    return E_FAIL;
-
-  // See bug 438784: need to expose URL on doc's value attribute. For this,
-  // reverting part of fix for bug 425693 to make this MSAA method behave
-  // IAccessible2-style.
-  if (value.IsEmpty())
-    return S_FALSE;
-
-  *pszValue = ::SysAllocStringLen(value.get(), value.Length());
-  if (!*pszValue)
-    return E_OUTOFMEMORY;
-
+    *pszValue = ::SysAllocStringLen(value.get(), value.Length());
+    if (!*pszValue)
+      return E_OUTOFMEMORY;
+  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }

@@ -2220,9 +2220,7 @@ InspectorProgressListener.prototype = {
             aRequest.resume();
             aRequest = null;
             this.IUI.closeInspectorUI();
-            return true;
           }
-          return false;
         }.bind(this),
       },
       {

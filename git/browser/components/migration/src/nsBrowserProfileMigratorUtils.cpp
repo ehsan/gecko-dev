@@ -54,6 +54,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIRDFService.h"
 #include "nsIStringBundle.h"
+#include "nsISupportsArray.h"
 #include "nsXPCOMCID.h"
 
 #define MIGRATION_BUNDLE "chrome://browser/locale/migration/migration.properties"

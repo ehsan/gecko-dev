@@ -181,7 +181,7 @@ class StackSpace
     void mark(JSTracer *trc);
 
     /* We only report the committed size;  uncommitted size is uninteresting. */
-    JS_FRIEND_API(size_t) sizeOfCommitted();
+    JS_FRIEND_API(size_t) committedSize();
 };
 
 /*****************************************************************************/

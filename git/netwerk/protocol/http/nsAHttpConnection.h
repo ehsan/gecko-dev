@@ -124,10 +124,6 @@ public:
     // Transfer the base http connection object along with a
     // reference to it to the caller.
     virtual nsHttpConnection *TakeHttpConnection() = 0;
-
-    // Get the nsISocketTransport used by the connection without changing
-    //  references or ownership.
-    virtual nsISocketTransport *Transport() = 0;
 };
 
 #define NS_DECL_NSAHTTPCONNECTION \
@@ -145,7 +141,6 @@ public:
     nsresult PushBack(const char *, PRUint32); \
     bool LastTransactionExpectedNoContent(); \
     void   SetLastTransactionExpectedNoContent(bool); \
-    nsHttpConnection *TakeHttpConnection(); \
-    nsISocketTransport *Transport();
+    nsHttpConnection *TakeHttpConnection();
 
 #endif // nsAHttpConnection_h__

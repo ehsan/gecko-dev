@@ -227,9 +227,8 @@ AsyncChannel::SynchronouslyClose()
 }
 
 bool
-AsyncChannel::Send(Message* _msg)
+AsyncChannel::Send(Message* msg)
 {
-    nsAutoPtr<Message> msg(_msg);
     AssertWorkerThread();
     mMonitor.AssertNotCurrentThreadOwns();
     NS_ABORT_IF_FALSE(MSG_ROUTING_NONE != msg->routing_id(), "need a route");
@@ -242,16 +241,15 @@ AsyncChannel::Send(Message* _msg)
             return false;
         }
 
-        SendThroughTransport(msg.forget());
+        SendThroughTransport(msg);
     }
 
     return true;
 }
 
 bool
-AsyncChannel::Echo(Message* _msg)
+AsyncChannel::Echo(Message* msg)
 {
-    nsAutoPtr<Message> msg(_msg);
     AssertWorkerThread();
     mMonitor.AssertNotCurrentThreadOwns();
     NS_ABORT_IF_FALSE(MSG_ROUTING_NONE != msg->routing_id(), "need a route");
@@ -269,7 +267,7 @@ AsyncChannel::Echo(Message* _msg)
         // and RPCChannel too
         mIOLoop->PostTask(
             FROM_HERE,
-            NewRunnableMethod(this, &AsyncChannel::OnEchoMessage, msg.forget()));
+            NewRunnableMethod(this, &AsyncChannel::OnEchoMessage, msg));
         // OnEchoMessage takes ownership of |msg|
     }
 
