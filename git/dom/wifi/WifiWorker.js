@@ -1005,8 +1005,8 @@ var WifiManager = (function() {
       terminateSupplicant(function (ok) {
         manager.connectionDropped(function () {
           stopSupplicant(function (status) {
+            manager.state = "UNINITIALIZED";
             closeSupplicantConnection(function () {
-              manager.state = "UNINITIALIZED";
               disableInterface(manager.ifname, function (ok) {
                 unloadDriver(callback);
               });
@@ -1420,7 +1420,6 @@ function WifiWorker() {
   }
   WifiManager.onsupplicantlost = function() {
     WifiManager.enabled = WifiManager.supplicantStarted = false;
-    WifiManager.state = "UNINITIALIZED";
     debug("Supplicant died!");
 
     // Check if we need to fire request replies first:
@@ -1432,9 +1431,7 @@ function WifiWorker() {
   }
   WifiManager.onsupplicantfailed = function() {
     WifiManager.enabled = WifiManager.supplicantStarted = false;
-    WifiManager.state = "UNINITIALIZED";
     debug("Couldn't connect to supplicant");
-
     if (self._stateRequests.length > 0)
       self._notifyAfterStateChange(false, false);
   }

@@ -243,7 +243,7 @@ RunDBusCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable,
 
   nsString replyError;
   BluetoothValue v;
-  aFunc(aMsg, nullptr, v, replyError);
+  aFunc(aMsg, nsnull, v, replyError);
   DispatchBluetoothReply(replyRunnable, v, replyError);  
 }
 

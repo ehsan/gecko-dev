@@ -398,11 +398,11 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
 
   // Push out updates after we've processed the children; ensures that
   // damage is applied based on the final widget geometry
-  if (aFlushDirtyRegion && aView->HasNonEmptyDirtyRegion()) {
-    FlushDirtyRegionToWidget(aView);
+  if (aFlushDirtyRegion) {
     if (IsRefreshDriverPaintingEnabled()) {
       nsIWidget *widget = aView->GetWidget();
-      if (widget && widget->NeedsPaint()) {
+      if (widget && widget->NeedsPaint() && aView->HasNonEmptyDirtyRegion()) {
+        FlushDirtyRegionToWidget(aView);
         // If an ancestor widget was hidden and then shown, we could
         // have a delayed resize to handle.
         for (nsViewManager *vm = this; vm;
@@ -431,6 +431,8 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
 #endif
         SetPainting(false);
       }
+    } else {
+      FlushDirtyRegionToWidget(aView);
     }
   }
 }

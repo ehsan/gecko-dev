@@ -75,8 +75,12 @@
 
       function retryThis(buttonEl)
       {
-        // Note: The application may wish to handle switching off "offline mode"
-        // before this event handler runs, but using a capturing event handler.
+        // If this is the "Offline mode" page, go online!
+        if (getErrorCode() == "netOffline") {
+          window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsIDOMWindowUtils)
+                .goOnline();
+        }
 
         // Session history has the URL of the page that failed
         // to load, not the one of the error page. So, just call

@@ -1895,7 +1895,7 @@ nsDOMStorage2::BroadcastChangeNotification(const nsSubstring &aKey,
 {
   nsresult rv;
   nsCOMPtr<nsIDOMEvent> domEvent;
-  NS_NewDOMStorageEvent(getter_AddRefs(domEvent), nullptr, nullptr);
+  NS_NewDOMStorageEvent(getter_AddRefs(domEvent), nsnull, nsnull);
   nsCOMPtr<nsIDOMStorageEvent> event = do_QueryInterface(domEvent);
   rv = event->InitStorageEvent(NS_LITERAL_STRING("storage"),
                                false,
