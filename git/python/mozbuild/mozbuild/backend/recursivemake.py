@@ -30,8 +30,6 @@ from .common import CommonBackend
 from ..frontend.data import (
     AndroidEclipseProjectData,
     ConfigFileSubstitution,
-    ContextDerived,
-    ContextWrapped,
     Defines,
     DirectoryTraversal,
     Exports,
@@ -50,6 +48,8 @@ from ..frontend.data import (
     PerSourceFlag,
     Program,
     Resources,
+    SandboxDerived,
+    SandboxWrapped,
     SharedLibrary,
     SimpleProgram,
     StaticLibrary,
@@ -324,7 +324,7 @@ class RecursiveMakeBackend(CommonBackend):
     def consume_object(self, obj):
         """Write out build files necessary to build with recursive make."""
 
-        if not isinstance(obj, ContextDerived):
+        if not isinstance(obj, SandboxDerived):
             return
 
         if obj.objdir not in self._backend_files:
@@ -454,7 +454,7 @@ class RecursiveMakeBackend(CommonBackend):
         elif isinstance(obj, JavaScriptModules):
             self._process_javascript_modules(obj, backend_file)
 
-        elif isinstance(obj, ContextWrapped):
+        elif isinstance(obj, SandboxWrapped):
             # Process a rich build system object from the front-end
             # as-is.  Please follow precedent and handle CamelCaseData
             # in a function named _process_camel_case_data.  At some

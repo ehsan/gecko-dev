@@ -9,7 +9,6 @@
 // Keep others in (case-insensitive) order:
 #include "gfx2DGlue.h"
 #include "gfxUtils.h"
-#include "nsIFrame.h"
 #include "nsStyleStruct.h"
 #include "nsTArray.h"
 
@@ -17,11 +16,9 @@ using namespace mozilla;
 using namespace mozilla::gfx;
 
 nsCSSFilterInstance::nsCSSFilterInstance(const nsStyleFilter& aFilter,
-                                         nsIFrame *aTargetFrame,
                                          const nsIntRect& aTargetBBoxInFilterSpace,
                                          const gfxMatrix& aFrameSpaceInCSSPxToFilterSpaceTransform)
   : mFilter(aFilter)
-  , mTargetFrame(aTargetFrame)
   , mTargetBBoxInFilterSpace(aTargetBBoxInFilterSpace)
   , mFrameSpaceInCSSPxToFilterSpaceTransform(aFrameSpaceInCSSPxToFilterSpaceTransform)
 {
@@ -41,9 +38,6 @@ nsCSSFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrim
     case NS_STYLE_FILTER_BRIGHTNESS:
     case NS_STYLE_FILTER_CONTRAST:
     case NS_STYLE_FILTER_DROP_SHADOW:
-      descr = CreatePrimitiveDescription(PrimitiveType::DropShadow, aPrimitiveDescrs);
-      result = SetAttributesForDropShadow(descr);
-      break;
     case NS_STYLE_FILTER_GRAYSCALE:
     case NS_STYLE_FILTER_HUE_ROTATE:
     case NS_STYLE_FILTER_INVERT:
@@ -84,49 +78,17 @@ nsCSSFilterInstance::CreatePrimitiveDescription(PrimitiveType aType,
 nsresult
 nsCSSFilterInstance::SetAttributesForBlur(FilterPrimitiveDescription& aDescr)
 {
-  const nsStyleCoord& radiusInFrameSpace = mFilter.GetFilterParameter();
-  if (radiusInFrameSpace.GetUnit() != eStyleUnit_Coord) {
+  // Get the radius from the style.
+  nsStyleCoord radiusStyleCoord = mFilter.GetFilterParameter();
+  if (radiusStyleCoord.GetUnit() != eStyleUnit_Coord) {
     NS_NOTREACHED("unexpected unit");
     return NS_ERROR_FAILURE;
   }
 
-  Size radiusInFilterSpace = BlurRadiusToFilterSpace(radiusInFrameSpace.GetCoordValue());
-  aDescr.Attributes().Set(eGaussianBlurStdDeviation, radiusInFilterSpace);
-  return NS_OK;
-}
-
-nsresult
-nsCSSFilterInstance::SetAttributesForDropShadow(FilterPrimitiveDescription& aDescr)
-{
-  nsCSSShadowArray* shadows = mFilter.GetDropShadow();
-  if (!shadows || shadows->Length() != 1) {
-    NS_NOTREACHED("Exactly one drop shadow should have been parsed.");
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCSSShadowItem* shadow = shadows->ShadowAt(0);
-
-  // Set drop shadow blur radius.
-  Size radiusInFilterSpace = BlurRadiusToFilterSpace(shadow->mRadius);
-  aDescr.Attributes().Set(eDropShadowStdDeviation, radiusInFilterSpace);
-
-  // Set offset.
-  IntPoint offsetInFilterSpace = OffsetToFilterSpace(shadow->mXOffset, shadow->mYOffset);
-  aDescr.Attributes().Set(eDropShadowOffset, offsetInFilterSpace);
-
-  // Set color. If unspecified, use the CSS color property.
-  nscolor shadowColor = shadow->mHasColor ?
-    shadow->mColor : mTargetFrame->StyleColor()->mColor;
-  aDescr.Attributes().Set(eDropShadowColor, ToAttributeColor(shadowColor));
-
-  return NS_OK;
-}
-
-Size
-nsCSSFilterInstance::BlurRadiusToFilterSpace(nscoord aRadiusInFrameSpace)
-{
+  // Get the radius in frame space.
+  nscoord radiusInFrameSpace = radiusStyleCoord.GetCoordValue();
   float radiusInFrameSpaceInCSSPx =
-    nsPresContext::AppUnitsToFloatCSSPixels(aRadiusInFrameSpace);
+    nsPresContext::AppUnitsToFloatCSSPixels(radiusInFrameSpace);
 
   // Convert the radius to filter space.
   gfxSize radiusInFilterSpace(radiusInFrameSpaceInCSSPx,
@@ -139,40 +101,15 @@ nsCSSFilterInstance::BlurRadiusToFilterSpace(nscoord aRadiusInFrameSpace)
   // Check the radius limits.
   if (radiusInFilterSpace.width < 0 || radiusInFilterSpace.height < 0) {
     NS_NOTREACHED("we shouldn't have parsed a negative radius in the style");
-    return Size();
+    return NS_ERROR_FAILURE;
   }
   gfxFloat maxStdDeviation = (gfxFloat)kMaxStdDeviation;
   radiusInFilterSpace.width = std::min(radiusInFilterSpace.width, maxStdDeviation);
   radiusInFilterSpace.height = std::min(radiusInFilterSpace.height, maxStdDeviation);
 
-  return ToSize(radiusInFilterSpace);
-}
-
-IntPoint
-nsCSSFilterInstance::OffsetToFilterSpace(nscoord aXOffsetInFrameSpace,
-                                         nscoord aYOffsetInFrameSpace)
-{
-  gfxPoint offsetInFilterSpace(nsPresContext::AppUnitsToFloatCSSPixels(aXOffsetInFrameSpace),
-                               nsPresContext::AppUnitsToFloatCSSPixels(aYOffsetInFrameSpace));
-
-  // Convert the radius to filter space.
-  gfxSize frameSpaceInCSSPxToFilterSpaceScale =
-    mFrameSpaceInCSSPxToFilterSpaceTransform.ScaleFactors(true);
-  offsetInFilterSpace.x *= frameSpaceInCSSPxToFilterSpaceScale.width;
-  offsetInFilterSpace.y *= frameSpaceInCSSPxToFilterSpaceScale.height;
-
-  return IntPoint(int32_t(offsetInFilterSpace.x), int32_t(offsetInFilterSpace.y));
-}
-
-Color
-nsCSSFilterInstance::ToAttributeColor(nscolor aColor)
-{
-  return Color(
-    NS_GET_R(aColor) / 255.0,
-    NS_GET_G(aColor) / 255.0,
-    NS_GET_B(aColor) / 255.0,
-    NS_GET_A(aColor) / 255.0
-  );
+  // Set the radius parameter.
+  aDescr.Attributes().Set(eGaussianBlurStdDeviation, ToSize(radiusInFilterSpace));
+  return NS_OK;
 }
 
 int32_t

@@ -5,10 +5,10 @@ const PRELOAD_PREF = "browser.newtab.preload";
 
 gDirectorySource = "data:application/json," + JSON.stringify({
   "en-US": [{
-    url: "http://example.com/organic",
+    url: "http://organic.localhost/",
     type: "organic"
   }, {
-    url: "http://localhost/sponsored",
+    url: "http://sponsored.localhost/",
     type: "sponsored"
   }]
 });

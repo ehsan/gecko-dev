@@ -68,7 +68,9 @@ let RequestService = {
    * task asynchronously. For example:
    *   RequestService.addListener({
    *     onRequest: function* (aMessage, aData) {
-   *       yield new Promise(resolve => setTimeout(resolve, 2000));
+   *       let deferred = Promise.defer();
+   *       setTimeout(deferred.resolve, 2000);
+   *       yield deferred.resolve;
    *       return { response: "bar" };
    *     }
    *   }, "Demo:Request");

@@ -11,13 +11,6 @@
 
 #include "nsAutoPtr.h"
 
-#ifndef MOZ_CALLSTACK_DISABLED
-#include "CodeAddressService.h"
-#include "nsHashKeys.h"
-#include "nsStackWalk.h"
-#include "nsTHashtable.h"
-#endif
-
 #include "mozilla/CondVar.h"
 #include "mozilla/DeadlockDetector.h"
 #include "mozilla/ReentrantMonitor.h"
@@ -47,31 +40,6 @@ PRCallOnceType BlockingResourceBase::sCallOnce;
 unsigned BlockingResourceBase::sResourceAcqnChainFrontTPI = (unsigned)-1;
 BlockingResourceBase::DDT* BlockingResourceBase::sDeadlockDetector;
 
-
-void
-BlockingResourceBase::StackWalkCallback(void* aPc, void* aSp, void* aClosure)
-{
-#ifndef MOZ_CALLSTACK_DISABLED
-  AcquisitionState* state = (AcquisitionState*)aClosure;
-  state->AppendElement(aPc);
-#endif
-}
-
-void
-BlockingResourceBase::GetStackTrace(AcquisitionState& aState)
-{
-#ifndef MOZ_CALLSTACK_DISABLED
-  // Skip this function and the calling function.
-  const uint32_t kSkipFrames = 2;
-
-  aState.Clear();
-
-  // NB: Ignore the return value, there's nothing useful we can do if this
-  //     this fails.
-  NS_StackWalk(StackWalkCallback, kSkipFrames,
-               24, &aState, 0, nullptr);
-#endif
-}
 
 /**
  * PrintCycle
@@ -117,70 +85,6 @@ PrintCycle(const BlockingResourceBase::DDT::ResourceAcquisitionArray* aCycle, ns
   return maybeImminent;
 }
 
-#ifndef MOZ_CALLSTACK_DISABLED
-class CodeAddressServiceWriter MOZ_FINAL
-{
-public:
-  explicit CodeAddressServiceWriter(nsACString& aOut) : mOut(aOut) {}
-
-  void Write(const char* aFmt, ...) const
-  {
-    va_list ap;
-    va_start(ap, aFmt);
-
-    const size_t kMaxLength = 4096;
-    char buffer[kMaxLength];
-
-    vsnprintf(buffer, kMaxLength, aFmt, ap);
-    mOut += buffer;
-    fprintf(stderr, "%s", buffer);
-
-    va_end(ap);
-  }
-
-private:
-  nsACString& mOut;
-};
-
-struct CodeAddressServiceLock MOZ_FINAL
-{
-  static void Unlock() { }
-  static void Lock() { }
-  static bool IsLocked() { return true; }
-};
-
-struct CodeAddressServiceStringAlloc MOZ_FINAL
-{
-  static char* copy(const char* aString) { return ::strdup(aString); }
-  static void free(char* aString) { ::free(aString); }
-};
-
-class CodeAddressServiceStringTable MOZ_FINAL
-{
-public:
-  CodeAddressServiceStringTable() : mSet(32) {}
-
-  const char* Intern(const char* aString)
-  {
-    nsCharPtrHashKey* e = mSet.PutEntry(aString);
-    return e->GetKey();
-  }
-
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-  {
-    return mSet.SizeOfExcludingThis(aMallocSizeOf);
-  }
-
-private:
-  typedef nsTHashtable<nsCharPtrHashKey> StringSet;
-  StringSet mSet;
-};
-
-typedef CodeAddressService<CodeAddressServiceStringTable,
-                           CodeAddressServiceStringAlloc,
-                           CodeAddressServiceWriter,
-                           CodeAddressServiceLock> WalkTheStackCodeAddressService;
-#endif
 
 bool
 BlockingResourceBase::Print(nsACString& aOut) const
@@ -191,28 +95,15 @@ BlockingResourceBase::Print(nsACString& aOut) const
   aOut += " : ";
   aOut += mName;
 
-  bool acquired = IsAcquired();
-
-  if (acquired) {
+  if (mAcquired) {
     fputs(" (currently acquired)\n", stderr);
     aOut += " (currently acquired)\n";
   }
 
   fputs(" calling context\n", stderr);
-#ifdef MOZ_CALLSTACK_DISABLED
   fputs("  [stack trace unavailable]\n", stderr);
-#else
-  const AcquisitionState& state = acquired ? mAcquired : mFirstSeen;
 
-  WalkTheStackCodeAddressService addressService;
-  CodeAddressServiceWriter writer(aOut);
-  for (uint32_t i = 0; i < state.Length(); i++) {
-    addressService.WriteLocation(writer, state[i]);
-  }
-
-#endif
-
-  return acquired;
+  return mAcquired;
 }
 
 
@@ -221,11 +112,7 @@ BlockingResourceBase::BlockingResourceBase(
     BlockingResourceBase::BlockingResourceType aType)
   : mName(aName)
   , mType(aType)
-#ifdef MOZ_CALLSTACK_DISABLED
   , mAcquired(false)
-#else
-  , mAcquired()
-#endif
 {
   NS_ABORT_IF_FALSE(mName, "Name must be nonnull");
   // PR_CallOnce guaranatees that InitStatics is called in a
@@ -295,11 +182,6 @@ BlockingResourceBase::CheckAcquire()
     return;
   }
 
-#ifndef MOZ_CALLSTACK_DISABLED
-  // Update the current stack before printing.
-  GetStackTrace(mAcquired);
-#endif
-
   fputs("###!!! ERROR: Potential deadlock detected:\n", stderr);
   nsAutoCString out("Potential deadlock detected:\n");
   bool maybeImminent = PrintCycle(cycle, out);
@@ -329,20 +211,11 @@ BlockingResourceBase::Acquire()
       "FIXME bug 456272: annots. to allow Acquire()ing condvars");
     return;
   }
-  NS_ASSERTION(!IsAcquired(),
+  NS_ASSERTION(!mAcquired,
                "reacquiring already acquired resource");
 
   ResourceChainAppend(ResourceChainFront());
-
-#ifdef MOZ_CALLSTACK_DISABLED
   mAcquired = true;
-#else
-  // Take a stack snapshot.
-  GetStackTrace(mAcquired);
-  if (mFirstSeen.IsEmpty()) {
-    mFirstSeen = mAcquired;
-  }
-#endif
 }
 
 
@@ -356,7 +229,7 @@ BlockingResourceBase::Release()
   }
 
   BlockingResourceBase* chainFront = ResourceChainFront();
-  NS_ASSERTION(chainFront && IsAcquired(),
+  NS_ASSERTION(chainFront && mAcquired,
                "Release()ing something that hasn't been Acquire()ed");
 
   if (chainFront == this) {
@@ -382,7 +255,7 @@ BlockingResourceBase::Release()
     }
   }
 
-  ClearAcquisitionState();
+  mAcquired = false;
 }
 
 
@@ -467,10 +340,10 @@ ReentrantMonitor::Wait(PRIntervalTime aInterval)
 
   // save monitor state and reset it to empty
   int32_t savedEntryCount = mEntryCount;
-  AcquisitionState savedAcquisitionState = GetAcquisitionState();
+  bool savedAcquisitionState = GetAcquisitionState();
   BlockingResourceBase* savedChainPrev = mChainPrev;
   mEntryCount = 0;
-  ClearAcquisitionState();
+  SetAcquisitionState(false);
   mChainPrev = 0;
 
   nsresult rv;
@@ -504,9 +377,9 @@ CondVar::Wait(PRIntervalTime aInterval)
   AssertCurrentThreadOwnsMutex();
 
   // save mutex state and reset to empty
-  AcquisitionState savedAcquisitionState = mLock->GetAcquisitionState();
+  bool savedAcquisitionState = mLock->GetAcquisitionState();
   BlockingResourceBase* savedChainPrev = mLock->mChainPrev;
-  mLock->ClearAcquisitionState();
+  mLock->SetAcquisitionState(false);
   mLock->mChainPrev = 0;
 
   // give up mutex until we're back from Wait()

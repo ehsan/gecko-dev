@@ -1289,7 +1289,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
   } else if (role.EqualsLiteral("xul:progressmeter")) {
     accessible = new XULProgressMeterAccessible(aContent, aDoc);
 
-  } else if (role.EqualsLiteral("xul:statusbar")) {
+  } else if (role.EqualsLiteral("xulstatusbar")) {
     accessible = new XULStatusBarAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:scale")) {
