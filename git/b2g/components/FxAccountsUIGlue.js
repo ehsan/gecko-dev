@@ -64,9 +64,9 @@ FxAccountsUIGlue.prototype = {
     return this._contentRequest("openFlow");
   },
 
-  refreshAuthentication: function(aEmail) {
+  refreshAuthentication: function(aAccountId) {
     return this._contentRequest("refreshAuthentication", {
-      email: aEmail
+      accountId: aAccountId
     });
   },
 

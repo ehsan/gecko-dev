@@ -432,7 +432,7 @@ ReferenceFinder::visit(void *cell, Path *path)
     /* Is |cell| a representable cell, reached via a non-empty path? */
     if (path != nullptr) {
         jsval representation = representable(cell, node->kind);
-        if (!representation.isUndefined())
+        if (!JSVAL_IS_VOID(representation))
             return addReferrer(representation, path);
     }
 

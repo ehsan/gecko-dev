@@ -3174,7 +3174,7 @@ public:
      * kept alive past the next CC.
      */
     jsval GetJSVal() const {
-        if (!mJSVal.isPrimitive())
+        if (!JSVAL_IS_PRIMITIVE(mJSVal))
             JS::ExposeObjectToActiveJS(&mJSVal.toObject());
         return mJSVal;
     }
