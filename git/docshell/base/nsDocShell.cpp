@@ -649,7 +649,6 @@ ConvertLoadTypeToNavigationType(uint32_t aLoadType)
     case LOAD_NORMAL_BYPASS_PROXY:
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
     case LOAD_NORMAL_REPLACE:
-    case LOAD_NORMAL_ALLOW_MIXED_CONTENT:
     case LOAD_LINK:
     case LOAD_STOP_CONTENT:
     case LOAD_REPLACE_BYPASS_CACHE:
@@ -1112,9 +1111,6 @@ ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType)
     case nsIDocShellLoadInfo::loadNormalBypassProxyAndCache:
         loadType = LOAD_NORMAL_BYPASS_PROXY_AND_CACHE;
         break;
-    case nsIDocShellLoadInfo::loadNormalAllowMixedContent:
-        loadType = LOAD_NORMAL_ALLOW_MIXED_CONTENT;
-        break;
     case nsIDocShellLoadInfo::loadReloadNormal:
         loadType = LOAD_RELOAD_NORMAL;
         break;
@@ -1151,7 +1147,7 @@ ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType)
     case nsIDocShellLoadInfo::loadReplaceBypassCache:
         loadType = LOAD_REPLACE_BYPASS_CACHE;
         break;
-    case nsIDocShellLoadInfo::loadReloadMixedContent:
+    case nsIDocShellLoadInfo::loadMixedContent:
         loadType = LOAD_RELOAD_ALLOW_MIXED_CONTENT;
         break;
     default:
@@ -1184,9 +1180,6 @@ nsDocShell::ConvertLoadTypeToDocShellLoadInfo(uint32_t aLoadType)
         break;
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
         docShellLoadType = nsIDocShellLoadInfo::loadNormalBypassProxyAndCache;
-        break;
-    case LOAD_NORMAL_ALLOW_MIXED_CONTENT:
-        docShellLoadType = nsIDocShellLoadInfo::loadNormalAllowMixedContent;
         break;
     case LOAD_HISTORY:
         docShellLoadType = nsIDocShellLoadInfo::loadHistory;
@@ -1229,7 +1222,7 @@ nsDocShell::ConvertLoadTypeToDocShellLoadInfo(uint32_t aLoadType)
         docShellLoadType = nsIDocShellLoadInfo::loadReplaceBypassCache;
         break;
     case LOAD_RELOAD_ALLOW_MIXED_CONTENT:
-        docShellLoadType = nsIDocShellLoadInfo::loadReloadMixedContent;
+        docShellLoadType = nsIDocShellLoadInfo::loadMixedContent;
         break;
     default:
         NS_NOTREACHED("Unexpected load type value");
@@ -4181,18 +4174,8 @@ nsDocShell::LoadURI(const PRUnichar * aURI,
     nsCOMPtr<nsIDocShellLoadInfo> loadInfo;
     rv = CreateLoadInfo(getter_AddRefs(loadInfo));
     if (NS_FAILED(rv)) return rv;
-
-    /*
-     * If the user "Disables Protection on This Page", we have to make sure to
-     * remember the users decision when opening links in child tabs [Bug 906190]
-     */
-    uint32_t loadType;
-    if (aLoadFlags & LOAD_FLAGS_ALLOW_MIXED_CONTENT) {
-      loadType = MAKE_LOAD_TYPE(LOAD_NORMAL_ALLOW_MIXED_CONTENT, aLoadFlags);
-    } else {
-      loadType = MAKE_LOAD_TYPE(LOAD_NORMAL, aLoadFlags);
-    }
-
+    
+    uint32_t loadType = MAKE_LOAD_TYPE(LOAD_NORMAL, aLoadFlags);
     loadInfo->SetLoadType(ConvertLoadTypeToDocShellLoadInfo(loadType));
     loadInfo->SetPostDataStream(postStream);
     loadInfo->SetReferrer(aReferringURI);
@@ -9681,8 +9664,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         }
     }
 
-    if (mLoadType == LOAD_NORMAL_ALLOW_MIXED_CONTENT ||
-        mLoadType == LOAD_RELOAD_ALLOW_MIXED_CONTENT) {
+    if (mLoadType == LOAD_RELOAD_ALLOW_MIXED_CONTENT) {
           rv = SetMixedContentChannel(channel);
           NS_ENSURE_SUCCESS(rv, rv);
     } else if (mMixedContentChannel) {
@@ -9964,7 +9946,6 @@ nsresult nsDocShell::DoChannelLoad(nsIChannel * aChannel,
     case LOAD_NORMAL_BYPASS_CACHE:
     case LOAD_NORMAL_BYPASS_PROXY:
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
-    case LOAD_NORMAL_ALLOW_MIXED_CONTENT:
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
