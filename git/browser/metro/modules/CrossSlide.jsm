@@ -40,7 +40,7 @@ let CrossSlidingStateNames = [
 
 function isSelectable(aElement) {
   // placeholder logic
-  return aElement.nodeName == 'richgriditem' && aElement.hasAttribute("value");
+  return aElement.nodeName == 'richgriditem';
 }
 function withinCone(aLen, aHeight) {
   // check pt falls within 45deg either side of the cross axis

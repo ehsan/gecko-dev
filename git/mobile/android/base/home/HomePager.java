@@ -288,9 +288,9 @@ public class HomePager extends ViewPager {
         }
         if (mHomeBanner != null) {
             if (item == mDefaultPanelIndex) {
-                mHomeBanner.show();
+                mHomeBanner.showBanner();
             } else {
-                mHomeBanner.hide();
+                mHomeBanner.hideBanner();
             }
         }
     }
@@ -313,14 +313,6 @@ public class HomePager extends ViewPager {
         }
 
         return super.dispatchTouchEvent(event);
-    }
-
-    public void onToolbarFocusChange(boolean hasFocus) {
-        if (hasFocus) {
-            mHomeBanner.hide();
-        } else if (mDefaultPanelIndex == getCurrentItem() || getAdapter().getCount() == 0) {
-            mHomeBanner.show();
-        }
     }
 
     private void updateUiFromPanelConfigs(List<PanelConfig> panelConfigs) {
@@ -404,9 +396,9 @@ public class HomePager extends ViewPager {
 
             if (mHomeBanner != null) {
                 if (position == mDefaultPanelIndex) {
-                    mHomeBanner.show();
+                    mHomeBanner.showBanner();
                 } else {
-                    mHomeBanner.hide();
+                    mHomeBanner.hideBanner();
                 }
             }
         }

@@ -37,7 +37,7 @@ public class PanelGridItemView extends FrameLayout {
     }
 
     public PanelGridItemView(Context context, AttributeSet attrs) {
-        this(context, attrs, R.attr.panelGridItemViewStyle);
+        this(context, attrs, 0);
     }
 
     public PanelGridItemView(Context context, AttributeSet attrs, int defStyle) {
@@ -45,6 +45,7 @@ public class PanelGridItemView extends FrameLayout {
 
         LayoutInflater.from(context).inflate(R.layout.panel_grid_item_view, this);
         mThumbnailView = (ImageView) findViewById(R.id.image);
+        mThumbnailView.setBackgroundColor(Color.rgb(255, 148, 0));
     }
 
     public void updateFromCursor(Cursor cursor) { }

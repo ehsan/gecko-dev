@@ -191,9 +191,11 @@ const CustomizableWidgets = [{
         windowsFragment.children[elementCount].classList.add("subviewbutton");
       }
       recentlyClosedWindows.appendChild(windowsFragment);
+      aEvent.target.addEventListener("command", win.PanelUI);
     },
     onViewHiding: function(aEvent) {
       LOG("History view is being hidden!");
+      aEvent.target.removeEventListener("command", win.PanelUI);
     }
   }, {
     id: "privatebrowsing-button",
@@ -291,6 +293,7 @@ const CustomizableWidgets = [{
       }
       items.appendChild(fragment);
 
+      aEvent.target.addEventListener("command", win.PanelUI);
     },
     onViewHiding: function(aEvent) {
       let doc = aEvent.target.ownerDocument;
@@ -306,6 +309,7 @@ const CustomizableWidgets = [{
       }
 
       parent.appendChild(items);
+      aEvent.target.removeEventListener("command", win.PanelUI);
     }
   }, {
     id: "add-ons-button",

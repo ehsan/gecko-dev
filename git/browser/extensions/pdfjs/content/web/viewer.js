@@ -17,7 +17,7 @@
 /* globals PDFJS, PDFBug, FirefoxCom, Stats, Cache, PDFFindBar, CustomStyle,
            PDFFindController, ProgressBar, TextLayerBuilder, DownloadManager,
            getFileName, scrollIntoView, getPDFFileNameFromURL, PDFHistory,
-           Preferences, ViewHistory, PageView, ThumbnailView, URL,
+           Preferences, ViewHistory, PageView, ThumbnailView,
            noContextMenuHandler, SecondaryToolbar, PasswordPrompt,
            PresentationMode, HandTool, Promise, DocumentProperties */
 
@@ -771,6 +771,8 @@ var PDFFindController = {
 
   resumePageIdx: null,
 
+  resumeCallback: null,
+
   state: null,
 
   dirtyMatch: false,
@@ -783,7 +785,7 @@ var PDFFindController = {
 
   initialize: function(options) {
     if(typeof PDFFindBar === 'undefined' || PDFFindBar === null) {
-      throw 'PDFFindController cannot be initialized ' +
+        throw 'PDFFindController cannot be initialized ' +
             'without a PDFFindController instance';
     }
 
@@ -843,8 +845,10 @@ var PDFFindController = {
     this.pageMatches[pageIndex] = matches;
     this.updatePage(pageIndex);
     if (this.resumePageIdx === pageIndex) {
+      var callback = this.resumeCallback;
       this.resumePageIdx = null;
-      this.nextPageMatch();
+      this.resumeCallback = null;
+      callback();
     }
   },
 
@@ -933,6 +937,7 @@ var PDFFindController = {
       this.offset.pageIdx = currentPageIndex;
       this.offset.matchIdx = null;
       this.hadMatch = false;
+      this.resumeCallback = null;
       this.resumePageIdx = null;
       this.pageMatches = [];
       var self = this;
@@ -959,7 +964,7 @@ var PDFFindController = {
     }
 
     // If we're waiting on a page, we return since we can't do anything else.
-    if (this.resumePageIdx) {
+    if (this.resumeCallback) {
       return;
     }
 
@@ -985,49 +990,48 @@ var PDFFindController = {
     this.nextPageMatch();
   },
 
-  matchesReady: function(matches) {
-    var offset = this.offset;
-    var numMatches = matches.length;
-    var previous = this.state.findPrevious;
-    if (numMatches) {
-      // There were matches for the page, so initialize the matchIdx.
-      this.hadMatch = true;
-      offset.matchIdx = previous ? numMatches - 1 : 0;
-      this.updateMatch(true);
-      // matches were found
-      return true;
-    } else {
-      // No matches attempt to search the next page.
-      this.advanceOffsetPage(previous);
-      if (offset.wrapped) {
-        offset.matchIdx = null;
-        if (!this.hadMatch) {
-          // No point in wrapping there were no matches.
-          this.updateMatch(false);
-          // while matches were not found, searching for a page 
-          // with matches should nevertheless halt.
-          return true;
-        }
-      }
-      // matches were not found (and searching is not done)
-      return false;
-    }
-  },
-
   nextPageMatch: function() {
-    if (this.resumePageIdx !== null) {
+    if (this.resumePageIdx !== null)
       console.error('There can only be one pending page.');
-    }
-    do {
-      var pageIdx = this.offset.pageIdx;
-      var matches = this.pageMatches[pageIdx];
-      if (!matches) {
-        // The matches don't exist yet for processing by "matchesReady",
-        // so set a resume point for when they do exist.
-        this.resumePageIdx = pageIdx;
-        break;
+
+    var matchesReady = function(matches) {
+      var offset = this.offset;
+      var numMatches = matches.length;
+      var previous = this.state.findPrevious;
+      if (numMatches) {
+        // There were matches for the page, so initialize the matchIdx.
+        this.hadMatch = true;
+        offset.matchIdx = previous ? numMatches - 1 : 0;
+        this.updateMatch(true);
+      } else {
+        // No matches attempt to search the next page.
+        this.advanceOffsetPage(previous);
+        if (offset.wrapped) {
+          offset.matchIdx = null;
+          if (!this.hadMatch) {
+            // No point in wrapping there were no matches.
+            this.updateMatch(false);
+            return;
+          }
+        }
+        // Search the next page.
+        this.nextPageMatch();
       }
-    } while (!this.matchesReady(matches));
+    }.bind(this);
+
+    var pageIdx = this.offset.pageIdx;
+    var pageMatches = this.pageMatches;
+    if (!pageMatches[pageIdx]) {
+      // The matches aren't ready setup a callback so we can be notified,
+      // when they are ready.
+      this.resumeCallback = function() {
+        matchesReady(pageMatches[pageIdx]);
+      };
+      this.resumePageIdx = pageIdx;
+      return;
+    }
+    // The matches are finished already.
+    matchesReady(pageMatches[pageIdx]);
   },
 
   advanceOffsetPage: function(previous) {
@@ -1905,17 +1909,16 @@ var GrabToPan = (function GrabToPanClosure() {
     this._onmousedown = this._onmousedown.bind(this);
     this._onmousemove = this._onmousemove.bind(this);
     this._endPan = this._endPan.bind(this);
-
-    // This overlay will be inserted in the document when the mouse moves during
-    // a grab operation, to ensure that the cursor has the desired appearance.
-    var overlay = this.overlay = document.createElement('div');
-    overlay.className = 'grab-to-pan-grabbing';
   }
   GrabToPan.prototype = {
     /**
      * Class name of element which can be grabbed
      */
     CSS_CLASS_GRAB: 'grab-to-pan-grab',
+    /**
+     * Class name of element which is being dragged & panned
+     */
+    CSS_CLASS_GRABBING: 'grab-to-pan-grabbing',
 
     /**
      * Bind a mousedown event to the element to enable grab-detection.
@@ -1998,6 +2001,7 @@ var GrabToPan = (function GrabToPanClosure() {
       this.element.addEventListener('scroll', this._endPan, true);
       event.preventDefault();
       event.stopPropagation();
+      this.element.classList.remove(this.CSS_CLASS_GRAB);
       this.document.documentElement.classList.add(this.CSS_CLASS_GRABBING);
     },
 
@@ -2007,16 +2011,13 @@ var GrabToPan = (function GrabToPanClosure() {
     _onmousemove: function GrabToPan__onmousemove(event) {
       this.element.removeEventListener('scroll', this._endPan, true);
       if (isLeftMouseReleased(event)) {
-        this._endPan();
+        this.document.removeEventListener('mousemove', this._onmousemove, true);
         return;
       }
       var xDiff = event.clientX - this.clientXStart;
       var yDiff = event.clientY - this.clientYStart;
       this.element.scrollTop = this.scrollTopStart - yDiff;
       this.element.scrollLeft = this.scrollLeftStart - xDiff;
-      if (!this.overlay.parentNode) {
-        document.body.appendChild(this.overlay);
-      }
     },
 
     /**
@@ -2026,9 +2027,8 @@ var GrabToPan = (function GrabToPanClosure() {
       this.element.removeEventListener('scroll', this._endPan, true);
       this.document.removeEventListener('mousemove', this._onmousemove, true);
       this.document.removeEventListener('mouseup', this._endPan, true);
-      if (this.overlay.parentNode) {
-        this.overlay.parentNode.removeChild(this.overlay);
-      }
+      this.document.documentElement.classList.remove(this.CSS_CLASS_GRABBING);
+      this.element.classList.add(this.CSS_CLASS_GRAB);
     }
   };
 
@@ -2186,7 +2186,7 @@ var DocumentProperties = {
     this.fileName = getPDFFileNameFromURL(PDFView.url);
 
     // Get the file size.
-    PDFView.pdfDocument.getDownloadInfo().then(function(data) {
+    PDFView.pdfDocument.dataLoaded().then(function(data) {
       self.setFileSize(data.length);
     });
 
@@ -2681,11 +2681,6 @@ var PDFView = {
     };
 
     window.addEventListener('message', function windowMessage(e) {
-      if (e.source !== null) {
-        // The message MUST originate from Chrome code.
-        console.warn('Rejected untrusted message from ' + e.origin);
-        return;
-      }
       var args = e.data;
 
       if (typeof args !== 'object' || !('pdfjsLoadAction' in args))
@@ -2994,7 +2989,7 @@ var PDFView = {
     var errorWrapper = document.getElementById('errorWrapper');
     errorWrapper.setAttribute('hidden', 'true');
 
-    pdfDocument.getDownloadInfo().then(function() {
+    pdfDocument.dataLoaded().then(function() {
       PDFView.loadingBar.hide();
       var outerContainer = document.getElementById('outerContainer');
       outerContainer.classList.remove('loadingInProgress');
@@ -5186,6 +5181,30 @@ window.addEventListener('hashchange', function webViewerHashchange(evt) {
   }
 });
 
+window.addEventListener('change', function webViewerChange(evt) {
+  var files = evt.target.files;
+  if (!files || files.length === 0)
+    return;
+
+  // Read the local file into a Uint8Array.
+  var fileReader = new FileReader();
+  fileReader.onload = function webViewerChangeFileReaderOnload(evt) {
+    var buffer = evt.target.result;
+    var uint8Array = new Uint8Array(buffer);
+    PDFView.open(uint8Array, 0);
+  };
+
+  var file = files[0];
+  fileReader.readAsArrayBuffer(file);
+  PDFView.setTitleUsingUrl(file.name);
+
+  // URL does not reflect proper document location - hiding some icons.
+  document.getElementById('viewBookmark').setAttribute('hidden', 'true');
+  document.getElementById('secondaryViewBookmark').
+    setAttribute('hidden', 'true');
+  document.getElementById('download').setAttribute('hidden', 'true');
+  document.getElementById('secondaryDownload').setAttribute('hidden', 'true');
+}, true);
 
 function selectScaleOption(value) {
   var options = document.getElementById('scaleSelect').options;
@@ -5275,22 +5294,19 @@ window.addEventListener('pagechange', function pagechange(evt) {
   document.getElementById('next').disabled = (page >= PDFView.pages.length);
 }, true);
 
-function handleMouseWheel(evt) {
-  var MOUSE_WHEEL_DELTA_FACTOR = 40;
-  var ticks = (evt.type === 'DOMMouseScroll') ? -evt.detail :
-              evt.wheelDelta / MOUSE_WHEEL_DELTA_FACTOR;
-  var direction = (ticks < 0) ? 'zoomOut' : 'zoomIn';
-
-  if (evt.ctrlKey) { // Only zoom the pages, not the entire viewer
+// Firefox specific event, so that we can prevent browser from zooming
+window.addEventListener('DOMMouseScroll', function(evt) {
+  if (evt.ctrlKey) {
     evt.preventDefault();
+
+    var ticks = evt.detail;
+    var direction = (ticks > 0) ? 'zoomOut' : 'zoomIn';
     PDFView[direction](Math.abs(ticks));
   } else if (PresentationMode.active) {
-    PDFView.mouseScroll(ticks * MOUSE_WHEEL_DELTA_FACTOR);
+    var FIREFOX_DELTA_FACTOR = -40;
+    PDFView.mouseScroll(evt.detail * FIREFOX_DELTA_FACTOR);
   }
-}
-
-window.addEventListener('DOMMouseScroll', handleMouseWheel);
-window.addEventListener('mousewheel', handleMouseWheel);
+}, false);
 
 window.addEventListener('click', function click(evt) {
   if (!PresentationMode.active) {

@@ -306,8 +306,7 @@
         flex="1">
     <toolbar id="debugger-toolbar"
              class="devtools-toolbar">
-      <hbox id="debugger-controls"
-            class="devtools-toolbarbutton-group">
+      <hbox id="debugger-controls">
         <toolbarbutton id="resume"
                        class="devtools-toolbarbutton"
                        tabindex="0"/>
@@ -355,8 +354,7 @@
           <tabpanel id="sources-tabpanel">
             <vbox id="sources" flex="1"/>
             <toolbar id="sources-toolbar" class="devtools-toolbar">
-              <hbox id="sources-controls"
-                    class="devtools-toolbarbutton-group">
+              <hbox id="sources-controls">
                 <toolbarbutton id="black-box"
                                class="devtools-toolbarbutton"
                                tooltiptext="&debuggerUI.sources.blackBoxTooltip;"

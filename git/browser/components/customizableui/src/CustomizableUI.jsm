@@ -635,33 +635,33 @@ let CustomizableUIInternal = {
     return [null, null];
   },
 
-  registerMenuPanel: function(aPanelContents) {
+  registerMenuPanel: function(aPanel) {
     if (gBuildAreas.has(CustomizableUI.AREA_PANEL) &&
-        gBuildAreas.get(CustomizableUI.AREA_PANEL).has(aPanelContents)) {
+        gBuildAreas.get(CustomizableUI.AREA_PANEL).has(aPanel)) {
       return;
     }
 
-    let document = aPanelContents.ownerDocument;
+    let document = aPanel.ownerDocument;
 
-    aPanelContents.toolbox = document.getElementById("navigator-toolbox");
-    aPanelContents.customizationTarget = aPanelContents;
+    aPanel.toolbox = document.getElementById("navigator-toolbox");
+    aPanel.customizationTarget = aPanel;
 
-    this.addPanelCloseListeners(this._getPanelForNode(aPanelContents));
+    this.addPanelCloseListeners(aPanel);
 
     let placements = gPlacements.get(CustomizableUI.AREA_PANEL);
-    this.buildArea(CustomizableUI.AREA_PANEL, placements, aPanelContents);
-    for (let child of aPanelContents.children) {
+    this.buildArea(CustomizableUI.AREA_PANEL, placements, aPanel);
+    for (let child of aPanel.children) {
       if (child.localName != "toolbarbutton") {
         if (child.localName == "toolbaritem") {
-          this.ensureButtonContextMenu(child, aPanelContents);
+          this.ensureButtonContextMenu(child, aPanel);
         }
         continue;
       }
-      this.ensureButtonContextMenu(child, aPanelContents);
+      this.ensureButtonContextMenu(child, aPanel);
       child.setAttribute("wrap", "true");
     }
 
-    this.registerBuildArea(CustomizableUI.AREA_PANEL, aPanelContents);
+    this.registerBuildArea(CustomizableUI.AREA_PANEL, aPanel);
   },
 
   onWidgetAdded: function(aWidgetId, aArea, aPosition) {
@@ -1314,18 +1314,9 @@ let CustomizableUIInternal = {
       }
     }
 
-    if (aEvent.originalTarget.getAttribute("closemenu") == "none" ||
-        aEvent.originalTarget.getAttribute("widget-type") == "view") {
+    if (aEvent.target.getAttribute("closemenu") == "none" ||
+        aEvent.target.getAttribute("widget-type") == "view") {
       return;
-    }
-
-    if (aEvent.originalTarget.getAttribute("closemenu") == "single") {
-      let panel = this._getPanelForNode(aEvent.originalTarget);
-      let multiview = panel.querySelector("panelmultiview");
-      if (multiview.showingSubView) {
-        multiview.showMainView();
-        return;
-      }
     }
 
     // If we get here, we can actually hide the popup:
