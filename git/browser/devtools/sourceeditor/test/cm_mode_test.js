@@ -59,13 +59,6 @@
     return {tokens: tokens, plain: plain};
   }
 
-  test.indentation = function(name, mode, tokens, modeName) {
-    var data = parseTokens(tokens);
-    return test((modeName || mode.name) + "_indent_" + name, function() {
-      return compare(data.plain, data.tokens, mode, true);
-    });
-  };
-
   test.mode = function(name, mode, tokens, modeName) {
     var data = parseTokens(tokens);
     return test((modeName || mode.name) + "_" + name, function() {
@@ -73,7 +66,7 @@
     });
   };
 
-  function compare(text, expected, mode, compareIndentation) {
+  function compare(text, expected, mode) {
 
     var expectedOutput = [];
     for (var i = 0; i < expected.length; i += 2) {
@@ -82,7 +75,7 @@
       expectedOutput.push(sty, expected[i + 1]);
     }
 
-    var observedOutput = highlight(text, mode, compareIndentation);
+    var observedOutput = highlight(text, mode);
 
     var pass, passStyle = "";
     pass = highlightOutputsEqual(expectedOutput, observedOutput);
@@ -121,7 +114,7 @@
    *
    * @return array of [style, token] pairs
    */
-  function highlight(string, mode, compareIndentation) {
+  function highlight(string, mode) {
     var state = mode.startState()
 
     var lines = string.replace(/\r\n/g,'\n').split('\n');
@@ -132,15 +125,14 @@
       if (line == "" && mode.blankLine) mode.blankLine(state);
       /* Start copied code from CodeMirror.highlight */
       while (!stream.eol()) {
-				var compare = mode.token(stream, state), substr = stream.current();
-				if(compareIndentation) compare = mode.indent(state) || null;
-        else if (compare && compare.indexOf(" ") > -1) compare = compare.split(' ').sort().join(' ');
+        var style = mode.token(stream, state), substr = stream.current();
+        if (style && style.indexOf(" ") > -1) style = style.split(' ').sort().join(' ');
 
-				stream.start = stream.pos;
-        if (pos && st[pos-2] == compare && !newLine) {
+        stream.start = stream.pos;
+        if (pos && st[pos-2] == style && !newLine) {
           st[pos-1] += substr;
         } else if (substr) {
-          st[pos++] = compare; st[pos++] = substr;
+          st[pos++] = style; st[pos++] = substr;
         }
         // Give up when line is ridiculously long
         if (stream.pos > 5000) {
