@@ -15,11 +15,14 @@ Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 const PATH = "/submit/telemetry/test-ping";
 const SERVER = "http://localhost:4444";
 const IGNORE_HISTOGRAM = "test::ignore_me";
+const IGNORE_HISTOGRAM_TO_CLONE = "MEMORY_HEAP_ALLOCATED"
+const IGNORE_CLONED_HISTOGRAM = "test::ignore_me_also"
 
 const BinaryInputStream = Components.Constructor(
   "@mozilla.org/binaryinputstream;1",
   "nsIBinaryInputStream",
   "setInputStream");
+const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
 
 var httpserver = new nsHttpServer();
 var gFinished = false;
@@ -27,6 +30,7 @@ var gFinished = false;
 function telemetry_ping () {
   const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsIObserver);
   TelemetryPing.observe(null, "test-ping", SERVER);
+  TelemetryPing.observe(null, "sessionstore-windows-restored", null);
 }
 
 function nonexistentServerObserver(aSubject, aTopic, aData) {
@@ -43,8 +47,8 @@ function nonexistentServerObserver(aSubject, aTopic, aData) {
 function telemetryObserver(aSubject, aTopic, aData) {
   Services.obs.removeObserver(telemetryObserver, aTopic);
   httpserver.registerPathHandler(PATH, checkHistograms);
-  const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
   Telemetry.newHistogram(IGNORE_HISTOGRAM, 1, 2, 3, Telemetry.HISTOGRAM_BOOLEAN);
+  Telemetry.histogramFrom(IGNORE_CLONED_HISTOGRAM, IGNORE_HISTOGRAM_TO_CLONE);
   Services.startup.interrupted = true;
   telemetry_ping();
 }
@@ -74,10 +78,25 @@ function checkHistograms(request, response) {
     do_check_eq(payload.info[f], expected_info[f]);
   }
 
+  var isWindows = ("@mozilla.org/windows-registry-key;1" in Components.classes);
+  var isOSX = ("nsILocalFileMac" in Components.interfaces);
+
+  if (isWindows || isOSX) {
+    do_check_true("adapterVendorID" in payload.info);
+    do_check_true("adapterDeviceID" in payload.info);
+  }
+
   const TELEMETRY_PING = "TELEMETRY_PING";
   const TELEMETRY_SUCCESS = "TELEMETRY_SUCCESS";
   do_check_true(TELEMETRY_PING in payload.histograms);
+  let rh = Telemetry.registeredHistograms;
+  for (let name in rh) {
+    if (/SQLITE/.test(name) && name in payload.histograms) {
+      do_check_true(("STARTUP_" + name) in payload.histograms); 
+    }
+  }
   do_check_false(IGNORE_HISTOGRAM in payload.histograms);
+  do_check_false(IGNORE_CLONED_HISTOGRAM in payload.histograms);
 
   // There should be one successful report from the previous telemetry ping.
   const expected_tc = {
@@ -90,6 +109,9 @@ function checkHistograms(request, response) {
   let tc = payload.histograms[TELEMETRY_SUCCESS]
   do_check_eq(uneval(tc), 
               uneval(expected_tc));
+
+  do_check_true(("mainThread" in payload.slowSQL) &&
+                ("otherThreads" in payload.slowSQL));
   gFinished = true;
 }
 

@@ -327,7 +327,6 @@ public class AboutHomeContent extends ScrollView {
     }
 
     private String readJSONFile(Activity activity, String filename) {
-        String json = null;
         InputStream fileStream = null;
         File profileDir = GeckoApp.mAppContext.getProfileDir();
 
@@ -469,7 +468,10 @@ public class AboutHomeContent extends ScrollView {
     }
 
     private void readLastTabs(final Activity activity) {
-        final String sessionFilename = "sessionstore.js";
+        // If gecko is ready, the session restore initialization has already occurred.
+        // This means sessionstore.js has been moved to sessionstore.bak. Otherwise, the
+        // previous session will still be in sessionstore.js.
+        final String sessionFilename = "sessionstore." + (GeckoApp.mAppContext.sIsGeckoReady ? "bak" : "js");
         final JSONArray tabs;
         String jsonString = readJSONFile(activity, sessionFilename);
         if (jsonString == null)

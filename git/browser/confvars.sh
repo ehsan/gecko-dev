@@ -41,6 +41,12 @@ MOZ_APP_VENDOR=Mozilla
 MOZ_UPDATER=1
 MOZ_PHOENIX=1
 
+if test "$OS_ARCH" = "WINNT"; then
+  if ! test "$HAVE_64BIT_OS"; then
+    MOZ_MAINTENANCE_SERVICE=1
+  fi
+fi
+
 MOZ_CHROME_FILE_FORMAT=omni
 MOZ_SAFE_BROWSING=1
 MOZ_SERVICES_SYNC=1
@@ -49,7 +55,7 @@ MOZ_EXTENSIONS_DEFAULT=" gnomevfs"
 # MOZ_APP_DISPLAYNAME will be set by branding/configure.sh
 # Changing either of these values requires a clobber to ensure correct results,
 # because branding dependencies are broken.
-MOZ_BRANDING_DIRECTORY=browser/branding/aurora
+MOZ_BRANDING_DIRECTORY=browser/branding/nightly
 MOZ_OFFICIAL_BRANDING_DIRECTORY=browser/branding/official
 MOZ_APP_ID={ec8030f7-c20a-464f-9b0e-13a3a9e97384}
 MOZ_PROFILE_MIGRATOR=1

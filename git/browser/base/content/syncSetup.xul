@@ -260,23 +260,24 @@
              value="&addDevice.showMeHow.label;"
              href="https://services.mozilla.com/sync/help/easy-setup"/>
     </description>
-    <description>&addDevice.setup.enterCode.label;</description>
+    <label value="&addDevice.setup.enterCode.label;"
+           control="easySetupPIN1"/>
     <spacer flex="1"/>
     <vbox align="center" flex="1">
       <textbox id="easySetupPIN1"
                class="pin"
                value=""
-               disabled="true"
+               readonly="true"
                />
       <textbox id="easySetupPIN2"
                class="pin"
                value=""
-               disabled="true"
+               readonly="true"
                />
       <textbox id="easySetupPIN3"
                class="pin"
                value=""
-               disabled="true"
+               readonly="true"
                />
     </vbox>
     <spacer flex="3"/>
@@ -408,6 +409,10 @@
         <row>
           <label value="&syncMy.label;" />
           <vbox>
+            <checkbox label="&engine.addons.label;"
+                      accesskey="&engine.addons.accesskey;"
+                      id="engine.addons"
+                      checked="true"/>
             <checkbox label="&engine.bookmarks.label;"
                       accesskey="&engine.bookmarks.accesskey;"
                       id="engine.bookmarks"
@@ -427,10 +432,6 @@
             <checkbox label="&engine.tabs.label;"
                       accesskey="&engine.tabs.accesskey;"
                       id="engine.tabs"
-                      checked="true"/>
-            <checkbox label="&engine.addons.label;"
-                      accesskey="&engine.addons.accesskey;"
-                      id="engine.addons"
                       checked="true"/>
           </vbox>
         </row>

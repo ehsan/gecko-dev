@@ -37,14 +37,11 @@
 
 package org.mozilla.gecko;
 
-import java.io.*;
-import java.util.List;
-import java.util.concurrent.SynchronousQueue;
 import android.util.Log;
 import java.lang.String;
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.DialogInterface.OnCancelListener;
 import android.content.DialogInterface.OnMultiChoiceClickListener;
@@ -67,16 +64,9 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.content.DialogInterface;
-import android.content.DialogInterface.OnClickListener;
-import android.content.DialogInterface.OnCancelListener;
-import android.content.DialogInterface.OnMultiChoiceClickListener;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import android.text.method.PasswordTransformationMethod;
-import android.graphics.Color;
 import android.text.InputType;
-import android.app.AlertDialog;
 
 public class PromptService implements OnClickListener, OnCancelListener, OnItemClickListener {
     private static final String LOGTAG = "GeckoPromptService";
@@ -86,7 +76,6 @@ public class PromptService implements OnClickListener, OnCancelListener, OnItemC
     private static LayoutInflater mInflater;
     private final static int PADDING_SIZE = 32; // in dip units
     private static int mPaddingSize = 0; // calculated from PADDING_SIZE. In pixel units
-
 
     PromptService() {
         mInflater = LayoutInflater.from(GeckoApp.mAppContext);

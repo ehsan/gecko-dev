@@ -50,7 +50,6 @@
 #include "prenv.h"
 #include "prclist.h"
 
-#include "jscntxt.h"
 #include "jsfriendapi.h"
 
 #include "nsPluginHost.h"
@@ -1652,7 +1651,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
-  js::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
+  JS::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
   jsval *rval = &vec[1];
 
   if (result) {
@@ -2511,7 +2510,7 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
 #ifdef MOZ_WIDGET_ANDROID
   case kRequestDrawingModel_ANPSetValue:
     if (inst)
-      inst->SetDrawingModel(NS_PTR_TO_INT32(result));
+      inst->SetANPDrawingModel(NS_PTR_TO_INT32(result));
     return NPERR_NO_ERROR;
   case kAcceptEvents_ANPSetValue:
     return NPERR_NO_ERROR;

@@ -70,6 +70,9 @@ pref("zoom.minPercent", 20);
 pref("zoom.maxPercent", 400);
 pref("toolkit.zoomManager.zoomValues", ".2,.3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2,2.4,3,4");
 
+// Mobile will use faster, less durable mode.
+pref("toolkit.storage.synchronous", 0);
+
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
 pref("browser.viewport.desktopWidth", 980);
@@ -87,8 +90,8 @@ pref("layout.css.dpi", 240);
 pref("ui.scrollbarsCanOverlapContent", 1);
 
 /* cache prefs */
-pref("browser.cache.disk.enable", false);
-pref("browser.cache.disk.capacity", 0); // kilobytes
+pref("browser.cache.disk.enable", true);
+pref("browser.cache.disk.capacity", 10240); // kilobytes
 pref("browser.cache.disk.smart_size.enabled", false);
 pref("browser.cache.disk.smart_size.first_run", false);
 
@@ -147,6 +150,8 @@ pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_from_crash_timeout", 60); // minutes
 pref("browser.sessionstore.interval", 10000); // milliseconds
 pref("browser.sessionstore.max_tabs_undo", 1);
+pref("browser.sessionstore.max_resumed_crashes", 1);
+pref("browser.sessionstore.recent_crashes", 0);
 
 /* these should help performance */
 pref("mozilla.widget.force-24bpp", true);
@@ -213,8 +218,10 @@ pref("extensions.logging.enabled", false);
 pref("extensions.hideInstallButton", true);
 pref("extensions.showMismatchUI", false);
 pref("extensions.hideUpdateButton", false);
+pref("extensions.strictCompatibility", false);
+pref("extensions.minCompatibleAppVersion", "11.0");
 
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%");
+pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
 
 /* preferences for the Get Add-ons pane */
 pref("extensions.getAddons.cache.enabled", true);
@@ -222,7 +229,7 @@ pref("extensions.getAddons.maxResults", 15);
 pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/recommended/");
 pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/list/featured/all/%MAX_RESULTS%/%OS%/%VERSION%");
 pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/search?q=%TERMS%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%");
+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%/%COMPATIBILITY_MODE%");
 pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/mobile/");
 pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/guid:%IDS%?src=mobile&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
 
@@ -601,7 +608,7 @@ pref("media.preload.auto", 2);    // preload metadata if preload=auto
 //  0: don't show fullscreen keyboard
 //  1: always show fullscreen keyboard
 // -1: show fullscreen keyboard based on threshold pref
-pref("widget.ime.android.landscape_fullscreen", -1);
+pref("widget.ime.android.landscape_fullscreen", 1);
 pref("widget.ime.android.fullscreen_threshold", 250); // in hundreths of inches
 
 // optimize images memory usage
@@ -610,9 +617,7 @@ pref("content.image.allow_locking", false);
 pref("image.mem.min_discard_timeout_ms", 10000);
 
 // enable touch events interfaces
-pref("dom.w3c_touch_events.enabled", true);
-pref("dom.w3c_touch_events.safetyX", 5); // escape borders in units of 1/240"
-pref("dom.w3c_touch_events.safetyY", 20); // escape borders in units of 1/240"
+pref("dom.w3c_touch_events.enabled", false);
 
 #ifdef MOZ_SAFE_BROWSING
 // Safe browsing does nothing unless this pref is set
@@ -687,3 +692,6 @@ pref("dom.report_all_js_exceptions", true);
 pref("javascript.options.showInConsole", true);
 
 pref("full-screen-api.enabled", true);
+
+pref("direct-texture.force.enabled", false);
+pref("direct-texture.force.disabled", false);

@@ -2275,6 +2275,11 @@ nsresult nsPluginHost::ScanPluginsDirectoryList(nsISimpleEnumerator *dirEnum,
 
 nsresult nsPluginHost::LoadPlugins()
 {
+#ifdef ANDROID
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    return NS_OK;
+  }
+#endif
   // do not do anything if it is already done
   // use ReloadPlugins() to enforce loading
   if (mPluginsLoaded)
@@ -3094,6 +3099,9 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
   // deal with headers and post data
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
   if (httpChannel) {
+    rv = httpChannel->SetReferrer(doc->GetDocumentURI());  
+    NS_ENSURE_SUCCESS(rv,rv);
+      
     if (aPostStream) {
       // XXX it's a bit of a hack to rewind the postdata stream
       // here but it has to be done in case the post data is
@@ -3109,8 +3117,10 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
       uploadChannel->SetUploadStream(aPostStream, EmptyCString(), -1);
     }
 
-    if (aHeadersData)
+    if (aHeadersData) {
       rv = AddHeadersToChannel(aHeadersData, aHeadersDataLen, httpChannel);
+      NS_ENSURE_SUCCESS(rv,rv);
+    }
   }
   rv = channel->AsyncOpen(listenerPeer, nsnull);
   if (NS_SUCCEEDED(rv))

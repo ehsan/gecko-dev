@@ -72,7 +72,7 @@
 #include "nsStyleConsts.h"
 #include "nsTableOuterFrame.h"
 #include "nsIDOMXULElement.h"
-#include "nsHTMLContainerFrame.h"
+#include "nsContainerFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMHTMLLegendElement.h"
@@ -143,7 +143,7 @@
 
 #include "nsMathMLParts.h"
 #include "nsIDOMSVGFilters.h"
-#include "nsSVGFeatures.h"
+#include "DOMSVGTests.h"
 #include "nsSVGEffects.h"
 #include "nsSVGUtils.h"
 #include "nsSVGOuterSVGFrame.h"
@@ -3527,7 +3527,7 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
     SIMPLE_TAG_CREATE(frameset, NS_NewHTMLFramesetFrame),
     SIMPLE_TAG_CREATE(iframe, NS_NewSubDocumentFrame),
     COMPLEX_TAG_CREATE(button, &nsCSSFrameConstructor::ConstructButtonFrame),
-    SIMPLE_TAG_CREATE(canvas, NS_NewHTMLCanvasFrame),
+    SIMPLE_TAG_CHAIN(canvas, nsCSSFrameConstructor::FindCanvasData),
 #if defined(MOZ_MEDIA)
     SIMPLE_TAG_CREATE(video, NS_NewHTMLVideoFrame),
     SIMPLE_TAG_CREATE(audio, NS_NewHTMLVideoFrame),
@@ -3636,6 +3636,20 @@ nsCSSFrameConstructor::FindObjectData(Element* aElement,
 
   return FindDataByInt((PRInt32)type, aElement, aStyleContext,
                        sObjectData, ArrayLength(sObjectData));
+}
+
+/* static */
+const nsCSSFrameConstructor::FrameConstructionData*
+nsCSSFrameConstructor::FindCanvasData(Element* aElement,
+                                      nsStyleContext* aStyleContext)
+{
+  if (!aElement->OwnerDoc()->IsScriptEnabled()) {
+    return nsnull;
+  }
+
+  static const FrameConstructionData sCanvasData =
+    SIMPLE_FCDATA(NS_NewHTMLCanvasFrame);
+  return &sCanvasData;
 }
 
 nsresult
@@ -4781,7 +4795,8 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     return &sOuterSVGData;
   }
   
-  if (!nsSVGFeatures::PassesConditionalProcessingTests(aElement)) {
+  nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(aElement));
+  if (tests && !tests->PassesConditionalProcessingTests()) {
     // Elements with failing conditional processing attributes never get
     // rendered.  Note that this is not where we select which frame in a
     // <switch> to render!  That happens in nsSVGSwitchFrame::PaintSVG.
@@ -7620,7 +7635,6 @@ static bool gInApplyRenderingChangeToTree = false;
 
 static void
 DoApplyRenderingChangeToTree(nsIFrame* aFrame,
-                             nsIViewManager* aViewManager,
                              nsFrameManager* aFrameManager,
                              nsChangeHint aChange);
 
@@ -7629,7 +7643,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
  * This rect is relative to aFrame's parent
  */
 static void
-UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
+UpdateViewsForTree(nsIFrame* aFrame,
                    nsFrameManager* aFrameManager,
                    nsChangeHint aChange)
 {
@@ -7656,19 +7670,19 @@ UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
           nsIFrame* outOfFlowFrame =
             nsPlaceholderFrame::GetRealFrameForPlaceholder(child);
           do {
-            DoApplyRenderingChangeToTree(outOfFlowFrame, aViewManager,
-                                         aFrameManager, aChange);
+            DoApplyRenderingChangeToTree(outOfFlowFrame, aFrameManager,
+                                         aChange);
           } while ((outOfFlowFrame = outOfFlowFrame->GetNextContinuation()));
         } else if (lists.CurrentID() == nsIFrame::kPopupList) {
-          DoApplyRenderingChangeToTree(child, aViewManager,
-                                       aFrameManager, aChange);
+          DoApplyRenderingChangeToTree(child, aFrameManager,
+                                       aChange);
         } else {  // regular frame
           if ((child->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) &&
               (aChange & nsChangeHint_RepaintFrame)) {
             FrameLayerBuilder::InvalidateThebesLayerContents(child,
               child->GetVisualOverflowRectRelativeToSelf());
           }
-          UpdateViewsForTree(child, aViewManager, aFrameManager, aChange);
+          UpdateViewsForTree(child, aFrameManager, aChange);
         }
       }
     }
@@ -7677,7 +7691,6 @@ UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
 
 static void
 DoApplyRenderingChangeToTree(nsIFrame* aFrame,
-                             nsIViewManager* aViewManager,
                              nsFrameManager* aFrameManager,
                              nsChangeHint aChange)
 {
@@ -7689,7 +7702,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     // frame doesn't have a view, find the nearest containing view
     // (adjusting r's coordinate system to reflect the nesting) and
     // update there.
-    UpdateViewsForTree(aFrame, aViewManager, aFrameManager, aChange);
+    UpdateViewsForTree(aFrame, aFrameManager, aChange);
 
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
@@ -7752,25 +7765,18 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
     NS_ASSERTION(aFrame, "root frame must paint");
   }
 
-  nsIViewManager* viewManager = shell->GetViewManager();
-
   // Trigger rendering updates by damaging this frame and any
   // continuations of this frame.
 
   // XXX this needs to detect the need for a view due to an opacity change and deal with it...
 
-  nsIViewManager::UpdateViewBatch batch(viewManager);
-
 #ifdef DEBUG
   gInApplyRenderingChangeToTree = true;
 #endif
-  DoApplyRenderingChangeToTree(aFrame, viewManager, shell->FrameManager(),
-                               aChange);
+  DoApplyRenderingChangeToTree(aFrame, shell->FrameManager(), aChange);
 #ifdef DEBUG
   gInApplyRenderingChangeToTree = false;
 #endif
-  
-  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 }
 
 /**
@@ -7811,13 +7817,8 @@ InvalidateCanvasIfNeeded(nsIPresShell* presShell, nsIContent* node)
   // XHTML or something), but chances are we want to.  Play it safe.
   // Invalidate the viewport.
 
-  // Wrap this in a DEFERRED view update batch so we don't try to
-  // flush out layout here
-
-  nsIViewManager::UpdateViewBatch batch(presShell->GetViewManager());
   nsIFrame* rootFrame = presShell->GetRootFrame();
   rootFrame->InvalidateFrameSubtree();
-  batch.EndUpdateViewBatch(NS_VMREFRESH_DEFERRED);
 }
 
 nsresult
@@ -8017,6 +8018,24 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
                   nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer)) {
         ApplyRenderingChangeToTree(presContext, frame, hint);
         didInvalidate = true;
+      }
+      if (hint & nsChangeHint_UpdateOverflow) {
+        while (frame) {
+          frame->UpdateOverflow();
+          nsIFrame* next =
+            nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame);
+          // Update the ancestors' overflow after we have updated the overflow
+          // for all the continuations with the same parent.
+          if (!next || frame->GetParent() != next->GetParent()) {
+            for (nsIFrame* ancestor = frame->GetParent(); ancestor;
+                 ancestor = ancestor->GetParent()) {
+              if (!ancestor->UpdateOverflow()) {
+                break;
+              }
+            }
+          }
+          frame = next;
+        }
       }
       if (hint & nsChangeHint_UpdateCursor) {
         mPresShell->SynthesizeMouseMove(false);
@@ -9010,6 +9029,16 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
     }
   }
 #endif
+
+  // Reconstruct if inflowFrame is parent's only child, and parent is, or has,
+  // a non-fluid continuation, i.e. it was split by bidi resolution
+  if (!inFlowFrame->GetPrevSibling() &&
+      !inFlowFrame->GetNextSibling() &&
+      (parent->GetPrevContinuation() && !parent->GetPrevInFlow() ||
+       parent->GetNextContinuation() && !parent->GetNextInFlow())) {
+    *aResult = RecreateFramesForContent(parent->GetContent(), true);
+    return true;
+  }
 
   // We might still need to reconstruct things if the parent of inFlowFrame is
   // special, since in that case the removal of aFrame might affect the
@@ -11584,7 +11613,7 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
     return;
 
   // Make sure that the viewmanager will outlive the presshell
-  nsIViewManager::UpdateViewBatch batch(mPresShell->GetViewManager());
+  nsCOMPtr<nsIViewManager> vm = mPresShell->GetViewManager();
 
   // Processing the style changes could cause a flush that propagates to
   // the parent frame and thus destroys the pres shell.
@@ -11600,7 +11629,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
   // so we can recalculate while maintaining rule tree immutability
   nsresult rv = mPresShell->StyleSet()->BeginReconstruct();
   if (NS_FAILED(rv)) {
-    batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
     return;
   }
 
@@ -11635,7 +11663,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
   // reconstructed will still have their old style context pointers
   // until they are destroyed).
   mPresShell->StyleSet()->EndReconstruct();
-  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 }
 
 void

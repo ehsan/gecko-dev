@@ -56,10 +56,12 @@
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
 
-#include "jscntxt.h"
+#include "jsfriendapi.h"
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 #include "jsprf.h"
+#include "js/MemoryMetrics.h"
+
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
@@ -80,6 +82,9 @@
 #include "Worker.h"
 #include "WorkerFeature.h"
 #include "WorkerScope.h"
+#ifdef ANDROID
+#include <android/log.h>
+#endif
 
 #include "WorkerInlines.h"
 
@@ -97,7 +102,7 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
-using mozilla::xpconnect::memory::IterateData;
+using mozilla::xpconnect::memory::ReportJSRuntimeStats;
 
 USING_WORKERS_NAMESPACE
 
@@ -190,17 +195,14 @@ public:
                   NS_LITERAL_CSTRING(")/");
   }
 
-  NS_IMETHOD
-  CollectReports(nsIMemoryMultiReporterCallback* aCallback,
-                 nsISupports* aClosure)
+  nsresult
+  CollectForRuntime(bool aIsQuick, void* aData)
   {
     AssertIsOnMainThread();
 
-    IterateData data;
-
     if (mWorkerPrivate) {
       bool disabled;
-      if (!mWorkerPrivate->BlockAndCollectRuntimeStats(&data, &disabled)) {
+      if (!mWorkerPrivate->BlockAndCollectRuntimeStats(aIsQuick, aData, &disabled)) {
         return NS_ERROR_FAILURE;
       }
 
@@ -221,11 +223,35 @@ public:
         mWorkerPrivate = nsnull;
       }
     }
+    return NS_OK;
+  }
+
+  NS_IMETHOD
+  CollectReports(nsIMemoryMultiReporterCallback* aCallback,
+                 nsISupports* aClosure)
+  {
+    AssertIsOnMainThread();
+
+    JS::RuntimeStats rtStats(xpc::JsMallocSizeOf, xpc::GetCompartmentName,
+                             xpc::DestroyCompartmentName);
+    nsresult rv = CollectForRuntime(/* isQuick = */false, &rtStats);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 
     // Always report, even if we're disabled, so that we at least get an entry
     // in about::memory.
-    ReportJSRuntimeStats(data, mPathPrefix, aCallback, aClosure);
+    ReportJSRuntimeStats(rtStats, mPathPrefix, aCallback, aClosure);
+
     return NS_OK;
+  }
+
+  NS_IMETHOD
+  GetExplicitNonHeap(PRInt64 *aAmount)
+  {
+    AssertIsOnMainThread();
+
+    return CollectForRuntime(/* isQuick = */true, aAmount);
   }
 };
 
@@ -814,7 +840,7 @@ public:
 
 class MessageEventRunnable : public WorkerRunnable
 {
-  uint64* mData;
+  uint64_t* mData;
   size_t mDataByteCount;
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
 
@@ -885,12 +911,14 @@ public:
 
 class NotifyRunnable : public WorkerControlRunnable
 {
+  bool mFromJSObjectFinalizer;
   Status mStatus;
 
 public:
-  NotifyRunnable(WorkerPrivate* aWorkerPrivate, Status aStatus)
+  NotifyRunnable(WorkerPrivate* aWorkerPrivate, bool aFromJSObjectFinalizer,
+                 Status aStatus)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mStatus(aStatus)
+    mFromJSObjectFinalizer(aFromJSObjectFinalizer), mStatus(aStatus)
   {
     NS_ASSERTION(aStatus == Terminating || aStatus == Canceling ||
                  aStatus == Killing, "Bad status!");
@@ -900,8 +928,12 @@ public:
   PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     // Modify here, but not in PostRun! This busy count addition will be matched
-    // by the CloseEventRunnable.
-    return aWorkerPrivate->ModifyBusyCount(aCx, true);
+    // by the CloseEventRunnable. If we're running from a finalizer there is no
+    // need to modify the count because future changes to the busy count will
+    // have no effect.
+    return mFromJSObjectFinalizer ?
+           true :
+           aWorkerPrivate->ModifyBusyCount(aCx, true);
   }
 
   bool
@@ -1116,36 +1148,31 @@ public:
     }
 
     // Otherwise log an error to the error console.
-    nsCOMPtr<nsIScriptError2> scriptError =
+    nsCOMPtr<nsIScriptError> scriptError =
       do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
-    NS_WARN_IF_FALSE(scriptError, "Faild to create script error!");
-
-    nsCOMPtr<nsIConsoleMessage> consoleMessage;
+    NS_WARN_IF_FALSE(scriptError, "Failed to create script error!");
 
     if (scriptError) {
-      if (NS_SUCCEEDED(scriptError->InitWithWindowID(aMessage.get(),
-                                                     aFilename.get(),
-                                                     aLine.get(), aLineNumber,
-                                                     aColumnNumber, aFlags,
-                                                     "Web Worker",
-                                                     aInnerWindowId))) {
-        consoleMessage = do_QueryInterface(scriptError);
-        NS_ASSERTION(consoleMessage, "This should never fail!");
-      }
-      else {
+      if (NS_FAILED(scriptError->InitWithWindowID(aMessage.get(),
+                                                  aFilename.get(),
+                                                  aLine.get(), aLineNumber,
+                                                  aColumnNumber, aFlags,
+                                                  "Web Worker",
+                                                  aInnerWindowId))) {
         NS_WARNING("Failed to init script error!");
+        scriptError = nsnull;
       }
     }
 
     nsCOMPtr<nsIConsoleService> consoleService =
       do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    NS_WARN_IF_FALSE(consoleService, "Faild to get console service!");
+    NS_WARN_IF_FALSE(consoleService, "Failed to get console service!");
 
     bool logged = false;
 
     if (consoleService) {
-      if (consoleMessage) {
-        if (NS_SUCCEEDED(consoleService->LogMessage(consoleMessage))) {
+      if (scriptError) {
+        if (NS_SUCCEEDED(consoleService->LogMessage(scriptError))) {
           logged = true;
         }
         else {
@@ -1161,7 +1188,11 @@ public:
     }
 
     if (!logged) {
-      fputs(NS_ConvertUTF16toUTF8(aMessage).get(), stderr);
+      NS_ConvertUTF16toUTF8 msg(aMessage);
+#ifdef ANDROID
+      __android_log_print(ANDROID_LOG_INFO, "Gecko", msg.get());
+#endif
+      fputs(msg.get(), stderr);
       fflush(stderr);
     }
 
@@ -1439,16 +1470,17 @@ class CollectRuntimeStatsRunnable : public WorkerControlRunnable
   Mutex mMutex;
   CondVar mCondVar;
   volatile bool mDone;
-  IterateData* mData;
+  bool mIsQuick;
+  void* mData;
   bool* mSucceeded;
 
 public:
-  CollectRuntimeStatsRunnable(WorkerPrivate* aWorkerPrivate, IterateData* aData,
-                              bool* aSucceeded)
+  CollectRuntimeStatsRunnable(WorkerPrivate* aWorkerPrivate, bool aIsQuick,
+                              void* aData, bool* aSucceeded)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mMutex("CollectRuntimeStatsRunnable::mMutex"),
     mCondVar(mMutex, "CollectRuntimeStatsRunnable::mCondVar"), mDone(false),
-    mData(aData), mSucceeded(aSucceeded)
+    mIsQuick(aIsQuick), mData(aData), mSucceeded(aSucceeded)
   { }
 
   bool
@@ -1490,7 +1522,9 @@ public:
   {
     JSAutoSuspendRequest asr(aCx);
 
-    *mSucceeded = CollectCompartmentStatsForRuntime(JS_GetRuntime(aCx), mData);
+    *mSucceeded = mIsQuick
+      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), xpc::JsMallocSizeOf)
+      : JS::CollectRuntimeStats(JS_GetRuntime(aCx), static_cast<JS::RuntimeStats*>(mData));
 
     {
       MutexAutoLock lock(mMutex);
@@ -1538,7 +1572,7 @@ WorkerRunnable::PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   }
 #endif
 
-  if (mBusyBehavior == ModifyBusyCount) {
+  if (mBusyBehavior == ModifyBusyCount && aCx) {
     return aWorkerPrivate->ModifyBusyCount(aCx, true);
   }
 
@@ -1626,7 +1660,7 @@ WorkerRunnable::PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
   }
 #endif
 
-  if (!aDispatchResult) {
+  if (!aDispatchResult && aCx) {
     if (mBusyBehavior == ModifyBusyCount) {
       aWorkerPrivate->ModifyBusyCount(aCx, false);
     }
@@ -1835,7 +1869,8 @@ WorkerPrivateParent<Derived>::Start()
 
 template <class Derived>
 bool
-WorkerPrivateParent<Derived>::Notify(JSContext* aCx, Status aStatus)
+WorkerPrivateParent<Derived>::NotifyPrivate(JSContext* aCx, Status aStatus,
+                                            bool aFromJSObjectFinalizer)
 {
   AssertIsOnParentThread();
 
@@ -1876,8 +1911,9 @@ WorkerPrivateParent<Derived>::Notify(JSContext* aCx, Status aStatus)
   mQueuedRunnables.Clear();
 
   nsRefPtr<NotifyRunnable> runnable =
-    new NotifyRunnable(ParentAsWorkerPrivate(), aStatus);
-  return runnable->Dispatch(aCx);
+    new NotifyRunnable(ParentAsWorkerPrivate(), aFromJSObjectFinalizer,
+                       aStatus);
+  return runnable->Dispatch(aFromJSObjectFinalizer ? nsnull : aCx);
 }
 
 template <class Derived>
@@ -1952,9 +1988,10 @@ WorkerPrivateParent<Derived>::FinalizeInstance(JSContext* aCx,
   AssertIsOnParentThread();
 
   if (mJSObject) {
-    // Make sure we're in the right compartment.
+    // Make sure we're in the right compartment, but only enter one if this is
+    // not running from a finalizer.
     JSAutoEnterCompartment ac;
-    if (!ac.enter(aCx, mJSObject)) {
+    if (!aFromJSFinalizer && !ac.enter(aCx, mJSObject)) {
       NS_ERROR("How can this fail?!");
       return;
     }
@@ -1968,7 +2005,7 @@ WorkerPrivateParent<Derived>::FinalizeInstance(JSContext* aCx,
     // Unroot.
     RootJSObject(aCx, false);
 
-    if (!Terminate(aCx)) {
+    if (!TerminatePrivate(aCx, aFromJSFinalizer)) {
       NS_WARNING("Failed to terminate!");
     }
 
@@ -2758,7 +2795,7 @@ WorkerPrivate::ScheduleDeletion(bool aWasPending)
 }
 
 bool
-WorkerPrivate::BlockAndCollectRuntimeStats(IterateData* aData, bool* aDisabled)
+WorkerPrivate::BlockAndCollectRuntimeStats(bool aIsQuick, void* aData, bool* aDisabled)
 {
   AssertIsOnMainThread();
   NS_ASSERTION(aData, "Null data!");
@@ -2778,7 +2815,7 @@ WorkerPrivate::BlockAndCollectRuntimeStats(IterateData* aData, bool* aDisabled)
   bool succeeded;
 
   nsRefPtr<CollectRuntimeStatsRunnable> runnable =
-    new CollectRuntimeStatsRunnable(this, aData, &succeeded);
+    new CollectRuntimeStatsRunnable(this, aIsQuick, aData, &succeeded);
   if (!runnable->Dispatch(nsnull)) {
     NS_WARNING("Failed to dispatch runnable!");
     succeeded = false;
@@ -3757,10 +3794,10 @@ WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
   AssertIsOnWorkerThread();
 
   if (aShrinking) {
-    JS_ShrinkingGC(aCx);
+    js::ShrinkingGC(aCx, js::gcreason::DOM_WORKER);
   }
   else {
-    JS_GC(aCx);
+    js::GCForReason(aCx, js::gcreason::DOM_WORKER);
   }
 
   if (aCollectChildren) {

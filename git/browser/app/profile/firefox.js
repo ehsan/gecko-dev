@@ -67,7 +67,7 @@ pref("extensions.getAddons.maxResults", 15);
 pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%");
 pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%/%COMPATIBILITY_MODE%?src=firefox");
-pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/firefox/discovery/pane/%VERSION%/%OS%");
+pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/firefox/discovery/pane/%VERSION%/%OS%/%COMPATIBILITY_MODE%");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -200,6 +200,11 @@ pref("app.update.showInstalledUI", false);
 //     versions.
 pref("app.update.incompatible.mode", 0);
 
+// Whether or not to attempt using the service for updates.
+#ifdef MOZ_MAINTENANCE_SERVICE
+pref("app.update.service.enabled", true);
+#endif
+
 // Symmetric (can be overridden by individual extensions) update preferences.
 // e.g.
 //  extensions.{GUID}.update.enabled
@@ -232,15 +237,14 @@ pref("keyword.URL", "");
 pref("general.useragent.locale", "@AB_CD@");
 pref("general.skins.selectedSkin", "classic/1.0");
 
-pref("general.smoothScroll", false);
+pref("general.smoothScroll", true);
 #ifdef UNIX_BUT_NOT_MAC
 pref("general.autoScroll", false);
 #else
 pref("general.autoScroll", true);
 #endif
 
-// Whether or not the application should check at startup each time if it 
-// is the default browser.
+// At startup, check if we're the default browser and prompt user if not.
 pref("browser.shell.checkDefaultBrowser", true);
 
 // 0 = blank, 1 = home (browser.startup.homepage), 2 = last visited page, 3 = resume previous browser session
@@ -393,6 +397,7 @@ pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
 pref("browser.tabs.tabClipWidth", 140);
 pref("browser.tabs.animate", true);
+pref("browser.tabs.onTop", true);
 pref("browser.tabs.drawInTitlebar", true);
 
 // Where to show tab close buttons:
@@ -798,6 +803,10 @@ pref("browser.sessionstore.max_resumed_crashes", 1);
 pref("browser.sessionstore.restore_on_demand", false);
 // Whether to automatically restore hidden tabs (i.e., tabs in other tab groups) or not
 pref("browser.sessionstore.restore_hidden_tabs", false);
+// If restore_on_demand is set, pinned tabs are restored on startup by default.
+// When set to true, this pref overrides that behavior, and pinned tabs will only
+// be restored when they are focused.
+pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
@@ -866,7 +875,7 @@ pref("browser.zoom.updateBackgroundTabs", true);
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
-pref("app.support.baseURL", "http://support.mozilla.com/1/firefox/%VERSION%/%OS%/%LOCALE%/");
+pref("app.support.baseURL", "http://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");
@@ -963,6 +972,7 @@ pref("services.sync.prefs.sync.browser.tabs.closeButtons", true);
 pref("services.sync.prefs.sync.browser.tabs.loadInBackground", true);
 pref("services.sync.prefs.sync.browser.tabs.warnOnClose", true);
 pref("services.sync.prefs.sync.browser.tabs.warnOnOpen", true);
+pref("services.sync.prefs.sync.browser.tabs.onTop", true);
 pref("services.sync.prefs.sync.browser.urlbar.autocomplete.enabled", true);
 pref("services.sync.prefs.sync.browser.urlbar.autoFill", true);
 pref("services.sync.prefs.sync.browser.urlbar.default.behavior", true);
@@ -1025,9 +1035,8 @@ pref("devtools.styleinspector.enabled", true);
 
 // Enable the Tilt inspector
 pref("devtools.tilt.enabled", true);
-
-// Enable the Tilt inspector even if WebGL capabilities are not detected
-pref("devtools.tilt.force-enabled", false);
+pref("devtools.tilt.intro_transition", true);
+pref("devtools.tilt.outro_transition", true);
 
 // Enable the rules view
 pref("devtools.ruleview.enabled", true);
@@ -1037,6 +1046,7 @@ pref("devtools.scratchpad.enabled", true);
 
 // Enable the Style Editor.
 pref("devtools.styleeditor.enabled", true);
+pref("devtools.styleeditor.transitions", true);
 
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
@@ -1099,6 +1109,12 @@ pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.prop
 pref("prompts.tab_modal.enabled", true);
 // Whether the Panorama should animate going in/out of tabs
 pref("browser.panorama.animate_zoom", true);
+
+// Defines the url to be used for new tabs.
+pref("browser.newtab.url", "about:blank");
+
+// Toggles the content of 'about:newtab'. Shows the grid when enabled.
+pref("browser.newtabpage.enabled", false);
 
 // Enable the DOM full-screen API.
 pref("full-screen-api.enabled", true);

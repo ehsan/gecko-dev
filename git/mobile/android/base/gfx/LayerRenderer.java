@@ -61,7 +61,7 @@ import android.util.Log;
 import android.view.WindowManager;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
-import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 
 /**
  * The layer renderer implements the rendering logic for a layer view.
@@ -80,6 +80,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
     private final LayerView mView;
     private final SingleTileLayer mBackgroundLayer;
+    private final CheckerboardImage mCheckerboardImage;
     private final SingleTileLayer mCheckerboardLayer;
     private final NinePatchTileLayer mShadowLayer;
     private final TextLayer mFrameRateLayer;
@@ -94,6 +95,9 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     private int mCurrentFrame, mFrameTimingsSum, mDroppedFrames;
     private boolean mShowFrameRate;
 
+    /* Used by robocop for testing purposes */
+    private IntBuffer mPixelBuffer;
+
     public LayerRenderer(LayerView view) {
         mView = view;
 
@@ -101,12 +105,30 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
         CairoImage backgroundImage = new BufferedCairoImage(controller.getBackgroundPattern());
         mBackgroundLayer = new SingleTileLayer(true, backgroundImage);
+        mBackgroundLayer.beginTransaction(null);
+        try {
+            mBackgroundLayer.invalidate();
+        } finally {
+            mBackgroundLayer.endTransaction();
+        }
 
-        CairoImage checkerboardImage = new BufferedCairoImage(controller.getCheckerboardPattern());
-        mCheckerboardLayer = new SingleTileLayer(true, checkerboardImage);
+        mCheckerboardImage = new CheckerboardImage();
+        mCheckerboardLayer = new SingleTileLayer(true, mCheckerboardImage);
+        mCheckerboardLayer.beginTransaction(null);
+        try {
+            mCheckerboardLayer.invalidate();
+        } finally {
+            mCheckerboardLayer.endTransaction();
+        }
 
         CairoImage shadowImage = new BufferedCairoImage(controller.getShadowPattern());
         mShadowLayer = new NinePatchTileLayer(shadowImage);
+        mShadowLayer.beginTransaction(null);
+        try {
+            mShadowLayer.invalidate();
+        } finally {
+            mShadowLayer.endTransaction();
+        }
 
         IntSize frameRateLayerSize = new IntSize(FRAME_RATE_METER_WIDTH, FRAME_RATE_METER_HEIGHT);
         mFrameRateLayer = TextLayer.create(frameRateLayerSize, "-- ms/--");
@@ -171,7 +193,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             if (rootLayer != null) updated &= rootLayer.update(gl, pageContext);
             updated &= mBackgroundLayer.update(gl, screenContext);
             updated &= mShadowLayer.update(gl, pageContext);
-            updated &= mCheckerboardLayer.update(gl, screenContext);
+            updateCheckerboardLayer(gl, screenContext);
             updated &= mFrameRateLayer.update(gl, screenContext);
             updated &= mVertScrollLayer.update(gl, pageContext);
             updated &= mHorizScrollLayer.update(gl, pageContext);
@@ -227,6 +249,31 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             mView.requestRender();
 
         PanningPerfAPI.recordFrameTime();
+
+        /* Used by robocop for testing purposes */
+        IntBuffer pixelBuffer = mPixelBuffer;
+        if (updated && pixelBuffer != null) {
+            synchronized (pixelBuffer) {
+                pixelBuffer.position(0);
+                gl.glReadPixels(0, 0, (int)screenContext.viewport.width(), (int)screenContext.viewport.height(), GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, pixelBuffer);
+                pixelBuffer.notify();
+            }
+        }
+    }
+
+    /** Used by robocop for testing purposes. Not for production use! */
+    IntBuffer getPixels() {
+        IntBuffer pixelBuffer = IntBuffer.allocate(mView.getWidth() * mView.getHeight());
+        synchronized (pixelBuffer) {
+            mPixelBuffer = pixelBuffer;
+            mView.requestRender();
+            try {
+                pixelBuffer.wait();
+            } catch (InterruptedException ie) {
+            }
+            mPixelBuffer = null;
+        }
+        return pixelBuffer;
     }
 
     private RenderContext createScreenContext() {
@@ -332,6 +379,23 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
                 mShowFrameRate = preferences.getBoolean("showFrameRate", false);
             }
         }).start();
+    }
+
+    private void updateCheckerboardLayer(GL10 gl, RenderContext renderContext) {
+        int newCheckerboardColor = mView.getController().getCheckerboardColor();
+        if (newCheckerboardColor == mCheckerboardImage.getColor()) {
+            return;
+        }
+
+        mCheckerboardLayer.beginTransaction();
+        try {
+            mCheckerboardImage.setColor(newCheckerboardColor);
+            mCheckerboardLayer.invalidate();
+        } finally {
+            mCheckerboardLayer.endTransaction();
+        }
+
+        mCheckerboardLayer.update(gl, renderContext);
     }
 
     class FadeRunnable implements Runnable {

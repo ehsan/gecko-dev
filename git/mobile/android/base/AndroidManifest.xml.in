@@ -24,6 +24,14 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
+#ifdef MOZ_WEBSMS_BACKEND
+    <!-- WebSMS -->
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <uses-permission android:name="android.permission.WRITE_SMS"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
+#endif
+
     <uses-permission android:name="com.android.browser.permission.READ_HISTORY_BOOKMARKS"/> 
     <uses-permission android:name="com.android.browser.permission.WRITE_HISTORY_BOOKMARKS"/> 
 
@@ -52,6 +60,10 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="org.mozilla.gecko.UPDATE"/>
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
             <!-- Default browser intents -->
@@ -104,6 +116,7 @@
                   android:excludeFromRecents="true">
           <intent-filter>
             <action android:name="org.mozilla.gecko.restart"/>
+            <action android:name="org.mozilla.gecko.restart_update"/>
           </intent-filter>
         </activity>
 

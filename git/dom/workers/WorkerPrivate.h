@@ -69,16 +69,6 @@ class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
 
-namespace mozilla {
-namespace xpconnect {
-namespace memory {
-
-struct IterateData;
-
-} // namespace memory
-} // namespace xpconnect
-} // namespace mozilla
-
 BEGIN_WORKERS_NAMESPACE
 
 class WorkerPrivate;
@@ -242,6 +232,15 @@ private:
     return static_cast<Derived*>(const_cast<WorkerPrivateParent*>(this));
   }
 
+  bool
+  NotifyPrivate(JSContext* aCx, Status aStatus, bool aFromJSFinalizer);
+
+  bool
+  TerminatePrivate(JSContext* aCx, bool aFromJSFinalizer)
+  {
+    return NotifyPrivate(aCx, Terminating, aFromJSFinalizer);
+  }
+
 public:
   // May be called on any thread...
   bool
@@ -249,7 +248,10 @@ public:
 
   // Called on the parent thread.
   bool
-  Notify(JSContext* aCx, Status aStatus);
+  Notify(JSContext* aCx, Status aStatus)
+  {
+    return NotifyPrivate(aCx, aStatus, false);
+  }
 
   bool
   Cancel(JSContext* aCx)
@@ -284,7 +286,7 @@ public:
   bool
   Terminate(JSContext* aCx)
   {
-    return Notify(aCx, Terminating);
+    return TerminatePrivate(aCx, false);
   }
 
   bool
@@ -677,8 +679,7 @@ public:
   ScheduleDeletion(bool aWasPending);
 
   bool
-  BlockAndCollectRuntimeStats(mozilla::xpconnect::memory::IterateData* aData,
-                              bool* aDisabled);
+  BlockAndCollectRuntimeStats(bool isQuick, void* aData, bool* aDisabled);
 
   bool
   DisableMemoryReporter();

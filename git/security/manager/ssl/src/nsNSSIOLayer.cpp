@@ -154,6 +154,8 @@ nsNSSSocketInfo::nsNSSSocketInfo()
   : mMutex("nsNSSSocketInfo::nsNSSSocketInfo"),
     mFd(nsnull),
     mCertVerificationState(before_cert_verification),
+    mCertVerificationStarted(0),
+    mCertVerificationEnded(0),
     mSecurityState(nsIWebProgressListener::STATE_IS_INSECURE),
     mSubRequestsHighSecurity(0),
     mSubRequestsLowSecurity(0),
@@ -960,6 +962,7 @@ nsNSSSocketInfo::SetCertVerificationWaiting()
   NS_ASSERTION(mCertVerificationState != waiting_for_cert_verification,
                "Invalid state transition to waiting_for_cert_verification");
   mCertVerificationState = waiting_for_cert_verification;
+  mCertVerificationStarted = PR_IntervalNow();
 }
 
 void
@@ -968,6 +971,8 @@ nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode,
 {
   NS_ASSERTION(mCertVerificationState == waiting_for_cert_verification,
                "Invalid state transition to cert_verification_finished");
+
+  mCertVerificationEnded = PR_IntervalNow();
 
   if (errorCode != 0) {
     SetCanceled(errorCode, errorMessageType);
@@ -1025,11 +1030,36 @@ void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(bool aAllow)
 
 bool nsNSSSocketInfo::HandshakeTimeout()
 {
+  if (mCertVerificationState == waiting_for_cert_verification) {
+    // Do not do a TLS interlerance timeout during cert verification because:
+    //
+    //  * If we would have timed out, but cert verification is still ongoing,
+    //    then the handshake probably already completed, and it is probably the
+    //    certificate validation (OCSP responder or similar) that is timing
+    //    out.
+    //  * If certificate validation AND the handshake is slow, then that is a
+    //    good indication that the network is bad, and so the problem probably
+    //    isn't the server being TLS intolerant.
+    //  * When we timeout, we return non-zero flags from PR_Poll, which will
+    //    cause the application to try to read from and/or write to the socket,
+    //    possibly in a loop. But, it is likely that the socket is blocked on
+    //    cert authentication, so those read and/or write calls would result in
+    //    PR_WOULD_BLOCK_ERROR, causing the application to spin.
+    return false;
+  }
+
   if (!mHandshakeInProgress || !mAllowTLSIntoleranceTimeout)
     return false;
 
-  return ((PRIntervalTime)(PR_IntervalNow() - mHandshakeStartTime)
-          > PR_SecondsToInterval(HANDSHAKE_TIMEOUT_SECONDS));
+  PRIntervalTime now = PR_IntervalNow();
+  PRIntervalTime certVerificationTime =
+      mCertVerificationEnded - mCertVerificationStarted;
+  PRIntervalTime totalTime = now - mHandshakeStartTime;
+  PRIntervalTime totalTimeExceptCertVerificationTime =
+      totalTime - certVerificationTime;
+
+  return totalTimeExceptCertVerificationTime > 
+      PR_SecondsToInterval(HANDSHAKE_TIMEOUT_SECONDS);
 }
 
 void nsSSLIOLayerHelpers::Cleanup()
@@ -2082,6 +2112,7 @@ nsSSLIOLayerPoll(PRFileDesc * fd, PRInt16 in_flags, PRInt16 *out_flags)
             :  "[%p] poll SSL socket using lower %d\n",
          fd, (int) in_flags));
 
+  // See comments in HandshakeTimeout before moving and/or changing this block
   if (socketInfo->HandshakeTimeout()) {
     NS_ASSERTION(in_flags & PR_POLL_EXCEPT,
                  "caller did not poll for EXCEPT (handshake timeout)");
@@ -2249,6 +2280,20 @@ static PRStatus PR_CALLBACK PSMConnectcontinue(PRFileDesc *fd, PRInt16 out_flags
   return fd->lower->methods->connectcontinue(fd, out_flags);
 }
 
+static PRIntn PSMAvailable(void)
+{
+  // This is called through PR_Available(), but is not implemented in PSM
+  PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+  return -1;
+}
+
+static PRInt64 PSMAvailable64(void)
+{
+  // This is called through PR_Available(), but is not implemented in PSM
+  PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+  return -1;
+}
+
 nsresult nsSSLIOLayerHelpers::Init()
 {
   if (!nsSSLIOLayerInitialized) {
@@ -2256,8 +2301,8 @@ nsresult nsSSLIOLayerHelpers::Init()
     nsSSLIOLayerIdentity = PR_GetUniqueIdentity("NSS layer");
     nsSSLIOLayerMethods  = *PR_GetDefaultIOMethods();
 
-    nsSSLIOLayerMethods.available = (PRAvailableFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.available64 = (PRAvailable64FN)_PSM_InvalidInt64;
+    nsSSLIOLayerMethods.available = (PRAvailableFN)PSMAvailable;
+    nsSSLIOLayerMethods.available64 = (PRAvailable64FN)PSMAvailable64;
     nsSSLIOLayerMethods.fsync = (PRFsyncFN)_PSM_InvalidStatus;
     nsSSLIOLayerMethods.seek = (PRSeekFN)_PSM_InvalidInt;
     nsSSLIOLayerMethods.seek64 = (PRSeek64FN)_PSM_InvalidInt64;

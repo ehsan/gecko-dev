@@ -80,6 +80,7 @@ public final class Tab {
     private CheckBookmarkTask mCheckBookmarkTask;
     private String mDocumentURI;
     private String mContentType;
+    private boolean mHasTouchListeners;
 
     public static final class HistoryEntry {
         public String mUri;         // must never be null
@@ -304,6 +305,14 @@ public final class Tab {
 
     private void setBookmark(boolean bookmark) {
         mBookmark = bookmark;
+    }
+
+    public void setHasTouchListeners(boolean aValue) {
+        mHasTouchListeners = aValue;
+    }
+
+    public boolean hasTouchListeners() {
+        return mHasTouchListeners;
     }
 
     public void setFaviconLoadId(long faviconLoadId) {
