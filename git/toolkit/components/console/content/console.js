@@ -1,9 +1,11 @@
-# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 var gConsole, gConsoleBundle, gTextBoxEval, gEvaluator, gCodeToEvaluate;
+var gFilter;
 
 /* :::::::: Console Initialization ::::::::::::::: */
 
@@ -13,6 +15,7 @@ window.onload = function()
   gConsoleBundle = document.getElementById("ConsoleBundle");
   gTextBoxEval = document.getElementById("TextboxEval")  
   gEvaluator = document.getElementById("Evaluator");
+  gFilter = document.getElementById("Filter");
   
   updateSortCommand(gConsole.sortOrder);
   updateModeCommand(gConsole.mode);
@@ -21,6 +24,13 @@ window.onload = function()
 }
 
 /* :::::::: Console UI Functions ::::::::::::::: */
+
+function changeFilter()
+{
+  gConsole.filter = gFilter.value;
+
+  document.persist("ConsoleBox", "filter")
+}
 
 function changeMode(aMode)
 {

@@ -2423,7 +2423,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
             return JS::Int32Value(i);
         }
         case LOCAL_GL_FRAGMENT_SHADER_DERIVATIVE_HINT:
-            if (mEnabledExtensions[WebGL_OES_standard_derivatives]) {
+            if (IsExtensionEnabled(OES_standard_derivatives)) {
                 GLint i = 0;
                 gl->fGetIntegerv(pname, &i);
                 return JS::Int32Value(i);
@@ -2447,7 +2447,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
         case LOCAL_GL_COMPRESSED_TEXTURE_FORMATS:
         {
             uint32_t length = mCompressedTextureFormats.Length();
-            JSObject* obj = Uint32Array::Create(cx, length, mCompressedTextureFormats.Elements());
+            JSObject* obj = Uint32Array::Create(cx, this, length, mCompressedTextureFormats.Elements());
             if (!obj) {
                 rv = NS_ERROR_OUT_OF_MEMORY;
             }
@@ -2470,7 +2470,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
 
 // float
         case LOCAL_GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT:
-            if (mEnabledExtensions[WebGL_EXT_texture_filter_anisotropic]) {
+            if (IsExtensionEnabled(EXT_texture_filter_anisotropic)) {
                 GLfloat f = 0.f;
                 gl->fGetFloatv(pname, &f);
                 return JS::DoubleValue(f);
@@ -2524,7 +2524,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
         {
             GLfloat fv[2] = { 0 };
             gl->fGetFloatv(pname, fv);
-            JSObject* obj = Float32Array::Create(cx, 2, fv);
+            JSObject* obj = Float32Array::Create(cx, this, 2, fv);
             if (!obj) {
                 rv = NS_ERROR_OUT_OF_MEMORY;
             }
@@ -2536,7 +2536,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
         {
             GLfloat fv[4] = { 0 };
             gl->fGetFloatv(pname, fv);
-            JSObject* obj = Float32Array::Create(cx, 4, fv);
+            JSObject* obj = Float32Array::Create(cx, this, 4, fv);
             if (!obj) {
                 rv = NS_ERROR_OUT_OF_MEMORY;
             }
@@ -2547,7 +2547,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
         {
             GLint iv[2] = { 0 };
             gl->fGetIntegerv(pname, iv);
-            JSObject* obj = Int32Array::Create(cx, 2, iv);
+            JSObject* obj = Int32Array::Create(cx, this, 2, iv);
             if (!obj) {
                 rv = NS_ERROR_OUT_OF_MEMORY;
             }
@@ -2559,7 +2559,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
         {
             GLint iv[4] = { 0 };
             gl->fGetIntegerv(pname, iv);
-            JSObject* obj = Int32Array::Create(cx, 4, iv);
+            JSObject* obj = Int32Array::Create(cx, this, 4, iv);
             if (!obj) {
                 rv = NS_ERROR_OUT_OF_MEMORY;
             }
@@ -3114,7 +3114,7 @@ void WebGLContext::TexParameter_base(WebGLenum target, WebGLenum pname,
             }
             break;
         case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
-            if (mEnabledExtensions[WebGL_EXT_texture_filter_anisotropic]) {
+            if (IsExtensionEnabled(EXT_texture_filter_anisotropic)) {
                 if (floatParamPtr && floatParam < 1.f)
                     paramValueInvalid = true;
                 else if (intParamPtr && intParam < 1)
@@ -3198,7 +3198,7 @@ WebGLContext::GetTexParameter(WebGLenum target, WebGLenum pname)
             return JS::NumberValue(uint32_t(i));
         }
         case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
-            if (mEnabledExtensions[WebGL_EXT_texture_filter_anisotropic]) {
+            if (IsExtensionEnabled(EXT_texture_filter_anisotropic)) {
                 GLfloat f = 0.f;
                 gl->fGetTexParameterfv(target, pname, &f);
                 return JS::DoubleValue(f);
@@ -3323,7 +3323,7 @@ WebGLContext::GetUniform(JSContext* cx, WebGLProgram *prog,
         if (unitSize == 1) {
             return JS::DoubleValue(fv[0]);
         } else {
-            JSObject* obj = Float32Array::Create(cx, unitSize, fv);
+            JSObject* obj = Float32Array::Create(cx, this, unitSize, fv);
             if (!obj) {
                 rv.Throw(NS_ERROR_OUT_OF_MEMORY);
             }
@@ -3335,7 +3335,7 @@ WebGLContext::GetUniform(JSContext* cx, WebGLProgram *prog,
         if (unitSize == 1) {
             return JS::Int32Value(iv[0]);
         } else {
-            JSObject* obj = Int32Array::Create(cx, unitSize, iv);
+            JSObject* obj = Int32Array::Create(cx, this, unitSize, iv);
             if (!obj) {
                 rv.Throw(NS_ERROR_OUT_OF_MEMORY);
             }
@@ -3462,7 +3462,7 @@ WebGLContext::GetVertexAttrib(JSContext* cx, WebGLuint index, WebGLenum pname,
                 vec[2] = mVertexAttrib0Vector[2];
                 vec[3] = mVertexAttrib0Vector[3];
             }
-            JSObject* obj = Float32Array::Create(cx, 4, vec);
+            JSObject* obj = Float32Array::Create(cx, this, 4, vec);
             if (!obj) {
                 rv.Throw(NS_ERROR_OUT_OF_MEMORY);
             }
@@ -3529,7 +3529,7 @@ WebGLContext::Hint(WebGLenum target, WebGLenum mode)
             isValid = true;
             break;
         case LOCAL_GL_FRAGMENT_SHADER_DERIVATIVE_HINT:
-            if (mEnabledExtensions[WebGL_OES_standard_derivatives]) 
+            if (IsExtensionEnabled(OES_standard_derivatives))
                 isValid = true;
             break;
     }
@@ -3841,13 +3841,16 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
         return;
     }
 
-    if (HTMLCanvasElement()->IsWriteOnly() && !nsContentUtils::IsCallerTrustedForRead()) {
+    if (mCanvasElement->IsWriteOnly() && !nsContentUtils::IsCallerTrustedForRead()) {
         GenerateWarning("readPixels: Not allowed");
         return rv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     }
 
     if (width < 0 || height < 0)
         return ErrorInvalidValue("readPixels: negative size passed");
+
+    if (!pixels)
+        return ErrorInvalidValue("readPixels: null destination buffer");
 
     const WebGLRectangleObject *framebufferRect = FramebufferRectangleObject();
     WebGLsizei framebufferWidth = framebufferRect ? framebufferRect->Width() : 0;
@@ -3933,8 +3936,6 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
         // prevent readback of arbitrary video memory through uninitialized renderbuffers!
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
             return ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
-    } else {
-        EnsureBackbufferClearedAsNeeded();
     }
     // Now that the errors are out of the way, on to actually reading
 
@@ -4343,7 +4344,7 @@ WebGLContext::SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromE
     // validated for cross-domain use.
     if (!res.mCORSUsed) {
         bool subsumes;
-        nsresult rv = HTMLCanvasElement()->NodePrincipal()->Subsumes(res.mPrincipal, &subsumes);
+        nsresult rv = mCanvasElement->NodePrincipal()->Subsumes(res.mPrincipal, &subsumes);
         if (NS_FAILED(rv) || !subsumes) {
             GenerateWarning("It is forbidden to load a WebGL texture from a cross-domain element that has not been validated with CORS. "
                                 "See https://developer.mozilla.org/en/WebGL/Cross-Domain_Textures");
@@ -4917,7 +4918,7 @@ WebGLContext::CompileShader(WebGLShader *shader)
         resources.MaxTextureImageUnits = mGLMaxTextureImageUnits;
         resources.MaxFragmentUniformVectors = mGLMaxFragmentUniformVectors;
         resources.MaxDrawBuffers = 1;
-        if (mEnabledExtensions[WebGL_OES_standard_derivatives])
+        if (IsExtensionEnabled(OES_standard_derivatives))
             resources.OES_standard_derivatives = 1;
 
         // We're storing an actual instance of StripComments because, if we don't, the 
@@ -4953,12 +4954,16 @@ WebGLContext::CompileShader(WebGLShader *shader)
             compileOptions |= SH_OBJECT_CODE
                             | SH_MAP_LONG_VARIABLE_NAMES;
 #ifdef XP_MACOSX
-            // work around bug 665578
-            if (gl->WorkAroundDriverBugs() &&
-                !nsCocoaFeatures::OnLionOrLater() &&
-                gl->Vendor() == gl::GLContext::VendorATI)
-            {
-                compileOptions |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+            if (gl->WorkAroundDriverBugs()) {
+                // Work around bug 665578 and bug 769810
+                if (gl->Vendor() == gl::GLContext::VendorATI) {
+                    compileOptions |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+                }
+
+                // Work around bug 735560
+                if (gl->Vendor() == gl::GLContext::VendorIntel) {
+                    compileOptions |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+                }
             }
 #endif
         }

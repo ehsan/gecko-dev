@@ -101,7 +101,7 @@ public:
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
-    nsresult GetCacheSession(nsCacheStoragePolicy, bool isPrivate, nsICacheSession **);
+    bool UseCache() const { return mUseCache; }
     PRUint32 GenerateUniqueID() { return ++mLastUniqueID; }
     PRUint32 SessionStartTime() { return mSessionStartTime; }
 
@@ -331,6 +331,7 @@ private:
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
     nsCString      mCompatFirefox;
+    bool           mCompatFirefoxEnabled;
     nsXPIDLCString mCompatDevice;
 
     nsCString      mUserAgent;

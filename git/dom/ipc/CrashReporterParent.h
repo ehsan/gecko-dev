@@ -6,7 +6,7 @@
 #include "mozilla/dom/PCrashReporterParent.h"
 #include "mozilla/dom/TabMessageUtils.h"
 #include "nsXULAppAPI.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
 #endif
@@ -48,6 +48,10 @@ public:
   template<class Toplevel>
   bool
   GenerateCrashReport(Toplevel* t, const AnnotationTable* processNotes);
+
+  bool
+  GenerateCrashReportForMinidump(nsIFile* minidump,
+                                 const AnnotationTable* processNotes);
 
   /* Instantiate a new crash reporter actor from a given parent that manages
      the protocol.
@@ -115,8 +119,8 @@ CrashReporterParent::GeneratePairedMinidump(Toplevel* t)
 #else
   child = t->OtherProcess();
 #endif
-  nsCOMPtr<nsILocalFile> childDump;
-  nsCOMPtr<nsILocalFile> parentDump;
+  nsCOMPtr<nsIFile> childDump;
+  nsCOMPtr<nsIFile> parentDump;
   if (CrashReporter::CreatePairedMinidumps(child,
                                            mMainThread,
                                            &mHangID,
@@ -134,8 +138,8 @@ inline bool
 CrashReporterParent::GenerateCrashReport(Toplevel* t,
                                          const AnnotationTable* processNotes)
 {
-  nsCOMPtr<nsILocalFile> crashDump;
-  if (t->TakeMinidump(getter_AddRefs(crashDump)) &&
+  nsCOMPtr<nsIFile> crashDump;
+  if (t->TakeMinidump(getter_AddRefs(crashDump), NULL) &&
       CrashReporter::GetIDFromMinidump(crashDump, mChildDumpID)) {
     return GenerateChildData(processNotes);
   }

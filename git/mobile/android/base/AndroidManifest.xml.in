@@ -19,11 +19,14 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
+    <uses-permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT"/>
     <uses-permission android:name="com.android.browser.permission.READ_HISTORY_BOOKMARKS"/>
 
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER"/>
+    <uses-permission android:name="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
+    <uses-permission android:name="@ANDROID_PACKAGE_NAME@.permissions.FORMHISTORY_PROVIDER"/>
 
 #ifdef MOZ_WEBSMS_BACKEND
     <!-- WebSMS -->
@@ -105,6 +108,8 @@
             </intent-filter>
         </activity>
 
+#include @OBJDIR@/WebAppManifestFragment.xml.in
+
         <!-- Masquerade as the Resolver so that we can be opened from the Marketplace. -->
         <activity-alias
             android:name="com.android.internal.app.ResolverActivity"
@@ -167,6 +172,7 @@
         <activity android:name="org.mozilla.gecko.GeckoPreferences"
                   android:theme="@style/Gecko.TitleBar.Preferences"
                   android:label="@string/settings_title"
+                  android:configChanges="orientation|screenSize"
                   android:excludeFromRecents="true"/>
 
         <provider android:name="@ANDROID_PACKAGE_NAME@.db.BrowserProvider"

@@ -132,7 +132,6 @@ public:
   PRUint32 GetANPDrawingModel() { return mANPDrawingModel; }
   void SetANPDrawingModel(PRUint32 aModel);
 
-
   void* GetJavaSurface();
 
   void PostEvent(void* event);

@@ -16,7 +16,6 @@
 
 #include "nsContentUtils.h"
 
-#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsICanvasRenderingContextInternal.h"
@@ -87,6 +86,7 @@
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/PDocumentRendererParent.h"
+#include "mozilla/unused.h"
 
 // windows.h (included by chromium code) defines this, in its infinite wisdom
 #undef DrawText
@@ -173,12 +173,16 @@ public:
         if (!FloatValidate(offset) || offset < 0.0 || offset > 1.0)
             return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-        nscolor color;
+        nsCSSValue value;
         nsCSSParser parser;
-        nsresult rv = parser.ParseColorString(nsString(colorstr),
-                                              nsnull, 0, &color);
-        if (NS_FAILED(rv))
+        if (!parser.ParseColorString(colorstr, nsnull, 0, value)) {
             return NS_ERROR_DOM_SYNTAX_ERR;
+        }
+
+        nscolor color;
+        if (!nsRuleNode::ComputeColor(value, nsnull, nsnull, color)) {
+            return NS_ERROR_DOM_SYNTAX_ERR;
+        }
 
         mPattern->AddColorStop(offset, gfxRGBA(color));
 
@@ -313,7 +317,6 @@ public:
     nsresult Redraw();
 
     // nsICanvasRenderingContextInternal
-    NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
     void Initialize(nsIDocShell *shell, PRInt32 width, PRInt32 height);
     NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, PRInt32 width, PRInt32 height);
@@ -405,6 +408,9 @@ protected:
     nsresult SetStyleFromStringOrInterface(const nsAString& aStr, nsISupports *aInterface, Style aWhichStyle);
     nsresult GetStyleAsStringOrInterface(nsAString& aStr, nsISupports **aInterface, PRInt32 *aType, Style aWhichStyle);
 
+    // Returns whether a color was successfully parsed.
+    bool ParseColor(const nsAString& aString, nscolor* aColor);
+
     void StyleColorToString(const nscolor& aColor, nsAString& aStr);
 
     void DirtyAllStyles();
@@ -438,12 +444,6 @@ protected:
     bool mOpaque;
     bool mResetLayer;
     bool mIPC;
-
-    // the canvas element we're a context of
-    nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
-    nsHTMLCanvasElement *HTMLCanvasElement() {
-        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
-    }
 
     // Initialize the Thebes rendering context
     void CreateThebes();
@@ -597,9 +597,8 @@ protected:
      * Gets the pres shell from either the canvas element or the doc shell
      */
     nsIPresShell *GetPresShell() {
-      nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
-      if (content) {
-        return content->OwnerDoc()->GetShell();
+      if (mCanvasElement) {
+        return mCanvasElement->OwnerDoc()->GetShell();
       }
       if (mDocShell) {
         nsCOMPtr<nsIPresShell> shell;
@@ -800,7 +799,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCanvasRenderingContext2D)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCanvasRenderingContext2D)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCanvasElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCanvasElement, nsINode)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2D)
@@ -808,7 +807,8 @@ DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2D)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMCanvasRenderingContext2D)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports,
+                                   nsICanvasRenderingContextInternal)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasRenderingContext2D)
 NS_INTERFACE_MAP_END
 
@@ -836,7 +836,6 @@ NS_NewCanvasRenderingContext2DThebes(nsIDOMCanvasRenderingContext2D** aResult)
 nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
     : mValid(false), mZero(false), mOpaque(false), mResetLayer(true)
     , mIPC(false)
-    , mCanvasElement(nsnull)
     , mSaveCount(0), mIsEntireFrameInvalid(false)
     , mPredictManyRedrawCalls(false), mHasPath(false), mInvalidateCount(0)
     , mLastStyle(STYLE_MAX), mStyleStack(20)
@@ -860,11 +859,41 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
     }
 }
 
+bool
+nsCanvasRenderingContext2D::ParseColor(const nsAString& aString,
+                                       nscolor* aColor)
+{
+    nsIDocument* document = mCanvasElement
+                            ? mCanvasElement->OwnerDoc()
+                            : nsnull;
+
+    // Pass the CSS Loader object to the parser, to allow parser error
+    // reports to include the outer window ID.
+    nsCSSParser parser(document ? document->CSSLoader() : nsnull);
+    nsCSSValue value;
+    if (!parser.ParseColorString(aString, nsnull, 0, value)) {
+        return false;
+    }
+
+    nsIPresShell* presShell = GetPresShell();
+    nsRefPtr<nsStyleContext> parentContext;
+    if (mCanvasElement && mCanvasElement->IsInDoc()) {
+        // Inherit from the canvas element.
+        parentContext = nsComputedDOMStyle::GetStyleContextForElement(
+            mCanvasElement, nsnull, presShell);
+    }
+
+    unused << nsRuleNode::ComputeColor(
+        value, presShell ? presShell->GetPresContext() : nsnull, parentContext,
+        *aColor);
+    return true;
+}
+
 nsresult
 nsCanvasRenderingContext2D::Reset()
 {
     if (mCanvasElement) {
-        HTMLCanvasElement()->InvalidateCanvas();
+        mCanvasElement->InvalidateCanvas();
     }
 
     // only do this for non-docshell created contexts,
@@ -885,19 +914,9 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
                                                           nsISupports *aInterface,
                                                           Style aWhichStyle)
 {
-    nsresult rv;
-    nscolor color;
-
     if (!aStr.IsVoid()) {
-        nsIDocument* document = mCanvasElement ?
-                                HTMLCanvasElement()->OwnerDoc() : nsnull;
-
-        // Pass the CSS Loader object to the parser, to allow parser error
-        // reports to include the outer window ID.
-        nsCSSParser parser(document ? document->CSSLoader() : nsnull);
-        rv = parser.ParseColorString(aStr, nsnull, 0, &color);
-        if (NS_FAILED(rv)) {
-            // Error reporting happens inside the CSS parser
+        nscolor color;
+        if (!ParseColor(aStr, &color)) {
             return NS_OK;
         }
 
@@ -926,7 +945,7 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
     nsContentUtils::ReportToConsole(
         nsIScriptError::warningFlag,
         "Canvas",
-        mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull,
+        mCanvasElement ? mCanvasElement->OwnerDoc() : nsnull,
         nsContentUtils::eDOM_PROPERTIES,
         "UnexpectedCanvasVariantStyle");
 
@@ -1010,7 +1029,7 @@ nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle,
     nsCanvasPattern* pattern = CurrentState().patternStyles[aWhichStyle];
     if (pattern) {
         if (mCanvasElement)
-            CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
+            CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,
                                                   pattern->Principal(),
                                                   pattern->GetForceWriteOnly(),
                                                   pattern->GetCORSUsed());
@@ -1051,9 +1070,9 @@ nsCanvasRenderingContext2D::Redraw()
         return NS_OK;
     }
 
-    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
+    nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
-    HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
+    mCanvasElement->InvalidateCanvasContent(nsnull);
 
     return NS_OK;
 }
@@ -1076,9 +1095,9 @@ nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
         return NS_OK;
     }
 
-    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
+    nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
-    HTMLCanvasElement()->InvalidateCanvasContent(&r);
+    mCanvasElement->InvalidateCanvasContent(&r);
 
     return NS_OK;
 }
@@ -1198,10 +1217,9 @@ nsCanvasRenderingContext2D::EnsureSurface()
         gfxASurface::gfxImageFormat format = GetImageFormat();
 
         if (!PR_GetEnv("MOZ_CANVAS_IMAGE_SURFACE")) {
-            nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
             nsIDocument* ownerDoc = nsnull;
-            if (content)
-                ownerDoc = content->OwnerDoc();
+            if (mCanvasElement)
+                ownerDoc = mCanvasElement->OwnerDoc();
             nsRefPtr<LayerManager> layerManager = nsnull;
 
             if (ownerDoc)
@@ -1391,14 +1409,6 @@ nsCanvasRenderingContext2D::GetImageFormat() const
 //
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetCanvasElement(nsHTMLCanvasElement* aCanvasElement)
-{
-    mCanvasElement = aCanvasElement;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
 {
     NS_IF_ADDREF(*canvas = mCanvasElement);
@@ -1411,7 +1421,7 @@ nsCanvasRenderingContext2D::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
 //
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Save()
+nsCanvasRenderingContext2D::MozSave()
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -1424,7 +1434,7 @@ nsCanvasRenderingContext2D::Save()
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Restore()
+nsCanvasRenderingContext2D::MozRestore()
 {
     if (!EnsureSurface()) 
         return NS_ERROR_FAILURE;
@@ -1570,6 +1580,9 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
                                                           jsval* matrix)
 {
+    if (!EnsureSurface())
+        return NS_ERROR_FAILURE;
+
     gfxMatrix ctm = mThebes->CurrentMatrix();
 
     if (!mThebes->CurrentMatrix().IsSingular()) {
@@ -1937,18 +1950,10 @@ nsCanvasRenderingContext2D::GetShadowBlur(float *blur)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetShadowColor(const nsAString& colorstr)
+nsCanvasRenderingContext2D:: SetMozShadowColor(const nsAString& aColor)
 {
-    nsIDocument* document = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
-
-    // Pass the CSS Loader object to the parser, to allow parser error reports
-    // to include the outer window ID.
-    nsCSSParser parser(document ? document->CSSLoader() : nsnull);
     nscolor color;
-    nsresult rv = parser.ParseColorString(colorstr, nsnull, 0, &color);
-    if (NS_FAILED(rv)) {
-        // Error reporting happens inside the CSS parser
+    if (!ParseColor(aColor, &color)) {
         return NS_OK;
     }
 
@@ -1960,7 +1965,7 @@ nsCanvasRenderingContext2D::SetShadowColor(const nsAString& colorstr)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetShadowColor(nsAString& color)
+nsCanvasRenderingContext2D::GetMozShadowColor(nsAString& color)
 {
     StyleColorToString(CurrentState().colorStyles[STYLE_SHADOW], color);
 
@@ -2211,7 +2216,7 @@ nsCanvasRenderingContext2D::StrokeRect(float x, float y, float w, float h)
 //
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::BeginPath()
+nsCanvasRenderingContext2D::MozBeginPath()
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -2222,7 +2227,7 @@ nsCanvasRenderingContext2D::BeginPath()
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::ClosePath()
+nsCanvasRenderingContext2D::MozClosePath()
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -2232,7 +2237,7 @@ nsCanvasRenderingContext2D::ClosePath()
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Fill()
+nsCanvasRenderingContext2D::MozFill()
 {
     gfxRect dirty;
     nsresult rv = DrawPath(STYLE_FILL, &dirty);
@@ -2242,7 +2247,7 @@ nsCanvasRenderingContext2D::Fill()
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Stroke()
+nsCanvasRenderingContext2D::MozStroke()
 {
     gfxRect dirty;
     nsresult rv = DrawPath(STYLE_STROKE, &dirty);
@@ -2252,7 +2257,7 @@ nsCanvasRenderingContext2D::Stroke()
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Clip()
+nsCanvasRenderingContext2D::MozClip()
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -2481,7 +2486,7 @@ CreateFontStyleRule(const nsAString& aFont,
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetFont(const nsAString& font)
+nsCanvasRenderingContext2D::SetMozFont(const nsAString& font)
 {
     nsresult rv;
 
@@ -2493,9 +2498,8 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
      * string is equal to the old one.
      */
 
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
-    if (!content && !mDocShell) {
-        NS_WARNING("Canvas element must be an nsIContent and non-null or a docshell must be provided");
+    if (!mCanvasElement && !mDocShell) {
+        NS_WARNING("Canvas element must be non-null or a docshell must be provided");
         return NS_ERROR_FAILURE;
     }
 
@@ -2535,10 +2539,10 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     // values (2em, bolder, etc.)
     nsRefPtr<nsStyleContext> parentContext;
 
-    if (content && content->IsInDoc()) {
+    if (mCanvasElement && mCanvasElement->IsInDoc()) {
         // inherit from the canvas element
         parentContext = nsComputedDOMStyle::GetStyleContextForElement(
-                content->AsElement(),
+                mCanvasElement,
                 nsnull,
                 presShell);
     } else {
@@ -2611,7 +2615,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetFont(nsAString& font)
+nsCanvasRenderingContext2D::GetMozFont(nsAString& font)
 {
     /* will initilize the value if not set, else does nothing */
     GetCurrentFontStyle();
@@ -2621,7 +2625,7 @@ nsCanvasRenderingContext2D::GetFont(nsAString& font)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetTextAlign(const nsAString& ta)
+nsCanvasRenderingContext2D::SetMozTextAlign(const nsAString& ta)
 {
     if (ta.EqualsLiteral("start"))
         CurrentState().textAlign = TEXT_ALIGN_START;
@@ -2638,7 +2642,7 @@ nsCanvasRenderingContext2D::SetTextAlign(const nsAString& ta)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetTextAlign(nsAString& ta)
+nsCanvasRenderingContext2D::GetMozTextAlign(nsAString& ta)
 {
     switch (CurrentState().textAlign)
     {
@@ -2663,7 +2667,7 @@ nsCanvasRenderingContext2D::GetTextAlign(nsAString& ta)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetTextBaseline(const nsAString& tb)
+nsCanvasRenderingContext2D::SetMozTextBaseline(const nsAString& tb)
 {
     if (tb.EqualsLiteral("top"))
         CurrentState().textBaseline = TEXT_BASELINE_TOP;
@@ -2682,7 +2686,7 @@ nsCanvasRenderingContext2D::SetTextBaseline(const nsAString& tb)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetTextBaseline(nsAString& tb)
+nsCanvasRenderingContext2D::GetMozTextBaseline(nsAString& tb)
 {
     switch (CurrentState().textBaseline)
     {
@@ -2873,9 +2877,8 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (aMaxWidth < 0)
         return NS_ERROR_INVALID_ARG;
 
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
-    if (!content && !mDocShell) {
-        NS_WARNING("Canvas element must be an nsIContent and non-null or a docshell must be provided");
+    if (!mCanvasElement && !mDocShell) {
+        NS_WARNING("Canvas element must be non-null or a docshell must be provided");
         return NS_ERROR_FAILURE;
     }
 
@@ -2892,10 +2895,10 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     // for now, default to ltr if not in doc
     bool isRTL = false;
 
-    if (content && content->IsInDoc()) {
+    if (mCanvasElement && mCanvasElement->IsInDoc()) {
         // try to find the closest context
         nsRefPtr<nsStyleContext> canvasStyle =
-            nsComputedDOMStyle::GetStyleContextForElement(content->AsElement(),
+            nsComputedDOMStyle::GetStyleContextForElement(mCanvasElement,
                                                           nsnull,
                                                           presShell);
         if (!canvasStyle)
@@ -3110,17 +3113,17 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetMozTextStyle(const nsAString& textStyle)
+nsCanvasRenderingContext2D::SetTextStyle(const nsAString& textStyle)
 {
     // font and mozTextStyle are the same value
-    return SetFont(textStyle);
+    return SetMozFont(textStyle);
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetMozTextStyle(nsAString& textStyle)
+nsCanvasRenderingContext2D::GetTextStyle(nsAString& textStyle)
 {
     // font and mozTextStyle are the same value
-    return GetFont(textStyle);
+    return GetMozFont(textStyle);
 }
 
 gfxFontGroup*
@@ -3128,7 +3131,7 @@ nsCanvasRenderingContext2D::GetCurrentFontStyle()
 {
     // use lazy initilization for the font group since it's rather expensive
     if(!CurrentState().fontGroup) {
-        nsresult rv = SetMozTextStyle(kDefaultFontStyle);
+        nsresult rv = SetTextStyle(kDefaultFontStyle);
         if (NS_FAILED(rv)) {
             gfxFontStyle style;
             style.size = kDefaultFontSize;
@@ -3193,7 +3196,7 @@ nsCanvasRenderingContext2D::GetLineWidth(float *width)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetLineCap(const nsAString& capstyle)
+nsCanvasRenderingContext2D::SetMozLineCap(const nsAString& capstyle)
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -3215,7 +3218,7 @@ nsCanvasRenderingContext2D::SetLineCap(const nsAString& capstyle)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetLineCap(nsAString& capstyle)
+nsCanvasRenderingContext2D::GetMozLineCap(nsAString& capstyle)
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -3235,7 +3238,7 @@ nsCanvasRenderingContext2D::GetLineCap(nsAString& capstyle)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetLineJoin(const nsAString& joinstyle)
+nsCanvasRenderingContext2D::SetMozLineJoin(const nsAString& joinstyle)
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -3257,7 +3260,7 @@ nsCanvasRenderingContext2D::SetLineJoin(const nsAString& joinstyle)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::GetLineJoin(nsAString& joinstyle)
+nsCanvasRenderingContext2D::GetMozLineJoin(nsAString& joinstyle)
 {
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
@@ -3418,7 +3421,7 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
     nsRefPtr<gfxPattern> pattern;
     gfxIntSize imgSize;
     nsRefPtr<gfxASurface> imgsurf =
-      CanvasImageCache::Lookup(imgElt, HTMLCanvasElement(), &imgSize);
+      CanvasImageCache::Lookup(content->AsElement(), mCanvasElement, &imgSize);
 
     if (!imgsurf) {
         // The canvas spec says that drawImage should draw the first frame
@@ -3445,14 +3448,14 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
         imgSize = res.mSize;
 
         if (mCanvasElement) {
-            CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
+            CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,
                                                   res.mPrincipal,
                                                   res.mIsWriteOnly,
                                                   res.mCORSUsed);
         }
 
         if (res.mImageRequest) {
-            CanvasImageCache::NotifyDrawImage(imgElt, HTMLCanvasElement(),
+            CanvasImageCache::NotifyDrawImage(content->AsElement(), mCanvasElement,
                                               res.mImageRequest, imgsurf, imgSize);
         }
     }
@@ -3692,19 +3695,9 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
         return NS_ERROR_FAILURE;
 
     nscolor bgColor;
-
-    nsIDocument* elementDoc = mCanvasElement ?
-                              HTMLCanvasElement()->OwnerDoc() : nsnull;
-
-    // Pass the CSS Loader object to the parser, to allow parser error reports
-    // to include the outer window ID.
-    nsCSSParser parser(elementDoc ? elementDoc->CSSLoader() : nsnull);
-    nsresult rv = parser.ParseColorString(PromiseFlatString(aBGColor),
-                                          nsnull, 0, &bgColor);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsIPresShell* presShell = presContext->PresShell();
-    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
+    if (!ParseColor(aBGColor, &bgColor)) {
+        return NS_ERROR_FAILURE;
+    }
 
     nsRect r(nsPresContext::CSSPixelsToAppUnits(aX),
              nsPresContext::CSSPixelsToAppUnits(aY),
@@ -3726,7 +3719,8 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
         renderDocFlags |= nsIPresShell::RENDER_ASYNC_DECODE_IMAGES;
     }
 
-    rv = presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
+    nsresult rv = presContext->PresShell()->
+        RenderDocument(r, renderDocFlags, bgColor, mThebes);
 
     // get rid of the pattern surface ref, just in case
     mThebes->SetColor(gfxRGBA(1,1,1,1));
@@ -3864,8 +3858,7 @@ nsCanvasRenderingContext2D::GetImageData(double aSx, double aSy,
 
     // Check only if we have a canvas element; if we were created with a docshell,
     // then it's special internal use.
-    if (mCanvasElement &&
-        HTMLCanvasElement()->IsWriteOnly() &&
+    if (mCanvasElement && mCanvasElement->IsWriteOnly() &&
         !nsContentUtils::IsCallerTrustedForRead()) {
         // XXX ERRMSG we need to report an error to developers here! (bug 329026)
         return NS_ERROR_DOM_SECURITY_ERR;
@@ -4077,7 +4070,7 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
                 return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
             dirtyX = checkedDirtyX.value();
-            dirtyWidth = -(int32)dirtyWidth;
+            dirtyWidth = -dirtyWidth;
         }
 
         if (dirtyHeight < 0) {
@@ -4089,7 +4082,7 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
                 return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
             dirtyY = checkedDirtyY.value();
-            dirtyHeight = -(int32)dirtyHeight;
+            dirtyHeight = -dirtyHeight;
         }
 
         // bound the dirty rect within the imageData rectangle

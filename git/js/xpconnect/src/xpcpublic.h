@@ -236,9 +236,7 @@ bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 
 nsIPrincipal *GetCompartmentPrincipal(JSCompartment *compartment);
 
-#ifdef DEBUG
 void DumpJSHeap(FILE* file);
-#endif
 
 void SetLocationForGlobal(JSObject *global, const nsACString& location);
 void SetLocationForGlobal(JSObject *global, nsIURI *locationURI);
@@ -268,9 +266,9 @@ DOM_DefineQuickStubs(JSContext *cx, JSObject *proto, PRUint32 flags,
 // (which isn't all of them).
 nsresult
 ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
-                                 const nsACString &pathPrefix,
+                                 const nsACString &rtPath,
                                  nsIMemoryMultiReporterCallback *cb,
-                                 nsISupports *closure);
+                                 nsISupports *closure, size_t *rtTotal = NULL);
 
 /**
  * Convert a jsval to PRInt64. Return true on success.
@@ -342,6 +340,9 @@ bool
 Throw(JSContext *cx, nsresult rv);
 
 } // namespace xpc
+
+nsCycleCollectionParticipant *
+xpc_JSCompartmentParticipant();
 
 namespace mozilla {
 namespace dom {

@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Hal.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #include "nsString.h"
 
 #include "AndroidBridge.h"
@@ -80,7 +80,7 @@ Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobjec
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_setLayerClient(JNIEnv *jenv, jclass, jobject obj)
 {
-    AndroidBridge::Bridge()->SetLayerClient(jenv->NewGlobalRef(obj));
+    AndroidBridge::Bridge()->SetLayerClient(jenv, obj);
 }
 
 NS_EXPORT void JNICALL

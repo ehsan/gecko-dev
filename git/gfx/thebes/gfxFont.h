@@ -27,6 +27,7 @@
 #include "nsIMemoryReporter.h"
 #include "gfxFontFeatures.h"
 #include "mozilla/gfx/Types.h"
+#include "mozilla/Attributes.h"
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
@@ -642,6 +643,17 @@ public:
     // if so set the mIsSimpleFamily flag (defaults to False before we've checked)
     void CheckForSimpleFamily();
 
+    // check whether the family has any faces that are marked as Italic
+    bool HasItalicFace() const {
+        size_t count = mAvailableFonts.Length();
+        for (size_t i = 0; i < count; ++i) {
+            if (mAvailableFonts[i] && mAvailableFonts[i]->IsItalic()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // For memory reporter
     virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
@@ -806,7 +818,7 @@ public:
                              FontCacheSizes*   aSizes) const;
 
 protected:
-    class MemoryReporter
+    class MemoryReporter MOZ_FINAL
         : public nsIMemoryMultiReporter
     {
     public:
@@ -2973,7 +2985,8 @@ public:
 
         return static_cast<gfxFont*>(mFonts[i]);
     }
-    virtual PRUint32 FontListLength() const {
+
+    PRUint32 FontListLength() const {
         return mFonts.Length();
     }
 

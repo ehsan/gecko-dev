@@ -64,6 +64,7 @@
 #include "nsIInlineEventHandlers.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsIDOMApplicationRegistry.h"
+#include "nsIIdleObserver.h"
 
 // JS includes
 #include "jsapi.h"
@@ -78,6 +79,12 @@
 // During click or mousedown events (and others, see nsDOMEvent) we allow modal
 // dialogs up to this limit, even if they were disabled.
 #define MAX_DIALOG_COUNT 10
+
+// Idle fuzz time upper limit
+#define MAX_IDLE_FUZZ_TIME_MS 90000
+
+// Min idle notification time in seconds.
+#define MIN_IDLE_NOTIFICATION_TIME_S 1
 
 class nsIDOMBarProp;
 class nsIDocument;
@@ -101,6 +108,7 @@ class nsDOMEventTargetHelper;
 class nsDOMOfflineResourceList;
 class nsDOMMozURLProperty;
 class nsDOMWindowUtils;
+class nsIIdleService;
 
 #ifdef MOZ_DISABLE_DOMCRYPTO
 class nsIDOMCrypto;
@@ -193,6 +201,37 @@ struct nsTimeout : PRCList
 private:
   // reference count for shared usage
   nsAutoRefCnt mRefCnt;
+};
+
+struct IdleObserverHolder
+{
+  nsCOMPtr<nsIIdleObserver> mIdleObserver;
+  PRUint32 mTimeInS;
+  bool mPrevNotificationIdle;
+
+  IdleObserverHolder()
+    : mTimeInS(0), mPrevNotificationIdle(false)
+  {
+    MOZ_COUNT_CTOR(IdleObserverHolder);
+  }
+
+  IdleObserverHolder(const IdleObserverHolder& aOther)
+    : mIdleObserver(aOther.mIdleObserver), mTimeInS(aOther.mTimeInS),
+      mPrevNotificationIdle(aOther.mPrevNotificationIdle)
+  {
+    MOZ_COUNT_CTOR(IdleObserverHolder);
+  }
+
+  bool operator==(const IdleObserverHolder& aOther) const {
+    return
+      mIdleObserver == aOther.mIdleObserver &&
+      mTimeInS == aOther.mTimeInS;
+  }
+
+  ~IdleObserverHolder()
+  {
+    MOZ_COUNT_DTOR(IdleObserverHolder);
+  }
 };
 
 //*****************************************************************************
@@ -340,6 +379,7 @@ public:
   virtual NS_HIDDEN_(bool) DispatchCustomEvent(const char *aEventName);
   virtual NS_HIDDEN_(void) RefreshCompartmentPrincipal();
   virtual NS_HIDDEN_(nsresult) SetFullScreenInternal(bool aIsFullScreen, bool aRequireTrust);
+  virtual NS_HIDDEN_(bool) IsPartOfApp();
 
   // nsIDOMStorageIndexedDB
   NS_DECL_NSIDOMSTORAGEINDEXEDDB
@@ -380,7 +420,17 @@ public:
     nsCOMPtr<nsIDOMWindow> top;
     GetTop(getter_AddRefs(top));
     if (top)
-      return static_cast<nsGlobalWindow *>(static_cast<nsIDOMWindow *>(top.get()));
+      return static_cast<nsGlobalWindow *>(top.get());
+    return nsnull;
+  }
+
+  inline nsGlobalWindow* GetScriptableTop()
+  {
+    nsCOMPtr<nsIDOMWindow> top;
+    GetScriptableTop(getter_AddRefs(top));
+    if (top) {
+      return static_cast<nsGlobalWindow *>(top.get());
+    }
     return nsnull;
   }
 
@@ -535,14 +585,38 @@ public:
   void AddEventTargetObject(nsDOMEventTargetHelper* aObject);
   void RemoveEventTargetObject(nsDOMEventTargetHelper* aObject);
 
-  /**
-   * Returns if the window is part of an application.
-   * It will check for the window app state and its parents until a window has
-   * an app state different from |TriState_Unknown|.
-   */
-  bool IsPartOfApp();
+  void NotifyIdleObserver(IdleObserverHolder* aIdleObserverHolder,
+                          bool aCallOnidle);
+  nsresult HandleIdleActiveEvent();
+  bool ContainsIdleObserver(nsIIdleObserver* aIdleObserver, PRUint32 timeInS);
+  void HandleIdleObserverCallback();
 
 protected:
+  // Array of idle observers that are notified of idle events.
+  nsTObserverArray<IdleObserverHolder> mIdleObservers;
+
+  // Idle timer used for function callbacks to notify idle observers.
+  nsCOMPtr<nsITimer> mIdleTimer;
+
+  // Idle fuzz time added to idle timer callbacks.
+  PRUint32 mIdleFuzzFactor;
+
+  // Index in mArrayIdleObservers
+  // Next idle observer to notify user idle status
+  PRInt32 mIdleCallbackIndex;
+
+  // If false then the topic is "active"
+  // If true then the topic is "idle"
+  bool mCurrentlyIdle;
+
+  // Set to true when a fuzz time needs to be applied
+  // to active notifications to the idle observer.
+  bool mAddActiveEventFuzzTime;
+
+  nsCOMPtr <nsIIdleService> mIdleService;
+
+  static bool sIdleObserversAPIFuzzTimeDisabled;
+
   friend class HashchangeCallback;
   friend class nsBarProp;
 
@@ -569,7 +643,9 @@ protected:
   JSObject *CallerGlobal();
   nsGlobalWindow *CallerInnerWindow();
 
-  nsresult InnerSetNewDocument(nsIDocument* aDocument);
+  // Only to be called on an inner window.
+  // aDocument must not be null.
+  void InnerSetNewDocument(nsIDocument* aDocument);
 
   nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
@@ -660,6 +736,11 @@ protected:
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
   void RunTimeout() { RunTimeout(nsnull); }
+  // Return true if |aTimeout| was cleared while its handler ran.
+  bool RunTimeoutHandler(nsTimeout* aTimeout, nsIScriptContext* aScx);
+  // Return true if |aTimeout| needs to be reinserted into the timeout list.
+  bool RescheduleTimeout(nsTimeout* aTimeout, const TimeStamp& now,
+                         bool aRunningPendingTimeouts);
 
   void ClearAllTimeouts();
   // Insert aTimeout into the list, before all timeouts that would
@@ -685,6 +766,16 @@ protected:
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
+
+  nsresult ScheduleNextIdleObserverCallback();
+  PRUint32 GetFuzzTimeMS();
+  nsresult ScheduleActiveTimerCallback();
+  PRUint32 FindInsertionIndex(IdleObserverHolder* aIdleObserver);
+  virtual nsresult RegisterIdleObserver(nsIIdleObserver* aIdleObserverPtr);
+  nsresult FindIndexOfElementToRemove(nsIIdleObserver* aIdleObserver,
+                                      PRInt32* aRemoveElementIndex);
+  virtual nsresult UnregisterIdleObserver(nsIIdleObserver* aIdleObserverPtr);
+
   nsresult FireHashchange(const nsAString &aOldURL, const nsAString &aNewURL);
 
   void FlushPendingNotifications(mozFlushType aType);
@@ -710,7 +801,7 @@ protected:
   nsresult GetScrollXY(PRInt32* aScrollX, PRInt32* aScrollY,
                        bool aDoFlush);
   nsresult GetScrollMaxXY(PRInt32* aScrollMaxX, PRInt32* aScrollMaxY);
-  
+
   nsresult GetOuterSize(nsIntSize* aSizeCSSPixels);
   nsresult SetOuterSize(PRInt32 aLengthCSSPixels, bool aIsWidth);
   nsRect GetInnerScreenRect();
@@ -787,7 +878,7 @@ protected:
 
   static void NotifyDOMWindowFrozen(nsGlobalWindow* aWindow);
   static void NotifyDOMWindowThawed(nsGlobalWindow* aWindow);
-  
+
   void ClearStatus();
 
   virtual void UpdateParentTarget();
@@ -803,6 +894,7 @@ protected:
 
   void SetIsApp(bool aValue);
   nsresult SetApp(const nsAString& aManifestURL);
+  nsresult GetApp(mozIDOMApplication** aApplication);
 
   // Implements Get{Real,Scriptable}Top.
   nsresult GetTopImpl(nsIDOMWindow **aWindow, bool aScriptable);
@@ -821,7 +913,7 @@ protected:
   // where we don't want to force creation of a new inner window since
   // we're in the middle of doing just that.
   bool                          mIsFrozen : 1;
-  
+
   // These members are only used on outer window objects. Make sure
   // you never set any of these on an inner object!
   bool                          mFullScreen : 1;
@@ -839,6 +931,8 @@ protected:
 
   // Track what sorts of events we need to fire when thawed
   bool                          mFireOfflineStatusChangeEventOnThaw : 1;
+  bool                          mNotifyIdleObserversIdleOnThaw : 1;
+  bool                          mNotifyIdleObserversActiveOnThaw : 1;
 
   // Indicates whether we're in the middle of creating an initializing
   // a new inner window object.

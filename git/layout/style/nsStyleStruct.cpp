@@ -1124,7 +1124,19 @@ nsStylePosition::nsStylePosition(void)
   mHeight.SetAutoValue();
   mMinHeight.SetCoordValue(0);
   mMaxHeight.SetNoneValue();
+#ifdef MOZ_FLEXBOX
+  mFlexBasis.SetAutoValue();
+#endif // MOZ_FLEXBOX
   mBoxSizing = NS_STYLE_BOX_SIZING_CONTENT;
+#ifdef MOZ_FLEXBOX
+  mAlignItems = NS_STYLE_ALIGN_ITEMS_INITIAL_VALUE;
+  mAlignSelf = NS_STYLE_ALIGN_SELF_AUTO;
+  mFlexDirection = NS_STYLE_FLEX_DIRECTION_ROW;
+  mJustifyContent = NS_STYLE_JUSTIFY_CONTENT_FLEX_START;
+  mOrder = NS_STYLE_ORDER_INITIAL;
+  mFlexGrow = 0.0f;
+  mFlexShrink = 1.0f;
+#endif // MOZ_FLEXBOX
   mZIndex.SetAutoValue();
 }
 
@@ -1149,6 +1161,36 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
     return NS_CombineHint(hint, nsChangeHint_ReflowFrame);
   }
 
+#ifdef MOZ_FLEXBOX
+  // Properties that apply to flex items:
+  // NOTE: Changes to "order" on a flex item may trigger some repositioning.
+  // If we're in a multi-line flex container, it also may affect our size
+  // (and that of our container & siblings) by shuffling items between lines.
+  if (mAlignSelf != aOther.mAlignSelf ||
+      mFlexBasis != aOther.mFlexBasis ||
+      mFlexGrow != aOther.mFlexGrow ||
+      mFlexShrink != aOther.mFlexShrink ||
+      mOrder != aOther.mOrder) {
+    return NS_CombineHint(hint, nsChangeHint_ReflowFrame);
+  }
+
+  // Properties that apply to flexbox containers:
+
+  // flex-direction can swap a flexbox between vertical & horizontal.
+  // align-items can change the sizing of a flexbox & the positioning
+  // of its children.
+  if (mAlignItems != aOther.mAlignItems ||
+      mFlexDirection != aOther.mFlexDirection) {
+    return NS_CombineHint(hint, nsChangeHint_ReflowFrame);
+  }
+
+  // Changing justify-content on a flexbox might affect the positioning of its
+  // children, but it won't affect any sizing.
+  if (mJustifyContent != aOther.mJustifyContent) {
+    NS_UpdateHint(hint, nsChangeHint_NeedReflow);
+  }
+#endif // MOZ_FLEXBOX
+
   if (mHeight != aOther.mHeight ||
       mMinHeight != aOther.mMinHeight ||
       mMaxHeight != aOther.mMaxHeight) {
@@ -1161,33 +1203,38 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
     return NS_CombineHint(hint, nsChangeHint_ReflowFrame);
   }
 
-  if ((mWidth == aOther.mWidth) &&
-      (mMinWidth == aOther.mMinWidth) &&
-      (mMaxWidth == aOther.mMaxWidth)) {
-    if (mOffset == aOther.mOffset) {
-      return hint;
-    } else {
-      // Offset changes only affect positioned content, and can't affect any
-      // intrinsic widths.  They also don't need to force reflow of
-      // descendants.
-      return NS_CombineHint(hint, nsChangeHint_NeedReflow);
-    }
+  if (mWidth != aOther.mWidth ||
+      mMinWidth != aOther.mMinWidth ||
+      mMaxWidth != aOther.mMaxWidth) {
+    // None of our width differences can affect descendant intrinsic
+    // sizes and none of them need to force children to reflow.
+    return
+      NS_CombineHint(hint,
+                     NS_SubtractHint(nsChangeHint_ReflowFrame,
+                                     NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
+                                                    nsChangeHint_NeedDirtyReflow)));
   }
 
-  // None of our width differences can affect descendant intrinsic
-  // sizes and none of them need to force children to reflow.
-  return
-    NS_CombineHint(hint,
-                   NS_SubtractHint(nsChangeHint_ReflowFrame,
-                                   NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
-                                                  nsChangeHint_NeedDirtyReflow)));
+  // If width and height have not changed, but any of the offsets have changed,
+  // then return the respective hints so that we would hopefully be able to
+  // avoid reflowing.
+  // Note that it is possible that we'll need to reflow when processing
+  // restyles, but we don't have enough information to make a good decision
+  // right now.
+  if (mOffset != aOther.mOffset) {
+    NS_UpdateHint(hint, nsChangeHint(nsChangeHint_RecomputePosition |
+                                     nsChangeHint_UpdateOverflow));
+  }
+  return hint;
 }
 
 #ifdef DEBUG
 /* static */
 nsChangeHint nsStylePosition::MaxDifference()
 {
-  return NS_STYLE_HINT_REFLOW;
+  return NS_CombineHint(NS_STYLE_HINT_REFLOW,
+                        nsChangeHint(nsChangeHint_RecomputePosition |
+                                     nsChangeHint_UpdateOverflow));
 }
 #endif
 
@@ -1352,10 +1399,12 @@ nsStyleGradient::operator==(const nsStyleGradient& aOther) const
   if (mShape != aOther.mShape ||
       mSize != aOther.mSize ||
       mRepeating != aOther.mRepeating ||
-      mToCorner != aOther.mToCorner ||
+      mLegacySyntax != aOther.mLegacySyntax ||
       mBgPosX != aOther.mBgPosX ||
       mBgPosY != aOther.mBgPosY ||
-      mAngle != aOther.mAngle)
+      mAngle != aOther.mAngle ||
+      mRadiusX != aOther.mRadiusX ||
+      mRadiusY != aOther.mRadiusY)
     return false;
 
   if (mStops.Length() != aOther.mStops.Length())
@@ -1374,7 +1423,7 @@ nsStyleGradient::nsStyleGradient(void)
   : mShape(NS_STYLE_GRADIENT_SHAPE_LINEAR)
   , mSize(NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER)
   , mRepeating(false)
-  , mToCorner(false)
+  , mLegacySyntax(false)
 {
 }
 
@@ -2052,7 +2101,8 @@ void nsTransition::SetInitialValues()
 
 void nsTransition::SetUnknownProperty(const nsAString& aUnknownProperty)
 {
-  NS_ASSERTION(nsCSSProps::LookupProperty(aUnknownProperty) ==
+  NS_ASSERTION(nsCSSProps::LookupProperty(aUnknownProperty,
+                                          nsCSSProps::eEnabled) ==
                  eCSSProperty_UNKNOWN,
                "should be unknown property");
   mProperty = eCSSProperty_UNKNOWN;
@@ -2137,7 +2187,28 @@ nsStyleDisplay::nsStyleDisplay()
 }
 
 nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
-  : mTransitions(aSource.mTransitions)
+  : mBinding(aSource.mBinding)
+  , mClip(aSource.mClip)
+  , mOpacity(aSource.mOpacity)
+  , mDisplay(aSource.mDisplay)
+  , mOriginalDisplay(aSource.mOriginalDisplay)
+  , mAppearance(aSource.mAppearance)
+  , mPosition(aSource.mPosition)
+  , mFloats(aSource.mFloats)
+  , mOriginalFloats(aSource.mOriginalFloats)
+  , mBreakType(aSource.mBreakType)
+  , mBreakBefore(aSource.mBreakBefore)
+  , mBreakAfter(aSource.mBreakAfter)
+  , mOverflowX(aSource.mOverflowX)
+  , mOverflowY(aSource.mOverflowY)
+  , mResize(aSource.mResize)
+  , mClipFlags(aSource.mClipFlags)
+  , mOrient(aSource.mOrient)
+  , mBackfaceVisibility(aSource.mBackfaceVisibility)
+  , mTransformStyle(aSource.mTransformStyle)
+  , mSpecifiedTransform(aSource.mSpecifiedTransform)
+  , mChildPerspective(aSource.mChildPerspective)
+  , mTransitions(aSource.mTransitions)
   , mTransitionTimingFunctionCount(aSource.mTransitionTimingFunctionCount)
   , mTransitionDurationCount(aSource.mTransitionDurationCount)
   , mTransitionDelayCount(aSource.mTransitionDelayCount)
@@ -2153,36 +2224,13 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mAnimationIterationCountCount(aSource.mAnimationIterationCountCount)
 {
   MOZ_COUNT_CTOR(nsStyleDisplay);
-  mAppearance = aSource.mAppearance;
-  mDisplay = aSource.mDisplay;
-  mOriginalDisplay = aSource.mOriginalDisplay;
-  mOriginalFloats = aSource.mOriginalFloats;
-  mBinding = aSource.mBinding;
-  mPosition = aSource.mPosition;
-  mFloats = aSource.mFloats;
-  mBreakType = aSource.mBreakType;
-  mBreakBefore = aSource.mBreakBefore;
-  mBreakAfter = aSource.mBreakAfter;
-  mOverflowX = aSource.mOverflowX;
-  mOverflowY = aSource.mOverflowY;
-  mResize = aSource.mResize;
-  mClipFlags = aSource.mClipFlags;
-  mClip = aSource.mClip;
-  mOpacity = aSource.mOpacity;
-  mOrient = aSource.mOrient;
 
-  /* Copy over the transformation information. */
-  mSpecifiedTransform = aSource.mSpecifiedTransform;
-  
   /* Copy over transform origin. */
   mTransformOrigin[0] = aSource.mTransformOrigin[0];
   mTransformOrigin[1] = aSource.mTransformOrigin[1];
   mTransformOrigin[2] = aSource.mTransformOrigin[2];
   mPerspectiveOrigin[0] = aSource.mPerspectiveOrigin[0];
   mPerspectiveOrigin[1] = aSource.mPerspectiveOrigin[1];
-  mChildPerspective = aSource.mChildPerspective;
-  mBackfaceVisibility = aSource.mBackfaceVisibility;
-  mTransformStyle = aSource.mTransformStyle;
 }
 
 nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const

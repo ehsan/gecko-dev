@@ -32,6 +32,11 @@ enum LayerState {
   LAYER_ACTIVE_EMPTY
 };
 
+class RefCountedRegion : public RefCounted<RefCountedRegion> {
+public:
+  nsRegion mRegion;
+};
+
 /**
  * The FrameLayerBuilder belongs to an nsDisplayListBuilder and is
  * responsible for converting display lists into layer trees.
@@ -86,6 +91,8 @@ public:
     mNewDisplayItemData.Init();
     mThebesLayerItems.Init();
   }
+
+  static void Shutdown();
 
   void Init(nsDisplayListBuilder* aBuilder);
 
@@ -216,6 +223,8 @@ public:
   /**
    * This callback must be provided to EndTransaction. The callback data
    * must be the nsDisplayListBuilder containing this FrameLayerBuilder.
+   * This function can be called multiple times in a row to draw
+   * different regions.
    */
   static void DrawThebesLayer(ThebesLayer* aLayer,
                               gfxContext* aContext,
@@ -440,13 +449,15 @@ protected:
       nsPtrHashKey<nsIFrame>(toCopy.mKey), mIsSharingContainerLayer(toCopy.mIsSharingContainerLayer)
     {
       // This isn't actually a copy-constructor; notice that it steals toCopy's
-      // array.  Be careful.
+      // array and invalid region.  Be careful.
       mData.SwapElements(toCopy.mData);
+      mInvalidRegion.swap(toCopy.mInvalidRegion);
     }
 
     bool HasNonEmptyContainerLayer();
 
     nsAutoTArray<DisplayItemData, 1> mData;
+    nsRefPtr<RefCountedRegion> mInvalidRegion;
     bool mIsSharingContainerLayer;
 
     enum { ALLOW_MEMMOVE = false };
@@ -543,6 +554,7 @@ public:
 protected:
   void RemoveThebesItemsForLayerSubtree(Layer* aLayer);
 
+  static void SetAndClearInvalidRegion(DisplayItemDataEntry* aEntry);
   static PLDHashOperator UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
                                                        void* aUserArg);
   static PLDHashOperator StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,

@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 // Mozilla headers
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #include "nsINIParser.h"
 #include "nsXPCOMGlue.h"
 #include "nsXPCOMPrivate.h"              // for MAXPATHLEN and XPCOM_DLL
@@ -28,6 +28,8 @@ const char kAPP_RT[] = "webapprt-stub";
 
 int* pargc;
 char*** pargv;
+char profile[MAXPATHLEN];
+bool isProfileOverridden = false;
 
 XRE_GetFileFromPathType XRE_GetFileFromPath;
 XRE_CreateAppDataType XRE_CreateAppData;
@@ -64,9 +66,9 @@ void SetAllocatedString(const char *&str, const char *newvalue)
 // Function to open a dialog box displaying the message provided
 void ErrorDialog(const char* message)
 {
-  GtkWidget* dialog;
+  gtk_init(pargc, pargv);
 
-  dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "%s", message);
+  GtkWidget* dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "%s", message);
   gtk_dialog_run(GTK_DIALOG(dialog));
   gtk_widget_destroy(dialog);
 }
@@ -120,7 +122,7 @@ bool CopyFile(const char* inputFile, const char* outputFile)
   return (bytesRead >= 0);
 }
 
-bool GRELoadAndLaunch(const char* firefoxDir, const char* profile)
+bool GRELoadAndLaunch(const char* firefoxDir)
 {
   char xpcomDllPath[MAXPATHLEN];
   snprintf(xpcomDllPath, MAXPATHLEN, "%s/%s", firefoxDir, XPCOM_DLL);
@@ -133,6 +135,14 @@ bool GRELoadAndLaunch(const char* firefoxDir, const char* profile)
   if (NS_FAILED(XPCOMGlueLoadXULFunctions(kXULFuncs))) {
     ErrorDialog("Couldn't load libxul");
     return false;
+  }
+
+  if (!isProfileOverridden) {
+    // Override the class name part of the WM_CLASS property, so that the
+    // DE can match our window to the correct launcher
+    char programClass[MAXPATHLEN];
+    snprintf(programClass, MAXPATHLEN, "owa-%s", profile);
+    g_set_prgname(programClass);
   }
 
   // NOTE: The GRE has successfully loaded, so we can use XPCOM now
@@ -148,7 +158,7 @@ bool GRELoadAndLaunch(const char* firefoxDir, const char* profile)
     snprintf(rtIniPath, MAXPATHLEN, "%s/%s", rtPath, kWEBAPPRT_INI);
 
     // Load the runtime's INI from its path
-    nsCOMPtr<nsILocalFile> rtINI;
+    nsCOMPtr<nsIFile> rtINI;
     if (NS_FAILED(XRE_GetFileFromPath(rtIniPath, getter_AddRefs(rtINI)))) {
       ErrorDialog("Couldn't load the runtime INI");
       return false;
@@ -167,16 +177,18 @@ bool GRELoadAndLaunch(const char* firefoxDir, const char* profile)
       return false;
     }
 
-    SetAllocatedString(webShellAppData->profile, profile);
-    SetAllocatedString(webShellAppData->name, profile);
+    if (!isProfileOverridden) {
+      SetAllocatedString(webShellAppData->profile, profile);
+      SetAllocatedString(webShellAppData->name, profile);
+    }
 
-    nsCOMPtr<nsILocalFile> directory;
+    nsCOMPtr<nsIFile> directory;
     if (NS_FAILED(XRE_GetFileFromPath(rtPath, getter_AddRefs(directory)))) {
       ErrorDialog("Couldn't open runtime directory");
       return false;
     }
 
-    nsCOMPtr<nsILocalFile> xreDir;
+    nsCOMPtr<nsIFile> xreDir;
     if (NS_FAILED(XRE_GetFileFromPath(firefoxDir, getter_AddRefs(xreDir)))) {
       ErrorDialog("Couldn't open XRE directory");
       return false;
@@ -216,8 +228,6 @@ void CopyAndRelaunch(const char* firefoxDir, const char* curExePath)
 
 int main(int argc, char *argv[])
 {
-  gtk_init(&argc, &argv);
-
   pargc = &argc;
   pargv = &argv;
 
@@ -227,10 +237,29 @@ int main(int argc, char *argv[])
     ErrorDialog("Couldn't read current executable path");
     return 255;
   }
-
-  // Set up webAppIniPath with path to webapp.ini
   char curExeDir[MAXPATHLEN];
   GetDirFromPath(curExeDir, curExePath);
+
+  for (int i = 1; i < argc; i++) {
+    if (!strcmp(argv[i], "-profile")) {
+      isProfileOverridden = true;
+      break;
+    }
+  }
+
+  char firefoxDir[MAXPATHLEN];
+
+  // Check if Firefox is in the ../../dist/bin directory (relative to the webapp runtime)
+  // This is the case for webapprt chrome and content tests.
+  snprintf(firefoxDir, MAXPATHLEN, "%s/../../dist/bin", curExeDir);
+  if (access(firefoxDir, F_OK) != -1) {
+    if (GRELoadAndLaunch(firefoxDir))
+      return 0;
+
+    return 255;
+  }
+
+  // Set up webAppIniPath with path to webapp.ini
   char webAppIniPath[MAXPATHLEN];
   snprintf(webAppIniPath, MAXPATHLEN, "%s/%s", curExeDir, kWEBAPP_INI);
 
@@ -248,14 +277,12 @@ int main(int argc, char *argv[])
   }
 
   // Get profile dir from webapp.ini
-  char profile[MAXPATHLEN];
   if (NS_FAILED(parser.GetString("Webapp", "Profile", profile, MAXPATHLEN))) {
     ErrorDialog("Couldn't retrieve profile from web app INI file");
     return 255;
   }
 
   // Get the location of Firefox from our webapp.ini
-  char firefoxDir[MAXPATHLEN];
   if (NS_FAILED(parser.GetString("WebappRT", "InstallDir", firefoxDir, MAXPATHLEN))) {
     ErrorDialog("Couldn't find your Firefox install directory.");
     return 255;
@@ -267,7 +294,8 @@ int main(int argc, char *argv[])
   snprintf(appIniPath, MAXPATHLEN, "%s/%s", firefoxDir, kAPP_INI);
 
   if (NS_FAILED(parser.Init(appIniPath))) {
-    ErrorDialog("Couldn't open Firefox application.ini");
+    ErrorDialog("This app requires that Firefox version 15 or above is installed."
+                " Firefox 15+ has not been detected.");
     return 255;
   }
 
@@ -280,7 +308,7 @@ int main(int argc, char *argv[])
 
   // If WebAppRT version == Firefox version, load XUL and execute the application
   if (!strcmp(buildid, NS_STRINGIFY(GRE_BUILDID))) {
-    if (GRELoadAndLaunch(firefoxDir, profile))
+    if (GRELoadAndLaunch(firefoxDir))
       return 0;
   }
   // Else, copy WebAppRT from Firefox installation and re-execute the process

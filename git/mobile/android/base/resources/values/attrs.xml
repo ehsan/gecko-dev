@@ -23,14 +23,14 @@
         <attr name="showAsAction" format="boolean"/>
     </declare-styleable>
 
+    <declare-styleable name="FlowLayout">
+         <attr name="spacing" format="dimension"/>
+    </declare-styleable>
+
     <declare-styleable name="MultiChoicePreference">
          <attr name="entries" format="string"/>
          <attr name="entryKeys" format="string"/>
          <attr name="initialValues" format="string"/>
-    </declare-styleable>
-
-    <declare-styleable name="FlowLayout">
-         <attr name="spacing" format="dimension"/>
     </declare-styleable>
 
 </resources>

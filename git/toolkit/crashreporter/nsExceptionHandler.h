@@ -25,7 +25,7 @@
 #endif
 
 namespace CrashReporter {
-nsresult SetExceptionHandler(nsILocalFile* aXREDirectory, bool force=false);
+nsresult SetExceptionHandler(nsIFile* aXREDirectory, bool force=false);
 nsresult UnsetExceptionHandler();
 bool     GetEnabled();
 bool     GetServerURL(nsACString& aServerURL);
@@ -41,7 +41,7 @@ nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data);
 nsresult AppendAppNotesToCrashReport(const nsACString& data);
 
 nsresult SetRestartArgs(int argc, char** argv);
-nsresult SetupExtraData(nsILocalFile* aAppDataDirectory,
+nsresult SetupExtraData(nsIFile* aAppDataDirectory,
                         const nsACString& aBuildID);
 
 // Registers an additional memory region to be included in the minidump
@@ -51,12 +51,12 @@ nsresult UnregisterAppMemory(void* ptr);
 // Functions for working with minidumps and .extras
 typedef nsDataHashtable<nsCStringHashKey, nsCString> AnnotationTable;
 
-bool GetMinidumpForID(const nsAString& id, nsILocalFile** minidump);
-bool GetIDFromMinidump(nsILocalFile* minidump, nsAString& id);
-bool GetExtraFileForID(const nsAString& id, nsILocalFile** extraFile);
-bool GetExtraFileForMinidump(nsILocalFile* minidump, nsILocalFile** extraFile);
+bool GetMinidumpForID(const nsAString& id, nsIFile** minidump);
+bool GetIDFromMinidump(nsIFile* minidump, nsAString& id);
+bool GetExtraFileForID(const nsAString& id, nsIFile** extraFile);
+bool GetExtraFileForMinidump(nsIFile* minidump, nsIFile** extraFile);
 bool AppendExtraData(const nsAString& id, const AnnotationTable& data);
-bool AppendExtraData(nsILocalFile* extraFile, const AnnotationTable& data);
+bool AppendExtraData(nsIFile* extraFile, const AnnotationTable& data);
 
 #ifdef XP_WIN32
   nsresult WriteMinidumpForException(EXCEPTION_POINTERS* aExceptionInfo);
@@ -69,11 +69,17 @@ nsresult SetSubmitReports(bool aSubmitReport);
 
 // Out-of-process crash reporter API.
 
-// Return true iff a dump was found for |childPid|, and return the
+// Initializes out-of-process crash reporting. This method must be called
+// before the platform-specifi notificationpipe APIs are called.
+void OOPInit();
+
+// Return true if a dump was found for |childPid|, and return the
 // path in |dump|.  The caller owns the last reference to |dump| if it
-// is non-NULL.
+// is non-NULL. The sequence parameter will be filled with an ordinal
+// indicating which remote process crashed first.
 bool TakeMinidumpForChild(PRUint32 childPid,
-                          nsILocalFile** dump NS_OUTPARAM);
+                          nsIFile** dump NS_OUTPARAM,
+                          PRUint32* aSequence = NULL);
 
 #if defined(XP_WIN)
 typedef HANDLE ProcessHandle;
@@ -104,8 +110,8 @@ ThreadId CurrentThreadId();
 bool CreatePairedMinidumps(ProcessHandle childPid,
                            ThreadId childBlamedThread,
                            nsAString* pairGUID NS_OUTPARAM,
-                           nsILocalFile** childDump NS_OUTPARAM,
-                           nsILocalFile** parentDump NS_OUTPARAM);
+                           nsIFile** childDump NS_OUTPARAM,
+                           nsIFile** parentDump NS_OUTPARAM);
 
 #  if defined(XP_WIN32) || defined(XP_MACOSX)
 // Parent-side API for children
@@ -120,9 +126,17 @@ class InjectorCrashCallback
 public:
   InjectorCrashCallback() { }
 
-  virtual void OnCrash(DWORD processID, const nsAString& aDumpID) = 0;
+  /**
+   * Inform the callback of a crash. The client code should call
+   * TakeMinidumpForChild to remove it from the PID mapping table.
+   *
+   * The callback will not be fired if the client has already called
+   * TakeMinidumpForChild for this process ID.
+   */
+  virtual void OnCrash(DWORD processID) = 0;
 };
 
+// This method implies OOPInit
 void InjectCrashReporterIntoProcess(DWORD processID, InjectorCrashCallback* cb);
 void UnregisterInjectorCallback(DWORD processID);
 #endif

@@ -13,7 +13,7 @@
 #include "prerror.h"
 #include <sys/stat.h>
 #include "nsString.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 
@@ -303,7 +303,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     pLibrary = *outLibrary;
 #endif  // MOZ_WIDGET_GTK2
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
     printf("LoadPlugin() %s returned %lx\n", 
            libSpec.value.pathname, (unsigned long)pLibrary);
 #endif

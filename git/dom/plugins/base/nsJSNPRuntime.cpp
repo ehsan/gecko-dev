@@ -128,7 +128,7 @@ NPObjWrapper_newEnumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op
 
 static JSBool
 NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                        JSObject **objp);
+                        JSMutableHandleObject objp);
 
 static JSBool
 NPObjWrapper_Convert(JSContext *cx, JSHandleObject obj, JSType type, jsval *vp);
@@ -1620,7 +1620,7 @@ NPObjWrapper_newEnumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op
 
 static JSBool
 NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                        JSObject **objp)
+                        JSMutableHandleObject objp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
@@ -1647,7 +1647,7 @@ NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsign
         return JS_FALSE;
     }
 
-    *objp = obj;
+    objp.set(obj);
 
     return JS_TRUE;
   }
@@ -1663,7 +1663,7 @@ NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsign
     JSFunction *fnc = ::JS_DefineFunctionById(cx, obj, id, CallNPMethod, 0,
                                               JSPROP_ENUMERATE);
 
-    *objp = obj;
+    objp.set(obj);
 
     return fnc != nsnull;
   }
@@ -1782,7 +1782,7 @@ nsNPObjWrapper::OnDestroy(NPObject *npobj)
     // Remove the npobj from the hash now that it went away.
     PL_DHashTableRawRemove(&sNPObjWrappers, entry);
 
-    OnWrapperDestroyed();
+    // The finalize hook will call OnWrapperDestroyed().
   }
 }
 
