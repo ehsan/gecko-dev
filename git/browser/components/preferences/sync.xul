@@ -186,17 +186,18 @@
         </vbox>
 
         <vbox id="noFxaAccount">
-          <label value="&welcome.description;"/>
+          <description>&welcome.description;</description>
           <label class="text-link"
                  onclick="gSyncPane.signUp(); return false;"
                  value="&welcome.createAccount.label;"/>
           <label class="text-link"
                  onclick="gSyncPane.signIn(); return false;"
                  value="&welcome.signIn.label;"/>
-          <separator/>
+          <spacer flex="1"/>
           <label class="text-link"
                  onclick="gSyncPane.openOldSyncSupportPage(); return false;"
                  value="&welcome.useOldSync.label;"/>
+          <spacer flex="10"/>
         </vbox>
 
         <vbox id="hasFxaAccount">
@@ -304,12 +305,11 @@
                      flex="1"
                      onchange="gSyncUtils.changeName(this)"/>
           </hbox>
-          <spacer flex="1"/>
           <hbox id="tosPP" pack="center">
-            <label class="text-link small"
+            <label class="text-link"
                    onclick="event.stopPropagation();gSyncUtils.openToS();"
                    value="&prefs.tosLink.label;"/>
-            <label class="text-link small"
+            <label class="text-link"
                    onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();"
                    value="&fxaPrivacyNotice.link.label;"/>
           </hbox>

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,83 +23,89 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testKeyboard1.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testKeyboard1.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-var javascript = require('gcli/types/javascript');
-// var helpers = require('./helpers');
+'use strict';
 
-var tempWindow;
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
 
 exports.setup = function(options) {
-  tempWindow = javascript.getGlobalObject();
-  javascript.setGlobalObject(options.window);
+  mockCommands.setup();
 };
 
 exports.shutdown = function(options) {
-  javascript.setGlobalObject(tempWindow);
-  tempWindow = undefined;
+  mockCommands.shutdown();
 };
 
-exports.testSimple = function(options) {
+exports.testComplete = function(options) {
   return helpers.audit(options, [
     {
-      setup: 'tsela<TAB>',
-      check: { input: 'tselarr ', cursor: 8 }
+      setup: 'tsn e<DOWN><DOWN><DOWN><DOWN><DOWN><TAB>',
+      check: { input: 'tsn exte ' }
     },
     {
-      setup: 'tsn di<TAB>',
-      check: { input: 'tsn dif ', cursor: 8 }
+      setup: 'tsn e<DOWN><DOWN><DOWN><DOWN><TAB>',
+      check: { input: 'tsn ext ' }
     },
     {
-      setup: 'tsg a<TAB>',
-      check: { input: 'tsg aaa ', cursor: 8 }
+      setup: 'tsn e<DOWN><DOWN><DOWN><TAB>',
+      check: { input: 'tsn extend ' }
+    },
+    {
+      setup: 'tsn e<DOWN><DOWN><TAB>',
+      check: { input: 'tsn exten ' }
+    },
+    {
+      setup: 'tsn e<DOWN><TAB>',
+      check: { input: 'tsn exte ' }
+    },
+    {
+      setup: 'tsn e<TAB>',
+      check: { input: 'tsn ext ' }
+    },
+    {
+      setup: 'tsn e<UP><TAB>',
+      check: { input: 'tsn extend ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><TAB>',
+      check: { input: 'tsn exten ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><UP><TAB>',
+      check: { input: 'tsn exte ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><UP><UP><TAB>',
+      check: { input: 'tsn ext ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><UP><UP><UP><TAB>',
+      check: { input: 'tsn extend ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><UP><UP><UP><UP><TAB>',
+      check: { input: 'tsn exten ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><UP><UP><UP><UP><UP><TAB>',
+      check: { input: 'tsn exte ' }
+    },
+    {
+      setup: 'tsn e<UP><UP><UP><UP><UP><UP><UP><UP><TAB>',
+      check: { input: 'tsn ext ' }
     }
   ]);
 };
 
-exports.testScript = function(options) {
-  return helpers.audit(options, [
-    {
-      skipIf: function commandJsMissing() {
-        return options.requisition.canon.getCommand('{') == null;
-      },
-      setup: '{ wind<TAB>',
-      check: { input: '{ window' }
-    },
-    {
-      skipIf: function commandJsMissing() {
-        return options.requisition.canon.getCommand('{') == null;
-      },
-      setup: '{ window.docum<TAB>',
-      check: { input: '{ window.document' }
-    }
-  ]);
-};
 
-exports.testJsdom = function(options) {
-  return helpers.audit(options, [
-    {
-      skipIf: function jsDomOrCommandJsMissing() {
-        return options.requisition.canon.getCommand('{') == null;
-      },
-      setup: '{ window.document.titl<TAB>',
-      check: { input: '{ window.document.title ' }
-    }
-  ]);
-};
+// });

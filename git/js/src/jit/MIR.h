@@ -3930,7 +3930,10 @@ class MMathFunction
     static const char *FunctionName(Function function);
 
     bool isFloat32Commutative() const {
-        return function_ == Floor || function_ == Ceil;
+        return function_ == Log || function_ == Sin || function_ == Cos
+               || function_ == Exp || function_ == Tan || function_ == ATan
+               || function_ == ASin || function_ == ACos || function_ == Floor
+               || function_ == Ceil;
     }
     void trySpecializeFloat32(TempAllocator &alloc);
     void computeRange(TempAllocator &alloc);
@@ -8885,10 +8888,14 @@ class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy
 
 // Given a value being written to another object, update the generational store
 // buffer if the value is in the nursery and object is in the tenured heap.
-class MPostWriteBarrier : public MBinaryInstruction, public ObjectPolicy<0>
+class MPostWriteBarrier
+  : public MBinaryInstruction,
+    public ObjectPolicy<0>
 {
+    bool hasValue_;
+
     MPostWriteBarrier(MDefinition *obj, MDefinition *value)
-      : MBinaryInstruction(obj, value)
+      : MBinaryInstruction(obj, value), hasValue_(true)
     {
         setGuard();
     }
@@ -8908,10 +8915,12 @@ class MPostWriteBarrier : public MBinaryInstruction, public ObjectPolicy<0>
         return getOperand(0);
     }
 
+    bool hasValue() const {
+        return hasValue_;
+    }
     MDefinition *value() const {
         return getOperand(1);
     }
-
 #ifdef DEBUG
     bool isConsistentFloat32Use(MUse *use) const {
         // During lowering, values that neither have object nor value MIR type

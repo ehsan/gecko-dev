@@ -31,5 +31,5 @@ function test() {
         },
       },
     ]);
-  }).then(finish, helpers.handleError);
+  }).then(finish);
 }

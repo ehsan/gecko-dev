@@ -44,7 +44,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsError.h"
 #include "nsScriptLoader.h"
 #include "nsRuleData.h"
@@ -70,7 +70,7 @@
 #include "nsFocusManager.h"
 #include "nsAttrValueOrString.h"
 
-#include "mozilla/InternalMutationEvent.h"
+#include "mozilla/MutationEvent.h"
 #include "nsDOMStringMap.h"
 
 #include "nsIEditor.h"

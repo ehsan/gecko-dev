@@ -52,6 +52,7 @@
 #include "nsIDocument.h"
 #include "nsStubDocumentObserver.h"
 #include "nsIHTMLDocument.h"
+#include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsICookieService.h"
 #include "nsTArray.h"
@@ -59,7 +60,6 @@
 #include "nsIPrincipal.h"
 #include "nsTextFragment.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsNameSpaceManager.h"
 
 #include "nsIParserService.h"
 

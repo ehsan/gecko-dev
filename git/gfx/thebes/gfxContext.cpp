@@ -98,7 +98,7 @@ gfxContext::gfxContext(gfxASurface *surface)
   }
 }
 
-gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
+gfxContext::gfxContext(DrawTarget *aTarget)
   : mPathIsRect(false)
   , mTransformChanged(false)
   , mCairo(nullptr)
@@ -112,7 +112,6 @@ gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
 
   mStateStack.SetLength(1);
   CurrentState().drawTarget = mDT;
-  CurrentState().deviceOffset = aDeviceOffset;
   mDT->SetTransform(Matrix());
 }
 

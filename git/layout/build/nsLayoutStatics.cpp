@@ -347,6 +347,7 @@ nsLayoutStatics::Shutdown()
   nsAttrValue::Shutdown();
   nsContentUtils::Shutdown();
   nsLayoutStylesheetCache::Shutdown();
+  NS_NameSpaceManagerShutdown();
 
   ShutdownJSEnvironment();
   nsGlobalWindow::ShutDown();

@@ -3202,7 +3202,7 @@ struct CascadeEnumData {
       mSheetType(aSheetType)
   {
     if (!PL_DHashTableInit(&mRulesByWeight, &gRulesByWeightOps, nullptr,
-                           sizeof(RuleByWeightEntry), 64, fallible_t()))
+                          sizeof(RuleByWeightEntry), 64))
       mRulesByWeight.ops = nullptr;
 
     // Initialize our arena

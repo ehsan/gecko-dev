@@ -23,7 +23,7 @@
 double txUnionPattern::getDefaultPriority()
 {
     NS_ERROR("Don't call getDefaultPriority on txUnionPattern");
-    return mozilla::UnspecifiedNaN<double>();
+    return mozilla::UnspecifiedNaN();
 }
 
 /*

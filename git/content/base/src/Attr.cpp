@@ -10,8 +10,9 @@
 #include "mozilla/dom/Attr.h"
 #include "mozilla/dom/AttrBinding.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/InternalMutationEvent.h"
+#include "mozilla/MutationEvent.h"
 #include "nsContentCreatorFunctions.h"
+#include "nsINameSpaceManager.h"
 #include "nsError.h"
 #include "nsUnicharUtils.h"
 #include "nsDOMString.h"
@@ -21,7 +22,6 @@
 #include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
 #include "nsCOMArray.h"
-#include "nsNameSpaceManager.h"
 #include "nsNodeUtils.h"
 #include "nsEventListenerManager.h"
 #include "nsTextNode.h"
@@ -33,10 +33,6 @@ nsIAttribute::nsIAttribute(nsDOMAttributeMap* aAttrMap,
                            already_AddRefed<nsINodeInfo> aNodeInfo,
                            bool aNsAware)
 : nsINode(aNodeInfo), mAttrMap(aAttrMap), mNsAware(aNsAware)
-{
-}
-
-nsIAttribute::~nsIAttribute()
 {
 }
 

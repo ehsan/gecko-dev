@@ -105,7 +105,7 @@ public:
     {
         if (mState == eIllegal || mBuffer.IsEmpty() ||
             (mBuffer.Length() == 1 && mBuffer[0] == '.')) {
-            return mozilla::UnspecifiedNaN<double>();
+            return mozilla::UnspecifiedNaN();
         }
         return mSign*PR_strtod(mBuffer.get(), 0);
     }

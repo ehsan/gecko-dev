@@ -11,7 +11,6 @@
 #include "jsapi.h"
 #include "js/OldDebugAPI.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ConsoleBinding.h"
 #include "mozilla/dom/DOMExceptionBinding.h"
 #include "mozilla/dom/EventBinding.h"
 #include "mozilla/dom/EventHandlerBinding.h"
@@ -59,8 +58,7 @@ WorkerPrivate::RegisterBindings(JSContext* aCx, JS::Handle<JSObject*> aGlobal)
   }
 
   // Init other paris-bindings.
-  if (!ConsoleBinding::GetConstructorObject(aCx, aGlobal) ||
-      !DOMExceptionBinding::GetConstructorObject(aCx, aGlobal) ||
+  if (!DOMExceptionBinding::GetConstructorObject(aCx, aGlobal) ||
       !EventBinding::GetConstructorObject(aCx, aGlobal) ||
       !FileReaderSyncBinding_workers::GetConstructorObject(aCx, aGlobal) ||
       !ImageDataBinding::GetConstructorObject(aCx, aGlobal) ||

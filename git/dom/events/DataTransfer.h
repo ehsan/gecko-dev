@@ -28,7 +28,6 @@ class nsILoadContext;
 namespace mozilla {
 namespace dom {
 
-class DOMStringList;
 class Element;
 template<typename T> class Optional;
 
@@ -135,7 +134,7 @@ public:
   }
   void SetDragImage(Element& aElement, int32_t aX, int32_t aY,
                     ErrorResult& aRv);
-  already_AddRefed<DOMStringList> Types();
+  already_AddRefed<nsIDOMDOMStringList> Types();
   void GetData(const nsAString& aFormat, nsAString& aData, ErrorResult& aRv);
   void SetData(const nsAString& aFormat, const nsAString& aData,
                ErrorResult& aRv);
@@ -155,8 +154,8 @@ public:
       aCursor.AssignLiteral("auto");
     }
   }
-  already_AddRefed<DOMStringList> MozTypesAt(uint32_t aIndex,
-                                             mozilla::ErrorResult& aRv);
+  already_AddRefed<nsIDOMDOMStringList> MozTypesAt(uint32_t aIndex,
+                                                   mozilla::ErrorResult& aRv);
   void MozClearDataAt(const nsAString& aFormat, uint32_t aIndex,
                       mozilla::ErrorResult& aRv);
   void MozSetDataAt(JSContext* aCx, const nsAString& aFormat,

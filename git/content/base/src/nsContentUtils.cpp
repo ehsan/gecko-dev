@@ -40,9 +40,9 @@
 #include "mozilla/dom/HTMLContentElement.h"
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/ShadowRoot.h"
-#include "mozilla/InternalMutationEvent.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MouseEvents.h"
+#include "mozilla/MutationEvent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
 #include "mozilla/TextEvents.h"
@@ -196,7 +196,7 @@ const char kLoadAsData[] = "loadAsData";
 nsIXPConnect *nsContentUtils::sXPConnect;
 nsIScriptSecurityManager *nsContentUtils::sSecurityManager;
 nsIParserService *nsContentUtils::sParserService = nullptr;
-nsNameSpaceManager *nsContentUtils::sNameSpaceManager;
+nsINameSpaceManager *nsContentUtils::sNameSpaceManager;
 nsIIOService *nsContentUtils::sIOService;
 imgLoader *nsContentUtils::sImgLoader;
 imgLoader *nsContentUtils::sPrivateImgLoader;
@@ -371,8 +371,8 @@ nsContentUtils::Init()
     return NS_OK;
   }
 
-  sNameSpaceManager = nsNameSpaceManager::GetInstance();
-  NS_ENSURE_TRUE(sNameSpaceManager, NS_ERROR_OUT_OF_MEMORY);
+  nsresult rv = NS_GetNameSpaceManager(&sNameSpaceManager);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   sXPConnect = nsXPConnect::XPConnect();
 
@@ -384,7 +384,7 @@ nsContentUtils::Init()
   // Getting the first context can trigger GC, so do this non-lazily.
   sXPConnect->InitSafeJSContext();
 
-  nsresult rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
+  rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
   if (NS_FAILED(rv)) {
     // This makes life easier, but we can live without it.
 
@@ -413,8 +413,12 @@ nsContentUtils::Init()
       EventListenerManagerHashInitEntry
     };
 
-    PL_DHashTableInit(&sEventListenerManagersHash, &hash_table_ops,
-                      nullptr, sizeof(EventListenerManagerMapEntry), 16);
+    if (!PL_DHashTableInit(&sEventListenerManagersHash, &hash_table_ops,
+                           nullptr, sizeof(EventListenerManagerMapEntry), 16)) {
+      sEventListenerManagersHash.ops = nullptr;
+
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     RegisterStrongMemoryReporter(new DOMEventListenerManagersHashReporter());
   }
@@ -1458,6 +1462,7 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sConsoleService);
   sXPConnect = nullptr;
   NS_IF_RELEASE(sSecurityManager);
+  NS_IF_RELEASE(sNameSpaceManager);
   NS_IF_RELEASE(sParserService);
   NS_IF_RELEASE(sIOService);
   NS_IF_RELEASE(sLineBreaker);

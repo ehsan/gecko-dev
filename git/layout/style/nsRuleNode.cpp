@@ -5503,10 +5503,8 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
         nsCSSProperty prop =
           nsCSSProps::LookupProperty(buffer, nsCSSProps::eEnabled);
-        if (prop != eCSSProperty_UNKNOWN &&
-            nsCSSProps::PropHasFlags(prop,
-                                     CSS_PROPERTY_CREATES_STACKING_CONTEXT))
-        {
+        if (nsCSSProps::PropHasFlags(prop,
+                                     CSS_PROPERTY_CREATES_STACKING_CONTEXT)) {
           display->mWillChangeBitField |= NS_STYLE_WILL_CHANGE_STACKING_CONTEXT;
         }
       }

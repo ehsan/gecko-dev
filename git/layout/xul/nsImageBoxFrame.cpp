@@ -31,7 +31,7 @@
 #include "prprf.h"
 #include "nsCSSRendering.h"
 #include "nsIDOMHTMLImageElement.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsTransform2D.h"

@@ -14,7 +14,7 @@
 #include "nsFormControlFrame.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
 #include "nsIPresShell.h"
 #include "nsGkAtoms.h"

@@ -2,4 +2,3 @@
 == z-index-1.html z-index-1-ref.html
 != stacking-context-yes.html stacking-context-no.html
 == stacking-context-perspective.html stacking-context-yes.html
-== stacking-context-backface-visibility.html stacking-context-no.html

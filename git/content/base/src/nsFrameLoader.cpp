@@ -64,7 +64,7 @@
 #include "nsNetUtil.h"
 
 #include "nsGkAtoms.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 
 #include "nsThreadUtils.h"
 

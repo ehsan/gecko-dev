@@ -179,6 +179,7 @@
     _(MonitorTypes)                 \
     _(PostWriteBarrierO)            \
     _(PostWriteBarrierV)            \
+    _(PostWriteBarrierAllSlots)     \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
     _(NeuterCheck)                  \

@@ -10,12 +10,12 @@
 #include "mozilla/dom/FunctionBinding.h"
 #include "mozilla/dom/DedicatedWorkerGlobalScopeBinding.h"
 #include "mozilla/dom/SharedWorkerGlobalScopeBinding.h"
-#include "mozilla/dom/Console.h"
 
 #ifdef ANDROID
 #include <android/log.h>
 #endif
 
+#include "Console.h"
 #include "Location.h"
 #include "Navigator.h"
 #include "Principal.h"
@@ -77,17 +77,17 @@ WorkerGlobalScope::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   MOZ_CRASH("We should never get here!");
 }
 
-already_AddRefed<Console>
-WorkerGlobalScope::GetConsole()
+WorkerConsole*
+WorkerGlobalScope::Console()
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (!mConsole) {
-    mConsole = new Console(nullptr);
+    mConsole = WorkerConsole::Create();
     MOZ_ASSERT(mConsole);
   }
 
-  return mConsole.forget();
+  return mConsole;
 }
 
 already_AddRefed<WorkerLocation>

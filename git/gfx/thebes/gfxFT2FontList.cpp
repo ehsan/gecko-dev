@@ -605,7 +605,12 @@ public:
             nullptr
         };
 
-        PL_DHashTableInit(&mMap, &mOps, nullptr, sizeof(FNCMapEntry), 0);
+        if (!PL_DHashTableInit(&mMap, &mOps, nullptr,
+                               sizeof(FNCMapEntry), 0))
+        {
+            mMap.ops = nullptr;
+            LOG(("initializing the map failed"));
+        }
 
         NS_ABORT_IF_FALSE(XRE_GetProcessType() == GeckoProcessType_Default,
                           "StartupCacheFontNameCache should only be used in chrome process");

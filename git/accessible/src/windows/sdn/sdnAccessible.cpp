@@ -14,7 +14,6 @@
 #include "nsIAccessibleTypes.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
-#include "nsNameSpaceManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsWinUtils.h"
 
@@ -177,7 +176,8 @@ sdnAccessible::get_attributesForNames(unsigned short aMaxAttribs,
     return S_FALSE;
 
   nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mNode));
-  nsNameSpaceManager* nameSpaceManager = nsNameSpaceManager::GetInstance();
+  nsCOMPtr<nsINameSpaceManager> nameSpaceManager =
+    do_GetService(NS_NAMESPACEMANAGER_CONTRACTID);
 
   int32_t index = 0;
   for (index = 0; index < aMaxAttribs; index++) {

@@ -6,12 +6,10 @@
 #ifndef MOZILLA_GFX_BASERECT_H_
 #define MOZILLA_GFX_BASERECT_H_
 
-#include <algorithm>
 #include <cmath>
-
-#include "mozilla/Assertions.h"
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/TypeTraits.h"
+#include <mozilla/Assertions.h>
+#include <mozilla/FloatingPoint.h>
+#include <algorithm>
 
 namespace mozilla {
 namespace gfx {
@@ -62,11 +60,10 @@ struct BaseRect {
   // "Finite" means not inf and not NaN
   bool IsFinite() const
   {
-    typedef typename mozilla::Conditional<mozilla::IsSame<T, float>::value, float, double>::Type FloatType;
-    return (mozilla::IsFinite(FloatType(x)) &&
-            mozilla::IsFinite(FloatType(y)) &&
-            mozilla::IsFinite(FloatType(width)) &&
-            mozilla::IsFinite(FloatType(height)));
+    return (mozilla::IsFinite(x) &&
+            mozilla::IsFinite(y) &&
+            mozilla::IsFinite(width) &&
+            mozilla::IsFinite(height));
   }
 
   // Returns true if this rectangle contains the interior of aRect. Always

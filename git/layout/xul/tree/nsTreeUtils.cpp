@@ -8,7 +8,7 @@
 #include "ChildIterator.h"
 #include "nsCRT.h"
 #include "nsIAtom.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsINodeInfo.h"
 

@@ -24,6 +24,7 @@ class nsString;
 class nsIRDFResource;
 class nsIRDFLiteral;
 class nsIRDFService;
+class nsINameSpaceManager;
 class nsIDateTimeFormat;
 class nsICollation;
 

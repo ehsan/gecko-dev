@@ -31,7 +31,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMXULControlElement.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIBaseWindow.h"
 #include "nsISelection.h"
 #include "nsITextControlElement.h"
@@ -50,7 +50,7 @@
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMUIEvent.h"
-#include "nsDOMUIEvent.h"
+#include "nsDOMDragEvent.h"
 #include "nsIMozBrowserFrame.h"
 
 #include "nsSubDocumentFrame.h"
@@ -3566,7 +3566,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
           // made to access the dataTransfer during the event, yet the event
           // was cancelled. Instead, use the initial data transfer available
           // from the drag session. The drop effect would not have been
-          // initialized (which is done in DragEvent::GetDataTransfer),
+          // initialized (which is done in nsDOMDragEvent::GetDataTransfer),
           // so set it from the drag action. We'll still want to filter it
           // based on the effectAllowed below.
           dataTransfer = initialDataTransfer;

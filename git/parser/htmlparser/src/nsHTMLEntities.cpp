@@ -91,15 +91,13 @@ nsHTMLEntities::AddRefTable(void)
   if (!gTableRefCnt) {
     if (!PL_DHashTableInit(&gEntityToUnicode, &EntityToUnicodeOps,
                            nullptr, sizeof(EntityNodeEntry),
-                           uint32_t(NS_HTML_ENTITY_COUNT / 0.75),
-                           fallible_t())) {
+                           uint32_t(NS_HTML_ENTITY_COUNT / 0.75))) {
       gEntityToUnicode.ops = nullptr;
       return NS_ERROR_OUT_OF_MEMORY;
     }
     if (!PL_DHashTableInit(&gUnicodeToEntity, &UnicodeToEntityOps,
                            nullptr, sizeof(EntityNodeEntry),
-                           uint32_t(NS_HTML_ENTITY_COUNT / 0.75),
-                           fallible_t())) {
+                           uint32_t(NS_HTML_ENTITY_COUNT / 0.75))) {
       PL_DHashTableFinish(&gEntityToUnicode);
       gEntityToUnicode.ops = gUnicodeToEntity.ops = nullptr;
       return NS_ERROR_OUT_OF_MEMORY;
