@@ -377,14 +377,10 @@ public class BrowserToolbar extends ThemedRelativeLayout
             editCancel.setOnClickListener(new OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    // If we exit editing mode during the animation,
-                    // we're put into an inconsistent state (bug 1017276).
-                    if (!isAnimatingEntry) {
-                        Telemetry.sendUIEvent(TelemetryContract.Event.CANCEL,
-                                              TelemetryContract.Method.ACTIONBAR,
-                                              getResources().getResourceEntryName(editCancel.getId()));
-                        cancelEdit();
-                    }
+                    Telemetry.sendUIEvent(TelemetryContract.Event.CANCEL,
+                                          TelemetryContract.Method.ACTIONBAR,
+                                          getResources().getResourceEntryName(editCancel.getId()));
+                    cancelEdit();
                 }
             });
         }
@@ -411,9 +407,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
     }
 
     public boolean onBackPressed() {
-        // If we exit editing mode during the animation,
-        // we're put into an inconsistent state (bug 1017276).
-        if (isEditing() && !isAnimatingEntry) {
+        if (isEditing()) {
             Telemetry.sendUIEvent(TelemetryContract.Event.CANCEL,
                                   TelemetryContract.Method.BACK);
             cancelEdit();
@@ -938,10 +932,6 @@ public class BrowserToolbar extends ThemedRelativeLayout
      */
     public boolean isEditing() {
         return (uiMode == UIMode.EDIT);
-    }
-
-    public boolean isAnimating() {
-        return isAnimatingEntry;
     }
 
     public void startEditing(String url, PropertyAnimator animator) {
