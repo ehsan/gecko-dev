@@ -86,11 +86,11 @@ class WorkerThreadState
         numAsmJSFailedJobs = 0;
         return n;
     }
-    void noteAsmJSFailure(void *func) {
+    void noteAsmJSFailure(int32_t func) {
         // Be mindful to signal the main thread after calling this function.
         JS_ASSERT(isLocked());
-        if (!asmJSFailedFunction)
-            asmJSFailedFunction = func;
+        if (asmJSFailedFunctionIndex < 0)
+            asmJSFailedFunctionIndex = func;
         numAsmJSFailedJobs++;
     }
     bool asmJSWorkerFailed() const {
@@ -98,10 +98,10 @@ class WorkerThreadState
     }
     void resetAsmJSFailureState() {
         numAsmJSFailedJobs = 0;
-        asmJSFailedFunction = NULL;
+        asmJSFailedFunctionIndex = -1;
     }
-    void *maybeAsmJSFailedFunction() const {
-        return asmJSFailedFunction;
+    int32_t maybeGetAsmJSFailedFunctionIndex() const {
+        return asmJSFailedFunctionIndex;
     }
 
   private:
@@ -132,7 +132,7 @@ class WorkerThreadState
      * Function index |i| in |Module.function(i)| of first failed AsmJS function.
      * -1 if no function has failed.
      */
-    void *asmJSFailedFunction;
+    int32_t asmJSFailedFunctionIndex;
 };
 
 /* Individual helper thread, one allocated per core. */

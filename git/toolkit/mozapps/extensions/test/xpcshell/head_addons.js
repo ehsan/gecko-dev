@@ -225,17 +225,10 @@ function do_check_addon(aActualAddon, aExpectedAddon, aProperties) {
 
     // Check that all undefined expected properties are null on actual add-on
     if (!(aProperty in aExpectedAddon)) {
-      if (actualValue !== undefined && actualValue !== null) {
+      if (actualValue !== undefined && actualValue !== null)
         do_throw("Unexpected defined/non-null property for add-on " +
-                 aExpectedAddon.id + " (addon[" + aProperty + "] = " +
-                 actualValue.toSource() + ")");
-      }
+                 aExpectedAddon.id + " (addon[" + aProperty + "] = " + actualValue);
 
-      return;
-    }
-    else if (expectedValue && !actualValue) {
-      do_throw("Missing property for add-on " + aExpectedAddon.id +
-        ": expected addon[" + aProperty + "] = " + expectedValue);
       return;
     }
 
@@ -1046,7 +1039,7 @@ function completeAllInstalls(aInstalls, aCallback) {
     aInstall.removeListener(listener);
 
     if (--count == 0)
-      do_execute_soon(aCallback);
+      aCallback();
   }
 
   let listener = {
@@ -1273,14 +1266,7 @@ function timeout() {
 var timer = AM_Cc["@mozilla.org/timer;1"].createInstance(AM_Ci.nsITimer);
 timer.init(timeout, TIMEOUT_MS, AM_Ci.nsITimer.TYPE_ONE_SHOT);
 
-// Make sure that a given path does not exist
-function pathShouldntExist(aPath) {
-  if (aPath.exists()) {
-    do_throw("Test cleanup: path " + aPath.path + " exists when it should not");
-  }
-}
-
-do_register_cleanup(function addon_cleanup() {
+do_register_cleanup(function() {
   if (timer)
     timer.cancel();
 
@@ -1296,13 +1282,13 @@ do_register_cleanup(function addon_cleanup() {
   var testDir = gProfD.clone();
   testDir.append("extensions");
   testDir.append("trash");
-  pathShouldntExist(testDir);
+  do_check_false(testDir.exists());
 
   testDir.leafName = "staged";
-  pathShouldntExist(testDir);
+  do_check_false(testDir.exists());
 
   testDir.leafName = "staged-xpis";
-  pathShouldntExist(testDir);
+  do_check_false(testDir.exists());
 
   shutdownManager();
 
@@ -1314,26 +1300,3 @@ do_register_cleanup(function addon_cleanup() {
     Services.prefs.clearUserPref(PREF_EM_STRICT_COMPATIBILITY);
   } catch (e) {}
 });
-
-// Wrap a function (typically a callback) to catch and report exceptions
-function do_exception_wrap(func) {
-  return function() {
-    try {
-      func.apply(null, arguments);
-    }
-    catch(e) {
-      do_report_unexpected_exception(e);
-    }
-  };
-}
-
-/**
- * Create a callback function that calls do_execute_soon on an actual callback and arguments
- */
-function callback_soon(aFunction) {
-  return function(...args) {
-    do_execute_soon(function() {
-      aFunction.apply(null, args);
-    }, aFunction.name ? "delayed callback " + aFunction.name : "delayed callback");
-  }
-}

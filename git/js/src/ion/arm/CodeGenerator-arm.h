@@ -78,7 +78,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     virtual bool visitSoftDivI(LSoftDivI *ins);
     virtual bool visitDivPowTwoI(LDivPowTwoI *ins);
     virtual bool visitModI(LModI *ins);
-    virtual bool visitSoftModI(LSoftModI *ins);
     virtual bool visitModPowTwoI(LModPowTwoI *ins);
     virtual bool visitModMaskI(LModMaskI *ins);
     virtual bool visitPowHalfD(LPowHalfD *ins);
@@ -121,8 +120,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     bool divICommon(MDiv *mir, Register lhs, Register rhs, Register output, LSnapshot *snapshot,
                     Label &done);
-    bool modICommon(MMod *mir, Register lhs, Register rhs, Register output, LSnapshot *snapshot,
-                    Label &done);
 
   public:
     CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
@@ -163,6 +160,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     bool generateInvalidateEpilogue();
   protected:
+    bool generateAsmJSPrologue(const MIRTypeVector &argTypes, MIRType returnType,
+                             Label *internalEntry);
     void postAsmJSCall(LAsmJSCall *lir) {
 #if  !defined(JS_CPU_ARM_HARDFP)
         if (lir->mir()->type() == MIRType_Double) {

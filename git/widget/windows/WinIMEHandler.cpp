@@ -5,7 +5,6 @@
 
 #include "WinIMEHandler.h"
 #include "nsIMM32Handler.h"
-#include "nsWindowDefs.h"
 
 #ifdef NS_ENABLE_TSF
 #include "nsTextStore.h"
@@ -100,13 +99,13 @@ IMEHandler::ProcessRawKeyMessage(const MSG& aMsg)
 bool
 IMEHandler::ProcessMessage(nsWindow* aWindow, UINT aMessage,
                            WPARAM& aWParam, LPARAM& aLParam,
-                           MSGResult& aResult)
+                           LRESULT* aRetValue, bool& aEatMessage)
 {
 #ifdef NS_ENABLE_TSF
   if (IsTSFAvailable()) {
     if (aMessage == WM_USER_TSF_TEXTCHANGE) {
       nsTextStore::OnTextChangeMsg();
-      aResult.mConsumed = true;
+      aEatMessage = true;
       return true;
     }
     return false;
@@ -114,7 +113,7 @@ IMEHandler::ProcessMessage(nsWindow* aWindow, UINT aMessage,
 #endif // #ifdef NS_ENABLE_TSF
 
   return nsIMM32Handler::ProcessMessage(aWindow, aMessage, aWParam, aLParam,
-                                        aResult);
+                                        aRetValue, aEatMessage);
 }
 
 // static

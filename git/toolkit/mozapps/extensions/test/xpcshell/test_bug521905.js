@@ -29,7 +29,7 @@ function run_test() {
       do_check_neq(addon, null);
       do_check_true(addon.isActive);
 
-      do_execute_soon(run_test_1);
+      run_test_1();
     });
   });
 }
@@ -42,7 +42,7 @@ function run_test_1() {
     do_check_neq(addon, null);
     do_check_false(addon.isActive);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 

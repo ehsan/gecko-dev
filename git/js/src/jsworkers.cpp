@@ -367,7 +367,7 @@ WorkerThread::handleAsmJSWorkload(WorkerThreadState &state)
     // On failure, signal parent for harvesting in CancelOutstandingJobs().
     if (!success) {
         asmData = NULL;
-        state.noteAsmJSFailure(asmData->func);
+        state.noteAsmJSFailure(asmData->funcNum);
         state.notify(WorkerThreadState::MAIN);
         return;
     }

@@ -327,8 +327,8 @@ public:
   virtual GLContext* gl() const MOZ_OVERRIDE { return mGLContext; }
   virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(aType == RGBARectLayerProgramType, "unexpected program type");
-    return mRGBARectProgram;
+    MOZ_ASSERT(aType == BGRARectLayerProgramType, "unexpected program type");
+    return mBGRARectProgram;
   }
   virtual void BindAndDrawQuad(ShaderProgramOGL *aProg) MOZ_OVERRIDE;
 
@@ -343,7 +343,7 @@ public:
 
 protected:
   nsRefPtr<mozilla::gl::GLContext> mGLContext;
-  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mRGBARectProgram;
+  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mBGRARectProgram;
   GLuint mQuadVBO;
 };
 
@@ -2603,8 +2603,8 @@ GLPresenter::GLPresenter(GLContext* aContext)
 {
   mGLContext->SetFlipped(true);
   mGLContext->MakeCurrent();
-  mRGBARectProgram = new ShaderProgramOGL(mGLContext,
-    ProgramProfileOGL::GetProfileFor(RGBARectLayerProgramType, MaskNone));
+  mBGRARectProgram = new ShaderProgramOGL(mGLContext,
+    ProgramProfileOGL::GetProfileFor(BGRARectLayerProgramType, MaskNone));
 
   // Create mQuadVBO.
   mGLContext->fGenBuffers(1, &mQuadVBO);
@@ -2668,7 +2668,7 @@ GLPresenter::BeginFrame(nsIntSize aRenderSize)
   gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
 
-  mRGBARectProgram->CheckAndSetProjectionMatrix(matrix3d);
+  mBGRARectProgram->CheckAndSetProjectionMatrix(matrix3d);
 
   // Default blend function implements "OVER"
   mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,

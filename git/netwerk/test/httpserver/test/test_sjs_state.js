@@ -6,9 +6,7 @@
 
 // exercises the server's state-preservation API
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
+const PORT = 4444;
 
 var srv;
 
@@ -19,7 +17,7 @@ function run_test()
   srv.registerDirectory("/", sjsDir);
   srv.registerContentType("sjs", "sjs");
   srv.registerPathHandler("/path-handler", pathHandler);
-  srv.start(-1);
+  srv.start(PORT);
 
   function done()
   {
@@ -78,35 +76,8 @@ function pathHandler(request, response)
  * BEGIN TESTS *
  ***************/
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
-    new Test(URL + "/state1.sjs?" +
-                    "newShared=newShared&newPrivate=newPrivate",
-                    null, start_initial, null),
-    new Test(URL + "/state1.sjs?" +
-                    "newShared=newShared2&newPrivate=newPrivate2",
-                    null, start_overwrite, null),
-    new Test(URL + "/state1.sjs?" +
-                    "newShared=&newPrivate=newPrivate3",
-                    null, start_remove, null),
-    new Test(URL + "/path-handler",
-                    null, start_handler, null),
-    new Test(URL + "/path-handler",
-                    null, start_handler_again, null),
-    new Test(URL + "/state2.sjs?" +
-                    "newShared=newShared4&newPrivate=newPrivate4",
-                    null, start_other_initial, null),
-    new Test(URL + "/state2.sjs?" +
-                    "newShared=",
-                    null, start_other_remove_ignore, null),
-    new Test(URL + "/state2.sjs?" +
-                    "newShared=newShared5&newPrivate=newPrivate5",
-                    null, start_other_set_new, null),
-    new Test(URL + "/state1.sjs?" +
-                    "newShared=done!&newPrivate=",
-                    null, start_set_remove_original, null)
-  ];
-});
+var test;
+var tests = [];
 
 /* Hack around bug 474845 for now. */
 function getHeaderFunction(ch)
@@ -138,26 +109,54 @@ function expectValues(ch, oldShared, newShared, oldPrivate, newPrivate)
   do_check_eq(getHeader("X-New-Private-Value"), newPrivate);
 }
 
+
+test = new Test("http://localhost:4444/state1.sjs?" +
+                "newShared=newShared&newPrivate=newPrivate",
+                null, start_initial, null);
+tests.push(test);
+
 function start_initial(ch, cx)
 {
 dumpn("XXX start_initial");
   expectValues(ch, "", "newShared", "", "newPrivate");
 }
 
+
+test = new Test("http://localhost:4444/state1.sjs?" +
+                "newShared=newShared2&newPrivate=newPrivate2",
+                null, start_overwrite, null);
+tests.push(test);
+
 function start_overwrite(ch, cx)
 {
   expectValues(ch, "newShared", "newShared2", "newPrivate", "newPrivate2");
 }
+
+
+test = new Test("http://localhost:4444/state1.sjs?" +
+                "newShared=&newPrivate=newPrivate3",
+                null, start_remove, null);
+tests.push(test);
 
 function start_remove(ch, cx)
 {
   expectValues(ch, "newShared2", "", "newPrivate2", "newPrivate3");
 }
 
+
+test = new Test("http://localhost:4444/path-handler",
+                null, start_handler, null);
+tests.push(test);
+
 function start_handler(ch, cx)
 {
   expectValues(ch, "", "pathHandlerShared", "", "pathHandlerPrivate");
 }
+
+
+test = new Test("http://localhost:4444/path-handler",
+                null, start_handler_again, null);
+tests.push(test);
 
 function start_handler_again(ch, cx)
 {
@@ -165,20 +164,44 @@ function start_handler_again(ch, cx)
                "pathHandlerPrivate", "pathHandlerPrivate2");
 }
 
+
+test = new Test("http://localhost:4444/state2.sjs?" +
+                "newShared=newShared4&newPrivate=newPrivate4",
+                null, start_other_initial, null);
+tests.push(test);
+
 function start_other_initial(ch, cx)
 {
   expectValues(ch, "", "newShared4", "", "newPrivate4");
 }
+
+
+test = new Test("http://localhost:4444/state2.sjs?" +
+                "newShared=",
+                null, start_other_remove_ignore, null);
+tests.push(test);
 
 function start_other_remove_ignore(ch, cx)
 {
   expectValues(ch, "newShared4", "", "newPrivate4", "");
 }
 
+
+test = new Test("http://localhost:4444/state2.sjs?" +
+                "newShared=newShared5&newPrivate=newPrivate5",
+                null, start_other_set_new, null);
+tests.push(test);
+
 function start_other_set_new(ch, cx)
 {
   expectValues(ch, "", "newShared5", "newPrivate4", "newPrivate5");
 }
+
+
+test = new Test("http://localhost:4444/state1.sjs?" +
+                "newShared=done!&newPrivate=",
+                null, start_set_remove_original, null);
+tests.push(test);
 
 function start_set_remove_original(ch, cx)
 {

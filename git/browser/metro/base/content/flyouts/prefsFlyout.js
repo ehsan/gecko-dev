@@ -21,9 +21,8 @@ let PrefsFlyout = {
 
     this._elements = {};
     [
-      ['prefsFlyout',  'prefs-flyoutpanel'],
-      ['dntNoPref',    'prefs-dnt-nopref'],
-      ['telemetryPref','prefs-telemetry'],
+      ['prefsFlyout', 'prefs-flyoutpanel'],
+      ['dntNoPref',   'prefs-dnt-nopref'],
     ].forEach(function(aElement) {
       let [name, id] = aElement;
       XPCOMUtils.defineLazyGetter(self._elements, name, function() {
@@ -48,9 +47,5 @@ let PrefsFlyout = {
 
     // When "tell sites nothing about my preferences" is selected, disable do not track.
     Services.prefs.setBoolPref("privacy.donottrackheader.enabled", !selected);
-  },
-
-  onTelemetryPreferenceChanged: function onTelemetryPreferenceChanged(aBool) {
-    Services.prefs.setBoolPref("toolkit.telemetry.enabled", aBool);
   }
 };

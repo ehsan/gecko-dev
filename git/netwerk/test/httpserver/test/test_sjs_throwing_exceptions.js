@@ -10,19 +10,15 @@
  * then preventing any file from being opened).
  */
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
-
-var srv;
+const PORT = 4444;
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
   var sjsDir = do_get_file("data/sjs/");
   srv.registerDirectory("/", sjsDir);
   srv.registerContentType("sjs", "sjs");
-  srv.start(-1);
+  srv.start(PORT);
 
   function done()
   {
@@ -45,15 +41,16 @@ var lastPassed = false;
 // This hits the open-file limit for me on OS X; your mileage may vary.
 const TEST_RUNS = 250;
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  var _tests = new Array(TEST_RUNS + 1);
-  var _test = new Test(URL + "/thrower.sjs?throw", null, start_thrower);
-  for (var i = 0; i < TEST_RUNS; i++)
-    _tests[i] = _test;
-  // ...and don't forget to stop!
-  _tests[TEST_RUNS] = new Test(URL + "/thrower.sjs", null, start_last);
-  return _tests;
-});
+var test = new Test("http://localhost:4444/thrower.sjs?throw",
+                    null, start_thrower);
+
+var tests = new Array(TEST_RUNS + 1);
+for (var i = 0; i < TEST_RUNS; i++)
+  tests[i] = test;
+
+// ...and don't forget to stop!
+tests[TEST_RUNS] = new Test("http://localhost:4444/thrower.sjs",
+                            null, start_last);
 
 function start_thrower(ch, cx)
 {

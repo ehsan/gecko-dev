@@ -7,9 +7,9 @@
 #ifndef ds_BitArray_h
 #define ds_BitArray_h
 
-#include "mozilla/TemplateLib.h"
+#include "jstypes.h" 
 
-#include "jstypes.h"
+#include "js/TemplateLib.h" 
 
 namespace js {
 
@@ -54,7 +54,7 @@ class BitArray {
   private:
     inline void getMarkWordAndMask(size_t offset,
                                    uintptr_t *indexp, uintptr_t *maskp) const {
-        *indexp = offset >> mozilla::tl::FloorLog2<JS_BITS_PER_WORD>::value;
+        *indexp = offset >> tl::FloorLog2<JS_BITS_PER_WORD>::result;
         *maskp = uintptr_t(1) << (offset & (JS_BITS_PER_WORD - 1));
     }
 };

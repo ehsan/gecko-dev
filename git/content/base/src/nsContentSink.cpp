@@ -1257,9 +1257,10 @@ nsContentSink::IsTimeToNotify()
   }
 
   PRTime now = PR_Now();
+  int64_t interval, diff;
 
-  int64_t interval = GetNotificationInterval();
-  int64_t diff = now - mLastNotificationTime;
+  LL_I2L(interval, GetNotificationInterval());
+  diff = now - mLastNotificationTime;
 
   if (diff > interval) {
     mBackoffCount--;

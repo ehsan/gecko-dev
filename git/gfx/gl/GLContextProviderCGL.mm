@@ -207,9 +207,8 @@ public:
                                         SharedTextureHandle sharedHandle,
                                         SharedHandleDetails& details)
     {
-        MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
         details.mTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
-        details.mTextureFormat = surf->HasAlpha() ? FORMAT_R8G8B8A8 : FORMAT_R8G8B8X8;
+        details.mTextureFormat = FORMAT_R8G8B8A8;
         return true;
     }
 
@@ -217,7 +216,8 @@ public:
                                     SharedTextureHandle sharedHandle)
     {
         MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
-        surf->CGLTexImageIOSurface2D(mContext);
+        surf->CGLTexImageIOSurface2D(mContext, LOCAL_GL_RGBA, LOCAL_GL_BGRA,
+                                     LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, 0);
         return true;
     }
 

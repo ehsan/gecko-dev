@@ -6,9 +6,10 @@
 
 // tests the registerDirectory API
 
-XPCOMUtils.defineLazyGetter(this, "BASE", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
+const BASE = "http://localhost:4444";
+
+var tests = [];
+var test;
 
 
 function nocache(ch)
@@ -49,190 +50,234 @@ function checkFile(ch, cx, status, data)
               fileContents(actualFile));
 }
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
 
 /***********************
  * without a base path *
  ***********************/
-    new Test(BASE + "/test_registerdirectory.js",
+
+test = new Test(BASE + "/test_registerdirectory.js",
                 nocache, notFound, null),
+tests.push(test);
+
 
 /********************
  * with a base path *
  ********************/
-    new Test(BASE + "/test_registerdirectory.js",
-           function(ch)
-           {
-             nocache(ch);
-             serverBasePath = testsDirectory.clone();
-             srv.registerDirectory("/", serverBasePath);
-           },
-           null,
-           checkFile),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  serverBasePath = testsDirectory.clone();
+                  srv.registerDirectory("/", serverBasePath);
+                },
+                null,
+                checkFile);
+tests.push(test);
+
 
 /*****************************
  * without a base path again *
  *****************************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              serverBasePath = null;
-              srv.registerDirectory("/", serverBasePath);
-            },
-            notFound,
-            null),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  serverBasePath = null;
+                  srv.registerDirectory("/", serverBasePath);
+                },
+                notFound,
+                null);
+tests.push(test);
+
 
 /***************************
  * registered path handler *
  ***************************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              srv.registerPathHandler("/test_registerdirectory.js",
-                                      override_test_registerdirectory);
-            },
-            checkOverride,
-            null),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  srv.registerPathHandler("/test_registerdirectory.js",
+                                          override_test_registerdirectory);
+                },
+                checkOverride,
+                null);
+tests.push(test);
+
 
 /************************
  * removed path handler *
  ************************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function init_registerDirectory6(ch)
-            {
-              nocache(ch);
-              srv.registerPathHandler("/test_registerdirectory.js", null);
-            },
-            notFound,
-            null),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function init_registerDirectory6(ch)
+                {
+                  nocache(ch);
+                  srv.registerPathHandler("/test_registerdirectory.js", null);
+                },
+                notFound,
+                null);
+tests.push(test);
+
 
 /********************
  * with a base path *
  ********************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
 
-              // set the base path again
-              serverBasePath = testsDirectory.clone();
-              srv.registerDirectory("/", serverBasePath);
-            },
-            null,
-            checkFile),
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+
+                  // set the base path again
+                  serverBasePath = testsDirectory.clone();
+                  srv.registerDirectory("/", serverBasePath);
+                },
+                null,
+                checkFile);
+tests.push(test);
+
 
 /*************************
  * ...and a path handler *
  *************************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              srv.registerPathHandler("/test_registerdirectory.js",
-                                      override_test_registerdirectory);
-            },
-            checkOverride,
-            null),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  srv.registerPathHandler("/test_registerdirectory.js",
+                                          override_test_registerdirectory);
+                },
+                checkOverride,
+                null);
+tests.push(test);
+
 
 /************************
  * removed base handler *
  ************************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              serverBasePath = null;
-              srv.registerDirectory("/", serverBasePath);
-            },
-            checkOverride,
-            null),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  serverBasePath = null;
+                  srv.registerDirectory("/", serverBasePath);
+                },
+                checkOverride,
+                null);
+tests.push(test);
+
 
 /************************
  * removed path handler *
  ************************/
-    new Test(BASE + "/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              srv.registerPathHandler("/test_registerdirectory.js", null);
-            },
-            notFound,
-            null),
+
+test = new Test(BASE + "/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  srv.registerPathHandler("/test_registerdirectory.js", null);
+                },
+                notFound,
+                null);
+tests.push(test);
+
 
 /*************************
  * mapping set up, works *
  *************************/
-    new Test(BASE + "/foo/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              serverBasePath = testsDirectory.clone();
-              srv.registerDirectory("/foo/", serverBasePath);
-            },
-            check200,
-            null),
+
+test = new Test(BASE + "/foo/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  serverBasePath = testsDirectory.clone();
+                  srv.registerDirectory("/foo/", serverBasePath);
+                },
+                check200,
+                null);
+tests.push(test);
+
 
 /*********************
  * no mapping, fails *
  *********************/
-    new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
-            nocache,
-            notFound,
-            null),
+
+test = new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
+                nocache,
+                notFound,
+                null);
+tests.push(test);
+
 
 /******************
  * mapping, works *
  ******************/
-    new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              srv.registerDirectory("/foo/test_registerdirectory.js/",
-                                    serverBasePath);
-            },
-            null,
-            checkFile),
+
+test = new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  srv.registerDirectory("/foo/test_registerdirectory.js/",
+                                        serverBasePath);
+                },
+                null,
+                checkFile);
+tests.push(test);
+
 
 /************************************
  * two mappings set up, still works *
  ************************************/
-    new Test(BASE + "/foo/test_registerdirectory.js",
-                nocache, null, checkFile),
+
+test = new Test(BASE + "/foo/test_registerdirectory.js",
+                nocache, null, checkFile);
+tests.push(test);
+
 
 /**************************
  * remove topmost mapping *
  **************************/
-    new Test(BASE + "/foo/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              srv.registerDirectory("/foo/", null);
-            },
-            notFound,
-            null),
+
+test = new Test(BASE + "/foo/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  srv.registerDirectory("/foo/", null);
+                },
+                notFound,
+                null);
+tests.push(test);
+
 
 /**************************************
  * lower mapping still present, works *
  **************************************/
-    new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
-                nocache, null, checkFile),
+
+test = new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
+                nocache, null, checkFile);
+tests.push(test);
+
 
 /*******************
  * mapping removed *
  *******************/
-    new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
-            function(ch)
-            {
-              nocache(ch);
-              srv.registerDirectory("/foo/test_registerdirectory.js/", null);
-            },
-            notFound,
-            null)
-  ];
-});
+
+test = new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
+                function(ch)
+                {
+                  nocache(ch);
+                  srv.registerDirectory("/foo/test_registerdirectory.js/", null);
+                },
+                notFound,
+                null);
+tests.push(test);
+
 
 
 var srv;
@@ -244,7 +289,7 @@ function run_test()
   testsDirectory = do_get_cwd();
 
   srv = createServer();
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }

@@ -58,7 +58,7 @@ ContentPermissionPrompt.prototype = {
        return;
 
     let chromeWin = this.getChromeForRequest(request);
-    let tab = chromeWin.BrowserApp.getTabForWindow(request.window.top);
+    let tab = chromeWin.BrowserApp.getTabForWindow(request.window);
     if (!tab)
       return;
 

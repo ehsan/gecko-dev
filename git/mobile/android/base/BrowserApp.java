@@ -66,7 +66,6 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
-import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.EnumSet;
@@ -114,6 +113,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private Vector<MenuItemInfo> mAddonMenuItemsCache;
+    private ButtonToast mToast;
     private PropertyAnimator mMainLayoutAnimator;
 
     private static final Interpolator sTabsInterpolator = new Interpolator() {
@@ -391,14 +391,18 @@ abstract public class BrowserApp extends GeckoApp
     public void onCreate(Bundle savedInstanceState) {
         mAboutHomeStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_ABOUTHOME");
 
-        String args = getIntent().getStringExtra("args");
-        if (args != null && args.contains("--guest-mode")) {
-            mProfile = GeckoProfile.createGuestProfile(this);
-        }
-
         super.onCreate(savedInstanceState);
 
         mBrowserToolbar = (BrowserToolbar) findViewById(R.id.browser_toolbar);
+
+        mToast = new ButtonToast(findViewById(R.id.toast), new ButtonToast.ToastListener() {
+            @Override
+            public void onButtonClicked(CharSequence token) {
+                if (ADD_SHORTCUT_TOAST.equals(token)) {
+                    showBookmarkDialog();
+                }
+            }
+        });
 
         ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideTabsTouchListener());
         ((GeckoApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
@@ -1445,17 +1449,31 @@ abstract public class BrowserApp extends GeckoApp
         });
 
         if (info.icon != null) {
-            BitmapUtils.getDrawable(this, info.icon, new BitmapUtils.BitmapLoader() {
-                @Override
-                public void onBitmapFound(Drawable d) {
-                    if (d == null) {
-                        item.setIcon(R.drawable.ic_menu_addons_filler);
-                        return;
+            if (info.icon.startsWith("data")) {
+                BitmapDrawable drawable = new BitmapDrawable(BitmapUtils.getBitmapFromDataURI(info.icon));
+                item.setIcon(drawable);
+            }
+            else if (info.icon.startsWith("jar:") || info.icon.startsWith("file://")) {
+                ThreadUtils.postToBackgroundThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            URL url = new URL(info.icon);
+                            InputStream is = (InputStream) url.getContent();
+                            try {
+                                Drawable drawable = Drawable.createFromStream(is, "src");
+                                item.setIcon(drawable);
+                            } finally {
+                                is.close();
+                            }
+                        } catch (Exception e) {
+                            Log.w(LOGTAG, "Unable to set icon", e);
+                        }
                     }
-
-                    item.setIcon(d);
-                }
-            });
+                });
+            } else {
+                item.setIcon(R.drawable.ic_menu_addons_filler);
+            }
         } else {
             item.setIcon(R.drawable.ic_menu_addons_filler);
         }
@@ -1602,8 +1620,6 @@ abstract public class BrowserApp extends GeckoApp
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
         MenuItem findInPage = aMenu.findItem(R.id.find_in_page);
         MenuItem desktopMode = aMenu.findItem(R.id.desktop_mode);
-        MenuItem enterGuestMode = aMenu.findItem(R.id.enter_guest_mode);
-        MenuItem exitGuestMode = aMenu.findItem(R.id.exit_guest_mode);
 
         // Only show the "Quit" menu item on pre-ICS or television devices.
         // In ICS+, it's easy to kill an app through the task switcher.
@@ -1665,11 +1681,6 @@ abstract public class BrowserApp extends GeckoApp
 
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 
-        if (mProfile.inGuestMode())
-            exitGuestMode.setVisible(true);
-        else
-            enterGuestMode.setVisible(true);
-
         return true;
     }
 
@@ -1688,18 +1699,10 @@ abstract public class BrowserApp extends GeckoApp
                     } else {
                         tab.addBookmark();
                         mToast.show(false,
-                            getResources().getString(R.string.bookmark_added),
-                            getResources().getString(R.string.bookmark_options),
-                            null,
-                            new ButtonToast.ToastListener() {
-                                @Override
-                                public void onButtonClicked() {
-                                    showBookmarkDialog();
-                                }
-
-                                @Override
-                                public void onToastHidden(ButtonToast.ReasonHidden reason) { }
-                            });
+                                    getResources().getString(R.string.bookmark_added),
+                                    getResources().getString(R.string.bookmark_options),
+                                    0,
+                                    ADD_SHORTCUT_TOAST);
                         item.setIcon(R.drawable.ic_menu_bookmark_remove);
                     }
                 }
@@ -1757,14 +1760,6 @@ abstract public class BrowserApp extends GeckoApp
                 return true;
             case R.id.new_private_tab:
                 addPrivateTab();
-                return true;
-            case R.id.enter_guest_mode:
-                doRestart("--guest-mode");
-                System.exit(0);
-                return true;
-            case R.id.exit_guest_mode:
-                doRestart();
-                System.exit(0);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);

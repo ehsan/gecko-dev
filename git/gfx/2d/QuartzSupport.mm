@@ -10,7 +10,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import <AppKit/NSOpenGL.h>
 #include <dlfcn.h>
-#include "GLDefs.h"
 
 #define IOSURFACE_FRAMEWORK_PATH \
   "/System/Library/Frameworks/IOSurface.framework/IOSurface"
@@ -309,8 +308,7 @@ MacIOSurface::~MacIOSurface() {
 }
 
 TemporaryRef<MacIOSurface> MacIOSurface::CreateIOSurface(int aWidth, int aHeight,
-                                                         double aContentsScaleFactor,
-                                                         bool aHasAlpha) {
+                                                         double aContentsScaleFactor) {
   if (!MacIOSurfaceLib::isInit() || aContentsScaleFactor <= 0)
     return nullptr;
 
@@ -346,7 +344,7 @@ TemporaryRef<MacIOSurface> MacIOSurface::CreateIOSurface(int aWidth, int aHeight
   if (!surfaceRef)
     return nullptr;
 
-  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef, aContentsScaleFactor, aHasAlpha);
+  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef, aContentsScaleFactor);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nullptr;
@@ -356,8 +354,7 @@ TemporaryRef<MacIOSurface> MacIOSurface::CreateIOSurface(int aWidth, int aHeight
 }
 
 TemporaryRef<MacIOSurface> MacIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID,
-                                                       double aContentsScaleFactor,
-                                                       bool aHasAlpha) { 
+                                                       double aContentsScaleFactor) { 
   if (!MacIOSurfaceLib::isInit() || aContentsScaleFactor <= 0)
     return nullptr;
 
@@ -365,7 +362,7 @@ TemporaryRef<MacIOSurface> MacIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID,
   if (!surfaceRef)
     return nullptr;
 
-  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef, aContentsScaleFactor, aHasAlpha);
+  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef, aContentsScaleFactor);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nullptr;
@@ -416,7 +413,6 @@ void MacIOSurface::Unlock() {
 using mozilla::gfx::SourceSurface;
 using mozilla::gfx::SourceSurfaceRawData;
 using mozilla::gfx::IntSize;
-using mozilla::gfx::SurfaceFormat;
 
 TemporaryRef<SourceSurface>
 MacIOSurface::GetAsSurface() {
@@ -434,27 +430,25 @@ MacIOSurface::GetAsSurface() {
 
   Unlock();
 
-  SurfaceFormat format = HasAlpha() ? mozilla::gfx::FORMAT_B8G8R8A8 :
-                                      mozilla::gfx::FORMAT_B8G8R8X8;
-
   RefPtr<SourceSurfaceRawData> surf = new SourceSurfaceRawData();
-  surf->InitWrappingData(dataCpy, IntSize(ioWidth, ioHeight), bytesPerRow, format, true);
+  surf->InitWrappingData(dataCpy, IntSize(ioWidth, ioHeight), bytesPerRow, mozilla::gfx::FORMAT_B8G8R8A8, true);
 
   return surf.forget();
 }
 
 CGLError 
-MacIOSurface::CGLTexImageIOSurface2D(void *c)
+MacIOSurface::CGLTexImageIOSurface2D(void *c,
+                                    GLenum internalFormat, GLenum format, 
+                                    GLenum type, GLuint plane)
 {
   NSOpenGLContext *ctxt = static_cast<NSOpenGLContext*>(c);
   return MacIOSurfaceLib::CGLTexImageIOSurface2D((CGLContextObj)[ctxt CGLContextObj],
                                                 GL_TEXTURE_RECTANGLE_ARB,
-                                                HasAlpha() ? LOCAL_GL_RGBA : LOCAL_GL_RGB,
+                                                internalFormat,
                                                 GetDevicePixelWidth(),
                                                 GetDevicePixelHeight(),
-                                                LOCAL_GL_BGRA,
-                                                LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV,
-                                                mIOSurfacePtr, 0);
+                                                format, type,
+                                                mIOSurfacePtr, plane);
 }
 
 CGColorSpaceRef CreateSystemColorSpace() {
@@ -1083,8 +1077,7 @@ CGImageRef MacIOSurface::CreateImageFromIOSurfaceContext(CGContextRef aContext) 
 }
 
 TemporaryRef<MacIOSurface> MacIOSurface::IOSurfaceContextGetSurface(CGContextRef aContext,
-                                                                    double aContentsScaleFactor,
-                                                                    bool aHasAlpha) {
+                                                                    double aContentsScaleFactor) {
   if (!MacIOSurfaceLib::isInit() || aContentsScaleFactor <= 0)
     return nullptr;
 
@@ -1095,7 +1088,7 @@ TemporaryRef<MacIOSurface> MacIOSurface::IOSurfaceContextGetSurface(CGContextRef
   // Retain the IOSurface because MacIOSurface will release it
   CFRetain(surfaceRef);
 
-  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef, aContentsScaleFactor, aHasAlpha);
+  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef, aContentsScaleFactor);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nullptr;

@@ -104,7 +104,9 @@ rdf_ParseDate(const nsACString &aTime)
             usec += *digit - '0';
         }
 
-        t += usec;
+        PRTime temp;
+        LL_I2L(temp, usec);
+        t += temp;
     }
 
     return t;

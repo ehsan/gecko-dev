@@ -104,7 +104,12 @@ inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
   } else if (aShowingAnonymousContent) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     if (content) {
-      nsIContent* bparent = content->GetXBLInsertionParent();
+      nsIContent* bparent = nullptr;
+      nsRefPtr<nsBindingManager> bindingManager = inLayoutUtils::GetBindingManagerFor(aNode);
+      if (bindingManager) {
+        bparent = bindingManager->GetInsertionParent(content);
+      }
+
       parent = do_QueryInterface(bparent);
     }
   }
@@ -541,7 +546,8 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   NS_ENSURE_ARG_POINTER(content);
 
-  nsXBLBinding *binding = content->GetXBLBinding();
+  nsIDocument *ownerDoc = content->OwnerDoc();
+  nsXBLBinding *binding = ownerDoc->BindingManager()->GetBinding(content);
 
   while (binding) {
     urls->AppendElement(binding->PrototypeBinding()->BindingURI(), false);

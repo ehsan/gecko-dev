@@ -25,15 +25,13 @@ public:
   typedef mozilla::gfx::SourceSurface SourceSurface;
 
   static mozilla::TemporaryRef<MacIOSurface> CreateIOSurface(int aWidth, int aHeight,
-                                                             double aContentsScaleFactor = 1.0,
-                                                             bool aHasAlpha = true);
+                                                             double aContentsScaleFactor = 1.0);
   static void ReleaseIOSurface(MacIOSurface *aIOSurface);
   static mozilla::TemporaryRef<MacIOSurface> LookupSurface(IOSurfaceID aSurfaceID,
-                                                           double aContentsScaleFactor = 1.0,
-                                                           bool aHasAlpha = true);
+                                                           double aContentsScaleFactor = 1.0);
 
-  MacIOSurface(const void *aIOSurfacePtr, double aContentsScaleFactor = 1.0, bool aHasAlpha = true)
-    : mIOSurfacePtr(aIOSurfacePtr), mContentsScaleFactor(aContentsScaleFactor), mHasAlpha(aHasAlpha) {}
+  MacIOSurface(const void *aIOSurfacePtr, double aContentsScaleFactor = 1.0)
+    : mIOSurfacePtr(aIOSurfacePtr), mContentsScaleFactor(aContentsScaleFactor) {}
   ~MacIOSurface();
   IOSurfaceID GetIOSurfaceID();
   void *GetBaseAddress();
@@ -49,24 +47,23 @@ public:
   size_t GetBytesPerRow();
   void Lock();
   void Unlock();
-  bool HasAlpha() { return mHasAlpha; }
   // We would like to forward declare NSOpenGLContext, but it is an @interface
   // and this file is also used from c++, so we use a void *.
-  CGLError CGLTexImageIOSurface2D(void *ctxt);
+  CGLError CGLTexImageIOSurface2D(void *ctxt,
+                                  GLenum internalFormat, GLenum format,
+                                  GLenum type, GLuint plane);
   mozilla::TemporaryRef<SourceSurface> GetAsSurface();
   CGContextRef CreateIOSurfaceContext();
 
   // FIXME This doesn't really belong here
   static CGImageRef CreateImageFromIOSurfaceContext(CGContextRef aContext);
   static mozilla::TemporaryRef<MacIOSurface> IOSurfaceContextGetSurface(CGContextRef aContext,
-                                                                        double aContentsScaleFactor = 1.0,
-                                                                        bool aHasAlpha = true);
+                                                                        double aContentsScaleFactor = 1.0);
 
 private:
   friend class nsCARenderer;
   const void* mIOSurfacePtr;
   double mContentsScaleFactor;
-  bool mHasAlpha;
 };
 
 #endif

@@ -13,6 +13,7 @@
 #include "jslock.h"
 
 #include "js/RootingAPI.h"
+#include "js/TemplateLib.h"
 #include "vm/Shape.h"
 #include "vm/ForkJoin.h"
 

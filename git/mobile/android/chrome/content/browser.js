@@ -204,9 +204,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Rect",
                                   "resource://gre/modules/Geometry.jsm");
 
 function resolveGeckoURI(aURI) {
-  if (!aURI)
-    throw "Can't resolve an empty uri";
-
   if (aURI.startsWith("chrome://")) {
     let registry = Cc['@mozilla.org/chrome/chrome-registry;1'].getService(Ci["nsIChromeRegistry"]);
     return registry.convertChromeURL(Services.io.newURI(aURI, null, null)).spec;
@@ -994,7 +991,7 @@ var BrowserApp = {
   getPreferences: function getPreferences(aPrefsRequest, aListen) {
     let prefs = [];
 
-    for (let prefName of aPrefsRequest.preferences) {
+    for each (let prefName in aPrefsRequest.preferences) {
       let pref = {
         name: prefName,
         type: "",
@@ -1556,8 +1553,6 @@ var NativeWindow = {
     Services.obs.addObserver(this, "PageActions:Clicked", false);
     Services.obs.addObserver(this, "PageActions:LongClicked", false);
     Services.obs.addObserver(this, "Doorhanger:Reply", false);
-    Services.obs.addObserver(this, "Toast:Click", false);
-    Services.obs.addObserver(this, "Toast:Hidden", false);
     this.contextmenus.init();
   },
 
@@ -1566,8 +1561,6 @@ var NativeWindow = {
     Services.obs.removeObserver(this, "PageActions:Clicked");
     Services.obs.removeObserver(this, "PageActions:LongClicked");
     Services.obs.removeObserver(this, "Doorhanger:Reply");
-    Services.obs.removeObserver(this, "Toast:Click", false);
-    Services.obs.removeObserver(this, "Toast:Hidden", false);
     this.contextmenus.uninit();
   },
 
@@ -1587,26 +1580,12 @@ var NativeWindow = {
   },
 
   toast: {
-    _callbacks: {},
-    show: function(aMessage, aDuration, aOptions) {
-      let msg = {
+    show: function(aMessage, aDuration) {
+      sendMessageToJava({
         type: "Toast:Show",
         message: aMessage,
         duration: aDuration
-      };
-
-      if (aOptions && aOptions.button) {
-        msg.button = {
-          label: aOptions.button.label,
-          id: uuidgen.generateUUID().toString(),
-          // If the caller specified a button, make sure we convert any chrome urls
-          // to jar:jar urls so that the frontend can show them
-          icon: aOptions.button.icon ? resolveGeckoURI(aOptions.button.icon) : null,
-        };
-        this._callbacks[msg.button.id] = aOptions.button.callback;
-      }
-
-      sendMessageToJava(msg);
+      });
     }
   },
 
@@ -1742,14 +1721,6 @@ var NativeWindow = {
     } else if (aTopic == "PageActions:LongClicked") {
         if (this.pageactions._items[aData].longClickCallback)
           this.pageactions._items[aData].longClickCallback();
-    } else if (aTopic == "Toast:Click") {
-      if (this.toast._callbacks[aData]) {
-        this.toast._callbacks[aData]();
-        delete this.toast._callbacks[aData];
-      }
-    } else if (aTopic == "Toast:Hidden") {
-      if (this.toast._callbacks[aData])
-        delete this.toast._callbacks[aData];
     } else if (aTopic == "Doorhanger:Reply") {
       let data = JSON.parse(aData);
       let reply_id = data["callback"];
@@ -2048,8 +2019,7 @@ var NativeWindow = {
         }
 
         // then check for any context menu items registered in the ui
-        for (let itemId of Object.keys(this.items)) {
-          let item = this.items[itemId];
+         for each (let item in this.items) {
           if (!this._getMenuItemForId(item.id) && item.matches(element, aX, aY)) {
             this.menuitems.push(item);
           }
@@ -2522,10 +2492,6 @@ nsBrowserAccess.prototype = {
 
   isTabContentWindow: function(aWindow) {
     return BrowserApp.getBrowserForWindow(aWindow) != null;
-  },
-
-  get contentWindow() {
-    return BrowserApp.selectedBrowser.contentWindow;
   }
 };
 
@@ -6464,7 +6430,7 @@ var SearchEngines = {
           formData.push({ name: escapedName, value: escapedValue });
           break;
         case "select-one":
-          for (let option of el.options) {
+          for each (let option in el.options) {
             if (option.selected) {
               formData.push({ name: escapedName, value: escapedValue });
               break;
@@ -7147,16 +7113,14 @@ let Reader = {
 
   getArticleForTab: function Reader_getArticleForTab(tabId, url, callback) {
     let tab = BrowserApp.getTabForId(tabId);
-    if (tab) {
-      let article = tab.savedArticle;
-      if (article && article.url == url) {
-        this.log("Saved article found in tab");
-        callback(article);
-        return;
-      }
-    }
+    let article = tab.savedArticle;
 
-    this.parseDocumentFromURL(url, callback);
+    if (article && article.url == url) {
+      this.log("Saved article found in tab");
+      callback(article);
+    } else {
+      this.parseDocumentFromURL(url, callback);
+    }
   },
 
   parseDocumentFromTab: function(tabId, callback) {

@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIDOMCallEvent.idl',
+    'nsIDOMNavigatorTelephony.idl',
     'nsIDOMTelephony.idl',
     'nsIDOMTelephonyCall.idl',
     'nsITelephonyProvider.idl',
