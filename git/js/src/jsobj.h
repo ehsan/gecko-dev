@@ -466,6 +466,8 @@ struct JSObject {
 
     inline void voidDenseOnlyArraySlots();  // used when converting a dense array to a slow array
 
+    JSBool makeDenseArraySlow(JSContext *cx);
+
     /*
      * Arguments-specific getters and setters.
      */
@@ -687,6 +689,8 @@ struct JSObject {
         if (map->ops->dropProperty)
             map->ops->dropProperty(cx, this, prop);
     }
+
+    JSCompartment *getCompartment(JSContext *cx);
 
     void swap(JSObject *obj);
 
