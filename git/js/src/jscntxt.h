@@ -106,8 +106,6 @@ class RegExpCompartment;
 class RegExpStatics;
 class ForkJoinSlice;
 
-namespace frontend { struct CompileError; }
-
 /*
  * Execution Context Overview:
  *
@@ -377,7 +375,7 @@ class ExclusiveContext : public ThreadSafeContext
         return runtime_->scriptDataTable();
     }
 
-#ifdef JS_WORKER_THREADS
+#if defined(JS_ION) && defined(JS_THREADSAFE)
     // Since JSRuntime::workerThreadState is necessarily initialized from the
     // main thread before the first worker thread can access it, there is no
     // possibility for a race read/writing it.
@@ -385,9 +383,6 @@ class ExclusiveContext : public ThreadSafeContext
         return runtime_->workerThreadState;
     }
 #endif
-
-    // Methods specific to any WorkerThread for the context.
-    frontend::CompileError &addPendingCompileError();
 };
 
 inline void
@@ -748,7 +743,7 @@ js_ReportErrorNumberUCArray(JSContext *cx, unsigned flags, JSErrorCallback callb
 #endif
 
 extern bool
-js_ExpandErrorArguments(js::ExclusiveContext *cx, JSErrorCallback callback,
+js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                         void *userRef, const unsigned errorNumber,
                         char **message, JSErrorReport *reportp,
                         js::ErrorArgumentsType argumentsType, va_list ap);
@@ -813,9 +808,6 @@ js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumb
                                     spindex, v, fallback, arg1, arg2))
 
 extern const JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
-
-char *
-js_strdup(js::ExclusiveContext *cx, const char *s);
 
 #ifdef JS_THREADSAFE
 # define JS_ASSERT_REQUEST_DEPTH(cx)  JS_ASSERT((cx)->runtime()->requestDepth >= 1)
@@ -972,11 +964,11 @@ class AutoAssertNoException
  */
 class ContextAllocPolicy
 {
-    ThreadSafeContext *const cx_;
+    JSContext *const cx_;
 
   public:
-    ContextAllocPolicy(ThreadSafeContext *cx) : cx_(cx) {}
-    ThreadSafeContext *context() const { return cx_; }
+    ContextAllocPolicy(JSContext *cx) : cx_(cx) {}
+    JSContext *context() const { return cx_; }
     void *malloc_(size_t bytes) { return cx_->malloc_(bytes); }
     void *calloc_(size_t bytes) { return cx_->calloc_(bytes); }
     void *realloc_(void *p, size_t oldBytes, size_t bytes) { return cx_->realloc_(p, oldBytes, bytes); }

@@ -173,14 +173,14 @@ static JSClass workerGlobalClass = {
     JS_ConvertStub,   NULL
 };
 
-ParseTask::ParseTask(ExclusiveContext *cx, const CompileOptions &options,
+ParseTask::ParseTask(Zone *zone, ExclusiveContext *cx, const CompileOptions &options,
                      const jschar *chars, size_t length, JSObject *scopeChain,
                      JS::OffThreadCompileCallback callback, void *callbackData)
-  : cx(cx), options(options), chars(chars), length(length),
+  : zone(zone), cx(cx), options(options), chars(chars), length(length),
     alloc(JSRuntime::TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE), scopeChain(scopeChain),
-    callback(callback), callbackData(callbackData), script(NULL), errors(cx)
+    callback(callback), callbackData(callbackData), script(NULL)
 {
-    JSRuntime *rt = scopeChain->runtimeFromMainThread();
+    JSRuntime *rt = zone->runtimeFromMainThread();
 
     if (options.principals())
         JS_HoldPrincipals(options.principals());
@@ -192,7 +192,7 @@ ParseTask::ParseTask(ExclusiveContext *cx, const CompileOptions &options,
 
 ParseTask::~ParseTask()
 {
-    JSRuntime *rt = scopeChain->runtimeFromMainThread();
+    JSRuntime *rt = zone->runtimeFromMainThread();
 
     if (options.principals())
         JS_DropPrincipals(rt, options.principals());
@@ -263,7 +263,7 @@ js::StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
     workercx->enterCompartment(global->compartment());
 
     ScopedJSDeletePtr<ParseTask> task(
-        cx->new_<ParseTask>(workercx.get(), options, chars, length,
+        cx->new_<ParseTask>(global->zone(), workercx.get(), options, chars, length,
                             scopeChain, callback, callbackData));
     if (!task)
         return false;
@@ -372,8 +372,10 @@ WorkerThreadState::cleanup(JSRuntime *rt)
     }
 
     // Clean up any parse tasks which haven't been finished yet.
-    while (!parseFinishedList.empty())
-        finishParseTask(/* maybecx = */ NULL, rt, parseFinishedList[0]);
+    while (!parseFinishedList.empty()) {
+        JSScript *script = parseFinishedList[0]->script;
+        finishParseTaskForScript(rt, script);
+    }
 }
 
 WorkerThreadState::~WorkerThreadState()
@@ -496,16 +498,15 @@ WorkerThreadState::canStartCompressionTask()
     return !compressionWorklist.empty();
 }
 
-JSScript *
-WorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *token)
+void
+WorkerThreadState::finishParseTaskForScript(JSRuntime *rt, JSScript *script)
 {
     ParseTask *parseTask = NULL;
 
-    // The token is a ParseTask* which should be in the finished list.
     {
         AutoLockWorkerThreadState lock(*rt->workerThreadState);
         for (size_t i = 0; i < parseFinishedList.length(); i++) {
-            if (parseFinishedList[i] == token) {
+            if (parseFinishedList[i]->script == script) {
                 parseTask = parseFinishedList[i];
                 parseFinishedList[i] = parseFinishedList.back();
                 parseFinishedList.popBack();
@@ -517,16 +518,23 @@ WorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *toke
 
     // Mark the zone as no longer in use by an ExclusiveContext, and available
     // to be collected by the GC.
-    rt->clearUsedByExclusiveThread(parseTask->cx->zone());
+    rt->clearUsedByExclusiveThread(parseTask->zone);
+
+    if (!script) {
+        // Parsing failed and there is nothing to finish, but there still may
+        // be lingering ParseTask instances holding roots which need to be
+        // cleaned up. The ParseTask which we picked might not be the right
+        // one but this is ok as finish calls will be 1:1 with calls that
+        // create a ParseTask.
+        js_delete(parseTask);
+        return;
+    }
 
     // Point the prototypes of any objects in the script's compartment to refer
     // to the corresponding prototype in the new compartment. This will briefly
     // create cross compartment pointers, which will be fixed by the
     // MergeCompartments call below.
-    for (gc::CellIter iter(parseTask->cx->zone(), gc::FINALIZE_TYPE_OBJECT);
-         !iter.done();
-         iter.next())
-    {
+    for (gc::CellIter iter(parseTask->zone, gc::FINALIZE_TYPE_OBJECT); !iter.done(); iter.next()) {
         types::TypeObject *object = iter.get<types::TypeObject>();
         JSObject *proto = object->proto;
         if (!proto)
@@ -543,19 +551,9 @@ WorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *toke
     }
 
     // Move the parsed script and all its contents into the desired compartment.
-    gc::MergeCompartments(parseTask->cx->compartment(), parseTask->scopeChain->compartment());
+    gc::MergeCompartments(parseTask->script->compartment(), parseTask->scopeChain->compartment());
 
-    // If we have a context, report any error or warnings generated during the
-    // parse.
-    if (maybecx) {
-        AutoCompartment ac(maybecx, parseTask->scopeChain);
-        for (size_t i = 0; i < parseTask->errors.length(); i++)
-            parseTask->errors[i].throwError(maybecx);
-    }
-
-    JSScript *script = parseTask->script;
     js_delete(parseTask);
-    return script;
 }
 
 void
@@ -674,14 +672,6 @@ ExclusiveContext::setWorkerThread(WorkerThread *workerThread)
     this->perThreadData = workerThread->threadData.addr();
 }
 
-frontend::CompileError &
-ExclusiveContext::addPendingCompileError()
-{
-    if (!workerThread->parseTask->errors.append(frontend::CompileError()))
-        MOZ_CRASH();
-    return workerThread->parseTask->errors.back();
-}
-
 void
 WorkerThread::handleParseWorkload(WorkerThreadState &state)
 {
@@ -701,7 +691,7 @@ WorkerThread::handleParseWorkload(WorkerThreadState &state)
     }
 
     // The callback is invoked while we are still off the main thread.
-    parseTask->callback(parseTask, parseTask->callbackData);
+    parseTask->callback(parseTask->script, parseTask->callbackData);
 
     // FinishOffThreadScript will need to be called on the script to
     // migrate it into the correct compartment.
@@ -1008,12 +998,6 @@ AutoPauseWorkersForGC::AutoPauseWorkersForGC(JSRuntime *rt MOZ_GUARD_OBJECT_NOTI
 
 AutoPauseWorkersForGC::~AutoPauseWorkersForGC()
 {
-}
-
-frontend::CompileError &
-ExclusiveContext::addPendingCompileError()
-{
-    MOZ_ASSUME_UNREACHABLE("Off thread compilation not available.");
 }
 
 #endif /* JS_WORKER_THREADS */

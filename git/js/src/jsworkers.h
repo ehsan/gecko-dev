@@ -19,7 +19,6 @@
 #include "jscntxt.h"
 #include "jslock.h"
 
-#include "frontend/TokenStream.h"
 #include "jit/Ion.h"
 
 namespace js {
@@ -120,7 +119,7 @@ class WorkerThreadState
         return asmJSFailedFunction;
     }
 
-    JSScript *finishParseTask(JSContext *maybecx, JSRuntime *rt, void *token);
+    void finishParseTaskForScript(JSRuntime *rt, JSScript *script);
     bool compressionInProgress(SourceCompressionTask *task);
     SourceCompressionTask *compressionTaskForSource(ScriptSource *ss);
 
@@ -367,6 +366,7 @@ struct AsmJSParallelTask
 
 struct ParseTask
 {
+    Zone *zone;
     ExclusiveContext *cx;
     CompileOptions options;
     const jschar *chars;
@@ -387,11 +387,7 @@ struct ParseTask
     // ParseTask.
     JSScript *script;
 
-    // Any errors or warnings produced during compilation. These are reported
-    // when finishing the script.
-    Vector<frontend::CompileError> errors;
-
-    ParseTask(ExclusiveContext *cx, const CompileOptions &options,
+    ParseTask(Zone *zone, ExclusiveContext *cx, const CompileOptions &options,
               const jschar *chars, size_t length, JSObject *scopeChain,
               JS::OffThreadCompileCallback callback, void *callbackData);
 

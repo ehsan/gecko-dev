@@ -192,7 +192,7 @@ typedef void
 
 namespace JS {
 
-typedef void (*OffThreadCompileCallback)(void *token, void *callbackData);
+typedef void (*OffThreadCompileCallback)(JSScript *script, void *callbackData);
 
 namespace shadow {
 

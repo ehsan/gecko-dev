@@ -19,6 +19,7 @@ template <typename T> class Handle;
 namespace mozilla {
 
 class WebGLActiveInfo MOZ_FINAL
+    : public nsISupports
 {
 public:
     WebGLActiveInfo(WebGLint size, WebGLenum type, const nsACString& name) :
@@ -43,7 +44,7 @@ public:
 
     JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
 
-   NS_INLINE_DECL_REFCOUNTING(WebGLActiveInfo)
+    NS_DECL_ISUPPORTS
 
 protected:
     WebGLint mSize;
