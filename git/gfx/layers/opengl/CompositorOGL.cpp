@@ -236,9 +236,6 @@ CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
   , mDestroyed(false)
 {
   MOZ_COUNT_CTOR(CompositorOGL);
-  mTextures[0] = 0;
-  mTextures[1] = 0;
-  mTextures[2] = 0;
   sBackend = LAYERS_OPENGL;
 }
 
@@ -282,29 +279,9 @@ CompositorOGL::AddPrograms(ShaderProgramType aType)
   }
 }
 
-GLuint
-CompositorOGL::GetTemporaryTexture(GLenum aTextureUnit)
-{
-  if (!mTextures[aTextureUnit - LOCAL_GL_TEXTURE0]) {
-    gl()->MakeCurrent();
-    gl()->fGenTextures(1, &mTextures[aTextureUnit - LOCAL_GL_TEXTURE0]);
-  }
-  return mTextures[aTextureUnit - LOCAL_GL_TEXTURE0];
-}
-
 void
 CompositorOGL::Destroy()
 {
-  if (gl()) {
-    gl()->MakeCurrent();
-    gl()->fDeleteTextures(3, mTextures);
-    mTextures[0] = 0;
-    mTextures[1] = 0;
-    mTextures[2] = 0;
-  } else {
-    MOZ_ASSERT(!mTextures[0] && !mTextures[1] && !mTextures[2]);
-  }
-
   if (!mDestroyed) {
     mDestroyed = true;
     CleanupResources();

@@ -6,7 +6,3 @@
 
 MODULE = 'ogg'
 
-CSRCS += [
-    'ogg_bitwise.c',
-    'ogg_framing.c',
-]

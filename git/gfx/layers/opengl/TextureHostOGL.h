@@ -21,7 +21,6 @@ namespace mozilla {
 namespace layers {
 
 class TextureImageTextureHostOGL;
-class CompositorOGL;
 
 /*
  * TextureHost implementations for the OpenGL backend.
@@ -569,11 +568,22 @@ class GrallocTextureHostOGL
   , public TextureSourceOGL
 {
 public:
-  GrallocTextureHostOGL();
+  GrallocTextureHostOGL()
+    : mGL(nullptr)
+    , mTextureTarget(0)
+    , mGLTexture(0)
+    , mEGLImage(0)
+  {
+  }
 
   ~GrallocTextureHostOGL();
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+
+  virtual GLuint GetTextureHandle()
+  {
+    return mGLTexture;
+  }
 
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
                           nsIntRegion* aRegion = nullptr,
@@ -642,13 +652,12 @@ public:
   }
 
 private:
-  gl::GLContext* gl() const;
-
   void DeleteTextures();
 
-  RefPtr<CompositorOGL> mCompositor;
+  RefPtr<gl::GLContext> mGL;
   android::sp<android::GraphicBuffer> mGraphicBuffer;
   GLenum mTextureTarget;
+  GLuint mGLTexture;
   EGLImage mEGLImage;
 };
 #endif

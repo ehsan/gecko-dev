@@ -18,7 +18,7 @@ VISIBILITY_FLAGS=
 endif
 
 
-DISABLED_CSRCS		= \
+CSRCS		= \
 		png.c \
 		pngerror.c \
 		pngget.c \
@@ -28,7 +28,7 @@ DISABLED_CSRCS		= \
 		$(NULL)
 
 # These files enable support for reading/writing PNGs
-DISABLED_CSRCS		+= \
+CSRCS		+= \
 		pngpread.c \
 		pngread.c \
 		pngrio.c \

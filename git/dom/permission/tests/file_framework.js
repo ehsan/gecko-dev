@@ -11,13 +11,11 @@
  *         These permissions are added after a sanity check and removed at
  *         test conclusion
  *
- * obj     (required for default verifier) String
+ * obj     (required) String
  *         The name of the window.navigator object used for accessing the
  *         WebAPI during the tests
  *
- * webidl  (required for default verifier) String
- * idl     (required for default verifier) String
- *         Only one of webidl / idl is required
+ * idl     (required) String
  *         The IDL describing the navigator object. The returned object
  *         during tests /must/ be an instanceof this
  *
