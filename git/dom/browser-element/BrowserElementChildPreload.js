@@ -59,7 +59,7 @@ const OBSERVED_EVENTS = [
 
 const COMMAND_MAP = {
   'cut': 'cmd_cut',
-  'copy': 'cmd_copyAndCollapseToEnd',
+  'copy': 'cmd_copy',
   'paste': 'cmd_paste',
   'selectall': 'cmd_selectAll'
 };
@@ -94,7 +94,6 @@ function BrowserElementChild() {
 
   this._isContentWindowCreated = false;
   this._pendingSetInputMethodActive = [];
-  this._forceDispatchSelectionStateChanged = false;
 
   this._init();
 };
@@ -162,8 +161,8 @@ BrowserElementChild.prototype = {
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
-    addEventListener('mozselectionstatechanged',
-                     this._selectionStateChangedHandler.bind(this),
+    addEventListener('mozselectionchange',
+                     this._selectionChangeHandler.bind(this),
                      /* useCapture = */ false,
                      /* wantsUntrusted = */ false);
 
@@ -592,61 +591,23 @@ BrowserElementChild.prototype = {
     sendAsyncMsg('scrollviewchange', detail);
   },
 
-  _selectionStateChangedHandler: function(e) {
+  _selectionChangeHandler: function(e) {
     e.stopPropagation();
     let boundingClientRect = e.boundingClientRect;
-
-    let isCollapsed = (e.selectedText.length == 0);
-    let isMouseUp = (e.states.indexOf('mouseup') == 0);
-    let canPaste = this._isCommandEnabled("paste");
-
-    if (!this._forceDispatchSelectionStateChanged) {
-      // SelectionStateChanged events with the following states are not
-      // necessary to trigger the text dialog, bypass these events
-      // by default.
-      //
-      if(e.states.length == 0 ||
-         e.states.indexOf('drag') == 0 ||
-         e.states.indexOf('keypress') == 0 ||
-         e.states.indexOf('mousedown') == 0) {
-        return;
-      }
-
-      // The collapsed SelectionStateChanged event is unnecessary to dispatch,
-      // bypass this event by default. But there is one exception to support
-      // the shortcut mode which can paste previous copied content easily
-      if (isCollapsed) {
-        if (isMouseUp && canPaste) {
-          //Dispatch this selection change event to support shortcut mode
-        } else {
-          return;
-        }
-      }
-    }
-
-    // For every touch on the screen, there are always two mouse events received,
-    // mousedown/mouseup, no matter touch or long tap on the screen. When there is
-    // is a non-collapsed selection change event which comes with mouseup reason,
-    // it implies some texts are selected. In order to hide the text dialog during next
-    // touch, here sets the forceDispatchSelectionStateChanged flag as true to dispatch the
-    // next SelecitonChange event(with the mousedown) so that the parent side can
-    // hide the text dialog.
-    if (isMouseUp && !isCollapsed) {
-      this._forceDispatchSelectionStateChanged = true;
-    } else {
-      this._forceDispatchSelectionStateChanged = false;
+    if (!boundingClientRect) {
+      return;
     }
 
     let zoomFactor = content.screen.width / content.innerWidth;
 
     let detail = {
       rect: {
-        width: boundingClientRect ? boundingClientRect.width : 0,
-        height: boundingClientRect ? boundingClientRect.height : 0,
-        top: boundingClientRect ? boundingClientRect.top : 0,
-        bottom: boundingClientRect ? boundingClientRect.bottom : 0,
-        left: boundingClientRect ? boundingClientRect.left : 0,
-        right: boundingClientRect ? boundingClientRect.right : 0,
+        width: boundingClientRect.width,
+        height: boundingClientRect.height,
+        top: boundingClientRect.top,
+        bottom: boundingClientRect.bottom,
+        left: boundingClientRect.left,
+        right: boundingClientRect.right,
       },
       commands: {
         canSelectAll: this._isCommandEnabled("selectall"),
@@ -655,7 +616,7 @@ BrowserElementChild.prototype = {
         canPaste: this._isCommandEnabled("paste"),
       },
       zoomFactor: zoomFactor,
-      states: e.states,
+      reasons: e.reasons,
       isCollapsed: (e.selectedText.length == 0),
     };
 
@@ -670,7 +631,7 @@ BrowserElementChild.prototype = {
       currentWindow = currentWindow.parent;
     }
 
-    sendAsyncMsg('selectionstatechanged', detail);
+    sendAsyncMsg('selectionchange', detail);
   },
 
   _themeColorChangedHandler: function(eventType, target) {

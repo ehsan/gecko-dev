@@ -14,7 +14,7 @@ function test()
   PopupNotifications.transitionsEnabled = false;
 
   // We want a prompt.
-  removePermission(testPageURL, "indexedDB");
+  setPermission(testPageURL, "indexedDB", "allow");
   executeSoon(test1);
 }
 
@@ -31,7 +31,7 @@ function test1()
          "First database creation was successful");
       ok(!exception, "No exception");
       is(getPermission(testPageURL, "indexedDB"),
-         Components.interfaces.nsIPermissionManager.ALLOW_ACTION,
+         Components.interfaces.nsIPermissionManager.UNKNOWN_ACTION,
          "Correct permission set");
       gBrowser.removeCurrentTab();
       executeSoon(test2);
@@ -67,7 +67,7 @@ function test2()
          "First database creation was successful");
       ok(!exception, "No exception");
       is(getPermission(testPageURL, "indexedDB"),
-         Components.interfaces.nsIPermissionManager.ALLOW_ACTION,
+         Components.interfaces.nsIPermissionManager.UNKNOWN_ACTION,
          "Correct permission set");
       gBrowser.removeCurrentTab();
       unregisterAllPopupEventHandlers();

@@ -29,7 +29,6 @@
 #include "nsIClipboard.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/BasicEvents.h"
-#include "mozilla/dom/Selection.h"
 
 #include "nsIClipboardDragDropHooks.h"
 #include "nsIClipboardDragDropHookList.h"
@@ -483,8 +482,7 @@ nsClipboardCommand::IsCommandEnabled(const char* aCommandName, nsISupports *aCon
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   *outCmdEnabled = false;
 
-  if (strcmp(aCommandName, "cmd_copy") &&
-      strcmp(aCommandName, "cmd_copyAndCollapseToEnd"))
+  if (strcmp(aCommandName, "cmd_copy"))
     return NS_OK;
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aContext);
@@ -498,8 +496,7 @@ nsClipboardCommand::IsCommandEnabled(const char* aCommandName, nsISupports *aCon
 nsresult
 nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
 {
-  if (strcmp(aCommandName, "cmd_copy") &&
-      strcmp(aCommandName, "cmd_copyAndCollapseToEnd"))
+  if (strcmp(aCommandName, "cmd_copy"))
     return NS_OK;
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aContext);
@@ -512,14 +509,6 @@ nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
   nsCopySupport::FireClipboardEvent(NS_COPY, nsIClipboard::kGlobalClipboard, presShell, nullptr);
-
-  if (!strcmp(aCommandName, "cmd_copyAndCollapseToEnd")) {
-    dom::Selection *sel =
-      presShell->GetCurrentSelection(nsISelectionController::SELECTION_NORMAL);
-    NS_ENSURE_TRUE(sel, NS_ERROR_FAILURE);
-    sel->CollapseToEnd();
-  }
-
   return NS_OK;
 }
 
@@ -1056,7 +1045,6 @@ nsWindowCommandRegistration::RegisterWindowCommands(
 
   NS_REGISTER_ONE_COMMAND(nsClipboardCommand, "cmd_cut");
   NS_REGISTER_ONE_COMMAND(nsClipboardCommand, "cmd_copy");
-  NS_REGISTER_ONE_COMMAND(nsClipboardCommand, "cmd_copyAndCollapseToEnd");
   NS_REGISTER_ONE_COMMAND(nsClipboardCommand, "cmd_paste");
   NS_REGISTER_ONE_COMMAND(nsClipboardCopyLinkCommand, "cmd_copyLink");
   NS_REGISTER_FIRST_COMMAND(nsClipboardImageCommands, sCopyImageLocationString);

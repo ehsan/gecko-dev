@@ -22,7 +22,8 @@ var gData = [
 // test substitute
 {
   permission: "storage",
-  expected: ["indexedDB-unlimited"]
+  expected: ["indexedDB-unlimited",
+             "default-persistent-storage"]
 },
 // test unknown access
 {

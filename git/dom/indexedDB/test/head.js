@@ -109,9 +109,23 @@ function dispatchEvent(eventName)
   gBrowser.selectedBrowser.contentWindow.dispatchEvent(event);
 }
 
-function setPermission(url, permission)
+function setPermission(url, permission, value)
 {
   const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
+
+  switch (value) {
+    case "allow":
+      value = nsIPermissionManager.ALLOW_ACTION;
+      break;
+    case "deny":
+      value = nsIPermissionManager.DENY_ACTION;
+      break;
+    case "unknown":
+      value = nsIPermissionManager.UNKNOWN_ACTION;
+      break;
+    default:
+      throw new Error("No idea what to set here!");
+  }
 
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
@@ -121,9 +135,8 @@ function setPermission(url, permission)
                     .getNoAppCodebasePrincipal(uri);
 
   Components.classes["@mozilla.org/permissionmanager;1"]
-            .getService(nsIPermissionManager)
-            .addFromPrincipal(principal, permission,
-                              nsIPermissionManager.ALLOW_ACTION);
+            .getService(Components.interfaces.nsIPermissionManager)
+            .addFromPrincipal(principal, permission, value);
 }
 
 function removePermission(url, permission)

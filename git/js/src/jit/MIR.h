@@ -873,7 +873,6 @@ class MInstruction
     // Used to transfer the resume point to the rewritten instruction.
     void stealResumePoint(MInstruction *ins);
     void moveResumePointAsEntry();
-    void clearResumePoint();
     MResumePoint *resumePoint() const {
         return resumePoint_;
     }
@@ -5590,13 +5589,7 @@ class MMathFunction
     void computeRange(TempAllocator &alloc);
     bool writeRecoverData(CompactBufferWriter &writer) const;
     bool canRecoverOnBailout() const {
-        switch(function_) {
-          case Sin:
-          case Round:
-            return true;
-          default:
-            return false;
-        }
+        return function_ == Round;
     }
 
     ALLOW_CLONE(MMathFunction)

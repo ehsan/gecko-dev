@@ -1936,9 +1936,7 @@ RadioInterface.prototype = {
       case "networkinfochanged":
         gMobileConnectionService.notifyNetworkInfoChanged(this.clientId,
                                                           message);
-        if (message[RIL.NETWORK_INFO_DATA_REGISTRATION_STATE]) {
-          connHandler.updateRILNetworkInterface();
-        }
+        connHandler.updateRILNetworkInterface();
         break;
       case "networkselectionmodechange":
         gMobileConnectionService.notifyNetworkSelectModeChanged(this.clientId,

@@ -181,14 +181,11 @@ class LocalB2GVersion(B2GVersion):
 class RemoteB2GVersion(B2GVersion):
 
     def __init__(self, sources=None, dm_type='adb', host=None,
-                 device_serial=None, adb_host=None, adb_port=None,
-                 **kwargs):
+                 device_serial=None, **kwargs):
         B2GVersion.__init__(self, sources, **kwargs)
 
         if dm_type == 'adb':
-            dm = mozdevice.DeviceManagerADB(deviceSerial=device_serial,
-                                            serverHost=adb_host,
-                                            serverPort=adb_port)
+            dm = mozdevice.DeviceManagerADB(deviceSerial=device_serial)
         elif dm_type == 'sut':
             if not host:
                 raise errors.RemoteAppNotFoundError(
@@ -244,7 +241,7 @@ class RemoteB2GVersion(B2GVersion):
 
 
 def get_version(binary=None, sources=None, dm_type=None, host=None,
-                device_serial=None, adb_host=None, adb_port=None):
+                device_serial=None):
     """
     Returns the application version information as a dict. You can specify
     a path to the binary of the application or an Android APK file (to get
@@ -258,8 +255,6 @@ def get_version(binary=None, sources=None, dm_type=None, host=None,
     :param dm_type: Device manager type. Must be 'adb' or 'sut' (Firefox OS)
     :param host: Host address of remote Firefox OS instance (SUT)
     :param device_serial: Serial identifier of Firefox OS device (ADB)
-    :param adb_host: Host address of ADB server
-    :param adb_port: Port of ADB server
     """
     try:
         if binary and zipfile.is_zipfile(binary) and 'AndroidManifest.xml' in \
@@ -276,8 +271,6 @@ def get_version(binary=None, sources=None, dm_type=None, host=None,
         version = RemoteB2GVersion(sources=sources,
                                    dm_type=dm_type,
                                    host=host,
-                                   adb_host=adb_host,
-                                   adb_port=adb_port,
                                    device_serial=device_serial)
 
     for (key, value) in sorted(version._info.items()):
@@ -293,19 +286,12 @@ def cli(args=sys.argv[1:]):
     parser.add_argument(
         '--binary',
         help='path to application binary or apk')
-    fxos = parser.add_argument_group('Firefox OS')
-    fxos.add_argument(
+    parser.add_argument(
         '--sources',
-        help='path to sources.xml')
-    fxos.add_argument(
+        help='path to sources.xml (Firefox OS only)')
+    parser.add_argument(
         '--device',
-        help='serial identifier of device to target')
-    fxos.add_argument(
-        '--adb-host',
-        help='host running adb')
-    fxos.add_argument(
-        '--adb-port',
-        help='port running adb')
+        help='serial identifier of device to target (Firefox OS only)')
     structured.commandline.add_logging_group(parser)
 
     args = parser.parse_args()
@@ -319,9 +305,7 @@ def cli(args=sys.argv[1:]):
                 sources=args.sources,
                 dm_type=dm_type,
                 host=host,
-                device_serial=args.device,
-                adb_host=args.adb_host,
-                adb_port=args.adb_port)
+                device_serial=args.device)
 
 if __name__ == '__main__':
     cli()

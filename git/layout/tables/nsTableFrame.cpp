@@ -1806,14 +1806,14 @@ nsTableFrame::Reflow(nsPresContext*           aPresContext,
   if (NS_SUBTREE_DIRTY(this) ||
       aReflowState.ShouldReflowAllKids() ||
       IsGeometryDirty() ||
-      aReflowState.IsVResize()) {
+      aReflowState.mFlags.mVResize) {
 
     if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE ||
         // Also check mVResize, to handle the first Reflow preceding a
         // special height Reflow, when we've already had a special height
         // Reflow (where mComputedHeight would not be
         // NS_UNCONSTRAINEDSIZE, but without a style change in between).
-        aReflowState.IsVResize()) {
+        aReflowState.mFlags.mVResize) {
       // XXX Eventually, we should modify DistributeHeightToRows to use
       // nsTableRowFrame::GetHeight instead of nsIFrame::GetSize().height.
       // That way, it will make its calculations based on internal table
@@ -2669,7 +2669,7 @@ nsTableFrame::InitChildReflowState(nsHTMLReflowState& aReflowState)
                !aReflowState.parentReflowState->mFlags.mSpecialHeightReflow,
                "should not resize columns on special height reflow");
   if (mBits.mResizedColumns) {
-    aReflowState.SetHResize(true);
+    aReflowState.mFlags.mHResize = true;
   }
 }
 
