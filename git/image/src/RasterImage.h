@@ -762,7 +762,6 @@ private: // data
   // Helpers
   bool CanDiscard();
   bool CanForciblyDiscard();
-  bool CanForciblyDiscardAndRedecode();
   bool DiscardingActive();
   bool StoringSourceData() const;
 

@@ -36,8 +36,8 @@ public:
 
   ~TextureParent();
 
-  bool Init(const SurfaceDescriptor& aSharedData,
-            const TextureFlags& aFlags);
+  bool RecvInit(const SurfaceDescriptor& aSharedData,
+                const TextureFlags& aFlags) MOZ_OVERRIDE;
 
   virtual bool RecvRemoveTexture() MOZ_OVERRIDE;
 
@@ -53,14 +53,9 @@ public:
 
 // static
 PTextureParent*
-TextureHost::CreateIPDLActor(ISurfaceAllocator* aAllocator,
-                             const SurfaceDescriptor& aSharedData,
-                             TextureFlags aFlags)
+TextureHost::CreateIPDLActor(ISurfaceAllocator* aAllocator)
 {
-  TextureParent* actor = new TextureParent(aAllocator);
-  DebugOnly<bool> status = actor->Init(aSharedData, aFlags);
-  MOZ_ASSERT(status);
-  return actor;
+  return new TextureParent(aAllocator);
 }
 
 // static
@@ -684,8 +679,8 @@ TextureParent::~TextureParent()
 }
 
 bool
-TextureParent::Init(const SurfaceDescriptor& aSharedData,
-                    const TextureFlags& aFlags)
+TextureParent::RecvInit(const SurfaceDescriptor& aSharedData,
+                        const TextureFlags& aFlags)
 {
   mTextureHost = TextureHost::Create(aSharedData,
                                      mAllocator,

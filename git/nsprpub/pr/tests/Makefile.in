@@ -119,7 +119,6 @@ CSRCS =             \
 	randseed.c      \
 	reinit.c        \
 	rmdir.c			\
-	rwlockrank.c    \
 	rwlocktest.c    \
 	sel_spd.c  		\
 	selct_er.c	    \
