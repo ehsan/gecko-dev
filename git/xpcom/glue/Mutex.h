@@ -174,6 +174,7 @@ private:
   BaseAutoLock(BaseAutoLock&);
   BaseAutoLock& operator=(BaseAutoLock&);
   static void* operator new(size_t) CPP_THROW_NEW;
+  static void operator delete(void*);
 
   T* mLock;
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -211,6 +212,7 @@ private:
   BaseAutoUnlock(BaseAutoUnlock&);
   BaseAutoUnlock& operator=(BaseAutoUnlock&);
   static void* operator new(size_t) CPP_THROW_NEW;
+  static void operator delete(void*);
 
   T* mLock;
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER

@@ -9,7 +9,7 @@
 const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     let variables = aPanel.panelWin.DebuggerView.Variables;
     let testScope = variables.addScope("test");
 

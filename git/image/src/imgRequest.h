@@ -137,7 +137,6 @@ public:
 
   // OK to use on any thread.
   nsresult GetURI(ImageURL **aURI);
-  nsresult GetCurrentURI(nsIURI **aURI);
 
   nsresult GetImageErrorCode(void);
 

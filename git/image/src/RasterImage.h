@@ -552,8 +552,6 @@ private:
   uint32_t GetCurrentFrameIndex() const;
   uint32_t GetRequestedFrameIndex(uint32_t aWhichFrame) const;
 
-  nsIntRect GetFirstFrameRect();
-
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  MallocSizeOf aMallocSizeOf) const;
 
@@ -664,7 +662,6 @@ private: // data
 
   // Notification state. Used to avoid recursive notifications.
   ImageStatusDiff            mStatusDiff;
-  nsIntRect                  mInvalidRect;
   bool                       mNotifying:1;
 
   // Boolean flags (clustered together to conserve space):
