@@ -136,8 +136,9 @@ public class TopSitesGridItemView extends RelativeLayout {
     public void blankOut() {
         mUrl = "";
         mTitle = "";
-        updateType(TopSites.TYPE_BLANK);
+        mType = TopSites.TYPE_BLANK;
         updateTitleView();
+        mTitleView.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0);
         setLoadId(Favicons.NOT_LOADING);
         Picasso.with(getContext()).cancelRequest(mThumbnailView);
         displayThumbnail(R.drawable.top_site_add);
@@ -181,7 +182,12 @@ public class TopSitesGridItemView extends RelativeLayout {
             Picasso.with(getContext()).cancelRequest(mThumbnailView);
         }
 
-        if (updateType(type)) {
+        if (mType != type) {
+            mType = type;
+
+            int pinResourceId = (type == TopSites.TYPE_PINNED ? R.drawable.pin : 0); 
+            mTitleView.setCompoundDrawablesWithIntrinsicBounds(pinResourceId, 0, 0, 0);
+
             changed = true;
         }
 
@@ -286,24 +292,6 @@ public class TopSitesGridItemView extends RelativeLayout {
     }
 
     /**
-     * Update the item type associated with this view. Returns true if
-     * the type has changed, false otherwise.
-     */
-    private boolean updateType(int type) {
-        if (mType == type) {
-            return false;
-        }
-
-        mType = type;
-        refreshDrawableState();
-
-        int pinResourceId = (type == TopSites.TYPE_PINNED ? R.drawable.pin : 0);
-        mTitleView.setCompoundDrawablesWithIntrinsicBounds(pinResourceId, 0, 0, 0);
-
-        return true;
-    }
-
-    /**
      * Update the title shown by this view. If both title and url
      * are empty, mark the state as STATE_EMPTY and show a default text.
      */
@@ -314,6 +302,9 @@ public class TopSitesGridItemView extends RelativeLayout {
         } else {
             mTitleView.setText(R.string.home_top_sites_add);
         }
+
+        // Refresh for state change.
+        refreshDrawableState();
     }
 
     public void setLoadId(int aLoadId) {

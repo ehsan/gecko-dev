@@ -214,7 +214,7 @@ protected:
   DOMCameraControlListener* mListener;
 
   // our viewfinder stream
-  nsRefPtr<CameraPreviewMediaStream> mInput;
+  CameraPreviewMediaStream* mInput;
 
   // set once when this object is created
   nsCOMPtr<nsPIDOMWindow>   mWindow;

@@ -104,7 +104,6 @@ function MozInputMethod() { }
 
 MozInputMethod.prototype = {
   _inputcontext: null,
-  _wrappedInputContext: null,
   _layouts: {},
   _window: null,
   _isSystem: false,
@@ -212,7 +211,7 @@ MozInputMethod.prototype = {
     if (!WindowMap.isActive(this._window)) {
       return null;
     }
-    return this._wrappedInputContext;
+    return this._inputcontext;
   },
 
   set oninputcontextchange(handler) {
@@ -227,7 +226,6 @@ MozInputMethod.prototype = {
     if (this._inputcontext) {
       this._inputcontext.destroy();
       this._inputcontext = null;
-      this._wrappedInputContext = null;
       this._mgmt._supportsSwitching = false;
     }
 
@@ -238,10 +236,6 @@ MozInputMethod.prototype = {
 
       this._inputcontext = new MozInputContext(data);
       this._inputcontext.init(this._window);
-      // inputcontext will be exposed as a WebIDL object. Create its
-      // content-side object explicitly to avoid Bug 1001325.
-      this._wrappedInputContext =
-        this._window.MozInputContext._create(this._window, this._inputcontext);
     }
 
     let event = new this._window.Event("inputcontextchange",
