@@ -5281,12 +5281,9 @@ function FoldCharset(charset) {
   // for the purpose of the check mark.
   if (charset == "ISO-8859-8-I") {
     return "windows-1255";
-  }
-
-  if (charset == "gb18030") {
+  } else if (charset == "gb18030") {
     return "gbk";
   }
-
   return charset;
 }
 

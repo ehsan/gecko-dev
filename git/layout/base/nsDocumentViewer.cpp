@@ -458,11 +458,14 @@ private:
 //------------------------------------------------------------------
 
 //------------------------------------------------------------------
-already_AddRefed<nsIContentViewer>
-NS_NewContentViewer()
+nsresult
+NS_NewContentViewer(nsIContentViewer** aResult)
 {
-  nsRefPtr<nsDocumentViewer> viewer = new nsDocumentViewer();
-  return viewer.forget();
+  *aResult = new nsDocumentViewer();
+
+  NS_ADDREF(*aResult);
+
+  return NS_OK;
 }
 
 void nsDocumentViewer::PrepareToStartLoad()
@@ -551,18 +554,20 @@ nsDocumentViewer::~nsDocumentViewer()
  * This method is also called when an out of band document.write() happens.
  * In that case, the document passed in is the same as the previous document.
  */
-/* virtual */ void
-nsDocumentViewer::LoadStart(nsIDocument* aDocument)
+NS_IMETHODIMP
+nsDocumentViewer::LoadStart(nsISupports *aDoc)
 {
-  MOZ_ASSERT(aDocument);
-
+  nsresult rv = NS_OK;
   if (!mDocument) {
-    mDocument = aDocument;
-  } else if (mDocument == aDocument) {
+    mDocument = do_QueryInterface(aDoc, &rv);
+  }
+  else if (mDocument == aDoc) {
     // Reset the document viewer's state back to what it was
     // when the document load started.
     PrepareToStartLoad();
   }
+
+  return rv;
 }
 
 nsresult

@@ -24,9 +24,7 @@
 
 #include "MediaDecoder.h"
 #include "VideoUtils.h"
-#include "gfx2DGlue.h"
 
-using namespace mozilla::gfx;
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
@@ -732,7 +730,7 @@ WMFReader::CreateBasicVideoFrame(IMFSample* aSample,
                                    b,
                                    false,
                                    -1,
-                                   ToIntRect(mPictureRegion));
+                                   mPictureRegion);
   if (twoDBuffer) {
     twoDBuffer->Unlock2D();
   } else {
@@ -775,7 +773,7 @@ WMFReader::CreateD3DVideoFrame(IMFSample* aSample,
                                             image.forget(),
                                             false,
                                             -1,
-                                            ToIntRect(mPictureRegion));
+                                            mPictureRegion);
 
   NS_ENSURE_TRUE(v, E_FAIL);
   *aOutVideoData = v;

@@ -1421,15 +1421,6 @@ let RIL = {
   },
 
   /**
-   * Hang up all calls
-   */
-  hangUpAll: function() {
-    for (let callIndex in this.currentCalls) {
-      this.hangUp({callIndex: callIndex});
-    }
-  },
-
-  /**
    * Hang up the phone.
    *
    * @param callIndex

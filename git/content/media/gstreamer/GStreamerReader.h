@@ -38,8 +38,6 @@ class AbstractMediaDecoder;
 
 class GStreamerReader : public MediaDecoderReader
 {
-  typedef gfx::IntRect IntRect;
-
 public:
   GStreamerReader(AbstractMediaDecoder* aDecoder);
   virtual ~GStreamerReader();
@@ -181,7 +179,7 @@ private:
   /* the actual audio app sink */
   GstAppSink* mAudioAppSink;
   GstVideoFormat mFormat;
-  IntRect mPicture;
+  nsIntRect mPicture;
   int mVideoSinkBufferCount;
   int mAudioSinkBufferCount;
   GstAppSrcCallbacks mSrcCallbacks;

@@ -177,7 +177,6 @@
 using namespace mozilla;
 using namespace mozilla::css;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
@@ -8923,7 +8922,7 @@ DumpToPNG(nsIPresShell* shell, nsAString& name) {
 
   nsRefPtr<gfxASurface> surface = 
     gfxPlatform::GetPlatform()->
-    CreateOffscreenSurface(IntSize(width, height),
+    CreateOffscreenSurface(gfxIntSize(width, height),
       gfxASurface::ContentFromFormat(gfxImageFormat::ARGB32));
   NS_ENSURE_TRUE(surface, NS_ERROR_OUT_OF_MEMORY);
 

@@ -337,9 +337,9 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   gfxRect transformedBBox = patternTransform.TransformBounds(bbox);
 
   bool resultOverflows;
-  IntSize surfaceSize =
+  gfxIntSize surfaceSize =
     nsSVGUtils::ConvertToSurfaceSize(
-      transformedBBox.Size(), &resultOverflows).ToIntSize();
+      transformedBBox.Size(), &resultOverflows);
 
   // 0 disables rendering, < 0 is an error
   if (surfaceSize.width <= 0 || surfaceSize.height <= 0)

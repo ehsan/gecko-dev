@@ -24,7 +24,6 @@
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
 
@@ -104,7 +103,7 @@ PuppetWidget::Create(nsIWidget        *aParent,
   mVisible = true;
 
   mSurface = gfxPlatform::GetPlatform()
-             ->CreateOffscreenSurface(IntSize(1, 1),
+             ->CreateOffscreenSurface(gfxIntSize(1, 1),
                                       gfxASurface::ContentFromFormat(gfxImageFormat::ARGB32));
 
   mIMEComposing = false;

@@ -440,7 +440,7 @@ gfxPlatform::Init()
 #endif
 
     gPlatform->mScreenReferenceSurface =
-        gPlatform->CreateOffscreenSurface(IntSize(1, 1),
+        gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
                                           gfxContentType::COLOR_ALPHA);
     if (!gPlatform->mScreenReferenceSurface) {
         NS_RUNTIMEABORT("Could not initialize mScreenReferenceSurface");
@@ -633,7 +633,7 @@ already_AddRefed<gfxASurface>
 gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
                            gfxImageFormat format)
 {
-    IntSize surfaceSize = aSurface->GetSize().ToIntSize();
+    const gfxIntSize& surfaceSize = aSurface->GetSize();
 
 #ifdef XP_WIN
     if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
@@ -992,7 +992,7 @@ gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSi
   // CreateOffscreenSurface() and CreateDrawTargetForSurface() for all
   // backends).
   if (aBackend == BackendType::CAIRO) {
-    nsRefPtr<gfxASurface> surf = CreateOffscreenSurface(aSize,
+    nsRefPtr<gfxASurface> surf = CreateOffscreenSurface(ThebesIntSize(aSize),
                                                         ContentForFormat(aFormat));
     if (!surf || surf->CairoStatus()) {
       return nullptr;

@@ -9,7 +9,6 @@
 
 #include "prenv.h"
 
-#include "gfx2DGlue.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 
@@ -32,7 +31,6 @@ static bool gDisableOptimize = false;
 #endif
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::image;
 
 // Returns true if an image of aWidth x aHeight is allowed and legal.
@@ -345,10 +343,10 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
                             gfxRect&           aSourceRect,
                             gfxRect&           aImageRect)
 {
-  IntSize size(int32_t(aImageRect.Width()), int32_t(aImageRect.Height()));
+  gfxIntSize size(int32_t(aImageRect.Width()), int32_t(aImageRect.Height()));
   if (!aDoPadding && !aDoPartialDecode) {
     NS_ASSERTION(!mSinglePixel, "This should already have been handled");
-    return SurfaceWithFormat(new gfxSurfaceDrawable(ThebesSurface(), ThebesIntSize(size)), mFormat);
+    return SurfaceWithFormat(new gfxSurfaceDrawable(ThebesSurface(), size), mFormat);
   }
 
   gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height);
@@ -374,7 +372,7 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
     tmpCtx.Rectangle(available);
     tmpCtx.Fill();
 
-    return SurfaceWithFormat(new gfxSurfaceDrawable(surface, ThebesIntSize(size)), format);
+    return SurfaceWithFormat(new gfxSurfaceDrawable(surface, size), format);
   }
 
   // Not tiling, and we have a surface, so we can account for

@@ -26,9 +26,9 @@ public:
         return (gfxOS2Platform*) gfxPlatform::GetPlatform();
     }
 
-    virtual already_AddRefed<gfxASurface>
-      CreateOffscreenSurface(const IntSize& size,
-                             gfxContentType contentType) MOZ_OVERRIDE;
+    already_AddRefed<gfxASurface>
+        CreateOffscreenSurface(const gfxIntSize& size,
+                               gfxContentType contentType);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,

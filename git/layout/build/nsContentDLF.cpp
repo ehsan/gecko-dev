@@ -47,7 +47,8 @@ static NS_DEFINE_IID(kVideoDocumentCID, NS_VIDEODOCUMENT_CID);
 static NS_DEFINE_IID(kImageDocumentCID, NS_IMAGEDOCUMENT_CID);
 static NS_DEFINE_IID(kXULDocumentCID, NS_XULDOCUMENT_CID);
 
-already_AddRefed<nsIContentViewer> NS_NewContentViewer();
+nsresult
+NS_NewContentViewer(nsIContentViewer** aResult);
 
 // XXXbz if you change the MIME types here, be sure to update
 // nsIParser.h and DetermineParseMode in nsParser.cpp and
@@ -280,14 +281,14 @@ nsContentDLF::CreateInstanceForDocument(nsISupports* aContainer,
                                         const char *aCommand,
                                         nsIContentViewer** aContentViewer)
 {
-  MOZ_ASSERT(aDocument);
-
-  nsCOMPtr<nsIContentViewer> contentViewer = NS_NewContentViewer();
+  nsCOMPtr<nsIContentViewer> contentViewer;
+  nsresult rv = NS_NewContentViewer(getter_AddRefs(contentViewer));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Bind the document to the Content Viewer
-  contentViewer->LoadStart(aDocument);
+  rv = contentViewer->LoadStart(aDocument);
   contentViewer.forget(aContentViewer);
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -395,7 +396,9 @@ nsContentDLF::CreateDocument(const char* aCommand,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create the content viewer  XXX: could reuse content viewer here!
-  nsCOMPtr<nsIContentViewer> contentViewer = NS_NewContentViewer();
+  nsCOMPtr<nsIContentViewer> contentViewer;
+  rv = NS_NewContentViewer(getter_AddRefs(contentViewer));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   doc->SetContainer(static_cast<nsDocShell*>(aContainer));
 
@@ -406,9 +409,9 @@ nsContentDLF::CreateDocument(const char* aCommand,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Bind the document to the Content Viewer
-  contentViewer->LoadStart(doc);
+  rv = contentViewer->LoadStart(doc);
   contentViewer.forget(aContentViewer);
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -425,7 +428,9 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
   nsCOMPtr<nsIDocument> doc = do_CreateInstance(kXULDocumentCID, &rv);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsIContentViewer> contentViewer = NS_NewContentViewer();
+  nsCOMPtr<nsIContentViewer> contentViewer;
+  rv = NS_NewContentViewer(getter_AddRefs(contentViewer));
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsIURI> aURL;
   rv = aChannel->GetURI(getter_AddRefs(aURL));
@@ -446,9 +451,9 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
   /*
    * Bind the document to the Content Viewer...
    */
-  contentViewer->LoadStart(doc);
+  rv = contentViewer->LoadStart(doc);
   contentViewer.forget(aContentViewer);
-  return NS_OK;
+  return rv;
 }
 
 bool nsContentDLF::IsImageContentType(const char* aContentType) {

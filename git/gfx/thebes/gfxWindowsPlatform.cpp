@@ -650,26 +650,23 @@ gfxWindowsPlatform::CreatePlatformFontList()
 }
 
 already_AddRefed<gfxASurface>
-gfxWindowsPlatform::CreateOffscreenSurface(const IntSize& size,
+gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxContentType contentType)
 {
     nsRefPtr<gfxASurface> surf = nullptr;
 
 #ifdef CAIRO_HAS_WIN32_SURFACE
     if (mRenderMode == RENDER_GDI)
-        surf = new gfxWindowsSurface(ThebesIntSize(size),
-                                     OptimalFormatForContent(contentType));
+        surf = new gfxWindowsSurface(size, OptimalFormatForContent(contentType));
 #endif
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     if (mRenderMode == RENDER_DIRECT2D)
-        surf = new gfxD2DSurface(ThebesIntSize(size),
-                                 OptimalFormatForContent(contentType));
+        surf = new gfxD2DSurface(size, OptimalFormatForContent(contentType));
 #endif
 
     if (!surf || surf->CairoStatus()) {
-        surf = new gfxImageSurface(ThebesIntSize(size),
-                                   OptimalFormatForContent(contentType));
+        surf = new gfxImageSurface(size, OptimalFormatForContent(contentType));
     }
 
     return surf.forget();
@@ -687,8 +684,7 @@ gfxWindowsPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
     }
 #endif
 
-    nsRefPtr<gfxASurface> surface = CreateOffscreenSurface(aSize.ToIntSize(),
-                                                           aContentType);
+    nsRefPtr<gfxASurface> surface = CreateOffscreenSurface(aSize, aContentType);
 #ifdef DEBUG
     nsRefPtr<gfxImageSurface> imageSurface = surface->GetAsImageSurface();
     NS_ASSERTION(imageSurface, "Surface cannot be converted to a gfxImageSurface");

@@ -24,7 +24,6 @@
 #include "mozilla/MutationEvent.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
-#include "mozilla/unused.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -164,24 +163,24 @@ public:
    * Resets aVisitor object and calls PreHandleEvent.
    * Copies mItemFlags and mItemData to the current nsEventTargetChainItem.
    */
-  void PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   /**
    * If the current item in the event target chain has an event listener
    * manager, this method calls nsEventListenerManager::HandleEvent().
    */
-  void HandleEvent(nsEventChainPostVisitor& aVisitor,
-                   ELMCreationDetector& aCd)
+  nsresult HandleEvent(nsEventChainPostVisitor& aVisitor,
+                       ELMCreationDetector& aCd)
   {
     if (WantsWillHandleEvent()) {
       mTarget->WillHandleEvent(aVisitor);
     }
     if (aVisitor.mEvent->mFlags.mPropagationStopped) {
-      return;
+      return NS_OK;
     }
     if (!mManager) {
       if (!MayHaveListenerManager() && !aCd.MayHaveNewListenerManager()) {
-        return;
+        return NS_OK;
       }
       mManager = mTarget->GetExistingListenerManager();
     }
@@ -195,12 +194,13 @@ public:
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nullptr,
                    "CurrentTarget should be null!");
     }
+    return NS_OK;
   }
 
   /**
    * Copies mItemFlags and mItemData to aVisitor and calls PostHandleEvent.
    */
-  void PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
   nsCOMPtr<EventTarget>             mTarget;
   uint16_t                          mFlags;
@@ -218,24 +218,26 @@ nsEventTargetChainItem::nsEventTargetChainItem(EventTarget* aTarget)
   MOZ_ASSERT(!aTarget || mTarget == aTarget->GetTargetForEventTargetChain());
 }
 
-void
+nsresult
 nsEventTargetChainItem::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.Reset();
-  unused << mTarget->PreHandleEvent(aVisitor);
+  nsresult rv = mTarget->PreHandleEvent(aVisitor);
   SetForceContentDispatch(aVisitor.mForceContentDispatch);
   SetWantsWillHandleEvent(aVisitor.mWantsWillHandleEvent);
   SetMayHaveListenerManager(aVisitor.mMayHaveListenerManager);
   mItemFlags = aVisitor.mItemFlags;
   mItemData = aVisitor.mItemData;
+  return rv;
 }
 
-void
+nsresult
 nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   aVisitor.mItemFlags = mItemFlags;
   aVisitor.mItemData = mItemData;
   mTarget->PostHandleEvent(aVisitor);
+  return NS_OK;
 }
 
 void

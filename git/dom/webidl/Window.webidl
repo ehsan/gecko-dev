@@ -120,8 +120,8 @@ Window implements WindowLocalStorage;
 
 // http://www.whatwg.org/specs/web-apps/current-work/
 partial interface Window {
-  void captureEvents();
-  void releaseEvents();
+  void captureEvents(long dummy);
+  void releaseEvents(long dummy);
 };
 
 // https://dvcs.w3.org/hg/editing/raw-file/tip/editing.html
