@@ -258,39 +258,29 @@ let gTestSuite = (function() {
    *
    * @return a resolved promise or deferred promise.
    */
-  function ensureWifiEnabled(aEnabled, useAPI) {
+  function ensureWifiEnabled(aEnabled) {
     if (wifiManager.enabled === aEnabled) {
       log('Already ' + (aEnabled ? 'enabled' : 'disabled'));
       return Promise.resolve();
     }
-    return requestWifiEnabled(aEnabled, useAPI);
+    return requestWifiEnabled(aEnabled);
   }
 
   /**
    * Issue a request to enable/disable wifi.
    *
-   * This function will attempt to enable/disable wifi, by calling API or by
-   * writing settings 'wifi.enabled' regardless of the wifi state, based on the
-   * value of |userAPI| parameter.
-   * Default is using settings.
-   *
-   * Note there's a limitation of co-existance of both method, per bug 930355,
-   * that once enable/disable wifi by API, the settings method won't work until
-   * reboot. So the test of wifi enable API should be executed last.
-   * TODO: Remove settings method after enable/disable wifi by settings is
-   *       removed after bug 1050147.
+   * For current design, this function will attempt to enable/disable wifi by
+   * writing 'wifi.enabled' regardless of the wifi state.
    *
    * Fulfill params: (none)
    * Reject params: (none)
    *
    * @return A deferred promise.
    */
-  function requestWifiEnabled(aEnabled, useAPI) {
+  function requestWifiEnabled(aEnabled) {
     return Promise.all([
       waitForWifiManagerEventOnce(aEnabled ? 'enabled' : 'disabled'),
-      useAPI ?
-        wrapDomRequestAsPromise(wifiManager.setWifiEnabled(aEnabled)) :
-        setSettings({ 'wifi.enabled': aEnabled }),
+      setSettings({ 'wifi.enabled': aEnabled }),
     ]);
   }
 

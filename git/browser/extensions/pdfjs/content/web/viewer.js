@@ -2363,7 +2363,8 @@ var PasswordPrompt = {
 
 var DocumentProperties = {
   overlayName: null,
-  rawFileSize: 0,
+  fileName: '',
+  fileSize: '',
 
   // Document property fields (in the viewer).
   fileNameField: null,
@@ -2414,21 +2415,20 @@ var DocumentProperties = {
       // don't bother updating the properties.
       return;
     }
-    // Get the file size (if it hasn't already been set).
+    // Get the file name.
+    this.fileName = getPDFFileNameFromURL(PDFView.url);
+
+    // Get the file size.
     PDFView.pdfDocument.getDownloadInfo().then(function(data) {
-      if (data.length === this.rawFileSize) {
-        return;
-      }
       this.setFileSize(data.length);
-      this.updateUI(this.fileSizeField, this.parseFileSize());
+      this.updateUI(this.fileSizeField, this.fileSize);
     }.bind(this));
 
-    // Get the document properties.
+    // Get the other document properties.
     PDFView.pdfDocument.getMetadata().then(function(data) {
       var fields = [
-        { field: this.fileNameField,
-          content: getPDFFileNameFromURL(PDFView.url) },
-        { field: this.fileSizeField, content: this.parseFileSize() },
+        { field: this.fileNameField, content: this.fileName },
+        // The fileSize field is updated once getDownloadInfo is resolved.
         { field: this.titleField, content: data.info.Title },
         { field: this.authorField, content: data.info.Author },
         { field: this.subjectField, content: data.info.Subject },
@@ -2458,22 +2458,14 @@ var DocumentProperties = {
   },
 
   setFileSize: function documentPropertiesSetFileSize(fileSize) {
-    if (fileSize > 0) {
-      this.rawFileSize = fileSize;
-    }
-  },
-
-  parseFileSize: function documentPropertiesParseFileSize() {
-    var fileSize = this.rawFileSize, kb = fileSize / 1024;
-    if (!kb) {
-      return;
-    } else if (kb < 1024) {
-      return mozL10n.get('document_properties_kb', {
+    var kb = fileSize / 1024;
+    if (kb < 1024) {
+      this.fileSize = mozL10n.get('document_properties_kb', {
         size_kb: (+kb.toPrecision(3)).toLocaleString(),
         size_b: fileSize.toLocaleString()
       }, '{{size_kb}} KB ({{size_b}} bytes)');
     } else {
-      return mozL10n.get('document_properties_mb', {
+      this.fileSize = mozL10n.get('document_properties_mb', {
         size_mb: (+(kb / 1024).toPrecision(3)).toLocaleString(),
         size_b: fileSize.toLocaleString()
       }, '{{size_mb}} MB ({{size_b}} bytes)');
@@ -2710,28 +2702,20 @@ var PDFView = {
   watchScroll: function pdfViewWatchScroll(viewAreaElement, state, callback) {
     state.down = true;
     state.lastY = viewAreaElement.scrollTop;
-    state.rAF = null;
-    viewAreaElement.addEventListener('scroll', function debounceScroll(evt) {
-      if (state.rAF) {
+    viewAreaElement.addEventListener('scroll', function webViewerScroll(evt) {
+      if (!PDFView.pdfDocument) {
         return;
       }
-      // schedule an invocation of webViewerScrolled for next animation frame.
-      state.rAF = window.requestAnimationFrame(function webViewerScrolled() {
-        state.rAF = null;
-        if (!PDFView.pdfDocument) {
-          return;
-        }
-        var currentY = viewAreaElement.scrollTop;
-        var lastY = state.lastY;
-        if (currentY > lastY) {
-          state.down = true;
-        } else if (currentY < lastY) {
-          state.down = false;
-        }
-        // else do nothing and use previous value
-        state.lastY = currentY;
-        callback();
-      });
+      var currentY = viewAreaElement.scrollTop;
+      var lastY = state.lastY;
+      if (currentY > lastY) {
+        state.down = true;
+      } else if (currentY < lastY) {
+        state.down = false;
+      }
+      // else do nothing and use previous value
+      state.lastY = currentY;
+      callback();
     }, true);
   },
 
@@ -3118,10 +3102,6 @@ var PDFView = {
         self.loading = false;
       }
     );
-
-    if (args && args.length) {
-      DocumentProperties.setFileSize(args.length);
-    }
   },
 
   download: function pdfViewDownload() {
@@ -5141,18 +5121,14 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         left = tx[4] + (fontAscent * Math.sin(angle));
         top = tx[5] - (fontAscent * Math.cos(angle));
       }
+      textDiv.style.position = 'absolute';
       textDiv.style.left = left + 'px';
       textDiv.style.top = top + 'px';
       textDiv.style.fontSize = fontHeight + 'px';
       textDiv.style.fontFamily = style.fontFamily;
 
       textDiv.textContent = geom.str;
-      // |fontName| is only used by the Font Inspector. This test will succeed
-      // when e.g. the Font Inspector is off but the Stepper is on, but it's
-      // not worth the effort to do a more accurate test.
-      if (PDFJS.pdfBug) {
-        textDiv.dataset.fontName = geom.fontName;
-      }
+      textDiv.dataset.fontName = geom.fontName;
       // Storing into dataset will convert number into string.
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
@@ -5832,13 +5808,8 @@ window.addEventListener('pagechange', function pagechange(evt) {
       }
     }
   }
-  var numPages = PDFView.pages.length;
-
   document.getElementById('previous').disabled = (page <= 1);
-  document.getElementById('next').disabled = (page >= numPages);
-
-  document.getElementById('firstPage').disabled = (page <= 1);
-  document.getElementById('lastPage').disabled = (page >= numPages);
+  document.getElementById('next').disabled = (page >= PDFView.pages.length);
 }, true);
 
 function handleMouseWheel(evt) {
