@@ -46,8 +46,7 @@ private:
   RecvAddAll(const RequestId& aRequestId,
              nsTArray<PCacheRequest>&& aRequests) MOZ_OVERRIDE;
   virtual bool
-  RecvPut(const RequestId& aRequestId,
-          const CacheRequestResponse& aPut) MOZ_OVERRIDE;
+  RecvPut(const RequestId& aRequestId, const CacheRequestResponse& aPut);
   virtual bool
   RecvDelete(const RequestId& aRequestId, const PCacheRequest& aRequest,
              const PCacheQueryParams& aParams) MOZ_OVERRIDE;

@@ -46,6 +46,7 @@
 #include "vm/TraceLogging.h"
 
 #include "jscompartmentinlines.h"
+#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -488,7 +489,6 @@ jit::LazyLinkTopActivation(JSContext *cx)
 
     return script->baselineOrIonRawPointer();
 }
-
 /* static */ void
 JitRuntime::Mark(JSTracer *trc)
 {
@@ -498,23 +498,13 @@ JitRuntime::Mark(JSTracer *trc)
         JitCode *code = i.get<JitCode>();
         MarkJitCodeRoot(trc, &code, "wrapper");
     }
-}
 
-/* static */ void
-JitRuntime::MarkJitcodeGlobalTable(JSTracer *trc)
-{
+    // Mark all heap the jitcode global table map.
     if (trc->runtime()->hasJitRuntime() &&
         trc->runtime()->jitRuntime()->hasJitcodeGlobalTable())
     {
         trc->runtime()->jitRuntime()->getJitcodeGlobalTable()->mark(trc);
     }
-}
-
-/* static */ void
-JitRuntime::SweepJitcodeGlobalTable(JSRuntime *rt)
-{
-    if (rt->hasJitRuntime() && rt->jitRuntime()->hasJitcodeGlobalTable())
-        rt->jitRuntime()->getJitcodeGlobalTable()->sweep(rt);
 }
 
 void
@@ -675,15 +665,13 @@ JitCode::fixupNurseryObjects(JSContext *cx, const ObjectVector &nurseryObjects)
 void
 JitCode::finalize(FreeOp *fop)
 {
-    // If this jitcode had a bytecode map, it must have already been removed.
-#ifdef DEBUG
     JSRuntime *rt = fop->runtime();
+
+    // If this jitcode has a bytecode map, de-register it.
     if (hasBytecodeMap_) {
-        JitcodeGlobalEntry result;
         MOZ_ASSERT(rt->jitRuntime()->hasJitcodeGlobalTable());
-        MOZ_ASSERT(!rt->jitRuntime()->getJitcodeGlobalTable()->lookup(raw(), &result, rt));
+        rt->jitRuntime()->getJitcodeGlobalTable()->releaseEntry(raw(), rt);
     }
-#endif
 
     // Buffer can be freed at any time hereafter. Catch use-after-free bugs.
     // Don't do this if the Ion code is protected, as the signal handler will

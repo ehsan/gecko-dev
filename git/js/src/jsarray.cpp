@@ -27,7 +27,6 @@
 
 #include "ds/Sort.h"
 #include "gc/Heap.h"
-#include "js/Class.h"
 #include "js/Conversions.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Interpreter.h"

@@ -257,8 +257,6 @@ class JitRuntime
     void freeOsrTempData();
 
     static void Mark(JSTracer *trc);
-    static void MarkJitcodeGlobalTable(JSTracer *trc);
-    static void SweepJitcodeGlobalTable(JSRuntime *rt);
 
     ExecutableAllocator &execAlloc() {
         return execAlloc_;

@@ -27,7 +27,6 @@ using class mozilla::gfx::Matrix from "mozilla/gfx/Matrix.h";
 using struct gfxSize from "gfxPoint.h";
 using CSSRect from "Units.h";
 using LayoutDeviceIntRect from "Units.h";
-using ScreenIntSize from "Units.h";
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
 using struct mozilla::layers::ScrollableLayerGuid from "FrameMetrics.h";
 using struct mozilla::layers::ZoomConstraints from "FrameMetrics.h";
@@ -494,7 +493,7 @@ child:
      * content processes always render to a virtual <0, 0> top-left
      * point.
      */
-    Show(ScreenIntSize size,
+    Show(nsIntSize size,
          ShowInfo info,
          TextureFactoryIdentifier textureFactoryIdentifier,
          uint64_t layersId,
@@ -505,7 +504,7 @@ child:
 
     CacheFileDescriptor(nsString path, FileDescriptor fd);
 
-    UpdateDimensions(nsIntRect rect, ScreenIntSize size, ScreenOrientation orientation,
+    UpdateDimensions(nsIntRect rect, nsIntSize size, ScreenOrientation orientation,
                      nsIntPoint chromeDisp) compress;
 
     UpdateFrame(FrameMetrics frame);

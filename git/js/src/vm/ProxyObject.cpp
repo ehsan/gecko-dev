@@ -7,6 +7,7 @@
 #include "vm/ProxyObject.h"
 
 #include "jscompartment.h"
+#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;

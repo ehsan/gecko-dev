@@ -306,10 +306,6 @@ nsLayoutStatics::Initialize()
   RequestSyncWifiService::Init();
 #endif
 
-#ifdef DEBUG
-  nsStyleContext::Initialize();
-#endif
-
   return NS_OK;
 }
 
