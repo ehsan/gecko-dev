@@ -313,9 +313,6 @@ public:
 
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-  virtual void            Scroll(const nsIntPoint& aDelta,
-                                 const nsTArray<nsIntRect>& aDestRects,
-                                 const nsTArray<Configuration>& aConfigurations);
   virtual nsIntPoint      WidgetToScreenOffset();
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
 
