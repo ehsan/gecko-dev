@@ -74,10 +74,6 @@
 #define WM_MOUSEHWHEEL                    0x020E
 #endif
 
-#ifndef WM_MOUSELEAVE
-#define WM_MOUSELEAVE                     0x02A3
-#endif
-
 #ifndef SPI_GETWHEELSCROLLCHARS
 #define SPI_GETWHEELSCROLLCHARS           0x006C
 #endif

@@ -228,11 +228,13 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     }
 
     inline void EndDocUpdate() {
-      NS_PRECONDITION(mFlushState != eNotifying, "mFlushState out of sync");
-      if (mFlushState == eInDocUpdate) {
+      if (mFlushState >= eInDocUpdate) {
         FlushPendingAppendNotifications();
-        mFlushState = eInFlush;
+        if (NS_UNLIKELY(!mParser)) {
+          return;
+        }
         mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
+        mFlushState = eInFlush;
       }
     }
 
@@ -262,11 +264,23 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     }
 
     void FlushPendingAppendNotifications() {
+      if (NS_UNLIKELY(mFlushState == eNotifying)) {
+        // nsIParser::Terminate() was called in response to iter->Fire below
+        // earlier in the call stack.
+        return;
+      }
       NS_PRECONDITION(mFlushState == eInDocUpdate, "Notifications flushed outside update");
       mFlushState = eNotifying;
       const nsHtml5PendingNotification* start = mPendingNotifications.Elements();
       const nsHtml5PendingNotification* end = start + mPendingNotifications.Length();
       for (nsHtml5PendingNotification* iter = (nsHtml5PendingNotification*)start; iter < end; ++iter) {
+        if (NS_UNLIKELY(!mParser)) {
+          // nsIParser::Terminate() was called in response to a notification
+          // this most likely means that the page is being navigated away from
+          // so just dropping the rest of the notifications on the floor
+          // instead of doing something fancy.
+          break;
+        }
         iter->Fire();
       }
       mPendingNotifications.Clear();
@@ -276,7 +290,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       }
 #endif
       mElementsSeenInThisAppendBatch.Clear();
-      NS_ASSERTION(mFlushState == eNotifying, "mFlushState out of sync");
       mFlushState = eInDocUpdate;
     }
     

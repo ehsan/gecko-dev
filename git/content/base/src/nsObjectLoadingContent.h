@@ -61,12 +61,13 @@ class AutoFallback;
 class AutoSetInstantiatingToFalse;
 
 enum PluginSupportState {
-  ePluginUnsupported,  // The plugin is not supported (e.g. not installed)
-  ePluginDisabled,     // The plugin has been explicitly disabled by the user
+  ePluginUnsupported,  // The plugin is not supported (not installed, say)
+  ePluginDisabled,     // The plugin has been explicitly disabled by the
+                       // user.
   ePluginBlocklisted,  // The plugin is blocklisted and disabled
   ePluginOutdated,     // The plugin is considered outdated, but not disabled
-  ePluginOtherState,   // Something else (e.g. uninitialized or not a plugin)
-  ePluginCrashed
+  ePluginOtherState    // Something else (e.g. not a plugin at all as far
+                       // as we can tell).
 };
 
 /**
@@ -421,7 +422,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     PRPackedBool                mUserDisabled  : 1;
     PRPackedBool                mSuppressed    : 1;
     // A specific state that caused us to fallback
-    PluginSupportState          mFallbackReason;
+    PluginSupportState          mPluginState;
 
     nsWeakFrame                 mPrintFrame;
 

@@ -444,7 +444,7 @@ void XPCJSRuntime::UnrootContextGlobals()
     {
         NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
                      "unrooted global should be set only during CC");
-        if(XPCPerThreadData::IsMainThread(acx) &&
+        if(XPCPerThreadData::IsMainThreadContext(acx) &&
            nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);

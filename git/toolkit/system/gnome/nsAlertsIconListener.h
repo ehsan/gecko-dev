@@ -83,7 +83,6 @@ protected:
   PRPackedBool mHasQuit;
 
   NotifyNotification* mNotification;
-  gulong mClosureHandler;
 
   nsresult StartRequest(const nsAString & aImageUrl);
   nsresult ShowAlert(GdkPixbuf* aPixbuf);
