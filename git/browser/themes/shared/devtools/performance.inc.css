@@ -123,7 +123,7 @@
 
 .call-tree-header[type="samples"],
 .call-tree-cell[type="samples"] {
-  width: 4.5vw;
+  width: 4vw;
 }
 
 .call-tree-header[type="allocations"],

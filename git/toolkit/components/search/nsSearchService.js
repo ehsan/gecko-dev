@@ -3574,7 +3574,7 @@ SearchService.prototype = {
     this._defaultEngine = null;
 
     // Clear the metadata service.
-    engineMetadataService._initialized = false;
+    engineMetadataService._initState = engineMetadataService._InitStates.NOT_STARTED;
     engineMetadataService._initializer = null;
 
     Task.spawn(function* () {
@@ -4867,8 +4867,29 @@ SearchService.prototype = {
 var engineMetadataService = {
   _jsonFile: OS.Path.join(OS.Constants.Path.profileDir, "search-metadata.json"),
 
-  // Boolean flag that is true if initialization was successful.
-  _initialized: false,
+  /**
+   * Possible values for |_initState|.
+   *
+   * We have two paths to perform initialization: a default asynchronous
+   * path and a fallback synchronous path that can interrupt the async
+   * path. For this reason, initialization is actually something of a
+   * finite state machine, represented with the following states:
+   *
+   * @enum
+   */
+  _InitStates: {
+    NOT_STARTED: "NOT_STARTED"
+      /**Initialization has not started*/,
+    FINISHED_SUCCESS: "FINISHED_SUCCESS"
+      /**Setup complete, with a success*/
+  },
+
+  /**
+   * The latest step completed by initialization. One of |InitStates|
+   *
+   * @type {engineMetadataService._InitStates}
+   */
+  _initState: null,
 
   // A promise fulfilled once initialization is complete
   _initializer: null,
@@ -4884,32 +4905,34 @@ var engineMetadataService = {
       let initializer = this._initializer = Promise.defer();
       Task.spawn((function task_init() {
         LOG("metadata init: starting");
-        if (this._initialized) {
-          throw new Error("metadata init: invalid state, _initialized is " +
-                          "true but initialization promise has not been " +
-                          "resolved");
-        }
-        // 1. Load json file if it exists
-        try {
-          let contents = yield OS.File.read(this._jsonFile);
-          if (this._initialized) {
-            // No need to pursue asynchronous initialization,
-            // synchronous fallback was called and has finished.
-            return;
-          }
-          this._store = JSON.parse(new TextDecoder().decode(contents));
-        } catch (ex) {
-          if (this._initialized) {
-            // No need to pursue asynchronous initialization,
-            // synchronous fallback was called and has finished.
-            return;
-          }
-          // Couldn't load json, use an empty store
-          LOG("metadata init: could not load JSON file " + ex);
-          this._store = {};
+        switch (this._initState) {
+          case engineMetadataService._InitStates.NOT_STARTED:
+            // 1. Load json file if it exists
+            try {
+              let contents = yield OS.File.read(this._jsonFile);
+              if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
+                // No need to pursue asynchronous initialization,
+                // synchronous fallback was called and has finished.
+                return;
+              }
+              this._store = JSON.parse(new TextDecoder().decode(contents));
+            } catch (ex) {
+              if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
+                // No need to pursue asynchronous initialization,
+                // synchronous fallback was called and has finished.
+                return;
+              }
+              // Couldn't load json, use an empty store
+              LOG("metadata init: could not load JSON file " + ex);
+              this._store = {};
+            }
+            break;
+
+          default:
+            throw new Error("metadata init: invalid state " + this._initState);
         }
 
-        this._initialized = true;
+        this._initState = this._InitStates.FINISHED_SUCCESS;
         LOG("metadata init: complete");
       }).bind(this)).then(
         // 3. Inform any observers
@@ -4934,31 +4957,38 @@ var engineMetadataService = {
    */
   syncInit: function epsSyncInit() {
     LOG("metadata syncInit start");
-    if (this._initialized) {
+    if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
       return;
     }
-    let jsonFile = new FileUtils.File(this._jsonFile);
-    // 1. Load json file if it exists
-    if (jsonFile.exists()) {
-      try {
-        let uri = Services.io.newFileURI(jsonFile);
-        let stream = Services.io.newChannelFromURI2(uri,
-                                                    null,      // aLoadingNode
-                                                    Services.scriptSecurityManager.getSystemPrincipal(),
-                                                    null,      // aTriggeringPrincipal
-                                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                                    Ci.nsIContentPolicy.TYPE_OTHER).open();
-        this._store = parseJsonFromStream(stream);
-      } catch (x) {
-        LOG("metadata syncInit: could not load JSON file " + x);
-        this._store = {};
-      }
-    } else {
-      LOG("metadata syncInit: using an empty store");
-      this._store = {};
-    }
+    switch (this._initState) {
+      case engineMetadataService._InitStates.NOT_STARTED:
+        let jsonFile = new FileUtils.File(this._jsonFile);
+        // 1. Load json file if it exists
+        if (jsonFile.exists()) {
+          try {
+            let uri = Services.io.newFileURI(jsonFile);
+            let stream = Services.io.newChannelFromURI2(uri,
+                                                        null,      // aLoadingNode
+                                                        Services.scriptSecurityManager.getSystemPrincipal(),
+                                                        null,      // aTriggeringPrincipal
+                                                        Ci.nsILoadInfo.SEC_NORMAL,
+                                                        Ci.nsIContentPolicy.TYPE_OTHER).open();
+            this._store = parseJsonFromStream(stream);
+          } catch (x) {
+            LOG("metadata syncInit: could not load JSON file " + x);
+            this._store = {};
+          }
+        } else {
+          LOG("metadata syncInit: using an empty store");
+          this._store = {};
+        }
 
-    this._initialized = true;
+        this._initState = this._InitStates.FINISHED_SUCCESS;
+        break;
+
+      default:
+        throw new Error("metadata syncInit: invalid state " + this._initState);
+    }
 
     // 3. Inform any observers
     if (this._initializer) {
@@ -5093,7 +5123,7 @@ var engineMetadataService = {
   _lazyWriter: null
 };
 
-engineMetadataService._initialized = false;
+engineMetadataService._initState = engineMetadataService._InitStates.NOT_STARTED;
 
 const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
 

@@ -531,20 +531,10 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
         // for more details). Therefore we should hangup all active voice calls
         // first. And considering some DSDS architecture, toggling one radio may
         // toggle both, so we send hangUpAll to all clients.
-        let hangUpCallback = {
-          QueryInterface: XPCOMUtils.generateQI([Ci.nsITelephonyCallback]),
-          notifySuccess: function() {},
-          notifyError: function() {}
-        };
-
-        gTelephonyService.enumerateCalls({
-          QueryInterface: XPCOMUtils.generateQI([Ci.nsITelephonyListener]),
-          enumerateCallState: function(aInfo) {
-            gTelephonyService.hangUpCall(aInfo.clientId, aInfo.callIndex,
-                                         hangUpCallback);
-          },
-          enumerateCallStateComplete: function() {}
-        });
+        for (let i = 0, N = _ril.numRadioInterfaces; i < N; ++i) {
+          let iface = _ril.getRadioInterface(i);
+          iface.workerMessenger.send("hangUpAll");
+        }
 
         // In some DSDS architecture with only one modem, toggling one radio may
         // toggle both. Therefore, for safely turning off, we should first

@@ -329,17 +329,18 @@ public class AccountPickler {
             NonObjectJSONException, NoSuchAlgorithmException {
       // TODO: Should copy-pasta BUNDLE_KEY_STATE & LABEL to this file to ensure we maintain
       // old versions?
-      final StateLabel stateLabelString = StateLabel.valueOf(
+      final StateLabel stateLabel = StateLabel.valueOf(
           bundle.getString(AndroidFxAccount.BUNDLE_KEY_STATE_LABEL));
       final String stateString = bundle.getString(AndroidFxAccount.BUNDLE_KEY_STATE);
-      if (stateLabelString == null || stateString == null) {
-        throw new IllegalStateException("stateLabel and stateString must not be null, but: " +
-            "(stateLabel == null) = " + (stateLabelString == null) +
-            " and (stateString == null) = " + (stateString == null));
+      if (stateLabel == null) {
+        throw new IllegalStateException("stateLabel must not be null");
+      }
+      if (stateString == null) {
+        throw new IllegalStateException("stateString must not be null");
       }
 
       try {
-        return StateFactory.fromJSONObject(stateLabelString, new ExtendedJSONObject(stateString));
+        return StateFactory.fromJSONObject(stateLabel, new ExtendedJSONObject(stateString));
       } catch (Exception e) {
         throw new IllegalStateException("could not get state", e);
       }

@@ -205,7 +205,7 @@ xul|menulist > xul|*.menulist-label-box {
   padding-left: 10px !important;
 }
 
-xul|menulist > xul|*.menulist-label-box > xul|*.menulist-icon[src] {
+xul|menulist > xul|*.menulist-label-box > xul|*.menulist-icon {
   -moz-margin-end: 5px;
 }
 

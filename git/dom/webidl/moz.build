@@ -632,7 +632,6 @@ if CONFIG['MOZ_B2G_BT']:
             'BluetoothClassOfDevice.webidl',
             'BluetoothDevice2.webidl',
             'BluetoothDiscoveryHandle.webidl',
-            'BluetoothGatt.webidl',
             'BluetoothManager2.webidl',
             'BluetoothPairingHandle.webidl',
             'BluetoothPairingListener.webidl',
@@ -660,12 +659,6 @@ if CONFIG['MOZ_NFC']:
          'MozNFCPeer.webidl',
          'MozNFCTag.webidl',
          'NfcOptions.webidl',
-    ]
-
-if CONFIG['MOZ_SECUREELEMENT']:
-    WEBIDL_FILES += [
-         'SecureElement.webidl',
-         'SecureElementManager.webidl',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':

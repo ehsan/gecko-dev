@@ -399,8 +399,7 @@ Classifier::RegenActiveTables()
   ScanStoreDir(foundTables);
 
   for (uint32_t i = 0; i < foundTables.Length(); i++) {
-    nsCString table(foundTables[i]);
-    HashStore store(table, mStoreDirectory);
+    HashStore store(nsCString(foundTables[i]), mStoreDirectory);
 
     nsresult rv = store.Open();
     if (NS_FAILED(rv))

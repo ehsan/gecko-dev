@@ -16,7 +16,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 //      that the listmanagers tables are properly written on updates
 
 // Log only if browser.safebrowsing.debug is true
-this.log = function log(...stuff) {
+function log(...stuff) {
   var prefs_ = new G_Preferences();
   var debug = prefs_.getPref("browser.safebrowsing.debug");
   if (!debug) {
@@ -29,7 +29,7 @@ this.log = function log(...stuff) {
   dump(msg + "\n");
 }
 
-this.QueryAdapter = function QueryAdapter(callback) {
+function QueryAdapter(callback) {
   this.callback_ = callback;
 };
 
@@ -43,7 +43,7 @@ QueryAdapter.prototype.handleResponse = function(value) {
  *
  * @constructor
  */
-this.PROT_ListManager = function PROT_ListManager() {
+function PROT_ListManager() {
   log("Initializing list manager");
   this.prefs_ = new G_Preferences();
   this.updateInterval = this.prefs_.getPref("urlclassifier.updateinterval", 30 * 60) * 1000;

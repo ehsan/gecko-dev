@@ -465,8 +465,6 @@ this.NETWORK_CREG_TECH_EHRPD = 13;
 this.NETWORK_CREG_TECH_LTE = 14;
 this.NETWORK_CREG_TECH_HSPAP = 15;
 this.NETWORK_CREG_TECH_GSM = 16;
-this.NETWORK_CREG_TECH_DCHSPAP_1 = 18; // Some devices reports as 18
-this.NETWORK_CREG_TECH_DCHSPAP_2 = 19; // Some others report it as 19
 
 this.CELL_INFO_TYPE_GSM = 1;
 this.CELL_INFO_TYPE_CDMA = 2;
@@ -2915,10 +2913,7 @@ this.GECKO_RADIO_TECH = [
   "ehrpd",
   "lte",
   "hspa+",
-  "gsm",
-  null,
-  "hspa+", // DC-HSPA+
-  "hspa+"
+  "gsm"
 ];
 
 this.GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN = -1;

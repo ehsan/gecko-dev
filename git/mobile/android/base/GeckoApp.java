@@ -839,7 +839,9 @@ public abstract class GeckoApp
 
                     @Override
                     public void onToastHidden(ButtonToast.ReasonHidden reason) {
-                        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Hidden", buttonId));
+                        if (reason == ButtonToast.ReasonHidden.TIMEOUT) {
+                            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Hidden", buttonId));
+                        }
                     }
                 });
             }

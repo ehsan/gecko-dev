@@ -280,14 +280,12 @@ pref("browser.search.noCurrentEngine", true);
 
 // Control media casting & mirroring features
 pref("browser.casting.enabled", true);
+pref("browser.mirroring.enabled", true);
 #ifdef RELEASE_BUILD
 // Roku does not yet support mirroring in production
 pref("browser.mirroring.enabled.roku", false);
-// Chromecast mirroring is broken (bug 1131084)
-pref("browser.mirroring.enabled", false);
 #else
 pref("browser.mirroring.enabled.roku", true);
-pref("browser.mirroring.enabled", true);
 #endif
 
 // Enable sparse localization by setting a few package locale overrides
@@ -852,19 +850,7 @@ pref("dom.meta-viewport.enabled", true);
 // Enable the OpenH264 plugin support in the addon manager.
 pref("media.gmp-gmpopenh264.provider.enabled", true);
 
-// The default color scheme in reader mode (light, dark, auto)
+// The default color scheme in reader mode (light, dark, print, auto)
 // auto = color automatically adjusts according to ambient light level
 // (auto only works on platforms where the 'devicelight' event is enabled)
 pref("reader.color_scheme", "auto");
-
-// Color scheme values available in reader mode UI.
-pref("reader.color_scheme.values", "[\"light\",\"dark\",\"auto\"]");
-
-// The font type in reader (charis-sil, clear-sans)
-pref("reader.font_type", "clear-sans");
-
-// Font type values available in reader mode UI.
-pref("reader.font_type.values", "[\"charis-sil\",\"clear-sans\"]");
-
-// Whether to use a vertical or horizontal toolbar.
-pref("reader.toolbar.vertical", false);

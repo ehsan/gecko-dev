@@ -135,7 +135,6 @@ function RILContentHelper() {
   this.initDOMRequestHelper(/* aWindow */ null, RIL_IPC_MSG_NAMES);
   this._windowsMap = [];
   this._iccListeners = [];
-  this._iccChannelCallback = [];
 
   Services.obs.addObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 
@@ -593,8 +592,6 @@ RILContentHelper.prototype = {
       if (DEBUG) debug("Unregistered listener: " + listener);
     }
   },
-
-  _iccChannelCallback: null,
 
   _addIccChannelCallback: function(requestId, channelCb) {
     let cbInterfaces = this._iccChannelCallback;

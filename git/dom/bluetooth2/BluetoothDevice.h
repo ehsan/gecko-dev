@@ -10,7 +10,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/BluetoothDevice2Binding.h"
-#include "mozilla/dom/bluetooth/BluetoothCommon.h"
+#include "BluetoothCommon.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 
@@ -23,7 +23,6 @@ namespace dom {
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothClassOfDevice;
-class BluetoothGatt;
 class BluetoothNamedValue;
 class BluetoothValue;
 class BluetoothSignal;
@@ -69,8 +68,6 @@ public:
   {
     return mType;
   }
-
-  BluetoothGatt* GetGatt();
 
   /****************************************************************************
    * Event Handlers
@@ -176,11 +173,6 @@ private:
    * Type of this device. Can be unknown/classic/le/dual.
    */
   BluetoothDeviceType mType;
-
-  /**
-   * GATT client object to interact with the remote device.
-   */
-  nsRefPtr<BluetoothGatt> mGatt;
 };
 
 END_BLUETOOTH_NAMESPACE

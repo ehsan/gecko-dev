@@ -605,14 +605,14 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 
 <!ENTITY sidebarCloseButton.tooltip     "Close sidebar">
 
-<!ENTITY quitApplicationCmdWin2.label       "Exit">
-<!ENTITY quitApplicationCmdWin2.accesskey   "x">
-<!ENTITY quitApplicationCmdWin2.tooltip     "Exit &brandShorterName;">
+<!ENTITY quitApplicationCmdWin.label       "Exit"> 
+<!ENTITY quitApplicationCmdWin.accesskey   "x">
+<!ENTITY quitApplicationCmdWin.tooltip     "Exit &brandShortName;">
 <!ENTITY goBackCmd.commandKey "[">
 <!ENTITY goForwardCmd.commandKey "]">
 <!ENTITY quitApplicationCmd.label       "Quit"> 
 <!ENTITY quitApplicationCmd.accesskey   "Q">
-<!ENTITY quitApplicationCmdMac2.label   "Quit &brandShorterName;">
+<!ENTITY quitApplicationCmdMac.label    "Quit &brandShortName;">
 <!-- LOCALIZATION NOTE(quitApplicationCmdUnix.key): This keyboard shortcut is used by both Linux and OSX builds. -->
 <!ENTITY quitApplicationCmdUnix.key     "Q">
 
@@ -837,6 +837,3 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!ENTITY processHang.terminatePlugin.accessKey    "P">
 <!ENTITY processHang.terminateProcess.label       "Kill Web Process">
 <!ENTITY processHang.terminateProcess.accessKey   "K">
-
-<!ENTITY emeLearnMoreContextMenu.label            "Learn more about DRM…">
-<!ENTITY emeLearnMoreContextMenu.accesskey        "D">

@@ -9,7 +9,7 @@
  * Abstract base class for a lookup table.
  * @construction
  */
-this.UrlClassifierTable = function UrlClassifierTable() {
+function UrlClassifierTable() {
   this.debugZone = "urlclassifier-table";
   this.name = '';
   this.needsUpdate = false;
@@ -34,15 +34,8 @@ UrlClassifierTable.prototype.exists = function(url, callback) {
 
 /////////////////////////////////////////////////////////////////////
 // Url table implementation
-this.UrlClassifierTableUrl = function UrlClassifierTableUrl() {
+function UrlClassifierTableUrl() {
   UrlClassifierTable.call(this);
-}
-
-UrlClassifierTableUrl.inherits = function(parentCtor) {
-  var tempCtor = function(){};
-  tempCtor.prototype = parentCtor.prototype;
-  this.superClass_ = parentCtor.prototype;
-  this.prototype = new tempCtor();
 }
 UrlClassifierTableUrl.inherits(UrlClassifierTable);
 
@@ -70,18 +63,11 @@ UrlClassifierTableUrl.prototype.exists = function(url, callback) {
 /////////////////////////////////////////////////////////////////////
 // Domain table implementation
 
-this.UrlClassifierTableDomain = function UrlClassifierTableDomain() {
+function UrlClassifierTableDomain() {
   UrlClassifierTable.call(this);
   this.debugZone = "urlclassifier-table-domain";
   this.ioService_ = Cc["@mozilla.org/network/io-service;1"]
                     .getService(Ci.nsIIOService);
-}
-
-UrlClassifierTableDomain.inherits = function(parentCtor) {
-  var tempCtor = function(){};
-  tempCtor.prototype = parentCtor.prototype;
-  this.superClass_ = parentCtor.prototype;
-  this.prototype = new tempCtor();
 }
 UrlClassifierTableDomain.inherits(UrlClassifierTable);
 
@@ -134,16 +120,9 @@ UrlClassifierTableDomain.prototype.exists = function(url, callback) {
 /////////////////////////////////////////////////////////////////////
 // Enchash table implementation
 
-this.UrlClassifierTableEnchash = function UrlClassifierTableEnchash() {
+function UrlClassifierTableEnchash() {
   UrlClassifierTable.call(this);
   this.debugZone = "urlclassifier-table-enchash";
-}
-
-UrlClassifierTableEnchash.inherits = function(parentCtor) {
-  var tempCtor = function(){};
-  tempCtor.prototype = parentCtor.prototype;
-  this.superClass_ = parentCtor.prototype;
-  this.prototype = new tempCtor();
 }
 UrlClassifierTableEnchash.inherits(UrlClassifierTable);
 

@@ -56,29 +56,34 @@ let AboutReader = function(mm, win) {
   doc.addEventListener("visibilitychange", this, false);
 
   this._setupStyleDropdown();
-  this._setupButton("close-button", this._onReaderClose.bind(this));
   this._setupButton("toggle-button", this._onReaderToggle.bind(this));
   this._setupButton("share-button", this._onShare.bind(this));
 
-  let colorSchemeValues = JSON.parse(Services.prefs.getCharPref("reader.color_scheme.values"));
-  let colorSchemeOptions = colorSchemeValues.map((value) => {
-    return { name: gStrings.GetStringFromName("aboutReader.colorScheme." + value),
-             value: value,
-             itemClass: value + "-button" };
-  });
+  let colorSchemeOptions = [
+    { name: gStrings.GetStringFromName("aboutReader.colorSchemeDark"),
+      value: "dark"},
+    { name: gStrings.GetStringFromName("aboutReader.colorSchemeLight"),
+      value: "light"},
+    { name: gStrings.GetStringFromName("aboutReader.colorSchemeAuto"),
+      value: "auto"}
+  ];
 
   let colorScheme = Services.prefs.getCharPref("reader.color_scheme");
   this._setupSegmentedButton("color-scheme-buttons", colorSchemeOptions, colorScheme, this._setColorSchemePref.bind(this));
   this._setColorSchemePref(colorScheme);
 
   let fontTypeSample = gStrings.GetStringFromName("aboutReader.fontTypeSample");
-  let fontTypeValues = JSON.parse(Services.prefs.getCharPref("reader.font_type.values"));
-  let fontTypeOptions = fontTypeValues.map((value) => {
-    return { name: fontTypeSample,
-             description: gStrings.GetStringFromName("aboutReader.fontType." + value),
-             value: value,
-             linkClass: value };
-  });
+  let fontTypeOptions = [
+    { name: fontTypeSample,
+      description: gStrings.GetStringFromName("aboutReader.fontTypeSerif"),
+      value: "serif",
+      linkClass: "serif" },
+    { name: fontTypeSample,
+      description: gStrings.GetStringFromName("aboutReader.fontTypeSansSerif"),
+      value: "sans-serif",
+      linkClass: "sans-serif"
+    },
+  ];
 
   let fontType = Services.prefs.getCharPref("reader.font_type");
   this._setupSegmentedButton("font-type-buttons", fontTypeOptions, fontType, this._setFontType.bind(this));
@@ -107,11 +112,13 @@ let AboutReader = function(mm, win) {
   this._setupSegmentedButton("font-size-buttons", fontSizeOptions, fontSize, this._setFontSize.bind(this));
   this._setFontSize(fontSize);
 
+  let queryArgs = this._decodeQueryString(win.location.href);
+
   // Track status of reader toolbar add/remove toggle button
   this._isReadingListItem = -1;
   this._updateToggleButton();
 
-  this._loadArticle();
+  this._loadArticle(queryArgs.url);
 }
 
 AboutReader.prototype = {
@@ -154,13 +161,6 @@ AboutReader.prototype = {
 
   get _messageElement() {
     return this._messageElementRef.get();
-  },
-
-  get _isToolbarVertical() {
-    if (this._toolbarVertical !== undefined) {
-      return this._toolbarVertical;
-    }
-    return this._toolbarVertical = Services.prefs.getBoolPref("reader.toolbar.vertical");
   },
 
   receiveMessage: function (message) {
@@ -253,10 +253,6 @@ AboutReader.prototype = {
     this._mm.sendAsyncMessage("Reader:ListStatusRequest", { url: this._article.url });
   },
 
-  _onReaderClose: function Reader_onToggle() {
-    this._win.location.href = this._getOriginalUrl();
-  },
-
   _onReaderToggle: function Reader_onToggle() {
     if (!this._article)
       return;
@@ -282,13 +278,13 @@ AboutReader.prototype = {
   },
 
   _setFontSize: function Reader_setFontSize(newFontSize) {
-    let htmlClasses = this._doc.documentElement.classList;
+    let bodyClasses = this._doc.body.classList;
 
     if (this._fontSize > 0)
-      htmlClasses.remove("font-size" + this._fontSize);
+      bodyClasses.remove("font-size" + this._fontSize);
 
     this._fontSize = newFontSize;
-    htmlClasses.add("font-size" + this._fontSize);
+    bodyClasses.add("font-size" + this._fontSize);
 
     Services.prefs.setIntPref("reader.font_size", this._fontSize);
   },
@@ -442,8 +438,7 @@ AboutReader.prototype = {
     this._mm.sendAsyncMessage("Reader:SystemUIVisibility", { visible: visible });
   },
 
-  _loadArticle: Task.async(function* () {
-    let url = this._getOriginalUrl();
+  _loadArticle: Task.async(function* (url) {
     this._showProgressDelayed();
 
     let article = yield this._getArticle(url);
@@ -622,17 +617,18 @@ AboutReader.prototype = {
     }.bind(this), 300);
   },
 
-  /**
-   * Returns the original article URL for this about:reader view.
-   */
-  _getOriginalUrl: function() {
-    let url = this._win.location.href;
-    let searchParams = new URLSearchParams(url.split("?")[1]);
-    if (!searchParams.has("url")) {
-      Cu.reportError("Error finding original URL for about:reader URL: " + url);
-      return url;
+  _decodeQueryString: function Reader_decodeQueryString(url) {
+    let result = {};
+    let query = url.split("?")[1];
+    if (query) {
+      let pairs = query.split("&");
+      for (let i = 0; i < pairs.length; i++) {
+        let [name, value] = pairs[i].split("=");
+        result[name] = decodeURIComponent(value);
+      }
     }
-    return decodeURIComponent(searchParams.get("url"));
+
+    return result;
   },
 
   _setupSegmentedButton: function Reader_setupSegmentedButton(id, options, initialValue, callback) {
@@ -647,9 +643,6 @@ AboutReader.prototype = {
       link.textContent = option.name;
       item.appendChild(link);
 
-      if (option.itemClass !== undefined)
-        item.classList.add(option.itemClass);
-
       if (option.linkClass !== undefined)
         link.classList.add(option.linkClass);
 
@@ -662,7 +655,7 @@ AboutReader.prototype = {
       link.style.MozUserSelect = 'none';
       segmentedButton.appendChild(item);
 
-      item.addEventListener("click", function(aEvent) {
+      link.addEventListener("click", function(aEvent) {
         if (!aEvent.isTrusted)
           return;
 
@@ -703,30 +696,24 @@ AboutReader.prototype = {
     let win = this._win;
 
     let dropdown = doc.getElementById("style-dropdown");
+
     let dropdownToggle = dropdown.querySelector(".dropdown-toggle");
     let dropdownPopup = dropdown.querySelector(".dropdown-popup");
     let dropdownArrow = dropdown.querySelector(".dropdown-arrow");
 
-    let updatePopupPosition = () => {
-      if (this._isToolbarVertical) {
-        let toggleHeight = dropdownToggle.offsetHeight;
-        let toggleTop = dropdownToggle.offsetTop;
-        let popupTop = toggleTop - toggleHeight / 2;
-        dropdownPopup.style.top = popupTop + "px";
-      } else {
-        let popupWidth = dropdownPopup.offsetWidth + 30;
-        let arrowWidth = dropdownArrow.offsetWidth;
-        let toggleWidth = dropdownToggle.offsetWidth;
-        let toggleLeft = dropdownToggle.offsetLeft;
+    let updatePopupPosition = function() {
+      let popupWidth = dropdownPopup.offsetWidth + 30;
+      let arrowWidth = dropdownArrow.offsetWidth;
+      let toggleWidth = dropdownToggle.offsetWidth;
+      let toggleLeft = dropdownToggle.offsetLeft;
 
-        let popupShift = (toggleWidth - popupWidth) / 2;
-        let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
-        dropdownPopup.style.left = popupLeft + "px";
+      let popupShift = (toggleWidth - popupWidth) / 2;
+      let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
+      dropdownPopup.style.left = popupLeft + "px";
 
-        let arrowShift = (toggleWidth - arrowWidth) / 2;
-        let arrowLeft = toggleLeft - popupLeft + arrowShift;
-        dropdownArrow.style.left = arrowLeft + "px";
-      }
+      let arrowShift = (toggleWidth - arrowWidth) / 2;
+      let arrowLeft = toggleLeft - popupLeft + arrowShift;
+      dropdownArrow.style.left = arrowLeft + "px";
     };
 
     win.addEventListener("resize", event => {
@@ -743,12 +730,14 @@ AboutReader.prototype = {
 
       event.stopPropagation();
 
+      if (!this._getToolbarVisibility())
+        return;
+
       if (dropdown.classList.contains("open")) {
         dropdown.classList.remove("open");
       } else {
         dropdown.classList.add("open");
-        updatePopupPosition();
       }
     }, true);
-  },
+  }
 };

@@ -7128,7 +7128,7 @@ var gIdentityHandler = {
       break; }
     case this.IDENTITY_MODE_CHROMEUI:
       let brandBundle = document.getElementById("bundle_brand");
-      icon_label = brandBundle.getString("brandShorterName");
+      icon_label = brandBundle.getString("brandShortName");
       break;
     default:
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
