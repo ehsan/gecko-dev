@@ -120,6 +120,8 @@ public:
 
   virtual PRInt32 IndexOf(nsIContent *aContent, PRBool aDoFlush);
 
+  static void Shutdown();
+
 protected:
   nsCOMArray<nsIContent> mElements;
 };
@@ -290,6 +292,8 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
   NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
   
+  static void OnDocumentDestroy(nsIDocument *aDocument);
+
   static nsContentList* FromSupports(nsISupports* aSupports)
   {
     nsINodeList* list = static_cast<nsINodeList*>(aSupports);
