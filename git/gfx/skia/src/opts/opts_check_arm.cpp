@@ -13,7 +13,6 @@
  *    available in the core
  */
 
-#include "SkBlitRow.h"
 #include "SkUtils.h"
 
 #if defined(__ARM_HAVE_NEON) && defined(SK_CPU_LENDIAN)
@@ -45,8 +44,3 @@ SkMemset32Proc SkMemset32GetPlatformProc() {
     return NULL;
 #endif
 }
-
-SkBlitRow::ColorRectProc PlatformColorRectProcFactory() {
-    return NULL;
-}
-

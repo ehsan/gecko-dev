@@ -482,8 +482,7 @@ nsFrame::Init(nsIContent*      aContent,
     // Make bits that are currently off (see constructor) the same:
     mState |= state & (NS_FRAME_INDEPENDENT_SELECTION |
                        NS_FRAME_IS_SPECIAL |
-                       NS_FRAME_MAY_BE_TRANSFORMED |
-                       NS_FRAME_MAY_HAVE_GENERATED_CONTENT);
+                       NS_FRAME_MAY_BE_TRANSFORMED);
   }
   if (mParent) {
     nsFrameState state = mParent->GetStateBits();
@@ -2563,7 +2562,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   }
 
   nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this);
-  ContentOffsets offsets = GetContentOffsetsFromPoint(pt, SKIP_HIDDEN);
+  ContentOffsets offsets = GetContentOffsetsFromPoint(pt);
 
   if (!offsets.content)
     return NS_ERROR_FAILURE;
@@ -2709,7 +2708,7 @@ nsFrame::HandleMultiplePress(nsPresContext* aPresContext,
   }
 
   nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this);
-  ContentOffsets offsets = GetContentOffsetsFromPoint(pt, SKIP_HIDDEN);
+  ContentOffsets offsets = GetContentOffsetsFromPoint(pt);
   if (!offsets.content) return NS_ERROR_FAILURE;
 
   nsIFrame* theFrame;
@@ -2978,7 +2977,7 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
       if (!mouseDown && frameselection->HasDelayedCaretData() &&
           frameselection->GetClickCountInDelayedCaretData() < 2) {
         nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this);
-        offsets = GetContentOffsetsFromPoint(pt, SKIP_HIDDEN);
+        offsets = GetContentOffsetsFromPoint(pt);
         handleTableSelection = false;
       } else {
         GetDataForTableSelection(frameselection, PresContext()->PresShell(),
@@ -3092,17 +3091,12 @@ struct FrameTarget {
 };
 
 // See function implementation for information
-static FrameTarget GetSelectionClosestFrame(nsIFrame* aFrame, nsPoint aPoint,
-                                            PRUint32 aFlags);
+static FrameTarget GetSelectionClosestFrame(nsIFrame* aFrame, nsPoint aPoint);
 
-static bool SelfIsSelectable(nsIFrame* aFrame, PRUint32 aFlags)
+static bool SelfIsSelectable(nsIFrame* aFrame)
 {
-  if ((aFlags & nsIFrame::SKIP_HIDDEN) &&
-      !aFrame->GetStyleVisibility()->IsVisible()) {
-    return false;
-  }
-  return !aFrame->IsGeneratedContentFrame() &&
-    aFrame->GetStyleUIReset()->mUserSelect != NS_STYLE_USER_SELECT_NONE;
+  return !(aFrame->IsGeneratedContentFrame() ||
+           aFrame->GetStyleUIReset()->mUserSelect == NS_STYLE_USER_SELECT_NONE);
 }
 
 static bool SelectionDescendToKids(nsIFrame* aFrame) {
@@ -3124,13 +3118,12 @@ static bool SelectionDescendToKids(nsIFrame* aFrame) {
 }
 
 static FrameTarget GetSelectionClosestFrameForChild(nsIFrame* aChild,
-                                                    nsPoint aPoint,
-                                                    PRUint32 aFlags)
+                                                    nsPoint aPoint)
 {
   nsIFrame* parent = aChild->GetParent();
   if (SelectionDescendToKids(aChild)) {
     nsPoint pt = aPoint - aChild->GetOffsetTo(parent);
-    return GetSelectionClosestFrame(aChild, pt, aFlags);
+    return GetSelectionClosestFrame(aChild, pt);
   }
   return FrameTarget(aChild, false, false);
 }
@@ -3141,12 +3134,12 @@ static FrameTarget GetSelectionClosestFrameForChild(nsIFrame* aChild,
 // blocks, because that's not where it's expected.
 // Note that this method is guaranteed to succeed.
 static FrameTarget DrillDownToSelectionFrame(nsIFrame* aFrame,
-                                             bool aEndFrame, PRUint32 aFlags) {
+                                             bool aEndFrame) {
   if (SelectionDescendToKids(aFrame)) {
     nsIFrame* result = nsnull;
     nsIFrame *frame = aFrame->GetFirstPrincipalChild();
     if (!aEndFrame) {
-      while (frame && (!SelfIsSelectable(frame, aFlags) ||
+      while (frame && (!SelfIsSelectable(frame) ||
                         frame->IsEmpty()))
         frame = frame->GetNextSibling();
       if (frame)
@@ -3157,13 +3150,13 @@ static FrameTarget DrillDownToSelectionFrame(nsIFrame* aFrame,
       // XXX I have a feeling this could be slow for long blocks, although
       //     I can't find any slowdowns
       while (frame) {
-        if (!frame->IsEmpty() && SelfIsSelectable(frame, aFlags))
+        if (!frame->IsEmpty() && SelfIsSelectable(frame))
           result = frame;
         frame = frame->GetNextSibling();
       }
     }
     if (result)
-      return DrillDownToSelectionFrame(result, aEndFrame, aFlags);
+      return DrillDownToSelectionFrame(result, aEndFrame);
   }
   // If the current frame has no targetable children, target the current frame
   return FrameTarget(aFrame, true, aEndFrame);
@@ -3174,24 +3167,23 @@ static FrameTarget DrillDownToSelectionFrame(nsIFrame* aFrame,
 static FrameTarget GetSelectionClosestFrameForLine(
                       nsBlockFrame* aParent,
                       nsBlockFrame::line_iterator aLine,
-                      nsPoint aPoint,
-                      PRUint32 aFlags)
+                      nsPoint aPoint)
 {
   nsIFrame *frame = aLine->mFirstChild;
   // Account for end of lines (any iterator from the block is valid)
   if (aLine == aParent->end_lines())
-    return DrillDownToSelectionFrame(aParent, true, aFlags);
+    return DrillDownToSelectionFrame(aParent, true);
   nsIFrame *closestFromLeft = nsnull, *closestFromRight = nsnull;
   nsRect rect = aLine->mBounds;
   nscoord closestLeft = rect.x, closestRight = rect.XMost();
   for (PRInt32 n = aLine->GetChildCount(); n;
        --n, frame = frame->GetNextSibling()) {
-    if (!SelfIsSelectable(frame, aFlags) || frame->IsEmpty())
+    if (!SelfIsSelectable(frame) || frame->IsEmpty())
       continue;
     nsRect frameRect = frame->GetRect();
     if (aPoint.x >= frameRect.x) {
       if (aPoint.x < frameRect.XMost()) {
-        return GetSelectionClosestFrameForChild(frame, aPoint, aFlags);
+        return GetSelectionClosestFrameForChild(frame, aPoint);
       }
       if (frameRect.XMost() >= closestLeft) {
         closestFromLeft = frame;
@@ -3212,9 +3204,9 @@ static FrameTarget GetSelectionClosestFrameForLine(
   if (closestFromLeft &&
       (!closestFromRight ||
        (abs(aPoint.x - closestLeft) <= abs(aPoint.x - closestRight)))) {
-    return GetSelectionClosestFrameForChild(closestFromLeft, aPoint, aFlags);
+    return GetSelectionClosestFrameForChild(closestFromLeft, aPoint);
   }
-  return GetSelectionClosestFrameForChild(closestFromRight, aPoint, aFlags);
+  return GetSelectionClosestFrameForChild(closestFromRight, aPoint);
 }
 
 // This method is for the special handling we do for block frames; they're
@@ -3223,8 +3215,7 @@ static FrameTarget GetSelectionClosestFrameForLine(
 // frame tree.  Returns a null FrameTarget for frames which are not
 // blocks or blocks with no lines except editable one.
 static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
-                                                    nsPoint aPoint,
-                                                    PRUint32 aFlags)
+                                                    nsPoint aPoint)
 {
   nsBlockFrame* bf = nsLayoutUtils::GetAsBlock(aFrame); // used only for QI
   if (!bf)
@@ -3274,11 +3265,11 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
 
     if (prevLine == end) {
       if (dragOutOfFrame == 1 || nextLine == end)
-        return DrillDownToSelectionFrame(aFrame, false, aFlags);
+        return DrillDownToSelectionFrame(aFrame, false);
       closestLine = nextLine;
     } else if (nextLine == end) {
       if (dragOutOfFrame == 1)
-        return DrillDownToSelectionFrame(aFrame, true, aFlags);
+        return DrillDownToSelectionFrame(aFrame, true);
       closestLine = prevLine;
     } else { // Figure out which line is closer
       if (aPoint.y - prevLine->mBounds.YMost() < nextLine->mBounds.y - aPoint.y)
@@ -3290,13 +3281,13 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
 
   do {
     FrameTarget target = GetSelectionClosestFrameForLine(bf, closestLine,
-                                                         aPoint, aFlags);
+                                                         aPoint);
     if (!target.IsNull())
       return target;
     ++closestLine;
   } while (closestLine != end);
   // Fall back to just targeting the last targetable place
-  return DrillDownToSelectionFrame(aFrame, true, aFlags);
+  return DrillDownToSelectionFrame(aFrame, true);
 }
 
 // GetSelectionClosestFrame is the helper function that calculates the closest
@@ -3306,12 +3297,11 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
 // Cannot handle overlapping frames correctly, so it should receive the output
 // of GetFrameForPoint
 // Guaranteed to return a valid FrameTarget
-static FrameTarget GetSelectionClosestFrame(nsIFrame* aFrame, nsPoint aPoint,
-                                            PRUint32 aFlags)
+static FrameTarget GetSelectionClosestFrame(nsIFrame* aFrame, nsPoint aPoint)
 {
   {
     // Handle blocks; if the frame isn't a block, the method fails
-    FrameTarget target = GetSelectionClosestFrameForBlock(aFrame, aPoint, aFlags);
+    FrameTarget target = GetSelectionClosestFrameForBlock(aFrame, aPoint);
     if (!target.IsNull())
       return target;
   }
@@ -3328,7 +3318,7 @@ static FrameTarget GetSelectionClosestFrame(nsIFrame* aFrame, nsPoint aPoint,
     nsIFrame *closestFrame = nsnull;
 
     for (; kid; kid = kid->GetNextSibling()) {
-      if (!SelfIsSelectable(kid, aFlags) || kid->IsEmpty())
+      if (!SelfIsSelectable(kid) || kid->IsEmpty())
         continue;
 
       nsRect rect = kid->GetRect();
@@ -3366,7 +3356,7 @@ static FrameTarget GetSelectionClosestFrame(nsIFrame* aFrame, nsPoint aPoint,
       }
     }
     if (closestFrame)
-      return GetSelectionClosestFrameForChild(closestFrame, aPoint, aFlags);
+      return GetSelectionClosestFrameForChild(closestFrame, aPoint);
   }
   return FrameTarget(aFrame, false, false);
 }
@@ -3426,10 +3416,10 @@ static nsIFrame* AdjustFrameForSelectionStyles(nsIFrame* aFrame) {
   
 
 nsIFrame::ContentOffsets nsIFrame::GetContentOffsetsFromPoint(nsPoint aPoint,
-                                                              PRUint32 aFlags)
+                                                              bool aIgnoreSelectionStyle)
 {
   nsIFrame *adjustedFrame;
-  if (aFlags & IGNORE_SELECTION_STYLE) {
+  if (aIgnoreSelectionStyle) {
     adjustedFrame = this;
   }
   else {
@@ -3457,8 +3447,7 @@ nsIFrame::ContentOffsets nsIFrame::GetContentOffsetsFromPoint(nsPoint aPoint,
 
   nsPoint adjustedPoint = aPoint + this->GetOffsetTo(adjustedFrame);
 
-  FrameTarget closest =
-    GetSelectionClosestFrame(adjustedFrame, adjustedPoint, aFlags);
+  FrameTarget closest = GetSelectionClosestFrame(adjustedFrame, adjustedPoint);
 
   if (closest.emptyBlock) {
     ContentOffsets offsets;
@@ -5844,7 +5833,7 @@ nsIFrame::GetExtremeCaretPosition(bool aStart)
 {
   CaretPosition result;
 
-  FrameTarget targetFrame = DrillDownToSelectionFrame(this, !aStart, 0);
+  FrameTarget targetFrame = DrillDownToSelectionFrame(this, !aStart);
   FrameContentRange range = GetRangeForFrame(targetFrame.frame);
   result.mResultContent = range.content;
   result.mContentOffset = aStart ? range.start : range.end;
@@ -6295,7 +6284,7 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       if (!baseFrame)
         return NS_ERROR_FAILURE;
       FrameTarget targetFrame = DrillDownToSelectionFrame(baseFrame,
-                                                          endOfLine, 0);
+                                                          endOfLine);
       FrameContentRange range = GetRangeForFrame(targetFrame.frame);
       aPos->mResultContent = range.content;
       aPos->mContentOffset = endOfLine ? range.end : range.start;
@@ -6605,7 +6594,7 @@ nsFrame::ChildIsDirty(nsIFrame* aChild)
 
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsFrame::CreateAccessible()
 {
   return nsnull;

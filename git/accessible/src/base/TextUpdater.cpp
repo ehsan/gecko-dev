@@ -39,7 +39,7 @@ void
 TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
                       PRUint32 aSkipStart)
 {
-  Accessible* parent = mTextLeaf->Parent();
+  nsAccessible* parent = mTextLeaf->Parent();
   if (!parent)
     return;
 

@@ -13,7 +13,7 @@
 #include "SkColorFilter.h"
 #include "SkColorMatrix.h"
 
-class SK_API SkColorMatrixFilter : public SkColorFilter {
+class SkColorMatrixFilter : public SkColorFilter {
 public:
     SkColorMatrixFilter();
     explicit SkColorMatrixFilter(const SkColorMatrix&);
@@ -28,17 +28,24 @@ public:
     virtual uint32_t getFlags() SK_OVERRIDE;
     virtual bool asColorMatrix(SkScalar matrix[20]) SK_OVERRIDE;
 
+    // overrides for SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer& buffer) SK_OVERRIDE;
+
     struct State {
         int32_t fArray[20];
         int     fShift;
         int32_t fResult[4];
     };
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkColorMatrixFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer);
+
+    SK_DECLARE_FLATTENABLE_REGISTRAR()
 
 protected:
+    // overrides for SkFlattenable
+    virtual Factory getFactory();
+
     SkColorMatrixFilter(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
 private:
 

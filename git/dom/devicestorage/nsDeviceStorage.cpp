@@ -267,41 +267,6 @@ protected:
   friend class ContinueCursorEvent;
 };
 
-class DeviceStorageCursorRequest : public nsIContentPermissionRequest
-{
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(DeviceStorageCursorRequest, nsIContentPermissionRequest)
-
-  NS_FORWARD_NSICONTENTPERMISSIONREQUEST(mCursor->);
-
-  DeviceStorageCursorRequest(nsDOMDeviceStorageCursor* aCursor)
-    : mCursor(aCursor) { }
-
-  ~DeviceStorageCursorRequest() {}
-
-private:
-  nsRefPtr<nsDOMDeviceStorageCursor> mCursor;
-};
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DeviceStorageCursorRequest)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContentPermissionRequest)
-  NS_INTERFACE_MAP_ENTRY(nsIContentPermissionRequest)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(DeviceStorageCursorRequest)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(DeviceStorageCursorRequest)
-NS_IMPL_CYCLE_COLLECTION_CLASS(DeviceStorageCursorRequest)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DeviceStorageCursorRequest)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCursor)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DeviceStorageCursorRequest)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCursor, nsIDOMDeviceStorageCursor)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-
 #define POST_ERROR_EVENT_FILE_DOES_NOT_EXIST         "File location doesn't exists"
 #define POST_ERROR_EVENT_FILE_NOT_ENUMERABLE         "File location is not enumerable"
 #define POST_ERROR_EVENT_PERMISSION_DENIED           "Permission Denied"
@@ -488,10 +453,10 @@ private:
 DOMCI_DATA(DeviceStorageCursor, nsDOMDeviceStorageCursor)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDeviceStorageCursor)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDeviceStorageCursor)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDeviceStorageCursor)
   NS_INTERFACE_MAP_ENTRY(nsIContentPermissionRequest)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMRequest)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDeviceStorageCursor)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DeviceStorageCursor)
 NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
 
@@ -508,6 +473,15 @@ nsDOMDeviceStorageCursor::nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
   , mURI(aURI)
   , mEditable(aEditable)
 {
+  if (mozilla::Preferences::GetBool("device.storage.prompt.testing", false)) {
+    Allow();
+    return;
+  }
+
+  nsCOMPtr<nsIContentPermissionPrompt> prompt = do_GetService(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
+  if (prompt) {
+    prompt->Prompt(this);
+  }
 }
 
 nsDOMDeviceStorageCursor::~nsDOMDeviceStorageCursor()
@@ -524,7 +498,7 @@ nsDOMDeviceStorageCursor::GetType(nsACString & aType)
 NS_IMETHODIMP
 nsDOMDeviceStorageCursor::GetUri(nsIURI * *aRequestingURI)
 {
-  NS_IF_ADDREF(*aRequestingURI = mURI);
+  mURI.forget(aRequestingURI);
   return NS_OK;
 }
 
@@ -1205,20 +1179,8 @@ nsDOMDeviceStorage::EnumerateInternal(const nsAString & aPath,
 
   nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(mFile, aPath);
 
-  nsRefPtr<nsDOMDeviceStorageCursor> cursor = new nsDOMDeviceStorageCursor(win, mURI, dsf, aEditable);
+  nsDOMDeviceStorageCursor* cursor = new nsDOMDeviceStorageCursor(win, mURI, dsf, aEditable);
   NS_ADDREF(*_retval = cursor);
-
-  nsRefPtr<DeviceStorageCursorRequest> r = new DeviceStorageCursorRequest(cursor);
-
-  if (mozilla::Preferences::GetBool("device.storage.prompt.testing", false)) {
-    r->Allow();
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIContentPermissionPrompt> prompt = do_GetService(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
-  if (prompt) {
-    prompt->Prompt(r);
-  }
 
   return NS_OK;
 }

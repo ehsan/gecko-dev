@@ -416,7 +416,7 @@ nsVideoFrame::GetType() const
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsVideoFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();

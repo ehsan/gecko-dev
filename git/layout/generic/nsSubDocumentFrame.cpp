@@ -89,7 +89,7 @@ nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsSubDocumentFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();

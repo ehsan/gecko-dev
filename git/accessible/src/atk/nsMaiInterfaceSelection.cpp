@@ -6,7 +6,7 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 #include "nsMai.h"
 
 #include <atk/atk.h>
@@ -16,79 +16,79 @@ extern "C" {
 static gboolean
 addSelectionCB(AtkSelection *aSelection, gint i)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return FALSE;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return FALSE;
 
-  return accWrap->AddItemToSelection(i);
+    return accWrap->AddItemToSelection(i);
 }
 
 static gboolean
 clearSelectionCB(AtkSelection *aSelection)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return FALSE;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return FALSE;
 
-  return accWrap->UnselectAll();
+    return accWrap->UnselectAll();
 }
 
 static AtkObject*
 refSelectionCB(AtkSelection *aSelection, gint i)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return nsnull;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return nsnull;
 
-  Accessible* selectedItem = accWrap->GetSelectedItem(i);
-  if (!selectedItem)
-    return nsnull;
+    nsAccessible* selectedItem = accWrap->GetSelectedItem(i);
+    if (!selectedItem)
+        return nsnull;
 
-  AtkObject* atkObj = AccessibleWrap::GetAtkObject(selectedItem);
-  if (atkObj)
-    g_object_ref(atkObj);
-
-  return atkObj;
+    AtkObject* atkObj = nsAccessibleWrap::GetAtkObject(selectedItem);
+    if (atkObj) {
+        g_object_ref(atkObj);
+    }
+    return atkObj;
 }
 
 static gint
 getSelectionCountCB(AtkSelection *aSelection)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return -1;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return -1;
 
-  return accWrap->SelectedItemCount();
+    return accWrap->SelectedItemCount();
 }
 
 static gboolean
 isChildSelectedCB(AtkSelection *aSelection, gint i)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return FALSE;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return FALSE;
 
-  return accWrap->IsItemSelected(i);
+    return accWrap->IsItemSelected(i);
 }
 
 static gboolean
 removeSelectionCB(AtkSelection *aSelection, gint i)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return FALSE;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return FALSE;
 
-  return accWrap->RemoveItemFromSelection(i);
+    return accWrap->RemoveItemFromSelection(i);
 }
 
 static gboolean
 selectAllSelectionCB(AtkSelection *aSelection)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
-  if (!accWrap || !accWrap->IsSelect())
-    return FALSE;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
+    if (!accWrap || !accWrap->IsSelect())
+        return FALSE;
 
-  return accWrap->SelectAll();
+    return accWrap->SelectAll();
 }
 }
 

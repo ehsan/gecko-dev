@@ -33,7 +33,15 @@ SkDiscreteMapper::SkDiscreteMapper(SkFlattenableReadBuffer& rb)
     fScale = rb.readU32();
 }
 
-void SkDiscreteMapper::flatten(SkFlattenableWriteBuffer& wb) const {
+SkFlattenable::Factory SkDiscreteMapper::getFactory() {
+    return Create;
+}
+
+SkFlattenable* SkDiscreteMapper::Create(SkFlattenableReadBuffer& rb) {
+    return SkNEW_ARGS(SkDiscreteMapper, (rb));
+}
+
+void SkDiscreteMapper::flatten(SkFlattenableWriteBuffer& wb) {
     this->INHERITED::flatten(wb);
 
     wb.write32(fSegments);
@@ -56,4 +64,12 @@ uint16_t SkCosineMapper::mapUnit16(uint16_t input)
 
 SkCosineMapper::SkCosineMapper(SkFlattenableReadBuffer& rb)
     : SkUnitMapper(rb) {}
+
+SkFlattenable::Factory SkCosineMapper::getFactory() {
+    return Create;
+}
+
+SkFlattenable* SkCosineMapper::Create(SkFlattenableReadBuffer& rb) {
+    return SkNEW_ARGS(SkCosineMapper, (rb));
+}
 

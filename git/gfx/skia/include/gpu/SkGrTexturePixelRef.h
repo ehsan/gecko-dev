@@ -21,7 +21,7 @@
  *  Common baseclass that implements onLockPixels() by calling onReadPixels().
  *  Since it has a copy, it always returns false for onLockPixelsAreWritable().
  */
-class SK_API SkROLockPixelsPixelRef : public SkPixelRef {
+class SkROLockPixelsPixelRef : public SkPixelRef {
 public:
     SkROLockPixelsPixelRef();
     virtual ~SkROLockPixelsPixelRef();
@@ -40,15 +40,13 @@ private:
 /**
  *  PixelRef that wraps a GrTexture
  */
-class SK_API SkGrTexturePixelRef : public SkROLockPixelsPixelRef {
+class SkGrTexturePixelRef : public SkROLockPixelsPixelRef {
 public:
             SkGrTexturePixelRef(GrTexture*);
     virtual ~SkGrTexturePixelRef();
 
     // override from SkPixelRef
     virtual SkGpuTexture* getTexture();
-
-    SK_DECLARE_UNFLATTENABLE_OBJECT()
 
 protected:
     // override from SkPixelRef
@@ -65,15 +63,13 @@ private:
 /**
  *  PixelRef that wraps a GrRenderTarget
  */
-class SK_API SkGrRenderTargetPixelRef : public SkROLockPixelsPixelRef {
+class SkGrRenderTargetPixelRef : public SkROLockPixelsPixelRef {
 public:
             SkGrRenderTargetPixelRef(GrRenderTarget* rt);
     virtual ~SkGrRenderTargetPixelRef();
 
     // override from SkPixelRef
     virtual SkGpuTexture* getTexture();
-
-    SK_DECLARE_UNFLATTENABLE_OBJECT()
 
 protected:
     // override from SkPixelRef

@@ -13,14 +13,6 @@
 #include "nsCoreAnimationSupport.h"
 #endif
 
-#ifdef XP_WIN
-#include "gfxD2DSurface.h"
-#include "gfxWindowsPlatform.h"
-#include <d3d10_1.h>
-
-#include "d3d10/ImageLayerD3D10.h"
-#endif
-
 using namespace mozilla::ipc;
 
 namespace mozilla {
@@ -174,9 +166,6 @@ ImageContainer::LockCurrentAsSurface(gfxIntSize *aSize, Image** aCurrentImage)
     
       return newSurf.forget();
     }
-
-    *aSize = mActiveImage->GetSize();
-    return mActiveImage->GetAsSurface();
   }
 
   if (aCurrentImage) {
@@ -280,18 +269,6 @@ ImageContainer::EnsureActiveImage()
               
       mActiveImage = newImg;
     }
-#ifdef XP_WIN
-    else if (mRemoteData->mType == RemoteImageData::DXGI_TEXTURE_HANDLE &&
-             mRemoteData->mTextureHandle && !mActiveImage) {
-      nsRefPtr<RemoteDXGITextureImage> newImg = new RemoteDXGITextureImage();
-      newImg->mSize = mRemoteData->mSize;
-      newImg->mHandle = mRemoteData->mTextureHandle;
-      newImg->mFormat = mRemoteData->mFormat;
-      mRemoteData->mWasUpdated = false;
-
-      mActiveImage = newImg;
-    }
-#endif
   }
 }
 
@@ -417,7 +394,6 @@ MacIOSurfaceImage::Update(ImageContainer* aContainer)
   }
 }
 #endif
-
 already_AddRefed<gfxASurface>
 RemoteBitmapImage::GetAsSurface()
 {

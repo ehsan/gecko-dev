@@ -9,7 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsIContent.h"
 
-class Accessible;
+class nsAccessible;
 class DocAccessible;
 struct WalkState;
 
@@ -30,7 +30,7 @@ public:
    *       rejected during tree creation then the caller should be unbind it
    *       from the document.
    */
-  Accessible* NextChild()
+  inline nsAccessible* NextChild()
   {
     return NextChildInternal(false);
   }
@@ -44,7 +44,7 @@ private:
    *                     shouldn't go up through the tree if we failed find
    *                     accessible children.
    */
-  Accessible* NextChildInternal(bool aNoWalkUp);
+  nsAccessible* NextChildInternal(bool aNoWalkUp);
 
   /**
    * Create new state for the given node and push it on top of stack.

@@ -252,19 +252,6 @@ size_t SkBitmap::ComputeSafeSize(Config config,
     return (safeSize.is32() ? safeSize.get32() : 0);
 }
 
-void SkBitmap::getBounds(SkRect* bounds) const {
-    SkASSERT(bounds);
-    bounds->set(0, 0,
-                SkIntToScalar(fWidth), SkIntToScalar(fHeight));
-}
-
-void SkBitmap::getBounds(SkIRect* bounds) const {
-    SkASSERT(bounds);
-    bounds->set(0, 0, fWidth, fHeight);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 void SkBitmap::setConfig(Config c, int width, int height, int rowBytes) {
     this->freePixels();
 
@@ -297,7 +284,7 @@ err:
 void SkBitmap::updatePixelsFromRef() const {
     if (NULL != fPixelRef) {
         if (fPixelLockCount > 0) {
-            SkASSERT(fPixelRef->isLocked());
+            SkASSERT(fPixelRef->getLockCount() > 0);
 
             void* p = fPixelRef->pixels();
             if (NULL != p) {
@@ -834,7 +821,6 @@ bool SkBitmap::extractSubset(SkBitmap* result, const SkIRect& subset) const {
 
     SkBitmap dst;
     dst.setConfig(this->config(), r.width(), r.height(), this->rowBytes());
-    dst.setIsVolatile(this->isVolatile());
 
     if (fPixelRef) {
         // share the pixelref with a custom offset
@@ -1379,6 +1365,21 @@ enum {
     SERIALIZE_PIXELTYPE_REF_PTR
 };
 
+static void writeString(SkFlattenableWriteBuffer& buffer, const char str[]) {
+    size_t len = strlen(str);
+    buffer.write32(len);
+    buffer.writePad(str, len);
+}
+
+static SkPixelRef::Factory deserialize_factory(SkFlattenableReadBuffer& buffer) {
+    size_t len = buffer.readInt();
+    SkAutoSMalloc<256> storage(len + 1);
+    char* str = (char*)storage.get();
+    buffer.read(str, len);
+    str[len] = 0;
+    return SkPixelRef::NameToFactory(str);
+}
+
 /*
     It is tricky to know how much to flatten. If we don't have a pixelref (i.e.
     we just have pixels, then we can only flatten the pixels, or write out an
@@ -1418,11 +1419,16 @@ void SkBitmap::flatten(SkFlattenableWriteBuffer& buffer) const {
     }
 
     if (fPixelRef) {
-        if (fPixelRef->getFactory()) {
-            buffer.write8(SERIALIZE_PIXELTYPE_REF_DATA);
-            buffer.write32(fPixelRefOffset);
-            buffer.writeFlattenable(fPixelRef);
-            return;
+        SkPixelRef::Factory fact = fPixelRef->getFactory();
+        if (fact) {
+            const char* name = SkPixelRef::FactoryToName(fact);
+            if (name && *name) {
+                buffer.write8(SERIALIZE_PIXELTYPE_REF_DATA);
+                buffer.write32(fPixelRefOffset);
+                writeString(buffer, name);
+                fPixelRef->flatten(buffer);
+                return;
+            }
         }
         // if we get here, we can't record the pixels
         buffer.write8(SERIALIZE_PIXELTYPE_NONE);
@@ -1467,7 +1473,8 @@ void SkBitmap::unflatten(SkFlattenableReadBuffer& buffer) {
         }
         case SERIALIZE_PIXELTYPE_REF_DATA: {
             size_t offset = buffer.readU32();
-            SkPixelRef* pr = static_cast<SkPixelRef*>(buffer.readFlattenable());
+            SkPixelRef::Factory fact = deserialize_factory(buffer);
+            SkPixelRef* pr = fact(buffer);
             SkSafeUnref(this->setPixelRef(pr, offset));
             break;
         }
@@ -1525,7 +1532,7 @@ void SkBitmap::validate() const {
 #if 0   // these asserts are not thread-correct, so disable for now
     if (fPixelRef) {
         if (fPixelLockCount > 0) {
-            SkASSERT(fPixelRef->isLocked());
+            SkASSERT(fPixelRef->getLockCount() > 0);
         } else {
             SkASSERT(NULL == fPixels);
             SkASSERT(NULL == fColorTable);

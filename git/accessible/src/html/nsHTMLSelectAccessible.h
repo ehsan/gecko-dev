@@ -30,14 +30,14 @@ class nsIMutableArray;
 /*
  * The list that contains all the options in the select.
  */
-class nsHTMLSelectListAccessible : public AccessibleWrap
+class nsHTMLSelectListAccessible : public nsAccessibleWrap
 {
 public:
   
   nsHTMLSelectListAccessible(nsIContent* aContent, DocAccessible* aDoc);
   virtual ~nsHTMLSelectListAccessible() {}
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -50,12 +50,12 @@ public:
   virtual bool IsWidget() const;
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
-  virtual Accessible* CurrentItem();
-  virtual void SetCurrentItem(Accessible* aItem);
+  virtual nsAccessible* CurrentItem();
+  virtual void SetCurrentItem(nsAccessible* aItem);
 
 protected:
 
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 
   // nsHTMLSelectListAccessible
@@ -82,7 +82,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD SetSelected(bool aSelect);
 
-  // Accessible
+  // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
@@ -94,17 +94,17 @@ public:
   virtual PRUint8 ActionCount();
 
   // Widgets
-  virtual Accessible* ContainerWidget() const;
+  virtual nsAccessible* ContainerWidget() const;
 
 private:
   
   /**
    * Return a select accessible the option belongs to if any.
    */ 
-  Accessible* GetSelect() const
+  nsAccessible* GetSelect() const
   {
     if (mParent && mParent->IsListControl()) {
-      Accessible* combobox = mParent->Parent();
+      nsAccessible* combobox = mParent->Parent();
       return combobox && combobox->IsCombobox() ? combobox : mParent.get();
     }
 
@@ -114,10 +114,10 @@ private:
   /**
    * Return a combobox accessible the option belongs to if any.
    */
-  Accessible* GetCombobox() const
+  nsAccessible* GetCombobox() const
   {
     if (mParent && mParent->IsListControl()) {
-      Accessible* combobox = mParent->Parent();
+      nsAccessible* combobox = mParent->Parent();
       return combobox && combobox->IsCombobox() ? combobox : nsnull;
     }
 
@@ -139,7 +139,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);  
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -147,7 +147,7 @@ public:
   virtual PRUint8 ActionCount();
 
 protected:
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 };
 
@@ -160,7 +160,7 @@ class nsHTMLComboboxListAccessible;
 /*
  * A class the represents the HTML Combobox widget.
  */
-class nsHTMLComboboxAccessible : public AccessibleWrap
+class nsHTMLComboboxAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
@@ -175,7 +175,7 @@ public:
   // nsAccessNode
   virtual void Shutdown();
 
-  // Accessible
+  // nsAccessible
   virtual void Description(nsString& aDescription);
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
@@ -189,17 +189,17 @@ public:
   virtual bool IsWidget() const;
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
-  virtual Accessible* CurrentItem();
-  virtual void SetCurrentItem(Accessible* aItem);
+  virtual nsAccessible* CurrentItem();
+  virtual void SetCurrentItem(nsAccessible* aItem);
 
 protected:
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 
   /**
    * Return selected option.
    */
-  Accessible* SelectedOption() const;
+  nsAccessible* SelectedOption() const;
 
 private:
   nsRefPtr<nsHTMLComboboxListAccessible> mListAccessible;
@@ -223,7 +223,7 @@ public:
   virtual nsIFrame* GetFrame() const;
   virtual bool IsPrimaryForNode() const;
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);

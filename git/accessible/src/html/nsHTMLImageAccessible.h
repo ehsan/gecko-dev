@@ -32,7 +32,7 @@ public:
   // nsIAccessibleImage
   NS_DECL_NSIACCESSIBLEIMAGE
 
-  // Accessible
+  // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
@@ -72,10 +72,10 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible downcasting method
+// nsAccessible downcasting method
 
 inline nsHTMLImageAccessible*
-Accessible::AsImage()
+nsAccessible::AsImage()
 {
   return IsImage() ?
     static_cast<nsHTMLImageAccessible*>(this) : nsnull;

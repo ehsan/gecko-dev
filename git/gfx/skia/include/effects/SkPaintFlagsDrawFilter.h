@@ -20,6 +20,7 @@ public:
     virtual void filter(SkPaint*, Type);
     
 private:
+    uint32_t    fPrevFlags;     // local cache for filter/restore
     uint16_t    fClearFlags;    // user specified
     uint16_t    fSetFlags;      // user specified
 };

@@ -2118,25 +2118,9 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 #endif
         return TRUE;
     }
-    // If this widget uses OMTC...
-    if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager()) {
-        nsEventStatus status;
-#if defined(MOZ_WIDGET_GTK2)
-        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface());
-#else
-        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface(cr));
-#endif
-        nsBaseWidget::AutoLayerManagerSetup
-          setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
-        DispatchEvent(&event, status);
 
-        g_free(rects);
-
-        DispatchDidPaint(this);
-
-        return TRUE;
-    
-    } else if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
+    {
         LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(event.region);
 
@@ -5818,7 +5802,7 @@ nsWindow::CreateRootAccessible()
 {
     if (mIsTopLevel && !mRootAccessible) {
         LOG(("nsWindow:: Create Toplevel Accessibility\n"));
-        Accessible* acc = DispatchAccessibleEvent();
+        nsAccessible *acc = DispatchAccessibleEvent();
 
         if (acc) {
             mRootAccessible = acc;
@@ -5826,7 +5810,7 @@ nsWindow::CreateRootAccessible()
     }
 }
 
-Accessible*
+nsAccessible*
 nsWindow::DispatchAccessibleEvent()
 {
     nsAccessibleEvent event(true, NS_GETACCESSIBLE, this);
@@ -5851,7 +5835,7 @@ nsWindow::DispatchEventToRootAccessible(PRUint32 aEventType)
     }
 
     // Get the root document accessible and fire event to it.
-    Accessible* acc = DispatchAccessibleEvent();
+    nsAccessible *acc = DispatchAccessibleEvent();
     if (acc) {
         accService->FireAccessibleEvent(aEventType, acc);
     }

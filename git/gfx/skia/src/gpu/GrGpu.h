@@ -14,7 +14,6 @@
 #include "GrRect.h"
 #include "GrRefCnt.h"
 #include "GrTexture.h"
-#include "GrClipMaskManager.h"
 
 class GrContext;
 class GrIndexBufferAllocPool;
@@ -87,7 +86,6 @@ public:
     void setContext(GrContext* context) {
         GrAssert(NULL == fContext); 
         fContext = context;
-        fClipMaskManager.setContext(context);
     }
     GrContext* getContext() { return fContext; }
     const GrContext* getContext() const { return fContext; }
@@ -134,6 +132,11 @@ public:
     GrRenderTarget* createPlatformRenderTarget(const GrPlatformRenderTargetDesc& desc);
 
     /**
+     * DEPRECATED. This will be removed.
+     */
+    GrResource* createPlatformSurface(const GrPlatformSurfaceDesc& desc);
+
+    /**
      * Creates a vertex buffer.
      *
      * @param size    size in bytes of the vertex buffer
@@ -174,23 +177,11 @@ public:
     const GrVertexBuffer* getUnitSquareVertexBuffer() const;
 
     /**
-     * Resolves MSAA.
-     */
-    void resolveRenderTarget(GrRenderTarget* target);
-
-    /**
      * Ensures that the current render target is actually set in the
      * underlying 3D API. Used when client wants to use 3D API to directly
      * render to the RT.
      */
     void forceRenderTargetFlush();
-
-    /**
-     * If this returns true then a sequence that reads unpremultiplied pixels
-     * from a surface, writes back the same values, and reads them again will
-     * give the same pixel values back in both reads.
-     */
-    virtual bool canPreserveReadWriteUnpremulPixels() = 0;
 
     /**
      * readPixels with some configs may be slow. Given a desired config this
@@ -318,12 +309,6 @@ public:
     // GrDrawTarget overrides
     virtual void clear(const GrIRect* rect, GrColor color);
 
-    virtual void purgeResources() SK_OVERRIDE {
-        // The clip mask manager can rebuild all its clip masks so just
-        // get rid of them all.
-        fClipMaskManager.releaseResources();
-    }
-
     // After the client interacts directly with the 3D context state the GrGpu
     // must resync its internal state and assumptions about 3D context state.
     // Each time this occurs the GrGpu bumps a timestamp.
@@ -341,22 +326,7 @@ public:
         return fResetTimestamp;
     }
 
-    /**
-     * Can the provided configuration act as a color render target?
-     */
-    bool isConfigRenderable(GrPixelConfig config) const {
-        GrAssert(kGrPixelConfigCount > config); 
-        return fConfigRenderSupport[config];
-    }
-
-    virtual void enableScissoring(const GrIRect& rect) = 0;
-    virtual void disableScissor() = 0;
-
-    // GrGpu subclass sets clip bit in the stencil buffer. The subclass is
-    // free to clear the remaining bits to zero if masked clears are more
-    // expensive than clearing all bits.
-    virtual void clearStencilClip(const GrIRect& rect, bool insideClip) = 0;
-
+protected:
     enum PrivateDrawStateStateBits {
         kFirstBit = (GrDrawState::kLastPublicStateBit << 1),
 
@@ -365,14 +335,10 @@ public:
                                                  // clipping.
     };
 
-    virtual void postClipPush() SK_OVERRIDE {
-        fClipMaskManager.postClipPush();
-    }
-    virtual void preClipPop() SK_OVERRIDE {
-        fClipMaskManager.preClipPop();
-    }
+    // keep track of whether we are using stencil clipping (as opposed to
+    // scissor).
+    bool    fClipInStencil;
 
-protected:
     // prepares clip flushes gpu state before a draw
     bool setupClipAndFlushState(GrPrimitiveType type);
 
@@ -389,11 +355,9 @@ protected:
 
     // stencil settings to clip drawing when stencil clipping is in effect
     // and the client isn't using the stencil test.
-    static const GrStencilSettings* GetClipStencilSettings();
+    static const GrStencilSettings& gClipStencilSettings;
 
     GrGpuStats fStats;
-
-    GrClipMaskManager           fClipMaskManager;
 
     struct GeometryPoolState {
         const GrVertexBuffer* fPoolVertexBuffer;
@@ -405,10 +369,6 @@ protected:
     const GeometryPoolState& getGeomPoolState() { 
         return fGeomPoolStateStack.back(); 
     }
-
-    // Derived classes need access to this so they can fill it out in their
-    // constructors
-    bool    fConfigRenderSupport[kGrPixelConfigCount];
 
     // GrDrawTarget overrides
     virtual bool onReserveVertexSpace(GrVertexLayout vertexLayout,
@@ -441,6 +401,7 @@ protected:
                                        size_t rowBytes) = 0;
     virtual GrTexture* onCreatePlatformTexture(const GrPlatformTextureDesc& desc) = 0;
     virtual GrRenderTarget* onCreatePlatformRenderTarget(const GrPlatformRenderTargetDesc& desc) = 0;
+    virtual GrResource* onCreatePlatformSurface(const GrPlatformSurfaceDesc& desc) = 0;
     virtual GrVertexBuffer* onCreateVertexBuffer(uint32_t size,
                                                  bool dynamic) = 0;
     virtual GrIndexBuffer* onCreateIndexBuffer(uint32_t size,
@@ -478,9 +439,6 @@ protected:
                                       GrPixelConfig config, const void* buffer,
                                       size_t rowBytes) = 0;
 
-    // overridden by API-specific derived class to perform the resolve
-    virtual void onResolveRenderTarget(GrRenderTarget* target) = 0;
-
     // called to program the vertex data, indexCount will be 0 if drawing non-
     // indexed geometry. The subclass may adjust the startVertex and/or
     // startIndex since it may have already accounted for these in the setup.
@@ -505,6 +463,14 @@ protected:
     // API-specific flush of the state
     // returns false if current state is unsupported.
     virtual bool flushGraphicsState(GrPrimitiveType type) = 0;
+
+    // Sets the scissor rect, or disables if rect is NULL.
+    virtual void flushScissor(const GrIRect* rect) = 0;
+
+    // GrGpu subclass sets clip bit in the stencil buffer. The subclass is
+    // free to clear the remaining bits to zero if masked clears are more
+    // expensive than clearing all bits.
+    virtual void clearStencilClip(const GrIRect& rect, bool insideClip) = 0;
 
     // clears the entire stencil buffer to 0
     virtual void clearStencil() = 0;
@@ -534,6 +500,10 @@ private:
     mutable GrVertexBuffer*     fUnitSquareVertexBuffer; // mutable so it can be
                                                          // created on-demand
 
+    // must be instantiated after GrGpu object has been given its owning
+    // GrContext ptr. (GrGpu is constructed first then handed off to GrContext).
+    GrPathRendererChain*        fPathRendererChain;
+
     bool                        fContextIsDirty;
 
     GrResource*                 fResourceHead;
@@ -554,6 +524,9 @@ private:
     // readies the pools to provide vertex/index data.
     void prepareVertexPool();
     void prepareIndexPool();
+
+    // determines the path renderer used to draw a clip path element.
+    GrPathRenderer* getClipPathRenderer(const SkPath& path, GrPathFill fill);
 
     void resetContext() {
         this->onResetContext();

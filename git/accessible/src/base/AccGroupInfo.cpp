@@ -9,11 +9,11 @@
 
 using namespace mozilla::a11y;
 
-AccGroupInfo::AccGroupInfo(Accessible* aItem, role aRole) :
+AccGroupInfo::AccGroupInfo(nsAccessible* aItem, role aRole) :
   mPosInSet(0), mSetSize(0), mParent(nsnull)
 {
   MOZ_COUNT_CTOR(AccGroupInfo);
-  Accessible* parent = aItem->Parent();
+  nsAccessible* parent = aItem->Parent();
   if (!parent)
     return;
 
@@ -30,7 +30,7 @@ AccGroupInfo::AccGroupInfo(Accessible* aItem, role aRole) :
   // Compute position in set.
   mPosInSet = 1;
   for (PRInt32 idx = indexInParent - 1; idx >= 0 ; idx--) {
-    Accessible* sibling = parent->GetChildAt(idx);
+    nsAccessible* sibling = parent->GetChildAt(idx);
     roles::Role siblingRole = sibling->Role();
 
     // If the sibling is separator then the group is ended.
@@ -71,7 +71,7 @@ AccGroupInfo::AccGroupInfo(Accessible* aItem, role aRole) :
   mSetSize = mPosInSet;
 
   for (PRUint32 idx = indexInParent + 1; idx < siblingCount; idx++) {
-    Accessible* sibling = parent->GetChildAt(idx);
+    nsAccessible* sibling = parent->GetChildAt(idx);
 
     roles::Role siblingRole = sibling->Role();
 
@@ -117,7 +117,7 @@ AccGroupInfo::AccGroupInfo(Accessible* aItem, role aRole) :
   if (parentRole != roles::GROUPING || aRole != roles::OUTLINEITEM)
     return;
 
-  Accessible* parentPrevSibling = parent->PrevSibling();
+  nsAccessible* parentPrevSibling = parent->PrevSibling();
   if (!parentPrevSibling)
     return;
 

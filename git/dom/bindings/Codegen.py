@@ -1301,8 +1301,7 @@ ${target} = tmp.forget();""").substitute(self.substitution)
 
 def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
                                     isDefinitelyObject=False,
-                                    isSequenceMember=False,
-                                    isOptional=False):
+                                    isSequenceMember=False):
     """
     Get a template for converting a JS value to a native object based on the
     given type and descriptor.  If failureCode is given, then we're actually
@@ -1316,12 +1315,7 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
     If isDefinitelyObject is True, that means we know the value
     isObject() and we have no need to recheck that.
 
-    if isSequenceMember is True, we're being converted as part of a sequence.
-
-    If isOptional is true, then we are doing conversion of an optional
-    argument with no default value.
-
-    The return value from this function is a tuple consisting of four things:
+    The return value from this function is a tuple consisting of three things:
 
     1)  A string representing the conversion code.  This will have template
         substitution performed on it as follows:
@@ -1337,11 +1331,6 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
     3)  A CGThing representing the type of a "holder" (holderType) which will
         hold a possible reference to the C++ thing whose type we returned in #1,
         or None if no such holder is needed.
-    4)  A boolean indicating whether the caller has to do optional-argument handling.
-        This will only be true if isOptional is true and if the returned template
-        expects both declType and holderType to be wrapped in Optional<>, with
-        ${declName} and ${holderName} adjusted to point to the Value() of the
-        Optional, and Construct() calls to be made on the Optional<>s as needed.
 
     ${declName} must be in scope before the generated code is entered.
 
@@ -1394,24 +1383,17 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
         # We don't know anything about the object-ness of the things
         # we wrap, so don't pass through isDefinitelyObject
         (elementTemplate, elementDeclType,
-         elementHolderType, dealWithOptional) = getJSToNativeConversionTemplate(
+         elementHolderType) = getJSToNativeConversionTemplate(
             elementType, descriptorProvider, isSequenceMember=True)
-        if dealWithOptional:
-            raise TypeError("Shouldn't have optional things in sequences")
         if elementHolderType is not None:
             raise TypeError("Shouldn't need holders for sequences")
 
         typeName = CGWrapper(elementDeclType, pre="Sequence< ", post=" >")
         if nullable:
             typeName = CGWrapper(typeName, pre="Nullable< ", post=" >")
-            arrayRef = "${declName}.Value()"
+            arrayRef = "${holderName}.Value()"
         else:
-            arrayRef = "${declName}"
-        # If we're optional, the const will come from the Optional
-        mutableTypeName = typeName
-        if not isOptional:
-            typeName = CGWrapper(typeName, pre="const ")
-
+            arrayRef = "${holderName}"
         templateBody = ("""JSObject* seq = &${val}.toObject();\n
 if (!IsArrayLike(cx, seq)) {
   return Throw<%s>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
@@ -1421,7 +1403,7 @@ uint32_t length;
 if (!JS_GetArrayLength(cx, seq, &length)) {
   return false;
 }
-Sequence< %s > &arr = const_cast< Sequence< %s >& >(%s);
+Sequence< %s > &arr = %s;
 if (!arr.SetCapacity(length)) {
   return Throw<%s>(cx, NS_ERROR_OUT_OF_MEMORY);
 }
@@ -1431,7 +1413,6 @@ for (uint32_t i = 0; i < length; ++i) {
     return false;
   }
 """ % (toStringBool(descriptorProvider.workers),
-       elementDeclType.define(),
        elementDeclType.define(),
        arrayRef,
        toStringBool(descriptorProvider.workers)))
@@ -1446,10 +1427,15 @@ for (uint32_t i = 0; i < length; ++i) {
 
         templateBody += "\n}"
         templateBody = wrapObjectTemplate(templateBody, isDefinitelyObject,
-                                          type,
-                                          "const_cast< %s & >(${declName}).SetNull()" % mutableTypeName.define(),
+                                          type, "${holderName}.SetNull()",
                                           descriptorProvider.workers)
-        return (templateBody, typeName, None, isOptional)
+        # And now at the very end (so we make sure it happens in the
+        # null case too, set our declName.
+        templateBody += ("\n" + "${declName} = &${holderName};")
+        # This is a bit of a hack: we're using NonNull with a const type inside
+        # to effectively produce a const ref from a non-const object.
+        return (templateBody, CGWrapper(typeName, pre="NonNull<const ", post=" >"),
+                typeName)
 
     if type.isGeckoInterface():
         descriptor = descriptorProvider.getDescriptor(
@@ -1549,7 +1535,7 @@ for (uint32_t i = 0; i < length; ++i) {
         declType = CGGeneric(declType)
         if holderType is not None:
             holderType = CGGeneric(holderType)
-        return (templateBody, declType, holderType, isOptional)
+        return (templateBody, declType, holderType)
 
     if type.isSpiderMonkeyInterface():
         if isSequenceMember:
@@ -1564,53 +1550,27 @@ for (uint32_t i = 0; i < length; ++i) {
         else:
             jsname = type.name
 
-        # By default, we use a Maybe<> to hold our typed array.  And in the optional
-        # non-nullable case we want to pass Optional<TypedArray> to consumers, not
-        # Optional<NonNull<TypedArray> >, so jump though some hoops to do that.
         holderType = "Maybe<%s>" % name
-        constructLoc = "${holderName}"
-        constructMethod = "construct"
         if type.nullable():
-            if isOptional:
-                declType = "const Optional<" + name + "*>"
-            else:
-                declType = name + "*"
+            declType = name + "*"
         else:
-            if isOptional:
-                declType = "const Optional<" + name + ">"
-                # We don't need a holder in this case
-                holderType = None
-                constructLoc = "(const_cast<Optional<" + name + ">& >(${declName}))"
-                constructMethod = "Construct"
-            else:
-                declType = "NonNull<" + name + ">"
+            declType = "NonNull<" + name + ">"
         template = (
             "if (!JS_Is%s(&${val}.toObject(), cx)) {\n"
             "  %s" # No newline here because onFailure() handles that
             "}\n"
-            "%s.%s(cx, &${val}.toObject());\n" %
-            (jsname, onFailure(failureCode, descriptorProvider.workers).define(),
-             constructLoc, constructMethod))
-        nullableTarget = ""
-        if type.nullable():
-            if isOptional:
-                mutableDecl = "(const_cast<Optional<" + name + "*>& >(${declName}))"
-                template += "%s.Construct();\n" % mutableDecl
-                nullableTarget = "%s.Value()" % mutableDecl
-            else:
-                nullableTarget = "${declName}"
-            template += "%s = ${holderName}.addr();" % nullableTarget
-        elif not isOptional:
+            "${holderName}.construct(cx, &${val}.toObject());\n" %
+            (jsname, onFailure(failureCode, descriptorProvider.workers).define()))
+        if type.nullable:
             template += "${declName} = ${holderName}.addr();"
+        else:
+            template += "${declName} = ${holderName}.ref();"
         template = wrapObjectTemplate(template, isDefinitelyObject, type,
-                                      "%s = NULL" % nullableTarget,
+                                      "${declName} = NULL",
                                       descriptorProvider.workers,
                                       failureCode)
 
-        if holderType is not None:
-            holderType = CGGeneric(holderType)
-        # We handle all the optional stuff ourselves; no need for caller to do it.
-        return (template, CGGeneric(declType), holderType, False)
+        return (template, CGGeneric(declType), CGGeneric(holderType))
 
     if type.isString():
         if isSequenceMember:
@@ -1627,19 +1587,12 @@ for (uint32_t i = 0; i < length; ++i) {
             nullBehavior = "eStringify"
             undefinedBehavior = "eStringify"
 
-        if isOptional:
-            declType = "Optional<nsAString>"
-        else:
-            declType = "NonNull<nsAString>"
         return (
             "if (!ConvertJSValueToString(cx, ${val}, ${valPtr}, %s, %s, ${holderName})) {\n"
             "  return false;\n"
             "}\n"
-            "const_cast<%s&>(${declName}) = &${holderName};" %
-            (nullBehavior, undefinedBehavior, declType),
-            CGGeneric("const " + declType), CGGeneric("nsDependentString"),
-            # No need to deal with Optional here; we have handled it already
-            False)
+            "${declName} = &${holderName};" % (nullBehavior, undefinedBehavior),
+            CGGeneric("NonNull<const nsAString>"), CGGeneric("nsDependentString"))
 
     if type.isEnum():
         if type.nullable():
@@ -1655,7 +1608,7 @@ for (uint32_t i = 0; i < length; ++i) {
             "  }\n"
             "}" % { "enumtype" : enum,
                       "values" : enum + "Values::strings" },
-            CGGeneric(enum), None, isOptional)
+            CGGeneric(enum), None)
 
     if type.isCallback():
         if isSequenceMember:
@@ -1667,12 +1620,12 @@ for (uint32_t i = 0; i < length; ++i) {
             "  ${declName} = &${val}.toObject();\n"
             "} else {\n"
             "  ${declName} = NULL;\n"
-            "}", CGGeneric("JSObject*"), None, isOptional)
+            "}", CGGeneric("JSObject*"), None)
 
     if type.isAny():
         if isSequenceMember:
             raise TypeError("Can't handle sequences of 'any'")
-        return ("${declName} = ${val};", CGGeneric("JS::Value"), None, isOptional)
+        return ("${declName} = ${val};", CGGeneric("JS::Value"), None)
 
     if type.isObject():
         if isSequenceMember:
@@ -1685,7 +1638,7 @@ for (uint32_t i = 0; i < length; ++i) {
             declType = CGGeneric("JSObject*")
         else:
             declType = CGGeneric("NonNull<JSObject>")
-        return (template, declType, None, isOptional)
+        return (template, declType, None)
 
     if not type.isPrimitive():
         raise TypeError("Need conversion for argument type '%s'" % type)
@@ -1697,91 +1650,33 @@ for (uint32_t i = 0; i < length; ++i) {
                 "  ${declName}.SetNull();\n"
                 "} else if (!ValueToPrimitive<" + typeName + ">(cx, ${val}, &${declName}.SetValue())) {\n"
                 "  return false;\n"
-                "}", CGGeneric("Nullable<" + typeName + ">"), None, isOptional)
+                "}", CGGeneric("Nullable<" + typeName + ">"), None)
     else:
         return ("if (!ValueToPrimitive<" + typeName + ">(cx, ${val}, &${declName})) {\n"
                 "  return false;\n"
-                "}", CGGeneric(typeName), None, isOptional)
+                "}", CGGeneric(typeName), None)
 
-def instantiateJSToNativeConversionTemplate(templateTuple, replacements,
-                                            argcAndIndex=None):
+def instantiateJSToNativeConversionTemplate(templateTuple, replacements):
     """
     Take a tuple as returned by getJSToNativeConversionTemplate and a set of
     replacements as required by the strings in such a tuple, and generate code
     to convert into stack C++ types.
-
-    If argcAndIndex is not None it must be a dict that can be used to
-    replace ${argc} and ${index}, where ${index} is the index of this
-    argument (0-based) and ${argc} is the total number of arguments.
     """
-    (templateBody, declType, holderType, dealWithOptional) = templateTuple
-
-    if dealWithOptional and argcAndIndex is None:
-        raise TypeError("Have to deal with optional things, but don't know how")
-    if argcAndIndex is not None and declType is None:
-        raise TypeError("Need to predeclare optional things, so they will be "
-                        "outside the check for big enough arg count!");
-
+    (templateBody, declType, holderType) = templateTuple
     result = CGList([], "\n")
-    # Make a copy of "replacements" since we may be about to start modifying it
-    replacements = dict(replacements)
-    originalHolderName = replacements["holderName"]
     if holderType is not None:
-        if dealWithOptional:
-            replacements["holderName"] = (
-                "const_cast< %s & >(%s.Value())" %
-                (holderType.define(), originalHolderName))
-            mutableHolderType = CGWrapper(holderType, pre="Optional< ", post=" >")
-            holderType = CGWrapper(mutableHolderType, pre="const ")
         result.append(
             CGList([holderType, CGGeneric(" "),
-                    CGGeneric(originalHolderName),
+                    CGGeneric(replacements["holderName"]),
                     CGGeneric(";")]))
-
-    originalDeclName = replacements["declName"]
     if declType is not None:
-        if dealWithOptional:
-            replacements["declName"] = (
-                "const_cast< %s & >(%s.Value())" %
-                (declType.define(), originalDeclName))
-            mutableDeclType = CGWrapper(declType, pre="Optional< ", post=" >")
-            declType = CGWrapper(mutableDeclType, pre="const ")
         result.append(
             CGList([declType, CGGeneric(" "),
-                    CGGeneric(originalDeclName),
+                    CGGeneric(replacements["declName"]),
                     CGGeneric(";")]))
-
-    conversion = CGGeneric(
+    result.append(CGGeneric(
             string.Template(templateBody).substitute(replacements)
-            )
-
-    if argcAndIndex is not None:
-        if dealWithOptional:
-            declConstruct = CGIndenter(
-                CGGeneric("const_cast< %s &>(%s).Construct();" %
-                          (mutableDeclType.define(), originalDeclName)))
-            if holderType is not None:
-                holderConstruct = CGIndenter(
-                    CGGeneric("const_cast< %s &>(%s).Construct();" %
-                              (mutableHolderType.define(), originalHolderName)))
-            else:
-                holderConstruct = None
-        else:
-            declConstruct = None
-            holderConstruct = None
-
-        conversion = CGList(
-            [CGGeneric(
-                    string.Template("if (${index} < ${argc}) {").substitute(
-                        argcAndIndex
-                        )),
-             declConstruct,
-             holderConstruct,
-             CGIndenter(conversion),
-             CGGeneric("}")],
-            "\n")
-
-    result.append(conversion)
+            ))
     # Add an empty CGGeneric to get an extra newline after the argument
     # conversion.
     result.append(CGGeneric(""))
@@ -1807,8 +1702,7 @@ def convertConstIDLValueToJSVal(value):
 def convertIDLDefaultValueToJSVal(value):
     if value.type:
         tag = value.type.tag()
-        if (tag == IDLType.Tags.domstring and
-            (not value.type.nullable() or not isinstance(value, IDLNullValue))):
+        if tag == IDLType.Tags.domstring:
             assert False # Not implemented!
     return convertConstIDLValueToJSVal(value)
 
@@ -1826,14 +1720,16 @@ class CGArgumentConverter(CGThing):
         replacer = {
             "index" : index,
             "argc" : argc,
-            "argv" : argv
+            "argv" : argv,
+            "defaultValue" : "JSVAL_VOID"
             }
         self.replacementVariables = {
             "declName" : "arg%d" % index,
             "holderName" : ("arg%d" % index) + "_holder"
             }
-        if argument.optional and argument.defaultValue:
-            replacer["defaultValue"] = convertIDLDefaultValueToJSVal(argument.defaultValue)
+        if argument.optional:
+            if argument.defaultValue:
+                replacer["defaultValue"] = convertIDLDefaultValueToJSVal(argument.defaultValue)
             self.replacementVariables["val"] = string.Template(
                 "(${index} < ${argc} ? ${argv}[${index}] : ${defaultValue})"
                 ).substitute(replacer)
@@ -1847,18 +1743,12 @@ class CGArgumentConverter(CGThing):
             self.replacementVariables["valPtr"] = (
                 "&" + self.replacementVariables["val"])
         self.descriptorProvider = descriptorProvider
-        if self.argument.optional and not self.argument.defaultValue:
-            self.argcAndIndex = replacer
-        else:
-            self.argcAndIndex = None
 
     def define(self):
         return instantiateJSToNativeConversionTemplate(
             getJSToNativeConversionTemplate(self.argument.type,
-                                            self.descriptorProvider,
-                                            isOptional=(self.argcAndIndex is not None)),
-            self.replacementVariables,
-            self.argcAndIndex).define()
+                                            self.descriptorProvider),
+            self.replacementVariables).define()
 
 def getWrapTemplateForType(type, descriptorProvider, result, successCode):
     """
@@ -2146,7 +2036,7 @@ class CGCallGenerator(CGThing):
         for (i, a) in enumerate(arguments):
             arg = "arg" + str(i)
             # This is a workaround for a bug in Apple's clang.
-            if a.type.isObject() and not a.type.nullable() and not a.optional:
+            if a.type.isObject() and not a.type.nullable():
                 arg = "(JSObject&)" + arg
             args.append(CGGeneric(arg))
         resultOutParam = (returnType is not None and
@@ -2497,10 +2387,7 @@ class CGMethodCall(CGThing):
                 for sig in interfacesSigs:
                     caseBody.append(CGIndenter(CGGeneric("do {")));
                     type = sig[1][distinguishingIndex].type
-
-                    # The argument at index distinguishingIndex can't possibly
-                    # be unset here, because we've already checked that argc is
-                    # large enough that we can examine this argument.
+                    
                     testCode = instantiateJSToNativeConversionTemplate(
                         getJSToNativeConversionTemplate(type, descriptor,
                                                         failureCode="break;",

@@ -3741,7 +3741,7 @@ nsTextPaintStyle::GetResolvedForeColor(nscolor aColor,
 //-----------------------------------------------------------------------------
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsTextFrame::CreateAccessible()
 {
   if (IsEmpty()) {

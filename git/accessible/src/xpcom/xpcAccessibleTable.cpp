@@ -6,7 +6,7 @@
 
 #include "xpcAccessibleTable.h"
 
-#include "Accessible.h"
+#include "nsAccessible.h"
 #include "TableAccessible.h"
 
 nsresult
@@ -48,74 +48,38 @@ xpcAccessibleTable::GetRowCount(PRInt32* aRowCount)
 }
 
 nsresult
-xpcAccessibleTable::GetCellAt(PRInt32 aRowIdx, PRInt32 aColIdx,
+xpcAccessibleTable::GetCellAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
                               nsIAccessible** aCell)
-{
+{ 
   NS_ENSURE_ARG_POINTER(aCell);
   *aCell = nsnull;
 
   if (!mTable)
     return NS_ERROR_FAILURE;
 
-  if (aRowIdx < 0 || static_cast<PRUint32>(aRowIdx) >= mTable->RowCount() ||
-      aColIdx < 0 || static_cast<PRUint32>(aColIdx) >= mTable->ColCount())
+  if (aRowIndex < 0 || aRowIndex >= mTable->RowCount() ||
+      aColumnIndex < 0 || aColumnIndex >= mTable->ColCount())
     return NS_ERROR_INVALID_ARG;
 
-  NS_IF_ADDREF(*aCell = mTable->CellAt(aRowIdx, aColIdx));
+  NS_IF_ADDREF(*aCell = mTable->CellAt(aRowIndex, aColumnIndex));
   return NS_OK;
 }
 
 nsresult
-xpcAccessibleTable::GetCellIndexAt(PRInt32 aRowIdx, PRInt32 aColIdx,
-                                   PRInt32* aCellIdx)
+xpcAccessibleTable::GetCellIndexAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
+                                   PRInt32* aCellIndex)
 {
-  NS_ENSURE_ARG_POINTER(aCellIdx);
-  *aCellIdx = -1;
+  NS_ENSURE_ARG_POINTER(aCellIndex);
+  *aCellIndex = -1;
 
   if (!mTable)
     return NS_ERROR_FAILURE;
 
-  if (aRowIdx < 0 || static_cast<PRUint32>(aRowIdx) >= mTable->RowCount() ||
-      aColIdx < 0 || static_cast<PRUint32>(aColIdx) >= mTable->ColCount())
+  if (aRowIndex < 0 || aRowIndex >= mTable->RowCount() ||
+      aColumnIndex < 0 || aColumnIndex >= mTable->ColCount())
     return NS_ERROR_INVALID_ARG;
 
-  *aCellIdx = mTable->CellIndexAt(aRowIdx, aColIdx);
-  return NS_OK;
-}
-
-nsresult
-xpcAccessibleTable::GetColumnExtentAt(PRInt32 aRowIdx, PRInt32 aColIdx,
-                                      PRInt32* aColumnExtent)
-{
-  NS_ENSURE_ARG_POINTER(aColumnExtent);
-  *aColumnExtent = -1;
-
-  if (!mTable)
-    return NS_ERROR_FAILURE;
-
-  if (aRowIdx < 0 || static_cast<PRUint32>(aRowIdx) >= mTable->RowCount() ||
-      aColIdx < 0 || static_cast<PRUint32>(aColIdx) >= mTable->ColCount())
-    return NS_ERROR_INVALID_ARG;
-
-  *aColumnExtent = mTable->ColExtentAt(aRowIdx, aColIdx);
-  return NS_OK;
-}
-
-nsresult
-xpcAccessibleTable::GetRowExtentAt(PRInt32 aRowIdx, PRInt32 aColIdx,
-                                   PRInt32* aRowExtent)
-{
-  NS_ENSURE_ARG_POINTER(aRowExtent);
-  *aRowExtent = -1;
-
-  if (!mTable)
-    return NS_ERROR_FAILURE;
-
-  if (aRowIdx < 0 || static_cast<PRUint32>(aRowIdx) >= mTable->RowCount() ||
-      aColIdx < 0 || static_cast<PRUint32>(aColIdx) >= mTable->ColCount())
-    return NS_ERROR_INVALID_ARG;
-
-  *aRowExtent = mTable->RowExtentAt(aRowIdx, aColIdx);
+  *aCellIndex = mTable->CellIndexAt(aRowIndex, aColumnIndex);
   return NS_OK;
 }
 

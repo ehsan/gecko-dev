@@ -495,12 +495,10 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
             hr = factory1->EnumAdapters1(0, getter_AddRefs(adapter1));
 
             if (SUCCEEDED(hr) && adapter1) {
-                hr = adapter1->CheckInterfaceSupport(__uuidof(ID3D10Device),
+                hr = adapter1->CheckInterfaceSupport(__uuidof(ID3D10Device1),
                                                      nsnull);
                 if (FAILED(hr)) {
-                    // We should return and not accelerate if we don't have
-                    // D3D 10.0 support.
-                    return;
+                    adapter1 = nsnull;
                 }
             }
         }

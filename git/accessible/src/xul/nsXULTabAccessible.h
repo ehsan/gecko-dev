@@ -14,7 +14,7 @@
 /**
  * An individual tab, xul:tab element.
  */
-class nsXULTabAccessible : public AccessibleWrap
+class nsXULTabAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Switch = 0 };
@@ -25,7 +25,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual Relation RelationByType(PRUint32 aType);
@@ -43,7 +43,7 @@ class nsXULTabsAccessible : public XULSelectControlAccessible
 public:
   nsXULTabsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual void Value(nsString& aValue);
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
@@ -56,12 +56,12 @@ public:
 /** 
  * A container of tab panels, xul:tabpanels element.
  */
-class nsXULTabpanelsAccessible : public AccessibleWrap
+class nsXULTabpanelsAccessible : public nsAccessibleWrap
 {
 public:
   nsXULTabpanelsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 };
 
@@ -76,12 +76,12 @@ public:
  * for example we do not create instance of this class for XUL textbox used as
  * a tabpanel.
  */
-class nsXULTabpanelAccessible : public AccessibleWrap
+class nsXULTabpanelAccessible : public nsAccessibleWrap
 {
 public:
   nsXULTabpanelAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual Relation RelationByType(PRUint32 aType);
 };

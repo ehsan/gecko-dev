@@ -12,25 +12,25 @@
 using namespace mozilla::a11y;
 
 bool
-filters::GetSelected(Accessible* aAccessible)
+filters::GetSelected(nsAccessible* aAccessible)
 {
   return aAccessible->State() & states::SELECTED;
 }
 
 bool
-filters::GetSelectable(Accessible* aAccessible)
+filters::GetSelectable(nsAccessible* aAccessible)
 {
   return aAccessible->State() & states::SELECTABLE;
 }
 
 bool
-filters::GetRow(Accessible* aAccessible)
+filters::GetRow(nsAccessible* aAccessible)
 {
   return aAccessible->Role() == roles::ROW;
 }
 
 bool
-filters::GetCell(Accessible* aAccessible)
+filters::GetCell(nsAccessible* aAccessible)
 {
   roles::Role role = aAccessible->Role();
   return role == roles::GRID_CELL || role == roles::ROWHEADER ||
@@ -38,7 +38,7 @@ filters::GetCell(Accessible* aAccessible)
 }
 
 bool
-filters::GetEmbeddedObject(Accessible* aAccessible)
+filters::GetEmbeddedObject(nsAccessible* aAccessible)
 {
   return nsAccUtils::IsEmbeddedObject(aAccessible);
 }

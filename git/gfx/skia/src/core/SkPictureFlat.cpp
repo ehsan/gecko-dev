@@ -14,8 +14,6 @@
 #include "SkShader.h"
 #include "SkTypeface.h"
 #include "SkXfermode.h"
-#include "SkOrderedReadBuffer.h"
-#include "SkOrderedWriteBuffer.h"
 
 SkFlatData* SkFlatData::Alloc(SkChunkAlloc* heap, int32_t size, int index) {
     SkFlatData* result = (SkFlatData*) heap->allocThrow(size + sizeof(SkFlatData));
@@ -26,7 +24,7 @@ SkFlatData* SkFlatData::Alloc(SkChunkAlloc* heap, int32_t size, int index) {
 
 SkFlatBitmap* SkFlatBitmap::Flatten(SkChunkAlloc* heap, const SkBitmap& bitmap,
                                     int index, SkRefCntSet* rec) {
-    SkOrderedWriteBuffer buffer(1024);
+    SkFlattenableWriteBuffer buffer(1024);
     buffer.setRefCntRecorder(rec);
     
     bitmap.flatten(buffer);
@@ -93,9 +91,7 @@ void SkFlatMatrix::dump() const {
 SkFlatPaint* SkFlatPaint::Flatten(SkChunkAlloc* heap, const SkPaint& paint,
                                   int index, SkRefCntSet* rec,
                                   SkRefCntSet* faceRecorder) {
-    intptr_t storage[256];
-    SkOrderedWriteBuffer buffer(4*sizeof(SkPaint), storage, sizeof(storage));
-
+    SkFlattenableWriteBuffer buffer(2*sizeof(SkPaint));
     buffer.setRefCntRecorder(rec);
     buffer.setTypefaceRecorder(faceRecorder);
 
@@ -108,7 +104,7 @@ SkFlatPaint* SkFlatPaint::Flatten(SkChunkAlloc* heap, const SkPaint& paint,
     
 void SkFlatPaint::Read(const void* storage, SkPaint* paint,
                    SkRefCntPlayback* rcp, SkTypefacePlayback* facePlayback) {
-    SkOrderedReadBuffer buffer(storage, 1024*1024);
+    SkFlattenableReadBuffer buffer(storage);
     if (rcp) {
         rcp->setupBuffer(buffer);
     }

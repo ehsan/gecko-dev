@@ -1318,7 +1318,7 @@ void nsTableRowFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
   }
 }
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsTableRowFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();

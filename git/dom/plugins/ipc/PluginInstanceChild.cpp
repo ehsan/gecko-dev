@@ -396,15 +396,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
         return NPERR_NO_ERROR;
     }
 
-#ifdef XP_WIN
-    case NPNVsupportsAsyncWindowsDXGISurfaceBool: {
-        bool val;
-        CallNPN_GetValue_DrawingModelSupport(NPNVsupportsAsyncWindowsDXGISurfaceBool, &val);
-        *((NPBool*)aValue) = val;
-        return NPERR_NO_ERROR;
-    }
-#endif
-
 #ifdef XP_MACOSX
    case NPNVsupportsCoreGraphicsBool: {
         *((NPBool*)aValue) = true;
@@ -524,7 +515,7 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
         if (!CallNPN_SetValue_NPPVpluginDrawingModel(drawingModel, &optionalShmem, &handle, &rv))
             return NPERR_GENERIC_ERROR;
 
-        if (IsDrawingModelAsync(drawingModel)) {
+        if (drawingModel == NPDrawingModelAsyncBitmapSurface) {
             if (optionalShmem.type() != OptionalShmem::TShmem) {
                 return NPERR_GENERIC_ERROR;
             }
@@ -2401,26 +2392,6 @@ PluginInstanceChild::NPN_InitAsyncSurface(NPSize *size, NPImageFormat format,
 
             return NPERR_NO_ERROR;
         }
-#ifdef XP_WIN
-    case NPDrawingModelAsyncWindowsDXGISurface: {
-            if (size->width < 0 || size->height < 0) {
-                return NPERR_INVALID_PARAM;
-            }
-            bool result;
-            NPRemoteAsyncSurface remote;
-
-            if (!CallNPN_InitAsyncSurface(gfxIntSize(size->width, size->height), format, &remote, &result) || !result) {
-                return NPERR_OUT_OF_MEMORY_ERROR;
-            }
-
-            surface->format = remote.format();
-            surface->size.width = remote.size().width;
-            surface->size.height = remote.size().height;
-            surface->sharedHandle = remote.data().get_DXGISharedSurfaceHandle();
-
-            return NPERR_NO_ERROR;
-        }
-#endif
     }
 
     return NPERR_GENERIC_ERROR;
@@ -2455,23 +2426,6 @@ PluginInstanceChild::NPN_FinalizeAsyncSurface(NPAsyncSurface *surface)
 
             return DeallocateAsyncBitmapSurface(surface);
         }
-#ifdef XP_WIN
-    case NPDrawingModelAsyncWindowsDXGISurface: {
-            
-            {
-                CrossProcessMutexAutoLock autoLock(*mRemoteImageDataMutex);
-                RemoteImageData *data = mRemoteImageData;
-                if (data->mTextureHandle == surface->sharedHandle) {
-                    data->mTextureHandle = NULL;
-                    data->mSize = gfxIntSize(0, 0);
-                    data->mWasUpdated = true;
-                }
-            }
-
-            SendReleaseDXGISharedSurface(surface->sharedHandle);
-            return NPERR_NO_ERROR;
-        }
-#endif
     }
 
     return NPERR_GENERIC_ERROR;
@@ -2510,22 +2464,6 @@ PluginInstanceChild::NPN_SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect 
                 data->mWasUpdated = true;
                 break;
             }
-#ifdef XP_WIN
-        case NPDrawingModelAsyncWindowsDXGISurface:
-            {
-                AsyncBitmapData *bitmapData;
-              
-                CrossProcessMutexAutoLock autoLock(*mRemoteImageDataMutex);
-                data->mType = RemoteImageData::DXGI_TEXTURE_HANDLE;
-                data->mSize = gfxIntSize(surface->size.width, surface->size.height);
-                data->mFormat = surface->format == NPImageFormatBGRX32 ?
-                                RemoteImageData::BGRX32 : RemoteImageData::BGRA32;
-                data->mTextureHandle = surface->sharedHandle;
-
-                data->mWasUpdated = true;
-                break;
-            }
-#endif
         }
     }
 

@@ -7,7 +7,7 @@
 #define MOZILLA_A11Y_XULFormControlAccessible_H_
 
 // NOTE: alphabetically ordered
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 #include "FormControlAccessible.h"
 #include "nsHyperTextAccessibleWrap.h"
 #include "XULSelectControlAccessible.h"
@@ -26,7 +26,7 @@ typedef ProgressMeterAccessible<100> XULProgressMeterAccessible;
  * @note  Don't inherit from nsLeafAccessible - it doesn't allow children
  *         and a button can have a dropmarker child.
  */
-class XULButtonAccessible : public AccessibleWrap
+class XULButtonAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
@@ -39,7 +39,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -50,11 +50,11 @@ public:
   virtual bool IsWidget() const;
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
-  virtual Accessible* ContainerWidget() const;
+  virtual nsAccessible* ContainerWidget() const;
 
 protected:
 
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 
   // XULButtonAccessible
@@ -75,7 +75,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -96,7 +96,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -110,12 +110,12 @@ private:
 /**
  * Used for XUL groupbox element.
  */
-class XULGroupboxAccessible : public AccessibleWrap
+class XULGroupboxAccessible : public nsAccessibleWrap
 {
 public:
   XULGroupboxAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual Relation RelationByType(PRUint32 aRelationType);
@@ -130,11 +130,11 @@ class XULRadioButtonAccessible : public RadioButtonAccessible
 public:
   XULRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual PRUint64 NativeState();
 
   // Widgets
-  virtual Accessible* ContainerWidget() const;
+  virtual nsAccessible* ContainerWidget() const;
 };
 
 /**
@@ -145,7 +145,7 @@ class XULRadioGroupAccessible : public XULSelectControlAccessible
 public:
   XULRadioGroupAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -158,12 +158,12 @@ public:
 /**
  * Used for XUL statusbar element.
  */
-class XULStatusBarAccessible : public AccessibleWrap
+class XULStatusBarAccessible : public nsAccessibleWrap
 {
 public:
   XULStatusBarAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 };
 
@@ -175,23 +175,23 @@ class XULToolbarButtonAccessible : public XULButtonAccessible
 public:
   XULToolbarButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
 
   // nsXULToolbarButtonAccessible
-  static bool IsSeparator(Accessible* aAccessible);
+  static bool IsSeparator(nsAccessible *aAccessible);
 };
 
 /**
  * Used for XUL toolbar element.
  */
-class XULToolbarAccessible : public AccessibleWrap
+class XULToolbarAccessible : public nsAccessibleWrap
 {
 public:
   XULToolbarAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual nsresult GetNameInternal(nsAString& aName);
 };
@@ -205,7 +205,7 @@ public:
   XULToolbarSeparatorAccessible(nsIContent* aContent,
                                 DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 };
@@ -229,7 +229,7 @@ public:
   // nsHyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
-  // Accessible
+  // nsAccessible
   virtual void Value(nsString& aValue);
   virtual void ApplyARIAState(PRUint64* aState) const;
   virtual mozilla::a11y::role NativeRole();
@@ -240,7 +240,7 @@ public:
   virtual PRUint8 ActionCount();
 
 protected:
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 
   // nsHyperTextAccessible

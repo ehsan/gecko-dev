@@ -7,11 +7,11 @@
 #ifndef mozilla_a11y_Accessible_inl_h_
 #define mozilla_a11y_Accessible_inl_h_
 
-#include "Accessible.h"
+#include "nsAccessible.h"
 #include "nsARIAMap.h"
 
 inline mozilla::a11y::role
-Accessible::Role()
+nsAccessible::Role()
 {
   if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
     return ARIATransformRole(NativeRole());
@@ -20,7 +20,7 @@ Accessible::Role()
 }
 
 inline mozilla::a11y::role
-Accessible::ARIARole()
+nsAccessible::ARIARole()
 {
   if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
     return mozilla::a11y::roles::NOTHING;

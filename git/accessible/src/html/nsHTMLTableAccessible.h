@@ -29,7 +29,7 @@ public:
   // nsIAccessibleTableCell
   NS_DECL_NSIACCESSIBLETABLECELL
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
@@ -39,7 +39,7 @@ protected:
    * Return host table accessible.
    */
   already_AddRefed<nsIAccessibleTable> GetTableAccessible();
-
+  
   /**
    * Return nsITableCellLayout of the table cell frame.
    */
@@ -49,7 +49,7 @@ protected:
    * Return row and column indices of the cell.
    */
   nsresult GetCellIndexes(PRInt32& aRowIdx, PRInt32& aColIdx);
-
+  
   /**
    * Return an array of row or column header cells.
    */
@@ -67,7 +67,7 @@ public:
   nsHTMLTableHeaderCellAccessible(nsIContent* aContent,
                                   DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 };
 
@@ -81,7 +81,7 @@ public:
 // data vs. layout heuristic
 // #define SHOW_LAYOUT_HEURISTIC
 
-class nsHTMLTableAccessible : public AccessibleWrap,
+class nsHTMLTableAccessible : public nsAccessibleWrap,
                               public xpcAccessibleTable,
                               public nsIAccessibleTable,
                               public mozilla::a11y::TableAccessible
@@ -95,14 +95,12 @@ public:
   NS_DECL_OR_FORWARD_NSIACCESSIBLETABLE_WITH_XPCACCESSIBLETABLE
 
   // TableAccessible
-  virtual Accessible* Caption();
+  virtual nsAccessible* Caption();
   virtual void Summary(nsString& aSummary);
   virtual PRUint32 ColCount();
   virtual PRUint32 RowCount();
-  virtual Accessible* CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex);
+  virtual nsAccessible* CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex);
   virtual PRInt32 CellIndexAt(PRUint32 aRowIdx, PRUint32 aColIdx);
-  virtual PRUint32 ColExtentAt(PRUint32 aRowIdx, PRUint32 aColIdx);
-  virtual PRUint32 RowExtentAt(PRUint32 aRowIdx, PRUint32 aColIdx);
   virtual void UnselectCol(PRUint32 aColIdx);
   virtual void UnselectRow(PRUint32 aRowIdx);
   virtual bool IsProbablyLayoutTable();
@@ -110,7 +108,7 @@ public:
   // nsAccessNode
   virtual void Shutdown();
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::TableAccessible* AsTable() { return this; }
   virtual void Description(nsString& aDescription);
   virtual nsresult GetNameInternal(nsAString& aName);
@@ -134,7 +132,7 @@ public:
 
 protected:
 
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 
   // nsHTMLTableAccessible
@@ -187,7 +185,7 @@ public:
 
   // nsIAccessible
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual Relation RelationByType(PRUint32 aRelationType);
 };

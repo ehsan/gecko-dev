@@ -20,7 +20,7 @@ SkShader::SkShader(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer), fLocalMatrix(NULL) {
     if (buffer.readBool()) {
         SkMatrix matrix;
-        buffer.readMatrix(&matrix);
+        SkReadMatrix(&buffer, &matrix);
         setLocalMatrix(matrix);
     }
     SkDEBUGCODE(fInSession = false;)
@@ -41,11 +41,11 @@ void SkShader::endSession() {
     SkDEBUGCODE(fInSession = false;)
 }
 
-void SkShader::flatten(SkFlattenableWriteBuffer& buffer) const {
+void SkShader::flatten(SkFlattenableWriteBuffer& buffer) {
     this->INHERITED::flatten(buffer);
     buffer.writeBool(fLocalMatrix != NULL);
     if (fLocalMatrix) {
-        buffer.writeMatrix(*fLocalMatrix);
+        SkWriteMatrix(&buffer, *fLocalMatrix);
     }
 }
 
@@ -238,13 +238,21 @@ SkColorShader::SkColorShader(SkFlattenableReadBuffer& b) : INHERITED(b) {
     fColor = b.readU32();
 }
 
-void SkColorShader::flatten(SkFlattenableWriteBuffer& buffer) const {
+void SkColorShader::flatten(SkFlattenableWriteBuffer& buffer) {
     this->INHERITED::flatten(buffer);
     buffer.write8(fInheritColor);
     if (fInheritColor) {
         return;
     }
     buffer.write32(fColor);
+}
+
+SkFlattenable* SkColorShader::CreateProc(SkFlattenableReadBuffer& buffer) {
+    return SkNEW_ARGS(SkColorShader, (buffer));
+}
+
+SkFlattenable::Factory SkColorShader::getFactory() {
+    return CreateProc;
 }
 
 uint32_t SkColorShader::getFlags() {
@@ -325,11 +333,11 @@ SkShader::GradientType SkColorShader::asAGradient(GradientInfo* info) const {
     return kColor_GradientType;
 }
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkColorShader)
-
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "SkEmptyShader.h"
+
+SkEmptyShader::SkEmptyShader(SkFlattenableReadBuffer& b) : INHERITED(b) {}
 
 uint32_t SkEmptyShader::getFlags() { return 0; }
 uint8_t SkEmptyShader::getSpan16Alpha() const { return 0; }
@@ -349,4 +357,9 @@ void SkEmptyShader::shadeSpanAlpha(int x, int y, uint8_t alpha[], int count) {
     SkDEBUGFAIL("should never get called, since setContext() returned false");
 }
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkEmptyShader)
+SkFlattenable::Factory SkEmptyShader::getFactory() { return NULL; }
+
+void SkEmptyShader::flatten(SkFlattenableWriteBuffer& buffer) {
+    this->INHERITED::flatten(buffer);
+}
+

@@ -19,7 +19,7 @@
 #include "SkScript2.h" //   compiled script experiment
 #include "SkSystemEventTypes.h"
 #include "SkTypedArray.h"
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
 #include "SkDrawExtraPathEffect.h"
 #endif
 #ifdef SK_DEBUG
@@ -387,7 +387,7 @@ void SkAnimator::initialize() {
     SkDELETE(fMaker);
     fMaker = SkNEW_ARGS(SkAnimateMaker, (this, NULL, NULL));
     decodeMemory(gMathPrimer, sizeof(gMathPrimer)-1);
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
     InitializeSkExtraPathEffects(this);
 #endif
 }

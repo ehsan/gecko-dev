@@ -707,7 +707,12 @@
         this.formatValue();
       ]]></handler>
 
-      <handler event="dragstart" phase="capturing"><![CDATA[
+      <handler event="draggesture" phase="capturing"><![CDATA[
+        // TODO: This should use dragstart but editor code is still using
+        //       the old drag & drop APIs, so we have to handle draggesture.
+        //       This can be changed once editor code is updated to the new API.
+        //       See bug 499008 for details.
+
         // Drag only if the gesture starts from the input field.
         if (event.originalTarget != this.inputField)
           return;

@@ -103,8 +103,7 @@ public:
 
   void
   Open(const nsAString& aMethod, const nsAString& aUrl, bool aAsync,
-       const Optional<nsAString>& aUser, const Optional<nsAString>& aPassword,
-       ErrorResult& aRv);
+       const nsAString& aUser, const nsAString& aPassword, ErrorResult& aRv);
 
   void
   SetRequestHeader(const nsAString& aHeader, const nsAString& aValue,

@@ -22,7 +22,7 @@
 #include "nsPoint.h"
 
 class nsAccessNode;
-class Accessible;
+class nsAccessible;
 class nsHyperTextAccessible;
 class nsHTMLTableAccessible;
 class DocAccessible;
@@ -66,13 +66,13 @@ public:
   /**
    * Get default value of the level for the given accessible.
    */
-  static PRInt32 GetDefaultLevel(Accessible* aAcc);
+  static PRInt32 GetDefaultLevel(nsAccessible *aAcc);
 
   /**
    * Return ARIA level value or the default one if ARIA is missed for the
    * given accessible.
    */
-  static PRInt32 GetARIAOrDefaultLevel(Accessible* aAccessible);
+  static PRInt32 GetARIAOrDefaultLevel(nsAccessible *aAccessible);
 
   /**
    * Compute group level for nsIDOMXULContainerItemElement node.
@@ -132,8 +132,8 @@ public:
     * @return               the ancestor accessible with the given role, or
     *                       nsnull if no match is found
     */
-   static Accessible* GetAncestorWithRole(Accessible* aDescendant,
-                                          PRUint32 aRole);
+   static nsAccessible * GetAncestorWithRole(nsAccessible *aDescendant,
+                                             PRUint32 aRole);
 
   /**
    * Return single or multi selectable container for the given item.
@@ -141,14 +141,14 @@ public:
    * @param  aAccessible  [in] the item accessible
    * @param  aState       [in] the state of the item accessible
    */
-  static Accessible* GetSelectableContainer(Accessible* aAccessible,
-                                            PRUint64 aState);
+  static nsAccessible* GetSelectableContainer(nsAccessible* aAccessible,
+                                              PRUint64 aState);
 
   /**
    * Return true if the DOM node of given accessible has aria-selected="true"
    * attribute.
    */
-  static bool IsARIASelected(Accessible* aAccessible);
+  static bool IsARIASelected(nsAccessible *aAccessible);
 
   /**
    * Return text accessible containing focus point of the given selection.
@@ -242,7 +242,7 @@ public:
    * Detect whether the given accessible object implements nsIAccessibleText,
    * when it is text or has text child node.
    */
-  static bool IsTextInterfaceSupportCorrect(Accessible* aAccessible);
+  static bool IsTextInterfaceSupportCorrect(nsAccessible *aAccessible);
 #endif
 
   /**
@@ -258,7 +258,7 @@ public:
   /**
    * Return text length of the given accessible, return 0 on failure.
    */
-  static PRUint32 TextLength(Accessible* aAccessible);
+  static PRUint32 TextLength(nsAccessible *aAccessible);
 
   /**
    * Return true if the given accessible is embedded object.
@@ -295,7 +295,7 @@ public:
    * Return true if the given accessible can't have children. Used when exposing
    * to platform accessibility APIs, should the children be pruned off?
    */
-  static bool MustPrune(Accessible* aAccessible);
+  static bool MustPrune(nsAccessible* aAccessible);
 
   /**
    * Search hint enum constants. Used by GetHeaderCellsFor() method.

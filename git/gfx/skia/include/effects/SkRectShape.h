@@ -19,9 +19,11 @@ public:
     SkPaint& paint() { return fPaint; }
     const SkPaint& paint() const { return fPaint; }
 
+    // overrides
+    virtual void flatten(SkFlattenableWriteBuffer&);
+    
 protected:
     SkPaintShape(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
     
 private:
     SkPaint fPaint;
@@ -38,11 +40,17 @@ public:
     void setCircle(SkScalar x, SkScalar y, SkScalar radius);
     void setRRect(const SkRect&, SkScalar rx, SkScalar ry);
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkRectShape)
+    // overrides
+    virtual Factory getFactory();
+    virtual void flatten(SkFlattenableWriteBuffer&);
+
+    // public for Registrar
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer&);
+
+    SK_DECLARE_FLATTENABLE_REGISTRAR()
 
 protected:
     SkRectShape(SkFlattenableReadBuffer&);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
     // overrides
     virtual void onDraw(SkCanvas*);

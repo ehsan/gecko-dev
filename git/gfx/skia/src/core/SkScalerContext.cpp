@@ -13,7 +13,6 @@
 #include "SkDraw.h"
 #include "SkFontHost.h"
 #include "SkMaskFilter.h"
-#include "SkOrderedReadBuffer.h"
 #include "SkPathEffect.h"
 #include "SkRasterizer.h"
 #include "SkRasterClip.h"
@@ -65,7 +64,7 @@ static SkFlattenable* load_flattenable(const SkDescriptor* desc, uint32_t tag) {
     const void*     data = desc->findEntry(tag, &len);
 
     if (data) {
-        SkOrderedReadBuffer   buffer(data, len);
+        SkFlattenableReadBuffer   buffer(data, len);
         obj = buffer.readFlattenable();
         SkASSERT(buffer.offset() == buffer.size());
     }
@@ -175,32 +174,6 @@ SkScalerContext* SkScalerContext::getGlyphContext(const SkGlyph& glyph) {
     }
     return ctx;
 }
-
-#ifdef SK_BUILD_FOR_ANDROID
-/*  This loops through all available fallback contexts (if needed) until it
-    finds some context that can handle the unichar and return it.
-
-    As this is somewhat expensive operation, it should only be done on the first
-    char of a run.
- */
-unsigned SkScalerContext::getBaseGlyphCount(SkUnichar uni) {
-    SkScalerContext* ctx = this;
-    unsigned glyphID;
-    for (;;) {
-        glyphID = ctx->generateCharToGlyph(uni);
-        if (glyphID) {
-            break;  // found it
-        }
-        ctx = ctx->getNextContext();
-        if (NULL == ctx) {
-            SkDebugf("--- no context for char %x\n", uni);
-            // just return the original context (this)
-            return this->fBaseGlyphCount;
-        }
-    }
-    return ctx->fBaseGlyphCount;
-}
-#endif
 
 /*  This loops through all available fallback contexts (if needed) until it
     finds some context that can handle the unichar. If all fail, returns 0
@@ -618,10 +591,7 @@ void SkScalerContext::internalGetPath(const SkGlyph& glyph, SkPath* fillPath,
         SkMatrix    matrix, inverse;
 
         fRec.getMatrixFrom2x2(&matrix);
-        if (!matrix.invert(&inverse)) {
-            // assume fillPath and devPath are already empty.
-            return;
-        }
+        matrix.invert(&inverse);
         path.transform(inverse, &localPath);
         // now localPath is only affected by the paint settings, and not the canvas matrix
 

@@ -103,7 +103,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
       continue;
 
     nsCOMPtr<nsIContent> child(do_QueryInterface(DOMChild));
-    Accessible* accessible =
+    nsAccessible* accessible =
       GetAccService()->GetOrCreateAccessible(child, mDoc);
     if (!accessible)
       continue;
@@ -393,7 +393,7 @@ nsXFormsSelectableAccessible::RemoveItemFromSelection(PRUint32 aIndex)
   return true;
 }
 
-Accessible*
+nsAccessible*
 nsXFormsSelectableAccessible::GetSelectedItem(PRUint32 aIndex)
 {
   if (!mDoc)
@@ -472,12 +472,12 @@ nsXFormsSelectableAccessible::SelectAll()
 
 nsIContent*
 nsXFormsSelectableAccessible::GetItemByIndex(PRUint32* aIndex,
-                                             Accessible* aAccessible)
+                                             nsAccessible* aAccessible)
 {
-  Accessible* accessible = aAccessible ? aAccessible : this;
+  nsAccessible* accessible = aAccessible ? aAccessible : this;
   PRUint32 childCount = accessible->ChildCount();
   for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
-    Accessible* child = accessible->GetChildAt(childIdx);
+    nsAccessible *child = accessible->GetChildAt(childIdx);
     nsIContent* childContent = child->GetContent();
     nsINodeInfo *nodeInfo = childContent->NodeInfo();
     if (nodeInfo->NamespaceEquals(NS_LITERAL_STRING(NS_NAMESPACE_XFORMS))) {

@@ -9,7 +9,7 @@
 
 #include "AccessibleComponent_i.c"
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 #include "States.h"
 
 #include "nsIFrame.h"
@@ -41,7 +41,7 @@ __try {
   *aX = 0;
   *aY = 0;
 
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -55,7 +55,7 @@ __try {
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  Accessible* parentAcc = acc->Parent();
+  nsAccessible* parentAcc = acc->Parent();
 
   // The coordinates of the returned position are relative to this object's
   // parent or relative to the screen on which this object is rendered if it
@@ -85,7 +85,7 @@ STDMETHODIMP
 ia2AccessibleComponent::get_foreground(IA2Color* aForeground)
 {
 __try {
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -104,7 +104,7 @@ STDMETHODIMP
 ia2AccessibleComponent::get_background(IA2Color* aBackground)
 {
 __try {
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 

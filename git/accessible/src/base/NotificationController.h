@@ -10,7 +10,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsRefreshDriver.h"
 
-class Accessible;
+class nsAccessible;
 class DocAccessible;
 class nsIContent;
 
@@ -122,7 +122,7 @@ public:
   /**
    * Pend accessible tree update for content insertion.
    */
-  void ScheduleContentInsertion(Accessible* aContainer,
+  void ScheduleContentInsertion(nsAccessible* aContainer,
                                 nsIContent* aStartChildNode,
                                 nsIContent* aEndChildNode);
 
@@ -272,7 +272,7 @@ private:
   class ContentInsertion
   {
   public:
-    ContentInsertion(DocAccessible* aDocument, Accessible* aContainer);
+    ContentInsertion(DocAccessible* aDocument, nsAccessible* aContainer);
     virtual ~ContentInsertion() { mDocument = nsnull; }
 
     NS_INLINE_DECL_REFCOUNTING(ContentInsertion)
@@ -292,7 +292,7 @@ private:
     DocAccessible* mDocument;
 
     // The container accessible that content insertion occurs within.
-    nsRefPtr<Accessible> mContainer;
+    nsRefPtr<nsAccessible> mContainer;
 
     // Array of inserted contents.
     nsTArray<nsCOMPtr<nsIContent> > mInsertedContent;

@@ -39,7 +39,7 @@ class nsXFormsAccessible : public nsHyperTextAccessibleWrap,
 public:
   nsXFormsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   // Returns value of child xforms 'hint' element.
   virtual void Description(nsString& aDescription);
 
@@ -91,7 +91,7 @@ class nsXFormsContainerAccessible : public nsXFormsAccessible
 public:
   nsXFormsContainerAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 
   // Allows accessible nodes in anonymous content of xforms element by
@@ -112,7 +112,7 @@ public:
   // nsHyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
-  // Accessible
+  // nsAccessible
   virtual PRUint64 NativeState();
 };
 
@@ -130,7 +130,7 @@ public:
   virtual bool IsSelect();
   virtual already_AddRefed<nsIArray> SelectedItems();
   virtual PRUint32 SelectedItemCount();
-  virtual Accessible* GetSelectedItem(PRUint32 aIndex);
+  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
   virtual bool IsItemSelected(PRUint32 aIndex);
   virtual bool AddItemToSelection(PRUint32 aIndex);
   virtual bool RemoveItemFromSelection(PRUint32 aIndex);
@@ -139,7 +139,7 @@ public:
 
 protected:
   nsIContent* GetItemByIndex(PRUint32* aIndex,
-                             Accessible* aAccessible = nsnull);
+                             nsAccessible* aAccessible = nsnull);
 
   bool mIsSelect1Element;
 };
@@ -156,7 +156,7 @@ public:
 
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // Accessible
+  // nsAccessible
   virtual void Value(nsString& aValue);
 
   // ActionAccessible

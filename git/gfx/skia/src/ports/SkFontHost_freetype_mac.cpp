@@ -51,6 +51,7 @@ static SkTypeface* ref_default_typeface() {
 
 SkTypeface* SkFontHost::CreateTypeface(const SkTypeface* familyFace,
                                        const char familyName[],
+                                       const void* data, size_t bytelength,
                                        SkTypeface::Style style) {
     return ref_default_typeface();
 }
@@ -62,6 +63,10 @@ SkTypeface* SkFontHost::CreateTypefaceFromStream(SkStream* stream) {
 
 SkTypeface* SkFontHost::CreateTypefaceFromFile(const char path[]) {
     return create_from_path(path);
+}
+
+bool SkFontHost::ValidFontID(SkFontID fontID) {
+    return SkTypefaceCache::FindByID(fontID) != NULL;
 }
 
 SkStream* SkFontHost::OpenStream(uint32_t fontID) {

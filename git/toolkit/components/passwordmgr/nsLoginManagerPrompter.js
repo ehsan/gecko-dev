@@ -801,7 +801,6 @@ LoginManagerPrompter.prototype = {
                 accessKey: rememberButtonAccessKey,
                 callback: function(aNotifyObj, aButton) {
                     pwmgr.addLogin(aLogin);
-                    browser.focus();
                 }
             };
 
@@ -812,7 +811,6 @@ LoginManagerPrompter.prototype = {
                     accessKey: neverButtonAccessKey,
                     callback: function(aNotifyObj, aButton) {
                         pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
-                        browser.focus();
                     }
                 }
             ];

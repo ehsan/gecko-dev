@@ -59,15 +59,21 @@ public:
     // override from SkPathEffect
     virtual bool filterPath(SkPath*, const SkPath&, SkScalar* width) SK_OVERRIDE;
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkPath1DPathEffect)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkPath1DPathEffect, (buffer));
+    }
+
+    SK_DECLARE_FLATTENABLE_REGISTRAR()
 
 protected:
     SkPath1DPathEffect(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
     // overrides from Sk1DPathEffect
     virtual SkScalar begin(SkScalar contourLength) SK_OVERRIDE;
     virtual SkScalar next(SkPath*, SkScalar distance, SkPathMeasure&) SK_OVERRIDE;
+    // overrides from SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory() SK_OVERRIDE { return CreateProc; }
     
 private:
     SkPath      fPath;          // copied from constructor

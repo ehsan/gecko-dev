@@ -209,11 +209,6 @@ public:
     void setLimits(int maxResource, size_t maxResourceBytes);
 
     /**
-     * Returns the number of bytes consumed by cached resources.
-     */
-    size_t getCachedResourceBytes() const { return fEntryBytes; }
-
-    /**
      * Controls whether locks should be nestable or not.
      */
     enum LockType {
@@ -320,3 +315,4 @@ private:
 #endif
 
 #endif
+

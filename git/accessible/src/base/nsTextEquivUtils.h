@@ -8,7 +8,7 @@
 #ifndef _nsTextEquivUtils_H_
 #define _nsTextEquivUtils_H_
 
-#include "Accessible.h"
+#include "nsAccessible.h"
 
 #include "nsIContent.h"
 #include "nsIStringBundle.h"
@@ -48,7 +48,7 @@ public:
    * @param aAccessible [in] the given accessible
    * @param aName       [out] accessible name
    */
-  static nsresult GetNameFromSubtree(Accessible* aAccessible,
+  static nsresult GetNameFromSubtree(nsAccessible *aAccessible,
                                      nsAString& aName);
 
   /**
@@ -59,7 +59,7 @@ public:
    * @param aIDRefsAttr  [in] IDRefs attribute on DOM node of the accessible
    * @param aTextEquiv   [out] result text equivalent
    */
-  static nsresult GetTextEquivFromIDRefs(Accessible* aAccessible,
+  static nsresult GetTextEquivFromIDRefs(nsAccessible *aAccessible,
                                          nsIAtom *aIDRefsAttr,
                                          nsAString& aTextEquiv);
 
@@ -74,7 +74,7 @@ public:
    *                       computed from
    * @param aString        [in, out] the string
    */
-  static nsresult AppendTextEquivFromContent(Accessible* aInitiatorAcc,
+  static nsresult AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
                                              nsIContent *aContent,
                                              nsAString *aString);
 
@@ -93,20 +93,20 @@ private:
    * Iterates accessible children and calculates text equivalent from each
    * child.
    */
-  static nsresult AppendFromAccessibleChildren(Accessible* aAccessible,
+  static nsresult AppendFromAccessibleChildren(nsAccessible *aAccessible,
                                                nsAString *aString);
   
   /**
    * Calculates text equivalent from the given accessible and its subtree if
    * allowed.
    */
-  static nsresult AppendFromAccessible(Accessible* aAccessible,
+  static nsresult AppendFromAccessible(nsAccessible *aAccessible,
                                        nsAString *aString);
 
   /**
    * Calculates text equivalent from the value of given accessible.
    */
-  static nsresult AppendFromValue(Accessible* aAccessible,
+  static nsresult AppendFromValue(nsAccessible *aAccessible,
                                   nsAString *aString);
   /**
    * Iterates DOM children and calculates text equivalent from each child node.
@@ -149,7 +149,7 @@ private:
    * for bailing out during recursive text computation, or for special cases
    * like step f. of the ARIA implementation guide.
    */
-  static nsRefPtr<Accessible> gInitiatorAcc;
+  static nsRefPtr<nsAccessible> gInitiatorAcc;
 };
 
 #endif

@@ -6337,7 +6337,7 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsBlockFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();

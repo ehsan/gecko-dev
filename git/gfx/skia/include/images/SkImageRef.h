@@ -60,6 +60,9 @@ public:
     // returns the factory parameter
     SkImageDecoderFactory* setDecoderFactory(SkImageDecoderFactory*);
 
+    // overrides
+    virtual void flatten(SkFlattenableWriteBuffer&) const;
+
 protected:
     /** Override if you want to install a custom allocator.
         When this is called we will have already acquired the mutex!
@@ -76,7 +79,6 @@ protected:
     virtual void onUnlockPixels();
     
     SkImageRef(SkFlattenableReadBuffer&);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
     SkBitmap fBitmap;
 

@@ -3,7 +3,6 @@
 #define _SkTestImageFilters_h
 
 #include "SkImageFilter.h"
-#include "SkColorFilter.h"
 
 class SkOffsetImageFilter : public SkImageFilter {
 public:
@@ -11,15 +10,19 @@ public:
         fOffset.set(dx, dy);
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkOffsetImageFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkOffsetImageFilter, (buffer));
+    }
 
 protected:
     SkOffsetImageFilter(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) SK_OVERRIDE;
     virtual bool onFilterBounds(const SkIRect&, const SkMatrix&, SkIRect*) SK_OVERRIDE;
+    // overrides from SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory() SK_OVERRIDE;
 
 private:
     SkVector fOffset;
@@ -37,15 +40,19 @@ public:
     }
     virtual ~SkComposeImageFilter();
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkComposeImageFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkComposeImageFilter, (buffer));
+    }
     
 protected:
     SkComposeImageFilter(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
     
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) SK_OVERRIDE;
     virtual bool onFilterBounds(const SkIRect&, const SkMatrix&, SkIRect*) SK_OVERRIDE;
+    // overrides from SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory() SK_OVERRIDE;
     
 private:
     SkImageFilter*  fOuter;
@@ -64,15 +71,19 @@ public:
                        const SkXfermode::Mode modes[] = NULL);
     virtual ~SkMergeImageFilter();
     
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkMergeImageFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkMergeImageFilter, (buffer));
+    }
     
 protected:
     SkMergeImageFilter(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
     
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) SK_OVERRIDE;
     virtual bool onFilterBounds(const SkIRect&, const SkMatrix&, SkIRect*) SK_OVERRIDE;
+    // overrides from SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory() SK_OVERRIDE;
     
 private:
     SkImageFilter**     fFilters;
@@ -89,6 +100,8 @@ private:
     typedef SkImageFilter INHERITED;
 };
 
+class SkColorFilter;
+
 class SkColorFilterImageFilter : public SkImageFilter {
 public:
     SkColorFilterImageFilter(SkColorFilter* cf) : fColorFilter(cf) {
@@ -96,14 +109,18 @@ public:
     }
     virtual ~SkColorFilterImageFilter();
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkColorFilterImageFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkColorFilterImageFilter, (buffer));
+    }
     
 protected:
     SkColorFilterImageFilter(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
     
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) SK_OVERRIDE;
+    // overrides from SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory() SK_OVERRIDE;
     
 private:
     SkColorFilter*  fColorFilter;
@@ -118,14 +135,18 @@ class SkDownSampleImageFilter : public SkImageFilter {
 public:
     SkDownSampleImageFilter(SkScalar scale) : fScale(scale) {}
     
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkDownSampleImageFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkDownSampleImageFilter, (buffer));
+    }
     
 protected:
     SkDownSampleImageFilter(SkFlattenableReadBuffer& buffer);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
     
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) SK_OVERRIDE;
+    // overrides from SkFlattenable
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory()  SK_OVERRIDE;
     
 private:
     SkScalar fScale;

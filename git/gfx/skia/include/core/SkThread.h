@@ -17,7 +17,6 @@
 
 int32_t sk_atomic_inc(int32_t*);
 int32_t sk_atomic_dec(int32_t*);
-int32_t sk_atomic_conditional_inc(int32_t*);
 
 class SkMutex {
 public:
@@ -32,36 +31,31 @@ public:
 
 class SkAutoMutexAcquire : SkNoncopyable {
 public:
-    explicit SkAutoMutexAcquire(SkBaseMutex& mutex) : fMutex(&mutex) {
+    explicit SkAutoMutexAcquire(SkMutex& mutex) : fMutex(&mutex)
+    {
         SkASSERT(fMutex != NULL);
         mutex.acquire();
     }
-    
-    SkAutoMutexAcquire(SkBaseMutex* mutex) : fMutex(mutex) {
-        if (mutex) {
-            mutex->acquire();
-        }
-    }
-
     /** If the mutex has not been release, release it now.
     */
-    ~SkAutoMutexAcquire() {
-        if (fMutex) {
+    ~SkAutoMutexAcquire()
+    {
+        if (fMutex)
             fMutex->release();
-        }
     }
-
     /** If the mutex has not been release, release it now.
     */
-    void release() {
-        if (fMutex) {
+    void release()
+    {
+        if (fMutex)
+        {
             fMutex->release();
             fMutex = NULL;
         }
     }
         
 private:
-    SkBaseMutex* fMutex;
+    SkMutex* fMutex;
 };
 
 #endif

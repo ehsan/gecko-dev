@@ -176,9 +176,7 @@ private:
 
     SkTArray<BufferBlock>           fBlocks;
     int                             fPreallocBuffersInUse;
-    // We attempt to cycle through the preallocated buffers rather than
-    // always starting from the first.
-    int                             fPreallocBufferStartIdx;
+    int                             fFirstPreallocBuffer;
     SkAutoMalloc                    fCpuData;
     void*                           fBufferPtr;
 };

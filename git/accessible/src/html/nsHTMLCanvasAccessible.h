@@ -17,7 +17,7 @@ public:
   nsHTMLCanvasAccessible(nsIContent* aContent, DocAccessible* aDoc);
   virtual ~nsHTMLCanvasAccessible() { }
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 };
 

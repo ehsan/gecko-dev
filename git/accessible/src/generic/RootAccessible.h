@@ -37,7 +37,7 @@ public:
   // nsAccessNode
   virtual void Shutdown();
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual Relation RelationByType(PRUint32 aType);
   virtual mozilla::a11y::role NativeRole();
@@ -67,7 +67,7 @@ protected:
   /**
    * Process "popupshown" event. Used by HandleEvent().
    */
-  void HandlePopupShownEvent(Accessible* aAccessible);
+  void HandlePopupShownEvent(nsAccessible* aAccessible);
 
   /*
    * Process "popuphiding" event. Used by HandleEvent().
@@ -90,7 +90,7 @@ protected:
 } // namespace mozilla
 
 inline mozilla::a11y::RootAccessible*
-Accessible::AsRoot()
+nsAccessible::AsRoot()
 {
   return mFlags & eRootAccessible ?
     static_cast<mozilla::a11y::RootAccessible*>(this) : nsnull;

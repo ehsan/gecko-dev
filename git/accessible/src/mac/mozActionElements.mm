@@ -293,7 +293,7 @@ enum CheckboxValue {
   if (!mGeckoAccessible)
     return nil;
     
-  Accessible* accessible = mGeckoAccessible->GetSelectedItem(0);
+  nsAccessible* accessible = mGeckoAccessible->GetSelectedItem(0);
   if (!accessible)
     return nil;
 

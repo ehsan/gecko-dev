@@ -11,7 +11,6 @@
 #include "GrColor.h"
 #include "GrMatrix.h"
 #include "GrNoncopyable.h"
-#include "GrRefCnt.h"
 #include "GrSamplerState.h"
 #include "GrStencil.h"
 
@@ -20,9 +19,8 @@
 class GrRenderTarget;
 class GrTexture;
 
-class GrDrawState : public GrRefCnt {
+struct GrDrawState {
 
-public:
     /**
      * Number of texture stages. Each stage takes as input a color and
      * 2D texture coordinates. The color input to the first enabled stage is the
@@ -36,14 +34,9 @@ public:
      * the last enabled stage. The presence or absence of texture coordinates
      * for each stage in the vertex layout indicates whether a stage is enabled
      * or not.
-     *
-     * Stages 0 through GrPaint::kTotalStages-1 are reserved for setting up
-     * the draw (i.e., textures and filter masks). Stages GrPaint::kTotalStages 
-     * through kNumStages-1 are earmarked for use by GrTextContext and 
-     * GrPathRenderer-derived classes.
      */
     enum {
-        kNumStages = 4,
+        kNumStages = 3,
         kMaxTexCoords = kNumStages
     };
 
@@ -54,45 +47,21 @@ public:
     GR_STATIC_ASSERT(sizeof(StageMask)*8 >= GrDrawState::kNumStages);
 
     GrDrawState() {
-        this->reset();
-    }
-
-    GrDrawState(const GrDrawState& state) {
-        *this = state;
-    }
-
-    /**
-     * Resets to the default state. Sampler states will not be modified.
-     */ 
-    void reset() {
         // make sure any pad is zero for memcmp
-        // all GrDrawState members should default to something valid by the
-        // the memset except those initialized individually below. There should
-        // be no padding between the individually initialized members.
-        memset(this->podStart(), 0, this->memsetSize());
+        // all GrDrawState members should default to something
+        // valid by the memset
+        memset(this, 0, sizeof(GrDrawState));
+            
+        // memset exceptions
+        fColorFilterMode = SkXfermode::kDstIn_Mode;
+        fFirstCoverageStage = kNumStages;
 
         // pedantic assertion that our ptrs will
         // be NULL (0 ptr is mem addr 0)
         GrAssert((intptr_t)(void*)NULL == 0LL);
-        GR_STATIC_ASSERT(0 == kBoth_DrawFace);
+
         GrAssert(fStencilSettings.isDisabled());
-
-        // memset exceptions
-        fColor = 0xffffffff;
-        fCoverage = 0xffffffff;
         fFirstCoverageStage = kNumStages;
-        fColorFilterMode = SkXfermode::kDst_Mode;
-        fSrcBlend = kOne_BlendCoeff;
-        fDstBlend = kZero_BlendCoeff;
-        fViewMatrix.reset();
-        fBehaviorBits = 0;
-
-        // ensure values that will be memcmp'ed in == but not memset in reset()
-        // are tightly packed
-        GrAssert(this->memsetSize() +  sizeof(fColor) + sizeof(fCoverage) +
-                 sizeof(fFirstCoverageStage) + sizeof(fColorFilterMode) +
-                 sizeof(fSrcBlend) + sizeof(fDstBlend) ==
-                 this->podSize());
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -133,33 +102,6 @@ public:
     /// @}
 
     ///////////////////////////////////////////////////////////////////////////
-    /// @name Coverage
-    ////
-
-    /**
-     * Sets a constant fractional coverage to be applied to the draw. The 
-     * initial value (after construction or reset()) is 0xff. The constant
-     * coverage is ignored when per-vertex coverage is provided.
-     */
-    void setCoverage(uint8_t coverage) {
-        fCoverage = GrColorPackRGBA(coverage, coverage, coverage, coverage);
-    }
-
-    /**
-     * Version of above that specifies 4 channel per-vertex color. The value
-     * should be premultiplied.
-     */
-    void setCoverage4(GrColor coverage) {
-        fCoverage = coverage;
-    }
-
-    GrColor getCoverage() const {
-        return fCoverage;
-    }
-
-    /// @}
-
-    ///////////////////////////////////////////////////////////////////////////
     /// @name Textures
     ////
 
@@ -173,18 +115,6 @@ public:
      */
     void setTexture(int stage, GrTexture* texture) {
         GrAssert((unsigned)stage < kNumStages);
-
-        if (isBehaviorEnabled(kTexturesNeedRef_BehaviorBit)) {
-            // If we don't clear out the current texture before unreffing
-            // it we can get into an infinite loop as the GrGLTexture's
-            // onRelease method recursively calls setTexture
-            GrTexture* temp = fTextures[stage];
-            fTextures[stage] = NULL;
-
-            SkSafeRef(texture);
-            SkSafeUnref(temp);
-        }
-
         fTextures[stage] = texture;
     }
 
@@ -347,7 +277,7 @@ public:
     ////
 
     /**
-     * Sets the matrix applied to vertex positions.
+     * Sets the matrix applied to veretx positions.
      *
      * In the post-view-matrix space the rectangle [0,w]x[0,h]
      * fully covers the render target. (w and h are the width and height of the
@@ -473,10 +403,9 @@ public:
 
     class AutoRenderTargetRestore : public ::GrNoncopyable {
     public:
-        AutoRenderTargetRestore() : fDrawState(NULL), fSavedTarget(NULL) {}
+        AutoRenderTargetRestore() : fDrawState(NULL) {}
         AutoRenderTargetRestore(GrDrawState* ds, GrRenderTarget* newTarget) {
             fDrawState = NULL;
-            fSavedTarget = NULL;
             this->set(ds, newTarget);
         }
         ~AutoRenderTargetRestore() { this->set(NULL, NULL); }
@@ -543,37 +472,26 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////
     // @name Edge AA
-    // Edge equations can be specified to perform antialiasing. Because the
-    // edges are specified as per-vertex data, vertices that are shared by
-    // multiple edges must be split.
+    // There are two ways to perform antialiasing using edge equations. One
+    // is to specify an (linear or quadratic) edge eq per-vertex. This requires
+    // splitting vertices shared by primitives.
     //
+    // The other is via setEdgeAAData which sets a set of edges and each
+    // is tested against all the edges.
     ////
 
     /**
      * When specifying edges as vertex data this enum specifies what type of
      * edges are in use. The edges are always 4 GrScalars in memory, even when
      * the edge type requires fewer than 4.
-     *
-     * TODO: Fix the fact that HairLine and Circle edge types use y-down coords.
-     *       (either adjust in VS or use origin_upper_left in GLSL)
      */
     enum VertexEdgeType {
         /* 1-pixel wide line
            2D implicit line eq (a*x + b*y +c = 0). 4th component unused */
         kHairLine_EdgeType,
-        /* Quadratic specified by u^2-v canonical coords (only 2 
-           components used). Coverage based on signed distance with negative
-           being inside, positive outside. Edge specified in window space
-           (y-down) */
-        kQuad_EdgeType,
-        /* Same as above but for hairline quadratics. Uses unsigned distance.
-           Coverage is min(0, 1-distance). */
-        kHairQuad_EdgeType,
-        /* Circle specified as center_x, center_y, outer_radius, inner_radius
-           all in window space (y-down). */
-        kCircle_EdgeType,
-
-        kVertexEdgeTypeCnt
+        /* 1-pixel wide quadratic
+           u^2-v canonical coords (only 2 components used) */
+        kHairQuad_EdgeType
     };
 
     /**
@@ -582,11 +500,54 @@ public:
      * are not specified the value of this setting has no effect.
      */
     void setVertexEdgeType(VertexEdgeType type) {
-        GrAssert(type >=0 && type < kVertexEdgeTypeCnt);
         fVertexEdgeType = type;
     }
 
-    VertexEdgeType getVertexEdgeType() const { return fVertexEdgeType; }
+    VertexEdgeType getVertexEdgeType() const {
+        return fVertexEdgeType;
+    }
+
+    /**
+     * The absolute maximum number of edges that may be specified for
+     * a single draw call when performing edge antialiasing.  This is used for
+     * the size of several static buffers, so implementations of getMaxEdges()
+     * (below) should clamp to this value.
+     */
+    enum {
+        // TODO: this should be 32 when GrTesselatedPathRenderer is used
+        // Visual Studio 2010 does not permit a member array of size 0.
+        kMaxEdges = 1
+    };
+
+    class Edge {
+      public:
+        Edge() {}
+        Edge(float x, float y, float z) : fX(x), fY(y), fZ(z) {}
+        GrPoint intersect(const Edge& other) {
+            return GrPoint::Make(
+                SkFloatToScalar((fY * other.fZ - other.fY * fZ) /
+                                (fX * other.fY - other.fX * fY)),
+                SkFloatToScalar((fX * other.fZ - other.fX * fZ) /
+                                (other.fX * fY - fX * other.fY)));
+        }
+        float fX, fY, fZ;
+    };
+
+    /**
+     * Sets the edge data required for edge antialiasing.
+     *
+     * @param edges       3 * numEdges float values, representing the edge
+     *                    equations in Ax + By + C form
+     */
+    void setEdgeAAData(const Edge* edges, int numEdges) {
+        GrAssert(numEdges <= GrDrawState::kMaxEdges);
+        memcpy(fEdgeAAEdges, edges, numEdges * sizeof(GrDrawState::Edge));
+        fEdgeAANumEdges = numEdges;
+    }
+
+    int getNumAAEdges() const { return fEdgeAANumEdges; }
+
+    const Edge* getAAEdges() const { return fEdgeAAEdges; }
 
     /// @}
 
@@ -673,34 +634,16 @@ public:
         return 0 != (fFlagBits & kNoColorWrites_StateBit);
     }
 
+    bool isConcaveEdgeAAState() const {
+        return 0 != (fFlagBits & kEdgeAAConcave_StateBit);
+    }
+
     bool isStateFlagEnabled(uint32_t stateBit) const {
         return 0 != (stateBit & fFlagBits);
     }
 
     void copyStateFlags(const GrDrawState& ds) {
         fFlagBits = ds.fFlagBits;
-    }
-
-    /**
-     *  Flags that do not affect rendering. 
-     */
-    enum GrBehaviorBits {
-        /**
-         * Calls to setTexture will ref/unref the texture
-         */
-        kTexturesNeedRef_BehaviorBit = 0x01,
-    };
-
-    void enableBehavior(uint32_t behaviorBits) {
-        fBehaviorBits |= behaviorBits;
-    }
-
-    void disableBehavior(uint32_t behaviorBits) {
-        fBehaviorBits &= ~(behaviorBits);
-    }
-
-    bool isBehaviorEnabled(uint32_t behaviorBits) const {
-        return 0 != (behaviorBits & fBehaviorBits);
     }
 
     /// @}
@@ -710,8 +653,6 @@ public:
     ////
 
     enum DrawFace {
-        kInvalid_DrawFace = -1,
-
         kBoth_DrawFace,
         kCCW_DrawFace,
         kCW_DrawFace,
@@ -722,7 +663,6 @@ public:
      * @param face  the face(s) to draw.
      */
     void setDrawFace(DrawFace face) {
-        GrAssert(kInvalid_DrawFace != face);
         fDrawFace = face;
     }
 
@@ -731,7 +671,9 @@ public:
      * or both faces.
      * @return the current draw face(s).
      */
-    DrawFace getDrawFace() const { return fDrawFace; }
+    DrawFace getDrawFace() const {
+        return fDrawFace;
+    }
     
     /// @}
 
@@ -740,32 +682,12 @@ public:
     // Most stages are usually not used, so conditionals here
     // reduce the expected number of bytes touched by 50%.
     bool operator ==(const GrDrawState& s) const {
-        if (memcmp(this->podStart(), s.podStart(), this->podSize())) {
-            return false;
-        }
-
-        if (!s.fViewMatrix.cheapEqualTo(fViewMatrix)) {
-            return false;
-        }
-
-        // kTexturesNeedRef is an internal flag for altering the draw state's 
-        // behavior rather than a property that will impact drawing - ignore it
-        // here
-        if ((fBehaviorBits & ~kTexturesNeedRef_BehaviorBit) != 
-            (s.fBehaviorBits & ~kTexturesNeedRef_BehaviorBit)) {
-            return false;
-        }
+        if (memcmp(this, &s, this->leadingBytes())) return false;
 
         for (int i = 0; i < kNumStages; i++) {
             if (fTextures[i] &&
-                this->fSamplerStates[i] != s.fSamplerStates[i]) {
-                return false;
-            }
-        }
-        if (kColorMatrix_StateBit & s.fFlagBits) {
-            if (memcmp(fColorMatrix,
-                        s.fColorMatrix,
-                        sizeof(fColorMatrix))) {
+                memcmp(&this->fSamplerStates[i], &s.fSamplerStates[i],
+                       sizeof(GrSamplerState))) {
                 return false;
             }
         }
@@ -777,82 +699,55 @@ public:
     // Most stages are usually not used, so conditionals here 
     // reduce the expected number of bytes touched by 50%.
     GrDrawState& operator =(const GrDrawState& s) {
-        memcpy(this->podStart(), s.podStart(), this->podSize());
-
-        fViewMatrix = s.fViewMatrix;
-        fBehaviorBits = s.fBehaviorBits;
+        memcpy(this, &s, this->leadingBytes());
 
         for (int i = 0; i < kNumStages; i++) {
             if (s.fTextures[i]) {
-                this->fSamplerStates[i] = s.fSamplerStates[i];
+                memcpy(&this->fSamplerStates[i], &s.fSamplerStates[i],
+                       sizeof(GrSamplerState));
             }
-        }
-        if (kColorMatrix_StateBit & s.fFlagBits) {
-            memcpy(this->fColorMatrix, s.fColorMatrix, sizeof(fColorMatrix));
         }
 
         return *this;
     }
 
 private:
-
-    const void* podStart() const {
-        return reinterpret_cast<const void*>(&fPodStartMarker);
-    }
-    void* podStart() {
-        return reinterpret_cast<void*>(&fPodStartMarker);
-    }
-    size_t memsetSize() const {
-        return reinterpret_cast<size_t>(&fMemsetEndMarker) -
-               reinterpret_cast<size_t>(&fPodStartMarker) +
-               sizeof(fMemsetEndMarker);
-    }
-    size_t podSize() const {
-        // Can't use offsetof() with non-POD types, so stuck with pointer math.
-        return reinterpret_cast<size_t>(&fPodEndMarker) -
-               reinterpret_cast<size_t>(&fPodStartMarker) +
-               sizeof(fPodEndMarker);
-    }
-
     static const StageMask kIllegalStageMaskBits = ~((1 << kNumStages)-1);
-    // @{ these fields can be initialized with memset to 0
-    union {
-        GrColor             fBlendConstant;
-        GrColor             fPodStartMarker;
-    };
-    GrTexture*          fTextures[kNumStages];
-    GrColor             fColorFilterColor;
-    uint32_t            fFlagBits;
-    DrawFace            fDrawFace; 
-    VertexEdgeType      fVertexEdgeType;
-    GrStencilSettings   fStencilSettings;
-    union {
-        GrRenderTarget* fRenderTarget;
-        GrRenderTarget* fMemsetEndMarker;
-    };
+    uint8_t                 fFlagBits;
+    GrBlendCoeff            fSrcBlend : 8;
+    GrBlendCoeff            fDstBlend : 8;
+    DrawFace                fDrawFace : 8;
+    uint8_t                 fFirstCoverageStage;
+    SkXfermode::Mode        fColorFilterMode : 8;
+    GrColor                 fBlendConstant;
+    GrTexture*              fTextures[kNumStages];
+    GrRenderTarget*         fRenderTarget;
+    GrColor                 fColor;
+    GrColor                 fColorFilterColor;
+    float                   fColorMatrix[20];
+    GrStencilSettings       fStencilSettings;
+    GrMatrix                fViewMatrix;
+    // @{ Data for GrTesselatedPathRenderer
+    // TODO: currently ignored in copying & comparison for performance.
+    // Must be considered if GrTesselatedPathRenderer is being used.
+
+    VertexEdgeType          fVertexEdgeType;
+    int                     fEdgeAANumEdges;
+    Edge                    fEdgeAAEdges[kMaxEdges];
+
     // @}
-
-    // @{ Initialized to values other than zero, but memcmp'ed in operator==
-    // and memcpy'ed in operator=.
-    GrColor             fColor;
-    GrColor             fCoverage;
-    int                 fFirstCoverageStage;
-    SkXfermode::Mode    fColorFilterMode;
-    GrBlendCoeff        fSrcBlend;
-    union {
-        GrBlendCoeff    fDstBlend;
-        GrBlendCoeff    fPodEndMarker;
-    };
-    // @}
-
-    uint32_t            fBehaviorBits;
-    GrMatrix            fViewMatrix;
-
     // This field must be last; it will not be copied or compared
     // if the corresponding fTexture[] is NULL.
-    GrSamplerState      fSamplerStates[kNumStages];
-    // only compared if the color matrix enable flag is set
-    float               fColorMatrix[20];       // 5 x 4 matrix
+    GrSamplerState          fSamplerStates[kNumStages];
+
+    size_t leadingBytes() const {
+        // Can't use offsetof() with non-POD types, so stuck with pointer math.
+        // TODO: ignores GrTesselatedPathRenderer data structures. We don't
+        // have a compile-time flag that lets us know if it's being used, and
+        // checking at runtime seems to cost 5% performance.
+        return (size_t) ((unsigned char*)&fEdgeAANumEdges -
+                         (unsigned char*)&fFlagBits);
+    }
 
 };
 

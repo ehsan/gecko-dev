@@ -238,20 +238,13 @@ AndroidPresenter.prototype = {
       return;
 
     let output = [];
-    aContext.newAncestry.forEach(
-      function (acc) {
-        output.push.apply(output, UtteranceGenerator.genForObject(acc));
-      }
-    );
+    for (let i in aContext.newAncestry)
+      output.push.apply(
+        output, UtteranceGenerator.genForObject(aContext.newAncestry[i]));
 
     output.push.apply(output,
-                      UtteranceGenerator.genForObject(aContext.accessible));
-
-    aContext.subtreePreorder.forEach(
-      function (acc) {
-        output.push.apply(output, UtteranceGenerator.genForObject(acc));
-      }
-    );
+                      UtteranceGenerator.genForObject(aContext.accessible,
+                                                      true));
 
     this.sendMessageToJava({
       gecko: {
@@ -371,13 +364,16 @@ PresenterContext.prototype = {
       let oldLineage = [];
 
       let parent = this._accessible;
-      while (parent && (parent = parent.parent))
+      while ((parent = parent.parent))
         newLineage.push(parent);
 
-      parent = this._oldAccessible;
-      while (parent && (parent = parent.parent))
-        oldLineage.push(parent);
+      if (this._oldAccessible) {
+        parent = this._oldAccessible;
+        while ((parent = parent.parent))
+          oldLineage.push(parent);
+      }
 
+      let i = 0;
       this._newAncestry = [];
 
       while (true) {
@@ -389,39 +385,12 @@ PresenterContext.prototype = {
 
         if (newAncestor != oldAncestor)
           this._newAncestry.push(newAncestor);
+        i++;
       }
 
     }
 
     return this._newAncestry;
-  },
-
-  /*
-   * This is a flattened list of the accessible's subtree in preorder.
-   * It only includes the accessible's visible chidren.
-   */
-  get subtreePreorder() {
-    function traversePreorder(aAccessible) {
-      let list = [];
-      let child = aAccessible.firstChild;
-      while (child) {
-        let state = {};
-        child.getState(state, {});
-
-        if (!(state.value & Ci.nsIAccessibleStates.STATE_INVISIBLE)) {
-          list.push(child);
-          list.push.apply(list, traversePreorder(child));
-        }
-
-        child = child.nextSibling;
-      }
-      return list;
-    }
-
-    if (!this._subtreePreOrder)
-      this._subtreePreOrder = traversePreorder(this._accessible);
-
-    return this._subtreePreOrder;
   },
 
   _isDefunct: function _isDefunct(aAccessible) {

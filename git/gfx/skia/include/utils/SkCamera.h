@@ -152,9 +152,6 @@ public:
 
 #ifdef SK_BUILD_FOR_ANDROID
     void setCameraLocation(SkScalar x, SkScalar y, SkScalar z);
-    SkScalar getCameraLocationX();
-    SkScalar getCameraLocationY();
-    SkScalar getCameraLocationZ();
 #endif
 
     void getMatrix(SkMatrix*) const;

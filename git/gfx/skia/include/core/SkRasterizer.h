@@ -28,8 +28,9 @@ public:
                    const SkIRect* clipBounds, SkMaskFilter* filter,
                    SkMask* mask, SkMask::CreateMode mode);
 
+    virtual void flatten(SkFlattenableWriteBuffer& ) SK_OVERRIDE {}
 protected:
-    SkRasterizer(SkFlattenableReadBuffer& buffer) : INHERITED(buffer) {}
+    SkRasterizer(SkFlattenableReadBuffer&);
 
     virtual bool onRasterize(const SkPath& path, const SkMatrix& matrix,
                              const SkIRect* clipBounds,

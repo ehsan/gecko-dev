@@ -94,7 +94,6 @@ protected:
     SkColor                fColor;
     SkPMColor              fPMColor;
     SkBlitRow::ColorProc   fColor32Proc;
-    SkBlitRow::ColorRectProc fColorRect32Proc;
 
 private:
     unsigned fSrcA, fSrcR, fSrcG, fSrcB;

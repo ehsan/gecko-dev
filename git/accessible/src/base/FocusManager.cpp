@@ -24,7 +24,7 @@ FocusManager::~FocusManager()
 {
 }
 
-Accessible*
+nsAccessible*
 FocusManager::FocusedAccessible() const
 {
   if (mActiveItem)
@@ -41,7 +41,7 @@ FocusManager::FocusedAccessible() const
 }
 
 bool
-FocusManager::IsFocused(const Accessible* aAccessible) const
+FocusManager::IsFocused(const nsAccessible* aAccessible) const
 {
   if (mActiveItem)
     return mActiveItem == aAccessible;
@@ -65,9 +65,9 @@ FocusManager::IsFocused(const Accessible* aAccessible) const
 }
 
 bool
-FocusManager::IsFocusWithin(const Accessible* aContainer) const
+FocusManager::IsFocusWithin(const nsAccessible* aContainer) const
 {
-  Accessible* child = FocusedAccessible();
+  nsAccessible* child = FocusedAccessible();
   while (child) {
     if (child == aContainer)
       return true;
@@ -78,9 +78,9 @@ FocusManager::IsFocusWithin(const Accessible* aContainer) const
 }
 
 FocusManager::FocusDisposition
-FocusManager::IsInOrContainsFocus(const Accessible* aAccessible) const
+FocusManager::IsInOrContainsFocus(const nsAccessible* aAccessible) const
 {
-  Accessible* focus = FocusedAccessible();
+  nsAccessible* focus = FocusedAccessible();
   if (!focus)
     return eNone;
 
@@ -89,7 +89,7 @@ FocusManager::IsInOrContainsFocus(const Accessible* aAccessible) const
     return eFocused;
 
   // If contains the focus.
-  Accessible* child = focus->Parent();
+  nsAccessible* child = focus->Parent();
   while (child) {
     if (child == aAccessible)
       return eContainsFocus;
@@ -158,7 +158,7 @@ FocusManager::NotifyOfDOMBlur(nsISupports* aTarget)
 }
 
 void
-FocusManager::ActiveItemChanged(Accessible* aItem, bool aCheckIfActive)
+FocusManager::ActiveItemChanged(nsAccessible* aItem, bool aCheckIfActive)
 {
   A11YDEBUG_FOCUS_NOTIFICATION_ACCTARGET("active item changed",
                                          "Active item", aItem)
@@ -170,7 +170,7 @@ FocusManager::ActiveItemChanged(Accessible* aItem, bool aCheckIfActive)
   mActiveItem = nsnull;
 
   if (aItem && aCheckIfActive) {
-    Accessible* widget = aItem->ContainerWidget();
+    nsAccessible* widget = aItem->ContainerWidget();
     A11YDEBUG_FOCUS_LOG_WIDGET("Active item widget", widget)
     if (!widget || !widget->IsActiveWidget() || !widget->AreItemsOperable())
       return;
@@ -180,7 +180,7 @@ FocusManager::ActiveItemChanged(Accessible* aItem, bool aCheckIfActive)
   // If active item is changed then fire accessible focus event on it, otherwise
   // if there's no an active item then fire focus event to accessible having
   // DOM focus.
-  Accessible* target = FocusedAccessible();
+  nsAccessible* target = FocusedAccessible();
   if (target)
     DispatchFocusEvent(target->Document(), target);
 }
@@ -201,7 +201,7 @@ FocusManager::ForceFocusEvent()
 
 void
 FocusManager::DispatchFocusEvent(DocAccessible* aDocument,
-                                 Accessible* aTarget)
+                                 nsAccessible* aTarget)
 {
   NS_PRECONDITION(aDocument, "No document for focused accessible!");
   if (aDocument) {
@@ -223,16 +223,16 @@ FocusManager::ProcessDOMFocus(nsINode* aTarget)
   DocAccessible* document =
     GetAccService()->GetDocAccessible(aTarget->OwnerDoc());
 
-  Accessible* target = document->GetAccessibleOrContainer(aTarget);
+  nsAccessible* target = document->GetAccessibleOrContainer(aTarget);
   if (target && document) {
     // Check if still focused. Otherwise we can end up with storing the active
     // item for control that isn't focused anymore.
-    Accessible* DOMFocus =
+    nsAccessible* DOMFocus =
       document->GetAccessibleOrContainer(FocusedDOMNode());
     if (target != DOMFocus)
       return;
 
-    Accessible* activeItem = target->CurrentItem();
+    nsAccessible* activeItem = target->CurrentItem();
     if (activeItem) {
       mActiveItem = activeItem;
       target = activeItem;
@@ -253,18 +253,18 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
 
   // Emit focus event if event target is the active item. Otherwise then check
   // if it's still focused and then update active item and emit focus event.
-  Accessible* target = aEvent->GetAccessible();
+  nsAccessible* target = aEvent->GetAccessible();
   if (target != mActiveItem) {
 
     // Check if still focused. Otherwise we can end up with storing the active
     // item for control that isn't focused anymore.
     DocAccessible* document = aEvent->GetDocAccessible();
-    Accessible* DOMFocus = document->GetAccessibleOrContainer(FocusedDOMNode());
+    nsAccessible* DOMFocus = document->GetAccessibleOrContainer(FocusedDOMNode());
 
     if (target != DOMFocus)
       return;
 
-    Accessible* activeItem = target->CurrentItem();
+    nsAccessible* activeItem = target->CurrentItem();
     if (activeItem) {
       mActiveItem = activeItem;
       target = activeItem;
@@ -274,7 +274,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
   // Fire menu start/end events for ARIA menus.
   if (target->ARIARole() == roles::MENUITEM) {
     // The focus was moved into menu.
-    Accessible* ARIAMenubar =
+    nsAccessible* ARIAMenubar =
       nsAccUtils::GetAncestorWithRole(target, roles::MENUBAR);
 
     if (ARIAMenubar != mActiveARIAMenubar) {
@@ -317,7 +317,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
   // an anchor jump. If an accessible within the document receive the focus
   // then null out the anchor jump because it no longer applies.
   DocAccessible* targetDocument = target->Document();
-  Accessible* anchorJump = targetDocument->AnchorJump();
+  nsAccessible* anchorJump = targetDocument->AnchorJump();
   if (anchorJump) {
     if (target == targetDocument) {
       // XXX: bug 625699, note in some cases the node could go away before we

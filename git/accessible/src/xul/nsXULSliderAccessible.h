@@ -6,14 +6,14 @@
 #ifndef _nsXULSliderAccessible_H_
 #define _nsXULSliderAccessible_H_
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 
 #include "nsIDOMElement.h"
 
 /**
  * Used for XUL slider and scale elements.
  */
-class nsXULSliderAccessible : public AccessibleWrap
+class nsXULSliderAccessible : public nsAccessibleWrap
 {
 public:
   nsXULSliderAccessible(nsIContent* aContent, DocAccessible* aDoc);
@@ -28,7 +28,7 @@ public:
   // nsIAccessibleValue
   NS_DECL_NSIACCESSIBLEVALUE
 
-  // Accessible
+  // nsAccessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
@@ -57,12 +57,12 @@ private:
 /**
  * Used for slider's thumb element.
  */
-class nsXULThumbAccessible : public AccessibleWrap
+class nsXULThumbAccessible : public nsAccessibleWrap
 {
 public:
   nsXULThumbAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 };
 

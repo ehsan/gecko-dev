@@ -145,14 +145,10 @@ int64_t
 WebGLMemoryMultiReporterWrapper::GetBufferCacheMemoryUsed() {
     const ContextsArrayType & contexts = Contexts();
     int64_t result = 0;
-    for(size_t i = 0; i < contexts.Length(); ++i) {
-        for (const WebGLBuffer *buffer = contexts[i]->mBuffers.getFirst();
-             buffer;
-             buffer = buffer->getNext())
-        {
-            if (buffer->Target() == LOCAL_GL_ELEMENT_ARRAY_BUFFER)
-                result += buffer->SizeOfIncludingThis(WebGLBufferMallocSizeOfFun);
-        }
+    for (size_t i = 0; i < contexts.Length(); ++i) {
+        for (size_t j = 0; j < contexts[i]->mBuffers.Length(); ++j) 
+            if (contexts[i]->mBuffers[j]->Target() == LOCAL_GL_ELEMENT_ARRAY_BUFFER)
+               result += contexts[i]->mBuffers[j]->SizeOfIncludingThis(WebGLBufferMallocSizeOfFun);
     }
     return result;
 }
@@ -163,13 +159,9 @@ int64_t
 WebGLMemoryMultiReporterWrapper::GetShaderSize() {
     const ContextsArrayType & contexts = Contexts();
     int64_t result = 0;
-    for(size_t i = 0; i < contexts.Length(); ++i) {
-        for (const WebGLShader *shader = contexts[i]->mShaders.getFirst();
-             shader;
-             shader = shader->getNext())
-        {
-            result += shader->SizeOfIncludingThis(WebGLShaderMallocSizeOfFun);
-        }
+    for (size_t i = 0; i < contexts.Length(); ++i) {
+        for (size_t j = 0; j < contexts[i]->mShaders.Length(); ++j) 
+            result += contexts[i]->mShaders[j]->SizeOfIncludingThis(WebGLShaderMallocSizeOfFun);
     }
     return result;
 }

@@ -23,7 +23,6 @@ enum PaintFlats {
     kPathEffect_PaintFlat,
     kRasterizer_PaintFlat,
     kShader_PaintFlat,
-    kImageFilter_PaintFlat,
     kXfermode_PaintFlat,
 
     kLast_PaintFlat = kXfermode_PaintFlat
@@ -40,7 +39,6 @@ enum DrawOps {
     kConcat_DrawOp,
     kDrawBitmap_DrawOp,
     kDrawBitmapMatrix_DrawOp,
-    kDrawBitmapNine_DrawOp,
     kDrawBitmapRect_DrawOp,
     kDrawClear_DrawOp,
     kDrawData_DrawOp,
@@ -68,7 +66,6 @@ enum DrawOps {
 
     kDef_Typeface_DrawOp,
     kDef_Flattenable_DrawOp,
-    kDef_Bitmap_DrawOp,
 
     // these are signals to playback, not drawing verbs
     kDone_DrawOp,

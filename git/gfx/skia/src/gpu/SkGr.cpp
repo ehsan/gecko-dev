@@ -73,10 +73,10 @@ GrContext::TextureCacheEntry sk_gr_create_bitmap_texture(GrContext* ctx,
 
     GrTextureDesc desc = {
         kNone_GrTextureFlags,
+        kNone_GrAALevel,
         bitmap->width(),
         bitmap->height(),
-        SkGr::Bitmap2PixelConfig(*bitmap),
-        0 // samples
+        SkGr::Bitmap2PixelConfig(*bitmap)
     };
 
     if (SkBitmap::kIndex8_Config == bitmap->config()) {
@@ -159,21 +159,26 @@ GrClipType SkGrClipIterator::getType() const {
     }
 }
 
-SkRegion::Op SkGrClipIterator::getOp() const {
+GrSetOp SkGrClipIterator::getOp() const {
     // we skipped to the last "replace" op
     // when this iter was reset.
     // GrClip doesn't allow replace, so treat it as
     // intersect.
-    if (SkRegion::kReplace_Op == fCurr->fOp) {
-        return SkRegion::kIntersect_Op;
-    }
-
-    return fCurr->fOp;
-
-}
-
-bool SkGrClipIterator::getDoAA() const {
-    return fCurr->fDoAA;
+    GrSetOp skToGrOps[] = {
+        kDifference_SetOp,         // kDifference_Op
+        kIntersect_SetOp,          // kIntersect_Op
+        kUnion_SetOp,              // kUnion_Op
+        kXor_SetOp,                // kXOR_Op
+        kReverseDifference_SetOp,  // kReverseDifference_Op
+        kIntersect_SetOp           // kReplace_op
+    };
+    GR_STATIC_ASSERT(0 == SkRegion::kDifference_Op);
+    GR_STATIC_ASSERT(1 == SkRegion::kIntersect_Op);
+    GR_STATIC_ASSERT(2 == SkRegion::kUnion_Op);
+    GR_STATIC_ASSERT(3 == SkRegion::kXOR_Op);
+    GR_STATIC_ASSERT(4 == SkRegion::kReverseDifference_Op);
+    GR_STATIC_ASSERT(5 == SkRegion::kReplace_Op);
+    return skToGrOps[fCurr->fOp];
 }
 
 GrPathFill SkGrClipIterator::getPathFill() const {

@@ -37,7 +37,7 @@ NS_IMPL_QUERY_INTERFACE_INHERITED1(ProgressMeterAccessible<Max>,
                                    nsIAccessibleValue)
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+// nsAccessible
 
 template<int Max>
 role

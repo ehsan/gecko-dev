@@ -18,7 +18,6 @@
 #include "SkColorFilter.h"
 #include "SkDrawLooper.h"
 #include "SkMaskFilter.h"
-#include "SkOrderedReadBuffer.h"
 #include "SkPathEffect.h"
 #include "SkRasterizer.h"
 #include "SkShader.h"
@@ -45,9 +44,6 @@ static void set_paintflat(SkPaint* paint, SkFlattenable* obj, unsigned paintFlat
             break;
         case kShader_PaintFlat:
             paint->setShader((SkShader*)obj);
-            break;
-        case kImageFilter_PaintFlat:
-            paint->setImageFilter((SkImageFilter*)obj);
             break;
         case kXfermode_PaintFlat:
             paint->setXfermode((SkXfermode*)obj);
@@ -88,19 +84,6 @@ public:
         *fFlatArray.append() = obj;
     }
 
-    void addBitmap(int index) {
-        SkASSERT(fBitmaps.count() == index);
-        SkBitmap* bm = new SkBitmap();
-        size_t size = fReader->readU32();
-        SkOrderedReadBuffer readBuffer(fReader->skip(size), size);
-        bm->unflatten(readBuffer);
-        *fBitmaps.append() = bm;
-    }
-
-    SkBitmap* getBitmap(unsigned index) {
-        return fBitmaps[index];
-    }
-
     void addTypeface() {
         size_t size = fReader->readU32();
         const void* data = fReader->skip(SkAlign4(size));
@@ -118,7 +101,6 @@ private:
     SkTDArray<SkFlattenable*> fFlatArray;
     SkTDArray<SkTypeface*>    fTypefaces;
     SkTDArray<SkFlattenable::Factory> fFactoryArray;
-    SkTDArray<SkBitmap*>      fBitmaps;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -143,21 +125,19 @@ static void clipPath_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                         SkGPipeState* state) {
     SkPath path;
     path.unflatten(*reader);
-    canvas->clipPath(path, (SkRegion::Op)DrawOp_unpackData(op32),
-                     reader->readBool());
+    canvas->clipPath(path, (SkRegion::Op)DrawOp_unpackData(op32));
 }
 
 static void clipRegion_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                           SkGPipeState* state) {
     SkRegion rgn;
-    reader->readRegion(&rgn);
+    SkReadRegion(reader, &rgn);
     canvas->clipRegion(rgn, (SkRegion::Op)DrawOp_unpackData(op32));
 }
 
 static void clipRect_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                         SkGPipeState* state) {
-    canvas->clipRect(*skip<SkRect>(reader),
-                     (SkRegion::Op)DrawOp_unpackData(op32), reader->readBool());
+    canvas->clipRect(*skip<SkRect>(reader), (SkRegion::Op)DrawOp_unpackData(op32));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -165,14 +145,14 @@ static void clipRect_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
 static void setMatrix_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                       SkGPipeState* state) {
     SkMatrix matrix;
-    reader->readMatrix(&matrix);
+    SkReadMatrix(reader, &matrix);
     canvas->setMatrix(matrix);
 }
 
 static void concat_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                       SkGPipeState* state) {
     SkMatrix matrix;
-    reader->readMatrix(&matrix);
+    SkReadMatrix(reader, &matrix);
     canvas->concat(matrix);
 }
 
@@ -335,7 +315,7 @@ static void drawTextOnPath_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op3
     SkMatrix matrixStorage;
     const SkMatrix* matrix = NULL;
     if (DrawOp_unpackFlags(op32) & kDrawTextOnPath_HasMatrix_DrawOpFlag) {
-        reader->readMatrix(&matrixStorage);
+        SkReadMatrix(reader, &matrixStorage);
         matrix = &matrixStorage;
     }
 
@@ -346,12 +326,7 @@ static void drawTextOnPath_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op3
 
 static void drawBitmap_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                           SkGPipeState* state) {
-    unsigned index = DrawOp_unpackData(op32);
-    SkBitmap* bm = state->getBitmap(index);
-    bool hasPaint = reader->readBool();
-    SkScalar left = reader->readScalar();
-    SkScalar top = reader->readScalar();
-    canvas->drawBitmap(*bm, left, top, hasPaint ? &state->paint() : NULL);
+    UNIMPLEMENTED
 }
 
 static void drawBitmapMatrix_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
@@ -359,41 +334,14 @@ static void drawBitmapMatrix_rp(SkCanvas* canvas, SkReader32* reader, uint32_t o
     UNIMPLEMENTED
 }
 
-static void drawBitmapNine_rp(SkCanvas* canvas, SkReader32* reader,
-                              uint32_t op32, SkGPipeState* state) {
-    unsigned index = DrawOp_unpackData(op32);
-    SkBitmap* bm = state->getBitmap(index);
-    bool hasPaint = reader->readBool();
-    SkIRect center = SkIRect::MakeLTRB(reader->readInt(), reader->readInt(),
-                                       reader->readInt(), reader->readInt());
-    const SkRect* dst = skip<SkRect>(reader);
-    canvas->drawBitmapNine(*bm, center, *dst,
-                           hasPaint ? &state->paint() : NULL);
-}
-
-static void drawBitmapRect_rp(SkCanvas* canvas, SkReader32* reader,
-                              uint32_t op32, SkGPipeState* state) {
-    unsigned index = DrawOp_unpackData(op32);
-    SkBitmap* bm = state->getBitmap(index);
-    bool hasPaint = reader->readBool();
-    bool hasSrc = reader->readBool();
-    SkIRect src; 
-    if (hasSrc) {
-        src = SkIRect::MakeLTRB(reader->readInt(), reader->readInt(),
-                                reader->readInt(), reader->readInt());
-    }
-    const SkRect* dst = skip<SkRect>(reader);
-    canvas->drawBitmapRect(*bm, hasSrc ? &src : NULL, *dst,
-                           hasPaint ? &state->paint() : NULL);
+static void drawBitmapRect_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
+                              SkGPipeState* state) {
+    UNIMPLEMENTED
 }
 
 static void drawSprite_rp(SkCanvas* canvas, SkReader32* reader, uint32_t op32,
                           SkGPipeState* state) {
-    unsigned index = DrawOp_unpackData(op32);
-    SkBitmap* bm = state->getBitmap(index);
-    bool hasPaint = reader->readBool();
-    canvas->drawSprite(*bm, reader->readInt(), reader->readInt(),
-                       hasPaint ? &state->paint() : NULL);
+    UNIMPLEMENTED
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -474,12 +422,6 @@ static void def_PaintFlat_rp(SkCanvas*, SkReader32*, uint32_t op32,
     state->defFlattenable(pf, index);
 }
 
-static void def_Bitmap_rp(SkCanvas*, SkReader32*, uint32_t op32,
-                          SkGPipeState* state) {
-    unsigned index = DrawOp_unpackData(op32);
-    state->addBitmap(index);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 static void skip_rp(SkCanvas*, SkReader32* reader, uint32_t op32, SkGPipeState*) {
@@ -499,7 +441,6 @@ static const ReadProc gReadTable[] = {
     concat_rp,
     drawBitmap_rp,
     drawBitmapMatrix_rp,
-    drawBitmapNine_rp,
     drawBitmapRect_rp,
     drawClear_rp,
     drawData_rp,
@@ -526,7 +467,6 @@ static const ReadProc gReadTable[] = {
     paintOp_rp,
     def_Typeface_rp,
     def_PaintFlat_rp,
-    def_Bitmap_rp,
 
     done_rp
 };
@@ -538,7 +478,6 @@ SkGPipeState::SkGPipeState() {}
 SkGPipeState::~SkGPipeState() {
     fTypefaces.safeUnrefAll();
     fFlatArray.safeUnrefAll();
-    fBitmaps.deleteAll();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -569,7 +508,7 @@ SkGPipeReader::Status SkGPipeReader::playback(const void* data, size_t length,
     SkASSERT(SK_ARRAY_COUNT(gReadTable) == (kDone_DrawOp + 1));
 
     const ReadProc* table = gReadTable;
-    SkOrderedReadBuffer reader(data, length);
+    SkFlattenableReadBuffer reader(data, length);
     SkCanvas* canvas = fCanvas;
     Status status = kEOF_Status;
 
@@ -588,12 +527,11 @@ SkGPipeReader::Status SkGPipeReader::playback(const void* data, size_t length,
             status = kDone_Status;
             break;
         }
-        table[op](canvas, reader.getReader32(), op32, fState);
+        table[op](canvas, &reader, op32, fState);
         if (readAtom && 
             (table[op] != paintOp_rp &&
              table[op] != def_Typeface_rp &&
-             table[op] != def_PaintFlat_rp &&
-             table[op] != def_Bitmap_rp
+             table[op] != def_PaintFlat_rp
              )) {
                 status = kReadAtom_Status;
                 break;

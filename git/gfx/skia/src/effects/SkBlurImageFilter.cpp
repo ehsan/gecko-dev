@@ -24,7 +24,7 @@ bool SkBlurImageFilter::asABlur(SkSize* sigma) const {
     return true;
 }
 
-void SkBlurImageFilter::flatten(SkFlattenableWriteBuffer& buffer) const {
+void SkBlurImageFilter::flatten(SkFlattenableWriteBuffer& buffer) {
     this->INHERITED::flatten(buffer);
     buffer.writeScalar(fSigma.fWidth);
     buffer.writeScalar(fSigma.fHeight);

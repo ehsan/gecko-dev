@@ -17,8 +17,9 @@ GrPathRendererChain::GrPathRendererChain(GrContext* context, UsageFlags flags)
     : fInit(false)
     , fOwner(context)
     , fFlags(flags) {
+    fInit = false;
 }
-
+    
 GrPathRendererChain::~GrPathRendererChain() {
     for (int i = 0; i < fChain.count(); ++i) {
         fChain[i]->unref();
@@ -31,15 +32,16 @@ GrPathRenderer* GrPathRendererChain::addPathRenderer(GrPathRenderer* pr) {
     return pr;
 }
 
-GrPathRenderer* GrPathRendererChain::getPathRenderer(const SkPath& path,
-                                                     GrPathFill fill,
-                                                     const GrDrawTarget* target,
-                                                     bool antiAlias) {
+GrPathRenderer* GrPathRendererChain::getPathRenderer(
+                                        const GrDrawTarget::Caps& targetCaps,
+                                        const GrPath& path,
+                                        GrPathFill fill,
+                                        bool antiAlias) {
     if (!fInit) {
         this->init();
     }
     for (int i = 0; i < fChain.count(); ++i) {
-        if (fChain[i]->canDrawPath(path, fill, target, antiAlias)) {
+        if (fChain[i]->canDrawPath(targetCaps, path, fill, antiAlias)) {
             return fChain[i];
         }
     }

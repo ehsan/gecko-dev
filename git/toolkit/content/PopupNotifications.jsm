@@ -376,11 +376,7 @@ PopupNotifications.prototype = {
    * Dismisses the notification without removing it.
    */
   _dismiss: function PopupNotifications_dismiss() {
-    let browser = this.panel.firstChild &&
-                  this.panel.firstChild.notification.browser;
     this.panel.hidePopup();
-    if (browser)
-      browser.focus();
   },
 
   /**

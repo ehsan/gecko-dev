@@ -31,7 +31,7 @@
 #endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
-#include "mozilla/a11y/Accessible.h"
+#include "nsAccessible.h"
 #endif
 
 #include "nsGtkIMModule.h"
@@ -375,7 +375,7 @@ private:
     nsRefPtr<gfxASurface> mThebesSurface;
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<Accessible> mRootAccessible;
+    nsRefPtr<nsAccessible> mRootAccessible;
 
     /**
      * Request to create the accessible for this window if it is top level.
@@ -386,7 +386,7 @@ private:
      * Generate the NS_GETACCESSIBLE event to get accessible for this window
      * and return it.
      */
-    Accessible       *DispatchAccessibleEvent();
+    nsAccessible       *DispatchAccessibleEvent();
 
     /**
      * Dispatch accessible event for the top level window accessible.

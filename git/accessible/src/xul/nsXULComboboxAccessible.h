@@ -11,7 +11,7 @@
 /**
  * Used for XUL comboboxes like xul:menulist and autocomplete textbox.
  */
-class nsXULComboboxAccessible : public AccessibleWrap
+class nsXULComboboxAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
@@ -22,7 +22,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
-  // Accessible
+  // nsAccessible
   virtual void Description(nsString& aDescription);
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();

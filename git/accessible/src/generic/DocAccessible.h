@@ -41,7 +41,7 @@ class DocAccessible : public nsHyperTextAccessibleWrap,
                       public nsIAccessiblePivotObserver
 {
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DocAccessible, Accessible)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DocAccessible, nsAccessible)
 
   NS_DECL_NSIACCESSIBLEDOCUMENT
 
@@ -52,6 +52,7 @@ class DocAccessible : public nsHyperTextAccessibleWrap,
   NS_DECL_NSIACCESSIBLEPIVOTOBSERVER
 
 public:
+  using nsAccessible::GetParent;
 
   DocAccessible(nsIDocument* aDocument, nsIContent* aRootContent,
                 nsIPresShell* aPresShell);
@@ -75,10 +76,10 @@ public:
   virtual nsINode* GetNode() const { return mDocument; }
   virtual nsIDocument* GetDocumentNode() const { return mDocument; }
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual void Description(nsString& aDescription);
-  virtual Accessible* FocusedChild();
+  virtual nsAccessible* FocusedChild();
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual void ApplyARIAState(PRUint64* aState) const;
@@ -149,7 +150,8 @@ public:
   /**
    * Return the parent document.
    */
-  DocAccessible* ParentDocument() const;
+  DocAccessible* ParentDocument() const
+    { return mParent ? mParent->Document() : nsnull; }
 
   /**
    * Return the child document count.
@@ -184,7 +186,7 @@ public:
   /**
    * Fire value change event on the given accessible if applicable.
    */
-  void MaybeNotifyOfValueChange(Accessible* aAccessible)
+  inline void MaybeNotifyOfValueChange(nsAccessible* aAccessible)
   {
     mozilla::a11y::role role = aAccessible->Role();
     if (role == mozilla::a11y::roles::ENTRY ||
@@ -199,16 +201,16 @@ public:
   /**
    * Get/set the anchor jump.
    */
-  Accessible* AnchorJump()
+  inline nsAccessible* AnchorJump()
     { return GetAccessibleOrContainer(mAnchorJumpElm); }
 
-  void SetAnchorJump(nsIContent* aTargetNode)
+  inline void SetAnchorJump(nsIContent* aTargetNode)
     { mAnchorJumpElm = aTargetNode; }
 
   /**
    * Bind the child document to the tree.
    */
-  void BindChildDocument(DocAccessible* aDocument)
+  inline void BindChildDocument(DocAccessible* aDocument)
   {
     mNotificationController->ScheduleChildDocBinding(aDocument);
   }
@@ -221,7 +223,7 @@ public:
    * @see   NotificationController::HandleNotification
    */
   template<class Class, class Arg>
-  void HandleNotification(Class* aInstance,
+  inline void HandleNotification(Class* aInstance,
                                  typename TNotification<Class, Arg>::Callback aMethod,
                                  Arg* aArg)
   {
@@ -237,20 +239,20 @@ public:
    *
    * @return the accessible object
    */
-  Accessible* GetAccessible(nsINode* aNode) const;
+  nsAccessible* GetAccessible(nsINode* aNode) const;
 
   /**
    * Return whether the given DOM node has an accessible or not.
    */
-  bool HasAccessible(nsINode* aNode) const
+  inline bool HasAccessible(nsINode* aNode) const
     { return GetAccessible(aNode); }
 
   /**
    * Return true if the given accessible is in document.
    */
-  bool IsInDocument(Accessible* aAccessible) const
+  inline bool IsInDocument(nsAccessible* aAccessible) const
   {
-    Accessible* acc = aAccessible;
+    nsAccessible* acc = aAccessible;
     while (acc && !acc->IsPrimaryForNode())
       acc = acc->Parent();
 
@@ -264,7 +266,7 @@ public:
    *
    * @param  aUniqueID  [in] the unique ID used to cache the node.
    */
-  Accessible* GetAccessibleByUniqueID(void* aUniqueID)
+  inline nsAccessible* GetAccessibleByUniqueID(void* aUniqueID)
   {
     return UniqueID() == aUniqueID ?
       this : mAccessibleCache.GetWeak(aUniqueID);
@@ -274,18 +276,18 @@ public:
    * Return the cached accessible by the given unique ID looking through
    * this and nested documents.
    */
-  Accessible* GetAccessibleByUniqueIDInSubtree(void* aUniqueID);
+  nsAccessible* GetAccessibleByUniqueIDInSubtree(void* aUniqueID);
 
   /**
    * Return an accessible for the given DOM node or container accessible if
    * the node is not accessible.
    */
-  Accessible* GetAccessibleOrContainer(nsINode* aNode);
+  nsAccessible* GetAccessibleOrContainer(nsINode* aNode);
 
   /**
    * Return a container accessible for the given DOM node.
    */
-  Accessible* GetContainerAccessible(nsINode* aNode)
+  inline nsAccessible* GetContainerAccessible(nsINode* aNode)
   {
     return aNode ? GetAccessibleOrContainer(aNode->GetNodeParent()) : nsnull;
   }
@@ -307,12 +309,12 @@ public:
    * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
    *                          if none
    */
-  bool BindToDocument(Accessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
+  bool BindToDocument(nsAccessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
 
   /**
    * Remove from document and shutdown the given accessible.
    */
-  void UnbindFromDocument(Accessible* aAccessible);
+  void UnbindFromDocument(nsAccessible* aAccessible);
 
   /**
    * Notify the document accessible that content was inserted.
@@ -329,7 +331,7 @@ public:
   /**
    * Updates accessible tree when rendered text is changed.
    */
-  void UpdateText(nsIContent* aTextNode)
+  inline void UpdateText(nsIContent* aTextNode)
   {
     NS_ASSERTION(mNotificationController, "The document was shut down!");
 
@@ -347,7 +349,7 @@ protected:
 
   void LastRelease();
 
-  // Accessible
+  // nsAccessible
   virtual void CacheChildren();
 
   // DocAccessible
@@ -357,7 +359,7 @@ protected:
   /**
    * Marks this document as loaded or loading.
    */
-  void NotifyOfLoad(PRUint32 aLoadEventType)
+  inline void NotifyOfLoad(PRUint32 aLoadEventType)
   {
     mLoadState |= eDOMLoaded;
     mLoadEventType = aLoadEventType;
@@ -408,7 +410,7 @@ protected:
    * @param aRelProvider [in] accessible that element has relation attribute
    * @param aRelAttr     [in, optional] relation attribute
    */
-  void AddDependentIDsFor(Accessible* aRelProvider,
+  void AddDependentIDsFor(nsAccessible* aRelProvider,
                           nsIAtom* aRelAttr = nsnull);
 
   /**
@@ -419,7 +421,7 @@ protected:
    * @param aRelProvider [in] accessible that element has relation attribute
    * @param aRelAttr     [in, optional] relation attribute
    */
-  void RemoveDependentIDsFor(Accessible* aRelProvider,
+  void RemoveDependentIDsFor(nsAccessible* aRelProvider,
                              nsIAtom* aRelAttr = nsnull);
 
   /**
@@ -463,7 +465,7 @@ protected:
   /**
    * Update the accessible tree for inserted content.
    */
-  void ProcessContentInserted(Accessible* aContainer,
+  void ProcessContentInserted(nsAccessible* aContainer,
                               const nsTArray<nsCOMPtr<nsIContent> >* aInsertedContent);
 
   /**
@@ -478,7 +480,7 @@ protected:
   /**
    * Update the accessible tree for content insertion or removal.
    */
-  void UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
+  void UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
                   bool aIsInsert);
 
   /**
@@ -491,17 +493,17 @@ protected:
     eAlertAccessible = 2
   };
 
-  PRUint32 UpdateTreeInternal(Accessible* aChild, bool aIsInsert);
+  PRUint32 UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert);
 
   /**
    * Create accessible tree.
    */
-  void CacheChildrenInSubtree(Accessible* aRoot);
+  void CacheChildrenInSubtree(nsAccessible* aRoot);
 
   /**
    * Remove accessibles in subtree from node to accessible map.
    */
-  void UncacheChildrenInSubtree(Accessible* aRoot);
+  void UncacheChildrenInSubtree(nsAccessible* aRoot);
 
   /**
    * Shutdown any cached accessible in the subtree.
@@ -509,16 +511,23 @@ protected:
    * @param aAccessible  [in] the root of the subrtee to invalidate accessible
    *                      child/parent refs in
    */
-  void ShutdownChildrenInSubtree(Accessible* aAccessible);
+  void ShutdownChildrenInSubtree(nsAccessible *aAccessible);
 
   /**
-   * Return true if the document is a target of document loading events
-   * (for example, state busy change or document reload events).
+   * Return true if accessibility events accompanying document accessible
+   * loading should be fired.
    *
-   * Rules: The root chrome document accessible is never an event target
-   * (for example, Firefox UI window). If the sub document is loaded within its
-   * parent document then the parent document is a target only (aka events
-   * coalescence).
+   * The rules are: do not fire events for root chrome document accessibles and
+   * for sub document accessibles (like HTML frame of iframe) of the loading
+   * document accessible.
+   *
+   * XXX: in general AT expect events for document accessible loading into
+   * tabbrowser, events from other document accessibles may break AT. We need to
+   * figure out what AT wants to know about loading page (for example, some of
+   * them have separate processing of iframe documents on the page and therefore
+   * they need a way to distinguish sub documents from page document). Ideally
+   * we should make events firing for any loaded document and provide additional
+   * info AT are needing.
    */
   bool IsLoadEventTarget() const;
 
@@ -535,8 +544,8 @@ protected:
   /**
    * Cache of accessibles within this document accessible.
    */
-  AccessibleHashtable mAccessibleCache;
-  nsDataHashtable<nsPtrHashKey<const nsINode>, Accessible*>
+  nsAccessibleHashtable mAccessibleCache;
+  nsDataHashtable<nsPtrHashKey<const nsINode>, nsAccessible*>
     mNodeToAccessibleMap;
 
     nsCOMPtr<nsIDocument> mDocument;
@@ -622,7 +631,7 @@ private:
 };
 
 inline DocAccessible*
-Accessible::AsDoc()
+nsAccessible::AsDoc()
 {
   return mFlags & eDocAccessible ?
     static_cast<DocAccessible*>(this) : nsnull;

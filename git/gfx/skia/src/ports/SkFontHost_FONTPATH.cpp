@@ -233,6 +233,7 @@ static uint32_t ptr2uint32(const void* p)
 
 SkTypeface* SkFontHost::CreateTypeface(const SkTypeface* familyFace,
                                        const char familyName[],
+                                       const void* data, size_t bytelength,
                                        SkTypeface::Style style)
 {
     const FontFamilyRec* family;
@@ -263,9 +264,7 @@ SkTypeface* SkFontHost::CreateTypeface(const SkTypeface* familyFace,
 // static
 SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
         uint32_t fontID,
-        SkAdvancedTypefaceMetrics::PerGlyphInfo perGlyphInfo,
-        const uint32_t* glyphIDs,
-        uint32_t glyphIDsCount) {
+        SkAdvancedTypefaceMetrics::PerGlyphInfo perGlyphInfo) {
     sk_throw();  // not implemented
     return NULL;
 }
@@ -278,6 +277,10 @@ SkTypeface* SkFontHost::CreateTypefaceFromStream(SkStream* stream) {
 SkTypeface* SkFontHost::CreateTypefaceFromFile(const char path[]) {
     sk_throw();  // not implemented
     return NULL;
+}
+
+bool SkFontHost::ValidFontID(uint32_t fontID) {
+    return get_id(*get_default_face()) == fontID;
 }
 
 SkStream* SkFontHost::OpenStream(uint32_t fontID) {

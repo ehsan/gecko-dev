@@ -29,11 +29,18 @@ public:
     //  This method is not exported to java.
     virtual bool filterPath(SkPath* dst, const SkPath& src, SkScalar* width);
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkCornerPathEffect)
+    // overrides for SkFlattenable
+    //  This method is not exported to java.
+    virtual Factory getFactory();
+    //  This method is not exported to java.
+    virtual void flatten(SkFlattenableWriteBuffer&);
+
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer&);
+
+    SK_DECLARE_FLATTENABLE_REGISTRAR()
 
 protected:
     SkCornerPathEffect(SkFlattenableReadBuffer&);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
 private:
     SkScalar    fRadius;

@@ -27,7 +27,7 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // Accessible
+  // nsAccessible
   virtual nsresult HandleAccEvent(AccEvent* aEvent);
 
 protected:

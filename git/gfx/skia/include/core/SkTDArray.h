@@ -154,7 +154,7 @@ public:
         return this->append(1, NULL);
     }
     T* append(size_t count, const T* src = NULL) {
-        size_t oldCount = fCount;
+        unsigned oldCount = fCount;
         if (count)  {
             SkASSERT(src == NULL || fArray == NULL ||
                     src + count <= fArray || fArray + oldCount <= src);
@@ -179,7 +179,7 @@ public:
     T* insert(size_t index, size_t count, const T* src = NULL) {
         SkASSERT(count);
         SkASSERT(index <= fCount);
-        size_t oldCount = fCount;
+        int oldCount = fCount;
         this->growBy(count);
         T* dst = fArray + index;
         memmove(dst + count, dst, sizeof(T) * (oldCount - index));
@@ -197,7 +197,7 @@ public:
 
     void removeShuffle(size_t index) {
         SkASSERT(index < fCount);
-        size_t newCount = fCount - 1;
+        unsigned newCount = fCount - 1;
         fCount = newCount;
         if (index != newCount) {
             memcpy(fArray + index, fArray + newCount, sizeof(T));

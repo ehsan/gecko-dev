@@ -64,7 +64,7 @@ nsXULTextAccessible::RelationByType(PRUint32 aType)
     // Caption is the label for groupbox
     nsIContent *parent = mContent->GetParent();
     if (parent && parent->Tag() == nsGkAtoms::caption) {
-      Accessible* parent = Parent();
+      nsAccessible* parent = Parent();
       if (parent && parent->Role() == roles::GROUPING)
         rel.AppendTarget(parent);
     }
@@ -198,16 +198,16 @@ nsXULLinkAccessible::StartOffset()
   // a text.
   // XXX: accessible parent of XUL link accessible should be a hypertext
   // accessible.
-  if (Accessible::IsLink())
-    return Accessible::StartOffset();
+  if (nsAccessible::IsLink())
+    return nsAccessible::StartOffset();
   return IndexInParent();
 }
 
 PRUint32
 nsXULLinkAccessible::EndOffset()
 {
-  if (Accessible::IsLink())
-    return Accessible::EndOffset();
+  if (nsAccessible::IsLink())
+    return nsAccessible::EndOffset();
   return IndexInParent() + 1;
 }
 

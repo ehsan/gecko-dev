@@ -35,7 +35,7 @@ ApplicationAccessible* nsAccessNode::gApplicationAccessible = nsnull;
  */
  
 ////////////////////////////////////////////////////////////////////////////////
-// AccessNode. nsISupports
+// nsAccessible. nsISupports
 
 NS_IMPL_CYCLE_COLLECTION_1(nsAccessNode, mContent)
 

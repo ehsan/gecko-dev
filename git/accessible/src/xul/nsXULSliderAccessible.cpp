@@ -19,17 +19,17 @@ using namespace mozilla::a11y;
 
 nsXULSliderAccessible::
   nsXULSliderAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  AccessibleWrap(aContent, aDoc)
+  nsAccessibleWrap(aContent, aDoc)
 {
 }
 
 // nsISupports
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsXULSliderAccessible,
-                             AccessibleWrap,
+                             nsAccessibleWrap,
                              nsIAccessibleValue)
 
-// Accessible
+// nsAccessible
 
 role
 nsXULSliderAccessible::NativeRole()
@@ -40,7 +40,7 @@ nsXULSliderAccessible::NativeRole()
 PRUint64
 nsXULSliderAccessible::NativeState()
 {
-  PRUint64 state = AccessibleWrap::NativeState();
+  PRUint64 state = nsAccessibleWrap::NativeState();
 
   nsIContent* sliderElm = GetSliderElement();
   if (!sliderElm)
@@ -98,7 +98,7 @@ nsXULSliderAccessible::DoAction(PRUint8 aIndex)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetMaximumValue(double *aValue)
 {
-  nsresult rv = AccessibleWrap::GetMaximumValue(aValue);
+  nsresult rv = nsAccessibleWrap::GetMaximumValue(aValue);
 
   // ARIA redefined maximum value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -110,7 +110,7 @@ nsXULSliderAccessible::GetMaximumValue(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetMinimumValue(double *aValue)
 {
-  nsresult rv = AccessibleWrap::GetMinimumValue(aValue);
+  nsresult rv = nsAccessibleWrap::GetMinimumValue(aValue);
 
   // ARIA redefined minmum value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -122,7 +122,7 @@ nsXULSliderAccessible::GetMinimumValue(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetMinimumIncrement(double *aValue)
 {
-  nsresult rv = AccessibleWrap::GetMinimumIncrement(aValue);
+  nsresult rv = nsAccessibleWrap::GetMinimumIncrement(aValue);
 
   // ARIA redefined minimum increment value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -134,7 +134,7 @@ nsXULSliderAccessible::GetMinimumIncrement(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetCurrentValue(double *aValue)
 {
-  nsresult rv = AccessibleWrap::GetCurrentValue(aValue);
+  nsresult rv = nsAccessibleWrap::GetCurrentValue(aValue);
 
   // ARIA redefined current value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -146,7 +146,7 @@ nsXULSliderAccessible::GetCurrentValue(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::SetCurrentValue(double aValue)
 {
-  nsresult rv = AccessibleWrap::SetCurrentValue(aValue);
+  nsresult rv = nsAccessibleWrap::SetCurrentValue(aValue);
 
   // ARIA redefined current value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -243,12 +243,12 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, double aValue)
 
 nsXULThumbAccessible::
   nsXULThumbAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  AccessibleWrap(aContent, aDoc)
+  nsAccessibleWrap(aContent, aDoc)
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULThumbAccessible: Accessible
+// nsXULThumbAccessible: nsAccessible
 
 role
 nsXULThumbAccessible::NativeRole()

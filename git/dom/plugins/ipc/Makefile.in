@@ -132,5 +132,3 @@ include $(topsrcdir)/config/rules.mk
 CXXFLAGS += $(TK_CFLAGS)
 
 DEFINES += -DFORCE_PR_LOG
-
-CXXFLAGS += $(MOZ_CAIRO_CFLAGS)

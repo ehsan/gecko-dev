@@ -18,14 +18,22 @@ SkPMColor SkPixelXorXfermode::xferColor(SkPMColor src, SkPMColor dst) {
     return res;
 }
 
-void SkPixelXorXfermode::flatten(SkFlattenableWriteBuffer& wb) const {
+void SkPixelXorXfermode::flatten(SkFlattenableWriteBuffer& wb) {
     this->INHERITED::flatten(wb);
     wb.write32(fOpColor);
 }
 
 SkPixelXorXfermode::SkPixelXorXfermode(SkFlattenableReadBuffer& rb)
-        : INHERITED(rb) {
+        : SkXfermode(rb) {
     fOpColor = rb.readU32();
+}
+
+SkFlattenable::Factory SkPixelXorXfermode::getFactory() {
+    return Create;
+}
+
+SkFlattenable* SkPixelXorXfermode::Create(SkFlattenableReadBuffer& rb) {
+    return SkNEW_ARGS(SkPixelXorXfermode, (rb));
 }
 
 SK_DEFINE_FLATTENABLE_REGISTRAR(SkPixelXorXfermode)

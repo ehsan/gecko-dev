@@ -63,8 +63,7 @@ static bool set_normal_unitnormal(const SkVector& vec,
 
 class SkPathStroker {
 public:
-    SkPathStroker(const SkPath& src,
-                  SkScalar radius, SkScalar miterLimit, SkPaint::Cap cap,
+    SkPathStroker(SkScalar radius, SkScalar miterLimit, SkPaint::Cap cap,
                   SkPaint::Join join);
 
     void moveTo(const SkPoint&);
@@ -172,16 +171,13 @@ void SkPathStroker::finishContour(bool close, bool currIsLine) {
             fOuter.close();
         }
     }
-    // since we may re-use fInner, we rewind instead of reset, to save on
-    // reallocating its internal storage.
-    fInner.rewind();
+    fInner.reset();
     fSegmentCount = -1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SkPathStroker::SkPathStroker(const SkPath& src,
-                             SkScalar radius, SkScalar miterLimit,
+SkPathStroker::SkPathStroker(SkScalar radius, SkScalar miterLimit,
                              SkPaint::Cap cap, SkPaint::Join join)
         : fRadius(radius) {
 
@@ -201,15 +197,6 @@ SkPathStroker::SkPathStroker(const SkPath& src,
     fJoiner = SkStrokerPriv::JoinFactory(join);
     fSegmentCount = -1;
     fPrevIsLine = false;
-
-    // Need some estimate of how large our final result (fOuter)
-    // and our per-contour temp (fInner) will be, so we don't spend
-    // extra time repeatedly growing these arrays.
-    //
-    // 3x for result == inner + outer + join (swag)
-    // 1x for inner == 'wag' (worst contour length would be better guess)
-    fOuter.incReserve(src.countPoints() * 3);
-    fInner.incReserve(src.countPoints());
 }
 
 void SkPathStroker::moveTo(const SkPoint& pt) {
@@ -485,11 +472,11 @@ void SkPathStroker::cubicTo(const SkPoint& pt1, const SkPoint& pt2,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "SkPaintDefaults.h"
+#include "SkPaint.h"
 
 SkStroke::SkStroke() {
-    fWidth      = SK_Scalar1;
-    fMiterLimit = SkPaintDefaults_MiterLimit;
+    fWidth      = SK_DefaultStrokeWidth;
+    fMiterLimit = SK_DefaultMiterLimit;
     fCap        = SkPaint::kDefault_Cap;
     fJoin       = SkPaint::kDefault_Join;
     fDoFill     = false;
@@ -584,14 +571,14 @@ void SkStroke::strokePath(const SkPath& src, SkPath* dst) const {
     }
 #endif
 
-    SkPathStroker   stroker(src, radius, fMiterLimit, this->getCap(),
+    SkPathStroker   stroker(radius, fMiterLimit, this->getCap(),
                             this->getJoin());
 
     SkPath::Iter    iter(src, false);
     SkPoint         pts[4];
     SkPath::Verb    verb, lastSegment = SkPath::kMove_Verb;
 
-    while ((verb = iter.next(pts, false)) != SkPath::kDone_Verb) {
+    while ((verb = iter.next(pts)) != SkPath::kDone_Verb) {
         switch (verb) {
             case SkPath::kMove_Verb:
                 APPLY_PROC(proc, &pts[0], 1);
@@ -632,11 +619,7 @@ void SkStroke::strokePath(const SkPath& src, SkPath* dst) const {
 #endif
 
     if (fDoFill) {
-        if (src.cheapIsDirection(SkPath::kCCW_Direction)) {
-            dst->reverseAddPath(src);
-        } else {
-            dst->addPath(src);
-        }
+        dst->addPath(src);
     } else {
         //  Seems like we can assume that a 2-point src would always result in
         //  a convex stroke, but testing has proved otherwise.
@@ -664,5 +647,14 @@ void SkStroke::strokePath(const SkPath& src, SkPath* dst) const {
         SkASSERT(!dst->isInverseFillType());
         dst->toggleInverseFillType();
     }
+}
+
+void SkStroke::strokeLine(const SkPoint& p0, const SkPoint& p1,
+                          SkPath* dst) const {
+    SkPath  tmp;
+
+    tmp.moveTo(p0);
+    tmp.lineTo(p1);
+    this->strokePath(tmp, dst);
 }
 

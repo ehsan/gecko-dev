@@ -478,22 +478,10 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
 
     aFilter = ReduceResamplingFilter(aFilter, aImageRect.Width(), aImageRect.Height(), aSourceRect.Width(), aSourceRect.Height());
 
-    gfxMatrix userSpaceToImageSpace = aUserSpaceToImageSpace;
-
     // On Mobile, we don't ever want to do this; it has the potential for
     // allocating very large temporary surfaces, especially since we'll
     // do full-page snapshots often (see bug 749426).
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    // If the pattern translation is large we can get into trouble with pixman's
-    // 16 bit coordinate limits. For now, we only do this on platforms where
-    // we know we have the pixman limits. 16384.0 is a somewhat arbitrary
-    // large number to make sure we avoid the expensive fmod when we can, but
-    // still maintain a safe margin from the actual limit
-    if (doTile && (userSpaceToImageSpace.y0 > 16384.0 || userSpaceToImageSpace.x0 > 16384.0)) {
-        userSpaceToImageSpace.x0 = fmod(userSpaceToImageSpace.x0, aImageRect.width);
-        userSpaceToImageSpace.y0 = fmod(userSpaceToImageSpace.y0, aImageRect.height);
-    }
-#else
+#ifndef MOZ_GFX_OPTIMIZE_MOBILE
     // OK now, the hard part left is to account for the subimage sampling
     // restriction. If all the transforms involved are just integer
     // translations, then we assume no resampling will occur so there's
@@ -523,7 +511,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
         aContext->SetOperator(OptimalFillOperator());
     }
 
-    drawable->Draw(aContext, aFill, doTile, aFilter, userSpaceToImageSpace);
+    drawable->Draw(aContext, aFill, doTile, aFilter, aUserSpaceToImageSpace);
 
     aContext->SetOperator(op);
 }

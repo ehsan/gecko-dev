@@ -124,7 +124,7 @@ protected:
 
 private:
   HRESULT GetModifiedText(bool aGetInsertedText, IA2TextSegment *aNewText);
-  AccessibleTextBoundary GetGeckoTextBoundary(enum IA2TextBoundaryType coordinateType);
+  nsAccessibleTextBoundary GetGeckoTextBoundary(enum IA2TextBoundaryType coordinateType);
 };
 
 

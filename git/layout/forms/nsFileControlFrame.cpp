@@ -638,7 +638,7 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsFileControlFrame::CreateAccessible()
 {
   // Accessible object exists just to hold onto its children, for later shutdown

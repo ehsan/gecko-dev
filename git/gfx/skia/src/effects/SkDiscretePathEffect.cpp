@@ -50,17 +50,14 @@ bool SkDiscretePathEffect::filterPath(SkPath* dst, const SkPath& src,
                 n -= 1;
                 distance += delta/2;
             }
-            
-            if (meas.getPosTan(distance, &p, &v)) {
-                Perterb(&p, v, SkScalarMul(rand.nextSScalar1(), scale));
-                dst->moveTo(p);
-            }
+            meas.getPosTan(distance, &p, &v);
+            Perterb(&p, v, SkScalarMul(rand.nextSScalar1(), scale));
+            dst->moveTo(p);
             while (--n >= 0) {
                 distance += delta;
-                if (meas.getPosTan(distance, &p, &v)) {
-                    Perterb(&p, v, SkScalarMul(rand.nextSScalar1(), scale));
-                    dst->lineTo(p);
-                }
+                meas.getPosTan(distance, &p, &v);
+                Perterb(&p, v, SkScalarMul(rand.nextSScalar1(), scale));
+                dst->lineTo(p);
             }
             if (meas.isClosed()) {
                 dst->close();
@@ -70,8 +67,15 @@ bool SkDiscretePathEffect::filterPath(SkPath* dst, const SkPath& src,
     return true;
 }
 
-void SkDiscretePathEffect::flatten(SkFlattenableWriteBuffer& buffer) const {
-    this->INHERITED::flatten(buffer);
+SkFlattenable::Factory SkDiscretePathEffect::getFactory() {
+    return CreateProc;
+}
+
+SkFlattenable* SkDiscretePathEffect::CreateProc(SkFlattenableReadBuffer& buffer) {
+    return SkNEW_ARGS(SkDiscretePathEffect, (buffer));
+}
+
+void SkDiscretePathEffect::flatten(SkFlattenableWriteBuffer& buffer) {
     buffer.writeScalar(fSegLength);
     buffer.writeScalar(fPerterb);
 }

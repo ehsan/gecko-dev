@@ -17,7 +17,7 @@
 class AccCollector
 {
 public:
-  AccCollector(Accessible* aRoot, filters::FilterFuncPtr aFilterFunc);
+  AccCollector(nsAccessible* aRoot, filters::FilterFuncPtr aFilterFunc);
   virtual ~AccCollector();
 
   /**
@@ -28,34 +28,34 @@ public:
   /**
    * Return an accessible from the collection at the given index.
    */
-  Accessible* GetAccessibleAt(PRUint32 aIndex);
+  nsAccessible* GetAccessibleAt(PRUint32 aIndex);
 
   /**
    * Return index of the given accessible within the collection.
    */
-  virtual PRInt32 GetIndexAt(Accessible* aAccessible);
+  virtual PRInt32 GetIndexAt(nsAccessible* aAccessible);
 
 protected:
   /**
    * Ensure accessible at the given index is stored and return it.
    */
-  Accessible* EnsureNGetObject(PRUint32 aIndex);
+  nsAccessible* EnsureNGetObject(PRUint32 aIndex);
 
   /**
    * Ensure index for the given accessible is stored and return it.
    */
-  PRInt32 EnsureNGetIndex(Accessible* aAccessible);
+  PRInt32 EnsureNGetIndex(nsAccessible* aAccessible);
 
   /**
    * Append the object to collection.
    */
-  virtual void AppendObject(Accessible* aAccessible);
+  virtual void AppendObject(nsAccessible* aAccessible);
 
   filters::FilterFuncPtr mFilterFunc;
-  Accessible* mRoot;
+  nsAccessible* mRoot;
   PRUint32 mRootChildIdx;
 
-  nsTArray<Accessible*> mObjects;
+  nsTArray<nsAccessible*> mObjects;
 
 private:
   AccCollector();
@@ -73,16 +73,16 @@ public:
   virtual ~EmbeddedObjCollector() { };
 
 public:
-  virtual PRInt32 GetIndexAt(Accessible* aAccessible);
+  virtual PRInt32 GetIndexAt(nsAccessible* aAccessible);
 
 protected:
-  // Make sure it's used by Accessible class only.
-  EmbeddedObjCollector(Accessible* aRoot) :
+  // Make sure it's used by nsAccessible class only.
+  EmbeddedObjCollector(nsAccessible* aRoot) :
     AccCollector(aRoot, filters::GetEmbeddedObject) { }
 
-  virtual void AppendObject(Accessible* aAccessible);
+  virtual void AppendObject(nsAccessible* aAccessible);
 
-  friend class Accessible;
+  friend class nsAccessible;
 };
 
 #endif

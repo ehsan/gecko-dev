@@ -220,7 +220,7 @@ void SkParsePath::ToSVGString(const SkPath& path, SkString* str) {
     SkPoint         pts[4];
 
     for (;;) {
-        switch (iter.next(pts, false)) {
+        switch (iter.next(pts)) {
             case SkPath::kMove_Verb:
                 append_scalars(&stream, 'M', &pts[0].fX, 2);
                 break;

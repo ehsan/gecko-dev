@@ -9,7 +9,7 @@
 
 #include "AccessibleAction_i.c"
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 
 // IUnknown
 
@@ -38,7 +38,7 @@ __try {
 
   *aActionCount = 0;
 
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -53,7 +53,7 @@ STDMETHODIMP
 ia2AccessibleAction::doAction(long aActionIndex)
 {
 __try {
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -71,7 +71,7 @@ ia2AccessibleAction::get_description(long aActionIndex, BSTR *aDescription)
 __try {
   *aDescription = NULL;
 
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -109,7 +109,7 @@ __try {
   if (aActionIndex != 0 || aNumMaxBinding < 1)
     return E_INVALIDARG;
 
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -148,7 +148,7 @@ ia2AccessibleAction::get_name(long aActionIndex, BSTR *aName)
 __try {
   *aName = NULL;
 
-  AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
+  nsAccessibleWrap* acc = static_cast<nsAccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 

@@ -24,7 +24,7 @@ using namespace mozilla::a11y;
 
 nsXULColorPickerTileAccessible::
   nsXULColorPickerTileAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  AccessibleWrap(aContent, aDoc)
+  nsAccessibleWrap(aContent, aDoc)
 {
 }
 
@@ -40,7 +40,7 @@ nsXULColorPickerTileAccessible::Value(nsString& aValue)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerTileAccessible: Accessible
+// nsXULColorPickerTileAccessible: nsAccessible
 
 role
 nsXULColorPickerTileAccessible::NativeRole()
@@ -51,7 +51,7 @@ nsXULColorPickerTileAccessible::NativeRole()
 PRUint64
 nsXULColorPickerTileAccessible::NativeState()
 {
-  PRUint64 state = AccessibleWrap::NativeState();
+  PRUint64 state = nsAccessibleWrap::NativeState();
   if (!(state & states::UNAVAILABLE))
     state |= states::FOCUSABLE | states::SELECTABLE;
 
@@ -64,12 +64,12 @@ nsXULColorPickerTileAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerTileAccessible: Widgets
 
-Accessible*
+nsAccessible*
 nsXULColorPickerTileAccessible::ContainerWidget() const
 {
-  Accessible* parent = Parent();
+  nsAccessible* parent = Parent();
   if (parent) {
-    Accessible* grandParent = parent->Parent();
+    nsAccessible* grandParent = parent->Parent();
     if (grandParent && grandParent->IsMenuButton())
       return grandParent;
   }
@@ -88,7 +88,7 @@ nsXULColorPickerAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerAccessible: Accessible
+// nsXULColorPickerAccessible: nsAccessible
 
 PRUint64
 nsXULColorPickerAccessible::NativeState()
@@ -96,7 +96,7 @@ nsXULColorPickerAccessible::NativeState()
   // Possible states: focused, focusable, unavailable(disabled).
 
   // get focus and disable status from base class
-  PRUint64 states = AccessibleWrap::NativeState();
+  PRUint64 states = nsAccessibleWrap::NativeState();
 
   states |= states::FOCUSABLE | states::HASPOPUP;
 
@@ -127,7 +127,7 @@ nsXULColorPickerAccessible::IsActiveWidget() const
 bool
 nsXULColorPickerAccessible::AreItemsOperable() const
 {
-  Accessible* menuPopup = mChildren.SafeElementAt(0, nsnull);
+  nsAccessible* menuPopup = mChildren.SafeElementAt(0, nsnull);
   if (menuPopup) {
     nsMenuPopupFrame* menuPopupFrame = do_QueryFrame(menuPopup->GetFrame());
     return menuPopupFrame && menuPopupFrame->IsOpen();
@@ -136,7 +136,7 @@ nsXULColorPickerAccessible::AreItemsOperable() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerAccessible: protected Accessible
+// nsXULColorPickerAccessible: protected nsAccessible
 
 void
 nsXULColorPickerAccessible::CacheChildren()
@@ -145,7 +145,7 @@ nsXULColorPickerAccessible::CacheChildren()
 
   nsAccTreeWalker walker(mDoc, mContent, true);
 
-  Accessible* child = nsnull;
+  nsAccessible* child = nsnull;
   while ((child = walker.NextChild())) {
     PRUint32 role = child->Role();
 

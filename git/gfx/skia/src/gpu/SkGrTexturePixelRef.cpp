@@ -16,7 +16,7 @@
 
 // since we call lockPixels recursively on fBitmap, we need a distinct mutex,
 // to avoid deadlock with the default one provided by SkPixelRef.
-SK_DECLARE_STATIC_MUTEX(gROLockPixelsPixelRefMutex);
+static SkMutex  gROLockPixelsPixelRefMutex;
 
 SkROLockPixelsPixelRef::SkROLockPixelsPixelRef() : INHERITED(&gROLockPixelsPixelRefMutex) {
 }
@@ -63,7 +63,7 @@ static SkGrTexturePixelRef* copyToTexturePixelRef(GrTexture* texture,
     desc.fHeight = texture->height();
     desc.fFlags = kRenderTarget_GrTextureFlagBit | kNoStencil_GrTextureFlagBit;
     desc.fConfig = SkGr::BitmapConfig2PixelConfig(dstConfig, false);
-    desc.fSampleCnt = 0;
+    desc.fAALevel = kNone_GrAALevel;
 
     GrTexture* dst = context->createUncachedTexture(desc, NULL, 0);
     if (NULL == dst) {

@@ -12,10 +12,6 @@
 
 #include "SkWindow.h"
 
-#if SK_ANGLE
-#include "EGL/egl.h"
-#endif
-
 class SkOSWindow : public SkWindow {
 public:
     SkOSWindow(void* hwnd);
@@ -26,18 +22,16 @@ public:
     void    updateSize();
 
     static bool PostEvent(SkEvent* evt, SkEventSinkID, SkMSec delay);
+    
+    bool attachGL();
+    void detachGL();
+    void presentGL();
 
-    enum SkBackEndTypes {
-        kNone_BackEndType,
-        kNativeGL_BackEndType,
-#if SK_ANGLE
-        kANGLE_BackEndType,
-#endif
-    };
+    bool attachD3D9();
+    void detachD3D9();
+    void presentD3D9();
 
-    bool attach(SkBackEndTypes attachType, int msaaSampleCount);
-    void detach();
-    void present();
+    void* d3d9Device() { return fD3D9Device; }
 
     bool wndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
     static bool QuitOnDeactivate(HWND hWnd);
@@ -63,27 +57,16 @@ private:
     void                doPaint(void* ctx);
 
     void*               fHGLRC;
-#if SK_ANGLE
-    EGLDisplay          fDisplay;
-    EGLContext          fContext;
-    EGLSurface          fSurface;
-#endif
+
+    bool                fGLAttached;
+
+    void*               fD3D9Device;
+    bool                fD3D9Attached;
 
     HMENU               fMBar;
-
-    SkBackEndTypes      fAttached;
-
-    bool attachGL(int msaaSampleCount);
-    void detachGL();
-    void presentGL();
-
-#if SK_ANGLE
-    bool attachANGLE(int msaaSampleCount);
-    void detachANGLE();
-    void presentANGLE();
-#endif
 
     typedef SkWindow INHERITED; 
 };
 
 #endif
+

@@ -1902,10 +1902,10 @@ nsChildView::EndSecureKeyboardInput()
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsChildView::GetDocumentAccessible()
 {
-  Accessible *docAccessible = nsnull;
+  nsAccessible *docAccessible = nsnull;
   if (mAccessible) {
     CallQueryReferent(mAccessible.get(), &docAccessible);
     return docAccessible;
@@ -4812,7 +4812,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   nsCOMPtr<nsIWidget> kungFuDeathGrip2(mGeckoChild);
-  nsRefPtr<Accessible> accessible = mGeckoChild->GetDocumentAccessible();
+  nsRefPtr<nsAccessible> accessible = mGeckoChild->GetDocumentAccessible();
   if (!mGeckoChild)
     return nil;
 

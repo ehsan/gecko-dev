@@ -41,8 +41,6 @@ SkImageRef_ashmem::SkImageRef_ashmem(SkStream* stream,
     fRec.fPinned = false;
             
     fCT = NULL;
-            
-    this->useDefaultMutex();   // we don't need/want the shared imageref mutex
 }
 
 SkImageRef_ashmem::~SkImageRef_ashmem() {
@@ -93,17 +91,15 @@ public:
             
             int err = ashmem_set_prot_region(fd, PROT_READ | PROT_WRITE);
             if (err) {
-                SkDebugf("------ ashmem_set_prot_region(%d) failed %d\n",
-                         fd, err);
-                close(fd);
+                SkDebugf("------ ashmem_set_prot_region(%d) failed %d %d\n",
+                         fd, err, errno);
                 return false;
             }
             
             addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
             if (-1 == (long)addr) {
-                SkDebugf("---------- mmap failed for imageref_ashmem size=%d\n",
-                         size);
-                close(fd);
+                SkDebugf("---------- mmap failed for imageref_ashmem size=%d err=%d\n",
+                         size, errno);
                 return false;
             }
             
@@ -182,7 +178,8 @@ void* SkImageRef_ashmem::onLockPixels(SkColorTable** ct) {
             SkDebugf("===== ashmem purged %d\n", fBitmap.getSize());
 #endif
         } else {
-            SkDebugf("===== ashmem pin_region(%d) returned %d\n", fRec.fFD, pin);
+            SkDebugf("===== ashmem pin_region(%d) returned %d, treating as error %d\n",
+                     fRec.fFD, pin, errno);
             // return null result for failure
             if (ct) {
                 *ct = NULL;
@@ -237,11 +234,10 @@ SkImageRef_ashmem::SkImageRef_ashmem(SkFlattenableReadBuffer& buffer)
         buffer.read(buf, length);
         setURI(buf, length);
     }
-    this->useDefaultMutex();   // we don't need/want the shared imageref mutex
 }
 
 SkPixelRef* SkImageRef_ashmem::Create(SkFlattenableReadBuffer& buffer) {
     return SkNEW_ARGS(SkImageRef_ashmem, (buffer));
 }
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkImageRef_ashmem)
+SK_DEFINE_PIXEL_REF_REGISTRAR(SkImageRef_ashmem)

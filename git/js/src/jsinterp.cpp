@@ -2547,9 +2547,11 @@ BEGIN_CASE(JSOP_FUNCALL)
 #ifdef JS_METHODJIT
     if (!newType) {
         /* Try to ensure methods are method JIT'd.  */
+        mjit::CompileRequest request = (interpMode == JSINTERP_NORMAL)
+                                       ? mjit::CompileRequest_Interpreter
+                                       : mjit::CompileRequest_JIT;
         mjit::CompileStatus status = mjit::CanMethodJIT(cx, script, script->code,
-                                                        construct,
-                                                        mjit::CompileRequest_Interpreter);
+                                                        construct, request);
         if (status == mjit::Compile_Error)
             goto error;
         if (status == mjit::Compile_Okay) {

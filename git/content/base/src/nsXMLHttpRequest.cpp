@@ -1767,21 +1767,13 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
     // No optional arguments were passed in. Default async to true.
     async = true;
   }
-  Optional<nsAString> realUser;
-  if (optional_argc > 1) {
-    realUser = &user;
-  }
-  Optional<nsAString> realPassword;
-  if (optional_argc > 2) {
-    realPassword = &password;
-  }
-  return Open(method, url, async, realUser, realPassword);
+  return Open(method, url, async, user, password);
 }
 
 nsresult
 nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
-                       bool async, const Optional<nsAString>& user,
-                       const Optional<nsAString>& password)
+                       bool async, const nsAString& user,
+                       const nsAString& password)
 {
   NS_ENSURE_ARG(!method.IsEmpty());
 
@@ -1878,14 +1870,12 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
     return NS_ERROR_CONTENT_BLOCKED;
   }
 
-  // XXXbz this is wrong: we should only be looking at whether
-  // user/password were passed, not at the values!  See bug 759624.
-  if (user.WasPassed() && !user.Value().IsEmpty()) {
+  if (!user.IsEmpty()) {
     nsCAutoString userpass;
-    CopyUTF16toUTF8(user.Value(), userpass);
-    if (password.WasPassed() && !password.Value().IsEmpty()) {
+    CopyUTF16toUTF8(user, userpass);
+    if (!password.IsEmpty()) {
       userpass.Append(':');
-      AppendUTF16toUTF8(password.Value(), userpass);
+      AppendUTF16toUTF8(password, userpass);
     }
     uri->SetUserPass(userpass);
   }

@@ -17,7 +17,7 @@
 #include "SkString.h"
 #include "SkTime.h"
 
-#include "gl/GrGLConfig.h"
+#include "GrGLConfig.h"
 
 static GrContext* make_context() {
     SkDebugf("---- before create\n");

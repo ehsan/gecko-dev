@@ -22,9 +22,12 @@ public:
     virtual bool filterMask(SkMask* dst, const SkMask& src, const SkMatrix&,
                             SkIPoint* margin) SK_OVERRIDE;
     virtual BlurType asABlur(BlurInfo*) const SK_OVERRIDE;
-    virtual void computeFastBounds(const SkRect& src, SkRect* dst) SK_OVERRIDE;
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkBlurMaskFilterImpl)
+    // overrides from SkFlattenable
+    virtual Factory getFactory() SK_OVERRIDE;
+    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer&);
 
 private:
     SkScalar                    fRadius;
@@ -32,7 +35,6 @@ private:
     uint32_t                    fBlurFlags;
 
     SkBlurMaskFilterImpl(SkFlattenableReadBuffer&);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
     
     typedef SkMaskFilter INHERITED;
 };
@@ -40,8 +42,7 @@ private:
 SkMaskFilter* SkBlurMaskFilter::Create(SkScalar radius,
                                        SkBlurMaskFilter::BlurStyle style,
                                        uint32_t flags) {
-    // use !(radius > 0) instead of radius <= 0 to reject NaN values
-    if (!(radius > 0) || (unsigned)style >= SkBlurMaskFilter::kBlurStyleCount 
+    if (radius <= 0 || (unsigned)style >= SkBlurMaskFilter::kBlurStyleCount 
         || flags > SkBlurMaskFilter::kAll_BlurFlag) {
         return NULL;
     }
@@ -96,9 +97,12 @@ bool SkBlurMaskFilterImpl::filterMask(SkMask* dst, const SkMask& src,
                             blurQuality, margin);
 }
 
-void SkBlurMaskFilterImpl::computeFastBounds(const SkRect& src, SkRect* dst) {
-    dst->set(src.fLeft - fRadius, src.fTop - fRadius,
-             src.fRight + fRadius, src.fBottom + fRadius);
+SkFlattenable* SkBlurMaskFilterImpl::CreateProc(SkFlattenableReadBuffer& buffer) {
+    return SkNEW_ARGS(SkBlurMaskFilterImpl, (buffer));
+}
+
+SkFlattenable::Factory SkBlurMaskFilterImpl::getFactory() {
+    return CreateProc;
 }
 
 SkBlurMaskFilterImpl::SkBlurMaskFilterImpl(SkFlattenableReadBuffer& buffer)
@@ -110,7 +114,7 @@ SkBlurMaskFilterImpl::SkBlurMaskFilterImpl(SkFlattenableReadBuffer& buffer)
     SkASSERT((unsigned)fBlurStyle < SkBlurMaskFilter::kBlurStyleCount);
 }
 
-void SkBlurMaskFilterImpl::flatten(SkFlattenableWriteBuffer& buffer) const {
+void SkBlurMaskFilterImpl::flatten(SkFlattenableWriteBuffer& buffer) {
     this->INHERITED::flatten(buffer);
     buffer.writeScalar(fRadius);
     buffer.write32(fBlurStyle);

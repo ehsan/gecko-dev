@@ -36,7 +36,6 @@ public:
     bool                        fColorMatrixEnabled;
 
     GrColor                     fColor;
-    uint8_t                     fCoverage;
 
     GrColor                     fColorFilterColor;
     SkXfermode::Mode            fColorFilterXfermode;
@@ -127,30 +126,23 @@ public:
         fDither = paint.fDither;
 
         fColor = paint.fColor;
-        fCoverage = paint.fCoverage;
 
         fColorFilterColor = paint.fColorFilterColor;
         fColorFilterXfermode = paint.fColorFilterXfermode;
+        memcpy(fColorMatrix, paint.fColorMatrix, sizeof(fColorMatrix));
         fColorMatrixEnabled = paint.fColorMatrixEnabled;
-        if (fColorMatrixEnabled) {
-            memcpy(fColorMatrix, paint.fColorMatrix, sizeof(fColorMatrix));
-        }
-        
+
         for (int i = 0; i < kMaxTextures; ++i) {
             GrSafeUnref(fTextures[i]);
+            fTextureSamplers[i] = paint.fTextureSamplers[i];
             fTextures[i] = paint.fTextures[i];
-            if (NULL != fTextures[i]) {
-                fTextureSamplers[i] = paint.fTextureSamplers[i];
-                fTextures[i]->ref();
-            }
+            GrSafeRef(fTextures[i]);
         }
         for (int i = 0; i < kMaxMasks; ++i) {
             GrSafeUnref(fMaskTextures[i]);
+            fMaskSamplers[i] = paint.fMaskSamplers[i];
             fMaskTextures[i] = paint.fMaskTextures[i];
-            if (NULL != fMaskTextures[i]) {
-                fMaskSamplers[i] = paint.fMaskSamplers[i];
-                fMaskTextures[i]->ref();
-            }
+            GrSafeRef(fMaskTextures[i]);
         }
         return *this;
     }
@@ -169,7 +161,6 @@ public:
         this->resetBlend();
         this->resetOptions();
         this->resetColor();
-        this->resetCoverage();
         this->resetTextures();
         this->resetColorFilter();
         this->resetMasks();
@@ -178,6 +169,7 @@ public:
     void resetColorFilter() {
         fColorFilterXfermode = SkXfermode::kDst_Mode;
         fColorFilterColor = GrColorPackRGBA(0xff, 0xff, 0xff, 0xff);
+        memset(fColorMatrix, 0, sizeof(fColorMatrix));
         fColorMatrixEnabled = false;
     }
 
@@ -248,10 +240,6 @@ private:
 
     void resetColor() {
         fColor = GrColorPackRGBA(0xff, 0xff, 0xff, 0xff);
-    }
-
-    void resetCoverage() {
-        fCoverage = 0xff;
     }
 
     void resetTextures() {

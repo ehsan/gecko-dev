@@ -16,15 +16,15 @@
 class nsIWeakReference;
 
 /**
- * nsXULColumAccessible are accessible for list and tree columns elements
+ * nsXULColumnsAccessible are accessible for list and tree columns elements
  * (xul:treecols and xul:listcols).
  */
-class nsXULColumAccessible : public AccessibleWrap
+class nsXULColumnsAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULColumAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXULColumnsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 };
@@ -42,7 +42,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -72,13 +72,13 @@ public:
   // TableAccessible
   virtual PRUint32 ColCount();
   virtual PRUint32 RowCount();
-  virtual Accessible* CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex);
+  virtual nsAccessible* CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex);
   virtual void UnselectRow(PRUint32 aRowIdx);
 
   // nsAccessNode
   virtual void Shutdown();
 
-  // Accessible
+  // nsAccessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::TableAccessible* AsTable() { return this; }
   virtual mozilla::a11y::role NativeRole();
@@ -89,7 +89,7 @@ public:
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
 
-  virtual Accessible* ContainerWidget() const;
+  virtual nsAccessible* ContainerWidget() const;
 
 protected:
   bool IsMulticolumn();
@@ -112,7 +112,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 index, nsAString& aName);
   // Don't use XUL menuitems's description attribute
 
-  // Accessible
+  // nsAccessible
   virtual void Description(nsString& aDesc);
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
@@ -120,13 +120,13 @@ public:
   virtual bool CanHaveAnonChildren();
 
   // Widgets
-  virtual Accessible* ContainerWidget() const;
+  virtual nsAccessible* ContainerWidget() const;
 
 protected:
   /**
    * Return listbox accessible for the listitem.
    */
-  Accessible* GetListAccessible();
+  nsAccessible *GetListAccessible();
 
 private:
   bool mIsCheckbox;
@@ -147,7 +147,7 @@ public:
   // nsIAccessibleTableCell
   NS_DECL_NSIACCESSIBLETABLECELL
 
-  // Accessible
+  // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual mozilla::a11y::role NativeRole();
 };

@@ -380,7 +380,7 @@ nsAccessNodeWrap::MakeAccessNode(nsINode *aNode)
   nsAccessNodeWrap *newNode = NULL;
 
   ISimpleDOMNode *iNode = NULL;
-  Accessible* acc = mDoc->GetAccessible(aNode);
+  nsAccessible* acc = mDoc->GetAccessible(aNode);
   if (acc) {
     IAccessible *msaaAccessible = nsnull;
     acc->GetNativeInterface((void**)&msaaAccessible); // addrefs

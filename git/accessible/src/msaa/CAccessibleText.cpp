@@ -75,8 +75,8 @@ __try {
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
   
-  HRESULT hr = AccessibleWrap::ConvertToIA2Attributes(attributes,
-                                                      aTextAttributes);
+  HRESULT hr = nsAccessibleWrap::ConvertToIA2Attributes(attributes,
+                                                        aTextAttributes);
   if (FAILED(hr))
     return hr;
 
@@ -272,7 +272,7 @@ __try {
     endOffset = textAcc->CharacterCount();
     rv = textAcc->GetText(startOffset, endOffset, text);
   } else {
-    AccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
+    nsAccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
     if (boundaryType == -1)
       return S_FALSE;
     rv = textAcc->GetTextBeforeOffset(aOffset, boundaryType,
@@ -319,7 +319,7 @@ __try {
     endOffset = textAcc->CharacterCount();
     rv = textAcc->GetText(startOffset, endOffset, text);
   } else {
-    AccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
+    nsAccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
     if (boundaryType == -1)
       return S_FALSE;
     rv = textAcc->GetTextAfterOffset(aOffset, boundaryType,
@@ -366,7 +366,7 @@ __try {
     endOffset = textAcc->CharacterCount();
     rv = textAcc->GetText(startOffset, endOffset, text);
   } else {
-    AccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
+    nsAccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
     if (boundaryType == -1)
       return S_FALSE;
     rv = textAcc->GetTextAtOffset(aOffset, boundaryType,
@@ -535,7 +535,7 @@ CAccessibleText::GetModifiedText(bool aGetInsertedText,
   return aText->text ? S_OK : E_OUTOFMEMORY;
 }
 
-AccessibleTextBoundary
+nsAccessibleTextBoundary
 CAccessibleText::GetGeckoTextBoundary(enum IA2TextBoundaryType aBoundaryType)
 {
   switch (aBoundaryType) {

@@ -25,10 +25,10 @@ public:
   // nsAccessNode
   virtual bool Init();
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
-  virtual bool AppendChild(Accessible* aChild);
-  virtual bool RemoveChild(Accessible* aChild);
+  virtual bool AppendChild(nsAccessible* aChild);
+  virtual bool RemoveChild(nsAccessible* aChild);
 
   /**
    * Return the atk object for app root accessible.

@@ -9,7 +9,7 @@
 
 #include <atk/atk.h>
 
-class AccessibleWrap;
+class nsAccessibleWrap;
 
 extern "C" {
 void actionInterfaceInitCB(AtkActionIface* aIface);
@@ -28,9 +28,9 @@ void valueInterfaceInitCB(AtkValueIface *aIface);
 /**
  * XXX these should live in a file of utils for atk.
  */
-AtkObject* refAccessibleAtPointHelper(AccessibleWrap* aAccWrap,
+AtkObject* refAccessibleAtPointHelper(nsAccessibleWrap* aAccWrap,
                                       gint aX, gint aY, AtkCoordType aCoordType);
-void getExtentsHelper(AccessibleWrap* aAccWrap,
+void getExtentsHelper(nsAccessibleWrap* aAccWrap,
                       gint* aX, gint* aY, gint* aWidth, gint* aHeight,
                       AtkCoordType aCoordType);
 

@@ -11,7 +11,7 @@
 #include "nsAString.h"
 
 class AccEvent;
-class Accessible;
+class nsAccessible;
 class DocAccessible;
 class nsIDocument;
 class nsIRequest;
@@ -25,8 +25,7 @@ enum EModules {
   eDocLoad = 1 << 0,
   eDocCreate = 1 << 1,
   eDocDestroy = 1 << 2,
-  eDocLifeCycle = eDocLoad | eDocCreate | eDocDestroy,
-  ePlatforms = 1 << 3
+  eDocLifeCycle = eDocLoad | eDocCreate | eDocDestroy
 };
 
 /**
@@ -76,7 +75,7 @@ void Text(const char* aText);
 /**
  * Log the accesisble object address, two spaces offset is used.
  */
-void Address(const char* aDescr, Accessible* aAcc);
+void Address(const char* aDescr, nsAccessible* aAcc);
 
 /**
  * Log the call stack, two spaces offset is used.

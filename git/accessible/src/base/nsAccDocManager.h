@@ -13,7 +13,7 @@
 #include "nsWeakReference.h"
 #include "nsIPresShell.h"
 
-class Accessible;
+class nsAccessible;
 class DocAccessible;
 
 /**
@@ -47,7 +47,7 @@ public:
    * Search through all document accessibles for an accessible with the given
    * unique id.
    */
-  Accessible* FindAccessibleInCache(nsINode* aNode) const;
+  nsAccessible* FindAccessibleInCache(nsINode* aNode) const;
 
   /**
    * Return document accessible from the cache. Convenient method for testing.
@@ -126,7 +126,7 @@ private:
 
   struct nsSearchAccessibleInCacheArg
   {
-    Accessible* mAccessible;
+    nsAccessible *mAccessible;
     nsINode* mNode;
   };
 

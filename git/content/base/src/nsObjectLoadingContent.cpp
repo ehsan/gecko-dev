@@ -654,10 +654,6 @@ nsObjectLoadingContent::InstantiatePluginInstance(const char* aMimeType, nsIURI*
   if (!doc) {
     return NS_ERROR_FAILURE;
   }
-  if (!doc->IsActive()) {
-    NS_ERROR("Shouldn't be calling InstantiatePluginInstance in an inactive document");
-    return NS_ERROR_FAILURE;
-  }
   doc->FlushPendingNotifications(Flush_Layout);
 
   nsresult rv = NS_ERROR_FAILURE;

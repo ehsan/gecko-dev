@@ -23,7 +23,6 @@ SkPictureRecord::SkPictureRecord(uint32_t flags) :
     fRestoreOffsetStack.push(0);
 
     fPathHeap = NULL;   // lazy allocate
-    fFirstSavedLayerIndex = kNoSavedLayerIndex;
 }
 
 SkPictureRecord::~SkPictureRecord() {
@@ -51,10 +50,6 @@ int SkPictureRecord::saveLayer(const SkRect* bounds, const SkPaint* paint,
 
     fRestoreOffsetStack.push(0);
 
-    if (kNoSavedLayerIndex == fFirstSavedLayerIndex) {
-        fFirstSavedLayerIndex = fRestoreOffsetStack.count();
-    }
-
     validate();
     /*  Don't actually call saveLayer, because that will try to allocate an
         offscreen device (potentially very big) which we don't actually need
@@ -62,13 +57,7 @@ int SkPictureRecord::saveLayer(const SkRect* bounds, const SkPaint* paint,
         clip starts out the size of the picture, which is often much larger
         than the size of the actual device we'll use during playback).
      */
-    int count = this->INHERITED::save(flags);
-    this->clipRectBounds(bounds, flags, NULL);
-    return count;
-}
-
-bool SkPictureRecord::isDrawingToLayer() const {
-    return fFirstSavedLayerIndex != kNoSavedLayerIndex;
+    return this->INHERITED::save(flags);
 }
 
 void SkPictureRecord::restore() {
@@ -85,11 +74,6 @@ void SkPictureRecord::restore() {
         offset = *peek;
         *peek = restoreOffset;
     }
-
-    if (fRestoreOffsetStack.count() == fFirstSavedLayerIndex) {
-        fFirstSavedLayerIndex = kNoSavedLayerIndex;
-    }
-
     fRestoreOffsetStack.pop();
 
     addDraw(RESTORE);
@@ -173,7 +157,7 @@ void SkPictureRecord::recordOffsetForRestore(SkRegion::Op op) {
             *peek = 0;
         }
     }
-
+    
     size_t offset = fWriter.size();
     addInt(fRestoreOffsetStack.top());
     fRestoreOffsetStack.top() = offset;
@@ -303,14 +287,14 @@ void SkPictureRecord::drawSprite(const SkBitmap& bitmap, int left, int top,
 }
 
 void SkPictureRecord::addFontMetricsTopBottom(const SkPaint& paint,
-                                              SkScalar minY, SkScalar maxY) {
+                                              SkScalar baselineY) {
     SkPaint::FontMetrics metrics;
     paint.getFontMetrics(&metrics);
     SkRect bounds;
     // construct a rect so we can see any adjustments from the paint.
     // we use 0,1 for left,right, just so the rect isn't empty
-    bounds.set(0, metrics.fTop + minY,
-               SK_Scalar1, metrics.fBottom + maxY);
+    bounds.set(0, metrics.fTop + baselineY,
+               SK_Scalar1, metrics.fBottom + baselineY);
     (void)paint.computeFastBounds(bounds, &bounds);
     // now record the top and bottom
     addScalar(bounds.fTop);
@@ -319,7 +303,7 @@ void SkPictureRecord::addFontMetricsTopBottom(const SkPaint& paint,
 
 void SkPictureRecord::drawText(const void* text, size_t byteLength, SkScalar x,
                       SkScalar y, const SkPaint& paint) {
-    bool fast = !paint.isVerticalText() && paint.canComputeFastBounds();
+    bool fast = paint.canComputeFastBounds();
 
     addDraw(fast ? DRAW_TEXT_TOP_BOTTOM : DRAW_TEXT);
     addPaint(paint);
@@ -327,7 +311,7 @@ void SkPictureRecord::drawText(const void* text, size_t byteLength, SkScalar x,
     addScalar(x);
     addScalar(y);
     if (fast) {
-        addFontMetricsTopBottom(paint, y, y);
+        addFontMetricsTopBottom(paint, y);
     }
     validate();
 }
@@ -339,34 +323,23 @@ void SkPictureRecord::drawPosText(const void* text, size_t byteLength,
         return;
 
     bool canUseDrawH = true;
-    SkScalar minY = pos[0].fY;
-    SkScalar maxY = pos[0].fY;
     // check if the caller really should have used drawPosTextH()
     {
         const SkScalar firstY = pos[0].fY;
         for (size_t index = 1; index < points; index++) {
             if (pos[index].fY != firstY) {
                 canUseDrawH = false;
-                if (pos[index].fY < minY) {
-                    minY = pos[index].fY;
-                } else if (pos[index].fY > maxY) {
-                    maxY = pos[index].fY;
-                }
+                break;
             }
         }
     }
 
-    bool fastBounds = !paint.isVerticalText() && paint.canComputeFastBounds();
-    bool fast = canUseDrawH && fastBounds;
+    bool fast = canUseDrawH && paint.canComputeFastBounds();
 
     if (fast) {
         addDraw(DRAW_POS_TEXT_H_TOP_BOTTOM);
-    } else if (canUseDrawH) {
-        addDraw(DRAW_POS_TEXT_H);
-    } else if (fastBounds) {
-        addDraw(DRAW_POS_TEXT_TOP_BOTTOM);
     } else {
-        addDraw(DRAW_POS_TEXT);
+        addDraw(canUseDrawH ? DRAW_POS_TEXT_H : DRAW_POS_TEXT);
     }
     addPaint(paint);
     addText(text, byteLength);
@@ -377,7 +350,7 @@ void SkPictureRecord::drawPosText(const void* text, size_t byteLength,
 #endif
     if (canUseDrawH) {
         if (fast) {
-            addFontMetricsTopBottom(paint, pos[0].fY, pos[0].fY);
+            addFontMetricsTopBottom(paint, pos[0].fY);
         }
         addScalar(pos[0].fY);
         SkScalar* xptr = (SkScalar*)fWriter.reserve(points * sizeof(SkScalar));
@@ -386,9 +359,6 @@ void SkPictureRecord::drawPosText(const void* text, size_t byteLength,
     }
     else {
         fWriter.writeMul4(pos, points * sizeof(SkPoint));
-        if (fastBounds) {
-            addFontMetricsTopBottom(paint, minY, maxY);
-        }
     }
 #ifdef SK_DEBUG_SIZE
     fPointBytes += fWriter.size() - start;
@@ -404,7 +374,7 @@ void SkPictureRecord::drawPosTextH(const void* text, size_t byteLength,
     if (0 == points)
         return;
 
-    bool fast = !paint.isVerticalText() && paint.canComputeFastBounds();
+    bool fast = paint.canComputeFastBounds();
 
     addDraw(fast ? DRAW_POS_TEXT_H_TOP_BOTTOM : DRAW_POS_TEXT_H);
     addPaint(paint);
@@ -415,7 +385,7 @@ void SkPictureRecord::drawPosTextH(const void* text, size_t byteLength,
     size_t start = fWriter.size();
 #endif
     if (fast) {
-        addFontMetricsTopBottom(paint, constY, constY);
+        addFontMetricsTopBottom(paint, constY);
     }
     addScalar(constY);
     fWriter.writeMul4(xpos, points * sizeof(SkScalar));

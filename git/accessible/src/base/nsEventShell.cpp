@@ -17,7 +17,7 @@ nsEventShell::FireEvent(AccEvent* aEvent)
   if (!aEvent)
     return;
 
-  Accessible* accessible = aEvent->GetAccessible();
+  nsAccessible *accessible = aEvent->GetAccessible();
   NS_ENSURE_TRUE(accessible,);
 
   nsINode* node = aEvent->GetNode();
@@ -32,7 +32,7 @@ nsEventShell::FireEvent(AccEvent* aEvent)
 }
 
 void
-nsEventShell::FireEvent(PRUint32 aEventType, Accessible* aAccessible,
+nsEventShell::FireEvent(PRUint32 aEventType, nsAccessible *aAccessible,
                         EIsFromUserInput aIsFromUserInput)
 {
   NS_ENSURE_TRUE(aAccessible,);

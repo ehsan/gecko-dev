@@ -50,7 +50,7 @@ public:
     bool isModeValid() const { return ILLEGAL_XFERMODE_MODE != fMode; }
 
 protected:
-    virtual void flatten(SkFlattenableWriteBuffer& buffer) const SK_OVERRIDE {
+    virtual void flatten(SkFlattenableWriteBuffer& buffer) {
         this->INHERITED::flatten(buffer);
         buffer.write32(fColor);
         buffer.write32(fMode);
@@ -96,9 +96,13 @@ public:
         sk_memset16(result, SkPixel32ToPixel16(fPMColor), count);
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(Src_SkModeColorFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(Src_SkModeColorFilter, (buffer));
+    }
 
 protected:
+    virtual Factory getFactory() { return CreateProc; }
+
     Src_SkModeColorFilter(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {}
 
@@ -135,9 +139,13 @@ public:
         sk_memset16(result, SkPixel32ToPixel16(fPMColor), count);
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SrcOver_SkModeColorFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SrcOver_SkModeColorFilter, (buffer));
+    }
 
 protected:
+    virtual Factory getFactory() { return CreateProc;  }
+
     SrcOver_SkModeColorFilter(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer), fColor32Proc(NULL) {}
 
@@ -190,13 +198,19 @@ public:
         }
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(Proc_SkModeColorFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(Proc_SkModeColorFilter, (buffer));
+    }
 
 protected:
-    virtual void flatten(SkFlattenableWriteBuffer& buffer) const SK_OVERRIDE {
+    virtual void flatten(SkFlattenableWriteBuffer& buffer) {
         this->INHERITED::flatten(buffer);
         buffer.writeFunctionPtr((void*)fProc);
         buffer.writeFunctionPtr((void*)fProc16);
+    }
+
+    virtual Factory getFactory() {
+        return CreateProc;
     }
 
     Proc_SkModeColorFilter(SkFlattenableReadBuffer& buffer) : INHERITED(buffer) {
@@ -270,6 +284,17 @@ static inline unsigned pin(unsigned value, unsigned max) {
     return value;
 }
 
+static inline unsigned SkUClampMax(unsigned value, unsigned max) {
+    SkASSERT((int32_t)value >= 0);
+    SkASSERT((int32_t)max >= 0);
+
+    int diff = max - value;
+    // clear diff if diff is positive
+    diff &= diff >> 31;
+
+    return value + diff;
+}
+
 class SkLightingColorFilter : public SkColorFilter {
 public:
     SkLightingColorFilter(SkColor mul, SkColor add) : fMul(mul), fAdd(add) {}
@@ -298,13 +323,19 @@ public:
         }
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkLightingColorFilter)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkLightingColorFilter, (buffer));
+    }
 
 protected:
-    virtual void flatten(SkFlattenableWriteBuffer& buffer) const SK_OVERRIDE {
+    virtual void flatten(SkFlattenableWriteBuffer& buffer) {
         this->INHERITED::flatten(buffer);
         buffer.write32(fMul);
         buffer.write32(fAdd);
+    }
+
+    virtual Factory getFactory() {
+        return CreateProc;
     }
 
     SkLightingColorFilter(SkFlattenableReadBuffer& buffer) {
@@ -343,9 +374,13 @@ public:
         }
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkLightingColorFilter_JustAdd)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer)  {
+        return SkNEW_ARGS(SkLightingColorFilter_JustAdd, (buffer));
+    }
 
 protected:
+    virtual Factory getFactory() { return CreateProc; }
+
     SkLightingColorFilter_JustAdd(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {}
 
@@ -377,9 +412,13 @@ public:
         }
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkLightingColorFilter_JustMul)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkLightingColorFilter_JustMul, (buffer));
+    }
 
 protected:
+    virtual Factory getFactory() { return CreateProc; }
+
     SkLightingColorFilter_JustMul(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {}
 
@@ -414,9 +453,13 @@ public:
         }
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkLightingColorFilter_SingleMul)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkLightingColorFilter_SingleMul, (buffer));
+    }
 
 protected:
+    virtual Factory getFactory() { return CreateProc; }
+
     SkLightingColorFilter_SingleMul(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {}
 
@@ -453,9 +496,13 @@ public:
         }
     }
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkLightingColorFilter_NoPin)
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
+        return SkNEW_ARGS(SkLightingColorFilter_NoPin, (buffer));
+    }
 
 protected:
+    virtual Factory getFactory() { return CreateProc; }
+
     SkLightingColorFilter_NoPin(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {}
 
@@ -478,7 +525,7 @@ protected:
         }
     }
 
-    virtual void flatten(SkFlattenableWriteBuffer& buffer) const SK_OVERRIDE {}
+    virtual void flatten(SkFlattenableWriteBuffer& buffer) {}
 
     virtual Factory getFactory() {
         return CreateProc;

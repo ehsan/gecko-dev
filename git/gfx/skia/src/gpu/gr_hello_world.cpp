@@ -5,10 +5,10 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-#include "gl/SkGLCanvas.h"
+#include "SkGLCanvas.h"
 #include "SkBitmap.h"
 #include "SkPaint.h"
-#include "gl/SkGpuGLShaders.h"
+#include "SkGpuGLShaders.h"
 
 extern "C" {
     void gr_hello_world();

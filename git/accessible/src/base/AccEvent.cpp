@@ -29,7 +29,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent constructors
 
-AccEvent::AccEvent(PRUint32 aEventType, Accessible* aAccessible,
+AccEvent::AccEvent(PRUint32 aEventType, nsAccessible* aAccessible,
                    EIsFromUserInput aIsFromUserInput, EEventRule aEventRule) :
   mEventType(aEventType), mEventRule(aEventRule), mAccessible(aAccessible)
 {
@@ -46,7 +46,7 @@ AccEvent::AccEvent(PRUint32 aEventType, nsINode* aNode,
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent public methods
 
-Accessible* 
+nsAccessible *
 AccEvent::GetAccessible()
 {
   if (!mAccessible)
@@ -105,7 +105,7 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AccEvent, Release)
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent protected methods
 
-Accessible*
+nsAccessible*
 AccEvent::GetAccessibleForNode() const
 {
   if (mNode) {
@@ -168,7 +168,7 @@ AccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
 // support correct state change coalescence (XXX Bug 569356). Also we need to
 // decide how to coalesce events created via accessible (instead of node).
 AccStateChangeEvent::
-  AccStateChangeEvent(Accessible* aAccessible, PRUint64 aState,
+  AccStateChangeEvent(nsAccessible* aAccessible, PRUint64 aState,
                       bool aIsEnabled, EIsFromUserInput aIsFromUserInput):
   AccEvent(nsIAccessibleEvent::EVENT_STATE_CHANGE, aAccessible,
            aIsFromUserInput, eAllowDupes),
@@ -193,7 +193,7 @@ AccStateChangeEvent::
   // Use GetAccessibleForNode() because we do not want to store an accessible
   // since it leads to problems with delayed events in the case when
   // an accessible gets reorder event before delayed event is processed.
-  Accessible* accessible = GetAccessibleForNode();
+  nsAccessible *accessible = GetAccessibleForNode();
   mIsEnabled = accessible && ((accessible->State() & mState) != 0);
 }
 
@@ -219,7 +219,7 @@ AccStateChangeEvent::CreateXPCOMObject()
 // a defunct accessible so the behaviour should be equivalent.
 // XXX revisit this when coalescence is faster (eCoalesceFromSameSubtree)
 AccTextChangeEvent::
-  AccTextChangeEvent(Accessible* aAccessible, PRInt32 aStart,
+  AccTextChangeEvent(nsAccessible* aAccessible, PRInt32 aStart,
                      const nsAString& aModifiedText, bool aIsInserted,
                      EIsFromUserInput aIsFromUserInput)
   : AccEvent(aIsInserted ?
@@ -250,7 +250,7 @@ AccTextChangeEvent::CreateXPCOMObject()
 ////////////////////////////////////////////////////////////////////////////////
 
 AccMutationEvent::
-  AccMutationEvent(PRUint32 aEventType, Accessible* aTarget,
+  AccMutationEvent(PRUint32 aEventType, nsAccessible* aTarget,
                    nsINode* aTargetNode) :
   AccEvent(aEventType, aTarget, eAutoDetect, eCoalesceFromSameSubtree)
 {
@@ -263,7 +263,7 @@ AccMutationEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccHideEvent::
-  AccHideEvent(Accessible* aTarget, nsINode* aTargetNode) :
+  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode) :
   AccMutationEvent(::nsIAccessibleEvent::EVENT_HIDE, aTarget, aTargetNode)
 {
   mParent = mAccessible->Parent();
@@ -285,7 +285,7 @@ AccHideEvent::CreateXPCOMObject()
 ////////////////////////////////////////////////////////////////////////////////
 
 AccShowEvent::
-  AccShowEvent(Accessible* aTarget, nsINode* aTargetNode) :
+  AccShowEvent(nsAccessible* aTarget, nsINode* aTargetNode) :
   AccMutationEvent(::nsIAccessibleEvent::EVENT_SHOW, aTarget, aTargetNode)
 {
 }
@@ -296,7 +296,7 @@ AccShowEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccCaretMoveEvent::
-  AccCaretMoveEvent(Accessible* aAccessible, PRInt32 aCaretOffset) :
+  AccCaretMoveEvent(nsAccessible* aAccessible, PRInt32 aCaretOffset) :
   AccEvent(::nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED, aAccessible),
   mCaretOffset(aCaretOffset)
 {
@@ -323,7 +323,7 @@ AccCaretMoveEvent::CreateXPCOMObject()
 ////////////////////////////////////////////////////////////////////////////////
 
 AccSelChangeEvent::
-  AccSelChangeEvent(Accessible* aWidget, Accessible* aItem,
+  AccSelChangeEvent(nsAccessible* aWidget, nsAccessible* aItem,
                     SelChangeType aSelChangeType) :
     AccEvent(0, aItem, eAutoDetect, eCoalesceSelectionChange),
     mWidget(aWidget), mItem(aItem), mSelChangeType(aSelChangeType),
@@ -345,7 +345,7 @@ AccSelChangeEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccTableChangeEvent::
-  AccTableChangeEvent(Accessible* aAccessible, PRUint32 aEventType,
+  AccTableChangeEvent(nsAccessible* aAccessible, PRUint32 aEventType,
                       PRInt32 aRowOrColIndex, PRInt32 aNumRowsOrCols) :
   AccEvent(aEventType, aAccessible),
   mRowOrColIndex(aRowOrColIndex), mNumRowsOrCols(aNumRowsOrCols)
@@ -366,7 +366,7 @@ AccTableChangeEvent::CreateXPCOMObject()
 ////////////////////////////////////////////////////////////////////////////////
 
 AccVCChangeEvent::
-  AccVCChangeEvent(Accessible* aAccessible,
+  AccVCChangeEvent(nsAccessible* aAccessible,
                    nsIAccessible* aOldAccessible,
                    PRInt32 aOldStart, PRInt32 aOldEnd) :
     AccEvent(::nsIAccessibleEvent::EVENT_VIRTUALCURSOR_CHANGED, aAccessible),

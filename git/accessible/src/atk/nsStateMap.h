@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <atk/atk.h>
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 
 /******************************************************************************
 The following nsIAccessible states aren't translated, just ignored:

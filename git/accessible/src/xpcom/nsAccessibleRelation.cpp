@@ -6,7 +6,7 @@
 #include "nsAccessibleRelation.h"
 
 #include "Relation.h"
-#include "Accessible.h"
+#include "nsAccessible.h"
 
 #include "nsArrayUtils.h"
 #include "nsComponentManagerUtils.h"

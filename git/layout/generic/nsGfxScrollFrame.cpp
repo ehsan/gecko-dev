@@ -938,7 +938,7 @@ nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 #endif
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsHTMLScrollFrame::CreateAccessible()
 {
   // Create an accessible regardless of focusable state because the state can be

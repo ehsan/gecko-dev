@@ -14,7 +14,6 @@
 #include "GrClip.h"
 #include "GrColor.h"
 #include "GrDrawState.h"
-#include "GrIndexBuffer.h"
 #include "GrMatrix.h"
 #include "GrRefCnt.h"
 #include "GrSamplerState.h"
@@ -22,7 +21,6 @@
 #include "GrTexture.h"
 
 #include "SkXfermode.h"
-#include "SkTLazy.h"
 
 class GrTexture;
 class GrClipIterator;
@@ -47,11 +45,13 @@ public:
         bool fTwoSidedStencilSupport    : 1;
         bool fStencilWrapOpsSupport     : 1;
         bool fHWAALineSupport           : 1;
+        bool fShaderSupport             : 1;
         bool fShaderDerivativeSupport   : 1;
         bool fGeometryShaderSupport     : 1;
         bool fFSAASupport               : 1;
         bool fDualSourceBlendingSupport : 1;
         bool fBufferLockSupport         : 1;
+        bool fSupportPerVertexCoverage  : 1;
         int fMaxRenderTargetSize;
         int fMaxTextureSize;
     };
@@ -86,24 +86,8 @@ public:
      */
     const GrClip& getClip() const;
 
-    /**
-     * Sets the draw state object for the draw target. Note that this does not
-     * make a copy. The GrDrawTarget will take a reference to passed object.
-     * Passing NULL will cause the GrDrawTarget to use its own internal draw
-     * state object rather than an externally provided one.
-     */
-    void setDrawState(GrDrawState*  drawState);
-
-    /**
-     * Read-only access to the GrDrawTarget's current draw state.
-     */
-    const GrDrawState& getDrawState() const { return *fDrawState; }
-
-    /**
-     * Read-write access to the GrDrawTarget's current draw state. Note that
-     * this doesn't ref.
-     */
-    GrDrawState* drawState() { return fDrawState; }
+    const GrDrawState& getDrawState() const { return fCurrDrawState; }
+    GrDrawState* drawState() { return &fCurrDrawState; }
 
     /**
      * Shortcut for drawState()->preConcatSamplerMatrices() on all enabled
@@ -117,41 +101,77 @@ public:
     }
 
     /**
+     * Determines if blending will require a read of a dst given the current
+     * state set on the draw target
+     *
+     * @return true if the dst surface will be read at each pixel hit by the
+     *         a draw operation.
+     */
+    bool drawWillReadDst() const;
+
+    /**
      * Color alpha and coverage are two inputs to the drawing pipeline. For some
      * blend modes it is safe to fold the coverage into constant or per-vertex
      * color alpha value. For other blend modes they must be handled separately.
      * Depending on features available in the underlying 3D API this may or may
      * not be possible.
      *
-     * This function considers the current draw state and the draw target's
-     * capabilities to determine whether coverage can be handled correctly. The
-     * following assumptions are made:
-     *    1. The caller intends to somehow specify coverage. This can be
-     *       specified either by enabling a coverage stage on the GrDrawState or
-     *       via the vertex layout.
-     *    2. Other than enabling coverage stages, the current configuration of 
-     *       the target's GrDrawState is as it will be at draw time.
-     *    3. If a vertex source has not yet been specified then all stages with
-     *       non-NULL textures will be referenced by the vertex layout.
+     * This function looks at the current blend on the draw target and the draw
+     * target's capabilities to determine whether coverage can be handled
+     * correctly.
      */
     bool canApplyCoverage() const;
 
     /**
      * Determines whether incorporating partial pixel coverage into the constant
      * color specified by setColor or per-vertex colors will give the right
-     * blending result. If a vertex source has not yet been specified then
-     * the function assumes that all stages with non-NULL textures will be
-     * referenced by the vertex layout.
+     * blending result.
      */
     bool canTweakAlphaForCoverage() const;
 
     /**
-     * Given the current draw state and hw support, will HW AA lines be used 
-     * (if line primitive type is drawn)? If a vertex source has not yet been
-     * specified then  the function assumes that all stages with non-NULL
-     * textures will be referenced by the vertex layout.
+     * Given the current draw state, vertex layout, and hw support, will HW AA
+     * lines be used (if line primitive type is drawn)? (Note that lines are
+     * always 1 pixel wide)
      */
     bool willUseHWAALines() const;
+
+    /**
+     * Used to save and restore the GrGpu's drawing state
+     */
+    struct SavedDrawState {
+    private:
+        GrDrawState fState;
+        friend class GrDrawTarget;
+    };
+
+    /**
+     * Saves the current draw state. The state can be restored at a later time
+     * with restoreDrawState.
+     *
+     * See also AutoStateRestore class.
+     *
+     * @param   state will hold the state after the function returns.
+     */
+    void saveCurrentDrawState(SavedDrawState* state) const;
+
+    /**
+     * Restores previously saved draw state. The client guarantees that state
+     * was previously passed to saveCurrentDrawState and that the rendertarget
+     * and texture set at save are still valid.
+     *
+     * See also AutoStateRestore class.
+     *
+     * @param   state the previously saved state to restore.
+     */
+    void restoreDrawState(const SavedDrawState& state);
+
+    /**
+     * Copies the draw state from another target to this target.
+     *
+     * @param srcTarget     draw target used as src of the draw state.
+     */
+    void copyDrawState(const GrDrawTarget& srcTarget);
 
     /**
      * The format of vertices is represented as a bitfield of flags.
@@ -190,9 +210,6 @@ public:
         return 1 << (stage + (texCoordIdx * GrDrawState::kNumStages));
     }
 
-    virtual void postClipPush() {};
-    virtual void preClipPop() {};
-
 private:
     static const int TEX_COORD_BIT_CNT = GrDrawState::kNumStages *
                                          GrDrawState::kMaxTexCoords;
@@ -212,19 +229,6 @@ public:
         return (1 << (TEX_COORD_BIT_CNT + stage));
     }
 
-    /**
-     * Modify the existing vertex layout. Realistically the only thing that 
-     * can be added w/o recomputing the vertex layout is one of the 
-     * StagePosAsTexCoordVertexLayoutBit flags
-     */
-    void addToVertexLayout(int flag) {
-        GrAssert((1 << TEX_COORD_BIT_CNT) == flag ||
-                 (1 << (TEX_COORD_BIT_CNT + 1)) == flag ||
-                 (1 << (TEX_COORD_BIT_CNT + 2)) == flag ||
-                 (1 << (TEX_COORD_BIT_CNT + 3)) == flag);
-        fGeoSrcStateStack.back().fVertexLayout |= flag;
-    }
-
 private:
     static const int STAGE_BIT_CNT = TEX_COORD_BIT_CNT +
         GrDrawState::kNumStages;
@@ -237,7 +241,8 @@ public:
     enum VertexLayoutBits {
         /* vertices have colors (GrColor) */
         kColor_VertexLayoutBit              = 1 << (STAGE_BIT_CNT + 0),
-        /* vertices have coverage (GrColor)
+        /* vertices have coverage (GrColor where all channels should have the 
+         * same value)
          */
         kCoverage_VertexLayoutBit           = 1 << (STAGE_BIT_CNT + 1),
         /* Use text vertices. (Pos and tex coords may be a different type for
@@ -246,7 +251,7 @@ public:
         kTextFormat_VertexLayoutBit         = 1 << (STAGE_BIT_CNT + 2),
 
         /* Each vertex specificies an edge. Distance to the edge is used to
-         * compute a coverage. See GrDrawState::setVertexEdgeType().
+         * compute a coverage. See setVertexEdgeType().
          */
         kEdge_VertexLayoutBit               = 1 << (STAGE_BIT_CNT + 3),
         // for below assert
@@ -257,29 +262,21 @@ public:
     GR_STATIC_ASSERT(kHighVertexLayoutBit < ((uint64_t)1 << 8*sizeof(GrVertexLayout)));
 
     /**
-     * There are three types of "sources" of geometry (vertices and indices) for
-     * draw calls made on the target. When performing an indexed draw, the
-     * indices and vertices can use different source types. Once a source is
-     * specified it can be used for multiple draws. However, the time at which
-     * the geometry data is no longer editable depends on the source type.
+     * There are three methods for specifying geometry (vertices and optionally
+     * indices) to the draw target. When indexed drawing the indices and vertices
+     * can use a different method. Once geometry is specified it can be used for
+     * multiple drawIndexed and drawNonIndexed calls.
      *
      * Sometimes it is necessary to perform a draw while upstack code has
-     * already specified geometry that it isn't finished with. So there are push
-     * and pop methods. This allows the client to push the sources, draw
-     * something using alternate sources, and then pop to restore the original
-     * sources.
+     * already specified geometry that it isn't finished with. There are push
+     * pop methods
      *
-     * Aside from pushes and pops, a source remains valid until another source
-     * is set or resetVertexSource / resetIndexSource is called. Drawing from
-     * a reset source is an error.
-     *
-     * The three types of sources are:
-     *
-     * 1. A cpu array (set*SourceToArray). This is useful when the caller
-     *    already provided vertex data in a format compatible with a
-     *    GrVertexLayout. The data in the array is consumed at the time that
-     *    set*SourceToArray is called and subsequent edits to the array will not
-     *    be reflected in draws.
+     * 1. Provide a cpu array (set*SourceToArray). This is useful when the
+     *    caller's client has already provided vertex data in a format
+     *    the time compatible with a GrVertexLayout. The array must contain the
+     *    data at set*SourceToArray is called. The source stays in effect for
+     *    drawIndexed & drawNonIndexed calls until set*SourceToArray is called
+     *    again or one of the other two paths is chosen.
      *
      * 2. Reserve. This is most useful when the caller has data it must
      *    transform before drawing and is not long-lived. The caller requests
@@ -287,53 +284,70 @@ public:
      *    data. The target provides ptrs to hold the vertex and/or index data.
      *
      *    The data is writable up until the next drawIndexed, drawNonIndexed, 
-     *    drawIndexedInstances, or pushGeometrySource. At this point the data is
-     *    frozen and the ptrs are no longer valid.
-     *
-     *    Where the space is allocated and how it is uploaded to the GPU is
-     *    subclass-dependent.
+     *    or pushGeometrySource At this point the data is frozen and the ptrs
+     *    are no longer valid.
      *
      * 3. Vertex and Index Buffers. This is most useful for geometry that will
-     *    is long-lived. When the data in the buffer is consumed depends on the
-     *    GrDrawTarget subclass. For deferred subclasses the caller has to 
-     *    guarantee that the data is still available in the buffers at playback.
-     *    (TODO: Make this more automatic as we have done for read/write pixels)
+     *    is long-lived. SetVertexSourceToBuffer and SetIndexSourceToBuffer are
+     *    used to set the buffer and subsequent drawIndexed and drawNonIndexed 
+     *    calls use this source until another source is set.
      */
 
     /**
-     * Reserves space for vertices and/or indices. Zero can be specifed as
-     * either the vertex or index count if the caller desires to only reserve
-     * space for only indices or only vertices. If zero is specifed for 
-     * vertexCount then the vertex source will be unmodified and likewise for
-     * indexCount.
+     * Reserves space for vertices. Draw target will use reserved vertices at
+     * at the next draw.
      *
-     * If the function returns true then the reserve suceeded and the vertices
-     * and indices pointers will point to the space created.
+     * If succeeds:
+     *          if vertexCount > 0, *vertices will be the array
+     *          of vertices to be filled by caller. The next draw will read
+     *          these vertices.
      *
-     * If the target cannot make space for the request then this function will
-     * return false. If vertexCount was non-zero then upon failure the vertex
-     * source is reset and likewise for indexCount.
+     * If a client does not already have a vertex buffer then this is the
+     * preferred way to allocate vertex data. It allows the subclass of
+     * GrDrawTarget to decide whether to put data in buffers, to group vertex
+     * data that uses the same state (e.g. for deferred rendering), etc.
      *
-     * The pointers to the space allocated for vertices and indices remain valid
-     * until a drawIndexed, drawNonIndexed, drawIndexedInstances, or push/
-     * popGeomtrySource is called. At that point logically a snapshot of the
-     * data is made and the pointers are invalid.
+     * After the next draw or pushGeometrySource the vertices ptr is no longer
+     * valid and the geometry data cannot be further modified. The contents
+     * that were put in the reserved space can be drawn by multiple draws,
+     * however.
      *
      * @param vertexLayout the format of vertices (ignored if vertexCount == 0).
-     * @param vertexCount  the number of vertices to reserve space for. Can be
-     *                     0.
-     * @param indexCount   the number of indices to reserve space for. Can be 0.
+     * @param vertexCount  the number of vertices to reserve space for. Can be 0.
      * @param vertices     will point to reserved vertex space if vertexCount is
-     *                     non-zero. Illegal to pass NULL if vertexCount > 0.    
+     *                     non-zero. Illegal to pass NULL if vertexCount > 0.
+     *
+     * @return  true if succeeded in allocating space for the vertices and false
+     *               if not.
+     */
+    bool reserveVertexSpace(GrVertexLayout vertexLayout,
+                            int vertexCount,
+                            void** vertices);
+    /**
+     * Reserves space for indices. Draw target will use the reserved indices at
+     * the next indexed draw.
+     *
+     * If succeeds:
+     *          if indexCount > 0, *indices will be the array
+     *          of indices to be filled by caller. The next draw will read
+     *          these indices.
+     *
+     * If a client does not already have a index buffer then this is the
+     * preferred way to allocate index data. It allows the subclass of
+     * GrDrawTarget to decide whether to put data in buffers, to group index
+     * data that uses the same state (e.g. for deferred rendering), etc.
+     *
+     * After the next indexed draw or pushGeometrySource the indices ptr is no
+     * longer valid and the geometry data cannot be further modified. The
+     * contents that were put in the reserved space can be drawn by multiple
+     * draws, however.
+     *
+     * @param indexCount   the number of indices to reserve space for. Can be 0.
      * @param indices      will point to reserved index space if indexCount is
      *                     non-zero. Illegal to pass NULL if indexCount > 0.
      */
-     bool reserveVertexAndIndexSpace(GrVertexLayout vertexLayout,
-                                     int vertexCount,
-                                     int indexCount,
-                                     void** vertices,
-                                     void** indices);
 
+    bool reserveIndexSpace(int indexCount, void** indices);
     /**
      * Provides hints to caller about the number of vertices and indices
      * that can be allocated cheaply. This can be useful if caller is reserving
@@ -383,7 +397,7 @@ public:
 
     /**
      * Sets source of vertex data for the next draw. Data does not have to be
-     * in the buffer until drawIndexed, drawNonIndexed, or drawIndexedInstances.
+     * in the buffer until drawIndexed or drawNonIndexed.
      *
      * @param buffer        vertex buffer containing vertex data. Must be
      *                      unlocked before draw call.
@@ -394,7 +408,7 @@ public:
 
     /**
      * Sets source of index data for the next indexed draw. Data does not have
-     * to be in the buffer until drawIndexed.
+     * to be in the buffer until drawIndexed or drawNonIndexed.
      *
      * @param buffer index buffer containing indices. Must be unlocked
      *               before indexed draw call.
@@ -415,15 +429,7 @@ public:
      * be able to free up temporary storage allocated by setIndexSourceToArray
      * or reserveIndexSpace.
      */
-    void resetIndexSource();
-    
-    /**
-     * Query to find out if the vertex or index source is reserved.
-     */
-    bool hasReservedVerticesOrIndices() const {
-        return kReserved_GeometrySrcType == this->getGeomSrc().fVertexSrc ||
-        kReserved_GeometrySrcType == this->getGeomSrc().fIndexSrc;
-    }
+    void resetIndexSource(); 
 
     /**
      * Pushes and resets the vertex/index sources. Any reserved vertex / index
@@ -499,39 +505,6 @@ public:
                           const GrMatrix* srcMatrices[]);
 
     /**
-     * This call is used to draw multiple instances of some geometry with a
-     * given number of vertices (V) and indices (I) per-instance. The indices in
-     * the index source must have the form i[k+I] == i[k] + V. Also, all indices
-     * i[kI] ... i[(k+1)I-1] must be elements of the range kV ... (k+1)V-1. As a
-     * concrete example, the following index buffer for drawing a series of
-     * quads each as two triangles each satisfies these conditions with V=4 and
-     * I=6:
-     *      (0,1,2,0,2,3, 4,5,6,4,6,7, 8,9,10,8,10,11, ...)
-     *
-     * The call assumes that the pattern of indices fills the entire index
-     * source. The size of the index buffer limits the number of instances that
-     * can be drawn by the GPU in a single draw. However, the caller may specify
-     * any (positive) number for instanceCount and if necessary multiple GPU
-     * draws will be issued. Morever, when drawIndexedInstances is called
-     * multiple times it may be possible for GrDrawTarget to group them into a
-     * single GPU draw.
-     *
-     * @param type          the type of primitives to draw
-     * @param instanceCount the number of instances to draw. Each instance
-     *                      consists of verticesPerInstance vertices indexed by
-     *                      indicesPerInstance indices drawn as the primitive
-     *                      type specified by type.
-     * @param verticesPerInstance   The number of vertices in each instance (V
-     *                              in the above description).
-     * @param indicesPerInstance    The number of indices in each instance (I
-     *                              in the above description).
-     */
-    virtual void drawIndexedInstances(GrPrimitiveType type,
-                                      int instanceCount,
-                                      int verticesPerInstance,
-                                      int indicesPerInstance);
-
-    /**
      * Helper for drawRect when the caller doesn't need separate src rects or
      * matrices.
      */
@@ -549,69 +522,32 @@ public:
     virtual void clear(const GrIRect* rect, GrColor color) = 0;
 
     /**
-     * Release any resources that are cached but not currently in use. This
-     * is intended to give an application some recourse when resources are low.
+     * Returns the maximum number of edges that may be specified in a single
+     * draw call when performing edge antialiasing.  This is usually limited
+     * by the number of fragment uniforms which may be uploaded.  Must be a
+     * minimum of six, since a triangle's vertices each belong to two boundary
+     * edges which may be distinct.
      */
-    virtual void purgeResources() {};
+    virtual int getMaxEdges() const { return 6; }
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /**
-     * See AutoStateRestore below.
-     */
-    enum ASRInit {
-        kPreserve_ASRInit,
-        kReset_ASRInit
-    };
-
-    /**
-     * Saves off the current state and restores it in the destructor. It will
-     * install a new GrDrawState object on the target (setDrawState) and restore
-     * the previous one in the destructor. The caller should call drawState() to
-     * get the new draw state after the ASR is installed.
-     *
-     * GrDrawState* state = target->drawState();
-     * AutoStateRestore asr(target, GrDrawTarget::kReset_ASRInit).
-     * state->setRenderTarget(rt); // state refers to the GrDrawState set on
-     *                             // target before asr was initialized.
-     *                             // Therefore, rt is set on the GrDrawState
-     *                             // that will be restored after asr's
-     *                             // destructor rather than target's current
-     *                             // GrDrawState. 
-     */
     class AutoStateRestore : ::GrNoncopyable {
     public:
-        /**
-         * Default ASR will have no effect unless set() is subsequently called.
-         */
         AutoStateRestore();
-
-        /**
-         * Saves the state on target. The state will be restored when the ASR
-         * is destroyed. If this constructor is used do not call set().
-         *
-         * @param init  Should the newly installed GrDrawState be a copy of the
-         *              previous state or a default-initialized GrDrawState.
-         */
-        AutoStateRestore(GrDrawTarget* target, ASRInit init);
-
+        AutoStateRestore(GrDrawTarget* target);
         ~AutoStateRestore();
 
         /**
-         * Saves the state on target. The state will be restored when the ASR
-         * is destroyed. This should only be called once per ASR object and only
-         * when the default constructor was used. For nested saves use multiple
-         * ASR objects.
-         *
-         * @param init  Should the newly installed GrDrawState be a copy of the
-         *              previous state or a default-initialized GrDrawState.
+         * if this object is already saving state for param target then
+         * this does nothing. Otherise, it restores previously saved state on
+         * previous target (if any) and saves current state on param target.
          */
-        void set(GrDrawTarget* target, ASRInit init);
+        void set(GrDrawTarget* target);
 
     private:
-        GrDrawTarget*        fDrawTarget;
-        SkTLazy<GrDrawState> fTempState;
-        GrDrawState*         fSavedState;
+        GrDrawTarget*       fDrawTarget;
+        SavedDrawState      fDrawState;
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -942,7 +878,7 @@ protected:
                                GrBlendCoeff* dstCoeff = NULL) const;
 
     // determine if src alpha is guaranteed to be one for all src pixels
-    bool srcAlphaWillBeOne(GrVertexLayout vertexLayout) const;
+    bool srcAlphaWillBeOne() const;
 
     enum GeometrySrcType {
         kNone_GeometrySrcType,     //<! src has not been specified
@@ -970,22 +906,7 @@ protected:
         
         GrVertexLayout          fVertexLayout;
     };
-
-    int indexCountInCurrentSource() const {
-        const GeometrySrcState& src = this->getGeomSrc();
-        switch (src.fIndexSrc) {
-            case kNone_GeometrySrcType:
-                return 0;
-            case kReserved_GeometrySrcType:
-            case kArray_GeometrySrcType:
-                return src.fIndexCount;
-            case kBuffer_GeometrySrcType:
-                return src.fIndexBuffer->sizeInBytes() / sizeof(uint16_t);
-            default:
-                GrCrash("Unexpected Index Source.");
-                return 0;
-        }
-    }
+    
     // given a vertex layout and a draw state, will a stage be used?
     static bool StageWillBeUsed(int stage, GrVertexLayout layout, 
                                 const GrDrawState& state) {
@@ -994,8 +915,8 @@ protected:
     }
 
     bool isStageEnabled(int stage) const {
-        return StageWillBeUsed(stage, this->getVertexLayout(),
-                               this->getDrawState());
+        return StageWillBeUsed(stage, this->getGeomSrc().fVertexLayout, 
+                               fCurrDrawState);
     }
 
     StageMask enabledStages() const {
@@ -1006,12 +927,12 @@ protected:
         return mask;
     }
 
-    // A sublcass can optionally overload this function to be notified before
-    // vertex and index space is reserved.
-    virtual void willReserveVertexAndIndexSpace(GrVertexLayout vertexLayout,
-                                                int vertexCount,
-                                                int indexCount) {}
-    
+    // Helpers for GrDrawTarget subclasses that won't have private access to
+    // SavedDrawState but need to peek at the state values.
+    static GrDrawState& accessSavedDrawState(SavedDrawState& sds)
+                                                        { return sds.fState; }
+    static const GrDrawState& accessSavedDrawState(const SavedDrawState& sds)
+                                                        { return sds.fState; }
 
     // implemented by subclass to allocate space for reserved geom
     virtual bool onReserveVertexSpace(GrVertexLayout vertexLayout,
@@ -1044,7 +965,7 @@ protected:
                                   int vertexCount) = 0;
     // subclass overrides to be notified when clip is set. Must call
     // INHERITED::clipwillBeSet
-    virtual void clipWillBeSet(const GrClip& clip) {}
+    virtual void clipWillBeSet(const GrClip& clip);
 
     // Helpers for drawRect, protected so subclasses that override drawRect
     // can use them.
@@ -1058,23 +979,14 @@ protected:
                                 GrVertexLayout layout,
                                 void* vertices);
 
-    // accessors for derived classes
+    // accessor for derived classes
     const GeometrySrcState& getGeomSrc() const {
         return fGeoSrcStateStack.back();
-    }
-    // it is prefereable to call this rather than getGeomSrc()->fVertexLayout
-    // because of the assert.
-    GrVertexLayout getVertexLayout() const {
-        // the vertex layout is only valid if a vertex source has been
-        // specified.
-        GrAssert(this->getGeomSrc().fVertexSrc != kNone_GeometrySrcType);
-        return this->getGeomSrc().fVertexLayout;
     }
 
     GrClip fClip;
 
-    GrDrawState* fDrawState;
-    GrDrawState fDefaultDrawState;
+    GrDrawState fCurrDrawState;
 
     Caps fCaps;
 
@@ -1082,14 +994,7 @@ protected:
     // and index sources have been released (including those held by 
     // pushGeometrySource())
     void releaseGeometry();
-
 private:
-    // helpers for reserving vertex and index space.
-    bool reserveVertexSpace(GrVertexLayout vertexLayout,
-                            int vertexCount,
-                            void** vertices);
-    bool reserveIndexSpace(int indexCount, void** indices);
-    
     // called by drawIndexed and drawNonIndexed. Use a negative indexCount to
     // indicate non-indexed drawing.
     bool checkDraw(GrPrimitiveType type, int startVertex,

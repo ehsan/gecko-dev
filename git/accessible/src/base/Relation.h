@@ -37,7 +37,7 @@ public:
 
   Relation(AccIterable* aIter) : mFirstIter(aIter), mLastIter(aIter) { }
 
-  Relation(Accessible* aAcc) :
+  Relation(nsAccessible* aAcc) :
     mFirstIter(nsnull), mLastIter(nsnull)
     { AppendTarget(aAcc); }
 
@@ -77,7 +77,7 @@ public:
   /**
    * Append the given accessible to the set of related accessibles.
    */
-  inline void AppendTarget(Accessible* aAcc)
+  inline void AppendTarget(nsAccessible* aAcc)
   {
     if (aAcc)
       AppendIter(new SingleAccIterator(aAcc));
@@ -96,9 +96,9 @@ public:
   /**
    * compute and return the next related accessible.
    */
-  inline Accessible* Next()
+  inline nsAccessible* Next()
   {
-    Accessible* target = nsnull;
+    nsAccessible* target = nsnull;
 
     // a trick nsAutoPtr deletes what it used to point to when assigned to
     while (mFirstIter && !(target = mFirstIter->Next()))

@@ -59,7 +59,7 @@ public:
   }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<Accessible> CreateAccessible();
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
 protected:
@@ -249,7 +249,7 @@ BRFrame::PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboar
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 BRFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();

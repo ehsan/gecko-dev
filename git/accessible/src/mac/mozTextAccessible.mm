@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 
 #include "nsCocoaUtils.h"
 #include "nsObjCExceptions.h"
@@ -52,7 +52,7 @@ ToNSString(id aValue)
 
 @implementation mozTextAccessible
 
-- (id)initWithAccessible:(AccessibleWrap*)accessible
+- (id)initWithAccessible:(nsAccessibleWrap*)accessible
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 

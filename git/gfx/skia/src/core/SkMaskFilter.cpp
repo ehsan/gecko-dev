@@ -21,12 +21,11 @@ bool SkMaskFilter::filterMask(SkMask*, const SkMask&, const SkMatrix&,
 
 bool SkMaskFilter::filterPath(const SkPath& devPath, const SkMatrix& matrix,
                               const SkRasterClip& clip, SkBounder* bounder,
-                              SkBlitter* blitter, SkPaint::Style style) {
+                              SkBlitter* blitter) {
     SkMask  srcM, dstM;
 
     if (!SkDraw::DrawToMask(devPath, &clip.getBounds(), this, &matrix, &srcM,
-                            SkMask::kComputeBoundsAndRenderImage_CreateMode,
-                            style)) {
+                            SkMask::kComputeBoundsAndRenderImage_CreateMode)) {
         return false;
     }
     SkAutoMaskFreeImage autoSrc(srcM.fImage);
@@ -55,22 +54,6 @@ bool SkMaskFilter::filterPath(const SkPath& devPath, const SkMatrix& matrix,
 
 SkMaskFilter::BlurType SkMaskFilter::asABlur(BlurInfo*) const {
     return kNone_BlurType;
-}
-
-void SkMaskFilter::computeFastBounds(const SkRect& src, SkRect* dst) {
-    SkMask  srcM, dstM;
-
-    srcM.fImage = NULL;
-    src.roundOut(&srcM.fBounds);
-    srcM.fRowBytes = 0;
-    srcM.fFormat = SkMask::kA8_Format;
-
-    SkIPoint margin;    // ignored
-    if (this->filterMask(&dstM, srcM, SkMatrix::I(), &margin)) {
-        dst->set(dstM.fBounds);
-    } else {
-        dst->set(srcM.fBounds);
-    }
 }
 
 

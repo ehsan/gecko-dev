@@ -1976,8 +1976,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
 
   nsRefPtr<gfxContext> groupTarget;
   nsRefPtr<gfxASurface> untransformedSurface;
-  bool clipIsEmpty = !aTarget || aTarget->GetClipExtents().IsEmpty();
-  if (!is2D && !clipIsEmpty) {
+  if (!is2D) {
     untransformedSurface = 
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), 
                                                          gfxASurface::CONTENT_COLOR_ALPHA);
@@ -1995,7 +1994,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
     }
     untransformedSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));
     groupTarget = new gfxContext(untransformedSurface);
-  } else if (needsGroup && !clipIsEmpty) {
+  } else if (needsGroup) {
     groupTarget = PushGroupForLayer(aTarget, aLayer, aLayer->GetEffectiveVisibleRegion(),
                                     &needsClipToVisibleRegion);
   } else {
@@ -2047,11 +2046,14 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
     if (is2D) {
       PopGroupToSourceWithCachedSurface(aTarget, groupTarget);
     } else {
+      NS_ABORT_IF_FALSE(untransformedSurface, 
+                        "We should always allocate an untransformed surface with 3d transforms!");
+
       // Temporary fast fix for bug 725886
       // Revert these changes when 725886 is ready
-      if (!clipIsEmpty) {
-        NS_ABORT_IF_FALSE(untransformedSurface, 
-                          "We should always allocate an untransformed surface with 3d transforms!");
+      gfxRect clipExtents;
+      clipExtents = aTarget->GetClipExtents();
+      if (!clipExtents.IsEmpty()) {
         gfxPoint offset;
         bool dontBlit = needsClipToVisibleRegion || mTransactionIncomplete ||
                           aLayer->GetEffectiveOpacity() != 1.0f;

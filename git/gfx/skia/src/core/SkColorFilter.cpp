@@ -66,7 +66,7 @@ void SkFilterShader::endSession() {
     this->INHERITED::endSession();
 }
 
-void SkFilterShader::flatten(SkFlattenableWriteBuffer& buffer) const {
+void SkFilterShader::flatten(SkFlattenableWriteBuffer& buffer) {
     this->INHERITED::flatten(buffer);
     buffer.writeFlattenable(fShader);
     buffer.writeFlattenable(fFilter);

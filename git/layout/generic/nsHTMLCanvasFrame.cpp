@@ -344,7 +344,7 @@ nsHTMLCanvasFrame::GetContinuationOffset(nscoord* aWidth) const
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsHTMLCanvasFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();

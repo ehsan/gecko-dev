@@ -6,27 +6,27 @@
 #ifndef _nsXULAlertAccessible_H_
 #define _nsXULAlertAccessible_H_
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 
 /**
  * Accessible for supporting XUL alerts.
  */
 
-class nsXULAlertAccessible : public AccessibleWrap
+class nsXULAlertAccessible : public nsAccessibleWrap
 {
 public:
   nsXULAlertAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
   // Widgets
   virtual bool IsWidget() const;
-  virtual Accessible* ContainerWidget() const;
+  virtual nsAccessible* ContainerWidget() const;
 };
 
 #endif

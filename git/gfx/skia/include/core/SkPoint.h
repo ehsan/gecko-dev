@@ -213,13 +213,7 @@ struct SK_API SkPoint {
      *  Return true if the computed length of the vector is >= the internal
      *  tolerance (used to avoid dividing by tiny values).
      */
-    static bool CanNormalize(SkScalar dx, SkScalar dy)
-#ifdef SK_SCALAR_IS_FLOAT
-    // Simple enough (and performance critical sometimes) so we inline it.
-    { return (dx*dx + dy*dy) > (SK_ScalarNearlyZero * SK_ScalarNearlyZero); }
-#else
-    ;
-#endif
+    static bool CanNormalize(SkScalar dx, SkScalar dy);
 
     bool canNormalize() const {
         return CanNormalize(fX, fY);
@@ -321,29 +315,11 @@ struct SK_API SkPoint {
         return a.fX != b.fX || a.fY != b.fY;
     }
 
-    /** Return true if this point and the given point are far enough apart
-        such that a vector between them would be non-degenerate.
-
-        WARNING: Unlike the deprecated version of equalsWithinTolerance(),
-        this method does not use componentwise comparison.  Instead, it
-        uses a comparison designed to match judgments elsewhere regarding
-        degeneracy ("points A and B are so close that the vector between them
-        is essentially zero").
+    /** Return true if this and the given point are componentwise within tol.
     */
-    bool equalsWithinTolerance(const SkPoint& p) const {
-        return !CanNormalize(fX - p.fX, fY - p.fY);
-    }
-
-    /** DEPRECATED: Return true if this and the given point are componentwise
-        within tolerance "tol".
-
-        WARNING: There is no guarantee that the result will reflect judgments
-        elsewhere regarding degeneracy ("points A and B are so close that the
-        vector between them is essentially zero").
-    */
-    bool equalsWithinTolerance(const SkPoint& p, SkScalar tol) const {
-        return SkScalarNearlyZero(fX - p.fX, tol)
-               && SkScalarNearlyZero(fY - p.fY, tol);
+    bool equalsWithinTolerance(const SkPoint& v, SkScalar tol) const {
+        return SkScalarNearlyZero(fX - v.fX, tol)
+               && SkScalarNearlyZero(fY - v.fY, tol);
     }
 
     /** Returns a new point whose coordinates are the difference between
@@ -466,11 +442,11 @@ struct SK_API SkPoint {
     void setOrthog(const SkPoint& vec, Side side = kLeft_Side) {
         // vec could be this
         SkScalar tmp = vec.fX;
-        if (kRight_Side == side) {
+        if (kLeft_Side == side) {
             fX = -vec.fY;
             fY = tmp;
         } else {
-            SkASSERT(kLeft_Side == side);
+            SkASSERT(kRight_Side == side);
             fX = vec.fY;
             fY = -tmp;
         }

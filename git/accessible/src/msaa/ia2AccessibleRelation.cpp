@@ -17,7 +17,7 @@
 ia2AccessibleRelation::ia2AccessibleRelation(PRUint32 aType, Relation* aRel) :
   mType(aType), mReferences(0)
 {
-  Accessible* target = nsnull;
+  nsAccessible* target = nsnull;
   while ((target = aRel->Next()))
     mTargets.AppendElement(target);
 }

@@ -53,7 +53,7 @@ nsAccDocManager::GetDocAccessible(nsIDocument *aDocument)
   return CreateDocOrRootAccessible(aDocument);
 }
 
-Accessible*
+nsAccessible*
 nsAccDocManager::FindAccessibleInCache(nsINode* aNode) const
 {
   nsSearchAccessibleInCacheArg arg;
@@ -395,7 +395,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
 
   // Bind the document to the tree.
   if (isRootDoc) {
-    Accessible* appAcc = nsAccessNode::GetApplicationAccessible();
+    nsAccessible* appAcc = nsAccessNode::GetApplicationAccessible();
     if (!appAcc->AppendChild(docAcc)) {
       docAcc->Shutdown();
       return nsnull;

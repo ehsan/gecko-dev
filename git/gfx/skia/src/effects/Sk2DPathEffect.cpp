@@ -28,14 +28,10 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 Sk2DPathEffect::Sk2DPathEffect(const SkMatrix& mat) : fMatrix(mat) {
-    fMatrixIsInvertible = mat.invert(&fInverse);
+    mat.invert(&fInverse);
 }
 
 bool Sk2DPathEffect::filterPath(SkPath* dst, const SkPath& src, SkScalar* width) {
-    if (!fMatrixIsInvertible) {
-        return false;
-    }
-
     Sk2DPathEffectBlitter   blitter(this, dst);
     SkPath                  tmp;
     SkIRect                 ir;
@@ -51,10 +47,6 @@ bool Sk2DPathEffect::filterPath(SkPath* dst, const SkPath& src, SkScalar* width)
 }
 
 void Sk2DPathEffect::nextSpan(int x, int y, int count, SkPath* path) {
-    if (!fMatrixIsInvertible) {
-        return;
-    }
-
     const SkMatrix& mat = this->getMatrix();
     SkPoint src, dst;
 
@@ -72,8 +64,7 @@ void Sk2DPathEffect::end(SkPath* dst) {}
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void Sk2DPathEffect::flatten(SkFlattenableWriteBuffer& buffer) const {
-    this->INHERITED::flatten(buffer);
+void Sk2DPathEffect::flatten(SkFlattenableWriteBuffer& buffer) {
     char storage[SkMatrix::kMaxFlattenSize];
     uint32_t size = fMatrix.flatten(storage);
     buffer.write32(size);
@@ -86,7 +77,15 @@ Sk2DPathEffect::Sk2DPathEffect(SkFlattenableReadBuffer& buffer) {
     SkASSERT(size <= sizeof(storage));
     buffer.read(storage, size);
     fMatrix.unflatten(storage);
-    fMatrixIsInvertible = fMatrix.invert(&fInverse);
+    fMatrix.invert(&fInverse);
+}
+
+SkFlattenable::Factory Sk2DPathEffect::getFactory() {
+    return CreateProc;
+}
+
+SkFlattenable* Sk2DPathEffect::CreateProc(SkFlattenableReadBuffer& buffer) {
+    return SkNEW_ARGS(Sk2DPathEffect, (buffer));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -98,18 +97,25 @@ SkPath2DPathEffect::SkPath2DPathEffect(const SkMatrix& m, const SkPath& p)
 
 SkPath2DPathEffect::SkPath2DPathEffect(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {
-    buffer.readPath(&fPath);
+    fPath.unflatten(buffer);
 }
 
-void SkPath2DPathEffect::flatten(SkFlattenableWriteBuffer& buffer) const {
+SkFlattenable* SkPath2DPathEffect::CreateProc(SkFlattenableReadBuffer& buffer) {
+    return SkNEW_ARGS(SkPath2DPathEffect, (buffer));
+}
+
+void SkPath2DPathEffect::flatten(SkFlattenableWriteBuffer& buffer) {
     this->INHERITED::flatten(buffer);
-    buffer.writePath(fPath);
+    fPath.flatten(buffer);
+}
+
+SkFlattenable::Factory SkPath2DPathEffect::getFactory() {
+    return CreateProc;
 }
 
 void SkPath2DPathEffect::next(const SkPoint& loc, int u, int v, SkPath* dst) {
     dst->addPath(fPath, loc.fX, loc.fY);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
 SK_DEFINE_FLATTENABLE_REGISTRAR(SkPath2DPathEffect)
+

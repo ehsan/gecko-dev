@@ -910,7 +910,7 @@ nsInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsInlineFrame::CreateAccessible()
 {
   // Broken image accessibles are created here, because layout

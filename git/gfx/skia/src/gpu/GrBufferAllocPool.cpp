@@ -40,13 +40,14 @@ GrBufferAllocPool::GrBufferAllocPool(GrGpu* gpu,
     fMinBlockSize = GrMax(GrBufferAllocPool_MIN_BLOCK_SIZE, blockSize);
 
     fBytesInUse = 0;
-
+            
     fPreallocBuffersInUse = 0;
-    fPreallocBufferStartIdx = 0;
+    fFirstPreallocBuffer = 0;
     for (int i = 0; i < preallocBufferCnt; ++i) {
         GrGeometryBuffer* buffer = this->createBuffer(fMinBlockSize);
         if (NULL != buffer) {
             *fPreallocBuffers.append() = buffer;
+            buffer->ref();
         }
     }
 }
@@ -82,16 +83,13 @@ void GrBufferAllocPool::reset() {
             buffer->unlock();
         }
     }
-    // fPreallocBuffersInUse will be decremented down to zero in the while loop
-    int preallocBuffersInUse = fPreallocBuffersInUse;
     while (!fBlocks.empty()) {
-        this->destroyBlock();
+        destroyBlock();
     }
     if (fPreallocBuffers.count()) {
         // must set this after above loop.
-        fPreallocBufferStartIdx = (fPreallocBufferStartIdx +
-                                   preallocBuffersInUse) %
-                                  fPreallocBuffers.count();
+        fFirstPreallocBuffer = (fFirstPreallocBuffer + fPreallocBuffersInUse) %
+                               fPreallocBuffers.count();
     }
     // we may have created a large cpu mirror of a large VB. Reset the size
     // to match our pre-allocated VBs.
@@ -168,8 +166,7 @@ void* GrBufferAllocPool::makeSpace(size_t size,
             *offset = usedBytes;
             *buffer = back.fBuffer;
             back.fBytesFree -= size + pad;
-            fBytesInUse += size + pad;
-            VALIDATE();
+            fBytesInUse += size;
             return (void*)(reinterpret_cast<intptr_t>(fBufferPtr) + usedBytes);
         }
     }
@@ -220,12 +217,6 @@ int GrBufferAllocPool::preallocatedBufferCount() const {
 void GrBufferAllocPool::putBack(size_t bytes) {
     VALIDATE();
 
-    // if the putBack unwinds all the preallocated buffers then we will
-    // advance the starting index. As blocks are destroyed fPreallocBuffersInUse
-    // will be decremented. I will reach zero if all blocks using preallocated
-    // buffers are released.
-    int preallocBuffersInUse = fPreallocBuffersInUse;
-
     while (bytes) {
         // caller shouldnt try to put back more than they've taken
         GrAssert(!fBlocks.empty());
@@ -247,11 +238,6 @@ void GrBufferAllocPool::putBack(size_t bytes) {
             break;
         }
     }
-    if (!fPreallocBuffersInUse && fPreallocBuffers.count()) {
-            fPreallocBufferStartIdx = (fPreallocBufferStartIdx +
-                                       preallocBuffersInUse) %
-                                      fPreallocBuffers.count();
-    }
     VALIDATE();
 }
 
@@ -267,9 +253,8 @@ bool GrBufferAllocPool::createBlock(size_t requestSize) {
     if (size == fMinBlockSize &&
         fPreallocBuffersInUse < fPreallocBuffers.count()) {
 
-        uint32_t nextBuffer = (fPreallocBuffersInUse +
-                               fPreallocBufferStartIdx) %
-                              fPreallocBuffers.count();
+        uint32_t nextBuffer = (fPreallocBuffersInUse + fFirstPreallocBuffer) %
+                               fPreallocBuffers.count();
         block.fBuffer = fPreallocBuffers[nextBuffer];
         block.fBuffer->ref();
         ++fPreallocBuffersInUse;
@@ -317,7 +302,7 @@ void GrBufferAllocPool::destroyBlock() {
     BufferBlock& block = fBlocks.back();
     if (fPreallocBuffersInUse > 0) {
         uint32_t prevPreallocBuffer = (fPreallocBuffersInUse +
-                                       fPreallocBufferStartIdx +
+                                       fFirstPreallocBuffer +
                                        (fPreallocBuffers.count() - 1)) %
                                       fPreallocBuffers.count();
         if (block.fBuffer == fPreallocBuffers[prevPreallocBuffer]) {
@@ -336,7 +321,6 @@ void GrBufferAllocPool::flushCpuData(GrGeometryBuffer* buffer,
     GrAssert(!buffer->isLocked());
     GrAssert(fCpuData.get() == fBufferPtr);
     GrAssert(flushSize <= buffer->sizeInBytes());
-    VALIDATE(true);
 
     if (fGpu->getCaps().fBufferLockSupport &&
         flushSize > GR_GEOM_BUFFER_LOCK_THRESHOLD) {
@@ -348,7 +332,6 @@ void GrBufferAllocPool::flushCpuData(GrGeometryBuffer* buffer,
         }
     }
     buffer->updateData(fBufferPtr, flushSize);
-    VALIDATE(true);
 }
 
 GrGeometryBuffer* GrBufferAllocPool::createBuffer(size_t size) {

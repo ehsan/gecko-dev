@@ -63,8 +63,7 @@ typedef enum {
 
 typedef enum {
   AD_NONE,
-  AD_BITMAP,
-  AD_DXGI
+  AD_BITMAP
 } AsyncDrawing;
 
 typedef enum {

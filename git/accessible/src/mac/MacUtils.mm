@@ -6,7 +6,7 @@
 
 #import "MacUtils.h"
 
-#include "Accessible.h"
+#include "nsAccessible.h"
 
 #include "nsCocoaUtils.h"
 
@@ -23,7 +23,7 @@ LocalizedString(const nsString& aString)
 {
   nsString text;
   
-  Accessible::TranslateString(aString, text);
+  nsAccessible::TranslateString(aString, text);
   
   return text.IsEmpty() ? nil : nsCocoaUtils::ToNSString(text);
 }

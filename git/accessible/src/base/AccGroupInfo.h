@@ -14,17 +14,17 @@
 class AccGroupInfo
 {
 public:
-  AccGroupInfo(Accessible* aItem, mozilla::a11y::role aRole);
+  AccGroupInfo(nsAccessible* aItem, mozilla::a11y::role aRole);
   ~AccGroupInfo() { MOZ_COUNT_DTOR(AccGroupInfo); }
 
   PRInt32 PosInSet() const { return mPosInSet; }
   PRUint32 SetSize() const { return mSetSize; }
-  Accessible* ConceptualParent() const { return mParent; }
+  nsAccessible* ConceptualParent() const { return mParent; }
 
   /**
    * Create group info.
    */
-  static AccGroupInfo* CreateGroupInfo(Accessible* aAccessible)
+  static AccGroupInfo* CreateGroupInfo(nsAccessible* aAccessible)
   {
     mozilla::a11y::role role = aAccessible->Role();
     if (role != mozilla::a11y::roles::ROW &&
@@ -73,7 +73,7 @@ private:
 
   PRUint32 mPosInSet;
   PRUint32 mSetSize;
-  Accessible* mParent;
+  nsAccessible* mParent;
 };
 
 #endif

@@ -59,7 +59,7 @@ static gint getAnchorCountCB(AtkHyperlink *aLink);
 G_END_DECLS
 
 static gpointer parent_class = NULL;
-static Accessible*
+static nsAccessible*
 get_accessible_hyperlink(AtkHyperlink *aHyperlink);
 
 GType
@@ -88,7 +88,7 @@ mai_atk_hyperlink_get_type(void)
     return type;
 }
 
-MaiHyperlink::MaiHyperlink(Accessible* aHyperLink) :
+MaiHyperlink::MaiHyperlink(nsAccessible* aHyperLink) :
     mHyperlink(aHyperLink),
     mMaiAtkHyperlink(nsnull)
 {
@@ -179,7 +179,7 @@ finalizeCB(GObject *aObj)
 gchar *
 getUriCB(AtkHyperlink *aLink, gint aLinkIndex)
 {
-    Accessible* hyperlink = get_accessible_hyperlink(aLink);
+    nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, nsnull);
 
     nsCOMPtr<nsIURI> uri = hyperlink->AnchorURIAt(aLinkIndex);
@@ -196,13 +196,13 @@ getUriCB(AtkHyperlink *aLink, gint aLinkIndex)
 AtkObject *
 getObjectCB(AtkHyperlink *aLink, gint aLinkIndex)
 {
-    Accessible* hyperlink = get_accessible_hyperlink(aLink);
+    nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, nsnull);
 
-    Accessible* anchor = hyperlink->AnchorAt(aLinkIndex);
+    nsAccessible* anchor = hyperlink->AnchorAt(aLinkIndex);
     NS_ENSURE_TRUE(anchor, nsnull);
 
-    AtkObject* atkObj = AccessibleWrap::GetAtkObject(anchor);
+    AtkObject *atkObj = nsAccessibleWrap::GetAtkObject(anchor);
     //no need to add ref it, because it is "get" not "ref"
     return atkObj;
 }
@@ -210,7 +210,7 @@ getObjectCB(AtkHyperlink *aLink, gint aLinkIndex)
 gint
 getEndIndexCB(AtkHyperlink *aLink)
 {
-    Accessible* hyperlink = get_accessible_hyperlink(aLink);
+    nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, -1);
 
     return static_cast<gint>(hyperlink->EndOffset());
@@ -219,7 +219,7 @@ getEndIndexCB(AtkHyperlink *aLink)
 gint
 getStartIndexCB(AtkHyperlink *aLink)
 {
-    Accessible* hyperlink = get_accessible_hyperlink(aLink);
+    nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, -1);
 
     return static_cast<gint>(hyperlink->StartOffset());
@@ -228,7 +228,7 @@ getStartIndexCB(AtkHyperlink *aLink)
 gboolean
 isValidCB(AtkHyperlink *aLink)
 {
-    Accessible* hyperlink = get_accessible_hyperlink(aLink);
+    nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, FALSE);
 
     return static_cast<gboolean>(hyperlink->IsLinkValid());
@@ -237,7 +237,7 @@ isValidCB(AtkHyperlink *aLink)
 gint
 getAnchorCountCB(AtkHyperlink *aLink)
 {
-    Accessible* hyperlink = get_accessible_hyperlink(aLink);
+    nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, -1);
 
     return static_cast<gint>(hyperlink->AnchorCount());
@@ -245,7 +245,7 @@ getAnchorCountCB(AtkHyperlink *aLink)
 
 // Check if aHyperlink is a valid MaiHyperlink, and return the
 // HyperLinkAccessible related.
-Accessible*
+nsAccessible*
 get_accessible_hyperlink(AtkHyperlink *aHyperlink)
 {
     NS_ENSURE_TRUE(MAI_IS_ATK_HYPERLINK(aHyperlink), nsnull);

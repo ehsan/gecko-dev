@@ -34,15 +34,23 @@ public:
     virtual bool filterMask(SkMask* dst, const SkMask& src, const SkMatrix&,
                             SkIPoint* margin);
 
-    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkEmbossMaskFilter)
+    // overrides from SkFlattenable
+
+    //  This method is not exported to java.
+    virtual Factory getFactory();
+    //  This method is not exported to java.
+    virtual void flatten(SkFlattenableWriteBuffer&);
+
+    SK_DECLARE_FLATTENABLE_REGISTRAR()
 
 protected:
     SkEmbossMaskFilter(SkFlattenableReadBuffer&);
-    virtual void flatten(SkFlattenableWriteBuffer&) const SK_OVERRIDE;
 
 private:
     Light       fLight;
     SkScalar    fBlurRadius;
+
+    static SkFlattenable* CreateProc(SkFlattenableReadBuffer&);
     
     typedef SkMaskFilter INHERITED;
 };

@@ -16,18 +16,13 @@ public:
     SkOSWindow(void* hwnd);
     ~SkOSWindow();
     void*   getHWND() const { return fHWND; }
-
+    
     virtual bool onDispatchClick(int x, int y, Click::State state, 
                                  void* owner);
-    enum SkBackEndTypes {
-        kNone_BackEndType,
-        kNativeGL_BackEndType,
-    };
-
-    void    detach();
-    bool    attach(SkBackEndTypes attachType, int msaaSampleCount);
-    void    present();
-
+    void    detachGL();
+    bool    attachGL();
+    void    presentGL();
+    
 protected:
     // overrides from SkEventSink
     virtual bool onEvent(const SkEvent& evt);

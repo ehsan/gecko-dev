@@ -8092,9 +8092,14 @@ nsCSSFrameConstructor::ContentStateChanged(nsIContent* aContent,
     primaryFrame->ContentStatesChanged(aStateMask);
   }
 
+  if (aStateMask.HasState(NS_EVENT_STATE_HOVER) &&
+      !aElement->HasFlag(NODE_HAS_RELEVANT_HOVER_RULES)) {
+    aStateMask &= ~NS_EVENT_STATE_HOVER;
+  }
 
-  nsRestyleHint rshint = 
-    styleSet->HasStateDependentStyle(presContext, aElement, aStateMask);
+  nsRestyleHint rshint = aStateMask.IsEmpty() ?
+      nsRestyleHint(0) :
+      styleSet->HasStateDependentStyle(presContext, aElement, aStateMask);
       
   if (aStateMask.HasState(NS_EVENT_STATE_HOVER) && rshint != 0) {
     ++mHoverGeneration;
@@ -9558,7 +9563,6 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     nsStyleContext* styleContext;
 
     if (aCanHaveGeneratedContent) {
-      aFrame->AddStateBits(NS_FRAME_MAY_HAVE_GENERATED_CONTENT);
       styleContext =
         nsFrame::CorrectStyleParentFrame(aFrame, nsnull)->GetStyleContext();
       // Probe for generated content before
@@ -10728,9 +10732,6 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   // Initialize the frame
   InitAndRestoreFrame(aState, content, aParentFrame, nsnull, newFrame);
 
-  // Inline frames can always have generated content
-  newFrame->AddStateBits(NS_FRAME_MAY_HAVE_GENERATED_CONTENT);
-
   nsFrameConstructorSaveState absoluteSaveState;  // definition cannot be inside next block
                                                   // because the object's destructor is significant
                                                   // this is part of the fix for bug 42372
@@ -10847,8 +10848,6 @@ nsCSSFrameConstructor::CreateIBSiblings(nsFrameConstructorState& aState,
 
     InitAndRestoreFrame(aState, content, parentFrame, nsnull, inlineFrame,
                         false);
-
-    inlineFrame->AddStateBits(NS_FRAME_MAY_HAVE_GENERATED_CONTENT);
 
     if (aIsPositioned) {
       inlineFrame->MarkAsAbsoluteContainingBlock();

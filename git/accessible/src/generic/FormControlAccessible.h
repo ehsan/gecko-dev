@@ -26,7 +26,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLEVALUE
 
-  // Accessible
+  // nsAccessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
@@ -48,7 +48,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // Accessible
+  // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 
   // ActionAccessible

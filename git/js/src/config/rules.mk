@@ -284,6 +284,9 @@ _HOST_OBJS = $(HOST_COBJS) $(HOST_CCOBJS) $(HOST_CPPOBJS) $(HOST_CMOBJS) $(HOST_
 HOST_OBJS = $(strip $(_HOST_OBJS))
 endif
 
+LIBOBJS			:= $(addprefix \", $(OBJS))
+LIBOBJS			:= $(addsuffix \", $(LIBOBJS))
+
 ifndef MOZ_AUTO_DEPS
 ifneq (,$(OBJS)$(XPIDLSRCS)$(SIMPLE_PROGRAMS))
 MDDEPFILES		= $(addprefix $(MDDEPDIR)/,$(OBJS:.$(OBJ_SUFFIX)=.pp))

@@ -12,6 +12,9 @@
 #include "SkMaskFilter.h"
 #include "SkPath.h"
 
+// do nothing for now, since we don't store anything at flatten time
+SkRasterizer::SkRasterizer(SkFlattenableReadBuffer&) {}
+
 bool SkRasterizer::rasterize(const SkPath& fillPath, const SkMatrix& matrix,
                              const SkIRect* clipBounds, SkMaskFilter* filter,
                              SkMask* mask, SkMask::CreateMode mode) {
@@ -43,7 +46,6 @@ bool SkRasterizer::onRasterize(const SkPath& fillPath, const SkMatrix& matrix,
     SkPath  devPath;
     
     fillPath.transform(matrix, &devPath);
-    return SkDraw::DrawToMask(devPath, clipBounds, NULL, NULL, mask, mode,
-                              SkPaint::kFill_Style);
+    return SkDraw::DrawToMask(devPath, clipBounds, NULL, NULL, mask, mode);
 }
 

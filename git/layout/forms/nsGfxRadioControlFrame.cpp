@@ -34,7 +34,7 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsGfxRadioControlFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();
