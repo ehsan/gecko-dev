@@ -280,7 +280,7 @@ public:
     if (numFrames == WEBAUDIO_BLOCK_SIZE) {
       aOutput->SetNull(numFrames);
     } else {
-      if (*aOffsetWithinBlock == 0) {
+      if (aOutput->IsNull()) {
         AllocateAudioBlock(aChannels, aOutput);
       }
       WriteZeroesToAudioBlock(aOutput, *aOffsetWithinBlock, numFrames);
@@ -317,7 +317,8 @@ public:
       *aCurrentPosition += numFrames;
       mPosition += numFrames;
     } else {
-      if (*aOffsetWithinBlock == 0) {
+      if (aOutput->IsNull()) {
+        MOZ_ASSERT(*aOffsetWithinBlock == 0);
         AllocateAudioBlock(aChannels, aOutput);
       }
       if (!ShouldResample(aStream->SampleRate())) {
@@ -532,7 +533,7 @@ AudioBufferSourceNode::Start(double aWhen, double aOffset,
 
   // Don't set parameter unnecessarily
   if (aWhen > 0.0) {
-    ns->SetStreamTimeParameter(START, Context(), aWhen);
+    ns->SetStreamTimeParameter(START, Context()->DestinationStream(), aWhen);
   }
 
   MarkActive();
@@ -616,7 +617,8 @@ AudioBufferSourceNode::Stop(double aWhen, ErrorResult& aRv)
     return;
   }
 
-  ns->SetStreamTimeParameter(STOP, Context(), std::max(0.0, aWhen));
+  ns->SetStreamTimeParameter(STOP, Context()->DestinationStream(),
+                             std::max(0.0, aWhen));
 }
 
 void

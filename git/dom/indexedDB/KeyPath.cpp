@@ -7,7 +7,6 @@
 #include "KeyPath.h"
 #include "IDBObjectStore.h"
 #include "Key.h"
-#include "ReportInternalError.h"
 
 #include "nsCharSeparatedTokenizer.h"
 #include "nsJSUtils.h"
@@ -115,13 +114,13 @@ GetJSValFromKeyPathString(JSContext* aCx,
 
       bool ok = JS_HasUCProperty(aCx, obj, keyPathChars, keyPathLen,
                                  &hasProp);
-      IDB_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       if (hasProp) {
         // Get if the property exists...
         JS::Rooted<JS::Value> intermediate(aCx);
         bool ok = JS_GetUCProperty(aCx, obj, keyPathChars, keyPathLen, &intermediate);
-        IDB_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+        NS_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
         // Treat explicitly undefined as an error.
         if (intermediate == JSVAL_VOID) {
@@ -163,7 +162,6 @@ GetJSValFromKeyPathString(JSContext* aCx,
         JS::Rooted<JSObject*> dummy(aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(),
                                                       JS::NullPtr()));
         if (!dummy) {
-          IDB_REPORT_INTERNAL_ERR();
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;
         }
@@ -172,7 +170,6 @@ GetJSValFromKeyPathString(JSContext* aCx,
                                  token.Length(),
                                  OBJECT_TO_JSVAL(dummy), nullptr, nullptr,
                                  JSPROP_ENUMERATE)) {
-          IDB_REPORT_INTERNAL_ERR();
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;
         }
@@ -183,7 +180,6 @@ GetJSValFromKeyPathString(JSContext* aCx,
         JS::Rooted<JSObject*> dummy(aCx, JS_NewObject(aCx, &IDBObjectStore::sDummyPropJSClass,
                                                       JS::NullPtr(), JS::NullPtr()));
         if (!dummy) {
-          IDB_REPORT_INTERNAL_ERR();
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;
         }
@@ -191,7 +187,6 @@ GetJSValFromKeyPathString(JSContext* aCx,
         if (!JS_DefineUCProperty(aCx, obj, token.BeginReading(),
                                  token.Length(), OBJECT_TO_JSVAL(dummy),
                                  nullptr, nullptr, JSPROP_ENUMERATE)) {
-          IDB_REPORT_INTERNAL_ERR();
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;
         }
@@ -215,10 +210,9 @@ GetJSValFromKeyPathString(JSContext* aCx,
                               targetObjectPropName.get(),
                               targetObjectPropName.Length(),
                               &succeeded)) {
-      IDB_REPORT_INTERNAL_ERR();
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
-    IDB_ENSURE_TRUE(succeeded, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_TRUE(succeeded, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -270,7 +264,8 @@ KeyPath::Parse(JSContext* aCx, const JS::Value& aValue_, KeyPath* aKeyPath)
   aKeyPath->SetType(NONEXISTENT);
 
   // See if this is a JS array.
-  if (JS_IsArrayObject(aCx, aValue)) {
+  if (!JSVAL_IS_PRIMITIVE(aValue) &&
+      JS_IsArrayObject(aCx, JSVAL_TO_OBJECT(aValue))) {
 
     JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(aValue));
 
@@ -404,8 +399,7 @@ KeyPath::ExtractKeyAsJSVal(JSContext* aCx, const JS::Value& aValue,
       return rv;
     }
 
-    if (!JS_SetElement(aCx, arrayObj, i, value)) {
-      IDB_REPORT_INTERNAL_ERR();
+    if (!JS_SetElement(aCx, arrayObj, i, &value)) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
   }
@@ -503,7 +497,7 @@ KeyPath::ToJSVal(JSContext* aCx, JS::MutableHandle<JS::Value> aValue) const
     uint32_t len = mStrings.Length();
     JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, len, nullptr));
     if (!array) {
-      IDB_WARNING("Failed to make array!");
+      NS_WARNING("Failed to make array!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
@@ -511,12 +505,10 @@ KeyPath::ToJSVal(JSContext* aCx, JS::MutableHandle<JS::Value> aValue) const
       JS::Rooted<JS::Value> val(aCx);
       nsString tmp(mStrings[i]);
       if (!xpc::StringToJsval(aCx, tmp, &val)) {
-        IDB_REPORT_INTERNAL_ERR();
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
 
-      if (!JS_SetElement(aCx, array, i, val)) {
-        IDB_REPORT_INTERNAL_ERR();
+      if (!JS_SetElement(aCx, array, i, &val)) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
     }
@@ -528,7 +520,6 @@ KeyPath::ToJSVal(JSContext* aCx, JS::MutableHandle<JS::Value> aValue) const
   if (IsString()) {
     nsString tmp(mStrings[0]);
     if (!xpc::StringToJsval(aCx, tmp, aValue)) {
-      IDB_REPORT_INTERNAL_ERR();
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
     return NS_OK;

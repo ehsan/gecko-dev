@@ -2070,7 +2070,6 @@ static bool sPrefLayersScrollGraph = false;
 static bool sPrefLayersEnableTiles = false;
 static bool sLayersSupportsD3D9 = false;
 static int  sPrefLayoutFrameRate = -1;
-static int  sPrefLayersCompositionFrameRate = -1;
 static bool sBufferRotationEnabled = false;
 static bool sComponentAlphaEnabled = true;
 static bool sPrefBrowserTabsRemote = false;
@@ -2099,7 +2098,6 @@ InitLayersAccelerationPrefs()
     sPrefLayersScrollGraph = Preferences::GetBool("layers.scroll-graph", false);
     sPrefLayersEnableTiles = Preferences::GetBool("layers.enable-tiles", false);
     sPrefLayoutFrameRate = Preferences::GetInt("layout.frame_rate", -1);
-    sPrefLayersCompositionFrameRate = Preferences::GetInt("layers.offmainthreadcomposition.frame-rate", -1);
     sBufferRotationEnabled = Preferences::GetBool("layers.bufferrotation.enabled", true);
     sComponentAlphaEnabled = Preferences::GetBool("layers.componentalpha.enabled", true);
     sPrefBrowserTabsRemote = BrowserTabsRemote();
@@ -2219,13 +2217,6 @@ gfxPlatform::GetPrefLayersEnableTiles()
   return sPrefLayersEnableTiles;
 }
 
-int
-gfxPlatform::GetPrefLayersCompositionFrameRate()
-{
-  InitLayersAccelerationPrefs();
-  return sPrefLayersCompositionFrameRate;
-}
-
 bool
 gfxPlatform::BufferRotationEnabled()
 {
@@ -2262,17 +2253,4 @@ gfxPlatform::AsyncVideoEnabled()
 #else
   return Preferences::GetBool("layers.async-video.enabled", false);
 #endif
-}
-
-TemporaryRef<ScaledFont>
-gfxPlatform::GetScaledFontForFontWithCairoSkia(DrawTarget* aTarget, gfxFont* aFont)
-{
-    NativeFont nativeFont;
-    if (aTarget->GetType() == BackendType::CAIRO || aTarget->GetType() == BackendType::SKIA) {
-        nativeFont.mType = NativeFontType::CAIRO_FONT_FACE;
-        nativeFont.mFont = aFont->GetCairoScaledFont();
-        return Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
-    }
-
-    return nullptr;
 }

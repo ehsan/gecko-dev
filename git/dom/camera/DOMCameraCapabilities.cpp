@@ -44,7 +44,9 @@ ParseZoomRatioItemAndAdd(JSContext* aCx, JS::Handle<JSObject*> aArray,
   d /= 100;
 #endif
 
-  if (!JS_SetElement(aCx, aArray, aIndex, d)) {
+  JS::Rooted<JS::Value> v(aCx, JS_NumberValue(d));
+
+  if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -55,7 +57,7 @@ static nsresult
 ParseStringItemAndAdd(JSContext* aCx, JS::Handle<JSObject*> aArray,
                       uint32_t aIndex, const char* aStart, char** aEnd)
 {
-  JS::Rooted<JSString*> s(aCx);
+  JSString* s;
 
   if (*aEnd) {
     s = JS_NewStringCopyN(aCx, aStart, *aEnd - aStart);
@@ -66,7 +68,8 @@ ParseStringItemAndAdd(JSContext* aCx, JS::Handle<JSObject*> aArray,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  if (!JS_SetElement(aCx, aArray, aIndex, s)) {
+  JS::Rooted<JS::Value> v(aCx, STRING_TO_JSVAL(s));
+  if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -99,7 +102,8 @@ ParseDimensionItemAndAdd(JSContext* aCx, JS::Handle<JSObject*> aArray,
     return NS_ERROR_FAILURE;
   }
 
-  if (!JS_SetElement(aCx, aArray, aIndex, o)) {
+  JS::Rooted<JS::Value> v(aCx, OBJECT_TO_JSVAL(o));
+  if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -394,7 +398,8 @@ DOMCameraCapabilities::GetVideoSizes(JSContext* cx, JS::MutableHandle<JS::Value>
       return NS_ERROR_FAILURE;
     }
 
-    if (!JS_SetElement(cx, array, i, o)) {
+    v = OBJECT_TO_JSVAL(o);
+    if (!JS_SetElement(cx, array, i, &v)) {
       return NS_ERROR_FAILURE;
     }
   }

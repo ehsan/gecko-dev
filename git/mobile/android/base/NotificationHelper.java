@@ -23,7 +23,6 @@ import android.net.Uri;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-import java.util.Iterator;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -321,21 +320,15 @@ public final class NotificationHelper implements GeckoEventListener {
         }
     }
 
-    private void closeNotification(String id) {
+    public void hideNotification(String id) {
         GeckoAppShell.sNotificationClient.remove(id.hashCode());
+        mClearableNotifications.remove(id);
         sendNotificationWasClosed(id);
     }
 
-    public void hideNotification(String id) {
-        mClearableNotifications.remove(id);
-        closeNotification(id);
-    }
-
     private void clearAll() {
-        for (Iterator<String> i = mClearableNotifications.iterator(); i.hasNext();) {
-            final String id = i.next();
-            i.remove();
-            closeNotification(id);
+        for (String id : mClearableNotifications) {
+            hideNotification(id);
         }
     }
 

@@ -456,7 +456,7 @@ class AsmJSModule
         return charsBegin_ + pod.charsLength_;
     }
 
-    bool addGlobalVarInit(const Value &v, AsmJSCoercion coercion, uint32_t *globalIndex) {
+    bool addGlobalVarInitConstant(const Value &v, AsmJSCoercion coercion, uint32_t *globalIndex) {
         JS_ASSERT(pod.funcPtrTableAndExitBytes_ == 0);
         if (pod.numGlobalVars_ == UINT32_MAX)
             return false;

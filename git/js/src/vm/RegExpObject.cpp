@@ -229,6 +229,7 @@ const Class RegExpObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,                 /* finalize */
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct */

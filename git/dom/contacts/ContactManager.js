@@ -391,19 +391,14 @@ ContactManager.prototype = {
     }
   },
 
-  remove: function removeContact(aRecordOrId) {
+  remove: function removeContact(aRecord) {
     let request = this.createRequest();
-    let id;
-    if (typeof aRecordOrId === "string") {
-      id = aRecordOrId;
-    } else if (!aRecordOrId || !aRecordOrId.id) {
+    if (!aRecord || !aRecord.id) {
       Services.DOMRequest.fireErrorAsync(request, true);
       return request;
-    } else {
-      id = aRecordOrId.id;
     }
 
-    let options = { id: id };
+    let options = { id: aRecord.id };
     let allowCallback = function() {
       cpmm.sendAsyncMessage("Contact:Remove", {requestID: this.getRequestId({request: request, reason: "remove"}), options: options});
     }.bind(this);

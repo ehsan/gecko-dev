@@ -32,7 +32,6 @@
 #if defined(JS_ION)
 # include "assembler/assembler/MacroAssembler.h"
 #endif
-#include "jit/arm/Simulator-arm.h"
 #include "jit/AsmJSSignalHandlers.h"
 #include "jit/JitCompartment.h"
 #include "jit/PcScriptCache.h"
@@ -74,10 +73,6 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
     ionStackLimit(0),
     activation_(nullptr),
     asmJSActivationStack_(nullptr),
-#ifdef JS_ARM_SIMULATOR
-    simulator_(nullptr),
-    simulatorStackLimit_(0),
-#endif
     dtoaState(nullptr),
     suppressGC(0),
 #ifdef DEBUG
@@ -93,10 +88,6 @@ PerThreadData::~PerThreadData()
 
     if (isInList())
         removeFromThreadList();
-
-#ifdef JS_ARM_SIMULATOR
-    js_delete(simulator_);
-#endif
 }
 
 bool
@@ -264,9 +255,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcFinalizeCallback(nullptr),
     gcMallocBytes(0),
     gcMallocGCTriggered(false),
-#ifdef JS_ARM_SIMULATOR
-    simulatorRuntime_(nullptr),
-#endif
     scriptAndCountsVector(nullptr),
     NaNValue(DoubleNaNValue()),
     negativeInfinityValue(DoubleValue(NegativeInfinity())),
@@ -440,12 +428,6 @@ JSRuntime::init(uint32_t maxbytes)
     if (!evalCache.init())
         return false;
 
-#ifdef JS_ARM_SIMULATOR
-    simulatorRuntime_ = js::jit::CreateSimulatorRuntime();
-    if (!simulatorRuntime_)
-        return false;
-#endif
-
     nativeStackBase = GetNativeStackBase();
 
     jitSupportsFloatingPoint = JitSupportsFloatingPoint();
@@ -576,10 +558,6 @@ JSRuntime::~JSRuntime()
     gcNursery.disable();
 #endif
 
-#ifdef JS_ARM_SIMULATOR
-    js::jit::DestroySimulatorRuntime(simulatorRuntime_);
-#endif
-
     DebugOnly<size_t> oldCount = liveRuntimesCount--;
     JS_ASSERT(oldCount > 0);
 
@@ -602,17 +580,6 @@ NewObjectCache::clearNurseryObjects(JSRuntime *rt)
         }
     }
 }
-
-void
-JSRuntime::resetIonStackLimit()
-{
-    AutoLockForOperationCallback lock(this);
-    mainThread.setIonStackLimit(mainThread.nativeStackLimit[js::StackForUntrustedScript]);
-
-#ifdef JS_ARM_SIMULATOR
-    mainThread.setIonStackLimit(js::jit::Simulator::StackLimit());
-#endif
- }
 
 void
 JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *rtSizes)
@@ -823,7 +790,7 @@ JSRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 {
     /* We tolerate any thread races when updating gcMallocBytes. */
     gcMallocBytes -= ptrdiff_t(nbytes);
-    if (MOZ_UNLIKELY(gcMallocBytes <= 0))
+    if (JS_UNLIKELY(gcMallocBytes <= 0))
         onTooMuchMalloc();
     else if (zone)
         zone->updateMallocCounter(nbytes);

@@ -3759,11 +3759,8 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       return NS_ERROR_FAILURE;
     }
 
-    // StartAssignment() is used instead getter_AddRefs because, getter_AddRefs
-    // does QI in debug build and, if this worker runs in a child process,
-    // HttpChannelChild will crash because it's not thread-safe.
     rv = ChannelFromScriptURLWorkerThread(aCx, aParent, aScriptURL,
-                                          loadInfo.mChannel.StartAssignment());
+                                          getter_AddRefs(loadInfo.mChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Now that we've spun the loop there's no guarantee that our parent is

@@ -28,7 +28,7 @@ import java.util.ArrayList;
 
 public class UninstallListener extends BroadcastReceiver {
 
-    private static String LOGTAG = "GeckoWebAppUninstallListener";
+    private static String LOGTAG = "GeckoUninstallListener";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -39,7 +39,7 @@ public class UninstallListener extends BroadcastReceiver {
             return;
         }
 
-        Allocator allocator = Allocator.getInstance(context);
+        WebAppAllocator allocator = WebAppAllocator.getInstance(context);
         ArrayList<String> installedPackages = allocator.getInstalledPackageNames();
 
         if (installedPackages.contains(packageName)) {
@@ -57,7 +57,7 @@ public class UninstallListener extends BroadcastReceiver {
 
     public static void initUninstallPackageScan(Context context) {
         // get list of packages we think are installed
-        Allocator allocator = Allocator.getInstance(context);
+        WebAppAllocator allocator = WebAppAllocator.getInstance(context);
         ArrayList<String> fennecPackages = allocator.getInstalledPackageNames();
         ArrayList<String> uninstalledPackages = new ArrayList<String>();
 

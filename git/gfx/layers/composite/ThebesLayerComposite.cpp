@@ -8,6 +8,7 @@
 #include "FrameMetrics.h"               // for FrameMetrics
 #include "Units.h"                      // for CSSRect, LayerPixel, etc
 #include "gfx2DGlue.h"                  // for ToMatrix4x4
+#include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxUtils.h"                   // for gfxUtils, etc
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
@@ -104,6 +105,8 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
              mBuffer->GetLayer() == this,
              "buffer is corrupted");
 
+  gfx::Matrix4x4 transform;
+  ToMatrix4x4(GetEffectiveTransform(), transform);
   gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
 
 #ifdef MOZ_DUMP_PAINTING
@@ -131,7 +134,7 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
   mBuffer->Composite(effectChain,
                      GetEffectiveOpacity(),
-                     GetEffectiveTransform(),
+                     transform,
                      gfx::Filter::LINEAR,
                      clipRect,
                      &visibleRegion,

@@ -239,7 +239,6 @@ WEBIDL_FILES = [
     'MutationEvent.webidl',
     'MutationObserver.webidl',
     'NetDashboard.webidl',
-    'NetworkOptions.webidl',
     'Node.webidl',
     'NodeFilter.webidl',
     'NodeIterator.webidl',
@@ -429,7 +428,6 @@ WEBIDL_FILES = [
     'WheelEvent.webidl',
     'WifiOptions.webidl',
     'Worker.webidl',
-    'WorkerConsole.webidl',
     'WorkerGlobalScope.webidl',
     'WorkerLocation.webidl',
     'WorkerNavigator.webidl',
@@ -539,8 +537,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     WEBIDL_FILES += [
         'MozSpeakerManager.webidl',
         'MozWifiConnectionInfoEvent.webidl',
-        'MozWifiP2pManager.webidl',
-        'MozWifiP2pStatusChangeEvent.webidl',
         'MozWifiStatusChangeEvent.webidl',
     ]
 
@@ -553,11 +549,6 @@ if CONFIG['MOZ_WEBSPEECH']:
 if CONFIG['MOZ_B2G_FM']:
     WEBIDL_FILES += [
         'FMRadio.webidl',
-    ]
-
-if not CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
-    WEBIDL_FILES += [
-        'CRMFObject.webidl',
     ]
 
 GENERATED_EVENTS_WEBIDL_FILES = [

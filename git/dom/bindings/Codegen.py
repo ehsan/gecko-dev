@@ -201,6 +201,7 @@ static const DOMJSClass Class = {
     %s, /* resolve */
     JS_ConvertStub,
     %s, /* finalize */
+    nullptr,               /* checkAccess */
     %s, /* call */
     nullptr,               /* hasInstance */
     nullptr,               /* construct */
@@ -291,6 +292,7 @@ class CGPrototypeJSClass(CGThing):
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,               /* finalize */
+    nullptr,               /* checkAccess */
     nullptr,               /* call */
     nullptr,               /* hasInstance */
     nullptr,               /* construct */
@@ -348,6 +350,7 @@ static DOMIfaceAndProtoJSClass InterfaceObjectClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,               /* finalize */
+    nullptr,               /* checkAccess */
     %s, /* call */
     %s, /* hasInstance */
     %s, /* construct */
@@ -2477,7 +2480,6 @@ class CGClearCachedValueMethod(CGAbstractMethod):
             regetMember = ("\n"
                            "JS::Rooted<JS::Value> temp(aCx);\n"
                            "JSJitGetterCallArgs args(&temp);\n"
-                           "JSAutoCompartment ac(aCx, obj);\n"
                            "if (!get_%s(aCx, obj, aObject, args)) {\n"
                            "  js::SetReservedSlot(obj, %s, oldValue);\n"
                            "  nsJSUtils::ReportPendingException(aCx);\n"
@@ -6022,20 +6024,6 @@ class CGNewResolveHook(CGAbstractBindingMethod):
                 "objp.set(obj);\n"
                 "return true;"))
 
-    def definition_body(self):
-        if self.descriptor.interface.getExtendedAttribute("Global"):
-            # Resolve standard classes
-            prefix = CGIndenter(CGGeneric(
-                    "if (!ResolveGlobal(cx, obj, id, flags, objp)) {\n"
-                    "  return false;\n"
-                    "}\n"
-                    "if (objp) {\n"
-                    "  return true;\n"
-                    "}\n\n")).define()
-        else:
-            prefix = ""
-        return prefix + CGAbstractBindingMethod.definition_body(self)
-
 class CGEnumerateHook(CGAbstractBindingMethod):
     """
     Enumerate hook for objects with custom hooks.
@@ -6067,17 +6055,6 @@ class CGEnumerateHook(CGAbstractBindingMethod):
                 "}\n"
                 "return true;"))
 
-    def definition_body(self):
-        if self.descriptor.interface.getExtendedAttribute("Global"):
-            # Enumerate standard classes
-            prefix = CGIndenter(CGGeneric(
-                    "if (!EnumerateGlobal(cx, obj)) {\n"
-                    "  return false;\n"
-                    "}\n\n")).define()
-        else:
-            prefix = ""
-        return prefix + CGAbstractBindingMethod.definition_body(self)
-
 class CppKeywords():
     """
     A class for checking if method names declared in webidl
@@ -6095,10 +6072,8 @@ class CppKeywords():
 
     @staticmethod
     def checkMethodName(name):
-        # Double '_' because 'assert' and '_assert' cannot be used in MS2013 compiler.
-        # Bug 964892 and bug 963560.
         if name in CppKeywords.keywords:
-          name = '_' + name + '_'
+          name = '_' + name
         return name
 
 class CGStaticMethod(CGAbstractStaticBindingMethod):
@@ -6337,8 +6312,7 @@ if (!v.isObject()) {
   return ThrowErrorMessage(cx, MSG_NOT_OBJECT, "%s.%s");
 }
 
-JS::Rooted<JSObject*> targetObj(cx, &v.toObject());
-return JS_SetProperty(cx, targetObj, "%s", args[0]);""" % (attrName, self.descriptor.interface.identifier.name, attrName, forwardToAttrName))).define()
+return JS_SetProperty(cx, &v.toObject(), "%s", args[0]);""" % (attrName, self.descriptor.interface.identifier.name, attrName, forwardToAttrName))).define()
 
 class CGSpecializedReplaceableSetter(CGSpecializedSetter):
     """
@@ -7758,29 +7732,6 @@ class CGResolveOwnPropertyViaNewresolve(CGAbstractBindingMethod):
                                          callArgs="")
     def generate_code(self):
         return CGIndenter(CGGeneric(
-                "{\n"
-                "  // Since we're dealing with an Xray, do the resolve on the\n"
-                "  // underlying object first.  That gives it a chance to\n"
-                "  // define properties on the actual object as needed, and\n"
-                "  // then use the fact that it created the objects as a flag\n"
-                "  // o avoid re-resolving the properties if someone deletes\n"
-                "  // them.\n"
-                "  JSAutoCompartment ac(cx, obj);\n"
-                "  JS::Rooted<JSPropertyDescriptor> objDesc(cx);\n"
-                "  if (!self->DoNewResolve(cx, obj, id, &objDesc)) {\n"
-                "    return false;\n"
-                "  }\n"
-                "  // If desc.value() is undefined, then the DoNewResolve call\n"
-                "  // has already defined the property on the object.  Don't\n"
-                "  // try to also define it.\n"
-                "  if (objDesc.object() &&\n"
-                "      !objDesc.value().isUndefined() &&\n"
-                "      !JS_DefinePropertyById(cx, obj, id, objDesc.value(),\n"
-                "                             objDesc.getter(), objDesc.setter(),\n"
-                "                             objDesc.attributes())) {\n"
-                "    return false;\n"
-                "  }\n"
-                "}\n"
                 "return self->DoNewResolve(cx, wrapper, id, desc);"))
 
 class CGEnumerateOwnProperties(CGAbstractStaticMethod):
@@ -11458,7 +11409,7 @@ class CallbackSetter(CallbackAccessor):
             }
         return string.Template(
             'MOZ_ASSERT(argv.length() == 1);\n'
-            'if (!JS_SetProperty(cx, CallbackPreserveColor(), "${attrName}", ${argv})) {\n'
+            'if (!JS_SetProperty(cx, mCallback, "${attrName}", ${argv})) {\n'
             '  aRv.Throw(NS_ERROR_UNEXPECTED);\n'
             '  return${errorReturn};\n'
             '}\n').substitute(replacements)

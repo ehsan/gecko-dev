@@ -39,11 +39,11 @@
   whether the use is for internal use such as eCSSProperty_* or
   nsRuleData::ValueFor* or external use such as exposing DOM properties.
 
-  -. 'flags', a bitfield containing CSS_PROPERTY_* flags.
-
   -. 'pref' is the name of a pref that controls whether the property
   is enabled.  The property is enabled if 'pref' is an empty string,
   or if the boolean property whose name is 'pref' is set to true.
+
+  -. 'flags', a bitfield containing CSS_PROPERTY_* flags.
 
   -. 'parsevariant', to be passed to ParseVariant in the parser.
 
@@ -1380,15 +1380,15 @@ CSS_PROP_BORDER(
     offsetof(nsStyleBorder, mBoxShadow),
     eStyleAnimType_Shadow)
 CSS_PROP_POSITION(
-    box-sizing,
+    -moz-box-sizing,
     box_sizing,
-    BoxSizing,
+    CSS_PROP_DOMPROP_PREFIXED(BoxSizing),
     CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kBoxSizingKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
+    eStyleAnimType_None) // XXX bug 3935
 CSS_PROP_TABLEBORDER(
     caption-side,
     caption_side,
@@ -3751,18 +3751,6 @@ CSS_PROP_SVGRESET(
     kVectorEffectKTable,
     offsetof(nsStyleSVGReset, mVectorEffect),
     eStyleAnimType_EnumU8)
-
-CSS_PROP_DISPLAY(
-    will-change,
-    will_change,
-    WillChange,
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
-    "layout.css.will-change.enabled",
-    0,
-    nullptr,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
 
 // The shorthands below are essentially aliases, but they require different
 // parsing rules, and are therefore implemented as shorthands.

@@ -12,9 +12,6 @@
 
 namespace mozilla {
 
-bool IsGLDepthFormat(GLenum internalFormat);
-bool IsGLDepthStencilFormat(GLenum internalFormat);
-
 template <typename WebGLObjectType>
 JS::Value
 WebGLContext::WebGLObjectAsJSValue(JSContext *cx, const WebGLObjectType *object, ErrorResult& rv) const

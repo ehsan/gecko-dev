@@ -163,7 +163,7 @@ public class Tabs implements GeckoEventListener {
         return count;
     }
 
-    public int isOpen(String url) {
+    public synchronized int isOpen(String url) {
         for (Tab tab : mOrder) {
             if (tab.getURL().equals(url)) {
                 return tab.getId();
@@ -645,44 +645,32 @@ public class Tabs implements GeckoEventListener {
     /**
      * Looks for an open tab with the given URL.
      * @param url       the URL of the tab we're looking for
-     *
-     * @return first Tab with the given URL, or null if there is no such tab.
-     */
-    public Tab getFirstTabForUrl(String url) {
-        return getFirstTabForUrlHelper(url, null);
-    }
-
-    /**
-     * Looks for an open tab with the given URL and private state.
-     * @param url       the URL of the tab we're looking for
      * @param isPrivate if true, only look for tabs that are private. if false,
      *                  only look for tabs that are non-private.
      *
-     * @return first Tab with the given URL, or null if there is no such tab.
+     * @return id of an open tab with the given URL; -1 if the tab doesn't exist.
      */
-    public Tab getFirstTabForUrl(String url, boolean isPrivate) {
-        return getFirstTabForUrlHelper(url, isPrivate);
-    }
-
-    private Tab getFirstTabForUrlHelper(String url, Boolean isPrivate) {
-        if (url == null) {
-            return null;
-        }
-
+    public int getTabIdForUrl(String url, boolean isPrivate) {
         for (Tab tab : mOrder) {
-            if (isPrivate != null && isPrivate != tab.isPrivate()) {
-                continue;
-            }
             String tabUrl = tab.getURL();
             if (AboutPages.isAboutReader(tabUrl)) {
                 tabUrl = ReaderModeUtils.getUrlFromAboutReader(tabUrl);
             }
-            if (url.equals(tabUrl)) {
-                return tab;
+            if (TextUtils.equals(tabUrl, url) && isPrivate == tab.isPrivate()) {
+                return tab.getId();
             }
         }
 
-        return null;
+        return -1;
+    }
+
+    public int getTabIdForUrl(String url) {
+        return getTabIdForUrl(url, Tabs.getInstance().getSelectedTab().isPrivate());
+    }
+
+    public synchronized Tab getTabForUrl(String url) {
+        int tabId = getTabIdForUrl(url);
+        return getTab(tabId);
     }
 
     /**

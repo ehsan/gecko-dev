@@ -209,7 +209,7 @@ addDOMTouch(UserInputData& data, WidgetTouchEvent& event, int i)
     const ::Touch& touch = data.motion.touches[i];
     event.touches.AppendElement(
         new dom::Touch(touch.id,
-                       nsIntPoint(floor(touch.coords.getX() + 0.5), floor(touch.coords.getY() + 0.5)),
+                       nsIntPoint(touch.coords.getX(), touch.coords.getY()),
                        nsIntPoint(touch.coords.getAxisValue(AMOTION_EVENT_AXIS_SIZE),
                                   touch.coords.getAxisValue(AMOTION_EVENT_AXIS_SIZE)),
                        0,
@@ -413,8 +413,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        hal::NotifySwitchStateFromInputDevice(mEvent.device(),
-          mEvent.status());
+        hal::NotifySwitchChange(mEvent);
         return NS_OK;
     }
 private:
@@ -878,10 +877,6 @@ nsAppShell::Init()
         android::FakeSurfaceComposer::instantiate();
 #endif
         GonkPermissionService::instantiate();
-
-        // Causes the kernel timezone to be set, which in turn causes the
-        // timestamps on SD cards to have the local time rather than UTC time.
-        hal::SetTimezone(hal::GetTimezone());
     }
 
     nsCOMPtr<nsIObserverService> obsServ = GetObserverService();

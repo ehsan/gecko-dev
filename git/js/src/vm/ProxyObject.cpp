@@ -20,11 +20,14 @@ ProxyObject::New(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, Tag
     Rooted<TaggedProto> proto(cx, proto_);
     RootedObject parent(cx, parent_);
 
-    const Class *clasp = options.clasp();
-
-    JS_ASSERT(isValidProxyClass(clasp));
     JS_ASSERT_IF(proto.isObject(), cx->compartment() == proto.toObject()->compartment());
     JS_ASSERT_IF(parent, cx->compartment() == parent->compartment());
+    const Class *clasp;
+    if (handler->isOuterWindow())
+        clasp = &OuterWindowProxyObject::class_;
+    else
+        clasp = options.callable() ? &ProxyObject::callableClass_
+                                   : &ProxyObject::uncallableClass_;
 
     /*
      * Eagerly mark properties unknown for proxies, so we don't try to track
@@ -37,7 +40,8 @@ ProxyObject::New(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, Tag
             return nullptr;
     }
 
-    NewObjectKind newKind = options.singleton() ? SingletonObject : GenericObject;
+    NewObjectKind newKind =
+        (clasp == &OuterWindowProxyObject::class_ || options.singleton()) ? SingletonObject : GenericObject;
     gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
     if (handler->finalizeInBackground(priv))
         allocKind = GetBackgroundAllocKind(allocKind);
@@ -84,10 +88,9 @@ NukeSlot(ProxyObject *proxy, uint32_t slot)
 void
 ProxyObject::nuke(BaseProxyHandler *handler)
 {
-    /* Allow people to add their own number of reserved slots beyond the expected 4 */
-    unsigned numSlots = JSCLASS_RESERVED_SLOTS(getClass());
-    for (unsigned i = 0; i < numSlots; i++)
-        NukeSlot(this, i);
-    /* Restore the handler as requested after nuking. */
+    NukeSlot(this, PRIVATE_SLOT);
     setHandler(handler);
+
+    NukeSlot(this, EXTRA_SLOT + 0);
+    NukeSlot(this, EXTRA_SLOT + 1);
 }

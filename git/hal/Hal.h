@@ -438,12 +438,6 @@ void NotifySwitchChange(const hal::SwitchEvent& aEvent);
 hal::SwitchState GetCurrentSwitchState(hal::SwitchDevice aDevice);
 
 /**
- * Notify switch status change from input device.
- */
-void NotifySwitchStateFromInputDevice(hal::SwitchDevice aDevice,
-                                      hal::SwitchState aState);
-
-/**
  * Register an observer that is notified when a programmed alarm
  * expires.
  *

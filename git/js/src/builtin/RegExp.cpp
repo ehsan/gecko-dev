@@ -306,13 +306,13 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     return true;
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 IsRegExp(HandleValue v)
 {
     return v.isObject() && v.toObject().is<RegExpObject>();
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 regexp_compile_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsRegExp(args.thisv()));
@@ -351,7 +351,7 @@ regexp_construct(JSContext *cx, unsigned argc, Value *vp)
     return CompileRegExpObject(cx, builder, args);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 regexp_toString_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsRegExp(args.thisv()));

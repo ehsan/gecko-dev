@@ -30,7 +30,6 @@
 #include "jit/IonBuilder.h"
 #include "jit/IonOptimizationLevels.h"
 #include "jit/IonSpewer.h"
-#include "jit/JitCommon.h"
 #include "jit/JitCompartment.h"
 #include "jit/LICM.h"
 #include "jit/LinearScan.h"
@@ -1572,9 +1571,14 @@ OffThreadCompilationAvailable(JSContext *cx)
     // Skip off thread compilation if PC count profiling is enabled, as
     // CodeGenerator::maybeCreateScriptCounts will not attach script profiles
     // when running off thread.
+    //
+    // Also skip off thread compilation if the SPS profiler is enabled, as it
+    // stores strings in the spsProfiler data structure, which is not protected
+    // by a lock.
     return cx->runtime()->canUseParallelIonCompilation()
         && cx->runtime()->gcIncrementalState == gc::NO_INCREMENTAL
-        && !cx->runtime()->profilingScripts;
+        && !cx->runtime()->profilingScripts
+        && !cx->runtime()->spsProfiler.enabled();
 }
 
 static void
@@ -1731,7 +1735,8 @@ IonCompile(JSContext *cx, JSScript *script,
     Maybe<AutoProtectHeapForIonCompilation> protect;
     if (js_JitOptions.checkThreadSafety &&
         cx->runtime()->gcIncrementalState == gc::NO_INCREMENTAL &&
-        !cx->runtime()->profilingScripts)
+        !cx->runtime()->profilingScripts &&
+        !cx->runtime()->spsProfiler.enabled())
     {
         protect.construct(cx->runtime());
     }
@@ -2232,8 +2237,9 @@ EnterIon(JSContext *cx, EnterJitData &data)
         JSAutoResolveFlags rf(cx, RESOLVE_INFER);
         AutoFlushInhibitor afi(cx->runtime()->jitRuntime());
 
-        CALL_GENERATED_CODE(enter, data.jitcode, data.maxArgc, data.maxArgv, /* osrFrame = */nullptr, data.calleeToken,
-                            /* scopeChain = */ nullptr, 0, data.result.address());
+        // Single transition point from Interpreter to Baseline.
+        enter(data.jitcode, data.maxArgc, data.maxArgv, /* osrFrame = */nullptr, data.calleeToken,
+              /* scopeChain = */ nullptr, 0, data.result.address());
     }
 
     JS_ASSERT(!cx->runtime()->hasIonReturnOverride());
@@ -2342,9 +2348,8 @@ jit::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
     JS_ASSERT(args.length() >= fun->nargs());
 
     JSAutoResolveFlags rf(cx, RESOLVE_INFER);
-
-    CALL_GENERATED_CODE(enter, jitcode, args.length() + 1, args.array() - 1, /* osrFrame = */nullptr,
-                        calleeToken, /* scopeChain = */ nullptr, 0, result.address());
+    enter(jitcode, args.length() + 1, args.array() - 1, nullptr, calleeToken,
+          /* scopeChain = */ nullptr, 0, result.address());
 
     JS_ASSERT(!cx->runtime()->hasIonReturnOverride());
 

@@ -370,14 +370,6 @@ public:
   {
     mStreamOrderDirty = true;
   }
-  /**
-   * Pause all AudioStreams being written to by MediaStreams
-   */
-  void PauseAllAudioOutputs();
-  /**
-   * Resume all AudioStreams being written to by MediaStreams
-   */
-  void ResumeAllAudioOutputs();
 
   // Data members
 
@@ -529,6 +521,13 @@ public:
    * RunInStableState() and the event hasn't run yet.
    */
   bool mPostedRunInStableStateEvent;
+  /**
+   * True when the non-realtime graph thread is processing, as a result of
+   * a request from the main thread.  When processing is finished, we post
+   * a message to the main thread in order to set mNonRealtimeProcessing
+   * back to false.
+   */
+  bool mNonRealtimeIsRunning;
 
   // Main thread only
 

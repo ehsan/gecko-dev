@@ -495,20 +495,10 @@ var gCSSProperties = {
 		other_values: [ "center", "end", "justify" ],
 		invalid_values: []
 	},
-	"box-sizing": {
-		domProp: "boxSizing",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "content-box" ],
-		other_values: [ "border-box", "padding-box" ],
-		invalid_values: [ "margin-box", "content", "padding", "border", "margin" ]
-	},
 	"-moz-box-sizing": {
 		domProp: "MozBoxSizing",
 		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "box-sizing",
-		subproperties: [ "box-sizing" ],
+		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "content-box" ],
 		other_values: [ "border-box", "padding-box" ],
 		invalid_values: [ "margin-box", "content", "padding", "border", "margin" ]
@@ -4881,17 +4871,6 @@ if (SpecialPowers.getBoolPref("layout.css.background-blend-mode.enabled")) {
 		other_values: [ "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn",
 			"hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity" ],
 		invalid_values: []
-	};
-}
-
-if (SpecialPowers.getBoolPref("layout.css.will-change.enabled")) {
-	gCSSProperties["will-change"] = {
-		domProp: "willChange",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "auto" ],
-		other_values: [ "scroll-position", "contents", "transform", "opacity", "scroll-position, transform", "transform, opacity", "contents, transform", "property-that-doesnt-exist-yet" ],
-		invalid_values: [ "none", "all", "default", "auto, scroll-position", "scroll-position, auto", "transform scroll-position", ",", "trailing," ]
 	};
 }
 

@@ -7,7 +7,6 @@
 
 #include "nsBulletFrame.h"
 
-#include "mozilla/MathAlgorithms.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsGenericHTMLElement.h"
@@ -898,16 +897,18 @@ static const CJKIdeographicData gDataTradChineseFormal = {
   false                       // informal
 };
 
-static const bool CJKIdeographicToText(int32_t aOrdinal, nsString& result,
+static const bool CJKIdeographicToText(int32_t ordinal, nsString& result,
                                        const CJKIdeographicData& data)
 {
   char16_t buf[NUM_BUF_SIZE];
   int32_t idx = NUM_BUF_SIZE;
   int32_t pos = 0;
-  bool isNegative = (aOrdinal < 0);
-  bool needZero = (aOrdinal == 0);
+  bool isNegative = (ordinal < 0);
+  bool needZero = (ordinal == 0);
   int32_t unitidx = 0, unit10Kidx = 0;
-  uint32_t ordinal = mozilla::Abs(aOrdinal);
+  if (isNegative) {
+    ordinal = -ordinal;
+  }
   do {
     unitidx = pos % 4;
     if (unitidx == 0) {

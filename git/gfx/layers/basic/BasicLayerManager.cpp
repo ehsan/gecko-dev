@@ -160,15 +160,16 @@ public:
   // transform.
   bool Setup2DTransform()
   {
+    const gfx3DMatrix& effectiveTransform = mLayer->GetEffectiveTransform();
     // Will return an identity matrix for 3d transforms.
-    return mLayer->GetEffectiveTransform().CanDraw2D(&mTransform);
+    return effectiveTransform.CanDraw2D(&mTransform);
   }
 
   // Applies the effective transform if it's 2D. If it's a 3D transform then
   // it applies an identity.
   void Apply2DTransform()
   {
-    mTarget->SetMatrix(ThebesMatrix(mTransform));
+    mTarget->SetMatrix(mTransform);
   }
 
   // Set the opaque rect to match the bounds of the visible region.
@@ -230,7 +231,7 @@ public:
   LayerManager::DrawThebesLayerCallback mCallback;
   void* mCallbackData;
   ReadbackProcessor* mReadback;
-  Matrix mTransform;
+  gfxMatrix mTransform;
   bool mPushedOpaqueRect;
 };
 
@@ -352,12 +353,12 @@ BasicLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 }
 
 static void
-TransformIntRect(nsIntRect& aRect, const Matrix& aMatrix,
+TransformIntRect(nsIntRect& aRect, const gfxMatrix& aMatrix,
                  nsIntRect (*aRoundMethod)(const gfxRect&))
 {
-  Rect gr = Rect(aRect.x, aRect.y, aRect.width, aRect.height);
+  gfxRect gr = gfxRect(aRect.x, aRect.y, aRect.width, aRect.height);
   gr = aMatrix.TransformBounds(gr);
-  aRect = (*aRoundMethod)(ThebesRect(gr));
+  aRect = (*aRoundMethod)(gr);
 }
 
 /**
@@ -401,7 +402,7 @@ MarkLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
       // clipRect is in the container's coordinate system. Get it into the
       // global coordinate system.
       if (aLayer->GetParent()) {
-        Matrix tr;
+        gfxMatrix tr;
         if (aLayer->GetParent()->GetEffectiveTransform().CanDraw2D(&tr)) {
           // Clip rect is applied after aLayer's transform, i.e., in the coordinate
           // system of aLayer's parent.
@@ -420,7 +421,7 @@ MarkLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
   data->SetDrawAtomically(false);
 
   if (!aLayer->AsContainerLayer()) {
-    Matrix transform;
+    gfxMatrix transform;
     if (!aLayer->GetEffectiveTransform().CanDraw2D(&transform)) {
       data->SetHidden(false);
       return;
@@ -481,11 +482,11 @@ ApplyDoubleBuffering(Layer* aLayer, const nsIntRect& aVisibleRect)
       // clipRect is in the container's coordinate system. Get it into the
       // global coordinate system.
       if (aLayer->GetParent()) {
-        Matrix tr;
+        gfxMatrix tr;
         if (aLayer->GetParent()->GetEffectiveTransform().CanDraw2D(&tr)) {
-          NS_ASSERTION(!ThebesMatrix(tr).HasNonIntegerTranslation(),
+          NS_ASSERTION(!tr.HasNonIntegerTranslation(),
                        "Parent can only have an integer translation");
-          cr += nsIntPoint(int32_t(tr._31), int32_t(tr._32));
+          cr += nsIntPoint(int32_t(tr.x0), int32_t(tr.y0));
         } else {
           NS_ERROR("Parent can only have an integer translation");
         }
@@ -591,7 +592,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
     // which depends on correct effective transforms
     mSnapEffectiveTransforms =
       mTarget ? !(mTarget->GetFlags() & gfxContext::FLAG_DISABLE_SNAPPING) : true;
-    mRoot->ComputeEffectiveTransforms(mTarget ? Matrix4x4::From2D(ToMatrix(mTarget->CurrentMatrix())) : Matrix4x4());
+    mRoot->ComputeEffectiveTransforms(mTarget ? gfx3DMatrix::From2D(mTarget->CurrentMatrix()) : gfx3DMatrix());
 
     ToData(mRoot)->Validate(aCallback, aCallbackData);
     if (mRoot->GetMaskLayer()) {
@@ -982,8 +983,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
       temp->Paint();
     }
 #endif
-    gfx3DMatrix effectiveTransform;
-    gfx::To3DMatrix(aLayer->GetEffectiveTransform(), effectiveTransform);
+    const gfx3DMatrix& effectiveTransform = aLayer->GetEffectiveTransform();
     nsRefPtr<gfxASurface> result =
       Transform3D(untransformedDT->Snapshot(), aTarget, bounds,
                   effectiveTransform, destRect);

@@ -127,7 +127,6 @@ public:
   };
 
   virtual already_AddRefed<gfxASurface> DeprecatedGetAsSurface();
-  virtual TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() MOZ_OVERRIDE;
 
   void* GetNativeBuffer()
   {

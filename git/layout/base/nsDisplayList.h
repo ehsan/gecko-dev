@@ -373,6 +373,18 @@ public:
   void SetInTransform(bool aInTransform) { mInTransform = aInTransform; }
 
   /**
+   * Determines if this item is scrolled by content-document display-port
+   * scrolling. aAnimatedGeometryRoot will be set to the animated geometry root
+   * of the item. This may not necessarily correspond to the animated geometry
+   * root of the item's underlying frame.
+   * If specified, aOverrideAnimatedGeometryRoot will be treated as the active
+   * scrolled root.
+   */
+  bool IsFixedItem(nsDisplayItem* aItem,
+                   const nsIFrame** aAnimatedGeometryRoot = nullptr,
+                   const nsIFrame* aOverrideAnimatedGeometryScrolledRoot = nullptr);
+
+  /**
    * @return true if images have been set to decode synchronously.
    */
   bool ShouldSyncDecodeImages() { return mSyncDecodeImages; }
@@ -1166,7 +1178,7 @@ public:
    */
   virtual const char* Name() = 0;
 
-  virtual void WriteDebugInfo(nsACString& aTo) {}
+  virtual void WriteDebugInfo(FILE *aOutput) {}
 #endif
 
   nsDisplayItem* GetAbove() { return mAbove; }
@@ -1500,9 +1512,6 @@ public:
    * layer manager has already had BeginTransaction() called on it and
    * we should not call it again.
    *
-   * If PAINT_COMPRESSED is set, the FrameLayerBuilder should be set to compressed mode
-   * to avoid short cut optimizations.
-   *
    * ComputeVisibility must be called before Paint.
    * 
    * This must only be called on the root display list of the display list
@@ -1513,8 +1522,7 @@ public:
     PAINT_USE_WIDGET_LAYERS = 0x01,
     PAINT_FLUSH_LAYERS = 0x02,
     PAINT_EXISTING_TRANSACTION = 0x04,
-    PAINT_NO_COMPOSITE = 0x08,
-    PAINT_COMPRESSED = 0x10
+    PAINT_NO_COMPOSITE = 0x08
   };
   void PaintRoot(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
                  uint32_t aFlags) const;
@@ -1982,7 +1990,12 @@ public:
   }
 
 #ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
+  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE
+  {
+    fprintf_stderr(aOutput, "(rgba %d,%d,%d,%d)",
+                   NS_GET_R(mColor), NS_GET_G(mColor),
+                   NS_GET_B(mColor), NS_GET_A(mColor));
+  }
 #endif
 
   NS_DISPLAY_DECL_NAME("SolidColor", TYPE_SOLID_COLOR)
@@ -2141,7 +2154,7 @@ public:
                                          nsRegion* aInvalidRegion) MOZ_OVERRIDE;
 
 #ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
+  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE;
 #endif
 protected:
   nsRect GetBoundsInternal();
@@ -2194,7 +2207,12 @@ public:
 
   NS_DISPLAY_DECL_NAME("BackgroundColor", TYPE_BACKGROUND_COLOR)
 #ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
+  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE {
+    fprintf_stderr(aOutput, "(rgba %d,%d,%d,%d)", 
+            NS_GET_R(mColor), NS_GET_G(mColor),
+            NS_GET_B(mColor), NS_GET_A(mColor));
+
+  }
 #endif
 
 protected:
@@ -2583,7 +2601,9 @@ public:
   bool NeedsActiveLayer();
   NS_DISPLAY_DECL_NAME("Opacity", TYPE_OPACITY)
 #ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
+  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE {
+    fprintf_stderr(aOutput, "(opacity %f)", mFrame->StyleDisplay()->mOpacity);
+  }
 #endif
 
   bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
@@ -2720,7 +2740,7 @@ public:
 class nsDisplayStickyPosition : public nsDisplayOwnLayer {
 public:
   nsDisplayStickyPosition(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                          nsDisplayList* aList);
+                          nsIFrame* aStickyPosFrame, nsDisplayList* aList);
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayStickyPosition();
 #endif
@@ -2736,6 +2756,9 @@ public:
     return mozilla::LAYER_ACTIVE;
   }
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) MOZ_OVERRIDE;
+
+protected:
+  nsIFrame* mStickyPosFrame;
 };
 
 /**
@@ -2811,10 +2834,6 @@ public:
   intptr_t GetScrollLayerCount();
 
   virtual nsIFrame* GetScrolledFrame() { return mScrolledFrame; }
-
-#ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
-#endif
 
 protected:
   nsIFrame* mScrollFrame;
@@ -2948,7 +2967,7 @@ public:
                     LayerManager* aManager);
 
 #ifdef MOZ_DUMP_PAINTING
-  void PrintEffects(nsACString& aTo);
+  void PrintEffects(FILE* aOutput);
 #endif
 
 private:

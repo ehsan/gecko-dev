@@ -91,9 +91,8 @@ class StoreBuffer
     struct MonoTypeBuffer
     {
         LifoAlloc *storage_;
-        size_t usedAtLastCompact_;
 
-        explicit MonoTypeBuffer() : storage_(nullptr), usedAtLastCompact_(0) {}
+        explicit MonoTypeBuffer() : storage_(nullptr) {}
         ~MonoTypeBuffer() { js_delete(storage_); }
 
         bool init() {
@@ -108,7 +107,6 @@ class StoreBuffer
                 return;
 
             storage_->used() ? storage_->releaseAll() : storage_->freeAll();
-            usedAtLastCompact_ = 0;
         }
 
         bool isAboutToOverflow() const {
@@ -123,9 +121,6 @@ class StoreBuffer
          * entries.
          */
         virtual void compact(StoreBuffer *owner);
-
-        /* Compacts if any entries have been added since the last compaction. */
-        void maybeCompact(StoreBuffer *owner);
 
         /* Add one item to the buffer. */
         void put(StoreBuffer *owner, const T &t) {
@@ -296,12 +291,12 @@ class StoreBuffer
             return object != other.object || offset != other.offset || kind != other.kind;
         }
 
-        MOZ_ALWAYS_INLINE HeapSlot *slotLocation() const;
+        JS_ALWAYS_INLINE HeapSlot *slotLocation() const;
 
-        MOZ_ALWAYS_INLINE void *deref() const;
-        MOZ_ALWAYS_INLINE void *location() const;
+        JS_ALWAYS_INLINE void *deref() const;
+        JS_ALWAYS_INLINE void *location() const;
         bool inRememberedSet(const Nursery &nursery) const;
-        MOZ_ALWAYS_INLINE bool isNullEdge() const;
+        JS_ALWAYS_INLINE bool isNullEdge() const;
 
         void mark(JSTracer *trc);
     };
@@ -442,15 +437,8 @@ class StoreBuffer
         put(bufferGeneric, CallbackRef<Key>(callback, key, data));
     }
 
-    /* Methods to mark the source of all edges in the store buffer. */
-    void markAll(JSTracer *trc);
-    void markValues(JSTracer *trc)            { bufferVal.mark(this, trc); }
-    void markCells(JSTracer *trc)             { bufferCell.mark(this, trc); }
-    void markSlots(JSTracer *trc)             { bufferSlot.mark(this, trc); }
-    void markWholeCells(JSTracer *trc)        { bufferWholeCell.mark(this, trc); }
-    void markRelocatableValues(JSTracer *trc) { bufferRelocVal.mark(this, trc); }
-    void markRelocatableCells(JSTracer *trc)  { bufferRelocCell.mark(this, trc); }
-    void markGenericEntries(JSTracer *trc)    { bufferGeneric.mark(this, trc); }
+    /* Mark the source of all edges in the store buffer. */
+    void mark(JSTracer *trc);
 
     /* We cannot call InParallelSection directly because of a circular dependency. */
     bool inParallelSection() const;

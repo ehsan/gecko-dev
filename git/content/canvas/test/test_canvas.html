@@ -8363,16 +8363,9 @@ var canvas = document.getElementById('c280');
 var ctx = canvas.getContext('2d');
 
 ok(window.ImageData !== undefined, "window.ImageData !== undefined");
-
-var _thrown_outer = false;
-try {
-
-new window.ImageData(1,1);
-
-} catch (e) {
-    _thrown_outer = true;
-}
-ok(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
+try { var _thrown = false;
+  new window.ImageData(1,1);
+} catch (e) { _thrown = true; } finally { ok(_thrown, "should throw exception"); }
 
 
 }

@@ -251,12 +251,12 @@ class JSString : public js::gc::BarrieredCell<JSString>
   public:
     /* All strings have length. */
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     size_t length() const {
         return d.lengthAndFlags >> LENGTH_SHIFT;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool empty() const {
         return d.lengthAndFlags <= FLAGS_MASK;
     }
@@ -299,67 +299,67 @@ class JSString : public js::gc::BarrieredCell<JSString>
 
     /* Type query and debug-checked casts */
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isRope() const {
         return (d.lengthAndFlags & FLAGS_MASK) == ROPE_FLAGS;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSRope &asRope() const {
         JS_ASSERT(isRope());
         return *(JSRope *)this;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isLinear() const {
         return !isRope();
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSLinearString &asLinear() const {
         JS_ASSERT(JSString::isLinear());
         return *(JSLinearString *)this;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isDependent() const {
         return (d.lengthAndFlags & FLAGS_MASK) == DEPENDENT_FLAGS;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSDependentString &asDependent() const {
         JS_ASSERT(isDependent());
         return *(JSDependentString *)this;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isFlat() const {
         return isLinear() && !isDependent();
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSFlatString &asFlat() const {
         JS_ASSERT(isFlat());
         return *(JSFlatString *)this;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isExtensible() const {
         return (d.lengthAndFlags & FLAGS_MASK) == EXTENSIBLE_FLAGS;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSExtensibleString &asExtensible() const {
         JS_ASSERT(isExtensible());
         return *(JSExtensibleString *)this;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isInline() const {
         return isFlat() && !isExtensible() && (d.u1.chars == d.inlineStorage);
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSInlineString &asInline() const {
         JS_ASSERT(isInline());
         return *(JSInlineString *)this;
@@ -367,7 +367,7 @@ class JSString : public js::gc::BarrieredCell<JSString>
 
     bool isShort() const;
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSStableString &asStable() const {
         JS_ASSERT(!isInline());
         return *(JSStableString *)this;
@@ -376,23 +376,23 @@ class JSString : public js::gc::BarrieredCell<JSString>
     /* For hot code, prefer other type queries. */
     bool isExternal() const;
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSExternalString &asExternal() const {
         JS_ASSERT(isExternal());
         return *(JSExternalString *)this;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isUndepended() const {
         return (d.lengthAndFlags & FLAGS_MASK) == UNDEPENDED_FLAGS;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool isAtom() const {
         return (d.lengthAndFlags & ATOM_BIT);
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JSAtom &asAtom() const {
         js::AutoThreadSafeAccess ts(this);
         JS_ASSERT(isAtom());
@@ -500,7 +500,7 @@ class JSLinearString : public JSString
     JSLinearString &asLinear() const MOZ_DELETE;
 
   public:
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     const jschar *chars() const {
         JS_ASSERT(JSString::isLinear());
         return d.u1.chars;
@@ -545,7 +545,7 @@ class JSFlatString : public JSLinearString
     bool isIndexSlow(uint32_t *indexp) const;
 
   public:
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     const jschar *charsZ() const {
         JS_ASSERT(JSString::isFlat());
         return chars();
@@ -573,7 +573,7 @@ class JSFlatString : public JSLinearString
      * Once a JSFlatString sub-class has been added to the atom state, this
      * operation changes the string to the JSAtom type, in place.
      */
-    MOZ_ALWAYS_INLINE JSAtom *morphAtomizedStringIntoAtom() {
+    JS_ALWAYS_INLINE JSAtom *morphAtomizedStringIntoAtom() {
         d.lengthAndFlags = buildLengthAndFlags(length(), ATOM_BIT);
         return &asAtom();
     }
@@ -592,13 +592,13 @@ class JSStableString : public JSFlatString
     static inline JSStableString *new_(js::ThreadSafeContext *cx,
                                        const jschar *chars, size_t length);
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JS::StableCharPtr chars() const {
         JS_ASSERT(!JSString::isInline());
         return JS::StableCharPtr(d.u1.chars, length());
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     JS::StableTwoByteChars range() const {
         JS_ASSERT(!JSString::isInline());
         return JS::StableTwoByteChars(d.u1.chars, length());
@@ -672,7 +672,7 @@ class JSExtensibleString : public JSFlatString
     JSExtensibleString &asExtensible() const MOZ_DELETE;
 
   public:
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     size_t capacity() const {
         JS_ASSERT(JSString::isExtensible());
         return d.s.u2.capacity;
@@ -735,7 +735,7 @@ class JSShortString : public JSInlineString
 
     /* Only called by the GC for strings with the FINALIZE_SHORT_STRING kind. */
 
-    MOZ_ALWAYS_INLINE void finalize(js::FreeOp *fop);
+    JS_ALWAYS_INLINE void finalize(js::FreeOp *fop);
 };
 
 JS_STATIC_ASSERT(sizeof(JSShortString) == 2 * sizeof(JSString));
@@ -966,7 +966,7 @@ class PropertyName : public JSAtom
 
 JS_STATIC_ASSERT(sizeof(PropertyName) == sizeof(JSString));
 
-static MOZ_ALWAYS_INLINE jsid
+static JS_ALWAYS_INLINE jsid
 NameToId(PropertyName *name)
 {
     return NON_INTEGER_ATOM_TO_JSID(name);
@@ -996,7 +996,7 @@ class AutoNameVector : public AutoVectorRooter<PropertyName *>
 
 /* Avoid requiring vm/String-inl.h just to call getChars. */
 
-MOZ_ALWAYS_INLINE const jschar *
+JS_ALWAYS_INLINE const jschar *
 JSString::getChars(js::ExclusiveContext *cx)
 {
     if (JSLinearString *str = ensureLinear(cx))
@@ -1004,7 +1004,7 @@ JSString::getChars(js::ExclusiveContext *cx)
     return nullptr;
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 JSString::getChar(js::ExclusiveContext *cx, size_t index, jschar *code)
 {
     JS_ASSERT(index < length());
@@ -1038,7 +1038,7 @@ JSString::getChar(js::ExclusiveContext *cx, size_t index, jschar *code)
     return true;
 }
 
-MOZ_ALWAYS_INLINE const jschar *
+JS_ALWAYS_INLINE const jschar *
 JSString::getCharsZ(js::ExclusiveContext *cx)
 {
     if (JSFlatString *str = ensureFlat(cx))
@@ -1046,28 +1046,28 @@ JSString::getCharsZ(js::ExclusiveContext *cx)
     return nullptr;
 }
 
-MOZ_ALWAYS_INLINE const jschar *
+JS_ALWAYS_INLINE const jschar *
 JSString::pureChars() const
 {
     JS_ASSERT(hasPureChars());
     return asLinear().chars();
 }
 
-MOZ_ALWAYS_INLINE const jschar *
+JS_ALWAYS_INLINE const jschar *
 JSString::pureCharsZ() const
 {
     JS_ASSERT(hasPureCharsZ());
     return asFlat().charsZ();
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 JSString::copyNonPureChars(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const
 {
     JS_ASSERT(!hasPureChars());
     return asRope().copyNonPureChars(cx, out);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 JSString::copyNonPureCharsZ(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const
 {
     JS_ASSERT(!hasPureChars());
@@ -1076,7 +1076,7 @@ JSString::copyNonPureCharsZ(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jscha
     return asRope().copyNonPureCharsZ(cx, out);
 }
 
-MOZ_ALWAYS_INLINE JSLinearString *
+JS_ALWAYS_INLINE JSLinearString *
 JSString::ensureLinear(js::ExclusiveContext *cx)
 {
     return isLinear()
@@ -1084,7 +1084,7 @@ JSString::ensureLinear(js::ExclusiveContext *cx)
            : asRope().flatten(cx);
 }
 
-MOZ_ALWAYS_INLINE JSFlatString *
+JS_ALWAYS_INLINE JSFlatString *
 JSString::ensureFlat(js::ExclusiveContext *cx)
 {
     return isFlat()
@@ -1094,7 +1094,7 @@ JSString::ensureFlat(js::ExclusiveContext *cx)
              : asRope().flatten(cx);
 }
 
-MOZ_ALWAYS_INLINE JSStableString *
+JS_ALWAYS_INLINE JSStableString *
 JSString::ensureStable(js::ExclusiveContext *maybecx)
 {
     if (isRope()) {

@@ -183,8 +183,7 @@ class AutoStringRooter : private AutoGCRooter {
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoArrayRooter : private AutoGCRooter
-{
+class AutoArrayRooter : private AutoGCRooter {
   public:
     AutoArrayRooter(JSContext *cx, size_t len, Value *vec
                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -204,28 +203,15 @@ class AutoArrayRooter : private AutoGCRooter
         array = newArray;
     }
 
-    Value *start() {
-        return array;
-    }
+    Value *array;
 
-    size_t length() {
-        JS_ASSERT(tag_ >= 0);
-        return size_t(tag_);
-    }
-
-    MutableHandleValue handleAt(size_t i) {
+    MutableHandleValue handleAt(size_t i)
+    {
         JS_ASSERT(i < size_t(tag_));
         return MutableHandleValue::fromMarkedLocation(&array[i]);
     }
-    HandleValue handleAt(size_t i) const {
-        JS_ASSERT(i < size_t(tag_));
-        return HandleValue::fromMarkedLocation(&array[i]);
-    }
-    MutableHandleValue operator[](size_t i) {
-        JS_ASSERT(i < size_t(tag_));
-        return MutableHandleValue::fromMarkedLocation(&array[i]);
-    }
-    HandleValue operator[](size_t i) const {
+    HandleValue handleAt(size_t i) const
+    {
         JS_ASSERT(i < size_t(tag_));
         return HandleValue::fromMarkedLocation(&array[i]);
     }
@@ -233,9 +219,9 @@ class AutoArrayRooter : private AutoGCRooter
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
-    Value *array;
-    js::SkipRoot skip;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+    js::SkipRoot skip;
 };
 
 template<class T>
@@ -872,7 +858,7 @@ typedef void
 
 /************************************************************************/
 
-static MOZ_ALWAYS_INLINE jsval
+static JS_ALWAYS_INLINE jsval
 JS_NumberValue(double d)
 {
     int32_t i;
@@ -901,7 +887,7 @@ INTERNED_STRING_TO_JSID(JSContext *cx, JSString *str);
  * Returns true iff the given jsval is immune to GC and can be used across
  * multiple JSRuntimes without requiring any conversion API.
  */
-static MOZ_ALWAYS_INLINE bool
+static JS_ALWAYS_INLINE bool
 JSVAL_IS_UNIVERSAL(jsval v)
 {
     return !JSVAL_IS_GCTHING(v);
@@ -1090,7 +1076,7 @@ ToStringSlow(JSContext *cx, JS::HandleValue v);
 namespace JS {
 
 /* ES5 9.3 ToNumber. */
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToNumber(JSContext *cx, HandleValue v, double *out)
 {
     AssertArgumentsAreSane(cx, v);
@@ -1106,7 +1092,7 @@ ToNumber(JSContext *cx, HandleValue v, double *out)
     return js::ToNumberSlow(cx, v, out);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToBoolean(HandleValue v)
 {
     if (v.isBoolean())
@@ -1124,7 +1110,7 @@ ToBoolean(HandleValue v)
     return js::ToBooleanSlow(v);
 }
 
-MOZ_ALWAYS_INLINE JSString*
+JS_ALWAYS_INLINE JSString*
 ToString(JSContext *cx, HandleValue v)
 {
     if (v.isString())
@@ -1168,7 +1154,7 @@ ToUint64Slow(JSContext *cx, JS::HandleValue v, uint64_t *out);
 
 namespace JS {
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToUint16(JSContext *cx, JS::HandleValue v, uint16_t *out)
 {
     AssertArgumentsAreSane(cx, v);
@@ -1181,7 +1167,7 @@ ToUint16(JSContext *cx, JS::HandleValue v, uint16_t *out)
     return js::ToUint16Slow(cx, v, out);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToInt32(JSContext *cx, JS::HandleValue v, int32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
@@ -1194,7 +1180,7 @@ ToInt32(JSContext *cx, JS::HandleValue v, int32_t *out)
     return js::ToInt32Slow(cx, v, out);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToUint32(JSContext *cx, JS::HandleValue v, uint32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
@@ -1207,7 +1193,7 @@ ToUint32(JSContext *cx, JS::HandleValue v, uint32_t *out)
     return js::ToUint32Slow(cx, v, out);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToInt64(JSContext *cx, JS::HandleValue v, int64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
@@ -1221,7 +1207,7 @@ ToInt64(JSContext *cx, JS::HandleValue v, int64_t *out)
     return js::ToInt64Slow(cx, v, out);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 ToUint64(JSContext *cx, JS::HandleValue v, uint64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
@@ -1789,13 +1775,14 @@ extern JS_PUBLIC_API(bool)
 JS_EnumerateStandardClasses(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(bool)
-JS_GetClassObject(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> objp);
+JS_GetClassObject(JSContext *cx, JS::Handle<JSObject*> obj, JSProtoKey key,
+                  JS::MutableHandle<JSObject*> objp);
 
 extern JS_PUBLIC_API(bool)
 JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> objp);
 
 extern JS_PUBLIC_API(JSProtoKey)
-JS_IdentifyClassPrototype(JSObject *obj);
+JS_IdentifyClassPrototype(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSProtoKey)
 JS_IdToProtoKey(JSContext *cx, JS::HandleId id);
@@ -1805,21 +1792,21 @@ JS_IdToProtoKey(JSContext *cx, JS::HandleId id);
  * which |forObj| was created.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_GetFunctionPrototype(JSContext *cx, JS::HandleObject forObj);
+JS_GetFunctionPrototype(JSContext *cx, JSObject *forObj);
 
 /*
  * Returns the original value of |Object.prototype| from the global object in
  * which |forObj| was created.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_GetObjectPrototype(JSContext *cx, JS::HandleObject forObj);
+JS_GetObjectPrototype(JSContext *cx, JSObject *forObj);
 
 /*
  * Returns the original value of |Array.prototype| from the global object in
  * which |forObj| was created.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_GetArrayPrototype(JSContext *cx, JS::HandleObject forObj);
+JS_GetArrayPrototype(JSContext *cx, JSObject *forObj);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
@@ -1857,7 +1844,7 @@ JS_GetScriptedGlobal(JSContext *cx);
  * Initialize the 'Reflect' object on a global object.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_InitReflect(JSContext *cx, JS::HandleObject global);
+JS_InitReflect(JSContext *cx, JSObject *global);
 
 #ifdef JS_HAS_CTYPES
 /*
@@ -1865,7 +1852,7 @@ JS_InitReflect(JSContext *cx, JS::HandleObject global);
  * object will be sealed.
  */
 extern JS_PUBLIC_API(bool)
-JS_InitCTypesClass(JSContext *cx, JS::HandleObject global);
+JS_InitCTypesClass(JSContext *cx, JSObject *global);
 
 /*
  * Convert a unicode string 'source' of length 'slen' to the platform native
@@ -2041,19 +2028,19 @@ JS_RemoveExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data);
  * Use the following macros to check if a particular jsval is a traceable
  * thing and to extract the thing and its kind to pass to JS_CallTracer.
  */
-static MOZ_ALWAYS_INLINE bool
+static JS_ALWAYS_INLINE bool
 JSVAL_IS_TRACEABLE(jsval v)
 {
     return JSVAL_IS_TRACEABLE_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static MOZ_ALWAYS_INLINE void *
+static JS_ALWAYS_INLINE void *
 JSVAL_TO_TRACEABLE(jsval v)
 {
     return JSVAL_TO_GCTHING(v);
 }
 
-static MOZ_ALWAYS_INLINE JSGCTraceKind
+static JS_ALWAYS_INLINE JSGCTraceKind
 JSVAL_TRACE_KIND(jsval v)
 {
     JS_ASSERT(JSVAL_IS_GCTHING(v));
@@ -2539,7 +2526,7 @@ struct JSFunctionSpec {
     {name, {call, info}, nargs, flags, selfHostedName}
 
 extern JS_PUBLIC_API(JSObject *)
-JS_InitClass(JSContext *cx, JS::HandleObject obj, JS::HandleObject parent_proto,
+JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
              const JSClass *clasp, JSNative constructor, unsigned nargs,
              const JSPropertySpec *ps, const JSFunctionSpec *fs,
              const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs);
@@ -3033,14 +3020,14 @@ extern JS_PUBLIC_API(bool)
 JS_GetPropertyById(JSContext *cx, JSObject *obj, jsid id, JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_ForwardGetPropertyTo(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject onBehalfOf,
+JS_ForwardGetPropertyTo(JSContext *cx, JSObject *obj, jsid id, JSObject *onBehalfOf,
                         JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_SetProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleValue v);
+JS_SetProperty(JSContext *cx, JSObject *obj, const char *name, JS::HandleValue v);
 
 extern JS_PUBLIC_API(bool)
-JS_SetPropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue v);
+JS_SetPropertyById(JSContext *cx, JSObject *obj, jsid id, JS::HandleValue v);
 
 extern JS_PUBLIC_API(bool)
 JS_DeleteProperty(JSContext *cx, JS::HandleObject obj, const char *name);
@@ -3087,7 +3074,7 @@ JS_GetUCProperty(JSContext *cx, JSObject *obj,
                  JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_SetUCProperty(JSContext *cx, JS::HandleObject obj,
+JS_SetUCProperty(JSContext *cx, JSObject *obj,
                  const jschar *name, size_t namelen,
                  JS::HandleValue v);
 
@@ -3099,10 +3086,7 @@ extern JS_PUBLIC_API(JSObject *)
 JS_NewArrayObject(JSContext *cx, int length, jsval *vector);
 
 extern JS_PUBLIC_API(bool)
-JS_IsArrayObject(JSContext *cx, JS::HandleValue value);
-
-extern JS_PUBLIC_API(bool)
-JS_IsArrayObject(JSContext *cx, JS::HandleObject obj);
+JS_IsArrayObject(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
 JS_GetArrayLength(JSContext *cx, JS::Handle<JSObject*> obj, uint32_t *lengthp);
@@ -3131,22 +3115,7 @@ JS_ForwardGetElementTo(JSContext *cx, JSObject *obj, uint32_t index, JSObject *o
                        JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue v);
-
-extern JS_PUBLIC_API(bool)
-JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleObject v);
-
-extern JS_PUBLIC_API(bool)
-JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleString v);
-
-extern JS_PUBLIC_API(bool)
-JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, int32_t v);
-
-extern JS_PUBLIC_API(bool)
-JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, uint32_t v);
-
-extern JS_PUBLIC_API(bool)
-JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, double v);
+JS_SetElement(JSContext *cx, JSObject *obj, uint32_t index, JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
 JS_DeleteElement(JSContext *cx, JS::HandleObject obj, uint32_t index);
@@ -3228,6 +3197,10 @@ JS_NewPropertyIterator(JSContext *cx, JS::Handle<JSObject*> obj);
 extern JS_PUBLIC_API(bool)
 JS_NextProperty(JSContext *cx, JS::Handle<JSObject*> iterobj, jsid *idp);
 
+extern JS_PUBLIC_API(bool)
+JS_CheckAccess(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSAccessMode mode,
+               JS::MutableHandle<JS::Value> vp, unsigned *attrsp);
+
 extern JS_PUBLIC_API(jsval)
 JS_GetReservedSlot(JSObject *obj, uint32_t index);
 
@@ -3272,6 +3245,7 @@ extern JS_PUBLIC_API(void)
 JS_DropPrincipals(JSRuntime *rt, JSPrincipals *principals);
 
 struct JSSecurityCallbacks {
+    JSCheckAccessOp            checkObjectAccess;
     JSCSPEvalChecker           contentSecurityPolicyAllows;
     JSSubsumesOp               subsumes;
 };
@@ -3389,16 +3363,16 @@ extern JS_PUBLIC_API(bool)
 JS_DefineFunctions(JSContext *cx, JS::Handle<JSObject*> obj, const JSFunctionSpec *fs);
 
 extern JS_PUBLIC_API(JSFunction *)
-JS_DefineFunction(JSContext *cx, JS::Handle<JSObject*> obj, const char *name, JSNative call,
+JS_DefineFunction(JSContext *cx, JSObject *obj, const char *name, JSNative call,
                   unsigned nargs, unsigned attrs);
 
 extern JS_PUBLIC_API(JSFunction *)
-JS_DefineUCFunction(JSContext *cx, JS::Handle<JSObject*> obj,
+JS_DefineUCFunction(JSContext *cx, JSObject *obj,
                     const jschar *name, size_t namelen, JSNative call,
                     unsigned nargs, unsigned attrs);
 
 extern JS_PUBLIC_API(JSFunction *)
-JS_DefineFunctionById(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSNative call,
+JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
                       unsigned nargs, unsigned attrs);
 
 /*
@@ -3848,24 +3822,24 @@ JS_EvaluateScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                       jsval *rval, JSVersion version);
 
 extern JS_PUBLIC_API(bool)
-JS_EvaluateUCScript(JSContext *cx, JS::Handle<JSObject*> obj,
+JS_EvaluateUCScript(JSContext *cx, JSObject *obj,
                     const jschar *chars, unsigned length,
                     const char *filename, unsigned lineno,
-                    JS::MutableHandle<JS::Value> rval);
+                    jsval *rval);
 
 extern JS_PUBLIC_API(bool)
-JS_EvaluateUCScriptForPrincipals(JSContext *cx, JS::Handle<JSObject*> obj,
+JS_EvaluateUCScriptForPrincipals(JSContext *cx, JSObject *obj,
                                  JSPrincipals *principals,
                                  const jschar *chars, unsigned length,
                                  const char *filename, unsigned lineno,
-                                 JS::MutableHandle<JS::Value> rval);
+                                 jsval *rval);
 
 extern JS_PUBLIC_API(bool)
-JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JS::Handle<JSObject*> obj,
+JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                         JSPrincipals *principals,
                                         const jschar *chars, unsigned length,
                                         const char *filename, unsigned lineno,
-                                        JS::MutableHandle<JS::Value> rval, JSVersion version);
+                                        jsval *rval, JSVersion version);
 
 /*
  * JSAPI clients may optionally specify the 'originPrincipals' of a script.
@@ -3876,13 +3850,12 @@ JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JS::Handle<JSObject*> obj
  * value of principals is used as origin principals for the script.
  */
 extern JS_PUBLIC_API(bool)
-JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JS::Handle<JSObject*> obj,
+JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
                                               JSPrincipals *principals,
                                               JSPrincipals *originPrincipals,
                                               const jschar *chars, unsigned length,
                                               const char *filename, unsigned lineno,
-                                              JS::MutableHandle<JS::Value> rval,
-                                              JSVersion version);
+                                              jsval *rval, JSVersion version);
 
 namespace JS {
 
@@ -4118,21 +4091,21 @@ JS_FlattenString(JSContext *cx, JSString *str);
 extern JS_PUBLIC_API(const jschar *)
 JS_GetFlatStringChars(JSFlatString *str);
 
-static MOZ_ALWAYS_INLINE JSFlatString *
+static JS_ALWAYS_INLINE JSFlatString *
 JSID_TO_FLAT_STRING(jsid id)
 {
     JS_ASSERT(JSID_IS_STRING(id));
     return (JSFlatString *)(JSID_BITS(id));
 }
 
-static MOZ_ALWAYS_INLINE JSFlatString *
+static JS_ALWAYS_INLINE JSFlatString *
 JS_ASSERT_STRING_IS_FLAT(JSString *str)
 {
     JS_ASSERT(JS_GetFlatStringChars((JSFlatString *)str));
     return (JSFlatString *)str;
 }
 
-static MOZ_ALWAYS_INLINE JSString *
+static JS_ALWAYS_INLINE JSString *
 JS_FORGET_STRING_FLATNESS(JSFlatString *fstr)
 {
     return (JSString *)fstr;
@@ -4471,15 +4444,6 @@ JS_GetErrorReporter(JSContext *cx);
 extern JS_PUBLIC_API(JSErrorReporter)
 JS_SetErrorReporter(JSContext *cx, JSErrorReporter er);
 
-namespace JS {
-
-extern JS_PUBLIC_API(bool)
-CreateTypeError(JSContext *cx, HandleString stack, HandleString fileName,
-                uint32_t lineNumber, uint32_t columnNumber, JSErrorReport *report,
-                HandleString message, MutableHandleValue rval);
-
-} /* namespace JS */
-
 /************************************************************************/
 
 /*
@@ -4746,7 +4710,7 @@ class AutoHideScriptedCaller
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-} /* namespace JS */
+} /* namepsace JS */
 
 /*
  * Encode/Decode interpreted scripts and functions to/from memory.
@@ -4822,63 +4786,6 @@ struct AsmJSCacheOps
 
 extern JS_PUBLIC_API(void)
 SetAsmJSCacheOps(JSRuntime *rt, const AsmJSCacheOps *callbacks);
-
-/*
- * Convenience class for imitating a JS level for-of loop. Typical usage:
- *
- *     ForOfIterator it(cx);
- *     if (!it.init(iterable))
- *       return false;
- *     RootedValue val(cx);
- *     while (true) {
- *       bool done;
- *       if (!it.next(&val, &done))
- *         return false;
- *       if (done)
- *         break;
- *       if (!DoStuff(cx, val))
- *         return false;
- *     }
- */
-class MOZ_STACK_CLASS JS_PUBLIC_API(ForOfIterator) {
-  protected:
-    JSContext *cx_;
-    JS::RootedObject iterator;
-
-    ForOfIterator(const ForOfIterator &) MOZ_DELETE;
-    ForOfIterator &operator=(const ForOfIterator &) MOZ_DELETE;
-
-  public:
-    ForOfIterator(JSContext *cx) : cx_(cx), iterator(cx) { }
-
-    enum NonIterableBehavior {
-        ThrowOnNonIterable,
-        AllowNonIterable
-    };
-
-    /*
-     * Initialize the iterator.  If AllowNonIterable is passed then if iterable
-     * does not have a callable @@iterator init() will just return true instead
-     * of throwing.  Callers should then check valueIsIterable() before
-     * continuing with the iteration.
-     */
-    bool init(JS::HandleValue iterable,
-              NonIterableBehavior nonIterableBehavior = ThrowOnNonIterable);
-
-    /*
-     * Get the next value from the iterator.  If false *done is true
-     * after this call, do not examine val.
-     */
-    bool next(JS::MutableHandleValue val, bool *done);
-
-    /*
-     * If initialized with throwOnNonCallable = false, check whether
-     * the value is iterable.
-     */
-    bool valueIsIterable() const {
-        return iterator;
-    }
-};
 
 } /* namespace JS */
 

@@ -47,7 +47,6 @@ public:
   gfx::IntSize GetSize() MOZ_OVERRIDE;
 
   already_AddRefed<gfxASurface> DeprecatedGetAsSurface() MOZ_OVERRIDE;
-  virtual TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() MOZ_OVERRIDE;
 
 private:
 

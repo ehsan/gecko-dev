@@ -27,7 +27,6 @@ using mozilla::IsNaN;
 using mozilla::Move;
 using mozilla::ArrayLength;
 using JS::DoubleNaNValue;
-using JS::ForOfIterator;
 
 
 /*** OrderedHashTable ****************************************************************************/
@@ -1015,6 +1014,7 @@ const Class MapObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
+    nullptr,                 // checkAccess
     nullptr,                 // call
     nullptr,                 // hasInstance
     nullptr,                 // construct
@@ -1605,6 +1605,7 @@ const Class SetObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
+    nullptr,                 // checkAccess
     nullptr,                 // call
     nullptr,                 // hasInstance
     nullptr,                 // construct

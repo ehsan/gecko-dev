@@ -121,7 +121,6 @@ OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
   }
 
   // Dequeue an encoded frame from the output buffers of OMXCodecWrapper.
-  nsresult rv;
   nsTArray<uint8_t> buffer;
   int outFlags = 0;
   int64_t outTimeStampUs = 0;
@@ -135,8 +134,7 @@ OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
       videoData->SetFrameType((outFlags & OMXCodecWrapper::BUFFER_SYNC_FRAME) ?
                               EncodedFrame::I_FRAME : EncodedFrame::P_FRAME);
     }
-    rv = videoData->SwapInFrameData(buffer);
-    NS_ENSURE_SUCCESS(rv, rv);
+    videoData->SetFrameData(&buffer);
     videoData->SetTimeStamp(outTimeStampUs);
     aData.AppendEncodedFrame(videoData);
   }
@@ -209,14 +207,15 @@ OmxAudioTrackEncoder::AppendEncodedFrames(EncodedFrameContainer& aContainer)
       isCSD = true;
     } else if (outFlags & OMXCodecWrapper::BUFFER_EOS) { // last frame
       mEncodingComplete = true;
+    } else {
+      MOZ_ASSERT(frameData.Length() == OMXCodecWrapper::kAACFrameSize);
     }
 
     nsRefPtr<EncodedFrame> audiodata = new EncodedFrame();
     audiodata->SetFrameType(isCSD ?
       EncodedFrame::AAC_CSD : EncodedFrame::AUDIO_FRAME);
     audiodata->SetTimeStamp(outTimeUs);
-    rv = audiodata->SwapInFrameData(frameData);
-    NS_ENSURE_SUCCESS(rv, rv);
+    audiodata->SetFrameData(&frameData);
     aContainer.AppendEncodedFrame(audiodata);
   }
 
@@ -244,31 +243,19 @@ OmxAudioTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     segment.AppendFrom(&mRawSegment);
   }
 
-  nsresult rv;
-  if (segment.GetDuration() == 0) {
-    // Notify EOS at least once, even if segment is empty.
-    if (mEndOfStream && !mEosSetInEncoder) {
+  if (!mEosSetInEncoder) {
+    if (mEndOfStream) {
       mEosSetInEncoder = true;
-      rv = mEncoder->Encode(segment, OMXCodecWrapper::BUFFER_EOS);
+    }
+    if (segment.GetDuration() > 0 || mEndOfStream) {
+      // Notify EOS at least once, even when segment is empty.
+      nsresult rv = mEncoder->Encode(segment,
+                                mEndOfStream ? OMXCodecWrapper::BUFFER_EOS : 0);
       NS_ENSURE_SUCCESS(rv, rv);
     }
-    // Nothing to encode but encoder could still have encoded data for earlier
-    // input.
-    return AppendEncodedFrames(aData);
   }
 
-  // OMX encoder has limited input buffers only so we have to feed input and get
-  // output more than once if there are too many samples pending in segment.
-  while (segment.GetDuration() > 0) {
-    rv = mEncoder->Encode(segment,
-                          mEndOfStream ? OMXCodecWrapper::BUFFER_EOS : 0);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = AppendEncodedFrames(aData);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
+  return AppendEncodedFrames(aData);
 }
 
 }

@@ -39,7 +39,6 @@
 
 using namespace js;
 using namespace js::gc;
-using JS::ForOfIterator;
 
 using mozilla::ArrayLength;
 #ifdef JS_MORE_DETERMINISTIC
@@ -102,13 +101,13 @@ Enumerate(JSContext *cx, HandleObject pobj, jsid id,
      * the built-in prototypes).  So exclude __proto__ if the object where the
      * property was found has no [[Prototype]] and might be |Object.prototype|.
      */
-    if (MOZ_UNLIKELY(!pobj->getTaggedProto().isObject() && JSID_IS_ATOM(id, cx->names().proto)))
+    if (JS_UNLIKELY(!pobj->getTaggedProto().isObject() && JSID_IS_ATOM(id, cx->names().proto)))
         return true;
 
     if (!(flags & JSITER_OWNONLY) || pobj->is<ProxyObject>() || pobj->getOps()->enumerate) {
         /* If we've already seen this, we definitely won't add it. */
         IdSet::AddPtr p = ht.lookupForAdd(id);
-        if (MOZ_UNLIKELY(!!p))
+        if (JS_UNLIKELY(!!p))
             return true;
 
         /*
@@ -670,13 +669,13 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
 
     AutoIdVector keys(cx);
     if (flags & JSITER_FOREACH) {
-        if (MOZ_LIKELY(obj != nullptr) && !Snapshot(cx, obj, flags, &keys))
+        if (JS_LIKELY(obj != nullptr) && !Snapshot(cx, obj, flags, &keys))
             return false;
         JS_ASSERT(shapes.empty());
         if (!VectorToValueIterator(cx, obj, flags, keys, vp))
             return false;
     } else {
-        if (MOZ_LIKELY(obj != nullptr) && !Snapshot(cx, obj, flags, &keys))
+        if (JS_LIKELY(obj != nullptr) && !Snapshot(cx, obj, flags, &keys))
             return false;
         if (!VectorToKeyIterator(cx, obj, flags, keys, shapes.length(), key, vp))
             return false;
@@ -730,9 +729,9 @@ bool
 js_ThrowStopIteration(JSContext *cx)
 {
     JS_ASSERT(!JS_IsExceptionPending(cx));
-    RootedObject ctor(cx);
-    if (js_GetClassObject(cx, JSProto_StopIteration, &ctor) && ctor)
-        cx->setPendingException(ObjectValue(*ctor));
+    RootedValue v(cx);
+    if (js_FindClassObject(cx, JSProto_StopIteration, &v))
+        cx->setPendingException(v);
     return false;
 }
 
@@ -758,13 +757,13 @@ js::IteratorConstructor(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 IsIterator(HandleValue v)
 {
     return v.isObject() && v.toObject().hasClass(&PropertyIteratorObject::class_);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 iterator_next_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsIterator(args.thisv()));
@@ -835,6 +834,7 @@ const Class PropertyIteratorObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
@@ -1254,7 +1254,8 @@ stopiter_hasInstance(JSContext *cx, HandleObject obj, MutableHandleValue v, bool
 
 const Class StopIterationObject::class_ = {
     "StopIteration",
-    JSCLASS_HAS_CACHED_PROTO(JSProto_StopIteration),
+    JSCLASS_HAS_CACHED_PROTO(JSProto_StopIteration) |
+    JSCLASS_FREEZE_PROTO,
     JS_PropertyStub,         /* addProperty */
     JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1263,15 +1264,15 @@ const Class StopIterationObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,                 /* finalize    */
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     stopiter_hasInstance,
     nullptr                  /* construct   */
 };
 
 bool
-ForOfIterator::init(HandleValue iterable, NonIterableBehavior nonIterableBehavior)
+ForOfIterator::init(HandleValue iterable)
 {
-    JSContext *cx = cx_;
     RootedObject iterableObj(cx, ToObject(cx, iterable));
     if (!iterableObj)
         return false;
@@ -1286,13 +1287,10 @@ ForOfIterator::init(HandleValue iterable, NonIterableBehavior nonIterableBehavio
     if (!JSObject::getProperty(cx, iterableObj, iterableObj, cx->names().std_iterator, &callee))
         return false;
 
-    // Throw if obj[@@iterator] isn't callable if we were asked to do so.
-    // js::Invoke is about to check for this kind of error anyway, but it would
-    // throw an inscrutable error message about |method| rather than this nice
-    // one about |obj|.
+    // Throw if obj[@@iterator] isn't callable. js::Invoke is about to check
+    // for this kind of error anyway, but it would throw an inscrutable
+    // error message about |method| rather than this nice one about |obj|.
     if (!callee.isObject() || !callee.toObject().isCallable()) {
-        if (nonIterableBehavior == AllowNonIterable)
-            return true;
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, iterable, NullPtr());
         if (!bytes)
             return false;
@@ -1317,7 +1315,6 @@ ForOfIterator::next(MutableHandleValue vp, bool *done)
 {
     JS_ASSERT(iterator);
 
-    JSContext *cx = cx_;
     RootedValue method(cx);
     if (!JSObject::getProperty(cx, iterator, iterator, cx->names().next, &method))
         return false;
@@ -1491,6 +1488,7 @@ const Class LegacyGeneratorObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     FinalizeGenerator<LegacyGeneratorObject>,
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
@@ -1513,6 +1511,7 @@ const Class StarGeneratorObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     FinalizeGenerator<StarGeneratorObject>,
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
@@ -1703,7 +1702,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
     return ok;
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 star_generator_next(JSContext *cx, CallArgs args)
 {
     RootedObject thisObj(cx, &args.thisv().toObject());
@@ -1725,7 +1724,7 @@ star_generator_next(JSContext *cx, CallArgs args)
                            args.rval());
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 star_generator_throw(JSContext *cx, CallArgs args)
 {
     RootedObject thisObj(cx, &args.thisv().toObject());
@@ -1740,7 +1739,7 @@ star_generator_throw(JSContext *cx, CallArgs args)
                            args.rval());
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 legacy_generator_next(JSContext *cx, CallArgs args)
 {
     RootedObject thisObj(cx, &args.thisv().toObject());
@@ -1760,7 +1759,7 @@ legacy_generator_next(JSContext *cx, CallArgs args)
                            args.rval());
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 legacy_generator_throw(JSContext *cx, CallArgs args)
 {
     RootedObject thisObj(cx, &args.thisv().toObject());
@@ -1804,7 +1803,7 @@ CloseLegacyGenerator(JSContext *cx, HandleObject obj)
     return CloseLegacyGenerator(cx, obj, &rval);
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 legacy_generator_close(JSContext *cx, CallArgs args)
 {
     RootedObject thisObj(cx, &args.thisv().toObject());
@@ -1813,7 +1812,7 @@ legacy_generator_close(JSContext *cx, CallArgs args)
 }
 
 template<typename T>
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 IsObjectOfType(HandleValue v)
 {
     return v.isObject() && v.toObject().is<T>();

@@ -2102,19 +2102,11 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
   int32_t newIndex = kNothingSelected;
 
   bool isControlOrMeta = (keyEvent->IsControl() || keyEvent->IsMeta());
-  // Don't try to handle multiple-select pgUp/pgDown in single-select lists.
-  if (isControlOrMeta && !GetMultiple() &&
-      (keyEvent->keyCode == NS_VK_PAGE_UP ||
-       keyEvent->keyCode == NS_VK_PAGE_DOWN)) {
-    return NS_OK;
-  }
   if (isControlOrMeta && (keyEvent->keyCode == NS_VK_UP ||
                           keyEvent->keyCode == NS_VK_LEFT ||
                           keyEvent->keyCode == NS_VK_DOWN ||
-                          keyEvent->keyCode == NS_VK_RIGHT ||
-                          keyEvent->keyCode == NS_VK_HOME ||
-                          keyEvent->keyCode == NS_VK_END)) {
-    // Don't go into multiple-select mode unless this list can handle it.
+                          keyEvent->keyCode == NS_VK_RIGHT)) {
+    // Don't go into multiple select mode unless this list can handle it
     isControlOrMeta = mControlSelectMode = GetMultiple();
   } else if (keyEvent->keyCode != NS_VK_SPACE) {
     mControlSelectMode = false;
@@ -2203,9 +2195,7 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
 
 #if defined(XP_WIN) || defined(XP_OS2)
     case NS_VK_F4:
-      if (!isControlOrMeta) {
-        DropDownToggleKey(aKeyEvent);
-      }
+      DropDownToggleKey(aKeyEvent);
       return NS_OK;
 #endif
 

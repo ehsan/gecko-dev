@@ -638,10 +638,10 @@ WebGLContext::CopyTexSubImage2D(GLenum target,
     if (yoffset + height > texHeight || yoffset + height < 0)
       return ErrorInvalidValue("copyTexSubImage2D: yoffset+height is too large");
 
-    GLenum internalFormat = imageInfo.InternalFormat();
-    bool texFormatRequiresAlpha = (internalFormat == LOCAL_GL_RGBA ||
-                                   internalFormat == LOCAL_GL_ALPHA ||
-                                   internalFormat == LOCAL_GL_LUMINANCE_ALPHA);
+    GLenum format = imageInfo.InternalFormat();
+    bool texFormatRequiresAlpha = format == LOCAL_GL_RGBA ||
+                                  format == LOCAL_GL_ALPHA ||
+                                  format == LOCAL_GL_LUMINANCE_ALPHA;
     bool fboFormatHasAlpha = mBoundFramebuffer ? mBoundFramebuffer->ColorAttachment(0).HasAlpha()
                                                : bool(gl->GetPixelFormat().alpha > 0);
 
@@ -649,11 +649,9 @@ WebGLContext::CopyTexSubImage2D(GLenum target,
         return ErrorInvalidOperation("copyTexSubImage2D: texture format requires an alpha channel "
                                      "but the framebuffer doesn't have one");
 
-    if (IsGLDepthFormat(internalFormat) ||
-        IsGLDepthStencilFormat(internalFormat))
-    {
+    if (format == LOCAL_GL_DEPTH_COMPONENT ||
+        format == LOCAL_GL_DEPTH_STENCIL)
         return ErrorInvalidOperation("copyTexSubImage2D: a base internal format of DEPTH_COMPONENT or DEPTH_STENCIL isn't supported");
-    }
 
     if (mBoundFramebuffer)
         if (!mBoundFramebuffer->CheckAndInitializeAttachments())
@@ -663,7 +661,7 @@ WebGLContext::CopyTexSubImage2D(GLenum target,
         tex->DoDeferredImageInitialization(target, level);
     }
 
-    return CopyTexSubImage2D_base(target, level, internalFormat, xoffset, yoffset, x, y, width, height, true);
+    return CopyTexSubImage2D_base(target, level, format, xoffset, yoffset, x, y, width, height, true);
 }
 
 
@@ -1184,17 +1182,15 @@ WebGLContext::GenerateMipmap(GLenum target)
     if (!tex->IsFirstImagePowerOfTwo())
         return ErrorInvalidOperation("generateMipmap: Level zero of texture does not have power-of-two width and height.");
 
-    GLenum internalFormat = tex->ImageInfoAt(imageTarget, 0).InternalFormat();
-    if (IsTextureFormatCompressed(internalFormat))
+    GLenum format = tex->ImageInfoAt(imageTarget, 0).InternalFormat();
+    if (IsTextureFormatCompressed(format))
         return ErrorInvalidOperation("generateMipmap: Texture data at level zero is compressed.");
 
     if (IsExtensionEnabled(WEBGL_depth_texture) &&
-        (IsGLDepthFormat(internalFormat) || IsGLDepthStencilFormat(internalFormat)))
-    {
+        (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL))
         return ErrorInvalidOperation("generateMipmap: "
                                      "A texture that has a base internal format of "
                                      "DEPTH_COMPONENT or DEPTH_STENCIL isn't supported");
-    }
 
     if (!tex->AreAllLevel0ImageInfosEqual())
         return ErrorInvalidOperation("generateMipmap: The six faces of this cube map have different dimensions, format, or type.");
@@ -3674,25 +3670,16 @@ GLenum WebGLContext::CheckedTexImage2D(GLenum target,
                         type != imageInfo.Type();
     }
 
-    // convert type for half float if not on GLES2
-    GLenum realType = type;
-    if (realType == LOCAL_GL_HALF_FLOAT_OES && !gl->IsGLES2()) {
-        realType = LOCAL_GL_HALF_FLOAT;
-    }
-
     if (sizeMayChange) {
         UpdateWebGLErrorAndClearGLError();
-
-        gl->fTexImage2D(target, level, internalFormat, width, height, border, format, realType, data);
-
+        gl->fTexImage2D(target, level, internalFormat, width, height, border, format, type, data);
         GLenum error = LOCAL_GL_NO_ERROR;
         UpdateWebGLErrorAndClearGLError(&error);
         return error;
+    } else {
+        gl->fTexImage2D(target, level, internalFormat, width, height, border, format, type, data);
+        return LOCAL_GL_NO_ERROR;
     }
-
-    gl->fTexImage2D(target, level, internalFormat, width, height, border, format, realType, data);
-
-    return LOCAL_GL_NO_ERROR;
 }
 
 void
@@ -3981,19 +3968,13 @@ WebGLContext::TexSubImage2D_base(GLenum target, GLint level,
     // There are checks above to ensure that this won't overflow.
     size_t dstStride = RoundedToNextMultipleOf(dstPlainRowSize, mPixelStoreUnpackAlignment).value();
 
-    // convert type for half float if not on GLES2
-    GLenum realType = type;
-    if (realType == LOCAL_GL_HALF_FLOAT_OES && !gl->IsGLES2()) {
-        realType = LOCAL_GL_HALF_FLOAT;
-    }
-
     if (actualSrcFormat == dstFormat &&
         srcPremultiplied == mPixelStorePremultiplyAlpha &&
         srcStride == dstStride &&
         !mPixelStoreFlipY)
     {
         // no conversion, no flipping, so we avoid copying anything and just pass the source pointer
-        gl->fTexSubImage2D(target, level, xoffset, yoffset, width, height, format, realType, pixels);
+        gl->fTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, pixels);
     }
     else
     {
@@ -4004,7 +3985,7 @@ WebGLContext::TexSubImage2D_base(GLenum target, GLint level,
                     actualSrcFormat, srcPremultiplied,
                     dstFormat, mPixelStorePremultiplyAlpha, dstTexelSize);
 
-        gl->fTexSubImage2D(target, level, xoffset, yoffset, width, height, format, realType, convertedData);
+        gl->fTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, convertedData);
     }
 }
 
@@ -4144,44 +4125,31 @@ BaseTypeAndSizeFromUniformType(GLenum uType, GLenum *baseType, GLint *unitSize)
 }
 
 
-WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum internalformat, GLenum type)
+WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
 {
     //
     // WEBGL_depth_texture
-    if (internalformat == LOCAL_GL_DEPTH_COMPONENT) {
+    if (format == LOCAL_GL_DEPTH_COMPONENT) {
         switch (type) {
             case LOCAL_GL_UNSIGNED_SHORT:
                 return WebGLTexelFormat::D16;
             case LOCAL_GL_UNSIGNED_INT:
                 return WebGLTexelFormat::D32;
+            default:
+                MOZ_CRASH("Invalid WebGL texture format/type?");
         }
-
-        MOZ_CRASH("Invalid WebGL texture format/type?");
-    }
-
-    if (internalformat == LOCAL_GL_DEPTH_STENCIL) {
+    } else if (format == LOCAL_GL_DEPTH_STENCIL) {
         switch (type) {
             case LOCAL_GL_UNSIGNED_INT_24_8_EXT:
                 return WebGLTexelFormat::D24S8;
+            default:
+                MOZ_CRASH("Invalid WebGL texture format/type?");
         }
-
-        MOZ_CRASH("Invalid WebGL texture format/type?");
     }
 
-    if (internalformat == LOCAL_GL_DEPTH_COMPONENT16) {
-        return WebGLTexelFormat::D16;
-    }
-
-    if (internalformat == LOCAL_GL_DEPTH_COMPONENT32) {
-        return WebGLTexelFormat::D32;
-    }
-
-    if (internalformat == LOCAL_GL_DEPTH24_STENCIL8) {
-        return WebGLTexelFormat::D24S8;
-    }
 
     if (type == LOCAL_GL_UNSIGNED_BYTE) {
-        switch (internalformat) {
+        switch (format) {
             case LOCAL_GL_RGBA:
             case LOCAL_GL_SRGB_ALPHA_EXT:
                 return WebGLTexelFormat::RGBA8;
@@ -4194,16 +4162,14 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum internalformat, GLenum type
                 return WebGLTexelFormat::R8;
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return WebGLTexelFormat::RA8;
+            default:
+                MOZ_ASSERT(false, "Coding mistake?! Should never reach this point.");
+                return WebGLTexelFormat::BadFormat;
         }
-
-        MOZ_CRASH("Invalid WebGL texture format/type?");
-    }
-
-    if (type == LOCAL_GL_FLOAT) {
+    } else if (type == LOCAL_GL_FLOAT) {
         // OES_texture_float
-        switch (internalformat) {
+        switch (format) {
             case LOCAL_GL_RGBA:
-            case LOCAL_GL_RGBA32F:
                 return WebGLTexelFormat::RGBA32F;
             case LOCAL_GL_RGB:
                 return WebGLTexelFormat::RGB32F;
@@ -4213,41 +4179,23 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum internalformat, GLenum type
                 return WebGLTexelFormat::R32F;
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return WebGLTexelFormat::RA32F;
+            default:
+                MOZ_ASSERT(false, "Coding mistake?! Should never reach this point.");
+                return WebGLTexelFormat::BadFormat;
         }
-
-        MOZ_CRASH("Invalid WebGL texture format/type?");
-    } else if (type == LOCAL_GL_HALF_FLOAT_OES) {
-        // OES_texture_half_float
-        switch (internalformat) {
-            case LOCAL_GL_RGBA:
-                return WebGLTexelFormat::RGBA16F;
-            case LOCAL_GL_RGB:
-                return WebGLTexelFormat::RGB16F;
-            case LOCAL_GL_ALPHA:
-                return WebGLTexelFormat::A16F;
-            case LOCAL_GL_LUMINANCE:
-                return WebGLTexelFormat::R16F;
-            case LOCAL_GL_LUMINANCE_ALPHA:
-                return WebGLTexelFormat::RA16F;
+    } else {
+        switch (type) {
+            case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+                return WebGLTexelFormat::RGBA4444;
+            case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+                return WebGLTexelFormat::RGBA5551;
+            case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+                return WebGLTexelFormat::RGB565;
             default:
                 MOZ_ASSERT(false, "Coding mistake?! Should never reach this point.");
                 return WebGLTexelFormat::BadFormat;
         }
     }
-
-    switch (type) {
-        case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-           return WebGLTexelFormat::RGBA4444;
-        case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-           return WebGLTexelFormat::RGBA5551;
-        case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-           return WebGLTexelFormat::RGB565;
-        default:
-            MOZ_ASSERT(false, "Coding mistake?! Should never reach this point.");
-            return WebGLTexelFormat::BadFormat;
-    }
-
-    MOZ_CRASH("Invalid WebGL texture format/type?");
 }
 
 GLenum
@@ -4290,21 +4238,6 @@ InternalFormatForFormatAndType(GLenum format, GLenum type, bool isGLES2)
             return LOCAL_GL_LUMINANCE32F_ARB;
         case LOCAL_GL_LUMINANCE_ALPHA:
             return LOCAL_GL_LUMINANCE_ALPHA32F_ARB;
-        }
-        break;
-
-    case LOCAL_GL_HALF_FLOAT_OES:
-        switch (format) {
-        case LOCAL_GL_RGBA:
-            return LOCAL_GL_RGBA16F;
-        case LOCAL_GL_RGB:
-            return LOCAL_GL_RGB16F;
-        case LOCAL_GL_ALPHA:
-            return LOCAL_GL_ALPHA16F_ARB;
-        case LOCAL_GL_LUMINANCE:
-            return LOCAL_GL_LUMINANCE16F_ARB;
-        case LOCAL_GL_LUMINANCE_ALPHA:
-            return LOCAL_GL_LUMINANCE_ALPHA16F_ARB;
         }
         break;
 

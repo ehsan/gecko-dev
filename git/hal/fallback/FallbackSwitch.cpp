@@ -25,10 +25,5 @@ GetCurrentSwitchState(SwitchDevice aDevice) {
   return SWITCH_STATE_UNKNOWN;
 }
 
-void
-NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
-{
-}
-
 } // namespace hal_impl
 } // namespace mozilla

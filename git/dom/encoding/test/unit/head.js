@@ -1,95 +1,54 @@
 /**
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/
- *
- * This is a shim for the W3C testharness.js, mapping those of
- * its functions that we need to the testing/xpcshell/head.js API.
- * See <http://www.w3.org/2008/webapps/wiki/Harness> for documentation.
- * This shim does some tests a little differently than the W3C test
- * harness; equality comparisons, especially, are less precise.
- * The difference does not presently affect any test results.
- *
- * We use the lower-level do_report_result throughout this file,
- * rather than the high-level xpcshell/head.js API that has near
- * equivalents for the W3C assert_* functions, because only
- * do_report_result allows us to provide Components.stack.caller.
  */
 
+const { 'classes': Cc, 'interfaces': Ci } = Components;
+
 function assert_equals(a, b, msg) {
-  let text = msg + ": " + _wrap_with_quotes_if_necessary(a) +
-                 " == " + _wrap_with_quotes_if_necessary(b);
-  do_report_result(a == b, text, Components.stack.caller, false);
+  dump("assert_equals(" + a + ", " + b + ", \"" + msg + "\")");
+  do_check_eq(a, b, Components.stack.caller);
 }
 
 function assert_not_equals(a, b, msg) {
-  let text = msg + ": " + _wrap_with_quotes_if_necessary(a) +
-                 " != " + _wrap_with_quotes_if_necessary(b);
-  do_report_result(a != b, text, Components.stack.caller, false);
+  dump("assert_not_equals(" + a + ", " + b + ", \"" + msg + "\")");
+  do_check_neq(a, b, Components.stack.caller);
 }
 
 function assert_array_equals(a, b, msg) {
-  do_report_result(a.length == b.length,
-                   msg + ": (length) " + a.length + " == " + b.length,
-                   Components.stack.caller, false);
-  for (let i = 0; i < a.length; ++i) {
+  dump("assert_array_equals(\"" + msg + "\")");
+  do_check_eq(a.length, b.length, Components.stack.caller);
+  for (var i = 0; i < a.length; ++i) {
     if (a[i] !== b[i]) {
-        do_report_result(false,
-                         msg + ": [" + i + "] " +
-                               _wrap_with_quotes_if_necessary(a[i]) +
-                               " === " +
-                               _wrap_with_quotes_if_necessary(b[i]),
-                         Components.stack.caller, false);
+      do_check_eq(a[i], b[i], Components.stack.caller);
     }
   }
-  // If we get here, all array elements are equal.
-  do_report_result(true, msg + ": all array elements equal",
-                   Components.stack.caller, false);
 }
 
 function assert_true(cond, msg) {
-  do_report_result(!!cond, msg + ": " + uneval(cond),
-                   Components.stack.caller, false);
+  dump("assert_true(" + cond + ", \"" + msg + "\")");
+  do_check_true(!!cond, Components.stack.caller); 
 }
 
 function assert_throws(ex, func) {
-  if (!('name' in ex))
-    do_throw("first argument to assert_throws must be of the form " +
-             "{'name': something}");
-
-  let msg = "expected to catch an exception named " + ex.name;
-
+  dump("assert_throws(\"" + ex + "\", " + func + ")");
   try {
     func();
+    do_check_true(false, Components.stack.caller); 
   } catch (e) {
-    if ('name' in e)
-      do_report_result(e.name == ex.name,
-                       msg + ", got " + e.name,
-                       Components.stack.caller, false);
-    else
-      do_report_result(false,
-                       msg + ", got " + legible_exception(ex),
-                       Components.stack.caller, false);
-
-    return;
+    do_check_eq(e.name, ex.name, Components.stack.caller); 
   }
-
-  // Call this here, not in the 'try' clause, so do_report_result's own
-  // throw doesn't get caught by our 'catch' clause.
-  do_report_result(false, msg + ", but returned normally",
-                   Components.stack.caller, false);
 }
 
-let tests = [];
+var tests = [];
 
 function test(func, msg) {
-  tests.push({msg: msg, func: func,
-              filename: Components.stack.caller.filename });
+  tests.push({msg: msg, func: func});
 }
 
 function run_test() {
   tests.forEach(function(t) {
-    _log("test_info", {source_file: t.filename,
-                       diagnostic: "test group: " + t.msg});
+    dump("test(\"" + t.msg + "\")");
     t.func();
   });
 };

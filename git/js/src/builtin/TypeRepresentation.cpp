@@ -39,6 +39,7 @@ const Class TypeRepresentation::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     obj_finalize,
+    nullptr,        /* checkAccess */
     nullptr,        /* call        */
     nullptr,        /* hasInstance */
     nullptr,        /* construct   */

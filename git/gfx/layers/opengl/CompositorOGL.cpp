@@ -231,8 +231,8 @@ FPSState::DrawFPS(TimeStamp aNow,
   aProgram->SetTextureUnit(0);
   aProgram->SetLayerQuadRect(gfx::Rect(0.f, 0.f, viewport[2], viewport[3]));
   aProgram->SetLayerOpacity(1.f);
-  aProgram->SetTextureTransform(Matrix4x4());
-  aProgram->SetLayerTransform(Matrix4x4());
+  aProgram->SetTextureTransform(gfx3DMatrix());
+  aProgram->SetLayerTransform(gfx3DMatrix());
   aProgram->SetRenderOffset(0, 0);
 
   aContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ZERO,
@@ -628,21 +628,17 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
 
   gfx3DMatrix textureTransform;
   if (rects.IsSimpleQuad(textureTransform)) {
-    Matrix4x4 transform;
-    ToMatrix4x4(aTextureTransform * textureTransform, transform);
-    aProg->SetTextureTransform(transform);
+    aProg->SetTextureTransform(aTextureTransform * textureTransform);
     BindAndDrawQuad(aProg, false);
   } else {
-    Matrix4x4 transform;
-    ToMatrix4x4(aTextureTransform, transform);
-    aProg->SetTextureTransform(transform);
+    aProg->SetTextureTransform(aTextureTransform);
     DrawQuads(mGLContext, mVBOs, aProg, rects);
   }
 }
 
 void
 CompositorOGL::PrepareViewport(const gfx::IntSize& aSize,
-                               const Matrix& aWorldTransform)
+                               const gfxMatrix& aWorldTransform)
 {
   // Set the viewport correctly.
   mGLContext->fViewport(0, 0, aSize.width, aSize.height);
@@ -659,31 +655,29 @@ CompositorOGL::PrepareViewport(const gfx::IntSize& aSize,
 
   // Matrix to transform (0, 0, aWidth, aHeight) to viewport space (-1.0, 1.0,
   // 2, 2) and flip the contents.
-  Matrix viewMatrix;
-  viewMatrix.Translate(-1.0, 1.0);
+  gfxMatrix viewMatrix;
+  viewMatrix.Translate(-gfxPoint(1.0, -1.0));
   viewMatrix.Scale(2.0f / float(aSize.width), 2.0f / float(aSize.height));
   viewMatrix.Scale(1.0f, -1.0f);
   if (!mTarget) {
-    viewMatrix.Translate(mRenderOffset.x, mRenderOffset.y);
+    viewMatrix.Translate(gfxPoint(mRenderOffset.x, mRenderOffset.y));
   }
 
   viewMatrix = aWorldTransform * viewMatrix;
 
-  Matrix4x4 matrix3d = Matrix4x4::From2D(viewMatrix);
+  gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
 
   SetLayerProgramProjectionMatrix(matrix3d);
 }
 
 void
-CompositorOGL::SetLayerProgramProjectionMatrix(const Matrix4x4& aMatrix)
+CompositorOGL::SetLayerProgramProjectionMatrix(const gfx3DMatrix& aMatrix)
 {
-  // Update the projection matrix in all of the programs, without activating them.
-  // The uniform will actually be set the next time the program is activated.
   for (unsigned int i = 0; i < mPrograms.Length(); ++i) {
     for (uint32_t mask = MaskNone; mask < NumMaskTypes; ++mask) {
       if (mPrograms[i].mVariations[mask]) {
-        mPrograms[i].mVariations[mask]->DelayedSetProjectionMatrix(aMatrix);
+        mPrograms[i].mVariations[mask]->CheckAndSetProjectionMatrix(aMatrix);
       }
     }
   }
@@ -852,7 +846,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
 
   mCurrentRenderTarget = CompositingRenderTargetOGL::RenderTargetForWindow(this,
                             IntSize(width, height),
-                            aTransform);
+                            ThebesMatrix(aTransform));
   mCurrentRenderTarget->BindRenderTarget();
 #ifdef DEBUG
   mWindowRenderTarget = mCurrentRenderTarget;
@@ -1221,8 +1215,7 @@ CompositorOGL::DrawQuadInternal(const Rect& aRect,
       AutoBindTexture bindSource(mGLContext, source->AsSourceOGL(), LOCAL_GL_TEXTURE0);
 
       GraphicsFilter filter = ThebesFilter(texturedEffect->mFilter);
-      gfx3DMatrix textureTransform;
-      gfx::To3DMatrix(source->AsSourceOGL()->GetTextureTransform(), textureTransform);
+      gfx3DMatrix textureTransform = source->AsSourceOGL()->GetTextureTransform();
 
 #ifdef MOZ_WIDGET_ANDROID
       gfxMatrix textureTransform2D;
@@ -1305,7 +1298,7 @@ CompositorOGL::DrawQuadInternal(const Rect& aRect,
       program->Activate();
       program->SetTextureUnit(0);
       program->SetLayerOpacity(aOpacity);
-      program->SetTextureTransform(Matrix4x4());
+      program->SetTextureTransform(gfx3DMatrix());
 
       AutoSaveTexture bindMask(mGLContext, LOCAL_GL_TEXTURE1);
       if (maskType != MaskNone) {
@@ -1459,7 +1452,7 @@ CompositorOGL::EndFrameForExternalComposition(const gfx::Matrix& aTransform)
   // This lets us reftest and screenshot content rendered externally
   if (mTarget) {
     MakeCurrent();
-    CopyToTarget(mTarget, aTransform);
+    CopyToTarget(mTarget, ThebesMatrix(aTransform));
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
   }
 }
@@ -1480,7 +1473,7 @@ CompositorOGL::SetDestinationSurfaceSize(const gfx::IntSize& aSize)
 }
 
 void
-CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfx::Matrix& aTransform)
+CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
 {
   IntRect rect;
   if (mUseExternalSurfaceSize) {
@@ -1519,7 +1512,7 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfx::Matrix& aTransform)
   source->Unmap();
 
   // Map from GL space to Cairo space and reverse the world transform.
-  Matrix glToCairoTransform = aTransform;
+  Matrix glToCairoTransform = ToMatrix(aTransform);
   glToCairoTransform.Invert();
   glToCairoTransform.Scale(1.0, -1.0);
   glToCairoTransform.Translate(0.0, -height);

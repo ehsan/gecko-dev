@@ -82,6 +82,7 @@ public:
 
   // Public apis for MetroWidget
   int GetPreviousExecutionState();
+  void ShutdownXPCOM();
   float GetDPI() { return mDPI; }
   ICoreWindow* GetCoreWindow() { return mWindow.Get(); }
   void SetWidget(MetroWidget* aWidget);
@@ -99,7 +100,6 @@ public:
 
   // MetroApp apis
   void SetupContracts();
-  void Shutdown();
 
   // MetroContracts settings panel enumerator entry
   void AddSetting(ISettingsPaneCommandsRequestedEventArgs* aArgs, uint32_t aId,
@@ -113,6 +113,8 @@ protected:
 
   HRESULT OnWindowSizeChanged(ICoreWindow* aSender,
                               IWindowSizeChangedEventArgs* aArgs);
+  HRESULT OnWindowClosed(ICoreWindow* aSender,
+                         ICoreWindowEventArgs* aArgs);
   HRESULT OnWindowActivated(ICoreWindow* aSender,
                             IWindowActivatedEventArgs* aArgs);
   HRESULT OnLogicalDpiChanged(IInspectable* aSender);

@@ -354,7 +354,7 @@ PreallocatedProcessManagerImpl::OnNuwaReady()
 {
   NS_ASSERTION(!mIsNuwaReady, "Multiple Nuwa processes created!");
   ProcessPriorityManager::SetProcessPriority(mPreallocatedAppProcess,
-                                             hal::PROCESS_PRIORITY_MASTER);
+                                             hal::PROCESS_PRIORITY_FOREGROUND);
   mIsNuwaReady = true;
   if (Preferences::GetBool("dom.ipc.processPriorityManager.testMode")) {
     AutoJSContext cx;

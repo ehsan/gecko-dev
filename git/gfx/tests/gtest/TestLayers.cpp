@@ -8,7 +8,6 @@
 #include "gmock/gmock.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
 class TestLayerManager: public LayerManager {
@@ -48,7 +47,7 @@ public:
     return TYPE_CONTAINER;
   }
 
-  virtual void ComputeEffectiveTransforms(const Matrix4x4& aTransformToSurface) {
+  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) {
     DefaultComputeEffectiveTransforms(aTransformToSurface);
   }
 
@@ -125,7 +124,7 @@ TEST(Layers, Defaults) {
 TEST(Layers, Transform) {
   TestContainerLayer layer(nullptr);
 
-  Matrix4x4 identity;
+  gfx3DMatrix identity;
   ASSERT_EQ(true, identity.IsIdentity());
 
   ASSERT_EQ(identity, layer.GetTransform());
@@ -218,9 +217,7 @@ already_AddRefed<Layer> CreateLayerTree(
     } else {
       nsRefPtr<Layer> layer = CreateLayer(aLayerTreeDescription[i], manager.get());
       layer->SetVisibleRegion(aVisibleRegions[layerNumber]);
-      Matrix4x4 transform;
-      ToMatrix4x4(aTransforms[layerNumber], transform);
-      layer->SetBaseTransform(transform);
+      layer->SetBaseTransform(aTransforms[layerNumber]);
       aLayersOut.AppendElement(layer);
       layerNumber++;
       if (rootLayer && !parentContainerLayer) {
@@ -237,7 +234,7 @@ already_AddRefed<Layer> CreateLayerTree(
     }
   }
   if (rootLayer) {
-    rootLayer->ComputeEffectiveTransforms(Matrix4x4());
+    rootLayer->ComputeEffectiveTransforms(gfx3DMatrix());
   }
   return rootLayer.forget();
 }

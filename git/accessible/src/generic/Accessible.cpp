@@ -581,6 +581,7 @@ Accessible::VisibilityState()
     return states::INVISIBLE;
 
   nsIFrame* curFrame = frame;
+  nsPoint framePos(0, 0);
   do {
     nsView* view = curFrame->GetView();
     if (view && view->GetVisibility() == nsViewVisibility_kHide)
@@ -604,11 +605,11 @@ Accessible::VisibilityState()
 
     // If contained by scrollable frame then check that at least 12 pixels
     // around the object is visible, otherwise the object is offscreen.
+    framePos += curFrame->GetPosition();
     nsIScrollableFrame* scrollableFrame = do_QueryFrame(parentFrame);
     if (scrollableFrame) {
       nsRect scrollPortRect = scrollableFrame->GetScrollPortRect();
-      nsRect frameRect = nsLayoutUtils::TransformFrameRectToAncestor(
-        frame, frame->GetRectRelativeToSelf(), parentFrame);
+      nsRect frameRect(framePos, frame->GetSize());
       if (!scrollPortRect.Contains(frameRect)) {
         const nscoord kMinPixels = nsPresContext::CSSPixelsToAppUnits(12);
         scrollPortRect.Deflate(kMinPixels, kMinPixels);
@@ -2647,7 +2648,7 @@ Accessible::RemoveChild(Accessible* aChild)
 }
 
 Accessible*
-Accessible::GetChildAt(uint32_t aIndex) const
+Accessible::GetChildAt(uint32_t aIndex)
 {
   Accessible* child = mChildren.SafeElementAt(aIndex, nullptr);
   if (!child)
@@ -2666,6 +2667,12 @@ uint32_t
 Accessible::ChildCount() const
 {
   return mChildren.Length();
+}
+
+int32_t
+Accessible::GetIndexOf(Accessible* aChild)
+{
+  return (aChild->mParent != this) ? -1 : aChild->IndexInParent();
 }
 
 int32_t

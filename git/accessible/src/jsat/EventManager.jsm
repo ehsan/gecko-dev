@@ -24,8 +24,6 @@ XPCOMUtils.defineLazyModuleGetter(this, 'Roles',
   'resource://gre/modules/accessibility/Constants.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'Events',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'States',
-  'resource://gre/modules/accessibility/Constants.jsm');
 
 this.EXPORTED_SYMBOLS = ['EventManager'];
 
@@ -57,7 +55,6 @@ this.EventManager.prototype = {
         this.webProgress.addProgressListener(this,
           (Ci.nsIWebProgress.NOTIFY_STATE_ALL |
            Ci.nsIWebProgress.NOTIFY_LOCATION));
-        this.addEventListener('wheel', this, true);
         this.addEventListener('scroll', this, true);
         this.addEventListener('resize', this, true);
       }
@@ -78,7 +75,6 @@ this.EventManager.prototype = {
     AccessibilityEventObserver.removeListener(this);
     try {
       this.webProgress.removeProgressListener(this);
-      this.removeEventListener('wheel', this, true);
       this.removeEventListener('scroll', this, true);
       this.removeEventListener('resize', this, true);
     } catch (x) {
@@ -91,23 +87,6 @@ this.EventManager.prototype = {
   handleEvent: function handleEvent(aEvent) {
     try {
       switch (aEvent.type) {
-      case 'wheel':
-      {
-        let attempts = 0;
-        let vc = Utils.getVirtualCursor(this.contentScope.content.document);
-        let intervalId = this.contentScope.content.setInterval(() => {
-          if (!Utils.isAliveAndVisible(vc.position, true)) {
-            this.contentScope.content.clearInterval(intervalId);
-            let delta = aEvent.deltaX || aEvent.deltaY;
-            this.contentScope.content.setTimeout(() => {
-              vc[delta > 0 ? 'moveNext' : 'movePrevious'](TraversalRules.SimpleOnScreen);
-            }, 100);
-          } else if (++attempts > 5) {
-            this.contentScope.content.clearInterval(intervalId);
-          }
-        }, 150);
-        break;
-      }
       case 'scroll':
       case 'resize':
       {
@@ -168,13 +147,13 @@ this.EventManager.prototype = {
       case Events.STATE_CHANGE:
       {
         let event = aEvent.QueryInterface(Ci.nsIAccessibleStateChangeEvent);
-        let state = Utils.getState(event);
-        if (state.contains(States.CHECKED)) {
+        if (event.state == Ci.nsIAccessibleStates.STATE_CHECKED &&
+            !(event.isExtraState)) {
           this.present(
             Presentation.
               actionInvoked(aEvent.accessible,
                             event.isEnabled ? 'check' : 'uncheck'));
-        } else if (state.contains(States.SELECTED)) {
+        } else if (event.state == Ci.nsIAccessibleStates.STATE_SELECTED) {
           this.present(
             Presentation.
               actionInvoked(aEvent.accessible,
@@ -197,10 +176,10 @@ this.EventManager.prototype = {
           QueryInterface(Ci.nsIAccessibleCaretMoveEvent).caretOffset;
 
         // Update editing state, both for presenter and other things
-        let state = Utils.getState(acc);
+        let [,extState] = Utils.getStates(acc);
         let editState = {
-          editing: state.contains(States.EDITABLE),
-          multiline: state.contains(States.MULTI_LINE),
+          editing: !!(extState & Ci.nsIAccessibleStates.EXT_STATE_EDITABLE),
+          multiline: !!(extState & Ci.nsIAccessibleStates.EXT_STATE_MULTI_LINE),
           atStart: caretOffset == 0,
           atEnd: caretOffset == characterCount
         };
@@ -274,18 +253,9 @@ this.EventManager.prototype = {
         let acc = aEvent.accessible;
         let doc = aEvent.accessibleDocument;
         if (acc.role != Roles.DOCUMENT && doc.role != Roles.CHROME_WINDOW) {
-          this.contentScope.content.clearTimeout(this._autoMove);
           let vc = Utils.getVirtualCursor(doc);
           vc.moveNext(TraversalRules.Simple, acc, true);
         }
-        break;
-      }
-      case Events.DOCUMENT_LOAD_COMPLETE:
-      {
-        this._autoMove = this.contentScope.content.setTimeout(() => {
-          Utils.getVirtualCursor(aEvent.accessibleDocument)
-            .moveNext(TraversalRules.Simple, aEvent.accessible, true);
-        }, 500);
         break;
       }
     }

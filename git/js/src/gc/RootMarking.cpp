@@ -278,14 +278,10 @@ MarkRangeConservativelyAndSkipIon(JSTracer *trc, JSRuntime *rt, const uintptr_t 
 {
     const uintptr_t *i = begin;
 
-#if JS_STACK_GROWTH_DIRECTION < 0 && defined(JS_ION) && !defined(JS_ARM_SIMULATOR)
+#if JS_STACK_GROWTH_DIRECTION < 0 && defined(JS_ION)
     // Walk only regions in between JIT activations. Note that non-volatile
     // registers are spilled to the stack before the entry frame, ensuring
     // that the conservative scanner will still see them.
-    //
-    // If the ARM simulator is enabled, JIT activations are not on the native
-    // stack but on the simulator stack, so we don't have to skip JIT regions
-    // in this case.
     for (jit::JitActivationIterator iter(rt); !iter.done(); ++iter) {
         uintptr_t *jitMin, *jitEnd;
         iter.jitStackRange(jitMin, jitEnd);
@@ -299,7 +295,7 @@ MarkRangeConservativelyAndSkipIon(JSTracer *trc, JSRuntime *rt, const uintptr_t 
     MarkRangeConservatively(trc, i, end);
 }
 
-static MOZ_NEVER_INLINE void
+static JS_NEVER_INLINE void
 MarkConservativeStackRoots(JSTracer *trc, bool useSavedRoots)
 {
     JSRuntime *rt = trc->runtime;
@@ -363,7 +359,7 @@ js::MarkStackRangeConservatively(JSTracer *trc, Value *beginv, Value *endv)
 #endif
 }
 
-MOZ_NEVER_INLINE void
+JS_NEVER_INLINE void
 ConservativeGCData::recordStackTop()
 {
     /* Update the native stack pointer if it points to a bigger stack. */

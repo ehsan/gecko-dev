@@ -34,20 +34,20 @@ public:
    * been constructed.
    */
 
-  void Construct(const gfx::Matrix& aTransform,
+  void Construct(const gfxMatrix& aTransform,
                  gfxASurface* aSurface);
 
-  void Construct(const gfx::Matrix& aTransform,
+  void Construct(const gfxMatrix& aTransform,
                  const SurfaceDescriptor& aSurface);
 
   /** The returned surface can't escape the scope of |this|. */
   gfxASurface* GetSurface();
-  const gfx::Matrix& GetTransform();
+  const gfxMatrix& GetTransform();
 
 private:
   bool IsConstructed();
 
-  gfx::Matrix mTransform;
+  gfxMatrix mTransform;
   nsRefPtr<gfxASurface> mSurface;
   Maybe<AutoOpenSurface> mSurfaceOpener;
 

@@ -229,8 +229,8 @@ NativeApp.prototype = {
       // to point to the zip file (we can't use the app protocol yet
       // because the app isn't installed yet).
       if (this.iconURI.scheme == "app") {
-        let zipUrl = OS.Path.toFileURI(OS.Path.join(this.tmpInstallDir,
-                                                    "application.zip"));
+        let zipFile = getFile(this.tmpInstallDir, "application.zip");
+        let zipUrl = Services.io.newFileURI(zipFile).spec;
 
         let filePath = this.iconURI.QueryInterface(Ci.nsIURL).filePath;
 
@@ -340,7 +340,7 @@ WinNativeApp.prototype = {
    */
   install: function(aZipPath) {
     return Task.spawn(function() {
-      yield this._getInstallDir();
+      this._getInstallDir();
 
       try {
         yield this._createDirectoryStructure();
@@ -400,9 +400,9 @@ WinNativeApp.prototype = {
 
       // Check in both directories to see if a shortcut with the same name
       // already exists.
-      this.shortcutName = yield getAvailableFileName([ PROGS_DIR, DESKTOP_DIR ],
-                                                     this.appNameAsFilename,
-                                                     ".lnk");
+      this.shortcutName = getAvailableFileName([ PROGS_DIR, DESKTOP_DIR ],
+                                               this.appNameAsFilename,
+                                               ".lnk");
     }
   },
 
@@ -670,7 +670,7 @@ MacNativeApp.prototype = {
 
   install: function(aZipPath) {
     return Task.spawn(function() {
-      yield this._getInstallDir();
+      this._getInstallDir();
 
       try {
         yield this._createDirectoryStructure();
@@ -712,14 +712,12 @@ MacNativeApp.prototype = {
         throw("Updates for apps installed with the old naming scheme unsupported");
       }
     } else {
-      let localAppDir = getFile(LOCAL_APP_DIR);
-      if (!localAppDir.isWritable()) {
-        throw("Not enough privileges to install apps");
+      let destinationName = getAvailableFileName([ LOCAL_APP_DIR ],
+                                                 this.appNameAsFilename,
+                                                ".app");
+      if (!destinationName) {
+        throw("No available filename");
       }
-
-      let destinationName = yield getAvailableFileName([ LOCAL_APP_DIR ],
-                                                       this.appNameAsFilename,
-                                                       ".app");
 
       this.installDir = OS.Path.join(LOCAL_APP_DIR, destinationName);
     }
@@ -1130,37 +1128,58 @@ function stripStringForFilename(aPossiblyBadFilenameString) {
  *         was not available
  */
 function getAvailableFileName(aPathSet, aName, aExtension) {
-  return Task.spawn(function*() {
-    let name = aName + aExtension;
+  let fileSet = [];
+  let name = aName + aExtension;
+  let isUnique = true;
 
-    function checkUnique(aName) {
-      return Task.spawn(function*() {
-        for (let path of aPathSet) {
-          if (yield OS.File.exists(OS.Path.join(path, aName))) {
-            return false;
-          }
-        }
+  // Check if the plain name is a unique name in all the directories.
+  for (let path of aPathSet) {
+    let folder = getFile(path);
 
-        return true;
-      });
+    folder.followLinks = false;
+    if (!folder.isDirectory() || !folder.isWritable()) {
+      return null;
     }
 
-    if (yield checkUnique(name)) {
-      return name;
+    let file = folder.clone();
+    file.append(name);
+    // Avoid exists() call if we already know this file name is not unique in
+    // one of the directories.
+    if (isUnique && file.exists()) {
+      isUnique = false;
     }
 
-    // If we're here, the plain name wasn't enough. Let's try modifying the name
-    // by adding "(" + num + ")".
-    for (let i = 2; i < 100; i++) {
-      name = aName + " (" + i + ")" + aExtension;
+    fileSet.push(file);
+  }
 
-      if (yield checkUnique(name)) {
-        return name;
+  if (isUnique) {
+    return name;
+  }
+
+
+  function checkUnique(aName) {
+    for (let file of fileSet) {
+      file.leafName = aName;
+
+      if (file.exists()) {
+        return false;
       }
     }
 
-    throw "No available filename";
-  });
+    return true;
+  }
+
+  // If we're here, the plain name wasn't enough. Let's try modifying the name
+  // by adding "(" + num + ")".
+  for (let i = 2; i < 100; i++) {
+    name = aName + " (" + i + ")" + aExtension;
+
+    if (checkUnique(name)) {
+      return name;
+    }
+  }
+
+  return null;
 }
 
 /**

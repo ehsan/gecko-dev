@@ -130,7 +130,9 @@ function test() {
         is(editor.input.selectionEnd, selEnd,
            "Selection is ending at the right location for state " + state);
         if (popupOpen) {
-          ok(editor.popup.isOpen, "Popup is open for state " + state);
+          ok(editor.popup._panel.state == "open" ||
+             editor.popup._panel.state == "showing",
+             "Popup is open for state " + state);
         }
         else {
           ok(editor.popup._panel.state != "open" &&

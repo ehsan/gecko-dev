@@ -21,7 +21,7 @@ using mozilla::ReentrancyGuard;
 
 /*** SlotEdge ***/
 
-MOZ_ALWAYS_INLINE HeapSlot *
+JS_ALWAYS_INLINE HeapSlot *
 StoreBuffer::SlotEdge::slotLocation() const
 {
     if (kind == HeapSlot::Element) {
@@ -34,14 +34,14 @@ StoreBuffer::SlotEdge::slotLocation() const
     return &object->getSlotRef(offset);
 }
 
-MOZ_ALWAYS_INLINE void *
+JS_ALWAYS_INLINE void *
 StoreBuffer::SlotEdge::deref() const
 {
     HeapSlot *loc = slotLocation();
     return (loc && loc->isGCThing()) ? loc->toGCThing() : nullptr;
 }
 
-MOZ_ALWAYS_INLINE void *
+JS_ALWAYS_INLINE void *
 StoreBuffer::SlotEdge::location() const
 {
     return (void *)slotLocation();
@@ -53,7 +53,7 @@ StoreBuffer::SlotEdge::inRememberedSet(const Nursery &nursery) const
     return !nursery.isInside(object) && nursery.isInside(deref());
 }
 
-MOZ_ALWAYS_INLINE bool
+JS_ALWAYS_INLINE bool
 StoreBuffer::SlotEdge::isNullEdge() const
 {
     return !deref();
@@ -110,30 +110,21 @@ template <typename T>
 void
 StoreBuffer::MonoTypeBuffer<T>::compact(StoreBuffer *owner)
 {
-    JS_ASSERT(storage_);
-    compactRemoveDuplicates(owner);
-    usedAtLastCompact_ = storage_->used();
-}
+    if (!storage_)
+        return;
 
-template <typename T>
-void
-StoreBuffer::MonoTypeBuffer<T>::maybeCompact(StoreBuffer *owner)
-{
-    JS_ASSERT(storage_);
-    if (storage_->used() != usedAtLastCompact_)
-        compact(owner);
+    compactRemoveDuplicates(owner);
 }
 
 template <typename T>
 void
 StoreBuffer::MonoTypeBuffer<T>::mark(StoreBuffer *owner, JSTracer *trc)
 {
-    JS_ASSERT(owner->isEnabled());
     ReentrancyGuard g(*owner);
     if (!storage_)
         return;
 
-    maybeCompact(owner);
+    compact(owner);
     for (LifoAlloc::Enum e(*storage_); !e.empty(); e.popFront<T>()) {
         T *edge = e.get<T>();
         if (edge->isNullEdge())
@@ -197,7 +188,6 @@ StoreBuffer::RelocatableMonoTypeBuffer<T>::compact(StoreBuffer *owner)
 void
 StoreBuffer::GenericBuffer::mark(StoreBuffer *owner, JSTracer *trc)
 {
-    JS_ASSERT(owner->isEnabled());
     ReentrancyGuard g(*owner);
     if (!storage_)
         return;
@@ -289,8 +279,10 @@ StoreBuffer::clear()
 }
 
 void
-StoreBuffer::markAll(JSTracer *trc)
+StoreBuffer::mark(JSTracer *trc)
 {
+    JS_ASSERT(isEnabled());
+
     bufferVal.mark(this, trc);
     bufferCell.mark(this, trc);
     bufferSlot.mark(this, trc);

@@ -128,13 +128,8 @@ class JitCompileOptions
         return cloneSingletons_;
     }
 
-    bool spsSlowAssertionsEnabled() const {
-        return spsSlowAssertionsEnabled_;
-    }
-
   private:
     bool cloneSingletons_;
-    bool spsSlowAssertionsEnabled_;
 };
 
 

@@ -15,33 +15,25 @@
       </vbox>
 
       <footer id="PanelUI-footer">
-        <toolbarbutton id="PanelUI-fxa-status" label="&fxaSignIn.label;"
-                       oncommand="gFxAccounts.toggle(event);"
-                       hidden="true"/>
-
-        <hbox id="PanelUI-footer-inner">
-          <toolbarbutton id="PanelUI-customize" label="&appMenuCustomize.label;"
-                         exitLabel="&appMenuCustomizeExit.label;"
-                         tooltiptext="&appMenuCustomize.tooltip;"
-                         exitTooltiptext="&appMenuCustomizeExit.tooltip;"
-                         oncommand="gCustomizeMode.toggle();"/>
-          <toolbarseparator/>
-          <toolbarbutton id="PanelUI-help" label="&helpMenu.label;"
-                         tooltiptext="&appMenuHelp.tooltip;"
-                         oncommand="PanelUI.showHelpView(this.parentNode);"/>
-          <toolbarseparator/>
-          <toolbarbutton id="PanelUI-quit"
+        <!-- The parentNode is used so that the footer is presented as the anchor
+             instead of just the button being the anchor. -->
+        <toolbarbutton id="PanelUI-customize" label="&appMenuCustomize.label;"
+                       exitLabel="&appMenuCustomizeExit.label;"
+                       oncommand="gCustomizeMode.toggle();"/>
+        <toolbarseparator/>
+        <toolbarbutton id="PanelUI-help" label="&helpMenu.label;"
+                       tooltiptext="&helpMenu.label;"
+                       oncommand="PanelUI.showHelpView(this.parentNode);"/>
+        <toolbarseparator/>
+        <toolbarbutton id="PanelUI-quit"
 #ifdef XP_WIN
-                         label="&quitApplicationCmdWin.label;"
+                       label="&quitApplicationCmdWin.label;"
+                       tooltiptext="&quitApplicationCmdWin.label;"
 #else
-#ifdef XP_MACOSX
-                         label="&quitApplicationCmdMac.label;"
-#else
-                         label="&quitApplicationCmd.label;"
+                       label="&quitApplicationCmd.label;"
+                       tooltiptext="&quitApplicationCmd.label;"
 #endif
-#endif
-                         command="cmd_quitApplication"/>
-        </hbox>
+                       command="cmd_quitApplication"/>
       </footer>
     </panelview>
 
@@ -89,6 +81,11 @@
                      command="Browser:AddBookmarkAs"
                      onclick="PanelUI.hide();"/>
       <toolbarseparator/>
+      <toolbarbutton id="panelMenu_showAllBookmarks"
+                     label="&showAllBookmarks2.label;"
+                     class="subviewbutton"
+                     command="Browser:ShowAllBookmarks"
+                     onclick="PanelUI.hide();"/>
       <toolbarbutton id="panelMenu_viewBookmarksSidebar"
                      label="&viewBookmarksSidebar2.label;"
                      class="subviewbutton"
@@ -119,13 +116,9 @@
                    oncommand="BookmarkingUI.onPanelMenuViewCommand(event, this._placesView);"
                    flatList="true"
                    tooltip="bhTooltip">
-        <!-- bookmarks menu items will go here -->
+        <!-- bookmarks menu items -->
       </toolbaritem>
-      <toolbarbutton id="panelMenu_showAllBookmarks"
-                     label="&showAllBookmarks2.label;"
-                     class="subviewbutton panel-subview-footer"
-                     command="Browser:ShowAllBookmarks"
-                     onclick="PanelUI.hide();"/>
+
     </panelview>
 
     <panelview id="PanelUI-socialapi" flex="1"/>
@@ -134,7 +127,7 @@
       <label value="&feedsMenu.label;" class="panel-subview-header"/>
     </panelview>
 
-    <panelview id="PanelUI-helpView" flex="1" class="PanelUI-subView">
+    <panelview id="PanelUI-helpView" flex="1">
       <label value="&helpMenu.label;" class="panel-subview-header"/>
       <vbox id="PanelUI-helpItems"/>
     </panelview>
@@ -150,7 +143,7 @@
       <vbox id="PanelUI-characterEncodingView-customlist"
             class="PanelUI-characterEncodingView-list"/>
       <vbox>
-        <label id="PanelUI-characterEncodingView-autodetect-label"/>
+        <label value="&charsetMenuAutodet.label;"/>
         <vbox id="PanelUI-characterEncodingView-autodetect"
               class="PanelUI-characterEncodingView-list"/>
       </vbox>

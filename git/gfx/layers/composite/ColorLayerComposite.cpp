@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ColorLayerComposite.h"
+#include "gfx2DGlue.h"                  // for ToMatrix4x4
 #include "gfxColor.h"                   // for gfxRGBA
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
@@ -41,7 +42,9 @@ ColorLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
   float opacity = GetEffectiveOpacity();
 
-  const gfx::Matrix4x4& transform = GetEffectiveTransform();
+  gfx::Matrix4x4 transform;
+  ToMatrix4x4(GetEffectiveTransform(), transform);
+
   mCompositor->DrawQuad(rect, clipRect, effects, opacity, transform);
   mCompositor->DrawDiagnostics(DIAGNOSTIC_COLOR,
                                rect, clipRect,

@@ -39,11 +39,6 @@ public:
     return nullptr;
   }
 
-  virtual TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() MOZ_OVERRIDE
-  {
-    return nullptr;
-  }
-
   SharedTextureImage() : Image(nullptr, SHARED_TEXTURE) {}
 
 private:

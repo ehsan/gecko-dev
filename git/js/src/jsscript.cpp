@@ -18,6 +18,7 @@
 
 #include "jsapi.h"
 #include "jsatom.h"
+#include "jsautooplen.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -36,7 +37,6 @@
 #include "vm/ArgumentsObject.h"
 #include "vm/Compression.h"
 #include "vm/Debugger.h"
-#include "vm/Opcodes.h"
 #include "vm/Shape.h"
 #include "vm/Xdr.h"
 
@@ -163,8 +163,7 @@ Bindings::switchToScriptStorage(Binding *newBindingArray)
     JS_ASSERT(bindingArrayUsingTemporaryStorage());
     JS_ASSERT(!(uintptr_t(newBindingArray) & TEMPORARY_STORAGE_BIT));
 
-    if (count() > 0)
-        PodCopy(newBindingArray, bindingArray(), count());
+    PodCopy(newBindingArray, bindingArray(), count());
     bindingArrayAndFlag_ = uintptr_t(newBindingArray);
     return reinterpret_cast<uint8_t *>(newBindingArray + count());
 }
@@ -1948,13 +1947,9 @@ JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t ncon
 {
     size_t size = ScriptDataSize(script->bindings.count(), nconsts, nobjects, nregexps, ntrynotes,
                                  nblockscopes);
-    if (size > 0) {
-        script->data = AllocScriptData(cx, size);
-        if (!script->data)
-            return false;
-    } else {
-        script->data = nullptr;
-    }
+    script->data = AllocScriptData(cx, size);
+    if (!script->data)
+        return false;
     script->dataSize_ = size;
 
     JS_ASSERT(nTypeSets <= UINT16_MAX);

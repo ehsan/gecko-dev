@@ -20,8 +20,6 @@ function test() {
     // Inspect variable.
     yield openVarPopup(panel, { line: 15, ch: 12 });
 
-    ok(bubble.contentsShown(),
-      "The variable should register as being shown.");
     ok(!bubble._tooltip.isEmpty(),
       "The variable inspection popup isn't empty.");
     ok(bubble._markedText,
@@ -31,8 +29,6 @@ function test() {
 
     yield hideVarPopup(panel);
 
-    ok(!bubble.contentsShown(),
-      "The variable should register as being hidden.");
     ok(bubble._tooltip.isEmpty(),
       "The variable inspection popup is now empty.");
     ok(!bubble._markedText,

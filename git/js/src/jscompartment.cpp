@@ -386,10 +386,10 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
 
     /* Translate StopIteration singleton. */
     if (obj->is<StopIterationObject>()) {
-        RootedObject stopIteration(cx);
-        if (!js_GetClassObject(cx, JSProto_StopIteration, &stopIteration))
+        RootedValue v(cx);
+        if (!js_FindClassObject(cx, JSProto_StopIteration, &v))
             return false;
-        obj.set(stopIteration);
+        obj.set(&v.toObject());
         return true;
     }
 

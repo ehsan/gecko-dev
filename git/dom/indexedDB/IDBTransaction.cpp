@@ -29,7 +29,6 @@
 #include "IDBObjectStore.h"
 #include "IndexedDatabaseManager.h"
 #include "ProfilerHelpers.h"
-#include "ReportInternalError.h"
 #include "TransactionThreadPool.h"
 
 #include "ipc/IndexedDBChild.h"
@@ -681,7 +680,7 @@ IDBTransaction::GetObjectStoreNames(ErrorResult& aRv)
   uint32_t count = arrayOfNames->Length();
   for (uint32_t index = 0; index < count; index++) {
     if (!list->Add(arrayOfNames->ElementAt(index))) {
-      IDB_WARNING("Failed to add element!");
+      NS_WARNING("Failed to add element!");
       aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
       return nullptr;
     }
@@ -715,7 +714,7 @@ IDBTransaction::ObjectStore(const nsAString& aName, ErrorResult& aRv)
   nsRefPtr<IDBObjectStore> objectStore =
     GetOrCreateObjectStore(aName, info, false);
   if (!objectStore) {
-    IDB_WARNING("Failed to get or create object store!");
+    NS_WARNING("Failed to get or create object store!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -830,7 +829,7 @@ CommitHelper::Run()
                                  NS_LITERAL_STRING(COMPLETE_EVT_STR),
                                  eDoesNotBubble, eNotCancelable);
     }
-    IDB_ENSURE_TRUE(event, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_TRUE(event, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     if (mListener) {
       mListener->NotifyTransactionPreComplete(mTransaction);
@@ -862,7 +861,6 @@ CommitHelper::Run()
 
   IDBDatabase* database = mTransaction->Database();
   if (database->IsInvalidated()) {
-    IDB_REPORT_INTERNAL_ERR();
     mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
@@ -871,12 +869,10 @@ CommitHelper::Run()
 
     if (NS_SUCCEEDED(mAbortCode) && mUpdateFileRefcountFunction &&
         NS_FAILED(mUpdateFileRefcountFunction->WillCommit(mConnection))) {
-      IDB_REPORT_INTERNAL_ERR();
       mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
     if (NS_SUCCEEDED(mAbortCode) && NS_FAILED(WriteAutoIncrementCounts())) {
-      IDB_REPORT_INTERNAL_ERR();
       mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
@@ -895,7 +891,6 @@ CommitHelper::Run()
         mAbortCode = NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
       }
       else {
-        IDB_REPORT_INTERNAL_ERR();
         mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
     }

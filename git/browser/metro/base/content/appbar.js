@@ -25,7 +25,6 @@ var Appbar = {
 
     // tilegroup selection events for all modules get bubbled up
     window.addEventListener("selectionchange", this, false);
-    Services.obs.addObserver(this, "metro_on_async_tile_created", false);
 
     // gather appbar telemetry data
     try {
@@ -33,14 +32,6 @@ var Appbar = {
                                            this.getAppbarMeasures.bind(this));
     } catch (ex) {
       // swallow exception that occurs if metro-appbar measure is already set up
-    }
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "metro_on_async_tile_created":
-        this._updatePinButton();
-        break;
     }
   },
 
@@ -132,9 +123,6 @@ var Appbar = {
   onMenuButton: function(aEvent) {
       let typesArray = [];
 
-      if (BrowserUI.isPrivateBrowsingEnabled) {
-        typesArray.push("private-browsing");
-      }
       if (!BrowserUI.isStartTabVisible) {
         typesArray.push("find-in-page");
         if (ContextCommands.getPageSource())

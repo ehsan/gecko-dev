@@ -70,25 +70,17 @@ class Runner(object):
         """
         Wait for the process to exit.
         Returns the process return code if the process exited,
-        returns -<signal> if the process was killed (Unix only)
-        returns None if the process is still running.
+        returns None otherwise.
 
-        :param timeout: if not None, will return after timeout seconds.
-                        Use is_running() to determine whether or not a
-                        timeout occured. Timeout is ignored if
-                        interactive was set to True.
+        If timeout is not None, will return after timeout seconds.
+        Use is_running() to determine whether or not a timeout occured.
+        Timeout is ignored if interactive was set to True.
         """
         if self.process_handler is not None:
             if isinstance(self.process_handler, subprocess.Popen):
                 self.returncode = self.process_handler.wait()
             else:
                 self.process_handler.wait(timeout)
-
-                if not self.process_handler:
-                    # the process was killed by another thread
-                    return self.returncode
-
-                # the process terminated, retrieve the return code
                 self.returncode = self.process_handler.proc.poll()
                 if self.returncode is not None:
                     self.process_handler = None
@@ -104,16 +96,13 @@ class Runner(object):
         return self.process_handler is not None
 
 
-    def stop(self, sig=None):
+    def stop(self):
         """
         Kill the process
-
-        :param sig: Signal used to kill the process, defaults to SIGKILL
-                    (has no effect on Windows).
         """
         if self.process_handler is None:
             return
-        self.returncode = self.process_handler.kill(sig=sig)
+        self.process_handler.kill()
         self.process_handler = None
 
     def reset(self):

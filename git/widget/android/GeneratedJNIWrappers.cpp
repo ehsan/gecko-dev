@@ -719,7 +719,7 @@ jstring GeckoAppShell::HandleGeckoMessageWrapper(const nsAString& a0) {
 }
 
 void GeckoAppShell::HandleUncaughtException(jobject a0, jthrowable a1) {
-    JNIEnv *env = GetJNIForThread();
+    JNIEnv *env = AndroidBridge::GetJNIEnv();
     if (env->PushLocalFrame(2) != 0) {
         return;
     }

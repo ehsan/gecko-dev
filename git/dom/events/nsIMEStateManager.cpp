@@ -148,10 +148,12 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
 
   // First, if there is a composition in the aContent, clean up it.
   if (sTextCompositions) {
-    nsRefPtr<TextComposition> compositionInContent =
+    TextComposition* compositionInContent =
       sTextCompositions->GetCompositionInContent(aPresContext, aContent);
 
     if (compositionInContent) {
+      // Store the composition before accessing the native IME.
+      TextComposition storedComposition = *compositionInContent;
       // Try resetting the native IME state.  Be aware, typically, this method
       // is called during the content being removed.  Then, the native
       // composition events which are caused by following APIs are ignored due
@@ -159,15 +161,15 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
       nsCOMPtr<nsIWidget> widget = aPresContext->GetRootWidget();
       if (widget) {
         nsresult rv =
-          compositionInContent->NotifyIME(REQUEST_TO_CANCEL_COMPOSITION);
+          storedComposition.NotifyIME(REQUEST_TO_CANCEL_COMPOSITION);
         if (NS_FAILED(rv)) {
-          compositionInContent->NotifyIME(REQUEST_TO_COMMIT_COMPOSITION);
+          storedComposition.NotifyIME(REQUEST_TO_COMMIT_COMPOSITION);
         }
         // By calling the APIs, the composition may have been finished normally.
         compositionInContent =
           sTextCompositions->GetCompositionFor(
-                               compositionInContent->GetPresContext(),
-                               compositionInContent->GetEventTargetNode());
+                               storedComposition.GetPresContext(),
+                               storedComposition.GetEventTargetNode());
       }
     }
 
@@ -556,12 +558,12 @@ nsIMEStateManager::DispatchCompositionEvent(nsINode* aEventTargetNode,
 
   WidgetGUIEvent* GUIEvent = aEvent->AsGUIEvent();
 
-  nsRefPtr<TextComposition> composition =
+  TextComposition* composition =
     sTextCompositions->GetCompositionFor(GUIEvent->widget);
   if (!composition) {
     MOZ_ASSERT(GUIEvent->message == NS_COMPOSITION_START);
-    composition = new TextComposition(aPresContext, aEventTargetNode, GUIEvent);
-    sTextCompositions->AppendElement(composition);
+    TextComposition newComposition(aPresContext, aEventTargetNode, GUIEvent);
+    composition = sTextCompositions->AppendElement(newComposition);
   }
 #ifdef DEBUG
   else {
@@ -591,7 +593,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 {
   NS_ENSURE_TRUE(aWidget, NS_ERROR_INVALID_ARG);
 
-  nsRefPtr<TextComposition> composition;
+  TextComposition* composition = nullptr;
   if (sTextCompositions) {
     composition = sTextCompositions->GetCompositionFor(aWidget);
   }
@@ -616,10 +618,12 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
   switch (aNotification) {
     case REQUEST_TO_COMMIT_COMPOSITION: {
       nsCOMPtr<nsIWidget> widget(aWidget);
+      TextComposition backup = *composition;
+
       nsEventStatus status = nsEventStatus_eIgnore;
-      if (!composition->GetLastData().IsEmpty()) {
+      if (!backup.GetLastData().IsEmpty()) {
         WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
-        textEvent.theText = composition->GetLastData();
+        textEvent.theText = backup.GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
         if (widget->Destroyed()) {
@@ -629,7 +633,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       status = nsEventStatus_eIgnore;
       WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
-      endEvent.data = composition->GetLastData();
+      endEvent.data = backup.GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
 
@@ -637,10 +641,12 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
     }
     case REQUEST_TO_CANCEL_COMPOSITION: {
       nsCOMPtr<nsIWidget> widget(aWidget);
+      TextComposition backup = *composition;
+
       nsEventStatus status = nsEventStatus_eIgnore;
-      if (!composition->GetLastData().IsEmpty()) {
+      if (!backup.GetLastData().IsEmpty()) {
         WidgetCompositionEvent updateEvent(true, NS_COMPOSITION_UPDATE, widget);
-        updateEvent.data = composition->GetLastData();
+        updateEvent.data = backup.GetLastData();
         updateEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&updateEvent, status);
         if (widget->Destroyed()) {
@@ -649,7 +655,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
         status = nsEventStatus_eIgnore;
         WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
-        textEvent.theText = composition->GetLastData();
+        textEvent.theText = backup.GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
         if (widget->Destroyed()) {
@@ -659,7 +665,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       status = nsEventStatus_eIgnore;
       WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
-      endEvent.data = composition->GetLastData();
+      endEvent.data = backup.GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
 
@@ -1127,8 +1133,7 @@ nsIMEStateManager::GetFocusSelectionAndRoot(nsISelection** aSel,
 }
 
 TextComposition*
-nsIMEStateManager::GetTextCompositionFor(nsIWidget* aWidget)
+nsIMEStateManager::GetTextComposition(nsIWidget* aWidget)
 {
-  return sTextCompositions ?
-    sTextCompositions->GetCompositionFor(aWidget) : nullptr;
+  return sTextCompositions->GetCompositionFor(aWidget);
 }

@@ -89,7 +89,6 @@ public:
     }
 
     mStartTime = aStartTime;
-    mReset = true;
     CueChanged();
   }
 
@@ -105,7 +104,6 @@ public:
     }
 
     mEndTime = aEndTime;
-    mReset = true;
     CueChanged();
   }
 

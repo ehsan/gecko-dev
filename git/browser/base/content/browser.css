@@ -283,19 +283,11 @@ toolbarpaletteitem > #personal-bookmarks > #bookmarks-toolbar-placeholder,
 }
 
 #urlbar-container {
-  min-width: 28ch;
+  min-width: 30ch;
 }
 
 #search-container {
   min-width: 25ch;
-}
-
-#urlbar,
-.searchbar-textbox {
-  /* Setting a width and min-width to let the location & search bars maintain
-     a constant width in case they haven't be resized manually. (bug 965772) */
-  width: 1px;
-  min-width: 1px;
 }
 
 #main-window:-moz-lwtheme {
@@ -387,7 +379,7 @@ panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .a
 }
 
 #identity-icon-labels {
-  max-width: 12vw;
+  max-width: 18em;
 }
 
 #identity-icon-country-label {
@@ -794,11 +786,7 @@ chatbar {
 
 /*** Visibility of downloads indicator controls ***/
 
-/* Bug 924050: If we've loaded the indicator, for now we hide it in the menu panel,
-   and just show the icon. This is a hack to side-step very weird layout bugs that
-   seem to be caused by the indicator stack interacting with the menu panel. */
-#downloads-button[indicator]:not([cui-areatype="menu-panel"]) > image.toolbarbutton-icon,
-#downloads-button[indicator][cui-areatype="menu-panel"] > #downloads-indicator-anchor {
+#downloads-button[indicator] > image.toolbarbutton-icon {
   display: none;
 }
 

@@ -130,7 +130,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
          * Censor the caller if we don't have full access to it.
          */
         RootedObject caller(cx, &vp.toObject());
-        if (caller->is<WrapperObject>() && Wrapper::wrapperHandler(caller)->hasSecurityPolicy()) {
+        if (caller->is<WrapperObject>() && !Wrapper::wrapperHandler(caller)->isSafeToUnwrap()) {
             vp.setNull();
         } else if (caller->is<JSFunction>()) {
             JSFunction *callerFun = &caller->as<JSFunction>();
@@ -571,6 +571,7 @@ const Class JSFunction::class_ = {
     (JSResolveOp)js::fun_resolve,
     JS_ConvertStub,
     nullptr,                 /* finalize    */
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     fun_hasInstance,
     nullptr,                 /* construct   */

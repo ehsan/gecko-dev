@@ -79,9 +79,6 @@
 #include <algorithm>
 #include "nsWrapperCacheInlines.h"
 #endif
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
-#include "mozilla/dom/CRMFObjectBinding.h"
-#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -216,6 +213,16 @@ NS_INTERFACE_MAP_END_INHERITING(mozilla::dom::Crypto)
 
 NS_IMPL_ADDREF_INHERITED(nsCrypto, mozilla::dom::Crypto)
 NS_IMPL_RELEASE_INHERITED(nsCrypto, mozilla::dom::Crypto)
+ 
+// QueryInterface implementation for nsCRMFObject
+NS_INTERFACE_MAP_BEGIN(nsCRMFObject)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCRMFObject)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CRMFObject)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_ADDREF(nsCRMFObject)
+NS_IMPL_RELEASE(nsCRMFObject)
 
 // QueryInterface implementation for nsPkcs11
 #endif // MOZ_DISABLE_CRYPTOLEGACY
@@ -1041,12 +1048,12 @@ nsSetEscrowAuthority(CRMFCertRequest *certReq, nsKeyPairInfo *keyInfo,
       CRMF_CertRequestIsControlPresent(certReq, crmfPKIArchiveOptionsControl)){
     return NS_ERROR_FAILURE;
   }
-  insanity::pkix::ScopedCERTCertificate cert(wrappingCert->GetCert());
+  ScopedCERTCertificate cert(wrappingCert->GetCert());
   if (!cert)
     return NS_ERROR_FAILURE;
 
   CRMFEncryptedKey *encrKey = 
-      CRMF_CreateEncryptedKeyWithEncryptedValue(keyInfo->privKey, cert.get());
+      CRMF_CreateEncryptedKeyWithEncryptedValue(keyInfo->privKey, cert);
   if (!encrKey)
     return NS_ERROR_FAILURE;
 
@@ -1851,7 +1858,7 @@ GetISupportsFromContext(JSContext *cx)
 
 //The top level method which is a member of nsIDOMCrypto
 //for generate a base64 encoded CRMF request.
-CRMFObject*
+already_AddRefed<nsIDOMCRMFObject>
 nsCrypto::GenerateCRMFRequest(JSContext* aContext,
                               const nsCString& aReqDN,
                               const nsCString& aRegToken,
@@ -1862,6 +1869,7 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
                               ErrorResult& aRv)
 {
   nsNSSShutDownPreventionLock locker;
+  nsCOMPtr<nsIDOMCRMFObject> crmf;
   nsresult nrv;
 
   uint32_t argc = aArgs.Length();
@@ -1941,15 +1949,15 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
       aRv.Throw(NS_ERROR_FAILURE);
       return nullptr;
     }
-    insanity::pkix::ScopedCERTCertificate cert(
-      CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
-                              &certDer, nullptr, false, true));
+    ScopedCERTCertificate cert(CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
+                                                       &certDer, nullptr,
+                                                       false, true));
     if (!cert) {
       aRv.Throw(NS_ERROR_FAILURE);
       return nullptr;
     }
 
-    escrowCert = nsNSSCertificate::Create(cert.get());
+    escrowCert = nsNSSCertificate::Create(cert);
     nssCert = escrowCert;
     if (!nssCert) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -2021,8 +2029,9 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  CRMFObject* newObject = new CRMFObject();
+  nsCRMFObject *newObject = new nsCRMFObject();
   newObject->SetCRMFRequest(encodedRequest);
+  crmf = newObject;
   nsFreeKeyPairInfo(keyids, numRequests);
 
   // Post an event on the UI queue so that the JS gets called after
@@ -2071,7 +2080,7 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
     delete cryptoRunnable;
   }
 
-  return newObject;
+  return crmf.forget();
 }
 
 // Reminder that we inherit the memory passed into us here.
@@ -2222,13 +2231,12 @@ nsCertAlreadyExists(SECItem *derCert)
   CERTCertDBHandle *handle = CERT_GetDefaultCertDB();
   bool retVal = false;
 
-  insanity::pkix::ScopedCERTCertificate cert(
-    CERT_FindCertByDERCert(handle, derCert));
+  ScopedCERTCertificate cert(CERT_FindCertByDERCert(handle, derCert));
   if (cert) {
     if (cert->isperm && !cert->nickname && !cert->emailAddr) {
       //If the cert doesn't have a nickname or email addr, it is
       //bogus cruft, so delete it.
-      SEC_DeletePermCertificate(cert.get());
+      SEC_DeletePermCertificate(cert);
     } else if (cert->isperm) {
       retVal = true;
     }
@@ -2846,31 +2854,29 @@ nsCrypto::DisableRightClick(ErrorResult& aRv)
   aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
 }
 
-CRMFObject::CRMFObject()
+nsCRMFObject::nsCRMFObject()
 {
-  MOZ_COUNT_CTOR(CRMFObject);
 }
 
-CRMFObject::~CRMFObject()
+nsCRMFObject::~nsCRMFObject()
 {
-  MOZ_COUNT_DTOR(CRMFObject);
-}
-
-JSObject*
-CRMFObject::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope,
-                       bool* aTookOwnership)
-{
-  return CRMFObjectBinding::Wrap(aCx, aScope, this, aTookOwnership);
-}
-
-void
-CRMFObject::GetRequest(nsAString& aRequest)
-{
-  aRequest.Assign(mBase64Request);
 }
 
 nsresult
-CRMFObject::SetCRMFRequest(char *inRequest)
+nsCRMFObject::init()
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCRMFObject::GetRequest(nsAString& aRequest)
+{
+  aRequest.Assign(mBase64Request);
+  return NS_OK;
+}
+
+nsresult
+nsCRMFObject::SetCRMFRequest(char *inRequest)
 {
   mBase64Request.AssignWithConversion(inRequest);  
   return NS_OK;

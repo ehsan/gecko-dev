@@ -85,7 +85,7 @@ Parser.prototype = {
       }
     }
 
-    let pool = new SyntaxTreesPool(syntaxTrees, aUrl);
+    let pool = new SyntaxTreesPool(syntaxTrees);
 
     // Cache the syntax trees pool by the specified url. This is entirely
     // optional, but it's strongly encouraged to cache ASTs because
@@ -123,12 +123,9 @@ Parser.prototype = {
  *
  * @param object aSyntaxTrees
  *        A collection of AST nodes generated for a source.
- * @param string aUrl [optional]
- *        The source url.
  */
-function SyntaxTreesPool(aSyntaxTrees, aUrl = "<unknown>") {
+function SyntaxTreesPool(aSyntaxTrees) {
   this._trees = aSyntaxTrees;
-  this._url = aUrl;
   this._cache = new Map();
 }
 
@@ -137,7 +134,7 @@ SyntaxTreesPool.prototype = {
    * @see SyntaxTree.prototype.getIdentifierAt
    */
   getIdentifierAt: function({ line, column, scriptIndex }) {
-    return this._call("getIdentifierAt", scriptIndex, line, column)[0];
+    return this._first(this._call("getIdentifierAt", scriptIndex, line, column));
   },
 
   /**
@@ -181,6 +178,18 @@ SyntaxTreesPool.prototype = {
   },
 
   /**
+   * Gets the first script results from a source results set.
+   * If no results are found, null is returned.
+   *
+   * @return array
+   *         A collection of parse results for the first script in a source.
+   */
+  _first: function(aSourceResults) {
+    let scriptResult = aSourceResults.filter(e => !!e.parseResults)[0];
+    return scriptResult ? scriptResult.parseResults : null;
+  },
+
+  /**
    * Handles a request for a specific or all known syntax trees.
    *
    * @param string aFunction
@@ -207,18 +216,17 @@ SyntaxTreesPool.prototype = {
 
     for (let syntaxTree of targettedTrees) {
       try {
-        let parseResults = syntaxTree[aFunction].apply(syntaxTree, aParams);
-        if (parseResults) {
-          parseResults.sourceUrl = syntaxTree.url;
-          parseResults.scriptLength = syntaxTree.length;
-          parseResults.scriptOffset = syntaxTree.offset;
-          results.push(parseResults);
-        }
+        results.push({
+          sourceUrl: syntaxTree.url,
+          scriptLength: syntaxTree.length,
+          scriptOffset: syntaxTree.offset,
+          parseResults: syntaxTree[aFunction].apply(syntaxTree, aParams)
+        });
       } catch (e) {
         // Can't guarantee that the tree traversal logic is forever perfect :)
         // Language features may be added, in which case the recursive methods
         // need to be updated. If an exception is thrown here, file a bug.
-        DevToolsUtils.reportException("Syntax tree visitor for " + aUrl, e);
+        DevToolsUtils.reportException("syntax tree", e);
       }
     }
     this._cache.set(requestId, results);

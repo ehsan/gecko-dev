@@ -249,7 +249,6 @@ XUL_MODULES
 
 #ifdef MOZ_WIDGET_GONK
 MODULE(WifiProxyServiceModule)
-MODULE(NetworkWorkerModule)
 #endif
 
 #undef MODULE
@@ -261,7 +260,6 @@ extern const mozilla::Module *const *const kPStaticModules[] = {
   XUL_MODULES
 #ifdef MOZ_WIDGET_GONK
 MODULE(WifiProxyServiceModule)
-MODULE(NetworkWorkerModule)
 #endif
   nullptr
 };

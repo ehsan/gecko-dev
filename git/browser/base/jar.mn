@@ -101,10 +101,9 @@ browser.jar:
         content/browser/sync/utils.js                 (content/sync/utils.js)
         content/browser/sync/progress.js              (content/sync/progress.js)
         content/browser/sync/progress.xhtml           (content/sync/progress.xhtml)
-*       content/browser/sync/customize.xul            (content/sync/customize.xul)
-        content/browser/sync/customize.js             (content/sync/customize.js)
-        content/browser/sync/customize.css            (content/sync/customize.css)
 #endif
+        content/browser/openLocation.js               (content/openLocation.js)
+        content/browser/openLocation.xul              (content/openLocation.xul)
         content/browser/safeMode.css                  (content/safeMode.css)
         content/browser/safeMode.js                   (content/safeMode.js)
         content/browser/safeMode.xul                  (content/safeMode.xul)

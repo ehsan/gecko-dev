@@ -24,7 +24,7 @@ import android.util.Log;
 
 public class InstallListener extends BroadcastReceiver {
 
-    private static String LOGTAG = "GeckoWebAppInstallListener";
+    private static String LOGTAG = "GeckoInstallListener";
     private JSONObject mData = null;
     private String mManifestUrl;
 
@@ -63,10 +63,9 @@ public class InstallListener extends BroadcastReceiver {
         if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
             InstallHelper installHelper = new InstallHelper(context, apkResources, null);
             try {
-                JSONObject dataObject = new JSONObject();
-                dataObject.put("request", mData);
-
-                Allocator slots = Allocator.getInstance(context);
+                JSONObject dataObject = mData;
+                dataObject = new JSONObject().put("request", dataObject);
+                WebAppAllocator slots = WebAppAllocator.getInstance(context);
                 int i = slots.findOrAllocatePackage(packageName);
                 installHelper.startInstall("webapp" + i, dataObject);
             } catch (JSONException e) {
@@ -83,16 +82,15 @@ public class InstallListener extends BroadcastReceiver {
     }
 
     public boolean isCorrectManifest(String manifestUrl) {
-        // Don't use URL and the sameFile method as this also includes the query which
-        // we want to ignore.
         try {
-            String registeredUrl = mManifestUrl.split("\\?")[0];
-            String observedUrl = manifestUrl.split("\\?")[0];
-            return registeredUrl.equals(observedUrl);
-        } catch (NullPointerException e) {
-            Log.e(LOGTAG, "One or both of the manifest URLs is null", e);
+            URL registered = new URL(mManifestUrl);
+            URL observed = new URL(manifestUrl);
+            // TODO: this should be matching the scheme, origin and path, but ignoring the query.
+            // That doesn't seem to be happening.
+            return registered.sameFile(observed);
+        } catch (MalformedURLException e) {
+            return false;
         }
-        return false;
     }
 
     public void cleanup() {

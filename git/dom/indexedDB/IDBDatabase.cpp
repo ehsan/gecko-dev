@@ -29,7 +29,6 @@
 #include "IDBTransaction.h"
 #include "IDBFactory.h"
 #include "ProfilerHelpers.h"
-#include "ReportInternalError.h"
 #include "TransactionThreadPool.h"
 
 #include "ipc/IndexedDBChild.h"
@@ -419,7 +418,7 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
   newInfo->comittedAutoIncrementId = newInfo->nextAutoIncrementId;
 
   if (!databaseInfo->PutObjectStore(newInfo)) {
-    IDB_WARNING("Put failed!");
+    NS_WARNING("Put failed!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -430,7 +429,7 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
   nsRefPtr<IDBObjectStore> objectStore =
     aTransaction->GetOrCreateObjectStore(newInfo->name, newInfo, true);
   if (!objectStore) {
-    IDB_WARNING("Failed to get objectStore!");
+    NS_WARNING("Failed to get objectStore!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -441,7 +440,7 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
 
     nsresult rv = helper->DispatchToTransactionPool();
     if (NS_FAILED(rv)) {
-      IDB_WARNING("Failed to dispatch!");
+      NS_WARNING("Failed to dispatch!");
       aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
       return nullptr;
     }
@@ -503,7 +502,7 @@ IDBDatabase::GetObjectStoreNames(ErrorResult& aRv) const
 
   nsAutoTArray<nsString, 10> objectStoreNames;
   if (!info->GetObjectStoreNames(objectStoreNames)) {
-    IDB_WARNING("Couldn't get names!");
+    NS_WARNING("Couldn't get names!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -512,7 +511,7 @@ IDBDatabase::GetObjectStoreNames(ErrorResult& aRv) const
   uint32_t count = objectStoreNames.Length();
   for (uint32_t index = 0; index < count; index++) {
     if (!list->Add(objectStoreNames[index])) {
-      IDB_WARNING("Failed to add element");
+      NS_WARNING("Failed to add element");
       aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
       return nullptr;
     }
@@ -591,7 +590,7 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName, ErrorResult& aRv)
 
     nsresult rv = helper->DispatchToTransactionPool();
     if (NS_FAILED(rv)) {
-      IDB_WARNING("Failed to dispatch!");
+      NS_WARNING("Failed to dispatch!");
       aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
       return;
     }
@@ -620,7 +619,6 @@ IDBDatabase::Transaction(const Sequence<nsString>& aStoreNames,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (QuotaManager::IsShuttingDown()) {
-    IDB_REPORT_INTERNAL_ERR();
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -667,7 +665,7 @@ IDBDatabase::Transaction(const Sequence<nsString>& aStoreNames,
   nsRefPtr<IDBTransaction> transaction =
     IDBTransaction::Create(this, aStoreNames, transactionMode, false);
   if (!transaction) {
-    IDB_WARNING("Failed to create the transaction!");
+    NS_WARNING("Failed to create the transaction!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -688,13 +686,12 @@ IDBDatabase::MozCreateFileHandle(const nsAString& aName,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!IndexedDatabaseManager::IsMainProcess()) {
-    IDB_WARNING("Not supported yet!");
+    NS_WARNING("Not supported yet!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
 
   if (QuotaManager::IsShuttingDown()) {
-    IDB_REPORT_INTERNAL_ERR();
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -715,7 +712,7 @@ IDBDatabase::MozCreateFileHandle(const nsAString& aName,
 
   nsresult rv = helper->Dispatch(quotaManager->IOThread());
   if (NS_FAILED(rv)) {
-    IDB_WARNING("Failed to dispatch!");
+    NS_WARNING("Failed to dispatch!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
   }
@@ -837,20 +834,20 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     "INSERT INTO object_store (id, auto_increment, name, key_path) "
     "VALUES (:id, :auto_increment, :name, :key_path)"
   ));
-  IDB_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   mozStorageStatementScoper scoper(stmt);
 
   nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("id"),
                                        mObjectStore->Id());
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("auto_increment"),
                              mObjectStore->IsAutoIncrement() ? 1 : 0);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = stmt->BindStringByName(NS_LITERAL_CSTRING("name"), mObjectStore->Name());
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   const KeyPath& keyPath = mObjectStore->GetKeyPath();
   if (keyPath.IsValid()) {
@@ -858,15 +855,15 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     keyPath.SerializeToString(keyPathSerialization);
     rv = stmt->BindStringByName(NS_LITERAL_CSTRING("key_path"),
                                 keyPathSerialization);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else {
     rv = stmt->BindNullByName(NS_LITERAL_CSTRING("key_path"));
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
   rv = stmt->Execute();
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
 }
@@ -891,15 +888,15 @@ DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     "DELETE FROM object_store "
     "WHERE id = :id "
   ));
-  IDB_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   mozStorageStatementScoper scoper(stmt);
 
   nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("id"), mObjectStoreId);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = stmt->Execute();
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
 }
@@ -920,7 +917,7 @@ CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   FileManager* fileManager = mDatabase->Manager();
 
   mFileInfo = fileManager->GetNewFileInfo();
-  IDB_ENSURE_TRUE(mFileInfo, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(mFileInfo, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   const int64_t& fileId = mFileInfo->Id();
 
@@ -934,13 +931,13 @@ CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   directory = fileManager->GetDirectory();
-  IDB_ENSURE_TRUE(directory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(directory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   file = fileManager->GetFileForId(directory, fileId);
-  IDB_ENSURE_TRUE(file, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(file, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
 }
@@ -951,7 +948,7 @@ CreateFileHelper::GetSuccessResult(JSContext* aCx,
 {
   nsRefPtr<IDBFileHandle> fileHandle =
     IDBFileHandle::Create(mDatabase, mName, mType, mFileInfo.forget());
-  IDB_ENSURE_TRUE(fileHandle, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(fileHandle, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMFileHandle*, fileHandle),
                     aVal);

@@ -177,11 +177,9 @@ public:
 
   /**
    * Encode 16-bit PCM audio samples stored in aSegment. To notify end of
-   * stream, set aInputFlags to BUFFER_EOS. Since encoder has limited buffers,
-   * this function might not be able to encode all chunks in one call, however
-   * it will remove chunks it consumes from aSegment.
+   * stream, set aInputFlags to BUFFER_EOS.
    */
-  nsresult Encode(mozilla::AudioSegment& aSegment, int aInputFlags = 0);
+  nsresult Encode(const mozilla::AudioSegment& aSegment, int aInputFlags = 0);
 
 protected:
   virtual status_t AppendDecoderConfig(nsTArray<uint8_t>* aOutputBuf,

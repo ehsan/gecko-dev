@@ -172,9 +172,6 @@ PixelFormatForImageFormat(gfxImageFormat aFormat)
     return android::PIXEL_FORMAT_RGBX_8888;
   case gfxImageFormat::RGB16_565:
     return android::PIXEL_FORMAT_RGB_565;
-  case gfxImageFormat::A8:
-    NS_WARNING("gralloc does not support gfxImageFormat::A8");
-    return android::PIXEL_FORMAT_UNKNOWN;
   default:
     MOZ_CRASH("Unknown gralloc pixel format");
   }
@@ -432,10 +429,6 @@ ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfx::IntSize& aSize,
   MaybeMagicGrallocBufferHandle handle;
   PGrallocBufferChild* gc;
   bool defaultRBSwap;
-
-  if (PixelFormatForContentType(aContent) == android::PIXEL_FORMAT_UNKNOWN) {
-    return false;
-  }
 
   if (aCaps & USING_GL_RENDERING_ONLY) {
     gc = AllocGrallocBuffer(aSize,

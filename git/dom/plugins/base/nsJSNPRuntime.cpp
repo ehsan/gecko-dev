@@ -176,6 +176,7 @@ const JSClass sNPObjectJSWrapperClass =
     (JSResolveOp)NPObjWrapper_NewResolve,
     NPObjWrapper_Convert,
     NPObjWrapper_Finalize,
+    nullptr,                                                /* checkAccess */
     NPObjWrapper_Call,
     nullptr,                                                /* hasInstance */
     NPObjWrapper_Construct
@@ -206,7 +207,7 @@ static const JSClass sNPObjectMemberClass =
     JS_PropertyStub, JS_DeletePropertyStub,
     JS_PropertyStub, JS_StrictPropertyStub, JS_EnumerateStub,
     JS_ResolveStub, NPObjectMember_Convert,
-    NPObjectMember_Finalize, NPObjectMember_Call,
+    NPObjectMember_Finalize, nullptr, NPObjectMember_Call,
     nullptr, nullptr, NPObjectMember_Trace
   };
 
@@ -775,7 +776,7 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
 
 // static
 bool
-nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier npid,
+nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
                                const NPVariant *value)
 {
   NPP npp = NPPStack::Peek();
@@ -798,15 +799,13 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier npid,
   nsCxPusher pusher;
   pusher.Push(cx);
   AutoJSExceptionReporter reporter(cx);
-  JS::Rooted<JSObject*> jsObj(cx, npjsobj->mJSObj);
-  JSAutoCompartment ac(cx, jsObj);
+  JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
   JS::Rooted<JS::Value> v(cx, NPVariantToJSVal(npp, cx, value));
 
-  NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
+  NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
-  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
-  ok = ::JS_SetPropertyById(cx, jsObj, id, v);
+  ok = ::JS_SetPropertyById(cx, npjsobj->mJSObj, NPIdentifierToJSId(id), v);
 
   return ok;
 }

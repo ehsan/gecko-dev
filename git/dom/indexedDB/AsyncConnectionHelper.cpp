@@ -20,7 +20,6 @@
 #include "IDBTransaction.h"
 #include "IndexedDatabaseManager.h"
 #include "ProfilerHelpers.h"
-#include "ReportInternalError.h"
 #include "TransactionThreadPool.h"
 
 #include "ipc/IndexedDBChild.h"
@@ -60,13 +59,13 @@ ConvertCloneReadInfosToArrayInternal(
 {
   JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, nullptr));
   if (!array) {
-    IDB_WARNING("Failed to make array!");
+    NS_WARNING("Failed to make array!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   if (!aReadInfos.IsEmpty()) {
     if (!JS_SetArrayLength(aCx, array, uint32_t(aReadInfos.Length()))) {
-      IDB_WARNING("Failed to set array length!");
+      NS_WARNING("Failed to set array length!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
@@ -80,8 +79,8 @@ ConvertCloneReadInfosToArrayInternal(
         return NS_ERROR_DOM_DATA_CLONE_ERR;
       }
 
-      if (!JS_SetElement(aCx, array, index, val)) {
-        IDB_WARNING("Failed to set array element!");
+      if (!JS_SetElement(aCx, array, index, &val)) {
+        NS_WARNING("Failed to set array element!");
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
     }
@@ -127,7 +126,7 @@ HelperBase::WrapNative(JSContext* aCx,
 
   nsresult rv =
     nsContentUtils::WrapNative(aCx, global, aNative, aResult);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
 }
@@ -247,7 +246,7 @@ AsyncConnectionHelper::Run()
       }
 
       case Error: {
-        IDB_WARNING("MaybeSendResultsToChildProcess failed!");
+        NS_WARNING("MaybeSendResultsToChildProcess failed!");
         mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
         if (mRequest) {
           mRequest->NotifyHelperSentResultsToChildProcess(mResultCode);
@@ -342,7 +341,6 @@ AsyncConnectionHelper::Run()
       mResultCode = NS_ERROR_DOM_INDEXEDDB_RECOVERABLE_ERR;
     }
     else {
-      IDB_REPORT_INTERNAL_ERR();
       mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
   }
@@ -461,13 +459,13 @@ AsyncConnectionHelper::OnSuccess()
 
   nsRefPtr<nsIDOMEvent> event = CreateSuccessEvent(mRequest);
   if (!event) {
-    IDB_WARNING("Failed to create event!");
+    NS_ERROR("Failed to create event!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   bool dummy;
   nsresult rv = mRequest->DispatchEvent(event, &dummy);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   WidgetEvent* internalEvent = event->GetInternalNSEvent();
   NS_ASSERTION(internalEvent, "This should never be null!");

@@ -24,7 +24,6 @@
 #include "IDBFactory.h"
 #include "IndexedDatabaseManager.h"
 #include "ProfilerHelpers.h"
-#include "ReportInternalError.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1787,7 +1786,6 @@ OpenDatabaseHelper::DoDatabaseWork()
   mState = eFiringEvents; // In case we fail somewhere along the line.
 
   if (QuotaManager::IsShuttingDown()) {
-    IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
@@ -1807,18 +1805,18 @@ OpenDatabaseHelper::DoDatabaseWork()
     quotaManager->EnsureOriginIsInitialized(mPersistenceType, mGroup,
                                             mASCIIOrigin, mTrackingQuota,
                                             getter_AddRefs(dbDirectory));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = dbDirectory->Append(NS_LITERAL_STRING(IDB_DIRECTORY_NAME));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   bool exists;
   rv = dbDirectory->Exists(&exists);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (!exists) {
     rv = dbDirectory->Create(nsIFile::DIRECTORY_TYPE, 0755);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 #ifdef DEBUG
   else {
@@ -1830,24 +1828,24 @@ OpenDatabaseHelper::DoDatabaseWork()
 
   nsAutoString filename;
   rv = GetDatabaseFilename(mName, filename);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsCOMPtr<nsIFile> dbFile;
   rv = dbDirectory->Clone(getter_AddRefs(dbFile));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = dbFile->Append(filename + NS_LITERAL_STRING(".sqlite"));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = dbFile->GetPath(mDatabaseFilePath);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsCOMPtr<nsIFile> fmDirectory;
   rv = dbDirectory->Clone(getter_AddRefs(fmDirectory));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = fmDirectory->Append(filename);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsCOMPtr<mozIStorageConnection> connection;
   rv = CreateDatabaseConnection(dbFile, fmDirectory, mName, mPersistenceType,
@@ -1855,14 +1853,13 @@ OpenDatabaseHelper::DoDatabaseWork()
                                 getter_AddRefs(connection));
   if (NS_FAILED(rv) &&
       NS_ERROR_GET_MODULE(rv) != NS_ERROR_MODULE_DOM_INDEXEDDB) {
-    IDB_REPORT_INTERNAL_ERR();
     rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = IDBFactory::LoadDatabaseInformation(connection, mDatabaseId,
                                            &mCurrentVersion, mObjectStores);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (mForDeletion) {
     mState = eDeletePending;
@@ -1911,7 +1908,7 @@ OpenDatabaseHelper::DoDatabaseWork()
                                   mPrivilege, mName);
 
     rv = fileManager->Init(fmDirectory, connection);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     mgr->AddFileManager(fileManager);
   }
@@ -1979,7 +1976,7 @@ OpenDatabaseHelper::CreateDatabaseConnection(
       bool isDirectory;
       rv = aFMDirectory->IsDirectory(&isDirectory);
       NS_ENSURE_SUCCESS(rv, rv);
-      IDB_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       rv = aFMDirectory->Remove(true);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -2002,12 +1999,12 @@ OpenDatabaseHelper::CreateDatabaseConnection(
 
   // Unknown schema will fail origin initialization too
   if (!schemaVersion && aName.IsVoid()) {
-    IDB_WARNING("Unable to open IndexedDB database, schema is not set!");
+    NS_WARNING("Unable to open IndexedDB database, schema is not set!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   if (schemaVersion > kSQLiteSchemaVersion) {
-    IDB_WARNING("Unable to open IndexedDB database, schema is too high!");
+    NS_WARNING("Unable to open IndexedDB database, schema is too high!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
@@ -2047,13 +2044,13 @@ OpenDatabaseHelper::CreateDatabaseConnection(
         "INSERT INTO database (name) "
         "VALUES (:name)"
       ), getter_AddRefs(stmt));
-      IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       rv = stmt->BindStringByName(NS_LITERAL_CSTRING("name"), aName);
-      IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       rv = stmt->Execute();
-      IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     }
     else  {
       // This logic needs to change next time we change the schema!
@@ -2095,7 +2092,6 @@ OpenDatabaseHelper::CreateDatabaseConnection(
         else {
           NS_WARNING("Unable to open IndexedDB database, no upgrade path is "
                      "available!");
-          IDB_REPORT_INTERNAL_ERR();
           return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
         }
         NS_ENSURE_SUCCESS(rv, rv);
@@ -2140,7 +2136,7 @@ OpenDatabaseHelper::StartSetVersion()
   nsRefPtr<IDBTransaction> transaction =
     IDBTransaction::Create(mDatabase, storesToOpen,
                            IDBTransaction::VERSION_CHANGE, true);
-  IDB_ENSURE_TRUE(transaction, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_TRUE(transaction, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<SetVersionHelper> helper =
     new SetVersionHelper(transaction, mOpenDBRequest, this, mRequestedVersion,
@@ -2153,7 +2149,7 @@ OpenDatabaseHelper::StartSetVersion()
              mDatabase, mDatabase->Origin(), helper,
              &VersionChangeEventsRunnable::QueueVersionChange<SetVersionHelper>,
              helper);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   // The SetVersionHelper is responsible for dispatching us back to the
   // main thread again and changing the state to eSetVersionCompleted.
@@ -2183,7 +2179,7 @@ OpenDatabaseHelper::StartDelete()
          mDatabase, mDatabase->Origin(), helper,
          &VersionChangeEventsRunnable::QueueVersionChange<DeleteDatabaseHelper>,
          helper);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   // The DeleteDatabaseHelper is responsible for dispatching us back to the
   // main thread again and changing the state to eDeleteCompleted.
@@ -2378,6 +2374,7 @@ OpenDatabaseHelper::EnsureSuccessResult()
     newInfo->filePath = mDatabaseFilePath;
 
     if (!DatabaseInfo::Put(newInfo)) {
+      NS_ERROR("Failed to add to hash!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
@@ -2385,7 +2382,7 @@ OpenDatabaseHelper::EnsureSuccessResult()
 
     nsresult rv = IDBFactory::SetDatabaseMetadata(dbInfo, mCurrentVersion,
                                                   mObjectStores);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     NS_ASSERTION(mObjectStores.IsEmpty(), "Should have swapped!");
   }
@@ -2398,7 +2395,6 @@ OpenDatabaseHelper::EnsureSuccessResult()
                         dbInfo.forget(), mASCIIOrigin, mFileManager,
                         mContentParent);
   if (!database) {
-    IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
@@ -2542,11 +2538,11 @@ SetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     "UPDATE database "
     "SET version = :version"
   ), getter_AddRefs(stmt));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("version"),
                              mRequestedVersion);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (NS_FAILED(stmt->Execute())) {
     return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
@@ -2667,38 +2663,38 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   nsresult rv = quotaManager->GetDirectoryForOrigin(mPersistenceType,
                                                     mASCIIOrigin,
                                                     getter_AddRefs(directory));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   NS_ASSERTION(directory, "What?");
 
   rv = directory->Append(NS_LITERAL_STRING(IDB_DIRECTORY_NAME));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsAutoString filename;
   rv = GetDatabaseFilename(mName, filename);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsCOMPtr<nsIFile> dbFile;
   rv = directory->Clone(getter_AddRefs(dbFile));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = dbFile->Append(filename + NS_LITERAL_STRING(".sqlite"));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   bool exists = false;
   rv = dbFile->Exists(&exists);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (exists) {
     int64_t fileSize;
 
     if (privilege != Chrome) {
       rv = dbFile->GetFileSize(&fileSize);
-      IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     }
 
     rv = dbFile->Remove(false);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     if (privilege != Chrome) {
       QuotaManager* quotaManager = QuotaManager::Get();
@@ -2711,44 +2707,44 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   nsCOMPtr<nsIFile> dbJournalFile;
   rv = directory->Clone(getter_AddRefs(dbJournalFile));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = dbJournalFile->Append(filename + NS_LITERAL_STRING(".sqlite-journal"));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = dbJournalFile->Exists(&exists);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (exists) {
     rv = dbJournalFile->Remove(false);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
   nsCOMPtr<nsIFile> fmDirectory;
   rv = directory->Clone(getter_AddRefs(fmDirectory));
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = fmDirectory->Append(filename);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = fmDirectory->Exists(&exists);
-  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (exists) {
     bool isDirectory;
     rv = fmDirectory->IsDirectory(&isDirectory);
     NS_ENSURE_SUCCESS(rv, rv);
-    IDB_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     uint64_t usage = 0;
 
     if (privilege != Chrome) {
       rv = FileManager::GetUsage(fmDirectory, &usage);
-      IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     }
 
     rv = fmDirectory->Remove(true);
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     if (privilege != Chrome) {
       QuotaManager* quotaManager = QuotaManager::Get();

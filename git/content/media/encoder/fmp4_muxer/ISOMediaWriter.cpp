@@ -28,10 +28,10 @@ ISOMediaWriter::ISOMediaWriter(uint32_t aType)
   , mBlobReady(false)
   , mType(0)
 {
-  if (aType & CREATE_AUDIO_TRACK) {
+  if (aType & HAS_AUDIO) {
     mType |= Audio_Track;
   }
-  if (aType & CREATE_VIDEO_TRACK) {
+  if (aType & HAS_VIDEO) {
     mType |= Video_Track;
   }
   mControl = new ISOControl();

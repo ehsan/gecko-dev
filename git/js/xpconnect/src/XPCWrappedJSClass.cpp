@@ -1520,6 +1520,7 @@ static const JSClass XPCOutParamClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     FinalizeStub,
+    nullptr,   /* checkAccess */
     nullptr,   /* call */
     nullptr,   /* hasInstance */
     nullptr,   /* construct */
