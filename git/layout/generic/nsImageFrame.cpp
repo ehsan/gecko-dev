@@ -205,21 +205,15 @@ nsImageFrame::CreateAccessible()
 #endif
 
 void
-nsImageFrame::DisconnectMap()
-{
-  if (mImageMap) {
-    mImageMap->Destroy();
-    NS_RELEASE(mImageMap);
-  }
-}
-
-void
 nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Tell our image map, if there is one, to clean up
   // This causes the nsImageMap to unregister itself as
   // a DOM listener.
-  DisconnectMap();
+  if (mImageMap) {
+    mImageMap->Destroy();
+    NS_RELEASE(mImageMap);
+  }
 
   // set the frame to null so we don't send messages to a dead object.
   if (mListener) {

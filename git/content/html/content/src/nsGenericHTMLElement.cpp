@@ -52,7 +52,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocumentFragment.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMHTMLMenuElement.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMWindow.h"
@@ -237,7 +237,8 @@ private:
   nsRefPtr<nsGenericHTMLElement> mElement;
 };
 
-class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
+class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
+                                    public nsIDOMElementCSSInlineStyle
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -250,6 +251,7 @@ class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
   {
   }
 
+  NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
   NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
   {
     nsresult rv;
@@ -260,7 +262,7 @@ class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
-                                           nsIDOMElementCSSInlineStyle)
+                                           nsIDOMNSHTMLElement)
 
 private:
   nsRefPtr<nsGenericHTMLElement> mElement;
@@ -272,7 +274,8 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericHTMLElementTearoff)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsGenericHTMLElementTearoff)
 
 NS_INTERFACE_TABLE_HEAD(nsGenericHTMLElementTearoff)
-  NS_INTERFACE_TABLE_INHERITED1(nsGenericHTMLElementTearoff,
+  NS_INTERFACE_TABLE_INHERITED2(nsGenericHTMLElementTearoff,
+                                nsIDOMNSHTMLElement,
                                 nsIDOMElementCSSInlineStyle)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLElementTearoff)
 NS_INTERFACE_MAP_END_AGGREGATED(mElement)
@@ -296,6 +299,8 @@ nsGenericHTMLElement::DOMQueryInterface(nsIDOMHTMLElement *aElement,
   NS_INTERFACE_TABLE_END_WITH_PTR(aElement)
 
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNSHTMLElement,
+                                 new nsGenericHTMLElementTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMElementCSSInlineStyle,
                                  new nsGenericHTMLElementTearoff(this))
   NS_INTERFACE_MAP_END
@@ -664,7 +669,7 @@ nsGenericHTMLElement::GetOffsetParent(nsIDOMElement** aOffsetParent)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
@@ -734,7 +739,7 @@ nsGenericHTMLElement::FireMutationEventsForDirectParsing(nsIDocument* aDoc,
   }
 }
 
-NS_IMETHODIMP
+nsresult
 nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
   nsIDocument* doc = OwnerDoc();
@@ -795,7 +800,7 @@ enum nsAdjacentPosition {
   eAfterEnd
 };
 
-NS_IMETHODIMP
+nsresult
 nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
                                          const nsAString& aText)
 {

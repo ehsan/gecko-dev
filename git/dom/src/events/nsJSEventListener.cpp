@@ -73,10 +73,10 @@ static EventListenerCounter sEventListenerCounter;
  * nsJSEventListener implementation
  */
 nsJSEventListener::nsJSEventListener(nsIScriptContext *aContext,
-                                     JSObject* aScopeObject,
+                                     void *aScopeObject,
                                      nsISupports *aTarget,
                                      nsIAtom* aType,
-                                     JSObject *aHandler)
+                                     void *aHandler)
   : nsIJSEventListener(aContext, aScopeObject, aTarget, aHandler),
     mEventName(aType)
 {
@@ -256,7 +256,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
 }
 
 /* virtual */ void
-nsJSEventListener::SetHandler(JSObject *aHandler)
+nsJSEventListener::SetHandler(void *aHandler)
 {
   // Technically we should drop the old mHandler and hold the new
   // one... except for JS this is a no-op, and we're really not
@@ -272,14 +272,17 @@ nsJSEventListener::SetHandler(JSObject *aHandler)
  */
 
 nsresult
-NS_NewJSEventListener(nsIScriptContext* aContext, JSObject* aScopeObject,
+NS_NewJSEventListener(nsIScriptContext *aContext, void *aScopeObject,
                       nsISupports*aTarget, nsIAtom* aEventType,
-                      JSObject* aHandler, nsIDOMEventListener ** aReturn)
+                      void *aHandler, nsIDOMEventListener ** aReturn)
 {
   NS_ENSURE_ARG(aEventType);
   nsJSEventListener* it =
     new nsJSEventListener(aContext, aScopeObject, aTarget, aEventType,
                           aHandler);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   NS_ADDREF(*aReturn = it);
 
   return NS_OK;

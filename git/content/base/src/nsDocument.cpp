@@ -450,7 +450,7 @@ class SubDocMapEntry : public PLDHashEntryHdr
 {
 public:
   // Both of these are strong references
-  Element *mKey; // must be first, to look like PLDHashEntryStub
+  nsIContent *mKey; // must be first, to look like PLDHashEntryStub
   nsIDocument *mSubDocument;
 };
 
@@ -462,7 +462,7 @@ struct FindContentData
   }
 
   nsISupports *mSubDocument;
-  Element *mResult;
+  nsIContent *mResult;
 };
 
 
@@ -1482,21 +1482,21 @@ nsDOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
 
   nsCOMPtr<nsIContent> root;
   rv = doc->CreateElem(NS_LITERAL_STRING("html"), NULL, kNameSpaceID_XHTML,
-                       getter_AddRefs(root));
+                       false, getter_AddRefs(root));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = doc->AppendChildTo(root, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> head;
   rv = doc->CreateElem(NS_LITERAL_STRING("head"), NULL, kNameSpaceID_XHTML,
-                       getter_AddRefs(head));
+                       false, getter_AddRefs(head));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = root->AppendChildTo(head, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> title;
   rv = doc->CreateElem(NS_LITERAL_STRING("title"), NULL, kNameSpaceID_XHTML,
-                       getter_AddRefs(title));
+                       false, getter_AddRefs(title));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = head->AppendChildTo(title, false);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1511,7 +1511,7 @@ nsDOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
 
   nsCOMPtr<nsIContent> body;
   rv = doc->CreateElem(NS_LITERAL_STRING("body"), NULL, kNameSpaceID_XHTML,
-                       getter_AddRefs(body));
+                       false, getter_AddRefs(body));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = root->AppendChildTo(body, false);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3258,7 +3258,8 @@ SubDocInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry, const void *key)
     const_cast<SubDocMapEntry *>
               (static_cast<const SubDocMapEntry *>(entry));
 
-  e->mKey = const_cast<Element*>(static_cast<const Element*>(key));
+  e->mKey = const_cast<nsIContent *>
+                      (static_cast<const nsIContent *>(key));
   NS_ADDREF(e->mKey);
 
   e->mSubDocument = nsnull;
@@ -3266,9 +3267,9 @@ SubDocInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry, const void *key)
 }
 
 nsresult
-nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
+nsDocument::SetSubDocumentFor(nsIContent *aContent, nsIDocument* aSubDoc)
 {
-  NS_ENSURE_TRUE(aElement, NS_ERROR_UNEXPECTED);
+  NS_ENSURE_TRUE(aContent, NS_ERROR_UNEXPECTED);
 
   if (!aSubDoc) {
     // aSubDoc is nsnull, remove the mapping
@@ -3276,8 +3277,8 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     if (mSubDocuments) {
       SubDocMapEntry *entry =
         static_cast<SubDocMapEntry*>
-                   (PL_DHashTableOperate(mSubDocuments, aElement,
-                                         PL_DHASH_LOOKUP));
+                   (PL_DHashTableOperate(mSubDocuments, aContent,
+                                            PL_DHASH_LOOKUP));
 
       if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         PL_DHashTableRawRemove(mSubDocuments, entry);
@@ -3309,8 +3310,8 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     // Add a mapping to the hash table
     SubDocMapEntry *entry =
       static_cast<SubDocMapEntry*>
-                 (PL_DHashTableOperate(mSubDocuments, aElement,
-                                       PL_DHASH_ADD));
+                 (PL_DHashTableOperate(mSubDocuments, aContent,
+                                          PL_DHASH_ADD));
 
     if (!entry) {
       return NS_ERROR_OUT_OF_MEMORY;
@@ -3335,11 +3336,11 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
 nsIDocument*
 nsDocument::GetSubDocumentFor(nsIContent *aContent) const
 {
-  if (mSubDocuments && aContent->IsElement()) {
+  if (mSubDocuments) {
     SubDocMapEntry *entry =
       static_cast<SubDocMapEntry*>
-                 (PL_DHashTableOperate(mSubDocuments, aContent->AsElement(),
-                                       PL_DHASH_LOOKUP));
+                 (PL_DHashTableOperate(mSubDocuments, aContent,
+                                          PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       return entry->mSubDocument;
@@ -3365,7 +3366,7 @@ FindContentEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
   return PL_DHASH_NEXT;
 }
 
-Element*
+nsIContent*
 nsDocument::FindContentForSubDocument(nsIDocument *aDocument) const
 {
   NS_ENSURE_TRUE(aDocument, nsnull);
@@ -4379,7 +4380,9 @@ nsDocument::CreateElement(const nsAString& aTagName,
   }
 
   rv = CreateElem(needsLowercase ? lcTagName : aTagName,
-                  nsnull, mDefaultElementType, aReturn);
+                  nsnull,
+                  IsHTML() ? kNameSpaceID_XHTML : GetDefaultNamespaceID(),
+                  true, aReturn);
   return rv;
 }
 
@@ -6709,7 +6712,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
 
 nsresult
 nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
-                       nsIContent **aResult)
+                       bool aDocumentDefaultType, nsIContent **aResult)
 {
 #ifdef DEBUG
   nsAutoString qName;
@@ -6730,13 +6733,16 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
 
   *aResult = nsnull;
   
+  PRInt32 elementType = aDocumentDefaultType ? mDefaultElementType :
+    aNamespaceID;
+
   nsCOMPtr<nsINodeInfo> nodeInfo;
   mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID,
                                 nsIDOMNode::ELEMENT_NODE,
                                 getter_AddRefs(nodeInfo));
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, aNamespaceID, nodeInfo.forget(),
+  return NS_NewElement(aResult, elementType, nodeInfo.forget(),
                        NOT_FROM_PARSER);
 }
 
@@ -8507,7 +8513,8 @@ nsDocument::RequestFullScreen(Element* aElement)
     nsIDocument* child = this;
     nsIDocument* parent;
     while (parent = child->GetParentDocument()) {
-      Element* element = parent->FindContentForSubDocument(child);
+      nsIContent* content = parent->FindContentForSubDocument(child);
+      nsCOMPtr<Element> element(do_QueryInterface(content));
       // Containing frames also need the css-pseudo class applied.
       nsEventStateManager::SetFullScreenState(element, true);
       static_cast<nsDocument*>(parent)->mFullScreenElement = element;

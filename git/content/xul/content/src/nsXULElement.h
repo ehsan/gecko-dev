@@ -75,7 +75,6 @@
 #include "nsStyledElement.h"
 #include "nsDOMScriptObjectHolder.h"
 #include "nsIFrameLoader.h"
-#include "jspubtd.h"
 
 class nsIDocument;
 class nsString;
@@ -342,9 +341,9 @@ public:
                      "Wrong language, this will leak the previous object.");
 
         mScriptObject.mLangID = aHolder.getScriptTypeID();
-        Set(aHolder.getScript());
+        Set((void*)aHolder);
     }
-    void Set(JSScript* aObject);
+    void Set(void *aObject);
 
     struct ScriptObjectHolder
     {
@@ -353,7 +352,7 @@ public:
         {
         }
         PRUint32 mLangID;
-        JSScript* mObject;
+        void* mObject;
     };
     nsCOMPtr<nsIURI>         mSrcURI;
     PRUint32                 mLineNo;
