@@ -327,7 +327,7 @@ js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSHashNumber)
+static JSHashNumber
 js_hash_object(const void *key)
 {
     return (JSHashNumber)JS_PTR_TO_UINT32(key) >> JSVAL_TAGBITS;
@@ -570,7 +570,7 @@ js_LeaveSharpObject(JSContext *cx, JSIdArray **idap)
     }
 }
 
-JS_STATIC_DLL_CALLBACK(intN)
+static intN
 gc_sharp_table_entry_marker(JSHashEntry *he, intN i, void *arg)
 {
     JS_CALL_OBJECT_TRACER((JSTracer *)arg, (JSObject *)he->key,
@@ -1179,6 +1179,7 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     const char *file;
     uintN line;
     JSPrincipals *principals;
+    uint32 tcflags;
     JSScript *script;
     JSBool ok;
 #if JS_HAS_EVAL_THIS_SCOPE
@@ -1309,21 +1310,10 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         principals = NULL;
     }
 
-    /*
-     * Set JSFRAME_EVAL on fp and any frames (e.g., fun_call if eval.call was
-     * invoked) between fp and its scripted caller, to help the compiler easily
-     * find the same caller whose scope and var obj we've set.
-     *
-     * XXX this nonsense could, and perhaps should, go away with a better way
-     * to pass params to the compiler than via the top-most frame.
-     */
-    do {
-        fp->flags |= JSFRAME_EVAL;
-    } while ((fp = fp->down) != caller);
-
-    script = js_CompileScript(cx, scopeobj, principals,
-                              TCF_COMPILE_N_GO |
-                              TCF_PUT_STATIC_DEPTH(caller->script->staticDepth + 1),
+    tcflags = TCF_COMPILE_N_GO;
+    if (caller)
+        tcflags |= TCF_PUT_STATIC_DEPTH(caller->script->staticDepth + 1);
+    script = js_CompileScript(cx, scopeobj, caller, principals, tcflags,
                               JSSTRING_CHARS(str), JSSTRING_LENGTH(str),
                               NULL, file, line);
     if (!script) {
@@ -2677,7 +2667,7 @@ earlybad:
 
 JS_BEGIN_EXTERN_C
 
-JS_STATIC_DLL_CALLBACK(JSObject *)
+static JSObject *
 js_InitNullClass(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(0);
