@@ -186,42 +186,48 @@ MobileConnectionListener::Listen(bool aStart)
  */
 NS_IMPL_ISUPPORTS(TelephonyListener, nsITelephonyListener)
 
-/**
- * @param aSend A boolean indicates whether we need to notify headset or not
- */
-nsresult
-TelephonyListener::HandleCallInfo(nsITelephonyCallInfo* aInfo, bool aSend)
+NS_IMETHODIMP
+TelephonyListener::CallStateChanged(uint32_t aServiceId,
+                                    uint32_t aCallIndex,
+                                    uint16_t aCallState,
+                                    const nsAString& aNumber,
+                                    uint16_t aNumberPresentation,
+                                    const nsAString& aName,
+                                    uint16_t aNamePresentation,
+                                    bool aIsOutgoing,
+                                    bool aIsEmergency,
+                                    bool aIsConference,
+                                    bool aIsSwitchable,
+                                    bool aIsMergeable)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE(hfp, NS_ERROR_FAILURE);
 
-  uint32_t callIndex;
-  uint16_t callState;
-  nsAutoString number;
-  bool isOutgoing;
-  bool isConference;
-
-  aInfo->GetCallIndex(&callIndex);
-  aInfo->GetCallState(&callState);
-  aInfo->GetNumber(number);
-  aInfo->GetIsOutgoing(&isOutgoing);
-  aInfo->GetIsConference(&isConference);
-
-  hfp->HandleCallStateChanged(callIndex, callState, EmptyString(), number,
-                              isOutgoing, isConference, aSend);
+  hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
+                              aIsOutgoing, aIsConference, true);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TelephonyListener::CallStateChanged(nsITelephonyCallInfo* aInfo)
+TelephonyListener::EnumerateCallState(uint32_t aServiceId,
+                                      uint32_t aCallIndex,
+                                      uint16_t aCallState,
+                                      const nsAString_internal& aNumber,
+                                      uint16_t aNumberPresentation,
+                                      const nsAString& aName,
+                                      uint16_t aNamePresentation,
+                                      bool aIsOutgoing,
+                                      bool aIsEmergency,
+                                      bool aIsConference,
+                                      bool aIsSwitchable,
+                                      bool aIsMergeable)
 {
-  return HandleCallInfo(aInfo, true);
-}
+  BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
+  NS_ENSURE_TRUE(hfp, NS_ERROR_FAILURE);
 
-NS_IMETHODIMP
-TelephonyListener::EnumerateCallState(nsITelephonyCallInfo* aInfo)
-{
-  return HandleCallInfo(aInfo, false);
+  hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
+                              aIsOutgoing, aIsConference, false);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

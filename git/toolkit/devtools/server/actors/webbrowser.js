@@ -10,6 +10,7 @@ let { Ci, Cu } = require("chrome");
 let Services = require("Services");
 let { ActorPool, createExtraActors, appendExtraActors } = require("devtools/server/actors/common");
 let { RootActor } = require("devtools/server/actors/root");
+let { AddonThreadActor, ThreadActor } = require("devtools/server/actors/script");
 let { DebuggerServer } = require("devtools/server/main");
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 let { dbg_assert } = DevToolsUtils;
@@ -19,16 +20,18 @@ let mapURIToAddonID = require("./utils/map-uri-to-addon-id");
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-loader.lazyRequireGetter(this, "AddonThreadActor", "devtools/server/actors/script", true);
-loader.lazyRequireGetter(this, "ThreadActor", "devtools/server/actors/script", true);
-loader.lazyImporter(this, "AddonManager", "resource://gre/modules/AddonManager.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "AddonManager", "resource://gre/modules/AddonManager.jsm");
 
 // Assumptions on events module:
 // events needs to be dispatched synchronously,
 // by calling the listeners in the order or registration.
-loader.lazyRequireGetter(this, "events", "sdk/event/core");
+XPCOMUtils.defineLazyGetter(this, "events", () => {
+  return require("sdk/event/core");
+});
 
-loader.lazyRequireGetter(this, "StyleSheetActor", "devtools/server/actors/stylesheets", true);
+XPCOMUtils.defineLazyGetter(this, "StyleSheetActor", () => {
+  return require("devtools/server/actors/stylesheets").StyleSheetActor;
+});
 
 function getWindowID(window) {
   return window.QueryInterface(Ci.nsIInterfaceRequestor)

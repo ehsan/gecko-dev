@@ -61,9 +61,6 @@ public:
   virtual ~TelephonyListener() { }
 
   bool Listen(bool aStart);
-
-private:
-  nsresult HandleCallInfo(nsITelephonyCallInfo* aInfo, bool aSend);
 };
 
 class BluetoothRilListener

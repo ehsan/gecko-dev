@@ -9,6 +9,7 @@
 var { Ci, Cu, Cc, components } = require("chrome");
 var Services = require("Services");
 var promise = require("promise");
+var { setTimeout } = require("Timer");
 
 /**
  * Turn the error |aError| into a string, without fail.
@@ -120,7 +121,7 @@ exports.zip = function zip(a, b) {
  */
 exports.executeSoon = function executeSoon(aFn) {
   if (isWorker) {
-    require("Timer").setTimeout(aFn, 0);
+    setTimeout(aFn, 0);
   } else {
     Services.tm.mainThread.dispatch({
       run: exports.makeInfallible(aFn)
@@ -150,7 +151,7 @@ exports.waitForTick = function waitForTick() {
  */
 exports.waitForTime = function waitForTime(aDelay) {
   let deferred = promise.defer();
-  require("Timer").setTimeout(deferred.resolve, aDelay);
+  setTimeout(deferred.resolve, aDelay);
   return deferred.promise;
 };
 

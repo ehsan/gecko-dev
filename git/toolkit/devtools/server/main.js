@@ -33,6 +33,7 @@ this.Cc = Cc;
 this.CC = CC;
 this.Cu = Cu;
 this.Cr = Cr;
+this.Debugger = Debugger;
 this.Services = Services;
 this.ActorPool = ActorPool;
 this.DevToolsUtils = DevToolsUtils;
@@ -75,8 +76,7 @@ function loadSubScript(aURL)
   }
 }
 
-loader.lazyRequireGetter(this, "events", "sdk/event/core");
-
+let events = require("sdk/event/core");
 let {defer, resolve, reject, all} = require("devtools/toolkit/deprecated-sync-thenables");
 this.defer = defer;
 this.resolve = resolve;
@@ -176,7 +176,7 @@ var DebuggerServer = {
     this._initialized = true;
   },
 
-  get protocol() require("devtools/server/protocol"),
+  protocol: require("devtools/server/protocol"),
 
   /**
    * Initialize the debugger server's transport variables.  This can be

@@ -6,10 +6,9 @@
 #ifndef mozilla_dom_telephony_TelephonyChild_h
 #define mozilla_dom_telephony_TelephonyChild_h
 
+#include "mozilla/dom/telephony/TelephonyCommon.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
 #include "mozilla/dom/telephony/PTelephonyRequestChild.h"
-#include "mozilla/dom/telephony/TelephonyCommon.h"
-#include "nsITelephonyCallInfo.h"
 #include "nsITelephonyService.h"
 
 BEGIN_TELEPHONY_NAMESPACE
@@ -38,7 +37,8 @@ protected:
                       const nsString& aError) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyCallStateChanged(nsITelephonyCallInfo* const& aInfo) MOZ_OVERRIDE;
+  RecvNotifyCallStateChanged(const uint32_t& aClientId,
+                             const IPCCallStateData& aData) MOZ_OVERRIDE;
 
   virtual bool
   RecvNotifyCdmaCallWaiting(const uint32_t& aClientId,
@@ -76,7 +76,8 @@ protected:
   Recv__delete__(const IPCTelephonyResponse& aResponse) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyEnumerateCallState(nsITelephonyCallInfo* const& aInfo) MOZ_OVERRIDE;
+  RecvNotifyEnumerateCallState(const uint32_t& aClientId,
+                               const IPCCallStateData& aData) MOZ_OVERRIDE;
 
   virtual bool
   RecvNotifyDialMMI(const nsString& aServiceCode) MOZ_OVERRIDE;

@@ -1,5 +1,5 @@
 /**
- * web-audio-automation-timeline - 1.0.3
+ * web-audio-automation-timeline - 1.0.2
  * https://github.com/jsantell/web-audio-automation-timeline
  * MIT License, copyright (c) 2014 Jordan Santell
  */
@@ -68,8 +68,6 @@ exports.fuzzyEqual = function (lhs, rhs) {
   return Math.abs(lhs - rhs) < EPSILON;
 };
 
-exports.EPSILON = EPSILON;
-
 },{}],4:[function(require,module,exports){
 var TimelineEvent = require("./event").TimelineEvent;
 var F = require("./formulas");
@@ -80,6 +78,11 @@ function Timeline (defaultValue) {
   this.events = [];
 
   this._value = defaultValue || 0;
+
+  // This is the value of this AudioParam we computed at the last call.
+  this._computedValue = defaultValue || 0;
+  // This is the value of this AudioParam at the last tick of the previous event.
+  this._lastComputedValue = defaultValue || 0;
 }
 
 Timeline.prototype.getEventCount = function () {
@@ -92,7 +95,7 @@ Timeline.prototype.value = function () {
 
 Timeline.prototype.setValue = function (value) {
   if (this.events.length === 0) {
-    this._value = value;
+    this._computedValue = this._lastComputedValue = this._value = value;
   }
 };
 
@@ -105,19 +108,21 @@ Timeline.prototype.getValue = function () {
 };
 
 Timeline.prototype.getValueAtTime = function (time) {
-  return this._getValueAtTimeHelper(time);
+  this._computedValue = this._getValueAtTimeHelper(time);
+  return this._computedValue;
 };
 
 Timeline.prototype._getValueAtTimeHelper = function (time) {
   var bailOut = false;
   var previous = null;
   var next = null;
-  var lastComputedValue = null; // Used for `setTargetAtTime` nodes
   var events = this.events;
   var e;
 
   for (var i = 0; !bailOut && i < events.length; i++) {
     if (F.fuzzyEqual(time, events[i].time)) {
+      this._lastComputedValue = this._computedValue;
+
       // Find the last event with the same time as `time`
       do {
         ++i;
@@ -127,8 +132,7 @@ Timeline.prototype._getValueAtTimeHelper = function (time) {
 
       // `setTargetAtTime` can be handled no matter what their next event is (if they have one)
       if (e.type === "setTargetAtTime") {
-        lastComputedValue = this._lastComputedValue(e);
-        return e.exponentialApproach(lastComputedValue, time);
+        return e.exponentialApproach(this._lastComputedValue, time);
       }
 
       // `setValueCurveAtTime` events can be handled no matter what their next event node is
@@ -166,8 +170,7 @@ Timeline.prototype._getValueAtTimeHelper = function (time) {
 
   // `setTargetAtTime` can be handled no matter what their next event is (if they have one)
   if (previous.type === "setTargetAtTime") {
-    lastComputedValue = this._lastComputedValue(previous);
-    return previous.exponentialApproach(lastComputedValue, time);
+    return previous.exponentialApproach(this._lastComputedValue, time);
   }
 
   // `setValueCurveAtTime` events can be handled no matter what their next event node is
@@ -311,29 +314,6 @@ Timeline.prototype._getPreviousEvent = function (time) {
   }
 
   return previous;
-};
-
-/**
- * Calculates the previous value of the timeline, used for
- * `setTargetAtTime` nodes. Takes an event, and returns
- * the previous computed value for any sample taken during that
- * exponential approach node.
- */
-Timeline.prototype._lastComputedValue = function (event) {
-  // If equal times, return the value for the previous event, before
-  // the `setTargetAtTime` node.
-  var lastEvent = this._getPreviousEvent(event.time - F.EPSILON);
-
-  // If no event before the setTargetAtTime event, then return the
-  // intrinsic value.
-  if (!lastEvent) {
-    return this._value;
-  }
-  // Otherwise, return the value for the previous event, which should
-  // always be the last computed value (? I think?)
-  else {
-    return lastEvent.value;
-  }
 };
 
 Timeline.prototype.setValueAtTime = function (value, startTime) {
