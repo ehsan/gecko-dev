@@ -57,8 +57,7 @@ function retrieveTranslationCounts() {
       return [0, 0];
     }
 
-    // .get() may return `undefined`, which we can't compute.
-    return [day.get("pageTranslatedCount") || 0, day.get("charactersTranslatedCount") || 0];
+    return [day.get("pageTranslatedCount"), day.get("charactersTranslatedCount")];
   });
 }
 

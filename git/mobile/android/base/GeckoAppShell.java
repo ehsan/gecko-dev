@@ -2706,24 +2706,20 @@ public class GeckoAppShell
     }
 
     @WrapElementForJNI(allowMultithread = true, narrowChars = true)
-    static URLConnection getConnection(String url) {
-        try {
-            String spec;
-            if (url.startsWith("android://")) {
-                spec = url.substring(10);
-            } else {
-                spec = url.substring(8);
-            }
-
-            // if the colon got stripped, put it back
-            int colon = spec.indexOf(':');
-            if (colon == -1 || colon > spec.indexOf('/')) {
-                spec = spec.replaceFirst("/", ":/");
-            }
-        } catch(Exception ex) {
-            return null;
+    static URLConnection getConnection(String url) throws MalformedURLException, IOException {
+        String spec;
+        if (url.startsWith("android://")) {
+            spec = url.substring(10);
+        } else {
+            spec = url.substring(8);
         }
-        return null;
+
+        // if the colon got stripped, put it back
+        int colon = spec.indexOf(':');
+        if (colon == -1 || colon > spec.indexOf('/')) {
+            spec = spec.replaceFirst("/", ":/");
+        }
+        return new URL(spec).openConnection();
     }
 
     @WrapElementForJNI(allowMultithread = true, narrowChars = true)

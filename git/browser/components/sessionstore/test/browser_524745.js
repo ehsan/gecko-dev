@@ -6,7 +6,7 @@ function test() {
   /** Test for Bug 524745 **/
 
   let uniqKey = "bug524745";
-  let uniqVal = Date.now().toString();
+  let uniqVal = Date.now();
 
   waitForExplicitFinish();
 

@@ -20,11 +20,10 @@ import android.widget.PopupWindow;
  * A popup to show the inflated MenuPanel.
  */
 public class MenuPopup extends PopupWindow {
-    private final LinearLayout mPanel;
+    private LinearLayout mPanel;
 
-    private final int mYOffset;
-    private final int mPopupWidth;
-    private final int mPopupMinHeight;
+    private int mYOffset;
+    private int mPopupWidth;
 
     public MenuPopup(Context context) {
         super(context);
@@ -33,7 +32,6 @@ public class MenuPopup extends PopupWindow {
 
         mYOffset = context.getResources().getDimensionPixelSize(R.dimen.menu_popup_offset);
         mPopupWidth = context.getResources().getDimensionPixelSize(R.dimen.menu_popup_width);
-        mPopupMinHeight = context.getResources().getDimensionPixelSize(R.dimen.menu_item_row_height);
 
         // Setting a null background makes the popup to not close on touching outside.
         setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -65,12 +63,6 @@ public class MenuPopup extends PopupWindow {
      */
     @Override
     public void showAsDropDown(View anchor) {
-        // Set a height, so that the popup will not be displayed below the bottom of the screen.
-        setHeight(mPopupMinHeight);
-
-        // Attempt to align the center of the popup with the center of the anchor. If the anchor is
-        // near the edge of the screen, the popup will just align with the edge of the screen.
-        final int xOffset = anchor.getWidth()/2 - mPopupWidth/2;
-        showAsDropDown(anchor, xOffset, -mYOffset);
+        showAsDropDown(anchor, 0, -mYOffset);
     }
 }
