@@ -172,6 +172,13 @@ public:
    */
   virtual gfxIntSize GetCurrentSize() = 0;
 
+  /**
+   * Set a new layer manager for this image container.  It must be
+   * either of the same type as the container's current layer manager,
+   * or null.  TRUE is returned on success.
+   */
+  virtual PRBool SetLayerManager(LayerManager *aManager) = 0;
+
 protected:
   LayerManager* mManager;
 
@@ -198,9 +205,13 @@ public:
   ImageContainer* GetContainer() { return mContainer; }
   gfxPattern::GraphicsFilter GetFilter() { return mFilter; }
 
+  MOZ_LAYER_DECL_NAME("ImageLayer", TYPE_IMAGE)
+
 protected:
   ImageLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData), mFilter(gfxPattern::FILTER_GOOD) {}
+
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   nsRefPtr<ImageContainer> mContainer;
   gfxPattern::GraphicsFilter mFilter;

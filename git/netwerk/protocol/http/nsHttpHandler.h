@@ -195,7 +195,7 @@ public:
 
     // Called by channels before a redirect happens. This notifies both the
     // channel's and the global redirect observers.
-    nsresult OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+    nsresult AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
                                PRUint32 flags);
 
     // Called by the channel when the response is read from the cache without
@@ -296,8 +296,6 @@ private:
     nsXPIDLCString mAppVersion;
     nsCString      mPlatform;
     nsCString      mOscpu;
-    nsCString      mDeviceType;
-    nsXPIDLCString mSecurity;
     nsCString      mLanguage;
     nsCString      mMisc;
     nsXPIDLCString mVendor;

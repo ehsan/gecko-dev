@@ -44,7 +44,7 @@
 #ifndef nsTextFragment_h___
 #define nsTextFragment_h___
 
-#include "nsAString.h"
+#include "nsString.h"
 #include "nsTraceRefcnt.h"
 class nsString;
 class nsCString;
@@ -55,7 +55,7 @@ class nsCString;
 
 // XXX these need I18N spankage
 #define XP_IS_SPACE(_ch) \
-  (((_ch) == ' ') || ((_ch) == '\t') || ((_ch) == '\n'))
+  (((_ch) == ' ') || ((_ch) == '\t') || ((_ch) == '\n') || ((_ch) == '\r'))
 
 #define XP_IS_UPPERCASE(_ch) \
   (((_ch) >= 'A') && ((_ch) <= 'Z'))
@@ -165,14 +165,27 @@ public:
   /**
    * Append the contents of this string fragment to aString
    */
-  void AppendTo(nsAString& aString) const;
+  void AppendTo(nsAString& aString) const {
+    if (mState.mIs2b) {
+      aString.Append(m2b, mState.mLength);
+    } else {
+      AppendASCIItoUTF16(Substring(m1b, m1b + mState.mLength),
+                         aString);
+    }
+  }
 
   /**
    * Append a substring of the contents of this string fragment to aString.
    * @param aOffset where to start the substring in this text fragment
    * @param aLength the length of the substring
    */
-  void AppendTo(nsAString& aString, PRInt32 aOffset, PRInt32 aLength) const;
+  void AppendTo(nsAString& aString, PRInt32 aOffset, PRInt32 aLength) const {
+    if (mState.mIs2b) {
+      aString.Append(m2b + aOffset, aLength);
+    } else {
+      AppendASCIItoUTF16(Substring(m1b + aOffset, m1b + aOffset + aLength), aString);
+    }
+  }
 
   /**
    * Make a copy of the fragments contents starting at offset for

@@ -52,6 +52,8 @@ XPIDLSRCS = \
         nsIGnomeVFSService.idl \
         nsIBlocklistService.idl \
         nsIGIOService.idl \
+        nsIAccelerometer.idl \
+        nsIGeolocationProvider.idl \
         $(NULL)
 
 ifdef MOZ_CRASHREPORTER

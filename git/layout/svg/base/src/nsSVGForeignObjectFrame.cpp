@@ -70,8 +70,7 @@ nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
   : nsSVGForeignObjectFrameBase(aContext),
     mInReflow(PR_FALSE)
 {
-  AddStateBits(NS_FRAME_REFLOW_ROOT |
-               NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS);
+  AddStateBits(NS_FRAME_REFLOW_ROOT | NS_FRAME_MAY_BE_TRANSFORMED);
 }
 
 //----------------------------------------------------------------------
@@ -311,7 +310,11 @@ nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
   pt = pt * nsPresContext::AppUnitsPerCSSPixel();
   nsPoint point = nsPoint(NSToIntRound(pt.x), NSToIntRound(pt.y));
 
-  return nsLayoutUtils::GetFrameForPoint(kid, point);
+  nsIFrame *frame = nsLayoutUtils::GetFrameForPoint(kid, point);
+  if (frame && nsSVGUtils::HitTestClip(this, aPoint))
+    return frame;
+
+  return nsnull;
 }
 
 NS_IMETHODIMP_(nsRect)

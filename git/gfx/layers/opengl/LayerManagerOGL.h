@@ -75,19 +75,28 @@ class LayerOGL;
  * the main thread.
  */
 class THEBES_API LayerManagerOGL : public LayerManager {
+  typedef mozilla::gl::GLContext GLContext;
+
 public:
   LayerManagerOGL(nsIWidget *aWidget);
   virtual ~LayerManagerOGL();
-  
+
+  void CleanupResources();
+
+  void Destroy();
+
   /**
    * Initializes the layer manager, this is when the layer manager will
    * actually access the device and attempt to create the swap chain used
    * to draw to the window. If this method fails the device cannot be used.
    * This function is not threadsafe.
    *
+   * \param aExistingContext an existing GL context to use, instead of creating
+   * our own for the widget.
+   *
    * \return True is initialization was succesful, false when it was not.
    */
-  PRBool Initialize();
+  PRBool Initialize(GLContext *aExistingContext = nsnull);
 
   /**
    * Sets the clipping region for this layer manager. This is important on 
@@ -112,8 +121,8 @@ public:
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
-  void SetRoot(Layer* aLayer);
-  
+  virtual void SetRoot(Layer* aLayer) { mRoot = aLayer; }
+
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
@@ -127,6 +136,16 @@ public:
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
   virtual LayersBackend GetBackendType() { return LAYERS_OPENGL; }
+
+  /**
+   * Image Container management.
+   */
+
+  /* Forget this image container.  Should be called by ImageContainerOGL
+   * on its current layer manager before switching to a new one.
+   */
+  void ForgetImageContainer(ImageContainer* aContainer);
+  void RememberImageContainer(ImageContainer* aContainer);
 
   /**
    * Helper methods.
@@ -167,9 +186,23 @@ public:
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBALayerProgramType]);
   }
 
-  typedef mozilla::gl::GLContext GLContext;
-
   GLContext *gl() const { return mGLContext; }
+
+  DrawThebesLayerCallback GetThebesLayerCallback() const
+  { return mThebesLayerCallback; }
+
+  void* GetThebesLayerCallbackData() const
+  { return mThebesLayerCallbackData; }
+
+  // This is a GLContext that can be used for resource
+  // management (creation, destruction).  It is guaranteed
+  // to be either the same as the gl() context, or a context
+  // that is in the same share pool.
+  GLContext *glForResources() const {
+    if (mGLContext->GetSharedContext())
+      return mGLContext->GetSharedContext();
+    return mGLContext;
+  }
 
   /*
    * Helper functions for our layers
@@ -181,7 +214,8 @@ public:
     NS_ASSERTION(mThebesLayerCallback,
                  "CallThebesLayerDrawCallback without callback!");
     mThebesLayerCallback(aLayer, aContext,
-                         aRegionToDraw, mThebesLayerCallbackData);
+                         aRegionToDraw, nsIntRegion(),
+                         mThebesLayerCallbackData);
   }
 
   GLenum FBOTextureTarget() { return mFBOTextureTarget; }
@@ -269,6 +303,11 @@ private:
 
   nsRefPtr<GLContext> mGLContext;
 
+  // The image containers that this layer manager has created.
+  // The destructor will tell the layer manager to remove
+  // it from the list.
+  nsTArray<ImageContainer*> mImageContainers;
+
   enum ProgramType {
     RGBALayerProgramType,
     BGRALayerProgramType,
@@ -283,9 +322,6 @@ private:
   };
 
   static ProgramType sLayerProgramTypes[];
-
-  /** Current root layer. */
-  LayerOGL *mRootLayer;
 
   /** Backbuffer */
   GLuint mBackBufferFBO;
@@ -308,6 +344,9 @@ private:
 
   /** Misc */
   PRPackedBool mHasBGRA;
+
+  /** Current root layer. */
+  LayerOGL *RootLayer() const;
 
   /**
    * Render the current layer tree to the active target.
@@ -352,22 +391,19 @@ class LayerOGL
 {
 public:
   LayerOGL(LayerManagerOGL *aManager)
-    : mOGLManager(aManager)
+    : mOGLManager(aManager), mDestroyed(PR_FALSE)
   { }
 
-  enum LayerType {
-    TYPE_THEBES,
-    TYPE_CONTAINER,
-    TYPE_IMAGE,
-    TYPE_COLOR,
-    TYPE_CANVAS
-  };
-  
-  virtual LayerType GetType() = 0;
+  virtual ~LayerOGL() { }
 
   virtual LayerOGL *GetFirstChildOGL() {
     return nsnull;
   }
+
+  /* Do NOT call this from the generic LayerOGL destructor.  Only from the
+   * concrete class destructor
+   */
+  virtual void Destroy() = 0;
 
   virtual Layer* GetLayer() = 0;
 
@@ -379,17 +415,8 @@ public:
   GLContext *gl() const { return mOGLManager->gl(); }
 protected:
   LayerManagerOGL *mOGLManager;
+  PRPackedBool mDestroyed;
 };
-
-#ifdef DEBUG
-#define DEBUG_GL_ERROR_CHECK(cx) do {           \
-    /*fprintf (stderr, "trace %s %d\n", __FILE__, __LINE__);*/          \
-    GLenum err = (cx)->fGetError();             \
-    if (err) { fprintf (stderr, "GL ERROR: 0x%04x at %s:%d\n", err, __FILE__, __LINE__); } \
-  } while (0)
-#else
-#define DEBUG_GL_ERROR_CHECK(cx) do { } while (0)
-#endif
 
 } /* layers */
 } /* mozilla */

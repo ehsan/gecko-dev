@@ -19,7 +19,7 @@
 #endif
 
 [@AB_CD@]
-@BINPATH@/chrome/@AB_CD@.jar
+@BINPATH@/chrome/@AB_CD@@JAREXT@
 @BINPATH@/chrome/@AB_CD@.manifest
 @BINPATH@/@PREF_DIR@/firefox-l10n.js
 @BINPATH@/searchplugins/*
@@ -38,7 +38,9 @@
 
 [xpcom]
 @BINPATH@/dependentlibs.list
+#ifndef MOZ_STATIC_JS
 @BINPATH@/@DLL_PREFIX@mozjs@DLL_SUFFIX@
+#endif
 @BINPATH@/@DLL_PREFIX@plc4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@plds4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@xpcom@DLL_SUFFIX@
@@ -46,10 +48,13 @@
 @BINPATH@/@DLL_PREFIX@mozalloc@DLL_SUFFIX@
 #ifdef XP_MACOSX
 @BINPATH@/XUL
-@BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #else
 @BINPATH@/@DLL_PREFIX@xul@DLL_SUFFIX@
+#endif
 #ifdef MOZ_IPC
+#ifdef XP_MACOSX
+@BINPATH@/@MOZ_CHILD_PROCESS_NAME@.app/
+#else
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #endif
 #endif
@@ -105,7 +110,7 @@
 #endif
 
 ; [Components]
-@BINPATH@/components/components.list
+@BINPATH@/components/components.manifest
 @BINPATH@/components/alerts.xpt
 #ifdef ACCESSIBILITY
 #ifdef XP_WIN32
@@ -119,7 +124,6 @@
 @BINPATH@/components/autocomplete.xpt
 @BINPATH@/components/autoconfig.xpt
 @BINPATH@/components/browsercompsbase.xpt
-@BINPATH@/components/browserplaces.xpt
 @BINPATH@/components/browser-feeds.xpt
 @BINPATH@/components/caps.xpt
 @BINPATH@/components/chardet.xpt
@@ -146,6 +150,7 @@
 @BINPATH@/components/dom_events.xpt
 @BINPATH@/components/dom_geolocation.xpt
 @BINPATH@/components/dom_html.xpt
+@BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
 @BINPATH@/components/dom_json.xpt
 @BINPATH@/components/dom_range.xpt
@@ -179,8 +184,10 @@
 @BINPATH@/components/inspector.xpt
 @BINPATH@/components/intl.xpt
 @BINPATH@/components/jar.xpt
+@BINPATH@/components/jetpack.xpt
 @BINPATH@/components/jsdservice.xpt
 @BINPATH@/components/layout_base.xpt
+@BINPATH@/components/layout_forms.xpt
 #ifdef NS_PRINTING
 @BINPATH@/components/layout_printing.xpt
 #endif
@@ -218,6 +225,9 @@
 @BINPATH@/components/satchel.xpt
 @BINPATH@/components/saxparser.xpt
 @BINPATH@/components/sessionstore.xpt
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/components/services-crypto.xpt
+#endif
 @BINPATH@/components/shellservice.xpt
 @BINPATH@/components/shistory.xpt
 @BINPATH@/components/spellchecker.xpt
@@ -226,7 +236,6 @@
 #ifdef MOZ_ENABLE_XREMOTE
 @BINPATH@/components/toolkitremote.xpt
 #endif
-@BINPATH@/components/toolkitsearch.xpt
 @BINPATH@/components/txtsvc.xpt
 @BINPATH@/components/txmgr.xpt
 #ifdef MOZ_USE_NATIVE_UCONV
@@ -260,71 +269,104 @@
 @BINPATH@/components/zipwriter.xpt
 
 ; JavaScript components
+@BINPATH@/components/FeedProcessor.manifest
 @BINPATH@/components/FeedProcessor.js
+@BINPATH@/components/BrowserFeeds.manifest
 @BINPATH@/components/FeedConverter.js
 @BINPATH@/components/FeedWriter.js
+@BINPATH@/components/fuelApplication.manifest
 @BINPATH@/components/fuelApplication.js
 @BINPATH@/components/WebContentConverter.js
-@BINPATH@/components/nsAddonRepository.js
+@BINPATH@/components/BrowserComponents.manifest
 @BINPATH@/components/nsBrowserContentHandler.js
 @BINPATH@/components/nsBrowserGlue.js
+@BINPATH@/components/nsSetDefaultBrowser.manifest
 @BINPATH@/components/nsSetDefaultBrowser.js
 @BINPATH@/components/nsMicrosummaryService.js
-@BINPATH@/components/nsPlacesTransactionsService.js
+@BINPATH@/components/BrowserPlaces.manifest
+@BINPATH@/components/nsPrivateBrowsingService.manifest
 @BINPATH@/components/nsPrivateBrowsingService.js
+@BINPATH@/components/toolkitsearch.manifest
 @BINPATH@/components/nsSearchService.js
 @BINPATH@/components/nsSearchSuggestions.js
+@BINPATH@/components/nsTryToClose.manifest
 @BINPATH@/components/nsTryToClose.js
+@BINPATH@/components/passwordmgr.manifest
 @BINPATH@/components/nsLoginInfo.js
 @BINPATH@/components/nsLoginManager.js
 @BINPATH@/components/nsLoginManagerPrompter.js
 @BINPATH@/components/storage-Legacy.js
 @BINPATH@/components/storage-mozStorage.js
 @BINPATH@/components/crypto-SDR.js
+@BINPATH@/components/jsconsole-clhandler.manifest
 @BINPATH@/components/jsconsole-clhandler.js
 #ifdef MOZ_GTK2
+@BINPATH@/components/nsFilePicker.manifest
 @BINPATH@/components/nsFilePicker.js
 #endif
+@BINPATH@/components/nsHelperAppDlg.manifest
 @BINPATH@/components/nsHelperAppDlg.js
+@BINPATH@/components/nsDownloadManagerUI.manifest
 @BINPATH@/components/nsDownloadManagerUI.js
+@BINPATH@/components/nsProxyAutoConfig.manifest
 @BINPATH@/components/nsProxyAutoConfig.js
+@BINPATH@/components/NetworkGeolocationProvider.manifest
 @BINPATH@/components/NetworkGeolocationProvider.js
+@BINPATH@/components/GPSDGeolocationProvider.manifest
 @BINPATH@/components/GPSDGeolocationProvider.js
+@BINPATH@/components/nsSidebar.manifest
 @BINPATH@/components/nsSidebar.js
+@BINPATH@/components/extensions.manifest
 @BINPATH@/components/addonManager.js
 @BINPATH@/components/amContentHandler.js
 @BINPATH@/components/amWebInstallListener.js
 @BINPATH@/components/nsBlocklistService.js
 #ifdef MOZ_UPDATER
+@BINPATH@/components/nsUpdateService.manifest
 @BINPATH@/components/nsUpdateService.js
 @BINPATH@/components/nsUpdateServiceStub.js
 #endif
+@BINPATH@/components/nsUpdateTimerManager.manifest
 @BINPATH@/components/nsUpdateTimerManager.js
-@BINPATH@/components/pluginGlue.js
+@BINPATH@/components/pluginGlue.manifest
+@BINPATH@/components/nsSessionStore.manifest
 @BINPATH@/components/nsSessionStartup.js
 @BINPATH@/components/nsSessionStore.js
+@BINPATH@/components/nsURLFormatter.manifest
 @BINPATH@/components/nsURLFormatter.js
 #ifndef XP_OS2
 @BINPATH@/components/@DLL_PREFIX@browsercomps@DLL_SUFFIX@
 #else
 @BINPATH@/components/brwsrcmp@DLL_SUFFIX@
 #endif
+@BINPATH@/components/txEXSLTRegExFunctions.manifest
 @BINPATH@/components/txEXSLTRegExFunctions.js
+@BINPATH@/components/toolkitplaces.manifest
 @BINPATH@/components/nsLivemarkService.js
 @BINPATH@/components/nsTaggingService.js
 @BINPATH@/components/nsPlacesDBFlush.js
+@BINPATH@/components/nsPlacesAutoComplete.manifest
 @BINPATH@/components/nsPlacesAutoComplete.js
 @BINPATH@/components/nsPlacesExpiration.js
 @BINPATH@/components/PlacesProtocolHandler.js
+@BINPATH@/components/nsDefaultCLH.manifest
 @BINPATH@/components/nsDefaultCLH.js
+@BINPATH@/components/nsContentPrefService.manifest
 @BINPATH@/components/nsContentPrefService.js
+@BINPATH@/components/nsContentDispatchChooser.manifest
 @BINPATH@/components/nsContentDispatchChooser.js
+@BINPATH@/components/nsHandlerService.manifest
 @BINPATH@/components/nsHandlerService.js
+@BINPATH@/components/nsWebHandlerApp.manifest
 @BINPATH@/components/nsWebHandlerApp.js
+@BINPATH@/components/nsBadCertHandler.manifest
 @BINPATH@/components/nsBadCertHandler.js
+@BINPATH@/components/satchel.manifest
 @BINPATH@/components/nsFormAutoComplete.js
 @BINPATH@/components/nsFormHistory.js
+@BINPATH@/components/contentSecurityPolicy.manifest
 @BINPATH@/components/contentSecurityPolicy.js
+@BINPATH@/components/contentAreaDropListener.manifest
 @BINPATH@/components/contentAreaDropListener.js
 #ifdef XP_MACOSX
 @BINPATH@/components/libalerts_s.dylib
@@ -332,13 +374,25 @@
 #ifdef MOZ_ENABLE_DBUS
 @BINPATH@/components/@DLL_PREFIX@dbusservice@DLL_SUFFIX@
 #endif
+@BINPATH@/components/nsINIProcessor.manifest
 @BINPATH@/components/nsINIProcessor.js
+@BINPATH@/components/nsPrompter.manifest
+@BINPATH@/components/nsPrompter.js
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/components/SyncComponents.manifest
+@BINPATH@/components/FormNotifier.js
+@BINPATH@/components/Weave.js
+@BINPATH@/components/WeaveCrypto.manifest
+@BINPATH@/components/WeaveCrypto.js
+#endif
 
 ; Modules
 @BINPATH@/modules/*
 
 ; Safe Browsing
+@BINPATH@/components/nsSafebrowsingApplication.manifest
 @BINPATH@/components/nsSafebrowsingApplication.js
+@BINPATH@/components/nsURLClassifier.manifest
 @BINPATH@/components/nsUrlClassifierListManager.js
 @BINPATH@/components/nsUrlClassifierLib.js
 @BINPATH@/components/url-classifier.xpt
@@ -349,12 +403,15 @@
 #endif
 
 ; [Browser Chrome Files]
-@BINPATH@/chrome/browser.jar
+@BINPATH@/chrome/browser@JAREXT@
 @BINPATH@/chrome/browser.manifest
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/preview.png
-@BINPATH@/chrome/toolkit.jar
+#if MOZ_UPDATE_CHANNEL == beta
+@BINPATH@/extensions/testpilot@labs.mozilla.com/*
+#endif
+@BINPATH@/chrome/toolkit@JAREXT@
 @BINPATH@/chrome/toolkit.manifest
 @BINPATH@/@PREF_DIR@/reporter.js
 #ifdef XP_UNIX
@@ -379,6 +436,9 @@
 @BINPATH@/@PREF_DIR@/firefox.js
 @BINPATH@/@PREF_DIR@/firefox-branding.js
 @BINPATH@/@PREF_DIR@/channel-prefs.js
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/@PREF_DIR@/services-sync.js
+#endif
 @BINPATH@/greprefs.js
 @BINPATH@/defaults/autoconfig/platform.js
 @BINPATH@/defaults/autoconfig/prefcalls.js
@@ -450,7 +510,7 @@
 @BINPATH@/@DLL_PREFIX@nssdbm3.chk
 #endif
 #endif
-@BINPATH@/chrome/pippki.jar
+@BINPATH@/chrome/pippki@JAREXT@
 @BINPATH@/chrome/pippki.manifest
 
 ; for Solaris SPARC
@@ -506,6 +566,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 #ifdef WINCE
 #ifdef MOZ_FASTSTART
 @BINPATH@/firefoxfaststart.exe
+@BINPATH@/components/FastStartup.manifest
 @BINPATH@/components/FastStartup.js
 #endif
 #endif

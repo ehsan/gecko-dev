@@ -65,10 +65,6 @@ Var PageName
 ; are a member of the Administrators group.
 !define NONADMIN_ELEVATE
 
-; Don't use the PreDirectoryCommon macro's code for finding a pre-existing
-; installation directory.
-!define NO_INSTDIR_PREDIRCOMMON
-
 !define AbortSurveyURL "http://www.kampyle.com/feedback_form/ff-feedback-form.php?site_code=8166124&form_id=12116&url="
 
 ; Other included files may depend upon these includes!
@@ -104,7 +100,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro _LoggingShortcutsCommon
 
 !insertmacro AddDDEHandlerValues
-!insertmacro CanWriteToInstallDir
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
 !insertmacro CleanUpdatesDir
@@ -118,6 +113,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
+!insertmacro SetAppLSPCategories
 !insertmacro SetBrandNameVars
 !insertmacro UpdateShortcutAppModelIDs
 !insertmacro UnloadUAC
@@ -132,6 +128,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro InstallOnInitCommon
 !insertmacro InstallStartCleanupCommon
 !insertmacro LeaveDirectoryCommon
+!insertmacro LeaveOptionsCommon
 !insertmacro OnEndCommon
 !insertmacro PreDirectoryCommon
 
@@ -240,7 +237,7 @@ Section "-Application" APP_IDX
   SetDetailsPrint none
 
   ${LogHeader} "Installing Main Files"
-  ${CopyFilesFromDir} "$EXEDIR\nonlocalized" "$INSTDIR" \
+  ${CopyFilesFromDir} "$EXEDIR\core" "$INSTDIR" \
                       "$(ERROR_CREATE_DIRECTORY_PREFIX)" \
                       "$(ERROR_CREATE_DIRECTORY_SUFFIX)"
 
@@ -271,16 +268,6 @@ Section "-Application" APP_IDX
   ${LogUninstall} "File: \install_wizard.log"
   ${LogUninstall} "File: \updates.xml"
 
-  SetDetailsPrint both
-  DetailPrint $(STATUS_INSTALL_LANG)
-  SetDetailsPrint none
-
-  ${LogHeader} "Installing Localized Files"
-  ${CopyFilesFromDir} "$EXEDIR\localized" "$INSTDIR" \
-                      "$(ERROR_CREATE_DIRECTORY_PREFIX)" \
-                      "$(ERROR_CREATE_DIRECTORY_SUFFIX)"
-
-  ${LogHeader} "Adding Additional Files"
   ; Check if QuickTime is installed and copy the nsIQTScriptablePlugin.xpt from
   ; its plugins directory into the app's components directory.
   ClearErrors
@@ -379,7 +366,6 @@ Section "-Application" APP_IDX
   ${If} $TmpVal == "HKLM"
     ; Set the Start Menu Internet and Vista Registered App HKLM registry keys.
     ${SetStartMenuInternet}
-
     ${FixShellIconHandler}
 
     ; If we are writing to HKLM and create the quick launch and the desktop
@@ -402,6 +388,11 @@ Section "-Application" APP_IDX
 
   StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\$R9"
   ${CreateRegKey} "$TmpVal" "$0" 0
+
+  ${If} $TmpVal == "HKLM"
+    ; Set the permitted LSP Categories for WinVista and above
+    ${SetAppLSPCategories} ${LSP_CATEGORIES}
+  ${EndIf}
 
   ; Create shortcuts
   ${LogHeader} "Adding Shortcuts"
@@ -485,8 +476,6 @@ Section "-InstallEndCleanup"
     ${EndIf}
   ${EndUnless}
 
-  ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
-
   ; Win7 taskbar and start menu link maintenance
   ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}"
 
@@ -531,8 +520,8 @@ SectionEnd
 Function CustomAbort
   ${If} "${AB_CD}" == "en-US"
   ${AndIf} "$PageName" != ""
-  ${AndIf} ${FileExists} "$EXEDIR\nonlocalized\distribution\distribution.ini"
-    ReadINIStr $0 "$EXEDIR\nonlocalized\distribution\distribution.ini" "Global" "about"
+  ${AndIf} ${FileExists} "$EXEDIR\core\distribution\distribution.ini"
+    ReadINIStr $0 "$EXEDIR\core\distribution\distribution.ini" "Global" "about"
     ClearErrors
     ${WordFind} "$0" "Funnelcake" "E#" $1
     ${Unless} ${Errors}
@@ -691,18 +680,18 @@ BrandingText " "
 
 Function preWelcome
   StrCpy $PageName "Welcome"
-  ${If} ${FileExists} "$EXEDIR\localized\distribution\modern-wizard.bmp"
+  ${If} ${FileExists} "$EXEDIR\core\distribution\modern-wizard.bmp"
     Delete "$PLUGINSDIR\modern-wizard.bmp"
-    CopyFiles /SILENT "$EXEDIR\localized\distribution\modern-wizard.bmp" "$PLUGINSDIR\modern-wizard.bmp"
+    CopyFiles /SILENT "$EXEDIR\core\distribution\modern-wizard.bmp" "$PLUGINSDIR\modern-wizard.bmp"
   ${EndIf}
 FunctionEnd
 
 Function preOptions
   StrCpy $PageName "Options"
-  ${If} ${FileExists} "$EXEDIR\localized\distribution\modern-header.bmp"
+  ${If} ${FileExists} "$EXEDIR\core\distribution\modern-header.bmp"
   ${AndIf} $hHeaderBitmap == ""
     Delete "$PLUGINSDIR\modern-header.bmp"
-    CopyFiles /SILENT "$EXEDIR\localized\distribution\modern-header.bmp" "$PLUGINSDIR\modern-header.bmp"
+    CopyFiles /SILENT "$EXEDIR\core\distribution\modern-header.bmp" "$PLUGINSDIR\modern-header.bmp"
     ${ChangeMUIHeaderImage} "$PLUGINSDIR\modern-header.bmp"
   ${EndIf}
   !insertmacro MUI_HEADER_TEXT "$(OPTIONS_PAGE_TITLE)" "$(OPTIONS_PAGE_SUBTITLE)"
@@ -721,37 +710,10 @@ Function leaveOptions
   StrCmp $R0 "1" +1 +2
   StrCpy $InstallType ${INSTALLTYPE_CUSTOM}
 
-!ifndef NO_INSTDIR_FROM_REG
-  SetShellVarContext all      ; Set SHCTX to HKLM
-  ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
+  ${LeaveOptionsCommon}
 
-  StrCmp "$R9" "false" +1 fix_install_dir
-
-  SetShellVarContext current  ; Set SHCTX to HKCU
-  ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
-
-  fix_install_dir:
-  StrCmp "$R9" "false" +2 +1
-  StrCpy $INSTDIR "$R9"
-!endif
-
-  ; If the user doesn't have write access to the installation directory set
-  ; the installation directory to a subdirectory of the All Users application
-  ; directory and if the user can't write to that location set the installation
-  ; directory to a subdirectory of the users local application directory
-  ; (e.g. non-roaming).
-  ${CanWriteToInstallDir} $R8
-  ${If} "$R8" == "false"
-    SetShellVarContext all      ; Set SHCTX to All Users
-    StrCpy $INSTDIR "$APPDATA\${BrandFullName}\"
-    ${If} ${FileExists} "$INSTDIR"
-      ; Always display the long path if the path already exists.
-      ${GetLongPath} "$INSTDIR" $INSTDIR
-    ${EndIf}
-    ${CanWriteToInstallDir} $R8
-    ${If} "$R8" == "false"
-      StrCpy $INSTDIR "$LOCALAPPDATA\${BrandFullName}\"
-    ${EndIf}
+  ${If} $InstallType == ${INSTALLTYPE_BASIC}
+    Call CheckExistingInstall
   ${EndIf}
 FunctionEnd
 
@@ -761,10 +723,10 @@ Function preDirectory
 FunctionEnd
 
 Function leaveDirectory
-  ${LeaveDirectoryCommon} "$(WARN_DISK_SPACE)" "$(WARN_WRITE_ACCESS)"
-  ${If} $InstallType != ${INSTALLTYPE_CUSTOM}
+  ${If} $InstallType == ${INSTALLTYPE_BASIC}
     Call CheckExistingInstall
   ${EndIf}
+  ${LeaveDirectoryCommon} "$(WARN_DISK_SPACE)" "$(WARN_WRITE_ACCESS)"
 FunctionEnd
 
 Function preShortcuts
@@ -782,6 +744,13 @@ Function leaveShortcuts
   ${MUI_INSTALLOPTIONS_READ} $AddDesktopSC "shortcuts.ini" "Field 2" "State"
   ${MUI_INSTALLOPTIONS_READ} $AddStartMenuSC "shortcuts.ini" "Field 3" "State"
   ${MUI_INSTALLOPTIONS_READ} $AddQuickLaunchSC "shortcuts.ini" "Field 4" "State"
+
+  ; If Start Menu shortcuts won't be created call CheckExistingInstall here
+  ; since leaveStartMenu will not be called.
+  ${If} $AddStartMenuSC != 1
+  ${AndIf} $InstallType == ${INSTALLTYPE_CUSTOM}
+    Call CheckExistingInstall
+  ${EndIf}
 FunctionEnd
 
 Function preStartMenu
@@ -948,7 +917,7 @@ FunctionEnd
 Function .onInit
   StrCpy $PageName ""
   StrCpy $LANGUAGE 0
-  ${SetBrandNameVars} "$EXEDIR\localized\distribution\setup.ini"
+  ${SetBrandNameVars} "$EXEDIR\core\distribution\setup.ini"
 
   ${InstallOnInitCommon} "$(WARN_MIN_SUPPORTED_OS_MSG)"
 
@@ -1031,9 +1000,8 @@ Function .onInit
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Bottom "70"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" State  "1"
 
-  ; There must always be nonlocalized and localized directories.
-  ${GetSize} "$EXEDIR\nonlocalized\" "/S=0K" $R5 $R7 $R8
-  ${GetSize} "$EXEDIR\localized\" "/S=0K" $R6 $R7 $R8
+  ; There must always be a core directory.
+  ${GetSize} "$EXEDIR\core\" "/S=0K" $R5 $R7 $R8
   IntOp $R8 $R5 + $R6
   SectionSetSize ${APP_IDX} $R8
 

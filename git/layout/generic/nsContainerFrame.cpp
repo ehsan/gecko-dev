@@ -1038,7 +1038,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
       if (frameList) {
         removed = frameList->RemoveFrameIfPresent(aChild);
         if (frameList->IsEmpty()) {
-          DestroyOverflowList(aPresContext);
+          DestroyOverflowList(aPresContext, nsnull);
         }
       }
     }
@@ -1091,8 +1091,12 @@ nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext,
 {
   nsFrameList* list =
     RemovePropTableFrames(aPresContext, OverflowProperty());
-  if (list)
-    list->DestroyFrom(aDestructRoot);
+  if (list) {
+    if (aDestructRoot)
+      list->DestroyFrom(aDestructRoot);
+    else
+      list->Destroy();
+  }
 }
 
 /**
@@ -1541,7 +1545,7 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%08x]", mState);
+    fprintf(out, " [state=%016llx]", mState);
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsContainerFrame* f = const_cast<nsContainerFrame*>(this);

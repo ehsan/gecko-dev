@@ -61,6 +61,64 @@ function isUsableDirectory(aDirectory)
          aDirectory.isWritable();
 }
 
+// Web progress listener so we can detect errors while mLauncher is
+// streaming the data to a temporary file.
+function nsUnkownContentTypeDialogProgressListener(aHelperAppDialog) {
+  this.helperAppDlg = aHelperAppDialog;
+}
+
+nsUnkownContentTypeDialogProgressListener.prototype = {
+  // nsIWebProgressListener methods.
+  // Look for error notifications and display alert to user.
+  onStatusChange: function( aWebProgress, aRequest, aStatus, aMessage ) {
+    if ( aStatus != Components.results.NS_OK ) {
+      // Get prompt service.
+      var prompter = Components.classes[ "@mozilla.org/embedcomp/prompt-service;1" ]
+                               .getService( Components.interfaces.nsIPromptService );
+      // Display error alert (using text supplied by back-end).
+      // FIXME this.dialog is undefined?
+      prompter.alert( this.dialog, this.helperAppDlg.mTitle, aMessage );
+      // Close the dialog.
+      this.helperAppDlg.onCancel();
+      if ( this.helperAppDlg.mDialog ) {
+        this.helperAppDlg.mDialog.close();
+      }
+    }
+  },
+
+  // Ignore onProgressChange, onProgressChange64, onStateChange, onLocationChange, onSecurityChange, and onRefreshAttempted notifications.
+  onProgressChange: function( aWebProgress,
+                              aRequest,
+                              aCurSelfProgress,
+                              aMaxSelfProgress,
+                              aCurTotalProgress,
+                              aMaxTotalProgress ) {
+  },
+
+  onProgressChange64: function( aWebProgress,
+                                aRequest,
+                                aCurSelfProgress,
+                                aMaxSelfProgress,
+                                aCurTotalProgress,
+                                aMaxTotalProgress ) {
+  },
+
+
+
+  onStateChange: function( aWebProgress, aRequest, aStateFlags, aStatus ) {
+  },
+
+  onLocationChange: function( aWebProgress, aRequest, aLocation ) {
+  },
+
+  onSecurityChange: function( aWebProgress, aRequest, state ) {
+  },
+
+  onRefreshAttempted: function( aWebProgress, aURI, aDelay, aSameURI ) {
+    return true;
+  }
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //// nsUnkownContentTypeDialog
 
@@ -78,6 +136,7 @@ function isUsableDirectory(aDirectory)
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
 const nsITimer = Components.interfaces.nsITimer;
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
 Components.utils.import("resource://gre/modules/DownloadPaths.jsm");
 
@@ -95,6 +154,8 @@ function nsUnknownContentTypeDialog() {
 }
 
 nsUnknownContentTypeDialog.prototype = {
+  classID: Components.ID("{F68578EB-6EC2-4169-AE19-8C6243F0ABE1}"),
+
   nsIMIMEInfo  : Components.interfaces.nsIMIMEInfo,
 
   QueryInterface: function (iid) {
@@ -151,8 +212,8 @@ nsUnknownContentTypeDialog.prototype = {
     this.getSpecialFolderKey = this.mDialog.getSpecialFolderKey;
 
     // Watch for error notifications.
-    this.progressListener.helperAppDlg = this;
-    this.mLauncher.setWebProgressListener(this.progressListener);
+    var progressListener = new nsUnkownContentTypeDialogProgressListener(this);
+    this.mLauncher.setWebProgressListener(progressListener);
   },
 
   // promptForSaveToFile:  Display file picker dialog and return selected file.
@@ -338,63 +399,6 @@ nsUnknownContentTypeDialog.prototype = {
   },
 
   // ---------- implementation methods ----------
-
-  // Web progress listener so we can detect errors while mLauncher is
-  // streaming the data to a temporary file.
-  progressListener: {
-    // Implementation properties.
-    helperAppDlg: null,
-
-    // nsIWebProgressListener methods.
-    // Look for error notifications and display alert to user.
-    onStatusChange: function( aWebProgress, aRequest, aStatus, aMessage ) {
-      if ( aStatus != Components.results.NS_OK ) {
-        // Get prompt service.
-        var prompter = Components.classes[ "@mozilla.org/embedcomp/prompt-service;1" ]
-                                 .getService( Components.interfaces.nsIPromptService );
-        // Display error alert (using text supplied by back-end).
-        prompter.alert( this.dialog, this.helperAppDlg.mTitle, aMessage );
-
-        // Close the dialog.
-        this.helperAppDlg.onCancel();
-        if ( this.helperAppDlg.mDialog ) {
-          this.helperAppDlg.mDialog.close();
-        }
-      }
-    },
-
-    // Ignore onProgressChange, onProgressChange64, onStateChange, onLocationChange, onSecurityChange, and onRefreshAttempted notifications.
-    onProgressChange: function( aWebProgress,
-                                aRequest,
-                                aCurSelfProgress,
-                                aMaxSelfProgress,
-                                aCurTotalProgress,
-                                aMaxTotalProgress ) {
-    },
-
-    onProgressChange64: function( aWebProgress,
-                                  aRequest,
-                                  aCurSelfProgress,
-                                  aMaxSelfProgress,
-                                  aCurTotalProgress,
-                                  aMaxTotalProgress ) {
-    },
-
-
-
-    onStateChange: function( aWebProgress, aRequest, aStateFlags, aStatus ) {
-    },
-
-    onLocationChange: function( aWebProgress, aRequest, aLocation ) {
-    },
-
-    onSecurityChange: function( aWebProgress, aRequest, state ) {
-    },
-
-    onRefreshAttempted: function( aWebProgress, aURI, aDelay, aSameURI ) {
-      return true;
-    }
-  },
 
   // initDialog:  Fill various dialog fields with initial content.
   initDialog : function() {
@@ -705,12 +709,7 @@ nsUnknownContentTypeDialog.prototype = {
       otherHandler.setAttribute("path",
                                 this.getPath(this.chosenApp.executable));
 
-#if XP_MACOSX
-      this.chosenApp.executable.QueryInterface(Components.interfaces.nsILocalFileMac);
-      otherHandler.label = this.chosenApp.executable.bundleDisplayName;
-#else
-      otherHandler.label = this.chosenApp.executable.leafName;
-#endif
+      otherHandler.label = this.getFileDisplayName(this.chosenApp.executable);
       otherHandler.hidden = false;
     }
 
@@ -970,8 +969,14 @@ nsUnknownContentTypeDialog.prototype = {
     if (file instanceof Components.interfaces.nsILocalFileWin) {
       try {
         return file.getVersionInfoField("FileDescription");
-      } catch (ex) {
-      }
+      } catch (e) {}
+    }
+#endif
+#ifdef XP_MACOSX
+    if (file instanceof Components.interfaces.nsILocalFileMac) {
+      try {
+        return file.bundleDisplayName;
+      } catch (e) {}
     }
 #endif
     return file.leafName;
@@ -1018,31 +1023,8 @@ nsUnknownContentTypeDialog.prototype = {
     if (params.handlerApp &&
         params.handlerApp.executable &&
         params.handlerApp.executable.isFile()) {
-      // Show the "handler" menulist since we have a (user-specified)
-      // application now.
-      this.dialogElement("modeDeck").setAttribute("selectedIndex", "0");
-
       // Remember the file they chose to run.
       this.chosenApp = params.handlerApp;
-
-      // Update dialog
-      var otherHandler = this.dialogElement("otherHandler");
-      otherHandler.removeAttribute("hidden");
-      otherHandler.setAttribute("path",
-                                this.getPath(this.chosenApp.executable));
-      otherHandler.label =
-        this.getFileDisplayName(this.chosenApp.executable);
-      this.dialogElement("openHandler").selectedIndex = 1;
-      this.dialogElement("openHandler").setAttribute("lastSelectedItemID",
-                                                     "otherHandler");
-      this.dialogElement("mode").selectedItem = this.dialogElement("open");
-    } else {
-      var openHandler = this.dialogElement("openHandler");
-      var lastSelectedID = openHandler.getAttribute("lastSelectedItemID");
-      if (!lastSelectedID)
-        lastSelectedID = "defaultHandler";
-      openHandler.selectedItem = this.dialogElement(lastSelectedID);
-    }
 
 #else
     var nsIFilePicker = Components.interfaces.nsIFilePicker;
@@ -1055,28 +1037,23 @@ nsUnknownContentTypeDialog.prototype = {
     fp.appendFilters(nsIFilePicker.filterApps);
 
     if (fp.show() == nsIFilePicker.returnOK && fp.file) {
-      // Show the "handler" menulist since we have a (user-specified)
-      // application now.
-      this.dialogElement("modeDeck").setAttribute("selectedIndex", "0");
-
       // Remember the file they chose to run.
       var localHandlerApp =
         Components.classes["@mozilla.org/uriloader/local-handler-app;1"].
                    createInstance(Components.interfaces.nsILocalHandlerApp);
       localHandlerApp.executable = fp.file;
       this.chosenApp = localHandlerApp;
+#endif
+
+      // Show the "handler" menulist since we have a (user-specified)
+      // application now.
+      this.dialogElement("modeDeck").setAttribute("selectedIndex", "0");
 
       // Update dialog.
       var otherHandler = this.dialogElement("otherHandler");
       otherHandler.removeAttribute("hidden");
       otherHandler.setAttribute("path", this.getPath(this.chosenApp.executable));
-#ifdef XP_MACOSX
-      this.chosenApp.executable
-                    .QueryInterface(Components.interfaces.nsILocalFileMac);
-      otherHandler.label = this.chosenApp.executable.bundleDisplayName;
-#else
-      otherHandler.label = this.chosenApp.executable.leafName;
-#endif
+      otherHandler.label = this.getFileDisplayName(this.chosenApp.executable);
       this.dialogElement("openHandler").selectedIndex = 1;
       this.dialogElement("openHandler").setAttribute("lastSelectedItemID", "otherHandler");
 
@@ -1089,7 +1066,6 @@ nsUnknownContentTypeDialog.prototype = {
         lastSelectedID = "defaultHandler";
       openHandler.selectedItem = this.dialogElement(lastSelectedID);
     }
-#endif
   },
 
   // Turn this on to get debugging messages.
@@ -1126,58 +1102,4 @@ nsUnknownContentTypeDialog.prototype = {
   }
 }
 
-// This Component's module implementation.  All the code below is used to get this
-// component registered and accessible via XPCOM.
-var module = {
-  // registerSelf: Register this component.
-  registerSelf: function (compMgr, fileSpec, location, type) {
-    compMgr = compMgr.QueryInterface(Components.interfaces.nsIComponentRegistrar);
-
-    compMgr.registerFactoryLocation( this.cid,
-                                     "Unknown Content Type Dialog",
-                                     this.contractId,
-                                     fileSpec,
-                                     location,
-                                     type );
-  },
-
-  // getClassObject: Return this component's factory object.
-  getClassObject: function (compMgr, cid, iid) {
-    if (!cid.equals(this.cid)) {
-      throw Components.results.NS_ERROR_NO_INTERFACE;
-    }
-
-    if (!iid.equals(Components.interfaces.nsIFactory)) {
-      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    return this.factory;
-  },
-
-  /* CID for this class */
-  cid: Components.ID("{F68578EB-6EC2-4169-AE19-8C6243F0ABE1}"),
-
-  /* Contract ID for this class */
-  contractId: "@mozilla.org/helperapplauncherdialog;1",
-
-  /* factory object */
-  factory: {
-    // createInstance: Return a new nsProgressDialog object.
-    createInstance: function (outer, iid) {
-      if (outer != null)
-        throw Components.results.NS_ERROR_NO_AGGREGATION;
-
-      return (new nsUnknownContentTypeDialog()).QueryInterface(iid);
-    }
-  },
-
-  // canUnload: n/a (returns true)
-  canUnload: function(compMgr) {
-    return true;
-  }
-};
-
-// NSGetModule: Return the nsIModule object.
-function NSGetModule(compMgr, fileSpec) {
-  return module;
-}
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);

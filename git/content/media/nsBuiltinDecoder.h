@@ -254,8 +254,9 @@ public:
   virtual PRInt64 GetDuration() = 0;
 
   // Called from the main thread to set the duration of the media resource
-  // if it is able to be obtained via HTTP headers. The decoder monitor
-  // must be obtained before calling this.
+  // if it is able to be obtained via HTTP headers. Called from the 
+  // state machine thread to set the duration if it is obtained from the
+  // media metadata. The decoder monitor must be obtained before calling this.
   virtual void SetDuration(PRInt64 aDuration) = 0;
 
   // Functions used by assertions to ensure we're calling things
@@ -292,6 +293,14 @@ public:
   // Only called on the decoder thread. Must be called with
   // the decode monitor held.
   virtual void UpdatePlaybackPosition(PRInt64 aTime) = 0;
+
+  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) = 0;
+  
+  // Causes the state machine to switch to buffering state, and to
+  // immediately stop playback and buffer downloaded data. Must be called
+  // with the decode monitor held. Called on the state machine thread and
+  // the main thread.
+  virtual void StartBuffering() = 0;
 };
 
 class nsBuiltinDecoder : public nsMediaDecoder
@@ -392,7 +401,7 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Resume any media downloads that have been suspended. Called by the
   // media element when it is restored from the bfcache. Call on the
   // main thread only.
-  virtual void Resume();
+  virtual void Resume(PRBool aForceBuffering);
 
   // Tells our nsMediaStream to put all loads in the background.
   virtual void MoveLoadsToBackground();
@@ -417,6 +426,12 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // state.
   Monitor& GetMonitor() { 
     return mMonitor; 
+  }
+
+  // Constructs the time ranges representing what segments of the media
+  // are buffered and playable.
+  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) {
+    return mDecoderStateMachine->GetBuffered(aBuffered);
   }
 
  public:

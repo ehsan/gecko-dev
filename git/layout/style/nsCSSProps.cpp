@@ -86,7 +86,9 @@ static const char* const kCSSRawFontDescs[] = {
   "font-weight",
   "font-stretch",
   "src",
-  "unicode-range"
+  "unicode-range",
+  "-moz-font-feature-settings",
+  "-moz-font-language-override"
 };
 
 struct PropertyAndCount {
@@ -415,6 +417,10 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_toolbargripper,         NS_THEME_TOOLBAR_GRIPPER,
   eCSSKeyword_dualbutton,             NS_THEME_TOOLBAR_DUAL_BUTTON,
   eCSSKeyword_toolbarbutton_dropdown, NS_THEME_TOOLBAR_BUTTON_DROPDOWN,
+  eCSSKeyword_button_arrow_up,        NS_THEME_BUTTON_ARROW_UP,
+  eCSSKeyword_button_arrow_down,      NS_THEME_BUTTON_ARROW_DOWN,
+  eCSSKeyword_button_arrow_next,      NS_THEME_BUTTON_ARROW_NEXT,
+  eCSSKeyword_button_arrow_previous,  NS_THEME_BUTTON_ARROW_PREVIOUS,
   eCSSKeyword_separator,              NS_THEME_TOOLBAR_SEPARATOR,
   eCSSKeyword_splitter,               NS_THEME_SPLITTER,
   eCSSKeyword_statusbar,              NS_THEME_STATUSBAR,
@@ -493,7 +499,18 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_win_communications_toolbox, NS_THEME_WIN_COMMUNICATIONS_TOOLBOX,
   eCSSKeyword__moz_win_browsertabbar_toolbox,  NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX,
   eCSSKeyword__moz_win_glass,         NS_THEME_WIN_GLASS,
-  eCSSKeyword__moz_mac_unified_toolbar,        NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR,
+  eCSSKeyword__moz_mac_unified_toolbar,       NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR,
+  eCSSKeyword__moz_window_titlebar,           NS_THEME_WINDOW_TITLEBAR,
+  eCSSKeyword__moz_window_titlebar_maximized, NS_THEME_WINDOW_TITLEBAR_MAXIMIZED,
+  eCSSKeyword__moz_window_frame_left,         NS_THEME_WINDOW_FRAME_LEFT,
+  eCSSKeyword__moz_window_frame_right,        NS_THEME_WINDOW_FRAME_RIGHT,
+  eCSSKeyword__moz_window_frame_bottom,       NS_THEME_WINDOW_FRAME_BOTTOM,
+  eCSSKeyword__moz_window_button_close,       NS_THEME_WINDOW_BUTTON_CLOSE,
+  eCSSKeyword__moz_window_button_minimize,    NS_THEME_WINDOW_BUTTON_MINIMIZE,
+  eCSSKeyword__moz_window_button_maximize,    NS_THEME_WINDOW_BUTTON_MAXIMIZE,
+  eCSSKeyword__moz_window_button_restore,     NS_THEME_WINDOW_BUTTON_RESTORE,
+  eCSSKeyword__moz_window_button_box,         NS_THEME_WINDOW_BUTTON_BOX,
+  eCSSKeyword__moz_window_button_box_maximized, NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -520,12 +537,6 @@ const PRInt32 nsCSSProps::kBackgroundAttachmentKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kBackgroundClipKTable[] = {
-  eCSSKeyword_border,     NS_STYLE_BG_CLIP_BORDER,
-  eCSSKeyword_padding,    NS_STYLE_BG_CLIP_PADDING,
-  eCSSKeyword_UNKNOWN,-1
-};
-
 const PRInt32 nsCSSProps::kBackgroundInlinePolicyKTable[] = {
   eCSSKeyword_each_box,     NS_STYLE_BG_INLINE_POLICY_EACH_BOX,
   eCSSKeyword_continuous,   NS_STYLE_BG_INLINE_POLICY_CONTINUOUS,
@@ -533,10 +544,13 @@ const PRInt32 nsCSSProps::kBackgroundInlinePolicyKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER == NS_STYLE_BG_ORIGIN_BORDER);
+PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING == NS_STYLE_BG_ORIGIN_PADDING);
+PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT == NS_STYLE_BG_ORIGIN_CONTENT);
 const PRInt32 nsCSSProps::kBackgroundOriginKTable[] = {
-  eCSSKeyword_border,     NS_STYLE_BG_ORIGIN_BORDER,
-  eCSSKeyword_padding,    NS_STYLE_BG_ORIGIN_PADDING,
-  eCSSKeyword_content,    NS_STYLE_BG_ORIGIN_CONTENT,
+  eCSSKeyword_border_box, NS_STYLE_BG_ORIGIN_BORDER,
+  eCSSKeyword_padding_box, NS_STYLE_BG_ORIGIN_PADDING,
+  eCSSKeyword_content_box, NS_STYLE_BG_ORIGIN_CONTENT,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1582,9 +1596,9 @@ static const nsCSSProperty gBackgroundSubpropTable[] = {
   eCSSProperty_background_repeat,
   eCSSProperty_background_attachment,
   eCSSProperty_background_position,
-  eCSSProperty__moz_background_clip,
-  eCSSProperty__moz_background_origin,
-  eCSSProperty__moz_background_size,
+  eCSSProperty_background_clip,
+  eCSSProperty_background_origin,
+  eCSSProperty_background_size,
   eCSSProperty_UNKNOWN
 };
 
@@ -1862,6 +1876,8 @@ static const nsCSSProperty gFontSubpropTable[] = {
   eCSSProperty_font_size_adjust, // XXX Added LDB.
   eCSSProperty_font_stretch, // XXX Added LDB.
   eCSSProperty__x_system_font,
+  eCSSProperty_font_feature_settings,
+  eCSSProperty_font_language_override,
   eCSSProperty_UNKNOWN
 };
 

@@ -53,9 +53,11 @@
 #include "nsIWritablePropertyBag2.h"
 #include "nsNetError.h"
 #include "nsChannelProperties.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
+#include "nsAsyncRedirectVerifyHelper.h"
 
 /* Keeps track of whether or not CSP is enabled */
-static PRBool gCSPEnabled = PR_TRUE;
+PRBool CSPService::sCSPEnabled = PR_TRUE;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gCspPRLog;
@@ -63,7 +65,7 @@ static PRLogModuleInfo* gCspPRLog;
 
 CSPService::CSPService()
 {
-  nsContentUtils::AddBoolPrefVarCache("security.csp.enable", &gCSPEnabled);
+  nsContentUtils::AddBoolPrefVarCache("security.csp.enable", &sCSPEnabled);
 
 #ifdef PR_LOGGING
   if (!gCspPRLog)
@@ -102,7 +104,7 @@ CSPService::ShouldLoad(PRUint32 aContentType,
     *aDecision = nsIContentPolicy::ACCEPT;
 
     // No need to continue processing if CSP is disabled
-    if (!gCSPEnabled)
+    if (!sCSPEnabled)
         return NS_OK;
 
     // find the principal of the document that initiated this request and see
@@ -160,7 +162,7 @@ CSPService::ShouldProcess(PRUint32         aContentType,
     *aDecision = nsIContentPolicy::ACCEPT;
 
     // No need to continue processing if CSP is disabled
-    if (!gCSPEnabled)
+    if (!sCSPEnabled)
         return NS_OK;
 
     // find the nsDocument that initiated this request and see if it has a
@@ -203,10 +205,13 @@ CSPService::ShouldProcess(PRUint32         aContentType,
 
 /* nsIChannelEventSink implementation */
 NS_IMETHODIMP
-CSPService::OnChannelRedirect(nsIChannel *oldChannel,
-                              nsIChannel *newChannel,
-                              PRUint32   flags)
+CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
+                                   nsIChannel *newChannel,
+                                   PRUint32 flags,
+                                   nsIAsyncVerifyRedirectCallback *callback)
 {
+  nsAsyncRedirectAutoCallback autoCallback(callback);
+
   // get the Content Security Policy and load type from the property bag
   nsCOMPtr<nsISupports> policyContainer;
   nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(oldChannel));
@@ -257,19 +262,22 @@ CSPService::OnChannelRedirect(nsIChannel *oldChannel,
     nsCAutoString newUriSpec("None");
     newUri->GetSpec(newUriSpec);
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("CSPService::OnChannelRedirect called for %s", newUriSpec.get()));
+           ("CSPService::AsyncOnChannelRedirect called for %s",
+            newUriSpec.get()));
   }
   if (aDecision == 1)
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("CSPService::OnChannelRedirect ALLOWING request."));
+           ("CSPService::AsyncOnChannelRedirect ALLOWING request."));
   else
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("CSPService::OnChannelRedirect CANCELLING request."));
+           ("CSPService::AsyncOnChannelRedirect CANCELLING request."));
 #endif
 
   // if ShouldLoad doesn't accept the load, cancel the request
-  if (aDecision != 1)
+  if (aDecision != 1) {
+    autoCallback.DontCallback();
     return NS_BINDING_FAILED;
+  }
 
   // the redirect is permitted, so propagate the Content Security Policy
   // and load type to the redirecting channel

@@ -239,18 +239,7 @@ function unwrapToolbarItems()
   var paletteItem;
   while ((paletteItem = paletteItems.item(0)) != null) {
     var toolbarItem = paletteItem.firstChild;
-
-    if (paletteItem.hasAttribute("itemdisabled"))
-      toolbarItem.disabled = true;
-
-    if (paletteItem.hasAttribute("itemcommand")) {
-      let commandID = paletteItem.getAttribute("itemcommand");
-      toolbarItem.setAttribute("command", commandID);
-
-      //XXX Bug 309953 - toolbarbuttons aren't in sync with their commands after customizing
-      toolbarItem.disabled = gToolboxDocument.getElementById(commandID).disabled;
-    }
-
+    restoreItemForToolbar(toolbarItem, paletteItem);
     paletteItem.parentNode.replaceChild(toolbarItem, paletteItem);
   }
 }
@@ -455,6 +444,8 @@ function cleanUpItemForPalette(aItem, aWrapper)
 
   if (aItem.hasAttribute("title"))
     aWrapper.setAttribute("title", aItem.getAttribute("title"));
+  else if (aItem.hasAttribute("label"))
+    aWrapper.setAttribute("title", aItem.getAttribute("label"));
   else if (isSpecialItem(aItem)) {
     var stringBundle = document.getElementById("stringBundle");
     // Remove the common "toolbar" prefix to generate the string name.
@@ -489,9 +480,36 @@ function cleanupItemForToolbar(aItem, aWrapper)
     aItem.removeAttribute("command");
   }
 
+  if (aItem.checked) {
+    aWrapper.setAttribute("itemchecked", "true");
+    aItem.checked = false;
+  }
+
   if (aItem.disabled) {
     aWrapper.setAttribute("itemdisabled", "true");
     aItem.disabled = false;
+  }
+}
+
+/**
+ * Restore all the properties that we stripped off above.
+ */
+function restoreItemForToolbar(aItem, aWrapper)
+{
+  if (aWrapper.hasAttribute("itemdisabled"))
+    aItem.disabled = true;
+
+  if (aWrapper.hasAttribute("itemchecked"))
+    aItem.checked = true;
+
+  if (aWrapper.hasAttribute("itemcommand")) {
+    let commandID = aWrapper.getAttribute("itemcommand");
+    aItem.setAttribute("command", commandID);
+
+    //XXX Bug 309953 - toolbarbuttons aren't in sync with their commands after customizing
+    let command = gToolboxDocument.getElementById(commandID);
+    if (command && command.hasAttribute("disabled"))
+      aItem.setAttribute("disabled", command.getAttribute("disabled"));
   }
 }
 
@@ -894,6 +912,7 @@ function onPaletteDrop(aEvent)
     if (wrapperType != "separator" &&
         wrapperType != "spacer" &&
         wrapperType != "spring") {
+      restoreItemForToolbar(wrapper.firstChild, wrapper);
       appendPaletteItem(document.importNode(wrapper.firstChild, true));
       gToolbox.palette.appendChild(wrapper.firstChild);
     }

@@ -153,6 +153,37 @@ private:
   PRBool mIsActivate;
 };
 
+class nsMenuAttributeChangedEvent : public nsRunnable
+{
+public:
+  nsMenuAttributeChangedEvent(nsIFrame* aFrame, nsIAtom* aAttr)
+  : mFrame(aFrame), mAttr(aAttr)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    nsMenuFrame* frame = static_cast<nsMenuFrame*>(mFrame.GetFrame());
+    NS_ENSURE_STATE(frame);
+    if (mAttr == nsGkAtoms::checked) {
+      frame->UpdateMenuSpecialState(frame->PresContext());
+    } else if (mAttr == nsGkAtoms::acceltext) {
+      // someone reset the accelText attribute,
+      // so clear the bit that says *we* set it
+      frame->AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
+      frame->BuildAcceleratorText();
+    } else if (mAttr == nsGkAtoms::key) {
+      frame->BuildAcceleratorText();
+    } else if (mAttr == nsGkAtoms::type || mAttr == nsGkAtoms::name) {
+      frame->UpdateMenuType(frame->PresContext());
+    }
+    return NS_OK;
+  }
+protected:
+  nsWeakFrame       mFrame;
+  nsCOMPtr<nsIAtom> mAttr;
+};
+
 //
 // NS_NewMenuFrame and NS_NewMenuItemFrame
 //
@@ -669,20 +700,16 @@ nsMenuFrame::AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
-  nsAutoString value;
 
-  if (aAttribute == nsGkAtoms::checked) {
-    if (mType != eMenuType_Normal)
-        UpdateMenuSpecialState(PresContext());
-  } else if (aAttribute == nsGkAtoms::acceltext) {
-    // someone reset the accelText attribute, so clear the bit that says *we* set it
-    AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
-    BuildAcceleratorText();
-  } else if (aAttribute == nsGkAtoms::key) {
-    BuildAcceleratorText();
-  } else if (aAttribute == nsGkAtoms::type || aAttribute == nsGkAtoms::name)
-    UpdateMenuType(PresContext());
-
+  if (aAttribute == nsGkAtoms::checked ||
+      aAttribute == nsGkAtoms::acceltext ||
+      aAttribute == nsGkAtoms::key ||
+      aAttribute == nsGkAtoms::type ||
+      aAttribute == nsGkAtoms::name) {
+    nsCOMPtr<nsIRunnable> event =
+      new nsMenuAttributeChangedEvent(this, aAttribute);
+    nsContentUtils::AddScriptRunner(event);
+  }
   return NS_OK;
 }
 
@@ -1015,13 +1042,12 @@ nsMenuFrame::BuildAcceleratorText()
     return;
 
   // Turn the document into a DOM document so we can use getElementById
-  nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(mContent->GetDocument()));
-  if (!domDocument)
+  nsIDocument *document = mContent->GetDocument();
+  if (!document)
     return;
 
-  nsCOMPtr<nsIDOMElement> keyDOMElement;
-  domDocument->GetElementById(keyValue, getter_AddRefs(keyDOMElement));
-  if (!keyDOMElement) {
+  nsIContent *keyElement = document->GetElementById(keyValue);
+  if (!keyElement) {
 #ifdef DEBUG
     nsAutoString label;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, label);
@@ -1034,10 +1060,6 @@ nsMenuFrame::BuildAcceleratorText()
 #endif
     return;
   }
-
-  nsCOMPtr<nsIContent> keyElement(do_QueryInterface(keyDOMElement));
-  if (!keyElement)
-    return;
 
   // get the string to display as accelerator text
   // check the key element's attributes in this order:

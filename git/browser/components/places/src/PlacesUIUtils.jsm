@@ -48,11 +48,7 @@ var Cr = Components.results;
 var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "Services", function() {
-  Cu.import("resource://gre/modules/Services.jsm");
-  return Services;
-});
+Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
   Cu.import("resource://gre/modules/PlacesUtils.jsm");
@@ -76,7 +72,7 @@ var PlacesUIUtils = {
    * @returns A URI object for the spec.
    */
   createFixedURI: function PUIU_createFixedURI(aSpec) {
-    return this.URIFixup.createFixupURI(aSpec, 0);
+    return URIFixup.createFixupURI(aSpec, Ci.nsIURIFixup.FIXUP_FLAG_NONE);
   },
 
   /**
@@ -93,11 +89,11 @@ var PlacesUIUtils = {
   },
 
   getFormattedString: function PUIU_getFormattedString(key, params) {
-    return this._bundle.formatStringFromName(key, params, params.length);
+    return bundle.formatStringFromName(key, params, params.length);
   },
 
   getString: function PUIU_getString(key) {
-    return this._bundle.GetStringFromName(key);
+    return bundle.GetStringFromName(key);
   },
 
   /**
@@ -132,7 +128,7 @@ var PlacesUIUtils = {
    */
   _getBookmarkItemCopyTransaction:
   function PUIU__getBookmarkItemCopyTransaction(aData, aContainer, aIndex,
-                                              aExcludeAnnotations) {
+                                                aExcludeAnnotations) {
     var itemURL = PlacesUtils._uri(aData.uri);
     var itemTitle = aData.title;
     var keyword = aData.keyword || null;
@@ -282,7 +278,7 @@ var PlacesUIUtils = {
    *          the move/insert.
    */
   makeTransaction: function PUIU_makeTransaction(data, type, container,
-                                               index, copy) {
+                                                 index, copy) {
     switch (data.type) {
       case PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER:
         if (copy)
@@ -293,7 +289,7 @@ var PlacesUIUtils = {
       case PlacesUtils.TYPE_X_MOZ_PLACE:
         if (data.id == -1) // Not bookmarked.
           return this._getURIItemCopyTransaction(data, container, index);
-  
+
         if (copy)
           return this._getBookmarkItemCopyTransaction(data, container, index);
         // Otherwise move the item.
@@ -365,14 +361,14 @@ var PlacesUIUtils = {
    *    bookmarks root folder.
    */
   showAddBookmarkUI: function PUIU_showAddBookmarkUI(aURI,
-                                                   aTitle,
-                                                   aDescription,
-                                                   aDefaultInsertionPoint,
-                                                   aShowPicker,
-                                                   aLoadInSidebar,
-                                                   aKeyword,
-                                                   aPostData,
-                                                   aCharSet) {
+                                                     aTitle,
+                                                     aDescription,
+                                                     aDefaultInsertionPoint,
+                                                     aShowPicker,
+                                                     aLoadInSidebar,
+                                                     aKeyword,
+                                                     aPostData,
+                                                     aCharSet) {
     var info = {
       action: "add",
       type: "bookmark"
@@ -421,9 +417,9 @@ var PlacesUIUtils = {
    */
   showMinimalAddBookmarkUI:
   function PUIU_showMinimalAddBookmarkUI(aURI, aTitle, aDescription,
-                                       aDefaultInsertionPoint, aShowPicker,
-                                       aLoadInSidebar, aKeyword, aPostData,
-                                       aCharSet) {
+                                         aDefaultInsertionPoint, aShowPicker,
+                                         aLoadInSidebar, aKeyword, aPostData,
+                                         aCharSet) {
     var info = {
       action: "add",
       type: "bookmark",
@@ -489,11 +485,11 @@ var PlacesUIUtils = {
    *    bookmarks root folder.
    */
   showAddLivemarkUI: function PUIU_showAddLivemarkURI(aFeedURI,
-                                                    aSiteURI,
-                                                    aTitle,
-                                                    aDescription,
-                                                    aDefaultInsertionPoint,
-                                                    aShowPicker) {
+                                                      aSiteURI,
+                                                      aTitle,
+                                                      aDescription,
+                                                      aDefaultInsertionPoint,
+                                                      aShowPicker) {
     var info = {
       action: "add",
       type: "livemark"
@@ -529,8 +525,8 @@ var PlacesUIUtils = {
    */
   showMinimalAddLivemarkUI:
   function PUIU_showMinimalAddLivemarkURI(aFeedURI, aSiteURI, aTitle,
-                                        aDescription, aDefaultInsertionPoint,
-                                        aShowPicker) {
+                                          aDescription, aDefaultInsertionPoint,
+                                          aShowPicker) {
     var info = {
       action: "add",
       type: "livemark",
@@ -652,7 +648,7 @@ var PlacesUIUtils = {
 
     var features;
     if (aMinimalUI)
-      features = "centerscreen,chrome,dialog,resizable,modal";
+      features = "centerscreen,chrome,modal,resizable=yes";
     else
       features = "centerscreen,chrome,modal,resizable=no";
     this._getCurrentActiveWin().openDialog(dialogURL, "",  features, aInfo);
@@ -664,7 +660,7 @@ var PlacesUIUtils = {
   },
 
   _getCurrentActiveWin: function PUIU__getCurrentActiveWin() {
-    return this.fm.activeWindow;
+    return focusManager.activeWindow;
   },
 
   /**
@@ -679,10 +675,9 @@ var PlacesUIUtils = {
     // The view for a <menu> of which its associated menupopup is a places
     // view, is the menupopup.
     if (node.localName == "menu" && !node._placesNode &&
-        node.firstChild._placesView)
-      return node.firstChild._placesView;
+        node.lastChild._placesView)
+      return node.lastChild._placesView;
 
-    // XXXmano: somehow we reach the xul document here!
     while (node instanceof Ci.nsIDOMElement) {
       if (node._placesView)
         return node._placesView;
@@ -711,7 +706,7 @@ var PlacesUIUtils = {
   /**
    * By calling this before visiting an URL, the visit will be associated to a
    * TRANSITION_BOOKMARK transition.
-   * This is used when visiting pages from the bookmarks menu, 
+   * This is used when visiting pages from the bookmarks menu,
    * personal toolbar, and bookmarks from within the places organizer.
    * If this is not called visits will be marked as TRANSITION_LINK.
    */
@@ -735,23 +730,26 @@ var PlacesUIUtils = {
    * bookmarked (see bug 224521).
    * @param aURINode
    *        a URI node
+   * @param aWindow
+   *        a window on which a potential error alert is shown on.
    * @return true if it's safe to open the node in the browser, false otherwise.
    *
    */
   checkURLSecurity: function PUIU_checkURLSecurity(aURINode, aWindow) {
-    if (!PlacesUtils.nodeIsBookmark(aURINode)) {
-      var uri = PlacesUtils._uri(aURINode.uri);
-      if (uri.schemeIs("javascript") || uri.schemeIs("data")) {
-        const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
-        var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
-                             getService(Ci.nsIStringBundleService).
-                             createBundle(BRANDING_BUNDLE_URI).
-                             GetStringFromName("brandShortName");
+    if (PlacesUtils.nodeIsBookmark(aURINode))
+      return true;
 
-        var errorStr = this.getString("load-js-data-url-error");
-        Services.prompt.alert(aWindow, brandShortName, errorStr);
-        return false;
-      }
+    var uri = PlacesUtils._uri(aURINode.uri);
+    if (uri.schemeIs("javascript") || uri.schemeIs("data")) {
+      const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
+      var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
+                           getService(Ci.nsIStringBundleService).
+                           createBundle(BRANDING_BUNDLE_URI).
+                           GetStringFromName("brandShortName");
+
+      var errorStr = this.getString("load-js-data-url-error");
+      Services.prompt.alert(aWindow, brandShortName, errorStr);
+      return false;
     }
     return true;
   },
@@ -792,13 +790,11 @@ var PlacesUIUtils = {
    * Gives the user a chance to cancel loading lots of tabs at once
    */
   _confirmOpenInTabs: function PUIU__confirmOpenInTabs(numTabsToOpen) {
-    let pref = Services.prefs;
-    let prompt = Services.prompt;
     const WARN_ON_OPEN_PREF = "browser.tabs.warnOnOpen";
     var reallyOpen = true;
 
-    if (pref.getBoolPref(WARN_ON_OPEN_PREF)) {
-      if (numTabsToOpen >= pref.getIntPref("browser.tabs.maxOpenBeforeWarn")) {
+    if (Services.prefs.getBoolPref(WARN_ON_OPEN_PREF)) {
+      if (numTabsToOpen >= Services.prefs.getIntPref("browser.tabs.maxOpenBeforeWarn")) {
         // default to true: if it were false, we wouldn't get this far
         var warnOnOpen = { value: true };
 
@@ -810,12 +806,12 @@ var PlacesUIUtils = {
                              createBundle(BRANDING_BUNDLE_URI).
                              GetStringFromName("brandShortName");
 
-        var buttonPressed = prompt.confirmEx(
+        var buttonPressed = Services.prompt.confirmEx(
           this._getCurrentActiveWin(),
           this.getString("tabs.openWarningTitle"),
           this.getFormattedString(messageKey, [numTabsToOpen, brandShortName]),
-          (prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_0) +
-            (prompt.BUTTON_TITLE_CANCEL * prompt.BUTTON_POS_1),
+          (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
+            (Services.prompt.BUTTON_TITLE_CANCEL * Services.prompt.BUTTON_POS_1),
           this.getString(openKey), null, null,
           this.getFormattedString("tabs.openWarningPromptMeBranded",
                                   [brandShortName]),
@@ -825,7 +821,7 @@ var PlacesUIUtils = {
         reallyOpen = (buttonPressed == 0);
         // don't set the pref unless they press OK and it's false
         if (reallyOpen && !warnOnOpen.value)
-          pref.setBoolPref(WARN_ON_OPEN_PREF, false);
+          Services.prefs.setBoolPref(WARN_ON_OPEN_PREF, false);
       }
     }
 
@@ -896,7 +892,7 @@ var PlacesUIUtils = {
   openNodeWithEvent: function PUIU_openNodeWithEvent(aNode, aEvent) {
     this.openNodeIn(aNode, this._getCurrentActiveWin().whereToOpenLink(aEvent));
   },
-  
+
   /**
    * Loads the node's URL in the appropriate tab or window or as a
    * web panel.
@@ -933,12 +929,12 @@ var PlacesUIUtils = {
    * Used to avoid nsIURI overhead in frequently called UI functions.
    *
    * @param aUrlString the url to guess the scheme from.
-   * 
+   *
    * @return guessed scheme for this url string.
    *
    * @note this is not supposed be perfect, so use it only for UI purposes.
    */
-  guessUrlSchemeForUI: function PUU_guessUrlSchemeForUI(aUrlString) {
+  guessUrlSchemeForUI: function PUIU_guessUrlSchemeForUI(aUrlString) {
     return aUrlString.substr(0, aUrlString.indexOf(":"));
   },
 
@@ -967,7 +963,7 @@ var PlacesUIUtils = {
     return title || this.getString("noTitle");
   },
 
-  get leftPaneQueries() {    
+  get leftPaneQueries() {
     // build the map
     this.leftPaneFolderId;
     return this.leftPaneQueries;
@@ -1227,7 +1223,7 @@ var PlacesUIUtils = {
     var queryName = "";
     // If the let pane hasn't been built, use the annotation service
     // directly, to avoid building the left pane too early.
-    if (this.__lookupGetter__("leftPaneFolderId")) {
+    if (Object.getOwnPropertyDescriptor(this, "leftPaneFolderId").value === undefined) {
       try {
         queryName = PlacesUtils.annotations.
                                 getItemAnnotation(aItemId, this.ORGANIZER_QUERY_ANNO);
@@ -1245,9 +1241,8 @@ var PlacesUIUtils = {
           queryName = name;
       }
     }
-    return queryName; 
-  },
-
+    return queryName;
+  }
 };
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "RDF",
@@ -1258,14 +1253,6 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "localStore", function() {
   return PlacesUIUtils.RDF.GetDataSource("rdf:local-store");
 });
 
-XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "ptm",
-                                   "@mozilla.org/browser/placesTransactionsService;1",
-                                   "nsIPlacesTransactionsService");
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "URIFixup",
-                                   "@mozilla.org/docshell/urifixup;1",
-                                   "nsIURIFixup");
-
 XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ellipsis", function() {
   return Services.prefs.getComplexValue("intl.ellipsis",
                                         Ci.nsIPrefLocalizedString).data;
@@ -1275,7 +1262,11 @@ XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "privateBrowsing",
                                    "@mozilla.org/privatebrowsing;1",
                                    "nsIPrivateBrowsingService");
 
-XPCOMUtils.defineLazyGetter(PlacesUIUtils, "_bundle", function() {
+XPCOMUtils.defineLazyServiceGetter(this, "URIFixup",
+                                   "@mozilla.org/docshell/urifixup;1",
+                                   "nsIURIFixup");
+
+XPCOMUtils.defineLazyGetter(this, "bundle", function() {
   const PLACES_STRING_BUNDLE_URI =
     "chrome://browser/locale/places/places.properties";
   return Cc["@mozilla.org/intl/stringbundle;1"].
@@ -1283,6 +1274,177 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "_bundle", function() {
          createBundle(PLACES_STRING_BUNDLE_URI);
 });
 
-XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "fm",
+XPCOMUtils.defineLazyServiceGetter(this, "focusManager",
                                    "@mozilla.org/focus-manager;1",
                                    "nsIFocusManager");
+
+/**
+ * This is a compatibility shim for old PUIU.ptm users.
+ *
+ * If you're looking for transactions and writing new code using them, directly
+ * use the transactions objects exported by the PlacesUtils.jsm module.
+ *
+ * This object will be removed once enough users are converted to the new API.
+ */
+XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
+  // Ensure PlacesUtils is imported in scope.
+  PlacesUtils;
+
+  return {
+    aggregateTransactions: function(aName, aTransactions)
+      new PlacesAggregatedTransaction(aName, aTransactions),
+
+    createFolder: function(aName, aContainer, aIndex, aAnnotations,
+                           aChildItemsTransactions)
+      new PlacesCreateFolderTransaction(aName, aContainer, aIndex, aAnnotations,
+                                        aChildItemsTransactions),
+
+    createItem: function(aURI, aContainer, aIndex, aTitle, aKeyword,
+                         aAnnotations, aChildTransactions)
+      new PlacesCreateBookmarkTransaction(aURI, aContainer, aIndex, aTitle,
+                                          aKeyword, aAnnotations,
+                                          aChildTransactions),
+
+    createSeparator: function(aContainer, aIndex)
+      new PlacesCreateSeparatorTransaction(aContainer, aIndex),
+
+    createLivemark: function(aFeedURI, aSiteURI, aName, aContainer, aIndex,
+                             aAnnotations)
+      new PlacesCreateLivemarkTransaction(aFeedURI, aSiteURI, aName, aContainer,
+                                          aIndex, aAnnotations),
+
+    moveItem: function(aItemId, aNewContainer, aNewIndex)
+      new PlacesMoveItemTransaction(aItemId, aNewContainer, aNewIndex),
+
+    removeItem: function(aItemId)
+      new PlacesRemoveItemTransaction(aItemId),
+
+    editItemTitle: function(aItemId, aNewTitle)
+      new PlacesEditItemTitleTransaction(aItemId, aNewTitle),
+
+    editBookmarkURI: function(aItemId, aNewURI)
+      new PlacesEditBookmarkURITransaction(aItemId, aNewURI),
+
+    setItemAnnotation: function(aItemId, aAnnotationObject)
+      new PlacesSetItemAnnotationTransaction(aItemId, aAnnotationObject),
+
+    setPageAnnotation: function(aURI, aAnnotationObject)
+      new PlacesSetPageAnnotationTransaction(aURI, aAnnotationObject),
+
+    editBookmarkKeyword: function(aItemId, aNewKeyword)
+      new PlacesEditBookmarkKeywordTransaction(aItemId, aNewKeyword),
+
+    editBookmarkPostData: function(aItemId, aPostData)
+      new PlacesEditBookmarkPostDataTransaction(aItemId, aPostData),
+
+    editLivemarkSiteURI: function(aLivemarkId, aSiteURI)
+      new PlacesEditLivemarkSiteURITransaction(aLivemarkId, aSiteURI),
+
+    editLivemarkFeedURI: function(aLivemarkId, aFeedURI)
+      new PlacesEditLivemarkFeedURITransaction(aLivemarkId, aFeedURI),
+
+    editBookmarkMicrosummary: function(aItemId, aNewMicrosummary)
+      new PlacesEditBookmarkMicrosummaryTransaction(aItemId, aNewMicrosummary),
+
+    editItemDateAdded: function(aItemId, aNewDateAdded)
+      new PlacesEditItemDateAddedTransaction(aItemId, aNewDateAdded),
+
+    editItemLastModified: function(aItemId, aNewLastModified)
+      new PlacesEditItemLastModifiedTransaction(aItemId, aNewLastModified),
+
+    sortFolderByName: function(aFolderId)
+      new PlacesSortFolderByNameTransaction(aFolderId),
+
+    tagURI: function(aURI, aTags)
+      new PlacesTagURITransaction(aURI, aTags),
+
+    untagURI: function(aURI, aTags)
+      new PlacesUntagURITransaction(aURI, aTags),
+
+    /**
+     * Transaction for setting/unsetting Load-in-sidebar annotation.
+     *
+     * @param aBookmarkId
+     *        id of the bookmark where to set Load-in-sidebar annotation.
+     * @param aLoadInSidebar
+     *        boolean value.
+     * @returns nsITransaction object.
+     */
+    setLoadInSidebar: function(aItemId, aLoadInSidebar)
+    {
+      let annoObj = { name: PlacesUIUtils.LOAD_IN_SIDEBAR_ANNO,
+                      type: Ci.nsIAnnotationService.TYPE_INT32,
+                      flags: 0,
+                      value: aLoadInSidebar,
+                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+      return new PlacesSetItemAnnotationTransaction(aItemId, annoObj);
+    },
+
+   /**
+    * Transaction for editing a the description of a bookmark or a folder.
+    *
+    * @param aItemId
+    *        id of the item to edit.
+    * @param aDescription
+    *        new description.
+    * @returns nsITransaction object.
+    */
+    editItemDescription: function(aItemId, aDescription)
+    {
+      let annoObj = { name: PlacesUIUtils.DESCRIPTION_ANNO,
+                      type: Ci.nsIAnnotationService.TYPE_STRING,
+                      flags: 0,
+                      value: aDescription,
+                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+      return new PlacesSetItemAnnotationTransaction(aItemId, annoObj);
+    },
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// nsITransactionManager forwarders.
+
+    beginBatch: function()
+      PlacesUtils.transactionManager.beginBatch(),
+
+    endBatch: function()
+      PlacesUtils.transactionManager.endBatch(),
+
+    doTransaction: function(txn)
+      PlacesUtils.transactionManager.doTransaction(txn),
+
+    undoTransaction: function()
+      PlacesUtils.transactionManager.undoTransaction(),
+
+    redoTransaction: function()
+      PlacesUtils.transactionManager.redoTransaction(),
+
+    get numberOfUndoItems()
+      PlacesUtils.transactionManager.numberOfUndoItems,
+    get numberOfRedoItems()
+      PlacesUtils.transactionManager.numberOfRedoItems,
+    get maxTransactionCount()
+      PlacesUtils.transactionManager.maxTransactionCount,
+    set maxTransactionCount(val)
+      PlacesUtils.transactionManager.maxTransactionCount = val,
+
+    clear: function()
+      PlacesUtils.transactionManager.clear(),
+
+    peekUndoStack: function()
+      PlacesUtils.transactionManager.peekUndoStack(),
+
+    peekRedoStack: function()
+      PlacesUtils.transactionManager.peekRedoStack(),
+
+    getUndoStack: function()
+      PlacesUtils.transactionManager.getUndoStack(),
+
+    getRedoStack: function()
+      PlacesUtils.transactionManager.getRedoStack(),
+
+    AddListener: function(aListener)
+      PlacesUtils.transactionManager.AddListener(aListener),
+
+    RemoveListener: function(aListener)
+      PlacesUtils.transactionManager.RemoveListener(aListener)
+  }
+});

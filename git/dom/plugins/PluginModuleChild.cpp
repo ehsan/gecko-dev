@@ -38,7 +38,9 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_WIDGET_QT
+#include <QtCore/QTimer>
 #include "nsQAppInstance.h"
+#include "NestedLoopTimer.h"
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
@@ -65,6 +67,11 @@
 
 #ifdef XP_WIN
 #include "COMMessageFilter.h"
+#endif
+
+#ifdef OS_MACOSX
+#include "PluginInterposeOSX.h"
+#include "PluginUtilsOSX.h"
 #endif
 
 using namespace mozilla::plugins;
@@ -96,6 +103,8 @@ PluginModuleChild::PluginModuleChild() :
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
   , mNestedLoopTimerId(0)
+#elif defined(MOZ_WIDGET_QT)
+  , mNestedLoopTimerObject(0)
 #endif
 #ifdef OS_WIN
   , mNestedEventHook(NULL)
@@ -106,6 +115,9 @@ PluginModuleChild::PluginModuleChild() :
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
+#ifdef XP_MACOSX
+    mac_plugin_interposing::child::SetUpCocoaInterposing();
+#endif
 }
 
 PluginModuleChild::~PluginModuleChild()
@@ -445,6 +457,26 @@ PluginModuleChild::ExitedCxxStack()
 
     g_source_remove(mNestedLoopTimerId);
     mNestedLoopTimerId = 0;
+}
+#elif defined (MOZ_WIDGET_QT)
+
+void
+PluginModuleChild::EnteredCxxStack()
+{
+    NS_ABORT_IF_FALSE(mNestedLoopTimerObject == NULL,
+                      "previous timer not descheduled");
+    mNestedLoopTimerObject = new NestedLoopTimer(this);
+    QTimer::singleShot(kNestedLoopDetectorIntervalMs,
+                       mNestedLoopTimerObject, SLOT(timeOut()));
+}
+
+void
+PluginModuleChild::ExitedCxxStack()
+{
+    NS_ABORT_IF_FALSE(mNestedLoopTimerObject != NULL,
+                      "nested loop timeout not scheduled");
+    delete mNestedLoopTimerObject;
+    mNestedLoopTimerObject = NULL;
 }
 
 #endif
@@ -1491,13 +1523,67 @@ _unscheduletimer(NPP npp, uint32_t timerID)
     InstCast(npp)->UnscheduleTimer(timerID);
 }
 
+
+#ifdef OS_MACOSX
+static void ProcessBrowserEvents(void* pluginModule) {
+    PluginModuleChild* pmc = static_cast<PluginModuleChild*>(pluginModule);
+
+    if (!pmc)
+        return;
+
+    pmc->CallProcessSomeEvents();
+}
+#endif
+
 NPError NP_CALLBACK
 _popupcontextmenu(NPP instance, NPMenu* menu)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
-    NS_WARNING("Not yet implemented!");
+
+#ifdef OS_MACOSX
+    double pluginX, pluginY; 
+    double screenX, screenY;
+
+    const NPCocoaEvent* currentEvent = InstCast(instance)->getCurrentEvent();
+    if (!currentEvent) {
+        return NPERR_GENERIC_ERROR;
+    }
+
+    // Ensure that the events has an x/y value.
+    if (currentEvent->type != NPCocoaEventMouseDown    &&
+        currentEvent->type != NPCocoaEventMouseUp      &&
+        currentEvent->type != NPCocoaEventMouseMoved   &&
+        currentEvent->type != NPCocoaEventMouseEntered &&
+        currentEvent->type != NPCocoaEventMouseExited  &&
+        currentEvent->type != NPCocoaEventMouseDragged) {
+        return NPERR_GENERIC_ERROR;
+    }
+
+    pluginX = currentEvent->data.mouse.pluginX;
+    pluginY = currentEvent->data.mouse.pluginY;
+
+    if ((pluginX < 0.0) || (pluginY < 0.0))
+        return NPERR_GENERIC_ERROR;
+
+    NPBool success = _convertpoint(instance, 
+                                  pluginX,  pluginY, NPCoordinateSpacePlugin, 
+                                 &screenX, &screenY, NPCoordinateSpaceScreen);
+
+    if (success) {
+        return mozilla::plugins::PluginUtilsOSX::ShowCocoaContextMenu(menu,
+                                    screenX, screenY,
+                                    PluginModuleChild::current(),
+                                    ProcessBrowserEvents);
+    } else {
+        NS_WARNING("Convertpoint failed, could not created contextmenu.");
+        return NPERR_GENERIC_ERROR;
+    }
+
+#else
+    NS_WARNING("Not supported on this platform!");
     return NPERR_GENERIC_ERROR;
+#endif
 }
 
 NPBool NP_CALLBACK
@@ -1587,15 +1673,17 @@ PluginModuleChild::AllocPPluginIdentifier(const nsCString& aString,
 
     if (aString.IsVoid()) {
         newActor = new PluginIdentifierChildInt(aInt);
-        if (mIntIdentifiers.Get(aInt, &existingActor)) {
+        if (mIntIdentifiers.Get(aInt, &existingActor))
             newActor->SetCanonicalIdentifier(existingActor);
-        }
+        else
+            mIntIdentifiers.Put(aInt, newActor);
     }
     else {
         newActor = new PluginIdentifierChildString(aString);
-        if (mStringIdentifiers.Get(aString, &existingActor)) {
+        if (mStringIdentifiers.Get(aString, &existingActor))
             newActor->SetCanonicalIdentifier(existingActor);
-        }
+        else
+            mStringIdentifiers.Put(aString, newActor);
     }
     return newActor;
 }
@@ -1999,5 +2087,12 @@ PluginModuleChild::ResetEventHooks()
     if (mGlobalCallWndProcHook)
         UnhookWindowsHookEx(mGlobalCallWndProcHook);
     mGlobalCallWndProcHook = NULL;
+}
+#endif
+
+#ifdef OS_MACOSX
+void
+PluginModuleChild::ProcessNativeEvents() {
+    CallProcessSomeEvents();    
 }
 #endif

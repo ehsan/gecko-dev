@@ -4,7 +4,11 @@
 #include <QtGui/QApplication>
 #include <QtGui/QGraphicsView>
 #include <QtGui/QGraphicsWidget>
-#include <QtOpenGL/QGLWidget>
+
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+#include <QtGui/QGraphicsSceneResizeEvent>
+#include <MSceneWindow>
+#endif
 
 #include "nsIWidget.h"
 #include "prenv.h"
@@ -39,9 +43,12 @@ public:
     /**
      * VirtualKeyboardIntegration
      */
-    void showVKB();
+    void requestVKB(int aTimeout);
     void hideVKB();
     bool isVKBOpen();
+
+public slots:
+    void showVKB();
 
 protected:
     virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent* aEvent);
@@ -79,33 +86,32 @@ class MozQGraphicsViewEvents
 {
 public:
 
-    MozQGraphicsViewEvents(QGraphicsView* aView, MozQWidget* aTopLevel)
-     : mTopLevelWidget(aTopLevel)
-     , mView(aView)
+    MozQGraphicsViewEvents(QGraphicsView* aView)
+     : mView(aView)
     { }
 
-    void handleEvent(QEvent* aEvent)
+    void handleEvent(QEvent* aEvent, MozQWidget* aTopLevel)
     {
         if (!aEvent)
             return;
         if (aEvent->type() == QEvent::WindowActivate) {
-            if (mTopLevelWidget)
-                mTopLevelWidget->activate();
+            if (aTopLevel)
+                aTopLevel->activate();
         }
 
         if (aEvent->type() == QEvent::WindowDeactivate) {
-            if (mTopLevelWidget)
-                mTopLevelWidget->deactivate();
+            if (aTopLevel)
+                aTopLevel->deactivate();
         }
     }
 
-    void handleResizeEvent(QResizeEvent* aEvent)
+    void handleResizeEvent(QResizeEvent* aEvent, MozQWidget* aTopLevel)
     {
         if (!aEvent)
             return;
-        if (mTopLevelWidget) {
+        if (aTopLevel) {
             // transfer new size to graphics widget
-            mTopLevelWidget->setGeometry(0.0, 0.0,
+            aTopLevel->setGeometry(0.0, 0.0,
                 static_cast<qreal>(aEvent->size().width()),
                 static_cast<qreal>(aEvent->size().height()));
             // resize scene rect to vieport size,
@@ -115,14 +121,14 @@ public:
         }
     }
 
-    bool handleCloseEvent(QCloseEvent* aEvent)
+    bool handleCloseEvent(QCloseEvent* aEvent, MozQWidget* aTopLevel)
     {
         if (!aEvent)
             return false;
-        if (mTopLevelWidget) {
+        if (aTopLevel) {
             // close graphics widget instead, this view will be discarded
             // automatically
-            QApplication::postEvent(mTopLevelWidget, new QCloseEvent(*aEvent));
+            QApplication::postEvent(aTopLevel, new QCloseEvent(*aEvent));
             aEvent->ignore();
             return true;
         }
@@ -131,7 +137,6 @@ public:
     }
 
 private:
-    MozQWidget* mTopLevelWidget;
     QGraphicsView* mView;
 };
 
@@ -147,10 +152,9 @@ class MozQGraphicsView : public QGraphicsView
 public:
     MozQGraphicsView(MozQWidget* aTopLevel, QWidget * aParent = nsnull)
      : QGraphicsView (new QGraphicsScene(), aParent)
-     , mEventHandler(this, aTopLevel)
+     , mEventHandler(this)
+     , mTopLevelWidget(aTopLevel)
     {
-        if (PR_GetEnv("MOZ_QT_GL"))
-            setViewport(new QGLWidget());
         scene()->addItem(aTopLevel);
     }
 
@@ -158,24 +162,94 @@ protected:
 
     virtual bool event(QEvent* aEvent)
     {
-        mEventHandler.handleEvent(aEvent);
+        mEventHandler.handleEvent(aEvent, mTopLevelWidget);
         return QGraphicsView::event(aEvent);
     }
 
     virtual void resizeEvent(QResizeEvent* aEvent)
     {
-        mEventHandler.handleResizeEvent(aEvent);
+        mEventHandler.handleResizeEvent(aEvent, mTopLevelWidget);
         QGraphicsView::resizeEvent(aEvent);
     }
 
     virtual void closeEvent (QCloseEvent* aEvent)
     {
-        if (!mEventHandler.handleCloseEvent(aEvent))
+        if (!mEventHandler.handleCloseEvent(aEvent, mTopLevelWidget))
             QGraphicsView::closeEvent(aEvent);
     }
 
 private:
     MozQGraphicsViewEvents mEventHandler;
+    MozQWidget* mTopLevelWidget;
 };
+
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+class MozMSceneWindow : public MSceneWindow
+{
+public:
+    MozMSceneWindow(MozQWidget* aTopLevel)
+     : MSceneWindow(aTopLevel->parentItem())
+     , mTopLevelWidget(aTopLevel)
+    {
+        mTopLevelWidget->setParentItem(this);
+    }
+
+protected:
+    virtual void resizeEvent(QGraphicsSceneResizeEvent* aEvent) {
+        if (mTopLevelWidget) {
+            // transfer new size to graphics widget
+            mTopLevelWidget->setGeometry(0.0, 0.0,
+                static_cast<qreal>(aEvent->newSize().width()),
+                static_cast<qreal>(aEvent->newSize().height()));
+        }
+        MSceneWindow::resizeEvent(aEvent);
+    }
+private:
+    MozQWidget* mTopLevelWidget;
+};
+
+/**
+    This is a helper class to synchronize the MWindow window with
+    its contained QGraphicsWidget for things like resizing and closing
+    by the user.
+*/
+class MozMGraphicsView : public MWindow
+{
+
+public:
+    MozMGraphicsView(MozQWidget* aTopLevel, QWidget* aParent = nsnull)
+     : MWindow(aParent)
+     , mEventHandler(this)
+     , mTopLevelWidget(aTopLevel)
+    {
+        MozMSceneWindow *page = new MozMSceneWindow(aTopLevel);
+        if (page)
+            page->appear(this);
+    }
+
+protected:
+    virtual bool event(QEvent* aEvent) {
+        mEventHandler.handleEvent(aEvent, mTopLevelWidget);
+        return MWindow::event(aEvent);
+    }
+
+    virtual void resizeEvent(QResizeEvent* aEvent)
+    {
+        setSceneRect(viewport()->rect());
+        MWindow::resizeEvent(aEvent);
+    }
+
+    virtual void closeEvent (QCloseEvent* aEvent)
+    {
+        if (!mEventHandler.handleCloseEvent(aEvent, mTopLevelWidget))
+            MWindow::closeEvent(aEvent);
+    }
+
+private:
+    MozQGraphicsViewEvents mEventHandler;
+    MozQWidget* mTopLevelWidget;
+};
+
+#endif /* MOZ_ENABLE_MEEGOTOUCH */
 
 #endif

@@ -59,7 +59,8 @@ class nsHTMLObjectElement : public nsGenericHTMLFormElement,
 #endif
 {
 public:
-  nsHTMLObjectElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
+  nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                      PRUint32 aFromParser = 0);
   virtual ~nsHTMLObjectElement();
 
   // nsISupports
@@ -93,7 +94,7 @@ public:
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
 
-  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
   // Overriden nsIFormControl methods
@@ -130,6 +131,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLObjectElement,
                                                      nsGenericHTMLFormElement)
 
+  virtual nsXPCClassInfo* GetClassInfo();
 private:
   /**
    * Calls LoadObject with the correct arguments to start the plugin load.
@@ -143,8 +145,8 @@ private:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Object)
 
 
-nsHTMLObjectElement::nsHTMLObjectElement(nsINodeInfo *aNodeInfo,
-                                         PRBool aFromParser)
+nsHTMLObjectElement::nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                                         PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
@@ -185,7 +187,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 
-DOMCI_DATA(HTMLObjectElement, nsHTMLObjectElement)
+DOMCI_NODE_DATA(HTMLObjectElement, nsHTMLObjectElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLObjectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLObjectElement)
@@ -283,7 +285,8 @@ nsHTMLObjectElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 }
 
 PRBool
-nsHTMLObjectElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLObjectElement::IsHTMLFocusable(PRBool aWithMouse,
+                                     PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
   if (Type() == eType_Plugin) {
     // Has plugin content: let the plugin decide what to do in terms of
@@ -297,7 +300,7 @@ nsHTMLObjectElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
     return PR_FALSE;
   }
 
-  return nsGenericHTMLFormElement::IsHTMLFocusable(aIsFocusable, aTabIndex);
+  return nsGenericHTMLFormElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex);
 }
 
 PRUint32

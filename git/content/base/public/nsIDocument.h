@@ -63,6 +63,7 @@
 #include "nsSMILAnimationController.h"
 #endif // MOZ_SMIL
 #include "nsIScriptGlobalObject.h"
+#include "nsIDocumentEncoder.h"
 
 class nsIContent;
 class nsPresContext;
@@ -115,9 +116,10 @@ class Element;
 } // namespace dom
 } // namespace mozilla
 
+
 #define NS_IDOCUMENT_IID      \
-{ 0x3ee6a14b, 0x83b5, 0x4629, \
-  { 0x96, 0x9b, 0xe9, 0x84, 0x7c, 0x57, 0x24, 0x3c } }
+{ 0xb2274bc3, 0x4a1c, 0x4e64, \
+  { 0x8d, 0xe4, 0x3b, 0xc6, 0x50, 0x28, 0x84, 0x38 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -311,17 +313,22 @@ public:
   /**
    * Add an IDTargetObserver for a specific ID. The IDTargetObserver
    * will be fired whenever the content associated with the ID changes
-   * in the future. At most one (aObserver, aData) pair can be registered
-   * for each ID.
+   * in the future. If aForImage is true, mozSetImageElement can override
+   * what content is associated with the ID. In that case the IDTargetObserver
+   * will be notified at those times when the result of LookupImageElement
+   * changes.
+   * At most one (aObserver, aData, aForImage) triple can be
+   * registered for each ID.
    * @return the content currently associated with the ID.
    */
   virtual Element* AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                       void* aData) = 0;
+                                       void* aData, PRBool aForImage) = 0;
   /**
-   * Remove the (aObserver, aData) pair for a specific ID, if registered.
+   * Remove the (aObserver, aData, aForImage) triple for a specific ID, if
+   * registered.
    */
-  virtual void RemoveIDTargetObserver(nsIAtom* aID,
-                                      IDTargetObserver aObserver, void* aData) = 0;
+  virtual void RemoveIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
+                                      void* aData, PRBool aForImage) = 0;
 
   /**
    * Get the Content-Type of this document.
@@ -435,9 +442,9 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult) = 0;
-  void DeleteShell() { mPresShell = nsnull; }
+  virtual void DeleteShell() = 0;
 
-  nsIPresShell* GetPrimaryShell() const
+  nsIPresShell* GetShell() const
   {
     return mShellIsHidden ? nsnull : mPresShell;
   }
@@ -673,13 +680,10 @@ public:
   /**
    * Add/Remove an element to the document's id and name hashes
    */
-  virtual void AddToIdTable(mozilla::dom::Element* aElement, nsIAtom* aId) = 0;
-  virtual void RemoveFromIdTable(mozilla::dom::Element* aElement,
-                                 nsIAtom* aId) = 0;
-  virtual void AddToNameTable(mozilla::dom::Element* aElement,
-                              nsIAtom* aName) = 0;
-  virtual void RemoveFromNameTable(mozilla::dom::Element* aElement,
-                                   nsIAtom* aName) = 0;
+  virtual void AddToIdTable(Element* aElement, nsIAtom* aId) = 0;
+  virtual void RemoveFromIdTable(Element* aElement, nsIAtom* aId) = 0;
+  virtual void AddToNameTable(Element* aElement, nsIAtom* aName) = 0;
+  virtual void RemoveFromNameTable(Element* aElement, nsIAtom* aName) = 0;
 
   //----------------------------------------------------------------------
 
@@ -828,7 +832,7 @@ public:
    * for that document (currently XHTML in HTML documents and XUL in XUL
    * documents), otherwise we use the type specified by the namespace ID.
    */
-  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
+  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
                               PRBool aDocumentDefaultType,
                               nsIContent** aResult) = 0;
@@ -1113,6 +1117,16 @@ public:
     // Do nothing.
   }
 
+  already_AddRefed<nsIDocumentEncoder> GetCachedEncoder()
+  {
+    return mCachedEncoder.forget();
+  }
+
+  void SetCachedEncoder(already_AddRefed<nsIDocumentEncoder> aEncoder)
+  {
+    mCachedEncoder = aEncoder;
+  }
+
   // In case of failure, the document really can't initialize the frame loader.
   virtual nsresult InitializeFrameLoader(nsFrameLoader* aLoader) = 0;
   // In case of failure, the caller must handle the error, for example by
@@ -1149,7 +1163,7 @@ public:
    */
   void SetDisplayDocument(nsIDocument* aDisplayDocument)
   {
-    NS_PRECONDITION(!GetPrimaryShell() &&
+    NS_PRECONDITION(!GetShell() &&
                     !nsCOMPtr<nsISupports>(GetContainer()) &&
                     !GetWindow() &&
                     !GetScriptGlobalObject(),
@@ -1263,6 +1277,16 @@ public:
   virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents) = 0;
 
   PRUint32 EventHandlingSuppressed() const { return mEventsSuppressed; }
+
+  /**
+   * Increment the number of external scripts being evaluated.
+   */
+  void BeginEvaluatingExternalScript() { ++mExternalScriptsBeingEvaluated; }
+
+  /**
+   * Decrement the number of external scripts being evaluated.
+   */
+  void EndEvaluatingExternalScript() { --mExternalScriptsBeingEvaluated; }
 
   PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
 
@@ -1384,7 +1408,22 @@ public:
    * It prevents converting nsIDOMElement to mozill:dom::Element which is
    * already converted from mozilla::dom::Element.
    */
-  virtual mozilla::dom::Element* GetElementById(const nsAString& aElementId) = 0;
+  virtual Element* GetElementById(const nsAString& aElementId) = 0;
+
+  /**
+   * Lookup an image element using its associated ID, which is usually provided
+   * by |-moz-element()|. Similar to GetElementById, with the difference that
+   * elements set using mozSetImageElement have higher priority.
+   * @param aId the ID associated the element we want to lookup
+   * @return the element associated with |aId|
+   */
+  virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
+
+  void ScheduleBeforePaintEvent();
+  void BeforePaintEventFiring()
+  {
+    mHavePendingPaint = PR_FALSE;
+  }
 
 protected:
   ~nsIDocument()
@@ -1418,6 +1457,17 @@ protected:
   virtual Element* GetNameSpaceElement()
   {
     return GetRootElement();
+  }
+
+  void SetContentTypeInternal(const nsACString& aType)
+  {
+    mCachedEncoder = nsnull;
+    mContentType = aType;
+  }
+
+  nsCString GetContentTypeInternal() const
+  {
+    return mContentType;
   }
 
   nsCOMPtr<nsIURI> mDocumentURI;
@@ -1514,6 +1564,9 @@ protected:
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject;
 
+  // True if we're waiting for a before-paint event.
+  PRPackedBool mHavePendingPaint;
+
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -1528,7 +1581,9 @@ protected:
   PRUint32 mBidiOptions;
 
   nsCString mContentLanguage;
+private:
   nsCString mContentType;
+protected:
 
   // The document's security info
   nsCOMPtr<nsISupports> mSecurityInfo;
@@ -1553,11 +1608,19 @@ protected:
 
   PRUint32 mEventsSuppressed;
 
+  /**
+   * The number number of external scripts (ones with the src attribute) that
+   * have this document as their owner and that are being evaluated right now.
+   */
+  PRUint32 mExternalScriptsBeingEvaluated;
+
   nsString mPendingStateObject;
 
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mSecriptGlobalObject.
   nsPIDOMWindow *mWindow;
+
+  nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

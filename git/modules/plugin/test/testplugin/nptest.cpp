@@ -93,14 +93,18 @@ NoteIntentionalCrash()
   }
 }
 
+static void Crash()
+{
+  int *pi = NULL;
+  *pi = 55; // Crash dereferencing null pointer
+  ++gCrashCount;
+}
+
 static void
 IntentionalCrash()
 {
   NoteIntentionalCrash();
-
-  int *pi = NULL;
-  *pi = 55; // Crash dereferencing null pointer
-  ++gCrashCount;
+  Crash();
 }
 
 //
@@ -142,6 +146,7 @@ static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCo
 static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
+static bool setInvalidateDuringPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -192,6 +197,7 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getLastMouseY",
   "getPaintCount",
   "getWidthAtLastPaint",
+  "setInvalidateDuringPaint",
   "getError",
   "doInternalConsistencyCheck",
   "setColor",
@@ -243,6 +249,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   getLastMouseY,
   getPaintCount,
   getWidthAtLastPaint,
+  setInvalidateDuringPaint,
   getError,
   doInternalConsistencyCheck,
   setColor,
@@ -689,6 +696,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->testrange = NULL;
   instanceData->hasWidget = false;
   instanceData->npnNewStream = false;
+  instanceData->invalidateDuringPaint = false;
   instanceData->writeCount = 0;
   instanceData->writeReadyCount = 0;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
@@ -931,6 +939,17 @@ NPError
 NPP_SetWindow(NPP instance, NPWindow* window)
 {
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
+
+  if (instanceData->scriptableObject->drawMode == DM_DEFAULT &&
+      (instanceData->window.width != window->width ||
+       instanceData->window.height != window->height)) {
+    NPRect r;
+    r.left = r.top = 0;
+    r.right = window->width;
+    r.bottom = window->height;
+    NPN_InvalidateRect(instance, &r);
+  }
+
   void* oldWindow = instanceData->window.window;
   pluginDoSetWindow(instanceData, window);
   if (instanceData->hasWidget && oldWindow != instanceData->window.window) {
@@ -1650,6 +1669,14 @@ scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCoun
 bool
 scriptableHasProperty(NPObject* npobj, NPIdentifier name)
 {
+  if (NPN_IdentifierIsString(name)) {
+    if (NPN_GetStringIdentifier(NPN_UTF8FromIdentifier(name)) != name)
+      Crash();
+  }
+  else {
+    if (NPN_GetIntIdentifier(NPN_IntFromIdentifier(name)) != name)
+      Crash();
+  }
   for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
     if (name == sPluginPropertyIdentifiers[i])
       return true;
@@ -2128,6 +2155,22 @@ getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, N
 }
 
 static bool
+setInvalidateDuringPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
+{
+  if (argCount != 1)
+    return false;
+
+  if (!NPVARIANT_IS_BOOLEAN(args[0]))
+    return false;
+  bool doInvalidate = NPVARIANT_TO_BOOLEAN(args[0]);
+
+  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
+  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
+  id->invalidateDuringPaint = doInvalidate;
+  return true;
+}
+
+static bool
 getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 0)
@@ -2338,6 +2381,15 @@ void notifyDidPaint(InstanceData* instanceData)
 {
   ++instanceData->paintCount;
   instanceData->widthAtLastPaint = instanceData->window.width;
+
+  if (instanceData->invalidateDuringPaint) {
+    NPRect r;
+    r.left = 0;
+    r.top = 0;
+    r.right = instanceData->window.width;
+    r.bottom = instanceData->window.height;
+    NPN_InvalidateRect(instanceData->npp, &r);
+  }
 }
 
 static const NPClass kTestSharedNPClass = {

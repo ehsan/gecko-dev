@@ -41,14 +41,19 @@
 #include "Layers.h"
 #include "LayerManagerOGL.h"
 #include "gfxImageSurface.h"
+#include "GLContext.h"
 
 
 namespace mozilla {
 namespace layers {
 
+class ThebesLayerBufferOGL;
+
 class ThebesLayerOGL : public ThebesLayer, 
-                         public LayerOGL
+                       public LayerOGL
 {
+  typedef ThebesLayerBufferOGL Buffer;
+
 public:
   ThebesLayerOGL(LayerManagerOGL *aManager);
   virtual ~ThebesLayerOGL();
@@ -60,26 +65,16 @@ public:
   void InvalidateRegion(const nsIntRegion& aRegion);
 
   /** LayerOGL implementation */
-  LayerType GetType();
+  void Destroy();
   Layer* GetLayer();
   virtual PRBool IsEmpty();
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
 
-  /** ThebesLayerOGL */
-  nsIntRect GetVisibleRect() { return mVisibleRegion.GetBounds(); }
-  const nsIntRect &GetInvalidatedRect();
-
 private:
-  /**
-   * Currently invalidated rectangular area.
-   */
-  nsIntRect mInvalidatedRect;
+  PRBool CreateSurface();
 
-  /**
-   * OpenGL Texture
-   */
-  GLuint mTexture;
+  nsRefPtr<Buffer> mBuffer;
 };
 
 } /* layers */

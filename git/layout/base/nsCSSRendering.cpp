@@ -79,6 +79,12 @@
 #include "nsStyleStructInlines.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSProps.h"
+#include "nsContentUtils.h"
+#ifdef MOZ_SVG
+#include "nsSVGEffects.h"
+#include "nsSVGIntegrationUtils.h"
+#include "gfxDrawable.h"
+#endif
 
 #include "nsCSSRenderingBorders.h"
 
@@ -125,6 +131,10 @@ private:
   nsStyleImageType          mType;
   nsCOMPtr<imgIContainer>   mImageContainer;
   nsRefPtr<nsStyleGradient> mGradientData;
+#ifdef MOZ_SVG
+  nsIFrame*                 mPaintServerFrame;
+  nsLayoutUtils::SurfaceFromElementResult mImageElementSurface;
+#endif
   PRBool                    mIsReady;
   nsSize                    mSize;
   PRUint32                  mFlags;
@@ -1554,9 +1564,12 @@ SetupBackgroundClip(gfxContext *aCtx, PRUint8 aBackgroundClip,
   PRBool radiiAreOuter = PR_TRUE;
   gfxCornerSizes clippedRadii = aBGRadii;
   if (aBackgroundClip != NS_STYLE_BG_CLIP_BORDER) {
-    NS_ASSERTION(aBackgroundClip == NS_STYLE_BG_CLIP_PADDING,
-                 "unexpected background-clip");
     nsMargin border = aForFrame->GetUsedBorder();
+    if (aBackgroundClip != NS_STYLE_BG_CLIP_PADDING) {
+      NS_ASSERTION(aBackgroundClip == NS_STYLE_BG_CLIP_CONTENT,
+                   "unexpected background-clip");
+      border += aForFrame->GetUsedPadding();
+    }
     aForFrame->ApplySkipSides(border);
     aBGClipArea->Deflate(border);
 
@@ -2144,18 +2157,24 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     nsITheme *theme = aPresContext->GetTheme();
     if (theme && theme->ThemeSupportsWidget(aPresContext, aForFrame,
                                             displayData->mAppearance)) {
-      nsRect dirty;
-      dirty.IntersectRect(aDirtyRect, aBorderArea);
+      nsRect drawing(aBorderArea);
+      theme->GetWidgetOverflow(aPresContext->DeviceContext(),
+                               aForFrame, displayData->mAppearance, &drawing);
+      drawing.IntersectRect(drawing, aDirtyRect);
       theme->DrawWidgetBackground(&aRenderingContext, aForFrame,
-                                  displayData->mAppearance, aBorderArea, dirty);
+                                  displayData->mAppearance, aBorderArea,
+                                  drawing);
       return;
     }
   }
 
   // For canvas frames (in the CSS sense) we draw the background color using
   // a solid color item that gets added in nsLayoutUtils::PaintFrame,
-  // PresShell::RenderDocument, or nsSubDocumentFrame::BuildDisplayList
-  // (bug 488242).
+  // or nsSubDocumentFrame::BuildDisplayList (bug 488242). (The solid
+  // color may be moved into nsDisplayCanvasBackground by
+  // nsPresShell::AddCanvasBackgroundColorItem, and painted by
+  // nsDisplayCanvasBackground directly.) Either way we don't need to
+  // paint the background color here.
   PRBool isCanvasFrame = IsCanvasFrame(aForFrame);
 
   // Determine whether we are drawing background images and/or
@@ -2269,8 +2288,9 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
       const nsStyleBackground::Layer &layer = bg->mLayers[i];
       if (!aBGClipRect) {
-        PRUint8 newBackgroundClip =
-          isSolidBorder ? NS_STYLE_BG_CLIP_PADDING : layer.mClip;
+        PRUint8 newBackgroundClip = layer.mClip;
+        if (isSolidBorder && newBackgroundClip == NS_STYLE_BG_CLIP_BORDER)
+          newBackgroundClip = NS_STYLE_BG_CLIP_PADDING;
         if (currentBackgroundClip != newBackgroundClip) {
           currentBackgroundClip = newBackgroundClip;
           SetupBackgroundClip(ctx, currentBackgroundClip, aForFrame,
@@ -2326,9 +2346,9 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
    *   background-repeat
    *   background-attachment
    *   background-position
-   *   background-clip (-moz-background-clip)
-   *   background-origin (-moz-background-origin)
-   *   background-size (-moz-background-size)
+   *   background-clip
+   *   background-origin
+   *   background-size
    *   background-break (-moz-background-inline-policy)
    *
    * (background-color applies to the entire element and not to individual
@@ -2426,15 +2446,13 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
   // but the origin of the tiling is based on the 'background-origin' area
   if (aLayer.mOrigin != NS_STYLE_BG_ORIGIN_BORDER && geometryFrame) {
     nsMargin border = geometryFrame->GetUsedBorder();
-    geometryFrame->ApplySkipSides(border);
-    bgPositioningArea.Deflate(border);
     if (aLayer.mOrigin != NS_STYLE_BG_ORIGIN_PADDING) {
-      nsMargin padding = geometryFrame->GetUsedPadding();
-      geometryFrame->ApplySkipSides(padding);
-      bgPositioningArea.Deflate(padding);
+      border += geometryFrame->GetUsedPadding();
       NS_ASSERTION(aLayer.mOrigin == NS_STYLE_BG_ORIGIN_CONTENT,
                    "unknown background-origin value");
     }
+    geometryFrame->ApplySkipSides(border);
+    bgPositioningArea.Deflate(border);
   }
 
   // For background-attachment:fixed backgrounds, we'll limit the area
@@ -2447,6 +2465,8 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
   // of aForFrame's border-box will be rendered)
   nsPoint imageTopLeft, anchor;
   if (NS_STYLE_BG_ATTACHMENT_FIXED == aLayer.mAttachment) {
+    aPresContext->SetHasFixedBackgroundFrame();
+
     // If it's a fixed background attachment, then the image is placed
     // relative to the viewport, which is the area of the root frame
     // in a screen context or the page content frame in a print context.
@@ -3572,13 +3592,16 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
 // ImageRenderer
 // ------------------
 ImageRenderer::ImageRenderer(nsIFrame* aForFrame,
-                                       const nsStyleImage& aImage,
-                                       PRUint32 aFlags)
+                             const nsStyleImage& aImage,
+                             PRUint32 aFlags)
   : mForFrame(aForFrame)
   , mImage(aImage)
   , mType(aImage.GetType())
   , mImageContainer(nsnull)
   , mGradientData(nsnull)
+#ifdef MOZ_SVG
+  , mPaintServerFrame(nsnull)
+#endif
   , mIsReady(PR_FALSE)
   , mSize(0, 0)
   , mFlags(aFlags)
@@ -3653,6 +3676,35 @@ ImageRenderer::PrepareImage()
       mGradientData = mImage.GetGradientData();
       mIsReady = PR_TRUE;
       break;
+#ifdef MOZ_SVG
+    case eStyleImageType_Element:
+    {
+      nsAutoString elementId =
+        NS_LITERAL_STRING("#") + nsDependentString(mImage.GetElementId());
+      nsCOMPtr<nsIURI> targetURI;
+      nsCOMPtr<nsIURI> base = mForFrame->GetContent()->GetBaseURI();
+      nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), elementId,
+                                                mForFrame->GetContent()->GetCurrentDoc(), base);
+      nsSVGPaintingProperty* property = nsSVGEffects::GetPaintingPropertyForURI(
+          targetURI, mForFrame->GetFirstContinuation(),
+          nsSVGEffects::BackgroundImageProperty());
+      if (!property)
+        return PR_FALSE;
+      mPaintServerFrame = property->GetReferencedFrame();
+
+      // If the referenced element doesn't have a frame we might still be able
+      // to paint it if it's an <img>, <canvas>, or <video> element.
+      if (!mPaintServerFrame) {
+        nsCOMPtr<nsIDOMElement> imageElement =
+          do_QueryInterface(property->GetReferencedElement());
+        mImageElementSurface = nsLayoutUtils::SurfaceFromElement(imageElement);
+        if (!mImageElementSurface.mSurface)
+          return PR_FALSE;
+      }
+      mIsReady = PR_TRUE;
+      break;
+    }
+#endif
     case eStyleImageType_Null:
     default:
       break;
@@ -3681,6 +3733,32 @@ ImageRenderer::ComputeSize(const nsSize& aDefault)
     case eStyleImageType_Gradient:
       mSize = aDefault;
       break;
+#ifdef MOZ_SVG
+    case eStyleImageType_Element:
+    {
+      if (mPaintServerFrame) {
+        if (mPaintServerFrame->IsFrameOfType(nsIFrame::eSVG)) {
+          mSize = aDefault;
+        } else {
+          // The intrinsic image size for a generic nsIFrame paint server is
+          // the frame's bbox size rounded to device pixels.
+          PRInt32 appUnitsPerDevPixel =
+            mForFrame->PresContext()->AppUnitsPerDevPixel();
+          nsRect rect =
+            nsSVGIntegrationUtils::GetNonSVGUserSpace(mPaintServerFrame);
+          nsRect size = rect - rect.TopLeft();
+          nsIntRect rounded = size.ToNearestPixels(appUnitsPerDevPixel);
+          mSize = rounded.ToAppUnits(appUnitsPerDevPixel).Size();
+        }
+      } else {
+        NS_ASSERTION(mImageElementSurface.mSurface, "Surface should be ready.");
+        gfxIntSize size = mImageElementSurface.mSize;
+        mSize.width = nsPresContext::CSSPixelsToAppUnits(size.width);
+        mSize.height = nsPresContext::CSSPixelsToAppUnits(size.height);
+      }
+      break;
+    }
+#endif
     case eStyleImageType_Null:
     default:
       mSize.SizeTo(0, 0);
@@ -3703,8 +3781,12 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
     return;
   }
 
-  if (aDest.IsEmpty() || aFill.IsEmpty())
+  if (aDest.IsEmpty() || aFill.IsEmpty() ||
+      mSize.width <= 0 || mSize.height <= 0)
     return;
+
+  gfxPattern::GraphicsFilter graphicsFilter =
+    nsLayoutUtils::GetGraphicsFilterForFrame(mForFrame);
 
   switch (mType) {
     case eStyleImageType_Image:
@@ -3713,7 +3795,7 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
                              ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
                              : (PRUint32) imgIContainer::FLAG_NONE;
       nsLayoutUtils::DrawImage(&aRenderingContext, mImageContainer,
-          nsLayoutUtils::GetGraphicsFilterForFrame(mForFrame),
+          graphicsFilter,
           aDest, aFill, aAnchor, aDirty, drawFlags);
       break;
     }
@@ -3721,6 +3803,23 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
       nsCSSRendering::PaintGradient(aPresContext, aRenderingContext,
           mGradientData, aDirty, aDest, aFill);
       break;
+#ifdef MOZ_SVG
+    case eStyleImageType_Element:
+      if (mPaintServerFrame) {
+        nsSVGIntegrationUtils::DrawPaintServer(
+            &aRenderingContext, mForFrame, mPaintServerFrame, graphicsFilter,
+            aDest, aFill, aAnchor, aDirty, mSize);
+      } else {
+        NS_ASSERTION(mImageElementSurface.mSurface, "Surface should be ready.");
+        nsRefPtr<gfxDrawable> surfaceDrawable =
+          new gfxSurfaceDrawable(mImageElementSurface.mSurface,
+                                 mImageElementSurface.mSize);
+        nsLayoutUtils::DrawPixelSnapped(
+            &aRenderingContext, surfaceDrawable, graphicsFilter,
+            aDest, aFill, aAnchor, aDirty);
+      }
+      break;
+#endif
     case eStyleImageType_Null:
     default:
       break;

@@ -97,6 +97,7 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 #endif /* MOZ_LOGGING */
 
 class QEvent;
+class QGraphicsView;
 
 class MozQWidget;
 
@@ -167,9 +168,6 @@ public:
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         Update();
-    void               Scroll(const nsIntPoint&,
-                              const nsTArray<nsIntRect>&,
-                              const nsTArray<nsIWidget::Configuration>&);
 
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
@@ -191,6 +189,7 @@ public:
 
     NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
     NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
+    NS_IMETHOD         SetAcceleratedRendering(PRBool aEnabled);
 
     //
     // utility methods
@@ -203,6 +202,8 @@ public:
 
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
+    void DispatchActivateEventOnTopLevelWindow(void);
+    void DispatchDeactivateEventOnTopLevelWindow(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
 
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent) {
@@ -303,10 +304,10 @@ protected:
 
     void               ThemeChanged(void);
 
+    virtual LayerManager* GetLayerManager();
     gfxASurface*       GetThebesSurface();
 
 private:
-    void               GetToplevelWidget(MozQWidget **aWidget);
     void*              SetupPluginPort(void);
     nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);
@@ -315,6 +316,7 @@ private:
     MozQWidget*        createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData);
 
     QWidget*           GetViewWidget();
+    PRBool             IsAcceleratedQView(QGraphicsView* aView);
 
     MozQWidget*        mWidget;
 

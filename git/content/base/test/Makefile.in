@@ -210,6 +210,8 @@ _TEST_FILES1 = 	test_bug5141.html \
 		file_XHR_pass3.txt^headers^ \
 		file_XHR_fail1.txt \
 		file_XHR_fail1.txt^headers^ \
+		file_XHR_binary1.bin \
+		file_XHR_binary1.bin^headers^ \
 		test_bug428847.html \
 		file_bug428847-1.xhtml \
 		file_bug428847-2.xhtml \
@@ -393,6 +395,19 @@ _TEST_FILES2 = \
 		file_bug548193.sjs \
 		test_html_colors_quirks.html \
 		test_html_colors_standards.html \
+		test_bug571390.xul \
+		test_bug300992.html \
+		test_websocket_hello.html \
+		file_websocket_hello_wsh.py \
+		test_ws_basic_tests.html \
+		file_ws_basic_tests_wsh.py \
+		test_websocket.html \
+		file_websocket_wsh.py \
+		file_websocket_http_resource.txt \
+		test_bug574596.html \
+		test_x-frame-options.html \
+		file_x-frame-options_main.html \
+		file_x-frame-options_page.sjs \
 		$(NULL)
 
 # This test fails on the Mac for some reason

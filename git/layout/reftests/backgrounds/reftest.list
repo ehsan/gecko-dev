@@ -26,6 +26,8 @@
 == continuous-inline-5b.html continuous-inline-5-ref.html
 == background-redraw-237766.html background-redraw-237766-ref.html
 
+== background-clip-1.html background-clip-1-ref.html
+
 == background-size-auto-auto.html background-size-auto-ref.html
 == background-size-auto.html background-size-auto-ref.html
 == background-size-contain.html background-size-contain-ref.html
@@ -96,7 +98,7 @@
 # the image aren't the issue, because they're being obscured to avoid sampling
 # algorithm dependencies (at least assuming the sampling algorithm in use
 # doesn't sample too far astray from the boundaries).
-fails-if(MOZ_WIDGET_TOOLKIT!="gtk2") == background-size-zoom-repeat.html background-size-zoom-repeat-ref.html
+fails-if(!gtk2Widget) == background-size-zoom-repeat.html background-size-zoom-repeat-ref.html
 
 # background-size affects images without intrinsic dimensions specially; we may
 # not support such image formats right now, but when we do, we want

@@ -49,8 +49,18 @@ ContainerLayerOGL::ContainerLayerOGL(LayerManagerOGL *aManager)
 
 ContainerLayerOGL::~ContainerLayerOGL()
 {
-  while (mFirstChild) {
-    RemoveChild(mFirstChild);
+  Destroy();
+}
+
+void
+ContainerLayerOGL::Destroy()
+{
+  if (!mDestroyed) {
+    while (mFirstChild) {
+      GetFirstChildOGL()->Destroy();
+      RemoveChild(mFirstChild);
+    }
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -117,12 +127,6 @@ ContainerLayerOGL::RemoveChild(Layer *aChild)
     }
     lastChild = child;
   }
-}
-
-LayerOGL::LayerType
-ContainerLayerOGL::GetType()
-{
-  return TYPE_CONTAINER;
 }
 
 Layer*

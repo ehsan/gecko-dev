@@ -71,6 +71,7 @@
 class nsIFrame;
 class imgIRequest;
 class imgIContainer;
+struct nsCSSValueList;
 
 // Includes nsStyleStructID.
 #include "nsStyleStructFwd.h"
@@ -185,13 +186,16 @@ private:
 enum nsStyleImageType {
   eStyleImageType_Null,
   eStyleImageType_Image,
-  eStyleImageType_Gradient
+  eStyleImageType_Gradient,
+  eStyleImageType_Element
 };
 
 /**
  * Represents a paintable image of one of the following types.
  * (1) A real image loaded from an external source.
  * (2) A CSS linear or radial gradient.
+ * (3) An element within a document, or an <img>, <video>, or <canvas> element
+ *     not in a document.
  * (*) Optionally a crop rect can be set to paint a partial (rectangular)
  * region of an image. (Currently, this feature is only supported with an
  * image of type (1)).
@@ -209,6 +213,7 @@ struct nsStyleImage {
   void SetNull();
   void SetImageData(imgIRequest* aImage);
   void SetGradientData(nsStyleGradient* aGradient);
+  void SetElementId(const PRUnichar* aElementId);
   void SetCropRect(nsStyleSides* aCropRect);
 
   nsStyleImageType GetType() const {
@@ -221,6 +226,10 @@ struct nsStyleImage {
   nsStyleGradient* GetGradientData() const {
     NS_ASSERTION(mType == eStyleImageType_Gradient, "Data is not a gradient!");
     return mGradient;
+  }
+  const PRUnichar* GetElementId() const {
+    NS_ASSERTION(mType == eStyleImageType_Element, "Data is not an element!");
+    return mElementId;
   }
   nsStyleSides* GetCropRect() const {
     NS_ASSERTION(mType == eStyleImageType_Image,
@@ -251,7 +260,8 @@ struct nsStyleImage {
   PRBool IsOpaque() const;
   /**
    * @return PR_TRUE if this image is fully loaded, and its size is calculated;
-   * always returns PR_TRUE if |mType| is |eStyleImageType_Gradient|.
+   * always returns PR_TRUE if |mType| is |eStyleImageType_Gradient| or
+   * |eStyleImageType_Element|.
    */
   PRBool IsComplete() const;
   /**
@@ -281,6 +291,7 @@ private:
   union {
     imgIRequest* mImage;
     nsStyleGradient* mGradient;
+    PRUnichar* mElementId;
   };
   // This is _currently_ used only in conjunction with eStyleImageType_Image.
   nsAutoPtr<nsStyleSides> mCropRect;
@@ -398,11 +409,15 @@ struct nsStyleBackground {
     // frame size when their dimensions are 'auto', images don't; both
     // types depend on the frame size when their dimensions are
     // 'contain', 'cover', or a percentage.
+    // -moz-element also depends on the frame size when the dimensions
+    // are 'auto' since it could be an SVG gradient or pattern which
+    // behaves exactly like a CSS gradient.
     PRBool DependsOnFrameSize(nsStyleImageType aType) const {
       if (aType == eStyleImageType_Image) {
         return mWidthType <= ePercentage || mHeightType <= ePercentage;
       } else {
-        NS_ABORT_IF_FALSE(aType == eStyleImageType_Gradient,
+        NS_ABORT_IF_FALSE(aType == eStyleImageType_Gradient ||
+                          aType == eStyleImageType_Element,
                           "unrecognized image type");
         return mWidthType <= eAuto || mHeightType <= eAuto;
       }
@@ -1051,14 +1066,35 @@ struct nsStylePosition {
   static PRBool ForceCompare() { return PR_TRUE; }
 
   nsStyleSides  mOffset;                // [reset] coord, percent, auto
-  nsStyleCoord  mWidth;                 // [reset] coord, percent, auto, enum
+  nsStyleCoord  mWidth;                 // [reset] coord, percent, enum, auto
   nsStyleCoord  mMinWidth;              // [reset] coord, percent, enum
-  nsStyleCoord  mMaxWidth;              // [reset] coord, percent, null, enum
+  nsStyleCoord  mMaxWidth;              // [reset] coord, percent, enum, none
   nsStyleCoord  mHeight;                // [reset] coord, percent, auto
   nsStyleCoord  mMinHeight;             // [reset] coord, percent
-  nsStyleCoord  mMaxHeight;             // [reset] coord, percent, null
+  nsStyleCoord  mMaxHeight;             // [reset] coord, percent, none
   PRUint8       mBoxSizing;             // [reset] see nsStyleConsts.h
   nsStyleCoord  mZIndex;                // [reset] integer, auto
+
+  PRBool WidthDependsOnContainer() const
+    { return WidthCoordDependsOnContainer(mWidth); }
+  PRBool MinWidthDependsOnContainer() const
+    { return WidthCoordDependsOnContainer(mMinWidth); }
+  PRBool MaxWidthDependsOnContainer() const
+    { return WidthCoordDependsOnContainer(mMaxWidth); }
+  PRBool HeightDependsOnContainer() const
+    { return HeightCoordDependsOnContainer(mHeight); }
+  PRBool MinHeightDependsOnContainer() const
+    { return HeightCoordDependsOnContainer(mMinHeight); }
+  PRBool MaxHeightDependsOnContainer() const
+    { return HeightCoordDependsOnContainer(mMaxHeight); }
+
+private:
+  static PRBool WidthCoordDependsOnContainer(const nsStyleCoord &aCoord);
+  static PRBool HeightCoordDependsOnContainer(const nsStyleCoord &aCoord)
+  {
+    return aCoord.GetUnit() == eStyleUnit_Auto || // CSS 2.1, 10.6.4, item (5)
+           aCoord.GetUnit() == eStyleUnit_Percent;
+  }
 };
 
 struct nsStyleTextReset {
@@ -1288,9 +1324,15 @@ struct nsStyleDisplay {
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
   PRUint8 mResize;              // [reset] see nsStyleConsts.h
   PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
-  PRPackedBool mTransformPresent;  // [reset] Whether there is a -moz-transform.
+
+  // mSpecifiedTransform is the list of transform functions as
+  // specified, or null to indicate there is no transform.  (inherit or
+  // initial are replaced by an actual list of transform functions, or
+  // null, as appropriate.) (owned by the style rule)
+  const nsCSSValueList *mSpecifiedTransform; // [reset]
   nsStyleTransformMatrix mTransform; // [reset] The stored transform matrix
   nsStyleCoord mTransformOrigin[2]; // [reset] percent, coord.
+
   nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
   // The number of elements in mTransitions that are not from repeating
   // a list due to another property being longer.
@@ -1333,7 +1375,7 @@ struct nsStyleDisplay {
   /* Returns true if we're positioned or there's a transform in effect. */
   PRBool IsPositioned() const {
     return IsAbsolutelyPositioned() ||
-      NS_STYLE_POSITION_RELATIVE == mPosition || mTransformPresent;
+      NS_STYLE_POSITION_RELATIVE == mPosition || HasTransform();
   }
 
   PRBool IsScrollableOverflow() const {
@@ -1353,7 +1395,7 @@ struct nsStyleDisplay {
 
   /* Returns whether the element has the -moz-transform property. */
   PRBool HasTransform() const {
-    return mTransformPresent;
+    return mSpecifiedTransform != nsnull;
   }
 };
 

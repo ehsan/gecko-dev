@@ -1,3 +1,7 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99:
+ */
+
 #include "tests.h"
 #include "jsfun.h"  // for js::IsInternalFunctionObject
 
@@ -27,3 +31,44 @@ BEGIN_TEST(testLookup_bug522590)
     return true;
 }
 END_TEST(testLookup_bug522590)
+
+JSBool
+document_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **objp)
+{
+    // If id is "all", and we're not detecting, resolve document.all=true.
+    jsvalRoot v(cx);
+    if (!JS_IdToValue(cx, id, v.addr()))
+        return false;
+    if (JSVAL_IS_STRING(v.value())) {
+        JSString *str = JSVAL_TO_STRING(v.value());
+        const char *p = JS_GetStringBytes(str);
+        if (strcmp(p, "all") == 0 && !(flags & JSRESOLVE_DETECTING)) {
+            JSBool ok = JS_DefinePropertyById(cx, obj, id, JSVAL_TRUE, NULL, NULL, 0);
+            *objp = ok ? obj : NULL;
+            return ok;
+        }
+    }
+    *objp = NULL;
+    return true;
+}
+
+static JSClass document_class = {
+    "document", JSCLASS_NEW_RESOLVE,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+    JS_EnumerateStub, (JSResolveOp) document_resolve, JS_ConvertStub, JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
+BEGIN_TEST(testLookup_bug570195)
+{
+    JSObject *obj = JS_NewObject(cx, &document_class, NULL, NULL);
+    CHECK(obj);
+    CHECK(JS_DefineProperty(cx, global, "document", OBJECT_TO_JSVAL(obj), NULL, NULL, 0));
+    jsvalRoot v(cx);
+    EVAL("document.all ? true : false", v.addr());
+    CHECK_SAME(v.value(), JSVAL_FALSE);
+    EVAL("document.hasOwnProperty('all')", v.addr());
+    CHECK_SAME(v.value(), JSVAL_FALSE);
+    return true;
+}
+END_TEST(testLookup_bug570195)

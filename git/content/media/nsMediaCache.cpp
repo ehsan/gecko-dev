@@ -641,7 +641,7 @@ static PRInt32 GetMaxBlocks()
   // We look up the cache size every time. This means dynamic changes
   // to the pref are applied.
   // Cache size is in KB
-  PRInt32 cacheSize = nsContentUtils::GetIntPref("media.cache_size", 50*1024);
+  PRInt32 cacheSize = nsContentUtils::GetIntPref("media.cache_size", 500*1024);
   PRInt64 maxBlocks = PRInt64(cacheSize)*1024/nsMediaCache::BLOCK_SIZE;
   maxBlocks = PR_MAX(maxBlocks, 1);
   return PRInt32(PR_MIN(maxBlocks, PR_INT32_MAX));
@@ -1075,6 +1075,11 @@ nsMediaCache::Update()
               blockIndex));
           FreeBlock(blockIndex);
         }
+      } else {
+        LOG(PR_LOG_DEBUG, ("Could not trim cache block %d (destination %d, predicted next use %f, latest predicted use for overflow %f",
+                           blockIndex, destinationBlockIndex,
+                           PredictNextUse(now, destinationBlockIndex).ToSeconds(),
+                           latestPredictedUseForOverflow.ToSeconds()));
       }
     }
     // Try chopping back the array of cache entries and the cache file.
@@ -1199,11 +1204,13 @@ nsMediaCache::Update()
         for (PRUint32 j = 0; j < i; ++j) {
           nsMediaCacheStream* other = mStreams[j];
           if (other->mResourceID == stream->mResourceID &&
-              !other->mCacheSuspended &&
+              !other->mClient->IsSuspended() &&
               other->mChannelOffset/BLOCK_SIZE == desiredOffset/BLOCK_SIZE) {
             // This block is already going to be read by the other stream.
             // So don't try to read it from this stream as well.
             enableReading = PR_FALSE;
+            LOG(PR_LOG_DEBUG, ("Stream %p waiting on same block (%lld) from stream %p",
+                               stream, desiredOffset/BLOCK_SIZE, other));
             break;
           }
         }
@@ -1446,6 +1453,9 @@ nsMediaCache::OpenStream(nsMediaCacheStream* aStream)
   LOG(PR_LOG_DEBUG, ("Stream %p opened", aStream));
   mStreams.AppendElement(aStream);
   aStream->mResourceID = mNextResourceID++;
+
+  // Queue an update since a new stream has been opened.
+  gMediaCache->QueueUpdate();
 }
 
 void
@@ -1744,11 +1754,13 @@ nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
 nsMediaCacheStream::~nsMediaCacheStream()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  NS_ASSERTION(mClosed, "Stream was not closed");
   NS_ASSERTION(!mPinCount, "Unbalanced Pin");
 
-  gMediaCache->ReleaseStream(this);
-  nsMediaCache::MaybeShutdown();
+  if (gMediaCache) {
+    NS_ASSERTION(mClosed, "Stream was not closed");
+    gMediaCache->ReleaseStream(this);
+    nsMediaCache::MaybeShutdown();
+  }
 }
 
 void

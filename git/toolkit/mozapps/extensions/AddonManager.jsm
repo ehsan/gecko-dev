@@ -47,10 +47,11 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 var EXPORTED_SYMBOLS = [ "AddonManager", "AddonManagerPrivate" ];
 
+const CATEGORY_PROVIDER_MODULE = "addon-provider-module";
+
 // A list of providers to load by default
-const PROVIDERS = [
+const DEFAULT_PROVIDERS = [
   "resource://gre/modules/XPIProvider.jsm",
-  "resource://gre/modules/PluginProvider.jsm",
   "resource://gre/modules/LightweightThemeManager.jsm"
 ];
 
@@ -191,29 +192,36 @@ var AddonManagerInternal = {
     }
 
     // Ensure all default providers have had a chance to register themselves
-    PROVIDERS.forEach(function(url) {
+    DEFAULT_PROVIDERS.forEach(function(url) {
       try {
         Components.utils.import(url, {});
       }
       catch (e) {
-        ERROR("Exception loading provider \"" + url + "\": " + e);
+        ERROR("Exception loading default provider \"" + url + "\": " + e);
       }
     });
 
-    let needsRestart = false;
+    // Load any providers registered in the category manager
+    let catman = Cc["@mozilla.org/categorymanager;1"].
+                 getService(Ci.nsICategoryManager);
+    let entries = catman.enumerateCategory(CATEGORY_PROVIDER_MODULE);
+    while (entries.hasMoreElements()) {
+      let entry = entries.getNext().QueryInterface(Ci.nsISupportsCString).data;
+      let url = catman.getCategoryEntry(CATEGORY_PROVIDER_MODULE, entry);
+
+      try {
+        Components.utils.import(url, {});
+      }
+      catch (e) {
+        ERROR("Exception loading provider " + entry + " from category \"" +
+              url + "\": " + e);
+      }
+    }
+
     this.providers.forEach(function(provider) {
-      callProvider(provider, "startup");
-      if (callProvider(provider, "checkForChanges", false, appChanged))
-        needsRestart = true;
+      callProvider(provider, "startup", null, appChanged);
     });
     this.started = true;
-
-    // Flag to the platform that a restart is necessary
-    if (needsRestart) {
-      let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].
-                       getService(Ci.nsIAppStartup2);
-      appStartup.needsRestart = needsRestart;
-    }
   },
 
   /**
@@ -228,6 +236,22 @@ var AddonManagerInternal = {
     // If we're registering after startup call this provider's startup.
     if (this.started)
       callProvider(aProvider, "startup");
+  },
+
+  /**
+   * Unregisters an AddonProvider.
+   *
+   * @param  aProvider
+   *         The provider to unregister
+   */
+  unregisterProvider: function AMI_unregisterProvider(aProvider) {
+    this.providers = this.providers.filter(function(p) {
+      return p != aProvider;
+    });
+
+    // If we're unregistering after startup call this provider's shutdown.
+    if (this.started)
+      callProvider(aProvider, "shutdown");
   },
 
   /**
@@ -750,6 +774,10 @@ var AddonManagerPrivate = {
     AddonManagerInternal.registerProvider(aProvider);
   },
 
+  unregisterProvider: function AMP_unregisterProvider(aProvider) {
+    AddonManagerInternal.unregisterProvider(aProvider);
+  },
+
   shutdown: function AMP_shutdown() {
     AddonManagerInternal.shutdown();
   },
@@ -809,6 +837,22 @@ var AddonManager = {
   ERROR_INCORRECT_HASH: -2,
   // The downloaded file seems to be corrupted in some way.
   ERROR_CORRUPT_FILE: -3,
+  // An error occured trying to write to the filesystem.
+  ERROR_FILE_ACCESS: -4,
+
+  // These must be kept in sync with AddonUpdateChecker.
+  // No error was encountered.
+  UPDATE_STATUS_NO_ERROR: 0,
+  // The update check timed out
+  UPDATE_STATUS_TIMEOUT: -1,
+  // There was an error while downloading the update information.
+  UPDATE_STATUS_DOWNLOAD_ERROR: -2,
+  // The update information was malformed in some way.
+  UPDATE_STATUS_PARSE_ERROR: -3,
+  // The update information was not in any known format.
+  UPDATE_STATUS_UNKNOWN_FORMAT: -4,
+  // The update information was not correctly signed or there was an SSL error.
+  UPDATE_STATUS_SECURITY_ERROR: -5,
 
   // Constants to indicate why an update check is being performed
   // Update check has been requested by the user.
@@ -835,6 +879,18 @@ var AddonManager = {
   // Indicates that the Addon will be installed after the application restarts.
   PENDING_INSTALL: 8,
   PENDING_UPGRADE: 16,
+
+  // Constants for operations in Addon.operationsRequiringRestart
+  // Indicates that restart isn't required for any operation.
+  OP_NEEDS_RESTART_NONE: 0,
+  // Indicates that restart is required for enabling the addon.
+  OP_NEEDS_RESTART_ENABLE: 1,
+  // Indicates that restart is required for disabling the addon.
+  OP_NEEDS_RESTART_DISABLE: 2,
+  // Indicates that restart is required for uninstalling the addon.
+  OP_NEEDS_RESTART_UNINSTALL: 4,
+  // Indicates that restart is required for installing the addon.
+  OP_NEEDS_RESTART_INSTALL: 8,
 
   // Constants for permissions in Addon.permissions.
   // Indicates that the Addon can be uninstalled.

@@ -41,12 +41,6 @@
 namespace mozilla {
 namespace layers {
 
-LayerD3D9::LayerType
-ColorLayerD3D9::GetType()
-{
-  return TYPE_COLOR;
-}
-
 Layer*
 ColorLayerD3D9::GetLayer()
 {
@@ -82,7 +76,7 @@ ColorLayerD3D9::RenderLayer()
 
   device()->SetPixelShaderConstantF(0, color, 1);
 
-  mD3DManager->SetShaderMode(LayerManagerD3D9::SOLIDCOLORLAYER);
+  mD3DManager->SetShaderMode(DeviceManagerD3D9::SOLIDCOLORLAYER);
 
   device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
 }

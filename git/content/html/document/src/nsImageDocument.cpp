@@ -133,6 +133,7 @@ public:
 
   void DefaultCheckOverflowing() { CheckOverflowing(mResizeImageByDefault); }
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual nsresult CreateSyntheticDocument();
 
@@ -302,7 +303,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 
-DOMCI_DATA(ImageDocument, nsImageDocument)
+DOMCI_NODE_DATA(ImageDocument, nsImageDocument)
 
 NS_INTERFACE_TABLE_HEAD(nsImageDocument)
   NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(nsImageDocument)
@@ -511,7 +512,7 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
     FlushPendingNotifications(Flush_Layout);
   }
 
-  nsIPresShell *shell = GetPrimaryShell();
+  nsIPresShell *shell = GetShell();
   if (!shell)
     return NS_OK;
 
@@ -657,7 +658,7 @@ nsImageDocument::CreateSyntheticDocument()
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  mImageContent = NS_NewHTMLImageElement(nodeInfo);
+  mImageContent = NS_NewHTMLImageElement(nodeInfo.forget());
   if (!mImageContent) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -687,7 +688,7 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
    * presentatation through style resolution is potentially dangerous.
    */
   {
-    nsIPresShell *shell = GetPrimaryShell();
+    nsIPresShell *shell = GetShell();
     if (!shell) {
       return NS_OK;
     }

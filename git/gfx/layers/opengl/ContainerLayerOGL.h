@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -58,9 +58,9 @@ public:
   void RemoveChild(Layer* aChild);
 
   /** LayerOGL implementation */
-  LayerType GetType();
-
   Layer* GetLayer();
+
+  void Destroy();
 
   LayerOGL* GetFirstChildOGL();
 
@@ -68,8 +68,6 @@ public:
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
-private:
-  GLuint mTexture;
 };
 
 } /* layers */

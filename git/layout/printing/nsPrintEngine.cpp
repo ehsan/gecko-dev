@@ -1898,6 +1898,9 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
       return NS_OK;
     }
 
+    //XXX If printing supported printing document hierarchies with non-constant
+    // zoom this would be wrong as we use the same mPrt->mPrintDC for all
+    // subdocuments.
     adjSize = frame->GetContentRect().Size();
     documentIsTopLevel = PR_FALSE;
     // presshell exists because parent is printable
@@ -2241,8 +2244,8 @@ static nsresult CloneRangeToSelection(nsIDOMRange* aRange,
 
 static nsresult CloneSelection(nsIDocument* aOrigDoc, nsIDocument* aDoc)
 {
-  nsIPresShell* origShell = aOrigDoc->GetPrimaryShell();
-  nsIPresShell* shell = aDoc->GetPrimaryShell();
+  nsIPresShell* origShell = aOrigDoc->GetShell();
+  nsIPresShell* shell = aDoc->GetShell();
   NS_ENSURE_STATE(origShell && shell);
 
   nsCOMPtr<nsISelection> origSelection =

@@ -79,22 +79,22 @@ NS_IMETHODIMP
 StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
                              JSContext *aCtx,
                              JSObject *aScopeObj,
-                             jsval aId,
+                             jsid aId,
                              jsval *_vp,
                              PRBool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
 
-  if (JSVAL_IS_INT(aId)) {
-    int idx = JSVAL_TO_INT(aId);
+  if (JSID_IS_INT(aId)) {
+    int idx = JSID_TO_INT(aId);
 
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
     NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
     nsresult rv = mStatement->BindByIndex(idx, variant);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  else if (JSVAL_IS_STRING(aId)) {
-    JSString *str = JSVAL_TO_STRING(aId);
+  else if (JSID_IS_STRING(aId)) {
+    JSString *str = JSID_TO_STRING(aId);
     NS_ConvertUTF16toUTF8 name(reinterpret_cast<const PRUnichar *>
                                    (::JS_GetStringChars(str)),
                                ::JS_GetStringLength(str));
@@ -126,13 +126,14 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
 
   switch (aEnumOp) {
     case JSENUMERATE_INIT:
+    case JSENUMERATE_INIT_ALL:
     {
       // Start our internal index at zero.
       *_statep = JSVAL_ZERO;
 
       // And set our length, if needed.
       if (_idp)
-        *_idp = INT_TO_JSVAL(mParamCount);
+        *_idp = INT_TO_JSID(mParamCount);
 
       break;
     }
@@ -184,7 +185,7 @@ NS_IMETHODIMP
 StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
                             JSContext *aCtx,
                             JSObject *aScopeObj,
-                            jsval aId,
+                            jsid aId,
                             PRUint32 aFlags,
                             JSObject **_objp,
                             PRBool *_retval)
@@ -196,8 +197,8 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
 
   bool resolved = false;
   PRBool ok = PR_TRUE;
-  if (JSVAL_IS_INT(aId)) {
-    PRUint32 idx = JSVAL_TO_INT(aId);
+  if (JSID_IS_INT(aId)) {
+    PRUint32 idx = JSID_TO_INT(aId);
 
     // Ensure that our index is within range.  We do not care about the
     // prototype chain being checked here.
@@ -205,11 +206,11 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
       return NS_ERROR_INVALID_ARG;
 
     ok = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nsnull,
-                            nsnull, 0);
+                            nsnull, JSPROP_ENUMERATE);
     resolved = true;
   }
-  else if (JSVAL_IS_STRING(aId)) {
-    JSString *str = JSVAL_TO_STRING(aId);
+  else if (JSID_IS_STRING(aId)) {
+    JSString *str = JSID_TO_STRING(aId);
     jschar *nameChars = ::JS_GetStringChars(str);
     size_t nameLength = ::JS_GetStringLength(str);
 
@@ -221,7 +222,7 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
     nsresult rv = mStatement->GetParameterIndex(name, &idx);
     if (NS_SUCCEEDED(rv)) {
       ok = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
-                                 JSVAL_VOID, nsnull, nsnull, 0);
+                                 JSVAL_VOID, nsnull, nsnull, JSPROP_ENUMERATE);
       resolved = true;
     }
   }

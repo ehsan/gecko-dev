@@ -71,6 +71,7 @@
 #include "nsContentErrors.h"
 #include "nsRuleProcessorData.h"
 #include "mozilla/dom/Element.h"
+#include "nsCSSFrameConstructor.h"
 
 using namespace mozilla::dom;
 
@@ -209,7 +210,7 @@ static nsresult GetBodyColor(nsPresContext* aPresContext, nscolor* aColor)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
   nsRuleWalker *ruleWalker = aData->mRuleWalker;
@@ -265,8 +266,6 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 
     // just get the style rules from the content
   aData->mElement->WalkContentStyleRules(ruleWalker);
-
-  return NS_OK;
 }
 
 // Test if style is dependent on content state
@@ -323,32 +322,27 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
-                                        PRBool* aRulesChanged)
+/* virtual */ PRBool
+nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 {
-  *aRulesChanged = PR_FALSE;
-  return NS_OK;
+  return PR_FALSE;
 }
 
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
-  return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
-  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
-  return NS_OK;
 }
 #endif
 
@@ -455,52 +449,46 @@ nsHTMLStyleSheet::Reset(nsIURI* aURL)
 }
 
 nsresult
-nsHTMLStyleSheet::SetLinkColor(nscolor aColor)
+nsHTMLStyleSheet::ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aColor)
 {
-  if (mLinkRule) {
-    if (mLinkRule->mColor == aColor)
-      return NS_OK;
+  if (aRule && aRule->mColor == aColor) {
+    return NS_OK;
   }
 
-  mLinkRule = new HTMLColorRule();
-  if (!mLinkRule)
+  aRule = new HTMLColorRule();
+  if (!aRule)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mLinkRule->mColor = aColor;
+  aRule->mColor = aColor;
+  // Now make sure we restyle any links that might need it.  This
+  // shouldn't happen often, so just rebuilding everything is ok.
+  if (mDocument && mDocument->GetShell()) {
+    Element* root = mDocument->GetRootElement();
+    if (root) {
+      mDocument->GetShell()->FrameConstructor()->
+        PostRestyleEvent(root, eRestyle_Subtree, NS_STYLE_HINT_NONE);
+    }
+  }
   return NS_OK;
+}
+
+nsresult
+nsHTMLStyleSheet::SetLinkColor(nscolor aColor)
+{
+  return ImplLinkColorSetter(mLinkRule, aColor);
 }
 
 
 nsresult
 nsHTMLStyleSheet::SetActiveLinkColor(nscolor aColor)
 {
-  if (mActiveRule) {
-    if (mActiveRule->mColor == aColor)
-      return NS_OK;
-  }
-
-  mActiveRule = new HTMLColorRule();
-  if (!mActiveRule)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  mActiveRule->mColor = aColor;
-  return NS_OK;
+  return ImplLinkColorSetter(mActiveRule, aColor);
 }
 
 nsresult
 nsHTMLStyleSheet::SetVisitedLinkColor(nscolor aColor)
 {
-  if (mVisitedRule) {
-    if (mVisitedRule->mColor == aColor)
-      return NS_OK;
-  }
-
-  mVisitedRule = new HTMLColorRule();
-  if (!mVisitedRule)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  mVisitedRule->mColor = aColor;
-  return NS_OK;
+  return ImplLinkColorSetter(mVisitedRule, aColor);
 }
 
 already_AddRefed<nsMappedAttributes>

@@ -60,6 +60,11 @@
 #include "nsIMutationObserver.h"
 #include "nsIFormProcessor.h"
 #include "nsIServiceManager.h"
+#include "nsEscape.h"
+
+#ifdef MOZ_SVG
+#include "nsHtml5SVGLoadDispatcher.h"
+#endif
 
 static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
@@ -107,7 +112,8 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
     case eTreeOpAddAttributes:
       delete mTwo.attributes;
       break;
-    case eTreeOpCreateElement:
+    case eTreeOpCreateElementNetwork:
+    case eTreeOpCreateElementNotNetwork:
       delete mThree.attributes;
       break;
     case eTreeOpAppendDoctypeToDocument:
@@ -132,7 +138,7 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
 }
 
 nsresult
-nsHtml5TreeOperation::AppendTextToTextNode(PRUnichar* aBuffer,
+nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
                                            PRInt32 aLength,
                                            nsIContent* aTextNode,
                                            nsHtml5TreeOpExecutor* aBuilder)
@@ -164,7 +170,7 @@ nsHtml5TreeOperation::AppendTextToTextNode(PRUnichar* aBuffer,
 
 
 nsresult
-nsHtml5TreeOperation::AppendText(PRUnichar* aBuffer,
+nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
                                  PRInt32 aLength,
                                  nsIContent* aParent,
                                  nsHtml5TreeOpExecutor* aBuilder)
@@ -362,7 +368,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       
       return rv;
     }
-    case eTreeOpCreateElement: {
+    case eTreeOpCreateElementNetwork:
+    case eTreeOpCreateElementNotNetwork: {
       nsIContent** target = mOne.node;
       PRInt32 ns = mInt;
       nsCOMPtr<nsIAtom> name = Reget(mTwo.atom);
@@ -376,7 +383,13 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsCOMPtr<nsIContent> newContent;
       nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->GetNodeInfo(name, nsnull, ns);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
-      NS_NewElement(getter_AddRefs(newContent), nodeInfo->NamespaceID(), nodeInfo, PR_TRUE);
+      NS_NewElement(getter_AddRefs(newContent),
+                    ns, nodeInfo.forget(),
+                    (mOpCode == eTreeOpCreateElementNetwork ?
+                     NS_FROM_PARSER_NETWORK
+                     : (aBuilder->IsFragmentMode() ?
+                        NS_FROM_PARSER_FRAGMENT :
+                        NS_FROM_PARSER_DOCUMENT_WRITE)));
       NS_ASSERTION(newContent, "Element creation created null pointer.");
 
       aBuilder->HoldElement(*target = newContent);      
@@ -413,9 +426,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                                       
         for (PRUint32 i = 0; i < theContent.Length(); ++i) {
           nsCOMPtr<nsIContent> optionElt;
+          nsCOMPtr<nsINodeInfo> ni = optionNodeInfo;
           NS_NewElement(getter_AddRefs(optionElt), 
                         optionNodeInfo->NamespaceID(), 
-                        optionNodeInfo, 
+                        ni.forget(),
                         PR_TRUE);
           nsCOMPtr<nsIContent> optionText;
           NS_NewTextNode(getter_AddRefs(optionText), 
@@ -445,8 +459,19 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
-        newContent->SetAttr(attributes->getURI(i), localName, attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
-        // XXX what to do with nsresult?
+        if (ns == kNameSpaceID_XHTML &&
+            nsHtml5Atoms::a == name &&
+            nsHtml5Atoms::name == localName) {
+          // This is an HTML5-incompliant Geckoism.
+          // Remove when fixing bug 582361
+          NS_ConvertUTF16toUTF8 cname(*(attributes->getValue(i)));
+          NS_ConvertUTF8toUTF16 uv(nsUnescape(cname.BeginWriting()));
+          newContent->SetAttr(attributes->getURI(i), localName,
+              attributes->getPrefix(i), uv, PR_FALSE);
+        } else {
+          newContent->SetAttr(attributes->getURI(i), localName,
+              attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
+        }
       }
 
       return rv;
@@ -469,6 +494,22 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       PRUnichar* buffer = mTwo.unicharPtr;
       PRInt32 length = mInt;
       return AppendText(buffer, length, parent, aBuilder);
+    }
+    case eTreeOpAppendIsindexPrompt: {
+      nsIContent* parent = *mOne.node;
+      nsXPIDLString prompt;
+      nsresult rv =
+          nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
+                                             "IsIndexPromptWithSpace", prompt);
+      PRUint32 len = prompt.Length();
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+      if (!len) {
+        // Don't bother appending a zero-length text node.
+        return NS_OK;
+      }
+      return AppendText(prompt.BeginReading(), len, parent, aBuilder);
     }
     case eTreeOpFosterParentText: {
       nsIContent* stackParent = *mOne.node;
@@ -651,6 +692,16 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       sele->FreezeUriAsyncDefer();
       return rv;
     }
+#ifdef MOZ_SVG
+    case eTreeOpSvgLoad: {
+      nsIContent* node = *(mOne.node);
+      nsCOMPtr<nsIRunnable> event = new nsHtml5SVGLoadDispatcher(node);
+      if (NS_FAILED(NS_DispatchToMainThread(event))) {
+        NS_WARNING("failed to dispatch svg load dispatcher");
+      }
+      return rv;
+    }
+#endif
     default: {
       NS_NOTREACHED("Bogus tree op");
     }

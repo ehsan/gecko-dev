@@ -84,7 +84,6 @@
 #include "nsTextFrameTextRunCache.h"
 #include "nsExpirationTracker.h"
 #include "nsTextFrame.h"
-#include "nsICaseConversion.h"
 #include "nsIUGenCategory.h"
 #include "nsUnicharUtilCIID.h"
 
@@ -104,7 +103,6 @@
 
 #include "nsIServiceManager.h"
 #ifdef ACCESSIBILITY
-#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 #include "nsAutoPtr.h"
@@ -140,28 +138,30 @@ static void DestroyTabWidth(void* aPropertyValue)
 
 NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
 
+NS_DECLARE_FRAME_PROPERTY(OffsetToFrameProperty, nsnull)
+
 // The following flags are set during reflow
 
 // This bit is set on the first frame in a continuation indicating
 // that it was chopped short because of :first-letter style.
-#define TEXT_FIRST_LETTER    0x00100000
+#define TEXT_FIRST_LETTER    NS_FRAME_STATE_BIT(20)
 // This bit is set on frames that are logically adjacent to the start of the
 // line (i.e. no prior frame on line with actual displayed in-flow content).
-#define TEXT_START_OF_LINE   0x00200000
+#define TEXT_START_OF_LINE   NS_FRAME_STATE_BIT(21)
 // This bit is set on frames that are logically adjacent to the end of the
 // line (i.e. no following on line with actual displayed in-flow content).
-#define TEXT_END_OF_LINE     0x00400000
+#define TEXT_END_OF_LINE     NS_FRAME_STATE_BIT(22)
 // This bit is set on frames that end with a hyphenated break.
-#define TEXT_HYPHEN_BREAK    0x00800000
+#define TEXT_HYPHEN_BREAK    NS_FRAME_STATE_BIT(23)
 // This bit is set on frames that trimmed trailing whitespace characters when
 // calculating their width during reflow.
-#define TEXT_TRIMMED_TRAILING_WHITESPACE 0x01000000
+#define TEXT_TRIMMED_TRAILING_WHITESPACE NS_FRAME_STATE_BIT(24)
 // This bit is set on frames that have justification enabled. We record
 // this in a state bit because we don't always have the containing block
 // easily available to check text-align on.
-#define TEXT_JUSTIFICATION_ENABLED       0x02000000
+#define TEXT_JUSTIFICATION_ENABLED       NS_FRAME_STATE_BIT(25)
 // Set this bit if the textframe has overflow area for IME/spellcheck underline.
-#define TEXT_SELECTION_UNDERLINE_OVERFLOWED 0x04000000
+#define TEXT_SELECTION_UNDERLINE_OVERFLOWED NS_FRAME_STATE_BIT(26)
 
 #define TEXT_REFLOW_FLAGS    \
   (TEXT_FIRST_LETTER|TEXT_START_OF_LINE|TEXT_END_OF_LINE|TEXT_HYPHEN_BREAK| \
@@ -170,19 +170,23 @@ NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
 
 // Cache bits for IsEmpty().
 // Set this bit if the textframe is known to be only collapsible whitespace.
-#define TEXT_IS_ONLY_WHITESPACE    0x08000000
+#define TEXT_IS_ONLY_WHITESPACE    NS_FRAME_STATE_BIT(27)
 // Set this bit if the textframe is known to be not only collapsible whitespace.
-#define TEXT_ISNOT_ONLY_WHITESPACE 0x10000000
+#define TEXT_ISNOT_ONLY_WHITESPACE NS_FRAME_STATE_BIT(28)
 
-#define TEXT_WHITESPACE_FLAGS      0x18000000
+#define TEXT_WHITESPACE_FLAGS      (TEXT_IS_ONLY_WHITESPACE | \
+                                    TEXT_ISNOT_ONLY_WHITESPACE)
 // This bit is set while the frame is registered as a blinking frame.
-#define TEXT_BLINK_ON              0x20000000
+#define TEXT_BLINK_ON              NS_FRAME_STATE_BIT(29)
 
 // Set when this text frame is mentioned in the userdata for a textrun
-#define TEXT_IN_TEXTRUN_USER_DATA  0x40000000
+#define TEXT_IN_TEXTRUN_USER_DATA  NS_FRAME_STATE_BIT(30)
 
 // nsTextFrame.h has
-// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
+// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
+
+// Whether this frame is cached in the Offset Frame Cache (OffsetToFrameProperty)
+#define TEXT_IN_OFFSET_CACHE       NS_FRAME_STATE_BIT(63)
 
 /*
  * Some general notes
@@ -537,6 +541,7 @@ static PRBool IsCSSWordSpacingSpace(const nsTextFragment* aFrag,
   case ' ':
   case CH_NBSP:
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
+  case '\r':
   case '\t': return !aStyleText->WhiteSpaceIsSignificant();
   case '\n': return !aStyleText->NewlineIsSignificant();
   default: return PR_FALSE;
@@ -552,14 +557,14 @@ static PRBool IsTrimmableSpace(const PRUnichar* aChars, PRUint32 aLength)
   PRUnichar ch = *aChars;
   if (ch == ' ')
     return !nsTextFrameUtils::IsSpaceCombiningSequenceTail(aChars + 1, aLength - 1);
-  return ch == '\t' || ch == '\f' || ch == '\n';
+  return ch == '\t' || ch == '\f' || ch == '\n' || ch == '\r';
 }
 
 // Check whether the character aCh is trimmable according to CSS
 // 'white-space:normal/nowrap'
 static PRBool IsTrimmableSpace(char aCh)
 {
-  return aCh == ' ' || aCh == '\t' || aCh == '\f' || aCh == '\n';
+  return aCh == ' ' || aCh == '\t' || aCh == '\f' || aCh == '\n' || aCh == '\r';
 }
 
 static PRBool IsTrimmableSpace(const nsTextFragment* aFrag, PRUint32 aPos,
@@ -572,6 +577,7 @@ static PRBool IsTrimmableSpace(const nsTextFragment* aFrag, PRUint32 aPos,
                    !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
   case '\n': return !aStyleText->NewlineIsSignificant();
   case '\t':
+  case '\r':
   case '\f': return !aStyleText->WhiteSpaceIsSignificant();
   default: return PR_FALSE;
   }
@@ -583,7 +589,7 @@ static PRBool IsSelectionSpace(const nsTextFragment* aFrag, PRUint32 aPos)
   PRUnichar ch = aFrag->CharAt(aPos);
   if (ch == ' ' || ch == CH_NBSP)
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
-  return ch == '\t' || ch == '\n' || ch == '\f';
+  return ch == '\t' || ch == '\n' || ch == '\f' || ch == '\r';
 }
 
 // Count the amount of trimmable whitespace (as per CSS
@@ -626,7 +632,7 @@ IsAllWhitespace(const nsTextFragment* aFrag, PRBool aAllowNewline)
   const char* str = aFrag->Get1b();
   for (PRInt32 i = 0; i < len; ++i) {
     char ch = str[i];
-    if (ch == ' ' || ch == '\t' || (ch == '\n' && aAllowNewline))
+    if (ch == ' ' || ch == '\t' || ch == '\r' || (ch == '\n' && aAllowNewline))
       continue;
     return PR_FALSE;
   }
@@ -1976,6 +1982,50 @@ BuildTextRunsScanner::AssignTextRun(gfxTextRun* aTextRun)
   }
 }
 
+// Find the flow corresponding to aContent in aUserData
+static inline TextRunMappedFlow*
+FindFlowForContent(TextRunUserData* aUserData, nsIContent* aContent)
+{
+  // Find the flow that contains us
+  PRInt32 i = aUserData->mLastFlowIndex;
+  PRInt32 delta = 1;
+  PRInt32 sign = 1;
+  // Search starting at the current position and examine close-by
+  // positions first, moving further and further away as we go.
+  while (i >= 0 && i < aUserData->mMappedFlowCount) {
+    TextRunMappedFlow* flow = &aUserData->mMappedFlows[i];
+    if (flow->mStartFrame->GetContent() == aContent) {
+      return flow;
+    }
+
+    i += delta;
+    delta = -delta - sign;
+    sign = -sign;
+  }
+
+  // We ran into an array edge.  Add |delta| to |i| once more to get
+  // back to the side where we still need to search, then step in
+  // the |sign| direction.
+  i += delta;
+  if (sign > 0) {
+    for (; i < aUserData->mMappedFlowCount; ++i) {
+      TextRunMappedFlow* flow = &aUserData->mMappedFlows[i];
+      if (flow->mStartFrame->GetContent() == aContent) {
+        return flow;
+      }
+    }
+  } else {
+    for (; i >= 0; --i) {
+      TextRunMappedFlow* flow = &aUserData->mMappedFlows[i];
+      if (flow->mStartFrame->GetContent() == aContent) {
+        return flow;
+      }
+    }
+  }
+
+  return nsnull;
+}
+
 gfxSkipCharsIterator
 nsTextFrame::EnsureTextRun(gfxContext* aReferenceContext, nsIFrame* aLineContainer,
                            const nsLineList::iterator* aLine,
@@ -2009,35 +2059,26 @@ nsTextFrame::EnsureTextRun(gfxContext* aReferenceContext, nsIFrame* aLineContain
   }
 
   TextRunUserData* userData = static_cast<TextRunUserData*>(mTextRun->GetUserData());
-  // Find the flow that contains us
-  PRInt32 direction;
-  PRInt32 startAt = userData->mLastFlowIndex;
-  // Search first forward and then backward from the current position
-  for (direction = 1; direction >= -1; direction -= 2) {
-    PRInt32 i;
-    for (i = startAt; 0 <= i && i < userData->mMappedFlowCount; i += direction) {
-      TextRunMappedFlow* flow = &userData->mMappedFlows[i];
-      if (flow->mStartFrame->GetContent() == mContent) {
-        // Since textruns can only contain one flow for a given content element,
-        // this must be our flow.
-        userData->mLastFlowIndex = i;
-        gfxSkipCharsIterator iter(mTextRun->GetSkipChars(),
-                                  flow->mDOMOffsetToBeforeTransformOffset, mContentOffset);
-        if (aFlowEndInTextRun) {
-          if (i + 1 < userData->mMappedFlowCount) {
-            gfxSkipCharsIterator end(mTextRun->GetSkipChars());
-            *aFlowEndInTextRun = end.ConvertOriginalToSkipped(
-                flow[1].mStartFrame->GetContentOffset() + flow[1].mDOMOffsetToBeforeTransformOffset);
-          } else {
-            *aFlowEndInTextRun = mTextRun->GetLength();
-          }
-        }
-        return iter;
+  TextRunMappedFlow* flow = FindFlowForContent(userData, mContent);
+  if (flow) {
+    // Since textruns can only contain one flow for a given content element,
+    // this must be our flow.
+    PRInt32 flowIndex = flow - userData->mMappedFlows;
+    userData->mLastFlowIndex = flowIndex;
+    gfxSkipCharsIterator iter(mTextRun->GetSkipChars(),
+                              flow->mDOMOffsetToBeforeTransformOffset, mContentOffset);
+    if (aFlowEndInTextRun) {
+      if (flowIndex + 1 < userData->mMappedFlowCount) {
+        gfxSkipCharsIterator end(mTextRun->GetSkipChars());
+        *aFlowEndInTextRun = end.ConvertOriginalToSkipped(
+              flow[1].mStartFrame->GetContentOffset() + flow[1].mDOMOffsetToBeforeTransformOffset);
+      } else {
+        *aFlowEndInTextRun = mTextRun->GetLength();
       }
-      ++flow;
     }
-    startAt = userData->mLastFlowIndex - 1;
+    return iter;
   }
+
   NS_ERROR("Can't find flow containing this frame???");
   static const gfxSkipChars emptySkipChars;
   return gfxSkipCharsIterator(emptySkipChars, 0);
@@ -2107,7 +2148,7 @@ static PRBool IsJustifiableCharacter(const nsTextFragment* aFrag, PRInt32 aPos,
                                      PRBool aLangIsCJ)
 {
   PRUnichar ch = aFrag->CharAt(aPos);
-  if (ch == '\n' || ch == '\t')
+  if (ch == '\n' || ch == '\t' || ch == '\r')
     return PR_TRUE;
   if (ch == ' ' || ch == CH_NBSP) {
     // Don't justify spaces that are combined with diacriticals
@@ -3385,22 +3426,24 @@ nsTextPaintStyle::GetResolvedForeColor(nscolor aColor,
 //-----------------------------------------------------------------------------
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsTextFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsTextFrame::CreateAccessible()
 {
   if (IsEmpty()) {
     nsAutoString renderedWhitespace;
     GetRenderedText(&renderedWhitespace, nsnull, nsnull, 0, 1);
     if (renderedWhitespace.IsEmpty()) {
-      return NS_ERROR_FAILURE;
+      return nsnull;
     }
   }
 
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLTextAccessible(mContent,
+                                                PresContext()->PresShell());
   }
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -3427,8 +3470,27 @@ nsTextFrame::Init(nsIContent*      aContent,
 }
 
 void
+nsTextFrame::ClearFrameOffsetCache()
+{
+  // See if we need to remove ourselves from the offset cache
+  if (GetStateBits() & TEXT_IN_OFFSET_CACHE) {
+    nsIFrame* primaryFrame = mContent->GetPrimaryFrame();
+    if (primaryFrame) {
+      // The primary frame might be null here.  For example, nsLineBox::DeleteLineList
+      // just destroys the frames in order, which means that the primary frame is already
+      // dead if we're a continuing text frame, in which case, all of its properties are
+      // gone, and we don't need to worry about deleting this property here.
+      primaryFrame->Properties().Delete(OffsetToFrameProperty());
+    }
+    RemoveStateBits(TEXT_IN_OFFSET_CACHE);
+  }
+}
+
+void
 nsTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
+  ClearFrameOffsetCache();
+
   // We might want to clear NS_CREATE_FRAME_IF_NON_WHITESPACE or
   // NS_REFRAME_IF_WHITESPACE on mContent here, since our parent frame
   // type might be changing.  Not clear whether it's worth it.
@@ -3558,6 +3620,8 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
 void
 nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
+  ClearFrameOffsetCache();
+
   // The text associated with this frame will become associated with our
   // prev-continuation. If that means the text has changed style, then
   // we need to wipe out the text run for the text.
@@ -3884,7 +3948,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Text")
+  NS_DISPLAY_DECL_NAME("Text", TYPE_TEXT)
 };
 
 void
@@ -5244,9 +5308,29 @@ nsTextFrame::GetChildFrameContainingOffset(PRInt32   aContentOffset,
 
   NS_ASSERTION(aOutOffset && aOutFrame, "Bad out parameters");
   NS_ASSERTION(aContentOffset >= 0, "Negative content offset, existing code was very broken!");
+  nsIFrame* primaryFrame = mContent->GetPrimaryFrame();
+  if (this != primaryFrame) {
+    // This call needs to happen on the primary frame
+    return primaryFrame->GetChildFrameContainingOffset(aContentOffset, aHint,
+                                                       aOutOffset, aOutFrame);
+  }
 
   nsTextFrame* f = this;
-  if (aContentOffset >= mContentOffset) {
+  PRInt32 offset = mContentOffset;
+
+  // Try to look up the offset to frame property
+  nsTextFrame* cachedFrame = static_cast<nsTextFrame*>
+    (Properties().Get(OffsetToFrameProperty()));
+
+  if (cachedFrame) {
+    f = cachedFrame;
+    offset = f->GetContentOffset();
+
+    f->RemoveStateBits(TEXT_IN_OFFSET_CACHE);
+  }
+
+  if ((aContentOffset >= offset) &&
+      (aHint || aContentOffset != offset)) {
     while (PR_TRUE) {
       nsTextFrame* next = static_cast<nsTextFrame*>(f->GetNextContinuation());
       if (!next || aContentOffset < next->GetContentOffset())
@@ -5276,6 +5360,11 @@ nsTextFrame::GetChildFrameContainingOffset(PRInt32   aContentOffset,
   
   *aOutOffset = aContentOffset - f->GetContentOffset();
   *aOutFrame = f;
+
+  // cache the frame we found
+  Properties().Set(OffsetToFrameProperty(), f);
+  f->AddStateBits(TEXT_IN_OFFSET_CACHE);
+
   return NS_OK;
 }
 
@@ -6726,14 +6815,14 @@ static PRUnichar TransformChar(const nsStyleText* aStyle, gfxTextRun* aTextRun,
   }
   switch (aStyle->mTextTransform) {
   case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
-    nsContentUtils::GetCaseConv()->ToLower(aChar, &aChar);
+    aChar = ToLowerCase(aChar);
     break;
   case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
-    nsContentUtils::GetCaseConv()->ToUpper(aChar, &aChar);
+    aChar = ToUpperCase(aChar);
     break;
   case NS_STYLE_TEXT_TRANSFORM_CAPITALIZE:
     if (aTextRun->CanBreakLineBefore(aSkippedOffset)) {
-      nsContentUtils::GetCaseConv()->ToTitle(aChar, &aChar);
+      aChar = ToTitleCase(aChar);
     }
     break;
   }
@@ -6935,9 +7024,9 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
     if (mState & NS_FRAME_SELECTED_CONTENT) {
-      fprintf(out, " [state=%08x] SELECTED", mState);
+      fprintf(out, " [state=%016llx] SELECTED", mState);
     } else {
-      fprintf(out, " [state=%08x]", mState);
+      fprintf(out, " [state=%016llx]", mState);
     }
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));

@@ -68,7 +68,7 @@
 
 // radio buttons
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIRadioControlElement.h"
+#include "nsHTMLInputElement.h"
 #include "nsIRadioVisitor.h"
 
 #include "nsLayoutUtils.h"
@@ -79,6 +79,23 @@
 #include "nsIHTMLCollection.h"
 
 static const int NS_FORM_CONTROL_LIST_HASHTABLE_SIZE = 16;
+
+static const nsAttrValue::EnumTable kFormMethodTable[] = {
+  { "get", NS_FORM_METHOD_GET },
+  { "post", NS_FORM_METHOD_POST },
+  { 0 }
+};
+// Default method is 'get'.
+static const nsAttrValue::EnumTable* kFormDefaultMethod = &kFormMethodTable[0];
+
+static const nsAttrValue::EnumTable kFormEnctypeTable[] = {
+  { "multipart/form-data", NS_FORM_ENCTYPE_MULTIPART },
+  { "application/x-www-form-urlencoded", NS_FORM_ENCTYPE_URLENCODED },
+  { "text/plain", NS_FORM_ENCTYPE_TEXTPLAIN },
+  { 0 }
+};
+// Default method is 'application/x-www-form-urlencoded'.
+static const nsAttrValue::EnumTable* kFormDefaultEnctype = &kFormEnctypeTable[1];
 
 // nsHTMLFormElement
 
@@ -102,20 +119,23 @@ public:
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
   {
     FlushPendingNotifications();
 
     *aResult = NS_OK;
 
-    // XXXbz this should start returning nsINode* or something!
-    return static_cast<nsIFormControl*>(mElements.SafeElementAt(aIndex, nsnull));
+    return mElements.SafeElementAt(aIndex, nsnull);
   }
-  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult)
+  virtual nsISupports* GetNamedItem(const nsAString& aName,
+                                    nsWrapperCache **aCache,
+                                    nsresult* aResult)
   {
     *aResult = NS_OK;
 
-    return NamedItemInternal(aName, PR_TRUE);
+    nsISupports *item = NamedItemInternal(aName, PR_TRUE);
+    *aCache = nsnull;
+    return item;
   }
 
   nsresult AddElementToTable(nsGenericHTMLFormElement* aChild,
@@ -210,7 +230,8 @@ ShouldBeInElements(nsIFormControl* aFormControl)
 
 // construction, destruction
 nsGenericHTMLElement*
-NS_NewHTMLFormElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+NS_NewHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                      PRUint32 aFromParser)
 {
   nsHTMLFormElement* it = new nsHTMLFormElement(aNodeInfo);
   if (!it) {
@@ -227,7 +248,7 @@ NS_NewHTMLFormElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
   return it;
 }
 
-nsHTMLFormElement::nsHTMLFormElement(nsINodeInfo *aNodeInfo)
+nsHTMLFormElement::nsHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mGeneratingSubmit(PR_FALSE),
     mGeneratingReset(PR_FALSE),
@@ -300,7 +321,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFormElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFormElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLFormElement, nsHTMLFormElement)
+DOMCI_NODE_DATA(HTMLFormElement, nsHTMLFormElement)
 
 // QueryInterface implementation for nsHTMLFormElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLFormElement)
@@ -352,8 +373,10 @@ nsHTMLFormElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, AcceptCharset, acceptcharset)
-NS_IMPL_STRING_ATTR(nsHTMLFormElement, Enctype, enctype)
-NS_IMPL_STRING_ATTR(nsHTMLFormElement, Method, method)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLFormElement, Enctype, enctype,
+                                kFormDefaultEnctype->tag)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLFormElement, Method, method,
+                                kFormDefaultMethod->tag)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Target, target)
 
@@ -400,19 +423,6 @@ nsHTMLFormElement::Reset()
                               &event);
   return NS_OK;
 }
-
-static const nsAttrValue::EnumTable kFormMethodTable[] = {
-  { "get", NS_FORM_METHOD_GET },
-  { "post", NS_FORM_METHOD_POST },
-  { 0 }
-};
-
-static const nsAttrValue::EnumTable kFormEnctypeTable[] = {
-  { "multipart/form-data", NS_FORM_ENCTYPE_MULTIPART },
-  { "application/x-www-form-urlencoded", NS_FORM_ENCTYPE_URLENCODED },
-  { "text/plain", NS_FORM_ENCTYPE_TEXTPLAIN },
-  { 0 }
-};
 
 PRBool
 nsHTMLFormElement::ParseAttribute(PRInt32 aNamespaceID,
@@ -1081,10 +1091,9 @@ nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
   //
   PRInt32 type = aChild->GetType();
   if (type == NS_FORM_INPUT_RADIO) {
-    nsCOMPtr<nsIRadioControlElement> radio;
-    CallQueryInterface(aChild, getter_AddRefs(radio));
-    nsresult rv = radio->AddedToRadioGroup();
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsRefPtr<nsHTMLInputElement> radio =
+      static_cast<nsHTMLInputElement*>(aChild);
+    radio->AddedToRadioGroup();
   }
 
   //
@@ -1172,10 +1181,9 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
   //
   nsresult rv = NS_OK;
   if (aChild->GetType() == NS_FORM_INPUT_RADIO) {
-    nsCOMPtr<nsIRadioControlElement> radio;
-    CallQueryInterface(aChild, getter_AddRefs(radio));
-    rv = radio->WillRemoveFromRadioGroup();
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsRefPtr<nsHTMLInputElement> radio =
+      static_cast<nsHTMLInputElement*>(aChild);
+    radio->WillRemoveFromRadioGroup();
   }
 
   // Determine whether to remove the child from the elements list

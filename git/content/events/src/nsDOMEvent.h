@@ -67,6 +67,7 @@ public:
     eDOMEvents_dblclick,
     eDOMEvents_mouseover,
     eDOMEvents_mouseout,
+    eDOMEvents_MozMouseHittest,
     eDOMEvents_mousemove,
     eDOMEvents_contextmenu,
     eDOMEvents_keydown,
@@ -79,6 +80,7 @@ public:
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
     eDOMEvents_hashchange,
+    eDOMEvents_readystatechange,
     eDOMEvents_abort,
     eDOMEvents_error,
     eDOMEvents_submit,
@@ -140,6 +142,11 @@ public:
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+    eDOMEvents_beginEvent,
+    eDOMEvents_endEvent,
+    eDOMEvents_repeatEvent,
+#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
     eDOMEvents_loadstart,
     eDOMEvents_progress,
@@ -163,6 +170,7 @@ public:
     eDOMEvents_volumechange,
 #endif
     eDOMEvents_afterpaint,
+    eDOMEvents_beforepaint,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,
@@ -172,6 +180,9 @@ public:
     eDOMEvents_MozRotateGesture,
     eDOMEvents_MozTapGesture,
     eDOMEvents_MozPressTapGesture,
+    eDOMEvents_MozTouchDown,
+    eDOMEvents_MozTouchMove,
+    eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
     eDOMEvents_transitionend
   };
@@ -195,6 +206,9 @@ public:
   NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
   NS_IMETHOD    SetTrusted(PRBool aTrusted);
 
+  virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
+  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
+
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
   static void PopupAllowedEventsChanged();
@@ -206,13 +220,13 @@ protected:
 
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
-  already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
+  already_AddRefed<nsIContent> GetTargetFromFrame();
   nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
-  nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
+  nsIDOMEventTarget*          mExplicitOriginalTarget;
   nsString                    mCachedType;
   PRPackedBool                mEventIsInternal;
   PRPackedBool                mPrivateDataDuplicated;

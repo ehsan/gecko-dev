@@ -42,6 +42,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+
+#ifdef MOZ_IPC
+#include "mozilla/dom/ContentChild.h"
+#include "nsXULAppAPI.h"
+#endif
+
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIURI.h"
@@ -540,7 +549,12 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { VIDEO_OGG, "ogg", "Ogg Video" },
   { APPLICATION_OGG, "ogg", "Ogg Video"},
   { AUDIO_OGG, "oga", "Ogg Audio" },
-  { AUDIO_WAV, "wav", "Waveform Audio" }
+#ifdef MOZ_WEBM
+  { VIDEO_WEBM, "webm", "Web Media Video" },
+  { AUDIO_WEBM, "webm", "Web Media Audio" },
+#endif
+  { VIDEO_RAW, "yuv", "Raw YUV Video" },
+  { AUDIO_WAV, "wav", "Waveform Audio" },
 };
 
 #undef MAC_TYPE
@@ -855,6 +869,13 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
                                     nsIInterfaceRequestor *aWindowContext)
 {
   NS_ENSURE_ARG_POINTER(aURI);
+
+#ifdef MOZ_IPC
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    mozilla::dom::ContentChild::GetSingleton()->SendLoadURIExternal(aURI);
+    return NS_OK;
+  }
+#endif
 
   nsCAutoString spec;
   aURI->GetSpec(spec);
@@ -1605,7 +1626,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     mReceivedDispositionInfo = PR_FALSE; 
 
     // invoke the dialog!!!!! use mWindowContext as the window context parameter for the dialog request
-    mDialog = do_CreateInstance( NS_IHELPERAPPLAUNCHERDLG_CONTRACTID, &rv );
+    mDialog = do_CreateInstance( NS_HELPERAPPLAUNCHERDLG_CONTRACTID, &rv );
     NS_ENSURE_SUCCESS(rv, rv);
 
     // this will create a reference cycle (the dialog holds a reference to us as
@@ -2028,7 +2049,7 @@ nsresult nsExternalAppHandler::PromptForSaveToFile(nsILocalFile ** aNewFile, con
   if (!mDialog)
   {
     // Get helper app launcher dialog.
-    mDialog = do_CreateInstance( NS_IHELPERAPPLAUNCHERDLG_CONTRACTID, &rv );
+    mDialog = do_CreateInstance( NS_HELPERAPPLAUNCHERDLG_CONTRACTID, &rv );
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

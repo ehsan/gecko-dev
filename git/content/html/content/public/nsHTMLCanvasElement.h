@@ -65,7 +65,7 @@ class nsHTMLCanvasElement : public nsGenericHTMLElement,
   typedef mozilla::layers::LayerManager LayerManager;
 
 public:
-  nsHTMLCanvasElement(nsINodeInfo *aNodeInfo);
+  nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLCanvasElement();
 
   // nsISupports
@@ -82,6 +82,10 @@ public:
 
   // nsIDOMHTMLCanvasElement
   NS_DECL_NSIDOMHTMLCANVASELEMENT
+
+  // CC
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLCanvasElement,
+                                                     nsGenericHTMLElement)
 
   /**
    * Ask the canvas Element to return the primary frame, if any
@@ -151,13 +155,15 @@ public:
    * Helpers called by various users of Canvas
    */
 
-  already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *aManager);
+  already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
+                                               LayerManager *aManager);
 
   // Tell the Context that all the current rendering that it's
   // invalidated has been displayed to the screen, so that it should
   // start requesting invalidates again as needed.
   void MarkContextClean();
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsIntSize GetWidthHeight();
 
@@ -165,6 +171,8 @@ protected:
   nsresult ToDataURLImpl(const nsAString& aMimeType,
                          const nsAString& aEncoderOptions,
                          nsAString& aDataURL);
+  nsresult GetContextHelper(const nsAString& aContextId,
+                            nsICanvasRenderingContextInternal **aContext);
 
   nsString mCurrentContextId;
   nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;

@@ -7,22 +7,20 @@ function test() {
     let numLocationChanges = 0;
 
     let listener = {
-      onStateChange:    function() {},
-      onProgressChange: function() {},
-      onStatusChange:   function() {},
-      onSecurityChange: function() {},
       onLocationChange: function() {
         numLocationChanges++;
       }
     };
 
-    gBrowser.addTabsProgressListener(listener, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
+    gBrowser.addTabsProgressListener(listener);
 
     // pushState to a new URL (http://example.com/foo").  This should trigger
     // exactly one LocationChange event.
     tab.linkedBrowser.contentWindow.history.pushState(null, null, "foo");
 
     executeSoon(function() {
+      gBrowser.removeTab(tab);
+      gBrowser.removeTabsProgressListener(listener);
       is(numLocationChanges, 1,
          "pushState should cause exactly one LocationChange event.");
       finish();

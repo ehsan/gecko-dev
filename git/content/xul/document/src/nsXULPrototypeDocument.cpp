@@ -132,7 +132,7 @@ nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 
 
 JSBool
-nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsval id)
+nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsid id)
 {
     JSBool did_resolve = JS_FALSE;
 
@@ -684,7 +684,7 @@ nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScrip
     aScriptContext->WillInitializeContext();
     // NOTE: We init this context with a NULL global - this is subtly
     // different than nsGlobalWindow which passes 'this'
-    rv = aScriptContext->InitContext(nsnull);
+    rv = aScriptContext->InitContext();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -729,7 +729,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
       // some special JS specific code we should abstract
       JSContext *cx = (JSContext *)ctxNew->GetNativeContext();
       JSAutoRequest ar(cx);
-      JSObject *newGlob = ::JS_NewObject(cx, &gSharedGlobalClass, nsnull, nsnull);
+      JSObject *newGlob = ::JS_NewGlobalObject(cx, &gSharedGlobalClass);
       if (!newGlob)
         return nsnull;
 

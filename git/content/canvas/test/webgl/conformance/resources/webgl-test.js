@@ -27,29 +27,33 @@ function webglTestLog(msg) {
   if (window.console && window.console.log) {
     window.console.log(msg);
   }
+  if (document.getElementById("console")) {
+    var log = document.getElementById("console");
+    log.innerHTML += msg + "<br>";
+  }
 }
 
 //
 // create3DContext
 //
-// Return the WebGLRenderingContext for any known implementation
+// Returns the WebGLRenderingContext for any known implementation.
 //
-function create3DContext(canvas)
+function create3DContext(canvas, attributes)
 {
     if (!canvas)
         canvas = document.createElement("canvas");
     var context = null;
     try {
-        context = canvas.getContext("experimental-webgl");
+        context = canvas.getContext("experimental-webgl", attributes);
     } catch(e) {}
     if (!context) {
         try {
-            context = canvas.getContext("webkit-3d");
+            context = canvas.getContext("webkit-3d", attributes);
         } catch(e) {}
     }
     if (!context) {
         try {
-            context = canvas.getContext("moz-webgl");
+            context = canvas.getContext("moz-webgl", attributes);
         } catch(e) {}
     }
     if (!context) {
@@ -68,8 +72,8 @@ function createGLErrorWrapper(context, fname) {
     };
 }
 
-function create3DContextWithWrapperThatThrowsOnGLError(canvas) {
-  var context = create3DContext(canvas);
+function create3DContextWithWrapperThatThrowsOnGLError(canvas, attributes) {
+  var context = create3DContext(canvas, attributes);
   // Thanks to Ilmari Heikkinen for the idea on how to implement this so elegantly.
   var wrap = {};
   for (var i in context) {
@@ -115,18 +119,87 @@ function shouldGenerateGLError(ctx, glError, evalStr) {
     if (err != glError) {
       testFailed(evalStr + " expected: " + getGLErrorAsString(ctx, glError) + ". Was " + getGLErrorAsString(ctx, err) + ".");
     } else {
-      testPassed(evalStr + " was expected value: " + getGLErrorAsString(ctx, glError) + ".");
+      testPassed(evalStr + " generated expected GL error: " + getGLErrorAsString(ctx, glError) + ".");
     }
   }
 }
 
-function glErrorShouldBe(ctx, glError) {
-  var err = ctx.getError();
+/**
+ * Tests that the first error GL returns is the specified error.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {number} glError The expected gl error.
+ * @param {string} opt_msg Optional additional message.
+ */
+function glErrorShouldBe(gl, glError, opt_msg) {
+  opt_msg = opt_msg || "";
+  var err = gl.getError();
   if (err != glError) {
-    testFailed("getError expected: " + getGLErrorAsString(ctx, glError) + ". Was " + getGLErrorAsString(ctx, err) + ".");
+    testFailed("getError expected: " + getGLErrorAsString(gl, glError) +
+               ". Was " + getGLErrorAsString(gl, err) + " : " + opt_msg);
   } else {
-    testPassed("getError was expected value: " + getGLErrorAsString(ctx, glError) + ".");
+    testPassed("getError was expected value: " +
+                getGLErrorAsString(gl, glError) + " : " + opt_msg);
   }
+};
+
+//
+// createProgram
+//
+// Create and return a program object, attaching each of the given shaders.
+//
+// If attribs are given, bind an attrib with that name at that index.
+//
+function createProgram(gl, vshaders, fshaders, attribs)
+{
+    if (typeof(vshaders) == "string")
+  vshaders = [vshaders];
+    if (typeof(fshaders) == "string")
+  fshaders = [fshaders];
+
+    var shaders = [];
+    var i;
+
+    for (i = 0; i < vshaders.length; ++i) {
+  var shader = loadShader(gl, vshaders[i], gl.VERTEX_SHADER);
+  if (!shader)
+      return null;
+  shaders.push(shader);
+    }
+
+    for (i = 0; i < fshaders.length; ++i) {
+  var shader = loadShader(gl, fshaders[i], gl.FRAGMENT_SHADER);
+  if (!shader)
+      return null;
+  shaders.push(shader);
+    }
+
+    var prog = gl.createProgram();
+    for (i = 0; i < shaders.length; ++i) {
+  gl.attachShader(prog, shaders[i]);
+    }
+
+    if (attribs) {
+        for (var i in attribs) {
+            gl.bindAttribLocation (prog, i, attribs[i]);
+  }
+    }
+
+    gl.linkProgram(prog);
+
+    // Check the link status
+    var linked = gl.getProgramParameter(prog, gl.LINK_STATUS);
+    if (!linked) {
+        // something went wrong with the link
+        var error = gl.getProgramInfoLog(prog);
+        webglTestLog("Error in program linking:" + error);
+
+        gl.deleteProgram(prog);
+  for (i = 0; i < shaders.length; ++i)
+      gl.deleteShader(shaders[i]);
+        return null;
+    }
+
+    return prog;
 }
 
 //
@@ -144,52 +217,19 @@ function glErrorShouldBe(ctx, glError) {
 // Set the clear color to the passed array (4 values) and set the clear depth to the passed value.
 // Enable depth testing and blending with a blend func of (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)
 //
-function initWebGL(canvasName, vshader, fshader, attribs, clearColor, clearDepth)
+function initWebGL(canvasName, vshader, fshader, attribs, clearColor, clearDepth, contextAttribs)
 {
     var canvas = document.getElementById(canvasName);
-    var gl = create3DContext(canvas);
+    var gl = create3DContext(canvas, contextAttribs);
     if (!gl) {
         alert("No WebGL context found");
         return null;
     }
 
-    // create our shaders
-    var vertexShader = loadShaderFromScript(gl, vshader);
-    var fragmentShader = loadShaderFromScript(gl, fshader);
-
-    if (!vertexShader || !fragmentShader)
-        return null;
-
     // Create the program object
-    gl.program = gl.createProgram();
-
+    gl.program = createProgram(gl, vshader, fshader, attribs);
     if (!gl.program)
         return null;
-
-    // Attach our two shaders to the program
-    gl.attachShader (gl.program, vertexShader);
-    gl.attachShader (gl.program, fragmentShader);
-
-    // Bind attributes
-    for (var i in attribs)
-        gl.bindAttribLocation (gl.program, i, attribs[i]);
-
-    // Link the program
-    gl.linkProgram(gl.program);
-
-    // Check the link status
-    var linked = gl.getProgramParameter(gl.program, gl.LINK_STATUS);
-    if (!linked) {
-        // something went wrong with the link
-        var error = gl.getProgramInfoLog (gl.program);
-        webglTestLog("Error in program linking:"+error);
-
-        gl.deleteProgram(gl.program);
-        gl.deleteProgram(fragmentShader);
-        gl.deleteProgram(vertexShader);
-
-        return null;
-    }
 
     gl.useProgram(gl.program);
 
@@ -334,7 +374,7 @@ function makeBox(ctx)
     //  v2------v3
     //
     // vertex coords array
-    var vertices = new WebGLFloatArray(
+    var vertices = new Float32Array(
         [  1, 1, 1,  -1, 1, 1,  -1,-1, 1,   1,-1, 1,    // v0-v1-v2-v3 front
            1, 1, 1,   1,-1, 1,   1,-1,-1,   1, 1,-1,    // v0-v3-v4-v5 right
            1, 1, 1,   1, 1,-1,  -1, 1,-1,  -1, 1, 1,    // v0-v5-v6-v1 top
@@ -344,7 +384,7 @@ function makeBox(ctx)
     );
 
     // normal array
-    var normals = new WebGLFloatArray(
+    var normals = new Float32Array(
         [  0, 0, 1,   0, 0, 1,   0, 0, 1,   0, 0, 1,     // v0-v1-v2-v3 front
            1, 0, 0,   1, 0, 0,   1, 0, 0,   1, 0, 0,     // v0-v3-v4-v5 right
            0, 1, 0,   0, 1, 0,   0, 1, 0,   0, 1, 0,     // v0-v5-v6-v1 top
@@ -355,7 +395,7 @@ function makeBox(ctx)
 
 
     // texCoord array
-    var texCoords = new WebGLFloatArray(
+    var texCoords = new Float32Array(
         [  1, 1,   0, 1,   0, 0,   1, 0,    // v0-v1-v2-v3 front
            0, 1,   0, 0,   1, 0,   1, 1,    // v0-v3-v4-v5 right
            1, 0,   1, 1,   0, 1,   0, 0,    // v0-v5-v6-v1 top
@@ -365,7 +405,7 @@ function makeBox(ctx)
        );
 
     // index array
-    var indices = new WebGLUnsignedByteArray(
+    var indices = new Uint8Array(
         [  0, 1, 2,   0, 2, 3,    // front
            4, 5, 6,   4, 6, 7,    // right
            8, 9,10,   8,10,11,    // top
@@ -465,20 +505,20 @@ function makeSphere(ctx, radius, lats, longs)
 
     retval.normalObject = ctx.createBuffer();
     ctx.bindBuffer(ctx.ARRAY_BUFFER, retval.normalObject);
-    ctx.bufferData(ctx.ARRAY_BUFFER, new WebGLFloatArray(normalData), ctx.STATIC_DRAW);
+    ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array(normalData), ctx.STATIC_DRAW);
 
     retval.texCoordObject = ctx.createBuffer();
     ctx.bindBuffer(ctx.ARRAY_BUFFER, retval.texCoordObject);
-    ctx.bufferData(ctx.ARRAY_BUFFER, new WebGLFloatArray(texCoordData), ctx.STATIC_DRAW);
+    ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array(texCoordData), ctx.STATIC_DRAW);
 
     retval.vertexObject = ctx.createBuffer();
     ctx.bindBuffer(ctx.ARRAY_BUFFER, retval.vertexObject);
-    ctx.bufferData(ctx.ARRAY_BUFFER, new WebGLFloatArray(geometryData), ctx.STATIC_DRAW);
+    ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array(geometryData), ctx.STATIC_DRAW);
 
     retval.numIndices = indexData.length;
     retval.indexObject = ctx.createBuffer();
     ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, retval.indexObject);
-    ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, new WebGLUnsignedShortArray(indexData), ctx.STREAM_DRAW);
+    ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexData), ctx.STREAM_DRAW);
 
     return retval;
 }
@@ -631,20 +671,20 @@ function doLoadObj(obj, text)
     // set the VBOs
     obj.normalObject = obj.ctx.createBuffer();
     obj.ctx.bindBuffer(obj.ctx.ARRAY_BUFFER, obj.normalObject);
-    obj.ctx.bufferData(obj.ctx.ARRAY_BUFFER, new WebGLFloatArray(normalArray), obj.ctx.STATIC_DRAW);
+    obj.ctx.bufferData(obj.ctx.ARRAY_BUFFER, new Float32Array(normalArray), obj.ctx.STATIC_DRAW);
 
     obj.texCoordObject = obj.ctx.createBuffer();
     obj.ctx.bindBuffer(obj.ctx.ARRAY_BUFFER, obj.texCoordObject);
-    obj.ctx.bufferData(obj.ctx.ARRAY_BUFFER, new WebGLFloatArray(textureArray), obj.ctx.STATIC_DRAW);
+    obj.ctx.bufferData(obj.ctx.ARRAY_BUFFER, new Float32Array(textureArray), obj.ctx.STATIC_DRAW);
 
     obj.vertexObject = obj.ctx.createBuffer();
     obj.ctx.bindBuffer(obj.ctx.ARRAY_BUFFER, obj.vertexObject);
-    obj.ctx.bufferData(obj.ctx.ARRAY_BUFFER, new WebGLFloatArray(vertexArray), obj.ctx.STATIC_DRAW);
+    obj.ctx.bufferData(obj.ctx.ARRAY_BUFFER, new Float32Array(vertexArray), obj.ctx.STATIC_DRAW);
 
     obj.numIndices = indexArray.length;
     obj.indexObject = obj.ctx.createBuffer();
     obj.ctx.bindBuffer(obj.ctx.ELEMENT_ARRAY_BUFFER, obj.indexObject);
-    obj.ctx.bufferData(obj.ctx.ELEMENT_ARRAY_BUFFER, new WebGLUnsignedShortArray(indexArray), obj.ctx.STREAM_DRAW);
+    obj.ctx.bufferData(obj.ctx.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexArray), obj.ctx.STREAM_DRAW);
 
     obj.loaded = true;
 }
@@ -667,7 +707,7 @@ function doLoadImageTexture(ctx, image, texture)
 {
     ctx.enable(ctx.TEXTURE_2D);
     ctx.bindTexture(ctx.TEXTURE_2D, texture);
-    ctx.texImage2D(ctx.TEXTURE_2D, 0, image);
+    ctx.texImage2D(ctx.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.LINEAR);
     ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.LINEAR_MIPMAP_LINEAR);
     ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_S, ctx.CLAMP_TO_EDGE);

@@ -37,17 +37,17 @@
 
 /* internal interface for CSS @import rules */
 
-#ifndef nsICSSImportRule_h___
-#define nsICSSImportRule_h___
+#ifndef nsICSSImportRule_h
+#define nsICSSImportRule_h
 
 #include "nsICSSRule.h"
 
 class nsMediaList;
 class nsString;
 
-// IID for the nsICSSImportRule interface {1d7a658b-2f7b-423d-a3d9-dd5b553f69a9}
-#define NS_ICSS_IMPORT_RULE_IID     \
-{0x1d7a658b, 0x2f7b, 0x423d, {0xa3, 0xd9, 0xdd, 0x5b, 0x55, 0x3f, 0x69, 0xa9}}
+#define NS_ICSS_IMPORT_RULE_IID \
+{ 0x07bd9b80, 0x721e, 0x4566, \
+  { 0xb7, 0x90, 0xed, 0x25, 0x10, 0xed, 0x99, 0xde } }
 
 
 class nsICSSImportRule : public nsICSSRule {
@@ -69,4 +69,4 @@ nsresult
 NS_NewCSSImportRule(nsICSSImportRule** aInstancePtrResult, 
                     const nsString& aURLSpec, nsMediaList* aMedia);
 
-#endif /* nsICSSImportRule_h___ */
+#endif /* nsICSSImportRule_h */

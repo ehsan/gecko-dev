@@ -66,6 +66,7 @@ class   nsGUIEvent;
 class   imgIContainer;
 class   gfxASurface;
 class   nsIContent;
+class   ViewWrapper;
 
 namespace mozilla {
 namespace layers {
@@ -110,8 +111,9 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0xf286438a, 0x6ec6, 0x4766, \
-  { 0xa4, 0x76, 0x4a, 0x44, 0x80, 0x95, 0xd3, 0x1f } }
+  { 0x21eff578, 0x942a, 0x40ff, \
+    { 0x98, 0xb9, 0x75, 0x49, 0x0b, 0x68, 0x24, 0xa2 } }
+
 /*
  * Window shadow styles
  * Also used for the -moz-window-shadow CSS property
@@ -236,6 +238,28 @@ class nsIWidget : public nsISupports {
                       nsWidgetInitData *aInitData = nsnull) = 0;
 
     /**
+     * Attach to a top level widget. 
+     *
+     * In cases where a top level chrome widget is being used as a content
+     * container, attach a secondary event callback and update the device
+     * context. The primary event callback will continue to be called, so the
+     * owning base window will continue to function.
+     *
+     * aViewEventFunction Event callback that will receive mirrored
+     *                    events.
+     * aContext The new device context for the view
+     */
+    NS_IMETHOD AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
+                                    nsIDeviceContext *aContext) = 0;
+
+    /**
+     * Accessor functions to get and set secondary client data. Used by
+     * nsIView in connection with AttachViewToTopLevel above.
+     */
+    NS_IMETHOD SetAttachedViewPtr(ViewWrapper* aViewWrapper) = 0;
+    virtual ViewWrapper* GetAttachedViewPtr() = 0;
+
+    /**
      * Accessor functions to get and set the client data associated with the
      * widget.
      */
@@ -261,6 +285,8 @@ class nsIWidget : public nsISupports {
      */
     NS_IMETHOD SetParent(nsIWidget* aNewParent) = 0;
 
+    NS_IMETHOD RegisterTouchWindow() = 0;
+    NS_IMETHOD UnregisterTouchWindow() = 0;
 
     /**
      * Return the parent Widget of this Widget or nsnull if this is a 
@@ -409,6 +435,22 @@ class nsIWidget : public nsISupports {
                       PRBool   aRepaint) = 0;
 
     /**
+     * Resize and reposition the inner client area of the widget.
+     *
+     * @param aX       the new x offset expressed in the parent's coordinate system
+     * @param aY       the new y offset expressed in the parent's coordinate system
+     * @param aWidth   the new width of the client area.
+     * @param aHeight  the new height of the client area.
+     * @param aRepaint whether the widget should be repainted
+     *
+     */
+    NS_IMETHOD ResizeClient(PRInt32 aX,
+                            PRInt32 aY,
+                            PRInt32 aWidth,
+                            PRInt32 aHeight,
+                            PRBool  aRepaint) = 0;
+
+    /**
      * Sets the widget's z-index.
      */
     NS_IMETHOD SetZIndex(PRInt32 aZIndex) = 0;
@@ -459,40 +501,72 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD IsEnabled(PRBool *aState) = 0;
 
     /**
-     * Give focus to this widget.
+     * Request activation of this window or give focus to this widget.
+     *
+     * @param aRaise If PR_TRUE, this function requests activation of this
+     *               widget's toplevel window.
+     *               If PR_FALSE, the appropriate toplevel window (which in
+     *               the case of popups may not be this widget's toplevel
+     *               window) is already active, and this function indicates
+     *               that keyboard events should be reported through the
+     *               aHandleEventFunction provided to this->Create().
      */
     NS_IMETHOD SetFocus(PRBool aRaise = PR_FALSE) = 0;
 
     /**
      * Get this widget's outside dimensions relative to its parent widget
      *
-     * @param aRect on return it holds the  x, y, width and height of this widget
-     *
+     * @param aRect   On return it holds the  x, y, width and height of
+     *                this widget.
      */
     NS_IMETHOD GetBounds(nsIntRect &aRect) = 0;
 
-
     /**
-     * Get this widget's outside dimensions in global coordinates. (One might think this
-     * could be accomplished by stringing together other methods in this interface, but
-     * then one would bloody one's nose on different coordinate system handling by different
-     * platforms.) This includes any title bar on the window.
+     * Get this widget's outside dimensions in global coordinates. This
+     * includes any title bar on the window.
      *
-     *
-     * @param aRect on return it holds the  x, y, width and height of this widget
-     *
+     * @param aRect   On return it holds the  x, y, width and height of
+     *                this widget.
      */
     NS_IMETHOD GetScreenBounds(nsIntRect &aRect) = 0;
 
-
     /**
-     * Get this widget's client area dimensions, if the window has a 3D border appearance
-     * this returns the area inside the border, The x and y are always zero
+     * Get this widget's client area dimensions, if the window has a 3D
+     * border appearance this returns the area inside the border. Origin
+     * is always zero.
      *
-     * @param aRect on return it holds the  x. y, width and height of the client area of this widget
-     *
+     * @param aRect   On return it holds the  x. y, width and height of
+     *                the client area of this widget.
      */
     NS_IMETHOD GetClientBounds(nsIntRect &aRect) = 0;
+
+    /**
+     * Get the non-client area dimensions of the window.
+     * 
+     */
+    NS_IMETHOD GetNonClientMargins(nsIntMargin &margins) = 0;
+
+    /**
+     * Sets the non-client area dimensions of the window. Pass -1 to restore
+     * the system default frame size for that border. Pass zero to remove
+     * a border, or pass a specific value adjust a border. Units are in
+     * pixels. (DPI dependent)
+     *
+     * Platform notes:
+     *  Windows: shrinking top non-client height will remove application
+     *  icon and window title text. Glass desktops will refuse to set
+     *  dimensions between zero and size < system default.
+     *
+     */
+    NS_IMETHOD SetNonClientMargins(nsIntMargin &margins) = 0;
+
+    /**
+     * Get the client offset from the window origin.
+     *
+     * @return the x and y of the offset.
+     *
+     */
+    virtual nsIntPoint GetClientOffset() = 0;
 
     /**
      * Get the foreground color for this widget
@@ -620,6 +694,10 @@ class nsIWidget : public nsISupports {
      * 
      * This will invalidate areas of the children that have changed, but
      * does not need to invalidate any part of this widget.
+     * 
+     * Children should be moved in the order given; the array is
+     * sorted so to minimize unnecessary invalidation if children are
+     * moved in that order.
      */
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations) = 0;
 
@@ -692,31 +770,6 @@ class nsIWidget : public nsISupports {
      */
     virtual LayerManager* GetLayerManager() = 0;
 
-    /**
-     * Scroll a set of rectangles in this widget and (as simultaneously as
-     * possible) modify the specified child widgets.
-     * 
-     * This will invalidate areas of the children that have changed, unless
-     * they have just moved by the scroll amount, but does not need to
-     * invalidate any part of this widget, except where the scroll
-     * operation fails to blit because part of the window is unavailable
-     * (e.g. partially offscreen).
-     * 
-     * The caller guarantees that the rectangles in aDestRects are
-     * non-intersecting.
-     *
-     * @param aDelta amount to scroll (device pixels)
-     * @param aDestRects rectangles to copy into
-     * (device pixels relative to this widget)
-     * @param aReconfigureChildren commands to set the bounds and clip
-     * region of a subset of the children of this widget; these should
-     * be performed simultaneously with the scrolling, as far as possible,
-     * to avoid visual artifacts.
-     */
-    virtual void Scroll(const nsIntPoint& aDelta,
-                        const nsTArray<nsIntRect>& aDestRects,
-                        const nsTArray<Configuration>& aReconfigureChildren) = 0;
-
     /** 
      * Internal methods
      */
@@ -759,6 +812,13 @@ class nsIWidget : public nsISupports {
      */
 
     virtual nsIntPoint WidgetToScreenOffset() = 0;
+
+    /**
+     * Given the specified client size, return the corresponding window size,
+     * which includes the area for the borders and titlebar. This method
+     * should work even when the window is not yet visible.
+     */
+    virtual nsIntSize ClientToWindowSize(const nsIntSize& aClientSize) = 0;
 
     /**
      * Dispatches an event to the widget
@@ -888,6 +948,11 @@ class nsIWidget : public nsISupports {
      * Begin a window resizing drag, based on the event passed in.
      */
     NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical) = 0;
+
+    /**
+     * Begin a window moving drag, based on the event passed in.
+     */
+    NS_IMETHOD BeginMoveDrag(nsMouseEvent* aEvent) = 0;
 
     enum Modifiers {
         CAPS_LOCK = 0x01, // when CapsLock is active

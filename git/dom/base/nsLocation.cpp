@@ -404,7 +404,7 @@ nsLocation::GetHost(nsAString& aHost)
     }
   }
 
-  return result;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -443,7 +443,7 @@ nsLocation::GetHostname(nsAString& aHostname)
     }
   }
 
-  return result;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -794,8 +794,7 @@ nsLocation::Reload(PRBool aForceget)
 
     nsIPresShell *shell;
     nsPresContext *pcx;
-    if (doc && (shell = doc->GetPrimaryShell()) &&
-        (pcx = shell->GetPresContext())) {
+    if (doc && (shell = doc->GetShell()) && (pcx = shell->GetPresContext())) {
       pcx->RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
 

@@ -681,16 +681,17 @@ function verifyTestsRan() {
  * set back to the original values when each test has finished.
  */
 function setupPrefs() {
+  gAppUpdateChannel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
+  setUpdateChannel();
+
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     gAppUpdateURL = Services.prefs.setIntPref(PREF_APP_UPDATE_URL_OVERRIDE);
   }
 
-  gAppUpdateChannel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
-  setUpdateChannel();
-
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     gAppUpdateEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED);
   }
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true)
 
   if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
     gExtUpdateURL = Services.prefs.getCharPref(PREF_EXTENSIONS_UPDATE_URL);
@@ -707,25 +708,25 @@ function setupPrefs() {
  * Resets the most common preferences used by tests to their original values.
  */
 function resetPrefs() {
-  if (gAppUpdateURL) {
+  if (gAppUpdateURL !== undefined) {
     Services.prefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, gAppUpdateURL);
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_URL_OVERRIDE);
   }
 
-  if (gAppUpdateChannel) {
+  if (gAppUpdateChannel !== undefined) {
     setUpdateChannel(gAppUpdateChannel);
   }
 
-  if (gAppUpdateEnabled) {
+  if (gAppUpdateEnabled !== undefined) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, gAppUpdateEnabled);
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_ENABLED);
   }
 
-  if (gExtUpdateURL) {
+  if (gExtUpdateURL !== undefined) {
     Services.prefs.setCharPref(PREF_EXTENSIONS_UPDATE_URL, gExtUpdateURL);
   }
   else if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
@@ -809,9 +810,11 @@ function setupAddons(aCallback) {
     aAddons.forEach(function(aAddon) {
       // If an addon's type equals plugin it is skipped since
       // checking plugins compatibility information isn't supported at this
-      // time (also see bug 566787).
+      // time (also see bug 566787). Also, SCOPE_APPLICATION add-ons are
+      // excluded by app update so there is no reason to disable them.
       if (aAddon.type != "plugin" && !aAddon.appDisabled &&
-          !aAddon.userDisabled) {
+          !aAddon.userDisabled &&
+          aAddon.scope != AddonManager.SCOPE_APPLICATION) {
         disabledAddons.push(aAddon);
         aAddon.userDisabled = true;
       }

@@ -65,10 +65,12 @@
 #include "jsregexp.h"
 #include "jsscan.h"
 #include "jsscope.h"
-#include "jsscopeinlines.h"
 #include "jsscript.h"
 #include "jsautooplen.h"        // generated headers last
 #include "jsstaticcheck.h"
+
+#include "jsobjinlines.h"
+#include "jsscopeinlines.h"
 
 /* Allocation chunk counts, must be powers of two in general. */
 #define BYTECODE_CHUNK  256     /* code allocation increment */
@@ -98,7 +100,8 @@ JSCodeGenerator::JSCodeGenerator(Parser *parser,
     numSpanDeps(0), numJumpTargets(0), spanDepTodo(0),
     arrayCompDepth(0),
     emitLevel(0),
-    constMap(parser->context)
+    constMap(parser->context),
+    constList(parser->context)
 {
     flags = TCF_COMPILING;
     memset(&prolog, 0, sizeof prolog);
@@ -212,7 +215,7 @@ UpdateDepth(JSContext *cx, JSCodeGenerator *cg, ptrdiff_t target)
         JS_ASSERT(nuses == 0);
         blockObj = cg->objectList.lastbox->object;
         JS_ASSERT(blockObj->getClass() == &js_BlockClass);
-        JS_ASSERT(JSVAL_IS_VOID(blockObj->fslots[JSSLOT_BLOCK_DEPTH]));
+        JS_ASSERT(blockObj->fslots[JSSLOT_BLOCK_DEPTH].isUndefined());
 
         OBJ_SET_BLOCK_DEPTH(cx, blockObj, cg->stackDepth);
         ndefs = OBJ_BLOCK_COUNT(cx, blockObj);
@@ -1547,28 +1550,9 @@ JSBool
 js_DefineCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                              JSParseNode *pn)
 {
-    jsdouble dval;
-    jsint ival;
-    JSAtom *valueAtom;
-    jsval v;
-
     /* XXX just do numbers for now */
     if (pn->pn_type == TOK_NUMBER) {
-        dval = pn->pn_dval;
-        if (JSDOUBLE_IS_INT(dval, ival) && INT_FITS_IN_JSVAL(ival)) {
-            v = INT_TO_JSVAL(ival);
-        } else {
-            /*
-             * We atomize double to root a jsdouble instance that we wrap as
-             * jsval and store in cg->constList. This works because atoms are
-             * protected from GC during compilation.
-             */
-            valueAtom = js_AtomizeDouble(cx, dval);
-            if (!valueAtom)
-                return JS_FALSE;
-            v = ATOM_KEY(valueAtom);
-        }
-        if (!cg->constMap.put(atom, v))
+        if (!cg->constMap.put(atom, NumberValue(pn->pn_dval)))
             return JS_FALSE;
     }
     return JS_TRUE;
@@ -1599,8 +1583,8 @@ js_LexicalLookup(JSTreeContext *tc, JSAtom *atom, jsint *slotp, JSStmtInfo *stmt
             JS_ASSERT(sprop->hasShortID());
 
             if (slotp) {
-                JS_ASSERT(JSVAL_IS_INT(obj->fslots[JSSLOT_BLOCK_DEPTH]));
-                *slotp = JSVAL_TO_INT(obj->fslots[JSSLOT_BLOCK_DEPTH]) +
+                JS_ASSERT(obj->fslots[JSSLOT_BLOCK_DEPTH].isInt32());
+                *slotp = obj->fslots[JSSLOT_BLOCK_DEPTH].toInt32() +
                          sprop->shortid;
             }
             return stmt;
@@ -1613,12 +1597,12 @@ js_LexicalLookup(JSTreeContext *tc, JSAtom *atom, jsint *slotp, JSStmtInfo *stmt
 }
 
 /*
- * The function sets vp to JSVAL_HOLE when the atom does not corresponds to a
+ * The function sets vp to NO_CONSTANT when the atom does not corresponds to a
  * name defining a constant.
  */
 static JSBool
 LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
-                          jsval *vp)
+                          Value *constp)
 {
     JSStmtInfo *stmt;
     JSObject *obj;
@@ -1628,7 +1612,7 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
      * This enables propagating consts from top-level into switch cases in a
      * function compiled along with the top-level script.
      */
-    *vp = JSVAL_HOLE;
+    constp->setMagic(JS_NO_CONSTANT);
     do {
         if (cg->inFunction() || cg->compileAndGo()) {
             /* XXX this will need revising if 'const' becomes block-scoped. */
@@ -1637,8 +1621,8 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                 return JS_TRUE;
 
             if (JSCodeGenerator::ConstMap::Ptr p = cg->constMap.lookup(atom)) {
-                JS_ASSERT(p->value != JSVAL_HOLE);
-                *vp = p->value;
+                JS_ASSERT(!p->value.isMagic(JS_NO_CONSTANT));
+                *constp = p->value;
                 return JS_TRUE;
             }
 
@@ -1668,7 +1652,7 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                      */
                     if (!sprop->writable() && !sprop->configurable() &&
                         sprop->hasDefaultGetter() && SPROP_HAS_VALID_SLOT(sprop, scope)) {
-                        *vp = obj->lockedGetSlot(sprop->slot);
+                        *constp = obj->lockedGetSlot(sprop->slot);
                     }
                 }
                 JS_UNLOCK_SCOPE(cx, scope);
@@ -1845,32 +1829,31 @@ EmitEnterBlock(JSContext *cx, JSParseNode *pn, JSCodeGenerator *cg)
     if (depth < 0)
         return false;
 
-    for (uintN slot = JSSLOT_FREE(&js_BlockClass),
-               limit = slot + OBJ_BLOCK_COUNT(cx, blockObj);
-         slot < limit; slot++) {
-        jsval v = blockObj->getSlot(slot);
+    uintN base = JSSLOT_FREE(&js_BlockClass);
+    for (uintN slot = base, limit = base + OBJ_BLOCK_COUNT(cx, blockObj); slot < limit; slot++) {
+        const Value &v = blockObj->getSlot(slot);
 
         /* Beware the empty destructuring dummy. */
-        if (JSVAL_IS_VOID(v)) {
+        if (v.isUndefined()) {
             JS_ASSERT(slot + 1 <= limit);
             continue;
         }
 
-        JSDefinition *dn = (JSDefinition *) JSVAL_TO_PRIVATE(v);
+        JSDefinition *dn = (JSDefinition *) v.toPrivate();
         JS_ASSERT(dn->pn_defn);
         JS_ASSERT(uintN(dn->frameSlot() + depth) < JS_BIT(16));
-        dn->pn_cookie += depth;
+        dn->pn_cookie.set(dn->pn_cookie.level(), uint16(dn->frameSlot() + depth));
 #ifdef DEBUG
         for (JSParseNode *pnu = dn->dn_uses; pnu; pnu = pnu->pn_link) {
             JS_ASSERT(pnu->pn_lexdef == dn);
             JS_ASSERT(!(pnu->pn_dflags & PND_BOUND));
-            JS_ASSERT(pnu->pn_cookie == FREE_UPVAR_COOKIE);
+            JS_ASSERT(pnu->pn_cookie.isFree());
         }
 #endif
     }
 
-    blockObj->scope()->freeslot = JSSLOT_FREE(&js_BlockClass);
-    return blockObj->growSlots(cx, JSSLOT_FREE(&js_BlockClass));
+    blockObj->scope()->freeslot = base;
+    return blockObj->growSlots(cx, base);
 }
 
 /*
@@ -1926,7 +1909,7 @@ MakeUpvarForEval(JSParseNode *pn, JSCodeGenerator *cg)
         return true;
 
     JS_ASSERT(cg->staticLevel > upvarLevel);
-    if (cg->staticLevel >= JS_DISPLAY_SIZE || upvarLevel >= JS_DISPLAY_SIZE)
+    if (cg->staticLevel >= UpvarCookie::UPVAR_LEVEL_LIMIT)
         return true;
 
     JSAtomListElement *ale = cg->upvarList.lookup(atom);
@@ -1941,13 +1924,13 @@ MakeUpvarForEval(JSParseNode *pn, JSCodeGenerator *cg)
             return false;
         JS_ASSERT(ALE_INDEX(ale) == cg->upvarList.count - 1);
 
-        uint32 *vector = cg->upvarMap.vector;
+        UpvarCookie *vector = cg->upvarMap.vector;
         uint32 length = cg->upvarMap.length;
 
         JS_ASSERT(ALE_INDEX(ale) <= length);
         if (ALE_INDEX(ale) == length) {
             length = 2 * JS_MAX(2, length);
-            vector = (uint32 *) cx->realloc(vector, length * sizeof *vector);
+            vector = reinterpret_cast<UpvarCookie *>(cx->realloc(vector, length * sizeof *vector));
             if (!vector)
                 return false;
             cg->upvarMap.vector = vector;
@@ -1959,11 +1942,11 @@ MakeUpvarForEval(JSParseNode *pn, JSCodeGenerator *cg)
         JS_ASSERT(index < JS_BIT(16));
 
         uintN skip = cg->staticLevel - upvarLevel;
-        vector[ALE_INDEX(ale)] = MAKE_UPVAR_COOKIE(skip, index);
+        vector[ALE_INDEX(ale)].set(skip, index);
     }
 
     pn->pn_op = JSOP_GETUPVAR;
-    pn->pn_cookie = MAKE_UPVAR_COOKIE(cg->staticLevel, ALE_INDEX(ale));
+    pn->pn_cookie.set(cg->staticLevel, uint16(ALE_INDEX(ale)));
     pn->pn_dflags |= PND_BOUND;
     return true;
 }
@@ -1991,7 +1974,6 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     JSDefinition *dn;
     JSOp op;
     JSAtom *atom;
-    uint32 cookie;
     JSDefinition::Kind dn_kind;
     JSAtomListElement *ale;
     uintN index;
@@ -2010,7 +1992,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
      * definitions, unless a with statement or direct eval intervened.
      */
     if (pn->pn_used) {
-        JS_ASSERT(pn->pn_cookie == FREE_UPVAR_COOKIE);
+        JS_ASSERT(pn->pn_cookie.isFree());
         dn = pn->pn_lexdef;
         JS_ASSERT(dn->pn_defn);
         if (pn->isDeoptimized())
@@ -2028,7 +2010,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
     JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
     atom = pn->pn_atom;
-    cookie = dn->pn_cookie;
+    UpvarCookie cookie = dn->pn_cookie;
     dn_kind = dn->kind();
 
     /*
@@ -2065,7 +2047,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             pn->pn_op = op = JSOP_NAME;
     }
 
-    if (cookie == FREE_UPVAR_COOKIE) {
+    if (cookie.isFree()) {
         JSStackFrame *caller = cg->parser->callerFrame;
         if (caller) {
             JS_ASSERT(cg->compileAndGo());
@@ -2152,12 +2134,12 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
           default: JS_NOT_REACHED("gvar");
         }
         pn->pn_op = op;
-        pn->pn_cookie = cookie;
+        pn->pn_cookie.set(cookie);
         pn->pn_dflags |= PND_BOUND;
         return JS_TRUE;
     }
 
-    uintN level = UPVAR_FRAME_SKIP(cookie);
+    uintN level = cookie.level();
     JS_ASSERT(cg->staticLevel >= level);
 
     /*
@@ -2205,22 +2187,20 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         return MakeUpvarForEval(pn, cg);
     }
 
-    uintN skip = cg->staticLevel - level;
+    const uintN skip = cg->staticLevel - level;
     if (skip != 0) {
         JS_ASSERT(cg->inFunction());
-        JS_ASSERT_IF(UPVAR_FRAME_SLOT(cookie) != CALLEE_UPVAR_SLOT,
-                     cg->lexdeps.lookup(atom));
+        JS_ASSERT_IF(cookie.slot() != UpvarCookie::CALLEE_SLOT, cg->lexdeps.lookup(atom));
         JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
         JS_ASSERT(cg->fun->u.i.skipmin <= skip);
 
         /*
-         * If op is a mutating opcode, this upvar's static level is too big to
-         * index into the display, or the function is heavyweight, we fall back
-         * on JSOP_*NAME*.
+         * If op is a mutating opcode, this upvar's lookup skips too many levels,
+         * or the function is heavyweight, we fall back on JSOP_*NAME*.
          */
         if (op != JSOP_NAME)
             return JS_TRUE;
-        if (level >= JS_DISPLAY_SIZE)
+        if (level >= UpvarCookie::UPVAR_LEVEL_LIMIT)
             return JS_TRUE;
         if (cg->flags & TCF_FUN_HEAVYWEIGHT)
             return JS_TRUE;
@@ -2262,11 +2242,11 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             index = ALE_INDEX(ale);
             JS_ASSERT(index == cg->upvarList.count - 1);
 
-            uint32 *vector = cg->upvarMap.vector;
+            UpvarCookie *vector = cg->upvarMap.vector;
             if (!vector) {
                 uint32 length = cg->lexdeps.count;
 
-                vector = (uint32 *) js_calloc(length * sizeof *vector);
+                vector = (UpvarCookie *) js_calloc(length * sizeof *vector);
                 if (!vector) {
                     JS_ReportOutOfMemory(cx);
                     return JS_FALSE;
@@ -2275,8 +2255,8 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 cg->upvarMap.length = length;
             }
 
-            uintN slot = UPVAR_FRAME_SLOT(cookie);
-            if (slot != CALLEE_UPVAR_SLOT && dn_kind != JSDefinition::ARG) {
+            uintN slot = cookie.slot();
+            if (slot != UpvarCookie::CALLEE_SLOT && dn_kind != JSDefinition::ARG) {
                 JSTreeContext *tc = cg;
                 do {
                     tc = tc->parent;
@@ -2285,11 +2265,12 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                     slot += tc->fun->nargs;
             }
 
-            vector[index] = MAKE_UPVAR_COOKIE(skip, slot);
+            vector[index].set(skip, slot);
         }
 
         pn->pn_op = op;
-        pn->pn_cookie = index;
+        JS_ASSERT((index & JS_BITMASK(16)) == index);
+        pn->pn_cookie.set(0, index);
         pn->pn_dflags |= PND_BOUND;
         return JS_TRUE;
     }
@@ -2379,7 +2360,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
     JS_ASSERT(op != PN_OP(pn));
     pn->pn_op = op;
-    pn->pn_cookie = UPVAR_FRAME_SLOT(cookie);
+    pn->pn_cookie.set(0, cookie.slot());
     pn->pn_dflags |= PND_BOUND;
     return JS_TRUE;
 }
@@ -2555,7 +2536,7 @@ CheckSideEffects(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
             if (!BindNameToSlot(cx, cg, pn))
                 return JS_FALSE;
             if (pn->pn_op != JSOP_ARGUMENTS && pn->pn_op != JSOP_CALLEE &&
-                pn->pn_cookie == FREE_UPVAR_COOKIE) {
+                pn->pn_cookie.isFree()) {
                 /*
                  * Not an argument or local variable use, and not a use of a
                  * unshadowed named function expression's given name, so this
@@ -2635,8 +2616,8 @@ EmitNameOp(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
         if (callContext && js_Emit1(cx, cg, JSOP_NULL) < 0)
             return JS_FALSE;
     } else {
-        if (pn->pn_cookie != FREE_UPVAR_COOKIE) {
-            EMIT_UINT16_IMM_OP(op, pn->pn_cookie);
+        if (!pn->pn_cookie.isFree()) {
+            EMIT_UINT16_IMM_OP(op, pn->pn_cookie.asInteger());
         } else {
             if (!EmitAtomOp(cx, pn, op, cg))
                 return JS_FALSE;
@@ -2747,7 +2728,7 @@ EmitPropOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg,
                         if (!ale)
                             return JS_FALSE;
                         atomIndex = ALE_INDEX(ale);
-                        return EmitSlotIndexOp(cx, op, pn2->pn_cookie, atomIndex, cg);
+                        return EmitSlotIndexOp(cx, op, pn2->pn_cookie.asInteger(), atomIndex, cg);
                     }
 
                   default:;
@@ -2819,7 +2800,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
 {
     ptrdiff_t top;
     JSParseNode *left, *right, *next, ltmp, rtmp;
-    jsint slot;
+    int32_t slot;
 
     top = CG_OFFSET(cg);
     if (pn->pn_arity == PN_LIST) {
@@ -2839,7 +2820,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
             if (!BindNameToSlot(cx, cg, left))
                 return JS_FALSE;
             if (left->pn_op == JSOP_ARGUMENTS &&
-                JSDOUBLE_IS_INT(next->pn_dval, slot) &&
+                JSDOUBLE_IS_INT32(next->pn_dval, &slot) &&
                 (jsuint)slot < JS_BIT(16)) {
                 /*
                  * arguments[i]() requires arguments object as "this".
@@ -2894,7 +2875,6 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
             }
             right = &rtmp;
             right->pn_type = TOK_STRING;
-            JS_ASSERT(ATOM_IS_STRING(pn->pn_atom));
             right->pn_op = js_IsIdentifier(ATOM_TO_STRING(pn->pn_atom))
                            ? JSOP_QNAMEPART
                            : JSOP_STRING;
@@ -2914,7 +2894,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
             if (!BindNameToSlot(cx, cg, left))
                 return JS_FALSE;
             if (left->pn_op == JSOP_ARGUMENTS &&
-                JSDOUBLE_IS_INT(right->pn_dval, slot) &&
+                JSDOUBLE_IS_INT32(right->pn_dval, &slot) &&
                 (jsuint)slot < JS_BIT(16)) {
                 left->pn_offset = right->pn_offset = top;
                 EMIT_UINT16_IMM_OP(JSOP_ARGSUB, (jsatomid)slot);
@@ -2939,14 +2919,12 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
 static JSBool
 EmitNumberOp(JSContext *cx, jsdouble dval, JSCodeGenerator *cg)
 {
-    jsint ival;
+    int32_t ival;
     uint32 u;
     ptrdiff_t off;
     jsbytecode *pc;
-    JSAtom *atom;
-    JSAtomListElement *ale;
 
-    if (JSDOUBLE_IS_INT(dval, ival) && INT_FITS_IN_JSVAL(ival)) {
+    if (JSDOUBLE_IS_INT32(dval, &ival)) {
         if (ival == 0)
             return js_Emit1(cx, cg, JSOP_ZERO) >= 0;
         if (ival == 1)
@@ -2973,14 +2951,26 @@ EmitNumberOp(JSContext *cx, jsdouble dval, JSCodeGenerator *cg)
         return JS_TRUE;
     }
 
-    atom = js_AtomizeDouble(cx, dval);
-    if (!atom)
+    if (!cg->constList.append(DoubleValue(dval)))
         return JS_FALSE;
 
-    ale = cg->atomList.add(cg->parser, atom);
-    if (!ale)
-        return JS_FALSE;
-    return EmitIndexOp(cx, JSOP_DOUBLE, ALE_INDEX(ale), cg);
+    return EmitIndexOp(cx, JSOP_DOUBLE, cg->constList.length() - 1, cg);
+}
+
+/*
+ * To avoid bloating all parse nodes for the special case of switch, values are
+ * allocated in the temp pool and pointed to by the parse node. These values
+ * are not currently recycled (like parse nodes) and the temp pool is only
+ * flushed at the end of compiling a script, so these values are technically
+ * leaked. This would only be a problem for scripts containing a large number
+ * of large switches, which seems unlikely.
+ */
+static Value *
+AllocateSwitchConstant(JSContext *cx)
+{
+    Value *pv;
+    JS_ARENA_ALLOCATE_TYPE(pv, Value, &cx->tempPool);
+    return pv;
 }
 
 static JSBool
@@ -2993,10 +2983,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
     JSParseNode *pn2, *pn3, *pn4;
     uint32 caseCount, tableLength;
     JSParseNode **table;
-    jsdouble d;
-    jsint i, low, high;
-    jsval v;
-    JSAtom *atom;
+    int32_t i, low, high;
     JSAtomListElement *ale;
     intN noteIndex;
     size_t switchSize, tableSize;
@@ -3110,30 +3097,22 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
             pn4 = pn3->pn_left;
             while (pn4->pn_type == TOK_RP)
                 pn4 = pn4->pn_kid;
+
+            Value constVal;
             switch (pn4->pn_type) {
               case TOK_NUMBER:
-                d = pn4->pn_dval;
-                if (JSDOUBLE_IS_INT(d, i) && INT_FITS_IN_JSVAL(i)) {
-                    pn3->pn_val = INT_TO_JSVAL(i);
-                } else {
-                    atom = js_AtomizeDouble(cx, d);
-                    if (!atom) {
-                        ok = JS_FALSE;
-                        goto release;
-                    }
-                    pn3->pn_val = ATOM_KEY(atom);
-                }
+                constVal.setNumber(pn4->pn_dval);
                 break;
               case TOK_STRING:
-                pn3->pn_val = ATOM_KEY(pn4->pn_atom);
+                constVal.setString(ATOM_TO_STRING(pn4->pn_atom));
                 break;
               case TOK_NAME:
                 if (!pn4->maybeExpr()) {
-                    ok = LookupCompileTimeConstant(cx, cg, pn4->pn_atom, &v);
+                    ok = LookupCompileTimeConstant(cx, cg, pn4->pn_atom, &constVal);
                     if (!ok)
                         goto release;
-                    if (v != JSVAL_HOLE) {
-                        if (!JSVAL_IS_PRIMITIVE(v)) {
+                    if (!constVal.isMagic(JS_NO_CONSTANT)) {
+                        if (constVal.isObject()) {
                             /*
                              * XXX JSOP_LOOKUPSWITCH does not support const-
                              * propagated object values, see bug 407186.
@@ -3141,7 +3120,6 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                             switchOp = JSOP_CONDSWITCH;
                             continue;
                         }
-                        pn3->pn_val = v;
                         constPropagated = JS_TRUE;
                         break;
                     }
@@ -3149,15 +3127,15 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                 /* FALL THROUGH */
               case TOK_PRIMARY:
                 if (pn4->pn_op == JSOP_TRUE) {
-                    pn3->pn_val = JSVAL_TRUE;
+                    constVal.setBoolean(true);
                     break;
                 }
                 if (pn4->pn_op == JSOP_FALSE) {
-                    pn3->pn_val = JSVAL_FALSE;
+                    constVal.setBoolean(false);
                     break;
                 }
                 if (pn4->pn_op == JSOP_NULL) {
-                    pn3->pn_val = JSVAL_NULL;
+                    constVal.setNull();
                     break;
                 }
                 /* FALL THROUGH */
@@ -3165,16 +3143,23 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                 switchOp = JSOP_CONDSWITCH;
                 continue;
             }
+            JS_ASSERT(constVal.isPrimitive());
 
-            JS_ASSERT(JSVAL_IS_PRIMITIVE(pn3->pn_val));
+            pn3->pn_pval = AllocateSwitchConstant(cx);
+            if (!pn3->pn_pval) {
+                ok = JS_FALSE;
+                goto release;
+            }
+
+            *pn3->pn_pval = constVal;
 
             if (switchOp != JSOP_TABLESWITCH)
                 continue;
-            if (!JSVAL_IS_INT(pn3->pn_val)) {
+            if (!pn3->pn_pval->isInt32()) {
                 switchOp = JSOP_LOOKUPSWITCH;
                 continue;
             }
-            i = JSVAL_TO_INT(pn3->pn_val);
+            i = pn3->pn_pval->toInt32();
             if ((jsuint)(i + (jsint)JS_BIT(15)) >= (jsuint)JS_BIT(16)) {
                 switchOp = JSOP_LOOKUPSWITCH;
                 continue;
@@ -3237,7 +3222,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
              * switch generation and use conditional switch if it exceeds
              * the limit.
              */
-            if (caseCount + cg->atomList.count > JS_BIT(16))
+            if (caseCount + cg->constList.length() > JS_BIT(16))
                 switchOp = JSOP_CONDSWITCH;
         }
     }
@@ -3369,7 +3354,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                 for (pn3 = pn2->pn_head; pn3; pn3 = pn3->pn_next) {
                     if (pn3->pn_type == TOK_DEFAULT)
                         continue;
-                    i = JSVAL_TO_INT(pn3->pn_val);
+                    i = pn3->pn_pval->toInt32();
                     i -= low;
                     JS_ASSERT((uint32)i < tableLength);
                     table[i] = pn3;
@@ -3512,12 +3497,9 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
         for (pn3 = pn2->pn_head; pn3; pn3 = pn3->pn_next) {
             if (pn3->pn_type == TOK_DEFAULT)
                 continue;
-            if (!js_AtomizePrimitiveValue(cx, pn3->pn_val, &atom))
+            if (!cg->constList.append(*pn3->pn_pval))
                 goto bad;
-            ale = cg->atomList.add(cg->parser, atom);
-            if (!ale)
-                goto bad;
-            SET_INDEX(pc, ALE_INDEX(ale));
+            SET_INDEX(pc, cg->constList.length() - 1);
             pc += INDEX_LEN;
 
             off = pn3->pn_offset - top;
@@ -3620,8 +3602,8 @@ MaybeEmitVarDecl(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
     jsatomid atomIndex;
     JSAtomListElement *ale;
 
-    if (pn->pn_cookie != FREE_UPVAR_COOKIE) {
-        atomIndex = (jsatomid) UPVAR_FRAME_SLOT(pn->pn_cookie);
+    if (!pn->pn_cookie.isFree()) {
+        atomIndex = (jsatomid) pn->pn_cookie.slot();
     } else {
         ale = cg->atomList.add(cg->parser, pn->pn_atom);
         if (!ale)
@@ -3698,8 +3680,6 @@ EmitDestructuringOpsHelper(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn);
 static JSBool
 EmitDestructuringLHS(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 {
-    jsuint slot;
-
     /*
      * Now emit the lvalue opcode sequence.  If the lvalue is a nested
      * destructuring initialiser-form, call ourselves to handle it, then
@@ -3736,17 +3716,21 @@ EmitDestructuringLHS(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             break;
 
           case JSOP_SETLOCAL:
-            slot = (jsuint) pn->pn_cookie;
+          {
+            jsuint slot = pn->pn_cookie.asInteger();
             EMIT_UINT16_IMM_OP(JSOP_SETLOCALPOP, slot);
             break;
+          }
 
           case JSOP_SETARG:
           case JSOP_SETGVAR:
-            slot = (jsuint) pn->pn_cookie;
+          {
+            jsuint slot = pn->pn_cookie.asInteger();
             EMIT_UINT16_IMM_OP(PN_OP(pn), slot);
             if (js_Emit1(cx, cg, JSOP_POP) < 0)
                 return JS_FALSE;
             break;
+          }
 
           default:
           {
@@ -4140,7 +4124,7 @@ EmitVariables(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
 #endif
         } else {
             JS_ASSERT(op != JSOP_CALLEE);
-            JS_ASSERT(pn2->pn_cookie != FREE_UPVAR_COOKIE || !let);
+            JS_ASSERT(!pn2->pn_cookie.isFree() || !let);
             if (!MaybeEmitVarDecl(cx, cg, PN_OP(pn), pn2, &atomIndex))
                 return JS_FALSE;
 
@@ -4206,7 +4190,7 @@ EmitVariables(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
         if (op == JSOP_ARGUMENTS) {
             if (js_Emit1(cx, cg, op) < 0)
                 return JS_FALSE;
-        } else if (pn2->pn_cookie != FREE_UPVAR_COOKIE) {
+        } else if (!pn2->pn_cookie.isFree()) {
             EMIT_UINT16_IMM_OP(op, atomIndex);
         } else {
             EMIT_INDEX_OP(op, atomIndex);
@@ -4772,7 +4756,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                                    : SRC_DECL_LET) < 0) {
                     return JS_FALSE;
                 }
-                if (pn3->pn_cookie != FREE_UPVAR_COOKIE) {
+                if (!pn3->pn_cookie.isFree()) {
                     op = PN_OP(pn3);
                     switch (op) {
                       case JSOP_GETARG:   /* FALL THROUGH */
@@ -4794,8 +4778,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                                              JSMSG_BAD_FOR_LEFTSIDE);
                     return JS_FALSE;
                 }
-                if (pn3->pn_cookie != FREE_UPVAR_COOKIE) {
-                    atomIndex = (jsatomid) pn3->pn_cookie;
+                if (!pn3->pn_cookie.isFree()) {
+                    atomIndex = (jsatomid) pn3->pn_cookie.asInteger();
                     EMIT_UINT16_IMM_OP(op, atomIndex);
                 } else {
                     if (!EmitAtomOp(cx, pn3, op, cg))
@@ -5382,8 +5366,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
           case TOK_NAME:
             /* Inline and specialize BindNameToSlot for pn2. */
-            JS_ASSERT(pn2->pn_cookie != FREE_UPVAR_COOKIE);
-            EMIT_UINT16_IMM_OP(JSOP_SETLOCALPOP, pn2->pn_cookie);
+            JS_ASSERT(!pn2->pn_cookie.isFree());
+            EMIT_UINT16_IMM_OP(JSOP_SETLOCALPOP, pn2->pn_cookie.asInteger());
             break;
 
           default:
@@ -5718,8 +5702,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
           case TOK_NAME:
             if (!BindNameToSlot(cx, cg, pn2))
                 return JS_FALSE;
-            if (pn2->pn_cookie != FREE_UPVAR_COOKIE) {
-                atomIndex = (jsatomid) pn2->pn_cookie;
+            if (!pn2->pn_cookie.isFree()) {
+                atomIndex = (jsatomid) pn2->pn_cookie.asInteger();
             } else {
                 ale = cg->atomList.add(cg->parser, pn2->pn_atom);
                 if (!ale)
@@ -5984,47 +5968,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         break;
 
       case TOK_PLUS:
-        /* For TCF_IN_FUNCTION test, see TOK_RB concerning JSOP_NEWARRAY. */
-        if (pn->pn_arity == PN_LIST && pn->pn_count < JS_BIT(16) &&
-            cg->inFunction()) {
-            /* Emit up to the first string literal conventionally. */
-            for (pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-                if (pn2->pn_type == TOK_STRING)
-                    break;
-                if (!js_EmitTree(cx, cg, pn2))
-                    return JS_FALSE;
-                if (pn2 != pn->pn_head && js_Emit1(cx, cg, JSOP_ADD) < 0)
-                    return JS_FALSE;
-            }
-
-            if (!pn2)
-                break;
-
-            /*
-             * Having seen a string literal, we know statically that the rest
-             * of the additions are string concatenation, so we emit them as a
-             * single concatn. First, do string conversion on the result of the
-             * preceding zero or more additions so that any side effects of
-             * string conversion occur before the next operand begins.
-             */
-            if (pn2 == pn->pn_head) {
-                index = 0;
-            } else {
-                if (!js_Emit1(cx, cg, JSOP_OBJTOSTR))
-                    return JS_FALSE;
-                index = 1;
-            }
-
-            for (; pn2; pn2 = pn2->pn_next, index++) {
-                if (!js_EmitTree(cx, cg, pn2))
-                    return JS_FALSE;
-                if (!pn2->isLiteral() && js_Emit1(cx, cg, JSOP_OBJTOSTR) < 0)
-                    return JS_FALSE;
-            }
-
-            EMIT_UINT16_IMM_OP(JSOP_CONCATN, index);
-            break;
-        }
       case TOK_BITOR:
       case TOK_BITXOR:
       case TOK_BITAND:
@@ -6134,8 +6077,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             if (op == JSOP_CALLEE) {
                 if (js_Emit1(cx, cg, op) < 0)
                     return JS_FALSE;
-            } else if (pn2->pn_cookie != FREE_UPVAR_COOKIE) {
-                atomIndex = (jsatomid) pn2->pn_cookie;
+            } else if (!pn2->pn_cookie.isFree()) {
+                atomIndex = (jsatomid) pn2->pn_cookie.asInteger();
                 EMIT_UINT16_IMM_OP(op, atomIndex);
             } else {
                 JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
@@ -6304,7 +6247,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
          * For operator new applied to other expressions than E4X ones, we emit
          * JSOP_GETPROP instead of JSOP_CALLPROP, etc. This is necessary to
          * interpose the lambda-initialized method read barrier -- see the code
-         * in jsops.cpp for JSOP_LAMBDA followed by JSOP_{SET,INIT}PROP.
+         * in jsinterp.cpp for JSOP_LAMBDA followed by JSOP_{SET,INIT}PROP.
          *
          * Then (or in a call case that has no explicit reference-base object)
          * we emit JSOP_NULL as a placeholder local GC root to hold the |this|
@@ -6649,8 +6592,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 bool lambda = PN_OP(init) == JSOP_LAMBDA;
                 if (lambda)
                     ++methodInits;
-                if (op == JSOP_INITPROP && lambda && init->pn_funbox->joinable())
-                {
+                if (op == JSOP_INITPROP && lambda && init->pn_funbox->joinable()) {
                     op = JSOP_INITMETHOD;
                     pn2->pn_op = uint8(op);
                 } else {
@@ -6769,11 +6711,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLELEM:
       case TOK_XMLLIST:
-        if (pn->pn_op == JSOP_XMLOBJECT) {
-            ok = EmitObjectOp(cx, pn->pn_objbox, PN_OP(pn), cg);
-            break;
-        }
-
         JS_ASSERT(PN_TYPE(pn) == TOK_XMLLIST || pn->pn_count != 0);
         switch (pn->pn_head ? PN_TYPE(pn->pn_head) : TOK_XMLLIST) {
           case TOK_XMLETAGO:
@@ -6817,12 +6754,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         break;
 
       case TOK_XMLPTAGC:
-        if (pn->pn_op == JSOP_XMLOBJECT) {
-            ok = EmitObjectOp(cx, pn->pn_objbox, PN_OP(pn), cg);
-            break;
-        }
-        /* FALL THROUGH */
-
       case TOK_XMLSTAGO:
       case TOK_XMLETAGO:
       {
@@ -7412,4 +7343,14 @@ JSCGObjectList::finish(JSObjectArray *array)
         *cursor = objbox->object;
     } while ((objbox = objbox->emitLink) != NULL);
     JS_ASSERT(cursor == array->vector);
+}
+
+void
+JSGCConstList::finish(JSConstArray *array)
+{
+    JS_ASSERT(array->length == list.length());
+    Value *src = list.begin(), *srcend = list.end();
+    Value *dst = array->vector;
+    for (; src != srcend; ++src, ++dst)
+        *dst = *src;
 }

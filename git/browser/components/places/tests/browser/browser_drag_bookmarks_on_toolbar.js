@@ -244,13 +244,23 @@ function nextTest() {
 
     setTimeout(nextTest, 0);
   }
-  else
+  else {
+    // Collapse the personal toolbar if needed.
+    if (wasCollapsed)
+      setToolbarVisibility(toolbar, false);
     finish();
+  }
 }
 
-function test() {
-  waitForExplicitFinish();
+let toolbar = document.getElementById("PersonalToolbar");
+let wasCollapsed = toolbar.collapsed;
 
+function test() {
+  // Uncollapse the personal toolbar if needed.
+  if (wasCollapsed)
+    setToolbarVisibility(toolbar, true);
+
+  waitForExplicitFinish();
   nextTest();
 }
 

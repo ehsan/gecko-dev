@@ -80,6 +80,30 @@ nsPlaceholderFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   return result;
 }
 
+/* virtual */ nsSize
+nsPlaceholderFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
+{
+  nsSize size(0, 0);
+  DISPLAY_MIN_SIZE(this, size);
+  return size;
+}
+
+/* virtual */ nsSize
+nsPlaceholderFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
+{
+  nsSize size(0, 0);
+  DISPLAY_PREF_SIZE(this, size);
+  return size;
+}
+
+/* virtual */ nsSize
+nsPlaceholderFrame::GetMaxSize(nsBoxLayoutState& aBoxLayoutState)
+{
+  nsSize size(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
+  DISPLAY_MAX_SIZE(this, size);
+  return size;
+}
+
 /* virtual */ void
 nsPlaceholderFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                       nsIFrame::InlineMinWidthData *aData)
@@ -213,7 +237,8 @@ nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   
   return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(this, PaintDebugPlaceholder, "DebugPlaceholder"));
+      nsDisplayGeneric(this, PaintDebugPlaceholder, "DebugPlaceholder",
+                       nsDisplayItem::TYPE_DEBUG_PLACEHOLDER));
 #else // DEBUG
   return NS_OK;
 #endif // DEBUG
@@ -240,7 +265,7 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%08x]", mState);
+    fprintf(out, " [state=%016llx]", mState);
   }
   nsIFrame* prevInFlow = GetPrevInFlow();
   nsIFrame* nextInFlow = GetNextInFlow();
@@ -252,6 +277,9 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   if (nsnull != mContent) {
     fprintf(out, " [content=%p]", static_cast<void*>(mContent));
+  }
+  if (nsnull != mStyleContext) {
+    fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   }
   if (mOutOfFlowFrame) {
     fprintf(out, " outOfFlowFrame=");

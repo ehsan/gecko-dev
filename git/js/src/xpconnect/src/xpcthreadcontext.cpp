@@ -189,7 +189,7 @@ XPCJSContextStack::DEBUG_StackHasJSContext(JSContext*  aJSContext)
 #endif
 
 static JSBool
-SafeGlobalResolve(JSContext *cx, JSObject *obj, jsval id)
+SafeGlobalResolve(JSContext *cx, JSObject *obj, jsid id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
@@ -255,7 +255,7 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
             {
                 // scoped JS Request
                 JSAutoRequest req(mSafeJSContext);
-                glob = JS_NewObject(mSafeJSContext, &global_class, NULL, NULL);
+                glob = JS_NewGlobalObject(mSafeJSContext, &global_class);
 
 #ifndef XPCONNECT_STANDALONE
                 if(glob)
@@ -331,7 +331,7 @@ XPCPerThreadData::XPCPerThreadData()
     :   mJSContextStack(new XPCJSContextStack()),
         mNextThread(nsnull),
         mCallContext(nsnull),
-        mResolveName(0),
+        mResolveName(JSID_VOID),
         mResolvingWrapper(nsnull),
         mExceptionManager(nsnull),
         mException(nsnull),

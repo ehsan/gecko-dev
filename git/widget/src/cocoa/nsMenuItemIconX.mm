@@ -117,7 +117,7 @@ nsMenuItemIconX::SetupIcon()
 
   // Still don't have one, then something is wrong, get out of here.
   if (!mNativeMenuItem) {
-    NS_ERROR("No native menu item\n");
+    NS_ERROR("No native menu item");
     return NS_ERROR_FAILURE;
   }
 
@@ -354,8 +354,8 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
 //
 
 NS_IMETHODIMP
-nsMenuItemIconX::FrameChanged(imgIContainer* aContainer,
-                              nsIntRect*     aDirtyRect)
+nsMenuItemIconX::FrameChanged(imgIContainer*   aContainer,
+                              const nsIntRect* aDirtyRect)
 {
   return NS_OK;
 }
@@ -443,7 +443,7 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest,
   
   nsRefPtr<gfxImageSurface> frame;
   nsresult rv = imageContainer->CopyFrame(  imgIContainer::FRAME_CURRENT,
-                                            imgIContainer::FLAG_SYNC_DECODE,
+                                            imgIContainer::FLAG_NONE,
                                             getter_AddRefs(frame));
   if (NS_FAILED(rv) || !frame) {
     [mNativeMenuItem setImage:nil];

@@ -807,6 +807,14 @@ moz_gtk_init()
     return MOZ_GTK_SUCCESS;
 }
 
+GdkColormap*
+moz_gtk_widget_get_colormap()
+{
+    /* Child widgets inherit the colormap from the GtkWindow. */
+    ensure_window_widget();
+    return gtk_widget_get_colormap(gProtoWindow);
+}
+
 gint
 moz_gtk_checkbox_get_metrics(gint* indicator_size, gint* indicator_spacing)
 {
@@ -1327,21 +1335,12 @@ moz_gtk_scrollbar_thumb_paint(GtkThemeWidgetType widget,
        surrounding the scrollbar if the theme thinks that it's butted
        up against the scrollbar arrows.  Note the increases of the
        clip rect below. */
-    /* Changing the cliprect is pretty bogus. This lets themes draw
-       outside the frame, which means we don't invalidate them
-       correctly. See bug 297508. But some themes do seem to need
-       it. So we modify the frame's overflow area to account for what
-       we're doing here; see nsNativeThemeGTK::GetWidgetOverflow. */
     adj = gtk_range_get_adjustment(GTK_RANGE(scrollbar));
 
     if (widget == MOZ_GTK_SCROLLBAR_THUMB_HORIZONTAL) {
-        cliprect->x -= 1;
-        cliprect->width += 2;
         adj->page_size = rect->width;
     }
     else {
-        cliprect->y -= 1;
-        cliprect->height += 2;
         adj->page_size = rect->height;
     }
 
@@ -1891,8 +1890,9 @@ moz_gtk_combo_box_paint(GdkDrawable* drawable, GdkRectangle* rect,
 }
 
 static gint
-moz_gtk_downarrow_paint(GdkDrawable* drawable, GdkRectangle* rect,
-                        GdkRectangle* cliprect, GtkWidgetState* state)
+moz_gtk_arrow_paint(GdkDrawable* drawable, GdkRectangle* rect,
+                    GdkRectangle* cliprect, GtkWidgetState* state,
+                    GtkArrowType arrow_type, GtkTextDirection direction)
 {
     GtkStyle* style;
     GtkStateType state_type = ConvertGtkState(state);
@@ -1901,13 +1901,21 @@ moz_gtk_downarrow_paint(GdkDrawable* drawable, GdkRectangle* rect,
 
     ensure_button_arrow_widget();
     style = gButtonArrowWidget->style;
+    gtk_widget_set_direction(gButtonArrowWidget, direction);
 
     calculate_arrow_rect(gButtonArrowWidget, rect, &arrow_rect,
-                         GTK_TEXT_DIR_LTR);
+                         direction);
+
+    if (direction == GTK_TEXT_DIR_RTL) {
+        if (arrow_type == GTK_ARROW_LEFT)
+            arrow_type = GTK_ARROW_RIGHT;
+        else if (arrow_type == GTK_ARROW_RIGHT)
+            arrow_type = GTK_ARROW_LEFT;
+    }
 
     TSOffsetStyleGCs(style, arrow_rect.x, arrow_rect.y);
     gtk_paint_arrow(style, drawable, state_type, shadow_type, cliprect,
-                    gButtonArrowWidget, "arrow",  GTK_ARROW_DOWN, TRUE,
+                    gButtonArrowWidget, "arrow",  arrow_type, TRUE,
                     arrow_rect.x, arrow_rect.y, arrow_rect.width, arrow_rect.height);
 
     return MOZ_GTK_SUCCESS;
@@ -2335,10 +2343,6 @@ moz_gtk_tab_paint(GdkDrawable* drawable, GdkRectangle* rect,
         }
 
         if (flags & MOZ_GTK_TAB_BOTTOM) {
-            /* Enlarge the cliprect to have room for the full gap height */
-            cliprect->height += gap_height - gap_voffset;
-            cliprect->y -= gap_height - gap_voffset;
-
             /* Draw the tab */
             focusRect.y += gap_voffset;
             focusRect.height -= gap_voffset;
@@ -2363,9 +2367,6 @@ moz_gtk_tab_paint(GdkDrawable* drawable, GdkRectangle* rect,
                               3 * gap_height, GTK_POS_BOTTOM,
                               gap_loffset, rect->width);
         } else {
-            /* Enlarge the cliprect to have room for the full gap height */
-            cliprect->height += gap_height - gap_voffset;
-
             /* Draw the tab */
             focusRect.height -= gap_voffset;
             gtk_paint_extension(style, drawable, GTK_STATE_NORMAL,
@@ -3016,7 +3017,7 @@ moz_gtk_get_tab_scroll_arrow_size(gint* width, gint* height)
 }
 
 gint
-moz_gtk_get_downarrow_size(gint* width, gint* height)
+moz_gtk_get_arrow_size(gint* width, gint* height)
 {
     GtkRequisition requisition;
     ensure_button_arrow_widget();
@@ -3333,7 +3334,8 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, GdkDrawable* drawable,
                                         direction);
         break;
     case MOZ_GTK_TOOLBARBUTTON_ARROW:
-        return moz_gtk_downarrow_paint(drawable, rect, cliprect, state);
+        return moz_gtk_arrow_paint(drawable, rect, cliprect, state,
+                                   (GtkArrowType) flags, direction);
         break;
     case MOZ_GTK_CHECKMENUITEM:
     case MOZ_GTK_RADIOMENUITEM:

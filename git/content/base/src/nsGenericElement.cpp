@@ -72,8 +72,6 @@
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMCSSStyleDeclaration.h"
-#include "nsCSSDeclaration.h"
-#include "nsDOMCSSDeclaration.h"
 #include "nsDOMCSSAttrDeclaration.h"
 #include "nsINameSpaceManager.h"
 #include "nsContentList.h"
@@ -93,7 +91,6 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
-#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
@@ -222,14 +219,12 @@ nsINode::SetProperty(PRUint16 aCategory, nsIAtom *aPropertyName, void *aValue,
   return rv;
 }
 
-nsresult
+void
 nsINode::DeleteProperty(PRUint16 aCategory, nsIAtom *aPropertyName)
 {
   nsIDocument *doc = GetOwnerDoc();
-  if (!doc)
-    return nsnull;
-
-  return doc->PropertyTable(aCategory)->DeleteProperty(this, aPropertyName);
+  if (doc)
+    doc->PropertyTable(aCategory)->DeleteProperty(this, aPropertyName);
 }
 
 void*
@@ -371,8 +366,7 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
     return nsnull;
   }
 
-  nsIFrame* frame = static_cast<nsIContent*>(this)->GetPrimaryFrame();
-  if (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION) {
+  if (static_cast<nsIContent*>(this)->HasIndependentSelection()) {
     // This node should be a descendant of input/textarea editor.
     nsIContent* content = GetTextEditorRootContent();
     if (content)
@@ -393,15 +387,9 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
                  editorRoot :
                  GetRootForContentSubtree(static_cast<nsIContent*>(this));
       }
-      // If the current document is not editable, but current content is
-      // editable, we should assume that the child of the nearest non-editable
-      // ancestor is selection root.
-      nsIContent* content = static_cast<nsIContent*>(this);
-      for (nsIContent* parent = GetParent();
-           parent && parent->HasFlag(NODE_IS_EDITABLE);
-           parent = content->GetParent())
-        content = parent;
-      return content;
+      // If the document isn't editable but this is editable, this is in
+      // contenteditable.  Use the editing host element for selection root.
+      return static_cast<nsIContent*>(this)->GetEditingHost();
     }
   }
 
@@ -835,21 +823,20 @@ nsIContent::GetDesiredIMEState()
   if (!IsEditableInternal()) {
     return IME_STATUS_DISABLE;
   }
-  nsIContent *editableAncestor = nsnull;
-  for (nsIContent* parent = GetParent();
-       parent && parent->HasFlag(NODE_IS_EDITABLE);
-       parent = parent->GetParent()) {
-    editableAncestor = parent;
-  }
+  // NOTE: The content for independent editors (e.g., input[type=text],
+  // textarea) must override this method, so, we don't need to worry about
+  // that here.
+  nsIContent *editableAncestor = GetEditingHost();
+
   // This is in another editable content, use the result of it.
-  if (editableAncestor) {
+  if (editableAncestor && editableAncestor != this) {
     return editableAncestor->GetDesiredIMEState();
   }
   nsIDocument* doc = GetCurrentDoc();
   if (!doc) {
     return IME_STATUS_DISABLE;
   }
-  nsIPresShell* ps = doc->GetPrimaryShell();
+  nsIPresShell* ps = doc->GetShell();
   if (!ps) {
     return IME_STATUS_DISABLE;
   }
@@ -868,6 +855,35 @@ nsIContent::GetDesiredIMEState()
   nsresult rv = imeEditor->GetPreferredIMEState(&state);
   NS_ENSURE_SUCCESS(rv, IME_STATUS_ENABLE);
   return state;
+}
+
+PRBool
+nsIContent::HasIndependentSelection()
+{
+  nsIFrame* frame = GetPrimaryFrame();
+  return (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION);
+}
+
+nsIContent*
+nsIContent::GetEditingHost()
+{
+  // If this isn't editable, return NULL.
+  NS_ENSURE_TRUE(HasFlag(NODE_IS_EDITABLE), nsnull);
+
+  nsIDocument* doc = GetCurrentDoc();
+  NS_ENSURE_TRUE(doc, nsnull);
+  // If this is in designMode, we should return <body>
+  if (doc->HasFlag(NODE_IS_EDITABLE)) {
+    return doc->GetBodyElement();
+  }
+
+  nsIContent* content = this;
+  for (nsIContent* parent = GetParent();
+       parent && parent->HasFlag(NODE_IS_EDITABLE);
+       parent = content->GetParent()) {
+    content = parent;
+  }
+  return content;
 }
 
 nsresult
@@ -1406,27 +1422,40 @@ nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
+void
+nsGenericElement::SetCapture(PRBool aRetargetToElement)
 {
   // If there is already an active capture, ignore this request. This would
   // occur if a splitter, frame resizer, etc had already captured and we don't
   // want to override those.
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
-  if (node)
-    return NS_OK;
+  if (nsIPresShell::GetCapturingContent())
+    return;
 
-  nsIPresShell::SetCapturingContent(mContent, CAPTURE_PREVENTDRAG |
+  nsIPresShell::SetCapturingContent(this, CAPTURE_PREVENTDRAG |
     (aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0));
+}
+
+NS_IMETHODIMP
+nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
+{
+  mContent->SetCapture(aRetargetToElement);
+
   return NS_OK;
+}
+
+void
+nsGenericElement::ReleaseCapture()
+{
+  if (nsIPresShell::GetCapturingContent() == this) {
+    nsIPresShell::SetCapturingContent(nsnull, 0);
+  }
 }
 
 NS_IMETHODIMP
 nsNSElementTearoff::ReleaseCapture()
 {
-  if (nsIPresShell::GetCapturingContent() == mContent) {
-    nsIPresShell::SetCapturingContent(nsnull, 0);
-  }
+  mContent->ReleaseCapture();
+
   return NS_OK;
 }
 
@@ -2059,7 +2088,7 @@ nsGenericElement::nsDOMSlots::~nsDOMSlots()
   }
 }
 
-nsGenericElement::nsGenericElement(nsINodeInfo *aNodeInfo)
+nsGenericElement::nsGenericElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : Element(aNodeInfo)
 {
   // Set the default scriptID to JS - but skip SetScriptTypeID as it
@@ -2884,7 +2913,9 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // Unset this flag since we now really are in a document.
     UnsetFlags(NODE_FORCE_XBL_BINDINGS |
                // And clear the lazy frame construction bits.
-               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES);
+               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES |
+               // And the restyle bits
+               ELEMENT_ALL_RESTYLE_FLAGS);
   }
 
   // If NODE_FORCE_XBL_BINDINGS was set we might have anonymous children
@@ -2929,13 +2960,8 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   UpdateEditableState();
 
   // Now recurse into our kids
-  PRUint32 i;
-  // Don't call GetChildCount() here since that'll make XUL generate
-  // template children, which we're not in a consistent enough state for.
-  // Additionally, there's not really a need to generate the children here.
-  for (i = 0; i < mAttrsAndChildren.ChildCount(); ++i) {
-    // The child can remove itself from the parent in BindToTree.
-    nsCOMPtr<nsIContent> child = mAttrsAndChildren.ChildAt(i);
+  for (nsIContent* child = GetFirstChild(); child;
+       child = child->GetNextSibling()) {
     rv = child->BindToTree(aDocument, this, aBindingParent,
                            aCompileEventHandlers);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3301,9 +3327,9 @@ nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
     // be in a document, if we're clearing animation effects on a target node
     // that's been detached since the previous animation sample.)
     if (doc) {
-      nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
+      nsCOMPtr<nsIPresShell> shell = doc->GetShell();
       if (shell) {
-        shell->RestyleForAnimation(this);
+        shell->RestyleForAnimation(this, eRestyle_Self);
       }
     }
   }
@@ -3483,14 +3509,13 @@ nsGenericElement::GetScriptTypeID() const
 {
     PtrBits flags = GetFlags();
 
-    /* 4 bits reserved for script-type ID. */
-    return (flags >> NODE_SCRIPT_TYPE_OFFSET) & 0x000F;
+    return (flags >> NODE_SCRIPT_TYPE_OFFSET) & NODE_SCRIPT_TYPE_MASK;
 }
 
 NS_IMETHODIMP
 nsGenericElement::SetScriptTypeID(PRUint32 aLang)
 {
-    if ((aLang & 0x000F) != aLang) {
+    if ((aLang & NODE_SCRIPT_TYPE_MASK) != aLang) {
         NS_ERROR("script ID too large!");
         return NS_ERROR_FAILURE;
     }
@@ -3622,7 +3647,7 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   // A11y needs to be notified of content removals first, so accessibility
   // events can be fired before any changes occur
   if (aNotify && doc) {
-    nsIPresShell *presShell = doc->GetPrimaryShell();
+    nsIPresShell *presShell = doc->GetShell();
     if (presShell && presShell->IsAccessibilityActive()) {
       nsCOMPtr<nsIAccessibilityService> accService = 
         do_GetService("@mozilla.org/accessibilityService;1");
@@ -3667,6 +3692,8 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
     }
   }
 
+  nsIContent* previousSibling = aKid->GetPreviousSibling();
+
   if (GetFirstChild() == aKid) {
     mFirstChild = aKid->GetNextSibling();
   }
@@ -3674,7 +3701,7 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   aChildArray.RemoveChildAt(aIndex);
 
   if (aNotify) {
-    nsNodeUtils::ContentRemoved(this, aKid, aIndex);
+    nsNodeUtils::ContentRemoved(this, aKid, aIndex, previousSibling);
   }
 
   aKid->UnbindFromTree();
@@ -5379,7 +5406,7 @@ ParseSelectorList(nsINode* aNode,
   // It's not strictly necessary to have a prescontext here, but it's
   // a bit of an optimization for various stuff.
   *aPresContext = nsnull;
-  nsIPresShell* shell = doc->GetPrimaryShell();
+  nsIPresShell* shell = doc->GetShell();
   if (shell) {
     *aPresContext = shell->GetPresContext();
   }

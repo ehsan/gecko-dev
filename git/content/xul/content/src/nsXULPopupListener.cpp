@@ -221,18 +221,6 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
       return NS_OK;
   }
 
-  // Get the document with the popup.
-  nsCOMPtr<nsIContent> content = do_QueryInterface(mElement);
-
-  // Turn the document into a XUL document so we can use SetPopupNode.
-  nsCOMPtr<nsIDOMXULDocument> xulDocument = do_QueryInterface(content->GetDocument());
-  if (!xulDocument) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Store clicked-on node in xul document for context menus and menu popups.
-  xulDocument->SetPopupNode(targetNode);
-
   nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(aMouseEvent));
 
   if (mIsContext) {
@@ -269,7 +257,7 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
 
     // Get nsIDOMElement for targetNode
-    nsIPresShell *shell = doc->GetPrimaryShell();
+    nsIPresShell *shell = doc->GetShell();
     if (!shell)
       return NS_ERROR_FAILURE;
 

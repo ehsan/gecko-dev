@@ -56,15 +56,14 @@ public:
   { 
       mImplData = static_cast<LayerOGL*>(this);
   }
-
-  ~CanvasLayerOGL();
+  ~CanvasLayerOGL() { Destroy(); }
 
   // CanvasLayer implementation
   virtual void Initialize(const Data& aData);
   virtual void Updated(const nsIntRect& aRect);
 
   // LayerOGL implementation
-  virtual LayerType GetType() { return TYPE_CANVAS; }
+  virtual void Destroy();
   virtual Layer* GetLayer() { return this; }
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
@@ -73,6 +72,7 @@ protected:
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
 
+  void MakeTexture();
   GLuint mTexture;
 
   nsIntRect mBounds;

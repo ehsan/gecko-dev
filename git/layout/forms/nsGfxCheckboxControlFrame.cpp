@@ -46,7 +46,7 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsIDOMNSHTMLInputElement.h"
+#include "nsIDOMHTMLInputElement.h"
 
 static void
 PaintCheckMark(nsIFrame* aFrame,
@@ -120,18 +120,18 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 }
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP
-nsGfxCheckboxControlFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsGfxCheckboxControlFrame::CreateAccessible()
 {
   nsCOMPtr<nsIAccessibilityService> accService
     = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLCheckboxAccessible(
-      static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLCheckboxAccessible(mContent,
+                                                    PresContext()->PresShell());
   }
 
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -156,7 +156,8 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsDisplayGeneric(this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,
-                     "CheckedCheckbox"));
+                     "CheckedCheckbox",
+                     nsDisplayItem::TYPE_CHECKED_CHECKBOX));
 }
 
 //------------------------------------------------------------
@@ -172,7 +173,7 @@ nsGfxCheckboxControlFrame::IsChecked()
 PRBool
 nsGfxCheckboxControlFrame::IsIndeterminate()
 {
-  nsCOMPtr<nsIDOMNSHTMLInputElement> elem(do_QueryInterface(mContent));
+  nsCOMPtr<nsIDOMHTMLInputElement> elem(do_QueryInterface(mContent));
   PRBool retval = PR_FALSE;
   elem->GetIndeterminate(&retval);
   return retval;

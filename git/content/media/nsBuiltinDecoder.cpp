@@ -178,6 +178,7 @@ void nsBuiltinDecoder::Shutdown()
 nsBuiltinDecoder::~nsBuiltinDecoder()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
+  UnpinForSeek();
   MOZ_COUNT_DTOR(nsBuiltinDecoder);
 }
 
@@ -262,6 +263,7 @@ nsresult nsBuiltinDecoder::Seek(float aTime)
     else {
       mNextState = mPlayState;
     }
+    PinForSeek();
     ChangeState(PLAY_STATE_SEEKING);
   }
 
@@ -303,6 +305,9 @@ void nsBuiltinDecoder::MetadataLoaded()
   {
     MonitorAutoEnter mon(mMonitor);
     mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
+    // Duration has changed so we should recompute playback rate
+    UpdatePlaybackRate();
+
     notifyElement = mNextState != PLAY_STATE_SEEKING;
   }
 
@@ -443,7 +448,8 @@ NS_IMETHODIMP nsBuiltinDecoder::Observe(nsISupports *aSubjet,
 nsMediaDecoder::Statistics
 nsBuiltinDecoder::GetStatistics()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
+  NS_ASSERTION(NS_IsMainThread() || OnStateMachineThread(),
+               "Should be on main or state machine thread.");
   Statistics result;
 
   MonitorAutoEnter mon(mMonitor);
@@ -604,10 +610,12 @@ void nsBuiltinDecoder::SeekingStopped()
 
     // An additional seek was requested while the current seek was
     // in operation.
-    if (mRequestedSeekTime >= 0.0)
+    if (mRequestedSeekTime >= 0.0) {
       ChangeState(PLAY_STATE_SEEKING);
-    else
+    } else {
+      UnpinForSeek();
       ChangeState(mNextState);
+    }
   }
 
   if (mElement) {
@@ -633,8 +641,8 @@ void nsBuiltinDecoder::SeekingStoppedAtEnd()
     // in operation.
     if (mRequestedSeekTime >= 0.0) {
       ChangeState(PLAY_STATE_SEEKING);
-    }
-    else {
+    } else {
+      UnpinForSeek();
       fireEnded = mNextState != PLAY_STATE_PLAYING;
       ChangeState(fireEnded ? PLAY_STATE_ENDED : mNextState);
     }
@@ -738,6 +746,9 @@ void nsBuiltinDecoder::DurationChanged()
   MonitorAutoEnter mon(mMonitor);
   PRInt64 oldDuration = mDuration;
   mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
+  // Duration has changed so we should recompute playback rate
+  UpdatePlaybackRate();
+
   if (mElement && oldDuration != mDuration) {
     LOG(PR_LOG_DEBUG, ("%p duration changed to %lldms", this, mDuration));
     mElement->DispatchSimpleEvent(NS_LITERAL_STRING("durationchange"));
@@ -748,11 +759,14 @@ void nsBuiltinDecoder::SetDuration(PRInt64 aDuration)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   mDuration = aDuration;
+
+  MonitorAutoEnter mon(mMonitor);
   if (mDecoderStateMachine) {
-    MonitorAutoEnter mon(mMonitor);
     mDecoderStateMachine->SetDuration(mDuration);
-    UpdatePlaybackRate();
   }
+
+  // Duration has changed so we should recompute playback rate
+  UpdatePlaybackRate();
 }
 
 void nsBuiltinDecoder::SetSeekable(PRBool aSeekable)
@@ -779,11 +793,15 @@ void nsBuiltinDecoder::Suspend()
   }
 }
 
-void nsBuiltinDecoder::Resume()
+void nsBuiltinDecoder::Resume(PRBool aForceBuffering)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mStream) {
     mStream->Resume();
+  }
+  if (aForceBuffering) {
+    MonitorAutoEnter mon(mMonitor);
+    mDecoderStateMachine->StartBuffering();
   }
 }
 

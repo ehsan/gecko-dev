@@ -149,6 +149,13 @@ class ResultsSink:
             for path in paths:
                 print '    %s'%path
 
+        if OPTIONS.failure_file:
+              failure_file = open(OPTIONS.failure_file, 'w')
+              if not self.all_passed():
+                  for path in self.groups['REGRESSIONS']:
+                      print >> failure_file, path
+              failure_file.close()
+
         suffix = '' if self.finished else ' (partial run -- interrupted by user)'
         if self.all_passed():
             print 'PASS' + suffix
@@ -198,7 +205,7 @@ if __name__ == '__main__':
                   help='number of worker threads to run tests on (default 2)')
     op.add_option('-m', '--manifest', dest='manifest',
                   help='select manifest file')
-    op.add_option('-t', '--timeout', dest='timeout', type=float, default=60.0,
+    op.add_option('-t', '--timeout', dest='timeout', type=float, default=150.0,
                   help='set test timeout in seconds')
     op.add_option('-d', '--exclude-random', dest='random', action='store_false',
                   help='exclude tests marked random', default=True)
@@ -218,6 +225,10 @@ if __name__ == '__main__':
                   help='extra args to pass to valgrind')
     op.add_option('-c', '--check-manifest', dest='check_manifest', action='store_true',
                   help='check for test files not listed in the manifest')
+    op.add_option('--failure-file', dest='failure_file',
+                  help='write tests that have not passed to the given file')
+    op.add_option('--run-slow-tests', dest='run_slow_tests', action='store_true',
+                  help='run particularly slow tests as well as average-speed tests')
     (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         if not OPTIONS.check_manifest:
@@ -233,13 +244,13 @@ if __name__ == '__main__':
         if OPTIONS.valgrind:
             print >> sys.stderr, "--debug and --valgrind options are mutually exclusive"
             sys.exit(2)
-        debugger_prefix = [ 'gdb', '-q', '--args' ]
+        debugger_prefix = ['gdb', '-q', '--args']
     elif OPTIONS.valgrind:
-        debugger_prefix = [ 'valgrind' ]
+        debugger_prefix = ['valgrind']
         if os.uname()[0] == 'Darwin':
-            debugger_prefix += ['--dsymutil=yes']
+            debugger_prefix.append('--dsymutil=yes')
         if OPTIONS.valgrind_args:
-            debugger_prefix += [ valgrind_args ]
+            debugger_prefix.append(OPTIONS.valgrind_args)
         # Running under valgrind is not very useful if we don't show results.
         OPTIONS.show_output = True 
     else:
@@ -300,6 +311,9 @@ if __name__ == '__main__':
     if OPTIONS.run_only_skipped:
         OPTIONS.run_skipped = True
         test_list = [ _ for _ in test_list if not _.enable ]
+
+    if not OPTIONS.run_slow_tests:
+        test_list = [ _ for _ in test_list if not _.slow ]
 
     if OPTIONS.debug and test_list:
         if len(test_list) > 1:

@@ -91,6 +91,7 @@
 
 // PSM2 includes
 #include "nsISecureBrowserUI.h"
+#include "nsXULAppAPI.h"
 
 using namespace mozilla::layers;
 
@@ -108,6 +109,7 @@ nsWebBrowser::nsWebBrowser() : mDocShellTreeOwner(nsnull),
    mContentType(typeContentWrapper),
    mActivating(PR_FALSE),
    mShouldEnableHistory(PR_TRUE),
+   mIsActive(PR_TRUE),
    mParentNativeWindow(nsnull),
    mProgressListener(nsnull),
    mBackgroundColor(0),
@@ -153,7 +155,7 @@ NS_IMETHODIMP nsWebBrowser::InternalDestroy()
    if (mListenerArray) {
       for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-         NS_DELETEXPCOM(state);
+         delete state;
       }
       delete mListenerArray;
       mListenerArray = nsnull;
@@ -237,14 +239,14 @@ NS_IMETHODIMP nsWebBrowser::AddWebBrowserListener(nsIWeakReference *aListener, c
         // The window hasn't been created yet, so queue up the listener. They'll be
         // registered when the window gets created.
         nsAutoPtr<nsWebBrowserListenerState> state;
-        NS_NEWXPCOM(state, nsWebBrowserListenerState);
+        state = new nsWebBrowserListenerState();
         if (!state) return NS_ERROR_OUT_OF_MEMORY;
 
         state->mWeakPtr = aListener;
         state->mID = aIID;
 
         if (!mListenerArray) {
-            NS_NEWXPCOM(mListenerArray, nsTArray<nsWebBrowserListenerState*>);
+            mListenerArray = new nsTArray<nsWebBrowserListenerState*>();
             if (!mListenerArray) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
@@ -315,9 +317,9 @@ NS_IMETHODIMP nsWebBrowser::RemoveWebBrowserListener(nsIWeakReference *aListener
         if (0 >= mListenerArray->Length()) {
             for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
                nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-               NS_DELETEXPCOM(state);
+               delete state;
             }
-            NS_DELETEXPCOM(mListenerArray);
+            delete mListenerArray;
             mListenerArray = nsnull;
         }
 
@@ -417,6 +419,23 @@ NS_IMETHODIMP nsWebBrowser::GetContentDOMWindow(nsIDOMWindow **_retval)
     *_retval = retval;
     NS_ADDREF(*_retval);
     return rv;
+}
+
+NS_IMETHODIMP nsWebBrowser::GetIsActive(PRBool *rv)
+{
+  *rv = mIsActive;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsWebBrowser::SetIsActive(PRBool aIsActive)
+{
+  // Set our copy of the value
+  mIsActive = aIsActive;
+
+  // If we have a docshell, pass on the request
+  if (mDocShell)
+    return mDocShell->SetIsActive(aIsActive);
+  return NS_OK;
 }
 
 //*****************************************************************************
@@ -772,6 +791,7 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(PRUint32 aId, PRUint32 aValue)
             NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
             mDocShell->SetAllowDNSPrefetch(!!aValue);
         }
+        break;
     case nsIWebBrowserSetup::SETUP_USE_GLOBAL_HISTORY:
         {
            NS_ENSURE_STATE(mDocShell);
@@ -1172,9 +1192,9 @@ NS_IMETHODIMP nsWebBrowser::Create()
       }
       for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-         NS_DELETEXPCOM(state);
+         delete state;
       }
-      NS_DELETEXPCOM(mListenerArray);
+      delete mListenerArray;
       mListenerArray = nsnull;
    }
 
@@ -1212,10 +1232,15 @@ NS_IMETHODIMP nsWebBrowser::Create()
         NS_ENSURE_SUCCESS(rv, rv);
     }
    mDocShellAsNav->SetSessionHistory(mInitInfo->sessionHistory);
-   
-   // Hook up global history. Do not fail if we can't - just warn.
-    rv = EnableGlobalHistory(mShouldEnableHistory);
-   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EnableGlobalHistory() failed");
+
+#ifdef MOZ_IPC
+   if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
+   {
+       // Hook up global history. Do not fail if we can't - just warn.
+       rv = EnableGlobalHistory(mShouldEnableHistory);
+       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EnableGlobalHistory() failed");
+   }
 
    NS_ENSURE_SUCCESS(mDocShellAsWin->Create(), NS_ERROR_FAILURE);
 
@@ -1631,6 +1656,12 @@ NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
          // By default, do not allow DNS prefetch, so we don't break our frozen
          // API.  Embeddors who decide to enable it should do so manually.
          mDocShell->SetAllowDNSPrefetch(PR_FALSE);
+
+         // It's possible to call setIsActive() on us before we have a docshell.
+         // If we're getting a docshell now, pass along our desired value. The
+         // default here (true) matches the default of the docshell, so this is
+         // a no-op unless setIsActive(false) has been called on us.
+         mDocShell->SetIsActive(mIsActive);
      }
      else
      {
@@ -1669,6 +1700,7 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
 static void DrawThebesLayer(ThebesLayer* aLayer,
                             gfxContext* aContext,
                             const nsIntRegion& aRegionToDraw,
+                            const nsIntRegion& aRegionToInvalidate,
                             void* aCallbackData)
 {
   nscolor* color = static_cast<nscolor*>(aCallbackData);

@@ -96,7 +96,9 @@ nsXMLContentSerializer::nsXMLContentSerializer()
     mInAttribute(PR_FALSE),
     mAddNewlineForRootNode(PR_FALSE),
     mAddSpace(PR_FALSE),
-    mMayIgnoreLineBreakSequence(PR_FALSE)
+    mMayIgnoreLineBreakSequence(PR_FALSE),
+    mBodyOnly(PR_FALSE),
+    mInBody(0)
 {
 }
 
@@ -111,6 +113,17 @@ nsXMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                              const char* aCharSet, PRBool aIsCopying,
                              PRBool aRewriteEncodingDeclaration)
 {
+  mPrefixIndex = 0;
+  mColPos = 0;
+  mIndentOverflow = 0;
+  mIsIndentationAddedOnCurrentLine = PR_FALSE;
+  mInAttribute = PR_FALSE;
+  mAddNewlineForRootNode = PR_FALSE;
+  mAddSpace = PR_FALSE;
+  mMayIgnoreLineBreakSequence = PR_FALSE;
+  mBodyOnly = PR_FALSE;
+  mInBody = 0;
+
   mCharset = aCharSet;
   mFlags = aFlags;
 
@@ -1137,6 +1150,9 @@ nsXMLContentSerializer::AppendToString(const PRUnichar* aStr,
                                        PRInt32 aLength,
                                        nsAString& aOutputStr)
 {
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
   PRInt32 length = (aLength == -1) ? nsCRT::strlen(aStr) : aLength;
 
   mColPos += length;
@@ -1148,6 +1164,9 @@ void
 nsXMLContentSerializer::AppendToString(const PRUnichar aChar,
                                        nsAString& aOutputStr)
 {
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
   mColPos += 1;
   aOutputStr.Append(aChar);
 }
@@ -1156,6 +1175,9 @@ void
 nsXMLContentSerializer::AppendToString(const nsAString& aStr,
                                        nsAString& aOutputStr)
 {
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
   mColPos += aStr.Length();
   aOutputStr.Append(aStr);
 }
@@ -1332,8 +1354,12 @@ void
 nsXMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
                                                 nsAString& aOutputStr)
 {
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+
   if (mDoRaw) {
-    nsAutoString str (aStr);
+    nsDependentString str(aStr);
     PRInt32 lastNewlineOffset = str.RFindChar('\n');
     AppendToString(aStr, aOutputStr);
 
@@ -1608,8 +1634,12 @@ nsXMLContentSerializer::AppendWrapped_NonWhitespaceSequence(
 
 void 
 nsXMLContentSerializer::AppendToStringFormatedWrapped(const nsASingleFragmentString& aStr,
-                                               nsAString& aOutputStr)
+                                                      nsAString& aOutputStr)
 {
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+
   nsASingleFragmentString::const_char_iterator pos, end, sequenceStart;
 
   aStr.BeginReading(pos);
@@ -1702,8 +1732,12 @@ nsXMLContentSerializer::AppendWrapped_WhitespaceSequence(
 
 void 
 nsXMLContentSerializer::AppendToStringWrapped(const nsASingleFragmentString& aStr,
-                                               nsAString& aOutputStr)
+                                              nsAString& aOutputStr)
 {
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+
   nsASingleFragmentString::const_char_iterator pos, end, sequenceStart;
 
   aStr.BeginReading(pos);

@@ -95,7 +95,8 @@ class nsHTMLEditor : public nsPlaintextEditor,
                      public nsITableEditor,
                      public nsIHTMLInlineTableEditor,
                      public nsIEditorStyleSheets,
-                     public nsICSSLoaderObserver
+                     public nsICSSLoaderObserver,
+                     public nsStubMutationObserver
 {
   typedef enum {eNoOp, eReplaceParent=1, eInsertParent=2} BlockTransformationType;
 
@@ -144,10 +145,19 @@ public:
   virtual  ~nsHTMLEditor();
 
   /* ------------ nsPlaintextEditor overrides -------------- */
-  NS_IMETHODIMP HandleKeyPress(nsIDOMKeyEvent* aKeyEvent);
   NS_IMETHOD GetIsDocumentEditable(PRBool *aIsDocumentEditable);
   NS_IMETHODIMP BeginningOfDocument();
+  virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
   virtual PRBool HasFocus();
+  virtual PRBool IsActiveInDOMWindow();
+  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
+  virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode *aNode);
+  virtual PRBool IsAcceptableInputEvent(nsIDOMEvent* aEvent);
+
+  /* ------------ nsStubMutationObserver overrides --------- */
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
   /* ------------ nsIEditorIMESupport overrides ------------ */
   NS_IMETHOD GetPreferredIMEState(PRUint32 *aState);
@@ -313,7 +323,8 @@ public:
 
   /** prepare the editor for use */
   NS_IMETHOD Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,  nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags);
-  
+  NS_IMETHOD PreDestroy(PRBool aDestroyingFrames);
+
   /** Internal, static version */
   static nsresult NodeIsBlockStatic(nsIDOMNode *aNode, PRBool *aIsBlock);
 
@@ -368,6 +379,8 @@ public:
   NS_IMETHOD_(PRBool) IsModifiableNode(nsIDOMNode *aNode);
 
   NS_IMETHOD SelectAll();
+
+  NS_IMETHOD GetRootElement(nsIDOMElement **aRootElement);
 
   /* ------------ nsICSSLoaderObserver -------------- */
   NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet*aSheet, PRBool aWasAlternate,
@@ -436,6 +449,14 @@ protected:
 
   virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();
+
+  PRBool ShouldReplaceRootElement();
+  void ResetRootElementAndEventTarget();
+  nsresult GetBodyElement(nsIDOMHTMLElement** aBody);
+  // Get the focused node of this editor.
+  // @return    If the editor has focus, this returns the focused node.
+  //            Otherwise, returns null.
+  already_AddRefed<nsINode> GetFocusedNode();
 
   // Return TRUE if aElement is a table-related elemet and caret was set
   PRBool SetCaretInTableCell(nsIDOMElement* aElement);
@@ -729,9 +750,6 @@ protected:
 
   // Whether the outer window of the DOM event target has focus or not.
   PRBool   OurWindowHasFocus();
-  // Whether the content has independent selection or not.  E.g., input field,
-  // password field and textarea element.  At that time, this returns TRUE.
-  PRBool IsIndependentSelectionContent(nsIContent* aContent);
 
 // Data members
 protected:

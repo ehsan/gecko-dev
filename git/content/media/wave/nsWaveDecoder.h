@@ -134,6 +134,7 @@
  */
 
 class nsWaveStateMachine;
+class nsHTMLTimeRanges;
 
 class nsWaveDecoder : public nsMediaDecoder
 {
@@ -219,7 +220,7 @@ class nsWaveDecoder : public nsMediaDecoder
   // Resume any media downloads that have been suspended. Called by the
   // media element when it is restored from the bfcache. Call on the
   // main thread only.
-  virtual void Resume();
+  virtual void Resume(PRBool aForceBuffering);
 
   // Calls mElement->UpdateReadyStateForData, telling it which state we have
   // entered.  Main thread only.
@@ -235,6 +236,10 @@ class nsWaveDecoder : public nsMediaDecoder
 
   // Called asynchronously to shut down the decoder
   void Stop();
+
+  // Constructs the time ranges representing what segments of the media
+  // are buffered and playable.
+  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered);
 
 private:
   // Notifies the element that seeking has started.

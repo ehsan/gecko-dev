@@ -237,7 +237,7 @@ do_decrement:
 
     if(0 == cnt)
     {
-        NS_DELETEXPCOM(this);   // also unlinks us from chain
+        delete this;   // also unlinks us from chain
         return 0;
     }
     if(1 == cnt)
@@ -620,9 +620,12 @@ nsXPCWrappedJS::GetProperty(const nsAString & name, nsIVariant **_retval)
     if(!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name);
-    if(!jsstr)
+    nsStringBuffer* buf;
+    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name, &buf);
+    if(JSVAL_IS_NULL(jsstr))
         return NS_ERROR_OUT_OF_MEMORY;
+    if(buf)
+        buf->AddRef();
 
     return nsXPCWrappedJSClass::
         GetNamedPropertyAsVariant(ccx, mJSObj, jsstr, _retval);

@@ -48,8 +48,7 @@
 #include "nsIDocumentObserver.h"
 #include "imgILoader.h"
 #include "imgIRequest.h"
-#include "nsCSSLoader.h"
-#include "nsIXBLDocumentInfo.h"
+#include "mozilla/css/Loader.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsGkAtoms.h"
@@ -109,8 +108,7 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
   *aResult = PR_TRUE;
 
   // Declare our loaders.
-  nsCOMPtr<nsIDocument> doc;
-  mBinding->XBLDocumentInfo()->GetDocument(getter_AddRefs(doc));
+  nsCOMPtr<nsIDocument> doc = mBinding->XBLDocumentInfo()->GetDocument();
 
   mozilla::css::Loader* cssLoader = doc->CSSLoader();
   nsIURI *docURL = doc->GetDocumentURI();
@@ -263,7 +261,7 @@ nsXBLResourceLoader::NotifyBoundElements()
         // has a primary frame and whether it's in the undisplayed map
         // before sending a ContentInserted notification, or bad things
         // will happen.
-        nsIPresShell *shell = doc->GetPrimaryShell();
+        nsIPresShell *shell = doc->GetShell();
         if (shell) {
           nsIFrame* childFrame = content->GetPrimaryFrame();
           if (!childFrame) {

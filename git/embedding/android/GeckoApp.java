@@ -1,5 +1,4 @@
-/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-/ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -61,8 +60,6 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
 
-    public static boolean useSoftwareDrawing;
-
     void launch()
     {
         // unpack files in the components directory
@@ -70,12 +67,6 @@ abstract public class GeckoApp
         // and then fire us up
         Intent i = getIntent();
         String env = i.getStringExtra("env0");
-        Log.i("GeckoApp", "env0: "+ env);
-        for (int c = 1; env != null; c++) {
-            GeckoAppShell.putenv(env);
-            env = i.getStringExtra("env" + c);
-            Log.i("GeckoApp", "env"+ c +": "+ env);
-        }
         GeckoAppShell.runGecko(getApplication().getPackageResourcePath(),
                                i.getStringExtra("args"),
                                i.getDataString());
@@ -85,6 +76,7 @@ abstract public class GeckoApp
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
+        Log.i("GeckoApp", "create");
         super.onCreate(savedInstanceState);
 
         mAppContext = this;
@@ -108,8 +100,6 @@ abstract public class GeckoApp
         setContentView(mainLayout,
                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT,
                                                   ViewGroup.LayoutParams.FILL_PARENT));
-
-        useSoftwareDrawing = true; //isInEmulator() == 1;
 
         if (!GeckoAppShell.sGeckoRunning) {
             // Load our JNI libs; we need to do this before launch() because
@@ -137,8 +127,21 @@ abstract public class GeckoApp
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        final String action = intent.getAction();
+        if (Intent.ACTION_VIEW.equals(action)) {
+            String uri = intent.getDataString();
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(uri));
+            Log.i("GeckoApp","onNewIntent: "+uri);
+        }
+    }
+
+    @Override
     public void onPause()
     {
+
+        Log.i("GeckoApp", "pause");
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_PAUSING));
         // The user is navigating away from this activity, but nothing
         // has come to the foreground yet; for Gecko, we may want to
         // stop repainting, for example.
@@ -153,6 +156,10 @@ abstract public class GeckoApp
     @Override
     public void onResume()
     {
+        Log.i("GeckoApp", "resume");
+        GeckoAppShell.onResume();
+        if (surfaceView != null)
+            surfaceView.mSurfaceNeedsRedraw = true;
         // After an onPause, the activity is back in the foreground.
         // Undo whatever we did in onPause.
         super.onResume();
@@ -161,6 +168,7 @@ abstract public class GeckoApp
     @Override
     public void onStop()
     {
+        Log.i("GeckoApp", "stop");
         // We're about to be stopped, potentially in preparation for
         // being destroyed.  We're killable after this point -- as I
         // understand it, in extreme cases the process can be terminated
@@ -178,8 +186,23 @@ abstract public class GeckoApp
     }
 
     @Override
+    public void onRestart()
+    {
+        Log.i("GeckoApp", "restart");
+        super.onRestart();
+    }
+
+    @Override
+    public void onStart()
+    {
+        Log.i("GeckoApp", "start");
+        super.onStart();
+    }
+
+    @Override
     public void onDestroy()
     {
+        Log.i("GeckoApp", "destroy");
         // Tell Gecko to shutting down; we'll end up calling System.exit()
         // in onXreExit.
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
@@ -190,6 +213,7 @@ abstract public class GeckoApp
     @Override
     public void onConfigurationChanged(android.content.res.Configuration newConfig)
     {
+        Log.i("GeckoApp", "configuration changed");
         // nothing, just ignore
         super.onConfigurationChanged(newConfig);
     }
@@ -197,22 +221,48 @@ abstract public class GeckoApp
     @Override
     public void onLowMemory()
     {
+        Log.i("GeckoApp", "low memory");
         // XXX TODO
         super.onLowMemory();
     }
 
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                if (event.getRepeatCount() == 0) {
+                    event.startTracking();
+                    return true;
+                } else {
+                    return false;
+                }
             case KeyEvent.KEYCODE_VOLUME_UP:
             case KeyEvent.KEYCODE_VOLUME_DOWN:
+            case KeyEvent.KEYCODE_SEARCH:
                 return false;
+            case KeyEvent.KEYCODE_DEL:
+                // See comments in GeckoInputConnection.onKeyDel
+                if (surfaceView != null &&
+                    surfaceView.inputConnection != null &&
+                    surfaceView.inputConnection.onKeyDel()) {
+                    return true;
+                }
+                break;
             default:
-                GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
-                return true;
+                break;
         }
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
     }
 
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        switch(keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                if (!event.isTracking() || event.isCanceled())
+                    return false;
+                break;
+            default:
+                break;
+        }
         GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         return true;
     }
@@ -223,6 +273,7 @@ abstract public class GeckoApp
     }
 
     abstract public String getAppName();
+    abstract public String getContentProcessName();
 
     protected void unpackComponents()
     {
@@ -234,7 +285,7 @@ abstract public class GeckoApp
             componentsDir.mkdir();
             zip = new ZipFile(getApplication().getPackageResourcePath());
 
-            ZipEntry componentsList = zip.getEntry("components/components.list");
+            ZipEntry componentsList = zip.getEntry("components/components.manifest");
             if (componentsList == null) {
                 Log.i("GeckoAppJava", "Can't find components.list !");
                 return;
@@ -251,6 +302,7 @@ abstract public class GeckoApp
         StreamTokenizer tkn = new StreamTokenizer(new InputStreamReader(listStream));
         String line = "components/";
         int status;
+        boolean addnext = false;
         tkn.eolIsSignificant(true);
         do {
             try {
@@ -261,21 +313,25 @@ abstract public class GeckoApp
             }
             switch (status) {
             case StreamTokenizer.TT_WORD:
-                line += tkn.sval;
+                if (tkn.sval.equals("binary-component"))
+                    addnext = true;
+                else if (addnext) {
+                    line += tkn.sval;
+                    addnext = false;
+                }
                 break;
             case StreamTokenizer.TT_NUMBER:
-                line += tkn.nval;
                 break;
             case StreamTokenizer.TT_EOF:
             case StreamTokenizer.TT_EOL:
-                if (!line.endsWith(".js"))
-                    unpackFile(zip, buf, null, line);
+                unpackFile(zip, buf, null, line);
                 line = "components/";
                 break;
             }
         } while (status != StreamTokenizer.TT_EOF);
 
         unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
     }
 
     private void unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry, String name)

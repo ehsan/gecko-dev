@@ -111,6 +111,9 @@
 #include "mozAutoDocUpdate.h"
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 #include "nsThreadUtils.h"
 
@@ -229,13 +232,20 @@ class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
   }
 
   NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
-  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
+  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
+  {
+    nsresult rv;
+    *aStyle = mElement->GetStyle(&rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ADDREF(*aStyle);
+    return NS_OK;
+  }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
                                            nsIDOMNSHTMLElement)
 
 private:
-  nsCOMPtr<nsGenericHTMLElement> mElement;
+  nsRefPtr<nsGenericHTMLElement> mElement;
 };
 
 NS_IMPL_CYCLE_COLLECTION_1(nsGenericHTMLElementTearoff, mElement)
@@ -254,6 +264,7 @@ NS_INTERFACE_MAP_END_AGGREGATED(mElement)
 
 
 NS_IMPL_INT_ATTR(nsGenericHTMLElement, TabIndex, tabindex)
+NS_IMPL_BOOL_ATTR(nsGenericHTMLElement, Hidden, hidden)
 
 nsresult
 nsGenericHTMLElement::DOMQueryInterface(nsIDOMHTMLElement *aElement,
@@ -276,7 +287,7 @@ nsGenericHTMLElement::DOMQueryInterface(nsIDOMHTMLElement *aElement,
                                  new nsGenericHTMLElementTearoff(this))
   NS_INTERFACE_MAP_END
 
-// No closing bracket, becuase NS_INTERFACE_MAP_END does that for us.
+// No closing bracket, because NS_INTERFACE_MAP_END does that for us.
     
 nsresult
 nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
@@ -290,11 +301,8 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
         value->Type() == nsAttrValue::eCSSStyleRule) {
       // We can't just set this as a string, because that will fail
       // to reparse the string into style data until the node is
-      // inserted into the document.  Clone the HTMLValue instead.
-      nsCOMPtr<nsICSSRule> ruleClone;
-      rv = value->GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
-      NS_ENSURE_SUCCESS(rv, rv);
-
+      // inserted into the document.  Clone the nsICSSRule instead.
+      nsCOMPtr<nsICSSRule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
       nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
       NS_ENSURE_TRUE(styleRule, NS_ERROR_UNEXPECTED);
 
@@ -655,13 +663,11 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
 
-  nsCOMPtr<nsIDocument> doc = GetOwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
   if (!doc) {
     return NS_OK; // We rely on the document for doing HTML conversion
   }
 
-  nsCOMPtr<nsIDOMNode> thisNode(do_QueryInterface(static_cast<nsIContent *>
-                                                             (this)));
   nsresult rv = NS_OK;
 
   nsAutoString contentType;
@@ -670,13 +676,15 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
   } else {
     doc->GetContentType(contentType);
   }
-  
-  nsCOMPtr<nsIDocumentEncoder> docEncoder;
-  docEncoder =
-    do_CreateInstance(PromiseFlatCString(
+
+  nsCOMPtr<nsIDocumentEncoder> docEncoder = doc->GetCachedEncoder();
+  if (!docEncoder) {
+    docEncoder =
+      do_CreateInstance(PromiseFlatCString(
         nsDependentCString(NS_DOC_ENCODER_CONTRACTID_BASE) +
         NS_ConvertUTF16toUTF8(contentType)
       ).get());
+  }
   if (!(docEncoder || doc->IsHTML())) {
     // This could be some type for which we create a synthetic document.  Try
     // again as XML
@@ -686,17 +694,19 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
-  rv = docEncoder->Init(domDoc, contentType,
-                        nsIDocumentEncoder::OutputEncodeBasicEntities |
-                        // Output DOM-standard newlines
-                        nsIDocumentEncoder::OutputLFLineBreak |
-                        // Don't do linebreaking that's not present in the source
-                        nsIDocumentEncoder::OutputRaw);
+  rv = docEncoder->NativeInit(doc, contentType,
+                              nsIDocumentEncoder::OutputEncodeBasicEntities |
+                              // Output DOM-standard newlines
+                              nsIDocumentEncoder::OutputLFLineBreak |
+                              // Don't do linebreaking that's not present in
+                              // the source
+                              nsIDocumentEncoder::OutputRaw);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  docEncoder->SetContainerNode(thisNode);
-  return docEncoder->EncodeToString(aInnerHTML);
+  docEncoder->SetNativeContainerNode(this);
+  rv = docEncoder->EncodeToString(aInnerHTML);
+  doc->SetCachedEncoder(docEncoder.forget());
+  return rv;
 }
 
 nsresult
@@ -784,7 +794,7 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
   }
 
   // Get the presentation shell
-  nsCOMPtr<nsIPresShell> presShell = document->GetPrimaryShell();
+  nsCOMPtr<nsIPresShell> presShell = document->GetShell();
   if (!presShell) {
     return NS_OK;
   }
@@ -946,6 +956,8 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericHTMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
+  RemoveFromNameTable();
+
   if (GetContentEditableValue() == eTrue) {
     nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(GetCurrentDoc());
     if (htmlDocument) {
@@ -1444,7 +1456,7 @@ nsGenericHTMLElement::GetPresContext()
   nsIDocument* doc = GetDocument();
   if (doc) {
     // Get presentation shell 0
-    nsIPresShell *presShell = doc->GetPrimaryShell();
+    nsIPresShell *presShell = doc->GetShell();
     if (presShell) {
       return presShell->GetPresContext();
     }
@@ -1516,7 +1528,6 @@ nsGenericHTMLElement::ParseAlignValue(const nsAString& aString,
 
 //----------------------------------------
 
-// Vanilla table as defined by the html4 spec...
 static const nsAttrValue::EnumTable kTableHAlignTable[] = {
   { "left",   NS_STYLE_TEXT_ALIGN_LEFT },
   { "right",  NS_STYLE_TEXT_ALIGN_RIGHT },
@@ -1526,64 +1537,31 @@ static const nsAttrValue::EnumTable kTableHAlignTable[] = {
   { 0 }
 };
 
-// This table is used for TABLE when in compatability mode
-static const nsAttrValue::EnumTable kCompatTableHAlignTable[] = {
-  { "left",   NS_STYLE_TEXT_ALIGN_LEFT },
-  { "right",  NS_STYLE_TEXT_ALIGN_RIGHT },
-  { "center", NS_STYLE_TEXT_ALIGN_CENTER },
-  { "char",   NS_STYLE_TEXT_ALIGN_CHAR },
-  { "justify",NS_STYLE_TEXT_ALIGN_JUSTIFY },
-  { "abscenter", NS_STYLE_TEXT_ALIGN_CENTER },
-  { "absmiddle", NS_STYLE_TEXT_ALIGN_CENTER },
-  { "middle", NS_STYLE_TEXT_ALIGN_CENTER },
-  { 0 }
-};
-
 PRBool
 nsGenericHTMLElement::ParseTableHAlignValue(const nsAString& aString,
-                                            nsAttrValue& aResult) const
+                                            nsAttrValue& aResult)
 {
-  if (InNavQuirksMode(GetOwnerDoc())) {
-    return aResult.ParseEnumValue(aString, kCompatTableHAlignTable, PR_FALSE);
-  }
   return aResult.ParseEnumValue(aString, kTableHAlignTable, PR_FALSE);
 }
 
 //----------------------------------------
 
-// These tables are used for TD,TH,TR, etc (but not TABLE)
+// This table is used for td, th, tr, col, thead, tbody and tfoot.
 static const nsAttrValue::EnumTable kTableCellHAlignTable[] = {
   { "left",   NS_STYLE_TEXT_ALIGN_MOZ_LEFT },
   { "right",  NS_STYLE_TEXT_ALIGN_MOZ_RIGHT },
   { "center", NS_STYLE_TEXT_ALIGN_MOZ_CENTER },
   { "char",   NS_STYLE_TEXT_ALIGN_CHAR },
   { "justify",NS_STYLE_TEXT_ALIGN_JUSTIFY },
-  { 0 }
-};
-
-static const nsAttrValue::EnumTable kCompatTableCellHAlignTable[] = {
-  { "left",   NS_STYLE_TEXT_ALIGN_MOZ_LEFT },
-  { "right",  NS_STYLE_TEXT_ALIGN_MOZ_RIGHT },
-  { "center", NS_STYLE_TEXT_ALIGN_MOZ_CENTER },
-  { "char",   NS_STYLE_TEXT_ALIGN_CHAR },
-  { "justify",NS_STYLE_TEXT_ALIGN_JUSTIFY },
-
-  // The following are non-standard but necessary for Nav4 compatibility
   { "middle", NS_STYLE_TEXT_ALIGN_MOZ_CENTER },
-  // allow center and absmiddle to map to NS_STYLE_TEXT_ALIGN_CENTER and
-  // NS_STYLE_TEXT_ALIGN_CENTER to map to center by using the following order
-  { "center", NS_STYLE_TEXT_ALIGN_CENTER },
   { "absmiddle", NS_STYLE_TEXT_ALIGN_CENTER },
   { 0 }
 };
 
 PRBool
 nsGenericHTMLElement::ParseTableCellHAlignValue(const nsAString& aString,
-                                                nsAttrValue& aResult) const
+                                                nsAttrValue& aResult)
 {
-  if (InNavQuirksMode(GetOwnerDoc())) {
-    return aResult.ParseEnumValue(aString, kCompatTableCellHAlignTable, PR_FALSE);
-  }
   return aResult.ParseEnumValue(aString, kTableCellHAlignTable, PR_FALSE);
 }
 
@@ -1596,9 +1574,9 @@ nsGenericHTMLElement::ParseTableVAlignValue(const nsAString& aString,
   return aResult.ParseEnumValue(aString, kTableVAlignTable, PR_FALSE);
 }
 
-PRBool 
+PRBool
 nsGenericHTMLElement::ParseDivAlignValue(const nsAString& aString,
-                                         nsAttrValue& aResult) const
+                                         nsAttrValue& aResult)
 {
   return aResult.ParseEnumValue(aString, kDivAlignTable, PR_FALSE);
 }
@@ -1659,11 +1637,21 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
       }
     }
   }
+
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Visibility)) {
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::lang);
     if (value && value->Type() == nsAttrValue::eString) {
       aData->mDisplayData->mLang.SetStringValue(value->GetStringValue(),
                                                 eCSSUnit_Ident);
+    }
+  }
+
+  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Display)) {
+    nsRuleDataDisplay* disp = aData->mDisplayData;
+    if (disp->mDisplay.GetUnit() == eCSSUnit_Null) {
+      if (aAttributes->IndexOfAttr(nsGkAtoms::hidden, kNameSpaceID_None) >= 0) {
+        disp->mDisplay.SetIntValue(NS_STYLE_DISPLAY_NONE, eCSSUnit_Enumerated);
+      }
     }
   }
 }
@@ -1688,7 +1676,6 @@ nsGenericHTMLFormElement::UpdateEditableFormControlState()
     return;
   }
 
-  PRInt32 formType = GetType();
   if (!IsTextControl(PR_FALSE)) {
     SetEditableFlag(PR_FALSE);
     return;
@@ -1706,6 +1693,7 @@ nsGenericHTMLFormElement::UpdateEditableFormControlState()
 nsGenericHTMLElement::sCommonAttributeMap[] = {
   { &nsGkAtoms::contenteditable },
   { &nsGkAtoms::lang },
+  { &nsGkAtoms::hidden },
   { nsnull }
 };
 
@@ -2323,7 +2311,7 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
 
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
-nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
+nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mForm(nsnull)
 {
@@ -2395,7 +2383,13 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
   mForm = nsnull;
 }
 
-NS_IMETHODIMP
+Element*
+nsGenericHTMLFormElement::GetFormElement()
+{
+  return mForm;
+}
+
+nsresult
 nsGenericHTMLFormElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   NS_ENSURE_ARG_POINTER(aForm);
@@ -2421,10 +2415,11 @@ nsGenericHTMLFormElement::GetDesiredIMEState()
 }
 
 PRBool
-nsGenericHTMLFrameElement::IsHTMLFocusable(PRBool *aIsFocusable,
+nsGenericHTMLFrameElement::IsHTMLFocusable(PRBool aWithMouse,
+                                           PRBool *aIsFocusable,
                                            PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
 
@@ -2533,8 +2528,6 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // Save state before doing anything
   SaveState();
   
-  RemoveFromNameTable();
-
   if (mForm) {
     // Might need to unset mForm
     if (aNullParent) {
@@ -3041,7 +3034,9 @@ nsGenericHTMLElement::Focus()
 }
 
 PRBool
-nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsGenericHTMLElement::IsHTMLFocusable(PRBool aWithMouse,
+                                      PRBool *aIsFocusable,
+                                      PRInt32 *aTabIndex)
 {
   nsIDocument *doc = GetCurrentDoc();
   if (!doc || doc->HasFlag(NODE_IS_EDITABLE)) {
@@ -3086,8 +3081,12 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
   }
 
   // If a tabindex is specified at all, or the default tabindex is 0, we're focusable
-  *aIsFocusable = tabIndex >= 0 ||
-                  (!disabled && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
+  *aIsFocusable = 
+#ifdef XP_MACOSX
+    // can only focus with the mouse on Mac if editable
+    (!aWithMouse || override) &&
+#endif
+    (tabIndex >= 0 || (!disabled && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)));
 
   return override;
 }

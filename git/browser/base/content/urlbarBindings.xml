@@ -38,7 +38,9 @@
 #
 # ***** END LICENSE BLOCK *****
 
-<bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl">
+<bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl"
+          xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+          xmlns:xbl="http://www.mozilla.org/xbl">
 
   <binding id="urlbar" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
     <implementation implements="nsIObserver, nsIDOMEventListener">
@@ -138,15 +140,22 @@
           if (aTriggeringEvent instanceof MouseEvent && aTriggeringEvent.button == 2)
             return; // Do nothing for right clicks
 
-          var [url, postData] = this._canonizeURL(aTriggeringEvent);
-          if (!url)
-            return;
+          var url = this.value;
+          var postData = null;
 
           var action = this._parseActionUrl(url);
           if (action) {
-            if (action.type == "switchtab")
-              switchToTabHavingURI(action.param);
-            return;
+            url = action.param;
+            if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
+              if (action.type == "switchtab")
+                switchToTabHavingURI(url);
+              return;
+            }
+          }
+          else {
+            [url, postData] = this._canonizeURL(aTriggeringEvent);
+            if (!url)
+              return;
           }
 
           this.value = url;
@@ -679,5 +688,4 @@
 
     </implementation>
   </binding>
-
 </bindings>

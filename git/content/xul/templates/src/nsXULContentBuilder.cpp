@@ -117,7 +117,7 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
 protected:
-    friend NS_IMETHODIMP
+    friend nsresult
     NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsXULContentBuilder();
@@ -370,7 +370,7 @@ protected:
     nsSortState mSortState;
 };
 
-NS_IMETHODIMP
+nsresult
 NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(aOuter == nsnull, "no aggregation");
@@ -1380,7 +1380,9 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
     nsAutoString id;
     aResult->GetId(id);
 
-    return xuldoc->GetElementsForID(id, aElements);
+    xuldoc->GetElementsForID(id, aElements);
+
+    return NS_OK;
 }
 
 nsresult
@@ -1399,7 +1401,7 @@ nsXULContentBuilder::CreateElement(PRInt32 aNameSpaceID,
     nsCOMPtr<nsINodeInfo> nodeInfo;
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID);
 
-    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo,
+    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo.forget(),
                        PR_FALSE);
     if (NS_FAILED(rv))
         return rv;
@@ -1560,6 +1562,8 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
                                       nsIAtom*     aAttribute,
                                       PRInt32      aModType)
 {
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+
     // Handle "open" and "close" cases. We do this handling before
     // we've notified the observer, so that content is already created
     // for the frame system to walk.
@@ -1588,6 +1592,7 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
 void
 nsXULContentBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 {
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     // Break circular references
     mContentSupportMap.Clear();
 
@@ -1839,7 +1844,8 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
     if (mSortState.direction == nsSortState_natural) {
         // sort in natural order
         nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                      nsnull, aSortOrder);
+                                                      nsnull, mSortState.sortHints,
+                                                      aSortOrder);
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1848,7 +1854,8 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
         PRInt32 length = mSortState.sortKeys.Count();
         for (PRInt32 t = 0; t < length; t++) {
             nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                          mSortState.sortKeys[t], aSortOrder);
+                                                          mSortState.sortKeys[t],
+                                                          mSortState.sortHints, aSortOrder);
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (*aSortOrder)
@@ -1872,9 +1879,12 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
     nsresult rv;
 
     if (!mSortState.initialized) {
-        nsAutoString sort, sortDirection;
+        nsAutoString sort, sortDirection, sortHints;
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sort, sort);
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sortDirection, sortDirection);
+        mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, sortHints);
+        sortDirection.AppendLiteral(" ");
+        sortDirection += sortHints;
         rv = XULSortServiceImpl::InitializeSortState(mRoot, aContainer,
                                                      sort, sortDirection, &mSortState);
         NS_ENSURE_SUCCESS(rv, rv);

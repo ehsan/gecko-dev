@@ -77,7 +77,7 @@ nsXMLPrettyPrinter::PrettyPrint(nsIDocument* aDocument,
     *aDidPrettyPrint = PR_FALSE;
     
     // Check for iframe with display:none. Such iframes don't have presshells
-    if (!aDocument->GetPrimaryShell()) {
+    if (!aDocument->GetShell()) {
         return NS_OK;
     }
 
@@ -265,7 +265,8 @@ void
 nsXMLPrettyPrinter::ContentRemoved(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer)
+                                   PRInt32 aIndexInContainer,
+                                   nsIContent* aPreviousSibling)
 {
     MaybeUnhook(aContainer);
 }

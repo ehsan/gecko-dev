@@ -84,7 +84,6 @@ EXPORTS		+= \
 endif
 
 XPIDLSRCS	= \
-		nsIAccelerometer.idl \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
 		nsIToolkit.idl \
@@ -121,6 +120,7 @@ XPIDLSRCS	+= nsIPrintSettingsWin.idl \
 		nsITaskbarPreviewButton.idl \
 		nsIJumpListBuilder.idl \
 		nsIJumpListItem.idl \
+		nsIGfxInfo.idl \
 		$(NULL)
 endif
 

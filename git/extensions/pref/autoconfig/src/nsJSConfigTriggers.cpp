@@ -45,7 +45,6 @@
 #include "nsIXPConnect.h"
 #include "nsIJSRuntimeService.h"
 #include "nsCOMPtr.h"
-#include "nsIGenericFactory.h"
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
 #include "nsString.h"
@@ -97,7 +96,7 @@ AutoConfigSecMan::CanAccess(PRUint32 aAction,
                             nsAXPCNativeCallContext *aCallContext, 
                             JSContext *aJSContext, JSObject *aJSObject, 
                             nsISupports *aObj, nsIClassInfo *aClassInfo, 
-                            jsval aName, void **aPolicy)
+                            jsid aName, void **aPolicy)
 {
     return NS_OK;
 }
@@ -108,7 +107,7 @@ static  JSContext *autoconfig_cx = nsnull;
 static  JSObject *autoconfig_glob;
 
 static JSClass global_class = {
-    "autoconfig_global", 0,
+    "autoconfig_global", JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
 };
@@ -161,7 +160,7 @@ nsresult CentralizedAdminPrefManagerInit()
         static_cast<nsIXPCSecurityManager*>(new AutoConfigSecMan());
     xpc->SetSecurityManagerForJSContext(autoconfig_cx, secman, 0);
 
-    autoconfig_glob = JS_NewObject(autoconfig_cx, &global_class, NULL, NULL);
+    autoconfig_glob = JS_NewGlobalObject(autoconfig_cx, &global_class);
     if (autoconfig_glob) {
         if (JS_InitStandardClasses(autoconfig_cx, autoconfig_glob)) {
             // XPCONNECT enable this JS context

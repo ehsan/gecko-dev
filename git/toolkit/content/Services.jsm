@@ -61,6 +61,10 @@ XPCOMUtils.defineLazyGetter(Services, "dirsvc", function () {
            .QueryInterface(Ci.nsIProperties);
 });
 
+XPCOMUtils.defineLazyServiceGetter(Services, "contentPrefs",
+                                   "@mozilla.org/content-pref/service;1",
+                                   "nsIContentPrefService");
+
 XPCOMUtils.defineLazyServiceGetter(Services, "wm",
                                    "@mozilla.org/appshell/window-mediator;1",
                                    "nsIWindowMediator");
@@ -81,9 +85,11 @@ XPCOMUtils.defineLazyServiceGetter(Services, "prompt",
                                    "@mozilla.org/embedcomp/prompt-service;1",
                                    "nsIPromptService");
 
+#ifdef MOZ_TOOLKIT_SEARCH
 XPCOMUtils.defineLazyServiceGetter(Services, "search",
                                    "@mozilla.org/browser/search-service;1",
                                    "nsIBrowserSearchService");
+#endif
 
 XPCOMUtils.defineLazyServiceGetter(Services, "storage",
                                    "@mozilla.org/storage/service;1",
@@ -120,3 +126,7 @@ XPCOMUtils.defineLazyServiceGetter(Services, "console",
 XPCOMUtils.defineLazyServiceGetter(Services, "strings",
                                    "@mozilla.org/intl/stringbundle;1",
                                    "nsIStringBundleService");
+
+XPCOMUtils.defineLazyServiceGetter(Services, "urlFormatter",
+                                   "@mozilla.org/toolkit/URLFormatterService;1",
+                                   "nsIURLFormatter");

@@ -65,7 +65,7 @@
 #include "mozAutoDocUpdate.h"
 #include "nsFocusManager.h"
 
-nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
+nsXTFElementWrapper::nsXTFElementWrapper(already_AddRefed<nsINodeInfo> aNodeInfo,
                                          nsIXTFElement* aXTFElement)
     : nsXTFElementWrapperBase(aNodeInfo),
       mXTFElement(aXTFElement),
@@ -961,7 +961,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
     return;
 
   // Get presentation shell 0
-  nsIPresShell *presShell = doc->GetPrimaryShell();
+  nsIPresShell *presShell = doc->GetShell();
   if (!presShell)
     return;
 
@@ -990,7 +990,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
 
 nsresult
 NS_NewXTFElementWrapper(nsIXTFElement* aXTFElement,
-                        nsINodeInfo* aNodeInfo,
+                        already_AddRefed<nsINodeInfo> aNodeInfo,
                         nsIContent** aResult)
 {
   *aResult = nsnull;

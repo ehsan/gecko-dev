@@ -101,11 +101,12 @@ class nsHashKey;
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+#define NS_SMIL_TIME_EVENT                32
+#endif // MOZ_SMIL
 
 #define NS_QUERY_CONTENT_EVENT            33
-#ifdef MOZ_MEDIA
-#define NS_MEDIA_EVENT                    34
-#endif // MOZ_MEDIA
+
 #define NS_DRAG_EVENT                     35
 #define NS_NOTIFYPAINT_EVENT              36
 #define NS_SIMPLE_GESTURE_EVENT           37
@@ -113,6 +114,7 @@ class nsHashKey;
 #define NS_CONTENT_COMMAND_EVENT          39
 #define NS_GESTURENOTIFY_EVENT            40
 #define NS_UISTATECHANGE_EVENT            41
+#define NS_MOZTOUCH_EVENT                 42
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -175,6 +177,9 @@ class nsHashKey;
 #define NS_DEACTIVATE                   (NS_WINDOW_START + 8)
 // top-level window z-level change request
 #define NS_SETZLEVEL                    (NS_WINDOW_START + 9)
+// Widget was repainted (dispatched when it's safe to move widgets, but
+// only on some platforms (including GTK2 and Windows))
+#define NS_DID_PAINT                   (NS_WINDOW_START + 28)
 // Widget will need to be painted
 #define NS_WILL_PAINT                   (NS_WINDOW_START + 29)
 // Widget needs to be repainted
@@ -228,6 +233,7 @@ class nsHashKey;
 #define NS_MOUSE_ACTIVATE               (NS_MOUSE_MESSAGE_START + 30)
 #define NS_MOUSE_ENTER_SYNTH            (NS_MOUSE_MESSAGE_START + 31)
 #define NS_MOUSE_EXIT_SYNTH             (NS_MOUSE_MESSAGE_START + 32)
+#define NS_MOUSE_MOZHITTEST             (NS_MOUSE_MESSAGE_START + 33)
 
 #define NS_CONTEXTMENU_MESSAGE_START    500
 #define NS_CONTEXTMENU                  (NS_CONTEXTMENU_MESSAGE_START)
@@ -248,6 +254,7 @@ class nsHashKey;
 #define NS_POPSTATE                     (NS_STREAM_EVENT_START + 5)
 #define NS_BEFORE_PAGE_UNLOAD           (NS_STREAM_EVENT_START + 6)
 #define NS_PAGE_RESTORE                 (NS_STREAM_EVENT_START + 7)
+#define NS_READYSTATECHANGE             (NS_STREAM_EVENT_START + 8)
  
 #define NS_FORM_EVENT_START             1200
 #define NS_FORM_SUBMIT                  (NS_FORM_EVENT_START)
@@ -401,13 +408,12 @@ class nsHashKey;
 #define NS_RATECHANGE          (NS_MEDIA_EVENT_START+17)
 #define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
 #define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
-#define NS_MEDIA_ABORT         (NS_MEDIA_EVENT_START+20)
-#define NS_MEDIA_ERROR         (NS_MEDIA_EVENT_START+21)
 #endif // MOZ_MEDIA
 
 // paint notification events
 #define NS_NOTIFYPAINT_START    3400
 #define NS_AFTERPAINT           (NS_NOTIFYPAINT_START)
+#define NS_BEFOREPAINT          (NS_NOTIFYPAINT_START+1)
 
 // Simple gesture events
 #define NS_SIMPLE_GESTURE_EVENT_START    3500
@@ -459,11 +465,17 @@ class nsHashKey;
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
 
-enum UIStateChangeType {
-  UIStateChangeType_NoChange,
-  UIStateChangeType_Set,
-  UIStateChangeType_Clear
-};
+#ifdef MOZ_SMIL
+#define NS_SMIL_TIME_EVENT_START     4300
+#define NS_SMIL_BEGIN                (NS_SMIL_TIME_EVENT_START)
+#define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
+#define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
+#endif // MOZ_SMIL
+
+#define NS_MOZTOUCH_EVENT_START      4400
+#define NS_MOZTOUCH_DOWN             (NS_MOZTOUCH_EVENT_START)
+#define NS_MOZTOUCH_MOVE             (NS_MOZTOUCH_EVENT_START+1)
+#define NS_MOZTOUCH_UP               (NS_MOZTOUCH_EVENT_START+2)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -518,11 +530,12 @@ public:
   PRUint8     eventStructType;
   // See GUI MESSAGES,
   PRUint32    message;
-  // In widget relative coordinates, not modified by layout code.
+  // Relative to the widget of the event, or if there is no widget then it is
+  // in screen coordinates. Not modified by layout code.
   nsIntPoint  refPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
-  PRUint32    time;
+  PRUint64    time;
   // Flags to hold event flow stage and capture/bubble cancellation
   // status. This is used also to indicate whether the event is trusted.
   PRUint32    flags;
@@ -645,12 +658,14 @@ class nsPaintEvent : public nsGUIEvent
 {
 public:
   nsPaintEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_PAINT_EVENT)
+    : nsGUIEvent(isTrusted, msg, w, NS_PAINT_EVENT),
+      willSendDidPaint(PR_FALSE)
   {
   }
 
   // area that needs repainting
   nsIntRegion region;
+  PRPackedBool willSendDidPaint;
 };
 
 /**
@@ -1257,6 +1272,19 @@ public:
   PRPackedBool mIsEnabled;                                 // [out]
 };
 
+class nsMozTouchEvent : public nsMouseEvent_base
+{
+public:
+  nsMozTouchEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
+                  PRUint32 streamIdArg)
+    : nsMouseEvent_base(isTrusted, msg, w, NS_MOZTOUCH_EVENT),
+      streamId(streamIdArg)
+  {
+  }
+
+  PRUint32 streamId;
+};
+
 /**
  * Form event
  * 
@@ -1380,6 +1408,7 @@ enum nsDragDropEventStatus {
         ((evnt)->message == NS_MOUSE_ACTIVATE) || \
         ((evnt)->message == NS_MOUSE_ENTER_SYNTH) || \
         ((evnt)->message == NS_MOUSE_EXIT_SYNTH) || \
+        ((evnt)->message == NS_MOUSE_MOZHITTEST) || \
         ((evnt)->message == NS_MOUSE_MOVE))
 
 #define NS_IS_MOUSE_EVENT_STRUCT(evnt) \
@@ -1437,12 +1466,7 @@ enum nsDragDropEventStatus {
        (((evnt)->message == NS_SELECTION_SET))
 
 #define NS_IS_CONTENT_COMMAND_EVENT(evnt) \
-       (((evnt)->message == NS_CONTENT_COMMAND_CUT) || \
-        ((evnt)->message == NS_CONTENT_COMMAND_COPY) || \
-        ((evnt)->message == NS_CONTENT_COMMAND_PASTE) || \
-        ((evnt)->message == NS_CONTENT_COMMAND_DELETE) || \
-        ((evnt)->message == NS_CONTENT_COMMAND_UNDO) || \
-        ((evnt)->message == NS_CONTENT_COMMAND_REDO))
+       ((evnt)->eventStructType == NS_CONTENT_COMMAND_EVENT)
 
 #define NS_IS_PLUGIN_EVENT(evnt) \
        (((evnt)->message == NS_PLUGIN_EVENT))
@@ -1494,7 +1518,17 @@ enum nsDragDropEventStatus {
 #define NS_VK_ALT            nsIDOMKeyEvent::DOM_VK_ALT
 #define NS_VK_PAUSE          nsIDOMKeyEvent::DOM_VK_PAUSE
 #define NS_VK_CAPS_LOCK      nsIDOMKeyEvent::DOM_VK_CAPS_LOCK
+#define NS_VK_KANA           nsIDOMKeyEvent::DOM_VK_KANA
+#define NS_VK_HANGUL         nsIDOMKeyEvent::DOM_VK_HANGUL
+#define NS_VK_JUNJA          nsIDOMKeyEvent::DOM_VK_JUNJA
+#define NS_VK_FINAL          nsIDOMKeyEvent::DOM_VK_FINAL
+#define NS_VK_HANJA          nsIDOMKeyEvent::DOM_VK_HANJA
+#define NS_VK_KANJI          nsIDOMKeyEvent::DOM_VK_KANJI
 #define NS_VK_ESCAPE         nsIDOMKeyEvent::DOM_VK_ESCAPE
+#define NS_VK_CONVERT        nsIDOMKeyEvent::DOM_VK_CONVERT
+#define NS_VK_NONCONVERT     nsIDOMKeyEvent::DOM_VK_NONCONVERT
+#define NS_VK_ACCEPT         nsIDOMKeyEvent::DOM_VK_ACCEPT
+#define NS_VK_MODECHANGE     nsIDOMKeyEvent::DOM_VK_MODECHANGE
 #define NS_VK_SPACE          nsIDOMKeyEvent::DOM_VK_SPACE
 #define NS_VK_PAGE_UP        nsIDOMKeyEvent::DOM_VK_PAGE_UP
 #define NS_VK_PAGE_DOWN      nsIDOMKeyEvent::DOM_VK_PAGE_DOWN
@@ -1504,6 +1538,9 @@ enum nsDragDropEventStatus {
 #define NS_VK_UP             nsIDOMKeyEvent::DOM_VK_UP
 #define NS_VK_RIGHT          nsIDOMKeyEvent::DOM_VK_RIGHT
 #define NS_VK_DOWN           nsIDOMKeyEvent::DOM_VK_DOWN
+#define NS_VK_SELECT         nsIDOMKeyEvent::DOM_VK_SELECT
+#define NS_VK_PRINT          nsIDOMKeyEvent::DOM_VK_PRINT
+#define NS_VK_EXECUTE        nsIDOMKeyEvent::DOM_VK_EXECUTE
 #define NS_VK_PRINTSCREEN    nsIDOMKeyEvent::DOM_VK_PRINTSCREEN
 #define NS_VK_INSERT         nsIDOMKeyEvent::DOM_VK_INSERT
 #define NS_VK_DELETE         nsIDOMKeyEvent::DOM_VK_DELETE
@@ -1552,6 +1589,7 @@ enum nsDragDropEventStatus {
 #define NS_VK_Z              nsIDOMKeyEvent::DOM_VK_Z
 
 #define NS_VK_CONTEXT_MENU   nsIDOMKeyEvent::DOM_VK_CONTEXT_MENU
+#define NS_VK_SLEEP          nsIDOMKeyEvent::DOM_VK_SLEEP
 
 #define NS_VK_NUMPAD0        nsIDOMKeyEvent::DOM_VK_NUMPAD0
 #define NS_VK_NUMPAD1        nsIDOMKeyEvent::DOM_VK_NUMPAD1
@@ -1615,36 +1653,6 @@ enum nsDragDropEventStatus {
 #define NS_TEXTRANGE_CONVERTEDTEXT         0x04
 #define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT 0x05
 
-inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
-{
-#if defined(MOZ_X11) || defined(XP_MACOSX)
-  // bug 52416 (MOZ_X11)
-  // Lookup region (candidate window) of UNIX IME grabs
-  // input focus from Mozilla but wants to send IME event
-  // to redraw pre-edit (composed) string
-  // If Mozilla does not have input focus and event is IME,
-  // sends IME event to pre-focused element
-
-  // bug 417315 (XP_MACOSX)
-  // The commit event when the window is deactivating is sent after
-  // the next focused widget getting the focus.
-  // We need to send the commit event to last focused content.
-
-  return NS_IS_IME_RELATED_EVENT(aEvent);
-#elif defined(XP_WIN)
-  // bug 292263 (XP_WIN)
-  // If software keyboard has focus, it may send the key messages and
-  // the IME messages to pre-focused window. Therefore, if Mozilla
-  // doesn't have focus and event is key event or IME event, we should
-  // send the events to pre-focused element.
-
-  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
-         NS_IS_PLUGIN_EVENT(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
-#else
-  return PR_FALSE;
-#endif
-}
-
 /**
  * Whether the event should be handled by the frame of the mouse cursor
  * position or not.  When it should be handled there (e.g., the mouse events),
@@ -1675,6 +1683,23 @@ inline PRBool NS_IsEventTargetedAtFocusedWindow(nsEvent* aEvent)
 {
   return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
          NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
+}
+
+/**
+ * Whether the event should be handled by the focused content or not.  E.g.,
+ * key events, IME related events and other input events which are not handled
+ * by the frame of the mouse cursor position.
+ *
+ * NOTE: Even if this returns TRUE, the event isn't going to be handled by the
+ * application level active DOM window which is on another top level window.
+ * So, when the event is fired on a deactive window, the event is going to be
+ * handled by the last focused DOM element of the last focused DOM window in
+ * the last focused window.
+ */
+inline PRBool NS_IsEventTargetedAtFocusedContent(nsEvent* aEvent)
+{
+  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
+         NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent);
 }
 
 #endif // nsGUIEvent_h__

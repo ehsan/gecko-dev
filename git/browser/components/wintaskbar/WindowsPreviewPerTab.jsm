@@ -161,8 +161,11 @@ function PreviewController(win, tab) {
   // Cannot perform the lookup during construction. See TabWindow.newTab 
   XPCOMUtils.defineLazyGetter(this, "preview", function () this.win.previewFromTab(this.tab));
 
-  XPCOMUtils.defineLazyGetter(this, "canvasPreview", function ()
-    this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas"));
+  XPCOMUtils.defineLazyGetter(this, "canvasPreview", function () {
+    let canvas = this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    canvas.mozOpaque = true;
+    return canvas;
+  });
 
   XPCOMUtils.defineLazyGetter(this, "dirtyRegion",
     function () {
@@ -367,6 +370,7 @@ XPCOMUtils.defineLazyGetter(PreviewController.prototype, "canvasPreviewFlags",
   function () { let canvasInterface = Ci.nsIDOMCanvasRenderingContext2D;
                 return canvasInterface.DRAWWINDOW_DRAW_VIEW
                      | canvasInterface.DRAWWINDOW_DRAW_CARET
+                     | canvasInterface.DRAWWINDOW_ASYNC_DECODE_IMAGES
                      | canvasInterface.DRAWWINDOW_DO_NOT_FLUSH;
 });
 
@@ -527,16 +531,6 @@ TabWindow.prototype = {
   },
 
   //// Browser progress listener
-  onLocationChange: function () {
-  },
-  onProgressChange: function () {
-  },
-  onSecurityChange: function () {
-  },
-  onStateChange: function () {
-  },
-  onStatusChange: function () {
-  },
   onLinkIconAvailable: function (aBrowser, aIconURL) {
     let self = this;
     getFaviconAsImage(aIconURL, function (img) {

@@ -111,11 +111,12 @@ StreamListener.prototype = {
   },
 
   // nsIChannelEventSink
-  onChannelRedirect: function (aOldChannel, aNewChannel, aFlags) {
+  asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
     netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     ghist3.addDocumentRedirect(aOldChannel, aNewChannel, aFlags, true);
     // If redirecting, store the new channel
     this.mChannel = aNewChannel;
+    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 
   // nsIInterfaceRequestor
@@ -155,13 +156,6 @@ function checkDB(data){
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   var referrer = this.mChannel.QueryInterface(Ci.nsIHttpChannel).referrer;
   ghist.addURI(this.mChannel.URI, true, true, referrer);
-
-  // We have to wait since we use lazy_add, lazy_timer is 3s
-  setTimeout("checkDBOnTimeout()", 4000);
-}
-
-function checkDBOnTimeout() {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
   // Get all pages visited from the original typed one
   var sql = "SELECT url FROM moz_historyvisits_view " +

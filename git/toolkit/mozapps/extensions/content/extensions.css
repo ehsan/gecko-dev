@@ -75,6 +75,10 @@
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#install-status");
 }
 
+#header-searching:not([active]) {
+  visibility: hidden;
+}
+
 .addon[active="true"] .disabled-postfix {
   display: none;
 }
@@ -83,6 +87,19 @@
   display: none;
 }
 
+#search-list[local="false"]  > .addon[remote="false"],
+#search-list[remote="false"] > .addon[remote="true"] {
+  visibility: collapse;
+}
+
+.addon:not([upgrade="true"]) .update-postfix {
+  display: none;
+}
+
 #detail-view[loading] > .detail-view-container {
+  display: none;
+}
+
+.view-pane:not(#updates-view) .addon .relnotes-toggle {
   display: none;
 }

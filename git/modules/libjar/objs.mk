@@ -40,7 +40,6 @@ MODULES_LIBJAR_LCPPSRCS = \
 		nsJARInputStream.cpp \
 		nsJAR.cpp \
 		nsJARFactory.cpp \
-		nsXPTZipLoader.cpp \
 		nsJARProtocolHandler.cpp \
 		nsJARChannel.cpp  \
 		nsJARURI.cpp  \

@@ -37,6 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#include "IPC/IPCMessageUtils.h"
+#endif
 #include "nsCOMPtr.h"
 #include "nsDOMUIEvent.h"
 #include "nsIPresShell.h"
@@ -128,6 +132,7 @@ nsDOMUIEvent::GetScreenPoint()
        (mEvent->eventStructType != NS_MOUSE_EVENT &&
         mEvent->eventStructType != NS_POPUP_EVENT &&
         mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
+        mEvent->eventStructType != NS_MOZTOUCH_EVENT &&
         mEvent->eventStructType != NS_DRAG_EVENT &&
         mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT)) {
     return nsIntPoint(0, 0);
@@ -151,6 +156,7 @@ nsDOMUIEvent::GetClientPoint()
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
        mEvent->eventStructType != NS_POPUP_EVENT &&
        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
+       mEvent->eventStructType != NS_MOZTOUCH_EVENT &&
        mEvent->eventStructType != NS_DRAG_EVENT &&
        mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
       !mPresContext ||
@@ -318,6 +324,7 @@ nsDOMUIEvent::GetLayerPoint()
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
        mEvent->eventStructType != NS_POPUP_EVENT &&
        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
+       mEvent->eventStructType != NS_MOZTOUCH_EVENT &&
        mEvent->eventStructType != NS_DRAG_EVENT &&
        mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
       !mPresContext ||
@@ -382,6 +389,30 @@ nsDOMUIEvent::DuplicatePrivateData()
   }
   return rv;
 }
+
+#ifdef MOZ_IPC
+void
+nsDOMUIEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
+{
+  if (aSerializeInterfaceType) {
+    IPC::WriteParam(aMsg, NS_LITERAL_STRING("uievent"));
+  }
+
+  nsDOMEvent::Serialize(aMsg, PR_FALSE);
+
+  PRInt32 detail = 0;
+  GetDetail(&detail);
+  IPC::WriteParam(aMsg, detail);
+}
+
+PRBool
+nsDOMUIEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
+{
+  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &mDetail), PR_FALSE);
+  return PR_TRUE;
+}
+#endif
 
 nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,
                           nsPresContext* aPresContext,

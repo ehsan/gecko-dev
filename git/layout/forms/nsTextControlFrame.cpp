@@ -41,7 +41,6 @@
 #include "nsTextControlFrame.h"
 #include "nsIDocument.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
-#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIFormControl.h"
 #include "nsIServiceManager.h"
 #include "nsFrameSelection.h"
@@ -119,6 +118,7 @@
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
 #include "nsIFontMetrics.h"
+#include "nsIDOMNSHTMLElement.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -142,15 +142,17 @@ NS_QUERYFRAME_HEAD(nsTextControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsTextControlFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsTextControlFrame::CreateAccessible()
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextFieldAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLTextFieldAccessible(mContent,
+                                                     PresContext()->PresShell());
   }
 
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -226,7 +228,7 @@ nsresult nsTextControlFrame::MaybeBeginSecureKeyboardInput()
 {
   nsresult rv = NS_OK;
   if (IsPasswordTextControl() && !mInSecureKeyboardInputMode) {
-    nsIWidget* window = GetWindow();
+    nsIWidget* window = GetNearestWidget();
     NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
     rv = window->BeginSecureKeyboardInput();
     mInSecureKeyboardInputMode = NS_SUCCEEDED(rv);
@@ -237,7 +239,7 @@ nsresult nsTextControlFrame::MaybeBeginSecureKeyboardInput()
 void nsTextControlFrame::MaybeEndSecureKeyboardInput()
 {
   if (mInSecureKeyboardInputMode) {
-    nsIWidget* window = GetWindow();
+    nsIWidget* window = GetNearestWidget();
     if (!window)
       return;
     window->EndSecureKeyboardInput();
@@ -441,8 +443,17 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   rv = UpdateValueDisplay(PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!IsSingleLineTextControl()) {
-    // textareas are eagerly initialized
+  // textareas are eagerly initialized
+  PRBool initEagerly = !IsSingleLineTextControl();
+  if (!initEagerly) {
+    nsCOMPtr<nsIDOMNSHTMLElement> element = do_QueryInterface(txtCtrl);
+    if (element) {
+      // so are input text controls with spellcheck=true
+      element->GetSpellcheck(&initEagerly);
+    }
+  }
+
+  if (initEagerly) {
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Someone forgot a script blocker?");
 
@@ -822,9 +833,8 @@ nsTextControlFrame::GetRootNodeAndInitializeEditor(nsIDOMElement **aRootElement)
 {
   NS_ENSURE_ARG_POINTER(aRootElement);
 
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-  NS_ASSERTION(txtCtrl, "Content not a text control element");
-  nsIEditor* editor = txtCtrl->GetTextEditor();
+  nsCOMPtr<nsIEditor> editor;
+  GetEditor(getter_AddRefs(editor));
   if (!editor)
     return NS_OK;
 
@@ -1215,10 +1225,11 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
   nsISelectionController* selCon = txtCtrl->GetSelectionController();
   const PRBool needEditor = nsGkAtoms::maxlength == aAttribute ||
                             nsGkAtoms::readonly == aAttribute ||
-                            nsGkAtoms::disabled == aAttribute;
-  nsIEditor *editor = nsnull;
+                            nsGkAtoms::disabled == aAttribute ||
+                            nsGkAtoms::spellcheck == aAttribute;
+  nsCOMPtr<nsIEditor> editor;
   if (needEditor) {
-    editor = txtCtrl->GetTextEditor();
+    GetEditor(getter_AddRefs(editor));
   }
   if ((needEditor && !editor) || !selCon)
     return nsBoxFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);;
@@ -1278,6 +1289,9 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
     { // unset disabled
       flags &= ~(nsIPlaintextEditor::eEditorDisabledMask);
       selCon->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);
+      if (nsContentUtils::IsFocusedContent(mContent)) {
+        selCon->SetCaretEnabled(PR_TRUE);
+      }
     }
     editor->SetFlags(flags);
   }
@@ -1301,9 +1315,8 @@ nsTextControlFrame::GetText(nsString& aText)
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
   if (IsSingleLineTextControl()) {
-    // If we're going to remove newlines anyway, ignore the wrap property
+    // There will be no line breaks so we can ignore the wrap property.
     txtCtrl->GetTextEditorValue(aText, PR_TRUE);
-    nsContentUtils::RemoveNewlines(aText);
   } else {
     nsCOMPtr<nsIDOMHTMLTextAreaElement> textArea = do_QueryInterface(mContent);
     if (textArea) {
@@ -1405,7 +1418,9 @@ nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
   // Mark the scroll frame as being a reflow root. This will allow
   // incremental reflows to be initiated at the scroll frame, rather
   // than descending from the root frame of the frame hierarchy.
-  first->AddStateBits(NS_FRAME_REFLOW_ROOT);
+  if (first) {
+    first->AddStateBits(NS_FRAME_REFLOW_ROOT);
+  }
 
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
@@ -1484,7 +1499,6 @@ nsTextControlFrame::UpdateValueDisplay(PRBool aNotify,
     return NS_OK;
   }
 
-  nsTextEditRules::HandleNewLines(value, -1);
   if (!value.IsEmpty() && IsPasswordTextControl()) {
     nsTextEditRules::FillBufWithPWChars(&value, value.Length());
   }

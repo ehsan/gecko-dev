@@ -1,6 +1,7 @@
 include protocol PTestDataStructuresSub;
 
 using mozilla::null_t;
+using nsIntRegion;
 
 namespace mozilla {
 namespace _foo {
@@ -85,6 +86,11 @@ struct SetAttrs {
     Attrs attrs;
 };
 union Op { null_t; SetAttrs; };
+
+struct ShmemStruct {
+    int i;
+    Shmem mem;
+};
 
 } // namespace _foo
 } // namespace mozilla
@@ -177,9 +183,14 @@ parent:
 
     sync Test17(Op[] ops);
 
-state START:
-    send Start goto TEST1;
+    // test that the ParamTraits<nsTArray>::Read() workaround for
+    // nsTArray's incorrect memmove() semantics works properly
+    // (nsIntRegion isn't memmove()able)
+    sync Test18(nsIntRegion[] ops);
 
+state CONSTRUCTING:
+    send PTestDataStructuresSub goto CONSTRUCTING;
+    send Start goto TEST1;
 state TEST1:   recv Test1 goto TEST2;
 state TEST2:   recv Test2 goto TEST3;
 state TEST3:   recv Test3 goto TEST4;
@@ -196,7 +207,8 @@ state TEST13:  recv Test13 goto TEST14;
 state TEST14:  recv Test14 goto TEST15;
 state TEST15:  recv Test15 goto TEST16;
 state TEST16:  recv Test16 goto TEST17;
-state TEST17:  recv Test17 goto DEAD;
+state TEST17:  recv Test17 goto TEST18;
+state TEST18:  recv Test18 goto DEAD;
 
 state DEAD:
     recv __delete__;

@@ -125,14 +125,24 @@ SessionStartup.prototype = {
     this._iniString = this._readStateFile(sessionFile);
     if (!this._iniString)
       return;
-    
+
+    // parse the session state into a JS object
+    let initialState;
     try {
-      // parse the session state into JS objects
-      var s = new Cu.Sandbox("about:blank");
-      var initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
+      // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
+      if (this._iniString.charAt(0) == '(')
+        this._iniString = this._iniString.slice(1, -1);
+      try {
+        initialState = JSON.parse(this._iniString);
+      }
+      catch (exJSON) {
+        var s = new Cu.Sandbox("about:blank");
+        initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
+        this._iniString = JSON.stringify(initialState);
+      }
     }
-    catch (ex) { debug("The session file is invalid: " + ex); } 
-    
+    catch (ex) { debug("The session file is invalid: " + ex); }
+
     let lastSessionCrashed =
       initialState && initialState.session && initialState.session.state &&
       initialState.session.state == STATE_RUNNING_STR;
@@ -147,7 +157,14 @@ SessionStartup.prototype = {
 
     if (this._sessionType != Ci.nsISessionStartup.NO_SESSION) {
       // wait for the first browser window to open
-      Services.obs.addObserver(this, "domwindowopened", true);
+
+      // Don't reset the initial window's default args (i.e. the home page(s))
+      // if all stored tabs are pinned.
+      if (!initialState.windows ||
+          !initialState.windows.every(function (win)
+             win.tabs.every(function (tab) tab.pinned)))
+        Services.obs.addObserver(this, "domwindowopened", true);
+
       Services.obs.addObserver(this, "browser:purge-session-history", true);
     }
   },
@@ -299,17 +316,7 @@ SessionStartup.prototype = {
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIObserver,
                                           Ci.nsISupportsWeakReference,
                                           Ci.nsISessionStartup]),
-  classDescription: "Browser Session Startup Service",
   classID:          Components.ID("{ec7a6c20-e081-11da-8ad9-0800200c9a66}"),
-  contractID:       "@mozilla.org/browser/sessionstartup;1",
-
-  // get this contractID registered for certain categories via XPCOMUtils
-  _xpcom_categories: [
-    // make ourselves a startup observer
-    { category: "app-startup", service: true }
-  ]
-
 };
 
-function NSGetModule(aCompMgr, aFileSpec)
-  XPCOMUtils.generateModule([SessionStartup]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([SessionStartup]);

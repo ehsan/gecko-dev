@@ -170,15 +170,11 @@ nsFormContentList::nsFormContentList(nsIDOMHTMLFormElement *aForm,
   // move elements that belong to mForm into this content list
 
   PRUint32 i, length = 0;
-  nsCOMPtr<nsIDOMNode> item;
 
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
-    aContentList.Item(i, getter_AddRefs(item));
-
-    nsCOMPtr<nsIContent> c(do_QueryInterface(item));
-
+    nsIContent *c = aContentList.GetNodeAt(i);
     if (c && nsContentUtils::BelongsInForm(aForm, c)) {
       AppendElement(c);
     }
@@ -313,7 +309,7 @@ already_AddRefed<nsContentList>
 NS_GetFuncStringContentList(nsINode* aRootNode,
                             nsContentListMatchFunc aFunc,
                             nsContentListDestroyFunc aDestroyFunc,
-                            void* aData,
+                            nsFuncStringContentListDataAllocator aDataAllocator,
                             const nsAString& aString)
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
@@ -361,7 +357,14 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    list = new nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc, aData, aString);
+    list = new nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc,
+                                                aDataAllocator, aString);
+    if (list && !list->AllocatedData()) {
+      // Failed to allocate the data
+      delete list;
+      list = nsnull;
+    }
+
     if (entry) {
       if (list)
         entry->mContentList = list;
@@ -370,11 +373,6 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
     }
 
     NS_ENSURE_TRUE(list, nsnull);
-  } else {
-    // List was already in the hashtable; clean up our new aData
-    if (aDestroyFunc) {
-      (*aDestroyFunc)(aData);
-    }
   }
 
   NS_ADDREF(list);
@@ -588,7 +586,7 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsISupports*
+nsIContent*
 nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
   *aResult = NS_OK;
@@ -596,10 +594,14 @@ nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 }
 
 nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsresult* aResult)
+nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
+                            nsresult* aResult)
 {
   *aResult = NS_OK;
-  return NamedItem(aName, PR_TRUE);
+
+  nsIContent *item;
+  *aCache = item = NamedItem(aName, PR_TRUE);
+  return item;
 }
 
 void
@@ -752,7 +754,8 @@ void
 nsContentList::ContentRemoved(nsIDocument *aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer)
+                              PRInt32 aIndexInContainer,
+                              nsIContent* aPreviousSibling)
 {
   // Note that aContainer can be null here if we are removing from
   // the document itself; any attempted optimizations to this method

@@ -124,7 +124,7 @@ protected:
     nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                            nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                            nsIContent** aResult, PRBool* aAppendContent,
-                           PRBool aFromParser);
+                           PRUint32 aFromParser);
     
     nsresult AddAttributes(const PRUnichar** aAtts, 
                            nsIContent* aContent);
@@ -163,7 +163,7 @@ protected:
   
   XBLPrimaryState mState;
   XBLSecondaryState mSecondaryState;
-  nsIXBLDocumentInfo* mDocInfo;
+  nsXBLDocumentInfo* mDocInfo;
   PRPackedBool mIsChromeOrResource; // For bug #45989
   PRPackedBool mFoundFirstBinding;
 

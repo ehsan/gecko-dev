@@ -178,7 +178,7 @@ CSPRep.fromString = function(aStr, self) {
         try {
           var uri = gIoService.newURI(uriStrings[i],null,null);
           if (self) {
-            if (gETLDService.getBaseDomain(uri) === 
+            if (gETLDService.getBaseDomain(uri) ===
                 gETLDService.getBaseDomain(selfUri)) {
               okUriStrings.push(uriStrings[i]);
             } else {
@@ -187,7 +187,20 @@ CSPRep.fromString = function(aStr, self) {
             }
           }
         } catch(e) {
-          CSPWarning("couldn't parse report URI: " + dirvalue);
+          switch (e.result) {
+            case Components.results.NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS:
+            case Components.results.NS_ERROR_HOST_IS_IP_ADDRESS:
+              if (uri.host === selfUri.host) {
+                okUriStrings.push(uriStrings[i]);
+              } else {
+                CSPWarning("page on " + selfUri.host + " cannot send reports to " + uri.host);
+              }
+              break;
+
+            default:
+              CSPWarning("couldn't parse report URI: " + uriStrings[i]);
+              break;
+          }
         }
       }
       aCSPR._directives[UD.REPORT_URI] = okUriStrings.join(' ');
@@ -259,8 +272,11 @@ CSPRep.fromString = function(aStr, self) {
 
   } // end directive: loop
 
-  aCSPR.makeExplicit();
-  return aCSPR;
+  // if makeExplicit fails for any reason, default to allow 'none'.  This
+  // includes the case where "allow" is not present.
+  if (aCSPR.makeExplicit())
+    return aCSPR;
+  return CSPRep.fromString("allow 'none'", self);
 };
 
 CSPRep.prototype = {
@@ -396,6 +412,7 @@ CSPRep.prototype = {
     var SD = CSPRep.SRC_DIRECTIVES;
     var allowDir = this._directives[SD.ALLOW];
     if (!allowDir) {
+      CSPWarning("'allow' directive required but not present.  Reverting to \"allow 'none'\"");
       return false;
     }
 
@@ -403,8 +420,12 @@ CSPRep.prototype = {
       var dirv = SD[dir];
       if (dirv === SD.ALLOW) continue;
       if (!this._directives[dirv]) {
-        // implicit directive, make explicit
-        this._directives[dirv] = allowDir.clone();
+        // implicit directive, make explicit.
+        // All but frame-ancestors directive inherit from 'allow' (bug 555068)
+        if (dirv === SD.FRAME_ANCESTORS)
+          this._directives[dirv] = CSPSourceList.fromString("*");
+        else
+          this._directives[dirv] = allowDir.clone();
         this._directives[dirv]._isImplicit = true;
       }
     }

@@ -76,6 +76,7 @@
 #include "nsDOMError.h"
 #include "mozAutoDocUpdate.h"
 #include "nsISupportsPrimitives.h"
+#include "nsContentCreatorFunctions.h"
 
 #include "nsTextEditorState.h"
 
@@ -91,7 +92,8 @@ class nsHTMLTextAreaElement : public nsGenericHTMLFormElement,
                               public nsStubMutationObserver
 {
 public:
-  nsHTMLTextAreaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
+  nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                        PRUint32 aFromParser = 0);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -164,7 +166,7 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
   virtual PRBool IsDoneAddingChildren();
@@ -193,6 +195,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLTextAreaElement,
                                            nsGenericHTMLFormElement)
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   using nsGenericHTMLFormElement::IsSingleLineTextControl; // get rid of the compiler warning
 
@@ -204,6 +207,8 @@ protected:
   /** Whether or not we are done adding children (always PR_TRUE if not
       created by a parser */
   PRPackedBool             mDoneAddingChildren;
+  /** Whether state restoration should be inhibited in DoneAddingChildren. */
+  PRPackedBool             mInhibitStateRestoration;
   /** Whether our disabled state has changed from the default **/
   PRPackedBool             mDisabledChanged;
   /** The state of the text editor (selection controller and the editor) **/
@@ -243,12 +248,13 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
 
 
-nsHTMLTextAreaElement::nsHTMLTextAreaElement(nsINodeInfo *aNodeInfo,
-                                             PRBool aFromParser)
+nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                                             PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mValueChanged(PR_FALSE),
     mHandlingSelect(PR_FALSE),
     mDoneAddingChildren(!aFromParser),
+    mInhibitStateRestoration(!!(aFromParser & NS_FROM_PARSER_FRAGMENT)),
     mDisabledChanged(PR_FALSE),
     mState(new nsTextEditorState(this))
 {
@@ -271,7 +277,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
+DOMCI_NODE_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
 
 // QueryInterface implementation for nsHTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTextAreaElement)
@@ -372,9 +378,10 @@ nsHTMLTextAreaElement::SelectAll(nsPresContext* aPresContext)
 }
 
 PRBool
-nsHTMLTextAreaElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
+                                       PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
 
@@ -444,7 +451,9 @@ nsHTMLTextAreaElement::BindToFrame(nsTextControlFrame* aFrame)
 NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::UnbindFromFrame(nsTextControlFrame* aFrame)
 {
-  mState->UnbindFromFrame(aFrame);
+  if (aFrame) {
+    mState->UnbindFromFrame(aFrame);
+  }
 }
 
 NS_IMETHODIMP
@@ -676,8 +685,9 @@ nsHTMLTextAreaElement::DoneAddingChildren(PRBool aHaveNotified)
       // sneak some text in without calling AppendChildTo.
       Reset();
     }
-
-    RestoreFormControlState(this, this);
+    if (!mInhibitStateRestoration) {
+      RestoreFormControlState(this, this);
+    }
   }
 
   mDoneAddingChildren = PR_TRUE;
@@ -954,7 +964,7 @@ nsHTMLTextAreaElement::ContentAppended(nsIDocument* aDocument,
                                        nsIContent* aFirstNewContent,
                                        PRInt32 /* unused */)
 {
-  ContentChanged(aContainer);
+  ContentChanged(aFirstNewContent);
 }
 
 void
@@ -970,7 +980,8 @@ void
 nsHTMLTextAreaElement::ContentRemoved(nsIDocument* aDocument,
                                       nsIContent* aContainer,
                                       nsIContent* aChild,
-                                      PRInt32 aIndexInContainer)
+                                      PRInt32 aIndexInContainer,
+                                      nsIContent* aPreviousSibling)
 {
   ContentChanged(aChild);
 }
@@ -980,6 +991,9 @@ nsHTMLTextAreaElement::ContentChanged(nsIContent* aContent)
 {
   if (!mValueChanged && mDoneAddingChildren &&
       nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
+    // Hard to say what the reset can trigger, so be safe pending
+    // further auditing.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     Reset();
   }
 }

@@ -1020,7 +1020,7 @@ function testtag_tree_TreeView_rows_sort(tree, testid, rowInfo)
 
   // Now simulate a double click.
   mouseClickOnColumnHeader(columns, columnIndex, 0, 2);
-  if (navigator.platform == "Win32") {
+  if (navigator.platform.indexOf("Win") == 0) {
     // Windows cycles only once on double click.
     is(columnElement.getAttribute("sortDirection"), "descending",
        "double click cycleHeader column sortDirection descending");
@@ -1031,6 +1031,20 @@ function testtag_tree_TreeView_rows_sort(tree, testid, rowInfo)
   // Check we have gone back to natural sorting.
   is(columnElement.getAttribute("sortDirection"), "",
      "cycleHeader column sortDirection");
+
+  columnElement.setAttribute("sorthints", "twostate");
+  view.cycleHeader(column);
+  is(tree.getAttribute("sortDirection"), "ascending", "cycleHeader sortDirection ascending twostate");
+  view.cycleHeader(column);
+  is(tree.getAttribute("sortDirection"), "descending", "cycleHeader sortDirection ascending twostate");
+  view.cycleHeader(column);
+  is(tree.getAttribute("sortDirection"), "ascending", "cycleHeader sortDirection ascending twostate again");
+  columnElement.removeAttribute("sorthints");
+  view.cycleHeader(column);
+  view.cycleHeader(column);
+
+  is(columnElement.getAttribute("sortDirection"), "",
+     "cycleHeader column sortDirection reset");
 }
 
 // checks if the current and selected rows are correct

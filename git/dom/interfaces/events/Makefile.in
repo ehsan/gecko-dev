@@ -80,10 +80,12 @@ XPIDLSRCS =					\
 	nsIDOMPaintRequestList.idl		\
 	nsIDOMSimpleGestureEvent.idl		\
 	nsIDOMNSMouseEvent.idl			\
+	nsIDOMMozTouchEvent.idl			\
 	nsIDOMOrientationEvent.idl              \
 	nsIDOMScrollAreaEvent.idl		\
 	nsIDOMTransitionEvent.idl		\
 	nsIDOMPopStateEvent.idl			\
+	nsIDOMCloseEvent.idl			\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

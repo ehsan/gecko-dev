@@ -266,23 +266,23 @@ static cairo_status_t
 _cairo_dwrite_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
 					cairo_font_face_t      **font_face)
 {
-    uint16_t *face_name;
+    WCHAR *face_name;
     int face_name_len;
-    cairo_status_t status;
 
     if (!DWriteFactory::Instance()) {
 	return (cairo_status_t)CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    status = _cairo_utf8_to_utf16 (toy_face->family, -1,
-				   &face_name, &face_name_len);
+    face_name_len = MultiByteToWideChar(CP_UTF8, 0, toy_face->family, -1, NULL, 0);
+    face_name = new WCHAR[face_name_len];
+    MultiByteToWideChar(CP_UTF8, 0, toy_face->family, -1, face_name, face_name_len);
 
     IDWriteFontFamily *family = DWriteFactory::FindSystemFontFamily(face_name);
+    delete face_name;
     if (!family) {
 	*font_face = (cairo_font_face_t*)&_cairo_font_face_nil;
 	return CAIRO_STATUS_FONT_TYPE_MISMATCH;
     }
-    free (face_name);
 
     DWRITE_FONT_WEIGHT weight;
     switch (toy_face->weight) {
@@ -587,12 +587,25 @@ _cairo_dwrite_scaled_font_init_glyph_metrics(cairo_dwrite_scaled_font_t *scaled_
     }
 
     // TODO: Treat swap_xy.
-    extents.width = (FLOAT)(metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing) / fontMetrics.designUnitsPerEm;
-    extents.height = (FLOAT)(metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing) / fontMetrics.designUnitsPerEm;
+    extents.width = (FLOAT)(metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing) /
+        fontMetrics.designUnitsPerEm;
+    extents.height = (FLOAT)(metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing) /
+        fontMetrics.designUnitsPerEm;
     extents.x_advance = (FLOAT)metrics.advanceWidth / fontMetrics.designUnitsPerEm;
     extents.x_bearing = (FLOAT)metrics.leftSideBearing / fontMetrics.designUnitsPerEm;
     extents.y_advance = 0.0;
-    extents.y_bearing = (FLOAT)(metrics.topSideBearing - metrics.verticalOriginY) / fontMetrics.designUnitsPerEm;
+    extents.y_bearing = (FLOAT)(metrics.topSideBearing - metrics.verticalOriginY) /
+        fontMetrics.designUnitsPerEm;
+
+    // We pad the extents here because GetDesignGlyphMetrics returns "ideal" metrics
+    // for the glyph outline, without accounting for hinting/gridfitting/antialiasing,
+    // and therefore it does not always cover all pixels that will actually be touched.
+    if (scaled_font->base.options.antialias != CAIRO_ANTIALIAS_NONE &&
+        extents.width > 0 && extents.height > 0) {
+        extents.width += scaled_font->mat_inverse.xx * 2;
+        extents.x_bearing -= scaled_font->mat_inverse.xx;
+    }
+
     _cairo_scaled_glyph_set_metrics (scaled_glyph,
 				     &scaled_font->base,
 				     &extents);
@@ -1247,35 +1260,52 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     if (cairo_scaled_font_get_type (scaled_font) != CAIRO_FONT_TYPE_DWRITE)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
+    op = _cairo_d2d_simplify_operator(op, source);
 
-    /* We can only handle operator SOURCE or OVER with the destination
-     * having no alpha */
-    if (op != CAIRO_OPERATOR_SOURCE && op != CAIRO_OPERATOR_OVER)
+    /* We cannot handle operator SOURCE or CLEAR */
+    if (op == CAIRO_OPERATOR_SOURCE || op == CAIRO_OPERATOR_CLEAR) {
 	return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&dst->clipper, clip);
-    if (unlikely (status))
-	return status;
-
-    _cairo_d2d_begin_draw_state(dst);
-
-    D2D1_TEXT_ANTIALIAS_MODE cleartype = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
-
-    if (dst->base.content != CAIRO_CONTENT_COLOR) {
-	cleartype = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
     }
+
+    RefPtr<ID2D1RenderTarget> target_rt = dst->rt;
+    cairo_rectangle_int_t fontArea;
+#ifndef ALWAYS_MANUAL_COMPOSITE
+    if (op != CAIRO_OPERATOR_OVER) {
+#endif
+	target_rt = _cairo_d2d_get_temp_rt(dst, clip);
+
+	if (!target_rt) {
+	    return CAIRO_INT_STATUS_UNSUPPORTED;
+	}
+#ifndef ALWAYS_MANUAL_COMPOSITE
+    } else {
+	_cairo_d2d_begin_draw_state(dst);
+	status = (cairo_int_status_t)_cairo_d2d_set_clip (dst, clip);
+
+	if (unlikely(status))
+	    return status;
+    }
+#endif
+
+    D2D1_TEXT_ANTIALIAS_MODE highest_quality = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
+
+    // If we're rendering to a temporary surface we cannot do sub-pixel AA.
+    if (dst->base.content != CAIRO_CONTENT_COLOR || dst->rt.get() != target_rt.get()) {
+	highest_quality = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
+    }
+
     switch (scaled_font->options.antialias) {
 	case CAIRO_ANTIALIAS_DEFAULT:
-	    dst->rt->SetTextAntialiasMode(cleartype);
+	    target_rt->SetTextAntialiasMode(highest_quality);
 	    break;
 	case CAIRO_ANTIALIAS_NONE:
-	    dst->rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+	    target_rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
 	    break;
 	case CAIRO_ANTIALIAS_GRAY:
-	    dst->rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+	    target_rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 	    break;
 	case CAIRO_ANTIALIAS_SUBPIXEL:
-	    dst->rt->SetTextAntialiasMode(cleartype);
+	    target_rt->SetTextAntialiasMode(highest_quality);
 	    break;
     }
 
@@ -1337,7 +1367,29 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     D2D1::Matrix3x2F mat = _cairo_d2d_matrix_from_matrix(&dwritesf->mat);
 	
     if (transform) {
-	dst->rt->SetTransform(mat);
+	target_rt->SetTransform(mat);
+    }
+
+    if (dst->rt.get() != target_rt.get()) {
+	RefPtr<IDWriteGlyphRunAnalysis> analysis;
+	DWRITE_MATRIX dwmat = _cairo_dwrite_matrix_from_matrix(&dwritesf->mat);
+	DWriteFactory::Instance()->CreateGlyphRunAnalysis(&run,
+							  1.0f,
+							  transform ? &dwmat : 0,
+							  DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL_SYMMETRIC,
+							  DWRITE_MEASURING_MODE_NATURAL,
+							  0,
+							  0,
+							  &analysis);
+
+	RECT bounds;
+	analysis->GetAlphaTextureBounds(scaled_font->options.antialias == CAIRO_ANTIALIAS_NONE ?
+					DWRITE_TEXTURE_ALIASED_1x1 : DWRITE_TEXTURE_CLEARTYPE_3x1,
+					&bounds);
+	fontArea.x = bounds.left;
+	fontArea.y = bounds.top;
+	fontArea.width = bounds.right - bounds.left;
+	fontArea.height = bounds.bottom - bounds.top;
     }
 
     RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(dst,
@@ -1362,15 +1414,19 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
 	brush->SetTransform(&mat_brush);
     }
     
-    dst->rt->DrawGlyphRun(D2D1::Point2F(0, 0), &run, brush);
+    target_rt->DrawGlyphRun(D2D1::Point2F(0, 0), &run, brush);
     
     if (transform) {
-	dst->rt->SetTransform(D2D1::Matrix3x2F::Identity());
+	target_rt->SetTransform(D2D1::Matrix3x2F::Identity());
     }
 
     delete [] indices;
     delete [] offsets;
     delete [] advances;
+
+    if (target_rt.get() != dst->rt.get()) {
+	return _cairo_d2d_blend_temp_surface(dst, op, target_rt, clip, &fontArea);
+    }
 
     return CAIRO_INT_STATUS_SUCCESS;
 }

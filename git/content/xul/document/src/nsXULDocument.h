@@ -77,15 +77,19 @@ class nsIXULPrototypeScript;
 struct JSObject;
 struct PRLogModuleInfo;
 
-class nsRefMapEntry : public nsISupportsHashKey
+class nsRefMapEntry : public nsStringHashKey
 {
 public:
-  nsRefMapEntry(const nsISupports* aKey) :
-    nsISupportsHashKey(aKey)
+  nsRefMapEntry(const nsAString& aKey) :
+    nsStringHashKey(&aKey)
+  {
+  }
+  nsRefMapEntry(const nsAString *aKey) :
+    nsStringHashKey(aKey)
   {
   }
   nsRefMapEntry(const nsRefMapEntry& aOther) :
-    nsISupportsHashKey(GetKey())
+    nsStringHashKey(&aOther.GetKey())
   {
     NS_ERROR("Should never be called");
   }
@@ -148,8 +152,8 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
     // nsIXULDocument interface
-    NS_IMETHOD GetElementsForID(const nsAString& aID,
-                                nsCOMArray<nsIContent>& aElements);
+    virtual void GetElementsForID(const nsAString& aID,
+                                  nsCOMArray<nsIContent>& aElements);
 
     NS_IMETHOD GetScriptGlobalObjectOwner(nsIScriptGlobalObjectOwner** aGlobalOwner);
     NS_IMETHOD AddSubtreeToDocument(nsIContent* aContent);
@@ -200,6 +204,7 @@ public:
 
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULDocument, nsXMLDocument)
 
+    virtual nsXPCClassInfo* GetClassInfo();
 protected:
     // Implementation methods
     friend nsresult
@@ -487,7 +492,7 @@ protected:
     {
     protected:
         nsXULDocument* mDocument;              // [WEAK]
-        nsCOMPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
+        nsRefPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
         PRBool mResolved;
 
     public:

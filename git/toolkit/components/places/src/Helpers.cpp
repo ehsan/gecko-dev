@@ -60,7 +60,7 @@ AsyncStatementCallback::HandleError(mozIStorageError *aError)
 
   nsCAutoString warnMsg;
   warnMsg.Append("An error occurred while executing an async statement: ");
-  warnMsg.Append(result);
+  warnMsg.AppendInt(result);
   warnMsg.Append(" ");
   warnMsg.Append(message);
   NS_WARNING(warnMsg.get());
@@ -180,6 +180,35 @@ URIBinder::Bind(mozIStorageBindingParams* aParams,
 
 #undef URI_TO_URLCSTRING
 
+nsresult
+GetReversedHostname(nsIURI* aURI, nsString& aRevHost)
+{
+  nsCAutoString forward8;
+  nsresult rv = aURI->GetHost(forward8);
+  // Not all URIs have a host.
+  if (NS_FAILED(rv))
+    return rv;
+
+  // can't do reversing in UTF8, better use 16-bit chars
+  GetReversedHostname(NS_ConvertUTF8toUTF16(forward8), aRevHost);
+  return NS_OK;
+}
+
+void
+GetReversedHostname(const nsString& aForward, nsString& aRevHost)
+{
+  ReverseString(aForward, aRevHost);
+  aRevHost.Append(PRUnichar('.'));
+}
+
+void
+ReverseString(const nsString& aInput, nsString& aReversed)
+{
+  aReversed.Truncate(0);
+  for (PRInt32 i = aInput.Length() - 1; i >= 0; i--) {
+    aReversed.Append(aInput[i]);
+  }
+}
 
 } // namespace places
 } // namespace mozilla

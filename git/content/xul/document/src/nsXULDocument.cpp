@@ -114,7 +114,7 @@
 #include "nsIParser.h"
 #include "nsIParserService.h"
 #include "nsCSSStyleSheet.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsIScriptError.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsEventDispatcher.h"
@@ -143,6 +143,16 @@ static PRBool IsChromeURI(nsIURI* aURI)
     // why is this check a member function of nsXULDocument? -gagan
     PRBool isChrome = PR_FALSE;
     if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)) && isChrome)
+        return PR_TRUE;
+    return PR_FALSE;
+}
+
+static PRBool IsOverlayAllowed(nsIURI* aURI)
+{
+    PRBool canOverlay = PR_FALSE;
+    if (NS_SUCCEEDED(aURI->SchemeIs("about", &canOverlay)) && canOverlay)
+        return PR_TRUE;
+    if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &canOverlay)) && canOverlay)
         return PR_TRUE;
     return PR_FALSE;
 }
@@ -368,7 +378,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTooltipNode)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLocalStore)
 
     if (tmp->mOverlayLoadObservers.IsInitialized())
@@ -378,14 +387,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTooltipNode)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
 
 
-DOMCI_DATA(XULDocument, nsXULDocument)
+DOMCI_NODE_DATA(XULDocument, nsXULDocument)
 
 // QueryInterface implementation for nsXULDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULDocument)
@@ -579,7 +587,7 @@ nsXULDocument::EndLoad()
         nsXULPrototypeCache::GetInstance()->WritePrototype(mCurrentPrototype);
     }
 
-    if (isChrome) {
+    if (IsOverlayAllowed(uri)) {
         nsCOMPtr<nsIXULOverlayProvider> reg =
             mozilla::services::GetXULOverlayProviderService();
 
@@ -608,7 +616,7 @@ nsXULDocument::EndLoad()
             }
         }
 
-        if (useXULCache) {
+        if (isChrome && useXULCache) {
             // If it's a chrome prototype document, then notify any
             // documents that raced to load the prototype, and awaited
             // its load completion via proto->AwaitLoadDone().
@@ -717,7 +725,7 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
-    PRBool notify = mInitialLayoutComplete || mHandlingDelayedBroadcasters;
+    PRBool notify = mDocumentLoaded || mHandlingDelayedBroadcasters;
 
     // We may be copying event handlers etc, so we must also copy
     // the script-type to the listener.
@@ -952,9 +960,8 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
         // |onbroadcast| event handler
         nsEvent event(PR_TRUE, NS_XUL_BROADCAST);
 
-        nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
+        nsCOMPtr<nsIPresShell> shell = GetShell();
         if (shell) {
-
             nsRefPtr<nsPresContext> aPresContext = shell->GetPresContext();
 
             // Handle the DOM event
@@ -979,6 +986,8 @@ nsXULDocument::AttributeWillChange(nsIDocument* aDocument,
     // See if we need to update our ref map.
     if (aAttribute == nsGkAtoms::ref ||
         (aAttribute == nsGkAtoms::id && !aContent->GetIDAttributeName())) {
+        // Might not need this, but be safe for now.
+        nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
         RemoveElementFromRefMap(aContent->AsElement());
     }
 }
@@ -989,6 +998,9 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                                 nsIAtom* aAttribute, PRInt32 aModType)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
+
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
     // XXXbz once we change AttributeChanged to take Element, we can nix this line
     Element* aElement = aElementContent->AsElement();
@@ -1088,6 +1100,9 @@ nsXULDocument::ContentAppended(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
     
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+
     // Update our element map
     nsresult rv = NS_OK;
     for (nsIContent* cur = aFirstNewContent; cur && NS_SUCCEEDED(rv);
@@ -1104,6 +1119,9 @@ nsXULDocument::ContentInserted(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+
     AddSubtreeToDocument(aChild);
 }
 
@@ -1111,9 +1129,13 @@ void
 nsXULDocument::ContentRemoved(nsIDocument* aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer)
+                              PRInt32 aIndexInContainer,
+                              nsIContent* aPreviousSibling)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
+
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
     RemoveSubtreeFromDocument(aChild);
 }
@@ -1123,24 +1145,20 @@ nsXULDocument::ContentRemoved(nsIDocument* aDocument,
 // nsIXULDocument interface
 //
 
-NS_IMETHODIMP
+void
 nsXULDocument::GetElementsForID(const nsAString& aID,
                                 nsCOMArray<nsIContent>& aElements)
 {
     aElements.Clear();
 
-    nsCOMPtr<nsIAtom> atom = do_GetAtom(aID);
-    if (!atom)
-        return NS_ERROR_OUT_OF_MEMORY;
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(atom);
+    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aID);
     if (entry) {
         entry->AppendAllIdContent(&aElements);
     }
-    nsRefMapEntry *refEntry = mRefMap.GetEntry(atom);
+    nsRefMapEntry *refEntry = mRefMap.GetEntry(aID);
     if (refEntry) {
         refEntry->AppendAll(&aElements);
     }
-    return NS_OK;
 }
 
 nsresult
@@ -1296,17 +1314,9 @@ nsXULDocument::Persist(const nsAString& aID,
 
     nsresult rv;
 
-    nsCOMPtr<nsIDOMElement> domelement;
-    rv = nsDocument::GetElementById(aID, getter_AddRefs(domelement));
-    if (NS_FAILED(rv)) return rv;
-
-    if (! domelement)
-        return NS_OK;
-
-    nsCOMPtr<nsIContent> element = do_QueryInterface(domelement);
-    NS_ASSERTION(element != nsnull, "null ptr");
+    nsIContent *element = nsDocument::GetElementById(aID);
     if (! element)
-        return NS_ERROR_UNEXPECTED;
+        return NS_OK;
 
     nsCOMPtr<nsIAtom> tag;
     PRInt32 nameSpaceID;
@@ -1476,7 +1486,7 @@ nsXULDocument::GetViewportSize(PRInt32* aWidth,
 
     FlushPendingNotifications(Flush_Layout);
 
-    nsIPresShell *shell = GetPrimaryShell();
+    nsIPresShell *shell = GetShell();
     NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
 
     nsIFrame* frame = shell->GetRootFrame();
@@ -1516,25 +1526,22 @@ nsXULDocument::GetHeight(PRInt32* aHeight)
 NS_IMETHODIMP
 nsXULDocument::GetPopupNode(nsIDOMNode** aNode)
 {
-    // Get popup node.
-    nsresult rv = TrustedGetPopupNode(aNode); // addref happens here
-
-    if (NS_SUCCEEDED(rv) && *aNode && !nsContentUtils::CanCallerAccess(*aNode)) {
-        NS_RELEASE(*aNode);
-        return NS_ERROR_DOM_SECURITY_ERR;
-    }
-
-    return rv;
-}
-
-NS_IMETHODIMP
-nsXULDocument::TrustedGetPopupNode(nsIDOMNode** aNode)
-{
     *aNode = nsnull;
 
+    nsCOMPtr<nsIDOMNode> node;
     nsCOMPtr<nsPIWindowRoot> rootWin = GetWindowRoot();
     if (rootWin)
-        rootWin->GetPopupNode(aNode); // addref happens here
+        node = rootWin->GetPopupNode(); // addref happens here
+
+    if (!node) {
+        nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+        if (pm) {
+            node = pm->GetLastTriggerPopupNode(this);
+        }
+    }
+
+    if (node && nsContentUtils::CanCallerAccess(node))
+      node.swap(*aNode);
 
     return NS_OK;
 }
@@ -1603,25 +1610,22 @@ nsXULDocument::GetPopupRangeOffset(PRInt32* aRangeOffset)
 NS_IMETHODIMP
 nsXULDocument::GetTooltipNode(nsIDOMNode** aNode)
 {
-    if (mTooltipNode && !nsContentUtils::CanCallerAccess(mTooltipNode)) {
-        return NS_ERROR_DOM_SECURITY_ERR;
-    }
-    *aNode = mTooltipNode;
-    NS_IF_ADDREF(*aNode);
-    return NS_OK;
-}
+    *aNode = nsnull;
 
-NS_IMETHODIMP
-nsXULDocument::TrustedGetTooltipNode(nsIDOMNode** aNode)
-{
-    NS_IF_ADDREF(*aNode = mTooltipNode);
+    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+    if (pm) {
+        nsCOMPtr<nsIDOMNode> node = pm->GetLastTriggerTooltipNode(this);
+        if (node && nsContentUtils::CanCallerAccess(node))
+            node.swap(*aNode);
+    }
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsXULDocument::SetTooltipNode(nsIDOMNode* aNode)
 {
-    mTooltipNode = aNode;
+    // do nothing
     return NS_OK;
 }
 
@@ -1637,23 +1641,17 @@ nsXULDocument::GetCommandDispatcher(nsIDOMXULCommandDispatcher** aTracker)
 Element*
 nsXULDocument::GetElementById(const nsAString& aId)
 {
-    nsCOMPtr<nsIAtom> atom(do_GetAtom(aId));
-    if (!atom) {
-        // This can only fail due OOM if the atom doesn't exist, in which
-        // case there couldn't possibly exist an entry for it.
-        return nsnull;
-    }
-
-    if (!CheckGetElementByIdArg(atom))
+    if (!CheckGetElementByIdArg(aId))
         return nsnull;
 
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(atom);
+    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
     if (entry) {
         Element* element = entry->GetIdElement();
         if (element)
             return element;
     }
-    nsRefMapEntry* refEntry = mRefMap.GetEntry(atom);
+
+    nsRefMapEntry* refEntry = mRefMap.GetEntry(aId);
     if (refEntry) {
         NS_ASSERTION(refEntry->GetFirstElement(),
                      "nsRefMapEntries should have nonempty content lists");
@@ -1893,10 +1891,7 @@ nsXULDocument::AddElementToRefMap(Element* aElement)
     nsAutoString value;
     GetRefMapAttribute(aElement, &value);
     if (!value.IsEmpty()) {
-        nsCOMPtr<nsIAtom> atom = do_GetAtom(value);
-        if (!atom)
-            return NS_ERROR_OUT_OF_MEMORY;
-        nsRefMapEntry *entry = mRefMap.PutEntry(atom);
+        nsRefMapEntry *entry = mRefMap.PutEntry(value);
         if (!entry)
             return NS_ERROR_OUT_OF_MEMORY;
         if (!entry->AddElement(aElement))
@@ -1913,14 +1908,11 @@ nsXULDocument::RemoveElementFromRefMap(Element* aElement)
     nsAutoString value;
     GetRefMapAttribute(aElement, &value);
     if (!value.IsEmpty()) {
-        nsCOMPtr<nsIAtom> atom = do_GetAtom(value);
-        if (!atom)
-            return;
-        nsRefMapEntry *entry = mRefMap.GetEntry(atom);
+        nsRefMapEntry *entry = mRefMap.GetEntry(value);
         if (!entry)
             return;
         if (entry->RemoveElement(aElement)) {
-            mRefMap.RemoveEntry(atom);
+            mRefMap.RawRemoveEntry(entry);
         }
     }
 }
@@ -2002,9 +1994,8 @@ nsresult
 nsXULDocument::StartLayout(void)
 {
     mMayStartLayout = PR_TRUE;
-    nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
+    nsCOMPtr<nsIPresShell> shell = GetShell();
     if (shell) {
-
         // Resize-reflow this time
         nsPresContext *cx = shell->GetPresContext();
         NS_ASSERTION(cx != nsnull, "no pres context");
@@ -2440,7 +2431,7 @@ nsXULDocument::PrepareToWalk()
 
     // Do one-time initialization if we're preparing to walk the
     // master document's prototype.
-    nsCOMPtr<Element> root;
+    nsRefPtr<Element> root;
 
     if (mState == eState_Master) {
         // Add the root element
@@ -2600,8 +2591,8 @@ nsXULDocument::AddChromeOverlays()
 
     nsCOMPtr<nsIURI> docUri = mCurrentPrototype->GetURI();
 
-    /* overlays only apply to chrome, skip all content URIs */
-    if (!IsChromeURI(docUri)) return NS_OK;
+    /* overlays only apply to chrome or about URIs */
+    if (!IsOverlayAllowed(docUri)) return NS_OK;
 
     nsCOMPtr<nsIXULOverlayProvider> chromeReg =
         mozilla::services::GetXULOverlayProviderService();
@@ -2694,7 +2685,8 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     // In all other cases, the overlay is only allowed to load if
     // the master document and prototype document have the same origin.
 
-    if (!IsChromeURI(mDocumentURI)) {
+    PRBool documentIsChrome = IsChromeURI(mDocumentURI);
+    if (!documentIsChrome) {
         // Make sure we're allowed to load this overlay.
         rv = NodePrincipal()->CheckMayLoad(aURI, PR_TRUE);
         if (NS_FAILED(rv)) {
@@ -2704,9 +2696,11 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     }
 
     // Look in the prototype cache for the prototype document with
-    // the specified overlay URI.
+    // the specified overlay URI. Only use the cache if the containing
+    // document is chrome otherwise it may not have a system principal and
+    // the cached document will, see bug 565610.
     PRBool overlayIsChrome = IsChromeURI(aURI);
-    mCurrentPrototype = overlayIsChrome ?
+    mCurrentPrototype = overlayIsChrome && documentIsChrome ?
         nsXULPrototypeCache::GetInstance()->GetPrototype(aURI) : nsnull;
 
     // Same comment as nsChromeProtocolHandler::NewChannel and
@@ -2806,8 +2800,10 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
         // the prototype cache; other XUL documents will be reloaded
         // each time.  We must do this after NS_OpenURI and AsyncOpen,
         // or chrome code will wrongly create a cached chrome channel
-        // instead of a real one.
-        if (useXULCache && overlayIsChrome) {
+        // instead of a real one. Prototypes are only cached when the
+        // document to be overlayed is chrome to avoid caching overlay
+        // scripts with incorrect principals, see bug 565610.
+        if (useXULCache && overlayIsChrome && documentIsChrome) {
             nsXULPrototypeCache::GetInstance()->PutPrototype(mCurrentPrototype);
         }
 
@@ -2926,7 +2922,7 @@ nsXULDocument::ResumeWalk()
                 nsXULPrototypeElement* protoele =
                     static_cast<nsXULPrototypeElement*>(childproto);
 
-                nsCOMPtr<Element> child;
+                nsRefPtr<Element> child;
 
                 if (!processingOverlayHookupNodes) {
                     rv = CreateElementFromPrototype(protoele,
@@ -3676,7 +3672,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
     }
 #endif
 
-    nsCOMPtr<Element> result;
+    nsRefPtr<Element> result;
 
     if (aPrototype->mNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
         // If it's a XUL element, it'll be lightweight until somebody
@@ -3695,14 +3691,16 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
                                                     aPrototype->mNodeInfo->NamespaceID());
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
         nsCOMPtr<nsIContent> content;
-        rv = NS_NewElement(getter_AddRefs(content), newNodeInfo->NamespaceID(),
-                           newNodeInfo, PR_FALSE);
+        PRInt32 ns = newNodeInfo->NamespaceID();
+        nsCOMPtr<nsINodeInfo> xtfNi = newNodeInfo;
+        rv = NS_NewElement(getter_AddRefs(content), ns, newNodeInfo.forget(),
+                           PR_FALSE);
         if (NS_FAILED(rv)) return rv;
 
         result = content->AsElement();
 
 #ifdef MOZ_XTF
-        if (result && newNodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin) {
+        if (result && xtfNi->NamespaceID() > kNameSpaceID_LastBuiltin) {
             result->BeginAddingChildren();
         }
 #endif
@@ -3722,7 +3720,7 @@ nsXULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
 {
     nsresult rv;
 
-    nsCOMPtr<Element> element;
+    nsRefPtr<Element> element;
     rv = CreateElementFromPrototype(aPrototype, getter_AddRefs(element));
     if (NS_FAILED(rv)) return rv;
 
@@ -3836,7 +3834,7 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
                                           getter_AddRefs(bodyContent));
 
         if (! bodyContent) {
-            nsresult rv = document->CreateElem(nsGkAtoms::treechildren,
+            nsresult rv = document->CreateElem(nsAtomString(nsGkAtoms::treechildren),
                                                nsnull, kNameSpaceID_XUL,
                                                PR_FALSE,
                                                getter_AddRefs(bodyContent));
@@ -3905,7 +3903,7 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsresult rv;
     nsCOMPtr<nsIContent> target;
 
-    nsIPresShell *shell = mDocument->GetPrimaryShell();
+    nsIPresShell *shell = mDocument->GetShell();
     PRBool notify = shell && shell->DidInitialReflow();
 
     nsAutoString id;
@@ -3926,14 +3924,10 @@ nsXULDocument::OverlayForwardReference::Resolve()
     else {
         // The hook-up element has an id, try to match it with an element
         // with the same id in the base document.
-        nsCOMPtr<nsIDOMElement> domtarget;
-        rv = mDocument->GetElementById(id, getter_AddRefs(domtarget));
-        if (NS_FAILED(rv)) return eResolve_Error;
+        target = mDocument->GetElementById(id);
 
         // If we can't find the element in the document, defer the hookup
         // until later.
-        target = do_QueryInterface(domtarget);
-        NS_ASSERTION(!domtarget || target, "not an nsIContent");
         if (!target)
             return eResolve_Later;
 
@@ -4065,17 +4059,18 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
     for (i = 0; i < childCount; ++i) {
         currContent = aOverlayNode->GetChildAt(0);
 
-        nsAutoString id;
-        currContent->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
+        nsIAtom *idAtom = currContent->GetID();
 
-        nsCOMPtr<nsIDOMElement> nodeInDocument;
-        if (!id.IsEmpty()) {
-            nsCOMPtr<nsIDOMDocument> domDocument(
-                        do_QueryInterface(aTargetNode->GetDocument()));
-            if (!domDocument) return NS_ERROR_FAILURE;
+        nsIContent *elementInDocument = nsnull;
+        if (idAtom) {
+            nsDependentAtomString id(idAtom);
 
-            rv = domDocument->GetElementById(id, getter_AddRefs(nodeInDocument));
-            if (NS_FAILED(rv)) return rv;
+            if (!id.IsEmpty()) {
+                nsIDocument *doc = aTargetNode->GetDocument();
+                if (!doc) return NS_ERROR_FAILURE;
+
+                elementInDocument = doc->GetElementById(id);
+            }
         }
 
         // The item has an 'id' attribute set, and we need to check with
@@ -4083,24 +4078,21 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         // this locale. If so, we want to merge the subtree under that
         // node. Otherwise, we just do an append as if the element had
         // no id attribute.
-        if (nodeInDocument) {
+        if (elementInDocument) {
             // Given two parents, aTargetNode and aOverlayNode, we want
             // to call merge on currContent if we find an associated
             // node in the document with the same id as currContent that
             // also has aTargetNode as its parent.
 
-            nsCOMPtr<nsIDOMNode> nodeParent;
-            rv = nodeInDocument->GetParentNode(getter_AddRefs(nodeParent));
-            if (NS_FAILED(rv)) return rv;
-            nsCOMPtr<nsIDOMElement> elementParent(do_QueryInterface(nodeParent));
+            nsIContent *elementParent = elementInDocument->GetParent();
 
-            nsAutoString parentID;
-            elementParent->GetAttribute(NS_LITERAL_STRING("id"), parentID);
-            if (aTargetNode->AttrValueIs(kNameSpaceID_None, nsGkAtoms::id,
-                                         parentID, eCaseMatters)) {
+            nsIAtom *parentID = elementParent->GetID();
+            if (parentID &&
+                aTargetNode->AttrValueIs(kNameSpaceID_None, nsGkAtoms::id,
+                                         nsDependentAtomString(parentID),
+                                         eCaseMatters)) {
                 // The element matches. "Go Deep!"
-                nsCOMPtr<nsIContent> childDocumentContent(do_QueryInterface(nodeInDocument));
-                rv = Merge(childDocumentContent, currContent, aNotify);
+                rv = Merge(elementInDocument, currContent, aNotify);
                 if (NS_FAILED(rv)) return rv;
                 rv = aOverlayNode->RemoveChildAt(0, PR_FALSE);
                 if (NS_FAILED(rv)) return rv;
@@ -4364,11 +4356,11 @@ nsXULDocument::CheckBroadcasterHookup(Element* aElement,
 }
 
 nsresult
-nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNotify)
+nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild,
+                             PRBool aNotify)
 {
     // Insert aChild appropriately into aParent, accounting for a
     // 'pos' attribute set on aChild.
-    nsresult rv;
 
     nsAutoString posStr;
     PRBool wasInserted = PR_FALSE;
@@ -4383,39 +4375,30 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
     }
 
     if (!posStr.IsEmpty()) {
-        nsCOMPtr<nsIDOMDocument> domDocument(
-               do_QueryInterface(aParent->GetDocument()));
-        if (!domDocument) return NS_ERROR_FAILURE;
+        nsIDocument *document = aParent->GetOwnerDoc();
+        if (!document) return NS_ERROR_FAILURE;
 
-        nsCOMPtr<nsIDOMElement> domElement;
+        nsIContent *content = nsnull;
 
         char* str = ToNewCString(posStr);
         char* rest;
         char* token = nsCRT::strtok(str, ", ", &rest);
 
         while (token) {
-            rv = domDocument->GetElementById(NS_ConvertASCIItoUTF16(token),
-                                             getter_AddRefs(domElement));
-            if (domElement)
+            content = document->GetElementById(NS_ConvertASCIItoUTF16(token));
+            if (content)
                 break;
 
             token = nsCRT::strtok(rest, ", ", &rest);
         }
         nsMemory::Free(str);
-        if (NS_FAILED(rv))
-            return rv;
 
-        if (domElement) {
-            nsCOMPtr<nsIContent> content(do_QueryInterface(domElement));
-            NS_ASSERTION(content != nsnull, "null ptr");
-            if (!content)
-                return NS_ERROR_UNEXPECTED;
-
+        if (content) {
             PRInt32 pos = aParent->IndexOf(content);
 
             if (pos != -1) {
                 pos = isInsertAfter ? pos + 1 : pos;
-                rv = aParent->InsertChildAt(aChild, pos, aNotify);
+                nsresult rv = aParent->InsertChildAt(aChild, pos, aNotify);
                 if (NS_FAILED(rv))
                     return rv;
 
@@ -4428,6 +4411,7 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
 
         aChild->GetAttr(kNameSpaceID_None, nsGkAtoms::position, posStr);
         if (!posStr.IsEmpty()) {
+            nsresult rv;
             // Positions are one-indexed.
             PRInt32 pos = posStr.ToInteger(reinterpret_cast<PRInt32*>(&rv));
             // Note: if the insertion index (which is |pos - 1|) would be less
@@ -4447,9 +4431,8 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
         }
     }
 
-    if (! wasInserted) {
-        rv = aParent->AppendChildTo(aChild, aNotify);
-        if (NS_FAILED(rv)) return rv;
+    if (!wasInserted) {
+        return aParent->AppendChildTo(aChild, aNotify);
     }
     return NS_OK;
 }

@@ -196,7 +196,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsINodeInfo> hrInfo;
   hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
 
-  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(), PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -214,7 +214,8 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsINodeInfo> inputInfo;
   inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML);
 
-  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo.forget(),
+                    PR_FALSE);
   if (!mInputContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -229,7 +230,8 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   mInputContent->AddEventListenerByIID(mListener, NS_GET_IID(nsIDOMKeyListener));
 
   // Create an hr
-  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo, PR_FALSE);
+  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
+  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(), PR_FALSE);
   if (!mPostHr || !aElements.AppendElement(mPostHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -357,7 +359,7 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   // Resolve url to an absolute url
   nsIURI *baseURI = document->GetDocBaseURI();
   if (!baseURI) {
-    NS_ERROR("No Base URL found in Form Submit!\n");
+    NS_ERROR("No Base URL found in Form Submit!");
     return NS_OK; // No base URL -> exit early, see Bug 30721
   }
 
@@ -390,7 +392,7 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
       href.Truncate(queryStart);
     }
   } else {
-    NS_ERROR("Rel path couldn't be formed in form submit!\n");
+    NS_ERROR("Rel path couldn't be formed in form submit!");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

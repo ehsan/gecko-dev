@@ -86,7 +86,7 @@
 #define DISK_CACHE_DIR_PREF         "browser.cache.disk.parent_directory"
 #define DISK_CACHE_CAPACITY_PREF    "browser.cache.disk.capacity"
 #define DISK_CACHE_MAX_ENTRY_SIZE_PREF "browser.cache.disk.max_entry_size"
-#define DISK_CACHE_CAPACITY         51200
+#define DISK_CACHE_CAPACITY         256000
 
 #define OFFLINE_CACHE_ENABLE_PREF   "browser.cache.offline.enable"
 #define OFFLINE_CACHE_DIR_PREF      "browser.cache.offline.parent_directory"
@@ -738,7 +738,7 @@ nsCacheService::Shutdown()
 }
 
 
-NS_METHOD
+nsresult
 nsCacheService::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 {
     nsresult  rv;

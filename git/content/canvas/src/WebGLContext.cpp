@@ -49,11 +49,18 @@
 
 #include "gfxContext.h"
 #include "gfxPattern.h"
+#include "gfxUtils.h"
 
 #include "CanvasUtils.h"
 #include "NativeJSContext.h"
 
 #include "GLContextProvider.h"
+
+#ifdef MOZ_SVG
+#include "nsSVGEffects.h"
+#endif
+
+#include "prenv.h"
 
 using namespace mozilla;
 using namespace mozilla::gl;
@@ -73,13 +80,21 @@ NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult)
 
 WebGLContext::WebGLContext()
     : mCanvasElement(nsnull),
-      gl(nsnull),
-      mWidth(0), mHeight(0),
-      mGeneration(0),
-      mInvalidated(PR_FALSE),
-      mActiveTexture(0),
-      mSynthesizedGLError(LOCAL_GL_NO_ERROR)
+      gl(nsnull)
 {
+    mWidth = mHeight = 0;
+    mGeneration = 0;
+    mInvalidated = PR_FALSE;
+    mResetLayer = PR_TRUE;
+
+    mActiveTexture = 0;
+    mSynthesizedGLError = LOCAL_GL_NO_ERROR;
+    mPixelStoreFlipY = PR_FALSE;
+    mPixelStorePremultiplyAlpha = PR_FALSE;
+
+    // eventually true
+    mShaderValidation = PR_FALSE;
+
     mMapBuffers.Init();
     mMapTextures.Init();
     mMapPrograms.Init();
@@ -90,6 +105,106 @@ WebGLContext::WebGLContext()
 
 WebGLContext::~WebGLContext()
 {
+    DestroyResourcesAndContext();
+}
+
+static PLDHashOperator
+DeleteTextureFunction(const PRUint32& aKey, WebGLTexture *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Texture is still in mMapTextures, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteTextures(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteBufferFunction(const PRUint32& aKey, WebGLBuffer *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Buffer is still in mMapBuffers, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteBuffers(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteFramebufferFunction(const PRUint32& aKey, WebGLFramebuffer *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Framebuffer is still in mMapFramebuffers, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteFramebuffers(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteRenderbufferFunction(const PRUint32& aKey, WebGLRenderbuffer *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Renderbuffer is still in mMapRenderbuffers, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteRenderbuffers(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteProgramFunction(const PRUint32& aKey, WebGLProgram *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Program is still in mMapPrograms, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteProgram(name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteShaderFunction(const PRUint32& aKey, WebGLShader *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Shader is still in mMapShaders, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteShader(name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+void
+WebGLContext::DestroyResourcesAndContext()
+{
+    if (!gl)
+        return;
+
+    gl->MakeCurrent();
+
+    mMapTextures.EnumerateRead(DeleteTextureFunction, gl);
+    mMapTextures.Clear();
+
+    mMapBuffers.EnumerateRead(DeleteBufferFunction, gl);
+    mMapBuffers.Clear();
+
+    mMapPrograms.EnumerateRead(DeleteProgramFunction, gl);
+    mMapPrograms.Clear();
+
+    mMapShaders.EnumerateRead(DeleteShaderFunction, gl);
+    mMapShaders.Clear();
+
+    mMapFramebuffers.EnumerateRead(DeleteFramebufferFunction, gl);
+    mMapFramebuffers.Clear();
+
+    mMapRenderbuffers.EnumerateRead(DeleteRenderbufferFunction, gl);
+    mMapRenderbuffers.Clear();
+
+    // We just got rid of everything, so the context had better
+    // have been going away.
+    printf_stderr("--- WebGL context destroyed: %p\n", gl.get());
+
+    gl = nsnull;
 }
 
 void
@@ -98,11 +213,24 @@ WebGLContext::Invalidate()
     if (!mCanvasElement)
         return;
 
+#ifdef MOZ_SVG
+    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
+#endif
+
     if (mInvalidated)
         return;
 
-    mInvalidated = true;
-    mCanvasElement->InvalidateFrame();
+    mInvalidated = PR_TRUE;
+    HTMLCanvasElement()->InvalidateFrame();
+}
+
+/* readonly attribute nsIDOMHTMLCanvasElement canvas; */
+NS_IMETHODIMP
+WebGLContext::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
+{
+    NS_IF_ADDREF(*canvas = mCanvasElement);
+
+    return NS_OK;
 }
 
 //
@@ -112,14 +240,7 @@ WebGLContext::Invalidate()
 NS_IMETHODIMP
 WebGLContext::SetCanvasElement(nsHTMLCanvasElement* aParentCanvas)
 {
-    if (aParentCanvas == nsnull) {
-        // we get this on shutdown; we should do some more cleanup here,
-        // but instead we just let our destructor do it.
-        mCanvasElement = nsnull;
-        return NS_OK;
-    }
-
-    if (!SafeToCreateCanvas3DContext(aParentCanvas))
+    if (aParentCanvas && !SafeToCreateCanvas3DContext(aParentCanvas))
         return NS_ERROR_FAILURE;
 
     mCanvasElement = aParentCanvas;
@@ -130,82 +251,124 @@ WebGLContext::SetCanvasElement(nsHTMLCanvasElement* aParentCanvas)
 NS_IMETHODIMP
 WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 {
-    // If incrementing the generation would cause overflow,
-    // don't allow it.  Allowing this would allow us to use
-    // resource handles created from older context generations.
-    if (mGeneration + 1 == 0)
-        return NS_ERROR_FAILURE;
-
     if (mWidth == width && mHeight == height)
         return NS_OK;
 
-    LogMessage("Canvas 3D: creating PBuffer...");
+    // If we already have a gl context, then we just need to resize
+    // FB0.
+    if (gl &&
+        gl->ResizeOffscreen(gfxIntSize(width, height)))
+    {
+        // everything's good, we're done here
+        mWidth = width;
+        mHeight = height;
+        mResetLayer = PR_TRUE;
+        return NS_OK;
+    }
 
-    GLContextProvider::ContextFormat format(GLContextProvider::ContextFormat::BasicRGBA32);
+    // We're going to create an entirely new context.  If our
+    // generation is not 0 right now (that is, if this isn't the first
+    // context we're creating), we may have to dispatch a context lost
+    // event.
+
+    // If incrementing the generation would cause overflow,
+    // don't allow it.  Allowing this would allow us to use
+    // resource handles created from older context generations.
+    if (!(mGeneration+1).valid())
+        return NS_ERROR_FAILURE; // exit without changing the value of mGeneration
+
+    // We're going to recreate our context, so make sure we clean up
+    // after ourselves.
+    DestroyResourcesAndContext();
+
+    gl::ContextFormat format(gl::ContextFormat::BasicRGBA32);
     format.depth = 16;
     format.minDepth = 1;
 
-    gl = gl::sGLContextProvider.CreatePBuffer(gfxIntSize(width, height), format);
+    
+#ifdef XP_WIN
+    // On Windows, we may have a choice of backends, including straight
+    // OpenGL, D3D through ANGLE via EGL, or straight EGL/GLES2.
+    // We don't differentiate the latter two yet, but we allow for
+    // a env var to try EGL first, instead of last.
+    bool preferEGL = PR_GetEnv("MOZ_WEBGL_PREFER_EGL") != nsnull;
 
-    if (!gl) {
-        LogMessage("Canvas 3D: can't get a native PBuffer, trying OSMesa...");
-        gl = gl::GLContextProviderOSMesa::CreatePBuffer(gfxIntSize(width, height), format);
-        if (!gl) {
-            LogMessage("Canvas 3D: can't create a OSMesa pseudo-PBuffer.");
-            return NS_ERROR_FAILURE;
+    // if we want EGL, try it first
+    if (!gl && preferEGL) {
+        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
         }
     }
 
-    // We just blew away all the resources by creating a new context; reset everything,
-    // and let ValidateGL set up the correct dimensions again.
+    // if it failed, then try the default provider, whatever that is
+    if (!gl) {
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
+        }
+    }
 
-    mActiveTexture = 0;
-    mSynthesizedGLError = LOCAL_GL_NO_ERROR;
+    // if that failed, and we weren't already preferring EGL, try it now.
+    if (!gl && !preferEGL) {
+        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
+        }
+    }
+#else
+    // other platforms just use whatever the default is
+    if (!gl) {
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
+        }
+    }
+#endif
 
-    mAttribBuffers.Clear();
+    // last chance, try OSMesa
+    if (!gl) {
+        gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl) {
+            if (!InitAndValidateGL()) {
+                gl = nsnull;
+            } else {
+                // make sure we notify always in this case, because it's likely going to be
+                // painfully slow
+                LogMessage("WebGL: Using software rendering via OSMesa");
+            }
+        }
+    }
 
-    mUniformTextures.Clear();
-    mBound2DTextures.Clear();
-    mBoundCubeMapTextures.Clear();
-
-    mBoundArrayBuffer = nsnull;
-    mBoundElementArrayBuffer = nsnull;
-    mCurrentProgram = nsnull;
-
-    mFramebufferColorAttachments.Clear();
-    mFramebufferDepthAttachment = nsnull;
-    mFramebufferStencilAttachment = nsnull;
-
-    mBoundFramebuffer = nsnull;
-    mBoundRenderbuffer = nsnull;
-
-    mMapTextures.Clear();
-    mMapBuffers.Clear();
-    mMapPrograms.Clear();
-    mMapShaders.Clear();
-    mMapFramebuffers.Clear();
-    mMapRenderbuffers.Clear();
-
-    // Now check the GL implementation, checking limits along the way
-    if (!ValidateGL()) {
-        LogMessage("Canvas 3D: Couldn't validate OpenGL implementation; is everything needed present?");
+    if (!gl) {
+        LogMessage("WebGL: Can't get a usable OpenGL context.");
         return NS_ERROR_FAILURE;
     }
 
-    LogMessage("Canvas 3D: ready");
+    printf_stderr ("--- WebGL context created: %p\n", gl.get());
 
     mWidth = width;
     mHeight = height;
+    mResetLayer = PR_TRUE;
 
     // increment the generation number
-    mGeneration++;
+    ++mGeneration;
+
+#if 0
+    if (mGeneration > 0) {
+        // XXX dispatch context lost event
+    }
+#endif
 
     MakeContextCurrent();
 
     // Make sure that we clear this out, otherwise
     // we'll end up displaying random memory
+    gl->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, gl->GetOffscreenFBO());
     gl->fViewport(0, 0, mWidth, mHeight);
-    gl->fClearColor(0, 0, 0, 0);
+    gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    gl->fClearDepth(1.0f);
+    gl->fClearStencil(0);
     gl->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT | LOCAL_GL_STENCIL_BUFFER_BIT);
 
     return NS_OK;
@@ -314,14 +477,28 @@ WebGLContext::GetThebesSurface(gfxASurface **surface)
     return NS_ERROR_NOT_AVAILABLE;
 }
 
+static PRUint8 gWebGLLayerUserData;
+
 already_AddRefed<layers::CanvasLayer>
-WebGLContext::GetCanvasLayer(LayerManager *manager)
+WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
+                             LayerManager *aManager)
 {
-    nsRefPtr<CanvasLayer> canvasLayer = manager->CreateCanvasLayer();
+    if (!mResetLayer && aOldLayer &&
+        aOldLayer->GetUserData() == &gWebGLLayerUserData) {
+        NS_ADDREF(aOldLayer);
+        if (mInvalidated) {
+            aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
+            mInvalidated = PR_FALSE;
+        }
+        return aOldLayer;
+    }
+
+    nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
     if (!canvasLayer) {
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
+    canvasLayer->SetUserData(&gWebGLLayerUserData);
 
     CanvasLayer::Data data;
 
@@ -329,44 +506,45 @@ WebGLContext::GetCanvasLayer(LayerManager *manager)
     // data with the gl context directly, or may provide a surface to which it renders (this is the case
     // of OSMesa contexts), in which case we want to initialize data with that surface.
 
-    void* native_pbuffer = gl->GetNativeData(gl::GLContext::NativePBuffer);
     void* native_surface = gl->GetNativeData(gl::GLContext::NativeImageSurface);
 
-    if (native_pbuffer) {
-        data.mGLContext = gl.get();
-    }
-    else if (native_surface) {
+    if (native_surface) {
         data.mSurface = static_cast<gfxASurface*>(native_surface);
-    }
-    else {
-        NS_WARNING("The GLContext has neither a native PBuffer nor a native surface!");
-        return nsnull;
+    } else {
+        data.mGLContext = gl.get();
     }
 
     data.mSize = nsIntSize(mWidth, mHeight);
     data.mGLBufferIsPremultiplied = PR_FALSE;
 
     canvasLayer->Initialize(data);
-    // once we support GL context attributes, we'll set the right thing here
-    canvasLayer->SetIsOpaqueContent(PR_FALSE);
+    canvasLayer->SetIsOpaqueContent(gl->CreationFormat().alpha == 0 ? PR_TRUE : PR_FALSE);
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
     mInvalidated = PR_FALSE;
+    mResetLayer = PR_FALSE;
 
     return canvasLayer.forget().get();
 }
-
 
 //
 // XPCOM goop
 //
 
-NS_IMPL_ADDREF(WebGLContext)
-NS_IMPL_RELEASE(WebGLContext)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(WebGLContext, nsICanvasRenderingContextWebGL)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(WebGLContext, nsICanvasRenderingContextWebGL)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLContext)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLContext)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebGLContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCanvasElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(CanvasRenderingContextWebGL, WebGLContext)
 
-NS_INTERFACE_MAP_BEGIN(WebGLContext)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextWebGL)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)

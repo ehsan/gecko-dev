@@ -40,10 +40,12 @@
 #ifndef _nsHyperTextAccessible_H_
 #define _nsHyperTextAccessible_H_
 
-#include "nsAccessibleWrap.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleHyperText.h"
 #include "nsIAccessibleEditableText.h"
+
+#include "AccCollector.h"
+#include "nsAccessibleWrap.h"
 #include "nsTextAttrs.h"
 
 #include "nsFrameSelection.h"
@@ -74,7 +76,7 @@ class nsHyperTextAccessible : public nsAccessibleWrap,
                               public nsIAccessibleEditableText
 {
 public:
-  nsHyperTextAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
+  nsHyperTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLETEXT
   NS_DECL_NSIACCESSIBLEHYPERTEXT
@@ -87,6 +89,10 @@ public:
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
+  virtual void InvalidateChildren();
+
+  // nsHyperTextAccessible
+
   // Convert content offset to rendered text offset  
   static nsresult ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
                                           PRUint32 *aRenderedOffset);
@@ -94,6 +100,39 @@ public:
   // Convert rendered text offset to content offset
   static nsresult RenderedToContentOffset(nsIFrame *aFrame, PRUint32 aRenderedOffset,
                                           PRInt32 *aContentOffset);
+
+  /**
+   * Return link count within this hypertext accessible.
+   */
+  inline PRUint32 GetLinkCount()
+  {
+    return GetEmbeddedChildCount();
+  }
+
+  /**
+   * Return link accessible at the given index.
+   */
+  inline nsAccessible* GetLinkAt(PRUint32 aIndex)
+  {
+    return GetEmbeddedChildAt(aIndex);
+  }
+
+  /**
+   * Return index for the given link accessible.
+   */
+  inline PRInt32 GetLinkIndex(nsAccessible* aLink)
+  {
+    return GetIndexOfEmbeddedChild(aLink);
+  }
+
+  /**
+   * Return link accessible at the given text offset.
+   */
+  inline PRInt32 GetLinkIndexAtOffset(PRUint32 aOffset)
+  {
+    nsAccessible* child = GetChildAtOffset(aOffset);
+    return GetLinkIndex(child);
+  }
 
   /**
     * Turn a DOM Node and offset into a character offset into this hypertext.
@@ -120,7 +159,7 @@ public:
     *                       it is within the current nsHyperTextAccessible,
     *                       otherwise nsnull
     */
-  nsAccessible *DOMPointToHypertextOffset(nsIDOMNode *aNode,
+  nsAccessible *DOMPointToHypertextOffset(nsINode *aNode,
                                           PRInt32 aNodeOffset,
                                           PRInt32 *aHypertextOffset,
                                           PRBool aIsEndOffset = PR_FALSE);
@@ -153,8 +192,45 @@ public:
                                       nsIDOMNode **aEndNode,
                                       PRInt32 *aEndOffset);
 
-protected:
+  /**
+   * Return text offset of the given child accessible within hypertext
+   * accessible.
+   *
+   * @param  aChild           [in] accessible child to get text offset for
+   * @param  aInvalidateAfter [in, optional] indicates whether invalidate
+   *                           cached offsets for next siblings of the child
+   */
+  PRInt32 GetChildOffset(nsAccessible* aChild,
+                         PRBool aInvalidateAfter = PR_FALSE)
+  {
+    PRInt32 index = GetIndexOf(aChild);
+    return index == -1 ? -1 : GetChildOffset(index, aInvalidateAfter);
+  }
 
+  /**
+   * Return text offset for the child accessible index.
+   */
+  PRInt32 GetChildOffset(PRUint32 aChildIndex,
+                         PRBool aInvalidateAfter = PR_FALSE);
+
+  /**
+   * Return child accessible at the given text offset.
+   *
+   * @param  aOffset  [in] the given text offset
+   */
+  PRInt32 GetChildIndexAtOffset(PRUint32 aOffset);
+
+  /**
+   * Return child accessible at the given text offset.
+   *
+   * @param  aOffset  [in] the given text offset
+   */
+  nsAccessible* GetChildAtOffset(PRUint32 aOffset)
+  {
+    return GetChildAt(GetChildIndexAtOffset(aOffset));
+  }
+
+protected:
   // nsHyperTextAccessible
 
   /*
@@ -186,7 +262,7 @@ protected:
     * @return                  the resulting offset into this hypertext
     */
   PRInt32 GetRelativeOffset(nsIPresShell *aPresShell, nsIFrame *aFromFrame,
-                            PRInt32 aFromOffset, nsIAccessible *aFromAccessible,
+                            PRInt32 aFromOffset, nsAccessible *aFromAccessible,
                             nsSelectionAmount aAmount, nsDirection aDirection,
                             PRBool aNeedsStart);
 
@@ -252,18 +328,6 @@ protected:
    */
   PRInt32 GetCaretLineNumber();
 
-  /**
-   * Return an accessible at the given hypertext offset.
-   *
-   * @param  aOffset       [out] the given hypertext offset
-   * @param  aAccIdx       [out] child index of returned accessible
-   * @param  aStartOffset  [out] start hypertext offset of returned accessible
-   * @param  aEndOffset    [out] end hypertext offset of returned accessible
-   */
-  nsAccessible *GetAccessibleAtOffset(PRInt32 aOffset, PRInt32 *aAccIdx,
-                                      PRInt32 *aStartOffset,
-                                      PRInt32 *aEndOffset);
-
   // Helpers
   nsresult GetDOMPointByFrameOffset(nsIFrame *aFrame, PRInt32 aOffset,
                                     nsIAccessible *aAccessible,
@@ -305,6 +369,17 @@ protected:
                                  PRInt32 *aStartOffset,
                                  PRInt32 *aEndOffset,
                                  nsIPersistentProperties *aAttributes);
+
+private:
+  /**
+   * Embedded objects collector.
+   */
+  nsAutoPtr<AccCollector> mLinks;
+
+  /**
+   * End text offsets array.
+   */
+  nsTArray<PRUint32> mOffsets;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsHyperTextAccessible,

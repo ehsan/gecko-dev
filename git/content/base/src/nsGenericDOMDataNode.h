@@ -70,6 +70,9 @@
 // This bit is set to indicate that the text may be part of a selection.
 #define NS_TEXT_IN_SELECTION (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET + 2))
 
+// Make sure we have enough space for those bits
+PR_STATIC_ASSERT(NODE_TYPE_SPECIFIC_BITS_OFFSET + 2 < 32);
+
 class nsIDOMAttr;
 class nsIDOMEventListener;
 class nsIDOMNodeList;
@@ -83,7 +86,7 @@ class nsGenericDOMDataNode : public nsIContent
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  nsGenericDOMDataNode(nsINodeInfo *aNodeInfo);
+  nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsGenericDOMDataNode();
 
   // Implementation for nsIDOMNode
@@ -363,7 +366,8 @@ private:
 class nsGenericTextNode : public nsGenericDOMDataNode
 {
 public:
-  nsGenericTextNode(nsINodeInfo *aNodeInfo) : nsGenericDOMDataNode(aNodeInfo)
+  nsGenericTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
+  : nsGenericDOMDataNode(aNodeInfo)
   {
   }
 
