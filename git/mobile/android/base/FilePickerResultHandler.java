@@ -18,14 +18,14 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.util.Queue;
+import java.util.concurrent.SynchronousQueue;
 
 abstract class FilePickerResultHandler implements ActivityResultHandler {
     private static final String LOGTAG = "GeckoFilePickerResultHandler";
 
-    protected final Queue<String> mFilePickerResult;
+    protected final SynchronousQueue<String> mFilePickerResult;
 
-    protected FilePickerResultHandler(Queue<String> resultQueue) {
+    protected FilePickerResultHandler(SynchronousQueue<String> resultQueue) {
         mFilePickerResult = resultQueue;
     }
 

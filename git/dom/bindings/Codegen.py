@@ -2046,12 +2046,10 @@ def GetAccessCheck(descriptor, object):
 
     returns a string
     """
-    accessCheck = "xpc::AccessCheck::isChrome(%s)" % object
     if descriptor.workers:
-        # We sometimes set up worker things on the main thread, in which case we
-        # want to use the main-thread accessCheck above.  Otherwise, we want to
-        # check for a ChromeWorker.
-        accessCheck = "(NS_IsMainThread() ? %s : mozilla::dom::workers::GetWorkerPrivateFromContext(aCx)->IsChromeWorker())" % accessCheck
+        accessCheck = "mozilla::dom::workers::GetWorkerPrivateFromContext(aCx)->IsChromeWorker()"
+    else:
+        accessCheck = "xpc::AccessCheck::isChrome(%s)" % object
     return accessCheck
 
 def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturnValue=""):
@@ -2258,11 +2256,11 @@ def numericValue(t, v):
     if (t == IDLType.Tags.unrestricted_double or
         t == IDLType.Tags.unrestricted_float):
         if v == float("inf"):
-            return "mozilla::PositiveInfinity()"
+            return "MOZ_DOUBLE_POSITIVE_INFINITY()"
         if v == float("-inf"):
-            return "mozilla::NegativeInfinity()"
+            return "MOZ_DOUBLE_NEGATIVE_INFINITY()"
         if math.isnan(v):
-            return "mozilla::UnspecifiedNaN()"
+            return "MOZ_DOUBLE_NaN()"
     return "%s%s" % (v, numericSuffixes[t])
 
 class CastableObjectUnwrapper():
@@ -3395,8 +3393,8 @@ for (uint32_t i = 0; i < length; ++i) {
         else:
             nonFiniteCode = ("  ThrowErrorMessage(cx, MSG_NOT_FINITE);\n"
                              "%s" % exceptionCodeIndented.define())
-        template += (" else if (!mozilla::IsFinite(%s)) {\n"
-                     "  // Note: mozilla::IsFinite will do the right thing\n"
+        template += (" else if (!MOZ_DOUBLE_IS_FINITE(%s)) {\n"
+                     "  // Note: MOZ_DOUBLE_IS_FINITE will do the right thing\n"
                      "  //       when passed a non-finite float too.\n"
                      "%s\n"
                      "}" % (readLoc, nonFiniteCode))
@@ -7974,8 +7972,7 @@ class CGBindingRoot(CGThing):
                           # Have to include nsDOMQS.h to get fast arg unwrapping
                           # for old-binding things with castability.
                           'nsDOMQS.h'
-                          ] + (['WorkerPrivate.h',
-                                'nsThreadUtils.h'] if hasWorkerStuff else []),
+                          ] + (['WorkerPrivate.h'] if hasWorkerStuff else []),
                          curr,
                          config,
                          jsImplemented)

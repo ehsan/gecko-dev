@@ -411,7 +411,7 @@ SVGSVGElement::CreateSVGMatrix()
 already_AddRefed<SVGIRect>
 SVGSVGElement::CreateSVGRect()
 {
-  return NS_NewSVGRect(this);
+  return NS_NewSVGRect();
 }
 
 already_AddRefed<SVGTransform>
@@ -442,10 +442,10 @@ SVGSVGElement::GetElementById(const nsAString& elementId, ErrorResult& rv)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedRect>
+already_AddRefed<nsIDOMSVGAnimatedRect>
 SVGSVGElement::ViewBox()
 {
-  nsRefPtr<SVGAnimatedRect> rect;
+  nsCOMPtr<nsIDOMSVGAnimatedRect> rect;
   mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
   return rect.forget();
 }

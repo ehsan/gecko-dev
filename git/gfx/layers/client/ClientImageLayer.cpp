@@ -50,7 +50,7 @@ public:
 
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
-    aAttrs = ImageLayerAttributes(mFilter, mScaleToSize, mScaleMode);
+    aAttrs = ImageLayerAttributes(mFilter);
   }
 
   virtual Layer* AsLayer() { return this; }
@@ -114,16 +114,12 @@ ClientImageLayer::RenderLayer()
 
   if (!mImageClient ||
       !mImageClient->UpdateImage(mContainer, GetContentFlags())) {
-    CompositableType type = GetImageClientType();
-    if (type == BUFFER_UNKNOWN) {
-      return;
-    }
-    mImageClient = ImageClient::CreateImageClient(type,
+    mImageClient = ImageClient::CreateImageClient(GetImageClientType(),
                                                   ClientManager(),
                                                   mForceSingleTile
                                                     ? ForceSingleTile
                                                     : 0);
-    if (type == BUFFER_BRIDGE) {
+    if (GetImageClientType() == BUFFER_BRIDGE) {
       static_cast<ImageClientBridge*>(mImageClient.get())->SetLayer(this);
     }
 

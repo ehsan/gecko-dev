@@ -875,25 +875,8 @@ void nsBaseWidget::CreateCompositor()
   CreateCompositor(rect.width, rect.height);
 }
 
-mozilla::layers::LayersBackend
-nsBaseWidget::GetPreferredCompositorBackend()
-{
-  // We need a separate preference here (instead of using mUseLayersAcceleration)
-  // because we force enable accelerated layers with e10s. Once the BasicCompositor
-  // is stable enough to be used for Ripc/Cipc, then we can remove that and this
-  // pref.
-  if (Preferences::GetBool("layers.offmainthreadcomposition.prefer-basic", false)) {
-    return mozilla::layers::LAYERS_BASIC;
-  }
-
-  return mozilla::layers::LAYERS_OPENGL;
-}
-
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 {
-  // Recreating this is tricky, as we may still have an old and we need
-  // to make sure it's properly destroyed by calling DestroyCompositor!
-
   mCompositorParent = NewCompositorParent(aWidth, aHeight);
   AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
   LayerManager* lm = new ClientLayerManager(this);
@@ -904,8 +887,12 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 
   TextureFactoryIdentifier textureFactoryIdentifier;
   PLayerTransactionChild* shadowManager;
-  mozilla::layers::LayersBackend backendHint = GetPreferredCompositorBackend();
-
+  mozilla::layers::LayersBackend backendHint;
+  if (mUseLayersAcceleration) {
+    backendHint = mozilla::layers::LAYERS_OPENGL;
+  } else {
+    backendHint = mozilla::layers::LAYERS_BASIC;
+  }
   shadowManager = mCompositorChild->SendPLayerTransactionConstructor(
     backendHint, 0, &textureFactoryIdentifier);
 
@@ -920,14 +907,12 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
     lf->IdentifyTextureHost(textureFactoryIdentifier);
 
     mLayerManager = lm;
-    return;
+  } else {
+    // We don't currently want to support not having a LayersChild
+    NS_RUNTIMEABORT("failed to construct LayersChild");
+    delete lm;
+    mCompositorChild = nullptr;
   }
-
-  // Failed to create a compositor!
-  NS_WARNING("Failed to create an OMT compositor.");
-  DestroyCompositor();
-  // Compositor child had the only reference to LayerManager and will have
-  // deallocated it when being freed.
 }
 
 bool nsBaseWidget::ShouldUseOffMainThreadCompositing()

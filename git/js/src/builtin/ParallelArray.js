@@ -1262,17 +1262,25 @@ function CheckParallel(mode) {
   if (!mode || !ParallelTestsShouldPass())
     return null;
 
-  return function(result, bailouts, causes) {
+  return function(bailouts) {
     if (!("expect" in mode) || mode.expect === "any") {
       return; // Ignore result when unspecified or unimportant.
-    } else if (mode.expect === "mixed" && result !== "disqualified") {
-      return; // "mixed" means that it may bailout, may succeed
-    } else if (result === mode.expect) {
-      return;
     }
 
-    ThrowError(JSMSG_WRONG_VALUE, mode.expect,
-               result+":"+bailouts+":"+causes);
+    var result;
+    if (bailouts === 0)
+      result = "success";
+    else if (bailouts === global.Infinity)
+      result = "disqualified";
+    else
+      result = "bailout";
+
+    if (mode.expect === "mixed") {
+      if (result === "disqualified")
+        ThrowError(JSMSG_WRONG_VALUE, mode.expect, result);
+    } else if (result !== mode.expect) {
+      ThrowError(JSMSG_WRONG_VALUE, mode.expect, result);
+    }
   };
 }
 

@@ -20,7 +20,6 @@
 #include "nsIStringEnumerator.h"
 #include "nsIZipReader.h"
 #include "nsNSSCertificate.h"
-#include "nsProxyRelease.h"
 #include "nsString.h"
 #include "nsTHashtable.h"
 #include "ScopedNSSTypes.h"
@@ -728,7 +727,7 @@ public:
   OpenSignedJARFileTask(nsIFile * aJarFile,
                         nsIOpenSignedJARFileCallback * aCallback)
     : mJarFile(aJarFile)
-    , mCallback(new nsMainThreadPtrHolder<nsIOpenSignedJARFileCallback>(aCallback))
+    , mCallback(aCallback)
   {
   }
 
@@ -749,7 +748,7 @@ private:
   }
 
   const nsCOMPtr<nsIFile> mJarFile;
-  nsMainThreadPtrHandle<nsIOpenSignedJARFileCallback> mCallback;
+  const nsCOMPtr<nsIOpenSignedJARFileCallback> mCallback;
   nsCOMPtr<nsIZipReader> mZipReader; // out
   nsCOMPtr<nsIX509Cert3> mSignerCert; // out
 };

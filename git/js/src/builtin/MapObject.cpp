@@ -19,9 +19,6 @@
 
 using namespace js;
 
-using mozilla::DoubleIsInt32;
-using mozilla::IsNaN;
-
 
 /*** OrderedHashTable ****************************************************************************/
 
@@ -793,10 +790,10 @@ HashableValue::setValue(JSContext *cx, const Value &v)
     } else if (v.isDouble()) {
         double d = v.toDouble();
         int32_t i;
-        if (DoubleIsInt32(d, &i)) {
+        if (MOZ_DOUBLE_IS_INT32(d, &i)) {
             // Normalize int32_t-valued doubles to int32_t for faster hashing and testing.
             value = Int32Value(i);
-        } else if (IsNaN(d)) {
+        } else if (MOZ_DOUBLE_IS_NaN(d)) {
             // NaNs with different bits must hash and test identically.
             value = DoubleValue(js_NaN);
         } else {

@@ -40,7 +40,7 @@ class BytecodeAnalysis
     Vector<BytecodeInfo, 0, IonAllocPolicy> infos_;
 
   public:
-    explicit BytecodeAnalysis(JSScript *script);
+    BytecodeAnalysis(JSScript *script);
 
     bool init();
 

@@ -433,7 +433,8 @@ XULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
         NS_GetFinalChannelURI(aChannel, getter_AddRefs(mDocumentURI));
     NS_ENSURE_SUCCESS(rv, rv);
     
-    ResetStylesheetsToURI(mDocumentURI);
+    rv = ResetStylesheetsToURI(mDocumentURI);
+    if (NS_FAILED(rv)) return rv;
 
     RetrieveRelevantHeaders(aChannel);
 

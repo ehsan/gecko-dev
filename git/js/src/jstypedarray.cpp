@@ -45,7 +45,6 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
-using mozilla::IsNaN;
 using mozilla::PodCopy;
 
 /*
@@ -68,7 +67,7 @@ ValueIsLength(const Value &v, uint32_t *len)
 
     if (v.isDouble()) {
         double d = v.toDouble();
-        if (IsNaN(d))
+        if (MOZ_DOUBLE_IS_NaN(d))
             return false;
 
         uint32_t length = uint32_t(d);
@@ -2268,7 +2267,7 @@ class TypedArrayTemplate
     static NativeType
     nativeFromDouble(double d)
     {
-        if (!ArrayTypeIsFloatingPoint() && JS_UNLIKELY(IsNaN(d)))
+        if (!ArrayTypeIsFloatingPoint() && JS_UNLIKELY(MOZ_DOUBLE_IS_NaN(d)))
             return NativeType(int32_t(0));
         if (TypeIsFloatingPoint<NativeType>())
             return NativeType(d);

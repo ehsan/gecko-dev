@@ -130,7 +130,7 @@ struct AudioTimelineEvent {
 private:
   static bool IsValid(double value)
   {
-    return mozilla::IsFinite(value);
+    return MOZ_DOUBLE_IS_FINITE(value);
   }
 };
 

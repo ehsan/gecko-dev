@@ -1311,15 +1311,8 @@ var BrowserApp = {
         break;
 
       case "keyword-search":
-        // This assumes that the user can only perform a keyword search on the selected tab.
+        // This assumes the user can only perform a keyword serach on the selected tab.
         this.selectedTab.userSearch = aData;
-
-        let engine = aSubject.QueryInterface(Ci.nsISearchEngine);
-        sendMessageToJava({
-          type: "Search:Keyword",
-          identifier: engine.identifier,
-          name: engine.name,
-        });
         break;
 
       case "Browser:Quit":
@@ -5902,7 +5895,6 @@ var SearchEngines = {
     let searchEngines = engineData.map(function (engine) {
       return {
         name: engine.name,
-        identifier: engine.identifier,
         iconURI: (engine.iconURI ? engine.iconURI.spec : null)
       };
     });
@@ -6233,16 +6225,13 @@ var WebappsUI = {
                     origin: aData.app.origin,
                     iconURL: fullsizeIcon
                   });
-                  if (!!aData.isPackage) {
-                    // For packaged apps, put a notification in the notification bar.
-                    let message = Strings.browser.GetStringFromName("webapps.alertSuccess");
-                    let alerts = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
-                    alerts.showAlertNotification("drawable://alert_app", manifest.name, message, true, "", {
-                      observe: function () {
-                        self.openURL(aData.app.manifestURL, aData.app.origin);
-                      }
-                    }, "webapp");
-                  }
+                  let message = Strings.browser.GetStringFromName("webapps.alertSuccess");
+                  let alerts = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
+                  alerts.showAlertNotification("drawable://alert_app", manifest.name, message, true, "", {
+                    observe: function () {
+                      self.openURL(aData.app.manifestURL, aData.app.origin);
+                    }
+                  }, "webapp");
                 } catch(ex) {
                   console.log(ex);
                 }

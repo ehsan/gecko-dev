@@ -10,8 +10,6 @@
 
 #include "jsutil.h"
 
-using mozilla::UnspecifiedNaN;
-
 static bool
 ComputeLocalTime(time_t local, struct tm *ptm)
 {
@@ -164,7 +162,7 @@ js::DateTimeInfo::DateTimeInfo()
 {
     // Set to a totally impossible TZA so that the comparison above will fail
     // and all fields will be properly initialized.
-    localTZA_ = UnspecifiedNaN();
+    localTZA_ = MOZ_DOUBLE_NaN();
     updateTimeZoneAdjustment();
 }
 

@@ -105,7 +105,7 @@ public:
     {
         if (mState == eIllegal || mBuffer.IsEmpty() ||
             (mBuffer.Length() == 1 && mBuffer[0] == '.')) {
-            return mozilla::UnspecifiedNaN();
+            return MOZ_DOUBLE_NaN();
         }
         return mSign*PR_strtod(mBuffer.get(), 0);
     }
@@ -142,11 +142,11 @@ void txDouble::toString(double aValue, nsAString& aDest)
 
     // check for special cases
 
-    if (mozilla::IsNaN(aValue)) {
+    if (MOZ_DOUBLE_IS_NaN(aValue)) {
         aDest.AppendLiteral("NaN");
         return;
     }
-    if (mozilla::IsInfinite(aValue)) {
+    if (MOZ_DOUBLE_IS_INFINITE(aValue)) {
         if (aValue < 0)
             aDest.Append(PRUnichar('-'));
         aDest.AppendLiteral("Infinity");

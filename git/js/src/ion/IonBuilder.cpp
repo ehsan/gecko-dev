@@ -6229,14 +6229,8 @@ IonBuilder::jsop_getelem_dense()
 
     // If we can load the element as a definite double, make sure to check that
     // the array has been converted to homogenous doubles first.
-    //
-    // NB: We disable this optimization in parallel execution mode
-    // because it is inherently not threadsafe (how do you convert the
-    // array atomically when there might be concurrent readers)?
     types::StackTypeSet *objTypes = obj->resultTypeSet();
-    ExecutionMode executionMode = info().executionMode();
     bool loadDouble =
-        executionMode == SequentialExecution &&
         !barrier &&
         loopDepth_ &&
         !readOutOfBounds &&
@@ -6510,16 +6504,14 @@ IonBuilder::jsop_setelem()
 
     int arrayType = TypedArray::TYPE_MAX;
     if (ElementAccessIsTypedArray(object, index, &arrayType))
-        return jsop_setelem_typed(arrayType, SetElem_Normal,
-                                  object, index, value);
+        return jsop_setelem_typed(arrayType, object, index, value);
 
     if (!PropertyWriteNeedsTypeBarrier(cx, current, &object, NULL, &value)) {
         if (ElementAccessIsDenseNative(object, index)) {
             types::StackTypeSet::DoubleConversion conversion =
                 object->resultTypeSet()->convertDoubleElements(cx);
             if (conversion != types::StackTypeSet::AmbiguousDoubleConversion)
-                return jsop_setelem_dense(conversion, SetElem_Normal,
-                                          object, index, value);
+                return jsop_setelem_dense(conversion, object, index, value);
         }
     }
 
@@ -6538,7 +6530,6 @@ IonBuilder::jsop_setelem()
 
 bool
 IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
-                               SetElemSafety safety,
                                MDefinition *obj, MDefinition *id, MDefinition *value)
 {
     MIRType elementType = DenseNativeElementType(cx, obj);
@@ -6567,22 +6558,15 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
     MElements *elements = MElements::New(obj);
     current->add(elements);
 
-    bool writeHole;
-    if (safety == SetElem_Normal) {
-        writeHole = script()->analysis()->getCode(pc).arrayWriteHole;
-        SetElemICInspector icInspect(inspector->setElemICInspector(pc));
-        writeHole |= icInspect.sawOOBDenseWrite();
-    } else {
-        writeHole = false;
-    }
+    bool writeHole = script()->analysis()->getCode(pc).arrayWriteHole;
+    SetElemICInspector icInspect(inspector->setElemICInspector(pc));
+    writeHole |= icInspect.sawOOBDenseWrite();
 
     // Use MStoreElementHole if this SETELEM has written to out-of-bounds
     // indexes in the past. Otherwise, use MStoreElement so that we can hoist
     // the initialized length and bounds check.
     MStoreElementCommon *store;
     if (writeHole && writeOutOfBounds) {
-        JS_ASSERT(safety == SetElem_Normal);
-
         MStoreElementHole *ins = MStoreElementHole::New(obj, elements, id, newValue);
         store = ins;
 
@@ -6595,24 +6579,15 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
         MInitializedLength *initLength = MInitializedLength::New(elements);
         current->add(initLength);
 
-        bool needsHoleCheck;
-        if (safety == SetElem_Normal) {
-            id = addBoundsCheck(id, initLength);
-            needsHoleCheck = !packed && !writeOutOfBounds;
-        } else {
-            needsHoleCheck = false;
-        }
+        id = addBoundsCheck(id, initLength);
+
+        bool needsHoleCheck = !packed && !writeOutOfBounds;
 
         MStoreElement *ins = MStoreElement::New(elements, id, newValue, needsHoleCheck);
         store = ins;
 
-        if (safety == SetElem_Unsafe)
-            ins->setRacy();
-
         current->add(ins);
-
-        if (safety == SetElem_Normal)
-            current->push(value);
+        current->push(value);
 
         if (!resumeAfter(ins))
             return false;
@@ -6670,7 +6645,6 @@ IonBuilder::jsop_setelem_typed_static(MDefinition *obj, MDefinition *id, MDefini
 
 bool
 IonBuilder::jsop_setelem_typed(int arrayType,
-                               SetElemSafety safety,
                                MDefinition *obj, MDefinition *id, MDefinition *value)
 {
     bool staticAccess = false;
@@ -6679,14 +6653,8 @@ IonBuilder::jsop_setelem_typed(int arrayType,
     if (staticAccess)
         return true;
 
-    bool expectOOB;
-    if (safety == SetElem_Normal) {
-        SetElemICInspector icInspect(inspector->setElemICInspector(pc));
-        expectOOB = icInspect.sawOOBTypedArrayWrite();
-    } else {
-        expectOOB = false;
-    }
-
+    SetElemICInspector icInspect(inspector->setElemICInspector(pc));
+    bool expectOOB = icInspect.sawOOBTypedArrayWrite();
     if (expectOOB)
         spew("Emitting OOB TypedArray SetElem");
 
@@ -6699,7 +6667,7 @@ IonBuilder::jsop_setelem_typed(int arrayType,
     MInstruction *length = getTypedArrayLength(obj);
     current->add(length);
 
-    if (!expectOOB && safety == SetElem_Normal) {
+    if (!expectOOB) {
         // Bounds check.
         id = addBoundsCheck(id, length);
     }
@@ -6722,10 +6690,7 @@ IonBuilder::jsop_setelem_typed(int arrayType,
     else
         ins = MStoreTypedArrayElement::New(elements, id, toWrite, arrayType);
     current->add(ins);
-
-    if (safety == SetElem_Normal)
-        current->push(value);
-
+    current->push(value);
     return resumeAfter(ins);
 }
 

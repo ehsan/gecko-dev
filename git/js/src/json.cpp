@@ -31,7 +31,6 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
-using mozilla::IsFinite;
 using mozilla::Maybe;
 
 Class js::JSONClass = {
@@ -546,7 +545,7 @@ Str(JSContext *cx, const Value &v, StringifyContext *scx)
     /* Step 9. */
     if (v.isNumber()) {
         if (v.isDouble()) {
-            if (!IsFinite(v.toDouble()))
+            if (!MOZ_DOUBLE_IS_FINITE(v.toDouble()))
                 return scx->sb.append("null");
         }
 

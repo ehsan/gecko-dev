@@ -21,9 +21,6 @@
 using namespace js;
 using namespace js::frontend;
 
-using mozilla::IsNaN;
-using mozilla::IsNegative;
-
 static ParseNode *
 ContainsVarOrConst(ParseNode *pn)
 {
@@ -150,13 +147,13 @@ FoldBinaryNumeric(JSContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
         if (d2 == 0) {
 #if defined(XP_WIN)
             /* XXX MSVC miscompiles such that (NaN == 0) */
-            if (IsNaN(d2))
+            if (MOZ_DOUBLE_IS_NaN(d2))
                 d = js_NaN;
             else
 #endif
-            if (d == 0 || IsNaN(d))
+            if (d == 0 || MOZ_DOUBLE_IS_NaN(d))
                 d = js_NaN;
-            else if (IsNegative(d) != IsNegative(d2))
+            else if (MOZ_DOUBLE_IS_NEGATIVE(d) != MOZ_DOUBLE_IS_NEGATIVE(d2))
                 d = js_NegativeInfinity;
             else
                 d = js_PositiveInfinity;
@@ -205,7 +202,7 @@ Boolish(ParseNode *pn)
 {
     switch (pn->getOp()) {
       case JSOP_DOUBLE:
-        return (pn->pn_dval != 0 && !IsNaN(pn->pn_dval)) ? Truthy : Falsy;
+        return (pn->pn_dval != 0 && !MOZ_DOUBLE_IS_NaN(pn->pn_dval)) ? Truthy : Falsy;
 
       case JSOP_STRING:
         return (pn->pn_atom->length() > 0) ? Truthy : Falsy;
@@ -399,7 +396,7 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
         /* Reduce 'if (C) T; else E' into T for true C, E for false. */
         switch (pn1->getKind()) {
           case PNK_NUMBER:
-            if (pn1->pn_dval == 0 || IsNaN(pn1->pn_dval))
+            if (pn1->pn_dval == 0 || MOZ_DOUBLE_IS_NaN(pn1->pn_dval))
                 pn2 = pn3;
             break;
           case PNK_STRING:
@@ -681,7 +678,7 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
                 break;
 
               case JSOP_NOT:
-                if (d == 0 || IsNaN(d)) {
+                if (d == 0 || MOZ_DOUBLE_IS_NaN(d)) {
                     pn->setKind(PNK_TRUE);
                     pn->setOp(JSOP_TRUE);
                 } else {

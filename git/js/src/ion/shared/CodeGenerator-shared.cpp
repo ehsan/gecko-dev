@@ -35,6 +35,7 @@ CodeGeneratorShared::ensureMasm(MacroAssembler *masmArg)
 
 CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masmArg)
   : oolIns(NULL),
+    oolParallelAbort_(NULL),
     maybeMasm_(),
     masm(ensureMasm(masmArg)),
     gen(gen),
@@ -540,40 +541,17 @@ CodeGeneratorShared::markArgumentSlots(LSafepoint *safepoint)
     return true;
 }
 
-OutOfLineParallelAbort *
-CodeGeneratorShared::oolParallelAbort(ParallelBailoutCause cause,
-                                      MBasicBlock *basicBlock,
-                                      jsbytecode *bytecode)
+bool
+CodeGeneratorShared::ensureOutOfLineParallelAbort(Label **result)
 {
-    OutOfLineParallelAbort *ool = new OutOfLineParallelAbort(cause, basicBlock, bytecode);
-    if (!ool || !addOutOfLineCode(ool))
-        return NULL;
-    return ool;
-}
-
-OutOfLineParallelAbort *
-CodeGeneratorShared::oolParallelAbort(ParallelBailoutCause cause,
-                                      LInstruction *lir)
-{
-    MDefinition *mir = lir->mirRaw();
-    MBasicBlock *block = mir->block();
-    jsbytecode *pc = mir->trackedPc();
-    if (!pc) {
-        if (lir->snapshot())
-            pc = lir->snapshot()->mir()->pc();
-        else
-            pc = block->pc();
+    if (!oolParallelAbort_) {
+        oolParallelAbort_ = new OutOfLineParallelAbort();
+        if (!addOutOfLineCode(oolParallelAbort_))
+            return false;
     }
-    return oolParallelAbort(cause, block, pc);
-}
 
-OutOfLinePropagateParallelAbort *
-CodeGeneratorShared::oolPropagateParallelAbort(LInstruction *lir)
-{
-    OutOfLinePropagateParallelAbort *ool = new OutOfLinePropagateParallelAbort(lir);
-    if (!ool || !addOutOfLineCode(ool))
-        return NULL;
-    return ool;
+    *result = oolParallelAbort_->entry();
+    return true;
 }
 
 bool
@@ -581,13 +559,6 @@ OutOfLineParallelAbort::generate(CodeGeneratorShared *codegen)
 {
     codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
     return codegen->visitOutOfLineParallelAbort(this);
-}
-
-bool
-OutOfLinePropagateParallelAbort::generate(CodeGeneratorShared *codegen)
-{
-    codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
-    return codegen->visitOutOfLinePropagateParallelAbort(this);
 }
 
 bool

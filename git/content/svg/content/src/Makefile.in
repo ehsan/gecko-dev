@@ -59,7 +59,6 @@ CPPSRCS		= \
 		SVGAnimatedPathSegList.cpp \
 		SVGAnimatedPointList.cpp \
 		SVGAnimatedPreserveAspectRatio.cpp \
-		SVGAnimatedRect.cpp \
 		SVGAnimatedTransformList.cpp \
 		SVGAnimateElement.cpp \
 		SVGAnimateTransformElement.cpp \

@@ -191,16 +191,16 @@ Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv * arg0, jclass arg1,
 
 #ifdef JNI_STUBS
 
-typedef void (*Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent_t)(JNIEnv *, jclass, jboolean);
+typedef void (*Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent_t)(JNIEnv *, jclass);
 static Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent_t f_Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent;
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv * arg0, jclass arg1, jboolean arg2) {
+Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv * arg0, jclass arg1) {
     if (!f_Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent) {
         arg0->ThrowNew(arg0->FindClass("java/lang/UnsupportedOperationException"),
                        "JNI Function called before it was loaded");
         return ;
     }
-     f_Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(arg0, arg1, arg2);
+     f_Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(arg0, arg1);
 }
 #endif
 

@@ -1869,7 +1869,7 @@ this.DOMApplicationRegistry = {
 
   confirmInstall: function(aData, aFromSync, aProfileDir,
                            aOfflineCacheObserver,
-                           aInstallSuccessCallback) {
+                           aZipDownloadSuccessCallback) {
     let isReinstall = false;
     let app = aData.app;
     app.removable = true;
@@ -1978,23 +1978,15 @@ this.DOMApplicationRegistry = {
       offlineCacheObserver: aOfflineCacheObserver
     }
 
-    let postFirstInstallTask = (function () {
-      // Only executed on install not involving sync.
-      this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
-      this.broadcastMessage("Webapps:Install:Return:OK", aData);
-      Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
-    }).bind(this);
+    if (!aFromSync)
+      this._saveApps((function() {
+        this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
+        this.broadcastMessage("Webapps:Install:Return:OK", aData);
+        Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
+      }).bind(this));
 
     if (!aData.isPackage) {
-      if (!aFromSync) {
-        this._saveApps((function() {
-          postFirstInstallTask();
-        }).bind(this));
-      }
       this.updateAppHandlers(null, app.manifest, app);
-      if (aInstallSuccessCallback) {
-        aInstallSuccessCallback(manifest);
-      }
     }
 
     if (manifest.package_path) {
@@ -2034,11 +2026,8 @@ this.DOMApplicationRegistry = {
                                   manifestURL: appObject.manifestURL,
                                   app: app,
                                   manifest: aManifest });
-          if (!aFromSync) {
-            postFirstInstallTask();
-          }
-          if (aInstallSuccessCallback) {
-            aInstallSuccessCallback(aManifest);
+          if (aZipDownloadSuccessCallback) {
+            aZipDownloadSuccessCallback(aManifest);
           }
         }).bind(this));
       }).bind(this));

@@ -271,9 +271,6 @@ LayerManagerComposite::Render()
     return;
   }
 
-  
-  mCompositor->GetWidget()->PreRender(this);
-
   nsIntRect clipRect;
   Rect bounds(mRenderBounds.x, mRenderBounds.y, mRenderBounds.width, mRenderBounds.height);
   Rect actualBounds;

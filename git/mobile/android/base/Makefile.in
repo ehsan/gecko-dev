@@ -8,6 +8,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/ipc/app/defs.mk
 
 DIST_FILES = package-name.txt
 
@@ -137,7 +138,6 @@ FENNEC_JAVA_FILES = \
   ProfileMigrator.java \
   PromptService.java \
   Restarter.java \
-  SearchEngine.java \
   sqlite/ByteBufferInputStream.java \
   sqlite/MatrixBlobCursor.java \
   sqlite/SQLiteBridge.java \
@@ -578,7 +578,6 @@ RES_DRAWABLE_MDPI = \
   res/drawable-mdpi/ic_awesomebar_reader.png \
   res/drawable-mdpi/ic_awesomebar_search.png \
   res/drawable-mdpi/ic_awesomebar_star.png \
-  res/drawable-mdpi/ic_awesomebar_tab.png \
   res/drawable-mdpi/ic_menu_addons_filler.png \
   res/drawable-mdpi/ic_menu_bookmark_add.png \
   res/drawable-mdpi/ic_menu_bookmark_remove.png \
@@ -691,7 +690,6 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/ic_awesomebar_reader.png \
   res/drawable-hdpi/ic_awesomebar_search.png \
   res/drawable-hdpi/ic_awesomebar_star.png \
-  res/drawable-hdpi/ic_awesomebar_tab.png \
   res/drawable-hdpi/ic_menu_addons_filler.png \
   res/drawable-hdpi/ic_menu_bookmark_add.png \
   res/drawable-hdpi/ic_menu_bookmark_remove.png \
@@ -784,7 +782,6 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/ic_awesomebar_reader.png \
   res/drawable-xhdpi/ic_awesomebar_search.png \
   res/drawable-xhdpi/ic_awesomebar_star.png \
-  res/drawable-xhdpi/ic_awesomebar_tab.png \
   res/drawable-xhdpi/ic_menu_addons_filler.png \
   res/drawable-xhdpi/ic_menu_bookmark_add.png \
   res/drawable-xhdpi/ic_menu_bookmark_remove.png \

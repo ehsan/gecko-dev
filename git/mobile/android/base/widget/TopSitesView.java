@@ -383,7 +383,6 @@ public class TopSitesView extends GridView {
         }
 
         public void setTitle(String title) {
-            Log.i(LOGTAG, "setTitle " + title + " from " + mTitle);
             if (mTitle != null && mTitle.equals(title))
                 return;
             mTitle = title;
@@ -395,10 +394,8 @@ public class TopSitesView extends GridView {
         }
 
         public void setUrl(String url) {
-            Log.i(LOGTAG, "setUrl " + url + " from " + mUrl);
-            if (mUrl != null && mUrl.equals(url)) {
+            if (mUrl != null && mUrl.equals(url))
                 return;
-            }
             mUrl = url;
             updateTitleView();
         }
@@ -415,7 +412,6 @@ public class TopSitesView extends GridView {
             } else {
                 titleView.setVisibility(View.INVISIBLE);
             }
-            titleView.invalidate();
         }
 
         private Drawable getPinDrawable() {
@@ -475,7 +471,6 @@ public class TopSitesView extends GridView {
                 viewHolder = (TopSitesViewHolder) convertView.getTag();
             }
 
-            Log.i(LOGTAG, "Build");
             viewHolder.setTitle(title);
             viewHolder.setUrl(url);
             viewHolder.setPinned(pinned);
@@ -638,7 +633,6 @@ public class TopSitesView extends GridView {
                 }
 
                 clearThumbnailsWithUrl(url);
-                Log.i(LOGTAG, "Edit done: " + url + " " + title);
 
                 holder.setUrl(url);
                 holder.setTitle(title);

@@ -98,28 +98,40 @@ public:
     return mozilla::dom::UIEventBinding::Wrap(aCx, aScope, this);
   }
 
-  nsIDOMWindow* GetView() const
+  already_AddRefed<nsIDOMWindow> GetView()
   {
-    return mView;
+    nsCOMPtr<nsIDOMWindow> view = mView;
+    return view.forget();
   }
 
-  int32_t Detail() const
+  int32_t Detail()
   {
     return mDetail;
   }
 
-  int32_t LayerX() const
+  int32_t LayerX()
   {
     return GetLayerPoint().x;
   }
 
-  int32_t LayerY() const
+  int32_t LayerY()
   {
     return GetLayerPoint().y;
   }
 
-  int32_t PageX() const;
-  int32_t PageY() const;
+  int32_t PageX()
+  {
+    int32_t x;
+    GetPageX(&x);
+    return x;
+  }
+
+  int32_t PageY()
+  {
+    int32_t y;
+    GetPageY(&y);
+    return y;
+  }
 
   virtual uint32_t Which()
   {
@@ -132,20 +144,30 @@ public:
 
   already_AddRefed<nsINode> GetRangeParent();
 
-  int32_t RangeOffset() const;
+  int32_t RangeOffset()
+  {
+    int32_t offset;
+    GetRangeOffset(&offset);
+    return offset;
+  }
 
-  bool CancelBubble() const
+  bool CancelBubble()
   {
     return mEvent->mFlags.mPropagationStopped;
   }
 
-  bool IsChar() const;
+  bool IsChar()
+  {
+    bool isChar;
+    GetIsChar(&isChar);
+    return isChar;
+  }
 
 protected:
   // Internal helper functions
   nsIntPoint GetClientPoint();
   nsIntPoint GetMovementPoint();
-  nsIntPoint GetLayerPoint() const;
+  nsIntPoint GetLayerPoint();
   nsIntPoint GetPagePoint();
 
   nsCOMPtr<nsIDOMWindow> mView;
