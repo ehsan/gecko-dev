@@ -64,9 +64,9 @@ BasicCodeModules::BasicCodeModules(const CodeModules *that)
     // GetModuleAtIndex because ordering is unimportant when slurping the
     // entire list, and GetModuleAtIndex may be faster than
     // GetModuleAtSequence.
-    linked_ptr<const CodeModule> module(
-        that->GetModuleAtIndex(module_sequence)->Copy());
-    if (!map_->StoreRange(module->base_address(), module->size(), module)) {
+    const CodeModule *module = that->GetModuleAtIndex(module_sequence)->Copy();
+    if (!map_->StoreRange(module->base_address(), module->size(),
+                          linked_ptr<const CodeModule>(module))) {
       BPLOG(ERROR) << "Module " << module->code_file() <<
                       " could not be stored";
     }

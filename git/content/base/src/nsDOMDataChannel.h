@@ -27,6 +27,7 @@ class nsDOMDataChannel : public mozilla::DOMEventTargetHelper,
 public:
   nsDOMDataChannel(already_AddRefed<mozilla::DataChannel>& aDataChannel,
                    nsPIDOMWindow* aWindow);
+  ~nsDOMDataChannel();
 
   nsresult Init(nsPIDOMWindow* aDOMWindow);
 
@@ -95,9 +96,6 @@ public:
 
   virtual void
   AppReady();
-
-protected:
-  ~nsDOMDataChannel();
 
 private:
   void Send(nsIInputStream* aMsgStream, const nsACString& aMsgString,

@@ -37,6 +37,7 @@ public:
       SetHasWeirdParserInsertionMode();
     }
   }
+  virtual ~HTMLSharedElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -177,8 +178,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLSharedElement();
-
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 };
 

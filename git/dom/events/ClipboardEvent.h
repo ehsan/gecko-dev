@@ -47,9 +47,6 @@ public:
                           bool aCancelable,
                           DataTransfer* aClipboardData,
                           ErrorResult& aError);
-
-protected:
-  ~ClipboardEvent() {}
 };
 
 } // namespace dom

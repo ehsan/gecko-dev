@@ -20,6 +20,7 @@ class ProcessingInstruction : public nsGenericDOMDataNode,
 public:
   ProcessingInstruction(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                         const nsAString& aData);
+  virtual ~ProcessingInstruction();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -53,8 +54,6 @@ public:
     aTarget = NodeName();
   }
 protected:
-  virtual ~ProcessingInstruction();
-
   /**
    * This will parse the content of the PI, to extract the value of the pseudo
    * attribute with the name specified in aName. See

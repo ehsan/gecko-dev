@@ -124,6 +124,7 @@ public:
   friend class SinkContext;
 
   HTMLContentSink();
+  virtual ~HTMLContentSink();
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
@@ -151,8 +152,6 @@ public:
   NS_IMETHOD CloseContainer(ElementType aTag);
 
 protected:
-  virtual ~HTMLContentSink();
-
   nsCOMPtr<nsIHTMLDocument> mHTMLDocument;
 
   // The maximum length of a text run

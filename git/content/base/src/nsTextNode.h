@@ -43,6 +43,8 @@ public:
     Init();
   }
 
+  virtual ~nsTextNode();
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -79,8 +81,6 @@ public:
 #endif
 
 protected:
-  virtual ~nsTextNode();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 };
 

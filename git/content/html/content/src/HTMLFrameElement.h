@@ -24,6 +24,7 @@ public:
 
   HTMLFrameElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                    FromParser aFromParser = NOT_FROM_PARSER);
+  virtual ~HTMLFrameElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -94,8 +95,6 @@ public:
   using nsGenericHTMLFrameElement::GetContentWindow;
 
 protected:
-  virtual ~HTMLFrameElement();
-
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 
 private:

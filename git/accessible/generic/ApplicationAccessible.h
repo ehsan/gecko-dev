@@ -81,7 +81,6 @@ public:
   virtual KeyBinding AccessKey() const;
 
 protected:
-  virtual ~ApplicationAccessible() {}
 
   // Accessible
   virtual void CacheChildren();

@@ -141,8 +141,6 @@ public:
   virtual Accessible* ContainerWidget() const;
 
 protected:
-  virtual ~HTMLTextFieldAccessible() {}
-
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
 

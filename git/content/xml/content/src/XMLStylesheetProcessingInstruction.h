@@ -35,6 +35,8 @@ public:
   {
   }
 
+  virtual ~XMLStylesheetProcessingInstruction();
+
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
   // nsISupports
@@ -72,8 +74,6 @@ public:
   using ProcessingInstruction::SetData; // Prevent hiding overloaded virtual function.
 
 protected:
-  virtual ~XMLStylesheetProcessingInstruction();
-
   nsCOMPtr<nsIURI> mOverriddenBaseURI;
 
   already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline) MOZ_OVERRIDE;

@@ -7,11 +7,6 @@
 #define WEBGLCONTEXT_H_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/CheckedInt.h"
-#include "mozilla/EnumeratedArray.h"
-#include "mozilla/LinkedList.h"
-#include "mozilla/UniquePtr.h"
-
 #include "GLDefs.h"
 #include "WebGLActiveInfo.h"
 #include "WebGLObjectModel.h"
@@ -31,6 +26,10 @@
 
 #include "GLContextProvider.h"
 
+#include "mozilla/EnumeratedArray.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/CheckedInt.h"
+#include "mozilla/Scoped.h"
 #include "mozilla/gfx/2D.h"
 
 #ifdef XP_MACOSX
@@ -80,7 +79,6 @@ class WebGLVertexArray;
 
 namespace dom {
 class ImageData;
-class Element;
 
 struct WebGLContextAttributes;
 template<typename> struct Nullable;
@@ -461,10 +459,6 @@ public:
                     dom::ImageData* pixels, ErrorResult& rv);
     // Allow whatever element types the bindings are willing to pass
     // us in TexImage2D
-    bool TexImageFromVideoElement(GLenum target, GLint level,
-                                  GLenum internalformat, GLenum format, GLenum type,
-                                  mozilla::dom::Element& image);
-
     template<class ElementType>
     void TexImage2D(GLenum target, GLint level,
                     GLenum internalformat, GLenum format, GLenum type,
@@ -472,17 +466,6 @@ public:
     {
         if (IsContextLost())
             return;
-
-        WebGLTexture* tex = activeBoundTextureForTarget(target);
-
-        if (!tex)
-            return ErrorInvalidOperation("no texture is bound to this target");
-
-        // Trying to handle the video by GPU directly first
-        if (TexImageFromVideoElement(target, level, internalformat, format, type, elt)) {
-            return;
-        }
-
         RefPtr<gfx::DataSourceSurface> data;
         WebGLTexelFormat srcFormat;
         nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
@@ -498,7 +481,6 @@ public:
                                0, format, type, data->GetData(), byteLength,
                                -1, srcFormat, mPixelStorePremultiplyAlpha);
     }
-
     void TexParameterf(GLenum target, GLenum pname, GLfloat param) {
         TexParameter_base(target, pname, nullptr, &param);
     }
@@ -524,12 +506,6 @@ public:
     {
         if (IsContextLost())
             return;
-
-        // Trying to handle the video by GPU directly first
-        if (TexImageFromVideoElement(target, level, format, format, type, elt)) {
-            return;
-        }
-
         RefPtr<gfx::DataSourceSurface> data;
         WebGLTexelFormat srcFormat;
         nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
@@ -1231,16 +1207,16 @@ protected:
         GLuint GLName() const { return mGLName; }
     };
 
-    UniquePtr<FakeBlackTexture> mBlackOpaqueTexture2D,
-                                mBlackOpaqueTextureCubeMap,
-                                mBlackTransparentTexture2D,
-                                mBlackTransparentTextureCubeMap;
+    ScopedDeletePtr<FakeBlackTexture> mBlackOpaqueTexture2D,
+                                      mBlackOpaqueTextureCubeMap,
+                                      mBlackTransparentTexture2D,
+                                      mBlackTransparentTextureCubeMap;
 
     void BindFakeBlackTexturesHelper(
         GLenum target,
         const nsTArray<WebGLRefPtr<WebGLTexture> >& boundTexturesArray,
-        UniquePtr<FakeBlackTexture> & opaqueTextureScopedPtr,
-        UniquePtr<FakeBlackTexture> & transparentTextureScopedPtr);
+        ScopedDeletePtr<FakeBlackTexture> & opaqueTextureScopedPtr,
+        ScopedDeletePtr<FakeBlackTexture> & transparentTextureScopedPtr);
 
     GLfloat mVertexAttrib0Vector[4];
     GLfloat mFakeVertexAttrib0BufferObjectVector[4];

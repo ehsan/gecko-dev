@@ -138,6 +138,7 @@ public:
 
   HTMLSelectElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                     FromParser aFromParser = NOT_FROM_PARSER);
+  virtual ~HTMLSelectElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLSelectElement, select)
 
@@ -418,8 +419,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLSelectElement();
-
   friend class SafeOptionListMutation;
 
   // Helper Methods

@@ -139,9 +139,6 @@ public:
 
   nsCOMPtr<nsIContentFrameMessageManager> mMessageManager;
   nsRefPtr<TabChildBase> mTabChild;
-
-protected:
-  ~TabChildGlobal();
 };
 
 class ContentListener MOZ_FINAL : public nsIDOMEventListener
@@ -259,6 +256,8 @@ public:
     /** Return a TabChild with the given attributes. */
     static already_AddRefed<TabChild>
     Create(nsIContentChild* aManager, const TabContext& aContext, uint32_t aChromeFlags);
+
+    virtual ~TabChild();
 
     bool IsRootContentDocument();
 
@@ -483,8 +482,6 @@ public:
     virtual bool RecvUIResolutionChanged() MOZ_OVERRIDE;
 
 protected:
-    virtual ~TabChild();
-
     virtual PRenderFrameChild* AllocPRenderFrameChild(ScrollingBehavior* aScrolling,
                                                       TextureFactoryIdentifier* aTextureFactoryIdentifier,
                                                       uint64_t* aLayersId,

@@ -37,9 +37,6 @@ public:
   }
 
   bool IsComposing();
-
-protected:
-  ~InputEvent() {}
 };
 
 } // namespace dom

@@ -53,6 +53,7 @@ class nsDragService : public nsBaseDragService,
 {
 public:
     nsDragService();
+    virtual ~nsDragService();
 
     NS_DECL_ISUPPORTS_INHERITED
 
@@ -117,9 +118,6 @@ public:
 
     // set the drag icon during drag-begin
     void SetDragIcon(GdkDragContext* aContext);
-
-protected:
-    virtual ~nsDragService();
 
 private:
 

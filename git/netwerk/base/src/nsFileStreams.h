@@ -134,15 +134,15 @@ public:
       : mLineBuffer(nullptr), mIOFlags(0), mPerm(0), mCachedPosition(0)
     {}
 
-    static nsresult
-    Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
-
-protected:
     virtual ~nsFileInputStream()
     {
         Close();
     }
 
+    static nsresult
+    Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
+
+protected:
     nsAutoPtr<nsLineBuffer<char> > mLineBuffer;
 
     /**
@@ -195,10 +195,6 @@ public:
     static nsresult
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
-protected:
-    ~nsPartialFileInputStream()
-    { }
-
 private:
     uint64_t TruncateSize(uint64_t aSize) {
           return std::min<uint64_t>(mLength - mPosition, aSize);
@@ -219,14 +215,13 @@ public:
     NS_DECL_NSIFILEOUTPUTSTREAM
     NS_FORWARD_NSIOUTPUTSTREAM(nsFileStreamBase::)
 
-    static nsresult
-    Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
-
-protected:
     virtual ~nsFileOutputStream()
     {
         Close();
     }
+
+    static nsresult
+    Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,6 +242,11 @@ public:
         mTargetFileExists(true),
         mWriteResult(NS_OK) {}
 
+    virtual ~nsAtomicFileOutputStream()
+    {
+        Close();
+    }
+
     virtual nsresult DoOpen() MOZ_OVERRIDE;
 
     NS_IMETHODIMP Close();
@@ -254,11 +254,6 @@ public:
     NS_IMETHODIMP Init(nsIFile* file, int32_t ioFlags, int32_t perm, int32_t behaviorFlags);
 
 protected:
-    virtual ~nsAtomicFileOutputStream()
-    {
-        Close();
-    }
-
     nsCOMPtr<nsIFile>         mTargetFile;
     nsCOMPtr<nsIFile>         mTempFile;
 
@@ -316,7 +311,6 @@ public:
                                                _retval);
     }
 
-protected:
     virtual ~nsFileStream()
     {
         Close();

@@ -69,7 +69,6 @@ EXPORTS.mozilla = [
     'TypedEnumInternal.h',
     'Types.h',
     'TypeTraits.h',
-    'UniquePtr.h',
     'Vector.h',
     'WeakPtr.h',
 ]

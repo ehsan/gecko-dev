@@ -37,8 +37,6 @@ public:
   virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex);
 
 protected:
-  virtual ~HTMLLinkAccessible() {}
-
   enum { eAction_Jump = 0 };
 
   /**

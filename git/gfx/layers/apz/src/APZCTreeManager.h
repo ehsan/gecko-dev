@@ -122,16 +122,11 @@ public:
    * based on what type of input it is. For example, a PinchGestureEvent will
    * cause scaling. This should only be called externally to this class.
    *
-   * This function transforms |aEvent| to have its coordinates in DOM space.
-   * This is so that the event can be passed through the DOM and content can
-   * handle them. The event may need to be converted to a WidgetInputEvent
-   * by the caller if it wants to do this.
-   *
-   * @param aEvent input event object; is modified in-place
+   * @param aEvent input event object, will not be modified
    * @param aOutTargetGuid returns the guid of the apzc this event was
    * delivered to. May be null.
    */
-  nsEventStatus ReceiveInputEvent(InputData& aEvent,
+  nsEventStatus ReceiveInputEvent(const InputData& aEvent,
                                   ScrollableLayerGuid* aOutTargetGuid);
 
   /**

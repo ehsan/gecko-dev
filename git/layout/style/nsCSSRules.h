@@ -644,8 +644,6 @@ public:
   virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 protected:
-  virtual ~CSSSupportsRule();
-
   bool mUseGroup;
   nsString mCondition;
 };

@@ -127,14 +127,13 @@ public:
   {
   }
 
+  virtual ~nsXULPopupShownEvent() { }
+
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIDOMEVENTLISTENER
 
   void CancelListener();
-
-protected:
-  virtual ~nsXULPopupShownEvent() { }
 
 private:
   nsCOMPtr<nsIContent> mPopup;

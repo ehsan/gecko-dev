@@ -38,6 +38,7 @@ public:
   {
     mDocViewerPrint->IncrementDestroyRefCount();
   }
+  ~nsPagePrintTimer();
 
   NS_DECL_NSITIMERCALLBACK
 
@@ -48,8 +49,6 @@ public:
   void Stop();
 
 private:
-  ~nsPagePrintTimer();
-
   nsresult StartTimer(bool aUseDelay);
   nsresult StartWatchDogTimer();
   void     StopWatchDogTimer();

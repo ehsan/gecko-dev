@@ -1170,8 +1170,9 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     ValueMap *map = cx->new_<ValueMap>(cx->runtime());
-    if (!map || !map->init()) {
-        js_delete(map);
+    if (!map)
+        return false;
+    if (!map->init()) {
         js_ReportOutOfMemory(cx);
         return false;
     }
@@ -1679,8 +1680,9 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     ValueSet *set = cx->new_<ValueSet>(cx->runtime());
-    if (!set || !set->init()) {
-        js_delete(set);
+    if (!set)
+        return false;
+    if (!set->init()) {
         js_ReportOutOfMemory(cx);
         return false;
     }

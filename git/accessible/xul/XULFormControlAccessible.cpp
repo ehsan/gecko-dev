@@ -47,10 +47,6 @@ XULButtonAccessible::
   }
 }
 
-XULButtonAccessible::~XULButtonAccessible()
-{
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // XULButtonAccessible: nsISupports
 

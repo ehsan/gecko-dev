@@ -48,8 +48,7 @@ public:
   NS_IMETHOD GetNewNode(nsIDOMNode **aNewNode);
 
 protected:
-  virtual ~CreateElementTxn();
-
+  
   /** the document into which the new node will be inserted */
   nsEditor* mEditor;
   

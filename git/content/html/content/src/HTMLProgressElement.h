@@ -19,6 +19,7 @@ class HTMLProgressElement MOZ_FINAL : public nsGenericHTMLElement
 {
 public:
   HTMLProgressElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLProgressElement();
 
   EventStates IntrinsicState() const MOZ_OVERRIDE;
 
@@ -41,8 +42,6 @@ public:
   double Position() const;
 
 protected:
-  virtual ~HTMLProgressElement();
-
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 
 protected:

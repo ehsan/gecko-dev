@@ -22,6 +22,7 @@ class HTMLAudioElement MOZ_FINAL : public HTMLMediaElement,
 {
 public:
   HTMLAudioElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLAudioElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -42,8 +43,6 @@ public:
         const Optional<nsAString>& aSrc, ErrorResult& aRv);
 
 protected:
-  virtual ~HTMLAudioElement();
-
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 };
 

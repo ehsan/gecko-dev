@@ -18,10 +18,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(TableRow)
 namespace mozilla {
 namespace dom {
 
-HTMLTableRowElement::~HTMLTableRowElement()
-{
-}
-
 JSObject*
 HTMLTableRowElement::WrapNode(JSContext *aCx)
 {

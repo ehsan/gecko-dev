@@ -27,6 +27,7 @@ public:
                                            DOMEventTargetHelper)
 
   explicit DataStore(nsPIDOMWindow* aWindow);
+  ~DataStore();
 
   // WebIDL (internal functions)
 
@@ -83,8 +84,6 @@ public:
   void SetDataStoreImpl(DataStoreImpl& aStore, ErrorResult& aRv);
 
 private:
-  ~DataStore();
-
   nsRefPtr<DataStoreImpl> mStore;
 };
 

@@ -44,6 +44,7 @@ class MediaStreamAudioSourceNode : public AudioNode,
 {
 public:
   MediaStreamAudioSourceNode(AudioContext* aContext, DOMMediaStream* aMediaStream);
+  virtual ~MediaStreamAudioSourceNode();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(MediaStreamAudioSourceNode, AudioNode)
@@ -63,9 +64,6 @@ public:
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
 
   virtual void PrincipalChanged(DOMMediaStream* aMediaStream) MOZ_OVERRIDE;
-
-protected:
-  virtual ~MediaStreamAudioSourceNode();
 
 private:
   nsRefPtr<MediaInputPort> mInputPort;

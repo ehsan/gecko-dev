@@ -58,6 +58,7 @@ public:
 
   DocAccessible(nsIDocument* aDocument, nsIContent* aRootContent,
                 nsIPresShell* aPresShell);
+  virtual ~DocAccessible();
 
   // nsIAccessible
   NS_IMETHOD TakeFocus(void);
@@ -310,7 +311,6 @@ public:
   void RecreateAccessible(nsIContent* aContent);
 
 protected:
-  virtual ~DocAccessible();
 
   void LastRelease();
 

@@ -28,10 +28,6 @@ OfflineAudioCompletionEvent::OfflineAudioCompletionEvent(AudioContext* aOwner,
   SetIsDOMBinding();
 }
 
-OfflineAudioCompletionEvent::~OfflineAudioCompletionEvent()
-{
-}
-
 JSObject*
 OfflineAudioCompletionEvent::WrapObject(JSContext* aCx)
 {

@@ -571,9 +571,7 @@ public:
     char line[1024];
     while (!ss.eof()) {
       ss.getline(line, sizeof(line));
-      if (!ss.eof() || strlen(line) > 0) {
-        printf_stderr("%s\n", line);
-      }
+      printf_stderr("%s", line);
       if (ss.fail()) {
         // line was too long, skip to next newline
         ss.clear();
@@ -1408,8 +1406,6 @@ public:
   {
     mManager->Mutated(this);
   }
-
-  virtual int32_t GetMaxLayerSize() { return Manager()->GetMaxTextureSize(); }
 
 protected:
   Layer(LayerManager* aManager, void* aImplData);

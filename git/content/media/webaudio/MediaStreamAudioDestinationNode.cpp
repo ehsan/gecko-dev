@@ -86,10 +86,6 @@ MediaStreamAudioDestinationNode::MediaStreamAudioDestinationNode(AudioContext* a
   }
 }
 
-MediaStreamAudioDestinationNode::~MediaStreamAudioDestinationNode()
-{
-}
-
 size_t
 MediaStreamAudioDestinationNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {

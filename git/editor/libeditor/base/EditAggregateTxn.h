@@ -41,7 +41,6 @@ public:
   NS_IMETHOD GetName(nsIAtom **aName);
 
 protected:
-  virtual ~EditAggregateTxn();
 
   nsTArray< nsRefPtr<EditTxn> > mChildren;
   nsCOMPtr<nsIAtom> mName;

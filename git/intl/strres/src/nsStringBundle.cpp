@@ -637,16 +637,19 @@ nsStringBundleService::CreateExtensibleBundle(const char* aCategory,
                                               nsIStringBundle** aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = nullptr;
 
-  nsRefPtr<nsExtensibleStringBundle> bundle = new nsExtensibleStringBundle();
+  nsresult res;
 
-  nsresult res = bundle->Init(aCategory, this);
+  nsExtensibleStringBundle * bundle = new nsExtensibleStringBundle();
+
+  res = bundle->Init(aCategory, this);
   if (NS_FAILED(res)) {
+    delete bundle;
     return res;
   }
 
   res = bundle->QueryInterface(NS_GET_IID(nsIStringBundle), (void**) aResult);
+  if (NS_FAILED(res)) delete bundle;
 
   return res;
 }

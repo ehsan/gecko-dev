@@ -53,27 +53,35 @@ public:
 
 class nsExtensibleStringBundle;
 
+namespace mozilla {
+template<>
+struct HasDangerousPublicDestructor<nsExtensibleStringBundle>
+{
+  static const bool value = true;
+};
+}
+
 /**
  * An extensible implementation of the StringBundle interface.
  *
  * @created         28/Dec/1999
  * @author  Catalin Rotaru [CATA]
  */
-class nsExtensibleStringBundle MOZ_FINAL : public nsIStringBundle
+class nsExtensibleStringBundle : public nsIStringBundle
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTRINGBUNDLE
 
   nsresult Init(const char * aCategory, nsIStringBundleService *);
-
-public:
-  nsExtensibleStringBundle();
-
 private:
-  virtual ~nsExtensibleStringBundle();
 
   nsCOMArray<nsIStringBundle> mBundles;
-  bool mLoaded;
+  bool               mLoaded;
+
+public:
+
+  nsExtensibleStringBundle();
+  virtual ~nsExtensibleStringBundle();
 };
 
 

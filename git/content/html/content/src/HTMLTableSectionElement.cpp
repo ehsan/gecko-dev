@@ -18,10 +18,6 @@ namespace dom {
 
 // you will see the phrases "rowgroup" and "section" used interchangably
 
-HTMLTableSectionElement::~HTMLTableSectionElement()
-{
-}
-
 JSObject*
 HTMLTableSectionElement::WrapNode(JSContext *aCx)
 {

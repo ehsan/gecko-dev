@@ -54,7 +54,8 @@ public:
     eTypedBreak  /* user typed enter */
   };
 
-  nsPlaintextEditor();
+           nsPlaintextEditor();
+  virtual  ~nsPlaintextEditor();
 
   /* ------------ nsIPlaintextEditor methods -------------- */
   NS_DECL_NSIPLAINTEXTEDITOR
@@ -161,7 +162,6 @@ public:
                                     int32_t &aCaretStyle);
 
 protected:
-  virtual  ~nsPlaintextEditor();
 
   NS_IMETHOD  InitRules();
   void        BeginEditorInit();

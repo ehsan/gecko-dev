@@ -29,7 +29,6 @@ class InstallPhaseEvent : public Event
 
 protected:
   InstallPhaseEvent(mozilla::dom::EventTarget* aOwner);
-  ~InstallPhaseEvent() {}
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -81,7 +80,6 @@ class InstallEvent MOZ_FINAL : public InstallPhaseEvent
 
 protected:
   InstallEvent(mozilla::dom::EventTarget* aOwner);
-  ~InstallEvent() {}
 
 public:
   NS_DECL_ISUPPORTS_INHERITED

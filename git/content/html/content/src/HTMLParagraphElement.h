@@ -22,6 +22,7 @@ public:
     : nsGenericHTMLElement(aNodeInfo)
   {
   }
+  virtual ~HTMLParagraphElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -46,8 +47,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLParagraphElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 private:

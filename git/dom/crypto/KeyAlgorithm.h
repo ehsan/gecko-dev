@@ -31,6 +31,12 @@ enum KeyAlgorithmStructuredCloneTags {
 
 }
 
+template<>
+struct HasDangerousPublicDestructor<dom::KeyAlgorithm>
+{
+  static const bool value = true;
+};
+
 namespace dom {
 
 class KeyAlgorithm : public nsISupports,
@@ -42,6 +48,8 @@ public:
 
 public:
   KeyAlgorithm(nsIGlobalObject* aGlobal, const nsString& aName);
+
+  virtual ~KeyAlgorithm();
 
   nsIGlobalObject* GetParentObject() const
   {
@@ -64,8 +72,6 @@ public:
   }
 
 protected:
-  virtual ~KeyAlgorithm();
-
   nsRefPtr<nsIGlobalObject> mGlobal;
   nsString mName;
   CK_MECHANISM_TYPE mMechanism;

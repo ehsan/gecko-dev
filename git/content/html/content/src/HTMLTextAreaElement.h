@@ -275,8 +275,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLTextAreaElement() {}
-
   // get rid of the compiler warning
   using nsGenericHTMLFormElementWithState::IsSingleLineTextControl;
 

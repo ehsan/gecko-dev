@@ -29,10 +29,8 @@ public:
   // nsPIBoxObject
   virtual void Clear() MOZ_OVERRIDE;
   virtual void ClearCachedValues() MOZ_OVERRIDE;
-
+  
 protected:
-  virtual ~nsListBoxObject() {}
-
   nsListBoxBodyFrame *mListBoxBody;
 };
 

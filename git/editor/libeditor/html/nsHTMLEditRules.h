@@ -67,8 +67,10 @@ class nsHTMLEditRules : public nsTextEditRules, public nsIEditActionListener
 public:
 
   NS_DECL_ISUPPORTS_INHERITED
+  
+            nsHTMLEditRules();
+  virtual   ~nsHTMLEditRules();
 
-  nsHTMLEditRules();
 
   // nsIEditRules methods
   NS_IMETHOD Init(nsPlaintextEditor *aEditor);
@@ -109,7 +111,6 @@ public:
   NS_IMETHOD DidDeleteSelection(nsISelection *aSelection);
 
 protected:
-  virtual ~nsHTMLEditRules();
 
   enum RulesEndpoint
   {

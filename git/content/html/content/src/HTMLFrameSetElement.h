@@ -54,6 +54,7 @@ public:
   {
     SetHasWeirdParserInsertionMode();
   }
+  virtual ~HTMLFrameSetElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLFrameSetElement, frameset)
 
@@ -137,8 +138,6 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
 protected:
-  virtual ~HTMLFrameSetElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 private:

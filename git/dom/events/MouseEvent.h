@@ -102,8 +102,6 @@ public:
   }
 
 protected:
-  ~MouseEvent() {}
-
   nsresult InitMouseEvent(const nsAString& aType,
                           bool aCanBubble,
                           bool aCancelable,

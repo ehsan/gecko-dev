@@ -41,8 +41,6 @@ public:
   bool ContainsInternal(const nsAString& aString);
 
 protected:
-  virtual ~PropertyStringList();
-
   virtual void EnsureFresh() MOZ_OVERRIDE;
 
   nsRefPtr<HTMLPropertiesCollection> mCollection;

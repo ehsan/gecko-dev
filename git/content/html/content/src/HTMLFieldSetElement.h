@@ -28,6 +28,7 @@ public:
   using nsIConstraintValidation::GetValidationMessage;
 
   HTMLFieldSetElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLFieldSetElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLFieldSetElement, fieldset)
 
@@ -109,8 +110,6 @@ public:
   void UpdateValidity(bool aElementValidityState);
 
 protected:
-  virtual ~HTMLFieldSetElement();
-
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 
 private:

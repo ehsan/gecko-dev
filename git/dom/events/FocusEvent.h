@@ -39,8 +39,6 @@ public:
                                                   const FocusEventInit& aParam,
                                                   ErrorResult& aRv);
 protected:
-  ~FocusEvent() {}
-
   nsresult InitFocusEvent(const nsAString& aType,
                           bool aCanBubble,
                           bool aCancelable,

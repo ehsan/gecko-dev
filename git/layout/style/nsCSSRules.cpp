@@ -2861,10 +2861,6 @@ CSSSupportsRule::CSSSupportsRule(bool aConditionMet,
 {
 }
 
-CSSSupportsRule::~CSSSupportsRule()
-{
-}
-
 CSSSupportsRule::CSSSupportsRule(const CSSSupportsRule& aCopy)
   : css::GroupRule(aCopy),
     mUseGroup(aCopy.mUseGroup),
