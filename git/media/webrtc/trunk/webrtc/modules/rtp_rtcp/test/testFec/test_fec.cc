@@ -13,12 +13,11 @@
  * functions in ForwardErrorCorrection directly.
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <list>
 
 #include "testing/gtest/include/gtest/gtest.h"
@@ -474,11 +473,11 @@ TEST(FecTest, FecTest) {
             }
             timeStamp += 90000 / 30;
           }  // loop over numImpPackets
-        }  // loop over FecPackets
-      }  // loop over numMediaPackets
+        }    // loop over FecPackets
+      }      // loop over numMediaPackets
       delete[] packetMask;
     }  // loop over loss rates
-  }  // loop over mask types
+  }    // loop over mask types
 
   // Have DecodeFEC free allocated memory.
   fec.ResetState(&recoveredPacketList);

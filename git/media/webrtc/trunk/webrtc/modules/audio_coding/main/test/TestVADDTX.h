@@ -11,7 +11,6 @@
 #ifndef TEST_VAD_DTX_H
 #define TEST_VAD_DTX_H
 
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "ACMTest.h"
 #include "Channel.h"
 #include "PCMFile.h"
@@ -29,7 +28,7 @@ class ActivityMonitor : public ACMVADCallback {
   ActivityMonitor();
   ~ActivityMonitor();
   int32_t InFrameType(int16_t frameType);
-  void PrintStatistics();
+  void PrintStatistics(int testMode);
   void ResetStatistics();
   void GetStatistics(uint32_t* getCounter);
  private:
@@ -47,7 +46,7 @@ class ActivityMonitor : public ACMVADCallback {
 
 class TestVADDTX : public ACMTest {
  public:
-  TestVADDTX();
+  TestVADDTX(int testMode);
   ~TestVADDTX();
 
   void Perform();
@@ -61,12 +60,12 @@ class TestVADDTX : public ACMTest {
   void Run();
   void OpenOutFile(int16_t testNumber);
   void runTestCases();
-  void runTestInternalDTX(int expected_result);
+  void runTestInternalDTX();
   void SetVAD(bool statusDTX, bool statusVAD, int16_t vadMode);
   VADDTXstruct GetVAD();
   int16_t VerifyTest();
-  scoped_ptr<AudioCodingModule> _acmA;
-  scoped_ptr<AudioCodingModule> _acmB;
+  AudioCodingModule* _acmA;
+  AudioCodingModule* _acmB;
 
   Channel* _channelA2B;
 
@@ -76,6 +75,8 @@ class TestVADDTX : public ACMTest {
   ActivityMonitor _monitor;
   uint32_t _statCounter[6];
 
+  int _testMode;
+  int _testResults;
   VADDTXstruct _setStruct;
   VADDTXstruct _getStruct;
 };

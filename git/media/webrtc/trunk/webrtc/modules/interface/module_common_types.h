@@ -11,8 +11,8 @@
 #ifndef MODULE_COMMON_TYPES_H
 #define MODULE_COMMON_TYPES_H
 
-#include <assert.h>
-#include <string.h> // memcpy
+#include <cassert>
+#include <cstring> // memcpy
 
 #include <algorithm>
 
@@ -44,7 +44,6 @@ struct RTPHeader
     uint32_t arrOfCSRCs[kRtpCsrcSize];
     uint8_t paddingLength;
     uint16_t headerLength;
-    int payload_type_frequency;
     RTPHeaderExtension extension;
 };
 
@@ -94,11 +93,13 @@ union RTPVideoTypeHeader
     RTPVideoHeaderVP8       VP8;
 };
 
-enum RtpVideoCodecTypes
+enum RTPVideoCodecTypes
 {
-    kRtpVideoNone,
-    kRtpVideoGeneric,
-    kRtpVideoVp8
+    kRTPVideoGeneric  = 0,
+    kRTPVideoVP8      = 8,
+    kRTPVideoNoVideo  = 10,
+    kRTPVideoFEC      = 11,
+    kRTPVideoI420     = 12
 };
 struct RTPVideoHeader
 {
@@ -108,7 +109,7 @@ struct RTPVideoHeader
     bool                    isFirstPacket;   // first packet in frame
     uint8_t           simulcastIdx;    // Index if the simulcast encoder creating
                                              // this frame, 0 if not using simulcast.
-    RtpVideoCodecTypes      codec;
+    RTPVideoCodecTypes      codec;
     RTPVideoTypeHeader      codecHeader;
 };
 union RTPTypeHeader
@@ -1066,6 +1067,6 @@ inline uint32_t LatestTimestamp(uint32_t timestamp1, uint32_t timestamp2) {
       timestamp2;
 }
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // MODULE_COMMON_TYPES_H

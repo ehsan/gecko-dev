@@ -10,9 +10,9 @@
 
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
 
-#include <assert.h>
 #include <math.h>
 
+#include <cassert>
 #include <iostream>
 
 #include "gflags/gflags.h"
@@ -20,7 +20,7 @@
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module_typedefs.h"
-#include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
+#include "webrtc/modules/audio_coding/main/source/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/main/test/Channel.h"
 #include "webrtc/modules/audio_coding/main/test/PCMFile.h"
 #include "webrtc/modules/audio_coding/main/test/utility.h"
@@ -61,8 +61,8 @@ class DelayTest {
  public:
 
   DelayTest()
-      : acm_a_(AudioCodingModule::Create(0)),
-        acm_b_(AudioCodingModule::Create(1)),
+      : acm_a_(NULL),
+        acm_b_(NULL),
         channel_a2b_(NULL),
         test_cntr_(0),
         encoding_sample_rate_hz_(8000) {}
@@ -70,6 +70,14 @@ class DelayTest {
   ~DelayTest() {}
 
   void TearDown() {
+    if (acm_a_ != NULL) {
+      AudioCodingModule::Destroy(acm_a_);
+      acm_a_ = NULL;
+    }
+    if (acm_b_ != NULL) {
+      AudioCodingModule::Destroy(acm_b_);
+      acm_b_ = NULL;
+    }
     if (channel_a2b_ != NULL) {
       delete channel_a2b_;
       channel_a2b_ = NULL;
@@ -83,6 +91,8 @@ class DelayTest {
     if (FLAGS_input_file.size() > 0)
       file_name = FLAGS_input_file;
     in_file_a_.Open(file_name, 32000, "rb");
+    acm_a_ = AudioCodingModule::Create(0);
+    acm_b_ = AudioCodingModule::Create(1);
     acm_a_->InitializeReceiver();
     acm_b_->InitializeReceiver();
     if (FLAGS_init_delay > 0) {
@@ -112,7 +122,7 @@ class DelayTest {
     // Create and connect the channel
     channel_a2b_ = new Channel;
     acm_a_->RegisterTransportCallback(channel_a2b_);
-    channel_a2b_->RegisterReceiverACM(acm_b_.get());
+    channel_a2b_->RegisterReceiverACM(acm_b_);
   }
 
   void Perform(const Config* config, size_t num_tests, int duration_sec,
@@ -219,8 +229,8 @@ class DelayTest {
     out_file_b_.Close();
   }
 
-  scoped_ptr<AudioCodingModule> acm_a_;
-  scoped_ptr<AudioCodingModule> acm_b_;
+  AudioCodingModule* acm_a_;
+  AudioCodingModule* acm_b_;
 
   Channel* channel_a2b_;
 
@@ -246,3 +256,9 @@ void RunTest() {
 }
 }  // namespace
 }  // namespace webrtc
+
+int main(int argc, char* argv[]) {
+  using namespace webrtc;
+  google::ParseCommandLineFlags(&argc, &argv, true);
+  RunTest();
+}

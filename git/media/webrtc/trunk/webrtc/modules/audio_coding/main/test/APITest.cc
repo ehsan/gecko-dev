@@ -10,11 +10,11 @@
 
 #include "webrtc/modules/audio_coding/main/test/APITest.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <cctype>
 #include <iostream>
 #include <ostream>
 #include <string>
@@ -22,7 +22,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
-#include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
+#include "webrtc/modules/audio_coding/main/source/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/main/test/utility.h"
 #include "webrtc/system_wrappers/interface/event_wrapper.h"
 #include "webrtc/system_wrappers/interface/thread_wrapper.h"
@@ -55,8 +55,8 @@ void APITest::Wait(uint32_t waitLengthMs) {
 }
 
 APITest::APITest()
-    : _acmA(AudioCodingModule::Create(1)),
-      _acmB(AudioCodingModule::Create(2)),
+    : _acmA(NULL),
+      _acmB(NULL),
       _channel_A2B(NULL),
       _channel_B2A(NULL),
       _writeToFile(true),
@@ -98,6 +98,11 @@ APITest::APITest()
     _payloadUsed[n] = false;
   }
 
+  for (n = 0; n < 3; n++) {
+    _receiveVADActivityA[n] = 0;
+    _receiveVADActivityB[n] = 0;
+  }
+
   _movingDot[40] = '\0';
 
   for (int n = 0; n < 40; n++) {
@@ -106,6 +111,9 @@ APITest::APITest()
 }
 
 APITest::~APITest() {
+  DESTROY_ACM(_acmA);
+  DESTROY_ACM(_acmB);
+
   DELETE_POINTER(_channel_A2B);
   DELETE_POINTER(_channel_B2A);
 
@@ -133,6 +141,9 @@ APITest::~APITest() {
 }
 
 int16_t APITest::SetUp() {
+  _acmA = AudioCodingModule::Create(1);
+  _acmB = AudioCodingModule::Create(2);
+
   CodecInst dummyCodec;
   int lastPayloadType = 0;
 
@@ -347,6 +358,7 @@ bool APITest::PullAudioRunA() {
     if (_writeToFile) {
       _outFileA.Write10MsData(audioFrame);
     }
+    _receiveVADActivityA[(int) audioFrame.vad_activity_]++;
   }
   return true;
 }
@@ -368,6 +380,7 @@ bool APITest::PullAudioRunB() {
     if (_writeToFile) {
       _outFileB.Write10MsData(audioFrame);
     }
+    _receiveVADActivityB[(int) audioFrame.vad_activity_]++;
   }
   return true;
 }
@@ -451,7 +464,7 @@ void APITest::RunTest(char thread) {
   {
     WriteLockScoped cs(_apiTestRWLock);
     if (thread == 'A') {
-      _testNumA = (_testNumB + 1 + (rand() % 4)) % 5;
+      _testNumA = (_testNumB + 1 + (rand() % 6)) % 7;
       testNum = _testNumA;
 
       _movingDot[_dotPositionA] = ' ';
@@ -464,7 +477,7 @@ void APITest::RunTest(char thread) {
       _dotPositionA += _dotMoveDirectionA;
       _movingDot[_dotPositionA] = (_dotMoveDirectionA > 0) ? '>' : '<';
     } else {
-      _testNumB = (_testNumA + 1 + (rand() % 4)) % 5;
+      _testNumB = (_testNumA + 1 + (rand() % 6)) % 7;
       testNum = _testNumB;
 
       _movingDot[_dotPositionB] = ' ';
@@ -500,6 +513,14 @@ void APITest::RunTest(char thread) {
     case 4:
       TestRegisteration('A');
       break;
+    case 5:
+      TestReceiverVAD('A');
+      break;
+    case 6:
+#ifdef WEBRTC_DTMF_DETECTION
+      LookForDTMF('A');
+#endif
+      break;
     default:
       fprintf(stderr, "Wrong Test Number\n");
       getchar();
@@ -528,6 +549,10 @@ bool APITest::APIRunA() {
     // VAD TEST
     TestSendVAD('A');
     TestRegisteration('A');
+    TestReceiverVAD('A');
+#ifdef WEBRTC_DTMF_DETECTION
+    LookForDTMF('A');
+#endif
   }
   return true;
 }
@@ -962,15 +987,18 @@ void APITest::TestRegisteration(char sendSide) {
 void APITest::TestPlayout(char receiveSide) {
   AudioCodingModule* receiveACM;
   AudioPlayoutMode* playoutMode = NULL;
+  ACMBackgroundNoiseMode* bgnMode = NULL;
   switch (receiveSide) {
     case 'A': {
       receiveACM = _acmA;
       playoutMode = &_playoutModeA;
+      bgnMode = &_bgnModeA;
       break;
     }
     case 'B': {
       receiveACM = _acmB;
       playoutMode = &_playoutModeB;
+      bgnMode = &_bgnModeB;
       break;
     }
     default:
@@ -983,6 +1011,29 @@ void APITest::TestPlayout(char receiveSide) {
   CHECK_ERROR_MT(receiveFreqHz);
   CHECK_ERROR_MT(playoutFreqHz);
 
+  char bgnString[25];
+  switch (*bgnMode) {
+    case On: {
+      *bgnMode = Fade;
+      strncpy(bgnString, "Fade", 25);
+      break;
+    }
+    case Fade: {
+      *bgnMode = Off;
+      strncpy(bgnString, "OFF", 25);
+      break;
+    }
+    case Off: {
+      *bgnMode = On;
+      strncpy(bgnString, "ON", 25);
+      break;
+    }
+    default:
+      *bgnMode = On;
+      strncpy(bgnString, "ON", 25);
+  }
+  CHECK_ERROR_MT(receiveACM->SetBackgroundNoiseMode(*bgnMode));
+  bgnString[24] = '\0';
 
   char playoutString[25];
   switch (*playoutMode) {
@@ -1015,10 +1066,63 @@ void APITest::TestPlayout(char receiveSide) {
     fprintf(stdout, "Receive Frequency....... %d Hz\n", receiveFreqHz);
     fprintf(stdout, "Playout Frequency....... %d Hz\n", playoutFreqHz);
     fprintf(stdout, "Audio Playout Mode...... %s\n", playoutString);
+    fprintf(stdout, "Background Noise Mode... %s\n", bgnString);
   }
 }
 
 // set/get receiver VAD status & mode.
+void APITest::TestReceiverVAD(char side) {
+  AudioCodingModule* myACM;
+  int* myReceiveVADActivity;
+
+  if (side == 'A') {
+    myACM = _acmA;
+    myReceiveVADActivity = _receiveVADActivityA;
+  } else {
+    myACM = _acmB;
+    myReceiveVADActivity = _receiveVADActivityB;
+  }
+
+  ACMVADMode mode = myACM->ReceiveVADMode();
+
+  CHECK_ERROR_MT(mode);
+
+  if (!_randomTest) {
+    fprintf(stdout, "\n\nCurrent Receive VAD at side %c\n", side);
+    fprintf(stdout, "----------------------------------\n");
+    fprintf(stdout, "mode.......... %d\n", (int) mode);
+    fprintf(stdout, "VAD Active.... %d\n", myReceiveVADActivity[0]);
+    fprintf(stdout, "VAD Passive... %d\n", myReceiveVADActivity[1]);
+    fprintf(stdout, "VAD Unknown... %d\n", myReceiveVADActivity[2]);
+  }
+
+  if (!_randomTest) {
+    fprintf(stdout, "\nChange Receive VAD at side %c\n\n", side);
+  }
+
+  switch (mode) {
+    case VADNormal:
+      mode = VADAggr;
+      break;
+    case VADLowBitrate:
+      mode = VADVeryAggr;
+      break;
+    case VADAggr:
+      mode = VADLowBitrate;
+      break;
+    case VADVeryAggr:
+      mode = VADNormal;
+      break;
+    default:
+      mode = VADNormal;
+
+      CHECK_ERROR_MT(myACM->SetReceiveVADMode(mode));
+  }
+  for (int n = 0; n < 3; n++) {
+    myReceiveVADActivity[n] = 0;
+  }
+}
+
 void APITest::TestSendVAD(char side) {
   if (_randomTest) {
     return;
@@ -1217,6 +1321,25 @@ void APITest::ChangeCodec(char side) {
     *thereIsEncoder = true;
   }
   Wait(500);
+}
+
+void APITest::LookForDTMF(char side) {
+  if (!_randomTest) {
+    fprintf(stdout, "\n\nLooking for DTMF Signal in Side %c\n", side);
+    fprintf(stdout, "----------------------------------------\n");
+  }
+
+  if (side == 'A') {
+    _acmB->RegisterIncomingMessagesCallback(NULL);
+    _acmA->RegisterIncomingMessagesCallback(_dtmfCallback);
+    Wait(1000);
+    _acmA->RegisterIncomingMessagesCallback(NULL);
+  } else {
+    _acmA->RegisterIncomingMessagesCallback(NULL);
+    _acmB->RegisterIncomingMessagesCallback(_dtmfCallback);
+    Wait(1000);
+    _acmB->RegisterIncomingMessagesCallback(NULL);
+  }
 }
 
 }  // namespace webrtc

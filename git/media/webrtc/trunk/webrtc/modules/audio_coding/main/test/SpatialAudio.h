@@ -11,7 +11,6 @@
 #ifndef ACM_TEST_SPATIAL_AUDIO_H
 #define ACM_TEST_SPATIAL_AUDIO_H
 
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "ACMTest.h"
 #include "Channel.h"
 #include "PCMFile.h"
@@ -33,9 +32,9 @@ class SpatialAudio : public ACMTest {
   void EncodeDecode(double leftPanning, double rightPanning);
   void EncodeDecode();
 
-  scoped_ptr<AudioCodingModule> _acmLeft;
-  scoped_ptr<AudioCodingModule> _acmRight;
-  scoped_ptr<AudioCodingModule> _acmReceiver;
+  AudioCodingModule* _acmLeft;
+  AudioCodingModule* _acmRight;
+  AudioCodingModule* _acmReceiver;
   Channel* _channel;
   PCMFile _inFile;
   PCMFile _outFile;

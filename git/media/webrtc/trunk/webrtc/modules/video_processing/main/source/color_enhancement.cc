@@ -8,8 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <stdlib.h>  // NULL
-
+#include <cstdlib>  // NULL
 #include "webrtc/modules/video_processing/main/source/color_enhancement.h"
 #include "webrtc/modules/video_processing/main/source/color_enhancement_private.h"
 #include "webrtc/system_wrappers/interface/trace.h"
@@ -60,6 +59,6 @@ namespace VideoProcessing
         return VPM_OK;
     }
 
-}  // namespace
+} //namespace
 
-}  // namespace webrtc
+} //namespace webrtc

@@ -167,3 +167,4 @@ int WebRtcSpl_DownsampleFast_mips(const int16_t* data_in,
 #endif  // #if defined(MIPS_DSP_R2_LE)
   return 0;
 }
+

@@ -384,7 +384,7 @@ Parser<SyntaxParseHandler>::abortIfSyntaxParser()
 
 template <typename ParseHandler>
 Parser<ParseHandler>::Parser(ExclusiveContext *cx, LifoAlloc *alloc,
-                             const ReadOnlyCompileOptions &options,
+                             const CompileOptions &options,
                              const jschar *chars, size_t length, bool foldConstants,
                              Parser<SyntaxParseHandler> *syntaxParser,
                              LazyScript *lazyOuterFunction)

@@ -30,13 +30,22 @@ class TestBitrateObserver : public RemoteBitrateObserver {
   virtual ~TestBitrateObserver() {}
 
   virtual void OnReceiveBitrateChanged(const std::vector<unsigned int>& ssrcs,
-                                       unsigned int bitrate) OVERRIDE;
+                                       unsigned int bitrate) {
+    latest_bitrate_ = bitrate;
+    updated_ = true;
+  }
 
-  void Reset() { updated_ = false; }
+  void Reset() {
+    updated_ = false;
+  }
 
-  bool updated() const { return updated_; }
+  bool updated() const {
+    return updated_;
+  }
 
-  unsigned int latest_bitrate() const { return latest_bitrate_; }
+  unsigned int latest_bitrate() const {
+    return latest_bitrate_;
+  }
 
  private:
   bool updated_;
@@ -128,6 +137,8 @@ class StreamGenerator {
   // it possible to simulate different types of channels.
   int64_t GenerateFrame(RtpStream::PacketList* packets, int64_t time_now_us);
 
+  void Rtcps(RtcpList* rtcps, int64_t time_now_us) const;
+
  private:
   typedef std::map<unsigned int, RtpStream*> StreamMap;
 
@@ -145,7 +156,6 @@ class StreamGenerator {
 class RemoteBitrateEstimatorTest : public ::testing::Test {
  public:
   RemoteBitrateEstimatorTest();
-  virtual ~RemoteBitrateEstimatorTest();
 
  protected:
   virtual void SetUp() = 0;
@@ -200,6 +210,7 @@ class RemoteBitrateEstimatorTest : public ::testing::Test {
   static const unsigned int kDefaultSsrc;
 
   SimulatedClock clock_;  // Time at the receiver.
+  bool align_streams_;
   scoped_ptr<testing::TestBitrateObserver> bitrate_observer_;
   scoped_ptr<RemoteBitrateEstimator> bitrate_estimator_;
   scoped_ptr<testing::StreamGenerator> stream_generator_;

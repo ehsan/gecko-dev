@@ -12,7 +12,7 @@
 #define WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_ACM_GENERIC_CODEC_H_
 
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module_typedefs.h"
-#include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
+#include "webrtc/modules/audio_coding/main/source/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq.h"
 #include "webrtc/system_wrappers/interface/rw_lock_wrapper.h"
 #include "webrtc/system_wrappers/interface/trace.h"
@@ -27,9 +27,6 @@ namespace webrtc {
 
 // forward declaration
 struct CodecInst;
-
-namespace acm1 {
-
 class ACMNetEQ;
 
 class ACMGenericCodec {
@@ -370,16 +367,16 @@ class ACMGenericCodec {
 
   ///////////////////////////////////////////////////////////////////////////
   // int16_t SetVAD()
-  // This is called to set VAD & DTX. If the codec has internal DTX, it will
+  // This is called to set VAD & DTX. If the codec has internal DTX that will
   // be used. If DTX is enabled and the codec does not have internal DTX,
   // WebRtc-VAD will be used to decide if the frame is active. If DTX is
-  // disabled but VAD is enabled the audio is passed through VAD to label it
-  // as active or passive, but the frame is encoded normally. However the
+  // disabled but VAD is enabled. The audio is passed through VAD to label it
+  // as active or passive, but the frame is  encoded normally. However the
   // bit-stream is labeled properly so that ACM::Process() can use this
   // information. In case of failure, the previous states of the VAD & DTX
   // are kept.
   //
-  // Input/Output:
+  // Inputs:
   //   -enable_dtx         : if true DTX will be enabled otherwise the DTX is
   //                         disabled. If codec has internal DTX that will be
   //                         used, otherwise WebRtc-CNG is used. In the latter
@@ -395,9 +392,9 @@ class ACMGenericCodec {
   //   -1 if failed to set DTX & VAD as specified,
   //    0 if succeeded.
   //
-  int16_t SetVAD(bool* enable_dtx,
-                 bool* enable_vad,
-                 ACMVADMode* mode);
+  int16_t SetVAD(const bool enable_dtx = true,
+                 const bool enable_vad = false,
+                 const ACMVADMode mode = VADNormal);
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t ReplaceInternalDTX()
@@ -597,7 +594,9 @@ class ACMGenericCodec {
   //    0 if succeeded in updating the decoder.
   //   -1 if failed to update.
   //
-  virtual int16_t UpdateDecoderSampFreq(int16_t /* codec_id */);
+  virtual int16_t UpdateDecoderSampFreq(int16_t /* codec_id */) {
+    return 0;
+  }
 
   ///////////////////////////////////////////////////////////////////////////
   // UpdateEncoderSampFreq()
@@ -748,7 +747,9 @@ class ACMGenericCodec {
   //   -true  if stereo codec
   //   -false if not stereo codec.
   //
-  virtual bool IsTrueStereoCodec();
+  virtual bool IsTrueStereoCodec() {
+    return false;
+  }
 
   ///////////////////////////////////////////////////////////////////////////
   // HasFrameToEncode()
@@ -885,9 +886,9 @@ class ACMGenericCodec {
   // See SetVAD() for the description of function, input(s)/output(s) and
   // return value.
   //
-  int16_t SetVADSafe(bool* enable_dtx,
-                     bool* enable_vad,
-                     ACMVADMode* mode);
+  int16_t SetVADSafe(const bool enable_dtx = true,
+                     const bool enable_vad = false,
+                     const ACMVADMode mode = VADNormal);
 
   ///////////////////////////////////////////////////////////////////////////
   // See ReplaceInternalDTX() for the description of function, input and
@@ -1147,7 +1148,9 @@ class ACMGenericCodec {
   // Output:
   //   -rate_bps           : the current target rate of the codec.
   //
-  virtual void CurrentRate(int32_t& /* rate_bps */);
+  virtual void CurrentRate(int32_t& /* rate_bps */) {
+    return;
+  }
 
   virtual void SaveDecoderParamSafe(const WebRtcACMCodecParams* codec_params);
 
@@ -1216,8 +1219,6 @@ class ACMGenericCodec {
   uint32_t unique_id_;
 };
 
-}  // namespace acm1
-
-}  // namespace webrtc
+}  // namespace webrt
 
 #endif  // WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_ACM_GENERIC_CODEC_H_

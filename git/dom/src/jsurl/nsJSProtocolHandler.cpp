@@ -21,6 +21,7 @@
 #include "nsIURI.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIInterfaceRequestor.h"
@@ -118,19 +119,22 @@ static
 nsIScriptGlobalObject* GetGlobalObject(nsIChannel* aChannel)
 {
     // Get the global object owner from the channel
-    nsCOMPtr<nsIDocShell> docShell;
-    NS_QueryNotificationCallbacks(aChannel, docShell);
-    if (!docShell) {
-        NS_WARNING("Unable to get a docShell from the channel!");
+    nsCOMPtr<nsIScriptGlobalObjectOwner> globalOwner;
+    NS_QueryNotificationCallbacks(aChannel, globalOwner);
+    if (!globalOwner) {
+        NS_WARNING("Unable to get an nsIScriptGlobalObjectOwner from the "
+                   "channel!");
+    }
+    if (!globalOwner) {
         return nullptr;
     }
 
-    // So far so good: get the script global from its docshell
-    nsIScriptGlobalObject* global = docShell->GetScriptGlobalObject();
+    // So far so good: get the script context from its owner.
+    nsIScriptGlobalObject* global = globalOwner->GetScriptGlobalObject();
 
     NS_ASSERTION(global,
                  "Unable to get an nsIScriptGlobalObject from the "
-                 "docShell!");
+                 "ScriptGlobalObjectOwner!");
     return global;
 }
 

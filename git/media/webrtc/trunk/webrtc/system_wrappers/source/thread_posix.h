@@ -30,15 +30,15 @@ class ThreadPosix : public ThreadWrapper {
 
   ThreadPosix(ThreadRunFunction func, ThreadObj obj, ThreadPriority prio,
               const char* thread_name);
-  virtual ~ThreadPosix();
+  ~ThreadPosix();
 
   // From ThreadWrapper.
-  virtual void SetNotAlive() OVERRIDE;
-  virtual bool Start(unsigned int& id) OVERRIDE;
+  virtual void SetNotAlive();
+  virtual bool Start(unsigned int& id);
   // Not implemented on Mac.
   virtual bool SetAffinity(const int* processor_numbers,
-                           unsigned int amount_of_processors) OVERRIDE;
-  virtual bool Stop() OVERRIDE;
+                           unsigned int amount_of_processors);
+  virtual bool Stop();
 
   void Run();
 
@@ -68,6 +68,6 @@ class ThreadPosix : public ThreadWrapper {
   pthread_t               thread_;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_SOURCE_THREAD_POSIX_H_

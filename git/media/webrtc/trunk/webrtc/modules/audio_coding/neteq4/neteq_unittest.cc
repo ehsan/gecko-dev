@@ -23,7 +23,6 @@
 #include "gtest/gtest.h"
 #include "webrtc/modules/audio_coding/neteq4/test/NETEQTEST_RTPpacket.h"
 #include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/test/testsupport/gtest_disable.h"
 #include "webrtc/typedefs.h"
 
 namespace webrtc {
@@ -230,10 +229,8 @@ void NetEqDecodingTest::LoadDecoders() {
   ASSERT_EQ(0, neteq_->RegisterPayloadType(kDecoderPCMu, 0));
   // Load PCMa.
   ASSERT_EQ(0, neteq_->RegisterPayloadType(kDecoderPCMa, 8));
-#ifndef WEBRTC_ANDROID
   // Load iLBC.
   ASSERT_EQ(0, neteq_->RegisterPayloadType(kDecoderILBC, 102));
-#endif  // WEBRTC_ANDROID
   // Load iSAC.
   ASSERT_EQ(0, neteq_->RegisterPayloadType(kDecoderISAC, 103));
   // Load iSAC SWB.
@@ -382,7 +379,7 @@ void NetEqDecodingTest::PopulateCng(int frame_index,
 #define MAYBE_TestBitExactness TestBitExactness
 #endif
 
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(MAYBE_TestBitExactness)) {
+TEST_F(NetEqDecodingTest, MAYBE_TestBitExactness) {
   const std::string kInputRtpFile = webrtc::test::ProjectRootPath() +
       "resources/audio_coding/neteq_universal_new.rtp";
 #if defined(_MSC_VER) && (_MSC_VER >= 1700)
@@ -397,7 +394,7 @@ TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(MAYBE_TestBitExactness)) {
   DecodeAndCompare(kInputRtpFile, kInputRefFile);
 }
 
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(TestNetworkStatistics)) {
+TEST_F(NetEqDecodingTest, TestNetworkStatistics) {
   const std::string kInputRtpFile = webrtc::test::ProjectRootPath() +
       "resources/audio_coding/neteq_universal_new.rtp";
 #if defined(_MSC_VER) && (_MSC_VER >= 1700)
@@ -415,7 +412,7 @@ TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(TestNetworkStatistics)) {
 }
 
 // TODO(hlundin): Re-enable test once the statistics interface is up and again.
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(TestFrameWaitingTimeStatistics)) {
+TEST_F(NetEqDecodingTest, TestFrameWaitingTimeStatistics) {
   // Use fax mode to avoid time-scaling. This is to simplify the testing of
   // packet waiting times in the packet buffer.
   neteq_->SetPlayoutMode(kPlayoutFax);
@@ -490,8 +487,7 @@ TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(TestFrameWaitingTimeStatistics)) {
   EXPECT_EQ(100u, waiting_times.size());
 }
 
-TEST_F(NetEqDecodingTest,
-       DISABLED_ON_ANDROID(TestAverageInterArrivalTimeNegative)) {
+TEST_F(NetEqDecodingTest, TestAverageInterArrivalTimeNegative) {
   const int kNumFrames = 3000;  // Needed for convergence.
   int frame_index = 0;
   const int kSamples = 10 * 16;
@@ -522,8 +518,7 @@ TEST_F(NetEqDecodingTest,
   EXPECT_EQ(-103196, network_stats.clockdrift_ppm);
 }
 
-TEST_F(NetEqDecodingTest,
-       DISABLED_ON_ANDROID(TestAverageInterArrivalTimePositive)) {
+TEST_F(NetEqDecodingTest, TestAverageInterArrivalTimePositive) {
   const int kNumFrames = 5000;  // Needed for convergence.
   int frame_index = 0;
   const int kSamples = 10 * 16;
@@ -554,7 +549,7 @@ TEST_F(NetEqDecodingTest,
   EXPECT_EQ(110946, network_stats.clockdrift_ppm);
 }
 
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(LongCngWithClockDrift)) {
+TEST_F(NetEqDecodingTest, LongCngWithClockDrift) {
   uint16_t seq_no = 0;
   uint32_t timestamp = 0;
   const int kFrameSizeMs = 30;
@@ -647,7 +642,7 @@ TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(LongCngWithClockDrift)) {
   EXPECT_GE(delay_after, delay_before - 20 * 16);
 }
 
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(UnknownPayloadType)) {
+TEST_F(NetEqDecodingTest, UnknownPayloadType) {
   const int kPayloadBytes = 100;
   uint8_t payload[kPayloadBytes] = {0};
   WebRtcRTPHeader rtp_info;
@@ -658,19 +653,7 @@ TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(UnknownPayloadType)) {
   EXPECT_EQ(NetEq::kUnknownRtpPayloadType, neteq_->LastError());
 }
 
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(OversizePacket)) {
-  // Payload size is greater than packet buffer size
-  const int kPayloadBytes = NetEq::kMaxBytesInBuffer + 1;
-  uint8_t payload[kPayloadBytes] = {0};
-  WebRtcRTPHeader rtp_info;
-  PopulateRtpInfo(0, 0, &rtp_info);
-  rtp_info.header.payloadType = 103;  // iSAC, no packet splitting.
-  EXPECT_EQ(NetEq::kFail,
-            neteq_->InsertPacket(rtp_info, payload, kPayloadBytes, 0));
-  EXPECT_EQ(NetEq::kOversizePacket, neteq_->LastError());
-}
-
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(DecoderError)) {
+TEST_F(NetEqDecodingTest, DecoderError) {
   const int kPayloadBytes = 100;
   uint8_t payload[kPayloadBytes] = {0};
   WebRtcRTPHeader rtp_info;
@@ -709,7 +692,7 @@ TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(DecoderError)) {
   }
 }
 
-TEST_F(NetEqDecodingTest, DISABLED_ON_ANDROID(GetAudioBeforeInsertPacket)) {
+TEST_F(NetEqDecodingTest, GetAudioBeforeInsertPacket) {
   NetEqOutputType type;
   // Set all of |out_data_| to 1, and verify that it was set to 0 by the call
   // to GetAudio.

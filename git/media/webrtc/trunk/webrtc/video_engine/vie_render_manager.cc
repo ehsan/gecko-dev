@@ -43,11 +43,14 @@ ViERenderManager::ViERenderManager(int32_t engine_id)
 ViERenderManager::~ViERenderManager() {
   WEBRTC_TRACE(webrtc::kTraceMemory, webrtc::kTraceVideo, ViEId(engine_id_),
                "ViERenderManager Destructor, engine_id: %d", engine_id_);
-  for (RendererMap::iterator it = stream_to_vie_renderer_.begin();
-       it != stream_to_vie_renderer_.end();
-       ++it) {
-    // The renderer is deleted in RemoveRenderStream.
-    RemoveRenderStream(it->first);
+
+  while (stream_to_vie_renderer_.Size() != 0) {
+    MapItem* item = stream_to_vie_renderer_.First();
+    assert(item);
+    const int32_t render_id = item->GetId();
+    // The renderer is delete in RemoveRenderStream.
+    item = NULL;
+    RemoveRenderStream(render_id);
   }
 }
 
@@ -110,8 +113,7 @@ ViERenderer* ViERenderManager::AddRenderStream(const int32_t render_id,
                                                const float bottom) {
   CriticalSectionScoped cs(list_cs_.get());
 
-  if (stream_to_vie_renderer_.find(render_id) !=
-      stream_to_vie_renderer_.end()) {
+  if (stream_to_vie_renderer_.Find(render_id) != NULL) {
     // This stream is already added to a renderer, not allowed!
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
                  "Render stream already exists");
@@ -144,7 +146,7 @@ ViERenderer* ViERenderManager::AddRenderStream(const int32_t render_id,
                  "Could not create new render stream");
     return NULL;
   }
-  stream_to_vie_renderer_[render_id] = vie_renderer;
+  stream_to_vie_renderer_.Insert(render_id, vie_renderer);
   return vie_renderer;
 }
 
@@ -153,24 +155,28 @@ int32_t ViERenderManager::RemoveRenderStream(
   // We need exclusive right to the items in the render manager to delete a
   // stream.
   ViEManagerWriteScoped scope(this);
+
   CriticalSectionScoped cs(list_cs_.get());
-  RendererMap::iterator it = stream_to_vie_renderer_.find(render_id);
-  if (it == stream_to_vie_renderer_.end()) {
+  MapItem* map_item = stream_to_vie_renderer_.Find(render_id);
+  if (!map_item) {
     // No such stream
     WEBRTC_TRACE(webrtc::kTraceWarning, webrtc::kTraceVideo, ViEId(engine_id_),
                  "No renderer for this stream found, channel_id");
     return 0;
   }
 
+  ViERenderer* vie_renderer = static_cast<ViERenderer*>(map_item->GetItem());
+  assert(vie_renderer);
+
   // Get the render module pointer for this vie_render object.
-  VideoRender& renderer = it->second->RenderModule();
+  VideoRender& renderer = vie_renderer->RenderModule();
 
   // Delete the vie_render.
   // This deletes the stream in the render module.
-  delete it->second;
+  delete vie_renderer;
 
   // Remove from the stream map.
-  stream_to_vie_renderer_.erase(it);
+  stream_to_vie_renderer_.Erase(map_item);
 
   // Check if there are other streams in the module.
   if (!use_external_render_module_ &&
@@ -210,11 +216,15 @@ VideoRender* ViERenderManager::FindRenderModule(void* window) {
 }
 
 ViERenderer* ViERenderManager::ViERenderPtr(int32_t render_id) const {
-  RendererMap::const_iterator it = stream_to_vie_renderer_.find(render_id);
-  if (it == stream_to_vie_renderer_.end())
+  ViERenderer* renderer = NULL;
+  MapItem* map_item = stream_to_vie_renderer_.Find(render_id);
+  if (!map_item) {
+    // No such stream in any renderer.
     return NULL;
+  }
+  renderer = static_cast<ViERenderer*>(map_item->GetItem());
 
-  return it->second;
+  return renderer;
 }
 
 }  // namespace webrtc

@@ -10,16 +10,13 @@
 
 #include "webrtc/modules/audio_coding/main/source/nack.h"
 
-#include <assert.h>  // For assert.
-
 #include <algorithm>  // For std::max.
+#include <cassert>  // For assert.
 
 #include "webrtc/modules/interface/module_common_types.h"
 #include "webrtc/system_wrappers/interface/logging.h"
 
 namespace webrtc {
-
-namespace acm1 {
 
 namespace {
 
@@ -224,6 +221,4 @@ std::vector<uint16_t> Nack::GetNackList(int round_trip_time_ms) const {
   return sequence_numbers;
 }
 
-}  // namespace acm1
-
-}  // namespace webrtc
+}  // webrtc

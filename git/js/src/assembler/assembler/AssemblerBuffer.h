@@ -70,7 +70,7 @@ namespace JSC {
         ~AssemblerBuffer()
         {
             if (m_buffer != m_inlineBuffer)
-                js_free(m_buffer);
+                free(m_buffer);
         }
 
         void ensureSpace(int space)
@@ -222,7 +222,7 @@ namespace JSC {
             }
 
             if (m_buffer == m_inlineBuffer) {
-                newBuffer = static_cast<char*>(js_malloc(newCapacity));
+                newBuffer = static_cast<char*>(malloc(newCapacity));
                 if (!newBuffer) {
                     m_size = 0;
                     m_oom = true;
@@ -230,7 +230,7 @@ namespace JSC {
                 }
                 memcpy(newBuffer, m_buffer, m_size);
             } else {
-                newBuffer = static_cast<char*>(js_realloc(m_buffer, newCapacity));
+                newBuffer = static_cast<char*>(realloc(m_buffer, newCapacity));
                 if (!newBuffer) {
                     m_size = 0;
                     m_oom = true;

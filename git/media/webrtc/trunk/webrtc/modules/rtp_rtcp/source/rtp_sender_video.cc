@@ -37,7 +37,7 @@ RTPSenderVideo::RTPSenderVideo(const int32_t id,
     _rtpSender(*rtpSender),
     _sendVideoCritsect(CriticalSectionWrapper::CreateCriticalSection()),
 
-    _videoType(kRtpVideoGeneric),
+    _videoType(kRtpGenericVideo),
     _videoCodecInformation(NULL),
     _maxBitrate(0),
     _retransmissionSettings(kRetransmitBaseLayer),
@@ -89,13 +89,13 @@ int32_t RTPSenderVideo::RegisterVideoPayload(
     ModuleRTPUtility::Payload*& payload) {
   CriticalSectionScoped cs(_sendVideoCritsect);
 
-  RtpVideoCodecTypes videoType = kRtpVideoGeneric;
+  RtpVideoCodecTypes videoType = kRtpGenericVideo;
   if (ModuleRTPUtility::StringCompare(payloadName, "VP8",3)) {
-    videoType = kRtpVideoVp8;
+    videoType = kRtpVp8Video;
   } else if (ModuleRTPUtility::StringCompare(payloadName, "I420", 4)) {
-    videoType = kRtpVideoGeneric;
+    videoType = kRtpGenericVideo;
   } else {
-    videoType = kRtpVideoGeneric;
+    videoType = kRtpGenericVideo;
   }
   payload = new ModuleRTPUtility::Payload;
   payload->name[RTP_PAYLOAD_NAME_SIZE - 1] = 0;
@@ -302,11 +302,11 @@ RTPSenderVideo::SendVideo(const RtpVideoCodecTypes videoType,
     int32_t retVal = -1;
     switch(videoType)
     {
-    case kRtpVideoGeneric:
+    case kRtpGenericVideo:
         retVal = SendGeneric(frameType, payloadType, captureTimeStamp,
                              capture_time_ms, payloadData, payloadSize);
         break;
-    case kRtpVideoVp8:
+    case kRtpVp8Video:
         retVal = SendVP8(frameType,
                          payloadType,
                          captureTimeStamp,
@@ -476,14 +476,18 @@ RTPSenderVideo::SendVP8(const FrameType frameType,
                        " %d", _rtpSender.SequenceNumber());
         }
     }
-    TRACE_EVENT_ASYNC_END1("webrtc", "Video", capture_time_ms,
-                           "timestamp", _rtpSender.Timestamp());
     return 0;
 }
 
 void RTPSenderVideo::ProcessBitrate() {
   _videoBitrate.Process();
   _fecOverheadRate.Process();
+  TRACE_COUNTER_ID1("webrtc_rtp", "VideoSendBitrate",
+                    _rtpSender.SSRC(),
+                    _videoBitrate.BitrateLast());
+  TRACE_COUNTER_ID1("webrtc_rtp", "VideoFecOverheadRate",
+                    _rtpSender.SSRC(),
+                    _fecOverheadRate.BitrateLast());
 }
 
 uint32_t RTPSenderVideo::VideoBitrateSent() const {
@@ -503,4 +507,4 @@ int RTPSenderVideo::SetSelectiveRetransmissions(uint8_t settings) {
   return 0;
 }
 
-}  // namespace webrtc
+} // namespace webrtc

@@ -249,7 +249,7 @@ condIf(const ParseNode *pn, ParseNodeKind kind)
 
 static bool
 Fold(ExclusiveContext *cx, ParseNode **pnp,
-     FullParseHandler &handler, const ReadOnlyCompileOptions &options,
+     FullParseHandler &handler, const CompileOptions &options,
      bool inGenexpLambda, SyntacticContext sc)
 {
     ParseNode *pn = *pnp;

@@ -45,6 +45,7 @@
 #include "webrtc/video_engine/include/vie_codec.h"
 #include "webrtc/video_engine/include/vie_render.h"
 #include "webrtc/video_engine/include/vie_capture.h"
+#include "webrtc/video_engine/include/vie_file.h"
 #ifdef MOZ_B2G_CAMERA
 #include "CameraPreviewMediaStream.h"
 #include "DOMCameraManager.h"
@@ -117,14 +118,7 @@ public:
 #else
   // ViEExternalRenderer.
   virtual int FrameSizeChange(unsigned int, unsigned int, unsigned int);
-  virtual int DeliverFrame(unsigned char*,int, uint32_t , int64_t,
-                           void *handle);
-  /**
-   * Does DeliverFrame() support a null buffer and non-null handle
-   * (video texture)?
-   * XXX Investigate!  Especially for Android/B2G
-   */
-  virtual bool IsTextureSupported() { return false; }
+  virtual int DeliverFrame(unsigned char*, int, uint32_t, int64_t);
 
   MediaEngineWebRTCVideoSource(webrtc::VideoEngine* aVideoEnginePtr, int aIndex)
     : mVideoEngine(aVideoEnginePtr)

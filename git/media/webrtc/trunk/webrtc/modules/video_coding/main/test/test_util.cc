@@ -10,9 +10,8 @@
 
 #include "webrtc/modules/video_coding/main/test/test_util.h"
 
-#include <assert.h>
-#include <math.h>
-
+#include <cassert>
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 
@@ -147,10 +146,12 @@ int32_t FileOutputFrameReceiver::FrameToRender(
   return 0;
 }
 
-webrtc::RtpVideoCodecTypes ConvertCodecType(const char* plname) {
+webrtc::RTPVideoCodecTypes ConvertCodecType(const char* plname) {
   if (strncmp(plname,"VP8" , 3) == 0) {
-    return webrtc::kRtpVideoVp8;
+    return webrtc::kRTPVideoVP8;
+  } else if (strncmp(plname,"I420" , 5) == 0) {
+    return webrtc::kRTPVideoI420;
   } else {
-    return webrtc::kRtpVideoNone;  // Default value
+    return webrtc::kRTPVideoNoVideo; // Default value
   }
 }

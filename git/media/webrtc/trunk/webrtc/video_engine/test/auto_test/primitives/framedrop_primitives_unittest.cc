@@ -10,8 +10,7 @@
 
 #include "webrtc/video_engine/test/auto_test/primitives/framedrop_primitives.h"
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <vector>
 
 #include "testing/gtest/include/gtest/gtest.h"
@@ -30,11 +29,11 @@ class FrameDropPrimitivesTest: public testing::Test {
   virtual ~FrameDropPrimitivesTest() {}
   void SetUp() {
     // Cleanup any previous output file.
-    remove(kOutputFilename.c_str());
+    std::remove(kOutputFilename.c_str());
   }
   void TearDown() {
     // Cleanup the temporary file.
-    remove(kOutputFilename.c_str());
+    std::remove(kOutputFilename.c_str());
   }
 };
 

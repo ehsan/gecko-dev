@@ -78,7 +78,9 @@ class ThreadWrapper {
   // should be lower than (number of CPUs - 1). amount_of_processors should be
   // equal to the number of processors listed in processor_numbers.
   virtual bool SetAffinity(const int* processor_numbers,
-                           const unsigned int amount_of_processors);
+                           const unsigned int amount_of_processors) {
+    return false;
+  }
 
   // Stops the spawned thread and waits for it to be reclaimed with a timeout
   // of two seconds. Will return false if the thread was not reclaimed.
@@ -87,6 +89,6 @@ class ThreadWrapper {
   virtual bool Stop() = 0;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_INTERFACE_THREAD_WRAPPER_H_

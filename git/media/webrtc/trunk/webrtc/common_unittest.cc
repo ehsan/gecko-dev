@@ -7,16 +7,16 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-#include "webrtc/common.h"
+#include "common.h"  // NOLINT
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 
 namespace webrtc {
 namespace {
 
 struct MyExperiment {
-  static const int kDefaultFactor;
-  static const int kDefaultOffset;
+  enum { kDefaultFactor = 1 };
+  enum { kDefaultOffset = 2 };
 
   MyExperiment()
     : factor(kDefaultFactor), offset(kDefaultOffset) {}
@@ -27,9 +27,6 @@ struct MyExperiment {
   int factor;
   int offset;
 };
-
-const int MyExperiment::kDefaultFactor = 1;
-const int MyExperiment::kDefaultOffset = 2;
 
 TEST(Config, ReturnsDefaultInstanceIfNotConfigured) {
   Config config;
@@ -71,7 +68,7 @@ struct SqrCost : Algo1_CostFunction {
   }
 };
 
-TEST(Config, SupportsPolymorphism) {
+TEST(Config, SupportsPolimorphism) {
   Config config;
   config.Set<Algo1_CostFunction>(new SqrCost());
   EXPECT_EQ(25, config.Get<Algo1_CostFunction>().cost(5));

@@ -14,10 +14,6 @@ import sys
 import helper_functions
 
 
-# Chrome browsertests will throw away stderr; avoid that output gets lost.
-sys.stderr = sys.stdout
-
-
 def convert_yuv_to_png_files(yuv_file_name, yuv_frame_width, yuv_frame_height,
                              output_directory, ffmpeg_dir=None):
   """Converts a YUV video file into PNG frames.
@@ -51,10 +47,8 @@ def convert_yuv_to_png_files(yuv_file_name, yuv_frame_width, yuv_frame_height,
     helper_functions.run_shell_command(
         command, fail_msg='Error during YUV to PNG conversion')
   except helper_functions.HelperError, err:
-    print 'Error executing command: %s. Error: %s' % (command, err)
-    return False
-  except OSError:
-    print ('Did not find %s. Have you installed it?' % ffmpeg_executable)
+    print >> sys.stderr, 'Error executing command: %s. Error: %s' % (command,
+                                                                     err)
     return False
   return True
 
@@ -107,11 +101,8 @@ def _decode_barcode_in_file(file_name, command_line_decoder):
     text_file.write(out)
     text_file.close()
   except helper_functions.HelperError, err:
-    print 'Barcode in %s cannot be decoded.' % file_name
-    print err
-    return False
-  except OSError:
-    print ('Did not find %s. Have you installed it?' % command_line_decoder)
+    print >> sys.stderr, 'Barcode in %s cannot be decoded.' % file_name
+    print >> sys.stderr, err
     return False
   return True
 
@@ -272,13 +263,14 @@ def _main():
                                   options.yuv_frame_height,
                                   output_directory=options.png_working_dir,
                                   ffmpeg_dir=options.ffmpeg_dir):
-    print 'An error occurred converting from YUV to PNG frames.'
+    print >> sys.stderr, 'An error occurred converting from YUV to PNG frames.'
     return -1
 
   # Decode the barcodes from the PNG frames.
   if not decode_frames(input_directory=options.png_working_dir,
                        zxing_dir=options.zxing_dir):
-    print 'An error occurred decoding barcodes from PNG frames.'
+    print >> sys.stderr, ('An error occurred decoding barcodes from PNG frames.'
+                          ' Have you built the zxing C++ executable?')
     return -2
 
   # Generate statistics file.

@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/codecs/i420/main/interface/i420.h"
+#include "modules/video_coding/codecs/i420/main/interface/i420.h"
 
-#include <limits>
 #include <string>
+#include <limits>
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
 
 namespace webrtc {
 

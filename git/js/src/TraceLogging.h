@@ -16,7 +16,7 @@
 #include "js/TypeDecls.h"
 
 namespace JS {
-class ReadOnlyCompileOptions;
+class CompileOptions;
 }
 
 namespace js {
@@ -103,7 +103,7 @@ class TraceLogging
     ~TraceLogging();
 
     void log(Type type, const char* text = nullptr, unsigned int number = 0);
-    void log(Type type, const JS::ReadOnlyCompileOptions &options);
+    void log(Type type, const JS::CompileOptions &options);
     void log(Type type, JSScript* script);
     void log(const char* log);
     void flush();
@@ -130,7 +130,7 @@ class AutoTraceLog {
 
   public:
     AutoTraceLog(TraceLogging* logger, TraceLogging::Type start, TraceLogging::Type stop,
-                 const JS::ReadOnlyCompileOptions &options)
+                 const JS::CompileOptions &options)
       : logger(logger),
         stop(stop)
     {

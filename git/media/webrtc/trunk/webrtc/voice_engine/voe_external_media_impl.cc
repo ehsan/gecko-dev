@@ -72,9 +72,8 @@ int VoEExternalMediaImpl::RegisterExternalMediaProcessing(
         case kPlaybackPerChannel:
         case kRecordingPerChannel:
         {
-            voe::ChannelOwner ch =
-                shared_->channel_manager().GetChannel(channel);
-            voe::Channel* channelPtr = ch.channel();
+            voe::ScopedChannel sc(shared_->channel_manager(), channel);
+            voe::Channel* channelPtr = sc.ChannelPtr();
             if (channelPtr == NULL)
             {
                 shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -116,9 +115,8 @@ int VoEExternalMediaImpl::DeRegisterExternalMediaProcessing(
         case kPlaybackPerChannel:
         case kRecordingPerChannel:
         {
-            voe::ChannelOwner ch =
-                shared_->channel_manager().GetChannel(channel);
-            voe::Channel* channelPtr = ch.channel();
+            voe::ScopedChannel sc(shared_->channel_manager(), channel);
+            voe::Channel* channelPtr = sc.ChannelPtr();
             if (channelPtr == NULL)
             {
                 shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -351,8 +349,8 @@ int VoEExternalMediaImpl::GetAudioFrame(int channel, int desired_sample_rate_hz,
         shared_->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ChannelOwner ch = shared_->channel_manager().GetChannel(channel);
-    voe::Channel* channelPtr = ch.channel();
+    voe::ScopedChannel sc(shared_->channel_manager(), channel);
+    voe::Channel* channelPtr = sc.ChannelPtr();
     if (channelPtr == NULL)
     {
         shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -389,8 +387,8 @@ int VoEExternalMediaImpl::SetExternalMixing(int channel, bool enable) {
         shared_->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ChannelOwner ch = shared_->channel_manager().GetChannel(channel);
-    voe::Channel* channelPtr = ch.channel();
+    voe::ScopedChannel sc(shared_->channel_manager(), channel);
+    voe::Channel* channelPtr = sc.ChannelPtr();
     if (channelPtr == NULL)
     {
         shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,

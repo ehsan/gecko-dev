@@ -211,9 +211,7 @@ TEST_F(TestLibYuv, ConvertTest) {
     return;
   }
 
-  ConvertToI420(kI420, res_i420_buffer.get(), 0, 0,
-      width_, height_, 0, kRotateNone, &res_i420_frame);
-  psnr = I420PSNR(&orig_frame_, &res_i420_frame);
+  psnr = I420PSNR(orig_buffer_.get(), res_i420_buffer.get(), width_, height_);
   EXPECT_EQ(48.0, psnr);
   j++;
 
