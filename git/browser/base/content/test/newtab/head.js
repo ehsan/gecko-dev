@@ -327,12 +327,6 @@ function restore() {
  * Creates a new tab containing 'about:newtab'.
  */
 function addNewTabPageTab() {
-  addNewTabPageTabPromise().then(TestRunner.next);
-}
-
-function addNewTabPageTabPromise() {
-  let deferred = Promise.defer();
-
   let tab = gWindow.gBrowser.selectedTab = gWindow.gBrowser.addTab("about:newtab");
   let browser = tab.linkedBrowser;
 
@@ -340,17 +334,20 @@ function addNewTabPageTabPromise() {
     if (NewTabUtils.allPages.enabled) {
       // Continue when the link cache has been populated.
       NewTabUtils.links.populateCache(function () {
-        deferred.resolve(whenSearchInitDone());
+        whenSearchInitDone();
       });
     } else {
-      deferred.resolve();
+      // It's important that we call next() asynchronously.
+      // 'yield addNewTabPageTab()' would fail if next() is called
+      // synchronously because the iterator is already executing.
+      executeSoon(TestRunner.next);
     }
   }
 
   // The new tab page might have been preloaded in the background.
   if (browser.contentDocument.readyState == "complete") {
     whenNewTabLoaded();
-    return deferred.promise;
+    return;
   }
 
   // Wait for the new tab page to be loaded.
@@ -358,8 +355,6 @@ function addNewTabPageTabPromise() {
     browser.removeEventListener("load", onLoad, true);
     whenNewTabLoaded();
   }, true);
-
-  return deferred.promise;
 }
 
 /**
@@ -642,16 +637,15 @@ function whenPagesUpdated(aCallback, aOnlyIfHidden=false) {
  * Waits for the response to the page's initial search state request.
  */
 function whenSearchInitDone() {
-  let deferred = Promise.defer();
   if (getContentWindow().gSearch._initialStateReceived) {
-    return Promise.resolve();
+    executeSoon(TestRunner.next);
+    return;
   }
   let eventName = "ContentSearchService";
   getContentWindow().addEventListener(eventName, function onEvent(event) {
     if (event.detail.type == "State") {
       getContentWindow().removeEventListener(eventName, onEvent);
-      deferred.resolve();
+      TestRunner.next();
     }
   });
-  return deferred.promise;
 }

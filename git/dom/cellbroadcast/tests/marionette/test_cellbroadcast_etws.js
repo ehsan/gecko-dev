@@ -23,9 +23,7 @@ function testReceiving_ETWS_MessageAttributes() {
     ok(aMessage.etws.emergencyUserAlert != null,
        "aMessage.etws.emergencyUserAlert");
     ok(aMessage.etws.popup != null, "aMessage.etws.popup");
-
-    // cdmaServiceCategory shall always be unavailable in GMS/UMTS CB message.
-    ok(aMessage.cdmaServiceCategory == null, "aMessage.cdmaServiceCategory");
+    ok(aMessage.cdmaServiceCategory != null, "aMessage.cdmaServiceCategory");
   };
 
   // Here we use a simple ETWS message for test.
