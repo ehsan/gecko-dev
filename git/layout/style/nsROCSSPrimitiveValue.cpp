@@ -89,7 +89,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_PX :
       {
         float val = nsPresContext::AppUnitsToFloatCSSPixels(mValue.mAppUnits);
-        nsStyleUtil::AppendCSSNumber(val, tmpStr);
+        tmpStr.AppendFloat(val);
         tmpStr.AppendLiteral("px");
         break;
       }
@@ -133,36 +133,36 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       }
     case CSS_PERCENTAGE :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat * 100, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat * 100);
         tmpStr.Append(PRUnichar('%'));
         break;
       }
     case CSS_NUMBER :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat);
         break;
       }
     case CSS_DEG :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat);
         tmpStr.AppendLiteral("deg");
         break;
       }
     case CSS_GRAD :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat);
         tmpStr.AppendLiteral("grad");
         break;
       }
     case CSS_RAD :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat);
         tmpStr.AppendLiteral("rad");
         break;
       }
     case CSS_TURN :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat);
         tmpStr.AppendLiteral("turn");
         break;
       }
@@ -250,7 +250,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       }
     case CSS_S :
       {
-        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
+        tmpStr.AppendFloat(mValue.mFloat);
         tmpStr.AppendLiteral("s");
         break;
       }

@@ -163,8 +163,13 @@ nsStyleUtil::AppendAngleValue(const nsStyleCoord& aAngle, nsAString& aResult)
 {
   MOZ_ASSERT(aAngle.IsAngleValue(), "Should have angle value");
 
+  nsROCSSPrimitiveValue tmpVal;
+  nsAutoString tokenString;
+
   // Append number.
-  AppendCSSNumber(aAngle.GetAngleValue(), aResult);
+  tmpVal.SetNumber(aAngle.GetAngleValue());
+  tmpVal.GetCssText(tokenString);
+  aResult.Append(tokenString);
 
   // Append unit.
   switch (aAngle.GetUnit()) {

@@ -481,20 +481,6 @@ protected:
     }
 
     /**
-     * Start observing events from the observer service and the given
-     * document.
-     *
-     * @param aDocument the document to observe
-     */
-    void StartObserving(nsIDocument* aDocument);
-
-    /**
-     * Stop observing events from the observer service and any associated
-     * document.
-     */
-    void StopObserving();
-
-    /**
      * Document that we're observing. Weak ref!
      */
     nsIDocument* mObservedDocument;

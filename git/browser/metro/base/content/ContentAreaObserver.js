@@ -99,7 +99,7 @@ var ContentAreaObserver = {
     Services.obs.addObserver(this, "metro_softkeyboard_hidden", false);
 
     // setup initial values for browser form repositioning
-    this.shiftBrowserDeck(0);
+    this._shiftBrowserDeck(0);
 
     // initialize our custom width and height styles
     this._initStyles();
@@ -226,7 +226,7 @@ var ContentAreaObserver = {
     this.updateViewableArea();
 
     if (!aNewState) {
-      this.shiftBrowserDeck(0);
+      this._shiftBrowserDeck(0);
       return;
     }
 
@@ -241,10 +241,10 @@ var ContentAreaObserver = {
 
   _onRepositionResponse: function _onRepositionResponse(aJsonMsg) {
     if (!aJsonMsg.reposition || !this.isKeyboardOpened) {
-      this.shiftBrowserDeck(0);
+      this._shiftBrowserDeck(0);
       return;
     }
-    this.shiftBrowserDeck(aJsonMsg.raiseContent);
+    this._shiftBrowserDeck(aJsonMsg.raiseContent);
   },
 
   observe: function cao_observe(aSubject, aTopic, aData) {
@@ -300,7 +300,7 @@ var ContentAreaObserver = {
     }
   },
 
-  shiftBrowserDeck: function (aAmount) {
+  _shiftBrowserDeck: function _shiftBrowserDeck(aAmount) {
     if (aAmount == 0) {
       this._deckTransitioning = false;
       this._dispatchWindowEvent("KeyboardChanged", this.isKeyboardOpened);

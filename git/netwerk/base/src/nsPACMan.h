@@ -19,7 +19,6 @@
 #include "mozilla/LinkedList.h"
 #include "nsAutoPtr.h"
 #include "mozilla/TimeStamp.h"
-#include "prlog.h"
 
 class nsPACMan;
 class nsISystemProxySettings;
@@ -222,11 +221,5 @@ private:
 
   bool                         mInProgress;
 };
-
-namespace mozilla {
-namespace net {
-PRLogModuleInfo* GetProxyLog();
-}
-}
 
 #endif  // nsPACMan_h__

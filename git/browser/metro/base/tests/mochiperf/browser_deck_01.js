@@ -27,10 +27,10 @@ gTests.push({
       window.addEventListener("MozAfterPaint", onPaint, true);
       stopwatch.start();
       let promise = waitForEvent(window, "MozDeckOffsetChanged");
-      ContentAreaObserver.shiftBrowserDeck(300);
+      ContentAreaObserver._shiftBrowserDeck(300);
       yield promise;
       promise = waitForEvent(window, "MozDeckOffsetChanged");
-      ContentAreaObserver.shiftBrowserDeck(0);
+      ContentAreaObserver._shiftBrowserDeck(0);
       yield promise;
       stopwatch.stop();
       yield waitForMs(500);

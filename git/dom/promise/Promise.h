@@ -66,19 +66,19 @@ public:
 
   static already_AddRefed<Promise>
   Resolve(const GlobalObject& aGlobal, JSContext* aCx,
-          const Optional<JS::Handle<JS::Value>>& aValue, ErrorResult& aRv);
+          JS::Handle<JS::Value> aValue, ErrorResult& aRv);
 
   static already_AddRefed<Promise>
   Reject(const GlobalObject& aGlobal, JSContext* aCx,
-         const Optional<JS::Handle<JS::Value>>& aValue, ErrorResult& aRv);
+         JS::Handle<JS::Value> aValue, ErrorResult& aRv);
 
   already_AddRefed<Promise>
-  Then(const Optional<nsRefPtr<AnyCallback>>& aResolveCallback,
-       const Optional<nsRefPtr<AnyCallback>>& aRejectCallback);
+  Then(const Optional<OwningNonNull<AnyCallback> >& aResolveCallback,
+       const Optional<OwningNonNull<AnyCallback> >& aRejectCallback);
 
 
   already_AddRefed<Promise>
-  Catch(const Optional<nsRefPtr<AnyCallback>>& aRejectCallback);
+  Catch(const Optional<OwningNonNull<AnyCallback> >& aRejectCallback);
 
   void AppendNativeHandler(PromiseNativeHandler* aRunnable);
 

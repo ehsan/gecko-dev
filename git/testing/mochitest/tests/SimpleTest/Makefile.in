@@ -7,7 +7,6 @@ _SIMPLETEST_FILES =	LogController.js \
 			SimpleTest.js \
 			test.css \
 			TestRunner.js \
-			MemoryStats.js \
 			setup.js \
 			EventUtils.js \
 			ChromeUtils.js \

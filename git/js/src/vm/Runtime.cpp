@@ -591,14 +591,6 @@ JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Runtim
         rtSizes->scriptData += mallocSizeOf(r.front());
 }
 
-static bool
-SignalBasedTriggersDisabled()
-{
-  // Don't bother trying to cache the getenv lookup; this should be called
-  // infrequently.
-  return !!getenv("JS_DISABLE_SLOW_SCRIPT_SIGNALS");
-}
-
 void
 JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
 {
@@ -619,10 +611,8 @@ JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
      * asm.js and, optionally, normal Ion code use memory protection and signal
      * handlers to halt running code.
      */
-    if (!SignalBasedTriggersDisabled()) {
-        TriggerOperationCallbackForAsmJSCode(this);
-        jit::TriggerOperationCallbackForIonCode(this, trigger);
-    }
+    TriggerOperationCallbackForAsmJSCode(this);
+    jit::TriggerOperationCallbackForIonCode(this, trigger);
 #endif
 }
 
@@ -857,7 +847,7 @@ js::CurrentThreadCanAccessZone(Zone *zone)
 void
 JSRuntime::assertCanLock(RuntimeLock which)
 {
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
     // In the switch below, each case falls through to the one below it. None
     // of the runtime locks are reentrant, and when multiple locks are acquired
     // it must be done in the order below.

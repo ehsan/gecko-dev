@@ -71,12 +71,8 @@ NS_IMETHODIMP AppCacheStorage::AsyncOpenURI(nsIURI *aURI,
   rv = noRefURI->GetAsciiSpec(cacheKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString scheme;
-  rv = noRefURI->GetScheme(scheme);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsRefPtr<_OldCacheLoad> appCacheLoad =
-    new _OldCacheLoad(scheme, cacheKey, aCallback, appCache,
+    new _OldCacheLoad(cacheKey, aCallback, appCache,
                       LoadInfo(), WriteToDisk(), aFlags);
   rv = appCacheLoad->Start();
   NS_ENSURE_SUCCESS(rv, rv);

@@ -272,6 +272,7 @@ struct NotableStringInfo : public StringInfo
 {
     NotableStringInfo();
     NotableStringInfo(JSString *str, const StringInfo &info);
+    NotableStringInfo(const NotableStringInfo& info);
     NotableStringInfo(NotableStringInfo &&info);
     NotableStringInfo &operator=(NotableStringInfo &&info);
 
@@ -285,10 +286,10 @@ struct NotableStringInfo : public StringInfo
         return js::MemoryReportingSundriesThreshold();
     }
 
+    // The amount of memory we requested for |buffer|; i.e.
+    // buffer = malloc(bufferSize).
+    size_t bufferSize;
     char *buffer;
-
-  private:
-    NotableStringInfo(const NotableStringInfo& info) MOZ_DELETE;
 };
 
 // These measurements relate directly to the JSRuntime, and not to zones and

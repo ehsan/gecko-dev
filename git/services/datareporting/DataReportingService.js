@@ -212,8 +212,6 @@ DataReportingService.prototype = Object.freeze({
       this._loadHealthReporter();
     } catch (ex) {
       this._healthReporter = null;
-      Cu.reportError("Exception when obtaining health reporter: " +
-                     CommonUtils.exceptionStr(ex));
     }
 
     return this._healthReporter;

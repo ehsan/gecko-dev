@@ -78,8 +78,12 @@ const CM_MAPPING = [
   "clearHistory",
   "openDialog",
   "cursorCoords",
-  "markText",
   "refresh"
+];
+
+const CM_JUMP_DIALOG = [
+  L10N.GetStringFromName("gotoLineCmd.promptTitle")
+    + " <input type=text style='width: 10em'/>"
 ];
 
 const { cssProperties, cssValues, cssColors } = getCSSKeywords();
@@ -135,7 +139,7 @@ function Editor(config) {
   };
 
   // Additional shortcuts.
-  this.config.extraKeys[Editor.keyFor("jumpToLine")] = (cm) => this.jumpToLine(cm);
+  this.config.extraKeys[Editor.keyFor("jumpToLine")] = (cm) => this.jumpToLine();
   this.config.extraKeys[Editor.keyFor("toggleComment")] = "toggleComment";
 
   // Disable ctrl-[ and ctrl-] because toolbox uses those shortcuts.
@@ -181,19 +185,15 @@ Editor.prototype = {
 
   /**
    * Appends the current Editor instance to the element specified by
-   * 'el'. You can also provide your won iframe to host the editor as
-   * an optional second parameter. This method actually creates and
-   * loads CodeMirror and all its dependencies.
+   * the only argument 'el'. This method actually creates and loads
+   * CodeMirror and all its dependencies.
    *
    * This method is asynchronous and returns a promise.
    */
-  appendTo: function (el, env) {
+  appendTo: function (el) {
     let def = promise.defer();
     let cm  = editors.get(this);
-
-    if (!env)
-      env = el.ownerDocument.createElementNS(XUL_NS, "iframe");
-
+    let env = el.ownerDocument.createElement("iframe");
     env.flex = 1;
 
     if (cm)
@@ -502,11 +502,10 @@ Editor.prototype = {
   hasLineClass: function (line, className) {
     let cm = editors.get(this);
     let info = cm.lineInfo(line);
-
-    if (!info || !info.wrapClass)
+    if (!info)
       return false;
 
-    return info.wrapClass.split(" ").indexOf(className) != -1;
+    return info.wrapClass == className;
   },
 
   /**
@@ -620,20 +619,9 @@ Editor.prototype = {
    * This method opens an in-editor dialog asking for a line to
    * jump to. Once given, it changes cursor to that line.
    */
-  jumpToLine: function (cm) {
-    let doc = cm.getWrapperElement().ownerDocument;
-    let div = doc.createElement("div");
-    let inp = doc.createElement("input");
-    let txt = doc.createTextNode(L10N.GetStringFromName("gotoLineCmd.promptTitle"));
-
-    inp.type = "text";
-    inp.style.width = "10em";
-    inp.style.MozMarginStart = "1em";
-
-    div.appendChild(txt);
-    div.appendChild(inp);
-
-    this.openDialog(div, (line) => this.setCursor({ line: line - 1, ch: 0 }));
+  jumpToLine: function () {
+    this.openDialog(CM_JUMP_DIALOG, (line) =>
+      this.setCursor({ line: line - 1, ch: 0 }));
   },
 
   /**

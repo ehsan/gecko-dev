@@ -10,7 +10,6 @@
 #include "jsfriendapi.h"
 #include "jswrapper.h"
 #include "mozilla/Alignment.h"
-#include "mozilla/Array.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/CallbackObject.h"
 #include "mozilla/dom/DOMJSClass.h"
@@ -281,28 +280,21 @@ static_assert((size_t)constructors::id::_ID_Start ==
               "Overlapping or discontiguous indexes.");
 const size_t kProtoAndIfaceCacheCount = constructors::id::_ID_Count;
 
-class ProtoAndIfaceArray : public Array<JS::Heap<JSObject*>, kProtoAndIfaceCacheCount>
-{
-public:
-  ProtoAndIfaceArray() {
-    MOZ_COUNT_CTOR(ProtoAndIfaceArray);
-  }
-
-  ~ProtoAndIfaceArray() {
-    MOZ_COUNT_DTOR(ProtoAndIfaceArray);
-  }
-};
-
 inline void
 AllocateProtoAndIfaceCache(JSObject* obj)
 {
   MOZ_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL);
   MOZ_ASSERT(js::GetReservedSlot(obj, DOM_PROTOTYPE_SLOT).isUndefined());
 
-  ProtoAndIfaceArray* protoAndIfaceArray = new ProtoAndIfaceArray();
+  JS::Heap<JSObject*>* protoAndIfaceArray = new JS::Heap<JSObject*>[kProtoAndIfaceCacheCount];
 
   js::SetReservedSlot(obj, DOM_PROTOTYPE_SLOT,
                       JS::PrivateValue(protoAndIfaceArray));
+
+#ifdef NS_BUILD_REFCNT_LOGGING
+  NS_LogCtor((void*)protoAndIfaceArray, "ProtoAndIfaceArray",
+             sizeof(JS::Heap<JSObject*>) * kProtoAndIfaceCacheCount);
+#endif
 }
 
 inline void
@@ -312,8 +304,8 @@ TraceProtoAndIfaceCache(JSTracer* trc, JSObject* obj)
 
   if (!HasProtoAndIfaceArray(obj))
     return;
-  ProtoAndIfaceArray& protoAndIfaceArray = *GetProtoAndIfaceArray(obj);
-  for (size_t i = 0; i < ArrayLength(protoAndIfaceArray); ++i) {
+  JS::Heap<JSObject*>* protoAndIfaceArray = GetProtoAndIfaceArray(obj);
+  for (size_t i = 0; i < kProtoAndIfaceCacheCount; ++i) {
     if (protoAndIfaceArray[i]) {
       JS_CallHeapObjectTracer(trc, &protoAndIfaceArray[i], "protoAndIfaceArray[i]");
     }
@@ -325,9 +317,14 @@ DestroyProtoAndIfaceCache(JSObject* obj)
 {
   MOZ_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL);
 
-  ProtoAndIfaceArray* protoAndIfaceArray = GetProtoAndIfaceArray(obj);
+  JS::Heap<JSObject*>* protoAndIfaceArray = GetProtoAndIfaceArray(obj);
 
-  delete protoAndIfaceArray;
+#ifdef NS_BUILD_REFCNT_LOGGING
+  NS_LogDtor((void*)protoAndIfaceArray, "ProtoAndIfaceArray",
+             sizeof(JS::Heap<JSObject*>) * kProtoAndIfaceCacheCount);
+#endif
+
+  delete [] protoAndIfaceArray;
 }
 
 /**
@@ -2069,7 +2066,7 @@ ReportLenientThisUnwrappingFailure(JSContext* cx, JSObject* obj);
 inline JSObject*
 GetUnforgeableHolder(JSObject* aGlobal, prototypes::ID aId)
 {
-  ProtoAndIfaceArray& protoAndIfaceArray = *GetProtoAndIfaceArray(aGlobal);
+  JS::Heap<JSObject*>* protoAndIfaceArray = GetProtoAndIfaceArray(aGlobal);
   JSObject* interfaceProto = protoAndIfaceArray[aId];
   return &js::GetReservedSlot(interfaceProto,
                               DOM_INTERFACE_PROTO_SLOTS_BASE).toObject();

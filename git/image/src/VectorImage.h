@@ -89,7 +89,6 @@ protected:
 
 private:
   void CancelAllListeners();
-  void SendInvalidationNotifications();
 
   nsRefPtr<SVGDocumentWrapper>       mSVGDocumentWrapper;
   nsRefPtr<SVGRootRenderingObserver> mRenderingObserver;

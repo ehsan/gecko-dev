@@ -168,11 +168,10 @@ LayerManagerComposite::BeginTransactionWithDrawTarget(DrawTarget* aTarget)
 bool
 LayerManagerComposite::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  NS_ASSERTION(mInTransaction, "Didn't call BeginTransaction?");
-  if (!mRoot) {
-    mInTransaction = false;
+  mInTransaction = false;
+
+  if (!mRoot)
     return false;
-  }
 
   EndTransaction(nullptr, nullptr);
   return true;
@@ -183,7 +182,6 @@ LayerManagerComposite::EndTransaction(DrawThebesLayerCallback aCallback,
                                       void* aCallbackData,
                                       EndTransactionFlags aFlags)
 {
-  NS_ASSERTION(mInTransaction, "Didn't call BeginTransaction?");
   mInTransaction = false;
 
 #ifdef MOZ_LAYERS_HAVE_LOG

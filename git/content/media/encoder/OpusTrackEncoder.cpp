@@ -127,10 +127,6 @@ OpusTrackEncoder::~OpusTrackEncoder()
   if (mEncoder) {
     opus_encoder_destroy(mEncoder);
   }
-  if (mResampler) {
-    speex_resampler_destroy(mResampler);
-  }
-
 }
 
 nsresult
@@ -327,7 +323,6 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     mDoneEncoding = true;
     if (mResampler) {
       speex_resampler_destroy(mResampler);
-      mResampler = nullptr;
     }
     LOG("[Opus] Done encoding.");
   }

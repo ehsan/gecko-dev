@@ -52,10 +52,6 @@ public:
     MOZ_COUNT_DTOR(WorkerNavigator);
   }
 
-  void GetAppCodeName(nsString& aAppCodeName) const
-  {
-    aAppCodeName.AssignLiteral("Mozilla");
-  }
   void GetAppName(nsString& aAppName) const
   {
     aAppName = mAppName;
@@ -67,14 +63,6 @@ public:
   void GetPlatform(nsString& aPlatform) const
   {
     aPlatform = mPlatform;
-  }
-  void GetProduct(nsString& aProduct) const
-  {
-    aProduct.AssignLiteral("Gecko");
-  }
-  bool TaintEnabled() const
-  {
-    return false;
   }
   void GetUserAgent(nsString& aUserAgent) const
   {
