@@ -66,7 +66,7 @@ bool CallTrackingActive(JSContext *);
 bool WantNativeAddressInfo(JSContext *);
 
 /* Entering a JS function */
-bool EnterScript(JSContext *, JSScript *, JSFunction *, InterpreterFrame *);
+bool EnterScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
 
 /* About to leave a JS function */
 bool ExitScript(JSContext *, JSScript *, JSFunction *, bool popSPSFrame);

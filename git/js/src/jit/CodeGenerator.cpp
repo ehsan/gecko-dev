@@ -6046,9 +6046,6 @@ CodeGenerator::generateAsmJS()
 {
     IonSpew(IonSpew_Codegen, "# Emitting asm.js code");
 
-    // AsmJS doesn't do profiler instrumentation.
-    sps_.disable();
-
     // The caller (either another asm.js function or the external-entry
     // trampoline) has placed all arguments in registers and on the stack
     // according to the system ABI. The MAsmJSParameters which represent these
@@ -7845,7 +7842,6 @@ bool
 CodeGenerator::visitFunctionBoundary(LFunctionBoundary *lir)
 {
     Register temp = ToRegister(lir->temp()->output());
-    bool inlinedFunction = lir->inlineLevel() > 0;
 
     switch (lir->type()) {
         case MFunctionBoundary::Inline_Enter:
@@ -7864,51 +7860,47 @@ CodeGenerator::visitFunctionBoundary(LFunctionBoundary *lir)
                 sps_.reenter(masm, temp);
             }
 
-            sps_.leave(masm, temp, /* inlinedFunction = */ true);
+            sps_.leave(masm, temp);
             if (!sps_.enterInlineFrame())
                 return false;
             // fallthrough
 
         case MFunctionBoundary::Enter:
             if (gen->options.spsSlowAssertionsEnabled()) {
-                if (!inlinedFunction || js_JitOptions.profileInlineFrames) {
-                    saveLive(lir);
-                    pushArg(ImmGCPtr(lir->script()));
-                    if (!callVM(SPSEnterInfo, lir))
-                        return false;
-                    restoreLive(lir);
-                }
-                sps_.pushManual(lir->script(), masm, temp, /* inlinedFunction = */ inlinedFunction);
+                saveLive(lir);
+                pushArg(ImmGCPtr(lir->script()));
+                if (!callVM(SPSEnterInfo, lir))
+                    return false;
+                restoreLive(lir);
+                sps_.pushManual(lir->script(), masm, temp);
                 return true;
             }
 
-            return sps_.push(lir->script(), masm, temp, /* inlinedFunction = */ inlinedFunction);
+            return sps_.push(lir->script(), masm, temp);
 
         case MFunctionBoundary::Inline_Exit:
             // all inline returns were covered with ::Exit, so we just need to
             // maintain the state of inline frames currently active and then
             // reenter the caller
             sps_.leaveInlineFrame();
-            sps_.reenter(masm, temp, /* inlinedFunction = */ true);
+            sps_.reenter(masm, temp);
             return true;
 
         case MFunctionBoundary::Exit:
             if (gen->options.spsSlowAssertionsEnabled()) {
-                if (!inlinedFunction || js_JitOptions.profileInlineFrames) {
-                    saveLive(lir);
-                    pushArg(ImmGCPtr(lir->script()));
-                    // Once we've exited, then we shouldn't emit instrumentation for
-                    // the corresponding reenter() because we no longer have a
-                    // frame.
-                    sps_.skipNextReenter();
-                    if (!callVM(SPSExitInfo, lir))
-                        return false;
-                    restoreLive(lir);
-                }
+                saveLive(lir);
+                pushArg(ImmGCPtr(lir->script()));
+                // Once we've exited, then we shouldn't emit instrumentation for
+                // the corresponding reenter() because we no longer have a
+                // frame.
+                sps_.skipNextReenter();
+                if (!callVM(SPSExitInfo, lir))
+                    return false;
+                restoreLive(lir);
                 return true;
             }
 
-            sps_.pop(masm, temp, /* inlinedFunction = */ inlinedFunction);
+            sps_.pop(masm, temp);
             return true;
 
         default:

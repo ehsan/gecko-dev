@@ -82,7 +82,7 @@ public:
    * length (as provided by the <path> element's 'pathLength' attribute). This
    * is used to scale stroke dashing, and to scale offsets along a textPath.
    */
-  float GetPathLengthScale(PathLengthScaleForType aFor);
+  gfxFloat GetPathLengthScale(PathLengthScaleForType aFor);
 
   // WebIDL
   already_AddRefed<SVGAnimatedNumber> PathLength();

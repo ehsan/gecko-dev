@@ -29,7 +29,7 @@ class InterpreterRegs;
 class ScopeObject;
 class ScriptFrameIter;
 class SPSProfiler;
-class InterpreterFrame;
+class StackFrame;
 class StaticBlockObject;
 
 struct ScopeCoordinate;
@@ -47,21 +47,21 @@ struct ScopeCoordinate;
 // contexts. This happens whenever an embedding enters the JS engine on cx1 and
 // then, from a native called by the JS engine, reenters the VM on cx2.
 
-// Interpreter frames (InterpreterFrame)
+// Interpreter frames (StackFrame)
 //
 // Each interpreter script activation (global or function code) is given a
-// fixed-size header (js::InterpreterFrame). The frame contains bookkeeping
-// information about the activation and links to the previous frame.
+// fixed-size header (js::StackFrame). The frame contains bookkeeping information
+// about the activation and links to the previous frame.
 //
-// The values after an InterpreterFrame in memory are its locals followed by its
-// expression stack. InterpreterFrame::argv_ points to the frame's arguments.
-// Missing formal arguments are padded with |undefined|, so the number of
-// arguments is always >= the number of formals.
+// The values after a StackFrame in memory are its locals followed by its
+// expression stack. StackFrame::argv_ points to the frame's arguments. Missing
+// formal arguments are padded with |undefined|, so the number of arguments is
+// always >= the number of formals.
 //
-// The top of an activation's current frame's expression stack is pointed to by
-// the activation's "current regs", which contains the stack pointer 'sp'. In
-// the interpreter, sp is adjusted as individual values are pushed and popped
-// from the stack and the InterpreterRegs struct (pointed to by the
+// The top of an activation's current frame's expression stack is pointed to by the
+// activation's "current regs", which contains the stack pointer 'sp'. In the
+// interpreter, sp is adjusted as individual values are pushed and popped from
+// the stack and the InterpreterRegs struct (pointed to by the
 // InterpreterActivation) is a local var of js::Interpret.
 
 enum MaybeCheckAliasing { CHECK_ALIASING = true, DONT_CHECK_ALIASING = false };
@@ -78,8 +78,8 @@ namespace jit {
 }
 
 /*
- * Pointer to either a ScriptFrameIter::Data, an InterpreterFrame, or a Baseline
- * JIT frame.
+ * Pointer to either a ScriptFrameIter::Data, a StackFrame, or a baseline JIT
+ * frame.
  *
  * The Debugger may cache ScriptFrameIter::Data as a bookmark to reconstruct a
  * ScriptFrameIter without doing a full stack walk.
@@ -104,7 +104,7 @@ class AbstractFramePtr
 
     enum {
         Tag_ScriptFrameIterData = 0x0,
-        Tag_InterpreterFrame = 0x1,
+        Tag_StackFrame = 0x1,
         Tag_BaselineFrame = 0x2,
         TagMask = 0x3
     };
@@ -114,10 +114,10 @@ class AbstractFramePtr
       : ptr_(0)
     {}
 
-    AbstractFramePtr(InterpreterFrame *fp)
-      : ptr_(fp ? uintptr_t(fp) | Tag_InterpreterFrame : 0)
+    AbstractFramePtr(StackFrame *fp)
+      : ptr_(fp ? uintptr_t(fp) | Tag_StackFrame : 0)
     {
-        MOZ_ASSERT(asInterpreterFrame() == fp);
+        MOZ_ASSERT(asStackFrame() == fp);
     }
 
     AbstractFramePtr(jit::BaselineFrame *fp)
@@ -140,12 +140,12 @@ class AbstractFramePtr
     bool isScriptFrameIterData() const {
         return !!ptr_ && (ptr_ & TagMask) == Tag_ScriptFrameIterData;
     }
-    bool isInterpreterFrame() const {
-        return ptr_ & Tag_InterpreterFrame;
+    bool isStackFrame() const {
+        return ptr_ & Tag_StackFrame;
     }
-    InterpreterFrame *asInterpreterFrame() const {
-        JS_ASSERT(isInterpreterFrame());
-        InterpreterFrame *res = (InterpreterFrame *)(ptr_ & ~TagMask);
+    StackFrame *asStackFrame() const {
+        JS_ASSERT(isStackFrame());
+        StackFrame *res = (StackFrame *)(ptr_ & ~TagMask);
         JS_ASSERT(res);
         return res;
     }
@@ -241,20 +241,20 @@ class NullFramePtr : public AbstractFramePtr
 /* Flags specified for a frame as it is constructed. */
 enum InitialFrameFlags {
     INITIAL_NONE           =          0,
-    INITIAL_CONSTRUCT      =       0x20, /* == InterpreterFrame::CONSTRUCTING, asserted below */
+    INITIAL_CONSTRUCT      =       0x20, /* == StackFrame::CONSTRUCTING, asserted below */
 };
 
 enum ExecuteType {
-    EXECUTE_GLOBAL         =        0x1, /* == InterpreterFrame::GLOBAL */
-    EXECUTE_DIRECT_EVAL    =        0x4, /* == InterpreterFrame::EVAL */
-    EXECUTE_INDIRECT_EVAL  =        0x5, /* == InterpreterFrame::GLOBAL | EVAL */
-    EXECUTE_DEBUG          =        0xc, /* == InterpreterFrame::EVAL | DEBUGGER */
-    EXECUTE_DEBUG_GLOBAL   =        0xd  /* == InterpreterFrame::EVAL | DEBUGGER | GLOBAL */
+    EXECUTE_GLOBAL         =        0x1, /* == StackFrame::GLOBAL */
+    EXECUTE_DIRECT_EVAL    =        0x4, /* == StackFrame::EVAL */
+    EXECUTE_INDIRECT_EVAL  =        0x5, /* == StackFrame::GLOBAL | EVAL */
+    EXECUTE_DEBUG          =        0xc, /* == StackFrame::EVAL | DEBUGGER */
+    EXECUTE_DEBUG_GLOBAL   =        0xd  /* == StackFrame::EVAL | DEBUGGER | GLOBAL */
 };
 
 /*****************************************************************************/
 
-class InterpreterFrame
+class StackFrame
 {
   public:
     enum Flags {
@@ -339,7 +339,7 @@ class InterpreterFrame
      * InterpreterActivation's entry frame, always non-nullptr for inline
      * frames.
      */
-    InterpreterFrame    *prev_;
+    StackFrame          *prev_;
     jsbytecode          *prevpc_;
     Value               *prevsp_;
 
@@ -355,8 +355,8 @@ class InterpreterFrame
     LifoAlloc::Mark     mark_;          /* Used to release memory for this frame. */
 
     static void staticAsserts() {
-        JS_STATIC_ASSERT(offsetof(InterpreterFrame, rval_) % sizeof(Value) == 0);
-        JS_STATIC_ASSERT(sizeof(InterpreterFrame) % sizeof(Value) == 0);
+        JS_STATIC_ASSERT(offsetof(StackFrame, rval_) % sizeof(Value) == 0);
+        JS_STATIC_ASSERT(sizeof(StackFrame) % sizeof(Value) == 0);
     }
 
     void writeBarrierPost();
@@ -364,8 +364,8 @@ class InterpreterFrame
     /*
      * The utilities are private since they are not able to assert that only
      * unaliased vars/formals are accessed. Normal code should prefer the
-     * InterpreterFrame::unaliased* members (or InterpreterRegs::stackDepth for
-     * the usual "depth is at least" assertions).
+     * StackFrame::unaliased* members (or InterpreterRegs::stackDepth for the
+     * usual "depth is at least" assertions).
      */
     Value *slots() const { return (Value *)(this + 1); }
     Value *base() const { return slots() + script()->nfixed(); }
@@ -381,9 +381,8 @@ class InterpreterFrame
      */
 
     /* Used for Invoke and Interpret. */
-    void initCallFrame(JSContext *cx, InterpreterFrame *prev, jsbytecode *prevpc, Value *prevsp,
-                       JSFunction &callee, JSScript *script, Value *argv, uint32_t nactual,
-                       InterpreterFrame::Flags flags);
+    void initCallFrame(JSContext *cx, StackFrame *prev, jsbytecode *prevpc, Value *prevsp, JSFunction &callee,
+                       JSScript *script, Value *argv, uint32_t nactual, StackFrame::Flags flags);
 
     /* Used for global and eval frames. */
     void initExecuteFrame(JSContext *cx, JSScript *script, AbstractFramePtr prev,
@@ -440,7 +439,7 @@ class InterpreterFrame
      *
      * As noted above, global and function frames may optionally be 'eval
      * frames'. Eval code shares its parent's arguments which means that the
-     * arg-access members of InterpreterFrame may not be used for eval frames.
+     * arg-access members of StackFrame may not be used for eval frames.
      * Search for 'hasArgs' below for more details.
      *
      * A further sub-classification of eval frames is whether the frame was
@@ -488,7 +487,7 @@ class InterpreterFrame
      * to set cx->regs->fp to when this frame is popped.
      */
 
-    InterpreterFrame *prev() const {
+    StackFrame *prev() const {
         return prev_;
     }
 
@@ -538,7 +537,7 @@ class InterpreterFrame
      * created in the prologue and stored in the local variable for the
      * 'arguments' binding (script->argumentsLocal). Since this local is
      * mutable, the arguments object can be overwritten and we can "lose" the
-     * arguments object. Thus, InterpreterFrame keeps an explicit argsObj_ field so
+     * arguments object. Thus, StackFrame keeps an explicit argsObj_ field so
      * that the original arguments object is always available.
      */
 
@@ -554,8 +553,8 @@ class InterpreterFrame
      * scope. However, only objects that are required for dynamic lookup are
      * actually created.
      *
-     * Given that an InterpreterFrame corresponds roughly to a ES5 Execution Context
-     * (ES5 10.3), InterpreterFrame::varObj corresponds to the VariableEnvironment
+     * Given that a StackFrame corresponds roughly to a ES5 Execution Context
+     * (ES5 10.3), StackFrame::varObj corresponds to the VariableEnvironment
      * component of a Exection Context. Intuitively, the variables object is
      * where new bindings (variables and functions) are stored. One might
      * expect that this is either the Call object or scopeChain.globalObj for
@@ -787,11 +786,10 @@ class InterpreterFrame
      * Since generators are not executed LIFO, the VM copies a single abstract
      * generator frame back and forth between the LIFO VM stack (when the
      * generator is active) and a snapshot stored in JSGenerator (when the
-     * generator is inactive). A generator frame is comprised of an
-     * InterpreterFrame structure and the values that make up the arguments,
-     * locals, and expression stack. The layout in the JSGenerator snapshot
-     * matches the layout on the stack (see the "VM stack layout" comment
-     * above).
+     * generator is inactive). A generator frame is comprised of a StackFrame
+     * structure and the values that make up the arguments, locals, and
+     * expression stack. The layout in the JSGenerator snapshot matches the
+     * layout on the stack (see the "VM stack layout" comment above).
      */
 
     bool isGeneratorFrame() const {
@@ -826,7 +824,7 @@ class InterpreterFrame
         NoPostBarrier = false
     };
     template <TriggerPostBarriers doPostBarrier>
-    void copyFrameAndValues(JSContext *cx, Value *vp, InterpreterFrame *otherfp,
+    void copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
                             const Value *othervp, Value *othersp);
 
     /*
@@ -944,12 +942,12 @@ class InterpreterFrame
     }
 };
 
-static const size_t VALUES_PER_STACK_FRAME = sizeof(InterpreterFrame) / sizeof(Value);
+static const size_t VALUES_PER_STACK_FRAME = sizeof(StackFrame) / sizeof(Value);
 
-static inline InterpreterFrame::Flags
+static inline StackFrame::Flags
 ToFrameFlags(InitialFrameFlags initial)
 {
-    return InterpreterFrame::Flags(initial);
+    return StackFrame::Flags(initial);
 }
 
 static inline InitialFrameFlags
@@ -972,9 +970,9 @@ class InterpreterRegs
     Value *sp;
     jsbytecode *pc;
   private:
-    InterpreterFrame *fp_;
+    StackFrame *fp_;
   public:
-    InterpreterFrame *fp() const { return fp_; }
+    StackFrame *fp() const { return fp_; }
 
     unsigned stackDepth() const {
         JS_ASSERT(sp >= fp_->base());
@@ -987,7 +985,7 @@ class InterpreterRegs
     }
 
     /* For generators. */
-    void rebaseFromTo(const InterpreterRegs &from, InterpreterFrame &to) {
+    void rebaseFromTo(const InterpreterRegs &from, StackFrame &to) {
         fp_ = &to;
         sp = to.slots() + (from.sp - from.fp_->slots());
         pc = from.pc;
@@ -1000,7 +998,7 @@ class InterpreterRegs
         fp_ = fp_->prev();
         JS_ASSERT(fp_);
     }
-    void prepareToRun(InterpreterFrame &fp, JSScript *script) {
+    void prepareToRun(StackFrame &fp, JSScript *script) {
         pc = script->code();
         sp = fp.slots() + script->nfixed();
         fp_ = &fp;
@@ -1033,11 +1031,11 @@ class InterpreterStack
 
     inline uint8_t *allocateFrame(JSContext *cx, size_t size);
 
-    inline InterpreterFrame *
+    inline StackFrame *
     getCallFrame(JSContext *cx, const CallArgs &args, HandleScript script,
-                 InterpreterFrame::Flags *pflags, Value **pargv);
+                 StackFrame::Flags *pflags, Value **pargv);
 
-    void releaseFrame(InterpreterFrame *fp) {
+    void releaseFrame(StackFrame *fp) {
         frameCount_--;
         allocator_.release(fp->mark_);
     }
@@ -1053,13 +1051,12 @@ class InterpreterStack
     }
 
     // For execution of eval or global code.
-    InterpreterFrame *pushExecuteFrame(JSContext *cx, HandleScript script, const Value &thisv,
+    StackFrame *pushExecuteFrame(JSContext *cx, HandleScript script, const Value &thisv,
                                  HandleObject scopeChain, ExecuteType type,
                                  AbstractFramePtr evalInFrame);
 
     // Called to invoke a function.
-    InterpreterFrame *pushInvokeFrame(JSContext *cx, const CallArgs &args,
-                                      InitialFrameFlags initial);
+    StackFrame *pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFrameFlags initial);
 
     // The interpreter can push light-weight, "inline" frames without entering a
     // new InterpreterActivation or recursively calling Interpret.
@@ -1230,7 +1227,7 @@ class InterpreterActivation : public Activation
 
     RunState &state_;
     InterpreterRegs regs_;
-    InterpreterFrame *entryFrame_;
+    StackFrame *entryFrame_;
     size_t opMask_; // For debugger interrupts, see js::Interpret.
 
 #ifdef DEBUG
@@ -1238,20 +1235,20 @@ class InterpreterActivation : public Activation
 #endif
 
   public:
-    inline InterpreterActivation(RunState &state, JSContext *cx, InterpreterFrame *entryFrame);
+    inline InterpreterActivation(RunState &state, JSContext *cx, StackFrame *entryFrame);
     inline ~InterpreterActivation();
 
     inline bool pushInlineFrame(const CallArgs &args, HandleScript script,
                                 InitialFrameFlags initial);
-    inline void popInlineFrame(InterpreterFrame *frame);
+    inline void popInlineFrame(StackFrame *frame);
 
-    InterpreterFrame *current() const {
+    StackFrame *current() const {
         return regs_.fp();
     }
     InterpreterRegs &regs() {
         return regs_;
     }
-    InterpreterFrame *entryFrame() const {
+    StackFrame *entryFrame() const {
         return entryFrame_;
     }
     size_t opMask() const {
@@ -1380,7 +1377,7 @@ class JitActivationIterator : public ActivationIterator
 class InterpreterFrameIterator
 {
     InterpreterActivation *activation_;
-    InterpreterFrame *fp_;
+    StackFrame *fp_;
     jsbytecode *pc_;
     Value *sp_;
 
@@ -1398,7 +1395,7 @@ class InterpreterFrameIterator
         }
     }
 
-    InterpreterFrame *frame() const {
+    StackFrame *frame() const {
         JS_ASSERT(!done());
         return fp_;
     }
@@ -1597,7 +1594,7 @@ class FrameIter
     Data *copyData() const;
 
     // This can only be called when isInterp():
-    inline InterpreterFrame *interpFrame() const;
+    inline StackFrame *interpFrame() const;
 
   private:
     Data data_;
@@ -1776,7 +1773,7 @@ FrameIter::isBaseline() const
 #endif
 }
 
-inline InterpreterFrame *
+inline StackFrame *
 FrameIter::interpFrame() const
 {
     JS_ASSERT(data_.state_ == INTERP);

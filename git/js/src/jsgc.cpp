@@ -420,16 +420,6 @@ Arena::staticAsserts()
     static_assert(JS_ARRAY_LENGTH(FirstThingOffsets) == FINALIZE_LIMIT, "We have defined all offsets.");
 }
 
-void
-Arena::setAsFullyUnused(AllocKind thingKind)
-{
-    FreeSpan entireList;
-    entireList.first = thingsStart(thingKind);
-    uintptr_t arenaAddr = aheader.arenaAddress();
-    entireList.last = arenaAddr | ArenaMask;
-    aheader.setFirstFreeSpan(&entireList);
-}
-
 template<typename T>
 inline bool
 Arena::finalize(FreeOp *fop, AllocKind thingKind, size_t thingSize)
@@ -491,8 +481,7 @@ Arena::finalize(FreeOp *fop, AllocKind thingKind, size_t thingSize)
 
     if (allClear) {
         JS_ASSERT(newListTail == &newListHead);
-        JS_ASSERT(!newFreeSpanStart ||
-                  newFreeSpanStart == thingsStart(thingKind));
+        JS_ASSERT(newFreeSpanStart == thingsStart(thingKind));
         return true;
     }
 
@@ -544,25 +533,15 @@ FinalizeTypedArenas(FreeOp *fop,
      * others into dest in an appropriate position.
      */
 
-    /*
-     * During parallel sections, we sometimes finalize the parallel arenas,
-     * but in that case, we want to hold on to the memory in our arena
-     * lists, not offer it up for reuse.
-     */
-    bool releaseArenas = !InParallelSection();
-
     size_t thingSize = Arena::thingSize(thingKind);
 
     while (ArenaHeader *aheader = *src) {
         *src = aheader->next;
         bool allClear = aheader->getArena()->finalize<T>(fop, thingKind, thingSize);
-        if (!allClear)
-            dest.insert(aheader);
-        else if (releaseArenas)
+        if (allClear)
             aheader->chunk()->releaseArena(aheader);
         else
-            aheader->chunk()->recycleArena(aheader, dest, thingKind);
-
+            dest.insert(aheader);
         budget.step(Arena::thingsPerArena(thingSize));
         if (budget.isOverBudget())
             return false;
@@ -960,13 +939,6 @@ Chunk::addArenaToFreeList(JSRuntime *rt, ArenaHeader *aheader)
     ++info.numArenasFreeCommitted;
     ++info.numArenasFree;
     ++rt->gcNumArenasFreeCommitted;
-}
-
-void
-Chunk::recycleArena(ArenaHeader *aheader, ArenaList &dest, AllocKind thingKind)
-{
-    aheader->getArena()->setAsFullyUnused(thingKind);
-    dest.insert(aheader);
 }
 
 void
@@ -1433,12 +1405,10 @@ ArenaLists::allocateFromArenaInline(Zone *zone, AllocKind thingKind)
             JS_ASSERT(aheader->hasFreeThings());
 
             /*
-             * Normally, the empty arenas are returned to the chunk
-             * and should not present on the list. In parallel
-             * execution, however, we keep empty arenas in the arena
-             * list to avoid synchronizing on the chunk.
+             * The empty arenas are returned to the chunk and should not present on
+             * the list.
              */
-            JS_ASSERT(!aheader->isEmpty() || InParallelSection());
+            JS_ASSERT(!aheader->isEmpty());
             al->cursor = &aheader->next;
 
             /*
@@ -1510,50 +1480,9 @@ ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind)
 }
 
 void
-ArenaLists::wipeDuringParallelExecution(JSRuntime *rt)
-{
-    JS_ASSERT(InParallelSection());
-
-    // First, check that we all objects we have allocated are eligible
-    // for background finalization. The idea is that we will free
-    // (below) ALL background finalizable objects, because we know (by
-    // the rules of parallel execution) they are not reachable except
-    // by other thread-local objects. However, if there were any
-    // object ineligible for background finalization, it might retain
-    // a reference to one of these background finalizable objects, and
-    // that'd be bad.
-    for (unsigned i = 0; i < FINALIZE_LAST; i++) {
-        AllocKind thingKind = AllocKind(i);
-        if (!IsBackgroundFinalized(thingKind) && arenaLists[thingKind].head)
-            return;
-    }
-
-    // Finalize all background finalizable objects immediately and
-    // return the (now empty) arenas back to arena list.
-    FreeOp fop(rt, false);
-    for (unsigned i = 0; i < FINALIZE_OBJECT_LAST; i++) {
-        AllocKind thingKind = AllocKind(i);
-
-        if (!IsBackgroundFinalized(thingKind))
-            continue;
-
-        if (arenaLists[i].head) {
-            purge(thingKind);
-            forceFinalizeNow(&fop, thingKind);
-        }
-    }
-}
-
-void
 ArenaLists::finalizeNow(FreeOp *fop, AllocKind thingKind)
 {
     JS_ASSERT(!IsBackgroundFinalized(thingKind));
-    forceFinalizeNow(fop, thingKind);
-}
-
-void
-ArenaLists::forceFinalizeNow(FreeOp *fop, AllocKind thingKind)
-{
     JS_ASSERT(backgroundFinalizeState[thingKind] == BFS_DONE);
 
     ArenaHeader *arenas = arenaLists[thingKind].head;
@@ -2169,7 +2098,7 @@ js::SetMarkStackLimit(JSRuntime *rt, size_t limit)
 }
 
 void
-js::MarkCompartmentActive(InterpreterFrame *fp)
+js::MarkCompartmentActive(StackFrame *fp)
 {
     fp->script()->compartment()->zone()->active = true;
 }
@@ -5385,8 +5314,7 @@ js::ReleaseAllJITCode(FreeOp *fop)
 
         for (CellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation<SequentialExecution>(fop, script);
-            jit::FinishInvalidation<ParallelExecution>(fop, script);
+            jit::FinishInvalidation(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that
@@ -5551,19 +5479,11 @@ ArenaLists::adoptArenas(JSRuntime *rt, ArenaLists *fromArenaLists)
         ArenaList *fromList = &fromArenaLists->arenaLists[thingKind];
         ArenaList *toList = &arenaLists[thingKind];
         while (fromList->head != nullptr) {
-            // Remove entry from |fromList|
             ArenaHeader *fromHeader = fromList->head;
             fromList->head = fromHeader->next;
             fromHeader->next = nullptr;
 
-            // During parallel execution, we sometimes keep empty arenas
-            // on the lists rather than sending them back to the chunk.
-            // Therefore, if fromHeader is empty, send it back to the
-            // chunk now. Otherwise, attach to |toList|.
-            if (fromHeader->isEmpty())
-                fromHeader->chunk()->releaseArena(fromHeader);
-            else
-                toList->insert(fromHeader);
+            toList->insert(fromHeader);
         }
         fromList->cursor = &fromList->head;
     }

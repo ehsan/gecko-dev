@@ -281,7 +281,6 @@ class SPSInstrumentation
     /* Because of inline frames, this is a nested structure in a vector */
     struct FrameState {
         JSScript *script; // script for this frame, nullptr if not pushed yet
-        jsbytecode *pc;   // pc at which this frame was left for entry into a callee
         bool skipNext;    // should the next call to reenter be skipped?
         int  left;        // number of leave() calls made without a matching reenter()
     };
@@ -299,13 +298,12 @@ class SPSInstrumentation
     SPSInstrumentation(SPSProfiler *profiler)
       : profiler_(profiler), frame(nullptr)
     {
-        enterInlineFrame(nullptr);
+        enterInlineFrame();
     }
 
     /* Small proxies around SPSProfiler */
     bool enabled() { return profiler_ && profiler_->enabled(); }
     SPSProfiler *profiler() { JS_ASSERT(enabled()); return profiler_; }
-    void disable() { profiler_ = nullptr; }
 
     /* Signals an inline function returned, reverting to the previous state */
     void leaveInlineFrame() {
@@ -319,54 +317,18 @@ class SPSInstrumentation
     }
 
     /* Saves the current state and assumes a fresh one for the inline function */
-    bool enterInlineFrame(jsbytecode *callerPC) {
+    bool enterInlineFrame() {
         if (!enabled())
             return true;
-        JS_ASSERT_IF(frames.empty(), callerPC == nullptr);
-
         JS_ASSERT_IF(frame != nullptr, frame->script != nullptr);
         JS_ASSERT_IF(frame != nullptr, frame->left == 1);
-        if (!frames.empty()) {
-            JS_ASSERT(frame == &frames[frames.length() - 1]);
-            frame->pc = callerPC;
-        }
         if (!frames.growBy(1))
             return false;
         frame = &frames[frames.length() - 1];
         frame->script = nullptr;
-        frame->pc = nullptr;
         frame->skipNext = false;
         frame->left = 0;
         return true;
-    }
-
-    /* Prepares the instrumenter state for generating OOL code, by
-     * setting up the frame state to seem as if there are exactly
-     * two pushed frames: a frame for the top-level script, and
-     * a frame for the OOL code being generated.  Any
-     * vm-calls from the OOL code will "leave" the OOL frame and
-     * return back to it.
-     */
-    bool prepareForOOL() {
-        if (!enabled())
-            return true;
-        JS_ASSERT(!frames.empty());
-        if (frames.length() >= 2) {
-            frames.shrinkBy(frames.length() - 2);
-
-        } else { // frames.length() == 1
-            if (!frames.growBy(1))
-                return false;
-        }
-        frames[0].pc = frames[0].script->code();
-        frame = &frames[1];
-        return true;
-    }
-    void finishOOL() {
-        if (!enabled())
-            return;
-        JS_ASSERT(!frames.empty());
-        frames.shrinkBy(frames.length() - 1);
     }
 
     /* Number of inline frames currently active (doesn't include original one) */
@@ -407,15 +369,13 @@ class SPSInstrumentation
      * Flags entry into a JS function for the first time. Before this is called,
      * no instrumentation is emitted, but after this instrumentation is emitted.
      */
-    bool push(JSScript *script, Assembler &masm, Register scratch, bool inlinedFunction = false) {
+    bool push(JSScript *script, Assembler &masm, Register scratch) {
         if (!enabled())
             return true;
-        if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames) {
-            const char *string = profiler_->profileString(script, script->functionNonDelazifying());
-            if (string == nullptr)
-                return false;
-            masm.spsPushFrame(profiler_, string, script, scratch);
-        }
+        const char *string = profiler_->profileString(script, script->functionNonDelazifying());
+        if (string == nullptr)
+            return false;
+        masm.spsPushFrame(profiler_, string, script, scratch);
         setPushed(script);
         return true;
     }
@@ -425,13 +385,10 @@ class SPSInstrumentation
      * sets the current PC to something non-null, however, so as soon as JIT
      * code is reentered this updates the current pc to nullptr.
      */
-    void pushManual(JSScript *script, Assembler &masm, Register scratch,
-                    bool inlinedFunction = false)
-    {
+    void pushManual(JSScript *script, Assembler &masm, Register scratch) {
         if (!enabled())
             return;
-        if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
-            masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
+        masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
         setPushed(script);
     }
 
@@ -442,36 +399,21 @@ class SPSInstrumentation
      * first leave() emits instrumentation. Similarly, only the last
      * corresponding reenter() actually emits instrumentation.
      */
-    void leave(jsbytecode *pc, Assembler &masm, Register scratch, bool inlinedFunction = false) {
-        if (enabled() && frame->script && frame->left++ == 0) {
-            jsbytecode *updatePC = pc;
-            JSScript *script = frame->script;
-            if (!inlinedFunction) {
-                // We may be leaving an inlined frame for entry into a C++
-                // frame.  If profileInlineFrames is turned off, use the top
-                // script's pc offset instead of the innermost script's.
-                if (!jit::js_JitOptions.profileInlineFrames && inliningDepth() > 0) {
-                    JS_ASSERT(frames[0].pc);
-                    updatePC = frames[0].pc;
-                    script = frames[0].script;
-                }
-            }
-
-            if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
-                masm.spsUpdatePCIdx(profiler_, script->pcToOffset(updatePC), scratch);
-        }
+    void leave(jsbytecode *pc, Assembler &masm, Register scratch) {
+        if (enabled() && frame->script && frame->left++ == 0)
+            masm.spsUpdatePCIdx(profiler_, frame->script->pcToOffset(pc), scratch);
     }
 
     /*
      * Flags that the leaving of the current function has returned. This tracks
      * state with leave() to only emit instrumentation at proper times.
      */
-    void reenter(Assembler &masm, Register scratch, bool inlinedFunction = false) {
+    void reenter(Assembler &masm, Register scratch) {
         if (!enabled() || !frame->script || frame->left-- != 1)
             return;
         if (frame->skipNext)
             frame->skipNext = false;
-        else if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
+        else
             masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
     }
 
@@ -480,12 +422,11 @@ class SPSInstrumentation
      * multiple return sites of a function, this does not cease instrumentation
      * emission.
      */
-    void pop(Assembler &masm, Register scratch, bool inlinedFunction = false) {
+    void pop(Assembler &masm, Register scratch) {
         if (enabled()) {
             JS_ASSERT(frame->left == 0);
             JS_ASSERT(frame->script);
-            if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
-                masm.spsPopFrame(profiler_, scratch);
+            masm.spsPopFrame(profiler_, scratch);
         }
     }
 };

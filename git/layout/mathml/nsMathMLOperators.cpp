@@ -5,8 +5,7 @@
 
 #include "nsMathMLOperators.h"
 #include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
-#include "nsHashKeys.h"
+#include "nsHashtable.h"
 #include "nsTArray.h"
 
 #include "nsIPersistentProperties2.h"
@@ -32,7 +31,7 @@ struct OperatorData {
 static int32_t         gTableRefCount = 0;
 static uint32_t        gOperatorCount = 0;
 static OperatorData*   gOperatorArray = nullptr;
-static nsDataHashtable<nsStringHashKey, OperatorData*>* gOperatorTable = nullptr;
+static nsHashtable*    gOperatorTable = nullptr;
 static bool            gGlobalsInitialized   = false;
 
 static const char16_t kDashCh  = char16_t('#');
@@ -165,7 +164,8 @@ SetOperator(OperatorData*   aOperatorData,
   aOperatorData->mFlags |= aForm;
   aOperatorData->mStr.Assign(value);
   value.AppendInt(aForm, 10);
-  gOperatorTable->Put(value, aOperatorData);
+  nsStringKey key(value);
+  gOperatorTable->Put(&key, aOperatorData);
 
 #ifdef DEBUG
   NS_LossyConvertUTF16toASCII str(aAttributes);
@@ -293,7 +293,7 @@ InitGlobals()
 {
   gGlobalsInitialized = true;
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
-  gOperatorTable = new nsDataHashtable<nsStringHashKey, OperatorData*>();
+  gOperatorTable = new nsHashtable();
   if (gOperatorTable) {
     rv = InitOperators();
   }
@@ -334,7 +334,8 @@ GetOperatorData(const nsString& aOperator, nsOperatorFlags aForm)
 {
   nsAutoString key(aOperator);
   key.AppendInt(aForm);
-  return gOperatorTable->Get(key);
+  nsStringKey hkey(key);
+  return (OperatorData*)gOperatorTable->Get(&hkey);
 }
 
 bool

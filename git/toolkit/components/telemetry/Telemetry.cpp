@@ -291,6 +291,7 @@ class TelemetryIOInterposeObserver : public IOInterposeObserver
     uint32_t  stats;        /** Number of stat operations */
     double    totalTime;    /** Accumulated duration of all operations */
   };
+  typedef nsBaseHashtableET<nsStringHashKey, FileStats> FileIOEntryType;
 
   struct SafeDir {
     SafeDir(const nsAString& aPath, const nsAString& aSubstName)
@@ -326,24 +327,6 @@ public:
    */
   void AddPath(const nsAString& aPath, const nsAString& aSubstName);
 
-  enum Stage
-  {
-    STAGE_STARTUP = 0,
-    STAGE_NORMAL,
-    STAGE_SHUTDOWN,
-    NUM_STAGES
-  };
-
-  /**
-   * Sets a new stage in the lifecycle of this process.
-   * @param aNewStage One of the STAGE_* enum values.
-   */
-  inline void SetStage(Stage aNewStage)
-  {
-    MOZ_ASSERT(aNewStage != NUM_STAGES);
-    mCurStage = aNewStage;
-  }
-
   /**
    * Get size of hash table with file stats
    */
@@ -364,17 +347,10 @@ public:
   }
 
 private:
-  struct FileStatsByStage
-  {
-    FileStats mStats[NUM_STAGES];
-  };
-  typedef nsBaseHashtableET<nsStringHashKey, FileStatsByStage> FileIOEntryType;
-
   // Statistics for each filename
   AutoHashtable<FileIOEntryType> mFileStats;
   // Container for whitelisted directories
   nsTArray<SafeDir> mSafeDirs;
-  Stage             mCurStage;
 
   /**
    * Reflect a FileIOEntryType object to a Javascript property on obj with
@@ -393,7 +369,6 @@ private:
 };
 
 TelemetryIOInterposeObserver::TelemetryIOInterposeObserver(nsIFile* aXreDir)
-  : mCurStage(STAGE_STARTUP)
 {
   nsAutoString xreDirPath;
   nsresult rv = aXreDir->GetPath(xreDirPath);
@@ -446,24 +421,23 @@ void TelemetryIOInterposeObserver::Observe(Observation& aOb)
   // Create a new entry or retrieve the existing one
   FileIOEntryType* entry = mFileStats.PutEntry(processedName);
   if (entry) {
-    FileStats& stats = entry->mData.mStats[mCurStage];
     // Update the statistics
-    stats.totalTime += (double) aOb.Duration().ToMilliseconds();
+    entry->mData.totalTime += (double) aOb.Duration().ToMilliseconds();
     switch (aOb.ObservedOperation()) {
       case OpCreateOrOpen:
-        stats.creates++;
+        entry->mData.creates += 1;
         break;
       case OpRead:
-        stats.reads++;
+        entry->mData.reads += 1;
         break;
       case OpWrite:
-        stats.writes++;
+        entry->mData.writes += 1;
         break;
       case OpFSync:
-        stats.fsyncs++;
+        entry->mData.fsyncs += 1;
         break;
       case OpStat:
-        stats.stats++;
+        entry->mData.stats += 1;
         break;
       default:
         break;
@@ -475,39 +449,24 @@ bool TelemetryIOInterposeObserver::ReflectFileStats(FileIOEntryType* entry,
                                                     JSContext *cx,
                                                     JS::Handle<JSObject*> obj)
 {
-  JS::AutoValueArray<NUM_STAGES> stages(cx);
-
-  FileStatsByStage& statsByStage = entry->mData;
-  for (int s = STAGE_STARTUP; s < NUM_STAGES; ++s) {
-    FileStats& fileStats = statsByStage.mStats[s];
-
-    if (fileStats.totalTime == 0 && fileStats.creates == 0 &&
-        fileStats.reads == 0 && fileStats.writes == 0 &&
-        fileStats.fsyncs == 0 && fileStats.stats == 0) {
-      // Don't add an array that contains no information
-      stages[s].setNull();
-      continue;
-    }
-
-    // Array we want to report
-    JS::AutoValueArray<6> stats(cx);
-    stats[0].setNumber(fileStats.totalTime);
-    stats[1].setNumber(fileStats.creates);
-    stats[2].setNumber(fileStats.reads);
-    stats[3].setNumber(fileStats.writes);
-    stats[4].setNumber(fileStats.fsyncs);
-    stats[5].setNumber(fileStats.stats);
-
-    // Create jsStats as array of elements above
-    JS::RootedObject jsStats(cx, JS_NewArrayObject(cx, stats));
-    if (!jsStats) {
-      continue;
-    }
-
-    stages[s].setObject(*jsStats);
+  // Let's not report arrays containing [0, 0, 0, 0, 0, 0]
+  if (entry->mData.totalTime == 0 && entry->mData.creates == 0 &&
+      entry->mData.reads == 0 && entry->mData.writes == 0 &&
+      entry->mData.fsyncs == 0 && entry->mData.stats == 0) {
+    return true;
   }
 
-  JS::RootedObject jsEntry(cx, JS_NewArrayObject(cx, stages));
+  // Array we want to report
+  JS::AutoValueArray<6> stats(cx);
+  stats[0].setNumber(entry->mData.totalTime);
+  stats[1].setNumber(entry->mData.creates);
+  stats[2].setNumber(entry->mData.reads);
+  stats[3].setNumber(entry->mData.writes);
+  stats[4].setNumber(entry->mData.fsyncs);
+  stats[5].setNumber(entry->mData.stats);
+
+  // Create jsEntry as array of elements above
+  JS::RootedObject jsEntry(cx, JS_NewArrayObject(cx, stats));
   if (!jsEntry) {
     return false;
   }
@@ -515,8 +474,8 @@ bool TelemetryIOInterposeObserver::ReflectFileStats(FileIOEntryType* entry,
   // Add jsEntry to top-level dictionary
   const nsAString& key = entry->GetKey();
   return JS_DefineUCProperty(cx, obj, key.Data(), key.Length(),
-                             OBJECT_TO_JSVAL(jsEntry), nullptr, nullptr,
-                             JSPROP_ENUMERATE | JSPROP_READONLY);
+                             OBJECT_TO_JSVAL(jsEntry), NULL, NULL,
+                             JSPROP_ENUMERATE);
 }
 
 bool TelemetryIOInterposeObserver::ReflectIntoJS(JSContext *cx,
@@ -3025,24 +2984,6 @@ SetProfileDir(nsIFile* aProfD)
     return;
   }
   sTelemetryIOObserver->AddPath(profDirPath, NS_LITERAL_STRING("{profile}"));
-}
-
-void
-LeavingStartupStage()
-{
-  if (!sTelemetryIOObserver) {
-    return;
-  }
-  sTelemetryIOObserver->SetStage(TelemetryIOInterposeObserver::STAGE_NORMAL);
-}
-
-void
-EnteringShutdownStage()
-{
-  if (!sTelemetryIOObserver) {
-    return;
-  }
-  sTelemetryIOObserver->SetStage(TelemetryIOInterposeObserver::STAGE_SHUTDOWN);
 }
 
 void

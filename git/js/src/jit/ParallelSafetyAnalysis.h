@@ -11,7 +11,7 @@
 
 namespace js {
 
-class InterpreterFrame;
+class StackFrame;
 
 namespace jit {
 

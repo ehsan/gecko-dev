@@ -831,16 +831,10 @@ BrowserElementChild.prototype = {
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 
-    let ctx = canvas.getContext("2d", { willReadFrequently: true });
+    var ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.scale(scale * devicePixelRatio, scale * devicePixelRatio);
-
-    let flags = ctx.DRAWWINDOW_DRAW_VIEW |
-                ctx.DRAWWINDOW_USE_WIDGET_LAYERS |
-                ctx.DRAWWINDOW_DO_NOT_FLUSH |
-                ctx.DRAWWINDOW_ASYNC_DECODE_IMAGES;
     ctx.drawWindow(content, 0, 0, content.innerWidth, content.innerHeight,
-                   transparent ? "rgba(255,255,255,0)" : "rgb(255,255,255)",
-                   flags);
+                   transparent ? "rgba(255,255,255,0)" : "rgb(255,255,255)");
 
     // Take a JPEG screenshot by default instead of PNG with alpha channel.
     // This requires us to unpremultiply the alpha channel, which
