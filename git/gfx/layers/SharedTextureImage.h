@@ -35,7 +35,7 @@ public:
 
   gfx::IntSize GetSize() { return mData.mSize; }
 
-  virtual already_AddRefed<gfxASurface> DeprecatedGetAsSurface() {
+  virtual already_AddRefed<gfxASurface> GetAsSurface() {
     return nullptr;
   }
 

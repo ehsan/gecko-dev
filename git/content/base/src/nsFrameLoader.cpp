@@ -627,7 +627,8 @@ static void
 FirePageHideEvent(nsIDocShellTreeItem* aItem,
                   EventTarget* aChromeEventHandler)
 {
-  nsCOMPtr<nsIDocument> internalDoc = do_GetInterface(aItem);
+  nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
+  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
   NS_ASSERTION(internalDoc, "What happened here?");
   internalDoc->OnPageHide(true, aChromeEventHandler);
 
@@ -669,7 +670,8 @@ FirePageShowEvent(nsIDocShellTreeItem* aItem,
     }
   }
 
-  nsCOMPtr<nsIDocument> internalDoc = do_GetInterface(aItem);
+  nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
+  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
   NS_ASSERTION(internalDoc, "What happened here?");
   if (internalDoc->IsShowing() == aFireIfShowing) {
     internalDoc->OnPageShow(true, aChromeEventHandler);
@@ -2193,14 +2195,16 @@ nsFrameLoader::CreateStaticClone(nsIFrameLoader* aDest)
   dest->MaybeCreateDocShell();
   NS_ENSURE_STATE(dest->mDocShell);
 
-  nsCOMPtr<nsIDocument> dummy = do_GetInterface(dest->mDocShell);
+  nsCOMPtr<nsIDOMDocument> dummy = do_GetInterface(dest->mDocShell);
   nsCOMPtr<nsIContentViewer> viewer;
   dest->mDocShell->GetContentViewer(getter_AddRefs(viewer));
   NS_ENSURE_STATE(viewer);
 
   nsCOMPtr<nsIDocShell> origDocShell;
   GetDocShell(getter_AddRefs(origDocShell));
-  nsCOMPtr<nsIDocument> doc = do_GetInterface(origDocShell);
+  nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(origDocShell);
+
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   NS_ENSURE_STATE(doc);
   nsCOMPtr<nsIDocument> clonedDoc = doc->CreateStaticClone(dest->mDocShell);
   nsCOMPtr<nsIDOMDocument> clonedDOMDoc = do_QueryInterface(clonedDoc);

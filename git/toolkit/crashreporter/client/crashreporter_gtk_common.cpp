@@ -17,7 +17,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <gdk/gdkkeysyms.h>
 
 #include <algorithm>
 #include <string>
@@ -27,10 +26,6 @@
 #include "common/linux/http_upload.h"
 #include "crashreporter.h"
 #include "crashreporter_gtk_common.h"
-
-#ifndef GDK_KEY_Escape
-#define GDK_KEY_Escape GDK_Escape
-#endif
 
 using std::string;
 using std::vector;
@@ -220,23 +215,12 @@ gpointer SendThread(gpointer args)
 }
 
 gboolean WindowDeleted(GtkWidget* window,
-                       GdkEvent* event,
-                       gpointer userData)
+                              GdkEvent* event,
+                              gpointer userData)
 {
   SaveSettings();
   gtk_main_quit();
   return TRUE;
-}
-
-gboolean check_escape(GtkWidget* window,
-                      GdkEventKey* event,
-                      gpointer userData)
-{
-  if (event->keyval == GDK_KEY_Escape) {
-    gtk_main_quit();
-    return TRUE;
-  }
-  return FALSE;
 }
 
 static void MaybeSubmitReport()

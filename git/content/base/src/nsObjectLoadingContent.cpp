@@ -75,7 +75,6 @@
 #include "nsDOMClassInfo.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMJSUtils.h"
-#include "nsDOMEvent.h"
 
 #include "nsWidgetsCID.h"
 #include "nsContentCID.h"
@@ -298,16 +297,17 @@ nsPluginCrashedEvent::Run()
   LOG(("OBJLC [%p]: Firing plugin crashed event\n",
        mContent.get()));
 
-  nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
-  if (!doc) {
+  nsCOMPtr<nsIDOMDocument> domDoc =
+    do_QueryInterface(mContent->GetDocument());
+  if (!domDoc) {
     NS_WARNING("Couldn't get document for PluginCrashed event!");
     return NS_OK;
   }
 
-  ErrorResult rv;
-  nsRefPtr<nsDOMEvent> event =
-    doc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"), rv);
-  nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryObject(event));
+  nsCOMPtr<nsIDOMEvent> event;
+  domDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
+                      getter_AddRefs(event));
+  nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryInterface(event));
   if (!containerEvent) {
     NS_WARNING("Couldn't QI event for PluginCrashed event!");
     return NS_OK;

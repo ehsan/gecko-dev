@@ -39,18 +39,9 @@ public:
                    nsIAtom*        aAttribute,
                    int32_t         aModType) MOZ_OVERRIDE;
 
-  uint8_t
-  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE;
-
 protected:
-  nsMathMLmunderoverFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext),
-                                                      mIncrementUnder(false),
-                                                      mIncrementOver(false) {}
+  nsMathMLmunderoverFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmunderoverFrame();
-
-private:
-  bool mIncrementUnder;
-  bool mIncrementOver;
 };
 
 

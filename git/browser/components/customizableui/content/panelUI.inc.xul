@@ -176,7 +176,8 @@
        role="group"
        type="arrow"
        level="top"
-       hidden="true">
+       hidden="true"
+       consumeoutsideclicks="true">
   <vbox id="widget-overflow-scroller">
     <vbox id="widget-overflow-list"/>
   </vbox>

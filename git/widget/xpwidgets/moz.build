@@ -6,7 +6,6 @@
 
 EXPORTS += [
     'APZCCallbackHelper.h',
-    'ContentHelper.h',
     'GfxDriverInfo.h',
     'GfxInfoBase.h',
     'GfxInfoCollector.h',
@@ -14,7 +13,6 @@ EXPORTS += [
 
 UNIFIED_SOURCES += [
     'APZCCallbackHelper.cpp',
-    'ContentHelper.cpp',
     'GfxDriverInfo.cpp',
     'GfxInfoBase.cpp',
     'GfxInfoCollector.cpp',

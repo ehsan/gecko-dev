@@ -19,7 +19,6 @@
 #include "nsISupportsImpl.h"
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "mozilla/Vector.h"             // for mozilla::Vector
-#include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
 
 class gfx3DMatrix;
 template <class E> class nsTArray;
@@ -28,14 +27,6 @@ namespace mozilla {
 class InputData;
 
 namespace layers {
-
-enum AllowedTouchBehavior {
-  NONE =               0,
-  VERTICAL_PAN =       1 << 0,
-  HORIZONTAL_PAN =     1 << 1,
-  ZOOM =               1 << 2,
-  UNKNOWN =            1 << 3
-};
 
 class Layer;
 class AsyncPanZoomController;
@@ -65,9 +56,6 @@ class CompositorParent;
  */
 class APZCTreeManager {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(APZCTreeManager)
-
-  typedef mozilla::layers::AllowedTouchBehavior AllowedTouchBehavior;
-  typedef uint32_t TouchBehaviorFlags;
 
 public:
   APZCTreeManager();
@@ -200,22 +188,6 @@ public:
    * Returns the current dpi value in use.
    */
   static float GetDPI() { return sDPI; }
-
-  /**
-   * Returns values of allowed touch-behavior for the touches of aEvent via out parameter.
-   * Internally performs asks appropriate AsyncPanZoomController to perform
-   * hit testing on its own.
-   */
-  void GetAllowedTouchBehavior(WidgetInputEvent* aEvent,
-                               nsTArray<TouchBehaviorFlags>& aOutValues);
-
-  /**
-   * Sets allowed touch behavior values for current touch-session for specific apzc (determined by guid).
-   * Should be invoked by the widget. Each value of the aValues arrays corresponds to the different
-   * touch point that is currently active.
-   */
-  void SetAllowedTouchBehavior(const ScrollableLayerGuid& aGuid,
-                               const nsTArray<TouchBehaviorFlags>& aValues);
 
   /**
    * This is a callback for AsyncPanZoomController to call when it wants to

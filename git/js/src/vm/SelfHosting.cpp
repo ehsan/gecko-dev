@@ -779,14 +779,14 @@ JSRuntime::initSelfHosting(JSContext *cx)
      * and we don't want errors in self-hosted code to be silently swallowed.
      */
     JSErrorReporter oldReporter = JS_SetErrorReporter(cx, selfHosting_ErrorReporter);
-    RootedValue rv(cx);
+    Value rv;
     bool ok = false;
 
     char *filename = getenv("MOZ_SELFHOSTEDJS");
     if (filename) {
         RootedScript script(cx, Compile(cx, shg, options, filename));
         if (script)
-            ok = Execute(cx, script, *shg.get(), rv.address());
+            ok = Execute(cx, script, *shg.get(), &rv);
     } else {
         uint32_t srcLen = GetRawScriptsSize();
 
@@ -803,7 +803,7 @@ JSRuntime::initSelfHosting(JSContext *cx)
         const char *src = rawSources;
 #endif
 
-        ok = Evaluate(cx, shg, options, src, srcLen, rv.address());
+        ok = Evaluate(cx, shg, options, src, srcLen, &rv);
     }
     JS_SetErrorReporter(cx, oldReporter);
     if (receivesDefaultObject)

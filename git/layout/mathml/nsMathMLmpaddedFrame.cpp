@@ -63,9 +63,20 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 
   nsAutoString value;
 
+  /* The REC says:
+  There is one exceptional element, <mpadded>, whose attributes cannot be 
+  set with <mstyle>. When the attributes width, height and depth are specified
+  on an <mstyle> element, they apply only to the <mspace/> element. Similarly, 
+  when lspace is set with <mstyle>, it applies only to the <mo> element. To be
+  consistent, the voffset attribute of the mpadded element can not be set on
+  mstyle. 
+  */
+
+  // See if attributes are local, don't access mstyle !
+
   // width
   mWidthSign = NS_MATHML_SIGN_INVALID;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::width, value);
+  GetAttribute(mContent, nullptr, nsGkAtoms::width, value);
   if (!value.IsEmpty()) {
     if (!ParseAttribute(value, mWidthSign, mWidth, mWidthPseudoUnit)) {      
       ReportParseError(nsGkAtoms::width->GetUTF16String(), value.get());
@@ -74,7 +85,7 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 
   // height
   mHeightSign = NS_MATHML_SIGN_INVALID;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::height, value);
+  GetAttribute(mContent, nullptr, nsGkAtoms::height, value);
   if (!value.IsEmpty()) {
     if (!ParseAttribute(value, mHeightSign, mHeight, mHeightPseudoUnit)) {
       ReportParseError(nsGkAtoms::height->GetUTF16String(), value.get());
@@ -83,7 +94,7 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 
   // depth
   mDepthSign = NS_MATHML_SIGN_INVALID;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::depth_, value);
+  GetAttribute(mContent, nullptr, nsGkAtoms::depth_, value);
   if (!value.IsEmpty()) {
     if (!ParseAttribute(value, mDepthSign, mDepth, mDepthPseudoUnit)) {
       ReportParseError(nsGkAtoms::depth_->GetUTF16String(), value.get());
@@ -92,7 +103,7 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 
   // lspace
   mLeadingSpaceSign = NS_MATHML_SIGN_INVALID;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::lspace_, value);
+  GetAttribute(mContent, nullptr, nsGkAtoms::lspace_, value);
   if (!value.IsEmpty()) {
     if (!ParseAttribute(value, mLeadingSpaceSign, mLeadingSpace, 
                         mLeadingSpacePseudoUnit)) {
@@ -102,7 +113,7 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 
   // voffset
   mVerticalOffsetSign = NS_MATHML_SIGN_INVALID;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::voffset_, value);
+  GetAttribute(mContent, nullptr, nsGkAtoms::voffset_, value);
   if (!value.IsEmpty()) {
     if (!ParseAttribute(value, mVerticalOffsetSign, mVerticalOffset,
                         mVerticalOffsetPseudoUnit)) {

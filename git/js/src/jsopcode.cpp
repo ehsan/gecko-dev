@@ -815,7 +815,7 @@ static char *
 QuoteString(Sprinter *sp, JSString *str, uint32_t quote);
 
 static bool
-ToDisassemblySource(JSContext *cx, HandleValue v, JSAutoByteString *bytes)
+ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
 {
     if (JSVAL_IS_STRING(v)) {
         Sprinter sprinter(cx);
@@ -941,8 +941,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
       }
 
       case JOF_SCOPECOORD: {
-        RootedValue v(cx,
-                      StringValue(ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, pc)));
+        Value v = StringValue(ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, pc));
         JSAutoByteString bytes;
         if (!ToDisassemblySource(cx, v, &bytes))
             return 0;
@@ -952,7 +951,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
       }
 
       case JOF_ATOM: {
-        RootedValue v(cx, StringValue(script->getAtom(GET_UINT32_INDEX(pc))));
+        Value v = StringValue(script->getAtom(GET_UINT32_INDEX(pc)));
         JSAutoByteString bytes;
         if (!ToDisassemblySource(cx, v, &bytes))
             return 0;
@@ -961,7 +960,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
       }
 
       case JOF_DOUBLE: {
-        RootedValue v(cx, script->getConst(GET_UINT32_INDEX(pc)));
+        Value v = script->getConst(GET_UINT32_INDEX(pc));
         JSAutoByteString bytes;
         if (!ToDisassemblySource(cx, v, &bytes))
             return 0;
@@ -979,8 +978,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
         JSObject *obj = script->getObject(GET_UINT32_INDEX(pc));
         {
             JSAutoByteString bytes;
-            RootedValue v(cx, ObjectValue(*obj));
-            if (!ToDisassemblySource(cx, v, &bytes))
+            if (!ToDisassemblySource(cx, ObjectValue(*obj), &bytes))
                 return 0;
             Sprint(sp, " %s", bytes.ptr());
         }
@@ -990,8 +988,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
       case JOF_REGEXP: {
         JSObject *obj = script->getRegExp(GET_UINT32_INDEX(pc));
         JSAutoByteString bytes;
-        RootedValue v(cx, ObjectValue(*obj));
-        if (!ToDisassemblySource(cx, v, &bytes))
+        if (!ToDisassemblySource(cx, ObjectValue(*obj), &bytes))
             return 0;
         Sprint(sp, " %s", bytes.ptr());
         break;
@@ -1029,8 +1026,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
         Sprint(sp, " %u", GET_SLOTNO(pc));
         JSObject *obj = script->getObject(GET_UINT32_INDEX(pc + SLOTNO_LEN));
         JSAutoByteString bytes;
-        RootedValue v(cx, ObjectValue(*obj));
-        if (!ToDisassemblySource(cx, v, &bytes))
+        if (!ToDisassemblySource(cx, ObjectValue(*obj), &bytes))
             return 0;
         Sprint(sp, " %s", bytes.ptr());
         break;

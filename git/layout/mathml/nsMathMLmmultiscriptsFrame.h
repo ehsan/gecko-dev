@@ -40,9 +40,6 @@ public:
                     nscoord              aUserSupScriptShift,
                     nscoord              aScriptSpace);
 
-  uint8_t
-  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE;
-
 protected:
   nsMathMLmmultiscriptsFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmmultiscriptsFrame();

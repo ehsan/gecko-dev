@@ -24,6 +24,7 @@
 #include "nsIDocumentInlines.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIDOMNodeList.h"
+#include "nsIDOMDocument.h"
 #include "nsIContentIterator.h"
 #include "nsEventListenerManager.h"
 #include "nsFocusManager.h"
@@ -86,6 +87,7 @@
 
 #include "nsNodeInfoManager.h"
 #include "nsICategoryManager.h"
+#include "nsIDOMDocumentType.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIEditor.h"
@@ -2702,15 +2704,18 @@ FragmentOrElement::SetInnerHTMLInternal(const nsAString& aInnerHTML, ErrorResult
     nsContentUtils::FireMutationEventsForDirectParsing(doc, target,
                                                        oldChildCount);
   } else {
-    nsRefPtr<DocumentFragment> df =
-      nsContentUtils::CreateContextualFragment(target, aInnerHTML, true, aError);
+    nsCOMPtr<nsIDOMDocumentFragment> df;
+    aError = nsContentUtils::CreateContextualFragment(target, aInnerHTML,
+                                                      true,
+                                                      getter_AddRefs(df));
+    nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
     if (!aError.Failed()) {
       // Suppress assertion about node removal mutation events that can't have
       // listeners anyway, because no one has had the chance to register mutation
       // listeners on the fragment that comes from the parser.
       nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
-      static_cast<nsINode*>(target)->AppendChild(*df, aError);
+      static_cast<nsINode*>(target)->AppendChild(*fragment, aError);
       mb.NodesAdded();
     }
   }

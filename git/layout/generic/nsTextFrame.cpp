@@ -38,11 +38,10 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsFrame.h"
-#include "nsIMathMLFrame.h"
 #include "nsPlaceholderFrame.h"
 #include "nsTextFrameUtils.h"
 #include "nsTextRunTransformations.h"
-#include "MathMLTextRunFactory.h"
+#include "MathVariantTextRunFactory.h"
 #include "nsExpirationTracker.h"
 #include "nsUnicodeProperties.h"
 
@@ -1330,9 +1329,6 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   if (aForFrame && aForFrame->HasAnyStateBits(TEXT_IS_IN_SINGLE_CHAR_MI)) {
     aLineContainer->AddStateBits(TEXT_IS_IN_SINGLE_CHAR_MI);
   }
-  if (aForFrame && aForFrame->HasAnyStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT)) {
-    aLineContainer->AddStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT);
-  }
 
   nsPresContext* presContext = aLineContainer->PresContext();
   BuildTextRunsScanner scanner(presContext, aContext, aLineContainer,
@@ -1897,8 +1893,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
   const void* textPtr = aTextBuffer;
   bool anySmallcapsStyle = false;
   bool anyTextTransformStyle = false;
-  bool anyMathMLStyling = false;
-  uint8_t sstyScriptLevel = 0;
+  bool anyMathVariantStyle = false;
   uint32_t textFlags = nsTextFrameUtils::TEXT_NO_BREAKS;
 
   if (mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_WHITESPACE) {
@@ -1977,35 +1972,10 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
       anySmallcapsStyle = true;
     }
     if (NS_MATHML_MATHVARIANT_NONE != fontStyle->mMathVariant) {
-      anyMathMLStyling = true;
+      anyMathVariantStyle = true;
     } else if (mLineContainer->GetStateBits() & TEXT_IS_IN_SINGLE_CHAR_MI) {
       textFlags |= nsTextFrameUtils::TEXT_IS_SINGLE_CHAR_MI;
-      anyMathMLStyling = true;
-    }
-    nsIFrame* parent = mLineContainer->GetParent();
-    nsIFrame* child = mLineContainer;
-    uint8_t oldScriptLevel = 0;
-    while (parent && 
-           child->HasAnyStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT)) {
-      // Reconstruct the script level ignoring any user overrides. It is
-      // calculated this way instead of using scriptlevel to ensure the 
-      // correct ssty font feature setting is used even if the user sets a
-      // different (especially negative) scriptlevel.
-      nsIMathMLFrame* mathFrame= do_QueryFrame(parent);
-      if (mathFrame) {
-        sstyScriptLevel += mathFrame->ScriptIncrement(child);
-      }
-      if (sstyScriptLevel < oldScriptLevel) {
-        // overflow
-        sstyScriptLevel = UINT8_MAX;
-        break;
-      }
-      child = parent;
-      parent = parent->GetParent();
-      oldScriptLevel = sstyScriptLevel;
-    }
-    if (sstyScriptLevel) {
-      anyMathMLStyling = true;
+      anyMathVariantStyle = true;
     }
 
     // Figure out what content is included in this flow.
@@ -2140,9 +2110,9 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     transformingFactory =
       new nsCaseTransformTextRunFactory(transformingFactory.forget());
   }
-  if (anyMathMLStyling) {
+  if (anyMathVariantStyle) {
     transformingFactory =
-      new MathMLTextRunFactory(transformingFactory.forget(), sstyScriptLevel);
+      new nsMathVariantTextRunFactory(transformingFactory.forget());
   }
   nsTArray<nsStyleContext*> styles;
   if (transformingFactory) {

@@ -180,7 +180,6 @@ public:
   virtual void SetDisplayPort(const nsRect& aDisplayPort);
 
   virtual nsresult SetResolution(float aXResolution, float aYResolution) MOZ_OVERRIDE;
-  virtual gfxSize GetCumulativeResolution() MOZ_OVERRIDE;
 
   //nsIViewObserver interface
 

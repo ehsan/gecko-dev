@@ -144,6 +144,3 @@ let healthReportWrapper = {
     healthReportWrapper.reportFailure(healthReportWrapper.ERROR_PAYLOAD_FAILED);
   },
 }
-
-window.addEventListener("load", function () { healthReportWrapper.init(); });
-window.addEventListener("unload", function () { healthReportWrapper.uninit(); });

@@ -24,8 +24,7 @@ function setup(cb) {
       let editor = new Editor({
         value: "Hello.",
         lineNumbers: true,
-        foldGutter: true,
-        gutters: [ "CodeMirror-linenumbers", "breakpoints", "CodeMirror-foldgutter" ]
+        gutters: [ "breakpoints" ]
       });
 
       editor.appendTo(box)

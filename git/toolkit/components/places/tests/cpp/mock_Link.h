@@ -177,7 +177,7 @@ URLSearchParams::SetObserver(URLSearchParamsObserver* aObserver)
 }
 
 void
-URLSearchParams::Serialize(nsAString& aValue) const
+URLSearchParams::Serialize(nsAString& aValue)
 {
   NS_NOTREACHED("Unexpected call to URLSearchParams::Serialize");
 }

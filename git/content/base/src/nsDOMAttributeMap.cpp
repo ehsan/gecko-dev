@@ -18,6 +18,7 @@
 #include "nsError.h"
 #include "nsIContentInlines.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsNodeInfoManager.h"
 #include "nsUnicharUtils.h"

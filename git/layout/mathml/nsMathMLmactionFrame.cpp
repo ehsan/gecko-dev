@@ -131,7 +131,8 @@ nsMathMLmactionFrame::GetSelectedFrame()
     return mSelectedFrame;
   }
 
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::selection_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::selection_,
+               value);
   if (!value.IsEmpty()) {
     nsresult errorCode;
     selection = value.ToInteger(&errorCode);
