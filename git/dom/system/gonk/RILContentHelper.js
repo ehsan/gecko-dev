@@ -417,33 +417,27 @@ RILContentHelper.prototype = {
   },
 
   get iccInfo() {
-    let context = this.getRilContext();
-    return context && context.iccInfo;
+    return this.getRilContext().iccInfo;
   },
 
   get voiceConnectionInfo() {
-    let context = this.getRilContext();
-    return context && context.voiceConnectionInfo;
+    return this.getRilContext().voiceConnectionInfo;
   },
 
   get dataConnectionInfo() {
-    let context = this.getRilContext();
-    return context && context.dataConnectionInfo;
+    return this.getRilContext().dataConnectionInfo;
   },
 
   get cardState() {
-    let context = this.getRilContext();
-    return context && context.cardState;
+    return this.getRilContext().cardState;
   },
 
   get retryCount() {
-    let context = this.getRilContext();
-    return context && context.retryCount;
+    return this.getRilContext().retryCount;
   },
 
   get networkSelectionMode() {
-    let context = this.getRilContext();
-    return context && context.networkSelectionMode;
+    return this.getRilContext().networkSelectionMode;
   },
 
   /**
@@ -712,14 +706,6 @@ RILContentHelper.prototype = {
 
     if (contact.tel) {
       iccContact.number = contact.tel[0].value;
-    }
-
-    if (contact.email) {
-      iccContact.email = contact.email[0].value;
-    }
-
-    if (contact.tel.length > 1) {
-      iccContact.anr = contact.tel.slice(1);
     }
 
     cpmm.sendAsyncMessage("RIL:UpdateIccContact", {requestId: requestId,

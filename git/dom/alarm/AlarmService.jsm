@@ -48,7 +48,6 @@ let myGlobal = this;
 this.AlarmService = {
   init: function init() {
     debug("init()");
-    Services.obs.addObserver(this, "profile-change-teardown", false);
 
     this._currentTimezoneOffset = (new Date()).getTimezoneOffset();
 
@@ -60,11 +59,11 @@ this.AlarmService = {
     alarmHalService.setTimezoneChangedCb(this._onTimezoneChanged.bind(this));
 
     // Add the messages to be listened to.
-    this._messages = ["AlarmsManager:GetAll",
+    const messages = ["AlarmsManager:GetAll",
                       "AlarmsManager:Add",
                       "AlarmsManager:Remove"];
-    this._messages.forEach(function addMessage(msgName) {
-      ppmm.addMessageListener(msgName, this);
+    messages.forEach(function addMessage(msgName) {
+        ppmm.addMessageListener(msgName, this);
     }.bind(this));
 
     // Set the indexeddb database.
@@ -100,7 +99,8 @@ this.AlarmService = {
 
     // To prevent the hacked child process from sending commands to parent
     // to schedule alarms, we need to check its permission and manifest URL.
-    if (this._messages.indexOf(aMessage.name) != -1) {
+    if (["AlarmsManager:GetAll", "AlarmsManager:Add", "AlarmsManager:Remove"]
+          .indexOf(aMessage.name) != -1) {
       if (!aMessage.target.assertPermission("alarms")) {
         debug("Got message from a child process with no 'alarms' permission.");
         return null;
@@ -490,30 +490,6 @@ this.AlarmService = {
         this._debugCurrentAlarm();
       }.bind(this)
     );
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "profile-change-teardown":
-        this.uninit();
-    }
-  },
-
-  uninit: function uninit() {
-    debug("uninit()");
-    Services.obs.removeObserver(this, "profile-change-teardown");
-
-    this._messages.forEach(function(aMsgName) {
-      ppmm.removeMessageListener(aMsgName, this);
-    }.bind(this));
-    ppmm = null;
-
-    if (this._db) {
-      this._db.close();
-    }
-    this._db = null;
-
-    this._alarmHalService = null;
   }
 }
 

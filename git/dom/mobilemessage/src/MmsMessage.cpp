@@ -188,10 +188,6 @@ MmsMessage::Create(int32_t               aId,
       status = eDeliveryStatus_Pending;
     } else if (statusStr.Equals(DELIVERY_STATUS_ERROR)) {
       status = eDeliveryStatus_Error;
-    } else if (statusStr.Equals(DELIVERY_STATUS_REJECTED)) {
-      status = eDeliveryStatus_Reject;
-    } else if (statusStr.Equals(DELIVERY_STATUS_MANUAL)) {
-      status = eDeliveryStatus_Manual;
     } else {
       return NS_ERROR_INVALID_ARG;
     }
@@ -384,12 +380,6 @@ MmsMessage::GetDeliveryStatus(JSContext* aCx, JS::Value* aDeliveryStatus)
         break;
       case eDeliveryStatus_Error:
         statusStr = DELIVERY_STATUS_ERROR;
-        break;
-      case eDeliveryStatus_Reject:
-        statusStr = DELIVERY_STATUS_REJECTED;
-        break;
-      case eDeliveryStatus_Manual:
-        statusStr = DELIVERY_STATUS_MANUAL;
         break;
       case eDeliveryStatus_EndGuard:
       default:

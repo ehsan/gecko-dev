@@ -1012,8 +1012,6 @@ BluetoothHfpManager::Connect(const nsAString& aDevicePath,
     mHeadsetSocket = nullptr;
   }
 
-  MOZ_ASSERT(!mRunnable);
-
   mRunnable = aRunnable;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
