@@ -784,7 +784,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     TIME_END(checkHashTables);
 
     TIME_START(markRuntime);
-    rt->gc.markRuntime(&trc);
+    MarkRuntime(&trc);
     TIME_END(markRuntime);
 
     TIME_START(markDebugger);

@@ -980,12 +980,22 @@ struct JSRuntime : public JS::shadow::Runtime,
 #endif
 
     void lockGC() {
+#ifdef JS_THREADSAFE
         assertCanLock(js::GCLock);
-        gc.lockGC();
+        PR_Lock(gc.lock);
+        JS_ASSERT(!gc.lockOwner);
+#ifdef DEBUG
+        gc.lockOwner = PR_GetCurrentThread();
+#endif
+#endif
     }
 
     void unlockGC() {
-        gc.unlockGC();
+#ifdef JS_THREADSAFE
+        JS_ASSERT(gc.lockOwner == PR_GetCurrentThread());
+        gc.lockOwner = nullptr;
+        PR_Unlock(gc.lock);
+#endif
     }
 
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
@@ -1484,7 +1494,7 @@ inline void
 FreeOp::free_(void *p)
 {
     if (shouldFreeLater()) {
-        runtime()->gc.freeLater(p);
+        runtime()->gc.helperThread.freeLater(p);
         return;
     }
     js_free(p);

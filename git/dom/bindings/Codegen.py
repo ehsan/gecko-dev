@@ -55,7 +55,8 @@ def isTypeCopyConstructible(type):
 def wantsAddProperty(desc):
     return (desc.concrete and
             desc.wrapperCache and
-            not desc.interface.getExtendedAttribute("Global"))
+            not (desc.workers and
+                 desc.interface.getExtendedAttribute("Global")))
 
 
 # We'll want to insert the indent at the beginnings of lines, but we
