@@ -148,7 +148,6 @@
 #include "nsMenuPopupFrame.h"
 #endif
 #include "nsIDOMCustomEvent.h"
-#include "nsIFrameRequestCallback.h"
 
 #include "xpcprivate.h"
 
@@ -5000,7 +4999,7 @@ nsGlobalWindow::DispatchResizeEvent(const nsIntSize& aSize)
 
   AutoSafeJSContext cx;
   JSAutoCompartment ac(cx, mJSObject);
-  DOMWindowResizeEventDetail detail;
+  DOMWindowResizeEventDetailInitializer detail;
   detail.mWidth = aSize.width;
   detail.mHeight = aSize.height;
   JS::Rooted<JS::Value> detailValue(cx);

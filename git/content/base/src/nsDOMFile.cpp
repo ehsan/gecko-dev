@@ -163,10 +163,7 @@ nsDOMFileBase::GetMozFullPath(nsAString &aFileName)
 NS_IMETHODIMP
 nsDOMFileBase::GetMozFullPathInternal(nsAString &aFileName)
 {
-  if (!mIsFile) {
-    return NS_ERROR_FAILURE;
-  }
-
+  NS_ASSERTION(mIsFile, "Should only be called on files");
   aFileName.Truncate();
   return NS_OK;
 }

@@ -106,13 +106,8 @@ protected:
       return false;
     }
 
-    JS::RootedString scriptURLStr(aCx, JS_ValueToString(aCx, aArgs[0]));
-    if (!scriptURLStr) {
-      return false;
-    }
-
     nsDependentJSString scriptURL;
-    if (!scriptURL.init(aCx, scriptURLStr)) {
+    if (!scriptURL.init(aCx, aArgs[0])) {
       return false;
     }
 

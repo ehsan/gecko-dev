@@ -33,7 +33,6 @@
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
-#include "mozilla/dom/URLBinding.h"
 
 using namespace mozilla;
 using namespace JS;
@@ -902,8 +901,6 @@ xpc::GlobalProperties::Parse(JSContext *cx, JS::HandleObject obj)
             TextEncoder = true;
         } else if (!strcmp(name.ptr(), "TextDecoder")) {
             TextDecoder = true;
-        } else if (!strcmp(name.ptr(), "URL")) {
-            URL = true;
         } else if (!strcmp(name.ptr(), "atob")) {
             atob = true;
         } else if (!strcmp(name.ptr(), "btoa")) {
@@ -934,10 +931,6 @@ xpc::GlobalProperties::Define(JSContext *cx, JS::HandleObject obj)
 
     if (TextDecoder &&
         !dom::TextDecoderBinding::GetConstructorObject(cx, obj))
-        return false;
-
-    if (URL &&
-        !dom::URLBinding::GetConstructorObject(cx, obj))
         return false;
 
     if (atob &&

@@ -766,10 +766,7 @@ public:
             if (term.type == PatternTerm::TypeParenthesesSubpattern) {
                 PatternDisjunction* nestedDisjunction = term.parentheses.disjunction;
                 for (unsigned alt = 0; alt < nestedDisjunction->m_alternatives.size(); ++alt) {
-                    PatternAlternative *pattern = nestedDisjunction->m_alternatives[alt];
-                    if (pattern->m_terms.size() == 0)
-                        continue;
-                    if (containsCapturingTerms(pattern, 0, pattern->m_terms.size() - 1))
+                    if (containsCapturingTerms(nestedDisjunction->m_alternatives[alt], 0, nestedDisjunction->m_alternatives[alt]->m_terms.size() - 1))
                         return true;
                 }
             }

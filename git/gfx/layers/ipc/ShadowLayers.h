@@ -306,7 +306,7 @@ public:
   /**
    * See CompositableForwarder::AddTexture
    */
-  virtual bool AddTexture(CompositableClient* aCompositable,
+  virtual void AddTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
 
   /**

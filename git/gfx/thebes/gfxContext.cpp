@@ -31,8 +31,6 @@
 using namespace mozilla;
 using namespace mozilla::gfx;
 
-UserDataKey gfxContext::sDontUseAsSourceKey;
-
 /* This class lives on the stack and allows gfxContext users to easily, and
  * performantly get a gfx::Pattern to use for drawing in their current context.
  */
@@ -1616,9 +1614,8 @@ gfxContext::PushGroupAndCopyBackground(gfxContentType content)
       gfxRect clipRect = GetRoundOutDeviceClipExtents(this);
       clipExtents = IntRect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
     }
-    if ((mDT->GetFormat() == FORMAT_B8G8R8X8 ||
-         mDT->GetOpaqueRect().Contains(clipExtents)) &&
-        !mDT->GetUserData(&sDontUseAsSourceKey)) {
+    if (mDT->GetFormat() == FORMAT_B8G8R8X8 ||
+        mDT->GetOpaqueRect().Contains(clipExtents)) {
       DrawTarget *oldDT = mDT;
       RefPtr<SourceSurface> source = mDT->Snapshot();
       Point oldDeviceOffset = CurrentState().deviceOffset;
