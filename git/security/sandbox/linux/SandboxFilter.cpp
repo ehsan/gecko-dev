@@ -132,7 +132,6 @@ SandboxFilterImplContent::Build() {
 
   Allow(SYSCALL(clock_gettime));
   Allow(SYSCALL(epoll_wait));
-  Allow(SYSCALL(epoll_pwait));
   Allow(SYSCALL(gettimeofday));
   Allow(SYSCALL(read));
   Allow(SYSCALL(write));
@@ -169,9 +168,6 @@ SandboxFilterImplContent::Build() {
   Allow(SYSCALL(dup));
   Allow(SYSCALL(nanosleep));
   Allow(SYSCALL(poll));
-  Allow(SYSCALL(ppoll));
-  Allow(SYSCALL(openat));
-  Allow(SYSCALL(faccessat));
   // select()'s arguments used to be passed by pointer as a struct.
 #if SYSCALL_EXISTS(_newselect)
   Allow(SYSCALL(_newselect));
@@ -303,9 +299,6 @@ SandboxFilterImplContent::Build() {
   Allow(SYSCALL(umask));
   Allow(SYSCALL(getresgid));
   Allow(SYSCALL(poll));
-  Allow(SYSCALL(ppoll));
-  Allow(SYSCALL(openat));
-  Allow(SYSCALL(faccessat));
   Allow(SYSCALL(inotify_init1));
   Allow(SYSCALL(wait4));
   Allow(SYSVIPCCALL(shmctl, SHMCTL));
@@ -365,7 +358,6 @@ void SandboxFilterImplGMP::Build() {
   Allow(SYSCALL(write));
   Allow(SYSCALL(read));
   Allow(SYSCALL(epoll_wait));
-  Allow(SYSCALL(epoll_pwait));
   Allow(SOCKETCALL(recvmsg, RECVMSG));
   Allow(SOCKETCALL(sendmsg, SENDMSG));
   Allow(SYSCALL(time));

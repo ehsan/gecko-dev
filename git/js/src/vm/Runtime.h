@@ -808,7 +808,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     size_t              numCompartments;
 
     /* Locale-specific callbacks for string conversion. */
-    const JSLocaleCallbacks *localeCallbacks;
+    JSLocaleCallbacks *localeCallbacks;
 
     /* Default locale for Internationalization API */
     char *defaultLocale;
@@ -847,9 +847,6 @@ struct JSRuntime : public JS::shadow::Runtime,
      * runtime if there is one.
      */
     js::NativeObject *selfHostingGlobal_;
-
-    static js::GlobalObject *
-    createSelfHostingGlobal(JSContext *cx);
 
     /* Space for interpreter frames. */
     js::InterpreterStack interpreterStack_;

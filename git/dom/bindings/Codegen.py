@@ -7681,9 +7681,9 @@ class CGEnumerateHook(CGAbstractBindingMethod):
             if (rv.Failed()) {
               return ThrowMethodFailedWithDetails(cx, rv, "%s", "enumerate");
             }
-            bool dummy;
+            JS::Rooted<JS::Value> dummy(cx);
             for (uint32_t i = 0; i < names.Length(); ++i) {
-              if (!JS_HasUCProperty(cx, obj, names[i].get(), names[i].Length(), &dummy)) {
+              if (!JS_LookupUCProperty(cx, obj, names[i].get(), names[i].Length(), &dummy)) {
                 return false;
               }
             }

@@ -217,6 +217,7 @@ ImageHost::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   }
 }
 
+#ifdef MOZ_DUMP_PAINTING
 void
 ImageHost::Dump(std::stringstream& aStream,
                 const char* aPrefix,
@@ -230,6 +231,7 @@ ImageHost::Dump(std::stringstream& aStream,
     aStream << (aDumpHtml ? " </li></ul> " : " ");
   }
 }
+#endif
 
 LayerRenderState
 ImageHost::GetRenderState()
@@ -240,11 +242,13 @@ ImageHost::GetRenderState()
   return LayerRenderState();
 }
 
+#ifdef MOZ_DUMP_PAINTING
 TemporaryRef<gfx::DataSourceSurface>
 ImageHost::GetAsSurface()
 {
   return mFrontBuffer->GetAsSurface();
 }
+#endif
 
 bool
 ImageHost::Lock()

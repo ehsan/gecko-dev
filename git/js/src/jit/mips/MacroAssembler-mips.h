@@ -944,7 +944,8 @@ public:
         ma_or(frameSizeReg, frameSizeReg, Imm32(type));
     }
 
-    void handleFailureWithHandlerTail(void *handler);
+    void handleFailureWithHandler(void *handler);
+    void handleFailureWithHandlerTail();
 
     /////////////////////////////////////////////////////////////////
     // Common interface.

@@ -675,15 +675,8 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
                 // If pcOffset == 0, we may have to push a new call object, so
                 // we leave scopeChain nullptr and enter baseline code before
                 // the prologue.
-                //
-                // If we are propagating an exception for debug mode, we will
-                // not resume into baseline code, but instead into
-                // HandleExceptionBaseline, so *do* set the scope chain here.
-                if (iter.pcOffset() != 0 || iter.resumeAfter() ||
-                    (excInfo && excInfo->propagatingIonExceptionForDebugMode()))
-                {
+                if (iter.pcOffset() != 0 || iter.resumeAfter())
                     scopeChain = fun->environment();
-                }
             } else {
                 // For global, compile-and-go scripts the scope chain is the
                 // script's global (Ion does not compile non-compile-and-go

@@ -1571,18 +1571,18 @@ MacroAssembler::handleFailure(ExecutionMode executionMode)
         sps_->skipNextReenter();
     leaveSPSFrame();
 
-    JitCode *excTail;
+    void *handler;
     switch (executionMode) {
       case SequentialExecution:
-        excTail = GetJitContext()->runtime->jitRuntime()->getExceptionTail();
+        handler = JS_FUNC_TO_DATA_PTR(void *, jit::HandleException);
         break;
       case ParallelExecution:
-        excTail = GetJitContext()->runtime->jitRuntime()->getExceptionTailParallel();
+        handler = JS_FUNC_TO_DATA_PTR(void *, jit::HandleParallelFailure);
         break;
       default:
         MOZ_CRASH("No such execution mode");
     }
-    jump(excTail);
+    MacroAssemblerSpecific::handleFailureWithHandler(handler);
 
     // Doesn't actually emit code, but balances the leave()
     if (sps_)

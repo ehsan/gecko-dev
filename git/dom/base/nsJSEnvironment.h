@@ -125,6 +125,8 @@ public:
   // Calling LikelyShortLivingObjectCreated() makes a GC more likely.
   static void LikelyShortLivingObjectCreated();
 
+  virtual void GC(JS::gcreason::Reason aReason) MOZ_OVERRIDE;
+
   static uint32_t CleanupsSinceLastGC();
 
   nsIScriptGlobalObject* GetCachedGlobalObject()
