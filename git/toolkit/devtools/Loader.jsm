@@ -30,7 +30,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils", "resource://gre/modules/Fil
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console", "resource://gre/modules/devtools/Console.jsm");
 
-let xpcInspector = Cc["@mozilla.org/jsinspector;1"].getService(Ci.nsIJSInspector);
+let SourceMap = {};
+Cu.import("resource://gre/modules/devtools/SourceMap.jsm", SourceMap);
 
 let loader = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}).Loader;
 let promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
@@ -65,7 +66,7 @@ BuiltinProvider.prototype = {
         "Services": Object.create(Services),
         "Timer": Object.create(Timer),
         "toolkit/loader": loader,
-        "xpcInspector": xpcInspector,
+        "source-map": SourceMap,
       },
       paths: {
         // When you add a line to this mapping, don't forget to make a
@@ -89,7 +90,6 @@ BuiltinProvider.prototype = {
         "acorn": "resource://gre/modules/devtools/acorn",
         "acorn/util/walk": "resource://gre/modules/devtools/acorn/walk.js",
         "tern": "resource://gre/modules/devtools/tern",
-        "source-map": "resource://gre/modules/devtools/SourceMap.jsm",
 
         // Allow access to xpcshell test items from the loader.
         "xpcshell-test": "resource://test"
@@ -141,14 +141,13 @@ SrcdirProvider.prototype = {
     let acornURI = this.fileURI(OS.Path.join(toolkitDir, "acorn"));
     let acornWalkURI = OS.Path.join(acornURI, "walk.js");
     let ternURI = OS.Path.join(toolkitDir, "tern");
-    let sourceMapURI = this.fileURI(OS.Path.join(toolkitDir), "SourceMap.jsm");
     this.loader = new loader.Loader({
       modules: {
         "Debugger": Debugger,
         "Services": Object.create(Services),
         "Timer": Object.create(Timer),
         "toolkit/loader": loader,
-        "xpcInspector": xpcInspector,
+        "source-map": SourceMap,
       },
       paths: {
         "": "resource://gre/modules/commonjs/",
@@ -169,8 +168,7 @@ SrcdirProvider.prototype = {
         "gcli": gcliURI,
         "acorn": acornURI,
         "acorn/util/walk": acornWalkURI,
-        "tern": ternURI,
-        "source-map": sourceMapURI,
+        "tern": ternURI
       },
       globals: loaderGlobals,
       invisibleToDebugger: this.invisibleToDebugger

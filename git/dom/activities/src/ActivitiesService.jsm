@@ -344,6 +344,10 @@ let Activities = {
             msg.forEach(function(aActivity) {
               self.updateContentTypeList(aActivity, res);
             });
+            if (res.length) {
+              ppmm.broadcastAsyncMessage("Activities:RegisterContentTypes",
+                                         { contentTypes: res });
+            }
           },
           function onError(aEvent) {
             msg.error = "REGISTER_ERROR";
@@ -356,6 +360,13 @@ let Activities = {
         msg.forEach(function(aActivity) {
           this.updateContentTypeList(aActivity, res);
         }, this);
+        if (res.length) {
+          ppmm.broadcastAsyncMessage("Activities:UnregisterContentTypes",
+                                     { contentTypes: res });
+        }
+        break;
+      case "Activities:GetContentTypes":
+        this.sendContentTypes(mm);
         break;
       case "child-process-shutdown":
         for (let id in this.callers) {
@@ -393,6 +404,24 @@ let Activities = {
         aResult.push(contentType);
       }
     });
+  },
+
+  sendContentTypes: function sendContentTypes(aMm) {
+    let res = [];
+    let self = this;
+    this.db.find({ options: { name: "view" } },
+      function() { // Success callback.
+        if (res.length) {
+          aMm.sendAsyncMessage("Activities:RegisterContentTypes",
+                               { contentTypes: res });
+        }
+      },
+      null, // Error callback.
+      function(aActivity) { // Matching callback.
+        self.updateContentTypeList(aActivity, res)
+        return false;
+      }
+    );
   }
 }
 

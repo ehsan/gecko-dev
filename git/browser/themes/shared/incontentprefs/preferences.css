@@ -60,9 +60,7 @@ groupbox {
 }
 
 groupbox label {
-  /* !important needed to override toolkit !important rule */
-  -moz-margin-start: 0 !important;
-  -moz-margin-end: 0 !important;
+  -moz-margin-start: 0;
 }
 
 /* tabpanels and tabs */
@@ -109,7 +107,7 @@ tab[selected] {
 .tab-text {
   font-size: 1.3rem;
   line-height: 22px;
-  color: #333333;
+  color: #737980;
   border: 1px solid transparent;
   border-radius: 5px;
 }
@@ -134,7 +132,7 @@ button,
 menulist {
   -moz-appearance: none;
   height: 30px;
-  color: #333333;
+  color: #737980;
   line-height: 20px;
   text-shadow: 0 1px 1px #FEFFFE;
   border: 1px solid rgba(23,50,77,0.4);
@@ -308,20 +306,17 @@ menulist > menupopup menuitem,
 button[type="menu"] > menupopup menu,
 button[type="menu"] > menupopup menuitem {
   -moz-appearance: none;
-  font-family: "Clear Sans", sans-serif;
   font-size: 1.25rem;
   line-height: 22px;
   height: 40px;
-  color: #333333;
-  -moz-padding-start: 10px;
-  -moz-padding-end: 30px;
+  color: #737980;
 }
 
 menulist > menupopup > menu[_moz-menuactive="true"],
 menulist > menupopup > menuitem[_moz-menuactive="true"],
 button[type="menu"] > menupopup > menu[_moz-menuactive="true"],
 button[type="menu"] > menupopup > menuitem[_moz-menuactive="true"] {
-  color: #333333;
+  color: #737980;
   background-color: transparent;
   background-image: linear-gradient(rgba(76,177,255,0.25), rgba(23,146,229,0.25));
 }
@@ -349,7 +344,7 @@ button[type="menu"] > menupopup menuseparator {
 textbox {
   -moz-appearance: none;
   height: 30px;
-  color: #333333;
+  color: #737980;
   line-height: 20px;
   text-shadow: 0 1px 1px #FEFFFE;
   padding-right: 10px;
@@ -777,7 +772,7 @@ filefield {
   -moz-appearance: none;
   font-size: 1.25rem;
   line-height: 22px;
-  color: #333333;
+  color: #737980;
   border: 1px solid rgba(23,50,77,0.4);
   border-radius: 5px;
   background-color: #F1F1F1;
@@ -789,7 +784,7 @@ filefield {
   -moz-appearance: none;
   font-family: "Clear Sans", sans-serif;
   line-height: 20px;
-  color: #333333;
+  color: #737980;
   height: 36px;
   padding: 0 10px;
   background-color: #F7F7F7;
@@ -880,11 +875,17 @@ description > html|a {
   cursor: pointer;
 }
 
+/* Content Pane */
+
+#defaultFontSize {
+  min-width: 5.5em;
+}
+
 /* Sync Pane */
 
 #syncEnginesList {
   -moz-appearance: none;
-  color: #333333;
+  color: #737980;
   padding: 10px;
   border: 1px solid rgba(23,50,77,0.4);
   border-radius: 5px;
@@ -904,7 +905,7 @@ description > html|a {
 
 #offlineAppsList {
   -moz-appearance: none;
-  color: #333333;
+  color: #737980;
   padding: 2px;
   border: 1px solid rgba(23,50,77,0.4);
   border-radius: 5px;
