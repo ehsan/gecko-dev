@@ -820,10 +820,10 @@ this.DOMApplicationRegistry = {
         this.getSelf(msg, mm);
         break;
       case "Webapps:Uninstall":
-        this.doUninstall(msg, mm);
+        this.uninstall(msg, mm);
         break;
       case "Webapps:Launch":
-        this.doLaunch(msg, mm);
+        this.launchApp(msg, mm);
         break;
       case "Webapps:CheckInstalled":
         this.checkInstalled(msg, mm);
@@ -835,7 +835,7 @@ this.DOMApplicationRegistry = {
         this.getNotInstalled(msg, mm);
         break;
       case "Webapps:GetAll":
-        this.doGetAll(msg, mm);
+        this.getAll(msg, mm);
         break;
       case "Webapps:InstallPackage":
         this.doInstallPackage(msg, mm);
@@ -917,48 +917,21 @@ this.DOMApplicationRegistry = {
     });
   },
 
-  doLaunch: function (aData, aMm) {
-    this.launch(
-      aData.manifestURL,
-      aData.startPoint,
-      function onsuccess() {
-        aMm.sendAsyncMessage("Webapps:Launch:Return:OK", aData);
-      },
-      function onfailure(reason) {
-        aMm.sendAsyncMessage("Webapps:Launch:Return:KO", aData);
-      }
-    );
-  },
-
-  launch: function launch(aManifestURL, aStartPoint, aOnSuccess, aOnFailure) {
-    let app = this.getAppByManifestURL(aManifestURL);
+  launchApp: function launchApp(aData, aMm) {
+    let app = this.getAppByManifestURL(aData.manifestURL);
     if (!app) {
-      aOnFailure("NO_SUCH_APP");
+      aMm.sendAsyncMessage("Webapps:Launch:Return:KO", aData);
       return;
     }
 
     // Fire an error when trying to launch an app that is not
     // yet fully installed.
     if (app.installState == "pending") {
-      aOnFailure("PENDING_APP_NOT_LAUNCHABLE");
+      aMm.sendAsyncMessage("Webapps:Launch:Return:KO", aData);
       return;
     }
 
-    // We have to clone the app object as nsIDOMApplication objects are
-    // stringified as an empty object. (see bug 830376)
-    let appClone = AppsUtils.cloneAppObject(app);
-    appClone.startPoint = aStartPoint;
-    Services.obs.notifyObservers(null, "webapps-launch", JSON.stringify(appClone));
-    aOnSuccess();
-  },
-
-  close: function close(aApp) {
-    debug("close");
-
-    // We have to clone the app object as nsIDOMApplication objects are
-    // stringified as an empty object. (see bug 830376)
-    let appClone = AppsUtils.cloneAppObject(aApp);
-    Services.obs.notifyObservers(null, "webapps-close", JSON.stringify(appClone));
+    Services.obs.notifyObservers(aMm, "webapps-launch", JSON.stringify(aData));
   },
 
   cancelDownload: function cancelDownload(aManifestURL, aError) {
@@ -2553,79 +2526,67 @@ this.DOMApplicationRegistry = {
     }
   },
 
-  doUninstall: function(aData, aMm) {
-    this.uninstall(aData.manifestURL,
-      function onsuccess() {
-        aMm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
-      },
-      function onfailure() {
-        // Fall-through, fails to uninstall the desired app because:
-        //   - we cannot find the app to be uninstalled.
-        //   - the app to be uninstalled is not removable.
-        aMm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
+  uninstall: function(aData, aMm) {
+    debug("uninstall " + aData.origin);
+    for (let id in this.webapps) {
+      let app = this.webapps[id];
+      if (app.origin != aData.origin) {
+        continue;
       }
-    );
-  },
 
-  uninstall: function(aManifestURL, aOnSuccess, aOnFailure) {
-    debug("uninstall " + aManifestURL);
+      dump("-- webapps.js uninstall " + app.manifestURL + "\n");
 
-    let app = this.getAppByManifestURL(aManifestURL);
-    if (!app) {
-      aOnFailure("NO_SUCH_APP");
-      return;
-    }
-    let id = app.id;
+      if (!app.removable) {
+        debug("Error: cannot unintall a non-removable app.");
+        break;
+      }
 
-    if (!app.removable) {
-      debug("Error: cannot uninstall a non-removable app.");
-      aOnFailure("NON_REMOVABLE_APP");
-      return;
-    }
+      // Check if we are downloading something for this app, and cancel the
+      // download if needed.
+      this.cancelDownload(app.manifestURL);
 
-    // Check if we are downloading something for this app, and cancel the
-    // download if needed.
-    this.cancelDownload(app.manifestURL);
+      // Clean up the deprecated manifest cache if needed.
+      if (id in this._manifestCache) {
+        delete this._manifestCache[id];
+      }
 
-    // Clean up the deprecated manifest cache if needed.
-    if (id in this._manifestCache) {
-      delete this._manifestCache[id];
-    }
+      // Clear private data first.
+      this._clearPrivateData(app.localId, false);
 
-    // Clear private data first.
-    this._clearPrivateData(app.localId, false);
+      // Then notify observers.
+      Services.obs.notifyObservers(aMm, "webapps-uninstall", JSON.stringify(aData));
 
-    // Then notify observers.
-    // We have to clone the app object as nsIDOMApplication objects are
-    // stringified as an empty object. (see bug 830376)
-    let appClone = AppsUtils.cloneAppObject(app);
-    Services.obs.notifyObservers(null, "webapps-uninstall", JSON.stringify(appClone));
+      let appNote = JSON.stringify(AppsUtils.cloneAppObject(app));
+      appNote.id = id;
 
-    if (supportSystemMessages()) {
-      this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
-        this._unregisterActivities(aResult[0].manifest, app);
-      }).bind(this));
-    }
+      if (supportSystemMessages()) {
+        this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
+          this._unregisterActivities(aResult[0].manifest, app);
+        }).bind(this));
+      }
 
-    let dir = this._getAppDir(id);
-    try {
-      dir.remove(true);
-    } catch (e) {}
-
-    delete this.webapps[id];
-
-    this._saveApps((function() {
-      this.broadcastMessage("Webapps:Uninstall:Broadcast:Return:OK", appClone);
-      // Catch exception on callback call to ensure notifying observers after
+      let dir = this._getAppDir(id);
       try {
-        aOnSuccess();
-      } catch(e) {
-        Cu.reportError("DOMApplicationRegistry: Exception on app uninstall: " +
-                       ex + "\n" + ex.stack);
-      }
-      Services.obs.notifyObservers(this, "webapps-sync-uninstall", JSON.stringify(appClone));
-      this.broadcastMessage("Webapps:RemoveApp", { id: id });
-    }).bind(this));
+        dir.remove(true);
+      } catch (e) {}
+
+      delete this.webapps[id];
+
+      this._saveApps((function() {
+        aData.manifestURL = app.manifestURL;
+        this.broadcastMessage("Webapps:Uninstall:Broadcast:Return:OK", aData);
+        aMm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
+        Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
+        this.broadcastMessage("Webapps:RemoveApp", { id: id });
+      }).bind(this));
+
+      return;
+    }
+
+    // Fall-through, fails to uninstall the desired app because:
+    //   - we cannot find the app to be uninstalled.
+    //   - the app to be uninstalled is not removable.
+    aMm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
   },
 
   getSelf: function(aData, aMm) {
@@ -2720,16 +2681,8 @@ this.DOMApplicationRegistry = {
     }).bind(this));
   },
 
-  doGetAll: function(aData, aMm) {
-    this.getAll(function (apps) {
-      aData.apps = apps;
-      aMm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
-    });
-  },
-
-  getAll: function(aCallback) {
-    debug("getAll");
-    let apps = [];
+  getAll: function(aData, aMm) {
+    aData.apps = [];
     let tmp = [];
 
     for (let id in this.webapps) {
@@ -2737,14 +2690,14 @@ this.DOMApplicationRegistry = {
       if (!this._isLaunchable(app.origin))
         continue;
 
-      apps.push(app);
+      aData.apps.push(app);
       tmp.push({ id: id });
     }
 
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
-        apps[i].manifest = aResult[i].manifest;
-      aCallback(apps);
+        aData.apps[i].manifest = aResult[i].manifest;
+      aMm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
     }).bind(this));
   },
 
