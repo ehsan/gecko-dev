@@ -35,9 +35,6 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
-
 /**
  * A streamed entity that obtains its content from a {@link Serializable}.
  * The content obtained from the {@link Serializable} instance can
@@ -46,7 +43,6 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class SerializableEntity extends AbstractHttpEntity {
 
     private byte[] objSer;
@@ -61,9 +57,12 @@ public class SerializableEntity extends AbstractHttpEntity {
      *        stored in an internal buffer
      * @throws IOException in case of an I/O error
      */
-    public SerializableEntity(final Serializable ser, final boolean bufferize) throws IOException {
+    public SerializableEntity(Serializable ser, boolean bufferize) throws IOException {
         super();
-        Args.notNull(ser, "Source object");
+        if (ser == null) {
+            throw new IllegalArgumentException("Source object may not be null");
+        }
+
         if (bufferize) {
             createBytes(ser);
         } else {
@@ -71,18 +70,9 @@ public class SerializableEntity extends AbstractHttpEntity {
         }
     }
 
-    /**
-     * @since 4.3
-     */
-    public SerializableEntity(final Serializable ser) {
-        super();
-        Args.notNull(ser, "Source object");
-        this.objRef = ser;
-    }
-
-    private void createBytes(final Serializable ser) throws IOException {
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final ObjectOutputStream out = new ObjectOutputStream(baos);
+    private void createBytes(Serializable ser) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutputStream out = new ObjectOutputStream(baos);
         out.writeObject(ser);
         out.flush();
         this.objSer = baos.toByteArray();
@@ -111,10 +101,13 @@ public class SerializableEntity extends AbstractHttpEntity {
         return this.objSer == null;
     }
 
-    public void writeTo(final OutputStream outstream) throws IOException {
-        Args.notNull(outstream, "Output stream");
+    public void writeTo(OutputStream outstream) throws IOException {
+        if (outstream == null) {
+            throw new IllegalArgumentException("Output stream may not be null");
+        }
+
         if (this.objSer == null) {
-            final ObjectOutputStream out = new ObjectOutputStream(outstream);
+            ObjectOutputStream out = new ObjectOutputStream(outstream);
             out.writeObject(this.objRef);
             out.flush();
         } else {

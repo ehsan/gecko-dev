@@ -33,26 +33,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import ch.boye.httpclientandroidlib.HttpRequest;
 import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
-import ch.boye.httpclientandroidlib.config.Lookup;
+
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.protocol.ExecutionContext;
-import ch.boye.httpclientandroidlib.protocol.HttpContext;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Cookie specification registry that can be used to obtain the corresponding
  * cookie specification implementation for a given type of type or version of
  * cookie.
  *
- * @since 4.0
  *
- * @deprecated (4.3) use {@link ch.boye.httpclientandroidlib.config.Registry}.
+ * @since 4.0
  */
 @ThreadSafe
-@Deprecated
-public final class CookieSpecRegistry implements Lookup<CookieSpecProvider> {
+public final class CookieSpecRegistry {
 
     private final ConcurrentHashMap<String,CookieSpecFactory> registeredSpecs;
 
@@ -73,8 +67,12 @@ public final class CookieSpecRegistry implements Lookup<CookieSpecProvider> {
      * @see #getCookieSpec(String)
      */
     public void register(final String name, final CookieSpecFactory factory) {
-         Args.notNull(name, "Name");
-        Args.notNull(factory, "Cookie spec factory");
+         if (name == null) {
+             throw new IllegalArgumentException("Name may not be null");
+         }
+        if (factory == null) {
+            throw new IllegalArgumentException("Cookie spec factory may not be null");
+        }
         registeredSpecs.put(name.toLowerCase(Locale.ENGLISH), factory);
     }
 
@@ -84,7 +82,9 @@ public final class CookieSpecRegistry implements Lookup<CookieSpecProvider> {
      * @param id the identifier of the {@link CookieSpec cookie specification} to unregister
      */
     public void unregister(final String id) {
-         Args.notNull(id, "Id");
+         if (id == null) {
+             throw new IllegalArgumentException("Id may not be null");
+         }
          registeredSpecs.remove(id.toLowerCase(Locale.ENGLISH));
     }
 
@@ -102,8 +102,10 @@ public final class CookieSpecRegistry implements Lookup<CookieSpecProvider> {
     public CookieSpec getCookieSpec(final String name, final HttpParams params)
         throws IllegalStateException {
 
-        Args.notNull(name, "Name");
-        final CookieSpecFactory factory = registeredSpecs.get(name.toLowerCase(Locale.ENGLISH));
+        if (name == null) {
+            throw new IllegalArgumentException("Name may not be null");
+        }
+        CookieSpecFactory factory = registeredSpecs.get(name.toLowerCase(Locale.ENGLISH));
         if (factory != null) {
             return factory.newInstance(params);
         } else {
@@ -150,18 +152,6 @@ public final class CookieSpecRegistry implements Lookup<CookieSpecProvider> {
         }
         registeredSpecs.clear();
         registeredSpecs.putAll(map);
-    }
-
-    public CookieSpecProvider lookup(final String name) {
-        return new CookieSpecProvider() {
-
-            public CookieSpec create(final HttpContext context) {
-                final HttpRequest request = (HttpRequest) context.getAttribute(
-                        ExecutionContext.HTTP_REQUEST);
-                return getCookieSpec(name, request.getParams());
-            }
-
-        };
     }
 
 }

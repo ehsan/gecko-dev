@@ -27,13 +27,9 @@
 
 package ch.boye.httpclientandroidlib.entity;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Entity that delegates the process of content generation
@@ -47,17 +43,18 @@ public class EntityTemplate extends AbstractHttpEntity {
 
     public EntityTemplate(final ContentProducer contentproducer) {
         super();
-        this.contentproducer = Args.notNull(contentproducer, "Content producer");
+        if (contentproducer == null) {
+            throw new IllegalArgumentException("Content producer may not be null");
+        }
+        this.contentproducer = contentproducer;
     }
 
     public long getContentLength() {
         return -1;
     }
 
-    public InputStream getContent() throws IOException {
-        final ByteArrayOutputStream buf = new ByteArrayOutputStream();
-        writeTo(buf);
-        return new ByteArrayInputStream(buf.toByteArray());
+    public InputStream getContent() {
+        throw new UnsupportedOperationException("Entity template does not implement getContent()");
     }
 
     public boolean isRepeatable() {
@@ -65,7 +62,9 @@ public class EntityTemplate extends AbstractHttpEntity {
     }
 
     public void writeTo(final OutputStream outstream) throws IOException {
-        Args.notNull(outstream, "Output stream");
+        if (outstream == null) {
+            throw new IllegalArgumentException("Output stream may not be null");
+        }
         this.contentproducer.writeTo(outstream);
     }
 

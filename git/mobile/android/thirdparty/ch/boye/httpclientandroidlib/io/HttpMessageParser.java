@@ -33,14 +33,12 @@ import ch.boye.httpclientandroidlib.HttpException;
 import ch.boye.httpclientandroidlib.HttpMessage;
 
 /**
- * Abstract message parser intended to build HTTP messages from an arbitrary data source.
- *
- * @param <T>
- *            {@link HttpMessage} or a subclass
+ * Abstract message parser intended to build HTTP messages from an arbitrary
+ * data source.
  *
  * @since 4.0
  */
-public interface HttpMessageParser<T extends HttpMessage> {
+public interface HttpMessageParser {
 
     /**
      * Generates an instance of {@link HttpMessage} from the underlying data
@@ -50,7 +48,7 @@ public interface HttpMessageParser<T extends HttpMessage> {
      * @throws IOException in case of an I/O error
      * @throws HttpException in case of HTTP protocol violation
      */
-    T parse()
+    HttpMessage parse()
         throws IOException, HttpException;
 
 }

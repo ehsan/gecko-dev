@@ -28,9 +28,9 @@
 package ch.boye.httpclientandroidlib.impl.client;
 
 import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.params.AbstractHttpParams;
+
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.util.Args;
+import ch.boye.httpclientandroidlib.params.AbstractHttpParams;
 
 /**
  * Represents a stack of parameter collections.
@@ -64,13 +64,11 @@ import ch.boye.httpclientandroidlib.util.Args;
  * an empty params collection, since it avoids searching the empty collection
  * when looking up parameters.
  *
- * @since 4.0
  *
- * @deprecated (4.3) use configuration classes provided 'ch.boye.httpclientandroidlib.config'
- *  and 'ch.boye.httpclientandroidlib.client.config'
+ *
+ * @since 4.0
  */
 @NotThreadSafe
-@Deprecated
 public class ClientParamsStack extends AbstractHttpParams {
 
     /** The application parameter collection, or <code>null</code>. */
@@ -96,8 +94,8 @@ public class ClientParamsStack extends AbstractHttpParams {
      * @param rparams   request parameters, or <code>null</code>
      * @param oparams   override parameters, or <code>null</code>
      */
-    public ClientParamsStack(final HttpParams aparams, final HttpParams cparams,
-                             final HttpParams rparams, final HttpParams oparams) {
+    public ClientParamsStack(HttpParams aparams, HttpParams cparams,
+                             HttpParams rparams, HttpParams oparams) {
         applicationParams = aparams;
         clientParams      = cparams;
         requestParams     = rparams;
@@ -112,7 +110,7 @@ public class ClientParamsStack extends AbstractHttpParams {
      *
      * @param stack     the stack to copy
      */
-    public ClientParamsStack(final ClientParamsStack stack) {
+    public ClientParamsStack(ClientParamsStack stack) {
         this(stack.getApplicationParams(),
              stack.getClientParams(),
              stack.getRequestParams(),
@@ -133,9 +131,9 @@ public class ClientParamsStack extends AbstractHttpParams {
      * @param rparams   request parameters, or <code>null</code>
      * @param oparams   override parameters, or <code>null</code>
      */
-    public ClientParamsStack(final ClientParamsStack stack,
-                             final HttpParams aparams, final HttpParams cparams,
-                             final HttpParams rparams, final HttpParams oparams) {
+    public ClientParamsStack(ClientParamsStack stack,
+                             HttpParams aparams, HttpParams cparams,
+                             HttpParams rparams, HttpParams oparams) {
         this((aparams != null) ? aparams : stack.getApplicationParams(),
              (cparams != null) ? cparams : stack.getClientParams(),
              (rparams != null) ? rparams : stack.getRequestParams(),
@@ -189,8 +187,11 @@ public class ClientParamsStack extends AbstractHttpParams {
      * @return  the highest-priority value for that parameter, or
      *          <code>null</code> if it is not set anywhere in this stack
      */
-    public Object getParameter(final String name) {
-        Args.notNull(name, "Parameter name");
+    public Object getParameter(String name) {
+        if (name == null) {
+            throw new IllegalArgumentException
+                ("Parameter name must not be null.");
+        }
 
         Object result = null;
 
@@ -222,7 +223,7 @@ public class ClientParamsStack extends AbstractHttpParams {
      *
      * @throws UnsupportedOperationException    always
      */
-    public HttpParams setParameter(final String name, final Object value)
+    public HttpParams setParameter(String name, Object value)
         throws UnsupportedOperationException {
 
         throw new UnsupportedOperationException
@@ -242,7 +243,7 @@ public class ClientParamsStack extends AbstractHttpParams {
      *
      * @throws UnsupportedOperationException    always
      */
-    public boolean removeParameter(final String name) {
+    public boolean removeParameter(String name) {
         throw new UnsupportedOperationException
         ("Removing parameters in a stack is not supported.");
     }

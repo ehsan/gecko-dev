@@ -55,11 +55,6 @@ public class BrowserCompatHostnameVerifier extends AbstractVerifier {
     }
 
     @Override
-    boolean validCountryWildcard(final String cn) {
-        return true;
-    }
-
-    @Override
     public final String toString() {
         return "BROWSER_COMPATIBLE";
     }

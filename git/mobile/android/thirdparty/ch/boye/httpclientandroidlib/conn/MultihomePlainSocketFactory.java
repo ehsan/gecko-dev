@@ -33,16 +33,16 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Arrays;
 
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
+import ch.boye.httpclientandroidlib.conn.scheme.SchemeSocketFactory;
 import ch.boye.httpclientandroidlib.conn.scheme.SocketFactory;
 import ch.boye.httpclientandroidlib.params.HttpConnectionParams;
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.util.Args;
-import ch.boye.httpclientandroidlib.util.Asserts;
 
 /**
  * Socket factory that implements a simple multi-home fail-over on connect failure,
@@ -53,8 +53,8 @@ import ch.boye.httpclientandroidlib.util.Asserts;
  *
  * @since 4.0
  *
- * @deprecated (4.1)  Do not use. For multihome support socket factories must implement
- * {@link ch.boye.httpclientandroidlib.conn.scheme.SchemeSocketFactory} interface.
+ * @deprecated Do not use. For multihome support socket factories must implement
+ * {@link SchemeSocketFactory} interface.
  */
 @Deprecated
 @Immutable
@@ -92,7 +92,7 @@ public final class MultihomePlainSocketFactory implements SocketFactory {
      * given host name resolves to. If connection to all addresses fail, the
      * last I/O exception is propagated to the caller.
      *
-     * @param socket socket to connect to any of the given addresses
+     * @param sock socket to connect to any of the given addresses
      * @param host Host name to connect to
      * @param port the port to connect to
      * @param localAddress local address
@@ -102,39 +102,47 @@ public final class MultihomePlainSocketFactory implements SocketFactory {
      * @throws  IOException if an error occurs during the connection
      * @throws  SocketTimeoutException if timeout expires before connecting
      */
-    public Socket connectSocket(final Socket socket, final String host, final int port,
-                                final InetAddress localAddress, final int localPort,
-                                final HttpParams params)
+    public Socket connectSocket(Socket sock, String host, int port,
+                                InetAddress localAddress, int localPort,
+                                HttpParams params)
         throws IOException {
-        Args.notNull(host, "Target host");
-        Args.notNull(params, "HTTP parameters");
 
-        Socket sock = socket;
-        if (sock == null) {
-            sock = createSocket();
+        if (host == null) {
+            throw new IllegalArgumentException("Target host may not be null.");
+        }
+        if (params == null) {
+            throw new IllegalArgumentException("Parameters may not be null.");
         }
 
+        if (sock == null)
+            sock = createSocket();
+
         if ((localAddress != null) || (localPort > 0)) {
-            final InetSocketAddress isa = new InetSocketAddress(localAddress,
-                    localPort > 0 ? localPort : 0);
+
+            // we need to bind explicitly
+            if (localPort < 0)
+                localPort = 0; // indicates "any"
+
+            InetSocketAddress isa =
+                new InetSocketAddress(localAddress, localPort);
             sock.bind(isa);
         }
 
-        final int timeout = HttpConnectionParams.getConnectionTimeout(params);
+        int timeout = HttpConnectionParams.getConnectionTimeout(params);
 
-        final InetAddress[] inetadrs = InetAddress.getAllByName(host);
-        final List<InetAddress> addresses = new ArrayList<InetAddress>(inetadrs.length);
+        InetAddress[] inetadrs = InetAddress.getAllByName(host);
+        List<InetAddress> addresses = new ArrayList<InetAddress>(inetadrs.length);
         addresses.addAll(Arrays.asList(inetadrs));
         Collections.shuffle(addresses);
 
         IOException lastEx = null;
-        for (final InetAddress remoteAddress: addresses) {
+        for (InetAddress remoteAddress: addresses) {
             try {
                 sock.connect(new InetSocketAddress(remoteAddress, port), timeout);
                 break;
-            } catch (final SocketTimeoutException ex) {
+            } catch (SocketTimeoutException ex) {
                 throw new ConnectTimeoutException("Connect to " + remoteAddress + " timed out");
-            } catch (final IOException ex) {
+            } catch (IOException ex) {
                 // create new socket
                 sock = new Socket();
                 // keep the last exception and retry
@@ -159,13 +167,25 @@ public final class MultihomePlainSocketFactory implements SocketFactory {
      *
      * @throws IllegalArgumentException if the argument is invalid
      */
-    public final boolean isSecure(final Socket sock)
+    public final boolean isSecure(Socket sock)
         throws IllegalArgumentException {
 
-        Args.notNull(sock, "Socket");
+        if (sock == null) {
+            throw new IllegalArgumentException("Socket may not be null.");
+        }
+        // This class check assumes that createSocket() calls the constructor
+        // directly. If it was using javax.net.SocketFactory, we couldn't make
+        // an assumption about the socket class here.
+        if (sock.getClass() != Socket.class) {
+            throw new IllegalArgumentException
+                ("Socket not created by this factory.");
+        }
         // This check is performed last since it calls a method implemented
         // by the argument object. getClass() is final in java.lang.Object.
-        Asserts.check(!sock.isClosed(), "Socket is closed");
+        if (sock.isClosed()) {
+            throw new IllegalArgumentException("Socket is closed.");
+        }
+
         return false;
 
     } // isSecure

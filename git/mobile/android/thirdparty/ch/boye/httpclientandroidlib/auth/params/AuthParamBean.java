@@ -36,12 +36,7 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
  * using Java Beans conventions.
  *
  * @since 4.0
- *
- * @deprecated (4.3) use {@link ch.boye.httpclientandroidlib.client.config.RequestConfig}
- *   and constructor parameters of
- *   {@link ch.boye.httpclientandroidlib.auth.AuthSchemeProvider}s.
  */
-@Deprecated
 public class AuthParamBean extends HttpAbstractParamBean {
 
     public AuthParamBean (final HttpParams params) {

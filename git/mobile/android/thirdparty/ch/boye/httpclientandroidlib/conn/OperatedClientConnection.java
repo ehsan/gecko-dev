@@ -41,10 +41,7 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
  * {@link ClientConnectionOperator operator}.
  *
  * @since 4.0
- *
- * @deprecated (4.3) replaced by {@link HttpClientConnectionManager}.
  */
-@Deprecated
 public interface OperatedClientConnection extends HttpClientConnection, HttpInetConnection {
 
     /**

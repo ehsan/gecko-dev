@@ -37,7 +37,7 @@ import java.util.Iterator;
  *
  * @since 4.0
  */
-public interface TokenIterator extends Iterator<Object> {
+public interface TokenIterator extends Iterator {
 
     /**
      * Indicates whether there is another token in this iteration.

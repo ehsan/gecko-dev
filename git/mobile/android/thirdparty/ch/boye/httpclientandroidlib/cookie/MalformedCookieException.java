@@ -27,8 +27,9 @@
 
 package ch.boye.httpclientandroidlib.cookie;
 
-import ch.boye.httpclientandroidlib.ProtocolException;
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
+import ch.boye.httpclientandroidlib.ProtocolException;
 
 /**
  * Signals that a cookie is in some way invalid or illegal in a given
@@ -54,7 +55,7 @@ public class MalformedCookieException extends ProtocolException {
      *
      * @param message The exception detail message
      */
-    public MalformedCookieException(final String message) {
+    public MalformedCookieException(String message) {
         super(message);
     }
 
@@ -65,7 +66,7 @@ public class MalformedCookieException extends ProtocolException {
      * @param cause the <tt>Throwable</tt> that caused this exception, or <tt>null</tt>
      * if the cause is unavailable, unknown, or not a <tt>Throwable</tt>
      */
-    public MalformedCookieException(final String message, final Throwable cause) {
+    public MalformedCookieException(String message, Throwable cause) {
         super(message, cause);
     }
 }

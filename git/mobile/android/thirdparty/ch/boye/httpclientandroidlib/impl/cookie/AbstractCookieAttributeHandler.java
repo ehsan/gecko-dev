@@ -27,6 +27,7 @@
 package ch.boye.httpclientandroidlib.impl.cookie;
 
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.cookie.Cookie;
 import ch.boye.httpclientandroidlib.cookie.CookieAttributeHandler;
 import ch.boye.httpclientandroidlib.cookie.CookieOrigin;

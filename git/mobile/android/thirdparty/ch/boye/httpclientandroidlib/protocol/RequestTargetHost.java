@@ -37,10 +37,8 @@ import ch.boye.httpclientandroidlib.HttpInetConnection;
 import ch.boye.httpclientandroidlib.HttpRequest;
 import ch.boye.httpclientandroidlib.HttpRequestInterceptor;
 import ch.boye.httpclientandroidlib.HttpVersion;
-import ch.boye.httpclientandroidlib.ProtocolException;
 import ch.boye.httpclientandroidlib.ProtocolVersion;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
-import ch.boye.httpclientandroidlib.util.Args;
+import ch.boye.httpclientandroidlib.ProtocolException;
 
 /**
  * RequestTargetHost is responsible for adding <code>Host</code> header. This
@@ -48,7 +46,6 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@Immutable
 public class RequestTargetHost implements HttpRequestInterceptor {
 
     public RequestTargetHost() {
@@ -57,25 +54,30 @@ public class RequestTargetHost implements HttpRequestInterceptor {
 
     public void process(final HttpRequest request, final HttpContext context)
             throws HttpException, IOException {
-        Args.notNull(request, "HTTP request");
+        if (request == null) {
+            throw new IllegalArgumentException("HTTP request may not be null");
+        }
+        if (context == null) {
+            throw new IllegalArgumentException("HTTP context may not be null");
+        }
 
-        final HttpCoreContext corecontext = HttpCoreContext.adapt(context);
-
-        final ProtocolVersion ver = request.getRequestLine().getProtocolVersion();
-        final String method = request.getRequestLine().getMethod();
+        ProtocolVersion ver = request.getRequestLine().getProtocolVersion();
+        String method = request.getRequestLine().getMethod();
         if (method.equalsIgnoreCase("CONNECT") && ver.lessEquals(HttpVersion.HTTP_1_0)) {
             return;
         }
 
         if (!request.containsHeader(HTTP.TARGET_HOST)) {
-            HttpHost targethost = corecontext.getTargetHost();
+            HttpHost targethost = (HttpHost) context
+                .getAttribute(ExecutionContext.HTTP_TARGET_HOST);
             if (targethost == null) {
-                final HttpConnection conn = corecontext.getConnection();
+                HttpConnection conn = (HttpConnection) context
+                    .getAttribute(ExecutionContext.HTTP_CONNECTION);
                 if (conn instanceof HttpInetConnection) {
                     // Populate the context with a default HTTP host based on the
                     // inet address of the target host
-                    final InetAddress address = ((HttpInetConnection) conn).getRemoteAddress();
-                    final int port = ((HttpInetConnection) conn).getRemotePort();
+                    InetAddress address = ((HttpInetConnection) conn).getRemoteAddress();
+                    int port = ((HttpInetConnection) conn).getRemotePort();
                     if (address != null) {
                         targethost = new HttpHost(address.getHostName(), port);
                     }

@@ -36,10 +36,7 @@ import ch.boye.httpclientandroidlib.annotation.Immutable;
  *
  *
  * @since 4.0
- *
- * @deprecated (4.3) no longer used.
  */
-@Deprecated
 @Immutable
 public class DateParseException extends Exception {
 
@@ -55,7 +52,7 @@ public class DateParseException extends Exception {
     /**
      * @param message the exception message
      */
-    public DateParseException(final String message) {
+    public DateParseException(String message) {
         super(message);
     }
 

@@ -829,18 +829,33 @@ let Links = {
     let pinnedLinks = Array.slice(PinnedLinks.links);
     let links = this._getMergedProviderLinks();
 
-    let sites = new Set();
+    function getBaseDomain(url) {
+      let uri;
+      try {
+        uri = Services.io.newURI(url, null, null);
+      } catch (e) {
+        return null;
+      }
+
+      try {
+        return Services.eTLD.getBaseDomain(uri);
+      } catch (e) {
+        return uri.asciiHost;
+      }
+    }
+
+    let baseDomains = new Set();
     for (let link of pinnedLinks) {
       if (link)
-        sites.add(NewTabUtils.extractSite(link.url));
+        baseDomains.add(getBaseDomain(link.url));
     }
 
     // Filter blocked and pinned links and duplicate base domains.
     links = links.filter(function (link) {
-      let site = NewTabUtils.extractSite(link.url);
-      if (site == null || sites.has(site))
+      let baseDomain = getBaseDomain(link.url);
+      if (baseDomain == null || baseDomains.has(baseDomain))
         return false;
-      sites.add(site);
+      baseDomains.add(baseDomain);
 
       return !BlockedLinks.isBlocked(link) && !PinnedLinks.isPinned(link);
     });
@@ -1168,24 +1183,6 @@ let ExpirationFilter = {
  */
 this.NewTabUtils = {
   _initialized: false,
-
-  /**
-   * Extract a "site" from a url in a way that multiple urls of a "site" returns
-   * the same "site."
-   * @param aUrl Url spec string
-   * @return The "site" string or null
-   */
-  extractSite: function Links_extractSite(url) {
-    let uri;
-    try {
-      uri = Services.io.newURI(url, null, null);
-    } catch (ex) {
-      return null;
-    }
-
-    // Strip off common subdomains of the same site (e.g., www, load balancer)
-    return uri.asciiHost.replace(/^(m|mobile|www\d*)\./, "");
-  },
 
   init: function NewTabUtils_init() {
     if (this.initWithoutProviders()) {

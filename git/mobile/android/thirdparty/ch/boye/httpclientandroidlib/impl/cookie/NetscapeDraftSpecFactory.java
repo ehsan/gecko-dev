@@ -30,39 +30,32 @@ package ch.boye.httpclientandroidlib.impl.cookie;
 import java.util.Collection;
 
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.cookie.CookieSpec;
 import ch.boye.httpclientandroidlib.cookie.CookieSpecFactory;
-import ch.boye.httpclientandroidlib.cookie.CookieSpecProvider;
 import ch.boye.httpclientandroidlib.cookie.params.CookieSpecPNames;
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.protocol.HttpContext;
 
 /**
- * {@link CookieSpecProvider} implementation that creates and initializes
+ * {@link CookieSpecFactory} implementation that creates and initializes
  * {@link NetscapeDraftSpec} instances.
+ * <p>
+ * The following parameters can be used to customize the behavior of this
+ * class:
+ * <ul>
+ *  <li>{@link ch.boye.httpclientandroidlib.cookie.params.CookieSpecPNames#DATE_PATTERNS}</li>
+ * </ul>
  *
  * @since 4.0
  */
 @Immutable
-@SuppressWarnings("deprecation")
-public class NetscapeDraftSpecFactory implements CookieSpecFactory, CookieSpecProvider {
-
-    private final String[] datepatterns;
-
-    public NetscapeDraftSpecFactory(final String[] datepatterns) {
-        super();
-        this.datepatterns = datepatterns;
-    }
-
-    public NetscapeDraftSpecFactory() {
-        this(null);
-    }
+public class NetscapeDraftSpecFactory implements CookieSpecFactory {
 
     public CookieSpec newInstance(final HttpParams params) {
         if (params != null) {
 
             String[] patterns = null;
-            final Collection<?> param = (Collection<?>) params.getParameter(
+            Collection<?> param = (Collection<?>) params.getParameter(
                     CookieSpecPNames.DATE_PATTERNS);
             if (param != null) {
                 patterns = new String[param.size()];
@@ -72,10 +65,6 @@ public class NetscapeDraftSpecFactory implements CookieSpecFactory, CookieSpecPr
         } else {
             return new NetscapeDraftSpec();
         }
-    }
-
-    public CookieSpec create(final HttpContext context) {
-        return new NetscapeDraftSpec(this.datepatterns);
     }
 
 }

@@ -35,11 +35,7 @@ import ch.boye.httpclientandroidlib.HttpVersion;
  * conventions.
  *
  * @since 4.0
- *
- * @deprecated (4.3) use configuration classes provided 'ch.boye.httpclientandroidlib.config'
- *  and 'ch.boye.httpclientandroidlib.client.config'
  */
-@Deprecated
 public class HttpProtocolParamBean extends HttpAbstractParamBean {
 
     public HttpProtocolParamBean (final HttpParams params) {
@@ -62,7 +58,7 @@ public class HttpProtocolParamBean extends HttpAbstractParamBean {
         HttpProtocolParams.setUserAgent(params, userAgent);
     }
 
-    public void setUseExpectContinue (final boolean useExpectContinue) {
+    public void setUseExpectContinue (boolean useExpectContinue) {
         HttpProtocolParams.setUseExpectContinue(params, useExpectContinue);
     }
 

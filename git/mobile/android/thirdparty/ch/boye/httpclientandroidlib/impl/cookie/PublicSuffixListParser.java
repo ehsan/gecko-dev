@@ -1,4 +1,8 @@
 /*
+ * $HeadURL$
+ * $Revision$
+ * $Date$
+ *
  * ====================================================================
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -24,6 +28,7 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.cookie;
 
 import java.io.BufferedReader;
@@ -45,7 +50,7 @@ public class PublicSuffixListParser {
     private static final int MAX_LINE_LEN = 256;
     private final PublicSuffixFilter filter;
 
-    PublicSuffixListParser(final PublicSuffixFilter filter) {
+    PublicSuffixListParser(PublicSuffixFilter filter) {
         this.filter = filter;
     }
 
@@ -57,31 +62,21 @@ public class PublicSuffixListParser {
      * @param list the suffix list. The caller is responsible for closing the reader.
      * @throws IOException on error while reading from list
      */
-    public void parse(final Reader list) throws IOException {
-        final Collection<String> rules = new ArrayList<String>();
-        final Collection<String> exceptions = new ArrayList<String>();
-        final BufferedReader r = new BufferedReader(list);
-        final StringBuilder sb = new StringBuilder(256);
+    public void parse(Reader list) throws IOException {
+        Collection<String> rules = new ArrayList<String>();
+        Collection<String> exceptions = new ArrayList<String>();
+        BufferedReader r = new BufferedReader(list);
+        StringBuilder sb = new StringBuilder(256);
         boolean more = true;
         while (more) {
             more = readLine(r, sb);
             String line = sb.toString();
-            if (line.length() == 0) {
-                continue;
-            }
-            if (line.startsWith("//"))
-             {
-                continue; //entire lines can also be commented using //
-            }
-            if (line.startsWith("."))
-             {
-                line = line.substring(1); // A leading dot is optional
-            }
+            if (line.length() == 0) continue;
+            if (line.startsWith("//")) continue; //entire lines can also be commented using //
+            if (line.startsWith(".")) line = line.substring(1); // A leading dot is optional
             // An exclamation mark (!) at the start of a rule marks an exception to a previous wildcard rule
-            final boolean isException = line.startsWith("!");
-            if (isException) {
-                line = line.substring(1);
-            }
+            boolean isException = line.startsWith("!");
+            if (isException) line = line.substring(1);
 
             if (isException) {
                 exceptions.add(line);
@@ -101,26 +96,17 @@ public class PublicSuffixListParser {
      * @return false when the end of the stream is reached
      * @throws IOException
      */
-    private boolean readLine(final Reader r, final StringBuilder sb) throws IOException {
+    private boolean readLine(Reader r, StringBuilder sb) throws IOException {
         sb.setLength(0);
         int b;
         boolean hitWhitespace = false;
         while ((b = r.read()) != -1) {
-            final char c = (char) b;
-            if (c == '\n') {
-                break;
-            }
+            char c = (char) b;
+            if (c == '\n') break;
             // Each line is only read up to the first whitespace
-            if (Character.isWhitespace(c)) {
-                hitWhitespace = true;
-            }
-            if (!hitWhitespace) {
-                sb.append(c);
-            }
-            if (sb.length() > MAX_LINE_LEN)
-             {
-                throw new IOException("Line too long"); // prevent excess memory usage
-            }
+            if (Character.isWhitespace(c)) hitWhitespace = true;
+            if (!hitWhitespace) sb.append(c);
+            if (sb.length() > MAX_LINE_LEN) throw new IOException("Line too long"); // prevent excess memory usage
         }
         return (b != -1);
     }

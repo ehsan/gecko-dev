@@ -29,9 +29,9 @@ package ch.boye.httpclientandroidlib.impl.cookie;
 import java.util.Date;
 
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.cookie.MalformedCookieException;
 import ch.boye.httpclientandroidlib.cookie.SetCookie;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  *
@@ -46,14 +46,16 @@ public class BasicMaxAgeHandler extends AbstractCookieAttributeHandler {
 
     public void parse(final SetCookie cookie, final String value)
             throws MalformedCookieException {
-        Args.notNull(cookie, "Cookie");
+        if (cookie == null) {
+            throw new IllegalArgumentException("Cookie may not be null");
+        }
         if (value == null) {
             throw new MalformedCookieException("Missing value for max-age attribute");
         }
-        final int age;
+        int age;
         try {
             age = Integer.parseInt(value);
-        } catch (final NumberFormatException e) {
+        } catch (NumberFormatException e) {
             throw new MalformedCookieException ("Invalid max-age attribute: "
                     + value);
         }

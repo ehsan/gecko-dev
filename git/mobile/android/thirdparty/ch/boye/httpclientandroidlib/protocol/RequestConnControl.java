@@ -32,8 +32,6 @@ import java.io.IOException;
 import ch.boye.httpclientandroidlib.HttpException;
 import ch.boye.httpclientandroidlib.HttpRequest;
 import ch.boye.httpclientandroidlib.HttpRequestInterceptor;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * RequestConnControl is responsible for adding <code>Connection</code> header
@@ -43,7 +41,6 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@Immutable
 public class RequestConnControl implements HttpRequestInterceptor {
 
     public RequestConnControl() {
@@ -52,9 +49,11 @@ public class RequestConnControl implements HttpRequestInterceptor {
 
     public void process(final HttpRequest request, final HttpContext context)
             throws HttpException, IOException {
-        Args.notNull(request, "HTTP request");
+        if (request == null) {
+            throw new IllegalArgumentException("HTTP request may not be null");
+        }
 
-        final String method = request.getRequestLine().getMethod();
+        String method = request.getRequestLine().getMethod();
         if (method.equalsIgnoreCase("CONNECT")) {
             return;
         }

@@ -33,46 +33,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
-
 /**
  * A self contained, repeatable entity that obtains its content from a file.
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class FileEntity extends AbstractHttpEntity implements Cloneable {
 
     protected final File file;
 
-    /**
-     * @deprecated (4.1.3) {@link #FileEntity(File, ContentType)}
-     */
-    @Deprecated
     public FileEntity(final File file, final String contentType) {
         super();
-        this.file = Args.notNull(file, "File");
-        setContentType(contentType);
-    }
-
-    /**
-     * @since 4.2
-     */
-    public FileEntity(final File file, final ContentType contentType) {
-        super();
-        this.file = Args.notNull(file, "File");
-        if (contentType != null) {
-            setContentType(contentType.toString());
+        if (file == null) {
+            throw new IllegalArgumentException("File may not be null");
         }
-    }
-
-    /**
-     * @since 4.2
-     */
-    public FileEntity(final File file) {
-        super();
-        this.file = Args.notNull(file, "File");
+        this.file = file;
+        setContentType(contentType);
     }
 
     public boolean isRepeatable() {
@@ -88,10 +64,12 @@ public class FileEntity extends AbstractHttpEntity implements Cloneable {
     }
 
     public void writeTo(final OutputStream outstream) throws IOException {
-        Args.notNull(outstream, "Output stream");
-        final InputStream instream = new FileInputStream(this.file);
+        if (outstream == null) {
+            throw new IllegalArgumentException("Output stream may not be null");
+        }
+        InputStream instream = new FileInputStream(this.file);
         try {
-            final byte[] tmp = new byte[OUTPUT_BUFFER_SIZE];
+            byte[] tmp = new byte[4096];
             int l;
             while ((l = instream.read(tmp)) != -1) {
                 outstream.write(tmp, 0, l);
@@ -111,7 +89,6 @@ public class FileEntity extends AbstractHttpEntity implements Cloneable {
         return false;
     }
 
-    @Override
     public Object clone() throws CloneNotSupportedException {
         // File instance is considered immutable
         // No need to make a copy of it

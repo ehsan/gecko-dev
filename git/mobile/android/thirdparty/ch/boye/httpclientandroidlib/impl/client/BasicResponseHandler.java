@@ -29,23 +29,25 @@ package ch.boye.httpclientandroidlib.impl.client;
 
 import java.io.IOException;
 
+import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.StatusLine;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
-import ch.boye.httpclientandroidlib.client.HttpResponseException;
 import ch.boye.httpclientandroidlib.client.ResponseHandler;
+import ch.boye.httpclientandroidlib.client.HttpResponseException;
 import ch.boye.httpclientandroidlib.util.EntityUtils;
 
 /**
  * A {@link ResponseHandler} that returns the response body as a String
  * for successful (2xx) responses. If the response code was >= 300, the response
  * body is consumed and an {@link HttpResponseException} is thrown.
- * <p/>
+ *
  * If this is used with
  * {@link ch.boye.httpclientandroidlib.client.HttpClient#execute(
  *  ch.boye.httpclientandroidlib.client.methods.HttpUriRequest, ResponseHandler)},
  * HttpClient may handle redirects (3xx responses) internally.
+ *
  *
  * @since 4.0
  */
@@ -60,13 +62,13 @@ public class BasicResponseHandler implements ResponseHandler<String> {
      */
     public String handleResponse(final HttpResponse response)
             throws HttpResponseException, IOException {
-        final StatusLine statusLine = response.getStatusLine();
-        final HttpEntity entity = response.getEntity();
+        StatusLine statusLine = response.getStatusLine();
         if (statusLine.getStatusCode() >= 300) {
-            EntityUtils.consume(entity);
             throw new HttpResponseException(statusLine.getStatusCode(),
                     statusLine.getReasonPhrase());
         }
+
+        HttpEntity entity = response.getEntity();
         return entity == null ? null : EntityUtils.toString(entity);
     }
 

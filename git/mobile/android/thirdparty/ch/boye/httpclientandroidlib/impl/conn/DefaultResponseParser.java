@@ -29,6 +29,8 @@ package ch.boye.httpclientandroidlib.impl.conn;
 
 import java.io.IOException;
 
+import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
+
 import ch.boye.httpclientandroidlib.androidextra.HttpClientAndroidLog;
 /* LogFactory removed by HttpClient for Android script. */
 import ch.boye.httpclientandroidlib.HttpException;
@@ -37,13 +39,12 @@ import ch.boye.httpclientandroidlib.HttpResponseFactory;
 import ch.boye.httpclientandroidlib.NoHttpResponseException;
 import ch.boye.httpclientandroidlib.ProtocolException;
 import ch.boye.httpclientandroidlib.StatusLine;
-import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
+import ch.boye.httpclientandroidlib.conn.params.ConnConnectionPNames;
 import ch.boye.httpclientandroidlib.impl.io.AbstractMessageParser;
 import ch.boye.httpclientandroidlib.io.SessionInputBuffer;
 import ch.boye.httpclientandroidlib.message.LineParser;
 import ch.boye.httpclientandroidlib.message.ParserCursor;
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.util.Args;
 import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
 
 /**
@@ -58,12 +59,9 @@ import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
  * </ul>
  *
  * @since 4.0
- *
- * @deprecated (4.2) use {@link DefaultHttpResponseParser}
  */
-@Deprecated
 @ThreadSafe // no public methods
-public class DefaultResponseParser extends AbstractMessageParser<HttpMessage> {
+public class DefaultResponseParser extends AbstractMessageParser {
 
     public HttpClientAndroidLog log = new HttpClientAndroidLog(getClass());
 
@@ -77,17 +75,16 @@ public class DefaultResponseParser extends AbstractMessageParser<HttpMessage> {
             final HttpResponseFactory responseFactory,
             final HttpParams params) {
         super(buffer, parser, params);
-        Args.notNull(responseFactory, "Response factory");
+        if (responseFactory == null) {
+            throw new IllegalArgumentException
+                ("Response factory may not be null");
+        }
         this.responseFactory = responseFactory;
         this.lineBuf = new CharArrayBuffer(128);
-        this.maxGarbageLines = getMaxGarbageLines(params);
+        this.maxGarbageLines = params.getIntParameter(
+            ConnConnectionPNames.MAX_STATUS_LINE_GARBAGE, Integer.MAX_VALUE);
     }
 
-    protected int getMaxGarbageLines(final HttpParams params) {
-        return params.getIntParameter(
-                ch.boye.httpclientandroidlib.conn.params.ConnConnectionPNames.MAX_STATUS_LINE_GARBAGE,
-                Integer.MAX_VALUE);
-    }
 
     @Override
     protected HttpMessage parseHead(
@@ -98,7 +95,7 @@ public class DefaultResponseParser extends AbstractMessageParser<HttpMessage> {
         do {
             // clear the buffer
             this.lineBuf.clear();
-            final int i = sessionBuffer.readLine(this.lineBuf);
+            int i = sessionBuffer.readLine(this.lineBuf);
             if (i == -1 && count == 0) {
                 // The server just dropped connection on us
                 throw new NoHttpResponseException("The target server failed to respond");
@@ -118,7 +115,7 @@ public class DefaultResponseParser extends AbstractMessageParser<HttpMessage> {
             count++;
         } while(true);
         //create the status line from the status string
-        final StatusLine statusline = lineParser.parseStatusLine(this.lineBuf, cursor);
+        StatusLine statusline = lineParser.parseStatusLine(this.lineBuf, cursor);
         return this.responseFactory.newHttpResponse(statusline, null);
     }
 

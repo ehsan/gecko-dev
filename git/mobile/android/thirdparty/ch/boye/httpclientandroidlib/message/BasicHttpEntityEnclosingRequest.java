@@ -32,7 +32,6 @@ import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpEntityEnclosingRequest;
 import ch.boye.httpclientandroidlib.ProtocolVersion;
 import ch.boye.httpclientandroidlib.RequestLine;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 import ch.boye.httpclientandroidlib.protocol.HTTP;
 
 /**
@@ -40,7 +39,6 @@ import ch.boye.httpclientandroidlib.protocol.HTTP;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class BasicHttpEntityEnclosingRequest
             extends BasicHttpRequest implements HttpEntityEnclosingRequest {
 
@@ -68,7 +66,7 @@ public class BasicHttpEntityEnclosingRequest
     }
 
     public boolean expectContinue() {
-        final Header expect = getFirstHeader(HTTP.EXPECT_DIRECTIVE);
+        Header expect = getFirstHeader(HTTP.EXPECT_DIRECTIVE);
         return expect != null && HTTP.EXPECT_CONTINUE.equalsIgnoreCase(expect.getValue());
     }
 

@@ -33,10 +33,7 @@ import ch.boye.httpclientandroidlib.annotation.Immutable;
  * Standard authentication schemes supported by HttpClient.
  *
  * @since 4.0
- *
- * @deprecated (4.3) use {@link ch.boye.httpclientandroidlib.client.config.AuthSchemes}.
  */
-@Deprecated
 @Immutable
 public final class AuthPolicy {
 
@@ -63,17 +60,10 @@ public final class AuthPolicy {
     public static final String BASIC = "Basic";
 
     /**
-     * SPNEGO Authentication scheme.
+     * SPNEGO/Kerberos Authentication scheme.
      *
      * @since 4.1
      */
     public static final String SPNEGO = "negotiate";
-
-    /**
-     * Kerberos Authentication scheme.
-     *
-     * @since 4.2
-     */
-    public static final String KERBEROS = "Kerberos";
 
 }

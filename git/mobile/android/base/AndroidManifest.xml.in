@@ -129,14 +129,10 @@
         <activity-alias android:name=".App"
                         android:label="@MOZ_APP_DISPLAYNAME@"
                         android:targetActivity="org.mozilla.gecko.BrowserApp">
-            <!-- android:priority ranges between -1000 and 1000.  We never want
-                 another activity to usurp the MAIN action, so we ratchet our
-                 priority up. -->
-            <intent-filter android:priority="999">
+            <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.MULTIWINDOW_LAUNCHER"/>
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
             <meta-data android:name="com.sec.minimode.icon.portrait.normal"
@@ -236,7 +232,8 @@
 
         <activity android:name="org.mozilla.gecko.StartPane"
                   android:theme="@style/GeckoStartPane"
-                  android:excludeFromRecents="true"/>
+                  android:excludeFromRecents="true"
+                  android:noHistory="true" />
 
         <activity android:name="org.mozilla.gecko.webapp.Dispatcher"
             android:noHistory="true" >

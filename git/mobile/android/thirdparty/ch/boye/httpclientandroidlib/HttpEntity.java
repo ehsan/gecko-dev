@@ -189,11 +189,10 @@ public interface HttpEntity {
      *
      * @throws IOException if an I/O error occurs.
      *
-     * @deprecated (4.1) Use {@link ch.boye.httpclientandroidlib.util.EntityUtils#consume(HttpEntity)}
+     * @deprecated Use {@link ch.boye.httpclientandroidlib.util.EntityUtils#consume(HttpEntity)}
      *
      * @see #getContent() and #writeTo(OutputStream)
      */
-    @Deprecated
     void consumeContent() throws IOException;
 
 }

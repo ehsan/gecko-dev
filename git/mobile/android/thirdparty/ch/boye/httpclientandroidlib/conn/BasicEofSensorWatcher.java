@@ -1,21 +1,21 @@
 /*
+ * $Revision $
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,23 +24,20 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.conn;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.io.IOException;
 
 import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Basic implementation of {@link EofSensorWatcher}. The underlying connection
  * is released on close or EOF.
  *
  * @since 4.0
- *
- * @deprecated (4.3) do not use.
  */
-@Deprecated
 @NotThreadSafe
 public class BasicEofSensorWatcher implements EofSensorWatcher {
 
@@ -56,14 +53,17 @@ public class BasicEofSensorWatcher implements EofSensorWatcher {
      * @param conn      the connection to auto-release
      * @param reuse     whether the connection should be re-used
      */
-    public BasicEofSensorWatcher(final ManagedClientConnection conn,
-                                 final boolean reuse) {
-        Args.notNull(conn, "Connection");
+    public BasicEofSensorWatcher(ManagedClientConnection conn,
+                                 boolean reuse) {
+        if (conn == null)
+            throw new IllegalArgumentException
+                ("Connection may not be null.");
+
         managedConn = conn;
         attemptReuse = reuse;
     }
 
-    public boolean eofDetected(final InputStream wrapped)
+    public boolean eofDetected(InputStream wrapped)
         throws IOException {
 
         try {
@@ -79,7 +79,7 @@ public class BasicEofSensorWatcher implements EofSensorWatcher {
         return false;
     }
 
-    public boolean streamClosed(final InputStream wrapped)
+    public boolean streamClosed(InputStream wrapped)
         throws IOException {
 
         try {
@@ -95,7 +95,7 @@ public class BasicEofSensorWatcher implements EofSensorWatcher {
         return false;
     }
 
-    public boolean streamAbort(final InputStream wrapped)
+    public boolean streamAbort(InputStream wrapped)
         throws IOException {
 
         managedConn.abortConnection();
