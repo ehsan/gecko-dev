@@ -1514,17 +1514,14 @@ public abstract class GeckoApp
         // External URLs should always be loaded regardless of whether Gecko is
         // already running.
         if (isExternalURL) {
-            // Restore tabs before opening an external URL so that the new tab
-            // is animated properly.
-            Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
             loadStartupTab(passedUri);
-        } else {
-            if (!mIsRestoringActivity) {
-                loadStartupTab(null);
-            }
-
-            Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
+        } else if (!mIsRestoringActivity) {
+            loadStartupTab(null);
         }
+
+        // We now have tab stubs from the last session. Any future tabs should
+        // be animated.
+        Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
 
         // If we're not restoring, move the session file so it can be read for
         // the last tabs section.

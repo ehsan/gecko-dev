@@ -142,6 +142,11 @@ SessionStore.prototype = {
                   selected: true
                 });
               }
+
+              // Let Java know we're done restoring tabs so tabs added after this can be animated
+              Messaging.sendRequest({
+                type: "Session:RestoreEnd"
+              });
             }.bind(this)
           };
           Services.obs.addObserver(restoreCleanup, "sessionstore-windows-restored", false);

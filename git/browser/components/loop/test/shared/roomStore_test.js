@@ -80,7 +80,6 @@ describe("loop.store.RoomStore", function () {
         rooms: {
           create: function() {},
           getAll: function() {},
-          open: function() {},
           on: sandbox.stub()
         }
       };
@@ -231,28 +230,13 @@ describe("loop.store.RoomStore", function () {
       it("should switch the pendingCreation state flag to false once the " +
          "operation is done", function() {
         sandbox.stub(fakeMozLoop.rooms, "create", function(data, cb) {
-          cb(null, {roomToken: "fakeToken"});
+          cb();
         });
 
         store.createRoom(new sharedActions.CreateRoom(fakeRoomCreationData));
 
         expect(store.getStoreState().pendingCreation).eql(false);
       });
-
-      it("should dispatch an OpenRoom action once the operation is done",
-        function() {
-          var dispatch = sandbox.stub(dispatcher, "dispatch");
-          sandbox.stub(fakeMozLoop.rooms, "create", function(data, cb) {
-            cb(null, {roomToken: "fakeToken"});
-          });
-
-          store.createRoom(new sharedActions.CreateRoom(fakeRoomCreationData));
-
-          sinon.assert.calledOnce(dispatch);
-          sinon.assert.calledWithExactly(dispatch, new sharedActions.OpenRoom({
-            roomToken: "fakeToken"
-          }));
-        });
     });
 
     describe("#copyRoomUrl", function() {
