@@ -4379,30 +4379,9 @@ js_GetMethod(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
     return OBJ_GET_PROPERTY(cx, obj, id, vp);
 }
 
-JS_FRIEND_API(JSBool)
-js_CheckUndeclaredVarAssignment(JSContext *cx)
-{
-    JSStackFrame *fp;
-    if (!JS_HAS_STRICT_OPTION(cx) ||
-        !(fp = js_GetTopStackFrame(cx)) ||
-        !fp->regs ||
-        js_GetOpcode(cx, fp->script, fp->regs->pc) != JSOP_SETNAME) {
-        return JS_TRUE;
-    }
-
-    JSAtom *atom;
-    GET_ATOM_FROM_BYTECODE(fp->script, fp->regs->pc, 0, atom);
-
-    const char *bytes = js_AtomToPrintableString(cx, atom);
-    return bytes &&
-           JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING | JSREPORT_STRICT,
-                                        js_GetErrorMessage, NULL,
-                                        JSMSG_UNDECLARED_VAR, bytes);
-}
-
 JSBool
-js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
-                     JSPropCacheEntry **entryp)
+js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id,
+                     JSBool unqualified, jsval *vp, JSPropCacheEntry **entryp)
 {
     uint32 shape;
     int protoIndex;
@@ -4441,8 +4420,19 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
         /* We should never add properties to lexical blocks.  */
         JS_ASSERT(OBJ_GET_CLASS(cx, obj) != &js_BlockClass);
 
-        if (!OBJ_GET_PARENT(cx, obj) && !js_CheckUndeclaredVarAssignment(cx))
-            return NULL;
+        if (unqualified && !OBJ_GET_PARENT(cx, obj) &&
+            JS_HAS_STRICT_OPTION(cx)) {
+            JSString *str = JSVAL_TO_STRING(ID_TO_VALUE(id));
+            const char *bytes = js_GetStringBytes(cx, str);
+            if (!bytes ||
+                !JS_ReportErrorFlagsAndNumber(cx,
+                                              JSREPORT_WARNING |
+                                              JSREPORT_STRICT,
+                                              js_GetErrorMessage, NULL,
+                                              JSMSG_UNDECLARED_VAR, bytes)) {
+                return NULL;
+            }
+        }
     }
     sprop = (JSScopeProperty *) prop;
 
@@ -4617,7 +4607,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
 JSBool
 js_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
-    return js_SetPropertyHelper(cx, obj, id, vp, NULL);
+    return js_SetPropertyHelper(cx, obj, id, false, vp, NULL);
 }
 
 JSBool
