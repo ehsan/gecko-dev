@@ -2754,11 +2754,7 @@ int NS_main(int argc, NS_tchar **argv)
         if (!LaunchWinPostProcess(argv[callbackIndex], gSourcePath, false, NULL)) {
           LOG(("NS_main: The post update process could not be launched.\n"));
         }
-
-        NS_tchar installDir[MAXPATHLEN];
-        if (GetInstallationDir(installDir)) {
-          StartServiceUpdate(installDir);
-        }
+        StartServiceUpdate(argc, argv);
       }
     }
     EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 0);

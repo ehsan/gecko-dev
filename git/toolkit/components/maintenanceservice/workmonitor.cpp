@@ -409,7 +409,7 @@ ProcessSoftwareUpdateCommand(DWORD argc, LPWSTR *argv)
 
       // We might not execute code after StartServiceUpdate because
       // the service installer will stop the service if it is running.
-      StartServiceUpdate(installDir);
+      StartServiceUpdate(argc, argv);
     } else {
       result = FALSE;
       LOG(("Error running update process. Updating update.status"
