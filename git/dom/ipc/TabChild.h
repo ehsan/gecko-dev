@@ -218,13 +218,13 @@ public:
     virtual bool RecvUpdateFrame(const mozilla::layers::FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
     virtual bool RecvAcknowledgeScrollUpdate(const ViewID& aScrollId,
                                              const uint32_t& aScrollGeneration) MOZ_OVERRIDE;
-    virtual bool RecvHandleDoubleTap(const CSSPoint& aPoint,
+    virtual bool RecvHandleDoubleTap(const CSSIntPoint& aPoint,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-    virtual bool RecvHandleSingleTap(const CSSPoint& aPoint,
+    virtual bool RecvHandleSingleTap(const CSSIntPoint& aPoint,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-    virtual bool RecvHandleLongTap(const CSSPoint& aPoint,
+    virtual bool RecvHandleLongTap(const CSSIntPoint& aPoint,
                                    const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-    virtual bool RecvHandleLongTapUp(const CSSPoint& aPoint,
+    virtual bool RecvHandleLongTapUp(const CSSIntPoint& aPoint,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
     virtual bool RecvNotifyTransformBegin(const ViewID& aViewId) MOZ_OVERRIDE;
     virtual bool RecvNotifyTransformEnd(const ViewID& aViewId) MOZ_OVERRIDE;
@@ -417,7 +417,7 @@ private:
     bool InitRenderingState();
     void DestroyWindow();
     void SetProcessNameToAppName();
-    FrameMetrics ProcessUpdateFrame(const FrameMetrics& aFrameMetrics);
+    bool ProcessUpdateFrame(const mozilla::layers::FrameMetrics& aFrameMetrics);
 
     // Call RecvShow(nsIntSize(0, 0)) and block future calls to RecvShow().
     void DoFakeShow();
@@ -507,8 +507,6 @@ private:
     bool mContextMenuHandled;
     bool mWaitingTouchListeners;
     void FireSingleTapEvent(LayoutDevicePoint aPoint);
-
-    bool mIgnoreKeyPressEvent;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

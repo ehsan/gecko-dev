@@ -6,6 +6,7 @@ function test() {
   waitForExplicitFinish();
 
   runSocialTestWithProvider(gProviders, function (finishcb) {
+    Social.enabled = true;
     runSocialTests(tests, undefined, undefined, function() {
       finishcb();
     });
@@ -56,14 +57,13 @@ var tests = {
                      next, "received messages from all workers");
   },
 
-   testMultipleWorkerEnabling: function(next) {
-     // test that all workers are enabled when we allow multiple workers
-     for (let p of Social.providers) {
-       ok(p.enabled, "provider enabled");
-       let port = p.getWorkerPort();
-       ok(port, "worker enabled");
-       port.close();
-     }
-     next();
-   }
+  testWorkerDisabling: function(next) {
+    Social.enabled = false;
+    is(Social.providers.length, gProviders.length, "providers still available");
+    for (let p of Social.providers) {
+      ok(!p.enabled, "provider disabled");
+      ok(!p.getWorkerPort(), "worker disabled");
+    }
+    next();
+  }
 }

@@ -43,7 +43,6 @@ SERV_FILES = 	\
 		pywebsocket_wrapper.py \
 		android.json \
 		androidx86.json \
-		android23.json \
 		b2g.json \
 		b2g-desktop.json \
 		b2g-debug.json \

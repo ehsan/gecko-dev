@@ -1682,8 +1682,7 @@ nsPluginInstanceOwner::ProcessMouseDown(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
-nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent,
-                                                      bool aAllowPropagate)
+nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent)
 {
 #if !defined(XP_MACOSX)
   if (!mPluginWindow || (mPluginWindow->type == NPWindowTypeWindow))
@@ -1700,9 +1699,7 @@ nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent,
     nsEventStatus rv = ProcessEvent(*mouseEvent);
     if (nsEventStatus_eConsumeNoDefault == rv) {
       aMouseEvent->PreventDefault();
-      if (!aAllowPropagate) {
-        aMouseEvent->StopPropagation();
-      }
+      aMouseEvent->StopPropagation();
     }
     if (mouseEvent->message == NS_MOUSE_BUTTON_UP) {
       mLastMouseDownButtonType = -1;
@@ -1744,10 +1741,8 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
     }
     return DispatchMouseToPlugin(aEvent);
   }
-  if (eventType.EqualsLiteral("mousemove")) {
-    return DispatchMouseToPlugin(aEvent, true);
-  }
-  if (eventType.EqualsLiteral("click") ||
+  if (eventType.EqualsLiteral("mousemove") ||
+      eventType.EqualsLiteral("click") ||
       eventType.EqualsLiteral("dblclick") ||
       eventType.EqualsLiteral("mouseover") ||
       eventType.EqualsLiteral("mouseout")) {

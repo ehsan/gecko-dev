@@ -23,16 +23,16 @@ public:
     virtual void PostDelayedTask(Task* aTask, int aDelayMs) MOZ_OVERRIDE;
 
     // No-ops
-    virtual void HandleDoubleTap(const CSSPoint& aPoint,
+    virtual void HandleDoubleTap(const CSSIntPoint& aPoint,
                                  int32_t aModifiers,
                                  const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE {}
-    virtual void HandleSingleTap(const CSSPoint& aPoint,
+    virtual void HandleSingleTap(const CSSIntPoint& aPoint,
                                  int32_t aModifiers,
                                  const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE {}
-    virtual void HandleLongTap(const CSSPoint& aPoint,
+    virtual void HandleLongTap(const CSSIntPoint& aPoint,
                                int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE {}
-    virtual void HandleLongTapUp(const CSSPoint& aPoint,
+    virtual void HandleLongTapUp(const CSSIntPoint& aPoint,
                                  int32_t aModifiers,
                                  const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE {}
 

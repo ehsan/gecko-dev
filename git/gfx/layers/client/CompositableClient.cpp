@@ -177,12 +177,10 @@ CompositableClient::CreateBufferTextureClient(SurfaceFormat aFormat,
 
 TemporaryRef<TextureClient>
 CompositableClient::CreateTextureClientForDrawing(SurfaceFormat aFormat,
-                                                  TextureFlags aTextureFlags,
-                                                  const IntSize& aSizeHint)
+                                                  TextureFlags aTextureFlags)
 {
   return TextureClient::CreateTextureClientForDrawing(GetForwarder(), aFormat,
-                                                      aTextureFlags | mTextureFlags,
-                                                      aSizeHint);
+                                                      aTextureFlags | mTextureFlags);
 }
 
 bool

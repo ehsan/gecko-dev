@@ -1308,13 +1308,6 @@ public:
    */
   void LogSelf(const char* aPrefix="");
 
-  // Print interesting information about this into aTo.  Internally
-  // used to implement Dump*() and Log*().  If subclasses have
-  // additional interesting properties, they should override this with
-  // an implementation that first calls the base implementation then
-  // appends additional info to aTo.
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
-
   static bool IsLogEnabled() { return LayerManager::IsLogEnabled(); }
 
   /**
@@ -1357,6 +1350,13 @@ public:
 
 protected:
   Layer(LayerManager* aManager, void* aImplData);
+
+  // Print interesting information about this into aTo.  Internally
+  // used to implement Dump*() and Log*().  If subclasses have
+  // additional interesting properties, they should override this with
+  // an implementation that first calls the base implementation then
+  // appends additional info to aTo.
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   /**
    * We can snap layer transforms for two reasons:

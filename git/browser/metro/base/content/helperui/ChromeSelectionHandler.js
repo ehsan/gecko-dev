@@ -112,7 +112,14 @@ var ChromeSelectionHandler = {
       return;
     }
 
-    this._handleSelectionPoint(aMsg, false);
+    // Update selection in the doc
+    let pos = null;
+    if (aMsg.change == "start") {
+      pos = aMsg.start;
+    } else {
+      pos = aMsg.end;
+    }
+    this._handleSelectionPoint(aMsg.change, pos, false);
   },
 
   /*
@@ -129,7 +136,15 @@ var ChromeSelectionHandler = {
       return;
     }
 
-    this._handleSelectionPoint(aMsg, true);
+    // Update selection in the doc
+    let pos = null;
+    if (aMsg.change == "start") {
+      pos = aMsg.start;
+    } else {
+      pos = aMsg.end;
+    }
+
+    this._handleSelectionPoint(aMsg.change, pos, true);
     this._selectionMoveActive = false;
     
     // Clear any existing scroll timers

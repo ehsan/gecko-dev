@@ -111,12 +111,11 @@ Marker.prototype = {
   _tag: "",
   _hPlane: 0,
   _vPlane: 0,
-  _restrictedToBounds: false,
 
   // Tweak me if the monocle graphics change in any way
   _monocleRadius: 8,
   _monocleXHitTextAdjust: -2, 
-  _monocleYHitTextAdjust: -10,
+  _monocleYHitTextAdjust: -10, 
 
   get xPos() {
     return this._xPos;
@@ -136,13 +135,6 @@ Marker.prototype = {
 
   get dragging() {
     return this._element.customDragger.dragging;
-  },
-
-  // Indicates that marker's position doesn't reflect real selection boundary
-  // but rather boundary of input control while actual selection boundaries are
-  // not visible (ex. due scrolled content).
-  get restrictedToBounds() {
-    return this._restrictedToBounds;
   },
 
   shutdown: function shutdown() {
@@ -171,10 +163,9 @@ Marker.prototype = {
     return this._element.hidden == false;
   },
 
-  position: function position(aX, aY, aRestrictedToBounds) {
+  position: function position(aX, aY) {
     this._xPos = aX;
     this._yPos = aY;
-    this._restrictedToBounds = !!aRestrictedToBounds;
     this._setPosition();
   },
 
@@ -592,7 +583,6 @@ var SelectionHelperUI = {
     messageManager.addMessageListener("Content:SelectionDebugRect", this);
     messageManager.addMessageListener("Content:HandlerShutdown", this);
     messageManager.addMessageListener("Content:SelectionHandlerPong", this);
-    messageManager.addMessageListener("Content:SelectionSwap", this);
 
     // capture phase
     window.addEventListener("keypress", this, true);
@@ -622,7 +612,6 @@ var SelectionHelperUI = {
     messageManager.removeMessageListener("Content:SelectionDebugRect", this);
     messageManager.removeMessageListener("Content:HandlerShutdown", this);
     messageManager.removeMessageListener("Content:SelectionHandlerPong", this);
-    messageManager.removeMessageListener("Content:SelectionSwap", this);
 
     window.removeEventListener("keypress", this, true);
     window.removeEventListener("MozPrecisePointer", this, true);
@@ -948,12 +937,6 @@ var SelectionHelperUI = {
     this._shutdown();
   },
 
-  _selectionSwap: function _selectionSwap() {
-    [this.startMark.tag, this.endMark.tag] = [this.endMark.tag,
-        this.startMark.tag];
-    [this._startMark, this._endMark] = [this.endMark, this.startMark];
-  },
-
   /*
    * Message handlers
    */
@@ -968,13 +951,13 @@ var SelectionHelperUI = {
     if (json.updateStart) {
       let x = this._msgTarget.btocx(json.start.xPos, true);
       let y = this._msgTarget.btocy(json.start.yPos, true);
-      this.startMark.position(x, y, json.start.restrictedToBounds);
+      this.startMark.position(x, y);
     }
 
     if (json.updateEnd) {
       let x = this._msgTarget.btocx(json.end.xPos, true);
       let y = this._msgTarget.btocy(json.end.yPos, true);
-      this.endMark.position(x, y, json.end.restrictedToBounds);
+      this.endMark.position(x, y);
     }
 
     if (json.updateCaret) {
@@ -1107,9 +1090,6 @@ var SelectionHelperUI = {
       case "Content:HandlerShutdown":
         this._selectionHandlerShutdown();
         break;
-      case "Content:SelectionSwap":
-        this._selectionSwap();
-        break;
       case "Content:SelectionHandlerPong":
         this._onPong(json.id);
         break;
@@ -1125,13 +1105,11 @@ var SelectionHelperUI = {
       change: aMarkerTag,
       start: {
         xPos: this._msgTarget.ctobx(this.startMark.xPos, true),
-        yPos: this._msgTarget.ctoby(this.startMark.yPos, true),
-        restrictedToBounds: this.startMark.restrictedToBounds
+        yPos: this._msgTarget.ctoby(this.startMark.yPos, true)
       },
       end: {
         xPos: this._msgTarget.ctobx(this.endMark.xPos, true),
-        yPos: this._msgTarget.ctoby(this.endMark.yPos, true),
-        restrictedToBounds: this.endMark.restrictedToBounds
+        yPos: this._msgTarget.ctoby(this.endMark.yPos, true)
       },
       caret: {
         xPos: this._msgTarget.ctobx(this.caretMark.xPos, true),
@@ -1143,10 +1121,8 @@ var SelectionHelperUI = {
   markerDragStart: function markerDragStart(aMarker) {
     let json = this._getMarkerBaseMessage(aMarker.tag);
     if (aMarker.tag == "caret") {
-      // Cache for when we start the drag in _transitionFromCaretToSelection.
-      if (!this._cachedCaretPos) {
-        this._cachedCaretPos = this._getMarkerBaseMessage(aMarker.tag).caret;
-      }
+      this._cachedCaretPos = null;
+      this._sendAsyncMessage("Browser:CaretMove", json);
       return;
     }
     this._sendAsyncMessage("Browser:SelectionMoveStart", json);
@@ -1155,7 +1131,7 @@ var SelectionHelperUI = {
   markerDragStop: function markerDragStop(aMarker) {
     let json = this._getMarkerBaseMessage(aMarker.tag);
     if (aMarker.tag == "caret") {
-      this._cachedCaretPos = null;
+      this._sendAsyncMessage("Browser:CaretUpdate", json);
       return;
     }
     this._sendAsyncMessage("Browser:SelectionMoveEnd", json);
@@ -1171,6 +1147,10 @@ var SelectionHelperUI = {
         // depending on the direction of the drag, and start selecting text.
         this._transitionFromCaretToSelection(aDirection);
         return false;
+      }
+      // Cache for when we start the drag in _transitionFromCaretToSelection.
+      if (!this._cachedCaretPos) {
+        this._cachedCaretPos = this._getMarkerBaseMessage(aMarker.tag).caret;
       }
       return true;
     }

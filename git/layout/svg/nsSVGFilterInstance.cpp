@@ -48,37 +48,8 @@ nsSVGFilterInstance::nsSVGFilterInstance(const nsStyleFilter& aFilter,
   mPrimitiveUnits =
     mFilterFrame->GetEnumValue(SVGFilterElement::PRIMITIVEUNITS);
 
-  nsresult rv = ComputeUserSpaceToIntermediateSpaceScale();
-  if (NS_FAILED(rv)) {
-    return;
-  }
+  // Get the filter region (in the filtered element's user space):
 
-  rv = ComputeBounds();
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  mInitialized = true;
-}
-
-nsresult
-nsSVGFilterInstance::ComputeUserSpaceToIntermediateSpaceScale()
-{
-  gfxMatrix canvasTransform =
-    nsSVGUtils::GetCanvasTM(mTargetFrame, nsISVGChildFrame::FOR_OUTERSVG_TM);
-  if (canvasTransform.IsSingular()) {
-    // Nothing should be rendered.
-    return NS_ERROR_FAILURE;
-  }
-  mUserSpaceToIntermediateSpaceScale = canvasTransform.ScaleFactors(true);
-  mIntermediateSpaceToUserSpaceScale = gfxSize(1.0 / mUserSpaceToIntermediateSpaceScale.width,
-                                               1.0 / mUserSpaceToIntermediateSpaceScale.height);
-  return NS_OK;
-}
-
-nsresult
-nsSVGFilterInstance::ComputeBounds()
-{
   // XXX if filterUnits is set (or has defaulted) to objectBoundingBox, we
   // should send a warning to the error console if the author has used lengths
   // with units. This is a common mistake and can result in the filter region
@@ -89,7 +60,6 @@ nsSVGFilterInstance::ComputeBounds()
   // interpreted as a fraction of the bounding box and sometimes as user-space
   // units). So really only percentage values should be used in this case.
   
-  // Set the user space bounds (i.e. the filter region in user space).
   nsSVGLength2 XYWH[4];
   NS_ABORT_IF_FALSE(sizeof(mFilterElement->mLengthAttributes) == sizeof(XYWH),
                     "XYWH size incorrect");
@@ -101,34 +71,43 @@ nsSVGFilterInstance::ComputeBounds()
   XYWH[3] = *mFilterFrame->GetLengthValue(SVGFilterElement::ATTR_HEIGHT);
   uint16_t filterUnits =
     mFilterFrame->GetEnumValue(SVGFilterElement::FILTERUNITS);
-  mUserSpaceBounds = nsSVGUtils::GetRelativeRect(filterUnits,
+  // The filter region in user space, in user units:
+  mFilterRegion = nsSVGUtils::GetRelativeRect(filterUnits,
     XYWH, mTargetBBox, mTargetFrame);
 
-  // Temporarily transform the user space bounds to intermediate space, so we
-  // can align them with the pixel boundries of the offscreen surface.
-  // The offscreen surface has the same scale as intermediate space.
-  mUserSpaceBounds = UserSpaceToIntermediateSpace(mUserSpaceBounds);
-  mUserSpaceBounds.RoundOut();
-  if (mUserSpaceBounds.Width() <= 0 || mUserSpaceBounds.Height() <= 0) {
+  if (mFilterRegion.Width() <= 0 || mFilterRegion.Height() <= 0) {
     // 0 disables rendering, < 0 is error. dispatch error console warning
     // or error as appropriate.
-    return NS_ERROR_FAILURE;
+    return;
   }
 
-  // Set the intermediate space bounds.
-  if (!gfxUtils::GfxRectToIntRect(mUserSpaceBounds, &mIntermediateSpaceBounds)) {
-    // The filter region is way too big if there is float -> int overflow.
-    return NS_ERROR_FAILURE;
+  // Calculate the width and height of the pixel buffer of the
+  // temporary offscreen surface that we would/will create to paint into when
+  // painting the entire filtered element and, if necessary, adjust
+  // mFilterRegion out slightly so that it aligns with pixel boundaries of this
+  // buffer:
+
+  // Match filter space as closely as possible to the pixel density of the
+  // nearest outer 'svg' device space:
+  gfxMatrix canvasTM =
+    nsSVGUtils::GetCanvasTM(mTargetFrame, nsISVGChildFrame::FOR_OUTERSVG_TM);
+  if (canvasTM.IsSingular()) {
+    // nothing to draw
+    return;
   }
 
-  // Set the filter space bounds.
-  mFilterSpaceBounds = mIntermediateSpaceBounds;
-  mFilterSpaceBounds.MoveTo(0, 0);
+  gfxSize scale = canvasTM.ScaleFactors(true);
+  mFilterRegion.Scale(scale.width, scale.height);
+  mFilterRegion.RoundOut();
 
-  // Undo the temporary transformation of the user space bounds.
-  mUserSpaceBounds = IntermediateSpaceToUserSpace(mUserSpaceBounds);
+  // We don't care if this overflows, because we can handle upscaling/
+  // downscaling to filter space.
+  bool overflow;
+  mFilterSpaceBounds.SetRect(nsIntPoint(0, 0),
+    nsSVGUtils::ConvertToSurfaceSize(mFilterRegion.Size(), &overflow));
+  mFilterRegion.Scale(1.0 / scale.width, 1.0 / scale.height);
 
-  return NS_OK;
+  mInitialized = true;
 }
 
 nsSVGFilterFrame*
@@ -189,14 +168,14 @@ nsSVGFilterInstance::GetPrimitiveNumber(uint8_t aCtxType, float aValue) const
 
   switch (aCtxType) {
   case SVGContentUtils::X:
-    return value * mUserSpaceToIntermediateSpaceScale.width;
+    return value * mFilterSpaceBounds.width / mFilterRegion.Width();
   case SVGContentUtils::Y:
-    return value * mUserSpaceToIntermediateSpaceScale.height;
+    return value * mFilterSpaceBounds.height / mFilterRegion.Height();
   case SVGContentUtils::XY:
   default:
     return value * SVGContentUtils::ComputeNormalizedHypotenuse(
-                     mUserSpaceToIntermediateSpaceScale.width,
-                     mUserSpaceToIntermediateSpaceScale.height);
+                     mFilterSpaceBounds.width / mFilterRegion.Width(),
+                     mFilterSpaceBounds.height / mFilterRegion.Height());
   }
 }
 
@@ -221,27 +200,22 @@ nsSVGFilterInstance::ConvertLocation(const Point3D& aPoint) const
 }
 
 gfxRect
-nsSVGFilterInstance::UserSpaceToFilterSpace(const gfxRect& aUserSpaceRect) const
+nsSVGFilterInstance::UserSpaceToFilterSpace(const gfxRect& aRect) const
 {
-  return IntermediateSpaceToUserSpace(aUserSpaceRect - mUserSpaceBounds.TopLeft());
+  gfxRect r = aRect - mFilterRegion.TopLeft();
+  r.Scale(mFilterSpaceBounds.width / mFilterRegion.Width(),
+          mFilterSpaceBounds.height / mFilterRegion.Height());
+  return r;
 }
 
-gfxRect
-nsSVGFilterInstance::UserSpaceToIntermediateSpace(const gfxRect& aUserSpaceRect) const
+gfxMatrix
+nsSVGFilterInstance::GetUserSpaceToFilterSpaceTransform() const
 {
-  gfxRect intermediateSpaceRect = aUserSpaceRect;
-  intermediateSpaceRect.Scale(mUserSpaceToIntermediateSpaceScale.width,
-                              mUserSpaceToIntermediateSpaceScale.height);
-  return intermediateSpaceRect;
-}
-
-gfxRect
-nsSVGFilterInstance::IntermediateSpaceToUserSpace(const gfxRect& aIntermediateSpaceRect) const
-{
-  gfxRect userSpaceRect = aIntermediateSpaceRect;
-  userSpaceRect.Scale(mIntermediateSpaceToUserSpaceScale.width,
-                      mIntermediateSpaceToUserSpaceScale.height);
-  return userSpaceRect;
+  gfxFloat widthScale = mFilterSpaceBounds.width / mFilterRegion.Width();
+  gfxFloat heightScale = mFilterSpaceBounds.height / mFilterRegion.Height();
+  return gfxMatrix(widthScale, 0.0f,
+                   0.0f, heightScale,
+                   -mFilterRegion.X() * widthScale, -mFilterRegion.Y() * heightScale);
 }
 
 IntRect

@@ -5,9 +5,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 UNIFIED_SOURCES += [
+    '../insanity/lib/pkixbuild.cpp',
+    '../insanity/lib/pkixcheck.cpp',
+    '../insanity/lib/pkixder.cpp',
+    '../insanity/lib/pkixkey.cpp',
+    '../insanity/lib/pkixocsp.cpp',
     'CertVerifier.cpp',
     'NSSCertDBTrustDomain.cpp',
-    'OCSPCache.cpp',
 ]
 
 if not CONFIG['NSS_NO_EV_CERTS']:
@@ -20,7 +24,7 @@ LOCAL_INCLUDES += [
 ]
 
 DIRS += [
-    '../insanity',
+    '../insanity/test/lib',
 ]
 
 FAIL_ON_WARNINGS = True

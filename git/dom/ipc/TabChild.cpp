@@ -287,7 +287,6 @@ TabChild::TabChild(ContentChild* aManager, const TabContext& aContext, uint32_t 
   , mUpdateHitRegion(false)
   , mContextMenuHandled(false)
   , mWaitingTouchListeners(false)
-  , mIgnoreKeyPressEvent(false)
 {
   if (!sActiveDurationMsSet) {
     Preferences::AddIntVarCache(&sActiveDurationMs,
@@ -661,7 +660,7 @@ TabChild::HandlePossibleViewportChange()
 
   // Force a repaint with these metrics. This, among other things, sets the
   // displayport, so we start with async painting.
-  mLastRootMetrics = ProcessUpdateFrame(metrics);
+  ProcessUpdateFrame(metrics);
 
   if (viewportInfo.IsZoomAllowed() && scrollIdentifiersValid) {
     // If the CSS viewport is narrower than the screen (i.e. width <= device-width)
@@ -832,7 +831,7 @@ TabChild::SetChromeFlags(uint32_t aChromeFlags)
 NS_IMETHODIMP
 TabChild::DestroyBrowserWindow()
 {
-  NS_NOTREACHED("TabChild::DestroyBrowserWindow not supported in TabChild");
+  NS_NOTREACHED("TabChild::SetWebBrowser not supported in TabChild");
 
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1477,9 +1476,7 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
   if (aFrameMetrics.mIsRoot) {
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
     if (APZCCallbackHelper::HasValidPresShellId(utils, aFrameMetrics)) {
-      mLastRootMetrics = ProcessUpdateFrame(aFrameMetrics);
-      APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, mLastRootMetrics);
-      return true;
+      return ProcessUpdateFrame(aFrameMetrics);
     }
   } else {
     // aFrameMetrics.mIsRoot is false, so we are trying to update a subframe.
@@ -1489,7 +1486,6 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
     if (content) {
       FrameMetrics newSubFrameMetrics(aFrameMetrics);
       APZCCallbackHelper::UpdateSubFrame(content, newSubFrameMetrics);
-      APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, newSubFrameMetrics);
       return true;
     }
   }
@@ -1497,8 +1493,7 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
   // We've recieved a message that is out of date and we want to ignore.
   // However we can't reply without painting so we reply by painting the
   // exact same thing as we did before.
-  mLastRootMetrics = ProcessUpdateFrame(mLastRootMetrics);
-  return true;
+  return ProcessUpdateFrame(mLastRootMetrics);
 }
 
 bool
@@ -1509,11 +1504,11 @@ TabChild::RecvAcknowledgeScrollUpdate(const ViewID& aScrollId,
   return true;
 }
 
-FrameMetrics
+bool
 TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
   {
     if (!mGlobal || !mTabChildGlobal) {
-        return aFrameMetrics;
+        return true;
     }
 
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
@@ -1553,20 +1548,22 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     data.AppendLiteral(" }");
 
     DispatchMessageManagerMessage(NS_LITERAL_STRING("Viewport:Change"), data);
-    return newMetrics;
+
+    mLastRootMetrics = newMetrics;
+
+    return true;
 }
 
 bool
-TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleDoubleTap(const CSSIntPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
     if (!mGlobal || !mTabChildGlobal) {
         return true;
     }
 
-    CSSPoint point = APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid);
     nsCString data;
-    data += nsPrintfCString("{ \"x\" : %f", point.x);
-    data += nsPrintfCString(", \"y\" : %f", point.y);
+    data += nsPrintfCString("{ \"x\" : %d", aPoint.x);
+    data += nsPrintfCString(", \"y\" : %d", aPoint.y);
     data += nsPrintfCString(" }");
 
     DispatchMessageManagerMessage(NS_LITERAL_STRING("Gesture:DoubleTap"), data);
@@ -1575,13 +1572,13 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid&
 }
 
 bool
-TabChild::RecvHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleSingleTap(const CSSIntPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (!mGlobal || !mTabChildGlobal) {
     return true;
   }
 
-  LayoutDevicePoint currentPoint = APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid) * mWidget->GetDefaultScale();;
+  LayoutDevicePoint currentPoint = CSSPoint(aPoint) * mWidget->GetDefaultScale();;
 
   MessageLoop::current()->PostDelayedTask(
     FROM_HERE,
@@ -1600,16 +1597,14 @@ TabChild::FireSingleTapEvent(LayoutDevicePoint aPoint)
 }
 
 bool
-TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleLongTap(const CSSIntPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (!mGlobal || !mTabChildGlobal) {
     return true;
   }
 
   mContextMenuHandled =
-      DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"),
-                         APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid),
-                         2, 1, 0, false,
+      DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"), aPoint, 2, 1, 0, false,
                          nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
 
   SendContentReceivedTouch(aGuid, mContextMenuHandled);
@@ -1618,7 +1613,7 @@ TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& a
 }
 
 bool
-TabChild::RecvHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleLongTapUp(const CSSIntPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mContextMenuHandled) {
     mContextMenuHandled = false;
@@ -1861,10 +1856,6 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
                              const ScrollableLayerGuid& aGuid)
 {
   WidgetTouchEvent localEvent(aEvent);
-  for (size_t i = 0; i < localEvent.touches.Length(); i++) {
-    aEvent.touches[i]->mRefPoint = APZCCallbackHelper::ApplyCallbackTransform(aEvent.touches[i]->mRefPoint, aGuid, mWidget->GetDefaultScale());
-  }
-
   nsEventStatus status = DispatchWidgetEvent(localEvent);
 
   if (!IsAsyncPanZoomEnabled()) {
@@ -1919,19 +1910,8 @@ TabChild::RecvRealTouchMoveEvent(const WidgetTouchEvent& aEvent,
 bool
 TabChild::RecvRealKeyEvent(const WidgetKeyboardEvent& event)
 {
-  // If content code called preventDefault() on a keydown event, then we don't
-  // want to process any following keypress events.
-  if (event.message == NS_KEY_PRESS && mIgnoreKeyPressEvent) {
-    return true;
-  }
-
   WidgetKeyboardEvent localEvent(event);
-  nsEventStatus status = DispatchWidgetEvent(localEvent);
-
-  if (event.message == NS_KEY_DOWN) {
-    mIgnoreKeyPressEvent = status == nsEventStatus_eConsumeNoDefault;
-  }
-
+  DispatchWidgetEvent(localEvent);
   return true;
 }
 

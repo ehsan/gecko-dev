@@ -207,8 +207,7 @@ public:
   static TemporaryRef<TextureClient>
   CreateTextureClientForDrawing(ISurfaceAllocator* aAllocator,
                                 gfx::SurfaceFormat aFormat,
-                                TextureFlags aTextureFlags,
-                                const gfx::IntSize& aSizeHint);
+                                TextureFlags aTextureFlags);
 
   virtual TextureClientSurface* AsTextureClientSurface() { return nullptr; }
   virtual TextureClientDrawTarget* AsTextureClientDrawTarget() { return nullptr; }
