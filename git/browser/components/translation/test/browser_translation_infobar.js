@@ -4,191 +4,152 @@
 
 // tests the translation infobar, using a fake 'Translation' implementation.
 
-Components.utils.import("resource:///modules/translation/Translation.jsm");
+var Translation = {
+  supportedSourceLanguages: ["en", "zh", "ja", "es", "de", "fr", "ru", "ar", "ko", "pt"],
+  supportedTargetLanguages: ["en", "pl", "tr", "vi"],
+  defaultTargetLanguage: "en",
 
-function waitForCondition(condition, nextTest, errorMsg) {
-  var tries = 0;
-  var interval = setInterval(function() {
-    if (tries >= 30) {
-      ok(false, errorMsg);
-      moveOn();
-    }
-    var conditionPassed;
-    try {
-      conditionPassed = condition();
-    } catch (e) {
-      ok(false, e + "\n" + e.stack);
-      conditionPassed = false;
-    }
-    if (conditionPassed) {
-      moveOn();
-    }
-    tries++;
-  }, 100);
-  var moveOn = function() { clearInterval(interval); nextTest(); };
-}
-
-var TranslationStub = {
-  __proto__: Translation.prototype,
-
+  _translateFrom: "",
+  _translateTo: "",
+  _deferred: null,
   translate: function(aFrom, aTo) {
-    this.state = this.STATE_TRANSLATING;
-    this.translatedFrom = aFrom;
-    this.translatedTo = aTo;
+    this._translateFrom = aFrom;
+    this._translateTo = aTo;
+    this._deferred = Promise.defer();
+    return this._deferred.promise;
   },
 
   _reset: function() {
-    this.translatedFrom = "";
-    this.translatedTo = "";
+    this._translateFrom = "";
+    this._translateTo = "";
+    this._deferred = null;
   },
 
   failTranslation: function() {
-    this.state = this.STATE_ERROR;
+    this._deferred.reject();
     this._reset();
   },
 
   finishTranslation: function() {
-    this.showTranslatedContent();
-    this.state = this.STATE_TRANSLATED;
+    this._deferred.resolve();
     this._reset();
+  },
+
+  _showOriginalCalled: false,
+  showOriginalContent: function() {
+    this._showOriginalCalled = true;
+  },
+
+  _showTranslationCalled: false,
+  showTranslatedContent: function() {
+    this._showTranslationCalled = true;
+  },
+
+  showTranslationUI: function(aLanguage) {
+    let notificationBox = gBrowser.getNotificationBox();
+    let notif = notificationBox.appendNotification("", "translation", null,
+                                                   notificationBox.PRIORITY_INFO_HIGH);
+    notif.init(this);
+    notif.detectedLanguage = aLanguage;
+    return notif;
   }
 };
-
 
 function test() {
   waitForExplicitFinish();
 
-  let tab = gBrowser.addTab();
-  gBrowser.selectedTab = tab;
-  tab.linkedBrowser.addEventListener("load", function onload() {
-    tab.linkedBrowser.removeEventListener("load", onload, true);
-    TranslationStub.browser = gBrowser.selectedBrowser;
-    registerCleanupFunction(function () {
-      gBrowser.removeTab(tab);
-    });
-    run_tests(() => {
-      finish();
-    });
-  }, true);
-
-  content.location = "data:text/plain,test page";
-}
-
-function checkURLBarIcon(aExpectTranslated = false) {
-  is(!PopupNotifications.getNotification("translate"), aExpectTranslated,
-     "translate icon " + (aExpectTranslated ? "not " : "") + "shown");
-  is(!!PopupNotifications.getNotification("translated"), aExpectTranslated,
-     "translated icon " + (aExpectTranslated ? "" : "not ") + "shown");
-}
-
-function run_tests(aFinishCallback) {
-  info("Show an info bar saying the current page is in French");
-  let notif = TranslationStub.showTranslationUI("fr");
-  is(notif.state, TranslationStub.STATE_OFFER, "the infobar is offering translation");
+  // Show an info bar saying the current page is in French
+  let notif = Translation.showTranslationUI("fr");
+  is(notif.state, notif.STATE_OFFER, "the infobar is offering translation");
   is(notif._getAnonElt("detectedLanguage").value, "fr", "The detected language is displayed");
-  checkURLBarIcon();
 
-  info("Click the 'Translate' button");
+  // Click the "Translate" button
   notif._getAnonElt("translate").click();
-  is(notif.state, TranslationStub.STATE_TRANSLATING, "the infobar is in the translating state");
-  ok(!!TranslationStub.translatedFrom, "Translation.translate has been called");
-  is(TranslationStub.translatedFrom, "fr", "from language correct");
-  is(TranslationStub.translatedTo, TranslationStub.defaultTargetLanguage, "from language correct");
-  checkURLBarIcon();
+  is(notif.state, notif.STATE_TRANSLATING, "the infobar is in the translating state");
+  ok(!!Translation._deferred, "Translation.translate has been called");
+  is(Translation._translateFrom, "fr", "from language correct");
+  is(Translation._translateTo, Translation.defaultTargetLanguage, "from language correct");
 
-  info("Make the translation fail and check we are in the error state.");
-  TranslationStub.failTranslation();
-  is(notif.state, TranslationStub.STATE_ERROR, "infobar in the error state");
-  checkURLBarIcon();
+  // Make the translation fail and check we are in the error state.
+  Translation.failTranslation();
+  is(notif.state, notif.STATE_ERROR, "infobar in the error state");
 
-  info("Click the try again button");
+  // Click the try again button
   notif._getAnonElt("tryAgain").click();
-  is(notif.state, TranslationStub.STATE_TRANSLATING, "infobar in the translating state");
-  ok(!!TranslationStub.translatedFrom, "Translation.translate has been called");
-  is(TranslationStub.translatedFrom, "fr", "from language correct");
-  is(TranslationStub.translatedTo, TranslationStub.defaultTargetLanguage, "from language correct");
-  checkURLBarIcon();
+  is(notif.state, notif.STATE_TRANSLATING, "infobar in the translating state");
+  ok(!!Translation._deferred, "Translation.translate has been called");
+  is(Translation._translateFrom, "fr", "from language correct");
+  is(Translation._translateTo, Translation.defaultTargetLanguage, "to language correct");
 
-  info("Make the translation succeed and check we are in the 'translated' state.");
-  TranslationStub.finishTranslation();
-  is(notif.state, TranslationStub.STATE_TRANSLATED, "infobar in the translated state");
-  checkURLBarIcon(true);
+  // Make the translation succeed and check we are in the 'translated' state.
+  Translation.finishTranslation();
+  is(notif.state, notif.STATE_TRANSLATED, "infobar in the translated state");
 
-  info("Test 'Show original' / 'Show Translation' buttons.");
+  // Test 'Show Original' / 'Show Translation' buttons.
   // First check 'Show Original' is visible and 'Show Translation' is hidden.
   ok(!notif._getAnonElt("showOriginal").hidden, "'Show Original' button visible");
   ok(notif._getAnonElt("showTranslation").hidden, "'Show Translation' button hidden");
   // Click the button.
   notif._getAnonElt("showOriginal").click();
-  // Check that the url bar icon shows the original content is displayed.
-  checkURLBarIcon();
+  // Check the correct function has been called.
+  ok(Translation._showOriginalCalled, "'Translation.showOriginalContent' called")
+  ok(!Translation._showTranslationCalled, "'Translation.showTranslatedContent' not called")
+  Translation._showOriginalCalled = false;
   // And the 'Show Translation' button is now visible.
   ok(notif._getAnonElt("showOriginal").hidden, "'Show Original' button hidden");
   ok(!notif._getAnonElt("showTranslation").hidden, "'Show Translation' button visible");
   // Click the 'Show Translation' button
   notif._getAnonElt("showTranslation").click();
-  // Check that the url bar icon shows the page is translated.
-  checkURLBarIcon(true);
+  // Check the correct function has been called.
+  ok(!Translation._showOriginalCalled, "'Translation.showOriginalContent' not called")
+  ok(Translation._showTranslationCalled, "'Translation.showTranslatedContent' called")
+  Translation._showTranslationCalled = false;
   // Check that the 'Show Original' button is visible again.
   ok(!notif._getAnonElt("showOriginal").hidden, "'Show Original' button visible");
   ok(notif._getAnonElt("showTranslation").hidden, "'Show Translation' button hidden");
 
-  info("Check that changing the source language causes a re-translation");
+  // Check that changing the source language causes a re-translation
   let from = notif._getAnonElt("fromLanguage");
   from.value = "es";
   from.doCommand();
-  is(notif.state, TranslationStub.STATE_TRANSLATING, "infobar in the translating state");
-  ok(!!TranslationStub.translatedFrom, "Translation.translate has been called");
-  is(TranslationStub.translatedFrom, "es", "from language correct");
-  is(TranslationStub.translatedTo, TranslationStub.defaultTargetLanguage, "to language correct");
-  // We want to show the 'translated' icon while re-translating,
-  // because we are still displaying the previous translation.
-  checkURLBarIcon(true);
-  TranslationStub.finishTranslation();
-  checkURLBarIcon(true);
+  is(notif.state, notif.STATE_TRANSLATING, "infobar in the translating state");
+  ok(!!Translation._deferred, "Translation.translate has been called");
+  is(Translation._translateFrom, "es", "from language correct");
+  is(Translation._translateTo, Translation.defaultTargetLanguage, "to language correct");
+  Translation.finishTranslation();
 
-  info("Check that changing the target language causes a re-translation");
+  // Check that changing the target language causes a re-translation
   let to = notif._getAnonElt("toLanguage");
   to.value = "pl";
   to.doCommand();
-  is(notif.state, TranslationStub.STATE_TRANSLATING, "infobar in the translating state");
-  ok(!!TranslationStub.translatedFrom, "Translation.translate has been called");
-  is(TranslationStub.translatedFrom, "es", "from language correct");
-  is(TranslationStub.translatedTo, "pl", "to language correct");
-  checkURLBarIcon(true);
-  TranslationStub.finishTranslation();
-  checkURLBarIcon(true);
+  is(notif.state, notif.STATE_TRANSLATING, "infobar in the translating state");
+  ok(!!Translation._deferred, "Translation.translate has been called");
+  is(Translation._translateFrom, "es", "from language correct");
+  is(Translation._translateTo, "pl", "to language correct");
+  Translation.finishTranslation();
 
   // Cleanup.
   notif.close();
 
-  info("Reopen the info bar to check that it's possible to override the detected language.");
-  notif = TranslationStub.showTranslationUI("fr");
-  is(notif.state, TranslationStub.STATE_OFFER, "the infobar is offering translation");
+  // Reopen the info bar to check that it's possible to override the detected language.
+  notif = Translation.showTranslationUI("fr");
+  is(notif.state, notif.STATE_OFFER, "the infobar is offering translation");
   is(notif._getAnonElt("detectedLanguage").value, "fr", "The detected language is displayed");
   // Change the language and click 'Translate'
   notif._getAnonElt("detectedLanguage").value = "ja";
   notif._getAnonElt("translate").click();
-  is(notif.state, TranslationStub.STATE_TRANSLATING, "the infobar is in the translating state");
-  ok(!!TranslationStub.translatedFrom, "Translation.translate has been called");
-  is(TranslationStub.translatedFrom, "ja", "from language correct");
+  is(notif.state, notif.STATE_TRANSLATING, "the infobar is in the translating state");
+  ok(!!Translation._deferred, "Translation.translate has been called");
+  is(Translation._translateFrom, "ja", "from language correct");
   notif.close();
 
-  info("Reopen to check the 'Not Now' button closes the notification.");
-  notif = TranslationStub.showTranslationUI("fr");
+  // Reopen one last time to check the 'Not Now' button closes the notification.
+  notif = Translation.showTranslationUI("fr");
+
   let notificationBox = gBrowser.getNotificationBox();
   ok(!!notificationBox.getNotificationWithValue("translation"), "there's a 'translate' notification");
   notif._getAnonElt("notNow").click();
   ok(!notificationBox.getNotificationWithValue("translation"), "no 'translate' notification after clicking 'not now'");
 
-  info("Check that clicking the url bar icon reopens the info bar");
-  checkURLBarIcon();
-  // Clicking the anchor element causes a 'showing' event to be sent
-  // asynchronously to our callback that will then show the infobar.
-  PopupNotifications.getNotification("translate").anchorElement.click();
-  waitForCondition(() => !!notificationBox.getNotificationWithValue("translation"), () => {
-    ok(!!notificationBox.getNotificationWithValue("translation"),
-       "there's a 'translate' notification");
-    aFinishCallback();
-  }, "timeout waiting for the info bar to reappear");
+  finish();
 }

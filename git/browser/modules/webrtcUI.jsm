@@ -247,7 +247,7 @@ function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevi
 
         Services.obs.notifyObservers(allowedDevices, "getUserMedia:response:allow", aCallID);
       };
-      return false;
+      return true;
     }
   };
 

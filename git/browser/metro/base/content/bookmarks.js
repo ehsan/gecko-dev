@@ -48,9 +48,9 @@ var Bookmarks = {
   isURIBookmarked: function bh_isURIBookmarked(aURI, callback) {
     if (!callback)
       return;
-    PlacesUtils.asyncGetBookmarkIds(aURI, aItemIds => {
+    PlacesUtils.asyncGetBookmarkIds(aURI, function(aItemIds) {
       callback(aItemIds && aItemIds.length > 0 && aItemIds.some(this._isMetroBookmark));
-    });
+    }, this);
   },
 
   removeForURI: function bh_removeForURI(aURI, callback) {

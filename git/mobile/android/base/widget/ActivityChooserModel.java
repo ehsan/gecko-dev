@@ -20,11 +20,6 @@
 //package android.widget;
 package org.mozilla.gecko.widget;
 
-// Mozilla: New import
-import org.mozilla.gecko.Distribution;
-import org.mozilla.gecko.GeckoProfile;
-import java.io.File;
-
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -1050,33 +1045,13 @@ public class ActivityChooserModel extends DataSetObservable {
     private void readHistoricalDataImpl() {
         FileInputStream fis = null;
         try {
-            GeckoProfile profile = GeckoProfile.get(mContext);
-            File f = profile.getFile(mHistoryFileName);
-            if (!f.exists()) {
-                // Fall back to the non-profile aware file if it exists...
-                File oldFile = new File(mHistoryFileName);
-                oldFile.renameTo(f);
-            }
-            fis = new FileInputStream(f);
+            fis = mContext.openFileInput(mHistoryFileName);
         } catch (FileNotFoundException fnfe) {
-            try {
-                Distribution dist = new Distribution(mContext);
-                File distFile = dist.getDistributionFile("quickshare/" + mHistoryFileName);
-                if (distFile == null) {
-                    if (DEBUG) {
-                        Log.i(LOG_TAG, "Could not open historical records file: " + mHistoryFileName);
-                    }
-                    return;
-                }
-                fis = new FileInputStream(distFile);
-            } catch(Exception ex) {
-                if (DEBUG) {
-                    Log.i(LOG_TAG, "Could not open historical records file: " + mHistoryFileName);
-                }
-                return;
+            if (DEBUG) {
+                Log.i(LOG_TAG, "Could not open historical records file: " + mHistoryFileName);
             }
+            return;
         }
-
         try {
             XmlPullParser parser = Xml.newPullParser();
             parser.setInput(fis, null);
@@ -1147,17 +1122,14 @@ public class ActivityChooserModel extends DataSetObservable {
         @SuppressWarnings("unchecked")
         public Void doInBackground(Object... args) {
             List<HistoricalRecord> historicalRecords = (List<HistoricalRecord>) args[0];
-            String historyFileName = (String) args[1];
+            String hostoryFileName = (String) args[1];
 
             FileOutputStream fos = null;
 
             try {
-                // Mozilla - Update the location we save files to
-                GeckoProfile profile = GeckoProfile.get(mContext);
-                File file = profile.getFile(historyFileName);
-                fos = new FileOutputStream(file);
+                fos = mContext.openFileOutput(hostoryFileName, Context.MODE_PRIVATE);
             } catch (FileNotFoundException fnfe) {
-                Log.e(LOG_TAG, "Error writing historical record file: " + historyFileName, fnfe);
+                Log.e(LOG_TAG, "Error writing historical recrod file: " + hostoryFileName, fnfe);
                 return null;
             }
 

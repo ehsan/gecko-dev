@@ -51,10 +51,19 @@ public class GeckoActionProvider {
 
     private static String getFilenameFromMimeType(String mimeType) {
         String[] mime = mimeType.split("/");
+        if (mime.length == 1) {
+            return "history-" + mime[0] + ".xml";
+        }
 
-        // All text mimetypes use the default provider
+        // Separate out tel and mailto for their own media types
         if ("text".equals(mime[0])) {
-            return DEFAULT_HISTORY_FILE_NAME;
+            if ("tel".equals(mime[1])) {
+                return "history-phone.xml";
+            } else if ("mailto".equals(mime[1])) {
+                return "history-email.xml";
+            } else if ("html".equals(mime[1])) {
+                return DEFAULT_HISTORY_FILE_NAME;
+            }
         }
 
         return "history-" + mime[0] + ".xml";

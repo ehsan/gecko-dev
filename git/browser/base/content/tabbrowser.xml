@@ -991,11 +991,14 @@
             }
 
             var oldBrowser = this.mCurrentBrowser;
-            oldBrowser.setAttribute("type", "content-targetable");
-            oldBrowser.docShellIsActive = false;
+            if (oldBrowser) {
+              oldBrowser.setAttribute("type", "content-targetable");
+              oldBrowser.docShellIsActive = false;
+            }
 
             var updateBlockedPopups = false;
-            if ((oldBrowser.blockedPopups && !newBrowser.blockedPopups) ||
+            if (!oldBrowser ||
+                (oldBrowser.blockedPopups && !newBrowser.blockedPopups) ||
                 (!oldBrowser.blockedPopups && newBrowser.blockedPopups))
               updateBlockedPopups = true;
 
@@ -2033,6 +2036,9 @@
             // This has to happen before we remove the child so that the
             // XBL implementation of nsIObserver still works.
             browser.destroy();
+
+            if (browser == this.mCurrentBrowser)
+              this.mCurrentBrowser = null;
 
             var wasPinned = aTab.pinned;
 

@@ -53,7 +53,6 @@ const CM_SCRIPTS  = [
   "chrome://browser/content/devtools/codemirror/trailingspace.js",
   "chrome://browser/content/devtools/codemirror/emacs.js",
   "chrome://browser/content/devtools/codemirror/vim.js",
-  "chrome://browser/content/devtools/codemirror/sublime.js",
   "chrome://browser/content/devtools/codemirror/foldcode.js",
   "chrome://browser/content/devtools/codemirror/brace-fold.js",
   "chrome://browser/content/devtools/codemirror/comment-fold.js",
@@ -68,7 +67,7 @@ const CM_IFRAME   =
   "    <style>" +
   "      html, body { height: 100%; }" +
   "      body { margin: 0; overflow: hidden; }" +
-  "      .CodeMirror { width: 100%; height: 100% !important; line-height: 1.25 !important;}" +
+  "      .CodeMirror { width: 100%; height: 100% !important; line-height: normal!important}" +
   "    </style>" +
 [ "    <link rel='stylesheet' href='" + style + "'>" for (style of CM_STYLES) ].join("\n") +
   "  </head>" +
@@ -162,7 +161,7 @@ function Editor(config) {
   this.config.extraKeys[Editor.keyFor("indentMore")] = false;
 
   // If alternative keymap is provided, use it.
-  if (keyMap === "emacs" || keyMap === "vim" || keyMap === "sublime")
+  if (keyMap === "emacs" || keyMap === "vim")
     this.config.keyMap = keyMap;
 
   // Overwrite default config with user-provided, if needed.
@@ -402,14 +401,6 @@ Editor.prototype = {
       return;
 
     this.setCursor(this.getCursor());
-  },
-
-  /**
-   * Returns true if there is more than one selection in the editor.
-   */
-  hasMultipleSelections: function () {
-    let cm = editors.get(this);
-    return cm.listSelections().length > 1;
   },
 
   /**

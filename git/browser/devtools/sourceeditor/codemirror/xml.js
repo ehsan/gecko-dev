@@ -1,18 +1,7 @@
-(function(mod) {
-  if (typeof exports == "object" && typeof module == "object") // CommonJS
-    mod(require("../../lib/codemirror"));
-  else if (typeof define == "function" && define.amd) // AMD
-    define(["../../lib/codemirror"], mod);
-  else // Plain browser env
-    mod(CodeMirror);
-})(function(CodeMirror) {
-"use strict";
-
 CodeMirror.defineMode("xml", function(config, parserConfig) {
   var indentUnit = config.indentUnit;
   var multilineTagIndentFactor = parserConfig.multilineTagIndentFactor || 1;
-  var multilineTagIndentPastTag = parserConfig.multilineTagIndentPastTag;
-  if (multilineTagIndentPastTag == null) multilineTagIndentPastTag = true;
+  var multilineTagIndentPastTag = parserConfig.multilineTagIndentPastTag || true;
 
   var Kludges = parserConfig.htmlMode ? {
     autoSelfClosers: {'area': true, 'base': true, 'br': true, 'col': true, 'command': true,
@@ -44,16 +33,14 @@ CodeMirror.defineMode("xml", function(config, parserConfig) {
     },
     doNotIndent: {"pre": true},
     allowUnquoted: true,
-    allowMissing: true,
-    caseFold: true
+    allowMissing: true
   } : {
     autoSelfClosers: {},
     implicitlyClosed: {},
     contextGrabbers: {},
     doNotIndent: {},
     allowUnquoted: false,
-    allowMissing: false,
-    caseFold: false
+    allowMissing: false
   };
   var alignCDATA = parserConfig.alignCDATA;
 
@@ -89,7 +76,6 @@ CodeMirror.defineMode("xml", function(config, parserConfig) {
         tagName = "";
         var c;
         while ((c = stream.eat(/[^\s\u00a0=<>\"\'\/?]/))) tagName += c;
-        if (Kludges.caseFold) tagName = tagName.toLowerCase();
         if (!tagName) return "tag error";
         type = isClose ? "closeTag" : "openTag";
         state.tokenize = inTag;
@@ -202,7 +188,7 @@ CodeMirror.defineMode("xml", function(config, parserConfig) {
       if (!state.context) {
         return;
       }
-      parentTagName = state.context.tagName;
+      parentTagName = state.context.tagName.toLowerCase();
       if (!Kludges.contextGrabbers.hasOwnProperty(parentTagName) ||
           !Kludges.contextGrabbers[parentTagName].hasOwnProperty(nextTagName)) {
         return;
@@ -220,7 +206,7 @@ CodeMirror.defineMode("xml", function(config, parserConfig) {
       var err = false;
       if (state.context) {
         if (state.context.tagName != tagName) {
-          if (Kludges.implicitlyClosed.hasOwnProperty(state.context.tagName))
+          if (Kludges.implicitlyClosed.hasOwnProperty(state.context.tagName.toLowerCase()))
             popContext(state);
           err = !state.context || state.context.tagName != tagName;
         }
@@ -233,7 +219,6 @@ CodeMirror.defineMode("xml", function(config, parserConfig) {
       return baseState;
     }
   }
-
   function closeState(type, _stream, state) {
     if (type != "endTag") {
       setStyle = "error";
@@ -255,10 +240,10 @@ CodeMirror.defineMode("xml", function(config, parserConfig) {
       var tagName = state.tagName, tagStart = state.tagStart;
       state.tagName = state.tagStart = null;
       if (type == "selfcloseTag" ||
-          Kludges.autoSelfClosers.hasOwnProperty(tagName)) {
-        maybePopContext(state, tagName);
+          Kludges.autoSelfClosers.hasOwnProperty(tagName.toLowerCase())) {
+        maybePopContext(state, tagName.toLowerCase());
       } else {
-        maybePopContext(state, tagName);
+        maybePopContext(state, tagName.toLowerCase());
         state.context = new Context(state, tagName, tagStart == state.indented);
       }
       return baseState;
@@ -345,5 +330,3 @@ CodeMirror.defineMIME("text/xml", "xml");
 CodeMirror.defineMIME("application/xml", "xml");
 if (!CodeMirror.mimeModes.hasOwnProperty("text/html"))
   CodeMirror.defineMIME("text/html", {name: "xml", htmlMode: true});
-
-});

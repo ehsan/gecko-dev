@@ -3603,31 +3603,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   }
 }
 
-.translate-notification-icon,
-#translate-notification-icon {
-  list-style-image: url(chrome://browser/skin/translation-16.png);
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-@media (min-resolution: 2dppx) {
-  .translate-notification-icon,
-  #translate-notification-icon {
-    list-style-image: url(chrome://browser/skin/translation-16@2x.png);
-    -moz-image-region: rect(0px, 32px, 32px, 0px);
-  }
-}
-
-.translated-notification-icon,
-#translated-notification-icon {
-  list-style-image: url(chrome://browser/skin/translation-16.png);
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
-}
-@media (min-resolution: 2dppx) {
-  .translated-notification-icon,
-  #translated-notification-icon {
-    list-style-image: url(chrome://browser/skin/translation-16@2x.png);
-    -moz-image-region: rect(0px, 64px, 32px, 32px);
-  }
-}
 
 
 .popup-notification-icon {
@@ -3928,14 +3903,15 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 /* Lion Fullscreen window styling */
 @media (-moz-mac-lion-theme) {
-  #navigator-toolbox[inFullscreen]::before {
+  #navigator-toolbox[inFullscreen]:not(:-moz-lwtheme)::before {
     /* Adjust by the full element height of #titlebar, since that element is
      * not displayed in native full-screen.
      * Also add the height of the tabs, since we're calculating the
      * total height of this pseudo-element, not just the top-padding. */
     height: calc(@tabHeight@ + @spaceAboveTabbar@) !important;
   }
-  #main-window[inFullscreen][privatebrowsingmode=temporary] {
+  #main-window[inFullscreen][privatebrowsingmode=temporary],
+  #main-window[inFullscreen]:-moz-lwtheme {
     /* Adjust by the full element height of #titlebar, since that element is
      * not displayed in native full-screen. */
     padding-top: @spaceAboveTabbar@;
