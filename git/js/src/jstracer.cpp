@@ -88,10 +88,8 @@ using namespace nanojit;
 #if JS_HAS_XML_SUPPORT
 #define RETURN_VALUE_IF_XML(val, ret)                                         \
     JS_BEGIN_MACRO                                                            \
-        if (!JSVAL_IS_PRIMITIVE(val) &&                                       \
-            OBJECT_IS_XML(BOGUS_CX, JSVAL_TO_OBJECT(val))) {                  \
+        if (!JSVAL_IS_PRIMITIVE(val) && JSVAL_TO_OBJECT(val)->isXML())        \
             RETURN_VALUE("xml detected", ret);                                \
-        }                                                                     \
     JS_END_MACRO
 #else
 #define RETURN_IF_XML(val, ret) ((void) 0)
@@ -2279,11 +2277,11 @@ SpecializeTreesToMissingGlobals(JSContext* cx, JSObject* globalObj, TreeFragment
     SpecializeTreesToLateGlobals(cx, root, root->globalTypeMap(), root->nGlobalTypes());
 }
 
-static JS_REQUIRES_STACK void
+static void
 ResetJITImpl(JSContext* cx);
 
 #ifdef MOZ_TRACEVIS
-static JS_INLINE JS_REQUIRES_STACK void
+static JS_INLINE void
 ResetJIT(JSContext* cx, TraceVisFlushReason r)
 {
     js_LogTraceVisEvent(cx, S_RESET, r);
@@ -2292,6 +2290,12 @@ ResetJIT(JSContext* cx, TraceVisFlushReason r)
 #else
 #define ResetJIT(cx, r) ResetJITImpl(cx)
 #endif
+
+void
+js_FlushJITCache(JSContext *cx)
+{
+    ResetJIT(cx, FR_OOM);
+}
 
 static void
 TrashTree(JSContext* cx, TreeFragment* f);
@@ -4308,15 +4312,17 @@ ProhibitFlush(JSContext* cx)
     return false;
 }
 
-static JS_REQUIRES_STACK void
+static void
 ResetJITImpl(JSContext* cx)
 {
     if (!TRACING_ENABLED(cx))
         return;
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     debug_only_print0(LC_TMTracer, "Flushing cache.\n");
-    if (tm->recorder)
+    if (tm->recorder) {
+        JS_ASSERT_NOT_ON_TRACE(cx);
         js_AbortRecording(cx, "flush cache");
+    }
     if (ProhibitFlush(cx)) {
         debug_only_print0(LC_TMTracer, "Deferring JIT flush due to deep bail.\n");
         tm->needFlush = JS_TRUE;
@@ -11881,7 +11887,7 @@ TraceRecorder::record_JSOP_GETELEM()
         }
         RETURN_STOP_A("can't reach arguments object's frame");
     }
-    if (js_IsDenseArray(obj)) {
+    if (obj->isDenseArray()) {
         // Fast path for dense arrays accessed with a integer index.
         jsval* vp;
         LIns* addr_ins;
