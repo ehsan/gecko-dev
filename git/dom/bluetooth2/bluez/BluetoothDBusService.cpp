@@ -2376,13 +2376,10 @@ private:
 };
 
 nsresult
-BluetoothDBusService::GetAdaptersInternal(BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::GetDefaultAdapterPathInternal(
+                                              BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  /**
-   * TODO: implement method GetAdaptersInternal for bluez
-   */
 
   if (!IsReady()) {
     NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");

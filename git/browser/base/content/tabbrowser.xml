@@ -4723,7 +4723,7 @@
 
       <method name="_mouseenter">
         <body><![CDATA[
-          if (this.hidden || this.closing)
+          if (this.closing)
             return;
 
           let tabContainer = this.parentNode;
