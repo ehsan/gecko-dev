@@ -1663,10 +1663,10 @@ public:
 #ifndef NDEBUG
     void dumpDisjunction(ByteDisjunction* disjunction)
     {
-        dataLogF("ByteDisjunction(%p):\n\t", (void *)disjunction);
+        dataLog("ByteDisjunction(%p):\n\t", (void *)disjunction);
         for (unsigned i = 0; i < disjunction->terms.size(); ++i)
-            dataLogF("{ %d } ", disjunction->terms[i].type);
-        dataLogF("\n");
+            dataLog("{ %d } ", disjunction->terms[i].type);
+        dataLog("\n");
     }
 #endif
 

@@ -2840,7 +2840,7 @@ protected:
    void Unlink();
 
 private:
-    JS::Heap<JSObject*> mJSObj;
+    JSObject* mJSObj;
     nsXPCWrappedJSClass* mClass;
     nsXPCWrappedJS* mRoot;
     nsXPCWrappedJS* mNext;

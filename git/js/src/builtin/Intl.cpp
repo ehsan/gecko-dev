@@ -603,10 +603,7 @@ Collator(JSContext *cx, CallArgs args, bool construct)
                 return false;
 
             // 10.1.2.1 step 5
-            bool extensible;
-            if (!JSObject::isExtensible(cx, obj, &extensible))
-                return false;
-            if (!extensible)
+            if (!obj->isExtensible())
                 return Throw(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE);
         } else {
             // 10.1.2.1 step 3.a
@@ -1084,10 +1081,7 @@ NumberFormat(JSContext *cx, CallArgs args, bool construct)
                 return false;
 
             // 11.1.2.1 step 5
-            bool extensible;
-            if (!JSObject::isExtensible(cx, obj, &extensible))
-                return false;
-            if (!extensible)
+            if (!obj->isExtensible())
                 return Throw(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE);
         } else {
             // 11.1.2.1 step 3.a
@@ -1537,10 +1531,7 @@ DateTimeFormat(JSContext *cx, CallArgs args, bool construct)
                 return false;
 
             // 12.1.2.1 step 5
-            bool extensible;
-            if (!JSObject::isExtensible(cx, obj, &extensible))
-                return false;
-            if (!extensible)
+            if (!obj->isExtensible())
                 return Throw(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE);
         } else {
             // 12.1.2.1 step 3.a

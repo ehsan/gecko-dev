@@ -42,10 +42,8 @@ var Downloads = {
   },
 
   uninit: function dh_uninit() {
-    if (this._inited) {
-      Services.obs.removeObserver(this, "dl-start");
-      Services.obs.removeObserver(this, "dl-done");
-    }
+    Services.obs.removeObserver(this, "dl-start");
+    Services.obs.removeObserver(this, "dl-done");
   },
 
   openDownload: function dh_openDownload(aDownload) {

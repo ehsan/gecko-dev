@@ -566,7 +566,7 @@ js::CheckDefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValu
     if (!GetOwnPropertyDescriptor(cx, obj, id, &desc))
         return false;
 
-    // This does not have to check obj's extensibility when !desc.obj (steps
+    // This does not have to check obj->isExtensible() when !desc.obj (steps
     // 2-3) because the low-level methods JSObject::{add,put}Property check
     // for that.
     if (desc.obj && (desc.attrs & JSPROP_PERMANENT)) {
@@ -608,10 +608,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
 
     /* 8.12.9 steps 2-4. */
     if (!shape) {
-        bool extensible;
-        if (!JSObject::isExtensible(cx, obj, &extensible))
-            return false;
-        if (!extensible)
+        if (!obj->isExtensible())
             return Reject(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE, throwError, rval);
 
         *rval = true;
@@ -1134,10 +1131,7 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
     assertSameCompartment(cx, obj);
     JS_ASSERT(it == SEAL || it == FREEZE);
 
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (extensible && !JSObject::preventExtensions(cx, obj))
+    if (obj->isExtensible() && !JSObject::preventExtensions(cx, obj))
         return false;
 
     AutoIdVector props(cx);
@@ -1226,10 +1220,7 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
 /* static */ bool
 JSObject::isSealedOrFrozen(JSContext *cx, HandleObject obj, ImmutabilityType it, bool *resultp)
 {
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (extensible) {
+    if (obj->isExtensible()) {
         *resultp = false;
         return true;
     }
@@ -2411,15 +2402,6 @@ js_InitClass(JSContext *cx, HandleObject obj, JSObject *protoProto_,
 {
     RootedObject protoProto(cx, protoProto_);
 
-    /* Assert mandatory function pointer members. */
-    JS_ASSERT(clasp->addProperty);
-    JS_ASSERT(clasp->delProperty);
-    JS_ASSERT(clasp->getProperty);
-    JS_ASSERT(clasp->setProperty);
-    JS_ASSERT(clasp->enumerate);
-    JS_ASSERT(clasp->resolve);
-    JS_ASSERT(clasp->convert);
-
     RootedAtom atom(cx, Atomize(cx, clasp->name, strlen(clasp->name)));
     if (!atom)
         return NULL;
@@ -2739,7 +2721,7 @@ JSObject::maybeDensifySparseElements(JSContext *cx, HandleObject obj)
         return ED_SPARSE;
 
     /* Watch for conditions under which an object's elements cannot be dense. */
-    if (!obj->nonProxyIsExtensible() || obj->watched())
+    if (!obj->isExtensible() || obj->watched())
         return ED_SPARSE;
 
     /*
@@ -2862,7 +2844,7 @@ ReallocateElements(ThreadSafeContext *tcx, JSObject *obj, ObjectElements *oldHea
 bool
 JSObject::growElements(ThreadSafeContext *tcx, uint32_t newcap)
 {
-    JS_ASSERT(nonProxyIsExtensible());
+    JS_ASSERT(isExtensible());
 
     /*
      * When an object with CAPACITY_DOUBLING_MAX or fewer elements needs to
@@ -4475,10 +4457,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
     }
 
     if (!shape) {
-        bool extensible;
-        if (!JSObject::isExtensible(cx, obj, &extensible))
-            return false;
-        if (!extensible) {
+        if (!obj->isExtensible()) {
             /* Error in strict mode code, warn with extra warnings option, otherwise do nothing. */
             if (strict)
                 return obj->reportNotExtensible(cx);
@@ -5204,7 +5183,7 @@ JSObject::dump()
 
     fprintf(stderr, "flags:");
     if (obj->isDelegate()) fprintf(stderr, " delegate");
-    if (!obj->isProxy() && !obj->nonProxyIsExtensible()) fprintf(stderr, " not_extensible");
+    if (!obj->isExtensible()) fprintf(stderr, " not_extensible");
     if (obj->isIndexed()) fprintf(stderr, " indexed");
 
     if (obj->isNative()) {

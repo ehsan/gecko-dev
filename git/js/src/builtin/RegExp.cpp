@@ -544,7 +544,7 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, Match
         return RegExpRunStatus_Error;
 
     /* Step 4. */
-    RootedValue lastIndex(cx, reobj->getLastIndex());
+    Value lastIndex = reobj->getLastIndex();
     size_t length = input->length();
 
     /* Step 5. */

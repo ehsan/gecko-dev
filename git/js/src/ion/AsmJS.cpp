@@ -1204,7 +1204,6 @@ class MOZ_STACK_CLASS ModuleCompiler
 
     JSContext *cx() const { return cx_; }
     MacroAssembler &masm() { return masm_; }
-    TokenStream &tokenStream() { return tokenStream_; }
     Label &stackOverflowLabel() { return stackOverflowLabel_; }
     Label &operationCallbackLabel() { return operationCallbackLabel_; }
     bool hasError() const { return errorString_ != NULL; }
@@ -1361,25 +1360,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         JSAtom *name = FunctionName(func.fn());
         unsigned startCodeOffset = func.codeLabel()->offset();
         return module_->trackProfiledFunction(name, startCodeOffset, endCodeOffset);
-    }
-#endif
-
-#ifdef JS_ION_PERF
-    bool trackPerfProfiledFunction(const Func &func, unsigned endCodeOffset) {
-        JSAtom *name = FunctionName(func.fn());
-
-        unsigned lineno = 0U, columnIndex = 0U;
-        tokenStream_.srcCoords.lineNumAndColumnIndex(func.fn()->pn_pos.begin, &lineno, &columnIndex);
-
-        unsigned startCodeOffset = func.codeLabel()->offset();
-        return module_->trackPerfProfiledFunction(name, startCodeOffset, endCodeOffset, lineno, columnIndex);
-    }
-
-    bool trackPerfProfiledBlocks(AsmJSPerfSpewer &perfSpewer, const Func &func, unsigned endCodeOffset) {
-        JSAtom *name = FunctionName(func.fn());
-        unsigned startCodeOffset = func.codeLabel()->offset();
-        perfSpewer.noteBlocksOffsets(masm_);
-        return module_->trackPerfProfiledBlocks(name, startCodeOffset, endCodeOffset, perfSpewer.basicBlocks());
     }
 #endif
 
@@ -1618,7 +1598,7 @@ class FunctionCompiler
         labeledContinues_(m.cx())
     {}
 
-    bool init(ParseNode *pn)
+    bool init()
     {
         if (!unlabeledBreaks_.init() ||
             !unlabeledContinues_.init() ||
@@ -1628,7 +1608,7 @@ class FunctionCompiler
             return false;
         }
 
-        if (!newBlock(/* pred = */ NULL, &curBlock_, pn))
+        if (!newBlock(/* pred = */ NULL, &curBlock_))
             return false;
 
         curBlock_->add(MAsmJSCheckOverRecursed::New(&m_.stackOverflowLabel()));
@@ -2040,14 +2020,14 @@ class FunctionCompiler
         curBlock_ = NULL;
     }
 
-    bool branchAndStartThen(MDefinition *cond, MBasicBlock **thenBlock, MBasicBlock **elseBlock, ParseNode *thenPn, ParseNode* elsePn)
+    bool branchAndStartThen(MDefinition *cond, MBasicBlock **thenBlock, MBasicBlock **elseBlock)
     {
         if (!curBlock_) {
             *thenBlock = NULL;
             *elseBlock = NULL;
             return true;
         }
-        if (!newBlock(curBlock_, thenBlock, thenPn) || !newBlock(curBlock_, elseBlock, elsePn))
+        if (!newBlock(curBlock_, thenBlock) || !newBlock(curBlock_, elseBlock))
             return false;
         curBlock_->end(MTest::New(cond, *thenBlock, *elseBlock));
         curBlock_ = *thenBlock;
@@ -2081,13 +2061,13 @@ class FunctionCompiler
         mirGraph().moveBlockToEnd(curBlock_);
     }
 
-    bool joinIfElse(const BlockVector &thenBlocks, ParseNode *pn)
+    bool joinIfElse(const BlockVector &thenBlocks)
     {
         if (!curBlock_ && thenBlocks.empty())
             return true;
         MBasicBlock *pred = curBlock_ ? curBlock_ : thenBlocks[0];
         MBasicBlock *join;
-        if (!newBlock(pred, &join, pn))
+        if (!newBlock(pred, &join))
             return false;
         if (curBlock_)
             curBlock_->end(MGoto::New(join));
@@ -2116,7 +2096,7 @@ class FunctionCompiler
         return curBlock_->pop();
     }
 
-    bool startPendingLoop(ParseNode *pn, MBasicBlock **loopEntry, ParseNode *bodyStmt)
+    bool startPendingLoop(ParseNode *pn, MBasicBlock **loopEntry)
     {
         if (!loopStack_.append(pn) || !breakableStack_.append(pn))
             return false;
@@ -2129,14 +2109,13 @@ class FunctionCompiler
         if (!*loopEntry)
             return false;
         mirGraph().addBlock(*loopEntry);
-        noteBasicBlockPosition(*loopEntry, bodyStmt);
         (*loopEntry)->setLoopDepth(loopStack_.length());
         curBlock_->end(MGoto::New(*loopEntry));
         curBlock_ = *loopEntry;
         return true;
     }
 
-    bool branchAndStartLoopBody(MDefinition *cond, MBasicBlock **afterLoop, ParseNode *bodyPn, ParseNode *afterPn)
+    bool branchAndStartLoopBody(MDefinition *cond, MBasicBlock **afterLoop)
     {
         if (!curBlock_) {
             *afterLoop = NULL;
@@ -2144,13 +2123,13 @@ class FunctionCompiler
         }
         JS_ASSERT(curBlock_->loopDepth() > 0);
         MBasicBlock *body;
-        if (!newBlock(curBlock_, &body, bodyPn))
+        if (!newBlock(curBlock_, &body))
             return false;
         if (cond->isConstant() && ToBoolean(cond->toConstant()->value())) {
             *afterLoop = NULL;
             curBlock_->end(MGoto::New(body));
         } else {
-            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop, afterPn))
+            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop))
                 return false;
             curBlock_->end(MTest::New(cond, body, *afterLoop));
         }
@@ -2191,7 +2170,7 @@ class FunctionCompiler
         return bindUnlabeledBreaks(pn);
     }
 
-    bool branchAndCloseDoWhileLoop(MDefinition *cond, MBasicBlock *loopEntry, ParseNode *afterLoopStmt)
+    bool branchAndCloseDoWhileLoop(MDefinition *cond, MBasicBlock *loopEntry)
     {
         ParseNode *pn = popLoop();
         if (!loopEntry) {
@@ -2209,14 +2188,14 @@ class FunctionCompiler
                     curBlock_ = NULL;
                 } else {
                     MBasicBlock *afterLoop;
-                    if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
+                    if (!newBlock(curBlock_, &afterLoop))
                         return false;
                     curBlock_->end(MGoto::New(afterLoop));
                     curBlock_ = afterLoop;
                 }
             } else {
                 MBasicBlock *afterLoop;
-                if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
+                if (!newBlock(curBlock_, &afterLoop))
                     return false;
                 curBlock_->end(MTest::New(cond, loopEntry, afterLoop));
                 loopEntry->setBackedge(curBlock_);
@@ -2230,17 +2209,17 @@ class FunctionCompiler
     {
         bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(pn)) {
-            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock, pn))
+            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock))
                 return false;
             unlabeledContinues_.remove(p);
         }
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock, pn);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock);
     }
 
-    bool bindLabeledBreaks(const LabelVector *maybeLabels, ParseNode *pn)
+    bool bindLabeledBreaks(const LabelVector *maybeLabels)
     {
         bool createdJoinBlock = false;
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock, pn);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock);
     }
 
     bool addBreak(PropertyName *maybeLabel) {
@@ -2270,13 +2249,13 @@ class FunctionCompiler
         return true;
     }
 
-    bool startSwitchCase(MBasicBlock *switchBlock, MBasicBlock **next, ParseNode *pn)
+    bool startSwitchCase(MBasicBlock *switchBlock, MBasicBlock **next)
     {
         if (!switchBlock) {
             *next = NULL;
             return true;
         }
-        if (!newBlock(switchBlock, next, pn))
+        if (!newBlock(switchBlock, next))
             return false;
         if (curBlock_) {
             curBlock_->end(MGoto::New(*next));
@@ -2286,16 +2265,16 @@ class FunctionCompiler
         return true;
     }
 
-    bool startSwitchDefault(MBasicBlock *switchBlock, BlockVector *cases, MBasicBlock **defaultBlock, ParseNode *pn)
+    bool startSwitchDefault(MBasicBlock *switchBlock, BlockVector *cases, MBasicBlock **defaultBlock)
     {
-        if (!startSwitchCase(switchBlock, defaultBlock, pn))
+        if (!startSwitchCase(switchBlock, defaultBlock))
             return false;
         if (!*defaultBlock)
             return true;
         for (unsigned i = 0; i < cases->length(); i++) {
             if (!(*cases)[i]) {
                 MBasicBlock *bb;
-                if (!newBlock(switchBlock, &bb, NULL))
+                if (!newBlock(switchBlock, &bb))
                     return false;
                 bb->end(MGoto::New(*defaultBlock));
                 (*defaultBlock)->addPredecessor(bb);
@@ -2317,7 +2296,7 @@ class FunctionCompiler
             mir->addCase(cases[i]);
         if (curBlock_) {
             MBasicBlock *next;
-            if (!newBlock(curBlock_, &next, pn))
+            if (!newBlock(curBlock_, &next))
                 return false;
             curBlock_->end(MGoto::New(next));
             curBlock_ = next;
@@ -2327,35 +2306,22 @@ class FunctionCompiler
 
     /*************************************************************************/
   private:
-    void noteBasicBlockPosition(MBasicBlock *blk, ParseNode *pn)
-    {
-#if defined(JS_ION_PERF)
-        if (pn) {
-            unsigned line = 0U, column = 0U;
-            m().tokenStream().srcCoords.lineNumAndColumnIndex(pn->pn_pos.begin, &line, &column);
-            blk->setLineno(line);
-            blk->setColumnIndex(column);
-        }
-#endif
-    }
-
-    bool newBlockWithDepth(MBasicBlock *pred, unsigned loopDepth, MBasicBlock **block, ParseNode *pn)
+    bool newBlockWithDepth(MBasicBlock *pred, unsigned loopDepth, MBasicBlock **block)
     {
         *block = MBasicBlock::New(mirGraph(), info(), pred, /* pc = */ NULL, MBasicBlock::NORMAL);
         if (!*block)
             return false;
-        noteBasicBlockPosition(*block, pn);
         mirGraph().addBlock(*block);
         (*block)->setLoopDepth(loopDepth);
         return true;
     }
 
-    bool newBlock(MBasicBlock *pred, MBasicBlock **block, ParseNode *pn)
+    bool newBlock(MBasicBlock *pred, MBasicBlock **block)
     {
-        return newBlockWithDepth(pred, loopStack_.length(), block, pn);
+        return newBlockWithDepth(pred, loopStack_.length(), block);
     }
 
-    bool bindBreaksOrContinues(BlockVector *preds, bool *createdJoinBlock, ParseNode *pn)
+    bool bindBreaksOrContinues(BlockVector *preds, bool *createdJoinBlock)
     {
         for (unsigned i = 0; i < preds->length(); i++) {
             MBasicBlock *pred = (*preds)[i];
@@ -2364,7 +2330,7 @@ class FunctionCompiler
                 curBlock_->addPredecessor(pred);
             } else {
                 MBasicBlock *next;
-                if (!newBlock(pred, &next, pn))
+                if (!newBlock(pred, &next))
                     return false;
                 pred->end(MGoto::New(next));
                 if (curBlock_) {
@@ -2381,14 +2347,14 @@ class FunctionCompiler
     }
 
     bool bindLabeledBreaksOrContinues(const LabelVector *maybeLabels, LabeledBlockMap *map,
-                                      bool *createdJoinBlock, ParseNode *pn)
+                                      bool *createdJoinBlock)
     {
         if (!maybeLabels)
             return true;
         const LabelVector &labels = *maybeLabels;
         for (unsigned i = 0; i < labels.length(); i++) {
             if (LabeledBlockMap::Ptr p = map->lookup(labels[i])) {
-                if (!bindBreaksOrContinues(&p->value, createdJoinBlock, pn))
+                if (!bindBreaksOrContinues(&p->value, createdJoinBlock))
                     return false;
                 map->remove(p);
             }
@@ -2417,7 +2383,7 @@ class FunctionCompiler
     {
         bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(pn)) {
-            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock, pn))
+            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock))
                 return false;
             unlabeledBreaks_.remove(p);
         }
@@ -3833,7 +3799,7 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
     MBasicBlock *thenBlock, *elseBlock;
-    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock, thenExpr, elseExpr))
+    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock))
         return false;
 
     MDefinition *thenDef;
@@ -3854,10 +3820,7 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
         return false;
 
     f.pushPhiInput(elseDef);
-
-    // next statement is actually not the else expr, but this is the closest stmt to the next
-    // one that is directly reachable
-    if (!f.joinIfElse(thenBlocks, elseExpr))
+    if (!f.joinIfElse(thenBlocks))
         return false;
     *def = f.popPhiOutput();
 
@@ -4202,7 +4165,7 @@ CheckWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybeLa
     ParseNode *body = BinaryRight(whileStmt);
 
     MBasicBlock *loopEntry;
-    if (!f.startPendingLoop(whileStmt, &loopEntry, body))
+    if (!f.startPendingLoop(whileStmt, &loopEntry))
         return false;
 
     MDefinition *condDef;
@@ -4214,7 +4177,7 @@ CheckWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybeLa
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
     MBasicBlock *afterLoop;
-    if (!f.branchAndStartLoopBody(condDef, &afterLoop, body, NextNode(whileStmt)))
+    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
         return false;
 
     if (!CheckStatement(f, body))
@@ -4248,7 +4211,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     }
 
     MBasicBlock *loopEntry;
-    if (!f.startPendingLoop(forStmt, &loopEntry, body))
+    if (!f.startPendingLoop(forStmt, &loopEntry))
         return false;
 
     MDefinition *condDef;
@@ -4264,7 +4227,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     }
 
     MBasicBlock *afterLoop;
-    if (!f.branchAndStartLoopBody(condDef, &afterLoop, body, NextNode(forStmt)))
+    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
         return false;
 
     if (!CheckStatement(f, body))
@@ -4291,7 +4254,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
     ParseNode *cond = BinaryRight(whileStmt);
 
     MBasicBlock *loopEntry;
-    if (!f.startPendingLoop(whileStmt, &loopEntry, body))
+    if (!f.startPendingLoop(whileStmt, &loopEntry))
         return false;
 
     if (!CheckStatement(f, body))
@@ -4308,7 +4271,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
     if (!condType.isInt())
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
-    return f.branchAndCloseDoWhileLoop(condDef, loopEntry, NextNode(whileStmt));
+    return f.branchAndCloseDoWhileLoop(condDef, loopEntry);
 }
 
 static bool
@@ -4333,7 +4296,7 @@ CheckLabel(FunctionCompiler &f, ParseNode *labeledStmt, LabelVector *maybeLabels
     if (!CheckStatement(f, stmt, &labels))
         return false;
 
-    return f.bindLabeledBreaks(&labels, labeledStmt);
+    return f.bindLabeledBreaks(&labels);
 }
 
 static bool
@@ -4345,7 +4308,6 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
     // for the entire if/else-if chain).
     BlockVector thenBlocks(f.cx());
 
-    ParseNode *nextStmt = NextNode(ifStmt);
   recurse:
     JS_ASSERT(ifStmt->isKind(PNK_IF));
     ParseNode *cond = TernaryKid1(ifStmt);
@@ -4361,15 +4323,7 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
     MBasicBlock *thenBlock, *elseBlock;
-
-    ParseNode *elseBlockStmt = NULL;
-    // The second block given to branchAndStartThen contains either the else statement if
-    // there is one, or the join block; so we need to give the next statement accordingly.
-    elseBlockStmt = elseStmt;
-    if (elseBlockStmt == NULL)
-        elseBlockStmt = nextStmt;
-
-    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock, thenStmt, elseBlockStmt))
+    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock))
         return false;
 
     if (!CheckStatement(f, thenStmt))
@@ -4391,7 +4345,7 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
         if (!CheckStatement(f, elseStmt))
             return false;
 
-        if (!f.joinIfElse(thenBlocks, nextStmt))
+        if (!f.joinIfElse(thenBlocks))
             return false;
     }
 
@@ -4512,7 +4466,7 @@ CheckSwitch(FunctionCompiler &f, ParseNode *switchStmt)
         if (cases[caseIndex])
             return f.fail(stmt, "no duplicate case labels");
 
-        if (!f.startSwitchCase(switchBlock, &cases[caseIndex], stmt))
+        if (!f.startSwitchCase(switchBlock, &cases[caseIndex]))
             return false;
 
         if (!CheckStatement(f, CaseBody(stmt)))
@@ -4520,7 +4474,7 @@ CheckSwitch(FunctionCompiler &f, ParseNode *switchStmt)
     }
 
     MBasicBlock *defaultBlock;
-    if (!f.startSwitchDefault(switchBlock, &cases, &defaultBlock, stmt))
+    if (!f.startSwitchDefault(switchBlock, &cases, &defaultBlock))
         return false;
 
     if (stmt && stmt->isKind(PNK_DEFAULT)) {
@@ -4676,7 +4630,6 @@ CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo
     // function head as well as argument type declarations. The ParseNode*
     // stored in f.body points to the first non-argument statement.
     ParseNode *stmtIter = func.body();
-    ParseNode *funcBody = stmtIter;
 
     FunctionCompiler::LocalMap locals(m.cx());
     if (!locals.init())
@@ -4706,7 +4659,7 @@ CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo
     JS_ASSERT(tempAlloc && graph && info && mirGen);
 
     FunctionCompiler f(m, func, Move(locals), mirGen);
-    if (!f.init(funcBody))
+    if (!f.init())
         return NULL;
 
     if (!CheckStatements(f, stmtIter))
@@ -4744,16 +4697,6 @@ GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
 #ifdef MOZ_VTUNE
     if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
         if (!m.trackProfiledFunction(func, m.masm().size()))
-            return false;
-    }
-#endif
-
-#ifdef JS_ION_PERF
-    if (PerfBlockEnabled()) {
-        if (!m.trackPerfProfiledBlocks(mirGen.perfSpewer(), func, m.masm().size()))
-            return false;
-    } else if (PerfFuncEnabled()) {
-        if (!m.trackPerfProfiledFunction(func, m.masm().size()))
             return false;
     }
 #endif

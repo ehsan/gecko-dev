@@ -265,8 +265,7 @@
         </vbox>
       </vbox>
       <tabbox id="event-details-pane"
-              class="devtools-sidebar-tabs"
-              handleCtrlTab="false">
+              class="devtools-sidebar-tabs">
         <tabs>
           <tab label="&netmonitorUI.tab.headers;"/>
           <tab label="&netmonitorUI.tab.cookies;"/>
