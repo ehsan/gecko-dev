@@ -10,7 +10,7 @@ html|body,
 xul|page {
   font: message-box;
   -moz-appearance: none;
-  background-color: #fbfbfb;
+  background-color: #f1f1f1;
   color: #424e5a;
 }
 
@@ -195,7 +195,6 @@ xul|*.help-button {
   background-color: #ffcb00;
   background-image: none;
   box-shadow: none;
-  list-style-image: url("chrome://global/skin/in-content/help-glyph.svg");
 }
 
 xul|*.help-button:not([disabled="true"]):hover {
@@ -217,8 +216,17 @@ xul|*.help-button > xul|*.button-box {
 }
 
 xul|*.help-button > xul|*.button-box > xul|*.button-icon {
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
+  background-image: url("chrome://global/skin/in-content/help-glyph.png");
+  background-position: center;
+}
+
+@media (min-resolution: 2dppx) {
+  xul|*.help-button > xul|*.button-box > xul|*.button-icon {
+    background-size: 26px 26px;
+    background-image: url("chrome://global/skin/in-content/help-glyph@2x.png");
+  }
 }
 
 xul|*.help-button > xul|*.button-box > xul|*.button-text {

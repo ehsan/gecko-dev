@@ -1951,9 +1951,11 @@ nsPluginFrame::GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor)
 void
 nsPluginFrame::SetIsDocumentActive(bool aIsActive)
 {
+#ifndef XP_MACOSX
   if (mInstanceOwner) {
     mInstanceOwner->UpdateDocumentActiveState(aIsActive);
   }
+#endif
 }
 
 // static

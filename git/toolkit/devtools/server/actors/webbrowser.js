@@ -289,7 +289,7 @@ BrowserTabList.prototype._getChildren = function(aWindow) {
 };
 
 BrowserTabList.prototype._isRemoteBrowser = function(browser) {
-  return browser.getAttribute("remote") == "true";
+  return browser.getAttribute("remote");
 };
 
 BrowserTabList.prototype.getList = function() {

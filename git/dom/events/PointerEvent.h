@@ -48,8 +48,6 @@ public:
   void GetPointerType(nsAString& aPointerType);
 };
 
-void ConvertPointerTypeToString(uint16_t aPointerTypeSrc, nsAString& aPointerTypeDest);
-
 } // namespace dom
 } // namespace mozilla
 

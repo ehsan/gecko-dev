@@ -167,8 +167,7 @@ class DeviceManagerADB(DeviceManager):
           dev:<character device name>
           jdwp:<process pid> (remote only)
         """
-        if not self._checkCmd(['forward', local, remote]) == 0:
-            raise DMError("Failed to forward socket connection.")
+        return self._checkCmd(['forward', local, remote])
 
     def remount(self):
         "Remounts the /system partition on the device read-write."

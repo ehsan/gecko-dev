@@ -55,6 +55,8 @@ public class Tab {
     private final SiteIdentity mSiteIdentity;
     private boolean mReaderEnabled;
     private BitmapDrawable mThumbnail;
+    private int mHistoryIndex;
+    private int mHistorySize;
     private final int mParentId;
     private final boolean mExternal;
     private boolean mBookmark;
@@ -75,11 +77,6 @@ public class Tab {
     private volatile int mLoadProgress;
     private volatile int mRecordingCount;
     private String mMostRecentHomePanel;
-
-    private int mHistoryIndex;
-    private int mHistorySize;
-    private boolean mCanDoBack;
-    private boolean mCanDoForward;
 
     private boolean mIsEditing;
     private final TabEditingState mEditingState = new TabEditingState();
@@ -547,7 +544,7 @@ public class Tab {
 
     // Our version of nsSHistory::GetCanGoBack
     public boolean canDoBack() {
-        return mCanDoBack;
+        return mHistoryIndex > 0;
     }
 
     public boolean doBack() {
@@ -566,7 +563,7 @@ public class Tab {
 
     // Our version of nsSHistory::GetCanGoForward
     public boolean canDoForward() {
-        return mCanDoForward;
+        return mHistoryIndex < mHistorySize - 1;
     }
 
     public boolean doForward() {
@@ -578,15 +575,53 @@ public class Tab {
         return true;
     }
 
+    void handleSessionHistoryMessage(String event, JSONObject message) throws JSONException {
+        if (event.equals("New")) {
+            final String url = message.getString("url");
+            mHistoryIndex++;
+            mHistorySize = mHistoryIndex + 1;
+        } else if (event.equals("Back")) {
+            if (!canDoBack()) {
+                Log.w(LOGTAG, "Received unexpected back notification");
+                return;
+            }
+            mHistoryIndex--;
+        } else if (event.equals("Forward")) {
+            if (!canDoForward()) {
+                Log.w(LOGTAG, "Received unexpected forward notification");
+                return;
+            }
+            mHistoryIndex++;
+        } else if (event.equals("Goto")) {
+            int index = message.getInt("index");
+            if (index < 0 || index >= mHistorySize) {
+                Log.w(LOGTAG, "Received unexpected history-goto notification");
+                return;
+            }
+            mHistoryIndex = index;
+        } else if (event.equals("Purge")) {
+            int numEntries = message.getInt("numEntries");
+            if (numEntries > mHistorySize) {
+                Log.w(LOGTAG, "Received unexpectedly large number of history entries to purge");
+                mHistoryIndex = -1;
+                mHistorySize = 0;
+                return;
+            }
+
+            mHistorySize -= numEntries;
+            mHistoryIndex -= numEntries;
+
+            // If we weren't at the last history entry, mHistoryIndex may have become too small
+            if (mHistoryIndex < -1)
+                mHistoryIndex = -1;
+        }
+    }
+
     void handleLocationChange(JSONObject message) throws JSONException {
         final String uri = message.getString("uri");
         final String oldUrl = getURL();
         final boolean sameDocument = message.getBoolean("sameDocument");
         mEnteringReaderMode = ReaderModeUtils.isEnteringReaderMode(oldUrl, uri);
-        mHistoryIndex = message.getInt("historyIndex");
-        mHistorySize = message.getInt("historySize");
-        mCanDoBack = message.getBoolean("canGoBack");
-        mCanDoForward = message.getBoolean("canGoForward");
 
         if (!TextUtils.equals(oldUrl, uri)) {
             updateURL(uri);

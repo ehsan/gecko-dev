@@ -16,18 +16,10 @@
 namespace js {
 namespace jit {
 
-struct MinimalAlloc {
+struct MinimalFunc
+{
     LifoAlloc lifo;
     TempAllocator alloc;
-
-    MinimalAlloc()
-      : lifo(4096),
-        alloc(&lifo)
-    { }
-};
-
-struct MinimalFunc : MinimalAlloc
-{
     JitCompileOptions options;
     CompileInfo info;
     MIRGraph graph;
@@ -35,7 +27,9 @@ struct MinimalFunc : MinimalAlloc
     uint32_t numParams;
 
     MinimalFunc()
-      : options(),
+      : lifo(4096),
+        alloc(&lifo),
+        options(),
         info(0, SequentialExecution),
         graph(&alloc),
         mir(static_cast<CompileCompartment *>(nullptr), options, &alloc, &graph,

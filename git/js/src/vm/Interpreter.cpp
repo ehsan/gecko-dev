@@ -616,10 +616,7 @@ js::ExecuteKernel(JSContext *cx, HandleScript script, JSObject &scopeChainArg, c
                   ExecuteType type, AbstractFramePtr evalInFrame, Value *result)
 {
     MOZ_ASSERT_IF(evalInFrame, type == EXECUTE_DEBUG);
-    MOZ_ASSERT_IF(type == EXECUTE_GLOBAL,
-                  !scopeChainArg.is<ScopeObject>() ||
-                  (scopeChainArg.is<DynamicWithObject>() &&
-                   !scopeChainArg.as<DynamicWithObject>().isSyntactic()));
+    MOZ_ASSERT_IF(type == EXECUTE_GLOBAL, !scopeChainArg.is<ScopeObject>());
 #ifdef DEBUG
     if (thisv.isObject()) {
         RootedObject thisObj(cx, &thisv.toObject());
@@ -1640,6 +1637,7 @@ CASE(JSOP_UNUSED190)
 CASE(JSOP_UNUSED191)
 CASE(JSOP_UNUSED192)
 CASE(JSOP_UNUSED196)
+CASE(JSOP_UNUSED207)
 CASE(JSOP_UNUSED208)
 CASE(JSOP_UNUSED209)
 CASE(JSOP_UNUSED210)
@@ -1694,9 +1692,6 @@ END_CASE(JSOP_LOOPENTRY)
 
 CASE(JSOP_LINENO)
 END_CASE(JSOP_LINENO)
-
-CASE(JSOP_FORCEINTERPRETER)
-END_CASE(JSOP_FORCEINTERPRETER)
 
 CASE(JSOP_UNDEFINED)
     PUSH_UNDEFINED();

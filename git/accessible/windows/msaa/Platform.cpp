@@ -43,8 +43,3 @@ void
 a11y::ProxyDestroyed(ProxyAccessible*)
 {
 }
-
-void
-a11y::ProxyEvent(ProxyAccessible*, uint32_t)
-{
-}
