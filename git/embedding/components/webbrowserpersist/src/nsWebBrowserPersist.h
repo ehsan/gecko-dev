@@ -23,9 +23,7 @@
 #include "nsIFile.h"
 #include "nsIWebProgressListener2.h"
 
-#include "nsClassHashtable.h"
 #include "nsHashtable.h"
-#include "nsHashKeys.h"
 #include "nsTArray.h"
 
 #include "nsCWebBrowserPersist.h"
@@ -33,11 +31,9 @@
 class nsEncoderNodeFixup;
 class nsIStorageStream;
 
+struct URIData;
 struct CleanupData;
 struct DocData;
-struct OutputData;
-struct UploadData;
-struct URIData;
 
 class nsWebBrowserPersist : public nsIInterfaceRequestor,
                             public nsIWebBrowserPersist,
@@ -50,7 +46,7 @@ class nsWebBrowserPersist : public nsIInterfaceRequestor,
 // Public members
 public:
     nsWebBrowserPersist();
-
+    
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSICANCELABLE
@@ -60,7 +56,7 @@ public:
     NS_DECL_NSIPROGRESSEVENTSINK
 
 // Protected members
-protected:
+protected:    
     virtual ~nsWebBrowserPersist();
     nsresult CloneNodeWithFixedUpAttributes(
         nsIDOMNode *aNodeIn, bool *aSerializeCloneKids, nsIDOMNode **aNodeOut);
@@ -162,18 +158,16 @@ private:
         nsHashKey *aKey, void *aData, void* closure);
     static bool EnumCleanupURIMap(
         nsHashKey *aKey, void *aData, void* closure);
-    static PLDHashOperator EnumCleanupOutputMap(
-        nsISupports *aKey, OutputData *aData, void* aClosure);
+    static bool EnumCleanupOutputMap(
+        nsHashKey *aKey, void *aData, void* closure);
     static bool EnumCleanupUploadList(
         nsHashKey *aKey, void *aData, void* closure);
-    static PLDHashOperator EnumCleanupUploadList(
-        nsISupports *aKey, UploadData *aData, void* aClosure);
-    static PLDHashOperator EnumCalcProgress(
-        nsISupports *aKey, OutputData *aData, void* aClosure);
-    static PLDHashOperator EnumCalcUploadProgress(
-        nsISupports *aKey, UploadData *aData, void* aClosure);
-    static PLDHashOperator EnumFixRedirect(
-        nsISupports *aKey, OutputData *aData, void* aClosure);
+    static bool EnumCalcProgress(
+        nsHashKey *aKey, void *aData, void* closure);
+    static bool EnumCalcUploadProgress(
+        nsHashKey *aKey, void *aData, void* closure);
+    static bool EnumFixRedirect(
+        nsHashKey *aKey, void *aData, void* closure);
     static bool EnumCountURIsToPersist(
         nsHashKey *aKey, void *aData, void* closure);
 
@@ -195,8 +189,8 @@ private:
      */
     nsCOMPtr<nsIWebProgressListener2> mProgressListener2;
     nsCOMPtr<nsIProgressEventSink> mEventSink;
-    nsClassHashtable<nsISupportsHashKey, OutputData> mOutputMap;
-    nsClassHashtable<nsISupportsHashKey, UploadData> mUploadList;
+    nsHashtable               mOutputMap;
+    nsHashtable               mUploadList;
     nsHashtable               mURIMap;
     nsTArray<DocData*>        mDocList;
     nsTArray<CleanupData*>    mCleanupList;
@@ -223,13 +217,13 @@ class nsEncoderNodeFixup : public nsIDocumentEncoderNodeFixup
 {
 public:
     nsEncoderNodeFixup();
-
+    
     NS_DECL_ISUPPORTS
     NS_IMETHOD FixupNode(nsIDOMNode *aNode, bool *aSerializeCloneKids, nsIDOMNode **aOutNode);
-
+    
     nsWebBrowserPersist *mWebBrowserPersist;
 
-protected:
+protected:    
     virtual ~nsEncoderNodeFixup();
 };
 

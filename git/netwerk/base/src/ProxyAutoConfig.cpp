@@ -613,9 +613,8 @@ ProxyAutoConfig::SetupJS()
   if (!mJSRuntime)
     return NS_ERROR_FAILURE;
 
-  JSContext* cx = mJSRuntime->Context();
-  JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, mJSRuntime->Global());
+  JSAutoRequest ar(mJSRuntime->Context());
+  JSAutoCompartment ac(mJSRuntime->Context(), mJSRuntime->Global());
 
   // check if this is a data: uri so that we don't spam the js console with
   // huge meaningless strings. this is not on the main thread, so it can't
@@ -623,12 +622,14 @@ ProxyAutoConfig::SetupJS()
   bool isDataURI = nsDependentCSubstring(mPACURI, 0, 5).LowerCaseEqualsASCII("data:", 5);
 
   sRunning = this;
-  JS::Rooted<JSObject*> global(cx, mJSRuntime->Global());
-  JS::CompileOptions options(cx);
+  JS::Rooted<JSObject *> global(mJSRuntime->Context(), mJSRuntime->Global());
+  JS::CompileOptions options(mJSRuntime->Context());
   options.setFileAndLine(mPACURI.get(), 1);
-  JS::Rooted<JSScript*> script(cx, JS_CompileScript(cx, global, mPACScript.get(),
-                                                    mPACScript.Length(), options));
-  if (!script || !JS_ExecuteScript(cx, global, script, nullptr)) {
+  JSScript *script = JS_CompileScript(mJSRuntime->Context(), global,
+                                      mPACScript.get(), mPACScript.Length(),
+                                      options);
+  if (!script ||
+      !JS_ExecuteScript(mJSRuntime->Context(), mJSRuntime->Global(), script, nullptr)) {
     nsString alertMessage(NS_LITERAL_STRING("PAC file failed to install from "));
     if (isDataURI) {
       alertMessage += NS_LITERAL_STRING("data: URI");

@@ -339,7 +339,8 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
         JS::CompileOptions options(cx);
         options.setUTF8(true)
                .setFileAndLine(filename.ptr(), 1);
-        JS::Rooted<JSScript*> script(cx, JS::Compile(cx, obj, options, file));
+        JS::RootedObject rootedObj(cx, obj);
+        JSScript *script = JS::Compile(cx, rootedObj, options, file);
         fclose(file);
         if (!script)
             return false;
@@ -891,8 +892,8 @@ static void
 ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE *file,
             bool forceTTY)
 {
-    JS::RootedScript script(cx);
-    JS::RootedValue result(cx);
+    JSScript *script;
+    JS::Rooted<JS::Value> result(cx);
     int lineno, startline;
     bool ok, hitEOF;
     char *bufp, buffer[4096];

@@ -92,9 +92,8 @@ GrallocTextureClientOGL::DropTextureData()
 
 GrallocTextureClientOGL::GrallocTextureClientOGL(GrallocBufferActor* aActor,
                                                  gfx::IntSize aSize,
-                                                 gfx::BackendType aMoz2dBackend,
                                                  TextureFlags aFlags)
-: BufferTextureClient(nullptr, gfx::SurfaceFormat::UNKNOWN, aMoz2dBackend, aFlags)
+: BufferTextureClient(nullptr, gfx::SurfaceFormat::UNKNOWN, aFlags)
 , mMappedBuffer(nullptr)
 {
   InitWith(aActor, aSize);
@@ -103,9 +102,8 @@ GrallocTextureClientOGL::GrallocTextureClientOGL(GrallocBufferActor* aActor,
 
 GrallocTextureClientOGL::GrallocTextureClientOGL(ISurfaceAllocator* aAllocator,
                                                  gfx::SurfaceFormat aFormat,
-                                                 gfx::BackendType aMoz2dBackend,
                                                  TextureFlags aFlags)
-: BufferTextureClient(aAllocator, aFormat, aMoz2dBackend, aFlags)
+: BufferTextureClient(aAllocator, aFormat, aFlags)
 , mMappedBuffer(nullptr)
 {
   MOZ_COUNT_CTOR(GrallocTextureClientOGL);

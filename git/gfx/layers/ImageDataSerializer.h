@@ -37,7 +37,7 @@ public:
   gfx::SurfaceFormat GetFormat() const;
   TemporaryRef<gfx::DataSourceSurface> GetAsSurface();
   TemporaryRef<gfxImageSurface> GetAsThebesSurface();
-  TemporaryRef<gfx::DrawTarget> GetAsDrawTarget(gfx::BackendType aBackend);
+  TemporaryRef<gfx::DrawTarget> GetAsDrawTarget();
 
   static uint32_t ComputeMinBufferSize(gfx::IntSize aSize,
                                        gfx::SurfaceFormat aFormat);

@@ -854,8 +854,7 @@ nsCaret::GetCaretFrameForNodeOffset(nsIContent*             aContentNode,
   return NS_OK;
 }
 
-void
-nsCaret::CheckCaretDrawingState()
+nsresult nsCaret::CheckCaretDrawingState()
 {
   if (mDrawn) {
     // The caret is drawn; if it shouldn't be, erase it.
@@ -868,6 +867,7 @@ nsCaret::CheckCaretDrawingState()
     if (mPendingDraw && (mVisible && MustDrawCaret(true)))
       DrawCaret(true);
   }
+  return NS_OK;
 }
 
 /*-----------------------------------------------------------------------------
