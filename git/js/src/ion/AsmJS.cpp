@@ -5772,12 +5772,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 
     // 5. Fill the arguments
     unsigned offsetToArgs = 3 * sizeof(size_t) + sizeof(Value);
-    unsigned offsetToCallerStackArgs = masm.framePushed();
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-    offsetToCallerStackArgs += NativeFrameSize;
-#else
-    offsetToCallerStackArgs += ShadowStackSpace;
-#endif
+    unsigned offsetToCallerStackArgs = NativeFrameSize + masm.framePushed();
     FillArgumentArray(m, exit.argTypes(), offsetToArgs, offsetToCallerStackArgs, scratch);
 
     // Get the pointer to the ion code

@@ -104,13 +104,7 @@ MIRGraph::removeBlock(MBasicBlock *block)
     }
 
     block->discardAllInstructions();
-
-    // Note: phis are disconnected from the rest of the graph, but are not
-    // removed entirely. If the block being removed is a loop header then
-    // IonBuilder may need to access these phis to more quickly converge on the
-    // possible types in the graph. See IonBuilder::analyzeNewLoopTypes.
-    block->discardAllPhiOperands();
-
+    block->discardAllPhis();
     block->markAsDead();
     blocks_.remove(block);
     numBlocks_--;
@@ -671,23 +665,17 @@ MBasicBlock::discardAllInstructions()
 }
 
 void
-MBasicBlock::discardAllPhiOperands()
+MBasicBlock::discardAllPhis()
 {
-    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++) {
+    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); ) {
         MPhi *phi = *iter;
         for (size_t i = 0; i < phi->numOperands(); i++)
             phi->discardOperand(i);
+        iter = phis_.removeAt(iter);
     }
 
     for (MBasicBlock **pred = predecessors_.begin(); pred != predecessors_.end(); pred++)
         (*pred)->setSuccessorWithPhis(NULL, 0);
-}
-
-void
-MBasicBlock::discardAllPhis()
-{
-    discardAllPhiOperands();
-    phis_.clear();
 }
 
 void

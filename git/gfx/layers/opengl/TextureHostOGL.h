@@ -20,13 +20,13 @@
 namespace mozilla {
 namespace layers {
 
-class TextureImageDeprecatedTextureHostOGL;
+class TextureImageTextureHostOGL;
 class CompositorOGL;
 
 /*
  * TextureHost implementations for the OpenGL backend.
  *
- * Note that it is important to be careful about the ownership model with
+ * Note that it is important to becareful about the ownership model with
  * the OpenGL backend, due to some widget limitation on Linux: before
  * the nsBaseWidget associated with our OpenGL context has been completely
  * deleted, every resource belonging to the OpenGL context MUST have been
@@ -57,13 +57,13 @@ public:
   virtual GLenum GetWrapMode() const = 0;// { return LOCAL_GL_CLAMP_TO_EDGE; } // default
   virtual gfx3DMatrix GetTextureTransform() { return gfx3DMatrix(); }
 
-  virtual TextureImageDeprecatedTextureHostOGL* AsTextureImageDeprecatedTextureHost() { return nullptr; }
+  virtual TextureImageTextureHostOGL* AsTextureImageTextureHost() { return nullptr; }
 };
 
 inline ShaderProgramType
-GetProgramTypeForTexture(const DeprecatedTextureHost *aDeprecatedTextureHost)
+GetProgramTypeForTexture(const TextureHost *aTextureHost)
 {
-  switch (aDeprecatedTextureHost->GetFormat()) {
+  switch (aTextureHost->GetFormat()) {
   case gfx::FORMAT_B8G8R8A8:
     return BGRALayerProgramType;;
   case gfx::FORMAT_B8G8R8X8:
@@ -78,29 +78,29 @@ GetProgramTypeForTexture(const DeprecatedTextureHost *aDeprecatedTextureHost)
 }
 
 /**
- * DeprecatedTextureHost implementation using a TextureImage as the underlying texture.
+ * TextureHost implementation using a TextureImage as the underlying texture.
  */
-class TextureImageDeprecatedTextureHostOGL : public DeprecatedTextureHost
-                                           , public TextureSourceOGL
-                                           , public TileIterator
+class TextureImageTextureHostOGL : public TextureHost
+                                 , public TextureSourceOGL
+                                 , public TileIterator
 {
 public:
-  TextureImageDeprecatedTextureHostOGL(gl::TextureImage* aTexImage = nullptr)
+  TextureImageTextureHostOGL(gl::TextureImage* aTexImage = nullptr)
     : mTexture(aTexImage)
     , mGL(nullptr)
     , mIterating(false)
   {
-    MOZ_COUNT_CTOR(TextureImageDeprecatedTextureHostOGL);
+    MOZ_COUNT_CTOR(TextureImageTextureHostOGL);
   }
 
-  ~TextureImageDeprecatedTextureHostOGL();
+  ~TextureImageTextureHostOGL();
 
   TextureSourceOGL* AsSourceOGL() MOZ_OVERRIDE
   {
     return this;
   }
 
-  virtual TextureImageDeprecatedTextureHostOGL* AsTextureImageDeprecatedTextureHost() MOZ_OVERRIDE
+  virtual TextureImageTextureHostOGL* AsTextureImageTextureHost() MOZ_OVERRIDE
   {
     return this;
   }
@@ -112,7 +112,7 @@ public:
     mGL = aGL;
   }
 
-  // DeprecatedTextureHost
+  // TextureHost
 
   void UpdateImpl(const SurfaceDescriptor& aImage,
                   nsIntRegion* aRegion = nullptr,
@@ -123,7 +123,7 @@ public:
   virtual void EnsureBuffer(const nsIntSize& aSize, gfxContentType aType) MOZ_OVERRIDE;
 
   virtual void CopyTo(const nsIntRect& aSourceRect,
-                      DeprecatedTextureHost *aDest,
+                      TextureHost *aDest,
                       const nsIntRect& aDestRect) MOZ_OVERRIDE;
 
   bool IsValid() const MOZ_OVERRIDE
@@ -202,7 +202,7 @@ public:
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() { return "TextureImageDeprecatedTextureHostOGL"; }
+  virtual const char* Name() { return "TextureImageTextureHostOGL"; }
 #endif
 
 protected:
@@ -213,32 +213,32 @@ protected:
 
 
 /**
- * DeprecatedTextureHost implementation for YCbCr images in the OpenGL backend.
+ * TextureHost implementation for YCbCr images in the OpenGL backend.
  *
- * This DeprecatedTextureHost is a little bit particular in that it implements
- * the TextureSource interface, as it is required that a DeprecatedTextureHost
+ * This TextureHost is a little bit particular in that it implements
+ * the TextureSource interface, as it is required that a TextureHost
  * provides access to a TextureSource, but does not implement the
- * DeprecatedTextureHostOGL interface. Instead it contains 3 channels (one per
+ * TextureHostOGL interface. Instead it contains 3 channels (one per
  * plane) that implement the TextureSourceOGL interface, and
- * YCbCrDeprecatedTextureHostOGL's TextureSource implementation provide access
+ * YCbCrTextureHostOGL's TextureSource implementation provide access
  * to these channels with the GetSubSource method.
  */
-class YCbCrDeprecatedTextureHostOGL : public DeprecatedTextureHost
+class YCbCrTextureHostOGL : public TextureHost
 {
 public:
-  YCbCrDeprecatedTextureHostOGL()
+  YCbCrTextureHostOGL()
     : mGL(nullptr)
   {
-    MOZ_COUNT_CTOR(YCbCrDeprecatedTextureHostOGL);
+    MOZ_COUNT_CTOR(YCbCrTextureHostOGL);
     mYTexture  = new Channel;
     mCbTexture = new Channel;
     mCrTexture = new Channel;
     mFormat = gfx::FORMAT_YUV;
   }
 
-  ~YCbCrDeprecatedTextureHostOGL()
+  ~YCbCrTextureHostOGL()
   {
-    MOZ_COUNT_DTOR(YCbCrDeprecatedTextureHostOGL);
+    MOZ_COUNT_DTOR(YCbCrTextureHostOGL);
   }
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
@@ -302,7 +302,7 @@ public:
   gfx::IntSize GetSize() const MOZ_OVERRIDE
   {
     if (!mYTexture->mTexImage) {
-      NS_WARNING("YCbCrDeprecatedTextureHost::GetSize called but no data has been set yet");
+      NS_WARNING("YCbCrTextureHost::GetSize called but no data has been set yet");
       return gfx::IntSize(0,0);
     }
     return mYTexture->GetSize();
@@ -311,7 +311,7 @@ public:
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() { return "YCbCrDeprecatedTextureHostOGL"; }
+  virtual const char* Name() { return "YCbCrTextureHostOGL"; }
 #endif
 
 private:
@@ -321,7 +321,7 @@ private:
   gl::GLContext* mGL;
 };
 
-class SharedDeprecatedTextureHostOGL : public DeprecatedTextureHost
+class SharedTextureHostOGL : public TextureHost
                            , public TextureSourceOGL
 {
 public:
@@ -329,7 +329,7 @@ public:
   typedef mozilla::gl::GLContext GLContext;
   typedef mozilla::gl::TextureImage TextureImage;
 
-  SharedDeprecatedTextureHostOGL()
+  SharedTextureHostOGL()
     : mGL(nullptr)
     , mTextureHandle(0)
     , mWrapMode(LOCAL_GL_CLAMP_TO_EDGE)
@@ -339,7 +339,7 @@ public:
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
-  virtual ~SharedDeprecatedTextureHostOGL()
+  virtual ~SharedTextureHostOGL()
   {
     if (mSharedHandle || mTextureHandle) {
       DeleteTextures();
@@ -355,7 +355,7 @@ public:
 
   bool IsValid() const MOZ_OVERRIDE { return !!mSharedHandle; }
 
-  // override from DeprecatedTextureHost, we support both buffered
+  // override from TextureHost, we support both buffered
   // and unbuffered operation.
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
                           nsIntRegion* aRegion = nullptr,
@@ -402,7 +402,7 @@ public:
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() { return "SharedDeprecatedTextureHostOGL"; }
+  virtual const char* Name() { return "SharedTextureHostOGL"; }
 #endif
 
 protected:
@@ -417,7 +417,7 @@ protected:
   gl::GLContext::SharedTextureShareType mShareType;
 };
 
-class SurfaceStreamHostOGL : public DeprecatedTextureHost
+class SurfaceStreamHostOGL : public TextureHost
                            , public TextureSourceOGL
 {
 public:
@@ -442,7 +442,7 @@ public:
 
   bool IsValid() const MOZ_OVERRIDE { return true; }
 
-  // override from DeprecatedTextureHost
+  // override from TextureHost
   virtual void SwapTexturesImpl(const SurfaceDescriptor& aImage,
                                 nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
   virtual bool Lock() MOZ_OVERRIDE;
@@ -506,15 +506,15 @@ protected:
   GLenum mWrapMode;
 };
 
-class TiledDeprecatedTextureHostOGL : public DeprecatedTextureHost
+class TiledTextureHostOGL : public TextureHost
                           , public TextureSourceOGL
 {
 public:
-  TiledDeprecatedTextureHostOGL()
+  TiledTextureHostOGL()
     : mTextureHandle(0)
     , mGL(nullptr)
   {}
-  ~TiledDeprecatedTextureHostOGL();
+  ~TiledTextureHostOGL();
 
   virtual void SetCompositor(Compositor* aCompositor);
 
@@ -549,7 +549,7 @@ public:
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() { return "TiledDeprecatedTextureHostOGL"; }
+  virtual const char* Name() { return "TiledTextureHostOGL"; }
 #endif
 
 protected:
@@ -574,18 +574,18 @@ private:
 
 #ifdef MOZ_WIDGET_GONK
 
-// For direct texturing with gralloc buffers. The corresponding DeprecatedTextureClient is DeprecatedTextureClientShmem,
+// For direct texturing with gralloc buffers. The corresponding TextureClient is TextureClientShmem,
 // which automatically gets gralloc when it can, in which case the compositor sees that the
-// SurfaceDescriptor is gralloc, and decides to use a GrallocDeprecatedTextureHostOGL to do direct texturing,
+// SurfaceDescriptor is gralloc, and decides to use a GrallocTextureHostOGL to do direct texturing,
 // saving the cost of a texture upload.
-class GrallocDeprecatedTextureHostOGL
-  : public DeprecatedTextureHost
+class GrallocTextureHostOGL
+  : public TextureHost
   , public TextureSourceOGL
 {
 public:
-  GrallocDeprecatedTextureHostOGL();
+  GrallocTextureHostOGL();
 
-  ~GrallocDeprecatedTextureHostOGL();
+  ~GrallocTextureHostOGL();
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
@@ -621,7 +621,7 @@ public:
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() { return "GrallocDeprecatedTextureHostOGL"; }
+  virtual const char* Name() { return "GrallocTextureHostOGL"; }
 #endif
 
   void BindTexture(GLenum aTextureUnit) MOZ_OVERRIDE;

@@ -28,7 +28,7 @@ struct TiledLayerProperties
 };
 
 class Layer;
-class DeprecatedTextureHost;
+class TextureHost;
 class SurfaceDescriptor;
 
 /**
@@ -136,7 +136,7 @@ public:
    * aAllocator - the allocator used to allocate and de-allocate resources.
    * aTextureInfo - contains flags for the texture.
    */
-  virtual void EnsureDeprecatedTextureHost(TextureIdentifier aTextureId,
+  virtual void EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
                                  const TextureInfo& aTextureInfo) = 0;
@@ -150,14 +150,14 @@ public:
    * don't have a single surface for the texture contents, and we
    * need to allocate our own one to be updated later.
    */
-  virtual void EnsureDeprecatedTextureHostIncremental(ISurfaceAllocator* aAllocator,
+  virtual void EnsureTextureHostIncremental(ISurfaceAllocator* aAllocator,
                                             const TextureInfo& aTextureInfo,
                                             const nsIntRect& aBufferRect)
   {
     MOZ_ASSERT(false, "should be implemented or not used");
   }
 
-  virtual DeprecatedTextureHost* GetDeprecatedTextureHost() { return nullptr; }
+  virtual TextureHost* GetTextureHost() { return nullptr; }
 
   virtual LayerRenderState GetRenderState() = 0;
 
@@ -198,7 +198,7 @@ public:
   virtual void Dump(FILE* aFile=NULL,
                     const char* aPrefix="",
                     bool aDumpHtml=false) { }
-  static void DumpDeprecatedTextureHost(FILE* aFile, DeprecatedTextureHost* aTexture);
+  static void DumpTextureHost(FILE* aFile, TextureHost* aTexture);
 
 #ifdef MOZ_DUMP_PAINTING
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() { return nullptr; }

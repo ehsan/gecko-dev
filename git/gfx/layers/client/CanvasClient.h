@@ -45,10 +45,10 @@ public:
   virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
                                       const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE
   {
-    mDeprecatedTextureClient->SetDescriptorFromReply(aDescriptor);
+    mTextureClient->SetDescriptorFromReply(aDescriptor);
   }
 protected:
-  RefPtr<DeprecatedTextureClient> mDeprecatedTextureClient;
+  RefPtr<TextureClient> mTextureClient;
   TextureInfo mTextureInfo;
 };
 

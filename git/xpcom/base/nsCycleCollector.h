@@ -10,17 +10,8 @@ class nsICycleCollectorListener;
 class nsISupports;
 class nsScriptObjectTracer;
 
-#include "nsError.h"
-#include "nsID.h"
-
 namespace mozilla {
-
 class CycleCollectedJSRuntime;
-
-// See the comments in nsContentUtils.h for explanations of these functions.
-typedef void* (*DeferredFinalizeAppendFunction)(void* pointers, void* thing);
-typedef bool (*DeferredFinalizeFunction)(uint32_t slice, void* data);
-
 }
 
 // Contains various stats about the cycle collection.
@@ -56,8 +47,6 @@ void nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB)
 
 void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false);
 
-void nsCycleCollector_dispatchDeferredDeletion();
-
 void nsCycleCollector_collect(bool aManuallyTriggered,
                               nsCycleCollectorResults *aResults,
                               nsICycleCollectorListener *aListener);
@@ -86,12 +75,6 @@ void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
 bool TestJSHolder(void* aHolder);
 #endif
-
-void DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
-                      DeferredFinalizeFunction aFunc,
-                      void* aThing);
-void DeferredFinalize(nsISupports* aSupports);
-
 
 } // namespace cyclecollector
 } // namespace mozilla

@@ -334,7 +334,10 @@ check-jstests:
 #
 #   Bug 652155: On Mac, SM(d) doesn't work for unknown reasons
 
-ifneq ($(OS_ARCH),WINNT)
+ifeq ($(OS_ARCH),WINNT)
+ifdef ENABLE_METHODJIT
+endif
+else
 ifndef HAVE_DTRACE
 #check:: check-jstests
 endif

@@ -618,6 +618,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason)
         disable();
 }
 
+
 void
 js::Nursery::sweep(FreeOp *fop)
 {

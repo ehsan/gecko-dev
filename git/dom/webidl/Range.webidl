@@ -38,7 +38,7 @@ interface Range {
   void setEndBefore(Node refNode);
   [Throws]
   void setEndAfter(Node refNode);
-  void collapse(optional boolean toStart = false);
+  void collapse(boolean toStart);
   [Throws]
   void selectNode(Node refNode);
   [Throws]

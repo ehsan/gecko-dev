@@ -1795,6 +1795,17 @@ ReportLenientThisUnwrappingFailure(JSContext* cx, JS::Handle<JSObject*> obj)
   return true;
 }
 
+bool
+RegisterForDeferredFinalization(DeferredFinalizeStartFunction start,
+                                DeferredFinalizeFunction run)
+{
+  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  NS_ENSURE_TRUE(rt, false);
+
+  rt->RegisterDeferredFinalize(start, run);
+  return true;
+}
+
 // Date implementation methods
 Date::Date() :
   mMsecSinceEpoch(UnspecifiedNaN())

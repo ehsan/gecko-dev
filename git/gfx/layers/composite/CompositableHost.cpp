@@ -17,15 +17,15 @@ bool
 CompositableHost::Update(const SurfaceDescriptor& aImage,
                          SurfaceDescriptor* aResult)
 {
-  if (!GetDeprecatedTextureHost()) {
+  if (!GetTextureHost()) {
     *aResult = aImage;
     return false;
   }
-  MOZ_ASSERT(!GetDeprecatedTextureHost()->GetBuffer(),
+  MOZ_ASSERT(!GetTextureHost()->GetBuffer(),
              "This path not suitable for texture-level double buffering.");
-  GetDeprecatedTextureHost()->Update(aImage);
+  GetTextureHost()->Update(aImage);
   *aResult = aImage;
-  return GetDeprecatedTextureHost()->IsValid();
+  return GetTextureHost()->IsValid();
 }
 
 bool
@@ -33,7 +33,7 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
                                 const gfx::Matrix4x4& aTransform,
                                 bool aIs3D)
 {
-  RefPtr<TextureSource> source = GetDeprecatedTextureHost();
+  RefPtr<TextureSource> source = GetTextureHost();
 
   if (!source) {
     NS_WARNING("Using compositable with no texture host as mask layer");
@@ -77,7 +77,7 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
 }
 
 void
-CompositableHost::DumpDeprecatedTextureHost(FILE* aFile, DeprecatedTextureHost* aTexture)
+CompositableHost::DumpTextureHost(FILE* aFile, TextureHost* aTexture)
 {
   if (!aTexture) {
     return;

@@ -56,7 +56,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.MessageQueue;
@@ -294,19 +293,7 @@ public class GeckoAppShell
     }
 
     public static void runGecko(String apkPath, String args, String url, String type) {
-        // Preparation for pumpMessageLoop()
-        MessageQueue.IdleHandler idleHandler = new MessageQueue.IdleHandler() {
-            @Override public boolean queueIdle() {
-                Handler geckoHandler = ThreadUtils.getGeckoHandler();
-                Message idleMsg = Message.obtain(geckoHandler);
-                // Use |Message.obj == GeckoHandler| to identify our "queue is empty" message
-                idleMsg.obj = geckoHandler;
-                geckoHandler.sendMessageAtFrontOfQueue(idleMsg);
-                // Keep this IdleHandler
-                return true;
-            }
-        };
-        Looper.myQueue().addIdleHandler(idleHandler);
+        Looper.prepare();
 
         // run gecko -- it will spawn its own thread
         GeckoAppShell.nativeInit();
@@ -335,9 +322,6 @@ public class GeckoAppShell
 
         // and go
         GeckoLoader.nativeRun(combinedArgs);
-
-        // Remove pumpMessageLoop() idle handler
-        Looper.myQueue().removeIdleHandler(idleHandler);
     }
 
     // Called on the UI thread after Gecko loads.
@@ -2480,16 +2464,10 @@ public class GeckoAppShell
     }
 
     public static boolean pumpMessageLoop() {
-        Handler geckoHandler = ThreadUtils.getGeckoHandler();
         MessageQueue mq = Looper.myQueue();
         Message msg = getNextMessageFromQueue(mq); 
         if (msg == null)
             return false;
-        if (msg.getTarget() == geckoHandler && msg.obj == geckoHandler) {
-            // Our "queue is empty" message; see runGecko()
-            msg.recycle();
-            return false;
-        }
         if (msg.getTarget() == null) 
             Looper.myLooper().quit();
         else

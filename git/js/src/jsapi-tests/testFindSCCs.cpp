@@ -16,6 +16,8 @@
 
 #include "gc/FindSCCs.h"
 
+#include "gc/FindSCCs-inl.h"
+
 static const unsigned MaxVertices = 10;
 
 using js::gc::GraphNodeBase;

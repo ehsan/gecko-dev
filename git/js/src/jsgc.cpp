@@ -73,6 +73,7 @@
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
+#include "gc/FindSCCs-inl.h"
 #include "vm/String-inl.h"
 #include "vm/Stack-inl.h"
 
@@ -4552,7 +4553,7 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
         if (rt->gcIncrementalState == NO_INCREMENTAL) {
             gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_GC_BEGIN);
             if (JSGCCallback callback = rt->gcCallback)
-                callback(rt, JSGC_BEGIN, rt->gcCallbackData);
+                callback(rt, JSGC_BEGIN);
         }
 
         rt->gcPoke = false;
@@ -4561,7 +4562,7 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
         if (rt->gcIncrementalState == NO_INCREMENTAL) {
             gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_GC_END);
             if (JSGCCallback callback = rt->gcCallback)
-                callback(rt, JSGC_END, rt->gcCallbackData);
+                callback(rt, JSGC_END);
         }
 
         /* Need to re-schedule all zones for GC. */

@@ -134,14 +134,6 @@ let reference_dir_contents = function reference_dir_contents(path) {
   return result;
 };
 
-// Set/Unset OS.Shared.DEBUG, OS.Shared.TEST and a console listener.
-function toggleDebugTest (pref, consoleListener) {
-  Services.prefs.setBoolPref("toolkit.osfile.log", pref);
-  Services.prefs.setBoolPref("toolkit.osfile.log.redirect", pref);
-  Services.console[pref ? "registerListener" : "unregisterListener"](
-    consoleListener);
-}
-
 let test = maketest("Main", function main(test) {
   return Task.spawn(function() {
     SimpleTest.waitForExplicitFinish();
@@ -821,13 +813,24 @@ let test_debug_test = maketest("debug_test", function debug_test(test) {
         if (aMessage.message.indexOf("TEST OS") < 0) {
           return;
         }
-        test.ok(true, "DEBUG TEST messages are logged correctly.");
+        test.ok(true, "DEBUG TEST messages are logged correctly.")
       }
     };
-    toggleDebugTest(true, consoleListener);
+    // Set/Unset OS.Shared.DEBUG, OS.Shared.TEST and the console listener.
+    function toggleDebugTest (pref) {
+      OS.Shared.DEBUG = pref;
+      OS.Shared.TEST = pref;
+      Services.console[pref ? "registerListener" : "unregisterListener"](
+        consoleListener);
+    }
+    // Save original DEBUG value.
+    let originalPref = OS.Shared.DEBUG;
+    toggleDebugTest(true);
     // Execution of OS.File.exist method will trigger OS.File.LOG several times.
     let fileExists = yield OS.File.exists(EXISTING_FILE);
-    toggleDebugTest(false, consoleListener);
+    toggleDebugTest(false);
+    // Restore DEBUG to its original.
+    OS.Shared.DEBUG = originalPref;
   });
 });
 
@@ -836,6 +839,8 @@ let test_debug_test = maketest("debug_test", function debug_test(test) {
  */
 let test_system_shutdown = maketest("system_shutdown", function system_shutdown(test) {
   return Task.spawn(function () {
+    // Save original DEBUG value.
+    let originalDebug = OS.Shared.DEBUG;
     // Count the number of times the leaks are logged.
     let logCounter = 0;
     // Create a console listener.
@@ -849,7 +854,10 @@ let test_system_shutdown = maketest("system_shutdown", function system_shutdown(
         // Unregister a listener, reset DEBUG and TEST both when the promise is
         // resolved or rejected.
         let cleanUp = function cleanUp() {
-          toggleDebugTest(false, listener);
+          Services.console.unregisterListener(listener);
+          OS.Shared.DEBUG = originalDebug;
+          OS.Shared.TEST = false;
+          test.info("Unregistered listener for resource " + resource);
         };
         waitObservation.promise.then(cleanUp, cleanUp);
 
@@ -885,7 +893,7 @@ let test_system_shutdown = maketest("system_shutdown", function system_shutdown(
             }
           }
         };
-        toggleDebugTest(true, listener);
+        Services.console.registerListener(listener);
         logStart = Date.now();
         f();
         // If listener does not resolve webObservation in timely manner (1000MS),

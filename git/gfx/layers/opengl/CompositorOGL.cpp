@@ -1185,17 +1185,11 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       for (int32_t pass = 1; pass <=2; ++pass) {
         ShaderProgramOGL* program;
         if (pass == 1) {
-          ShaderProgramType type = gl()->GetPreferredARGB32Format() == LOCAL_GL_BGRA ?
-                                   ComponentAlphaPass1RGBProgramType :
-                                   ComponentAlphaPass1ProgramType;
-          program = GetProgram(type, maskType);
+          program = GetProgram(ComponentAlphaPass1ProgramType, maskType);
           gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
                                    LOCAL_GL_ONE, LOCAL_GL_ONE);
         } else {
-          ShaderProgramType type = gl()->GetPreferredARGB32Format() == LOCAL_GL_BGRA ?
-                                   ComponentAlphaPass2RGBProgramType :
-                                   ComponentAlphaPass2ProgramType;
-          program = GetProgram(type, maskType);
+          program = GetProgram(ComponentAlphaPass2ProgramType, maskType);
           gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE,
                                    LOCAL_GL_ONE, LOCAL_GL_ONE);
         }

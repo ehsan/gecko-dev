@@ -8,6 +8,7 @@
 #define gc_Marking_h
 
 #include "jsgc.h"
+#include "jscntxt.h"
 #include "jslock.h"
 
 #include "gc/Barrier.h"

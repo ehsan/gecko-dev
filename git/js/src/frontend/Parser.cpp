@@ -42,6 +42,7 @@
 
 #include "frontend/ParseMaps-inl.h"
 #include "frontend/ParseNode-inl.h"
+#include "frontend/Parser-inl.h"
 #include "frontend/SharedContext-inl.h"
 
 #include "vm/NumericConversions.h"
@@ -3417,6 +3418,7 @@ Parser<ParseHandler>::variables(ParseNodeKind kind, bool *psimple,
             }
 
             MUST_MATCH_TOKEN(TOK_ASSIGN, JSMSG_BAD_DESTRUCT_DECL);
+            JS_ASSERT(tokenStream.currentToken().t_op == JSOP_NOP);
 
             Node init = assignExpr();
             if (!init)
@@ -3448,6 +3450,8 @@ Parser<ParseHandler>::variables(ParseNodeKind kind, bool *psimple,
         handler.addList(pn, pn2);
 
         if (tokenStream.matchToken(TOK_ASSIGN)) {
+            JS_ASSERT(tokenStream.currentToken().t_op == JSOP_NOP);
+
             if (psimple)
                 *psimple = false;
 
@@ -3935,7 +3939,7 @@ Parser<FullParseHandler>::forStatement()
             pn2 = pn1;
             pn1 = NULL;
 
-            if (!setAssignmentLhsOps(pn2, true))
+            if (!setAssignmentLhsOps(pn2, JSOP_NOP))
                 return null();
         }
 
@@ -4160,7 +4164,7 @@ Parser<SyntaxParseHandler>::forStatement()
             return null();
         }
 
-        if (!isForDecl && !setAssignmentLhsOps(lhsNode, true))
+        if (!isForDecl && !setAssignmentLhsOps(lhsNode, JSOP_NOP))
             return null();
 
         if (!expr())
@@ -4416,7 +4420,8 @@ Parser<ParseHandler>::returnStatementOrYieldExpression()
     if (next == TOK_ERROR)
         return null();
     if (next == TOK_EOF || next == TOK_EOL || next == TOK_SEMI || next == TOK_RC ||
-        (isYield && (next == TOK_RB || next == TOK_RP || next == TOK_COLON || next == TOK_COMMA)))
+        (isYield && (next == TOK_YIELD || next == TOK_RB || next == TOK_RP ||
+                     next == TOK_COLON || next == TOK_COMMA)))
     {
         if (isYield) {
             if (!reportWithOffset(ParseWarning, false, pos().begin, JSMSG_YIELD_WITHOUT_OPERAND))
@@ -5092,7 +5097,7 @@ Parser<ParseHandler>::condExpr1()
 
 template <>
 bool
-Parser<FullParseHandler>::setAssignmentLhsOps(ParseNode *pn, bool isPlainAssignment)
+Parser<FullParseHandler>::setAssignmentLhsOps(ParseNode *pn, JSOp op)
 {
     switch (pn->getKind()) {
       case PNK_NAME:
@@ -5110,7 +5115,7 @@ Parser<FullParseHandler>::setAssignmentLhsOps(ParseNode *pn, bool isPlainAssignm
 #if JS_HAS_DESTRUCTURING
       case PNK_ARRAY:
       case PNK_OBJECT:
-        if (!isPlainAssignment) {
+        if (op != JSOP_NOP) {
             report(ParseError, false, null(), JSMSG_BAD_DESTRUCT_ASS);
             return false;
         }
@@ -5131,7 +5136,7 @@ Parser<FullParseHandler>::setAssignmentLhsOps(ParseNode *pn, bool isPlainAssignm
 
 template <>
 bool
-Parser<SyntaxParseHandler>::setAssignmentLhsOps(Node pn, bool isPlainAssignment)
+Parser<SyntaxParseHandler>::setAssignmentLhsOps(Node pn, JSOp op)
 {
     /* Full syntax checking of valid assignment LHS terms requires a parse tree. */
     if (pn != SyntaxParseHandler::NodeName &&
@@ -5164,20 +5169,19 @@ Parser<ParseHandler>::assignExpr()
         return null();
 
     ParseNodeKind kind;
-    JSOp op;
     switch (tokenStream.currentToken().type) {
-      case TOK_ASSIGN:       kind = PNK_ASSIGN;       op = JSOP_NOP;    break;
-      case TOK_ADDASSIGN:    kind = PNK_ADDASSIGN;    op = JSOP_ADD;    break;
-      case TOK_SUBASSIGN:    kind = PNK_SUBASSIGN;    op = JSOP_SUB;    break;
-      case TOK_BITORASSIGN:  kind = PNK_BITORASSIGN;  op = JSOP_BITOR;  break;
-      case TOK_BITXORASSIGN: kind = PNK_BITXORASSIGN; op = JSOP_BITXOR; break;
-      case TOK_BITANDASSIGN: kind = PNK_BITANDASSIGN; op = JSOP_BITAND; break;
-      case TOK_LSHASSIGN:    kind = PNK_LSHASSIGN;    op = JSOP_LSH;    break;
-      case TOK_RSHASSIGN:    kind = PNK_RSHASSIGN;    op = JSOP_RSH;    break;
-      case TOK_URSHASSIGN:   kind = PNK_URSHASSIGN;   op = JSOP_URSH;   break;
-      case TOK_MULASSIGN:    kind = PNK_MULASSIGN;    op = JSOP_MUL;    break;
-      case TOK_DIVASSIGN:    kind = PNK_DIVASSIGN;    op = JSOP_DIV;    break;
-      case TOK_MODASSIGN:    kind = PNK_MODASSIGN;    op = JSOP_MOD;    break;
+      case TOK_ASSIGN:       kind = PNK_ASSIGN;       break;
+      case TOK_ADDASSIGN:    kind = PNK_ADDASSIGN;    break;
+      case TOK_SUBASSIGN:    kind = PNK_SUBASSIGN;    break;
+      case TOK_BITORASSIGN:  kind = PNK_BITORASSIGN;  break;
+      case TOK_BITXORASSIGN: kind = PNK_BITXORASSIGN; break;
+      case TOK_BITANDASSIGN: kind = PNK_BITANDASSIGN; break;
+      case TOK_LSHASSIGN:    kind = PNK_LSHASSIGN;    break;
+      case TOK_RSHASSIGN:    kind = PNK_RSHASSIGN;    break;
+      case TOK_URSHASSIGN:   kind = PNK_URSHASSIGN;   break;
+      case TOK_MULASSIGN:    kind = PNK_MULASSIGN;    break;
+      case TOK_DIVASSIGN:    kind = PNK_DIVASSIGN;    break;
+      case TOK_MODASSIGN:    kind = PNK_MODASSIGN;    break;
 
       case TOK_ARROW: {
         tokenStream.seek(start);
@@ -5198,7 +5202,8 @@ Parser<ParseHandler>::assignExpr()
         return lhs;
     }
 
-    if (!setAssignmentLhsOps(lhs, kind == PNK_ASSIGN))
+    JSOp op = tokenStream.currentToken().t_op;
+    if (!setAssignmentLhsOps(lhs, op))
         return null();
 
     Node rhs = assignExpr();
@@ -5260,7 +5265,7 @@ template <>
 bool
 Parser<SyntaxParseHandler>::setIncOpKid(Node pn, Node kid, TokenKind tt, bool preorder)
 {
-    return setAssignmentLhsOps(kid, false);
+    return setAssignmentLhsOps(kid, JSOP_NOP);
 }
 
 template <typename ParseHandler>
@@ -5320,8 +5325,10 @@ Parser<ParseHandler>::unaryExpr()
         if (!expr)
             return null();
 
-        // Per spec, deleting any unary expression is valid -- it simply
-        // returns true -- except for one case that is illegal in strict mode.
+        // Per spec, deleting any unary expression is valid -- it simply returns
+        // true -- except for a few cases that are illegal in strict mode.
+        if (foldConstants && !FoldConstants(context, &expr, this))
+            return null();
         if (handler.isName(expr)) {
             if (!report(ParseStrictError, pc->sc->strict, expr, JSMSG_DEPRECATED_DELETE_OPERAND))
                 return null();
@@ -6205,6 +6212,13 @@ Parser<ParseHandler>::memberExpr(TokenKind tt, bool allowCallSyntax)
 
             MUST_MATCH_TOKEN(TOK_RB, JSMSG_BRACKET_IN_INDEX);
 
+            /*
+             * Do folding so we don't have roundtrip changes for cases like:
+             * function (obj) { return obj["a" + "b"] }
+             */
+            if (foldConstants && !FoldConstants(context, &propExpr, this))
+                return null();
+
             nextMember = handler.newPropertyByValue(lhs, propExpr, pos().end);
             if (!nextMember)
                 return null();
@@ -6613,7 +6627,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
                 if (!abortIfSyntaxParser())
                     return null();
                 tokenStream.ungetToken();
-                if (!tokenStream.checkForKeyword(atom->charsZ(), atom->length(), NULL))
+                if (!tokenStream.checkForKeyword(atom->charsZ(), atom->length(), NULL, NULL))
                     return null();
                 handler.setListFlag(pn, PNX_DESTRUCT | PNX_NONCONST);
                 PropertyName *name = handler.isName(pn3);

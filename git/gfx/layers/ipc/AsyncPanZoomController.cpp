@@ -161,8 +161,7 @@ static void InitAZPCPrefs()
 
 AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoContentController,
                                                GestureBehavior aGestures)
-  :  mPaintThrottler(GetFrameTime()),
-     mGeckoContentController(aGeckoContentController),
+  :  mGeckoContentController(aGeckoContentController),
      mTouchListenerTimeoutTask(nullptr),
      mX(this),
      mY(this),
@@ -172,6 +171,7 @@ AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoCon
      mMonitor("AsyncPanZoomController"),
      mLastSampleTime(GetFrameTime()),
      mState(NOTHING),
+     mPreviousPaintStartTime(GetFrameTime()),
      mLastAsyncScrollTime(GetFrameTime()),
      mLastAsyncScrollOffset(0, 0),
      mCurrentAsyncScrollOffset(0, 0),
@@ -179,6 +179,7 @@ AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoCon
      mAsyncScrollThrottleTime(100),
      mAsyncScrollTimeout(300),
      mDPI(72),
+     mWaitingForContentToPaint(false),
      mDisableNextTouchBatch(false),
      mHandlingTouchQueue(false),
      mDelayPanning(false)
@@ -778,7 +779,7 @@ void AsyncPanZoomController::TrackTouch(const MultiTouchInput& aEvent) {
     ScrollBy(CSSPoint::FromUnknownPoint(displacement));
     ScheduleComposite();
 
-    TimeDuration timePaintDelta = mPaintThrottler.TimeSinceLastRequest(GetFrameTime());
+    TimeDuration timePaintDelta = GetFrameTime() - mPreviousPaintStartTime;
     if (timePaintDelta.ToMilliseconds() > gPanRepaintInterval) {
       RequestContentRepaint();
     }
@@ -815,7 +816,7 @@ bool AsyncPanZoomController::DoFling(const TimeDuration& aDelta) {
     mX.GetDisplacementForDuration(inverseResolution.scale, aDelta),
     mY.GetDisplacementForDuration(inverseResolution.scale, aDelta)
   )));
-  TimeDuration timePaintDelta = mPaintThrottler.TimeSinceLastRequest(GetFrameTime());
+  TimeDuration timePaintDelta = GetFrameTime() - mPreviousPaintStartTime;
   if (timePaintDelta.ToMilliseconds() > gFlingRepaintInterval) {
     RequestContentRepaint();
   }
@@ -985,11 +986,23 @@ void AsyncPanZoomController::ScheduleComposite() {
 }
 
 void AsyncPanZoomController::RequestContentRepaint() {
+  mPreviousPaintStartTime = GetFrameTime();
+
+  double estimatedPaintSum = 0.0;
+  for (uint32_t i = 0; i < mPreviousPaintDurations.Length(); i++) {
+    estimatedPaintSum += mPreviousPaintDurations[i].ToSeconds();
+  }
+
+  double estimatedPaintDuration = 0.0;
+  if (estimatedPaintSum > EPSILON) {
+    estimatedPaintDuration = estimatedPaintSum / mPreviousPaintDurations.Length();
+  }
+
   mFrameMetrics.mDisplayPort =
     CalculatePendingDisplayPort(mFrameMetrics,
                                 GetVelocityVector(),
                                 GetAccelerationVector(),
-                                mPaintThrottler.AverageDuration().ToSeconds());
+                                estimatedPaintDuration);
 
   // If we're trying to paint what we already think is painted, discard this
   // request since it's a pointless paint.
@@ -1029,10 +1042,10 @@ void AsyncPanZoomController::RequestContentRepaint() {
     FROM_HERE,
     NewRunnableMethod(mGeckoContentController.get(),
                       &GeckoContentController::RequestContentRepaint,
-                      mFrameMetrics),
-    GetFrameTime());
+                      mFrameMetrics));
   mFrameMetrics.mPresShellId = mLastContentPaintMetrics.mPresShellId;
   mLastPaintRequestMetrics = mFrameMetrics;
+  mWaitingForContentToPaint = true;
 
   // Set the zoom back to what it was for the purpose of logic control.
   mFrameMetrics.mZoom = actualZoom;
@@ -1166,7 +1179,16 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aViewportFr
   mLastContentPaintMetrics = aViewportFrame;
 
   mFrameMetrics.mMayHaveTouchListeners = aViewportFrame.mMayHaveTouchListeners;
-  if (!mPaintThrottler.IsOutstanding()) {
+  if (mWaitingForContentToPaint) {
+    // Remove the oldest sample we have if adding a new sample takes us over our
+    // desired number of samples.
+    if (mPreviousPaintDurations.Length() >= gNumPaintDurationSamples) {
+      mPreviousPaintDurations.RemoveElementAt(0);
+    }
+
+    mPreviousPaintDurations.AppendElement(
+      GetFrameTime() - mPreviousPaintStartTime);
+  } else {
     // No paint was requested, but we got one anyways. One possible cause of this
     // is that content could have fired a scrollTo(). In this case, we should take
     // the new scroll offset. Document/viewport changes are handled elsewhere.
@@ -1186,7 +1208,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aViewportFr
     }
   }
 
-  mPaintThrottler.TaskComplete(GetFrameTime());
+  mWaitingForContentToPaint = mPaintThrottler.TaskComplete();
   bool needContentRepaint = false;
   if (aViewportFrame.mCompositionBounds.width == mFrameMetrics.mCompositionBounds.width &&
       aViewportFrame.mCompositionBounds.height == mFrameMetrics.mCompositionBounds.height) {
@@ -1199,8 +1221,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aViewportFr
   }
 
   if (aIsFirstPaint || mFrameMetrics.IsDefault()) {
-    mPaintThrottler.ClearHistory();
-    mPaintThrottler.SetMaxDurations(gNumPaintDurationSamples);
+    mPreviousPaintDurations.Clear();
 
     mX.CancelTouch();
     mY.CancelTouch();
@@ -1459,12 +1480,10 @@ static void GetAPZCAtPointOnSubtree(const ContainerLayer& aLayerIn,
     currLayer = currLayer->GetPrevSibling();
   }
 
-  if (aLayer.GetFrameMetrics().IsScrollable()) {
-    const FrameMetrics& frame = aLayer.GetFrameMetrics();
-    LayerRect layerViewport = frame.mViewport * frame.LayersPixelsPerCSSPixel();
-    bool intersect = layerViewport.Contains(layerPoint.x, layerPoint.y);
+  bool intersect = aLayer.GetVisibleRegion().Contains(nsIntRect(layerPoint.x, layerPoint.y, 1, 1));
 
-    if (intersect) {
+  if (intersect) {
+    if (aLayer.GetFrameMetrics().IsScrollable()) {
       *aApzcOut = aLayer.GetAsyncPanZoomController();
       *aRelativePointOut = LayerIntPoint(NS_lround(layerPoint.x), NS_lround(layerPoint.y));
     }

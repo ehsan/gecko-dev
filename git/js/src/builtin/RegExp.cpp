@@ -585,11 +585,13 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, Match
     if (status == RegExpRunStatus_Error)
         return RegExpRunStatus_Error;
 
-    /* Steps 9a and 11 (with sticky extension). */
-    if (status == RegExpRunStatus_Success_NotFound)
-        reobj->zeroLastIndex();
-    else if (re->global() || re->sticky())
-        reobj->setLastIndex(lastIndexInt);
+    /* Step 11 (with sticky extension). */
+    if (re->global() || (status == RegExpRunStatus_Success && re->sticky())) {
+        if (status == RegExpRunStatus_Success_NotFound)
+            reobj->zeroLastIndex();
+        else
+            reobj->setLastIndex(lastIndexInt);
+    }
 
     return status;
 }

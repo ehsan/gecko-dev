@@ -61,6 +61,7 @@ public:
 protected:
   ImageClient(CompositableForwarder* aFwd, CompositableType aType);
 
+  gfxPattern::GraphicsFilter mFilter;
   CompositableType mType;
   int32_t mLastPaintedImageSerial;
   nsIntRect mPictureRect;
@@ -86,14 +87,14 @@ public:
    * Returns true if the texture client was created succesfully,
    * false otherwise.
    */
-  bool EnsureDeprecatedTextureClient(DeprecatedTextureClientType aType);
+  bool EnsureTextureClient(TextureClientType aType);
 
   virtual void Updated();
 
   virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
                                       const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE
   {
-    mDeprecatedTextureClient->SetDescriptorFromReply(aDescriptor);
+    mTextureClient->SetDescriptorFromReply(aDescriptor);
   }
 
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
@@ -102,14 +103,14 @@ public:
   }
 
 private:
-  RefPtr<DeprecatedTextureClient> mDeprecatedTextureClient;
+  RefPtr<TextureClient> mTextureClient;
   TextureInfo mTextureInfo;
 };
 
 /**
  * Image class to be used for async image uploads using the image bridge
  * protocol.
- * We store the ImageBridge id in the DeprecatedTextureClientIdentifier.
+ * We store the ImageBridge id in the TextureClientIdentifier.
  */
 class ImageClientBridge : public ImageClient
 {

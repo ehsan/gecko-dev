@@ -13,12 +13,15 @@
   }
   (function(exports) {
      "use strict";
-     if (exports.OS && exports.OS.Unix && exports.OS.Unix.File) {
-       return; // Avoid double initialization
+     if (!exports.OS) {
+       exports.OS = {};
      }
-
-     exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
-
+     if (!exports.OS.Unix) {
+       exports.OS.Unix = {};
+     }
+     if (exports.OS.Unix.File) {
+       return; // Avoid double-initialization
+     }
      exports.OS.Unix.File = {};
 
      let LOG = exports.OS.Shared.LOG.bind(OS.Shared, "Unix", "back");

@@ -124,14 +124,24 @@ class StringifyContext
         gap(gap),
         replacer(cx, replacer),
         propertyList(propertyList),
-        depth(0)
+        depth(0),
+        objectStack(cx)
     {}
+
+    bool init() {
+        return objectStack.init(16);
+    }
+
+#ifdef DEBUG
+    ~StringifyContext() { JS_ASSERT(objectStack.empty()); }
+#endif
 
     StringBuffer &sb;
     const StringBuffer &gap;
     RootedObject replacer;
     const AutoIdVector &propertyList;
     uint32_t depth;
+    HashSet<JSObject *> objectStack;
 };
 
 static JSBool Str(JSContext *cx, const Value &v, StringifyContext *scx);
@@ -150,6 +160,31 @@ WriteIndent(JSContext *cx, StringifyContext *scx, uint32_t limit)
 
     return JS_TRUE;
 }
+
+class CycleDetector
+{
+  public:
+    CycleDetector(JSContext *cx, StringifyContext *scx, JSObject *obj)
+      : objectStack(scx->objectStack), obj(cx, obj) {
+    }
+
+    bool init(JSContext *cx) {
+        HashSet<JSObject *>::AddPtr ptr = objectStack.lookupForAdd(obj);
+        if (ptr) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CYCLIC_VALUE, js_object_str);
+            return false;
+        }
+        return objectStack.add(ptr, obj);
+    }
+
+    ~CycleDetector() {
+        objectStack.remove(obj);
+    }
+
+  private:
+    HashSet<JSObject *> &objectStack;
+    RootedObject obj;
+};
 
 template<typename KeyType>
 class KeyStringifier {
@@ -278,13 +313,9 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
      */
 
     /* Steps 1-2, 11. */
-    AutoCycleDetector detect(cx, obj);
-    if (!detect.init())
-        return false;
-    if (detect.foundCycle()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CYCLIC_VALUE, js_object_str);
-        return false;
-    }
+    CycleDetector detect(cx, scx, obj);
+    if (!detect.init(cx))
+        return JS_FALSE;
 
     if (!scx->sb.append('{'))
         return JS_FALSE;
@@ -368,13 +399,9 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
      */
 
     /* Steps 1-2, 11. */
-    AutoCycleDetector detect(cx, obj);
-    if (!detect.init())
-        return false;
-    if (detect.foundCycle()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CYCLIC_VALUE, js_object_str);
-        return false;
-    }
+    CycleDetector detect(cx, scx, obj);
+    if (!detect.init(cx))
+        return JS_FALSE;
 
     if (!scx->sb.append('['))
         return JS_FALSE;
@@ -648,6 +675,9 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
 
     /* Step 11. */
     StringifyContext scx(cx, sb, gap, replacer, propertyList);
+    if (!scx.init())
+        return false;
+
     if (!PreprocessValue(cx, wrapper, HandleId(emptyId), vp, &scx))
         return false;
     if (IsFilteredValue(vp))

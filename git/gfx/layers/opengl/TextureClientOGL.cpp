@@ -11,27 +11,27 @@ using namespace mozilla::gl;
 namespace mozilla {
 namespace layers {
 
-DeprecatedTextureClientSharedOGL::DeprecatedTextureClientSharedOGL(CompositableForwarder* aForwarder,
+TextureClientSharedOGL::TextureClientSharedOGL(CompositableForwarder* aForwarder,
                                                const TextureInfo& aTextureInfo)
-  : DeprecatedTextureClient(aForwarder, aTextureInfo)
+  : TextureClient(aForwarder, aTextureInfo)
   , mGL(nullptr)
 {
 }
 
 void
-DeprecatedTextureClientSharedOGL::ReleaseResources()
+TextureClientSharedOGL::ReleaseResources()
 {
   if (!IsSurfaceDescriptorValid(mDescriptor)) {
     return;
   }
   MOZ_ASSERT(mDescriptor.type() == SurfaceDescriptor::TSharedTextureDescriptor);
   mDescriptor = SurfaceDescriptor();
-  // It's important our handle gets released! SharedDeprecatedTextureHostOGL will take
+  // It's important our handle gets released! SharedTextureHostOGL will take
   // care of this for us though.
 }
 
 void
-DeprecatedTextureClientSharedOGL::EnsureAllocated(gfx::IntSize aSize,
+TextureClientSharedOGL::EnsureAllocated(gfx::IntSize aSize,
                                         gfxASurface::gfxContentType aContentType)
 {
   mSize = aSize;

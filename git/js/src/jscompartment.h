@@ -117,7 +117,6 @@ namespace js {
 class AutoDebugModeGC;
 class ArrayBufferObject;
 class DebugScopes;
-class WeakMapBase;
 }
 
 struct JSCompartment

@@ -155,11 +155,7 @@ class SharedContext
 
     // If it's function code, funbox must be non-NULL and scopeChain must be NULL.
     // If it's global code, funbox must be NULL.
-    SharedContext(JSContext *cx, bool strict)
-      : context(cx),
-        anyCxFlags(),
-        strict(strict)
-    {}
+    inline SharedContext(JSContext *cx, bool strict);
 
     virtual ObjectBox *toObjectBox() = 0;
     inline bool isGlobalSharedContext() { return toObjectBox() == NULL; }
@@ -187,21 +183,11 @@ class GlobalSharedContext : public SharedContext
     const RootedObject scopeChain_; /* scope chain object for the script */
 
   public:
-    GlobalSharedContext(JSContext *cx, JSObject *scopeChain, bool strict)
-      : SharedContext(cx, strict),
-        scopeChain_(cx, scopeChain)
-    {}
+    inline GlobalSharedContext(JSContext *cx, JSObject *scopeChain, bool strict);
 
     ObjectBox *toObjectBox() { return NULL; }
     JSObject *scopeChain() const { return scopeChain_; }
 };
-
-inline GlobalSharedContext *
-SharedContext::asGlobalSharedContext()
-{
-    JS_ASSERT(isGlobalSharedContext());
-    return static_cast<GlobalSharedContext*>(this);
-}
 
 class ModuleBox : public ObjectBox, public SharedContext
 {
@@ -213,13 +199,6 @@ class ModuleBox : public ObjectBox, public SharedContext
     ObjectBox *toObjectBox() { return this; }
     Module *module() const { return &object->as<Module>(); }
 };
-
-inline ModuleBox *
-SharedContext::asModuleBox()
-{
-    JS_ASSERT(isModuleBox());
-    return static_cast<ModuleBox*>(this);
-}
 
 class FunctionBox : public ObjectBox, public SharedContext
 {
@@ -385,49 +364,18 @@ struct StmtInfoBase {
 // Push the C-stack-allocated struct at stmt onto the StmtInfoPC stack.
 template <class ContextT>
 void
-PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type)
-{
-    stmt->type = type;
-    stmt->isBlockScope = false;
-    stmt->isForLetBlock = false;
-    stmt->label = NULL;
-    stmt->blockObj = NULL;
-    stmt->down = ct->topStmt;
-    ct->topStmt = stmt;
-    if (stmt->linksScope()) {
-        stmt->downScope = ct->topScopeStmt;
-        ct->topScopeStmt = stmt;
-    } else {
-        stmt->downScope = NULL;
-    }
-}
+PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type);
 
 template <class ContextT>
 void
-FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt, StaticBlockObject &blockObj)
-{
-    stmt->isBlockScope = true;
-    stmt->downScope = ct->topScopeStmt;
-    ct->topScopeStmt = stmt;
-    ct->blockChain = &blockObj;
-    stmt->blockObj = &blockObj;
-}
+FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt, StaticBlockObject &blockObj);
 
 // Pop pc->topStmt. If the top StmtInfoPC struct is not stack-allocated, it
 // is up to the caller to free it.  The dummy argument is just to make the
 // template matching work.
 template <class ContextT>
 void
-FinishPopStatement(ContextT *ct)
-{
-    typename ContextT::StmtInfo *stmt = ct->topStmt;
-    ct->topStmt = stmt->down;
-    if (stmt->linksScope()) {
-        ct->topScopeStmt = stmt->downScope;
-        if (stmt->isBlockScope)
-            ct->blockChain = stmt->blockObj->enclosingBlock();
-    }
-}
+FinishPopStatement(ContextT *ct);
 
 /*
  * Find a lexically scoped variable (one declared by let, catch, or an array

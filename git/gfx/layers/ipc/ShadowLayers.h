@@ -51,7 +51,7 @@ class TiledLayerComposer;
 class Transaction;
 class SurfaceDescriptor;
 class CanvasSurface;
-class DeprecatedTextureClientShmem;
+class TextureClientShmem;
 class ContentClientRemote;
 class CompositableChild;
 class ImageClient;
@@ -135,7 +135,7 @@ class ContentClient;
 class ShadowLayerForwarder : public CompositableForwarder
 {
   friend class AutoOpenSurface;
-  friend class DeprecatedTextureClientShmem;
+  friend class TextureClientShmem;
   friend class ContentClientIncremental;
 
 public:

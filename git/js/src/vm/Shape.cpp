@@ -21,7 +21,6 @@
 #include "jsobjinlines.h"
 
 #include "vm/Shape-inl.h"
-#include "vm/Runtime-inl.h"
 
 using namespace js;
 using namespace js::gc;

@@ -16,25 +16,15 @@ using namespace mozilla::image;
 namespace mozilla {
 namespace image {
 
-FrameBlender::FrameBlender(FrameSequence* aSequenceToUse /* = nullptr */)
- : mFrames(aSequenceToUse)
- , mAnim(nullptr)
-{
-  if (!mFrames) {
-    mFrames = new FrameSequence();
-  }
-}
+FrameBlender::FrameBlender()
+ : mAnim(nullptr)
+{}
 
 FrameBlender::~FrameBlender()
 {
-  delete mAnim;
-}
+  ClearFrames();
 
-already_AddRefed<FrameSequence>
-FrameBlender::GetFrameSequence()
-{
-  nsRefPtr<FrameSequence> seq(mFrames);
-  return seq.forget();
+  delete mAnim;
 }
 
 imgFrame*
@@ -42,11 +32,11 @@ FrameBlender::GetFrame(uint32_t framenum) const
 {
   if (!mAnim) {
     NS_ASSERTION(framenum == 0, "Don't ask for a frame > 0 if we're not animated!");
-    return mFrames->GetFrame(0);
+    return mFrames.SafeElementAt(0, FrameDataPair());
   }
   if (mAnim->lastCompositedFrameIndex == int32_t(framenum))
     return mAnim->compositingFrame;
-  return mFrames->GetFrame(framenum);
+  return mFrames.SafeElementAt(framenum, FrameDataPair());
 }
 
 imgFrame*
@@ -54,60 +44,69 @@ FrameBlender::RawGetFrame(uint32_t framenum) const
 {
   if (!mAnim) {
     NS_ASSERTION(framenum == 0, "Don't ask for a frame > 0 if we're not animated!");
-    return mFrames->GetFrame(0);
+    return mFrames.SafeElementAt(0, FrameDataPair());
   }
 
-  return mFrames->GetFrame(framenum);
+  return mFrames.SafeElementAt(framenum, FrameDataPair());
 }
 
 uint32_t
 FrameBlender::GetNumFrames() const
 {
-  return mFrames->GetNumFrames();
+  return mFrames.Length();
 }
 
 void
 FrameBlender::RemoveFrame(uint32_t framenum)
 {
-  NS_ABORT_IF_FALSE(framenum < GetNumFrames(), "Deleting invalid frame!");
+  NS_ABORT_IF_FALSE(framenum < mFrames.Length(), "Deleting invalid frame!");
 
-  mFrames->RemoveFrame(framenum);
+  mFrames.RemoveElementAt(framenum);
 }
 
 void
 FrameBlender::ClearFrames()
 {
-  // Forget our old frame sequence, letting whoever else has it deal with it.
-  mFrames = new FrameSequence();
+  // Since FrameDataPair holds an nsAutoPtr to its frame, clearing the mFrames
+  // array also deletes all the frames.
+  mFrames.Clear();
 }
 
 void
 FrameBlender::InsertFrame(uint32_t framenum, imgFrame* aFrame)
 {
-  NS_ABORT_IF_FALSE(framenum <= GetNumFrames(), "Inserting invalid frame!");
-  mFrames->InsertFrame(framenum, aFrame);
+  NS_ABORT_IF_FALSE(framenum <= mFrames.Length(), "Inserting invalid frame!");
+  mFrames.InsertElementAt(framenum, aFrame);
   if (GetNumFrames() > 1) {
     EnsureAnimExists();
+
+    // Whenever we have more than one frame, we always lock *all* our frames
+    // so we have all the image data pointers.
+    mFrames[framenum].LockAndGetData();
   }
 }
 
 imgFrame*
 FrameBlender::SwapFrame(uint32_t framenum, imgFrame* aFrame)
 {
-  NS_ABORT_IF_FALSE(framenum < GetNumFrames(), "Swapping invalid frame!");
+  NS_ABORT_IF_FALSE(framenum < mFrames.Length(), "Swapping invalid frame!");
 
-  imgFrame* ret;
+  FrameDataPair ret;
 
   // Steal the imgFrame from wherever it's currently stored
   if (mAnim && mAnim->lastCompositedFrameIndex == int32_t(framenum)) {
-    ret = mAnim->compositingFrame.Forget();
+    ret = mAnim->compositingFrame;
     mAnim->lastCompositedFrameIndex = -1;
-    nsAutoPtr<imgFrame> toDelete(mFrames->SwapFrame(framenum, aFrame));
-  } else {
-    ret = mFrames->SwapFrame(framenum, aFrame);
+  } else if (framenum < mFrames.Length()) {
+    ret = mFrames[framenum];
   }
 
-  return ret;
+  mFrames.RemoveElementAt(framenum);
+  if (aFrame) {
+    InsertFrame(framenum, aFrame);
+  }
+
+  return ret.Forget();
 }
 
 void
@@ -119,7 +118,11 @@ FrameBlender::EnsureAnimExists()
 
     // We should only get into this code path directly after we've created our
     // second frame (hence we know we're animated).
-    MOZ_ASSERT(GetNumFrames() == 2);
+    MOZ_ASSERT(mFrames.Length() == 2);
+
+    // Whenever we have more than one frame, we always lock *all* our frames
+    // so we have all the image data pointers.
+    mFrames[0].LockAndGetData();
   }
 }
 
@@ -135,8 +138,8 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
     return false;
   }
 
-  const FrameDataPair& prevFrame = mFrames->GetFrame(aPrevFrameIndex);
-  const FrameDataPair& nextFrame = mFrames->GetFrame(aNextFrameIndex);
+  const FrameDataPair& prevFrame = mFrames[aPrevFrameIndex];
+  const FrameDataPair& nextFrame = mFrames[aNextFrameIndex];
   if (!prevFrame.HasFrameData() || !nextFrame.HasFrameData()) {
     return false;
   }
@@ -421,7 +424,7 @@ FrameBlender::ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect, const
   }
 
   uint32_t bytesPerRow = aFrameRect.width * 4;
-  for (int row = toClear.y; row < toClear.y + toClear.height; ++row) {
+  for (int row = toClear.y; row < toClear.height; ++row) {
     memset(aFrameData + toClear.x * 4 + row * bytesPerRow, 0, toClear.width * 4);
   }
 }
@@ -552,7 +555,12 @@ size_t
 FrameBlender::SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
                                                       MallocSizeOf aMallocSizeOf) const
 {
-  size_t n = mFrames->SizeOfDecodedWithComputedFallbackIfHeap(aLocation, aMallocSizeOf);
+  size_t n = 0;
+  for (uint32_t i = 0; i < mFrames.Length(); ++i) {
+    imgFrame* frame = mFrames.SafeElementAt(i, FrameDataPair());
+    NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
+    n += frame->SizeOfExcludingThisWithComputedFallbackIfHeap(aLocation, aMallocSizeOf);
+  }
 
   if (mAnim) {
     if (mAnim->compositingFrame) {

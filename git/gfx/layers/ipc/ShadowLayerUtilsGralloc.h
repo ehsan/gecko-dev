@@ -87,7 +87,7 @@ public:
 
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
-  void SetDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
+  void SetTextureHost(TextureHost* aTextureHost);
 
 private:
   GrallocBufferActor();
@@ -102,7 +102,7 @@ private:
 
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
-  DeprecatedTextureHost* mDeprecatedTextureHost;
+  TextureHost* mTextureHost;
 
   friend class ISurfaceAllocator;
 };

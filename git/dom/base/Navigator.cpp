@@ -159,14 +159,15 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(Navigator)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Navigator)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Navigator)
+  // mMimeTypes isn't cycle collected
   tmp->Invalidate();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlugins)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMimeTypes)
+  // mMimeTypes isn't cycle collected
+  // mPlugins isn't cycle collected
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGeolocation)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotification)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBatteryManager)
@@ -210,8 +211,6 @@ Navigator::Invalidate()
     mPlugins->Invalidate();
     mPlugins = nullptr;
   }
-
-  mMimeTypes = nullptr;
 
   // If there is a page transition, make sure delete the geolocation object.
   if (mGeolocation) {
@@ -483,12 +482,11 @@ Navigator::GetProductSub(nsAString& aProductSub)
 }
 
 NS_IMETHODIMP
-Navigator::GetMimeTypes(nsISupports** aMimeTypes)
+Navigator::GetMimeTypes(nsIDOMMimeTypeArray** aMimeTypes)
 {
   if (!mMimeTypes) {
     NS_ENSURE_STATE(mWindow);
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mMimeTypes = new nsMimeTypeArray(win);
+    mMimeTypes = new nsMimeTypeArray(this);
   }
 
   NS_ADDREF(*aMimeTypes = mMimeTypes);
@@ -497,16 +495,16 @@ Navigator::GetMimeTypes(nsISupports** aMimeTypes)
 }
 
 NS_IMETHODIMP
-Navigator::GetPlugins(nsISupports** aPlugins)
+Navigator::GetPlugins(nsIDOMPluginArray** aPlugins)
 {
   if (!mPlugins) {
     NS_ENSURE_STATE(mWindow);
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mPlugins = new nsPluginArray(win);
+
+    mPlugins = new nsPluginArray(this, mWindow->GetDocShell());
     mPlugins->Init();
   }
 
-  NS_ADDREF(*aPlugins = static_cast<nsIObserver*>(mPlugins.get()));
+  NS_ADDREF(*aPlugins = mPlugins);
 
   return NS_OK;
 }
@@ -620,16 +618,31 @@ Navigator::JavaEnabled(bool* aReturn)
 
   if (!mMimeTypes) {
     NS_ENSURE_STATE(mWindow);
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mMimeTypes = new nsMimeTypeArray(win);
+    mMimeTypes = new nsMimeTypeArray(this);
   }
 
   RefreshMIMEArray();
 
-  nsMimeType *mimeType =
-    mMimeTypes->NamedItem(NS_LITERAL_STRING("application/x-java-vm"));
+  uint32_t count;
+  mMimeTypes->GetLength(&count);
+  for (uint32_t i = 0; i < count; i++) {
+    nsresult rv;
+    nsIDOMMimeType* type = mMimeTypes->GetItemAt(i, &rv);
 
-  *aReturn = mimeType && mimeType->GetEnabledPlugin();
+    if (NS_FAILED(rv) || !type) {
+      continue;
+    }
+
+    nsAutoString mimeString;
+    if (NS_FAILED(type->GetType(mimeString))) {
+      continue;
+    }
+
+    if (mimeString.EqualsLiteral("application/x-java-vm")) {
+      *aReturn = true;
+      break;
+    }
+  }
 
   return NS_OK;
 }

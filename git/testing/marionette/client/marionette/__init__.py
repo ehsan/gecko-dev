@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from gestures import *
-from by import By
 from marionette import Marionette, HTMLElement, Actions, MultiActions
 from marionette_test import MarionetteTestCase, CommonTestCase, expectedFailure, skip, SkipTest
 from emulator import Emulator

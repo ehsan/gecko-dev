@@ -23,41 +23,41 @@ public:
   // essentially, this is a sentinel used to represent an invalid or blank
   // tile.
   TiledTexture()
-    : mDeprecatedTextureHost(nullptr)
+    : mTextureHost(nullptr)
   {}
 
-  // Constructs a TiledTexture from a DeprecatedTextureHost.
-  TiledTexture(DeprecatedTextureHost* aDeprecatedTextureHost)
-    : mDeprecatedTextureHost(aDeprecatedTextureHost)
+  // Constructs a TiledTexture from a TextureHost.
+  TiledTexture(TextureHost* aTextureHost)
+    : mTextureHost(aTextureHost)
   {}
 
   TiledTexture(const TiledTexture& o) {
-    mDeprecatedTextureHost = o.mDeprecatedTextureHost;
+    mTextureHost = o.mTextureHost;
   }
   TiledTexture& operator=(const TiledTexture& o) {
     if (this == &o) {
       return *this;
     }
-    mDeprecatedTextureHost = o.mDeprecatedTextureHost;
+    mTextureHost = o.mTextureHost;
     return *this;
   }
 
   void Validate(gfxReusableSurfaceWrapper* aReusableSurface, Compositor* aCompositor, uint16_t aSize);
 
   bool operator== (const TiledTexture& o) const {
-    if (!mDeprecatedTextureHost || !o.mDeprecatedTextureHost) {
-      return mDeprecatedTextureHost == o.mDeprecatedTextureHost;
+    if (!mTextureHost || !o.mTextureHost) {
+      return mTextureHost == o.mTextureHost;
     }
-    return *mDeprecatedTextureHost == *o.mDeprecatedTextureHost;
+    return *mTextureHost == *o.mTextureHost;
   }
   bool operator!= (const TiledTexture& o) const {
-    if (!mDeprecatedTextureHost || !o.mDeprecatedTextureHost) {
-      return mDeprecatedTextureHost != o.mDeprecatedTextureHost;
+    if (!mTextureHost || !o.mTextureHost) {
+      return mTextureHost != o.mTextureHost;
     }
-    return *mDeprecatedTextureHost != *o.mDeprecatedTextureHost;
+    return *mTextureHost != *o.mTextureHost;
   }
 
-  RefPtr<DeprecatedTextureHost> mDeprecatedTextureHost;
+  RefPtr<TextureHost> mTextureHost;
 };
 
 class TiledLayerBufferComposite
@@ -185,7 +185,7 @@ public:
 
   virtual TiledLayerComposer* AsTiledLayerComposer() MOZ_OVERRIDE { return this; }
 
-  virtual void EnsureDeprecatedTextureHost(TextureIdentifier aTextureId,
+  virtual void EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
                                  const TextureInfo& aTextureInfo) MOZ_OVERRIDE

@@ -19,8 +19,6 @@
 #include "base/scoped_ptr.h"
 #include "base/win_util.h"
 
-#include <algorithm>
-
 namespace {
 
 // System pagesize. This value remains constant on x86/64 architectures.

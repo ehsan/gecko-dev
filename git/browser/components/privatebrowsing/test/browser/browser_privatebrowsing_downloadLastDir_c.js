@@ -50,6 +50,8 @@ function test() {
     whenNewWindowLoaded({private: aPrivate}, function(win) {
       let gDownloadLastDir = new DownloadLastDir(win);
       aCallback(win, gDownloadLastDir);
+      gDownloadLastDir.cleanupPrivateFile();
+      win.close();
     });
   }
 
@@ -75,8 +77,6 @@ function test() {
       is(gDownloadLastDir.file.path, aGlobalLastDir.path,
          "gDownloadLastDir should be the expected global last dir");
 
-      gDownloadLastDir.cleanupPrivateFile();
-      aWin.close();
       aCallback();
     });
   }

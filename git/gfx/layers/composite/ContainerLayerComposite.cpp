@@ -109,8 +109,7 @@ ContainerRender(ContainerT* aContainer,
   for (uint32_t i = 0; i < children.Length(); i++) {
     LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
 
-    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty() &&
-        !layerToRender->GetLayer()->AsContainerLayer()) {
+    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
       continue;
     }
 
@@ -155,9 +154,7 @@ ContainerRender(ContainerT* aContainer,
     gfx::Matrix4x4 transform;
     ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
 
-    const FrameMetrics& frame = aContainer->GetFrameMetrics();
-    LayerRect layerViewport = frame.mViewport * frame.LayersPixelsPerCSSPixel();
-    gfx::Rect rect(layerViewport.x, layerViewport.y, layerViewport.width, layerViewport.height);
+    gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
     gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
     aManager->GetCompositor()->DrawDiagnostics(gfx::Color(1.0, 0.0, 0.0, 1.0),
                                                rect, clipRect,

@@ -7,9 +7,6 @@
 #ifndef frontend_SyntaxParseHandler_h
 #define frontend_SyntaxParseHandler_h
 
-#include "frontend/ParseNode.h"
-#include "frontend/TokenStream.h"
-
 namespace js {
 namespace frontend {
 
