@@ -9,7 +9,6 @@ import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.util.HardwareUtils;
 
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Build;
 import android.view.Gravity;
@@ -33,26 +32,21 @@ public class ArrowPopup extends PopupWindow {
     protected LinearLayout mContent;
     protected boolean mInflated;
 
-    public ArrowPopup(GeckoApp aActivity) {
-        this(aActivity, null);
-    }
-
-    public ArrowPopup(GeckoApp activity, View anchor) {
-        super(activity);
-        mActivity = activity;
-        mAnchor = anchor;
+    public ArrowPopup(GeckoApp aActivity, View aAnchor) {
+        super(aActivity);
+        mActivity = aActivity;
+        mAnchor = aAnchor;
 
         mInflated = false;
 
-        final Resources res = activity.getResources();
-        mArrowWidth = res.getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
-        mYOffset = res.getDimensionPixelSize(R.dimen.menu_popup_offset);
+        mArrowWidth = aActivity.getResources().getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
+        mYOffset = aActivity.getResources().getDimensionPixelSize(R.dimen.menu_popup_offset);
 
         setAnimationStyle(R.style.PopupAnimation);
     }
 
-    public void setAnchor(View anchor) {
-        mAnchor = anchor;
+    public void setAnchor(View aAnchor) {
+        mAnchor = aAnchor;
     }
 
     protected void init() {

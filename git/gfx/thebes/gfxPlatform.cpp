@@ -719,14 +719,6 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
     return nullptr;
   }
 
-  if (!aTarget) {
-    if (ScreenReferenceDrawTarget()) {
-      aTarget = ScreenReferenceDrawTarget();
-    } else {
-      return nullptr;
-    }
-  }
-
   void *userData = aSurface->GetData(&kSourceSurface);
 
   if (userData) {

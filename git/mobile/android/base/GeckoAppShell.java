@@ -2089,7 +2089,6 @@ public class GeckoAppShell
         return pluginCL.loadClass(className);
     }
 
-    @WrapElementForJNI(allowMultithread = true)
     public static Class<?> loadPluginClass(String className, String libName) {
         if (getGeckoInterface() == null)
             return null;

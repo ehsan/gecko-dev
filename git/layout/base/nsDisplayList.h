@@ -3037,7 +3037,7 @@ public:
     FrameTransformProperties(const nsIFrame* aFrame,
                              float aAppUnitsPerPixel,
                              const nsRect* aBoundsOverride);
-    FrameTransformProperties(nsCSSValueSharedList* aTransformList,
+    FrameTransformProperties(const nsCSSValueList* aTransformList,
                              const gfxPoint3D& aToTransformOrigin,
                              const gfxPoint3D& aToPerspectiveOrigin,
                              nscoord aChildPerspective)
@@ -3049,7 +3049,7 @@ public:
     {}
 
     const nsIFrame* mFrame;
-    nsRefPtr<nsCSSValueSharedList> mTransformList;
+    const nsCSSValueList* mTransformList;
     const gfxPoint3D mToTransformOrigin;
     const gfxPoint3D mToPerspectiveOrigin;
     nscoord mChildPerspective;

@@ -35,6 +35,7 @@
 #include "nsRenderingContext.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCSSRendering.h"
+#include "nsCxPusher.h"
 #include "nsThemeConstants.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -71,7 +72,6 @@
 #include "ImageContainer.h"
 #include "nsComputedDOMStyle.h"
 #include "ActiveLayerTracker.h"
-#include "mozilla/gfx/2D.h"
 
 #include "mozilla/Preferences.h"
 
@@ -89,7 +89,6 @@ using namespace mozilla::css;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
-using namespace mozilla::gfx;
 
 using mozilla::image::Angle;
 using mozilla::image::Flip;
@@ -114,7 +113,6 @@ typedef FrameMetrics::ViewID ViewID;
 /* static */ bool nsLayoutUtils::sFontSizeInflationForceEnabled;
 /* static */ bool nsLayoutUtils::sFontSizeInflationDisabledInMasterProcess;
 /* static */ bool nsLayoutUtils::sInvalidationDebuggingIsEnabled;
-/* static */ bool nsLayoutUtils::sCSSVariablesEnabled;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
 
@@ -230,8 +228,8 @@ nsLayoutUtils::HasAnimationsForCompositor(nsIContent* aContent,
 }
 
 template <class AnimationsOrTransitions>
-AnimationsOrTransitions*
-mozilla::HasAnimationOrTransition(nsIContent* aContent,
+static AnimationsOrTransitions*
+HasAnimationOrTransition(nsIContent* aContent,
                          nsIAtom* aAnimationProperty,
                          nsCSSProperty aProperty)
 {
@@ -246,17 +244,6 @@ mozilla::HasAnimationOrTransition(nsIContent* aContent,
 
   return nullptr;
 }
-
-template ElementAnimations*
-mozilla::HasAnimationOrTransition<ElementAnimations>(nsIContent* aContent,
-                         nsIAtom* aAnimationProperty,
-                         nsCSSProperty aProperty);
-
-template ElementTransitions*
-mozilla::HasAnimationOrTransition<ElementTransitions>(nsIContent* aContent,
-                         nsIAtom* aAnimationProperty,
-                         nsCSSProperty aProperty);
-
 
 bool
 nsLayoutUtils::HasAnimations(nsIContent* aContent,
@@ -283,10 +270,8 @@ GetScaleForValue(const nsStyleAnimation::Value& aValue,
     return gfxSize();
   }
 
-  nsCSSValueSharedList* list = aValue.GetCSSValueSharedListValue();
-  MOZ_ASSERT(list->mHead);
-
-  if (list->mHead->mValue.GetUnit() == eCSSUnit_None) {
+  nsCSSValueList* values = aValue.GetCSSValueListValue();
+  if (values->mValue.GetUnit() == eCSSUnit_None) {
     // There is an animation, but no actual transform yet.
     return gfxSize();
   }
@@ -294,7 +279,7 @@ GetScaleForValue(const nsStyleAnimation::Value& aValue,
   nsRect frameBounds = aFrame->GetRect();
   bool dontCare;
   gfx3DMatrix transform = nsStyleTransformMatrix::ReadTransforms(
-                            list->mHead,
+                            aValue.GetCSSValueListValue(),
                             aFrame->StyleContext(),
                             aFrame->PresContext(), dontCare, frameBounds,
                             aFrame->PresContext()->AppUnitsPerDevPixel());
@@ -4772,16 +4757,25 @@ nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
 
 nsLayoutUtils::SurfaceFromElementResult
 nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
-                                  uint32_t aSurfaceFlags,
-                                  DrawTarget* aTarget)
+                                  uint32_t aSurfaceFlags)
 {
   SurfaceFromElementResult result;
   nsresult rv;
 
+  bool forceCopy = (aSurfaceFlags & SFE_WANT_NEW_SURFACE) != 0;
   bool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
-  if (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) {
+  bool premultAlpha = (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) == 0;
+
+  if (!premultAlpha) {
+    forceCopy = true;
     wantImageSurface = true;
   }
+
+  // Push a null JSContext on the stack so that code that runs within
+  // the below code doesn't think it's being called by JS. See bug
+  // 604262.
+  nsCxPusher pusher;
+  pusher.PushNull();
 
   nsCOMPtr<imgIRequest> imgRequest;
   rv = aElement->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
@@ -4830,23 +4824,24 @@ nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
   if (NS_FAILED(rv) || NS_FAILED(rv2))
     return result;
 
+  if (wantImageSurface && framesurf->GetType() != gfxSurfaceTypeImage) {
+    forceCopy = true;
+  }
+
   nsRefPtr<gfxASurface> gfxsurf = framesurf;
-  if (wantImageSurface) {
-    IntSize size(imgWidth, imgHeight);
-    RefPtr<DataSourceSurface> output = Factory::CreateDataSourceSurface(size, FORMAT_B8G8R8A8);
-    RefPtr<DrawTarget> dt = Factory::CreateDrawTargetForData(BACKEND_CAIRO,
-                                                             output->GetData(),
-                                                             size,
-                                                             output->Stride(),
-                                                             FORMAT_B8G8R8A8);
-    RefPtr<SourceSurface> source = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, gfxsurf);
+  if (forceCopy) {
+    if (wantImageSurface) {
+      gfxsurf = new gfxImageSurface (gfxIntSize(imgWidth, imgHeight), gfxImageFormatARGB32);
+    } else {
+      gfxsurf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(imgWidth, imgHeight),
+                                                                   GFX_CONTENT_COLOR_ALPHA);
+    }
 
-    dt->CopySurface(source, IntRect(0, 0, imgWidth, imgHeight), IntPoint());
-    dt->Flush();
+    nsRefPtr<gfxContext> ctx = new gfxContext(gfxsurf);
 
-    result.mSourceSurface = output;
-  } else {
-    result.mSourceSurface = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTarget, gfxsurf);
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx->SetSource(framesurf);
+    ctx->Paint();
   }
 
   int32_t corsmode;
@@ -4854,6 +4849,7 @@ nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
     result.mCORSUsed = (corsmode != imgIRequest::CORS_NONE);
   }
 
+  result.mSurface = gfxsurf;
   result.mSize = gfxIntSize(imgWidth, imgHeight);
   result.mPrincipal = principal.forget();
   // no images, including SVG images, can load content from another domain.
@@ -4865,72 +4861,66 @@ nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
 
 nsLayoutUtils::SurfaceFromElementResult
 nsLayoutUtils::SurfaceFromElement(HTMLImageElement *aElement,
-                                  uint32_t aSurfaceFlags,
-                                  DrawTarget* aTarget)
+                                  uint32_t aSurfaceFlags)
 {
   return SurfaceFromElement(static_cast<nsIImageLoadingContent*>(aElement),
-                            aSurfaceFlags, aTarget);
+                            aSurfaceFlags);
 }
 
 nsLayoutUtils::SurfaceFromElementResult
 nsLayoutUtils::SurfaceFromElement(HTMLCanvasElement* aElement,
-                                  uint32_t aSurfaceFlags,
-                                  DrawTarget* aTarget)
+                                  uint32_t aSurfaceFlags)
 {
   SurfaceFromElementResult result;
   nsresult rv;
 
+  bool forceCopy = (aSurfaceFlags & SFE_WANT_NEW_SURFACE) != 0;
+  bool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
   bool premultAlpha = (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) == 0;
+
+  if (!premultAlpha) {
+    forceCopy = true;
+    wantImageSurface = true;
+  }
 
   gfxIntSize size = aElement->GetSize();
 
-  if (premultAlpha && aElement->CountContexts() == 1) {
+  nsRefPtr<gfxASurface> surf;
+
+  if (!forceCopy && aElement->CountContexts() == 1) {
     nsICanvasRenderingContextInternal *srcCanvas = aElement->GetContextAtIndex(0);
-    result.mSourceSurface = srcCanvas->GetSurfaceSnapshot();
+    rv = srcCanvas->GetThebesSurface(getter_AddRefs(surf));
+
+    if (NS_FAILED(rv))
+      surf = nullptr;
   }
 
-  if (!result.mSourceSurface) {
-    nsRefPtr<gfxContext> ctx;
-    RefPtr<DrawTarget> dt;
-    if (premultAlpha) {
-      if (aTarget) {
-        dt = aTarget->CreateSimilarDrawTarget(IntSize(size.width, size.height), FORMAT_B8G8R8A8);
-      } else {
-        dt = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(size.width, size.height),
-                                                                          FORMAT_B8G8R8A8);
-      }
-      if (!dt) {
-        return result;
-      }
-      ctx = new gfxContext(dt);
+  if (surf && wantImageSurface && surf->GetType() != gfxSurfaceTypeImage)
+    surf = nullptr;
+
+  if (!surf) {
+    if (wantImageSurface) {
+      surf = new gfxImageSurface(size, gfxImageFormatARGB32);
     } else {
-      // TODO: RenderContextsExternal expects to get a gfxImageFormat
-      // so that it can un-premultiply.
-      RefPtr<DataSourceSurface> data = Factory::CreateDataSourceSurface(IntSize(size.width, size.height),
-                                                                        FORMAT_B8G8R8A8);
-      memset(data->GetData(), 0, data->Stride() * size.height);
-      result.mSourceSurface = data;
-      nsRefPtr<gfxImageSurface> image = new gfxImageSurface(data->GetData(),
-                                                            gfxIntSize(size.width, size.height),
-                                                            data->Stride(),
-                                                            gfxImageFormatARGB32);
-      ctx = new gfxContext(image);
+      surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, GFX_CONTENT_COLOR_ALPHA);
     }
+
+    if (!surf)
+      return result;
+
+    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     // XXX shouldn't use the external interface, but maybe we can layerify this
     uint32_t flags = premultAlpha ? HTMLCanvasElement::RenderFlagPremultAlpha : 0;
     rv = aElement->RenderContextsExternal(ctx, GraphicsFilter::FILTER_NEAREST, flags);
     if (NS_FAILED(rv))
       return result;
-
-    if (premultAlpha) {
-      result.mSourceSurface = dt->Snapshot();
-    }
   }
 
   // Ensure that any future changes to the canvas trigger proper invalidation,
   // in case this is being used by -moz-element()
   aElement->MarkContextClean();
 
+  result.mSurface = surf;
   result.mSize = size;
   result.mPrincipal = aElement->NodePrincipal();
   result.mIsWriteOnly = aElement->IsWriteOnly();
@@ -4940,12 +4930,16 @@ nsLayoutUtils::SurfaceFromElement(HTMLCanvasElement* aElement,
 
 nsLayoutUtils::SurfaceFromElementResult
 nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
-                                  uint32_t aSurfaceFlags,
-                                  DrawTarget* aTarget)
+                                  uint32_t aSurfaceFlags)
 {
   SurfaceFromElementResult result;
 
-  NS_WARN_IF_FALSE((aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) == 0, "We can't support non-premultiplied alpha for video!");
+  bool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
+  bool premultAlpha = (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) == 0;
+
+  if (!premultAlpha) {
+    wantImageSurface = true;
+  }
 
   uint16_t readyState;
   if (NS_SUCCEEDED(aElement->GetReadyState(&readyState)) &&
@@ -4969,8 +4963,18 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
   if (!surf)
     return result;
 
-  result.mSourceSurface = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTarget, surf);
+  if (wantImageSurface && surf->GetType() != gfxSurfaceTypeImage) {
+    nsRefPtr<gfxImageSurface> imgSurf =
+      new gfxImageSurface(size, gfxImageFormatARGB32);
+
+    nsRefPtr<gfxContext> ctx = new gfxContext(imgSurf);
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx->DrawSurface(surf, size);
+    surf = imgSurf;
+  }
+
   result.mCORSUsed = aElement->GetCORSMode() != CORS_NONE;
+  result.mSurface = surf;
   result.mSize = size;
   result.mPrincipal = principal.forget();
   result.mIsWriteOnly = false;
@@ -4980,19 +4984,18 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
 
 nsLayoutUtils::SurfaceFromElementResult
 nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
-                                  uint32_t aSurfaceFlags,
-                                  DrawTarget* aTarget)
+                                  uint32_t aSurfaceFlags)
 {
   // If it's a <canvas>, we may be able to just grab its internal surface
   if (HTMLCanvasElement* canvas =
         HTMLCanvasElement::FromContentOrNull(aElement)) {
-    return SurfaceFromElement(canvas, aSurfaceFlags, aTarget);
+    return SurfaceFromElement(canvas, aSurfaceFlags);
   }
 
   // Maybe it's <video>?
   if (HTMLVideoElement* video =
         HTMLVideoElement::FromContentOrNull(aElement)) {
-    return SurfaceFromElement(video, aSurfaceFlags, aTarget);
+    return SurfaceFromElement(video, aSurfaceFlags);
   }
 
   // Finally, check if it's a normal image
@@ -5002,7 +5005,7 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
     return SurfaceFromElementResult();
   }
 
-  return SurfaceFromElement(imageLoader, aSurfaceFlags, aTarget);
+  return SurfaceFromElement(imageLoader, aSurfaceFlags);
 }
 
 /* static */
@@ -5229,8 +5232,6 @@ nsLayoutUtils::Initialize()
                                "font.size.inflation.disabledInMasterProcess");
   Preferences::AddBoolVarCache(&sInvalidationDebuggingIsEnabled,
                                "nglayout.debug.invalidation");
-  Preferences::AddBoolVarCache(&sCSSVariablesEnabled,
-                               "layout.css.variables.enabled");
 
   Preferences::RegisterCallback(StickyEnabledPrefChangeCallback,
                                 STICKY_ENABLED_PREF_NAME);

@@ -726,9 +726,7 @@ LayerManagerComposite::AutoAddMaskEffect::AutoAddMaskEffect(Layer* aMaskLayer,
 
   gfx::Matrix4x4 transform;
   ToMatrix4x4(aMaskLayer->GetEffectiveTransform(), transform);
-  if (!mCompositable->AddMaskEffect(aEffects, transform, aIs3D)) {
-    mCompositable = nullptr;
-  }
+  mCompositable->AddMaskEffect(aEffects, transform, aIs3D);
 }
 
 LayerManagerComposite::AutoAddMaskEffect::~AutoAddMaskEffect()
