@@ -175,7 +175,7 @@ NS_IMETHODIMP nsAutoConfig::Notify(nsITimer *timer)
 
 NS_IMETHODIMP nsAutoConfig::Observe(nsISupports *aSubject, 
                                     const char *aTopic, 
-                                    const char16_t *someData)
+                                    const PRUnichar *someData)
 {
     nsresult rv = NS_OK;
     if (!nsCRT::strcmp(aTopic, "profile-after-change")) {
@@ -208,7 +208,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
     // in the previous read, we need to remove it when timer kicks in and 
     // downloads the autoconfig file again. 
     // If necessary, the email address will be added again as an argument.
-    int32_t index = mConfigURL.RFindChar((char16_t)'?');
+    int32_t index = mConfigURL.RFindChar((PRUnichar)'?');
     if (index != -1)
         mConfigURL.Truncate(index);
 

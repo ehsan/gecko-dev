@@ -859,7 +859,7 @@ Service::BackupDatabaseFile(nsIFile *aDBFile,
 //// nsIObserver
 
 NS_IMETHODIMP
-Service::Observe(nsISupports *, const char *aTopic, const char16_t *)
+Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
 {
   if (strcmp(aTopic, "xpcom-shutdown") == 0)
     shutdown();

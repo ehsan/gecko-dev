@@ -1665,7 +1665,7 @@ nsMenuPopupFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent, bool& doAction
     return nullptr;
   }
   else {
-    char16_t uniChar = ToLowerCase(static_cast<char16_t>(charCode));
+    PRUnichar uniChar = ToLowerCase(static_cast<PRUnichar>(charCode));
     if (isMenu || // Menu supports only first-letter navigation
         keyTime - lastKeyTime > INC_TYP_INTERVAL) // Interval too long, treat as new typing
       mIncrementalString = uniChar;

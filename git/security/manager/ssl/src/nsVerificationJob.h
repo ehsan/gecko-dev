@@ -44,7 +44,7 @@ private:
   nsresult mRV;
   uint32_t mVerified;
   uint32_t mCount;
-  char16_t **mUsages;
+  PRUnichar **mUsages;
 
 friend class nsCertVerificationJob;
 };

@@ -245,7 +245,6 @@ js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &optio
     JS::CompartmentOptions compartmentOptions(cx->compartment()->options());
     compartmentOptions.setZone(JS::FreshZone);
     compartmentOptions.setInvisibleToDebugger(true);
-    compartmentOptions.setMergeable(true);
 
     JSObject *global = JS_NewGlobalObject(cx, &workerGlobalClass, nullptr,
                                           JS::FireOnNewGlobalHook, compartmentOptions);

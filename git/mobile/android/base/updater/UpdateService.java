@@ -76,7 +76,6 @@ public class UpdateService extends IntentService {
     private Builder mBuilder;
 
     private boolean mDownloading;
-    private boolean mCancelDownload;
     private boolean mApplyImmediately;
 
     public UpdateService() {
@@ -86,11 +85,10 @@ public class UpdateService extends IntentService {
     @Override
     public void onCreate () {
         super.onCreate();
-
+        
         mPrefs = getSharedPreferences(PREFS_NAME, 0);
         mNotificationManager = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
         mConnectivityManager = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
-        mCancelDownload = false;
     }
 
     @Override
@@ -103,8 +101,6 @@ public class UpdateService extends IntentService {
 
             mApplyImmediately = true;
             showDownloadNotification();
-        } else if (UpdateServiceHelper.ACTION_CANCEL_DOWNLOAD.equals(intent.getAction())) {
-            mCancelDownload = true;
         } else {
             super.onStartCommand(intent, flags, startId);
         }
@@ -207,7 +203,7 @@ public class UpdateService extends IntentService {
         }
 
         Log.i(LOGTAG, "update available, buildID = " + info.buildID);
-
+        
         int connectionType = netInfo.getType();
         int autoDownloadPolicy = getAutoDownloadPolicy();
 
@@ -378,21 +374,16 @@ public class UpdateService extends IntentService {
         Intent notificationIntent = new Intent(UpdateServiceHelper.ACTION_APPLY_UPDATE);
         notificationIntent.setClass(this, UpdateService.class);
 
-        Intent cancelIntent = new Intent(UpdateServiceHelper.ACTION_CANCEL_DOWNLOAD);
-        cancelIntent.setClass(this, UpdateService.class);
-
         if (downloadFile != null)
             notificationIntent.putExtra(UpdateServiceHelper.EXTRA_PACKAGE_PATH_NAME, downloadFile.getAbsolutePath());
 
         PendingIntent contentIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-        PendingIntent deleteIntent = PendingIntent.getService(this, 0, cancelIntent, PendingIntent.FLAG_CANCEL_CURRENT);
 
         mBuilder = new NotificationCompat.Builder(this);
         mBuilder.setContentTitle(getResources().getString(R.string.updater_downloading_title))
     	    .setContentText(mApplyImmediately ? "" : getResources().getString(R.string.updater_downloading_select))
     	    .setSmallIcon(android.R.drawable.stat_sys_download)
-    	    .setContentIntent(contentIntent)
-            .setDeleteIntent(deleteIntent);
+    	    .setContentIntent(contentIntent);
 
         mBuilder.setProgress(100, 0, true);
         mNotificationManager.notify(NOTIFICATION_ID, mBuilder.build());
@@ -409,7 +400,7 @@ public class UpdateService extends IntentService {
         notification.setLatestEventInfo(this, getResources().getString(R.string.updater_downloading_title_failed),
                                         getResources().getString(R.string.updater_downloading_retry),
                                         contentIntent);
-
+        
         mNotificationManager.notify(NOTIFICATION_ID, notification);
     }
 
@@ -437,7 +428,6 @@ public class UpdateService extends IntentService {
         InputStream input = null;
 
         mDownloading = true;
-        mCancelDownload = false;
         showDownloadNotification(downloadFile);
 
         try {
@@ -453,7 +443,7 @@ public class UpdateService extends IntentService {
             int bytesRead = 0;
             int lastNotify = 0;
 
-            while ((len = input.read(buf, 0, BUFSIZE)) > 0 && !mCancelDownload) {
+            while ((len = input.read(buf, 0, BUFSIZE)) > 0) {
                 output.write(buf, 0, len);
                 bytesRead += len;
                 // Updating the notification takes time so only do it every 1MB
@@ -464,19 +454,11 @@ public class UpdateService extends IntentService {
                 }
             }
 
+            Log.i(LOGTAG, "completed update download!");
+
             mNotificationManager.cancel(NOTIFICATION_ID);
 
-            // if the download was canceled by the user
-            // delete the update package
-            if (mCancelDownload) {
-                Log.i(LOGTAG, "download canceled by user!");
-                downloadFile.delete();
-
-                return null;
-            } else {
-                Log.i(LOGTAG, "completed update download!");
-                return downloadFile;
-            }
+            return downloadFile;
         } catch (Exception e) {
             downloadFile.delete();
             showDownloadFailure();

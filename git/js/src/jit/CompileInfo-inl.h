@@ -17,7 +17,7 @@ using namespace jit;
 inline RegExpObject *
 CompileInfo::getRegExp(jsbytecode *pc) const
 {
-    return script_->getRegExp(pc);
+    return script_->getRegExp(GET_UINT32_INDEX(pc));
 }
 
 inline JSFunction *

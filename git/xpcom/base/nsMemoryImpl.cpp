@@ -99,7 +99,7 @@ nsMemoryImpl::Create(nsISupports* outer, const nsIID& aIID, void **aResult)
 }
 
 nsresult
-nsMemoryImpl::FlushMemory(const char16_t* aReason, bool aImmediate)
+nsMemoryImpl::FlushMemory(const PRUnichar* aReason, bool aImmediate)
 {
     nsresult rv = NS_OK;
 
@@ -137,7 +137,7 @@ nsMemoryImpl::FlushMemory(const char16_t* aReason, bool aImmediate)
 }
 
 nsresult
-nsMemoryImpl::RunFlushers(const char16_t* aReason)
+nsMemoryImpl::RunFlushers(const PRUnichar* aReason)
 {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     if (os) {

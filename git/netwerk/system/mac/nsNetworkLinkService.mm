@@ -56,7 +56,7 @@ nsNetworkLinkService::GetLinkType(uint32_t *aLinkType)
 NS_IMETHODIMP
 nsNetworkLinkService::Observe(nsISupports *subject,
                               const char *topic,
-                              const char16_t *data)
+                              const PRUnichar *data)
 {
     if (!strcmp(topic, "xpcom-shutdown")) {
         Shutdown();

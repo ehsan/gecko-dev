@@ -63,7 +63,7 @@ LoadMonitor::~LoadMonitor()
 NS_IMETHODIMP
 LoadMonitor::Observe(nsISupports* /* aSubject */,
                      const char*  aTopic,
-                     const char16_t* /* aData */)
+                     const PRUnichar* /* aData */)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
   MOZ_ASSERT(!strcmp("xpcom-shutdown-threads", aTopic), "Bad topic!");

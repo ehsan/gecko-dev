@@ -180,8 +180,8 @@ nsSVGViewBox::GetBaseValueString(nsAString& aValue) const
     aValue.AssignLiteral("none");
     return;
   }
-  char16_t buf[200];
-  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(char16_t),
+  PRUnichar buf[200];
+  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
                             MOZ_UTF16("%g %g %g %g"),
                             (double)mBaseVal.x, (double)mBaseVal.y,
                             (double)mBaseVal.width, (double)mBaseVal.height);

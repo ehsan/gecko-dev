@@ -27,7 +27,7 @@ public:
                              float aDevPixPerCSSPixel);
 
     virtual void RefreshImpl();
-    virtual char16_t GetPasswordCharacterImpl();
+    virtual PRUnichar GetPasswordCharacterImpl();
     virtual bool GetEchoPasswordImpl();
 
 protected:
@@ -77,7 +77,7 @@ protected:
     nscolor sMozWindowSelectedText;
     nscolor sMozWindowSelectedBackground;
     nscolor sMozScrollbar;
-    char16_t sInvisibleCharacter;
+    PRUnichar sInvisibleCharacter;
     float   sCaretRatio;
     bool    sMenuSupportsDrag;
 

@@ -191,7 +191,7 @@ nsDocShellTreeOwner::GetInterface(const nsIID& aIID, void** aSink)
 //*****************************************************************************   
 
 NS_IMETHODIMP
-nsDocShellTreeOwner::FindItemWithName(const char16_t* aName,
+nsDocShellTreeOwner::FindItemWithName(const PRUnichar* aName,
                                       nsIDocShellTreeItem* aRequestor,
                                       nsIDocShellTreeItem* aOriginalRequestor,
                                       nsIDocShellTreeItem** aFoundItem)
@@ -245,7 +245,7 @@ nsDocShellTreeOwner::FindItemWithName(const char16_t* aName,
 }
 
 nsresult
-nsDocShellTreeOwner::FindItemWithNameAcrossWindows(const char16_t* aName,
+nsDocShellTreeOwner::FindItemWithNameAcrossWindows(const PRUnichar* aName,
                                                    nsIDocShellTreeItem* aRequestor,
                                                    nsIDocShellTreeItem* aOriginalRequestor,
                                                    nsIDocShellTreeItem** aFoundItem)
@@ -662,7 +662,7 @@ nsDocShellTreeOwner::SetFocus()
 }
 
 NS_IMETHODIMP
-nsDocShellTreeOwner::GetTitle(char16_t** aTitle)
+nsDocShellTreeOwner::GetTitle(PRUnichar** aTitle)
 {
   nsCOMPtr<nsIEmbeddingSiteWindow> ownerWin = GetOwnerWin();
   if (ownerWin)
@@ -673,7 +673,7 @@ nsDocShellTreeOwner::GetTitle(char16_t** aTitle)
 }
 
 NS_IMETHODIMP
-nsDocShellTreeOwner::SetTitle(const char16_t* aTitle)
+nsDocShellTreeOwner::SetTitle(const PRUnichar* aTitle)
 {
   nsCOMPtr<nsIEmbeddingSiteWindow> ownerWin = GetOwnerWin();
   if (ownerWin)
@@ -725,7 +725,7 @@ NS_IMETHODIMP
 nsDocShellTreeOwner::OnStatusChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
                                     nsresult aStatus,
-                                    const char16_t* aMessage)
+                                    const PRUnichar* aMessage)
 {
     return NS_OK;
 }
@@ -1032,7 +1032,7 @@ UseSVGTitle(nsIDOMElement *currElement)
 
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */
 NS_IMETHODIMP
-DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, char16_t **aText,
+DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                                         bool *_retval)
 {
   NS_ENSURE_ARG_POINTER(aNode);

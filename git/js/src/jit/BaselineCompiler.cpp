@@ -1197,17 +1197,23 @@ BaselineCompiler::emit_JSOP_OBJECT()
     return true;
 }
 
-typedef JSObject *(*CloneRegExpObjectFn)(JSContext *, JSObject *);
+typedef JSObject *(*CloneRegExpObjectFn)(JSContext *, JSObject *, JSObject *);
 static const VMFunction CloneRegExpObjectInfo =
     FunctionInfo<CloneRegExpObjectFn>(CloneRegExpObject);
 
 bool
 BaselineCompiler::emit_JSOP_REGEXP()
 {
-    RootedObject reObj(cx, script->getRegExp(pc));
+    RootedObject reObj(cx, script->getRegExp(GET_UINT32_INDEX(pc)));
+    RootedObject proto(cx, script->global().getOrCreateRegExpPrototype(cx));
+    if (!proto)
+        return false;
 
     prepareVMCall();
+
+    pushArg(ImmGCPtr(proto));
     pushArg(ImmGCPtr(reObj));
+
     if (!callVM(CloneRegExpObjectInfo))
         return false;
 

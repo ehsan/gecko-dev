@@ -410,7 +410,7 @@ private:
 
     virtual ~MemoryPressureObserver() { }
 
-    NS_IMETHOD Observe(nsISupports*, const char* aTopic, const char16_t*)
+    NS_IMETHOD Observe(nsISupports*, const char* aTopic, const PRUnichar*)
     {
       if (sInstance && strcmp(aTopic, "memory-pressure") == 0) {
         sInstance->DiscardAll();

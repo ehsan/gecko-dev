@@ -11,7 +11,7 @@
 //-----------------------------------------------------------------------------
 
 bool
-nsNativeConnectionHelper::OnConnectionFailed(const char16_t* hostName)
+nsNativeConnectionHelper::OnConnectionFailed(const PRUnichar* hostName)
 {
     if (gIOService->IsLinkUp())
         return false;

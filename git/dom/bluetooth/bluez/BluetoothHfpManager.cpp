@@ -194,7 +194,7 @@ NS_IMPL_ISUPPORTS1(BluetoothHfpManager::GetVolumeTask,
 NS_IMETHODIMP
 BluetoothHfpManager::Observe(nsISupports* aSubject,
                              const char* aTopic,
-                             const char16_t* aData)
+                             const PRUnichar* aData)
 {
   if (!strcmp(aTopic, MOZSETTINGS_CHANGED_ID)) {
     HandleVolumeChanged(nsDependentString(aData));

@@ -136,7 +136,7 @@ nsNetworkManagerListener::NotifyNetworkStatusObservers() {
   if (!observerService) {
     return;
   }
-  const char16_t* status;
+  const PRUnichar* status;
   if (mNetworkManagerActive) {
     status = mLinkUp ? NS_LITERAL_STRING(NS_NETWORK_LINK_DATA_UP).get()
                      : NS_LITERAL_STRING(NS_NETWORK_LINK_DATA_DOWN).get();

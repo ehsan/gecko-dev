@@ -89,7 +89,7 @@ interface MozInputContext: EventTarget {
    readonly attribute long selectionStart;
    readonly attribute long selectionEnd;
 
-   // The text before and after the begining of the selected text.
+   // The start and stop position of the selection.
    readonly attribute DOMString? textBeforeCursor;
    readonly attribute DOMString? textAfterCursor;
 

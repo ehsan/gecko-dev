@@ -78,7 +78,7 @@ txUnionPattern::toString(nsAString& aDest)
         mLocPathPatterns[i]->toString(aDest);
     }
 #ifdef DEBUG
-    aDest.Append(char16_t('}'));
+    aDest.Append(PRUnichar('}'));
 #endif
 }
 #endif
@@ -200,14 +200,14 @@ txLocPathPattern::toString(nsAString& aDest)
     for (uint32_t i = 0; i < mSteps.Length(); ++i) {
         if (i != 0) {
             if (mSteps[i].isChild)
-                aDest.Append(char16_t('/'));
+                aDest.Append(PRUnichar('/'));
             else
                 aDest.AppendLiteral("//");
         }
         mSteps[i].pattern->toString(aDest);
     }
 #ifdef DEBUG
-    aDest.Append(char16_t('}'));
+    aDest.Append(PRUnichar('}'));
 #endif
 }
 #endif
@@ -239,9 +239,9 @@ txRootPattern::toString(nsAString& aDest)
     aDest.AppendLiteral("txRootPattern{");
 #endif
     if (mSerialize)
-        aDest.Append(char16_t('/'));
+        aDest.Append(PRUnichar('/'));
 #ifdef DEBUG
-    aDest.Append(char16_t('}'));
+    aDest.Append(PRUnichar('}'));
 #endif
 }
 #endif
@@ -299,14 +299,14 @@ txIdPattern::toString(nsAString& aDest)
         nsAutoString str;
         mIds[k]->ToString(str);
         aDest.Append(str);
-        aDest.Append(char16_t(' '));
+        aDest.Append(PRUnichar(' '));
     }
     nsAutoString str;
     mIds[count]->ToString(str);
     aDest.Append(str);
     aDest.Append(NS_LITERAL_STRING("')"));
 #ifdef DEBUG
-    aDest.Append(char16_t('}'));
+    aDest.Append(PRUnichar('}'));
 #endif
 }
 #endif
@@ -354,7 +354,7 @@ txKeyPattern::toString(nsAString& aDest)
     if (mPrefix) {
         mPrefix->ToString(tmp);
         aDest.Append(tmp);
-        aDest.Append(char16_t(':'));
+        aDest.Append(PRUnichar(':'));
     }
     mName.mLocalName->ToString(tmp);
     aDest.Append(tmp);
@@ -362,7 +362,7 @@ txKeyPattern::toString(nsAString& aDest)
     aDest.Append(mValue);
     aDest.Append(NS_LITERAL_STRING("')"));
 #ifdef DEBUG
-    aDest.Append(char16_t('}'));
+    aDest.Append(PRUnichar('}'));
 #endif
 }
 #endif
@@ -514,13 +514,13 @@ txStepPattern::toString(nsAString& aDest)
     aDest.AppendLiteral("txStepPattern{");
 #endif
     if (mIsAttr)
-        aDest.Append(char16_t('@'));
+        aDest.Append(PRUnichar('@'));
     if (mNodeTest)
         mNodeTest->toString(aDest);
 
     PredicateList::toString(aDest);
 #ifdef DEBUG
-    aDest.Append(char16_t('}'));
+    aDest.Append(PRUnichar('}'));
 #endif
 }
 #endif

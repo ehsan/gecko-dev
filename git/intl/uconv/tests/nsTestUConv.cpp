@@ -51,7 +51,7 @@ char bLatin1_d0[] = {
   "\x00\x0d\x7f\x80\xff"
 };
 
-char16_t cLatin1_d0[] = {
+PRUnichar cLatin1_d0[] = {
   0x0000,0x000d,0x007f,0x20ac,0x00ff
 };
 
@@ -96,14 +96,14 @@ nsresult testCharsetConverterManager()
  */
 nsresult testDecoder(nsIUnicodeDecoder * aDec, 
                      const char * aSrc, int32_t aSrcLength, 
-                     const char16_t * aRes, int32_t aResLength,
+                     const PRUnichar * aRes, int32_t aResLength,
                      const char * aTestName)
 {
   nsresult res;
 
   // prepare for conversion
   int32_t srcLen = aSrcLength;
-  char16_t dest[GENERAL_BUFFER/2];
+  PRUnichar dest[GENERAL_BUFFER/2];
   int32_t destLen = GENERAL_BUFFER/2;
 
   // conversion
@@ -135,7 +135,7 @@ nsresult testDecoder(nsIUnicodeDecoder * aDec,
  * This method will test the conversion only.
  */
 nsresult testEncoder(nsIUnicodeEncoder * aEnc, 
-                     const char16_t * aSrc, int32_t aSrcLength, 
+                     const PRUnichar * aSrc, int32_t aSrcLength, 
                      const char * aRes, int32_t aResLength,
                      const char * aTestName)
 {
@@ -192,7 +192,7 @@ nsresult testEncoder(nsIUnicodeEncoder * aEnc,
  */
 nsresult testStressDecoder(nsIUnicodeDecoder * aDec, 
                            const char * aSrc, int32_t aSrcLength, 
-                           const char16_t * aRes, int32_t aResLength,
+                           const PRUnichar * aRes, int32_t aResLength,
                            const char * aTestName)
 {
   nsresult res;
@@ -209,7 +209,7 @@ nsresult testStressDecoder(nsIUnicodeDecoder * aDec,
   // prepare for conversion
   int32_t srcLen = 0;
   int32_t srcOff = 0;
-  char16_t dest[1024];
+  PRUnichar dest[1024];
   int32_t destLen = 0;
   int32_t destOff = 0;
 
@@ -277,7 +277,7 @@ nsresult testStressDecoder(nsIUnicodeDecoder * aDec,
  * very stressful conditions.
  */
 nsresult testStressEncoder(nsIUnicodeEncoder * aEnc, 
-                           const char16_t * aSrc, int32_t aSrcLength,
+                           const PRUnichar * aSrc, int32_t aSrcLength,
                            const char * aRes, int32_t aResLength, 
                            const char * aTestName)
 {
@@ -404,7 +404,7 @@ nsresult resetEncoder(nsIUnicodeEncoder * aEnc, const char * aTestName)
  * A standard decoder test.
  */
 nsresult standardDecoderTest(char * aTestName, char * aCharset, char * aSrc, 
-  int32_t aSrcLen, char16_t * aRes, int32_t aResLen)
+  int32_t aSrcLen, PRUnichar * aRes, int32_t aResLen)
 {
   printf("\n[%s] Unicode <- %s\n", aTestName, aCharset);
 
@@ -451,7 +451,7 @@ nsresult loadBinaryFile(char * aFile, char * aBuff, int32_t * aBuffLen)
   return NS_OK;
 }
 
-nsresult loadUnicodeFile(char * aFile, char16_t * aBuff, int32_t * aBuffLen)
+nsresult loadUnicodeFile(char * aFile, PRUnichar * aBuff, int32_t * aBuffLen)
 {
   int32_t buffLen = 2*(*aBuffLen);
 
@@ -470,7 +470,7 @@ nsresult testDecoderFromFiles(char * aCharset, char * aSrcFile, char * aResultFi
   int32_t srcLen = GENERAL_BUFFER;
   char src[GENERAL_BUFFER];
   int32_t expLen = GENERAL_BUFFER/2;
-  char16_t exp[GENERAL_BUFFER/2];
+  PRUnichar exp[GENERAL_BUFFER/2];
 
   res = loadBinaryFile(aSrcFile, src, &srcLen);
   if (NS_FAILED(res)) return res;
@@ -516,7 +516,7 @@ nsresult testISO2022JPDecoder()
 
   // test data
   char src[] = {"\x0d\x7f\xdd" "\x1b(J\xaa\xdc\x41" "\x1b$B\x21\x21" "\x1b$@\x32\x37" "\x1b(J\x1b(B\xcc"};
-  char16_t exp[] = {0x000d,0x007f,0xfffd, 0xff6a,0xFF9C,0x0041, 0x3000, 0x5378, 0xfffd};
+  PRUnichar exp[] = {0x000d,0x007f,0xfffd, 0xff6a,0xFF9C,0x0041, 0x3000, 0x5378, 0xfffd};
 
   // test converter - normal operation
   res = testDecoder(dec, src, ARRAY_SIZE(src)-1, exp, ARRAY_SIZE(exp), testName);
@@ -552,7 +552,7 @@ nsresult testEUCJPDecoder()
 
   // test data
   char src[] = {"\x45"};
-  char16_t exp[] = {0x0045};
+  PRUnichar exp[] = {0x0045};
 
   // test converter - normal operation
   res = testDecoder(dec, src, ARRAY_SIZE(src)-1, exp, ARRAY_SIZE(exp), testName);
@@ -593,7 +593,7 @@ nsresult testISO88597Decoder()
     "\xa7\xb1\xb3\xc9"
     "\xd9\xe3\xf4\xff"
   };
-  char16_t exp[] = {
+  PRUnichar exp[] = {
     0x0009, 0x000d, 0x0020, 0x0040, 
     0xfffd, 0xfffd, 0x00a3, 0x2015,
     0x00a7, 0x00b1, 0x00b3, 0x0399,
@@ -640,7 +640,7 @@ nsresult testSJISDecoder()
     "\x82\xd0\x82\xe7\x82\xaa\x82\xc8" /* Hiragana */
     "\x82\x50\x82\x51\x82\x52\x82\x60\x82\x61\x82\x62" /* full width 123ABC */
   };
-  char16_t exp[] = {
+  PRUnichar exp[] = {
     0x004A, 0x0061, 0x0070, 0x0061, 0x006E, 0x0065, 0x0073, 0x0065,
     0x6f22, 0x5b57,
     0x30ab, 0x30bf, 0x30ab, 0x30ca,
@@ -683,7 +683,7 @@ nsresult testUTF8Decoder()
 #ifdef NOPE // XXX decomment this when I have test data
   // test data
   char src[] = {};
-  char16_t exp[] = {};
+  PRUnichar exp[] = {};
 
   // test converter - normal operation
   res = testDecoder(dec, src, ARRAY_SIZE(src)-1, exp, ARRAY_SIZE(exp), testName);
@@ -720,7 +720,7 @@ nsresult testMUTF7Decoder()
 
   // test data
   char src[] = {"\x50\x51\x52\x53&AAAAAAAA-&-&AAA-"};
-  char16_t exp[] = {0x0050,0x0051,0x0052,0x0053,0x0000,0x0000,0x0000,'&',0x0000};
+  PRUnichar exp[] = {0x0050,0x0051,0x0052,0x0053,0x0000,0x0000,0x0000,'&',0x0000};
 
   // test converter - normal operation
   res = testDecoder(dec, src, ARRAY_SIZE(src)-1, exp, ARRAY_SIZE(exp), testName);
@@ -756,7 +756,7 @@ nsresult testUTF7Decoder()
 
   // test data
   char src[] = {"+ADwAIQ-DOC"};
-  char16_t exp[] = {'<','!','D','O','C'};
+  PRUnichar exp[] = {'<','!','D','O','C'};
 
   // test converter - normal operation
   res = testDecoder(dec, src, ARRAY_SIZE(src)-1, exp, ARRAY_SIZE(exp), testName);
@@ -795,7 +795,7 @@ nsresult testLatin1Encoder()
   enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
 
   // test data
-  char16_t src[] = {0x0001,0x0002,0xffff,0x00e3};
+  PRUnichar src[] = {0x0001,0x0002,0xffff,0x00e3};
   char exp[] = {"\x01\x02\xcc\xe3"};
 
   // test converter - easy test
@@ -832,7 +832,7 @@ nsresult testSJISEncoder()
   enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
 
   // test data
-  char16_t src[] = {
+  PRUnichar src[] = {
     0x004A, 0x0061, 0x0070, 0x0061, 0x006E, 0x0065, 0x0073, 0x0065,
     0x6f22, 0x5b57,
     0x30ab, 0x30bf, 0x30ab, 0x30ca,
@@ -881,7 +881,7 @@ nsresult testEUCJPEncoder()
   enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
 
   // test data
-  char16_t src[] = {0x0045, 0x0054};
+  PRUnichar src[] = {0x0045, 0x0054};
   char exp[] = {"\x45\x54"};
 
   // test converter - easy test
@@ -918,7 +918,7 @@ nsresult testISO2022JPEncoder()
   enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
 
   // test data
-  char16_t src[] = {0x000d,0x007f, 0xff6a,0xFF9C, 0x3000, 0x5378};
+  PRUnichar src[] = {0x000d,0x007f, 0xff6a,0xFF9C, 0x3000, 0x5378};
   char exp[] = {"\x0d\x7f" "\x1b(J\xaa\xdc" "\x1b$@\x21\x21\x32\x37\x1b(B"};
 
   // test converter - easy test
@@ -955,7 +955,7 @@ nsresult testMUTF7Encoder()
   enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
 
   // test data
-  char16_t src[] = {0x0050,0x0051,0x0052,0x0053,0x0000,0x0000,0x0000,'&',0x0000};
+  PRUnichar src[] = {0x0050,0x0051,0x0052,0x0053,0x0000,0x0000,0x0000,'&',0x0000};
   char exp[] = {"\x50\x51\x52\x53&AAAAAAAA-&-&AAA-"};
 
   // test converter - easy test
@@ -992,7 +992,7 @@ nsresult testUTF7Encoder()
   enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
 
   // test data
-  char16_t src[] = {'e','t','i','r','a',0x0a};
+  PRUnichar src[] = {'e','t','i','r','a',0x0a};
   char exp[] = {"etira\x0a"};
 
   // test converter - easy test

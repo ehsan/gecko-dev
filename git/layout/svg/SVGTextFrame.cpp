@@ -5587,9 +5587,7 @@ SVGTextFrame::SetupInheritablePaint(gfxContext* aContext,
 
   if (ps && ps->SetupPaintServer(aContext, aFrame, aFillOrStroke, aOpacity)) {
     aTargetPaint.SetPaintServer(aFrame, aContext->CurrentMatrix(), ps);
-  } else if (nsSVGUtils::SetupContextPaint(aContext, aOuterContextPaint,
-                                           style->*aFillOrStroke,
-                                           aOpacity)) {
+  } else if (SetupContextPaint(aContext, aFrame, aFillOrStroke, aOpacity, aOuterContextPaint)) {
     aTargetPaint.SetContextPaint(aOuterContextPaint, (style->*aFillOrStroke).mType);
   } else {
     nscolor color = nsSVGUtils::GetFallbackOrPaintColor(aContext,
@@ -5604,4 +5602,36 @@ SVGTextFrame::SetupInheritablePaint(gfxContext* aContext,
                              NS_GET_A(color) / 255.0 * aOpacity));
     aContext->SetPattern(pattern);
   }
+}
+
+bool
+SVGTextFrame::SetupContextPaint(gfxContext* aContext,
+                                nsIFrame* aFrame,
+                                nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
+                                float& aOpacity,
+                                gfxTextContextPaint* aOuterContextPaint)
+{
+  if (!aOuterContextPaint) {
+    return false;
+  }
+
+  const nsStyleSVG *style = aFrame->StyleSVG();
+  const nsStyleSVGPaint &paint = style->*aFillOrStroke;
+
+  if (paint.mType != eStyleSVGPaintType_ContextFill &&
+      paint.mType != eStyleSVGPaintType_ContextStroke) {
+    return false;
+  }
+
+  gfxMatrix current = aContext->CurrentMatrix();
+  nsRefPtr<gfxPattern> pattern =
+    paint.mType == eStyleSVGPaintType_ContextFill ?
+      aOuterContextPaint->GetFillPattern(aOpacity, current) :
+      aOuterContextPaint->GetStrokePattern(aOpacity, current);
+  if (!pattern) {
+    return false;
+  }
+
+  aContext->SetPattern(pattern);
+  return true;
 }

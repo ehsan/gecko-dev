@@ -38,6 +38,6 @@ void
 RootExpr::toString(nsAString& dest)
 {
     if (mSerialize)
-        dest.Append(char16_t('/'));
+        dest.Append(PRUnichar('/'));
 }
 #endif

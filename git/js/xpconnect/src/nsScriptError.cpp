@@ -36,7 +36,7 @@ nsScriptError::~nsScriptError() {}
 
 // nsIConsoleMessage methods
 NS_IMETHODIMP
-nsScriptError::GetMessageMoz(char16_t **result) {
+nsScriptError::GetMessageMoz(PRUnichar **result) {
     nsresult rv;
 
     nsAutoCString message;

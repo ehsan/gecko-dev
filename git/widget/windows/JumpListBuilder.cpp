@@ -502,7 +502,7 @@ nsresult JumpListBuilder::TransferIObjectArrayToIMutableArray(IObjectArray *objA
 
 NS_IMETHODIMP JumpListBuilder::Observe(nsISupports* aSubject,
                                         const char* aTopic,
-                                        const char16_t* aData)
+                                        const PRUnichar* aData)
 {
   if (nsDependentString(aData).EqualsASCII(kPrefTaskbarEnabled)) {
     bool enabled = Preferences::GetBool(kPrefTaskbarEnabled, true);

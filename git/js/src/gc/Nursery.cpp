@@ -18,9 +18,6 @@
 #include "gc/Memory.h"
 #include "vm/ArrayObject.h"
 #include "vm/Debugger.h"
-#if defined(DEBUG)
-#include "vm/ScopeObject.h"
-#endif
 #include "vm/TypedArrayObject.h"
 
 #include "jsgcinlines.h"

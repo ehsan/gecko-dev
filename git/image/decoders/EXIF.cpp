@@ -5,8 +5,6 @@
 
 #include "EXIF.h"
 
-#include "mozilla/Endian.h"
-
 namespace mozilla {
 namespace image {
 
@@ -236,13 +234,16 @@ EXIFParser::MatchUInt16(const uint16_t aValue)
   if (mRemainingLength < 2)
     return false;
   
+  const uint8_t low = aValue & 0xFF;
+  const uint8_t high = aValue >> 8;
+
   bool matched;
   switch (mByteOrder) {
     case ByteOrder::LittleEndian:
-      matched = LittleEndian::readUint16(mCurrent) == aValue;
+      matched = mCurrent[0] == low && mCurrent[1] == high;
       break;
     case ByteOrder::BigEndian:
-      matched = BigEndian::readUint16(mCurrent) == aValue;
+      matched = mCurrent[0] == high && mCurrent[1] == low;
       break;
     default:
       NS_NOTREACHED("Should know the byte order by now");
@@ -264,10 +265,12 @@ EXIFParser::ReadUInt16(uint16_t& aValue)
   bool matched = true;
   switch (mByteOrder) {
     case ByteOrder::LittleEndian:
-      aValue = LittleEndian::readUint16(mCurrent);
+      aValue = (uint32_t(mCurrent[1]) << 8) |
+               (uint32_t(mCurrent[0]));
       break;
     case ByteOrder::BigEndian:
-      aValue = BigEndian::readUint16(mCurrent);
+      aValue = (uint32_t(mCurrent[0]) << 8) |
+               (uint32_t(mCurrent[1]));
       break;
     default:
       NS_NOTREACHED("Should know the byte order by now");
@@ -289,10 +292,16 @@ EXIFParser::ReadUInt32(uint32_t& aValue)
   bool matched = true;
   switch (mByteOrder) {
     case ByteOrder::LittleEndian:
-      aValue = LittleEndian::readUint32(mCurrent);
+      aValue = (uint32_t(mCurrent[3]) << 24) |
+               (uint32_t(mCurrent[2]) << 16) |
+               (uint32_t(mCurrent[1]) << 8)  |
+               (uint32_t(mCurrent[0]));
       break;
     case ByteOrder::BigEndian:
-      aValue = BigEndian::readUint32(mCurrent);
+      aValue = (uint32_t(mCurrent[0]) << 24) |
+               (uint32_t(mCurrent[1]) << 16) |
+               (uint32_t(mCurrent[2]) << 8)  |
+               (uint32_t(mCurrent[3]));
       break;
     default:
       NS_NOTREACHED("Should know the byte order by now");

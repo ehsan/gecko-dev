@@ -36,7 +36,7 @@ namespace mozilla {
 // http://trac.webkit.org/browser/trunk/Source/WebCore/html/canvas/WebGLRenderingContext.cpp?rev=93625#L121
 // Note that some modifications were done to adapt it to Mozilla.
 /****** BEGIN CODE TAKEN FROM WEBKIT ******/
-    bool WebGLContext::ValidateGLSLCharacter(char16_t c)
+    bool WebGLContext::ValidateGLSLCharacter(PRUnichar c)
     {
         // Printing characters are valid except " $ ` @ \ ' DEL.
         if (c >= 32 && c <= 126 &&
@@ -68,7 +68,7 @@ namespace mozilla {
             parse();
         }
 
-        const nsTArray<char16_t>& result()
+        const nsTArray<PRUnichar>& result()
         {
             return m_result;
         }
@@ -94,9 +94,9 @@ namespace mozilla {
             }
         }
 
-        void process(char16_t);
+        void process(PRUnichar);
 
-        bool peek(char16_t& character)
+        bool peek(PRUnichar& character)
         {
             if (m_current + 1 >= m_end)
                 return false;
@@ -104,7 +104,7 @@ namespace mozilla {
             return true;
         }
 
-        char16_t current()
+        PRUnichar current()
         {
             //ASSERT(m_position < m_length);
             return *m_current;
@@ -115,13 +115,13 @@ namespace mozilla {
             ++m_current;
         }
 
-        bool isNewline(char16_t character)
+        bool isNewline(PRUnichar character)
         {
             // Don't attempt to canonicalize newline related characters.
             return (character == '\n' || character == '\r');
         }
 
-        void emit(char16_t character)
+        void emit(PRUnichar character)
         {
             m_result[m_position++] = character;
         }
@@ -151,13 +151,13 @@ namespace mozilla {
         };
 
         ParseState m_parseState;
-        const char16_t* m_end;
-        const char16_t* m_current;
+        const PRUnichar* m_end;
+        const PRUnichar* m_current;
         size_t m_position;
-        nsTArray<char16_t> m_result;
+        nsTArray<PRUnichar> m_result;
     };
 
-    void StripComments::process(char16_t c)
+    void StripComments::process(PRUnichar c)
     {
         if (isNewline(c)) {
             // No matter what state we are in, pass through newlines
@@ -170,7 +170,7 @@ namespace mozilla {
             return;
         }
 
-        char16_t temp = 0;
+        PRUnichar temp = 0;
         switch (m_parseState) {
         case BeginningOfLine:
             // If it's an ASCII space.

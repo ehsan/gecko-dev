@@ -86,7 +86,7 @@ txNameTest::toString(nsAString& aDest)
         nsAutoString prefix;
         mPrefix->ToString(prefix);
         aDest.Append(prefix);
-        aDest.Append(char16_t(':'));
+        aDest.Append(PRUnichar(':'));
     }
     nsAutoString localName;
     mLocalName->ToString(localName);

@@ -168,8 +168,8 @@ protected:
 
   nsresult ConsoleError();
   nsresult PrintErrorOnConsole(const char* aBundleURI,
-                               const char16_t* aError,
-                               const char16_t** aFormatStrings,
+                               const PRUnichar* aError,
+                               const PRUnichar** aFormatStrings,
                                uint32_t aFormatStringsLen);
 
   nsresult DoOnMessageAvailable(const nsACString& aMsg,

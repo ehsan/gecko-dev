@@ -290,7 +290,7 @@ nsBoxObject::GetScreenY(int32_t *_retval)
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetPropertyAsSupports(const char16_t* aPropertyName, nsISupports** aResult)
+nsBoxObject::GetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports** aResult)
 {
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
   if (!mPropertyTable) {
@@ -303,7 +303,7 @@ nsBoxObject::GetPropertyAsSupports(const char16_t* aPropertyName, nsISupports** 
 }
 
 NS_IMETHODIMP
-nsBoxObject::SetPropertyAsSupports(const char16_t* aPropertyName, nsISupports* aValue)
+nsBoxObject::SetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports* aValue)
 {
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
   
@@ -317,7 +317,7 @@ nsBoxObject::SetPropertyAsSupports(const char16_t* aPropertyName, nsISupports* a
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetProperty(const char16_t* aPropertyName, char16_t** aResult)
+nsBoxObject::GetProperty(const PRUnichar* aPropertyName, PRUnichar** aResult)
 {
   nsCOMPtr<nsISupports> data;
   nsresult rv = GetPropertyAsSupports(aPropertyName,getter_AddRefs(data));
@@ -336,7 +336,7 @@ nsBoxObject::GetProperty(const char16_t* aPropertyName, char16_t** aResult)
 }
 
 NS_IMETHODIMP
-nsBoxObject::SetProperty(const char16_t* aPropertyName, const char16_t* aPropertyValue)
+nsBoxObject::SetProperty(const PRUnichar* aPropertyName, const PRUnichar* aPropertyValue)
 {
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
 
@@ -356,7 +356,7 @@ nsBoxObject::SetProperty(const char16_t* aPropertyName, const char16_t* aPropert
 }
 
 NS_IMETHODIMP
-nsBoxObject::RemoveProperty(const char16_t* aPropertyName)
+nsBoxObject::RemoveProperty(const PRUnichar* aPropertyName)
 {
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
 

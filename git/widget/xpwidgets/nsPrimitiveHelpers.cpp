@@ -16,7 +16,7 @@
 //
 // For now, this is the assumption that we are making:
 //  - text/plain is always a char*
-//  - anything else is a char16_t*
+//  - anything else is a PRUnichar*
 //
 
 
@@ -73,11 +73,11 @@ nsPrimitiveHelpers :: CreatePrimitiveForData ( const char* aFlavor, const void* 
       
         memcpy(buffer, aDataBuff, aDataLen);
         buffer[aDataLen] = 0;
-        const char16_t* start = reinterpret_cast<const char16_t*>(buffer.get());
+        const PRUnichar* start = reinterpret_cast<const PRUnichar*>(buffer.get());
         // recall that length takes length as characters, not bytes
         primitive->SetData(Substring(start, start + (aDataLen + 1) / 2));
       } else {
-        const char16_t* start = reinterpret_cast<const char16_t*>(aDataBuff);
+        const PRUnichar* start = reinterpret_cast<const PRUnichar*>(aDataBuff);
         // recall that length takes length as characters, not bytes
         primitive->SetData(Substring(start, start + (aDataLen / 2)));
       }
@@ -133,7 +133,7 @@ nsPrimitiveHelpers :: CreateDataFromPrimitive ( const char* aFlavor, nsISupports
 // but its length parameter, |outPlainTextLen|, does not reflect that.
 //
 nsresult
-nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( char16_t* inUnicode, int32_t inUnicodeLen, 
+nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( PRUnichar* inUnicode, int32_t inUnicodeLen, 
                                                             char** outPlainTextData, int32_t* outPlainTextLen )
 {
   if ( !outPlainTextData || !outPlainTextLen )
@@ -179,7 +179,7 @@ nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( char16_t* inUnicode, i
 //
 nsresult
 nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, int32_t inTextLen, 
-                                                            char16_t** outUnicode, int32_t* outUnicodeLen )
+                                                            PRUnichar** outUnicode, int32_t* outUnicodeLen )
 {
   if ( !outUnicode || !outUnicodeLen )
     return NS_ERROR_INVALID_ARG;
@@ -215,7 +215,7 @@ nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, in
   // the conversion. 
   decoder->GetMaxLength(inText, inTextLen, outUnicodeLen);   // |outUnicodeLen| is number of chars
   if ( *outUnicodeLen ) {
-    *outUnicode = reinterpret_cast<char16_t*>(nsMemory::Alloc((*outUnicodeLen + 1) * sizeof(char16_t)));
+    *outUnicode = reinterpret_cast<PRUnichar*>(nsMemory::Alloc((*outUnicodeLen + 1) * sizeof(PRUnichar)));
     if ( *outUnicode ) {
       rv = decoder->Convert(inText, &inTextLen, *outUnicode, outUnicodeLen);
       (*outUnicode)[*outUnicodeLen] = '\0';                   // null terminate. Convert() doesn't do it for us
@@ -264,17 +264,17 @@ nsLinebreakHelpers :: ConvertPlatformToDOMLinebreaks ( const char* inFlavor, voi
     // I'd assume we don't want to do anything for binary data....
   }
   else {       
-    char16_t* buffAsUnichar = reinterpret_cast<char16_t*>(*ioData);
-    char16_t* oldBuffer = buffAsUnichar;
+    PRUnichar* buffAsUnichar = reinterpret_cast<PRUnichar*>(*ioData);
+    PRUnichar* oldBuffer = buffAsUnichar;
     int32_t newLengthInChars;
     retVal = nsLinebreakConverter::ConvertUnicharLineBreaksInSitu ( &buffAsUnichar, nsLinebreakConverter::eLinebreakAny, 
                                                                      nsLinebreakConverter::eLinebreakContent, 
-                                                                     *ioLengthInBytes / sizeof(char16_t), &newLengthInChars );
+                                                                     *ioLengthInBytes / sizeof(PRUnichar), &newLengthInChars );
     if ( NS_SUCCEEDED(retVal) ) {
       if ( buffAsUnichar != oldBuffer )           // check if buffer was reallocated
         nsMemory::Free ( oldBuffer );
       *ioData = buffAsUnichar;
-      *ioLengthInBytes = newLengthInChars * sizeof(char16_t);
+      *ioLengthInBytes = newLengthInChars * sizeof(PRUnichar);
     }
   }
   

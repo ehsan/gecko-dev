@@ -357,22 +357,22 @@ protected:
   void UngetToken();
   bool GetNextTokenLocation(bool aSkipWS, uint32_t *linenum, uint32_t *colnum);
 
-  bool ExpectSymbol(char16_t aSymbol, bool aSkipWS);
+  bool ExpectSymbol(PRUnichar aSymbol, bool aSkipWS);
   bool ExpectEndProperty();
   bool CheckEndProperty();
   nsSubstring* NextIdent();
 
   // returns true when the stop symbol is found, and false for EOF
-  bool SkipUntil(char16_t aStopSymbol);
-  void SkipUntilOneOf(const char16_t* aStopSymbolChars);
+  bool SkipUntil(PRUnichar aStopSymbol);
+  void SkipUntilOneOf(const PRUnichar* aStopSymbolChars);
   // For each character in aStopSymbolChars from the end of the array
   // to the start, calls SkipUntil with that character.
-  typedef nsAutoTArray<char16_t, 16> StopSymbolCharStack;
+  typedef nsAutoTArray<PRUnichar, 16> StopSymbolCharStack;
   void SkipUntilAllOf(const StopSymbolCharStack& aStopSymbolChars);
   // returns true if the stop symbol or EOF is found, and false for an
   // unexpected ')', ']' or '}'; this not safe to call outside variable
   // resolution, as it doesn't handle mismatched content
-  bool SkipBalancedContentUntil(char16_t aStopSymbol);
+  bool SkipBalancedContentUntil(PRUnichar aStopSymbol);
 
   void SkipRuleSet(bool aInsideBraces);
   bool SkipAtRule(bool aInsideBlock);
@@ -502,9 +502,9 @@ protected:
   // If aStopChar is non-zero, the selector list is done when we hit
   // aStopChar.  Otherwise, it's done when we hit EOF.
   bool ParseSelectorList(nsCSSSelectorList*& aListHead,
-                           char16_t aStopChar);
+                           PRUnichar aStopChar);
   bool ParseSelectorGroup(nsCSSSelectorList*& aListHead);
-  bool ParseSelector(nsCSSSelectorList* aList, char16_t aPrevCombinator);
+  bool ParseSelector(nsCSSSelectorList* aList, PRUnichar aPrevCombinator);
 
   enum {
     eParseDeclaration_InBraces       = 1 << 0,
@@ -1134,9 +1134,9 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
 static bool
 NonMozillaVendorIdentifier(const nsAString& ident)
 {
-  return (ident.First() == char16_t('-') &&
+  return (ident.First() == PRUnichar('-') &&
           !StringBeginsWith(ident, NS_LITERAL_STRING("-moz-"))) ||
-         ident.First() == char16_t('_');
+         ident.First() == PRUnichar('_');
 
 }
 
@@ -1472,7 +1472,7 @@ CSSParserImpl::ParseSelectorString(const nsSubstring& aSelectorString,
   css::ErrorReporter reporter(scanner, mSheet, mChildLoader, aURI);
   InitScanner(scanner, reporter, aURI, aURI, nullptr);
 
-  bool success = ParseSelectorList(*aSelectorList, char16_t(0));
+  bool success = ParseSelectorList(*aSelectorList, PRUnichar(0));
 
   // We deliberately do not call OUTPUT_ERROR here, because all our
   // callers map a failure return to a JS exception, and if that JS
@@ -1787,7 +1787,7 @@ CSSParserImpl::ResolveValueWithVariableReferencesRec(
   MOZ_ASSERT(aResult.IsEmpty());
 
   // Stack of closing characters for currently open constructs.
-  nsAutoTArray<char16_t, 16> stack;
+  nsAutoTArray<PRUnichar, 16> stack;
 
   // The resolved value for this ResolveValueWithVariableReferencesRec call.
   nsString value;
@@ -2249,7 +2249,7 @@ CSSParserImpl::GetNextTokenLocation(bool aSkipWS, uint32_t *linenum, uint32_t *c
 }
 
 bool
-CSSParserImpl::ExpectSymbol(char16_t aSymbol,
+CSSParserImpl::ExpectSymbol(PRUnichar aSymbol,
                             bool aSkipWS)
 {
   if (!GetToken(aSkipWS)) {
@@ -2358,7 +2358,7 @@ CSSParserImpl::SkipAtRule(bool aInsideBlock)
       return false;
     }
     if (eCSSToken_Symbol == mToken.mType) {
-      char16_t symbol = mToken.mSymbol;
+      PRUnichar symbol = mToken.mSymbol;
       if (symbol == ';') {
         break;
       }
@@ -2646,8 +2646,8 @@ CSSParserImpl::GatherMedia(nsMediaList* aMedia,
         query->SetHadUnknownExpression();
       }
       if (aInAtRule) {
-        const char16_t stopChars[] =
-          { char16_t(','), char16_t('{'), char16_t(';'), char16_t('}'), char16_t(0) };
+        const PRUnichar stopChars[] =
+          { PRUnichar(','), PRUnichar('{'), PRUnichar(';'), PRUnichar('}'), PRUnichar(0) };
         SkipUntilOneOf(stopChars);
       } else {
         SkipUntil(',');
@@ -2691,7 +2691,7 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
 
   // case insensitive from CSS - must be lower cased
   nsContentUtils::ASCIIToLower(mToken.mIdent);
-  const char16_t *featureString;
+  const PRUnichar *featureString;
   if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("min-"))) {
     expr->mRange = nsMediaExpression::eMin;
     featureString = mToken.mIdent.get() + 4;
@@ -3807,17 +3807,17 @@ CSSParserImpl::ParseSupportsConditionTermsAfterOperator(
 }
 
 bool
-CSSParserImpl::SkipUntil(char16_t aStopSymbol)
+CSSParserImpl::SkipUntil(PRUnichar aStopSymbol)
 {
   nsCSSToken* tk = &mToken;
-  nsAutoTArray<char16_t, 16> stack;
+  nsAutoTArray<PRUnichar, 16> stack;
   stack.AppendElement(aStopSymbol);
   for (;;) {
     if (!GetToken(true)) {
       return false;
     }
     if (eCSSToken_Symbol == tk->mType) {
-      char16_t symbol = tk->mSymbol;
+      PRUnichar symbol = tk->mSymbol;
       uint32_t stackTopIndex = stack.Length() - 1;
       if (symbol == stack.ElementAt(stackTopIndex)) {
         stack.RemoveElementAt(stackTopIndex);
@@ -3843,17 +3843,17 @@ CSSParserImpl::SkipUntil(char16_t aStopSymbol)
 }
 
 bool
-CSSParserImpl::SkipBalancedContentUntil(char16_t aStopSymbol)
+CSSParserImpl::SkipBalancedContentUntil(PRUnichar aStopSymbol)
 {
   nsCSSToken* tk = &mToken;
-  nsAutoTArray<char16_t, 16> stack;
+  nsAutoTArray<PRUnichar, 16> stack;
   stack.AppendElement(aStopSymbol);
   for (;;) {
     if (!GetToken(true)) {
       return true;
     }
     if (eCSSToken_Symbol == tk->mType) {
-      char16_t symbol = tk->mSymbol;
+      PRUnichar symbol = tk->mSymbol;
       uint32_t stackTopIndex = stack.Length() - 1;
       if (symbol == stack.ElementAt(stackTopIndex)) {
         stack.RemoveElementAt(stackTopIndex);
@@ -3884,7 +3884,7 @@ CSSParserImpl::SkipBalancedContentUntil(char16_t aStopSymbol)
 }
 
 void
-CSSParserImpl::SkipUntilOneOf(const char16_t* aStopSymbolChars)
+CSSParserImpl::SkipUntilOneOf(const PRUnichar* aStopSymbolChars)
 {
   nsCSSToken* tk = &mToken;
   nsDependentString stopSymbolChars(aStopSymbolChars);
@@ -3893,7 +3893,7 @@ CSSParserImpl::SkipUntilOneOf(const char16_t* aStopSymbolChars)
       break;
     }
     if (eCSSToken_Symbol == tk->mType) {
-      char16_t symbol = tk->mSymbol;
+      PRUnichar symbol = tk->mSymbol;
       if (stopSymbolChars.FindChar(symbol) != -1) {
         break;
       } else if ('{' == symbol) {
@@ -3931,7 +3931,7 @@ CSSParserImpl::SkipDeclaration(bool aCheckForBraces)
       return false;
     }
     if (eCSSToken_Symbol == tk->mType) {
-      char16_t symbol = tk->mSymbol;
+      PRUnichar symbol = tk->mSymbol;
       if (';' == symbol) {
         break;
       }
@@ -3966,7 +3966,7 @@ CSSParserImpl::SkipRuleSet(bool aInsideBraces)
       break;
     }
     if (eCSSToken_Symbol == tk->mType) {
-      char16_t symbol = tk->mSymbol;
+      PRUnichar symbol = tk->mSymbol;
       if ('}' == symbol && aInsideBraces) {
         // leave block closer for higher-level grammar to consume
         UngetToken();
@@ -4021,7 +4021,7 @@ CSSParserImpl::ParseRuleSet(RuleAppendFunc aAppendFunc, void* aData,
   nsCSSSelectorList* slist = nullptr;
   uint32_t linenum, colnum;
   if (!GetNextTokenLocation(true, &linenum, &colnum) ||
-      !ParseSelectorList(slist, char16_t('{'))) {
+      !ParseSelectorList(slist, PRUnichar('{'))) {
     REPORT_UNEXPECTED(PEBadSelectorRSIgnored);
     OUTPUT_ERROR();
     SkipRuleSet(aInsideBraces);
@@ -4057,7 +4057,7 @@ CSSParserImpl::ParseRuleSet(RuleAppendFunc aAppendFunc, void* aData,
 
 bool
 CSSParserImpl::ParseSelectorList(nsCSSSelectorList*& aListHead,
-                                 char16_t aStopChar)
+                                 PRUnichar aStopChar)
 {
   nsCSSSelectorList* list = nullptr;
   if (! ParseSelectorGroup(list)) {
@@ -4073,7 +4073,7 @@ CSSParserImpl::ParseSelectorList(nsCSSSelectorList*& aListHead,
   nsCSSToken* tk = &mToken;
   for (;;) {
     if (! GetToken(true)) {
-      if (aStopChar == char16_t(0)) {
+      if (aStopChar == PRUnichar(0)) {
         return true;
       }
 
@@ -4092,7 +4092,7 @@ CSSParserImpl::ParseSelectorList(nsCSSSelectorList*& aListHead,
         list->mNext = newList;
         list = newList;
         continue;
-      } else if (aStopChar == tk->mSymbol && aStopChar != char16_t(0)) {
+      } else if (aStopChar == tk->mSymbol && aStopChar != PRUnichar(0)) {
         UngetToken();
         return true;
       }
@@ -4121,7 +4121,7 @@ static bool IsUniversalSelector(const nsCSSSelector& aSelector)
 bool
 CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
 {
-  char16_t combinator = 0;
+  PRUnichar combinator = 0;
   nsAutoPtr<nsCSSSelectorList> list(new nsCSSSelectorList());
 
   for (;;) {
@@ -4134,18 +4134,18 @@ CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
       break; // EOF ok here
     }
 
-    combinator = char16_t(0);
+    combinator = PRUnichar(0);
     if (mToken.mType == eCSSToken_Whitespace) {
       if (!GetToken(true)) {
         break; // EOF ok here
       }
-      combinator = char16_t(' ');
+      combinator = PRUnichar(' ');
     }
 
     if (mToken.mType != eCSSToken_Symbol) {
       UngetToken(); // not a combinator
     } else {
-      char16_t symbol = mToken.mSymbol;
+      PRUnichar symbol = mToken.mSymbol;
       if (symbol == '+' || symbol == '>' || symbol == '~') {
         combinator = mToken.mSymbol;
       } else {
@@ -4592,7 +4592,7 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
   // OK, now we know we have an mIdent.  Atomize it.  All the atoms, for
   // pseudo-classes as well as pseudo-elements, start with a single ':'.
   nsAutoString buffer;
-  buffer.Append(char16_t(':'));
+  buffer.Append(PRUnichar(':'));
   buffer.Append(mToken.mIdent);
   nsContentUtils::ASCIIToLower(buffer);
   nsCOMPtr<nsIAtom> pseudo = do_GetAtom(buffer);
@@ -5107,7 +5107,7 @@ CSSParserImpl::ParsePseudoClassWithSelectorListArg(nsCSSSelector& aSelector,
                                                    nsCSSPseudoClasses::Type aType)
 {
   nsAutoPtr<nsCSSSelectorList> slist;
-  if (! ParseSelectorList(*getter_Transfers(slist), char16_t(')'))) {
+  if (! ParseSelectorList(*getter_Transfers(slist), PRUnichar(')'))) {
     return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
   }
 
@@ -5139,7 +5139,7 @@ CSSParserImpl::ParsePseudoClassWithSelectorListArg(nsCSSSelector& aSelector,
  */
 bool
 CSSParserImpl::ParseSelector(nsCSSSelectorList* aList,
-                             char16_t aPrevCombinator)
+                             PRUnichar aPrevCombinator)
 {
   if (! GetToken(true)) {
     REPORT_UNEXPECTED_EOF(PESelectorEOF);
@@ -6438,7 +6438,7 @@ CSSParserImpl::ParseAttr(nsCSSValue& aValue)
         return false;
       }
       attr.AppendInt(nameSpaceID, 10);
-      attr.Append(char16_t('|'));
+      attr.Append(PRUnichar('|'));
       if (! GetToken(false)) {
         REPORT_UNEXPECTED_EOF(PEAttributeNameEOF);
         return false;
@@ -7541,7 +7541,7 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
       CSSParserInputState stateAtError;
       SaveInputState(stateAtError);
 
-      const char16_t stopChars[] = { ';', '!', '}', ')', 0 };
+      const PRUnichar stopChars[] = { ';', '!', '}', ')', 0 };
       SkipUntilOneOf(stopChars);
       UngetToken();
       parseAsTokenStream = mScanner->SeenVariableReference();
@@ -10318,7 +10318,7 @@ CSSParserImpl::ParseOneFamily(nsAString& aFamily, bool& aOneKeyword)
         // -- CSS 2.1, section 15.3
         // Whitespace tokens do not actually matter,
         // identifier tokens can be separated by comments.
-        aFamily.Append(char16_t(' '));
+        aFamily.Append(PRUnichar(' '));
         aFamily.Append(tk->mIdent);
       } else if (eCSSToken_Whitespace != tk->mType) {
         UngetToken();
@@ -10381,7 +10381,7 @@ CSSParserImpl::ParseFamily(nsCSSValue& aValue)
     if (!ExpectSymbol(',', true))
       break;
 
-    family.Append(char16_t(','));
+    family.Append(PRUnichar(','));
 
     nsAutoString nextFamily;
     if (!ParseOneFamily(nextFamily, single))
@@ -12594,7 +12594,7 @@ CSSParserImpl::ParseValueWithVariables(CSSVariableDeclarations::Type* aType,
               *aDropBackslash = false;
               return true;
             }
-            char16_t c = stack.LastElement();
+            PRUnichar c = stack.LastElement();
             stack.TruncateLength(stack.Length() - 1);
             if (!references.IsEmpty() &&
                 references.LastElement() == stack.Length()) {

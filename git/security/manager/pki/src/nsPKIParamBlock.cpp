@@ -47,13 +47,13 @@ nsPKIParamBlock::GetInt(int32_t inIndex, int32_t *outInt)
 
 
 NS_IMETHODIMP 
-nsPKIParamBlock::GetString(int32_t inIndex, char16_t **_retval)
+nsPKIParamBlock::GetString(int32_t inIndex, PRUnichar **_retval)
 {
   return mDialogParamBlock->GetString(inIndex, _retval);
 }
 
 NS_IMETHODIMP 
-nsPKIParamBlock::SetString(int32_t inIndex, const char16_t *inString)
+nsPKIParamBlock::SetString(int32_t inIndex, const PRUnichar *inString)
 {
   return mDialogParamBlock->SetString(inIndex, inString);
 }

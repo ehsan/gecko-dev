@@ -216,7 +216,7 @@ private:
      * Returns true if the given character represents a numeric letter (digit)
      * Implemented in ExprLexerChars.cpp
      */
-    static bool isXPathDigit(char16_t ch)
+    static bool isXPathDigit(PRUnichar ch)
     {
         return (ch >= '0' && ch <= '9');
     }

@@ -127,7 +127,7 @@ gfxMacFont::~gfxMacFont()
 
 bool
 gfxMacFont::ShapeText(gfxContext      *aContext,
-                      const char16_t *aText,
+                      const PRUnichar *aText,
                       uint32_t         aOffset,
                       uint32_t         aLength,
                       int32_t          aScript,
@@ -336,7 +336,7 @@ gfxMacFont::InitMetrics()
 }
 
 gfxFloat
-gfxMacFont::GetCharWidth(CFDataRef aCmap, char16_t aUniChar,
+gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
                          uint32_t *aGlyphID, gfxFloat aConvFactor)
 {
     CGGlyph glyph = 0;

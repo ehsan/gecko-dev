@@ -1739,11 +1739,10 @@ IonCompile(JSContext *cx, JSScript *script,
     }
 
     Maybe<AutoEnterIonCompilation> ionCompiling;
-    if (!cx->runtime()->profilingScripts && !IonSpewEnabled(IonSpew_Logs)) {
+    if (!cx->runtime()->profilingScripts) {
         // Compilation with script profiling is only done on the main thread,
-        // and may modify scripts directly. Same for logging. It is only
-        // enabled when offthread compilation is disabled. So don't watch for
-        // proper use of the compilation lock.
+        // and may modify scripts directly, so don't watch for proper use of
+        // the compilation lock.
         ionCompiling.construct();
     }
 

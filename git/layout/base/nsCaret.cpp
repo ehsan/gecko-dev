@@ -196,7 +196,7 @@ DrawCJKCaret(nsIFrame* aFrame, int32_t aOffset)
     return false;
   if (aOffset < 0 || uint32_t(aOffset) >= frag->GetLength())
     return false;
-  char16_t ch = frag->CharAt(aOffset);
+  PRUnichar ch = frag->CharAt(aOffset);
   return 0x2e80 <= ch && ch <= 0xd7ff;
 }
 

@@ -43,7 +43,7 @@ private:
   bool ParseSubPath();
   
   bool ParseSubPathElements();
-  bool ParseSubPathElement(char16_t aCommandType,
+  bool ParseSubPathElement(PRUnichar aCommandType,
                            bool aAbsCoords);
 
   bool ParseMoveto();

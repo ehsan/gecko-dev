@@ -488,24 +488,6 @@ ContentParent::GetInitialProcessPriority(Element* aFrameElement)
                PROCESS_PRIORITY_FOREGROUND;
 }
 
-bool
-ContentParent::PreallocatedProcessReady()
-{
-#ifdef MOZ_NUWA_PROCESS
-    return PreallocatedProcessManager::PreallocatedProcessReady();
-#else
-    return true;
-#endif
-}
-
-void
-ContentParent::RunAfterPreallocatedProcessReady(nsIRunnable* aRequest)
-{
-#ifdef MOZ_NUWA_PROCESS
-    PreallocatedProcessManager::RunAfterPreallocatedProcessReady(aRequest);
-#endif
-}
-
 /*static*/ TabParent*
 ContentParent::CreateBrowserOrApp(const TabContext& aContext,
                                   Element* aFrameElement)
@@ -580,14 +562,6 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         p = MaybeTakePreallocatedAppProcess(manifestURL, privs,
                                             initialPriority);
         if (!p) {
-#ifdef MOZ_NUWA_PROCESS
-            if (Preferences::GetBool("dom.ipc.processPrelaunch.enabled",
-                                     false)) {
-                // Returning nullptr from here so the frame loader will retry
-                // later when we have a spare process.
-                return nullptr;
-            }
-#endif
             NS_WARNING("Unable to use pre-allocated app process");
             p = new ContentParent(ownApp,
                                   /* isForBrowserElement = */ false,
@@ -1597,7 +1571,7 @@ ContentParent::RecvSetClipboardText(const nsString& text,
         do_QueryInterface(dataWrapper);
     
     rv = trans->SetTransferData(kUnicodeMime, nsisupportsDataWrapper,
-                                text.Length() * sizeof(char16_t));
+                                text.Length() * sizeof(PRUnichar));
     NS_ENSURE_SUCCESS(rv, true);
     
     clipboard->SetData(trans, nullptr, whichClipboard);
@@ -1835,7 +1809,7 @@ NS_IMPL_ISUPPORTS3(ContentParent,
 NS_IMETHODIMP
 ContentParent::Observe(nsISupports* aSubject,
                        const char* aTopic,
-                       const char16_t* aData)
+                       const PRUnichar* aData)
 {
     if (!strcmp(aTopic, "xpcom-shutdown") && mSubprocess) {
         ShutDownProcess(/* closeWithError */ false);
@@ -3223,7 +3197,7 @@ ContentParent::RecvRemoveIdleObserver(const uint64_t& aObserver, const uint32_t&
 NS_IMPL_ISUPPORTS1(ParentIdleListener, nsIObserver)
 
 NS_IMETHODIMP
-ParentIdleListener::Observe(nsISupports*, const char* aTopic, const char16_t* aData) {
+ParentIdleListener::Observe(nsISupports*, const char* aTopic, const PRUnichar* aData) {
   mozilla::unused << mParent->SendNotifyIdleObserver(mObserver,
                                                      nsDependentCString(aTopic),
                                                      nsDependentString(aData));

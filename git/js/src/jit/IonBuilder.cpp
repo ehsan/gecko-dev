@@ -9066,7 +9066,9 @@ IonBuilder::jsop_regexp(RegExpObject *reobj)
             mustClone = false;
     }
 
-    MRegExp *regexp = MRegExp::New(alloc(), constraints(), reobj, mustClone);
+    JSObject *prototype = reobj->getProto();
+
+    MRegExp *regexp = MRegExp::New(alloc(), constraints(), reobj, prototype, mustClone);
     current->add(regexp);
     current->push(regexp);
 

@@ -13,7 +13,7 @@ namespace SSE2 {
 
 void
 Convert_ascii_run(const char *&src,
-                  char16_t  *&dst,
+                  PRUnichar  *&dst,
                   int32_t      len)
 {
   if (len > 15) {
@@ -26,7 +26,7 @@ Convert_ascii_run(const char *&src,
     while ((NS_PTR_TO_UINT32(src) & 15) && len > 0) {
       if (*src & 0x80U)
         return;
-      *dst++ = (char16_t) *src++;
+      *dst++ = (PRUnichar) *src++;
       len--;
     }
 
@@ -88,7 +88,7 @@ Convert_ascii_run(const char *&src,
   // finish off a byte at a time
 
   while (len-- > 0 && (*src & 0x80U) == 0) {
-    *dst++ = (char16_t) *src++;
+    *dst++ = (PRUnichar) *src++;
   }
 }
 

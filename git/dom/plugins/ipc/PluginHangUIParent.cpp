@@ -154,7 +154,7 @@ PluginHangUIParent::Init(const nsString& aPluginName)
   CommandLine commandLine(exePath.value());
 
   nsXPIDLString localizedStr;
-  const char16_t* formatParams[] = { aPluginName.get() };
+  const PRUnichar* formatParams[] = { aPluginName.get() };
   rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                              "PluginHangUIMessage",
                                              formatParams,

@@ -46,7 +46,7 @@ static void AppendNonAsciiToNCR(const nsAString& in, nsAFlatString& out)
       nsAutoString hex;
       hex.AppendInt(*start++, 16);
       out.Append(hex);
-      out.Append((char16_t)';');
+      out.Append((PRUnichar)';');
     }
   }
 }
@@ -533,13 +533,13 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
                                     unEscapeSpec.Length()));
 
     nsXPIDLString title;
-    const char16_t* formatTitle[] = {
+    const PRUnichar* formatTitle[] = {
         htmlEscSpec.get()
     };
 
     rv = mBundle->FormatStringFromName(MOZ_UTF16("DirTitle"),
                                        formatTitle,
-                                       sizeof(formatTitle)/sizeof(char16_t*),
+                                       sizeof(formatTitle)/sizeof(PRUnichar*),
                                        getter_Copies(title));
     if (NS_FAILED(rv)) return rv;
 
@@ -590,13 +590,13 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
     buffer.Append(direction);
     buffer.AppendLiteral("\">\n<h1>");
     
-    const char16_t* formatHeading[] = {
+    const PRUnichar* formatHeading[] = {
         htmlEscSpec.get()
     };
 
     rv = mBundle->FormatStringFromName(MOZ_UTF16("DirTitle"),
                                        formatHeading,
-                                       sizeof(formatHeading)/sizeof(char16_t*),
+                                       sizeof(formatHeading)/sizeof(PRUnichar*),
                                        getter_Copies(title));
     if (NS_FAILED(rv)) return rv;
     
@@ -698,7 +698,7 @@ nsIndexedToHTML::FormatInputStream(nsIRequest* aRequest, nsISupports *aContext, 
                                                           getter_AddRefs(mUnicodeEncoder));
         if (NS_SUCCEEDED(rv))
             rv = mUnicodeEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, 
-                                                       nullptr, (char16_t)'?');
+                                                       nullptr, (PRUnichar)'?');
       }
     }
 
@@ -773,7 +773,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
 
     nsXPIDLString description;
     aIndex->GetDescription(getter_Copies(description));
-    if (description.First() == char16_t('.'))
+    if (description.First() == PRUnichar('.'))
         pushBuffer.AppendLiteral(" class=\"hidden-object\"");
 
     pushBuffer.AppendLiteral(">\n <td sortable-data=\"");
@@ -794,7 +794,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
             pushBuffer.AppendInt(2);
             break;
     }
-    char16_t* escaped = nsEscapeHTML2(description.get(), description.Length());
+    PRUnichar* escaped = nsEscapeHTML2(description.get(), description.Length());
     pushBuffer.Append(escaped);
 
     pushBuffer.AppendLiteral("\"><a class=\"");
@@ -903,7 +903,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
         if (NS_FAILED(rv)) {
             return rv;
         }
-        nsAutoArrayPtr<char16_t> outbuf(new char16_t[outlen]);
+        nsAutoArrayPtr<PRUnichar> outbuf(new PRUnichar[outlen]);
         rv = decoder->Convert(locEscaped.get(), &len, outbuf, &outlen);
         // Use the result only if the sequence is valid as UTF-8.
         if (rv == NS_OK) {
@@ -1002,7 +1002,7 @@ nsIndexedToHTML::OnInformationAvailable(nsIRequest *aRequest,
                                         nsISupports *aCtxt,
                                         const nsAString& aInfo) {
     nsAutoString pushBuffer;
-    char16_t* escaped = nsEscapeHTML2(PromiseFlatString(aInfo).get());
+    PRUnichar* escaped = nsEscapeHTML2(PromiseFlatString(aInfo).get());
     if (!escaped)
         return NS_ERROR_OUT_OF_MEMORY;
     pushBuffer.AppendLiteral("<tr>\n <td>");

@@ -5125,9 +5125,8 @@ js::NewCompartment(JSContext *cx, Zone *zone, JSPrincipals *principals,
 void
 gc::MergeCompartments(JSCompartment *source, JSCompartment *target)
 {
-    // The source compartment must be specifically flagged as mergable.  This
-    // also implies that the compartment is not visible to the debugger.
-    JS_ASSERT(source->options_.mergeable());
+    // Don't allow debugger-visible compartments to be merged
+    JS_ASSERT(source->options_.invisibleToDebugger());
 
     JSRuntime *rt = source->runtimeFromMainThread();
 

@@ -482,7 +482,7 @@ static nsresult AppendString(nsITransferable *aTransferable,
   NS_ENSURE_SUCCESS(rv, rv);
 
   return aTransferable->SetTransferData(aFlavor, data,
-                                        aString.Length() * sizeof(char16_t));
+                                        aString.Length() * sizeof(PRUnichar));
 }
 
 static nsresult AppendDOMNode(nsITransferable *aTransferable,

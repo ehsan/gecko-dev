@@ -1217,7 +1217,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
               HWND hwnd = GetForegroundWindow();
               if (hwnd && hwnd != mPluginHWND &&
                   GetClassNameW(hwnd, szClass,
-                                sizeof(szClass)/sizeof(char16_t)) &&
+                                sizeof(szClass)/sizeof(PRUnichar)) &&
                   !wcscmp(szClass, kFlashFullscreenClass)) {
                   return 0;
               }

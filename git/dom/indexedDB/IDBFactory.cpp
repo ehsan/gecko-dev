@@ -376,7 +376,7 @@ IDBFactory::SetDefaultPragmas(mozIStorageConnection* aConnection)
 
 inline
 bool
-IgnoreWhitespace(char16_t c)
+IgnoreWhitespace(PRUnichar c)
 {
   return false;
 }

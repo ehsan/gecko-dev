@@ -51,9 +51,9 @@ function processCSU(csuName, csu)
     }
 }
 
-function findVirtualFunctions(initialCSU, field, suppressed)
+function findVirtualFunctions(csu, field, suppressed)
 {
-    var worklist = [initialCSU];
+    var worklist = [csu];
 
     // Virtual call targets on subclasses of nsISupports may be incomplete,
     // if the interface is scriptable. Just treat all indirect calls on
@@ -65,7 +65,7 @@ function findVirtualFunctions(initialCSU, field, suppressed)
             suppressed[0] = true;
             return [];
         }
-        if (isOverridableField(initialCSU, csu, field))
+        if (isOverridableField(csu, field))
             return null;
 
         if (csu in superclasses) {

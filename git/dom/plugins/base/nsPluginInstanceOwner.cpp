@@ -547,7 +547,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::ShowStatus(const char *aStatusMsg)
   return rv;
 }
 
-NS_IMETHODIMP nsPluginInstanceOwner::ShowStatus(const char16_t *aStatusMsg)
+NS_IMETHODIMP nsPluginInstanceOwner::ShowStatus(const PRUnichar *aStatusMsg)
 {
   nsresult  rv = NS_ERROR_FAILURE;
 

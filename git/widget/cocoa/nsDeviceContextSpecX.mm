@@ -58,7 +58,7 @@ NS_IMETHODIMP nsDeviceContextSpecX::Init(nsIWidget *aWidget,
 }
 
 NS_IMETHODIMP nsDeviceContextSpecX::BeginDocument(const nsAString& aTitle, 
-                                                  char16_t*       aPrintToFileName,
+                                                  PRUnichar*       aPrintToFileName,
                                                   int32_t          aStartPage, 
                                                   int32_t          aEndPage)
 {

@@ -93,7 +93,7 @@ nsScriptSecurityManager::SubjectIsPrivileged()
 // Convenience Functions //
 ///////////////////////////
 // Result of this function should not be freed.
-static inline const char16_t *
+static inline const PRUnichar *
 IDToString(JSContext *cx, jsid id_)
 {
     JS::RootedId id(cx, id_);
@@ -178,7 +178,7 @@ inline void SetPendingException(JSContext *cx, const char *aMsg)
     JS_ReportError(cx, "%s", aMsg);
 }
 
-inline void SetPendingException(JSContext *cx, const char16_t *aMsg)
+inline void SetPendingException(JSContext *cx, const PRUnichar *aMsg)
 {
     JS_ReportError(cx, "%hs", aMsg);
 }
@@ -412,6 +412,7 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
     return evalOK;
 }
 
+
 bool
 nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> obj,
                                            JS::Handle<jsid> id, JSAccessMode mode,
@@ -448,15 +449,6 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> 
 
     return true;
 }
-
-// static
-bool
-nsScriptSecurityManager::JSPrincipalsSubsume(JSPrincipals *first,
-                                             JSPrincipals *second)
-{
-    return nsJSPrincipals::get(first)->Subsumes(nsJSPrincipals::get(second));
-}
-
 
 NS_IMETHODIMP
 nsScriptSecurityManager::CheckPropertyAccess(JSContext* cx,
@@ -704,7 +696,7 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(uint32_t aAction,
         NS_ConvertUTF8toUTF16 objectDomainUnicode(objectDomain);
 
         nsXPIDLString errorMsg;
-        const char16_t *formatStrings[] =
+        const PRUnichar *formatStrings[] =
         {
             subjectOriginUnicode.get(),
             className.get(),
@@ -1178,7 +1170,7 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
     if (!hasFlags) {
         nsXPIDLString message;
         NS_ConvertASCIItoUTF16 ucsTargetScheme(targetScheme);
-        const char16_t* formatStrings[] = { ucsTargetScheme.get() };
+        const PRUnichar* formatStrings[] = { ucsTargetScheme.get() };
         rv = sStrBundle->
             FormatStringFromName(MOZ_UTF16("ProtocolFlagError"),
                                  formatStrings,
@@ -1217,7 +1209,7 @@ nsScriptSecurityManager::ReportError(JSContext* cx, const nsAString& messageTag,
     nsXPIDLString message;
     NS_ConvertASCIItoUTF16 ucsSourceSpec(sourceSpec);
     NS_ConvertASCIItoUTF16 ucsTargetSpec(targetSpec);
-    const char16_t *formatStrings[] = { ucsSourceSpec.get(), ucsTargetSpec.get() };
+    const PRUnichar *formatStrings[] = { ucsSourceSpec.get(), ucsTargetSpec.get() };
     rv = sStrBundle->FormatStringFromName(PromiseFlatString(messageTag).get(),
                                           formatStrings,
                                           ArrayLength(formatStrings),
@@ -1552,7 +1544,7 @@ nsScriptSecurityManager::CanCreateWrapper(JSContext *cx,
         }
         NS_ConvertUTF8toUTF16 originUnicode(origin);
         NS_ConvertUTF8toUTF16 className(objClassInfo.GetName());
-        const char16_t* formatStrings[] = {
+        const PRUnichar* formatStrings[] = {
             className.get(),
             originUnicode.get()
         };
@@ -1743,7 +1735,7 @@ static const char* kObservedPrefs[] = {
 
 NS_IMETHODIMP
 nsScriptSecurityManager::Observe(nsISupports* aObject, const char* aTopic,
-                                 const char16_t* aMessage)
+                                 const PRUnichar* aMessage)
 {
     nsresult rv = NS_OK;
     NS_ConvertUTF16toUTF8 messageStr(aMessage);
@@ -1799,8 +1791,7 @@ nsresult nsScriptSecurityManager::Init()
 
     static const JSSecurityCallbacks securityCallbacks = {
         CheckObjectAccess,
-        ContentSecurityPolicyPermitsJSAction,
-        JSPrincipalsSubsume,
+        ContentSecurityPolicyPermitsJSAction
     };
 
     MOZ_ASSERT(!JS_GetSecurityCallbacks(sRuntime));

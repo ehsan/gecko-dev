@@ -66,7 +66,7 @@ public:
 
   nsresult Init();
 
-  void HandleMozsettingChanged(const char16_t* aData);
+  void HandleMozsettingChanged(const PRUnichar* aData);
   void HandleMozsettingValue(const bool aValue);
 
   // Management of the Geolocation objects

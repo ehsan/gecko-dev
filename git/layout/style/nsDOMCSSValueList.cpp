@@ -59,7 +59,7 @@ nsDOMCSSValueList::GetCssText(nsAString& aCssText)
     separator.AssignLiteral(", ");
   }
   else {
-    separator.Assign(char16_t(' '));
+    separator.Assign(PRUnichar(' '));
   }
 
   nsAutoString tmpStr;

@@ -327,7 +327,7 @@ nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
 
 NS_IMETHODIMP
 nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
-                                const char16_t *someData)
+                                const PRUnichar *someData)
 {
   nsresult rv = NS_OK;
 

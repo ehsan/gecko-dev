@@ -84,11 +84,11 @@ class RegExpObjectBuilder
     RegExpObject *build(HandleAtom source, RegExpShared &shared);
 
     /* Perform a VM-internal clone. */
-    RegExpObject *clone(Handle<RegExpObject*> other);
+    RegExpObject *clone(Handle<RegExpObject*> other, Handle<RegExpObject*> proto);
 };
 
 JSObject *
-CloneRegExpObject(JSContext *cx, JSObject *obj);
+CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto);
 
 /*
  * A RegExpShared is the compiled representation of a regexp. A RegExpShared is

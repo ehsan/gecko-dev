@@ -151,7 +151,7 @@ void nsWindowInfo::ReferenceSelf(bool inAge, bool inZ)
 NS_IMPL_ISUPPORTS1(nsAppShellWindowEnumerator, nsISimpleEnumerator)
 
 nsAppShellWindowEnumerator::nsAppShellWindowEnumerator(
-    const char16_t* aTypeString,
+    const PRUnichar* aTypeString,
     nsWindowMediator& aMediator) :
       mWindowMediator(&aMediator), mType(aTypeString), mCurrentPosition(nullptr)
 {
@@ -194,7 +194,7 @@ void nsAppShellWindowEnumerator::WindowRemoved(nsWindowInfo *inInfo)
 //
 
 nsASDOMWindowEnumerator::nsASDOMWindowEnumerator(
-    const char16_t* aTypeString,
+    const PRUnichar* aTypeString,
     nsWindowMediator& aMediator) :
       nsAppShellWindowEnumerator(aTypeString, aMediator)
 {
@@ -225,7 +225,7 @@ NS_IMETHODIMP nsASDOMWindowEnumerator::GetNext(nsISupports **retval)
 //
 
 nsASXULWindowEnumerator::nsASXULWindowEnumerator(
-    const char16_t* aTypeString,
+    const PRUnichar* aTypeString,
     nsWindowMediator& aMediator) :
       nsAppShellWindowEnumerator(aTypeString, aMediator)
 {
@@ -253,7 +253,7 @@ NS_IMETHODIMP nsASXULWindowEnumerator::GetNext(nsISupports **retval)
 //
 
 nsASDOMWindowEarlyToLateEnumerator::nsASDOMWindowEarlyToLateEnumerator(
-    const char16_t *aTypeString,
+    const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
       nsASDOMWindowEnumerator(aTypeString, aMediator)
 {
@@ -292,7 +292,7 @@ nsWindowInfo *nsASDOMWindowEarlyToLateEnumerator::FindNext()
 //
 
 nsASXULWindowEarlyToLateEnumerator::nsASXULWindowEarlyToLateEnumerator(
-    const char16_t *aTypeString,
+    const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
       nsASXULWindowEnumerator(aTypeString, aMediator)
 {
@@ -337,7 +337,7 @@ nsWindowInfo *nsASXULWindowEarlyToLateEnumerator::FindNext()
 //
 
 nsASDOMWindowFrontToBackEnumerator::nsASDOMWindowFrontToBackEnumerator(
-    const char16_t *aTypeString,
+    const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
       nsASDOMWindowEnumerator(aTypeString, aMediator)
 {
@@ -376,7 +376,7 @@ nsWindowInfo *nsASDOMWindowFrontToBackEnumerator::FindNext()
 //
 
 nsASXULWindowFrontToBackEnumerator::nsASXULWindowFrontToBackEnumerator(
-    const char16_t *aTypeString,
+    const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
       nsASXULWindowEnumerator(aTypeString, aMediator)
 {
@@ -415,7 +415,7 @@ nsWindowInfo *nsASXULWindowFrontToBackEnumerator::FindNext()
 //
 
 nsASDOMWindowBackToFrontEnumerator::nsASDOMWindowBackToFrontEnumerator(
-    const char16_t *aTypeString,
+    const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
   nsASDOMWindowEnumerator(aTypeString, aMediator)
 {
@@ -457,7 +457,7 @@ nsWindowInfo *nsASDOMWindowBackToFrontEnumerator::FindNext()
 //
 
 nsASXULWindowBackToFrontEnumerator::nsASXULWindowBackToFrontEnumerator(
-    const char16_t *aTypeString,
+    const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
       nsASXULWindowEnumerator(aTypeString, aMediator)
 {

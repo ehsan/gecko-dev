@@ -123,7 +123,7 @@ protected:
   nsCOMArray<nsIFile>    mFiles;
   static char            mLastUsedDirectory[];
   nsString               mUnicodeFile;
-  static char16_t      *mLastUsedUnicodeDirectory;
+  static PRUnichar      *mLastUsedUnicodeDirectory;
   HWND                   mDlgWnd;
 
   class ComDlgFilterSpec

@@ -78,7 +78,7 @@ txLiteralExpr::toString(nsAString& aStr)
             StringResult* strRes =
                 static_cast<StringResult*>(static_cast<txAExprResult*>
                                        (mValue));
-            char16_t ch = '\'';
+            PRUnichar ch = '\'';
             if (strRes->mValue.FindChar(ch) != kNotFound) {
                 ch = '\"';
             }

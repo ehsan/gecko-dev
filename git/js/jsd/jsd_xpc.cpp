@@ -1213,7 +1213,7 @@ jsdScript::GetFunctionName(nsACString &_rval)
 }
 
 NS_IMETHODIMP
-jsdScript::GetParameterNames(uint32_t* count, char16_t*** paramNames)
+jsdScript::GetParameterNames(uint32_t* count, PRUnichar*** paramNames)
 {
     ASSERT_VALID_EPHEMERAL;
     AutoSafeJSContext cx;
@@ -1234,8 +1234,8 @@ jsdScript::GetParameterNames(uint32_t* count, char16_t*** paramNames)
         return NS_OK;
     }
 
-    char16_t **ret =
-        static_cast<char16_t**>(NS_Alloc(nargs * sizeof(char16_t*)));
+    PRUnichar **ret =
+        static_cast<PRUnichar**>(NS_Alloc(nargs * sizeof(PRUnichar*)));
     if (!ret)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -3329,7 +3329,7 @@ NS_IMPL_ISUPPORTS1(jsdASObserver, nsIObserver)
 
 NS_IMETHODIMP
 jsdASObserver::Observe (nsISupports *aSubject, const char *aTopic,
-                        const char16_t *aData)
+                        const PRUnichar *aData)
 {
     nsresult rv;
 

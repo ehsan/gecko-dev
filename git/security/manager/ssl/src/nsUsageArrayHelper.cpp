@@ -65,7 +65,7 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
                           PRTime time,
                           CertVerifier::Flags flags,
                           uint32_t &aCounter,
-                          char16_t **outUsages)
+                          PRUnichar **outUsages)
 {
   if (!aCertUsage) {
     MOZ_CRASH("caller should have supplied non-zero aCertUsage");
@@ -188,7 +188,7 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
                       uint32_t outArraySize,
                       uint32_t *_verified,
                       uint32_t *_count,
-                      char16_t **outUsages)
+                      PRUnichar **outUsages)
 {
   nsNSSShutDownPreventionLock locker;
   if (NS_FAILED(m_rv))

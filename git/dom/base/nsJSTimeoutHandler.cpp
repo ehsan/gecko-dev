@@ -43,7 +43,7 @@ public:
                            ErrorResult& aError);
   ~nsJSScriptTimeoutHandler();
 
-  virtual const char16_t *GetHandlerText();
+  virtual const PRUnichar *GetHandlerText();
   virtual Function* GetCallback()
   {
     return mFunction;
@@ -385,7 +385,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   return NS_OK;
 }
 
-const char16_t *
+const PRUnichar *
 nsJSScriptTimeoutHandler::GetHandlerText()
 {
   NS_ASSERTION(!mFunction, "No expression, so no handler text!");

@@ -66,7 +66,7 @@ nsresult GetTempFileName(char** outText);
 void     SaveTypeAndSource(nsIFile *file, nsIDOMDocument *domDoc,
                            PCSZ pszType);
 int      UnicodeToCodepage( const nsAString& inString, char **outText);
-int      CodepageToUnicode( const nsACString& inString, char16_t **outText);
+int      CodepageToUnicode( const nsACString& inString, PRUnichar **outText);
 void     RemoveCarriageReturns(char * pszText);
 MRESULT EXPENTRY nsDragWindowProc(HWND hWnd, ULONG msg, MPARAM mp1, MPARAM mp2);
 
@@ -702,7 +702,7 @@ nsresult  nsDragService::GetUniTextTitle(nsISupports *aGenericData,
 
     // alloc a buffer to hold the unicode title text
   int bufsize = (MAXTITLELTH+1)*2;
-  char16_t * buffer = (char16_t*)nsMemory::Alloc(bufsize);
+  PRUnichar * buffer = (PRUnichar*)nsMemory::Alloc(bufsize);
   if (!buffer)
     return NS_ERROR_FAILURE;
 
@@ -1751,7 +1751,7 @@ int UnicodeToCodepage(const nsAString& aString, char **aResult)
 
 // --------------------------------------------------------------------------
 
-int CodepageToUnicode(const nsACString& aString, char16_t **aResult)
+int CodepageToUnicode(const nsACString& aString, PRUnichar **aResult)
 {
   nsAutoChar16Buffer buffer;
   int32_t bufLength;

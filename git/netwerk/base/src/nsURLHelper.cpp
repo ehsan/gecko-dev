@@ -393,7 +393,7 @@ net_ResolveRelativePath(const nsACString &relativePath,
     bool needsDelim = false;
 
     if ( !path.IsEmpty() ) {
-        char16_t last = path.Last();
+        PRUnichar last = path.Last();
         needsDelim = !(last == '/');
     }
 

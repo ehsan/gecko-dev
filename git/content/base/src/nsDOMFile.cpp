@@ -607,7 +607,7 @@ void
 nsDOMFileFile::SetPath(const nsAString& aPath)
 {
   MOZ_ASSERT(aPath.IsEmpty() ||
-             aPath[aPath.Length() - 1] == char16_t('/'),
+             aPath[aPath.Length() - 1] == PRUnichar('/'),
              "Path must end with a path separator");
   mPath = aPath;
 }

@@ -381,7 +381,7 @@ nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsString& aArg)
   if (NS_FAILED(rv))
     return rv;
 
-  const char16_t *string = aArg.get();
+  const PRUnichar *string = aArg.get();
 
   return process->Runw(false, &string, 1);
 }

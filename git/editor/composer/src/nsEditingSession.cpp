@@ -827,7 +827,7 @@ NS_IMETHODIMP
 nsEditingSession::OnStatusChange(nsIWebProgress *aWebProgress,
                                  nsIRequest *aRequest,
                                  nsresult aStatus,
-                                 const char16_t *aMessage)
+                                 const PRUnichar *aMessage)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;

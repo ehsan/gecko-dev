@@ -33,7 +33,7 @@ NS_IMPL_ISUPPORTS1(nsHyphenationManager::MemoryPressureObserver,
 NS_IMETHODIMP
 nsHyphenationManager::MemoryPressureObserver::Observe(nsISupports *aSubject,
                                                       const char *aTopic,
-                                                      const char16_t *aData)
+                                                      const PRUnichar *aData)
 {
   if (!nsCRT::strcmp(aTopic, kMemoryPressureNotification)) {
     // We don't call Instance() here, as we don't want to create a hyphenation

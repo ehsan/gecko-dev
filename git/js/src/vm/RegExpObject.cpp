@@ -94,9 +94,11 @@ RegExpObjectBuilder::build(HandleAtom source, RegExpFlag flags)
 }
 
 RegExpObject *
-RegExpObjectBuilder::clone(Handle<RegExpObject *> other)
+RegExpObjectBuilder::clone(Handle<RegExpObject *> other, Handle<RegExpObject *> proto)
 {
     RootedTypeObject type(cx, other->type());
+    JS_ASSERT(type->proto().toObject() == proto);
+
     if (!getOrCreateClone(type))
         return nullptr;
 
@@ -105,7 +107,7 @@ RegExpObjectBuilder::clone(Handle<RegExpObject *> other)
      * the clone -- if the |RegExpStatics| provides more flags we'll
      * need a different |RegExpShared|.
      */
-    RegExpStatics *res = other->getProto()->getParent()->as<GlobalObject>().getRegExpStatics();
+    RegExpStatics *res = proto->getParent()->as<GlobalObject>().getRegExpStatics();
     RegExpFlag origFlags = other->getFlags();
     RegExpFlag staticsFlags = res->getFlags();
     if ((origFlags & staticsFlags) != staticsFlags) {
@@ -779,11 +781,12 @@ RegExpCompartment::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 /* Functions */
 
 JSObject *
-js::CloneRegExpObject(JSContext *cx, JSObject *obj_)
+js::CloneRegExpObject(JSContext *cx, JSObject *obj_, JSObject *proto_)
 {
     RegExpObjectBuilder builder(cx);
     Rooted<RegExpObject*> regex(cx, &obj_->as<RegExpObject>());
-    JSObject *res = builder.clone(regex);
+    Rooted<RegExpObject*> proto(cx, &proto_->as<RegExpObject>());
+    JSObject *res = builder.clone(regex, proto);
     JS_ASSERT(res->type() == regex->type());
     return res;
 }
