@@ -88,15 +88,13 @@ public:
 
   virtual bool RecvClientRecycle() MOZ_OVERRIDE;
 
-  virtual bool RecvClearTextureHostSync() MOZ_OVERRIDE;
-
   virtual bool RecvRemoveTexture() MOZ_OVERRIDE;
+
+  virtual bool RecvRemoveTextureSync() MOZ_OVERRIDE;
 
   TextureHost* GetTextureHost() { return mTextureHost; }
 
   void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
-
-  void ClearTextureHost();
 
   CompositableParentManager* mCompositableManager;
   RefPtr<TextureHost> mWaitForClientRecycle;
@@ -739,15 +737,20 @@ TextureParent::RecvRemoveTexture()
 }
 
 bool
-TextureParent::RecvClearTextureHostSync()
+TextureParent::RecvRemoveTextureSync()
 {
-  ClearTextureHost();
-  return true;
+  // we don't need to send a reply in the synchronous case since the child side
+  // has the guarantee that this message has been handled synchronously.
+  return PTextureParent::Send__delete__(this);
 }
 
 void
 TextureParent::ActorDestroy(ActorDestroyReason why)
 {
+  if (!mTextureHost) {
+    return;
+  }
+
   switch (why) {
   case AncestorDeletion:
   case Deletion:
@@ -756,16 +759,6 @@ TextureParent::ActorDestroy(ActorDestroyReason why)
     break;
   case FailedConstructor:
     NS_RUNTIMEABORT("FailedConstructor isn't possible in PTexture");
-  }
-
-  ClearTextureHost();
-}
-
-void
-TextureParent::ClearTextureHost()
-{
-  if (!mTextureHost) {
-    return;
   }
 
   if (mTextureHost->GetFlags() & TextureFlags::RECYCLE) {

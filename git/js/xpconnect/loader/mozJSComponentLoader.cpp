@@ -46,7 +46,6 @@
 
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
-#include "mozilla/MacroForEach.h"
 #include "mozilla/Preferences.h"
 
 #include "js/OldDebugAPI.h"
@@ -325,65 +324,6 @@ mozJSComponentLoader::mozJSComponentLoader()
     sSelf = this;
 }
 
-#define ENSURE_DEP(name) { nsresult rv = Ensure##name(); NS_ENSURE_SUCCESS(rv, rv); }
-#define ENSURE_DEPS(...) MOZ_FOR_EACH(ENSURE_DEP, (), (__VA_ARGS__));
-#define BEGIN_ENSURE(self, ...) { \
-    if (m##self) \
-        return NS_OK; \
-    ENSURE_DEPS(__VA_ARGS__); \
-}
-
-class MOZ_STACK_CLASS ComponentLoaderInfo {
-  public:
-    ComponentLoaderInfo(const nsACString& aLocation) : mLocation(aLocation) {}
-
-    nsIIOService* IOService() { MOZ_ASSERT(mIOService); return mIOService; }
-    nsresult EnsureIOService() {
-        if (mIOService)
-            return NS_OK;
-        nsresult rv;
-        mIOService = do_GetIOService(&rv);
-        return rv;
-    }
-
-    nsIURI*  URI() { MOZ_ASSERT(mURI); return mURI; }
-    nsresult EnsureURI() {
-        BEGIN_ENSURE(URI, IOService);
-        return mIOService->NewURI(mLocation, nullptr, nullptr, getter_AddRefs(mURI));
-    }
-
-    nsIChannel* ScriptChannel() { MOZ_ASSERT(mScriptChannel); return mScriptChannel; }
-    nsresult EnsureScriptChannel() {
-        BEGIN_ENSURE(ScriptChannel, IOService, URI);
-        return mIOService->NewChannelFromURI(mURI, getter_AddRefs(mScriptChannel));
-    }
-
-    nsIURI* ResolvedURI() { MOZ_ASSERT(mResolvedURI); return mResolvedURI; }
-    nsresult EnsureResolvedURI() {
-        BEGIN_ENSURE(ResolvedURI, ScriptChannel);
-        return mScriptChannel->GetURI(getter_AddRefs(mResolvedURI));
-    }
-
-    nsAutoCString& Key() { return mKey.ref(); }
-    nsresult EnsureKey() {
-        ENSURE_DEPS(ResolvedURI);
-        mKey.construct();
-        return mResolvedURI->GetSpec(mKey.ref());
-    }
-
-  private:
-    const nsACString& mLocation;
-    nsCOMPtr<nsIIOService> mIOService;
-    nsCOMPtr<nsIURI> mURI;
-    nsCOMPtr<nsIChannel> mScriptChannel;
-    nsCOMPtr<nsIURI> mResolvedURI;
-    Maybe<nsAutoCString> mKey; // This is safe because we're MOZ_STACK_CLASS
-};
-
-#undef BEGIN_ENSURE
-#undef ENSURE_DEPS
-#undef ENSURE_DEP
-
 mozJSComponentLoader::~mozJSComponentLoader()
 {
     if (mInitialized) {
@@ -460,9 +400,11 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
 
     nsCString spec;
     aFile.GetURIString(spec);
-    ComponentLoaderInfo info(spec);
-    nsresult rv = info.EnsureURI();
-    NS_ENSURE_SUCCESS(rv, nullptr);
+
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = NS_NewURI(getter_AddRefs(uri), spec);
+    if (NS_FAILED(rv))
+        return nullptr;
 
     if (!mInitialized) {
         rv = ReallyInit();
@@ -478,7 +420,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
 
     JSAutoRequest ar(mContext);
     RootedValue dummy(mContext);
-    rv = ObjectForLocation(info, file, &entry->obj, &entry->thisObjectKey,
+    rv = ObjectForLocation(file, uri, &entry->obj, &entry->thisObjectKey,
                            &entry->location, false, &dummy);
     if (NS_FAILED(rv)) {
         return nullptr;
@@ -535,6 +477,8 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     }
 
     if (JS_TypeOfValue(cx, NSGetFactory_val) != JSTYPE_FUNCTION) {
+        nsAutoCString spec;
+        uri->GetSpec(spec);
         JS_ReportError(cx, "%s has NSGetFactory property that is not a function",
                        spec.get());
         return nullptr;
@@ -784,8 +728,8 @@ mozJSComponentLoader::PrepareObjectForLocation(JSCLContextHelper& aCx,
 }
 
 nsresult
-mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
-                                        nsIFile *aComponentFile,
+mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
+                                        nsIURI *aURI,
                                         MutableHandleObject aObject,
                                         MutableHandleScript aTableScript,
                                         char **aLocation,
@@ -799,9 +743,7 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
     JSCLAutoErrorReporterSetter aers(cx, xpc::SystemErrorReporter);
 
     bool realFile = false;
-    nsresult rv = aInfo.EnsureURI();
-    NS_ENSURE_SUCCESS(rv, rv);
-    RootedObject obj(cx, PrepareObjectForLocation(cx, aComponentFile, aInfo.URI(),
+    RootedObject obj(cx, PrepareObjectForLocation(cx, aComponentFile, aURI,
                                                   mReuseLoaderGlobal, &realFile));
     NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
 
@@ -811,7 +753,7 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
     RootedFunction function(cx);
 
     nsAutoCString nativePath;
-    rv = aInfo.URI()->GetSpec(nativePath);
+    nsresult rv = aURI->GetSpec(nativePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Before compiling the script, first check to see if we have it in
@@ -822,7 +764,7 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
     StartupCache* cache = StartupCache::GetSingleton();
 
     nsAutoCString cachePath(kJSCachePrefix);
-    rv = PathifyURI(aInfo.URI(), cachePath);
+    rv = PathifyURI(aURI, cachePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (cache) {
@@ -969,10 +911,15 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
 
 #endif /* HAVE_PR_MEMMAP */
         } else {
-            rv = aInfo.EnsureScriptChannel();
+            nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
             NS_ENSURE_SUCCESS(rv, rv);
+
+            nsCOMPtr<nsIChannel> scriptChannel;
+            rv = ioService->NewChannelFromURI(aURI, getter_AddRefs(scriptChannel));
+            NS_ENSURE_SUCCESS(rv, rv);
+
             nsCOMPtr<nsIInputStream> scriptStream;
-            rv = aInfo.ScriptChannel()->Open(getter_AddRefs(scriptStream));
+            rv = scriptChannel->Open(getter_AddRefs(scriptStream));
             NS_ENSURE_SUCCESS(rv, rv);
 
             uint64_t len64;
@@ -1224,13 +1171,26 @@ mozJSComponentLoader::ImportInto(const nsACString &aLocation,
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    ComponentLoaderInfo info(aLocation);
-    rv = info.EnsureResolvedURI();
+    nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Get the URI.
+    nsCOMPtr<nsIURI> resURI;
+    rv = ioService->NewURI(aLocation, nullptr, nullptr, getter_AddRefs(resURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // figure out the resolved URI
+    nsCOMPtr<nsIChannel> scriptChannel;
+    rv = ioService->NewChannelFromURI(resURI, getter_AddRefs(scriptChannel));
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_INVALID_ARG);
+
+    nsCOMPtr<nsIURI> resolvedURI;
+    rv = scriptChannel->GetURI(getter_AddRefs(resolvedURI));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // get the JAR if there is one
     nsCOMPtr<nsIJARURI> jarURI;
-    jarURI = do_QueryInterface(info.ResolvedURI(), &rv);
+    jarURI = do_QueryInterface(resolvedURI, &rv);
     nsCOMPtr<nsIFileURL> baseFileURL;
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsIURI> baseURI;
@@ -1241,7 +1201,7 @@ mozJSComponentLoader::ImportInto(const nsACString &aLocation,
         baseFileURL = do_QueryInterface(baseURI, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
     } else {
-        baseFileURL = do_QueryInterface(info.ResolvedURI(), &rv);
+        baseFileURL = do_QueryInterface(resolvedURI, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1253,25 +1213,24 @@ mozJSComponentLoader::ImportInto(const nsACString &aLocation,
     sourceLocalFile = do_QueryInterface(sourceFile, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = info.EnsureKey();
+    nsAutoCString key;
+    rv = resolvedURI->GetSpec(key);
     NS_ENSURE_SUCCESS(rv, rv);
 
     ModuleEntry* mod;
     nsAutoPtr<ModuleEntry> newEntry;
-    if (!mImports.Get(info.Key(), &mod) && !mInProgressImports.Get(info.Key(), &mod)) {
+    if (!mImports.Get(key, &mod) && !mInProgressImports.Get(key, &mod)) {
         newEntry = new ModuleEntry(callercx);
         if (!newEntry)
             return NS_ERROR_OUT_OF_MEMORY;
-        mInProgressImports.Put(info.Key(), newEntry);
+        mInProgressImports.Put(key, newEntry);
 
-        rv = info.EnsureURI();
-        NS_ENSURE_SUCCESS(rv, rv);
         RootedValue exception(callercx);
-        rv = ObjectForLocation(info, sourceLocalFile, &newEntry->obj,
+        rv = ObjectForLocation(sourceLocalFile, resURI, &newEntry->obj,
                                &newEntry->thisObjectKey,
                                &newEntry->location, true, &exception);
 
-        mInProgressImports.Remove(info.Key());
+        mInProgressImports.Remove(key);
 
         if (NS_FAILED(rv)) {
             if (!exception.isUndefined()) {
@@ -1379,7 +1338,7 @@ mozJSComponentLoader::ImportInto(const nsACString &aLocation,
 
     // Cache this module for later
     if (newEntry) {
-        mImports.Put(info.Key(), newEntry);
+        mImports.Put(key, newEntry);
         newEntry.forget();
     }
 
@@ -1398,12 +1357,30 @@ mozJSComponentLoader::Unload(const nsACString & aLocation)
     MOZ_RELEASE_ASSERT(!mReuseLoaderGlobal, "Module unloading not supported when "
                                             "compartment sharing is enabled");
 
-    ComponentLoaderInfo info(aLocation);
-    rv = info.EnsureKey();
+    nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Get the URI.
+    nsCOMPtr<nsIURI> resURI;
+    rv = ioService->NewURI(aLocation, nullptr, nullptr, getter_AddRefs(resURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // figure out the resolved URI
+    nsCOMPtr<nsIChannel> scriptChannel;
+    rv = ioService->NewChannelFromURI(resURI, getter_AddRefs(scriptChannel));
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_INVALID_ARG);
+
+    nsCOMPtr<nsIURI> resolvedURI;
+    rv = scriptChannel->GetURI(getter_AddRefs(resolvedURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsAutoCString key;
+    rv = resolvedURI->GetSpec(key);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     ModuleEntry* mod;
-    if (mImports.Get(info.Key(), &mod)) {
-        mImports.Remove(info.Key());
+    if (mImports.Get(key, &mod)) {
+        mImports.Remove(key);
     }
 
     return NS_OK;
