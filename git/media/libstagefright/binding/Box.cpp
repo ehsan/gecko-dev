@@ -48,8 +48,8 @@ Box::Box(BoxContext* aContext, uint64_t aOffset, const Box* aParent)
     if ((mParent && !mParent->mRange.Contains(bigLengthRange)) ||
         !byteRange->Contains(bigLengthRange) ||
         !mContext->mSource->CachedReadAt(aOffset, bigLength,
-                                         sizeof(bigLength), &bytes) ||
-        bytes != sizeof(bigLength)) {
+                                         sizeof(bigLengthRange), &bytes) ||
+        bytes != sizeof(bigLengthRange)) {
       return;
     }
     size = BigEndian::readUint64(bigLength);
@@ -94,7 +94,7 @@ Box::Read(nsTArray<uint8_t>* aDest)
 {
   aDest->SetLength(mRange.mEnd - mChildOffset);
   size_t bytes;
-  if (!mContext->mSource->CachedReadAt(mChildOffset, aDest->Elements(),
+  if (!mContext->mSource->CachedReadAt(mChildOffset, &(*aDest)[0],
                                        aDest->Length(), &bytes) ||
       bytes != aDest->Length()) {
     // Byte ranges are being reported incorrectly

@@ -121,9 +121,9 @@ let Reader = {
         });
         break;
 
-      case "Reader:UpdateReaderButton": {
+      case "Reader:UpdateIsArticle": {
         let tab = BrowserApp.getTabForBrowser(message.target);
-        tab.browser.isArticle = message.data.isArticle;
+        tab.isArticle = message.data.isArticle;
         this.updatePageAction(tab);
         break;
       }
@@ -154,8 +154,7 @@ let Reader = {
       delete this.pageAction.id;
     }
 
-    let browser = tab.browser;
-    if (browser.currentURI.spec.startsWith("about:reader")) {
+    if (tab.readerActive) {
       this.pageAction.id = PageActions.add({
         title: Strings.browser.GetStringFromName("readerMode.exit"),
         icon: "drawable://reader_active",
@@ -172,7 +171,7 @@ let Reader = {
     // Only stop a reader session if the foreground viewer is not visible.
     UITelemetry.stopSession("reader.1", "", null);
 
-    if (browser.isArticle) {
+    if (tab.isArticle) {
       this.pageAction.id = PageActions.add({
         title: Strings.browser.GetStringFromName("readerMode.enter"),
         icon: "drawable://reader",

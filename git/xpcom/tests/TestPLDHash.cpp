@@ -16,70 +16,35 @@ namespace TestPLDHash {
 
 static bool test_pldhash_Init_capacity_ok()
 {
-  PLDHashTable t;
-
-  // Check that the constructor nulls |ops|.
-  if (t.IsInitialized()) {
-    return false;
-  }
-
   // Try the largest allowed capacity.  With PL_DHASH_MAX_CAPACITY==1<<26, this
   // will allocate 0.5GB of entry store on 32-bit platforms and 1GB on 64-bit
   // platforms.
-  if (!PL_DHashTableInit(&t, PL_DHashGetStubOps(), sizeof(PLDHashEntryStub),
-                         mozilla::fallible_t(), PL_DHASH_MAX_INITIAL_LENGTH)) {
-    return false;
-  }
+  PLDHashTable t;
+  bool ok = PL_DHashTableInit(&t, PL_DHashGetStubOps(),
+                              sizeof(PLDHashEntryStub),
+                              mozilla::fallible_t(),
+                              PL_DHASH_MAX_INITIAL_LENGTH);
+  if (ok)
+    PL_DHashTableFinish(&t);
 
-  // Check that Init() sets |ops|.
-  if (!t.IsInitialized()) {
-    return false;
-  }
-
-  // Check that Finish() nulls |ops|.
-  PL_DHashTableFinish(&t);
-  if (t.IsInitialized()) {
-    return false;
-  }
-
-  return true;
+  return ok;
 }
 
 static bool test_pldhash_Init_capacity_too_large()
 {
-  PLDHashTable t;
-
-  // Check that the constructor nulls |ops|.
-  if (t.IsInitialized()) {
-    return false;
-  }
-
   // Try the smallest too-large capacity.
-  if (PL_DHashTableInit(&t, PL_DHashGetStubOps(),
-                        sizeof(PLDHashEntryStub),
-                        mozilla::fallible_t(),
-                        PL_DHASH_MAX_INITIAL_LENGTH + 1)) {
-    return false;   // it succeeded!?
-  }
-  // Don't call PL_DHashTableFinish() here; it's not safe after Init() failure.
+  PLDHashTable t;
+  bool ok = PL_DHashTableInit(&t, PL_DHashGetStubOps(),
+                              sizeof(PLDHashEntryStub),
+                              mozilla::fallible_t(),
+                              PL_DHASH_MAX_INITIAL_LENGTH + 1);
+  // Don't call PL_DHashTableDestroy(), it's not safe after Init failure.
 
-  // Check that |ops| is still null.
-  if (t.IsInitialized()) {
-    return false;
-  }
-
-  return true;
+  return !ok;   // expected to fail
 }
 
 static bool test_pldhash_Init_overflow()
 {
-  PLDHashTable t;
-
-  // Check that the constructor nulls |ops|.
-  if (t.IsInitialized()) {
-    return false;
-  }
-
   // Try an acceptable capacity, but one whose byte size overflows uint32_t.
   //
   // Ideally we'd also try a large-but-ok capacity that almost but doesn't
@@ -92,18 +57,13 @@ static bool test_pldhash_Init_overflow()
       char buf[1024 - sizeof(PLDHashEntryHdr)];
   };
 
-  if (PL_DHashTableInit(&t, PL_DHashGetStubOps(), sizeof(OneKBEntry),
-                        mozilla::fallible_t(), PL_DHASH_MAX_INITIAL_LENGTH)) {
-    return false;   // it succeeded!?
-  }
-  // Don't call PL_DHashTableFinish() here; it's not safe after Init() failure.
+  // |nullptr| for |ops| is ok because it's unused due to the failure.
+  PLDHashTable t;
+  bool ok = PL_DHashTableInit(&t, /* ops = */nullptr,
+                              sizeof(OneKBEntry), mozilla::fallible_t(),
+                              PL_DHASH_MAX_INITIAL_LENGTH);
 
-  // Check that |ops| is still null.
-  if (t.IsInitialized()) {
-    return false;
-  }
-
-  return true;
+  return !ok;   // expected to fail
 }
 
 // See bug 931062, we skip this test on Android due to OOM.
@@ -127,18 +87,16 @@ static bool test_pldhash_grow_to_max_capacity()
     nullptr
   };
 
-  // This is infallible.
-  PLDHashTable* t = PL_NewDHashTable(&ops, sizeof(PLDHashEntryStub), 128);
-
-  // Check that New() sets |t->ops|.
-  if (!t->IsInitialized()) {
+  PLDHashTable t;
+  bool ok = PL_DHashTableInit(&t, &ops, sizeof(PLDHashEntryStub),
+                              mozilla::fallible_t(), 128);
+  if (!ok)
     return false;
-  }
 
   // Keep inserting elements until failure occurs because the table is full.
   size_t numInserted = 0;
   while (true) {
-    if (!PL_DHashTableAdd(t, (const void*)numInserted)) {
+    if (!PL_DHashTableAdd(&t, (const void*)numInserted)) {
       break;
     }
     numInserted++;
@@ -146,13 +104,7 @@ static bool test_pldhash_grow_to_max_capacity()
 
   // We stop when the element count is 96.875% of PL_DHASH_MAX_SIZE (see
   // MaxLoadOnGrowthFailure()).
-  if (numInserted != PL_DHASH_MAX_CAPACITY - (PL_DHASH_MAX_CAPACITY >> 5)) {
-    return false;
-  }
-
-  PL_DHashTableDestroy(t);
-
-  return true;
+  return numInserted == PL_DHASH_MAX_CAPACITY - (PL_DHASH_MAX_CAPACITY >> 5);
 }
 #endif
 

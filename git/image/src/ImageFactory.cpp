@@ -45,8 +45,7 @@ ComputeImageFlags(ImageURL* uri, const nsCString& aMimeType, bool isMultiPart)
 
   // We default to the static globals.
   bool isDiscardable = gfxPrefs::ImageMemDiscardable();
-  bool doDecodeOnDraw = gfxPrefs::ImageMemDecodeOnDraw() &&
-                        gfxPrefs::AsyncPanZoomEnabled();
+  bool doDecodeOnDraw = gfxPrefs::ImageMemDecodeOnDraw();
   bool doDownscaleDuringDecode = gfxPrefs::ImageDownscaleDuringDecodeEnabled();
 
   // We want UI to be as snappy as possible and not to flicker. Disable
@@ -65,12 +64,9 @@ ComputeImageFlags(ImageURL* uri, const nsCString& aMimeType, bool isMultiPart)
     isDiscardable = doDecodeOnDraw = false;
   }
 
-  // Downscale-during-decode and decode-on-draw are only enabled for certain
-  // content types.
-  if ((doDownscaleDuringDecode || doDecodeOnDraw) &&
-      !ShouldDownscaleDuringDecode(aMimeType)) {
+  // Downscale-during-decode is only enabled for certain content types.
+  if (doDownscaleDuringDecode && !ShouldDownscaleDuringDecode(aMimeType)) {
     doDownscaleDuringDecode = false;
-    doDecodeOnDraw = false;
   }
 
   // For multipart/x-mixed-replace, we basically want a direct channel to the

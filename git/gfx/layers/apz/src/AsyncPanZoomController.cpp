@@ -1146,8 +1146,7 @@ nsEventStatus AsyncPanZoomController::OnTouchStart(const MultiTouchInput& aEvent
     case FLING:
     case ANIMATING_ZOOM:
     case SMOOTH_SCROLL:
-    case OVERSCROLL_ANIMATION:
-      CurrentTouchBlock()->GetOverscrollHandoffChain()->CancelAnimations(ExcludeOverscroll);
+      CurrentTouchBlock()->GetOverscrollHandoffChain()->CancelAnimations();
       // Fall through.
     case NOTHING: {
       mX.StartTouch(point.x, aEvent.mTime);
@@ -1227,8 +1226,8 @@ nsEventStatus AsyncPanZoomController::OnTouchMove(const MultiTouchInput& aEvent)
 
     case OVERSCROLL_ANIMATION:
       // Should not receive a touch-move in the OVERSCROLL_ANIMATION state
-      // as touch blocks that begin in an overscrolled state cancel the
-      // animation.
+      // as touch blocks that begin in an overscrolled state
+      // are ignored.
       NS_WARNING("Received impossible touch in OnTouchMove");
       break;
   }
@@ -1270,11 +1269,7 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
     // that were not big enough to trigger scrolling. Clear that out.
     mX.SetVelocity(0);
     mY.SetVelocity(0);
-    // It's possible we may be overscrolled if the user tapped during a
-    // previous overscroll pan. Make sure to snap back in this situation.
-    if (!SnapBackIfOverscrolled()) {
-      SetState(NOTHING);
-    }
+    SetState(NOTHING);
     return nsEventStatus_eIgnore;
 
   case PANNING:
@@ -1315,9 +1310,9 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
     return nsEventStatus_eIgnore;
 
   case OVERSCROLL_ANIMATION:
-    // Should not receive a touch-end in the OVERSCROLL_ANIMATION state
-    // as touch blocks that begin in an overscrolled state cancel the
-    // animation.
+    // Should not receive a touch-move in the OVERSCROLL_ANIMATION state
+    // as touch blocks that begin in an overscrolled state
+    // are ignored.
     NS_WARNING("Received impossible touch in OnTouchEnd");
     break;
   }
@@ -2169,7 +2164,7 @@ void AsyncPanZoomController::StartAnimation(AsyncPanZoomAnimation* aAnimation)
   ScheduleComposite();
 }
 
-void AsyncPanZoomController::CancelAnimation(CancelAnimationFlags aFlags) {
+void AsyncPanZoomController::CancelAnimation() {
   ReentrantMonitorAutoEnter lock(mMonitor);
   APZC_LOG("%p running CancelAnimation in state %d\n", this, mState);
   SetState(NOTHING);
@@ -2181,7 +2176,7 @@ void AsyncPanZoomController::CancelAnimation(CancelAnimationFlags aFlags) {
   // Setting the state to nothing and cancelling the animation can
   // preempt normal mechanisms for relieving overscroll, so we need to clear
   // overscroll here.
-  if (!(aFlags & ExcludeOverscroll) && IsOverscrolled()) {
+  if (mX.IsOverscrolled() || mY.IsOverscrolled()) {
     ClearOverscroll();
     RequestContentRepaint();
     ScheduleComposite();
@@ -2656,10 +2651,6 @@ ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() const {
                                * mFrameMetrics.GetZoom();
 
   return ViewTransform(mFrameMetrics.GetAsyncZoom(), -translation);
-}
-
-Matrix4x4 AsyncPanZoomController::GetCurrentAsyncTransformWithOverscroll() const {
-  return Matrix4x4(GetCurrentAsyncTransform()) * GetOverscrollTransform();
 }
 
 Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() const {

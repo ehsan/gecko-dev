@@ -130,7 +130,7 @@ protected:
 
     // TextAttr
     virtual void Expose(nsIPersistentProperties* aAttributes,
-                        bool aIncludeDefAttrValue) MOZ_OVERRIDE
+                        bool aIncludeDefAttrValue)
     {
       if (mGetRootValue) {
         if (mIsRootDefined)
@@ -148,7 +148,7 @@ protected:
         ExposeValue(aAttributes, mRootNativeValue);
     }
 
-    virtual bool Equal(Accessible* aAccessible) MOZ_OVERRIDE
+    virtual bool Equal(Accessible* aAccessible)
     {
       T nativeValue;
       bool isDefined = GetValueFor(aAccessible, &nativeValue);
@@ -203,9 +203,9 @@ protected:
   protected:
 
     // TextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, nsString* aValue) MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, nsString* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const nsString& aValue) MOZ_OVERRIDE;
+                             const nsString& aValue);
 
   private:
     nsCOMPtr<nsIContent> mRootContent;
@@ -234,9 +234,9 @@ protected:
     };
 
     // TextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, uint32_t* aValue) MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, uint32_t* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const uint32_t& aValue) MOZ_OVERRIDE;
+                             const uint32_t& aValue);
 
   private:
     bool GetValue(nsIContent* aElm, uint32_t* aValue);
@@ -256,10 +256,9 @@ protected:
   protected:
 
     // TextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, nscolor* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, nscolor* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const nscolor& aValue) MOZ_OVERRIDE;
+                             const nscolor& aValue);
 
   private:
     bool GetColor(nsIFrame* aFrame, nscolor* aColor);
@@ -279,10 +278,9 @@ protected:
   protected:
 
     // TTextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, nscolor* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, nscolor* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const nscolor& aValue) MOZ_OVERRIDE;
+                             const nscolor& aValue);
   };
 
 
@@ -298,10 +296,9 @@ protected:
   protected:
 
     // TTextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, nsString* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, nsString* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const nsString& aValue) MOZ_OVERRIDE;
+                             const nsString& aValue);
 
   private:
 
@@ -321,10 +318,9 @@ protected:
   protected:
 
     // TTextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, nscoord* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, nscoord* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const nscoord& aValue) MOZ_OVERRIDE;
+                             const nscoord& aValue);
 
   private:
     nsDeviceContext* mDC;
@@ -343,10 +339,9 @@ protected:
   protected:
 
     // TTextAttr
-    virtual bool GetValueFor(Accessible* aContent, nscoord* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aContent, nscoord* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const nscoord& aValue) MOZ_OVERRIDE;
+                             const nscoord& aValue);
   };
 
 
@@ -362,10 +357,9 @@ protected:
   protected:
 
     // TTextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, int32_t* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, int32_t* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const int32_t& aValue) MOZ_OVERRIDE;
+                             const int32_t& aValue);
 
   private:
     int32_t GetFontWeight(nsIFrame* aFrame);
@@ -383,10 +377,9 @@ protected:
 
   protected:
     // TextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, bool* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, bool* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const bool& aValue) MOZ_OVERRIDE;
+                             const bool& aValue);
   };
 
 
@@ -435,10 +428,9 @@ protected:
   protected:
 
     // TextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, TextDecorValue* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, TextDecorValue* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const TextDecorValue& aValue) MOZ_OVERRIDE;
+                             const TextDecorValue& aValue);
   };
 
   /**
@@ -461,10 +453,9 @@ protected:
   protected:
 
     // TextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, TextPosValue* aValue)
-      MOZ_OVERRIDE;
+    virtual bool GetValueFor(Accessible* aAccessible, TextPosValue* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const TextPosValue& aValue) MOZ_OVERRIDE;
+                             const TextPosValue& aValue);
 
   private:
     TextPosValue GetTextPosValue(nsIFrame* aFrame) const;

@@ -19,9 +19,9 @@ public:
   virtual ~ApplicationAccessibleWrap();
 
   // Accessible
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName) MOZ_OVERRIDE;
+  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual bool InsertChildAt(uint32_t aIdx, Accessible* aChild) MOZ_OVERRIDE;
-  virtual bool RemoveChild(Accessible* aChild) MOZ_OVERRIDE;
+  virtual bool RemoveChild(Accessible* aChild);
 
   /**
    * Return the atk object for app root accessible.
