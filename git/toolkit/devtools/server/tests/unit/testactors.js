@@ -1,10 +1,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+const Cu = Components.utils;
+const devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
 const { ActorPool, appendExtraActors, createExtraActors } = require("devtools/server/actors/common");
-const { RootActor } = require("devtools/server/actors/root");
-const { ThreadActor } = require("devtools/server/actors/script");
-const { DebuggerServer } = require("devtools/server/main");
+const { RootActor } = devtools.require("devtools/server/actors/root");
+const { ThreadActor } = devtools.require("devtools/server/actors/script");
 
 var gTestGlobals = [];
 DebuggerServer.addTestGlobal = function(aGlobal) {
@@ -119,12 +120,4 @@ TestTabActor.prototype = {
 TestTabActor.prototype.requestTypes = {
   "attach": TestTabActor.prototype.onAttach,
   "detach": TestTabActor.prototype.onDetach
-};
-
-exports.register = function(handle) {
-  handle.setRootActor(createRootActor);
-};
-
-exports.unregister = function(handle) {
-  handle.setRootActor(null);
 };

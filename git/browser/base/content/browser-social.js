@@ -615,20 +615,7 @@ SocialShare = {
 
     let shareEndpoint = OpenGraphBuilder.generateEndpointURL(provider.shareURL, pageData);
 
-    let size = provider.getPageSize("share");
-    if (size) {
-      if (this._dynamicResizer) {
-        this._dynamicResizer.stop();
-        this._dynamicResizer = null;
-      }
-      let {width, height} = size;
-      width += this.panel.boxObject.width - iframe.boxObject.width;
-      height += this.panel.boxObject.height - iframe.boxObject.height;
-      this.panel.sizeTo(width, height);
-    } else {
-      this._dynamicResizer = new DynamicResizeWatcher();
-    }
-
+    this._dynamicResizer = new DynamicResizeWatcher();
     // if we've already loaded this provider/page share endpoint, we don't want
     // to add another load event listener.
     let reload = true;
@@ -638,8 +625,7 @@ SocialShare = {
       reload = shareEndpoint != iframe.contentDocument.location.spec;
     }
     if (!reload) {
-      if (this._dynamicResizer)
-        this._dynamicResizer.start(this.panel, iframe);
+      this._dynamicResizer.start(this.panel, iframe);
       iframe.docShell.isActive = true;
       iframe.docShell.isAppTab = true;
       let evt = iframe.contentDocument.createEvent("CustomEvent");
@@ -651,10 +637,6 @@ SocialShare = {
         iframe.removeEventListener("load", panelBrowserOnload, true);
         iframe.docShell.isActive = true;
         iframe.docShell.isAppTab = true;
-        // to support standard share endpoints mimick window.open by setting
-        // window.opener, some share endpoints rely on w.opener to know they
-        // should close the window when done.
-        iframe.contentWindow.opener = iframe.contentWindow;
         setTimeout(function() {
           if (SocialShare._dynamicResizer) { // may go null if hidden quickly
             SocialShare._dynamicResizer.start(iframe.parentNode, iframe);
@@ -1148,9 +1130,6 @@ SocialStatus = {
     }
 
     if (!frame) {
-      let size = provider.getPageSize("status");
-      let {width, height} = size ? size : {width: PANEL_MIN_WIDTH, height: PANEL_MIN_HEIGHT};
-
       frame = SharedFrame.createFrame(
         notificationFrameId, /* frame name */
         aParent, /* parent */
@@ -1165,8 +1144,7 @@ SocialStatus = {
 
           // work around bug 793057 - by making the panel roughly the final size
           // we are more likely to have the anchor in the correct position.
-          "style": "width: " + width + "px; height: " + height + "px;",
-          "dynamicresizer": !size,
+          "style": "width: " + PANEL_MIN_WIDTH + "px;",
 
           "origin": provider.origin,
           "src": provider.statusURL
@@ -1268,10 +1246,7 @@ SocialStatus = {
     }
 
     // we only use a dynamic resizer when we're located the toolbar.
-    let dynamicResizer;
-    if (!inMenuPanel && notificationFrame.getAttribute("dynamicresizer") == "true") {
-      dynamicResizer = this._dynamicResizer;
-    }
+    let dynamicResizer = inMenuPanel ? null : this._dynamicResizer;
     panel.addEventListener(hidingEvent, function onpopuphiding() {
       panel.removeEventListener(hidingEvent, onpopuphiding);
       aToolbarButton.removeAttribute("open");

@@ -20,12 +20,14 @@ public:
     NEW_STATS
   };
 
-  static nsresult DumpStatistics(StatisticsType aType = ALL_STATS,
-                                 FILE* aOut = 0);
+  static nsresult DumpStatistics(StatisticsType type = ALL_STATS,
+                                 FILE* out = 0);
 
-  static void ResetStatistics();
+  static void ResetStatistics(void);
 
-  static void DemangleSymbol(const char* aSymbol, char* aBuffer, int aBufLen);
+  static void DemangleSymbol(const char * aSymbol,
+                             char * aBuffer,
+                             int aBufLen);
 
   static void WalkTheStack(FILE* aStream);
   /**
@@ -49,9 +51,8 @@ public:
 // And now for that utility that you've all been asking for...
 
 extern "C" void
-NS_MeanAndStdDev(double aNumberOfValues,
-                 double aSumOfValues, double aSumOfSquaredValues,
-                 double* aMeanResult, double* aStdDevResult);
+NS_MeanAndStdDev(double n, double sumOfValues, double sumOfSquaredValues,
+                 double *meanResult, double *stdDevResult);
 
 ////////////////////////////////////////////////////////////////////////////////
 #endif

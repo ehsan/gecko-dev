@@ -2398,20 +2398,13 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       break;
 
     case NS_THEME_PROGRESSBAR:
-    {
-      double value = GetProgressValue(aFrame);
-      double maxValue = GetProgressMaxValue(aFrame);
-      // Don't request repaints for scrollbars at 100% because those don't animate.
-      if (value < maxValue) {
-        if (!QueueAnimatedContentForRefresh(aFrame->GetContent(), 30)) {
-          NS_WARNING("Unable to animate progressbar!");
-        }
+      if (!QueueAnimatedContentForRefresh(aFrame->GetContent(), 30)) {
+        NS_WARNING("Unable to animate progressbar!");
       }
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame, eventState),
                    aFrame->StyleDisplay()->mOrient != NS_STYLE_ORIENT_VERTICAL,
-                   value, maxValue, aFrame);
+		   GetProgressValue(aFrame), GetProgressMaxValue(aFrame), aFrame);
       break;
-    }
 
     case NS_THEME_PROGRESSBAR_VERTICAL:
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame, eventState),

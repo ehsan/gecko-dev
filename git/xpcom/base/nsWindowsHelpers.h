@@ -18,8 +18,8 @@
 class AutoCriticalSection
 {
 public:
-  AutoCriticalSection(LPCRITICAL_SECTION aSection)
-    : mSection(aSection)
+  AutoCriticalSection(LPCRITICAL_SECTION section)
+    : mSection(section)
   {
     ::EnterCriticalSection(mSection);
   }
@@ -83,7 +83,7 @@ protected:
 
   bool HaveResource() const
   {
-    return mRawRef && mRawRef != INVALID_HANDLE_VALUE;
+    return mRawRef != nullptr && mRawRef != INVALID_HANDLE_VALUE;
   }
 
 public:
@@ -94,7 +94,7 @@ public:
 
   static void Release(RawRef aRawRef)
   {
-    if (aRawRef && aRawRef != INVALID_HANDLE_VALUE) {
+    if (aRawRef != nullptr && aRawRef != INVALID_HANDLE_VALUE) {
       CloseHandle(aRawRef);
     }
   }
@@ -125,8 +125,8 @@ typedef nsAutoRef<SC_HANDLE> nsAutoServiceHandle;
 typedef nsAutoRef<HANDLE> nsAutoHandle;
 typedef nsAutoRef<HMODULE> nsModuleHandle;
 
-namespace {
-
+namespace
+{
 bool
 IsRunningInWindowsMetro()
 {
@@ -158,7 +158,7 @@ IsRunningInWindowsMetro()
 }
 
 HMODULE
-LoadLibrarySystem32(LPCWSTR aModule)
+LoadLibrarySystem32(LPCWSTR module)
 {
   WCHAR systemPath[MAX_PATH + 1] = { L'\0' };
 
@@ -174,8 +174,8 @@ LoadLibrarySystem32(LPCWSTR aModule)
     // No need to re-nullptr terminate
   }
 
-  size_t fileLen = wcslen(aModule);
-  wcsncpy(systemPath + systemDirLen, aModule,
+  size_t fileLen = wcslen(module);
+  wcsncpy(systemPath + systemDirLen, module,
           MAX_PATH - systemDirLen);
   if (systemDirLen + fileLen <= MAX_PATH) {
     systemPath[systemDirLen + fileLen] = L'\0';
@@ -184,7 +184,6 @@ LoadLibrarySystem32(LPCWSTR aModule)
   }
   return LoadLibraryW(systemPath);
 }
-
 }
 
 #endif
