@@ -16,8 +16,6 @@ import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.SiteIdentity;
 import org.mozilla.gecko.SiteIdentity.SecurityMode;
-import org.mozilla.gecko.SiteIdentity.MixedMode;
-import org.mozilla.gecko.SiteIdentity.TrackingMode;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
@@ -123,10 +121,7 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
     private TranslateAnimation mTitleSlideRight;
 
     private final SiteIdentityPopup mSiteIdentityPopup;
-    private int mSecurityImageLevel;
-
-    private final int LEVEL_SHIELD = 3;
-    private final int LEVEL_WARNING = 4;
+    private SecurityMode mSecurityMode;
 
     private PropertyAnimator mForwardAnim;
 
@@ -427,34 +422,15 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         mSiteIdentityPopup.setSiteIdentity(siteIdentity);
 
         final SecurityMode securityMode;
-        final MixedMode mixedMode;
-        final TrackingMode trackingMode;
         if (siteIdentity == null) {
             securityMode = SecurityMode.UNKNOWN;
-            mixedMode = MixedMode.UNKNOWN;
-            trackingMode = TrackingMode.UNKNOWN;
         } else {
             securityMode = siteIdentity.getSecurityMode();
-            mixedMode = siteIdentity.getMixedMode();
-            trackingMode = siteIdentity.getTrackingMode();
         }
 
-        // This is a bit tricky, but we have one icon and three potential indicators.
-        // Default to the identity level
-        int imageLevel = securityMode.ordinal();
-
-        // Check to see if any protection was overridden first
-        if (trackingMode == TrackingMode.TRACKING_CONTENT_LOADED ||
-            mixedMode == MixedMode.MIXED_CONTENT_LOADED) {
-          imageLevel = LEVEL_WARNING;
-        } else if (trackingMode == TrackingMode.TRACKING_CONTENT_BLOCKED ||
-                   mixedMode == MixedMode.MIXED_CONTENT_BLOCKED) {
-          imageLevel = LEVEL_SHIELD;
-        }
-
-        if (mSecurityImageLevel != imageLevel) {
-            mSecurityImageLevel = imageLevel;
-            mSiteSecurity.setImageLevel(mSecurityImageLevel);
+        if (mSecurityMode != securityMode) {
+            mSecurityMode = securityMode;
+            mSiteSecurity.setImageLevel(mSecurityMode.ordinal());
             updatePageActions(flags);
         }
     }
@@ -491,7 +467,8 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         mStop.setVisibility(isShowingProgress ? View.VISIBLE : View.GONE);
         mPageActionLayout.setVisibility(!isShowingProgress ? View.VISIBLE : View.GONE);
 
-        boolean shouldShowSiteSecurity = (!isShowingProgress && mSecurityImageLevel > 0);
+        boolean shouldShowSiteSecurity = (!isShowingProgress &&
+                                          mSecurityMode != SecurityMode.UNKNOWN);
 
         setSiteSecurityVisibility(shouldShowSiteSecurity, flags);
 

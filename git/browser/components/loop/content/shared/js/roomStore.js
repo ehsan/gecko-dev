@@ -72,7 +72,6 @@ loop.store = loop.store || {};
 
     if (options.activeRoomStore) {
       this.activeRoomStore = options.activeRoomStore;
-      this.setStoreState({activeRoom: this.activeRoomStore.getStoreState()});
       this.activeRoomStore.on("change",
                               this._onActiveRoomStoreChange.bind(this));
     }
@@ -83,7 +82,6 @@ loop.store = loop.store || {};
       "copyRoomUrl",
       "deleteRoom",
       "deleteRoomError",
-      "emailRoomUrl",
       "getAllRooms",
       "getAllRoomsError",
       "openRoom",
@@ -326,15 +324,6 @@ loop.store = loop.store || {};
      */
     copyRoomUrl: function(actionData) {
       this._mozLoop.copyString(actionData.roomUrl);
-    },
-
-    /**
-     * Emails a room url.
-     *
-     * @param  {sharedActions.EmailRoomUrl} actionData The action data.
-     */
-    emailRoomUrl: function(actionData) {
-      loop.shared.utils.composeCallUrlEmail(actionData.roomUrl);
     },
 
     /**

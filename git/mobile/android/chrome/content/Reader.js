@@ -102,10 +102,7 @@ let Reader = {
     let uri = tab.browser.currentURI;
     let urlWithoutRef = uri.specIgnoringRef;
 
-    let article = yield this.getArticle(urlWithoutRef, tabID).catch(e => {
-      Cu.reportError("Error getting article for tab: " + e);
-      return null;
-    });
+    let article = yield this.getArticle(urlWithoutRef, tabID);
     if (!article) {
       // If there was a problem getting the article, just store the
       // URL and title from the tab.
@@ -148,6 +145,7 @@ let Reader = {
    * @param tabId (optional) The id of the tab where we can look for a saved article.
    * @return {Promise}
    * @resolves JS object representing the article, or null if no article is found.
+   * @rejects Never.
    */
   getArticle: Task.async(function* (url, tabId) {
     // First, look for an article object stored on the tab.
@@ -170,7 +168,10 @@ let Reader = {
 
     // Article hasn't been found in the cache, we need to
     // download the page and parse the article out of it.
-    return yield this._downloadAndParseDocument(url);
+    return yield this._downloadAndParseDocument(url).catch(e => {
+      Cu.reportError("Error downloading and parsing article: " + e);
+      return null;
+    });
   }),
 
   /**
@@ -268,18 +269,16 @@ let Reader = {
     return new Promise((resolve, reject) => {
       let numTags = doc.getElementsByTagName("*").length;
       if (numTags > this.MAX_ELEMS_TO_PARSE) {
-        this.log("Aborting parse for " + uri.spec + "; " + numTags + " elements found");
-        resolve(null);
+        reject("Aborting parse for " + uri.spec + "; " + numTags + " elements found");
         return;
       }
 
       let worker = new ChromeWorker("readerWorker.js");
-      worker.onmessage = evt => {
+      worker.onmessage = function (evt) {
         let article = evt.data;
 
         if (!article) {
-          this.log("Worker did not return an article");
-          resolve(null);
+          reject("Worker did not return an article");
           return;
         }
 
@@ -292,8 +291,8 @@ let Reader = {
         resolve(article);
       };
 
-      worker.onerror = evt => {
-        reject("Error in worker: " + evt.message);
+      worker.onerror = function (evt) {
+        reject(evt.message);
       };
 
       try {

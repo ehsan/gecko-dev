@@ -28,7 +28,7 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
     private boolean mIsPrivate;
     private boolean mIsLight;
     private boolean mIsDark;
-    private boolean mAutoUpdateTheme;        // always false if there's no theme.
+    private boolean mAutoUpdateTheme = true;
 
     public Themed@VIEW_NAME_SUFFIX@(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -43,11 +43,10 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
 
 //#endif
     private void initialize(final Context context, final AttributeSet attrs) {
-        // The theme can be null, particularly for webapps: Bug 1089266.
         mTheme = ((GeckoApplication) context.getApplicationContext()).getLightweightTheme();
 
         final TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.LightweightTheme);
-        mAutoUpdateTheme = mTheme != null && a.getBoolean(R.styleable.LightweightTheme_autoUpdateTheme, true);
+        mAutoUpdateTheme = a.getBoolean(R.styleable.LightweightTheme_autoUpdateTheme, true);
         a.recycle();
     }
 
@@ -135,10 +134,6 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
     }
 
     public void setAutoUpdateTheme(boolean autoUpdateTheme) {
-        if (mTheme == null) {
-            return;
-        }
-
         if (mAutoUpdateTheme != autoUpdateTheme) {
             mAutoUpdateTheme = autoUpdateTheme;
 

@@ -10,13 +10,12 @@
 #include "nsIDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIPrintingPromptService.h"
-#include "nsIPrintOptions.h"
 #include "nsIPrintProgressParams.h"
 #include "nsIServiceManager.h"
 #include "nsIWebProgressListener.h"
 #include "PrintingParent.h"
+#include "nsIPrintOptions.h"
 #include "PrintDataUtils.h"
-#include "PrintProgressDialogParent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -25,14 +24,24 @@ namespace mozilla {
 namespace embedding {
 bool
 PrintingParent::RecvShowProgress(PBrowserParent* parent,
-                                 PPrintProgressDialogParent* printProgressDialog,
-                                 const bool& isForPrinting,
-                                 bool* notifyOnOpen,
-                                 bool* success)
+                                 const bool& isForPrinting)
 {
-  *success = false;
+  TabParent* tabParent = static_cast<TabParent*>(parent);
+  if (!tabParent) {
+    return true;
+  }
 
-  nsCOMPtr<nsIDOMWindow> parentWin = DOMWindowFromBrowserParent(parent);
+  nsCOMPtr<Element> frameElement = tabParent->GetOwnerElement();
+  if (!frameElement) {
+    return true;
+  }
+
+  nsCOMPtr<nsIContent> frame(do_QueryInterface(frameElement));
+  if (!frame) {
+    return true;
+  }
+
+  nsCOMPtr<nsIDOMWindow> parentWin = do_QueryInterface(frame->OwnerDoc()->GetWindow());
   if (!parentWin) {
     return true;
   }
@@ -43,24 +52,18 @@ PrintingParent::RecvShowProgress(PBrowserParent* parent,
     return true;
   }
 
-  PrintProgressDialogParent* dialogParent =
-    static_cast<PrintProgressDialogParent*>(printProgressDialog);
-  nsCOMPtr<nsIObserver> observer = do_QueryInterface(dialogParent);
-
   nsCOMPtr<nsIWebProgressListener> printProgressListener;
   nsCOMPtr<nsIPrintProgressParams> printProgressParams;
 
-  nsresult rv = pps->ShowProgress(parentWin, nullptr, nullptr, observer,
-                                  isForPrinting,
-                                  getter_AddRefs(printProgressListener),
-                                  getter_AddRefs(printProgressParams),
-                                  notifyOnOpen);
-  NS_ENSURE_SUCCESS(rv, true);
+  // TODO: What do I do with this thing?
+  bool doNotify = false;
 
-  dialogParent->SetWebProgressListener(printProgressListener);
-  dialogParent->SetPrintProgressParams(printProgressParams);
+  pps->ShowProgress(parentWin, nullptr, nullptr, nullptr,
+                    isForPrinting,
+                    getter_AddRefs(printProgressListener),
+                    getter_AddRefs(printProgressParams),
+                    &doNotify);
 
-  *success = true;
   return true;
 }
 
@@ -72,12 +75,28 @@ PrintingParent::RecvShowPrintDialog(PBrowserParent* parent,
 {
   *success = false;
 
-  nsCOMPtr<nsIDOMWindow> parentWin = DOMWindowFromBrowserParent(parent);
+  TabParent* tabParent = static_cast<TabParent*>(parent);
+  if (!tabParent) {
+    return true;
+  }
+
+  nsCOMPtr<Element> frameElement = tabParent->GetOwnerElement();
+  if (!frameElement) {
+    return true;
+  }
+
+  nsCOMPtr<nsIContent> frame(do_QueryInterface(frameElement));
+  if (!frame) {
+    return true;
+  }
+
+  nsCOMPtr<nsIDOMWindow> parentWin = do_QueryInterface(frame->OwnerDoc()->GetWindow());
   if (!parentWin) {
     return true;
   }
 
   nsCOMPtr<nsIPrintingPromptService> pps(do_GetService("@mozilla.org/embedcomp/printingprompt-service;1"));
+
   if (!pps) {
     return true;
   }
@@ -111,59 +130,9 @@ PrintingParent::RecvShowPrintDialog(PBrowserParent* parent,
   return true;
 }
 
-PPrintProgressDialogParent*
-PrintingParent::AllocPPrintProgressDialogParent()
-{
-  PrintProgressDialogParent* actor = new PrintProgressDialogParent();
-  NS_ADDREF(actor); // De-ref'd in the __delete__ handler for
-                    // PrintProgressDialogParent.
-  return actor;
-}
-
-bool
-PrintingParent::DeallocPPrintProgressDialogParent(PPrintProgressDialogParent* doomed)
-{
-  // We can't just delete the PrintProgressDialogParent since somebody might
-  // still be holding a reference to it as nsIObserver, so just decrement the
-  // refcount instead.
-  PrintProgressDialogParent* actor = static_cast<PrintProgressDialogParent*>(doomed);
-  NS_RELEASE(actor);
-  return true;
-}
-
 void
 PrintingParent::ActorDestroy(ActorDestroyReason aWhy)
 {
-}
-
-nsIDOMWindow*
-PrintingParent::DOMWindowFromBrowserParent(PBrowserParent* parent)
-{
-  if (!parent) {
-    return nullptr;
-  }
-
-  TabParent* tabParent = static_cast<TabParent*>(parent);
-  if (!tabParent) {
-    return nullptr;
-  }
-
-  nsCOMPtr<Element> frameElement = tabParent->GetOwnerElement();
-  if (!frameElement) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIContent> frame(do_QueryInterface(frameElement));
-  if (!frame) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDOMWindow> parentWin = do_QueryInterface(frame->OwnerDoc()->GetWindow());
-  if (!parentWin) {
-    return nullptr;
-  }
-
-  return parentWin;
 }
 
 MOZ_IMPLICIT PrintingParent::PrintingParent()
