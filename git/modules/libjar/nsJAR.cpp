@@ -172,7 +172,7 @@ nsJAR::Open(nsIFile* zipFile)
 
   mZipFile = zipFile;
 
-  mLock = nsAutoLock::NewLock("nsJAR::mLock");
+  mLock = PR_NewLock();
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
   
 #ifdef MOZ_OMNIJAR
@@ -203,7 +203,7 @@ nsJAR::OpenInner(nsIZipReader *aZipReader, const char *aZipEntry)
   rv = aZipReader->GetFile(getter_AddRefs(mZipFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mLock = nsAutoLock::NewLock("nsJAR::mLock");
+  mLock = PR_NewLock();
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
 
   mOuterZipEntry.Assign(aZipEntry);
@@ -229,7 +229,7 @@ NS_IMETHODIMP
 nsJAR::Close()
 {
   if (mLock) {
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
     mLock = nsnull;
   }
 
@@ -1088,7 +1088,7 @@ nsZipReaderCache::Init(PRUint32 cacheSize)
   }
 // ignore failure of the observer registration.
 
-  mLock = nsAutoLock::NewLock("nsZipReaderCache::mLock");
+  mLock = PR_NewLock();
   return mLock ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -1103,7 +1103,7 @@ DropZipReaderCache(nsHashKey *aKey, void *aData, void* closure)
 nsZipReaderCache::~nsZipReaderCache()
 {
   if (mLock)
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
   mZips.Enumerate(DropZipReaderCache, nsnull);
 
 #ifdef ZIP_CACHE_HIT_RATE

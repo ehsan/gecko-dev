@@ -346,9 +346,9 @@ ReportOnCaller(JSCLContextHelper &helper,
 #ifdef MOZ_ENABLE_LIBXUL
 static nsresult
 ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
-                     JSObject **scriptObj)
+                     JSScript **script)
 {
-    *scriptObj = nsnull;
+    *script = nsnull;
 
     PRUint32 size;
     nsresult rv = stream->Read32(&size);
@@ -364,7 +364,7 @@ ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
     xdr->userdata = stream;
     JS_XDRMemSetData(xdr, data, size);
 
-    if (!JS_XDRScriptObject(xdr, scriptObj)) {
+    if (!JS_XDRScript(xdr, script)) {
         rv = NS_ERROR_FAILURE;
     }
 
@@ -405,7 +405,7 @@ ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
 }
 
 static nsresult
-WriteScriptToStream(JSContext *cx, JSObject *scriptObj,
+WriteScriptToStream(JSContext *cx, JSScript *script,
                     nsIObjectOutputStream *stream)
 {
     JSXDRState *xdr = JS_XDRNewMem(cx, JSXDR_ENCODE);
@@ -414,7 +414,7 @@ WriteScriptToStream(JSContext *cx, JSObject *scriptObj,
     xdr->userdata = stream;
     nsresult rv = NS_OK;
 
-    if (JS_XDRScriptObject(xdr, &scriptObj)) {
+    if (JS_XDRScript(xdr, &script)) {
         // Get the encoded JSXDRState data and write it.  The JSXDRState owns
         // this buffer memory and will free it beneath ::JS_XDRDestroy.
         //
@@ -827,6 +827,17 @@ class JSPrincipalsHolder
     JSPrincipals *mPrincipals;
 };
 
+class JSScriptHolder
+{
+ public:
+    JSScriptHolder(JSContext *cx, JSScript *script)
+        : mCx(cx), mScript(script) {}
+    ~JSScriptHolder() { ::JS_DestroyScript(mCx, mScript); }
+ private:
+    JSContext *mCx;
+    JSScript *mScript;
+};
+
 /**
  * PathifyURI transforms mozilla .js uris into useful zip paths
  * to make it makes it easier to manipulate startup cache entries
@@ -874,7 +885,7 @@ PathifyURI(nsIURI *in, nsACString &out)
 #ifdef MOZ_ENABLE_LIBXUL
 nsresult
 mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
-                                 JSContext *cx, JSObject **scriptObj)
+                                 JSContext *cx, JSScript **script)
 {
     nsresult rv;
     
@@ -896,11 +907,11 @@ mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
     NS_ENSURE_SUCCESS(rv, rv);
     buf.forget();
 
-    return ReadScriptFromStream(cx, ois, scriptObj);
+    return ReadScriptFromStream(cx, ois, script);
 }
 
 nsresult
-mozJSComponentLoader::WriteScript(StartupCache* cache, JSObject *scriptObj,
+mozJSComponentLoader::WriteScript(StartupCache* cache, JSScript *script,
                                   nsIFile *component, nsIURI *uri, JSContext *cx)
 {
     nsresult rv;
@@ -916,7 +927,7 @@ mozJSComponentLoader::WriteScript(StartupCache* cache, JSObject *scriptObj,
                                                 getter_AddRefs(storageStream));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = WriteScriptToStream(cx, scriptObj, oos);
+    rv = WriteScriptToStream(cx, script, oos);
     oos->Close();
     NS_ENSURE_SUCCESS(rv, rv);
  
@@ -1030,7 +1041,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     NS_ENSURE_SUCCESS(rv, rv);
 #endif
 
-    JSObject *scriptObj = nsnull;
+    JSScript *script = nsnull;
 
 #ifdef MOZ_ENABLE_LIBXUL  
     // Before compiling the script, first check to see if we have it in
@@ -1041,7 +1052,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     StartupCache* cache = StartupCache::GetSingleton();
 
     if (cache) {
-        rv = ReadScript(cache, aURI, cx, &scriptObj);
+        rv = ReadScript(cache, aURI, cx, &script);
         if (NS_SUCCEEDED(rv)) {
             LOG(("Successfully loaded %s from startupcache\n", nativePath.get()));
         } else {
@@ -1053,7 +1064,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     }
 #endif
 
-    if (!scriptObj) {
+    if (!script) {
         // The script wasn't in the cache , so compile it now.
         LOG(("Slow loading %s\n", nativePath.get()));
 
@@ -1112,7 +1123,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FAILURE;
             }
 
-            scriptObj = JS_CompileScriptForPrincipalsVersion(
+            script = JS_CompileScriptForPrincipalsVersion(
               cx, global, jsPrincipals, buf, fileSize32, nativePath.get(), 1,
               JSVERSION_LATEST);
 
@@ -1168,26 +1179,31 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
             buf[len] = '\0';
 
-            scriptObj = JS_CompileScriptForPrincipalsVersion(
+            script = JS_CompileScriptForPrincipalsVersion(
               cx, global, jsPrincipals, buf, bytesRead, nativePath.get(), 1,
               JSVERSION_LATEST);
         }
         // Propagate the exception, if one exists. Also, don't leave the stale
         // exception on this context.
+        // NB: The caller must stick exception into a rooted slot (probably on
+        // its context) as soon as possible to avoid GC hazards.
         JS_SetOptions(cx, oldopts);
-        if (!scriptObj && exception) {
+        if (!script && exception) {
             JS_GetPendingException(cx, exception);
             JS_ClearPendingException(cx);
         }
     }
 
-    if (!scriptObj) {
+    if (!script) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: script compilation of %s FAILED\n",
                 nativePath.get());
 #endif
         return NS_ERROR_FAILURE;
     }
+
+    // Ensure that we clean up the script on return.
+    JSScriptHolder scriptHolder(cx, script);
 
     // Flag this script as a system script
     // FIXME: BUG 346139: We actually want to flag this exact filename, not
@@ -1205,7 +1221,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 #ifdef MOZ_ENABLE_LIBXUL
     if (writeToCache) {
         // We successfully compiled the script, so cache it. 
-        rv = WriteScript(cache, scriptObj, aComponentFile, aURI, cx);
+        rv = WriteScript(cache, script, aComponentFile, aURI, cx);
 
         // Don't treat failure to write as fatal, since we might be working
         // with a read-only cache.
@@ -1221,7 +1237,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     // See bug 384168.
     *aGlobal = global;
 
-    if (!JS_ExecuteScriptVersion(cx, global, scriptObj, NULL, JSVERSION_LATEST)) {
+    if (!JS_ExecuteScriptVersion(cx, global, script, NULL, JSVERSION_LATEST)) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: failed to execute %s\n", nativePath.get());
 #endif

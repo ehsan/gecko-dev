@@ -727,8 +727,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 #endif
     {
         // Normal codepath (matches non-DEBUG_CC codepath).
-        NS_ASSERTION(xpc_IsGrayGCThing(p), "Tried to traverse a non-gray object.");
-        type = markJSObject ? GCMarked : GCUnmarked;
+        type = !markJSObject && xpc_IsGrayGCThing(p) ? GCUnmarked : GCMarked;
     }
 
     if (cb.WantDebugInfo()) {
@@ -2562,7 +2561,7 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
         } adc(cx);
         JSAutoRequest ar(cx);
 
-        js::CompartmentVector &vector = rt->compartments;
+        js::WrapperVector &vector = rt->compartments;
         for (JSCompartment **p = vector.begin(); p != vector.end(); ++p) {
             JSCompartment *comp = *p;
             if (!comp->principals) {

@@ -175,7 +175,7 @@ ShortcutResolver::ShortcutResolver()
 ShortcutResolver::~ShortcutResolver()
 {
     if (mLock)
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
 
     // Release the pointer to the IPersistFile interface.
     if (mPersistFile)
@@ -193,7 +193,7 @@ ShortcutResolver::Init()
 {
     CoInitialize(NULL);  // FIX: we should probably move somewhere higher up during startup
 
-    mLock = nsAutoLock::NewLock("ShortcutResolver::mLock");
+    mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_FAILURE;
 

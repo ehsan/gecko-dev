@@ -64,7 +64,6 @@
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
-#include "jsstrinlines.h"
 
 using namespace js;
 using namespace js::gc;
@@ -495,60 +494,37 @@ CallReplacerFunction(JSContext *cx, jsid id, JSObject *holder, StringifyContext 
 static JSBool
 Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, Value *vp, bool callReplacer)
 {
-    JS_CHECK_RECURSION(cx, return false);
+    JS_CHECK_RECURSION(cx, return JS_FALSE);
 
-    /*
-     * This method implements the Str algorithm in ES5 15.12.3, but we move
-     * property retrieval (step 1) into callers to stream the stringification
-     * process and avoid constantly copying strings.
-     */
-
-    /* Step 2. */
     if (vp->isObject() && !js_TryJSON(cx, vp))
-        return false;
+        return JS_FALSE;
 
-    /* Step 3. */
     if (callReplacer && !CallReplacerFunction(cx, id, holder, scx, vp))
-        return false;
+        return JS_FALSE;
 
-    /* Step 4. */
+    // catches string and number objects with no toJSON
     if (vp->isObject()) {
         JSObject *obj = &vp->toObject();
         Class *clasp = obj->getClass();
-        if (clasp == &js_NumberClass) {
-            double d;
-            if (!ValueToNumber(cx, *vp, &d))
-                return false;
-            vp->setNumber(d);
-        } else if (clasp == &js_StringClass) {
-            JSString *str = js_ValueToString(cx, *vp);
-            if (!str)
-                return false;
-            vp->setString(str);
-        } else if (clasp == &js_BooleanClass) {
+        if (clasp == &js_StringClass || clasp == &js_NumberClass)
             *vp = obj->getPrimitiveThis();
-        }
     }
 
-    /* Step 8. */
     if (vp->isString()) {
         JSString *str = vp->toString();
         size_t length = str->length();
         const jschar *chars = str->getChars(cx);
         if (!chars)
-            return false;
+            return JS_FALSE;
         return write_string(cx, scx->sb, chars, length);
     }
 
-    /* Step 5. */
     if (vp->isNull())
         return scx->sb.append("null");
 
-    /* Steps 6-7. */
     if (vp->isBoolean())
         return vp->toBoolean() ? scx->sb.append("true") : scx->sb.append("false");
 
-    /* Step 9. */
     if (vp->isNumber()) {
         if (vp->isDouble()) {
             jsdouble d = vp->toDouble();
@@ -558,12 +534,11 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, Value *vp, 
 
         StringBuffer sb(cx);
         if (!NumberValueToStringBuffer(cx, *vp, sb))
-            return false;
+            return JS_FALSE;
 
         return scx->sb.append(sb.begin(), sb.length());
     }
 
-    /* Step 10. */
     if (vp->isObject() && !IsFunctionObject(*vp) && !IsXML(*vp)) {
         JSBool ok;
 
@@ -574,9 +549,8 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, Value *vp, 
         return ok;
     }
 
-    /* Step 11. */
     vp->setUndefined();
-    return true;
+    return JS_TRUE;
 }
 
 JSBool
@@ -1263,7 +1237,7 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
 static JSBool
 json_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    vp->setString(CLASS_ATOM(cx, JSON));
+    vp->setString(ATOM_TO_STRING(CLASS_ATOM(cx, JSON)));
     return JS_TRUE;
 }
 #endif

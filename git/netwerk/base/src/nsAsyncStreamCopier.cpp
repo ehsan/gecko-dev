@@ -72,7 +72,7 @@ nsAsyncStreamCopier::~nsAsyncStreamCopier()
 {
     LOG(("Destroying nsAsyncStreamCopier @%x\n", this));
     if (mLock)
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
 }
 
 PRBool
@@ -230,7 +230,7 @@ nsAsyncStreamCopier::Init(nsIInputStream *source,
     NS_ASSERTION(sourceBuffered || sinkBuffered, "at least one stream must be buffered");
 
     NS_ASSERTION(!mLock, "already initialized");
-    mLock = nsAutoLock::NewLock("nsAsyncStreamCopier::mLock");
+    mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_OUT_OF_MEMORY;
 

@@ -118,11 +118,11 @@ for ( var i = 0; i < TEST_STRING.length; i++ ) {
 		  eval("var s = new String( TEST_STRING ); s.split('')["+i+"]") );
 }
 
-// case where the value of the separator is undefined.  in this case,
-// the this value is returned.
+// case where the value of the separator is undefined.  in this case. the value of the separator
+// should be ToString( separator ), or "undefined".
 
 var TEST_STRING = "thisundefinedisundefinedaundefinedstringundefinedobject";
-var EXPECT_STRING = new Array( TEST_STRING );
+var EXPECT_STRING = new Array( "this", "is", "a", "string", "object" );
 
 new TestCase(   SECTION,
 		"var s = new String( "+ TEST_STRING +" ); s.split(void 0).length",

@@ -762,41 +762,27 @@ already_AddRefed<nsStyleContext>
 nsStyleSet::ResolveStyleFor(Element* aElement,
                             nsStyleContext* aParentContext)
 {
-  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
-                               aElement->GetOwnerDoc());
-  return ResolveStyleFor(aElement, aParentContext, treeContext);
-}
-
-already_AddRefed<nsStyleContext>
-nsStyleSet::ResolveStyleFor(Element* aElement,
-                            nsStyleContext* aParentContext,
-                            TreeMatchContext& aTreeMatchContext)
-{
   NS_ENSURE_FALSE(mInShutdown, nsnull);
   NS_ASSERTION(aElement, "aElement must not be null");
 
   nsRuleWalker ruleWalker(mRuleTree);
-  aTreeMatchContext.ResetForUnvisitedMatching();
-  ElementRuleProcessorData data(PresContext(), aElement, &ruleWalker,
-                                aTreeMatchContext);
+  ElementRuleProcessorData data(PresContext(), aElement, &ruleWalker);
   FileRules(EnumRulesMatching<ElementRuleProcessorData>, &data, aElement,
             &ruleWalker);
 
   nsRuleNode *ruleNode = ruleWalker.CurrentNode();
   nsRuleNode *visitedRuleNode = nsnull;
 
-  if (aTreeMatchContext.HaveRelevantLink()) {
-    aTreeMatchContext.ResetForVisitedMatching();
-    ruleWalker.Reset();
+  if (ruleWalker.HaveRelevantLink()) {
+    ruleWalker.ResetForVisitedMatching();
     FileRules(EnumRulesMatching<ElementRuleProcessorData>, &data, aElement,
               &ruleWalker);
     visitedRuleNode = ruleWalker.CurrentNode();
   }
 
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
-                    nsCSSRuleProcessor::IsLink(aElement),
-                    nsCSSRuleProcessor::GetContentState(aElement).
-                      HasState(NS_EVENT_STATE_VISITED),
+                    data.IsLink(),
+                    data.ContentState().HasState(NS_EVENT_STATE_VISITED),
                     nsnull, nsCSSPseudoElements::ePseudo_NotPseudoElement);
 }
 
@@ -885,10 +871,8 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
   NS_ASSERTION(aParentElement, "Must have parent element");
 
   nsRuleWalker ruleWalker(mRuleTree);
-  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
-                               aParentElement->GetOwnerDoc());
   PseudoElementRuleProcessorData data(PresContext(), aParentElement,
-                                      &ruleWalker, aType, treeContext);
+                                      &ruleWalker, aType);
   WalkRestrictionRule(aType, &ruleWalker);
   FileRules(EnumRulesMatching<PseudoElementRuleProcessorData>, &data,
             aParentElement, &ruleWalker);
@@ -896,9 +880,8 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
   nsRuleNode *ruleNode = ruleWalker.CurrentNode();
   nsRuleNode *visitedRuleNode = nsnull;
 
-  if (treeContext.HaveRelevantLink()) {
-    treeContext.ResetForVisitedMatching();
-    ruleWalker.Reset();
+  if (ruleWalker.HaveRelevantLink()) {
+    ruleWalker.ResetForVisitedMatching();
     FileRules(EnumRulesMatching<PseudoElementRuleProcessorData>, &data,
               aParentElement, &ruleWalker);
     visitedRuleNode = ruleWalker.CurrentNode();
@@ -916,18 +899,6 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
                                     nsCSSPseudoElements::Type aType,
                                     nsStyleContext* aParentContext)
 {
-  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
-                               aParentElement->GetOwnerDoc());
-  return ProbePseudoElementStyle(aParentElement, aType, aParentContext,
-                                 treeContext);
-}
-
-already_AddRefed<nsStyleContext>
-nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
-                                    nsCSSPseudoElements::Type aType,
-                                    nsStyleContext* aParentContext,
-                                    TreeMatchContext& aTreeMatchContext)
-{
   NS_ENSURE_FALSE(mInShutdown, nsnull);
 
   NS_ASSERTION(aType < nsCSSPseudoElements::ePseudo_PseudoElementCount,
@@ -936,9 +907,8 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
 
   nsIAtom* pseudoTag = nsCSSPseudoElements::GetPseudoAtom(aType);
   nsRuleWalker ruleWalker(mRuleTree);
-  aTreeMatchContext.ResetForUnvisitedMatching();
   PseudoElementRuleProcessorData data(PresContext(), aParentElement,
-                                      &ruleWalker, aType, aTreeMatchContext);
+                                      &ruleWalker, aType);
   WalkRestrictionRule(aType, &ruleWalker);
   // not the root if there was a restriction rule
   nsRuleNode *adjustedRoot = ruleWalker.CurrentNode();
@@ -952,9 +922,8 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
 
   nsRuleNode *visitedRuleNode = nsnull;
 
-  if (aTreeMatchContext.HaveRelevantLink()) {
-    aTreeMatchContext.ResetForVisitedMatching();
-    ruleWalker.Reset();
+  if (ruleWalker.HaveRelevantLink()) {
+    ruleWalker.ResetForVisitedMatching();
     FileRules(EnumRulesMatching<PseudoElementRuleProcessorData>, &data,
               aParentElement, &ruleWalker);
     visitedRuleNode = ruleWalker.CurrentNode();
@@ -1024,19 +993,16 @@ nsStyleSet::ResolveXULTreePseudoStyle(Element* aParentElement,
                "Unexpected pseudo");
 
   nsRuleWalker ruleWalker(mRuleTree);
-  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
-                               aParentElement->GetOwnerDoc());
   XULTreeRuleProcessorData data(PresContext(), aParentElement, &ruleWalker,
-                                aPseudoTag, aComparator, treeContext);
+                                aPseudoTag, aComparator);
   FileRules(EnumRulesMatching<XULTreeRuleProcessorData>, &data, aParentElement,
             &ruleWalker);
 
   nsRuleNode *ruleNode = ruleWalker.CurrentNode();
   nsRuleNode *visitedRuleNode = nsnull;
 
-  if (treeContext.HaveRelevantLink()) {
-    treeContext.ResetForVisitedMatching();
-    ruleWalker.Reset();
+  if (ruleWalker.HaveRelevantLink()) {
+    ruleWalker.ResetForVisitedMatching();
     FileRules(EnumRulesMatching<XULTreeRuleProcessorData>, &data,
               aParentElement, &ruleWalker);
     visitedRuleNode = ruleWalker.CurrentNode();
@@ -1222,10 +1188,9 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
 }
 
 struct StatefulData : public StateRuleProcessorData {
-  StatefulData(nsPresContext* aPresContext, Element* aElement,
-               nsEventStates aStateMask, TreeMatchContext& aTreeMatchContext)
-    : StateRuleProcessorData(aPresContext, aElement, aStateMask,
-                             aTreeMatchContext),
+  StatefulData(nsPresContext* aPresContext,
+               Element* aElement, nsEventStates aStateMask)
+    : StateRuleProcessorData(aPresContext, aElement, aStateMask),
       mHint(nsRestyleHint(0))
   {}
   nsRestyleHint   mHint;
@@ -1251,10 +1216,7 @@ nsStyleSet::HasDocumentStateDependentStyle(nsPresContext* aPresContext,
   if (!aContent || !aContent->IsElement())
     return PR_FALSE;
 
-  TreeMatchContext treeContext(PR_FALSE, nsRuleWalker::eLinksVisitedOrUnvisited,
-                               aContent->GetOwnerDoc());
-  StatefulData data(aPresContext, aContent->AsElement(), aStateMask,
-                    treeContext);
+  StatefulData data(aPresContext, aContent->AsElement(), aStateMask);
   WalkRuleProcessors(SheetHasDocumentStateStyle, &data, PR_TRUE);
   return data.mHint != 0;
 }
@@ -1274,9 +1236,7 @@ nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
                                    Element*             aElement,
                                    nsEventStates        aStateMask)
 {
-  TreeMatchContext treeContext(PR_FALSE, nsRuleWalker::eLinksVisitedOrUnvisited,
-                               aElement->GetOwnerDoc());
-  StatefulData data(aPresContext, aElement, aStateMask, treeContext);
+  StatefulData data(aPresContext, aElement, aStateMask);
   WalkRuleProcessors(SheetHasStatefulStyle, &data, PR_FALSE);
   return data.mHint;
 }
@@ -1284,9 +1244,9 @@ nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
 struct AttributeData : public AttributeRuleProcessorData {
   AttributeData(nsPresContext* aPresContext,
                 Element* aElement, nsIAtom* aAttribute, PRInt32 aModType,
-                PRBool aAttrHasChanged, TreeMatchContext& aTreeMatchContext)
+                PRBool aAttrHasChanged)
     : AttributeRuleProcessorData(aPresContext, aElement, aAttribute, aModType,
-                                 aAttrHasChanged, aTreeMatchContext),
+                                 aAttrHasChanged),
       mHint(nsRestyleHint(0))
   {}
   nsRestyleHint   mHint;
@@ -1309,10 +1269,8 @@ nsStyleSet::HasAttributeDependentStyle(nsPresContext* aPresContext,
                                        PRInt32        aModType,
                                        PRBool         aAttrHasChanged)
 {
-  TreeMatchContext treeContext(PR_FALSE, nsRuleWalker::eLinksVisitedOrUnvisited,
-                               aElement->GetOwnerDoc());
   AttributeData data(aPresContext, aElement, aAttribute,
-                     aModType, aAttrHasChanged, treeContext);
+                     aModType, aAttrHasChanged);
   WalkRuleProcessors(SheetHasAttributeStyle, &data, PR_FALSE);
   return data.mHint;
 }

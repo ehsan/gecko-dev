@@ -1352,10 +1352,10 @@ nsUrlClassifierDBServiceWorker::~nsUrlClassifierDBServiceWorker()
                "to close the connection.");
 
   if (mCleanHostKeysLock)
-    nsAutoLock::DestroyLock(mCleanHostKeysLock);
+    PR_DestroyLock(mCleanHostKeysLock);
 
   if (mPendingLookupLock)
-    nsAutoLock::DestroyLock(mPendingLookupLock);
+    PR_DestroyLock(mPendingLookupLock);
 }
 
 nsresult
@@ -1380,8 +1380,7 @@ nsUrlClassifierDBServiceWorker::Init(PRInt32 gethashNoise)
   rv = mDBFile->Append(NS_LITERAL_STRING(DATABASE_FILENAME));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mCleanHostKeysLock =
-    nsAutoLock::NewLock("nsUrlClassifierDBServiceWorker::mCleanHostKeysLock");
+  mCleanHostKeysLock = PR_NewLock();
   if (!mCleanHostKeysLock)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1391,8 +1390,7 @@ nsUrlClassifierDBServiceWorker::Init(PRInt32 gethashNoise)
   if (!mCleanFragments.Init(CLEAN_FRAGMENTS_SIZE))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mPendingLookupLock =
-    nsAutoLock::NewLock("nsUrlClassifierDBServiceWorker::mPendingLookupLock");
+  mPendingLookupLock = PR_NewLock();
   if (!mPendingLookupLock)
     return NS_ERROR_OUT_OF_MEMORY;
 

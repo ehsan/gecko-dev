@@ -325,7 +325,7 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
     f.regs.sp = fp->base();
     f.regs.pc = script->code;
 
-    if (fun->isHeavyweight() && !js::CreateFunCallObject(cx, fp))
+    if (fun->isHeavyweight() && !js_GetCallObject(cx, fp))
         THROWV(NULL);
 
     CompileStatus status = CanMethodJIT(cx, script, fp, CompileRequest_JIT);
@@ -367,10 +367,6 @@ UncachedInlineCall(VMFrame &f, uint32 flags, void **pret, bool *unjittable, uint
     stack.pushInlineFrame(cx, newscript, newfp, &f.regs);
     JS_ASSERT(newfp == f.regs.fp);
 
-    /* Scope with a call object parented by callee's parent. */
-    if (newfun->isHeavyweight() && !js::CreateFunCallObject(cx, newfp))
-        return false;
-
     /* Try to compile if not already compiled. */
     if (newscript->getJITStatus(newfp->isConstructing()) == JITScript_None) {
         CompileStatus status = CanMethodJIT(cx, newscript, newfp, CompileRequest_Interpreter);
@@ -382,6 +378,10 @@ UncachedInlineCall(VMFrame &f, uint32 flags, void **pret, bool *unjittable, uint
         if (status == Compile_Abort)
             *unjittable = true;
     }
+
+    /* Create call object now that we can't fail entering callee. */
+    if (newfun->isHeavyweight() && !js_GetCallObject(cx, newfp))
+        return false;
 
     /* If newscript was successfully compiled, run it. */
     if (JITScript *jit = newscript->getJIT(newfp->isConstructing())) {
@@ -437,14 +437,19 @@ stubs::Eval(VMFrame &f, uint32 argc)
 {
     Value *vp = f.regs.sp - (argc + 2);
 
-    if (!IsBuiltinEvalForScope(&f.regs.fp->scopeChain(), *vp)) {
+    JSObject *callee;
+    JSFunction *fun;
+
+    if (!IsFunctionObject(*vp, &callee) ||
+        !IsBuiltinEvalFunction((fun = callee->getFunctionPrivate())))
+    {
         if (!Invoke(f.cx, InvokeArgsAlreadyOnTheStack(vp, argc), 0))
             THROW();
         return;
     }
 
     JS_ASSERT(f.regs.fp == f.cx->fp());
-    if (!DirectEval(f.cx, argc, vp))
+    if (!DirectEval(f.cx, fun, argc, vp))
         THROW();
 }
 
@@ -477,6 +482,15 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
         THROW();
 
     return;
+}
+
+void JS_FASTCALL
+stubs::PutStrictEvalCallObject(VMFrame &f)
+{
+    JS_ASSERT(f.fp()->isEvalFrame());
+    JS_ASSERT(f.fp()->script()->strictModeCode);
+    JS_ASSERT(f.fp()->hasCallObj());
+    js_PutCallObject(f.cx, f.fp());
 }
 
 void JS_FASTCALL
@@ -571,10 +585,10 @@ js_InternalThrow(VMFrame &f)
 }
 
 void JS_FASTCALL
-stubs::CreateFunCallObject(VMFrame &f)
+stubs::GetCallObject(VMFrame &f)
 {
     JS_ASSERT(f.fp()->fun()->isHeavyweight());
-    if (!js::CreateFunCallObject(f.cx, f.fp()))
+    if (!js_GetCallObject(f.cx, f.fp()))
         THROW();
 }
 
@@ -591,16 +605,45 @@ stubs::CreateThis(VMFrame &f, JSObject *proto)
 }
 
 void JS_FASTCALL
-stubs::ScriptDebugPrologue(VMFrame &f)
+stubs::EnterScript(VMFrame &f)
 {
-    js::ScriptDebugPrologue(f.cx, f.fp());
+    JSStackFrame *fp = f.fp();
+    JSContext *cx = f.cx;
+
+    if (fp->script()->debugMode) {
+        if (fp->isExecuteFrame()) {
+            JSInterpreterHook hook = cx->debugHooks->executeHook;
+            if (JS_UNLIKELY(hook != NULL))
+                fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->executeHookData));
+        } else {
+            JSInterpreterHook hook = cx->debugHooks->callHook;
+            if (JS_UNLIKELY(hook != NULL))
+                fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->callHookData));
+        }
+    }
+
+    Probes::enterJSFun(cx, fp->maybeFun(), fp->script());
 }
 
 void JS_FASTCALL
-stubs::ScriptDebugEpilogue(VMFrame &f)
+stubs::LeaveScript(VMFrame &f)
 {
-    if (!js::ScriptDebugEpilogue(f.cx, f.fp(), JS_TRUE))
-        THROW();
+    JSStackFrame *fp = f.fp();
+    JSContext *cx = f.cx;
+    Probes::exitJSFun(cx, fp->maybeFun(), fp->maybeScript());
+
+    if (fp->script()->debugMode) {
+        void *hookData;
+        JSInterpreterHook hook =
+            fp->isExecuteFrame() ? cx->debugHooks->executeHook : cx->debugHooks->callHook;
+
+        if (JS_UNLIKELY(hook != NULL) && (hookData = fp->maybeHookData())) {
+            JSBool ok = JS_TRUE;
+            hook(cx, fp, JS_FALSE, &ok, hookData);
+            if (!ok)
+                THROW();
+        }
+    }
 }
 
 #ifdef JS_TRACER
@@ -797,6 +840,10 @@ HandleFinishedFrame(VMFrame &f, JSStackFrame *entryFrame)
 
         returnOK = ScriptEpilogue(cx, cx->fp(), true);
     }
+
+    JS_ASSERT_IF(cx->fp()->isFunctionFrame() &&
+                 !cx->fp()->isEvalFrame(),
+                 !cx->fp()->hasCallObj());
 
     if (cx->fp() != entryFrame) {
         InlineReturn(f);
@@ -1025,10 +1072,8 @@ RunTracer(VMFrame &f)
      *    move the return value down.
      * 2) The entryFrame is NOT the last inline frame. Pop the frame.
      *
-     * In both cases, we hijack the stub to return to the force-return
-     * trampoline. This trampoline simulates the frame-popping portion of
-     * emitReturn (except without the benefit of the FrameState) and will
-     * produce the necessary register state to return to the caller.
+     * In both cases, we hijack the stub to return to InjectJaegerReturn. This
+     * moves |oldFp->rval| into the scripted return registers.
      */
 
   restart:
@@ -1045,8 +1090,7 @@ RunTracer(VMFrame &f)
         if (!HandleFinishedFrame(f, entryFrame))
             THROWV(NULL);
 
-        void *retPtr = JS_FUNC_TO_DATA_PTR(void *,
-                       cx->jaegerCompartment()->forceReturnTrampoline());
+        void *retPtr = JS_FUNC_TO_DATA_PTR(void *, InjectJaegerReturn);
         *f.returnAddressLocation() = retPtr;
         return NULL;
     }
