@@ -27,7 +27,6 @@
 #include <hardware/hwcomposer.h>
 #if ANDROID_VERSION >= 17
 #include <ui/Fence.h>
-#include <utils/Timers.h>
 #endif
 
 namespace mozilla {

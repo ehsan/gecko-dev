@@ -182,10 +182,5 @@
         <attr name="floatingHintEditTextStyle" format="reference" />
     </declare-styleable>
 
-    <declare-styleable name="FaviconView">
-        <attr name="dominantBorderEnabled" format="boolean" />
-        <attr name="overrideScaleType" format="boolean" />
-    </declare-styleable>
-
 </resources>
 

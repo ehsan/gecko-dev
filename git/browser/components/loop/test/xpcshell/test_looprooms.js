@@ -229,8 +229,6 @@ add_task(function* setup_server() {
     res.finish();
   });
 
-  mockPushHandler.registrationPushURL = kEndPointUrl;
-
   yield MozLoopService.promiseRegisteredWithServers();
 });
 

@@ -45,13 +45,12 @@ const { join: pathJoin, normalize, dirname } = Cu.import("resource://gre/modules
 
 // Define some shortcuts.
 const bind = Function.call.bind(Function.bind);
+const getOwnPropertyNames = Object.getOwnPropertyNames;
 const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const define = Object.defineProperties;
 const prototypeOf = Object.getPrototypeOf;
 const create = Object.create;
 const keys = Object.keys;
-const getOwnIdentifiers = x => [...Object.getOwnPropertyNames(x),
-                                ...Object.getOwnPropertySymbols(x)];
 
 const NODE_MODULES = ["assert", "buffer_ieee754", "buffer", "child_process", "cluster", "console", "constants", "crypto", "_debugger", "dgram", "dns", "domain", "events", "freelist", "fs", "http", "https", "_linklist", "module", "net", "os", "path", "punycode", "querystring", "readline", "repl", "stream", "string_decoder", "sys", "timers", "tls", "tty", "url", "util", "vm", "zlib"];
 
@@ -85,7 +84,7 @@ function freeze(object) {
 // Returns map of given `object`-s own property descriptors.
 const descriptor = iced(function descriptor(object) {
   let value = {};
-  getOwnIdentifiers(object).forEach(function(name) {
+  getOwnPropertyNames(object).forEach(function(name) {
     value[name] = getOwnPropertyDescriptor(object, name)
   });
   return value;
@@ -122,7 +121,7 @@ function iced(f) {
 const override = iced(function override(target, source) {
   let properties = descriptor(target)
   let extension = descriptor(source || {})
-  getOwnIdentifiers(extension).forEach(function(name) {
+  getOwnPropertyNames(extension).forEach(function(name) {
     properties[name] = extension[name];
   });
   return define({}, properties);
@@ -295,7 +294,7 @@ const load = iced(function load(loader, module) {
     // the scope object for this particular module
     sandbox = new loader.sharedGlobalSandbox.Object();
     // Inject all expected globals in the scope object
-    getOwnIdentifiers(globals).forEach(function(name) {
+    getOwnPropertyNames(globals).forEach(function(name) {
       descriptors[name] = getOwnPropertyDescriptor(globals, name)
     });
     define(sandbox, descriptors);
@@ -522,7 +521,7 @@ const resolveURI = iced(function resolveURI(id, mapping) {
   let count = mapping.length, index = 0;
 
   // Do not resolve if already a resource URI
-  if (isAbsoluteURI(id)) return normalizeExt(id);
+  if (isResourceURI(id)) return normalizeExt(id);
 
   while (index < count) {
     let [ path, uri ] = mapping[index ++];
@@ -845,9 +844,7 @@ exports.Loader = Loader;
 let isJSONURI = uri => uri.substr(-5) === '.json';
 let isJSMURI = uri => uri.substr(-4) === '.jsm';
 let isJSURI = uri => uri.substr(-3) === '.js';
-let isAbsoluteURI = uri => uri.indexOf("resource://") >= 0 ||
-                           uri.indexOf("chrome://") >= 0 ||
-                           uri.indexOf("file://") >= 0
+let isResourceURI = uri => uri.substr(0, 11) === 'resource://';
 let isRelative = id => id[0] === '.'
 
 const generateMap = iced(function generateMap(options, callback) {
@@ -931,7 +928,7 @@ function findAllModuleIncludes (uri, options, results, callback) {
 // Given a resource URI or source, return an array of strings passed into
 // the require statements from the source
 function findModuleIncludes (uri, callback) {
-  let src = isAbsoluteURI(uri) ? readURI(uri) : uri;
+  let src = isResourceURI(uri) ? readURI(uri) : uri;
   let modules = [];
 
   walk(src, function (node) {
@@ -982,3 +979,4 @@ function isRequire (node) {
 }
 
 });
+

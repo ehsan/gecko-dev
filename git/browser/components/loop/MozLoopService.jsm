@@ -106,6 +106,10 @@ function getJSONPref(aName) {
   return !!value ? JSON.parse(value) : null;
 }
 
+// The current deferred for the registration process. This is set if in progress
+// or the registration was successful. This is null if a registration attempt was
+// unsuccessful.
+let gRegisteredDeferred = null;
 let gHawkClient = null;
 let gLocalizedStrings = null;
 let gFxAEnabled = true;
@@ -127,13 +131,6 @@ let MozLoopServiceInternal = {
     pushHandler: undefined,
     webSocket: undefined,
   },
-
-  /**
-   * The current deferreds for the registration processes. This is set if in progress
-   * or the registration was successful. This is null if a registration attempt was
-   * unsuccessful.
-   */
-  deferredRegistrations: new Map(),
 
   get pushHandler() this.mocks.pushHandler || MozLoopPushHandler,
 
@@ -313,37 +310,35 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Get endpoints with the push server and register for notifications.
-   * For now we register as both a Guest and FxA user and all must succeed.
+   * Starts registration of Loop with the push server, and then will register
+   * with the Loop server as a GUEST. It will return early if already registered.
    *
-   * @return {Promise} resolves with all push endpoints
-   *                   rejects if any of the push registrations failed
+   * @returns {Promise} a promise that is resolved with no params on completion, or
+   *          rejected with an error code or string.
    */
-  promiseRegisteredWithPushServer: function() {
+  promiseRegisteredWithServers: function() {
+    if (gRegisteredDeferred) {
+      return gRegisteredDeferred.promise;
+    }
+
     // Wrap push notification registration call-back in a Promise.
-    function registerForNotification(channelID, onNotification) {
-      log.debug("registerForNotification", channelID);
+    let registerForNotification = function(channelID, onNotification) {
       return new Promise((resolve, reject) => {
-        function onRegistered(error, pushUrl) {
-          log.debug("registerForNotification onRegistered:", error, pushUrl);
+        let onRegistered = (error, pushUrl) => {
           if (error) {
             reject(Error(error));
           } else {
             resolve(pushUrl);
           }
-        }
-
-        // If we're already registered, resolve with the existing push URL
-        let pushURL = MozLoopServiceInternal.pushHandler.registeredChannels[channelID];
-        if (pushURL) {
-          log.debug("Using the existing push endpoint for channelID:", channelID);
-          resolve(pushURL);
-          return;
-        }
-
+        };
         MozLoopServiceInternal.pushHandler.register(channelID, onRegistered, onNotification);
       });
-    }
+    };
+
+    gRegisteredDeferred = Promise.defer();
+    // We grab the promise early in case .initialize or its results sets
+    // it back to null on error.
+    let result = gRegisteredDeferred.promise;
 
     let options = this.mocks.webSocket ? { mockWebSocket: this.mocks.webSocket } : {};
     this.pushHandler.initialize(options);
@@ -360,42 +355,27 @@ let MozLoopServiceInternal = {
     let roomsRegFxA = registerForNotification(MozLoopService.channelIDs.roomsFxA,
                                               roomsPushNotification);
 
-    return Promise.all([callsRegGuest, roomsRegGuest, callsRegFxA, roomsRegFxA]);
-  },
-
-  /**
-   * Starts registration of Loop with the push server, and then will register
-   * with the Loop server. It will return early if already registered.
-   *
-   * @param {LOOP_SESSION_TYPE} sessionType
-   * @returns {Promise} a promise that is resolved with no params on completion, or
-   *          rejected with an error code or string.
-   */
-  promiseRegisteredWithServers: function(sessionType = LOOP_SESSION_TYPE.GUEST) {
-    if (this.deferredRegistrations.has(sessionType)) {
-      log.debug("promiseRegisteredWithServers: registration already completed or in progress:", sessionType);
-      return this.deferredRegistrations.get(sessionType).promise;
-    }
-
-    let result = null;
-    let deferred = Promise.defer();
-    log.debug("assigning to deferredRegistrations for sessionType:", sessionType);
-    this.deferredRegistrations.set(sessionType, deferred);
-
-    // We grab the promise early in case one of the callers below delete it from the map.
-    result = deferred.promise;
-
-    this.promiseRegisteredWithPushServer().then(() => {
-      return this.registerWithLoopServer(sessionType);
+    Promise.all([callsRegGuest, roomsRegGuest, callsRegFxA, roomsRegFxA])
+    .then((pushUrls) => {
+      return this.registerWithLoopServer(LOOP_SESSION_TYPE.GUEST,{
+        calls: pushUrls[0],
+        rooms: pushUrls[1],
+      });
     }).then(() => {
-      deferred.resolve("registered to status:" + sessionType);
+      // storeSessionToken could have rejected and nulled the promise if the token was malformed.
+      if (!gRegisteredDeferred) {
+        return;
+      }
+      gRegisteredDeferred.resolve("registered to guest status");
       // No need to clear the promise here, everything was good, so we don't need
       // to re-register.
     }, error => {
-      log.error("Failed to register with Loop server with sessionType " + sessionType, error);
-      deferred.reject(error);
-      this.deferredRegistrations.delete(sessionType);
-      log.debug("Cleared deferredRegistration for sessionType:", sessionType);
+      log.error("Failed to register with Loop server: ", error);
+      // registerWithLoopServer may have already made this null.
+      if (gRegisteredDeferred) {
+        gRegisteredDeferred.reject(error);
+      }
+      gRegisteredDeferred = null;
     });
 
     return result;
@@ -417,7 +397,6 @@ let MozLoopServiceInternal = {
    *        rejected with this JSON-parsed response.
    */
   hawkRequest: function(sessionType, path, method, payloadObj) {
-    log.debug("hawkRequest: " + path, sessionType);
     if (!gHawkClient) {
       gHawkClient = new HawkClient(this.loopServerUri);
     }
@@ -509,11 +488,14 @@ let MozLoopServiceInternal = {
       } else {
         // XXX Bubble the precise details up to the UI somehow (bug 1013248).
         log.warn("Loop server sent an invalid session token");
+        gRegisteredDeferred.reject("session-token-wrong-size");
+        gRegisteredDeferred = null;
         return false;
       }
     }
     return true;
   },
+
 
   /**
    * Clear the loop session token so we don't use it for Hawk Requests anymore.
@@ -530,62 +512,45 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Registers with the Loop server either as a guest or a FxA user. This method should only be
-   * called by promiseRegisteredWithServers since it prevents calling this while a registration is
-   * already in progress.
+   * Registers with the Loop server either as a guest or a FxA user.
    *
-   * @private
    * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
+   * @param {String} pushUrls The push url given by the push server.
    * @param {Boolean} [retry=true] Whether to retry if authentication fails.
    * @return {Promise}
    */
-  registerWithLoopServer: function(sessionType, retry = true) {
-    log.debug("registerWithLoopServer with sessionType:", sessionType);
-
-    let callsPushURL, roomsPushURL;
-    if (sessionType == LOOP_SESSION_TYPE.FXA) {
-      callsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA];
-      roomsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
-    } else if (sessionType == LOOP_SESSION_TYPE.GUEST) {
-      callsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.callsGuest];
-      roomsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsGuest];
-    }
-
-    if (!callsPushURL || !roomsPushURL) {
-      return Promise.reject("Invalid sessionType or missing push URLs for registerWithLoopServer: " + sessionType);
-    }
-
+  registerWithLoopServer: function(sessionType, pushUrls, retry = true) {
     // create a registration payload with a backwards compatible attribute (simplePushURL)
     // that will register only the calls notification.
     let msg = {
-        simplePushURL: callsPushURL,
-        simplePushURLs: {
-          calls: callsPushURL,
-          rooms: roomsPushURL,
-        },
+        simplePushURL: pushUrls.calls,
+        simplePushURLs: pushUrls
     };
     return this.hawkRequest(sessionType, "/registration", "POST", msg)
       .then((response) => {
-        // If this failed we got an invalid token.
+        // If this failed we got an invalid token. storeSessionToken rejects
+        // the gRegisteredDeferred promise for us, so here we just need to
+        // early return.
         if (!this.storeSessionToken(sessionType, response.headers)) {
-          return Promise.reject("session-token-wrong-size");
+          return;
         }
 
         log.debug("Successfully registered with server for sessionType", sessionType);
         this.clearError("registration");
-        return undefined;
       }, (error) => {
         // There's other errors than invalid auth token, but we should only do the reset
         // as a last resort.
         if (error.code === 401) {
           // Authorization failed, invalid token, we need to try again with a new token.
           if (retry) {
-            return this.registerWithLoopServer(sessionType, false);
+            return this.registerWithLoopServer(sessionType, pushUrls, false);
           }
         }
 
         log.error("Failed to register with the loop server. Error: ", error);
         this.setError("registration", error);
+        gRegisteredDeferred.reject(error);
+        gRegisteredDeferred = null;
         throw error;
       }
     );
@@ -602,7 +567,7 @@ let MozLoopServiceInternal = {
    * Guest or FxA have been unregistered with the LoopServer.
    *
    * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
-   * @param {String} pushURL The push URL previously given by the push server.
+   * @param {String} pushURLs The push URL previously given by the push server.
    *                         This may not be necessary to unregister in the future.
    * @return {Promise} resolving when the unregistration request finishes
    */
@@ -1005,27 +970,28 @@ this.MozLoopService = {
     });
 
     try {
-      if (MozLoopServiceInternal.urlExpiryTimeIsInFuture()) {
-        yield this.promiseRegisteredWithServers(LOOP_SESSION_TYPE.GUEST);
-      } else {
-        log.debug("delayedInitialize: URL expiry time isn't in the future so not registering as a guest");
-      }
+      yield this.promiseRegisteredWithServers();
     } catch (ex) {
-      log.debug("MozLoopService: Failure of guest registration", ex);
+      log.debug("MozLoopService: Failure of initial registration", ex);
       deferredInitialization.reject(ex);
       yield completedPromise;
       return;
     }
 
     if (!MozLoopServiceInternal.fxAOAuthTokenData) {
-      log.debug("delayedInitialize: Initialized without an already logged-in account");
-      deferredInitialization.resolve("initialized without FxA status");
+      log.debug("MozLoopService: Initialized without an already logged-in account");
+      deferredInitialization.resolve("initialized to guest status");
       yield completedPromise;
       return;
     }
 
     log.debug("MozLoopService: Initializing with already logged-in account");
-    MozLoopServiceInternal.promiseRegisteredWithServers(LOOP_SESSION_TYPE.FXA).then(() => {
+    let pushURLs = {
+      calls: MozLoopServiceInternal.pushHandler.registeredChannels[this.channelIDs.callsFxA],
+      rooms: MozLoopServiceInternal.pushHandler.registeredChannels[this.channelIDs.roomsFxA]
+    };
+
+    MozLoopServiceInternal.registerWithLoopServer(LOOP_SESSION_TYPE.FXA, pushURLs).then(() => {
       deferredInitialization.resolve("initialized to logged-in status");
     }, error => {
       log.debug("MozLoopService: error logging in using cached auth token");
@@ -1147,8 +1113,8 @@ this.MozLoopService = {
   /**
    * @see MozLoopServiceInternal.promiseRegisteredWithServers
    */
-  promiseRegisteredWithServers: function(sessionType = LOOP_SESSION_TYPE.GUEST) {
-    return MozLoopServiceInternal.promiseRegisteredWithServers(sessionType);
+  promiseRegisteredWithServers: function() {
+    return MozLoopServiceInternal.promiseRegisteredWithServers();
   },
 
   /**
@@ -1344,11 +1310,19 @@ this.MozLoopService = {
       MozLoopServiceInternal.fxAOAuthTokenData = tokenData;
       return tokenData;
     }).then(tokenData => {
-      return MozLoopServiceInternal.promiseRegisteredWithServers(LOOP_SESSION_TYPE.FXA).then(() => {
+      return gRegisteredDeferred.promise.then(Task.async(function*() {
+        let callsUrl = MozLoopServiceInternal.pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA],
+            roomsUrl = MozLoopServiceInternal.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
+        if (callsUrl && roomsUrl) {
+          yield MozLoopServiceInternal.registerWithLoopServer(
+            LOOP_SESSION_TYPE.FXA, {calls: callsUrl, rooms: roomsUrl});
+        } else {
+          throw new Error("No pushUrls for FxA registration");
+        }
         MozLoopServiceInternal.clearError("login");
         MozLoopServiceInternal.clearError("profile");
         return MozLoopServiceInternal.fxAOAuthTokenData;
-      });
+      }));
     }).then(tokenData => {
       let client = new FxAccountsProfileClient({
         serverURL: gFxAOAuthClient.parameters.profile_uri,
@@ -1367,7 +1341,6 @@ this.MozLoopService = {
     }).catch(error => {
       MozLoopServiceInternal.fxAOAuthTokenData = null;
       MozLoopServiceInternal.fxAOAuthProfile = null;
-      MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
       throw error;
     }).catch((error) => {
       MozLoopServiceInternal.setError("login", error);
@@ -1399,22 +1372,21 @@ this.MozLoopService = {
       throw error;
     } finally {
       MozLoopServiceInternal.clearSessionToken(LOOP_SESSION_TYPE.FXA);
-
-      MozLoopServiceInternal.fxAOAuthTokenData = null;
-      MozLoopServiceInternal.fxAOAuthProfile = null;
-      MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
-
-      // Reset the client since the initial promiseFxAOAuthParameters() call is
-      // what creates a new session.
-      gFxAOAuthClient = null;
-      gFxAOAuthClientPromise = null;
-
-      // clearError calls notifyStatusChanged so should be done last when the
-      // state is clean.
-      MozLoopServiceInternal.clearError("registration");
-      MozLoopServiceInternal.clearError("login");
-      MozLoopServiceInternal.clearError("profile");
     }
+
+    MozLoopServiceInternal.fxAOAuthTokenData = null;
+    MozLoopServiceInternal.fxAOAuthProfile = null;
+
+    // Reset the client since the initial promiseFxAOAuthParameters() call is
+    // what creates a new session.
+    gFxAOAuthClient = null;
+    gFxAOAuthClientPromise = null;
+
+    // clearError calls notifyStatusChanged so should be done last when the
+    // state is clean.
+    MozLoopServiceInternal.clearError("registration");
+    MozLoopServiceInternal.clearError("login");
+    MozLoopServiceInternal.clearError("profile");
   }),
 
   openFxASettings: Task.async(function() {

@@ -59,11 +59,8 @@ const WindowLoader = Trait.compose({
 
     if (window !== _window) {
       if (_window) {
-        if (this.__unloadListener)
-          _window.removeEventListener(ON_UNLOAD, this.__unloadListener, false);
-
-        if (this.__loadListener)
-          _window.removeEventListener(ON_LOAD, this.__loadListener, false);
+        _window.removeEventListener(ON_UNLOAD, this.__unloadListener, false);
+        _window.removeEventListener(ON_LOAD, this.__loadListener, false);
       }
 
       if (window) {
@@ -126,3 +123,4 @@ const WindowLoader = Trait.compose({
   __unloadListener: null
 });
 exports.WindowLoader = WindowLoader;
+

@@ -11,7 +11,6 @@ import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.tabs.TabHistoryController;
 import org.mozilla.gecko.menu.MenuItemActionBar;
 
 import android.content.Context;
@@ -66,8 +65,7 @@ abstract class BrowserToolbarTabletBase extends BrowserToolbar {
         backButton.setOnLongClickListener(new Button.OnLongClickListener() {
             @Override
             public boolean onLongClick(View view) {
-                return tabHistoryController.showTabHistory(Tabs.getInstance().getSelectedTab(),
-                        TabHistoryController.HistoryAction.BACK);
+                return Tabs.getInstance().getSelectedTab().showBackHistory();
             }
         });
 
@@ -80,8 +78,7 @@ abstract class BrowserToolbarTabletBase extends BrowserToolbar {
         forwardButton.setOnLongClickListener(new Button.OnLongClickListener() {
             @Override
             public boolean onLongClick(View view) {
-                return tabHistoryController.showTabHistory(Tabs.getInstance().getSelectedTab(),
-                        TabHistoryController.HistoryAction.FORWARD);
+                return Tabs.getInstance().getSelectedTab().showForwardHistory();
             }
         });
     }

@@ -350,8 +350,8 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Tab:Selected", false);
     Services.obs.addObserver(this, "Tab:Closed", false);
     Services.obs.addObserver(this, "Session:Back", false);
+    Services.obs.addObserver(this, "Session:ShowHistory", false);
     Services.obs.addObserver(this, "Session:Forward", false);
-    Services.obs.addObserver(this, "Session:Navigate", false);
     Services.obs.addObserver(this, "Session:Reload", false);
     Services.obs.addObserver(this, "Session:Stop", false);
     Services.obs.addObserver(this, "SaveAs:PDF", false);
@@ -377,7 +377,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Webapps:Load", false);
     Services.obs.addObserver(this, "Webapps:AutoUninstall", false);
     Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
-    Messaging.addListener(this.getHistory.bind(this), "Session:GetHistory");
 
     function showFullScreenWarning() {
       NativeWindow.toast.show(Strings.browser.GetStringFromName("alertFullScreenToast"), "short");
@@ -503,15 +502,6 @@ var BrowserApp = {
       } catch (e) {
         // Phew.
       }
-    }
-
-    try {
-      // Set the tiles click observer only if tiles reporting is enabled (that
-      // is, a report URL is set in prefs).
-      gTilesReportURL = Services.prefs.getCharPref("browser.tiles.reportURL");
-      Services.obs.addObserver(this, "Tiles:Click", false);
-    } catch (e) {
-      // Tiles reporting is disabled.
     }
 
     // Notify Java that Gecko has loaded.
@@ -892,6 +882,29 @@ var BrowserApp = {
       Services.prefs.setBoolPref("searchActivity.default.migrated", true);
       SearchEngines.migrateSearchActivityDefaultPref();
     }
+  },
+
+  shutdown: function shutdown() {
+    NativeWindow.uninit();
+    LightWeightThemeWebInstaller.uninit();
+    FormAssistant.uninit();
+    IndexedDB.uninit();
+    ViewportHandler.uninit();
+    XPInstallObserver.uninit();
+    HealthReportStatusListener.uninit();
+    CharacterEncoding.uninit();
+    SearchEngines.uninit();
+    RemoteDebugger.uninit();
+    Reader.uninit();
+    UserAgentOverrides.uninit();
+    DesktopUserAgent.uninit();
+    ExternalApps.uninit();
+    CastingApps.uninit();
+    Distribution.uninit();
+    Tabs.uninit();
+#ifdef NIGHTLY_BUILD
+    WebcompatReporter.uninit();
+#endif
   },
 
   // This function returns false during periods where the browser displayed document is
@@ -1560,11 +1573,6 @@ var BrowserApp = {
         browser.goForward();
         break;
 
-      case "Session:Navigate":
-          let index = JSON.parse(aData);
-          browser.gotoIndex(index);
-          break;
-
       case "Session:Reload": {
         let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY | Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
 
@@ -1597,6 +1605,12 @@ var BrowserApp = {
       case "Session:Stop":
         browser.stop();
         break;
+
+      case "Session:ShowHistory": {
+        let data = JSON.parse(aData);
+        this.showHistory(data.fromIndex, data.toIndex, data.selIndex);
+        break;
+      }
 
       case "Tab:Load": {
         let data = JSON.parse(aData);
@@ -1840,13 +1854,6 @@ var BrowserApp = {
         this.computeAcceptLanguages(osLocale, aData);
         break;
 
-      case "Tiles:Click":
-        // Set the click data for the given tab to be handled on the next page load.
-        let data = JSON.parse(aData);
-        let tab = this.getTabForId(data.tabId);
-        tab.tilesData = data.payload;
-        break;
-
       default:
         dump('BrowserApp.observe: unexpected topic "' + aTopic + '"\n');
         break;
@@ -1971,26 +1978,30 @@ var BrowserApp = {
     this._prefObservers = newPrefObservers;
   },
 
-  // This method will return a list of history items from fromIndex to toIndex, optionally
+  // This method will print a list from fromIndex to toIndex, optionally
   // selecting selIndex(if fromIndex<=selIndex<=toIndex)
-  getHistory: function(data) {
-    let fromIndex = data.fromIndex;
-    let toIndex = data.toIndex;
-    let selIndex = data.selIndex;
+  showHistory: function(fromIndex, toIndex, selIndex) {
     let browser = this.selectedBrowser;
     let hist = browser.sessionHistory;
     let listitems = [];
     for (let i = toIndex; i >= fromIndex; i--) {
       let entry = hist.getEntryAtIndex(i, false);
       let item = {
-        title: entry.title || entry.URI.spec,
-        url: entry.URI.spec,
+        label: entry.title || entry.URI.spec,
         selected: (i == selIndex)
       };
       listitems.push(item);
     }
 
-    return { "historyItems" : listitems };
+    let p = new Prompt({
+      window: browser.contentWindow
+    }).setSingleChoiceItems(listitems).show(function(data) {
+        let selected = data.button;
+        if (selected == -1)
+          return;
+
+        browser.gotoIndex(toIndex-selected);
+    });
   },
 };
 
@@ -2001,6 +2012,14 @@ var NativeWindow = {
     Services.obs.addObserver(this, "Toast:Click", false);
     Services.obs.addObserver(this, "Toast:Hidden", false);
     this.contextmenus.init();
+  },
+
+  uninit: function() {
+    Services.obs.removeObserver(this, "Menu:Clicked");
+    Services.obs.removeObserver(this, "Doorhanger:Reply");
+    Services.obs.removeObserver(this, "Toast:Click", false);
+    Services.obs.removeObserver(this, "Toast:Hidden", false);
+    this.contextmenus.uninit();
   },
 
   loadDex: function(zipFile, implClass) {
@@ -2184,6 +2203,10 @@ var NativeWindow = {
 
     init: function() {
       BrowserApp.deck.addEventListener("contextmenu", this.show.bind(this), false);
+    },
+
+    uninit: function() {
+      BrowserApp.deck.removeEventListener("contextmenu", this.show.bind(this), false);
     },
 
     add: function() {
@@ -2843,6 +2866,12 @@ var LightWeightThemeWebInstaller = {
     BrowserApp.deck.addEventListener("ResetBrowserThemePreview", this, false, true);
   },
 
+  uninit: function() {
+    BrowserApp.deck.removeEventListener("InstallBrowserTheme", this, false, true);
+    BrowserApp.deck.removeEventListener("PreviewBrowserTheme", this, false, true);
+    BrowserApp.deck.removeEventListener("ResetBrowserThemePreview", this, false, true);
+  },
+
   handleEvent: function (event) {
     switch (event.type) {
       case "InstallBrowserTheme":
@@ -2958,6 +2987,10 @@ var DesktopUserAgent = {
                         .getService(Ci.nsIHttpProtocolHandler).userAgent
                         .replace(/Android; [a-zA-Z]+/, "X11; Linux x86_64")
                         .replace(/Gecko\/[0-9\.]+/, "Gecko/20100101");
+  },
+
+  uninit: function ua_uninit() {
+    Services.obs.removeObserver(this, "DesktopMode:Change");
   },
 
   onRequest: function(channel, defaultUA) {
@@ -3138,9 +3171,6 @@ let gReflowPending = null;
 // into account said browser chrome.
 let gViewportMargins = { top: 0, right: 0, bottom: 0, left: 0};
 
-// The URL where suggested tile clicks are posted.
-let gTilesReportURL = null;
-
 function Tab(aURL, aParams) {
   this.browser = null;
   this.id = 0;
@@ -3169,7 +3199,6 @@ function Tab(aURL, aParams) {
   this.hasTouchListener = false;
   this.browserWidth = 0;
   this.browserHeight = 0;
-  this.tilesData = null;
 
   this.create(aURL, aParams);
 }
@@ -4193,32 +4222,11 @@ Tab.prototype = {
           }
         }
 
-        // Upload any pending tile click events.
-        // Tiles data will be non-null for this tab only if:
-        // 1) the user just clicked a suggested site with a tracking ID, and
-        // 2) tiles reporting is enabled (gTilesReportURL != null).
-        if (this.tilesData) {
-          let xhr = new XMLHttpRequest();
-          xhr.open("POST", gTilesReportURL, true);
-          xhr.setRequestHeader("Content-Type", "application/json");
-          xhr.onload = function (e) {
-            // Broadcast reply if X-Robocop header is set. Used for testing only.
-            if (this.status == 200 && this.getResponseHeader("X-Robocop")) {
-              Messaging.sendRequest({
-                type: "Robocop:TilesResponse",
-                response: this.response
-              });
-            }
-          };
-          xhr.send(this.tilesData);
-          this.tilesData = null;
-        }
-
         if (!Reader.isEnabledForParseOnLoad)
           return;
 
         // Once document is fully loaded, parse it
-        Reader.parseDocumentFromTab(this).then(article => {
+        Reader.parseDocumentFromTab(this, function (article) {
           // The loaded page may have changed while we were parsing the document. 
           // Make sure we've got the current one.
           let uri = this.browser.currentURI;
@@ -4250,7 +4258,7 @@ Tab.prototype = {
 
           if(!this.readerEnabled)
             this.readerEnabled = true;
-        }, e => Cu.reportError(e));
+        }.bind(this));
       }
     }
   },
@@ -4290,14 +4298,6 @@ Tab.prototype = {
         // If the request does not handle the nsIHttpChannel interface, use nsIRequest's success
         // status. Used for local files. See bug 948849.
         success = aRequest.status == 0;
-      }
-
-      // At this point, either:
-      // 1) the page loaded, the pageshow event fired, and the tilesData XHR has been posted, or
-      // 2) the page did not load, and we're loading a new page.
-      // Either way, we're done with the tiles data, so clear it out.
-      if (this.tilesData && (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP)) {
-        this.tilesData = null;
       }
 
       // Check to see if we restoring the content from a previous presentation (session)
@@ -5483,6 +5483,21 @@ var FormAssistant = {
     LoginManagerParent.init();
   },
 
+  uninit: function() {
+    Services.obs.removeObserver(this, "FormAssist:AutoComplete");
+    Services.obs.removeObserver(this, "FormAssist:Blocklisted");
+    Services.obs.removeObserver(this, "FormAssist:Hidden");
+    Services.obs.removeObserver(this, "FormAssist:Remove");
+    Services.obs.removeObserver(this, "invalidformsubmit");
+    Services.obs.removeObserver(this, "PanZoom:StateChange");
+
+    BrowserApp.deck.removeEventListener("focus", this);
+    BrowserApp.deck.removeEventListener("blur", this);
+    BrowserApp.deck.removeEventListener("click", this);
+    BrowserApp.deck.removeEventListener("input", this);
+    BrowserApp.deck.removeEventListener("pageshow", this);
+  },
+
   observe: function(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "PanZoom:StateChange":
@@ -5831,6 +5846,17 @@ let HealthReportStatusListener = {
     }
   },
 
+  uninit: function () {
+    Services.obs.removeObserver(this, "HealthReport:RequestSnapshot");
+    Services.prefs.removeObserver(this.PREF_ACCEPT_LANG, this);
+    Services.prefs.removeObserver(this.PREF_BLOCKLIST_ENABLED, this);
+    if (this.PREF_TELEMETRY_ENABLED) {
+      Services.prefs.removeObserver(this.PREF_TELEMETRY_ENABLED, this);
+    }
+
+    AddonManager.removeAddonListener(this);
+  },
+
   observe: function (aSubject, aTopic, aData) {
     switch (aTopic) {
       case "HealthReport:RequestSnapshot":
@@ -5995,6 +6021,13 @@ var XPInstallObserver = {
     Services.obs.addObserver(XPInstallObserver, "addon-install-started", false);
 
     AddonManager.addInstallListener(XPInstallObserver);
+  },
+
+  uninit: function xpi_uninit() {
+    Services.obs.removeObserver(XPInstallObserver, "addon-install-blocked");
+    Services.obs.removeObserver(XPInstallObserver, "addon-install-started");
+
+    AddonManager.removeInstallListener(XPInstallObserver);
   },
 
   observe: function xpi_observer(aSubject, aTopic, aData) {
@@ -6173,6 +6206,11 @@ var ViewportHandler = {
   init: function init() {
     addEventListener("DOMMetaAdded", this, false);
     Services.obs.addObserver(this, "Window:Resize", false);
+  },
+
+  uninit: function uninit() {
+    removeEventListener("DOMMetaAdded", this, false);
+    Services.obs.removeObserver(this, "Window:Resize");
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -6495,6 +6533,12 @@ var IndexedDB = {
     Services.obs.addObserver(this, this._quotaCancel, false);
   },
 
+  uninit: function IndexedDB_uninit() {
+    Services.obs.removeObserver(this, this._permissionsPrompt);
+    Services.obs.removeObserver(this, this._quotaPrompt);
+    Services.obs.removeObserver(this, this._quotaCancel);
+  },
+
   observe: function IndexedDB_observe(subject, topic, data) {
     if (topic != this._permissionsPrompt &&
         topic != this._quotaPrompt &&
@@ -6589,6 +6633,11 @@ var CharacterEncoding = {
     Services.obs.addObserver(this, "CharEncoding:Get", false);
     Services.obs.addObserver(this, "CharEncoding:Set", false);
     this.sendState();
+  },
+
+  uninit: function uninit() {
+    Services.obs.removeObserver(this, "CharEncoding:Get");
+    Services.obs.removeObserver(this, "CharEncoding:Set");
   },
 
   observe: function observe(aSubject, aTopic, aData) {
@@ -6911,6 +6960,17 @@ var SearchEngines = {
         SearchEngines.addEngine(aElement);
       }
     });
+  },
+
+  uninit: function uninit() {
+    Services.obs.removeObserver(this, "SearchEngines:Add");
+    Services.obs.removeObserver(this, "SearchEngines:GetVisible");
+    Services.obs.removeObserver(this, "SearchEngines:Remove");
+    Services.obs.removeObserver(this, "SearchEngines:RestoreDefaults");
+    Services.obs.removeObserver(this, "SearchEngines:SetDefault");
+    Services.obs.removeObserver(this, "browser-search-engine-modified");
+    if (this._contextMenuId != null)
+      NativeWindow.contextmenus.remove(this._contextMenuId);
   },
 
   // Fetch list of search engines. all ? All engines : Visible engines only.
@@ -7241,6 +7301,11 @@ var RemoteDebugger = {
     }
   },
 
+  uninit: function rd_uninit() {
+    Services.prefs.removeObserver("devtools.debugger.", this);
+    this._stop();
+  },
+
   _getPort: function _rd_getPort() {
     return Services.prefs.getIntPref("devtools.debugger.remote-port");
   },
@@ -7363,6 +7428,13 @@ var ExternalApps = {
       return apps.length == 1 ? Strings.browser.formatStringFromName("helperapps.openWithApp2", [apps[0].name], 1) :
                                 Strings.browser.GetStringFromName("helperapps.openWithList2");
     }, this.filter, this.openExternal);
+  },
+
+  uninit: function helper_uninit() {
+    if (this._contextMenuId !== null) {
+      NativeWindow.contextmenus.remove(this._contextMenuId);
+    }
+    this._contextMenuId = null;
   },
 
   filter: {
@@ -7492,6 +7564,12 @@ var Distribution = {
     this._file = Services.dirsvc.get("XCurProcD", Ci.nsIFile);
     this._file.append("distribution.json");
     this.readJSON(this._file, this.update);
+  },
+
+  uninit: function dc_uninit() {
+    Services.obs.removeObserver(this, "Distribution:Set");
+    Services.obs.removeObserver(this, "prefservice:after-app-defaults");
+    Services.obs.removeObserver(this, "Campaign:Set");
   },
 
   observe: function dc_observe(aSubject, aTopic, aData) {
@@ -7640,6 +7718,19 @@ var Tabs = {
 
     BrowserApp.deck.addEventListener("pageshow", this, false);
     BrowserApp.deck.addEventListener("TabOpen", this, false);
+  },
+
+  uninit: function() {
+    if (!this._enableTabExpiration) {
+      // If _enableTabExpiration is true then we won't have this
+      // observer registered any more.
+      Services.obs.removeObserver(this, "memory-pressure");
+    }
+
+    Services.obs.removeObserver(this, "Session:Prefetch");
+
+    BrowserApp.deck.removeEventListener("pageshow", this);
+    BrowserApp.deck.removeEventListener("TabOpen", this);
   },
 
   observe: function(aSubject, aTopic, aData) {
