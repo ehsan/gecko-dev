@@ -167,7 +167,6 @@ public class AnnouncementsService extends BackgroundService implements Announcem
     this.getSharedPreferences().edit().putLong(AnnouncementsConstants.PREF_LAST_FETCH_LOCAL_TIME, fetch).commit();
   }
 
-  @Override
   public long getLastFetch() {
     return this.getSharedPreferences().getLong(AnnouncementsConstants.PREF_LAST_FETCH_LOCAL_TIME, 0L);
   }
@@ -226,7 +225,7 @@ public class AnnouncementsService extends BackgroundService implements Announcem
 
   @Override
   public String getUserAgent() {
-    return AnnouncementsConstants.USER_AGENT;
+    return AnnouncementsConstants.ANNOUNCE_USER_AGENT;
   }
 
   protected void persistTimes(long fetched, String date) {

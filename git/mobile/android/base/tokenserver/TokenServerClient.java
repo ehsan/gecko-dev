@@ -257,11 +257,6 @@ public class TokenServerClient {
     }
 
     @Override
-    public String getUserAgent() {
-      return delegate.getUserAgent();
-    }
-
-    @Override
     public void handleHttpResponse(HttpResponse response) {
       // Skew.
       SkewHandler skewHandler = SkewHandler.getSkewHandlerForResource(resource);
