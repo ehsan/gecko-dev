@@ -1936,10 +1936,6 @@ DrawBorderImage(nsPresContext*       aPresContext,
     split.bottom,
   };
 
-  // In all the 'factor' calculations below, 'border' measurements are
-  // in app units but 'split' measurements are in image/CSS pixels, so
-  // the factor corresponding to no additional scaling is
-  // CSSPixelsToAppUnits(1), not simply 1.
   for (int i = LEFT; i <= RIGHT; i++) {
     for (int j = TOP; j <= BOTTOM; j++) {
       nsRect destArea(borderX[i], borderY[j], borderWidth[i], borderHeight[j]);
@@ -1950,14 +1946,14 @@ DrawBorderImage(nsPresContext*       aPresContext,
 
       if (i == MIDDLE && j == MIDDLE) {
         // css-background:
-        //     The middle image's width is scaled by the same factor as the
-        //     top image unless that factor is zero or infinity, in which
-        //     case the scaling factor of the bottom is substituted, and
-        //     failing that, the width is not scaled. The height of the
-        //     middle image is scaled by the same factor as the left image
-        //     unless that factor is zero or infinity, in which case the
-        //     scaling factor of the right image is substituted, and failing
-        //     that, the height is not scaled.
+        //     The middle image's width is scaled by the same factor as
+        //     the top image unless that factor is zero or infinity, in
+        //     which case the scaling factor of the bottom is substituted,
+        //     and failing that, the width is not scaled. The height of
+        //     the middle image is scaled by the same factor as the left
+        //     image unless that factor is zero or infinity, in which case
+        //     the scaling factor of the right image is substituted, and
+        //     failing that, the height is not scaled.
         gfxFloat hFactor, vFactor;
 
         if (0 < border.left && 0 < split.left)
@@ -1965,14 +1961,14 @@ DrawBorderImage(nsPresContext*       aPresContext,
         else if (0 < border.right && 0 < split.right)
           vFactor = gfxFloat(border.right)/split.right;
         else
-          vFactor = nsPresContext::CSSPixelsToAppUnits(1);
+          vFactor = 1.0;
 
         if (0 < border.top && 0 < split.top)
           hFactor = gfxFloat(border.top)/split.top;
         else if (0 < border.bottom && 0 < split.bottom)
           hFactor = gfxFloat(border.bottom)/split.bottom;
         else
-          hFactor = nsPresContext::CSSPixelsToAppUnits(1);
+          hFactor = 1.0;
 
         unitSize.width = splitWidth[i]*hFactor;
         unitSize.height = splitHeight[j]*vFactor;
@@ -1982,11 +1978,9 @@ DrawBorderImage(nsPresContext*       aPresContext,
       } else if (i == MIDDLE) { // top, bottom
         // Sides are always stretched to the thickness of their border,
         // and stretched proportionately on the other axis.
-        gfxFloat factor;
+        gfxFloat factor = 1.0;
         if (0 < borderHeight[j] && 0 < splitHeight[j])
           factor = gfxFloat(borderHeight[j])/splitHeight[j];
-        else
-          factor = nsPresContext::CSSPixelsToAppUnits(1);
 
         unitSize.width = splitWidth[i]*factor;
         unitSize.height = borderHeight[j];
@@ -1994,11 +1988,9 @@ DrawBorderImage(nsPresContext*       aPresContext,
         fillStyleV = NS_STYLE_BORDER_IMAGE_STRETCH;
 
       } else if (j == MIDDLE) { // left, right
-        gfxFloat factor;
+        gfxFloat factor = 1.0;
         if (0 < borderWidth[i] && 0 < splitWidth[i])
           factor = gfxFloat(borderWidth[i])/splitWidth[i];
-        else
-          factor = nsPresContext::CSSPixelsToAppUnits(1);
 
         unitSize.width = borderWidth[i];
         unitSize.height = splitHeight[j]*factor;

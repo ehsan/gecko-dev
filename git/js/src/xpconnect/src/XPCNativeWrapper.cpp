@@ -645,20 +645,8 @@ XPC_NW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
 
   if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
     *objp = obj;
-
-    // See the comment in XPC_NW_WrapFunction for why we create this function
-    // like this.
-    JSFunction *fun = JS_NewFunction(cx, XPC_NW_toString, 0, 0, nsnull,
-                                     "toString");
-    if (!fun) {
-      return JS_FALSE;
-    }
-
-    JSObject *funobj = JS_GetFunctionObject(fun);
-    STOBJ_SET_PARENT(funobj, obj);
-
-    return JS_DefineProperty(cx, obj, "toString", OBJECT_TO_JSVAL(funobj),
-                             nsnull, nsnull, 0);
+    return JS_DefineFunction(cx, obj, "toString",
+                             XPC_NW_toString, 0, 0) != nsnull;
   }
 
   if (!EnsureLegalActivity(cx, obj)) {
@@ -1211,16 +1199,7 @@ XPCNativeWrapper::GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
   nsCOMPtr<nsIXPConnectWrappedJS> xpcwrappedjs(do_QueryWrappedNative(wrapper));
 
   if (xpcwrappedjs) {
-    JSObject *flat = wrapper->GetFlatJSObject();
-    jsval v = OBJECT_TO_JSVAL(flat);
-
-    XPCCallContext ccx(JS_CALLER, cx);
-
-    // Make sure v doesn't get collected while we're re-wrapping it.
-    AUTO_MARK_JSVAL(ccx, v);
-
-    if (XPC_SJOW_Construct(cx, nsnull, 1, &v, &v))
-        return JSVAL_TO_OBJECT(v);
+    XPCThrower::Throw(NS_ERROR_INVALID_ARG, cx);
 
     return nsnull;
   }

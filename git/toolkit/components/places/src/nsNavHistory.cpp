@@ -224,7 +224,6 @@ NS_INTERFACE_MAP_BEGIN(nsNavHistory)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsICharsetResolver)
   NS_INTERFACE_MAP_ENTRY(nsPIPlacesDatabase)
-  NS_INTERFACE_MAP_ENTRY(nsPIPlacesHistoryListenersNotifier)
 #ifdef MOZ_XUL
   NS_INTERFACE_MAP_ENTRY(nsIAutoCompleteSearch)
   NS_INTERFACE_MAP_ENTRY(nsIAutoCompleteSimpleResultListener)
@@ -4155,7 +4154,7 @@ nsNavHistory::EndUpdateBatch()
 
 NS_IMETHODIMP
 nsNavHistory::RunInBatchMode(nsINavHistoryBatchCallback* aCallback,
-                             nsISupports* aUserData)
+                             nsISupports* aUserData) 
 {
   NS_ENSURE_ARG_POINTER(aCallback);
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
@@ -4826,6 +4825,8 @@ nsNavHistory::AddURI(nsIURI *aURI, PRBool aRedirect,
   NS_ENSURE_SUCCESS(rv, rv);
 #endif
 
+  mExpire.OnAddURI(now);
+
   return NS_OK;
 }
 
@@ -5189,7 +5190,7 @@ nsNavHistory::AddDocumentRedirect(nsIChannel *aOldChannel,
   return NS_OK;
 }
 
-nsresult
+nsresult 
 nsNavHistory::OnIdle()
 {
   nsresult rv;
@@ -5203,13 +5204,11 @@ nsNavHistory::OnIdle()
 
   // If we've been idle for more than EXPIRE_IDLE_TIME_IN_MSECS
   // keep the expiration engine chugging along.
+  // Note: This is done prior to a possible vacuum, to optimize space reduction
+  // in the vacuum.
   if (idleTime > EXPIRE_IDLE_TIME_IN_MSECS) {
-    mozStorageTransaction transaction(mDBConn, PR_TRUE);
-
-    PRBool keepGoing; // We don't care about this value.
-    (void)mExpire.ExpireItems(MAX_EXPIRE_RECORDS_ON_IDLE / 2, &keepGoing);
-
-    (void)mExpire.ExpireOrphans(MAX_EXPIRE_RECORDS_ON_IDLE / 2);
+    PRBool dummy;
+    (void)mExpire.ExpireItems(MAX_EXPIRE_RECORDS_ON_IDLE, &dummy);
   }
 
   return NS_OK;
@@ -5316,17 +5315,6 @@ nsNavHistory::CommitPendingChanges()
     }
   }
 
-  return NS_OK;
-}
-
-// nsPIPlacesHistoryListenersNotifier ******************************************
-
-NS_IMETHODIMP
-nsNavHistory::NotifyOnPageExpired(nsIURI *aURI, PRTime aVisitTime,
-                                  PRBool aWholeEntry)
-{
-  ENUMERATE_WEAKARRAY(mObservers, nsINavHistoryObserver,
-                      OnPageExpired(aURI, aVisitTime, aWholeEntry));
   return NS_OK;
 }
 

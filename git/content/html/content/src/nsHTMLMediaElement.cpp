@@ -566,8 +566,10 @@ NS_IMETHODIMP nsHTMLMediaElement::Pause()
 /* attribute float volume; */
 NS_IMETHODIMP nsHTMLMediaElement::GetVolume(float *aVolume)
 {
-  *aVolume = mVolume;
-
+  if (mMuted)
+    *aVolume = mMutedVolume;
+  else
+    *aVolume = mDecoder ? mDecoder->GetVolume() : 0.0;
   return NS_OK;
 }
 
@@ -576,16 +578,14 @@ NS_IMETHODIMP nsHTMLMediaElement::SetVolume(float aVolume)
   if (aVolume < 0.0f || aVolume > 1.0f)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  if (aVolume == mVolume)
-    return NS_OK;
+  if (mMuted) 
+    mMutedVolume = aVolume;
+  else {
+    if (mDecoder)
+      mDecoder->SetVolume(aVolume);
 
-  mVolume = aVolume;
-
-  if (mDecoder && !mMuted)
-    mDecoder->SetVolume(mVolume);
-
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("volumechange"));
-
+    DispatchAsyncSimpleEvent(NS_LITERAL_STRING("volumechange"));
+  }
   return NS_OK;
 }
 
@@ -599,17 +599,22 @@ NS_IMETHODIMP nsHTMLMediaElement::GetMuted(PRBool *aMuted)
 
 NS_IMETHODIMP nsHTMLMediaElement::SetMuted(PRBool aMuted)
 {
-  if (aMuted == mMuted)
-    return NS_OK;
+  PRBool oldMuted = mMuted;
+
+  if (mDecoder) {
+    if (mMuted && !aMuted) {
+      mDecoder->SetVolume(mMutedVolume);
+    }
+    else if (!mMuted && aMuted) {
+      mMutedVolume = mDecoder->GetVolume();
+      mDecoder->SetVolume(0.0);
+    }
+  }
 
   mMuted = aMuted;
 
-  if (mDecoder) {
-    mDecoder->SetVolume(mMuted ? 0.0 : mVolume);
-  }
-
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("volumechange"));
-
+  if (oldMuted != mMuted) 
+    DispatchAsyncSimpleEvent(NS_LITERAL_STRING("volumechange"));
   return NS_OK;
 }
 
@@ -617,7 +622,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
   : nsGenericHTMLElement(aNodeInfo),
     mNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY),
     mReadyState(nsIDOMHTMLMediaElement::HAVE_NOTHING),
-    mVolume(1.0),
+    mMutedVolume(0.0),
     mMediaSize(-1,-1),
     mBegun(PR_FALSE),
     mLoadedFirstFrame(PR_FALSE),
@@ -1008,8 +1013,6 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
   nsresult rv = mDecoder->Load(nsnull, aChannel, aListener);
   if (NS_FAILED(rv))
     return rv;
-
-  mDecoder->SetVolume(mMuted ? 0.0 : mVolume);
 
   if (!mPaused) {
     rv = mDecoder->Play();

@@ -433,7 +433,6 @@ enum nsDOMClassInfoID {
   // Geolocation
   eDOMClassInfo_GeoGeolocation_id,
   eDOMClassInfo_GeoPosition_id,
-  eDOMClassInfo_GeoPositionCoords_id,
   eDOMClassInfo_GeoPositionError_id,
 
   // @font-face in CSS

@@ -335,8 +335,9 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration()),
-                 "Shouldn't traverse nsXULDocument!");
+    if (nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration())) {
+        return NS_OK;
+    }
     // XXX tmp->mForwardReferences?
     // XXX tmp->mContextStack?
 

@@ -563,10 +563,6 @@ tree:not([treelines="true"]) > treechildren::-moz-tree-line {
   visibility: hidden;
 }
 
-treechildren::-moz-tree-cell(ltr) {
-  direction: ltr !important;
-}
-
 /********** deck & stack *********/
 
 deck {

@@ -2237,8 +2237,8 @@ nsStandardURL::SetRef(const nsACString &input)
         refLen = buf.Length();
     }
 
-    PRInt32 shift = ReplaceSegment(mRef.mPos, mRef.mLen, ref, refLen);
-    mPath.mLen += shift;
+    ReplaceSegment(mRef.mPos, mRef.mLen, ref, refLen);
+    mPath.mLen += (refLen - mRef.mLen);
     mRef.mLen = refLen;
     return NS_OK;
 }

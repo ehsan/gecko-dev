@@ -259,8 +259,11 @@ function restartEM()
 
 var gDirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
                         .getService(Components.interfaces.nsIProperties);
-// Remove '/unit/*.js'.
-var gTestRoot = __LOCATION__.parent.parent;
+var gTestRoot = gDirSvc.get("CurProcD", Components.interfaces.nsILocalFile);
+gTestRoot = gTestRoot.parent.parent;
+gTestRoot.append("_tests");
+gTestRoot.append("xpcshell-simple");
+gTestRoot.append("test_extensionmanager");
 gTestRoot.normalize();
 
 // Need to create and register a profile folder.

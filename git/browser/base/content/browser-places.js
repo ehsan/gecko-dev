@@ -236,17 +236,12 @@ var StarUI = {
   function SU_panelShown(aEvent) {
     if (aEvent.target == this.panel) {
       if (!this._element("editBookmarkPanelContent").hidden) {
-        fieldToFocus = "editBMPanel_" +
-          gPrefService.getCharPref("browser.bookmarks.editDialog.firstEditField");
-        var elt = this._element(fieldToFocus);
-        elt.focus();
-        elt.select();
+        var namePicker = this._element("editBMPanel_namePicker");
+        namePicker.focus();
+        namePicker.select();
       }
-      else {
-        // Note this isn't actually used anymore, we should remove this
-        // once we decide not to bring back the page bookmarked notification
+      else
         this.panel.focus();
-      }
     }
   },
 

@@ -540,7 +540,7 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
   if (aIter->SetupForDirectTextRunMetrics(aContext)) {
     gfxTextRun::Metrics metrics =
       mTextRun->MeasureText(0, mTextRun->GetLength(),
-                            gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+                            PR_FALSE, nsnull, nsnull);
     aContext->Rectangle(metrics.mBoundingBox);
     return;
   }
@@ -549,7 +549,7 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
   while ((i = aIter->NextChar()) >= 0) {
     aIter->SetupForMetrics(aContext);
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, 1, gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
     aContext->Rectangle(metrics.mBoundingBox);
   }
 }
@@ -889,8 +889,7 @@ nsSVGGlyphFrame::GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
   gfxTextRun::Metrics metrics =
-    mTextRun->MeasureText(start, limit - start, gfxFont::LOOSE_INK_EXTENTS,
-                          nsnull, nsnull);
+    mTextRun->MeasureText(start, limit - start, PR_FALSE, nsnull, nsnull);
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
   iter.SetupForMetrics(tmpCtx);
@@ -928,7 +927,7 @@ nsSVGGlyphFrame::GetBaselineOffset(PRUint16 baselineIdentifier,
 
   gfxTextRun::Metrics metrics =
     mTextRun->MeasureText(0, mTextRun->GetLength(),
-                          gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+                          PR_FALSE, nsnull, nsnull);
 
   gfxFloat baselineAppUnits;
   switch (baselineIdentifier) {
@@ -1126,8 +1125,7 @@ nsSVGGlyphFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
       ++limit;
     }
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, limit - i, gfxFont::LOOSE_INK_EXTENTS,
-                            nsnull, nsnull);
+      mTextRun->MeasureText(i, limit - i, PR_FALSE, nsnull, nsnull);
 
     // the SVG spec tells us to divide the width of the cluster equally among
     // its chars, so we'll step through the chars, allocating a share of the
@@ -1222,7 +1220,7 @@ nsSVGGlyphFrame::ContainsPoint(const nsPoint &aPoint)
   PRInt32 i;
   while ((i = iter.NextChar()) >= 0) {
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, 1, gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
     iter.SetupForMetrics(tmpCtx);
     tmpCtx->Rectangle(metrics.mBoundingBox);
   }
