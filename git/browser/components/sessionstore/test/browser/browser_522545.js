@@ -55,21 +55,17 @@ function test() {
 
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
 
   function waitForBrowserState(aState, aSetStateCallback) {
-    var locationChanges = 0;
-    gBrowser.addTabsProgressListener({
-      onLocationChange: function (aBrowser) {
-        if (++locationChanges == aState.windows[0].tabs.length) {
-          gBrowser.removeTabsProgressListener(this);
-          executeSoon(aSetStateCallback);
-        }
-      },
-      onProgressChange: function () {},
-      onSecurityChange: function () {},
-      onStateChange: function () {},
-      onStatusChange: function () {}
-    });
+    let observer = {
+      observe: function(aSubject, aTopic, aData) {
+        os.removeObserver(this, "sessionstore-browser-state-restored");
+        executeSoon(aSetStateCallback);
+      }
+    };
+    os.addObserver(observer, "sessionstore-browser-state-restored", false);
     ss.setBrowserState(JSON.stringify(aState));
   }
 
@@ -304,9 +300,11 @@ function test() {
                test_getBrowserState_lotsOfTabsOpening,
                test_getBrowserState_userTypedValue, test_userTypedClearLoadURI];
   let originalState = ss.getBrowserState();
+  info(JSON.parse(originalState).windows.length);
+  info(originalState);
   function runNextTest() {
     if (tests.length) {
-      tests.shift()();
+      tests.shift().call();
     } else {
       ss.setBrowserState(originalState);
       executeSoon(function () {

@@ -2251,26 +2251,14 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
   }
 
-  // Create temporary regions
-  HRGN updateRgn = ::CreateRectRgn(0, 0, 0, 0);
-  if (!updateRgn) {
-    // OOM?
-    return;
-  }
-  HRGN destRgn = ::CreateRectRgn(0, 0, 0, 0);
-  if (!destRgn) {
-    // OOM?
-    ::DeleteObject((HGDIOBJ)updateRgn);
-    return;
-  }
-
   DWORD ourThreadID = GetWindowThreadProcessId(mWnd, NULL);
 
   for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
-    const nsIntRect& destRect = aDestRects[i];
     nsIntRect affectedRect;
-    affectedRect.UnionRect(destRect, destRect - aDelta);
-    UINT flags = SW_SCROLLCHILDREN;
+    affectedRect.UnionRect(aDestRects[i], aDestRects[i] - aDelta);
+    // We pass SW_INVALIDATE because areas that get scrolled into view
+    // from offscreen (but inside the scroll area) need to be repainted.
+    UINT flags = SW_SCROLLCHILDREN | SW_INVALIDATE;
     // Now check if any of our children would be affected by
     // SW_SCROLLCHILDREN but not supposed to scroll.
     for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
@@ -2343,30 +2331,8 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     }
 
     RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
-    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
-
-    // Areas that get scrolled into view from offscreen or under another
-    // window (but inside the scroll area) need to be repainted.
-    // ScrollWindowEx returns those areas in updateRgn, but also includes
-    // the area of the source that isn't covered by the destination.
-    // ScrollWindowEx will refuse to blit into an area that's already
-    // invalid. When we're blitting multiple adjacent rectangles, we have
-    // a problem where the source area of rectangle A overlaps the
-    // destination area of a subsequent rectangle B; the first ScrollWindowEx
-    // invalidates the source area of A that's outside of the destination
-    // area of A, and then the ScrollWindowEx for B will refuse to fully
-    // blit into B's destination. This produces nasty temporary glitches.
-    // We combat this by having ScrollWindowEx not invalidate directly,
-    // but give us back the region that needs to be invalidated,
-    // and restricting that region to the destination before invalidating
-    // it.
-    ::SetRectRgn(destRgn, destRect.x, destRect.y, destRect.XMost(), destRect.YMost());
-    ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_AND);
-    ::InvalidateRgn(mWnd, updateRgn, FALSE);
+    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, NULL, NULL, flags);
   }
-
-  ::DeleteObject((HGDIOBJ)updateRgn);
-  ::DeleteObject((HGDIOBJ)destRgn);
 
   // Now make sure all children actually get positioned, sized and clipped
   // correctly. If SW_SCROLLCHILDREN already moved widgets to their correct
@@ -5207,9 +5173,8 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
 
   // The mousewheel event will be dispatched to the toplevel
   // window.  We need to give it to the child window
-  PRBool quit;
-  if (!HandleScrollingPlugins(msg, wParam, lParam, result, aRetValue, quit))
-    return quit; // return immediately if its not our window
+  if (!HandleScrollingPlugins(msg, wParam, lParam, result))
+    return result; // return immediately if its not our window
 
   // We should cancel the surplus delta if the current window is not
   // same as previous.
@@ -5942,16 +5907,13 @@ void nsWindow::OnSettingsChange(WPARAM wParam, LPARAM lParam)
 
 // Scrolling helper function for handling plugins.  
 // Return value indicates whether the calling function should handle this
-// aHandled indicates whether this was handled at all
-// aQuitProcessing tells whether or not to continue processing the message
+// result indicates whether this was handled at all
 PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
-                                        LPARAM aLParam, PRBool& aHandled,
-                                        LRESULT* aRetValue,
-                                        PRBool& aQuitProcessing)
+                                        LPARAM aLParam, PRBool& aHandled)
 {
   // The scroll event will be dispatched to the toplevel
   // window.  We need to give it to the child window
-  aQuitProcessing = PR_FALSE; // default is to not stop processing
+  aHandled = PR_FALSE; // default is to have not handled
   POINT point;
   DWORD dwPoints = ::GetMessagePos();
   point.x = GET_X_LPARAM(dwPoints);
@@ -5991,7 +5953,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
 
   if (!destWnd) {
     // No window is under the pointer
-    return PR_FALSE; // break, but continue processing
+    return PR_FALSE; // break
   }
   // We don't care about windows belonging to other processes.
   DWORD processId = 0;
@@ -5999,7 +5961,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
   if (processId != GetCurrentProcessId())
   {
     // Somebody elses window
-    return PR_FALSE; // break, but continue processing
+    return PR_FALSE; // break
   }
   nsWindow* destWindow = GetNSWindowPtr(destWnd);
   if (!destWindow || destWindow->mWindowType == eWindowType_plugin) {
@@ -6035,7 +5997,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
           destWnd = nsnull;
           mInScrollProcessing = PR_FALSE;
         }
-        return PR_FALSE; // break, but continue processing
+        return PR_FALSE; // break; // stop parent search
       }
       parentWnd = ::GetParent(parentWnd);
     } // while parentWnd
@@ -6044,9 +6006,10 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
     return PR_FALSE;
   if (destWnd != mWnd) {
     if (destWindow) {
-      aHandled = destWindow->ProcessMessage(aMsg, aWParam, aLParam, aRetValue);
-      aQuitProcessing = PR_TRUE;
-      return PR_FALSE; // break, and stop processing
+      LRESULT aRetValue;
+      destWindow->ProcessMessage(aMsg, aWParam, aLParam, &aRetValue);
+      aHandled = PR_TRUE;
+      return PR_FALSE; // return result immediately
     }
   #ifdef DEBUG
     else
@@ -6062,11 +6025,10 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
   {
     // Scroll message generated by Thinkpad Trackpoint Driver or similar
     // Treat as a mousewheel message and scroll appropriately
-    PRBool quit, result;
-    LRESULT retVal;
 
-    if (!HandleScrollingPlugins(aMsg, aWParam, aLParam, result, &retVal, quit))
-      return quit;  // Return if it's not our message or has been dispatched
+    PRBool result;
+    if (!HandleScrollingPlugins(aMsg, aWParam, aLParam, result))
+      return result;  // Return if it's not our message or has been dispatched
 
     nsMouseScrollEvent scrollevent(PR_TRUE, NS_MOUSE_SCROLL, this);
     scrollevent.scrollFlags = (aMsg == WM_VSCROLL) 

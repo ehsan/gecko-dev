@@ -165,7 +165,7 @@ nsFilePicker.prototype = {
     }
     if (filterMask & nsIFilePicker.filterImages) {
       this.appendFilter(bundle.GetStringFromName("imageTitle"),
-                   "*.jpg; *.jpeg; *.gif; *.png; *.bmp; *.ico"); // XXX 528755
+                   bundle.GetStringFromName("imageFilter"));
     }
     if (filterMask & nsIFilePicker.filterXML) {
       this.appendFilter(bundle.GetStringFromName("xmlTitle"),

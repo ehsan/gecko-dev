@@ -215,41 +215,35 @@ CFPropertyListRef CopyPListFromFile(nsILocalFile* aPListFile)
 {
   PRBool exists;
   aPListFile->Exists(&exists);
-  if (!exists)
-    return nsnull;
-
   nsCAutoString filePath;
   aPListFile->GetNativePath(filePath);
+  if (!exists)
+    return nsnull;
 
   nsCOMPtr<nsILocalFileMac> macFile(do_QueryInterface(aPListFile));
   CFURLRef urlRef;
   macFile->GetCFURL(&urlRef);
 
-  // It is possible for CFURLCreateDataAndPropertiesFromResource to allocate resource
-  // data and then return a failure so be careful to check both and clean up properly.
+  CFDataRef resourceData;
+
   SInt32 errorCode;
-  CFDataRef resourceData = NULL;
-  Boolean dataSuccess = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault,
-                                                                   urlRef,
-                                                                   &resourceData,
-                                                                   NULL,
-                                                                   NULL,
-                                                                   &errorCode);
+  Boolean status = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault,
+                                                              urlRef,
+                                                              &resourceData,
+                                                              NULL,
+                                                              NULL,
+                                                              &errorCode);
+  if (!status)
+    return nsnull;
 
-  CFPropertyListRef propertyList = NULL;
-  if (resourceData) {
-    if (dataSuccess) {
-      propertyList = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault,
-                                                       resourceData,
-                                                       kCFPropertyListImmutable,
-                                                       NULL);
-    }
-    ::CFRelease(resourceData);
-  }
-
+  CFPropertyListRef result = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault,
+                                                               resourceData,
+                                                               kCFPropertyListImmutable,
+                                                               NULL);
+  ::CFRelease(resourceData);
   ::CFRelease(urlRef);
 
-  return propertyList;
+  return result;
 }
 
 CFDictionaryRef CopySafariPrefs()
@@ -1260,14 +1254,12 @@ nsSafariProfileMigrator::GetSourceHomePageURL(nsACString& aResult)
 
   // Let's first check if there's a home page key in the com.apple.safari file...
   CFDictionaryRef safariPrefs = CopySafariPrefs();
-  if (safariPrefs) {
-    PRBool foundPref = GetDictionaryCStringValue(safariPrefs,
-                                                 CFSTR(SAFARI_HOME_PAGE_PREF),
-                                                 aResult, kCFStringEncodingUTF8);
-    ::CFRelease(safariPrefs);
-    if (foundPref)
-      return NS_OK;
-  }
+  PRBool foundPref = GetDictionaryCStringValue(safariPrefs,
+                                               CFSTR(SAFARI_HOME_PAGE_PREF),
+                                               aResult, kCFStringEncodingUTF8);
+  ::CFRelease(safariPrefs);
+  if (foundPref)
+    return NS_OK;
 
 #ifdef __LP64__
   return NS_ERROR_FAILURE;

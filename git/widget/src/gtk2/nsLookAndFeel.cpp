@@ -44,9 +44,7 @@
 #include "gtkdrawing.h"
 
 #ifdef MOZ_PLATFORM_HILDON
-#include "nsIServiceManager.h"
-#include "nsIPropertyBag2.h"
-#include "nsLiteralString.h"
+#include "gfxPlatformGtk.h"
 #endif
 
 #define GDK_COLOR_TO_NS_RGB(c) \
@@ -592,19 +590,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         break;
     case eMetric_MaemoClassic:
 #ifdef MOZ_PLATFORM_HILDON
-        {
-            aMetric = 0;
-            nsCOMPtr<nsIPropertyBag2> infoService(do_GetService("@mozilla.org/system-info;1"));
-            if (infoService) {
-                nsCString deviceType;
-                nsresult rv = infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"),
-                                                                 deviceType);
-                if (NS_SUCCEEDED(rv)) {
-                    if (deviceType.EqualsLiteral("Nokia N8xx"))
-                        aMetric = 1;
-                }
-            }
-        }
+        aMetric = gfxPlatformGtk::GetMaemoClassic();
 #else
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;

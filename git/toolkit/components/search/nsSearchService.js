@@ -1219,10 +1219,7 @@ Engine.prototype = {
     var dialogMessage =
         stringBundle.formatStringFromName("addEngineConfirmation",
                                           [this._name, this._uri.host], 2);
-    var checkboxMessage = null;
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
-      checkboxMessage = stringBundle.GetStringFromName("addEngineUseNowText");
-
+    var checkboxMessage = stringBundle.GetStringFromName("addEngineUseNowText");
     var addButtonLabel =
         stringBundle.GetStringFromName("addEngineAddButtonLabel");
 

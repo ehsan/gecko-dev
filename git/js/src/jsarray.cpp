@@ -1327,8 +1327,8 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
             continue;
         }
 
-        sprop = scope->add(cx, id, NULL, NULL, i + JS_INITIAL_NSLOTS,
-                           JSPROP_ENUMERATE, 0, 0);
+        sprop = scope->addDataProperty(cx, id, JS_INITIAL_NSLOTS + i,
+                                       JSPROP_ENUMERATE);
         if (!sprop)
             goto out_bad;
     }
@@ -3425,21 +3425,6 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto)
 }
 #ifdef JS_TRACER
 JS_DEFINE_CALLINFO_2(extern, OBJECT, js_NewEmptyArray, CONTEXT, OBJECT, 0, 0)
-#endif
-
-JSObject* JS_FASTCALL
-js_NewEmptyArrayWithLength(JSContext* cx, JSObject* proto, int32 len)
-{
-    if (len < 0)
-        return NULL;
-    JSObject *obj = js_NewEmptyArray(cx, proto);
-    if (!obj)
-        return NULL;
-    obj->fslots[JSSLOT_ARRAY_LENGTH] = len;
-    return obj;
-}
-#ifdef JS_TRACER
-JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewEmptyArrayWithLength, CONTEXT, OBJECT, INT32, 0, 0)
 #endif
 
 JSObject* JS_FASTCALL

@@ -53,19 +53,8 @@ class LockFile(object):
   def __init__(self, lockfile):
     self.lockfile = lockfile
   def __del__(self):
-    while True:
-      try:
-        os.remove(self.lockfile)
-        break
-      except OSError, e:
-        if e.errno == errno.EACCES:
-          # another process probably has the file open, we'll retry.
-          # just a short sleep since we want to drop the lock ASAP
-          # (but we need to let some other process close the file first)
-          time.sleep(0.1)
-        else:
-          # re-raise unknown errors
-          raise
+    os.remove(self.lockfile)
+
 
 def lockFile(lockfile, max_wait = 600):
   '''Create and hold a lockfile of the given name, with the given timeout.
@@ -78,10 +67,7 @@ def lockFile(lockfile, max_wait = 600):
       # we created the lockfile, so we're the owner
       break
     except OSError, e:
-      if e.errno == errno.EEXIST or \
-         (sys.platform == "win32" and e.errno == errno.EACCES):
-        pass
-      else:
+      if e.errno != errno.EEXIST:
         # should not occur
         raise
   
@@ -91,19 +77,18 @@ def lockFile(lockfile, max_wait = 600):
       f = open(lockfile, "r")
       s = os.stat(lockfile)
     except EnvironmentError, e:
-      if e.errno == errno.ENOENT or \
-         (sys.platform == "win32" and e.errno == errno.EACCES):
-        # we didn't create the lockfile, so it did exist, but it's
-        # gone now. Just try again
-        continue
-      sys.exit("%s exists but stat() failed: %s" %
-               (lockfile, e.strerror))
+      if e.errno != errno.ENOENT:
+        sys.exit("%s exists but stat() failed: %s" %
+                 (lockfile, e.strerror))
+      # we didn't create the lockfile, so it did exist, but it's
+      # gone now. Just try again
+      continue
   
     # we didn't create the lockfile and it's still there, check
     # its age
     now = int(time.time())
     if now - s[stat.ST_MTIME] > max_wait:
-      pid = f.readline().rstrip()
+      pid = f.readline()
       sys.exit("%s has been locked for more than " \
                "%d seconds (PID %s)" % (lockfile, max_wait,
                                         pid))
