@@ -8,10 +8,10 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "gfxFont.h"
-#include "cairo.h"
-#include <ApplicationServices/ApplicationServices.h>
+#include "gfxMacPlatformFontList.h"
+#include "mozilla/gfx/2D.h"
 
-class MacOSFontEntry;
+#include "cairo.h"
 
 class gfxMacFont : public gfxFont
 {

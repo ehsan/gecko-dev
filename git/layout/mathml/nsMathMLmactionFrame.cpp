@@ -14,7 +14,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsTextFragment.h"
 #include "nsIDOMEvent.h"
-#include "mozilla/gfx/2D.h"
 
 //
 // <maction> -- bind actions to a subexpression - implementation

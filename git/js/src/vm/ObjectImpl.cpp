@@ -11,7 +11,6 @@
 #include "vm/Debugger.h"
 
 #include "jsobjinlines.h"
-#include "vm/Shape-inl.h"
 
 using namespace js;
 

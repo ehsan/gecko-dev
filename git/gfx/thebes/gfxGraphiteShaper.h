@@ -6,7 +6,10 @@
 #ifndef GFX_GRAPHITESHAPER_H
 #define GFX_GRAPHITESHAPER_H
 
+#include "gfxTypes.h"
 #include "gfxFont.h"
+#include "nsDataHashtable.h"
+#include "nsHashKeys.h"
 
 struct gr_face;
 struct gr_font;

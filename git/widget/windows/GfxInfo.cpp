@@ -155,8 +155,7 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
     case REG_DWORD: {
       // We only use this for vram size
       dwcbData = sizeof(dValue);
-      result = RegQueryValueExW(key, keyName, nullptr, &resultType,
-                                (LPBYTE)&dValue, &dwcbData);
+      result = RegQueryValueExW(key, keyName, NULL, &resultType, (LPBYTE)&dValue, &dwcbData);
       if (result == ERROR_SUCCESS && resultType == REG_DWORD) {
         dValue = dValue / 1024 / 1024;
         destString.AppendInt(int32_t(dValue));
@@ -170,8 +169,7 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
       WCHAR wCharValue[1024];
       dwcbData = sizeof(wCharValue);
 
-      result = RegQueryValueExW(key, keyName, nullptr, &resultType,
-                                (LPBYTE)wCharValue, &dwcbData);
+      result = RegQueryValueExW(key, keyName, NULL, &resultType, (LPBYTE)wCharValue, &dwcbData);
       if (result == ERROR_SUCCESS && resultType == REG_MULTI_SZ) {
         // This bit here could probably be cleaner.
         bool isValid = false;
@@ -258,7 +256,7 @@ GfxInfo::Init()
 
   mDeviceKeyDebug = NS_LITERAL_STRING("PrimarySearch");
 
-  while (EnumDisplayDevicesW(nullptr, deviceIndex, &displayDevice, 0)) {
+  while (EnumDisplayDevicesW(NULL, deviceIndex, &displayDevice, 0)) {
     if (displayDevice.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) {
       mDeviceKeyDebug = NS_LITERAL_STRING("NullSearch");
       break;
@@ -266,10 +264,10 @@ GfxInfo::Init()
     deviceIndex++;
   }
 
-  // make sure the string is nullptr terminated
+  // make sure the string is NULL terminated
   if (wcsnlen(displayDevice.DeviceKey, ArrayLength(displayDevice.DeviceKey))
       == ArrayLength(displayDevice.DeviceKey)) {
-    // we did not find a nullptr
+    // we did not find a NULL
     return rv;
   }
 
@@ -292,7 +290,7 @@ GfxInfo::Init()
   // provides features and functionaltiy that can give a good D3D10 +
   // D2D + DirectWrite experience emulated via a software GPU.
   //
-  // Unfortunately, the Device ID is nullptr, and we can't enumerate
+  // Unfortunately, the Device ID is NULL, and we can't enumerate
   // it using the setup infrastructure (SetupDiGetClassDevsW below
   // will return INVALID_HANDLE_VALUE).
   if (mWindowsVersion == gfxWindowsPlatform::kWindows8 &&
@@ -313,7 +311,7 @@ GfxInfo::Init()
   }
 
   /* create a device information set composed of the current display device */
-  HDEVINFO devinfo = SetupDiGetClassDevsW(nullptr, mDeviceID.get(), nullptr,
+  HDEVINFO devinfo = SetupDiGetClassDevsW(NULL, mDeviceID.get(), NULL,
                                           DIGCF_PRESENT | DIGCF_PROFILE | DIGCF_ALLCLASSES);
 
   if (devinfo != INVALID_HANDLE_VALUE) {
@@ -332,18 +330,17 @@ GfxInfo::Init()
       if (SetupDiGetDeviceRegistryPropertyW(devinfo,
                                             &devinfoData,
                                             SPDRP_DRIVER,
-                                            nullptr,
+                                            NULL,
                                             (PBYTE)value,
                                             sizeof(value),
-                                            nullptr)) {
+                                            NULL)) {
         nsAutoString driverKey(driverKeyPre);
         driverKey += value;
         result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey.BeginReading(), 0, KEY_QUERY_VALUE, &key);
         if (result == ERROR_SUCCESS) {
           /* we've found the driver we're looking for */
           dwcbData = sizeof(value);
-          result = RegQueryValueExW(key, L"DriverVersion", nullptr, nullptr,
-                                    (LPBYTE)value, &dwcbData);
+          result = RegQueryValueExW(key, L"DriverVersion", NULL, NULL, (LPBYTE)value, &dwcbData);
           if (result == ERROR_SUCCESS) {
             mDriverVersion = value;
           } else {
@@ -351,8 +348,7 @@ GfxInfo::Init()
             mDriverVersion.AssignLiteral("0.0.0.0");
           }
           dwcbData = sizeof(value);
-          result = RegQueryValueExW(key, L"DriverDate", nullptr, nullptr,
-                                    (LPBYTE)value, &dwcbData);
+          result = RegQueryValueExW(key, L"DriverDate", NULL, NULL, (LPBYTE)value, &dwcbData);
           if (result == ERROR_SUCCESS) {
             mDriverDate = value;
           } else {
@@ -379,8 +375,7 @@ GfxInfo::Init()
   HRESULT hresult = CLSIDFromString(L"{1CA05180-A699-450A-9A0C-DE4FBE3DDD89}",
                                &GUID_DISPLAY_DEVICE_ARRIVAL);
   if (hresult == NOERROR) {
-    devinfo = SetupDiGetClassDevsW(&GUID_DISPLAY_DEVICE_ARRIVAL,
-                                   nullptr, nullptr,
+    devinfo = SetupDiGetClassDevsW(&GUID_DISPLAY_DEVICE_ARRIVAL, NULL, NULL,
                                    DIGCF_PRESENT | DIGCF_INTERFACEDEVICE);
 
     if (devinfo != INVALID_HANDLE_VALUE) {
@@ -406,17 +401,16 @@ GfxInfo::Init()
         if (SetupDiGetDeviceRegistryPropertyW(devinfo,
                                               &devinfoData,
                                               SPDRP_DRIVER,
-                                              nullptr,
+                                              NULL,
                                               (PBYTE)value,
                                               sizeof(value),
-                                              nullptr)) {
+                                              NULL)) {
           nsAutoString driverKey2(driverKeyPre);
           driverKey2 += value;
           result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey2.BeginReading(), 0, KEY_QUERY_VALUE, &key);
           if (result == ERROR_SUCCESS) {
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"MatchingDeviceId", nullptr,
-                                      nullptr, (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"MatchingDeviceId", NULL, NULL, (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               continue;
             }
@@ -441,28 +435,24 @@ GfxInfo::Init()
               continue;
             }
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"DriverVersion", nullptr, nullptr,
-                                      (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"DriverVersion", NULL, NULL, (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               RegCloseKey(key);
               continue;
             }
             driverVersion2 = value;
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"DriverDate", nullptr, nullptr,
-                                      (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"DriverDate", NULL, NULL, (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               RegCloseKey(key);
               continue;
             }
             driverDate2 = value;
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"Device Description", nullptr,
-                                      nullptr, (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"Device Description", NULL, NULL, (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               dwcbData = sizeof(value);
-              result = RegQueryValueExW(key, L"DriverDesc", nullptr, nullptr,
-                                        (LPBYTE)value, &dwcbData);
+              result = RegQueryValueExW(key, L"DriverDesc", NULL, NULL, (LPBYTE)value, &dwcbData);
             }
             RegCloseKey(key);
             if (result == ERROR_SUCCESS) {

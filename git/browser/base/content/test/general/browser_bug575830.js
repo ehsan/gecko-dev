@@ -8,6 +8,10 @@ function test() {
   const TEST_IMAGE = "http://example.org/browser/browser/base/content/test/general/moz.png";
 
   waitForExplicitFinish();
+  registerCleanupFunction(function cleanup() {
+    gBrowser.removeTab(tab1);
+    gBrowser.removeTab(tab2);
+  });
 
   Task.spawn(function () {
     tab1 = gBrowser.addTab();
@@ -26,8 +30,5 @@ function test() {
 
     yield FullZoomHelper.selectTabAndWaitForLocationChange(tab1);
     is(ZoomManager.zoom, zoom, "zoom level for first tab should not have changed");
-
-    yield FullZoomHelper.removeTabAndWaitForLocationChange(tab1);
-    yield FullZoomHelper.removeTabAndWaitForLocationChange(tab2);
   }).then(finish, FullZoomHelper.failAndContinue(finish));
 }

@@ -17,7 +17,6 @@
 #include "nsIDocumentViewerPrint.h"
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsIDocument.h"
-#include "nsIDOMWindowUtils.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleSet.h"
@@ -170,7 +169,7 @@ public:
   NS_DECL_NSISELECTIONLISTENER
 
                        nsDocViewerSelectionListener()
-                       : mDocViewer(nullptr)
+                       : mDocViewer(NULL)
                        , mGotSelectionState(false)
                        , mSelectionWasCollapsed(false)
                        {
@@ -1094,19 +1093,10 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
     // how we get here.
     nsAutoPopupStatePusher popupStatePusher(openAbused, true);
 
-    // Never permit dialogs from the beforeunload handler
-    nsCOMPtr<nsIDOMWindowUtils> utils = do_GetInterface(window);
-    bool dialogsWereEnabled;
-    utils->AreDialogsEnabled(&dialogsWereEnabled);
-    utils->DisableDialogs();
-
     mInPermitUnload = true;
     nsEventDispatcher::DispatchDOMEvent(window, nullptr, event, mPresContext,
                                         nullptr);
     mInPermitUnload = false;
-    if (dialogsWereEnabled) {
-      utils->EnableDialogs();
-    }
   }
 
   nsCOMPtr<nsIDocShellTreeNode> docShellNode(do_QueryReferent(mContainer));
@@ -4448,7 +4438,7 @@ nsDocumentShownDispatcher::Run()
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService) {
-    observerService->NotifyObservers(mDocument, "document-shown", nullptr);
+    observerService->NotifyObservers(mDocument, "document-shown", NULL);
   }
   return NS_OK;
 }

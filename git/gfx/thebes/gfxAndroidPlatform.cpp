@@ -17,7 +17,6 @@
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
 #include "nsILocaleService.h"
-#include "nsServiceManagerUtils.h"
 
 #include "cairo.h"
 

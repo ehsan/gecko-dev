@@ -14,7 +14,6 @@
 #include "mozilla/gfx/Matrix.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/2D.h"
-#include "gfxColor.h"
 
 namespace mozilla {
 namespace gfx {

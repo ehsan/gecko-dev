@@ -475,7 +475,7 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::BeginDocument(const nsAString& aTitle,
   PCSZ pszDocName = title ? title : pszGenericDocName;
   LONG lResult = DevEscape(mPrintDC, DEVESC_STARTDOC,
                            strlen(pszDocName) + 1, const_cast<BYTE*>(pszDocName),
-                           (PLONG)nullptr, (PBYTE)nullptr);
+                           (PLONG)NULL, (PBYTE)NULL);
   mPrintingStarted = true;
   if (title) {
     nsMemory::Free(title);
@@ -491,7 +491,7 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::EndDocument()
   int16_t outputFormat;
   mPrintSettings->GetOutputFormat(&outputFormat);
   if (outputFormat != nsIPrintSettings::kOutputFormatNative) {
-    mPrintSettings->SetToFileName(nullptr);
+    mPrintSettings->SetToFileName(NULL);
     nsCOMPtr<nsIPrintSettingsService> pss = do_GetService("@mozilla.org/gfx/printsettings-service;1");
     if (pss)
       pss->SavePrintSettingsToPrefs(mPrintSettings, true, nsIPrintSettings::kInitSaveToFileName);
@@ -500,7 +500,7 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::EndDocument()
 
   LONG lOutCount = 2;
   USHORT usJobID = 0;
-  LONG lResult = DevEscape(mPrintDC, DEVESC_ENDDOC, 0L, (PBYTE)nullptr,
+  LONG lResult = DevEscape(mPrintDC, DEVESC_ENDDOC, 0L, (PBYTE)NULL,
                            &lOutCount, (PBYTE)&usJobID);
   return lResult == DEV_OK ? NS_OK : NS_ERROR_GFX_PRINTER_ENDDOC;
 }
@@ -518,8 +518,8 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::BeginPage()
     mPrintingStarted = false;
     return NS_OK;
   }
-  LONG lResult = DevEscape(mPrintDC, DEVESC_NEWFRAME, 0L, (PBYTE)nullptr,
-                           (PLONG)nullptr, (PBYTE)nullptr);
+  LONG lResult = DevEscape(mPrintDC, DEVESC_NEWFRAME, 0L, (PBYTE)NULL,
+                           (PLONG)NULL, (PBYTE)NULL);
   return lResult == DEV_OK ? NS_OK : NS_ERROR_GFX_PRINTER_STARTPAGE;
 }
 

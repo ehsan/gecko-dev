@@ -371,6 +371,7 @@ class LiveInterval
  */
 class VirtualRegister
 {
+    uint32_t id_;
     LBlock *block_;
     LInstruction *ins_;
     LDefinition *def_;
@@ -383,8 +384,9 @@ class VirtualRegister
     VirtualRegister(const VirtualRegister &) MOZ_DELETE;
 
   public:
-    bool init(LBlock *block, LInstruction *ins, LDefinition *def, bool isTemp) {
+    bool init(uint32_t id, LBlock *block, LInstruction *ins, LDefinition *def, bool isTemp) {
         JS_ASSERT(block && !block_);
+        id_ = id;
         block_ = block;
         ins_ = ins;
         def_ = def;
@@ -393,6 +395,9 @@ class VirtualRegister
         if (!initial)
             return false;
         return intervals_.append(initial);
+    }
+    uint32_t id() const {
+        return id_;
     }
     LBlock *block() {
         return block_;

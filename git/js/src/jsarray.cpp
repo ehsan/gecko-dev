@@ -399,7 +399,7 @@ array_length_setter(JSContext *cx, HandleObject obj, HandleId id, bool strict, M
     Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
     MOZ_ASSERT(arr->lengthIsWritable(),
                "setter shouldn't be called if property is non-writable");
-    return ArraySetLength<SequentialExecution>(cx, arr, id, JSPROP_PERMANENT, vp, strict);
+    return ArraySetLength(cx, arr, id, JSPROP_PERMANENT, vp, strict);
 }
 
 struct ReverseIndexComparator
@@ -411,30 +411,15 @@ struct ReverseIndexComparator
     }
 };
 
-template <ExecutionMode mode>
 bool
-js::CanonicalizeArrayLengthValue(typename ExecutionModeTraits<mode>::ContextType cx,
-                                 HandleValue v, uint32_t *newLen)
+js::CanonicalizeArrayLengthValue(JSContext *cx, HandleValue v, uint32_t *newLen)
 {
+    if (!ToUint32(cx, v, newLen))
+        return false;
+
     double d;
-
-    if (mode == ParallelExecution) {
-        if (v.isObject())
-            return false;
-
-        if (!NonObjectToUint32(cx, v, newLen))
-            return false;
-
-        if (!NonObjectToNumber(cx, v, &d))
-            return false;
-    } else {
-        if (!ToUint32(cx->asJSContext(), v, newLen))
-            return false;
-
-        if (!ToNumber(cx->asJSContext(), v, &d))
-            return false;
-    }
-
+    if (!ToNumber(cx, v, &d))
+        return false;
     if (d == *newLen)
         return true;
 
@@ -444,28 +429,18 @@ js::CanonicalizeArrayLengthValue(typename ExecutionModeTraits<mode>::ContextType
     return false;
 }
 
-template bool
-js::CanonicalizeArrayLengthValue<SequentialExecution>(JSContext *cx,
-                                                      HandleValue v, uint32_t *newLen);
-template bool
-js::CanonicalizeArrayLengthValue<ParallelExecution>(ForkJoinSlice *slice,
-                                                    HandleValue v, uint32_t *newLen);
-
 /* ES6 20130308 draft 8.4.2.4 ArraySetLength */
-template <ExecutionMode mode>
 bool
-js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
-                   Handle<ArrayObject*> arr, HandleId id,
-                   unsigned attrs, HandleValue value, bool setterIsStrict)
+js::ArraySetLength(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, unsigned attrs,
+                   HandleValue value, bool setterIsStrict)
 {
-    MOZ_ASSERT(cxArg->isThreadLocal(arr));
-    MOZ_ASSERT(id == NameToId(cxArg->names().length));
+    MOZ_ASSERT(id == NameToId(cx->names().length));
 
     /* Steps 1-2 are irrelevant in our implementation. */
 
     /* Steps 3-5. */
     uint32_t newLen;
-    if (!CanonicalizeArrayLengthValue<mode>(cxArg, value, &newLen))
+    if (!CanonicalizeArrayLengthValue(cx, value, &newLen))
         return false;
 
     // Abort if we're being asked to change enumerability or configurability.
@@ -480,18 +455,14 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
     if (!(attrs & JSPROP_PERMANENT) || (attrs & JSPROP_ENUMERATE)) {
         if (!setterIsStrict)
             return true;
-        // Bail for strict mode in parallel execution, as we need to go back
-        // to sequential mode to throw the error.
-        if (mode == ParallelExecution)
-            return false;
-        return Throw(cxArg->asJSContext(), id, JSMSG_CANT_REDEFINE_PROP);
+        return Throw(cx, id, JSMSG_CANT_REDEFINE_PROP);
     }
 
     /* Steps 6-7. */
     bool lengthIsWritable = arr->lengthIsWritable();
 #ifdef DEBUG
     {
-        RootedShape lengthShape(cxArg, arr->nativeLookupPure(id));
+        RootedShape lengthShape(cx, arr->nativeLookup(cx, id));
         MOZ_ASSERT(lengthShape);
         MOZ_ASSERT(lengthShape->writable() == lengthIsWritable);
     }
@@ -504,17 +475,16 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
         if (newLen == oldLen)
             return true;
 
-        if (!cxArg->isJSContext())
+        if (!cx->isJSContext())
             return false;
 
         if (setterIsStrict) {
-            return JS_ReportErrorFlagsAndNumber(cxArg->asJSContext(),
+            return JS_ReportErrorFlagsAndNumber(cx->asJSContext(),
                                                 JSREPORT_ERROR, js_GetErrorMessage, nullptr,
                                                 JSMSG_CANT_REDEFINE_ARRAY_LENGTH);
         }
 
-        return JSObject::reportReadOnly(cxArg->asJSContext(), id,
-                                        JSREPORT_STRICT | JSREPORT_WARNING);
+        return JSObject::reportReadOnly(cx->asJSContext(), id, JSREPORT_STRICT | JSREPORT_WARNING);
     }
 
     /* Step 8. */
@@ -542,20 +512,13 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
             if (oldInitializedLength > newLen)
                 arr->setDenseInitializedLength(newLen);
             if (oldCapacity > newLen)
-                arr->shrinkElements(cxArg, newLen);
+                arr->shrinkElements(cx, newLen);
 
             // We've done the work of deleting any dense elements needing
             // deletion, and there are no sparse elements.  Thus we can skip
             // straight to defining the length.
             break;
         }
-
-        // Bail from parallel execution if need to perform step 15, which is
-        // unsafe and isn't a common case.
-        if (mode == ParallelExecution)
-            return false;
-
-        JSContext *cx = cxArg->asJSContext();
 
         // Step 15.
         //
@@ -665,29 +628,17 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
     // API call on the floor here.  Given that getter/setter will go away in
     // the long run, with accessors replacing them both internally and at the
     // API level, just run with this.
-    RootedShape lengthShape(cxArg, mode == ParallelExecution
-                            ? arr->nativeLookupPure(id)
-                            : arr->nativeLookup(cxArg->asJSContext(), id));
-    if (!JSObject::changeProperty<mode>(cxArg, arr, lengthShape, attrs,
-                                        JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_SHARED,
-                                        array_length_getter, array_length_setter))
+    RootedShape lengthShape(cx, arr->nativeLookup(cx, id));
+    if (!JSObject::changeProperty(cx, arr, lengthShape, attrs,
+                                  JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_SHARED,
+                                  array_length_getter, array_length_setter))
     {
         return false;
     }
 
-    RootedValue v(cxArg, NumberValue(newLen));
-    if (mode == ParallelExecution) {
-        // Adding the property type or overflowing int32 requires changing TI
-        // state.
-        if (!HasTypePropertyId(arr, id, v) || newLen > INT32_MAX)
-            return false;
-        arr->setLengthInt32(newLen);
-    } else {
-        JSContext *cx = cxArg->asJSContext();
-        AddTypePropertyId(cx, arr, id, v);
-        ArrayObject::setLength(cx, arr, newLen);
-    }
-
+    RootedValue v(cx, NumberValue(newLen));
+    AddTypePropertyId(cx, arr, id, v);
+    ArrayObject::setLength(cx, arr, newLen);
 
     // All operations past here until the |!succeeded| code must be infallible,
     // so that all element fields remain properly synchronized.
@@ -708,15 +659,12 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
         // the already-required range check for |index < capacity| by making
         // capacity of arrays with non-writable length never exceed the length.
         if (arr->getDenseCapacity() > newLen) {
-            arr->shrinkElements(cxArg, newLen);
+            arr->shrinkElements(cx, newLen);
             arr->getElementsHeader()->capacity = newLen;
         }
     }
 
     if (setterIsStrict && !succeeded) {
-        // We can't have arrived here under ParallelExecution, as we have
-        // returned from the function before step 15 above.
-        JSContext *cx = cxArg->asJSContext();
         RootedId elementId(cx);
         if (!IndexToId(cx, newLen - 1, &elementId))
             return false;
@@ -726,17 +674,8 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
     return true;
 }
 
-template bool
-js::ArraySetLength<SequentialExecution>(JSContext *cx, Handle<ArrayObject*> arr,
-                                        HandleId id, unsigned attrs, HandleValue value,
-                                        bool setterIsStrict);
-template bool
-js::ArraySetLength<ParallelExecution>(ForkJoinSlice *slice, Handle<ArrayObject*> arr,
-                                      HandleId id, unsigned attrs, HandleValue value,
-                                      bool setterIsStrict);
-
 bool
-js::WouldDefinePastNonwritableLength(ThreadSafeContext *cx,
+js::WouldDefinePastNonwritableLength(ExclusiveContext *cx,
                                      HandleObject obj, uint32_t index, bool strict,
                                      bool *definesPast)
 {

@@ -175,9 +175,9 @@ partial interface Element {
 
 // http://domparsing.spec.whatwg.org/#extensions-to-the-element-interface
 partial interface Element {
-  [Pure,SetterThrows,TreatNullAs=EmptyString]
+  [Throws,TreatNullAs=EmptyString]
   attribute DOMString innerHTML;
-  [Pure,SetterThrows,TreatNullAs=EmptyString]
+  [Throws,TreatNullAs=EmptyString]
   attribute DOMString outerHTML;
   [Throws]
   void insertAdjacentHTML(DOMString position, DOMString text);

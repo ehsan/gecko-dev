@@ -20,7 +20,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 

@@ -46,7 +46,7 @@ nsToolkit::nsToolkit()
     MOZ_COUNT_CTOR(nsToolkit);
 
 #if defined(MOZ_STATIC_COMPONENT_LIBS)
-    nsToolkit::Startup(GetModuleHandle(nullptr));
+    nsToolkit::Startup(GetModuleHandle(NULL));
 #endif
 
     gMouseTrailer = &mMouseTrailer;
@@ -54,7 +54,7 @@ nsToolkit::nsToolkit()
     if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
       mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
       mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
-                                       nullptr,
+                                       NULL,
                                        kD3DUsageDelay,
                                        nsITimer::TYPE_ONE_SHOT);
     }

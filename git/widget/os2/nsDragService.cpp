@@ -87,8 +87,7 @@ nsDragService::nsDragService()
   WinSubclassWindow( mDragWnd, nsDragWindowProc);
 
   HMODULE hModResources = NULLHANDLE;
-  DosQueryModFromEIP(&hModResources, nullptr, 0, nullptr, nullptr,
-                     (ULONG)&gPtrArray);
+  DosQueryModFromEIP(&hModResources, NULL, 0, NULL, NULL, (ULONG) &gPtrArray);
   for (int i = 0; i < IDC_DNDCOUNT; i++)
     gPtrArray[i] = ::WinLoadPointer(HWND_DESKTOP, hModResources, i+IDC_DNDBASE);
 }

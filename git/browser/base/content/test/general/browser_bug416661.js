@@ -22,14 +22,12 @@ function continue_test_prefNotSet () {
 }
 
 function end_test_prefNotSet() {
-  Task.spawn(function () {
-    is(ZoomManager.zoom, zoomLevel, "the zoom level should have persisted");
+  is(ZoomManager.zoom, zoomLevel, "the zoom level should have persisted");
 
-    // Reset the zoom so that other tests have a fresh zoom level
-    FullZoom.reset();
-    yield FullZoomHelper.removeTabAndWaitForLocationChange();
-    finish();
-  });
+  // Reset the zoom so that other tests have a fresh zoom level
+  FullZoom.reset();
+  gBrowser.removeCurrentTab();
+  finish();
 }
 
 function test() {

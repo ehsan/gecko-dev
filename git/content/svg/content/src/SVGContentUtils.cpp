@@ -19,7 +19,6 @@
 #include "SVGAnimationElement.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsContentUtils.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

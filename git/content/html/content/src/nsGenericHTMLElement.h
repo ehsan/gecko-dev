@@ -464,8 +464,9 @@ public:
     return rv.ErrorCode();
   }
   NS_IMETHOD GetOuterHTML(nsAString& aOuterHTML) MOZ_FINAL {
-    mozilla::dom::Element::GetOuterHTML(aOuterHTML);
-    return NS_OK;
+    mozilla::ErrorResult rv;
+    mozilla::dom::Element::GetOuterHTML(aOuterHTML, rv);
+    return rv.ErrorCode();
   }
   NS_IMETHOD SetOuterHTML(const nsAString& aOuterHTML) MOZ_FINAL {
     mozilla::ErrorResult rv;
@@ -527,8 +528,11 @@ public:
     *aDraggable = Draggable();
     return NS_OK;
   }
-  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) MOZ_OVERRIDE {
-    return mozilla::dom::Element::GetInnerHTML(aInnerHTML);
+  using mozilla::dom::Element::GetInnerHTML;
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) MOZ_FINAL {
+    mozilla::ErrorResult rv;
+    GetInnerHTML(aInnerHTML, rv);
+    return rv.ErrorCode();
   }
   using mozilla::dom::Element::SetInnerHTML;
   NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) MOZ_FINAL {

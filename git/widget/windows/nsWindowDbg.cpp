@@ -29,7 +29,7 @@ MSGFEventMsgInfo gMSGFEvents[] = {
   "MSGF_NEXTWINDOW",     6,
   "MSGF_MAX",            8,
   "MSGF_USER",           4096,
-  nullptr, 0};
+  NULL, 0};
 #endif
 
 EventMsgInfo gAllEvents[] = {
@@ -366,7 +366,7 @@ EventMsgInfo gAllEvents[] = {
   {"WM_GESTURE",                          0x0119},
   {"WM_GESTURENOTIFY",                    0x011A},
   {"WM_GETTITLEBARINFOEX",                0x033F},
-  {nullptr, 0x0}
+  {NULL, 0x0}
 };
 
 static long gEventCounter = 0;
@@ -375,7 +375,7 @@ static long gLastEventMsg = 0;
 void PrintEvent(UINT msg, bool aShowAllEvents, bool aShowMouseMoves)
 {
   int inx = 0;
-  while (gAllEvents[inx].mId != (long)msg && gAllEvents[inx].mStr != nullptr) {
+  while (gAllEvents[inx].mId != (long)msg && gAllEvents[inx].mStr != NULL) {
     inx++;
   }
   if (aShowAllEvents || (!aShowAllEvents && gLastEventMsg != (long)msg)) {

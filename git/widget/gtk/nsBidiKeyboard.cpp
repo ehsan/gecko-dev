@@ -39,7 +39,7 @@ nsBidiKeyboard::Reset()
 
     mHaveBidiKeyboards = false;
     if (GdkKeymapHaveBidiLayouts)
-        mHaveBidiKeyboards = (*GdkKeymapHaveBidiLayouts)(nullptr);
+        mHaveBidiKeyboards = (*GdkKeymapHaveBidiLayouts)(NULL);
 #else
     mHaveBidiKeyboards = gdk_keymap_have_bidi_layouts(gdk_keymap_get_default());
 #endif

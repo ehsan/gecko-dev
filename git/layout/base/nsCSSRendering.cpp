@@ -48,7 +48,6 @@
 #include "ImageContainer.h"
 #include "mozilla/Telemetry.h"
 #include "gfxUtils.h"
-#include "gfxColor.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -4923,12 +4922,12 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
                          blurRadius, &dirtyRect, &skipRect);
   } else {
     mContext = blur.Init(rect, spreadRadius,
-                         blurRadius, &dirtyRect, nullptr);
+                         blurRadius, &dirtyRect, NULL);
   }
 
   if (mContext) {
     // we don't need to blur if skipRect is equal to rect
-    // and mContext will be nullptr
+    // and mContext will be NULL
     mContext->SetMatrix(transform);
   }
   return mContext;

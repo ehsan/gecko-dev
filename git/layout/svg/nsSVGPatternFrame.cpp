@@ -22,7 +22,6 @@
 #include "nsSVGUtils.h"
 #include "nsSVGAnimatedTransformList.h"
 #include "SVGContentUtils.h"
-#include "gfxColor.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

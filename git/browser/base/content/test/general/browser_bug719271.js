@@ -81,9 +81,9 @@ function finishTest() {
 
     yield FullZoomHelper.selectTabAndWaitForLocationChange(gTab1);
     FullZoom.reset();
-    yield FullZoomHelper.removeTabAndWaitForLocationChange(gTab1);
+    gBrowser.removeTab(gTab1);
     yield FullZoomHelper.selectTabAndWaitForLocationChange(gTab2);
     FullZoom.reset();
-    yield FullZoomHelper.removeTabAndWaitForLocationChange(gTab2);
+    gBrowser.removeTab(gTab2);
   }).then(finish, FullZoomHelper.failAndContinue(finish));
 }

@@ -61,9 +61,9 @@ ToTempUnboxRegister(const LDefinition *def)
 }
 
 static inline Register
-ToRegisterOrInvalid(const LDefinition *a)
+ToRegisterOrInvalid(const LAllocation *a)
 {
-    return a ? ToRegister(a) : InvalidReg;
+    return a ? ToRegister(*a) : InvalidReg;
 }
 
 static inline FloatRegister

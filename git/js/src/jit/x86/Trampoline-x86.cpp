@@ -685,7 +685,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
       case Type_Bool:
         masm.Pop(ReturnReg);
-        masm.movzbl(ReturnReg, ReturnReg);
+        masm.movzxbl(ReturnReg, ReturnReg);
         break;
 
       case Type_Double:
