@@ -116,18 +116,13 @@ static void FindBodyElement(nsIContent* aParent, nsIContent** aResult)
 nsTreeBodyFrame*
 nsTreeBoxObject::GetTreeBody(bool aFlushLayout)
 {
-  // Make sure our frames are up to date, and layout as needed.  We
-  // have to do this before checking for our cached mTreeBody, since
-  // it might go away on style flush, and in any case if aFlushLayout
-  // is true we need to make sure to flush no matter what.
+  if (mTreeBody) {
+    return mTreeBody;
+  }
+
   nsIFrame* frame = GetFrame(aFlushLayout);
   if (!frame)
     return nsnull;
-
-  if (mTreeBody) {
-    // Have one cached already.
-    return mTreeBody;
-  }
 
   // Iterate over our content model children looking for the body.
   nsCOMPtr<nsIContent> content;

@@ -1835,10 +1835,6 @@ nsTextEditorState::ValueWasChanged(PRBool aNotify)
 void
 nsTextEditorState::UpdatePlaceholderText(PRBool aNotify)
 {
-  // If we don't have a placeholder div, there's nothing to do.
-  if (!mPlaceholderDiv)
-    return;
-
   nsAutoString placeholderValue;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
