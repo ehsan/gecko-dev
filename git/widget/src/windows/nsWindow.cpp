@@ -642,9 +642,6 @@ nsWindow::StandardWindowCreate(nsIWidget *aParent,
       extendedStyle = WS_EX_TOOLWINDOW;
     else
       parent = NULL;
-  } else if (mWindowType == eWindowType_invisible) {
-    // Make sure CreateWindowEx succeeds at creating a toplevel window
-    style &= ~0x40000000; // WS_CHILDWINDOW
   } else if (nsnull != aInitData) {
     // See if the caller wants to explictly set clip children and clip siblings
     if (aInitData->clipChildren) {

@@ -440,18 +440,11 @@ nsSMILAnimationController::AddAnimationToCompositorTable(
     // Something's wrong/missing about animation's target; skip this animation
     return;
 
-  nsSMILAnimationFunction& func = aElement->AnimationFunction();
+  nsSMILCompositor* result = aCompositorTable->PutEntry(key);
 
-  // Only add active animation functions. If there are no active animations
-  // targetting an attribute, no compositor will be created and any previously
-  // applied animations will be cleared.
-  if (func.IsActiveOrFrozen()) {
-    nsSMILCompositor* result = aCompositorTable->PutEntry(key);
-
-    // Add this animationElement's animation function to the compositor's list
-    // of animation functions.
-    result->AddAnimationFunction(&func);
-  }
+  // Add this animationElement's animation function to the compositor's list of
+  // animation functions.
+  result->AddAnimationFunction(&aElement->AnimationFunction());
 }
 
 // Helper function that, given a nsISMILAnimationElement, looks up its target
