@@ -19,13 +19,6 @@ PRLogModuleInfo* gRtspLog;
 #undef LOG
 #define LOG(args) PR_LOG(gRtspLog, PR_LOG_DEBUG, args)
 
-#define SEND_DISCONNECT_IF_ERROR(rv)                         \
-  if (NS_FAILED(rv) && mIPCOpen && mTotalTracks > 0) {       \
-    for (int i = 0; i < mTotalTracks; i++) {                 \
-      SendOnDisconnected(i, rv);                             \
-    }                                                        \
-  }
-
 using namespace mozilla::ipc;
 
 namespace mozilla {
@@ -37,7 +30,6 @@ NS_IMPL_ISUPPORTS2(RtspControllerParent,
 
 RtspControllerParent::RtspControllerParent()
   : mIPCOpen(true)
-  , mTotalTracks(0)
 {
 #if defined(PR_LOGGING)
   if (!gRtspLog)
@@ -83,7 +75,7 @@ RtspControllerParent::RecvPlay()
   NS_ENSURE_TRUE(mController, true);
 
   nsresult rv = mController->Play();
-  SEND_DISCONNECT_IF_ERROR(rv)
+  NS_ENSURE_SUCCESS(rv, true);
   return true;
 }
 
@@ -94,7 +86,7 @@ RtspControllerParent::RecvPause()
   NS_ENSURE_TRUE(mController, true);
 
   nsresult rv = mController->Pause();
-  SEND_DISCONNECT_IF_ERROR(rv)
+  NS_ENSURE_SUCCESS(rv, true);
   return true;
 }
 
@@ -105,7 +97,7 @@ RtspControllerParent::RecvResume()
   NS_ENSURE_TRUE(mController, true);
 
   nsresult rv = mController->Resume();
-  SEND_DISCONNECT_IF_ERROR(rv)
+  NS_ENSURE_SUCCESS(rv, true);
   return true;
 }
 
@@ -116,7 +108,7 @@ RtspControllerParent::RecvSuspend()
   NS_ENSURE_TRUE(mController, true);
 
   nsresult rv = mController->Suspend();
-  SEND_DISCONNECT_IF_ERROR(rv)
+  NS_ENSURE_SUCCESS(rv, true);
   return true;
 }
 
@@ -127,7 +119,7 @@ RtspControllerParent::RecvSeek(const uint64_t& offset)
   NS_ENSURE_TRUE(mController, true);
 
   nsresult rv = mController->Seek(offset);
-  SEND_DISCONNECT_IF_ERROR(rv)
+  NS_ENSURE_SUCCESS(rv, true);
   return true;
 }
 
@@ -191,9 +183,9 @@ RtspControllerParent::OnConnected(uint8_t index,
   InfallibleTArray<RtspMetadataParam> metaData;
   nsCString name;
   name.AssignLiteral("TRACKS");
-  nsresult rv = meta->GetTotalTracks(&mTotalTracks);
+  nsresult rv = meta->GetTotalTracks(&int32Value);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-  metaData.AppendElement(RtspMetadataParam(name, mTotalTracks));
+  metaData.AppendElement(RtspMetadataParam(name, int32Value));
 
   name.AssignLiteral("MIMETYPE");
   nsCString mimeType;

@@ -8,9 +8,7 @@ package org.mozilla.gecko.home;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.home.BookmarksListAdapter.FolderInfo;
 import org.mozilla.gecko.home.BookmarksListAdapter.OnRefreshFolderListener;
-import org.mozilla.gecko.home.BookmarksListAdapter.RefreshType;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 
 import android.app.Activity;
@@ -20,6 +18,7 @@ import android.database.Cursor;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
+import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewStub;
@@ -38,11 +37,8 @@ public class BookmarksPage extends HomeFragment {
     // Cursor loader ID for list of bookmarks.
     private static final int LOADER_ID_BOOKMARKS_LIST = 0;
 
-    // Information about the target bookmarks folder.
-    private static final String BOOKMARKS_FOLDER_INFO = "folder_info";
-
-    // Refresh type for folder refreshing loader.
-    private static final String BOOKMARKS_REFRESH_TYPE = "refresh_type";
+    // Key for bookmarks folder id.
+    private static final String BOOKMARKS_FOLDER_KEY = "folder_id";
 
     // List of bookmarks.
     private BookmarksListView mList;
@@ -51,7 +47,7 @@ public class BookmarksPage extends HomeFragment {
     private BookmarksListAdapter mListAdapter;
 
     // Adapter's parent stack.
-    private List<FolderInfo> mSavedParentStack;
+    private List<Pair<Integer, String>> mSavedParentStack;
 
     // Reference to the View to display when there are no results.
     private View mEmptyView;
@@ -96,11 +92,10 @@ public class BookmarksPage extends HomeFragment {
         mListAdapter = new BookmarksListAdapter(activity, null, mSavedParentStack);
         mListAdapter.setOnRefreshFolderListener(new OnRefreshFolderListener() {
             @Override
-            public void onRefreshFolder(FolderInfo folderInfo, RefreshType refreshType) {
+            public void onRefreshFolder(int folderId) {
                 // Restart the loader with folder as the argument.
                 Bundle bundle = new Bundle();
-                bundle.putParcelable(BOOKMARKS_FOLDER_INFO, folderInfo);
-                bundle.putParcelable(BOOKMARKS_REFRESH_TYPE, refreshType);
+                bundle.putInt(BOOKMARKS_FOLDER_KEY, folderId);
                 getLoaderManager().restartLoader(LOADER_ID_BOOKMARKS_LIST, bundle, mLoaderCallbacks);
             }
         });
@@ -172,30 +167,20 @@ public class BookmarksPage extends HomeFragment {
      * Loader for the list for bookmarks.
      */
     private static class BookmarksLoader extends SimpleCursorLoader {
-        private final FolderInfo mFolderInfo;
-        private final RefreshType mRefreshType;
+        private final int mFolderId;
 
         public BookmarksLoader(Context context) {
-            this(context, new FolderInfo(Bookmarks.FIXED_ROOT_ID), RefreshType.CHILD);
+            this(context, Bookmarks.FIXED_ROOT_ID);
         }
 
-        public BookmarksLoader(Context context, FolderInfo folderInfo, RefreshType refreshType) {
+        public BookmarksLoader(Context context, int folderId) {
             super(context);
-            mFolderInfo = folderInfo;
-            mRefreshType = refreshType;
+            mFolderId = folderId;
         }
 
         @Override
         public Cursor loadCursor() {
-            return BrowserDB.getBookmarksInFolder(getContext().getContentResolver(), mFolderInfo.id);
-        }
-
-        public FolderInfo getFolderInfo() {
-            return mFolderInfo;
-        }
-
-        public RefreshType getRefreshType() {
-            return mRefreshType;
+            return BrowserDB.getBookmarksInFolder(getContext().getContentResolver(), mFolderId);
         }
     }
 
@@ -208,16 +193,13 @@ public class BookmarksPage extends HomeFragment {
             if (args == null) {
                 return new BookmarksLoader(getActivity());
             } else {
-                FolderInfo folderInfo = (FolderInfo) args.getParcelable(BOOKMARKS_FOLDER_INFO);
-                RefreshType refreshType = (RefreshType) args.getParcelable(BOOKMARKS_REFRESH_TYPE);
-                return new BookmarksLoader(getActivity(), folderInfo, refreshType);
+                return new BookmarksLoader(getActivity(), args.getInt(BOOKMARKS_FOLDER_KEY));
             }
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            BookmarksLoader bl = (BookmarksLoader) loader;
-            mListAdapter.swapCursor(c, bl.getFolderInfo(), bl.getRefreshType());
+            mListAdapter.swapCursor(c);
             updateUiFromCursor(c);
         }
 

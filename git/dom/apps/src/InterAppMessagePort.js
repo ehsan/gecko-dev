@@ -47,8 +47,7 @@ InterAppMessagePort.prototype = {
   contractID: "@mozilla.org/dom/inter-app-message-port;1",
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsISupportsWeakReference,
-                                         Ci.nsIObserver]),
+                                         Ci.nsISupportsWeakReference]),
 
   // Ci.nsIDOMGlobalPropertyInitializer implementation.
   init: function(aWindow) {

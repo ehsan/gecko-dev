@@ -72,7 +72,6 @@ public:
   void Start() {
     MonitorAutoLock monitor(mMonitor);
     mIsStarted = true;
-    mFrameType = 0;
   }
   void Stop() {
     MonitorAutoLock monitor(mMonitor);
@@ -445,9 +444,6 @@ RtspMediaResource::OnConnected(uint8_t aTrackIdx,
                                nsIStreamingProtocolMetaData *meta)
 {
   if (mIsConnected) {
-    for (uint32_t i = 0 ; i < mTrackBuffer.Length(); ++i) {
-      mTrackBuffer[i]->Start();
-    }
     return NS_OK;
   }
 
@@ -527,19 +523,9 @@ RtspMediaResource::OnDisconnected(uint8_t aTrackIdx, nsresult aReason)
     mTrackBuffer[i]->Reset();
   }
 
-  if (aReason == NS_ERROR_NOT_INITIALIZED ||
-      aReason == NS_ERROR_CONNECTION_REFUSED ||
-      aReason == NS_ERROR_NOT_CONNECTED) {
-
-    RTSPMLOG("Error in OnDisconnected 0x%x", aReason);
-
+  if (aReason == NS_ERROR_CONNECTION_REFUSED) {
     mDecoder->NetworkError();
-    return NS_OK;
   }
-
-  // Resetting the decoder and media element when the connection
-  // between Rtsp client and server goes down.
-  mDecoder->ResetConnectionState();
   return NS_OK;
 }
 
