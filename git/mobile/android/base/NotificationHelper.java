@@ -195,7 +195,6 @@ public final class NotificationHelper implements GeckoEventListener {
         notificationIntent.setData(dataUri);
         notificationIntent.putExtra(HELPER_NOTIFICATION, true);
         notificationIntent.putExtra(COOKIE_ATTR, message.optString(COOKIE_ATTR));
-        notificationIntent.setClass(mContext, GeckoAppShell.getGeckoInterface().getActivity().getClass());
         return notificationIntent;
     }
 
