@@ -28,14 +28,14 @@
     macro(callFunction, callFunction, "callFunction") \
     macro(classPrototype, classPrototype, "prototype") \
     macro(Collator, Collator, "Collator") \
-    macro(CollatorCompareGet, CollatorCompareGet, "Intl_Collator_compare_get") \
+    macro(CollatorCompare, CollatorCompare, "Intl_Collator_compare") \
     macro(columnNumber, columnNumber, "columnNumber") \
     macro(compare, compare, "compare") \
     macro(configurable, configurable, "configurable") \
     macro(construct, construct, "construct") \
     macro(constructor, constructor, "constructor") \
     macro(DateTimeFormat, DateTimeFormat, "DateTimeFormat") \
-    macro(DateTimeFormatFormatGet, DateTimeFormatFormatGet, "Intl_DateTimeFormat_format_get") \
+    macro(DateTimeFormatFormat, DateTimeFormatFormat, "Intl_DateTimeFormat_format") \
     macro(decodeURI, decodeURI, "decodeURI") \
     macro(decodeURIComponent, decodeURIComponent, "decodeURIComponent") \
     macro(defineProperty, defineProperty, "defineProperty") \
@@ -94,7 +94,7 @@
     macro(next, next, "next") \
     macro(noSuchMethod, noSuchMethod, "__noSuchMethod__") \
     macro(NumberFormat, NumberFormat, "NumberFormat") \
-    macro(NumberFormatFormatGet, NumberFormatFormatGet, "Intl_NumberFormat_format_get") \
+    macro(NumberFormatFormat, NumberFormatFormat, "Intl_NumberFormat_format") \
     macro(objectNull, objectNull, "[object Null]") \
     macro(objectUndefined, objectUndefined, "[object Undefined]") \
     macro(of, of, "of") \

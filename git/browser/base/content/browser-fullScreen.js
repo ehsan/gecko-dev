@@ -88,10 +88,12 @@ var FullScreen = {
 
   handleEvent: function (event) {
     switch (event.type) {
-      case "activate":
-        if (document.mozFullScreen) {
-          this.showWarning(this.fullscreenDoc);
-        }
+      case "deactivate":
+        // We must call exitDomFullScreen asynchronously, since "deactivate" is
+        // dispatched in the middle of the focus manager's window lowering code,
+        // and the focus manager gets confused if we exit fullscreen mode in the
+        // middle of window lowering. See bug 729872.
+        setTimeout(this.exitDomFullScreen.bind(this), 0);
         break;
       case "transitionend":
         if (event.propertyName == "opacity")
@@ -136,11 +138,10 @@ var FullScreen = {
     gBrowser.tabContainer.addEventListener("TabClose", this.exitDomFullScreen);
     gBrowser.tabContainer.addEventListener("TabSelect", this.exitDomFullScreen);
 
-    // Add listener to detect when the fullscreen window is re-focused.
-    // If a fullscreen window loses focus, we show a warning when the
-    // fullscreen window is refocused.
-    if (!this.useLionFullScreen) {
-      window.addEventListener("activate", this);
+    // Exit DOM full-screen mode when the browser window loses focus (ALT+TAB, etc).
+    if (!this.useLionFullScreen &&
+        gPrefService.getBoolPref("full-screen-api.exit-on-deactivate")) {
+      window.addEventListener("deactivate", this);
     }
 
     // Cancel any "hide the toolbar" animation which is in progress, and make
@@ -170,8 +171,7 @@ var FullScreen = {
       gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
       if (!this.useLionFullScreen)
-        window.removeEventListener("activate", this);
-      this.fullscreenDoc = null;
+        window.removeEventListener("deactivate", this);
     }
   },
 
@@ -307,6 +307,7 @@ var FullScreen = {
   cancelWarning: function(event) {
     if (!this.warningBox)
       return;
+    this.fullscreenDoc = null;
     this.warningBox.removeEventListener("transitionend", this);
     if (this.warningFadeOutTimeout) {
       clearTimeout(this.warningFadeOutTimeout);

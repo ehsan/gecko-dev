@@ -135,7 +135,6 @@ struct CommonElementAnimationData : public PRCList
     : mElement(aElement)
     , mElementProperty(aElementProperty)
     , mManager(aManager)
-    , mAnimationGeneration(0)
 #ifdef DEBUG
     , mCalledPropertyDtor(false)
 #endif

@@ -275,10 +275,9 @@ class nsTSubstring_CharT
          */
       bool NS_FASTCALL EqualsASCII( const char* data ) const;
 
-    // EqualsLiteral must ONLY be applied to an actual literal string, or
-    // a char array *constant* declared without an explicit size.
-    // Do not attempt to use it with a regular char* pointer, or with a
-    // non-constant char array variable. Use EqualsASCII for them.
+    // EqualsLiteral must ONLY be applied to an actual literal string.
+    // Do not attempt to use it with a regular char* pointer, or with a char
+    // array variable.
     // The template trick to acquire the array length at compile time without
     // using a macro is due to Corey Kosak, with much thanks.
 #ifdef NS_DISABLE_LITERAL_TEMPLATE
@@ -310,9 +309,8 @@ class nsTSubstring_CharT
       bool NS_FASTCALL LowerCaseEqualsASCII( const char* data ) const;
 
     // LowerCaseEqualsLiteral must ONLY be applied to an actual
-    // literal string, or a char array *constant* declared without an 
-    // explicit size.  Do not attempt to use it with a regular char*
-    // pointer, or with a non-constant char array variable. Use
+    // literal string.  Do not attempt to use it with a regular char*
+    // pointer, or with a char array variable. Use
     // LowerCaseEqualsASCII for them.
 #ifdef NS_DISABLE_LITERAL_TEMPLATE
       inline bool LowerCaseEqualsLiteral( const char* str ) const
@@ -362,10 +360,9 @@ class nsTSubstring_CharT
           return AssignASCII(data, strlen(data), fallible_t());
         }
 
-    // AssignLiteral must ONLY be applied to an actual literal string, or
-    // a char array *constant* declared without an explicit size.
-    // Do not attempt to use it with a regular char* pointer, or with a 
-    // non-constant char array variable. Use AssignASCII for those.
+    // AssignLiteral must ONLY be applied to an actual literal string.
+    // Do not attempt to use it with a regular char* pointer, or with a char
+    // array variable. Use AssignASCII for those.
     // There are not fallible version of these methods because they only really
     // apply to small allocations that we wouldn't want to check anyway.
 #ifdef NS_DISABLE_LITERAL_TEMPLATE
@@ -485,11 +482,8 @@ class nsTSubstring_CharT
          */
 
         /**
-         * Attempts to set the capacity to the given size in number of 
-         * characters, without affecting the length of the string.
-         * There is no need to include room for the null terminator: it is
-         * the job of the string class.
-         * Also ensures that the buffer is mutable.
+         * Attempts to set the capacity to the given size, without affecting
+         * the length of the string. Also ensures that the buffer is mutable.
          */
       void NS_FASTCALL SetCapacity( size_type newCapacity );
       bool NS_FASTCALL SetCapacity( size_type newCapacity, const fallible_t& ) NS_WARN_UNUSED_RESULT;

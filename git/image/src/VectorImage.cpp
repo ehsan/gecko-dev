@@ -134,10 +134,8 @@ public:
   void Cancel()
   {
     NS_ABORT_IF_FALSE(mDocument, "Duplicate call to Cancel");
-    if (mDocument) {
-      mDocument->RemoveObserver(this);
-      mDocument = nullptr;
-    }
+    mDocument->RemoveObserver(this);
+    mDocument = nullptr;
   }
 
 private:
@@ -201,12 +199,10 @@ public:
   void Cancel()
   {
     NS_ABORT_IF_FALSE(mDocument, "Duplicate call to Cancel");
-    if (mDocument) {
-      mDocument->RemoveEventListener(NS_LITERAL_STRING("MozSVGAsImageDocumentLoad"), this, true);
-      mDocument->RemoveEventListener(NS_LITERAL_STRING("SVGAbort"), this, true);
-      mDocument->RemoveEventListener(NS_LITERAL_STRING("SVGError"), this, true);
-      mDocument = nullptr;
-    }
+    mDocument->RemoveEventListener(NS_LITERAL_STRING("MozSVGAsImageDocumentLoad"), this, true);
+    mDocument->RemoveEventListener(NS_LITERAL_STRING("SVGAbort"), this, true);
+    mDocument->RemoveEventListener(NS_LITERAL_STRING("SVGError"), this, true);
+    mDocument = nullptr;
   }
 
 private:
@@ -306,7 +302,6 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker,
 
 VectorImage::~VectorImage()
 {
-  CancelAllListeners();
 }
 
 //------------------------------------------------------------------------------
@@ -904,6 +899,9 @@ VectorImage::OnSVGDocumentParsed()
 void
 VectorImage::CancelAllListeners()
 {
+  NS_ABORT_IF_FALSE(mParseCompleteListener, "Should have the parse complete listener");
+  NS_ABORT_IF_FALSE(mLoadEventListener, "Should have the load event listener");
+
   if (mParseCompleteListener) {
     mParseCompleteListener->Cancel();
     mParseCompleteListener = nullptr;

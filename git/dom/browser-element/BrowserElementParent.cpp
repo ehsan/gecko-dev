@@ -13,7 +13,7 @@
 #endif
 
 #include "BrowserElementParent.h"
-#include "mozilla/dom/HTMLIFrameElement.h"
+#include "nsHTMLIFrameElement.h"
 #include "nsOpenWindowEventDetail.h"
 #include "nsEventDispatcher.h"
 #include "nsIDOMCustomEvent.h"
@@ -22,7 +22,6 @@
 #include "nsAsyncScrollEventDetail.h"
 
 using mozilla::dom::Element;
-using mozilla::dom::HTMLIFrameElement;
 using mozilla::dom::TabParent;
 
 namespace {
@@ -31,7 +30,7 @@ namespace {
  * Create an <iframe mozbrowser> owned by the same document as
  * aOpenerFrameElement.
  */
-already_AddRefed<HTMLIFrameElement>
+already_AddRefed<nsHTMLIFrameElement>
 CreateIframe(Element* aOpenerFrameElement, const nsAString& aName, bool aRemote)
 {
   nsNodeInfoManager *nodeInfoManager =
@@ -43,8 +42,8 @@ CreateIframe(Element* aOpenerFrameElement, const nsAString& aName, bool aRemote)
                                  kNameSpaceID_XHTML,
                                  nsIDOMNode::ELEMENT_NODE);
 
-  nsRefPtr<HTMLIFrameElement> popupFrameElement =
-    static_cast<HTMLIFrameElement*>(
+  nsRefPtr<nsHTMLIFrameElement> popupFrameElement =
+    static_cast<nsHTMLIFrameElement*>(
       NS_NewHTMLIFrameElement(nodeInfo.forget(), mozilla::dom::NOT_FROM_PARSER));
 
   popupFrameElement->SetMozbrowser(true);
@@ -152,7 +151,7 @@ BrowserElementParent::OpenWindowOOP(TabParent* aOpenerTabParent,
   nsCOMPtr<Element> openerFrameElement =
     do_QueryInterface(aOpenerTabParent->GetOwnerElement());
   NS_ENSURE_TRUE(openerFrameElement, false);
-  nsRefPtr<HTMLIFrameElement> popupFrameElement =
+  nsRefPtr<nsHTMLIFrameElement> popupFrameElement =
     CreateIframe(openerFrameElement, aName, /* aRemote = */ true);
 
   // Normally an <iframe> element will try to create a frameLoader when the
@@ -210,7 +209,7 @@ BrowserElementParent::OpenWindowInProcess(nsIDOMWindow* aOpenerWindow,
   nsCOMPtr<Element> openerFrameElement =
     do_QueryInterface(openerFrameDOMElement);
 
-  nsRefPtr<HTMLIFrameElement> popupFrameElement =
+  nsRefPtr<nsHTMLIFrameElement> popupFrameElement =
     CreateIframe(openerFrameElement, aName, /* aRemote = */ false);
   NS_ENSURE_TRUE(popupFrameElement, false);
 

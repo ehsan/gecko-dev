@@ -172,11 +172,9 @@ int nr_ice_candidate_pair_destroy(nr_ice_cand_pair **pairp)
     RFREE(pair->as_string);
     RFREE(pair->foundation);
     nr_ice_socket_deregister(pair->local->isock,pair->stun_client_handle);
-    if (pair->stun_client) {
-      RFREE(pair->stun_client->params.ice_binding_request.username);
-      RFREE(pair->stun_client->params.ice_binding_request.password.data);
-      nr_stun_client_ctx_destroy(&pair->stun_client);
-    }
+    RFREE(pair->stun_client->params.ice_binding_request.username);
+    RFREE(pair->stun_client->params.ice_binding_request.password.data);
+    nr_stun_client_ctx_destroy(&pair->stun_client);
 
     RFREE(pair->r2l_user);
     RFREE(pair->r2l_pwd.data);

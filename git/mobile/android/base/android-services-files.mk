@@ -20,7 +20,6 @@ SYNC_JAVA_FILES := \
   background/announcements/AnnouncementsService.java \
   background/announcements/AnnouncementsStartReceiver.java \
   background/BackgroundConstants.java \
-  background/BackgroundService.java \
   sync/AlreadySyncingException.java \
   sync/CollectionKeys.java \
   sync/CommandProcessor.java \

@@ -27,6 +27,7 @@ browser/components/places/Makefile
 browser/components/places/src/Makefile
 browser/components/preferences/Makefile
 browser/components/privatebrowsing/Makefile
+browser/components/privatebrowsing/src/Makefile
 browser/components/search/Makefile
 browser/components/sessionstore/Makefile
 browser/components/sessionstore/src/Makefile

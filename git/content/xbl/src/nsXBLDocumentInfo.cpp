@@ -272,7 +272,7 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
 
   mScriptContext = newCtx;
 
-  AutoPushJSContext cx(mScriptContext->GetNativeContext());
+  JSContext *cx = mScriptContext->GetNativeContext();
   JSAutoRequest ar(cx);
 
   // nsJSEnvironment set the error reporter to NS_ScriptErrorReporter so

@@ -132,7 +132,6 @@ public class LayerView extends FrameLayout {
         // this gets run on the gecko thread, but for thread safety we want the assignment
         // on the UI thread.
         post(new Runnable() {
-            @Override
             public void run() {
                 mTouchIntercepter = touchIntercepter;
             }
@@ -218,7 +217,6 @@ public class LayerView extends FrameLayout {
         return mBackgroundColor;
     }
 
-    @Override
     public void setBackgroundColor(int newColor) {
         mBackgroundColor = newColor;
         requestRender();
@@ -429,17 +427,14 @@ public class LayerView extends FrameLayout {
     }
 
     private class SurfaceListener implements SurfaceHolder.Callback {
-        @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width,
                                                 int height) {
             onSizeChanged(width, height);
         }
 
-        @Override
         public void surfaceCreated(SurfaceHolder holder) {
         }
 
-        @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
             onDestroyed();
         }
@@ -456,7 +451,6 @@ public class LayerView extends FrameLayout {
             mParent = aParent;
         }
 
-        @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             if (changed) {
                 mParent.surfaceChanged(right - left, bottom - top);

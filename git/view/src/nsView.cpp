@@ -310,8 +310,6 @@ void nsView::NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible)
     DropMouseGrabbing();
   }
 
-  SetForcedRepaint(true);
-
   if (nullptr != mWindow)
   {
     if (aEffectivelyVisible)

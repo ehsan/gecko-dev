@@ -363,22 +363,14 @@ public class BrowserDB {
             return numFound;
         }
 
-        @Override
         public int getPosition() { return mIndex; }
-        @Override
         public int getCount() { return mSize; }
-        @Override
         public boolean isAfterLast() { return mIndex >= mSize; }
-        @Override
         public boolean isBeforeFirst() { return mIndex < 0; }
-        @Override
         public boolean isLast() { return mIndex == mSize - 1; }
-        @Override
         public boolean moveToNext() { return moveToPosition(mIndex + 1); }
-        @Override
         public boolean moveToPrevious() { return moveToPosition(mIndex - 1); }
 
-        @Override
         public boolean moveToPosition(int position) {
             mIndex = position;
 
@@ -393,7 +385,6 @@ public class BrowserDB {
             return !(isBeforeFirst() || isAfterLast());
         }
 
-        @Override
         public long getLong(int columnIndex) {
             if (hasPinnedSites()) {
                 PinnedSite site = getPinnedSite(mIndex);
@@ -407,7 +398,6 @@ public class BrowserDB {
             return 0;
         }
 
-        @Override
         public String getString(int columnIndex) {
             if (hasPinnedSites()) {
                 PinnedSite site = getPinnedSite(mIndex);
@@ -426,17 +416,14 @@ public class BrowserDB {
             return "";
         }
 
-        @Override
         public boolean move(int offset) {
             return moveToPosition(mIndex + offset);
         }
 
-        @Override
         public boolean moveToFirst() {
             return moveToPosition(0);
         }
 
-        @Override
         public boolean moveToLast() {
             return moveToPosition(mSize-1);
         }

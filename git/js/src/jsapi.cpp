@@ -881,9 +881,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads),
     requestedHelperThreadCount(-1),
-#ifdef DEBUG
-    enteredPolicy(NULL),
-#endif
     rngNonce(0)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
@@ -5307,8 +5304,7 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSObject *objArg, const char *utf8, siz
     {
         CompileOptions options(cx);
         options.setCompileAndGo(false);
-        Parser<frontend::FullParseHandler> parser(cx, options, chars, length,
-                                                  /* foldConstants = */ true);
+        Parser parser(cx, options, chars, length, /* foldConstants = */ true);
         if (parser.init()) {
             older = JS_SetErrorReporter(cx, NULL);
             if (!parser.parse(obj) &&

@@ -629,8 +629,16 @@ class JSScript : public js::gc::Cell
     JSFunction *function() const { return function_; }
     void setFunction(JSFunction *fun);
 
-    JSFunction *originalFunction() const;
-    void setOriginalFunctionObject(JSObject *fun);
+    JSFunction *originalFunction() const {
+        if (!isCallsiteClone)
+            return NULL;
+        return enclosingScopeOrOriginalFunction_->toFunction();
+    }
+    void setOriginalFunctionObject(JSObject *fun) {
+        JS_ASSERT(isCallsiteClone);
+        JS_ASSERT(fun->isFunction());
+        enclosingScopeOrOriginalFunction_ = fun;
+    }
 
     JSFlatString *sourceData(JSContext *cx);
 

@@ -110,14 +110,11 @@ let gTests = [
   desc: "Check that performing a search records to Firefox Health Report.",
   setup: function () { },
   run: function () {
-    try {
-      let cm = Cc["@mozilla.org/categorymanager;1"].getService(Ci.nsICategoryManager);
-      cm.getCategoryEntry("healthreport-js-provider", "SearchesProvider");
-    } catch (ex) {
-      // Health Report disabled, or no SearchesProvider.
+    if (!("@mozilla.org/datareporting/service;1" in Components.classes)) {
       runNextTest();
       return;
     }
+
 
     let doc = gBrowser.contentDocument;
 

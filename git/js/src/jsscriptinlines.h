@@ -206,18 +206,4 @@ JSScript::principals()
     return compartment()->principals;
 }
 
-inline JSFunction *
-JSScript::originalFunction() const {
-    if (!isCallsiteClone)
-        return NULL;
-    return enclosingScopeOrOriginalFunction_->toFunction();
-}
-
-inline void
-JSScript::setOriginalFunctionObject(JSObject *fun) {
-    JS_ASSERT(isCallsiteClone);
-    JS_ASSERT(fun->isFunction());
-    enclosingScopeOrOriginalFunction_ = fun;
-}
-
 #endif /* jsscriptinlines_h___ */

@@ -2187,11 +2187,6 @@ nsHTMLMediaElement::CanPlayType(const nsAString& aType, nsAString& aResult)
     aResult.AssignLiteral("maybe");
     break;
   }
-
-  LOG(PR_LOG_DEBUG, ("%p CanPlayType(%s) = \"%s\"", this,
-                     NS_ConvertUTF16toUTF8(aType).get(),
-                     NS_ConvertUTF16toUTF8(aResult).get()));
-
   return NS_OK;
 }
 
@@ -2364,9 +2359,6 @@ nsresult nsHTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
   aDecoder->SetAudioChannelType(mAudioChannelType);
   aDecoder->SetAudioCaptured(mAudioCaptured);
   aDecoder->SetVolume(mMuted ? 0.0 : mVolume);
-  aDecoder->SetPreservesPitch(mPreservesPitch);
-  aDecoder->SetPlaybackRate(mPlaybackRate);
-
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
     aDecoder->AddOutputStream(ms->mStream->GetStream()->AsProcessedStream(),
@@ -3589,9 +3581,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetMozPreservesPitch(bool* aPreservesPitch)
 NS_IMETHODIMP nsHTMLMediaElement::SetMozPreservesPitch(bool aPreservesPitch)
 {
   mPreservesPitch = aPreservesPitch;
-  if (mDecoder) {
-    mDecoder->SetPreservesPitch(mPreservesPitch);
-  }
+  mDecoder->SetPreservesPitch(aPreservesPitch);
   return NS_OK;
 }
 

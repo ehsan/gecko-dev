@@ -74,10 +74,8 @@ class AndroidImportPreference extends MultiChoicePreference {
                                 true);
 
         final Runnable stopCallback = new Runnable() {
-            @Override
             public void run() {
                 GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-                    @Override
                     public void run() {
                         dialog.dismiss();
                     }
@@ -89,7 +87,6 @@ class AndroidImportPreference extends MultiChoicePreference {
             // Constructing AndroidImport may need finding the profile,
             // which hits disk, so it needs to go into a Runnable too.
             new Runnable() {
-                @Override
                 public void run() {
                     new AndroidImport(mContext, stopCallback, doBookmarks, doHistory).run();
                 }

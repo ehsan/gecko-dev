@@ -8,8 +8,7 @@
 #if (QT_VERSION < QT_VERSION_CHECK(5,0,0))
 #  include <QX11Info>
 #else
-#  include <qpa/qplatformnativeinterface.h>
-#  include <qpa/qplatformintegration.h>
+#  include <QPlatformNativeInterface>
 #endif
 #include <QApplication>
 #include <QDesktopWidget>

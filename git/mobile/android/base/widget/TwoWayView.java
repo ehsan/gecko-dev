@@ -3784,7 +3784,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    @TargetApi(14)
+    @TargetApi(11)
     private SparseBooleanArray cloneCheckStates() {
         if (mCheckStates == null) {
             return null;
@@ -3792,7 +3792,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
         SparseBooleanArray checkedStates;
 
-        if (Build.VERSION.SDK_INT >= 14) {
+        if (Build.VERSION.SDK_INT >= 11) {
             checkedStates = mCheckStates.clone();
         } else {
             checkedStates = new SparseBooleanArray();

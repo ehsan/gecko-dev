@@ -20,7 +20,7 @@ function runTest() {
   browserElementTestHelpers.addPermission();
 
   iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   iframe.addEventListener('mozbrowserloadend', loadend);
   iframe.src = 'data:text/html,<html>' +

@@ -123,7 +123,6 @@ class RemoteAutomation(Automation):
         if javaException:
             return True
         try:
-            dumpDir = tempfile.mkdtemp()
             remoteCrashDir = self._remoteProfile + '/minidumps/'
             if not self._devicemanager.dirExists(remoteCrashDir):
                 # As of this writing, the minidumps directory is automatically
@@ -132,6 +131,7 @@ class RemoteAutomation(Automation):
                 print "Automation Error: No crash directory (%s) found on remote device" % remoteCrashDir
                 # Whilst no crash was found, the run should still display as a failure
                 return True
+            dumpDir = tempfile.mkdtemp()
             self._devicemanager.getDirectory(remoteCrashDir, dumpDir)
             crashed = automationutils.checkForCrashes(dumpDir, symbolsPath,
                                             self.lastTestSeen)

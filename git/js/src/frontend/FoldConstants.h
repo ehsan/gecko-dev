@@ -26,11 +26,9 @@ namespace frontend {
 //        return false;
 //    if (!FoldConstants(cx, &pn, parser))
 //        return false;
-template <typename ParseHandler>
 bool
-FoldConstants(JSContext *cx, typename ParseHandler::Node *pnp,
-              Parser<ParseHandler> *parser,
-              bool inGenexpLambda = false, bool inCond = false);
+FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inGenexpLambda = false,
+              bool inCond = false);
 
 } /* namespace frontend */
 } /* namespace js */

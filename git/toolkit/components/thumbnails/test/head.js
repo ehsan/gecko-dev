@@ -3,8 +3,8 @@
 
 let tmp = {};
 Cu.import("resource://gre/modules/PageThumbs.jsm", tmp);
-Cu.import("resource:///modules/sessionstore/SessionStore.jsm", tmp);
-let {PageThumbs, PageThumbsStorage, SessionStore} = tmp;
+let PageThumbs = tmp.PageThumbs;
+let PageThumbsStorage = tmp.PageThumbsStorage;
 
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
@@ -29,15 +29,12 @@ let TestRunner = {
    */
   run: function () {
     waitForExplicitFinish();
+    this._iter = runTests();
 
-    SessionStore.promiseInitialized.then(function () {
-      this._iter = runTests();
-      if (this._iter) {
-        this.next();
-      } else {
-        finish();
-      }
-    }.bind(this));
+    if (this._iter)
+      this.next();
+    else
+      finish();
   },
 
   /**
@@ -105,20 +102,19 @@ function captureAndCheckColor(aRed, aGreen, aBlue, aMessage) {
 
   // Capture the screenshot.
   PageThumbs.captureAndStore(browser, function () {
-    retrieveImageDataForURL(browser.currentURI.spec, function ([r, g, b]) {
-      is("" + [r,g,b], "" + [aRed, aGreen, aBlue], aMessage);
-      next();
-    });
+    checkThumbnailColor(browser.currentURI.spec, aRed, aGreen, aBlue, aMessage);
   });
 }
 
 /**
- * For a given URL, loads the corresponding thumbnail
- * to a canvas and passes its image data to the callback.
- * @param aURL The url associated with the thumbnail.
- * @param aCallback The function to pass the image data to.
+ * Retrieve a thumbnail from the cache and compare its pixel color values.
+ * @param aURL The URL of the thumbnail's page.
+ * @param aRed The red component's intensity.
+ * @param aGreen The green component's intensity.
+ * @param aBlue The blue component's intensity.
+ * @param aMessage The info message to print when comparing the pixel color.
  */
-function retrieveImageDataForURL(aURL, aCallback) {
+function checkThumbnailColor(aURL, aRed, aGreen, aBlue, aMessage) {
   let width = 100, height = 100;
   let thumb = PageThumbs.getThumbnailURL(aURL, width, height);
 
@@ -134,8 +130,23 @@ function retrieveImageDataForURL(aURL, aCallback) {
     // Draw the image to a canvas and compare the pixel color values.
     let ctx = canvas.getContext("2d");
     ctx.drawImage(img, 0, 0, width, height);
-    aCallback(ctx.getImageData(0, 0, 100, 100).data);
+    checkCanvasColor(ctx, aRed, aGreen, aBlue, aMessage);
+
+    next();
   });
+}
+
+/**
+ * Checks the top-left pixel of a given canvas' 2d context for a given color.
+ * @param aContext The 2D context of a canvas.
+ * @param aRed The red component's intensity.
+ * @param aGreen The green component's intensity.
+ * @param aBlue The blue component's intensity.
+ * @param aMessage The info message to print when comparing the pixel color.
+ */
+function checkCanvasColor(aContext, aRed, aGreen, aBlue, aMessage) {
+  let [r, g, b] = aContext.getImageData(0, 0, 1, 1).data;
+  ok(r == aRed && g == aGreen && b == aBlue, aMessage);
 }
 
 /**

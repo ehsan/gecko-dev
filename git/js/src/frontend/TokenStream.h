@@ -379,6 +379,8 @@ enum TokenStreamFlags
     TSF_IN_HTML_COMMENT = 0x2000
 };
 
+struct Parser;
+
 struct CompileError {
     JSContext *cx;
     JSErrorReport report;
@@ -404,11 +406,15 @@ StrictModeFromContext(JSContext *cx)
 // TokenStream needs to see it.
 //
 // This class is a tiny back-channel from TokenStream to the strict mode flag
-// that avoids exposing the rest of SharedContext to TokenStream.
+// that avoids exposing the rest of SharedContext to TokenStream. get()
+// returns the current strictness.
 //
 class StrictModeGetter {
+    Parser *parser;
   public:
-    virtual bool strictMode() = 0;
+    StrictModeGetter(Parser *p) : parser(p) { }
+
+    bool get() const;
 };
 
 class TokenStream
@@ -483,18 +489,17 @@ class TokenStream
     // General-purpose error reporters.  You should avoid calling these
     // directly, and instead use the more succinct alternatives (e.g.
     // reportError()) in TokenStream, Parser, and BytecodeEmitter.
-    bool reportCompileErrorNumberVA(const TokenPos &pos, unsigned flags, unsigned errorNumber,
+    bool reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned errorNumber,
                                     va_list args);
-    bool reportStrictModeErrorNumberVA(const TokenPos &pos, bool strictMode, unsigned errorNumber,
+    bool reportStrictModeErrorNumberVA(ParseNode *pn, bool strictMode, unsigned errorNumber,
                                        va_list args);
-    bool reportStrictWarningErrorNumberVA(const TokenPos &pos, unsigned errorNumber,
-                                          va_list args);
+    bool reportStrictWarningErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args);
 
   private:
     // These are private because they should only be called by the tokenizer
     // while tokenizing not by, for example, BytecodeEmitter.
     bool reportStrictModeError(unsigned errorNumber, ...);
-    bool strictMode() const { return strictModeGetter && strictModeGetter->strictMode(); }
+    bool strictMode() const { return strictModeGetter && strictModeGetter->get(); }
 
     void onError();
     static JSAtom *atomize(JSContext *cx, CharBuffer &cb);

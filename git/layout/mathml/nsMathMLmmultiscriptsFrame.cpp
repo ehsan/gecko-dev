@@ -359,11 +359,11 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
     childFrame = childFrame->GetNextSibling();
   }
   // note: width=0 if all sup-sub pairs match correctly
-  if ((0 != width) || !baseFrame) {
+  if ((0 != width) || !baseFrame || !subScriptFrame || !supScriptFrame) {
     // report an error, encourage people to get their markups in order
     if (aPlaceOrigin) {
-      if (!baseFrame) {
-        ReportErrorToConsole("NoBase");
+      if (count <= 1 || (count == 2 && mprescriptsFrame)) {
+        ReportErrorToConsole("NoSubSup");
       } else {
         ReportErrorToConsole("SubSupMismatch");
       }

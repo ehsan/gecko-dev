@@ -3115,10 +3115,6 @@ JSTerm.prototype = {
       switch (aEvent.charCode) {
         case 97:
           // control-a
-          if (Services.appinfo.OS == "WINNT") {
-            closePopup = true;
-            break;
-          }
           let lineBeginPos = 0;
           if (this.hasMultilineInput()) {
             // find index of closest newline <= to cursor
@@ -3136,9 +3132,6 @@ JSTerm.prototype = {
           break;
         case 101:
           // control-e
-          if (Services.appinfo.OS == "WINNT") {
-            break;
-          }
           let lineEndPos = inputNode.value.length;
           if (this.hasMultilineInput()) {
             // find index of closest newline >= cursor

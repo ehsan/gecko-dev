@@ -252,7 +252,6 @@ public class testBrowserProviderPerf extends ContentProviderTest {
         mProvider.bulkInsert(mFaviconsUri, faviconEntries);
     }
 
-    @Override
     public void setUp() throws Exception {
         super.setUp("@ANDROID_PACKAGE_NAME@.db.BrowserProvider", "AUTHORITY");
 

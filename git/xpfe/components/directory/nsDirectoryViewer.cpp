@@ -51,7 +51,6 @@
 #include "nsXPCOMCID.h"
 #include "nsIDocument.h"
 #include "mozilla/Preferences.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -158,7 +157,7 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_OK);
 
-    AutoPushJSContext cx(context->GetNativeContext());
+    JSContext* cx = context->GetNativeContext();
     NS_ENSURE_TRUE(cx, NS_OK);
 
     JSObject* global = JS_GetGlobalObject(cx);
@@ -236,7 +235,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-    AutoPushJSContext cx(context->GetNativeContext());
+    JSContext* cx = context->GetNativeContext();
     JSObject* global = JS_GetGlobalObject(cx);
 
     // Using XPConnect, wrap the HTTP index object...

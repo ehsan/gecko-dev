@@ -9,11 +9,8 @@
 #include "nsIFrameLoader.h"
 #include "nsIMozBrowserFrame.h"
 #include "nsIDOMEventListener.h"
-#include "mozilla/ErrorResult.h"
 
 #include "nsFrameLoader.h"
-
-class nsXULElement;
 
 /**
  * A helper class for frame elements
@@ -62,8 +59,6 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGenericHTMLFrameElement,
                                                      nsGenericHTMLElement)
-
-  void SwapFrameLoaders(nsXULElement& aOtherOwner, mozilla::ErrorResult& aError);
 
 protected:
   /**

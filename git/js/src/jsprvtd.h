@@ -160,11 +160,9 @@ struct Token;
 struct TokenPos;
 struct TokenPtr;
 class TokenStream;
+struct Parser;
 class ParseMapPool;
 struct ParseNode;
-
-template <typename ParseHandler>
-struct Parser;
 
 } /* namespace frontend */
 

@@ -567,7 +567,7 @@ var BrowserApp = {
 
     let tab = this.selectedTab;
     if (!tab)
-      return false;
+      return true;
     return tab.contentDocumentIsDisplayed;
   },
 
@@ -2950,7 +2950,7 @@ Tab.prototype = {
       sendMessageToJava({
         type: "DesktopMode:Changed",
         desktopMode: aDesktopMode,
-        tabID: this.id
+        tabId: this.id
       });
     }
 

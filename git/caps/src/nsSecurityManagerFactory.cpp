@@ -26,7 +26,6 @@
 #include "nsIDocument.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
-#include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
@@ -65,7 +64,7 @@ static JSFunctionSpec PrivilegeManager_static_methods[] = {
 NS_IMETHODIMP 
 nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
 {
-    AutoPushJSContext cx(aScriptContext->GetNativeContext());
+    JSContext* cx = aScriptContext->GetNativeContext();
     JSObject *global = JS_ObjectToInnerObject(cx, JS_GetGlobalObject(cx));
 
     /*

@@ -801,7 +801,7 @@ jsval InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID
     return JSVAL_NULL;
   }
 
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  JSContext *cx = scriptContext->GetNativeContext();
   if (!cx) {
     return JSVAL_NULL;
   }
@@ -853,7 +853,7 @@ jsval StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
     return JSVAL_NULL;
   }
 
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  JSContext *cx = scriptContext->GetNativeContext();
   if (!cx) {
     return JSVAL_NULL;
   }

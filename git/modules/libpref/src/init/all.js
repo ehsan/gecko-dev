@@ -3982,6 +3982,7 @@ pref("alerts.disableSlidingEffect", false);
 // DOM full-screen API.
 pref("full-screen-api.enabled", false);
 pref("full-screen-api.allow-trusted-requests-only", true);
+pref("full-screen-api.exit-on-deactivate", true);
 pref("full-screen-api.pointer-lock.enabled", true);
 
 // DOM idle observers API
@@ -4114,8 +4115,6 @@ pref("wap.UAProf.tagname", "x-wap-profile");
 //automatic: Automatic retrieval mode.
 //never: Never retrieval mode.
 pref("dom.mms.retrieval_mode", "manual");
-pref("dom.mms.retrievalRetryCount", 3);
-pref("dom.mms.retrievalRetryInterval", 300000);
 
 // If the user puts a finger down on an element and we think the user
 // might be executing a pan gesture, how long do we wait before

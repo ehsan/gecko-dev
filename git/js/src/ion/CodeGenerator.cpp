@@ -4423,6 +4423,8 @@ CodeGenerator::link()
     if (executionMode == ParallelExecution)
         ionScript->zeroParallelInvalidatedScripts();
 
+    linkAbsoluteLabels();
+
     // The correct state for prebarriers is unknown until the end of compilation,
     // since a GC can occur during code generation. All barriers are emitted
     // off-by-default, and are toggled on here if necessary.

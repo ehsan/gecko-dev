@@ -313,6 +313,9 @@ class CodeGeneratorShared : public LInstructionVisitor
     bool addOutOfLineCode(OutOfLineCode *code);
     bool generateOutOfLineCode();
 
+    void linkAbsoluteLabels() {
+    }
+
   private:
     void generateInvalidateEpilogue();
 

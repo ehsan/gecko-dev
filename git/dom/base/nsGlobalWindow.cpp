@@ -1339,7 +1339,7 @@ nsGlobalWindow::FreeInnerObjects()
 
   // Kill all of the workers for this window.
   nsIScriptContext *scx = GetContextInternal();
-  AutoPushJSContext cx(scx ? scx->GetNativeContext() : nullptr);
+  JSContext *cx = scx ? scx->GetNativeContext() : nullptr;
   mozilla::dom::workers::CancelWorkersForWindow(cx, this);
 
   // Close all IndexedDB databases for this window.
@@ -1893,7 +1893,7 @@ NS_IMPL_ISUPPORTS1(WindowStateHolder, WindowStateHolder)
 nsresult
 nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
 {
-  AutoPushJSContext cx(mContext->GetNativeContext());
+  JSContext* cx = mContext->GetNativeContext();
 
   JSObject* outer = NewOuterWindowProxy(cx, aNewInner->FastGetGlobalJSObject(),
                                         IsChromeWindow());
@@ -2077,7 +2077,9 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   bool thisChrome = IsChromeWindow();
 
   nsCxPusher cxPusher;
-  cxPusher.Push(cx);
+  if (!cxPusher.Push(cx)) {
+    return NS_ERROR_FAILURE;
+  }
 
   XPCAutoRequest ar(cx);
 
@@ -2995,10 +2997,11 @@ nsGlobalWindow::SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin)
 nsresult
 nsGlobalWindow::DefineArgumentsProperty(nsIArray *aArguments)
 {
+  JSContext *cx;
   nsIScriptContext *ctx = GetOuterWindowInternal()->mContext;
-  NS_ENSURE_TRUE(aArguments && ctx, NS_ERROR_NOT_INITIALIZED);
-  AutoPushJSContext cx(ctx->GetNativeContext());
-  NS_ENSURE_TRUE(cx, NS_ERROR_NOT_INITIALIZED);
+  NS_ENSURE_TRUE(aArguments && ctx &&
+                 (cx = ctx->GetNativeContext()),
+                 NS_ERROR_NOT_INITIALIZED);
 
   if (mIsModalContentWindow) {
     // Modal content windows don't have an "arguments" property, they
@@ -4728,7 +4731,7 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
   GetFullScreen(&rootWinFullScreen);
   // Only chrome can change our fullScreen mode, unless we're running in
   // untrusted mode.
-  if (aFullScreen == rootWinFullScreen ||
+  if (aFullScreen == rootWinFullScreen || 
       (aRequireTrust && !nsContentUtils::IsCallerChrome())) {
     return NS_OK;
   }
@@ -4789,8 +4792,7 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
     // DOM full-screen mode and the user exits full-screen mode with
     // the browser full-screen mode toggle keyboard-shortcut, we'll detect
     // that and leave DOM API full-screen mode too.
-    nsCOMPtr<nsIDocument> doc(do_QueryInterface(mDocument));
-    nsIDocument::ExitFullscreen(doc, /* async */ false);
+    nsIDocument::ExitFullScreen(false);
   }
 
   if (!mWakeLock && mFullScreen) {
@@ -6485,10 +6487,25 @@ PostMessageEvent::Run()
                     "should have been passed an outer window!");
 
   // Get the JSContext for the target window
+  JSContext* cx = nullptr;
   nsIScriptContext* scriptContext = mTargetWindow->GetContext();
-  AutoPushJSContext cx(scriptContext ? scriptContext->GetNativeContext()
-                                     : nsContentUtils::GetSafeJSContext());
-  MOZ_ASSERT(cx);
+  if (scriptContext) {
+    cx = scriptContext->GetNativeContext();
+  }
+
+  if (!cx) {
+    // This can happen if mTargetWindow has been closed.  To avoid leaking,
+    // we need to find a JSContext.
+    nsIThreadJSContextStack* cxStack = nsContentUtils::ThreadJSContextStack();
+    if (cxStack) {
+      cx = cxStack->GetSafeJSContext();
+    }
+
+    if (!cx) {
+      NS_WARNING("Cannot find a JSContext!  Leaking PostMessage buffer.");
+      return NS_ERROR_FAILURE;
+    }
+  }
 
   // If we bailed before this point we're going to leak mMessage, but
   // that's probably better than crashing.
@@ -9944,8 +9961,7 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     uint32_t lineNo = 0;
     handler->GetLocation(&filename, &lineNo);
 
-    AutoPushJSContext cx(aScx->GetNativeContext());
-    JS::CompileOptions options(cx);
+    JS::CompileOptions options(aScx->GetNativeContext());
     options.setFileAndLine(filename, lineNo)
            .setVersion(JSVERSION_DEFAULT);
     aScx->EvaluateString(nsDependentString(script), *FastGetGlobalJSObject(),
@@ -10738,7 +10754,7 @@ nsGlobalWindow::SuspendTimeouts(uint32_t aIncrease,
 
     // Suspend all of the workers for this window.
     nsIScriptContext *scx = GetContextInternal();
-    AutoPushJSContext cx(scx ? scx->GetNativeContext() : nullptr);
+    JSContext *cx = scx ? scx->GetNativeContext() : nullptr;
     mozilla::dom::workers::SuspendWorkersForWindow(cx, this);
 
     TimeStamp now = TimeStamp::Now();
@@ -10818,7 +10834,7 @@ nsGlobalWindow::ResumeTimeouts(bool aThawChildren)
 
     // Resume all of the workers for this window.
     nsIScriptContext *scx = GetContextInternal();
-    AutoPushJSContext cx(scx ? scx->GetNativeContext() : nullptr);
+    JSContext *cx = scx ? scx->GetNativeContext() : nullptr;
     mozilla::dom::workers::ResumeWorkersForWindow(cx, this);
 
     // Restore all of the timeouts, using the stored time remaining
@@ -11320,7 +11336,7 @@ nsGlobalChromeWindow::GetMessageManager(nsIMessageBroadcaster** aManager)
   if (!mMessageManager) {
     nsIScriptContext* scx = GetContextInternal();
     NS_ENSURE_STATE(scx);
-    AutoPushJSContext cx(scx->GetNativeContext());
+    JSContext* cx = scx->GetNativeContext();
     NS_ENSURE_STATE(cx);
     nsCOMPtr<nsIMessageBroadcaster> globalMM =
       do_GetService("@mozilla.org/globalmessagemanager;1");

@@ -13,6 +13,7 @@
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "nsIAccessibleEvent.h"
+#include "nsIAccessibleRelation.h"
 #include "nsWinUtils.h"
 #include "ServiceProvider.h"
 #include "Relation.h"
@@ -1047,8 +1048,9 @@ AccessibleWrap::get_nRelations(long *aNRelations)
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  for (unsigned int idx = 0; idx < ArrayLength(sRelationTypesForIA2); idx++) {
-    Relation rel = RelationByType(sRelationTypesForIA2[idx]);
+  for (uint32_t relType = nsIAccessibleRelation::RELATION_FIRST;
+       relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
+    Relation rel = RelationByType(relType);
     if (rel.Next())
       (*aNRelations)++;
   }
@@ -1072,8 +1074,8 @@ AccessibleWrap::get_relation(long aRelationIndex,
     return CO_E_OBJNOTCONNECTED;
 
   long relIdx = 0;
-  for (unsigned int idx = 0; idx < ArrayLength(sRelationTypesForIA2); idx++) {
-    uint32_t relType = sRelationTypesForIA2[idx];
+  for (uint32_t relType = nsIAccessibleRelation::RELATION_FIRST;
+       relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
     Relation rel = RelationByType(relType);
     nsRefPtr<ia2AccessibleRelation> ia2Relation =
       new ia2AccessibleRelation(relType, &rel);
@@ -1107,9 +1109,9 @@ AccessibleWrap::get_relations(long aMaxRelations,
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  for (unsigned int idx = 0; idx < ArrayLength(sRelationTypesForIA2) &&
-       *aNRelations < aMaxRelations; idx++) {
-    uint32_t relType = sRelationTypesForIA2[idx];
+  for (uint32_t relType = nsIAccessibleRelation::RELATION_FIRST;
+       relType <= nsIAccessibleRelation::RELATION_LAST &&
+       *aNRelations < aMaxRelations; relType++) {
     Relation rel = RelationByType(relType);
     nsRefPtr<ia2AccessibleRelation> ia2Rel =
       new ia2AccessibleRelation(relType, &rel);

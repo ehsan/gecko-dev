@@ -223,8 +223,9 @@ pref("accessibility.browsewithcaret", false);
 // successfully applied.
 pref("app.update.showInstalledUI", false);
 
-// Whether the character encoding options are displayed in the app bar.
-pref("browser.menu.showCharacterEncoding", false);
+// Whether the character encoding menu is under the main Firefox button. This
+// preference is a string so that localizers can alter it.
+pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.properties");
 pref("intl.charsetmenu.browser.static", "chrome://browser/locale/browser.properties");
 
 // pointer to the default engine name

@@ -250,9 +250,6 @@ private:
                                                const NativeThreadId& tid,
                                                const uint32_t& processType);
 
-    virtual bool RecvGetRandomValues(const uint32_t& length,
-                                     InfallibleTArray<uint8_t>* randomValues);
-
     virtual PHalParent* AllocPHal() MOZ_OVERRIDE;
     virtual bool DeallocPHal(PHalParent*) MOZ_OVERRIDE;
 
@@ -342,8 +339,7 @@ private:
                                           const nsString& aFilePath,
                                           const nsCString& aReason);
 
-    virtual bool RecvAddGeolocationListener(const IPC::Principal& aPrincipal,
-                                            const bool& aHighAccuracy);
+    virtual bool RecvAddGeolocationListener(const IPC::Principal& aPrincipal);
     virtual bool RecvRemoveGeolocationListener();
     virtual bool RecvSetGeolocationHigherAccuracy(const bool& aEnable);
 

@@ -290,7 +290,7 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AutoPushJSContext cx(boundContext->GetNativeContext());
+  JSContext* cx = boundContext->GetNativeContext();
   JSAutoRequest ar(cx);
   JSObject* globalObject = boundGlobal->GetGlobalJSObject();
   JSObject* scopeObject = xpc::GetXBLScope(cx, globalObject);
@@ -370,7 +370,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   nsDependentString handlerText(mHandlerText);
   NS_ENSURE_TRUE(!handlerText.IsEmpty(), NS_ERROR_FAILURE);
 
-  AutoPushJSContext cx(aBoundContext->GetNativeContext());
+  JSContext* cx = aBoundContext->GetNativeContext();
   JSObject* globalObject = aGlobal->GetGlobalJSObject();
   JSObject* scopeObject = xpc::GetXBLScope(cx, globalObject);
 

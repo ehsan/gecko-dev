@@ -52,7 +52,6 @@ public class GeckoMenuInflater extends MenuInflater {
         isSubMenu = false;
     }
 
-    @Override
     public void inflate(int menuRes, Menu menu) {
 
         // This does not check for a well-formed XML.

@@ -603,11 +603,9 @@ TypeInferenceOracle::canEnterInlinedFunction(RawScript caller, jsbytecode *pc, R
     AssertCanGC();
     RootedScript targetScript(cx, target->nonLazyScript());
 
-    // Make sure empty script has type information, to allow inlining in more cases.
-    if (targetScript->length == 1) {
-        if (!targetScript->ensureRanInference(cx))
-            return false;
-    }
+    // Always permit the empty script.
+    if (targetScript->length == 1)
+        return true;
 
     if (!targetScript->hasAnalysis() ||
         !targetScript->analysis()->ranInference() ||

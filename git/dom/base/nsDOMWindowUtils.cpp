@@ -1440,15 +1440,13 @@ nsDOMWindowUtils::GetScrollXY(bool aFlushLayout, int32_t* aScrollX, int32_t* aSc
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetScrollbarSize(bool aFlushLayout, int32_t* aWidth,
-                                                      int32_t* aHeight)
+nsDOMWindowUtils::GetScrollbarWidth(bool aFlushLayout, int32_t* aResult)
 {
   if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  *aWidth = 0;
-  *aHeight = 0;
+  *aResult = 0;
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
@@ -1467,8 +1465,7 @@ nsDOMWindowUtils::GetScrollbarSize(bool aFlushLayout, int32_t* aWidth,
   NS_ENSURE_TRUE(scrollFrame, NS_OK);
 
   nsMargin sizes = scrollFrame->GetActualScrollbarSizes();
-  *aWidth = nsPresContext::AppUnitsToIntCSSPixels(sizes.LeftRight());
-  *aHeight = nsPresContext::AppUnitsToIntCSSPixels(sizes.TopBottom());
+  *aResult = nsPresContext::AppUnitsToIntCSSPixels(sizes.LeftRight());
 
   return NS_OK;
 }
@@ -2958,7 +2955,7 @@ nsDOMWindowUtils::ExitFullscreen()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsIDocument::ExitFullscreen(nullptr, /* async */ false);
+  nsIDocument::ExitFullScreen(/* async = */ false);
   return NS_OK;
 }
 
@@ -3011,9 +3008,8 @@ nsDOMWindowUtils::SelectAtPoint(float aX, float aY, uint32_t aSelectBehavior,
   }
 
   // Get the target frame at the client coordinates passed to us
-  nsPoint offset;
-  nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
-  nsIntPoint pt = ToWidgetPoint(aX, aY, offset, GetPresContext());
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  nsIntPoint pt(aX, aY);
   nsPoint ptInRoot =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(widget, pt, rootFrame);
   nsIFrame* targetFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, ptInRoot);

@@ -45,8 +45,6 @@
 #include "nsThreadUtils.h"
 #include "mozilla/dom/NodeListBinding.h"
 
-using namespace mozilla;
-
 // ==================================================================
 // = nsAnonymousContentList 
 // ==================================================================
@@ -1179,7 +1177,7 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
       if (!context)
         return NS_NOINTERFACE;
 
-      AutoPushJSContext jscontext(context->GetNativeContext());
+      JSContext* jscontext = context->GetNativeContext();
       if (!jscontext)
         return NS_NOINTERFACE;
 

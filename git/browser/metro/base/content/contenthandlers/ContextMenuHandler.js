@@ -91,9 +91,8 @@ var ContextMenuHandler = {
   _onContextAtPoint: function _onContextCommand(aMessage) {
     // we need to find popupNode as if the context menu were
     // invoked on underlying content.
-    let { element, frameX, frameY } =
-      elementFromPoint(aMessage.json.xPos, aMessage.json.yPos);
-    this._processPopupNode(element, frameX, frameY,
+    let elem = elementFromPoint(aMessage.json.xPos, aMessage.json.yPos);
+    this._processPopupNode(elem, aMessage.json.xPos, aMessage.json.yPos,
                            Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
   },
 
@@ -172,12 +171,7 @@ var ContextMenuHandler = {
       offsetX += rect.left;
       offsetY += rect.top;
     }
-    let win = null;
-    if (element == aPopupNode)
-      win = content;
-    else
-      win = element.contentDocument.defaultView;
-    return { targetWindow: win, offsetX: offsetX, offsetY: offsetY };
+    return { offsetX: offsetX, offsetY: offsetY };
   },
 
   /*
@@ -189,12 +183,8 @@ var ContextMenuHandler = {
   _processPopupNode: function _processPopupNode(aPopupNode, aX, aY, aInputSrc) {
     if (!aPopupNode)
       return;
-
-    let { targetWindow: targetWindow,
-          offsetX: offsetX,
-          offsetY: offsetY } =
+    let { offsetX: offsetX, offsetY: offsetY } =
       this._translateToTopLevelWindow(aPopupNode);
-
     let popupNode = this.popupNode = aPopupNode;
     let imageUrl = "";
 
@@ -308,9 +298,9 @@ var ContextMenuHandler = {
     if (isText) {
       // If this is text and has a selection, we want to bring
       // up the copy option on the context menu.
-      let selection = targetWindow.getSelection();
-      if (selection && selection.toString().length > 0) {
-        state.string = targetWindow.getSelection().toString();
+      if (content && content.getSelection() &&
+          content.getSelection().toString().length > 0) {
+        state.string = content.getSelection().toString();
         state.types.push("copy");
         state.types.push("selected-text");
       } else {
