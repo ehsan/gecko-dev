@@ -14,10 +14,6 @@ namespace mozilla {
 class WMFByteStream;
 class WMFSourceReaderCallback;
 
-namespace dom {
-class TimeRanges;
-}
-
 // Decoder backend for reading H.264/AAC in MP4/M4A and MP3 audio files,
 // using Windows Media Foundation.
 class WMFReader : public MediaDecoderReader
@@ -44,7 +40,7 @@ public:
                 int64_t aEndTime,
                 int64_t aCurrentTime) MOZ_OVERRIDE;
 
-  nsresult GetBuffered(mozilla::dom::TimeRanges* aBuffered,
+  nsresult GetBuffered(nsTimeRanges* aBuffered,
                        int64_t aStartTime) MOZ_OVERRIDE;
 
   void OnDecodeThreadStart() MOZ_OVERRIDE;

@@ -232,8 +232,6 @@ interface TestExampleInterface {
   sequence<any> receiveAnySequence();
   sequence<any>? receiveNullableAnySequence();
 
-  void passSequenceOfSequences(sequence<sequence<long>> arg);
-
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
   void passNullableArrayBuffer(ArrayBuffer? arg);

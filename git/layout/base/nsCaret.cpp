@@ -35,7 +35,6 @@
 #include "nsThemeConstants.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/Selection.h"
 #include <algorithm>
 
 // The bidi indicator hangs off the caret to one side, to show which
@@ -1128,14 +1127,15 @@ void nsCaret::CaretBlinkCallback(nsITimer *aTimer, void *aClosure)
 
 
 //-----------------------------------------------------------------------------
-nsFrameSelection*
+already_AddRefed<nsFrameSelection>
 nsCaret::GetFrameSelection()
 {
-  nsCOMPtr<nsISelection> sel = do_QueryReferent(mDomSelectionWeak);
-  if (!sel)
+  nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryReferent(mDomSelectionWeak));
+  if (!privateSelection)
     return nullptr;
-
-  return static_cast<Selection*>(sel.get())->GetFrameSelection();
+  nsFrameSelection* frameSelection = nullptr;
+  privateSelection->GetFrameSelection(&frameSelection);
+  return frameSelection;
 }
 
 void

@@ -234,14 +234,15 @@ public class AwesomeBarTabs extends TabHost
                     view.resetTheme();
             }
 
-            if (i < (selIndex - 1))
-                view.getBackground().setLevel(3);
-            else if (i == (selIndex - 1))
+            if (i == selIndex)
+                continue;
+
+            if (i == (selIndex - 1))
                 view.getBackground().setLevel(1);
             else if (i == (selIndex + 1))
                 view.getBackground().setLevel(2);
-            else if (i > (selIndex + 1))
-                view.getBackground().setLevel(4);
+            else
+                view.getBackground().setLevel(0);
         }
 
         if (selIndex == 0)

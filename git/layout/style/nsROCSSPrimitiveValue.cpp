@@ -7,8 +7,8 @@
 
 #include "nsROCSSPrimitiveValue.h"
 
-#include "mozilla/dom/CSSPrimitiveValueBinding.h"
 #include "nsContentUtils.h"
+#include "mozilla/dom/CSSPrimitiveValueBinding.h"
 #include "nsPresContext.h"
 #include "nsStyleUtil.h"
 #include "nsDOMCSSRGBColor.h"

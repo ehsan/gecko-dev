@@ -207,9 +207,7 @@ public class LayerView extends FrameLayout {
     }
 
     public void abortPanning() {
-        if (mPanZoomController != null) {
-            mPanZoomController.abortPanning();
-        }
+        mLayerClient.getPanZoomController().abortPanning();
     }
 
     public PointF convertViewPointToLayerPoint(PointF viewPoint) {
@@ -251,44 +249,36 @@ public class LayerView extends FrameLayout {
 
     @Override
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyPreIme(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyPreIme(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (mPanZoomController != null && mPanZoomController.onKeyEvent(event)) {
-            return true;
-        }
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyDown(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyDown(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyLongPress(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyLongPress(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyMultiple(keyCode, repeatCount, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyMultiple(keyCode, repeatCount, event);
         return false;
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyUp(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyUp(keyCode, event);
         return false;
     }
 
@@ -488,16 +478,14 @@ public class LayerView extends FrameLayout {
     @Override
     public void setOverScrollMode(int overscrollMode) {
         super.setOverScrollMode(overscrollMode);
-        if (mPanZoomController != null) {
-            mPanZoomController.setOverScrollMode(overscrollMode);
-        }
+        if (mLayerClient != null)
+            mLayerClient.getPanZoomController().setOverScrollMode(overscrollMode);
     }
 
     @Override
     public int getOverScrollMode() {
-        if (mPanZoomController != null) {
-            return mPanZoomController.getOverScrollMode();
-        }
+        if (mLayerClient != null)
+            return mLayerClient.getPanZoomController().getOverScrollMode();
         return super.getOverScrollMode();
     }
 

@@ -3655,8 +3655,7 @@ nsSVGTextFrame2::GetSubStringLength(nsIContent* aContent,
   CharIterator chit(this, CharIterator::eAddressable, aContent);
   if (!chit.AdvanceToSubtree() ||
       !chit.Next(charnum) ||
-      chit.IsAfterSubtree() ||
-      chit.AtEnd()) {
+      chit.IsAfterSubtree()) {
     return 0.0f;
   }
   charnum = chit.TextElementCharIndex();
@@ -3755,8 +3754,7 @@ nsSVGTextFrame2::GetStartPositionOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
-      !it.Next(aCharNum) ||
-      it.AtEnd()) {
+      !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -3780,8 +3778,7 @@ nsSVGTextFrame2::GetEndPositionOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
-      !it.Next(aCharNum) ||
-      it.AtEnd()) {
+      !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -3818,8 +3815,7 @@ nsSVGTextFrame2::GetExtentOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
-      !it.Next(aCharNum) ||
-      it.AtEnd()) {
+      !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -3870,8 +3866,7 @@ nsSVGTextFrame2::GetRotationOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
-      !it.Next(aCharNum) ||
-      it.AtEnd()) {
+      !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 

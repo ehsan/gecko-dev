@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsRuleData.h"
+#include "nsCSSProps.h"
 #include "nsPresArena.h"
 
 #include "mozilla/StandardInteger.h"

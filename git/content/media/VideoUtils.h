@@ -127,11 +127,7 @@ private:
 class MediaResource;
 } // namespace mozilla
 
-namespace mozilla {
-namespace dom {
-class TimeRanges;
-}
-}
+class nsTimeRanges;
 
 // Estimates the buffered ranges of a MediaResource using a simple
 // (byteOffset/length)*duration method. Probably inaccurate, but won't
@@ -141,7 +137,7 @@ class TimeRanges;
 // aOutBuffered. Ranges are 0-normalized, i.e. in the range of (0,duration].
 void GetEstimatedBufferedTimeRanges(mozilla::MediaResource* aStream,
                                     int64_t aDurationUsecs,
-                                    mozilla::dom::TimeRanges* aOutBuffered);
+                                    nsTimeRanges* aOutBuffered);
 
 // Converts from number of audio frames (aFrames) to microseconds, given
 // the specified audio rate (aRate). Stores result in aOutUsecs. Returns true

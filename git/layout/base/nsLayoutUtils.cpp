@@ -78,7 +78,6 @@
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGTextFrame2.h"
 #include "nsStyleStructInlines.h"
-#include "nsStyleTransformMatrix.h"
 
 #include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"

@@ -5,8 +5,10 @@
 // A class that handles style system image loads (other image loads are handled
 // by the nodes in the content tree).
 
+#include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
+#include "nsInterfaceHashtable.h"
 #include "nsCSSValue.h"
 #include "imgIRequest.h"
 #include "imgIOnloadBlocker.h"

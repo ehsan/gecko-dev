@@ -15,10 +15,19 @@ const double radPerDegree = 2.0 * M_PI / 360.0;
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(SVGMatrix, mTransform)
+//----------------------------------------------------------------------
+// nsISupports methods:
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(SVGMatrix, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(SVGMatrix, Release)
+  NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(SVGMatrix, mTransform)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(SVGMatrix)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(SVGMatrix)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SVGMatrix)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::SVGMatrix) // pseudo-interface
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 DOMSVGTransform*
 SVGMatrix::GetParentObject() const
@@ -113,7 +122,7 @@ SVGMatrix::SetF(float aF, ErrorResult& rv)
 already_AddRefed<SVGMatrix>
 SVGMatrix::Multiply(SVGMatrix& aMatrix)
 {
-  nsRefPtr<SVGMatrix> matrix = new SVGMatrix(aMatrix.Matrix() * Matrix());
+  nsCOMPtr<SVGMatrix> matrix = new SVGMatrix(aMatrix.Matrix() * Matrix());
   return matrix.forget();
 }
 

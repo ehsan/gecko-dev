@@ -29,7 +29,7 @@
 #include "PowerManager.h"
 #include "nsIDOMWakeLock.h"
 #include "nsIPowerManagerService.h"
-#include "mozilla/dom/SmsManager.h"
+#include "SmsManager.h"
 #include "nsISmsService.h"
 #include "mozilla/Hal.h"
 #include "nsIWebNavigation.h"
@@ -69,6 +69,7 @@
 #include "nsIDOMGlobalPropertyInitializer.h"
 
 using namespace mozilla::dom::power;
+using namespace mozilla::dom::sms;
 
 // This should not be in the namespace.
 DOMCI_DATA(Navigator, mozilla::dom::Navigator)

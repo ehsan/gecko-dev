@@ -22,6 +22,7 @@
 #include "jstypes.h"
 #include "jsutil.h"
 #include "jsprf.h"
+#include "jswrapper.h"
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
@@ -40,7 +41,6 @@
 #include "jstypedarray.h"
 #include "jstypedarrayinlines.h"
 #include "jsworkers.h"
-#include "jswrapper.h"
 #include "jsperf.h"
 
 #include "builtin/TestingFunctions.h"

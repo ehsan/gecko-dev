@@ -53,6 +53,7 @@ PARALLEL_DIRS += [
     'quota',
     'settings',
     'mobilemessage',
+    'sms',
     'mms',
     'src',
     'time',

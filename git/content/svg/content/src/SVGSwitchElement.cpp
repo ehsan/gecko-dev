@@ -6,6 +6,7 @@
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/SVGSwitchElement.h"
+#include "DOMSVGTests.h"
 #include "nsIFrame.h"
 #include "nsSVGUtils.h"
 #include "mozilla/Preferences.h"
@@ -145,10 +146,10 @@ SVGSwitchElement::FindActiveChild() const
       if (!child->IsElement()) {
         continue;
       }
-      nsCOMPtr<SVGTests> tests(do_QueryInterface(child));
+      nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(child));
       if (tests) {
         if (tests->PassesConditionalProcessingTests(
-                            SVGTests::kIgnoreSystemLanguage)) {
+                            DOMSVGTests::kIgnoreSystemLanguage)) {
           int32_t languagePreferenceRank =
               tests->GetBestLanguagePreferenceRank(acceptLangs);
           switch (languagePreferenceRank) {
@@ -180,7 +181,7 @@ SVGSwitchElement::FindActiveChild() const
     if (!child->IsElement()) {
       continue;
     }
-    nsCOMPtr<SVGTests> tests(do_QueryInterface(child));
+    nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(child));
     if (!tests || tests->PassesConditionalProcessingTests(&acceptLangs)) {
       return child;
     }

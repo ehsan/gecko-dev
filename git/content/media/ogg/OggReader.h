@@ -17,11 +17,7 @@
 #include "OggCodecState.h"
 #include "VideoUtils.h"
 
-namespace mozilla {
-namespace dom {
-class TimeRanges;
-}
-}
+class nsTimeRanges;
 
 namespace mozilla {
 
@@ -53,7 +49,7 @@ public:
   virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime);
-  virtual nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime);
+  virtual nsresult GetBuffered(nsTimeRanges* aBuffered, int64_t aStartTime);
 
 private:
   // This monitor should be taken when reading or writing to mIsChained.

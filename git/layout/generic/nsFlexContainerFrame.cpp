@@ -9,7 +9,6 @@
 
 #include "nsFlexContainerFrame.h"
 #include "nsContentUtils.h"
-#include "nsCSSAnonBoxes.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 #include "nsPresContext.h"

@@ -7,7 +7,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "nsCSSAnonBoxes.h"
 #include "nsStyleConsts.h"
 #include "nsString.h"
 #include "nsPresContext.h"
@@ -19,6 +18,7 @@
 
 #include "nsRuleNode.h"
 #include "nsStyleContext.h"
+#include "prlog.h"
 #include "nsStyleAnimation.h"
 #include "sampler.h"
 

@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/Element.h"
 #include "nsComputedDOMStyle.h"
-#include "nsCSSProps.h"
 #include "nsIFrame.h"
 
 using namespace mozilla;

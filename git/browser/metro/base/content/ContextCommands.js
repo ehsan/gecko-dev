@@ -10,15 +10,6 @@
 var ContextCommands = {
   _picker: null,
 
-  get _ellipsis() {
-    delete this._ellipsis;
-    this._ellipsis = "\u2026";
-    try {
-      this._ellipsis = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data;
-    } catch (ex) { }
-    return this._ellipsis;
-  },
-
   get clipboard() {
     return Cc["@mozilla.org/widget/clipboardhelper;1"]
              .getService(Ci.nsIClipboardHelper);
@@ -107,7 +98,6 @@ var ContextCommands = {
   searchTextSetup: function cc_searchTextSetup(aRichListItem, aSearchString) {
     let defaultURI;
     let defaultName;
-    aSearchString = aSearchString.trim();
     try {
       let defaultPB = Services.prefs.getDefaultBranch(null);
       const nsIPLS = Ci.nsIPrefLocalizedString;
@@ -118,15 +108,11 @@ var ContextCommands = {
       Cu.reportError(ex);
       return false;
     }
-    let displayString = aSearchString;
-    if (displayString.length > 15) {
-      displayString = displayString.substring(0, 15) + this._ellipsis;
-    }
     // label child node
     let label = Services.strings
                         .createBundle("chrome://browser/locale/browser.properties")
-                        .formatStringFromName("browser.search.contextTextSearchLabel2",
-                                              [defaultName, displayString], 2);
+                        .formatStringFromName("browser.search.contextTextSearchLabel",
+                                              [defaultName], 1);
     aRichListItem.childNodes[0].setAttribute("value", label);
     aRichListItem.setAttribute("searchString", defaultURI);
     return true;
@@ -142,8 +128,7 @@ var ContextCommands = {
   // Link specific
 
   openLinkInNewTab: function cc_openLinkInNewTab() {
-    Browser.addTab(ContextMenuUI.popupState.linkURL, false, Browser.selectedTab);
-    ContextUI.peekTabs();
+    BrowserUI.newTab(ContextMenuUI.popupState.linkURL, Browser.selectedTab);
   },
 
   copyLink: function cc_copyLink() {
@@ -369,6 +354,7 @@ var ContextCommands = {
     var newDir = file.parent.QueryInterface(Ci.nsILocalFile);
     Services.prefs.setComplexValue("browser.download.lastDir", Ci.nsILocalFile, newDir);
   },
+
 };
 
 function AutoChosen(aFileAutoChosen, aUriAutoChosen) {

@@ -5,7 +5,9 @@
 
 #include <algorithm>
 
+#ifdef XP_MACOSX
 #include <fstream>
+#endif
 
 #include <prio.h>
 
@@ -1637,6 +1639,7 @@ IsValidBreakpadId(const std::string &breakpadId) {
 static void
 ReadStack(const char *aFileName, Telemetry::ProcessedStack &aStack)
 {
+#ifdef XP_MACOSX
   std::ifstream file(aFileName);
 
   size_t numModules;
@@ -1704,6 +1707,7 @@ ReadStack(const char *aFileName, Telemetry::ProcessedStack &aStack)
   }
 
   aStack = stack;
+#endif
 }
 
 void

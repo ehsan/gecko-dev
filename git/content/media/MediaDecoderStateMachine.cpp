@@ -15,7 +15,7 @@
 #include "MediaDecoderReader.h"
 #include "mozilla/mozalloc.h"
 #include "VideoUtils.h"
-#include "mozilla/dom/TimeRanges.h"
+#include "nsTimeRanges.h"
 #include "nsDeque.h"
 #include "AudioSegment.h"
 #include "VideoSegment.h"
@@ -1514,7 +1514,7 @@ void MediaDecoderStateMachine::NotifyDataArrived(const char* aBuffer,
   // faster than played, mEndTime won't reflect the end of playable data
   // since we haven't played the frame at the end of buffered data. So update
   // mEndTime here as new data is downloaded to prevent such a lag.
-  TimeRanges buffered;
+  nsTimeRanges buffered;
   if (mDecoder->IsInfinite() &&
       NS_SUCCEEDED(mDecoder->GetBuffered(&buffered)))
   {
@@ -1560,7 +1560,7 @@ void MediaDecoderStateMachine::Seek(double aTime)
   NS_ASSERTION(mEndTime != -1, "Should know end time by now");
   mSeekTime = std::min(mSeekTime, mEndTime);
   mSeekTime = std::max(mStartTime, mSeekTime);
-  mBasePosition = mSeekTime - mStartTime;
+  mBasePosition = mSeekTime;
   LOG(PR_LOG_DEBUG, ("%p Changed state to SEEKING (to %f)", mDecoder.get(), aTime));
   mState = DECODER_STATE_SEEKING;
   if (mDecoder->GetDecodedStream()) {
@@ -1760,7 +1760,7 @@ int64_t MediaDecoderStateMachine::GetUndecodedData() const
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
   NS_ASSERTION(mState > DECODER_STATE_DECODING_METADATA,
                "Must have loaded metadata for GetBuffered() to work");
-  TimeRanges buffered;
+  nsTimeRanges buffered;
   
   nsresult res = mDecoder->GetBuffered(&buffered);
   NS_ENSURE_SUCCESS(res, 0);
@@ -2587,7 +2587,7 @@ void MediaDecoderStateMachine::StartBuffering()
     stats.mDownloadRate/1024, stats.mDownloadRateReliable ? "" : " (unreliable)"));
 }
 
-nsresult MediaDecoderStateMachine::GetBuffered(TimeRanges* aBuffered) {
+nsresult MediaDecoderStateMachine::GetBuffered(nsTimeRanges* aBuffered) {
   MediaResource* resource = mDecoder->GetResource();
   NS_ENSURE_TRUE(resource, NS_ERROR_FAILURE);
   resource->Pin();
@@ -2766,11 +2766,11 @@ void MediaDecoderStateMachine::SetPlaybackRate(double aPlaybackRate)
   if (!HasAudio()) {
     // mBasePosition is a position in the video stream, not an absolute time.
     if (mState == DECODER_STATE_SEEKING) {
-      mBasePosition = mSeekTime - mStartTime;
+      mBasePosition = mSeekTime;
     } else {
       mBasePosition = GetVideoStreamPosition();
     }
-    mPlayDuration = mBasePosition;
+    mPlayDuration = mBasePosition - mStartTime;
     mResetPlayStartTime = true;
     mPlayStartTime = TimeStamp::Now();
   }

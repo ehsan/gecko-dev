@@ -10,10 +10,12 @@
 
 #include "mozilla/Attributes.h"
 
+#include "nsAString.h"
 #include "nsCSSProperty.h"
+#include "nsColor.h"
+#include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "nsStringFwd.h"
-#include "nsTArrayForwardDeclare.h"
+#include "nsTArray.h"
 
 class nsCSSStyleSheet;
 class nsIPrincipal;

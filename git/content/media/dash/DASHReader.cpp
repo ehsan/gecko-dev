@@ -12,7 +12,7 @@
  *
  * see DASHDecoder.cpp for info on DASH interaction with the media engine.*/
 
-#include "mozilla/dom/TimeRanges.h"
+#include "nsTimeRanges.h"
 #include "VideoFrameContainer.h"
 #include "AbstractMediaDecoder.h"
 #include "DASHReader.h"
@@ -308,7 +308,7 @@ DASHReader::Seek(int64_t aTime,
 }
 
 nsresult
-DASHReader::GetBuffered(TimeRanges* aBuffered,
+DASHReader::GetBuffered(nsTimeRanges* aBuffered,
                         int64_t aStartTime)
 {
   NS_ENSURE_ARG(aBuffered);
@@ -316,7 +316,7 @@ DASHReader::GetBuffered(TimeRanges* aBuffered,
   MediaResource* resource = nullptr;
   AbstractMediaDecoder* decoder = nullptr;
 
-  TimeRanges audioBuffered, videoBuffered;
+  nsTimeRanges audioBuffered, videoBuffered;
   uint32_t audioRangeCount = 0, videoRangeCount = 0;
   bool audioCachedAtEnd = false, videoCachedAtEnd = false;
 
@@ -427,7 +427,7 @@ DASHReader::GetBuffered(TimeRanges* aBuffered,
     videoEndTime = videoBuffered.GetFinalEndTime();
     NS_ENSURE_TRUE(videoEndTime > 0, NS_ERROR_ILLEGAL_VALUE);
 
-    // API for TimeRanges requires extending through adding and normalizing.
+    // API for nsTimeRanges requires extending through adding and normalizing.
     if (videoCachedAtEnd && audioEndTime > videoEndTime) {
       videoBuffered.Add(videoEndTime, audioEndTime);
       videoBuffered.Normalize();

@@ -6,6 +6,7 @@
 #ifndef nsLayoutStylesheetCache_h__
 #define nsLayoutStylesheetCache_h__
 
+#include "nsCOMPtr.h"
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"

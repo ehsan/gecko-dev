@@ -7,12 +7,16 @@
 
 #include "nsCoord.h"
 #include "nsCSSProperty.h"
+#include "gfxFontFeatures.h"
+#include "nsTArray.h"
+#include "nsCSSValue.h"
 
-class nsCSSValue;
+struct nsStyleBackground;
+class nsString;
 class nsStringComparator;
 class nsIContent;
-struct gfxFontFeature;
-template <class E> class nsTArray;
+
+
 
 // Style utility functions
 class nsStyleUtil {

@@ -7,7 +7,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "mozilla/Selection.h"
 #include "nsIFrame.h"
 #include "nsIContent.h"
 #include "nsISelectionController.h"
@@ -186,13 +185,13 @@ class nsIScrollableFrame;
  * or they may cause other objects to be deleted.
  */
 
-class nsFrameSelection MOZ_FINAL {
+class nsFrameSelection MOZ_FINAL : public nsISupports {
 public:
   enum HINT { HINTLEFT = 0, HINTRIGHT = 1};  //end of this line or beginning of next
   /*interfaces for addref and release and queryinterface*/
   
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsFrameSelection)
-  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsFrameSelection)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameSelection)
 
   /** Init will initialize the frame selector with the necessary pres shell to 
    *  be used by most of the methods

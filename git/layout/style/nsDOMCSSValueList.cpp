@@ -4,9 +4,11 @@
 
 /* DOM object representing lists of values in DOM computed style */
 
-#include "nsContentUtils.h"
 #include "nsDOMCSSValueList.h"
+#include "nsCOMPtr.h"
 #include "mozilla/dom/CSSValueListBinding.h"
+#include "nsError.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 

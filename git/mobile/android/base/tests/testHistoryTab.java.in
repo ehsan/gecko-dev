@@ -98,14 +98,25 @@ public class testHistoryTab extends PixelTest {
     }
 
     private void testList(String url) {
-        listview = getHistoryList("Today|Yesterday", 3);
-        mAsserter.isnot(listview,  null, "checking that history list exists and has 3 children");
+        listview = getHistoryList();
+
+        // Around midnight we will switch from Today -> Yesterday, account for both
+        if (!mSolo.waitForText("Today")) {
+            waitForText("Yesterday");
+        }
+
+        mAsserter.isnot(listview,  null, "checking that history list exists");
+
         final int count = listview.getAdapter().getCount();
+        mAsserter.is(count, 3, "history list has 3 children");
+
         String loadUrl = "";
         for (int i = count - 1; i >= 0; i--) {
             View child = listview.getChildAt(i);
+
             ArrayList<View> views = mSolo.getViews(child);
             ArrayList<ImageView> imageViews = new ArrayList<ImageView>();
+
             int expectedImages = 1;
             for (int j = 0; j < views.size(); j++) {
                 View v = views.get(j);
@@ -149,7 +160,7 @@ public class testHistoryTab extends PixelTest {
     }
 
     private void testContextMenu(String url) {
-        listview = getHistoryList("Today|Yesterday");
+        listview = getHistoryList();
         waitForText(url);
 
         // wait for the history list to be populated
@@ -202,7 +213,8 @@ public class testHistoryTab extends PixelTest {
     }
 
     private void testClick(String url) {
-        listview = getHistoryList("Today|Yesterday");
+        listview = getHistoryList();
+
         waitForText(url);
 
         View child = listview.getChildAt(0);
