@@ -307,11 +307,8 @@ struct JSObject : public js::ObjectImpl
      */
     bool setSlotSpan(JSContext *cx, uint32_t span);
 
-    inline bool nativeContains(JSContext *cx, js::HandleId id);
-    inline bool nativeContains(JSContext *cx, js::HandleShape shape);
-
-    inline bool nativeContainsNoAllocation(jsid id);
-    inline bool nativeContainsNoAllocation(const js::Shape &shape);
+    inline bool nativeContains(JSContext *cx, jsid id);
+    inline bool nativeContains(JSContext *cx, const js::Shape &shape);
 
     /* Upper bound on the number of elements in an object. */
     static const uint32_t NELEMENTS_LIMIT = JS_BIT(28);
@@ -513,8 +510,8 @@ struct JSObject : public js::ObjectImpl
     inline JSPrincipals *principals(JSContext *cx);
 
     /* Remove the type (and prototype) or parent from a new object. */
-    static inline bool clearType(JSContext *cx, js::HandleObject obj);
-    static bool clearParent(JSContext *cx, js::HandleObject obj);
+    inline bool clearType(JSContext *cx);
+    bool clearParent(JSContext *cx);
 
     /*
      * ES5 meta-object properties and operations.
@@ -1092,7 +1089,7 @@ extern const char js_lookupSetter_str[];
 #endif
 
 extern JSBool
-js_PopulateObject(JSContext *cx, js::HandleObject newborn, js::HandleObject props);
+js_PopulateObject(JSContext *cx, js::HandleObject newborn, JSObject *props);
 
 /*
  * Fast access to immutable standard objects (constructors and prototypes).
@@ -1120,7 +1117,7 @@ js_CreateThisForFunction(JSContext *cx, js::HandleObject callee, bool newType);
 
 // Generic call for constructing |this|.
 extern JSObject *
-js_CreateThis(JSContext *cx, js::Class *clasp, js::HandleObject callee);
+js_CreateThis(JSContext *cx, js::Class *clasp, JSObject *callee);
 
 /*
  * Find or create a property named by id in obj's scope, with the given getter
@@ -1198,7 +1195,7 @@ DefineProperty(JSContext *cx, js::HandleObject obj,
  * ES5 15.2.3.7 steps 3-5.
  */
 extern bool
-ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
+ReadPropertyDescriptors(JSContext *cx, JSObject *props, bool checkAccessors,
                         AutoIdVector *ids, AutoPropDescArrayRooter *descs);
 
 /*

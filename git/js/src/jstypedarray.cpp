@@ -1110,7 +1110,7 @@ class TypedArrayTemplate
     }
 
     static bool
-    setElementTail(JSContext *cx, HandleObject tarray, uint32_t index, Value *vp, JSBool strict)
+    setElementTail(JSContext *cx, JSObject *tarray, uint32_t index, Value *vp, JSBool strict)
     {
         JS_ASSERT(tarray);
         JS_ASSERT(index < length(tarray));
@@ -2342,20 +2342,21 @@ DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
     return construct(cx, bufobj, args, NULL);
 }
 
-/* static */ bool
-DataViewObject::getDataPointer(JSContext *cx, Handle<DataViewObject*> obj,
-                               CallArgs args, size_t typeSize, uint8_t **data)
+bool
+DataViewObject::getDataPointer(JSContext *cx, CallArgs args, size_t typeSize, uint8_t **data)
 {
+    JS_ASSERT(isDataView());
+
     uint32_t offset;
     JS_ASSERT(args.length() > 0);
     if (!ToUint32(cx, args[0], &offset))
         return false;
-    if (offset > UINT32_MAX - typeSize || offset + typeSize > obj->byteLength()) {
+    if (offset > UINT32_MAX - typeSize || offset + typeSize > byteLength()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_ARG_INDEX_OUT_OF_RANGE, "1");
         return false;
     }
 
-    *data = static_cast<uint8_t*>(obj->dataPointer()) + offset;
+    *data = static_cast<uint8_t*>(dataPointer()) + offset;
     return true;
 }
 
@@ -2434,9 +2435,8 @@ struct DataViewIO
 };
 
 template<typename NativeType>
-/* static */ bool
-DataViewObject::read(JSContext *cx, Handle<DataViewObject*> obj,
-                     CallArgs &args, NativeType *val, const char *method)
+bool
+DataViewObject::read(JSContext *cx, CallArgs &args, NativeType *val, const char *method)
 {
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -2445,7 +2445,7 @@ DataViewObject::read(JSContext *cx, Handle<DataViewObject*> obj,
     }
 
     uint8_t *data;
-    if (!getDataPointer(cx, obj, args, sizeof(NativeType), &data))
+    if (!getDataPointer(cx, args, sizeof(NativeType), &data))
         return false;
 
     bool fromLittleEndian = args.length() >= 2 && js_ValueToBoolean(args[1]);
@@ -2486,9 +2486,8 @@ WebIDLCast<double>(JSContext *cx, const Value &value, double *out)
 }
 
 template<typename NativeType>
-/* static */ bool
-DataViewObject::write(JSContext *cx, Handle<DataViewObject*> obj,
-                      CallArgs &args, const char *method)
+bool
+DataViewObject::write(JSContext *cx, CallArgs &args, const char *method)
 {
     if (args.length() < 2) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -2497,7 +2496,7 @@ DataViewObject::write(JSContext *cx, Handle<DataViewObject*> obj,
     }
 
     uint8_t *data;
-    if (!getDataPointer(cx, obj, args, sizeof(NativeType), &data))
+    if (!getDataPointer(cx, args, sizeof(NativeType), &data))
         return false;
 
     NativeType value;
@@ -2520,10 +2519,8 @@ DataViewObject::fun_getInt8(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     int8_t val;
-    if (!read(cx, thisView, args, &val, "getInt8"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getInt8"))
         return false;
     args.rval().setInt32(val);
     return true;
@@ -2540,10 +2537,8 @@ DataViewObject::fun_getUint8(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     uint8_t val;
-    if (!read(cx, thisView, args, &val, "getUint8"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getUint8"))
         return false;
     args.rval().setInt32(val);
     return true;
@@ -2560,10 +2555,8 @@ DataViewObject::fun_getInt16(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     int16_t val;
-    if (!read(cx, thisView, args, &val, "getInt16"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getInt16"))
         return false;
     args.rval().setInt32(val);
     return true;
@@ -2580,10 +2573,8 @@ DataViewObject::fun_getUint16(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     uint16_t val;
-    if (!read(cx, thisView, args, &val, "getUint16"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getUint16"))
         return false;
     args.rval().setInt32(val);
     return true;
@@ -2600,10 +2591,8 @@ DataViewObject::fun_getInt32(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     int32_t val;
-    if (!read(cx, thisView, args, &val, "getInt32"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getInt32"))
         return false;
     args.rval().setInt32(val);
     return true;
@@ -2620,10 +2609,8 @@ DataViewObject::fun_getUint32(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     uint32_t val;
-    if (!read(cx, thisView, args, &val, "getUint32"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getUint32"))
         return false;
     args.rval().setNumber(val);
     return true;
@@ -2640,10 +2627,8 @@ DataViewObject::fun_getFloat32(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     float val;
-    if (!read(cx, thisView, args, &val, "getFloat32"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getFloat32"))
         return false;
 
     args.rval().setDouble(JS_CANONICALIZE_NAN(val));
@@ -2661,10 +2646,8 @@ DataViewObject::fun_getFloat64(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
     double val;
-    if (!read(cx, thisView, args, &val, "getFloat64"))
+    if (!thisObj->asDataView().read(cx, args, &val, "getFloat64"))
         return false;
 
     args.rval().setDouble(JS_CANONICALIZE_NAN(val));
@@ -2682,9 +2665,7 @@ DataViewObject::fun_setInt8(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<int8_t>(cx, thisView, args, "setInt8"))
+    if (!thisObj->asDataView().write<int8_t>(cx, args, "setInt8"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2701,9 +2682,7 @@ DataViewObject::fun_setUint8(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<uint8_t>(cx, thisView, args, "setUint8"))
+    if (!thisObj->asDataView().write<uint8_t>(cx, args, "setUint8"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2720,9 +2699,7 @@ DataViewObject::fun_setInt16(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<int16_t>(cx, thisView, args, "setInt16"))
+    if (!thisObj->asDataView().write<int16_t>(cx, args, "setInt16"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2739,9 +2716,7 @@ DataViewObject::fun_setUint16(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<uint16_t>(cx, thisView, args, "setUint16"))
+    if (!thisObj->asDataView().write<uint16_t>(cx, args, "setUint16"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2758,9 +2733,7 @@ DataViewObject::fun_setInt32(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<int32_t>(cx, thisView, args, "setInt32"))
+    if (!thisObj->asDataView().write<int32_t>(cx, args, "setInt32"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2777,9 +2750,7 @@ DataViewObject::fun_setUint32(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<uint32_t>(cx, thisView, args, "setUint32"))
+    if (!thisObj->asDataView().write<uint32_t>(cx, args, "setUint32"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2796,9 +2767,7 @@ DataViewObject::fun_setFloat32(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<float>(cx, thisView, args, "setFloat32"))
+    if (!thisObj->asDataView().write<float>(cx, args, "setFloat32"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2815,9 +2784,7 @@ DataViewObject::fun_setFloat64(JSContext *cx, unsigned argc, Value *vp)
     if (!thisObj)
         return true;
 
-    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
-
-    if (!write<double>(cx, thisView, args, "setFloat64"))
+    if (!thisObj->asDataView().write<double>(cx, args, "setFloat64"))
         return false;
     args.rval().setUndefined();
     return true;

@@ -33,13 +33,13 @@ panel[type="arrow"] {
   -moz-appearance: none;
   background: transparent;
   border: none;
-  transition: opacity 300ms;
+  -moz-transition: opacity 300ms;
 }
 
 .panel-arrowcontainer[panelopen] {
-  transition-duration: 250ms;
-  transition-property: opacity;
-  transition-timing-function: ease-out;
+  -moz-transition-duration: 250ms;
+  -moz-transition-property: opacity;
+  -moz-transition-timing-function: ease-out;
 }
 
 .panel-arrowcontainer:not([panelopen]) {
@@ -81,7 +81,7 @@ panel[type="arrow"][side="right"] {
 }
 
 .panel-arrow[side="bottom"] {
-  transform: scaleY(-1);
+  -moz-transform: scaleY(-1);
   margin-top: -5px;
 }
 
@@ -98,7 +98,7 @@ panel[type="arrow"][side="right"] {
 }
 
 .panel-arrow[side="right"] {
-  transform: scaleX(-1);
+  -moz-transform: scaleX(-1);
   margin-left: -5px;
 }
 

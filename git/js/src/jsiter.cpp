@@ -615,7 +615,7 @@ VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVec
         types::MarkTypeObjectFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
     }
 
-    RootedObject iterobj(cx, NewIteratorObject(cx, flags));
+    JSObject *iterobj = NewIteratorObject(cx, flags);
     if (!iterobj)
         return false;
 
@@ -1598,122 +1598,92 @@ CloseGenerator(JSContext *cx, JSObject *obj)
     return SendToGenerator(cx, JSGENOP_CLOSE, obj, gen, UndefinedValue());
 }
 
+/*
+ * Common subroutine of generator_(next|send|throw|close) methods.
+ */
 static JSBool
-generator_send(JSContext *cx, unsigned argc, Value *vp)
+generator_op(JSContext *cx, Native native, JSGeneratorOp op, Value *vp, unsigned argc)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, generator_send, &GeneratorClass, &thisObj))
+    if (!NonGenericMethodGuard(cx, args, native, &GeneratorClass, &thisObj))
         return false;
     if (!thisObj)
         return true;
 
     JSGenerator *gen = (JSGenerator *) thisObj->getPrivate();
-    if (!gen || gen->state == JSGEN_CLOSED) {
+    if (!gen) {
         /* This happens when obj is the generator prototype. See bug 352885. */
-        return js_ThrowStopIteration(cx);
+        goto closed_generator;
     }
 
-    if (gen->state == JSGEN_NEWBORN && args.hasDefined(0)) {
-        js_ReportValueError(cx, JSMSG_BAD_GENERATOR_SEND,
-                            JSDVG_SEARCH_STACK, args[0], NULL);
-        return false;
+    if (gen->state == JSGEN_NEWBORN) {
+        switch (op) {
+          case JSGENOP_NEXT:
+          case JSGENOP_THROW:
+            break;
+
+          case JSGENOP_SEND:
+            if (args.hasDefined(0)) {
+                js_ReportValueError(cx, JSMSG_BAD_GENERATOR_SEND,
+                                    JSDVG_SEARCH_STACK, args[0], NULL);
+                return false;
+            }
+            break;
+
+          default:
+            JS_ASSERT(op == JSGENOP_CLOSE);
+            SetGeneratorClosed(cx, gen);
+            args.rval().setUndefined();
+            return true;
+        }
+    } else if (gen->state == JSGEN_CLOSED) {
+      closed_generator:
+        switch (op) {
+          case JSGENOP_NEXT:
+          case JSGENOP_SEND:
+            return js_ThrowStopIteration(cx);
+          case JSGENOP_THROW:
+            cx->setPendingException(args.length() >= 1 ? args[0] : UndefinedValue());
+            return false;
+          default:
+            JS_ASSERT(op == JSGENOP_CLOSE);
+            args.rval().setUndefined();
+            return true;
+        }
     }
 
-    if (!SendToGenerator(cx, JSGENOP_SEND, thisObj, gen,
-                         args.length() > 0 ? args[0] : UndefinedValue()))
-    {
+    bool undef = ((op == JSGENOP_SEND || op == JSGENOP_THROW) && args.length() != 0);
+    if (!SendToGenerator(cx, op, thisObj, gen, undef ? args[0] : UndefinedValue()))
         return false;
-    }
 
     args.rval() = gen->fp->returnValue();
     return true;
+}
 
+static JSBool
+generator_send(JSContext *cx, unsigned argc, Value *vp)
+{
+    return generator_op(cx, generator_send, JSGENOP_SEND, vp, argc);
 }
 
 static JSBool
 generator_next(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, generator_next, &GeneratorClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
-
-    JSGenerator *gen = (JSGenerator *) thisObj->getPrivate();
-    if (!gen || gen->state == JSGEN_CLOSED) {
-        /* This happens when obj is the generator prototype. See bug 352885. */
-        return js_ThrowStopIteration(cx);
-    }
-
-    if (!SendToGenerator(cx, JSGENOP_NEXT, thisObj, gen, UndefinedValue()))
-        return false;
-
-    args.rval() = gen->fp->returnValue();
-    return true;
+    return generator_op(cx, generator_next, JSGENOP_NEXT, vp, argc);
 }
 
 static JSBool
 generator_throw(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, generator_throw, &GeneratorClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
-
-    JSGenerator *gen = (JSGenerator *) thisObj->getPrivate();
-    if (!gen || gen->state == JSGEN_CLOSED) {
-        /* This happens when obj is the generator prototype. See bug 352885. */
-        cx->setPendingException(args.length() >= 1 ? args[0] : UndefinedValue());
-        return false;
-    }
-
-    if (!SendToGenerator(cx, JSGENOP_THROW, thisObj, gen,
-                         args.length() > 0 ? args[0] : UndefinedValue()))
-    {
-        return false;
-    }
-
-    args.rval() = gen->fp->returnValue();
-    return true;
-
+    return generator_op(cx, generator_throw, JSGENOP_THROW, vp, argc);
 }
 
 static JSBool
 generator_close(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, generator_close, &GeneratorClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
-
-    JSGenerator *gen = (JSGenerator *) thisObj->getPrivate();
-    if (!gen || gen->state == JSGEN_CLOSED) {
-        /* This happens when obj is the generator prototype. See bug 352885. */
-        args.rval().setUndefined();
-        return true;
-    }
-
-    if (gen->state == JSGEN_NEWBORN) {
-        SetGeneratorClosed(cx, gen);
-        args.rval().setUndefined();
-        return true;
-    }
-
-    if (!SendToGenerator(cx, JSGENOP_CLOSE, thisObj, gen, UndefinedValue()))
-        return false;
-
-    args.rval() = gen->fp->returnValue();
-    return true;
+    return generator_op(cx, generator_close, JSGENOP_CLOSE, vp, argc);
 }
 
 static JSFunctionSpec generator_methods[] = {

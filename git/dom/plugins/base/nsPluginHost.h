@@ -233,11 +233,6 @@ private:
   nsresult
   FindPlugins(bool aCreatePluginList, bool * aPluginsChanged);
 
-  // Registers or unregisters the given mime type with the category manager
-  // (performs no checks - see UpdateCategoryManager)
-  enum nsRegisterType { ePluginRegister, ePluginUnregister };
-  void RegisterWithCategoryManager(nsCString &aMimeType, nsRegisterType aType);
-
   nsresult
   ScanPluginsDirectory(nsIFile *pluginsDir,
                        bool aCreatePluginList,

@@ -54,7 +54,6 @@
 #include "nsVersionComparator.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIWritablePropertyBag2.h"
-#include "nsICategoryManager.h"
 #include "nsPluginStreamListenerPeer.h"
 #include "mozilla/Preferences.h"
 
@@ -154,7 +153,6 @@ using mozilla::TimeStamp;
 #define kPluginTmpDirName NS_LITERAL_CSTRING("plugtmp")
 
 static const char *kPrefWhitelist = "plugin.allowed_types";
-static const char *kPrefDisableFullPage = "plugin.disable_full_page_plugin_for_types";
 
 // Version of cached plugin info
 // 0.01 first implementation
@@ -235,11 +233,12 @@ nsInvalidPluginTag::~nsInvalidPluginTag()
 
 // Helper to check for a MIME in a comma-delimited preference
 static bool
-IsTypeInList(nsCString &aMimeType, nsCString aTypeList)
+IsTypeInPrefList(nsCString &aMimeType, const char* aPrefName)
 {
   nsCAutoString searchStr;
   searchStr.Assign(',');
-  searchStr.Append(aTypeList);
+  nsAdoptingCString prefStr = Preferences::GetCString(aPrefName);
+  searchStr += prefStr;
   searchStr.Append(',');
 
   nsACString::const_iterator start, end;
@@ -1519,11 +1518,6 @@ nsPluginTag*
 nsPluginHost::FindPreferredPlugin(const InfallibleTArray<nsPluginTag*>& matches)
 {
   // We prefer the plugin with the highest version number.
-  /// XXX(johns): This seems to assume the only time multiple plugins will have
-  ///             the same MIME type is if they're multiple versions of the same
-  ///             plugin -- but since plugin filenames and pretty names can both
-  ///             update, it's probably less arbitrary than just going at it
-  ///             alphabetically.
 
   if (matches.IsEmpty()) {
     return nsnull;
@@ -2137,14 +2131,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
     }
 
     if (pluginTag->IsEnabled()) {
-      nsAdoptingCString disableFullPage =
-        Preferences::GetCString(kPrefDisableFullPage);
-      for (PRUint32 i = 0; i < pluginTag->mMimeTypes.Length(); i++) {
-        if (!IsTypeInList(pluginTag->mMimeTypes[i], disableFullPage)) {
-          RegisterWithCategoryManager(pluginTag->mMimeTypes[i],
-                                      ePluginRegister);
-        }
-      }
+      pluginTag->RegisterWithCategoryManager(mOverrideInternalTypes);
     }
   }
 
@@ -2396,31 +2383,8 @@ nsPluginHost::UpdatePluginInfo(nsPluginTag* aPluginTag)
   NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
   NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsInvalidPluginTag>, mInvalidPlugins, mNext);
 
-  if (!aPluginTag) {
+  if (!aPluginTag || aPluginTag->IsEnabled())
     return NS_OK;
-  }
-
-  // Update types with category manager
-  nsAdoptingCString disableFullPage =
-    Preferences::GetCString(kPrefDisableFullPage);
-  for (PRUint32 i = 0; i < aPluginTag->mMimeTypes.Length(); i++) {
-    nsRegisterType shouldRegister;
-
-    if (IsTypeInList(aPluginTag->mMimeTypes[i], disableFullPage)) {
-      shouldRegister = ePluginUnregister;
-    } else {
-      nsPluginTag *plugin = FindPluginForType(aPluginTag->mMimeTypes[i].get(),
-                                              true);
-      shouldRegister = plugin ? ePluginRegister : ePluginUnregister;
-    }
-
-    RegisterWithCategoryManager(aPluginTag->mMimeTypes[i], shouldRegister);
-  }
-
-  // Reload instances if needed
-  if (aPluginTag->IsEnabled()) {
-    return NS_OK;
-  }
 
   nsCOMPtr<nsISupportsArray> instsToReload;
   NS_NewISupportsArray(getter_AddRefs(instsToReload));
@@ -2439,50 +2403,11 @@ nsPluginHost::UpdatePluginInfo(nsPluginTag* aPluginTag)
 /* static */ bool
 nsPluginHost::IsTypeWhitelisted(const char *aMimeType)
 {
-  nsAdoptingCString whitelist = Preferences::GetCString(kPrefWhitelist);
-  if (!whitelist.Length()) {
+  if (!Preferences::HasUserValue(kPrefWhitelist)) {
     return true;
   }
   nsDependentCString wrap(aMimeType);
-  return IsTypeInList(wrap, whitelist);
-}
-
-void
-nsPluginHost::RegisterWithCategoryManager(nsCString &aMimeType,
-                                          nsRegisterType aType)
-{
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL,
-             ("nsPluginTag::RegisterWithCategoryManager type = %s, removing = %s\n",
-              aMimeType.get(), aType == ePluginUnregister ? "yes" : "no"));
-
-  nsCOMPtr<nsICategoryManager> catMan =
-    do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-  if (!catMan) {
-    return;
-  }
-
-  const char *contractId =
-    "@mozilla.org/content/plugin/document-loader-factory;1";
-
-  if (aType == ePluginRegister) {
-    catMan->AddCategoryEntry("Gecko-Content-Viewers",
-                             aMimeType.get(),
-                             contractId,
-                             false, /* persist: broken by bug 193031 */
-                             mOverrideInternalTypes,
-                             nsnull);
-  } else {
-    // Only delete the entry if a plugin registered for it
-    nsXPIDLCString value;
-    nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers",
-                                           aMimeType.get(),
-                                           getter_Copies(value));
-    if (NS_SUCCEEDED(rv) && strcmp(value, contractId) == 0) {
-      catMan->DeleteCategoryEntry("Gecko-Content-Viewers",
-                                  aMimeType.get(),
-                                  true);
-    }
-  }
+  return IsTypeInPrefList(wrap, kPrefWhitelist);
 }
 
 nsresult

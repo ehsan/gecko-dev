@@ -339,6 +339,7 @@ bool
 js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript)
 {
     /* NB: Keep this in sync with CloneInterpretedFunction. */
+    JSFunction *fun;
     JSAtom *atom;
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
@@ -346,7 +347,6 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
     uint32_t flagsword;           /* word for argument count and fun->flags */
 
     JSContext *cx = xdr->cx();
-    RootedFunction fun(cx);
     JSScript *script;
     if (mode == XDR_ENCODE) {
         fun = (*objp)->toFunction();
@@ -367,9 +367,9 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
         fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL);
         if (!fun)
             return false;
-        if (!JSObject::clearParent(cx, fun))
+        if (!fun->clearParent(cx))
             return false;
-        if (!JSObject::clearType(cx, fun))
+        if (!fun->clearType(cx))
             return false;
         atom = NULL;
         script = NULL;
@@ -409,17 +409,17 @@ template bool
 js::XDRInterpretedFunction(XDRState<XDR_DECODE> *xdr, JSObject **objp, JSScript *parentScript);
 
 JSObject *
-js::CloneInterpretedFunction(JSContext *cx, HandleFunction srcFun)
+js::CloneInterpretedFunction(JSContext *cx, JSFunction *srcFun)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedObject parent(cx, NULL);
-    RootedFunction clone(cx, js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL));
+    JSFunction *clone = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL);
     if (!clone)
         return NULL;
-    if (!JSObject::clearParent(cx, clone))
+    if (!clone->clearParent(cx))
         return NULL;
-    if (!JSObject::clearType(cx, clone))
+    if (!clone->clearType(cx))
         return NULL;
 
     Rooted<JSScript*> srcScript(cx, srcFun->script());

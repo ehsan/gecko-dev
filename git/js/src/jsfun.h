@@ -263,7 +263,7 @@ bool
 XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript);
 
 extern JSObject *
-CloneInterpretedFunction(JSContext *cx, HandleFunction fun);
+CloneInterpretedFunction(JSContext *cx, JSFunction *fun);
 
 } /* namespace js */
 

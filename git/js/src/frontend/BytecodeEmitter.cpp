@@ -2613,7 +2613,7 @@ frontend::EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *bod
     if (Emit1(cx, bce, JSOP_STOP) < 0)
         return false;
 
-    if (!JSScript::fullyInitFromEmitter(cx, bce->script, bce))
+    if (!bce->script->fullyInitFromEmitter(cx, bce))
         return false;
 
     // Initialize fun->script() so that the debugger has a valid fun->script().
@@ -5951,7 +5951,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case PNK_ARGSBODY:
       {
-        RootedFunction fun(cx, bce->sc->fun());
+        JSFunction *fun = bce->sc->fun();
         ParseNode *pnlast = pn->last();
 
         // Carefully emit everything in the right order:

@@ -8,7 +8,7 @@
 }
 
 .hud-box.animated {
-  transition: height 100ms;
+  -moz-transition: height 100ms;
 }
 
 .hud-splitter {

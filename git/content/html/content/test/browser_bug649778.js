@@ -4,33 +4,25 @@
 var testPath = "http://mochi.test:8888/browser/content/html/content/test/";
 var popup;
 
-function checkCache(url, policy, shouldExist, cb)
+function checkCache(url, policy, shouldExist)
 {
   var cache = Components.classes["@mozilla.org/network/cache-service;1"].
               getService(Components.interfaces.nsICacheService);
   var session = cache.createSession(
                   "wyciwyg", policy,
                   Components.interfaces.nsICache.STREAM_BASED);
-
-  var checkCacheListener = {
-    onCacheEntryAvailable: function oCEA(entry, access, status) {
-      if (shouldExist) {
-        ok(entry, "Entry not found");
-        is(status, Components.results.NS_OK, "Entry not found");
-      } else {
-        ok(!entry, "Entry found");
-        is(status, Components.results.NS_ERROR_CACHE_KEY_NOT_FOUND,
-           "Invalid error code");
-      }
-
-      setTimeout(cb, 0);
-    }
-  };
-
-  session.asyncOpenCacheEntry(url,
-                              Components.interfaces.nsICache.ACCESS_READ,
-                              checkCacheListener);
+  try {
+    var cacheEntry = session.openCacheEntry(
+                       url, Components.interfaces.nsICache.ACCESS_READ, true);
+    is(shouldExist, true, "Entry found");
+  }
+  catch (e) {
+    is(shouldExist, false, "Entry not found");
+    is(e.result, Components.results.NS_ERROR_CACHE_KEY_NOT_FOUND,
+       "Invalid error");
+  }
 }
+
 function getPopupURL() {
   var sh = popup.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                 .getInterface(Components.interfaces.nsIWebNavigation)
@@ -39,17 +31,15 @@ function getPopupURL() {
   return sh.getEntryAtIndex(sh.index, false).URI.spec;
 }
 
-var wyciwygURL;
 function testContinue() {
-  wyciwygURL = getPopupURL();
+  var wyciwygURL = getPopupURL();
   is(wyciwygURL.substring(0, 10), "wyciwyg://", "Unexpected URL.");
   popup.close()
 
-  checkCache(wyciwygURL, Components.interfaces.nsICache.STORE_ON_DISK, false,
-    function() {
-      checkCache(wyciwygURL, Components.interfaces.nsICache.STORE_IN_MEMORY,
-                 true, finish);
-    });
+  checkCache(wyciwygURL, Components.interfaces.nsICache.STORE_ON_DISK, false);
+  checkCache(wyciwygURL, Components.interfaces.nsICache.STORE_IN_MEMORY, true);
+
+  finish();
 }
 
 function waitForWyciwygDocument() {

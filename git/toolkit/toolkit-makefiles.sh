@@ -875,7 +875,6 @@ if [ "$ENABLE_TESTS" ]; then
     toolkit/devtools/debugger/tests/Makefile
     toolkit/identity/tests/Makefile
     toolkit/identity/tests/chrome/Makefile
-    toolkit/identity/tests/mochitest/Makefile
     toolkit/mozapps/downloads/tests/Makefile
     toolkit/mozapps/downloads/tests/chrome/Makefile
     toolkit/mozapps/extensions/test/Makefile
@@ -1125,7 +1124,7 @@ if [ "$DEHYDRA_PATH" ]; then
   "
 fi
 
-if [ "$MOZ_ANGLE_RENDERER" ]; then
+if [ "$MOZ_ANGLE" ]; then
   add_makefiles "
     gfx/angle/src/libGLESv2/Makefile
     gfx/angle/src/libEGL/Makefile

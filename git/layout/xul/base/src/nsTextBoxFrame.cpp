@@ -29,7 +29,6 @@
 #include "nsBoxFrame.h"
 #include "mozilla/Preferences.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/Attributes.h"
 
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
@@ -153,7 +152,7 @@ nsTextBoxFrame::InsertSeparatorBeforeAccessKey()
   return gInsertSeparatorBeforeAccessKey;
 }
 
-class nsAsyncAccesskeyUpdate MOZ_FINAL : public nsIReflowCallback
+class nsAsyncAccesskeyUpdate : public nsIReflowCallback
 {
 public:
     nsAsyncAccesskeyUpdate(nsIFrame* aFrame) : mWeakFrame(aFrame)

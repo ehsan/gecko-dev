@@ -760,7 +760,7 @@ Shape *
 JSObject::changeProperty(JSContext *cx, Shape *shape, unsigned attrs, unsigned mask,
                          PropertyOp getter, StrictPropertyOp setter)
 {
-    JS_ASSERT(nativeContainsNoAllocation(*shape));
+    JS_ASSERT(nativeContains(cx, *shape));
 
     attrs |= shape->attrs & mask;
 
@@ -878,7 +878,7 @@ JSObject::removeProperty(JSContext *cx, jsid id_)
              */
             Shape *aprop = self->lastProperty();
             for (int n = 50; --n >= 0 && aprop->parent; aprop = aprop->parent)
-                JS_ASSERT_IF(aprop != shape, self->nativeContainsNoAllocation(*aprop));
+                JS_ASSERT_IF(aprop != shape, self->nativeContains(cx, *aprop));
 #endif
         }
 
@@ -952,7 +952,7 @@ JSObject::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *n
 {
     JS_ASSERT_IF(oldShape != lastProperty(),
                  inDictionaryMode() &&
-                 nativeLookupNoAllocation(oldShape->propidRef()) == oldShape);
+                 nativeLookup(cx, oldShape->propidRef()) == oldShape);
 
     JSObject *self = this;
 
@@ -1006,10 +1006,12 @@ JSObject::shadowingShapeChange(JSContext *cx, const Shape &shape)
     return generateOwnShape(cx);
 }
 
-/* static */ bool
-JSObject::clearParent(JSContext *cx, HandleObject obj)
+bool
+JSObject::clearParent(JSContext *cx)
 {
-    return setParent(cx, obj, NullPtr());
+    Rooted<JSObject*> obj(cx, this);
+    Rooted<JSObject*> newParent(cx, NULL);
+    return setParent(cx, obj, newParent);
 }
 
 /* static */ bool

@@ -692,9 +692,7 @@ nsNavHistoryContainerResultNode::ReverseUpdateStats(PRInt32 aAccessCountChange)
     if ((sortingByVisitCount && aAccessCountChange != 0) ||
         (sortingByTime && timeChanged)) {
       PRUint32 ourIndex = mParent->FindChild(this);
-      NS_ASSERTION(ourIndex >= 0, "Could not find self in parent");
-      if (ourIndex >= 0)
-        EnsureItemPosition(ourIndex);
+      EnsureItemPosition(ourIndex);
     }
 
     nsresult rv = mParent->ReverseUpdateStats(aAccessCountChange);
@@ -1459,8 +1457,8 @@ nsNavHistoryContainerResultNode::InsertSortedChild(
  */
 bool
 nsNavHistoryContainerResultNode::EnsureItemPosition(PRUint32 aIndex) {
-  NS_ASSERTION(aIndex < (PRUint32)mChildren.Count(), "Invalid index");
-  if (aIndex >= (PRUint32)mChildren.Count())
+  NS_ASSERTION(aIndex >= 0 && aIndex < (PRUint32)mChildren.Count(), "Invalid index");
+  if (aIndex < 0 || aIndex >= (PRUint32)mChildren.Count())
     return false;
 
   SortComparator comparator = GetSortingComparator(GetSortType());
@@ -3889,9 +3887,7 @@ nsNavHistoryResultNode::OnItemChanged(PRInt64 aItemId,
   // The sorting methods fall back to each other so we need to re-sort the
   // result even if it's not set to sort by the given property.
   PRInt32 ourIndex = mParent->FindChild(this);
-  NS_ASSERTION(ourIndex >= 0, "Could not find self in parent");
-  if (ourIndex >= 0)
-    mParent->EnsureItemPosition(ourIndex);
+  mParent->EnsureItemPosition(ourIndex);
 
   return NS_OK;
 }
@@ -4029,8 +4025,7 @@ nsNavHistoryFolderResultNode::OnItemMoved(PRInt64 aItemId,
     node->mBookmarkIndex = aNewIndex;
 
     // adjust position
-    if (index >= 0)
-      EnsureItemPosition(index);
+    EnsureItemPosition(index);
     return NS_OK;
   } else {
     // moving between two different folders, just do a remove and an add

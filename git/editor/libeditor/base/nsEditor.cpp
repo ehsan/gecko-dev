@@ -1730,11 +1730,10 @@ nsEditor::MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset)
     aOffset--;  // this is because when we delete aNode, it will make the offsets after it off by one
   }
 
-  // Hold a reference so aNode doesn't go away when we remove it (bug 772282)
-  nsCOMPtr<nsIDOMNode> node = aNode;
-  res = DeleteNode(node);
+  // put aNode in new parent
+  res = DeleteNode(aNode);
   NS_ENSURE_SUCCESS(res, res);
-  return InsertNode(node, aParent, aOffset);
+  return InsertNode(aNode, aParent, aOffset);
 }
 
 

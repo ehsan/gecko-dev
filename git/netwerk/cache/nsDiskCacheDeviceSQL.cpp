@@ -220,34 +220,6 @@ nsOfflineCacheEvictionFunction::Apply()
   Reset();
 }
 
-class nsOfflineCacheDiscardCache : public nsRunnable
-{
-public:
-  nsOfflineCacheDiscardCache(nsOfflineCacheDevice *device,
-			     nsCString &group,
-			     nsCString &clientID)
-    : mDevice(device)
-    , mGroup(group)
-    , mClientID(clientID)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    if (mDevice->IsActiveCache(mGroup, mClientID))
-    {
-      mDevice->DeactivateGroup(mGroup);
-    }
-
-    return mDevice->EvictEntries(mClientID.get());
-  }
-
-private:
-  nsRefPtr<nsOfflineCacheDevice> mDevice;
-  nsCString mGroup;
-  nsCString mClientID;
-};
-
 /******************************************************************************
  * nsOfflineCacheDeviceInfo
  */
@@ -696,10 +668,12 @@ nsApplicationCache::Discard()
 
   mValid = false;
 
-  nsRefPtr<nsIRunnable> ev =
-    new nsOfflineCacheDiscardCache(mDevice, mGroup, mClientID);
-  nsresult rv = nsCacheService::DispatchToCacheIOThread(ev);
-  return rv;
+  if (mDevice->IsActiveCache(mGroup, mClientID))
+  {
+    mDevice->DeactivateGroup(mGroup);
+  }
+
+  return mDevice->EvictEntries(mClientID.get());
 }
 
 NS_IMETHODIMP

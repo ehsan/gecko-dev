@@ -2310,7 +2310,8 @@ abstract public class GeckoApp
 
     // Get/Create a temporary direcory
     public static File getTempDirectory() {
-        File dir = mAppContext.getExternalFilesDir("temp");
+        File sdcard = Environment.getExternalStorageDirectory();
+        File dir = new File(sdcard.getAbsolutePath() + "/firefox");
         dir.mkdirs();
         return dir;
     }

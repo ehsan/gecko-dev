@@ -280,11 +280,7 @@ class NewObjectCache
     inline bool lookupGlobal(Class *clasp, js::GlobalObject *global, gc::AllocKind kind, EntryIndex *pentry);
     inline bool lookupType(Class *clasp, js::types::TypeObject *type, gc::AllocKind kind, EntryIndex *pentry);
 
-    /*
-     * Return a new object from a cache hit produced by a lookup method, or
-     * NULL if returning the object could possibly trigger GC (does not
-     * indicate failure).
-     */
+    /* Return a new object from a cache hit produced by a lookup method. */
     inline JSObject *newObjectFromHit(JSContext *cx, EntryIndex entry);
 
     /* Fill an entry after a cache miss. */
@@ -1101,9 +1097,6 @@ struct JSContext : js::ContextFriendFields
     /* Current execution stack. */
     js::ContextStack    stack;
 
-    /* Current global. */
-    inline js::Handle<js::GlobalObject*> global() const;
-
     /* ContextStack convenience functions */
     inline bool hasfp() const               { return stack.hasfp(); }
     inline js::StackFrame* fp() const       { return stack.fp(); }
@@ -1381,7 +1374,7 @@ struct AutoResolving {
         WATCH
     };
 
-    AutoResolving(JSContext *cx, HandleObject obj, HandleId id, Kind kind = LOOKUP
+    AutoResolving(JSContext *cx, JSObject *obj, jsid id, Kind kind = LOOKUP
                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : context(cx), object(obj), id(id), kind(kind), link(cx->resolvingList)
     {
@@ -1403,8 +1396,8 @@ struct AutoResolving {
     bool alreadyStartedSlow() const;
 
     JSContext           *const context;
-    HandleObject        object;
-    HandleId            id;
+    JSObject            *const object;
+    jsid                const id;
     Kind                const kind;
     AutoResolving       *const link;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER

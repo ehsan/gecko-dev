@@ -42,7 +42,7 @@ IdentityLogger.prototype = {
     }
   },
 
-  _generateLogMessage: function _generateLogMessage(aPrefix, args) {
+  _generateLogMessage: function _generateLogMessage(aPrefix, ...args) {
     // create a string representation of a list of arbitrary things
     let strings = [];
 
@@ -63,17 +63,23 @@ IdentityLogger.prototype = {
         }
       }
     });
-    return 'Identity ' + aPrefix + ': ' + strings.join(' ');
+    return 'Identity ' + aPrefix + ': ' + strings.join(' : ');
   },
 
   /**
    * log() - utility function to print a list of arbitrary things
+   * Depends on IdentityStore (bottom of this file) for _debug.
    *
    * Enable with about:config pref toolkit.identity.debug
    */
   log: function log(aPrefix, ...args) {
     if (!this._debug) {
       return;
+    }
+    if (typeof this === 'undefined') {
+      for (var frame=Components.stack; frame; frame = frame.caller) {
+        dump (frame + "\n");
+      }
     }
     let output = this._generateLogMessage(aPrefix, args);
     dump(output + "\n");
@@ -91,11 +97,8 @@ IdentityLogger.prototype = {
 
     // Report the error in the browser
     let output = this._generateLogMessage(aPrefix, aArgs);
-    Cu.reportError(output);
-    dump("ERROR: " + output + "\n");
-    for (let frame = Components.stack.caller; frame; frame = frame.caller) {
-      dump(frame + "\n");
-    }
+    Cu.reportError("Identity: " + output);
+    dump(output + "\n");
   }
 
 };

@@ -457,7 +457,7 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
     for (int i = 0; i < ida->length; i++) {
         /* Get strings for id and value and GC-root them via vp. */
         id = ida->vector[i];
-        Rooted<JSLinearString*> idstr(cx);
+        JSLinearString *idstr;
 
         RootedObject obj2(cx);
         RootedShape prop(cx);
@@ -703,12 +703,9 @@ obj_valueOf(JSContext *cx, unsigned argc, Value *vp)
 #if JS_HAS_OBJ_WATCHPOINT
 
 static JSBool
-obj_watch_handler(JSContext *cx, JSObject *obj_, jsid id_, jsval old,
+obj_watch_handler(JSContext *cx, JSObject *obj, jsid id, jsval old,
                   jsval *nvp, void *closure)
 {
-    RootedObject obj(cx, obj_);
-    RootedId id(cx, id_);
-
     JSObject *callable = (JSObject *) closure;
     if (JSSubsumePrincipalsOp subsume = cx->runtime->securityCallbacks->subsumePrincipals) {
         if (JSPrincipals *watcher = callable->principals(cx)) {
@@ -1909,7 +1906,7 @@ obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
 namespace js {
 
 bool
-ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
+ReadPropertyDescriptors(JSContext *cx, JSObject *props, bool checkAccessors,
                         AutoIdVector *ids, AutoPropDescArrayRooter *descs)
 {
     if (!GetPropertyNames(cx, props, JSITER_OWNONLY, ids))
@@ -1929,7 +1926,7 @@ ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
 } /* namespace js */
 
 static bool
-DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
+DefineProperties(JSContext *cx, HandleObject obj, JSObject *props)
 {
     AutoIdVector ids(cx);
     AutoPropDescArrayRooter descs(cx);
@@ -1946,7 +1943,7 @@ DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
 }
 
 extern JSBool
-js_PopulateObject(JSContext *cx, HandleObject newborn, HandleObject props)
+js_PopulateObject(JSContext *cx, HandleObject newborn, JSObject *props)
 {
     return DefineProperties(cx, newborn, props);
 }
@@ -1967,7 +1964,7 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
                              "Object.defineProperties", "0", "s");
         return false;
     }
-    RootedObject props(cx, ToObject(cx, &vp[3]));
+    JSObject *props = ToObject(cx, &vp[3]);
     if (!props)
         return false;
 
@@ -2023,8 +2020,7 @@ obj_create(JSContext *cx, unsigned argc, Value *vp)
             return false;
         }
 
-        RootedObject props(cx, &args[1].toObject());
-        if (!DefineProperties(cx, obj, props))
+        if (!DefineProperties(cx, obj, &args[1].toObject()))
             return false;
     }
 
@@ -2393,11 +2389,8 @@ js::NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, JSObject *proto_, J
 
     NewObjectCache::EntryIndex entry = -1;
     if (proto && (!parent || parent == proto->getParent()) && !proto->isGlobal()) {
-        if (cache.lookupProto(clasp, proto, kind, &entry)) {
-            JSObject *obj = cache.newObjectFromHit(cx, entry);
-            if (obj)
-                return obj;
-        }
+        if (cache.lookupProto(clasp, proto, kind, &entry))
+            return cache.newObjectFromHit(cx, entry);
     }
 
     types::TypeObject *type = proto ? proto->getNewType(cx) : cx->compartment->getEmptyType(cx);
@@ -2452,11 +2445,8 @@ js::NewObjectWithClassProto(JSContext *cx, js::Class *clasp, JSObject *proto_, J
 
     NewObjectCache::EntryIndex entry = -1;
     if (parent->isGlobal() && protoKey != JSProto_Null) {
-        if (cache.lookupGlobal(clasp, &parent->asGlobal(), kind, &entry)) {
-            JSObject *obj = cache.newObjectFromHit(cx, entry);
-            if (obj)
-                return obj;
-        }
+        if (cache.lookupGlobal(clasp, &parent->asGlobal(), kind, &entry))
+            return cache.newObjectFromHit(cx, entry);
     }
 
     if (!FindProto(cx, clasp, parent, &proto))
@@ -2490,11 +2480,8 @@ js::NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc
 
     NewObjectCache::EntryIndex entry = -1;
     if (parent == type->proto->getParent()) {
-        if (cache.lookupType(&ObjectClass, type, kind, &entry)) {
-            JSObject *obj = cache.newObjectFromHit(cx, entry);
-            if (obj)
-                return obj;
-        }
+        if (cache.lookupType(&ObjectClass, type, kind, &entry))
+            return cache.newObjectFromHit(cx, entry);
     }
 
     JSObject *obj = NewObject(cx, &ObjectClass, type, parent, kind);
@@ -2545,7 +2532,7 @@ js::NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
 }
 
 JSObject*
-js_CreateThis(JSContext *cx, Class *newclasp, HandleObject callee)
+js_CreateThis(JSContext *cx, Class *newclasp, JSObject *callee)
 {
     Value protov;
     if (!callee->getProperty(cx, cx->runtime->atomState.classPrototypeAtom, &protov))
@@ -3836,8 +3823,7 @@ js_GetClassObject(JSContext *cx, HandleObject obj, JSProtoKey key,
         return true;
     }
 
-    RootedId name(cx, NameToId(cx->runtime->atomState.classAtoms[key]));
-    AutoResolving resolving(cx, global, name);
+    AutoResolving resolving(cx, global, NameToId(cx->runtime->atomState.classAtoms[key]));
     if (resolving.alreadyStarted()) {
         /* Already caching id in global -- suppress recursion. */
         objp.set(NULL);
@@ -4264,20 +4250,18 @@ CallResolveOp(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             JS_ASSERT(obj2 != obj);
             return obj2->lookupGeneric(cx, id, objp, propp);
         }
-
-        objp.set(obj2);
+        obj = obj2;
     } else {
         if (!resolve(cx, obj, id))
             return false;
-
-        objp.set(obj);
     }
 
-    Shape *shape;
-    if (!objp->nativeEmpty() && (shape = objp->nativeLookup(cx, id)))
-        propp.set(shape);
-    else
-        objp.set(NULL);
+    if (!obj->nativeEmpty()) {
+        if (Shape *shape = obj->nativeLookup(cx, id)) {
+            objp.set(obj);
+            propp.set(shape);
+        }
+    }
 
     return true;
 }
@@ -4312,7 +4296,7 @@ LookupPropertyWithFlagsInline(JSContext *cx, HandleObject obj, HandleId id, unsi
             }
         }
 
-        RootedObject proto(cx, current->getProto());
+        JSObject *proto = current->getProto();
         if (!proto)
             break;
         if (!proto->isNative()) {
@@ -4568,7 +4552,7 @@ js_NativeGetInline(JSContext *cx, Handle<JSObject*> receiver, JSObject *obj, JSO
         return false;
 
     /* Update slotful shapes according to the value produced by the getter. */
-    if (shapeRoot->hasSlot() && pobjRoot->nativeContains(cx, shapeRoot))
+    if (shapeRoot->hasSlot() && pobjRoot->nativeContains(cx, *shapeRoot))
         pobjRoot->nativeSetSlot(shapeRoot->slot(), *vp);
 
     return true;
@@ -4620,7 +4604,7 @@ js_NativeSet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> receiver,
      */
     if (shapeRoot->hasSlot() &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
-         obj->nativeContains(cx, shapeRoot))) {
+         obj->nativeContains(cx, *shapeRoot))) {
         obj->setSlot(shapeRoot->slot(), *vp);
     }
 

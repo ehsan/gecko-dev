@@ -127,15 +127,8 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf, "js-worker")
 
 struct WorkerJSRuntimeStats : public JS::RuntimeStats
 {
-  WorkerJSRuntimeStats(nsACString &aRtPath)
-   : JS::RuntimeStats(JsWorkerMallocSizeOf), mRtPath(aRtPath) { }
-
-  ~WorkerJSRuntimeStats() {
-    for (size_t i = 0; i != compartmentStatsVector.length(); i++) {
-      free(compartmentStatsVector[i].extra1);
-      // no need to free |extra2|, because it's a static string
-    }
-  }
+  WorkerJSRuntimeStats()
+   : JS::RuntimeStats(JsWorkerMallocSizeOf) { }
 
   virtual void initExtraCompartmentStats(JSCompartment *c,
                                          JS::CompartmentStats *cstats) MOZ_OVERRIDE
@@ -146,21 +139,14 @@ struct WorkerJSRuntimeStats : public JS::RuntimeStats
     // ReportJSRuntimeExplicitTreeStats expects that cstats->{extra1,extra2}
     // are char pointers.
 
-    // This is the |cJSPathPrefix|.  Each worker has exactly two compartments:
-    // one for atoms, and one for everything else.
-    nsCString cJSPathPrefix(mRtPath);
-    cJSPathPrefix += js::IsAtomsCompartment(c)
-                   ? NS_LITERAL_CSTRING("compartment(web-worker-atoms)/")
-                   : NS_LITERAL_CSTRING("compartment(web-worker)/");
-    cstats->extra1 = strdup(cJSPathPrefix.get());
+    // This is the |cPathPrefix|.  Using NULL here means that we'll end up
+    // using WorkerMemoryReporter::mRtPath as the path prefix for each
+    // compartment.  See xpc::ReportJSRuntimeExplicitTreeStats().
+    cstats->extra1 = NULL;
 
-    // This is the |cDOMPathPrefix|, which should never be used when reporting
-    // with workers (hence the "?!").
-    cstats->extra2 = (void *)"explicit/workers/?!/";
+    // This is the |cName|.
+    cstats->extra2 = (void *)(js::IsAtomsCompartment(c) ? "Web Worker Atoms" : "Web Worker");
   }
-
-private:
-  nsCString mRtPath;
 };
   
 class WorkerMemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
@@ -246,7 +232,7 @@ public:
   {
     AssertIsOnMainThread();
 
-    WorkerJSRuntimeStats rtStats(mRtPath);
+    WorkerJSRuntimeStats rtStats;
     nsresult rv = CollectForRuntime(/* isQuick = */false, &rtStats);
     if (NS_FAILED(rv)) {
       return rv;
@@ -1595,7 +1581,7 @@ public:
       *static_cast<int64_t*>(mData) = JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
       *mSucceeded = true;
     } else {
-      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData), nsnull);
+      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData));
     }
 
     {

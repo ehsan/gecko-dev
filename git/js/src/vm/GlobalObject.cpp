@@ -122,7 +122,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
                                                       /* globalObject = */ NULL,
                                                       JSVERSION_DEFAULT,
                                                       /* staticLevel = */ 0));
-        if (!script || !JSScript::fullyInitTrivial(cx, script))
+        if (!script || !script->fullyInitTrivial(cx))
             return NULL;
 
         functionProto->initScript(script);

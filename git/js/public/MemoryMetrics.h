@@ -109,7 +109,6 @@ struct CompartmentStats
     size_t objectSlots;
     size_t objectElements;
     size_t objectMisc;
-    size_t objectPrivate;
     size_t stringChars;
     size_t shapesExtraTreeTables;
     size_t shapesExtraDictTables;
@@ -143,7 +142,6 @@ struct CompartmentStats
         ADD(objectSlots);
         ADD(objectElements);
         ADD(objectMisc);
-        ADD(objectPrivate);
         ADD(stringChars);
         ADD(shapesExtraTreeTables);
         ADD(shapesExtraDictTables);
@@ -223,16 +221,8 @@ struct RuntimeStats
 
 #ifdef JS_THREADSAFE
 
-class ObjectPrivateVisitor
-{
-public:
-    // Within CollectRuntimeStats, this method is called for each JS object
-    // that has a private slot containing an nsISupports pointer.
-    virtual size_t sizeOfIncludingThis(void *aSupports) = 0;
-};
-
 extern JS_PUBLIC_API(bool)
-CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisitor *opv);
+CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats);
 
 extern JS_PUBLIC_API(int64_t)
 GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf);

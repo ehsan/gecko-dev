@@ -1053,9 +1053,9 @@ Parser::newFunction(TreeContext *tc, JSAtom *atom, FunctionSyntaxKind kind)
                          JSFUN_INTERPRETED | (kind == Expression ? JSFUN_LAMBDA : 0),
                          parent, atom);
     if (fun && !compileAndGo) {
-        if (!JSObject::clearParent(context, fun))
+        if (!fun->clearParent(context))
             return NULL;
-        if (!JSObject::clearType(context, fun))
+        if (!fun->clearType(context))
             return NULL;
         fun->setEnvironment(NULL);
     }
@@ -2101,8 +2101,8 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, Parser *parser)
      * slot indexed by blockCount off the class-reserved slot base.
      */
     bool redeclared;
-    RootedId id(cx, AtomToId(atom));
-    Shape *shape = StaticBlockObject::addVar(cx, blockObj, id, blockCount, &redeclared);
+    jsid id = AtomToId(atom);
+    Shape *shape = blockObj->addVar(cx, id, blockCount, &redeclared);
     if (!shape) {
         if (redeclared)
             ReportRedeclaration(cx, parser, pn, false, atom);
@@ -2150,7 +2150,7 @@ PopStatementTC(TreeContext *tc)
 }
 
 static inline bool
-OuterLet(TreeContext *tc, StmtInfoTC *stmt, HandleAtom atom)
+OuterLet(TreeContext *tc, StmtInfoTC *stmt, JSAtom *atom)
 {
     while (stmt->downScope) {
         stmt = LexicalLookup(tc, atom, NULL, stmt->downScope);
@@ -2198,10 +2198,8 @@ BindFunctionLocal(JSContext *cx, BindData *data, DefinitionList::Range &defs, Tr
 }
 
 static bool
-BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom_, Parser *parser)
+BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, Parser *parser)
 {
-    RootedAtom atom(cx, atom_);
-
     TreeContext *tc = parser->tc;
     ParseNode *pn = data->pn;
 
@@ -2400,7 +2398,7 @@ NoteLValue(JSContext *cx, ParseNode *pn, SharedContext *sc, unsigned dflag = PND
 static bool
 NoteNameUse(ParseNode *pn, Parser *parser)
 {
-    RootedPropertyName name(parser->context, pn->pn_atom->asPropertyName());
+    PropertyName *name = pn->pn_atom->asPropertyName();
     StmtInfoTC *stmt = LexicalLookup(parser->tc, name, NULL, (StmtInfoTC *)NULL);
 
     DefinitionList::Range defs = parser->tc->decls.lookupMulti(name);
@@ -2652,8 +2650,7 @@ CheckDestructuring(JSContext *cx, BindData *data, ParseNode *left, Parser *parse
      */
     if (toplevel && blockObj && blockCountBefore == blockObj->slotCount()) {
         bool redeclared;
-        RootedId id(cx, INT_TO_JSID(blockCountBefore));
-        if (!StaticBlockObject::addVar(cx, blockObj, id, blockCountBefore, &redeclared))
+        if (!blockObj->addVar(cx, INT_TO_JSID(blockCountBefore), blockCountBefore, &redeclared))
             return false;
         JS_ASSERT(!redeclared);
         JS_ASSERT(blockObj->slotCount() == blockCountBefore + 1);
@@ -5133,7 +5130,7 @@ CompExprTransplanter::transplant(ParseNode *pn)
                 AdjustBlockId(dn, adjust, tc);
             }
 
-            RootedAtom atom(parser->context, pn->pn_atom);
+            JSAtom *atom = pn->pn_atom;
 #ifdef DEBUG
             StmtInfoTC *stmt = LexicalLookup(tc, atom, NULL, (StmtInfoTC *)NULL);
             JS_ASSERT(!stmt || stmt != tc->topStmt);
@@ -7019,38 +7016,31 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
 #if JS_HAS_XML_SUPPORT
       case TOK_AT:
       case TOK_STAR:
-        if (!allowsXML())
-            goto syntaxerror;
         pn = starOrAtPropertyIdentifier(tt);
         break;
 
       case TOK_XMLSTAGO:
-        if (!allowsXML())
-            goto syntaxerror;
         pn = xmlElementOrListRoot(true);
         if (!pn)
             return NULL;
         break;
 
       case TOK_XMLCDATA:
-        if (!allowsXML())
-            goto syntaxerror;
+        JS_ASSERT(allowsXML());
         pn = atomNode(PNK_XMLCDATA, JSOP_XMLCDATA);
         if (!pn)
             return NULL;
         break;
 
       case TOK_XMLCOMMENT:
-        if (!allowsXML())
-            goto syntaxerror;
+        JS_ASSERT(allowsXML());
         pn = atomNode(PNK_XMLCOMMENT, JSOP_XMLCOMMENT);
         if (!pn)
             return NULL;
         break;
 
       case TOK_XMLPI: {
-        if (!allowsXML())
-            goto syntaxerror;
+        JS_ASSERT(allowsXML());
         const Token &tok = tokenStream.currentToken();
         pn = new_<XMLProcessingInstruction>(tok.xmlPITarget(), tok.xmlPIData(), tok.pos);
         if (!pn)
@@ -7084,9 +7074,9 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
             return NULL;
 
         if (!compileAndGo) {
-            if (!JSObject::clearParent(context, reobj))
+            if (!reobj->clearParent(context))
                 return NULL;
-            if (!JSObject::clearType(context, reobj))
+            if (!reobj->clearType(context))
                 return NULL;
         }
 
@@ -7119,7 +7109,6 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
         /* The scanner or one of its subroutines reported the error. */
         return NULL;
 
-    syntaxerror:
       default:
         reportError(NULL, JSMSG_SYNTAX_ERROR);
         return NULL;

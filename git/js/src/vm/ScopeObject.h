@@ -262,8 +262,7 @@ class StaticBlockObject : public BlockObject
      */
     bool needsClone();
 
-    static Shape *addVar(JSContext *cx, Handle<StaticBlockObject*> block, HandleId id,
-                         int index, bool *redeclared);
+    Shape *addVar(JSContext *cx, jsid id, int index, bool *redeclared);
 };
 
 class ClonedBlockObject : public BlockObject
@@ -288,7 +287,7 @@ bool
 XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObject **objp);
 
 extern JSObject *
-CloneStaticBlockObject(JSContext *cx, Handle<StaticBlockObject*> srcBlock,
+CloneStaticBlockObject(JSContext *cx, StaticBlockObject &srcBlock,
                        const AutoObjectVector &objects, JSScript *src);
 
 /*****************************************************************************/

@@ -234,7 +234,6 @@ public:
     : mStackPointer(0)
     , mMarkerPointer(0)
     , mQueueClearMarker(false)
-    , mStartJSSampling(false)
   { }
 
   void addMarker(const char *aMarker)
@@ -305,25 +304,16 @@ public:
 
   void sampleRuntime(JSRuntime *runtime) {
     mRuntime = runtime;
-    if (mStartJSSampling)
-      installJSSampling();
   }
   void installJSSampling() {
     JS_STATIC_ASSERT(sizeof(mStack[0]) == sizeof(js::ProfileEntry));
-    if (mRuntime) {
-      js::SetRuntimeProfilingStack(mRuntime,
-                                   (js::ProfileEntry*) mStack,
-                                   (uint32_t*) &mStackPointer,
-                                   mozilla::ArrayLength(mStack));
-      mStartJSSampling = false;
-    } else {
-      mStartJSSampling = true;
-    }
+    js::SetRuntimeProfilingStack(mRuntime,
+                                 (js::ProfileEntry*) mStack,
+                                 (uint32_t*) &mStackPointer,
+                                 mozilla::ArrayLength(mStack));
   }
   void uninstallJSSampling() {
-    mStartJSSampling = false;
-    if (mRuntime)
-      js::SetRuntimeProfilingStack(mRuntime, NULL, NULL, 0);
+    js::SetRuntimeProfilingStack(mRuntime, NULL, NULL, 0);
   }
 
   // Keep a list of active checkpoints
@@ -337,8 +327,6 @@ public:
   volatile mozilla::sig_safe_t mQueueClearMarker;
   // The runtime which is being sampled
   JSRuntime *mRuntime;
-  // Start JS Profiling when possible
-  bool mStartJSSampling;
 };
 
 inline ProfileStack* mozilla_profile_stack(void)

@@ -61,7 +61,7 @@ struct BytecodeEmitter
 
     BytecodeEmitter *const parent;  /* enclosing function or global context */
 
-    Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
+    const Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
 
     struct {
         jsbytecode  *base;          /* base of JS bytecode vector */
