@@ -9,6 +9,7 @@
 #include "nsIWidget.h"
 #include "gfxUtils.h"
 #include "gfxPlatform.h"
+#include "mozilla/layers/LayerManagerComposite.h"
 
 namespace mozilla {
 
@@ -19,10 +20,11 @@ namespace layers {
 /* static */ TemporaryRef<ContentClient>
 ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
 {
-  if (aForwarder->GetCompositorBackendType() != LAYERS_OPENGL) {
+  if (aForwarder->GetCompositorBackendType() != LAYERS_OPENGL &&
+      aForwarder->GetCompositorBackendType() != LAYERS_BASIC) {
     return nullptr;
   }
-  if (ShadowLayerManager::SupportsDirectTexturing() ||
+  if (LayerManagerComposite::SupportsDirectTexturing() ||
       PR_GetEnv("MOZ_FORCE_DOUBLE_BUFFERING")) {
     return new ContentClientDoubleBuffered(aForwarder);
   }
@@ -131,8 +133,10 @@ ContentClientRemote::BuildTextureClients(ContentType aType,
   }
   mTextureInfo.mTextureFlags = aFlags | HostRelease;
   mTextureClient = CreateTextureClient(TEXTURE_CONTENT);
+  MOZ_ASSERT(mTextureClient, "Failed to create texture client");
   if (aFlags & BUFFER_COMPONENT_ALPHA) {
     mTextureClientOnWhite = CreateTextureClient(TEXTURE_CONTENT);
+    MOZ_ASSERT(mTextureClientOnWhite, "Failed to create texture client");
     mTextureInfo.mTextureFlags |= ComponentAlpha;
   }
 
@@ -255,6 +259,7 @@ void
 ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect)
 {
   mFrontClient = CreateTextureClient(TEXTURE_CONTENT);
+  MOZ_ASSERT(mFrontClient, "Failed to create texture client");
   mFrontClient->EnsureAllocated(mSize, mContentType);
 
   mFrontBufferRect = aBufferRect;
@@ -262,6 +267,7 @@ ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBuffer
 
   if (mTextureInfo.mTextureFlags & ComponentAlpha) {
     mFrontClientOnWhite = CreateTextureClient(TEXTURE_CONTENT);
+    MOZ_ASSERT(mFrontClientOnWhite, "Failed to create texture client");
     mFrontClientOnWhite->EnsureAllocated(mSize, mContentType);
   }
   

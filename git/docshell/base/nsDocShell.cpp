@@ -65,7 +65,6 @@
 #include "nsIUploadChannel.h"
 #include "nsISecurityEventSink.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsIJSContextStack.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScrollableFrame.h"
 #include "nsContentPolicyUtils.h" // NS_CheckContentLoadPolicy(...)
@@ -2760,7 +2759,7 @@ already_AddRefed<nsDocShell>
 nsDocShell::GetParentDocshell()
 {
     nsCOMPtr<nsIDocShell> docshell = do_QueryInterface(GetAsSupports(mParent));
-    return static_cast<nsDocShell*>(docshell.forget().get());
+    return docshell.forget().downcast<nsDocShell>();
 }
 
 nsresult

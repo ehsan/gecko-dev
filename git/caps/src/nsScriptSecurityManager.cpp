@@ -22,7 +22,6 @@
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
 #include "nsCRTGlue.h"
-#include "nsIJSContextStack.h"
 #include "nsError.h"
 #include "nsDOMCID.h"
 #include "jsdbgapi.h"
@@ -73,7 +72,6 @@ static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
 nsIIOService    *nsScriptSecurityManager::sIOService = nullptr;
 nsIXPConnect    *nsScriptSecurityManager::sXPConnect = nullptr;
-nsIThreadJSContextStack *nsScriptSecurityManager::sJSContextStack = nullptr;
 nsIStringBundle *nsScriptSecurityManager::sStrBundle = nullptr;
 JSRuntime       *nsScriptSecurityManager::sRuntime   = 0;
 bool nsScriptSecurityManager::sStrictFileOriginPolicy = true;
@@ -264,17 +262,14 @@ JSContext *
 nsScriptSecurityManager::GetCurrentJSContext()
 {
     // Get JSContext from stack.
-    JSContext *cx;
-    if (NS_FAILED(sJSContextStack->Peek(&cx)))
-        return nullptr;
-    return cx;
+    return sXPConnect->GetCurrentJSContext();
 }
 
 JSContext *
 nsScriptSecurityManager::GetSafeJSContext()
 {
     // Get JSContext from stack.
-    return sJSContextStack->GetSafeJSContext();
+    return sXPConnect->GetSafeJSContext();
 }
 
 /* static */
@@ -1283,7 +1278,8 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
                     return NS_OK;
                 }
             }
-            return NS_OK;
+            // None of our whitelisted principals worked.
+            return NS_ERROR_DOM_BAD_URI;
         }
         NS_ERROR("Non-system principals or expanded principal passed to CheckLoadURIWithPrincipal "
                  "must have a URI!");
@@ -2422,7 +2418,6 @@ nsresult nsScriptSecurityManager::Init()
         return NS_ERROR_FAILURE;
 
     NS_ADDREF(sXPConnect = xpconnect);
-    NS_ADDREF(sJSContextStack = xpconnect);
 
     JSContext* cx = GetSafeJSContext();
     if (!cx) return NS_ERROR_FAILURE;   // this can happen of xpt loading fails
@@ -2499,7 +2494,6 @@ nsScriptSecurityManager::Shutdown()
 
     NS_IF_RELEASE(sIOService);
     NS_IF_RELEASE(sXPConnect);
-    NS_IF_RELEASE(sJSContextStack);
     NS_IF_RELEASE(sStrBundle);
 }
 

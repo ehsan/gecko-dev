@@ -28,6 +28,7 @@ pref("browser.cache.memory.capacity", 1024); // kilobytes
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
 pref("image.high_quality_downscaling.enabled", false);
+pref("canvas.image.cache.limit", 10485760); // 10 MB
 
 /* offline cache prefs */
 pref("browser.offline-apps.notify", false);
@@ -270,9 +271,10 @@ pref("media.video-queue.default-size", 3);
 
 // optimize images' memory usage
 pref("image.mem.decodeondraw", true);
-pref("content.image.allow_locking", true);
-pref("image.mem.min_discard_timeout_ms", 10000);
-pref("image.mem.max_decoded_image_kb", 5120); /* 5MB */
+pref("content.image.allow_locking", false); /* don't allow image locking */
+pref("image.mem.min_discard_timeout_ms", 86400000); /* 24h, we rely on the out of memory hook */
+pref("image.mem.max_decoded_image_kb", 30000); /* 30MB seems reasonable */
+pref("image.onload.decode.limit", 24); /* don't decode more than 24 images eagerly */
 
 // XXX this isn't a good check for "are touch events supported", but
 // we don't really have a better one at the moment.
@@ -517,6 +519,8 @@ pref("ui.click_hold_context_menus.delay", 750);
 // Enable device storage
 pref("device.storage.enabled", true);
 
+// Enable system message
+pref("dom.sysmsg.enabled", true);
 pref("media.plugins.enabled", false);
 pref("media.omx.enabled", true);
 
@@ -576,12 +580,20 @@ pref("hal.processPriorityManager.gonk.backgroundKillUnderMB", 20);
 pref("hal.processPriorityManager.gonk.notifyLowMemUnderMB", 10);
 
 // Niceness values (i.e., CPU priorities) for B2G processes.
+//
+// Note: The maximum nice value on Linux is 19, but the max value you should
+// use here is 18.  NSPR adds 1 to some threads' nice values, to mark
+// low-priority threads.  If the process priority manager were to renice a
+// process (and all its threads) to 19, all threads would have the same
+// niceness.  Then when we reniced the process to (say) 10, all threads would
+// /still/ have the same niceness; we'd effectively have erased NSPR's thread
+// priorities.
 pref("hal.processPriorityManager.gonk.masterNice", 0);
 pref("hal.processPriorityManager.gonk.foregroundHighNice", 0);
 pref("hal.processPriorityManager.gonk.foregroundNice", 1);
 pref("hal.processPriorityManager.gonk.backgroundPerceivableNice", 10);
-pref("hal.processPriorityManager.gonk.backgroundHomescreenNice", 20);
-pref("hal.processPriorityManager.gonk.backgroundNice", 20);
+pref("hal.processPriorityManager.gonk.backgroundHomescreenNice", 18);
+pref("hal.processPriorityManager.gonk.backgroundNice", 18);
 
 #ifndef DEBUG
 // Enable pre-launching content processes for improved startup time
@@ -664,6 +676,9 @@ pref("memory_info_dumper.watch_fifo.enabled", true);
 pref("memory_info_dumper.watch_fifo.directory", "/data/local");
 
 pref("general.useragent.enable_overrides", true);
+
+// Make <audio> and <video> talk to the AudioChannelService.
+pref("media.useAudioChannelService", true);
 
 pref("b2g.version", @MOZ_B2G_VERSION@);
 

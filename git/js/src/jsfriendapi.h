@@ -36,10 +36,10 @@ extern JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt);
 
 extern JS_FRIEND_API(JSObject *)
-JS_FindCompilationScope(JSContext *cx, JSRawObject obj);
+JS_FindCompilationScope(JSContext *cx, JSObject *obj);
 
 extern JS_FRIEND_API(JSFunction *)
-JS_GetObjectFunction(JSRawObject obj);
+JS_GetObjectFunction(JSObject *obj);
 
 extern JS_FRIEND_API(JSBool)
 JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto);
@@ -116,6 +116,9 @@ JS_ObjectToOuterObject(JSContext *cx, JSObject *obj);
 
 extern JS_FRIEND_API(JSObject *)
 JS_CloneObject(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent);
+
+extern JS_FRIEND_API(JSString *)
+JS_BasicObjectToString(JSContext *cx, JSHandleObject obj);
 
 extern JS_FRIEND_API(JSBool)
 js_GetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
@@ -377,13 +380,13 @@ extern JS_FRIEND_DATA(js::Class) ObjectProxyClass;
 extern JS_FRIEND_DATA(js::Class) ObjectClass;
 
 inline js::Class *
-GetObjectClass(RawObject obj)
+GetObjectClass(JSObject *obj)
 {
     return reinterpret_cast<const shadow::Object*>(obj)->type->clasp;
 }
 
 inline JSClass *
-GetObjectJSClass(RawObject obj)
+GetObjectJSClass(JSObject *obj)
 {
     return js::Jsvalify(GetObjectClass(obj));
 }
@@ -399,10 +402,10 @@ IsOuterObject(JSObject *obj) {
 }
 
 JS_FRIEND_API(bool)
-IsScopeObject(RawObject obj);
+IsScopeObject(JSObject *obj);
 
 inline JSObject *
-GetObjectParent(RawObject obj)
+GetObjectParent(JSObject *obj)
 {
     JS_ASSERT(!IsScopeObject(obj));
     return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
@@ -415,13 +418,13 @@ GetObjectCompartment(JSObject *obj)
 }
 
 JS_FRIEND_API(JSObject *)
-GetObjectParentMaybeScope(RawObject obj);
+GetObjectParentMaybeScope(JSObject *obj);
 
 JS_FRIEND_API(JSObject *)
-GetGlobalForObjectCrossCompartment(RawObject obj);
+GetGlobalForObjectCrossCompartment(JSObject *obj);
 
 JS_FRIEND_API(void)
-NotifyAnimationActivity(RawObject obj);
+NotifyAnimationActivity(JSObject *obj);
 
 JS_FRIEND_API(bool)
 IsOriginalScriptFunction(JSFunction *fun);
@@ -457,10 +460,10 @@ InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
                       const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs);
 
 JS_FRIEND_API(const Value &)
-GetFunctionNativeReserved(RawObject fun, size_t which);
+GetFunctionNativeReserved(JSObject *fun, size_t which);
 
 JS_FRIEND_API(void)
-SetFunctionNativeReserved(RawObject fun, size_t which, const Value &val);
+SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val);
 
 inline bool
 GetObjectProto(JSContext *cx, JSObject *obj, JSObject **proto)
@@ -478,7 +481,7 @@ GetObjectProto(JSContext *cx, JSObject *obj, JSObject **proto)
 }
 
 inline void *
-GetObjectPrivate(RawObject obj)
+GetObjectPrivate(JSObject *obj)
 {
     const shadow::Object *nobj = reinterpret_cast<const shadow::Object*>(obj);
     void **addr = reinterpret_cast<void**>(&nobj->fixedSlots()[nobj->numFixedSlots()]);
@@ -490,17 +493,17 @@ GetObjectPrivate(RawObject obj)
  * within the maximum capacity for the object's fixed slots).
  */
 inline const Value &
-GetReservedSlot(RawObject obj, size_t slot)
+GetReservedSlot(JSObject *obj, size_t slot)
 {
     JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(GetObjectClass(obj)));
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
 }
 
 JS_FRIEND_API(void)
-SetReservedSlotWithBarrier(RawObject obj, size_t slot, const Value &value);
+SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const Value &value);
 
 inline void
-SetReservedSlot(RawObject obj, size_t slot, const Value &value)
+SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
 {
     JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(GetObjectClass(obj)));
     shadow::Object *sobj = reinterpret_cast<shadow::Object *>(obj);
@@ -517,10 +520,10 @@ SetReservedSlot(RawObject obj, size_t slot, const Value &value)
 }
 
 JS_FRIEND_API(uint32_t)
-GetObjectSlotSpan(RawObject obj);
+GetObjectSlotSpan(JSObject *obj);
 
 inline const Value &
-GetObjectSlot(RawObject obj, size_t slot)
+GetObjectSlot(JSObject *obj, size_t slot)
 {
     JS_ASSERT(slot < GetObjectSlotSpan(obj));
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
@@ -539,19 +542,19 @@ AtomToLinearString(JSAtom *atom)
 }
 
 static inline js::PropertyOp
-CastAsJSPropertyOp(RawObject object)
+CastAsJSPropertyOp(JSObject *object)
 {
     return JS_DATA_TO_FUNC_PTR(js::PropertyOp, object);
 }
 
 static inline js::StrictPropertyOp
-CastAsJSStrictPropertyOp(RawObject object)
+CastAsJSStrictPropertyOp(JSObject *object)
 {
     return JS_DATA_TO_FUNC_PTR(js::StrictPropertyOp, object);
 }
 
 JS_FRIEND_API(bool)
-GetPropertyNames(JSContext *cx, RawObject obj, unsigned flags, js::AutoIdVector *props);
+GetPropertyNames(JSContext *cx, JSObject *obj, unsigned flags, js::AutoIdVector *props);
 
 JS_FRIEND_API(bool)
 AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others);
@@ -566,7 +569,7 @@ JS_FRIEND_API(void)
 SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback);
 
 JS_FRIEND_API(bool)
-IsObjectInContextCompartment(RawObject obj, const JSContext *cx);
+IsObjectInContextCompartment(JSObject *obj, const JSContext *cx);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate
@@ -717,7 +720,7 @@ JS_FRIEND_API(void)
 EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled);
 
 JS_FRIEND_API(jsbytecode*)
-ProfilingGetPC(JSRuntime *rt, RawScript script, void *ip);
+ProfilingGetPC(JSRuntime *rt, JSScript *script, void *ip);
 
 #ifdef JS_THREADSAFE
 JS_FRIEND_API(void *)
@@ -870,7 +873,7 @@ extern JS_FRIEND_API(JSBool)
 js_DateIsValid(JSObject* obj);
 
 extern JS_FRIEND_API(double)
-js_DateGetMsecSinceEpoch(JSRawObject obj);
+js_DateGetMsecSinceEpoch(JSObject *obj);
 
 /* Implemented in jscntxt.cpp. */
 
@@ -983,10 +986,9 @@ extern JS_FRIEND_API(JSObject *)
 JS_NewFloat64ArrayFromArray(JSContext *cx, JSObject *array);
 
 /*
- * Create a new typed array using the given ArrayBuffer for storage. byteOffset
- * must not exceed (signed) INT32_MAX. The length value is optional; if -1 is
- * passed, enough elements to use up the remainder of the byte array is used as
- * the default value.
+ * Create a new typed array using the given ArrayBuffer for storage.  The
+ * length value is optional; if -1 is passed, enough elements to use up the
+ * remainder of the byte array is used as the default value.
  */
 
 extern JS_FRIEND_API(JSObject *)
@@ -1453,5 +1455,8 @@ inline void assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id) {};
 extern JS_FRIEND_API(JSBool)
 js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
                      const js::PropertyDescriptor& descriptor, JSBool *bp);
+
+extern JS_FRIEND_API(JSBool)
+js_ReportIsNotFunction(JSContext *cx, const JS::Value& v);
 
 #endif /* jsfriendapi_h___ */

@@ -133,7 +133,6 @@ Attr::GetName(nsAString& aName)
 already_AddRefed<nsIAtom>
 Attr::GetNameAtom(nsIContent* aContent)
 {
-  nsIAtom* result = nullptr;
   if (!mNsAware &&
       mNodeInfo->NamespaceID() == kNameSpaceID_None &&
       aContent->IsInHTMLDocument() &&
@@ -142,13 +141,10 @@ Attr::GetNameAtom(nsIContent* aContent)
     mNodeInfo->GetName(name);
     nsAutoString lowercaseName;
     nsContentUtils::ASCIIToLower(name, lowercaseName);
-    nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(lowercaseName);
-    nameAtom.swap(result);
-  } else {
-    nsCOMPtr<nsIAtom> nameAtom = mNodeInfo->NameAtom();
-    nameAtom.swap(result);
+    return do_GetAtom(lowercaseName);
   }
-  return result;
+  nsCOMPtr<nsIAtom> nameAtom = mNodeInfo->NameAtom();
+  return nameAtom.forget();
 }
 
 NS_IMETHODIMP
@@ -377,9 +373,15 @@ Attr::Shutdown()
 }
 
 JSObject*
-Attr::WrapObject(JSContext* aCx, JSObject* aScope)
+Attr::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return AttrBinding::Wrap(aCx, aScope, this);
+}
+
+Element*
+Attr::GetContentInternal() const
+{
+  return mAttrMap ? mAttrMap->GetContent() : nullptr;
 }
 
 } // namespace dom

@@ -4,16 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsanalyze.h"
+
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsanalyze.h"
 #include "jsautooplen.h"
 #include "jscompartment.h"
 #include "jscntxt.h"
 
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::analyze;
@@ -1958,7 +1958,7 @@ CrossScriptSSA::foldValue(const CrossSSAValue &cv)
     const Frame &frame = getFrame(cv.frame);
     const SSAValue &v = cv.v;
 
-    RawScript parentScript = NULL;
+    JSScript *parentScript = NULL;
     ScriptAnalysis *parentAnalysis = NULL;
     if (frame.parent != INVALID_FRAME) {
         parentScript = getFrame(frame.parent).script;
@@ -1991,7 +1991,7 @@ CrossScriptSSA::foldValue(const CrossSSAValue &cv)
              * If there is a single inline callee with a single return site,
              * propagate back to that.
              */
-            RawScript callee = NULL;
+            JSScript *callee = NULL;
             uint32_t calleeFrame = INVALID_FRAME;
             for (unsigned i = 0; i < numFrames(); i++) {
                 if (iterFrame(i).parent == cv.frame && iterFrame(i).parentpc == pc) {

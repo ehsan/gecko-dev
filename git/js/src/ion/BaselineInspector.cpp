@@ -26,43 +26,68 @@ SetElemICInspector::sawOOBTypedArrayWrite() const
     return false;
 }
 
-RawShape
-BaselineInspector::maybeMonomorphicShapeForPropertyOp(jsbytecode *pc)
+bool
+BaselineInspector::maybeShapesForPropertyOp(jsbytecode *pc, Vector<Shape *> &shapes)
 {
+    // Return a list of shapes seen by the baseline IC for the current op.
+    // An empty list indicates no shapes are known, or there was an uncacheable
+    // access.
+    JS_ASSERT(shapes.empty());
+
     if (!hasBaselineScript())
-        return NULL;
+        return true;
 
     JS_ASSERT(isValidPC(pc));
     const ICEntry &entry = icEntryFromPC(pc);
 
     ICStub *stub = entry.firstStub();
-    ICStub *next = stub->next();
+    while (stub->next()) {
+        Shape *shape;
+        if (stub->isGetProp_Native()) {
+            shape = stub->toGetProp_Native()->shape();
+        } else if (stub->isSetProp_Native()) {
+            shape = stub->toSetProp_Native()->shape();
+        } else {
+            shapes.clear();
+            return true;
+        }
 
-    if (!next || !next->isFallback())
-        return NULL;
+        // Don't add the same shape twice (this can happen if there are multiple
+        // SetProp_Native stubs with different TypeObject's).
+        bool found = false;
+        for (size_t i = 0; i < shapes.length(); i++) {
+            if (shapes[i] == shape) {
+                found = true;
+                break;
+            }
+        }
 
-    if (stub->isGetProp_Native()) {
-        JS_ASSERT(next->isGetProp_Fallback());
-        if (next->toGetProp_Fallback()->hadUnoptimizableAccess())
-            return NULL;
-        return stub->toGetProp_Native()->shape();
+        if (!found && !shapes.append(shape))
+            return false;
+
+        stub = stub->next();
     }
 
-    if (stub->isSetProp_Native()) {
-        JS_ASSERT(next->isSetProp_Fallback());
-        if (next->toSetProp_Fallback()->hadUnoptimizableAccess())
-            return NULL;
-        return stub->toSetProp_Native()->shape();
+    if (stub->isGetProp_Fallback()) {
+        if (stub->toGetProp_Fallback()->hadUnoptimizableAccess())
+            shapes.clear();
+    } else {
+        if (stub->toSetProp_Fallback()->hadUnoptimizableAccess())
+            shapes.clear();
     }
 
-    return NULL;
+    // Don't inline if there are more than 5 shapes.
+    if (shapes.length() > 5)
+        shapes.clear();
+
+    return true;
 }
 
-ICStub::Kind
-BaselineInspector::monomorphicStubKind(jsbytecode *pc)
+ICStub *
+BaselineInspector::monomorphicStub(jsbytecode *pc)
 {
     if (!hasBaselineScript())
-        return ICStub::INVALID;
+        return NULL;
 
     const ICEntry &entry = icEntryFromPC(pc);
 
@@ -70,13 +95,13 @@ BaselineInspector::monomorphicStubKind(jsbytecode *pc)
     ICStub *next = stub->next();
 
     if (!next || !next->isFallback())
-        return ICStub::INVALID;
+        return NULL;
 
-    return stub->kind();
+    return stub;
 }
 
 bool
-BaselineInspector::dimorphicStubKind(jsbytecode *pc, ICStub::Kind *pfirst, ICStub::Kind *psecond)
+BaselineInspector::dimorphicStub(jsbytecode *pc, ICStub **pfirst, ICStub **psecond)
 {
     if (!hasBaselineScript())
         return false;
@@ -90,8 +115,8 @@ BaselineInspector::dimorphicStubKind(jsbytecode *pc, ICStub::Kind *pfirst, ICStu
     if (!after || !after->isFallback())
         return false;
 
-    *pfirst = stub->kind();
-    *psecond = next->kind();
+    *pfirst = stub;
+    *psecond = next;
     return true;
 }
 
@@ -101,9 +126,11 @@ BaselineInspector::expectedResultType(jsbytecode *pc)
     // Look at the IC entries for this op to guess what type it will produce,
     // returning MIRType_None otherwise.
 
-    ICStub::Kind kind = monomorphicStubKind(pc);
+    ICStub *stub = monomorphicStub(pc);
+    if (!stub)
+        return MIRType_None;
 
-    switch (kind) {
+    switch (stub->kind()) {
       case ICStub::BinaryArith_Int32:
       case ICStub::BinaryArith_BooleanWithInt32:
       case ICStub::UnaryArith_Int32:
@@ -128,19 +155,101 @@ CanUseDoubleCompare(ICStub::Kind kind)
     return kind == ICStub::Compare_Double || kind == ICStub::Compare_NumberWithUndefined;
 }
 
+// Whether a baseline stub kind is suitable for an int32 comparison that
+// converts its operands to int32.
+static bool
+CanUseInt32Compare(ICStub::Kind kind)
+{
+    return kind == ICStub::Compare_Int32 || kind == ICStub::Compare_Int32WithBoolean;
+}
+
 MCompare::CompareType
 BaselineInspector::expectedCompareType(jsbytecode *pc)
 {
-    ICStub::Kind kind = monomorphicStubKind(pc);
+    ICStub *first = monomorphicStub(pc), *second = NULL;
+    if (!first && !dimorphicStub(pc, &first, &second))
+        return MCompare::Compare_Unknown;
 
-    if (CanUseDoubleCompare(kind))
+    if (CanUseInt32Compare(first->kind()) && (!second || CanUseInt32Compare(second->kind())))
+        return MCompare::Compare_Int32;
+
+    if (CanUseDoubleCompare(first->kind()) && (!second || CanUseDoubleCompare(second->kind()))) {
+        ICCompare_NumberWithUndefined *coerce =
+            first->isCompare_NumberWithUndefined()
+            ? first->toCompare_NumberWithUndefined()
+            : (second && second->isCompare_NumberWithUndefined())
+              ? second->toCompare_NumberWithUndefined()
+              : NULL;
+        if (coerce) {
+            return coerce->lhsIsUndefined()
+                   ? MCompare::Compare_DoubleMaybeCoerceLHS
+                   : MCompare::Compare_DoubleMaybeCoerceRHS;
+        }
         return MCompare::Compare_Double;
-
-    ICStub::Kind first, second;
-    if (dimorphicStubKind(pc, &first, &second)) {
-        if (CanUseDoubleCompare(first) && CanUseDoubleCompare(second))
-            return MCompare::Compare_Double;
     }
 
     return MCompare::Compare_Unknown;
 }
+
+static bool
+TryToSpecializeBinaryArithOp(ICStub **stubs,
+                             uint32_t nstubs,
+                             MIRType *result)
+{
+    bool sawInt32 = false;
+    bool sawDouble = false;
+    bool sawOther = false;
+
+    for (uint32_t i = 0; i < nstubs; i++) {
+        switch (stubs[i]->kind()) {
+          case ICStub::BinaryArith_Int32:
+            sawInt32 = true;
+            break;
+          case ICStub::BinaryArith_BooleanWithInt32:
+            sawInt32 = true;
+            break;
+          case ICStub::BinaryArith_Double:
+            sawDouble = true;
+            break;
+          case ICStub::BinaryArith_DoubleWithInt32:
+            sawDouble = true;
+            break;
+          default:
+            sawOther = true;
+            break;
+        }
+    }
+
+    if (sawOther)
+        return false;
+
+    if (sawDouble) {
+        *result = MIRType_Double;
+        return true;
+    }
+
+    JS_ASSERT(sawInt32);
+    *result = MIRType_Int32;
+    return true;
+}
+
+MIRType
+BaselineInspector::expectedBinaryArithSpecialization(jsbytecode *pc)
+{
+    MIRType result;
+    ICStub *stubs[2];
+
+    stubs[0] = monomorphicStub(pc);
+    if (stubs[0]) {
+        if (TryToSpecializeBinaryArithOp(stubs, 1, &result))
+            return result;
+    }
+
+    if (dimorphicStub(pc, &stubs[0], &stubs[1])) {
+        if (TryToSpecializeBinaryArithOp(stubs, 2, &result))
+            return result;
+    }
+
+    return MIRType_None;
+}
+

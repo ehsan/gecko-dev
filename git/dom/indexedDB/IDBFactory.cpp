@@ -7,13 +7,14 @@
 #include "base/basictypes.h"
 
 #include "IDBFactory.h"
+
 #include "nsIFile.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 #include "nsIXPCScriptable.h"
 
-#include "jsdbgapi.h"
+#include <algorithm>
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/IDBFactoryBinding.h"
@@ -42,9 +43,9 @@
 #include "IDBKeyRange.h"
 #include "IndexedDatabaseManager.h"
 #include "Key.h"
+#include "ProfilerHelpers.h"
 
 #include "ipc/IndexedDBChild.h"
-#include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
 USING_QUOTA_NAMESPACE
@@ -223,7 +224,7 @@ IDBFactory::Create(ContentParent* aContentParent,
 
   // The CreateSandbox call returns a proxy to the actual sandbox object. We
   // don't need a proxy here.
-  global = JS_UnwrapObject(global);
+  global = js::UncheckedUnwrap(global);
 
   JSAutoCompartment ac(cx, global);
 
@@ -593,12 +594,29 @@ IDBFactory::OpenInternal(const nsAString& aName,
     dbActor->SetRequest(request);
   }
 
+#ifdef IDB_PROFILER_USE_MARKS
+  {
+    NS_ConvertUTF16toUTF8 profilerName(aName);
+    if (aDeleting) {
+      IDB_PROFILER_MARK("IndexedDB Request %llu: deleteDatabase(\"%s\")",
+                        "MT IDBFactory.deleteDatabase()",
+                        request->GetSerialNumber(), profilerName.get());
+    }
+    else {
+      IDB_PROFILER_MARK("IndexedDB Request %llu: open(\"%s\", %lld)",
+                        "MT IDBFactory.open()",
+                        request->GetSerialNumber(), profilerName.get(),
+                        aVersion);
+    }
+  }
+#endif
+
   request.forget(_retval);
   return NS_OK;
 }
 
 JSObject*
-IDBFactory::WrapObject(JSContext* aCx, JSObject* aScope)
+IDBFactory::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return IDBFactoryBinding::Wrap(aCx, aScope, this);
 }

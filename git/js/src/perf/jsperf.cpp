@@ -4,10 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsperf.h"
+
 #include "jscntxt.h" /* for error messages */
 #include "jsobj.h" /* for unwrapping without a context */
 
 #include "jsobjinlines.h"
+#include "vm/ObjectImpl-inl.h"
 
 using JS::PerfMeasurement;
 
@@ -223,7 +225,7 @@ GetPMFromThis(JSContext* cx, jsval* vp)
 namespace JS {
 
 JSObject*
-RegisterPerfMeasurement(JSContext *cx, JSRawObject global)
+RegisterPerfMeasurement(JSContext *cx, JSObject *global)
 {
     RootedObject prototype(cx);
     prototype = JS_InitClass(cx, global, NULL /* parent */,

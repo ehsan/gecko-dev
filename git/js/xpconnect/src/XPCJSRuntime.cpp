@@ -24,6 +24,7 @@
 #include "nsLayoutStatics.h"
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsCycleCollectorUtils.h"
 #include "nsScriptLoader.h"
 #include "jsfriendapi.h"
 #include "js/MemoryMetrics.h"
@@ -488,8 +489,8 @@ XPCJSRuntime::SuspectWrappedNative(XPCWrappedNative *wrapper,
     if (!wrapper->IsValid() || wrapper->IsWrapperExpired())
         return;
 
-    NS_ASSERTION(NS_IsMainThread() || NS_IsCycleCollectorThread(),
-                 "Suspecting wrapped natives from non-CC thread");
+    MOZ_ASSERT(NS_IsMainThread() || NS_IsCycleCollectorThread(),
+               "Suspecting wrapped natives from non-CC thread");
 
     // Only record objects that might be part of a cycle as roots, unless
     // the callback wants all traces (a debug feature).
@@ -2248,7 +2249,7 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
             }
         }
 
-        extras->pathPrefix += nsPrintfCString("zone(%p)/", (void *)zone);
+        extras->pathPrefix += nsPrintfCString("zone(0x%p)/", (void *)zone);
 
         zStats->extra = extras;
     }
@@ -2691,6 +2692,12 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     // between optimized and debug builds. Also, ASan requires more stack space
     // due to redzones
     JS_SetNativeStackQuota(mJSRuntime, 2 * 128 * sizeof(size_t) * 1024);
+#elif defined(XP_WIN)
+    // 1MB is the default stack size on Windows
+    JS_SetNativeStackQuota(mJSRuntime, 900 * 1024);
+#elif defined(XP_MACOSX) || defined(DARWIN)
+    // 8MB is the default stack size on MacOS
+    JS_SetNativeStackQuota(mJSRuntime, 7 * 1024 * 1024);
 #else
     JS_SetNativeStackQuota(mJSRuntime, 128 * sizeof(size_t) * 1024);
 #endif

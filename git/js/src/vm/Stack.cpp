@@ -53,7 +53,7 @@ using mozilla::PodCopy;
 /*****************************************************************************/
 
 void
-StackFrame::initExecuteFrame(RawScript script, StackFrame *prevLink, AbstractFramePtr prev,
+StackFrame::initExecuteFrame(JSScript *script, StackFrame *prevLink, AbstractFramePtr prev,
                              FrameRegs *regs, const Value &thisv, JSObject &scopeChain,
                              ExecuteType type)
 {
@@ -87,7 +87,7 @@ StackFrame::initExecuteFrame(RawScript script, StackFrame *prevLink, AbstractFra
         dstvp[0] = NullValue();
         exec.script = script;
 #ifdef DEBUG
-        u.evalScript = (RawScript)0xbad;
+        u.evalScript = (JSScript *)0xbad;
 #endif
     }
 
@@ -1312,7 +1312,7 @@ StackIter::startOnSegment(StackSegment *seg)
  * "settle" the iterator on a new StackIter::State value. The goal is to
  * present the client a simple linear sequence of native/scripted calls while
  * covering up unpleasant stack implementation details:
- *  - The frame change can be "saved" and "restored" (see JS_SaveFrameChain).
+ *  - The frame chain can be "saved" and "restored" (see JS_SaveFrameChain).
  *    This artificially cuts the call chain and the StackIter client may want
  *    to continue through this cut to the previous frame by passing
  *    GO_THROUGH_SAVED.

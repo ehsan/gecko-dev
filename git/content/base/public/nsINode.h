@@ -6,11 +6,9 @@
 #ifndef nsINode_h___
 #define nsINode_h___
 
-#include "mozilla/ErrorResult.h"
 #include "mozilla/Likely.h"
 #include "nsCOMPtr.h"               // for member, local
 #include "nsGkAtoms.h"              // for nsGkAtoms::baseURIProperty
-#include "nsIDOMEventTarget.h"      // for base class
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeSelector.h"     // base class
 #include "nsINodeInfo.h"            // member (in nsCOMPtr)
@@ -378,7 +376,8 @@ public:
    */
   virtual bool IsNodeOfType(uint32_t aFlags) const = 0;
 
-  virtual JSObject* WrapObject(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
 protected:
   /**
@@ -386,7 +385,7 @@ protected:
    * does some additional checks and fix-up that's common to all nodes. WrapNode
    * should just call the DOM binding's Wrap function.
    */
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope)
+  virtual JSObject* WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
   {
     MOZ_ASSERT(!IsDOMBinding(), "Someone forgot to override WrapNode");
     return nullptr;

@@ -4,11 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jscompartment.h"
+
 #include "mozilla/DebugOnly.h"
 
 #include "jscntxt.h"
-#include "jsdate.h"
-#include "jscompartment.h"
 #include "jsgc.h"
 #include "jsiter.h"
 #include "jsmath.h"
@@ -16,29 +16,15 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#if ENABLE_YARR_JIT
-#include "assembler/jit/ExecutableAllocator.h"
-#endif
-#include "assembler/wtf/Platform.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
 #include "ion/IonCompartment.h"
-#include "ion/Ion.h"
 #endif
-#include "js/MemoryMetrics.h"
 #include "js/RootingAPI.h"
-#include "methodjit/MethodJIT.h"
-#include "methodjit/PolyIC.h"
-#include "methodjit/MonoIC.h"
-#include "methodjit/Retcon.h"
 #include "vm/Debugger.h"
-#include "vm/ForkJoin.h"
-#include "yarr/BumpPointerAllocator.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
-
-#include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -220,7 +206,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         return true;
 
     if (vp.isString()) {
-        RawString str = vp.toString();
+        JSString *str = vp.toString();
 
         /* If the string is already in this compartment, we are done. */
         if (str->zone() == zone())
@@ -283,7 +269,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(key)) {
         vp.set(p->value);
         if (vp.isObject()) {
-            DebugOnly<RawObject> obj = &vp.toObject();
+            DebugOnly<JSObject *> obj = &vp.toObject();
             JS_ASSERT(obj->isCrossCompartmentWrapper());
             JS_ASSERT(obj->getParent() == global);
         }
@@ -295,7 +281,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         if (!str)
             return false;
 
-        RawString wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
+        JSString *wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
         if (!wrapped)
             return false;
 

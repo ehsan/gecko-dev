@@ -21,12 +21,8 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
-
-  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
-  {
-    return true;
-  }
+  virtual JSObject* WrapObject(JSContext* aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   void GetFloatFrequencyData(Float32Array& aArray);
   void GetByteFrequencyData(Uint8Array& aArray);

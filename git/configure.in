@@ -223,7 +223,6 @@ if test -n "$gonkdir" ; then
     AC_DEFINE(HAVE_PTHREADS)
     CROSS_COMPILE=1
     MOZ_CHROME_FILE_FORMAT=omni
-    NSS_NO_LIBPKIX=1
     direct_nspr_config=1
 else
     MOZ_ANDROID_NDK
@@ -2167,7 +2166,7 @@ ia64*-hpux*)
         XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         LIBXUL_LIBS='$(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
-        LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
+        LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT -RELEASE"
         dnl For profile-guided optimization
         PROFILE_GEN_CFLAGS="-GL"
         PROFILE_GEN_LDFLAGS="-LTCG:PGINSTRUMENT"
@@ -3538,34 +3537,6 @@ if test "$GNU_CC"; then
   TARGET_COMPILER_ABI="${TARGET_COMPILER_ABI-${ARM_ABI_PREFIX}gcc3}"
 fi
 
-dnl Check for support of modern template specialization syntax
-dnl Test code and requirement from scc@netscape.com.
-dnl Autoconf cut-and-paste job by waterson@netscape.com
-AC_CACHE_CHECK(for modern C++ template specialization syntax support,
-               ac_cv_cpp_modern_specialize_template_syntax,
-               [AC_TRY_COMPILE(template <class T> struct X { int a; };
-                               class Y {};
-                               template <> struct X<Y> { double a; };,
-                               X<int> int_x;
-                               X<Y> y_x;,
-                               ac_cv_cpp_modern_specialize_template_syntax=yes,
-                               ac_cv_cpp_modern_specialize_template_syntax=no)])
-if test "$ac_cv_cpp_modern_specialize_template_syntax" = no ; then
-  AC_MSG_ERROR([The C++ compiler does not support template specialization])
-fi
-
-dnl Some compilers support only full specialization, and some don't.
-AC_CACHE_CHECK(whether partial template specialization works,
-               ac_cv_cpp_partial_specialization,
-               [AC_TRY_COMPILE(template <class T> class Foo {};
-                               template <class T> class Foo<T*> {};,
-                               return 0;,
-                               ac_cv_cpp_partial_specialization=yes,
-                               ac_cv_cpp_partial_specialization=no)])
-if test "$ac_cv_cpp_partial_specialization" = yes ; then
-  AC_DEFINE(HAVE_CPP_PARTIAL_SPECIALIZATION)
-fi
-
 dnl Check to see if we can resolve ambiguity with |using|.
 AC_CACHE_CHECK(whether the C++ \"using\" keyword resolves ambiguity,
                ac_cv_cpp_ambiguity_resolving_using,
@@ -4264,10 +4235,10 @@ MOZ_WEBSMS_BACKEND=
 MOZ_ANDROID_WALLPAPER=
 MOZ_ANDROID_BEAM=
 ACCESSIBILITY=1
-MOZ_SYS_MSG=
 MOZ_TIME_MANAGER=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
+NSS_NO_LIBPKIX=
 
 case "$target_os" in
     mingw*)
@@ -6395,7 +6366,7 @@ MOZ_ARG_ENABLE_BOOL(gtest,
     MOZ_ENABLE_GTEST= )
 
 if test -n "$MOZ_ENABLE_GTEST"; then
-    if test "${OS_TARGET}" = "WINNT" -o "${OS_TARGET}" = "Darwin" -o "${OS_TARGET}" = "Linux"; then
+    if test "${OS_TARGET}" = "WINNT" -o "${OS_TARGET}" = "Darwin" -o "${OS_TARGET}" = "Linux" -o "${OS_TARGET}" = "Android"; then
         MOZ_ENABLE_GTEST=1
         GTEST_HAS_RTTI=0
         AC_DEFINE(MOZ_ENABLE_GTEST)
@@ -6404,6 +6375,14 @@ if test -n "$MOZ_ENABLE_GTEST"; then
         AC_SUBST(GTEST_HAS_RTTI)
     else
         AC_MSG_ERROR([Cannot build with --enable-gtest on this platform.])
+    fi
+    if test "${OS_TARGET}" = "Android"; then
+        AC_DEFINE(GTEST_OS_LINUX_ANDROID)
+        AC_DEFINE(GTEST_USE_OWN_TR1_TUPLE)
+        AC_DEFINE_UNQUOTED(GTEST_HAS_CLONE, 0)
+        AC_SUBST(GTEST_OS_LINUX_ANDROID)
+        AC_SUBST(GTEST_USE_OWN_TR1_TUPLE)
+        AC_SUBST(GTEST_HAS_CLONE)
     fi
 fi
 
@@ -6428,6 +6407,15 @@ if test -n "$MOZ_DISABLE_CRYPTOLEGACY"; then
     AC_DEFINE(MOZ_DISABLE_CRYPTOLEGACY)
 fi
 AC_SUBST(MOZ_DISABLE_CRYPTOLEGACY)
+
+dnl ========================================================
+dnl = Disable libpkix
+dnl ========================================================
+if test -n "$NSS_NO_LIBPKIX"; then
+    AC_DEFINE(NSS_NO_LIBPKIX)
+fi
+AC_SUBST(NSS_NO_LIBPKIX)
+
 
 dnl ========================================================
 dnl =
@@ -7626,14 +7614,6 @@ fi
 AC_SUBST(MOZ_B2G_BT)
 
 dnl ========================================================
-dnl = Enable Support for System Messages API
-dnl ========================================================
-if test -n "$MOZ_SYS_MSG"; then
-    AC_DEFINE(MOZ_SYS_MSG)
-fi
-AC_SUBST(MOZ_SYS_MSG)
-
-dnl ========================================================
 dnl = Enable Support for Time Manager API
 dnl ========================================================
 if test -n "$MOZ_TIME_MANAGER"; then
@@ -8525,8 +8505,6 @@ AC_SUBST(MOZ_PERMISSIONS)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
 AC_SUBST(MOZ_JS_LIBS)
 AC_SUBST(MOZ_PSM)
-AC_DEFINE(NSS_NO_LIBPKIX)
-AC_SUBST(NSS_NO_LIBPKIX)
 AC_SUBST(MOZ_DEBUG)
 AC_SUBST(MOZ_DEBUG_SYMBOLS)
 AC_SUBST(MOZ_DEBUG_ENABLE_DEFS)
@@ -8570,6 +8548,7 @@ AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
 AC_SUBST(MOZ_ONLY_TOUCH_EVENTS)
 AC_SUBST(MOZ_CRASHREPORTER)
 AC_SUBST(MOZ_CRASHREPORTER_INJECTOR)
+AC_SUBST(MOZ_CRASHREPORTER_UPLOAD_FULL_SYMBOLS)
 AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)

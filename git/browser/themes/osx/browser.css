@@ -40,12 +40,12 @@
   background-color: #eeeeee;
 }
 
-#titlebar-buttonbox-container {
+#titlebar-buttonbox > .titlebar-button {
   display: none;
 }
 
 #titlebar {
-  height: 22px;
+  padding-top: 9px;
 }
 
 #main-window:not(:-moz-lwtheme):not([privatebrowsingmode=temporary]) > #titlebar {
@@ -2146,21 +2146,9 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 %include ../shared/tabs.inc.css
 
 .tab-label {
-  margin: 0;
+  margin-top: 3px;
+  margin-bottom: 0;
   text-align: center;
-}
-
-.tab-throbber:not([pinned]),
-.tab-icon-image:not([pinned]) {
-  -moz-margin-end: 6px;
-}
-
-.tab-throbber {
-  list-style-image: url("chrome://browser/skin/tabbrowser/connecting.png");
-}
-
-.tab-throbber[progress] {
-  list-style-image: url("chrome://browser/skin/tabbrowser/loading.png");
 }
 
 @media (min-resolution: 2dppx) {
@@ -2188,8 +2176,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 .tabbrowser-tab:not([pinned]):not([fadein]) {
   transition: min-width 200ms ease-out /* copied from browser/base/content/browser.css */,
-              max-width 250ms ease-out /* copied from browser/base/content/browser.css */,
-              opacity 50ms ease-out 100ms /* hide the tab for the last 100ms of the max-width transition */;
+              max-width 230ms ease-out /* copied from browser/base/content/browser.css */,
+              opacity 50ms ease-out 80ms /* hide the tab for the last 100ms of the max-width transition */;
 }
 
 .tabbrowser-tab,
@@ -2321,8 +2309,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   list-style-image: url("chrome://global/skin/icons/close.png");
   -moz-appearance: none;
   border: none !important;
-  padding: 0;
-  margin: 0;
   background: none;
   cursor: default;
   -moz-image-region: rect(0, 16px, 16px, 0);
@@ -3026,7 +3012,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],
-.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
+.popup-notification-icon[popupid="indexedDB-quota-prompt"],
+.popup-notification-icon[popupid*="offline-app-requested"] {
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
@@ -3442,7 +3429,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   margin: 2px;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""])::after {
+.toolbarbutton-badge[badge]:not([badge=""]) {
   /* The |content| property is set in the content stylesheet. */
   font-size: 9px;
   font-weight: bold;
@@ -3455,18 +3442,26 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   position: absolute;
   top: 0;
   right: 0;
+  z-index: 1;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
+.toolbarbutton-badge[badge]:not([badge=""]):-moz-window-inactive {
+  background-color: rgb(230,230,230);
+  box-shadow: none;
+  border: 1px solid rgb(206,206,206);
+  color: rgb(192,192,192);
+}
+
+.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl) {
   left: 0;
   right: auto;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""])::after {
+toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]) {
   right: -2px;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
+toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl) {
   left: -2px;
 }
 
@@ -3756,5 +3751,3 @@ panel[type="arrow"][popupid="click-to-play-plugins"] > .panel-arrowcontainer > .
     -moz-padding-end: 50px;
   }
 }
-
-

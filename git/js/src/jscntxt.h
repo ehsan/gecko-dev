@@ -89,7 +89,7 @@ typedef HashMap<CallsiteCloneKey,
                 CallsiteCloneKey,
                 SystemAllocPolicy> CallsiteCloneTable;
 
-RawFunction CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun,
+JSFunction *CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun,
                                     HandleScript script, jsbytecode *pc);
 
 typedef HashSet<JSObject *> ObjectSet;
@@ -486,35 +486,7 @@ class PerThreadData : public js::PerThreadDataFriendFields
     JSContext           *ionJSContext;
     uintptr_t            ionStackLimit;
 
-# ifdef JS_THREADSAFE
-    /*
-     * Synchronizes setting of ionStackLimit so signals by triggerOperationCallback don't
-     * get lost.
-     */
-    PRLock *ionStackLimitLock_;
-
-    class IonStackLimitLock {
-        PerThreadData &data_;
-      public:
-        IonStackLimitLock(PerThreadData &data) : data_(data) {
-            JS_ASSERT(data_.ionStackLimitLock_);
-            PR_Lock(data_.ionStackLimitLock_);
-        }
-        ~IonStackLimitLock() {
-            JS_ASSERT(data_.ionStackLimitLock_);
-            PR_Unlock(data_.ionStackLimitLock_);
-        }
-    };
-#else
-    class IonStackLimitLock {
-      public:
-        IonStackLimitLock(PerThreadData &data) {}
-    };
-# endif
-    void setIonStackLimit(uintptr_t limit) {
-        IonStackLimitLock lock(*this);
-        ionStackLimit = limit;
-    }
+    inline void setIonStackLimit(uintptr_t limit);
 
     /*
      * This points to the most recent Ion activation running on the thread.
@@ -527,39 +499,18 @@ class PerThreadData : public js::PerThreadDataFriendFields
      * running asm.js without requiring dynamic polling operations in the
      * generated code. Since triggerOperationCallback may run on a separate
      * thread than the JSRuntime's owner thread all reads/writes must be
-     * synchronized (by asmJSActivationStackLock_).
+     * synchronized (by rt->operationCallbackLock).
      */
   private:
     friend class js::AsmJSActivation;
 
-    /* See AsmJSActivation comment. */
+    /* See AsmJSActivation comment. Protected by rt->operationCallbackLock. */
     js::AsmJSActivation *asmJSActivationStack_;
-
-# ifdef JS_THREADSAFE
-    /* Synchronizes pushing/popping with triggerOperationCallback. */
-    PRLock *asmJSActivationStackLock_;
-# endif
 
   public:
     static unsigned offsetOfAsmJSActivationStackReadOnly() {
         return offsetof(PerThreadData, asmJSActivationStack_);
     }
-
-    class AsmJSActivationStackLock {
-# ifdef JS_THREADSAFE
-        PerThreadData &data_;
-      public:
-        AsmJSActivationStackLock(PerThreadData &data) : data_(data) {
-            PR_Lock(data_.asmJSActivationStackLock_);
-        }
-        ~AsmJSActivationStackLock() {
-            PR_Unlock(data_.asmJSActivationStackLock_);
-        }
-# else
-      public:
-        AsmJSActivationStackLock(PerThreadData &) {}
-# endif
-    };
 
     js::AsmJSActivation *asmJSActivationStackFromAnyThread() const {
         return asmJSActivationStack_;
@@ -579,8 +530,6 @@ class PerThreadData : public js::PerThreadDataFriendFields
     int32_t             suppressGC;
 
     PerThreadData(JSRuntime *runtime);
-    ~PerThreadData();
-    bool init();
 
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
 };
@@ -689,6 +638,55 @@ struct JSRuntime : public JS::shadow::Runtime,
      * as possible.
      */
     volatile int32_t    interrupt;
+
+#ifdef JS_THREADSAFE
+  private:
+    /*
+     * Lock taken when triggering the operation callback from another thread.
+     * Protects all data that is touched in this process.
+     */
+    PRLock *operationCallbackLock;
+#ifdef DEBUG
+    PRThread *operationCallbackOwner;
+#endif
+  public:
+#endif // JS_THREADSAFE
+
+    class AutoLockForOperationCallback {
+#ifdef JS_THREADSAFE
+        JSRuntime *rt;
+      public:
+        AutoLockForOperationCallback(JSRuntime *rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM) : rt(rt) {
+            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            PR_Lock(rt->operationCallbackLock);
+#ifdef DEBUG
+            rt->operationCallbackOwner = PR_GetCurrentThread();
+#endif
+        }
+        ~AutoLockForOperationCallback() {
+            JS_ASSERT(rt->operationCallbackOwner == PR_GetCurrentThread());
+#ifdef DEBUG
+            rt->operationCallbackOwner = NULL;
+#endif
+            PR_Unlock(rt->operationCallbackLock);
+        }
+#else // JS_THREADSAFE
+      public:
+        AutoLockForOperationCallback(JSRuntime *rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM) {
+            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        }
+#endif // JS_THREADSAFE
+
+        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    };
+
+    bool currentThreadOwnsOperationCallbackLock() {
+#if defined(JS_THREADSAFE) && defined(DEBUG)
+        return operationCallbackOwner == PR_GetCurrentThread();
+#else
+        return true;
+#endif
+    }
 
     /* Default compartment. */
     JSCompartment       *atomsCompartment;
@@ -1318,6 +1316,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     // Used to reset stack limit after a signaled interrupt (i.e. ionStackLimit_ = -1)
     // has been noticed by Ion/Baseline.
     void resetIonStackLimit() {
+        AutoLockForOperationCallback lock(this);
         mainThread.setIonStackLimit(mainThread.nativeStackLimit);
     }
 
@@ -1941,7 +1940,7 @@ class AutoUnlockGC
     ~AutoUnlockGC() { JS_LOCK_GC(rt); }
 };
 
-class AutoKeepAtoms
+class MOZ_STACK_CLASS AutoKeepAtoms
 {
     JSRuntime *rt;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -2034,6 +2033,13 @@ enum ErrorArgumentsType {
     ArgumentsAreUnicode,
     ArgumentsAreASCII
 };
+
+inline void
+PerThreadData::setIonStackLimit(uintptr_t limit)
+{
+    JS_ASSERT(runtime_->currentThreadOwnsOperationCallbackLock());
+    ionStackLimit = limit;
+}
 
 } /* namespace js */
 
@@ -2224,12 +2230,12 @@ SetValueRangeToNull(Value *vec, size_t len)
     SetValueRangeToNull(vec, vec + len);
 }
 
-class AutoObjectVector : public AutoVectorRooter<RawObject>
+class AutoObjectVector : public AutoVectorRooter<JSObject *>
 {
   public:
     explicit AutoObjectVector(JSContext *cx
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<RawObject>(cx, OBJVECTOR)
+        : AutoVectorRooter<JSObject *>(cx, OBJVECTOR)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -2237,12 +2243,12 @@ class AutoObjectVector : public AutoVectorRooter<RawObject>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoStringVector : public AutoVectorRooter<RawString>
+class AutoStringVector : public AutoVectorRooter<JSString *>
 {
   public:
     explicit AutoStringVector(JSContext *cx
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<RawString>(cx, STRINGVECTOR)
+        : AutoVectorRooter<JSString *>(cx, STRINGVECTOR)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -2250,12 +2256,12 @@ class AutoStringVector : public AutoVectorRooter<RawString>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoShapeVector : public AutoVectorRooter<RawShape>
+class AutoShapeVector : public AutoVectorRooter<Shape *>
 {
   public:
     explicit AutoShapeVector(JSContext *cx
                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<RawShape>(cx, SHAPEVECTOR)
+        : AutoVectorRooter<Shape *>(cx, SHAPEVECTOR)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -2265,19 +2271,19 @@ class AutoShapeVector : public AutoVectorRooter<RawShape>
 
 class AutoValueArray : public AutoGCRooter
 {
-    RawValue *start_;
+    Value *start_;
     unsigned length_;
     SkipRoot skip;
 
   public:
-    AutoValueArray(JSContext *cx, RawValue *start, unsigned length
+    AutoValueArray(JSContext *cx, Value *start, unsigned length
                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, VALARRAY), start_(start), length_(length), skip(cx, start, length)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    RawValue *start() { return start_; }
+    Value *start() { return start_; }
     unsigned length() const { return length_; }
 
     MutableHandleValue handleAt(unsigned i)
@@ -2294,12 +2300,12 @@ class AutoValueArray : public AutoGCRooter
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoObjectObjectHashMap : public AutoHashMapRooter<RawObject, RawObject>
+class AutoObjectObjectHashMap : public AutoHashMapRooter<JSObject *, JSObject *>
 {
   public:
     explicit AutoObjectObjectHashMap(JSContext *cx
                                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoHashMapRooter<RawObject, RawObject>(cx, OBJOBJHASHMAP)
+      : AutoHashMapRooter<JSObject *, JSObject *>(cx, OBJOBJHASHMAP)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -2307,12 +2313,12 @@ class AutoObjectObjectHashMap : public AutoHashMapRooter<RawObject, RawObject>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoObjectUnsigned32HashMap : public AutoHashMapRooter<RawObject, uint32_t>
+class AutoObjectUnsigned32HashMap : public AutoHashMapRooter<JSObject *, uint32_t>
 {
   public:
     explicit AutoObjectUnsigned32HashMap(JSContext *cx
                                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoHashMapRooter<RawObject, uint32_t>(cx, OBJU32HASHMAP)
+      : AutoHashMapRooter<JSObject *, uint32_t>(cx, OBJU32HASHMAP)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -2320,12 +2326,12 @@ class AutoObjectUnsigned32HashMap : public AutoHashMapRooter<RawObject, uint32_t
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoObjectHashSet : public AutoHashSetRooter<RawObject>
+class AutoObjectHashSet : public AutoHashSetRooter<JSObject *>
 {
   public:
     explicit AutoObjectHashSet(JSContext *cx
                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoHashSetRooter<RawObject>(cx, OBJHASHSET)
+      : AutoHashSetRooter<JSObject *>(cx, OBJHASHSET)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }

@@ -10,10 +10,9 @@
 @namespace html url("http://www.w3.org/1999/xhtml");
 
 %include ../shared/browser.inc
+%include linuxShared.inc
 %filter substitution
-%define toolbarHighlight rgba(255,255,255,.3)
-%define fgTabTexture linear-gradient(transparent 0px, transparent 1px, hsla(0,0%,100%,0.35) 1px, hsla(0,0%,100%,0.35) 2px, hsla(0,0%,100%,0.65) 2px, hsla(0,0%,100%,0.65) 3px, @toolbarHighlight@)
-%define fgTabBackgroundMiddle @fgTabTexture@, linear-gradient(transparent 0px, transparent 2px, -moz-dialog 2px, -moz-dialog)
+
 %define forwardTransitionLength 150ms
 %define conditionalForwardWithUrlbar       window:not([chromehidden~=toolbar]) :-moz-any(#nav-bar[currentset*="unified-back-forward-button,urlbar-container"],                #nav-bar:not([currentset]))                 > #nav-bar-customizationtarget > #unified-back-forward-button
 %define conditionalForwardWithUrlbar_small window:not([chromehidden~=toolbar]) :-moz-any(#nav-bar[currentset*="unified-back-forward-button,urlbar-container"][iconsize=small],#nav-bar:not([currentset])[iconsize=small]) > #nav-bar-customizationtarget > #unified-back-forward-button
@@ -1185,7 +1184,8 @@ toolbar[iconsize="small"] #webrtc-status-button {
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],
-.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
+.popup-notification-icon[popupid="indexedDB-quota-prompt"],
+.popup-notification-icon[popupid*="offline-app-requested"] {
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
@@ -1586,6 +1586,9 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
 #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme) {
   -moz-appearance: menubar;
   color: -moz-menubartext;
+}
+
+#TabsToolbar[tabsontop=true] {
   box-shadow: 0 -1px 0 rgba(0,0,0,.1) inset;
 }
 
@@ -1601,28 +1604,17 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
   background-image: linear-gradient(to top, rgba(0,0,0,.3) 1px, rgba(0,0,0,.05) 1px, transparent 50%);
 }
 
+.tab-background-middle[selected=true]:-moz-lwtheme {
+  background-image: url(chrome://browser/skin/tabbrowser/tab-active-middle.png),
+                    @fgTabTexture@;
+}
+
+.tabbrowser-tab {
+  color: inherit;
+}
+
 .tabbrowser-tab:focus > .tab-stack > .tab-content > .tab-label {
   outline: 1px dotted;
-}
-
-.tab-throbber,
-.tab-icon-image {
-  -moz-margin-end: 3px;
-}
-
-.tab-throbber {
-  list-style-image: url("chrome://browser/skin/tabbrowser/connecting.png");
-}
-
-.tab-throbber[progress] {
-  list-style-image: url("chrome://browser/skin/tabbrowser/loading.png");
-}
-
-.tab-throbber[pinned],
-.tab-icon-image[pinned],
-.tabs-newtab-button > .toolbarbutton-icon {
-  -moz-margin-start: 2px;
-  -moz-margin-end: 2px;
 }
 
 #context_reloadTab {
@@ -1659,11 +1651,10 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
 }
 
 .tab-close-button {
-  padding: 0;
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
-  margin-top: -1px;
+  margin-top: 0;
   margin-bottom: -1px;
-  -moz-margin-end: -1px;
+  -moz-margin-end: -4px;
 }
 
 /* Tabstrip new tab button */
@@ -2273,4 +2264,3 @@ chatbox {
   background: url("chrome://browser/skin/privatebrowsing-mask.png") center no-repeat;
   width: 40px;
 }
-

@@ -24,6 +24,7 @@
 #include "nsSubDocumentFrame.h"
 #include "nsViewportFrame.h"
 #include "RenderFrameParent.h"
+#include "mozilla/layers/LayerManagerComposite.h"
 
 typedef nsContentView::ViewConfig ViewConfig;
 using namespace mozilla::dom;
@@ -254,7 +255,7 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
                     float aTempScaleDiffX = 1.0,
                     float aTempScaleDiffY = 1.0)
 {
-  ShadowLayer* shadow = aLayer->AsShadowLayer();
+  LayerComposite* shadow = aLayer->AsLayerComposite();
   shadow->SetShadowClipRect(aLayer->GetClipRect());
   shadow->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
   shadow->SetShadowOpacity(aLayer->GetOpacity());
@@ -435,7 +436,7 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
                           LayerManager* aManager,
                           nsIFrame* aFrame)
 {
-  ShadowLayer* shadowRoot = aShadowRoot->AsShadowLayer();
+  LayerComposite* shadowRoot = aShadowRoot->AsLayerComposite();
   gfxMatrix t;
   if (!shadowRoot->GetShadowTransform().Is2D(&t)) {
     return;
@@ -603,7 +604,7 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
 
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
   // Perhaps the document containing this frame currently has no presentation?
-  if (lm && lm->AsShadowManager()) {
+  if (lm && lm->AsLayerManagerComposite()) {
     *aTextureFactoryIdentifier = lm->GetTextureFactoryIdentifier();
   } else {
     *aTextureFactoryIdentifier = TextureFactoryIdentifier();
@@ -711,8 +712,8 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
       return nullptr;
     }
     static_cast<RefLayer*>(layer.get())->SetReferentId(id);
-    layer->SetVisibleRegion(aVisibleRect);
     nsIntPoint offset = GetContentRectLayerOffset(aFrame, aBuilder);
+    layer->SetVisibleRegion(aVisibleRect - offset);
     // We can only have an offset if we're a child of an inactive
     // container, but our display item is LAYER_ACTIVE_FORCE which
     // forces all layers above to be active.
@@ -853,7 +854,7 @@ RenderFrameParent::AllocPLayerTransaction()
     return nullptr;
   }
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
-  return new LayerTransactionParent(lm->AsShadowManager(), this, 0);
+  return new LayerTransactionParent(lm->AsLayerManagerComposite(), this, 0);
 }
 
 bool
@@ -912,7 +913,7 @@ RenderFrameParent::TriggerRepaint()
     return;
   }
 
-  docFrame->SchedulePaint();
+  docFrame->InvalidateLayer(nsDisplayItem::TYPE_REMOTE);
 }
 
 LayerTransactionParent*

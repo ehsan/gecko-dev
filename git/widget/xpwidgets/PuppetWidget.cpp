@@ -7,7 +7,7 @@
 
 #include "base/basictypes.h"
 
-#include "BasicLayers.h"
+#include "ClientLayerManager.h"
 #include "gfxPlatform.h"
 #if defined(MOZ_ENABLE_D3D10_LAYER)
 # include "LayerManagerD3D10.h"
@@ -74,6 +74,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(PuppetWidget, nsBaseWidget,
 PuppetWidget::PuppetWidget(TabChild* aTabChild)
   : mTabChild(aTabChild)
   , mDPI(-1)
+  , mDefaultScale(-1)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 }
@@ -322,7 +323,7 @@ PuppetWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 #endif
     if (!mLayerManager) {
-      mLayerManager = new BasicShadowLayerManager(this);
+      mLayerManager = new ClientLayerManager(this);
       mLayerManager->AsShadowForwarder()->SetShadowManager(aShadowManager);
     }
   }
@@ -570,6 +571,11 @@ PuppetWidget::Paint()
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
       mAttachedWidgetListener->PaintWindow(this, region, 0);
+    } else if (mozilla::layers::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
+      // Do nothing, the compositor will handle drawing
+      if (mTabChild) {
+        mTabChild->NotifyPainted();
+      }
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
       ctx->Rectangle(gfxRect(0,0,0,0));
@@ -627,6 +633,20 @@ PuppetWidget::GetDPI()
   }
 
   return mDPI;
+}
+
+double
+PuppetWidget::GetDefaultScaleInternal()
+{
+  if (mDefaultScale < 0) {
+    if (mTabChild) {
+      mTabChild->GetDefaultScale(&mDefaultScale);
+    } else {
+      mDefaultScale = 1;
+    }
+  }
+
+  return mDefaultScale;
 }
 
 void*

@@ -14,7 +14,6 @@
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIXPConnect.h"
-#include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsCOMPtr.h"
 #include "nsISupportsPrimitives.h"
@@ -240,6 +239,12 @@ nsJSEnvironmentObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                  const PRUnichar* aData)
 {
   if (sGCOnMemoryPressure && !nsCRT::strcmp(aTopic, "memory-pressure")) {
+    if(StringBeginsWith(nsDependentString(aData),
+                        NS_LITERAL_STRING("low-memory-ongoing"))) {
+      // Don't GC/CC if we are in an ongoing low-memory state since its very
+      // slow and it likely won't help us anyway.
+      return NS_OK;
+    }
     nsJSContext::GarbageCollectNow(JS::gcreason::MEM_PRESSURE,
                                    nsJSContext::NonIncrementalGC,
                                    nsJSContext::NonCompartmentGC,
@@ -679,13 +684,9 @@ GetPromptFromContext(nsJSContext* ctx)
   nsIDocShell *docShell = win->GetDocShell();
   NS_ENSURE_TRUE(docShell, nullptr);
 
-  nsCOMPtr<nsIInterfaceRequestor> ireq(do_QueryInterface(docShell));
-  NS_ENSURE_TRUE(ireq, nullptr);
-
   // Get the nsIPrompt interface from the docshell
-  nsIPrompt* prompt;
-  ireq->GetInterface(NS_GET_IID(nsIPrompt), (void**)&prompt);
-  return prompt;
+  nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShell);
+  return prompt.forget();
 }
 
 JSBool
@@ -3401,7 +3402,7 @@ NS_DOMReadStructuredClone(JSContext* cx,
     nsRefPtr<ImageData> imageData = new ImageData(width, height,
                                                   dataArray.toObject());
     // Wrap it in a JS::Value.
-    JSObject* global = JS_GetGlobalForScopeChain(cx);
+    JS::Rooted<JSObject*> global(cx, JS_GetGlobalForScopeChain(cx));
     if (!global) {
       return nullptr;
     }

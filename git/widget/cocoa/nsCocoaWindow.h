@@ -95,6 +95,8 @@ typedef struct _nsCocoaWindowList {
 - (void)updateTrackingArea;
 - (NSView*)trackingAreaView;
 
+- (ChildView*)mainChildView;
+
 @end
 
 @interface NSWindow (Undocumented)
@@ -113,6 +115,25 @@ typedef struct _nsCocoaWindowList {
 - (void)setBottomCornerRounded:(BOOL)rounded;
 - (BOOL)bottomCornerRounded;
 
+// Present since at least OS X 10.5.  The OS calls this method on NSWindow
+// (and its subclasses) to find out which NSFrameView subclass to instantiate
+// to create its "frame view".
++ (Class)frameViewClassForStyleMask:(NSUInteger)styleMask;
+
+@end
+
+// Present since at least OS X 10.5 in NSFrameView or one of its subclasses.
+@interface NSObject (NSFrameViewMethods)
+- (NSButton*)closeButton;
+- (NSButton*)zoomButton;
+- (NSButton*)minimizeButton;
+- (NSButton*)fullScreenButton;
+- (void)initTitleCell:(id)cell;
+@end
+
+@interface NSView (MozFrameViewMethods)
+- (int32_t)buttonBoxDisplayPixelsWidth;
+- (int32_t)fullScreenButtonDisplayPixelsWidth;
 @end
 
 @interface PopupWindow : BaseWindow
@@ -190,7 +211,6 @@ typedef struct _nsCocoaWindowList {
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
-- (ChildView*)mainChildView;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa

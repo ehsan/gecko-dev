@@ -25,6 +25,7 @@ class Compositor;
 class SurfaceDescriptor;
 class ISurfaceAllocator;
 class TextureSourceOGL;
+class TextureSourceBasic;
 class TextureParent;
 
 /**
@@ -76,6 +77,9 @@ public:
    * Cast to an TextureSource for the OpenGL backend.
    */
   virtual TextureSourceOGL* AsSourceOGL() { return nullptr; }
+
+  virtual TextureSourceBasic* AsSourceBasic() { return nullptr; }
+
   /**
    * In some rare cases we currently need to consider a group of textures as one
    * TextureSource, that can be split in sub-TextureSources.
@@ -245,12 +249,18 @@ public:
    * retain a SurfaceDescriptor.
    * Ownership of the SurfaceDescriptor passes to this.
    */
-  void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator)
+  // only made virtual to allow overriding in GrallocTextureHostOGL, for hacky fix in gecko 23 for bug 862324.
+  // see bug 865908 about fixing this.
+  virtual void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator)
   {
     MOZ_ASSERT(!mBuffer, "Will leak the old mBuffer");
     mBuffer = aBuffer;
     mDeAllocator = aAllocator;
   }
+
+  // used only for hacky fix in gecko 23 for bug 862324
+  // see bug 865908 about fixing this.
+  virtual void ForgetBuffer() {}
 
 protected:
   /**
@@ -290,7 +300,11 @@ protected:
 
   // Texture info
   TextureFlags mFlags;
-  SurfaceDescriptor* mBuffer;
+  SurfaceDescriptor* mBuffer; // FIXME [bjacob] it's terrible to have a SurfaceDescriptor here,
+                              // because SurfaceDescriptor's may have raw pointers to IPDL actors,
+                              // which can go away under our feet at any time. This is the cause
+                              // of bug 862324 among others. Our current understanding is that
+                              // this will be gone in Gecko 24. See bug 858914.
   gfx::SurfaceFormat mFormat;
 
   ISurfaceAllocator* mDeAllocator;

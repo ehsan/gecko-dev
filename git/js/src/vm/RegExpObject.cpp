@@ -169,7 +169,7 @@ ScopedMatchPairs::allocOrExpandArray(size_t pairCount)
     }
 
     JS_ASSERT(!pairs_);
-    pairs_ = (MatchPair *)lifoAlloc_->alloc(sizeof(MatchPair) * pairCount);
+    pairs_ = (MatchPair *)lifoScope_.alloc().alloc(sizeof(MatchPair) * pairCount);
     if (!pairs_)
         return false;
 
@@ -191,7 +191,7 @@ VectorMatchPairs::allocOrExpandArray(size_t pairCount)
 /* RegExpObject */
 
 static void
-regexp_trace(JSTracer *trc, RawObject obj)
+regexp_trace(JSTracer *trc, JSObject *obj)
 {
      /*
       * We have to check both conditions, since:
@@ -265,7 +265,7 @@ RegExpObject::createShared(JSContext *cx, RegExpGuard *g)
     return true;
 }
 
-RawShape
+Shape *
 RegExpObject::assignInitialShape(JSContext *cx)
 {
     JS_ASSERT(isRegExp());

@@ -10,7 +10,7 @@
 #include "mozilla/layers/PCompositableParent.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "ThebesLayerBuffer.h"
-#include "BasicTiledThebesLayer.h" // for BasicTiledLayerBuffer
+#include "ClientTiledThebesLayer.h" // for BasicTiledLayerBuffer
 #include "mozilla/RefPtr.h"
 
 namespace mozilla {
@@ -114,7 +114,7 @@ public:
    * aAllocator - the allocator used to allocate and de-allocate resources.
    * aTextureInfo - contains flags for the texture.
    */
-  virtual bool EnsureTextureHost(TextureIdentifier aTextureId,
+  virtual void EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
                                  const TextureInfo& aTextureInfo) = 0;

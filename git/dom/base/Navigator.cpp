@@ -19,7 +19,6 @@
 #include "nsIWebContentHandlerRegistrar.h"
 #include "nsICookiePermission.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsIJSContextStack.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
@@ -75,8 +74,6 @@ DOMCI_DATA(Navigator, mozilla::dom::Navigator)
 
 namespace mozilla {
 namespace dom {
-
-static const char sJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
 
 static bool sDoNotTrackEnabled = false;
 static bool sVibratorEnabled   = false;
@@ -225,11 +222,9 @@ Navigator::Invalidate()
 
   mCameraManager = nullptr;
 
-#ifdef MOZ_SYS_MSG
   if (mMessagesManager) {
     mMessagesManager = nullptr;
   }
-#endif
 
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
   if (mAudioChannelManager) {
@@ -892,11 +887,7 @@ Navigator::MozIsLocallyAvailable(const nsAString &aURI,
   }
 
   // Same origin check.
-  nsCOMPtr<nsIJSContextStack> stack = do_GetService(sJSStackContractID);
-  NS_ENSURE_TRUE(stack, NS_ERROR_FAILURE);
-
-  JSContext* cx = nullptr;
-  rv = stack->Peek(&cx);
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   rv = nsContentUtils::GetSecurityManager()->CheckSameOrigin(cx, uri);
@@ -1113,7 +1104,7 @@ Navigator::MozGetUserMediaDevices(nsIGetUserMediaDevicesSuccessCallback* aOnSucc
   }
 
   // Check if the caller is chrome privileged, bail if not
-  if (!nsContentUtils::IsChromeDoc(win->GetExtantDoc())) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1411,7 +1402,6 @@ Navigator::GetMozBluetooth(nsIDOMBluetoothManager** aBluetooth)
 //*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorSystemMessages
 //*****************************************************************************
-#ifdef MOZ_SYS_MSG
 nsresult
 Navigator::EnsureMessagesManager()
 {
@@ -1439,34 +1429,33 @@ Navigator::EnsureMessagesManager()
 
   return NS_OK;
 }
-#endif
 
 NS_IMETHODIMP
 Navigator::MozHasPendingMessage(const nsAString& aType, bool *aResult)
 {
-#ifdef MOZ_SYS_MSG
+  if (!Preferences::GetBool("dom.sysmsg.enabled", false)) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
   *aResult = false;
   nsresult rv = EnsureMessagesManager();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mMessagesManager->MozHasPendingMessage(aType, aResult);
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 NS_IMETHODIMP
 Navigator::MozSetMessageHandler(const nsAString& aType,
                                 nsIDOMSystemMessageCallback *aCallback)
 {
-#ifdef MOZ_SYS_MSG
+  if (!Preferences::GetBool("dom.sysmsg.enabled", false)) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
   nsresult rv = EnsureMessagesManager();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mMessagesManager->MozSetMessageHandler(aType, aCallback);
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 //*****************************************************************************

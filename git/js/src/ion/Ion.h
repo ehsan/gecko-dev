@@ -120,6 +120,12 @@ struct IonOptions
     // Default: 6,000
     uint32_t osrPcMismatchesBeforeRecompile;
 
+    // Number of bailouts without invalidation before we set
+    // JSScript::hadFrequentBailouts and invalidate.
+    //
+    // Default: 10
+    uint32_t frequentBailoutThreshold;
+
     // How many actual arguments are accepted on the C stack.
     //
     // Default: 4,096
@@ -201,6 +207,7 @@ struct IonOptions
         usesBeforeCompileNoJaeger(40),
         usesBeforeInliningFactor(.125),
         osrPcMismatchesBeforeRecompile(6000),
+        frequentBailoutThreshold(10),
         maxStackArgs(4096),
         maxInlineDepth(3),
         smallFunctionMaxInlineDepth(10),
@@ -311,8 +318,8 @@ IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args);
 void Invalidate(types::TypeCompartment &types, FreeOp *fop,
                 const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
 void Invalidate(JSContext *cx, const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
-bool Invalidate(JSContext *cx, RawScript script, ExecutionMode mode, bool resetUses = true);
-bool Invalidate(JSContext *cx, RawScript script, bool resetUses = true);
+bool Invalidate(JSContext *cx, JSScript *script, ExecutionMode mode, bool resetUses = true);
+bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true);
 
 void MarkValueFromIon(JSRuntime *rt, Value *vp);
 void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
@@ -337,14 +344,14 @@ static inline bool IsEnabled(JSContext *cx)
     return cx->hasOption(JSOPTION_ION) && cx->typeInferenceEnabled();
 }
 
-void ForbidCompilation(JSContext *cx, RawScript script);
-void ForbidCompilation(JSContext *cx, RawScript script, ExecutionMode mode);
-uint32_t UsesBeforeIonRecompile(RawScript script, jsbytecode *pc);
+void ForbidCompilation(JSContext *cx, JSScript *script);
+void ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode);
+uint32_t UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc);
 
-void PurgeCaches(RawScript script, JS::Zone *zone);
-size_t SizeOfIonData(RawScript script, JSMallocSizeOfFun mallocSizeOf);
-void DestroyIonScripts(FreeOp *fop, RawScript script);
-void TraceIonScripts(JSTracer* trc, RawScript script);
+void PurgeCaches(JSScript *script, JS::Zone *zone);
+size_t SizeOfIonData(JSScript *script, JSMallocSizeOfFun mallocSizeOf);
+void DestroyIonScripts(FreeOp *fop, JSScript *script);
+void TraceIonScripts(JSTracer* trc, JSScript *script);
 
 } // namespace ion
 } // namespace js

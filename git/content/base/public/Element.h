@@ -17,8 +17,6 @@
 #include "nsChangeHint.h"                  // for enum
 #include "nsEventStates.h"                 // for member
 #include "mozilla/dom/DirectionalityUtils.h"
-#include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsILinkHandler.h"
@@ -26,20 +24,13 @@
 #include "nsAttrAndChildArray.h"
 #include "mozFlushType.h"
 #include "nsDOMAttributeMap.h"
-#include "nsIWeakReference.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsIDocument.h"
-#include "nsIDOMNodeSelector.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h" // DOMCI_DATA
-#include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
-#include "nsINodeList.h"
-#include "mozilla/ErrorResult.h"
 #include "nsIScrollableFrame.h"
 #include "mozilla/dom/Attr.h"
 #include "nsISMILAttr.h"
@@ -885,7 +876,7 @@ public:
   void GetClassList(nsISupports** aClassList);
 
   virtual JSObject* WrapObject(JSContext *aCx,
-                               JSObject *aScope) MOZ_FINAL MOZ_OVERRIDE;
+                               JS::Handle<JSObject*> aScope) MOZ_FINAL MOZ_OVERRIDE;
 
   /**
    * Locate an nsIEditor rooted at this content node, if there is one.

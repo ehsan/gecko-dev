@@ -342,7 +342,7 @@ abstract public class BrowserApp extends GeckoApp
 
         super.onCreate(savedInstanceState);
 
-        LinearLayout actionBar = (LinearLayout) getActionBarLayout();
+        RelativeLayout actionBar = (RelativeLayout) getActionBarLayout();
         mMainLayout.addView(actionBar, 2);
 
         ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideTabsTouchListener());
@@ -664,8 +664,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
         String url = null;
 
         // Don't update the url in the toolbar if the activity was cancelled.
@@ -680,19 +678,17 @@ abstract public class BrowserApp extends GeckoApp
 
         // We always need to call fromAwesomeBarSearch to perform the toolbar animation.
         mBrowserToolbar.fromAwesomeBarSearch(url);
+
+        // Trigger any tab-related events after we start restoring
+        // the toolbar state above to make ensure animations happen
+        // on the correct order.
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     public View getActionBarLayout() {
-        int actionBarRes;
-
-        if (!HardwareUtils.hasMenuButton() || HardwareUtils.isTablet())
-           actionBarRes = R.layout.browser_toolbar_menu;
-        else
-           actionBarRes = R.layout.browser_toolbar;
-
-        LinearLayout actionBar = (LinearLayout) LayoutInflater.from(this).inflate(actionBarRes, null);
-        actionBar.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
-                                                                (int) getResources().getDimension(R.dimen.browser_toolbar_height)));
+        RelativeLayout actionBar = (RelativeLayout) LayoutInflater.from(this).inflate(R.layout.browser_toolbar, null);
+        actionBar.setLayoutParams(new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.FILL_PARENT,
+                                                                  (int) getResources().getDimension(R.dimen.browser_toolbar_height)));
         return actionBar;
     }
 
@@ -966,6 +962,8 @@ abstract public class BrowserApp extends GeckoApp
                                        PropertyAnimator.Property.SCROLL_X,
                                        -width);
         } else {
+            mTabsPanel.prepareTabsAnimation(mMainLayoutAnimator);
+
             mMainLayoutAnimator.attach(mMainLayout,
                                        PropertyAnimator.Property.SCROLL_Y,
                                        -height);
@@ -988,24 +986,10 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void onPropertyAnimationStart() {
         mBrowserToolbar.updateTabs(true);
-
-        // Although the tabs panel is not animating per se, it will be re-drawn several
-        // times while the main/gecko layout slides to left/top. Adding a hardware layer
-        // here considerably improves the frame rate of the animation.
-        if (Build.VERSION.SDK_INT >= 11)
-            mTabsPanel.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        else
-            mTabsPanel.setDrawingCacheEnabled(true);
     }
 
     @Override
     public void onPropertyAnimationEnd() {
-        // Destroy the hardware layer used during the animation
-        if (Build.VERSION.SDK_INT >= 11)
-            mTabsPanel.setLayerType(View.LAYER_TYPE_NONE, null);
-        else
-            mTabsPanel.setDrawingCacheEnabled(false);
-
         if (mTabsPanel.isShown()) {
             if (hasTabsSideBar()) {
                 setSidebarMargin(mTabsPanel.getWidth());
@@ -1021,6 +1005,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         mBrowserToolbar.refreshBackground();
+        mTabsPanel.finishTabsAnimation();
 
         if (hasTabsSideBar())
             mBrowserToolbar.adjustTabsAnimation(true);

@@ -4,9 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsonparser.h"
+
 #include "jsarray.h"
 #include "jsnum.h"
-#include "jsonparser.h"
 
 #include "vm/StringBuffer.h"
 
@@ -121,9 +122,9 @@ JSONParser::readString()
 
         jschar c = *current++;
         if (c == '"') {
-            RawFlatString str = (ST == JSONParser::PropertyName)
-                                 ? buffer.finishAtom()
-                                 : buffer.finishString();
+            JSFlatString *str = (ST == JSONParser::PropertyName)
+                                ? buffer.finishAtom()
+                                : buffer.finishString();
             if (!str)
                 return token(OOM);
             return stringToken(str);

@@ -588,12 +588,7 @@
  * themes with Aero Glass.
  */
 #titlebar-buttonbox {
-  -moz-appearance: -moz-window-button-box;
   z-index: 1;
-}
-
-#main-window[sizemode="maximized"] #titlebar-buttonbox {
-  -moz-appearance: -moz-window-button-box-maximized;
 }
 
 .titlebar-placeholder[type="appmenu-button"] {
@@ -861,9 +856,18 @@ menuitem.bookmark-item {
   padding: 8px 5px 7px;
 }
 
+@navbarLargeIcons@ #social-toolbar-item {
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+@navbarLargeIcons@ #social-toolbar-item > .toolbarbutton-1 {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 @navbarLargeIcons@ .toolbarbutton-1:not(:hover):not(:active):not([open]) > .toolbarbutton-menubutton-dropmarker::before,
-@navbarLargeIcons@ > #social-toolbar-item > .toolbarbutton-1:not(:hover) + .social-notification-container:not(:hover) > .toolbarbutton-1::before,
-@navbarLargeIcons@ > #social-toolbar-item > .social-notification-container:not(:hover) + .social-notification-container:not(:hover) > .toolbarbutton-1::before {
+@navbarLargeIcons@ #social-toolbar-item > .toolbarbutton-1:not(:hover):not(:active):not([open]) + .toolbarbutton-1:not(:hover):not(:active):not([open])::before {
   content: "";
   display: -moz-box;
   width: 1px;
@@ -1959,7 +1963,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   #tabbrowser-tabs[movingtab] > .tabbrowser-tab[beforeselected]:not([last-visible-tab])::after,
   .tabbrowser-tab:not([selected]):not([afterselected-visible]):not([afterhovered]):not([first-visible-tab]):not(:hover)::before,
   #tabbrowser-tabs:not([overflow]) > .tabbrowser-tab[last-visible-tab]:not([selected]):not([beforehovered]):not(:hover)::after {
-    background-image: url("chrome://browser/skin/tabbrowser/tab-separator-luna-blue.png");
+    content: url("chrome://browser/skin/tabbrowser/tab-separator-luna-blue.png");
   }
 }
 %endif
@@ -1978,19 +1982,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   text-shadow: 0 -0.5px 1.5px white;
 }
 
-.tab-throbber {
-  list-style-image: url("chrome://browser/skin/tabbrowser/connecting.png");
-}
-
-.tab-throbber[progress] {
-  list-style-image: url("chrome://browser/skin/tabbrowser/loading.png");
-}
-
-.tab-throbber:not([pinned]),
-.tab-icon-image:not([pinned]) {
-  -moz-margin-end: 6px;
-}
-
 /* tabbrowser-tab focus ring */
 .tabbrowser-tab:focus > .tab-stack > .tab-content > .tab-label {
   outline: 1px dotted;
@@ -2006,9 +1997,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 .tab-close-button {
   -moz-appearance: none;
   -moz-image-region: rect(0, 16px, 16px, 0);
-  -moz-margin-start: 6px;
   border: none;
-  padding: 0px;
   list-style-image: url("chrome://global/skin/icons/close.png");
 }
 
@@ -2333,7 +2322,8 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],
-.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
+.popup-notification-icon[popupid="indexedDB-quota-prompt"],
+.popup-notification-icon[popupid*="offline-app-requested"] {
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
@@ -2778,6 +2768,11 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   top: 2px;
   right: 2px;
 }
+
+.toolbarbutton-badge-container > .toolbarbutton-icon[label]:not([label=""]) {
+  -moz-margin-end: 0;
+}
+
 .toolbarbutton-badge[badge=""] {
   display: none;
 }
@@ -2798,7 +2793,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 @navbarLargeIcons@ *|* > .toolbarbutton-badge[badge]:not([badge=""])::after {
   top: 1px;
-  right: 5px;
+  right: 1px;
 }
 
 .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
@@ -2807,7 +2802,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 @navbarLargeIcons@ *|* > .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
-  left: 5px;
+  left: 1px;
   right: auto;
 }
 

@@ -8,21 +8,16 @@
  * JS debugging API.
  */
 
-#include "mozilla/DebugOnly.h"
+#include "jsdbgapi.h"
 
 #include <string.h>
 #include "jsprvtd.h"
 #include "jstypes.h"
-#include "jsutil.h"
-#include "jsclist.h"
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsversion.h"
-#include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsinterp.h"
-#include "jslock.h"
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsscript.h"
@@ -30,9 +25,7 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#include "gc/Marking.h"
 #include "frontend/BytecodeEmitter.h"
-#include "frontend/Parser.h"
 #include "vm/Debugger.h"
 #include "vm/Shape.h"
 
@@ -46,15 +39,11 @@
 #include "jsinterpinlines.h"
 #include "jsscriptinlines.h"
 
-#include "vm/Shape-inl.h"
 #include "vm/Stack-inl.h"
-
-#include "jsautooplen.h"
 
 using namespace js;
 using namespace js::gc;
 
-using mozilla::DebugOnly;
 using mozilla::PodZero;
 
 JS_PUBLIC_API(JSBool)
@@ -394,7 +383,7 @@ JS_ClearAllWatchPoints(JSContext *cx)
 /************************************************************************/
 
 JS_PUBLIC_API(unsigned)
-JS_PCToLineNumber(JSContext *cx, RawScript script, jsbytecode *pc)
+JS_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     return js::PCToLineNumber(script, pc);
 }
@@ -475,22 +464,27 @@ JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 }
 
 extern JS_PUBLIC_API(uintptr_t *)
-JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
+JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **memp)
 {
     RootedScript script(cx, fun->nonLazyScript());
     BindingVector bindings(cx);
     if (!FillBindingVector(script, &bindings))
         return NULL;
 
-    /* Munge data into the API this method implements.  Avert your eyes! */
-    *markp = cx->tempLifoAlloc().mark();
+    LifoAlloc &lifo = cx->tempLifoAlloc();
 
-    uintptr_t *names = cx->tempLifoAlloc().newArray<uintptr_t>(bindings.length());
-    if (!names) {
+    // Store the LifoAlloc::Mark right before the allocation.
+    LifoAlloc::Mark mark = lifo.mark();
+    void *mem = lifo.alloc(sizeof(LifoAlloc::Mark) + bindings.length() * sizeof(uintptr_t));
+    if (!mem) {
         js_ReportOutOfMemory(cx);
         return NULL;
     }
+    *memp = mem;
+    *reinterpret_cast<LifoAlloc::Mark*>(mem) = mark;
 
+    // Munge data into the API this method implements.  Avert your eyes!
+    uintptr_t *names = reinterpret_cast<uintptr_t*>((char*)mem + sizeof(LifoAlloc::Mark));
     for (size_t i = 0; i < bindings.length(); i++)
         names[i] = reinterpret_cast<uintptr_t>(bindings[i].name());
 
@@ -510,9 +504,9 @@ JS_AtomKey(JSAtom *atom)
 }
 
 extern JS_PUBLIC_API(void)
-JS_ReleaseFunctionLocalNameArray(JSContext *cx, void *mark)
+JS_ReleaseFunctionLocalNameArray(JSContext *cx, void *mem)
 {
-    cx->tempLifoAlloc().release(mark);
+    cx->tempLifoAlloc().release(*reinterpret_cast<LifoAlloc::Mark*>(mem));
 }
 
 JS_PUBLIC_API(JSScript *)
@@ -523,7 +517,7 @@ JS_GetFunctionScript(JSContext *cx, JSFunction *fun)
     if (fun->isInterpretedLazy()) {
         RootedFunction rootedFun(cx, fun);
         AutoCompartment funCompartment(cx, rootedFun);
-        RawScript script = rootedFun->getOrCreateScript(cx);
+        JSScript *script = rootedFun->getOrCreateScript(cx);
         if (!script)
             MOZ_CRASH();
         return script;
@@ -955,18 +949,6 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
         }
     }
 #endif
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_UnwrapObject(JSObject *obj)
-{
-    return UncheckedUnwrap(obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_UnwrapObjectAndInnerize(JSObject *obj)
-{
-    return UncheckedUnwrap(obj, /* stopAtOuter = */ false);
 }
 
 JS_FRIEND_API(JSBool)

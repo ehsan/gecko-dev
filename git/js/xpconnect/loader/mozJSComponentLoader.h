@@ -8,7 +8,6 @@
 #include "jsapi.h"
 #include "mozilla/ModuleLoader.h"
 #include "nsIJSRuntimeService.h"
-#include "nsIJSContextStack.h"
 #include "nsISupports.h"
 #include "nsIXPConnect.h"
 #include "nsIFile.h"
@@ -55,7 +54,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
 
     static mozJSComponentLoader* Get() { return sSelf; }
 
-    void NoteSubScript(JSScript* aScript, JSObject* aThisObject);
+    void NoteSubScript(JS::HandleScript aScript, JS::HandleObject aThisObject);
 
  protected:
     static mozJSComponentLoader* sSelf;
@@ -83,7 +82,6 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;
-    nsCOMPtr<nsIThreadJSContextStack> mContextStack;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIXPConnectJSObjectHolder> mLoaderGlobal;
     JSRuntime *mRuntime;

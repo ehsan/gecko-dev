@@ -7,6 +7,7 @@
 if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     MODULE = 'profiler'
     XPIDL_SOURCES += [
+        'nsIProfileSaveEvent.idl',
         'nsIProfiler.idl',
     ]
     EXPORTS += [
@@ -20,3 +21,4 @@ EXPORTS += [
     'GeckoProfiler.h',
 ]
 
+XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell.ini']

@@ -10,6 +10,7 @@
 #include "CompositableHost.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
+#include "mozilla/layers/LayerManagerComposite.h"
 
 using namespace base;
 using namespace mozilla::ipc;
@@ -59,7 +60,7 @@ ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
   // Ensure that any pending operations involving back and front
   // buffers have completed, so that neither process stomps on the
   // other's buffer contents.
-  ShadowLayerManager::PlatformSyncBeforeReplyUpdate();
+  LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
 
   return true;
 }

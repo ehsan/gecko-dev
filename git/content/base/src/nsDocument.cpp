@@ -124,9 +124,7 @@
 #include "nsDOMCID.h"
 
 #include "jsapi.h"
-#include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
-#include "nsCycleCollector.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
@@ -1303,6 +1301,35 @@ nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
 }
 
 // ==================================================================
+
+struct nsIDocument::FrameRequest
+{
+  FrameRequest(const FrameRequestCallbackHolder& aCallback,
+               int32_t aHandle) :
+    mCallback(aCallback),
+    mHandle(aHandle)
+  {}
+
+  // Conversion operator so that we can append these to a
+  // FrameRequestCallbackList
+  operator const FrameRequestCallbackHolder& () const {
+    return mCallback;
+  }
+
+  // Comparator operators to allow RemoveElementSorted with an
+  // integer argument on arrays of FrameRequest
+  bool operator==(int32_t aHandle) const {
+    return mHandle == aHandle;
+  }
+  bool operator<(int32_t aHandle) const {
+    return mHandle < aHandle;
+  }
+
+  FrameRequestCallbackHolder mCallback;
+  int32_t mHandle;
+};
+
+// ==================================================================
 // =
 // ==================================================================
 nsIDocument::nsIDocument()
@@ -1720,7 +1747,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
 
   for (uint32_t i = 0; i < tmp->mFrameRequestCallbacks.Length(); ++i) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameRequestCallbacks[i]");
-    cb.NoteXPCOMChild(tmp->mFrameRequestCallbacks[i]);
+    cb.NoteXPCOMChild(tmp->mFrameRequestCallbacks[i].mCallback.GetISupports());
   }
 
   // Traverse animation components
@@ -1837,12 +1864,19 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
+static bool sPrefsInitialized = false;
+static uint32_t sOnloadDecodeLimit = 0;
 
 nsresult
 nsDocument::Init()
 {
   if (mCSSLoader || mStyleImageLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
+  }
+
+  if (!sPrefsInitialized) {
+    sPrefsInitialized = true;
+    Preferences::AddUintVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
   mIdentifierMap.Init();
@@ -4201,17 +4235,6 @@ nsDocument::GetWindowInternal() const
   }
 
   return win->GetOuterWindow();
-}
-
-nsPIDOMWindow *
-nsDocument::GetInnerWindowInternal()
-{
-  MOZ_ASSERT(mRemovedFromDocShell,
-             "This document should have been removed from docshell!");
-
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
-
-  return win;
 }
 
 nsScriptLoader*
@@ -7635,17 +7658,17 @@ nsDocument::RemovedFromDocShell()
 already_AddRefed<nsILayoutHistoryState>
 nsDocument::GetLayoutHistoryState() const
 {
-  nsILayoutHistoryState* state = nullptr;
+  nsCOMPtr<nsILayoutHistoryState> state;
   if (!mScriptGlobalObject) {
-    NS_IF_ADDREF(state = mLayoutHistoryState);
+    state = mLayoutHistoryState;
   } else {
     nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocumentContainer));
     if (docShell) {
-      docShell->GetLayoutHistoryState(&state);
+      docShell->GetLayoutHistoryState(getter_AddRefs(state));
     }
   }
 
-  return state;
+  return state.forget();
 }
 
 void
@@ -8736,7 +8759,7 @@ nsIDocument::CreateStaticClone(nsISupports* aCloneContainer)
 }
 
 nsresult
-nsIDocument::ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
+nsIDocument::ScheduleFrameRequestCallback(const FrameRequestCallbackHolder& aCallback,
                                           int32_t *aHandle)
 {
   if (mFrameRequestCallbackCounter == INT32_MAX) {
@@ -8890,9 +8913,11 @@ nsDocument::AddImage(imgIRequest* aImage)
 
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if (oldCount == 0 && mLockingImages) {
-    rv = aImage->LockImage();
-    if (NS_SUCCEEDED(rv))
+  if (oldCount == 0) {
+    if (mLockingImages)
+      rv = aImage->LockImage();
+    if (NS_SUCCEEDED(rv) && (!sOnloadDecodeLimit ||
+                             mImageTracker.Count() < sOnloadDecodeLimit))
       rv = aImage->StartDecoding();
   }
 
