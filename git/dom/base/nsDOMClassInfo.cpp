@@ -4777,11 +4777,12 @@ nsDOMClassInfo::GetClassName(char **aClassName)
   return NS_OK;
 }
 
-// virtual
-PRUint32
-nsDOMClassInfo::GetScriptableFlags()
+NS_IMETHODIMP
+nsDOMClassInfo::GetScriptableFlags(PRUint32 *aFlags)
 {
-  return mData->mScriptableFlags;
+  *aFlags = mData->mScriptableFlags;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

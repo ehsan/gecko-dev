@@ -37,7 +37,7 @@
  * to *_retval unless they want to return PR_FALSE.
  */
 
-[uuid(782d317e-0727-4ccd-8a5b-f5d237f3b03c)]
+[uuid(fca22e1e-a2bf-456e-83db-f73e8de0f7c5)]
 interface nsIXPCScriptable : nsISupports
 {
     /* bitflags used for 'flags' (only 32 bits available!) */
@@ -80,7 +80,7 @@ interface nsIXPCScriptable : nsISupports
     const PRUint32 RESERVED                         = 1 << 31;
 
     readonly attribute string   className;
-    [notxpcom,nostdcall] PRUint32 getScriptableFlags();
+    readonly attribute PRUint32 scriptableFlags;
 
     void   preCreate(in nsISupports nativeObj, in JSContextPtr cx,
                      in JSObjectPtr globalObj, out JSObjectPtr parentObj);

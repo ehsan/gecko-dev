@@ -703,34 +703,41 @@ nsHTMLEditRules::GetListItemState(bool *aMixed, bool *aLI, bool *aDT, bool *aDD)
 
   // examine list type for nodes in selection
   PRInt32 listCount = arrayOfNodes.Count();
-  for (PRInt32 i = listCount - 1; i >= 0; --i) {
+  PRInt32 i;
+  for (i = listCount-1; i>=0; i--)
+  {
     nsIDOMNode* curNode = arrayOfNodes[i];
-    nsCOMPtr<dom::Element> element = do_QueryInterface(curNode);
-    if (!element) {
-      bNonList = true;
-    } else if (element->IsHTML(nsGkAtoms::ul) ||
-               element->IsHTML(nsGkAtoms::ol) ||
-               element->IsHTML(nsGkAtoms::li)) {
+    
+    if (nsHTMLEditUtils::IsUnorderedList(curNode) ||
+        nsHTMLEditUtils::IsOrderedList(curNode) ||
+        nsEditor::NodeIsType(curNode, nsEditProperty::li) )
+    {
       *aLI = true;
-    } else if (element->IsHTML(nsGkAtoms::dt)) {
+    }
+    else if (nsEditor::NodeIsType(curNode, nsEditProperty::dt))
+    {
       *aDT = true;
-    } else if (element->IsHTML(nsGkAtoms::dd)) {
+    }
+    else if (nsEditor::NodeIsType(curNode, nsEditProperty::dd))
+    {
       *aDD = true;
-    } else if (element->IsHTML(nsGkAtoms::dl)) {
+    }
+    else if (nsEditor::NodeIsType(curNode, nsEditProperty::dl))
+    {
       // need to look inside dl and see which types of items it has
       bool bDT, bDD;
-      GetDefinitionListItemTypes(element, &bDT, &bDD);
+      res = GetDefinitionListItemTypes(curNode, bDT, bDD);
+      NS_ENSURE_SUCCESS(res, res);
       *aDT |= bDT;
       *aDD |= bDD;
-    } else {
-      bNonList = true;
     }
+    else bNonList = true;
   }  
   
   // hokey arithmetic with booleans
   if ( (*aDT + *aDD + bNonList) > 1) *aMixed = true;
   
-  return NS_OK;
+  return res;
 }
 
 nsresult 
@@ -5952,24 +5959,22 @@ nsHTMLEditRules::LookInsideDivBQandList(nsCOMArray<nsIDOMNode>& aNodeArray)
 ///////////////////////////////////////////////////////////////////////////
 // GetDefinitionListItemTypes: 
 //                       
-void
-nsHTMLEditRules::GetDefinitionListItemTypes(dom::Element* aElement, bool* aDT, bool* aDD)
+nsresult 
+nsHTMLEditRules::GetDefinitionListItemTypes(nsIDOMNode *aNode, bool &aDT, bool &aDD)
 {
-  MOZ_ASSERT(aElement);
-  MOZ_ASSERT(aElement->IsHTML(nsGkAtoms::dl));
-  MOZ_ASSERT(aDT);
-  MOZ_ASSERT(aDD);
-
-  *aDT = *aDD = false;
-  for (nsIContent* child = aElement->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsHTML(nsGkAtoms::dt)) {
-      *aDT = true;
-    } else if (child->IsHTML(nsGkAtoms::dd)) {
-      *aDD = true;
-    }
+  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  aDT = aDD = false;
+  nsresult res = NS_OK;
+  nsCOMPtr<nsIDOMNode> child, temp;
+  res = aNode->GetFirstChild(getter_AddRefs(child));
+  while (child && NS_SUCCEEDED(res))
+  {
+    if (nsEditor::NodeIsType(child, nsEditProperty::dt)) aDT = true;
+    else if (nsEditor::NodeIsType(child, nsEditProperty::dd)) aDD = true;
+    res = child->GetNextSibling(getter_AddRefs(temp));
+    child = temp;
   }
+  return res;
 }
 
 ///////////////////////////////////////////////////////////////////////////
