@@ -1,3 +1,4 @@
+#
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,9 +10,11 @@ VPATH = @srcdir@
 relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES := \
+_BROWSER_FILES = \
 		browser_dead_object.js \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_BROWSER_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

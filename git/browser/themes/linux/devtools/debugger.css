@@ -83,12 +83,13 @@
 
 .dbg-expression {
   height: 20px;
+  -moz-padding-start: 8px;
 }
 
 .dbg-expression-arrow {
-  width: 16px;
+  width: 10px;
   height: auto;
-  background: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16);
+  background: url("chrome://browser/skin/devtools/commandline.png") 0px 4px no-repeat;
 }
 
 .dbg-expression-input {

@@ -94,8 +94,7 @@ CPP_SOURCES += [
     'nsScriptNameSpaceManager.cpp',
     'nsStructuredCloneContainer.cpp',
     'nsWindowMemoryReporter.cpp',
-    'nsWindowRoot.cpp',
-    'nsWrapperCache.cpp',
+    'nsWindowRoot.cpp'
 ]
 
 EXTRA_COMPONENTS += [

@@ -115,21 +115,21 @@ public:
   uint32_t NaturalWidth();
   uint32_t NaturalHeight();
   bool Complete();
-  uint32_t Hspace()
+  int32_t Hspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::hspace, 0);
+    return GetIntAttr(nsGkAtoms::hspace, 0);
   }
-  void SetHspace(uint32_t aHspace, ErrorResult& aError)
+  void SetHspace(int32_t aHspace, ErrorResult& aError)
   {
-    SetUnsignedIntAttr(nsGkAtoms::hspace, aHspace, aError);
+    SetHTMLIntAttr(nsGkAtoms::hspace, aHspace, aError);
   }
-  uint32_t Vspace()
+  int32_t Vspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::vspace, 0);
+    return GetIntAttr(nsGkAtoms::vspace, 0);
   }
-  void SetVspace(uint32_t aVspace, ErrorResult& aError)
+  void SetVspace(int32_t aVspace, ErrorResult& aError)
   {
-    SetUnsignedIntAttr(nsGkAtoms::vspace, aVspace, aError);
+    SetHTMLIntAttr(nsGkAtoms::vspace, aVspace, aError);
   }
 
   // The XPCOM versions of the following getters work for Web IDL bindings as well

@@ -1616,18 +1616,7 @@ ObjectActor.prototype = {
    */
   onPrototypeAndProperties: function OA_onPrototypeAndProperties(aRequest) {
     let ownProperties = Object.create(null);
-    let names;
-    try {
-      names = this.obj.getOwnPropertyNames();
-    } catch (ex) {
-      // The above can throw if this.obj points to a dead object.
-      // TODO: we should use Cu.isDeadWrapper() - see bug 885800.
-      return { from: this.actorID,
-               prototype: this.threadActor.createValueGrip(null),
-               ownProperties: ownProperties,
-               safeGetterValues: Object.create(null) };
-    }
-    for (let name of names) {
+    for (let name of this.obj.getOwnPropertyNames()) {
       ownProperties[name] = this._propertyDescriptor(name);
     }
     return { from: this.actorID,

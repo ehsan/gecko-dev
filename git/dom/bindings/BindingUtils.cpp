@@ -640,7 +640,7 @@ TryPreserveWrapper(JSObject* obj)
     nsWrapperCache* cache = nullptr;
     CallQueryInterface(native, &cache);
     if (cache) {
-      cache->PreserveWrapper(native);
+      nsContentUtils::PreserveWrapper(native, cache);
     }
     return true;
   }
