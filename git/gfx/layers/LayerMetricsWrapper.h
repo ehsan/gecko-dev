@@ -299,16 +299,6 @@ public:
     return gfx::Matrix4x4();
   }
 
-  EventRegions GetEventRegions() const
-  {
-    MOZ_ASSERT(IsValid());
-
-    if (AtBottomLayer()) {
-      return mLayer->GetEventRegions();
-    }
-    return EventRegions();
-  }
-
   RefLayer* AsRefLayer() const
   {
     MOZ_ASSERT(IsValid());

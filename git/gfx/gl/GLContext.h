@@ -465,15 +465,15 @@ public:
         mAvailableExtensions[aKnownExtension] = 1;
     }
 
+
 public:
+
     template<size_t N>
-    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset,
-                                           const char* extStr,
-                                           const char** extList)
+    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset, const char* extStr, const char** extList, bool verbose = false)
     {
         char* exts = ::strdup(extStr);
 
-        if (ShouldSpew())
+        if (verbose)
             printf_stderr("Extensions: %s\n", exts);
 
         char* cur = exts;
@@ -488,7 +488,7 @@ public:
 
             for (int i = 0; extList[i]; ++i) {
                 if (PL_strcasecmp(cur, extList[i]) == 0) {
-                    if (ShouldSpew())
+                    if (verbose)
                         printf_stderr("Found extension %s\n", cur);
                     extensionsBitset[i] = true;
                 }
@@ -500,8 +500,10 @@ public:
         free(exts);
     }
 
+
 protected:
     std::bitset<Extensions_Max> mAvailableExtensions;
+
 
 // -----------------------------------------------------------------------------
 // Feature queries
@@ -3696,7 +3698,6 @@ protected:
 
 public:
     void FlushIfHeavyGLCallsSinceLastFlush();
-    static bool ShouldSpew();
 };
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);

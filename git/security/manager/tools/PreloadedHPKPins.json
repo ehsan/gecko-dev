@@ -58,9 +58,7 @@
       "blog.torproject.org",
       "check.torproject.org",
       "dist.torproject.org",
-      "www.torproject.org",
-      // SpiderOak
-      "spideroak.com"
+      "www.torproject.org"
     ],
     "exclude_domains" : [
       // Chrome's entry for twitter.com doesn't include subdomains, so replace

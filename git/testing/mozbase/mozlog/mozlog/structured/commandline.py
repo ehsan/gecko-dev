@@ -76,10 +76,8 @@ def add_logging_group(parser):
                              help=help_str)
         for optname, (cls, help_str, formatters, action) in fmt_options.iteritems():
             for fmt in formatters:
-                # make sure fmt wasn't removed from log_formatters
-                if fmt in log_formatters:
-                    group.add_option("--log-%s-%s" % (fmt, optname), action=action,
-                                     help=help_str, default=None)
+                group.add_option("--log-%s-%s" % (fmt, optname), action=action,
+                                 help=help_str, default=None)
         parser.add_option_group(group)
     else:
         group = parser.add_argument_group(group_name,
@@ -90,10 +88,8 @@ def add_logging_group(parser):
 
         for optname, (cls, help_str, formatters, action) in fmt_options.iteritems():
             for fmt in formatters:
-                # make sure fmt wasn't removed from log_formatters
-                if fmt in log_formatters:
-                    group.add_argument("--log-%s-%s" % (fmt, optname), action=action,
-                                       help=help_str, default=None)
+                group.add_argument("--log-%s-%s" % (fmt, optname), action=action,
+                                   help=help_str, default=None)
 
 
 def setup_handlers(logger, formatters, formatter_options):

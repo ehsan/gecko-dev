@@ -114,7 +114,6 @@ private:
 
 struct CanvasBidiProcessor;
 class CanvasRenderingContext2DUserData;
-class CanvasDrawObserver;
 
 /**
  ** CanvasRenderingContext2D
@@ -776,12 +775,6 @@ protected:
 
   uint32_t SkiaGLTex() const;
 
-  // This observes our draw calls at the beginning of the canvas
-  // lifetime and switches to software or GPU mode depending on
-  // what it thinks is best
-  CanvasDrawObserver* mDrawObserver;
-  void RemoveDrawObserver();
-
   /**
     * Flag to avoid duplicate calls to InvalidateFrame. Set to true whenever
     * Redraw is called, reset to false when Render is called.
@@ -1096,7 +1089,6 @@ protected:
   }
 
   friend struct CanvasBidiProcessor;
-  friend class CanvasDrawObserver;
 };
 
 MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::CanvasMultiGetterType)

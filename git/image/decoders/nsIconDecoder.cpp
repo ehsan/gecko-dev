@@ -6,16 +6,17 @@
 
 #include "nsIconDecoder.h"
 #include "nsIInputStream.h"
+#include "RasterImage.h"
 #include "nspr.h"
 #include "nsRect.h"
+
 #include "nsError.h"
-#include "RasterImage.h"
 #include <algorithm>
 
 namespace mozilla {
 namespace image {
 
-nsIconDecoder::nsIconDecoder(RasterImage& aImage)
+nsIconDecoder::nsIconDecoder(RasterImage &aImage)
  : Decoder(aImage),
    mWidth(-1),
    mHeight(-1),
@@ -29,8 +30,7 @@ nsIconDecoder::~nsIconDecoder()
 { }
 
 void
-nsIconDecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
-                             DecodeStrategy)
+nsIconDecoder::WriteInternal(const char *aBuffer, uint32_t aCount, DecodeStrategy)
 {
   NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
 
@@ -82,7 +82,8 @@ nsIconDecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
         mState = iconStateReadPixels;
         break;
 
-      case iconStateReadPixels: {
+      case iconStateReadPixels:
+      {
 
         // How many bytes are we reading?
         bytesToRead = std::min(aCount, mImageDataLength - mPixBytesRead);

@@ -123,7 +123,7 @@ GLLibraryEGL::EnsureInitialized()
 
 #ifdef MOZ_B2G
     if (!sCurrentContext.init())
-      MOZ_CRASH("Tls init failed");
+	    MOZ_CRASH("Tls init failed");
 #endif
 
 #ifdef XP_WIN
@@ -409,8 +409,22 @@ GLLibraryEGL::InitExtensions()
         return;
     }
 
-    GLContext::InitializeExtensionsBitSet(mAvailableExtensions, extensions,
-                                          sEGLExtensionNames);
+    bool debugMode = false;
+#ifdef DEBUG
+    if (PR_GetEnv("MOZ_GL_DEBUG"))
+        debugMode = true;
+
+    static bool firstRun = true;
+#else
+    // Non-DEBUG, so never spew.
+    const bool firstRun = false;
+#endif
+
+    GLContext::InitializeExtensionsBitSet(mAvailableExtensions, extensions, sEGLExtensionNames, firstRun && debugMode);
+
+#ifdef DEBUG
+    firstRun = false;
+#endif
 }
 
 void

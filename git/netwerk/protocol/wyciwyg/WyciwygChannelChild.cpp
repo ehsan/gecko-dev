@@ -93,31 +93,25 @@ WyciwygChannelChild::Init(nsIURI* uri)
   SerializeURI(uri, serializedUri);
 
   // propagate loadInfo
-  mozilla::ipc::PrincipalInfo requestingPrincipalInfo;
-  mozilla::ipc::PrincipalInfo triggeringPrincipalInfo;
+  mozilla::ipc::PrincipalInfo principalInfo;
   uint32_t securityFlags;
   uint32_t policyType;
   if (mLoadInfo) {
     mozilla::ipc::PrincipalToPrincipalInfo(mLoadInfo->LoadingPrincipal(),
-                                           &requestingPrincipalInfo);
-    mozilla::ipc::PrincipalToPrincipalInfo(mLoadInfo->TriggeringPrincipal(),
-                                           &triggeringPrincipalInfo);
+                                           &principalInfo);
     securityFlags = mLoadInfo->GetSecurityFlags();
     policyType = mLoadInfo->GetContentPolicyType();
   }
   else {
     // use default values if no loadInfo is provided
     mozilla::ipc::PrincipalToPrincipalInfo(nsContentUtils::GetSystemPrincipal(),
-                                           &requestingPrincipalInfo);
-    mozilla::ipc::PrincipalToPrincipalInfo(nsContentUtils::GetSystemPrincipal(),
-                                           &triggeringPrincipalInfo);
+                                           &principalInfo);
     securityFlags = nsILoadInfo::SEC_NORMAL;
     policyType = nsIContentPolicy::TYPE_OTHER;
   }
 
   SendInit(serializedUri,
-           requestingPrincipalInfo,
-           triggeringPrincipalInfo,
+           principalInfo,
            securityFlags,
            policyType);
   return NS_OK;
