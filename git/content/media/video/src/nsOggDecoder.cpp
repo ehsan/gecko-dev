@@ -594,7 +594,11 @@ void nsOggDecodeStateMachine::HandleVideoData(FrameData* aFrame, int aTrackNum, 
   rgb.rgb_width = aFrame->mVideoWidth;
   rgb.rgb_height = aFrame->mVideoHeight;
 
+#ifdef IS_BIG_ENDIAN
+  oggplay_yuv2argb(&yuv, &rgb);
+#else
   oggplay_yuv2bgr(&yuv, &rgb);
+#endif
 }
 
 void nsOggDecodeStateMachine::HandleAudioData(FrameData* aFrame, OggPlayAudioData* aAudioData, int aSize) {
@@ -702,7 +706,7 @@ void nsOggDecodeStateMachine::OpenAudioStream()
     LOG(PR_LOG_ERROR, ("Could not create audio stream"));
   }
   else {
-    mAudioStream->Init(mAudioChannels, mAudioRate, nsAudioStream::FORMAT_FLOAT32_LE);
+    mAudioStream->Init(mAudioChannels, mAudioRate, nsAudioStream::FORMAT_FLOAT32);
     mAudioStream->SetVolume(mVolume);
   }
 }
