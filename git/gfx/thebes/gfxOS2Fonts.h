@@ -8,6 +8,7 @@
 
 #include "gfxTypes.h"
 #include "gfxFont.h"
+#include "gfxMatrix.h"
 #include "nsDataHashtable.h"
 
 #define INCL_GPI

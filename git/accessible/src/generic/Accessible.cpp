@@ -29,6 +29,7 @@
 #include "TreeWalker.h"
 
 #include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMKeyEvent.h"
@@ -82,7 +83,6 @@
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/TreeWalker.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -3074,26 +3074,25 @@ Accessible::GetFirstAvailableAccessible(nsINode *aStartNode) const
   if (accessible)
     return accessible;
 
-  nsCOMPtr<nsIDocument> doc = aStartNode->OwnerDoc();
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aStartNode->OwnerDoc());
+  NS_ENSURE_TRUE(domDoc, nullptr);
 
-  nsCOMPtr<nsINode> currentNode = aStartNode;
-  ErrorResult rv;
-  nsRefPtr<dom::TreeWalker> walker =
-    doc->CreateTreeWalker(*GetNode(),
-                          nsIDOMNodeFilter::SHOW_ELEMENT | nsIDOMNodeFilter::SHOW_TEXT,
-                          nullptr, rv);
+  nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(aStartNode);
+  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(GetNode());
+  nsCOMPtr<nsIDOMTreeWalker> walker;
+  domDoc->CreateTreeWalker(rootNode,
+                           nsIDOMNodeFilter::SHOW_ELEMENT | nsIDOMNodeFilter::SHOW_TEXT,
+                           nullptr, 1, getter_AddRefs(walker));
   NS_ENSURE_TRUE(walker, nullptr);
 
-  walker->SetCurrentNode(*currentNode, rv);
-  if (rv.Failed())
-    return nullptr;
-
+  walker->SetCurrentNode(currentNode);
   while (true) {
-    currentNode = walker->NextNode(rv);
-    if (!currentNode || rv.Failed())
+    walker->NextNode(getter_AddRefs(currentNode));
+    if (!currentNode)
       return nullptr;
 
-    Accessible* accessible = mDoc->GetAccessible(currentNode);
+    nsCOMPtr<nsINode> node(do_QueryInterface(currentNode));
+    Accessible* accessible = mDoc->GetAccessible(node);
     if (accessible)
       return accessible;
   }
