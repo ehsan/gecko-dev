@@ -11,6 +11,7 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
+#include "nsIDOMNavigatorUserMedia.h"
 #include "nsTArray.h"
 
 #include "MediaManager.h"

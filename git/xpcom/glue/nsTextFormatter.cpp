@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "prdtoa.h"
+#include "prlong.h"
 #include "prlog.h"
 #include "prprf.h"
 #include "prmem.h"

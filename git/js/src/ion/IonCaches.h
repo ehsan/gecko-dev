@@ -704,8 +704,7 @@ class SetElementIC : public RepatchIonCache
 {
   protected:
     Register object_;
-    Register temp0_;
-    Register temp1_;
+    Register temp_;
     ValueOperand index_;
     ConstantOrRegister value_;
     bool strict_;
@@ -713,12 +712,11 @@ class SetElementIC : public RepatchIonCache
     bool hasDenseStub_ : 1;
 
   public:
-    SetElementIC(Register object, Register temp0, Register temp1,
+    SetElementIC(Register object, Register temp,
                  ValueOperand index, ConstantOrRegister value,
                  bool strict)
       : object_(object),
-        temp0_(temp0),
-        temp1_(temp1),
+        temp_(temp),
         index_(index),
         value_(value),
         strict_(strict),
@@ -733,11 +731,8 @@ class SetElementIC : public RepatchIonCache
     Register object() const {
         return object_;
     }
-    Register temp0() const {
-        return temp0_;
-    }
-    Register temp1() const {
-        return temp1_;
+    Register temp() const {
+        return temp_;
     }
     ValueOperand index() const {
         return index_;

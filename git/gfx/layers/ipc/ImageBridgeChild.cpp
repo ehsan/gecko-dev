@@ -15,7 +15,6 @@
 #include "nsXULAppAPI.h"
 #include "mozilla/layers/TextureClient.h"
 #include "mozilla/layers/ImageClient.h"
-#include "ImageContainer.h"
 #include "mozilla/layers/LayersTypes.h"
 #include "ShadowLayers.h"
  
@@ -317,10 +316,7 @@ void ImageBridgeChild::DispatchImageClientUpdate(ImageClient* aClient,
   }
   sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
     FROM_HERE,
-    NewRunnableFunction<
-      void (*)(ImageClient*, ImageContainer*),
-      ImageClient*,
-      nsRefPtr<ImageContainer> >(&UpdateImageClientNow, aClient, aContainer));
+    NewRunnableFunction(&UpdateImageClientNow, aClient, aContainer));
 }
 
 void

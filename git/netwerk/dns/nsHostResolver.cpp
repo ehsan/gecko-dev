@@ -25,6 +25,7 @@
 #include "prthread.h"
 #include "prerror.h"
 #include "prtime.h"
+#include "prlong.h"
 #include "prlog.h"
 #include "pldhash.h"
 #include "plstr.h"

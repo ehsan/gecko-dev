@@ -11,9 +11,6 @@
 #ifdef MOZ_WIDGET_GONK
 #include "SharedSurfaceGralloc.h"
 #endif
-#ifdef XP_MACOSX
-#include "SharedSurfaceIO.h"
-#endif
 
 using namespace mozilla::gl;
 
@@ -53,11 +50,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
         } else {
           // [Basic Layers, OMTC] WebGL layer init.
           // Well, this *should* work...
-#ifdef XP_MACOSX
-          factory = new SurfaceFactory_IOSurface(mGLContext, screen->Caps());
-#else
           factory = new SurfaceFactory_GLTexture(mGLContext, nullptr, screen->Caps());
-#endif
         }
       }
     }

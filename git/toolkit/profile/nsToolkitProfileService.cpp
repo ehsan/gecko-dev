@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <prlong.h>
 #include <prprf.h>
 #include <prtime.h>
 #include "nsProfileLock.h"

@@ -10,7 +10,6 @@
 #include "mozilla/LinkedList.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/TemplateLib.h"
 
 #include <string.h>
 #include <setjmp.h>
@@ -613,7 +612,7 @@ struct MallocProvider
 
     template <class T>
     T *pod_malloc(size_t numElems) {
-        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
+        if (numElems & js::tl::MulOverflowMask<sizeof(T)>::result) {
             Client *client = static_cast<Client *>(this);
             client->reportAllocationOverflow();
             return NULL;
@@ -623,7 +622,7 @@ struct MallocProvider
 
     template <class T>
     T *pod_calloc(size_t numElems, JSCompartment *comp = NULL, JSContext *cx = NULL) {
-        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
+        if (numElems & js::tl::MulOverflowMask<sizeof(T)>::result) {
             Client *client = static_cast<Client *>(this);
             client->reportAllocationOverflow();
             return NULL;

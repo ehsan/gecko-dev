@@ -7,26 +7,23 @@
 // in its original incarnation, the server didn't like empty response-bodies;
 // see the comment in _end for details
 
-var srv;
-
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
-    new Test("http://localhost:" + srv.identity.primaryPort + "/empty-body-unwritten",
-             null, ensureEmpty, null),
-    new Test("http://localhost:" + srv.identity.primaryPort + "/empty-body-written",
-             null, ensureEmpty, null),
+var tests =
+  [
+   new Test("http://localhost:4444/empty-body-unwritten",
+            null, ensureEmpty, null),
+   new Test("http://localhost:4444/empty-body-written",
+            null, ensureEmpty, null),
   ];
-});
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
 
   // register a few test paths
   srv.registerPathHandler("/empty-body-unwritten", emptyBodyUnwritten);
   srv.registerPathHandler("/empty-body-written", emptyBodyWritten);
 
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }

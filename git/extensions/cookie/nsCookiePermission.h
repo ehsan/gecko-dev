@@ -9,6 +9,7 @@
 #include "nsIPermissionManager.h"
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
+#include "prlong.h"
 #include "mozIThirdPartyUtil.h"
 
 class nsIPrefBranch;

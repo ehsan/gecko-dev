@@ -1322,7 +1322,6 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   AutoPushJSContext cx(mContext);
   JSAutoRequest ar(cx);
   JS::Rooted<JSObject*> scopeObject(mContext, GetNativeGlobal());
-  JSAutoCompartment ac(cx, scopeObject);
   xpc_UnmarkGrayObject(scopeObject);
 
   bool ok = false;
@@ -2334,10 +2333,7 @@ nsJSContext::IsContextInitialized()
 void
 nsJSContext::ScriptEvaluated(bool aTerminated)
 {
-  if (GetNativeGlobal()) {
-    JSAutoCompartment ac(mContext, GetNativeGlobal());
-    JS_MaybeGC(mContext);
-  }
+  JS_MaybeGC(mContext);
 
   if (aTerminated) {
     mOperationCallbackTime = 0;
@@ -3027,9 +3023,6 @@ DOMGCSliceCallback(JSRuntime *aRt, JS::GCProgress aProgress, const JS::GCDescrip
 
   // The GC has more work to do, so schedule another GC slice.
   if (aProgress == JS::GC_SLICE_END) {
-    if (ShouldTriggerCC(nsCycleCollector_suspectedCount())) {
-      nsCycleCollector_dispatchDeferredDeletion();
-    }
     nsJSContext::KillInterSliceGCTimer();
     if (!sShuttingDown) {
       CallCreateInstance("@mozilla.org/timer;1", &sInterSliceGCTimer);

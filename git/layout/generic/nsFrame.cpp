@@ -1485,11 +1485,9 @@ void
 nsFrame::DisplayBackgroundUnconditional(nsDisplayListBuilder*       aBuilder,
                                         const nsDisplayListSet&     aLists,
                                         bool                        aForceBackground,
-                                        bool*                       aAppendedThemedBackground)
+                                        nsDisplayBackgroundImage** aBackground)
 {
-  if (aAppendedThemedBackground) {
-    *aAppendedThemedBackground = false;
-  }
+  *aBackground = nullptr;
 
   // Here we don't try to detect background propagation. Frames that might
   // receive a propagated background should just set aForceBackground to
@@ -1498,7 +1496,7 @@ nsFrame::DisplayBackgroundUnconditional(nsDisplayListBuilder*       aBuilder,
       !StyleBackground()->IsTransparent() || StyleDisplay()->mAppearance) {
     nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, this,
                                                          aLists.BorderBackground(),
-                                                         aAppendedThemedBackground);
+                                                         aBackground);
   }
 }
 
@@ -1519,9 +1517,8 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
       nsDisplayBoxShadowOuter(aBuilder, this));
   }
 
-  bool bgIsThemed;
-  DisplayBackgroundUnconditional(aBuilder, aLists, aForceBackground,
-                                 &bgIsThemed);
+  nsDisplayBackgroundImage* bg;
+  DisplayBackgroundUnconditional(aBuilder, aLists, aForceBackground, &bg);
 
   if (shadows && shadows->HasShadowWithInset(true)) {
     aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
@@ -1530,7 +1527,7 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
 
   // If there's a themed background, we should not create a border item.
   // It won't be rendered.
-  if (!bgIsThemed && StyleBorder()->HasBorder()) {
+  if ((!bg || !bg->IsThemed()) && StyleBorder()->HasBorder()) {
     aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
       nsDisplayBorder(aBuilder, this));
   }

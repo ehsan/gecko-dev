@@ -1470,12 +1470,12 @@ ScriptSource::setFilename(JSContext *cx, const char *filename)
 }
 
 bool
-ScriptSource::setSourceMap(JSContext *cx, jschar *sourceMapURL)
+ScriptSource::setSourceMap(JSContext *cx, jschar *sourceMapURL, const char *filename)
 {
     JS_ASSERT(sourceMapURL);
     if (hasSourceMap()) {
         if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage, NULL,
-                                          JSMSG_ALREADY_HAS_SOURCEMAP, filename_)) {
+                                          JSMSG_ALREADY_HAS_SOURCEMAP, filename)) {
             js_free(sourceMapURL);
             return false;
         }
