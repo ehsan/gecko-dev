@@ -1050,7 +1050,7 @@ public:
    * @return true if the contents of this item are rendered fixed relative
    * to the nearest viewport.
    */
-  virtual bool ShouldFixToViewport(LayerManager* aManager)
+  virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
   { return false; }
 
   /**
@@ -2153,12 +2153,11 @@ public:
   static nsRegion GetInsideClipRegion(nsDisplayItem* aItem, nsPresContext* aPresContext, uint8_t aClip,
                                       const nsRect& aRect, bool* aSnap);
 
-  virtual bool ShouldFixToViewport(LayerManager* aManager) MOZ_OVERRIDE
+  virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
   {
     // APZ doesn't (yet) know how to scroll the visible region for these type of
     // items, so don't layerize them if it's enabled.
-    if (nsLayoutUtils::UsesAsyncScrolling() ||
-        (aManager && aManager->ShouldAvoidComponentAlphaLayers())) {
+    if (nsLayoutUtils::UsesAsyncScrolling()) {
       return false;
     }
 

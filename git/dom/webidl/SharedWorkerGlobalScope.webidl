@@ -12,8 +12,7 @@
  * this document.
  */
 
-[Global=(Worker,SharedWorker),
- Exposed=SharedWorker]
+[Global, Func="mozilla::dom::workers::SharedWorkerGlobalScope::Visible"]
 interface SharedWorkerGlobalScope : WorkerGlobalScope {
   readonly attribute DOMString name;
   attribute EventHandler onconnect;

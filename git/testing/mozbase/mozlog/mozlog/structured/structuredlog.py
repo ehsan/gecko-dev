@@ -144,8 +144,7 @@ class StructuredLogger(object):
 
         if action in ("test_status", "test_end"):
             if (data["expected"] == data["status"] or
-                data["status"] == "SKIP" or
-                "expected" not in raw_data):
+                data["status"] == "SKIP"):
                 del data["expected"]
 
         self._handle_log(data)

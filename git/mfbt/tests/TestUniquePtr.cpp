@@ -34,24 +34,24 @@ using mozilla::Vector;
 typedef UniquePtr<int> NewInt;
 static_assert(sizeof(NewInt) == sizeof(int*), "stored most efficiently");
 
-static size_t gADestructorCalls = 0;
+static size_t ADestructorCalls = 0;
 
 struct A
 {
 public:
   A() : mX(0) {}
-  virtual ~A() { gADestructorCalls++; }
+  virtual ~A() { ADestructorCalls++; }
 
   int mX;
 };
 
-static size_t gBDestructorCalls = 0;
+static size_t BDestructorCalls = 0;
 
 struct B : public A
 {
 public:
   B() : mY(1) {}
-  ~B() { gBDestructorCalls++; }
+  ~B() { BDestructorCalls++; }
 
   int mY;
 };
@@ -131,30 +131,30 @@ TestDefaultFreeGuts()
   UniqueA a1;
   CHECK(a1 == nullptr);
   a1.reset(new A);
-  CHECK(gADestructorCalls == 0);
+  CHECK(ADestructorCalls == 0);
   CHECK(a1->mX == 0);
 
   B* bp1 = new B;
   bp1->mX = 5;
-  CHECK(gBDestructorCalls == 0);
+  CHECK(BDestructorCalls == 0);
   a1.reset(bp1);
-  CHECK(gADestructorCalls == 1);
+  CHECK(ADestructorCalls == 1);
   CHECK(a1->mX == 5);
   a1.reset(nullptr);
-  CHECK(gADestructorCalls == 2);
-  CHECK(gBDestructorCalls == 1);
+  CHECK(ADestructorCalls == 2);
+  CHECK(BDestructorCalls == 1);
 
   B* bp2 = new B;
   UniqueB b1(bp2);
   UniqueA a2(nullptr);
   a2 = Move(b1);
-  CHECK(gADestructorCalls == 2);
-  CHECK(gBDestructorCalls == 1);
+  CHECK(ADestructorCalls == 2);
+  CHECK(BDestructorCalls == 1);
 
   UniqueA a3(Move(a2));
   a3 = nullptr;
-  CHECK(gADestructorCalls == 3);
-  CHECK(gBDestructorCalls == 2);
+  CHECK(ADestructorCalls == 3);
+  CHECK(BDestructorCalls == 2);
 
   B* bp3 = new B;
   bp3->mX = 42;
@@ -162,39 +162,39 @@ TestDefaultFreeGuts()
   UniqueA a4(Move(b2));
   CHECK(b2.get() == nullptr);
   CHECK((*a4).mX == 42);
-  CHECK(gADestructorCalls == 3);
-  CHECK(gBDestructorCalls == 2);
+  CHECK(ADestructorCalls == 3);
+  CHECK(BDestructorCalls == 2);
 
   UniqueA a5(new A);
   UniqueB b3(new B);
   a5 = Move(b3);
-  CHECK(gADestructorCalls == 4);
-  CHECK(gBDestructorCalls == 2);
+  CHECK(ADestructorCalls == 4);
+  CHECK(BDestructorCalls == 2);
 
   ReturnUniqueA();
-  CHECK(gADestructorCalls == 5);
-  CHECK(gBDestructorCalls == 3);
+  CHECK(ADestructorCalls == 5);
+  CHECK(BDestructorCalls == 3);
 
   ReturnLocalA();
-  CHECK(gADestructorCalls == 6);
-  CHECK(gBDestructorCalls == 3);
+  CHECK(ADestructorCalls == 6);
+  CHECK(BDestructorCalls == 3);
 
   UniqueA a6(ReturnLocalA());
   a6 = nullptr;
-  CHECK(gADestructorCalls == 7);
-  CHECK(gBDestructorCalls == 3);
+  CHECK(ADestructorCalls == 7);
+  CHECK(BDestructorCalls == 3);
 
   UniqueC c1(new B);
   UniqueA a7(new B);
   a7 = Move(c1);
-  CHECK(gADestructorCalls == 8);
-  CHECK(gBDestructorCalls == 4);
+  CHECK(ADestructorCalls == 8);
+  CHECK(BDestructorCalls == 4);
 
   c1.reset(new B);
 
   UniqueA a8(Move(c1));
-  CHECK(gADestructorCalls == 8);
-  CHECK(gBDestructorCalls == 4);
+  CHECK(ADestructorCalls == 8);
+  CHECK(BDestructorCalls == 4);
 
   // These smart pointers still own B resources.
   CHECK(a4);
@@ -208,8 +208,8 @@ static bool
 TestDefaultFree()
 {
   CHECK(TestDefaultFreeGuts());
-  CHECK(gADestructorCalls == 12);
-  CHECK(gBDestructorCalls == 8);
+  CHECK(ADestructorCalls == 12);
+  CHECK(BDestructorCalls == 8);
   return true;
 }
 
@@ -317,16 +317,16 @@ TestReferenceDeleterGuts()
 static bool
 TestReferenceDeleter()
 {
-  gADestructorCalls = 0;
-  gBDestructorCalls = 0;
+  ADestructorCalls = 0;
+  BDestructorCalls = 0;
 
   CHECK(TestReferenceDeleterGuts());
 
-  CHECK(gADestructorCalls == 4);
-  CHECK(gBDestructorCalls == 3);
+  CHECK(ADestructorCalls == 4);
+  CHECK(BDestructorCalls == 3);
 
-  gADestructorCalls = 0;
-  gBDestructorCalls = 0;
+  ADestructorCalls = 0;
+  BDestructorCalls = 0;
   return true;
 }
 
@@ -409,9 +409,7 @@ template<typename T>
 struct AppendNullptrTwice<T, false>
 {
   AppendNullptrTwice() {}
-
-  bool operator()(Vector<T>& vec)
-  {
+  bool operator()(Vector<T>& vec) {
     CHECK(vec.append(static_cast<typename T::Pointer>(nullptr)));
     CHECK(vec.append(static_cast<typename T::Pointer>(nullptr)));
     return true;
@@ -422,9 +420,7 @@ template<typename T>
 struct AppendNullptrTwice<T, true>
 {
   AppendNullptrTwice() {}
-
-  bool operator()(Vector<T>& vec)
-  {
+  bool operator()(Vector<T>& vec) {
     CHECK(vec.append(nullptr));
     CHECK(vec.append(nullptr));
     return true;
@@ -457,21 +453,21 @@ TestVectorGuts()
   BAfter = numAppended / 2;
   AAfter = numAppended - numAppended / 2;
 
-  CHECK(gADestructorCalls == 0);
-  CHECK(gBDestructorCalls == 0);
+  CHECK(ADestructorCalls == 0);
+  CHECK(BDestructorCalls == 0);
   return true;
 }
 
 static bool
 TestVector()
 {
-  gADestructorCalls = 0;
-  gBDestructorCalls = 0;
+  ADestructorCalls = 0;
+  BDestructorCalls = 0;
 
   CHECK(TestVectorGuts());
 
-  CHECK(gADestructorCalls == 3 + AAfter + BAfter);
-  CHECK(gBDestructorCalls == 2 + BAfter);
+  CHECK(ADestructorCalls == 3 + AAfter + BAfter);
+  CHECK(BDestructorCalls == 2 + BAfter);
   return true;
 }
 

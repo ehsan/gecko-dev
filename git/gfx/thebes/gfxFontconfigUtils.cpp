@@ -380,7 +380,9 @@ struct MozLangGroupData {
 
 const MozLangGroupData MozLangGroups[] = {
     { nsGkAtoms::x_western,      "en" },
+    { nsGkAtoms::x_central_euro, "pl" },
     { nsGkAtoms::x_cyrillic,     "ru" },
+    { nsGkAtoms::x_baltic,       "lv" },
     { nsGkAtoms::x_devanagari,   "hi" },
     { nsGkAtoms::x_tamil,        "ta" },
     { nsGkAtoms::x_armn,         "hy" },

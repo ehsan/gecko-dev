@@ -10,10 +10,7 @@
 
 // Still unclear what should be subclassed.
 // https://github.com/slightlyoff/ServiceWorker/issues/189
-[Pref="dom.serviceWorkers.enabled",
- // XXXbz I have no idea where this should be exposed.  The spec makes
- // no sense.  But since it's got a pref, let's say window.
- Exposed=Window]
+[Pref="dom.serviceWorkers.enabled"]
 interface ServiceWorker : EventTarget {
   readonly attribute DOMString scope;
   readonly attribute DOMString url;

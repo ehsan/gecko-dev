@@ -124,6 +124,9 @@ class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope
 public:
   DedicatedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate);
 
+  static bool
+  Visible(JSContext* aCx, JSObject* aObj);
+
   virtual JSObject*
   WrapGlobalObject(JSContext* aCx) MOZ_OVERRIDE;
 
@@ -145,6 +148,9 @@ public:
   SharedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate,
                           const nsCString& aName);
 
+  static bool
+  Visible(JSContext* aCx, JSObject* aObj);
+
   virtual JSObject*
   WrapGlobalObject(JSContext* aCx) MOZ_OVERRIDE;
 
@@ -163,6 +169,9 @@ class ServiceWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope
 
 public:
   ServiceWorkerGlobalScope(WorkerPrivate* aWorkerPrivate, const nsACString& aScope);
+
+  static bool
+  Visible(JSContext* aCx, JSObject* aObj);
 
   virtual JSObject*
   WrapGlobalObject(JSContext* aCx) MOZ_OVERRIDE;

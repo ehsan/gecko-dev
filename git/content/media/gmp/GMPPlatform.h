@@ -15,9 +15,7 @@ namespace gmp {
 
 class GMPChild;
 
-void InitPlatformAPI(GMPPlatformAPI& aPlatformAPI, GMPChild* aChild);
-
-GMPErr RunOnMainThread(GMPTask* aTask);
+void InitPlatformAPI(GMPPlatformAPI& aPlatformAPI);
 
 class GMPThreadImpl : public GMPThread
 {
@@ -43,7 +41,6 @@ public:
   // GMPMutex
   virtual void Acquire() MOZ_OVERRIDE;
   virtual void Release() MOZ_OVERRIDE;
-  virtual void Destroy() MOZ_OVERRIDE;
 
 private:
   Mutex mMutex;
