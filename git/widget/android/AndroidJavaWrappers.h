@@ -799,12 +799,13 @@ public:
         NETWORK_CHANGED = 22,
         UNUSED3_EVENT = 23,
         ACTIVITY_RESUMING = 24,
-        THUMBNAIL = 25,
+        SCREENSHOT = 25,
         UNUSED2_EVENT = 26,
         SCREENORIENTATION_CHANGED = 27,
         COMPOSITOR_PAUSE = 28,
         COMPOSITOR_RESUME = 29,
-        NATIVE_GESTURE_EVENT = 30,
+        PAINT_LISTEN_START_EVENT = 30,
+        NATIVE_GESTURE_EVENT = 31,
         dummy_java_enum_list_end
     };
 

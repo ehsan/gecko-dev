@@ -632,10 +632,16 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
         }
 
-        case THUMBNAIL: {
+        case SCREENSHOT: {
             mMetaState = jenv->GetIntField(jobj, jMetaStateField);
-            ReadPointArray(mPoints, jenv, jPoints, 1);
+            mFlags = jenv->GetIntField(jobj, jFlagsField);
+            ReadPointArray(mPoints, jenv, jPoints, 5);
             mByteBuffer = new RefCountedJavaObject(jenv, jenv->GetObjectField(jobj, jByteBufferField));
+            break;
+        }
+
+        case PAINT_LISTEN_START_EVENT: {
+            mMetaState = jenv->GetIntField(jobj, jMetaStateField);
             break;
         }
 

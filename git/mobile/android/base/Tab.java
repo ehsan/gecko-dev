@@ -60,7 +60,7 @@ public class Tab {
     private HashMap<Object, Layer> mPluginLayers;
     private ContentResolver mContentResolver;
     private ContentObserver mContentObserver;
-    private int mBackgroundColor = Color.WHITE;
+    private int mCheckerboardColor = Color.WHITE;
     private int mState;
     private Bitmap mThumbnailBitmap;
     private boolean mDesktopMode;
@@ -509,7 +509,7 @@ public class Tab {
         setReaderEnabled(false);
         setZoomConstraints(new ZoomConstraints(true));
         setHasTouchListeners(false);
-        setBackgroundColor(Color.WHITE);
+        setCheckerboardColor(Color.WHITE);
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
@@ -562,18 +562,18 @@ public class Tab {
         }
     }
 
-    public int getBackgroundColor() {
-        return mBackgroundColor;
+    public int getCheckerboardColor() {
+        return mCheckerboardColor;
     }
 
-    /** Sets a new color for the background. */
-    public void setBackgroundColor(int color) {
-        mBackgroundColor = color;
+    /** Sets a new color for the checkerboard. */
+    public void setCheckerboardColor(int color) {
+        mCheckerboardColor = color;
     }
 
-    /** Parses and sets a new color for the background. */
-    public void setBackgroundColor(String newColor) {
-        setBackgroundColor(parseColorFromGecko(newColor));
+    /** Parses and sets a new color for the checkerboard. */
+    public void setCheckerboardColor(String newColor) {
+        setCheckerboardColor(parseColorFromGecko(newColor));
     }
 
     // Parses a color from an RGB triple of the form "rgb([0-9]+, [0-9]+, [0-9]+)". If the color

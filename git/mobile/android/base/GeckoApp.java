@@ -860,17 +860,17 @@ abstract public class GeckoApp
                 handleContentLoaded(tabId);
                 Tab tab = Tabs.getInstance().getTab(tabId);
                 if (backgroundColor != null) {
-                    tab.setBackgroundColor(backgroundColor);
+                    tab.setCheckerboardColor(backgroundColor);
                 } else {
                     // Default to white if no color is given
-                    tab.setBackgroundColor(Color.WHITE);
+                    tab.setCheckerboardColor(Color.WHITE);
                 }
 
                 // Sync up the layer view and the tab if the tab is
                 // currently displayed.
                 LayerView layerView = mLayerView;
                 if (layerView != null && Tabs.getInstance().isSelectedTab(tab)) {
-                    layerView.setBackgroundColor(tab.getBackgroundColor());
+                    layerView.setCheckerboardColor(tab.getCheckerboardColor());
                 }
             } else if (event.equals("DOMTitleChanged")) {
                 final int tabId = message.getInt("tabID");
@@ -1129,6 +1129,8 @@ abstract public class GeckoApp
         tab.setState(shouldShowProgress(uri) ? Tab.STATE_SUCCESS : Tab.STATE_LOADING);
         tab.updateIdentityData(null);
         tab.setReaderEnabled(false);
+        if (Tabs.getInstance().isSelectedTab(tab))
+            mLayerView.getRenderer().resetCheckerboard();
         Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.START, showProgress);
     }
 
@@ -1149,6 +1151,11 @@ abstract public class GeckoApp
                     return;
 
                 ThumbnailHelper.getInstance().getAndProcessThumbnailFor(tab);
+                if (Tabs.getInstance().isSelectedTab(tab)) {
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createStartPaintListentingEvent(tab.getId()));
+                    ScreenshotHandler.screenshotWholePage(tab);
+                }
+
             }
         }, 500);
     }
@@ -1570,7 +1577,6 @@ abstract public class GeckoApp
         Tabs.registerOnTabsChangedListener(this);
 
         // If we are doing a restore, read the session data and send it to Gecko
-        String restoreMessage = null;
         if (mRestoreMode != RESTORE_NONE && !mIsRestoringActivity) {
             try {
                 String sessionString = getProfile().readSessionFile(false);
@@ -1620,15 +1626,13 @@ abstract public class GeckoApp
                 JSONObject restoreData = new JSONObject();
                 restoreData.put("restoringOOM", mRestoreMode == RESTORE_OOM);
                 restoreData.put("sessionString", sessionString);
-                restoreMessage = restoreData.toString();
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Restore", restoreData.toString()));
             } catch (Exception e) {
                 // If restore failed, do a normal startup
                 Log.e(LOGTAG, "An error occurred during restore", e);
                 mRestoreMode = RESTORE_NONE;
             }
         }
-
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Restore", restoreMessage));
 
         if (mRestoreMode == RESTORE_OOM) {
             // If we successfully did an OOM restore, we now have tab stubs
