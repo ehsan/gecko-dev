@@ -360,8 +360,7 @@ public:
     bool record_LeaveFrame();
     bool record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop);
     bool record_SetPropMiss(JSPropCacheEntry* entry);
-    bool record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
-    
+
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }
 
