@@ -57,6 +57,7 @@ XPIDLSRCS = \
   nsIPluginDocument.idl \
   nsIPluginHost.idl \
   nsIPluginInputStream.idl \
+  nsIPluginInstance.idl \
   nsIPluginInstanceOwner.idl \
   nsIPluginStreamInfo.idl \
   nsIPluginStreamListener.idl \
@@ -74,11 +75,6 @@ EXPORTS = \
   nsPluginError.h \
   nsPluginNativeWindow.h \
   nsPluginsCID.h \
-  nsNPAPIPluginInstance.h \
-  nsPluginsDir.h \
-  nsPluginTags.h \
-  nsPluginDirServiceProvider.h \
-  nsPluginHost.h \
   $(NULL)
 
 EXPORTS_mozilla = \
@@ -165,7 +161,3 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 EXTRA_DSO_LDOPTS += $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
 endif
 
-$(DIST)/bin/plugins:
-	$(NSINSTALL) -D $@
-
-export:: $(DIST)/bin/plugins

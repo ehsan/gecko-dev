@@ -88,10 +88,6 @@ nsMathMLmfencedFrame::SetInitialChildList(nsIAtom*        aListName,
   nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListName, aChildList);
   if (NS_FAILED(rv)) return rv;
 
-  // InheritAutomaticData will not get called if our parent is not a mathml
-  // frame, so initialize NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY for
-  // GetPreferredStretchSize() from Reflow().
-  mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
   // No need to track the style contexts given to our MathML chars. 
   // The Style System will use Get/SetAdditionalStyleContext() to keep them
   // up-to-date if dynamic changes arise.
@@ -123,8 +119,8 @@ nsMathMLmfencedFrame::ChildListChanged(PRInt32 aModType)
 void
 nsMathMLmfencedFrame::RemoveFencesAndSeparators()
 {
-  delete mOpenChar;
-  delete mCloseChar;
+  if (mOpenChar) delete mOpenChar;
+  if (mCloseChar) delete mCloseChar;
   if (mSeparatorsChar) delete[] mSeparatorsChar;
 
   mOpenChar = nsnull;
@@ -314,6 +310,8 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   nsBoundingMetrics containerSize;
   nsStretchDirection stretchDir = NS_STRETCH_DIRECTION_VERTICAL;
 
+  nsPresentationData presentationData;
+  GetPresentationData(presentationData);
   GetPreferredStretchSize(*aReflowState.rendContext,
                           0, /* i.e., without embellishments */
                           stretchDir, containerSize);

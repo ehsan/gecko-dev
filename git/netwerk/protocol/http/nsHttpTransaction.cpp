@@ -136,7 +136,6 @@ nsHttpTransaction::nsHttpTransaction()
     , mHasRequestBody(PR_FALSE)
     , mSSLConnectFailed(PR_FALSE)
     , mHttpResponseMatched(PR_FALSE)
-    , mPreserveStream(PR_FALSE)
 {
     LOG(("Creating nsHttpTransaction @%x\n", this));
 }
@@ -360,18 +359,6 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     LOG(("nsHttpTransaction::OnSocketStatus [this=%x status=%x progress=%llu]\n",
         this, status, progress));
 
-    if (TimingEnabled()) {
-        if (status == nsISocketTransport::STATUS_RESOLVING) {
-            mTimings.domainLookupStart = mozilla::TimeStamp::Now();
-        } else if (status == nsISocketTransport::STATUS_RESOLVED) {
-            mTimings.domainLookupEnd = mozilla::TimeStamp::Now();
-        } else if (status == nsISocketTransport::STATUS_CONNECTING_TO) {
-            mTimings.connectStart = mozilla::TimeStamp::Now();
-        } else if (status == nsISocketTransport::STATUS_CONNECTED_TO) {
-            mTimings.connectEnd = mozilla::TimeStamp::Now();
-        }
-    }
-
     if (!mTransportSink)
         return;
 
@@ -462,10 +449,6 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
     nsresult rv = trans->mReader->OnReadSegment(buf, count, countRead);
     if (NS_FAILED(rv)) return rv;
 
-    if (trans->TimingEnabled() && trans->mTimings.requestStart.IsNull()) {
-        // First data we're sending -> this is requestStart
-        trans->mTimings.requestStart = mozilla::TimeStamp::Now();
-    }
     trans->mSentData = PR_TRUE;
     return NS_OK;
 }
@@ -524,10 +507,6 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
 
     if (trans->mTransactionDone)
         return NS_BASE_STREAM_CLOSED; // stop iterating
-
-    if (trans->TimingEnabled() && trans->mTimings.responseStart.IsNull()) {
-        trans->mTimings.responseStart = mozilla::TimeStamp::Now();
-    }
 
     nsresult rv;
     //
@@ -590,8 +569,6 @@ nsHttpTransaction::Close(nsresult reason)
         LOG(("  already closed\n"));
         return;
     }
-
-    mTimings.responseEnd = mozilla::TimeStamp::Now();
 
     if (mActivityDistributor) {
         // report the reponse is complete if not already reported
@@ -829,8 +806,7 @@ nsHttpTransaction::ParseLineSegment(char *segment, PRUint32 len)
     if (mLineBuf.First() == '\n') {
         mLineBuf.Truncate();
         // discard this response if it is a 100 continue or other 1xx status.
-        PRUint16 status = mResponseHead->Status();
-        if ((status != 101) && (status / 100 == 1)) {
+        if (mResponseHead->Status() / 100 == 1) {
             LOG(("ignoring 1xx response\n"));
             mHaveStatusLine = PR_FALSE;
             mHttpResponseMatched = PR_FALSE;
@@ -1001,8 +977,6 @@ nsHttpTransaction::HandleContentStart()
 
         // check if this is a no-content response
         switch (mResponseHead->Status()) {
-        case 101:
-            mPreserveStream = PR_TRUE;    // fall through to other no content
         case 204:
         case 205:
         case 304:
@@ -1079,7 +1053,7 @@ nsHttpTransaction::HandleContent(char *buf,
         // headers. So, unless the connection is persistent, we must make
         // allowances for a possibly invalid Content-Length header. Thus, if
         // NOT persistent, we simply accept everything in |buf|.
-        if (mConnection->IsPersistent() || mPreserveStream) {
+        if (mConnection->IsPersistent()) {
             PRInt64 remaining = mContentLength - mContentRead;
             PRInt64 count64 = count;
             *contentRead = PR_MIN(count64, remaining);

@@ -262,7 +262,7 @@ function AutoCompleteCache() {
   AutoCompleteUtils.init();
 
   Services.obs.addObserver(this, "browser:cache-session-history-reload", true);
-  Services.obs.addObserver(this, "places-expiration-finished", true);
+  Services.obs.addObserver(this, "browser:purge-session-history", true);
   Services.obs.addObserver(this, "browser-search-engine-modified", true);
 }
 
@@ -344,7 +344,7 @@ AutoCompleteCache.prototype = {
         else
           AutoCompleteUtils.fetch(AutoCompleteUtils.query);
         break;
-      case "places-expiration-finished":
+      case "browser:purge-session-history":
         AutoCompleteUtils.fetch(AutoCompleteUtils.query);
         break;
       case "browser-search-engine-modified":

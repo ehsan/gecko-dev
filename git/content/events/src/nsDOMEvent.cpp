@@ -1390,12 +1390,6 @@ nsDOMEvent::GetPreventDefault(PRBool* aReturn)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMEvent::GetDefaultPrevented(PRBool* aReturn)
-{
-  return GetPreventDefault(aReturn);
-}
-
 void
 nsDOMEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
 {

@@ -307,12 +307,13 @@ nsresult
 Link::SetHash(const nsAString &aHash)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
-  if (!uri) {
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+  if (!url) {
     // Ignore failures to be compatible with NS4.
     return NS_OK;
   }
 
-  (void)uri->SetRef(NS_ConvertUTF16toUTF8(aHash));
+  (void)url->SetRef(NS_ConvertUTF16toUTF8(aHash));
   SetHrefAttribute(uri);
   return NS_OK;
 }
@@ -443,14 +444,15 @@ Link::GetHash(nsAString &_hash)
   _hash.Truncate();
 
   nsCOMPtr<nsIURI> uri(GetURI());
-  if (!uri) {
-    // Do not throw!  Not having a valid URI should result in an empty
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+  if (!url) {
+    // Do not throw!  Not having a valid URI or URL should result in an empty
     // string.
     return NS_OK;
   }
 
   nsCAutoString ref;
-  nsresult rv = uri->GetRef(ref);
+  nsresult rv = url->GetRef(ref);
   if (NS_SUCCEEDED(rv) && !ref.IsEmpty()) {
     NS_UnescapeURL(ref); // XXX may result in random non-ASCII bytes!
     _hash.Assign(PRUnichar('#'));

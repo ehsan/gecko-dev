@@ -1176,7 +1176,8 @@ nsProtocolProxyService::LoadHostFilters(const char *filters)
         mHostFiltersArray.AppendElement(hinfo);
         hinfo = nsnull;
 loser:
-        delete hinfo;
+        if (hinfo)
+            delete hinfo;
     }
 }
 

@@ -92,7 +92,7 @@ class ShadowableLayer;
  */
 class BasicImplData {
 public:
-  BasicImplData() : mHidden(PR_FALSE)
+  BasicImplData()
   {
     MOZ_COUNT_CTOR(BasicImplData);
   }
@@ -136,13 +136,16 @@ public:
   virtual void ClearCachedResources() {}
 
   /**
-   * This variable is set by MarkLeafLayersHidden() before painting.
+   * This variable is used by layer manager in order to
+   * MarkLeafLayersCoveredByOpaque() before painting.
+   * We keep it here for now. Once we need to cull completely covered
+   * non-Basic layers, mCoveredByOpaque should be moved to Layer.
    */
-  void SetHidden(PRBool aCovered) { mHidden = aCovered; }
-  PRBool IsHidden() const { return PR_FALSE; }
+  void SetCoveredByOpaque(PRBool aCovered) { mCoveredByOpaque = aCovered; }
+  PRBool IsCoveredByOpaque() const { return mCoveredByOpaque; }
 
 protected:
-  PRPackedBool mHidden;
+  PRPackedBool mCoveredByOpaque;
 };
 
 static BasicImplData*
@@ -551,7 +554,7 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
     mBuffer.Clear();
 
     nsIntRegion toDraw = IntersectWithClip(mVisibleRegion, aContext);
-    if (!toDraw.IsEmpty() && !IsHidden()) {
+    if (!toDraw.IsEmpty()) {
       if (!aCallback) {
         BasicManager()->SetTransactionIncomplete();
         return;
@@ -617,9 +620,7 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
     }
   }
 
-  if (!IsHidden()) {
-    mBuffer.DrawTo(this, aContext, opacity);
-  }
+  mBuffer.DrawTo(this, aContext, opacity);
 
   for (PRUint32 i = 0; i < readbackUpdates.Length(); ++i) {
     ReadbackProcessor::Update& update = readbackUpdates[i];
@@ -738,8 +739,6 @@ protected:
 void
 BasicImageLayer::Paint(gfxContext* aContext)
 {
-  if (IsHidden())
-    return;
   nsRefPtr<gfxPattern> dontcare =
       GetAndPaintCurrentImage(aContext, GetEffectiveOpacity());
 }
@@ -851,8 +850,6 @@ public:
 
   virtual void Paint(gfxContext* aContext)
   {
-    if (IsHidden())
-      return;
     PaintColorTo(mColor, GetEffectiveOpacity(), aContext);
   }
 
@@ -997,8 +994,6 @@ BasicCanvasLayer::UpdateSurface()
 void
 BasicCanvasLayer::Paint(gfxContext* aContext)
 {
-  if (IsHidden())
-    return;
   UpdateSurface();
   FireDidTransactionCallback();
   PaintWithOpacity(aContext, GetEffectiveOpacity());
@@ -1089,11 +1084,6 @@ MayHaveOverlappingOrTransparentLayers(Layer* aLayer,
                                       const nsIntRect& aBounds,
                                       nsIntRegion* aDirtyVisibleRegionInContainer)
 {
-  if (static_cast<BasicImplData*>(aLayer->ImplData())->IsHidden()) {
-    // This layer won't be painted, so just ignore it.
-    return PR_FALSE;
-  }
-
   if (!(aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE)) {
     return PR_TRUE;
   }
@@ -1254,27 +1244,17 @@ TransformIntRect(nsIntRect& aRect, const gfxMatrix& aMatrix,
   aRect = (*aRoundMethod)(gr);
 }
 
-/**
- * This function assumes that GetEffectiveTransform transforms
- * all layers to the same coordinate system (the "root coordinate system").
- * It can't be used as is by accelerated layers because of intermediate surfaces.
- * This must set the hidden flag to true or false on *all* layers in the subtree.
- * @param aClipRect the cliprect, in the root coordinate system. We assume
- * that any layer drawing is clipped to this rect. It is therefore not
- * allowed to add to the opaque region outside that rect.
- * @param aDirtyRect the dirty rect that will be painted, in the root
- * coordinate system. Layers outside this rect should be hidden.
- * @param aOpaqueRegion the opaque region covering aLayer, in the
- * root coordinate system.
- */
+// This implementation assumes that GetEffectiveTransform transforms
+// all layers to the same coordinate system. It can't be used as is
+// by accelerated layers because of intermediate surfaces.
+// aClipRect and aRegion are in that global coordinate system.
 static void
-MarkLeafLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
-                     const nsIntRect& aDirtyRect,
-                     nsIntRegion& aOpaqueRegion)
+MarkLeafLayersCoveredByOpaque(Layer* aLayer, const nsIntRect& aClipRect,
+                              nsIntRegion& aRegion)
 {
   Layer* child = aLayer->GetLastChild();
   BasicImplData* data = ToData(aLayer);
-  data->SetHidden(PR_FALSE);
+  data->SetCoveredByOpaque(PR_FALSE);
 
   nsIntRect newClipRect(aClipRect);
 
@@ -1294,8 +1274,6 @@ MarkLeafLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
       if (aLayer->GetParent()) {
         gfxMatrix tr;
         if (aLayer->GetParent()->GetEffectiveTransform().Is2D(&tr)) {
-          // Clip rect is applied after aLayer's transform, i.e., in the coordinate
-          // system of aLayer's parent.
           TransformIntRect(cr, tr, ToInsideIntRect);
         } else {
           cr.SetRect(0, 0, 0, 0);
@@ -1314,8 +1292,7 @@ MarkLeafLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
     nsIntRegion region = aLayer->GetEffectiveVisibleRegion();
     nsIntRect r = region.GetBounds();
     TransformIntRect(r, transform, ToOutsideIntRect);
-    r.IntersectRect(r, aDirtyRect);
-    data->SetHidden(aOpaqueRegion.Contains(r));
+    data->SetCoveredByOpaque(aRegion.Contains(r));
 
     // Allow aLayer to cover underlying layers only if aLayer's
     // content is opaque
@@ -1330,12 +1307,12 @@ MarkLeafLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
 
       r.IntersectRect(r, newClipRect);
       if (!r.IsEmpty()) {
-        aOpaqueRegion.Or(aOpaqueRegion, r);
+        aRegion.Or(aRegion, r);
       }
     }
   } else {
     for (; child; child = child->GetPrevSibling()) {
-      MarkLeafLayersHidden(child, newClipRect, aDirtyRect, aOpaqueRegion);
+      MarkLeafLayersCoveredByOpaque(child, newClipRect, aRegion);
     }
   }
 }
@@ -1364,48 +1341,29 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   mTransactionIncomplete = false;
 
   if (mTarget && mRoot) {
-    nsIntRect clipRect;
-    if (HasShadowManager()) {
-      // If this has a shadow manager, the clip extents of mTarget are meaningless.
-      // So instead just use the root layer's visible region bounds.
-      const nsIntRect& bounds = mRoot->GetVisibleRegion().GetBounds();
-      gfxRect deviceRect =
-          mTarget->UserToDevice(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height));
-      clipRect = ToOutsideIntRect(deviceRect);
-    } else {
-      gfxContextMatrixAutoSaveRestore save(mTarget);
-      mTarget->SetMatrix(gfxMatrix());
-      clipRect = ToOutsideIntRect(mTarget->GetClipExtents());
-    }
-
-    // Need to do this before we call MarkLeafLayersHidden,
-    // which depends on correct effective transforms
-    mSnapEffectiveTransforms =
-      !(mTarget->GetFlags() & gfxContext::FLAG_DISABLE_SNAPPING);
-    mRoot->ComputeEffectiveTransforms(gfx3DMatrix::From2D(mTarget->CurrentMatrix()));
-
-    // Need to do this before we call MayHaveOverlappingOrTransparentLayers,
-    // which uses information about which layers are going to be drawn.
-    if (IsRetained()) {
-      nsIntRegion region;
-      MarkLeafLayersHidden(mRoot, clipRect, clipRect, region);
-    }
-
     nsRefPtr<gfxContext> finalTarget = mTarget;
     gfxPoint cachedSurfaceOffset;
+
     nsIntRegion rootRegion;
     PRBool useDoubleBuffering = mUsingDefaultTarget &&
       mDoubleBuffering != BUFFER_NONE &&
-      MayHaveOverlappingOrTransparentLayers(mRoot, clipRect, &rootRegion);
-
+      MayHaveOverlappingOrTransparentLayers(mRoot,
+                                            ToOutsideIntRect(mTarget->GetClipExtents()),
+                                            &rootRegion);
     if (useDoubleBuffering) {
       nsRefPtr<gfxASurface> targetSurface = mTarget->CurrentSurface();
       mTarget = PushGroupWithCachedSurface(mTarget, targetSurface->GetContentType(),
                                            &cachedSurfaceOffset);
-      // Recompute effective transforms since the gfxContext matrix has changed
-      mRoot->ComputeEffectiveTransforms(gfx3DMatrix::From2D(mTarget->CurrentMatrix()));
     }
 
+    mSnapEffectiveTransforms =
+      !(mTarget->GetFlags() & gfxContext::FLAG_DISABLE_SNAPPING);
+    mRoot->ComputeEffectiveTransforms(gfx3DMatrix::From2D(mTarget->CurrentMatrix()));
+
+    nsIntRegion region;
+    MarkLeafLayersCoveredByOpaque(mRoot,
+                                  mRoot->GetEffectiveVisibleRegion().GetBounds(),
+                                  region);
     PaintLayer(mRoot, aCallback, aCallbackData, nsnull);
 
     // If we're doing manual double-buffering, we need to avoid drawing
@@ -1537,12 +1495,14 @@ BasicLayerManager::PaintLayer(Layer* aLayer,
     BasicImplData* data = ToData(aLayer);
 #ifdef MOZ_LAYERS_HAVE_LOG
     MOZ_LAYERS_LOG(("%s (0x%p) is covered: %i\n", __FUNCTION__,
-                   (void*)aLayer, data->IsHidden()));
+                   (void*)aLayer, data->IsCoveredByOpaque()));
 #endif
-    if (aLayer->AsThebesLayer()) {
-      data->PaintThebes(mTarget, aCallback, aCallbackData, aReadback);
-    } else {
-      data->Paint(mTarget);
+    if (!data->IsCoveredByOpaque()) {
+      if (aLayer->AsThebesLayer()) {
+        data->PaintThebes(mTarget, aCallback, aCallbackData, aReadback);
+      } else {
+        data->Paint(mTarget);
+      }
     }
   } else {
     ReadbackProcessor readback;

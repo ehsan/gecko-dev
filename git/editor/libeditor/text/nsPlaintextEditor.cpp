@@ -87,6 +87,9 @@
 
 #include "mozilla/FunctionTimer.h"
 
+// prototype for rules creation shortcut
+nsresult NS_NewTextEditRules(nsIEditRules** aInstancePtrResult);
+
 nsPlaintextEditor::nsPlaintextEditor()
 : nsEditor()
 , mIgnoreSpuriousDragEvent(PR_FALSE)
@@ -326,7 +329,9 @@ nsPlaintextEditor::SetDocumentCharacterSet(const nsACString & characterSet)
 NS_IMETHODIMP nsPlaintextEditor::InitRules()
 {
   // instantiate the rules for this text editor
-  mRules = new nsTextEditRules();
+  nsresult res = NS_NewTextEditRules(getter_AddRefs(mRules));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(mRules, NS_ERROR_UNEXPECTED);
   return mRules->Init(this);
 }
 
@@ -853,8 +858,9 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
 
   // Batching the selection and moving nodes out from under the caret causes
   // caret turds. Ask the shell to invalidate the caret now to avoid the turds.
-  nsCOMPtr<nsIPresShell> shell = GetPresShell();
-  NS_ENSURE_TRUE(shell, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIPresShell> shell;
+  res = GetPresShell(getter_AddRefs(shell));
+  NS_ENSURE_SUCCESS(res, res);
   shell->MaybeInvalidateCaretPosition();
 
   nsTextRulesInfo ruleInfo(nsTextEditRules::kInsertBreak);
@@ -947,7 +953,8 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
     return NS_ERROR_NULL_POINTER;
   }
 
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsISelection> selection;
@@ -1270,7 +1277,8 @@ nsPlaintextEditor::FireClipboardEvent(PRInt32 aType)
   if (aType == NS_PASTE)
     ForceCompositionEnd();
 
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  GetPresShell(getter_AddRefs(presShell));
   NS_ENSURE_TRUE(presShell, PR_FALSE);
 
   nsCOMPtr<nsISelection> selection;
