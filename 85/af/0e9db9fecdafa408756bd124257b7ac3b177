@@ -1,0 +1,8 @@
+[DEFAULT]
+subsuite = devtools
+support-files =
+  head.js
+  hosted_app.manifest
+  manifest.webapp
+
+[browser_manifest_editor.js]

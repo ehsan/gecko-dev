@@ -1,0 +1,11 @@
+[DEFAULT]
+head = head.js
+tail =
+
+[test_DownloadCore.js]
+[test_DownloadImport.js]
+[test_DownloadIntegration.js]
+[test_DownloadLegacy.js]
+[test_DownloadList.js]
+[test_Downloads.js]
+[test_DownloadStore.js]

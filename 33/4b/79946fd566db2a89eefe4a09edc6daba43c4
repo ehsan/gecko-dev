@@ -1,0 +1,11 @@
+
+copy: layout/generic/crashtests/388367-1.html
+copyrev: 8b5906f6ddc26ce748c175240749a42b171da107
+
+<html>
+<head>
+</head>
+<body>
+<pre style="direction: rtl;">&#12;</pre>
+</body>
+</html>
