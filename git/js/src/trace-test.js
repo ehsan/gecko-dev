@@ -1876,6 +1876,14 @@ function testBug465145() {
 	for (var z = 0; z < 2; ++z) { x = y };
 }
 
+function testTrueShiftTrue() {
+    var a = new Array(5);
+    for (var i=0;i<5;++i) a[i] = "" + (true << true);
+    return a.join(",");
+}
+testTrueShiftTrue.expected = "2,2,2,2,2";
+test(testTrueShiftTrue);
+
 // BEGIN MANDELBROT STUFF
 // XXXbz I would dearly like to wrap it up into a function to avoid polluting
 // the global scope, but the function ends up heavyweight, and then we lose on
@@ -2429,14 +2437,6 @@ function testLogicalNotNaN() {
 }
 testLogicalNotNaN.expected = "true,true,true,true,true";
 test(testLogicalNotNaN);
-
-function testStringToInt32() {
-    var s = "";
-    for (let j = 0; j < 5; ++j) s += ("1e+81" ^  3);
-    return s;
-}
-testStringToInt32.expected = "33333";
-test(testStringToInt32);
 
 /* NOTE: Keep this test last, since it screws up all for...in loops after it. */
 function testGlobalProtoAccess() {
