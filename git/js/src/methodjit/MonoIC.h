@@ -79,7 +79,6 @@ struct MICInfo {
     JSC::CodeLocationDataLabelPtr shape;
     JSC::CodeLocationCall stubCall;
     JSC::CodeLocationJump traceHint;
-    JSC::CodeLocationJump slowTraceHint;
     Kind kind : 2;
     union {
         struct {
@@ -88,7 +87,6 @@ struct MICInfo {
             bool dataConst : 1;
             bool dataWrite : 1;
         } name;
-        bool hasSlowTraceHint;
     } u;
 };
 

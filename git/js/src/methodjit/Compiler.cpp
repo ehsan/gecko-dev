@@ -311,9 +311,6 @@ mjit::Compiler::finishThisUp()
             JS_ASSERT(jumpMap[offs].isValid());
             script->mics[i].traceHint = fullCode.locationOf(mics[i].traceHint);
             script->mics[i].load = fullCode.locationOf(jumpMap[offs]);
-            script->mics[i].u.hasSlowTraceHint = mics[i].slowTraceHint.isSet();
-            if (mics[i].slowTraceHint.isSet())
-                script->mics[i].slowTraceHint = stubCode.locationOf(mics[i].slowTraceHint.get());
         }
     }
 #endif /* JS_MONOIC */
@@ -1359,18 +1356,6 @@ mjit::Compiler::generateMethod()
           }
           END_CASE(JSOP_TRACE)
 
-          BEGIN_CASE(JSOP_CONCATN)
-          {
-            uint32 argc = GET_ARGC(PC);
-            prepareStubCall(Uses(argc));
-            masm.move(Imm32(argc), Registers::ArgReg1);
-            stubCall(stubs::ConcatN);
-            frame.popn(argc);
-            frame.takeReg(Registers::ReturnReg);
-            frame.pushTypedPayload(JSVAL_TYPE_STRING, Registers::ReturnReg);
-          }
-          END_CASE(JSOP_CONCATN)
-
           BEGIN_CASE(JSOP_INITMETHOD)
           {
             JSAtom *atom = script->getAtom(fullAtomIndex(PC));
@@ -1390,10 +1375,6 @@ mjit::Compiler::generateMethod()
             jsop_unbrand();
             frame.pop();
           END_CASE(JSOP_UNBRANDTHIS)
-
-          BEGIN_CASE(JSOP_OBJTOSTR)
-            jsop_objtostr();
-          END_CASE(JSOP_OBJTOSTR)
 
           BEGIN_CASE(JSOP_GETGLOBAL)
           BEGIN_CASE(JSOP_CALLGLOBAL)
@@ -2962,7 +2943,7 @@ mjit::Compiler::iterMore()
     /* Test clasp */
     masm.loadPtr(Address(reg, offsetof(JSObject, clasp)), T1);
     Jump notFast = masm.branchPtr(Assembler::NotEqual, T1, ImmPtr(&js_IteratorClass));
-    stubcc.linkExitForBranch(notFast);
+    stubcc.linkExit(notFast, Uses(1));
 
     /* Get private from iter obj. */
     masm.loadFunctionPrivate(reg, T1);
@@ -2987,12 +2968,15 @@ mjit::Compiler::iterMore()
     Jump j = stubcc.masm.branchTest32(Assembler::NonZero, Registers::ReturnReg,
                                       Registers::ReturnReg);
 
+    /* :TODO: use jumpAndTrace */
+    stubcc.jumpInScript(j, target);
+
     PC += JSOP_MOREITER_LENGTH;
     PC += js_CodeSpec[next].length;
 
     stubcc.rejoin(Changes(1));
 
-    jumpAndTrace(jFast, target, &j);
+    jumpAndTrace(jFast, target);
 }
 
 void
@@ -3363,15 +3347,13 @@ mjit::Compiler::jsop_instanceof()
  * after rejoin()s.
  */
 void
-mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
+mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target)
 {
 #ifndef JS_TRACER
     jumpInScript(j, target);
 #else
     if (!addTraceHints || target >= PC || JSOp(*target) != JSOP_TRACE) {
         jumpInScript(j, target);
-        if (slow)
-            stubcc.jumpInScript(*slow, target);
         return;
     }
 
@@ -3381,13 +3363,9 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
     mic.entry = masm.label();
     mic.jumpTarget = target;
     mic.traceHint = j;
-    if (slow)
-        mic.slowTraceHint = *slow;
 # endif
 
     stubcc.linkExitDirect(j, stubcc.masm.label());
-    if (slow)
-        slow->linkTo(stubcc.masm.label(), &stubcc.masm);
 # if JS_MONOIC
     stubcc.masm.move(Imm32(mics.length()), Registers::ArgReg1);
 # endif

@@ -89,7 +89,6 @@ class Compiler
         ic::MICInfo::Kind kind;
         jsbytecode *jumpTarget;
         Jump traceHint;
-        MaybeJump slowTraceHint;
         union {
             struct {
                 bool typeConst;
@@ -147,6 +146,24 @@ class Compiler
           : ndefs(ndefs)
         { }
         uint32 ndefs;
+    };
+
+    class MaybeJump {
+      public:
+        MaybeJump()
+          : set(false)
+        { }
+
+        inline Jump getJump() const { JS_ASSERT(set); return jump; }
+        inline Jump get() const { JS_ASSERT(set); return jump; }
+        inline void setJump(const Jump &j) { jump = j; set = true; }
+        inline bool isSet() const { return set; }
+
+        inline MaybeJump &operator=(Jump j) { setJump(j); return *this; }
+
+      private:
+        Jump jump;
+        bool set;
     };
 
     struct InternalCallSite {
@@ -222,7 +239,7 @@ class Compiler
     MaybeJump loadDouble(FrameEntry *fe, FPRegisterID fpReg);
 
     /* Opcode handlers. */
-    void jumpAndTrace(Jump j, jsbytecode *target, Jump *slow = NULL);
+    void jumpAndTrace(Jump j, jsbytecode *target);
     void jsop_bindname(uint32 index);
     void jsop_setglobal(uint32 index);
     void jsop_getglobal(uint32 index);
@@ -296,7 +313,6 @@ class Compiler
     void jsop_mod();
     void jsop_neg();
     void jsop_bitnot();
-    void jsop_objtostr();
     void jsop_not();
     void jsop_typeof();
     void booleanJumpScript(JSOp op, jsbytecode *target);

@@ -33,7 +33,7 @@ class UCT:
         self.maxNodes = self.numPlayouts * 20
         self.loops = loops
         self.enableLoops = enableLoops
-        self.maturityThreshold = 20
+        self.maturityThreshold = 50
         self.originalBest = bestTime
         self.bestTime = bestTime
         self.bias = 20
@@ -76,7 +76,7 @@ class UCT:
             return self.zobrist[zash]
 
         self.bm.generateBanList(self.loops, queue)
-        result = self.bm.treeSearchRun(self.fd, ['-m', '-j'], 3)
+        result = self.bm.treeSearchRun(self.fd, ['-m', '-j'], 2)
         self.zobrist[zash] = result
         return result
 
@@ -113,7 +113,7 @@ class UCT:
 
         if int(origScore) < int(self.bestTime):
             print('New best score: {0:f}ms'.format(origScore))
-            self.combos = [history]
+            self.combos = []
             self.bestTime = origScore
         elif int(origScore) == int(self.bestTime):
             self.combos.append(history)
@@ -128,16 +128,7 @@ class UCT:
             self.step(loopList)
 
         # Build the expected combination vector.
-        combos = [ ]
-        for combo in self.combos:
-            vec = [ ]
-            for i in range(0, len(self.loops)):
-                vec.append(int(self.enableLoops))
-            for node in combo:
-                vec[node.loop] = int(not self.enableLoops)
-            combos.append(vec)
-
-        return [self.bestTime, combos]
+        print('Best time: {0:f}ms'.format(self.bestTime))
 
 class Benchmark:
     def __init__(self, JS, fname):
@@ -270,8 +261,8 @@ class Benchmark:
 
         enableLoops = False
 
-        uct = UCT(self, combinedTime, enableLoops, counters[:], fd, 50000)
-        return uct.run()
+        uct = UCT(self, combinedTime, enableLoops, counters[:], fd, 100000)
+        result = uct.run()
 
     def treeSearch(self):
         fd, counters = self.ppForTreeSearch()
@@ -295,7 +286,7 @@ class Benchmark:
         else:
             upperBound = int(upperBound / 1000)
             delta = datetime.timedelta(seconds = upperBound)
-            if upperBound < 180:
+            if upperBound <= 18:
                 print('Estimating {0:d}s to test, so picking exhaustive '.format(int(upperBound)))
             else:
                 print('Estimating {0:s} to test, so picking tree search '.format(str(delta)))
@@ -315,7 +306,7 @@ class Benchmark:
         print('Tracing JIT: {0:d}ms'.format(int(tracerTime)))
         print('Combined:    {0:d}ms'.format(int(combinedTime)))
 
-        if 1 and treeSearch:
+        if treeSearch:
             results = self.internalTreeSearch(params)
         else:
             results = self.internalExhaustiveSearch(params)
