@@ -74,6 +74,7 @@ XPIDLSRCS	= \
 		nsIAsyncStreamCopier.idl \
 		nsIBufferedStreams.idl \
 		nsICancelable.idl \
+		nsIChannelPolicy.idl \
 		nsICryptoHash.idl \
 		nsICryptoHMAC.idl \
 		nsIDownloader.idl \
@@ -83,6 +84,7 @@ XPIDLSRCS	= \
 		nsIInputStreamPump.idl \
 		nsIInputStreamChannel.idl \
                 nsIIOService2.idl \
+                nsIIPCSerializable.idl \
 		nsIMIMEInputStream.idl \
                 nsINetworkLinkService.idl \
 		nsIPermission.idl \
@@ -121,6 +123,7 @@ XPIDLSRCS	= \
 		nsISecureBrowserUI.idl \
 		nsICryptoFIPSInfo.idl \
 		nsINSSErrorsService.idl \
+		nsICacheInfoChannel.idl \
 		nsICachingChannel.idl \
 		nsIByteRangeRequest.idl \
 		nsIMultiPartChannel.idl \
@@ -134,6 +137,7 @@ XPIDLSRCS	= \
 		nsIProxiedChannel.idl \
 		nsIRandomGenerator.idl \
 		nsIURIWithPrincipal.idl \
+		nsIURIClassifier.idl \
 		$(NULL)
 
 EXPORTS		= \

@@ -107,7 +107,8 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
     case eTreeOpAddAttributes:
       delete mTwo.attributes;
       break;
-    case eTreeOpCreateElement:
+    case eTreeOpCreateElementNetwork:
+    case eTreeOpCreateElementNotNetwork:
       delete mThree.attributes;
       break;
     case eTreeOpAppendDoctypeToDocument:
@@ -132,7 +133,7 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
 }
 
 nsresult
-nsHtml5TreeOperation::AppendTextToTextNode(PRUnichar* aBuffer,
+nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
                                            PRInt32 aLength,
                                            nsIContent* aTextNode,
                                            nsHtml5TreeOpExecutor* aBuilder)
@@ -164,7 +165,7 @@ nsHtml5TreeOperation::AppendTextToTextNode(PRUnichar* aBuffer,
 
 
 nsresult
-nsHtml5TreeOperation::AppendText(PRUnichar* aBuffer,
+nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
                                  PRInt32 aLength,
                                  nsIContent* aParent,
                                  nsHtml5TreeOpExecutor* aBuilder)
@@ -212,7 +213,7 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
 
   PRUint32 childCount = aParent->GetChildCount();
   rv = aParent->AppendChildTo(aNode, PR_FALSE);
-  nsNodeUtils::ContentAppended(aParent, childCount);
+  nsNodeUtils::ContentAppended(aParent, aNode, childCount);
 
   parentDoc->EndUpdate(UPDATE_CONTENT_MODEL);
   return rv;
@@ -276,7 +277,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         didAppend = PR_TRUE;
       }
       if (didAppend) {
-        nsNodeUtils::ContentAppended(parent, childCount);
+        nsNodeUtils::ContentAppended(parent, parent->GetChildAt(childCount),
+                                     childCount);
       }
       return rv;
     }
@@ -286,7 +288,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* table = *(mThree.node);
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -361,7 +363,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       
       return rv;
     }
-    case eTreeOpCreateElement: {
+    case eTreeOpCreateElementNetwork:
+    case eTreeOpCreateElementNotNetwork: {
       nsIContent** target = mOne.node;
       PRInt32 ns = mInt;
       nsCOMPtr<nsIAtom> name = Reget(mTwo.atom);
@@ -375,7 +378,14 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsCOMPtr<nsIContent> newContent;
       nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->GetNodeInfo(name, nsnull, ns);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
-      NS_NewElement(getter_AddRefs(newContent), nodeInfo->NamespaceID(), nodeInfo, PR_TRUE);
+      NS_NewElement(getter_AddRefs(newContent),
+                    nodeInfo->NamespaceID(),
+                    nodeInfo,
+                    (mOpCode == eTreeOpCreateElementNetwork ?
+                     NS_FROM_PARSER_NETWORK
+                     : (aBuilder->IsFragmentMode() ?
+                        NS_FROM_PARSER_FRAGMENT :
+                        NS_FROM_PARSER_DOCUMENT_WRITE)));
       NS_ASSERTION(newContent, "Element creation created null pointer.");
 
       aBuilder->HoldElement(*target = newContent);      
@@ -469,6 +479,22 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       PRInt32 length = mInt;
       return AppendText(buffer, length, parent, aBuilder);
     }
+    case eTreeOpAppendIsindexPrompt: {
+      nsIContent* parent = *mOne.node;
+      nsXPIDLString prompt;
+      nsresult rv =
+          nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
+                                             "IsIndexPromptWithSpace", prompt);
+      PRUint32 len = prompt.Length();
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+      if (!len) {
+        // Don't bother appending a zero-length text node.
+        return NS_OK;
+      }
+      return AppendText(prompt.BeginReading(), len, parent, aBuilder);
+    }
     case eTreeOpFosterParentText: {
       nsIContent* stackParent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
@@ -477,7 +503,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -603,11 +629,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       aBuilder->UpdateStyleSheet(node);
       return rv;
     }
-    case eTreeOpProcessBase: {
-      nsIContent* node = *(mOne.node);
-      rv = aBuilder->ProcessBASETag(node);
-      return rv;
-    }
     case eTreeOpProcessMeta: {
       nsIContent* node = *(mOne.node);
       rv = aBuilder->ProcessMETATag(node);
@@ -637,7 +658,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->DocumentMode(mOne.mode);
+      aBuilder->SetDocumentMode(mOne.mode);
       return rv;
     }
     case eTreeOpSetStyleLineNumber: {

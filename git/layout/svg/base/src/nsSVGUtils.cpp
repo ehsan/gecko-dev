@@ -89,8 +89,11 @@
 #include "nsComputedDOMStyle.h"
 #include "nsSVGPathGeometryFrame.h"
 #include "prdtoa.h"
+#include "mozilla/dom/Element.h"
 
-gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
+using namespace mozilla::dom;
+
+gfxASurface *nsSVGUtils::gThebesComputationalSurface = nsnull;
 
 // c = n / 255
 // (c <= 0.0031308 ? c * 12.92 : 1.055 * pow(c, 1 / 2.4) - 0.055) * 255 + 0.5
@@ -232,7 +235,7 @@ NS_SMILEnabled()
 }
 #endif // MOZ_SMIL
 
-nsIContent*
+Element*
 nsSVGUtils::GetParentElement(nsIContent *aContent)
 {
   // XXXbz I _think_ this is right.  We want to be using the binding manager
@@ -247,23 +250,24 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
     // if we have a binding manager -- do we have an anonymous parent?
     nsIContent *result = bindingManager->GetInsertionParent(aContent);
     if (result) {
-      return result;
+      return result->AsElement();
     }
   }
 
   // otherewise use the explicit one, whether it's null or not...
-  return aContent->GetParent();
+  nsIContent* parent = aContent->GetParent();
+  return parent && parent->IsElement() ? parent->AsElement() : nsnull;
 }
 
 float
-nsSVGUtils::GetFontSize(nsIContent *aContent)
+nsSVGUtils::GetFontSize(Element *aElement)
 {
-  if (!aContent)
+  if (!aElement)
     return 1.0f;
 
   nsRefPtr<nsStyleContext> styleContext = 
-    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
-                                                         nsnull);
+    nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
+                                                         nsnull, nsnull);
   if (!styleContext) {
     NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
@@ -293,14 +297,14 @@ nsSVGUtils::GetFontSize(nsStyleContext *aStyleContext)
 }
 
 float
-nsSVGUtils::GetFontXHeight(nsIContent *aContent)
+nsSVGUtils::GetFontXHeight(Element *aElement)
 {
-  if (!aContent)
+  if (!aElement)
     return 1.0f;
 
   nsRefPtr<nsStyleContext> styleContext = 
-    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
-                                                         nsnull);
+    nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
+                                                         nsnull, nsnull);
   if (!styleContext) {
     NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
@@ -543,7 +547,7 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
     // didn't find a nearestViewportElement
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
-  if (!ancestor || !ancestor->IsNodeOfType(nsINode::eELEMENT)) {
+  if (!ancestor || !ancestor->IsElement()) {
     return matrix;
   }
   if (ancestor->GetNameSpaceID() == kNameSpaceID_SVG) {
@@ -556,7 +560,7 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
   // content that we've hit may itself be inside an SVG foreignObject higher up
   float x = 0.0f, y = 0.0f;
   if (currentDoc && element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
-    nsIPresShell *presShell = currentDoc->GetPrimaryShell();
+    nsIPresShell *presShell = currentDoc->GetShell();
     if (presShell) {
       nsIFrame* frame = element->GetPrimaryFrame();
       nsIFrame* ancestorFrame = presShell->GetRootFrame();
@@ -619,9 +623,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
         nsRect r = viewportFrame->GetOverflowRect();
         // GetOverflowRect is relative to our border box, but we need it
         // relative to our content box.
-        nsMargin bp = viewportFrame->GetUsedBorderAndPadding();
-        viewportFrame->ApplySkipSides(bp);
-        r.MoveBy(-bp.left, -bp.top);
+        r.MoveBy(viewportFrame->GetPosition() - viewportFrame->GetContentRect().TopLeft());
         return r;
       }
       NS_ASSERTION(viewportFrame->GetType() == nsGkAtoms::svgInnerSVGFrame,
@@ -645,7 +647,13 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     aFrame = aFrame->GetParent();
   }
 
-  return rect.ToAppUnits(appUnitsPerDevPixel);
+  nsRect r = rect.ToAppUnits(appUnitsPerDevPixel);
+  if (aFrame) {
+    NS_ASSERTION(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG,
+                 "outer SVG frame expected");
+    r.MoveBy(aFrame->GetContentRect().TopLeft() - aFrame->GetPosition());
+  }
+  return r;
 }
 
 void
@@ -1205,17 +1213,23 @@ nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows)
 gfxASurface *
 nsSVGUtils::GetThebesComputationalSurface()
 {
-  if (!mThebesComputationalSurface) {
+  if (!gThebesComputationalSurface) {
     nsRefPtr<gfxImageSurface> surface =
       new gfxImageSurface(gfxIntSize(1, 1), gfxASurface::ImageFormatARGB32);
     NS_ASSERTION(surface && !surface->CairoStatus(),
                  "Could not create offscreen surface");
-    mThebesComputationalSurface = surface;
+    gThebesComputationalSurface = surface;
     // we want to keep this surface around
-    NS_IF_ADDREF(mThebesComputationalSurface);
+    NS_IF_ADDREF(gThebesComputationalSurface);
   }
 
-  return mThebesComputationalSurface;
+  return gThebesComputationalSurface;
+}
+
+void
+nsSVGUtils::Shutdown()
+{
+  NS_IF_RELEASE(gThebesComputationalSurface);
 }
 
 gfxMatrix

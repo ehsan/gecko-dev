@@ -156,6 +156,7 @@ random == 99850-1b.html 99850-1-ref.html # bug 471629
 == 203727.html 203727-ref.html
 == 206516-1.html 206516-1-ref.html
 == 206631-1.html 206631-1-ref.html
+== 206802.html 206802-ref.html
 == 210094-1a.html 210094-1-ref.html
 == 210094-1b.html 210094-1-ref.html
 != 210094-1c.html 210094-1-ref.html
@@ -204,7 +205,6 @@ random == 99850-1b.html 99850-1-ref.html # bug 471629
 == 236539-1.html 236539-1-ref.html
 == 240029-1.html 240029-1-ref.html
 == 240470-1.html 240470-1-ref.html
-skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") != 240536-resizer-ltr.xul 240536-resizer-rtl.xul
 == 243266-1.html 243266-1-ref.html
 == 243302-1.html 243302-1-ref.html
 == 243519-1.html 243519-1-ref.html
@@ -263,8 +263,8 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") != 240536-resizer-ltr.xul 240536-resizer-rt
 == 283686-1.html about:blank
 == 283686-2.html 283686-2-ref.html
 == 283686-3.html about:blank
-fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") HTTP == 289480.html#top 289480-ref.html # basically-verbatim acid2 test, HTTP for a 404 page -- bug 409329 for the non-Mac failures
-== 290129-1.html 290129-1-ref.html
+fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP == 289480.html#top 289480-ref.html # basically-verbatim acid2 test, HTTP for a 404 page -- bug 409329 for the non-Mac failures
+asserts(1) == 290129-1.html 290129-1-ref.html # bug 315549/460637
 == 291078-1.html 291078-1-ref.html
 == 291078-2.html 291078-2-ref.html
 == 291262-1.html 291262-1-ref.html
@@ -300,7 +300,7 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") HTTP == 289480.html#top 289480-ref.html # 
 == 309914-1.xul 309914-1-ref.xul
 == 311366-unknown-inline-1.html 311366-unknown-inline-1-ref.html
 == 311366-unknown-block-1.html 311366-unknown-block-1-ref.html
-fails == 311366-unknown-block-3.html 311366-unknown-block-3-ref.html
+fails-if(!prefs.getBoolPref("html5.enable")) == 311366-unknown-block-3.html 311366-unknown-block-3-ref.html
 == 311366-unknown-block-2.html 311366-unknown-block-2-ref.html
 == 311366-unknown-inline-2.html 311366-unknown-inline-2-ref.html
 == 311822-1.html 311822-1-ref-a.html
@@ -321,6 +321,7 @@ fails == 311366-unknown-block-3.html 311366-unknown-block-3-ref.html
 == 315920-3c.html 315920-3-ref.html
 == 315920-3d.html 315920-3-ref.html
 != 315920-3e.html 315920-3-ref.html
+!= 315920-3f.html 315920-3-ref.html
 == 315920-4.html 315920-4-ref.html
 == 315920-5.html 315920-5-ref.html
 == 315920-6.html 315920-6-ref.html
@@ -478,7 +479,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 350506-1.html 350506-1-ref.html
 == 352980-3f.html 352980-3-ref.html
 == 355548-1.xml 355548-1-ref.xml
 == 355548-2.xml 355548-2-ref.xml
-== 355548-3.xml 355548-3-ref.xml
+asserts-if(MOZ_WIDGET_TOOLKIT=="gtk2",1) == 355548-3.xml 355548-3-ref.xml # bug 456899
 == 355548-4.xml 355548-4-ref.xml
 == 355548-5.xml 355548-5-ref.xml
 fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 356774-1.html 356774-1-ref.html # probably bug 379317
@@ -562,7 +563,7 @@ fails == 368020-3.html 368020-3-ref.html # bug 368085
 fails == 368020-4.html 368020-4-ref.html # bug 368085
 random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 368020-5.html 368020-5-ref.html # bug 388591
 == 368155-1.xhtml 368155-1-ref.xhtml
-== 368155-negative-margins-1.html 368155-negative-margins-1-ref.html
+asserts(4) == 368155-negative-margins-1.html 368155-negative-margins-1-ref.html # bug 387205 / bug 457397
 # we can't test this because there's antialiasing involved, and our comparison
 # is too exact
 # == 368247-1.html 368247-1-ref.html
@@ -670,6 +671,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 379316-2.html 379316-2-ref.html # bug 
 == 382916-1.html 382916-1-ref.html
 == 383035-1.html about:blank
 == 383035-2.html about:blank
+== 383488-1.html 383488-1-ref.html
 == 383551-1.html 383551-1-ref.html
 == 383883-1.html 383883-1-ref.html
 == 383883-2.html 383883-2-ref.html
@@ -730,6 +732,10 @@ random == 387876-2.html 387876-2-ref.html # bug 471630
 != 389924-1a.html about:blank
 == 390318-1a.html 390318-1-ref.html
 == 390318-1b.html 390318-1-ref.html
+== 390318-1c.html 390318-1-ref.html
+== 390318-1d.html 390318-1-ref.html
+== 390318-1e.html 390318-1-ref.html
+== 390318-1f.html 390318-1-ref.html
 skip-if(MOZ_WIDGET_TOOLKIT!="windows") == 391045.html 391045-ref.html # windows-specific Uniscribe bug, trailing period is matched against different fonts on Mac/Linux (see 396137)
 == 391140-1.html 391140-1-ref.html
 == 391412-1a.html 391412-1-ref.html
@@ -932,8 +938,8 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 == 417178-1.html 417178-1-ref.html
 == 417246-1.html 417246-1-ref.html
 == 417676.html 417676-ref.html
-== 418574-1.html 418574-1-ref.html
-== 418574-2.html 418574-2-ref.html
+asserts(1) == 418574-1.html 418574-1-ref.html # bug 478135
+asserts(1) == 418574-2.html 418574-2-ref.html # bug 478135
 == 418766-1a.html 418766-1-ref.html
 == 418766-1b.html 418766-1-ref.html
 == 419285-1.html 419285-1-ref.html
@@ -953,6 +959,8 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 == 421203-5.xul 321402-5-ref.xul
 == 421203-6.xul 321402-6-ref.xul
 == 421234-1.html 421234-1-ref.html
+== 421239-1.html 421239-1-ref.html
+== 421239-2.html 421239-2-ref.html
 == 421419-1.html 421419-1-ref.html
 == 421436-1a.html 421436-1-ref.html
 == 421436-1b.html 421436-1-ref.html
@@ -970,7 +978,7 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 fails == 423823-1.html 423823-1-ref.html # scrolling rowgroups were removed in bug 28800
 == 424074-1.xul 424074-1-ref.xul
 != 424074-1.xul 424074-1-ref2.xul
-fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
+random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
 == 424236-1.html 424236-1-ref.html
 == 424236-2.html 424236-2-ref.html
 == 424236-3.html 424236-3-ref.html
@@ -991,7 +999,7 @@ fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
 == 425972-2.html 425972-2-ref.html
 != 425972-1.html 425972-2.html
 == 426629-1.html 426629-1-ref.html
-!= 427017-1.xhtml about:blank    # crash test (needs reftest-print)
+asserts(3) != 427017-1.xhtml about:blank    # crash test (needs reftest-print)
 == 427129-scrollframe.html 427129-ref.html
 == 427129-table.html 427129-ref.html
 == 427129-image.html 427129-ref.html
@@ -1129,6 +1137,7 @@ random == 445004-1.html 445004-1-ref.html # bug 472268
 == 451168-1.html 451168-1-ref.html
 == 451876-1.html 451876-1-ref.html
 == 451876-2.html 451876-2-ref.html
+== 452915-1.html 452915-1-ref.html
 == 452964-1.html 452964-1-ref.html
 == 454361.html about:blank
 == 455105-1.html 455105-ref.html
@@ -1286,7 +1295,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="windows") fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") ==
 == 488390-1.html 488390-1-ref.html
 == 488649-1.html 488649-1-ref.html
 == 488685-1.html 488685-1-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") == 488692-1.html 488692-1-ref.html # needs EXTEND_PAD on non-Mac for correct scaling behaviour
+== 488692-1.html 488692-1-ref.html
 == 490176-1.html 490176-1-ref.html
 == 490177-1.svg 490177-1-ref.svg
 == 490182-1a.html 490182-1-ref.html
@@ -1322,7 +1331,9 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") == 488692-1.html 488692-1-ref.html # needs
 == 495385-4.html 495385-4-ref.html
 == 495385-5.html 495385-5-ref.html
 == 498228-1.xul 498228-1-ref.xul
-== 496032-1.html 496032-1-ref.html
+asserts(1) == 496032-1.html 496032-1-ref.html # bug 399262
+== 496840-1.html 496840-1-ref.html
+== 501037.html 501037-ref.html
 == 501257-1a.html 501257-1-ref.html
 == 501257-1b.html 501257-1-ref.html
 == 501257-1.xhtml 501257-1-ref.xhtml
@@ -1345,7 +1356,8 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") == 488692-1.html 488692-1-ref.html # needs
 == 507762-2.html 507762-2-ref.html
 == 507762-3.html 507762-1-ref.html
 == 507762-4.html 507762-2-ref.html
-== 508908-1.xul 508908-1-ref.xul
+# see bug 556124
+random == 508908-1.xul 508908-1-ref.xul
 == 508919-1.xhtml 508919-1-ref.xhtml
 == 509155-1.xhtml 509155-1-ref.xhtml
 == 512410.html 512410-ref.html
@@ -1368,6 +1380,7 @@ fails HTTP(..) == 518172-2b.html 518172-b-ref.html # bug 518172
 == 521525-2.html 521525-2-ref.html
 == 521539-1.html 521539-1-ref.html
 == 521542-1.xhtml 521542-1-ref.xhtml
+== 521602.html 521602-ref.html
 == 521685-1.html 521685-1-ref.html
 == 522632-1.html 522632-1-ref.html
 == 523096-1.html 523096-1-ref.html
@@ -1381,28 +1394,58 @@ fails HTTP(..) == 518172-2b.html 518172-b-ref.html # bug 518172
 == 528038-1d.html 528038-1-ref.html
 == 528038-1e.html 528038-1-ref.html
 == 528038-1f.html 528038-1-ref.html
-== 528038-2.html 528038-2-ref.html
+asserts(5) == 528038-2.html 528038-2-ref.html
 == 528096-1.html 528096-1-ref.html
 == 530686-1.html 530686-1-ref.html
 == 531098-1.html 531098-1-ref.html
 == 531371-1.html 531371-1-ref.html
 == 534526-1a.html 534526-1-ref.html
 == 534526-1b.html 534526-1-ref.html
+== 534804-1.html 534804-1-ref.html
 == 534808-1.html 534808-1-ref.html
 == 534808-2.html 534808-2-ref.html
 == 534919-1.html 534919-1-ref.html
 == 537507-1.xul 537507-1-ref.xul
 == 537507-2.html 537507-2-ref.html
 == 537471-1.html 537471-1-ref.html
+== 538909-1.html 538909-1-ref.html
 == 538935-1.html 538935-1-ref.html
 == 539226-1.html about:blank
 == 539323-1.html 539323-1-ref.html
 == 539323-2.html 539323-2-ref.html
 == 539323-3.html 539323-3-ref.html
-== 542620-1.html 542620-1-ref.html
 == 541382-1.html 541382-1-ref.html
 random-if(!haveTestPlugin) == 541406-1.html 541406-1-ref.html
+== 542605-hidden-unscrollable.xul 542605-hidden-unscrollable-ref.xul
+== 542620-1.html 542620-1-ref.html
+== 545049-1.html 545049-1-ref.html
 == 546033-1.html 546033-1-ref.html
-== 550716-1.html 550716-1-ref.html
-== 549184-1.html 549184-1-ref.html
 random-if(!haveTestPlugin) == 546071-1.html 546071-1-ref.html
+== 549184-1.html 549184-1-ref.html
+== 550716-1.html 550716-1-ref.html
+== 551463-1.html 551463-1-ref.html
+== 551699-1.html 551699-1-ref.html
+== 552334-1.html 552334-1-ref.html
+== 555388-1.html 555388-1-ref.html
+== 556661-1.html 556661-1-ref.html
+== 557736-1.html 557736-1-ref.html
+== 559284-1.html 559284-1-ref.html
+== 561981-1.html 561981-1-ref.html
+== 561981-2.html 561981-2-ref.html
+== 561981-3.html 561981-3-ref.html
+== 561981-4.html 561981-4-ref.html
+== 561981-5.html 561981-5-ref.html
+== 561981-6.html 561981-6-ref.html
+== 561981-7.html 561981-7-ref.html
+== 561981-8.html 561981-8-ref.html
+== 562835-1.html 562835-ref.html
+== 562835-2.html 562835-ref.html
+== 564054-1.html 564054-1-ref.html
+== 565819-1.html 565819-ref.html
+== 565819-2.html 565819-ref.html
+== 569006-1.html 569006-1-ref.html
+== 571281-1a.html 571281-1-ref.html
+== 571281-1b.html 571281-1-ref.html
+== 571281-1c.html 571281-1-ref.html
+== 572598-1.html 572598-ref.html
+== 574898-1.html 574898-ref.html

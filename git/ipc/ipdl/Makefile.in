@@ -42,7 +42,7 @@ VPATH = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 GARBAGE_DIRS += _ipdlheaders
-GARBAGE += ipdl_lextab.py ipdl_yacctab.py
+GARBAGE += ipdl_lextab.py ipdl_yacctab.py $(wildcard *.pyc $(srcdir)/ipdl/*.pyc $(srcdir)/ipdl/cxx/*.pyc)
 
 MODULE = ipdlgen
 LIBRARY_NAME = mozipdlgen_s
@@ -54,12 +54,16 @@ EXPORT_LIBRARY = 1
 ## When you add IPDL files to a source directory, list the directory here.
 ##
 IPDLDIRS =  \
+  dom/src/geolocation \
   dom/plugins  \
   dom/ipc  \
   netwerk/ipc  \
-  netwerk/protocol/http/src  \
+  netwerk/protocol/http  \
+  netwerk/cookie  \
+  js/jetpack \
   ipc/ipdl/test/cxx  \
   ipc/testshell  \
+  js/ipc  \
   $(NULL)
 ##-----------------------------------------------------------------------------
 
@@ -85,6 +89,8 @@ CPPSRCS =					\
   $(PROTOCOLS:%.ipdl=%Parent.cpp)		\
   $(PROTOCOLS:%.ipdl=%Child.cpp)		\
   $(NULL)
+
+GARBAGE += $(CPPSRCS)
 
 LOCAL_INCLUDES += -I$(DEPTH)/ipc/ipdl/_ipdlheaders
 

@@ -60,7 +60,7 @@ const PRUint32 sSecMgrGetProp = nsIXPCSecurityManager::ACCESS_GET_PROPERTY;
 JSObject *
 Unwrap(JSContext *cx, JSObject *wrapper)
 {
-  JSClass *clasp = STOBJ_GET_CLASS(wrapper);
+  JSClass *clasp = wrapper->getClass();
   if (clasp == &XPCCrossOriginWrapper::XOWClass.base) {
     return UnwrapXOW(cx, wrapper);
   }
@@ -79,7 +79,7 @@ Unwrap(JSContext *cx, JSObject *wrapper)
     JSObject *wrappedObj =
       XPCSafeJSObjectWrapper::GetUnsafeObject(cx, wrapper);
 
-    if (NS_FAILED(XPCCrossOriginWrapper::CanAccessWrapper(cx, wrappedObj, nsnull))) {
+    if (NS_FAILED(XPCCrossOriginWrapper::CanAccessWrapper(cx, nsnull, wrappedObj, nsnull))) {
       JS_ClearPendingException(cx);
 
       return nsnull;
@@ -145,7 +145,7 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
     *vp = STRING_TO_JSVAL(str);
   } else {
     // We need to return an [id, value] pair.
-    if (!JS_GetPropertyById(cx, STOBJ_GET_PARENT(obj), id, vp)) {
+    if (!JS_GetPropertyById(cx, obj->getParent(), id, vp)) {
       return JS_FALSE;
     }
   }
@@ -154,14 +154,28 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
   return JS_TRUE;
 }
 
-static JSClass IteratorClass = {
-  "XOW iterator", JSCLASS_HAS_RESERVED_SLOTS(3),
-  JS_PropertyStub, JS_PropertyStub,
-  JS_PropertyStub, JS_PropertyStub,
-  JS_EnumerateStub, JS_ResolveStub,
-  JS_ConvertStub, IteratorFinalize,
+static JSObject *
+IteratorIterator(JSContext *, JSObject *obj, JSBool)
+{
+  return obj;
+}
 
-  JSCLASS_NO_OPTIONAL_MEMBERS
+static JSExtendedClass IteratorClass = {
+  { "Wrapper iterator",
+    JSCLASS_HAS_RESERVED_SLOTS(3) | JSCLASS_IS_EXTENDED,
+    JS_PropertyStub, JS_PropertyStub,
+    JS_PropertyStub, JS_PropertyStub,
+    JS_EnumerateStub, JS_ResolveStub,
+    JS_ConvertStub, IteratorFinalize,
+
+    JSCLASS_NO_OPTIONAL_MEMBERS
+  },
+
+  nsnull,             // equality
+  nsnull, nsnull,     // innerObject/outerObject
+  IteratorIterator,
+  nsnull,             // wrappedObject
+  JSCLASS_NO_RESERVED_MEMBERS
 };
 
 JSBool
@@ -250,7 +264,7 @@ CreateWrapperFromType(JSContext *cx, JSObject *scope, XPCWrappedNative *wn,
   }
 
   if (hint & XPCNW_EXPLICIT) {
-    if (!XPCNativeWrapper::CreateExplicitWrapper(cx, wn, JS_TRUE, vp)) {
+    if (!XPCNativeWrapper::CreateExplicitWrapper(cx, wn, vp)) {
       return JS_FALSE;
     }
   } else if (hint & SJOW) {
@@ -317,12 +331,12 @@ CreateIteratorObj(JSContext *cx, JSObject *tempWrapper,
   // delegates (via the __proto__ link) to the wrapper.
 
   JSObject *iterObj =
-    JS_NewObjectWithGivenProto(cx, &IteratorClass, tempWrapper, wrapperObj);
+    JS_NewObjectWithGivenProto(cx, &IteratorClass.base, tempWrapper, wrapperObj);
   if (!iterObj) {
     return nsnull;
   }
 
-  JSAutoTempValueRooter tvr(cx, OBJECT_TO_JSVAL(iterObj));
+  js::AutoObjectRooter tvr(cx, iterObj);
 
   // Do this sooner rather than later to avoid complications in
   // IteratorFinalize.
@@ -337,7 +351,7 @@ CreateIteratorObj(JSContext *cx, JSObject *tempWrapper,
     // call enumerate, and then re-set the prototype. As we do this, we have
     // to protec the temporary wrapper from garbage collection.
 
-    JSAutoTempValueRooter tvr(cx, tempWrapper);
+    js::AutoValueRooter tvr(cx, tempWrapper);
     if (!JS_SetPrototype(cx, iterObj, wrapperObj) ||
         !XPCWrapper::Enumerate(cx, iterObj, wrapperObj) ||
         !JS_SetPrototype(cx, iterObj, tempWrapper)) {
@@ -350,7 +364,7 @@ CreateIteratorObj(JSContext *cx, JSObject *tempWrapper,
     if (!XPCWrapper::Enumerate(cx, iterObj, innerObj)) {
       return nsnull;
     }
-  } while ((innerObj = STOBJ_GET_PROTO(innerObj)) != nsnull);
+  } while ((innerObj = innerObj->getProto()) != nsnull);
 
   return FinishCreatingIterator(cx, iterObj, keysonly);
 }
@@ -380,13 +394,13 @@ JSObject *
 CreateSimpleIterator(JSContext *cx, JSObject *scope, JSBool keysonly,
                      JSObject *propertyContainer)
 {
-  JSObject *iterObj = JS_NewObjectWithGivenProto(cx, &IteratorClass,
+  JSObject *iterObj = JS_NewObjectWithGivenProto(cx, &IteratorClass.base,
                                                  propertyContainer, scope);
   if (!iterObj) {
     return nsnull;
   }
 
-  JSAutoTempValueRooter tvr(cx, iterObj);
+  js::AutoValueRooter tvr(cx, iterObj);
   if (!propertyContainer) {
     if (!JS_SetReservedSlot(cx, iterObj, 0, PRIVATE_TO_JSVAL(nsnull)) ||
         !JS_SetReservedSlot(cx, iterObj, 1, JSVAL_ZERO) ||
@@ -406,7 +420,7 @@ CreateSimpleIterator(JSContext *cx, JSObject *scope, JSBool keysonly,
     if (!SimpleEnumerate(cx, iterObj, propertyContainer)) {
       return nsnull;
     }
-  } while ((propertyContainer = STOBJ_GET_PROTO(propertyContainer)));
+  } while ((propertyContainer = propertyContainer->getProto()));
 
   return FinishCreatingIterator(cx, iterObj, keysonly);
 }
@@ -429,7 +443,7 @@ AddProperty(JSContext *cx, JSObject *wrapperObj, JSBool wantGetterSetter,
   NS_ASSERTION(desc.obj == wrapperObj,
                "What weird wrapper are we using?");
 
-  return JS_DefinePropertyById(cx, innerObj, interned_id, desc.value,
+  return JS_DefinePropertyById(cx, innerObj, interned_id, *vp,
                                desc.getter, desc.setter, desc.attrs);
 }
 
@@ -618,7 +632,9 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
     // A non-string id is being resolved. Won't be found here, return
     // early.
 
-    return MaybePreserveWrapper(cx, wn, flags);
+    MaybePreserveWrapper(cx, wn, flags);
+
+    return JS_TRUE;
   }
 
   // Verify that our jsobject really is a wrapped native.
@@ -634,7 +650,9 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
   if (!iface) {
     // No interface, nothing to resolve.
 
-    return MaybePreserveWrapper(cx, wn, flags);
+    MaybePreserveWrapper(cx, wn, flags);
+
+    return JS_TRUE;
   }
 
   // did we find a method/attribute by that name?
@@ -642,7 +660,9 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
   if (!member) {
     // No member, nothing to resolve.
 
-    return MaybePreserveWrapper(cx, wn, flags);
+    MaybePreserveWrapper(cx, wn, flags);
+
+    return JS_TRUE;
   }
 
   JSString *str = JSVAL_TO_STRING(id);

@@ -59,7 +59,7 @@
 #include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
-#include "nsICSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
 #include "nsCSSLoader.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
@@ -319,7 +319,7 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
         nsCOMPtr<nsIDOMProcessingInstruction> pi = do_QueryInterface(child);
         CheckXSLTParamPI(pi, mXSLTProcessor, mDocument);
       }
-      else if (child->IsNodeOfType(nsINode::eELEMENT)) {
+      else if (child->IsElement()) {
         // Only honor PIs in the prolog
         break;
       }
@@ -441,13 +441,13 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
   // into the document.  
   // XXX do we need to notify for things like PIs?  Or just the
   // documentElement?
-  nsIContent *rootContent = mDocument->GetRootContent();
-  if (rootContent) {
-    NS_ASSERTION(mDocument->IndexOf(rootContent) != -1,
-                 "rootContent not in doc?");
+  nsIContent *rootElement = mDocument->GetRootElement();
+  if (rootElement) {
+    NS_ASSERTION(mDocument->IndexOf(rootElement) != -1,
+                 "rootElement not in doc?");
     mDocument->BeginUpdate(UPDATE_CONTENT_MODEL);
-    nsNodeUtils::ContentInserted(mDocument, rootContent,
-                                 mDocument->IndexOf(rootContent));
+    nsNodeUtils::ContentInserted(mDocument, rootElement,
+                                 mDocument->IndexOf(rootElement));
     mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
   }
   
@@ -462,7 +462,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
+nsXMLContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
                                    PRBool aWasAlternate,
                                    nsresult aStatus)
 {
@@ -503,7 +503,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRBool aFromParser)
+                                PRUint32 aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -632,13 +632,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
     return rv;
   }
   
-  if (nodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
-      !mHasProcessedBase) {
-    // The first base wins
-    ProcessBASETag(aContent);
-    mHasProcessedBase = PR_TRUE;
-  }
-  else if (nodeInfo->Equals(nsGkAtoms::meta, kNameSpaceID_XHTML) &&
+  if (nodeInfo->Equals(nsGkAtoms::meta, kNameSpaceID_XHTML) &&
            // Need to check here to make sure this meta tag does not set
            // mPrettyPrintXML to false when we have a special root!
            (!mPrettyPrintXML || !mPrettyPrintHasSpecialRoot)) {
@@ -756,7 +750,8 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
       return NS_OK;
 
     nsCOMPtr<nsIURI> url;
-    rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull, mDocumentBaseURI);
+    rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
+                   mDocument->GetDocBaseURI());
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Do security check
@@ -796,32 +791,6 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
   
   return rv;
 }
-
-void
-nsXMLContentSink::ProcessBASETag(nsIContent* aContent)
-{
-  NS_ASSERTION(aContent, "missing base-element");
-
-  if (mDocument) {
-    nsAutoString value;
-  
-    if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::target, value)) {
-      mDocument->SetBaseTarget(value);
-    }
-
-    if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::href, value)) {
-      nsCOMPtr<nsIURI> baseURI;
-      nsresult rv = NS_NewURI(getter_AddRefs(baseURI), value);
-      if (NS_SUCCEEDED(rv)) {
-        rv = mDocument->SetBaseURI(baseURI); // The document checks if it is legal to set this base
-        if (NS_SUCCEEDED(rv)) {
-          mDocumentBaseURI = mDocument->GetBaseURI();
-        }
-      }
-    }
-  }
-}
-
 
 NS_IMETHODIMP 
 nsXMLContentSink::SetDocumentCharset(nsACString& aCharset)
@@ -994,7 +963,7 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
 
   mDocElement = aContent;
   NS_ADDREF(mDocElement);
-  nsresult rv = mDocument->AppendChildTo(mDocElement, PR_TRUE);
+  nsresult rv = mDocument->AppendChildTo(mDocElement, NotifyForDocElement());
   if (NS_FAILED(rv)) {
     // If we return PR_FALSE here, the caller will bail out because it won't
     // find a parent content node to append to, which is fine.
@@ -1207,7 +1176,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
     // For that matter, do we really want to try getting the prescontext?  Does
     // this event ever want one?
     nsRefPtr<nsPresContext> ctx;
-    nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
+    nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
     if (shell) {
       ctx = shell->GetPresContext();
     }
@@ -1288,9 +1257,9 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
     // exit codes, error are not fatal here, just that the stylesheet won't apply
     nsCOMPtr<nsIURI> uri(do_QueryInterface(aCatalogData));
     if (uri) {
-      nsCOMPtr<nsICSSStyleSheet> sheet;
+      nsRefPtr<nsCSSStyleSheet> sheet;
       mCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
-      
+
 #ifdef NS_DEBUG
       nsCAutoString uriStr;
       uri->GetSpec(uriStr);

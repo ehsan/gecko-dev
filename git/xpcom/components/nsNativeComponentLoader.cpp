@@ -173,7 +173,7 @@ nsNativeModuleLoader::LoadModule(nsILocalFile* aFile, nsIModule* *aResult)
         fprintf(stderr,
                 "nsNativeModuleLoader::LoadModule(\"%s\") - load FAILED, "
                 "rv: %lx, error:\n\t%s\n",
-                filePath.get(), rv, errorMsg);
+                filePath.get(), (unsigned long)rv, errorMsg);
 #endif
 
         return rv;
@@ -271,6 +271,12 @@ nsNativeModuleLoader::UnloaderFunc(nsIHashable* aHashedFile,
 #endif
 
     return PL_DHASH_REMOVE;
+}
+
+NS_IMETHODIMP
+nsNativeModuleLoader::LoadModuleFromJAR(nsILocalFile* aJAR, const nsACString &aPath, nsIModule* *aResult)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void

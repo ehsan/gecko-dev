@@ -35,17 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMHTMLCanvasElement.h"
-#include "nsGenericHTMLElement.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
-#include "nsGkAtoms.h"
-#include "nsSize.h"
-#include "nsIFrame.h"
-#include "nsIDocument.h"
-#include "nsIDOMDocument.h"
-#include "nsDOMError.h"
-#include "nsNodeInfoManager.h"
+#include "nsHTMLCanvasElement.h"
+
 #include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
@@ -54,92 +45,18 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 
-#include "nsICanvasElement.h"
-#include "nsIRenderingContext.h"
-
-#include "nsICanvasRenderingContextInternal.h"
-#include "nsIDOMCanvasRenderingContext2D.h"
-#include "nsLayoutUtils.h"
+#include "nsFrameManager.h"
+#include "ImageLayers.h"
+#include "BasicLayers.h"
 
 #define DEFAULT_CANVAS_WIDTH 300
 #define DEFAULT_CANVAS_HEIGHT 150
 
-class nsHTMLCanvasElement : public nsGenericHTMLElement,
-                            public nsIDOMHTMLCanvasElement,
-                            public nsICanvasElement
-{
-public:
-  nsHTMLCanvasElement(nsINodeInfo *aNodeInfo);
-  virtual ~nsHTMLCanvasElement();
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
-
-  // nsIDOMElement
-  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
-
-  // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
-
-  // nsIDOMHTMLCanvasElement
-  NS_DECL_NSIDOMHTMLCANVASELEMENT
-
-  // nsICanvasElement
-  NS_IMETHOD GetPrimaryCanvasFrame(nsIFrame **aFrame);
-  NS_IMETHOD GetSize(PRUint32 *width, PRUint32 *height);
-  NS_IMETHOD RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
-  virtual PRBool IsWriteOnly();
-  virtual void SetWriteOnly();
-  NS_IMETHOD InvalidateFrame ();
-  NS_IMETHOD InvalidateFrameSubrect (const gfxRect& damageRect);
-  virtual PRInt32 CountContexts();
-  virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
-  virtual PRBool GetIsOpaque();
-
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
-  nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
-  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
-                                nsIAtom* aAttribute,
-                                const nsAString& aValue,
-                                nsAttrValue& aResult);
-  nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute, PRInt32 aModType) const;
-
-  // SetAttr override.  C++ is stupid, so have to override both
-  // overloaded methods.
-  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, PRBool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           PRBool aNotify);
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-protected:
-  nsIntSize GetWidthHeight();
-
-  nsresult UpdateContext();
-  nsresult ToDataURLImpl(const nsAString& aMimeType,
-                         const nsAString& aEncoderOptions,
-                         nsAString& aDataURL);
-
-  nsString mCurrentContextId;
-  nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;
-  
-public:
-  // Record whether this canvas should be write-only or not.
-  // We set this when script paints an image from a different origin.
-  // We also transitively set it when script paints a canvas which
-  // is itself write-only.
-  PRPackedBool             mWriteOnly;
-};
+using namespace mozilla;
+using namespace mozilla::layers;
 
 nsGenericHTMLElement*
-NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   return new nsHTMLCanvasElement(aNodeInfo);
 }
@@ -151,20 +68,23 @@ nsHTMLCanvasElement::nsHTMLCanvasElement(nsINodeInfo *aNodeInfo)
 
 nsHTMLCanvasElement::~nsHTMLCanvasElement()
 {
-  if (mCurrentContext) {
-    nsCOMPtr<nsICanvasRenderingContextInternal> internalctx(do_QueryInterface(mCurrentContext));
-    internalctx->SetCanvasElement(nsnull);
-    mCurrentContext = nsnull;
-  }
 }
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLCanvasElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLCanvasElement,
+                                                  nsGenericHTMLElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentContext)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
-NS_INTERFACE_TABLE_HEAD(nsHTMLCanvasElement)
+DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
+
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
                                    nsIDOMHTMLCanvasElement,
-                                   nsICanvasElement)
+                                   nsICanvasElementExternal)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLCanvasElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLCanvasElement)
@@ -253,56 +173,15 @@ nsHTMLCanvasElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   return retval;
 }
 
-static void
-MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                      nsRuleData* aData)
-{
-  nsGenericHTMLElement::MapImageMarginAttributeInto(aAttributes, aData);
-  nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
-}
-
-nsMapRuleToAttributesFunc
-nsHTMLCanvasElement::GetAttributeMappingFunction() const
-{
-  return &MapAttributesIntoRule;
-}
-
-static const nsGenericElement::MappedAttributeEntry
-sImageMarginAttributeMap[] = {
-  { &nsGkAtoms::hspace },
-  { &nsGkAtoms::vspace },
-  { nsnull }
-};
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLCanvasElement::IsAttributeMapped(const nsIAtom* aAttribute) const
-{
-  static const MappedAttributeEntry* const map[] = {
-    sCommonAttributeMap,
-    sImageMarginAttributeMap
-  };
-
-  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
-}
-
 PRBool
 nsHTMLCanvasElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
 {
-  if (aNamespaceID == kNameSpaceID_None)
-  {
-    if ((aAttribute == nsGkAtoms::width) ||
-        (aAttribute == nsGkAtoms::height))
-    {
-      return aResult.ParseIntWithBounds(aValue, 0);
-    }
-
-    if (ParseImageAttribute(aAttribute, aValue, aResult))
-    {
-      return PR_TRUE;
-    }
+  if (aNamespaceID == kNameSpaceID_None &&
+      (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height)) {
+    return aResult.ParseIntWithBounds(aValue, 0);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -412,6 +291,55 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   return NS_OK;
 }
 
+nsresult
+nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
+                                      nsICanvasRenderingContextInternal **aContext)
+{
+  NS_ENSURE_ARG(aContext);
+
+  nsCString ctxId;
+  ctxId.Assign(NS_LossyConvertUTF16toASCII(aContextId));
+
+  // check that ctxId is clamped to A-Za-z0-9_-
+  for (PRUint32 i = 0; i < ctxId.Length(); i++) {
+    if ((ctxId[i] < 'A' || ctxId[i] > 'Z') &&
+        (ctxId[i] < 'a' || ctxId[i] > 'z') &&
+        (ctxId[i] < '0' || ctxId[i] > '9') &&
+        (ctxId[i] != '-') &&
+        (ctxId[i] != '_'))
+    {
+      // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+      return NS_ERROR_INVALID_ARG;
+    }
+  }
+
+  nsCString ctxString("@mozilla.org/content/canvas-rendering-context;1?id=");
+  ctxString.Append(ctxId);
+
+  nsresult rv;
+  nsCOMPtr<nsICanvasRenderingContextInternal> ctx =
+    do_CreateInstance(nsPromiseFlatCString(ctxString).get(), &rv);
+  if (rv == NS_ERROR_OUT_OF_MEMORY) {
+    *aContext = nsnull;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  if (NS_FAILED(rv)) {
+    *aContext = nsnull;
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  rv = ctx->SetCanvasElement(this);
+  if (NS_FAILED(rv)) {
+    *aContext = nsnull;
+    return rv;
+  }
+
+  *aContext = ctx.forget().get();
+
+  return rv;
+}
+
 NS_IMETHODIMP
 nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
                                 nsISupports **aContext)
@@ -419,31 +347,19 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
   nsresult rv;
 
   if (mCurrentContextId.IsEmpty()) {
-    nsCString ctxId;
-    ctxId.Assign(NS_LossyConvertUTF16toASCII(aContextId));
-
-    // check that ctxId is clamped to A-Za-z0-9_-
-    for (PRUint32 i = 0; i < ctxId.Length(); i++) {
-      if ((ctxId[i] < 'A' || ctxId[i] > 'Z') &&
-          (ctxId[i] < 'a' || ctxId[i] > 'z') &&
-          (ctxId[i] < '0' || ctxId[i] > '9') &&
-          (ctxId[i] != '-') &&
-          (ctxId[i] != '_'))
-      {
-        // XXX ERRMSG we need to report an error to developers here! (bug 329026)
-        return NS_ERROR_INVALID_ARG;
-      }
-    }
-
-    nsCString ctxString("@mozilla.org/content/canvas-rendering-context;1?id=");
-    ctxString.Append(ctxId);
-
-    mCurrentContext = do_CreateInstance(nsPromiseFlatCString(ctxString).get(), &rv);
-    if (rv == NS_ERROR_OUT_OF_MEMORY)
-      return NS_ERROR_OUT_OF_MEMORY;
+    rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
     if (NS_FAILED(rv))
       // XXX ERRMSG we need to report an error to developers here! (bug 329026)
       return NS_ERROR_INVALID_ARG;
+
+    // Ensure that the context participates in CC.  Note that returning a
+    // CC participant from QI doesn't addref.
+    nsXPCOMCycleCollectionParticipant *cp = nsnull;
+    CallQueryInterface(mCurrentContext, &cp);
+    if (!cp) {
+      mCurrentContext = nsnull;
+      return NS_ERROR_FAILURE;
+    }
 
     rv = mCurrentContext->SetCanvasElement(this);
     if (NS_FAILED(rv)) {
@@ -467,6 +383,48 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
+                                      nsISupports **aContext)
+{
+#ifdef MOZ_IPC
+  if(!nsContentUtils::IsCallerTrustedForRead()) {
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  // We only support 2d shmem contexts for now.
+  if (!aContextId.Equals(NS_LITERAL_STRING("2d")))
+    return NS_ERROR_INVALID_ARG;
+
+  nsresult rv;
+
+  if (mCurrentContextId.IsEmpty()) {
+    rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
+    if (NS_FAILED(rv))
+      return rv;
+
+    mCurrentContext->SetIsIPC(PR_TRUE);
+
+    rv = UpdateContext();
+    if (NS_FAILED(rv)) {
+      mCurrentContext = nsnull;
+      return rv;
+    }
+
+    mCurrentContextId.Assign(aContextId);
+  } else if (!mCurrentContextId.Equals(aContextId)) {
+    //XXX eventually allow for more than one active context on a given canvas
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  NS_ADDREF (*aContext = mCurrentContext);
+  return NS_OK;
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+}
+
 nsresult
 nsHTMLCanvasElement::UpdateContext()
 {
@@ -480,30 +438,16 @@ nsHTMLCanvasElement::UpdateContext()
   return rv;
 }
 
-NS_IMETHODIMP
-nsHTMLCanvasElement::GetPrimaryCanvasFrame(nsIFrame **aFrame)
+nsIFrame *
+nsHTMLCanvasElement::GetPrimaryCanvasFrame()
 {
-  *aFrame = GetPrimaryFrame(Flush_Frames);
-  return NS_OK;
+  return GetPrimaryFrame(Flush_Frames);
 }
 
-NS_IMETHODIMP
-nsHTMLCanvasElement::GetSize(PRUint32 *width, PRUint32 *height)
+nsIntSize
+nsHTMLCanvasElement::GetSize()
 {
-  nsIntSize sz = GetWidthHeight();
-  *width = sz.width;
-  *height = sz.height;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLCanvasElement::RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
-{
-  if (!mCurrentContext)
-    return NS_OK;
-
-  return mCurrentContext->Render(ctx, aFilter);
+  return GetWidthHeight();
 }
 
 PRBool
@@ -518,35 +462,23 @@ nsHTMLCanvasElement::SetWriteOnly()
   mWriteOnly = PR_TRUE;
 }
 
-NS_IMETHODIMP
-nsHTMLCanvasElement::InvalidateFrame()
+void
+nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
 {
   // We don't need to flush anything here; if there's no frame or if
   // we plan to reframe we don't need to invalidate it anyway.
   nsIFrame *frame = GetPrimaryFrame();
-  if (frame) {
-    nsRect r = frame->GetRect();
-    r.x = r.y = 0;
-    frame->Invalidate(r);
-  }
+  if (!frame)
+    return;
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLCanvasElement::InvalidateFrameSubrect(const gfxRect& damageRect)
-{
-  // We don't need to flush anything here; if there's no frame or if
-  // we plan to reframe we don't need to invalidate it anyway.
-  nsIFrame *frame = GetPrimaryFrame();
-  if (frame) {
+  if (damageRect) {
     nsRect contentArea(frame->GetContentRect());
     nsIntSize size = GetWidthHeight();
 
     // damageRect and size are in CSS pixels; contentArea is in appunits
     // We want a rect in appunits; so avoid doing pixels-to-appunits and
     // vice versa conversion here.
-    gfxRect realRect(damageRect);
+    gfxRect realRect(*damageRect);
     realRect.Scale(contentArea.width / gfxFloat(size.width),
                    contentArea.height / gfxFloat(size.height));
     realRect.RoundOut();
@@ -559,9 +491,10 @@ nsHTMLCanvasElement::InvalidateFrameSubrect(const gfxRect& damageRect)
     invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
 
     frame->Invalidate(invalRect);
+  } else {
+    nsRect r(frame->GetContentRect() - frame->GetPosition());
+    frame->Invalidate(r);
   }
-
-  return NS_OK;
 }
 
 PRInt32
@@ -586,4 +519,37 @@ PRBool
 nsHTMLCanvasElement::GetIsOpaque()
 {
   return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
+}
+
+already_AddRefed<CanvasLayer>
+nsHTMLCanvasElement::GetCanvasLayer(LayerManager *aManager)
+{
+  if (!mCurrentContext)
+    return nsnull;
+
+  return mCurrentContext->GetCanvasLayer(aManager);
+}
+
+void
+nsHTMLCanvasElement::MarkContextClean()
+{
+  if (!mCurrentContext)
+    return;
+
+  mCurrentContext->MarkContextClean();
+}
+
+NS_IMETHODIMP_(nsIntSize)
+nsHTMLCanvasElement::GetSizeExternal()
+{
+  return GetWidthHeight();
+}
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::RenderContextsExternal(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter)
+{
+  if (!mCurrentContext)
+    return NS_OK;
+
+  return mCurrentContext->Render(aContext, aFilter);
 }

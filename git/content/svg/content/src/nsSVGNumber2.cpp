@@ -70,6 +70,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGNumber2::DOMAnimatedNumber)
 NS_IMPL_ADDREF(DOMSVGNumber)
 NS_IMPL_RELEASE(DOMSVGNumber)
 
+DOMCI_DATA(SVGAnimatedNumber, nsSVGNumber2::DOMAnimatedNumber)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGNumber2::DOMAnimatedNumber)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedNumber)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -173,7 +175,7 @@ nsresult
 nsSVGNumber2::SMILNumber::ValueFromString(const nsAString& aStr,
                                           const nsISMILAnimationElement* /*aSrcElement*/,
                                           nsSMILValue& aValue,
-                                          PRBool& aCanCache) const
+                                          PRBool& aPreventCachingOfSandwich) const
 {
   float value;
 
@@ -185,7 +187,7 @@ nsSVGNumber2::SMILNumber::ValueFromString(const nsAString& aStr,
   nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = value;
   aValue = val;
-  aCanCache = PR_TRUE;
+  aPreventCachingOfSandwich = PR_FALSE;
 
   return NS_OK;
 }

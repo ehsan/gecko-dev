@@ -70,10 +70,14 @@
 #include "nsRuleData.h"
 #include "nsContentErrors.h"
 #include "nsRuleProcessorData.h"
+#include "mozilla/dom/Element.h"
+#include "nsCSSFrameConstructor.h"
+
+using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::HTMLColorRule, nsIStyleRule)
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
@@ -81,36 +85,32 @@ nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
         aRuleData->mPresContext->UseDocumentColors())
       aRuleData->mColorData->mColor.SetColorValue(mColor);
   }
-  return NS_OK;
 }
 
 #ifdef DEBUG
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, PRInt32 aIndent) const
 {
-  return NS_OK;
 }
 #endif
 
  
 NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::GenericTableRule, nsIStyleRule)
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::GenericTableRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   // Nothing to do.
-  return NS_OK;
 }
 
 #ifdef DEBUG
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::GenericTableRule::List(FILE* out, PRInt32 aIndent) const
 {
-  return NS_OK;
 }
 #endif
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Text)) {
@@ -120,7 +120,6 @@ nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
                     eCSSUnit_Enumerated);
     }
   }
-  return NS_OK;
 }
 
 // -----------------------------------------------------------
@@ -173,12 +172,7 @@ static PLDHashTableOps MappedAttrTable_Ops = {
 // -----------------------------------------------------------
 
 nsHTMLStyleSheet::nsHTMLStyleSheet(void)
-  : mURL(nsnull),
-    mDocument(nsnull),
-    mLinkRule(nsnull),
-    mVisitedRule(nsnull),
-    mActiveRule(nsnull),
-    mDocumentColorRule(nsnull)
+  : mDocument(nsnull)
 {
   mMappedAttrTable.ops = nsnull;
 }
@@ -189,20 +183,11 @@ nsHTMLStyleSheet::Init()
   mTableTHRule = new TableTHRule();
   if (!mTableTHRule)
     return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(mTableTHRule);
   return NS_OK;
 }
 
 nsHTMLStyleSheet::~nsHTMLStyleSheet()
 {
-  NS_IF_RELEASE(mURL);
-
-  NS_IF_RELEASE(mLinkRule);
-  NS_IF_RELEASE(mVisitedRule);
-  NS_IF_RELEASE(mActiveRule);
-  NS_IF_RELEASE(mDocumentColorRule);
-  NS_IF_RELEASE(mTableTHRule);
-
   if (mMappedAttrTable.ops)
     PL_DHashTableFinish(&mMappedAttrTable);
 }
@@ -228,65 +213,65 @@ static nsresult GetBodyColor(nsPresContext* aPresContext, nscolor* aColor)
 NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
-  nsIContent *content = aData->mContent;
+  nsRuleWalker *ruleWalker = aData->mRuleWalker;
+  if (aData->mIsHTMLContent) {
+    nsIAtom* tag = aData->mContentTag;
 
-  if (content) {
-    nsRuleWalker *ruleWalker = aData->mRuleWalker;
-    if (aData->mIsHTMLContent) {
-      nsIAtom* tag = aData->mContentTag;
-
-      // if we have anchor colors, check if this is an anchor with an href
-      if (tag == nsGkAtoms::a) {
-        if (mLinkRule || mVisitedRule || mActiveRule) {
-          PRUint32 state = aData->ContentState();
-          if (mLinkRule && (state & NS_EVENT_STATE_UNVISITED)) {
-            ruleWalker->Forward(mLinkRule);
-          }
-          else if (mVisitedRule && (state & NS_EVENT_STATE_VISITED)) {
-            ruleWalker->Forward(mVisitedRule);
-          }
-
-          // No need to add to the active rule if it's not a link
-          if (mActiveRule && aData->IsLink() &&
-              (state & NS_EVENT_STATE_ACTIVE)) {
-            ruleWalker->Forward(mActiveRule);
-          }
-        } // end link/visited/active rules
-      } // end A tag
-      // add the rule to handle text-align for a <th>
-      else if (tag == nsGkAtoms::th) {
-        ruleWalker->Forward(mTableTHRule);
-      }
-      else if (tag == nsGkAtoms::table) {
-        if (aData->mCompatMode == eCompatibility_NavQuirks) {
-          nscolor bodyColor;
-          nsresult rv =
-            GetBodyColor(ruleWalker->CurrentNode()->GetPresContext(),
-                         &bodyColor);
-          if (NS_SUCCEEDED(rv) &&
-              (!mDocumentColorRule || bodyColor != mDocumentColorRule->mColor)) {
-            NS_IF_RELEASE(mDocumentColorRule);
-            mDocumentColorRule = new HTMLColorRule();
-            if (mDocumentColorRule) {
-              NS_ADDREF(mDocumentColorRule);
-              mDocumentColorRule->mColor = bodyColor;
-            }
-          }
-          if (mDocumentColorRule)
-            ruleWalker->Forward(mDocumentColorRule);
+    // if we have anchor colors, check if this is an anchor with an href
+    if (tag == nsGkAtoms::a) {
+      if (mLinkRule || mVisitedRule || mActiveRule) {
+        PRUint32 state = aData->GetContentStateForVisitedHandling(
+                                  ruleWalker->VisitedHandling(),
+                                  // If the node being matched is a link,
+                                  // it's the relevant link.
+                                  aData->IsLink());
+        if (mLinkRule && (state & NS_EVENT_STATE_UNVISITED)) {
+          ruleWalker->Forward(mLinkRule);
+          ruleWalker->SetHaveRelevantLink();
         }
+        else if (mVisitedRule && (state & NS_EVENT_STATE_VISITED)) {
+          ruleWalker->Forward(mVisitedRule);
+          ruleWalker->SetHaveRelevantLink();
+        }
+
+        // No need to add to the active rule if it's not a link
+        if (mActiveRule && aData->IsLink() &&
+            (state & NS_EVENT_STATE_ACTIVE)) {
+          ruleWalker->Forward(mActiveRule);
+        }
+      } // end link/visited/active rules
+    } // end A tag
+    // add the rule to handle text-align for a <th>
+    else if (tag == nsGkAtoms::th) {
+      ruleWalker->Forward(mTableTHRule);
+    }
+    else if (tag == nsGkAtoms::table) {
+      if (aData->mCompatMode == eCompatibility_NavQuirks) {
+        nscolor bodyColor;
+        nsresult rv =
+          GetBodyColor(ruleWalker->CurrentNode()->GetPresContext(),
+                       &bodyColor);
+        if (NS_SUCCEEDED(rv) &&
+            (!mDocumentColorRule || bodyColor != mDocumentColorRule->mColor)) {
+          mDocumentColorRule = new HTMLColorRule();
+          if (mDocumentColorRule) {
+            mDocumentColorRule->mColor = bodyColor;
+          }
+        }
+        if (mDocumentColorRule)
+          ruleWalker->Forward(mDocumentColorRule);
       }
-    } // end html element
+    }
+  } // end html element
 
     // just get the style rules from the content
-    content->WalkContentStyleRules(ruleWalker);
-  }
+  aData->mElement->WalkContentStyleRules(ruleWalker);
 
   return NS_OK;
 }
 
 // Test if style is dependent on content state
-nsReStyleHint
+/* virtual */ nsRestyleHint
 nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
   if (aData->mIsHTMLContent &&
@@ -295,18 +280,24 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
       ((mActiveRule && (aData->mStateMask & NS_EVENT_STATE_ACTIVE)) ||
        (mLinkRule && (aData->mStateMask & NS_EVENT_STATE_VISITED)) ||
        (mVisitedRule && (aData->mStateMask & NS_EVENT_STATE_VISITED)))) {
-    return eReStyle_Self;
+    return eRestyle_Self;
   }
   
-  return nsReStyleHint(0);
+  return nsRestyleHint(0);
 }
 
-nsReStyleHint
+/* virtual */ PRBool
+nsHTMLStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
+{
+  return PR_FALSE;
+}
+
+/* virtual */ nsRestyleHint
 nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
   // Do nothing on before-change checks
   if (!aData->mAttrHasChanged) {
-    return nsReStyleHint(0);
+    return nsRestyleHint(0);
   }
 
   // Note: no need to worry about whether some states changed with this
@@ -314,24 +305,23 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
   // needed.
 
   // Result is true for |href| changes on HTML links if we have link rules.
-  nsIContent *content = aData->mContent;
+  Element *element = aData->mElement;
   if (aData->mAttribute == nsGkAtoms::href &&
       (mLinkRule || mVisitedRule || mActiveRule) &&
-      content &&
-      content->IsHTML() &&
+      element->IsHTML() &&
       aData->mContentTag == nsGkAtoms::a) {
-    return eReStyle_Self;
+    return eRestyle_Self;
   }
 
   // Don't worry about the mDocumentColorRule since it only applies
   // to descendants of body, when we're already reresolving.
 
   // Handle the content style rules.
-  if (content && content->IsAttributeMapped(aData->mAttribute)) {
-    return eReStyle_Self;
+  if (element->IsAttributeMapped(aData->mAttribute)) {
+    return eRestyle_Self;
   }
 
-  return nsReStyleHint(0);
+  return nsRestyleHint(0);
 }
 
 NS_IMETHODIMP
@@ -364,88 +354,74 @@ nsHTMLStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 #endif
 
   // nsIStyleSheet api
-NS_IMETHODIMP
-nsHTMLStyleSheet::GetSheetURI(nsIURI** aSheetURI) const
+/* virtual */ nsIURI*
+nsHTMLStyleSheet::GetSheetURI() const
 {
-  *aSheetURI = mURL;
-  NS_IF_ADDREF(*aSheetURI);
-  return NS_OK;
+  return mURL;
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::GetBaseURI(nsIURI** aBaseURI) const
+/* virtual */ nsIURI*
+nsHTMLStyleSheet::GetBaseURI() const
 {
-  *aBaseURI = mURL;
-  NS_IF_ADDREF(*aBaseURI);
-  return NS_OK;
+  return mURL;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::GetTitle(nsString& aTitle) const
 {
   aTitle.Truncate();
-  return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/html");
-  return NS_OK;
 }
 
-NS_IMETHODIMP_(PRBool)
+/* virtual */ PRBool
 nsHTMLStyleSheet::HasRules() const
 {
   return PR_TRUE; // We have rules at all reasonable times
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::GetApplicable(PRBool& aApplicable) const
+/* virtual */ PRBool
+nsHTMLStyleSheet::IsApplicable() const
 {
-  aApplicable = PR_TRUE;
-  return NS_OK;
+  return PR_TRUE;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::SetEnabled(PRBool aEnabled)
 { // these can't be disabled
-  return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::GetComplete(PRBool& aComplete) const
+/* virtual */ PRBool
+nsHTMLStyleSheet::IsComplete() const
 {
-  aComplete = PR_TRUE;
-  return NS_OK;
+  return PR_TRUE;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::SetComplete()
 {
-  return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::GetParentSheet(nsIStyleSheet*& aParent) const
+/* virtual */ nsIStyleSheet*
+nsHTMLStyleSheet::GetParentSheet() const
 {
-  aParent = nsnull;
-  return NS_OK;
+  return nsnull;
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::GetOwningDocument(nsIDocument*& aDocument) const
+/* virtual */ nsIDocument*
+nsHTMLStyleSheet::GetOwningDocument() const
 {
-  aDocument = mDocument;
-  NS_IF_ADDREF(aDocument);
-  return NS_OK;
+  return mDocument;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 {
   mDocument = aDocument; // not refcounted
-  return NS_OK;
 }
 
 nsresult
@@ -460,119 +436,66 @@ nsHTMLStyleSheet::Init(nsIURI* aURL, nsIDocument* aDocument)
 
   mDocument = aDocument; // not refcounted!
   mURL = aURL;
-  NS_ADDREF(mURL);
   return NS_OK;
 }
 
-nsresult
+void
 nsHTMLStyleSheet::Reset(nsIURI* aURL)
 {
-  NS_IF_RELEASE(mURL);
   mURL = aURL;
-  NS_ADDREF(mURL);
 
-  NS_IF_RELEASE(mLinkRule);
-  NS_IF_RELEASE(mVisitedRule);
-  NS_IF_RELEASE(mActiveRule);
-  NS_IF_RELEASE(mDocumentColorRule);
+  mLinkRule          = nsnull;
+  mVisitedRule       = nsnull;
+  mActiveRule        = nsnull;
+  mDocumentColorRule = nsnull;
 
   if (mMappedAttrTable.ops) {
     PL_DHashTableFinish(&mMappedAttrTable);
     mMappedAttrTable.ops = nsnull;
   }
+}
 
+nsresult
+nsHTMLStyleSheet::ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aColor)
+{
+  if (aRule && aRule->mColor == aColor) {
+    return NS_OK;
+  }
+
+  aRule = new HTMLColorRule();
+  if (!aRule)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  aRule->mColor = aColor;
+  // Now make sure we restyle any links that might need it.  This
+  // shouldn't happen often, so just rebuilding everything is ok.
+  if (mDocument && mDocument->GetShell()) {
+    Element* root = mDocument->GetRootElement();
+    if (root) {
+      mDocument->GetShell()->FrameConstructor()->
+        PostRestyleEvent(root, eRestyle_Subtree, NS_STYLE_HINT_NONE);
+    }
+  }
   return NS_OK;
-}
-
-nsresult
-nsHTMLStyleSheet::GetLinkColor(nscolor& aColor)
-{
-  if (!mLinkRule) {
-    return NS_HTML_STYLE_PROPERTY_NOT_THERE;
-  }
-  else {
-    aColor = mLinkRule->mColor;
-    return NS_OK;
-  }
-}
-
-nsresult
-nsHTMLStyleSheet::GetActiveLinkColor(nscolor& aColor)
-{
-  if (!mActiveRule) {
-    return NS_HTML_STYLE_PROPERTY_NOT_THERE;
-  }
-  else {
-    aColor = mActiveRule->mColor;
-    return NS_OK;
-  }
-}
-
-nsresult
-nsHTMLStyleSheet::GetVisitedLinkColor(nscolor& aColor)
-{
-  if (!mVisitedRule) {
-    return NS_HTML_STYLE_PROPERTY_NOT_THERE;
-  }
-  else {
-    aColor = mVisitedRule->mColor;
-    return NS_OK;
-  }
 }
 
 nsresult
 nsHTMLStyleSheet::SetLinkColor(nscolor aColor)
 {
-  if (mLinkRule) {
-    if (mLinkRule->mColor == aColor)
-      return NS_OK;
-    NS_RELEASE(mLinkRule);
-  }
-
-  mLinkRule = new HTMLColorRule();
-  if (!mLinkRule)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(mLinkRule);
-
-  mLinkRule->mColor = aColor;
-  return NS_OK;
+  return ImplLinkColorSetter(mLinkRule, aColor);
 }
 
 
 nsresult
 nsHTMLStyleSheet::SetActiveLinkColor(nscolor aColor)
 {
-  if (mActiveRule) {
-    if (mActiveRule->mColor == aColor)
-      return NS_OK;
-    NS_RELEASE(mActiveRule);
-  }
-
-  mActiveRule = new HTMLColorRule();
-  if (!mActiveRule)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(mActiveRule);
-
-  mActiveRule->mColor = aColor;
-  return NS_OK;
+  return ImplLinkColorSetter(mActiveRule, aColor);
 }
 
 nsresult
 nsHTMLStyleSheet::SetVisitedLinkColor(nscolor aColor)
 {
-  if (mVisitedRule) {
-    if (mVisitedRule->mColor == aColor)
-      return NS_OK;
-    NS_RELEASE(mVisitedRule);
-  }
-
-  mVisitedRule = new HTMLColorRule();
-  if (!mVisitedRule)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(mVisitedRule);
-
-  mVisitedRule->mColor = aColor;
-  return NS_OK;
+  return ImplLinkColorSetter(mVisitedRule, aColor);
 }
 
 already_AddRefed<nsMappedAttributes>
@@ -614,7 +537,8 @@ nsHTMLStyleSheet::DropMappedAttributes(nsMappedAttributes* aMapped)
 }
 
 #ifdef DEBUG
-void nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
+/* virtual */ void
+nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
   for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);

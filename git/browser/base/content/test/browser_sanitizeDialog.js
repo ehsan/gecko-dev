@@ -51,15 +51,13 @@
  */
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Components.interfaces.mozIJSSubScriptLoader).
+  getService(Ci.mozIJSSubScriptLoader).
   loadSubScript("chrome://mochikit/content/MochiKit/packed.js");
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Components.interfaces.mozIJSSubScriptLoader).
+  getService(Ci.mozIJSSubScriptLoader).
   loadSubScript("chrome://browser/content/sanitize.js");
 
-const winWatch = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-                 getService(Ci.nsIWindowWatcher);
 const dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
 const bhist = Cc["@mozilla.org/browser/global-history;2"].
@@ -452,8 +450,10 @@ WindowHelper.prototype = {
        "Details button should be " + dir + " because item list is " +
        (hidden ? "" : "not ") + "hidden");
     let height = 0;
-    if (!hidden)
+    if (!hidden) {
+      ok(list.boxObject.height > 30, "listbox has sufficient size")
       height += list.boxObject.height;
+    }
     if (this.isWarningPanelVisible())
       height += this.getWarningPanel().boxObject.height;
     ok(height < this.win.innerHeight,
@@ -540,7 +540,7 @@ WindowHelper.prototype = {
       if (aTopic != "domwindowopened")
         return;
 
-      winWatch.unregisterNotification(windowObserver);
+      Services.ww.unregisterNotification(windowObserver);
 
       var loaded = false;
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
@@ -597,12 +597,12 @@ WindowHelper.prototype = {
         });
       }, false);
     }
-    winWatch.registerNotification(windowObserver);
-    winWatch.openWindow(null,
-                        "chrome://browser/content/sanitize.xul",
-                        "SanitizeDialog",
-                        "chrome,titlebar,dialog,centerscreen,modal",
-                        null);
+    Services.ww.registerNotification(windowObserver);
+    Services.ww.openWindow(null,
+                           "chrome://browser/content/sanitize.xul",
+                           "SanitizeDialog",
+                           "chrome,titlebar,dialog,centerscreen,modal",
+                           null);
   },
 
   /**

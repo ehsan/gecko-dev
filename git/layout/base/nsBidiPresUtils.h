@@ -51,6 +51,10 @@
 #include "nsBlockFrame.h"
 #include "nsTHashtable.h"
 
+#ifdef DrawText
+#undef DrawText
+#endif
+
 /**
  * A structure representing some continuation state for each frame on the line,
  * used to determine the first and the last continuation frame for each
@@ -167,14 +171,10 @@ public:
    * descendants of a given block frame.
    *
    * @param aBlockFrame          The block frame
-   * @param aIsVisualFormControl [IN]  Set if we are in a form control on a
-   *                                   visual page.
-   *                                   @see nsBlockFrame::IsVisualFormControl
    *
    *  @lina 06/18/2000
    */
-  nsresult Resolve(nsBlockFrame*   aBlockFrame,
-                   PRBool          aIsVisualFormControl);
+  nsresult Resolve(nsBlockFrame* aBlockFrame);
 
   /**
    * Reorder this line using Bidi engine.
@@ -197,11 +197,6 @@ public:
                              PRInt32&        aTextLength,
                              nsCharType      aCharType,
                              PRBool          aIsOddLevel);
-
-  /**
-   * Return our nsBidi object (bidi reordering engine)
-   */
-  nsresult GetBidiEngine(nsBidi** aBidiEngine);
 
   /**
    * Reorder plain text using the Unicode Bidi algorithm and send it to
@@ -321,6 +316,12 @@ public:
                        nsBidiPositionResolve* aPosResolve,
                        PRInt32                aPosResolveCount,
                        nscoord*               aWidth);
+
+  /**
+   * Guess at how much memory is being used by this nsBidiPresUtils instance,
+   * including memory used by nsBidi.
+   */
+  PRUint32 EstimateMemoryUsed();
 
 private:
   nsresult ProcessTextForRenderingContext(const PRUnichar*       aText,

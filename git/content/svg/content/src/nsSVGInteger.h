@@ -78,6 +78,7 @@ private:
   PRUint8 mAttrEnum; // element specified tracking for attribute
   PRPackedBool mIsAnimated;
 
+public:
   struct DOMAnimatedInteger : public nsIDOMSVGAnimatedInteger
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -123,7 +124,7 @@ private:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     PRBool& aCanCache) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

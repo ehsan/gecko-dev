@@ -53,6 +53,7 @@
 
 struct RuleCascadeData;
 struct nsCSSSelectorList;
+struct CascadeEnumData;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -67,8 +68,9 @@ struct nsCSSSelectorList;
 
 class nsCSSRuleProcessor: public nsIStyleRuleProcessor {
 public:
-  nsCSSRuleProcessor(const nsCOMArray<nsICSSStyleSheet>& aSheets, 
-                     PRUint8 aSheetType);
+  typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
+
+  nsCSSRuleProcessor(const sheet_array_type& aSheets, PRUint8 aSheetType);
   virtual ~nsCSSRuleProcessor();
 
   NS_DECL_ISUPPORTS
@@ -102,9 +104,11 @@ public:
   NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
 
-  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
 
-  virtual nsReStyleHint
+  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
+
+  virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
 
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
@@ -123,13 +127,13 @@ public:
 #endif
 
 private:
-  static PRBool CascadeSheetEnumFunc(nsICSSStyleSheet* aSheet, void* aData);
+  static PRBool CascadeSheet(nsCSSStyleSheet* aSheet, CascadeEnumData* aData);
 
   RuleCascadeData* GetRuleCascade(nsPresContext* aPresContext);
   void RefreshRuleCascade(nsPresContext* aPresContext);
 
   // The sheet order here is the same as in nsStyleSet::mSheets
-  nsCOMArray<nsICSSStyleSheet> mSheets;
+  sheet_array_type mSheets;
 
   // active first, then cached (most recent first)
   RuleCascadeData* mRuleCascades;

@@ -57,11 +57,6 @@ MOCSRCS = \
 		moc_nsAppShell.cpp \
 		$(NULL)
 
-
-CSRCS = \
-		keysym2ucs.c \
-$(NULL)
-
 CPPSRCS	= \
 		$(MOCSRCS) \
 		nsAppShell.cpp \
@@ -88,7 +83,6 @@ EXTRA_DSO_LDOPTS = \
 		$(MOZ_COMPONENT_LIBS) \
 		-lgkgfx \
 		-lthebes \
-		-llayers \
 		$(MOZ_JS_LIBS) \
 		$(MOZ_QT_LIBS) \
 		$(GLIB_LIBS) \

@@ -26,6 +26,9 @@ include border-image/reftest.list
 # border-radius/
 include border-radius/reftest.list
 
+# box-ordinal/
+include box-ordinal/reftest.list
+
 # box-properties/
 include box-properties/reftest.list
 
@@ -37,6 +40,9 @@ include bugs/reftest.list
 
 # canvas 2D
 include canvas/reftest.list
+
+# css default pseudo class tests
+include css-default/reftest.list
 
 # css @import tests
 include css-import/reftest.list
@@ -62,6 +68,10 @@ include css-transitions/reftest.list
 # css values and units
 include css-valuesandunits/reftest.list
 
+# Reftests in css-visited are run using
+# layout/style/test/test_visited_reftests instead of using the reftest
+# harness.
+
 # columns/
 include columns/reftest.list
 
@@ -70,6 +80,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# dom/
+include dom/reftest.list
 
 # editor/
 include editor/reftest.list
@@ -128,11 +141,17 @@ include marquee/reftest.list
 # native-theme/
 include native-theme/reftest.list
 
+# netwerk/
+include ../../netwerk/test/reftest/reftest.list
+
 # object/
 include object/reftest.list
 
 # ogg-video/
 include ogg-video/reftest.list
+
+# parser/
+include ../../parser/htmlparser/tests/reftest/reftest.list
 
 # percent-overflow-sizing/
 include percent-overflow-sizing/reftest.list
@@ -146,6 +165,9 @@ include ../../modules/plugin/test/reftest/reftest.list
 # printing
 include printing/reftest.list
 include pagination/reftest.list
+
+# scrolling
+include scrolling/reftest.list
 
 # selection
 include selection/reftest.list

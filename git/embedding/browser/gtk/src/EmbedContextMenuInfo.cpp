@@ -161,7 +161,7 @@ EmbedContextMenuInfo::GetFormControlType(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(mCtxDocument);
     if (!doc)
       return NS_OK;
-    nsIPresShell *presShell = doc->GetPrimaryShell();
+    nsIPresShell *presShell = doc->GetShell();
     if (!presShell)
       return NS_OK;
     nsCOMPtr<nsIContent> tgContent = do_QueryInterface(mEventTarget);
@@ -217,16 +217,12 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
         break;
       case NS_FORM_INPUT_SUBMIT:
         break;
+      case NS_FORM_INPUT_SEARCH:
       case NS_FORM_INPUT_TEXT:
+      case NS_FORM_INPUT_TEL:
         mEmbedCtxType |= GTK_MOZ_EMBED_CTX_INPUT;
         break;
       case NS_FORM_LABEL:
-        break;
-      case NS_FORM_OPTION:
-        break;
-      case NS_FORM_OPTGROUP:
-        break;
-      case NS_FORM_LEGEND:
         break;
       case NS_FORM_SELECT:
         break;
@@ -234,6 +230,8 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
         mEmbedCtxType |= GTK_MOZ_EMBED_CTX_INPUT;
         break;
       case NS_FORM_OBJECT:
+        break;
+      case NS_FORM_OUTPUT:
         break;
       default:
         break;
@@ -588,7 +586,7 @@ EmbedContextMenuInfo::UpdateContextData(nsIDOMEvent *aDOMEvent)
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(mCtxDocument);
   if (!doc)
     return NS_OK;
-  nsIPresShell *presShell = doc->GetPrimaryShell();
+  nsIPresShell *presShell = doc->GetShell();
   if (!presShell)
     return NS_OK;
   nsCOMPtr<nsIContent> tgContent = do_QueryInterface(mEventTarget);

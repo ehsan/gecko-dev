@@ -72,6 +72,7 @@ let downloadA, downloadB, gGen;
 let testState = {
   activeDownloadCount: 0,
   pausedDownloadCount: 0,
+  finishedDownloadCount: 0,
 
   regularStateTested: false,
   pausedStateTested: false,
@@ -79,17 +80,12 @@ let testState = {
 }
 
 function continueTest() {
-  setTimeout(function() {
+  SimpleTest.executeSoon(function(){
     gGen.next();
-  }, 10);
+  });
 }
 
-function downloadListener()
-{
-  this.wasPaused = false;
-}
-
-downloadListener.prototype = {
+let downloadListener = {
 
   onStateChange: function(a, b, c, d, e) {
     checkCorrectState();
@@ -102,30 +98,23 @@ downloadListener.prototype = {
       testState.pausedDownloadCount++;
       testState.activeDownloadCount--;
 
-      if (aDownload == downloadB) {
-        continueTest();
-      }
+      continueTest();
     }
 
     if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED) {
       testState.activeDownloadCount--;
+      testState.finishedDownloadCount++;
       aDownload.targetFile.remove(false);
 
-      setTimeout(function(){
-        //Check when download finishes too
-        checkCorrectState(); 
-        if(testState.activeDownloadCount == 0) {
-          finishTest();
-        }
-      },10);
+      SimpleTest.executeSoon(checkCorrectState);
+      if(testState.finishedDownloadCount == 2) {
+        SimpleTest.executeSoon(finishTest);
+      }
+
     }
 
     if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING) {
-      //when DownloadB is added, begin pausing phase
-      if (aDownload == downloadB && !this.wasPaused) {
-        this.wasPaused = true;
         continueTest();
-      }
     }
 
   },
@@ -136,28 +125,32 @@ downloadListener.prototype = {
 
 function testSteps() {
 
-  // Step 1 - Add downloads
+  // Step 1 - Add downloads and pause
   testState.activeDownloadCount++;
   downloadA = addDownload();
+  yield;
+
+  dm.pauseDownload(downloadA.id);
+  yield;
+
   testState.activeDownloadCount++;
   downloadB = addDownload();
   yield;
 
-  // Step 2 - Pause downloads
-  dm.pauseDownload(downloadA.id);
-  continueTest();
-  yield;
   dm.pauseDownload(downloadB.id);
   yield;
 
-  // Step 3 - Resume downloads
+  // Step 2 - Resume downloads
   testState.activeDownloadCount++;
   testState.pausedDownloadCount--;
   dm.resumeDownload(downloadA.id);
+  yield; 
 
   testState.activeDownloadCount++;
   testState.pausedDownloadCount--;
   dm.resumeDownload(downloadB.id);
+  yield;
+
   yield;
 }
 
@@ -166,6 +159,7 @@ function finishTest() {
   ok(testState.pausedStateTested, "Tests went through paused download state");
   ok(testState.noDownloadsStateTested, "Tests went through finished downloads state");
   dm.removeListener(downloadListener);
+  gGen.close();
   SimpleTest.finish();
 }
 
@@ -195,7 +189,6 @@ function checkCorrectState() {
 }
 
 function test() {
-  SimpleTest.waitForExplicitFinish();
   testSetup();
 }
 
@@ -245,7 +238,7 @@ function testSetup()
   const DLMGR_UI_DONE = "download-manager-ui-done";
 
   gGen = testSteps();
-  dm.addListener(new downloadListener());
+  dm.addListener(downloadListener);
 
   let testObs = {
     observe: function(aSubject, aTopic, aData)
@@ -263,6 +256,8 @@ function testSetup()
 
   // Show the Download Manager UI
   dmui.show();
+
+  SimpleTest.waitForExplicitFinish();
 }
 
   ]]>

@@ -74,9 +74,10 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
 
-  // nsIContent specializations
   virtual nsresult UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
+
+  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
   // nsGenericElement specializations
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -90,7 +91,7 @@ public:
   virtual const nsAttrValue* GetAnimAttr(nsIAtom* aName) const;
   virtual PRBool GetAnimAttr(nsIAtom* aAttName, nsAString& aResult) const;
   virtual PRBool HasAnimAttr(nsIAtom* aAttName) const;
-  virtual nsIContent* GetTargetElementContent();
+  virtual mozilla::dom::Element* GetTargetElementContent();
   virtual nsIAtom* GetTargetAttributeName() const;
   virtual nsSMILTargetAttrType GetTargetAttributeType() const;
   virtual nsSMILTimedElement& TimedElement();
@@ -108,8 +109,8 @@ protected:
     // We need to be notified when target changes, in order to request a
     // sample (which will clear animation effects from old target and apply
     // them to the new target).
-    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
-      nsReferencedElement::ContentChanged(aFrom, aTo);
+    virtual void ElementChanged(Element* aFrom, Element* aTo) {
+      nsReferencedElement::ElementChanged(aFrom, aTo);
       mAnimationElement->AnimationNeedsResample();
     }
 

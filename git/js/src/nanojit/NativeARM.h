@@ -23,6 +23,7 @@
  * Contributor(s):
  *   Adobe AS3 Team
  *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Jacob Bramley <Jacob.Bramley@arm.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -62,10 +63,10 @@ namespace nanojit
 #  define NJ_ARM_EABI  1
 #endif
 
-// only d0-d6 are actually used; we'll use d7 as s14-s15 for i2f/u2f/etc.
+// only d0-d6 are actually used; we'll use d7 as s14-s15 for i2d/u2f/etc.
 #define NJ_VFP_MAX_REGISTERS            8
 #define NJ_MAX_REGISTERS                (11 + NJ_VFP_MAX_REGISTERS)
-#define NJ_MAX_STACK_ENTRY              256
+#define NJ_MAX_STACK_ENTRY              4096
 #define NJ_MAX_PARAMETERS               16
 #define NJ_ALIGN_STACK                  8
 
@@ -112,7 +113,7 @@ typedef enum {
     D4 = 20,
     D5 = 21,
     D6 = 22,
-    // S14 overlaps with D7 and is hard-coded into i2f and u2f operations, but
+    // S14 overlaps with D7 and is hard-coded into i2d and u2f operations, but
     // D7 is still listed here for completeness and to facilitate assertions.
     D7 = 23,
 
@@ -121,7 +122,7 @@ typedef enum {
 
     FirstReg = R0,
     LastReg = D6,
-    deprecated_UnknownReg = 32,
+    deprecated_UnknownReg = 32,     // XXX: remove eventually, see bug 538924
 
     S14 = 24
 } Register;
@@ -170,7 +171,7 @@ static const RegisterMask SavedFpRegs = 0;
 static const RegisterMask SavedRegs = 1<<R4 | 1<<R5 | 1<<R6 | 1<<R7 | 1<<R8 | 1<<R9 | 1<<R10;
 static const int NumSavedRegs = 7;
 
-static const RegisterMask FpRegs = 1<<D0 | 1<<D1 | 1<<D2 | 1<<D3 | 1<<D4 | 1<<D5 | 1<<D6; // no D7; S14-S15 are used for i2f/u2f.
+static const RegisterMask FpRegs = 1<<D0 | 1<<D1 | 1<<D2 | 1<<D3 | 1<<D4 | 1<<D5 | 1<<D6; // no D7; S14-S15 are used for i2d/u2f.
 static const RegisterMask GpRegs = 0xFFFF;
 static const RegisterMask AllowableFlagRegs = 1<<R0 | 1<<R1 | 1<<R2 | 1<<R3 | 1<<R4 | 1<<R5 | 1<<R6 | 1<<R7 | 1<<R8 | 1<<R9 | 1<<R10;
 
@@ -219,15 +220,16 @@ verbose_only( extern const char* shiftNames[]; )
     void        underrunProtect(int bytes);                                     \
     void        nativePageReset();                                              \
     void        nativePageSetup();                                              \
-    void        asm_quad_nochk(Register, int32_t, int32_t);                     \
-    void        asm_regarg(ArgSize, LInsp, Register);                           \
+    void        asm_immd_nochk(Register, int32_t, int32_t);                     \
+    void        asm_regarg(ArgType, LInsp, Register);                           \
     void        asm_stkarg(LInsp p, int stkd);                                  \
     void        asm_cmpi(Register, int32_t imm);                                \
     void        asm_ldr_chk(Register d, Register b, int32_t off, bool chk);     \
+    int32_t     asm_str(Register rt, Register rr, int32_t off);                 \
     void        asm_cmp(LIns *cond);                                            \
-    void        asm_fcmp(LIns *cond);                                           \
+    void        asm_cmpd(LIns *cond);                                           \
     void        asm_ld_imm(Register d, int32_t imm, bool chk = true);           \
-    void        asm_arg(ArgSize sz, LInsp arg, Register& r, int& stkd);         \
+    void        asm_arg(ArgType ty, LInsp arg, Register& r, int& stkd);         \
     void        asm_arg_64(LInsp arg, Register& r, int& stkd);                  \
     void        asm_add_imm(Register rd, Register rn, int32_t imm, int stat = 0);   \
     void        asm_sub_imm(Register rd, Register rn, int32_t imm, int stat = 0);   \

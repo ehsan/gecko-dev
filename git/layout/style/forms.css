@@ -127,6 +127,7 @@ textarea {
   letter-spacing: normal;
   vertical-align: text-bottom;
   cursor: text;
+  -moz-resize: both;
   -moz-binding: url("chrome://global/content/platformHTMLBindings.xml#textAreas");
   -moz-appearance: textfield-multiline;
   text-indent: 0;
@@ -151,6 +152,7 @@ input > .anonymous-div {
      but it's needed to make 'text-decoration' "work" on text inputs. */
   text-decoration: inherit;
   ime-mode: inherit;
+  -moz-resize: inherit;
 }
 
 textarea > .anonymous-div.wrap,
@@ -167,6 +169,7 @@ textarea > .placeholder {
   color: GrayText;
   overflow: hidden;
   pointer-events: none;
+  -moz-resize: none;
 }
 
 textarea > .placeholder {
@@ -393,7 +396,7 @@ input[type="image"][disabled] {
   cursor: inherit;
 }
 
-input[type="image"]:focus {
+input[type="image"]:-moz-focusring {
   /* Don't specify the outline-color, we should always use initial value. */
   outline: 1px dotted;
 }
@@ -476,8 +479,8 @@ input[type="checkbox"][disabled]:hover:active {
   cursor: inherit; 
 }
 
-input[type="checkbox"]:focus,
-input[type="radio"]:focus {
+input[type="checkbox"]:-moz-focusring,
+input[type="radio"]:-moz-focusring {
   border-style: groove !important;
 }
 
@@ -552,11 +555,11 @@ input[type="file"] > input[type="button"]::-moz-focus-inner {
   border: 1px dotted transparent;
 }
 
-button:focus::-moz-focus-inner,
-input[type="reset"]:focus::-moz-focus-inner,
-input[type="button"]:focus::-moz-focus-inner,
-input[type="submit"]:focus::-moz-focus-inner,
-input[type="file"] > input[type="button"]:focus::-moz-focus-inner {
+button:-moz-focusring::-moz-focus-inner,
+input[type="reset"]:-moz-focusring::-moz-focus-inner,
+input[type="button"]:-moz-focusring::-moz-focus-inner,
+input[type="submit"]:-moz-focusring::-moz-focus-inner,
+input[type="file"] > input[type="button"]:-moz-focusring::-moz-focus-inner {
   border-color: ButtonText;
 }
 

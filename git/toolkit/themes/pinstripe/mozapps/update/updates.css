@@ -48,7 +48,7 @@ wizardpage {
   -moz-border-radius: @toolbarbuttonCornerRadius@;
   -moz-box-shadow: @loweredShadow@;
   background: @toolbarbuttonBackground@;
-  -moz-background-origin: border;
+  background-origin: border-box;
 }
 
 .wizard-buttons button:hover:active:not([disabled="true"]) {
@@ -57,7 +57,7 @@ wizardpage {
   -moz-box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
 }
 
-:root:not([active]) .wizard-buttons button {
+.wizard-buttons button:-moz-window-inactive {
   color: @toolbarbuttonInactiveFontColor@ !important; /* remove this when we support click-through, bug 392188 */
   border-color: @toolbarbuttonInactiveBorderColor@;
   background-image: @toolbarbuttonInactiveBackgroundImage@;

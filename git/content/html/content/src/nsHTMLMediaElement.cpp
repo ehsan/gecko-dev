@@ -71,7 +71,7 @@
 #include "nsIDOMProgressEvent.h"
 #include "nsHTMLMediaError.h"
 #include "nsICategoryManager.h"
-#include "nsCommaSeparatedTokenizer.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsMediaStream.h"
 
 #include "nsIDOMHTMLVideoElement.h"
@@ -84,12 +84,17 @@
 #include "nsLayoutUtils.h"
 #include "nsVideoFrame.h"
 #include "BasicLayers.h"
+#include <limits>
+#include "nsIDocShellTreeItem.h"
 
 #ifdef MOZ_OGG
 #include "nsOggDecoder.h"
 #endif
 #ifdef MOZ_WAVE
 #include "nsWaveDecoder.h"
+#endif
+#ifdef MOZ_WEBM
+#include "nsWebMDecoder.h"
 #endif
 
 #ifdef PR_LOGGING
@@ -101,6 +106,10 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 #define LOG(type, msg)
 #define LOG_EVENT(type, msg)
 #endif
+
+#include "nsIContentSecurityPolicy.h"
+#include "nsIChannelPolicy.h"
+#include "nsChannelPolicy.h"
 
 using namespace mozilla::layers;
 
@@ -165,7 +174,6 @@ protected:
   nsRefPtr<nsHTMLMediaElement> mElement;
   PRUint32 mLoadID;
 };
-
 
 class nsAsyncEventRunner : public nsMediaEvent
 {
@@ -439,6 +447,25 @@ nsHTMLMediaElement::OnChannelRedirect(nsIChannel *aChannel,
 {
   NS_ASSERTION(aChannel == mChannel, "Channels should match!");
   mChannel = aNewChannel;
+
+  // Handle forwarding of Range header so that the intial detection
+  // of seeking support (via result code 206) works across redirects.
+  nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(aChannel);
+  NS_ENSURE_STATE(http);
+
+  NS_NAMED_LITERAL_CSTRING(rangeHdr, "Range");
+ 
+  nsCAutoString rangeVal;
+  if (NS_SUCCEEDED(http->GetRequestHeader(rangeHdr, rangeVal))) {
+    NS_ENSURE_STATE(!rangeVal.IsEmpty());
+
+    http = do_QueryInterface(aNewChannel);
+    NS_ENSURE_STATE(http);
+ 
+    nsresult rv = http->SetRequestHeader(rangeHdr, rangeVal, PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+ 
   return NS_OK;
 }
 
@@ -636,12 +663,25 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
   if (NS_CP_REJECTED(shouldLoad)) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
+
+  // check for a Content Security Policy to pass down to the channel
+  // created to load the media content
+  nsCOMPtr<nsIChannelPolicy> channelPolicy;
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  rv = NodePrincipal()->GetCsp(getter_AddRefs(csp));
+  NS_ENSURE_SUCCESS(rv,rv);
+  if (csp) {
+    channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
+    channelPolicy->SetContentSecurityPolicy(csp);
+    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_MEDIA);
+  }
   rv = NS_NewChannel(getter_AddRefs(mChannel),
                      aURI,
                      nsnull,
                      loadGroup,
                      nsnull,
-                     nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE_IF_BUSY);
+                     nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE_IF_BUSY,
+                     channelPolicy);
   NS_ENSURE_SUCCESS(rv,rv);
 
   // The listener holds a strong reference to us.  This creates a reference
@@ -702,7 +742,7 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
   }
 
   // Else the channel must be open and starting to download. If it encounters
-  // a non-catestrophic failure, it will set a new task to continue loading
+  // a non-catastrophic failure, it will set a new task to continue loading
   // another candidate.
   return NS_OK;
 }
@@ -819,7 +859,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 /* readonly attribute float duration; */
 NS_IMETHODIMP nsHTMLMediaElement::GetDuration(float *aDuration)
 {
-  *aDuration =  mDecoder ? mDecoder->GetDuration() : 0.0;
+  *aDuration = mDecoder ? mDecoder->GetDuration() : std::numeric_limits<float>::quiet_NaN();
   return NS_OK;
 }
 
@@ -905,7 +945,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetMuted(PRBool aMuted)
   return NS_OK;
 }
 
-nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
     mCurrentLoadID(0),
     mNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY),
@@ -1210,23 +1250,60 @@ static PRBool IsWaveType(const nsACString& aType)
 }
 #endif
 
+#ifdef MOZ_WEBM
+static const char gWebMTypes[][17] = {
+  "video/webm",
+  "audio/webm"
+};
+
+static const char* gWebMCodecs[] = {
+  "vp8",
+  "vp8.0",
+  "vorbis",
+  nsnull
+};
+
+static PRBool IsWebMEnabled()
+{
+  return nsContentUtils::GetBoolPref("media.webm.enabled");
+}
+
+static PRBool IsWebMType(const nsACString& aType)
+{
+  if (!IsWebMEnabled())
+    return PR_FALSE;
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWebMTypes); ++i) {
+    if (aType.EqualsASCII(gWebMTypes[i]))
+      return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+#endif
+
 /* static */
-PRBool nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
-                                              const char*** aCodecList)
+nsHTMLMediaElement::CanPlayStatus 
+nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
+                                       const char*** aCodecList)
 {
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType))) {
     *aCodecList = gOggCodecs;
-    return PR_TRUE;
+    return CANPLAY_MAYBE;
   }
 #endif
 #ifdef MOZ_WAVE
   if (IsWaveType(nsDependentCString(aMIMEType))) {
     *aCodecList = gWaveCodecs;
-    return PR_TRUE;
+    return CANPLAY_MAYBE;
   }
 #endif
-  return PR_FALSE;
+#ifdef MOZ_WEBM
+  if (IsWebMType(nsDependentCString(aMIMEType))) {
+    *aCodecList = gWebMCodecs;
+    return CANPLAY_YES;
+  }
+#endif
+  return CANPLAY_NO;
 }
 
 /* static */
@@ -1234,6 +1311,10 @@ PRBool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 {
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType)))
+    return PR_TRUE;
+#endif
+#ifdef MOZ_WEBM
+  if (IsWebMType(nsDependentCString(aMIMEType)))
     return PR_TRUE;
 #endif
   // We should not return true for Wave types, since there are some
@@ -1254,13 +1335,9 @@ CodecListContains(const char** aCodecs, const nsAString& aCodec)
   return PR_FALSE;
 }
 
-enum CanPlayStatus {
-  CANPLAY_NO,
-  CANPLAY_MAYBE,
-  CANPLAY_YES
-};
-
-static CanPlayStatus GetCanPlay(const nsAString& aType)
+/* static */
+nsHTMLMediaElement::CanPlayStatus
+nsHTMLMediaElement::GetCanPlay(const nsAString& aType)
 {
   nsContentTypeParser parser(aType);
   nsAutoString mimeType;
@@ -1270,20 +1347,22 @@ static CanPlayStatus GetCanPlay(const nsAString& aType)
 
   NS_ConvertUTF16toUTF8 mimeTypeUTF8(mimeType);
   const char** supportedCodecs;
-  if (!nsHTMLMediaElement::CanHandleMediaType(mimeTypeUTF8.get(),
-                                              &supportedCodecs))
+  CanPlayStatus status = CanHandleMediaType(mimeTypeUTF8.get(),
+                                            &supportedCodecs);
+  if (status == CANPLAY_NO)
     return CANPLAY_NO;
 
   nsAutoString codecs;
   rv = parser.GetParameter("codecs", codecs);
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv)) {
     // Parameter not found or whatever
-    return CANPLAY_MAYBE;
+    return status;
+  }
 
   CanPlayStatus result = CANPLAY_YES;
   // See http://www.rfc-editor.org/rfc/rfc4281.txt for the description
   // of the 'codecs' parameter
-  nsCommaSeparatedTokenizer tokenizer(codecs);
+  nsCharSeparatedTokenizer tokenizer(codecs, ',');
   PRBool expectMoreTokens = PR_FALSE;
   while (tokenizer.hasMoreTokens()) {
     const nsSubstring& token = tokenizer.nextToken();
@@ -1292,7 +1371,7 @@ static CanPlayStatus GetCanPlay(const nsAString& aType)
       // Totally unsupported codec
       return CANPLAY_NO;
     }
-    expectMoreTokens = tokenizer.lastTokenEndedWithComma();
+    expectMoreTokens = tokenizer.lastTokenEndedWithSeparator();
   }
   if (expectMoreTokens) {
     // Last codec name was empty
@@ -1328,6 +1407,15 @@ void nsHTMLMediaElement::InitMediaTypes()
       }
     }
 #endif
+#ifdef MOZ_WEBM
+    if (IsWebMEnabled()) {
+      for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWebMTypes); i++) {
+        catMan->AddCategoryEntry("Gecko-Content-Viewers", gWebMTypes[i],
+                                 "@mozilla.org/content/document-loader-factory;1",
+                                 PR_FALSE, PR_TRUE, nsnull);
+      }
+    }
+#endif
   }
 }
 
@@ -1347,6 +1435,11 @@ void nsHTMLMediaElement::ShutdownMediaTypes()
       catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gWaveTypes[i], PR_FALSE);
     }
 #endif
+#ifdef MOZ_WEBM
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWebMTypes); i++) {
+      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gWebMTypes[i], PR_FALSE);
+    }
+#endif
   }
 }
 
@@ -1364,6 +1457,14 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 #ifdef MOZ_WAVE
   if (IsWaveType(aType)) {
     nsRefPtr<nsWaveDecoder> decoder = new nsWaveDecoder();
+    if (decoder && decoder->Init(this)) {
+      return decoder.forget().get();
+    }
+  }
+#endif
+#ifdef MOZ_WEBM
+  if (IsWebMType(aType)) {
+    nsRefPtr<nsWebMDecoder> decoder = new nsWebMDecoder();
     if (decoder && decoder->Init(this)) {
       return decoder.forget().get();
     }
@@ -1743,40 +1844,6 @@ void nsHTMLMediaElement::NotifyAutoplayDataReady()
   }
 }
 
-/**
- * Returns a layer manager to use for the given document. Basically we
- * look up the document hierarchy for the first document which has
- * a presentation with an associated widget, and use that widget's
- * layer manager.
- */
-static already_AddRefed<LayerManager> GetLayerManagerForDoc(nsIDocument* aDoc)
-{
-  while (aDoc) {
-    nsIDocument* displayDoc = aDoc->GetDisplayDocument();
-    if (displayDoc) {
-      aDoc = displayDoc;
-      continue;
-    }
-
-    nsIPresShell* shell = aDoc->GetPrimaryShell();
-    if (shell) {
-      nsIFrame* rootFrame = shell->FrameManager()->GetRootFrame();
-      if (rootFrame) {
-        nsIWidget* widget =
-          nsLayoutUtils::GetDisplayRootFrame(rootFrame)->GetWindow();
-        if (widget) {
-          nsRefPtr<LayerManager> manager = widget->GetLayerManager();
-          return manager.forget();
-        }
-      }
-    }
-    aDoc = aDoc->GetParentDocument();
-  }
-
-  nsRefPtr<LayerManager> manager = new BasicLayerManager(nsnull);
-  return manager.forget();
-}
-
 ImageContainer* nsHTMLMediaElement::GetImageContainer()
 {
   if (mImageContainer)
@@ -1793,7 +1860,7 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
   if (!video)
     return nsnull;
 
-  nsRefPtr<LayerManager> manager = GetLayerManagerForDoc(GetOwnerDoc());
+  nsRefPtr<LayerManager> manager = nsContentUtils::LayerManagerForDocument(GetOwnerDoc());
   if (!manager)
     return nsnull;
 
@@ -1970,7 +2037,7 @@ void nsHTMLMediaElement::AddRemoveSelfReference()
       // Dispatch Release asynchronously so that we don't destroy this object
       // inside a call stack of method calls on this object
       nsCOMPtr<nsIRunnable> event =
-        NS_NEW_RUNNABLE_METHOD(nsHTMLMediaElement, this, DoRemoveSelfReference);
+        NS_NewRunnableMethod(this, &nsHTMLMediaElement::DoRemoveSelfReference);
       NS_DispatchToMainThread(event);
     }
   }
@@ -1996,7 +2063,7 @@ nsresult nsHTMLMediaElement::Observe(nsISupports* aSubject,
 PRBool
 nsHTMLMediaElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eELEMENT | eMEDIA));
+  return !(aFlags & ~(eCONTENT | eMEDIA));
 }
 
 void nsHTMLMediaElement::NotifyAddedSource()

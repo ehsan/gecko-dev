@@ -57,11 +57,13 @@ function checkServices() {
   checkService("dirsvc", Ci.nsIDirectoryService);
   checkService("dirsvc", Ci.nsIProperties);
   checkService("prompt", Ci.nsIPromptService);
-  checkService("search", Ci.nsIBrowserSearchService);
+  if ("nsIBrowserSearchService" in Ci)
+    checkService("search", Ci.nsIBrowserSearchService);
   checkService("storage", Ci.mozIStorageService);
   checkService("vc", Ci.nsIVersionComparator);
   checkService("locale", Ci.nsILocaleService);
   checkService("scriptloader", Ci.mozIJSSubScriptLoader);
   checkService("ww", Ci.nsIWindowWatcher);
   checkService("tm", Ci.nsIThreadManager);
+  checkService("strings", Ci.nsIStringBundleService);
 }

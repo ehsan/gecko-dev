@@ -66,7 +66,7 @@ class nsIParser;
 class nsIURI;
 class nsIMarkupDocumentViewer;
 class nsIDocumentCharsetInfo;
-class nsICacheEntryDescriptor;
+class nsICachingChannel;
 
 class nsHTMLDocument : public nsDocument,
                        public nsIHTMLDocument,
@@ -138,9 +138,6 @@ public:
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
-  // nsIDOM3Node interface
-  NS_IMETHOD GetBaseURI(nsAString& aBaseURI);
-
   // nsIDOMHTMLDocument interface
   NS_IMETHOD GetTitle(nsAString & aTitle);
   NS_IMETHOD SetTitle(const nsAString & aTitle);
@@ -163,6 +160,12 @@ public:
                                nsIDOMNodeList **_retval);
   virtual nsresult GetDocumentAllResult(const nsAString& aID,
                                         nsISupports** aResult);
+  nsIContent *GetBody(nsresult *aResult);
+  already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
+  {
+    return NS_GetFuncStringContentList(this, MatchNameAttribute, nsnull,
+                                       UseExistingNameString, aName);
+  }
 
   // nsIDOMNSHTMLDocument interface
   NS_DECL_NSIDOMNSHTMLDOCUMENT
@@ -185,6 +188,7 @@ public:
   }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
+  void DeferredContentEditableCountChange(nsIContent *aElement);
 
   virtual EditingState GetEditingState()
   {
@@ -197,7 +201,7 @@ public:
   }
 
   virtual nsIContent* GetBodyContentExternal();
-  
+
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
@@ -231,6 +235,11 @@ public:
 
   virtual NS_HIDDEN_(void) RemovedFromDocShell();
 
+  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId)
+  {
+    return nsDocument::GetElementById(aElementId);
+  }
+
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);
@@ -245,6 +254,7 @@ protected:
                              nsIAtom* aAtom, void* aData);
   static PRBool MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
                                    nsIAtom* aAtom, void* aData);
+  static void* UseExistingNameString(nsINode* aRootNode, const nsString* aName);
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
@@ -291,7 +301,7 @@ protected:
                                      nsIDocumentCharsetInfo*  aDocInfo,
                                      PRInt32& aCharsetSource,
                                      nsACString& aCharset);
-  static PRBool TryCacheCharset(nsICacheEntryDescriptor* aCacheDescriptor,
+  static PRBool TryCacheCharset(nsICachingChannel* aCachingChannel,
                                 PRInt32& aCharsetSource,
                                 nsACString& aCharset);
   static PRBool TryBookmarkCharset(nsIDocShell* aDocShell,

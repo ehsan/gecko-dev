@@ -21,6 +21,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Frederic Plourde <frederic.plourde@collabora.co.uk>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,31 +42,35 @@
 #include "TabParent.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/net/NeckoParent.h"
-
+#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
+#include "nsChromeRegistryChrome.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using mozilla::MonitorAutoEnter;
 
-namespace {
-PRBool gSingletonDied = PR_FALSE;
-}
-
 namespace mozilla {
 namespace dom {
+
+#define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
 
 ContentProcessParent* ContentProcessParent::gSingleton;
 
 ContentProcessParent*
-ContentProcessParent::GetSingleton()
+ContentProcessParent::GetSingleton(PRBool aForceNew)
 {
-    if (!gSingleton && !gSingletonDied) {
+    if (gSingleton && !gSingleton->IsAlive())
+        gSingleton = nsnull;
+    
+    if (!gSingleton && aForceNew) {
         nsRefPtr<ContentProcessParent> parent = new ContentProcessParent();
         if (parent) {
             nsCOMPtr<nsIObserverService> obs =
@@ -74,7 +79,14 @@ ContentProcessParent::GetSingleton()
                 if (NS_SUCCEEDED(obs->AddObserver(parent, "xpcom-shutdown",
                                                   PR_FALSE))) {
                     gSingleton = parent;
+                    nsCOMPtr<nsIPrefBranch2> prefs 
+                        (do_GetService(NS_PREFSERVICE_CONTRACTID));
+                    if (prefs) {  
+                        prefs->AddObserver("", parent, PR_FALSE);
+                    }
                 }
+                obs->AddObserver(
+                  parent, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE); 
             }
             nsCOMPtr<nsIThreadInternal>
                 threadInt(do_QueryInterface(NS_GetCurrentThread()));
@@ -102,6 +114,8 @@ ContentProcessParent::ActorDestroy(ActorDestroyReason why)
         threadInt->SetObserver(mOldObserver);
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
+
+    mIsAlive = false;
 }
 
 TabParent*
@@ -125,19 +139,143 @@ ContentProcessParent::DestroyTestShell(TestShellParent* aTestShell)
 ContentProcessParent::ContentProcessParent()
     : mMonitor("ContentProcessParent::mMonitor")
     , mRunToCompletionDepth(0)
+    , mShouldCallUnblockChild(false)
+    , mIsAlive(true)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
     mSubprocess->AsyncLaunch();
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
+
+    nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
+    nsChromeRegistryChrome* chromeRegistry =
+        static_cast<nsChromeRegistryChrome*>(registrySvc.get());
+    chromeRegistry->SendRegisteredChrome(this);
 }
 
 ContentProcessParent::~ContentProcessParent()
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    NS_ASSERTION(gSingleton == this, "More than one singleton?!");
-    gSingletonDied = PR_TRUE;
-    gSingleton = nsnull;
+    //If the previous content process has died, a new one could have
+    //been started since.
+    if (gSingleton == this)
+        gSingleton = nsnull;
+}
+
+bool
+ContentProcessParent::IsAlive()
+{
+    return mIsAlive;
+}
+
+bool
+ContentProcessParent::RecvGetPrefType(const nsCString& prefName,
+                                      PRInt32* retValue, nsresult* rv)
+{
+    *retValue = 0;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetPrefType(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentProcessParent::RecvGetBoolPref(const nsCString& prefName,
+                                      PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetBoolPref(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentProcessParent::RecvGetIntPref(const nsCString& prefName,
+                                     PRInt32* retValue, nsresult* rv)
+{
+    *retValue = 0;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetIntPref(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentProcessParent::RecvGetCharPref(const nsCString& prefName,
+                                      nsCString* retValue, nsresult* rv)
+{
+    EnsurePrefService();
+    *rv = mPrefService->GetCharPref(prefName.get(), getter_Copies(*retValue));
+    return true;
+}
+
+bool
+ContentProcessParent::RecvGetPrefLocalizedString(const nsCString& prefName,
+                                                 nsString* retValue, nsresult* rv)
+{
+    EnsurePrefService();
+    nsCOMPtr<nsIPrefLocalizedString> string;
+    *rv = mPrefService->GetComplexValue(prefName.get(),
+            NS_GET_IID(nsIPrefLocalizedString), getter_AddRefs(string));
+
+    if (NS_SUCCEEDED(*rv))
+      string->GetData(getter_Copies(*retValue));
+
+    return true;
+}
+
+bool
+ContentProcessParent::RecvPrefHasUserValue(const nsCString& prefName,
+                                           PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->PrefHasUserValue(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentProcessParent::RecvPrefIsLocked(const nsCString& prefName,
+                                       PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->PrefIsLocked(prefName.get(), retValue);
+        
+    return true;
+}
+
+bool
+ContentProcessParent::RecvGetChildList(const nsCString& domain,
+                                       nsTArray<nsCString>* list, nsresult* rv)
+{
+    EnsurePrefService();
+
+    PRUint32 count;
+    char **childArray;
+    *rv = mPrefService->GetChildList(domain.get(), &count, &childArray);
+
+    if (NS_SUCCEEDED(*rv)) {
+      list->SetCapacity(count);
+      for (PRUint32 i = 0; i < count; ++i)
+        *(list->AppendElement()) = childArray[i];
+    }
+        
+    return true;
+}
+
+void
+ContentProcessParent::EnsurePrefService()
+{
+    nsresult rv;
+    if (!mPrefService) {
+        mPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+        NS_ASSERTION(NS_SUCCEEDED(rv), 
+                     "We lost prefService in the Chrome process !");
+    }
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(ContentProcessParent,
@@ -158,11 +296,33 @@ ContentProcessParent::Observe(nsISupports* aSubject,
                               const PRUnichar* aData)
 {
     if (!strcmp(aTopic, "xpcom-shutdown") && mSubprocess) {
+        // remove the global remote preferences observers
+        nsCOMPtr<nsIPrefBranch2> prefs 
+            (do_GetService(NS_PREFSERVICE_CONTRACTID));
+        if (prefs) { 
+            if (gSingleton) {
+                prefs->RemoveObserver("", this);
+            }
+        }
+
         Close();
         XRE_GetIOMessageLoop()->PostTask(
             FROM_HERE,
             NewRunnableFunction(DeleteSubprocess, mSubprocess));
         mSubprocess = nsnull;
+    }
+
+    // listening for remotePrefs...
+    if (!strcmp(aTopic, "nsPref:changed")) {
+        // We know prefs are ASCII here.
+        NS_LossyConvertUTF16toASCII strData(aData);
+        SendNotifyRemotePrefObserver(strData);
+    }
+
+    if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC) && mSubprocess) {
+      NS_ConvertUTF16toUTF8 dataStr(aData);
+      const char *offline = dataStr.get();
+      SendSetOffline(!strcmp(offline, "true") ? true : false);
     }
     return NS_OK;
 }
@@ -170,13 +330,18 @@ ContentProcessParent::Observe(nsISupports* aSubject,
 PIFrameEmbeddingParent*
 ContentProcessParent::AllocPIFrameEmbedding()
 {
-    return new TabParent();
+  TabParent* parent = new TabParent();
+  if (parent){
+    NS_ADDREF(parent);
+  }
+  return parent;
 }
 
 bool
 ContentProcessParent::DeallocPIFrameEmbedding(PIFrameEmbeddingParent* frame)
 {
-  delete frame;
+  TabParent* parent = static_cast<TabParent*>(frame);
+  NS_RELEASE(parent);
   return true;
 }
 
@@ -206,6 +371,18 @@ ContentProcessParent::DeallocPNecko(PNeckoParent* necko)
     return true;
 }
 
+void
+ContentProcessParent::ReportChildAlreadyBlocked()
+{
+    if (!mRunToCompletionDepth) {
+#ifdef DEBUG
+        printf("Running to completion...\n");
+#endif
+        mRunToCompletionDepth = 1;
+        mShouldCallUnblockChild = false;
+    }
+}
+    
 bool
 ContentProcessParent::RequestRunToCompletion()
 {
@@ -215,8 +392,8 @@ ContentProcessParent::RequestRunToCompletion()
         printf("Running to completion...\n");
 #endif
         mRunToCompletionDepth = 1;
+        mShouldCallUnblockChild = true;
     }
-
     return !!mRunToCompletionDepth;
 }
 
@@ -255,7 +432,10 @@ ContentProcessParent::AfterProcessNextEvent(nsIThreadInternal *thread,
 #ifdef DEBUG
             printf("... ran to completion.\n");
 #endif
-            UnblockChild();
+            if (mShouldCallUnblockChild) {
+                mShouldCallUnblockChild = false;
+                UnblockChild();
+            }
     }
 
     if (mOldObserver)

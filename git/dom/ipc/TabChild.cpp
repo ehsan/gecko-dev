@@ -37,6 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "TabChild.h"
+#include "mozilla/dom/PContentProcessChild.h"
+#include "mozilla/dom/PContentDialogChild.h"
 
 #include "nsIWebBrowser.h"
 #include "nsEmbedCID.h"
@@ -47,10 +49,13 @@
 #include "nsThreadUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "mozilla/ipc/DocumentRendererChild.h"
+#include "mozilla/ipc/DocumentRendererShmemChild.h"
+#include "mozilla/ipc/DocumentRendererNativeIDChild.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowUtils.h"
 #include "nsISupportsImpl.h"
+#include "nsIURI.h"
 #include "nsIWebBrowserFocus.h"
 #include "nsIDOMEvent.h"
 #include "nsIPrivateDOMEvent.h"
@@ -66,10 +71,14 @@
 #include "nsScriptLoader.h"
 #include "nsPIWindowRoot.h"
 #include "nsIScriptContext.h"
+#include "nsInterfaceHashtable.h"
+#include "nsPresContext.h"
+#include "nsIDocument.h"
+#include "nsIScriptGlobalObject.h"
+#include "nsWeakReference.h"
 
 #ifdef MOZ_WIDGET_QT
 #include <QX11EmbedWidget>
-#include <QApplication>
 #include <QGraphicsView>
 #include <QGraphicsWidget>
 #endif
@@ -80,12 +89,6 @@
 #endif
 
 using namespace mozilla::dom;
-
-#ifdef MOZ_WIDGET_QT
-static QApplication *gQApp = nsnull;
-extern int    gArgc;
-extern char **gArgv;
-#endif
 
 NS_IMPL_ISUPPORTS1(ContentListener, nsIDOMEventListener)
 
@@ -99,7 +102,16 @@ ContentListener::HandleEvent(nsIDOMEvent* aEvent)
   return NS_OK;
 }
 
+class ContentDialogChild : public PContentDialogChild
+{
+public:
+  virtual bool Recv__delete__(const nsTArray<int>& aIntParams,
+                              const nsTArray<nsString>& aStringParams);
+};
+
+
 TabChild::TabChild()
+: mCx(nsnull), mTabChildGlobal(nsnull)
 {
     printf("creating %d!\n", NS_IsMainThread());
 }
@@ -109,9 +121,6 @@ TabChild::Init()
 {
 #ifdef MOZ_WIDGET_GTK2
   gtk_init(NULL, NULL);
-#elif defined(MOZ_WIDGET_QT)
-  if (!qApp)
-    gQApp = new QApplication(gArgc, (char**)gArgv);
 #endif
 
   nsCOMPtr<nsIWebBrowser> webBrowser = do_CreateInstance(NS_WEBBROWSER_CONTRACTID);
@@ -121,6 +130,9 @@ TabChild::Init()
   }
 
   webBrowser->SetContainerWindow(this);
+  nsCOMPtr<nsIWeakReference> weak =
+    do_GetWeakReference(static_cast<nsSupportsWeakReference*>(this));
+  webBrowser->AddWebBrowserListener(weak, NS_GET_IID(nsIWebProgressListener));
 
   mWebNav = do_QueryInterface(webBrowser);
   NS_ASSERTION(mWebNav, "nsWebBrowser doesn't implement nsIWebNavigation?");
@@ -130,10 +142,24 @@ TabChild::Init()
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS7(TabChild, nsIWebBrowserChrome, nsIWebBrowserChrome2,
-                   nsIEmbeddingSiteWindow, nsIEmbeddingSiteWindow2,
-                   nsIWebBrowserChromeFocus, nsIInterfaceRequestor,
-                   nsIWindowProvider)
+NS_INTERFACE_MAP_BEGIN(TabChild)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWebProgressListener2)
+  NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
+  NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
+  NS_INTERFACE_MAP_ENTRY(nsIEmbeddingSiteWindow)
+  NS_INTERFACE_MAP_ENTRY(nsIEmbeddingSiteWindow2)
+  NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChromeFocus)
+  NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
+  NS_INTERFACE_MAP_ENTRY(nsIWindowProvider)
+  NS_INTERFACE_MAP_ENTRY(nsIWebProgressListener)
+  NS_INTERFACE_MAP_ENTRY(nsIWebProgressListener2)
+  NS_INTERFACE_MAP_ENTRY(nsSupportsWeakReference)
+  NS_INTERFACE_MAP_ENTRY(nsITabChild)
+  NS_INTERFACE_MAP_ENTRY(nsIDialogCreator)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_ADDREF(TabChild)
+NS_IMPL_RELEASE(TabChild)
 
 NS_IMETHODIMP
 TabChild::SetStatus(PRUint32 aStatusType, const PRUnichar* aStatus)
@@ -303,6 +329,81 @@ TabChild::ProvideWindow(nsIDOMWindow* aParent, PRUint32 aChromeFlags,
     return NS_OK;
 }
 
+static nsInterfaceHashtable<nsVoidPtrHashKey, nsIDialogParamBlock> gActiveDialogs;
+
+NS_IMETHODIMP
+TabChild::OpenDialog(PRUint32 aType, const nsACString& aName,
+                     const nsACString& aFeatures,
+                     nsIDialogParamBlock* aArguments,
+                     nsIDOMElement* aFrameElement)
+{
+  if (!gActiveDialogs.IsInitialized()) {
+    NS_ENSURE_STATE(gActiveDialogs.Init());
+  }
+  nsTArray<PRInt32> intParams;
+  nsTArray<nsString> stringParams;
+  ParamsToArrays(aArguments, intParams, stringParams);
+  PContentDialogChild* dialog =
+    SendPContentDialogConstructor(aType, nsCString(aName),
+                                  nsCString(aFeatures), intParams, stringParams);
+  NS_ENSURE_STATE(gActiveDialogs.Put(dialog, aArguments));
+  nsIThread *thread = NS_GetCurrentThread();
+  while (gActiveDialogs.GetWeak(dialog)) {
+    if (!NS_ProcessNextEvent(thread)) {
+      break;
+    }
+  }
+  return NS_OK;
+}
+
+bool
+ContentDialogChild::Recv__delete__(const nsTArray<int>& aIntParams,
+                                   const nsTArray<nsString>& aStringParams)
+{
+  nsCOMPtr<nsIDialogParamBlock> params;
+  if (gActiveDialogs.Get(this, getter_AddRefs(params))) {
+    TabChild::ArraysToParams(aIntParams, aStringParams, params);
+    gActiveDialogs.Remove(this);
+  }
+  return true;
+}
+
+void
+TabChild::ParamsToArrays(nsIDialogParamBlock* aParams,
+                         nsTArray<int>& aIntParams,
+                         nsTArray<nsString>& aStringParams)
+{
+  if (aParams) {
+    for (PRInt32 i = 0; i < 8; ++i) {
+      PRInt32 val = 0;
+      aParams->GetInt(i, &val);
+      aIntParams.AppendElement(val);
+    }
+    PRInt32 j = 0;
+    PRUnichar* str = nsnull;
+    while (NS_SUCCEEDED(aParams->GetString(j, &str))) {
+      nsAdoptingString strVal(str);
+      aStringParams.AppendElement(strVal);
+      ++j;
+    }
+  }
+}
+
+void
+TabChild::ArraysToParams(const nsTArray<int>& aIntParams,
+                         const nsTArray<nsString>& aStringParams,
+                         nsIDialogParamBlock* aParams)
+{
+  if (aParams) {
+    for (PRInt32 i = 0; PRUint32(i) < aIntParams.Length(); ++i) {
+      aParams->SetInt(i, aIntParams[i]);
+    }
+    for (PRInt32 j = 0; PRUint32(j) < aStringParams.Length(); ++j) {
+      aParams->SetString(j, aStringParams[j].get());
+    }
+  }
+}
+
 bool
 TabChild::RecvcreateWidget(const MagicWindowHandle& parentWidget)
 {
@@ -330,6 +431,11 @@ TabChild::RecvcreateWidget(const MagicWindowHandle& parentWidget)
     view->scene()->addItem(win);
 #elif defined(XP_WIN)
     HWND win = parentWidget;
+#elif defined(ANDROID)
+    // Fake pointer to make baseWindow->InitWindow work
+    // The android widget code is mostly disabled in the child process
+    // so it won't choke on this
+    void *win = (void *)0x1234;
 #elif defined(XP_MACOSX)
 #  warning IMPLEMENT ME
 #else
@@ -357,11 +463,6 @@ TabChild::destroyWidget()
 
 TabChild::~TabChild()
 {
-#ifdef MOZ_WIDGET_QT 
-    if (gQApp) 
-      delete gQApp; 
-    gQApp = nsnull; 
-#endif
     destroyWidget();
     nsCOMPtr<nsIWebBrowser> webBrowser = do_QueryInterface(mWebNav);
     if (webBrowser) {
@@ -375,7 +476,96 @@ TabChild::~TabChild()
         JS_DestroyContext(mCx);
       }
     }
+    mTabChildGlobal->mTabChild = nsnull;
 }
+
+NS_IMETHODIMP
+TabChild::OnStateChange(nsIWebProgress *aWebProgress,
+                        nsIRequest *aRequest,
+                        PRUint32 aStateFlags,
+                        nsresult aStatus)
+{
+  SendnotifyStateChange(aStateFlags, aStatus);
+  return NS_OK;
+}
+
+// Only one of OnProgressChange / OnProgressChange64 will be called.
+// According to interface, it should be OnProgressChange64, but looks
+// like docLoader only sends the former.
+NS_IMETHODIMP
+TabChild::OnProgressChange(nsIWebProgress *aWebProgress,
+                           nsIRequest *aRequest,
+                           PRInt32 aCurSelfProgress,
+                           PRInt32 aMaxSelfProgress,
+                           PRInt32 aCurTotalProgress,
+                           PRInt32 aMaxTotalProgress)
+{
+  SendnotifyProgressChange(aCurSelfProgress, aMaxSelfProgress,
+                           aCurTotalProgress, aMaxTotalProgress);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TabChild::OnStatusChange(nsIWebProgress *aWebProgress,
+                         nsIRequest *aRequest,
+                         nsresult aStatus,
+                         const PRUnichar* aMessage)
+{
+  nsDependentString message(aMessage);
+  SendnotifyStatusChange(aStatus, message);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TabChild::OnSecurityChange(nsIWebProgress *aWebProgress,
+                           nsIRequest *aRequest,
+                           PRUint32 aState)
+{
+  SendnotifySecurityChange(aState);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TabChild::OnLocationChange(nsIWebProgress *aWebProgress,
+                           nsIRequest *aRequest,
+                           nsIURI *aLocation)
+{
+  NS_ENSURE_ARG_POINTER(aLocation);
+  nsCString uri;
+  aLocation->GetSpec(uri);
+  SendnotifyLocationChange(uri);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TabChild::OnProgressChange64(nsIWebProgress *aWebProgress,
+                             nsIRequest *aRequest,
+                             PRInt64 aCurSelfProgress,
+                             PRInt64 aMaxSelfProgress,
+                             PRInt64 aCurTotalProgress,
+                             PRInt64 aMaxTotalProgress)
+{
+  SendnotifyProgressChange(aCurSelfProgress, aMaxSelfProgress,
+                           aCurTotalProgress, aMaxTotalProgress);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TabChild::OnRefreshAttempted(nsIWebProgress *aWebProgress,
+                             nsIURI *aURI, PRInt32 aMillis,
+                             PRBool aSameURL, PRBool *aRefreshAllowed)
+{
+  NS_ENSURE_ARG_POINTER(aURI);
+  nsCString uri;
+  aURI->GetSpec(uri);
+  bool sameURL = aSameURL;
+  bool refreshAllowed;
+  SendrefreshAttempted(uri, aMillis, sameURL, &refreshAllowed);
+  *aRefreshAllowed = refreshAllowed;
+  return NS_OK;
+}
+                             
+                             
 
 bool
 TabChild::RecvloadURL(const nsCString& uri)
@@ -388,6 +578,7 @@ TabChild::RecvloadURL(const nsCString& uri)
     if (NS_FAILED(rv)) {
         NS_WARNING("mWebNav->LoadURI failed. Eating exception, what else can I do?");
     }
+
     return true;
 }
 
@@ -500,6 +691,159 @@ TabChild::RecvPDocumentRendererConstructor(
     return PDocumentRendererChild::Send__delete__(__a, width, height, data);
 }
 
+mozilla::ipc::PDocumentRendererShmemChild*
+TabChild::AllocPDocumentRendererShmem(
+        const PRInt32& x,
+        const PRInt32& y,
+        const PRInt32& w,
+        const PRInt32& h,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        Shmem& buf)
+{
+    return new mozilla::ipc::DocumentRendererShmemChild();
+}
+
+bool
+TabChild::DeallocPDocumentRendererShmem(PDocumentRendererShmemChild* actor)
+{
+    delete actor;
+    return true;
+}
+
+bool
+TabChild::RecvPDocumentRendererShmemConstructor(
+        PDocumentRendererShmemChild *__a,
+        const PRInt32& aX,
+        const PRInt32& aY,
+        const PRInt32& aW,
+        const PRInt32& aH,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        Shmem& aBuf)
+{
+    mozilla::ipc::DocumentRendererShmemChild *render = 
+        static_cast<mozilla::ipc::DocumentRendererShmemChild *>(__a);
+
+    nsCOMPtr<nsIWebBrowser> browser = do_QueryInterface(mWebNav);
+    if (!browser)
+        return true; // silently ignore
+ 
+   nsCOMPtr<nsIDOMWindow> window;
+    if (NS_FAILED(browser->GetContentDOMWindow(getter_AddRefs(window))) ||
+        !window)
+         return true; // silently ignore
+ 
+    render->RenderDocument(window, aX, aY, aW, aH, bgcolor, flags, flush,
+                           aMatrix, aBuf);
+
+    gfxRect dirtyArea(0, 0, nsPresContext::AppUnitsToIntCSSPixels(aW), 
+                      nsPresContext::AppUnitsToIntCSSPixels(aH));
+
+    dirtyArea = aMatrix.Transform(dirtyArea);
+
+    return PDocumentRendererShmemChild::Send__delete__(__a, dirtyArea.X(), dirtyArea.Y(), 
+                                                       dirtyArea.Width(), dirtyArea.Height(),
+                                                       aBuf);
+}
+
+mozilla::ipc::PDocumentRendererNativeIDChild*
+TabChild::AllocPDocumentRendererNativeID(
+        const PRInt32& x,
+        const PRInt32& y,
+        const PRInt32& w,
+        const PRInt32& h,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        const PRUint32& nativeID)
+{
+    return new mozilla::ipc::DocumentRendererNativeIDChild();
+}
+
+bool
+TabChild::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDChild* actor)
+{
+    delete actor;
+    return true;
+}
+
+bool
+TabChild::RecvPDocumentRendererNativeIDConstructor(
+        PDocumentRendererNativeIDChild *__a,
+        const PRInt32& aX,
+        const PRInt32& aY,
+        const PRInt32& aW,
+        const PRInt32& aH,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        const PRUint32& aNativeID)
+{
+    mozilla::ipc::DocumentRendererNativeIDChild* render =
+        static_cast<mozilla::ipc::DocumentRendererNativeIDChild*>(__a);
+
+    nsCOMPtr<nsIWebBrowser> browser = do_QueryInterface(mWebNav);
+    if (!browser)
+        return true; // silently ignore
+
+    nsCOMPtr<nsIDOMWindow> window;
+    if (NS_FAILED(browser->GetContentDOMWindow(getter_AddRefs(window))) ||
+        !window)
+        return true; // silently ignore
+
+    render->RenderDocument(window, aX, aY, aW, aH, bgcolor, flags, flush,
+                           aMatrix, aNativeID);
+
+    gfxRect dirtyArea(0, 0, nsPresContext::AppUnitsToIntCSSPixels(aW),
+                      nsPresContext::AppUnitsToIntCSSPixels(aH));
+
+    dirtyArea = aMatrix.Transform(dirtyArea);
+
+    return PDocumentRendererNativeIDChild::Send__delete__(__a, dirtyArea.X(), dirtyArea.Y(),
+                                                          dirtyArea.Width(), dirtyArea.Height(),
+                                                          aNativeID);
+}
+
+PContentDialogChild*
+TabChild::AllocPContentDialog(const PRUint32&,
+                              const nsCString&,
+                              const nsCString&,
+                              const nsTArray<int>&,
+                              const nsTArray<nsString>&)
+{
+  return new ContentDialogChild();
+}
+
+bool
+TabChild::DeallocPContentDialog(PContentDialogChild* aDialog)
+{
+  delete aDialog;
+  return true;
+}
+
+/* The PGeolocationRequestChild actor is implemented by a refcounted
+   nsGeolocationRequest, and has an identical lifetime. */
+
+PGeolocationRequestChild*
+TabChild::AllocPGeolocationRequest(const IPC::URI&)
+{
+  NS_RUNTIMEABORT("unused");
+  return nsnull;
+}
+
+bool
+TabChild::DeallocPGeolocationRequest(PGeolocationRequestChild* actor)
+{
+  return true;
+}
+
 bool
 TabChild::RecvactivateFrameEvent(const nsString& aType, const bool& capture)
 {
@@ -561,6 +905,7 @@ TabChild::RecvloadRemoteScript(const nsString& aURL)
                                                   (jschar*)dataString.get(),
                                                   dataString.Length(),
                                                   url.get(), 1, &retval);
+    JSPRINCIPALS_DROP(mCx, jsprin);
     JSContext *unused;
     nsContentUtils::ThreadJSContextStack()->Pop(&unused);
     NS_ENSURE_TRUE(ret, true); // This gives us a useful warning!
@@ -573,10 +918,9 @@ TabChild::RecvsendAsyncMessageToChild(const nsString& aMessage,
                                       const nsString& aJSON)
 {
   if (mTabChildGlobal) {
-    nsTArray<nsString> dummy;
     static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get())->
       ReceiveMessage(static_cast<nsPIDOMEventTarget*>(mTabChildGlobal),
-                     aMessage, PR_FALSE, aJSON, nsnull);
+                     aMessage, PR_FALSE, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -665,15 +1009,18 @@ TabChild::InitTabChildGlobal()
   return true;
 }
 
+static
 bool SendSyncMessageToParent(void* aCallbackData,
                              const nsAString& aMessage,
                              const nsAString& aJSON,
                              nsTArray<nsString>* aJSONRetVal)
 {
   return static_cast<TabChild*>(aCallbackData)->
-    SendsendSyncMessageToParent(nsString(aMessage), nsString(aJSON), aJSONRetVal);
+    SendsendSyncMessageToParent(nsString(aMessage), nsString(aJSON),
+                                aJSONRetVal);
 }
 
+static
 bool SendAsyncMessageToParent(void* aCallbackData,
                               const nsAString& aMessage,
                               const nsAString& aJSON)
@@ -730,6 +1077,8 @@ NS_IMETHODIMP
 TabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
 {
   *aDocShell = nsnull;
+  if (!mTabChild)
+    return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDocShell> docShell = do_GetInterface(mTabChild->WebNavigation());
   docShell.swap(*aDocShell);
   return NS_OK;
@@ -738,11 +1087,15 @@ TabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
 JSContext*
 TabChildGlobal::GetJSContextForEventHandlers()
 {
+  if (!mTabChild)
+    return nsnull;
   return mTabChild->GetJSContext();
 }
 
 nsIPrincipal* 
 TabChildGlobal::GetPrincipal()
 {
+  if (!mTabChild)
+    return nsnull;
   return mTabChild->GetPrincipal();
 }

@@ -37,6 +37,8 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#ifndef __UXThemeData_h__
+#define __UXThemeData_h__
 #include <windows.h>
 #include <uxtheme.h>
 
@@ -151,6 +153,7 @@ public:
                                                   LPWSTR pszColorBuff, int cchMaxColorChars,
                                                   LPWSTR pszSizeBuff, int cchMaxSizeChars);
   typedef COLORREF (WINAPI*GetThemeSysColorPtr)(HANDLE hTheme, int iColorID);
+  typedef BOOL (WINAPI*IsThemeBackgroundPartiallyTransparentPtr)(HANDLE hTheme, int iPartId, int iStateId);
 
   static OpenThemeDataPtr openTheme;
   static CloseThemeDataPtr closeTheme;
@@ -165,6 +168,7 @@ public:
   static IsAppThemedPtr isAppThemed;
   static GetCurrentThemeNamePtr getCurrentThemeName;
   static GetThemeSysColorPtr getThemeSysColor;
+  static IsThemeBackgroundPartiallyTransparentPtr isThemeBackgroundPartiallyTransparent;
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   // dwmapi.dll function typedefs and declarations
@@ -174,6 +178,7 @@ public:
   typedef HRESULT (WINAPI*DwmSetIconicLivePreviewBitmapProc)(HWND hWnd, HBITMAP hBitmap, POINT *pptClient, DWORD dwSITFlags);
   typedef HRESULT (WINAPI*DwmSetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
   typedef HRESULT (WINAPI*DwmInvalidateIconicBitmapsProc)(HWND hWnd);
+  typedef HRESULT (WINAPI*DwmDefWindowProcProc)(HWND hWnd, UINT msg, LPARAM lParam, WPARAM wParam, LRESULT *aRetValue);
 
   static DwmExtendFrameIntoClientAreaProc dwmExtendFrameIntoClientAreaPtr;
   static DwmIsCompositionEnabledProc dwmIsCompositionEnabledPtr;
@@ -181,12 +186,16 @@ public:
   static DwmSetIconicLivePreviewBitmapProc dwmSetIconicLivePreviewBitmapPtr;
   static DwmSetWindowAttributeProc dwmSetWindowAttributePtr;
   static DwmInvalidateIconicBitmapsProc dwmInvalidateIconicBitmapsPtr;
+  static DwmDefWindowProcProc dwmDwmDefWindowProcPtr;
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 
   static PRBool CheckForCompositor() {
     BOOL compositionIsEnabled = FALSE;
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     if(dwmIsCompositionEnabledPtr)
       dwmIsCompositionEnabledPtr(&compositionIsEnabled);
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     return sHaveCompositor = (compositionIsEnabled != 0);
   }
-#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 };
+#endif // __UXThemeData_h__

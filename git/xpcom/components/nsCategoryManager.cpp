@@ -60,6 +60,9 @@
 #include "nsEnumeratorUtils.h"
 #include "nsIProxyObjectManager.h"
 #include "nsThreadUtils.h"
+#include "mozilla/Services.h"
+
+#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
 class nsIComponentLoaderManager;
@@ -519,8 +522,8 @@ nsCategoryManager::NotifyObservers( const char *aTopic,
   if (mSuppressNotifications)
     return;
 
-  nsCOMPtr<nsIObserverService> observerService
-    (do_GetService("@mozilla.org/observer-service;1"));
+  nsCOMPtr<nsIObserverService> observerService =
+    mozilla::services::GetObserverService();
   if (!observerService)
     return;
 
@@ -850,6 +853,8 @@ NS_CreateServicesFromCategory(const char *category,
                               nsISupports *origin,
                               const char *observerTopic)
 {
+    NS_TIME_FUNCTION_FMT("NS_CreateServicesFromCategory: %s (%s)", category, observerTopic ? observerTopic : "(no topic)");
+
     nsresult rv = NS_OK;
     
     int nFailed = 0; 
@@ -889,11 +894,14 @@ NS_CreateServicesFromCategory(const char *category,
             continue;
         }
 
+        NS_TIME_FUNCTION_MARK("service: %s", nsPromiseFlatCString(contractID).get());
+
         if (observerTopic) {
             // try an observer, if it implements it.
             nsCOMPtr<nsIObserver> observer = do_QueryInterface(instance, &rv);
             if (NS_SUCCEEDED(rv) && observer)
                 observer->Observe(origin, observerTopic, EmptyString().get());
+            NS_TIME_FUNCTION_MARK(" & observe %s", observerTopic);
         }
     }
     return (nFailed ? NS_ERROR_FAILURE : NS_OK);

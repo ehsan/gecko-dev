@@ -47,10 +47,6 @@
 
 /* Definitions of functions and operators that allocate memory. */
 #if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
-#  if defined(__cplusplus)
-#    include NEW_H              /* to give mozalloc std::bad_alloc */
-#  endif
-#  include <stdlib.h>         /* to give mozalloc malloc/free decls */
 #  include "mozilla/mozalloc.h"
 #  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
@@ -159,7 +155,7 @@
     (__GNUC__ >= 3) && !defined(XP_OS2)
 #define NS_FASTCALL __attribute__ ((regparm (3), stdcall))
 #define NS_CONSTRUCTOR_FASTCALL __attribute__ ((regparm (3), stdcall))
-#elif defined(XP_WIN)
+#elif defined(XP_WIN) && !defined(_WIN64)
 #define NS_FASTCALL __fastcall
 #define NS_CONSTRUCTOR_FASTCALL
 #else
@@ -366,9 +362,15 @@ typedef PRUint32 nsrefcnt;
 #endif
 
 /**
- * The preferred symbol for null.
+ * The preferred symbol for null.  Make sure this is the same size as
+ * void* on the target.  See bug 547964.
  */
-#define nsnull 0
+#if defined(_WIN64)
+# define nsnull 0LL
+#else
+# define nsnull 0L
+#endif
+
 
 #include "nsError.h"
 
@@ -441,6 +443,11 @@ typedef PRUint32 nsrefcnt;
  */
 #define NS_STRINGIFY_HELPER(x_) #x_
 #define NS_STRINGIFY(x_) NS_STRINGIFY_HELPER(x_)
+
+/*
+ * Use NS_CLAMP to force a value (such as a preference) into a range.
+ */
+#define NS_CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 /*
  * These macros allow you to give a hint to the compiler about branch

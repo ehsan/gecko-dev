@@ -34,6 +34,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifndef nsGeoLocation_h
+#define nsGeoLocation_h
+
+#ifdef MOZ_IPC
+#include "mozilla/dom/PGeolocationRequestChild.h"
+// Microsoft's API Name hackery sucks
+#undef CreateEvent
+#endif
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -61,7 +69,12 @@
 class nsGeolocationService;
 class nsGeolocation;
 
-class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallback
+class nsGeolocationRequest
+ : public nsIGeolocationRequest
+ , public nsITimerCallback
+#ifdef MOZ_IPC
+ , public mozilla::dom::PGeolocationRequestChild
+#endif
 {
  public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -82,6 +95,10 @@ class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallba
   PRBool Allowed() {return mAllowed;}
 
   ~nsGeolocationRequest();
+
+#ifdef MOZ_IPC
+  bool Recv__delete__(const bool& allow);
+#endif
 
  private:
 
@@ -204,6 +221,8 @@ private:
 
   ~nsGeolocation();
 
+  void RegisterRequestWithPrompt(nsGeolocationRequest* request);
+
   // Two callback arrays.  The first |mPendingCallbacks| holds objects for only
   // one callback and then they are released/removed from the array.  The second
   // |mWatchingCallbacks| holds objects until the object is explictly removed or
@@ -223,3 +242,5 @@ private:
   // owning back pointer.
   nsRefPtr<nsGeolocationService> mService;
 };
+
+#endif /* nsGeoLocation_h */

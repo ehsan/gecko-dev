@@ -65,9 +65,6 @@
 #include "prprf.h"         // For PR_snprintf()
 
 #if ALERT_MISSING_FONTS
-#include "nsIDOMWindow.h"
-#include "nsINonBlockingAlertService.h"
-#include "nsIWindowWatcher.h"
 #include "nsIStringBundle.h"
 #endif
 #include "nsDisplayList.h"
@@ -154,7 +151,8 @@ CheckFontExistence(nsPresContext* aPresContext, const nsString& aFontName)
 static void
 AlertMissingFonts(nsString& aMissingFonts)
 {
-  nsCOMPtr<nsIStringBundleService> sbs(do_GetService(NS_STRINGBUNDLE_CONTRACTID));
+  nsCOMPtr<nsIStringBundleService> sbs =
+    mozilla::services::GetStringBundleService();
   if (!sbs)
     return;
 
@@ -169,19 +167,8 @@ AlertMissingFonts(nsString& aMissingFonts)
   sb->FormatStringFromName(NS_LITERAL_STRING("mathfont_missing_dialog_message").get(),
                            strings, 1, getter_Copies(message));
 
-  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
-  if (!wwatch)
-    return;
-
-  nsCOMPtr<nsIDOMWindow> parent;
-  wwatch->GetActiveWindow(getter_AddRefs(parent));
-  nsresult rv;
-  nsCOMPtr<nsINonBlockingAlertService> prompter =
-    do_GetService("@mozilla.org/embedcomp/nbalert-service;1", &rv);
-
-  if (prompter && parent) {
-    prompter->ShowNonBlockingAlert(parent, title.get(), message.get());
-  }
+  // XXX Bug 309090 - could show a notification bar here. Bug 563114 removed
+  // the nsINonBlockingAlertService interface that was previously used here.
 }
 #endif
 
@@ -411,7 +398,7 @@ nsGlyphTable::ElementAt(nsPresContext* aPresContext, nsMathMLChar* aChar, PRUint
         font = value[i] - '0';
         ++i;
         if (font >= mFontName.Length()) {
-          NS_ERROR("Non-existant font referenced in glyph table");
+          NS_ERROR("Nonexistent font referenced in glyph table");
           return kNullGlyph;
         }
         // The char cannot be handled if this font is not installed
@@ -579,12 +566,11 @@ nsGlyphTableList::Observe(nsISupports*     aSubject,
 nsresult
 nsGlyphTableList::Initialize()
 {
-  nsresult rv;
-  nsCOMPtr<nsIObserverService> obs = 
-           do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (!obs)
+    return NS_ERROR_FAILURE;
 
-  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
+  nsresult rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -596,11 +582,12 @@ nsGlyphTableList::Finalize()
 {
   // Remove our observer from the observer service
   nsresult rv = NS_OK;
-  nsCOMPtr<nsIObserverService> obs = 
-           do_GetService("@mozilla.org/observer-service;1", &rv);
-  if (NS_SUCCEEDED(rv)) {
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs)
     rv = obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-  }
+  else
+    rv = NS_ERROR_FAILURE;
+
   gInitialized = PR_FALSE;
   // our oneself will be destroyed when our |Release| is called by the observer
   return rv;
@@ -1933,10 +1920,10 @@ void nsDisplayMathMLCharBackground::Paint(nsDisplayListBuilder* aBuilder,
                                           nsIRenderingContext* aCtx)
 {
   const nsStyleBorder* border = mStyleContext->GetStyleBorder();
-  const nsStyleBackground* backg = mStyleContext->GetStyleBackground();
   nsRect rect(mRect + aBuilder->ToReferenceFrame(mFrame));
   nsCSSRendering::PaintBackgroundWithSC(mFrame->PresContext(), *aCtx, mFrame,
-                                        mVisibleRect, rect, *backg, *border,
+                                        mVisibleRect, rect,
+                                        mStyleContext, *border,
                                         aBuilder->GetBackgroundPaintFlags());
 }
 
@@ -2004,15 +1991,12 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   // for visual debug
   PRIntn skipSides = 0;
   nsPresContext* presContext = mFrame->PresContext();
-  const nsStyleBorder* border = mFrame->GetStyleBorder();
   nsStyleContext* styleContext = mFrame->GetStyleContext();
   nsRect rect = mRect + aBuilder->ToReferenceFrame(mFrame);
   nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,
-                              mVisibleRect, rect, *border, styleContext,
-                              skipSides);
+                              mVisibleRect, rect, styleContext, skipSides);
   nsCSSRendering::PaintOutline(presContext, *aCtx, mFrame,
-                               mVisibleRect, rect, *border,
-                               *mFrame->GetStyleOutline(), styleContext);
+                               mVisibleRect, rect, styleContext);
 }
 #endif
 

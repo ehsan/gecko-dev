@@ -21,6 +21,7 @@
 #
 # Contributor(s):
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Rob Campbell <rcampbell@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -209,9 +210,13 @@
               <menupopup id="menu_viewPopup">
                 <menu id="viewToolbarsMenu"
                       label="&viewToolbarsMenu.label;"
-                      accesskey="&viewToolbarsMenu.accesskey;"
-                      onpopupshowing="onViewToolbarsPopupShowing(event);">
-                  <menupopup>
+                      accesskey="&viewToolbarsMenu.accesskey;">
+                  <menupopup onpopupshowing="onViewToolbarsPopupShowing(event);">
+                    <menuseparator/>
+                    <menuitem command="cmd_ToggleTabsOnTop"
+                              type="checkbox"
+                              label="&viewTabsOnTop.label;"
+                              accesskey="&viewTabsOnTop.accesskey;"/>
                     <menuseparator/>
                     <menuitem id="menu_customizeToolbars"
                               label="&viewCustomizeToolbar.label;"
@@ -450,16 +455,18 @@
             </menu>
 
             <menu id="history-menu"
-                  oncommand="var node = event.target.node; if (node) { PlacesUIUtils.markPageAsTyped(node.uri); openUILink(node.uri, event, false, true); }"
-                  onclick="checkForMiddleClick(this, event);"
                   label="&historyMenu.label;"
                   accesskey="&historyMenu.accesskey;">
               <menupopup id="goPopup"
-                         type="places"
-                         onpopupshowing="HistoryMenu.onPopupShowing(event);"
-                         onpopuphidden="HistoryMenu.onPopupHidden(event);"
-                         place="place:redirectsMode=2&amp;sort=4&amp;maxResults=10"
-                         tooltip="bhTooltip" popupsinherittooltip="true">
+#ifndef XP_MACOSX
+                         placespopup="true"
+#endif
+                         oncommand="this.parentNode._placesView._onCommand(event);"
+                         onclick="checkForMiddleClick(this, event);"
+                         onpopupshowing="if (!this.parentNode._placesView)
+                                           new HistoryMenu(event);"
+                         tooltip="bhTooltip"
+                         popupsinherittooltip="true">
                 <menuitem id="historyMenuBack"
                           label="&backCmd.label;"
 #ifdef XP_MACOSX
@@ -490,18 +497,26 @@
 #endif
                           command="Browser:ShowAllHistory"/>
                 <menuseparator id="startHistorySeparator"/>
-                <menuseparator id="endHistorySeparator" builder="end"/>
+                <menuseparator id="endHistorySeparator"
+                               class="hide-if-empty-places-result"
+                               builder="end"/>
                 <menu id="historyUndoMenu"
                       label="&historyUndoMenu.label;"
                       disabled="true">
-                  <menupopup id="historyUndoPopup" placespopup="true"
-                             onpopupshowing="HistoryMenu.populateUndoSubmenu();"/>
+                  <menupopup id="historyUndoPopup"
+#ifndef XP_MACOSX
+                             placespopup="true"
+#endif
+                             onpopupshowing="document.getElementById('history-menu')._placesView.populateUndoSubmenu();"/>
                 </menu>
                 <menu id="historyUndoWindowMenu"
                       label="&historyUndoWindowMenu.label;"
                       disabled="true">
-                  <menupopup id="historyUndoWindowPopup" placespopup="true"
-                             onpopupshowing="HistoryMenu.populateUndoWindowSubmenu();"/>
+                  <menupopup id="historyUndoWindowPopup"
+#ifndef XP_MACOSX
+                             placespopup="true"
+#endif
+                             onpopupshowing="document.getElementById('history-menu')._placesView.populateUndoWindowSubmenu();"/>
                 </menu>
               </menupopup>
             </menu>
@@ -509,17 +524,19 @@
   <menu id="bookmarksMenu"
         label="&bookmarksMenu.label;"
         accesskey="&bookmarksMenu.accesskey;"
-        ondragenter="PlacesMenuDNDController.onBookmarksMenuDragEnter(event);"
-        ondragover="BookmarksMenuDropHandler.onDragOver(event);"
-        ondrop="BookmarksMenuDropHandler.onDrop(event);">
+        ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
+        ondragover="PlacesMenuDNDHandler.onDragOver(event);"
+        ondrop="PlacesMenuDNDHandler.onDrop(event);">
     <menupopup id="bookmarksMenuPopup"
-               type="places"
-               place="place:folder=BOOKMARKS_MENU"
+#ifndef XP_MACOSX
+               placespopup="true"
+#endif
                context="placesContext"
                openInTabs="children"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
-               onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
+               onpopupshowing="if (!this.parentNode._placesView)
+                                 new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
                tooltip="bhTooltip" popupsinherittooltip="true">
       <menuitem id="menu_bookmarkThisPage"
                 label="&bookmarkThisPageCmd.label;"
@@ -551,11 +568,13 @@
             class="menu-iconic bookmark-item"
             label="&personalbarCmd.label;"
             container="true">
-        <menupopup id="bookmarksToolbarFolderPopup"
-                   type="places"
-                   place="place:folder=TOOLBAR"
+        <menupopup id="bookmarksToolbarFolderPopup"  
+#ifndef XP_MACOSX
+                   placespopup="true"
+#endif
                    context="placesContext"
-                   onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"/>
+                   onpopupshowing="if (!this.parentNode._placesView)
+                                     new PlacesMenu(event, 'place:folder=TOOLBAR');"/>
       </menu>
       <menuseparator/>
     </menupopup>
@@ -581,11 +600,22 @@
                         accesskey="&addons.accesskey;"
                         command="Tools:Addons"/>
               <menuseparator id="devToolsSeparator"/>
+              <menuitem id="menu_pageinspect"
+                        type="checkbox"
+                        label="&inspectMenu.label;"
+                        accesskey="&inspectMenu.accesskey;"
+                        key="key_inspect"
+                        command="Tools:Inspect"/>
               <menuitem id="javascriptConsole"
                         label="&errorConsoleCmd.label;"
                         accesskey="&errorConsoleCmd.accesskey;"
                         key="key_errorConsole"
                         oncommand="toJavaScriptConsole();"/>
+              <menuitem id="headsUpDisplayConsole"
+                        label="&hudConsoleCmd.label;"
+                        accesskey="&hudConsoleCmd.accesskey;"
+                        key="key_hudConsole"
+                        oncommand="HUDConsoleUI.toggleHUD();"/>
               <menuitem id="menu_pageInfo"
                         accesskey="&pageInfoCmd.accesskey;"
                         label="&pageInfoCmd.label;"

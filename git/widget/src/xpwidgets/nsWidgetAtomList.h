@@ -87,6 +87,7 @@ WIDGET_ATOM(key, "key") // The key element / attribute
 WIDGET_ATOM(label, "label")
 WIDGET_ATOM(max, "max")
 WIDGET_ATOM(maxpos, "maxpos")
+WIDGET_ATOM(Menu, "Menu") // AppCommand to open a menu
 WIDGET_ATOM(menu, "menu") // Represents an XP menu
 WIDGET_ATOM(menuitem, "menuitem") // Represents an XP menu item
 WIDGET_ATOM(menupopup, "menupopup") // The XP menu's children.
@@ -107,6 +108,7 @@ WIDGET_ATOM(readonly, "readonly")
 WIDGET_ATOM(Reload, "Reload")
 WIDGET_ATOM(richlistitem, "richlistitem")
 WIDGET_ATOM(sbattr, "sbattr")
+WIDGET_ATOM(scrollFrame, "ScrollFrame")
 WIDGET_ATOM(scrollbarFrame, "ScrollbarFrame")
 WIDGET_ATOM(scrollbarDownBottom, "scrollbar-down-bottom")
 WIDGET_ATOM(scrollbarDownTop, "scrollbar-down-top")
@@ -124,4 +126,6 @@ WIDGET_ATOM(tree, "tree")
 WIDGET_ATOM(treecolpicker, "treecolpicker")
 WIDGET_ATOM(type, "type")
 WIDGET_ATOM(value, "value")
+WIDGET_ATOM(VolumeUp, "VolumeUp")
+WIDGET_ATOM(VolumeDown, "VolumeDown")
 

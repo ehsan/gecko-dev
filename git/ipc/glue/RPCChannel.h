@@ -39,9 +39,12 @@
 #ifndef ipc_glue_RPCChannel_h
 #define ipc_glue_RPCChannel_h 1
 
+#include <stdio.h>
+
 // FIXME/cjones probably shouldn't depend on STL
 #include <queue>
 #include <stack>
+#include <vector>
 
 #include "base/basictypes.h"
 
@@ -87,6 +90,16 @@ public:
         }
 
         virtual void OnExitedCxxStack()
+        {
+            NS_RUNTIMEABORT("default impl shouldn't be invoked");
+        }
+
+        virtual void OnEnteredCall()
+        {
+            NS_RUNTIMEABORT("default impl shouldn't be invoked");
+        }
+
+        virtual void OnExitedCall()
         {
             NS_RUNTIMEABORT("default impl shouldn't be invoked");
         }
@@ -140,7 +153,7 @@ public:
 
     // Return true iff this has code on the C++ stack.
     bool IsOnCxxStack() const {
-        return 0 < mCxxStackFrames;
+        return !mCxxStackFrames.empty();
     }
 
     NS_OVERRIDE
@@ -153,25 +166,20 @@ public:
     NS_OVERRIDE
     virtual void OnChannelError();
 
+    /**
+     * If there is a pending RPC message, process all pending messages.
+     *
+     * @note This method is used on Windows when we detect that an outbound
+     * OLE RPC call is being made to unblock the parent.
+     */
+    void FlushPendingRPCQueue();
+
 #ifdef OS_WIN
-    static bool IsSpinLoopActive() {
-        return (sInnerEventLoopDepth > 0);
-    }
+    void ProcessNativeEventsInRPCCall();
 
 protected:
     bool WaitForNotify();
-    bool IsMessagePending();
-    bool SpinInternalEventLoop();
-    static void EnterModalLoop() {
-        sInnerEventLoopDepth++;
-    }
-    static void ExitModalLoop() {
-        sInnerEventLoopDepth--;
-        NS_ASSERTION(sInnerEventLoopDepth >= 0,
-            "sInnerEventLoopDepth dropped below zero!");
-    }
-
-    static int sInnerEventLoopDepth;
+    void SpinInternalEventLoop();
 #endif
 
   private:
@@ -182,16 +190,21 @@ protected:
     }
 
     NS_OVERRIDE
-    virtual bool ShouldDeferNotifyMaybeError() {
-        return 0 < mCxxStackFrames;
+    virtual bool ShouldDeferNotifyMaybeError() const {
+        return IsOnCxxStack();
     }
 
-    bool EventOccurred();
+    bool EventOccurred() const;
 
-    void MaybeProcessDeferredIncall();
+    bool MaybeProcessDeferredIncall();
     void EnqueuePendingMessages();
 
-    void OnMaybeDequeueOne();
+    /**
+     * Process one deferred or pending message.
+     * @return true if a message was processed
+     */
+    bool OnMaybeDequeueOne();
+
     void Incall(const Message& call, size_t stackDepth);
     void DispatchIncall(const Message& call);
 
@@ -207,25 +220,71 @@ protected:
         Listener()->OnEnteredCxxStack();
     }
 
-    void ExitedCxxStack()
+    void ExitedCxxStack();
+
+    void EnteredCall()
     {
-        Listener()->OnExitedCxxStack();
+        Listener()->OnEnteredCall();
     }
+
+    void ExitedCall()
+    {
+        Listener()->OnExitedCall();
+    }
+
+    enum Direction { IN_MESSAGE, OUT_MESSAGE };
+    struct RPCFrame {
+        RPCFrame(Direction direction, const Message* msg) :
+            mDirection(direction), mMsg(msg)
+        { }
+
+        bool IsRPCIncall() const
+        {
+            return mMsg->is_rpc() && IN_MESSAGE == mDirection;
+        }
+
+        bool IsRPCOutcall() const
+        {
+            return mMsg->is_rpc() && OUT_MESSAGE == mDirection;
+        }
+
+        void Describe(int32* id, const char** dir, const char** sems,
+                      const char** name) const
+        {
+            *id = mMsg->routing_id();
+            *dir = (IN_MESSAGE == mDirection) ? "in" : "out";
+            *sems = mMsg->is_rpc() ? "rpc" : mMsg->is_sync() ? "sync" : "async";
+            *name = mMsg->name();
+        }
+
+        Direction mDirection;
+        const Message* mMsg;
+    };
 
     class NS_STACK_CLASS CxxStackFrame
     {
     public:
-        CxxStackFrame(RPCChannel& that) : mThat(that) {
-            NS_ABORT_IF_FALSE(0 <= mThat.mCxxStackFrames,
-                              "mismatched CxxStackFrame ctor/dtor");
+
+        CxxStackFrame(RPCChannel& that, Direction direction,
+                      const Message* msg) : mThat(that) {
             mThat.AssertWorkerThread();
 
-            if (0 == mThat.mCxxStackFrames++)
+            if (mThat.mCxxStackFrames.empty())
                 mThat.EnteredCxxStack();
+
+            mThat.mCxxStackFrames.push_back(RPCFrame(direction, msg));
+            const RPCFrame& frame = mThat.mCxxStackFrames.back();
+
+            if (frame.IsRPCIncall())
+                mThat.EnteredCall();
+
+            mThat.mSawRPCOutMsg |= frame.IsRPCOutcall();
         }
 
         ~CxxStackFrame() {
-            bool exitingStack = (0 == --mThat.mCxxStackFrames);
+            bool exitingCall = mThat.mCxxStackFrames.back().IsRPCIncall();
+            mThat.mCxxStackFrames.pop_back();
+            bool exitingStack = mThat.mCxxStackFrames.empty();
 
             // mListener could have gone away if Close() was called while
             // RPCChannel code was still on the stack
@@ -233,6 +292,9 @@ protected:
                 return;
 
             mThat.AssertWorkerThread();
+            if (exitingCall)
+                mThat.ExitedCall();
+
             if (exitingStack)
                 mThat.ExitedCxxStack();
         }
@@ -246,14 +308,18 @@ protected:
     };
 
     // Called from both threads
-    size_t StackDepth() {
+    size_t StackDepth() const {
         mMutex.AssertCurrentThreadOwns();
         return mStack.size();
     }
 
     void DebugAbort(const char* file, int line, const char* cond,
                     const char* why,
-                    const char* type="rpc", bool reply=false);
+                    const char* type="rpc", bool reply=false) const;
+
+    // This method is only safe to call on the worker thread, or in a
+    // debugger with all threads paused.  |outfile| defaults to stdout.
+    void DumpRPCStack(FILE* outfile=NULL, const char* const pfx="") const;
 
     // 
     // Queue of all incoming messages, except for replies to sync
@@ -294,8 +360,9 @@ protected:
     // one RPC call on our stack, the other side *better* not have
     // sent us another blocking message, because it's blocked on a
     // reply from us.
-    // 
-    std::queue<Message> mPending;
+    //
+    typedef std::queue<Message> MessageQueue;
+    MessageQueue mPending;
 
     // 
     // Stack of all the RPC out-calls on which this RPCChannel is
@@ -350,16 +417,21 @@ protected:
     // True iff the parent has put us in a |BlockChild()| state.
     bool mBlockedOnParent;
 
-    // Approximation of number of Sync/RPCChannel-code frames on the
-    // C++ stack.  It can only be interpreted as the implication
+    // Approximation of Sync/RPCChannel-code frames on the C++ stack.
+    // It can only be interpreted as the implication
     //
-    //  mCxxStackDepth > 0 => RPCChannel code on C++ stack
+    //  !mCxxStackFrames.empty() => RPCChannel code on C++ stack
     //
     // This member is only accessed on the worker thread, and so is
     // not protected by mMutex.  It is managed exclusively by the
     // helper |class CxxStackFrame|.
-    int mCxxStackFrames;
-    
+    std::vector<RPCFrame> mCxxStackFrames;
+
+    // Did we process an RPC out-call during this stack?  Only
+    // meaningful in ExitedCxxStack(), from which this variable is
+    // reset.
+    bool mSawRPCOutMsg;
+
 private:
 
     //

@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGLength.h"
+#include "nsSVGUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGValue.h"
 #include "nsTextFormatter.h"
@@ -149,6 +150,8 @@ nsSVGLength::nsSVGLength()
 
 NS_IMPL_ADDREF(nsSVGLength)
 NS_IMPL_RELEASE(nsSVGLength)
+
+DOMCI_DATA(SVGLength, nsSVGLength)
 
 NS_INTERFACE_MAP_BEGIN(nsSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
@@ -350,19 +353,19 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
 NS_IMETHODIMP
 nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
 {
-  nsresult rv = NS_OK;
+  nsresult rv = NS_ERROR_DOM_SYNTAX_ERR;
 
   char *str = ToNewCString(aValueAsString);
 
   char* number = str;
-  while (*number && isspace(*number))
+  while (*number && IsSVGWhitespace(*number))
     ++number;
 
   if (*number) {
     char *rest;
     float value = float(PR_strtod(number, &rest));
-    if (rest!=number) {
-      const char* unitStr = nsCRT::strtok(rest, "\x20\x9\xD\xA", &rest);
+    if (rest != number) {
+      const char* unitStr = nsCRT::strtok(rest, SVG_WSP_DELIM, &rest);
       PRUint16 unitType = SVG_LENGTHTYPE_UNKNOWN;
       if (!unitStr || *unitStr=='\0') {
         unitType = SVG_LENGTHTYPE_NUMBER;
@@ -392,14 +395,8 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
         mValueInSpecifiedUnits = value;
         mSpecifiedUnitType     = unitType;
         DidModify();
-      } else { // parse error
-        // not a valid unit type
-        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        rv = NS_OK;
       }
-    }
-    else { // parse error
-      // no number
-      rv = NS_ERROR_DOM_SYNTAX_ERR;
     }
   }
 
@@ -506,13 +503,13 @@ float nsSVGLength::AxisLength()
 float nsSVGLength::EmLength()
 {
   nsCOMPtr<nsIContent> element = do_QueryReferent(mElement);
-  return nsSVGUtils::GetFontSize(element);
+  return nsSVGUtils::GetFontSize(element->AsElement());
 }
 
 float nsSVGLength::ExLength()
 {
   nsCOMPtr<nsIContent> element = do_QueryReferent(mElement);
-  return nsSVGUtils::GetFontXHeight(element);
+  return nsSVGUtils::GetFontXHeight(element->AsElement());
 }
 
 PRBool nsSVGLength::IsValidUnitType(PRUint16 unit)

@@ -86,6 +86,7 @@ CPPSRCS =         nsMathMLChar.cpp		        \
                   nsMathMLmrootFrame.cpp		\
                   nsMathMLmactionFrame.cpp		\
                   nsMathMLmencloseFrame.cpp		\
+                  nsMathMLsemanticsFrame.cpp		\
                   $(NULL)
 
 include $(topsrcdir)/config/config.mk
@@ -100,6 +101,7 @@ font_properties = \
 	mathfontUnicode.properties \
 	mathfontSTIXNonUnicode.properties \
 	mathfontSTIXSize1.properties \
+	mathfontSTIXSizeOneSym.properties \
 	mathfontStandardSymbolsL.properties \
 	$(NULL)
 

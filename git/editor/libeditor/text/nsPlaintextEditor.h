@@ -87,13 +87,7 @@ public:
   /* ------------ nsIEditorMailSupport overrides -------------- */
   NS_DECL_NSIEDITORMAILSUPPORT
 
-  /* ------------ nsIEditorIMESupport overrides -------------- */
-  NS_IMETHOD SetCompositionString(const nsAString &aCompositionString,
-                                  nsIPrivateTextRangeList *aTextRange,
-                                  nsTextEventReply *aReply);
-
   /* ------------ Overrides of nsEditor interface methods -------------- */
-  NS_IMETHOD BeginComposition(nsTextEventReply* aReply);
   NS_IMETHOD SetAttributeOrEquivalent(nsIDOMElement * aElement,
                                       const nsAString & aAttribute,
                                       const nsAString & aValue,
@@ -111,9 +105,6 @@ public:
   NS_IMETHOD DeleteSelection(EDirection aAction);
 
   NS_IMETHOD SetDocumentCharacterSet(const nsACString & characterSet);
-
-  NS_IMETHOD GetFlags(PRUint32 *aFlags);
-  NS_IMETHOD SetFlags(PRUint32 aFlags);
 
   NS_IMETHOD Undo(PRUint32 aCount);
   NS_IMETHOD Redo(PRUint32 aCount);
@@ -151,6 +142,14 @@ public:
 
   /** make the given selection span the entire document */
   NS_IMETHOD SelectEntireDocument(nsISelection *aSelection);
+
+  virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
+
+  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
+
+  virtual nsresult BeginIMEComposition();
+  virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
+                                        nsIPrivateTextRangeList *aTextRange);
 
   /* ------------ Utility Routines, not part of public API -------------- */
   NS_IMETHOD TypedText(const nsAString& aString, PRInt32 aAction);
@@ -219,10 +218,8 @@ protected:
   PRBool   mIgnoreSpuriousDragEvent;
   NS_IMETHOD IgnoreSpuriousDragEvent(PRBool aIgnoreSpuriousDragEvent) {mIgnoreSpuriousDragEvent = aIgnoreSpuriousDragEvent; return NS_OK;}
 
-  // Wrapper for nsCopySupport::GetClipboardEventTarget, finds target to fire
-  // [cut,copy,paste] and [beforecut,beforecopy,beforepaste] events at.
-  nsresult GetClipboardEventTarget(nsIDOMNode** aEventTarget);
-  nsresult FireClipboardEvent(PRUint32 msg, PRBool* aPreventDefault);
+  PRBool CanCutOrCopy();
+  PRBool FireClipboardEvent(PRInt32 aType);
 
 // Data members
 protected:

@@ -46,6 +46,8 @@
 #include "nsHashtable.h"
 #include "nsIScriptContext.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsTObserverArray.h"
+#include "nsGUIEvent.h"
 
 class nsIDOMEvent;
 class nsIAtom;
@@ -53,6 +55,7 @@ class nsIWidget;
 struct nsPoint;
 struct EventTypeData;
 class nsEventTargetChainItem;
+class nsPIDOMWindow;
 
 typedef struct {
   nsRefPtr<nsIDOMEventListener> mListener;
@@ -111,13 +114,45 @@ public:
                                         nsISupports *aObject,
                                         nsIAtom* aName, PRBool *aDidCompile);
 
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         nsEvent* aEvent, 
-                         nsIDOMEvent** aDOMEvent,
-                         nsPIDOMEventTarget* aCurrentTarget,
-                         PRUint32 aFlags,
-                         nsEventStatus* aEventStatus,
-                         nsCxPusher* aPusher);
+  nsresult HandleEvent(nsPresContext* aPresContext,
+                       nsEvent* aEvent, 
+                       nsIDOMEvent** aDOMEvent,
+                       nsPIDOMEventTarget* aCurrentTarget,
+                       PRUint32 aFlags,
+                       nsEventStatus* aEventStatus,
+                       nsCxPusher* aPusher)
+  {
+    if (mListeners.IsEmpty() || aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
+      return NS_OK;
+    }
+
+    if (!mMayHaveCapturingListeners &&
+        !(aEvent->flags & NS_EVENT_FLAG_BUBBLE)) {
+      return NS_OK;
+    }
+
+    if (!mMayHaveSystemGroupListeners &&
+        aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
+      return NS_OK;
+    }
+
+    // Check if we already know that there is no event listener for the event.
+    if (mNoListenerForEvent == aEvent->message &&
+        (mNoListenerForEvent != NS_USER_DEFINED_EVENT ||
+         mNoListenerForEventAtom == aEvent->userType)) {
+      return NS_OK;
+    }
+    return HandleEventInternal(aPresContext, aEvent, aDOMEvent, aCurrentTarget,
+                               aFlags, aEventStatus, aPusher);
+  }
+
+  nsresult HandleEventInternal(nsPresContext* aPresContext,
+                               nsEvent* aEvent, 
+                               nsIDOMEvent** aDOMEvent,
+                               nsPIDOMEventTarget* aCurrentTarget,
+                               PRUint32 aFlags,
+                               nsEventStatus* aEventStatus,
+                               nsCxPusher* aPusher);
 
   NS_IMETHOD Disconnect();
 
@@ -146,6 +181,8 @@ public:
   NS_DECL_NSIDOM3EVENTTARGET
 
   static void Shutdown();
+
+  static nsIDOMEventGroup* GetSystemEventGroup();
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventListenerManager,
                                            nsIEventListenerManager)

@@ -43,6 +43,7 @@
 class nsSMILValue;
 class nsISMILType;
 class nsISMILAnimationElement;
+class nsIContent;
 
 ////////////////////////////////////////////////////////////////////////
 // nsISMILAttr: A variable targeted by SMIL for animation and can therefore have
@@ -68,16 +69,17 @@ public:
    *                    animateTransform where the 'type' attribute is needed to
    *                    parse the value.
    * @param[out] aValue Outparam for storing the parsed value.
-   * @param[out] aCanCache Outparam for indicating whether the parsed value
-   *                       can be reused in future samples -- i.e. whether the
-   *                       given string is always guaranteed to compute
-   *                       to the same nsSMILValue.
+   * @param[out] aPreventCachingOfSandwich
+   *                    Outparam to indicate whether the attribute contains
+   *                    dependencies on its context that should prevent the
+   *                    result of the animation sandwich from being cached and
+   *                    reused in future samples.
    * @return NS_OK on success or an error code if creation failed.
    */
   virtual nsresult ValueFromString(const nsAString& aStr,
                                    const nsISMILAnimationElement* aSrcElement,
                                    nsSMILValue& aValue,
-                                   PRBool& aCanCache) const = 0;
+                                   PRBool& aPreventCachingOfSandwich) const = 0;
 
   /**
    * Gets the underlying value of this attribute.
@@ -104,9 +106,19 @@ public:
   virtual nsresult SetAnimValue(const nsSMILValue& aValue) = 0;
 
   /**
+   * Returns the targeted content node, for any nsISMILAttr implementations
+   * that want to expose that to the animation logic.  Otherwise, returns
+   * null.
+   *
+   * @return the targeted content node, if this nsISMILAttr implementation
+   * wishes to make it avaiable.  Otherwise, nsnull.
+   */
+  virtual const nsIContent* GetTargetNode() const { return nsnull; }
+
+  /**
    * Virtual destructor, to make sure subclasses can clean themselves up.
    */
-  virtual ~nsISMILAttr() {};
+  virtual ~nsISMILAttr() {}
 };
 
 #endif // NS_ISMILATTR_H_

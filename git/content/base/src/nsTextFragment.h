@@ -55,7 +55,7 @@ class nsCString;
 
 // XXX these need I18N spankage
 #define XP_IS_SPACE(_ch) \
-  (((_ch) == ' ') || ((_ch) == '\t') || ((_ch) == '\n'))
+  (((_ch) == ' ') || ((_ch) == '\t') || ((_ch) == '\n') || ((_ch) == '\r'))
 
 #define XP_IS_UPPERCASE(_ch) \
   (((_ch) >= 'A') && ((_ch) <= 'Z'))
@@ -144,6 +144,11 @@ public:
   PRUint32 GetLength() const
   {
     return mState.mLength;
+  }
+
+  PRBool CanGrowBy(size_t n) const
+  {
+    return n < (1 << 29) && mState.mLength + n < (1 << 29);
   }
 
   /**

@@ -39,8 +39,8 @@
 #include "nsX11ErrorHandler.h"
 
 #ifdef MOZ_IPC
-#include "mozilla/plugins/PluginThreadChild.h"
-using mozilla::plugins::PluginThreadChild;
+#include "mozilla/plugins/PluginProcessChild.h"
+using mozilla::plugins::PluginProcessChild;
 #endif
 
 #include "prenv.h"
@@ -48,11 +48,7 @@ using mozilla::plugins::PluginThreadChild;
 #include "nsExceptionHandler.h"
 #include "nsDebug.h"
 
-#ifdef MOZ_WIDGET_GTK2
-#include <gdk/gdkx.h>
-#elif defined(MOZ_WIDGET_QT)
-#include <QX11Info>
-#endif
+#include "mozilla/X11Util.h"
 #include <X11/Xlib.h>
 
 #define BUFSIZE 2048 // What Xlib uses with XGetErrorDatabaseText
@@ -157,7 +153,7 @@ X11Error(Display *display, XErrorEvent *event) {
       // This is assuming that X operations are performed on the plugin
       // thread.  If plugins are using X on another thread, then we'll need to
       // handle that differently.
-      PluginThreadChild::AppendNotesToCrashReport(notes);
+      PluginProcessChild::AppendNotesToCrashReport(notes);
     }
     break;
 #endif
@@ -181,6 +177,16 @@ X11Error(Display *display, XErrorEvent *event) {
 #endif
 #endif
 
+#ifdef MOZ_WIDGET_QT
+  // We should not abort here if MOZ_X_SYNC is not set
+  // until http://bugreports.qt.nokia.com/browse/QTBUG-4042
+  // not fixed, just print error value
+  if (!PR_GetEnv("MOZ_X_SYNC")) {
+    fprintf(stderr, "XError: %s\n", notes.get());
+    return 0; // temporary workaround for bug 161472
+  }
+#endif
+
   NS_RUNTIMEABORT(notes.get());
   return 0; // not reached
 }
@@ -191,11 +197,7 @@ InstallX11ErrorHandler()
 {
   XSetErrorHandler(X11Error);
 
-#ifdef MOZ_WIDGET_GTK2
-  Display *display = GDK_DISPLAY();
-#elif defined(MOZ_WIDGET_QT)
-  Display *display = QX11Info::display();
-#endif
+  Display *display = mozilla::DefaultXDisplay();
   NS_ASSERTION(display, "No X display");
   if (PR_GetEnv("MOZ_X_SYNC")) {
     XSynchronize(display, True);

@@ -119,6 +119,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGAngle::DOMAnimatedAngle)
 NS_IMPL_ADDREF(DOMSVGAngle)
 NS_IMPL_RELEASE(DOMSVGAngle)
 
+DOMCI_DATA(SVGAngle, nsSVGAngle::DOMBaseVal)
+DOMCI_DATA(SVGAnimatedAngle, nsSVGAngle::DOMAnimatedAngle)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -437,7 +440,7 @@ nsresult
 nsSVGAngle::SMILOrient::ValueFromString(const nsAString& aStr,
                                         const nsISMILAnimationElement* /*aSrcElement*/,
                                         nsSMILValue& aValue,
-                                        PRBool& aCanCache) const
+                                        PRBool& aPreventCachingOfSandwich) const
 {
   nsSMILValue val(&SVGOrientSMILType::sSingleton);
   if (aStr.EqualsLiteral("auto")) {
@@ -453,8 +456,8 @@ nsSVGAngle::SMILOrient::ValueFromString(const nsAString& aStr,
     val.mU.mOrient.mUnit = unitType;
     val.mU.mOrient.mOrientType = nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_ANGLE;
   }
-  aValue = val;
-  aCanCache = PR_TRUE;
+  aValue.Swap(val);
+  aPreventCachingOfSandwich = PR_FALSE;
 
   return NS_OK;
 }

@@ -58,6 +58,8 @@ CPPSRCS		= \
 		nsGenericHTMLElement.cpp \
 		nsFormSubmission.cpp \
 		nsImageMapUtils.cpp \
+		nsTextEditorState.cpp \
+		nsHTMLElement.cpp \
 		nsHTMLAnchorElement.cpp \
 		nsHTMLAreaElement.cpp \
 		nsHTMLBRElement.cpp \
@@ -72,9 +74,7 @@ CPPSRCS		= \
 		nsHTMLFrameElement.cpp \
 		nsHTMLFrameSetElement.cpp \
 		nsHTMLHRElement.cpp \
-		nsHTMLHeadElement.cpp \
 		nsHTMLHeadingElement.cpp \
-		nsHTMLHtmlElement.cpp \
 		nsHTMLIFrameElement.cpp \
 		nsHTMLImageElement.cpp \
 		nsHTMLInputElement.cpp \
@@ -89,6 +89,7 @@ CPPSRCS		= \
 		nsHTMLSharedObjectElement.cpp \
 		nsHTMLOptionElement.cpp \
 		nsHTMLOptGroupElement.cpp \
+		nsHTMLOutputElement.cpp \
 		nsHTMLParagraphElement.cpp \
 		nsHTMLPreElement.cpp \
 		nsHTMLScriptElement.cpp \
@@ -125,11 +126,14 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../base/src \
 		-I$(srcdir)/../../../events/src \
 		-I$(srcdir)/../../../xbl/src \
+		-I$(srcdir)/../../../../layout/forms \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../../layout/tables \
 		-I$(srcdir)/../../../../layout/xul/base/src \
 		-I$(srcdir)/../../../../layout/generic \
 		-I$(srcdir)/../../../../dom/base \
+		-I$(srcdir)/../../../../editor/libeditor/base \
+		-I$(srcdir)/../../../../editor/libeditor/text \
 		-I$(srcdir) \
 		$(NULL)
 

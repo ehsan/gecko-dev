@@ -36,6 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+#include "prlog.h"
+
 #include "nsDragService.h"
 #include "nsObjCExceptions.h"
 #include "nsITransferable.h"
@@ -55,7 +60,6 @@
 #include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
-#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIRegion.h"
@@ -63,11 +67,6 @@
 #include "gfxContext.h"
 
 #import <Cocoa/Cocoa.h>
-
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
-#include "prlog.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* sCocoaLog;

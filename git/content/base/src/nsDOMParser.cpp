@@ -116,6 +116,7 @@ nsDOMParser::~nsDOMParser()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
+DOMCI_DATA(DOMParser, nsDOMParser)
 
 // QueryInterface implementation for nsDOMParser
 NS_INTERFACE_MAP_BEGIN(nsDOMParser)
@@ -497,7 +498,7 @@ nsDOMParser::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
       return NS_ERROR_UNEXPECTED;
     }
 
-    baseURI = doc->GetBaseURI();
+    baseURI = doc->GetDocBaseURI();
     documentURI = doc->GetDocumentURI();
   }
 

@@ -35,6 +35,9 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#if !defined(nsHTMLAudioElement_h__)
+#define nsHTMLAudioElement_h__
+
 #include "nsIDOMHTMLAudioElement.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsHTMLMediaElement.h"
@@ -47,7 +50,7 @@ class nsHTMLAudioElement : public nsHTMLMediaElement,
                            public nsIJSNativeInitializer
 {
 public:
-  nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
+  nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
   virtual ~nsHTMLAudioElement();
 
   // nsISupports
@@ -74,3 +77,5 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };
+
+#endif

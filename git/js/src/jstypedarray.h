@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 4; tab-width: 40; indent-tabs-mode: nil -*- */
-/* vim: set ts=40 sw=4 et tw=78: */
+/* vim: set ts=40 sw=4 et tw=99: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -63,6 +63,9 @@ struct JS_FRIEND_API(ArrayBuffer) {
 
     static JSBool class_constructor(JSContext *cx, JSObject *obj,
                                     uintN argc, jsval *argv, jsval *rval);
+
+    static bool create(JSContext *cx, JSObject *obj, uintN argc,
+                       jsval *argv, jsval *rval);
 
     static ArrayBuffer *fromJSObject(JSObject *obj);
 
@@ -131,15 +134,11 @@ struct JS_FRIEND_API(TypedArray) {
     static JSBool obj_lookupProperty(JSContext *cx, JSObject *obj, jsid id,
                                      JSObject **objp, JSProperty **propp);
 
-    static void obj_dropProperty(JSContext *cx, JSObject *obj, JSProperty *prop);
-
     static void obj_trace(JSTracer *trc, JSObject *obj);
 
-    static JSBool obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, JSProperty *prop,
-                                    uintN *attrsp);
+    static JSBool obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 
-    static JSBool obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, JSProperty *prop,
-                                    uintN *attrsp);
+    static JSBool obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 
     static int32 lengthOffset() { return offsetof(TypedArray, length); }
     static int32 dataOffset() { return offsetof(TypedArray, data); }
@@ -204,6 +203,15 @@ js_CreateTypedArrayWithArray(JSContext *cx, jsint atype, JSObject *arrayArg);
 JS_FRIEND_API(JSObject *)
 js_CreateTypedArrayWithBuffer(JSContext *cx, jsint atype, JSObject *bufArg,
                               jsint byteoffset, jsint length);
+
+/*
+ * Reparent a typed array to a new scope. This should only be used to reparent
+ * a typed array that does not share its underlying ArrayBuffer with another
+ * typed array to avoid having a parent mismatch with the other typed array and
+ * its ArrayBuffer.
+ */
+JS_FRIEND_API(JSBool)
+js_ReparentTypedArrayToScope(JSContext *cx, JSObject *obj, JSObject *scope);
 
 JS_END_EXTERN_C
 

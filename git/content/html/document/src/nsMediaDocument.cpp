@@ -141,8 +141,8 @@ nsMediaDocument::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create a bundle for the localization
-  nsCOMPtr<nsIStringBundleService> stringService(
-    do_GetService(NS_STRINGBUNDLE_CONTRACTID));
+  nsCOMPtr<nsIStringBundleService> stringService =
+    mozilla::services::GetStringBundleService();
   if (stringService) {
     stringService->CreateBundle(NSMEDIADOCUMENT_PROPERTIES_URI,
                                 getter_AddRefs(mStringBundle));
@@ -276,7 +276,7 @@ nsresult
 nsMediaDocument::StartLayout()
 {
   mMayStartLayout = PR_TRUE;
-  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
+  nsCOMPtr<nsIPresShell> shell = GetShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.
   if (shell && !shell->DidInitialReflow()) {

@@ -49,6 +49,7 @@
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
+#include "nsGUIEvent.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 
@@ -70,7 +71,6 @@ class nsIDocShell;
 class nsIContent;
 class nsIDocument;
 class nsIScriptTimeoutHandler;
-class nsPresContext;
 struct nsTimeout;
 class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;
@@ -78,8 +78,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x81cdf500, 0x2183, 0x4af6, \
-  { 0xa4, 0x56, 0x35, 0x1f, 0x4a, 0x0d, 0x1a, 0x0b } }
+{ 0x4beac1da, 0x513e, 0x4a8b, \
+  { 0x96, 0x94, 0x1c, 0xf6, 0x4f, 0xba, 0xa8, 0x1c } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -93,12 +93,30 @@ public:
   // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow2::GetWindowRoot
   virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
 
+  virtual void SetActive(PRBool aActive)
+  {
+    mIsActive = aActive;
+  }
+
+  PRBool IsActive()
+  {
+    return mIsActive;
+  }
+
   nsPIDOMEventTarget* GetChromeEventHandler() const
   {
     return mChromeEventHandler;
   }
 
   virtual void SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler) = 0;
+
+  nsPIDOMEventTarget* GetParentTarget()
+  {
+    if (!mParentTarget) {
+      UpdateParentTarget();
+    }
+    return mParentTarget;
+  }
 
   PRBool HasMutationListeners(PRUint32 aMutationEventType) const
   {
@@ -422,7 +440,13 @@ public:
    * DO NOT CALL EITHER OF THESE METHODS DIRECTLY. USE THE FOCUS MANAGER
    * INSTEAD.
    */
-  virtual nsIContent* GetFocusedNode() = 0;
+  nsIContent* GetFocusedNode()
+  {
+    if (IsOuterWindow()) {
+      return mInnerWindow ? mInnerWindow->mFocusedNode.get() : nsnull;
+    }
+    return mFocusedNode;
+  }
   virtual void SetFocusedNode(nsIContent* aNode,
                               PRUint32 aFocusMethod = 0,
                               PRBool aNeedsFocus = PR_FALSE) = 0;
@@ -449,6 +473,23 @@ public:
    * should be called once a document has been loaded into the window.
    */
   virtual void SetReadyForFocus() = 0;
+
+  /**
+   * Whether the focused content within the window should show a focus ring.
+   */
+  virtual PRBool ShouldShowFocusRing() = 0;
+
+  /**
+   * Set the keyboard indicator state for accelerators and focus rings.
+   */
+  virtual void SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
+                                     UIStateChangeType aShowFocusRings) = 0;
+
+  /**
+   * Get the keyboard indicator state for accelerators and focus rings.
+   */
+  virtual void GetKeyboardIndicators(PRBool* aShowAccelerators,
+                                     PRBool* aShowFocusRings) = 0;
 
   /**
    * Indicates that the page in the window has been hidden. This is used to
@@ -485,25 +526,25 @@ protected:
   // be null if and only if the created window itself is an outer
   // window. In all other cases aOuterWindow should be the outer
   // window for the inner window that is being created.
-  nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
-    : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
-      mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
-      mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
-      mMayHavePaintEventListener(PR_FALSE),
-      mIsModalContentWindow(PR_FALSE), mInnerWindow(nsnull),
-      mOuterWindow(aOuterWindow)
-  {
-  }
+  nsPIDOMWindow(nsPIDOMWindow *aOuterWindow);
+
+  ~nsPIDOMWindow();
 
   void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
+    // mParentTarget will be set when the next event is dispatched.
+    mParentTarget = nsnull;
   }
+
+  virtual void UpdateParentTarget() = 0;
 
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
   nsCOMPtr<nsPIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
+
+  nsCOMPtr<nsPIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;
@@ -525,9 +566,16 @@ protected:
   // should match).
   PRPackedBool           mIsModalContentWindow;
 
+  // Tracks activation state that's used for :-moz-window-inactive.
+  PRPackedBool           mIsActive;
+
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;
   nsPIDOMWindow         *mOuterWindow;
+
+  // the element within the document that is currently focused when this
+  // window is active
+  nsCOMPtr<nsIContent> mFocusedNode;
 };
 
 

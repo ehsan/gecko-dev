@@ -43,8 +43,6 @@
  * Session annotations should be expired when browsing session ends.
  */
 
-const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
-
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -89,7 +87,7 @@ function run_test() {
   // Observe expirations.
   observer = {
     observe: function(aSubject, aTopic, aData) {
-      os.removeObserver(observer, TOPIC_EXPIRATION_FINISHED);
+      os.removeObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
 
       let pages = as.getPagesWithAnnotation("test1");
       do_check_eq(pages.length, 0);
@@ -103,7 +101,7 @@ function run_test() {
       do_test_finished();
     }
   };
-  os.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
+  os.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
 
   shutdownExpiration();
   do_test_pending();

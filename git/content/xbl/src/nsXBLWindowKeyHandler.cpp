@@ -462,9 +462,7 @@ nsXBLWindowKeyHandler::IsEditor()
     docShell->GetPresShell(getter_AddRefs(presShell));
 
   if (presShell) {
-    PRInt16 isEditor;
-    presShell->GetSelectionFlags(&isEditor);
-    return isEditor == nsISelectionDisplay::DISPLAY_ALL;
+    return presShell->GetSelectionFlags() == nsISelectionDisplay::DISPLAY_ALL;
   }
 
   return PR_FALSE;
@@ -538,13 +536,12 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
         // Locate the command element in question.  Note that we
         // know "elt" is in a doc if we're dealing with it here.
         NS_ASSERTION(elt->IsInDoc(), "elt must be in document");
-        nsCOMPtr<nsIDOMDocument> domDoc(
-           do_QueryInterface(elt->GetCurrentDoc()));
-        if (domDoc)
-          domDoc->GetElementById(command, getter_AddRefs(commandElt));
+        nsIDocument *doc = elt->GetCurrentDoc();
+        if (doc)
+          commandElt = do_QueryInterface(doc->GetElementById(command));
 
         if (!commandElt) {
-          NS_ERROR("A XUL <key> is observing a command that doesn't exist. Unable to execute key binding!\n");
+          NS_ERROR("A XUL <key> is observing a command that doesn't exist. Unable to execute key binding!");
           continue;
         }
       }

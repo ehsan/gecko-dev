@@ -44,7 +44,6 @@
 #include "nsCSSProperty.h"
 #include "nscore.h" // For NS_OVERRIDE
 
-class nsPresContext;
 class nsIContent;
 class nsAString;
 
@@ -60,7 +59,7 @@ public:
 protected:
   // nsISMILType Methods
   // -------------------
-  NS_OVERRIDE virtual nsresult Init(nsSMILValue& aValue) const;
+  NS_OVERRIDE virtual void     Init(nsSMILValue& aValue) const;
   NS_OVERRIDE virtual void     Destroy(nsSMILValue&) const;
   NS_OVERRIDE virtual nsresult Assign(nsSMILValue& aDest,
                                       const nsSMILValue& aSrc) const;
@@ -99,7 +98,8 @@ public:
    */
   static void ValueFromString(nsCSSProperty aPropID,
                               nsIContent* aTargetElement,
-                              const nsAString& aString, nsSMILValue& aValue);
+                              const nsAString& aString,
+                              nsSMILValue& aValue);
 
   /**
    * Creates a string representation of the given nsSMILValue.

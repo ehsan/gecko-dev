@@ -245,6 +245,7 @@ private:
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
 
+public:
   struct DOMAnimatedLength : public nsIDOMSVGAnimatedLength
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -281,7 +282,7 @@ private:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue &aValue,
-                                     PRBool& aCanCache) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

@@ -158,6 +158,9 @@ public:
 
   virtual PRBool MenuClosed() { return PR_TRUE; }
 
+  virtual void LockMenuUntilClosed(PRBool aLock);
+  virtual PRBool IsMenuLocked() { return mIsMenuLocked; }
+
   NS_IMETHOD GetWidget(nsIWidget **aWidget);
 
   // The dismissal listener gets created and attached to the window.
@@ -196,8 +199,10 @@ public:
 
   virtual PRBool IsLeaf() const;
 
-  // AdjustView should be called by the parent frame after the popup has been
-  // laid out, so that the view can be shown.
+  // layout, position and display the popup as needed
+  void LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, PRBool aSizedToPopup);
+
+  // AdjustView is called by LayoutPopup to position and show the popup's view.
   void AdjustView();
 
   nsIView* GetRootViewForPopup(nsIFrame* aStartFrame);
@@ -223,7 +228,6 @@ public:
   nsPopupType PopupType() const { return mPopupType; }
   PRBool IsMenu() { return mPopupType == ePopupTypeMenu; }
   PRBool IsOpen() { return mPopupState == ePopupOpen || mPopupState == ePopupOpenAndVisible; }
-  PRBool HasOpenChanged() { return mIsOpenChanged; }
 
   // returns true if the popup is in a content shell, or false for a popup in
   // a chrome shell
@@ -287,14 +291,6 @@ public:
   void SetConsumeRollupEvent(PRUint32 aConsumeMode);
 
   nsIScrollableFrame* GetScrollFrame(nsIFrame* aStart);
-
-  // same as SetBounds except the preferred size mPrefSize is also set.
-  void SetPreferredBounds(nsBoxLayoutState& aState, const nsRect& aRect);
-
-  // retrieve the last preferred size
-  nsSize PreferredSize() { return mPrefSize; }
-  // set the last preferred size
-  void SetPreferredSize(nsSize aSize) { mPrefSize = aSize; }
 
   // For a popup that should appear at the given anchor point, determine
   // the screen area that it is constrained by. This will be the available
@@ -366,9 +362,6 @@ protected:
   // mRect in the case where the popup was resized because it was too large
   // for the screen. The preferred size mPrefSize holds the full size the popup
   // would be before resizing. Computations are performed using this size.
-  // The parent frame is responsible for setting the preferred size using
-  // SetPreferredBounds or SetPreferredSize before positioning the popup with
-  // SetPopupPosition.
   nsSize mPrefSize;
 
   // the position of the popup. The screen coordinates, if set to values other
@@ -395,6 +388,7 @@ protected:
   PRPackedBool mShouldAutoPosition; // Should SetPopupPosition be allowed to auto position popup?
   PRPackedBool mConsumeRollupEvent; // Should the rollup event be consumed?
   PRPackedBool mInContentShell; // True if the popup is in a content shell
+  PRPackedBool mIsMenuLocked; // Should events inside this menu be ignored?
 
   // the flip modes that were used when the popup was opened
   PRPackedBool mHFlip;

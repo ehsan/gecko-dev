@@ -59,10 +59,10 @@ namespace XPCNativeWrapper {
 JSBool
 WrapFunction(JSContext* cx, JSObject* funobj, jsval *rval);
 
-// Given a value, if the original XPCNativeWrapper is a deep wrapper,
-// returns a new XPCNativeWrapper around the value.
+// If v is an object, set *rval to a new XPCNativeWrapper around it. Otherwise
+// set *rval = v.
 JSBool
-RewrapIfDeepWrapper(JSContext *cx, JSObject *obj, jsval v, jsval *rval);
+RewrapValue(JSContext *cx, JSObject *obj, jsval v, jsval *rval);
 
 } // namespace XPCNativeWrapper
 
@@ -92,7 +92,8 @@ WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
 // If we are "same origin" because UniversalXPConnect is enabled and
 // privilegeEnabled is non-null, then privilegeEnabled is set to true.
 nsresult
-CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled);
+CanAccessWrapper(JSContext *cx, JSObject *outerObj, JSObject *wrappedObj,
+                 JSBool *privilegeEnabled);
 
 // Some elements can change their principal or otherwise need XOWs, even
 // if they're same origin. This function returns 'true' if the element's
@@ -276,25 +277,22 @@ GetSecurityManager()
  * Used to ensure that an XPCWrappedNative stays alive when its scriptable
  * helper defines an "expando" property on it.
  */
-inline JSBool
+inline void
 MaybePreserveWrapper(JSContext *cx, XPCWrappedNative *wn, uintN flags)
 {
-  if ((flags & JSRESOLVE_ASSIGNING) &&
-      (::JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)) {
-    nsCOMPtr<nsIXPCScriptNotify> scriptNotify = 
-      do_QueryInterface(static_cast<nsISupports*>
-                                   (JS_GetContextPrivate(cx)));
-    if (scriptNotify) {
-      return NS_SUCCEEDED(scriptNotify->PreserveWrapper(wn));
+  if ((flags & JSRESOLVE_ASSIGNING)) {
+    nsRefPtr<nsXPCClassInfo> ci;
+    CallQueryInterface(wn->Native(), getter_AddRefs(ci));
+    if (ci) {
+      ci->PreserveWrapper(wn->Native());
     }
   }
-  return JS_TRUE;
 }
 
 inline JSBool
 IsSecurityWrapper(JSObject *wrapper)
 {
-  JSClass *clasp = STOBJ_GET_CLASS(wrapper);
+  JSClass *clasp = wrapper->getClass();
   return (clasp->flags & JSCLASS_IS_EXTENDED) &&
     ((JSExtendedClass*)clasp)->wrappedObject;
 }
@@ -318,7 +316,7 @@ Unwrap(JSContext *cx, JSObject *wrapper);
 inline JSObject *
 UnwrapGeneric(JSContext *cx, const JSExtendedClass *xclasp, JSObject *wrapper)
 {
-  if (STOBJ_GET_CLASS(wrapper) != &xclasp->base) {
+  if (wrapper->getClass() != &xclasp->base) {
     return nsnull;
   }
 
@@ -357,18 +355,20 @@ UnwrapSOW(JSContext *cx, JSObject *wrapper)
 inline JSObject *
 UnwrapXOW(JSContext *cx, JSObject *wrapper)
 {
-  wrapper = UnwrapGeneric(cx, &XPCCrossOriginWrapper::XOWClass, wrapper);
-  if (!wrapper) {
+  JSObject *innerObj =
+    UnwrapGeneric(cx, &XPCCrossOriginWrapper::XOWClass, wrapper);
+  if (!innerObj) {
     return nsnull;
   }
 
-  nsresult rv = XPCCrossOriginWrapper::CanAccessWrapper(cx, wrapper, nsnull);
+  nsresult rv =
+    XPCCrossOriginWrapper::CanAccessWrapper(cx, wrapper, innerObj, nsnull);
   if (NS_FAILED(rv)) {
     JS_ClearPendingException(cx);
-    wrapper = nsnull;
+    return nsnull;
   }
 
-  return wrapper;
+  return innerObj;
 }
 
 inline JSObject *
@@ -379,7 +379,7 @@ UnwrapCOW(JSContext *cx, JSObject *wrapper)
     return nsnull;
   }
 
-  nsresult rv = XPCCrossOriginWrapper::CanAccessWrapper(cx, wrapper, nsnull);
+  nsresult rv = XPCCrossOriginWrapper::CanAccessWrapper(cx, nsnull, wrapper, nsnull);
   if (NS_FAILED(rv)) {
     JS_ClearPendingException(cx);
     wrapper = nsnull;
@@ -398,7 +398,7 @@ RewrapIfDeepWrapper(JSContext *cx, JSObject *obj, jsval v, jsval *rval,
 {
   *rval = v;
   return isNativeWrapper
-         ? XPCNativeWrapper::RewrapIfDeepWrapper(cx, obj, v, rval)
+         ? XPCNativeWrapper::RewrapValue(cx, obj, v, rval)
          : XPCCrossOriginWrapper::RewrapIfNeeded(cx, obj, rval);
 }
 

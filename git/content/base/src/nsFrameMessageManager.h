@@ -48,6 +48,7 @@
 
 class nsAXPCNativeCallContext;
 struct JSContext;
+struct JSObject;
 
 struct nsMessageListenerInfo
 {
@@ -74,14 +75,21 @@ public:
                         nsLoadScriptCallback aLoadScriptCallback,
                         void* aCallbackData,
                         nsFrameMessageManager* aParentManager,
-                        JSContext* aContext)
-  : mChrome(aChrome), mParentManager(aParentManager),
+                        JSContext* aContext,
+                        PRBool aGlobal = PR_FALSE)
+  : mChrome(aChrome), mGlobal(aGlobal), mParentManager(aParentManager),
     mSyncCallback(aSyncCallback), mAsyncCallback(aAsyncCallback),
     mLoadScriptCallback(aLoadScriptCallback), mCallbackData(aCallbackData),
     mContext(aContext)
   {
-    NS_ASSERTION(mContext, "Should have mContext!");
-    if (mParentManager && mCallbackData) {
+    NS_ASSERTION(mContext || (aChrome && !aParentManager),
+                 "Should have mContext in non-global manager!");
+    NS_ASSERTION(aChrome || !aParentManager, "Should not set parent manager!");
+    // This is a bit hackish. When parent manager is global, we want
+    // to attach the window message manager to it immediately.
+    // Is it just the frame message manager which waits until the
+    // content process is running.
+    if (mParentManager && (mCallbackData || IsWindowLevel())) {
       mParentManager->AddChildManager(this);
     }
   }
@@ -103,22 +111,36 @@ public:
 
   nsresult ReceiveMessage(nsISupports* aTarget, const nsAString& aMessage,
                           PRBool aSync, const nsAString& aJSON,
-                          nsTArray<nsString>* aJSONRetVal);
-  void AddChildManager(nsFrameMessageManager* aManager);
+                          JSObject* aObjectsArray,
+                          nsTArray<nsString>* aJSONRetVal,
+                          JSContext* aContext = nsnull);
+  void AddChildManager(nsFrameMessageManager* aManager,
+                       PRBool aLoadScripts = PR_TRUE);
   void RemoveChildManager(nsFrameMessageManager* aManager)
   {
     mChildManagers.RemoveObject(aManager);
   }
 
   void Disconnect(PRBool aRemoveFromParent = PR_TRUE);
-  void SetCallbackData(void* aData);
+  void SetCallbackData(void* aData, PRBool aLoadScripts = PR_TRUE);
   nsresult GetParamsForMessage(nsAString& aMessageName, nsAString& aJSON);
   nsresult SendAsyncMessageInternal(const nsAString& aMessage,
                                     const nsAString& aJSON);
+  JSContext* GetJSContext() { return mContext; }
+  nsFrameMessageManager* GetParentManager() { return mParentManager; }
+  void SetParentManager(nsFrameMessageManager* aParent)
+  {
+    NS_ASSERTION(!mParentManager, "We have parent manager already!");
+    NS_ASSERTION(mChrome, "Should not set parent manager!");
+    mParentManager = aParent;
+  }
+  PRBool IsGlobal() { return mGlobal; }
+  PRBool IsWindowLevel() { return mParentManager && mParentManager->IsGlobal(); }
 protected:
   nsTArray<nsMessageListenerInfo> mListeners;
   nsCOMArray<nsIContentFrameMessageManager> mChildManagers;
-  PRBool mChrome;
+  PRPackedBool mChrome;
+  PRPackedBool mGlobal;
   nsFrameMessageManager* mParentManager;
   nsSyncMessageCallback mSyncCallback;
   nsAsyncMessageCallback mAsyncCallback;

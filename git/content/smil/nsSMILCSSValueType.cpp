@@ -126,14 +126,13 @@ ExtractValueWrapper(const nsSMILValue& aValue)
 
 // Class methods
 // -------------
-nsresult
+void
 nsSMILCSSValueType::Init(nsSMILValue& aValue) const
 {
   NS_ABORT_IF_FALSE(aValue.IsNull(), "Unexpected SMIL value type");
 
   aValue.mU.mPtr = nsnull;
   aValue.mType = this;
-  return NS_OK;
 }
 
 void
@@ -328,7 +327,7 @@ GetPresContextForElement(nsIContent* aElem)
     // See bug 534975.
     return nsnull;
   }
-  nsIPresShell* shell = doc->GetPrimaryShell();
+  nsIPresShell* shell = doc->GetShell();
   return shell ? shell->GetPresContext() : nsnull;
 }
 
@@ -352,8 +351,8 @@ ValueFromStringHelper(nsCSSProperty aPropID,
     subStringBegin = (PRUint32)absValuePos; // Start parsing after '-' sign
   }
   nsDependentSubstring subString(aString, subStringBegin);
-  if (!nsStyleAnimation::ComputeValue(aPropID, aTargetElement,
-                                      subString, aStyleAnimValue)) {
+  if (!nsStyleAnimation::ComputeValue(aPropID, aTargetElement, subString,
+                                      PR_TRUE, aStyleAnimValue)) {
     return PR_FALSE;
   }
   if (isNegative) {
@@ -378,6 +377,7 @@ nsSMILCSSValueType::ValueFromString(nsCSSProperty aPropID,
                                     const nsAString& aString,
                                     nsSMILValue& aValue)
 {
+  // XXXbz aTargetElement should be an Element
   NS_ABORT_IF_FALSE(aValue.IsNull(), "Outparam should be null-typed");
   nsPresContext* presContext = GetPresContextForElement(aTargetElement);
   if (!presContext) {

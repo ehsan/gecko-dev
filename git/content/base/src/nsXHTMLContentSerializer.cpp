@@ -101,14 +101,13 @@ nsXHTMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                               const char* aCharSet, PRBool aIsCopying,
                               PRBool aRewriteEncodingDeclaration)
 {
+  mInBody = 0;
+
   // The previous version of the HTML serializer did implicit wrapping
   // when there is no flags, so we keep wrapping in order to keep
   // compatibility with the existing calling code
-  // XXXLJ perhaps we should remove these two default settings later ?
+  // XXXLJ perhaps should we remove this default settings later ?
   if (aFlags & nsIDocumentEncoder::OutputFormatted ) {
-      aFlags = aFlags | nsIDocumentEncoder::OutputWrap;
-  }
-  else if (!(aFlags & nsIDocumentEncoder::OutputRaw)) {
       aFlags = aFlags | nsIDocumentEncoder::OutputWrap;
   }
 
@@ -158,7 +157,7 @@ nsXHTMLContentSerializer::HasLongLines(const nsString& text, PRInt32& aLastNewli
 }
 
 NS_IMETHODIMP
-nsXHTMLContentSerializer::AppendText(nsIDOMText* aText,
+nsXHTMLContentSerializer::AppendText(nsIContent* aText,
                                      PRInt32 aStartOffset,
                                      PRInt32 aEndOffset,
                                      nsAString& aStr)
@@ -185,7 +184,9 @@ nsXHTMLContentSerializer::AppendText(nsIDOMText* aText,
     PRInt32 lastNewlineOffset = kNotFound;
     if (HasLongLines(data, lastNewlineOffset)) {
       // We have long lines, rewrap
+      mDoWrap = PR_TRUE;
       AppendToStringWrapped(data, aStr);
+      mDoWrap = PR_FALSE;
     }
     else {
       AppendToStringConvertLF(data, aStr);
@@ -261,7 +262,7 @@ nsXHTMLContentSerializer::EscapeURI(nsIContent* aContent, const nsAString& aURI,
 
 void
 nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
-                                              nsIDOMElement *aOriginalElement,
+                                              nsIContent *aOriginalElement,
                                               nsAString& aTagPrefix,
                                               const nsAString& aTagNamespaceURI,
                                               nsIAtom* aTagName,
@@ -307,9 +308,8 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     else if (aTagName == nsGkAtoms::li) {
       mIsFirstChildOfOL = IsFirstChildOfOL(aOriginalElement);
       if (mIsFirstChildOfOL) {
-        nsCOMPtr<nsIDOMElement> element (do_QueryInterface(aContent));
         // If OL is parent of this LI, serialize attributes in different manner.
-        SerializeLIValueAttribute(element, aStr);
+        SerializeLIValueAttribute(aContent, aStr);
       }
     }
   }
@@ -446,7 +446,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 
 
 void 
-nsXHTMLContentSerializer::AppendEndOfElementStart(nsIDOMElement *aOriginalElement,
+nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
                                                   nsIAtom * aName,
                                                   PRInt32 aNamespaceID,
                                                   nsAString& aStr)
@@ -461,18 +461,26 @@ nsXHTMLContentSerializer::AppendEndOfElementStart(nsIDOMElement *aOriginalElemen
     return;
   }
 
-  nsIParserService* parserService = nsContentUtils::GetParserService();
+  nsIContent* content = aOriginalElement;
 
-  if (parserService) {
-    PRBool isContainer;
-    parserService->IsContainer(parserService->HTMLAtomTagToId(aName),
-                             isContainer);
-    if (!isContainer) {
-      // for backward compatibility with HTML 4 user agents
-      // only non-container HTML elements can be closed immediatly,
-      // and a space is added before />
-      AppendToString(NS_LITERAL_STRING(" />"), aStr);
-      return;
+  // for non empty elements, even if they are not a container, we always
+  // serialize their content, because the XHTML element could contain non XHTML
+  // nodes useful in some context, like in an XSLT stylesheet
+  if (HasNoChildren(content)) {
+
+    nsIParserService* parserService = nsContentUtils::GetParserService();
+  
+    if (parserService) {
+      PRBool isContainer;
+      parserService->IsContainer(parserService->HTMLAtomTagToId(aName),
+                                 isContainer);
+      if (!isContainer) {
+        // for backward compatibility with HTML 4 user agents
+        // only non-container HTML elements can be closed immediatly,
+        // and a space is added before />
+        AppendToString(NS_LITERAL_STRING(" />"), aStr);
+        return;
+      }
     }
   }
   AppendToString(kGreaterThan, aStr);
@@ -480,7 +488,7 @@ nsXHTMLContentSerializer::AppendEndOfElementStart(nsIDOMElement *aOriginalElemen
 
 void
 nsXHTMLContentSerializer::AfterElementStart(nsIContent * aContent,
-                                            nsIDOMElement *aOriginalElement,
+                                            nsIContent *aOriginalElement,
                                             nsAString& aStr)
 {
   nsIAtom *name = aContent->Tag();
@@ -543,7 +551,7 @@ nsXHTMLContentSerializer::AfterElementEnd(nsIContent * aContent,
 
 
 NS_IMETHODIMP
-nsXHTMLContentSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
+nsXHTMLContentSerializer::AppendDocumentStart(nsIDocument *aDocument,
                                               nsAString& aStr)
 {
   if (!mBodyOnly)
@@ -605,17 +613,19 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
       }
     }
 
-    nsIParserService* parserService = nsContentUtils::GetParserService();
+    if (HasNoChildren(aContent)) {
+      nsIParserService* parserService = nsContentUtils::GetParserService();
 
-    if (parserService) {
-      PRBool isContainer;
+      if (parserService) {
+        PRBool isContainer;
 
-      parserService->IsContainer(parserService->HTMLAtomTagToId(name),
-                                 isContainer);
-      if (!isContainer) {
-        // non-container HTML elements are already closed,
-        // see AppendEndOfElementStart
-        return PR_FALSE;
+        parserService->IsContainer(parserService->HTMLAtomTagToId(name),
+                                   isContainer);
+        if (!isContainer) {
+          // non-container HTML elements are already closed,
+          // see AppendEndOfElementStart
+          return PR_FALSE;
+        }
       }
     }
     // for backward compatibility with old HTML user agents,
@@ -970,7 +980,7 @@ nsXHTMLContentSerializer::MaybeLeaveFromPreContent(nsIContent* aNode)
 }
 
 void 
-nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIDOMElement* aElement,
+nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
                                                     nsAString& aStr)
 {
   // We are copying and we are at the "first" LI node of OL in selected range.
@@ -1041,7 +1051,7 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIDOMElement* aElement,
 }
 
 PRBool
-nsXHTMLContentSerializer::IsFirstChildOfOL(nsIDOMElement* aElement)
+nsXHTMLContentSerializer::IsFirstChildOfOL(nsIContent* aElement)
 {
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aElement);
   nsAutoString parentName;
@@ -1065,4 +1075,23 @@ nsXHTMLContentSerializer::IsFirstChildOfOL(nsIDOMElement* aElement)
   }
   else
     return PR_FALSE;
+}
+
+PRBool
+nsXHTMLContentSerializer::HasNoChildren(nsIContent * aContent) {
+
+  PRUint32 i, childCount = aContent->GetChildCount();
+
+  for (i = 0; i < childCount; ++i) {
+
+    nsIContent* child = aContent->GetChildAt(i);
+
+    if (!child->IsNodeOfType(nsINode::eTEXT))
+      return PR_FALSE;
+
+    if (child->TextLength())
+      return PR_FALSE;
+  }
+
+  return PR_TRUE;
 }

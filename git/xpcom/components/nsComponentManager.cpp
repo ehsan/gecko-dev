@@ -87,6 +87,7 @@
 #include "private/pprthred.h"
 #include "nsTArray.h"
 #include "prio.h"
+#include "mozilla/FunctionTimer.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -97,6 +98,12 @@
 #ifdef XP_BEOS
 #include <FindDirectory.h>
 #include <Path.h>
+#endif
+
+#ifdef MOZ_OMNIJAR
+#include "nsIZipReader.h"
+#include "mozilla/Omnijar.h"
+static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 #endif
 
 #include "prlog.h"
@@ -131,6 +138,7 @@ const char inprocServerValueName[]="InprocServer";
 const char lastModValueName[]="LastModTimeStamp";
 const char nativeComponentType[]="application/x-mozilla-native";
 const char staticComponentType[]="application/x-mozilla-static";
+const char jarComponentType[]="application/x-mozilla-jarjs";
 const char versionValueName[]="VersionString";
 
 const static char XPCOM_ABSCOMPONENT_PREFIX[] = "abs:";
@@ -154,9 +162,6 @@ NS_DEFINE_CID(kCategoryManagerCID, NS_CATEGORYMANAGER_CID);
 
 #define UID_STRING_LENGTH 39
 
-// Set to true from NS_ShutdownXPCOM.
-extern PRBool gXPCOMShuttingDown;
-
 static void GetIDString(const nsID& aCID, char buf[UID_STRING_LENGTH])
 {
     PR_snprintf(buf, UID_STRING_LENGTH, gIDFormat,
@@ -166,6 +171,22 @@ static void GetIDString(const nsID& aCID, char buf[UID_STRING_LENGTH])
                 (PRUint32) aCID.m3[4], (PRUint32) aCID.m3[5],
                 (PRUint32) aCID.m3[6], (PRUint32) aCID.m3[7]);
 }
+
+#ifdef NS_FUNCTION_TIMER
+#define COMPMGR_TIME_FUNCTION_CID(cid)                                          \
+  char cid_buf__[NSID_LENGTH] = { '\0' };                                      \
+  cid.ToProvidedString(cid_buf__);                                             \
+  NS_TIME_FUNCTION_MIN_FMT(5, "%s (line %d) (cid: %s)", MOZ_FUNCTION_NAME, \
+                           __LINE__, cid_buf__)
+#define COMPMGR_TIME_FUNCTION_CONTRACTID(cid)                                  \
+  NS_TIME_FUNCTION_MIN_FMT(5, "%s (line %d) (contractid: %s)", MOZ_FUNCTION_NAME, \
+                           __LINE__, (cid))
+#else
+#define COMPMGR_TIME_FUNCTION_CID(cid) do {} while (0)
+#define COMPMGR_TIME_FUNCTION_CONTRACTID(cid) do {} while (0)
+#endif
+
+#define kOMNIJAR_PREFIX  NS_LITERAL_CSTRING("resource:///")
 
 nsresult
 nsGetServiceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) const
@@ -607,6 +628,8 @@ nsComponentManagerImpl::nsComponentManagerImpl()
 nsresult nsComponentManagerImpl::Init(nsStaticModuleInfo const *aStaticModules,
                                       PRUint32 aStaticModuleCount)
 {
+    NS_TIME_FUNCTION;
+
     PR_ASSERT(mShuttingDown != NS_SHUTDOWN_INPROGRESS);
     if (mShuttingDown == NS_SHUTDOWN_INPROGRESS)
         return NS_ERROR_FAILURE;
@@ -619,6 +642,7 @@ nsresult nsComponentManagerImpl::Init(nsStaticModuleInfo const *aStaticModules,
     }
 
     // Initialize our arena
+    NS_TIME_FUNCTION_MARK("Next: init component manager arena");
     PL_INIT_ARENA_POOL(&mArena, "ComponentManagerArena", NS_CM_BLOCK_SIZE);
 
     if (!mFactories.ops) {
@@ -694,10 +718,12 @@ nsresult nsComponentManagerImpl::Init(nsStaticModuleInfo const *aStaticModules,
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG,
            ("nsComponentManager: Initialized."));
 
+    NS_TIME_FUNCTION_MARK("Next: init native module loader");
     rv = mNativeModuleLoader.Init();
     if (NS_FAILED(rv))
         return rv;
 
+    NS_TIME_FUNCTION_MARK("Next: init static module loader");
     rv = mStaticModuleLoader.Init(aStaticModules, aStaticModuleCount);
     if (NS_FAILED(rv))
         return rv;
@@ -707,6 +733,8 @@ nsresult nsComponentManagerImpl::Init(nsStaticModuleInfo const *aStaticModules,
 
 nsresult nsComponentManagerImpl::Shutdown(void)
 {
+    NS_TIME_FUNCTION;
+
     PR_ASSERT(mShuttingDown == NS_SHUTDOWN_NEVERHAPPENED);
     if (mShuttingDown != NS_SHUTDOWN_NEVERHAPPENED)
         return NS_ERROR_FAILURE;
@@ -833,6 +861,8 @@ PRBool ReadSectionHeader(nsManifestLineReader& reader, const char *token)
 nsresult
 nsComponentManagerImpl::ReadPersistentRegistry()
 {
+    NS_TIME_FUNCTION;
+
     NS_ASSERTION(mComponentsDir, "nsComponentManager not initialized.");
 
     nsresult rv;
@@ -1148,6 +1178,10 @@ ClassIDWriter(PLDHashTable *table,
         loaderName = nativeComponentType;
         break;
 
+    case NS_LOADER_TYPE_JAR:
+        loaderName = jarComponentType;
+        break;
+
     default:
         loaderName = loaderData->ElementAt(factoryEntry->mLoaderType).type.get();
     }
@@ -1192,6 +1226,8 @@ nsComponentManagerImpl::WritePersistentRegistry()
 {
     if (!mRegistryFile)
         return NS_ERROR_FAILURE;  // this should have been set by Init().
+
+    NS_TIME_FUNCTION;
 
     nsCOMPtr<nsIFile> file;
     mRegistryFile->Clone(getter_AddRefs(file));
@@ -1552,6 +1588,8 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
                                        const nsIID &aIID,
                                        void **aResult)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     // test this first, since there's no point in creating a component during
     // shutdown -- whether it's available or not would depend on the order it
     // occurs in the list
@@ -1637,6 +1675,8 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
                                                    const nsIID &aIID,
                                                    void **aResult)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     NS_ENSURE_ARG_POINTER(aContractID);
 
     // test this first, since there's no point in creating a component during
@@ -1836,6 +1876,9 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
         return supports->QueryInterface(aIID, result);
     }
 
+    // We only care about time when we create the service.
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     PRThread* currentPRThread = PR_GetCurrentThread();
     NS_ASSERTION(currentPRThread, "This should never be null!");
 
@@ -1939,6 +1982,8 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
 NS_IMETHODIMP
 nsComponentManagerImpl::RegisterService(const nsCID& aClass, nsISupports* aService)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     nsAutoMonitor mon(mMon);
 
     // check to see if we have a factory entry for the service
@@ -1972,6 +2017,8 @@ nsComponentManagerImpl::RegisterService(const nsCID& aClass, nsISupports* aServi
 NS_IMETHODIMP
 nsComponentManagerImpl::UnregisterService(const nsCID& aClass)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     nsresult rv = NS_OK;
 
     nsFactoryEntry* entry = nsnull;
@@ -1998,6 +2045,8 @@ NS_IMETHODIMP
 nsComponentManagerImpl::RegisterService(const char* aContractID,
                                         nsISupports* aService)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     NS_ENSURE_ARG_POINTER(aContractID);
 
     nsAutoMonitor mon(mMon);
@@ -2048,6 +2097,8 @@ nsComponentManagerImpl::IsServiceInstantiated(const nsCID & aClass,
                                               const nsIID& aIID,
                                               PRBool *result)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     // Now we want to get the service if we already got it. If not, we don't want
     // to create an instance of it. mmh!
 
@@ -2090,6 +2141,8 @@ NS_IMETHODIMP nsComponentManagerImpl::IsServiceInstantiatedByContractID(const ch
                                                                         const nsIID& aIID,
                                                                         PRBool *result)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     // Now we want to get the service if we already got it. If not, we don't want
     // to create an instance of it. mmh!
 
@@ -2134,6 +2187,8 @@ NS_IMETHODIMP nsComponentManagerImpl::IsServiceInstantiatedByContractID(const ch
 NS_IMETHODIMP
 nsComponentManagerImpl::UnregisterService(const char* aContractID)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     nsresult rv = NS_OK;
 
     nsAutoMonitor mon(mMon);
@@ -2198,6 +2253,9 @@ nsComponentManagerImpl::GetServiceByContractID(const char* aContractID,
         mon.Exit();
         return serviceObject->QueryInterface(aIID, result);
     }
+
+    // We only care about time when we create the service.
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
 
     PRThread* currentPRThread = PR_GetCurrentThread();
     NS_ASSERTION(currentPRThread, "This should never be null!");
@@ -2308,6 +2366,8 @@ NS_IMETHODIMP
 nsComponentManagerImpl::RegistryLocationForSpec(nsIFile *aSpec,
                                                 char **aRegistryName)
 {
+    NS_TIME_FUNCTION;
+
     nsCAutoString location;
     nsresult rv = RegistryLocationForFile(aSpec, location);
     if (NS_SUCCEEDED(rv)) {
@@ -2323,6 +2383,8 @@ nsresult
 nsComponentManagerImpl::RegistryLocationForFile(nsIFile* aFile,
                                                 nsCString& aRegistryName)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     if (!mComponentsDir)
@@ -2382,6 +2444,8 @@ nsresult
 nsComponentManagerImpl::FileForRegistryLocation(const nsCString &aLocation,
                                                 nsILocalFile **aSpec)
 {
+    NS_TIME_FUNCTION;
+
     // i18n: assuming aLocation is encoded for the current locale
 
     nsresult rv;
@@ -2456,6 +2520,8 @@ nsComponentManagerImpl::RegisterFactory(const nsCID &aClass,
                                         nsIFactory *aFactory,
                                         PRBool aReplace)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     nsAutoMonitor mon(mMon);
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(nsComponentManagerLog, PR_LOG_WARNING))
@@ -2612,6 +2678,8 @@ nsComponentManagerImpl::RegisterComponentCommon(const nsCID &aClass,
                                                 PRBool aPersist,
                                                 const char *aType)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     nsresult rv;
 
     nsAutoMonitor mon(mMon);
@@ -2697,7 +2765,10 @@ nsComponentManagerImpl::LoaderForType(LoaderType aType)
     if (aType == NS_LOADER_TYPE_NATIVE)
         return &mNativeModuleLoader;
 
-    NS_ASSERTION(aType >= 0 && aType < mLoaderData.Length(),
+    if (aType == NS_LOADER_TYPE_JAR)
+        return nsnull;
+
+    NS_ASSERTION(aType >= 0 && PRUint32(aType) < mLoaderData.Length(),
                  "LoaderType out of range");
 
     if (!mLoaderData[aType].loader) {
@@ -2716,6 +2787,8 @@ nsComponentManagerImpl::LoaderForType(LoaderType aType)
 void
 nsComponentManagerImpl::GetAllLoaders()
 {
+    NS_TIME_FUNCTION;
+
     NS_ASSERTION(mCategoryManager, "nsComponentManager used uninitialized");
 
     nsCOMPtr<nsISimpleEnumerator> loaderEnum;
@@ -2752,6 +2825,9 @@ nsComponentManagerImpl::GetLoaderType(const char *typeStr)
 
     if (!strcmp(typeStr, nativeComponentType))
         return NS_LOADER_TYPE_NATIVE;
+
+    if (!strcmp(typeStr, jarComponentType))
+        return NS_LOADER_TYPE_JAR;
 
     const nsDependentCString type(typeStr);
 
@@ -2821,6 +2897,8 @@ nsresult
 nsComponentManagerImpl::UnregisterFactory(const nsCID &aClass,
                                           nsIFactory *aFactory)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(nsComponentManagerLog, PR_LOG_WARNING))
     {
@@ -2931,6 +3009,8 @@ nsComponentManagerImpl::AutoRegisterDirectory(nsIFile *inDirSpec,
                           nsCOMArray<nsILocalFile>    &aLeftovers,
                           nsTArray<DeferredModule>    &aDeferred)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     nsCOMPtr<nsIFile> componentsList;
@@ -2989,6 +3069,8 @@ nsComponentManagerImpl::AutoRegisterComponentsList(nsIFile* inDir,
                                   nsCOMArray<nsILocalFile>& aLeftovers,
                                   nsTArray<DeferredModule>& aDeferred)
 {
+    NS_TIME_FUNCTION;
+
     PRFileInfo info;
     if (PR_SUCCESS != PR_GetOpenFileInfo(fd, &info))
         return NS_ErrorAccordingToNSPR();
@@ -3053,6 +3135,8 @@ nsComponentManagerImpl::AutoRegisterComponent(nsILocalFile*  aComponentFile,
                                    nsTArray<DeferredModule> &aDeferred,
                                    LoaderType                minLoader)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     NS_ASSERTION(minLoader < GetLoaderCount(), "Bad minLoader");
@@ -3194,7 +3278,7 @@ nsComponentManagerImpl::LoadDeferredModules(nsTArray<DeferredModule> &aDeferred)
 
         lastCount = aDeferred.Length();
 
-        for (PRInt32 i = 0; i < aDeferred.Length(); ) {
+        for (PRUint32 i = 0; i < aDeferred.Length(); ) {
             DeferredModule &d = aDeferred[i];
             nsresult rv = d.module->RegisterSelf(this,
                                                  d.file,
@@ -3220,6 +3304,8 @@ NS_IMETHODIMP
 nsComponentManagerImpl::AutoUnregisterComponent(PRInt32 /* unused */,
                                                 nsIFile *component)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     GetAllLoaders();
@@ -3236,7 +3322,7 @@ nsComponentManagerImpl::AutoUnregisterComponent(PRInt32 /* unused */,
     nsCOMPtr<nsIModule> module;
     rv = mNativeModuleLoader.LoadModule(lf, getter_AddRefs(module));
     if (NS_FAILED(rv)) {
-        for (LoaderType i = 0; i < mLoaderData.Length(); ++i) {
+        for (LoaderType i = 0; PRUint32(i) < mLoaderData.Length(); ++i) {
             nsIModuleLoader* loader = LoaderForType(i);
             if (!loader)
                 continue;
@@ -3275,6 +3361,8 @@ nsComponentManagerImpl::IsRegistered(const nsCID &aClass,
 NS_IMETHODIMP
 nsComponentManagerImpl::EnumerateCLSIDs(nsIEnumerator** aEnumerator)
 {
+    NS_TIME_FUNCTION;
+
     NS_ASSERTION(aEnumerator != nsnull, "null ptr");
     if (!aEnumerator)
     {
@@ -3299,6 +3387,8 @@ nsComponentManagerImpl::EnumerateCLSIDs(nsIEnumerator** aEnumerator)
 NS_IMETHODIMP
 nsComponentManagerImpl::EnumerateContractIDs(nsIEnumerator** aEnumerator)
 {
+    NS_TIME_FUNCTION;
+
     NS_ASSERTION(aEnumerator != nsnull, "null ptr");
     if (!aEnumerator)
     {
@@ -3321,6 +3411,106 @@ nsComponentManagerImpl::EnumerateContractIDs(nsIEnumerator** aEnumerator)
 }
 
 // nsIComponentRegistrar
+
+#ifdef MOZ_OMNIJAR
+void
+nsComponentManagerImpl::AutoRegisterJar()
+{
+    nsresult rv;
+    nsCOMPtr<nsIZipReader> jarReader = do_CreateInstance(kZipReaderCID, &rv);
+    if (NS_FAILED(rv)) {
+        NS_ERROR("could not get jar reader");
+        return;
+    }
+
+    nsIModuleLoader *jsLoader = LoaderForType(GetLoaderType("text/javascript"));
+    if (!jsLoader) {
+        NS_ERROR("could not get JS loader");
+        return;
+    }
+
+    nsCOMPtr<nsILocalFile> omniJar(mozilla::OmnijarPath());
+    if (!omniJar) {
+        return;
+    }
+
+    rv = jarReader->Open(omniJar);
+    if (NS_FAILED(rv)) {
+        NS_ERROR("Failed to open omniJar");
+        return;
+    }
+
+    nsCOMPtr<nsIUTF8StringEnumerator> compEnum;
+    rv = jarReader->FindEntries("components/*.js$",
+                                getter_AddRefs(compEnum));
+    if (NS_FAILED(rv)) {
+        NS_ERROR("Failed to get js enumerator for omniJar");
+        return;
+    }
+
+    nsTArray<DeferredModule> deferred;
+
+    nsCAutoString compName;
+    PRBool more;
+    while (NS_SUCCEEDED((rv = compEnum->HasMore(&more))) && more) {
+        rv = compEnum->GetNext(compName);
+        if (NS_FAILED(rv)) {
+            NS_ERROR("Failed to get name from js enumerator");
+            continue;
+        }
+
+        nsCAutoString entryspec(kOMNIJAR_PREFIX);
+        entryspec += compName;
+
+        nsCOMPtr<nsIModule> module;
+        rv = jsLoader->LoadModuleFromJAR(omniJar, compName, getter_AddRefs(module));
+        if (NS_FAILED(rv)) {
+            NS_ERROR("Failed to load JS component from JAR");
+            continue;
+        }
+
+        nsCOMPtr<nsIFile> fakeFile;
+        rv = omniJar->Clone(getter_AddRefs(fakeFile));
+        if (NS_FAILED(rv)) {
+            NS_ERROR("Failed to clone fake local file for JS component");
+            continue;
+        }
+
+        nsCOMPtr<nsILocalFile> fakeNativeFile = do_QueryInterface(fakeFile);
+
+        PRInt32 startIdx = compName.RFindChar('/') + 1;
+        rv = fakeNativeFile->AppendNative(Substring(compName, startIdx));
+        if (NS_FAILED(rv)) {
+            NS_ERROR("Failed to create fake local file for JS component");
+            continue;
+        }
+
+        rv = module->RegisterSelf(this, fakeNativeFile,
+                                  entryspec.get(),
+                                  jarComponentType);
+        if (NS_ERROR_FACTORY_REGISTER_AGAIN == rv) {
+            DeferredModule *d = deferred.AppendElement();
+            if (!d) {
+                NS_ERROR("Failed to allocate DeferredModule");
+                continue;
+            }
+
+            d->file = fakeNativeFile;
+            d->location = entryspec;
+            d->module = module;
+        }
+    }
+
+    for (PRInt32 i = 0; i < deferred.Length(); i++) {
+        DeferredModule &d = deferred[i];
+        rv = d.module->RegisterSelf(this, d.file,
+                                    d.location.get(),
+                                    jarComponentType);
+        if (NS_FAILED(rv))
+            NS_ERROR("js component failed to load on reregistration");
+    }
+}
+#endif /* MOZ_OMNIJAR */
 
 static void
 RegisterStaticModule(const char *key, nsIModule* module,
@@ -3352,6 +3542,8 @@ ReportLoadFailure(nsIFile* aFile, nsIConsoleService* aCS)
 NS_IMETHODIMP
 nsComponentManagerImpl::AutoRegister(nsIFile *aSpec)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     if (!mCategoryManager) {
@@ -3377,6 +3569,10 @@ nsComponentManagerImpl::AutoRegister(nsIFile *aSpec)
         // Set them up now, so that JS components don't go into
         // the leftovers list.
         GetAllLoaders();
+
+#ifdef MOZ_OMNIJAR
+        AutoRegisterJar();
+#endif
     }
 
     LoaderType curLoader = GetLoaderCount();
@@ -3545,6 +3741,8 @@ nsComponentManagerImpl::IsContractIDRegistered(const char *aClass,
 NS_IMETHODIMP
 nsComponentManagerImpl::EnumerateCIDs(nsISimpleEnumerator **aEnumerator)
 {
+    NS_TIME_FUNCTION;
+
     NS_ASSERTION(aEnumerator != nsnull, "null ptr");
 
     if (!aEnumerator)
@@ -3568,6 +3766,8 @@ nsComponentManagerImpl::EnumerateCIDs(nsISimpleEnumerator **aEnumerator)
 NS_IMETHODIMP
 nsComponentManagerImpl::EnumerateContractIDs(nsISimpleEnumerator **aEnumerator)
 {
+    NS_TIME_FUNCTION;
+
     NS_ASSERTION(aEnumerator != nsnull, "null ptr");
     if (!aEnumerator)
         return NS_ERROR_NULL_POINTER;
@@ -3658,6 +3858,43 @@ nsFactoryEntry::GetFactory(nsIFactory **aFactory)
                 mStaticModuleLoader.
                 GetModuleFor(mLocationKey,
                              getter_AddRefs(module));
+        }
+        else if (mLoaderType == NS_LOADER_TYPE_JAR) {
+            nsComponentManagerImpl::gComponentManager->GetAllLoaders();
+
+            nsIModuleLoader *jsLoader =
+                nsComponentManagerImpl::gComponentManager->
+                    LoaderForType(nsComponentManagerImpl::gComponentManager->
+                        GetLoaderType("text/javascript"));
+            if (!jsLoader) {
+                NS_ERROR("could not get JS loader");
+                NS_ERROR(mLocationKey);
+                return NS_ERROR_FAILURE;
+            }
+
+            // currently we assume all NS_LOADER_TYPE_JAR cases point to 
+            // entries in the omnijar.
+#ifdef MOZ_OMNIJAR
+            nsCOMPtr<nsILocalFile> omniJar(mozilla::OmnijarPath());
+            if (!omniJar) {
+                NS_ERROR("could not get omnijar");
+                return NS_ERROR_FAILURE;
+            }
+
+            if (strlen(mLocationKey) < kOMNIJAR_PREFIX.Length()) {
+                NS_ERROR("invalid mLocationKey");
+                return NS_ERROR_FAILURE;
+            }
+
+            rv = jsLoader->LoadModuleFromJAR(omniJar,
+                                             nsDependentCSubstring(nsDependentCString(mLocationKey), kOMNIJAR_PREFIX.Length()),
+                                             getter_AddRefs(module));
+            if (NS_FAILED(rv))
+                NS_ERROR("Failed to load JS component from JAR");
+#else
+            NS_ERROR("Omnijar not enabled");
+            return NS_ERROR_FAILURE;
+#endif
         }
         else {
             nsCOMPtr<nsILocalFile> moduleFile;

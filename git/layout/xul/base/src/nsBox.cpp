@@ -43,7 +43,6 @@
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
-#include "nsIPresShell.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
@@ -180,9 +179,10 @@ nsBox::BeginLayout(nsBoxLayoutState& aState)
 
   // Another copy-over from nsHTMLReflowState.
   // Since we are in reflow, we don't need to store these properties anymore.
-  DeleteProperty(nsGkAtoms::usedBorderProperty);
-  DeleteProperty(nsGkAtoms::usedPaddingProperty);
-  DeleteProperty(nsGkAtoms::usedMarginProperty);
+  FrameProperties props = Properties();
+  props.Delete(UsedBorderProperty());
+  props.Delete(UsedPaddingProperty());
+  props.Delete(UsedMarginProperty());
 
 #ifdef DEBUG_LAYOUT
   PropagateDebug(aState);
@@ -409,7 +409,7 @@ nsBox::SizeNeedsRecalc(nsSize& aSize)
 }
 
 void
-nsBox::CoordNeedsRecalc(PRInt32& aFlex)
+nsBox::CoordNeedsRecalc(nscoord& aFlex)
 {
   aFlex = -1;
 }
@@ -915,12 +915,6 @@ void
 nsBox::AddBorderAndPadding(nsSize& aSize)
 {
   AddBorderAndPadding(this, aSize);
-}
-
-void
-nsBox::AddMargin(nsSize& aSize)
-{
-  AddMargin(this, aSize);
 }
 
 void

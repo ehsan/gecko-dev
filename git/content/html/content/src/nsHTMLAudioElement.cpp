@@ -39,8 +39,6 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLAudioElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -70,7 +68,7 @@
 #include "nsHTMLMediaError.h"
 
 nsGenericHTMLElement*
-NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   /*
    * nsHTMLAudioElement's will be created without a nsINodeInfo passed in
@@ -94,6 +92,8 @@ NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
 NS_IMPL_ADDREF_INHERITED(nsHTMLAudioElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAudioElement, nsHTMLMediaElement)
 
+DOMCI_DATA(HTMLAudioElement, nsHTMLAudioElement)
+
 NS_INTERFACE_TABLE_HEAD(nsHTMLAudioElement)
 NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLAudioElement, nsIDOMHTMLMediaElement,
                                  nsIDOMHTMLAudioElement, nsIJSNativeInitializer)
@@ -104,7 +104,7 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAudioElement)
 NS_IMPL_ELEMENT_CLONE(nsHTMLAudioElement)
 
 
-nsHTMLAudioElement::nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+nsHTMLAudioElement::nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }

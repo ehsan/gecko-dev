@@ -60,7 +60,6 @@
 #include "nsNetUtil.h"
 #include "nsPLDOMEvent.h"
 
-#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"
@@ -292,7 +291,7 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
 
   // We can only do this if we have a presshell
   nsIDocument* doc = GetOurDocument();
-  nsIPresShell* shell = doc ? doc->GetPrimaryShell() : nsnull;
+  nsIPresShell* shell = doc ? doc->GetShell() : nsnull;
   if (shell) {
 
     // We need to figure out whether to kick off decoding
@@ -307,9 +306,7 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
     // to be suppressed for reasons other than the initial paint delay (for
     // example - being in the bfcache), but we probably aren't loading images in
     // those situations.
-    PRBool isSuppressed = PR_FALSE;
-    nsresult rv = shell->IsPaintingSuppressed(&isSuppressed);
-    if (NS_SUCCEEDED(rv) && isSuppressed)
+    if (shell->IsPaintingSuppressed())
       doRequestDecode = PR_TRUE;
 
     // If we're requesting a decode, do it
@@ -435,7 +432,7 @@ nsImageLoadingContent::RemoveObserver(imgIDecoderObserver* aObserver)
   }
 #ifdef DEBUG
   else {
-    NS_WARNING("Asked to remove non-existent observer");
+    NS_WARNING("Asked to remove nonexistent observer");
   }
 #endif
   return NS_OK;

@@ -39,8 +39,9 @@
 #include "PluginScriptableObjectParent.h"
 #include "PluginScriptableObjectUtils.h"
 
+#include "mozilla/unused.h"
+
 using namespace mozilla::plugins;
-using mozilla::ipc::NPRemoteIdentifier;
 
 namespace {
 
@@ -54,9 +55,9 @@ ReleaseVariant(NPVariant& aVariant,
   }
 }
 
-inline bool
-EnsureValidIdentifier(PluginInstanceParent* aInstance,
-                      NPIdentifier aIdentifier)
+inline PPluginIdentifierParent*
+GetIdentifier(PluginInstanceParent* aInstance,
+              NPIdentifier aIdentifier)
 {
   PluginModuleParent* module = aInstance->Module();
   if (!module) {
@@ -64,12 +65,12 @@ EnsureValidIdentifier(PluginInstanceParent* aInstance,
     return false;
   }
 
-  return module->EnsureValidNPIdentifier(aIdentifier);
+  return module->GetIdentifierForNPIdentifier(aIdentifier);
 }
 
-inline bool
-EnsureValidIdentifier(NPObject* aObject,
-                      NPIdentifier aIdentifier)
+inline PPluginIdentifierParent*
+GetIdentifier(NPObject* aObject,
+              NPIdentifier aIdentifier)
 {
   PluginInstanceParent* instance = GetInstance(aObject);
   if (!instance) {
@@ -77,7 +78,7 @@ EnsureValidIdentifier(NPObject* aObject,
     return false;
   }
 
-  return EnsureValidIdentifier(instance, aIdentifier);
+  return GetIdentifier(instance, aIdentifier);
 }
 
 } // anonymous namespace
@@ -153,7 +154,8 @@ PluginScriptableObjectParent::ScriptableHasMethod(NPObject* aObject,
     return false;
   }
 
-  if (!EnsureValidIdentifier(aObject, aName)) {
+  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
+  if (!identifier) {
     return false;
   }
 
@@ -165,7 +167,7 @@ PluginScriptableObjectParent::ScriptableHasMethod(NPObject* aObject,
   NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
 
   bool result;
-  if (!actor->CallHasMethod((NPRemoteIdentifier)aName, &result)) {
+  if (!actor->CallHasMethod(identifier, &result)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -192,7 +194,8 @@ PluginScriptableObjectParent::ScriptableInvoke(NPObject* aObject,
     return false;
   }
 
-  if (!EnsureValidIdentifier(aObject, aName)) {
+  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
+  if (!identifier) {
     return false;
   }
 
@@ -211,7 +214,7 @@ PluginScriptableObjectParent::ScriptableInvoke(NPObject* aObject,
 
   Variant remoteResult;
   bool success;
-  if (!actor->CallInvoke((NPRemoteIdentifier)aName, args, &remoteResult,
+  if (!actor->CallInvoke(identifier, args, &remoteResult,
                          &success)) {
     NS_WARNING("Failed to send message!");
     return false;
@@ -293,7 +296,8 @@ PluginScriptableObjectParent::ScriptableHasProperty(NPObject* aObject,
     return false;
   }
 
-  if (!EnsureValidIdentifier(aObject, aName)) {
+  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
+  if (!identifier) {
     return false;
   }
 
@@ -305,7 +309,7 @@ PluginScriptableObjectParent::ScriptableHasProperty(NPObject* aObject,
   NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
 
   bool result;
-  if (!actor->CallHasProperty((NPRemoteIdentifier)aName, &result)) {
+  if (!actor->CallHasProperty(identifier, &result)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -319,45 +323,9 @@ PluginScriptableObjectParent::ScriptableGetProperty(NPObject* aObject,
                                                     NPIdentifier aName,
                                                     NPVariant* aResult)
 {
-  if (aObject->_class != GetClass()) {
-    NS_ERROR("Don't know what kind of object this is!");
-    return false;
-  }
-
-  ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
-    NS_WARNING("Calling method on an invalidated object!");
-    return false;
-  }
-
-  if (!EnsureValidIdentifier(aObject, aName)) {
-    return false;
-  }
-
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
-    return false;
-  }
-
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
-
-  Variant result;
-  bool success;
-  if (!actor->CallGetProperty((NPRemoteIdentifier)aName, &result, &success)) {
-    NS_WARNING("Failed to send message!");
-    return false;
-  }
-
-  if (!success) {
-    return false;
-  }
-
-  if (!ConvertToVariant(result, *aResult, actor->GetInstance())) {
-    NS_WARNING("Failed to convert result!");
-    return false;
-  }
-
-  return true;
+  // See GetPropertyHelper below.
+  NS_NOTREACHED("Shouldn't ever call this directly!");
+  return false;
 }
 
 // static
@@ -377,7 +345,8 @@ PluginScriptableObjectParent::ScriptableSetProperty(NPObject* aObject,
     return false;
   }
 
-  if (!EnsureValidIdentifier(aObject, aName)) {
+  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
+  if (!identifier) {
     return false;
   }
 
@@ -395,7 +364,7 @@ PluginScriptableObjectParent::ScriptableSetProperty(NPObject* aObject,
   }
 
   bool success;
-  if (!actor->CallSetProperty((NPRemoteIdentifier)aName, value, &success)) {
+  if (!actor->CallSetProperty(identifier, value, &success)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -419,7 +388,8 @@ PluginScriptableObjectParent::ScriptableRemoveProperty(NPObject* aObject,
     return false;
   }
 
-  if (!EnsureValidIdentifier(aObject, aName)) {
+  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
+  if (!identifier) {
     return false;
   }
 
@@ -431,7 +401,7 @@ PluginScriptableObjectParent::ScriptableRemoveProperty(NPObject* aObject,
   NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
 
   bool success;
-  if (!actor->CallRemoveProperty((NPRemoteIdentifier)aName, &success)) {
+  if (!actor->CallRemoveProperty(identifier, &success)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -469,7 +439,7 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
     return false;
   }
 
-  nsAutoTArray<NPRemoteIdentifier, 10> identifiers;
+  nsAutoTArray<PPluginIdentifierParent*, 10> identifiers;
   bool success;
   if (!actor->CallEnumerate(&identifiers, &success)) {
     NS_WARNING("Failed to send message!");
@@ -493,11 +463,9 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
   }
 
   for (PRUint32 index = 0; index < *aCount; index++) {
-    NPIdentifier& id = *aIdentifiers[index];
-    id = (NPIdentifier)identifiers[index];
-    if (!EnsureValidIdentifier(aObject, id)) {
-      return false;
-    }
+    PluginIdentifierParent* id =
+      static_cast<PluginIdentifierParent*>(identifiers[index]);
+    (*aIdentifiers)[index] = id->ToNPIdentifier();
   }
   return true;
 }
@@ -705,7 +673,7 @@ PluginScriptableObjectParent::Unprotect()
 
   if (mType == LocalObject) {
     if (--mProtectCount == 0) {
-      PluginScriptableObjectParent::Send__delete__(this);
+      unused << PluginScriptableObjectParent::Send__delete__(this);
     }
   }
 }
@@ -725,11 +693,11 @@ PluginScriptableObjectParent::DropNPObject()
   instance->UnregisterNPObject(mObject);
   mObject = nsnull;
 
-  (void) SendUnprotect();
+  unused << SendUnprotect();
 }
 
 bool
-PluginScriptableObjectParent::AnswerHasMethod(const NPRemoteIdentifier& aId,
+PluginScriptableObjectParent::AnswerHasMethod(PPluginIdentifierParent* aId,
                                               bool* aHasMethod)
 {
   if (!mObject) {
@@ -755,18 +723,13 @@ PluginScriptableObjectParent::AnswerHasMethod(const NPRemoteIdentifier& aId,
     return true;
   }
 
-  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
-    NS_WARNING("Invalid NPIdentifier!");
-    *aHasMethod = false;
-    return true;
-  }
-
-  *aHasMethod = npn->hasmethod(instance->GetNPP(), mObject, (NPIdentifier)aId);
+  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
+  *aHasMethod = npn->hasmethod(instance->GetNPP(), mObject, id->ToNPIdentifier());
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerInvoke(const NPRemoteIdentifier& aId,
+PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
                                            const nsTArray<Variant>& aArgs,
                                            Variant* aResult,
                                            bool* aSuccess)
@@ -797,13 +760,6 @@ PluginScriptableObjectParent::AnswerInvoke(const NPRemoteIdentifier& aId,
     return true;
   }
 
-  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
-    NS_WARNING("Invalid NPIdentifier!");
-    *aResult = void_t();
-    *aSuccess = false;
-    return true;
-  }
-
   nsAutoTArray<NPVariant, 10> convertedArgs;
   PRUint32 argCount = aArgs.Length();
 
@@ -825,8 +781,9 @@ PluginScriptableObjectParent::AnswerInvoke(const NPRemoteIdentifier& aId,
     }
   }
 
+  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   NPVariant result;
-  bool success = npn->invoke(instance->GetNPP(), mObject, (NPIdentifier)aId,
+  bool success = npn->invoke(instance->GetNPP(), mObject, id->ToNPIdentifier(),
                              convertedArgs.Elements(), argCount, &result);
 
   for (PRUint32 index = 0; index < argCount; index++) {
@@ -939,7 +896,7 @@ PluginScriptableObjectParent::AnswerInvokeDefault(const nsTArray<Variant>& aArgs
 }
 
 bool
-PluginScriptableObjectParent::AnswerHasProperty(const NPRemoteIdentifier& aId,
+PluginScriptableObjectParent::AnswerHasProperty(PPluginIdentifierParent* aId,
                                                 bool* aHasProperty)
 {
   if (!mObject) {
@@ -965,21 +922,17 @@ PluginScriptableObjectParent::AnswerHasProperty(const NPRemoteIdentifier& aId,
     return true;
   }
 
-  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
-    NS_WARNING("Invalid NPIdentifier!");
-    *aHasProperty = false;
-    return true;
-  }
-
+  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   *aHasProperty = npn->hasproperty(instance->GetNPP(), mObject,
-                                   (NPIdentifier)aId);
+                                   id->ToNPIdentifier());
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerGetProperty(const NPRemoteIdentifier& aId,
-                                                Variant* aResult,
-                                                bool* aSuccess)
+PluginScriptableObjectParent::AnswerGetParentProperty(
+                                                   PPluginIdentifierParent* aId,
+                                                   Variant* aResult,
+                                                   bool* aSuccess)
 {
   if (!mObject) {
     NS_WARNING("Calling AnswerGetProperty with an invalidated object!");
@@ -1007,15 +960,9 @@ PluginScriptableObjectParent::AnswerGetProperty(const NPRemoteIdentifier& aId,
     return true;
   }
 
-  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
-    NS_WARNING("Invalid NPIdentifier!");
-    *aResult = void_t();
-    *aSuccess = false;
-    return true;
-  }
-
+  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   NPVariant result;
-  if (!npn->getproperty(instance->GetNPP(), mObject, (NPIdentifier)aId,
+  if (!npn->getproperty(instance->GetNPP(), mObject, id->ToNPIdentifier(),
                         &result)) {
     *aResult = void_t();
     *aSuccess = false;
@@ -1035,7 +982,7 @@ PluginScriptableObjectParent::AnswerGetProperty(const NPRemoteIdentifier& aId,
 }
 
 bool
-PluginScriptableObjectParent::AnswerSetProperty(const NPRemoteIdentifier& aId,
+PluginScriptableObjectParent::AnswerSetProperty(PPluginIdentifierParent* aId,
                                                 const Variant& aValue,
                                                 bool* aSuccess)
 {
@@ -1062,27 +1009,22 @@ PluginScriptableObjectParent::AnswerSetProperty(const NPRemoteIdentifier& aId,
     return true;
   }
 
-  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
-    NS_WARNING("Invalid NPIdentifier!");
-    *aSuccess = false;
-    return true;
-  }
-
   NPVariant converted;
   if (!ConvertToVariant(aValue, converted, instance)) {
     *aSuccess = false;
     return true;
   }
 
+  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   if ((*aSuccess = npn->setproperty(instance->GetNPP(), mObject,
-                                    (NPIdentifier)aId, &converted))) {
+                                    id->ToNPIdentifier(), &converted))) {
     ReleaseVariant(converted, instance);
   }
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerRemoveProperty(const NPRemoteIdentifier& aId,
+PluginScriptableObjectParent::AnswerRemoveProperty(PPluginIdentifierParent* aId,
                                                    bool* aSuccess)
 {
   if (!mObject) {
@@ -1108,19 +1050,14 @@ PluginScriptableObjectParent::AnswerRemoveProperty(const NPRemoteIdentifier& aId
     return true;
   }
 
-  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
-    NS_WARNING("Invalid NPIdentifier!");
-    *aSuccess = false;
-    return true;
-  }
-
+  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   *aSuccess = npn->removeproperty(instance->GetNPP(), mObject,
-                                  (NPIdentifier)aId);
+                                  id->ToNPIdentifier());
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerEnumerate(nsTArray<NPRemoteIdentifier>* aProperties,
+PluginScriptableObjectParent::AnswerEnumerate(nsTArray<PPluginIdentifierParent*>* aProperties,
                                               bool* aSuccess)
 {
   if (!mObject) {
@@ -1160,13 +1097,7 @@ PluginScriptableObjectParent::AnswerEnumerate(nsTArray<NPRemoteIdentifier>* aPro
   }
 
   for (uint32_t index = 0; index < idCount; index++) {
-    NS_ASSERTION(EnsureValidIdentifier(instance, ids[index]),
-                 "Identifier not yet in hashset!");
-#ifdef DEBUG
-    NPRemoteIdentifier* remoteId =
-#endif
-    aProperties->AppendElement((NPRemoteIdentifier)ids[index]);
-    NS_ASSERTION(remoteId, "Shouldn't fail if SetCapacity above succeeded!");
+    aProperties->AppendElement(GetIdentifier(instance, ids[index]));
   }
 
   npn->memfree(ids);
@@ -1321,4 +1252,44 @@ PluginScriptableObjectParent::AnswerNPN_Evaluate(const nsCString& aScript,
   *aSuccess = true;
   *aResult = convertedResult;
   return true;
+}
+
+JSBool
+PluginScriptableObjectParent::GetPropertyHelper(NPIdentifier aName,
+                                                PRBool* aHasProperty,
+                                                PRBool* aHasMethod,
+                                                NPVariant* aResult)
+{
+  NS_ASSERTION(Type() == Proxy, "Bad type!");
+
+  ParentNPObject* object = static_cast<ParentNPObject*>(mObject);
+  if (object->invalidated) {
+    NS_WARNING("Calling method on an invalidated object!");
+    return JS_FALSE;
+  }
+
+  PPluginIdentifierParent* identifier = GetIdentifier(GetInstance(), aName);
+  if (!identifier) {
+    return JS_FALSE;
+  }
+
+  bool hasProperty, hasMethod, success;
+  Variant result;
+  if (!CallGetChildProperty(identifier, &hasProperty, &hasMethod, &result,
+                            &success)) {
+    return JS_FALSE;
+  }
+
+  if (!success) {
+    return JS_FALSE;
+  }
+
+  if (!ConvertToVariant(result, *aResult, GetInstance())) {
+    NS_WARNING("Failed to convert result!");
+    return JS_FALSE;
+  }
+
+  *aHasProperty = hasProperty;
+  *aHasMethod = hasMethod;
+  return JS_TRUE;
 }

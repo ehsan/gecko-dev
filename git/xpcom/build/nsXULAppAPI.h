@@ -424,6 +424,7 @@ enum GeckoProcessType {
 
   GeckoProcessType_Plugin,
   GeckoProcessType_Content,
+  GeckoProcessType_Jetpack,
 
   GeckoProcessType_IPDLUnitTest,
 
@@ -435,6 +436,7 @@ static const char* const kGeckoProcessTypeString[] = {
   "default",
   "plugin",
   "tab",
+  "jetpack",
   "ipdlunittest"
 };
 
@@ -452,7 +454,7 @@ XRE_API(GeckoProcessType,
 #if defined(MOZ_CRASHREPORTER)
 // Used in the "master" parent process hosting the crash server
 XRE_API(PRBool,
-        XRE_GetMinidumpForChild, (PRUint32 aChildPid, nsIFile** aDump))
+        XRE_TakeMinidumpForChild, (PRUint32 aChildPid, nsILocalFile** aDump))
 
 // Used in child processes.
 XRE_API(PRBool,
@@ -503,6 +505,12 @@ XRE_API(bool,
         XRE_SendTestShellCommand, (JSContext* aCx,
                                    JSString* aCommand,
                                    void* aCallback))
+struct JSObject;
+
+XRE_API(bool,
+        XRE_GetChildGlobalObject, (JSContext* aCx,
+                                   JSObject** globalp))
+
 XRE_API(bool,
         XRE_ShutdownTestShell, ())
 

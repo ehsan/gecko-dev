@@ -95,6 +95,8 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Rect)
 NS_IMPL_ADDREF_INHERITED(nsSVGRectElement,nsSVGRectElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGRectElement,nsSVGRectElementBase)
 
+DOMCI_DATA(SVGRectElement, nsSVGRectElement)
+
 NS_INTERFACE_TABLE_HEAD(nsSVGRectElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGRectElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGRectElement)
@@ -175,8 +177,11 @@ nsSVGRectElement::ConstructPath(gfxContext *aCtx)
 
   /* In a perfect world, this would be handled by the DOM, and
      return a DOM exception. */
-  if (width <= 0 || height <= 0 || ry < 0 || rx < 0)
+  if (width <= 0 || height <= 0)
     return;
+
+  rx = NS_MAX(rx, 0.0f);
+  ry = NS_MAX(ry, 0.0f);
 
   /* optimize the no rounded corners case */
   if (rx == 0 && ry == 0) {
