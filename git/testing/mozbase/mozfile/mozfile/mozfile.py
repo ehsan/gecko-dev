@@ -50,7 +50,7 @@ def extract_zip(src, dest):
     else:
         try:
             bundle = zipfile.ZipFile(src)
-        except Exception:
+        except Exception, e:
             print "src: %s" % src
             raise
 
@@ -264,6 +264,9 @@ def tree(directory,
         # sort articles of interest
         for resource in (dirnames, filenames):
             resource[:] = sorted(resource, key=sort_key)
+
+        files_end =  item_marker
+        dirpath_marker = item_marker
 
         if level > len(indent):
             indent.append(vertical_line)

@@ -31,7 +31,7 @@
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
 
-class pkixocsp_CreateEncodedOCSPRequest : public NSSTest
+class pkix_ocsp_request_tests : public NSSTest
 {
 protected:
   // These SECItems are allocated in arena, and so will be auto-cleaned.
@@ -90,7 +90,7 @@ protected:
 
 // Test that the large length of the child serial number causes
 // CreateEncodedOCSPRequest to fail.
-TEST_F(pkixocsp_CreateEncodedOCSPRequest, ChildCertLongSerialNumberTest)
+TEST_F(pkix_ocsp_request_tests, ChildCertLongSerialNumberTest)
 {
   const SECItem* issuerDER;
   ScopedSECItem issuerSPKI;
@@ -104,7 +104,7 @@ TEST_F(pkixocsp_CreateEncodedOCSPRequest, ChildCertLongSerialNumberTest)
 
 // Test that CreateEncodedOCSPRequest handles the longest serial number that
 // it's required to support (i.e. 20 octets).
-TEST_F(pkixocsp_CreateEncodedOCSPRequest, LongestSupportedSerialNumberTest)
+TEST_F(pkix_ocsp_request_tests, LongestSupportedSerialNumberTest)
 {
   const SECItem* issuerDER;
   ScopedSECItem issuerSPKI;

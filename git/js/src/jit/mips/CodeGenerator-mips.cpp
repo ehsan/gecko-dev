@@ -1985,8 +1985,7 @@ CodeGeneratorMIPS::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     }
     masm.bind(&done);
 
-    masm.append(AsmJSHeapAccess(bo.getOffset()));
-    return true;
+    return masm.append(AsmJSHeapAccess(bo.getOffset()));
 }
 
 bool
@@ -2062,8 +2061,7 @@ CodeGeneratorMIPS::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
     }
     masm.bind(&rejoin);
 
-    masm.append(AsmJSHeapAccess(bo.getOffset()));
-    return true;
+    return masm.append(AsmJSHeapAccess(bo.getOffset()));
 }
 
 bool

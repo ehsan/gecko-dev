@@ -19,11 +19,9 @@
 #include "prerror.h"
 #include "prmem.h"
 #include "prprf.h"
-#include "ScopedNSSTypes.h"
 #include "secerr.h"
 #include "secmod.h"
 
-using namespace mozilla;
 using namespace mozilla::pkix;
 
 #ifdef PR_LOGGING
@@ -58,28 +56,15 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
 }
 
 SECStatus
-NSSCertDBTrustDomain::FindIssuer(const SECItem& encodedIssuerName,
-                                 IssuerChecker& checker, PRTime time)
+NSSCertDBTrustDomain::FindPotentialIssuers(
+  const SECItem* encodedIssuerName, PRTime time,
+  /*out*/ mozilla::pkix::ScopedCERTCertList& results)
 {
+  // TODO: normalize encodedIssuerName
   // TODO: NSS seems to be ambiguous between "no potential issuers found" and
   // "there was an error trying to retrieve the potential issuers."
-  mozilla::pkix::ScopedCERTCertList
-    candidates(CERT_CreateSubjectCertList(nullptr, CERT_GetDefaultCertDB(),
-                                          &encodedIssuerName, time, true));
-  if (candidates) {
-    for (CERTCertListNode* n = CERT_LIST_HEAD(candidates);
-         !CERT_LIST_END(n, candidates); n = CERT_LIST_NEXT(n)) {
-      bool keepGoing;
-      SECStatus srv = checker.Check(n->cert->derCert, keepGoing);
-      if (srv != SECSuccess) {
-        return SECFailure;
-      }
-      if (!keepGoing) {
-        break;
-      }
-    }
-  }
-
+  results = CERT_CreateSubjectCertList(nullptr, CERT_GetDefaultCertDB(),
+                                       encodedIssuerName, time, true);
   return SECSuccess;
 }
 
@@ -162,7 +147,7 @@ NSSCertDBTrustDomain::GetCertTrust(EndEntityOrCA endEntityOrCA,
 }
 
 SECStatus
-NSSCertDBTrustDomain::VerifySignedData(const CERTSignedData& signedData,
+NSSCertDBTrustDomain::VerifySignedData(const CERTSignedData* signedData,
                                        const SECItem& subjectPublicKeyInfo)
 {
   return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
@@ -767,7 +752,7 @@ DefaultServerNicknameForCert(CERTCertificate* cert)
 }
 
 void
-SaveIntermediateCerts(const mozilla::pkix::ScopedCERTCertList& certList)
+SaveIntermediateCerts(const ScopedCERTCertList& certList)
 {
   if (!certList) {
     return;

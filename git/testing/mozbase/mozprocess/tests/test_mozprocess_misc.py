@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import time
 import unittest
 import proctest
 from mozprocess import processhandler

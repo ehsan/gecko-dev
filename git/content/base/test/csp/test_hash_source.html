@@ -125,10 +125,14 @@ function checkInline () {
 // set up and go
 SimpleTest.waitForExplicitFinish();
 
-// save this for last so that our listeners are registered.
-// ... this loads the testbed of good and bad requests.
-document.getElementById('cspframe').src = 'file_hash_source.html';
-document.getElementById('cspframe').addEventListener('load', checkInline, false);
+SpecialPowers.pushPrefEnv(
+  {'set':[["security.csp.speccompliant", true]]},
+  function() {
+    // save this for last so that our listeners are registered.
+    // ... this loads the testbed of good and bad requests.
+    document.getElementById('cspframe').src = 'file_hash_source.html';
+    document.getElementById('cspframe').addEventListener('load', checkInline, false);
+  });
 </script>
 </pre>
 </body>

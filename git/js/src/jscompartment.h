@@ -587,10 +587,11 @@ class AutoCompartment
 class ErrorCopier
 {
     mozilla::Maybe<AutoCompartment> &ac;
+    RootedObject scope;
 
   public:
-    explicit ErrorCopier(mozilla::Maybe<AutoCompartment> &ac)
-      : ac(ac) {}
+    ErrorCopier(mozilla::Maybe<AutoCompartment> &ac, JSObject *scope)
+      : ac(ac), scope(ac.ref().context(), scope) {}
     ~ErrorCopier();
 };
 

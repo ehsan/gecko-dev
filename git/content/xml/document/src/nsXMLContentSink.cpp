@@ -607,8 +607,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
       nsAutoString relVal;
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
       if (!relVal.IsEmpty()) {
-        uint32_t linkTypes =
-          nsStyleLinkElement::ParseLinkTypes(relVal, aContent->NodePrincipal());
+        uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
         bool hasPrefetch = linkTypes & nsStyleLinkElement::ePREFETCH;
         if (hasPrefetch || (linkTypes & nsStyleLinkElement::eNEXT)) {
           nsAutoString hrefVal;

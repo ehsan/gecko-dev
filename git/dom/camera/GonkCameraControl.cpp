@@ -1683,12 +1683,6 @@ nsGonkCameraControl::GetRecorderProfileManagerImpl()
 }
 
 void
-nsGonkCameraControl::OnRateLimitPreview(bool aLimit)
-{
-  CameraControlImpl::OnRateLimitPreview(aLimit);
-}
-
-void
 nsGonkCameraControl::OnNewPreviewFrame(layers::TextureClient* aBuffer)
 {
   nsRefPtr<Image> frame = mImageContainer->CreateImage(ImageFormat::GRALLOC_PLANAR_YCBCR);
@@ -1748,12 +1742,6 @@ void
 OnFacesDetected(nsGonkCameraControl* gc, camera_frame_metadata_t* aMetaData)
 {
   gc->OnFacesDetected(aMetaData);
-}
-
-void
-OnRateLimitPreview(nsGonkCameraControl* gc, bool aLimit)
-{
-  gc->OnRateLimitPreview(aLimit);
 }
 
 void

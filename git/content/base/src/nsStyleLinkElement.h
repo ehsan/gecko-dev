@@ -61,13 +61,10 @@ public:
     eHTMLIMPORT =   0x00000020
   };
 
-  // The return value is a bitwise or of 0 or more RelValues.
-  // aPrincipal is used to check if HTML imports is enabled for the
-  // provided principal.
-  static uint32_t ParseLinkTypes(const nsAString& aTypes,
-                                 nsIPrincipal* aPrincipal);
+  // The return value is a bitwise or of 0 or more RelValues
+  static uint32_t ParseLinkTypes(const nsAString& aTypes);
 
-  static bool IsImportEnabled(nsIPrincipal* aPrincipal);
+  static bool IsImportEnabled();
   
   void UpdateStyleSheetInternal()
   {

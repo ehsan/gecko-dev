@@ -638,7 +638,8 @@ nsCertTree::GetCertsByType(uint32_t           aType,
 {
   nsNSSShutDownPreventionLock locker;
   nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
-  ScopedCERTCertList certList(PK11_ListCerts(PK11CertListUnique, cxt));
+  mozilla::pkix::ScopedCERTCertList certList(
+    PK11_ListCerts(PK11CertListUnique, cxt));
   return GetCertsByTypeFromCertList(certList.get(), aType, aCertCmpFn,
                                     aCertCmpFnArg);
 }
@@ -808,7 +809,7 @@ nsCertTree::DeleteEntryObject(uint32_t index)
             // although there are still overrides stored,
             // so, we keep the cert, but remove the trust
 
-            ScopedCERTCertificate nsscert(cert->GetCert());
+            mozilla::pkix::ScopedCERTCertificate nsscert(cert->GetCert());
 
             if (nsscert) {
               CERTCertTrust trust;

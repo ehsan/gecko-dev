@@ -45,12 +45,6 @@ GonkCameraHardware::GonkCameraHardware(mozilla::nsGonkCameraControl* aTarget, ui
 }
 
 void
-GonkCameraHardware::OnRateLimitPreview(bool aLimit)
-{
-  ::OnRateLimitPreview(mTarget, aLimit);
-}
-
-void
 GonkCameraHardware::OnNewFrame()
 {
   if (mClosing) {

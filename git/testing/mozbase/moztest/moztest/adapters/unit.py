@@ -138,5 +138,6 @@ class StructuredTestRunner(unittest.TextTestRunner):
         stopTime = time.time()
         if hasattr(result, 'time_taken'):
             result.time_taken = stopTime - startTime
+        run = result.testsRun
 
         return result

@@ -162,20 +162,20 @@ VerifyCMSDetachedSignatureIncludingCertificate(
 
   // Parse the certificates into CERTCertificate objects held in memory so
   // verifyCertificate will be able to find them during path building.
-  ScopedCERTCertList certs(CERT_NewCertList());
+  mozilla::pkix::ScopedCERTCertList certs(CERT_NewCertList());
   if (!certs) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   if (signedData->rawCerts) {
     for (size_t i = 0; signedData->rawCerts[i]; ++i) {
-      ScopedCERTCertificate
+      mozilla::pkix::ScopedCERTCertificate
         cert(CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
                                      signedData->rawCerts[i], nullptr, false,
                                      true));
       // Skip certificates that fail to parse
       if (cert) {
         if (CERT_AddCertToListTail(certs.get(), cert.get()) == SECSuccess) {
-          cert.forget(); // ownership transfered
+          cert.release(); // ownership transfered
         } else {
           return NS_ERROR_OUT_OF_MEMORY;
         }

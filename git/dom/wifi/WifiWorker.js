@@ -1112,7 +1112,7 @@ var WifiManager = (function() {
 
         function getWifiHotspotStatus() {
           wifiCommand.hostapdGetStations(function(result) {
-            notify("stationinfoupdate", {station: result});
+            notify("stationInfoUpdate", {station: result});
           });
         }
 
@@ -2324,8 +2324,8 @@ function WifiWorker() {
     });
   };
 
-  WifiManager.onstationinfoupdate = function() {
-    self._fireEvent("stationinfoupdate", { station: this.station });
+  WifiManager.onstationInfoUpdate = function() {
+    self._fireEvent("stationInfoUpdate", { station: this.station });
   };
 
   // Read the 'wifi.enabled' setting in order to start with a known
@@ -2511,8 +2511,8 @@ WifiWorker.prototype = {
         }
 
         self._lastConnectionInfo = info;
-        debug("Firing connectioninfoupdate: " + uneval(info));
-        self._fireEvent("connectioninfoupdate", info);
+        debug("Firing connectionInfoUpdate: " + uneval(info));
+        self._fireEvent("connectionInfoUpdate", info);
       });
     }
 

@@ -944,6 +944,7 @@ class ManifestParser(object):
         """
 
         manifest_dict = {}
+        seen = [] # top-level directories seen
 
         if os.path.basename(filename) != filename:
             raise IOError("filename should not include directory name")

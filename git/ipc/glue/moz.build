@@ -13,7 +13,6 @@ EXPORTS += [
 EXPORTS.mozilla.ipc += [
     'BackgroundChild.h',
     'BackgroundParent.h',
-    'BackgroundUtils.h',
     'BrowserProcessSubThread.h',
     'CrossProcessMutex.h',
     'FileDescriptor.h',
@@ -96,7 +95,6 @@ EXPORTS.ipc += [
 
 UNIFIED_SOURCES += [
     'BackgroundImpl.cpp',
-    'BackgroundUtils.cpp',
     'BrowserProcessSubThread.cpp',
     'FileDescriptor.cpp',
     'FileDescriptorUtils.cpp',
@@ -128,7 +126,6 @@ LOCAL_INCLUDES += [
 IPDL_SOURCES = [
     'InputStreamParams.ipdlh',
     'PBackground.ipdl',
-    'PBackgroundSharedTypes.ipdlh',
     'PBackgroundTest.ipdl',
     'ProtocolTypes.ipdlh',
     'URIParams.ipdlh',

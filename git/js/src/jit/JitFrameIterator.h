@@ -329,8 +329,6 @@ class SnapshotIterator
         return snapshot_.numAllocationsRead() < numAllocations();
     }
 
-    int32_t readOuterNumActualArgs() const;
-
   public:
     // Exhibits frame properties contained in the snapshot.
     uint32_t pcOffset() const;
