@@ -6,6 +6,5 @@
       "xulrunner", "firefox", "browser"
     ],
     "loader": "lib/sdk/loader/cuddlefish.js",
-    "license": "MPL 2.0",
-    "unpack": true
+    "license": "MPL 2.0"
 }

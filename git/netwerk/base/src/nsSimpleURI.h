@@ -30,9 +30,6 @@ class nsSimpleURI : public nsIURI,
                     public nsISizeOf,
                     public nsIIPCSerializableURI
 {
-protected:
-    virtual ~nsSimpleURI();
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIURI
@@ -44,6 +41,7 @@ public:
     // nsSimpleURI methods:
 
     nsSimpleURI();
+    virtual ~nsSimpleURI();
 
     // nsISizeOf
     // Among the sub-classes that inherit (directly or indirectly) from

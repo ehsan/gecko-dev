@@ -51,8 +51,6 @@ public:
   size_t SizeOfIncludingThisIfNotShared(MallocSizeOf aMallocSizeOf) const;
 
 private:
-  ~PeriodicWave() {}
-
   nsRefPtr<AudioContext> mContext;
   nsRefPtr<ThreadSharedFloatArrayBufferList> mCoefficients;
   uint32_t mLength;

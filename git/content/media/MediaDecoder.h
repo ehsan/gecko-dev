@@ -275,6 +275,7 @@ public:
   };
 
   MediaDecoder();
+  virtual ~MediaDecoder();
 
   // Reset the decoder and notify the media element that
   // server connection is closed.
@@ -998,8 +999,6 @@ public:
   }
 
 protected:
-  virtual ~MediaDecoder();
-
   /******
    * The following members should be accessed with the decoder lock held.
    ******/

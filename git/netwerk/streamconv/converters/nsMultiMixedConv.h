@@ -126,10 +126,9 @@ public:
     NS_DECL_NSIREQUESTOBSERVER
 
     nsMultiMixedConv();
-
-protected:
     virtual ~nsMultiMixedConv();
 
+protected:
     nsresult SendStart(nsIChannel *aChannel);
     nsresult SendStop(nsresult aStatus);
     nsresult SendData(char *aBuffer, uint32_t aLen);

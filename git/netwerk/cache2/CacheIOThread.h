@@ -19,13 +19,12 @@ namespace net {
 
 class CacheIOThread : public nsIThreadObserver
 {
-  virtual ~CacheIOThread();
-
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITHREADOBSERVER
 
   CacheIOThread();
+  virtual ~CacheIOThread();
 
   enum ELevel {
     OPEN_PRIORITY,

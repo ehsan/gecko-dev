@@ -28,6 +28,7 @@ public:
   {
     SetIsDOMBinding();
   }
+  ~SVGAnimatedAngle();
 
   // WebIDL
   nsSVGElement* GetParentObject() { return mSVGElement; }
@@ -36,8 +37,6 @@ public:
   already_AddRefed<SVGAngle> AnimVal();
 
 protected:
-  ~SVGAnimatedAngle();
-
   nsSVGAngle* mVal; // kept alive because it belongs to content
   nsRefPtr<nsSVGElement> mSVGElement;
 };

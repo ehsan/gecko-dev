@@ -460,8 +460,6 @@ public:
   }
 
 private:
-  ~WebShellWindowTimerCallback() {}
-
   nsRefPtr<nsWebShellWindow> mWindow;
 };
 

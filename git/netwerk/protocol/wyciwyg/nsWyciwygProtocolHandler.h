@@ -11,13 +11,12 @@
             
 class nsWyciwygProtocolHandler : public nsIProtocolHandler
 {
-    virtual ~nsWyciwygProtocolHandler();
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
 
     nsWyciwygProtocolHandler();
+    virtual ~nsWyciwygProtocolHandler();
 };
 
 #endif /* nsWyciwygProtocolHandler_h___ */

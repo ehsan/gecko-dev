@@ -35,8 +35,6 @@ public:
   nsApplicationCacheNamespace() : mItemType(0) {}
 
 private:
-  ~nsApplicationCacheNamespace() {}
-
   uint32_t mItemType;
   nsCString mNamespaceSpec;
   nsCString mData;
@@ -55,8 +53,6 @@ public:
   void Apply();
 
 private:
-  ~nsOfflineCacheEvictionFunction() {}
-
   nsOfflineCacheDevice *mDevice;
   nsCOMArray<nsIFile> mItems;
 
@@ -192,10 +188,8 @@ public:
   uint32_t                CacheCapacity() { return mCacheCapacity; }
   uint32_t                CacheSize();
   uint32_t                EntryCount();
-
+  
 private:
-  ~nsOfflineCacheDevice();
-
   friend class nsApplicationCache;
 
   static PLDHashOperator ShutdownApplicationCache(const nsACString &key,

@@ -50,6 +50,10 @@ public:
   SelectState()
   {
   }
+  virtual ~SelectState()
+  {
+  }
+
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_SELECT_STATE_IID)
   NS_DECL_ISUPPORTS
 
@@ -69,10 +73,6 @@ public:
   }
 
 private:
-  virtual ~SelectState()
-  {
-  }
-
   nsCheapSet<nsStringHashKey> mValues;
   nsCheapSet<nsUint32HashKey> mIndices;
 };

@@ -250,8 +250,6 @@ nsDNSRecord::ReportUnusable(uint16_t aPort)
 class nsDNSAsyncRequest MOZ_FINAL : public nsResolveHostCallback
                                   , public nsICancelable
 {
-    ~nsDNSAsyncRequest() {}
-
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICANCELABLE
@@ -266,6 +264,7 @@ public:
         , mListener(listener)
         , mFlags(flags)
         , mAF(af) {}
+    ~nsDNSAsyncRequest() {}
 
     void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
     // Returns TRUE if the DNS listener arg is the same as the member listener

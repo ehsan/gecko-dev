@@ -56,6 +56,7 @@ public:
   typedef uint8_t TrackTypeHints;
 
   DOMMediaStream();
+  virtual ~DOMMediaStream();
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMMediaStream)
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -208,8 +209,6 @@ public:
   }
 
 protected:
-  virtual ~DOMMediaStream();
-
   void Destroy();
   void InitSourceStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents);
   void InitTrackUnionStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents);
@@ -287,7 +286,6 @@ class DOMAudioNodeMediaStream : public DOMMediaStream
   typedef dom::AudioNode AudioNode;
 public:
   DOMAudioNodeMediaStream(AudioNode* aNode);
-  ~DOMAudioNodeMediaStream();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DOMAudioNodeMediaStream, DOMMediaStream)

@@ -214,9 +214,8 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
 class WebBrowserChrome2Stub : public nsIWebBrowserChrome2,
                               public nsIInterfaceRequestor,
                               public nsSupportsWeakReference {
-protected:
-    virtual ~WebBrowserChrome2Stub() {}
 public:
+    virtual ~WebBrowserChrome2Stub() {}
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBBROWSERCHROME
     NS_DECL_NSIWEBBROWSERCHROME2
@@ -333,7 +332,6 @@ public:
   NS_FORWARD_NSIWEBNAVIGATION(mWebNavigation->)
   NS_FORWARD_NSIINTERFACEREQUESTOR(mInterfaceRequestor->)
 private:
-  ~WindowlessBrowserStub() {}
   nsCOMPtr<nsIWebBrowser> mBrowser;
   nsCOMPtr<nsIWebNavigation> mWebNavigation;
   nsCOMPtr<nsIInterfaceRequestor> mInterfaceRequestor;

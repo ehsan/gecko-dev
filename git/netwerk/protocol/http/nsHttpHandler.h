@@ -57,6 +57,7 @@ public:
     NS_DECL_NSISPECULATIVECONNECT
 
     nsHttpHandler();
+    virtual ~nsHttpHandler();
 
     nsresult Init();
     nsresult AddStandardRequestHeaders(nsHttpHeaderArray *);
@@ -311,7 +312,6 @@ public:
     void ClearCacheSkippedUntil() { mCacheSkippedUntil = TimeStamp(); }
 
 private:
-    virtual ~nsHttpHandler();
 
     //
     // Useragent/prefs helper methods
@@ -545,7 +545,6 @@ class nsHttpsHandler : public nsIHttpProtocolHandler
                      , public nsSupportsWeakReference
                      , public nsISpeculativeConnect
 {
-    virtual ~nsHttpsHandler() { }
 public:
     // we basically just want to override GetScheme and GetDefaultPort...
     // all other methods should be forwarded to the nsHttpHandler instance.
@@ -557,6 +556,7 @@ public:
     NS_FORWARD_NSISPECULATIVECONNECT     (gHttpHandler->)
 
     nsHttpsHandler() { }
+    virtual ~nsHttpsHandler() { }
 
     nsresult Init();
 };

@@ -2886,17 +2886,14 @@ nsBlockFrame::IsEmpty()
 
 bool
 nsBlockFrame::ShouldApplyBStartMargin(nsBlockReflowState& aState,
-                                      nsLineBox* aLine,
-                                      nsIFrame* aChildFrame)
+                                   nsLineBox* aLine)
 {
   if (aState.GetFlag(BRS_APPLYBSTARTMARGIN)) {
     // Apply short-circuit check to avoid searching the line list
     return true;
   }
 
-  if (!aState.IsAdjacentWithTop() ||
-      aChildFrame->StyleBorder()->mBoxDecorationBreak ==
-        NS_STYLE_BOX_DECORATION_BREAK_CLONE) {
+  if (!aState.IsAdjacentWithTop()) {
     // If we aren't at the top Y coordinate then something of non-zero
     // height must have been placed. Therefore the childs top-margin
     // applies.
@@ -2958,12 +2955,11 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
 
   // See if we should apply the top margin. If the block frame being
   // reflowed is a continuation (non-null prev-in-flow) then we don't
-  // apply its top margin because it's not significant unless it has
-  // 'box-decoration-break:clone'.  Otherwise, dig deeper.
-  bool applyBStartMargin = (frame->StyleBorder()->mBoxDecorationBreak ==
-                              NS_STYLE_BOX_DECORATION_BREAK_CLONE ||
-                            !frame->GetPrevInFlow()) &&
-                           ShouldApplyBStartMargin(aState, aLine, frame);
+  // apply its top margin because it's not significant. Otherwise, dig
+  // deeper.
+  bool applyBStartMargin =
+    !frame->GetPrevInFlow() && ShouldApplyBStartMargin(aState, aLine);
+
   if (applyBStartMargin) {
     // The HasClearance setting is only valid if ShouldApplyBStartMargin
     // returned false (in which case the top-margin-root set our
@@ -3431,7 +3427,7 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
 
   // Setup initial coordinate system for reflowing the inline frames
   // into. Apply a previous block frame's bottom margin first.
-  if (ShouldApplyBStartMargin(aState, aLine, aLine->mFirstChild)) {
+  if (ShouldApplyBStartMargin(aState, aLine)) {
     aState.mBCoord += aState.mPrevBEndMargin.get();
   }
   nsFlowAreaRect floatAvailableSpace = aState.GetFloatAvailableSpace();

@@ -42,6 +42,7 @@ public:
   {
     SetIsDOMBinding();
   }
+  virtual ~nsBaseContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -99,8 +100,6 @@ public:
     mElements.SetCapacity(aCapacity);
   }
 protected:
-  virtual ~nsBaseContentList();
-
   /**
    * To be called from non-destructor locations (e.g. unlink) that want to
    * remove from caches.  Cacheable subclasses should override.

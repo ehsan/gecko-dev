@@ -36,7 +36,7 @@ class nsPresContext;
  * collection.
  */
 
-class nsStyleContext MOZ_FINAL
+class nsStyleContext
 {
 public:
   /**
@@ -67,6 +67,7 @@ public:
                  nsCSSPseudoElements::Type aPseudoType,
                  nsRuleNode* aRuleNode,
                  bool aSkipParentDisplayBasedStyleFixup);
+  ~nsStyleContext();
 
   void* operator new(size_t sz, nsPresContext* aPresContext) CPP_THROW_NEW;
   void Destroy();
@@ -325,9 +326,6 @@ public:
 #endif
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~nsStyleContext();
-
   void AddChild(nsStyleContext* aChild);
   void RemoveChild(nsStyleContext* aChild);
 

@@ -55,6 +55,7 @@ class nsScriptLoader : public nsIStreamLoaderObserver
 
 public:
   nsScriptLoader(nsIDocument* aDocument);
+  virtual ~nsScriptLoader();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLOADEROBSERVER
@@ -244,8 +245,6 @@ public:
                                    void **aOffThreadToken);
 
 private:
-  virtual ~nsScriptLoader();
-
   /**
    * Unblocks the creator parser of the parser-blocking scripts.
    */

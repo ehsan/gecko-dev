@@ -46,6 +46,7 @@ public:
   NS_DECL_NSIWYCIWYGCHANNEL
 
   WyciwygChannelChild();
+  virtual ~WyciwygChannelChild();
 
   void AddIPDLReference();
   void ReleaseIPDLReference();
@@ -55,8 +56,6 @@ public:
   bool IsSuspended();
 
 protected:
-  virtual ~WyciwygChannelChild();
-
   bool RecvOnStartRequest(const nsresult& statusCode,
                           const int64_t& contentLength,
                           const int32_t& source,

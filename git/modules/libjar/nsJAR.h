@@ -59,13 +59,10 @@ class nsJAR : public nsIZipReader
   // Allows nsZipReaderCache to access mOuterZipEntry
   friend class nsZipReaderCache;
 
-  private:
-
-    virtual ~nsJAR();
-
   public:
 
     nsJAR();
+    virtual ~nsJAR();
 
     NS_DEFINE_STATIC_CID_ACCESSOR( NS_ZIPREADER_CID )
 
@@ -139,10 +136,9 @@ public:
     NS_DECL_NSIZIPENTRY
 
     nsJARItem(nsZipItem* aZipItem);
-
-private:
     virtual ~nsJARItem() {}
 
+private:
     uint32_t     mSize;             /* size in original file */
     uint32_t     mRealsize;         /* inflated size */
     uint32_t     mCrc32;
@@ -192,14 +188,13 @@ public:
   NS_DECL_NSIOBSERVER
 
   nsZipReaderCache();
+  virtual ~nsZipReaderCache();
 
   nsresult ReleaseZip(nsJAR* reader);
 
   typedef nsRefPtrHashtable<nsCStringHashKey, nsJAR> ZipsHashtable;
 
 protected:
-
-  virtual ~nsZipReaderCache();
 
   mozilla::Mutex        mLock;
   uint32_t              mCacheSize;

@@ -26,6 +26,7 @@ class SpeechRecognitionResult MOZ_FINAL : public nsISupports,
 {
 public:
   SpeechRecognitionResult(SpeechRecognition* aParent);
+  ~SpeechRecognitionResult();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SpeechRecognitionResult)
@@ -43,10 +44,7 @@ public:
   already_AddRefed<SpeechRecognitionAlternative> IndexedGetter(uint32_t aIndex, bool& aPresent);
 
   nsTArray<nsRefPtr<SpeechRecognitionAlternative> > mItems;
-
 private:
-  ~SpeechRecognitionResult();
-
   nsRefPtr<SpeechRecognition> mParent;
 };
 

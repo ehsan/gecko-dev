@@ -23,14 +23,13 @@ namespace dom {
 class AudioParam MOZ_FINAL : public nsWrapperCache,
                              public AudioParamTimeline
 {
-  virtual ~AudioParam();
-
 public:
   typedef void (*CallbackType)(AudioNode*);
 
   AudioParam(AudioNode* aNode,
              CallbackType aCallback,
              float aDefaultValue);
+  virtual ~AudioParam();
 
   NS_IMETHOD_(MozExternalRefCountType) AddRef(void);
   NS_IMETHOD_(MozExternalRefCountType) Release(void);

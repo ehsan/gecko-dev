@@ -582,7 +582,7 @@ JS_Init(void)
         return false;
 #endif
 
-    if (!ForkJoinContext::initializeTls())
+    if (!ForkJoinContext::initialize())
         return false;
 
 #if EXPOSE_INTL_API
@@ -4810,7 +4810,7 @@ JS_DecompileScript(JSContext *cx, HandleScript script, const char *name, unsigne
     bool haveSource = script->scriptSource()->hasSourceData();
     if (!haveSource && !JSScript::loadSource(cx, script->scriptSource(), &haveSource))
         return nullptr;
-    return haveSource ? script->sourceData(cx) : NewStringCopyZ<CanGC>(cx, "[no source]");
+    return haveSource ? script->sourceData(cx) : js_NewStringCopyZ<CanGC>(cx, "[no source]");
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5228,17 +5228,28 @@ JS_NewStringCopyN(JSContext *cx, const char *s, size_t n)
     CHECK_REQUEST(cx);
     if (!n)
         return cx->names().empty;
-    return NewStringCopyN<CanGC>(cx, s, n);
+    return js_NewStringCopyN<CanGC>(cx, s, n);
 }
 
 JS_PUBLIC_API(JSString *)
 JS_NewStringCopyZ(JSContext *cx, const char *s)
 {
+    size_t n;
+    jschar *js;
+    JSString *str;
+
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     if (!s || !*s)
         return cx->runtime()->emptyString;
-    return NewStringCopyZ<CanGC>(cx, s);
+    n = strlen(s);
+    js = InflateString(cx, s, &n);
+    if (!js)
+        return nullptr;
+    str = js_NewString<CanGC>(cx, js, n);
+    if (!str)
+        js_free(js);
+    return str;
 }
 
 JS_PUBLIC_API(bool)
@@ -5293,7 +5304,7 @@ JS_NewUCString(JSContext *cx, jschar *chars, size_t length)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return NewString<CanGC>(cx, chars, length);
+    return js_NewString<CanGC>(cx, chars, length);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5303,7 +5314,7 @@ JS_NewUCStringCopyN(JSContext *cx, const jschar *s, size_t n)
     CHECK_REQUEST(cx);
     if (!n)
         return cx->names().empty;
-    return NewStringCopyN<CanGC>(cx, s, n);
+    return js_NewStringCopyN<CanGC>(cx, s, n);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5313,7 +5324,7 @@ JS_NewUCStringCopyZ(JSContext *cx, const jschar *s)
     CHECK_REQUEST(cx);
     if (!s)
         return cx->runtime()->emptyString;
-    return NewStringCopyZ<CanGC>(cx, s);
+    return js_NewStringCopyZ<CanGC>(cx, s);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5472,7 +5483,7 @@ JS_NewDependentString(JSContext *cx, HandleString str, size_t start, size_t leng
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return NewDependentString(cx, str, start, length);
+    return js_NewDependentString(cx, str, start, length);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5911,7 +5922,7 @@ JS_ExecuteRegExp(JSContext *cx, HandleObject obj, HandleObject reobj, jschar *ch
     if (!res)
         return false;
 
-    RootedLinearString input(cx, NewStringCopyN<CanGC>(cx, chars, length));
+    RootedLinearString input(cx, js_NewStringCopyN<CanGC>(cx, chars, length));
     if (!input)
         return false;
 
@@ -5948,7 +5959,7 @@ JS_ExecuteRegExpNoStatics(JSContext *cx, HandleObject obj, jschar *chars, size_t
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    RootedLinearString input(cx, NewStringCopyN<CanGC>(cx, chars, length));
+    RootedLinearString input(cx, js_NewStringCopyN<CanGC>(cx, chars, length));
     if (!input)
         return false;
 

@@ -15,8 +15,6 @@ static PRLogModuleInfo *gTestLog = nullptr;
 
 class MyStreamLoaderObserver MOZ_FINAL : public nsIStreamLoaderObserver
 {
-  ~MyStreamLoaderObserver() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLOADEROBSERVER

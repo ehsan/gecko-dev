@@ -33,10 +33,9 @@ public:
     NS_DECL_NSIAUTHPROMPTCALLBACK
 
     nsHttpChannelAuthProvider();
-
-private:
     virtual ~nsHttpChannelAuthProvider();
 
+private:
     const char *ProxyHost() const
     { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
 

@@ -637,8 +637,7 @@ protected:
   // Methods for individual frame reflow
 
   bool ShouldApplyBStartMargin(nsBlockReflowState& aState,
-                               nsLineBox* aLine,
-                               nsIFrame* aChildFrame);
+                               nsLineBox* aLine);
 
   void ReflowBlockFrame(nsBlockReflowState& aState,
                         line_iterator aLine,

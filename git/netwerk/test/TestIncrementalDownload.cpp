@@ -21,7 +21,6 @@
 class FetchObserver MOZ_FINAL : public nsIRequestObserver
                               , public nsIProgressEventSink
 {
-  ~FetchObserver() {}
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER

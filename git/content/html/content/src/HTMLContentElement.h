@@ -96,6 +96,7 @@ class DistributedContentList : public nsINodeList
 {
 public:
   DistributedContentList(HTMLContentElement* aHostElement);
+  virtual ~DistributedContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(DistributedContentList)
@@ -110,7 +111,6 @@ public:
   virtual uint32_t Length() const;
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 protected:
-  virtual ~DistributedContentList();
   nsRefPtr<HTMLContentElement> mParent;
   nsCOMArray<nsIContent> mDistributedNodes;
 };

@@ -31,8 +31,6 @@ class SpdySession3 MOZ_FINAL : public ASpdySession
                              , public nsAHttpSegmentReader
                              , public nsAHttpSegmentWriter
 {
-  ~SpdySession3();
-
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSAHTTPTRANSACTION
@@ -41,6 +39,7 @@ public:
   NS_DECL_NSAHTTPSEGMENTWRITER
 
   SpdySession3(nsISocketTransport *);
+  ~SpdySession3();
 
   bool AddStream(nsAHttpTransaction *, int32_t,
                  bool, nsIInterfaceRequestor *);

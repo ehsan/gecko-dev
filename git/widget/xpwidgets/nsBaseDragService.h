@@ -45,6 +45,7 @@ public:
   typedef mozilla::gfx::SourceSurface SourceSurface;
 
   nsBaseDragService();
+  virtual ~nsBaseDragService();
 
   //nsISupports
   NS_DECL_ISUPPORTS
@@ -58,7 +59,6 @@ public:
   uint16_t GetInputSource() { return mInputSource; }
 
 protected:
-  virtual ~nsBaseDragService();
 
   /**
    * Draw the drag image, if any, to a surface and return it. The drag image

@@ -18,6 +18,7 @@ class nsClipboard : public nsIClipboard,
 {
 public:
     nsClipboard();
+    virtual ~nsClipboard();
     
     NS_DECL_ISUPPORTS
     
@@ -34,8 +35,6 @@ public:
     void   SelectionClearEvent  (GtkClipboard     *aGtkClipboard);
 
 private:
-    virtual ~nsClipboard();
-
     // Utility methods
     static GdkAtom               GetSelectionAtom (int32_t aWhichClipboard);
     static GtkSelectionData     *GetTargets       (GdkAtom aWhichClipboard);

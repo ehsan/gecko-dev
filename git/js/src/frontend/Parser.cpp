@@ -1949,53 +1949,6 @@ Parser<SyntaxParseHandler>::checkFunctionDefinition(HandlePropertyName funName,
     return true;
 }
 
-#ifdef JS_HAS_TEMPLATE_STRINGS
-template <typename ParseHandler>
-typename ParseHandler::Node
-Parser<ParseHandler>::templateLiteral()
-{
-    Node pn = noSubstitutionTemplate();
-    if (!pn) {
-        report(ParseError, false, null(),
-                JSMSG_SYNTAX_ERROR);
-        return null();
-    }
-    Node nodeList = handler.newList(PNK_TEMPLATE_STRING_LIST, pn);
-    TokenKind tt;
-    do {
-        pn = expr();
-        if (!pn) {
-            report(ParseError, false, null(),
-                    JSMSG_SYNTAX_ERROR);
-            return null();
-        }
-        handler.addList(nodeList, pn);
-        tt = tokenStream.getToken();
-        if (tt != TOK_RC) {
-            report(ParseError, false, null(),
-                    JSMSG_SYNTAX_ERROR);
-            return null();
-        }
-        tt = tokenStream.getToken(TokenStream::TemplateTail);
-        if (tt == TOK_ERROR) {
-            report(ParseError, false, null(),
-                    JSMSG_SYNTAX_ERROR);
-            return null();
-        }
-
-        pn = noSubstitutionTemplate();
-        if (!pn) {
-            report(ParseError, false, null(),
-                    JSMSG_SYNTAX_ERROR);
-            return null();
-        }
-
-        handler.addList(nodeList, pn);
-    } while (tt == TOK_TEMPLATE_HEAD);
-    return nodeList;
-}
-#endif
-
 template <typename ParseHandler>
 typename ParseHandler::Node
 Parser<ParseHandler>::functionDef(HandlePropertyName funName, const TokenStream::Position &start,
@@ -6938,20 +6891,6 @@ template <typename ParseHandler>
 typename ParseHandler::Node
 Parser<ParseHandler>::stringLiteral()
 {
-    return handler.newStringLiteral(stopStringCompression(), pos());
-}
-
-#ifdef JS_HAS_TEMPLATE_STRINGS
-template <typename ParseHandler>
-typename ParseHandler::Node
-Parser<ParseHandler>::noSubstitutionTemplate()
-{
-    return handler.newTemplateStringLiteral(stopStringCompression(), pos());
-}
-#endif
-
-template <typename ParseHandler>
-JSAtom * Parser<ParseHandler>::stopStringCompression() {
     JSAtom *atom = tokenStream.currentToken().atom();
 
     // Large strings are fast to parse but slow to compress. Stop compression on
@@ -6960,10 +6899,9 @@ JSAtom * Parser<ParseHandler>::stopStringCompression() {
     const size_t HUGE_STRING = 50000;
     if (sct && sct->active() && atom->length() >= HUGE_STRING)
         sct->abort();
-    return atom;
+
+    return handler.newStringLiteral(atom, pos());
 }
-
-
 
 template <typename ParseHandler>
 typename ParseHandler::Node
@@ -7367,10 +7305,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
         return parenExprOrGeneratorComprehension();
 
 #ifdef JS_HAS_TEMPLATE_STRINGS
-      case TOK_TEMPLATE_HEAD:
-        return templateLiteral();
-      case TOK_NO_SUBS_TEMPLATE:
-        return noSubstitutionTemplate();
+      case TOK_TEMPLATE_STRING:
 #endif
       case TOK_STRING:
         return stringLiteral();

@@ -45,8 +45,7 @@ enum TokenKind {
     TOK_NAME,                      // identifier
     TOK_NUMBER,                    // numeric constant
     TOK_STRING,                    // string constant
-    TOK_TEMPLATE_HEAD,             // start of template literal with substitutions
-    TOK_NO_SUBS_TEMPLATE,          // template literal without substitutions
+    TOK_TEMPLATE_STRING,           // template string
     TOK_REGEXP,                    // RegExp constant
     TOK_TRUE,                      // true
     TOK_FALSE,                     // false
@@ -279,9 +278,7 @@ struct Token
     }
 
     void setAtom(JSAtom *atom) {
-        JS_ASSERT (type == TOK_STRING ||
-                   type == TOK_TEMPLATE_HEAD ||
-                   type == TOK_NO_SUBS_TEMPLATE);
+        JS_ASSERT (type == TOK_STRING || type == TOK_TEMPLATE_STRING);
         JS_ASSERT(!IsPoisonedPtr(atom));
         u.atom = atom;
     }
@@ -306,9 +303,7 @@ struct Token
     }
 
     JSAtom *atom() const {
-        JS_ASSERT (type == TOK_STRING ||
-                   type == TOK_TEMPLATE_HEAD ||
-                   type == TOK_NO_SUBS_TEMPLATE);
+        JS_ASSERT (type == TOK_STRING || type == TOK_TEMPLATE_STRING);
         return u.atom;
     }
 
@@ -501,7 +496,6 @@ class MOZ_STACK_CLASS TokenStream
                         //   we look for a regexp instead of just returning
                         //   TOK_DIV.
         KeywordIsName,  // Treat keywords as names by returning TOK_NAME.
-        TemplateTail,   // Treat next characters as part of a template string
     };
 
     // Get the next token from the stream, make it the current token, and
@@ -840,8 +834,6 @@ class MOZ_STACK_CLASS TokenStream
     };
 
     TokenKind getTokenInternal(Modifier modifier);
-
-    bool getStringOrTemplateToken(int qc, Token **tp);
 
     int32_t getChar();
     int32_t getCharIgnoreEOL();

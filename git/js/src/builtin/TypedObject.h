@@ -507,7 +507,7 @@ class StructTypeDescr : public ComplexTypeDescr
     SizedTypeDescr &fieldDescr(size_t index) const;
 
     // Return the offset of the field at index `index`.
-    size_t fieldOffset(size_t index) const;
+    int32_t fieldOffset(size_t index) const;
 };
 
 typedef Handle<StructTypeDescr*> HandleStructTypeDescr;

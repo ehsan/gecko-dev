@@ -33,6 +33,7 @@ public:
                     bool aCloseSink);
 
     nsAsyncStreamCopier();
+    virtual ~nsAsyncStreamCopier();
 
     //-------------------------------------------------------------------------
     // these methods may be called on any thread
@@ -41,8 +42,6 @@ public:
     void   Complete(nsresult status);
 
 private:
-    virtual ~nsAsyncStreamCopier();
-
     nsresult InitInternal(nsIInputStream *source,
                           nsIOutputStream *sink,
                           nsIEventTarget *target,

@@ -27,7 +27,6 @@ class EventStates;
 class nsNativeTheme : public nsITimerCallback
 {
  protected:
-  virtual ~nsNativeTheme() {}
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
@@ -45,6 +44,7 @@ class nsNativeTheme : public nsITimerCallback
   };
 
   nsNativeTheme();
+  virtual ~nsNativeTheme() {}
 
   // Returns the content state (hover, focus, etc), see EventStateManager.h
   mozilla::EventStates GetContentState(nsIFrame* aFrame, uint8_t aWidgetType);

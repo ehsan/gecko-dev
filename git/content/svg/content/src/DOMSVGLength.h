@@ -79,8 +79,6 @@ class DOMSVGLength MOZ_FINAL : public nsIDOMSVGLength,
    */
   DOMSVGLength(nsSVGLength2* aVal, nsSVGElement* aSVGElement, bool aAnimVal);
 
-  ~DOMSVGLength();
-
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGLENGTH_IID)
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -100,6 +98,8 @@ public:
    * which do not initially belong to an attribute.
    */
   DOMSVGLength();
+
+  ~DOMSVGLength();
 
   static already_AddRefed<DOMSVGLength> GetTearOff(nsSVGLength2* aVal,
                                                    nsSVGElement* aSVGElement,

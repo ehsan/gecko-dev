@@ -22,9 +22,6 @@ class RedirectChannelRegistrar MOZ_FINAL : public nsIRedirectChannelRegistrar
 
   RedirectChannelRegistrar();
 
-private:
-  ~RedirectChannelRegistrar() {}
-
 protected:
   typedef nsInterfaceHashtable<nsUint32HashKey, nsIChannel>
           ChannelHashtable;

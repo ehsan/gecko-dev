@@ -99,8 +99,6 @@ class SVGSVGElement MOZ_FINAL : public SVGSVGElementBase
                                          already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                                          mozilla::dom::FromParser aFromParser));
 
-  ~SVGSVGElement();
-
 public:
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED

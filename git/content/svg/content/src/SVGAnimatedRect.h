@@ -26,6 +26,8 @@ public:
 
   SVGAnimatedRect(nsSVGViewBox* aVal, nsSVGElement* aSVGElement);
 
+  virtual ~SVGAnimatedRect();
+
   nsSVGElement* GetParentObject() const
   {
     return mSVGElement;
@@ -38,8 +40,6 @@ public:
   already_AddRefed<SVGIRect> GetAnimVal();
 
 private:
-  virtual ~SVGAnimatedRect();
-
   nsSVGViewBox* mVal; // kept alive because it belongs to content
   nsRefPtr<nsSVGElement> mSVGElement;
 };

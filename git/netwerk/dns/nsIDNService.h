@@ -32,11 +32,9 @@ public:
   NS_DECL_NSIOBSERVER
 
   nsIDNService();
+  virtual ~nsIDNService();
 
   nsresult Init();
-
-protected:
-  virtual ~nsIDNService();
 
 private:
   void normalizeFullStops(nsAString& s);

@@ -395,13 +395,12 @@ private:
     //
     class nsConnectionHandle : public nsAHttpConnection
     {
-        virtual ~nsConnectionHandle();
-
     public:
         NS_DECL_THREADSAFE_ISUPPORTS
         NS_DECL_NSAHTTPCONNECTION(mConn)
 
         nsConnectionHandle(nsHttpConnection *conn) { NS_ADDREF(mConn = conn); }
+        virtual ~nsConnectionHandle();
 
         nsHttpConnection *mConn;
     };
@@ -414,8 +413,6 @@ private:
                                        public nsIInterfaceRequestor,
                                        public nsITimerCallback
     {
-        ~nsHalfOpenSocket();
-
     public:
         NS_DECL_THREADSAFE_ISUPPORTS
         NS_DECL_NSIOUTPUTSTREAMCALLBACK
@@ -426,6 +423,7 @@ private:
         nsHalfOpenSocket(nsConnectionEntry *ent,
                          nsAHttpTransaction *trans,
                          uint32_t caps);
+        ~nsHalfOpenSocket();
 
         nsresult SetupStreams(nsISocketTransport **,
                               nsIAsyncInputStream **,

@@ -31,8 +31,6 @@ public:
   NS_IMETHODIMP Run();
 
 private:
-  ~DummyChannel() {}
-
   bool                        mPending;
   uint32_t                    mSuspendCount;
   nsCOMPtr<nsISupports>       mListenerContext;

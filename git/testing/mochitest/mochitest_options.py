@@ -465,6 +465,9 @@ class MochitestOptions(optparse.OptionParser):
             else:
                 self.error("could not find xre directory, --xre-path must be specified")
 
+        if options.profilePath is None:
+            options.profilePath = tempfile.mkdtemp()
+
         # allow relative paths
         options.xrePath = mochitest.getFullPath(options.xrePath)
         if options.profilePath:

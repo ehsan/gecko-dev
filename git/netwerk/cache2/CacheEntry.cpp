@@ -676,7 +676,7 @@ bool CacheEntry::InvokeCallback(Callback & aCallback)
       // If we don't have data and the callback wants a complete entry,
       // don't invoke now.
       bool bypass = !mHasData;
-      if (!bypass && NS_SUCCEEDED(mFileStatus)) {
+      if (!bypass) {
         int64_t _unused;
         bypass = !mFile->DataSize(&_unused);
       }
@@ -1549,10 +1549,7 @@ void CacheEntry::StoreFrecency()
   // No need for thread safety over mFrecency, it will be rewriten
   // correctly on following invocation if broken by concurrency.
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (NS_SUCCEEDED(mFileStatus)) {
-    mFile->SetFrecency(FRECENCY2INT(mFrecency));
-  }
+  mFile->SetFrecency(FRECENCY2INT(mFrecency));
 }
 
 // CacheOutputCloseListener

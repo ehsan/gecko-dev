@@ -238,6 +238,13 @@ public:
     mLastBlobTimeStamp = TimeStamp::Now();
   }
 
+  // Only DestroyRunnable is allowed to delete Session object.
+  virtual ~Session()
+  {
+    LOG(PR_LOG_DEBUG, ("Session.~Session (%p)", this));
+    CleanupStreams();
+  }
+
   void Start()
   {
     LOG(PR_LOG_DEBUG, ("Session.Start %p", this));
@@ -292,12 +299,7 @@ public:
   }
 
 private:
-  // Only DestroyRunnable is allowed to delete Session object.
-  virtual ~Session()
-  {
-    LOG(PR_LOG_DEBUG, ("Session.~Session (%p)", this));
-    CleanupStreams();
-  }
+
   // Pull encoded media data from MediaEncoder and put into EncodedBufferCache.
   // Destroy this session object in the end of this function.
   // If the bool aForceFlush is true, we will force to dispatch a

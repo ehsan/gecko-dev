@@ -19,7 +19,6 @@
 
 class nsClipboardHelper : public nsIClipboardHelper
 {
-  virtual ~nsClipboardHelper();
 
 public:
 
@@ -27,6 +26,8 @@ public:
   NS_DECL_NSICLIPBOARDHELPER
 
   nsClipboardHelper();
+  virtual ~nsClipboardHelper();
+
 };
 
 #endif // nsClipboardHelper_h__

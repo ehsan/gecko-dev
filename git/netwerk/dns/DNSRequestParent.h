@@ -23,14 +23,13 @@ public:
   NS_DECL_NSIDNSLISTENER
 
   DNSRequestParent();
+  virtual ~DNSRequestParent();
 
   void DoAsyncResolve(const nsACString  &hostname, uint32_t flags);
 
 protected:
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 private:
-  virtual ~DNSRequestParent();
-
   uint32_t mFlags;
   bool mIPCClosed;  // true if IPDL channel has been closed (child crash)
 };

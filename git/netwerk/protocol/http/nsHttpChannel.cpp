@@ -5581,8 +5581,6 @@ public:
     nsresult SetData(uint32_t aPostID, const nsACString& aKey);
 
 protected:
-    ~nsHttpChannelCacheKey() {}
-
     nsCOMPtr<nsISupportsPRUint32> mSupportsPRUint32;
     nsCOMPtr<nsISupportsCString> mSupportsCString;
 };

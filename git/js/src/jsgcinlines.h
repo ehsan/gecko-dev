@@ -755,27 +755,27 @@ NewTypeObject(js::ThreadSafeContext *cx)
     return gc::AllocateNonObject<types::TypeObject, js::CanGC>(cx);
 }
 
+} /* namespace js */
+
 template <js::AllowGC allowGC>
 inline JSString *
-NewGCString(js::ThreadSafeContext *cx)
+js_NewGCString(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSString, allowGC>(cx);
 }
 
 template <js::AllowGC allowGC>
 inline JSFatInlineString *
-NewGCFatInlineString(js::ThreadSafeContext *cx)
+js_NewGCFatInlineString(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSFatInlineString, allowGC>(cx);
 }
 
 inline JSExternalString *
-NewGCExternalString(js::ThreadSafeContext *cx)
+js_NewGCExternalString(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSExternalString, js::CanGC>(cx);
 }
-
-} /* namespace js */
 
 inline JSScript *
 js_NewGCScript(js::ThreadSafeContext *cx)

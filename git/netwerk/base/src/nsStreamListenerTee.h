@@ -23,10 +23,9 @@ public:
     NS_DECL_NSISTREAMLISTENERTEE
 
     nsStreamListenerTee() { }
-
-private:
     virtual ~nsStreamListenerTee() { }
 
+private:
     nsCOMPtr<nsIInputStreamTee>  mInputTee;
     nsCOMPtr<nsIOutputStream>    mSink;
     nsCOMPtr<nsIStreamListener>  mListener;

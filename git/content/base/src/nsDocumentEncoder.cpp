@@ -66,14 +66,13 @@ class nsDocumentEncoder : public nsIDocumentEncoder
 {
 public:
   nsDocumentEncoder();
+  virtual ~nsDocumentEncoder();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDocumentEncoder)
   NS_DECL_NSIDOCUMENTENCODER
 
 protected:
-  virtual ~nsDocumentEncoder();
-
   void Initialize(bool aClearCachedSerializer = true);
   nsresult SerializeNodeStart(nsINode* aNode, int32_t aStartOffset,
                               int32_t aEndOffset, nsAString& aStr,

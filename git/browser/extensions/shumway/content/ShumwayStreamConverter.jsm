@@ -1,4 +1,4 @@
-/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil; tab-width: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /*
  * Copyright 2013 Mozilla Foundation
@@ -82,22 +82,6 @@ function getDOMWindow(aChannel) {
                   aChannel.loadGroup.notificationCallbacks;
   var win = requestor.getInterface(Components.interfaces.nsIDOMWindow);
   return win;
-}
-
-function makeContentReadable(obj, window) {
-  if (Cu.cloneInto) {
-    return Cu.cloneInto(obj, window);
-  }
-  // TODO remove for Firefox 32+
-  if (typeof obj !== 'object' || obj === null) {
-    return obj;
-  }
-  var expose = {};
-  for (let k in obj) {
-    expose[k] = "rw";
-  }
-  obj.__exposedProps__ = expose;
-  return obj;
 }
 
 function parseQueryString(qs) {
@@ -553,6 +537,7 @@ RequestListener.prototype.receive = function(event) {
   if (sync) {
     var response = actions[action].call(this.actions, data);
     var detail = event.detail;
+    detail.__exposedProps__ = {response: 'r'};
     detail.response = response;
   } else {
     var response;
@@ -563,10 +548,9 @@ RequestListener.prototype.receive = function(event) {
         try {
           var listener = doc.createEvent('CustomEvent');
           listener.initCustomEvent('shumway.response', true, false,
-                                   makeContentReadable({
-                                     response: response,
-                                     cookie: cookie
-                                   }, doc.defaultView));
+                                   {response: response,
+                                    cookie: cookie,
+                                    __exposedProps__: {response: 'r', cookie: 'r'}});
 
           return message.dispatchEvent(listener);
         } catch (e) {
@@ -768,11 +752,11 @@ function initExternalCom(wrappedWindow, wrappedObject, targetDocument) {
       var args = Array.prototype.slice.call(arguments, 0);
       wrappedWindow.console.log('__flash__callIn: ' + functionName);
       var e = targetDocument.createEvent('CustomEvent');
-      e.initCustomEvent('shumway.remote', true, false, makeContentReadable({
+      e.initCustomEvent('shumway.remote', true, false, {
         functionName: functionName,
         args: args,
-        result: undefined
-      }, targetDocument.defaultView));
+        __exposedProps__: {args: 'r', functionName: 'r', result: 'rw'}
+      });
       targetDocument.dispatchEvent(e);
       return e.detail.result;
     };

@@ -646,8 +646,6 @@ parent:
      */
     BackUpXResources(FileDescriptor aXSocketFd);
 
-    sync OpenAnonymousTemporaryFile() returns (FileDescriptor aFD);
-
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData,
                   CpowEntry[] aCpows, Principal aPrincipal);

@@ -10,12 +10,9 @@
 /* CID: {f6913e2e-1dd1-11b2-84be-f455dee342af} */
 
 class nsDirIndex MOZ_FINAL : public nsIDirIndex {
-
-private:
-    ~nsDirIndex();
-
 public:
     nsDirIndex();
+    ~nsDirIndex();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIDIRINDEX

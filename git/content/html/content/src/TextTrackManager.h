@@ -35,8 +35,6 @@ class TextTrackCue;
 
 class TextTrackManager MOZ_FINAL : public nsIDOMEventListener
 {
-  ~TextTrackManager();
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(TextTrackManager)

@@ -17,8 +17,6 @@ class nsARequestObserverEvent;
 
 class nsRequestObserverProxy MOZ_FINAL : public nsIRequestObserverProxy
 {
-    ~nsRequestObserverProxy() {}
-
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER

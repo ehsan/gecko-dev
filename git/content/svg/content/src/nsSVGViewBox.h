@@ -40,6 +40,7 @@ struct nsSVGViewBoxRect
 
 class nsSVGViewBox
 {
+
 public:
 
   void Init();
@@ -108,6 +109,7 @@ public:
       , mVal(aVal)
       , mSVGElement(aSVGElement)
     {}
+    virtual ~DOMBaseVal();
 
     nsSVGViewBox* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -141,9 +143,6 @@ public:
     {
       return mSVGElement;
     }
-
-  private:
-    virtual ~DOMBaseVal();
   };
 
   struct DOMAnimVal MOZ_FINAL : public mozilla::dom::SVGIRect
@@ -156,6 +155,7 @@ public:
       , mVal(aVal)
       , mSVGElement(aSVGElement)
     {}
+    virtual ~DOMAnimVal();
 
     nsSVGViewBox* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -210,10 +210,6 @@ public:
     {
       return mSVGElement;
     }
-
-  private:
-    virtual ~DOMAnimVal();
-
   };
 
   struct SMILViewBox : public nsISMILAttr
@@ -241,13 +237,5 @@ public:
   static nsSVGAttrTearoffTable<nsSVGViewBox, mozilla::dom::SVGAnimatedRect>
     sSVGAnimatedRectTearoffTable;
 };
-
-namespace mozilla {
-template<>
-struct HasDangerousPublicDestructor<nsSVGViewBox>
-{
-  static const bool value = true;
-};
-}
 
 #endif // __NS_SVGVIEWBOX_H__

@@ -424,7 +424,7 @@ static void mergeNativeBacktrace(ThreadProfile &aProfile, const PCArray &array) 
     while (pseudoStackPos < stack->stackSize()) {
       volatile StackEntry& entry = stack->mStack[pseudoStackPos];
 
-      if (entry.isCpp() && entry.stackAddress() && entry.stackAddress() < array.sp_array[i-1])
+      if (entry.stackAddress() < array.sp_array[i-1] && entry.stackAddress())
         break;
 
       addProfileEntry(entry, aProfile, stack, array.array[0]);

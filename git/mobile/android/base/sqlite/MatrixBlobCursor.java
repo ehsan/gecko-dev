@@ -17,12 +17,10 @@
 
 package org.mozilla.gecko.sqlite;
 
-import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.database.AbstractCursor;
 import android.database.CursorIndexOutOfBoundsException;
-import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -46,7 +44,6 @@ public class MatrixBlobCursor extends AbstractCursor {
     private Object[] data;
     private int rowCount = 0;
     private final int columnCount;
-    private static final String LOGTAG = "MatrixBlobCursor";
 
     /**
      * Constructs a new cursor with the given initial capacity.
@@ -326,16 +323,5 @@ public class MatrixBlobCursor extends AbstractCursor {
     @Override
     public boolean isNull(int column) {
         return get(column) == null;
-    }
-
-    @Override
-    protected void finalize() {
-        if (AppConstants.DEBUG_BUILD) {
-            if (!isClosed()) {
-                Log.e(LOGTAG, "Cursor finalized without being closed");
-            }
-        }
-
-        super.finalize();
     }
 }

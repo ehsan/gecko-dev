@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2; js-indent-level: 2 -*- */
+/* -*- Mode: javascript; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2; js-indent-level: 2; -*- */
 /* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /*
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -308,8 +308,7 @@ nsUnknownContentTypeDialog.prototype = {
             // Remove the file so that it's not there when we ensure non-existence later;
             // this is safe because for the file to exist, the user would have had to
             // confirm that he wanted the file overwritten.
-            // Only remove file if final name exists
-            if (result.exists() && this.getFinalLeafName(result.leafName) == result.leafName)
+            if (result.exists())
               result.remove(false);
           }
           catch (ex) {
@@ -343,18 +342,6 @@ nsUnknownContentTypeDialog.prototype = {
     }.bind(this)).then(null, Components.utils.reportError);
   },
 
-  getFinalLeafName: function (aLeafName, aFileExt)
-  {
-    // Remove any leading periods, since we don't want to save hidden files
-    // automatically.
-    aLeafName = aLeafName.replace(/^\.+/, "");
-
-    if (aLeafName == "")
-      aLeafName = "unnamed" + (aFileExt ? "." + aFileExt : "");
-
-    return aLeafName;
-  },
-
   /**
    * Ensures that a local folder/file combination does not already exist in
    * the file system (or finds such a combination with a reasonably similar
@@ -379,8 +366,12 @@ nsUnknownContentTypeDialog.prototype = {
       throw new Components.Exception("Destination directory non-existing or permission error",
                                      Components.results.NS_ERROR_FILE_ACCESS_DENIED);
     }
+    // Remove any leading periods, since we don't want to save hidden files
+    // automatically.
+    aLeafName = aLeafName.replace(/^\.+/, "");
 
-    aLeafName = this.getFinalLeafName(aLeafName, aFileExt);
+    if (aLeafName == "")
+      aLeafName = "unnamed" + (aFileExt ? "." + aFileExt : "");
     aLocalFolder.append(aLeafName);
 
     // The following assignment can throw an exception, but

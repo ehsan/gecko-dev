@@ -280,8 +280,6 @@ public:
   {}
 
 private:
-  ~nsOfflineCacheDeviceInfo() {}
-
   nsOfflineCacheDevice* mDevice;
 };
 
@@ -349,8 +347,6 @@ nsOfflineCacheDeviceInfo::GetMaximumSize(uint32_t *aMaximumSize)
 
 class nsOfflineCacheBinding MOZ_FINAL : public nsISupports
 {
-  ~nsOfflineCacheBinding() {}
-
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
@@ -518,8 +514,6 @@ CreateCacheEntry(nsOfflineCacheDevice *device,
 
 class nsOfflineCacheEntryInfo MOZ_FINAL : public nsICacheEntryInfo
 {
-  ~nsOfflineCacheEntryInfo() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICACHEENTRYINFO
@@ -897,9 +891,6 @@ nsOfflineCacheDevice::nsOfflineCacheDevice()
   , mLockedEntries(64)
 {
 }
-
-nsOfflineCacheDevice::~nsOfflineCacheDevice()
-{}
 
 /* static */
 bool

@@ -21,8 +21,6 @@ class nsInputStreamPump MOZ_FINAL : public nsIInputStreamPump
                                   , public nsIInputStreamCallback
                                   , public nsIThreadRetargetableRequest
 {
-    ~nsInputStreamPump();
-
 public:
     typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
     NS_DECL_THREADSAFE_ISUPPORTS
@@ -32,6 +30,7 @@ public:
     NS_DECL_NSITHREADRETARGETABLEREQUEST
 
     nsInputStreamPump(); 
+    ~nsInputStreamPump();
 
     static nsresult
                       Create(nsInputStreamPump  **result,

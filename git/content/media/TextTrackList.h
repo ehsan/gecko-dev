@@ -28,7 +28,6 @@ public:
 
   TextTrackList(nsPIDOMWindow* aOwnerWindow);
   TextTrackList(nsPIDOMWindow* aOwnerWindow, TextTrackManager* aTextTrackManager);
-  ~TextTrackList();
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 

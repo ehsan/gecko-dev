@@ -127,6 +127,7 @@ public:
   {
     SetIsDOMBinding();
   }
+  ~DOMSVGPreserveAspectRatio();
 
   // WebIDL
   nsSVGElement* GetParentObject() const { return mSVGElement; }
@@ -138,8 +139,6 @@ public:
   void SetMeetOrSlice(uint16_t aMeetOrSlice, ErrorResult& rv);
 
 protected:
-  ~DOMSVGPreserveAspectRatio();
-
   SVGAnimatedPreserveAspectRatio* mVal; // kept alive because it belongs to mSVGElement
   nsRefPtr<nsSVGElement> mSVGElement;
   const bool mIsBaseValue;

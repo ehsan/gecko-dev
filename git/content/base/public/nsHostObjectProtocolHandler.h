@@ -31,6 +31,7 @@ class nsHostObjectProtocolHandler : public nsIProtocolHandler
 {
 public:
   nsHostObjectProtocolHandler();
+  virtual ~nsHostObjectProtocolHandler() {}
   NS_DECL_ISUPPORTS
 
   // nsIProtocolHandler methods, except for GetScheme which is only defined
@@ -53,9 +54,6 @@ public:
   static void RemoveDataEntry(const nsACString& aUri);
   static nsIPrincipal* GetDataEntryPrincipal(const nsACString& aUri);
   static void Traverse(const nsACString& aUri, nsCycleCollectionTraversalCallback& aCallback);
-
-protected:
-  virtual ~nsHostObjectProtocolHandler() {}
 
 private:
   static void Init(void);
