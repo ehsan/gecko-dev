@@ -15,7 +15,6 @@
 #include "MediaStreamGraph.h"
 #include "AudioStreamTrack.h"
 #include "VideoStreamTrack.h"
-#include "MediaEngine.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -74,12 +73,8 @@ public:
 
       nsRefPtr<MediaStreamTrack> track;
       if (mEvents & MediaStreamListener::TRACK_EVENT_CREATED) {
-        track = stream->BindDOMTrack(mID, mType);
-        if (!track) {
-          stream->CreateDOMTrack(mID, mType);
-          track = stream->BindDOMTrack(mID, mType);
-          stream->NotifyMediaStreamTrackCreated(track);
-        }
+        track = stream->CreateDOMTrack(mID, mType);
+        stream->NotifyMediaStreamTrackCreated(track);
       } else {
         track = stream->GetDOMTrackFor(mID);
       }
@@ -307,18 +302,6 @@ DOMMediaStream::RemovePrincipalChangeObserver(PrincipalChangeObserver* aObserver
   return mPrincipalChangeObservers.RemoveElement(aObserver);
 }
 
-void
-DOMMediaStream::SetHintContents(TrackTypeHints aHintContents)
-{
-  mHintContents = aHintContents;
-  if (aHintContents & HINT_CONTENTS_AUDIO) {
-    CreateDOMTrack(kAudioTrack, MediaSegment::AUDIO);
-  }
-  if (aHintContents & HINT_CONTENTS_VIDEO) {
-    CreateDOMTrack(kVideoTrack, MediaSegment::VIDEO);
-  }
-}
-
 MediaStreamTrack*
 DOMMediaStream::CreateDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
 {
@@ -337,42 +320,8 @@ DOMMediaStream::CreateDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
   }
   mTracks.AppendElement(track);
 
-  return track;
-}
+  CheckTracksAvailable();
 
-MediaStreamTrack*
-DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
-{
-  MediaStreamTrack* track = nullptr;
-  switch (aType) {
-  case MediaSegment::AUDIO: {
-    for (size_t i = 0; i < mTracks.Length(); ++i) {
-      track = mTracks[i]->AsAudioStreamTrack();
-      if (track) {
-        track->BindTrackID(aTrackID);
-        MOZ_ASSERT(mTrackTypesAvailable & HINT_CONTENTS_AUDIO);
-        break;
-      }
-    }
-    break;
-  }
-  case MediaSegment::VIDEO: {
-    for (size_t i = 0; i < mTracks.Length(); ++i) {
-      track = mTracks[i]->AsVideoStreamTrack();
-      if (track) {
-        track->BindTrackID(aTrackID);
-        MOZ_ASSERT(mTrackTypesAvailable & HINT_CONTENTS_VIDEO);
-        break;
-      }
-    }
-    break;
-  }
-  default:
-    MOZ_CRASH("Unhandled track type");
-  }
-  if (track) {
-    CheckTracksAvailable();
-  }
   return track;
 }
 
