@@ -441,7 +441,7 @@ TiltUtils.DOM = {
         }
 
         // prepare the queue array
-        Array.prototype.push.apply(queue, name === "iframe" || name === "frame" ?
+        Array.prototype.push.apply(queue, name === "iframe" ?
                                           node.contentDocument.childNodes :
                                           node.childNodes);
       }

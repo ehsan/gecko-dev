@@ -149,8 +149,6 @@ ScriptsView.prototype = {
    */
   empty: function DVS_empty() {
     this._scripts.selectedIndex = -1;
-    this._scripts.setAttribute("label", L10N.getStr("noScriptsText"));
-    this._scripts.removeAttribute("tooltiptext");
 
     while (this._scripts.firstChild) {
       this._scripts.removeChild(this._scripts.firstChild);
@@ -427,9 +425,9 @@ ScriptsView.prototype = {
       return;
     }
 
-    this._preferredScript = selectedItem;
-    this._scripts.setAttribute("tooltiptext", selectedItem.value);
-    DebuggerController.SourceScripts.showScript(selectedItem.getUserData("sourceScript"));
+    let script = selectedItem.getUserData("sourceScript");
+    this._preferredScript = script;
+    DebuggerController.SourceScripts.showScript(script);
   },
 
   /**
@@ -440,15 +438,8 @@ ScriptsView.prototype = {
     let scripts = this._scripts;
     let [file, line, token] = this._getSearchboxInfo();
 
-    // If the webpage has no scripts, searching is redundant.
-    if (!scripts.itemCount) {
-      return;
-    }
-
     // Presume we won't find anything.
     scripts.selectedItem = this._preferredScript;
-    scripts.setAttribute("label", this._preferredScript.label);
-    scripts.setAttribute("tooltiptext", this._preferredScript.value);
 
     // If we're not searching for a file anymore, unhide all the scripts.
     if (!file) {
@@ -456,9 +447,7 @@ ScriptsView.prototype = {
         scripts.getItemAtIndex(i).hidden = false;
       }
     } else {
-      let found = false;
-
-      for (let i = 0, l = scripts.itemCount; i < l; i++) {
+      for (let i = 0, l = scripts.itemCount, found = false; i < l; i++) {
         let item = scripts.getItemAtIndex(i);
         let target = item.label.toLowerCase();
 
@@ -469,18 +458,12 @@ ScriptsView.prototype = {
           if (!found) {
             found = true;
             scripts.selectedItem = item;
-            scripts.setAttribute("label", item.label);
-            scripts.setAttribute("tooltiptext", item.value);
           }
         }
         // Hide what doesn't match our search.
         else {
           item.hidden = true;
         }
-      }
-      if (!found) {
-        scripts.setAttribute("label", L10N.getStr("noMatchingScriptsText"));
-        scripts.removeAttribute("tooltiptext");
       }
     }
     if (line > -1) {
