@@ -117,7 +117,7 @@ ImageHost::Composite(EffectChain& aEffectChain,
       rect = gfx::Rect(0, 0, textureSize.width, textureSize.height);
     }
 
-    if (mFrontBuffer->GetFlags() & TEXTURE_NEEDS_Y_FLIP) {
+    if (mFrontBuffer->GetFlags() & NeedsYFlip) {
       effect->mTextureCoords.y = effect->mTextureCoords.YMost();
       effect->mTextureCoords.height = -effect->mTextureCoords.height;
     }
@@ -298,7 +298,7 @@ DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
       rect = gfx::Rect(0, 0, textureSize.width, textureSize.height);
     }
 
-    if (mDeprecatedTextureHost->GetFlags() & TEXTURE_NEEDS_Y_FLIP) {
+    if (mDeprecatedTextureHost->GetFlags() & NeedsYFlip) {
       effect->mTextureCoords.y = effect->mTextureCoords.YMost();
       effect->mTextureCoords.height = -effect->mTextureCoords.height;
     }

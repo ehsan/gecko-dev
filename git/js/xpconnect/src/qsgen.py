@@ -386,51 +386,51 @@ argumentUnboxingTemplates = {
     'octet':
         "    uint32_t ${name}_u32;\n"
         "    if (!JS_ValueToECMAUint32(cx, ${argVal}, &${name}_u32))\n"
-        "        return false;\n"
+        "        return JS_FALSE;\n"
         "    uint8_t ${name} = (uint8_t) ${name}_u32;\n",
 
     'short':
         "    int32_t ${name}_i32;\n"
         "    if (!JS_ValueToECMAInt32(cx, ${argVal}, &${name}_i32))\n"
-        "        return false;\n"
+        "        return JS_FALSE;\n"
         "    int16_t ${name} = (int16_t) ${name}_i32;\n",
 
     'unsigned short':
         "    uint32_t ${name}_u32;\n"
         "    if (!JS_ValueToECMAUint32(cx, ${argVal}, &${name}_u32))\n"
-        "        return false;\n"
+        "        return JS_FALSE;\n"
         "    uint16_t ${name} = (uint16_t) ${name}_u32;\n",
 
     'long':
         "    int32_t ${name};\n"
         "    if (!JS_ValueToECMAInt32(cx, ${argVal}, &${name}))\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     'unsigned long':
         "    uint32_t ${name};\n"
         "    if (!JS_ValueToECMAUint32(cx, ${argVal}, &${name}))\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     'long long':
         "    int64_t ${name};\n"
         "    if (!JS::ToInt64(cx, ${argVal}, &${name}))\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     'unsigned long long':
         "    uint64_t ${name};\n"
         "    if (!JS::ToUint64(cx, ${argVal}, &${name}))\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     'float':
         "    double ${name}_dbl;\n"
         "    if (!JS_ValueToNumber(cx, ${argVal}, &${name}_dbl))\n"
-        "        return false;\n"
+        "        return JS_FALSE;\n"
         "    float ${name} = (float) ${name}_dbl;\n",
 
     'double':
         "    double ${name};\n"
         "    if (!JS_ValueToNumber(cx, ${argVal}, &${name}))\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     'boolean':
         "    JSBool ${name};\n"
@@ -439,35 +439,35 @@ argumentUnboxingTemplates = {
     '[astring]':
         "    xpc_qsAString ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     '[domstring]':
         "    xpc_qsDOMString ${name}(cx, ${argVal}, ${argPtr},\n"
         "                            xpc_qsDOMString::e${nullBehavior},\n"
         "                            xpc_qsDOMString::e${undefinedBehavior});\n"
         "    if (!${name}.IsValid())\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     'string':
         "    JSAutoByteString ${name}_bytes;\n"
         "    if (!xpc_qsJsvalToCharStr(cx, ${argVal}, &${name}_bytes))\n"
-        "        return false;\n"
+        "        return JS_FALSE;\n"
         "    char *${name} = ${name}_bytes.ptr();\n",
 
     'wstring':
         "    const PRUnichar *${name};\n"
         "    if (!xpc_qsJsvalToWcharStr(cx, ${argVal}, ${argPtr}, &${name}))\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     '[cstring]':
         "    xpc_qsACString ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     '[utf8string]':
         "    xpc_qsAUTF8String ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
-        "        return false;\n",
+        "        return JS_FALSE;\n",
 
     '[jsval]':
         "    JS::RootedValue ${name}(cx, ${argVal});\n"
@@ -537,7 +537,7 @@ def writeArgumentUnboxing(f, i, name, type, optional, rvdeclared,
                 "XPCVariant::newVariant(cx, ${argVal})));\n"
                 "    if (!${name}) {\n"
                 "        xpc_qsThrowBadArg(cx, NS_ERROR_INVALID_ARG, vp, %d);\n"
-                "        return false;\n"
+                "        return JS_FALSE;\n"
                 "    }") % i
             f.write(substitute(template, params))
             return rvdeclared
@@ -559,7 +559,7 @@ def writeArgumentUnboxing(f, i, name, type, optional, rvdeclared,
                         propIndex)
             else:
                 f.write("        xpc_qsThrowBadArg(cx, rv, vp, %d);\n" % i)
-            f.write("        return false;\n"
+            f.write("        return JS_FALSE;\n"
                     "    }\n")
             return True
 
@@ -617,45 +617,45 @@ def outParamForm(name, type):
 resultConvTemplates = {
     'void':
             "    ${jsvalRef} = JSVAL_VOID;\n"
-            "    return true;\n",
+            "    return JS_TRUE;\n",
 
     'octet':
         "    ${jsvalRef} = INT_TO_JSVAL((int32_t) result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'short':
         "    ${jsvalRef} = INT_TO_JSVAL((int32_t) result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'long':
         "    ${jsvalRef} = INT_TO_JSVAL(result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'long long':
         "    return xpc_qsInt64ToJsval(cx, result, ${jsvalPtr});\n",
 
     'unsigned short':
         "    ${jsvalRef} = INT_TO_JSVAL((int32_t) result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'unsigned long':
         "    ${jsvalRef} = UINT_TO_JSVAL(result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'unsigned long long':
         "    return xpc_qsUint64ToJsval(cx, result, ${jsvalPtr});\n",
 
     'float':
         "    ${jsvalRef} = JS_NumberValue(result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'double':
         "    ${jsvalRef} =  JS_NumberValue(result);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     'boolean':
         "    ${jsvalRef} = (result ? JSVAL_TRUE : JSVAL_FALSE);\n"
-        "    return true;\n",
+        "    return JS_TRUE;\n",
 
     '[astring]':
         "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
@@ -674,8 +674,8 @@ def isVariantType(t):
 def writeResultConv(f, type, jsvalPtr, jsvalRef):
     """ Emit code to convert the C++ variable `result` to a jsval.
 
-    The emitted code contains a return statement; it returns true on
-    success, false on error.
+    The emitted code contains a return statement; it returns JS_TRUE on
+    success, JS_FALSE on error.
     """
     # From NativeData2JS.
     typeName = getBuiltinOrNativeTypeName(type)
@@ -695,11 +695,11 @@ def writeResultConv(f, type, jsvalPtr, jsvalRef):
         else:
             f.write("    if (!result) {\n"
                     "      *%s = JSVAL_NULL;\n"
-                    "      return true;\n"
+                    "      return JS_TRUE;\n"
                     "    }\n"
                     "    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
                     "    if (xpc_FastGetCachedWrapper(cache, obj, %s)) {\n"
-                    "      return true;\n"
+                    "      return JS_TRUE;\n"
                     "    }\n"
                     "    // After this point do not use 'result'!\n"
                     "    qsObjectHelper helper(result, cache);\n"
@@ -835,7 +835,7 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
     # Compute "this".
     f.write("    JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));\n"
             "    if (!obj)\n"
-            "        return false;\n")
+            "        return JS_FALSE;\n")
 
     # Get the 'self' pointer.
     if customMethodCall is None or not 'thisType' in customMethodCall:
@@ -852,13 +852,13 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
 
     f.write("    if (!xpc_qsUnwrapThis(cx, obj, &self, "
             "&selfref.ptr, %s, %s))\n" % (pthisval, unwrapFatalArg))
-    f.write("        return false;\n")
+    f.write("        return JS_FALSE;\n")
 
     if not unwrapThisFailureFatal:
         f.write("      if (!self) {\n")
         if (isGetter):
             f.write("        *vp = JSVAL_NULL;\n")
-        f.write("        return true;\n")
+        f.write("        return JS_TRUE;\n")
         f.write("    }\n");
 
     if isMethod:
@@ -984,7 +984,7 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
     if isMethod or isGetter:
         writeResultConv(f, member.realtype, 'vp', '*vp')
     else:
-        f.write("    return true;\n")
+        f.write("    return JS_TRUE;\n")
 
     # Epilog.
     f.write("}\n")

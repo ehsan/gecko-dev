@@ -10,7 +10,6 @@
 #include "WMFByteStream.h"
 #include "WMFSourceReaderCallback.h"
 #include "mozilla/dom/TimeRanges.h"
-#include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/Preferences.h"
 #include "DXVA2Manager.h"
 #include "ImageContainer.h"
@@ -117,8 +116,10 @@ WMFReader::InitializeDXVA()
   HTMLMediaElement* element = owner->GetMediaElement();
   NS_ENSURE_TRUE(element, false);
 
-  nsRefPtr<LayerManager> layerManager =
-    nsContentUtils::LayerManagerForDocument(element->OwnerDoc());
+  nsIDocument* doc = element->GetOwnerDocument();
+  NS_ENSURE_TRUE(doc, false);
+
+  nsRefPtr<LayerManager> layerManager = nsContentUtils::LayerManagerForDocument(doc);
   NS_ENSURE_TRUE(layerManager, false);
 
   if (layerManager->GetBackendType() != LayersBackend::LAYERS_D3D9 &&

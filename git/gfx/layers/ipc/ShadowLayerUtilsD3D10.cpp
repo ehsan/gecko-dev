@@ -61,16 +61,6 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   return false;
 }
 
-/*static*/ bool
-ShadowLayerForwarder::PlatformGetDescriptorSurfaceImageFormat(
-  const SurfaceDescriptor&,
-  OpenMode,
-  gfxImageFormat*,
-  gfxASurface**)
-{
-  return false;
-}
-
 bool
 ShadowLayerForwarder::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {

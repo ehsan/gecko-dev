@@ -176,7 +176,7 @@ public:
 
   bool mBatchInProgress;
   int32_t mRelatedNotificationsCount;
-  mozilla::TimeStamp mLastNotificationTimeStamp;
+  TimeStamp mLastNotificationTimeStamp;
   nsCOMPtr<nsITimer> mEndBatchTimer;
 
   void MaybeBeginBatch();

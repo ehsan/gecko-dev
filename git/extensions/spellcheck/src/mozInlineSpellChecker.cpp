@@ -945,8 +945,7 @@ mozInlineSpellChecker::ReplaceWord(nsIDOMNode *aNode, int32_t aOffset,
     editor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
 
     nsCOMPtr<nsIPlaintextEditor> textEditor(do_QueryReferent(mEditor));
-    if (textEditor)
-      textEditor->InsertText(newword);
+    textEditor->InsertText(newword);
 
     editor->EndTransaction();
   }

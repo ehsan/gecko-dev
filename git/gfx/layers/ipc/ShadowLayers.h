@@ -140,8 +140,6 @@ class ShadowLayerForwarder : public CompositableForwarder
   friend class DeprecatedTextureClientShmem;
   friend class ContentClientIncremental;
 
-  typedef gfxASurface::gfxImageFormat gfxImageFormat;
-
 public:
   virtual ~ShadowLayerForwarder();
 
@@ -456,18 +454,6 @@ private:
                                    OpenMode aMode,
                                    gfxIntSize* aSize,
                                    gfxASurface** aSurface);
-  // And again, for the image format.
-  // This function will return ImageFormatUnknown only if |aDescriptor|
-  // describes a non-ImageSurface.
-  static gfxImageFormat
-  GetDescriptorSurfaceImageFormat(const SurfaceDescriptor& aDescriptor,
-                                  OpenMode aMode,
-                                  gfxASurface** aSurface);
-  static bool
-  PlatformGetDescriptorSurfaceImageFormat(const SurfaceDescriptor& aDescriptor,
-                                          OpenMode aMode,
-                                          gfxImageFormat* aContent,
-                                          gfxASurface** aSurface);
 
   static already_AddRefed<gfxASurface>
   PlatformOpenDescriptor(OpenMode aMode, const SurfaceDescriptor& aDescriptor);

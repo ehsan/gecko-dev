@@ -2028,7 +2028,7 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       }
 
       nsRefPtr<nsDOMDataTransfer> dataTransfer =
-        new nsDOMDataTransfer(NS_DRAGDROP_START, false, -1);
+        new nsDOMDataTransfer(NS_DRAGDROP_START, false);
       if (!dataTransfer)
         return;
 

@@ -11,8 +11,6 @@
 
 namespace js {
 
-struct CompileOptions;
-
 class TraceLogging
 {
   public:
@@ -27,12 +25,6 @@ class TraceLogging
         GC_STOP,
         MINOR_GC_START,
         MINOR_GC_STOP,
-        PARSER_COMPILE_SCRIPT_START,
-        PARSER_COMPILE_SCRIPT_STOP,
-        PARSER_COMPILE_LAZY_START,
-        PARSER_COMPILE_LAZY_STOP,
-        PARSER_COMPILE_FUNCTION_START,
-        PARSER_COMPILE_FUNCTION_STOP,
         INFO_ENGINE_INTERPRETER,
         INFO_ENGINE_BASELINE,
         INFO_ENGINE_IONMONKEY,
@@ -69,7 +61,6 @@ class TraceLogging
     ~TraceLogging();
 
     void log(Type type, const char* filename, unsigned int line);
-    void log(Type type, const CompileOptions &options);
     void log(Type type, JSScript* script);
     void log(const char* log);
     void log(Type type);
@@ -93,13 +84,6 @@ class AutoTraceLog {
     TraceLogging::Type stop;
 
   public:
-    AutoTraceLog(TraceLogging* logger, TraceLogging::Type start, TraceLogging::Type stop, const CompileOptions &options)
-      : logger(logger),
-        stop(stop)
-    {
-        logger->log(start, options);
-    }
-
     AutoTraceLog(TraceLogging* logger, TraceLogging::Type start, TraceLogging::Type stop, JSScript* script)
       : logger(logger),
         stop(stop)

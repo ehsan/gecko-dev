@@ -255,8 +255,6 @@ class FrameSizeClass
     }
 };
 
-struct BaselineBailoutInfo;
-
 // Data needed to recover from an exception.
 struct ResumeFromException
 {
@@ -264,7 +262,6 @@ struct ResumeFromException
     static const uint32_t RESUME_CATCH = 1;
     static const uint32_t RESUME_FINALLY = 2;
     static const uint32_t RESUME_FORCED_RETURN = 3;
-    static const uint32_t RESUME_BAILOUT = 4;
 
     uint8_t *framePointer;
     uint8_t *stackPointer;
@@ -273,8 +270,6 @@ struct ResumeFromException
 
     // Value to push when resuming into a |finally| block.
     Value exception;
-
-    BaselineBailoutInfo *bailoutInfo;
 };
 
 void HandleException(ResumeFromException *rfe);

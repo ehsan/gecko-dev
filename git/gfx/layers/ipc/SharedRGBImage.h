@@ -40,9 +40,7 @@ public:
   DeprecatedSharedRGBImage(ISurfaceAllocator *aAllocator);
   ~DeprecatedSharedRGBImage();
 
-  virtual ISharedImage* AsSharedImage() MOZ_OVERRIDE { return this; }
-
-  virtual uint8_t *GetBuffer() MOZ_OVERRIDE;
+  uint8_t *GetBuffer();
 
   gfxIntSize GetSize();
   size_t GetBufferSize();
@@ -95,8 +93,6 @@ class SharedRGBImage : public Image
 public:
   SharedRGBImage(ImageClient* aCompositable);
   ~SharedRGBImage();
-
-  virtual ISharedImage* AsSharedImage() MOZ_OVERRIDE { return this; }
 
   virtual TextureClient* GetTextureClient() MOZ_OVERRIDE;
 

@@ -82,10 +82,10 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSAbstractFramePtr frame, bool isCons
 {
     JSDScript*        jsdscript;
     JSScript*         jsscript;
-    JSBool            hookresult = true;
+    JSBool            hookresult = JS_TRUE;
     
     if (!jsdc || !jsdc->inited)
-        return false;
+        return JS_FALSE;
 
     if (!hook && !(jsdc->flags & JSD_COLLECT_PROFILE_DATA))
     {
@@ -98,7 +98,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSAbstractFramePtr frame, bool isCons
     if (before && isConstructing) {
         JS::RootedValue newObj(cx);
         if (!frame.getThisValue(cx, &newObj))
-            return false;
+            return JS_FALSE;
         jsd_Constructing(jsdc, cx, JSVAL_TO_OBJECT(newObj), frame);
     }
 
@@ -153,7 +153,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSAbstractFramePtr frame, bool isCons
                                 pdata->maxRecurseDepth = pdata->recurseDepth;
                         }
                         /* make sure we're called for the return too. */
-                        hookresult = true;
+                        hookresult = JS_TRUE;
                     } else if (!pdata->recurseDepth && pdata->lastCallStart) {
                         int64_t now, ll_delta;
                         double delta;
@@ -218,14 +218,14 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSAbstractFramePtr frame, bool isCons
                     hookresult = 
                         jsd_CallCallHook (jsdc, cx, type, hook, hookData);
                 else
-                    hookresult = true;
+                    hookresult = JS_TRUE;
             }
         }
     }
 
 #ifdef JSD_TRACE
     _interpreterTrace(jsdc, cx, frame, isConstructing, before);
-    return true;
+    return JS_TRUE;
 #else
     return hookresult;
 #endif

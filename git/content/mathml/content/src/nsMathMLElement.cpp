@@ -29,10 +29,19 @@ using namespace mozilla::dom;
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-NS_IMPL_ISUPPORTS_INHERITED3(nsMathMLElement, nsMathMLElementBase,
-                             nsIDOMElement, nsIDOMNode, Link)
+NS_INTERFACE_TABLE_HEAD(nsMathMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(nsMathMLElement,
+                                nsIDOMNode,
+                                nsIDOMElement,
+                                nsILink,
+                                Link)
+  NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
-static nsresult
+NS_IMPL_ADDREF_INHERITED(nsMathMLElement, nsMathMLElementBase)
+NS_IMPL_RELEASE_INHERITED(nsMathMLElement, nsMathMLElementBase)
+
+static nsresult 
 WarnDeprecated(const PRUnichar* aDeprecatedAttribute, 
                const PRUnichar* aFavoredAttribute, nsIDocument* aDocument)
 {

@@ -892,7 +892,7 @@ js::NukeCrossCompartmentWrappers(JSContext* cx,
         }
     }
 
-    return true;
+    return JS_TRUE;
 }
 
 // Given a cross-compartment wrapper |wobj|, update it to point to

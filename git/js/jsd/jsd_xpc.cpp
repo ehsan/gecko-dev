@@ -560,10 +560,10 @@ jsds_CallHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
     }
     
     if (!hook)
-        return true;
+        return JS_TRUE;
 
     if (!jsds_FilterHook (jsdc, jsdthreadstate))
-        return false;
+        return JS_FALSE;
 
     JSDStackFrameInfo *native_frame = JSD_GetStackFrame (jsdc, jsdthreadstate);
     nsCOMPtr<jsdIStackFrame> frame =
@@ -573,7 +573,7 @@ jsds_CallHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
     gJsds->DoUnPause(nullptr, true);
     jsdStackFrame::InvalidateAll();
 
-    return true;
+    return JS_TRUE;
 }
 
 static uint32_t

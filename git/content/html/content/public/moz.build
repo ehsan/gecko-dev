@@ -22,6 +22,7 @@ EXPORTS += [
     'nsIFormControl.h',
     'nsIFormProcessor.h',
     'nsIHTMLCollection.h',
+    'nsILink.h',
     'nsIRadioGroupContainer.h',
     'nsIRadioVisitor.h',
     'nsITextControlElement.h',

@@ -13,7 +13,7 @@ static JSBool
 CounterAdd(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp)
 {
     g_counter++;
-    return true;
+    return JS_TRUE;
 }
 
 static JSClass CounterClass = {

@@ -778,7 +778,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     pfd->mMargin = reflowState.mComputedMargin;
     pfd->mBorderPadding = reflowState.mComputedBorderPadding;
     pfd->SetFlag(PFD_RELATIVEPOS,
-                 reflowState.mStyleDisplay->IsRelativelyPositionedStyle());
+                 (reflowState.mStyleDisplay->mPosition == NS_STYLE_POSITION_RELATIVE));
     if (pfd->GetFlag(PFD_RELATIVEPOS)) {
       pfd->mOffsets = reflowState.mComputedOffsets;
     }

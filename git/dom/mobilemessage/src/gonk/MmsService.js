@@ -817,25 +817,24 @@ RetrieveTransaction.prototype = Object.create(CancellableTransaction.prototype, 
       this.registerRunCallback(callback);
 
       this.retryCount = 0;
-      let retryCallback = (function (mmsStatus, msg) {
+      let that = this;
+      this.retrieve((function retryCallback(mmsStatus, msg) {
         if (MMS.MMS_PDU_STATUS_DEFERRED == mmsStatus &&
-            this.retryCount < PREF_RETRIEVAL_RETRY_COUNT) {
-          let time = PREF_RETRIEVAL_RETRY_INTERVALS[this.retryCount];
-          if (DEBUG) debug("Fail to retrieve. Will retry after: " + time);
-
-          if (this.timer == null) {
-            this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+            that.retryCount < PREF_RETRIEVAL_RETRY_COUNT) {
+          if (that.timer == null) {
+            that.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
           }
 
-          this.timer.initWithCallback(this.retrieve.bind(this, retryCallback),
-                                      time, Ci.nsITimer.TYPE_ONE_SHOT);
-          this.retryCount++;
+          that.timer.initWithCallback((function (){
+                                        this.retrieve(retryCallback);
+                                      }).bind(that),
+                                      PREF_RETRIEVAL_RETRY_INTERVALS[that.retryCount],
+                                      Ci.nsITimer.TYPE_ONE_SHOT);
+          that.retryCount++;
           return;
         }
         this.runCallbackIfValid(mmsStatus, msg);
-      }).bind(this);
-
-      this.retrieve(retryCallback);
+      }).bind(this));
     },
     enumerable: true,
     configurable: true,
@@ -1044,10 +1043,6 @@ SendTransaction.prototype = Object.create(CancellableTransaction.prototype, {
         if ((MMS.MMS_PDU_ERROR_TRANSIENT_FAILURE == mmsStatus ||
               MMS.MMS_PDU_ERROR_PERMANENT_FAILURE == mmsStatus) &&
             this.retryCount < PREF_SEND_RETRY_COUNT) {
-          if (DEBUG) {
-            debug("Fail to send. Will retry after: " + PREF_SEND_RETRY_INTERVAL);
-          }
-
           if (this.timer == null) {
             this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
           }
@@ -1405,7 +1400,7 @@ MmsService.prototype = {
       // Retrieved fail after retry, so we update the delivery status in DB and
       // notify this domMessage that error happen.
       gMobileMessageDatabaseService
-        .setMessageDeliveryByMessageId(savableMessage.id,
+        .setMessageDeliveryByMessageId(id,
                                        null,
                                        null,
                                        DELIVERY_STATUS_ERROR,
