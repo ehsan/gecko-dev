@@ -491,13 +491,14 @@ LayerTransactionParent::Attach(ShadowLayerParent* aLayerParent, CompositablePare
 {
   LayerComposite* layer = aLayerParent->AsLayer()->AsLayerComposite();
   MOZ_ASSERT(layer);
+  LayerComposite* layerComposite = aLayerParent->AsLayer()->AsLayerComposite();
 
   Compositor* compositor
     = static_cast<LayerManagerComposite*>(aLayerParent->AsLayer()->Manager())->GetCompositor();
 
   CompositableHost* compositable = aCompositable->GetCompositableHost();
   MOZ_ASSERT(compositable);
-  layer->SetCompositableHost(compositable);
+  layerComposite->SetCompositableHost(compositable);
   compositable->Attach(aLayerParent->AsLayer(), compositor);
 }
 

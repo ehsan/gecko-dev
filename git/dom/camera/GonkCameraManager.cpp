@@ -20,9 +20,6 @@
 #include "GonkCameraControl.h"
 #include "DOMCameraManager.h"
 #include "CameraCommon.h"
-#include "mozilla/ErrorResult.h"
-
-using namespace mozilla;
 
 // From nsDOMCameraManager, but gonk-specific!
 nsresult
@@ -66,47 +63,70 @@ nsDOMCameraManager::GetCameraName(uint32_t aDeviceNum, nsCString& aDeviceName)
   return NS_OK;
 }
 
-void
-nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv)
+/* void getListOfCameras ([optional] out unsigned long aCount, [array, size_is (aCount), retval] out string aCameras); */
+NS_IMETHODIMP
+nsDOMCameraManager::GetListOfCameras(uint32_t *aCount, char * **aCameras)
 {
   int32_t count = android::Camera::getNumberOfCameras();
-  if (count <= 0) {
-    return;
-  }
 
-  DOM_CAMERA_LOGI("getListOfCameras : getNumberOfCameras() returned %d\n", count);
+  DOM_CAMERA_LOGI("GetListOfCameras : getNumberOfCameras() returned %d\n", count);
+  if (count < 1) {
+    *aCameras = nullptr;
+    *aCount = 0;
+    return NS_OK;
+  }
 
   // Allocate 2 extra slots to reserve space for 'front' and 'back' cameras
   // at the front of the array--we will collapse any empty slots below.
-  aList.SetLength(2);
-  uint32_t extraIdx = 2;
-  bool gotFront = false, gotBack = false;
-  while (count--) {
+  int32_t arraySize = count + 2;
+  char** cameras = static_cast<char**>(NS_Alloc(arraySize * sizeof(char*)));
+  for (int32_t i = 0; i < arraySize; ++i) {
+    cameras[i] = nullptr;
+  }
+
+  uint32_t extraIndex = 2;
+  bool gotFront = false;
+  bool gotBack = false;
+
+  for (int32_t i = 0; i < count; ++i) {
     nsCString cameraName;
-    nsresult result = GetCameraName(count, cameraName);
+    nsresult result = GetCameraName(i, cameraName);
     if (result != NS_OK) {
       continue;
     }
 
     // The first camera we find named 'back' gets slot 0; and the first
     // we find named 'front' gets slot 1.  All others appear after these.
-    if (cameraName.EqualsLiteral("back")) {
-      CopyUTF8toUTF16(cameraName, aList[0]);
+    uint32_t index;
+    if (!gotBack && !cameraName.Compare("back")) {
+      index = 0;
       gotBack = true;
-    } else if (cameraName.EqualsLiteral("front")) {
-      CopyUTF8toUTF16(cameraName, aList[1]);
+    } else if (!gotFront && !cameraName.Compare("front")) {
+      index = 1;
       gotFront = true;
     } else {
-      CopyUTF8toUTF16(cameraName, *aList.InsertElementAt(extraIdx));
-      extraIdx++;
+      index = extraIndex++;
     }
+
+    MOZ_ASSERT(index < arraySize);
+    cameras[index] = ToNewCString(cameraName);
   }
 
-  if (!gotFront) {
-    aList.RemoveElementAt(1);
+  // Make a forward pass over the array to compact it; after this loop,
+  // 'offset' will contain the number of nullptrs in the array, which
+  // we use to adjust the value returned in 'aCount'.
+  int32_t offset = 0;
+  for (int32_t i = 0; i < arraySize; ++i) {
+    if (cameras[i] == nullptr) {
+      offset++;
+    } else if (offset != 0) {
+      cameras[i - offset] = cameras[i];
+      cameras[i] = nullptr;
+    }
   }
-  
-  if (!gotBack) {
-    aList.RemoveElementAt(0);
-  }
+  MOZ_ASSERT(offset >= 2);
+
+  *aCameras = cameras;
+  *aCount = arraySize - offset;
+  return NS_OK;
 }

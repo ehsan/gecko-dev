@@ -55,7 +55,6 @@ namespace ion {
     _(MinMax)                                                               \
     _(Abs)                                                                  \
     _(Sqrt)                                                                 \
-    _(Atan2)                                                                \
     _(Pow)                                                                  \
     _(PowHalf)                                                              \
     _(Random)                                                               \

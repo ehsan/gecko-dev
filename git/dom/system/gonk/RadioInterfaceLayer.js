@@ -53,12 +53,9 @@ const kSmsDeliveryErrorObserverTopic     = "sms-delivery-error";
 const kMozSettingsChangedObserverTopic   = "mozsettings-changed";
 const kSysMsgListenerReadyObserverTopic  = "system-message-listener-ready";
 const kSysClockChangeObserverTopic       = "system-clock-change";
-const kScreenStateChangedTopic           = "screen-state-changed";
 const kTimeNitzAutomaticUpdateEnabled    = "time.nitz.automatic-update.enabled";
 const kTimeNitzAvailable                 = "time.nitz.available";
 const kCellBroadcastSearchList           = "ril.cellbroadcast.searchlist";
-const kCellBroadcastDisabled             = "ril.cellbroadcast.disabled";
-const kPrefenceChangedObserverTopic      = "nsPref:changed";
 
 const DOM_MOBILE_MESSAGE_DELIVERY_RECEIVED = "received";
 const DOM_MOBILE_MESSAGE_DELIVERY_SENDING  = "sending";
@@ -225,8 +222,6 @@ XPCOMUtils.defineLazyGetter(this, "gAudioManager", function getAudioManager() {
 
 
 function RadioInterfaceLayer() {
-  this.clientId = 0;
-
   this.dataNetworkInterface = new RILNetworkInterface(this, Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE);
   this.mmsNetworkInterface = new RILNetworkInterface(this, Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS);
   this.suplNetworkInterface = new RILNetworkInterface(this, Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL);
@@ -235,19 +230,6 @@ function RadioInterfaceLayer() {
   this.worker = new ChromeWorker("resource://gre/modules/ril_worker.js");
   this.worker.onerror = this.onerror.bind(this);
   this.worker.onmessage = this.onmessage.bind(this);
-
-  let cellBroadcastDisabledPref = false;
-  try {
-    cellBroadcastDisabledPref =
-      Services.prefs.getBoolPref(kCellBroadcastDisabled);
-  } catch(e) {}
-  // Pass initial options to ril_worker.
-  this.worker.postMessage({
-    rilMessageType: "setInitialOptions",
-    debug: debugPref,
-    clientId: this.clientId,
-    cellBroadcastDisabled: cellBroadcastDisabledPref
-  });
 
   this.rilContext = {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
@@ -368,9 +350,6 @@ function RadioInterfaceLayer() {
   Services.obs.addObserver(this, kMozSettingsChangedObserverTopic, false);
   Services.obs.addObserver(this, kSysMsgListenerReadyObserverTopic, false);
   Services.obs.addObserver(this, kSysClockChangeObserverTopic, false);
-  Services.obs.addObserver(this, kScreenStateChangedTopic, false);
-
-  Services.prefs.addObserver(kCellBroadcastDisabled, this, false);
 
   this._sentSmsEnvelopes = {};
 
@@ -379,7 +358,11 @@ function RadioInterfaceLayer() {
 
   this._targetMessageQueue = [];
 
-  gSystemWorkerManager.registerRilWorker(this.clientId, this.worker);
+  // pass debug pref to ril_worker
+  this.worker.postMessage({rilMessageType: "setDebugEnabled",
+                           enabled: debugPref});
+
+  gSystemWorkerManager.registerRilWorker(0, this.worker);
 }
 RadioInterfaceLayer.prototype = {
 
@@ -961,7 +944,10 @@ RadioInterfaceLayer.prototype = {
     voiceInfo.connected = newInfo.connected;
     voiceInfo.roaming = newInfo.roaming;
     voiceInfo.emergencyCallsOnly = newInfo.emergencyCallsOnly;
-    voiceInfo.type = newInfo.type;
+    // Unlike the data registration info, the voice info typically contains
+    // no (useful) radio tech information, so we have to manually set
+    // this here. (TODO GSM only for now, see bug 726098.)
+    voiceInfo.type = "gsm";
 
     // Make sure we also reset the operator and signal strength information
     // if we drop off the network.
@@ -1935,7 +1921,6 @@ RadioInterfaceLayer.prototype = {
     debug("handleSetCallWaiting: " + JSON.stringify(message));
     this._sendRequestResults("RIL:SetCallWaitingOption", message);
   },
-
   // nsIObserver
 
   observe: function observe(subject, topic, data) {
@@ -1949,18 +1934,6 @@ RadioInterfaceLayer.prototype = {
       case kMozSettingsChangedObserverTopic:
         let setting = JSON.parse(data);
         this.handleSettingsChange(setting.key, setting.value, setting.message);
-        break;
-      case kPrefenceChangedObserverTopic:
-        if (data === kCellBroadcastDisabled) {
-          let value = false;
-          try {
-            value = Services.prefs.getBoolPref(kCellBroadcastDisabled);
-          } catch(e) {}
-          this.worker.postMessage({
-            rilMessageType: "setCellBroadcastDisabled",
-            disabled: value
-          });
-        }
         break;
       case "xpcom-shutdown":
         ppmm.removeMessageListener("child-process-shutdown", this);
@@ -1989,17 +1962,11 @@ RadioInterfaceLayer.prototype = {
         Services.obs.removeObserver(this, "xpcom-shutdown");
         Services.obs.removeObserver(this, kMozSettingsChangedObserverTopic);
         Services.obs.removeObserver(this, kSysClockChangeObserverTopic);
-        Services.obs.removeObserver(this, kScreenStateChangedTopic);
-        Services.prefs.removeObserver(kCellBroadcastDisabled, this);
         break;
       case kSysClockChangeObserverTopic:
         if (this._lastNitzMessage) {
           this._lastNitzMessage.receiveTimeInMS += parseInt(data, 10);
         }
-        break;
-      case kScreenStateChangedTopic:
-        debug("Received a screen-state-changed event: " + JSON.stringify(data));
-        this.setScreenState(data);
         break;
     }
   },
@@ -2222,14 +2189,6 @@ RadioInterfaceLayer.prototype = {
   getAvailableNetworks: function getAvailableNetworks(requestId) {
     this.worker.postMessage({rilMessageType: "getAvailableNetworks",
                              requestId: requestId});
-  },
-
-  setScreenState: function setScreenState(state) {
-    debug("setScreenState: " + JSON.stringify(state));
-    this.worker.postMessage({
-      rilMessageType: "setScreenState",
-      on: (state === "on")
-    });
   },
 
   sendMMI: function sendMMI(message) {

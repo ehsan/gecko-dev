@@ -177,6 +177,10 @@ private:
     bool     EnsureNPNComplete();
     void     SetupNPN(uint32_t caps);
 
+    // Inform the connection manager of any SPDY Alternate-Protocol
+    // redirections
+    void     HandleAlternateProtocol(nsHttpResponseHead *);
+
     // Start the Spdy transaction handler when NPN indicates spdy/*
     void     StartSpdy(uint8_t versionLevel);
 

@@ -169,11 +169,6 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
     function(value) {
       Services.prefs.setBoolPref('dom.sms.requestStatusReport', value);
   });
-
-  SettingsListener.observe('ril.cellbroadcast.disabled', false,
-    function(value) {
-      Services.prefs.setBoolPref('ril.cellbroadcast.disabled', value);
-  });
 })();
 
 //=================== DeviceInfo ====================

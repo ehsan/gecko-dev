@@ -380,6 +380,7 @@ nsLayoutStatics::Shutdown()
   nsLayoutUtils::Shutdown();
 
   nsHyphenationManager::Shutdown();
+  nsEditorSpellCheck::ShutDown();
   nsDOMMutationObserver::Shutdown();
 
   AudioChannelService::Shutdown();

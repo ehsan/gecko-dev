@@ -43,8 +43,6 @@
 namespace JSC {
 
 inline bool CAN_SIGN_EXTEND_8_32(int32_t value) { return value == (int32_t)(signed char)value; }
-inline bool CAN_ZERO_EXTEND_8_32(int32_t value) { return value == (int32_t)(unsigned char)value; }
-inline bool CAN_ZERO_EXTEND_32_64(int32_t value) { return value >= 0; }
 
 namespace X86Registers {
     typedef enum {
@@ -1093,11 +1091,6 @@ public:
 
     void cmpl_ir(int imm, RegisterID dst)
     {
-        if (imm == 0) {
-            testl_rr(dst, dst);
-            return;
-        }
-
         spew("cmpl       $0x%x, %s", imm, nameIReg(4, dst));
         if (CAN_SIGN_EXTEND_8_32(imm)) {
             m_formatter.oneByteOp(OP_GROUP1_EvIb, GROUP1_OP_CMP, dst);
@@ -1185,11 +1178,6 @@ public:
 
     void cmpq_ir(int imm, RegisterID dst)
     {
-        if (imm == 0) {
-            testq_rr(dst, dst);
-            return;
-        }
-
         spew("cmpq       $%d, %s",
              imm, nameIReg(8, dst));
         if (CAN_SIGN_EXTEND_8_32(imm)) {
@@ -1282,15 +1270,6 @@ public:
     
     void testl_i32r(int imm, RegisterID dst)
     {
-#if WTF_CPU_X86_64
-        // If the mask fits in an 8-bit immediate, we can use testb with an
-        // 8-bit subreg. This could be extended to handle x86-32 too, but it
-        // would require a check to see if the register supports 8-bit subregs.
-        if (CAN_ZERO_EXTEND_8_32(imm)) {
-            testb_i8r(imm, dst);
-            return;
-        }
-#endif
         spew("testl      $0x%x, %s",
              imm, nameIReg(dst));
         m_formatter.oneByteOp(OP_GROUP3_EvIz, GROUP3_OP_TEST, dst);
@@ -1334,14 +1313,10 @@ public:
 
     void testq_i32r(int imm, RegisterID dst)
     {
-        if (CAN_ZERO_EXTEND_32_64(imm)) {
-            testl_i32r(imm, dst);
-        } else {
-            spew("testq      $0x%x, %s",
-                 imm, nameIReg(dst));
-            m_formatter.oneByteOp64(OP_GROUP3_EvIz, GROUP3_OP_TEST, dst);
-            m_formatter.immediate32(imm);
-        }
+        spew("testq      $0x%x, %s",
+             imm, nameIReg(dst));
+        m_formatter.oneByteOp64(OP_GROUP3_EvIz, GROUP3_OP_TEST, dst);
+        m_formatter.immediate32(imm);
     }
 
     void testq_i32m(int imm, int offset, RegisterID base)
@@ -1697,7 +1672,7 @@ public:
     
     JmpSrc movl_ripr(RegisterID dst)
     {
-        spew("movl       \?(%%rip), %s",
+        spew("movl     \?(%%rip), %s",
              nameIReg(dst));
         m_formatter.oneByteRipOp(OP_MOV_GvEv, (RegisterID)dst, 0);
         return JmpSrc(m_formatter.size());
@@ -1705,7 +1680,7 @@ public:
 
     JmpSrc movl_rrip(RegisterID src)
     {
-        spew("movl       %s, \?(%%rip)",
+        spew("movl     %s, \?(%%rip)",
              nameIReg(src));
         m_formatter.oneByteRipOp(OP_MOV_EvGv, (RegisterID)src, 0);
         return JmpSrc(m_formatter.size());
@@ -1713,7 +1688,7 @@ public:
 
     JmpSrc movq_ripr(RegisterID dst)
     {
-        spew("movl       \?(%%rip), %s",
+        spew("movl     \?(%%rip), %s",
              nameIReg(dst));
         m_formatter.oneByteRipOp64(OP_MOV_GvEv, dst, 0);
         return JmpSrc(m_formatter.size());
@@ -1949,13 +1924,13 @@ public:
     
     void jmp_m(int offset, RegisterID base)
     {
-        spew("jmp        *%d(%s)",
+        spew("jmp       *%d(%s)",
              offset, nameIReg(base));
         m_formatter.oneByteOp(OP_GROUP5_Ev, GROUP5_OP_JMPN, base, offset);
     }
 
     void jmp_m(int offset, RegisterID base, RegisterID index, int scale) {
-        spew("jmp        *%d(%s,%s,%d)",
+        spew("jmp       *%d(%s,%s,%d)",
              offset, nameIReg(base), nameIReg(index), 1<<scale);
         m_formatter.oneByteOp(OP_GROUP5_Ev, GROUP5_OP_JMPN, base, index, scale, offset);
     }
@@ -2127,7 +2102,7 @@ public:
 
     void cvtsd2ss_rr(XMMRegisterID src, XMMRegisterID dst)
     {
-        spew("cvtsd2ss   %s, %s",
+        spew("cvtss2sd   %s, %s",
              nameFPReg(src), nameFPReg(dst));
         m_formatter.prefix(PRE_SSE_F2);
         m_formatter.twoByteOp(OP2_CVTSD2SS_VsdEd, (RegisterID)dst, (RegisterID)src);
@@ -2210,28 +2185,28 @@ public:
         m_formatter.twoByteOp(OP2_MOVD_VdEd, (RegisterID)dst, src);
     }
 
-    void psrldq_ir(int shift, XMMRegisterID dest)
+    void psrldq_rr(XMMRegisterID dest, int shift)
     {
-        spew("psrldq      $%d, %s",
-             shift, nameFPReg(dest));
+        spew("psrldq     %s, %d",
+             nameFPReg(dest), shift);
         m_formatter.prefix(PRE_SSE_66);
         m_formatter.twoByteOp(OP2_PSRLDQ_Vd, (RegisterID)3, (RegisterID)dest);
         m_formatter.immediate8(shift);
     }
 
-    void psllq_ir(int shift, XMMRegisterID dest)
+    void psllq_rr(XMMRegisterID dest, int shift)
     {
-        spew("psllq      $%d, %s",
-             shift, nameFPReg(dest));
+        spew("psllq     %s, %d",
+             nameFPReg(dest), shift);
         m_formatter.prefix(PRE_SSE_66);
         m_formatter.twoByteOp(OP2_PSRLDQ_Vd, (RegisterID)6, (RegisterID)dest);
         m_formatter.immediate8(shift);
     }
 
-    void psrlq_ir(int shift, XMMRegisterID dest)
+    void psrlq_rr(XMMRegisterID dest, int shift)
     {
-        spew("psrlq      $%d, %s",
-             shift, nameFPReg(dest));
+        spew("psrlq     %s, %d",
+             nameFPReg(dest), shift);
         m_formatter.prefix(PRE_SSE_66);
         m_formatter.twoByteOp(OP2_PSRLDQ_Vd, (RegisterID)2, (RegisterID)dest);
         m_formatter.immediate8(shift);

@@ -340,8 +340,11 @@ NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
 NS_IMPL_RELEASE_INHERITED(nsXULElement, nsStyledElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
-    NS_INTERFACE_TABLE_INHERITED3(nsXULElement, nsIDOMNode, nsIDOMElement,
-                                  nsIDOMXULElement)
+    NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXULElement)
+        NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMNode)
+        NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMElement)
+        NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMXULElement)
+    NS_OFFSET_AND_INTERFACE_TABLE_END
     NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
     NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMElementCSSInlineStyle,
                                    new nsXULElementTearoff(this))

@@ -289,10 +289,8 @@ Shape::getUserId(JSContext *cx, MutableHandleId idp) const
 #endif
     if (self->hasShortID()) {
         int16_t id = self->shortid();
-        if (id < 0) {
-            RootedValue v(cx, Int32Value(id));
-            return ValueToId<CanGC>(cx, v, idp);
-        }
+        if (id < 0)
+            return ValueToId<CanGC>(cx, Int32Value(id), idp);
         idp.set(INT_TO_JSID(id));
     } else {
         idp.set(self->propid());

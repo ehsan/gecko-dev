@@ -56,38 +56,18 @@ function dummyHandler(request, response) {
   return p;
 }
 
-function wrapWithExceptionHandler(f) {
-  function wrapper() {
-    try {
-      f.apply(null, arguments);
-    } catch (ex if typeof(ex) == 'object') {
-      dump("Caught exception: " + ex.message + "\n");
-      dump(ex.stack);
-      do_test_finished();
-    }
-  }
-  return wrapper;
-}
-
-function addWrappedObserver(f, topic) {
-  let wrappedObserver = wrapWithExceptionHandler(f);
-  Services.obs.addObserver(function g(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(g, aTopic);
-    wrappedObserver(aSubject, aTopic, aData);
-  }, topic, false);
-}
-
 function registerPingHandler(handler) {
-  httpserver.registerPathHandler(TelemetryPing.submissionPath(),
-				 wrapWithExceptionHandler(handler));
+  httpserver.registerPathHandler(TelemetryPing.submissionPath(), handler);
 }
 
 function nonexistentServerObserver(aSubject, aTopic, aData) {
+  Services.obs.removeObserver(nonexistentServerObserver, aTopic);
+
   httpserver.start(4444);
 
   // Provide a dummy function so it returns 200 instead of 404 to telemetry.
   registerPingHandler(dummyHandler);
-  addWrappedObserver(telemetryObserver, "telemetry-test-xhr-complete");
+  Services.obs.addObserver(telemetryObserver, "telemetry-test-xhr-complete", false);
   telemetry_ping();
 }
 
@@ -118,6 +98,7 @@ function getSavedHistogramsFile(basename) {
 }
 
 function telemetryObserver(aSubject, aTopic, aData) {
+  Services.obs.removeObserver(telemetryObserver, aTopic);
   registerPingHandler(checkHistogramsSync);
   let histogramsFile = getSavedHistogramsFile("saved-histograms.dat");
   setupTestData();
@@ -294,7 +275,7 @@ function checkPersistedHistogramsSync(request, response) {
   // saved.
   checkPayload(request, "saved-session", 1);
 
-  addWrappedObserver(runAsyncTestObserver, "telemetry-test-xhr-complete");
+  Services.obs.addObserver(runAsyncTestObserver, "telemetry-test-xhr-complete", false);
 }
 
 function checkHistogramsSync(request, response) {
@@ -303,16 +284,20 @@ function checkHistogramsSync(request, response) {
 }
 
 function runAsyncTestObserver(aSubject, aTopic, aData) {
+  Services.obs.removeObserver(runAsyncTestObserver, aTopic);
   registerPingHandler(checkHistogramsAsync);
   let histogramsFile = getSavedHistogramsFile("saved-histograms2.dat");
 
-  addWrappedObserver(function(aSubject, aTopic, aData) {
-    addWrappedObserver(function(aSubject, aTopic, aData) {
+  Services.obs.addObserver(function(aSubject, aTopic, aData) {
+    Services.obs.removeObserver(arguments.callee, aTopic);
+
+    Services.obs.addObserver(function(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(arguments.callee, aTopic);
       telemetry_ping();
-    }, "telemetry-test-load-complete");
+    }, "telemetry-test-load-complete", false);
 
     TelemetryPing.testLoadHistograms(histogramsFile, false);
-  }, "telemetry-test-save-complete");
+  }, "telemetry-test-save-complete", false);
   TelemetryPing.saveHistograms(histogramsFile, false);
 }
 
@@ -324,9 +309,9 @@ function checkPersistedHistogramsAsync(request, response) {
   // saved.
   checkPayload(request, "saved-session", 3);
 
-  runOldPingFileTest();
-
   gFinished = true;
+
+  runOldPingFileTest();
 }
 
 function checkHistogramsAsync(request, response) {
@@ -516,12 +501,12 @@ function run_test() {
     });
   });
 
-  Telemetry.asyncFetchTelemetryData(wrapWithExceptionHandler(actualTest));
+  Telemetry.asyncFetchTelemetryData(function () {
+    actualTest();
+  });
 }
 
 function actualTest() {
-  // ensure that test runs to completion
-  do_register_cleanup(function () do_check_true(gFinished));
   // try to make LightweightThemeManager do stuff
   let gInternalManager = Cc["@mozilla.org/addons/integration;1"]
                          .getService(Ci.nsIObserver)
@@ -535,9 +520,11 @@ function actualTest() {
 
   runInvalidJSONTest();
 
-  addWrappedObserver(nonexistentServerObserver, "telemetry-test-xhr-complete");
+  Services.obs.addObserver(nonexistentServerObserver, "telemetry-test-xhr-complete", false);
   telemetry_ping();
   // spin the event loop
   do_test_pending();
+  // ensure that test runs to completion
+  do_register_cleanup(function () do_check_true(gFinished));
   do_test_finished();
 }

@@ -621,6 +621,7 @@ CanvasRenderingContext2D::Reset()
 
   // Since the target changes the backing texture will change, and this will
   // no longer be valid.
+  mThebesSurface = nullptr;
   mIsEntireFrameInvalid = false;
   mPredictManyRedrawCalls = false;
 
@@ -712,6 +713,11 @@ CanvasRenderingContext2D::Redraw()
     return NS_OK;
   }
 
+  if (!mThebesSurface)
+    mThebesSurface =
+      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
+  mThebesSurface->MarkDirty();
+
   nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
   mCanvasElement->InvalidateCanvasContent(nullptr);
@@ -738,6 +744,11 @@ CanvasRenderingContext2D::Redraw(const mgfx::Rect &r)
     NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
     return;
   }
+
+  if (!mThebesSurface)
+    mThebesSurface =
+      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
+  mThebesSurface->MarkDirty();
 
   nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
@@ -880,6 +891,7 @@ CanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *shell,
                                                 int32_t height)
 {
   mDocShell = shell;
+  mThebesSurface = surface;
 
   SetDimensions(width, height);
   mTarget = gfxPlatform::GetPlatform()->
@@ -3200,39 +3212,18 @@ CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
   // save and restore it
   Matrix matrix = mTarget->GetTransform();
   nsRefPtr<gfxContext> thebes;
-  nsRefPtr<gfxASurface> drawSurf;
   if (gfxPlatform::GetPlatform()->SupportsAzureContentForDrawTarget(mTarget)) {
     thebes = new gfxContext(mTarget);
-    thebes->SetMatrix(gfxMatrix(matrix._11, matrix._12, matrix._21,
-                                matrix._22, matrix._31, matrix._32));
   } else {
-    drawSurf =
-      gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(ceil(w), ceil(h)),
-                                                         gfxASurface::CONTENT_COLOR_ALPHA);
-
-    drawSurf->SetDeviceOffset(gfxPoint(-floor(x), -floor(y)));
+    nsRefPtr<gfxASurface> drawSurf;
+    GetThebesSurface(getter_AddRefs(drawSurf));
     thebes = new gfxContext(drawSurf);
-    thebes->Translate(gfxPoint(floor(x), floor(y)));
   }
-
+  thebes->SetMatrix(gfxMatrix(matrix._11, matrix._12, matrix._21,
+                              matrix._22, matrix._31, matrix._32));
   nsCOMPtr<nsIPresShell> shell = presContext->PresShell();
   unused << shell->RenderDocument(r, renderDocFlags, backgroundColor, thebes);
-  if (drawSurf) {
-    gfxIntSize size = drawSurf->GetSize();
-
-    drawSurf->SetDeviceOffset(gfxPoint(0, 0));
-    nsRefPtr<gfxImageSurface> img = drawSurf->GetAsReadableARGB32ImageSurface();
-    RefPtr<SourceSurface> data =
-      mTarget->CreateSourceSurfaceFromData(img->Data(),
-                                           IntSize(size.width, size.height),
-                                           img->Stride(),
-                                           FORMAT_B8G8R8A8);
-    mgfx::Rect rect(0, 0, w, h);
-    mTarget->DrawSurface(data, rect, rect);
-    mTarget->Flush();
-  } else {
-    mTarget->SetTransform(matrix);
-  }
+  mTarget->SetTransform(matrix);
 
   // note that x and y are coordinates in the document that
   // we're drawing; x and y are drawn to 0,0 in current user
@@ -3676,15 +3667,20 @@ NS_IMETHODIMP
 CanvasRenderingContext2D::GetThebesSurface(gfxASurface **surface)
 {
   EnsureTarget();
-
-  nsRefPtr<gfxASurface> thebesSurface =
+  if (!mThebesSurface) {
+    mThebesSurface =
       gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
 
-  if (!thebesSurface) {
-    return NS_ERROR_FAILURE;
+    if (!mThebesSurface) {
+      return NS_ERROR_FAILURE;
+    }
+  } else {
+    // Normally GetThebesSurfaceForDrawTarget will handle the flush, when
+    // we're returning a cached ThebesSurface we need to flush here.
+    mTarget->Flush();
   }
 
-  *surface = thebesSurface;
+  *surface = mThebesSurface;
   NS_ADDREF(*surface);
 
   return NS_OK;

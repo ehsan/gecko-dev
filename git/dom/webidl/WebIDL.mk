@@ -28,7 +28,6 @@ webidl_files = \
   BeforeUnloadEvent.webidl \
   BiquadFilterNode.webidl \
   Blob.webidl \
-  CameraManager.webidl \
   CanvasRenderingContext2D.webidl \
   CaretPosition.webidl \
   CDATASection.webidl \
@@ -40,6 +39,7 @@ webidl_files = \
   ClientRect.webidl \
   ClientRectList.webidl \
   ClipboardEvent.webidl \
+  CameraManager.webidl \
   CommandEvent.webidl \
   Comment.webidl \
   CompositionEvent.webidl \

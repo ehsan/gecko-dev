@@ -238,9 +238,10 @@ public:
     return GetIdentifier() != o.GetIdentifier();
   }
 
-  virtual LayerRenderState GetRenderState()
+  LayerRenderState GetRenderState()
   {
-    return LayerRenderState();
+    return LayerRenderState(mBuffer,
+                            mFlags & NeedsYFlip ? LAYER_RENDER_STATE_Y_FLIPPED : 0);
   }
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() = 0;

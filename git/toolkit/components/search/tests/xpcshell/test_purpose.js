@@ -58,6 +58,8 @@ function run_test() {
   httpServer.start(4444);
   httpServer.registerDirectory("/", do_get_cwd());
 
+  let search = Services.search; // Cause service initialization
+
   do_register_cleanup(function cleanup() {
     httpServer.stop(function() {});
     Services.obs.removeObserver(search_observer, "browser-search-engine-modified");
@@ -66,7 +68,7 @@ function run_test() {
   do_test_pending();
   Services.obs.addObserver(search_observer, "browser-search-engine-modified", false);
 
-  Services.search.addEngine("http://localhost:4444/data/engine.xml",
-                            Ci.nsISearchEngine.DATA_XML,
-                            null, false);
+  search.addEngine("http://localhost:4444/data/engine.xml",
+                   Ci.nsISearchEngine.DATA_XML,
+                   null, false);
 }

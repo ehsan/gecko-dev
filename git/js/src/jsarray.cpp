@@ -138,8 +138,7 @@ DoubleIndexToId(JSContext *cx, double index, MutableHandleId id)
     if (index == uint32_t(index))
         return IndexToId(cx, uint32_t(index), id);
 
-    Value tmp = DoubleValue(index);
-    return ValueToId<CanGC>(cx, HandleValue::fromMarkedLocation(&tmp), id);
+    return ValueToId<CanGC>(cx, DoubleValue(index), id);
 }
 
 /*
@@ -351,8 +350,7 @@ DeletePropertyOrThrow(JSContext *cx, HandleObject obj, double index)
         return true;
 
     RootedId id(cx);
-    RootedValue indexv(cx, NumberValue(index));
-    if (!ValueToId<CanGC>(cx, indexv, &id))
+    if (!ValueToId<CanGC>(cx, NumberValue(index), &id))
         return false;
     return obj->reportNotConfigurable(cx, id, JSREPORT_ERROR);
 }
@@ -894,7 +892,7 @@ array_join_sub(JSContext *cx, CallArgs &args, bool locale)
     // Steps 4 and 5
     RootedString sepstr(cx, NULL);
     if (!locale && args.hasDefined(0)) {
-        sepstr = ToString<CanGC>(cx, args.handleAt(0));
+        sepstr = ToString<CanGC>(cx, args[0]);
         if (!sepstr)
             return false;
     }
@@ -1135,14 +1133,11 @@ InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t coun
     JS_ASSERT(start == MAX_ARRAY_INDEX + 1);
     RootedValue value(cx);
     RootedId id(cx);
-    RootedValue indexv(cx);
     double index = MAX_ARRAY_INDEX + 1;
     do {
         value = *vector++;
-        indexv = DoubleValue(index);
-        if (!ValueToId<CanGC>(cx, indexv, &id) ||
-            !JSObject::setGeneric(cx, obj, obj, id, &value, true))
-        {
+        if (!ValueToId<CanGC>(cx, DoubleValue(index), &id) ||
+            !JSObject::setGeneric(cx, obj, obj, id, &value, true)) {
             return false;
         }
         index += 1;

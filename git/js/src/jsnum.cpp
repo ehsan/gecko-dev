@@ -267,28 +267,28 @@ num_isFinite(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 num_parseFloat(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    JSString *str;
+    double d;
+    const jschar *bp, *end, *ep;
 
-    if (args.length() == 0) {
-        args.rval().setDouble(js_NaN);
+    if (argc == 0) {
+        vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    JSString *str = ToString<CanGC>(cx, args.handleAt(0));
+    str = ToString<CanGC>(cx, vp[2]);
     if (!str)
         return JS_FALSE;
-    const jschar *bp = str->getChars(cx);
+    bp = str->getChars(cx);
     if (!bp)
         return JS_FALSE;
-    const jschar *end = bp + str->length();
-    const jschar *ep;
-    double d;
+    end = bp + str->length();
     if (!js_strtod(cx, bp, end, &ep, &d))
         return JS_FALSE;
     if (ep == bp) {
-        args.rval().setDouble(js_NaN);
+        vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    args.rval().setDouble(d);
+    vp->setNumber(d);
     return JS_TRUE;
 }
 
@@ -340,7 +340,7 @@ js::num_parseInt(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 1. */
-    RootedString inputString(cx, ToString<CanGC>(cx, args.handleAt(0)));
+    RootedString inputString(cx, ToString<CanGC>(cx, args[0]));
     if (!inputString)
         return false;
     args[0].setString(inputString);

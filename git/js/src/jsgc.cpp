@@ -3243,7 +3243,6 @@ JSCompartment::findOutgoingEdges(ComponentFinder<JS::Zone> &finder)
             }
         } else {
             JS_ASSERT(kind == CrossCompartmentKey::DebuggerScript ||
-                      kind == CrossCompartmentKey::DebuggerSource ||
                       kind == CrossCompartmentKey::DebuggerObject ||
                       kind == CrossCompartmentKey::DebuggerEnvironment);
             /*

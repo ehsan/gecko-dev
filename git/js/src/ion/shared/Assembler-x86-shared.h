@@ -1100,15 +1100,15 @@ class AssemblerX86Shared
     }
     void psrldq(Imm32 shift, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.psrldq_ir(shift.value, dest.code());
+        masm.psrldq_rr(dest.code(), shift.value);
     }
     void psllq(Imm32 shift, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.psllq_ir(shift.value, dest.code());
+        masm.psllq_rr(dest.code(), shift.value);
     }
     void psrlq(Imm32 shift, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.psrlq_ir(shift.value, dest.code());
+        masm.psrlq_rr(dest.code(), shift.value);
     }
 
     void cvtsi2sd(const Operand &src, const FloatRegister &dest) {
