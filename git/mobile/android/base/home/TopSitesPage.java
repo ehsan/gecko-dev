@@ -29,7 +29,6 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.LoaderManager;
@@ -317,8 +316,7 @@ public class TopSitesPage extends HomeFragment {
             if (item.getItemId() == R.id.top_sites_open_private_tab)
                 flags |= Tabs.LOADURL_PRIVATE;
 
-            // Decode "user-entered" URLs before loading them.
-            Tabs.getInstance().loadUrl(decodeUserEnteredUrl(info.url), flags);
+            Tabs.getInstance().loadUrl(info.url, flags);
             Toast.makeText(activity, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
             return true;
         }
@@ -372,18 +370,6 @@ public class TopSitesPage extends HomeFragment {
         // Gecko thread priority, we ensure that the UI appears quickly. The
         // priority is reset to normal once thumbnails are loaded.
         ThreadUtils.reduceGeckoPriority(PRIORITY_RESET_TIMEOUT);
-    }
-
-    static String encodeUserEnteredUrl(String url) {
-        return Uri.fromParts("user-entered", url, null).toString();
-    }
-
-    static String decodeUserEnteredUrl(String url) {
-        Uri uri = Uri.parse(url);
-        if ("user-entered".equals(uri.getScheme())) {
-            return uri.getSchemeSpecificPart();
-        }
-        return url;
     }
 
     /**

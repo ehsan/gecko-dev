@@ -146,6 +146,7 @@ pref("browser.helperApps.deleteTempFileOnExit", false);
 /* password manager */
 pref("signon.rememberSignons", true);
 pref("signon.expireMasterPassword", false);
+pref("signon.SignonFileName", "signons.txt");
 pref("signon.debug", false);
 
 /* form helper (scroll to and optionally zoom into editable fields)  */

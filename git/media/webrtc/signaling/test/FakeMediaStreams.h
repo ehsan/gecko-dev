@@ -81,7 +81,6 @@ class Fake_MediaStream {
 
   virtual nsresult Start() { return NS_OK; }
   virtual nsresult Stop() { return NS_OK; }
-  virtual void StopStream() {}
 
   virtual void Periodic() {}
 
@@ -176,7 +175,7 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
   void RemoveDirectListener(Fake_MediaStreamListener* aListener) {}
 
   //Don't pull anymore data,if mStop is true.
-  virtual void StopStream() {
+  void StopStream() {
    mStop = true;
   }
 
@@ -264,6 +263,7 @@ class Fake_MediaStreamBase : public Fake_MediaStream {
 
   virtual nsresult Start();
   virtual nsresult Stop();
+
 
   virtual int GetSegmentsAdded() {
     return mPeriodic->GetTimesCalled();

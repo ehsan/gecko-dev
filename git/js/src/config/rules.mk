@@ -1221,7 +1221,7 @@ endif
 ###############################################################################
 # Java rules
 ###############################################################################
-ifneq (,$(JAVAFILES)$(ANDROID_RESFILES)$(ANDROID_APKNAME)$(JAVA_JAR_TARGETS))
+ifneq (,$(value JAVAFILES)$(value ANDROID_RESFILES))
   include $(topsrcdir)/config/makefiles/java-build.mk
 endif
 

@@ -35,7 +35,6 @@
 #include "nsFocusManager.h"
 #include "Layers.h"
 #include "gfxContext.h"
-#include "nsILoadContext.h"
 
 // for painting the background window
 #include "mozilla/LookAndFeel.h"

@@ -19,7 +19,6 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.graphviz',
     'sphinx.ext.todo',
-    'mozbuild.sphinx',
 ]
 
 templates_path = ['_templates']
@@ -27,6 +26,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 project = u'Mozilla Build System'
 year = datetime.now().year
+copyright = u'%s, Mozilla Foundation, CC BY-SA 3.0 or any later version' % year
 
 # Grab the version from the source tree's milestone.
 with open(os.path.join(mozilla_dir, 'config', 'milestone.txt'), 'rt') as fh:

@@ -545,7 +545,7 @@ let gDevToolsBrowser = {
    */
   _addToolToWindows: function DT_addToolToWindows(toolDefinition) {
     // No menu item or global shortcut is required for options panel.
-    if (!toolDefinition.inMenu) {
+    if (toolDefinition.id == "options") {
       return;
     }
 
@@ -561,7 +561,7 @@ let gDevToolsBrowser = {
     let allDefs = gDevTools.getToolDefinitionArray();
     let prevDef;
     for (let def of allDefs) {
-      if (!def.inMenu) {
+      if (def.id == "options") {
         continue;
       }
       if (def === toolDefinition) {
@@ -630,7 +630,7 @@ let gDevToolsBrowser = {
     let fragMenuItems = doc.createDocumentFragment();
 
     for (let toolDefinition of gDevTools.getToolDefinitionArray()) {
-      if (!toolDefinition.inMenu) {
+      if (toolDefinition.id == "options") {
         continue;
       }
 

@@ -35,7 +35,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsContentUtils.h"
 #include "nsDOMEvent.h"
-#include "nsILoadContext.h"
 
 using namespace mozilla::dom;
 

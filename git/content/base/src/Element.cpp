@@ -18,7 +18,6 @@
 #include "nsIAtom.h"
 #include "nsIContentInlines.h"
 #include "nsINodeInfo.h"
-#include "nsIDocumentEncoder.h"
 #include "nsIDocumentInlines.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
