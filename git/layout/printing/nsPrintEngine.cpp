@@ -2610,9 +2610,7 @@ nsPrintEngine::GetPageRangeForSelection(nsIPresShell *        aPresShell,
 void nsPrintEngine::SetIsPrinting(PRBool aIsPrinting)
 { 
   mIsDoingPrinting = aIsPrinting;
-  // Calling SetIsPrinting while in print preview confuses the document viewer
-  // This is safe because we prevent exiting print preview while printing
-  if (mDocViewerPrint && !mIsDoingPrintPreview) {
+  if (mDocViewerPrint) {
     mDocViewerPrint->SetIsPrinting(aIsPrinting);
   }
   if (mPrt && aIsPrinting) {
