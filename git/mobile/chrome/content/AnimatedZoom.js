@@ -52,6 +52,10 @@ function AnimatedZoom(aBrowserView) {
   return;
   this.bv = aBrowserView;
 
+  this.snapshot = AnimatedZoom.createCanvas();
+  if (this.snapshot.pending_render)
+    return;
+
   // Render a snapshot of the viewport contents around the visible rect
   let [w, h] = this.bv.getViewportDimensions();
   let viewportRect = new Rect(0, 0, w, h);
@@ -62,8 +66,6 @@ function AnimatedZoom(aBrowserView) {
 
   // sanitize the snapshot rectangle to fit inside viewport
   this.snapshotRect.translateInside(viewportRect).restrictTo(viewportRect).expandToIntegers();
-
-  this.snapshot = AnimatedZoom.createCanvas();
   this.snapshotRect.width = Math.min(this.snapshotRect.width, this.snapshot.width);
   this.snapshotRect.height = Math.min(this.snapshotRect.height, this.snapshot.height);
 
@@ -73,20 +75,22 @@ function AnimatedZoom(aBrowserView) {
 
   let remote = !this.bv.getBrowser().contentWindow;
   if (remote) {
-    this.canvasReady = false;
     this.snapshot.addEventListener("MozAsyncCanvasRender", this, false);
+    this.snapshot.pending_render = true;
   } else {
-    this.canvasReady = true;
-    this.startAnimation();
+    this.setupCanvas();
   }
 }
 
 AnimatedZoom.prototype.handleEvent = function(aEvent) {
   if (aEvent.type == "MozAsyncCanvasRender") {
-    this.snapshot.removeEventListener("MozAsyncCanvasRender", this, false);
-    if (aEvent.originalTarget == this.snapshot) {
-      this.canvasReady = true;
-      this.startAnimation();
+    let snapshot = aEvent.originalTarget;
+    snapshot.pending_render = false;
+    snapshot.removeEventListener("MozAsyncCanvasRender", this, false);
+
+    if (this.snapshot == snapshot) {
+      this.setupCanvas();
+      this.startTimer();
     }
   }
 };
@@ -103,9 +107,10 @@ AnimatedZoom.createCanvas = function(aRemote) {
   return this._canvas;
 };
 
-AnimatedZoom.prototype.startAnimation = function()
+AnimatedZoom.prototype.setupCanvas = function() {
 {
   return;
+
   // stop live rendering during zooming
   this.bv.pauseRendering();
 
@@ -126,14 +131,18 @@ AnimatedZoom.prototype.startAnimation = function()
 
   // disable smoothing and use the fastest composition operation
   ctx.mozImageSmoothingEnabled = false;
-  ctx.globalCompositeOperation = 'copy';
+  ctx.globalCompositeOperation = "copy";
 
   // set background fill pattern
   let backgroundImage = new Image();
   backgroundImage.src = "chrome://browser/content/checkerboard.png";
-  ctx.fillStyle = ctx.createPattern(backgroundImage, 'repeat');
+  ctx.fillStyle = ctx.createPattern(backgroundImage, "repeat");
 
-  if (this.zoomTo) {
+  this.canvasReady = true;
+};
+
+AnimatedZoom.prototype.startTimer = function() {
+  if (this.zoomTo && this.canvasReady && !this.timer) {
     this.updateTo(this.zoomFrom);
 
     // start animation timer
@@ -151,6 +160,9 @@ AnimatedZoom.prototype.startAnimation = function()
 /** Updates the zoom to new rect. */
 AnimatedZoom.prototype.updateTo = function(nextRect) {
   this.zoomRect = nextRect;
+
+  if (this.snapshot.pending_render)
+    return;
 
   // prepare to draw to the zoom canvas
   let canvasRect = new Rect(0, 0, Elements.viewBuffer.width, Elements.viewBuffer.height);
@@ -194,13 +206,7 @@ AnimatedZoom.prototype.updateTo = function(nextRect) {
 /** Starts an animated zoom to zoomRect. */
 AnimatedZoom.prototype.animateTo = function(aZoomRect) {
   this.zoomTo = aZoomRect;
-
-  if (this.timer || !this.canvasReady)
-    return false;
-
-  this.startAnimation();
-
-  return true;
+  this.startTimer();
 };
 
 /** Callback for the animation. */
@@ -234,6 +240,8 @@ AnimatedZoom.prototype._callback = function() {
 AnimatedZoom.prototype.finish = function() {
   return;
   try {
+    Elements.viewBuffer.style.display = "none";
+
     // resume live rendering
     this.bv.resumeRendering(true);
 
@@ -247,6 +255,7 @@ AnimatedZoom.prototype.finish = function() {
       this.timer = null;
     }
     this.snapshot = null;
+    this.zoomTo = null;
   }
 };
 

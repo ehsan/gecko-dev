@@ -593,6 +593,12 @@ MouseModule.prototype = {
     } else {
       // now we're done, says our secret 3rd argument
       this._dragger.dragStop(0, 0, this._targetScrollInterface);
+
+      if (dragData.isPan()) {
+        let event = document.createEvent("Events");
+        event.initEvent("PanFinished", true, false);
+        this._browserViewContainer.dispatchEvent(event);
+      }
     }
   },
 
@@ -1229,7 +1235,6 @@ function GestureModule(owner, browserViewContainer) {
 }
 
 GestureModule.prototype = {
-
   /**
    * Dispatch events based on the type of mouse gesture event. For now, make
    * sure to stop propagation of every gesture event so that web content cannot
@@ -1352,3 +1357,4 @@ GestureModule.prototype = {
     }
   }
 };
+

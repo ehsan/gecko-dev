@@ -418,9 +418,6 @@ var Browser = {
       Services.prefs.clearUserPref("extensions.disabledAddons");
     }
 
-    // Force commonly used border-images into the image cache
-    ImagePreloader.cache();
-
     messageManager.addMessageListener("Browser:ViewportMetadata", this);
     messageManager.addMessageListener("Browser:FormSubmit", this);
     messageManager.addMessageListener("Browser:KeyPress", this);
@@ -832,6 +829,9 @@ var Browser = {
 
     let leftbarCBR = document.getElementById('tabs-container').getBoundingClientRect();
     let ritebarCBR = document.getElementById('browser-controls').getBoundingClientRect();
+
+    if (leftbarCBR.left > ritebarCBR.left)
+      [ritebarCBR, leftbarCBR] = [leftbarCBR, ritebarCBR]; // switch in RTL case
 
     let leftbar = new Rect(Math.round(leftbarCBR.left) - dx, 0, Math.round(leftbarCBR.width), 1);
     let ritebar = new Rect(Math.round(ritebarCBR.left) - dx, 0, Math.round(ritebarCBR.width), 1);
@@ -1681,6 +1681,7 @@ IdentityHandler.prototype = {
 
   show: function ih_show() {
     // dismiss any dialog which hide the identity popup
+    BrowserUI.activePanel = null;
     while (BrowserUI.activeDialog)
       BrowserUI.activeDialog.close();
 
@@ -1959,9 +1960,10 @@ function importDialog(aParent, aSrc, aArguments) {
 
   var dialog  = null;
 
-  // we need to insert before select-container if we want it to show correctly
-  let selectContainer = document.getElementById("select-container");
-  let parentNode = selectContainer.parentNode;
+  // we need to insert before menulist-container if we want it to show correctly
+  // for prompt.select for instance
+  let menulistContainer = document.getElementById("menulist-container");
+  let parentNode = menulistContainer.parentNode;
 
   // emit DOMWillOpenModalDialog event
   let event = document.createEvent("Events");
@@ -1973,7 +1975,7 @@ function importDialog(aParent, aSrc, aArguments) {
   let back = document.createElement("box");
   back.setAttribute("class", "modal-block");
   dialog = back.appendChild(document.importNode(doc, true));
-  parentNode.insertBefore(back, selectContainer);
+  parentNode.insertBefore(back, menulistContainer);
 
   dialog.arguments = aArguments;
   dialog.parent = aParent;
@@ -1990,6 +1992,17 @@ var AlertsHelper = {
   _listener: null,
   _cookie: "",
   _clickable: false,
+  _container: null,
+  get container() {
+    if (!this._container) {
+      this._container = document.getElementById("alerts-container");
+      let self = this;
+      this._container.addEventListener("transitionend", function() {
+        self.alertTransitionOver();
+      }, true);
+    }
+    return this._container;
+  },
 
   showAlertNotification: function ah_show(aImageURL, aTitle, aText, aTextClickable, aCookie, aListener) {
     this._clickable = aTextClickable || false;
@@ -1999,28 +2012,33 @@ var AlertsHelper = {
     document.getElementById("alerts-image").setAttribute("src", aImageURL);
     document.getElementById("alerts-title").value = aTitle;
     document.getElementById("alerts-text").textContent = aText;
-
-    let container = document.getElementById("alerts-container");
+    
+    let container = this.container;
     container.hidden = false;
-
-    let rect = container.getBoundingClientRect();
-    container.top = window.innerHeight - (rect.height + 20);
-    container.left = window.innerWidth - (rect.width + 20);
+    container.height = container.getBoundingClientRect().height;
+    container.classList.add("showing");
 
     let timeout = Services.prefs.getIntPref("alerts.totalOpenTime");
     let self = this;
+    if (this._timeoutID)
+      clearTimeout(this._timeoutID);
     this._timeoutID = setTimeout(function() { self._timeoutAlert(); }, timeout);
   },
-
+    
   _timeoutAlert: function ah__timeoutAlert() {
     this._timeoutID = -1;
-    let container = document.getElementById("alerts-container");
-    container.hidden = true;
-
+    
+    this.container.classList.remove("showing");
     if (this._listener)
       this._listener.observe(null, "alertfinished", this._cookie);
-
-    // TODO: add slide to UI
+  },
+  
+  alertTransitionOver: function ah_alertTransitionOver() {
+    let container = this.container;
+    if (!container.classList.contains("showing")) {
+      container.height = 0;
+      container.hidden = true;
+    }
   },
 
   click: function ah_click(aEvent) {
@@ -2452,34 +2470,5 @@ Tab.prototype = {
 
   toString: function() {
     return "[Tab " + (this._browser ? this._browser.currentURI.spec : "(no browser)") + "]";
-  }
-};
-
-var ImagePreloader = {
-  cache: function ip_cache() {
-    // Preload images used in border-image CSS
-    let images = ["button-active", "button-default",
-                  "buttondark-active", "buttondark-default",
-                  "toggleon-active", "toggleon-inactive",
-                  "toggleoff-active", "toggleoff-inactive",
-                  "toggleleft-active", "toggleleft-inactive",
-                  "togglemiddle-active", "togglemiddle-inactive",
-                  "toggleright-active", "toggleright-inactive",
-                  "toggleboth-active", "toggleboth-inactive",
-                  "toggledarkleft-active", "toggledarkleft-inactive",
-                  "toggledarkmiddle-active", "toggledarkmiddle-inactive",
-                  "toggledarkright-active", "toggledarkright-inactive",
-                  "toggledarkboth-active", "toggledarkboth-inactive",
-                  "toolbarbutton-active", "toolbarbutton-default",
-                  "addons-active", "addons-default",
-                  "downloads-active", "downloads-default",
-                  "preferences-active", "preferences-default",
-                  "settings-active", "settings-open"];
-
-    let size = screen.width > 400 ? "-64" : "-36";
-    for (let i = 0; i < images.length; i++) {
-      let image = new Image();
-      image.src = "chrome://browser/skin/images/" + images[i] + size + ".png";
-    }
   }
 };

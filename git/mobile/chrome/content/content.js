@@ -404,13 +404,13 @@ Content.prototype = {
     switch (aMessage.name) {
       case "Browser:Blur":
         docShell.isOffScreenBrowser = false;
-        docShell.isActive = true;
+        docShell.isActive = false;
         this._selected = false;
         break;
 
       case "Browser:Focus":
         docShell.isOffScreenBrowser = true;
-        docShell.isActive = false;
+        docShell.isActive = true;
         this._selected = true;
         break;
 
@@ -798,6 +798,18 @@ ContextHandler.registerType("callto", function(aState, aElement) {
 ContextHandler.registerType("link-saveable", function(aState, aElement) {
   let protocol = aState.linkProtocol;
   return (protocol && protocol != "mailto" && protocol != "javascript" && protocol != "news" && protocol != "snews");
+});
+
+ContextHandler.registerType("link-shareable", function(aState, aElement) {
+  return Util.isShareableScheme(aState.linkProtocol);
+});
+
+ContextHandler.registerType("image-shareable", function(aState, aElement) {
+  if (!aState.mediaURL)
+    return false;
+
+  let protocol = ContextHandler._getProtocol(ContextHandler._getURI(aState.mediaURL));
+  return Util.isShareableScheme(protocol);
 });
 
 ContextHandler.registerType("image-loaded", function(aState, aElement) {

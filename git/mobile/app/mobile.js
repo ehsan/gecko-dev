@@ -69,16 +69,7 @@ pref("browser.cache.memory.enable", true);
 pref("browser.cache.memory.capacity", 1024); // kilobytes
 
 /* tile cache prefs */
-/* -1 = default to very small value for the number of tiles unless we know about
-        the device in which case we set this to an optimal value
-*/
-#ifdef WINCE
-pref("tile.cache.size", 15); // tiles
-#elifdef MOZ_PLATFORM_MAEMO
-pref("tile.cache.size", -1); // tiles
-#else
-pref("tile.cache.size", 30); // tiles
-#endif
+pref("tile.cache.size", 10); // tiles
 
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
@@ -103,6 +94,9 @@ pref("network.http.max-persistent-connections-per-proxy", 4);
 #ifdef MOZ_ENABLE_LIBCONIC
 pref("network.autodial-helper.enabled", true);
 #endif
+
+/* history max results display */
+pref("browser.display.history.maxresults", 100);
 
 /* session history */
 pref("browser.sessionhistory.max_total_viewers", 1);
