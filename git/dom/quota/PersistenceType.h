@@ -37,6 +37,8 @@ PersistenceTypeToText(PersistenceType aPersistenceType, nsACString& aText)
     default:
       MOZ_CRASH("Bad persistence type value!");
   }
+
+  MOZ_ASSUME_UNREACHABLE("Should never get here!");
 }
 
 inline PersistenceType
@@ -50,7 +52,7 @@ PersistenceTypeFromText(const nsACString& aText)
     return PERSISTENCE_TYPE_TEMPORARY;
   }
 
-  MOZ_CRASH("Should never get here!");
+  MOZ_ASSUME_UNREACHABLE("Should never get here!");
 }
 
 inline nsresult

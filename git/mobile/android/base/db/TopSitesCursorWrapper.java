@@ -29,8 +29,7 @@ public class TopSitesCursorWrapper implements Cursor {
         UNKNOWN,
         BLANK,
         TOP,
-        PINNED,
-        SUGGESTED
+        PINNED
     }
 
     private static final String[] columnNames = new String[] {
@@ -40,8 +39,6 @@ public class TopSitesCursorWrapper implements Cursor {
         TopSites.BOOKMARK_ID,
         TopSites.HISTORY_ID,
         TopSites.DISPLAY,
-        TopSites.IMAGE_URL,
-        TopSites.BG_COLOR,
         TopSites.TYPE
     };
 
@@ -55,7 +52,6 @@ public class TopSitesCursorWrapper implements Cursor {
     // Maps column indexes from the wrapper to the cursor's.
     private SparseIntArray topIndexes;
     private SparseIntArray pinnedIndexes;
-    private SparseIntArray suggestedIndexes;
 
     // Type of content in the current position
     private RowType currentRowType;
@@ -69,17 +65,11 @@ public class TopSitesCursorWrapper implements Cursor {
     // The cursor for the pinned sites query
     private final Cursor pinnedCursor;
 
-    // The cursor for the sugested sites query
-    private final Cursor suggestedCursor;
-
     // Associates pinned sites and their respective positions
     private SparseBooleanArray pinnedPositions;
 
     // Current position of the cursor
     private int currentPosition = -1;
-
-    // Number of pinned sites before the current position
-    private int pinnedBefore = 0;
 
     // The size of the cursor wrapper
     private int count;
@@ -88,16 +78,11 @@ public class TopSitesCursorWrapper implements Cursor {
     private final int minSize;
 
     public TopSitesCursorWrapper(Cursor pinnedCursor, Cursor topCursor, int minSize) {
-        this(pinnedCursor, topCursor, null, minSize);
-    }
-
-    public TopSitesCursorWrapper(Cursor pinnedCursor, Cursor topCursor, Cursor suggestedCursor, int minSize) {
         currentRowType = RowType.UNKNOWN;
 
         this.minSize = minSize;
         this.topCursor = topCursor;
         this.pinnedCursor = pinnedCursor;
-        this.suggestedCursor = suggestedCursor;
 
         updateIndexMaps();
         updatePinnedPositions();
@@ -110,11 +95,6 @@ public class TopSitesCursorWrapper implements Cursor {
 
         pinnedIndexes = new SparseIntArray(pinnedCursor.getColumnCount());
         updateIndexMapFromCursor(pinnedIndexes, pinnedCursor);
-
-        if (suggestedCursor != null) {
-            suggestedIndexes = new SparseIntArray(suggestedCursor.getColumnCount());
-            updateIndexMapFromCursor(suggestedIndexes, suggestedCursor);
-        }
     }
 
     private static void updateIndexMapFromCursor(SparseIntArray indexMap, Cursor c) {
@@ -142,16 +122,11 @@ public class TopSitesCursorWrapper implements Cursor {
     }
 
     private void updateCount() {
-        int sum = pinnedCursor.getCount() + topCursor.getCount();
-        if (suggestedCursor != null) {
-            sum += suggestedCursor.getCount();
-        }
-
-        count = Math.max(minSize, sum);
+        count = Math.max(minSize, pinnedCursor.getCount() + topCursor.getCount());
     }
 
     private static boolean cursorHasValidPosition(Cursor c) {
-        return (c != null && !c.isBeforeFirst() && !c.isAfterLast());
+        return (!c.isBeforeFirst() && !c.isAfterLast());
     }
 
     private void updateRowState() {
@@ -161,9 +136,6 @@ public class TopSitesCursorWrapper implements Cursor {
         } else if (cursorHasValidPosition(topCursor)) {
             currentRowType = RowType.TOP;
             currentCursor = topCursor;
-        } else if (cursorHasValidPosition(suggestedCursor)) {
-            currentRowType = RowType.SUGGESTED;
-            currentCursor = suggestedCursor;
         } else if (currentPosition >= 0 && currentPosition < minSize) {
             currentRowType = RowType.BLANK;
             currentCursor = null;
@@ -173,19 +145,22 @@ public class TopSitesCursorWrapper implements Cursor {
         }
     }
 
-    private void updatePinnedBefore(int position) {
-        pinnedBefore = 0;
+    private int getPinnedBefore(int position) {
+        int numFound = 0;
         for (int i = 0; i < position; i++) {
             if (pinnedPositions.get(i)) {
-                pinnedBefore++;
+                numFound++;
             }
         }
+
+        return numFound;
     }
 
     private void updateTopCursorPosition(int position) {
         // Move the real cursor as if we were stepping through it to this position.
         // Account for pinned sites, and be careful to update its position to the
         // minimum or maximum position, even if we're moving beyond its bounds.
+        final int pinnedBefore = getPinnedBefore(position);
         final int actualPosition = position - pinnedBefore;
 
         if (actualPosition <= -1) {
@@ -202,19 +177,6 @@ public class TopSitesCursorWrapper implements Cursor {
             pinnedCursor.moveToPosition(pinnedPositions.indexOfKey(position));
         } else {
             pinnedCursor.moveToPosition(-1);
-        }
-    }
-
-    private void updateSuggestedCursorPosition(int position) {
-        if (suggestedCursor == null) {
-            return;
-        }
-
-        final int index = Math.max(-1, position - pinnedBefore - topCursor.getCount());
-        if (index < suggestedCursor.getCount()) {
-            suggestedCursor.moveToPosition(index);
-        } else {
-            suggestedCursor.moveToPosition(-1);
         }
     }
 
@@ -243,10 +205,6 @@ public class TopSitesCursorWrapper implements Cursor {
 
             case PINNED:
                 map = pinnedIndexes;
-                break;
-
-            case SUGGESTED:
-                map = suggestedIndexes;
                 break;
         }
 
@@ -316,10 +274,8 @@ public class TopSitesCursorWrapper implements Cursor {
     public boolean moveToPosition(int position) {
         currentPosition = position;
 
-        updatePinnedBefore(position);
         updatePinnedCursorPosition(position);
         updateTopCursorPosition(position);
-        updateSuggestedCursorPosition(position);
         updateRowState();
 
         return cursorHasValidPosition(this);
@@ -350,9 +306,6 @@ public class TopSitesCursorWrapper implements Cursor {
 
                 case PINNED:
                     return TopSites.TYPE_PINNED;
-
-                case SUGGESTED:
-                    return TopSites.TYPE_SUGGESTED;
 
                 default:
                     return -1;
@@ -455,9 +408,6 @@ public class TopSitesCursorWrapper implements Cursor {
     @Override
     public boolean requery() {
         boolean result = topCursor.requery() && pinnedCursor.requery();
-        if (suggestedCursor != null) {
-            result &= suggestedCursor.requery();
-        }
 
         updatePinnedPositions();
         updateCount();
@@ -491,61 +441,35 @@ public class TopSitesCursorWrapper implements Cursor {
     public void registerContentObserver(ContentObserver observer) {
         topCursor.registerContentObserver(observer);
         pinnedCursor.registerContentObserver(observer);
-
-        if (suggestedCursor != null) {
-            suggestedCursor.registerContentObserver(observer);
-        }
     }
 
     @Override
     public void unregisterContentObserver(ContentObserver observer) {
         topCursor.unregisterContentObserver(observer);
         pinnedCursor.unregisterContentObserver(observer);
-
-        if (suggestedCursor != null) {
-            suggestedCursor.unregisterContentObserver(observer);
-        }
     }
 
     @Override
     public void registerDataSetObserver(DataSetObserver observer) {
         topCursor.registerDataSetObserver(observer);
         pinnedCursor.registerDataSetObserver(observer);
-
-        if (suggestedCursor != null) {
-            suggestedCursor.registerDataSetObserver(observer);
-        }
     }
 
     @Override
     public void unregisterDataSetObserver(DataSetObserver observer) {
         topCursor.unregisterDataSetObserver(observer);
         pinnedCursor.unregisterDataSetObserver(observer);
-
-        if (suggestedCursor != null) {
-            suggestedCursor.unregisterDataSetObserver(observer);
-        }
     }
 
     @Override
     public void deactivate() {
         topCursor.deactivate();
         pinnedCursor.deactivate();
-
-        if (suggestedCursor != null) {
-            suggestedCursor.deactivate();
-        }
     }
 
     @Override
     public boolean isClosed() {
-        boolean result = topCursor.isClosed() && pinnedCursor.isClosed();
-
-        if (suggestedCursor != null) {
-            result &= suggestedCursor.isClosed();
-        }
-
-        return result;
+        return topCursor.isClosed() && pinnedCursor.isClosed();
     }
 
     @Override
@@ -556,10 +480,5 @@ public class TopSitesCursorWrapper implements Cursor {
         pinnedCursor.close();
         pinnedIndexes = null;
         pinnedPositions = null;
-
-        if (suggestedCursor != null) {
-            suggestedCursor.close();
-            suggestedIndexes = null;
-        }
     }
 }

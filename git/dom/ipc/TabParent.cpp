@@ -1740,19 +1740,36 @@ TabParent::DeallocPColorPickerParent(PColorPickerParent* actor)
   return true;
 }
 
-PRenderFrameParent*
-TabParent::AllocPRenderFrameParent(ScrollingBehavior* aScrolling,
-                                   TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                   uint64_t* aLayersId, bool* aSuccess)
+bool
+TabParent::RecvInitRenderFrame(PRenderFrameParent* aFrame,
+                               ScrollingBehavior* aScrolling,
+                               TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                               uint64_t* aLayersId,
+                               bool *aSuccess)
 {
-  MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
+  *aScrolling = UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
+  *aTextureFactoryIdentifier = TextureFactoryIdentifier();
+  *aLayersId = 0;
 
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  *aScrolling = UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
-  return new RenderFrameParent(frameLoader,
-                               *aScrolling,
-                               aTextureFactoryIdentifier, aLayersId,
-                               aSuccess);
+  if (!frameLoader) {
+    NS_WARNING("Can't allocate graphics resources. May already be shutting down.");
+    *aSuccess = false;
+    return true;
+  }
+
+  static_cast<RenderFrameParent*>(aFrame)->Init(frameLoader, *aScrolling,
+                                                aTextureFactoryIdentifier, aLayersId);
+
+  *aSuccess = true;
+  return true;
+}
+
+PRenderFrameParent*
+TabParent::AllocPRenderFrameParent()
+{
+  MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
+  return new RenderFrameParent();
 }
 
 bool
@@ -1902,11 +1919,7 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 }
 
 bool
-TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* aActor,
-                                       ScrollingBehavior* aScrolling,
-                                       TextureFactoryIdentifier* aFactoryIdentifier,
-                                       uint64_t* aLayersId,
-                                       bool* aSuccess)
+TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor)
 {
   return true;
 }

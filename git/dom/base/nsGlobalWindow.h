@@ -910,7 +910,6 @@ public:
   {
     return GetScrollY(aError);
   }
-  void MozRequestOverfill(mozilla::dom::OverfillCallback& aCallback, mozilla::ErrorResult& aError);
   int32_t GetScreenX(mozilla::ErrorResult& aError);
   void SetScreenX(int32_t aScreenX, mozilla::ErrorResult& aError);
   int32_t GetScreenY(mozilla::ErrorResult& aError);

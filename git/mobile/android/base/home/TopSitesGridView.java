@@ -107,19 +107,12 @@ public class TopSitesGridView extends GridView {
 
                 // Decode "user-entered" URLs before loading them.
                 String url = HomeFragment.decodeUserEnteredUrl(item.getUrl());
-                int type = item.getType();
 
                 // If the url is empty, the user can pin a site.
                 // If not, navigate to the page given by the url.
-                if (type != TopSites.TYPE_BLANK) {
+                if (item.getType() != TopSites.TYPE_BLANK) {
                     if (mUrlOpenListener != null) {
-                        final String method;
-                        if (type == TopSites.TYPE_SUGGESTED) {
-                            method = TelemetryContract.Method.SUGGESTION;
-                        } else {
-                            method = TelemetryContract.Method.GRID_ITEM;
-                        }
-                        Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, method);
+                        Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.GRID_ITEM);
 
                         mUrlOpenListener.onUrlOpen(url, EnumSet.noneOf(OnUrlOpenListener.Flags.class));
                     }
