@@ -157,9 +157,6 @@ protected:
 
     NS_NORETURN void QuickExit();
 
-    NS_OVERRIDE virtual bool
-    RecvProcessNativeEventsInRPCCall();
-
 public:
     PluginModuleChild();
     virtual ~PluginModuleChild();

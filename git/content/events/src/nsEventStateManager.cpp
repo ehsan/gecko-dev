@@ -391,7 +391,6 @@ public:
   static PRInt32 AccelerateWheelDelta(PRInt32 aScrollLines,
                    PRBool aIsHorizontal, PRBool aAllowScrollSpeedOverride,
                    nsIScrollableFrame::ScrollUnit *aScrollQuantity);
-  static PRBool IsAccelerationEnabled();
 
   enum {
     kScrollSeriesTimeout = 80
@@ -650,12 +649,6 @@ nsMouseWheelTransaction::GetIgnoreMoveDelayTime()
 {
   return (PRUint32)
     nsContentUtils::GetIntPref("mousewheel.transaction.ignoremovedelay", 100);
-}
-
-PRBool
-nsMouseWheelTransaction::IsAccelerationEnabled()
-{
-  return GetAccelerationStart() >= 0 && GetAccelerationFactor() > 0;
 }
 
 PRInt32
@@ -2658,12 +2651,6 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
 
   if (!passToParent && frameToScroll) {
     if (aQueryEvent) {
-      // If acceleration is enabled, pixel scroll shouldn't be used for
-      // high resolution scrolling.
-      if (nsMouseWheelTransaction::IsAccelerationEnabled()) {
-        return NS_OK;
-      }
-
       nscoord appUnitsPerDevPixel =
         aTargetFrame->PresContext()->AppUnitsPerDevPixel();
       aQueryEvent->mReply.mLineHeight =

@@ -172,6 +172,7 @@ tier_platform_dirs	+= \
 		parser \
 		gfx \
 		modules/libpr0n \
+		modules/plugin \
 		dom \
 		view \
 		widget \

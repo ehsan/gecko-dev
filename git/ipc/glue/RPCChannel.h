@@ -111,7 +111,6 @@ public:
         {
             return RRPChildWins;
         }
-        virtual void ProcessRemoteNativeEventsInRPCCall() {};
     };
 
     RPCChannel(RPCListener* aListener);
@@ -179,7 +178,6 @@ public:
 
 #ifdef OS_WIN
     void ProcessNativeEventsInRPCCall();
-    static void NotifyGeckoEventDispatch();
 
 protected:
     bool WaitForNotify();
