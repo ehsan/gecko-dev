@@ -17,13 +17,14 @@ function test() {
       let view = dbg.panelWin.DebuggerView;
 
       is(view.Sources.selectedValue, data.uri, "URI is different");
-      is(view.editor.getCursor().line, data.line - 1, "Line is different");
+      is(view.editor.getCaretPosition().line, data.line - 1,
+        "Line is different");
 
       // Test the case where script is already loaded.
-      view.editor.setCursor({ line: 1, ch: 1 });
+      view.editor.setCaretPosition(1);
       gDevTools.showToolbox(target, "jsprofiler").then(function () {
         panel.displaySource(data).then(function onOpenAgain() {
-          is(view.editor.getCursor().line, data.line - 1,
+          is(view.editor.getCaretPosition().line, data.line - 1,
             "Line is different");
           tearDown(tab);
         });

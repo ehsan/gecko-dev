@@ -60,11 +60,8 @@ ia2Accessible::get_nRelations(long* aNRelations)
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  for (uint32_t idx = 0; idx < ArrayLength(sRelationTypePairs); idx++) {
-    if (sRelationTypePairs[idx].second == IA2_RELATION_NULL)
-      continue;
-
-    Relation rel = acc->RelationByType(sRelationTypePairs[idx].first);
+  for (unsigned int idx = 0; idx < ArrayLength(sRelationTypesForIA2); idx++) {
+    Relation rel = acc->RelationByType(sRelationTypesForIA2[idx]);
     if (rel.Next())
       (*aNRelations)++;
   }
@@ -88,11 +85,8 @@ ia2Accessible::get_relation(long aRelationIndex,
     return CO_E_OBJNOTCONNECTED;
 
   long relIdx = 0;
-  for (uint32_t idx = 0; idx < ArrayLength(sRelationTypePairs); idx++) {
-    if (sRelationTypePairs[idx].second == IA2_RELATION_NULL)
-      continue;
-
-    RelationType relationType = sRelationTypePairs[idx].first;
+  for (unsigned int idx = 0; idx < ArrayLength(sRelationTypesForIA2); idx++) {
+    RelationType relationType = sRelationTypesForIA2[idx];
     Relation rel = acc->RelationByType(relationType);
     nsRefPtr<ia2AccessibleRelation> ia2Relation =
       new ia2AccessibleRelation(relationType, &rel);
@@ -126,12 +120,9 @@ ia2Accessible::get_relations(long aMaxRelations,
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  for (uint32_t idx = 0; idx < ArrayLength(sRelationTypePairs) &&
+  for (unsigned int idx = 0; idx < ArrayLength(sRelationTypesForIA2) &&
        *aNRelations < aMaxRelations; idx++) {
-    if (sRelationTypePairs[idx].second == IA2_RELATION_NULL)
-      continue;
-
-    RelationType relationType = sRelationTypePairs[idx].first;
+    RelationType relationType = sRelationTypesForIA2[idx];
     Relation rel = acc->RelationByType(relationType);
     nsRefPtr<ia2AccessibleRelation> ia2Rel =
       new ia2AccessibleRelation(relationType, &rel);

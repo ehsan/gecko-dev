@@ -46,95 +46,69 @@ function waitForDebuggerSources() {
 }
 
 function testBlackBoxSource() {
-  return Task.spawn(function* () {
-    yield cmd("dbg blackbox " + BLACKBOXME_URL);
-
-    let bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXME_URL);
-    ok(bbButton.checked,
-       "Should be able to black box a specific source.");
+  return cmd("dbg blackbox " + BLACKBOXME_URL).then(() => {
+    const checkbox = getBlackBoxCheckbox(BLACKBOXME_URL);
+    ok(!checkbox.checked,
+      "Should be able to black box a specific source.");
   });
 }
 
 function testUnBlackBoxSource() {
-  return Task.spawn(function* () {
-    yield cmd("dbg unblackbox " + BLACKBOXME_URL);
-
-    let bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXME_URL);
-    ok(!bbButton.checked,
-       "Should be able to stop black boxing a specific source.");
+  return cmd("dbg unblackbox " + BLACKBOXME_URL).then(() => {
+    const checkbox = getBlackBoxCheckbox(BLACKBOXME_URL);
+    ok(checkbox.checked,
+      "Should be able to stop black boxing a specific source.");
   });
 }
 
 function testBlackBoxGlob() {
-  return Task.spawn(function* () {
-    yield cmd("dbg blackbox --glob *blackboxing_t*.js", 2,
-              [/blackboxing_three\.js/g, /blackboxing_two\.js/g]);
+  return cmd("dbg blackbox --glob *blackboxing_t*.js", 2,
+             [/blackboxing_three\.js/g, /blackboxing_two\.js/g]).then(() => {
+    ok(getBlackBoxCheckbox(BLACKBOXME_URL).checked,
+      "blackboxme should not be black boxed because it doesn't match the glob.");
+    ok(getBlackBoxCheckbox(BLACKBOXONE_URL).checked,
+      "blackbox_one should not be black boxed because it doesn't match the glob.");
 
-    let bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXME_URL);
-    ok(!bbButton.checked,
-       "blackboxme should not be black boxed because it doesn't match the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXONE_URL);
-    ok(!bbButton.checked,
-       "blackbox_one should not be black boxed because it doesn't match the glob.");
-
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXTWO_URL);
-    ok(bbButton.checked,
-       "blackbox_two should be black boxed because it matches the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXTHREE_URL);
-    ok(bbButton.checked,
+    ok(!getBlackBoxCheckbox(BLACKBOXTWO_URL).checked,
+      "blackbox_two should be black boxed because it matches the glob.");
+    ok(!getBlackBoxCheckbox(BLACKBOXTHREE_URL).checked,
       "blackbox_three should be black boxed because it matches the glob.");
   });
 }
 
 function testUnBlackBoxGlob() {
-  return Task.spawn(function* () {
-    yield cmd("dbg unblackbox --glob *blackboxing_t*.js", 2);
-
-    let bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXTWO_URL);
-    ok(!bbButton.checked,
-       "blackbox_two should be un-black boxed because it matches the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXTHREE_URL);
-    ok(!bbButton.checked,
+  return cmd("dbg unblackbox --glob *blackboxing_t*.js", 2).then(() => {
+    ok(getBlackBoxCheckbox(BLACKBOXTWO_URL).checked,
+      "blackbox_two should be un-black boxed because it matches the glob.");
+    ok(getBlackBoxCheckbox(BLACKBOXTHREE_URL).checked,
       "blackbox_three should be un-black boxed because it matches the glob.");
   });
 }
 
 function testBlackBoxInvert() {
-  return Task.spawn(function* () {
-    yield cmd("dbg blackbox --invert --glob *blackboxing_t*.js", 3,
-              [/blackboxing_three\.js/g, /blackboxing_two\.js/g]);
-
-    let bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXME_URL);
-    ok(bbButton.checked,
+  return cmd("dbg blackbox --invert --glob *blackboxing_t*.js", 3,
+             [/blackboxing_three\.js/g, /blackboxing_two\.js/g]).then(() => {
+    ok(!getBlackBoxCheckbox(BLACKBOXME_URL).checked,
       "blackboxme should be black boxed because it doesn't match the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXONE_URL);
-    ok(bbButton.checked,
+    ok(!getBlackBoxCheckbox(BLACKBOXONE_URL).checked,
       "blackbox_one should be black boxed because it doesn't match the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, TEST_URL);
-    ok(bbButton.checked,
+    ok(!getBlackBoxCheckbox(TEST_URL).checked,
       "TEST_URL should be black boxed because it doesn't match the glob.");
 
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXTWO_URL);
-    ok(!bbButton.checked,
+    ok(getBlackBoxCheckbox(BLACKBOXTWO_URL).checked,
       "blackbox_two should not be black boxed because it matches the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXTHREE_URL);
-    ok(!bbButton.checked,
+    ok(getBlackBoxCheckbox(BLACKBOXTHREE_URL).checked,
       "blackbox_three should not be black boxed because it matches the glob.");
   });
 }
 
 function testUnBlackBoxInvert() {
-  return Task.spawn(function* () {
-    yield cmd("dbg unblackbox --invert --glob *blackboxing_t*.js", 3);
-
-    let bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXME_URL);
-    ok(!bbButton.checked,
+  return cmd("dbg unblackbox --invert --glob *blackboxing_t*.js", 3).then(() => {
+    ok(getBlackBoxCheckbox(BLACKBOXME_URL).checked,
       "blackboxme should be un-black boxed because it does not match the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, BLACKBOXONE_URL);
-    ok(!bbButton.checked,
+    ok(getBlackBoxCheckbox(BLACKBOXONE_URL).checked,
       "blackbox_one should be un-black boxed because it does not match the glob.");
-    bbButton = yield selectSourceAndGetBlackBoxButton(gPanel, TEST_URL);
-    ok(!bbButton.checked,
+    ok(getBlackBoxCheckbox(TEST_URL).checked,
       "TEST_URL should be un-black boxed because it doesn't match the glob.");
   });
 }
@@ -151,4 +125,10 @@ function cmd(aTyped, aEventRepeat = 1, aOutput = "") {
     waitForThreadEvents(gPanel, "blackboxchange", aEventRepeat),
     helpers.audit(gOptions, [{ setup: aTyped, output: aOutput, exec: {} }])
   ]);
+}
+
+function getBlackBoxCheckbox(url) {
+  return gDebugger.document.querySelector(
+    ".side-menu-widget-item[tooltiptext=\"" + url + "\"] " +
+    ".side-menu-widget-item-checkbox");
 }

@@ -26,28 +26,6 @@ js::TraceRuntime(JSTracer *trc)
     MarkRuntime(trc);
 }
 
-static void
-IterateCompartmentsArenasCells(JSRuntime *rt, Zone *zone, void *data,
-                               JSIterateCompartmentCallback compartmentCallback,
-                               IterateArenaCallback arenaCallback,
-                               IterateCellCallback cellCallback)
-{
-    for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
-        (*compartmentCallback)(rt, data, comp);
-
-    for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
-        JSGCTraceKind traceKind = MapAllocToTraceKind(AllocKind(thingKind));
-        size_t thingSize = Arena::thingSize(AllocKind(thingKind));
-
-        for (ArenaIter aiter(zone, AllocKind(thingKind)); !aiter.done(); aiter.next()) {
-            ArenaHeader *aheader = aiter.get();
-            (*arenaCallback)(rt, data, aheader->getArena(), traceKind, thingSize);
-            for (CellIterUnderGC iter(aheader); !iter.done(); iter.next())
-                (*cellCallback)(rt, data, iter.getCell(), traceKind, thingSize);
-        }
-    }
-}
-
 void
 js::IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
                                         IterateZoneCallback zoneCallback,
@@ -59,23 +37,22 @@ js::IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
 
     for (ZonesIter zone(rt); !zone.done(); zone.next()) {
         (*zoneCallback)(rt, data, zone);
-        IterateCompartmentsArenasCells(rt, zone, data,
-                                       compartmentCallback, arenaCallback, cellCallback);
+
+        for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
+            (*compartmentCallback)(rt, data, comp);
+
+        for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
+            JSGCTraceKind traceKind = MapAllocToTraceKind(AllocKind(thingKind));
+            size_t thingSize = Arena::thingSize(AllocKind(thingKind));
+
+            for (ArenaIter aiter(zone, AllocKind(thingKind)); !aiter.done(); aiter.next()) {
+                ArenaHeader *aheader = aiter.get();
+                (*arenaCallback)(rt, data, aheader->getArena(), traceKind, thingSize);
+                for (CellIterUnderGC iter(aheader); !iter.done(); iter.next())
+                    (*cellCallback)(rt, data, iter.getCell(), traceKind, thingSize);
+            }
+        }
     }
-}
-
-void
-js::IterateZoneCompartmentsArenasCells(JSRuntime *rt, Zone *zone, void *data,
-                                       IterateZoneCallback zoneCallback,
-                                       JSIterateCompartmentCallback compartmentCallback,
-                                       IterateArenaCallback arenaCallback,
-                                       IterateCellCallback cellCallback)
-{
-    AutoPrepareForTracing prop(rt);
-
-    (*zoneCallback)(rt, data, zone);
-    IterateCompartmentsArenasCells(rt, zone, data,
-                                   compartmentCallback, arenaCallback, cellCallback);
 }
 
 void

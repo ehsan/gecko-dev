@@ -32,9 +32,9 @@ function test() {
 
 function blackBoxSources() {
   let finished = waitForThreadEvents(gPanel, "blackboxchange", 3);
-  toggleBlackBoxing(gPanel, EXAMPLE_URL + "code_blackboxing_one.js");
-  toggleBlackBoxing(gPanel, EXAMPLE_URL + "code_blackboxing_two.js");
-  toggleBlackBoxing(gPanel, EXAMPLE_URL + "code_blackboxing_three.js");
+  getBlackBoxCheckbox(EXAMPLE_URL + "code_blackboxing_one.js").click();
+  getBlackBoxCheckbox(EXAMPLE_URL + "code_blackboxing_two.js").click();
+  getBlackBoxCheckbox(EXAMPLE_URL + "code_blackboxing_three.js").click();
   return finished;
 }
 
@@ -50,6 +50,12 @@ function testBlackBoxStack() {
   // this function to return first.
   executeSoon(() => gDebuggee.one());
   return finished;
+}
+
+function getBlackBoxCheckbox(aUrl) {
+  return gDebugger.document.querySelector(
+    ".side-menu-widget-item[tooltiptext=\"" + aUrl + "\"] " +
+    ".side-menu-widget-item-checkbox");
 }
 
 registerCleanupFunction(function() {

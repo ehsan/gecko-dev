@@ -132,7 +132,7 @@ function testAfterResume() {
       "Should have no frames after resume.");
     ok(isCaretPos(gPanel, 5),
       "Editor caret location is correct after resume.");
-    is(gEditor.getDebugLocation(), null,
+    is(gEditor.getDebugLocation(), -1,
       "Editor debug location is correct after resume.");
 
     deferred.resolve();

@@ -91,18 +91,6 @@
         </body>
       </method>
 
-      <method name="selectNone">
-        <body>
-          <![CDATA[
-            let selectedCount = this.selectedItems.length;
-            this.clearSelection();
-            if (selectedCount && "single" != this.getAttribute("seltype")) {
-              this._fireEvent("selectionchange");
-            }
-          ]]>
-        </body>
-      </method>
-
       <method name="handleItemClick">
         <parameter name="aItem"/>
         <parameter name="aEvent"/>
@@ -128,7 +116,7 @@
         <parameter name="aEvent"/>
         <body>
           <![CDATA[
-            if (!this.isBound || this.noContext)
+            if (!this.isBound || this.suppressOnSelect)
               return;
             // we'll republish this as a selectionchange event on the grid
             aEvent.stopPropagation();
@@ -204,7 +192,7 @@
               let selected = this.getItemAtIndex(val);
               this.selectItem(selected);
             } else {
-              this.selectNone();
+              this.clearSelection();
             }
           ]]>
         </setter>
@@ -622,9 +610,6 @@
       <property name="suppressOnSelect"
                   onget="return this.getAttribute('suppressonselect') == 'true';"
                   onset="this.setAttribute('suppressonselect', val);"/>
-      <property name="noContext"
-                  onget="return this.hasAttribute('nocontext');"
-                  onset="if (val) this.setAttribute('nocontext', true); else this.removeAttribute('nocontext');"/>
       <property name="crossSlideBoundary"
           onget="return this.hasAttribute('crossslideboundary')? this.getAttribute('crossslideboundary') : Infinity;"/>
 
@@ -642,7 +627,7 @@
             this.controller.gridBoundCallback();
 
           // set up cross-slide gesture handling for multiple-selection grids
-          if ("undefined" !== typeof CrossSlide && !this.noContext) {
+          if ("undefined" !== typeof CrossSlide && "multiple" == this.getAttribute("seltype")) {
             this._xslideHandler = new CrossSlide.Handler(this, {
                   REARRANGESTART: this.crossSlideBoundary
             });
@@ -851,7 +836,7 @@
           // which directs us to do something to the selected tiles
           switch (event.action) {
             case "clear":
-              this.selectNone();
+              this.clearSelection();
               break;
             default:
               if (this.controller && this.controller.doActionOnSelectedTiles) {
@@ -911,7 +896,7 @@
       </handler>
       <handler event="MozCrossSlideSelect">
         <![CDATA[
-          if (this.noContext)
+          if (this.suppressOnSelect)
             return;
           this.toggleItemSelection(event.target);
         ]]>
