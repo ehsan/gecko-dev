@@ -35,13 +35,14 @@ add_task(function* test_switchtab_override() {
     onSearchComplete.apply(gURLBar);
     deferred.resolve();
   }
-
+  
   gURLBar.focus();
   gURLBar.value = "dummy_pag";
   EventUtils.synthesizeKey("e" , {});
   yield deferred.promise;
 
   info("Select second autocomplete popup entry");
+  EventUtils.synthesizeKey("VK_DOWN" , {});
   EventUtils.synthesizeKey("VK_DOWN" , {});
   ok(/moz-action:switchtab/.test(gURLBar.value), "switch to tab entry found");
 
@@ -60,7 +61,6 @@ add_task(function* test_switchtab_override() {
 
   EventUtils.synthesizeKey("VK_SHIFT" , { type: "keydown" });
   EventUtils.synthesizeKey("VK_RETURN" , { });
-  info(`gURLBar.value = ${gURLBar.value}`);
   EventUtils.synthesizeKey("VK_SHIFT" , { type: "keyup" });
   yield deferred.promise;
 

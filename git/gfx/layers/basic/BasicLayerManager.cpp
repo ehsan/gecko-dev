@@ -527,10 +527,13 @@ BasicLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
 
     PaintLayer(mTarget, mRoot, aCallback, aCallbackData);
     if (!mRegionToClear.IsEmpty()) {
+      AutoSetOperator op(mTarget, gfxContext::OPERATOR_CLEAR);
       nsIntRegionRectIterator iter(mRegionToClear);
       const nsIntRect *r;
       while ((r = iter.Next())) {
-        mTarget->GetDrawTarget()->ClearRect(Rect(r->x, r->y, r->width, r->height));
+        mTarget->NewPath();
+        mTarget->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
+        mTarget->Fill();
       }
     }
     if (mWidget) {

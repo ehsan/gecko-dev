@@ -165,11 +165,12 @@ loop.panel = (function(_, mozL10n) {
   });
 
   var GettingStartedView = React.createClass({displayName: 'GettingStartedView',
-    handleButtonClick: function() {
-      navigator.mozLoop.openGettingStartedTour("getting-started");
+    componentDidMount: function() {
       navigator.mozLoop.setLoopPref("gettingStarted.seen", true);
-      var event = new CustomEvent("GettingStartedSeen");
-      window.dispatchEvent(event);
+    },
+
+    handleButtonClick: function() {
+      navigator.mozLoop.openGettingStartedTour();
     },
 
     render: function() {
@@ -286,7 +287,7 @@ loop.panel = (function(_, mozL10n) {
     },
 
     openGettingStartedTour: function() {
-      navigator.mozLoop.openGettingStartedTour("settings-menu");
+      navigator.mozLoop.openGettingStartedTour("settingsMenu");
     },
 
     render: function() {
@@ -693,7 +694,6 @@ loop.panel = (function(_, mozL10n) {
     getInitialState: function() {
       return {
         userProfile: this.props.userProfile || navigator.mozLoop.userProfile,
-        gettingStartedSeen: navigator.mozLoop.getLoopPref("gettingStarted.seen"),
       };
     },
 
@@ -741,12 +741,6 @@ loop.panel = (function(_, mozL10n) {
       this.updateServiceErrors();
     },
 
-    _gettingStartedSeen: function() {
-      this.setState({
-        gettingStartedSeen: navigator.mozLoop.getLoopPref("gettingStarted.seen"),
-      });
-    },
-
     /**
      * The rooms feature is hidden by default for now. Once it gets mainstream,
      * this method can be simplified.
@@ -756,6 +750,7 @@ loop.panel = (function(_, mozL10n) {
         return (
           Tab({name: "call"}, 
             React.DOM.div({className: "content-area"}, 
+              GettingStartedView(null), 
               CallUrlResult({client: this.props.client, 
                              notifications: this.props.notifications, 
                              callUrl: this.props.callUrl}), 
@@ -767,6 +762,7 @@ loop.panel = (function(_, mozL10n) {
 
       return (
         Tab({name: "rooms"}, 
+          GettingStartedView(null), 
           RoomList({dispatcher: this.props.dispatcher, 
                     store: this.props.roomStore, 
                     userDisplayName: this._getUserDisplayName()}), 
@@ -790,12 +786,10 @@ loop.panel = (function(_, mozL10n) {
 
     componentDidMount: function() {
       window.addEventListener("LoopStatusChanged", this._onStatusChanged);
-      window.addEventListener("GettingStartedSeen", this._gettingStartedSeen);
     },
 
     componentWillUnmount: function() {
       window.removeEventListener("LoopStatusChanged", this._onStatusChanged);
-      window.removeEventListener("GettingStartedSeen", this._gettingStartedSeen);
     },
 
     _getUserDisplayName: function() {
@@ -805,17 +799,6 @@ loop.panel = (function(_, mozL10n) {
 
     render: function() {
       var NotificationListView = sharedViews.NotificationListView;
-
-      if (!this.state.gettingStartedSeen) {
-        return (
-          React.DOM.div(null, 
-            NotificationListView({notifications: this.props.notifications, 
-                                  clearOnDocumentHidden: true}), 
-            GettingStartedView(null), 
-            ToSView(null)
-          )
-        );
-      }
 
       return (
         React.DOM.div(null, 

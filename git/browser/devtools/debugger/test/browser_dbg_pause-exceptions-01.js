@@ -7,13 +7,14 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_pause-exceptions.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gFrames, gVariables, gPrefs, gOptions;
 
 function test() {
   requestLongerTimeout(2);
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gFrames = gDebugger.DebuggerView.StackFrames;
@@ -77,7 +78,9 @@ function testPauseOnExceptionsDisabled() {
     return finished;
   });
 
-  sendMouseClickToTab(gTab, content.document.querySelector("button"));
+  EventUtils.sendMouseEvent({ type: "click" },
+    gDebuggee.document.querySelector("button"),
+    gDebuggee);
 
   return finished;
 }
@@ -148,7 +151,9 @@ function testPauseOnExceptionsEnabled() {
     return finished;
   });
 
-  sendMouseClickToTab(gTab, content.document.querySelector("button"));
+  EventUtils.sendMouseEvent({ type: "click" },
+    gDebuggee.document.querySelector("button"),
+    gDebuggee);
 
   return finished;
 }
@@ -231,6 +236,7 @@ function disableIgnoreCaughtExceptions() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gFrames = null;

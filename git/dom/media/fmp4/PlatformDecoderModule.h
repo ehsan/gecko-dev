@@ -97,7 +97,7 @@ public:
   // It is safe to store a reference to aConfig.
   // This is called on the decode task queue.
   virtual already_AddRefed<MediaDataDecoder>
-  CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+  CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
                     layers::LayersBackend aLayersBackend,
                     layers::ImageContainer* aImageContainer,
                     MediaTaskQueue* aVideoTaskQueue,
@@ -122,7 +122,6 @@ public:
   // If more audio codec is to be supported, SupportsAudioMimeType will have
   // to be extended
   virtual bool SupportsAudioMimeType(const char* aMimeType);
-  virtual bool SupportsVideoMimeType(const char* aMimeType);
 
   virtual ~PlatformDecoderModule() {}
 

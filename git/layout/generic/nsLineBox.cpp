@@ -711,14 +711,14 @@ nsLineIterator::CheckLineOrder(int32_t                  aLine,
 
 NS_IMETHODIMP
 nsLineIterator::FindFrameAt(int32_t aLineNumber,
-                            nsPoint aPos,
+                            nscoord aX,
                             nsIFrame** aFrameFound,
-                            bool* aPosIsBeforeFirstFrame,
-                            bool* aPosIsAfterLastFrame)
+                            bool* aXIsBeforeFirstFrame,
+                            bool* aXIsAfterLastFrame)
 {
-  NS_PRECONDITION(aFrameFound && aPosIsBeforeFirstFrame && aPosIsAfterLastFrame,
+  NS_PRECONDITION(aFrameFound && aXIsBeforeFirstFrame && aXIsAfterLastFrame,
                   "null OUT ptr");
-  if (!aFrameFound || !aPosIsBeforeFirstFrame || !aPosIsAfterLastFrame) {
+  if (!aFrameFound || !aXIsBeforeFirstFrame || !aXIsAfterLastFrame) {
     return NS_ERROR_NULL_POINTER;
   }
   if ((aLineNumber < 0) || (aLineNumber >= mNumLines)) {
@@ -728,8 +728,8 @@ nsLineIterator::FindFrameAt(int32_t aLineNumber,
   nsLineBox* line = mLines[aLineNumber];
   if (!line) {
     *aFrameFound = nullptr;
-    *aPosIsBeforeFirstFrame = true;
-    *aPosIsAfterLastFrame = false;
+    *aXIsBeforeFirstFrame = true;
+    *aXIsAfterLastFrame = false;
     return NS_OK;
   }
 
@@ -737,58 +737,51 @@ nsLineIterator::FindFrameAt(int32_t aLineNumber,
     return NS_ERROR_FAILURE;
 
   nsIFrame* frame = line->mFirstChild;
-  nsIFrame* closestFromStart = nullptr;
-  nsIFrame* closestFromEnd = nullptr;
-
-  WritingMode wm = line->mWritingMode;
-  nscoord cw = line->mContainerWidth;
-
-  LogicalPoint pos(wm, aPos, cw);
-
+  nsIFrame* closestFromLeft = nullptr;
+  nsIFrame* closestFromRight = nullptr;
   int32_t n = line->GetChildCount();
   while (n--) {
-    LogicalRect rect = frame->GetLogicalRect(wm, cw);
-    if (rect.ISize(wm) > 0) {
-      // If pos.I() is inside this frame - this is it
-      if (rect.IStart(wm) <= pos.I(wm) && rect.IEnd(wm) > pos.I(wm)) {
-        closestFromStart = closestFromEnd = frame;
+    nsRect rect = frame->GetRect();
+    if (rect.width > 0) {
+      // If aX is inside this frame - this is it
+      if (rect.x <= aX && rect.XMost() > aX) {
+        closestFromLeft = closestFromRight = frame;
         break;
       }
-      if (rect.IStart(wm) < pos.I(wm)) {
-        if (!closestFromStart || 
-            rect.IEnd(wm) > closestFromStart->GetLogicalRect(wm, cw).IEnd(wm))
-          closestFromStart = frame;
+      if (rect.x < aX) {
+        if (!closestFromLeft || 
+            rect.XMost() > closestFromLeft->GetRect().XMost())
+          closestFromLeft = frame;
       }
       else {
-        if (!closestFromEnd ||
-            rect.IStart(wm) < closestFromEnd->GetLogicalRect(wm, cw).IStart(wm))
-          closestFromEnd = frame;
+        if (!closestFromRight ||
+            rect.x < closestFromRight->GetRect().x)
+          closestFromRight = frame;
       }
     }
     frame = frame->GetNextSibling();
   }
-  if (!closestFromStart && !closestFromEnd) {
+  if (!closestFromLeft && !closestFromRight) {
     // All frames were zero-width. Just take the first one.
-    closestFromStart = closestFromEnd = line->mFirstChild;
+    closestFromLeft = closestFromRight = line->mFirstChild;
   }
-  *aPosIsBeforeFirstFrame = mRightToLeft ? !closestFromEnd : !closestFromStart;
-  *aPosIsAfterLastFrame = mRightToLeft ? !closestFromStart : !closestFromEnd;
-  if (closestFromStart == closestFromEnd) {
-    *aFrameFound = closestFromStart;
+  *aXIsBeforeFirstFrame = mRightToLeft ? !closestFromRight : !closestFromLeft;
+  *aXIsAfterLastFrame = mRightToLeft ? !closestFromLeft : !closestFromRight;
+  if (closestFromLeft == closestFromRight) {
+    *aFrameFound = closestFromLeft;
   }
-  else if (!closestFromStart) {
-    *aFrameFound = closestFromEnd;
+  else if (!closestFromLeft) {
+    *aFrameFound = closestFromRight;
   }
-  else if (!closestFromEnd) {
-    *aFrameFound = closestFromStart;
+  else if (!closestFromRight) {
+    *aFrameFound = closestFromLeft;
   }
   else { // we're between two frames
-    nscoord delta = closestFromEnd->GetLogicalRect(wm, cw).IStart(wm) -
-                    closestFromStart->GetLogicalRect(wm, cw).IEnd(wm);
-    if (pos.I(wm) < closestFromStart->GetLogicalRect(wm, cw).IEnd(wm) + delta/2)
-      *aFrameFound = closestFromStart;
+    nscoord delta = closestFromRight->GetRect().x - closestFromLeft->GetRect().XMost();
+    if (aX < closestFromLeft->GetRect().XMost() + delta/2)
+      *aFrameFound = closestFromLeft;
     else
-      *aFrameFound = closestFromEnd;
+      *aFrameFound = closestFromRight;
   }
   return NS_OK;
 }

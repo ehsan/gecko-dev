@@ -38,7 +38,6 @@ function* addTestEngines(items) {
 
 
 add_task(function* test_searchEngine_autoFill() {
-  Services.prefs.setBoolPref("browser.urlbar.autoFill.searchEngines", true);
   Services.search.addEngineWithDetails("MySearchEngine", "", "", "",
                                        "GET", "http://my.search.com/");
   let engine = Services.search.getEngineByName("MySearchEngine");

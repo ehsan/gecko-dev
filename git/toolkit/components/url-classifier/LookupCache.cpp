@@ -684,14 +684,24 @@ LookupCache::LoadPrefixSet()
 }
 
 nsresult
-LookupCache::GetPrefixes(FallibleTArray<uint32_t>& aAddPrefixes)
+LookupCache::GetPrefixes(nsTArray<uint32_t>* aAddPrefixes)
 {
   if (!mPrimed) {
     // This can happen if its a new table, so no error.
     LOG(("GetPrefixes from empty LookupCache"));
     return NS_OK;
   }
-  return mPrefixSet->GetPrefixesNative(aAddPrefixes);
+  uint32_t cnt;
+  uint32_t *arr;
+  nsresult rv = mPrefixSet->GetPrefixes(&cnt, &arr);
+  NS_ENSURE_SUCCESS(rv, rv);
+  bool appendOk = aAddPrefixes->AppendElements(arr, cnt);
+  nsMemory::Free(arr);
+  if (appendOk) {
+    return NS_OK;
+  } else {
+    return NS_ERROR_FAILURE;
+  }
 }
 
 

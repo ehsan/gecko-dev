@@ -228,21 +228,21 @@ public:
   virtual int32_t FindLineContaining(nsIFrame* aFrame, int32_t aStartLine = 0) MOZ_OVERRIDE;
 
   /** Find the orginating cell frame on a row that is the nearest to the
-    * inline-dir coordinate of aPos.
+    * coordinate X.
     * @param aLineNumber          - the index of the row relative to the row group
-    * @param aPos                 - coordinate in twips relative to the
+    * @param aX                   - X coordinate in twips relative to the
     *                               origin of the row group
     * @param aFrameFound          - pointer to the cellframe
-    * @param aPosIsBeforeFirstFrame - the point is before the first originating
+    * @param aXIsBeforeFirstFrame - the point is before the first originating
     *                               cellframe
-    * @param aPosIsAfterLastFrame   - the point is after the last originating
+    * @param aXIsAfterLastFrame   - the point is after the last originating
     *                               cellframe
     */
   NS_IMETHOD FindFrameAt(int32_t aLineNumber,
-                         nsPoint aPos,
+                         nscoord aX,
                          nsIFrame** aFrameFound,
-                         bool* aPosIsBeforeFirstFrame,
-                         bool* aPosIsAfterLastFrame) MOZ_OVERRIDE;
+                         bool* aXIsBeforeFirstFrame,
+                         bool* aXIsAfterLastFrame) MOZ_OVERRIDE;
 
    /** Check whether visual and logical order of cell frames within a line are
      * identical. As the layout will reorder them this is always the case

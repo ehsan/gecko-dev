@@ -99,25 +99,8 @@ CreateSourceEvent(SourceEventType aType)
   info->mCurTraceSourceType = aType;
   info->mCurTaskId = newId;
 
-  int* namePtr;
-#define SOURCE_EVENT_NAME(type)         \
-  case SourceEventType::type:           \
-  {                                     \
-    static int CreateSourceEvent##type; \
-    namePtr = &CreateSourceEvent##type; \
-    break;                              \
-  }
-
-  switch (aType) {
-#include "SourceEventTypeMap.h"
-    default:
-      MOZ_CRASH(false);
-  };
-#undef CREATE_SOURCE_EVENT_NAME
-
   // Log a fake dispatch and start for this source event.
-  LogDispatch(newId, newId, newId, aType);
-  LogVirtualTablePtr(newId, newId, namePtr);
+  LogDispatch(newId, newId,newId, aType);
   LogBegin(newId, newId);
 }
 

@@ -175,8 +175,7 @@ describe("loop.panel", function() {
       describe("loop.rooms.enabled on", function() {
         beforeEach(function() {
           navigator.mozLoop.getLoopPref = function(pref) {
-            if (pref === "rooms.enabled" ||
-                pref === "gettingStarted.seen") {
+            if (pref === "rooms.enabled") {
               return true;
             }
           };
@@ -209,8 +208,6 @@ describe("loop.panel", function() {
           navigator.mozLoop.getLoopPref = function(pref) {
             if (pref === "rooms.enabled") {
               return false;
-            } else if (pref === "gettingStarted.seen") {
-              return true;
             }
           };
 
@@ -376,9 +373,6 @@ describe("loop.panel", function() {
       });
 
       it("should render a GettingStarted view", function() {
-        navigator.mozLoop.getLoopPref = function(pref) {
-          return false;
-        };
         var view = createTestPanelView();
 
         TestUtils.findRenderedComponentWithType(view, loop.panel.GettingStartedView);

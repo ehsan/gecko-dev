@@ -2485,9 +2485,7 @@ TEST_F(APZEventRegionsTester, HitRegionImmediateResponse) {
   // Now let's do that again, but simulate a main-thread response
   uint64_t inputBlockId = 0;
   Tap(manager, 10, 110, time, 100, nullptr, &inputBlockId);
-  nsTArray<ScrollableLayerGuid> targets;
-  targets.AppendElement(left->GetGuid());
-  manager->SetTargetAPZC(inputBlockId, targets);
+  manager->SetTargetAPZC(inputBlockId, left->GetGuid());
   while (mcc->RunThroughDelayedTasks());    // this runs the tap event
   check.Call("Tapped on left this time");
 }

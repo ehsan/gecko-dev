@@ -28,12 +28,6 @@ function assertOwnership() {
   return assertOwnershipTrees(gWalker);
 }
 
-function ignoreNode(node) {
-  // Duplicate the walker logic to skip blank nodes...
-  return node.nodeType === Components.interfaces.nsIDOMNode.TEXT_NODE &&
-    !/[^\s]/.test(node.nodeValue);
-}
-
 addTest(function setup() {
   let url = document.getElementById("inspectorContent").href;
   attachURL(url, function(err, client, tab, doc) {
@@ -54,13 +48,9 @@ addTest(function testRemoveSubtree() {
   let longlistID = null;
 
   let nextSibling = gInspectee.querySelector("#longlist").nextSibling;
-  while (nextSibling && ignoreNode(nextSibling)) {
+  // Duplicate the walker logic to skip blank nodes...
+  while (nextSibling && nextSibling.nodeType === Components.interfaces.nsIDOMNode.TEXT_NODE && !/[^\s]/.exec(nextSibling.nodeValue)) {
     nextSibling = nextSibling.nextSibling;
-  }
-
-  let previousSibling = gInspectee.querySelector("#longlist").previousSibling;
-  while (previousSibling && ignoreNode(previousSibling)) {
-    previousSibling = previousSibling.previousSibling;
   }
 
   promiseDone(gWalker.querySelector(gWalker.rootNode, "#longlist").then(listFront => {
@@ -72,14 +62,13 @@ addTest(function testRemoveSubtree() {
     originalOwnershipSize = assertOwnership();
     ok(originalOwnershipSize > 26, "Should have at least 26 items in our ownership tree");
     return gWalker.removeNode(longlist);
-  }).then(siblings => {
-    is(siblings.previousSibling.rawNode(), previousSibling, "Should have returned the previous sibling.");
-    is(siblings.nextSibling.rawNode(), nextSibling, "Should have returned the next sibling.");
+  }).then(nextSiblingFront => {
+    is(nextSiblingFront.rawNode(), nextSibling, "Should have returned the next sibling.");
     return waitForMutation(gWalker, isChildList);
   }).then(() => {
-    // Our ownership size should now be 25 fewer (we forgot about #longlist + 26 children, but learned about #longlist's prev/next sibling)
+    // Our ownership size should now be 26 fewer (we forgot about #longlist + 26 children, but learned about #longlist's next sibling)
     let newOwnershipSize = assertOwnership();
-    is(newOwnershipSize, originalOwnershipSize - 25, "Ownership tree should have dropped by 25 nodes");
+    is(newOwnershipSize, originalOwnershipSize - 26, "Ownership tree should have dropped by 27 nodes");
     // Now verify that some nodes have gone away
     return checkMissing(gClient, longlistID);
   }).then(runNextTest));
