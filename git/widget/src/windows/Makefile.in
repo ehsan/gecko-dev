@@ -84,7 +84,6 @@ CPPSRCS		= \
 	nsDataObjCollection.cpp  \
 	nsClipboard.cpp      \
 	nsNativeThemeWin.cpp \
-	nsUXThemeData.cpp \
 	nsFilePicker.cpp     \
 	nsScreenWin.cpp	\
 	nsScreenManagerWin.cpp \
