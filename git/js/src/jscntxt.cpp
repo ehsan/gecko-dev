@@ -440,8 +440,8 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
      * Here the GC lock is still held after js_InitContextThreadAndLockGC took it and
      * the GC is not running on another thread.
      */
-    bool first = rt->contextList.isEmpty();
-    rt->contextList.insertBack(cx);
+    bool first = JS_CLIST_IS_EMPTY(&rt->contextList);
+    JS_APPEND_LINK(&cx->link, &rt->contextList);
 
     js_InitRandom(cx);
 
@@ -503,7 +503,7 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
         }
     }
 
-    cx->remove();
+    JS_REMOVE_LINK(&cx->link);
     bool last = !rt->hasContexts();
     if (last) {
         JS_ASSERT(!rt->isHeapBusy());
@@ -1304,6 +1304,7 @@ JSContext::JSContext(JSRuntime *rt)
 #endif
     activeCompilations(0)
 {
+    PodZero(&link);
 #ifdef JSGC_ROOT_ANALYSIS
     PodArrayZero(thingGCRooters);
 #if defined(JS_GC_ZEAL) && defined(DEBUG) && !defined(JS_THREADSAFE)

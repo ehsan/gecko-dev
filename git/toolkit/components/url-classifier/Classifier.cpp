@@ -784,9 +784,7 @@ Classifier::ReadNoiseEntries(const Prefix& aPrefix,
   for (int32_t i = 0; (i < aCount) && ((idx+i) < prefixes.Length()); i++) {
     Prefix newPref;
     newPref.FromUint32(prefixes[idx+i]);
-    if (newPref != aPrefix) {
-      aNoiseEntries->AppendElement(newPref);
-    }
+    aNoiseEntries->AppendElement(newPref);
   }
 
   return NS_OK;
