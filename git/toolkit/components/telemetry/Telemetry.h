@@ -11,6 +11,9 @@
 #include "mozilla/StartupTimeline.h"
 #include "nsTArray.h"
 #include "nsStringGlue.h"
+#if defined(MOZ_ENABLE_PROFILER_SPS)
+#include "shared-libraries.h"
+#endif
 
 namespace base {
   class Histogram;

@@ -24,10 +24,10 @@
 #include "jsscript.h"
 #include "jswrapper.h"
 
+#include "js/MemoryMetrics.h"
 #include "jit/AsmJSSignalHandlers.h"
 #include "jit/IonCompartment.h"
 #include "jit/PcScriptCache.h"
-#include "js/MemoryMetrics.h"
 #include "yarr/BumpPointerAllocator.h"
 
 #include "jscntxtinlines.h"
@@ -215,6 +215,8 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcCallback(NULL),
     gcSliceCallback(NULL),
     gcFinalizeCallback(NULL),
+    analysisPurgeCallback(NULL),
+    analysisPurgeTriggerBytes(0),
     gcMallocBytes(0),
     scriptAndCountsVector(NULL),
     NaNValue(UndefinedValue()),
@@ -525,7 +527,11 @@ JSRuntime::triggerOperationCallback()
      */
     mainThread.setIonStackLimit(-1);
 
-    interrupt = 1;
+    /*
+     * Use JS_ATOMIC_SET in the hope that it ensures the write will become
+     * immediately visible to other processors polling the flag.
+     */
+    JS_ATOMIC_SET(&interrupt, 1);
 
 #ifdef JS_ION
     /* asm.js code uses a separate mechanism to halt running code. */

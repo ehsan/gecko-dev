@@ -13,8 +13,8 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jsapi.h"
-#include "jslock.h"
 #include "jsobj.h"
+#include "jslock.h"
 
 #include "js/GCAPI.h"
 #include "js/Vector.h"
@@ -1349,7 +1349,8 @@ const int ZealIncrementalMarkAllThenFinish = 9;
 const int ZealIncrementalMultipleSlices = 10;
 const int ZealVerifierPostValue = 11;
 const int ZealFrameVerifierPostValue = 12;
-const int ZealLimit = 12;
+const int ZealPurgeAnalysisValue = 13;
+const int ZealLimit = 13;
 
 enum VerifierType {
     PreBarrierVerifier,

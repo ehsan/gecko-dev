@@ -13,7 +13,6 @@
 #include "vm/RegExpStatics.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
-#include "yarr/YarrSyntaxChecker.h"
 
 #include "jsobjinlines.h"
 

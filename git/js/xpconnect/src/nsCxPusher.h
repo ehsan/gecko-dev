@@ -35,6 +35,7 @@ private:
   mozilla::Maybe<JSAutoRequest> mAutoRequest;
   mozilla::Maybe<JSAutoCompartment> mAutoCompartment;
   nsCOMPtr<nsIScriptContext> mScx;
+  bool mScriptIsRunning;
 #ifdef DEBUG
   JSContext* mPushedContext;
   unsigned mCompartmentDepthOnEntry;

@@ -8,8 +8,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "jsautooplen.h"
-
 #include "builtin/Eval.h"
 #include "frontend/SourceNotes.h"
 #include "jit/BaselineFrame.h"
@@ -243,7 +241,7 @@ IonBuilder::canEnterInlinedFunction(JSFunction *target)
 }
 
 bool
-IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
+IonBuilder::canInlineTarget(JSFunction *target)
 {
     if (!target->isInterpreted()) {
         IonSpew(IonSpew_Inlining, "Cannot inline due to non-interpreted");
@@ -257,11 +255,6 @@ IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
 
     if (!target->hasScript()) {
         IonSpew(IonSpew_Inlining, "Cannot inline due to lack of Non-Lazy script");
-        return false;
-    }
-
-    if (constructing && !target->isInterpretedConstructor()) {
-        IonSpew(IonSpew_Inlining, "Cannot inline because callee is not a constructor");
         return false;
     }
 
@@ -3821,7 +3814,7 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
         return true;
 
     // Determine whether inlining is possible at callee site
-    if (!canInlineTarget(target, callInfo.constructing()))
+    if (!canInlineTarget(target))
         return false;
 
     // Heuristics!
@@ -4723,6 +4716,24 @@ IonBuilder::createThis(HandleFunction target, MDefinition *callee)
 }
 
 bool
+IonBuilder::anyFunctionIsCloneAtCallsite(types::StackTypeSet *funTypes)
+{
+    uint32_t count = funTypes->getObjectCount();
+    if (count < 1)
+        return false;
+
+    for (uint32_t i = 0; i < count; i++) {
+        JSObject *obj = funTypes->getSingleObject(i);
+        if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpreted() &&
+            obj->as<JSFunction>().nonLazyScript()->shouldCloneAtCallsite)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
 IonBuilder::jsop_funcall(uint32_t argc)
 {
     // Stack for JSOP_FUNCALL:
@@ -4988,15 +4999,8 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
 
     // No inline, just make the call.
     RootedFunction target(cx, NULL);
-    if (targets.length() == 1) {
+    if (targets.length() == 1)
         target = &targets[0]->as<JSFunction>();
-
-        // Don't optimize if we're constructing and the callee is not an
-        // interpreted constructor, so that CallKnown does not have to
-        // handle this case (it should always throw).
-        if (constructing && !target->isInterpretedConstructor())
-            target = NULL;
-    }
 
     return makeCall(target, callInfo, hasClones);
 }
@@ -5269,10 +5273,6 @@ DOMCallNeedsBarrier(const JSJitInfo* jitinfo, types::StackTypeSet *types)
 bool
 IonBuilder::makeCall(HandleFunction target, CallInfo &callInfo, bool cloneAtCallsite)
 {
-    // Constructor calls to non-constructors should throw. We don't want to use
-    // CallKnown in this case.
-    JS_ASSERT_IF(callInfo.constructing() && target, target->isInterpretedConstructor());
-
     MCall *call = makeCallHelper(target, callInfo, cloneAtCallsite);
     if (!call)
         return false;

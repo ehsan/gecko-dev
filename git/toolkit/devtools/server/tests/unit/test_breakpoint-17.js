@@ -95,8 +95,7 @@ function test_remove_one(aFirst, aSecond) {
                     "Should be at the right line");
         do_check_eq(frame.where.column, secondLocation.column,
                     "Should be at the right column");
-        gThreadClient.resume();
-        return;
+        return void gThreadClient.resume();
       }
 
       if (why.type == "debuggerStatement") {
@@ -104,8 +103,7 @@ function test_remove_one(aFirst, aSecond) {
         do_check_true(hitSecond,
                       "We should still hit `second`, but not `first`.");
 
-        finishClient(gClient);
-        return;
+        return void finishClient(gClient);
       }
 
       do_check_true(false, "Should never get here");

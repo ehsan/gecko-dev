@@ -2333,8 +2333,7 @@ ObjectActor.prototype = {
           toString = desc.value;
           break;
         }
-        obj = obj.proto;
-      } while ((obj));
+      } while ((obj = obj.proto));
     } catch (e) {
       dumpn(e);
     }

@@ -961,6 +961,11 @@ nsExternalHelperAppService::DeleteTemporaryPrivateFileWhenPossible(nsIFile* aTem
   return DeleteTemporaryFileHelper(aTemporaryFile, mTemporaryPrivateFilesList);
 }
 
+void nsExternalHelperAppService::FixFilePermissions(nsIFile* aFile)
+{
+  // This space intentionally left blank
+}
+
 void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsIFile> &fileList)
 {
   int32_t numEntries = fileList.Count();

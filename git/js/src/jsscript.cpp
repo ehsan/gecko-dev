@@ -17,7 +17,6 @@
 
 #include "jsapi.h"
 #include "jsatom.h"
-#include "jsautooplen.h"
 #include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsfun.h"
@@ -2003,6 +2002,14 @@ JSScript::numNotes()
     for (sn = notes_; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
         continue;
     return sn - notes_ + 1;    /* +1 for the terminator */
+}
+
+bool
+JSScript::isShortRunning()
+{
+    return length < 100 &&
+           hasAnalysis() &&
+           !analysis()->hasFunctionCalls();
 }
 
 js::GlobalObject&

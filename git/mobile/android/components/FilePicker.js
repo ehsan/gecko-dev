@@ -26,7 +26,6 @@ FilePicker.prototype = {
 
   init: function(aParent, aTitle, aMode) {
     this._domWin = aParent;
-    this._mode = aMode;
     Services.obs.addObserver(this, "FilePicker:Result", false);
 
     let idService = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator); 
@@ -155,10 +154,6 @@ FilePicker.prototype = {
 
   set addToRecentDocs(val) {
     throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-  },
-
-  get mode() {
-    return this._mode;
   },
 
   show: function() {

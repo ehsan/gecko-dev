@@ -30,13 +30,11 @@
 #include "nsIContent.h"
 #include "nsAlgorithm.h"
 #include "mozilla/layout/FrameChildList.h"
+#include "mozilla/css/ImageLoader.h"
 #include "FramePropertyTable.h"
 #include "mozilla/TypedEnum.h"
 #include "nsDirection.h"
 #include <algorithm>
-#include "nsITheme.h"
-#include "gfx3DMatrix.h"
-#include "gfxASurface.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/AccTypes.h"
@@ -830,8 +828,8 @@ public:
    * position.
    */
   nsRect GetRect() const { return mRect; }
-  nsPoint GetPosition() const { return mRect.TopLeft(); }
-  nsSize GetSize() const { return mRect.Size(); }
+  nsPoint GetPosition() const { return nsPoint(mRect.x, mRect.y); }
+  nsSize GetSize() const { return nsSize(mRect.width, mRect.height); }
 
   /**
    * When we change the size of the frame's border-box rect, we may need to
@@ -1367,7 +1365,19 @@ public:
    * Ensure that aImage gets notifed when the underlying image request loads
    * or animates.
    */
-  void AssociateImage(const nsStyleImage& aImage, nsPresContext* aPresContext);
+  void AssociateImage(const nsStyleImage& aImage, nsPresContext* aPresContext)
+  {
+    if (aImage.GetType() != eStyleImageType_Image) {
+      return;
+    }
+
+    imgIRequest *req = aImage.GetImageData();
+    mozilla::css::ImageLoader* loader =
+      aPresContext->Document()->StyleImageLoader();
+
+    // If this fails there's not much we can do ...
+    loader->AssociateRequestToFrame(req, this);
+  }
 
   /**
    * This structure holds information about a cursor. mContainer represents a

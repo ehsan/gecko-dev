@@ -16,11 +16,11 @@
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
 
-#include "jsinferinlines.h"
-
 #include "jit/BaselineFrame-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/StringObject-inl.h"
+
+#include "jsinferinlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -514,7 +514,7 @@ CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval)
 
     if (callee->is<JSFunction>()) {
         JSFunction *fun = &callee->as<JSFunction>();
-        if (fun->isInterpretedConstructor()) {
+        if (fun->isInterpreted()) {
             JSScript *script = fun->getOrCreateScript(cx);
             if (!script || !script->ensureHasTypes(cx))
                 return false;

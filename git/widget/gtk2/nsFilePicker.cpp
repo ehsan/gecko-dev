@@ -154,7 +154,8 @@ MakeCaseInsensitiveShellGlob(const char* aPattern) {
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
 
 nsFilePicker::nsFilePicker()
-  : mSelectedType(0),
+  : mMode(nsIFilePicker::modeOpen),
+    mSelectedType(0),
     mRunning(false),
     mAllowURLs(false)
 {
@@ -216,10 +217,12 @@ nsFilePicker::ReadValuesFromFileChooser(GtkWidget *file_chooser)
 
 void
 nsFilePicker::InitNative(nsIWidget *aParent,
-                         const nsAString& aTitle)
+                         const nsAString& aTitle,
+                         int16_t aMode)
 {
   mParentWidget = aParent;
   mTitle.Assign(aTitle);
+  mMode = aMode;
 }
 
 NS_IMETHODIMP

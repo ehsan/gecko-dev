@@ -62,9 +62,10 @@ check-variable = $(if $(filter-out 0 1,$(words $($(x))z)),$(error Spaces are not
 
 $(foreach x,$(CHECK_VARS),$(check-variable))
 
-ifndef INCLUDED_FUNCTIONS_MK
-include $(topsrcdir)/config/makefiles/functions.mk
-endif
+core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
+core_realpath = $(if $(realpath $(1)),$(realpath $(1)),$(call core_abspath,$(1)))
+
+core_winabspath = $(firstword $(subst /, ,$(call core_abspath,$(1)))):$(subst $(space),,$(patsubst %,\\%,$(wordlist 2,$(words $(subst /, ,$(call core_abspath,$(1)))), $(strip $(subst /, ,$(call core_abspath,$(1)))))))
 
 RM = rm -f
 
@@ -364,6 +365,7 @@ MY_RULES	:= $(DEPTH)/config/myrules.mk
 # Default command macros; can be overridden in <arch>.mk.
 #
 CCC = $(CXX)
+XPIDL_LINK = $(PYTHON) $(LIBXUL_DIST)/sdk/bin/xpt.py link
 
 # Java macros
 JAVA_GEN_DIR  = _javagen
@@ -520,8 +522,12 @@ endif
 endif
 
 # Default location of include files
-IDL_PARSER_DIR = $(topsrcdir)/xpcom/idl-parser
-IDL_PARSER_CACHE_DIR = $(DEPTH)/xpcom/idl-parser
+IDL_DIR		= $(DIST)/idl
+
+XPIDL_FLAGS += -I$(srcdir) -I$(IDL_DIR)
+ifdef LIBXUL_SDK
+XPIDL_FLAGS += -I$(LIBXUL_SDK)/idl
+endif
 
 SDK_LIB_DIR = $(DIST)/sdk/lib
 SDK_BIN_DIR = $(DIST)/sdk/bin

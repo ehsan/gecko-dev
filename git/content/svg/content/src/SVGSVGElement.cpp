@@ -980,7 +980,7 @@ SVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
       return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * fromUserSpace;
     }
     NS_ABORT_IF_FALSE(aWhich == eChildToUserSpace, "Unknown TransformTypes");
-    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y));
+    return GetViewBoxTransform() * fromUserSpace;
   }
 
   if (IsRoot()) {

@@ -691,11 +691,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      * If non-zero, we were been asked to call the operation callback as soon
      * as possible.
      */
-#ifdef JS_THREADSAFE
-    mozilla::Atomic<int32_t> interrupt;
-#else
-    int32_t interrupt;
-#endif
+    volatile int32_t    interrupt;
 
     /* Branch callback */
     JSOperationCallback operationCallback;
@@ -1171,6 +1167,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     bool needZealousGC() {
         if (gcNextScheduled > 0 && --gcNextScheduled == 0) {
             if (gcZeal() == js::gc::ZealAllocValue ||
+                gcZeal() == js::gc::ZealPurgeAnalysisValue ||
                 (gcZeal() >= js::gc::ZealIncrementalRootsThenFinish &&
                  gcZeal() <= js::gc::ZealIncrementalMultipleSlices))
             {
@@ -1193,6 +1190,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     JSFinalizeCallback  gcFinalizeCallback;
 
     void                *gcCallbackData;
+
+    js::AnalysisPurgeCallback analysisPurgeCallback;
+    uint64_t            analysisPurgeTriggerBytes;
 
   private:
     /*

@@ -9,9 +9,9 @@
 
 #include "mozilla/Range.h"
 
-#include "jspubtd.h"
-
 #include "js/Utility.h"
+
+#include "jspubtd.h"
 
 namespace JS {
 

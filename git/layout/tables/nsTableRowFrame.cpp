@@ -1260,7 +1260,8 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
         // collapse the cell!
         nsRect cellBounds(0, 0, cRect.width, cRect.height);
         nsOverflowAreas cellOverflow(cellBounds, cellBounds);
-        cellFrame->FinishAndStoreOverflow(cellOverflow, cRect.Size());
+        cellFrame->FinishAndStoreOverflow(cellOverflow,
+                                          nsSize(cRect.width, cRect.height));
         nsTableFrame::RePositionViews(cellFrame);
         ConsiderChildOverflow(overflow, cellFrame);
                 
@@ -1275,8 +1276,8 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
   }
 
   SetRect(rowRect);
-  overflow.UnionAllWith(nsRect(0, 0, rowRect.width, rowRect.height));
-  FinishAndStoreOverflow(overflow, rowRect.Size());
+  overflow.UnionAllWith(nsRect(0,0,rowRect.width, rowRect.height));
+  FinishAndStoreOverflow(overflow, nsSize(rowRect.width, rowRect.height));
 
   nsTableFrame::RePositionViews(this);
   nsTableFrame::InvalidateTableFrame(this, oldRect, oldVisualOverflow, false);

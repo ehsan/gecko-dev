@@ -834,6 +834,7 @@ pref("javascript.options.typeinference", true);
 pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
+pref("javascript.options.mem.disable_explicit_compartment_gc", true);
 pref("javascript.options.mem.gc_incremental", true);
 pref("javascript.options.mem.gc_incremental_slice_ms", 10);
 pref("javascript.options.mem.log", false);
@@ -850,6 +851,8 @@ pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 30);
 pref("javascript.options.mem.gc_decommit_threshold_mb", 32);
+
+pref("javascript.options.mem.analysis_purge_mb", 100);
 
 pref("javascript.options.showInConsole", false);
 
