@@ -1807,13 +1807,6 @@ public:
                                    const nsRect& aAllowVisibleRegionExpansion,
                                    PRBool& aContainsRootContentDocBG);
 
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager)
-  {
-    // Force this as a layer so we can scroll asynchronously.
-    // This causes incorrect rendering for rounded clips!
-    return mozilla::LAYER_ACTIVE_FORCE;
-  }
 private:
   nsIFrame* mViewportFrame;
 };

@@ -87,8 +87,6 @@ public:
   void PostOverflowEvent();
   void Destroy();
 
-  PRBool ShouldBuildLayer() const;
-
   nsresult BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
@@ -239,7 +237,7 @@ public:
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
   PRBool IsLTR() const;
   PRBool IsScrollbarOnRight() const;
-  PRBool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
+  PRBool IsScrollingActive() const { return mScrollingActive; }
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
   // will also check if a widget resizer is present as well.
@@ -322,12 +320,6 @@ public:
   PRPackedBool mScrollbarsCanOverlapContent:1;
   // If true, the resizer is collapsed and not displayed
   PRPackedBool mCollapsedResizer:1;
-
-#ifdef MOZ_IPC
-  // If true, the layer should always be active because we always build a layer.
-  // Used for asynchronous scrolling.
-  PRPackedBool mShouldBuildLayer:1;
-#endif
 };
 
 /**

@@ -367,9 +367,7 @@ public:
    * when async plugin rendering is complete.
    */
   typedef void (*UpdateSurfaceCallback)(ImageContainer* aContainer, void* aInstanceOwner);
-  virtual void SetUpdateCallback(UpdateSurfaceCallback aCallback, void* aInstanceOwner) = 0;
-  typedef void (*DestroyCallback)(void* aInstanceOwner);
-  virtual void SetDestroyCallback(DestroyCallback aCallback) = 0;
+  virtual void SetCallback(UpdateSurfaceCallback aCallback, void* aInstanceOwner) =0;
 
 protected:
   MacIOSurfaceImage(void* aImplData) : Image(aImplData, MAC_IO_SURFACE) {}
