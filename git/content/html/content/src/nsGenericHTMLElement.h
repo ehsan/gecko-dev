@@ -793,8 +793,6 @@ public:
 
           PRBool IsSingleLineTextControl(PRBool aExcludePassword) const;
 
-          PRBool IsLabelableControl() const;
-
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,

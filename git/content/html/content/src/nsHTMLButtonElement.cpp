@@ -110,7 +110,7 @@ public:
   NS_IMETHOD SetAutofocus(PRBool aAutofocus);
 
   // overriden nsIFormControl methods
-  NS_IMETHOD_(PRUint32) GetType() const { return mType; }
+  NS_IMETHOD_(PRInt32) GetType() const { return mType; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
@@ -146,7 +146,7 @@ protected:
     return PR_TRUE;
   }
 
-  PRUint8 mType;
+  PRInt8 mType;
   PRPackedBool mHandlingClick;
   PRPackedBool mDisabledChanged;
   PRPackedBool mInInternalActivate;
