@@ -24,6 +24,7 @@
 #include "mozilla/Util.h"
 #include "nsCycleCollector.h"
 #include "nsIXPConnect.h"
+#include "nsThreadUtils.h" // Hacky work around for some bindings needing NS_IsMainThread.
 #include "nsTraceRefcnt.h"
 #include "qsObjectHelper.h"
 #include "xpcpublic.h"
@@ -1621,6 +1622,12 @@ class UnionMember {
 public:
     T& SetValue() {
       new (storage.addr()) T();
+      return *storage.addr();
+    }
+    template <typename T1>
+    T& SetValue(const T1 &t1)
+    {
+      new (storage.addr()) T(t1);
       return *storage.addr();
     }
     template <typename T1, typename T2>

@@ -395,9 +395,6 @@ pref("app.geo.reportdata", 0);
 //pref("content.sink.perf_deflect_count", 1000000);
 //pref("content.sink.perf_parse_time", 50000000);
 
-// Disable methodjit in chrome to save memory
-pref("javascript.options.methodjit.chrome",  false);
-
 // Disable the JS engine's gc on memory pressure, since we do one in the mobile
 // browser (bug 669346).
 pref("javascript.options.gc_on_memory_pressure", false);
@@ -655,6 +652,8 @@ pref("ui.scrolling.overscroll_snap_limit", -1);
 pref("ui.scrolling.min_scrollable_distance", -1);
 // The axis lock mode for panning behaviour - set between standard, free and sticky
 pref("ui.scrolling.axis_lock_mode", "standard");
+// Negate scrollY, true will make the mouse scroll wheel move the screen the same direction as with most desktops or laptops.
+pref("ui.scrolling.negate_wheel_scrollY", true);
 
 
 // Enable accessibility mode if platform accessibility is enabled.

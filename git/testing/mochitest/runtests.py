@@ -390,7 +390,7 @@ toolbar#nav-bar {
       else:
         # Register chrome directory.
         chrometestDir = os.path.abspath(".") + "/"
-        if self.automation.IS_WIN32:
+        if mozinfo.isWin:
           chrometestDir = "file:///" + chrometestDir.replace("\\", "/")
         manifestFile.write("content mochitests %s contentaccessible=yes\n" % chrometestDir)
 
@@ -409,7 +409,7 @@ toolbar#nav-bar {
     if options.browserChrome or options.chrome or options.a11y or options.webapprtChrome:
       chrome += """
 overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-test-overlay.xul
-overlay chrome://browser/content/shell.xul chrome://mochikit/content/browser-test-overlay.xul
+overlay chrome://browser/content/shell.xhtml chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://webapprt/content/webapp.xul chrome://mochikit/content/browser-test-overlay.xul
 """

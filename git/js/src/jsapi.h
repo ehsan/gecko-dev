@@ -9,9 +9,11 @@
 #ifndef jsapi_h
 #define jsapi_h
 
+#include "mozilla/Compiler.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/RangedPtr.h"
+#include "mozilla/TypeTraits.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -22,6 +24,7 @@
 #include "jspubtd.h"
 
 #include "js/CallArgs.h"
+#include "js/CallNonGenericMethod.h"
 #include "js/Class.h"
 #include "js/HashTable.h"
 #include "js/Id.h"
@@ -644,108 +647,6 @@ class JS_PUBLIC_API(CustomAutoRooter) : private AutoGCRooter
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-/* Returns true if |v| is considered an acceptable this-value. */
-typedef bool (*IsAcceptableThis)(JS::Handle<JS::Value> v);
-
-/*
- * Implements the guts of a method; guaranteed to be provided an acceptable
- * this-value, as determined by a corresponding IsAcceptableThis method.
- */
-typedef bool (*NativeImpl)(JSContext *cx, CallArgs args);
-
-namespace detail {
-
-/* DON'T CALL THIS DIRECTLY.  It's for use only by CallNonGenericMethod! */
-extern JS_PUBLIC_API(bool)
-CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
-
-} /* namespace detail */
-
-/*
- * Methods usually act upon |this| objects only from a single global object and
- * compartment.  Sometimes, however, a method must act upon |this| values from
- * multiple global objects or compartments.  In such cases the |this| value a
- * method might see will be wrapped, such that various access to the object --
- * to its class, its private data, its reserved slots, and so on -- will not
- * work properly without entering that object's compartment.  This method
- * implements a solution to this problem.
- *
- * To implement a method that accepts |this| values from multiple compartments,
- * define two functions.  The first function matches the IsAcceptableThis type
- * and indicates whether the provided value is an acceptable |this| for the
- * method; it must be a pure function only of its argument.
- *
- *   static JSClass AnswerClass = { ... };
- *
- *   static bool
- *   IsAnswerObject(const Value &v)
- *   {
- *       if (!v.isObject())
- *           return false;
- *       return JS_GetClass(&v.toObject()) == &AnswerClass;
- *   }
- *
- * The second function implements the NativeImpl signature and defines the
- * behavior of the method when it is provided an acceptable |this| value.
- * Aside from some typing niceties -- see the CallArgs interface for details --
- * its interface is the same as that of JSNative.
- *
- *   static bool
- *   answer_getAnswer_impl(JSContext *cx, JS::CallArgs args)
- *   {
- *       args.rval().setInt32(42);
- *       return true;
- *   }
- *
- * The implementation function is guaranteed to be called *only* with a |this|
- * value which is considered acceptable.
- *
- * Now to implement the actual method, write a JSNative that calls the method
- * declared below, passing the appropriate template and runtime arguments.
- *
- *   static bool
- *   answer_getAnswer(JSContext *cx, unsigned argc, JS::Value *vp)
- *   {
- *       JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
- *       return JS::CallNonGenericMethod<IsAnswerObject, answer_getAnswer_impl>(cx, args);
- *   }
- *
- * Note that, because they are used as template arguments, the predicate
- * and implementation functions must have external linkage. (This is
- * unfortunate, but GCC wasn't inlining things as one would hope when we
- * passed them as function arguments.)
- *
- * JS::CallNonGenericMethod will test whether |args.thisv()| is acceptable.  If
- * it is, it will call the provided implementation function, which will return
- * a value and indicate success.  If it is not, it will attempt to unwrap
- * |this| and call the implementation function on the unwrapped |this|.  If
- * that succeeds, all well and good.  If it doesn't succeed, a TypeError will
- * be thrown.
- *
- * Note: JS::CallNonGenericMethod will only work correctly if it's called in
- *       tail position in a JSNative.  Do not call it from any other place.
- */
-template<IsAcceptableThis Test, NativeImpl Impl>
-JS_ALWAYS_INLINE bool
-CallNonGenericMethod(JSContext *cx, CallArgs args)
-{
-    HandleValue thisv = args.thisv();
-    if (Test(thisv))
-        return Impl(cx, args);
-
-    return detail::CallMethodIfWrapped(cx, Test, Impl, args);
-}
-
-JS_ALWAYS_INLINE bool
-CallNonGenericMethod(JSContext *cx, IsAcceptableThis Test, NativeImpl Impl, CallArgs args)
-{
-    HandleValue thisv = args.thisv();
-    if (Test(thisv))
-        return Impl(cx, args);
-
-    return detail::CallMethodIfWrapped(cx, Test, Impl, args);
-}
-
 }  /* namespace JS */
 
 /************************************************************************/
@@ -821,13 +722,6 @@ typedef enum JSFinalizeStatus {
 
 typedef void
 (* JSFinalizeCallback)(JSFreeOp *fop, JSFinalizeStatus status, bool isCompartment);
-
-/*
- * Generic trace operation that calls JS_CallTracer on each traceable thing
- * stored in data.
- */
-typedef void
-(* JSTraceDataOp)(JSTracer *trc, void *data);
 
 typedef bool
 (* JSOperationCallback)(JSContext *cx);
@@ -2468,9 +2362,22 @@ JS_GetExternalStringFinalizer(JSString *str);
 /*
  * Set the size of the native stack that should not be exceed. To disable
  * stack size checking pass 0.
+ *
+ * SpiderMonkey allows for a distinction between system code (such as GCs, which
+ * may incidentally be triggered by script but are not strictly performed on
+ * behalf of such script), trusted script (as determined by JS_SetTrustedPrincipals),
+ * and untrusted script. Each kind of code may have a different stack quota,
+ * allowing embedders to keep higher-priority machinery running in the face of
+ * scripted stack exhaustion by something else.
+ *
+ * The stack quotas for each kind of code should be monotonically descending,
+ * and may be specified with this function. If 0 is passed for a given kind
+ * of code, it defaults to the value of the next-highest-priority kind.
  */
 extern JS_PUBLIC_API(void)
-JS_SetNativeStackQuota(JSRuntime *cx, size_t stackSize);
+JS_SetNativeStackQuota(JSRuntime *cx, size_t systemCodeStackSize,
+                       size_t trustedScriptStackSize = 0,
+                       size_t untrustedScriptStackSize = 0);
 
 /************************************************************************/
 
@@ -2582,7 +2489,7 @@ struct JSConstDoubleSpec {
     uint8_t         spare[3];
 };
 
-typedef struct JSJitInfo JSJitInfo;
+struct JSJitInfo;
 
 /*
  * Wrappers to replace {Strict,}PropertyOp for JSPropertySpecs. This will allow
@@ -2626,6 +2533,35 @@ struct JSPropertySpec {
     JSPropertyOpWrapper         getter;
     JSStrictPropertyOpWrapper   setter;
 };
+
+namespace JS {
+namespace detail {
+
+/* NEVER DEFINED, DON'T USE.  For use by JS_CAST_NATIVE_TO only. */
+inline int CheckIsNative(JSNative native);
+
+} // namespace detail
+} // namespace JS
+
+#define JS_CAST_NATIVE_TO(v, To) \
+  (static_cast<void>(sizeof(JS::detail::CheckIsNative(v))), \
+   reinterpret_cast<To>(v))
+
+/*
+ * JSPropertySpec uses JSAPI JSPropertyOp and JSStrictPropertyOp in function
+ * signatures, but with JSPROP_NATIVE_ACCESSORS the actual values must be
+ * JSNatives. To avoid widespread casting, have JS_PSG and JS_PSGS perform
+ * type-safe casts.
+ */
+#define JS_PSG(name, getter, flags) \
+    {name, 0, (flags) | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS, \
+     JSOP_WRAPPER(JS_CAST_NATIVE_TO(getter, JSPropertyOp)), \
+     JSOP_NULLWRAPPER}
+#define JS_PSGS(name, getter, setter, flags) \
+    {name, 0, (flags) | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS, \
+     JSOP_WRAPPER(JS_CAST_NATIVE_TO(getter, JSPropertyOp)), \
+     JSOP_WRAPPER(JS_CAST_NATIVE_TO(setter, JSStrictPropertyOp))}
+#define JS_PS_END {0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER}
 
 /*
  * To define a native function, set call to a JSNativeWrapper. To define a
@@ -3633,12 +3569,12 @@ CanCompileOffThread(JSContext *cx, const CompileOptions &options);
  * Off thread compilation control flow.
  *
  * After successfully triggering an off thread compile of a script, the
- * callback will eventually be invoked with the specified data and the result
- * script or NULL. The callback will be invoked while off the main thread, so
- * must ensure that its operations are thread safe. Afterwards,
- * FinishOffThreadScript must be invoked on the main thread to make the script
- * usable (correct compartment/zone); this method must be invoked even if the
- * off thread compilation produced a NULL script.
+ * callback will eventually be invoked with the specified data and a token
+ * for the compilation. The callback will be invoked while off the main thread,
+ * so must ensure that its operations are thread safe. Afterwards,
+ * FinishOffThreadScript must be invoked on the main thread to get the result
+ * script or NULL. If maybecx is specified, this method will also report any
+ * error or warnings generated during the parse.
  *
  * The characters passed in to CompileOffThread must remain live until the
  * callback is invoked, and the resulting script will be rooted until the call
@@ -3650,8 +3586,8 @@ CompileOffThread(JSContext *cx, Handle<JSObject*> obj, CompileOptions options,
                  const jschar *chars, size_t length,
                  OffThreadCompileCallback callback, void *callbackData);
 
-extern JS_PUBLIC_API(void)
-FinishOffThreadScript(JSRuntime *rt, JSScript *script);
+extern JS_PUBLIC_API(JSScript *)
+FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token);
 
 extern JS_PUBLIC_API(JSFunction *)
 CompileFunction(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
@@ -4580,13 +4516,22 @@ JS_SetParallelParsingEnabled(JSContext *cx, bool enabled);
 extern JS_PUBLIC_API(void)
 JS_SetParallelIonCompilationEnabled(JSContext *cx, bool enabled);
 
-typedef enum JSCompilerOption {
-    JSCOMPILER_BASELINE_USECOUNT_TRIGGER,
-    JSCOMPILER_ION_USECOUNT_TRIGGER
-} JSCompilerOption;
+#define JIT_COMPILER_OPTIONS(Register)                             \
+  Register(BASELINE_USECOUNT_TRIGGER, "baseline.usecount.trigger") \
+  Register(ION_USECOUNT_TRIGGER, "ion.usecount.trigger")
+
+typedef enum JSJitCompilerOption {
+#define JIT_COMPILER_DECLARE(key, str) \
+    JSJITCOMPILER_ ## key,
+
+    JIT_COMPILER_OPTIONS(JIT_COMPILER_DECLARE)
+#undef JIT_COMPILER_DECLARE
+
+    JSJITCOMPILER_NOT_AN_OPTION
+} JSJitCompilerOption;
 
 extern JS_PUBLIC_API(void)
-JS_SetGlobalCompilerOption(JSContext *cx, JSCompilerOption opt, uint32_t value);
+JS_SetGlobalJitCompilerOption(JSContext *cx, JSJitCompilerOption opt, uint32_t value);
 
 /*
  * Convert a uint32_t index into a jsid.

@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=8 sts=4 et sw=4 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -113,37 +114,138 @@ static const char *sExtensionNames[] = {
     nullptr
 };
 
-static int64_t sTextureMemoryUsage = 0;
+int64_t GfxTexturesReporter::sAmount = 0;
 
-static int64_t
-GetTextureMemoryUsage()
-{
-    return sTextureMemoryUsage;
-}
-
-void
-GLContext::UpdateTextureMemoryUsage(MemoryUse action, GLenum format, GLenum type, uint16_t tileSize)
+/* static */ void
+GfxTexturesReporter::UpdateAmount(MemoryUse action, GLenum format,
+                                  GLenum type, uint16_t tileSize)
 {
     uint32_t bytesPerTexel = mozilla::gl::GetBitsPerTexel(format, type) / 8;
     int64_t bytes = (int64_t)(tileSize * tileSize * bytesPerTexel);
     if (action == MemoryFreed) {
-        sTextureMemoryUsage -= bytes;
+        sAmount -= bytes;
     } else {
-        sTextureMemoryUsage += bytes;
+        sAmount += bytes;
     }
 }
 
-NS_MEMORY_REPORTER_IMPLEMENT(TextureMemoryUsage,
-    "gfx-textures",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetTextureMemoryUsage,
-    "Memory used for storing GL textures.")
+static bool
+ParseGLVersion(GLContext* gl, unsigned int* version)
+{
+    GLenum error = gl->fGetError();
+    if (error != LOCAL_GL_NO_ERROR) {
+        MOZ_ASSERT(false, "An OpenGL error has been triggered before.");
+        return false;
+    }
 
-/*
- * XXX - we should really know the ARB/EXT variants of these
- * instead of only handling the symbol if it's exposed directly.
- */
+    /**
+     * B2G emulator bug work around: The emulator implements OpenGL ES 2.0 on
+     * OpenGL 3.2. The bug is that GetIntegerv(LOCAL_GL_{MAJOR,MINOR}_VERSION)
+     * returns OpenGL 3.2 instead of generating an error.
+     */
+    if (!gl->IsGLES())
+    {
+        /**
+         * OpenGL 3.1 and OpenGL ES 3.0 both introduce GL_{MAJOR,MINOR}_VERSION
+         * with GetIntegerv. So we first try those constants even though we
+         * might not have an OpenGL context supporting them, has this is a
+         * better way than parsing GL_VERSION.
+         */
+        GLint majorVersion = 0;
+        GLint minorVersion = 0;
+
+        gl->fGetIntegerv(LOCAL_GL_MAJOR_VERSION, &majorVersion);
+        gl->fGetIntegerv(LOCAL_GL_MINOR_VERSION, &minorVersion);
+
+        // If it's not an OpenGL (ES) 3.0 context, we will have an error
+        error = gl->fGetError();
+        if (error == LOCAL_GL_NO_ERROR &&
+            majorVersion > 0 &&
+            minorVersion >= 0)
+        {
+            *version = majorVersion * 100 + minorVersion * 10;
+            return true;
+        }
+    }
+
+    /**
+     * We were not able to use GL_{MAJOR,MINOR}_VERSION, so we parse
+     * GL_VERSION.
+     *
+     *
+     * OpenGL 2.x, 3.x, 4.x specifications:
+     *  The VERSION and SHADING_LANGUAGE_VERSION strings are laid out as follows:
+     *
+     *    <version number><space><vendor-specific information>
+     *
+     *  The version number is either of the form major_number.minor_number or
+     *  major_number.minor_number.release_number, where the numbers all have
+     *  one or more digits.
+     *
+     *
+     * OpenGL ES 2.0, 3.0 specifications:
+     *  The VERSION string is laid out as follows:
+     *
+     *     "OpenGL ES N.M vendor-specific information"
+     *
+     *  The version number is either of the form major_number.minor_number or
+     *  major_number.minor_number.release_number, where the numbers all have
+     *  one or more digits.
+     *
+     *
+     * Note:
+     *  We don't care about release_number.
+     */
+    const char* versionString = (const char*)gl->fGetString(LOCAL_GL_VERSION);
+
+    error = gl->fGetError();
+    if (error != LOCAL_GL_NO_ERROR) {
+        MOZ_ASSERT(false, "glGetString(GL_VERSION) has generated an error");
+        return false;
+    } else if (!versionString) {
+        MOZ_ASSERT(false, "glGetString(GL_VERSION) has returned 0");
+        return false;
+    }
+
+    const char kGLESVersionPrefix[] = "OpenGL ES ";
+    if (strncmp(versionString, kGLESVersionPrefix, strlen(kGLESVersionPrefix)) == 0) {
+        versionString += strlen(kGLESVersionPrefix);
+    }
+
+    const char* itr = versionString;
+    char* end = nullptr;
+    int majorVersion = (int)strtol(itr, &end, 10);
+
+    if (!end) {
+        MOZ_ASSERT(false, "Failed to parse the GL major version number.");
+        return false;
+    } else if (*end != '.') {
+        MOZ_ASSERT(false, "Failed to parse GL's major-minor version number separator.");
+        return false;
+    }
+
+    // we skip the '.' between the major and the minor version
+    itr = end + 1;
+
+    end = nullptr;
+
+    int minorVersion = (int)strtol(itr, &end, 10);
+    if (!end) {
+        MOZ_ASSERT(false, "Failed to parse GL's minor version number.");
+        return false;
+    }
+
+    if (majorVersion <= 0 || majorVersion >= 100) {
+        MOZ_ASSERT(false, "Invalid major version.");
+        return false;
+    } else if (minorVersion < 0 || minorVersion >= 10) {
+        MOZ_ASSERT(false, "Invalid minor version.");
+        return false;
+    }
+
+    *version = (unsigned int)(majorVersion * 100 + minorVersion * 10);
+    return true;
+}
 
 bool
 GLContext::InitWithPrefix(const char *prefix, bool trygl)
@@ -304,6 +406,19 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
     mInitialized = LoadSymbols(&symbols[0], trygl, prefix);
 
+    if (mInitialized) {
+        unsigned int version = 0;
+
+        bool parseSuccess = ParseGLVersion(this, &version);
+        printf_stderr("OpenGL version detected: %u\n", version);
+
+        if (version >= mVersion) {
+            mVersion = version;
+        } else if (parseSuccess) {
+            MOZ_ASSERT(false, "Parsed version less than expected.");
+        }
+    }
+
     // Load OpenGL ES 2.0 symbols, or desktop if we aren't using ES 2.
     if (mInitialized) {
         if (IsGLES2()) {
@@ -435,6 +550,17 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (Renderer() == RendererAdrenoTM320) {
                 MarkUnsupported(GLFeature::standard_derivatives);
             }
+            
+#ifdef XP_MACOSX
+            // The Mac Nvidia driver, for versions up to and including 10.8, don't seem
+            // to properly support this.  See 814839
+            // this has been fixed in Mac OS X 10.9. See 907946
+            if (Vendor() == gl::GLContext::VendorNVIDIA &&
+                !nsCocoaFeatures::OnMavericksOrLater())
+            {
+                MarkUnsupported(GLFeature::depth_texture);
+            }
+#endif
         }
 
         NS_ASSERTION(!IsExtensionSupported(GLContext::ARB_pixel_buffer_object) ||
@@ -917,18 +1043,6 @@ GLContext::InitExtensions()
         MarkExtensionSupported(OES_EGL_sync);
     }
 
-#ifdef XP_MACOSX
-    // The Mac Nvidia driver, for versions up to and including 10.8, don't seem
-    // to properly support this.  See 814839
-    // this has been fixed in Mac OS X 10.9. See 907946
-    if (WorkAroundDriverBugs() &&
-        Vendor() == gl::GLContext::VendorNVIDIA &&
-        !nsCocoaFeatures::OnMavericksOrLater())
-    {
-        MarkExtensionUnsupported(gl::GLContext::EXT_packed_depth_stencil);
-    }
-#endif
-
 #ifdef DEBUG
     firstRun = false;
 #endif
@@ -1003,7 +1117,7 @@ void
 GLContext::PlatformStartup()
 {
   CacheCanUploadNPOT();
-  NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(TextureMemoryUsage));
+  NS_RegisterMemoryReporter(new GfxTexturesReporter());
 }
 
 void

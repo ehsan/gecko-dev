@@ -1581,14 +1581,9 @@ class MOZ_STACK_CLASS ModuleCompiler
 
         // Patch everything that needs an absolute address:
 
-        // Entry points
-        for (unsigned i = 0; i < module_->numExportedFunctions(); i++)
-            module_->exportedFunction(i).patch(code);
-
         // Exit points
         for (unsigned i = 0; i < module_->numExits(); i++) {
-            module_->exit(i).patch(code);
-            module_->exitIndexToGlobalDatum(i).exit = module_->exit(i).interpCode();
+            module_->exitIndexToGlobalDatum(i).exit = module_->interpExitTrampoline(module_->exit(i));
             module_->exitIndexToGlobalDatum(i).fun = NULL;
         }
         module_->setOperationCallbackExit(code + masm_.actualOffset(operationCallbackLabel_.offset()));
@@ -2397,16 +2392,6 @@ class FunctionCompiler
             return false;
         if (!*defaultBlock)
             return true;
-        for (unsigned i = 0; i < cases->length(); i++) {
-            if (!(*cases)[i]) {
-                MBasicBlock *bb;
-                if (!newBlock(switchBlock, &bb, NULL))
-                    return false;
-                bb->end(MGoto::New(*defaultBlock));
-                (*defaultBlock)->addPredecessor(bb);
-                (*cases)[i] = bb;
-            }
-        }
         mirGraph().moveBlockToEnd(*defaultBlock);
         return true;
     }
@@ -2417,9 +2402,13 @@ class FunctionCompiler
         if (!switchBlock)
             return true;
         MTableSwitch *mir = switchBlock->lastIns()->toTableSwitch();
-        mir->addDefault(defaultBlock);
-        for (unsigned i = 0; i < cases.length(); i++)
-            mir->addCase(cases[i]);
+        size_t defaultIndex = mir->addDefault(defaultBlock);
+        for (unsigned i = 0; i < cases.length(); i++) {
+            if (!cases[i])
+                mir->addCase(defaultIndex);
+            else
+                mir->addCase(mir->addSuccessor(cases[i]));
+        }
         if (curBlock_) {
             MBasicBlock *next;
             if (!newBlock(curBlock_, &next, pn))
@@ -4588,10 +4577,18 @@ ParseFunction(ModuleCompiler &m, ParseNode **fnOut)
     DebugOnly<TokenKind> tk = tokenStream.getToken();
     JS_ASSERT(tk == TOK_FUNCTION);
 
-    if (tokenStream.getToken(TokenStream::KeywordIsName) != TOK_NAME)
-        return false;  // This will throw a SyntaxError, no need to m.fail.
+    RootedPropertyName name(m.cx());
 
-    RootedPropertyName name(m.cx(), tokenStream.currentToken().name());
+    TokenKind tt = tokenStream.getToken();
+    if (tt == TOK_NAME) {
+        name = tokenStream.currentName();
+    } else if (tt == TOK_YIELD) {
+        if (!m.parser().checkYieldNameValidity())
+            return false;
+        name = m.cx()->names().yield;
+    } else {
+        return false;  // The regular parser will throw a SyntaxError, no need to m.fail.
+    }
 
     ParseNode *fn = m.parser().handler.newFunctionDefinition();
     if (!fn)
@@ -4614,7 +4611,7 @@ ParseFunction(ModuleCompiler &m, ParseNode **fnOut)
     Directives newDirectives = directives;
     AsmJSParseContext funpc(&m.parser(), outerpc, fn, funbox, &newDirectives,
                             outerpc->staticLevel + 1, outerpc->blockidGen);
-    if (!funpc.init())
+    if (!funpc.init(m.parser().tokenStream))
         return false;
 
     if (!m.parser().functionArgsAndBodyGeneric(fn, fun, Normal, Statement, &newDirectives))
@@ -5471,7 +5468,7 @@ TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
     if (!ionScript->addDependentAsmJSModule(cx, DependentAsmJSModuleExit(&module, exitIndex)))
         return false;
 
-    module.exitIndexToGlobalDatum(exitIndex).exit = module.exit(exitIndex).ionCode();
+    module.exitIndexToGlobalDatum(exitIndex).exit = module.ionExitTrampoline(module.exit(exitIndex));
     return true;
 }
 
