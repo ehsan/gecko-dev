@@ -56,10 +56,11 @@
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
 #endif
-#include "nsLayoutUtils.h"
 
 #include "imgIContainer.h"
+#include "gfxIImageFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     PRBool aIsForEvents, PRBool aBuildCaret)
@@ -70,9 +71,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mBuildCaret(aBuildCaret),
       mEventDelivery(aIsForEvents),
       mIsAtRootOfPseudoStackingContext(PR_FALSE),
-      mPaintAllFrames(PR_FALSE),
-      mAccurateVisibleRegions(PR_FALSE),
-      mInTransform(PR_FALSE) {
+      mPaintAllFrames(PR_FALSE) {
   PL_InitArenaPool(&mPool, "displayListArena", 1024, sizeof(void*)-1);
 
   nsPresContext* pc = aReferenceFrame->PresContext();
@@ -155,13 +154,6 @@ nsDisplayListBuilder::~nsDisplayListBuilder() {
   PL_FinishArenaPool(&mPool);
 }
 
-PRBool
-nsDisplayListBuilder::IsMovingFrame(nsIFrame* aFrame)
-{
-  return mMovingFrame &&
-     nsLayoutUtils::IsAncestorFrameCrossDoc(mMovingFrame, aFrame, mReferenceFrame);
-}
-
 nsCaret *
 nsDisplayListBuilder::GetCaret() {
   nsRefPtr<nsCaret> caret;
@@ -220,12 +212,12 @@ nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame,
 }
 
 void
-nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
-                                               const nsFrameList& aFrames,
+nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame, nsIFrame* aFrames,
                                                const nsRect& aDirtyRect) {
-  for (nsFrameList::Enumerator e(aFrames); !e.AtEnd(); e.Next()) {
-    mFramesMarkedForDisplay.AppendElement(e.get());
-    MarkOutOfFlowFrameForDisplay(aDirtyFrame, e.get(), aDirtyRect);
+  while (aFrames) {
+    mFramesMarkedForDisplay.AppendElement(aFrames);
+    MarkOutOfFlowFrameForDisplay(aDirtyFrame, aFrames, aDirtyRect);
+    aFrames = aFrames->GetNextSibling();
   }
 }
 
@@ -256,21 +248,18 @@ nsDisplayItem::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
 
   nsIFrame* f = GetUnderlyingFrame();
   NS_ASSERTION(f, "GetUnderlyingFrame() must return non-null for leaf items");
+  PRBool isMoving = aBuilder->IsMovingFrame(f);
 
   if (IsOpaque(aBuilder)) {
     nsRect opaqueArea = bounds;
-    if (aBuilder->IsMovingFrame(f)) {
+    if (isMoving) {
       // The display list should include items for both the before and after
       // states (see nsLayoutUtils::ComputeRepaintRegionForCopy. So the
       // only area we want to cover is the area that was opaque in the
       // before state and in the after state.
       opaqueArea.IntersectRect(bounds - aBuilder->GetMoveDelta(), bounds);
     }
-    if (aBuilder->GetAccurateVisibleRegions()) {
-      aVisibleRegion->Sub(*aVisibleRegion, opaqueArea);
-    } else {
-      aVisibleRegion->SimpleSubtract(opaqueArea);
-    }
+    aVisibleRegion->SimpleSubtract(opaqueArea);
   }
 
   return PR_TRUE;
@@ -566,12 +555,18 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
       nsCOMPtr<imgIContainer> container;
       bottomLayer.mImage->GetImage(getter_AddRefs(container));
       if (container) {
-        PRBool animated;
-        container->GetAnimated(&animated);
-        if (!animated) {
-          PRBool isOpaque;
-          if (NS_SUCCEEDED(container->GetCurrentFrameIsOpaque(&isOpaque)))
-            return isOpaque;
+        PRUint32 nframes;
+        container->GetNumFrames(&nframes);
+        if (nframes == 1) {
+          nsCOMPtr<gfxIImageFrame> imgFrame;
+          container->GetCurrentFrame(getter_AddRefs(imgFrame));
+          if (imgFrame) {
+            nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+
+            PRBool hasMask = img->GetHasAlphaMask();
+
+            return !hasMask;
+          }
         }
       }
     }
@@ -1028,11 +1023,7 @@ PRBool nsDisplayClip::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
   PRBool anyVisible = nsDisplayWrapList::OptimizeVisibility(aBuilder, &rNew);
   nsRegion subtracted;
   subtracted.Sub(clipped, rNew);
-  if (aBuilder->GetAccurateVisibleRegions()) {
-    aVisibleRegion->Sub(*aVisibleRegion, subtracted);
-  } else {
-    aVisibleRegion->SimpleSubtract(subtracted);
-  }
+  aVisibleRegion->SimpleSubtract(subtracted);
   return anyVisible;
 }
 
@@ -1062,7 +1053,7 @@ nsDisplayWrapList* nsDisplayClip::WrapWithClone(nsDisplayListBuilder* aBuilder,
 // Write #define UNIFIED_CONTINUATIONS here to have the transform property try
 // to transform content with continuations as one unified block instead of
 // several smaller ones.  This is currently disabled because it doesn't work
-// correctly, since when the frames are initially being reflowed, their
+// correctly, since when the frames are initially being reflown, their
 // continuations all compute their bounding rects independently of each other
 // and consequently get the wrong value.  Write #define DEBUG_HIT here to have
 // the nsDisplayTransform class dump out a bunch of information about hit

@@ -59,23 +59,16 @@
 # define putenv _putenv
 # define snprintf _snprintf
 # define fchmod(a,b)
+# define mkdir(path, perms) _mkdir(path)
 
 # define NS_T(str) L ## str
 # define NS_tsnprintf _snwprintf
 # define NS_tstrrchr wcsrchr
-# define NS_taccess _waccess
 # define NS_tchdir _wchdir
-# define NS_tchmod _wchmod
-# define NS_tmkdir(path, perms) _wmkdir(path)
 # define NS_tremove _wremove
+# define NS_topen _wopen
 # define NS_tfopen _wfopen
 # define NS_tatoi _wtoi64
-#ifndef WINCE
-# define stat _stat
-#endif
-# define NS_tstat _wstat
-# define BACKUP_EXT L".moz-backup"
-# define LOG_S "%S"
 #else
 # include <sys/wait.h>
 # include <unistd.h>
@@ -83,16 +76,11 @@
 # define NS_T(str) str
 # define NS_tsnprintf snprintf
 # define NS_tstrrchr strrchr
-# define NS_taccess access
 # define NS_tchdir chdir
-# define NS_tchmod chmod
-# define NS_tmkdir mkdir
 # define NS_tremove remove
+# define NS_topen open
 # define NS_tfopen fopen
 # define NS_tatoi atoi
-# define NS_tstat stat
-# define BACKUP_EXT ".moz-backup"
-# define LOG_S "%s"
 #endif
 
 #include "bspatch.h"
@@ -111,10 +99,6 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <errno.h>
-
-#ifdef WINCE
-#include "updater_wince.h"
-#endif
 
 #if defined(XP_MACOSX)
 // This function is defined in launchchild_osx.mm
@@ -180,37 +164,33 @@ crc32(const unsigned char *buf, unsigned int len)
 
 //-----------------------------------------------------------------------------
 
-// A simple stack based container for a FILE struct that closes the
+// A simple stack based container for a file descriptor (int) that closes the
 // file descriptor from its destructor.
-class AutoFile
+class AutoFD
 {
 public:
-  AutoFile(FILE* file = NULL)
-    : mFile(file) {
+  AutoFD(int fd = -1)
+    : mFD(fd) {
   }
 
-  ~AutoFile() {
-    if (mFile != NULL)
-      fclose(mFile);
+  ~AutoFD() {
+    if (mFD != -1)
+      close(mFD);
   }
 
-  AutoFile &operator=(FILE* file) {
-    if (mFile != 0)
-      fclose(mFile);
-    mFile = file;
+  AutoFD &operator=(int fd) {
+    if (mFD != -1)
+      close(mFD);
+    mFD = fd;
     return *this;
   }
 
-  operator FILE*() {
-    return mFile;
-  }
-  
-  FILE* get() {
-    return mFile;
+  operator int() {
+    return mFD;
   }
 
 private:
-  FILE* mFile;
+  int mFD;
 };
 
 //-----------------------------------------------------------------------------
@@ -228,11 +208,7 @@ public:
     mThreadFunc = func;
     mThreadParam = param;
 
-#ifdef WINCE
-    DWORD threadID;
-#else
-    unsigned int threadID;
-#endif
+    unsigned threadID;
     mThread = (HANDLE) _beginthreadex(NULL, 0, ThreadMain, this, 0, &threadID);
     
     return mThread ? 0 : -1;
@@ -311,11 +287,6 @@ private:
 
 //-----------------------------------------------------------------------------
 
-#ifdef WINCE
-// Since WinCE doesn't have a current working directory store the current
-// working directory specified in the command line arguments 
-static NS_tchar* gDestPath;
-#endif
 static NS_tchar* gSourcePath;
 static ArchiveReader gArchiveReader;
 #ifdef XP_WIN
@@ -411,38 +382,10 @@ mstrtok(const char *delims, char **str)
   return ret;
 }
 
-#ifdef XP_WIN
-// Returns a wchar path. The path returned will be absolute on Windows CE /
-// Windows Mobile and relative on all other versions of Windows.
-static NS_tchar*
-get_wide_path(const char *path)
-{
-  WCHAR *s = (WCHAR*) malloc(MAXPATHLEN * sizeof(WCHAR));
-  if (!s)
-    return NULL;
-
-  WCHAR *c = s;
-  WCHAR wpath[MAXPATHLEN];
-  MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAXPATHLEN);
-#ifndef WINCE
-  wcscpy(c, wpath);
-  c += wcslen(wpath);
-#else
-  wcscpy(c, gDestPath);
-  c += wcslen(gDestPath);
-  wcscat(c, wpath);
-  c += wcslen(wpath);
-#endif
-  *c = NS_T('\0');
-  c++;
-  return s;
-}
-#endif
-
-static void ensure_write_permissions(const NS_tchar *path)
+static void ensure_write_permissions(const char *path)
 {
 #ifdef XP_WIN
-  (void) _wchmod(path, _S_IREAD | _S_IWRITE);
+  (void) chmod(path, _S_IREAD | _S_IWRITE);
 #else
   struct stat fs;
   if (!stat(path, &fs) && !(fs.st_mode & S_IWUSR)) {
@@ -451,56 +394,46 @@ static void ensure_write_permissions(const NS_tchar *path)
 #endif
 }
 
-static int ensure_remove(const NS_tchar *path)
+static int ensure_remove(const char *path)
 {
   ensure_write_permissions(path);
-  int rv = NS_tremove(path);
+  int rv = remove(path);
   if (rv)
-    LOG(("remove failed: %d,%d (" LOG_S ")\n", rv, errno, path));
+    LOG(("remove failed: %d,%d (%s)\n", rv, errno, path));
   return rv;
 }
 
-static FILE* ensure_open(const NS_tchar *path, const NS_tchar* flags, unsigned int options)
+static int ensure_open(const char *path, int flags, int options)
 {
   ensure_write_permissions(path);
-  FILE* f = NS_tfopen(path, flags);
-  if (NS_tchmod(path, options) != 0) {
-    fclose(f);
-    return NULL;
-  }
-  struct stat ss;
-  if (NS_tstat(path, &ss) != 0 || ss.st_mode != options) {
-    fclose(f);
-    return NULL;
-  }
-  return f;
+  return open(path, flags, options);
 }
 
 // Ensure that the directory containing this file exists.
-static int ensure_parent_dir(const NS_tchar *path)
+static int ensure_parent_dir(const char *path)
 {
   int rv = OK;
 
-  NS_tchar *slash = (NS_tchar *) NS_tstrrchr(path, NS_T('/'));
-  if (slash) {
-    *slash = NS_T('\0');
+  char *slash = (char *) strrchr(path, '/');
+  if (slash)
+  {
+    *slash = '\0';
     rv = ensure_parent_dir(path);
     if (rv == OK) {
-      rv = NS_tmkdir(path, 0755);
-      // If the directory already exists, then ignore the error. On WinCE rv
-      // will equal 0 if the directory already exists.
+      rv = mkdir(path, 0755);
+      // If the directory already exists, then ignore the error.
       if (rv < 0 && errno != EEXIST) {
         rv = WRITE_ERROR;
       } else {
         rv = OK;
       }
     }
-    *slash = NS_T('/');
+    *slash = '/';
   }
   return rv;
 }
 
-static int copy_file(const NS_tchar *spath, const NS_tchar *dpath)
+static int copy_file(const char *spath, const char *dpath)
 {
   int rv = ensure_parent_dir(dpath);
   if (rv)
@@ -508,24 +441,24 @@ static int copy_file(const NS_tchar *spath, const NS_tchar *dpath)
 
   struct stat ss;
 
-  AutoFile sfile = NS_tfopen(spath, NS_T("rb"));
-  if (sfile == NULL || fstat(fileno(sfile), &ss)) {
-    LOG(("copy_file: failed to open or stat: %p," LOG_S ",%d\n", sfile, spath, errno));
+  AutoFD sfd = open(spath, O_RDONLY | _O_BINARY);
+  if (sfd < 0 || fstat(sfd, &ss)) {
+    LOG(("copy_file: failed to open or stat: %d,%s,%d\n", (int) sfd, spath, errno));
     return READ_ERROR;
   }
 
-  AutoFile dfile = ensure_open(dpath, NS_T("wb+"), ss.st_mode); 
-  if (dfile == NULL) {
-    LOG(("copy_file: failed to open: " LOG_S ",%d\n", dpath, errno));
+  AutoFD dfd = ensure_open(dpath, O_WRONLY | O_TRUNC | O_CREAT | _O_BINARY, ss.st_mode);
+  if (dfd < 0) {
+    LOG(("copy_file: failed to open: %s,%d\n", dpath, errno));
     return WRITE_ERROR;
   }
 
   char buf[BUFSIZ];
   int sc;
-  while ((sc = fread(buf, 1, sizeof(buf), sfile)) > 0) {
+  while ((sc = read(sfd, buf, sizeof(buf))) > 0) {
     int dc;
     char *bp = buf;
-    while ((dc = fwrite(bp, 1, (unsigned int) sc, dfile)) > 0) {
+    while ((dc = write(dfd, bp, (unsigned int) sc)) > 0) {
       if ((sc -= dc) == 0)
         break;
       bp += dc;
@@ -545,11 +478,13 @@ static int copy_file(const NS_tchar *spath, const NS_tchar *dpath)
 
 //-----------------------------------------------------------------------------
 
+#define BACKUP_EXT ".moz-backup"
+
 // Create a backup copy of the specified file alongside it.
-static int backup_create(const NS_tchar *path)
+static int backup_create(const char *path)
 {
-  NS_tchar backup[MAXPATHLEN];
-  NS_tsnprintf(backup, sizeof(backup), NS_T("%s" BACKUP_EXT), path);
+  char backup[MAXPATHLEN];
+  snprintf(backup, sizeof(backup), "%s" BACKUP_EXT, path);
 
   return copy_file(path, backup);
 }
@@ -557,10 +492,10 @@ static int backup_create(const NS_tchar *path)
 // Copy the backup copy of the specified file back overtop
 // the specified file.
 // XXX should be a file move instead
-static int backup_restore(const NS_tchar *path)
+static int backup_restore(const char *path)
 {
-  NS_tchar backup[MAXPATHLEN];
-  NS_tsnprintf(backup, sizeof(backup), NS_T("%s" BACKUP_EXT), path);
+  char backup[MAXPATHLEN];
+  snprintf(backup, sizeof(backup), "%s" BACKUP_EXT, path);
 
   int rv = copy_file(backup, path);
   if (rv)
@@ -574,10 +509,10 @@ static int backup_restore(const NS_tchar *path)
 }
 
 // Discard the backup copy of the specified file.
-static int backup_discard(const NS_tchar *path)
+static int backup_discard(const char *path)
 {
-  NS_tchar backup[MAXPATHLEN];
-  NS_tsnprintf(backup, sizeof(backup), NS_T("%s" BACKUP_EXT), path);
+  char backup[MAXPATHLEN];
+  snprintf(backup, sizeof(backup), "%s" BACKUP_EXT, path);
 
   int rv = ensure_remove(backup);
   if (rv)
@@ -587,7 +522,7 @@ static int backup_discard(const NS_tchar *path)
 }
 
 // Helper function for post-processing a temporary backup.
-static void backup_finish(const NS_tchar *path, int status)
+static void backup_finish(const char *path, int status)
 {
   if (status == OK)
     backup_discard(path);
@@ -631,7 +566,7 @@ private:
 class RemoveFile : public Action
 {
 public:
-  RemoveFile() : mFile(NULL), mDestFile(NULL), mSkip(0) { }
+  RemoveFile() : mFile(NULL), mSkip(0) { }
 
   int Parse(char *line);
   int Prepare();
@@ -640,7 +575,6 @@ public:
 
 private:
   const char* mFile;
-  const NS_tchar* mDestFile;
   int mSkip;
 };
 
@@ -653,45 +587,35 @@ RemoveFile::Parse(char *line)
   if (!mFile)
     return PARSE_ERROR;
 
-#ifdef XP_WIN
-  mDestFile = get_wide_path(mFile);
-  if (!mDestFile)
-    return PARSE_ERROR;
-#else
-  mDestFile = mFile;
-#endif
-
   return OK;
 }
 
 int
 RemoveFile::Prepare()
 {
-  LOG(("PREPARE REMOVE " LOG_S "\n", mDestFile));
+  LOG(("PREPARE REMOVE %s\n", mFile));
 
   // We expect the file to exist if we are to remove it.
-  int rv = NS_taccess(mDestFile, F_OK);
+  int rv = access(mFile, F_OK);
   if (rv) {
     LOG(("file cannot be removed because it does not exist; skipping\n"));
     mSkip = 1;
     return OK;
   }
 
-#ifndef WINCE
-  NS_tchar *slash = (NS_tchar *) NS_tstrrchr(mDestFile, NS_T('/'));
+  char *slash = (char *) strrchr(mFile, '/');
   if (slash) {
-    *slash = NS_T('\0');
-    rv = NS_taccess(mDestFile, W_OK);
-    *slash = NS_T('/');
+    *slash = '\0';
+    rv = access(mFile, W_OK);
+    *slash = '/';
   } else {
-    rv = NS_taccess(NS_T("."), W_OK);
+    rv = access(".", W_OK);
   }
 
   if (rv) {
     LOG(("access failed: %d\n", errno));
     return WRITE_ERROR;
   }
-#endif
 
   return OK;
 }
@@ -699,7 +623,7 @@ RemoveFile::Prepare()
 int
 RemoveFile::Execute()
 {
-  LOG(("EXECUTE REMOVE " LOG_S "\n", mDestFile));
+  LOG(("EXECUTE REMOVE %s\n", mFile));
 
   if (mSkip)
     return OK;
@@ -707,7 +631,7 @@ RemoveFile::Execute()
   // We expect the file to exist if we are to remove it.  We check here as well
   // as in PREPARE since we might have been asked to remove the same file more
   // than once: bug 311099.
-  int rv = NS_taccess(mDestFile, F_OK);
+  int rv = access(mFile, F_OK);
   if (rv) {
     LOG(("file cannot be removed because it does not exist; skipping\n"));
     mSkip = 1;
@@ -717,13 +641,13 @@ RemoveFile::Execute()
   // save a complete copy of the old file, and then remove the
   // old file.  we'll clean up the copy in Finish.
 
-  rv = backup_create(mDestFile);
+  rv = backup_create(mFile);
   if (rv) {
     LOG(("backup_create failed: %d\n", rv));
     return rv;
   }
 
-  rv = ensure_remove(mDestFile);
+  rv = ensure_remove(mFile);
   if (rv)
     return WRITE_ERROR;
 
@@ -733,18 +657,18 @@ RemoveFile::Execute()
 void
 RemoveFile::Finish(int status)
 {
-  LOG(("FINISH REMOVE " LOG_S "\n", mDestFile));
+  LOG(("FINISH REMOVE %s\n", mFile));
 
   if (mSkip)
     return;
 
-  backup_finish(mDestFile, status);
+  backup_finish(mFile, status);
 }
 
 class AddFile : public Action
 {
 public:
-  AddFile() : mFile(NULL), mDestFile(NULL) { }
+  AddFile() : mFile(NULL) { }
 
   virtual int Parse(char *line);
   virtual int Prepare(); // check that the source file exists
@@ -753,7 +677,6 @@ public:
 
 private:
   const char *mFile;
-  const NS_tchar *mDestFile;
 };
 
 int
@@ -765,21 +688,13 @@ AddFile::Parse(char *line)
   if (!mFile)
     return PARSE_ERROR;
 
-#ifdef XP_WIN
-  mDestFile = get_wide_path(mFile);
-  if (!mDestFile)
-    return PARSE_ERROR;
-#else
-  mDestFile = mFile;
-#endif
-
   return OK;
 }
 
 int
 AddFile::Prepare()
 {
-  LOG(("PREPARE ADD " LOG_S "\n", mDestFile));
+  LOG(("PREPARE ADD %s\n", mFile));
 
   return OK;
 }
@@ -787,41 +702,43 @@ AddFile::Prepare()
 int
 AddFile::Execute()
 {
-  LOG(("EXECUTE ADD " LOG_S "\n", mDestFile));
+  LOG(("EXECUTE ADD %s\n", mFile));
 
   int rv;
 
   // First make sure that we can actually get rid of any existing file.
-  rv = NS_taccess(mDestFile, F_OK);
-  if (rv == 0) {
-    rv = backup_create(mDestFile);
+  if (access(mFile, F_OK) == 0)
+  {
+    rv = backup_create(mFile);
     if (rv)
       return rv;
 
-    rv = ensure_remove(mDestFile);
+    rv = ensure_remove(mFile);
     if (rv)
       return WRITE_ERROR;
-  } else {
-    rv = ensure_parent_dir(mDestFile);
+  }
+  else
+  {
+    rv = ensure_parent_dir(mFile);
     if (rv)
       return rv;
   }
-
-  return gArchiveReader.ExtractFile(mFile, mDestFile);
+    
+  return gArchiveReader.ExtractFile(mFile, mFile);
 }
 
 void
 AddFile::Finish(int status)
 {
-  LOG(("FINISH ADD " LOG_S "\n", mDestFile));
+  LOG(("FINISH ADD %s\n", mFile));
 
-  backup_finish(mDestFile, status);
+  backup_finish(mFile, status);
 }
 
 class PatchFile : public Action
 {
 public:
-  PatchFile() : mPatchIndex(-1), pfile(NULL), buf(NULL) { }
+  PatchFile() : mPatchIndex(-1), pfd(-1), buf(NULL) { }
   virtual ~PatchFile();
 
   virtual int Parse(char *line);
@@ -830,16 +747,15 @@ public:
   virtual void Finish(int status);
 
 private:
-  int LoadSourceFile(FILE* ofile);
+  int LoadSourceFile(int ofd);
 
   static int sPatchIndex;
 
   const char *mPatchFile;
   const char *mFile;
-  const NS_tchar *mDestFile;
   int mPatchIndex;
   MBSPatchHeader header;
-  FILE* pfile;
+  int pfd;
   unsigned char *buf;
 };
 
@@ -847,8 +763,8 @@ int PatchFile::sPatchIndex = 0;
 
 PatchFile::~PatchFile()
 {
-  if (pfile)
-    fclose(pfile);
+  if (pfd >= 0)
+    close(pfd);
 
   // delete the temporary patch file
   NS_tchar spath[MAXPATHLEN];
@@ -861,10 +777,10 @@ PatchFile::~PatchFile()
 }
 
 int
-PatchFile::LoadSourceFile(FILE* ofile)
+PatchFile::LoadSourceFile(int ofd)
 {
   struct stat os;
-  int rv = fstat(fileno(ofile), &os);
+  int rv = fstat(ofd, &os);
   if (rv)
     return READ_ERROR;
 
@@ -878,7 +794,7 @@ PatchFile::LoadSourceFile(FILE* ofile)
   int r = header.slen;
   unsigned char *rb = buf;
   while (r) {
-    int c = fread(rb, 1, mmin(BUFSIZ,r), ofile);
+    int c = read(ofd, rb, mmin(BUFSIZ,r));
     if (c < 0)
       return READ_ERROR;
 
@@ -919,21 +835,13 @@ PatchFile::Parse(char *line)
   if (!mFile)
     return PARSE_ERROR;
 
-#ifdef XP_WIN
-  mDestFile = get_wide_path(mFile);
-  if (!mDestFile)
-    return PARSE_ERROR;
-#else
-  mDestFile = mFile;
-#endif
-
   return OK;
 }
 
 int
 PatchFile::Prepare()
 {
-  LOG(("PREPARE PATCH " LOG_S "\n", mDestFile));
+  LOG(("PREPARE PATCH %s\n", mFile));
 
   // extract the patch to a temporary file
   mPatchIndex = sPatchIndex++;
@@ -957,19 +865,19 @@ PatchFile::Prepare()
   //          no need to open all of the patch files and read all of 
   //          the source files before applying any patches.
 
-  pfile = NS_tfopen(spath, NS_T("rb"));
-  if (pfile == NULL)
+  pfd = NS_topen(spath, O_RDONLY | _O_BINARY);
+  if (pfd < 0)
     return READ_ERROR;
 
-  rv = MBS_ReadHeader(pfile, &header);
+  rv = MBS_ReadHeader(pfd, &header);
   if (rv)
     return rv;
 
-  AutoFile ofile = NS_tfopen(mDestFile, NS_T("rb"));
-  if (ofile == NULL)
+  AutoFD ofd = open(mFile, O_RDONLY | _O_BINARY);
+  if (ofd < 0)
     return READ_ERROR;
 
-  rv = LoadSourceFile(ofile);
+  rv = LoadSourceFile(ofd);
   if (rv)
     LOG(("LoadSourceFile failed\n"));
   return rv;
@@ -978,35 +886,35 @@ PatchFile::Prepare()
 int
 PatchFile::Execute()
 {
-  LOG(("EXECUTE PATCH %s\n", mDestFile));
+  LOG(("EXECUTE PATCH %s\n", mFile));
 
   // Create backup copy of the destination file before proceeding.
 
   struct stat ss;
-  if (NS_tstat(mDestFile, &ss))
+  if (stat(mFile, &ss))
     return READ_ERROR;
 
-  int rv = backup_create(mDestFile);
+  int rv = backup_create(mFile);
   if (rv)
     return rv;
 
-  rv = ensure_remove(mDestFile);
+  rv = ensure_remove(mFile);
   if (rv)
     return WRITE_ERROR;
 
-  AutoFile ofile = ensure_open(mDestFile, NS_T("wb+"), ss.st_mode);
-  if (ofile == NULL)
+  AutoFD ofd = ensure_open(mFile, O_WRONLY | O_TRUNC | O_CREAT | _O_BINARY, ss.st_mode);
+  if (ofd < 0)
     return WRITE_ERROR;
 
-  return MBS_ApplyPatch(&header, pfile, buf, ofile);
+  return MBS_ApplyPatch(&header, pfd, buf, ofd);
 }
 
 void
 PatchFile::Finish(int status)
 {
-  LOG(("FINISH PATCH %s\n", mDestFile));
+  LOG(("FINISH PATCH %s\n", mFile));
 
-  backup_finish(mDestFile, status);
+  backup_finish(mFile, status);
 }
 
 class AddIfFile : public AddFile
@@ -1144,8 +1052,7 @@ copyASCIItoWCHAR(WCHAR *dest, const char *src)
     ++src; ++dest;
   }
 }
-#ifndef WINCE // until we have a replacement for GetPrivateProfileStringW, 
-              // it doesn't make sense to use this function
+
 static void
 LaunchWinPostProcess(const WCHAR *appExe)
 {
@@ -1164,9 +1071,7 @@ LaunchWinPostProcess(const WCHAR *appExe)
   WCHAR exearg[MAXPATHLEN];
   WCHAR exeasync[10];
   PRBool async = PR_TRUE;
-#ifdef WINCE
-  //XXX We will want this eventually, perhaps using nsINIParser
-#else
+
   if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeRelPath", NULL, exefile,
                                 MAXPATHLEN, inifile))
     return;
@@ -1178,7 +1083,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
   if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeAsync", L"TRUE", exeasync,
                                 sizeof(exeasync)/sizeof(exeasync[0]), inifile))
     return;
-#endif
 
   WCHAR exefullpath[MAXPATHLEN];
   wcscpy(exefullpath, appExe);
@@ -1238,18 +1142,16 @@ LaunchWinPostProcess(const WCHAR *appExe)
     CloseHandle(pi.hThread);
   }
 }
-#endif // WINCE
 #endif
 
 static void
 LaunchCallbackApp(const NS_tchar *workingDir, int argc, NS_tchar **argv)
 {
-  putenv(const_cast<char*>("NO_EM_RESTART="));
-  putenv(const_cast<char*>("MOZ_LAUNCHED_CHILD=1"));
+  putenv("NO_EM_RESTART=");
+  putenv("MOZ_LAUNCHED_CHILD=1");
 
   // Run from the specified working directory (see bug 312360).
-  if(NS_tchdir(workingDir) != 0)
-    LOG(("Warning: chdir failed\n"));
+  NS_tchdir(workingDir);
 
 #if defined(USE_EXECV)
   execv(argv[0], argv);
@@ -1270,8 +1172,8 @@ WriteStatusFile(int status)
   NS_tchar filename[MAXPATHLEN];
   NS_tsnprintf(filename, MAXPATHLEN, NS_T("%s/update.status"), gSourcePath);
 
-  AutoFile file = NS_tfopen(filename, NS_T("wb+"));
-  if (file == NULL)
+  AutoFD fd = NS_topen(filename, O_WRONLY | O_TRUNC | O_CREAT | _O_BINARY, 0644);
+  if (fd < 0)
     return;
 
   const char *text;
@@ -1283,7 +1185,7 @@ WriteStatusFile(int status)
     snprintf(buf, sizeof(buf), "failed: %d\n", status);
     text = buf;
   }
-  fwrite(text, strlen(text), 1, file);
+  write(fd, text, strlen(text));
 }
 
 static void
@@ -1312,9 +1214,8 @@ UpdateThreadFunc(void *param)
 
 int NS_main(int argc, NS_tchar **argv)
 {
-#ifndef WINCE
   InitProgressUI(&argc, &argv);
-#endif
+
   // The updater command line consists of the directory path containing the
   // updater.mar file to process followed by the PID of the calling process.
   // The updater will wait on the parent process to exit if the PID is non-
@@ -1322,17 +1223,10 @@ int NS_main(int argc, NS_tchar **argv)
   // necessary for the parent process to exit before its executable image may
   // be altered.
 
-#ifndef WINCE
   if (argc < 2) {
     fprintf(stderr, "Usage: updater <dir-path> [parent-pid [working-dir callback args...]]\n");
     return 1;
   }
-#else
-  if (argc < 4) {
-    fprintf(stderr, "Usage: updater <dir-path> parent-pid <working-dir> [callback args...]]\n");
-    return 1;
-  }
-#endif
 
   if (argc > 2 ) {
     int pid = NS_tatoi(argv[2]);
@@ -1358,7 +1252,7 @@ int NS_main(int argc, NS_tchar **argv)
     }
   }
 
-#if defined(XP_WIN) && !defined(WINCE)
+#ifdef XP_WIN
   // Launch a second instance of the updater with the runas verb on Windows
   // when write access is denied to the installation directory.
   HANDLE updateLockFileHandle;
@@ -1418,8 +1312,8 @@ int NS_main(int argc, NS_tchar **argv)
       SHELLEXECUTEINFO sinfo;
       memset(&sinfo, 0, sizeof(SHELLEXECUTEINFO));
       sinfo.cbSize       = sizeof(SHELLEXECUTEINFO);
-      sinfo.fMask        = SEE_MASK_FLAG_NO_UI |
-                           SEE_MASK_FLAG_DDEWAIT |
+      sinfo.fMask        = SEE_MASK_FLAG_DDEWAIT |
+                           SEE_MASK_FLAG_NO_UI |
                            SEE_MASK_NOCLOSEPROCESS;
       sinfo.hwnd         = NULL;
       sinfo.lpFile       = argv[0];
@@ -1445,9 +1339,6 @@ int NS_main(int argc, NS_tchar **argv)
 #endif
 
   gSourcePath = argv[1];
-#ifdef WINCE
-  gDestPath = argv[3];
-#endif
 
   LogInit();
 
@@ -1461,7 +1352,7 @@ int NS_main(int argc, NS_tchar **argv)
 
   LogFinish();
 
-#if defined(XP_WIN) && !defined(WINCE)
+#ifdef XP_WIN
   if (gSucceeded && argc > 4)
     LaunchWinPostProcess(argv[4]);
 
@@ -1559,7 +1450,8 @@ ActionList::Execute()
     UpdateProgressUI(1.0f + float(i++) / divisor);
 
     int rv = a->Execute();
-    if (rv) {
+    if (rv)
+    {
       LOG(("### execution failed\n"));
       return rv;
     }
@@ -1602,12 +1494,12 @@ int DoUpdate()
   if (rv)
     return rv;
 
-  AutoFile mfile = NS_tfopen(manifest, NS_T("rb"));
-  if (mfile == NULL)
+  AutoFD mfd = NS_topen(manifest, O_RDONLY | _O_BINARY);
+  if (mfd < 0)
     return READ_ERROR;
 
   struct stat ms;
-  rv = fstat(fileno(mfile), &ms);
+  rv = fstat(mfd, &ms);
   if (rv)
     return READ_ERROR;
 
@@ -1618,7 +1510,7 @@ int DoUpdate()
   int r = ms.st_size;
   char *rb = mbuf;
   while (r) {
-    int c = fread(rb, 1, mmin(SSIZE_MAX,r), mfile);
+    int c = read(mfd, rb, mmin(SSIZE_MAX,r));
     if (c < 0)
       return READ_ERROR;
 

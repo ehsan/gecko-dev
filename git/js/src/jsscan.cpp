@@ -258,7 +258,7 @@ void
 js_CloseTokenStream(JSContext *cx, JSTokenStream *ts)
 {
     if (ts->flags & TSF_OWNFILENAME)
-        cx->free((void *) ts->filename);
+        JS_free(cx, (void *) ts->filename);
 }
 
 JS_FRIEND_API(int)
@@ -308,7 +308,7 @@ GetChar(JSTokenStream *ts)
                     ts->flags |= TSF_EOF;
                     return EOF;
                 }
-
+        
                 /* Fill ts->userbuf so that \r and \r\n convert to \n. */
                 crflag = (ts->flags & TSF_CRFLAG) != 0;
                 len = js_fgets(cbuf, JS_LINE_LIMIT - crflag, ts->file);
@@ -336,7 +336,7 @@ GetChar(JSTokenStream *ts)
                 ts->listener(ts->filename, ts->lineno, ts->userbuf.ptr, len,
                              &ts->listenerTSData, ts->listenerData);
             }
-
+        
             nl = ts->saveEOL;
             if (!nl) {
                 /*
@@ -362,7 +362,7 @@ GetChar(JSTokenStream *ts)
                     }
                 }
             }
-
+        
             /*
              * If there was a line terminator, copy thru it into linebuf.
              * Else copy JS_LINE_LIMIT-1 bytes into linebuf.
@@ -378,7 +378,7 @@ GetChar(JSTokenStream *ts)
             js_strncpy(ts->linebuf.base, ts->userbuf.ptr, len);
             ts->userbuf.ptr += len;
             olen = len;
-
+        
             /*
              * Make sure linebuf contains \n for EOL (don't do this in
              * userbuf because the user's string might be readonly).
@@ -420,11 +420,11 @@ GetChar(JSTokenStream *ts)
                     ts->linebuf.base[len-1] = '\n';
                 }
             }
-
+        
             /* Reset linebuf based on adjusted segment length. */
             ts->linebuf.limit = ts->linebuf.base + len;
             ts->linebuf.ptr = ts->linebuf.base;
-
+        
             /* Update position of linebuf within physical userbuf line. */
             if (!(ts->flags & TSF_NLFLAG))
                 ts->linepos += ts->linelen;
@@ -434,7 +434,7 @@ GetChar(JSTokenStream *ts)
                 ts->flags |= TSF_NLFLAG;
             else
                 ts->flags &= ~TSF_NLFLAG;
-
+        
             /* Update linelen from original segment length. */
             ts->linelen = olen;
         }
@@ -562,7 +562,7 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
     }
     report.lineno = ts->lineno;
     linelength = ts->linebuf.limit - ts->linebuf.base;
-    linechars = (jschar *)cx->malloc((linelength + 1) * sizeof(jschar));
+    linechars = (jschar *)JS_malloc(cx, (linelength + 1) * sizeof(jschar));
     if (!linechars) {
         warning = JS_FALSE;
         goto out;
@@ -651,21 +651,21 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
 
   out:
     if (linebytes)
-        cx->free(linebytes);
+        JS_free(cx, linebytes);
     if (linechars)
-        cx->free(linechars);
+        JS_free(cx, linechars);
     if (message)
-        cx->free(message);
+        JS_free(cx, message);
     if (report.ucmessage)
-        cx->free((void *)report.ucmessage);
+        JS_free(cx, (void *)report.ucmessage);
 
     if (report.messageArgs) {
         if (!(flags & JSREPORT_UC)) {
             i = 0;
             while (report.messageArgs[i])
-                cx->free((void *)report.messageArgs[i++]);
+                JS_free(cx, (void *)report.messageArgs[i++]);
         }
-        cx->free((void *)report.messageArgs);
+        JS_free(cx, (void *)report.messageArgs);
     }
 
     if (!JSREPORT_IS_WARNING(flags)) {
@@ -677,41 +677,34 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
 }
 
 static JSBool
-GrowStringBuffer(JSStringBuffer *sb, size_t amount)
+GrowStringBuffer(JSStringBuffer *sb, size_t newlength)
 {
-    ptrdiff_t offset = sb->ptr - sb->base;
+    ptrdiff_t offset;
+    jschar *bp;
+
+    offset = sb->ptr - sb->base;
     JS_ASSERT(offset >= 0);
+    newlength += offset + 1;
 
-    /*
-     * This addition needs an overflow check, but we can defer bounding against
-     * ~size_t(0) / sizeof(jschar) till later to consolidate that test.
-     */
-    size_t newlength = offset + amount + 1;
-    if (size_t(offset) < newlength) {
-        /* Grow by powers of two until 16MB, then grow by that chunk size. */
-        const size_t CHUNK_SIZE_MASK = JS_BITMASK(24);
-
-        if (newlength <= CHUNK_SIZE_MASK)
-            newlength = JS_BIT(JS_CeilingLog2(newlength));
-        else if (newlength & CHUNK_SIZE_MASK)
-            newlength = (newlength | CHUNK_SIZE_MASK) + 1;
-
-        /* Now do the full overflow check. */
-        if (size_t(offset) < newlength && newlength < ~size_t(0) / sizeof(jschar)) {
-            jschar *bp = (jschar *) js_realloc(sb->base, newlength * sizeof(jschar));
-            if (bp) {
-                sb->base = bp;
-                sb->ptr = bp + offset;
-                sb->limit = bp + newlength - 1;
-                return true;
-            }
-        }
+    /* Grow by powers of two until 16MB, then grow by that chunk size. */
+    const size_t CHUNK_SIZE = JS_BIT(24);
+    if (newlength < CHUNK_SIZE)
+        newlength = JS_BIT(JS_CeilingLog2(newlength));
+    else
+        newlength = JS_ROUNDUP(newlength, CHUNK_SIZE);
+    if ((size_t)offset < newlength && newlength < ~(size_t)0 / sizeof(jschar))
+        bp = (jschar *) realloc(sb->base, newlength * sizeof(jschar));
+    else
+        bp = NULL;
+    if (!bp) {
+        free(sb->base);
+        sb->base = STRING_BUFFER_ERROR_BASE;
+        return JS_FALSE;
     }
-
-    /* Either newlength overflow or realloc failure: poison the well. */
-    js_free(sb->base);
-    sb->base = STRING_BUFFER_ERROR_BASE;
-    return false;
+    sb->base = bp;
+    sb->ptr = bp + offset;
+    sb->limit = bp + newlength - 1;
+    return JS_TRUE;
 }
 
 static void
@@ -719,7 +712,7 @@ FreeStringBuffer(JSStringBuffer *sb)
 {
     JS_ASSERT(STRING_BUFFER_OK(sb));
     if (sb->base)
-        js_free(sb->base);
+        free(sb->base);
 }
 
 void
@@ -924,7 +917,7 @@ bad:
     if (bytes) {
         js_ReportCompileErrorNumber(cx, ts, NULL, JSREPORT_ERROR,
                                     msg, bytes);
-        cx->free(bytes);
+        JS_free(cx, bytes);
     }
     return JS_FALSE;
 }
@@ -1788,7 +1781,7 @@ retry:
                         if (c == '\n') {
                             if (i > 0) {
                                 if (ts->flags & TSF_OWNFILENAME)
-                                    cx->free((void *) ts->filename);
+                                    JS_free(cx, (void *) ts->filename);
                                 ts->filename = JS_strdup(cx, filename);
                                 if (!ts->filename)
                                     goto error;

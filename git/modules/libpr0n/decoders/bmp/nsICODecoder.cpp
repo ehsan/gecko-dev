@@ -51,6 +51,7 @@
 #include "imgILoad.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 
 #include "nsIProperties.h"
 #include "nsISupportsPrimitives.h"
@@ -92,8 +93,12 @@ NS_IMETHODIMP nsICODecoder::Init(imgILoad *aLoad)
 { 
   mObserver = do_QueryInterface(aLoad);
     
-  mImage = do_CreateInstance("@mozilla.org/image/container;2");
+  mImage = do_CreateInstance("@mozilla.org/image/container;1");
   if (!mImage)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
+  if (!mFrame)
     return NS_ERROR_OUT_OF_MEMORY;
 
   return aLoad->SetImage(mImage);
@@ -102,20 +107,25 @@ NS_IMETHODIMP nsICODecoder::Init(imgILoad *aLoad)
 NS_IMETHODIMP nsICODecoder::Close()
 {
   // Tell the image that it's data has been updated 
+  // This should be a mFrame function, so that we don't have to query for interface...
   nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
-  nsresult rv = mImage->FrameUpdated(0, r);
+  nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
+  nsresult rv = NS_OK;
+  if (img) 
+    rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
     
   mImage->DecodingComplete();
 
   if (mObserver) {
-    mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
-    mObserver->OnStopFrame(nsnull, 0);
-    mObserver->OnStopContainer(nsnull, 0);
+    mObserver->OnDataAvailable(nsnull, mFrame, &r);
+    mObserver->OnStopFrame(nsnull, mFrame);
+    mObserver->OnStopContainer(nsnull, mImage);
     mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
     mObserver = nsnull;
   }
 
   mImage = nsnull;
+  mFrame = nsnull;
  
   mPos = 0;
 
@@ -294,13 +304,15 @@ nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
     if (!mRow)
       return NS_ERROR_OUT_OF_MEMORY;
     
-    PRUint32 imageLength;
-    rv = mImage->AppendFrame(0, 0, mDirEntry.mWidth, mDirEntry.mHeight,
-                             gfxASurface::ImageFormatARGB32, (PRUint8**)&mImageData, &imageLength);
+    rv = mFrame->Init(0, 0, mDirEntry.mWidth, mDirEntry.mHeight, GFXFORMATALPHA8, 24);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mImage->AppendFrame(mFrame);
+    NS_ENSURE_SUCCESS(rv, rv);
+    mObserver->OnStartFrame(nsnull, mFrame);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mObserver->OnStartFrame(nsnull, 0);
-    NS_ENSURE_SUCCESS(rv, rv);
+    PRUint32 imageLength;
+    mFrame->GetImageData((PRUint8**)&mImageData, &imageLength);
   }
 
   if (mColors && (mPos >= mImageOffset + BITMAPINFOSIZE) && 

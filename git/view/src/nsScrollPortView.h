@@ -60,6 +60,7 @@ public:
                             void** aInstancePtr);
 
   //nsIScrollableView interface
+  NS_IMETHOD  CreateScrollControls(nsNativeWidget aNative = nsnull);
   NS_IMETHOD  GetContainerSize(nscoord *aWidth, nscoord *aHeight) const;
   NS_IMETHOD  SetScrolledView(nsIView *aScrolledView);
   NS_IMETHOD  GetScrolledView(nsIView *&aScrolledView) const;
@@ -106,9 +107,7 @@ protected:
   virtual ~nsScrollPortView();
 
   //private
-  void Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
-              nsIntPoint aPixDelta, nscoord aP2A,
-              const nsTArray<nsIWidget::Configuration>& aConfigurations);
+  void Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsIntPoint aPixDelta, nscoord aP2A);
   PRBool CannotBitBlt(nsView* aScrolledView);
   nsresult CalcScrollOverflow(nscoord aX, nscoord aY, PRInt32& aOverflowX, PRInt32& aOverflowY);
 

@@ -325,13 +325,13 @@ nsMenuFrame::~nsMenuFrame()
 
 // The following methods are all overridden to ensure that the menupopup frame
 // is placed in the appropriate list.
-nsFrameList
-nsMenuFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+nsMenuFrame::GetFirstChild(nsIAtom* aListName) const
 {
   if (nsGkAtoms::popupList == aListName) {
     return mPopupFrame;
   }
-  return nsBoxFrame::GetChildList(aListName);
+  return nsBoxFrame::GetFirstChild(aListName);
 }
 
 nsIFrame*
@@ -339,30 +339,28 @@ nsMenuFrame::SetPopupFrame(nsIFrame* aChildList)
 {
   // Check for a menupopup and move it to mPopupFrame
   nsFrameList frames(aChildList);
-  SetPopupFrame(frames);
-  return frames.FirstChild();
-}
-
-void
-nsMenuFrame::SetPopupFrame(nsFrameList& aFrameList)
-{
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    if (e.get()->GetType() == nsGkAtoms::menuPopupFrame) {
+  nsIFrame* frame = frames.FirstChild();
+  while (frame) {
+    if (frame->GetType() == nsGkAtoms::menuPopupFrame) {
       // Remove this frame from the list and set it as mPopupFrame
-      mPopupFrame = (nsMenuPopupFrame *)e.get();
-      aFrameList.RemoveFrame(e.get());
+      frames.RemoveFrame(frame);
+      mPopupFrame = (nsMenuPopupFrame *)frame;
+      aChildList = frames.FirstChild();
       break;
     }
+    frame = frame->GetNextSibling();
   }
+
+  return aChildList;
 }
 
 NS_IMETHODIMP
 nsMenuFrame::SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList)
+                                 nsIFrame*       aChildList)
 {
   NS_ASSERTION(!mPopupFrame, "already have a popup frame set");
   if (!aListName || aListName == nsGkAtoms::popupList)
-    SetPopupFrame(aChildList);
+    aChildList = SetPopupFrame(aChildList);
   return nsBoxFrame::SetInitialChildList(aListName, aChildList);
 }
 

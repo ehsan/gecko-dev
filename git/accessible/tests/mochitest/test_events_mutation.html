@@ -60,8 +60,8 @@
       {
         var type = this.getA11yEventType(aEventType);
         for (var idx = 0; idx < this.eventSeq.length; idx++) {
-          if (this.eventSeq[idx].type == type) {
-            this.eventSeq[idx].target = aTarget;
+          if (this.eventSeq[idx][0] == type) {
+            this.eventSeq[idx][1] = aTarget;
             return idx;
           }
         }
@@ -76,10 +76,8 @@
         var targetIdx = this.setTarget(aEventType, aTargets[0]);
 
         var type = this.getA11yEventType(aEventType);
-        for (var i = 1; i < aTargets.length; i++) {
-          var checker = new invokerChecker(type, aTargets[i]);
-          this.eventSeq.splice(++targetIdx, 0, checker);
-        }
+        for (var i = 1; i < aTargets.length; i++)
+          this.eventSeq.splice(++targetIdx, 0, [type, aTargets[i]]);
       }
 
       // Implementation
@@ -105,23 +103,15 @@
 
       this.mIsDOMChange = aIsDOMChange;
 
-      if (aEventTypes & kHideEvent) {
-        var checker = new invokerChecker(this.getA11yEventType(kHideEvent),
-                                         this.DOMNode);
-        this.eventSeq.push(checker);
-      }
+      if (aEventTypes & kHideEvent)
+        this.eventSeq.push([this.getA11yEventType(kHideEvent), this.DOMNode]);
 
-      if (aEventTypes & kShowEvent) {
-        var checker = new invokerChecker(this.getA11yEventType(kShowEvent),
-                                         this.DOMNode);
-        this.eventSeq.push(checker);
-      }
+      if (aEventTypes & kShowEvent)
+        this.eventSeq.push([this.getA11yEventType(kShowEvent), this.DOMNode]);
 
-      if (aEventTypes & kReorderEvent) {
-        var checker = new invokerChecker(this.getA11yEventType(kReorderEvent),
-                                         this.DOMNode.parentNode);
-        this.eventSeq.push(checker);
-      }
+      if (aEventTypes & kReorderEvent)
+        this.eventSeq.push([this.getA11yEventType(kReorderEvent),
+                            this.DOMNode.parentNode]);
     }
 
     /**

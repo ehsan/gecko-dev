@@ -78,7 +78,8 @@ public:
 protected:
   nsCOMPtr<nsIURI> mOverriddenBaseURI;
 
-  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
+  void GetStyleSheetURL(PRBool* aIsInline,
+                        nsIURI** aURI);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
@@ -165,14 +166,16 @@ nsXMLStylesheetPI::OverrideBaseURI(nsIURI* aNewBaseURI)
   mOverriddenBaseURI = aNewBaseURI;
 }
 
-already_AddRefed<nsIURI>
-nsXMLStylesheetPI::GetStyleSheetURL(PRBool* aIsInline)
+void
+nsXMLStylesheetPI::GetStyleSheetURL(PRBool* aIsInline,
+                                    nsIURI** aURI)
 {
   *aIsInline = PR_FALSE;
+  *aURI = nsnull;
 
   nsAutoString href;
   if (!GetAttrValue(nsGkAtoms::href, href)) {
-    return nsnull;
+    return;
   }
 
   nsIURI *baseURL;
@@ -185,9 +188,7 @@ nsXMLStylesheetPI::GetStyleSheetURL(PRBool* aIsInline)
     baseURL = mOverriddenBaseURI;
   }
 
-  nsCOMPtr<nsIURI> aURI;
-  NS_NewURI(getter_AddRefs(aURI), href, charset.get(), baseURL);
-  return aURI.forget();
+  NS_NewURI(aURI, href, charset.get(), baseURL);
 }
 
 void

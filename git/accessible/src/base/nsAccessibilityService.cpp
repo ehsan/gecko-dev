@@ -113,7 +113,6 @@
 #endif
 
 nsAccessibilityService *nsAccessibilityService::gAccessibilityService = nsnull;
-PRBool nsAccessibilityService::gIsShutdown = PR_TRUE;
 
 /**
   * nsAccessibilityService
@@ -121,7 +120,6 @@ PRBool nsAccessibilityService::gIsShutdown = PR_TRUE;
 
 nsAccessibilityService::nsAccessibilityService()
 {
-  // Add observers.
   nsCOMPtr<nsIObserverService> observerService = 
     do_GetService("@mozilla.org/observer-service;1");
   if (!observerService)
@@ -134,15 +132,13 @@ nsAccessibilityService::nsAccessibilityService()
                                   nsIWebProgress::NOTIFY_STATE_DOCUMENT |
                                   nsIWebProgress::NOTIFY_LOCATION);
   }
-
-  // Initialize accessibility.
   nsAccessNodeWrap::InitAccessibility();
 }
 
 nsAccessibilityService::~nsAccessibilityService()
 {
-  NS_ASSERTION(gIsShutdown, "Accessibility wasn't shutdown!");
-  gAccessibilityService = nsnull;
+  nsAccessibilityService::gAccessibilityService = nsnull;
+  nsAccessNodeWrap::ShutdownAccessibility();
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS5(nsAccessibilityService, nsIAccessibilityService, nsIAccessibleRetrieval,
@@ -155,8 +151,6 @@ nsAccessibilityService::Observe(nsISupports *aSubject, const char *aTopic,
                          const PRUnichar *aData)
 {
   if (!nsCRT::strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-
-    // Remove observers.
     nsCOMPtr<nsIObserverService> observerService = 
       do_GetService("@mozilla.org/observer-service;1");
     if (observerService) {
@@ -165,8 +159,8 @@ nsAccessibilityService::Observe(nsISupports *aSubject, const char *aTopic,
     nsCOMPtr<nsIWebProgress> progress(do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID));
     if (progress)
       progress->RemoveProgressListener(static_cast<nsIWebProgressListener*>(this));
-
-    // Cancel and release load timers.
+    nsAccessNodeWrap::ShutdownAccessibility();
+    // Cancel and release load timers
     while (mLoadTimers.Count() > 0 ) {
       nsCOMPtr<nsITimer> timer = mLoadTimers.ObjectAt(0);
       void *closure = nsnull;
@@ -178,18 +172,7 @@ nsAccessibilityService::Observe(nsISupports *aSubject, const char *aTopic,
       timer->Cancel();
       mLoadTimers.RemoveObjectAt(0);
     }
-
-    // Application is going to be closed, shutdown accessibility and mark
-    // accessibility service as shutdown to prevent calls of its methods.
-    // Don't null accessibility service static member at this point to be safe
-    // if someone will try to operate with it.
-
-    NS_ASSERTION(!gIsShutdown, "Accessibility was shutdown already");
-
-    gIsShutdown = PR_TRUE;
-    nsAccessNodeWrap::ShutdownAccessibility();
   }
-
   return NS_OK;
 }
 
@@ -199,8 +182,7 @@ NS_IMETHODIMP nsAccessibilityService::OnStateChange(nsIWebProgress *aWebProgress
 {
   NS_ASSERTION(aStateFlags & STATE_IS_DOCUMENT, "Other notifications excluded");
 
-  if (gIsShutdown || !aWebProgress ||
-      (aStateFlags & (STATE_START | STATE_STOP)) == 0) {
+  if (!aWebProgress || 0 == (aStateFlags & (STATE_START | STATE_STOP))) {
     return NS_OK;
   }
   
@@ -278,26 +260,23 @@ nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
 
 void nsAccessibilityService::StartLoadCallback(nsITimer *aTimer, void *aClosure)
 {
-  if (gAccessibilityService)
-    gAccessibilityService->
-      ProcessDocLoadEvent(aTimer, aClosure,
-                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START);
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  if (accService)
+    accService->ProcessDocLoadEvent(aTimer, aClosure, nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START);
 }
 
 void nsAccessibilityService::EndLoadCallback(nsITimer *aTimer, void *aClosure)
 {
-  if (gAccessibilityService)
-    gAccessibilityService->
-      ProcessDocLoadEvent(aTimer, aClosure,
-                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  if (accService)
+    accService->ProcessDocLoadEvent(aTimer, aClosure, nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
 }
 
 void nsAccessibilityService::FailedLoadCallback(nsITimer *aTimer, void *aClosure)
 {
-  if (gAccessibilityService)
-    gAccessibilityService->
-      ProcessDocLoadEvent(aTimer, aClosure,
-                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED);
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  if (accService)
+    accService->ProcessDocLoadEvent(aTimer, aClosure, nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED);
 }
 
 /* void onProgressChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in long aCurSelfProgress, in long aMaxSelfProgress, in long aCurTotalProgress, in long aMaxTotalProgress); */
@@ -1336,7 +1315,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   NS_ENSURE_ARG_POINTER(aAccessible);
   NS_ENSURE_ARG_POINTER(aFrameHint);
   *aAccessible = nsnull;
-  if (!aPresShell || !aWeakShell || gIsShutdown) {
+  if (!aPresShell || !aWeakShell) {
     return NS_ERROR_FAILURE;
   }
 
@@ -2077,26 +2056,20 @@ NS_IMETHODIMP nsAccessibilityService::InvalidateSubtreeFor(nsIPresShell *aShell,
 nsresult 
 nsAccessibilityService::GetAccessibilityService(nsIAccessibilityService** aResult)
 {
-  NS_ENSURE_TRUE(aResult, NS_ERROR_NULL_POINTER);
+  NS_PRECONDITION(aResult != nsnull, "null ptr");
+  if (! aResult)
+      return NS_ERROR_NULL_POINTER;
+
   *aResult = nsnull;
-
-  if (!gAccessibilityService) {
+  if (!nsAccessibilityService::gAccessibilityService) {
     gAccessibilityService = new nsAccessibilityService();
-    NS_ENSURE_TRUE(gAccessibilityService, NS_ERROR_OUT_OF_MEMORY);
-
-    gIsShutdown = PR_FALSE;
+    if (!gAccessibilityService ) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
-
-  NS_ADDREF(*aResult = gAccessibilityService);
+  *aResult = nsAccessibilityService::gAccessibilityService;
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsIAccessibilityService*
-nsAccessibilityService::GetAccessibilityService()
-{
-  NS_ASSERTION(!gIsShutdown,
-               "Going to deal with shutdown accessibility service!");
-  return gAccessibilityService;
 }
 
 nsresult

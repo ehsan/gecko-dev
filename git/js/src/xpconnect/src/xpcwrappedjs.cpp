@@ -620,12 +620,12 @@ nsXPCWrappedJS::GetProperty(const nsAString & name, nsIVariant **_retval)
     if(!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name);
+    JSString* jsstr = XPCStringConvert::ReadableToJSString(ccx, name);
     if(!jsstr)
         return NS_ERROR_OUT_OF_MEMORY;
 
     return nsXPCWrappedJSClass::
-        GetNamedPropertyAsVariant(ccx, mJSObj, jsstr, _retval);
+        GetNamedPropertyAsVariant(ccx, mJSObj, STRING_TO_JSVAL(jsstr), _retval);
 }
 
 /***************************************************************************/
@@ -648,7 +648,7 @@ nsXPCWrappedJS::DebugDump(PRInt16 depth)
         char * iid = GetClass()->GetIID().ToString();
         XPC_LOG_ALWAYS(("IID number is %s", iid ? iid : "invalid"));
         if(iid)
-            NS_Free(iid);
+            PR_Free(iid);
         XPC_LOG_ALWAYS(("nsXPCWrappedJSClass @ %x", mClass));
 
         if(!isRoot)

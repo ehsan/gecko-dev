@@ -49,6 +49,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDeviceContext.h"
 #include "nsIFontMetrics.h"
+#include "nsIImage.h"
 #include "nsStyleConsts.h"
 #include "nsFormControlFrame.h"
 #include "nsGUIEvent.h"

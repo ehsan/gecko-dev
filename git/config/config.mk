@@ -102,7 +102,12 @@ else
 MAKE_JARS_TARGET = $(FINAL_TARGET)
 endif
 
+#
 # The VERSION_NUMBER is suffixed onto the end of the DLLs we ship.
+# Since the longest of these is 5 characters without the suffix,
+# be sure to not set VERSION_NUMBER to anything longer than 3 
+# characters for Win16's sake.
+#
 VERSION_NUMBER		= 50
 
 ifeq ($(HOST_OS_ARCH),WINNT)
@@ -780,11 +785,15 @@ endif
 ifdef NSINSTALL_BIN
 NSINSTALL	= $(CYGWIN_WRAPPER) $(NSINSTALL_BIN)
 else
+ifeq (WINNT,$(CROSS_COMPILE)$(OS_ARCH))
+NSINSTALL	= $(CYGWIN_WRAPPER) $(MOZ_TOOLS_DIR)/bin/nsinstall
+else
 ifeq (OS2,$(CROSS_COMPILE)$(OS_ARCH))
 NSINSTALL	= $(MOZ_TOOLS_DIR)/nsinstall
 else
 NSINSTALL	= $(CONFIG_TOOLS)/nsinstall
 endif # OS2
+endif # WINNT
 endif # NSINSTALL_BIN
 
 

@@ -33,7 +33,7 @@ function doNextFile() {
   var test = gSeekTests[testNum];
   ++testNum;
 
-  if (!tmpVid.canPlayType(test.type)) {
+  if (tmpVid.canPlayType(test.type) == "no") {
     doNextFile();
     return;
   }

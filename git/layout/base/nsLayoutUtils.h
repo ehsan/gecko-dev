@@ -251,25 +251,9 @@ public:
 
   /**
    * Like IsProperAncestorFrame, but looks across document boundaries.
-   *
-   * Just like IsAncestorFrameCrossDoc, except that it returns false when
-   * aFrame == aAncestorFrame.
    */
   static PRBool IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
                                               nsIFrame* aCommonAncestor = nsnull);
-
-  /**
-   * IsAncestorFrameCrossDoc checks whether aAncestorFrame is an ancestor
-   * of aFrame or equal to aFrame, looking across document boundaries.
-   * @param aCommonAncestor nsnull, or a common ancestor of aFrame and
-   * aAncestorFrame. If non-null, this can bound the search and speed up
-   * the function.
-   *
-   * Just like IsProperAncestorFrameCrossDoc, except that it returns true when
-   * aFrame == aAncestorFrame.
-   */
-  static PRBool IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                        nsIFrame* aCommonAncestor = nsnull);
 
   /**
     * GetFrameFor returns the root frame for a view
@@ -476,7 +460,6 @@ public:
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
 
-  enum { PAINT_IN_TRANSFORM = 0x01 };
   /**
    * Given aFrame, the root frame of a stacking context, paint it and its
    * descendants to aRenderingContext. 
@@ -487,12 +470,9 @@ public:
    * of aFrame
    * @param aBackstop paint the dirty area with this color before drawing
    * the actual content; pass NS_RGBA(0,0,0,0) to draw no background
-   * @param aFlags if PAINT_IN_TRANSFORM is set, then we assume
-   * this is inside a transform or SVG foreignObject.
    */
   static nsresult PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
-                             const nsRegion& aDirtyRegion, nscolor aBackstop,
-                             PRUint32 aFlags = 0);
+                             const nsRegion& aDirtyRegion, nscolor aBackstop);
 
   /**
    * @param aRootFrame the root frame of the tree to be displayed
@@ -882,6 +862,14 @@ public:
                             const nsPoint&       aAnchor,
                             const nsRect&        aDirty);
 
+  static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
+                            nsIImage*            aImage,
+                            gfxPattern::GraphicsFilter aGraphicsFilter,
+                            const nsRect&        aDest,
+                            const nsRect&        aFill,
+                            const nsPoint&       aAnchor,
+                            const nsRect&        aDirty);
+
   /**
    * Draw a whole image without scaling or tiling.
    *
@@ -918,6 +906,13 @@ public:
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
+                                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                                  const nsRect&        aDest,
+                                  const nsRect&        aDirty,
+                                  const nsRect*        aSourceArea = nsnull);
+
+  static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
+                                  nsIImage*            aImage,
                                   gfxPattern::GraphicsFilter aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,

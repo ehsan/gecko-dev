@@ -223,7 +223,7 @@ private:
     JSBool VerifyRuntime();
 
     /* Taking the unusual step of making all data public to simplify
-    *  the implementation of the "C" static debugger hooks.  
+    *  the implemetation of the "C" static debugger hooks.  
     */
 
 public:

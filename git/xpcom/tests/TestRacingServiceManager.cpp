@@ -41,13 +41,11 @@
 #include "nsIThread.h"
 #include "nsIComponentRegistrar.h"
 
+#include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "prmon.h"
-
-#include "mozilla/Monitor.h"
-using namespace mozilla;
 
 #ifdef DEBUG
 #define TEST_ASSERTION(_test, _msg) \
@@ -87,7 +85,7 @@ NS_DEFINE_CID(kFactoryCID2, FACTORY_CID2);
 PRInt32 gComponent1Count = 0;
 PRInt32 gComponent2Count = 0;
 
-Monitor* gMonitor = nsnull;
+PRMonitor* gMonitor = nsnull;
 
 PRBool gCreateInstanceCalled = PR_FALSE;
 PRBool gMainThreadWaiting = PR_FALSE;
@@ -95,22 +93,22 @@ PRBool gMainThreadWaiting = PR_FALSE;
 class AutoCreateAndDestroyMonitor
 {
 public:
-  AutoCreateAndDestroyMonitor(Monitor** aMonitorPtr)
+  AutoCreateAndDestroyMonitor(PRMonitor** aMonitorPtr)
   : mMonitorPtr(aMonitorPtr) {
     *aMonitorPtr =
-      new Monitor("TestRacingServiceManager::AutoMon");
+      nsAutoMonitor::NewMonitor("TestRacingServiceManager::AutoMon");
     TEST_ASSERTION(*aMonitorPtr, "Out of memory!");
   }
 
   ~AutoCreateAndDestroyMonitor() {
     if (*mMonitorPtr) {
-      delete *mMonitorPtr;
+      nsAutoMonitor::DestroyMonitor(*mMonitorPtr);
       *mMonitorPtr = nsnull;
     }
   }
 
 private:
-  Monitor** mMonitorPtr;
+  PRMonitor** mMonitorPtr;
 };
 
 class Factory : public nsIFactory
@@ -183,7 +181,7 @@ Factory::CreateInstance(nsISupports* aDelegate,
   TEST_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   {
-    MonitorAutoEnter mon(*gMonitor);
+    nsAutoMonitor mon(gMonitor);
 
     gCreateInstanceCalled = PR_TRUE;
     mon.Notify();
@@ -224,7 +222,7 @@ NS_IMETHODIMP
 Runnable::Run()
 {
   {
-    MonitorAutoEnter mon(*gMonitor);
+    nsAutoMonitor mon(gMonitor);
 
     while (!gMainThreadWaiting) {
       mon.Wait();
@@ -275,7 +273,7 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    MonitorAutoEnter mon(*gMonitor);
+    nsAutoMonitor mon(gMonitor);
 
     gMainThreadWaiting = PR_TRUE;
     mon.Notify();
@@ -297,7 +295,7 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    MonitorAutoEnter mon(*gMonitor);
+    nsAutoMonitor mon(gMonitor);
 
     gMainThreadWaiting = PR_TRUE;
     mon.Notify();

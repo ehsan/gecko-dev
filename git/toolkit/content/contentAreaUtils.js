@@ -41,15 +41,6 @@
 #
 # ***** END LICENSE BLOCK *****
 
-var ContentAreaUtils = {
-  get ioService() {
-    delete this.ioService;
-    return this.ioService =
-      Components.classes["@mozilla.org/network/io-service;1"]
-                .getService(Components.interfaces.nsIIOService);
-  }
-}
-
 /**
  * urlSecurityCheck: JavaScript wrapper for checkLoadURIWithPrincipal
  * and checkLoadURIStrWithPrincipal.
@@ -97,7 +88,7 @@ function isContentFrame(aFocusedWindow)
 }
 
 
-// Clientele: (Make sure you don't break any of these)
+// Clientelle: (Make sure you don't break any of these)
 //  - File    ->  Save Page/Frame As...
 //  - Context ->  Save Page/Frame As...
 //  - Context ->  Save Link As...
@@ -124,7 +115,7 @@ function saveURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
 
 // Just like saveURL, but will get some info off the image before
 // calling internalSave
-// Clientele: (Make sure you don't break any of these)
+// Clientelle: (Make sure you don't break any of these)
 //  - Context ->  Save Image As...
 const imgICache = Components.interfaces.imgICache;
 const nsISupportsCString = Components.interfaces.nsISupportsCString;
@@ -532,11 +523,10 @@ function initFileInfo(aFI, aURL, aURLCharset, aDocument,
   }
 }
 
+Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
+
 function getTargetFile(aFpP, /* optional */ aSkipPrompt)
 {
-  if (typeof gDownloadLastDir != "object")
-    Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
-
   const prefSvcContractID = "@mozilla.org/preferences-service;1";
   const prefSvcIID = Components.interfaces.nsIPrefService;                              
   var prefs = Components.classes[prefSvcContractID]
@@ -781,12 +771,16 @@ function makeWebBrowserPersist()
  */
 function makeURI(aURL, aOriginCharset, aBaseURI)
 {
-  return ContentAreaUtils.ioService.newURI(aURL, aOriginCharset, aBaseURI);
+  var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                            .getService(Components.interfaces.nsIIOService);
+  return ioService.newURI(aURL, aOriginCharset, aBaseURI);
 }
 
 function makeFileURI(aFile)
 {
-  return ContentAreaUtils.ioService.newFileURI(aFile);
+  var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                            .getService(Components.interfaces.nsIIOService);
+  return ioService.newFileURI(aFile);
 }
 
 function makeFilePicker()
@@ -1030,7 +1024,9 @@ function getCharsetforSave(aDocument)
  */
 function openURL(aURL)
 {
-  var uri = makeURI(aURL);
+  var ios = Components.classes["@mozilla.org/network/io-service;1"]
+                      .getService(Components.interfaces.nsIIOService);
+  var uri = ios.newURI(aURL, null, null);
 
   var protocolSvc = Components.classes["@mozilla.org/uriloader/external-protocol-service;1"]
                               .getService(Components.interfaces.nsIExternalProtocolService);
@@ -1078,7 +1074,7 @@ function openURL(aURL)
       }
     }
 
-    var channel = ContentAreaUtils.ioService.newChannelFromURI(uri);
+    var channel = ios.newChannelFromURI(uri);
     var uriLoader = Components.classes["@mozilla.org/uriloader;1"]
                               .getService(Components.interfaces.nsIURILoader);
     uriLoader.openURI(channel, true, uriListener);

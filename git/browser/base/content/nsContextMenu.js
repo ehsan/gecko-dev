@@ -399,8 +399,8 @@ nsContextMenu.prototype = {
   initMediaPlayerItems: function() {
     var onMedia = (this.onVideo || this.onAudio);
     // Several mutually exclusive items... play/pause, mute/unmute, show/hide
-    this.showItem("context-media-play",  onMedia && (this.target.paused || this.target.ended));
-    this.showItem("context-media-pause", onMedia && !this.target.paused && !this.target.ended);
+    this.showItem("context-media-play",  onMedia && this.target.paused);
+    this.showItem("context-media-pause", onMedia && !this.target.paused);
     this.showItem("context-media-mute",   onMedia && !this.target.muted);
     this.showItem("context-media-unmute", onMedia && this.target.muted);
     this.showItem("context-media-showcontrols", onMedia && !this.target.controls)
@@ -1037,7 +1037,8 @@ nsContextMenu.prototype = {
 
     var brandBundle = document.getElementById("bundle_brand");
     var app = brandBundle.getString("brandShortName");
-    var message = gNavigatorBundle.getFormattedString(aBlock ?
+    var bundle_browser = document.getElementById("bundle_browser");
+    var message = bundle_browser.getFormattedString(aBlock ?
      "imageBlockedWarning" : "imageAllowedWarning", [app, uri.host]);
 
     var notificationBox = this.browser.getNotificationBox();
@@ -1048,8 +1049,8 @@ nsContextMenu.prototype = {
     else {
       var self = this;
       var buttons = [{
-        label: gNavigatorBundle.getString("undo"),
-        accessKey: gNavigatorBundle.getString("undo.accessKey"),
+        label: bundle_browser.getString("undo"),
+        accessKey: bundle_browser.getString("undo.accessKey"),
         callback: function() { self.toggleImageBlocking(!aBlock); }
       }];
       const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
@@ -1182,8 +1183,10 @@ nsContextMenu.prototype = {
   },
   
   getLinkURI: function() {
+    var ioService = Cc["@mozilla.org/network/io-service;1"].
+                    getService(Ci.nsIIOService);
     try {
-      return makeURI(this.linkURL);
+      return ioService.newURI(this.linkURL, null, null);
     }
     catch (ex) {
      // e.g. empty URL string

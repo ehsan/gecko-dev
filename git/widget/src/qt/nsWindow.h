@@ -49,7 +49,14 @@
 
 #include "nsWeakReference.h"
 
+#include "nsIDragService.h"
+#include "nsITimer.h"
 #include "nsWidgetAtoms.h"
+
+
+#ifdef Q_WS_X11
+#include <QX11Info>
+#endif
 
 #ifdef MOZ_LOGGING
 
@@ -179,6 +186,8 @@ public:
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     virtual nsIntPoint WidgetToScreenOffset();
+    NS_IMETHOD         BeginResizingChildren(void);
+    NS_IMETHOD         EndResizingChildren(void);
     NS_IMETHOD         DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
 
     NS_IMETHOD         EnableDragDrop(PRBool aEnable);
@@ -199,6 +208,7 @@ public:
     qint32             ConvertBorderStyles(nsBorderStyle aStyle);
 
     void               QWidgetDestroyed();
+
 
     /***** from CommonWidget *****/
 
@@ -238,11 +248,15 @@ protected:
     // shouldn't be automatically set to 0,0 for first show.
     PRBool              mPlaced;
 
+    // Preferred sizes
+    PRUint32            mPreferredWidth;
+    PRUint32            mPreferredHeight;
+
     /**
      * Event handlers (proxied from the actual qwidget).
      * They follow normal Qt widget semantics.
      */
-    void Initialize(MozQWidget *widget);
+    void Initialize(QWidget *widget);
     friend class nsQtEventDispatcher;
     friend class InterceptContainer;
     friend class MozQWidget;
@@ -319,9 +333,10 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &event, QMouseEvent *aEvent, int aClickCount = 1);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    MozQWidget        *createQWidget(QWidget *parent, nsWidgetInitData *aInitData);
+    QWidget           *createQWidget(QWidget *parent, nsWidgetInitData *aInitData);
 
-    MozQWidget * mWidget;
+    QWidget            *mDrawingArea;
+    MozQWidget *mMozQWidget;
 
     PRUint32            mIsVisible : 1,
                         mActivatePending : 1;

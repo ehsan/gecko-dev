@@ -42,7 +42,6 @@
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsRect.h"
-#include "nsPoint.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -50,7 +49,6 @@
 #include "nsITheme.h"
 #include "nsNativeWidget.h"
 #include "nsWidgetInitData.h"
-#include "nsTArray.h"
 
 // forward declarations
 class   nsIAppShell;
@@ -102,10 +100,10 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_TSF_DISPLAY_ATTR_MGR 102
 #endif
 
-// {5F8D1A5E-C380-4c60-978A-030335BE1D6A}
+// 3d277f04-93f4-4384-9fdc-e1e2d1fc4e33
 #define NS_IWIDGET_IID \
-  { 0x5f8d1a5e, 0xc380, 0x4c60, \
-    { 0x97, 0x8a, 0x03, 0x03, 0x35, 0xbe, 0x1d, 0x6a } }
+{ 0x3d277f04, 0x93f4, 0x4384, \
+ { 0x9f, 0xdc, 0xe1, 0xe2, 0xd1, 0xfc, 0x4e, 0x33 } }
 
 /*
  * Window shadow styles
@@ -611,37 +609,6 @@ class nsIWidget : public nsISupports {
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
     /**
-     * This represents a command to set the bounds and clip region of
-     * a child widget.
-     */
-    struct Configuration {
-        nsIWidget* mChild;
-        nsIntRect mBounds;
-        nsTArray<nsIntRect> mClipRegion;
-    };
-
-    /**
-     * Sets the clip region of each mChild (which must actually be a child
-     * of this widget) to the union of the pixel rects given in
-     * mClipRegion, all relative to the top-left of the child
-     * widget. Clip regions are not implemented on all platforms and only
-     * need to actually work for children that are plugins.
-     * 
-     * Also sets the bounds of each child to mBounds.
-     * 
-     * This will invalidate areas of the children that have changed, but
-     * does not need to invalidate any part of this widget.
-     */
-    virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations) = 0;
-
-    /**
-     * Appends to aRects the rectangles constituting this widget's clip
-     * region. If this widget is not clipped, appends a single rectangle
-     * (0, 0, bounds.width, bounds.height).
-     */
-    virtual void GetWindowClipRegion(nsTArray<nsIntRect>* aRects) = 0;
-
-    /**
      * Set the shadow style of the window.
      */
     NS_IMETHOD SetWindowShadowStyle(PRInt32 aStyle) = 0;
@@ -710,25 +677,15 @@ class nsIWidget : public nsISupports {
     virtual nsIToolkit* GetToolkit() = 0;    
 
     /**
-     * Scroll a rectangle in this widget and (as simultaneously as
-     * possible) modify the specified child widgets.
-     * 
-     * This will invalidate areas of the children that have changed, unless
-     * they have just moved by the scroll amount, but does not need to
-     * invalidate any part of this widget, except where the scroll
-     * operation fails to blit because part of the window is unavailable
-     * (e.g. partially offscreen).
+     * Scroll this widget. 
      *
-     * @param aDelta amount to scroll (device pixels)
-     * @param aSource rectangle to copy (device pixels relative to this
-     * widget)
-     * @param aReconfigureChildren commands to set the bounds and clip
-     * region of a subset of the children of this widget; these should
-     * be performed simultaneously with the scrolling, as far as possible,
-     * to avoid visual artifacts.
+     * @param aDx amount to scroll along the x-axis
+     * @param aDy amount to scroll along the y-axis.
+     * @param aClipRect clipping rectangle to limit the scroll to.
+     *
      */
-    virtual void Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
-                        const nsTArray<Configuration>& aReconfigureChildren) = 0;
+
+    NS_IMETHOD Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect) = 0;
 
     /** 
      * Internal methods
@@ -781,6 +738,24 @@ class nsIWidget : public nsISupports {
      */
 
     virtual nsIntPoint WidgetToScreenOffset() = 0;
+
+    /**
+     * When adjustments are to made to a whole set of child widgets, call this
+     * before resizing/positioning the child windows to minimize repaints. Must
+     * be followed by EndResizingChildren() after child windows have been
+     * adjusted.
+     *
+     */
+
+    NS_IMETHOD BeginResizingChildren(void) = 0;
+
+    /**
+     * Call this when finished adjusting child windows. Must be preceded by
+     * BeginResizingChildren().
+     *
+     */
+
+    NS_IMETHOD EndResizingChildren(void) = 0;
 
     /**
      * Dispatches an event to the widget
@@ -1088,12 +1063,6 @@ class nsIWidget : public nsISupports {
      * Selection has changed in the focused node
      */
     NS_IMETHOD OnIMESelectionChange(void) = 0;
-
-    /*
-     * Call this method when a dialog is opened which has a default button.
-     * The button's rectangle should be supplied in aButtonRect.
-     */ 
-    NS_IMETHOD OnDefaultButtonLoaded(const nsIntRect &aButtonRect) = 0;
 
 protected:
     // keep the list of children.  We also keep track of our siblings.

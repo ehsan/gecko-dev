@@ -50,6 +50,7 @@ XPIDLSRCS	= \
 		nsIFontEnumerator.idl \
 		nsIScriptableRegion.idl \
 		gfxIFormats.idl \
+		gfxIImageFrame.idl \
 		gfxidltypes.idl \
 		$(NULL)
 

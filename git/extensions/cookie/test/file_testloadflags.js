@@ -13,15 +13,15 @@ var o = null;
 function setupTest(uri, domain, cookies, loads, headers) {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  Components.classes["@mozilla.org/preferences-service;1"]
-            .getService(Components.interfaces.nsIPrefBranch)
-            .setIntPref("network.cookie.cookieBehavior", 1);
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                        .getService(Components.interfaces.nsIPrefBranch);
+  prefs.setIntPref("network.cookie.cookieBehavior", 1);
 
   var cs = Components.classes["@mozilla.org/cookiemanager;1"]
-                     .getService(Components.interfaces.nsICookieManager2);
+                      .getService(Components.interfaces.nsICookieManager2);
   cs.removeAll();
   cs.add(domain, "", "oh", "hai", false, false, true, Math.pow(2, 62));
-  is(cs.countCookiesFromHost(domain), 1, "cookie inited");
+  is(cs.countCookiesFromHost(domain), 1, "cookie wasn't inited");
 
   o = new obs();
 
@@ -36,7 +36,6 @@ function setupTest(uri, domain, cookies, loads, headers) {
 
 function obs () {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
   this.os = Components.classes["@mozilla.org/observer-service;1"]
                       .getService(Components.interfaces.nsIObserverService);
   this.os.addObserver(this, "http-on-modify-request", false);
@@ -48,48 +47,42 @@ obs.prototype = {
   {
     this.window.netscape.security
         .PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var httpchannel = theSubject.QueryInterface(this.window.Components.interfaces
+                                                    .nsIHttpChannel);
 
-    var cookie = theSubject.QueryInterface(this.window.Components.interfaces
-                                               .nsIHttpChannel)
-                           .getRequestHeader("Cookie");
-    this.window.isnot(cookie.indexOf("oh=hai"), -1, "cookie sent");
+    var cookie = httpchannel.getRequestHeader("Cookie");
+
+    var got = cookie.indexOf("oh=hai");
+    this.window.isnot(got, -1, "cookie wasn't sent");
     gHeaders++;
   },
 
   remove: function obs_remove()
   {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
     this.os.removeObserver(this, "http-on-modify-request");
     this.os = null;
     this.window = null;
   }
 }
 
-window.addEventListener("message", messageReceiver, false);
-
 /** Receives MessageEvents to this window. */
 function messageReceiver(evt)
 {
-  ok(evt instanceof MessageEvent, "event type", evt);
+  ok(evt instanceof MessageEvent, "wrong event type");
 
-  if (evt.data != "message") {
-    window.removeEventListener("message", messageReceiver, false);
-
-    ok(false, "message", evt.data);
-
+  if (evt.data == "message")
+    gLoads++;
+  else {
+    ok(false, "wrong message");
     o.remove();
     gPopup.close();
     SimpleTest.finish();
-    return;
   }
 
   // only run the test when all our children are done loading & setting cookies
-  if (++gLoads == gExpectedLoads) {
-    window.removeEventListener("message", messageReceiver, false);
-
+  if (gLoads == gExpectedLoads)
     runTest();
-  }
 }
 
 function runTest() {
@@ -97,7 +90,6 @@ function runTest() {
   document.cookie = "o=noes";
 
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
   var cs = Components.classes["@mozilla.org/cookiemanager;1"]
                      .getService(Components.interfaces.nsICookieManager);
   var list = cs.enumerator;
@@ -106,12 +98,14 @@ function runTest() {
     count++;
     list.getNext();
   }
-  is(count, gExpectedCookies, "number of cookies");
-  cs.removeAll();
-
-  is(gHeaders, gExpectedHeaders, "number of request headers");
+  is(count, gExpectedCookies, "incorrect number of cookies");
+  is(gHeaders, gExpectedHeaders, "incorrect number of request headers");
 
   o.remove();
   gPopup.close();
+  cs.removeAll();
   SimpleTest.finish();
 }
+
+window.addEventListener("message", messageReceiver, false);
+

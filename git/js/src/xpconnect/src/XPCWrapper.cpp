@@ -94,9 +94,6 @@ XPCWrapper::Unwrap(JSContext *cx, JSObject *wrapper)
   if (clasp == &sXPC_SOW_JSClass.base) {
     return UnwrapSOW(cx, wrapper);
   }
-  if (clasp == &sXPC_COW_JSClass.base) {
-    return UnwrapCOW(cx, wrapper);
-  }
 
   return nsnull;
 }

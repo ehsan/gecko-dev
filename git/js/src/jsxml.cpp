@@ -292,7 +292,7 @@ NewXMLNamespace(JSContext *cx, JSString *prefix, JSString *uri, JSBool declared)
 {
     JSObject *obj;
 
-    obj = js_NewObject(cx, &js_NamespaceClass.base, NULL, NULL);
+    obj = js_NewObject(cx, &js_NamespaceClass.base, NULL, NULL, 0);
     if (!obj)
         return JS_FALSE;
     JS_ASSERT(JSVAL_IS_VOID(obj->fslots[JSSLOT_PREFIX]));
@@ -378,7 +378,7 @@ JS_FRIEND_DATA(JSExtendedClass) js_QNameClass = {
     JSCLASS_HAS_RESERVED_SLOTS(QNAME_RESERVED_SLOTS) |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_QName),
     JS_PropertyStub,   JS_PropertyStub,   qname_getProperty, NULL,
-    JS_EnumerateStub,  JS_ResolveStub,    JS_ConvertStub,    NULL,
+    JS_EnumerateStub,  JS_ResolveStub,    JS_ConvertStub,    JS_FinalizeStub,
     NULL,              NULL,              NULL,              NULL,
     NULL,              NULL,              NULL,              NULL },
     qname_equality,    NULL,              NULL,              NULL,
@@ -397,7 +397,7 @@ JS_FRIEND_DATA(JSClass) js_AttributeNameClass = {
     JSCLASS_HAS_RESERVED_SLOTS(QNAME_RESERVED_SLOTS) |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_AttributeName),
     JS_PropertyStub,   JS_PropertyStub,   JS_PropertyStub,   JS_PropertyStub,
-    JS_EnumerateStub,  JS_ResolveStub,    JS_ConvertStub,    NULL,
+    JS_EnumerateStub,  JS_ResolveStub,    JS_ConvertStub,    JS_FinalizeStub,
     NULL,              NULL,              NULL,              NULL,
     NULL,              NULL,              NULL,              NULL
 };
@@ -460,7 +460,7 @@ qname_toString(JSContext *cx, uintN argc, jsval *vp)
 
     if (str && clasp == &js_AttributeNameClass) {
         length = str->length();
-        chars = (jschar *) cx->malloc((length + 2) * sizeof(jschar));
+        chars = (jschar *) JS_malloc(cx, (length + 2) * sizeof(jschar));
         if (!chars)
             return JS_FALSE;
         *chars = '@';
@@ -468,7 +468,7 @@ qname_toString(JSContext *cx, uintN argc, jsval *vp)
         chars[++length] = 0;
         str = js_NewString(cx, chars, length);
         if (!str) {
-            cx->free(chars);
+            JS_free(cx, chars);
             return JS_FALSE;
         }
     }
@@ -505,7 +505,7 @@ NewXMLQName(JSContext *cx, JSString *uri, JSString *prefix, JSString *localName,
     JSObject *obj;
 
     JS_ASSERT(IsQNameClass(clasp));
-    obj = js_NewObject(cx, clasp, NULL, NULL);
+    obj = js_NewObject(cx, clasp, NULL, NULL, 0);
     if (!obj)
         return NULL;
     InitXMLQName(obj, uri, prefix, localName);
@@ -617,7 +617,7 @@ NamespaceHelper(JSContext *cx, JSObject *obj, intN argc, jsval *argv,
             return JS_TRUE;
         }
 
-        obj = js_NewObject(cx, &js_NamespaceClass.base, NULL, NULL);
+        obj = js_NewObject(cx, &js_NamespaceClass.base, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
         *rval = OBJECT_TO_JSVAL(obj);
@@ -724,7 +724,7 @@ QNameHelper(JSContext *cx, JSObject *obj, JSClass *clasp, intN argc,
          * Create and return a new QName or AttributeName object exactly as if
          * constructed.
          */
-        obj = js_NewObject(cx, clasp, NULL, NULL);
+        obj = js_NewObject(cx, clasp, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
         *rval = OBJECT_TO_JSVAL(obj);
@@ -932,12 +932,8 @@ XMLArraySetCapacity(JSContext *cx, JSXMLArray *array, uint32 capacity)
 
     if (capacity == 0) {
         /* We could let realloc(p, 0) free this, but purify gets confused. */
-        if (array->vector) {
-            if (cx)
-                cx->free(array->vector);
-            else
-                js_free(array->vector);
-        }
+        if (array->vector)
+            free(array->vector);
         vector = NULL;
     } else {
         if (
@@ -945,7 +941,7 @@ XMLArraySetCapacity(JSContext *cx, JSXMLArray *array, uint32 capacity)
             (size_t)capacity > ~(size_t)0 / sizeof(void *) ||
 #endif
             !(vector = (void **)
-                       js_realloc(array->vector, capacity * sizeof(void *)))) {
+                       realloc(array->vector, capacity * sizeof(void *)))) {
             if (cx)
                 JS_ReportOutOfMemory(cx);
             return JS_FALSE;
@@ -979,7 +975,7 @@ XMLArrayFinish(JSContext *cx, JSXMLArray *array)
 {
     JSXMLArrayCursor *cursor;
 
-    cx->free(array->vector);
+    JS_free(cx, array->vector);
 
     while ((cursor = array->cursors) != NULL)
         XMLArrayCursorFinish(cursor);
@@ -1043,7 +1039,7 @@ XMLArrayAddMember(JSContext *cx, JSXMLArray *array, uint32 index, void *elt)
                 (size_t)capacity > ~(size_t)0 / sizeof(void *) ||
 #endif
                 !(vector = (void **)
-                           js_realloc(array->vector, capacity * sizeof(void *)))) {
+                           realloc(array->vector, capacity * sizeof(void *)))) {
                 JS_ReportOutOfMemory(cx);
                 return JS_FALSE;
             }
@@ -1124,10 +1120,10 @@ XMLArrayTruncate(JSContext *cx, JSXMLArray *array, uint32 length)
 
     if (length == 0) {
         if (array->vector)
-            cx->free(array->vector);
+            free(array->vector);
         vector = NULL;
     } else {
-        vector = (void **) js_realloc(array->vector, length * sizeof(void *));
+        vector = (void **) realloc(array->vector, length * sizeof(void *));
         if (!vector)
             return;
     }
@@ -1858,7 +1854,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
     length = constrlen(prefix) + urilen + constrlen(middle) + srclen +
              constrlen(suffix);
 
-    chars = (jschar *) cx->malloc((length + 1) * sizeof(jschar));
+    chars = (jschar *) JS_malloc(cx, (length + 1) * sizeof(jschar));
     if (!chars)
         return NULL;
 
@@ -1909,7 +1905,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
         }
     }
 
-    cx->free(chars);
+    JS_free(cx, chars);
     return xml;
 
 #undef constrlen
@@ -2142,7 +2138,7 @@ MakeXMLSpecialString(JSContext *cx, JSStringBuffer *sb,
                 prefixlength + length + ((length2 != 0) ? 1 + length2 : 0) +
                 suffixlength;
     bp = base = (jschar *)
-        cx->realloc(sb->base, (newlength + 1) * sizeof(jschar));
+                JS_realloc(cx, sb->base, (newlength + 1) * sizeof(jschar));
     if (!bp) {
         js_FinishStringBuffer(sb);
         return NULL;
@@ -2163,7 +2159,7 @@ MakeXMLSpecialString(JSContext *cx, JSStringBuffer *sb,
 
     str = js_NewString(cx, base, newlength);
     if (!str)
-        cx->free(base);
+        free(base);
     return str;
 }
 
@@ -2214,7 +2210,7 @@ AppendAttributeValue(JSContext *cx, JSStringBuffer *sb, JSString *valstr)
     valstr = js_EscapeAttributeValue(cx, valstr, JS_TRUE);
     if (!valstr) {
         if (STRING_BUFFER_OK(sb)) {
-            cx->free(sb->base);
+            free(sb->base);
             sb->base = STRING_BUFFER_ERROR_BASE;
         }
         return;
@@ -2486,7 +2482,7 @@ GeneratePrefix(JSContext *cx, JSString *uri, JSXMLArray *decls)
     if (STARTS_WITH_XML(cp, length) || !IsXMLName(cp, length)) {
         newlength = length + 2 + (size_t) log10((double) decls->length);
         bp = (jschar *)
-             cx->malloc((newlength + 1) * sizeof(jschar));
+             JS_malloc(cx, (newlength + 1) * sizeof(jschar));
         if (!bp)
             return NULL;
 
@@ -2511,7 +2507,7 @@ GeneratePrefix(JSContext *cx, JSString *uri, JSXMLArray *decls)
                 if (bp == cp) {
                     newlength = length + 2 + (size_t) log10((double) n);
                     bp = (jschar *)
-                         cx->malloc((newlength + 1) * sizeof(jschar));
+                         JS_malloc(cx, (newlength + 1) * sizeof(jschar));
                     if (!bp)
                         return NULL;
                     js_strncpy(bp, cp, length);
@@ -2538,7 +2534,7 @@ GeneratePrefix(JSContext *cx, JSString *uri, JSXMLArray *decls)
     } else {
         prefix = js_NewString(cx, bp, newlength);
         if (!prefix)
-            cx->free(bp);
+            JS_free(cx, bp);
     }
     return prefix;
 }
@@ -5136,7 +5132,7 @@ xml_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         if (length == 0) {
             cursor = NULL;
         } else {
-            cursor = (JSXMLArrayCursor *) cx->malloc(sizeof *cursor);
+            cursor = (JSXMLArrayCursor *) JS_malloc(cx, sizeof *cursor);
             if (!cursor)
                 return JS_FALSE;
             XMLArrayCursorInit(cursor, &xml->xml_kids);
@@ -5159,7 +5155,7 @@ xml_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         cursor = (JSXMLArrayCursor *) JSVAL_TO_PRIVATE(*statep);
         if (cursor) {
             XMLArrayCursorFinish(cursor);
-            cx->free(cursor);
+            JS_free(cx, cursor);
         }
         *statep = JSVAL_NULL;
         break;
@@ -5270,7 +5266,7 @@ js_EnumerateXMLValues(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         if (length == 0) {
             cursor = NULL;
         } else {
-            cursor = (JSXMLArrayCursor *) cx->malloc(sizeof *cursor);
+            cursor = (JSXMLArrayCursor *) JS_malloc(cx, sizeof *cursor);
             if (!cursor)
                 return JS_FALSE;
             XMLArrayCursorInit(cursor, &xml->xml_kids);
@@ -5305,7 +5301,7 @@ js_EnumerateXMLValues(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         if (cursor) {
       destroy:
             XMLArrayCursorFinish(cursor);
-            cx->free(cursor);
+            JS_free(cx, cursor);
         }
         *statep = JSVAL_NULL;
         break;
@@ -7321,6 +7317,19 @@ XMLList(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+#define JSXML_LIST_SIZE     (offsetof(JSXML, u) + sizeof(struct JSXMLListVar))
+#define JSXML_ELEMENT_SIZE  (offsetof(JSXML, u) + sizeof(struct JSXMLElemVar))
+#define JSXML_LEAF_SIZE     (offsetof(JSXML, u) + sizeof(JSString *))
+
+static size_t sizeof_JSXML[JSXML_CLASS_LIMIT] = {
+    JSXML_LIST_SIZE,        /* JSXML_CLASS_LIST */
+    JSXML_ELEMENT_SIZE,     /* JSXML_CLASS_ELEMENT */
+    JSXML_LEAF_SIZE,        /* JSXML_CLASS_ATTRIBUTE */
+    JSXML_LEAF_SIZE,        /* JSXML_CLASS_PROCESSING_INSTRUCTION */
+    JSXML_LEAF_SIZE,        /* JSXML_CLASS_TEXT */
+    JSXML_LEAF_SIZE         /* JSXML_CLASS_COMMENT */
+};
+
 #ifdef DEBUG_notme
 JSCList xml_leaks = JS_INIT_STATIC_CLIST(&xml_leaks);
 uint32  xml_serial;
@@ -7331,7 +7340,7 @@ js_NewXML(JSContext *cx, JSXMLClass xml_class)
 {
     JSXML *xml;
 
-    xml = (JSXML *) js_NewGCXML(cx, GCX_XML);
+    xml = (JSXML *) js_NewGCThing(cx, GCX_XML, sizeof_JSXML[xml_class]);
     if (!xml)
         return NULL;
 
@@ -7469,7 +7478,7 @@ NewXMLObject(JSContext *cx, JSXML *xml)
 {
     JSObject *obj;
 
-    obj = js_NewObject(cx, &js_XMLClass, NULL, NULL);
+    obj = js_NewObject(cx, &js_XMLClass, NULL, NULL, 0);
     if (!obj || !JS_SetPrivate(cx, obj, xml)) {
         cx->weakRoots.newborn[GCX_OBJECT] = NULL;
         return NULL;
@@ -7805,7 +7814,7 @@ js_AddAttributePart(JSContext *cx, JSBool isName, JSString *str, JSString *str2)
 
     str2->getCharsAndLength(chars2, len2);
     newlen = (isName) ? len + 1 + len2 : len + 2 + len2 + 1;
-    chars = (jschar *) cx->realloc(chars, (newlen+1) * sizeof(jschar));
+    chars = (jschar *) JS_realloc(cx, chars, (newlen+1) * sizeof(jschar));
     if (!chars)
         return NULL;
 
@@ -7872,7 +7881,7 @@ js_GetAnyName(JSContext *cx, jsval *vp)
 
             do {
                 obj = js_NewObjectWithGivenProto(cx, &js_AnyNameClass, NULL,
-                                                 NULL);
+                                                 NULL, 0);
                 if (!obj) {
                     ok = JS_FALSE;
                     break;
@@ -8118,7 +8127,7 @@ xmlfilter_finalize(JSContext *cx, JSObject *obj)
         return;
 
     XMLArrayCursorFinish(&filter->cursor);
-    cx->free(filter);
+    JS_free(cx, filter);
 }
 
 JSClass js_XMLFilterClass = {
@@ -8169,11 +8178,11 @@ js_StepXMLListFilter(JSContext *cx, JSBool initialized)
         }
 
         filterobj = js_NewObjectWithGivenProto(cx, &js_XMLFilterClass,
-                                               NULL, NULL);
+                                               NULL, NULL, 0);
         if (!filterobj)
             return JS_FALSE;
 
-        filter = (JSXMLFilter *) cx->malloc(sizeof *filter);
+        filter = (JSXMLFilter *) JS_malloc(cx, sizeof *filter);
         if (!filter)
             return JS_FALSE;
 

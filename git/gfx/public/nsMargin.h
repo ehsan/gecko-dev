@@ -39,7 +39,6 @@
 #define NSMARGIN_H
 
 #include "nsCoord.h"
-#include "nsMargin.h"
 #include "gfxCore.h"
 
 struct nsMargin {
@@ -104,8 +103,6 @@ struct nsMargin {
                                                  right -= aMargin.right;
                                                  bottom -= aMargin.bottom;
                                                  return *this;}
-
-  PRBool IsZero() { return !left && !top && !right && !bottom; }
 };
 
 struct nsIntMargin {
@@ -140,8 +137,6 @@ struct nsIntMargin {
     return nsIntMargin(left + aMargin.left, top + aMargin.top,
                     right + aMargin.right, bottom + aMargin.bottom);
   }
-
-  PRBool IsZero() { return !left && !top && !right && !bottom; }
 };
 
 #endif /* NSMARGIN_H */

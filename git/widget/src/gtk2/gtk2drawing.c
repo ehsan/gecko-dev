@@ -850,9 +850,9 @@ gint
 moz_gtk_button_get_default_overflow(gint* border_top, gint* border_left,
                                     gint* border_bottom, gint* border_right)
 {
-    GtkBorder* default_outside_border;
-
     ensure_button_widget();
+
+    GtkBorder* default_outside_border;
     gtk_widget_style_get(gButtonWidget,
                          "default-outside-border", &default_outside_border,
                          NULL);
@@ -873,9 +873,9 @@ static gint
 moz_gtk_button_get_default_border(gint* border_top, gint* border_left,
                                   gint* border_bottom, gint* border_right)
 {
-    GtkBorder* default_border;
-
     ensure_button_widget();
+
+    GtkBorder* default_border;
     gtk_widget_style_get(gButtonWidget,
                          "default-border", &default_border,
                          NULL);
@@ -2277,7 +2277,7 @@ moz_gtk_tab_paint(GdkDrawable* drawable, GdkRectangle* rect,
                                 GTK_POS_TOP : GTK_POS_BOTTOM );
     } else {
         /* Draw the tab and the gap
-         * We want the gap to be positioned exactly on the tabpanel top
+         * We want the gap to be positionned exactly on the tabpanel top
          * border; since tabbox.css may set a negative margin so that the tab
          * frame rect already overlaps the tabpanel frame rect, we need to take
          * that into account when drawing. To that effect, nsNativeThemeGTK
@@ -2402,7 +2402,6 @@ moz_gtk_tabpanels_paint(GdkDrawable* drawable, GdkRectangle* rect,
      *   on the box's corner, eg. themes using the Pixbuf engine.
      */
     GtkStyle* style;
-    GdkRectangle halfClipRect;
 
     ensure_tab_widget();
     gtk_widget_set_direction(gTabWidget, direction);
@@ -2416,6 +2415,7 @@ moz_gtk_tabpanels_paint(GdkDrawable* drawable, GdkRectangle* rect,
      *   not drawn.
      * - The right half is drawn with the gap to the left outside the modified clip rect.
      */
+    GdkRectangle halfClipRect;
     if (!gdk_rectangle_intersect(rect, cliprect, &halfClipRect))
       return MOZ_GTK_SUCCESS;
 

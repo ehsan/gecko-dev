@@ -78,9 +78,7 @@
 #include "nsOS2Uni.h"
 
 #include "imgIContainer.h"
-
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
+#include "gfxIImageFrame.h"
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -311,6 +309,59 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
     WinSetCapture( HWND_DESKTOP, NULLHANDLE);
   }
   return NS_OK;
+}
+
+
+//-------------------------------------------------------------------------
+//
+// Deferred Window positioning
+//
+//-------------------------------------------------------------------------
+
+NS_METHOD nsWindow::BeginResizingChildren(void)
+{
+   if( !mSWPs)
+   {
+      mlHave = 10;
+      mlUsed = 0;
+      mSWPs = (PSWP) malloc( 10 * sizeof( SWP));
+   }
+   return NS_OK;
+}
+
+void nsWindow::DeferPosition( HWND hwnd, HWND hwndInsertBehind,
+                              long x, long y, long cx, long cy, ULONG flags)
+{
+   if( mSWPs)
+   {
+      if( mlHave == mlUsed) // need more swps
+      {
+         mlHave += 10;
+         mSWPs = (PSWP) realloc( mSWPs, mlHave * sizeof( SWP));
+      }
+      mSWPs[ mlUsed].hwnd = hwnd;
+      mSWPs[ mlUsed].hwndInsertBehind = hwndInsertBehind;
+      mSWPs[ mlUsed].x = x;
+      mSWPs[ mlUsed].y = y;
+      mSWPs[ mlUsed].cx = cx;
+      mSWPs[ mlUsed].cy = cy;
+      mSWPs[ mlUsed].fl = flags;
+      mSWPs[ mlUsed].ulReserved1 = 0;
+      mSWPs[ mlUsed].ulReserved2 = 0;
+      mlUsed++;
+   }
+}
+
+NS_METHOD nsWindow::EndResizingChildren(void)
+{
+   if( nsnull != mSWPs)
+   {
+      WinSetMultWindowPos( 0/*hab*/, mSWPs, mlUsed);
+      free( mSWPs);
+      mSWPs = nsnull;
+      mlUsed = mlHave = 0;
+   }
+   return NS_OK;
 }
 
 nsIntPoint nsWindow::WidgetToScreenOffset()
@@ -1660,19 +1711,39 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
     return NS_OK;
   }
 
-  nsRefPtr<gfxImageSurface> frame;
-  aCursor->CopyCurrentFrame(getter_AddRefs(frame));
+  nsCOMPtr<gfxIImageFrame> frame;
+  aCursor->GetFrameAt(0, getter_AddRefs(frame));
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 
   // if the image is ridiculously large, exit because
   // it will be unrecognizable when shrunk to 32x32
-  PRInt32 width = frame->Width();
-  PRInt32 height = frame->Height();
+  PRInt32 width, height;
+  frame->GetWidth(&width);
+  frame->GetHeight(&height);
   if (width > 128 || height > 128)
     return NS_ERROR_FAILURE;
 
-  PRUint8* data = frame->Data();
+  gfx_format format;
+  nsresult rv = frame->GetFormat(&format);
+  if (NS_FAILED(rv))
+    return rv;
+
+  // only 24-bit images with 0, 1, or 8-bit alpha data are supported.
+  // These are all the formats used in Cairo, and all map to the RGB24 resp. ARGB32 Cairo formats.
+  if (format != gfxIFormats::BGR_A1 && format != gfxIFormats::RGB_A1 &&
+      format != gfxIFormats::BGR_A8 && format != gfxIFormats::RGB_A8 &&
+      format != gfxIFormats::BGR && format != gfxIFormats::RGB)
+    return NS_ERROR_UNEXPECTED;
+
+  frame->LockImageData();
+  PRUint32 dataLen;
+  PRUint8* data;
+  rv = frame->GetImageData(&data, &dataLen);
+  if (NS_FAILED(rv)) {
+    frame->UnlockImageData();
+    return rv;
+  }
 
   // create the color bitmap
   HBITMAP hBmp = CreateBitmapRGB(data, width, height);
@@ -1680,11 +1751,14 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
     return NS_ERROR_FAILURE;
 
   // create a transparency mask from the alpha bytes
-  HBITMAP hAlpha = CreateTransparencyMask(frame->Format(), data, width, height);
+  HBITMAP hAlpha = CreateTransparencyMask(format, data, width, height);
   if (!hAlpha) {
     GpiDeleteBitmap(hBmp);
     return NS_ERROR_FAILURE;
   }
+
+  // Unlock image data after both processing colors and alpha data
+  frame->UnlockImageData();
 
   POINTERINFO info = {0};
   info.fPointer = TRUE;
@@ -1801,7 +1875,7 @@ HBITMAP nsWindow::CreateBitmapRGB(PRUint8* aImageData,
 
 // create a monochrome AND/XOR bitmap from 0, 1, or 8-bit alpha data
 
-HBITMAP nsWindow::CreateTransparencyMask(gfxASurface::gfxImageFormat format,
+HBITMAP nsWindow::CreateTransparencyMask(gfx_format format,
                                          PRUint8* aImageData,
                                          PRUint32 aWidth,
                                          PRUint32 aHeight)
@@ -1815,29 +1889,36 @@ HBITMAP nsWindow::CreateTransparencyMask(gfxASurface::gfxImageFormat format,
   if (!mono)
     return NULL;
 
-  if (format == gfxASurface::ImageFormatARGB32) {
-    // Non-alpha formats are already taken care of by initializing the XOR and
-    // AND masks to zero
+  switch (format) {
+    // gfxIFormats::BGR and case gfxIFormats::RGB are already
+    // taken care of by initializing XOR and AND masks to zero
 
     // make the AND mask the inverse of the 8-bit alpha data
-    PRInt32* pSrc = (PRInt32*)aImageData;
-    for (PRUint32 row = aHeight; row > 0; --row) {
-      // Point to the right row in the AND mask
-      PRUint8* pDst = mono + cbData + abpr * (row - 1);
-      PRUint8 mask = 0x80;
-      for (PRUint32 col = aWidth; col > 0; --col) {
-        // Use sign bit to test for transparency, as alpha byte is highest byte
-        // Positive means, alpha < 128, so consider as transparent and set the AND mask
-        if (*pSrc++ >= 0) {
-          *pDst |= mask;
-        }
+    case gfxIFormats::BGR_A1:
+    case gfxIFormats::RGB_A1:
+    case gfxIFormats::RGB_A8:
+    case gfxIFormats::BGR_A8: {
+      PRInt32* pSrc = (PRInt32*)aImageData;
+      for (PRUint32 row = aHeight; row > 0; --row) {
+        // Point to the right row in the AND mask
+        PRUint8* pDst = mono + cbData + abpr * (row - 1);
+        PRUint8 mask = 0x80;
+        for (PRUint32 col = aWidth; col > 0; --col) {
+          // Use sign bit to test for transparency, as alpha byte is highest byte
+          // Positive means, alpha < 128, so consider as transparent and set the AND mask
+          if (*pSrc++ >= 0) {
+            *pDst |= mask;
+          }
 
-        mask >>= 1;
-        if (!mask) {
-          pDst++;
-          mask = 0x80;
+          mask >>= 1;
+          if (!mask) {
+            pDst++;
+            mask = 0x80;
+          }
         }
       }
+
+      break;
     }
   }
 
@@ -2014,117 +2095,80 @@ void nsWindow::FreeNativeData(void * data, PRUint32 aDataType)
 
 //-------------------------------------------------------------------------
 //
-// Configure the child widgets used for plugins
+// Notify a child window of a coming move by sending it a WM_VRNDISABLED
+// message. Only do that if it's not one of ours like e.g. plugin windows.
 //
 //-------------------------------------------------------------------------
-
-// This is _supposed_ to set a clipping region for the child windows used
-// by plugins.  However, on OS/2, clipping regions aren't associated with
-// windows, usually aren't persistent, & have no effect on drawing done
-// into children of the clipped window (which is where OS/2 plugins paint).
-// As an alternative, this implementation uses the child windows' dimensions
-// as clipping rectangles, adjusting them to match the bounding boxes of the
-// supplied arrays of rectangles.  This should suffice in most situations.
-
-nsresult
-nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
+BOOL nsWindow::NotifyForeignChildWindows(HWND aWnd)
 {
-  // for each child window
-  for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-    const Configuration& configuration = aConfigurations[i];
-    nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-    NS_ASSERTION(w->GetParent() == this,
-                 "Configured widget is not a child");
+  HENUM hEnum = WinBeginEnumWindows(aWnd);
+  HWND hwnd;
 
-    // create the bounding box
-    const nsTArray<nsIntRect>& rects = configuration.mClipRegion;
-    nsIntRect r;
-    for (PRUint32 i = 0; i < rects.Length(); ++i)
-      r.UnionRect(r, rects[i]);
-
-    // resize the child;  mBounds.x/y contain the child's correct origin;
-    // r.x/y are always <= zero - adding them to r.width/height produces
-    // the actual clipped width/height this window should have
-    w->Resize(configuration.mBounds.x, configuration.mBounds.y,
-              r.width + r.x, r.height + r.y, PR_TRUE);
-
-    // some plugins may shrink their window when the Mozilla widget window
-    // shrinks, then fail to reinflate when the widget window reinflates;
-    // this ensures the plugin's window is always at its full size and is
-    // clipped correctly by the widget's bounds
-    HWND hwnd = WinQueryWindow( w->mWnd, QW_TOP);
-    ::WinSetWindowPos(hwnd, 0, 0, 0,
-                      configuration.mBounds.width, configuration.mBounds.height,
-                      SWP_MOVE | SWP_SIZE);
-
-    // show or hide the window, then save the array of rects
-    // for future reference
-    w->Show(!configuration.mClipRegion.IsEmpty());
-    w->StoreWindowClipRegion(configuration.mClipRegion);
+  while ((hwnd = WinGetNextWindow(hEnum)) != NULLHANDLE) {
+    char className[19];
+    WinQueryClassName(hwnd, 19, className);
+    if (strcmp(className, WindowClass()) != 0) {
+      // This window is not one of our windows so notify it (and wait for
+      // the call to return so that the plugin has time to react)
+      WinSendMsg(hwnd, WM_VRNDISABLED, MPVOID, MPVOID);
+    } else {
+      // Recurse starting at this Mozilla child window.
+      NotifyForeignChildWindows(hwnd);
+    }
   }
-
-  return NS_OK;
+  return WinEndEnumWindows(hEnum);
 }
 
+//-------------------------------------------------------------------------
+//
+// Force a resize of child windows after a scroll to reset hover positions.
+//
+//-------------------------------------------------------------------------
+void nsWindow::ScrollChildWindows(PRInt32 aX, PRInt32 aY)
+{
+  nsIWidget *child = GetFirstChild();
+  while (child) {
+    nsIntRect rect;
+    child->GetBounds(rect);
+    child->Resize(rect.x + aX, rect.y + aY, rect.width, rect.height, PR_FALSE);
+    child = child->GetNextSibling();
+  }
+}
 //-------------------------------------------------------------------------
 //
 // Scroll the bits of a window
 //
 //-------------------------------------------------------------------------
-void nsWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
-                      const nsTArray<Configuration>& aConfigurations)
+NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect)
 {
-  // Build the set of widgets that are to be moved by the scroll amount.
-  nsTHashtable<nsPtrHashKey<nsWindow> > scrolledWidgets;
-  scrolledWidgets.Init();
-  for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-    const Configuration& configuration = aConfigurations[i];
-    nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-    NS_ASSERTION(w->GetParent() == this,
-                 "Configured widget is not a child");
-    if (configuration.mBounds.TopLeft() == w->mBounds.TopLeft() + aDelta)
-      scrolledWidgets.PutEntry(w);
+  RECTL rcl;
+
+  if (nsnull != aClipRect)
+  {
+    rcl.xLeft = aClipRect->x;
+    rcl.yBottom = aClipRect->y + aClipRect->height;
+    rcl.xRight = rcl.xLeft + aClipRect->width;
+    rcl.yTop = rcl.yBottom + aClipRect->height;
+    NS2PM(rcl);
+    // this rect is inex
   }
-
-  nsIntRect affectedRect;
-  affectedRect.UnionRect(aSource, aSource + aDelta);
-  ULONG flags = SW_INVALIDATERGN;
-
-  // We can use SW_SCROLLCHILDREN if all the windows that intersect
-  // the affected area are moving by the scroll amount.   Check if
-  // any of our children would be affected by SW_SCROLLCHILDREN but
-  // are not supposed to scroll.
-  for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
-       w = static_cast<nsWindow*>(w->GetNextSibling())) {
-    if (w->mBounds.Intersects(affectedRect)) {
-      flags |= SW_SCROLLCHILDREN;
-      if (!scrolledWidgets.GetEntry(w)) {
-        flags &= ~SW_SCROLLCHILDREN;
-        break;
-      }
-    }
-  }
-
-  RECTL clip;
-  clip.xLeft   = affectedRect.x;
-  clip.xRight  = affectedRect.x + affectedRect.width;
-  clip.yTop    = mBounds.height - affectedRect.y;
-  clip.yBottom = clip.yTop - affectedRect.height;
 
   // this prevents screen corruption while scrolling during a
-  // Moz-originated drag - the hps isn't actually used but
-  // fetching it unlocks the screen so it can be updated
+  // Moz-originated drag - during a native drag, the screen
+  // isn't updated until the drag ends. so there's no corruption
   HPS hps = 0;
   CheckDragStatus(ACTION_SCROLL, &hps);
-  ::WinScrollWindow(mWnd, aDelta.x, -aDelta.y, &clip, &clip, NULL, NULL, flags);
 
-  // Now make sure all children actually get positioned, sized, and clipped
-  // correctly.  If SW_SCROLLCHILDREN was in effect, they may already be.
-  ConfigureChildren(aConfigurations);
+  NotifyForeignChildWindows(mWnd);
+  WinScrollWindow(mWnd, aDx, -aDy, aClipRect ? &rcl : 0, 0, 0,
+                  0, SW_SCROLLCHILDREN | SW_INVALIDATERGN);
+  ScrollChildWindows(aDx, aDy);
   Update();
 
   if (hps)
     ReleaseIfDragHPS(hps);
+
+  return NS_OK;
 }
 
 //-------------------------------------------------------------------------

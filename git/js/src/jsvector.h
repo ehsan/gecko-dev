@@ -136,6 +136,7 @@ struct JSTempVectorImpl<T, true>
         T *newbuf = reinterpret_cast<T *>(realloc(vec.mBegin, bytes));
         if (!newbuf) {
             js_ReportOutOfMemory(vec.mCx);
+            free(vec.mBegin);
             return false;
         }
         vec.mEnd = newbuf + (vec.mEnd - vec.mBegin);
@@ -203,12 +204,12 @@ class JSTempVector
     size_t capacity() const { return mCapacity - mBegin; }
     bool empty() const      { return mBegin == mEnd; }
 
-    T &operator[](size_t i) {
+    T &operator[](int i) {
         JS_ASSERT(!mInProgress && i < size());
         return mBegin[i];
     }
 
-    const T &operator[](size_t i) const {
+    const T &operator[](int i) const {
         JS_ASSERT(!mInProgress && i < size());
         return mBegin[i];
     }

@@ -46,8 +46,6 @@
 
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
-#include "nsRegion.h"
-#include "nsDisplayList.h"
 
 #ifdef ACCESSIBILITY
 class nsIAccessible;
@@ -57,7 +55,6 @@ class nsPluginInstanceOwner;
 class nsIPluginHost;
 class nsIPluginInstance;
 class nsPresContext;
-class nsDisplayPlugin;
 
 #define nsObjectFrameSuper nsFrame
 
@@ -126,20 +123,6 @@ public:
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  // Compute the desired position of the plugin's widget, on the assumption
-  // that it is not visible (clipped out or covered by opaque content).
-  // This will only be called for plugins which have been registered
-  // with the root pres context for geometry updates.
-  // The widget, its new position, size and (empty) clip region are appended
-  // as a Configuration record to aConfigurations.
-  // If there is no widget associated with the plugin, this
-  // simply does nothing.
-  void GetEmptyClipConfiguration(nsTArray<nsIWidget::Configuration>* aConfigurations) {
-    ComputeWidgetGeometry(nsRegion(), nsPoint(0,0), aConfigurations);
-  }
-
-  void DidSetWidgetGeometry();
-
   // accessibility support
 #ifdef ACCESSIBILITY
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
@@ -185,8 +168,6 @@ protected:
   // check attributes and optionally CSS to see if we should display anything
   PRBool IsHidden(PRBool aCheckVisibilityStyle = PR_TRUE) const;
 
-  PRBool IsOpaque() const;
-
   void NotifyContentObjectWrapper();
 
   nsIntPoint GetWindowOriginInPixels(PRBool aWindowless);
@@ -208,27 +189,9 @@ protected:
    */
   NS_HIDDEN_(nsresult) PrepareInstanceOwner();
 
-  /**
-   * Get the widget geometry for the plugin. aRegion is in some appunits
-   * coordinate system whose origin is device-pixel-aligned (if possible),
-   * and aPluginOrigin gives the top-left of the plugin in that coordinate
-   * system. It doesn't matter what that coordinate system actually is,
-   * as long as aRegion and aPluginOrigin are consistent.
-   * This will append a Configuration object to aConfigurations
-   * containing the widget, its desired position, size and clip region.
-   */
-  void ComputeWidgetGeometry(const nsRegion& aRegion,
-                             const nsPoint& aPluginOrigin,
-                             nsTArray<nsIWidget::Configuration>* aConfigurations);
-
-  nsIWidget* GetWidget() { return mWidget; }
-
   friend class nsPluginInstanceOwner;
-  friend class nsDisplayPlugin;
-
 private:
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
-  nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
 
   // For assertions that make it easier to determine if a crash is due
@@ -237,41 +200,5 @@ private:
   PRBool mPreventInstantiation;
 };
 
-class nsDisplayPlugin : public nsDisplayItem {
-public:
-  nsDisplayPlugin(nsIFrame* aFrame)
-    : nsDisplayItem(aFrame)
-  {
-    MOZ_COUNT_CTOR(nsDisplayPlugin);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayPlugin() {
-    MOZ_COUNT_DTOR(nsDisplayPlugin);
-  }
-#endif
-
-  virtual Type GetType() { return TYPE_PLUGIN; }
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-  virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder,
-      nsRegion* aVisibleRegion);
-
-  NS_DISPLAY_DECL_NAME("Plugin")
-
-  // Compute the desired position and clip region of the plugin's widget.
-  // This will only be called for plugins which have been registered
-  // with the root pres context for geometry updates.
-  // The widget, its new position, size and clip region are appended as
-  // a Configuration record to aConfigurations.
-  // If there is no widget associated with the plugin, this
-  // simply does nothing.
-  void GetWidgetConfiguration(nsDisplayListBuilder* aBuilder,
-                              nsTArray<nsIWidget::Configuration>* aConfigurations);
-
-private:
-  nsRegion mVisibleRegion;
-};
 
 #endif /* nsObjectFrame_h___ */

@@ -949,8 +949,7 @@ void nsCaret::GetViewForRendering(nsIFrame *caretFrame,
     if (outRelativeView && coordType == eTopLevelWindowCoordinates) {
       nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
       if (presShell) {
-        nsIViewManager* vm =
-          presShell->GetPresContext()->RootPresContext()->PresShell()->GetViewManager();
+        nsIViewManager* vm = presShell->GetViewManager();
         if (vm) {
           vm->GetRootView(*outRelativeView);
         }

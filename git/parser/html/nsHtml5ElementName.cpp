@@ -62,12 +62,12 @@ nsHtml5ElementName::elementNameByBuffer(jArray<PRUnichar,PRInt32> buf, PRInt32 o
   if (index < 0) {
     return new nsHtml5ReleasableElementName(nsHtml5Portability::newLocalNameFromBuffer(buf, offset, length));
   } else {
-    nsHtml5ElementName* elementName = nsHtml5ElementName::ELEMENT_NAMES[index];
-    nsIAtom* name = elementName->name;
+    nsHtml5ElementName* rv = nsHtml5ElementName::ELEMENT_NAMES[index];
+    nsIAtom* name = rv->name;
     if (!nsHtml5Portability::localEqualsBuffer(name, buf, offset, length)) {
       return new nsHtml5ReleasableElementName(nsHtml5Portability::newLocalNameFromBuffer(buf, offset, length));
     }
-    return elementName;
+    return rv;
   }
 }
 

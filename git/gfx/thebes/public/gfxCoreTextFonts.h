@@ -98,6 +98,12 @@ public:
         return mSpaceGlyph;
     }
 
+    virtual RunMetrics Measure(gfxTextRun *aTextRun,
+                               PRUint32 aStart, PRUint32 aEnd,
+                               BoundingBoxType aBoundingBoxType,
+                               gfxContext *aContextForTightBoundingBox,
+                               Spacing *aSpacing);
+
     PRBool TestCharacterMap(PRUint32 aCh);
 
     MacOSFontEntry* GetFontEntry();
@@ -109,7 +115,7 @@ public:
     // clean up static objects that may have been cached
     static void Shutdown();
 
-    static CTFontRef CreateCTFontWithDisabledLigatures(ATSFontRef aFont, CGFloat aSize);
+    static CTFontRef CreateCopyWithDisabledLigatures(CTFontRef aFont);
 
 protected:
     const gfxFontStyle *mFontStyle;

@@ -118,28 +118,11 @@ nsCocoaWindow::nsCocoaWindow()
 , mIsResizing(PR_FALSE)
 , mWindowMadeHere(PR_FALSE)
 , mSheetNeedsShow(PR_FALSE)
-, mFullScreen(PR_FALSE)
 , mModal(PR_FALSE)
 , mNumModalDescendents(0)
 {
 
 }
-
-// Sometimes NSViews are removed from a window or moved to a new window.
-// Since our ChildViews have their own mWindow field instead of always using
-// [view window], we need to notify them when this happens.
-static void SetNativeWindowOnSubviews(NSView *aNativeView, NSWindow *aWin)
-{
-  if (!aNativeView)
-    return;
-  if ([aNativeView respondsToSelector:@selector(setNativeWindow:)])
-    [(NSView<mozView>*)aNativeView setNativeWindow:aWin];
-  NSArray *immediateSubviews = [aNativeView subviews];
-  int count = [immediateSubviews count];
-  for (int i = 0; i < count; ++i)
-    SetNativeWindowOnSubviews((NSView *)[immediateSubviews objectAtIndex:i], aWin);
-}
-
 
 // Under unusual circumstances, an nsCocoaWindow object can be destroyed
 // before the nsChildView objects it contains are destroyed.  But this will
@@ -149,7 +132,14 @@ static void SetNativeWindowOnSubviews(NSView *aNativeView, NSWindow *aWin)
 // resolve bmo bug 479749.
 static void TellNativeViewsGoodbye(NSView *aNativeView)
 {
-  SetNativeWindowOnSubviews(aNativeView, nil);
+  if (!aNativeView)
+    return;
+  if ([aNativeView respondsToSelector:@selector(setNativeWindow:)])
+    [(NSView<mozView>*)aNativeView setNativeWindow:nil];
+  NSArray *immediateSubviews = [aNativeView subviews];
+  int count = [immediateSubviews count];
+  for (int i = 0; i < count; ++i)
+    TellNativeViewsGoodbye((NSView *)[immediateSubviews objectAtIndex:i]);
 }
 
 void nsCocoaWindow::DestroyNativeWindow()
@@ -169,26 +159,18 @@ nsCocoaWindow::~nsCocoaWindow()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (mFullScreen) {
-    nsCocoaUtils::HideOSChromeOnScreen(PR_FALSE, [mWindow screen]);
-  }
-
   // Notify the children that we're gone.  Popup windows (e.g. tooltips) can
   // have nsChildView children.  'kid' is an nsChildView object if and only if
-  // its 'type' is 'eWindowType_child'.  childView->ResetParent() can change
-  // our list of children while it's being iterated, so the way we iterate the
-  // list must allow for this.
-  for (nsIWidget* kid = mLastChild; kid;) {
+  // its 'type' is 'eWindowType_child'.
+  for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
     nsWindowType kidType;
     kid->GetWindowType(kidType);
     if (kidType == eWindowType_child) {
       nsChildView* childView = static_cast<nsChildView*>(kid);
-      kid = kid->GetPrevSibling();
       childView->ResetParent();
     } else {
       nsCocoaWindow* childWindow = static_cast<nsCocoaWindow*>(kid);
       childWindow->mParent = nsnull;
-      kid = kid->GetPrevSibling();
     }
   }
 
@@ -270,8 +252,7 @@ nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
 
   // Create a window if we aren't given one, or if this should be a non-native popup.
   if ((mWindowType == eWindowType_popup) ? !UseNativePopupWindows() : !aNativeWindow) {
-    nsresult rv = CreateNativeWindow(nsCocoaUtils::GeckoRectToCocoaRect(aRect),
-                                     mBorderStyle, PR_FALSE);
+    nsresult rv = CreateNativeWindow(aRect, mBorderStyle);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (mWindowType == eWindowType_popup) {
@@ -280,8 +261,9 @@ nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
     }
   } else {
     mWindow = (NSWindow*)aNativeWindow;
-    [[WindowDataMap sharedWindowDataMap] ensureDataForWindow:mWindow];
   }
+
+  [[WindowDataMap sharedWindowDataMap] ensureDataForWindow:mWindow];
 
   return NS_OK;
 
@@ -310,13 +292,8 @@ static unsigned int WindowMaskForBorderStyle(nsBorderStyle aBorderStyle)
   return mask;
 }
 
-// If aRectIsFrameRect, aRect specifies the frame rect of the new window.
-// Otherwise, aRect.x/y specify the position of the window's frame relative to
-// the bottom of the menubar and aRect.width/height specify the size of the
-// content rect.
-nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
-                                           nsBorderStyle aBorderStyle,
-                                           PRBool aRectIsFrameRect)
+nsresult nsCocoaWindow::CreateNativeWindow(const nsIntRect &aRect,
+                                           nsBorderStyle aBorderStyle)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -351,39 +328,34 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
       return NS_ERROR_FAILURE;
   }
 
-  NSRect contentRect;
+  /* 
+   * We pass a content area rect to initialize the native Cocoa window. The
+   * content rect we give is the same size as the size we're given by gecko.
+   * The origin we're given for non-popup windows is moved down by the height
+   * of the menu bar so that an origin of (0,100) from gecko puts the window
+   * 100 pixels below the top of the available desktop area. We also move the
+   * origin down by the height of a title bar if it exists. This is so the
+   * origin that gecko gives us for the top-left of  the window turns out to
+   * be the top-left of the window we create. This is how it was done in
+   * Carbon. If it ought to be different we'll probably need to look at all
+   * the callers.
+   *
+   * Note: This means that if you put a secondary screen on top of your main
+   * screen and open a window in the top screen, it'll be incorrectly shifted
+   * down by the height of the menu bar. Same thing would happen in Carbon.
+   *
+   * Note: If you pass a rect with 0,0 for an origin, the window ends up in a
+   * weird place for some reason. This stops that without breaking popups.
+   */
+  NSRect rect = nsCocoaUtils::GeckoRectToCocoaRect(aRect);
 
-  if (aRectIsFrameRect) {
-    contentRect = [NSWindow contentRectForFrameRect:aRect styleMask:features];
-  } else {
-    /* 
-     * We pass a content area rect to initialize the native Cocoa window. The
-     * content rect we give is the same size as the size we're given by gecko.
-     * The origin we're given for non-popup windows is moved down by the height
-     * of the menu bar so that an origin of (0,100) from gecko puts the window
-     * 100 pixels below the top of the available desktop area. We also move the
-     * origin down by the height of a title bar if it exists. This is so the
-     * origin that gecko gives us for the top-left of  the window turns out to
-     * be the top-left of the window we create. This is how it was done in
-     * Carbon. If it ought to be different we'll probably need to look at all
-     * the callers.
-     *
-     * Note: This means that if you put a secondary screen on top of your main
-     * screen and open a window in the top screen, it'll be incorrectly shifted
-     * down by the height of the menu bar. Same thing would happen in Carbon.
-     *
-     * Note: If you pass a rect with 0,0 for an origin, the window ends up in a
-     * weird place for some reason. This stops that without breaking popups.
-     */
-    // Compensate for difference between frame and content area height (e.g. title bar).
-    NSRect newWindowFrame = [NSWindow frameRectForContentRect:aRect styleMask:features];
+  // compensate for difference between frame and content area height (e.g. title bar)
+  NSRect newWindowFrame = [NSWindow frameRectForContentRect:rect styleMask:features];
 
-    contentRect = aRect;
-    contentRect.origin.y -= (newWindowFrame.size.height - aRect.size.height);
+  rect.origin.y -= (newWindowFrame.size.height - rect.size.height);
 
-    if (mWindowType != eWindowType_popup)
-      contentRect.origin.y -= ::GetMBarHeight();
-  }
+  if (mWindowType != eWindowType_popup)
+    rect.origin.y -= ::GetMBarHeight();
 
   // NSLog(@"Top-level window being created at Cocoa rect: %f, %f, %f, %f\n",
   //       rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
@@ -405,15 +377,8 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
     windowClass = [BorderlessWindow class];
 
   // Create the window
-  mWindow = [[windowClass alloc] initWithContentRect:contentRect styleMask:features 
+  mWindow = [[windowClass alloc] initWithContentRect:rect styleMask:features 
                                  backing:NSBackingStoreBuffered defer:YES];
-
-  // Make sure that the content rect we gave has been honored.
-  NSRect wantedFrame = [mWindow frameRectForContentRect:contentRect];
-  if (!NSEqualRects([mWindow frame], wantedFrame)) {
-    // This can happen when the window is not on the primary screen.
-    [mWindow setFrame:wantedFrame display:NO];
-  }
 
   if (mWindowType == eWindowType_invisible) {
     [mWindow setLevel:kCGDesktopWindowLevelKey];
@@ -424,13 +389,11 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
 
   [mWindow setBackgroundColor:[NSColor whiteColor]];
   [mWindow setContentMinSize:NSMakeSize(60, 60)];
-  [mWindow disableCursorRects];
 
   // setup our notification delegate. Note that setDelegate: does NOT retain.
   mDelegate = [[WindowDelegate alloc] initWithGeckoWindow:this];
   [mWindow setDelegate:mDelegate];
 
-  [[WindowDataMap sharedWindowDataMap] ensureDataForWindow:mWindow];
   mWindowMadeHere = PR_TRUE;
 
   return NS_OK;
@@ -816,8 +779,22 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
       // the NSApplication class (in header files generated using class-dump).
       // This workaround was "borrowed" from the Java Embedding Plugin (which
       // uses it for a different purpose).
-      if (mWindowType == eWindowType_popup)
+      if (mWindowType == eWindowType_popup) {
         [NSApp _removeWindowFromCache:mWindow];
+        // Apple's focus ring APIs sometimes clip themselves when they draw under
+        // other windows. Redraw the window that was likely under the popup to
+        // get focus rings to draw correctly. Sometimes the window is not properly
+        // the parent of the popup, so we can't just tell the parent to redraw.
+        // We only have this problem on 10.4. See bug 417124.
+        if (!nsToolkit::OnLeopardOrLater()) {
+          NSWindow* keyWindow = [NSApp keyWindow];
+          if (keyWindow)
+            [keyWindow display];
+          NSWindow* mainWindow = [NSApp mainWindow];
+          if (mainWindow && mainWindow != keyWindow)
+            [mainWindow display];          
+        }
+      }
 
       // it's very important to turn off mouse moved events when hiding a window, otherwise
       // the windows' tracking rects will interfere with each other. (bug 356528)
@@ -840,24 +817,6 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-nsresult
-nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
-{
-  if (mPopupContentView) {
-    mPopupContentView->ConfigureChildren(aConfigurations);
-  }
-  return NS_OK;
-}
-
-void
-nsCocoaWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
-                      const nsTArray<Configuration>& aConfigurations)
-{
-  if (mPopupContentView) {
-    mPopupContentView->Scroll(aDelta, aSource, aConfigurations);
-  }
 }
 
 void nsCocoaWindow::MakeBackgroundTransparent(PRBool aTransparent)
@@ -987,82 +946,6 @@ NS_METHOD nsCocoaWindow::SetSizeMode(PRInt32 aMode)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
-
-// This has to preserve the window's frame bounds.
-// This method requires (as does the Windows impl.) that you call Resize shortly
-// after calling HideWindowChrome. See bug 498835 for fixing this.
-NS_IMETHODIMP nsCocoaWindow::HideWindowChrome(PRBool aShouldHide)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  if (!mWindowMadeHere ||
-      (mWindowType != eWindowType_toplevel && mWindowType != eWindowType_dialog))
-    return NS_ERROR_FAILURE;
-
-  BOOL isVisible = [mWindow isVisible];
-
-  // Remove child windows.
-  NSArray* childWindows = [mWindow childWindows];
-  NSEnumerator* enumerator = [childWindows objectEnumerator];
-  NSWindow* child = nil;
-  while ((child = [enumerator nextObject])) {
-    [mWindow removeChildWindow:child];
-  }
-
-  // Remove the content view.
-  NSView* contentView = [mWindow contentView];
-  [contentView retain];
-  [contentView removeFromSuperviewWithoutNeedingDisplay];
-
-  // Recreate the window with the right border style.
-  NSRect frameRect = [mWindow frame];
-  DestroyNativeWindow();
-  nsresult rv = CreateNativeWindow(frameRect, aShouldHide ? eBorderStyle_none : mBorderStyle, PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Reparent the content view.
-  [mWindow setContentView:contentView];
-  [contentView release];
-  SetNativeWindowOnSubviews(contentView, mWindow);
-
-  // Reparent child windows.
-  enumerator = [childWindows objectEnumerator];
-  while ((child = [enumerator nextObject])) {
-    [mWindow addChildWindow:child ordered:NSWindowAbove];
-  }
-
-  // Show the new window.
-  if (isVisible) {
-    rv = Show(PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-
-NS_METHOD nsCocoaWindow::MakeFullScreen(PRBool aFullScreen)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  NS_ASSERTION(mFullScreen != aFullScreen, "Unnecessary MakeFullScreen call");
-
-  NSDisableScreenUpdates();
-  nsresult rv = nsBaseWidget::MakeFullScreen(aFullScreen);
-  NSEnableScreenUpdates();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCocoaUtils::HideOSChromeOnScreen(aFullScreen, [mWindow screen]);
-
-  mFullScreen = aFullScreen;
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
 
 NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
 {

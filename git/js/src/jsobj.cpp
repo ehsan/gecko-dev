@@ -90,8 +90,6 @@
 #include "jsdtracef.h"
 #endif
 
-#include "jsatominlines.h"
-
 #include "jsautooplen.h"
 
 #ifdef JS_THREADSAFE
@@ -121,7 +119,7 @@ JSClass js_ObjectClass = {
     js_Object_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -299,14 +297,14 @@ js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj,
         /*
          * Regenerate property cache shape ids for all of the scopes along the
          * old prototype chain to invalidate their property cache entries, in
-         * case any entries were filled by looking up through obj.
+         * case any entries were filled by looking up starting from obj.
          */
         JSObject *oldproto = obj;
         while (oldproto && OBJ_IS_NATIVE(oldproto)) {
             JS_LOCK_OBJ(cx, oldproto);
             JSScope *scope = OBJ_SCOPE(oldproto);
-            scope->protoShapeChange(cx);
-            JSObject *tmp = STOBJ_GET_PROTO(oldproto);
+            js_MakeScopeShapeUnique(cx, scope);
+            JSObject *tmp = STOBJ_GET_PROTO(scope->object);
             JS_UNLOCK_OBJ(cx, oldproto);
             oldproto = tmp;
         }
@@ -560,7 +558,7 @@ out:
             ida = JS_Enumerate(cx, obj);
             if (!ida) {
                 if (*sp) {
-                    cx->free(*sp);
+                    JS_free(cx, *sp);
                     *sp = NULL;
                 }
                 goto bad;
@@ -704,7 +702,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
 
     if (!chars) {
         /* If outermost, allocate 4 + 1 for "({})" and the terminator. */
-        chars = (jschar *) js_malloc(((outermost ? 4 : 2) + 1) * sizeof(jschar));
+        chars = (jschar *) malloc(((outermost ? 4 : 2) + 1) * sizeof(jschar));
         nchars = 0;
         if (!chars)
             goto error;
@@ -715,9 +713,9 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
         MAKE_SHARP(he);
         nchars = js_strlen(chars);
         chars = (jschar *)
-            js_realloc((ochars = chars), (nchars + 2 + 1) * sizeof(jschar));
+            realloc((ochars = chars), (nchars + 2 + 1) * sizeof(jschar));
         if (!chars) {
-            js_free(ochars);
+            free(ochars);
             goto error;
         }
         if (outermost) {
@@ -958,11 +956,11 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
 
             /* Allocate 1 + 1 at end for closing brace and terminating 0. */
             chars = (jschar *)
-                js_realloc((ochars = chars), curlen * sizeof(jschar));
+                realloc((ochars = chars), curlen * sizeof(jschar));
             if (!chars) {
                 /* Save code space on error: let JS_free ignore null vsharp. */
-                cx->free(vsharp);
-                js_free(ochars);
+                JS_free(cx, vsharp);
+                free(ochars);
                 goto error;
             }
 
@@ -1005,7 +1003,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
             nchars += vlength;
 
             if (vsharp)
-                cx->free(vsharp);
+                JS_free(cx, vsharp);
         }
     }
 
@@ -1019,7 +1017,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
 
     if (!ok) {
         if (chars)
-            js_free(chars);
+            free(chars);
         goto out;
     }
 
@@ -1031,7 +1029,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
   make_string:
     str = js_NewString(cx, chars, nchars);
     if (!str) {
-        js_free(chars);
+        free(chars);
         ok = JS_FALSE;
         goto out;
     }
@@ -1042,8 +1040,8 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
     return ok;
 
   overflow:
-    cx->free(vsharp);
-    js_free(chars);
+    JS_free(cx, vsharp);
+    free(chars);
     chars = NULL;
     goto error;
 }
@@ -1064,7 +1062,7 @@ obj_toString(JSContext *cx, uintN argc, jsval *vp)
     obj = js_GetWrappedObject(cx, obj);
     clazz = OBJ_GET_CLASS(cx, obj)->name;
     nchars = 9 + strlen(clazz);         /* 9 for "[object ]" */
-    chars = (jschar *) cx->malloc((nchars + 1) * sizeof(jschar));
+    chars = (jschar *) JS_malloc(cx, (nchars + 1) * sizeof(jschar));
     if (!chars)
         return JS_FALSE;
 
@@ -1079,7 +1077,7 @@ obj_toString(JSContext *cx, uintN argc, jsval *vp)
 
     str = js_NewString(cx, chars, nchars);
     if (!str) {
-        cx->free(chars);
+        JS_free(cx, chars);
         return JS_FALSE;
     }
     *vp = STRING_TO_JSVAL(str);
@@ -2011,164 +2009,6 @@ static JSFunctionSpec object_static_methods[] = {
     JS_FS_END
 };
 
-static bool
-AllocSlots(JSContext *cx, JSObject *obj, size_t nslots);
-
-static inline bool
-InitScopeForObject(JSContext* cx, JSObject* obj, JSObject* proto, JSObjectOps* ops)
-{
-    JS_ASSERT(OPS_IS_NATIVE(ops));
-    JS_ASSERT(proto == OBJ_GET_PROTO(cx, obj));
-
-    /* Share proto's emptyScope only if obj is similar to proto. */
-    JSClass *clasp = OBJ_GET_CLASS(cx, obj);
-    JSScope *scope;
-    if (proto && js_ObjectIsSimilarToProto(cx, obj, ops, clasp, proto)) {
-        scope = OBJ_SCOPE(proto)->getEmptyScope(cx, clasp);
-        if (!scope)
-            goto bad;
-    } else {
-        scope = JSScope::create(cx, ops, clasp, obj);
-        if (!scope)
-            goto bad;
-
-        /* Let JSScope::create set freeslot so as to reserve slots. */
-        JS_ASSERT(scope->freeslot >= JSSLOT_PRIVATE);
-        if (scope->freeslot > JS_INITIAL_NSLOTS &&
-            !AllocSlots(cx, obj, scope->freeslot)) {
-            JSScope::destroy(cx, scope);
-            goto bad;
-        }
-    }
-    obj->map = &scope->map;
-    return true;
-
-  bad:
-    /* Ensure that the map field is initialized for GC. */
-    obj->map = NULL;
-    return false;
-}
-
-JSObject *
-js_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
-                           JSObject *parent, size_t objectSize)
-{
-#ifdef INCLUDE_MOZILLA_DTRACE
-    if (JAVASCRIPT_OBJECT_CREATE_START_ENABLED())
-        jsdtrace_object_create_start(cx->fp, clasp);
-#endif
-
-    /* Assert that the class is a proper class. */
-    JS_ASSERT_IF(clasp->flags & JSCLASS_IS_EXTENDED,
-                 ((JSExtendedClass *)clasp)->equality);
-
-    /* Always call the class's getObjectOps hook if it has one. */
-    JSObjectOps *ops = clasp->getObjectOps
-                       ? clasp->getObjectOps(cx, clasp)
-                       : &js_ObjectOps;
-
-    /*
-     * Allocate an object from the GC heap and initialize all its fields before
-     * doing any operation that can potentially trigger GC. Functions have a
-     * larger non-standard allocation size.
-     */
-    JSObject* obj;
-    if (clasp == &js_FunctionClass && !objectSize) {
-        obj = (JSObject*) js_NewGCFunction(cx, GCX_OBJECT);
-#ifdef DEBUG
-        memset((uint8 *) obj + sizeof(JSObject), JS_FREE_PATTERN,
-               sizeof(JSFunction) - sizeof(JSObject));
-#endif
-    } else {
-        JS_ASSERT(!objectSize || objectSize == sizeof(JSObject));
-        obj = js_NewGCObject(cx, GCX_OBJECT);
-    }
-    if (!obj)
-        goto out;
-
-    /*
-     * Set the class slot with the initial value of the system and delegate
-     * flags set to false.
-     */
-    JS_ASSERT(((jsuword) clasp & 3) == 0);
-    obj->classword = jsuword(clasp);
-    JS_ASSERT(!STOBJ_IS_DELEGATE(obj));
-    JS_ASSERT(!STOBJ_IS_SYSTEM(obj));
-
-    obj->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
-
-    /*
-     * Default parent to the parent of the prototype, which was set from
-     * the parent of the prototype's constructor.
-     */
-    obj->fslots[JSSLOT_PARENT] = OBJECT_TO_JSVAL((!parent && proto)
-                                                 ? OBJ_GET_PARENT(cx, proto)
-                                                 : parent);
-
-    /* Initialize the remaining fixed slots. */
-    for (uint32 i = JSSLOT_PRIVATE; i < JS_INITIAL_NSLOTS; ++i)
-        obj->fslots[i] = JSVAL_VOID;
-
-    obj->dslots = NULL;
-
-    if (OPS_IS_NATIVE(ops)) {
-        if (!InitScopeForObject(cx, obj, proto, ops)) {
-            obj = NULL;
-            goto out;
-        }
-    } else {
-        JS_ASSERT(ops->objectMap->ops == ops);
-        obj->map = const_cast<JSObjectMap *>(ops->objectMap);
-    }
-
-    /* Check that the newborn root still holds the object. */
-    JS_ASSERT_IF(!cx->localRootStack, cx->weakRoots.newborn[GCX_OBJECT] == obj);
-
-    /*
-     * Do not call debug hooks on trace, because we might be in a non-_FAIL
-     * builtin. See bug 481444.
-     */
-    if (cx->debugHooks->objectHook && !JS_ON_TRACE(cx)) {
-        JSAutoTempValueRooter tvr(cx, obj);
-        JS_KEEP_ATOMS(cx->runtime);
-        cx->debugHooks->objectHook(cx, obj, JS_TRUE,
-                                   cx->debugHooks->objectHookData);
-        JS_UNKEEP_ATOMS(cx->runtime);
-        cx->weakRoots.newborn[GCX_OBJECT] = obj;
-    }
-
-out:
-#ifdef INCLUDE_MOZILLA_DTRACE
-    if (JAVASCRIPT_OBJECT_CREATE_ENABLED())
-        jsdtrace_object_create(cx, clasp, obj);
-    if (JAVASCRIPT_OBJECT_CREATE_DONE_ENABLED())
-        jsdtrace_object_create_done(cx->fp, clasp);
-#endif
-    return obj;
-}
-
-JSObject *
-js_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto,
-             JSObject *parent, size_t objectSize)
-{
-    jsid id;
-
-    /* Bootstrap the ur-object, and make it the default prototype object. */
-    if (!proto) {
-        if (!js_GetClassId(cx, clasp, &id))
-            return NULL;
-        if (!js_GetClassPrototype(cx, parent, id, &proto))
-            return NULL;
-        if (!proto &&
-            !js_GetClassPrototype(cx, parent, INT_TO_JSID(JSProto_Object),
-                                  &proto)) {
-            return NULL;
-        }
-    }
-
-    return js_NewObjectWithGivenProto(cx, clasp, proto, parent, objectSize);
-}
-
 JSBool
 js_Object(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
@@ -2184,12 +2024,63 @@ js_Object(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         JS_ASSERT(!argc || JSVAL_IS_NULL(argv[0]) || JSVAL_IS_VOID(argv[0]));
         if (JS_IsConstructing(cx))
             return JS_TRUE;
-        obj = js_NewObject(cx, &js_ObjectClass, NULL, NULL);
+        obj = js_NewObject(cx, &js_ObjectClass, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
     }
     *rval = OBJECT_TO_JSVAL(obj);
     return JS_TRUE;
+}
+
+static inline bool
+InitScopeForObject(JSContext* cx, JSObject* obj, JSObject* proto,
+                   JSObjectOps* ops)
+{
+    JS_ASSERT(OPS_IS_NATIVE(ops));
+    JS_ASSERT(proto == OBJ_GET_PROTO(cx, obj));
+
+    JSClass* protoclasp;
+    JSClass* clasp = OBJ_GET_CLASS(cx, obj);
+
+    /*
+     * Share proto's map only if it has the same JSObjectOps, and only if
+     * proto's class has the same private and reserved slots as obj's map
+     * and class have.  We assume that if prototype and object are of the
+     * same class, they always have the same number of computed reserved
+     * slots (returned via clasp->reserveSlots); otherwise, prototype and
+     * object classes must have the same (null or not) reserveSlots hook.
+     */
+    if (proto &&
+        proto->map->ops == ops &&
+        ((protoclasp = OBJ_GET_CLASS(cx, proto)) == clasp ||
+         (!((protoclasp->flags ^ clasp->flags) &
+            (JSCLASS_HAS_PRIVATE |
+             (JSCLASS_RESERVED_SLOTS_MASK << JSCLASS_RESERVED_SLOTS_SHIFT))) &&
+          protoclasp->reserveSlots == clasp->reserveSlots)))
+    {
+        js_HoldScope(OBJ_SCOPE(proto));
+        obj->map = proto->map;
+        return true;
+    }
+
+    JSScope *scope = js_NewScope(cx, ops, clasp, obj);
+    if (!scope)
+        goto bad;
+
+    /* Let js_NewScope set freeslot so as to reserve slots. */
+    JS_ASSERT(scope->freeslot >= JSSLOT_PRIVATE);
+    if (scope->freeslot > JS_INITIAL_NSLOTS &&
+        !js_ReallocSlots(cx, obj, scope->freeslot, JS_TRUE)) {
+        js_DestroyScope(cx, scope);
+        goto bad;
+    }
+    obj->map = &scope->map;
+    return true;
+
+  bad:
+    /* Ensure that the map field is initialized for GC. */
+    obj->map = NULL;
+    return false;
 }
 
 #ifdef JS_TRACER
@@ -2198,7 +2089,7 @@ static inline JSObject*
 NewNativeObject(JSContext* cx, JSClass* clasp, JSObject* proto, JSObject *parent)
 {
     JS_ASSERT(JS_ON_TRACE(cx));
-    JSObject* obj = js_NewGCObject(cx, GCX_OBJECT);
+    JSObject* obj = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
     if (!obj)
         return NULL;
 
@@ -2233,13 +2124,13 @@ js_NewInstance(JSContext *cx, JSClass *clasp, JSObject *ctor)
     if (scope->title.ownercx != cx)
         return NULL;
 #endif
-    if (!scope->owned()) {
+    if (scope->object != ctor) {
         scope = js_GetMutableScope(cx, ctor);
         if (!scope)
             return NULL;
     }
 
-    JSScopeProperty *sprop = scope->lookup(ATOM_TO_JSID(atom));
+    JSScopeProperty *sprop = SCOPE_GET_PROPERTY(scope, ATOM_TO_JSID(atom));
     jsval pval = sprop ? STOBJ_GET_SLOT(ctor, sprop->slot) : JSVAL_HOLE;
 
     JSObject *proto;
@@ -2248,7 +2139,7 @@ js_NewInstance(JSContext *cx, JSClass *clasp, JSObject *ctor)
         proto = JSVAL_TO_OBJECT(pval);
     } else if (pval == JSVAL_HOLE) {
         /* No ctor.prototype yet, inline and optimize fun_resolve's prototype code. */
-        proto = js_NewObject(cx, clasp, NULL, OBJ_GET_PARENT(cx, ctor));
+        proto = js_NewObject(cx, clasp, NULL, OBJ_GET_PARENT(cx, ctor), 0);
         if (!proto)
             return NULL;
         if (!js_SetClassPrototype(cx, ctor, proto, JSPROP_ENUMERATE | JSPROP_PERMANENT))
@@ -2505,7 +2396,7 @@ JSClass js_WithClass = {
     "With",
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_IS_ANONYMOUS,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     with_getObjectOps,
     0,0,0,0,0,0,0
 };
@@ -2515,7 +2406,7 @@ js_NewWithObject(JSContext *cx, JSObject *proto, JSObject *parent, jsint depth)
 {
     JSObject *obj;
 
-    obj = js_NewObject(cx, &js_WithClass, proto, parent);
+    obj = js_NewObject(cx, &js_WithClass, proto, parent, 0);
     if (!obj)
         return NULL;
     STOBJ_SET_SLOT(obj, JSSLOT_PRIVATE, PRIVATE_TO_JSVAL(cx->fp));
@@ -2530,35 +2421,28 @@ js_NewBlockObject(JSContext *cx)
      * Null obj's proto slot so that Object.prototype.* does not pollute block
      * scopes and to give the block object its own scope.
      */
-    JSObject *blockObj = js_NewObjectWithGivenProto(cx, &js_BlockClass, NULL, NULL);
+    JSObject *blockObj = js_NewObjectWithGivenProto(cx, &js_BlockClass,
+                                                    NULL, NULL, 0);
     JS_ASSERT_IF(blockObj, !OBJ_IS_CLONED_BLOCK(blockObj));
     return blockObj;
 }
 
 JSObject *
-js_CloneBlockObject(JSContext *cx, JSObject *proto, JSStackFrame *fp)
+js_CloneBlockObject(JSContext *cx, JSObject *proto, JSObject *parent,
+                    JSStackFrame *fp)
 {
-    JS_ASSERT(!OBJ_IS_CLONED_BLOCK(proto));
-    JS_ASSERT(STOBJ_GET_CLASS(proto) == &js_BlockClass);
+    JSObject *clone;
 
-    JSObject *clone = js_NewGCObject(cx, GCX_OBJECT);
+    JS_ASSERT(STOBJ_GET_CLASS(proto) == &js_BlockClass);
+    JS_ASSERT(!OBJ_IS_CLONED_BLOCK(proto));
+    clone = js_NewObject(cx, &js_BlockClass, proto, parent, 0);
     if (!clone)
         return NULL;
-
-    JSScope *scope = OBJ_SCOPE(proto);
-    scope->hold();
-    clone->map = &scope->map;
-
-    clone->classword = jsuword(&js_BlockClass);
-    clone->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
-    clone->fslots[JSSLOT_PARENT] = JSVAL_NULL;  // caller's responsibility
-    clone->fslots[JSSLOT_PRIVATE] = PRIVATE_TO_JSVAL(fp);
-    clone->fslots[JSSLOT_BLOCK_DEPTH] = proto->fslots[JSSLOT_BLOCK_DEPTH];
-    JS_ASSERT(scope->freeslot == JSSLOT_BLOCK_DEPTH + 1);
-    for (uint32 i = JSSLOT_BLOCK_DEPTH + 1; i < JS_INITIAL_NSLOTS; ++i)
-        clone->fslots[i] = JSVAL_VOID;
-    clone->dslots = NULL;
+    STOBJ_SET_SLOT(clone, JSSLOT_PRIVATE, PRIVATE_TO_JSVAL(fp));
+    STOBJ_SET_SLOT(clone, JSSLOT_BLOCK_DEPTH,
+                   OBJ_GET_SLOT(cx, proto, JSSLOT_BLOCK_DEPTH));
     JS_ASSERT(OBJ_IS_CLONED_BLOCK(clone));
+    JS_ASSERT(OBJ_SCOPE(clone)->object == proto);
     return clone;
 }
 
@@ -2603,7 +2487,7 @@ js_PutBlockObject(JSContext *cx, JSBool normalUnwind)
     if (normalUnwind && count > 1) {
         --count;
         JS_LOCK_OBJ(cx, obj);
-        if (!AllocSlots(cx, obj, JS_INITIAL_NSLOTS + count))
+        if (!js_ReallocSlots(cx, obj, JS_INITIAL_NSLOTS + count, JS_TRUE))
             normalUnwind = JS_FALSE;
         else
             memcpy(obj->dslots, fp->slots + depth + 1, count * sizeof(jsval));
@@ -2788,8 +2672,7 @@ js_XDRBlockObject(JSXDRState *xdr, JSObject **objp)
         if (xdr->mode == JSXDR_DECODE) {
             if (!js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(atom),
                                          JSVAL_VOID, NULL, NULL,
-                                         JSPROP_ENUMERATE | JSPROP_PERMANENT |
-                                         JSPROP_SHARED,
+                                         JSPROP_ENUMERATE | JSPROP_PERMANENT,
                                          SPROP_HAS_SHORTID, shortid, NULL)) {
                 ok = JS_FALSE;
                 break;
@@ -2813,7 +2696,7 @@ JSClass js_BlockClass = {
     "Block",
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_IS_ANONYMOUS,
     JS_PropertyStub,  JS_PropertyStub,  block_getProperty, block_setProperty,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,    NULL,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,    JS_FinalizeStub,
     NULL, NULL, NULL, NULL, NULL, NULL, NULL, block_reserveSlots
 };
 
@@ -2877,7 +2760,7 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
     }
 
     /* Create a prototype object for this class. */
-    proto = js_NewObject(cx, clasp, parent_proto, obj);
+    proto = js_NewObject(cx, clasp, parent_proto, obj, 0);
     if (!proto)
         return NULL;
 
@@ -2972,133 +2855,141 @@ bad:
     goto out;
 }
 
+static void
+FreeSlots(JSContext *cx, JSObject *obj)
+{
+    if (obj->dslots) {
+        JS_ASSERT((uint32)obj->dslots[-1] > JS_INITIAL_NSLOTS);
+        JS_free(cx, obj->dslots - 1);
+        obj->dslots = NULL;
+    }
+}
+
 #define SLOTS_TO_DYNAMIC_WORDS(nslots)                                        \
   (JS_ASSERT((nslots) > JS_INITIAL_NSLOTS), (nslots) + 1 - JS_INITIAL_NSLOTS)
 
 #define DYNAMIC_WORDS_TO_SLOTS(words)                                         \
   (JS_ASSERT((words) > 1), (words) - 1 + JS_INITIAL_NSLOTS)
 
-
-static bool
-AllocSlots(JSContext *cx, JSObject *obj, size_t nslots)
+JSBool
+js_ReallocSlots(JSContext *cx, JSObject *obj, uint32 nslots,
+                JSBool exactAllocation)
 {
-    JS_ASSERT(!obj->dslots);
-    JS_ASSERT(nslots > JS_INITIAL_NSLOTS);
+    jsval *old, *slots;
+    uint32 oslots, nwords, owords, log, i;
 
-    jsval* slots;
-    slots = (jsval*) cx->malloc(SLOTS_TO_DYNAMIC_WORDS(nslots) * sizeof(jsval));
-    if (!slots)
-        return true;
-
-    *slots++ = nslots;
-    /* clear the newly allocated cells. */
-    for (jsuint n = JS_INITIAL_NSLOTS; n < nslots; ++n)
-        slots[n - JS_INITIAL_NSLOTS] = JSVAL_VOID;
-    obj->dslots = slots;
-
-    return true;
-}
-
-bool
-js_GrowSlots(JSContext *cx, JSObject *obj, size_t nslots)
-{
     /*
      * Minimal number of dynamic slots to allocate.
      */
-    const size_t MIN_DYNAMIC_WORDS = 4;
+#define MIN_DYNAMIC_WORDS 4
 
     /*
      * The limit to switch to linear allocation strategy from the power of 2
      * growth no to waste too much memory.
      */
-    const size_t LINEAR_GROWTH_STEP = JS_BIT(16);
+#define LINEAR_GROWTH_STEP JS_BIT(16)
 
-    /* If we are allocating fslots, there is nothing to do. */
-    if (nslots <= JS_INITIAL_NSLOTS)
+    old = obj->dslots;
+    if (nslots <= JS_INITIAL_NSLOTS) {
+        if (old &&
+            (exactAllocation ||
+             SLOTS_TO_DYNAMIC_WORDS((uint32)old[-1]) != MIN_DYNAMIC_WORDS ||
+             nslots <= (JS_INITIAL_NSLOTS +
+                        JSSLOT_FREE(STOBJ_GET_CLASS(obj))) / 2)) {
+            /*
+             * We do not want to free dynamic slots when allocation is a hint,
+             * we reached minimal allocation and almost all fixed slots are
+             * used. It avoids allocating dynamic slots again when properties
+             * are added to the object.
+             *
+             * If there were no private or reserved slots, the condition to
+             * free the slots would be
+             *
+             *   nslots <= JS_INITIAL_NSLOTS / 2
+             *
+             * but to account for never removed slots before JSSLOT_FREE(class)
+             * we need to subtract it from the slot counts which gives
+             *
+             *   nslots - JSSLOT_FREE <= (JS_INITIAL_NSLOTS - JSSLOT_FREE) / 2
+             *
+             * or
+             *
+             *   nslots <= (JS_INITIAL_NSLOTS + JSSLOT_FREE) / 2
+             */
+            FreeSlots(cx, obj);
+        }
         return JS_TRUE;
-
-    size_t nwords = SLOTS_TO_DYNAMIC_WORDS(nslots);
-
-    /*
-     * Round up nslots so the number of bytes in dslots array is power
-     * of 2 to ensure exponential grouth.
-     */
-    uintN log;
-    if (nwords <= MIN_DYNAMIC_WORDS) {
-        nwords = MIN_DYNAMIC_WORDS;
-    } else if (nwords < LINEAR_GROWTH_STEP) {
-        JS_CEILING_LOG2(log, nwords);
-        nwords = JS_BIT(log);
-    } else {
-        nwords = JS_ROUNDUP(nwords, LINEAR_GROWTH_STEP);
     }
+
+    oslots = (old) ? (uint32)*--old : JS_INITIAL_NSLOTS;
+    nwords = SLOTS_TO_DYNAMIC_WORDS(nslots);
+
+    if (nslots > oslots) {
+        if (!exactAllocation) {
+            /*
+             * Round up nslots so the number of bytes in dslots array is power
+             * of 2 to ensure exponential grouth.
+             */
+            if (nwords <= MIN_DYNAMIC_WORDS) {
+                nwords = MIN_DYNAMIC_WORDS;
+            } else if (nwords < LINEAR_GROWTH_STEP) {
+                JS_CEILING_LOG2(log, nwords);
+                nwords = JS_BIT(log);
+            } else {
+                nwords = JS_ROUNDUP(nwords, LINEAR_GROWTH_STEP);
+            }
+        }
+        slots = (jsval *)JS_realloc(cx, old, nwords * sizeof(jsval));
+        if (!slots)
+            return JS_FALSE;
+    } else {
+        JS_ASSERT(nslots < oslots);
+        if (!exactAllocation) {
+            owords = DYNAMIC_WORDS_TO_SLOTS(oslots);
+            if (owords <= MIN_DYNAMIC_WORDS)
+                return JS_TRUE;
+            if (owords < LINEAR_GROWTH_STEP * 2) {
+                /*
+                 * Shrink only if 1/4 of slots are left and we need to grow
+                 * the array at least twice to reach the current capacity. It
+                 * prevents frequent capacity growth/shrinking when slots are
+                 * often removed and added.
+                 */
+                if (nwords > owords / 4)
+                    return JS_TRUE;
+                JS_CEILING_LOG2(log, nwords);
+                nwords = JS_BIT(log);
+                if (nwords < MIN_DYNAMIC_WORDS)
+                    nwords = MIN_DYNAMIC_WORDS;
+            } else {
+                /*
+                 * Shrink only if we free at least 2 linear allocation
+                 * segments, to prevent growth/shrinking resonance.
+                 */
+                if (nwords > owords - LINEAR_GROWTH_STEP * 2)
+                    return JS_TRUE;
+                nwords = JS_ROUNDUP(nwords, LINEAR_GROWTH_STEP);
+            }
+        }
+
+        /* We avoid JS_realloc not to report a failed shrink attempt. */
+        slots = (jsval *)realloc(old, nwords * sizeof(jsval));
+        if (!slots)
+            slots = old;
+    }
+
     nslots = DYNAMIC_WORDS_TO_SLOTS(nwords);
-
-    /*
-     * If nothing was allocated yet, treat it as initial allocation (but with
-     * the exponential growth algorithm applied).
-     */
-    jsval* slots = obj->dslots;
-    if (!slots)
-        return AllocSlots(cx, obj, nslots);
-
-    size_t oslots = size_t(slots[-1]);
-
-    slots = (jsval*) cx->realloc(slots - 1, nwords * sizeof(jsval));
-    *slots++ = nslots;
+    *slots++ = (jsval)nslots;
     obj->dslots = slots;
 
-    /* Initialize the additional slots we added. */
-    JS_ASSERT(nslots > oslots);
-    for (size_t i = oslots; i < nslots; i++)
+    /* If we're extending an allocation, initialize free slots. */
+    for (i = oslots; i < nslots; i++)
         slots[i - JS_INITIAL_NSLOTS] = JSVAL_VOID;
 
-    return true;
-}
+    return JS_TRUE;
 
-void
-js_ShrinkSlots(JSContext *cx, JSObject *obj, size_t nslots)
-{
-    jsval* slots = obj->dslots;
-
-    /* Nothing to shrink? */
-    if (!slots)
-        return;
-
-    JS_ASSERT(size_t(slots[-1]) > JS_INITIAL_NSLOTS);
-    JS_ASSERT(nslots <= size_t(slots[-1]));
-
-    if (nslots <= JS_INITIAL_NSLOTS) {
-        cx->free(slots - 1);
-        obj->dslots = NULL;
-    } else {
-        size_t nwords = SLOTS_TO_DYNAMIC_WORDS(nslots);
-        slots = (jsval*) cx->realloc(slots - 1, nwords * sizeof(jsval));
-        *slots++ = nslots;
-        obj->dslots = slots;
-    }
-}
-
-bool
-js_EnsureReservedSlots(JSContext *cx, JSObject *obj, size_t nreserved)
-{
-    JS_ASSERT(OBJ_IS_NATIVE(obj));
-    JS_ASSERT(!obj->dslots);
-
-    uintN nslots = JSSLOT_FREE(STOBJ_GET_CLASS(obj)) + nreserved;
-    if (nslots > STOBJ_NSLOTS(obj) && !AllocSlots(cx, obj, nslots))
-        return false;
-
-    JSScope *scope = OBJ_SCOPE(obj);
-    if (scope->owned()) {
-#ifdef JS_THREADSAFE
-        JS_ASSERT(scope->title.ownercx->thread == cx->thread);
-#endif
-        JS_ASSERT(scope->freeslot == JSSLOT_FREE(STOBJ_GET_CLASS(obj)));
-        if (scope->freeslot < nslots)
-            scope->freeslot = nslots;
-    }
-    return true;
+#undef LINEAR_GROWTH_STEP
+#undef MIN_DYNAMIC_WORDS
 }
 
 extern JSBool
@@ -3121,6 +3012,131 @@ js_GetClassId(JSContext *cx, JSClass *clasp, jsid *idp)
     return JS_TRUE;
 }
 
+JSObject *
+js_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent,
+             uintN objectSize)
+{
+    jsid id;
+
+    /* Bootstrap the ur-object, and make it the default prototype object. */
+    if (!proto) {
+        if (!js_GetClassId(cx, clasp, &id))
+            return NULL;
+        if (!js_GetClassPrototype(cx, parent, id, &proto))
+            return NULL;
+        if (!proto &&
+            !js_GetClassPrototype(cx, parent, INT_TO_JSID(JSProto_Object),
+                                  &proto)) {
+            return NULL;
+        }
+    }
+
+    return js_NewObjectWithGivenProto(cx, clasp, proto, parent, objectSize);
+}
+
+JSObject *
+js_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
+                           JSObject *parent, uintN objectSize)
+{
+#ifdef INCLUDE_MOZILLA_DTRACE
+    if (JAVASCRIPT_OBJECT_CREATE_START_ENABLED())
+        jsdtrace_object_create_start(cx->fp, clasp);
+#endif
+
+    /* Currently only functions can have non-standard allocation size. */
+    if (clasp == &js_FunctionClass) {
+        if (objectSize == 0)
+            objectSize = sizeof(JSFunction);
+        else
+            JS_ASSERT(objectSize == sizeof(JSObject));
+    } else {
+        JS_ASSERT(objectSize == 0);
+        objectSize = sizeof(JSObject);
+    }
+
+    /* Assert that the class is a proper class. */
+    JS_ASSERT_IF(clasp->flags & JSCLASS_IS_EXTENDED,
+                 ((JSExtendedClass *)clasp)->equality);
+
+    /* Always call the class's getObjectOps hook if it has one. */
+    JSObjectOps *ops = clasp->getObjectOps
+                       ? clasp->getObjectOps(cx, clasp)
+                       : &js_ObjectOps;
+
+    /*
+     * Allocate an object from the GC heap and initialize all its fields before
+     * doing any operation that can potentially trigger GC.
+     */
+    JSObject *obj = (JSObject *) js_NewGCThing(cx, GCX_OBJECT, objectSize);
+    if (!obj)
+        goto out;
+
+    /*
+     * Set the class slot with the initial value of the system and delegate
+     * flags set to false.
+     */
+    JS_ASSERT(((jsuword) clasp & 3) == 0);
+    obj->classword = jsuword(clasp);
+    JS_ASSERT(!STOBJ_IS_DELEGATE(obj));
+    JS_ASSERT(!STOBJ_IS_SYSTEM(obj));
+
+    obj->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
+
+    /*
+     * Default parent to the parent of the prototype, which was set from
+     * the parent of the prototype's constructor.
+     */
+    obj->fslots[JSSLOT_PARENT] = OBJECT_TO_JSVAL((!parent && proto)
+                                                 ? OBJ_GET_PARENT(cx, proto)
+                                                 : parent);
+
+    /* Initialize the remaining fixed slots. */
+    for (uint32 i = JSSLOT_PRIVATE; i < JS_INITIAL_NSLOTS; ++i)
+        obj->fslots[i] = JSVAL_VOID;
+
+    obj->dslots = NULL;
+
+    if (OPS_IS_NATIVE(ops)) {
+        if (!InitScopeForObject(cx, obj, proto, ops)) {
+            obj = NULL;
+            goto out;
+        }
+    } else {
+        JS_ASSERT(ops->objectMap->ops == ops);
+        obj->map = const_cast<JSObjectMap *>(ops->objectMap);
+    }
+
+#ifdef DEBUG
+    memset((uint8 *) obj + sizeof(JSObject), JS_FREE_PATTERN,
+           objectSize - sizeof(JSObject));
+#endif
+
+    /* Check that the newborn root still holds the object. */
+    JS_ASSERT_IF(!cx->localRootStack, cx->weakRoots.newborn[GCX_OBJECT] == obj);
+
+    /*
+     * Do not call debug hooks on trace, because we might be in a non-_FAIL
+     * builtin. See bug 481444.
+     */
+    if (cx->debugHooks->objectHook && !JS_ON_TRACE(cx)) {
+        JSAutoTempValueRooter tvr(cx, obj);
+        JS_KEEP_ATOMS(cx->runtime);
+        cx->debugHooks->objectHook(cx, obj, JS_TRUE,
+                                   cx->debugHooks->objectHookData);
+        JS_UNKEEP_ATOMS(cx->runtime);
+        cx->weakRoots.newborn[GCX_OBJECT] = obj;
+    }
+
+out:
+#ifdef INCLUDE_MOZILLA_DTRACE
+    if (JAVASCRIPT_OBJECT_CREATE_ENABLED())
+        jsdtrace_object_create(cx, clasp, obj);
+    if (JAVASCRIPT_OBJECT_CREATE_DONE_ENABLED())
+        jsdtrace_object_create_done(cx->fp, clasp);
+#endif
+    return obj;
+}
+
 JSObject*
 js_NewNativeObject(JSContext *cx, JSClass *clasp, JSObject *proto, uint32 slot)
 {
@@ -3128,16 +3144,12 @@ js_NewNativeObject(JSContext *cx, JSClass *clasp, JSObject *proto, uint32 slot)
     JS_ASSERT(proto->map->ops == &js_ObjectOps);
     JS_ASSERT(OBJ_GET_CLASS(cx, proto) == clasp);
 
-    JSObject* obj = js_NewGCObject(cx, GCX_OBJECT);
+    JSObject* obj = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
     if (!obj)
         return NULL;
 
-    JSScope *scope = OBJ_SCOPE(proto)->getEmptyScope(cx, clasp);
-    if (!scope) {
-        obj->map = NULL;
-        return NULL;
-    }
-    obj->map = &scope->map;
+    js_HoldScope(OBJ_SCOPE(proto));
+    obj->map = proto->map;
     obj->classword = jsuword(clasp);
     obj->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
     obj->fslots[JSSLOT_PARENT] = proto->fslots[JSSLOT_PARENT];
@@ -3355,7 +3367,7 @@ js_ConstructObject(JSContext *cx, JSClass *clasp, JSObject *proto,
             proto = JSVAL_TO_OBJECT(rval);
     }
 
-    obj = js_NewObject(cx, clasp, proto, parent);
+    obj = js_NewObject(cx, clasp, proto, parent, 0);
     if (!obj)
         goto out;
 
@@ -3393,6 +3405,31 @@ bad:
     goto out;
 }
 
+void
+js_FinalizeObject(JSContext *cx, JSObject *obj)
+{
+    /* Cope with stillborn objects that have no map. */
+    if (!obj->map)
+        return;
+
+    if (cx->debugHooks->objectHook) {
+        cx->debugHooks->objectHook(cx, obj, JS_FALSE,
+                                   cx->debugHooks->objectHookData);
+    }
+
+    /* Finalize obj first, in case it needs map and slots. */
+    STOBJ_GET_CLASS(obj)->finalize(cx, obj);
+
+#ifdef INCLUDE_MOZILLA_DTRACE
+    if (JAVASCRIPT_OBJECT_FINALIZE_ENABLED())
+        jsdtrace_object_finalize(obj);
+#endif
+
+    if (OBJ_IS_NATIVE(obj))
+        js_DropScope(cx, OBJ_SCOPE(obj), obj);
+    FreeSlots(cx, obj);
+}
+
 /* XXXbe if one adds props, deletes earlier props, adds more, the last added
          won't recycle the deleted props' slots. */
 JSBool
@@ -3408,7 +3445,7 @@ js_AllocSlot(JSContext *cx, JSObject *obj, uint32 *slotp)
     }
 
     if (scope->freeslot >= STOBJ_NSLOTS(obj) &&
-        !js_GrowSlots(cx, obj, scope->freeslot + 1)) {
+        !js_ReallocSlots(cx, obj, scope->freeslot + 1, JS_FALSE)) {
         return JS_FALSE;
     }
 
@@ -3425,45 +3462,18 @@ js_FreeSlot(JSContext *cx, JSObject *obj, uint32 slot)
 
     JSScope *scope = OBJ_SCOPE(obj);
     LOCKED_OBJ_SET_SLOT(obj, slot, JSVAL_VOID);
-    if (scope->freeslot == slot + 1)
+    if (scope->freeslot == slot + 1) {
         scope->freeslot = slot;
+
+        /* When shrinking, js_ReallocSlots always returns true. */
+        js_ReallocSlots(cx, obj, slot, JS_FALSE);
+    }
 }
 
-
-/* JSVAL_INT_MAX as a string */
-#define JSVAL_INT_MAX_STRING "1073741823"
-
-/*
- * Convert string indexes that convert to int jsvals as ints to save memory.
- * Care must be taken to use this macro every time a property name is used, or
- * else double-sets, incorrect property cache misses, or other mistakes could
- * occur.
- */
 jsid
-js_CheckForStringIndex(jsid id)
+js_CheckForStringIndex(jsid id, const jschar *cp, const jschar *end,
+                       JSBool negative)
 {
-    if (!JSID_IS_ATOM(id))
-        return id;
-
-    JSAtom *atom = JSID_TO_ATOM(id);
-    JSString *str = ATOM_TO_STRING(atom);
-    const jschar *s = str->flatChars();
-    jschar ch = *s;
-
-    JSBool negative = (ch == '-');
-    if (negative)
-        ch = *++s;
-
-    if (!JS7_ISDEC(ch))
-        return id;
-
-    size_t n = str->flatLength() - negative;
-    if (n > sizeof(JSVAL_INT_MAX_STRING) - 1)
-        return id;
-
-    const jschar *cp = s;
-    const jschar *end = s + n;
-
     jsuint index = JS7_UNDEC(*cp++);
     jsuint oldIndex = 0;
     jsuint c = 0;
@@ -3483,14 +3493,12 @@ js_CheckForStringIndex(jsid id)
      */
     if (cp != end || (negative && index == 0))
         return id;
-
     if (oldIndex < JSVAL_INT_MAX / 10 ||
         (oldIndex == JSVAL_INT_MAX / 10 && c <= (JSVAL_INT_MAX % 10))) {
         if (negative)
             index = 0 - index;
         id = INT_TO_JSID((jsint)index);
     }
-
     return id;
 }
 
@@ -3507,13 +3515,13 @@ PurgeProtoChain(JSContext *cx, JSObject *obj, jsid id)
         }
         JS_LOCK_OBJ(cx, obj);
         scope = OBJ_SCOPE(obj);
-        sprop = scope->lookup(id);
+        sprop = SCOPE_GET_PROPERTY(scope, id);
         if (sprop) {
             PCMETER(JS_PROPERTY_CACHE(cx).pcpurges++);
-            scope->shadowingShapeChange(cx, sprop);
+            js_MakeScopeShapeUnique(cx, scope);
             JS_UNLOCK_SCOPE(cx, scope);
 
-            if (!STOBJ_GET_PARENT(obj)) {
+            if (!STOBJ_GET_PARENT(scope->object)) {
                 /*
                  * All scope chains end in a global object, so this will change
                  * the global shape. jstracer.cpp assumes that the global shape
@@ -3523,7 +3531,7 @@ PurgeProtoChain(JSContext *cx, JSObject *obj, jsid id)
             }
             return JS_TRUE;
         }
-        obj = LOCKED_OBJ_GET_PROTO(obj);
+        obj = LOCKED_OBJ_GET_PROTO(scope->object);
         JS_UNLOCK_SCOPE(cx, scope);
     }
     return JS_FALSE;
@@ -3570,8 +3578,9 @@ js_AddNativeProperty(JSContext *cx, JSObject *obj, jsid id,
         sprop = NULL;
     } else {
         /* Convert string indices to integers if appropriate. */
-        id = js_CheckForStringIndex(id);
-        sprop = scope->add(cx, id, getter, setter, slot, attrs, flags, shortid);
+        CHECK_FOR_STRING_INDEX(id);
+        sprop = js_AddScopeProperty(cx, scope, id, getter, setter, slot, attrs,
+                                    flags, shortid);
     }
     JS_UNLOCK_OBJ(cx, obj);
     return sprop;
@@ -3589,7 +3598,8 @@ js_ChangeNativePropertyAttrs(JSContext *cx, JSObject *obj,
     if (!scope) {
         sprop = NULL;
     } else {
-        sprop = scope->change(cx, sprop, attrs, mask, getter, setter);
+        sprop = js_ChangeScopePropertyAttrs(cx, scope, sprop, attrs, mask,
+                                            getter, setter);
     }
     JS_UNLOCK_OBJ(cx, obj);
     return sprop;
@@ -3622,7 +3632,7 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
             }                                                                 \
             if (*(vp) != nominal_) {                                          \
                 if (SPROP_HAS_VALID_SLOT(sprop, scope))                       \
-                    LOCKED_OBJ_WRITE_SLOT(cx, obj, (sprop)->slot, *(vp));     \
+                    LOCKED_OBJ_WRITE_BARRIER(cx, obj, (sprop)->slot, *(vp));  \
             }                                                                 \
         }                                                                     \
     JS_END_MACRO
@@ -3636,13 +3646,13 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
     JSClass *clasp;
     JSScope *scope;
     JSScopeProperty *sprop;
-    JSBool added;
+    bool added;
 
     JS_ASSERT((defineHow & ~(JSDNP_CACHE_RESULT | JSDNP_DONT_PURGE)) == 0);
     js_LeaveTraceIfGlobalObject(cx, obj);
 
     /* Convert string indices to integers if appropriate. */
-    id = js_CheckForStringIndex(id);
+    CHECK_FOR_STRING_INDEX(id);
 
 #if JS_HAS_GETTER_SETTER
     /*
@@ -3669,13 +3679,14 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
         if (sprop &&
             pobj == obj &&
             (sprop->attrs & (JSPROP_GETTER | JSPROP_SETTER))) {
-            sprop = OBJ_SCOPE(obj)->change(cx, sprop, attrs, sprop->attrs,
-                                           (attrs & JSPROP_GETTER)
-                                           ? getter
-                                           : sprop->getter,
-                                           (attrs & JSPROP_SETTER)
-                                           ? setter
-                                           : sprop->setter);
+            sprop = js_ChangeScopePropertyAttrs(cx, OBJ_SCOPE(obj), sprop,
+                                                attrs, sprop->attrs,
+                                                (attrs & JSPROP_GETTER)
+                                                ? getter
+                                                : sprop->getter,
+                                                (attrs & JSPROP_SETTER)
+                                                ? setter
+                                                : sprop->setter);
 
             /* NB: obj == pobj, so we can share unlock code at the bottom. */
             if (!sprop)
@@ -3725,8 +3736,9 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
         /* Add a new property, or replace an existing one of the same id. */
         if (clasp->flags & JSCLASS_SHARE_ALL_PROPERTIES)
             attrs |= JSPROP_SHARED;
-        sprop = scope->add(cx, id, getter, setter, SPROP_INVALID_SLOT, attrs,
-                           flags, shortid);
+        sprop = js_AddScopeProperty(cx, scope, id, getter, setter,
+                                    SPROP_INVALID_SLOT, attrs, flags,
+                                    shortid);
         if (!sprop)
             goto error;
         added = true;
@@ -3734,11 +3746,11 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
 
     /* Store value before calling addProperty, in case the latter GC's. */
     if (SPROP_HAS_VALID_SLOT(sprop, scope))
-        LOCKED_OBJ_WRITE_SLOT(cx, obj, sprop->slot, value);
+        LOCKED_OBJ_WRITE_BARRIER(cx, obj, sprop->slot, value);
 
     /* XXXbe called with lock held */
     ADD_PROPERTY_HELPER(cx, clasp, obj, scope, sprop, &value,
-                        scope->remove(cx, id);
+                        js_RemoveScopeProperty(cx, scope, id);
                         goto error);
 
     if (defineHow & JSDNP_CACHE_RESULT) {
@@ -3786,14 +3798,19 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
     JSBool ok;
 
     /* Convert string indices to integers if appropriate. */
-    id = js_CheckForStringIndex(id);
+    CHECK_FOR_STRING_INDEX(id);
 
     /* Search scopes starting with obj and following the prototype link. */
     start = obj;
     for (protoIndex = 0; ; protoIndex++) {
         JS_LOCK_OBJ(cx, obj);
         scope = OBJ_SCOPE(obj);
-        sprop = scope->lookup(id);
+        if (scope->object == obj) {
+            sprop = SCOPE_GET_PROPERTY(scope, id);
+        } else {
+            /* Shared prototype scope: try resolve before lookup. */
+            sprop = NULL;
+        }
 
         /* Try obj's class resolve hook if id was not found in obj's scope. */
         if (!sprop) {
@@ -3870,12 +3887,11 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                              * "too bad!" case.
                              */
                             scope = OBJ_SCOPE(obj2);
-                            if (scope->owned())
-                                sprop = scope->lookup(id);
+                            if (scope->object == obj2)
+                                sprop = SCOPE_GET_PROPERTY(scope, id);
                         }
                         if (sprop) {
-                            JS_ASSERT(scope == OBJ_SCOPE(obj2));
-                            JS_ASSERT(scope->owned());
+                            JS_ASSERT(obj2 == scope->object);
                             obj = obj2;
                         } else if (obj2 != obj) {
                             if (OBJ_IS_NATIVE(obj2))
@@ -3895,8 +3911,8 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                     JS_LOCK_OBJ(cx, obj);
                     JS_ASSERT(OBJ_IS_NATIVE(obj));
                     scope = OBJ_SCOPE(obj);
-                    if (scope->owned())
-                        sprop = scope->lookup(id);
+                    if (scope->object == obj)
+                        sprop = SCOPE_GET_PROPERTY(scope, id);
                 }
 
             cleanup:
@@ -3911,7 +3927,7 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         if (sprop) {
             SCOPE_DEPTH_ACCUM(&cx->runtime->protoLookupDepthStats, protoIndex);
             JS_ASSERT(OBJ_SCOPE(obj) == scope);
-            *objp = obj;
+            *objp = scope->object;      /* XXXbe hide in jsscope.[ch] */
 
             *propp = (JSProperty *) sprop;
             return protoIndex;
@@ -3926,19 +3942,6 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                 return -1;
             return protoIndex + 1;
         }
-
-        /*
-         * Correctness elsewhere (the property cache and JIT), not here in
-         * particular, depends on all the objects on the prototype chain having
-         * different scopes. This is just a convenient place to check.
-         *
-         * Cloned Block objects do in fact share their prototype's scope -- but
-         * that is really just a memory-saving hack, safe because Blocks cannot
-         * be on the prototype chain of other objects.
-         */
-        JS_ASSERT_IF(OBJ_GET_CLASS(cx, obj) != &js_BlockClass,
-                     OBJ_SCOPE(obj) != OBJ_SCOPE(proto));
-
         obj = proto;
     }
 
@@ -4005,8 +4008,9 @@ js_FindPropertyHelper(JSContext *cx, jsid id, JSBool cacheResult,
                      * Block instances on the scope chain are immutable and
                      * always share their scope with compile-time prototypes.
                      */
-                    JS_ASSERT(pobj == obj);
-                    JS_ASSERT(protoIndex == 0);
+                    JS_ASSERT(pobj == OBJ_GET_PROTO(cx, obj));
+                    JS_ASSERT(OBJ_SCOPE(obj)->object == pobj);
+                    JS_ASSERT(protoIndex == 1);
                 } else {
                     /* Call and DeclEnvClass objects have no prototypes. */
                     JS_ASSERT(!OBJ_GET_PROTO(cx, obj));
@@ -4151,6 +4155,7 @@ js_NativeGet(JSContext *cx, JSObject *obj, JSObject *pobj,
     JS_ASSERT(OBJ_IS_NATIVE(pobj));
     JS_ASSERT(JS_IS_OBJ_LOCKED(cx, pobj));
     scope = OBJ_SCOPE(pobj);
+    JS_ASSERT(scope->object == pobj);
 
     slot = sprop->slot;
     *vp = (slot != SPROP_INVALID_SLOT)
@@ -4170,9 +4175,10 @@ js_NativeGet(JSContext *cx, JSObject *obj, JSObject *pobj,
         return JS_FALSE;
 
     JS_LOCK_SCOPE(cx, scope);
+    JS_ASSERT(scope->object == pobj);
     if (SLOT_IN_SCOPE(slot, scope) &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
-         scope->has(sprop))) {
+         SCOPE_GET_PROPERTY(scope, sprop->id) == sprop)) {
         LOCKED_OBJ_SET_SLOT(pobj, slot, *vp);
     }
 
@@ -4193,6 +4199,7 @@ js_NativeSet(JSContext *cx, JSObject *obj, JSScopeProperty *sprop, jsval *vp)
     JS_ASSERT(OBJ_IS_NATIVE(obj));
     JS_ASSERT(JS_IS_OBJ_LOCKED(cx, obj));
     scope = OBJ_SCOPE(obj);
+    JS_ASSERT(scope->object == obj || (sprop->attrs & JSPROP_SHARED));
 
     slot = sprop->slot;
     if (slot != SPROP_INVALID_SLOT) {
@@ -4226,11 +4233,12 @@ js_NativeSet(JSContext *cx, JSObject *obj, JSScopeProperty *sprop, jsval *vp)
         return JS_FALSE;
 
     JS_LOCK_SCOPE(cx, scope);
+    JS_ASSERT(scope->object == obj || (sprop->attrs & JSPROP_SHARED));
     if (SLOT_IN_SCOPE(slot, scope) &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
-         scope->has(sprop))) {
+         SCOPE_GET_PROPERTY(scope, sprop->id) == sprop)) {
   set_slot:
-        LOCKED_OBJ_WRITE_SLOT(cx, obj, slot, *vp);
+        LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, *vp);
     }
 
     return JS_TRUE;
@@ -4247,7 +4255,7 @@ js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
 
     JS_ASSERT_IF(cacheResult, !JS_ON_TRACE(cx));
     /* Convert string indices to integers if appropriate. */
-    id = js_CheckForStringIndex(id);
+    CHECK_FOR_STRING_INDEX(id);
 
     aobj = js_GetProtoIfDenseArray(cx, obj);
     protoIndex = js_LookupPropertyWithFlags(cx, aobj, id, cx->resolveFlags,
@@ -4401,13 +4409,13 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
         JS_ASSERT_NOT_ON_TRACE(cx);
 
     /* Convert string indices to integers if appropriate. */
-    id = js_CheckForStringIndex(id);
+    CHECK_FOR_STRING_INDEX(id);
 
     /*
      * We peek at OBJ_SCOPE(obj) without locking obj. Any race means a failure
      * to seal before sharing, which is inherently ambiguous.
      */
-    if (OBJ_SCOPE(obj)->sealed() && OBJ_SCOPE(obj)->object == obj) {
+    if (SCOPE_IS_SEALED(OBJ_SCOPE(obj)) && OBJ_SCOPE(obj)->object == obj) {
         flags = JSREPORT_ERROR;
         goto read_only_error;
     }
@@ -4455,7 +4463,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
 
         attrs = sprop->attrs;
         if ((attrs & JSPROP_READONLY) ||
-            (scope->sealed() && (attrs & JSPROP_SHARED))) {
+            (SCOPE_IS_SEALED(scope) && (attrs & JSPROP_SHARED))) {
             JS_UNLOCK_SCOPE(cx, scope);
 
             /*
@@ -4556,8 +4564,8 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
         }
         if (clasp->flags & JSCLASS_SHARE_ALL_PROPERTIES)
             attrs |= JSPROP_SHARED;
-        sprop = scope->add(cx, id, getter, setter, SPROP_INVALID_SLOT, attrs,
-                           flags, shortid);
+        sprop = js_AddScopeProperty(cx, scope, id, getter, setter,
+                                    SPROP_INVALID_SLOT, attrs, flags, shortid);
         if (!sprop) {
             JS_UNLOCK_SCOPE(cx, scope);
             return JS_FALSE;
@@ -4573,7 +4581,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
 
         /* XXXbe called with obj locked */
         ADD_PROPERTY_HELPER(cx, clasp, obj, scope, sprop, vp,
-                            scope->remove(cx, id);
+                            js_RemoveScopeProperty(cx, scope, id);
                             JS_UNLOCK_SCOPE(cx, scope);
                             return JS_FALSE);
         added = true;
@@ -4670,7 +4678,7 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, jsval *rval)
     *rval = JSVAL_TRUE;
 
     /* Convert string indices to integers if appropriate. */
-    id = js_CheckForStringIndex(id);
+    CHECK_FOR_STRING_INDEX(id);
 
     if (!js_LookupProperty(cx, obj, id, &proto, &prop))
         return JS_FALSE;
@@ -4719,7 +4727,7 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, jsval *rval)
     if (SPROP_HAS_VALID_SLOT(sprop, scope))
         GC_POKE(cx, LOCKED_OBJ_GET_SLOT(obj, sprop->slot));
 
-    ok = scope->remove(cx, id);
+    ok = js_RemoveScopeProperty(cx, scope, id);
     OBJ_DROP_PROPERTY(cx, obj, prop);
     return ok;
 }
@@ -4733,49 +4741,6 @@ js_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp)
     v = save = OBJECT_TO_JSVAL(obj);
     switch (hint) {
       case JSTYPE_STRING:
-        /*
-         * Optimize for String objects with standard toString methods. Support
-         * new String(...) instances whether mutated to have their own scope or
-         * not, as well as direct String.prototype references.
-         */
-        if (OBJ_GET_CLASS(cx, obj) == &js_StringClass) {
-            jsid toStringId = ATOM_TO_JSID(cx->runtime->atomState.toStringAtom);
-
-            JS_LOCK_OBJ(cx, obj);
-            JSScope *scope = OBJ_SCOPE(obj);
-            JSScopeProperty *sprop = scope->lookup(toStringId);
-            JSObject *pobj = obj;
-
-            if (!sprop) {
-                pobj = LOCKED_OBJ_GET_PROTO(obj);
-
-                if (pobj && OBJ_GET_CLASS(cx, pobj) == &js_StringClass) {
-                    JS_UNLOCK_SCOPE(cx, scope);
-                    JS_LOCK_OBJ(cx, pobj);
-                    scope = OBJ_SCOPE(pobj);
-                    sprop = scope->lookup(toStringId);
-                }
-            }
-
-            if (sprop &&
-                SPROP_HAS_STUB_GETTER(sprop) &&
-                SPROP_HAS_VALID_SLOT(sprop, scope)) {
-                jsval fval = LOCKED_OBJ_GET_SLOT(pobj, sprop->slot);
-
-                if (VALUE_IS_FUNCTION(cx, fval)) {
-                    JSObject *funobj = JSVAL_TO_OBJECT(fval);
-                    JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
-
-                    if (FUN_FAST_NATIVE(fun) == js_str_toString) {
-                        JS_UNLOCK_SCOPE(cx, scope);
-                        *vp = obj->fslots[JSSLOT_PRIVATE];
-                        return JS_TRUE;
-                    }
-                }
-            }
-            JS_UNLOCK_SCOPE(cx, scope);
-        }
-
         /*
          * Propagate the exception if js_TryMethod finds an appropriate
          * method, and calling that method returned failure.
@@ -4916,6 +4881,18 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         JS_LOCK_OBJ(cx, obj);
         scope = OBJ_SCOPE(obj);
         do {
+            /*
+             * If this object shares a scope with its prototype, don't
+             * enumerate its properties. Otherwise they will be enumerated
+             * a second time when the prototype object is enumerated.
+             */
+            if (scope->object != obj) {
+#ifdef __GNUC__
+                cachep = NULL;  /* suppress bogus gcc warnings */
+#endif
+                break;
+            }
+
             ENUM_CACHE_METER(nativeEnumProbes);
             shape = scope->shape;
             JS_ASSERT(shape < SHAPE_OVERFLOW_BIT);
@@ -4954,7 +4931,8 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
             for (sprop = SCOPE_LAST_PROP(scope); sprop; sprop = sprop->parent) {
                 if ((sprop->attrs & JSPROP_ENUMERATE) &&
                     !(sprop->flags & SPROP_IS_ALIAS) &&
-                    (!scope->hadMiddleDelete() || scope->has(sprop))) {
+                    (!SCOPE_HAD_MIDDLE_DELETE(scope) ||
+                     SCOPE_HAS_PROPERTY(scope, sprop))) {
                     length++;
                 }
             }
@@ -4965,7 +4943,7 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
             }
 
             allocated = NativeEnumeratorSize(length);
-            ne = (JSNativeEnumerator *) cx->malloc(allocated);
+            ne = (JSNativeEnumerator *) JS_malloc(cx, allocated);
             if (!ne) {
                 JS_UNLOCK_SCOPE(cx, scope);
                 return JS_FALSE;
@@ -4977,7 +4955,8 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
             for (sprop = SCOPE_LAST_PROP(scope); sprop; sprop = sprop->parent) {
                 if ((sprop->attrs & JSPROP_ENUMERATE) &&
                     !(sprop->flags & SPROP_IS_ALIAS) &&
-                    (!scope->hadMiddleDelete() || scope->has(sprop))) {
+                    (!SCOPE_HAD_MIDDLE_DELETE(scope) ||
+                     SCOPE_HAS_PROPERTY(scope, sprop))) {
                     JS_ASSERT(ids < ne->ids + length);
                     *ids++ = sprop->id;
                 }
@@ -4997,7 +4976,7 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                 JS_LOCK_GC(cx->runtime);
                 if (!js_AddAsGCBytes(cx, allocated)) {
                     /* js_AddAsGCBytes releases the GC lock on failures. */
-                    cx->free(ne);
+                    JS_free(cx, ne);
                     return JS_FALSE;
                 }
                 ne->next = cx->runtime->nativeEnumerators;
@@ -5060,15 +5039,11 @@ js_TraceNativeEnumerators(JSTracer *trc)
     jsid *cursor, *end;
 
     /*
-     * Purge native enumerators cached by shape id when the GC is about to
-     * re-number shapes due to shape generation overflow. Do this also when
-     * shutting down the runtime.
+     * Purge native enumerators cached by shape id, which we are about to
+     * re-number completely when tracing is done for the GC.
      */
     rt = trc->context->runtime;
-    bool doGC = IS_GC_MARKING_TRACER(trc) &&
-                (rt->gcRegenShapes || rt->state == JSRTS_LANDING);
-
-    if (doGC) {
+    if (IS_GC_MARKING_TRACER(trc)) {
         memset(&rt->nativeEnumCache, 0, sizeof rt->nativeEnumCache);
 #ifdef JS_DUMP_ENUM_CACHE_STATS
         printf("nativeEnumCache hit rate %g%%\n",
@@ -5085,12 +5060,12 @@ js_TraceNativeEnumerators(JSTracer *trc)
             cursor = ne->ids;
             end = cursor + ne->length;
             do {
-                js_TraceId(trc, *cursor);
+                TRACE_ID(trc, *cursor);
             } while (++cursor != end);
-        } else if (doGC) {
+        } else if (IS_GC_MARKING_TRACER(trc)) {
             js_RemoveAsGCBytes(rt, NativeEnumeratorSize(ne->length));
             *nep = ne->next;
-            trc->context->free(ne);
+            JS_free(trc->context, ne);
             continue;
         }
         nep = &ne->next;
@@ -5477,7 +5452,7 @@ js_PrimitiveToObject(JSContext *cx, jsval *vp)
     JS_ASSERT(!JSVAL_IS_OBJECT(*vp));
     JS_ASSERT(!JSVAL_IS_VOID(*vp));
     clasp = PrimitiveClasses[JSVAL_TAG(*vp) - 1];
-    obj = js_NewObject(cx, clasp, NULL, NULL);
+    obj = js_NewObject(cx, clasp, NULL, NULL, 0);
     if (!obj)
         return JS_FALSE;
     STOBJ_SET_SLOT(obj, JSSLOT_PRIVATE, *vp);
@@ -5748,6 +5723,8 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
 {
     JSContext *cx;
     JSScope *scope;
+    JSBool traceScope;
+    JSScopeProperty *sprop;
     JSClass *clasp;
     size_t nslots, i;
     jsval v;
@@ -5756,22 +5733,60 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
     cx = trc->context;
     scope = OBJ_SCOPE(obj);
 
-    if (scope->owned() && IS_GC_MARKING_TRACER(trc)) {
+    traceScope = (scope->object == obj);
+    if (!traceScope) {
+        JSObject *pobj = obj;
+
         /*
-         * Check whether we should shrink the object's slots. Skip this check
-         * if the scope is shared, since for Block objects and flat closures
-         * that share their scope, scope->freeslot can be an underestimate.
+         * Because obj does not own scope, we should be able to assert that an
+         * object on obj's prototype chain does -- or scope's properties might
+         * go untraced. It indeed turns out that you can disconnect an object
+         * from the prototype object whose scope it shares, so we may have to
+         * mark scope even though scope->object != obj.
          */
-        size_t slots = scope->freeslot;
-        if (STOBJ_NSLOTS(obj) != slots)
-            js_ShrinkSlots(cx, obj, slots);
+        while ((pobj = LOCKED_OBJ_GET_PROTO(pobj)) != NULL) {
+            if (pobj == scope->object)
+                break;
+        }
+        JS_ASSERT_IF(pobj, OBJ_SCOPE(pobj) == scope);
+        traceScope = !pobj;
     }
 
+    if (traceScope) {
 #ifdef JS_DUMP_SCOPE_METERS
-    MeterEntryCount(scope->entryCount);
+        MeterEntryCount(scope->entryCount);
 #endif
 
-    scope->trace(trc);
+        sprop = SCOPE_LAST_PROP(scope);
+        if (sprop) {
+            JS_ASSERT(SCOPE_HAS_PROPERTY(scope, sprop));
+
+            /* Regenerate property cache shape ids if GC'ing. */
+            if (IS_GC_MARKING_TRACER(trc)) {
+                uint32 shape, oldshape;
+
+                shape = js_RegenerateShapeForGC(cx);
+                if (!(sprop->flags & SPROP_MARK)) {
+                    oldshape = sprop->shape;
+                    sprop->shape = shape;
+                    sprop->flags |= SPROP_FLAG_SHAPE_REGEN;
+                    if (scope->shape != oldshape)
+                        shape = js_RegenerateShapeForGC(cx);
+                }
+
+                scope->shape = shape;
+            }
+
+            /* Trace scope's property tree ancestor line. */
+            do {
+                if (SCOPE_HAD_MIDDLE_DELETE(scope) &&
+                    !SCOPE_HAS_PROPERTY(scope, sprop)) {
+                    continue;
+                }
+                TRACE_SCOPE_PROPERTY(trc, sprop);
+            } while ((sprop = sprop->parent) != NULL);
+        }
+    }
 
     if (!JS_CLIST_IS_EMPTY(&cx->runtime->watchPointList))
         js_TraceWatchPoints(trc, obj);
@@ -5795,7 +5810,7 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
      * above.
      */
     nslots = STOBJ_NSLOTS(obj);
-    if (scope->owned() && scope->freeslot < nslots)
+    if (scope->object == obj && scope->freeslot < nslots)
         nslots = scope->freeslot;
 
     for (i = 0; i != nslots; ++i) {
@@ -5815,14 +5830,15 @@ js_Clear(JSContext *cx, JSObject *obj)
 
     /*
      * Clear our scope and the property cache of all obj's properties only if
-     * obj owns the scope (i.e., not if obj is sharing another object's scope).
-     * NB: we do not clear any reserved slots lying below JSSLOT_FREE(clasp).
+     * obj owns the scope (i.e., not if obj is unmutated and therefore sharing
+     * its prototype's scope).  NB: we do not clear any reserved slots lying
+     * below JSSLOT_FREE(clasp).
      */
     JS_LOCK_OBJ(cx, obj);
     scope = OBJ_SCOPE(obj);
-    if (scope->owned()) {
+    if (scope->object == obj) {
         /* Now that we're done using scope->lastProp/table, clear scope. */
-        scope->clear(cx);
+        js_ClearScope(cx, scope);
 
         /* Clear slot values and reset freeslot so we're consistent. */
         i = STOBJ_NSLOTS(obj);
@@ -5856,30 +5872,29 @@ js_SetRequiredSlot(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     scope = OBJ_SCOPE(obj);
     if (slot >= JS_INITIAL_NSLOTS && !obj->dslots) {
         /*
-         * At this point, obj may or may not own scope, and we may or may not
-         * need to allocate dslots. If scope is shared, scope->freeslot may not
-         * be accurate for obj (see comment below).
+         * At this point, obj may or may not own scope.  If some path calls
+         * js_GetMutableScope but does not add a slot-owning property, then
+         * scope->object == obj but obj->dslots will be null. If obj shares a
+         * prototype's scope, then we cannot update scope->map here. Instead
+         * we rely on STOBJ_NSLOTS(obj) to get the number of available slots
+         * in obj after we allocate dynamic slots.
+         *
+         * See js_TraceObject, before the slot tracing, where we make a special
+         * case for unmutated (scope->object != obj) objects.
          */
         clasp = LOCKED_OBJ_GET_CLASS(obj);
         nslots = JSSLOT_FREE(clasp);
         if (clasp->reserveSlots)
             nslots += clasp->reserveSlots(cx, obj);
         JS_ASSERT(slot < nslots);
-        if (!AllocSlots(cx, obj, nslots)) {
+        if (!js_ReallocSlots(cx, obj, nslots, JS_TRUE)) {
             JS_UNLOCK_SCOPE(cx, scope);
             return JS_FALSE;
         }
     }
 
-    /*
-     * Whether or not we grew nslots, we may need to advance freeslot.
-     *
-     * If scope is shared, do not modify scope->freeslot. It is OK for freeslot
-     * to be an underestimate in objects with shared scopes, as they will get
-     * their own scopes before mutating, and elsewhere (e.g. js_TraceObject) we
-     * use STOBJ_NSLOTS(obj) rather than rely on freeslot.
-     */
-    if (scope->owned() && slot >= scope->freeslot)
+    /* Whether or not we grew nslots, we may need to advance freeslot. */
+    if (scope->object == obj && slot >= scope->freeslot)
         scope->freeslot = slot + 1;
 
     STOBJ_SET_SLOT(obj, slot, v);
@@ -6106,14 +6121,28 @@ js_DumpObject(JSObject *obj)
 
     if (OBJ_IS_NATIVE(obj)) {
         JSScope *scope = OBJ_SCOPE(obj);
-        if (scope->sealed())
+        JSObject *proto = STOBJ_GET_PROTO(obj);
+
+        if (SCOPE_IS_SEALED(scope))
             fprintf(stderr, "sealed\n");
 
-        fprintf(stderr, "properties:\n");
-        for (JSScopeProperty *sprop = SCOPE_LAST_PROP(scope); sprop;
-             sprop = sprop->parent) {
-            if (!scope->hadMiddleDelete() || scope->has(sprop))
-                dumpScopeProp(sprop);
+        sharesScope = (scope->object != obj);
+        if (sharesScope) {
+            if (proto) {
+                fprintf(stderr, "no own properties - see proto (%s at %p)\n",
+                        STOBJ_GET_CLASS(proto)->name, (void *) proto);
+            } else {
+                fprintf(stderr, "no own properties - null proto\n");
+            }
+        } else {
+            fprintf(stderr, "properties:\n");
+            for (JSScopeProperty *sprop = SCOPE_LAST_PROP(scope); sprop;
+                 sprop = sprop->parent) {
+                if (!SCOPE_HAD_MIDDLE_DELETE(scope) ||
+                    SCOPE_HAS_PROPERTY(scope, sprop)) {
+                    dumpScopeProp(sprop);
+                }
+            }
         }
     } else {
         if (!OBJ_IS_NATIVE(obj))
@@ -6210,7 +6239,7 @@ js_DumpStackFrame(JSStackFrame *fp)
         }
         fprintf(stderr, "  argv:  %p (argc: %u)\n", (void *) fp->argv, (unsigned) fp->argc);
         MaybeDumpObject("callobj", fp->callobj);
-        MaybeDumpObject("argsobj", JSVAL_TO_OBJECT(fp->argsobj));
+        MaybeDumpObject("argsobj", fp->argsobj);
         MaybeDumpObject("varobj", fp->varobj);
         MaybeDumpObject("this", fp->thisp);
         fprintf(stderr, "  rval: ");

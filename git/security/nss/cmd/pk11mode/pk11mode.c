@@ -780,7 +780,7 @@ cleanup:
         free(dbPrefix);
     }
     if (moduleSpec) {
-        PR_smprintf_free(moduleSpec);
+        free(moduleSpec);
     }
 
 #ifdef _WIN32

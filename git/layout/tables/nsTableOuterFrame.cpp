@@ -215,16 +215,16 @@ nsTableOuterFrame::Destroy()
   nsHTMLContainerFrame::Destroy();
 }
 
-nsFrameList
-nsTableOuterFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+nsTableOuterFrame::GetFirstChild(nsIAtom* aListName) const
 {
   if (nsGkAtoms::captionList == aListName) {
-    return mCaptionFrames;
+    return mCaptionFrames.FirstChild();
   }
   if (!aListName) {
-    return mFrames;
+    return mFrames.FirstChild();
   }
-  return nsFrameList::EmptyList();
+  return nsnull;
 }
 
 nsIAtom*
@@ -238,21 +238,21 @@ nsTableOuterFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 
 NS_IMETHODIMP 
 nsTableOuterFrame::SetInitialChildList(nsIAtom*        aListName,
-                                       nsFrameList&    aChildList)
+                                       nsIFrame*       aChildList)
 {
   if (nsGkAtoms::captionList == aListName) {
     // the frame constructor already checked for table-caption display type
     mCaptionFrames.SetFrames(aChildList);
-    mCaptionFrame = mCaptionFrames.FirstChild();
+    mCaptionFrame  = mCaptionFrames.FirstChild();
   }
   else {
     NS_ASSERTION(!aListName, "wrong childlist");
     NS_ASSERTION(mFrames.IsEmpty(), "Frame leak!");
+    mFrames.SetFrames(aChildList);
     mInnerTableFrame = nsnull;
-    if (aChildList.NotEmpty()) {
-      if (nsGkAtoms::tableFrame == aChildList.FirstChild()->GetType()) {
-        mInnerTableFrame = (nsTableFrame*)aChildList.FirstChild();
-        mFrames.SetFrames(aChildList);
+    if (aChildList) {
+      if (nsGkAtoms::tableFrame == aChildList->GetType()) {
+        mInnerTableFrame = (nsTableFrame*)aChildList;
       }
       else {
         NS_ERROR("expected a table frame");
@@ -393,14 +393,16 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
   return NS_OK;
 }
 
-void
-nsTableOuterFrame::SetSelected(PRBool        aSelected,
-                               SelectionType aType)
+NS_IMETHODIMP nsTableOuterFrame::SetSelected(nsPresContext* aPresContext,
+                                             nsIDOMRange *aRange,
+                                             PRBool aSelected,
+                                             nsSpread aSpread,
+                                             SelectionType aType)
 {
-  nsFrame::SetSelected(aSelected, aType);
-  if (mInnerTableFrame) {
-    mInnerTableFrame->SetSelected(aSelected, aType);
-  }
+  nsresult result = nsFrame::SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+  if (NS_SUCCEEDED(result) && mInnerTableFrame)
+    return mInnerTableFrame->SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+  return result;
 }
 
 NS_IMETHODIMP 
@@ -467,6 +469,21 @@ nsTableOuterFrame::GetMargin(nsPresContext*           aPresContext,
   InitChildReflowState(*aPresContext, childRS);
 
   aMargin = childRS.mComputedMargin;
+}
+
+static
+nscoord CalcAutoMargin(nscoord aAutoMargin,
+                       nscoord aOppositeMargin,
+                       nscoord aContainBlockSize,
+                       nscoord aFrameSize)
+{
+  nscoord margin;
+  if (NS_AUTOMARGIN == aOppositeMargin) 
+    margin = (aContainBlockSize - aFrameSize) / 2;
+  else {
+    margin = aContainBlockSize - aFrameSize - aOppositeMargin;
+  }
+  return PR_MAX(0, margin);
 }
 
 static nsSize

@@ -41,6 +41,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "gfxIImageFrame.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
 #include "nsIDOMDocument.h"
@@ -518,18 +519,23 @@ nsWindowsShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
 }
 
 static nsresult
-WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
+WriteBitmap(nsIFile* aFile, gfxIImageFrame* aImage)
 {
-  nsRefPtr<gfxImageSurface> image;
-  nsresult rv = aImage->CopyCurrentFrame(getter_AddRefs(image));
-  NS_ENSURE_SUCCESS(rv, rv);
+  PRInt32 width, height;
+  aImage->GetWidth(&width);
+  aImage->GetHeight(&height);
 
-  PRInt32 width = image->Width();
-  PRInt32 height = image->Height();
+  PRUint8* bits;
+  PRUint32 length;
+  aImage->LockImageData();
+  aImage->GetImageData(&bits, &length);
+  if (!bits) {
+      aImage->UnlockImageData();
+      return NS_ERROR_FAILURE;
+  }
 
-  PRUint8* bits = image->Data();
-  PRUint32 length = image->GetDataSize();
-  PRUint32 bpr = PRUint32(image->Stride());
+  PRUint32 bpr;
+  aImage->GetImageBytesPerRow(&bpr);
   PRInt32 bitCount = bpr/width;
 
   // initialize these bitmap structs which we will later
@@ -556,7 +562,7 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 
   // get a file output stream
   nsCOMPtr<nsIOutputStream> stream;
-  rv = NS_NewLocalFileOutputStream(getter_AddRefs(stream), aFile);
+  nsresult rv = NS_NewLocalFileOutputStream(getter_AddRefs(stream), aFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // write the bitmap headers and rgb pixel data to the file
@@ -586,6 +592,7 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
     stream->Close();
   }
 
+  aImage->UnlockImageData();
   return rv;
 }
 
@@ -595,7 +602,8 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
 {
   nsresult rv;
 
-  nsCOMPtr<imgIContainer> container;
+  nsCOMPtr<gfxIImageFrame> gfxFrame;
+
   nsCOMPtr<nsIDOMHTMLImageElement> imgElement(do_QueryInterface(aElement));
   if (!imgElement) {
     // XXX write background loading stuff!
@@ -612,10 +620,17 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
                                   getter_AddRefs(request));
     if (!request)
       return rv;
+    nsCOMPtr<imgIContainer> container;
     rv = request->GetImage(getter_AddRefs(container));
     if (!container)
       return NS_ERROR_FAILURE;
+
+    // get the current frame, which holds the image data
+    container->GetCurrentFrame(getter_AddRefs(gfxFrame));
   }
+
+  if (!gfxFrame)
+    return NS_ERROR_FAILURE;
 
   // get the file name from localized strings
   nsCOMPtr<nsIStringBundleService>
@@ -649,7 +664,7 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // write the bitmap to a file in the profile directory
-  rv = WriteBitmap(file, container);
+  rv = WriteBitmap(file, gfxFrame);
 
   // if the file was written successfully, set it as the system wallpaper
   if (NS_SUCCEEDED(rv)) {

@@ -44,8 +44,6 @@
 #ifndef jsutil_h___
 #define jsutil_h___
 
-#include <stdlib.h>
-
 JS_BEGIN_EXTERN_C
 
 /*
@@ -178,29 +176,8 @@ JS_Backtrace(int skip);
 
 extern JS_FRIEND_API(void)
 JS_DumpBacktrace(JSCallsite *trace);
+
 #endif
-
-static JS_INLINE void* js_malloc(size_t bytes) {
-    if (bytes < sizeof(void*)) /* for asyncFree */
-        bytes = sizeof(void*);
-    return malloc(bytes);
-}
-
-static JS_INLINE void* js_calloc(size_t bytes) {
-    if (bytes < sizeof(void*)) /* for asyncFree */
-        bytes = sizeof(void*);
-    return calloc(bytes, 1);
-}
-
-static JS_INLINE void* js_realloc(void* p, size_t bytes) {
-    if (bytes < sizeof(void*)) /* for asyncFree */
-        bytes = sizeof(void*);
-    return realloc(p, bytes);
-}
-
-static JS_INLINE void js_free(void* p) {
-    free(p);
-}
 
 JS_END_EXTERN_C
 

@@ -52,6 +52,7 @@
 #include "nsISelection.h"
 #include "nsCaret.h"
 #include "plarena.h"
+#include "nsLayoutUtils.h"
 
 #include <stdlib.h>
 
@@ -183,7 +184,10 @@ public:
    * @return PR_TRUE if aFrame is, or is a descendant of, the hypothetical
    * moving frame
    */
-  PRBool IsMovingFrame(nsIFrame* aFrame);
+  PRBool IsMovingFrame(nsIFrame* aFrame) {
+    return aFrame == mMovingFrame || (mMovingFrame &&
+       nsLayoutUtils::IsProperAncestorFrameCrossDoc(mMovingFrame, aFrame, mReferenceFrame));
+  }
   /**
    * @return the selection that painting should be restricted to (or nsnull
    * in the normal unrestricted case)
@@ -221,12 +225,6 @@ public:
   void SetPaintAllFrames() { mPaintAllFrames = PR_TRUE; }
   PRBool GetPaintAllFrames() { return mPaintAllFrames; }
   /**
-   * Calling this setter makes us compute accurate visible regions at the cost
-   * of performance if regions get very complex.
-   */
-  void SetAccurateVisibleRegions() { mAccurateVisibleRegions = PR_TRUE; }
-  PRBool GetAccurateVisibleRegions() { return mAccurateVisibleRegions; }
-  /**
    * Allows callers to selectively override the regular paint suppression checks,
    * so that methods like GetFrameForPoint work when painting is suppressed.
    */
@@ -263,29 +261,16 @@ public:
    * Notify the display list builder that we're leaving a presshell.
    */
   void LeavePresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
-
+  
   /**
-   * Returns true if we're currently building a display list that's
-   * directly or indirectly under an nsDisplayTransform or SVG
-   * foreignObject.
+   * Mark aFrames and its (next) siblings to be displayed if they
+   * intersect aDirtyRect (which is relative to aDirtyFrame). If the
+   * frame(s) have placeholders that might not be displayed, we mark the
+   * placeholders and their ancestors to ensure that display list construction
+   * descends into them anyway. nsDisplayListBuilder will take care of
+   * unmarking them when it is destroyed.
    */
-  PRBool IsInTransform() { return mInTransform; }
-  /**
-   * Indicate whether or not we're directly or indirectly under and
-   * nsDisplayTransform or SVG foreignObject.
-   */
-  void SetInTransform(PRBool aInTransform) { mInTransform = aInTransform; }
-
-  /**
-   * Mark the frames in aFrames to be displayed if they intersect aDirtyRect
-   * (which is relative to aDirtyFrame). If the frames have placeholders
-   * that might not be displayed, we mark the placeholders and their ancestors
-   * to ensure that display list construction descends into them
-   * anyway. nsDisplayListBuilder will take care of unmarking them when it is
-   * destroyed.
-   */
-  void MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
-                                const nsFrameList& aFrames,
+  void MarkFramesForDisplayList(nsIFrame* aDirtyFrame, nsIFrame* aFrames,
                                 const nsRect& aDirtyRect);
   
   /**
@@ -314,25 +299,6 @@ public:
     nsDisplayListBuilder* mBuilder;
     PRPackedBool          mOldValue;
   };
-
-  /**
-   * A helper class to temporarily set the value of mInTransform.
-   */
-  class AutoInTransformSetter;
-  friend class AutoInTransformSetter;
-  class AutoInTransformSetter {
-  public:
-    AutoInTransformSetter(nsDisplayListBuilder* aBuilder, PRBool aInTransform)
-      : mBuilder(aBuilder), mOldValue(aBuilder->mInTransform) { 
-      aBuilder->mInTransform = aInTransform;
-    }
-    ~AutoInTransformSetter() {
-      mBuilder->mInTransform = mOldValue;
-    }
-  private:
-    nsDisplayListBuilder* mBuilder;
-    PRPackedBool          mOldValue;
-  };  
   
   // Helpers for tables
   nsDisplayTableItem* GetCurrentTableItem() { return mCurrentTableItem; }
@@ -368,10 +334,6 @@ private:
   PRPackedBool                   mIsBackgroundOnly;
   PRPackedBool                   mIsAtRootOfPseudoStackingContext;
   PRPackedBool                   mPaintAllFrames;
-  PRPackedBool                   mAccurateVisibleRegions;
-  // True when we're building a display list that's directly or indirectly
-  // under an nsDisplayTransform
-  PRPackedBool                   mInTransform;
 };
 
 class nsDisplayItem;
@@ -424,17 +386,15 @@ public:
    */
   enum Type {
     TYPE_GENERIC,
-
-    TYPE_BORDER,
+    TYPE_OUTLINE,
     TYPE_CLIP,
     TYPE_OPACITY,
-    TYPE_OUTLINE,
-    TYPE_PLUGIN,
 #ifdef MOZ_SVG
     TYPE_SVG_EFFECTS,
 #endif
+    TYPE_WRAPLIST,
     TYPE_TRANSFORM,
-    TYPE_WRAPLIST
+    TYPE_BORDER
   };
 
   struct HitTestState {
@@ -962,8 +922,7 @@ protected:
 
 #define DO_GLOBAL_REFLOW_COUNT_DSP(_name)                                     \
   PR_BEGIN_MACRO                                                              \
-    if (!aBuilder->IsBackgroundOnly() && !aBuilder->IsForEventDelivery() &&   \
-        PresContext()->PresShell()->IsPaintingFrameCounts()) {                \
+    if (!aBuilder->IsBackgroundOnly() && !aBuilder->IsForEventDelivery()) {   \
       nsresult _rv =                                                          \
         aLists.Outlines()->AppendNewToTop(new (aBuilder)                      \
                                           nsDisplayReflowCount(this, _name)); \
@@ -973,8 +932,7 @@ protected:
 
 #define DO_GLOBAL_REFLOW_COUNT_DSP_COLOR(_name, _color)                       \
   PR_BEGIN_MACRO                                                              \
-    if (!aBuilder->IsBackgroundOnly() && !aBuilder->IsForEventDelivery() &&   \
-        PresContext()->PresShell()->IsPaintingFrameCounts()) {                \
+    if (!aBuilder->IsBackgroundOnly() && !aBuilder->IsForEventDelivery()) {   \
       nsresult _rv =                                                          \
         aLists.Outlines()->AppendNewToTop(new (aBuilder)                      \
                                           nsDisplayReflowCount(this, _name,   \

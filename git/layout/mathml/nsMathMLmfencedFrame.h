@@ -62,7 +62,7 @@ public:
 
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList);
+                      nsIFrame*       aChildList);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,

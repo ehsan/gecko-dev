@@ -46,7 +46,12 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsGfxCIID.h"
 
+#include "imgIContainer.h"
+#include "gfxIImageFrame.h"
+#include "nsIImage.h"
+
 #include "nsThebesRegion.h"
+#include "nsThebesImage.h"
 
 #include <stdlib.h>
 #include <sys/types.h>

@@ -47,6 +47,7 @@
 #include "nsIGConfService.h"
 #include "nsIGnomeVFSService.h"
 #include "nsIStringBundle.h"
+#include "gfxIImageFrame.h"
 #include "nsIOutputStream.h"
 #include "nsIProcess.h"
 #include "nsNetUtil.h"
@@ -54,6 +55,7 @@
 #include "nsIImageLoadingContent.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
+#include "nsIImage.h"
 #include "prprf.h"
 #ifdef MOZ_WIDGET_GTK2
 #include "nsIImageToPixbuf.h"
@@ -347,8 +349,12 @@ nsGNOMEShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
 }
 
 static nsresult
-WriteImage(const nsCString& aPath, imgIContainer* aImage)
+WriteImage(const nsCString& aPath, gfxIImageFrame* aImage)
 {
+  nsCOMPtr<nsIImage> img(do_GetInterface(aImage));
+  if (!img)
+      return NS_ERROR_NOT_AVAILABLE;
+
 #ifndef MOZ_WIDGET_GTK2
   return NS_ERROR_NOT_AVAILABLE;
 #else
@@ -357,7 +363,7 @@ WriteImage(const nsCString& aPath, imgIContainer* aImage)
   if (!imgToPixbuf)
       return NS_ERROR_NOT_AVAILABLE;
 
-  GdkPixbuf* pixbuf = imgToPixbuf->ConvertImageToPixbuf(aImage);
+  GdkPixbuf* pixbuf = imgToPixbuf->ConvertImageToPixbuf(img);
   if (!pixbuf)
       return NS_ERROR_NOT_AVAILABLE;
 
@@ -373,6 +379,8 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
                                           PRInt32 aPosition)
 {
   nsresult rv;
+  nsCOMPtr<gfxIImageFrame> gfxFrame;
+
   nsCOMPtr<nsIImageLoadingContent> imageContent = do_QueryInterface(aElement, &rv);
   if (!imageContent) return rv;
 
@@ -384,6 +392,12 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   nsCOMPtr<imgIContainer> container;
   rv = request->GetImage(getter_AddRefs(container));
   if (!container) return rv;
+
+  // get the current frame, which holds the image data
+  container->GetCurrentFrame(getter_AddRefs(gfxFrame));
+
+  if (!gfxFrame)
+    return NS_ERROR_FAILURE;
 
   // Write the background file to the home directory.
   nsCAutoString filePath(PR_GetEnv("HOME"));
@@ -409,7 +423,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   filePath.Append("_wallpaper.png");
 
   // write the image to a file in the home dir
-  rv = WriteImage(filePath, container);
+  rv = WriteImage(filePath, gfxFrame);
 
   // if the file was written successfully, set it as the system wallpaper
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);

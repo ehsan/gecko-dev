@@ -447,8 +447,7 @@ NS_IMETHODIMP nsPref::SetUnicharPref(const char *pref, const PRUnichar *value)
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsISupportsString> theString = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-      nsAutoString val(value);
-      theString->SetData(val);
+      theString->SetData(nsDependentString(value));
       rv = prefBranch->SetComplexValue(pref, NS_GET_IID(nsISupportsString), theString);
     }
   }
@@ -461,8 +460,7 @@ NS_IMETHODIMP nsPref::SetDefaultUnicharPref(const char *pref, const PRUnichar *v
 
   nsCOMPtr<nsISupportsString> theString = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
   if (NS_SUCCEEDED(rv)) {
-    nsAutoString val(value);
-    theString->SetData(val);
+    theString->SetData(nsDependentString(value));
     rv = mDefaultBranch->SetComplexValue(pref, NS_GET_IID(nsISupportsString), theString);
   }
   return rv;

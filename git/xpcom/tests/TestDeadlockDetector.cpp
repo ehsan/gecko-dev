@@ -16,8 +16,8 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -264,8 +264,7 @@ CheckForDeadlock(const char* test, const char* const* findTokens)
 #ifdef MOZILLA_INTERNAL_API
         idx = proc.mStderr.Find(token, PR_FALSE, idx);
 #else
-        nsCString tokenCString(token);
-        idx = proc.mStderr.Find(tokenCString, idx);
+        idx = proc.mStderr.Find(token, idx);
 #endif
         if (-1 == idx) {
             printf("(missed token '%s' in output)\n", token);

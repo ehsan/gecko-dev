@@ -1013,13 +1013,13 @@ nsGenericHTMLElement::IsHTMLLink(nsIURI** aURI) const
 {
   NS_PRECONDITION(aURI, "Must provide aURI out param");
 
-  *aURI = GetHrefURIForAnchors().get();
+  GetHrefURIForAnchors(aURI);
   // We promise out param is non-null if we return true, so base rv on it
   return *aURI != nsnull;
 }
 
-already_AddRefed<nsIURI>
-nsGenericHTMLElement::GetHrefURIForAnchors() const
+nsresult
+nsGenericHTMLElement::GetHrefURIForAnchors(nsIURI** aURI) const
 {
   // This is used by the three nsILink implementations and
   // nsHTMLStyleElement.
@@ -1027,10 +1027,9 @@ nsGenericHTMLElement::GetHrefURIForAnchors() const
   // Get href= attribute (relative URI).
 
   // We use the nsAttrValue's copy of the URI string to avoid copying.
-  nsCOMPtr<nsIURI> uri;
-  GetURIAttr(nsGkAtoms::href, nsnull, PR_FALSE, getter_AddRefs(uri));
+  GetURIAttr(nsGkAtoms::href, nsnull, PR_FALSE, aURI);
 
-  return uri.forget();
+  return NS_OK;
 }
 
 void
@@ -3195,7 +3194,8 @@ nsGenericHTMLElement::SetPortInHrefURI(const nsAString &aPort)
 nsresult
 nsGenericHTMLElement::GetProtocolFromHrefURI(nsAString& aProtocol)
 {
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
 
   if (!uri) {
     aProtocol.AssignLiteral("http");
@@ -3213,7 +3213,8 @@ nsGenericHTMLElement::GetHostFromHrefURI(nsAString& aHost)
 {
   aHost.Truncate();
 
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
   if (!uri) {
     // Don't throw from these methods!  Not a valid URI means return
     // empty string.
@@ -3237,7 +3238,8 @@ nsresult
 nsGenericHTMLElement::GetHostnameFromHrefURI(nsAString& aHostname)
 {
   aHostname.Truncate();
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
   if (!uri) {
     // Don't throw from these methods!  Not a valid URI means return
     // empty string.
@@ -3262,7 +3264,8 @@ nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
 {
   aPathname.Truncate();
 
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
   if (!uri) {
     // Don't throw from these methods!  Not a valid URI means return
     // empty string.
@@ -3291,7 +3294,8 @@ nsresult
 nsGenericHTMLElement::GetSearchFromHrefURI(nsAString& aSearch)
 {
   aSearch.Truncate();
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (!url) {
     // Don't throw from these methods!  Not a valid URI means return
@@ -3315,7 +3319,8 @@ nsresult
 nsGenericHTMLElement::GetPortFromHrefURI(nsAString& aPort)
 {
   aPort.Truncate();
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
   if (!uri) {
     // Don't throw from these methods!  Not a valid URI means return
     // empty string.
@@ -3345,7 +3350,8 @@ nsresult
 nsGenericHTMLElement::GetHashFromHrefURI(nsAString& aHash)
 {
   aHash.Truncate();
-  nsCOMPtr<nsIURI> uri = GetHrefURIForAnchors();
+  nsCOMPtr<nsIURI> uri;
+  GetHrefURIForAnchors(getter_AddRefs(uri));
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (!url) {
     // Don't throw from these methods!  Not a valid URI means return

@@ -149,6 +149,7 @@ nsGfxButtonControlFrame::CreateFrameFor(nsIContent*      aContent)
       if (newFrame) {
         // initialize the text frame
         newFrame->Init(mTextContent, parentFrame, nsnull);
+        newFrame->SetInitialChildList(nsnull, nsnull);
       }
     }
   }

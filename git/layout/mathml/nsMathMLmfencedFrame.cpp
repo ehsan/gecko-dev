@@ -77,7 +77,7 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
 
 NS_IMETHODIMP
 nsMathMLmfencedFrame::SetInitialChildList(nsIAtom*        aListName,
-                                          nsFrameList&    aChildList)
+                                          nsIFrame*       aChildList)
 {
   // First, let the base class do its work
   nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListName, aChildList);

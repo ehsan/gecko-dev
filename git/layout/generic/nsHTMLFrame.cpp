@@ -97,7 +97,7 @@ public:
   virtual void Destroy();
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
@@ -107,7 +107,7 @@ public:
                          nsIFrame*       aOldFrame);
 
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -130,8 +130,7 @@ public:
 
   // nsIScrollPositionListener
   NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
-  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable,
-                                     nsTArray<nsIWidget::Configuration>* aConfigurations) {}
+  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable) {}
   NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
 
   // nsICanvasFrame
@@ -274,12 +273,12 @@ CanvasFrame::SetHasFocus(PRBool aHasFocus)
 
 NS_IMETHODIMP
 CanvasFrame::SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList)
+                                 nsIFrame*       aChildList)
 {
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
 
-  NS_ASSERTION(aListName || aChildList.IsEmpty() || aChildList.OnlyChild(),
+  NS_ASSERTION(aListName || !aChildList || !aChildList->GetNextSibling(),
                "Primary child list can have at most one frame in it");
   return nsHTMLContainerFrame::SetInitialChildList(aListName, aChildList);
 }
@@ -383,13 +382,13 @@ CanvasFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   return nsHTMLContainerFrame::GetAdditionalChildListName(aIndex);
 }
 
-nsFrameList
-CanvasFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+CanvasFrame::GetFirstChild(nsIAtom* aListName) const
 {
   if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.GetChildList();
+    return mAbsoluteContainer.GetFirstChild();
 
-  return nsHTMLContainerFrame::GetChildList(aListName);
+  return nsHTMLContainerFrame::GetFirstChild(aListName);
 }
 
 nsRect CanvasFrame::CanvasArea() const
@@ -477,8 +476,7 @@ CanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
 
-  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetChildList(),
-                                     aDirtyRect);
+  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetFirstChild(), aDirtyRect);
   
   // Force a background to be shown. We may have a background propagated to us,
   // in which case GetStyleBackground wouldn't have the right background
@@ -602,16 +600,15 @@ CanvasFrame::Reflow(nsPresContext*           aPresContext,
   CanvasFrame* prevCanvasFrame = static_cast<CanvasFrame*>
                                                (GetPrevInFlow());
   if (prevCanvasFrame) {
-    nsAutoPtr<nsFrameList> overflow(prevCanvasFrame->StealOverflowFrames());
+    nsIFrame* overflow = prevCanvasFrame->GetOverflowFrames(aPresContext, PR_TRUE);
     if (overflow) {
-      NS_ASSERTION(overflow->OnlyChild(),
+      NS_ASSERTION(!overflow->GetNextSibling(),
                    "must have doc root as canvas frame's only child");
-      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *overflow,
-                                                  prevCanvasFrame, this);
+      nsHTMLContainerFrame::ReparentFrameView(aPresContext, overflow, prevCanvasFrame, this);
       // Prepend overflow to the our child list. There may already be
       // children placeholders for fixed-pos elements, which don't get
       // reflowed but must not be lost until the canvas frame is destroyed.
-      mFrames.InsertFrames(this, nsnull, *overflow);
+      mFrames.InsertFrames(this, nsnull, overflow);
     }
   }
 

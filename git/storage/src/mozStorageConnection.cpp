@@ -25,7 +25,6 @@
  *   Brett Wilson <brettw@gmail.com>
  *   Shawn Wilsher <me@shawnwilsher.com>
  *   Lev Serebryakov <lev@serebryakov.spb.ru>
- *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -64,7 +63,6 @@
 #include "mozStorageArgValueArray.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementData.h"
-#include "SQLCollations.h"
 
 #include "prlog.h"
 #include "prprf.h"
@@ -244,7 +242,7 @@ aggregateFunctionFinalHelper(sqlite3_context *aCtx)
 ////////////////////////////////////////////////////////////////////////////////
 //// Connection
 
-Connection::Connection(Service *aService)
+Connection::Connection(mozIStorageService *aService)
 : sharedAsyncExecutionMutex("Connection::sharedAsyncExecutionMutex")
 , mDBConn(nsnull)
 , mAsyncExecutionMutex(nsAutoLock::NewLock("AsyncExecutionMutex"))
@@ -340,17 +338,7 @@ Connection::initialize(nsIFile *aDatabaseFile)
 #endif
 
   // Register our built-in SQL functions.
-  srv = registerFunctions(mDBConn);
-  if (srv != SQLITE_OK) {
-    ::sqlite3_close(mDBConn);
-    mDBConn = nsnull;
-    return convertResultCode(srv);
-  }
-
-  // Register our built-in SQL collating sequences.
-  srv = registerCollations(mDBConn, mStorageService);
-  if (srv != SQLITE_OK) {
-    ::sqlite3_close(mDBConn);
+  if (registerFunctions(mDBConn) != SQLITE_OK) {
     mDBConn = nsnull;
     return convertResultCode(srv);
   }
@@ -639,24 +627,64 @@ Connection::ExecuteAsync(mozIStorageStatement **aStatements,
                          mozIStorageStatementCallback *aCallback,
                          mozIStoragePendingStatement **_handle)
 {
+  int rc = SQLITE_OK;
   nsTArray<StatementData> stmts(aNumStatements);
-  for (PRUint32 i = 0; i < aNumStatements; i++) {
-    Statement *stmt = static_cast<Statement *>(aStatements[i]);
-
-    // Obtain our StatementData.
-    StatementData data;
-    nsresult rv = stmt->getAsynchronousStatementData(data);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    NS_ASSERTION(::sqlite3_db_handle(stmt->nativeStatement()) == mDBConn,
+  for (PRUint32 i = 0; i < aNumStatements && rc == SQLITE_OK; i++) {
+    sqlite3_stmt *old_stmt =
+        static_cast<Statement *>(aStatements[i])->nativeStatement();
+    if (!old_stmt) {
+      rc = SQLITE_MISUSE;
+      break;
+    }
+    NS_ASSERTION(::sqlite3_db_handle(old_stmt) == mDBConn,
                  "Statement must be from this database connection!");
 
-    // Now append it to our array.
-    NS_ENSURE_TRUE(stmts.AppendElement(data), NS_ERROR_OUT_OF_MEMORY);
+    // Clone this statement.  We only need a sqlite3_stmt object, so we can
+    // avoid all the extra work that making a new Statement would normally
+    // involve and use the SQLite API.
+    sqlite3_stmt *new_stmt;
+    rc = ::sqlite3_prepare_v2(mDBConn, ::sqlite3_sql(old_stmt), -1, &new_stmt,
+                              NULL);
+    if (rc != SQLITE_OK)
+      break;
+
+#ifdef PR_LOGGING
+    PR_LOG(gStorageLog, PR_LOG_NOTICE,
+           ("Cloned statement 0x%p to 0x%p", old_stmt, new_stmt));
+#endif
+
+    // Transfer the bindings
+    rc = sqlite3_transfer_bindings(old_stmt, new_stmt);
+    if (rc != SQLITE_OK)
+      break;
+
+    Statement *storageStmt = static_cast<Statement *>(aStatements[i]);
+    StatementData data(new_stmt, storageStmt->bindingParamsArray());
+    if (!stmts.AppendElement(data)) {
+      rc = SQLITE_NOMEM;
+      break;
+    }
   }
 
   // Dispatch to the background
-  return AsyncExecuteStatements::execute(stmts, this, aCallback, _handle);
+  nsresult rv = NS_OK;
+  if (rc == SQLITE_OK)
+    rv = AsyncExecuteStatements::execute(stmts, this, aCallback, _handle);
+
+  // We had a failure, so we need to clean up...
+  if (rc != SQLITE_OK || NS_FAILED(rv)) {
+    for (PRUint32 i = 0; i < stmts.Length(); i++)
+      (void)::sqlite3_finalize(stmts[i]);
+
+    if (rc != SQLITE_OK)
+      rv = convertResultCode(rc);
+  }
+
+  // Always reset all the statements
+  for (PRUint32 i = 0; i < aNumStatements; i++)
+    (void)aStatements[i]->Reset();
+
+  return rv;
 }
 
 NS_IMETHODIMP

@@ -60,7 +60,7 @@ function end_test() {
   cleanUp();
 }
 
-// Callback function used by the custom XMLHttpRequest implementation to
+// Callback function used by the custom XMLHttpRequest implemetation to
 // call the nsIDOMEventListener's handleEvent method for onload.
 function callHandleEvent() {
   gXHR.status = 400;

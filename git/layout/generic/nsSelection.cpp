@@ -79,7 +79,6 @@
 #include "nsLayoutCID.h"
 #include "nsBidiPresUtils.h"
 static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
-#include "nsTextFrame.h"
 
 #include "nsIDOMText.h"
 
@@ -302,9 +301,7 @@ private:
   void setAnchorFocusRange(PRInt32 aIndex); // pass in index into mRanges;
                                             // negative value clears
                                             // mAnchorFocusRange
-  nsresult     SelectAllFramesForContent(nsIContentIterator *aInnerIter,
-                               nsIContent *aContent,
-                               PRBool aSelected);
+  nsresult     selectFrames(nsPresContext* aPresContext, nsIContentIterator *aInnerIter, nsIContent *aContent, nsIPresShell *aPresShell, PRBool aFlags);
   nsresult     selectFrames(nsPresContext* aPresContext, nsIRange *aRange, PRBool aSelect);
   nsresult     getTableCellLocationFromRange(nsIRange *aRange, PRInt32 *aSelectionType, PRInt32 *aRow, PRInt32 *aCol);
   nsresult     addTableCellRange(nsIRange *aRange, PRBool *aDidAddRange, PRInt32 *aOutIndex);
@@ -3173,7 +3170,7 @@ nsTypedSelection::addTableCellRange(nsIRange *aRange, PRBool *aDidAddRange,
   }
   
   // Set frame selection mode only if not already set to a table mode
-  //  so we don't lose the select row and column flags (not detected by getTableCellLocation)
+  //  so we don't loose the select row and column flags (not detected by getTableCellLocation)
   if (mFrameSelection->mSelectingTableCellMode == TABLESELECTION_NONE)
     mFrameSelection->mSelectingTableCellMode = tableMode;
 
@@ -4180,11 +4177,15 @@ nsTypedSelection::GetPrimaryFrameForFocusNode(nsIFrame **aReturnFrame, PRInt32 *
   return NS_OK;
 }
 
+
+
 //select all content children of aContent
 nsresult
-nsTypedSelection::SelectAllFramesForContent(nsIContentIterator *aInnerIter,
-                                  nsIContent *aContent,
-                                  PRBool aSelected)
+nsTypedSelection::selectFrames(nsPresContext* aPresContext,
+                               nsIContentIterator *aInnerIter,
+                               nsIContent *aContent,
+                               nsIPresShell *aPresShell,
+                               PRBool aFlags)
 {
   if (!mFrameSelection)
     return NS_OK;//nothing to do
@@ -4199,7 +4200,8 @@ nsTypedSelection::SelectAllFramesForContent(nsIContentIterator *aInnerIter,
     frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(aContent);
     if (frame)
     {
-      frame->SetSelected(aSelected, mType);
+      //NOTE: eSpreadDown is now IGNORED. Selected state is set only for given frame
+      frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
       if (mFrameSelection->GetTableCellSelection())
       {
         nsITableCellLayout *tcl = do_QueryFrame(frame);
@@ -4218,7 +4220,29 @@ nsTypedSelection::SelectAllFramesForContent(nsIContentIterator *aInnerIter,
       frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(innercontent);
       if (frame)
       {
-        frame->SetSelected(aSelected, mType);
+        //NOTE: eSpreadDown is now IGNORED. Selected state is set only
+        //for given frame
+
+        //spread from here to hit all frames in flow
+        frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
+        nsRect frameRect = frame->GetRect();
+
+        //if a rect is 0 height/width then try to notify next
+        //available in flow of selection status.
+        while (!frameRect.width || !frameRect.height)
+        {
+          //try to notify next in flow that its content is selected.
+          frame = frame->GetNextInFlow();
+          if (frame)
+          {
+            frameRect = frame->GetRect();
+            frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
+          }
+          else
+            break;
+        }
+        //if the frame is splittable and this frame is 0,0 then set
+        //the next in flow frame to be selected also
       }
 
       aInnerIter->Next();
@@ -4268,23 +4292,11 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIRange *aRange, PR
       return NS_ERROR_UNEXPECTED;
 
     nsIFrame *frame;
-    if (content->IsNodeOfType(nsINode::eTEXT))
+    if (!content->IsNodeOfType(nsINode::eELEMENT))
     {
       frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(content);
-      // The frame could be an SVG text frame, in which case we'll ignore
-      // it.
-      if (frame && frame->GetType() == nsGkAtoms::textFrame)
-      {
-        nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-        PRUint32 startOffset = aRange->StartOffset();
-        PRUint32 endOffset;
-        if (aRange->GetEndParent() == content) {
-          endOffset = aRange->EndOffset();
-        } else {
-          endOffset = content->GetText()->GetLength();
-        }
-        textFrame->SetSelectedRange(startOffset, endOffset, aFlags, mType);
-      }
+      if (frame)
+        frame->SetSelected(aPresContext, domRange, aFlags, eSpreadDown, mType);//spread from here to hit all frames in flow
     }
 
     iter->First();
@@ -4293,7 +4305,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIRange *aRange, PR
     {
       content = do_QueryInterface(iter->GetCurrentNode());
 
-      SelectAllFramesForContent(inneriter, content, aFlags);
+      selectFrames(aPresContext, inneriter, content, presShell,aFlags);
 
       iter->Next();
     }
@@ -4305,16 +4317,11 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIRange *aRange, PR
       if (NS_FAILED(result) || !content)
         return result;
 
-      if (content->IsNodeOfType(nsINode::eTEXT))
+      if (!content->IsNodeOfType(nsINode::eELEMENT))
       {
         frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(content);
-        // The frame could be an SVG text frame, in which case we'll
-        // ignore it.
-        if (frame && frame->GetType() == nsGkAtoms::textFrame)
-        {
-          nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-          textFrame->SetSelectedRange(0, aRange->EndOffset(), aFlags, mType);
-        }
+        if (frame)
+           frame->SetSelected(aPresContext, domRange, aFlags, eSpreadDown, mType);//spread from here to hit all frames in flow
       }
     }
   }

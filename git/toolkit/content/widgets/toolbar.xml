@@ -430,16 +430,15 @@
   <binding id="toolbar-drag"
            extends="chrome://global/content/bindings/toolbar.xml#toolbar">
     <implementation>
-      <constructor><![CDATA[
+      <constructor>
         try {
           Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm");
           let draggableThis = new WindowDraggingElement(this, window);
           draggableThis.mouseDownCheck = function(e) {
-            // Don't move while customizing or while in full screen mode.
-            return !this.parentNode.customizing && !window.fullScreen;
+            return !this.parentNode.customizing; // Don't move while customizing.
           }
         } catch (e) {}
-      ]]></constructor>
+      </constructor>
     </implementation>
   </binding>
 

@@ -63,6 +63,8 @@ const dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
 const bhist = Cc["@mozilla.org/browser/global-history;2"].
               getService(Ci.nsIBrowserHistory);
+const iosvc = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
 const formhist = Cc["@mozilla.org/satchel/form-history;1"].
                  getService(Ci.nsIFormHistory2);
 
@@ -507,7 +509,7 @@ function addFormEntryWithMinutesAgo(aMinutesAgo) {
  *        The visit will be visited this many minutes ago
  */
 function addHistoryWithMinutesAgo(aMinutesAgo) {
-  let pURI = makeURI("http://" + aMinutesAgo + "-minutes-ago.com/");
+  let pURI = uri("http://" + aMinutesAgo + "-minutes-ago.com/");
   bhist.addPageWithDetails(pURI,
                            aMinutesAgo + " minutes ago",
                            now_uSec - (aMinutesAgo * 60 * 1000 * 1000));
@@ -648,6 +650,13 @@ function openWindow(aOnloadCallback) {
                       "Sanitize",
                       "chrome,titlebar,dialog,centerscreen,modal",
                       null);
+}
+
+/**
+ * @return A new nsIURI from aSpec.
+ */
+function uri(aSpec) {
+  return iosvc.newURI(aSpec, null, null);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

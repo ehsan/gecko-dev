@@ -283,8 +283,10 @@
           if (val == this.value &&
               this.getAttribute("pageproxystate") == "valid") {
             let uri;
+            let ioService = Cc["@mozilla.org/network/io-service;1"]
+                              .getService(Ci.nsIIOService);
             try {
-              uri = makeURI(val);
+              uri = ioService.newURI(val, null, null);
             } catch (e) {}
 
             if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data")) {
@@ -385,7 +387,10 @@
         <setter>
           <![CDATA[
           try {
-            val = losslessDecodeURI(makeURI(val));
+            let uri = Cc["@mozilla.org/network/io-service;1"].
+                      getService(Ci.nsIIOService).
+                      newURI(val, null, null);
+            val = losslessDecodeURI(uri);
           } catch (ex) { }
           this.value = val;
 

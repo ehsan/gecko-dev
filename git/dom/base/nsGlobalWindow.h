@@ -90,7 +90,6 @@
 #include "nsIXPCScriptable.h"
 #include "nsPoint.h"
 #include "nsSize.h"
-#include "nsRect.h"
 #include "mozFlushType.h"
 #include "prclist.h"
 #include "nsIDOMStorageObsolete.h"
@@ -595,7 +594,6 @@ protected:
   
   nsresult GetOuterSize(nsIntSize* aSizeCSSPixels);
   nsresult SetOuterSize(PRInt32 aLengthCSSPixels, PRBool aIsWidth);
-  nsRect GetInnerScreenRect();
 
   PRBool IsFrame()
   {
@@ -610,7 +608,6 @@ protected:
   PRBool WindowExists(const nsAString& aName, PRBool aLookForCallerOnJSStack);
 
   already_AddRefed<nsIWidget> GetMainWidget();
-  nsIWidget* GetNearestWidget();
 
   void Freeze()
   {
@@ -783,6 +780,7 @@ protected:
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
+  static nsIFactory *sComputedDOMStyleFactory;
   static nsIDOMStorageList* sGlobalStorageList;
 };
 

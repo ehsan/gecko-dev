@@ -47,6 +47,7 @@
 #include "nsRect.h"
 #include "nsComponentManagerUtils.h"
 
+#include "nsIImage.h"
 #include "nsIInterfaceRequestorUtils.h"
 
 NS_IMPL_THREADSAFE_ADDREF(nsIconDecoder)
@@ -70,10 +71,13 @@ NS_IMETHODIMP nsIconDecoder::Init(imgILoad *aLoad)
 {
   mObserver = do_QueryInterface(aLoad);  // we're holding 2 strong refs to the request.
 
-  mImage = do_CreateInstance("@mozilla.org/image/container;2");
+  mImage = do_CreateInstance("@mozilla.org/image/container;1");
   if (!mImage) return NS_ERROR_OUT_OF_MEMORY;
 
   aLoad->SetImage(mImage);                                                   
+
+  mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
+  if (!mFrame) return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
 }
@@ -84,7 +88,7 @@ NS_IMETHODIMP nsIconDecoder::Close()
 
   if (mObserver) 
   {
-    mObserver->OnStopFrame(nsnull, 0);
+    mObserver->OnStopFrame(nsnull, mFrame);
     mObserver->OnStopContainer(nsnull, mImage);
     mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
   }
@@ -116,15 +120,17 @@ NS_IMETHODIMP nsIconDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PR
   if (mObserver)
     mObserver->OnStartContainer(nsnull, mImage);
 
-  PRUint32 imageLen;
-  PRUint8 *imageData;
-
-  rv = mImage->AppendFrame(0, 0, w, h, gfxASurface::ImageFormatARGB32, &imageData, &imageLen);
+  rv = mFrame->Init(0, 0, w, h, gfxIFormats::BGRA, 24);
   if (NS_FAILED(rv))
     return rv;
 
+  mImage->AppendFrame(mFrame);
   if (mObserver)
-    mObserver->OnStartFrame(nsnull, 0);
+    mObserver->OnStartFrame(nsnull, mFrame);
+
+  PRUint32 imageLen;
+  PRUint8 *imageData;
+  mFrame->GetImageData(&imageData, &imageLen);
 
   // Ensure that there enough in the inputStream
   NS_ENSURE_TRUE(count >= imageLen, NS_ERROR_UNEXPECTED);
@@ -136,11 +142,12 @@ NS_IMETHODIMP nsIconDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PR
 
   // Notify the image...
   nsIntRect r(0, 0, w, h);
-  rv = mImage->FrameUpdated(0, r);
+  nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
+  rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
   if (NS_FAILED(rv))
     return rv;
 
-  mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
+  mObserver->OnDataAvailable(nsnull, mFrame, &r);
 
   return NS_OK;
 }

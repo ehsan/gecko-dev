@@ -71,7 +71,7 @@ struct JSStackFrame {
     jsbytecode      *imacpc;        /* null or interpreter macro call pc */
     jsval           *slots;         /* variables, locals and operand stack */
     JSObject        *callobj;       /* lazily created Call object */
-    jsval           argsobj;        /* lazily created arguments object, must be JSVAL_OBJECT */
+    JSObject        *argsobj;       /* lazily created arguments object */
     JSObject        *varobj;        /* variables object, where vars go */
     JSObject        *callee;        /* function or script object */
     JSScript        *script;        /* script being interpreted */
@@ -90,7 +90,7 @@ struct JSStackFrame {
      * variables on the stack initially, note when they are closed
      * over, and copy those that are out to the heap when we leave
      * their dynamic scope.
-     *
+     * 
      * The bytecode compiler produces a tree of block objects
      * accompanying each JSScript representing those lexical blocks in
      * the script that have let-bound variables associated with them.
@@ -102,7 +102,7 @@ struct JSStackFrame {
      * When we are in the static scope of such a block, blockChain
      * points to its compiler-allocated block object; otherwise, it is
      * NULL.
-     *
+     * 
      * scopeChain is the current scope chain, including 'call' and
      * 'block' objects for those function calls and lexical blocks
      * whose static scope we are currently executing in, and 'with'
@@ -158,7 +158,7 @@ static JS_INLINE uintN
 GlobalVarCount(JSStackFrame *fp)
 {
     uintN n;
-
+    
     JS_ASSERT(!fp->fun);
     n = fp->script->nfixed;
     if (fp->script->regexpsOffset != 0)
@@ -238,15 +238,18 @@ typedef struct JSInlineFrame {
 
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
+#ifndef JS_THREADSAFE
+# define js_GenerateShape(cx, gcLocked)    js_GenerateShape (cx)
+#endif
+
+extern uint32
+js_GenerateShape(JSContext *cx, JSBool gcLocked);
+
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
     jsuword             kshape;         /* key shape if pc, else obj for atom */
     jsuword             vcap;           /* value capability, see above */
     jsuword             vword;          /* value word, see PCVAL_* below */
-
-    bool adding() const {
-        return PCVCAP_TAG(vcap) == 0 && kshape != PCVCAP_SHAPE(vcap);
-    }
 };
 
 /*
@@ -383,6 +386,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
             if (JS_LOCK_OBJ_IF_SHAPE(cx, pobj, PCVCAP_SHAPE(entry->vcap))) {  \
                 PCMETER(cache_->pchits++);                                    \
                 PCMETER(!PCVCAP_TAG(entry->vcap) || cache_->protopchits++);   \
+                pobj = OBJ_SCOPE(pobj)->object;                               \
                 atom = NULL;                                                  \
                 break;                                                        \
             }                                                                 \
@@ -454,8 +458,7 @@ extern const uint16 js_PrimitiveTestFlags[];
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
 
-#ifdef __cplusplus /* Aargh, libgjs, bug 492720. */
-static JS_INLINE JSObject *
+static inline JSObject *
 js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
 {
     if (fp->flags & JSFRAME_COMPUTED_THIS)
@@ -467,7 +470,6 @@ js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
     fp->flags |= JSFRAME_COMPUTED_THIS;
     return obj;
 }
-#endif
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp

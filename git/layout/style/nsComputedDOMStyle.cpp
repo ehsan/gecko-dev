@@ -77,7 +77,6 @@
 #include "nsCSSKeywords.h"
 #include "nsStyleCoord.h"
 #include "nsDisplayList.h"
-#include "nsDOMCSSDeclaration.h"
 
 #if defined(DEBUG_bzbarsky) || defined(DEBUG_caillon)
 #define DEBUG_ComputedDOMStyle
@@ -91,34 +90,27 @@
 static nsComputedDOMStyle *sCachedComputedDOMStyle;
 
 nsresult
-NS_NewComputedDOMStyle(nsIDOMElement *aElement, const nsAString &aPseudoElt,
-                       nsIPresShell *aPresShell,
-                       nsComputedDOMStyle **aComputedStyle)
+NS_NewComputedDOMStyle(nsIComputedDOMStyle** aComputedStyle)
 {
   NS_ENSURE_ARG_POINTER(aComputedStyle);
 
-  nsRefPtr<nsComputedDOMStyle> computedStyle;
   if (sCachedComputedDOMStyle) {
     // There's an unused nsComputedDOMStyle cached, use it.
     // But before we use it, re-initialize the object.
 
     // Oh yeah baby, placement new!
-    computedStyle = new (sCachedComputedDOMStyle) nsComputedDOMStyle();
+    *aComputedStyle = new (sCachedComputedDOMStyle) nsComputedDOMStyle();
 
     sCachedComputedDOMStyle = nsnull;
   } else {
     // No nsComputedDOMStyle cached, create a new one.
 
-    computedStyle = new nsComputedDOMStyle();
-    NS_ENSURE_TRUE(computedStyle, NS_ERROR_OUT_OF_MEMORY);
+    *aComputedStyle = new nsComputedDOMStyle();
+    NS_ENSURE_TRUE(*aComputedStyle, NS_ERROR_OUT_OF_MEMORY);
   }
 
-  nsresult rv = computedStyle->Init(aElement, aPseudoElt, aPresShell);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ADDREF(*aComputedStyle);
 
-  *aComputedStyle = nsnull;
-  computedStyle.swap(*aComputedStyle);
-  
   return NS_OK;
 }
 
@@ -139,7 +131,6 @@ nsComputedDOMStyle::nsComputedDOMStyle()
 
 nsComputedDOMStyle::~nsComputedDOMStyle()
 {
-  ClearWrapper();
 }
 
 void
@@ -155,30 +146,19 @@ nsComputedDOMStyle::Shutdown()
 
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsComputedDOMStyle)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsComputedDOMStyle)
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsComputedDOMStyle)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsComputedDOMStyle)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // QueryInterface implementation for nsComputedDOMStyle
-NS_INTERFACE_TABLE_HEAD(nsComputedDOMStyle)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsComputedDOMStyle)
-    NS_INTERFACE_TABLE_ENTRY(nsComputedDOMStyle, nsICSSDeclaration)
-    NS_INTERFACE_TABLE_ENTRY(nsComputedDOMStyle,
-                             nsIDOMCSSStyleDeclaration)
-    NS_INTERFACE_TABLE_ENTRY(nsComputedDOMStyle, nsISupports)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsComputedDOMStyle)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsComputedDOMStyle)
+  NS_INTERFACE_MAP_ENTRY(nsIComputedDOMStyle)
+  NS_INTERFACE_MAP_ENTRY(nsICSSDeclaration)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMCSS2Properties, &mInner)
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties, &mInner)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIComputedDOMStyle)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ComputedCSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 
@@ -1209,7 +1189,7 @@ nsComputedDOMStyle::GetBackgroundList(PRUint8 nsStyleBackground::Layer::* aMembe
       delete valueList;
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(bg->mLayers[i].*aMember,
+    val->SetIdent(nsCSSProps::ValueToKeywordEnum(bg->mLayers[i].*aMember, 
                                                  aTable));
   }
 
@@ -1356,82 +1336,6 @@ nsComputedDOMStyle::GetBackgroundRepeat(nsIDOMCSSValue** aValue)
                            &nsStyleBackground::mRepeatCount,
                            nsCSSProps::kBackgroundRepeatKTable,
                            aValue);
-}
-
-nsresult
-nsComputedDOMStyle::GetMozBackgroundSize(nsIDOMCSSValue** aValue)
-{
-  const nsStyleBackground* bg = GetStyleBackground();
-
-  nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
-  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
-
-  for (PRUint32 i = 0, i_end = bg->mSizeCount; i < i_end; ++i) {
-    const nsStyleBackground::Size &size = bg->mLayers[i].mSize;
-
-    switch (size.mWidthType) {
-      case nsStyleBackground::Size::eContain:
-      case nsStyleBackground::Size::eCover: {
-        NS_ABORT_IF_FALSE(size.mWidthType == size.mHeightType,
-                          "unsynced types");
-        nsCSSKeyword keyword = size.mWidthType == nsStyleBackground::Size::eContain
-                             ? eCSSKeyword_contain
-                             : eCSSKeyword_cover;
-        nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-        if (!val || !valueList->AppendCSSValue(val)) {
-          delete valueList;
-          delete val;
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
-        val->SetIdent(keyword);
-        break;
-      }
-      default: {
-        nsDOMCSSValueList *itemList = GetROCSSValueList(PR_FALSE);
-        if (!itemList || !valueList->AppendCSSValue(itemList)) {
-          delete valueList;
-          delete itemList;
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
-
-        nsROCSSPrimitiveValue* valX = GetROCSSPrimitiveValue();
-        nsROCSSPrimitiveValue* valY = GetROCSSPrimitiveValue();
-        if (!valX || !itemList->AppendCSSValue(valX)) {
-          delete valueList;
-          delete valX;
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
-        if (!valY || !itemList->AppendCSSValue(valY)) {
-          delete valueList;
-          delete valY;
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
-
-        if (size.mWidthType == nsStyleBackground::Size::eAuto) {
-          valX->SetIdent(eCSSKeyword_auto);
-        } else if (size.mWidthType == nsStyleBackground::Size::ePercentage) {
-          valX->SetPercent(size.mWidth.mFloat);
-        } else {
-          NS_ABORT_IF_FALSE(size.mWidthType == nsStyleBackground::Size::eLength,
-                            "bad mWidthType");
-          valX->SetAppUnits(size.mWidth.mCoord);
-        }
-
-        if (size.mHeightType == nsStyleBackground::Size::eAuto) {
-          valY->SetIdent(eCSSKeyword_auto);
-        } else if (size.mHeightType == nsStyleBackground::Size::ePercentage) {
-          valY->SetPercent(size.mHeight.mFloat);
-        } else {
-          NS_ABORT_IF_FALSE(size.mHeightType == nsStyleBackground::Size::eLength,
-                            "bad mHeightType");
-          valY->SetAppUnits(size.mHeight.mCoord);
-        }
-        break;
-      }
-    }
-  }
-
-  return CallQueryInterface(valueList, aValue);
 }
 
 nsresult
@@ -4292,7 +4196,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(_moz_background_clip,          BackgroundClip),
     COMPUTED_STYLE_MAP_ENTRY(_moz_background_inline_policy, BackgroundInlinePolicy),
     COMPUTED_STYLE_MAP_ENTRY(_moz_background_origin,        BackgroundOrigin),
-    COMPUTED_STYLE_MAP_ENTRY(_moz_background_size,          MozBackgroundSize),
     COMPUTED_STYLE_MAP_ENTRY(binding,                       Binding),
     COMPUTED_STYLE_MAP_ENTRY(border_bottom_colors,          BorderBottomColors),
     COMPUTED_STYLE_MAP_ENTRY(border_image,                  BorderImage),

@@ -47,9 +47,12 @@
 
 tree {
   margin: 0px 4px;
+  border-top: 1px solid #A1A1A1;
+  border-right: 1px solid #C3C3C3;
+  border-bottom: 1px solid #DDDDDD;
+  border-left: 1px solid #C3C3C3;
   color: -moz-DialogText;
   background-color: #FFFFFF;
-  -moz-appearance: listbox;
 }
 
 /* ::::: tree focusring ::::: */
@@ -266,13 +269,11 @@ treecol[dragging="true"] {
   color: ThreeDHighlight !important;
 }
 
-tree:-moz-locale-dir(ltr) treecol[insertafter="true"],
-tree:-moz-locale-dir(rtl) treecol[insertbefore="true"] {
+treecol[insertafter="true"] {
   -moz-border-right-colors: ThreeDDarkShadow ThreeDShadow;
 }
 
-tree:-moz-locale-dir(rtl) treecol[insertafter="true"],
-tree:-moz-locale-dir(ltr) treecol[insertbefore="true"] {
+treecol[insertbefore="true"] {
   -moz-border-left-colors: ThreeDDarkShadow ThreeDShadow;
 }
 

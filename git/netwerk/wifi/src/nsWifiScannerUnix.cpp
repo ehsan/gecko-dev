@@ -99,7 +99,8 @@ static int scan_wifi(int skfd, char* ifname, char* args[], int count)
     return 0;
   }
   
-  ap->setSSID(buffer, wrq.u.essid.length);
+  buffer[wrq.u.essid.length] = 0;
+  strncpy(ap->mSsid, buffer, 32);
 
   result = iw_get_ext(skfd, ifname, SIOCGIWAP, &wrq);
   if (result < 0) {
@@ -117,9 +118,9 @@ static int scan_wifi(int skfd, char* ifname, char* args[], int count)
   }
 
   if(stats.qual.level > range.max_qual.level)
-    ap->setSignal(stats.qual.level - 0x100);
+    ap->mSignal = stats.qual.level - 0x100;
   else
-    ap->setSignal(0);
+    ap->mSignal = 0;
 
   accessPoints->AppendObject(ap);
   return 0;

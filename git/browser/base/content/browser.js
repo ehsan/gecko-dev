@@ -65,7 +65,12 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-const nsIWebNavigation = Ci.nsIWebNavigation;
+const nsIWebNavigation = Components.interfaces.nsIWebNavigation;
+
+const MAX_HISTORY_MENU_ITEMS = 15;
+
+// We use this once, for Clear Private Data
+const GLUE_CID = "@mozilla.org/browser/browserglue;1";
 
 var gCharsetMenu = null;
 var gLastBrowserCharset = null;
@@ -338,21 +343,22 @@ const gPopupBlockerObserver = {
     // it.
     if (!gBrowser.pageReport.reported) {
       if (gPrefService.getBoolPref("privacy.popups.showBrowserMessage")) {
+        var bundle_browser = document.getElementById("bundle_browser");
         var brandBundle = document.getElementById("bundle_brand");
         var brandShortName = brandBundle.getString("brandShortName");
         var message;
         var popupCount = gBrowser.pageReport.length;
 #ifdef XP_WIN
-        var popupButtonText = gNavigatorBundle.getString("popupWarningButton");
-        var popupButtonAccesskey = gNavigatorBundle.getString("popupWarningButton.accesskey");
+        var popupButtonText = bundle_browser.getString("popupWarningButton");
+        var popupButtonAccesskey = bundle_browser.getString("popupWarningButton.accesskey");
 #else
-        var popupButtonText = gNavigatorBundle.getString("popupWarningButtonUnix");
-        var popupButtonAccesskey = gNavigatorBundle.getString("popupWarningButtonUnix.accesskey");
+        var popupButtonText = bundle_browser.getString("popupWarningButtonUnix");
+        var popupButtonAccesskey = bundle_browser.getString("popupWarningButtonUnix.accesskey");
 #endif
         if (popupCount > 1)
-          message = gNavigatorBundle.getFormattedString("popupWarningMultiple", [brandShortName, popupCount]);
+          message = bundle_browser.getFormattedString("popupWarningMultiple", [brandShortName, popupCount]);
         else
-          message = gNavigatorBundle.getFormattedString("popupWarning", [brandShortName]);
+          message = bundle_browser.getFormattedString("popupWarning", [brandShortName]);
 
         var notificationBox = gBrowser.getNotificationBox();
         var notification = notificationBox.getNotificationWithValue("popup-blocked");
@@ -394,6 +400,7 @@ const gPopupBlockerObserver = {
 
   fillPopupList: function (aEvent)
   {
+    var bundle_browser = document.getElementById("bundle_browser");
     // XXXben - rather than using |currentURI| here, which breaks down on multi-framed sites
     //          we should really walk the pageReport and create a list of "allow for <host>"
     //          menuitems for the common subset of hosts present in the report, this will
@@ -408,17 +415,18 @@ const gPopupBlockerObserver = {
     try {
       blockedPopupAllowSite.removeAttribute("hidden");
 
-      var pm = Cc["@mozilla.org/permissionmanager;1"].getService(this._kIPM);
+      var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                        .getService(this._kIPM);
       if (pm.testPermission(uri, "popup") == this._kIPM.ALLOW_ACTION) {
         // Offer an item to block popups for this site, if a whitelist entry exists
         // already for it.
-        let blockString = gNavigatorBundle.getFormattedString("popupBlock", [uri.host]);
+        var blockString = bundle_browser.getFormattedString("popupBlock", [uri.host]);
         blockedPopupAllowSite.setAttribute("label", blockString);
         blockedPopupAllowSite.setAttribute("block", "true");
       }
       else {
         // Offer an item to allow popups for this site
-        let allowString = gNavigatorBundle.getFormattedString("popupAllow", [uri.host]);
+        var allowString = bundle_browser.getFormattedString("popupAllow", [uri.host]);
         blockedPopupAllowSite.setAttribute("label", allowString);
         blockedPopupAllowSite.removeAttribute("block");
       }
@@ -460,8 +468,8 @@ const gPopupBlockerObserver = {
         foundUsablePopupURI = true;
 
         var menuitem = document.createElement("menuitem");
-        var label = gNavigatorBundle.getFormattedString("popupShowPopupPrefix",
-                                                        [popupURIspec]);
+        var label = bundle_browser.getFormattedString("popupShowPopupPrefix",
+                                                      [popupURIspec]);
         menuitem.setAttribute("label", label);
         menuitem.setAttribute("popupWindowURI", popupURIspec);
         menuitem.setAttribute("popupWindowFeatures", pageReport[i].popupWindowFeatures);
@@ -486,9 +494,9 @@ const gPopupBlockerObserver = {
     var showMessage = gPrefService.getBoolPref("privacy.popups.showBrowserMessage");
     blockedPopupDontShowMessage.setAttribute("checked", !showMessage);
     if (aEvent.target.localName == "popup")
-      blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromMessage"));
+      blockedPopupDontShowMessage.setAttribute("label", bundle_browser.getString("popupWarningDontShowFromMessage"));
     else
-      blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromStatusbar"));
+      blockedPopupDontShowMessage.setAttribute("label", bundle_browser.getString("popupWarningDontShowFromStatusbar"));
   },
 
   showBlockedPopup: function (aEvent)
@@ -588,6 +596,7 @@ const gXPInstallObserver = {
   observe: function (aSubject, aTopic, aData)
   {
     var brandBundle = document.getElementById("bundle_brand");
+    var browserBundle = document.getElementById("bundle_browser");
     switch (aTopic) {
     case "xpinstall-install-blocked":
       var installInfo = aSubject.QueryInterface(Components.interfaces.nsIXPIInstallInfo);
@@ -603,16 +612,16 @@ const gXPInstallObserver = {
         if (!gPrefService.getBoolPref("xpinstall.enabled")) {
           notificationName = "xpinstall-disabled"
           if (gPrefService.prefIsLocked("xpinstall.enabled")) {
-            messageString = gNavigatorBundle.getString("xpinstallDisabledMessageLocked");
+            messageString = browserBundle.getString("xpinstallDisabledMessageLocked");
             buttons = [];
           }
           else {
-            messageString = gNavigatorBundle.getFormattedString("xpinstallDisabledMessage",
-                                                                [brandShortName, host]);
+            messageString = browserBundle.getFormattedString("xpinstallDisabledMessage",
+                                                             [brandShortName, host]);
 
             buttons = [{
-              label: gNavigatorBundle.getString("xpinstallDisabledButton"),
-              accessKey: gNavigatorBundle.getString("xpinstallDisabledButton.accesskey"),
+              label: browserBundle.getString("xpinstallDisabledButton"),
+              accessKey: browserBundle.getString("xpinstallDisabledButton.accesskey"),
               popup: null,
               callback: function editPrefs() {
                 gPrefService.setBoolPref("xpinstall.enabled", true);
@@ -623,12 +632,12 @@ const gXPInstallObserver = {
         }
         else {
           notificationName = "xpinstall"
-          messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
-                                                              [brandShortName, host]);
+          messageString = browserBundle.getFormattedString("xpinstallPromptWarning",
+                                                           [brandShortName, host]);
 
           buttons = [{
-            label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
-            accessKey: gNavigatorBundle.getString("xpinstallPromptAllowButton.accesskey"),
+            label: browserBundle.getString("xpinstallPromptAllowButton"),
+            accessKey: browserBundle.getString("xpinstallPromptAllowButton.accesskey"),
             popup: null,
             callback: function() {
               var mgr = Components.classes["@mozilla.org/xpinstall/install-manager;1"]
@@ -1058,8 +1067,6 @@ function BrowserStartup() {
     gURLBar.setAttribute("enablehistory", "false");
   }
 
-  allTabs.readPref();
-
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -1320,9 +1327,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gBrowser.addEventListener("command", BrowserOnCommand, false);
 
   tabPreviews.init();
-  ctrlTab.readPref();
-  gPrefService.addObserver(ctrlTab.prefName, ctrlTab, false);
-  gPrefService.addObserver(allTabs.prefName, allTabs, false);
+  ctrlTab.init();
 
   // Initialize the microsummary service by retrieving it, prompting its factory
   // to create its singleton, whose constructor initializes the service.
@@ -1375,7 +1380,6 @@ function BrowserShutdown()
 {
   tabPreviews.uninit();
   ctrlTab.uninit();
-  allTabs.uninit();
 
   gGestureSupport.init(false);
 
@@ -1552,36 +1556,40 @@ function initializeSanitizer()
    * a) User has customized any privacy.item prefs
    * b) privacy.sanitize.sanitizeOnShutdown is set
    */
-  if (!gPrefService.getBoolPref("privacy.sanitize.migrateFx3Prefs")) {
-    let itemBranch = gPrefService.getBranch("privacy.item.");
-    let itemCount = { value: 0 };
-    let itemArray = itemBranch.getChildList("", itemCount);
+  (function() {
+    var prefService = Cc["@mozilla.org/preferences-service;1"].
+                      getService(Ci.nsIPrefService);
+    if (!prefService.getBoolPref("privacy.sanitize.migrateFx3Prefs")) {
+      var itemBranch = prefService.getBranch("privacy.item.");
+      var itemCount = { value: 0 };
+      var itemArray = itemBranch.getChildList("", itemCount);
 
-    // See if any privacy.item prefs are set
-    let doMigrate = itemArray.some(function (name) itemBranch.prefHasUserValue(name));
-    // Or if sanitizeOnShutdown is set
-    if (!doMigrate)
-      doMigrate = gPrefService.getBoolPref("privacy.sanitize.sanitizeOnShutdown");
+      // See if any privacy.item prefs are set
+      var doMigrate = itemArray.some(function (name) itemBranch.prefHasUserValue(name));
+      // Or if sanitizeOnShutdown is set
+      if (!doMigrate)
+        doMigrate = prefService.getBoolPref("privacy.sanitize.sanitizeOnShutdown");
 
-    if (doMigrate) {
-      let cpdBranch = gPrefService.getBranch("privacy.cpd.");
-      let clearOnShutdownBranch = gPrefService.getBranch("privacy.clearOnShutdown.");
-      itemArray.forEach(function (name) {
-        try {
-          // don't migrate password or offlineApps clearing in the CRH dialog since
-          // there's no UI for those anymore. They default to false. bug 497656
-          if (name != "passwords" && name != "offlineApps")
-            cpdBranch.setBoolPref(name, itemBranch.getBoolPref(name));
-          clearOnShutdownBranch.setBoolPref(name, itemBranch.getBoolPref(name));
-        }
-        catch(e) {
-          Cu.reportError("Exception thrown during privacy pref migration: " + e);
-        }
-      });
+      if (doMigrate) {
+        var cpdBranch = prefService.getBranch("privacy.cpd.");
+        var clearOnShutdownBranch = prefService.getBranch("privacy.clearOnShutdown.");
+        itemArray.forEach(function (name) {
+          try {
+            // don't migrate password or offlineApps clearing in the CRH dialog since
+            // there's no UI for those anymore. They default to false. bug 497656
+            if (name != "passwords" && name != "offlineApps")
+              cpdBranch.setBoolPref(name, itemBranch.getBoolPref(name));
+            clearOnShutdownBranch.setBoolPref(name, itemBranch.getBoolPref(name));
+          }
+          catch(e) {
+            Components.utils.reportError("Exception thrown during privacy pref migration: " + e);
+          }
+        });
+      }
+
+      prefService.setBoolPref("privacy.sanitize.migrateFx3Prefs", true);
     }
-
-    gPrefService.setBoolPref("privacy.sanitize.migrateFx3Prefs", true);
-  }
+  })();
 }
 
 function gotoHistoryIndex(aEvent)
@@ -2651,21 +2659,16 @@ var browserDragAndDrop = {
         case "text/x-moz-url":
           var split = dt.getData(type).split("\n");
           return [split[0], split[1]];
+        case "application/x-moz-file":
+          var file = dt.mozGetDataAt(type, 0);
+          var name = file instanceof Components.interfaces.nsIFile ? file.leafName : "";
+          var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                                    .getService(Components.interfaces.nsIIOService);
+          var fileHandler = ioService.getProtocolHandler("file")
+                                     .QueryInterface(Components.interfaces.nsIFileProtocolHandler);
+          return [fileHandler.getURLSpecFromFile(file), name];
       }
     }
-
-    // For shortcuts, we want to check for the file type last, so that the
-    // url pointed to in one of the url types is found first before the file
-    // type, which points to the actual file.
-    var file = dt.mozGetDataAt("application/x-moz-file", 0);
-    if (file) {
-      var name = file instanceof Ci.nsIFile ? file.leafName : "";
-      var fileHandler = ContentAreaUtils.ioService
-                                        .getProtocolHandler("file")
-                                        .QueryInterface(Ci.nsIFileProtocolHandler);
-      return [fileHandler.getURLSpecFromFile(file), name];
-    }
-
     return [ , ];
   },
 
@@ -2888,7 +2891,9 @@ const DOMLinkHandler = {
               break;
 
             var targetDoc = link.ownerDocument;
-            var uri = makeURI(link.href, targetDoc.characterSet);
+            var ios = Cc["@mozilla.org/network/io-service;1"].
+                      getService(Ci.nsIIOService);
+            var uri = ios.newURI(link.href, targetDoc.characterSet, null);
 
             if (gBrowser.isFailedIcon(uri))
               break;
@@ -3148,22 +3153,24 @@ function FillHistoryMenu(aParent) {
 
   var webNav = getWebNavigation();
   var sessionHistory = webNav.sessionHistory;
+  var bundle_browser = document.getElementById("bundle_browser");
 
   var count = sessionHistory.count;
+  var index = sessionHistory.index;
+  var end;
+
   if (count <= 1) // don't display the popup for a single item
     return false;
 
-  const MAX_HISTORY_MENU_ITEMS = 15;
-  var index = sessionHistory.index;
   var half_length = Math.floor(MAX_HISTORY_MENU_ITEMS / 2);
   var start = Math.max(index - half_length, 0);
-  var end = Math.min(start == 0 ? MAX_HISTORY_MENU_ITEMS : index + half_length + 1, count);
+  end = Math.min(start == 0 ? MAX_HISTORY_MENU_ITEMS : index + half_length + 1, count);
   if (end == count)
     start = Math.max(count - MAX_HISTORY_MENU_ITEMS, 0);
 
-  var tooltipBack = gNavigatorBundle.getString("tabHistory.goBack");
-  var tooltipCurrent = gNavigatorBundle.getString("tabHistory.current");
-  var tooltipForward = gNavigatorBundle.getString("tabHistory.goForward");
+  var tooltipBack = bundle_browser.getString("tabHistory.goBack");
+  var tooltipCurrent = bundle_browser.getString("tabHistory.current");
+  var tooltipForward = bundle_browser.getString("tabHistory.goForward");
 
   for (var j = end - 1; j >= start; j--) {
     let item = document.createElement("menuitem");
@@ -4400,9 +4407,8 @@ nsBrowserAccess.prototype =
         if (!window.document.documentElement.getAttribute("chromehidden"))
           win = window;
         else {
-          win = Cc["@mozilla.org/browser/browserglue;1"]
-                  .getService(Ci.nsIBrowserGlue)
-                  .getMostRecentBrowserWindow();
+          var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
+          win = browserGlue.getMostRecentBrowserWindow();
           needToFocusWin = true;
         }
 
@@ -4419,7 +4425,10 @@ nsBrowserAccess.prototype =
           if (aURI) {
             if (aOpener) {
               location = aOpener.location;
-              referrer = makeURI(location);
+              referrer =
+                      Components.classes["@mozilla.org/network/io-service;1"]
+                                .getService(Components.interfaces.nsIIOService)
+                                .newURI(location, null, null);
             }
             newWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                      .getInterface(Ci.nsIWebNavigation)
@@ -4436,7 +4445,10 @@ nsBrowserAccess.prototype =
             newWindow = aOpener.top;
             if (aURI) {
               location = aOpener.location;
-              referrer = makeURI(location);
+              referrer =
+                      Components.classes["@mozilla.org/network/io-service;1"]
+                                .getService(Components.interfaces.nsIIOService)
+                                .newURI(location, null, null);
 
               newWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                        .getInterface(nsIWebNavigation)
@@ -4966,19 +4978,19 @@ function middleMousePaste(event)
  */
 
 var contentAreaDNDObserver = {
+  onDragOver: function (aEvent)
+    {
+      var types = aEvent.dataTransfer.types;
+      if (types.contains("application/x-moz-file") ||
+          types.contains("text/x-moz-url") ||
+          types.contains("text/uri-list") ||
+          types.contains("text/plain"))
+        aEvent.preventDefault();
+    },
   onDrop: function (aEvent)
     {
       if (aEvent.getPreventDefault())
         return;
-
-      var types = aEvent.dataTransfer.types;
-      if (!types.contains("application/x-moz-file") &&
-          !types.contains("text/x-moz-url") &&
-          !types.contains("text/uri-list") &&
-          !types.contains("text/plain")) {
-        aEvent.preventDefault();
-        return;
-      }
 
       let [url, name] = browserDragAndDrop.getDragURLFromDataTransfer(aEvent.dataTransfer);
 
@@ -5409,8 +5421,11 @@ var OfflineApps = {
     if (!attr) return null;
 
     try {
-      var contentURI = makeURI(aWindow.location.href, null, null);
-      return makeURI(attr, aWindow.document.characterSet, contentURI);
+      var ios = Cc["@mozilla.org/network/io-service;1"].
+                getService(Ci.nsIIOService);
+
+      var contentURI = ios.newURI(aWindow.location.href, null, null);
+      return ios.newURI(attr, aWindow.document.characterSet, contentURI);
     } catch (e) {
       return null;
     }
@@ -5443,17 +5458,19 @@ var OfflineApps = {
     var notificationBox = gBrowser.getNotificationBox(aBrowser);
     var notification = notificationBox.getNotificationWithValue("offline-app-usage");
     if (!notification) {
+      var bundle_browser = document.getElementById("bundle_browser");
+
       var buttons = [{
-          label: gNavigatorBundle.getString("offlineApps.manageUsage"),
-          accessKey: gNavigatorBundle.getString("offlineApps.manageUsageAccessKey"),
+          label: bundle_browser.getString("offlineApps.manageUsage"),
+          accessKey: bundle_browser.getString("offlineApps.manageUsageAccessKey"),
           callback: OfflineApps.manage
         }];
 
       var warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
       const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-      var message = gNavigatorBundle.getFormattedString("offlineApps.usage",
-                                                        [ aURI.host,
-                                                          warnQuota / 1024 ]);
+      var message = bundle_browser.getFormattedString("offlineApps.usage",
+                                                      [ aURI.host,
+                                                        warnQuota / 1024 ]);
 
       notificationBox.appendNotification(message, "offline-app-usage",
                                          "chrome://browser/skin/Info.png",
@@ -5547,31 +5564,33 @@ var OfflineApps = {
     if (notification) {
       notification.documents.push(aContentWindow.document);
     } else {
+      var bundle_browser = document.getElementById("bundle_browser");
+
       var buttons = [{
-        label: gNavigatorBundle.getString("offlineApps.allow"),
-        accessKey: gNavigatorBundle.getString("offlineApps.allowAccessKey"),
+        label: bundle_browser.getString("offlineApps.allow"),
+        accessKey: bundle_browser.getString("offlineApps.allowAccessKey"),
         callback: function() {
           for (var i = 0; i < notification.documents.length; i++) {
             OfflineApps.allowSite(notification.documents[i]);
           }
         }
       },{
-        label: gNavigatorBundle.getString("offlineApps.never"),
-        accessKey: gNavigatorBundle.getString("offlineApps.neverAccessKey"),
+        label: bundle_browser.getString("offlineApps.never"),
+        accessKey: bundle_browser.getString("offlineApps.neverAccessKey"),
         callback: function() {
           for (var i = 0; i < notification.documents.length; i++) {
             OfflineApps.disallowSite(notification.documents[i]);
           }
         }
       },{
-        label: gNavigatorBundle.getString("offlineApps.notNow"),
-        accessKey: gNavigatorBundle.getString("offlineApps.notNowAccessKey"),
+        label: bundle_browser.getString("offlineApps.notNow"),
+        accessKey: bundle_browser.getString("offlineApps.notNowAccessKey"),
         callback: function() { /* noop */ }
       }];
 
       const priority = notificationBox.PRIORITY_INFO_LOW;
-      var message = gNavigatorBundle.getFormattedString("offlineApps.available",
-                                                        [ host ]);
+      var message = bundle_browser.getFormattedString("offlineApps.available",
+                                                      [ host ]);
       notification =
         notificationBox.appendNotification(message, notificationID,
                                            "chrome://browser/skin/Info.png",
@@ -5611,8 +5630,11 @@ var OfflineApps = {
     if (!manifest)
       return;
 
-    var manifestURI = makeURI(manifest, aDocument.characterSet,
-                              aDocument.documentURIObject);
+    var ios = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
+
+    var manifestURI = ios.newURI(manifest, aDocument.characterSet,
+                                 aDocument.documentURIObject);
 
     var updateService = Cc["@mozilla.org/offlinecacheupdate-service;1"].
                         getService(Ci.nsIOfflineCacheUpdateService);
@@ -5625,7 +5647,9 @@ var OfflineApps = {
   {
     if (aTopic == "dom-storage-warn-quota-exceeded") {
       if (aSubject) {
-        var uri = makeURI(aSubject.location.href);
+        var uri = Cc["@mozilla.org/network/io-service;1"].
+                  getService(Ci.nsIIOService).
+                  newURI(aSubject.location.href, null, null);
 
         if (OfflineApps._checkUsage(uri)) {
           var browserWindow =
@@ -5686,7 +5710,9 @@ var MailIntegration = {
       mailtoUrl += "&subject=" + encodeURIComponent(aSubject);
     }
 
-    var uri = makeURI(mailtoUrl);
+    var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                              .getService(Components.interfaces.nsIIOService);
+    var uri = ioService.newURI(mailtoUrl, null, null);
 
     // now pass this uri to the operating system
     this._launchExternalUrl(uri);
@@ -6298,17 +6324,21 @@ var gIdentityHandler = {
   _lastLocation : null,
 
   // smart getters
+  get _stringBundle () {
+    delete this._stringBundle;
+    return this._stringBundle = document.getElementById("bundle_browser");
+  },
   get _staticStrings () {
     delete this._staticStrings;
     this._staticStrings = {};
     this._staticStrings[this.IDENTITY_MODE_DOMAIN_VERIFIED] = {
-      encryption_label: gNavigatorBundle.getString("identity.encrypted")
+      encryption_label: this._stringBundle.getString("identity.encrypted")
     };
     this._staticStrings[this.IDENTITY_MODE_IDENTIFIED] = {
-      encryption_label: gNavigatorBundle.getString("identity.encrypted")
+      encryption_label: this._stringBundle.getString("identity.encrypted")
     };
     this._staticStrings[this.IDENTITY_MODE_UNKNOWN] = {
-      encryption_label: gNavigatorBundle.getString("identity.unencrypted")
+      encryption_label: this._stringBundle.getString("identity.unencrypted")
     };
     return this._staticStrings;
   },
@@ -6353,11 +6383,6 @@ var gIdentityHandler = {
   get _identityIconLabel () {
     delete this._identityIconLabel;
     return this._identityIconLabel = document.getElementById("identity-icon-label");
-  },
-  get _overrideService () {
-    delete this._overrideService;
-    return this._overrideService = Cc["@mozilla.org/security/certoverride;1"]
-                                     .getService(Ci.nsICertOverrideService);
   },
 
   /**
@@ -6504,10 +6529,15 @@ var gIdentityHandler = {
       if (lookupHost.indexOf(':') < 0)
         lookupHost += ":443";
 
+      // Cache the override service the first time we need to check it
+      if (!this._overrideService)
+        this._overrideService = Components.classes["@mozilla.org/security/certoverride;1"]
+                                          .getService(Components.interfaces.nsICertOverrideService);
+
       // Verifier is either the CA Org, for a normal cert, or a special string
       // for certs that are trusted because of a security exception.
-      var tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
-                                                        [iData.caOrg]);
+      var tooltip = this._stringBundle.getFormattedString("identity.identified.verifier",
+                                                          [iData.caOrg]);
       
       // Check whether this site is a security exception. XPConnect does the right
       // thing here in terms of converting _lastLocation.port from string to int, but
@@ -6516,21 +6546,21 @@ var gIdentityHandler = {
       if (this._overrideService.hasMatchingOverride(this._lastLocation.hostname, 
                                                     (this._lastLocation.port || 443),
                                                     iData.cert, {}, {}))
-        tooltip = gNavigatorBundle.getString("identity.identified.verified_by_you");
+        tooltip = this._stringBundle.getString("identity.identified.verified_by_you");
     }
     else if (newMode == this.IDENTITY_MODE_IDENTIFIED) {
       // If it's identified, then we can populate the dialog with credentials
       iData = this.getIdentityData();  
-      tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
-                                                    [iData.caOrg]);
+      tooltip = this._stringBundle.getFormattedString("identity.identified.verifier",
+                                                      [iData.caOrg]);
       if (iData.country)
-        icon_label = gNavigatorBundle.getFormattedString("identity.identified.title_with_country",
-                                                         [iData.subjectOrg, iData.country]);
+        icon_label = this._stringBundle.getFormattedString("identity.identified.title_with_country",
+                                                           [iData.subjectOrg, iData.country]);
       else
         icon_label = iData.subjectOrg;
     }
     else {
-      tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
+      tooltip = this._stringBundle.getString("identity.unknown.tooltip");
       icon_label = "";
     }
     
@@ -6561,7 +6591,7 @@ var gIdentityHandler = {
     if (newMode == this.IDENTITY_MODE_DOMAIN_VERIFIED) {
       var iData = this.getIdentityData();
       var host = this.getEffectiveHost();
-      var owner = gNavigatorBundle.getString("identity.ownerUnknown2");
+      var owner = this._stringBundle.getString("identity.ownerUnknown2");
       verifier = this._identityBox.tooltipText;
       supplemental = "";
     }
@@ -6576,8 +6606,8 @@ var gIdentityHandler = {
       if (iData.city)
         supplemental += iData.city + "\n";        
       if (iData.state && iData.country)
-        supplemental += gNavigatorBundle.getFormattedString("identity.identified.state_and_country",
-                                                            [iData.state, iData.country]);
+        supplemental += this._stringBundle.getFormattedString("identity.identified.state_and_country",
+                                                              [iData.state, iData.country]);
       else if (iData.state) // State only
         supplemental += iData.state;
       else if (iData.country) // Country only
@@ -6628,7 +6658,9 @@ var gIdentityHandler = {
     
     // Make sure the identity popup hangs toward the middle of the location bar
     // in RTL builds
-    var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_end' : 'after_start';
+    var position = 'after_start';
+    if (gURLBar.getAttribute("chromedir") == "rtl")
+      position = 'after_end';
 
     // Add the "open" attribute to the identity box for styling
     this._identityBox.setAttribute("open", "true");
@@ -6667,8 +6699,10 @@ let DownloadMonitorPanel = {
     this._panel = document.getElementById("download-monitor");
 
     // Cache the status strings
-    this._activeStr = gNavigatorBundle.getString("activeDownloads");
-    this._pausedStr = gNavigatorBundle.getString("pausedDownloads");
+    let (bundle = document.getElementById("bundle_browser")) {
+      this._activeStr = bundle.getString("activeDownloads");
+      this._pausedStr = bundle.getString("pausedDownloads");
+    }
 
     gDownloadMgr.addListener(this);
     this._listening = true;

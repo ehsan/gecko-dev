@@ -77,11 +77,11 @@ OPDEF(unused5,   5,-1, None)
 OPDEF(unused6,   6,-1, None)
 
 /* non-pure operations */
-OPDEF(iaddp,     7, 2, Op2)     // 32-bit integer addition for temporary pointer calculations
-OPDEF(iparam,    8, 0, P)       // load a parameter (32-bit register or stack location)
+OPDEF(addp,      7, 2, Op2)     // integer addition for temporary pointer calculations
+OPDEF(param,     8, 0, P)       // load a parameter
 OPDEF(unused9,   9,-1, None)
-OPDEF(ld,       10, 1, Ld)      // 32-bit load
-OPDEF(ialloc,   11, 0, I)       // alloca some stack space
+OPDEF(ld,       10, 2, Op2)     // 32-bit load
+OPDEF(alloc,    11, 0, I)       // alloca some stack space
 OPDEF(sti,      12, 2, Sti)     // 32-bit store
 OPDEF(ret,      13, 1, Op1)     // return a word-sized value
 OPDEF(live,     14, 1, Op1)     // extend live range of reference
@@ -107,7 +107,7 @@ OPDEF(ji,       23,-1, None)    // indirect jump (currently not implemented)
  */
 
 OPDEF(int,      24, 0, I)       // constant 32-bit integer
-OPDEF(cmov,     25, 3, Op3)     // conditional move
+OPDEF(cmov,     25, 2, Op2)     // conditional move (op1=cond, op2=LIR_2(iftrue,iffalse))
 #if defined(NANOJIT_64BIT)
 OPDEF(callh,    26,-1, None)    // unused on 64-bit machines
 #else
@@ -129,9 +129,9 @@ OPDEF(fgt,      29, 2, Op2)     // floating-point greater-than
 OPDEF(fle,      30, 2, Op2)     // floating-point less-than-or-equal
 OPDEF(fge,      31, 2, Op2)     // floating-point greater-than-or-equal
 
-OPDEF(ldcb,     32, 1, Ld)      // non-volatile  8-bit load
-OPDEF(ldcs,     33, 1, Ld)      // non-volatile 16-bit load
-OPDEF(ldc,      34, 1, Ld)      // non-volatile 32-bit load
+OPDEF(ldcb,     32, 2, Op2)     // non-volatile  8-bit load
+OPDEF(ldcs,     33, 2, Op2)     // non-volatile 16-bit load
+OPDEF(ldc,      34, 2, Op2)     // non-volatile 32-bit load
 
 OPDEF(neg,      35, 1, Op1)     // integer negation
 OPDEF(add,      36, 2, Op2)     // integer addition
@@ -179,11 +179,10 @@ OPDEF(ugt,      61, 2, Op2)     // unsigned integer greater-than          (0x3D 
 OPDEF(ule,      62, 2, Op2)     // unsigned integer less-than-or-equal    (0x3E 0011 1110)
 OPDEF(uge,      63, 2, Op2)     // unsigned integer greater-than-or-equal (0x3F 0011 1111)
 
-OPDEF64(unused0_64, 0,-1, None)
-
+OPDEF64(2,          0, 2, Op2)      // wraps a pair of refs, for LIR_cmov or LIR_qcmov
 OPDEF64(file,       1, 2, Op1)      // source filename for debug symbols
-OPDEF64(line,       2, 2, Op1)      // source line number for debug symbols
-OPDEF64(xbarrier,   3, 0, Op2)      // memory barrier;  doesn't exit, but flushes all values to the stack
+OPDEF64(line,       2, 2, Op1)      // source line number for debug symbols 
+OPDEF64(xbarrier,   3, 1, Op2)      // memory barrier;  doesn't exit, but flushes all values to the stack
 OPDEF64(xtbl,       4, 1, Op2)      // exit via indirect jump
 
 OPDEF64(unused5_64, 5,-1, None)
@@ -192,7 +191,7 @@ OPDEF64(unused7_64, 7,-1, None)
 OPDEF64(unused8_64, 8,-1, None)
 OPDEF64(unused9_64, 9,-1, None)
 
-OPDEF64(ldq,    LIR_ld, 1, Ld)      // 64-bit (quad) load
+OPDEF64(ldq,    LIR_ld, 2, Op2)     // 64-bit (quad) load
 
 OPDEF64(unused11_64, 11,-1, None)
 
@@ -217,7 +216,7 @@ OPDEF64(unused23_64, 23,-1, None)
 // this marker are subject to CSE.
 
 OPDEF64(quad,   LIR_int,  0, I64)   // 64-bit (quad) constant value
-OPDEF64(qcmov,  LIR_cmov, 3, Op3)   // 64-bit conditional move
+OPDEF64(qcmov,  LIR_cmov, 2, Op2)   // 64-bit conditional move
 
 OPDEF64(unused26_64, 26,-1, None)
 OPDEF64(unused27_64, 27,-1, None)
@@ -228,7 +227,7 @@ OPDEF64(unused31_64, 31,-1, None)
 OPDEF64(unused32_64, 32,-1, None)
 OPDEF64(unused33_64, 33,-1, None)
 
-OPDEF64(ldqc,   LIR_ldc, 1, Ld)     // non-volatile 64-bit load
+OPDEF64(ldqc,   LIR_ldc, 2, Op2)    // non-volatile 64-bit load
 
 OPDEF64(fneg,   LIR_neg, 1, Op1)    // floating-point negation
 OPDEF64(fadd,   LIR_add, 2, Op2)    // floating-point addition

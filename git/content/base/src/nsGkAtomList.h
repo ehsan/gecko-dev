@@ -503,7 +503,6 @@ GK_ATOM(listing, "listing")
 GK_ATOM(listitem, "listitem")
 GK_ATOM(listrows, "listrows")
 GK_ATOM(load, "load")
-GK_ATOM(localedir, "localedir")
 GK_ATOM(localName, "local-name")
 GK_ATOM(longdesc, "longdesc")
 #ifdef MOZ_MEDIA
@@ -1643,7 +1642,6 @@ GK_ATOM(boxMetricsProperty, "BoxMetricsProperty") // nsBoxLayoutMetrics*
 GK_ATOM(changeListProperty, "ChangeListProperty") // void*
 GK_ATOM(collapseOffsetProperty, "CollapseOffsetProperty")  // nsPoint*
 GK_ATOM(computedOffsetProperty, "ComputedOffsetProperty")  // nsPoint*
-GK_ATOM(floatRegionProperty, "FloatRegionProperty") // nsRect*
 GK_ATOM(generatedContent, "GeneratedContentProperty")  // nsCOMArray<nsIContent>*
 #ifdef MOZ_MATHML
 GK_ATOM(HTMLReflowMetricsProperty, "HTMLReflowMetricsProperty") // nsHTMLReflowMetrics*

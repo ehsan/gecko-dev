@@ -306,7 +306,7 @@ nsTableFrame::PageBreakAfter(nsIFrame& aSourceFrame,
 // frames into a separate child list, bug 343048.
 NS_IMETHODIMP
 nsTableFrame::SetInitialChildList(nsIAtom*        aListName,
-                                  nsFrameList&    aChildList)
+                                  nsIFrame*       aChildList)
 {
 
   if (!mFrames.IsEmpty() || !mColGroups.IsEmpty()) {
@@ -320,34 +320,48 @@ nsTableFrame::SetInitialChildList(nsIAtom*        aListName,
     NS_NOTREACHED("unknown frame list");
     return NS_ERROR_INVALID_ARG;
   } 
-
-  // XXXbz the below code is an icky cesspit that's only needed in its current
-  // form for two reasons:
-  // 1) Both rowgroups and column groups come in on the principal child list.
-  // 2) Getting the last frame of a frame list is slow.
-  // Once #2 is fixed, it should be pretty easy to get rid of the
-  // SetNextSibling usage here, at least.
+  
+  nsIFrame *childFrame = aChildList;
   nsIFrame *prevMainChild = nsnull;
   nsIFrame *prevColGroupChild = nsnull;
-  while (aChildList.NotEmpty())
+  for ( ; nsnull!=childFrame; )
   {
-    nsIFrame* childFrame = aChildList.FirstChild();
-    aChildList.RemoveFrame(childFrame);
     const nsStyleDisplay* childDisplay = childFrame->GetStyleDisplay();
-
-    if (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == childDisplay->mDisplay)
+    // XXX this if should go away
+    if (PR_TRUE==IsRowGroup(childDisplay->mDisplay))
+    {
+      if (mFrames.IsEmpty()) 
+        mFrames.SetFrames(childFrame);
+      else
+        prevMainChild->SetNextSibling(childFrame);
+      prevMainChild = childFrame;
+    }
+    else if (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == childDisplay->mDisplay)
     {
       NS_ASSERTION(nsGkAtoms::tableColGroupFrame == childFrame->GetType(),
                    "This is not a colgroup");
-      mColGroups.InsertFrame(nsnull, prevColGroupChild, childFrame);
+      if (mColGroups.IsEmpty())
+        mColGroups.SetFrames(childFrame);
+      else
+        prevColGroupChild->SetNextSibling(childFrame);
       prevColGroupChild = childFrame;
     }
     else
-    { // row groups and unknown frames go on the main list for now
-      mFrames.InsertFrame(nsnull, prevMainChild, childFrame);
+    { // unknown frames go on the main list for now
+      if (mFrames.IsEmpty())
+        mFrames.SetFrames(childFrame);
+      else
+        prevMainChild->SetNextSibling(childFrame);
       prevMainChild = childFrame;
     }
+    nsIFrame *prevChild = childFrame;
+    childFrame = childFrame->GetNextSibling();
+    prevChild->SetNextSibling(nsnull);
   }
+  if (nsnull!=prevMainChild)
+    prevMainChild->SetNextSibling(nsnull);
+  if (nsnull!=prevColGroupChild)
+    prevColGroupChild->SetNextSibling(nsnull);
 
   // If we have a prev-in-flow, then we're a table that has been split and
   // so don't treat this like an append
@@ -699,12 +713,23 @@ nsTableFrame::CreateAnonymousColGroupFrame(nsTableColGroupType aColGroupType)
 void
 nsTableFrame::AppendAnonymousColFrames(PRInt32 aNumColsToAdd)
 {
+  nsTableColFrame* prevCol = nsnull;
   // get the last col group frame
-  nsTableColGroupFrame* colGroupFrame =
-    static_cast<nsTableColGroupFrame*>(mColGroups.LastChild());
+  nsTableColGroupFrame* colGroupFrame = nsnull;
+  nsIFrame* childFrame = mColGroups.FirstChild();
+  while (childFrame) {
+    if (nsGkAtoms::tableColGroupFrame == childFrame->GetType()) {
+      colGroupFrame = (nsTableColGroupFrame *)childFrame;
+    }
+    childFrame = childFrame->GetNextSibling();
+  }
 
-  if (!colGroupFrame ||
-      (colGroupFrame->GetColType() != eColGroupAnonymousCell)) {
+  if (colGroupFrame &&
+      (colGroupFrame->GetColType() == eColGroupAnonymousCell)) {
+    prevCol =
+      static_cast<nsTableColFrame*> (colGroupFrame->GetChildList().LastChild());
+  }
+  else {
     PRInt32 colIndex = (colGroupFrame) ?
                         colGroupFrame->GetStartColumnIndex() +
                         colGroupFrame->GetColCount() : 0;
@@ -716,26 +741,38 @@ nsTableFrame::AppendAnonymousColFrames(PRInt32 aNumColsToAdd)
     mColGroups.AppendFrame(this, colGroupFrame);
     colGroupFrame->SetStartColumnIndex(colIndex);
   }
-  AppendAnonymousColFrames(colGroupFrame, aNumColsToAdd, eColAnonymousCell,
-                           PR_TRUE);
+  nsIFrame* firstNewFrame;
+  CreateAnonymousColFrames(colGroupFrame, aNumColsToAdd, eColAnonymousCell,
+                           PR_TRUE, prevCol, &firstNewFrame);
 
 }
 
 // XXX this needs to be moved to nsCSSFrameConstructor
 // Right now it only creates the col frames at the end 
 void
-nsTableFrame::AppendAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
+nsTableFrame::CreateAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
                                        PRInt32               aNumColsToAdd,
                                        nsTableColType        aColType,
-                                       PRBool                aAddToTable)
+                                       PRBool                aAddToColGroupAndTable,         
+                                       nsIFrame*             aPrevFrameIn,
+                                       nsIFrame**            aFirstNewFrame)
 {
   NS_PRECONDITION(aColGroupFrame, "null frame");
   NS_PRECONDITION(aColType != eColAnonymousCol, "Shouldn't happen");
 
-  nsIPresShell *shell = PresContext()->PresShell();
+  *aFirstNewFrame = nsnull;
+  nsIFrame* lastColFrame = nsnull;
+  nsPresContext* presContext = PresContext();
+  nsIPresShell *shell = presContext->PresShell();
 
   // Get the last col frame
-  nsFrameItems newColFrames;
+  nsIFrame* childFrame = aColGroupFrame->GetFirstChild(nsnull);
+  while (childFrame) {
+    if (nsGkAtoms::tableColFrame == childFrame->GetType()) {
+      lastColFrame = (nsTableColGroupFrame *)childFrame;
+    }
+    childFrame = childFrame->GetNextSibling();
+  }
 
   PRInt32 startIndex = mColFrames.Length();
   PRInt32 lastIndex  = startIndex + aNumColsToAdd - 1; 
@@ -759,26 +796,35 @@ nsTableFrame::AppendAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
     nsIFrame* colFrame = NS_NewTableColFrame(shell, styleContext);
     ((nsTableColFrame *) colFrame)->SetColType(aColType);
     colFrame->Init(iContent, aColGroupFrame, nsnull);
+    colFrame->SetInitialChildList(nsnull, nsnull);
 
-    newColFrames.AddChild(colFrame);
-  }
-  nsFrameList& cols = aColGroupFrame->GetWritableChildList();
-  nsIFrame* oldLastCol = cols.LastChild();
-  nsIFrame* firstNewCol = newColFrames.FirstChild();
-  nsIFrame* lastNewCol = newColFrames.lastChild;
-  cols.InsertFrames(nsnull, oldLastCol, newColFrames);
-  if (aAddToTable) {
-    // get the starting col index in the cache
-    PRInt32 startColIndex;
-    if (oldLastCol) {
-      startColIndex =
-        static_cast<nsTableColFrame*>(oldLastCol)->GetColIndex() + 1;
-    } else {
-      startColIndex = aColGroupFrame->GetStartColumnIndex();
+    // Add the col to the sibling chain
+    if (lastColFrame) {
+      lastColFrame->SetNextSibling(colFrame);
     }
-
+    lastColFrame = colFrame;
+    if (childX == startIndex) {
+      *aFirstNewFrame = colFrame;
+    }
+  }
+  if (aAddToColGroupAndTable) {
+    nsFrameList& cols = aColGroupFrame->GetChildList();
+    // the chain already exists, now add it to the col group child list
+    if (!aPrevFrameIn) {
+      cols.AppendFrames(aColGroupFrame, *aFirstNewFrame);
+    }
+    // get the starting col index in the cache
+    PRInt32 startColIndex = aColGroupFrame->GetStartColumnIndex();
+    if (aPrevFrameIn) {
+      nsTableColFrame* colFrame = 
+        (nsTableColFrame*)nsTableFrame::GetFrameAtOrBefore((nsIFrame*) aColGroupFrame, aPrevFrameIn, 
+                                                           nsGkAtoms::tableColFrame);
+      if (colFrame) {
+        startColIndex = colFrame->GetColIndex() + 1;
+      }
+    }
     aColGroupFrame->AddColsToTable(startColIndex, PR_TRUE, 
-                                   firstNewCol, lastNewCol);
+                                  *aFirstNewFrame, lastColFrame);
   }
 }
 
@@ -1168,14 +1214,14 @@ nsTableFrame::InsertRowGroups(nsIFrame* aFirstRowGroupFrame,
 /////////////////////////////////////////////////////////////////////////////
 // Child frame enumeration
 
-nsFrameList
-nsTableFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+nsTableFrame::GetFirstChild(nsIAtom* aListName) const
 {
   if (aListName == nsGkAtoms::colGroupList) {
-    return mColGroups;
+    return mColGroups.FirstChild();
   }
 
-  return nsHTMLContainerFrame::GetChildList(aListName);
+  return nsHTMLContainerFrame::GetFirstChild(aListName);
 }
 
 nsIAtom*
@@ -1363,36 +1409,14 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DO_GLOBAL_REFLOW_COUNT_DSP_COLOR("nsTableFrame", NS_RGB(255,128,255));
 
-  if (GetStyleVisibility()->IsVisible()) {
-    nsMargin deflate = GetDeflationForBackground(PresContext());
-    // If 'deflate' is (0,0,0,0) then we can paint the table background
-    // in its own display item, so do that to take advantage of
-    // opacity and visibility optimizations
-    if (deflate.IsZero()) {
-      nsresult rv = DisplayBackgroundUnconditional(aBuilder, aLists, PR_FALSE);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-
   // This background is created regardless of whether this frame is
   // visible or not. Visibility decisions are delegated to the
-  // table background painter. This handles borders and backgrounds
-  // for the table.
+  // table background painter.
   nsDisplayTableItem* item = new (aBuilder) nsDisplayTableBorderBackground(this);
   nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
   NS_ENSURE_SUCCESS(rv, rv);
   
   return DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, item);
-}
-
-nsMargin
-nsTableFrame::GetDeflationForBackground(nsPresContext* aPresContext) const
-{
-  if (eCompatibility_NavQuirks != aPresContext->CompatibilityMode() ||
-      !IsBorderCollapse())
-    return nsMargin(0,0,0,0);
-
-  return GetOuterBCBorder();
 }
 
 // XXX We don't put the borders and backgrounds in tree order like we should.
@@ -1407,11 +1431,30 @@ nsTableFrame::PaintTableBorderBackground(nsIRenderingContext& aRenderingContext,
   TableBackgroundPainter painter(this, TableBackgroundPainter::eOrigin_Table,
                                  presContext, aRenderingContext,
                                  aDirtyRect, aPt);
-  nsMargin deflate = GetDeflationForBackground(presContext);
-  // If 'deflate' is (0,0,0,0) then we'll paint the table background
-  // in a separate display item, so don't do it here.
-  nsresult rv = painter.PaintTable(this, deflate, !deflate.IsZero());
-  if (NS_FAILED(rv)) return;
+  nsresult rv;
+  
+  if (eCompatibility_NavQuirks == presContext->CompatibilityMode()) {
+    nsMargin deflate(0,0,0,0);
+    if (IsBorderCollapse()) {
+      PRInt32 p2t = nsPresContext::AppUnitsPerCSSPixel();
+      BCPropertyData* propData =
+        (BCPropertyData*)nsTableFrame::GetProperty((nsIFrame*)this,
+                                                   nsGkAtoms::tableBCProperty,
+                                                   PR_FALSE);
+      if (propData) {
+        deflate.top    = BC_BORDER_TOP_HALF_COORD(p2t, propData->mTopBorderWidth);
+        deflate.right  = BC_BORDER_RIGHT_HALF_COORD(p2t, propData->mRightBorderWidth);
+        deflate.bottom = BC_BORDER_BOTTOM_HALF_COORD(p2t, propData->mBottomBorderWidth);
+        deflate.left   = BC_BORDER_LEFT_HALF_COORD(p2t, propData->mLeftBorderWidth);
+      }
+    }
+    rv = painter.PaintTable(this, &deflate);
+    if (NS_FAILED(rv)) return;
+  }
+  else {
+    rv = painter.PaintTable(this, nsnull);
+    if (NS_FAILED(rv)) return;
+  }
 
   if (GetStyleVisibility()->IsVisible()) {
     const nsStyleBorder* border = GetStyleBorder();
@@ -1429,6 +1472,42 @@ nsTableFrame::PaintTableBorderBackground(nsIRenderingContext& aRenderingContext,
       PaintBCBorders(aRenderingContext, aDirtyRect - aPt);
     }
   }
+}
+
+//null range means the whole thing
+NS_IMETHODIMP
+nsTableFrame::SetSelected(nsPresContext* aPresContext,
+                          nsIDOMRange *aRange,
+                          PRBool aSelected,
+                          nsSpread aSpread,
+                          SelectionType aType)
+{
+#if 0
+  //traverse through children unselect tables
+  if ((aSpread == eSpreadDown)){
+    nsIFrame* kid = GetFirstChild(nsnull);
+    while (kid) {
+      kid->SetSelected(nsnull, aSelected, eSpreadDown);
+      kid = kid->GetNextSibling();
+    }
+  }
+#endif
+  // Must call base class to set mSelected state and trigger repaint of frame
+  // Note that in current version, aRange and aSpread are ignored,
+  //   only this frame is considered
+  nsFrame::SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
+  return NS_OK;//return nsFrame::SetSelected(aRange,aSelected,eSpreadNone, aType);
+  
+}
+
+PRBool nsTableFrame::ParentDisablesSelection() const //override default behavior
+{
+  PRBool returnval;
+  if (NS_FAILED(GetSelected(&returnval)))
+    return PR_FALSE;
+  if (returnval)
+    return PR_TRUE;
+  return nsFrame::ParentDisablesSelection();
 }
 
 PRIntn
@@ -2025,11 +2104,49 @@ nsTableFrame::PushChildren(const FrameArray& aFrames,
     }
     nextInFlow->mFrames.InsertFrames(GetNextInFlow(), prevSibling, frames.FirstChild());
   }
-  else if (frames.NotEmpty()) {
+  else {
     // Add the frames to our overflow list
-    SetOverflowFrames(PresContext(), frames);
+    SetOverflowFrames(PresContext(), frames.FirstChild());
   }
 }
+
+// Table specific version that takes into account header and footer row group
+// frames that are repeated for continuing table frames
+//
+// Appends the overflow frames to the end of the child list, just like the
+// nsContainerFrame version does, except that there are no assertions that
+// the child list is empty (it may not be empty, because there may be repeated
+// header/footer frames)
+PRBool
+nsTableFrame::MoveOverflowToChildList(nsPresContext* aPresContext)
+{
+  PRBool result = PR_FALSE;
+
+  // Check for an overflow list with our prev-in-flow
+  nsTableFrame* prevInFlow = (nsTableFrame*)GetPrevInFlow();
+  if (prevInFlow) {
+    nsIFrame* prevOverflowFrames = prevInFlow->GetOverflowFrames(aPresContext, PR_TRUE);
+    if (prevOverflowFrames) {
+      // When pushing and pulling frames we need to check for whether any
+      // views need to be reparented.
+      for (nsIFrame* f = prevOverflowFrames; f; f = f->GetNextSibling()) {
+        nsHTMLContainerFrame::ReparentFrameView(aPresContext, f, prevInFlow, this);
+      }
+      mFrames.AppendFrames(this, prevOverflowFrames);
+      result = PR_TRUE;
+    }
+  }
+
+  // It's also possible that we have an overflow list for ourselves
+  nsIFrame* overflowFrames = GetOverflowFrames(aPresContext, PR_TRUE);
+  if (overflowFrames) {
+    mFrames.AppendFrames(nsnull, overflowFrames);
+    result = PR_TRUE;
+  }
+  return result;
+}
+
+
 
 // collapsing row groups, rows, col groups and cols are accounted for after both passes of
 // reflow so that it has no effect on the calculations of reflow.
@@ -2476,7 +2593,6 @@ nsTableFrame::GetExcludedOuterBCBorder() const
 {
   return GetOuterBCBorder() - GetIncludedOuterBCBorder();
 }
-
 static
 void GetSeparateModelBorderPadding(const nsHTMLReflowState* aReflowState,
                                    nsStyleContext&          aStyleContext,

@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifndef _mozStorageSQLFunctions_h_
-#define _mozStorageSQLFunctions_h_
+#define _mozStorageUnicodeFunctions_h_
 
 #include "sqlite3.h"
 #include "nscore.h"
@@ -87,21 +87,6 @@ NS_HIDDEN_(void) caseFunction(sqlite3_context *aCtx,
 NS_HIDDEN_(void) likeFunction(sqlite3_context *aCtx,
                               int aArgc,
                               sqlite3_value **aArgv);
-
-/**
- * An implementation of the Levenshtein Edit Distance algorithm for use in
- * Sqlite queries.
- * 
- * @param aCtx
- *        The sqlite_context that this function is being called on.
- * @param aArgc
- *        The number of arguments the function is being called with.
- * @param aArgv
- *        An array of the arguments the functions is being called with.
- */
-NS_HIDDEN_(void) levenshteinDistanceFunction(sqlite3_context *aCtx,
-                                             int aArgc,
-                                             sqlite3_value **aArgv);
 
 } // namespace storage
 } // namespace mozilla

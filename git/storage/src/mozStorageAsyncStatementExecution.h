@@ -45,7 +45,6 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/TimeStamp.h"
 
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageStatementCallback.h"
@@ -208,12 +207,12 @@ private:
    * The maximum amount of time we want to wait between results.  Defined by
    * MAX_MILLISECONDS_BETWEEN_RESULTS and set at construction.
    */
-  const TimeDuration mMaxWait;
+  const PRIntervalTime mMaxIntervalWait;
 
   /**
    * The start time since our last set of results.
    */
-  TimeStamp mIntervalStart;
+  PRIntervalTime mIntervalStart;
 
   /**
    * Indicates our state of execution.

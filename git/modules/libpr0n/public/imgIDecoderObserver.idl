@@ -41,6 +41,7 @@
 
 interface imgIRequest;
 interface imgIContainer;
+interface gfxIImageFrame;
 
 %{C++
 #include "nsRect.h"
@@ -58,7 +59,7 @@ interface imgIContainer;
  * @version 0.1
  * @see imagelib2
  */
-[scriptable, uuid(1dfc9189-6421-4281-83b2-d9c1c9ba4d1b)]
+[scriptable, uuid(876f14ee-f27c-41cd-b6fb-9efda3ebc7b5)]
 interface imgIDecoderObserver : imgIContainerObserver
 {
   /**
@@ -84,17 +85,17 @@ interface imgIDecoderObserver : imgIContainerObserver
   /**
    * called when each frame is created
    */
-  void onStartFrame(in imgIRequest aRequest, in unsigned long aFrame);
+  void onStartFrame(in imgIRequest aRequest, in gfxIImageFrame aFrame);
 
   /**
    * called when some part of the frame has new data in it
    */
-  [noscript] void onDataAvailable(in imgIRequest aRequest, in boolean aCurrentFrame, [const] in nsIntRect aRect);
+  [noscript] void onDataAvailable(in imgIRequest aRequest, in gfxIImageFrame aFrame, [const] in nsIntRect aRect);
 
   /**
    * called when a frame is finished decoding
    */
-  void onStopFrame(in imgIRequest aRequest, in unsigned long aFrame);
+  void onStopFrame(in imgIRequest aRequest, in gfxIImageFrame aFrame);
 
   /**
    * probably not needed.  called right before onStopDecode

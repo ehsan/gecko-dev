@@ -101,8 +101,6 @@
 #include "jsstaticcheck.h"
 #include "jsvector.h"
 
-#include "jsatominlines.h"
-
 /* 2^32 - 1 as a number and a string */
 #define MAXINDEX 4294967295u
 #define MAXSTR   "4294967295"
@@ -314,7 +312,7 @@ ResizeSlots(JSContext *cx, JSObject *obj, uint32 oldsize, uint32 size)
 
     if (size == 0) {
         if (obj->dslots) {
-            cx->free(obj->dslots - 1);
+            JS_free(cx, obj->dslots - 1);
             obj->dslots = NULL;
         }
         return JS_TRUE;
@@ -330,7 +328,7 @@ ResizeSlots(JSContext *cx, JSObject *obj, uint32 oldsize, uint32 size)
     }
 
     slots = obj->dslots ? obj->dslots - 1 : NULL;
-    newslots = (jsval *) cx->realloc(slots, (size + 1) * sizeof(jsval));
+    newslots = (jsval *) JS_realloc(cx, slots, (size + 1) * sizeof(jsval));
     if (!newslots)
         return JS_FALSE;
 
@@ -885,17 +883,18 @@ js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj)
          */
         if (!OBJ_IS_NATIVE(obj))
             return JS_TRUE;
-        if (OBJ_SCOPE(obj)->hadIndexedProperties())
+        if (SCOPE_HAS_INDEXED_PROPERTIES(OBJ_SCOPE(obj)))
             return JS_TRUE;
     }
     return JS_FALSE;
 }
 
 #ifdef JS_TRACER
-
-static inline JSBool FASTCALL
-dense_grow(JSContext* cx, JSObject* obj, jsint i, jsval v)
+JSBool FASTCALL
+js_Array_dense_setelem(JSContext* cx, JSObject* obj, jsint i, jsval v)
 {
+    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
+
     /*
      * Let the interpreter worry about negative array indexes.
      */
@@ -929,33 +928,7 @@ dense_grow(JSContext* cx, JSObject* obj, jsint i, jsval v)
     obj->dslots[u] = v;
     return JS_TRUE;
 }
-
-
-JSBool FASTCALL
-js_Array_dense_setelem(JSContext* cx, JSObject* obj, jsint i, jsval v)
-{
-    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
-    return dense_grow(cx, obj, i, v);
-}
 JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem, CONTEXT, OBJECT, INT32, JSVAL, 0, 0)
-
-JSBool FASTCALL
-js_Array_dense_setelem_int(JSContext* cx, JSObject* obj, jsint i, int32 j)
-{
-    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
-
-    jsval v;
-    if (JS_LIKELY(INT_FITS_IN_JSVAL(j))) {
-        v = INT_TO_JSVAL(j);
-    } else {
-        jsdouble d = (jsdouble)j;
-        if (!js_NewDoubleInRootedValue(cx, d, &v))
-            return JS_FALSE;
-    }
-
-    return dense_grow(cx, obj, i, v);
-}
-JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem_int, CONTEXT, OBJECT, INT32, INT32, 0, 0)
 #endif
 
 static JSBool
@@ -1099,7 +1072,7 @@ array_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
             if (obj->dslots[i] == JSVAL_HOLE) {
                 if (!ii) {
                     ii = (JSIndexIterState *)
-                         cx->malloc(offsetof(JSIndexIterState, holes) +
+                         JS_malloc(cx, offsetof(JSIndexIterState, holes) +
                                    JS_BITMAP_SIZE(capacity));
                     if (!ii)
                         return JS_FALSE;
@@ -1116,7 +1089,7 @@ array_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                 break;
             }
             ii = (JSIndexIterState *)
-                 cx->malloc(offsetof(JSIndexIterState, holes));
+                 JS_malloc(cx, offsetof(JSIndexIterState, holes));
             if (!ii)
                 return JS_FALSE;
             ii->hasHoles = JS_FALSE;
@@ -1157,7 +1130,7 @@ array_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         if (JSVAL_TAG(*statep) != JSVAL_BOOLEAN) {
             JS_ASSERT((*statep & INDEX_ITER_TAG) == INDEX_ITER_TAG);
             ii = (JSIndexIterState *) (*statep & ~INDEX_ITER_TAG);
-            cx->free(ii);
+            JS_free(cx, ii);
         }
         *statep = JSVAL_NULL;
         break;
@@ -1188,7 +1161,7 @@ static void
 array_finalize(JSContext *cx, JSObject *obj)
 {
     if (obj->dslots)
-        cx->free(obj->dslots - 1);
+        JS_free(cx, obj->dslots - 1);
     obj->dslots = NULL;
 }
 
@@ -1257,7 +1230,7 @@ JSClass js_SlowArrayClass = {
     "Array",
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     slowarray_addProperty, JS_PropertyStub, JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub,      JS_ResolveStub,  js_TryValueOf,    NULL,
+    JS_EnumerateStub,      JS_ResolveStub,  js_TryValueOf,    JS_FinalizeStub,
     slowarray_getObjectOps, NULL,           NULL,             NULL,
     NULL,                  NULL,            NULL,             NULL
 };
@@ -1271,8 +1244,8 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
     JS_ASSERT(OBJ_GET_CLASS(cx, obj) == &js_ArrayClass);
 
     /* Create a native scope. */
-    JSScope *scope = JSScope::create(cx, &js_SlowArrayObjectOps,
-                                     &js_SlowArrayClass, obj);
+    JSScope *scope = js_NewScope(cx, &js_SlowArrayObjectOps,
+                                 &js_SlowArrayClass, obj);
     if (!scope)
         return JS_FALSE;
 
@@ -1297,8 +1270,9 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
             continue;
         }
 
-        sprop = scope->add(cx, id, NULL, NULL, i + JS_INITIAL_NSLOTS,
-                           JSPROP_ENUMERATE, 0, 0);
+        sprop = js_AddScopeProperty(cx, scope, id, NULL, NULL,
+                                    i + JS_INITIAL_NSLOTS, JSPROP_ENUMERATE,
+                                    0, 0);
         if (!sprop)
             goto out_bad;
     }
@@ -1324,7 +1298,7 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
     return JS_TRUE;
 
   out_bad:
-    JSScope::destroy(cx, scope);
+    js_DestroyScope(cx, scope);
     return JS_FALSE;
 }
 
@@ -1336,7 +1310,7 @@ BufferToString(JSContext *cx, JSTempVector<jschar> &buf, jsval *rval)
     jschar *chars = buf.extractRawBuffer();
     JSString *str = js_NewString(cx, chars, length);
     if (!str) {
-        cx->free(chars);
+        JS_free(cx, chars);
         return JS_FALSE;
     }
     *rval = STRING_TO_JSVAL(str);
@@ -1368,7 +1342,7 @@ array_toSource(JSContext *cx, uintN argc, jsval *vp)
     JSBool ok = JS_TRUE;
 
     /*
-     * This object will take responsibility for the jschar buffer until the
+     * This object will take responsibility for the jschar buffer until the 
      * buffer is transferred to the returned JSString.
      */
     JSTempVector<jschar> buf(cx);
@@ -1392,7 +1366,7 @@ array_toSource(JSContext *cx, uintN argc, jsval *vp)
         if (!(ok = buf.pushBack(arr, arr + 3)))
             goto done;
         if (sharpchars)
-            cx->free(sharpchars);
+            JS_free(cx, sharpchars);
         goto make_string;
     }
 #endif
@@ -1520,7 +1494,7 @@ array_toString_sub(JSContext *cx, JSObject *obj, JSBool locale,
     }
 
     /*
-     * This object will take responsibility for the jschar buffer until the
+     * This object will take responsibility for the jschar buffer until the 
      * buffer is transferred to the returned JSString.
      */
     JSTempVector<jschar> buf(cx);
@@ -2151,7 +2125,7 @@ array_sort(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     }
 #endif
-    vec = (jsval *) cx->malloc(2 * (size_t) len * sizeof(jsval));
+    vec = (jsval *) JS_malloc(cx, 2 * (size_t) len * sizeof(jsval));
     if (!vec)
         return JS_FALSE;
 
@@ -2280,8 +2254,8 @@ array_sort(JSContext *cx, uintN argc, jsval *vp)
             } while (i != 0);
 
             JS_ASSERT(tvr.u.array == vec);
-            vec = (jsval *) cx->realloc(vec,
-                                        4 * (size_t) newlen * sizeof(jsval));
+            vec = (jsval *) JS_realloc(cx, vec,
+                                       4 * (size_t) newlen * sizeof(jsval));
             if (!vec) {
                 vec = tvr.u.array;
                 ok = JS_FALSE;
@@ -2342,7 +2316,7 @@ array_sort(JSContext *cx, uintN argc, jsval *vp)
 
   out:
     JS_POP_TEMP_ROOT(cx, &tvr);
-    cx->free(vec);
+    JS_free(cx, vec);
     if (!ok)
         return JS_FALSE;
 
@@ -3371,7 +3345,7 @@ js_Array(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     /* If called without new, replace obj with a new Array object. */
     if (!JS_IsConstructing(cx)) {
-        obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL);
+        obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
         *rval = OBJECT_TO_JSVAL(obj);
@@ -3406,7 +3380,7 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto)
     JS_ASSERT(OBJ_IS_ARRAY(cx, proto));
 
     JS_ASSERT(JS_ON_TRACE(cx));
-    JSObject* obj = js_NewGCObject(cx, GCX_OBJECT);
+    JSObject* obj = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
     if (!obj)
         return NULL;
 
@@ -3467,7 +3441,7 @@ js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
     JSTempValueRooter tvr;
     JSObject *obj;
 
-    obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL);
+    obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL, 0);
     if (!obj)
         return NULL;
 
@@ -3484,7 +3458,7 @@ js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
 JSObject *
 js_NewSlowArrayObject(JSContext *cx)
 {
-    JSObject *obj = js_NewObject(cx, &js_SlowArrayClass, NULL, NULL);
+    JSObject *obj = js_NewObject(cx, &js_SlowArrayClass, NULL, NULL, 0);
     if (obj)
         obj->fslots[JSSLOT_ARRAY_LENGTH] = 0;
     return obj;
@@ -3507,7 +3481,7 @@ js_ArrayInfo(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         if (JSVAL_IS_PRIMITIVE(argv[i]) ||
             !OBJ_IS_ARRAY(cx, (array = JSVAL_TO_OBJECT(argv[i])))) {
             fprintf(stderr, "%s: not array\n", bytes);
-            cx->free(bytes);
+            JS_free(cx, bytes);
             continue;
         }
         fprintf(stderr, "%s: %s (len %lu", bytes,
@@ -3519,7 +3493,7 @@ js_ArrayInfo(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                     js_DenseArrayCapacity(array));
         }
         fputs(")\n", stderr);
-        cx->free(bytes);
+        JS_free(cx, bytes);
     }
     return JS_TRUE;
 }

@@ -35,6 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
 /*
  * Test the fix for bug 441778 to ensure site-specific page zoom doesn't get
  * modified by sub-document loads of content from a different domain.
@@ -51,8 +53,9 @@ function test() {
   let zoomLevel;
 
   // Prepare the test tab
-  gBrowser.selectedTab = gBrowser.addTab();
-  let testBrowser = gBrowser.selectedBrowser;
+  let testTab = gBrowser.addTab();
+  gBrowser.selectedTab = testTab;
+  let testBrowser = gBrowser.getBrowserForTab(testTab);
 
   let finishTest = function() {
     testBrowser.removeProgressListener(progressListener);

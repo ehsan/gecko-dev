@@ -55,14 +55,10 @@
 # define SSIZE_MAX LONG_MAX
 #endif
 
-#ifdef WINCE
-#include "updater_wince.h"
-#endif
-
 int
-MBS_ReadHeader(FILE* file, MBSPatchHeader *header)
+MBS_ReadHeader(int fd, MBSPatchHeader *header)
 {
-  int s = fread(header, 1, sizeof(MBSPatchHeader), file);
+  int s = read(fd, header, sizeof(MBSPatchHeader));
   if (s != sizeof(MBSPatchHeader))
     return READ_ERROR;
 
@@ -74,7 +70,7 @@ MBS_ReadHeader(FILE* file, MBSPatchHeader *header)
   header->extralen  = ntohl(header->extralen);
 
   struct stat hs;
-  s = fstat(fileno(file), &hs);
+  s = fstat(fd, &hs);
   if (s)
     return READ_ERROR;
 
@@ -91,8 +87,8 @@ MBS_ReadHeader(FILE* file, MBSPatchHeader *header)
 }
          
 int
-MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
-               unsigned char *fbuffer, FILE* file)
+MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
+               unsigned char *fbuffer, int filefd)
 {
   unsigned char *fbufend = fbuffer + header->slen;
 
@@ -107,7 +103,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
   int r = header->cblen + header->difflen + header->extralen;
   unsigned char *wb = buf;
   while (r) {
-    int c = fread(wb, 1, (r > SSIZE_MAX) ? SSIZE_MAX : r, patchFile);
+    int c = read(patchfd, wb, (r > SSIZE_MAX) ? SSIZE_MAX : r);
     if (c < 0) {
       rv = READ_ERROR;
       goto end;
@@ -155,7 +151,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
       for (PRUint32 i = 0; i < ctrlsrc->x; ++i) {
         diffsrc[i] += fbuffer[i];
       }
-      if ((PRUint32) fwrite(diffsrc, 1, ctrlsrc->x, file) != ctrlsrc->x) {
+      if ((PRUint32) write(filefd, diffsrc, ctrlsrc->x) != ctrlsrc->x) {
         rv = WRITE_ERROR;
         goto end;
       }
@@ -168,7 +164,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
         rv = UNEXPECTED_ERROR;
         goto end;
       }
-      if ((PRUint32) fwrite(extrasrc, 1, ctrlsrc->y, file) != ctrlsrc->y) {
+      if ((PRUint32) write(filefd, extrasrc, ctrlsrc->y) != ctrlsrc->y) {
         rv = WRITE_ERROR;
         goto end;
       }

@@ -6251,7 +6251,7 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   }
 
   // If we have a parent we must flush the parent too to ensure that our
-  // container is reflowed if its size was changed.  But if it's not safe to
+  // container is reflown if its size was changed.  But if it's not safe to
   // flush ourselves, then don't flush the parent, since that can cause things
   // like resizes of our frame's widget, which we can't handle while flushing
   // is unsafe.
@@ -7305,7 +7305,10 @@ public:
 
     // Throw away the cached link state so it gets refetched by the style
     // system      
-    aContent->SetLinkState(eLinkState_Unknown);
+    nsCOMPtr<nsILink> link = do_QueryInterface(aContent);
+    if (link) {
+      link->SetLinkState(eLinkState_Unknown);
+    }
     contentVisited.AppendObject(aContent);
   }
 };

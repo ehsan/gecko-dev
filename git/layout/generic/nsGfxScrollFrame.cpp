@@ -158,8 +158,9 @@ nsHTMLScrollFrame::Destroy()
 }
 
 NS_IMETHODIMP
-nsHTMLScrollFrame::SetInitialChildList(nsIAtom*     aListName,
-                                       nsFrameList& aChildList)
+nsHTMLScrollFrame::
+SetInitialChildList(nsIAtom*       aListName,
+                    nsIFrame*      aChildList)
 {
   nsresult rv = nsHTMLContainerFrame::SetInitialChildList(aListName, aChildList);
   mInner.CreateScrollableView();
@@ -228,43 +229,27 @@ nsHTMLScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
                                       nscoord aX, nscoord aY, nsIFrame* aForChild,
                                       PRUint32 aFlags)
 {
-  if (aForChild) {
-    if (aForChild == mInner.mScrolledFrame) {
-      // restrict aDamageRect to the scrollable view's bounds
-      nsRect damage = aDamageRect + nsPoint(aX, aY);
-      nsRect r;
-      if (r.IntersectRect(damage, mInner.mScrollableView->View()->GetBounds())) {
-        nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
-      }
-      if (mInner.mIsRoot && r != damage) {
-        // Make sure we notify our prescontext about invalidations outside
-        // viewport clipping.
-        // This is important for things that are snapshotting the viewport,
-        // possibly outside the scrolled bounds.
-        // We don't need to propagate this any further up, though. Anyone who
-        // cares about scrolled-out-of-view invalidates had better be listening
-        // to our window directly.
-        PresContext()->NotifyInvalidation(damage,
-            (aFlags & INVALIDATE_CROSS_DOC) != 0);
-      }
-      return;
-    } else if (aForChild == mInner.mHScrollbarBox) {
-      if (!mInner.mHasHorizontalScrollbar) {
-        // Our scrollbars may send up invalidations even when they're collapsed,
-        // because we just size a collapsed scrollbar to empty and some
-        // descendants may be non-empty. Suppress that invalidation here.
-        return;
-      }
-    } else if (aForChild == mInner.mVScrollbarBox) {
-      if (!mInner.mHasVerticalScrollbar) {
-        // Our scrollbars may send up invalidations even when they're collapsed,
-        // because we just size a collapsed scrollbar to empty and some
-        // descendants may be non-empty. Suppress that invalidation here.
-        return;
-      }
+  if (aForChild == mInner.mScrolledFrame && !(aFlags & INVALIDATE_NOTIFY_ONLY)) {
+    // restrict aDamageRect to the scrollable view's bounds
+    nsRect damage = aDamageRect + nsPoint(aX, aY);
+    nsRect r;
+    if (r.IntersectRect(damage, mInner.mScrollableView->View()->GetBounds())) {
+      nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
     }
+    if (mInner.mIsRoot && r != damage) {
+      // Make sure we notify our prescontext about invalidations outside
+      // viewport clipping.
+      // This is important for things that are snapshotting the viewport,
+      // possibly outside the scrolled bounds.
+      // We don't need to propagate this any further up, though. Anyone who
+      // cares about scrolled-out-of-view invalidates had better be listening
+      // to our window directly.
+      PresContext()->NotifyInvalidation(damage,
+          (aFlags & INVALIDATE_CROSS_DOC) != 0);
+    }
+    return;
   }
- 
+  
   nsHTMLContainerFrame::InvalidateInternal(aDamageRect, aX, aY, aForChild, aFlags);
 }
 
@@ -1045,7 +1030,7 @@ nsXULScrollFrame::Destroy()
 
 NS_IMETHODIMP
 nsXULScrollFrame::SetInitialChildList(nsIAtom*        aListName,
-                                      nsFrameList&    aChildList)
+                                      nsIFrame*       aChildList)
 {
   nsresult rv = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 
@@ -1380,6 +1365,40 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   return NS_OK;
 }
 
+PRBool
+nsGfxScrollFrameInner::NeedsClipWidget() const
+{
+  // Scrollports contained in form controls (e.g., listboxes) don't get
+  // widgets.  Also, transformed elements don't need clip widgets since they
+  // result in graphical glitches.
+  for (nsIFrame* parentFrame = mOuter; parentFrame;
+       parentFrame = nsLayoutUtils::GetCrossDocParentFrame(parentFrame)) {
+    
+    /* See if we have a transform... we should have no widget if that's the case. */
+    if (parentFrame->GetStyleDisplay()->HasTransform())
+      return PR_FALSE;
+
+    /* If we're a form element, we don't need a widget. */
+    nsIFormControlFrame* fcFrame = do_QueryFrame(parentFrame);
+    if (fcFrame) {
+      return PR_FALSE;
+    }
+  }
+
+  // Scrollports that don't ever show associated scrollbars don't get
+  // widgets, because they will seldom actually be scrolled.
+  nsIScrollableFrame *scrollableFrame = do_QueryFrame(mOuter);
+  ScrollbarStyles scrollbars = scrollableFrame->GetScrollbarStyles();
+  if ((scrollbars.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN
+       || scrollbars.mHorizontal == NS_STYLE_OVERFLOW_VISIBLE)
+      && (scrollbars.mVertical == NS_STYLE_OVERFLOW_HIDDEN
+          || scrollbars.mVertical == NS_STYLE_OVERFLOW_VISIBLE)) {
+    return PR_FALSE;
+  }
+ 
+  return PR_TRUE;
+}
+
 void
 nsGfxScrollFrameInner::CreateScrollableView()
 {
@@ -1394,6 +1413,11 @@ nsGfxScrollFrameInner::CreateScrollableView()
 
   // Insert the view into the view hierarchy
   viewManager->InsertChild(outerView, view, nsnull, PR_TRUE);
+
+  // Have the scrolling view create its internal widgets
+  if (NeedsClipWidget()) {
+    mScrollableView->CreateScrollControls(); 
+  }
 }
 
 static void HandleScrollPref(nsIScrollable *aScrollable, PRInt32 aOrientation,
@@ -1752,15 +1776,11 @@ nsGfxScrollFrameInner::InternalScrollPositionDidChange(nscoord aX, nscoord aY)
 }
 
 void
-nsGfxScrollFrameInner::ViewPositionDidChange(nsIScrollableView* aScrollable,
-                                             nsTArray<nsIWidget::Configuration>* aConfigurations)
+nsGfxScrollFrameInner::ViewPositionDidChange(nsIScrollableView* aScrollable)
 {
   // Update frame position to match view offsets
   nsPoint childOffset = mScrolledFrame->GetView()->GetOffsetTo(mOuter->GetView());
   mScrolledFrame->SetPosition(childOffset);
-
-  mOuter->PresContext()->RootPresContext()->
-    GetPluginGeometryUpdates(mOuter, aConfigurations);
 }
 
 /**
@@ -1780,7 +1800,6 @@ nsGfxScrollFrameInner::ScrollPositionDidChange(nsIScrollableView* aScrollable, n
   // Notify that the display has changed
   mOuter->InvalidateWithFlags(nsRect(nsPoint(0, 0), mOuter->GetSize()),
                               nsIFrame::INVALIDATE_NOTIFY_ONLY);
-
   return NS_OK;
 }
 

@@ -58,14 +58,6 @@ JS_BEGIN_EXTERN_C
 #define JSSTRING_BIT(n)             ((size_t)1 << (n))
 #define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
 
-#define UNIT_STRING_SPACE(sp)    ((jschar *) ((sp) + UNIT_STRING_LIMIT))
-#define UNIT_STRING_SPACE_RT(rt) UNIT_STRING_SPACE((rt)->unitStrings)
-
-#define IN_UNIT_STRING_SPACE(sp,cp)                                           \
-    ((size_t)((cp) - UNIT_STRING_SPACE(sp)) < 2 * UNIT_STRING_LIMIT)
-#define IN_UNIT_STRING_SPACE_RT(rt,cp)                                        \
-    IN_UNIT_STRING_SPACE((rt)->unitStrings, cp)
-
 class TraceRecorder;
 
 extern jschar *
@@ -469,18 +461,11 @@ typedef enum JSCharType {
 #define JS_ISFORMAT(c) (((1 << JSCT_FORMAT) >> JS_CTYPE(c)) & 1)
 
 /*
- * This table is used in JS_ISWORD.  The definition has external linkage to
- * allow the raw table data to be used in the regular expression compiler.
+ * Per ECMA-262 15.10.2.6, these characters are the only ones that make up a
+ * "word", as far as a RegExp is concerned.  If we want a Unicode-friendlier
+ * definition of "word", we should rename this macro to something regexp-y.
  */
-extern const bool js_alnum[];
-
-/*
- * This macro performs testing for the regular expression word class \w, which
- * is defined by ECMA-262 15.10.2.6 to be [0-9A-Z_a-z].  If we want a
- * Unicode-friendlier definition of "word", we should rename this macro to
- * something regexp-y.
- */
-#define JS_ISWORD(c)    ((c) < 128 && js_alnum[(c)])
+#define JS_ISWORD(c)    ((c) < 128 && (isalnum(c) || (c) == '_'))
 
 #define JS_ISIDSTART(c) (JS_ISLETTER(c) || (c) == '_' || (c) == '$')
 #define JS_ISIDENT(c)   (JS_ISIDPART(c) || (c) == '_' || (c) == '$')
@@ -585,6 +570,16 @@ js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n);
 /* Copy a C string and GC-allocate a descriptor for it. */
 extern JSString *
 js_NewStringCopyZ(JSContext *cx, const jschar *s);
+
+/*
+ * Free the chars held by str when it is finalized by the GC. When type is
+ * less then zero, it denotes an internal string. Otherwise it denotes the
+ * type of the external string allocated with JS_NewExternalString.
+ *
+ * This function always needs rt but can live with null cx.
+ */
+extern void
+js_FinalizeStringRT(JSRuntime *rt, JSString *str, intN type, JSContext *cx);
 
 /*
  * Convert a value to a printable C string.
@@ -737,9 +732,6 @@ js_PurgeDeflatedStringCache(JSRuntime *rt, JSString *str);
 extern JSBool
 js_str_escape(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval);
-
-extern JSBool
-js_str_toString(JSContext *cx, uintN argc, jsval *vp);
 
 extern JSBool
 js_StringReplaceHelper(JSContext *cx, uintN argc, JSObject *lambda,

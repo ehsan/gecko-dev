@@ -28,7 +28,7 @@ if (!('gReportSummary' in this))
 var testName = null;
 if ("arguments" in this && arguments.length > 0)
   testName = arguments[0];
-var fails = [], passes = [];
+var fails = [], passes=[];
 
 function jitstatHandler(f)
 {
@@ -3660,51 +3660,6 @@ function testComparisons()
 testComparisons.expected = "no failures reported!";
 test(testComparisons);
 
-function testBug504520() {
-    // A bug involving comparisons.
-    var arr = [1/0, 1/0, 1/0, 1/0, 1/0, 0];
-    assertEq(arr.length > RUNLOOP, true);
-
-    var s = '';
-    for (var i = 0; i < arr.length; i++)
-        arr[i] >= 1/0 ? null : (s += i);
-    assertEq(s, '5');
-}
-test(testBug504520);
-
-function testBug504520Harder() {
-    // test 1024 similar cases
-    var vals = [1/0, -1/0, 0, 0/0];
-    var ops = ["===", "!==", "==", "!=", "<", ">", "<=", ">="];
-    for each (var x in vals) {
-        for each (var y in vals) {
-            for each (var op in ops) {
-                for each (var z in vals) {
-                    // Assume eval is correct. This depends on the global
-                    // Infinity property not having been reassigned.
-                    var xz = eval(x + op + z);
-                    var yz = eval(y + op + z);
-
-                    var arr = [x, x, x, x, x, y];
-                    assertEq(arr.length > RUNLOOP, true);
-                    var expected = [xz, xz, xz, xz, xz, yz];
-
-                    // ?: looks superfluous but that's what we're testing here
-                    var fun = eval(
-                        '(function (arr, results) {\n' +
-                        '    for (let i = 0; i < arr.length; i++)\n' +
-                        '        results.push(arr[i]' + op + z + ' ? "true" : "false");\n' +
-                        '});\n');
-                    var actual = [];
-                    fun(arr, actual);
-                    assertEq("" + actual, "" + expected);
-                }
-            }
-        }
-    }
-}
-test(testBug504520Harder);
-
 function testCaseAbort()
 {
   var four = "4";
@@ -3844,13 +3799,15 @@ function testAddAnyInconvertibleObject()
 {
   var count = 0;
   function toString() { ++count; if (count == 95) return {}; return "" + count; }
-  var o = {valueOf: undefined, toString: toString};
 
   var threw = false;
   try
   {
     for (var i = 0; i < 100; i++)
+    {
+        var o = {valueOf: undefined, toString: toString};
         var q = 5 + o;
+    }
   }
   catch (e)
   {
@@ -3871,7 +3828,7 @@ testAddAnyInconvertibleObject.expected = "pass";
 testAddAnyInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 3
+  sideExitIntoInterpreter: 93
 };
 test(testAddAnyInconvertibleObject);
 
@@ -3885,13 +3842,15 @@ function testAddInconvertibleObjectAny()
       return {};
     return "" + count;
   }
-  var o = {valueOf: undefined, toString: toString};
 
   var threw = false;
   try
   {
     for (var i = 0; i < 100; i++)
+    {
+        var o = {valueOf: undefined, toString: toString};
         var q = o + 5;
+    }
   }
   catch (e)
   {
@@ -3912,7 +3871,7 @@ testAddInconvertibleObjectAny.expected = "pass";
 testAddInconvertibleObjectAny.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 3
+  sideExitIntoInterpreter: 93
 };
 test(testAddInconvertibleObjectAny);
 
@@ -3920,16 +3879,18 @@ function testAddInconvertibleObjectInconvertibleObject()
 {
   var count1 = 0;
   function toString1() { ++count1; if (count1 == 95) return {}; return "" + count1; }
-  var o1 = {valueOf: undefined, toString: toString1};
   var count2 = 0;
   function toString2() { ++count2; if (count2 == 95) return {}; return "" + count2; }
-  var o2 = {valueOf: undefined, toString: toString2};
 
   var threw = false;
   try
   {
     for (var i = 0; i < 100; i++)
+    {
+        var o1 = {valueOf: undefined, toString: toString1};
+        var o2 = {valueOf: undefined, toString: toString2};
         var q = o1 + o2;
+    }
   }
   catch (e)
   {
@@ -3952,7 +3913,7 @@ testAddInconvertibleObjectInconvertibleObject.expected = "pass";
 testAddInconvertibleObjectInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 3
+  sideExitIntoInterpreter: 93
 };
 test(testAddInconvertibleObjectInconvertibleObject);
 
@@ -3960,13 +3921,15 @@ function testBitOrAnyInconvertibleObject()
 {
   var count = 0;
   function toString() { ++count; if (count == 95) return {}; return count; }
-  var o = {valueOf: undefined, toString: toString};
 
   var threw = false;
   try
   {
     for (var i = 0; i < 100; i++)
+    {
+        var o = {valueOf: undefined, toString: toString};
         var q = 1 | o;
+    }
   }
   catch (e)
   {
@@ -3987,7 +3950,7 @@ testBitOrAnyInconvertibleObject.expected = "pass";
 testBitOrAnyInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 3
+  sideExitIntoInterpreter: 93
 };
 test(testBitOrAnyInconvertibleObject);
 
@@ -3995,13 +3958,15 @@ function testBitOrInconvertibleObjectAny()
 {
   var count = 0;
   function toString() { ++count; if (count == 95) return {}; return count; }
-  var o = {valueOf: undefined, toString: toString};
 
   var threw = false;
   try
   {
     for (var i = 0; i < 100; i++)
+    {
+        var o = {valueOf: undefined, toString: toString};
         var q = o | 1;
+    }
   }
   catch (e)
   {
@@ -4022,7 +3987,7 @@ testBitOrInconvertibleObjectAny.expected = "pass";
 testBitOrInconvertibleObjectAny.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 3
+  sideExitIntoInterpreter: 93
 };
 test(testBitOrInconvertibleObjectAny);
 
@@ -4030,16 +3995,18 @@ function testBitOrInconvertibleObjectInconvertibleObject()
 {
   var count1 = 0;
   function toString1() { ++count1; if (count1 == 95) return {}; return count1; }
-  var o1 = {valueOf: undefined, toString: toString1};
   var count2 = 0;
   function toString2() { ++count2; if (count2 == 95) return {}; return count2; }
-  var o2 = {valueOf: undefined, toString: toString2};
 
   var threw = false;
   try
   {
     for (var i = 0; i < 100; i++)
+    {
+        var o1 = {valueOf: undefined, toString: toString1};
+        var o2 = {valueOf: undefined, toString: toString2};
         var q = o1 | o2;
+    }
   }
   catch (e)
   {
@@ -4062,7 +4029,7 @@ testBitOrInconvertibleObjectInconvertibleObject.expected = "pass";
 testBitOrInconvertibleObjectInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 3
+  sideExitIntoInterpreter: 93
 };
 test(testBitOrInconvertibleObjectInconvertibleObject);
 
@@ -4474,44 +4441,6 @@ delete g;
 delete h;
 delete a;
 delete f;
-
-function testRebranding2() {
-    // Same as testRebranding, but the object to be rebranded isn't the global.
-    var x = "FAIL";
-    function g(){}
-    function h(){ x = "ok"; }
-    var obj = {m: g};
-    var arr = [g, g, g, g, h];
-    assertEq(arr.length > RUNLOOP, true);
-    for (var i = 0; i < 5; i++) {
-        obj.m = arr[i];
-        obj.m();
-    }
-    return x;
-}
-testRebranding2.expected = "ok";
-test(testRebranding2);
-
-function testBug502914() {
-    // Assigning a non-function to a function-valued property on trace should
-    // bump the shape.
-    function f1() {}
-    function C() {}
-    var x = C.prototype = {m: f1};
-    x.m();  // brand scope
-    var arr = [new C, new C, new C, x];
-    try {
-        for (var i = 0; i < 4; i++) {
-            arr[i].m = 12;
-            x.m();  // should throw last time through
-        }
-    } catch (exc) {
-        return exc.constructor.name;
-    }
-    return "no exception";
-}
-testBug502914.expected = "TypeError";
-test(testBug502914);
 
 function testLambdaCtor() {
     var a = [];
@@ -5376,186 +5305,6 @@ function testFewerGlobalsInInnerTree() {
 }
 testFewerGlobalsInInnerTree.expected = "ok";
 test(testFewerGlobalsInInnerTree);
-
-function testMethodInit() {  // bug 503198
-    function o() { return 'o'; }
-    function k() { return 'k'; }
-
-    var x;
-    for (var i = 0; i < 10; i++)
-        x = {o: o, k: k};
-    return x.o() + x.k();
-}
-testMethodInit.expected = "ok";
-testMethodInit.jitstats = {
-  recorderStarted: 1,
-  traceCompleted: 1,
-  sideExitIntoInterpreter: 1
-};
-test(testMethodInit);
-
-function testMethodSet() {  // bug 503198
-    function o() { return 'o'; }
-    function k() { return 'k'; }
-
-    var x;
-    for (var i = 0; i < 10; i++) {
-        x = {};
-        x.o = o;
-        x.k = k;
-    }
-    return x.o() + x.k();
-}
-testMethodSet.expected = "ok";
-testMethodSet.jitstats = {
-  recorderStarted: 1,
-  traceCompleted: 1,
-  sideExitIntoInterpreter: 1
-};
-test(testMethodSet);
-
-function testMethodInitSafety() {
-    function f() { return 'fail'; }
-    function g() { return 'ok'; }
-
-    var s;
-    var arr = [f, f, f, f, g];
-    assertEq(arr.length > RUNLOOP, true);
-    for (var i = 0; i < arr.length; i++) {
-        var x = {m: arr[i]};
-        s = x.m();
-    }
-    return s;
-}
-testMethodInitSafety.expected = "ok";
-test(testMethodInitSafety);
-
-function testModuloWithNegative1() {
-    var v = 0;
-    for (var i = 0; i < 2; ++i) {
-        c = v;
-        v -= 1;
-        for (var j = 0; j < 2; ++j)
-            c %= -1;
-    }
-    return 1/c;
-}
-testModuloWithNegative1.expected = -Infinity;
-test(testModuloWithNegative1);
-
-function testDivisionWithNegative1() {
-    for (var i = 3; i >= 0; --i)
-        c = i / -1;
-    return 1/c;
-}
-testDivisionWithNegative1.expected = -Infinity;
-test(testDivisionWithNegative1);
-
-function testInt32ToId()
-{
-  // Ensure that a property which is a negative integer that does not fit in a
-  // jsval is properly detected by the 'in' operator.
-  var obj = { "-1073741828": 17 };
-  var index = -1073741819;
-  var a = [];
-  for (var i = 0; i < 10; i++)
-  {
-    a.push(index in obj);
-    index--;
-  }
-
-  // Ensure that a property which is a negative integer that does not fit in a
-  // jsval is properly *not* detected by the 'in' operator.  In this case
-  // wrongly applying INT_TO_JSID to -2147483648 will shift off the sign bit
-  // (the only bit set in that number) and bitwise-or that value with 1,
-  // producing jsid(1) -- which actually represents "0", not "-2147483648".
-  // Thus 'in' will report a "-2147483648" property when none exists, because
-  // it thinks the request was really whether the object had property "0".
-  var obj2 = { 0: 17 };
-  var b = [];
-  var index = -(1 << 28);
-  for (var i = 0; i < 10; i++)
-  {
-    b.push(index in obj2);
-    index = index - (1 << 28);
-  }
-
-  return a.join(",") + b.join(",");
-}
-testInt32ToId.expected =
-  "false,false,false,false,false,false,false,false,false,true" +
-  "false,false,false,false,false,false,false,false,false,false";
-testInt32ToId.jitstats = {
-  sideExitIntoInterpreter: 2
-};
-test(testInt32ToId);
-
-function testOwnPropertyWithInOperator()
-{
-  var o = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
-  var a = [];
-  for (var i = 0; i < 7; i++)
-    a.push(i in o);
-  return a.join(",");
-}
-testOwnPropertyWithInOperator.expected = "true,true,true,true,true,true,true";
-testOwnPropertyWithInOperator.jitstats = {
-  sideExitIntoInterpreter: 1
-};
-test(testOwnPropertyWithInOperator);
-
-function testBug501690() {
-    // Property cache assertion when 3 objects along a prototype chain have the same shape.
-    function B(){}
-    B.prototype = {x: 123};
-
-    function D(){}
-    D.prototype = new B;
-    D.prototype.x = 1;    // [1] shapeOf(B.prototype) == shapeOf(D.prototype)
-
-    arr = [new D, new D, new D, D.prototype];  // [2] all the same shape
-    for (var i = 0; i < 4; i++)
-        assertEq(arr[i].x, 1);  // same kshape [2], same vshape [1]
-}
-test(testBug501690);
-
-function testObjectVsPrototype() {
-    function D() {}
-    var b = D.prototype = {x: 1};
-    var d = new D;
-    var arr = [b, b, b, d];
-    for (var i = 0; i < 4; i++)
-        arr[i].x = i;
-
-    d.y = 12;
-    assertEq(d.x, 3);
-}
-test(testObjectVsPrototype);
-
-function testEliminatedGuardWithinAnchor() {
-    for (let i = 0; i < 5; ++i) { i / (i * i); }
-    return "ok";
-}
-testEliminatedGuardWithinAnchor.expected = "ok";
-testOwnPropertyWithInOperator.jitstats = {
-  sideExitIntoInterpreter: 3
-};
-test(testEliminatedGuardWithinAnchor);
-
-function testNativeSetter() {
-    var re = /foo/;
-    var N = RUNLOOP + 10;
-    for (var i = 0; i < N; i++)
-        re.lastIndex = i;
-    assertEq(re.lastIndex, N - 1);
-}
-testNativeSetter.jitstats = {
-    recorderStarted: 1,
-    recorderAborted: 0,
-    traceTriggered: 1,
-    sideExitIntoInterpreter: 1
-};
-test(testNativeSetter);
 
 /*****************************************************************************
  *                                                                           *

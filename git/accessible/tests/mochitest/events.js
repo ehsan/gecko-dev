@@ -1,8 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
-const EVENT_DOCUMENT_LOAD_COMPLETE =
-  nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
 const EVENT_DOM_DESTROY = nsIAccessibleEvent.EVENT_DOM_DESTROY;
 const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
@@ -87,15 +85,6 @@ function unregisterA11yEventListener(aEventType, aEventHandler)
  * to prepare action.
  */
 const INVOKER_ACTION_FAILED = 1;
-
-/**
- * Common invoker checker (see eventSeq of eventQueue).
- */
-function invokerChecker(aEventType, aTarget)
-{
-  this.type = aEventType;
-  this.target = aTarget;
-}
 
 /**
  * Creates event queue for the given event type. The queue consists of invoker
@@ -330,9 +319,7 @@ function eventQueue(aEventType)
   this.setEventHandler = function eventQueue_setEventHandler(aInvoker)
   {
     this.mEventSeq = ("eventSeq" in aInvoker) ?
-      aInvoker.eventSeq :
-      [ new invokerChecker(this.mDefEventType, aInvoker.DOMNode) ];
-
+      aInvoker.eventSeq : [[this.mDefEventType, aInvoker.DOMNode]];
     this.mEventSeqIdx = -1;
 
     if (this.mEventSeq) {
@@ -365,12 +352,20 @@ function eventQueue(aEventType)
 
   this.getEventType = function eventQueue_getEventType(aIdx)
   {
-    return this.mEventSeq[aIdx].type;
+    var eventItem = this.mEventSeq[aIdx];
+    if ("type" in eventItem)
+      return eventItem.type;
+
+    return eventItem[0];
   }
 
   this.getEventTarget = function eventQueue_getEventTarget(aIdx)
   {
-    return this.mEventSeq[aIdx].target;
+    var eventItem = this.mEventSeq[aIdx];
+    if ("target" in eventItem)
+      return eventItem.target;
+
+    return eventItem[1];
   }
 
   this.compareEvents = function eventQueue_compareEvents(aIdx, aEvent)

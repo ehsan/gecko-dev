@@ -127,7 +127,7 @@ public:
   // In that case the method returns an error value.
   nsresult SetValue(const nsAString& aValue);
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
 //==== BEGIN NSIFORMCONTROLFRAME
   virtual void SetFocus(PRBool aOn , PRBool aRepaint); 

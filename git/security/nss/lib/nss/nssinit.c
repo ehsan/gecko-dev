@@ -36,10 +36,9 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nssinit.c,v 1.98 2009/05/29 19:23:30 wtc%google.com Exp $ */
+/* $Id: nssinit.c,v 1.97 2008/08/22 01:33:03 wtc%google.com Exp $ */
 
 #include <ctype.h>
-#include <string.h>
 #include "seccomon.h"
 #include "prinit.h"
 #include "prprf.h"
@@ -556,11 +555,7 @@ loser:
 				STAN_GetDefaultTrustDomain());
 	if ((!noModDB) && (!noCertDB) && (!noRootInit)) {
 	    if (!SECMOD_HasRootCerts()) {
-		const char *dbpath = configdir;
-		if (strncmp(dbpath, "sql:", 4) == 0) {
-		    dbpath += 4;
-		}
-		nss_FindExternalRoot(dbpath, secmodName);
+		nss_FindExternalRoot(configdir, secmodName);
 	    }
 	}
 	pk11sdr_Init();

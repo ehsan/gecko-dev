@@ -163,8 +163,8 @@ public:
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
                    nsIFrame*        asPrevInFlow);
-  NS_IMETHOD  SetInitialChildList(nsIAtom*           aListName,
-                                  nsFrameList&       aChildList);
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
+                                  nsIFrame*       aChildList);
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsIFrame*       aFrameList);
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
@@ -179,7 +179,7 @@ public:
   NS_IMETHOD  SetParent(const nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext, 
                           nsGUIEvent*     aEvent,
                           nsEventStatus*  aEventStatus);
@@ -237,6 +237,7 @@ public:
   NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
 #endif
 
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
 
@@ -428,7 +429,7 @@ public:
 
   // Helper function that verifies that each frame in the list has the
   // NS_FRAME_IS_DIRTY bit set
-  static void VerifyDirtyBitSet(const nsFrameList& aFrameList);
+  static void VerifyDirtyBitSet(nsIFrame* aFrameList);
 
   // Helper function to return the index in parent of the frame's content
   // object. Returns -1 on error or if the frame doesn't have a content object
@@ -496,17 +497,6 @@ public:
   static void DisplayReflowShutdown();
 #endif
 
-  /**
-   * Adds display item for standard CSS background if necessary.
-   * Does not check IsVisibleForPainting.
-   * @param aForceBackground draw the background even if the frame
-   * background style appears to have no background --- this is useful
-   * for frames that might receive a propagated background via
-   * nsCSSRendering::FindBackground
-   */
-  nsresult DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
-                                          const nsDisplayListSet& aLists,
-                                          PRBool aForceBackground = PR_FALSE);
   /**
    * Adds display items for standard CSS borders, background and outline for
    * for this frame, as necessary. Checks IsVisibleForPainting and won't
@@ -595,6 +585,8 @@ protected:
                                       nsIPresShell *aPresShell, nsMouseEvent *aMouseEvent, 
                                       nsIContent **aParentContent, PRInt32 *aContentOffset, 
                                       PRInt32 *aTarget);
+
+  virtual PRBool ParentDisablesSelection() const;
 
   // Fills aCursor with the appropriate information from ui
   static void FillCursorInformationFromStyle(const nsStyleUserInterface* ui,

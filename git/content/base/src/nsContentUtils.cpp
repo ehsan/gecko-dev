@@ -98,6 +98,8 @@
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "imgILoader.h"
+#include "nsIImage.h"
+#include "gfxIImageFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -2444,7 +2446,7 @@ nsContentUtils::LoadImage(nsIURI* aURI, nsIDocument* aLoadingDocument,
 }
 
 // static
-already_AddRefed<imgIContainer>
+already_AddRefed<nsIImage>
 nsContentUtils::GetImageFromContent(nsIImageLoadingContent* aContent,
                                     imgIRequest **aRequest)
 {
@@ -2468,11 +2470,26 @@ nsContentUtils::GetImageFromContent(nsIImageLoadingContent* aContent,
     return nsnull;
   }
 
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  imgContainer->GetFrameAt(0, getter_AddRefs(imgFrame));
+
+  if (!imgFrame) {
+    return nsnull;
+  }
+
+  nsCOMPtr<nsIInterfaceRequestor> ir = do_QueryInterface(imgFrame);
+
+  if (!ir) {
+    return nsnull;
+  }
+
   if (aRequest) {
     imgRequest.swap(*aRequest);
   }
 
-  return imgContainer.forget();
+  nsIImage* image = nsnull;
+  CallGetInterface(ir.get(), &image);
+  return image;
 }
 
 // static
@@ -3590,9 +3607,9 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   PRBool bCaseSensitive = document->IsCaseSensitive();
 
   nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
-  PRBool isHTML = htmlDoc && !bCaseSensitive;
+  PRBool bHTML = htmlDoc && !bCaseSensitive;
 
-  if (isHTML && nsHtml5Module::sEnabled) {
+  if (bHTML && nsHtml5Module::Enabled) {
     // See if the document has a cached fragment parser. nsHTMLDocument is the
     // only one that should really have one at the moment.
     nsCOMPtr<nsIParser> parser = document->GetFragmentParser();
@@ -3717,7 +3734,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   nsCOMPtr<nsIContentSink> contentsink = parser->GetContentSink();
   if (contentsink) {
     // Make sure it's the correct type.
-    if (isHTML) {
+    if (bHTML) {
       nsCOMPtr<nsIHTMLContentSink> htmlsink = do_QueryInterface(contentsink);
       sink = do_QueryInterface(htmlsink);
     }
@@ -3730,7 +3747,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   if (!sink) {
     // Either there was no cached content sink or it was the wrong type. Make a
     // new one.
-    if (isHTML) {
+    if (bHTML) {
       rv = NS_NewHTMLFragmentContentSink(getter_AddRefs(sink));
     } else {
       rv = NS_NewXMLFragmentContentSink(getter_AddRefs(sink));
@@ -3762,7 +3779,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   }
 
   rv = parser->ParseFragment(aFragment, nsnull, tagStack,
-                             !isHTML, contentType, mode);
+                             !bHTML, contentType, mode);
   if (NS_SUCCEEDED(rv)) {
     rv = sink->GetFragment(aWillOwnFragment, aReturn);
   }

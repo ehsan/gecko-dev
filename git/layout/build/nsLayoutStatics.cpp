@@ -85,7 +85,6 @@
 #include "nsHtml5Module.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsFocusManager.h"
-#include "nsFrameList.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -280,12 +279,6 @@ nsLayoutStatics::Initialize()
   
   nsCrossSiteListenerProxy::Startup();
 
-  rv = nsFrameList::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsFrameList");
-    return rv;
-  }
-
   return NS_OK;
 }
 
@@ -375,8 +368,6 @@ nsLayoutStatics::Shutdown()
   nsHtml5Module::ReleaseStatics();
 
   NS_ShutdownChainItemPool();
-
-  nsFrameList::Shutdown();
 }
 
 void
