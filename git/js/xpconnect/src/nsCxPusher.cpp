@@ -137,8 +137,8 @@ AutoCxPusher::AutoCxPusher(JSContext* cx, bool allowNull) : mScriptIsRunning(fal
   // old XPCAutoRequest as well.
   if (cx) {
     mAutoRequest.construct(cx);
-    if (js::DefaultObjectForContextOrNull(cx))
-      mAutoCompartment.construct(cx, js::DefaultObjectForContextOrNull(cx));
+    if (js::GetDefaultGlobalForContext(cx))
+      mAutoCompartment.construct(cx, js::GetDefaultGlobalForContext(cx));
     xpc_UnmarkGrayContext(cx);
   }
 }

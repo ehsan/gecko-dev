@@ -552,6 +552,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/chrome/chrome.manifest
 @BINPATH@/components/AboutRedirector.js
 @BINPATH@/components/AddonUpdateService.js
+@BINPATH@/components/AlertsService.js
 @BINPATH@/components/BlocklistPrompt.js
 @BINPATH@/components/BrowserCLH.js
 @BINPATH@/components/ContentDispatchChooser.js

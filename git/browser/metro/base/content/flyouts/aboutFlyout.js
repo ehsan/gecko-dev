@@ -7,10 +7,10 @@
 Cu.import("resource://gre/modules/Services.jsm");
 let gAppUpdater;
 
-let AboutFlyoutPanel = {
+let AboutFlyout = {
   init: function() {
     if (this._isInitialized) {
-      Cu.reportError("Attempted to initialize AboutFlyoutPanel more than once");
+      Cu.reportError("Attempted to initialize AboutFlyout more than once");
     }
 
     this._isInitialized = true;
@@ -19,7 +19,7 @@ let AboutFlyoutPanel = {
     this._elements = {};
     [
       ['versionLabel', 'about-version-label'],
-      ['AboutFlyoutPanel',  'about-flyoutpanel'],
+      ['aboutFlyout',  'about-flyoutpanel'],
     ].forEach(function(aElement) {
       let [name, id] = aElement;
       XPCOMUtils.defineLazyGetter(self._elements, name, function() {
@@ -27,7 +27,7 @@ let AboutFlyoutPanel = {
       });
     });
 
-    this._topmostElement = this._elements.AboutFlyoutPanel;
+    this._topmostElement = this._elements.aboutFlyout;
 
     // Include the build ID if this is an "a#" (nightly or aurora) build
     let version = Services.appinfo.version;

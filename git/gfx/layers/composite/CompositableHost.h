@@ -29,7 +29,6 @@ struct TiledLayerProperties
 
 class Layer;
 class DeprecatedTextureHost;
-class TextureHost;
 class SurfaceDescriptor;
 
 /**
@@ -49,16 +48,27 @@ class SurfaceDescriptor;
 class CompositableHost : public RefCounted<CompositableHost>
 {
 public:
-  CompositableHost(const TextureInfo& aTextureInfo);
+  CompositableHost(const TextureInfo& aTextureInfo)
+    : mTextureInfo(aTextureInfo)
+    , mCompositor(nullptr)
+    , mLayer(nullptr)
+  {
+    MOZ_COUNT_CTOR(CompositableHost);
+  }
 
-  virtual ~CompositableHost();
+  virtual ~CompositableHost()
+  {
+    MOZ_COUNT_DTOR(CompositableHost);
+  }
 
   static TemporaryRef<CompositableHost> Create(const TextureInfo& aTextureInfo);
 
   virtual CompositableType GetType() = 0;
 
-  // If base class overrides, it should still call the parent implementation
-  virtual void SetCompositor(Compositor* aCompositor);
+  virtual void SetCompositor(Compositor* aCompositor)
+  {
+    mCompositor = aCompositor;
+  }
 
   // composite the contents of this buffer host to the compositor's surface
   virtual void Composite(EffectChain& aEffectChain,
@@ -129,10 +139,7 @@ public:
   virtual void EnsureDeprecatedTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
-                                 const TextureInfo& aTextureInfo)
-  {
-    MOZ_ASSERT(false, "should be implemented or not used");
-  }
+                                 const TextureInfo& aTextureInfo) = 0;
 
   /**
    * Ensure that a suitable texture host exists in this compsitable.
@@ -151,11 +158,6 @@ public:
   }
 
   virtual DeprecatedTextureHost* GetDeprecatedTextureHost() { return nullptr; }
-
-  /**
-   * Returns the front buffer.
-   */
-  virtual TextureHost* GetTextureHost() { return nullptr; }
 
   virtual LayerRenderState GetRenderState() = 0;
 
@@ -197,7 +199,6 @@ public:
                     const char* aPrefix="",
                     bool aDumpHtml=false) { }
   static void DumpDeprecatedTextureHost(FILE* aFile, DeprecatedTextureHost* aTexture);
-  static void DumpTextureHost(FILE* aFile, TextureHost* aTexture);
 
 #ifdef MOZ_DUMP_PAINTING
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() { return nullptr; }
@@ -207,16 +208,10 @@ public:
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix) { }
 #endif
 
-  void AddTextureHost(TextureHost* aTexture);
-  virtual void UseTextureHost(TextureHost* aTexture) {}
-  void RemoveTextureHost(uint64_t aTextureID);
-  TextureHost* GetTextureHost(uint64_t aTextureID);
-
 protected:
   TextureInfo mTextureInfo;
   Compositor* mCompositor;
   Layer* mLayer;
-  RefPtr<TextureHost> mFirstTexture;
 };
 
 class CompositableParentManager;

@@ -26,8 +26,6 @@
 #include "ion/PerfSpewer.h"
 #include "vm/ForkJoin.h"
 
-#include "jsboolinlines.h"
-
 #include "ion/shared/CodeGenerator-shared-inl.h"
 #include "vm/Interpreter-inl.h"
 
@@ -295,11 +293,11 @@ CodeGenerator::emitOOLTestObject(Register objreg, Label *ifTruthy, Label *ifFals
     saveVolatile(scratch);
     masm.setupUnalignedABICall(1, scratch);
     masm.passABIArg(objreg);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, js::EmulatesUndefined));
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, ObjectEmulatesUndefined));
     masm.storeCallResult(scratch);
     restoreVolatile(scratch);
 
-    masm.branchIfTrueBool(scratch, ifFalsy);
+    masm.branchTest32(Assembler::NonZero, scratch, scratch, ifFalsy);
     masm.jump(ifTruthy);
 }
 
@@ -645,7 +643,7 @@ CodeGenerator::visitRegExp(LRegExp *lir)
 }
 
 typedef bool (*RegExpTestRawFn)(JSContext *cx, HandleObject regexp,
-                                HandleString input, bool *result);
+                                HandleString input, JSBool *result);
 static const VMFunction RegExpTestRawInfo = FunctionInfo<RegExpTestRawFn>(regexp_test_raw);
 
 bool
@@ -2128,7 +2126,7 @@ CodeGenerator::visitFilterArguments(LFilterArguments *lir)
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, FilterArguments));
 
     Label bail;
-    masm.branchIfFalseBool(ReturnReg, &bail);
+    masm.branch32(Assembler::Equal, ReturnReg, Imm32(0), &bail);
     return bailoutFrom(&bail, lir->snapshot());
 }
 
@@ -3172,25 +3170,6 @@ CodeGenerator::visitInitElem(LInitElem *lir)
     return callVM(InitElemInfo, lir);
 }
 
-typedef bool (*InitElemGetterSetterFn)(JSContext *, jsbytecode *, HandleObject, HandleValue,
-                                       HandleObject);
-static const VMFunction InitElemGetterSetterInfo =
-    FunctionInfo<InitElemGetterSetterFn>(InitGetterSetterOperation);
-
-bool
-CodeGenerator::visitInitElemGetterSetter(LInitElemGetterSetter *lir)
-{
-    Register obj = ToRegister(lir->object());
-    Register value = ToRegister(lir->value());
-
-    pushArg(value);
-    pushArg(ToValue(lir, LInitElemGetterSetter::IdIndex));
-    pushArg(obj);
-    pushArg(ImmWord(lir->mir()->resumePoint()->pc()));
-
-    return callVM(InitElemGetterSetterInfo, lir);
-}
-
 typedef bool(*InitPropFn)(JSContext *cx, HandleObject obj,
                           HandlePropertyName name, HandleValue value);
 static const VMFunction InitPropInfo =
@@ -3206,25 +3185,6 @@ CodeGenerator::visitInitProp(LInitProp *lir)
     pushArg(objReg);
 
     return callVM(InitPropInfo, lir);
-}
-
-typedef bool(*InitPropGetterSetterFn)(JSContext *, jsbytecode *, HandleObject, HandlePropertyName,
-                                      HandleObject);
-static const VMFunction InitPropGetterSetterInfo =
-    FunctionInfo<InitPropGetterSetterFn>(InitGetterSetterOperation);
-
-bool
-CodeGenerator::visitInitPropGetterSetter(LInitPropGetterSetter *lir)
-{
-    Register obj = ToRegister(lir->object());
-    Register value = ToRegister(lir->value());
-
-    pushArg(value);
-    pushArg(ImmGCPtr(lir->mir()->name()));
-    pushArg(obj);
-    pushArg(ImmWord(lir->mir()->resumePoint()->pc()));
-
-    return callVM(InitPropGetterSetterInfo, lir);
 }
 
 typedef bool (*CreateThisFn)(JSContext *cx, HandleObject callee, MutableHandleValue rval);
@@ -3667,8 +3627,9 @@ CodeGenerator::visitBinaryV(LBinaryV *lir)
     }
 }
 
-typedef bool (*StringCompareFn)(JSContext *, HandleString, HandleString, bool *);
-typedef ParallelResult (*StringCompareParFn)(ForkJoinSlice *, HandleString, HandleString, bool *);
+typedef bool (*StringCompareFn)(JSContext *, HandleString, HandleString, JSBool *);
+typedef ParallelResult (*StringCompareParFn)(ForkJoinSlice *, HandleString, HandleString,
+                                             JSBool *);
 static const VMFunctionsModal StringsEqualInfo = VMFunctionsModal(
     FunctionInfo<StringCompareFn>(ion::StringsEqual<true>),
     FunctionInfo<StringCompareParFn>(ion::StringsEqualPar));
@@ -3739,9 +3700,9 @@ CodeGenerator::visitCompareS(LCompareS *lir)
     return emitCompareS(lir, op, left, right, output, temp);
 }
 
-typedef bool (*CompareFn)(JSContext *, MutableHandleValue, MutableHandleValue, bool *);
+typedef bool (*CompareFn)(JSContext *, MutableHandleValue, MutableHandleValue, JSBool *);
 typedef ParallelResult (*CompareParFn)(ForkJoinSlice *, MutableHandleValue, MutableHandleValue,
-                                       bool *);
+                                       JSBool *);
 static const VMFunctionsModal EqInfo = VMFunctionsModal(
     FunctionInfo<CompareFn>(ion::LooselyEqual<true>),
     FunctionInfo<CompareParFn>(ion::LooselyEqualPar));
@@ -4598,9 +4559,10 @@ CodeGenerator::visitStoreElementHoleV(LStoreElementHoleV *lir)
     return true;
 }
 
-typedef bool (*SetObjectElementFn)(JSContext *, HandleObject, HandleValue, HandleValue,
-                                   bool strict);
-static const VMFunction SetObjectElementInfo = FunctionInfo<SetObjectElementFn>(SetObjectElement);
+typedef bool (*SetObjectElementFn)(JSContext *, HandleObject,
+                                   HandleValue, HandleValue, JSBool strict);
+static const VMFunction SetObjectElementInfo =
+    FunctionInfo<SetObjectElementFn>(SetObjectElement);
 
 bool
 CodeGenerator::visitOutOfLineStoreElementHole(OutOfLineStoreElementHole *ool)
@@ -5121,7 +5083,7 @@ CodeGenerator::visitIteratorNext(LIteratorNext *lir)
     return true;
 }
 
-typedef bool (*IteratorMoreFn)(JSContext *, HandleObject, bool *);
+typedef bool (*IteratorMoreFn)(JSContext *, HandleObject, JSBool *);
 static const VMFunction IteratorMoreInfo = FunctionInfo<IteratorMoreFn>(ion::IteratorMore);
 
 bool
@@ -6036,7 +5998,7 @@ CodeGenerator::visitCallSetProperty(LCallSetProperty *ins)
     return callVM(SetPropertyInfo, ins);
 }
 
-typedef bool (*DeletePropertyFn)(JSContext *, HandleValue, HandlePropertyName, bool *);
+typedef bool (*DeletePropertyFn)(JSContext *, HandleValue, HandlePropertyName, JSBool *);
 static const VMFunction DeletePropertyStrictInfo =
     FunctionInfo<DeletePropertyFn>(DeleteProperty<true>);
 static const VMFunction DeletePropertyNonStrictInfo =
@@ -6050,8 +6012,8 @@ CodeGenerator::visitCallDeleteProperty(LCallDeleteProperty *lir)
 
     if (lir->mir()->block()->info().script()->strict)
         return callVM(DeletePropertyStrictInfo, lir);
-
-    return callVM(DeletePropertyNonStrictInfo, lir);
+    else
+        return callVM(DeletePropertyNonStrictInfo, lir);
 }
 
 bool
@@ -6537,7 +6499,7 @@ CodeGenerator::visitClampVToUint8(LClampVToUint8 *lir)
     return true;
 }
 
-typedef bool (*OperatorInFn)(JSContext *, HandleValue, HandleObject, bool *);
+typedef bool (*OperatorInFn)(JSContext *, HandleValue, HandleObject, JSBool *);
 static const VMFunction OperatorInInfo = FunctionInfo<OperatorInFn>(OperatorIn);
 
 bool
@@ -6549,7 +6511,7 @@ CodeGenerator::visitIn(LIn *ins)
     return callVM(OperatorInInfo, ins);
 }
 
-typedef bool (*OperatorInIFn)(JSContext *, uint32_t, HandleObject, bool *);
+typedef bool (*OperatorInIFn)(JSContext *, uint32_t, HandleObject, JSBool *);
 static const VMFunction OperatorInIInfo = FunctionInfo<OperatorInIFn>(OperatorInI);
 
 bool
@@ -6635,12 +6597,16 @@ CodeGenerator::visitInstanceOfV(LInstanceOfV *ins)
 
 // Wrap IsDelegate, which takes a Value for the lhs of an instanceof.
 static bool
-IsDelegateObject(JSContext *cx, HandleObject protoObj, HandleObject obj, bool *res)
+IsDelegateObject(JSContext *cx, HandleObject protoObj, HandleObject obj, JSBool *res)
 {
-    return IsDelegate(cx, protoObj, ObjectValue(*obj), res);
+    bool nres;
+    if (!IsDelegate(cx, protoObj, ObjectValue(*obj), &nres))
+        return false;
+    *res = nres;
+    return true;
 }
 
-typedef bool (*IsDelegateObjectFn)(JSContext *, HandleObject, HandleObject, bool *);
+typedef bool (*IsDelegateObjectFn)(JSContext *, HandleObject, HandleObject, JSBool *);
 static const VMFunction IsDelegateObjectInfo = FunctionInfo<IsDelegateObjectFn>(IsDelegateObject);
 
 bool
@@ -6733,7 +6699,7 @@ CodeGenerator::emitInstanceOf(LInstruction *ins, JSObject *prototypeObject)
     return true;
 }
 
-typedef bool (*HasInstanceFn)(JSContext *, HandleObject, HandleValue, bool *);
+typedef bool (*HasInstanceFn)(JSContext *, HandleObject, HandleValue, JSBool *);
 static const VMFunction HasInstanceInfo = FunctionInfo<HasInstanceFn>(js::HasInstance);
 
 bool

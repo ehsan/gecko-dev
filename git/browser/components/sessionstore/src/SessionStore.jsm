@@ -2781,8 +2781,6 @@ let SessionStoreInternal = {
       return;
     }
 
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_RESTORE_WINDOW_MS");
-
     // We're not returning from this before we end up calling restoreHistoryPrecursor
     // for this window, so make sure we send the SSWindowStateBusy event.
     this._setWindowStateBusy(aWindow);
@@ -2934,8 +2932,6 @@ let SessionStoreInternal = {
 
     // set smoothScroll back to the original value
     tabstrip.smoothScroll = smoothScroll;
-
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_RESTORE_WINDOW_MS");
 
     this._sendRestoreCompletedNotifications();
   },

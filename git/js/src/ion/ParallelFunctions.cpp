@@ -276,26 +276,26 @@ CompareMaybeStringsPar(ForkJoinSlice *slice, HandleValue v1, HandleValue v2, int
 
 template<bool Equal>
 ParallelResult
-LooselyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+LooselyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     PAR_RELATIONAL_OP(==, Equal);
 }
 
 ParallelResult
-js::ion::LooselyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LooselyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     return LooselyEqualImplPar<true>(slice, lhs, rhs, res);
 }
 
 ParallelResult
-js::ion::LooselyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LooselyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     return LooselyEqualImplPar<false>(slice, lhs, rhs, res);
 }
 
 template<bool Equal>
 ParallelResult
-StrictlyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+StrictlyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     if (lhs.isNumber()) {
         if (rhs.isNumber()) {
@@ -332,44 +332,44 @@ StrictlyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandle
 }
 
 ParallelResult
-js::ion::StrictlyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::StrictlyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     return StrictlyEqualImplPar<true>(slice, lhs, rhs, res);
 }
 
 ParallelResult
-js::ion::StrictlyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::StrictlyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     return StrictlyEqualImplPar<false>(slice, lhs, rhs, res);
 }
 
 ParallelResult
-js::ion::LessThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LessThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     PAR_RELATIONAL_OP(<, true);
 }
 
 ParallelResult
-js::ion::LessThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LessThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     PAR_RELATIONAL_OP(<=, true);
 }
 
 ParallelResult
-js::ion::GreaterThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::GreaterThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     PAR_RELATIONAL_OP(>, true);
 }
 
 ParallelResult
-js::ion::GreaterThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::GreaterThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
     PAR_RELATIONAL_OP(>=, true);
 }
 
 template<bool Equal>
 ParallelResult
-StringsEqualImplPar(ForkJoinSlice *slice, HandleString lhs, HandleString rhs, bool *res)
+StringsEqualImplPar(ForkJoinSlice *slice, HandleString lhs, HandleString rhs, JSBool *res)
 {
     int32_t vsZero;
     ParallelResult ret = CompareStringsPar(slice, lhs, rhs, &vsZero);
@@ -380,13 +380,13 @@ StringsEqualImplPar(ForkJoinSlice *slice, HandleString lhs, HandleString rhs, bo
 }
 
 ParallelResult
-js::ion::StringsEqualPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, bool *res)
+js::ion::StringsEqualPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, JSBool *res)
 {
     return StringsEqualImplPar<true>(slice, v1, v2, res);
 }
 
 ParallelResult
-js::ion::StringsUnequalPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, bool *res)
+js::ion::StringsUnequalPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, JSBool *res)
 {
     return StringsEqualImplPar<false>(slice, v1, v2, res);
 }

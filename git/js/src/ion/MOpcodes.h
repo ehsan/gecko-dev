@@ -86,9 +86,7 @@ namespace ion {
     _(NewCallObject)                                                        \
     _(NewStringObject)                                                      \
     _(InitElem)                                                             \
-    _(InitElemGetterSetter)                                                 \
     _(InitProp)                                                             \
-    _(InitPropGetterSetter)                                                 \
     _(Start)                                                                \
     _(OsrEntry)                                                             \
     _(Nop)                                                                  \

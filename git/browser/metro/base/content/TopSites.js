@@ -310,9 +310,8 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
       let filepath = PageThumbsStorage.getFilePathForURL(aSite.url);
       if (yield OS.File.exists(filepath)) {
         aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
-        aTileNode.setAttribute("customImage", aSite.backgroundImage);
-        if (aTileNode.refresh) {
-          aTileNode.refresh()
+        if ("isBound" in aTileNode && aTileNode.isBound) {
+          aTileNode.backgroundImage = aSite.backgroundImage;
         }
       }
     });
@@ -353,9 +352,7 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
   forceReloadOfThumbnail: function forceReloadOfThumbnail(url) {
       let nodes = this._set.querySelectorAll('richgriditem[value="'+url+'"]');
       for (let item of nodes) {
-        if ("isBound" in item && item.isBound) {
-          item.refreshBackgroundImage();
-        }
+        item.refreshBackgroundImage();
       }
   },
 
@@ -369,8 +366,8 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
 
   destruct: function destruct() {
     Services.obs.removeObserver(this, "Metro:RefreshTopsiteThumbnail");
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
     PageThumbs.removeExpirationFilter(this);
+    Services.obs.removeObserver(this, "metro_viewstate_changed");
     window.removeEventListener('MozAppbarDismissing', this, false);
   },
 
@@ -381,7 +378,6 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
         this.forceReloadOfThumbnail(aState);
         break;
       case "metro_viewstate_changed":
-        this.onViewStateChange(aState);
         for (let item of this._set.children) {
           if (aState == "snapped") {
             item.removeAttribute("tiletype");
@@ -392,8 +388,8 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
         break;
     }
   },
-
   // nsINavHistoryObserver
+
   onBeginUpdateBatch: function() {
   },
 

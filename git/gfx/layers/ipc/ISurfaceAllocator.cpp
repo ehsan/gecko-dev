@@ -120,6 +120,10 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
   if (!aSurface) {
     return;
   }
+  if (!IsOnCompositorSide() && ReleaseOwnedSurfaceDescriptor(*aSurface)) {
+    *aSurface = SurfaceDescriptor();
+    return;
+  }
   if (PlatformDestroySharedSurface(aSurface)) {
     return;
   }
@@ -145,6 +149,38 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
       NS_RUNTIMEABORT("surface type not implemented!");
   }
   *aSurface = SurfaceDescriptor();
+}
+
+bool IsSurfaceDescriptorOwned(const SurfaceDescriptor& aDescriptor)
+{
+  switch (aDescriptor.type()) {
+    case SurfaceDescriptor::TYCbCrImage: {
+      const YCbCrImage& ycbcr = aDescriptor.get_YCbCrImage();
+      return ycbcr.owner() != 0;
+    }
+    case SurfaceDescriptor::TRGBImage: {
+      const RGBImage& rgb = aDescriptor.get_RGBImage();
+      return rgb.owner() != 0;
+    }
+    default:
+      return false;
+  }
+  return false;
+}
+bool ReleaseOwnedSurfaceDescriptor(const SurfaceDescriptor& aDescriptor)
+{
+  DeprecatedSharedPlanarYCbCrImage* sharedYCbCr =
+    DeprecatedSharedPlanarYCbCrImage::FromSurfaceDescriptor(aDescriptor);
+  if (sharedYCbCr) {
+    sharedYCbCr->Release();
+    return true;
+  }
+  DeprecatedSharedRGBImage* sharedRGB = DeprecatedSharedRGBImage::FromSurfaceDescriptor(aDescriptor);
+  if (sharedRGB) {
+    sharedRGB->Release();
+    return true;
+  }
+  return false;
 }
 
 #if !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)

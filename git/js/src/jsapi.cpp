@@ -1333,6 +1333,15 @@ JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *objArg)
     return RemapAllWrappersForObject(cx, obj, obj);
 }
 
+JS_PUBLIC_API(void)
+JS_SetGlobalObject(JSContext *cx, JSObject *obj)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+
+    cx->setDefaultCompartmentObject(obj);
+}
+
 JS_PUBLIC_API(JSBool)
 JS_InitStandardClasses(JSContext *cx, JSObject *objArg)
 {
@@ -1711,7 +1720,7 @@ JS_GetGlobalForCompartmentOrNull(JSContext *cx, JSCompartment *c)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS::CurrentGlobalOrNull(JSContext *cx)
+JS_GetGlobalForScopeChain(JSContext *cx)
 {
     AssertHeapIsIdleOrIterating(cx);
     CHECK_REQUEST(cx);
@@ -2785,12 +2794,7 @@ JS_HasInstance(JSContext *cx, JSObject *objArg, jsval valueArg, JSBool *bp)
     RootedValue value(cx, valueArg);
     AssertHeapIsIdle(cx);
     assertSameCompartment(cx, obj, value);
-
-    bool b;
-    if (!HasInstance(cx, obj, value, &b))
-        return false;
-    *bp = b;
-    return true;
+    return HasInstance(cx, obj, value, bp);
 }
 
 JS_PUBLIC_API(void *)
@@ -2918,7 +2922,6 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals,
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     JS_THREADSAFE_ASSERT(cx->compartment() != cx->runtime()->atomsCompartment);
-    JS_ASSERT(!cx->isExceptionPending());
 
     JSRuntime *rt = cx->runtime();
 

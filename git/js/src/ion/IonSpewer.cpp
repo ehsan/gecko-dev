@@ -186,10 +186,7 @@ void
 IonSpewer::endFunction()
 {
     if (!isSpewingFunction()) {
-        if (inited_) {
-            JS_ASSERT(filteredOutCompilations != 0);
-            filteredOutCompilations--;
-        }
+        filteredOutCompilations--;
         return;
     }
 

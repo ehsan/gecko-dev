@@ -42,7 +42,7 @@ ImageLayerComposite::~ImageLayerComposite()
 void
 ImageLayerComposite::SetCompositableHost(CompositableHost* aHost)
 {
-  mImageHost = aHost;
+  mImageHost = static_cast<ImageHost*>(aHost);
 }
 
 void
@@ -105,11 +105,8 @@ ImageLayerComposite::ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToS
 
   // Snap image edges to pixel boundaries
   gfxRect sourceRect(0, 0, 0, 0);
-  if (mImageHost &&
-    (mImageHost->GetDeprecatedTextureHost() || mImageHost->GetTextureHost())) {
-    IntSize size =
-      mImageHost->GetTextureHost() ? mImageHost->GetTextureHost()->GetSize()
-                                   : mImageHost->GetDeprecatedTextureHost()->GetSize();
+  if (mImageHost && mImageHost->GetDeprecatedTextureHost()) {
+    IntSize size = mImageHost->GetDeprecatedTextureHost()->GetSize();
     sourceRect.SizeTo(size.width, size.height);
     if (mScaleMode != SCALE_NONE &&
         sourceRect.width != 0.0 && sourceRect.height != 0.0) {

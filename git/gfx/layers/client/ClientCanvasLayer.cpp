@@ -87,11 +87,11 @@ ClientCanvasLayer::RenderLayer()
     }
 
     bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
-    //Append TEXTURE_DEALLOCATE_CLIENT flag for streaming buffer under OOPC case
+    //Append OwnByClient flag for streaming buffer under OOPC case
     if (isCrossProcess && mGLContext) {
       GLScreenBuffer* screen = mGLContext->Screen();
       if (screen && screen->Stream()) {
-        flags |= TEXTURE_DEALLOCATE_CLIENT;
+        flags |= OwnByClient;
       }
     }
     mCanvasClient = CanvasClient::CreateCanvasClient(GetCompositableClientType(),

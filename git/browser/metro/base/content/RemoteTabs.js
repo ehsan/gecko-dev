@@ -28,9 +28,6 @@ function RemoteTabsView(aSet, aSetUIAccessList) {
   // If you want to change this code, talk to the fx-si team
   Weave.Svc.Obs.add("weave:service:sync:finish", this);
   Weave.Svc.Obs.add("weave:service:start-over", this);
-
-  Services.obs.addObserver(this, "metro_viewstate_changed", false);
-
   if (this.isSyncEnabled() ) {
     this.populateGrid();
   }
@@ -39,7 +36,7 @@ function RemoteTabsView(aSet, aSetUIAccessList) {
   }
 }
 
-RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
+RemoteTabsView.prototype = {
   _set: null,
   _uiAccessElements: [],
 
@@ -50,9 +47,6 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
 
   observe: function(subject, topic, data) {
     switch (topic) {
-      case "metro_viewstate_changed":
-        this.onViewStateChange(data);
-        break;
       case "weave:service:sync:finish":
         this.populateGrid();
         break;
@@ -100,7 +94,6 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
   },
 
   destruct: function destruct() {
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
     Weave.Svc.Obs.remove("weave:engine:sync:finish", this);
     Weave.Svc.Obs.remove("weave:service:logout:start-over", this);
   },
@@ -109,7 +102,7 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
     return (Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED);
   }
 
-});
+};
 
 let RemoteTabsStartView = {
   _view: null,

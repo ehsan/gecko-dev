@@ -825,7 +825,7 @@ extern const JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
 extern JSBool
 js_InvokeOperationCallback(JSContext *cx);
 
-extern bool
+extern JSBool
 js_HandleExecutionInterrupt(JSContext *cx);
 
 /*

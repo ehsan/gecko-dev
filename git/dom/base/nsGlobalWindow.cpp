@@ -2070,7 +2070,7 @@ nsGlobalWindow::SetOuterObject(JSContext* aCx, JS::Handle<JSObject*> aOuterObjec
   JSAutoCompartment ac(aCx, aOuterObject);
 
   // Indicate the default compartment object associated with this cx.
-  js::SetDefaultObjectForContext(aCx, aOuterObject);
+  JS_SetGlobalObject(aCx, aOuterObject);
 
   // Set up the prototype for the outer object.
   JSObject* inner = JS_GetParent(aOuterObject);
@@ -2474,7 +2474,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // we must have transplanted it. The JS engine tries to maintain
     // the global object's compartment as its default compartment,
     // so update that now since it might have changed.
-    js::SetDefaultObjectForContext(cx, mJSObject);
+    JS_SetGlobalObject(cx, mJSObject);
 #ifdef DEBUG
     JSObject *proto1, *proto2;
     JS_GetPrototype(cx, mJSObject, &proto1);
@@ -3648,7 +3648,7 @@ nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::Value* aVal)
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (content || !nsContentUtils::IsCallerChrome() || !IsChromeWindow()) {
-    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
     if (content && global) {
       nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
       return nsContentUtils::WrapNative(aCx, global, content, aVal,
@@ -6567,7 +6567,7 @@ JSObject* nsGlobalWindow::CallerGlobal()
   // we verify that its principal is subsumed by the subject principal. If it
   // isn't, something is screwy, and we want to clamp to the cx global.
   JS::Rooted<JSObject*> scriptedGlobal(cx, JS_GetScriptedGlobal(cx));
-  JS::Rooted<JSObject*> cxGlobal(cx, JS::CurrentGlobalOrNull(cx));
+  JS::Rooted<JSObject*> cxGlobal(cx, JS_GetGlobalForScopeChain(cx));
   if (!xpc::AccessCheck::subsumes(cxGlobal, scriptedGlobal)) {
     NS_WARNING("Something nasty is happening! Applying countermeasures...");
     return cxGlobal;
@@ -6692,7 +6692,7 @@ PostMessageReadStructuredClone(JSContext* cx,
 
     nsISupports* supports;
     if (JS_ReadBytes(reader, &supports, sizeof(supports))) {
-      JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
+      JS::Rooted<JSObject*> global(cx, JS_GetGlobalForScopeChain(cx));
       if (global) {
         JS::Rooted<JS::Value> val(cx);
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;

@@ -64,10 +64,7 @@ public:
 
   void DestroyBackBuffer()
   {
-    if (mImageClient) {
-      mImageClient->Detach();
-      mImageClient = nullptr;
-    }
+    mImageClient = nullptr;
   }
 
   virtual CompositableClient* GetCompositableClient() MOZ_OVERRIDE
@@ -113,10 +110,6 @@ ClientImageLayer::RenderLayer()
 
   if (!mContainer) {
      return;
-  }
-
-  if (mImageClient) {
-    mImageClient->OnTransaction();
   }
 
   if (!mImageClient ||

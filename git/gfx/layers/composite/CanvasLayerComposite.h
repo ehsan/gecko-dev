@@ -63,7 +63,7 @@ protected:
 #endif
 
 private:
-  RefPtr<CompositableHost> mImageHost;
+  RefPtr<ImageHost> mImageHost;
 };
 
 } /* layers */

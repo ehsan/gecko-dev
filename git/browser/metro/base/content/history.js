@@ -16,7 +16,6 @@ function HistoryView(aSet, aLimit, aFilterUnpinned) {
 
   this._pinHelper = new ItemPinHelper("metro.history.unpinned");
   this._historyService.addObserver(this, false);
-  Services.obs.addObserver(this, "metro_viewstate_changed", false);
   window.addEventListener('MozAppbarDismissing', this, false);
   window.addEventListener('HistoryNeedsRefresh', this, false);
 }
@@ -92,7 +91,6 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
 
   destruct: function destruct() {
     this._historyService.removeObserver(this);
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
     window.removeEventListener('MozAppbarDismissing', this, false);
     window.removeEventListener('HistoryNeedsRefresh', this, false);
   },
@@ -207,15 +205,6 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
 
       case "HistoryNeedsRefresh":
         this.populateGrid(true);
-        break;
-    }
-  },
-
-  // nsIObservers
-  observe: function (aSubject, aTopic, aState) {
-    switch(aTopic) {
-      case "metro_viewstate_changed":
-        this.onViewStateChange(aState);
         break;
     }
   },

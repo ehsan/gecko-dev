@@ -6267,9 +6267,6 @@ var IdentityHandler = {
     return result;
   },
 
-  /**
-   * Determines the identity mode corresponding to the icon we show in the urlbar.
-   */
   getIdentityMode: function getIdentityMode(aState) {
     if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT)
       return this.IDENTITY_MODE_MIXED_CONTENT_BLOCKED;
@@ -6316,10 +6313,8 @@ var IdentityHandler = {
     let mode = this.getIdentityMode(aState);
     let result = { mode: mode };
 
-    // Don't show identity data for pages with an unknown identity or if any
-    // mixed content is loaded (mixed display content is loaded by default).
-    if (mode == this.IDENTITY_MODE_UNKNOWN ||
-        aState & Ci.nsIWebProgressListener.STATE_IS_BROKEN)
+    // We can't to do anything else for pages without identity data
+    if (mode == this.IDENTITY_MODE_UNKNOWN)
       return result;
 
     // Ideally we'd just make this a Java string
