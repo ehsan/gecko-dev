@@ -530,10 +530,6 @@ private:
     nsCOMPtr<nsITimer> mDragLeaveTimer;
     float              mLastMotionPressure;
 
-    // Remember the last sizemode so that we can restore it when
-    // leaving fullscreen
-    nsSizeMode         mLastSizeMode;
-
     static PRBool      sIsDraggingOutOf;
     // drag in progress
     static PRBool DragInProgress(void);

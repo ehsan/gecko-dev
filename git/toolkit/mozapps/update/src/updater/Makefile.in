@@ -74,6 +74,7 @@ else
 RCFLAGS += --include-dir $(srcdir)
 endif
 
+REQUIRES += string
 endif
 
 ifeq ($(OS_ARCH),WINCE)
@@ -93,6 +94,7 @@ RCINCLUDE = updater_wince.rc
 endif
 DEFINES += -DUNICODE -D_UNICODE -DWINCE_SKIP_SHUNT_INCLUDE
 RCFLAGS += -I$(srcdir)
+REQUIRES += string
 LOCAL_INCLUDES += -I$(topsrcdir)/build/wince/shunt/include \
                   -I$(topsrcdir)/build/wince/shunt
 endif

@@ -563,11 +563,6 @@ class nsHtml5Parser : public nsIParser,
      * The event loop will spin ASAP
      */
     PRBool                        mSuspending;
-    
-    /**
-     * Whether EOF needs to be suppressed
-     */
-    PRBool                        mSuppressEOF;
 
     /**
      * The current point on parser life cycle

@@ -371,7 +371,6 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
-  nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;
   nsCSSValueList *mTransform; // List of Arrays containing transform information
@@ -693,6 +692,7 @@ struct nsCSSSVG : public nsCSSStruct {
   nsCSSValue mMarkerMid;
   nsCSSValue mMarkerStart;
   nsCSSValue mMask;
+  nsCSSValue mPointerEvents;
   nsCSSValue mShapeRendering;
   nsCSSValue mStopColor;
   nsCSSValue mStopOpacity;

@@ -395,11 +395,10 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     return nsnull;
 
   PRBool events = PR_FALSE;
-  switch (GetStyleVisibility()->mPointerEvents) {
+  switch (GetStyleSVG()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
-    case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible() &&
           (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None ||
            GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None))

@@ -493,5 +493,4 @@ def iterstatements(stmts):
     for s in stmts:
         yield s
         if isinstance(s, ConditionBlock):
-            for c, sl in s:
-                for s2 in iterstatements(sl): yield s2
+            for c, ss in iterstatements(s): yield ss

@@ -277,7 +277,6 @@ void
 nsHtml5TreeBuilder::end()
 {
   mFlushTimer->Cancel();
-  mOpQueue.Clear();
 #ifdef DEBUG
   mActive = PR_FALSE;
 #endif
@@ -384,6 +383,7 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
   if (aNamespace == kNameSpaceID_SVG) {
 #if 0
     if (aElement->HasAttr(kNameSpaceID_None, nsHtml5Atoms::onload)) {
+      Flush();
       nsEvent event(PR_TRUE, NS_SVG_LOAD);
       event.eventStructType = NS_SVG_EVENT;
       event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;

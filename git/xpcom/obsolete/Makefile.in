@@ -62,6 +62,7 @@ CPPSRCS         = \
 		$(NULL)
 
 ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
+REQUIRES	+= libreg
 ifndef MOZ_ENABLE_LIBXUL
 CPPSRCS		+= dlldeps-obs.cpp
 endif

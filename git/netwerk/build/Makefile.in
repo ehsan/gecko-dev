@@ -123,6 +123,7 @@ endif
 
 
 ifdef MOZ_STORAGE
+REQUIRES += storage
 DEFINES += -DNECKO_OFFLINE_CACHE
 endif
 

@@ -490,7 +490,7 @@ static void RemoveArg(char **argv)
  *        allocated, but rather a pointer to the argv data.
  */
 static ArgResult
-CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull, PRBool aRemArg = PR_TRUE)
+CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull)
 {
   char **curarg = gArgv + 1; // skip argv[0]
   ArgResult ar = ARG_NONE;
@@ -508,8 +508,7 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
         ++arg;
 
       if (strimatch(aArg, arg)) {
-        if (aRemArg)
-          RemoveArg(curarg);
+        RemoveArg(curarg);
         if (!aParam) {
           ar = ARG_FOUND;
           break;
@@ -524,8 +523,7 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
             return ARG_BAD;
 
           *aParam = *curarg;
-          if (aRemArg)
-            RemoveArg(curarg);
+          RemoveArg(curarg);
           ar = ARG_FOUND;
           break;
         }
@@ -2745,8 +2743,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef MOZ_SPLASHSCREEN
   // check to see if we need to do a splash screen
   PRBool wantsSplash = PR_TRUE;
-  PRBool isNoSplash = (CheckArg("nosplash", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
-  PRBool isNoRemote = (CheckArg("no-remote", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
+  PRBool isNoSplash = (CheckArg("nosplash") == ARG_FOUND);
+  PRBool isNoRemote = (CheckArg("no-remote") == ARG_FOUND);
 
 #ifdef WINCE
   // synchronize startup; if it looks like we're going to have to
@@ -2782,7 +2780,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       wantsSplash = PR_TRUE;
     }
   }
-#endif //WINCE
+#endif
 
   if (wantsSplash && !isNoSplash)
     splashScreen = nsSplashScreen::GetOrCreate();
@@ -2795,9 +2793,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   // for the startup mutex on this thread if we need to.
   if (needsMutexLock)
     winStartupMutex.Lock();
-#endif //WINCE
+#endif
 
-#endif //MOZ_SPLASHSCREEN
+#endif
 
 
   ScopedLogging log;
@@ -3204,7 +3202,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     rv = dirProvider.SetProfile(profD, profLD);
     NS_ENSURE_SUCCESS(rv, 1);
 
-#if defined(WINCE) && defined(MOZ_SPLASHSCREEN)
+#ifdef WINCE
     // give up the mutex, let other app startups happen
     winStartupMutex.Unlock();
 #endif

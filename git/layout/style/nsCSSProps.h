@@ -185,6 +185,7 @@ public:
   static const PRInt32 kDominantBaselineKTable[];
   static const PRInt32 kFillRuleKTable[];
   static const PRInt32 kImageRenderingKTable[];
+  static const PRInt32 kPointerEventsKTable[];
   static const PRInt32 kShapeRenderingKTable[];
   static const PRInt32 kStrokeLinecapKTable[];
   static const PRInt32 kStrokeLinejoinKTable[];
@@ -225,7 +226,6 @@ public:
   static const PRInt32 kPageMarksKTable[];
   static const PRInt32 kPageSizeKTable[];
   static const PRInt32 kPitchKTable[];
-  static const PRInt32 kPointerEventsKTable[];
   static const PRInt32 kPositionKTable[];
   static const PRInt32 kSpeakKTable[];
   static const PRInt32 kSpeakHeaderKTable[];

@@ -51,6 +51,7 @@ LIBXUL_LIBRARY	= 1
 
 
 ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
 endif
 
 EXPORTS		= \
@@ -132,12 +133,6 @@ endif
 ifdef IBMBIDI
 CPPSRCS		+= \
 		nsBidiFrames.cpp \
-		$(NULL)
-endif
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-CMMSRCS		+= \
-		nsPluginUtilsOSX.mm \
 		$(NULL)
 endif
 

@@ -51,6 +51,7 @@ LIBXUL_LIBRARY	= 1
 
 
 ifdef MOZ_PHOENIX
+REQUIRES	+= toolkitcomps
 endif
 
 EXPORTS         = \

@@ -1669,9 +1669,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
       // Now only set SSL/TLS ciphers we knew about at compile time
       for (CipherPref* cp = CipherPrefs; cp->pref; ++cp) {
-        rv = mPrefBranch->GetBoolPref(cp->pref, &enabled);
-        if (NS_FAILED(rv))
-          enabled = PR_FALSE;
+        mPrefBranch->GetBoolPref(cp->pref, &enabled);
 
         SSL_CipherPrefSetDefault(cp->id, enabled);
       }

@@ -313,11 +313,10 @@ nsSVGImageFrame::GetHittestMask()
 {
   PRUint16 mask = 0;
 
-  switch(GetStyleVisibility()->mPointerEvents) {
+  switch(GetStyleSVG()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
-    case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible()) {
         /* XXX: should check pixel transparency */
         mask |= HITTEST_MASK_FILL;

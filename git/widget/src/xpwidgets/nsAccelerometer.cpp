@@ -45,8 +45,8 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMOrientationEvent.h"
-#include "nsIServiceManager.h"
-#include "nsIPrefService.h"
+
+
 
 class nsAcceleration : public nsIAcceleration
 {
@@ -100,40 +100,25 @@ NS_IMETHODIMP nsAcceleration::GetZ(double *aZ)
 NS_IMPL_ISUPPORTS1(nsAccelerometer, nsIAccelerometer)
 
 nsAccelerometer::nsAccelerometer()
-: mLastX(10), /* initialize to values that can't be possible */
-  mLastY(10),
-  mLastZ(10),
-  mStarted(PR_FALSE),
-  mNewListener(PR_FALSE),
-  mUpdateInterval(50) /* default to 50 ms */
+: mStarted(PR_FALSE)
 {
-  nsCOMPtr<nsIPrefBranch> prefSrv = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  PRInt32 value;
-  if (prefSrv) {
-    nsresult rv = prefSrv->GetIntPref("accelerometer.update.interval", &value);
-    if (NS_SUCCEEDED(rv))
-      mUpdateInterval = value;
-  }
 }
 
 nsAccelerometer::~nsAccelerometer()
 {
-  if (mTimeoutTimer)
-    mTimeoutTimer->Cancel();
+  if (mTimer)
+    mTimer->Cancel();
 }
 
 void
-nsAccelerometer::StartDisconnectTimer()
+nsAccelerometer::startDisconnectTimer()
 {
-  if (mTimeoutTimer)
-    mTimeoutTimer->Cancel();
-
-  mTimeoutTimer = do_CreateInstance("@mozilla.org/timer;1");
-  if (mTimeoutTimer)
-    mTimeoutTimer->InitWithFuncCallback(TimeoutHandler,
-                                        this,
-                                        2000, 
-                                        nsITimer::TYPE_ONE_SHOT);  
+  mTimer = do_CreateInstance("@mozilla.org/timer;1");
+  if (mTimer)
+    mTimer->InitWithFuncCallback(TimeoutHandler,
+                                 this,
+                                 2000, 
+                                 nsITimer::TYPE_REPEATING_SLACK);  
 }
 
 void
@@ -158,9 +143,9 @@ nsAccelerometer::TimeoutHandler(nsITimer *aTimer, void *aClosure)
 NS_IMETHODIMP nsAccelerometer::AddListener(nsIAccelerationListener *aListener)
 {
   if (mStarted == PR_FALSE) {
-    mStarted = PR_TRUE;
-    mNewListener = PR_TRUE;
+    startDisconnectTimer();
     Startup();
+    mStarted = PR_TRUE;
   }
 
   mListeners.AppendObject(aListener);
@@ -170,16 +155,15 @@ NS_IMETHODIMP nsAccelerometer::AddListener(nsIAccelerationListener *aListener)
 NS_IMETHODIMP nsAccelerometer::RemoveListener(nsIAccelerationListener *aListener)
 {
   mListeners.RemoveObject(aListener);
-  StartDisconnectTimer();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsAccelerometer::AddWindowListener(nsIDOMWindow *aWindow)
 {
   if (mStarted == PR_FALSE) {
-    mStarted = PR_TRUE;
-    mNewListener = PR_TRUE;
-    Startup();
+    startDisconnectTimer();
+    Startup(); 
+   mStarted = PR_TRUE;
   }
 
   mWindowListeners.AppendObject(aWindow);
@@ -189,29 +173,12 @@ NS_IMETHODIMP nsAccelerometer::AddWindowListener(nsIDOMWindow *aWindow)
 NS_IMETHODIMP nsAccelerometer::RemoveWindowListener(nsIDOMWindow *aWindow)
 {
   mWindowListeners.RemoveObject(aWindow);
-  StartDisconnectTimer();
-
   return NS_OK;
 }
 
 void 
 nsAccelerometer::AccelerationChanged(double x, double y, double z)
 {
-  if (x > 1 || y > 1 || z > 1 || x < -1 || y < -1 || z < -1)
-    return;
-
-  if (!mNewListener) {
-    if (PR_ABS(mLastX - x) < .01 &&
-        PR_ABS(mLastY - y) < .01 &&
-        PR_ABS(mLastZ - z) < .01)
-      return;
-  }
-
-  mLastX = x;
-  mLastY = y;
-  mLastZ = z;
-  mNewListener = PR_FALSE;
-
   for (PRUint32 i = mListeners.Count(); i > 0 ; ) {
     --i;
     nsRefPtr<nsIAcceleration> a = new nsAcceleration(x, y, z);

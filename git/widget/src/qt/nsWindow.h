@@ -171,7 +171,7 @@ public:
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         Update();
     void               Scroll(const nsIntPoint&,
-                              const nsTArray<nsIntRect>&,
+                              const nsIntRect&,
                               const nsTArray<nsIWidget::Configuration>&);
 
     NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
