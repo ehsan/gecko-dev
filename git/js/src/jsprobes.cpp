@@ -34,7 +34,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_ETW
-
 #include "jswin.h"
 #include <evntprov.h>
 #include <sys/types.h>
@@ -342,7 +341,7 @@ Probes::ETWCreateObject(JSContext *cx, JSObject *obj)
     current_location(cx, &lineno, &script_filename);
 
     return EventWriteEvtObjectCreate(script_filename, lineno,
-                                     ObjectClassname(obj), reinterpret_cast<uint64_t_t>(obj),
+                                     ObjectClassname(obj), reinterpret_cast<JSUint64>(obj),
                                      obj ? obj->slotsAndStructSize() : 0) == ERROR_SUCCESS;
 }
 
@@ -350,7 +349,7 @@ bool
 Probes::ETWFinalizeObject(JSObject *obj)
 {
     return EventWriteEvtObjectFinalize(ObjectClassname(obj),
-                                       reinterpret_cast<uint64_t_t>(obj)) == ERROR_SUCCESS;
+                                       reinterpret_cast<JSUint64>(obj)) == ERROR_SUCCESS;
 }
 
 bool
@@ -361,7 +360,7 @@ Probes::ETWResizeObject(JSContext *cx, JSObject *obj, size_t oldSize, size_t new
     current_location(cx, &lineno, &script_filename);
 
     return EventWriteEvtObjectResize(script_filename, lineno,
-                                     ObjectClassname(obj), reinterpret_cast<uint64_t_t>(obj),
+                                     ObjectClassname(obj), reinterpret_cast<JSUint64>(obj),
                                      oldSize, newSize) == ERROR_SUCCESS;
 }
 
@@ -373,15 +372,13 @@ Probes::ETWCreateString(JSContext *cx, JSString *string, size_t length)
     current_location(cx, &lineno, &script_filename);
 
     return EventWriteEvtStringCreate(script_filename, lineno,
-                                     reinterpret_cast<uint64_t_t>(string), length) ==
-           ERROR_SUCCESS;
+                                     reinterpret_cast<JSUint64>(string), length) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWFinalizeString(JSString *string)
 {
-    return EventWriteEvtStringFinalize(reinterpret_cast<uint64_t>(string),
-                                       string->length()) == ERROR_SUCCESS;
+    return EventWriteEvtStringFinalize(reinterpret_cast<JSUint64>(string), string->length()) == ERROR_SUCCESS;
 }
 
 bool
@@ -427,54 +424,53 @@ Probes::ETWCalloutEnd(JSContext *cx, JSFunction *fun)
 bool
 Probes::ETWAcquireMemory(JSContext *cx, void *address, size_t nbytes)
 {
-    return EventWriteEvtMemoryAcquire(reinterpret_cast<uint64_t>(cx->compartment),
-                                      reinterpret_cast<uint64_t>(address),
+    return EventWriteEvtMemoryAcquire(reinterpret_cast<JSUint64>(cx->compartment),
+                                      reinterpret_cast<JSUint64>(address),
                                       nbytes) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWReleaseMemory(JSContext *cx, void *address, size_t nbytes)
 {
-    return EventWriteEvtMemoryRelease(reinterpret_cast<uint64_t>(cx->compartment),
-                                      reinterpret_cast<uint64_t>(address),
+    return EventWriteEvtMemoryRelease(reinterpret_cast<JSUint64>(cx->compartment),
+                                      reinterpret_cast<JSUint64>(address),
                                       nbytes) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWGCStart(JSCompartment *compartment)
 {
-    return EventWriteEvtGCStart(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+    return EventWriteEvtGCStart(reinterpret_cast<JSUint64>(compartment)) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWGCEnd(JSCompartment *compartment)
 {
-    return EventWriteEvtGCEnd(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+    return EventWriteEvtGCEnd(reinterpret_cast<JSUint64>(compartment)) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWGCStartMarkPhase(JSCompartment *compartment)
 {
-    return EventWriteEvtGCStartMarkPhase(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+    return EventWriteEvtGCStartMarkPhase(reinterpret_cast<JSUint64>(compartment)) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWGCEndMarkPhase(JSCompartment *compartment)
 {
-    return EventWriteEvtGCEndMarkPhase(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+    return EventWriteEvtGCEndMarkPhase(reinterpret_cast<JSUint64>(compartment)) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWGCStartSweepPhase(JSCompartment *compartment)
 {
-    return EventWriteEvtGCStartSweepPhase(reinterpret_cast<uint64_t>(compartment)) ==
-           ERROR_SUCCESS;
+    return EventWriteEvtGCStartSweepPhase(reinterpret_cast<JSUint64>(compartment)) == ERROR_SUCCESS;
 }
 
 bool
 Probes::ETWGCEndSweepPhase(JSCompartment *compartment)
 {
-    return EventWriteEvtGCEndSweepPhase(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+    return EventWriteEvtGCEndSweepPhase(reinterpret_cast<JSUint64>(compartment)) == ERROR_SUCCESS;
 }
 
 bool
@@ -513,7 +509,7 @@ Probes::ETWStopExecution(JSContext *cx, JSScript *script)
 bool
 Probes::ETWResizeHeap(JSCompartment *compartment, size_t oldSize, size_t newSize)
 {
-    return EventWriteEvtHeapResize(reinterpret_cast<uint64_t>(compartment),
+    return EventWriteEvtHeapResize(reinterpret_cast<JSUint64>(compartment),
                                    oldSize, newSize) == ERROR_SUCCESS;
 }
 

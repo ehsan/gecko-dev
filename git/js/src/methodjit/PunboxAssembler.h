@@ -50,7 +50,7 @@ namespace mjit {
 
 struct Imm64 : JSC::MacroAssembler::ImmPtr
 {
-    Imm64(uint64_t u)
+    Imm64(uint64 u)
       : ImmPtr((const void *)u)
     { }
 };
@@ -74,14 +74,14 @@ struct ImmType : ImmTag
 
 struct ImmPayload : Imm64
 {
-    ImmPayload(uint64_t payload)
+    ImmPayload(uint64 payload)
       : Imm64(payload)
     { }
 };
 
 class PunboxAssembler : public JSC::MacroAssembler
 {
-    static const uint32_t PAYLOAD_OFFSET = 0;
+    static const uint32 PAYLOAD_OFFSET = 0;
 
   public:
     static const JSC::MacroAssembler::Scale JSVAL_SCALE = JSC::MacroAssembler::TimesEight;
@@ -96,7 +96,7 @@ class PunboxAssembler : public JSC::MacroAssembler
         return address;
     }
 
-    void loadInlineSlot(RegisterID objReg, uint32_t slot,
+    void loadInlineSlot(RegisterID objReg, uint32 slot,
                         RegisterID typeReg, RegisterID dataReg) {
         Address address(objReg, JSObject::getFixedSlotOffset(slot));
         loadValueAsComponents(address, typeReg, dataReg);
@@ -274,7 +274,7 @@ class PunboxAssembler : public JSC::MacroAssembler
         lshiftPtr(Imm32(1), to);
     }
 
-    void loadObjPrivate(RegisterID base, RegisterID to, uint32_t nfixed) {
+    void loadObjPrivate(RegisterID base, RegisterID to, uint32 nfixed) {
         Address priv(base, JSObject::getPrivateDataOffset(nfixed));
         loadPtr(priv, to);
     }

@@ -2110,10 +2110,6 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsCOMPtr<nsIViewManager> viewManagerDeathGrip = mViewManager;
-  // Take this ref after viewManager so it'll make sure to go away first
-  nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
-
   if (!mIsDestroying && !mResizeEvent.IsPending() &&
       !mAsyncResizeTimerIsActive) {
     FireBeforeResizeEvent();
@@ -2122,10 +2118,13 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
   mPresContext->SetVisibleArea(nsRect(0, 0, aWidth, aHeight));
 
   // There isn't anything useful we can do if the initial reflow hasn't happened
-  rootFrame = FrameManager()->GetRootFrame();
   if (!rootFrame)
     return NS_OK;
 
+  NS_ASSERTION(mViewManager, "Must have view manager");
+  nsCOMPtr<nsIViewManager> viewManagerDeathGrip = mViewManager;
+  // Take this ref after viewManager so it'll make sure to go away first
+  nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
   if (!GetPresContext()->SupressingResizeReflow())
   {
     nsIViewManager::UpdateViewBatch batch(mViewManager);
@@ -2141,8 +2140,7 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
       mFrameConstructor->ProcessPendingRestyles();
     }
 
-    rootFrame = FrameManager()->GetRootFrame();
-    if (!mIsDestroying && rootFrame) {
+    if (!mIsDestroying) {
       // XXX Do a full invalidate at the beginning so that invalidates along
       // the way don't have region accumulation issues?
 
@@ -2163,8 +2161,7 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
     batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
   }
 
-  rootFrame = FrameManager()->GetRootFrame();
-  if (aHeight == NS_UNCONSTRAINEDSIZE && rootFrame) {
+  if (aHeight == NS_UNCONSTRAINEDSIZE) {
     mPresContext->SetVisibleArea(
       nsRect(0, 0, aWidth, rootFrame->GetRect().height));
   }

@@ -455,7 +455,7 @@ class MessageEvent : public Event
   static JSFunctionSpec sFunctions[];
 
 protected:
-  uint64_t* mData;
+  uint64* mData;
   size_t mDataByteCount;
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
   bool mMainRuntime;
@@ -849,7 +849,7 @@ private:
 
     JSString* type, *message, *filename;
     JSBool bubbles, cancelable;
-    uint32_t lineNumber;
+    uint32 lineNumber;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "SbbSSu", &type,
                              &bubbles, &cancelable, &message, &filename,
                              &lineNumber)) {

@@ -55,7 +55,7 @@ class AutoEntryHolder {
     typedef WatchpointMap::Map Map;
     Map &map;
     Map::Ptr p;
-    uint32_t gen;
+    uint32 gen;
     WatchKey key;
 
   public:

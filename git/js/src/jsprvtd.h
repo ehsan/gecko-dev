@@ -55,7 +55,6 @@
  */
 
 #include "jsapi.h"
-
 #include "jsutil.h"
 
 JS_BEGIN_EXTERN_C
@@ -71,8 +70,8 @@ static const uintN JS_GCTHING_ALIGN = 8;
 static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
-typedef uint8_t     jsbytecode;
-typedef uint8_t     jssrcnote;
+typedef uint8       jsbytecode;
+typedef uint8       jssrcnote;
 typedef uintptr_t   jsatomid;
 
 /* Struct typedefs. */

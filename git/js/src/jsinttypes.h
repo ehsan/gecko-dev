@@ -1,7 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -18,13 +16,9 @@
  * May 28, 2008.
  *
  * The Initial Developer of the Original Code is
- *   Brendan Eich <brendan@mozilla.org>
- *
- * Contributor(s):
- *   David Mandelin <dmandelin@mozilla.com>
- *   David Anderson <danderson@mozilla.com>
- *   Chris Leary <cdleary@mozilla.com>
- *   Jacob Bramley <Jacob.Bramely@arm.com>
+ *   Jim Blandy <jimb@mozilla.org>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -40,48 +34,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#if !defined jsjaeger_icchecker_h__ && defined JS_METHODJIT
-#define jsjaeger_icchecker_h__
+#ifndef jsinttypes_h___
+#define jsinttypes_h___
 
-#include "assembler/assembler/MacroAssembler.h"
+#include "js-config.h"
 
-namespace js {
-namespace mjit {
+#include "mozilla/StdInt.h"
 
-#if defined DEBUG && defined JS_CPU_ARM
-static inline void
-CheckInstMask(void *addr, uint32 mask, uint32 expected)
-{
-    uint32 inst = *static_cast<uint32 *>(addr);
-    JS_ASSERT((inst & mask) == expected);
-}
+/*
+ * Types:
+ *   JSInt<N>, JSUint<N> (for <N> = 8, 16, 32, and 64)
+ *   JSIntPtr, JSUIntPtr
+ *
+ * JSInt<N> and JSUint<N> are signed and unsigned types known to be
+ * <N> bits long.  Note that neither JSInt8 nor JSUInt8 is necessarily
+ * equivalent to a plain "char".
+ *
+ * JSIntPtr and JSUintPtr are signed and unsigned types capable of
+ * holding an object pointer.
+ *
+ * These typedefs were once necessary to support platforms without a working
+ * <stdint.h> (i.e. MSVC++ prior to 2010).  Now that we ship a custom <stdint.h>
+ * for such compilers, they are no longer necessary and will likely be shortly
+ * removed.
+ */
 
-static inline void
-CheckIsLDR(JSC::CodeLocationLabel label, uint8 rd)
-{
-    JS_ASSERT((rd & 0xf) == rd);
-    CheckInstMask(label.executableAddress(), 0xfc50f000, 0xe4100000 | (rd << 12));
-}
+typedef int8_t   JSInt8;
+typedef int16_t  JSInt16;
+typedef int32_t  JSInt32;
+typedef int64_t  JSInt64;
+typedef intptr_t JSIntPtr;
 
-static inline void
-CheckIsBLX(JSC::CodeLocationLabel label, uint8 rsrc)
-{
-    JS_ASSERT((rsrc & 0xf) == rsrc);
-    CheckInstMask(label.executableAddress(), 0xfff000ff, 0xe1200030 | rsrc);
-}
+typedef uint8_t   JSUint8;
+typedef uint16_t  JSUint16;
+typedef uint32_t  JSUint32;
+typedef uint64_t  JSUint64;
+typedef uintptr_t JSUintPtr;
 
-static inline void
-CheckIsStubCall(JSC::CodeLocationLabel label)
-{
-    CheckIsLDR(label.labelAtOffset(-4), JSC::ARMRegisters::ip);
-    CheckIsLDR(label.labelAtOffset(0), JSC::ARMRegisters::r8);
-    CheckIsBLX(label.labelAtOffset(4), JSC::ARMRegisters::r8);
-}
-#else
-static inline void CheckIsStubCall(JSC::CodeLocationLabel label) {}
-#endif
-
-} /* namespace mjit */
-} /* namespace js */
-
-#endif
+#endif /* jsinttypes_h___ */

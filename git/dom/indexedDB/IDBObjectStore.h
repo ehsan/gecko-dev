@@ -118,8 +118,8 @@ public:
   static JSObject*
   StructuredCloneReadCallback(JSContext* aCx,
                               JSStructuredCloneReader* aReader,
-                              uint32_t aTag,
-                              uint32_t aData,
+                              uint32 aTag,
+                              uint32 aData,
                               void* aClosure);
   static JSBool
   StructuredCloneWriteCallback(JSContext* aCx,

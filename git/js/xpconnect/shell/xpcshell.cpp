@@ -535,7 +535,7 @@ Quit(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 DumpXPC(JSContext *cx, uintN argc, jsval *vp)
 {
-    int32_t depth = 2;
+    int32 depth = 2;
 
     if (argc > 0) {
         if (!JS_ValueToInt32(cx, JS_ARGV(cx, vp)[0], &depth))
@@ -544,7 +544,7 @@ DumpXPC(JSContext *cx, uintN argc, jsval *vp)
 
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
     if (xpc)
-        xpc->DebugDump(int16_t(depth));
+        xpc->DebugDump((int16)depth);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
@@ -564,11 +564,11 @@ GC(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 GCZeal(JSContext *cx, uintN argc, jsval *vp)
 {
-    uint32_t zeal;
+    uint32 zeal;
     if (!JS_ValueToECMAUint32(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID, &zeal))
         return false;
 
-    JS_SetGCZeal(cx, uint8_t(zeal), JS_DEFAULT_ZEAL_FREQ, false);
+    JS_SetGCZeal(cx, (PRUint8)zeal, JS_DEFAULT_ZEAL_FREQ, false);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
@@ -620,7 +620,7 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 
     vp = argv + 3;
     if (argc > 3 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
-        uint32_t depth;
+        uint32 depth;
 
         if (!JS_ValueToECMAUint32(cx, *vp, &depth))
             return false;
@@ -765,7 +765,7 @@ MapContextOptionNameToFlag(JSContext* cx, const char* name)
 static JSBool
 Options(JSContext *cx, uintN argc, jsval *vp)
 {
-    uint32_t optset, flag;
+    uint32 optset, flag;
     JSString *str;
     char *names;
     JSBool found;

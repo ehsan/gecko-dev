@@ -148,8 +148,6 @@
              oncommand="InspectorUI.toggleInspection();"/>
     <command id="Inspector:Sidebar"
              oncommand="InspectorUI.toggleSidebar();"/>
-    <command id="Inspector:Tilt"
-             oncommand="Tilt.initialize();"/>
   </commandset>
 
   <broadcasterset id="mainBroadcasterSet">

@@ -43,23 +43,23 @@
 #include "jsapi.h"
 #include "jsobj.h"
 
-inline uint32_t
+inline uint32
 JSObject::arrayBufferByteLength()
 {
     JS_ASSERT(isArrayBuffer());
     return getElementsHeader()->length;
 }
 
-inline uint8_t *
+inline uint8 *
 JSObject::arrayBufferDataOffset()
 {
-    return (uint8_t *) elements;
+    return (uint8 *) elements;
 }
 
 namespace js {
 
-static inline int32_t
-ClampIntForUint8Array(int32_t x)
+static inline int32
+ClampIntForUint8Array(int32 x)
 {
     if (x < 0)
         return 0;
@@ -68,22 +68,22 @@ ClampIntForUint8Array(int32_t x)
     return x;
 }
 
-inline uint32_t
+inline JSUint32
 TypedArray::getLength(JSObject *obj) {
     return obj->getFixedSlot(FIELD_LENGTH).toInt32();
 }
 
-inline uint32_t
+inline JSUint32
 TypedArray::getByteOffset(JSObject *obj) {
     return obj->getFixedSlot(FIELD_BYTEOFFSET).toInt32();
 }
 
-inline uint32_t
+inline JSUint32
 TypedArray::getByteLength(JSObject *obj) {
     return obj->getFixedSlot(FIELD_BYTELENGTH).toInt32();
 }
 
-inline uint32_t
+inline JSUint32
 TypedArray::getType(JSObject *obj) {
     return obj->getFixedSlot(FIELD_TYPE).toInt32();
 }

@@ -105,7 +105,7 @@ js_DateGetSeconds(JSContext *cx, JSObject* obj);
 extern JS_FRIEND_API(jsdouble)
 js_DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj);
 
-typedef uint32_t JSIntervalTime;
+typedef uint32 JSIntervalTime;
 
 extern JS_FRIEND_API(JSIntervalTime)
 js_IntervalNow();

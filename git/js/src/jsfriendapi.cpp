@@ -217,7 +217,7 @@ js::GetGlobalForObjectCrossCompartment(JSObject *obj)
     return obj->getGlobal();
 }
 
-JS_FRIEND_API(uint32_t)
+JS_FRIEND_API(uint32)
 js::GetObjectSlotSpan(const JSObject *obj)
 {
     return obj->slotSpan();

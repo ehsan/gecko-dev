@@ -188,7 +188,7 @@ jsd_GetValueBoolean(JSDContext* jsdc, JSDValue* jsdval)
     return JSVAL_TO_BOOLEAN(val);
 }
 
-int32_t
+int32
 jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval)
 {
     jsval val = jsdval->val;

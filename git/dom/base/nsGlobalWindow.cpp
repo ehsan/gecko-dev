@@ -5977,7 +5977,7 @@ class PostMessageEvent : public nsRunnable
   private:
     nsRefPtr<nsGlobalWindow> mSource;
     nsString mCallerOrigin;
-    uint64_t* mMessage;
+    JSUint64* mMessage;
     size_t mMessageLen;
     nsRefPtr<nsGlobalWindow> mTargetWindow;
     nsCOMPtr<nsIURI> mProvidedOrigin;
