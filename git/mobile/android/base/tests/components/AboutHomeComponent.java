@@ -17,7 +17,6 @@ import org.mozilla.gecko.tests.UITestContext;
 import org.mozilla.gecko.tests.helpers.WaitHelper;
 import org.mozilla.gecko.util.HardwareUtils;
 
-import android.os.Build;
 import android.support.v4.view.ViewPager;
 import android.view.View;
 import android.widget.TextView;
@@ -69,10 +68,7 @@ public class AboutHomeComponent extends BaseComponent {
     }
 
     private View getHomeBannerView() {
-        if (mSolo.waitForView(R.id.home_banner)) {
-            return mSolo.getView(R.id.home_banner);
-        }
-        return null;
+        return mSolo.getView(R.id.home_banner);
     }
 
     public AboutHomeComponent assertCurrentPanel(final PanelType expectedPanel) {
@@ -100,20 +96,10 @@ public class AboutHomeComponent extends BaseComponent {
 
     public AboutHomeComponent assertBannerNotVisible() {
         View banner = getHomeBannerView();
-        if (Build.VERSION.SDK_INT >= 11) {
-            fAssertTrue("The HomeBanner is not visible",
-                        getHomePagerContainer().getVisibility() != View.VISIBLE ||
-                        banner == null ||
-                        banner.getVisibility() != View.VISIBLE ||
-                        banner.getTranslationY() == banner.getHeight());
-        } else {
-            // getTranslationY is not available before api 11.
-            // This check is a little less specific.
-            fAssertTrue("The HomeBanner is not visible",
-                        getHomePagerContainer().getVisibility() != View.VISIBLE ||
-                        banner == null ||
-                        banner.isShown() == false);
-        }
+        fAssertTrue("The HomeBanner is not visible",
+                    getHomePagerContainer().getVisibility() != View.VISIBLE ||
+                    banner.getVisibility() != View.VISIBLE ||
+                    banner.getTranslationY() == banner.getHeight());
         return this;
     }
 
@@ -219,8 +205,6 @@ public class AboutHomeComponent extends BaseComponent {
      */
     public AboutHomeComponent navigateToBuiltinPanelType(PanelType panelType) throws IllegalArgumentException {
         Tabs.getInstance().loadUrl(AboutPages.getURLForBuiltinPanelType(panelType));
-        final int expectedPanelIndex = getPanelIndexForDevice(panelType);
-        waitForPanelIndex(expectedPanelIndex);
         return this;
     }
 }

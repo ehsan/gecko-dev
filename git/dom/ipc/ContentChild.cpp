@@ -2458,7 +2458,7 @@ ContentChild::RecvStopProfiler()
 }
 
 bool
-ContentChild::RecvGetProfile(nsCString* aProfile)
+ContentChild::AnswerGetProfile(nsCString* aProfile)
 {
     char* profile = profiler_get_profile();
     if (profile) {

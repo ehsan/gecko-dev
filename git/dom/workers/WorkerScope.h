@@ -210,7 +210,10 @@ public:
   }
 
   void
-  Update();
+  Update()
+  {
+    // FIXME(nsm): Bug 982728
+  }
 
   already_AddRefed<Promise>
   Unregister(ErrorResult& aRv);

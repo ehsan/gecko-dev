@@ -3977,10 +3977,7 @@ js_DumpInterpreterFrame(JSContext *cx, InterpreterFrame *start)
 
         if (i.isFunctionFrame()) {
             fprintf(stderr, "callee fun: ");
-            RootedValue v(cx);
-            JSObject *fun = i.callee(cx);
-            v.setObject(*fun);
-            dumpValue(v);
+            dumpValue(i.calleev());
         } else {
             fprintf(stderr, "global frame, no callee");
         }
@@ -4010,7 +4007,7 @@ js_DumpInterpreterFrame(JSContext *cx, InterpreterFrame *start)
             fprintf(stderr, " eval");
         fputc('\n', stderr);
 
-        fprintf(stderr, "  scopeChain: (JSObject *) %p\n", (void *) i.scopeChain(cx));
+        fprintf(stderr, "  scopeChain: (JSObject *) %p\n", (void *) i.scopeChain());
 
         fputc('\n', stderr);
     }

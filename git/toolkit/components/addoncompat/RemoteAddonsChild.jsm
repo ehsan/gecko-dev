@@ -80,17 +80,14 @@ let NotificationTracker = {
     }
   },
 
-  findPaths: function(prefix) {
-    let tracked = this._paths;
-    for (let component of prefix) {
-      tracked = setDefault(tracked, component, {});
-    }
+  watch: function(component1, watcher) {
+    setDefault(this._watchers, component1, []).push(watcher);
+    this._registered.set(watcher, new Set());
 
-    let result = [];
     let enumerate = (tracked, curPath) => {
       for (let component in tracked) {
         if (component == "_count") {
-          result.push([curPath, tracked._count]);
+          this.runCallback(watcher, curPath, tracked._count);
         } else {
           let path = curPath.slice();
           if (component === "true") {
@@ -103,24 +100,7 @@ let NotificationTracker = {
         }
       }
     }
-    enumerate(tracked, prefix);
-
-    return result;
-  },
-
-  findSuffixes: function(prefix) {
-    let paths = this.findPaths(prefix);
-    return paths.map(([path, count]) => path[path.length - 1]);
-  },
-
-  watch: function(component1, watcher) {
-    setDefault(this._watchers, component1, []).push(watcher);
-    this._registered.set(watcher, new Set());
-
-    let paths = this.findPaths([component1]);
-    for (let [path, count] of paths) {
-      this.runCallback(watcher, path, count);
-    }
+    enumerate(this._paths[component1] || {}, [component1]);
   },
 
   unwatch: function(component1, watcher) {
@@ -222,6 +202,9 @@ AboutProtocolChannel.prototype = {
     let rval = cpmm.sendRpcMessage("Addons:AboutProtocol:OpenChannel", {
       uri: this.URI.spec,
       contractID: this._contractID
+    }, {
+      notificationCallbacks: this.notificationCallbacks,
+      loadGroupNotificationCallbacks: this.loadGroup ? this.loadGroup.notificationCallbacks : null,
     });
 
     if (rval.length != 1) {

@@ -60,7 +60,6 @@ namespace jit {
     _(NewArray)                                 \
     _(NewDerivedTypedObject)                    \
     _(CreateThisWithTemplate)                   \
-    _(Lambda)                                   \
     _(ObjectState)                              \
     _(ArrayState)
 
@@ -637,18 +636,6 @@ class RCreateThisWithTemplate MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 1;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RLambda MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Lambda)
-
-    virtual uint32_t numOperands() const {
-        return 2;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;

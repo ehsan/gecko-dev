@@ -115,7 +115,7 @@ PluginModuleContentParent::LoadModule(uint32_t aPluginId)
      * sSavedModuleParent. We fetch it from there after LoadPlugin finishes.
      */
     dom::ContentChild* cp = dom::ContentChild::GetSingleton();
-    if (!cp->SendLoadPlugin(aPluginId)) {
+    if (!cp->CallLoadPlugin(aPluginId)) {
         return nullptr;
     }
 
@@ -571,7 +571,6 @@ PluginModuleChromeParent::ShouldContinueFromReplyTimeout()
     FinishHangUI();
 #endif // XP_WIN
     TerminateChildProcess(MessageLoop::current());
-    GetIPCChannel()->CloseWithTimeout();
     return false;
 }
 

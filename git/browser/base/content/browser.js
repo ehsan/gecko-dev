@@ -6746,7 +6746,7 @@ function isTabEmpty(aTab) {
   if (!gMultiProcessBrowser && browser.contentWindow.opener)
     return false;
 
-  if (browser.canGoForward || browser.canGoBack)
+  if (browser.sessionHistory && browser.sessionHistory.count >= 2)
     return false;
 
   return true;

@@ -73,8 +73,8 @@ function closeMobileMessageDB(aMmdb) {
 
 /**
  * Utility function for calling MMDB methods that takes either a
- * nsIGonkMobileMessageDatabaseCallback or a
- * nsIGonkMobileMessageDatabaseRecordCallback.
+ * nsIRilMobileMessageDatabaseCallback or a
+ * nsIRilMobileMessageDatabaseRecordCallback.
  *
  * Resolve when the target method notifies us with a successful result code;
  * reject otherwise. In either case, the arguments passed are packed into an

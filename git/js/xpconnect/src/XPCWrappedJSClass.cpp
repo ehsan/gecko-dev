@@ -704,6 +704,15 @@ nsXPCWrappedJSClass::CleanupPointerTypeObject(const nsXPTType& type,
     }
 }
 
+class AutoClearPendingException
+{
+public:
+  explicit AutoClearPendingException(JSContext *cx) : mCx(cx) { }
+  ~AutoClearPendingException() { JS_ClearPendingException(mCx); }
+private:
+  JSContext* mCx;
+};
+
 nsresult
 nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                                        const char * aPropertyName,
@@ -739,10 +748,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
         }
     }
 
-    // Clear the pending exception now, because xpc_exception might be JS-
-    // implemented, so invoking methods on it might re-enter JS, which we can't
-    // do with an exception on the stack.
-    JS_ClearPendingException(cx);
+    AutoClearPendingException acpe(cx);
 
     if (xpc_exception) {
         nsresult e_result;
@@ -787,10 +793,6 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
             // error if it came from a JS exception.
             if (reportable && is_js_exception)
             {
-                // Note that we cleared the exception above, so we need to set it again,
-                // just so that we can tell the JS engine to pass it back to us via the
-                // error reporting callback. This is all very dumb.
-                JS_SetPendingException(cx, js_exception);
                 reportable = !JS_ReportPendingException(cx);
             }
 

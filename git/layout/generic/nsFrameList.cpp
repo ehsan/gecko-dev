@@ -390,9 +390,10 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   nsIFrame* firstFrameOnLine;
   int32_t numFramesOnLine;
   nsRect lineBounds;
+  uint32_t lineFlags;
 
   if (aFrame) {
-    iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds);
+    iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
@@ -403,7 +404,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 
   if (!frame && thisLine > 0) {
     // Get the last frame of the previous line
-    iter->GetLine(thisLine - 1, &firstFrameOnLine, &numFramesOnLine, lineBounds);
+    iter->GetLine(thisLine - 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);
@@ -462,9 +463,10 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   nsIFrame* firstFrameOnLine;
   int32_t numFramesOnLine;
   nsRect lineBounds;
+  uint32_t lineFlags;
 
   if (aFrame) {
-    iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds);
+    iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
@@ -476,7 +478,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   int32_t numLines = iter->GetNumLines();
   if (!frame && thisLine < numLines - 1) {
     // Get the first frame of the next line
-    iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds);
+    iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
