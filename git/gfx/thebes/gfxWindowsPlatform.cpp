@@ -385,14 +385,9 @@ gfxWindowsPlatform::UpdateRenderMode()
         tryD2D = false;
     }
 
-    ID3D11Device *device = GetD3D11Device();
-    if (isVistaOrHigher && !safeMode && tryD2D &&
-        device &&
-        device->GetFeatureLevel() >= D3D_FEATURE_LEVEL_10_0 &&
-        DoesD3D11DeviceSupportResourceSharing(device)) {
-
+    if (isVistaOrHigher  && !safeMode && tryD2D) {
         VerifyD2DDevice(d2dForceEnabled);
-        if (mD2DDevice && GetD3D11Device()) {
+        if (mD2DDevice) {
             mRenderMode = RENDER_DIRECT2D;
             mUseDirectWrite = true;
         }
@@ -1367,16 +1362,6 @@ gfxWindowsPlatform::GetD3D11Device()
 
   mD3D11DeviceInitialized = true;
 
-  nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-  if (gfxInfo) {
-    int32_t status;
-    if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_11_LAYERS, &status))) {
-      if (status != nsIGfxInfo::FEATURE_STATUS_OK) {
-        return nullptr;
-      }
-    }
-  }
-
   nsModuleHandle d3d11Module(LoadLibrarySystem32(L"d3d11.dll"));
   decltype(D3D11CreateDevice)* d3d11CreateDevice = (decltype(D3D11CreateDevice)*)
     GetProcAddress(d3d11Module, "D3D11CreateDevice");
@@ -1400,16 +1385,10 @@ gfxWindowsPlatform::GetD3D11Device()
     return nullptr;
   }
 
-  HRESULT hr = E_INVALIDARG;
-  __try {
-    hr = d3d11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr,
-                                    D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                                    featureLevels.Elements(), featureLevels.Length(),
-                                    D3D11_SDK_VERSION, byRef(mD3D11Device), nullptr, nullptr);
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    mD3D11Device = nullptr;
-    return nullptr;
-  }
+  HRESULT hr = d3d11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr,
+                                 D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                                 featureLevels.Elements(), featureLevels.Length(),
+                                 D3D11_SDK_VERSION, byRef(mD3D11Device), nullptr, nullptr);
 
   // We leak these everywhere and we need them our entire runtime anyway, let's
   // leak it here as well.
@@ -1495,68 +1474,4 @@ gfxWindowsPlatform::GetDXGIAdapter()
   dxgiModule.disown();
 
   return mAdapter;
-}
-
-// See bug 1083071. On some drivers, Direct3D 11 CreateShaderResourceView fails
-// with E_OUTOFMEMORY.
-bool DoesD3D11DeviceSupportResourceSharing(ID3D11Device *device)
-{
-  static bool checked;
-  static bool result;
-
-  if (checked)
-      return result;
-  checked = true;
-  RefPtr<ID3D11Texture2D> texture;
-  D3D11_TEXTURE2D_DESC desc;
-  desc.Width = 32;
-  desc.Height = 32;
-  desc.MipLevels = 1;
-  desc.ArraySize = 1;
-  desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  desc.SampleDesc.Count = 1;
-  desc.SampleDesc.Quality = 0;
-  desc.Usage = D3D11_USAGE_DEFAULT;
-  desc.CPUAccessFlags = 0;
-  desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-  desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-  if (FAILED(device->CreateTexture2D(&desc, NULL, byRef(texture)))) {
-    return false;
-  }
-
-  HANDLE shareHandle;
-  nsRefPtr<IDXGIResource> otherResource;
-  if (FAILED(texture->QueryInterface(__uuidof(IDXGIResource),
-                                     getter_AddRefs(otherResource))))
-  {
-    return false;
-  }
-
-  if (FAILED(otherResource->GetSharedHandle(&shareHandle))) {
-    return false;
-  }
-
-  nsRefPtr<ID3D11Resource> sharedResource;
-  nsRefPtr<ID3D11Texture2D> sharedTexture;
-  if (FAILED(device->OpenSharedResource(shareHandle, __uuidof(ID3D11Resource),
-                                        getter_AddRefs(sharedResource))))
-  {
-    return false;
-  }
-
-  if (FAILED(sharedResource->QueryInterface(__uuidof(ID3D11Texture2D),
-                                            getter_AddRefs(sharedTexture))))
-  {
-    return false;
-  }
-
-  RefPtr<ID3D11ShaderResourceView> sharedView;
-
-  // This if(FAILED()) is the one that actually fails on systems affected by bug 1083071.
-  if (FAILED(device->CreateShaderResourceView(sharedTexture, NULL, byRef(sharedView)))) {
-    return false;
-  }
-
-  result = true;
-  return true;
 }
