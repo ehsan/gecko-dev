@@ -73,11 +73,14 @@ public:
 
   // nsISVGChildFrame interface:
   virtual void NotifySVGChanged(PRUint32 aFlags);
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
 
   // nsSVGContainerFrame methods:
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
 };
 
 #endif

@@ -51,7 +51,7 @@ const PREF_GETADDONS_GETSEARCHRESULTS    = "extensions.getAddons.search.url";
 
 const XMLURI_PARSE_ERROR  = "http://www.mozilla.org/newlayout/xml/parsererror.xml";
 
-const API_VERSION = "1.2";
+const API_VERSION = "1.1";
 
 function AddonSearchResult() {
 }
@@ -172,8 +172,7 @@ AddonRepository.prototype = {
 
     var uri = prefs.getCharPref(PREF_GETADDONS_GETSEARCHRESULTS);
     uri = uri.replace(/%API_VERSION%/g, API_VERSION);
-    // We double encode due to bug 427155
-    uri = uri.replace(/%TERMS%/g, encodeURIComponent(encodeURIComponent(aSearchTerms)));
+    uri = uri.replace(/%TERMS%/g, encodeURIComponent(aSearchTerms));
     uri = urlf.formatURL(uri);
     this._loadList(uri);
   },

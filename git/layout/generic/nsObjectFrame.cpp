@@ -392,7 +392,6 @@ public:
   NPDrawingModel GetDrawingModel();
   WindowRef FixUpPluginWindow(PRInt32 inPaintState);
   void GUItoMacEvent(const nsGUIEvent& anEvent, EventRecord* origEvent, EventRecord& aMacEvent);
-  void SetCGContextChanged(PRBool aState) { mCGContextChanged = aState; }
 #endif
 
   void SetOwner(nsObjectFrame *aOwner)
@@ -459,7 +458,6 @@ private:
   PRUint32                    mLastEventloopNestingLevel;
   PRPackedBool                mContentFocused;
   PRPackedBool                mWidgetVisible;    // used on Mac to store our widget's visible state
-  PRPackedBool                mCGContextChanged;
 
   // If true, destroy the widget on destruction. Used when plugin stop
   // is being delayed to a safer point in time.
@@ -1367,8 +1365,9 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
 
       // If gfxQuartzNativeDrawing hands out a CGContext other than the last
       // one we passed to the plugin, we need to pass the new one to the
-      // plugin via SetWindow.  This will happen in nsPluginInstanceOwner::
-      // FixUpPluginWindow(), called from nsPluginInstanceOwner::Paint().
+      // plugin via SetWindow.
+      // XXXkinetik it's not necessary to call SetWindow for every paint so
+      // this should eventually be optimized to only do so when necessary
       nsPluginPort* pluginPort = mInstanceOwner->GetPluginPort();
       nsCOMPtr<nsIPluginInstance> inst;
       GetPluginInstance(*getter_AddRefs(inst));
@@ -1382,11 +1381,9 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
         NS_WARNING("null plugin window during PaintPlugin");
         return;
       }
-      if (window->window->cgPort.context != cgContext) {
-        pluginPort->cgPort.context = cgContext;
-        window->window = pluginPort;
-        mInstanceOwner->SetCGContextChanged(PR_TRUE);
-      }
+      pluginPort->cgPort.context = cgContext;
+      window->window = pluginPort;
+      inst->SetWindow(window);
 
       mInstanceOwner->Paint(aDirtyRect);
 
@@ -2145,7 +2142,6 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mTagText = nsnull;
   mContentFocused = PR_FALSE;
   mWidgetVisible = PR_TRUE;
-  mCGContextChanged = PR_FALSE;
   mNumCachedAttrs = 0;
   mNumCachedParams = 0;
   mCachedAttrParamNames = nsnull;
@@ -4616,7 +4612,6 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
       mPluginWindow->clipRect.bottom  != oldClipRect.bottom)
   {
     mInstance->SetWindow(mPluginWindow);
-    mCGContextChanged = PR_FALSE;
     // if the clipRect is of size 0, make the null timer fire less often
     CancelTimer();
     if (mPluginWindow->clipRect.left == mPluginWindow->clipRect.right ||
@@ -4626,9 +4621,6 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     else {
       StartTimer(NORMAL_PLUGIN_DELAY);
     }
-  } else if (mCGContextChanged) {
-    mInstance->SetWindow(mPluginWindow);
-    mCGContextChanged = PR_FALSE;
   }
 
 #ifndef NP_NO_QUICKDRAW

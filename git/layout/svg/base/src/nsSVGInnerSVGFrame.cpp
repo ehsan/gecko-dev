@@ -85,6 +85,8 @@ public:
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
   virtual void NotifySVGChanged(PRUint32 aFlags);
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGContainerFrame methods:
@@ -107,6 +109,7 @@ public:
 protected:
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
 };
 
 //----------------------------------------------------------------------
@@ -222,6 +225,21 @@ nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
   nsSVGInnerSVGFrameBase::NotifySVGChanged(aFlags);
 }
 
+NS_IMETHODIMP
+nsSVGInnerSVGFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
+{
+  mOverrideCTM = aCTM;
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGMatrix>
+nsSVGInnerSVGFrame::GetOverrideCTM()
+{
+  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
+  NS_IF_ADDREF(matrix);
+  return matrix;
+}
+
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
@@ -311,7 +329,12 @@ nsSVGInnerSVGFrame::GetCanvasTM()
 {
   if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    NS_NewSVGMatrix(&retval);
+    if (mOverrideCTM) {
+      retval = mOverrideCTM;
+      NS_ADDREF(retval);
+    } else {
+      NS_NewSVGMatrix(&retval);
+    }
     return retval;
   }
 
