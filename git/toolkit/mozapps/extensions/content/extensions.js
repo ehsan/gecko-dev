@@ -50,11 +50,11 @@ Cu.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
-const PREF_BACKGROUND_UPDATE = "extensions.update.enabled";
 const PREF_CHECK_COMPATIBILITY = "extensions.checkCompatibility";
 const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
-const PREF_GETADDONS_CACHE_ENABLED = "extensions.%ID%.getAddons.cache.enabled";
+const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
+const PREF_GETADDONS_CACHE_ID_ENABLED = "extensions.%ID%.getAddons.cache.enabled";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
@@ -109,6 +109,8 @@ function initialize() {
   gHeader.initialize();
   gViewController.initialize();
   gEventManager.initialize();
+  Services.obs.addObserver(sendEMPong, "EM-ping", false);
+  Services.obs.notifyObservers(window, "EM-loaded", "");
 }
 
 function notifyInitialized() {
@@ -128,6 +130,11 @@ function shutdown() {
   gSearchView.shutdown();
   gEventManager.shutdown();
   gViewController.shutdown();
+  Services.obs.removeObserver(sendEMPong, "EM-ping");
+}
+
+function sendEMPong(aSubject, aTopic, aData) {
+  Services.obs.notifyObservers(window, "EM-pong", "");
 }
 
 // Used by external callers to load a specific view into the manager
@@ -505,7 +512,7 @@ var gViewController = {
   statePopped: function(e) {
     // If this is a navigation to a previous state then load that state
     if (e.state) {
-      this.loadViewInternal(e.state.view, e.state.previousView);
+      this.loadViewInternal(e.state.view, e.state.previousView, e.state);
       return;
     }
 
@@ -542,11 +549,12 @@ var gViewController = {
     if (aViewId == this.currentViewId)
       return;
 
-    gHistory.pushState({
+    var state = {
       view: aViewId,
       previousView: this.currentViewId
-    }, document.title);
-    this.loadViewInternal(aViewId, this.currentViewId);
+    };
+    gHistory.pushState(state);
+    this.loadViewInternal(aViewId, this.currentViewId, state);
   },
 
   // Replaces the existing view with a new one, rewriting the current history
@@ -555,25 +563,27 @@ var gViewController = {
     if (aViewId == this.currentViewId)
       return;
 
-    gHistory.replaceState({
+    var state = {
       view: aViewId,
       previousView: null
-    }, document.title);
-    this.loadViewInternal(aViewId, null);
+    };
+    gHistory.replaceState(state);
+    this.loadViewInternal(aViewId, null, state);
   },
 
   loadInitialView: function(aViewId) {
-    gHistory.replaceState({
+    var state = {
       view: aViewId,
       previousView: null
-    }, document.title);
+    };
+    gHistory.replaceState(state);
 
-    this.loadViewInternal(aViewId, null);
+    this.loadViewInternal(aViewId, null, state);
     this.initialViewSelected = true;
     notifyInitialized();
   },
 
-  loadViewInternal: function(aViewId, aPreviousView) {
+  loadViewInternal: function(aViewId, aPreviousView, aState) {
     var view = this.parseViewId(aViewId);
 
     if (!view.type || !(view.type in this.viewObjects))
@@ -602,7 +612,7 @@ var gViewController = {
 
     this.viewPort.selectedPanel = this.currentViewObj.node;
     this.viewPort.selectedPanel.setAttribute("loading", "true");
-    this.currentViewObj.show(view.param, ++this.currentViewRequest);
+    this.currentViewObj.show(view.param, ++this.currentViewRequest, aState);
   },
 
   // Moves back in the document history and removes the current history entry
@@ -1640,12 +1650,12 @@ var gDiscoverView = {
                                               Ci.nsIWebProgress.NOTIFY_STATE_ALL);
 
       if (self.loaded)
-        self._loadBrowser(notifyInitialized);
+        self._loadURL(self.homepageURL.spec, notifyInitialized);
       else
         notifyInitialized();
     }
 
-    if (Services.prefs.getBoolPref(PREF_BACKGROUND_UPDATE) == false) {
+    if (Services.prefs.getBoolPref(PREF_GETADDONS_CACHE_ENABLED) == false) {
       setURL(url);
       return;
     }
@@ -1654,7 +1664,8 @@ var gDiscoverView = {
     AddonManager.getAllAddons(function(aAddons) {
       var list = {};
       aAddons.forEach(function(aAddon) {
-        var prefName = PREF_GETADDONS_CACHE_ENABLED.replace("%ID%", aAddon.id);
+        var prefName = PREF_GETADDONS_CACHE_ID_ENABLED.replace("%ID%",
+                                                               aAddon.id);
         try {
           if (!Services.prefs.getBoolPref(prefName))
             return;
@@ -1673,11 +1684,18 @@ var gDiscoverView = {
     });
   },
 
-  show: function() {
+  show: function(aParam, aRequest, aState) {
+    gViewController.updateCommands();
+
+    // If we're being told to load a specific URL then just do that
+    if (aState && "url" in aState) {
+      this.loaded = true;
+      this._loadURL(aState.url);
+    }
+
     // If the view has loaded before and the error page is not visible then
     // there is nothing else to do
     if (this.loaded && this.node.selectedPanel != this._error) {
-      gViewController.updateCommands();
       gViewController.notifyViewChanged();
       return;
     }
@@ -1691,7 +1709,8 @@ var gDiscoverView = {
       return;
     }
 
-    this._loadBrowser(gViewController.notifyViewChanged.bind(gViewController));
+    this._loadURL(this.homepageURL.spec,
+                  gViewController.notifyViewChanged.bind(gViewController));
   },
 
   hide: function() { },
@@ -1700,22 +1719,44 @@ var gDiscoverView = {
     this.node.selectedPanel = this._error;
   },
 
-  _loadBrowser: function(aCallback) {
-    this.node.selectedPanel = this._loading;
+  _loadURL: function(aURL, aCallback) {
+    if (this._browser.currentURI.spec == aURL) {
+      if (aCallback)
+        aCallback();
+      return;
+    }
 
     if (aCallback)
       this._loadListeners.push(aCallback);
 
-    if (this._browser.currentURI.equals(this.homepageURL))
-      this._browser.reload();
-    else
-      this._browser.goHome();
+    this._browser.loadURIWithFlags(aURL,
+                                   Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY);
   },
 
   onLocationChange: function(aWebProgress, aRequest, aLocation) {
     // Ignore the about:blank load
     if (aLocation.spec == "about:blank")
       return;
+
+    // When using the real session history the inner-frame will update the
+    // session history automatically, if using the fake history though it must
+    // be manually updated
+    if (gHistory == FakeHistory) {
+      var docshell = aWebProgress.QueryInterface(Ci.nsIDocShell);
+
+      var state = {
+        view: "addons://discover/",
+        url: aLocation.spec
+      };
+
+      var replaceHistory = Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY << 16;
+      if (docshell.loadType & replaceHistory)
+        gHistory.replaceState(state);
+      else
+        gHistory.pushState(state);
+    }
+
+    gViewController.updateCommands();
 
     // If the hostname is the same as the new location's host and either the
     // default scheme is insecure or the new location is secure then continue
@@ -1744,13 +1785,18 @@ var gDiscoverView = {
   },
 
   onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus) {
-    // Only care about the network stop status events
-    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_IS_NETWORK)) ||
-        !(aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP)))
+    // Only care about the network events
+    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_IS_NETWORK)))
       return;
 
-    // Sometimes we stop getting onLocationChange events so we must redo the
-    // url tests here (bug 602256)
+    // If this is the start of network activity then show the loading page
+    if (aStateFlags & (Ci.nsIWebProgressListener.STATE_START))
+      this.node.selectedPanel = this._loading;
+
+    // Ignore anything except stop events
+    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP)))
+      return;
+
     var location = this._browser.currentURI;
 
     // Consider the successful load of about:blank as still loading
@@ -1761,9 +1807,7 @@ var gDiscoverView = {
     // same as the default hostname or the default scheme is secure and the new
     // scheme is insecure then show the error page
     if (!Components.isSuccessCode(aStatus) ||
-        (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded) ||
-        location.host != this.homepageURL.host ||
-        (this.homepageURL.schemeIs("https") && !location.schemeIs("https"))) {
+        (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded)) {
       this.showError();
     } else {
       // Got a successful load, make sure the browser is visible

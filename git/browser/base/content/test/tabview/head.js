@@ -37,19 +37,59 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function createEmptyGroupItem(contentWindow, width, height, padding, noAnimation) {
+function createEmptyGroupItem(contentWindow, width, height, padding, animate) {
   let pageBounds = contentWindow.Items.getPageBounds();
   pageBounds.inset(padding, padding);
 
   let box = new contentWindow.Rect(pageBounds);
   box.width = width;
   box.height = height;
-  
-  let immediately = noAnimation ? true: false;
-  let emptyGroupItem = 
-    new contentWindow.GroupItem([], { bounds: box, immediately: immediately });
+
+  let emptyGroupItem =
+    new contentWindow.GroupItem([], { bounds: box, immediately: !animate });
 
   return emptyGroupItem;
+}
+
+// ----------
+function createGroupItemWithTabs(win, width, height, padding, urls, animate) {
+  let contentWindow = win.TabView.getContentWindow();
+  let groupItemCount = contentWindow.GroupItems.groupItems.length;
+  // create empty group item
+  let groupItem = createEmptyGroupItem(contentWindow, width, height, padding, animate);
+  ok(groupItem.isEmpty(), "This group is empty");
+  is(contentWindow.GroupItems.groupItems.length, ++groupItemCount,
+     "The number of groups is increased by 1");
+  // add blank items
+  contentWindow.GroupItems.setActiveGroupItem(groupItem);
+  let t = 0;
+  urls.forEach( function(url) {
+    let newItem = win.gBrowser.loadOneTab(url)._tabViewTabItem;
+    ok(newItem.container, "Created element "+t+":"+newItem.container);
+    ++t;
+  });
+  return groupItem;
+}
+
+// ----------
+function createGroupItemWithBlankTabs(win, width, height, padding, numNewTabs, animate) {
+  let urls = [];
+  while(numNewTabs--)
+    urls.push("about:blank");
+  return createGroupItemWithTabs(win, width, height, padding, urls, animate);
+}
+
+// ----------
+function closeGroupItem(groupItem, callback) {
+  groupItem.addSubscriber(groupItem, "groupHidden", function() {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
+    groupItem.addSubscriber(groupItem, "close", function() {
+      groupItem.removeSubscriber(groupItem, "close");
+      callback();
+    });
+    groupItem.closeHidden();
+  });
+  groupItem.closeAll();
 }
 
 // ----------
@@ -160,4 +200,32 @@ function whenTabViewIsShown(callback, win) {
     win.removeEventListener('tabviewshown', arguments.callee, false);
     callback();
   }, false);
+}
+
+// ----------
+function hideGroupItem(groupItem, callback) {
+  if (groupItem.hidden) {
+    callback();
+    return;
+  }
+
+  groupItem.addSubscriber(groupItem, "groupHidden", function () {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
+    callback();
+  });
+  groupItem.closeAll();
+}
+
+// ----------
+function unhideGroupItem(groupItem, callback) {
+  if (!groupItem.hidden) {
+    callback();
+    return;
+  }
+
+  groupItem.addSubscriber(groupItem, "groupShown", function () {
+    groupItem.removeSubscriber(groupItem, "groupShown");
+    callback();
+  });
+  groupItem._unhide();
 }

@@ -71,11 +71,14 @@ _BROWSER_FILES = \
                  browser_tabview_bug597248.js \
                  browser_tabview_bug597360.js \
                  browser_tabview_bug597399.js \
+                 browser_tabview_bug597980.js \
                  browser_tabview_bug598600.js \
                  browser_tabview_bug599626.js \
                  browser_tabview_bug600645.js \
                  browser_tabview_bug600812.js \
+                 browser_tabview_bug602432.js \
                  browser_tabview_bug604098.js \
+                 browser_tabview_bug604699.js \
                  browser_tabview_bug606657.js \
                  browser_tabview_bug606905.js \
                  browser_tabview_bug608037.js \
@@ -101,6 +104,7 @@ _BROWSER_FILES = \
                  browser_tabview_bug625424.js \
                  browser_tabview_bug626368.js \
                  browser_tabview_bug626525.js \
+                 browser_tabview_bug626791.js \
                  browser_tabview_bug627288.js \
                  browser_tabview_bug627736.js \
                  browser_tabview_bug628165.js \
@@ -110,6 +114,11 @@ _BROWSER_FILES = \
                  browser_tabview_bug630102.js \
                  browser_tabview_bug630157.js \
                  browser_tabview_bug631662.js \
+                 browser_tabview_bug633788.js \
+                 browser_tabview_bug634077.js \
+                 browser_tabview_bug634085.js \
+                 browser_tabview_bug634158.js \
+                 browser_tabview_bug635696.js \
                  browser_tabview_dragdrop.js \
                  browser_tabview_exit_button.js \
                  browser_tabview_expander.js \
@@ -123,7 +132,6 @@ _BROWSER_FILES = \
                  browser_tabview_snapping.js \
                  browser_tabview_startup_transitions.js \
                  browser_tabview_undo_group.js \
-                 browser_tabview_firstrun_pref.js \
                  dummy_page.html \
                  head.js \
                  search1.html \

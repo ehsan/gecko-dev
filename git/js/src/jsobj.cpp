@@ -111,10 +111,10 @@ JS_FRIEND_DATA(const JSObjectMap) JSObjectMap::sharedNonNative(JSObjectMap::SHAP
 Class js_ObjectClass = {
     js_Object_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
-    PropertyStub,   /* addProperty */
-    PropertyStub,   /* delProperty */
-    PropertyStub,   /* getProperty */
-    PropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub
@@ -133,7 +133,7 @@ static JSBool
 obj_getProto(JSContext *cx, JSObject *obj, jsid id, Value *vp);
 
 static JSBool
-obj_setProto(JSContext *cx, JSObject *obj, jsid id, Value *vp);
+obj_setProto(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp);
 
 static JSPropertySpec object_props[] = {
     {js_proto_str, 0, JSPROP_PERMANENT|JSPROP_SHARED, Jsvalify(obj_getProto), Jsvalify(obj_setProto)},
@@ -150,7 +150,7 @@ obj_getProto(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 static JSBool
-obj_setProto(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+obj_setProto(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 {
     /* ECMAScript 5 8.6.2 forbids changing [[Prototype]] if not [[Extensible]]. */
     if (!obj->isExtensible()) {
@@ -1249,8 +1249,22 @@ EvalKernel(JSContext *cx, uintN argc, Value *vp, EvalType evalType, JSStackFrame
 
     JSScript *script = NULL;
     JSScript **bucket = EvalCacheHash(cx, linearStr);
-    if (evalType == DIRECT_EVAL && caller->isFunctionFrame() && !caller->isEvalFrame())
+    if (evalType == DIRECT_EVAL && caller->isFunctionFrame() && !caller->isEvalFrame()) {
         script = EvalCacheLookup(cx, linearStr, caller, staticLevel, principals, scopeobj, bucket);
+
+        /*
+         * Although the eval cache keeps a script alive from the perspective of
+         * the JS engine, from a jsdbgapi user's perspective each eval()
+         * creates and destroys a script. This hides implementation details and
+         * allows jsdbgapi clients to avoid calling JS_GetScriptObject after a
+         * script has been returned to the eval cache, which is invalid since
+         * script->u.object aliases script->u.nextToGC.
+         */
+        if (script) {
+            js_CallNewScriptHook(cx, script, NULL);
+            MUST_FLOW_THROUGH("destroy");
+        }
+    }
 
     /*
      * We can't have a callerFrame (down in js::Execute's terms) if we're in
@@ -1279,6 +1293,9 @@ EvalKernel(JSContext *cx, uintN argc, Value *vp, EvalType evalType, JSStackFrame
     JSBool ok = js_CheckPrincipalsAccess(cx, scopeobj, principals,
                                          cx->runtime->atomState.evalAtom) &&
                 Execute(cx, scopeobj, script, callerFrame, JSFRAME_EVAL, vp);
+
+    MUST_FLOW_LABEL(destroy);
+    js_CallDestroyScriptHook(cx, script);
 
     script->u.nextToGC = *bucket;
     *bucket = script;
@@ -1601,7 +1618,7 @@ js_obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
     jsid id;
     if (!ValueToId(cx, vp[2], &id))
         return JS_FALSE;
-    if (!CheckRedeclaration(cx, obj, id, JSPROP_GETTER, NULL, NULL))
+    if (!CheckRedeclaration(cx, obj, id, JSPROP_GETTER))
         return JS_FALSE;
     /*
      * Getters and setters are just like watchpoints from an access
@@ -1612,7 +1629,7 @@ js_obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
     if (!CheckAccess(cx, obj, id, JSACC_WATCH, &junk, &attrs))
         return JS_FALSE;
     vp->setUndefined();
-    return obj->defineProperty(cx, id, UndefinedValue(), getter, PropertyStub,
+    return obj->defineProperty(cx, id, UndefinedValue(), getter, StrictPropertyStub,
                                JSPROP_ENUMERATE | JSPROP_GETTER | JSPROP_SHARED);
 }
 
@@ -1629,12 +1646,12 @@ js_obj_defineSetter(JSContext *cx, uintN argc, Value *vp)
                              js_setter_str);
         return JS_FALSE;
     }
-    PropertyOp setter = CastAsPropertyOp(&vp[3].toObject());
+    StrictPropertyOp setter = CastAsStrictPropertyOp(&vp[3].toObject());
 
     jsid id;
     if (!ValueToId(cx, vp[2], &id))
         return JS_FALSE;
-    if (!CheckRedeclaration(cx, obj, id, JSPROP_SETTER, NULL, NULL))
+    if (!CheckRedeclaration(cx, obj, id, JSPROP_SETTER))
         return JS_FALSE;
     /*
      * Getters and setters are just like watchpoints from an access
@@ -1736,27 +1753,27 @@ js_NewPropertyDescriptorObject(JSContext *cx, jsid id, uintN attrs,
     const JSAtomState &atomState = cx->runtime->atomState;
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
         if (!desc->defineProperty(cx, ATOM_TO_JSID(atomState.getAtom), getter,
-                                  PropertyStub, PropertyStub, JSPROP_ENUMERATE) ||
+                                  PropertyStub, StrictPropertyStub, JSPROP_ENUMERATE) ||
             !desc->defineProperty(cx, ATOM_TO_JSID(atomState.setAtom), setter,
-                                  PropertyStub, PropertyStub, JSPROP_ENUMERATE)) {
+                                  PropertyStub, StrictPropertyStub, JSPROP_ENUMERATE)) {
             return false;
         }
     } else {
         if (!desc->defineProperty(cx, ATOM_TO_JSID(atomState.valueAtom), value,
-                                  PropertyStub, PropertyStub, JSPROP_ENUMERATE) ||
+                                  PropertyStub, StrictPropertyStub, JSPROP_ENUMERATE) ||
             !desc->defineProperty(cx, ATOM_TO_JSID(atomState.writableAtom),
                                   BooleanValue((attrs & JSPROP_READONLY) == 0),
-                                  PropertyStub, PropertyStub, JSPROP_ENUMERATE)) {
+                                  PropertyStub, StrictPropertyStub, JSPROP_ENUMERATE)) {
             return false;
         }
     }
 
     return desc->defineProperty(cx, ATOM_TO_JSID(atomState.enumerableAtom),
                                 BooleanValue((attrs & JSPROP_ENUMERATE) != 0),
-                                PropertyStub, PropertyStub, JSPROP_ENUMERATE) &&
+                                PropertyStub, StrictPropertyStub, JSPROP_ENUMERATE) &&
            desc->defineProperty(cx, ATOM_TO_JSID(atomState.configurableAtom),
                                 BooleanValue((attrs & JSPROP_PERMANENT) == 0),
-                                PropertyStub, PropertyStub, JSPROP_ENUMERATE);
+                                PropertyStub, StrictPropertyStub, JSPROP_ENUMERATE);
 }
 
 JSBool
@@ -2085,7 +2102,7 @@ DefinePropertyOnObject(JSContext *cx, JSObject *obj, const PropDesc &desc,
         if (desc.isGenericDescriptor() || desc.isDataDescriptor()) {
             JS_ASSERT(!obj->getOps()->defineProperty);
             return js_DefineProperty(cx, obj, desc.id, &desc.value,
-                                     PropertyStub, PropertyStub, desc.attrs);
+                                     PropertyStub, StrictPropertyStub, desc.attrs);
         }
 
         JS_ASSERT(desc.isAccessorDescriptor());
@@ -2284,7 +2301,8 @@ DefinePropertyOnObject(JSContext *cx, JSObject *obj, const PropDesc &desc,
 
     /* 8.12.9 step 12. */
     uintN attrs;
-    PropertyOp getter, setter;
+    PropertyOp getter;
+    StrictPropertyOp setter;
     if (desc.isGenericDescriptor()) {
         uintN changed = 0;
         if (desc.hasConfigurable)
@@ -2295,7 +2313,8 @@ DefinePropertyOnObject(JSContext *cx, JSObject *obj, const PropDesc &desc,
         attrs = (shape->attributes() & ~changed) | (desc.attrs & changed);
         if (shape->isMethod()) {
             JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
-            getter = setter = PropertyStub;
+            getter = PropertyStub;
+            setter = StrictPropertyStub;
         } else {
             getter = shape->getter();
             setter = shape->setter();
@@ -2312,7 +2331,8 @@ DefinePropertyOnObject(JSContext *cx, JSObject *obj, const PropDesc &desc,
         if (desc.hasValue)
             v = desc.value;
         attrs = (desc.attrs & ~unchanged) | (shape->attributes() & unchanged);
-        getter = setter = PropertyStub;
+        getter = PropertyStub;
+        setter = StrictPropertyStub;
     } else {
         JS_ASSERT(desc.isAccessorDescriptor());
 
@@ -2349,7 +2369,7 @@ DefinePropertyOnObject(JSContext *cx, JSObject *obj, const PropDesc &desc,
             setter = desc.setter();
         } else {
             setter = (shape->hasDefaultSetter() && !shape->hasSetterValue())
-                     ? PropertyStub
+                     ? StrictPropertyStub
                      : shape->setter();
         }
     }
@@ -2976,59 +2996,37 @@ js_String_tn(JSContext* cx, JSObject* proto, JSString* str)
 JS_DEFINE_CALLINFO_3(extern, OBJECT, js_String_tn, CONTEXT, CALLEE_PROTOTYPE, STRING, 0,
                      nanojit::ACCSET_STORE_ANY)
 
-JSObject* FASTCALL
-js_CreateThisFromTrace(JSContext *cx, Class *clasp, JSObject *ctor)
+JSObject * FASTCALL
+js_CreateThisFromTrace(JSContext *cx, JSObject *ctor, uintN protoSlot)
 {
-    JS_ASSERT(JS_ON_TRACE(cx));
+#ifdef DEBUG
     JS_ASSERT(ctor->isFunction());
-
-    if (!ctor->ensureClassReservedSlots(cx))
-        return NULL;
-
-    jsid classPrototypeId = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
-    const Shape *shape = ctor->nativeLookup(classPrototypeId);
-    Value pval = shape ? ctor->getSlot(shape->slot) : MagicValue(JS_GENERIC_MAGIC);
+    JS_ASSERT(ctor->getFunctionPrivate()->isInterpreted());
+    jsid id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
+    const Shape *shape = ctor->nativeLookup(id);
+    JS_ASSERT(shape->slot == protoSlot);
+    JS_ASSERT(!shape->configurable());
+    JS_ASSERT(!shape->isMethod());
+#endif
 
     JSObject *parent = ctor->getParent();
     JSObject *proto;
-    if (pval.isObject()) {
-        /* An object in ctor.prototype, let's use it as the new instance's proto. */
-        proto = &pval.toObject();
+    const Value &protov = ctor->getSlotRef(protoSlot);
+    if (protov.isObject()) {
+        proto = &protov.toObject();
     } else {
-        /* A hole or a primitive: either way, we need to get Object.prototype. */
+        /*
+         * GetInterpretedFunctionPrototype found that ctor.prototype is
+         * primitive. Use Object.prototype for proto, per ES5 13.2.2 step 7.
+         */
         if (!js_GetClassPrototype(cx, parent, JSProto_Object, &proto))
             return NULL;
-
-        if (pval.isMagic(JS_GENERIC_MAGIC)) {
-            /*
-             * No ctor.prototype was set, so we inline-expand and optimize
-             * fun_resolve's prototype creation code.
-             */
-            proto = NewNativeClassInstance(cx, clasp, proto, parent);
-            if (!proto)
-                return NULL;
-            JSFunction *fun = ctor->getFunctionPrivate();
-            if (!fun->isNative() && !fun->isFunctionPrototype()) {
-                if (!js_SetClassPrototype(cx, ctor, proto, JSPROP_ENUMERATE | JSPROP_PERMANENT))
-                    return NULL;
-            }
-        } else {
-            /*
-             * A primitive value in .prototype means to use Object.prototype
-             * for proto. See ES5 13.2.2 step 7.
-             */
-        }
     }
 
-    /*
-     * FIXME: 561785 at least. Quasi-natives including XML objects prevent us
-     * from easily or unconditionally calling NewNativeClassInstance here.
-     */
-    gc::FinalizeKind kind = NewObjectGCKind(cx, clasp);
-    return NewNonFunction<WithProto::Given>(cx, clasp, proto, parent, kind);
+    gc::FinalizeKind kind = NewObjectGCKind(cx, &js_ObjectClass);
+    return NewNativeClassInstance(cx, &js_ObjectClass, proto, parent, kind);
 }
-
-JS_DEFINE_CALLINFO_3(extern, CONSTRUCTOR_RETRY, js_CreateThisFromTrace, CONTEXT, CLASS, OBJECT, 0,
+JS_DEFINE_CALLINFO_3(extern, CONSTRUCTOR_RETRY, js_CreateThisFromTrace, CONTEXT, OBJECT, UINTN, 0,
                      nanojit::ACCSET_STORE_ANY)
 
 #else  /* !JS_TRACER */
@@ -3209,25 +3207,25 @@ with_ThisObject(JSContext *cx, JSObject *obj)
 Class js_WithClass = {
     "With",
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(2) | JSCLASS_IS_ANONYMOUS,
-    PropertyStub,   /* addProperty */
-    PropertyStub,   /* delProperty */
-    PropertyStub,   /* getProperty */
-    PropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub,
-    NULL,           /* finalize */
-    NULL,           /* reserved    */
-    NULL,           /* checkAccess */
-    NULL,           /* call        */
-    NULL,           /* construct   */
-    NULL,           /* xdrObject   */
-    NULL,           /* hasInstance */
-    NULL,           /* mark        */
+    NULL,                 /* finalize */
+    NULL,                 /* reserved    */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
+    NULL,                 /* hasInstance */
+    NULL,                 /* mark        */
     JS_NULL_CLASS_EXT,
     {
         with_LookupProperty,
-        NULL,       /* defineProperty */
+        NULL,             /* defineProperty */
         with_GetProperty,
         with_SetProperty,
         with_GetAttributes,
@@ -3235,10 +3233,10 @@ Class js_WithClass = {
         with_DeleteProperty,
         with_Enumerate,
         with_TypeOf,
-        NULL,       /* trace */
-        NULL,       /* fix   */
+        NULL,             /* trace */
+        NULL,             /* fix   */
         with_ThisObject,
-        NULL,       /* clear */
+        NULL,             /* clear */
     }
 };
 
@@ -3370,7 +3368,7 @@ block_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 static JSBool
-block_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+block_setProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 {
     JS_ASSERT(obj->isClonedBlock());
     uintN index = (uintN) JSID_TO_INT(id);
@@ -3426,7 +3424,7 @@ JSObject::copyPropertiesFrom(JSContext *cx, JSObject *obj)
     if (!isNative())
         return true;
 
-    Vector<const Shape *> shapes(cx);
+    AutoShapeVector shapes(cx);
     for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
         if (!shapes.append(&r.front()))
             return false;
@@ -3439,7 +3437,7 @@ JSObject::copyPropertiesFrom(JSContext *cx, JSObject *obj)
         PropertyOp getter = shape->getter();
         if ((attrs & JSPROP_GETTER) && !cx->compartment->wrap(cx, &getter))
             return false;
-        PropertyOp setter = shape->setter();
+        StrictPropertyOp setter = shape->setter();
         if ((attrs & JSPROP_SETTER) && !cx->compartment->wrap(cx, &setter))
             return false;
         Value v = shape->hasSlot() ? obj->getSlot(shape->slot) : UndefinedValue();
@@ -3725,8 +3723,8 @@ js_XDRBlockObject(JSXDRState *xdr, JSObject **objp)
                 return false;
         }
     } else {
-        Vector<const Shape *, 8> shapes(cx);
-        shapes.growByUninitialized(count);
+        AutoShapeVector shapes(cx);
+        shapes.growBy(count);
 
         for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
             shape = &r.front();
@@ -3761,10 +3759,10 @@ js_XDRBlockObject(JSXDRState *xdr, JSObject **objp)
 Class js_BlockClass = {
     "Block",
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_IS_ANONYMOUS,
-    PropertyStub,   /* addProperty */
-    PropertyStub,   /* delProperty */
-    PropertyStub,   /* getProperty */
-    PropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub
@@ -3809,7 +3807,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
             uint32 slot = 2 * JSProto_LIMIT + key;
             if (!js_SetReservedSlot(cx, obj, slot, v))
                 return false;
-            if (!obj->addProperty(cx, id, PropertyStub, PropertyStub, slot, attrs, 0, 0))
+            if (!obj->addProperty(cx, id, PropertyStub, StrictPropertyStub, slot, attrs, 0, 0))
                 return false;
 
             named = true;
@@ -3817,7 +3815,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
         }
     }
 
-    named = obj->defineProperty(cx, id, v, PropertyStub, PropertyStub, attrs);
+    named = obj->defineProperty(cx, id, v, PropertyStub, StrictPropertyStub, attrs);
     return named;
 }
 
@@ -4390,8 +4388,8 @@ JSObject::allocSlot(JSContext *cx, uint32 *slotp)
      * If this object is in dictionary mode and it has a property table, try to
      * pull a free slot from the property table's slot-number freelist.
      */
-    if (inDictionaryMode() && lastProp->table) {
-        uint32 &last = lastProp->table->freelist;
+    if (inDictionaryMode() && lastProp->hasTable()) {
+        uint32 &last = lastProp->getTable()->freelist;
         if (last != SHAPE_INVALID_SLOT) {
 #ifdef DEBUG
             JS_ASSERT(last < slot);
@@ -4424,8 +4422,8 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
     JS_ASSERT(slot < limit);
 
     Value &vref = getSlotRef(slot);
-    if (inDictionaryMode() && lastProp->table) {
-        uint32 &last = lastProp->table->freelist;
+    if (inDictionaryMode() && lastProp->hasTable()) {
+        uint32 &last = lastProp->getTable()->freelist;
 
         /* Can't afford to check the whole freelist, but let's check the head. */
         JS_ASSERT_IF(last != SHAPE_INVALID_SLOT, last < limit && last != slot);
@@ -4445,40 +4443,6 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
     }
     vref.setUndefined();
     return false;
-}
-
-JS_FRIEND_API(void)
-js_UnbrandAndClearSlots(JSContext *cx, JSObject *obj)
-{
-    JS_ASSERT(obj->isNative());
-    JS_ASSERT(obj->isGlobal());
-
-    /* This can return false but that doesn't mean it failed. */
-    obj->unbrand(cx);
-
-    /*
-     * Clear the prototype cache. We must not clear the other global
-     * reserved slots, as other code will crash if they are arbitrarily
-     * reset (e.g., regexp statics).
-     */
-    for (int key = JSProto_Null; key < JSRESERVED_GLOBAL_THIS; key++)
-        JS_SetReservedSlot(cx, obj, key, JSVAL_VOID);
-
-    /*
-     * Clear the non-reserved slots.
-     */
-    ClearValueRange(obj->slots + JSCLASS_RESERVED_SLOTS(obj->clasp),
-                    obj->capacity - JSCLASS_RESERVED_SLOTS(obj->clasp),
-                    obj->clasp == &js_ArrayClass);
-
-    /*
-     * We just overwrote all slots to undefined, so the freelist has
-     * been trashed. We need to clear the head pointer or else we will
-     * crash later. This leaks slots but the object is all but dead
-     * anyway.
-     */
-    if (obj->hasPropertyTable())
-        obj->lastProperty()->table->freelist = SHAPE_INVALID_SLOT;
 }
 
 /* JSBOXEDWORD_INT_MAX as a string */
@@ -4604,7 +4568,7 @@ js_PurgeScopeChainHelper(JSContext *cx, JSObject *obj, jsid id)
 
 const Shape *
 js_AddNativeProperty(JSContext *cx, JSObject *obj, jsid id,
-                     PropertyOp getter, PropertyOp setter, uint32 slot,
+                     PropertyOp getter, StrictPropertyOp setter, uint32 slot,
                      uintN attrs, uintN flags, intN shortid)
 {
     JS_ASSERT(!(flags & Shape::METHOD));
@@ -4627,16 +4591,37 @@ js_AddNativeProperty(JSContext *cx, JSObject *obj, jsid id,
 const Shape *
 js_ChangeNativePropertyAttrs(JSContext *cx, JSObject *obj,
                              const Shape *shape, uintN attrs, uintN mask,
-                             PropertyOp getter, PropertyOp setter)
+                             PropertyOp getter, StrictPropertyOp setter)
 {
     if (!obj->ensureClassReservedSlots(cx))
         return NULL;
+
+    /*
+     * Check for freezing an object with shape-memoized methods here, on a
+     * shape-by-shape basis. Note that getter may be a pun of the method's
+     * joined function object value, to indicate "no getter change". In this
+     * case we must null getter to get the desired PropertyStub behavior.
+     */
+    if ((attrs & JSPROP_READONLY) && shape->isMethod()) {
+        JSObject *funobj = &shape->methodObject();
+        Value v = ObjectValue(*funobj);
+
+        shape = obj->methodReadBarrier(cx, *shape, &v);
+        if (!shape)
+            return NULL;
+
+        if (CastAsObject(getter) == funobj) {
+            JS_ASSERT(!(attrs & JSPROP_GETTER));
+            getter = NULL;
+        }
+    }
+
     return obj->changeProperty(cx, shape, attrs, mask, getter, setter);
 }
 
 JSBool
 js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
-                  PropertyOp getter, PropertyOp setter, uintN attrs)
+                  PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
     return js_DefineNativeProperty(cx, obj, id, *value, getter, setter, attrs,
                                    0, 0, NULL);
@@ -4666,7 +4651,7 @@ CallAddPropertyHook(JSContext *cx, Class *clasp, JSObject *obj, const Shape *sha
 
 JSBool
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &value,
-                        PropertyOp getter, PropertyOp setter, uintN attrs,
+                        PropertyOp getter, StrictPropertyOp setter, uintN attrs,
                         uintN flags, intN shortid, JSProperty **propp,
                         uintN defineHow /* = 0 */)
 {
@@ -4744,7 +4729,13 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
     if (!obj->ensureClassReservedSlots(cx))
         return false;
 
-    bool added = false;
+    /*
+     * Make a local copy of value, in case a method barrier needs to update the
+     * value to define, and just so addProperty can mutate its inout parameter.
+     */
+    Value valueCopy = value;
+    bool adding = false;
+
     if (!shape) {
         /* Add a new property, or replace an existing one of the same id. */
         if (defineHow & JSDNP_SET_METHOD) {
@@ -4763,8 +4754,28 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
         if (const Shape *existingShape = obj->nativeLookup(id)) {
             if (existingShape->hasSlot())
                 AbortRecordingIfUnexpectedGlobalWrite(cx, obj, existingShape->slot);
+
+            if (existingShape->isMethod() &&
+                ObjectValue(existingShape->methodObject()) == valueCopy)
+            {
+                /*
+                 * Redefining an existing shape-memoized method object without
+                 * changing the property's value, perhaps to change attributes.
+                 * Clone now via the method read barrier.
+                 *
+                 * But first, assert that our caller is not trying to preserve
+                 * the joined function object value as the getter object for
+                 * the redefined property. The joined function object cannot
+                 * yet have leaked, so only an internal code path could attempt
+                 * such a thing. Any such path would be a bug to fix.
+                 */
+                JS_ASSERT(existingShape->getter() != getter);
+
+                if (!obj->methodReadBarrier(cx, *existingShape, &valueCopy))
+                    return false;
+            }
         } else {
-            added = true;
+            adding = true;
         }
 
         uint32 oldShape = obj->shape();
@@ -4774,26 +4785,29 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
             return false;
 
         /*
-         * If shape is a method, the above call to putProperty suffices to
-         * update the shape if necessary. But if scope->branded(), the shape
-         * may not have changed and we may be overwriting a function-valued
-         * property. See bug 560998.
+         * If shape is a joined method, the above call to putProperty suffices
+         * to update the object's shape id if need be (because the shape's hash
+         * identity includes the method value).
+         *
+         * But if scope->branded(), the object's shape id may not have changed
+         * and we may be overwriting a cached function-valued property (note
+         * how methodWriteBarrier checks previous vs. would-be current value).
+         * See bug 560998.
          */
         if (obj->shape() == oldShape && obj->branded() && shape->slot != SHAPE_INVALID_SLOT) {
 #ifdef DEBUG
             const Shape *newshape =
 #endif
-                obj->methodWriteBarrier(cx, *shape, value);
+                obj->methodWriteBarrier(cx, *shape, valueCopy);
             JS_ASSERT(newshape == shape);
         }
     }
 
-    /* Store value before calling addProperty, in case the latter GC's. */
+    /* Store valueCopy before calling addProperty, in case the latter GC's. */
     if (obj->containsSlot(shape->slot))
-        obj->nativeSetSlot(shape->slot, value);
+        obj->nativeSetSlot(shape->slot, valueCopy);
 
     /* XXXbe called with lock held */
-    Value valueCopy = value;
     if (!CallAddPropertyHook(cx, clasp, obj, shape, &valueCopy)) {
         obj->removeProperty(cx, id);
         return false;
@@ -4801,7 +4815,7 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
 
     if (defineHow & JSDNP_CACHE_RESULT) {
         JS_ASSERT_NOT_ON_TRACE(cx);
-        if (added) {
+        if (adding) {
             JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, true);
             TRACE_1(AddProperty, obj);
         }
@@ -5038,7 +5052,7 @@ js_FindPropertyHelper(JSContext *cx, jsid id, JSBool cacheResult,
     parent = obj->getParent();
     for (scopeIndex = 0;
          parent
-         ? js_IsCacheableNonGlobalScope(obj)
+         ? IsCacheableNonGlobalScope(obj)
          : !obj->getOps()->lookupProperty;
          ++scopeIndex) {
         protoIndex =
@@ -5148,11 +5162,11 @@ js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id)
      * farther checks or lookups. For details see the JSOP_BINDNAME case of
      * js_Interpret.
      *
-     * The test order here matters because js_IsCacheableNonGlobalScope
+     * The test order here matters because IsCacheableNonGlobalScope
      * must not be passed a global object (i.e. one with null parent).
      */
     for (int scopeIndex = 0;
-         !obj->getParent() || js_IsCacheableNonGlobalScope(obj);
+         !obj->getParent() || IsCacheableNonGlobalScope(obj);
          scopeIndex++) {
         JSObject *pobj;
         JSProperty *prop;
@@ -5257,7 +5271,7 @@ js_NativeGet(JSContext *cx, JSObject *obj, JSObject *pobj, const Shape *shape, u
 }
 
 JSBool
-js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value *vp)
+js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, bool strict, Value *vp)
 {
     LeaveTraceIfGlobalObject(cx, obj);
 
@@ -5274,7 +5288,9 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value
         if (shape->hasDefaultSetter()) {
             if (!added) {
                 AbortRecordingIfUnexpectedGlobalWrite(cx, obj, slot);
-                if (!obj->methodWriteBarrier(cx, *shape, *vp))
+
+                /* FIXME: This should pass *shape, not slot, but see bug 630354. */
+                if (!obj->methodWriteBarrier(cx, slot, *vp))
                     return false;
             }
             obj->nativeSetSlot(slot, *vp);
@@ -5294,7 +5310,7 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value
     sample = cx->runtime->propertyRemovals;
     {
         AutoShapeRooter tvr(cx, shape);
-        if (!shape->set(cx, obj, vp))
+        if (!shape->set(cx, obj, strict, vp))
             return false;
 
         JS_ASSERT_IF(!obj->inDictionaryMode(), shape->slot == slot);
@@ -5547,7 +5563,8 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
     uintN attrs, flags;
     intN shortid;
     Class *clasp;
-    PropertyOp getter, setter;
+    PropertyOp getter;
+    StrictPropertyOp setter;
     bool added;
 
     JS_ASSERT((defineHow &
@@ -5570,7 +5587,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                     return false;
 
                 if (pd.attrs & JSPROP_SHARED)
-                    return CallSetter(cx, obj, id, pd.setter, pd.attrs, pd.shortid, vp);
+                    return CallSetter(cx, obj, id, pd.setter, pd.attrs, pd.shortid, strict, vp);
 
                 if (pd.attrs & JSPROP_READONLY) {
                     if (strict)
@@ -5638,7 +5655,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                 if (shape->hasDefaultSetter() && !shape->hasGetterValue())
                     return JS_TRUE;
 
-                return shape->set(cx, obj, vp);
+                return shape->set(cx, obj, strict, vp);
             }
 
             /*
@@ -5703,7 +5720,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                     vp->setObject(*funobj);
                 }
             }
-            return identical || js_NativeSet(cx, obj, shape, false, vp);
+            return identical || js_NativeSet(cx, obj, shape, false, strict, vp);
         }
     }
 
@@ -5771,7 +5788,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
     if (defineHow & JSDNP_CACHE_RESULT)
         JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, added);
 
-    return js_NativeSet(cx, obj, shape, added, vp);
+    return js_NativeSet(cx, obj, shape, added, strict, vp);
 
 #ifdef JS_TRACER
   error: // TRACE_1 jumps here in case of error.
@@ -6205,7 +6222,7 @@ js_SetClassPrototype(JSContext *cx, JSObject *ctor, JSObject *proto, uintN attrs
      * DontDelete.
      */
     if (!ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
-                              ObjectOrNullValue(proto), PropertyStub, PropertyStub, attrs)) {
+                              ObjectOrNullValue(proto), PropertyStub, StrictPropertyStub, attrs)) {
         return JS_FALSE;
     }
 
@@ -6214,7 +6231,7 @@ js_SetClassPrototype(JSContext *cx, JSObject *ctor, JSObject *proto, uintN attrs
      * for a user-defined function f, is DontEnum.
      */
     return proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                                 ObjectOrNullValue(ctor), PropertyStub, PropertyStub, 0);
+                                 ObjectOrNullValue(ctor), PropertyStub, StrictPropertyStub, 0);
 }
 
 JSObject *
@@ -6627,7 +6644,7 @@ js_ReportGetterOnlyAssignment(JSContext *cx)
 }
 
 JS_FRIEND_API(JSBool)
-js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_GETTER_ONLY);
     return JS_FALSE;
@@ -6777,20 +6794,30 @@ js_DumpId(jsid id)
 }
 
 static void
-DumpShape(const Shape &shape)
+DumpProperty(JSObject *obj, const Shape &shape)
 {
     jsid id = shape.id;
     uint8 attrs = shape.attributes();
 
-    fprintf(stderr, "    ");
+    fprintf(stderr, "    ((Shape *) %p) ", (void *) &shape);
     if (attrs & JSPROP_ENUMERATE) fprintf(stderr, "enumerate ");
     if (attrs & JSPROP_READONLY) fprintf(stderr, "readonly ");
     if (attrs & JSPROP_PERMANENT) fprintf(stderr, "permanent ");
-    if (attrs & JSPROP_GETTER) fprintf(stderr, "getter ");
-    if (attrs & JSPROP_SETTER) fprintf(stderr, "setter ");
     if (attrs & JSPROP_SHARED) fprintf(stderr, "shared ");
     if (shape.isAlias()) fprintf(stderr, "alias ");
-    if (shape.isMethod()) fprintf(stderr, "method(%p) ", (void *) &shape.methodObject());
+    if (shape.isMethod()) fprintf(stderr, "method=%p ", (void *) &shape.methodObject());
+
+    if (shape.hasGetterValue())
+        fprintf(stderr, "getterValue=%p ", (void *) shape.getterObject());
+    else if (!shape.hasDefaultGetter())
+        fprintf(stderr, "getterOp=%p ", JS_FUNC_TO_DATA_PTR(void *, shape.getterOp()));
+
+    if (shape.hasSetterValue())
+        fprintf(stderr, "setterValue=%p ", (void *) shape.setterObject());
+    else if (shape.setterOp() == js_watch_set)
+        fprintf(stderr, "setterOp=js_watch_set ");
+    else if (!shape.hasDefaultSetter())
+        fprintf(stderr, "setterOp=%p ", JS_FUNC_TO_DATA_PTR(void *, shape.setterOp()));
 
     if (JSID_IS_ATOM(id))
         dumpString(JSID_TO_STRING(id));
@@ -6799,6 +6826,12 @@ DumpShape(const Shape &shape)
     else
         fprintf(stderr, "unknown jsid %p", (void *) JSID_BITS(id));
     fprintf(stderr, ": slot %d", shape.slot);
+    if (obj->containsSlot(shape.slot)) {
+        fprintf(stderr, " = ");
+        dumpValue(obj->getSlot(shape.slot));
+    } else if (shape.slot != SHAPE_INVALID_SLOT) {
+        fprintf(stderr, " (INVALID!)");
+    }
     fprintf(stderr, "\n");
 }
 
@@ -6813,7 +6846,7 @@ js_DumpObject(JSObject *obj)
     uint32 flags = obj->flags;
     if (flags & JSObject::DELEGATE) fprintf(stderr, " delegate");
     if (flags & JSObject::SYSTEM) fprintf(stderr, " system");
-    if (flags & JSObject::NOT_EXTENSIBLE) fprintf(stderr, " not extensible");
+    if (flags & JSObject::NOT_EXTENSIBLE) fprintf(stderr, " not_extensible");
     if (flags & JSObject::BRANDED) fprintf(stderr, " branded");
     if (flags & JSObject::GENERIC) fprintf(stderr, " generic");
     if (flags & JSObject::METHOD_BARRIER) fprintf(stderr, " method_barrier");
@@ -6848,15 +6881,6 @@ js_DumpObject(JSObject *obj)
         return;
     }
 
-    if (obj->isNative()) {
-        fprintf(stderr, "properties:\n");
-        for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront())
-            DumpShape(r.front());
-    } else {
-        if (!obj->isNative())
-            fprintf(stderr, "not native\n");
-    }
-
     fprintf(stderr, "proto ");
     dumpValue(ObjectOrNullValue(obj->getProto()));
     fputc('\n', stderr);
@@ -6868,16 +6892,30 @@ js_DumpObject(JSObject *obj)
     if (clasp->flags & JSCLASS_HAS_PRIVATE)
         fprintf(stderr, "private %p\n", obj->getPrivate());
 
-    fprintf(stderr, "slots:\n");
+    if (!obj->isNative())
+        fprintf(stderr, "not native\n");
+
     unsigned reservedEnd = JSCLASS_RESERVED_SLOTS(clasp);
     unsigned slots = obj->slotSpan();
-    for (unsigned i = 0; i < slots; i++) {
+    unsigned stop = obj->isNative() ? reservedEnd : slots;
+    if (stop > 0)
+        fprintf(stderr, obj->isNative() ? "reserved slots:\n" : "slots:\n");
+    for (unsigned i = 0; i < stop; i++) {
         fprintf(stderr, " %3d ", i);
         if (i < reservedEnd)
             fprintf(stderr, "(reserved) ");
         fprintf(stderr, "= ");
         dumpValue(obj->getSlot(i));
         fputc('\n', stderr);
+    }
+
+    if (obj->isNative()) {
+        fprintf(stderr, "properties:\n");
+        Vector<const Shape *, 8, SystemAllocPolicy> props;
+        for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront())
+            props.append(&r.front());
+        for (size_t i = props.length(); i-- != 0;)
+            DumpProperty(obj, *props[i]);
     }
     fputc('\n', stderr);
 }
@@ -6997,18 +7035,6 @@ js_DumpStackFrame(JSContext *cx, JSStackFrame *start)
         fputc('\n', stderr);
     }
 }
-
-#ifdef DEBUG
-bool
-IsSaneThisObject(JSObject &obj)
-{
-    Class *clasp = obj.getClass();
-    return clasp != &js_CallClass &&
-           clasp != &js_BlockClass &&
-           clasp != &js_DeclEnvClass &&
-           clasp != &js_WithClass;
-}
-#endif
 
 #endif /* DEBUG */
 

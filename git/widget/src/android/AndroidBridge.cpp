@@ -125,6 +125,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jSetKeepScreenOn = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setKeepScreenOn", "(Z)V");
     jIsNetworkLinkUp = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkUp", "()Z");
     jIsNetworkLinkKnown = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkKnown", "()Z");
+    jSetSelectedLocale = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setSelectedLocale", "(Ljava/lang/String;)V");
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
     jEGL10Class = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGL10"));
@@ -579,6 +580,13 @@ AndroidBridge::IsNetworkLinkKnown()
 }
 
 void
+AndroidBridge::SetSelectedLocale(const nsACString& aLocale) {
+    NS_ConvertUTF8toUTF16 wLocale(aLocale);
+    jstring jLocale = GetJNIForThread()->NewString(wLocale.get(), wLocale.Length());
+    GetJNIForThread()->CallStaticVoidMethod(mGeckoAppShellClass, jSetSelectedLocale, jLocale);
+}
+
+void
 AndroidBridge::SetSurfaceView(jobject obj)
 {
     mSurfaceView.Init(obj);
@@ -632,6 +640,23 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
     jint realSurface = mJNIEnv->GetIntField(surf, sfield);
 
     return (void*) realSurface;
+}
+
+bool
+AndroidBridge::GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt)
+{
+    AutoLocalJNIFrame jniFrame(3);
+    jclass cls = mJNIEnv->FindClass(className);
+    if (!cls)
+        return false;
+
+    jfieldID field = mJNIEnv->GetStaticFieldID(cls, fieldName, "I");
+    if (!field)
+        return false;
+
+    *aInt = static_cast<PRInt32>(mJNIEnv->GetStaticIntField(cls, field));
+
+    return true;
 }
 
 bool

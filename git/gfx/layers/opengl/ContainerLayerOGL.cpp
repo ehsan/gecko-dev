@@ -260,25 +260,22 @@ ContainerRender(Container* aContainer,
 
     if (needsFramebuffer) {
       scissorRect.MoveBy(- visibleRect.TopLeft());
-    } else {
-      if (!frameBuffer) {
-        // Transform scissorRect here
-        aManager->WorldTransformRect(scissorRect);
-      }
+    }
 
-      if (!aPreviousFrameBuffer) {
-        /**
-         * glScissor coordinates are oriented with 0,0 being at the bottom left,
-         * the opposite to layout (0,0 at the top left).
-         * All rendering to an FBO is upside-down, making the coordinate systems
-         * match.
-         * When rendering directly to a window (No current or previous FBO),
-         * we need to flip the scissor rect.
-         */
-        aContainer->gl()->FixWindowCoordinateRect(scissorRect,
-                                                  aManager->GetWigetSize().height);
-      }
-
+    if (aManager->IsDrawingFlipped()) {
+      /**
+       * glScissor coordinates are oriented with 0,0 being at the bottom left,
+       * the opposite to layout (0,0 at the top left).
+       * All rendering to an FBO is upside-down, making the coordinate systems
+       * match.
+       * When rendering directly to a window (No current or previous FBO),
+       * we need to flip the scissor rect.
+       */
+      aContainer->gl()->FixWindowCoordinateRect(scissorRect,
+                                                aContainer->gl()->ViewportRect().height);
+    }
+    
+    if (clipRect && !needsFramebuffer) {
       scissorRect.IntersectRect(scissorRect, cachedScissor);
     }
 
@@ -298,6 +295,7 @@ ContainerRender(Container* aContainer,
     }
 
     layerToRender->RenderLayer(frameBuffer, childOffset);
+    aContainer->gl()->MakeCurrent();
   }
 
   aContainer->gl()->PopScissorRect();
@@ -334,16 +332,10 @@ ContainerRender(Container* aContainer,
                       2, f);
     }
 
-    DEBUG_GL_ERROR_CHECK(aContainer->gl());
-
-    aManager->BindAndDrawQuad(rgb, aPreviousFrameBuffer == 0);
-
-    DEBUG_GL_ERROR_CHECK(aContainer->gl());
+    aManager->BindAndDrawQuad(rgb, aManager->IsDrawingFlipped());
 
     // Clean up resources.  This also unbinds the texture.
     aContainer->gl()->fDeleteTextures(1, &containerSurface);
-
-    DEBUG_GL_ERROR_CHECK(aContainer->gl());
   }
 }
 

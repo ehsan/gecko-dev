@@ -66,6 +66,7 @@
 #include "jsdbgapi.h"           // for JS_ClearWatchPointsForObject
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfo.h"
+#include "nsJSEnvironment.h"
 
 // Other Classes
 #include "nsIEventListenerManager.h"
@@ -118,6 +119,7 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsIDOMPopupBlockedEvent.h"
 #include "nsIDOMPopStateEvent.h"
+#include "nsIDOMPopStateEvent_MOZILLA_2_BRANCH.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMDesktopNotification.h"
@@ -181,7 +183,6 @@
 #include "nsIXULAppInfo.h"
 #include "nsNetUtil.h"
 #include "nsFocusManager.h"
-#include "nsIJSON.h"
 #include "nsIXULWindow.h"
 #include "nsEventStateManager.h"
 #ifdef MOZ_XUL
@@ -1920,6 +1921,15 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     if (aDocument != oldDoc) {
       nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
+
+    // The API we're really looking for here is to go clear all of the
+    // Xray wrappers associated with our outer window. However, we
+    // don't expose that API because the implementation would be
+    // identical to that of JS_TransplantObject, so we just call that
+    // instead.
+    if (!JS_TransplantObject(cx, mJSObject, mJSObject)) {
+      return NS_ERROR_FAILURE;
+    }
   } else {
     if (aState) {
       newInnerWindow = wsh->GetInnerWindow();
@@ -2100,7 +2110,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     } else {
       if (!JS_DefineProperty(cx, newInnerWindow->mJSObject, "window",
                              OBJECT_TO_JSVAL(mJSObject),
-                             JS_PropertyStub, JS_PropertyStub,
+                             JS_PropertyStub, JS_StrictPropertyStub,
                              JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)) {
         NS_ERROR("can't create the 'window' property");
         return NS_ERROR_FAILURE;
@@ -2480,6 +2490,21 @@ nsGlobalWindow::UpdateParentTarget()
   if (!mParentTarget) {
     mParentTarget = mChromeEventHandler;
   }
+}
+
+PRBool
+nsGlobalWindow::GetIsTabModalPromptAllowed()
+{
+  PRBool allowTabModal = PR_TRUE;
+  if (mDocShell) {
+    nsCOMPtr<nsIContentViewer> cv;
+    mDocShell->GetContentViewer(getter_AddRefs(cv));
+    nsCOMPtr<nsIContentViewer_MOZILLA_2_0_BRANCH> cv2 = do_QueryInterface(cv);
+    if (cv2)
+      cv2->GetIsTabModalPromptAllowed(&allowTabModal);
+  }
+
+  return allowTabModal;
 }
 
 nsresult
@@ -4438,6 +4463,8 @@ nsGlobalWindow::Dump(const nsAString& aStr)
 void
 nsGlobalWindow::EnsureReflowFlushAndPaint()
 {
+  NS_ASSERTION(IsOuterWindow(), "EnsureReflowFlushAndPaint() must be called on"
+               "the outer window");
   NS_ASSERTION(mDocShell, "EnsureReflowFlushAndPaint() called with no "
                "docshell!");
 
@@ -4620,6 +4647,10 @@ nsGlobalWindow::Alert(const nsAString& aString)
   nsAutoString final;
   nsContentUtils::StripNullChars(*str, final);
 
+  // Check if we're being called at a point where we can't use tab-modal
+  // prompts, because something doesn't want reentrancy.
+  PRBool allowTabModal = GetIsTabModalPromptAllowed();
+
   nsresult rv;
   nsCOMPtr<nsIPromptFactory> promptFac =
     do_GetService("@mozilla.org/prompter;1", &rv);
@@ -4632,7 +4663,7 @@ nsGlobalWindow::Alert(const nsAString& aString)
 
   nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
   if (promptBag)
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), PR_TRUE);
+    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), allowTabModal);
 
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
@@ -4682,6 +4713,10 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   nsAutoString final;
   nsContentUtils::StripNullChars(aString, final);
 
+  // Check if we're being called at a point where we can't use tab-modal
+  // prompts, because something doesn't want reentrancy.
+  PRBool allowTabModal = GetIsTabModalPromptAllowed();
+
   nsresult rv;
   nsCOMPtr<nsIPromptFactory> promptFac =
     do_GetService("@mozilla.org/prompter;1", &rv);
@@ -4694,7 +4729,7 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
 
   nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
   if (promptBag)
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), PR_TRUE);
+    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), allowTabModal);
 
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
@@ -4717,6 +4752,9 @@ NS_IMETHODIMP
 nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
                        nsAString& aReturn)
 {
+  FORWARD_TO_OUTER(Prompt, (aMessage, aInitial, aReturn),
+                   NS_ERROR_NOT_INITIALIZED);
+
   SetDOMStringToNull(aReturn);
 
   if (AreDialogsBlocked())
@@ -4744,6 +4782,10 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   nsContentUtils::StripNullChars(aMessage, fixedMessage);
   nsContentUtils::StripNullChars(aInitial, fixedInitial);
 
+  // Check if we're being called at a point where we can't use tab-modal
+  // prompts, because something doesn't want reentrancy.
+  PRBool allowTabModal = GetIsTabModalPromptAllowed();
+
   nsresult rv;
   nsCOMPtr<nsIPromptFactory> promptFac =
     do_GetService("@mozilla.org/prompter;1", &rv);
@@ -4756,7 +4798,7 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
 
   nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
   if (promptBag)
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), PR_TRUE);
+    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), allowTabModal);
 
   // Pass in the default value, if any.
   PRUnichar *inoutValue = ToNewUnicode(fixedInitial);
@@ -6427,7 +6469,8 @@ nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
   if (aCallerWin) {
     nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aCallerWin));
     nsIScriptContext *scx = sgo->GetContext();
-    scx->LeaveModalState();
+    if (scx)
+      scx->LeaveModalState();
   }
 
   if (mContext) {
@@ -6755,6 +6798,9 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
                                 const nsAString& aOptions,
                                 nsIVariant **aRetVal)
 {
+  FORWARD_TO_OUTER(ShowModalDialog, (aURI, aArgs, aOptions, aRetVal),
+                   NS_ERROR_NOT_INITIALIZED);
+
   *aRetVal = nsnull;
 
   // Before bringing up the window/dialog, unsuppress painting and flush
@@ -7653,9 +7699,9 @@ nsGlobalWindow::FireHashchange()
 }
 
 nsresult
-nsGlobalWindow::DispatchSyncPopState()
+nsGlobalWindow::DispatchSyncPopState(PRBool aIsInitial)
 {
-  FORWARD_TO_INNER(DispatchSyncPopState, (), NS_OK);
+  FORWARD_TO_INNER(DispatchSyncPopState, (aIsInitial), NS_OK);
 
   NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
                "Must be safe to run script here.");
@@ -7671,60 +7717,17 @@ nsGlobalWindow::DispatchSyncPopState()
     return NS_OK;
   }
 
-  // Bail if there's no document or the document's readystate isn't "complete".
-  if (!mDoc) {
-    return NS_OK;
-  }
-
-  nsIDocument::ReadyState readyState = mDoc->GetReadyStateEnum();
-  if (readyState != nsIDocument::READYSTATE_COMPLETE) {
-    return NS_OK;
-  }
-
   // Get the document's pending state object -- it contains the data we're
   // going to send along with the popstate event.  The object is serialized as
   // JSON.
-  nsAString& stateObjJSON = mDoc->GetPendingStateObject();
-
   nsCOMPtr<nsIVariant> stateObj;
-  // Parse the JSON, if there's any to parse.
-  if (!stateObjJSON.IsEmpty()) {
-    // Get the JSContext associated with our document. We need this for
-    // deserialization.
-    nsCOMPtr<nsIDocument> document = do_QueryInterface(mDocument);
-    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
-
-    // Get the JSContext from the document, like we do in
-    // nsContentUtils::GetContextFromDocument().
-    nsIScriptGlobalObject *sgo = document->GetScopeObject();
-    NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
-
-    nsIScriptContext *scx = sgo->GetContext();
-    NS_ENSURE_TRUE(scx, NS_ERROR_FAILURE);
-
-    JSContext *cx = (JSContext*) scx->GetNativeContext();
-
-    // Make sure we in the request while we have jsval on the native stack.
-    JSAutoRequest ar(cx);
-
-    // If our json call triggers a JS-to-C++ call, we want that call to use cx
-    // as the context.  So we push cx onto the context stack.
-    nsCxPusher cxPusher;
-
-    jsval jsStateObj = JSVAL_NULL;
-
-    // Deserialize the state object into an nsIVariant.
-    nsCOMPtr<nsIJSON> json = do_GetService("@mozilla.org/dom/json;1");
-    NS_ENSURE_TRUE(cxPusher.Push(cx), NS_ERROR_FAILURE);
-    rv = json->DecodeToJSVal(stateObjJSON, cx, &jsStateObj);
-    NS_ENSURE_SUCCESS(rv, rv);
-    cxPusher.Pop();
-
-    nsCOMPtr<nsIXPConnect> xpconnect = do_GetService(nsIXPConnect::GetCID());
-    NS_ENSURE_TRUE(xpconnect, NS_ERROR_FAILURE);
-    rv = xpconnect->JSValToVariant(cx, &jsStateObj, getter_AddRefs(stateObj));
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMNSDocument_MOZILLA_2_0_BRANCH> doc2 = do_QueryInterface(mDoc);
+  if (!doc2) {
+    return NS_OK;
   }
+  
+  rv = doc2->GetMozCurrentStateObject(getter_AddRefs(stateObj));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Obtain a presentation shell for use in creating a popstate event.
   nsIPresShell *shell = mDoc->GetShell();
@@ -7744,10 +7747,12 @@ nsGlobalWindow::DispatchSyncPopState()
   NS_ENSURE_TRUE(privateEvent, NS_ERROR_FAILURE);
 
   // Initialize the popstate event, which does bubble but isn't cancellable.
-  nsCOMPtr<nsIDOMPopStateEvent> popstateEvent = do_QueryInterface(domEvent);
+  nsCOMPtr<nsIDOMPopStateEvent_MOZILLA_2_BRANCH> popstateEvent =
+    do_QueryInterface(domEvent);
   rv = popstateEvent->InitPopStateEvent(NS_LITERAL_STRING("popstate"),
                                         PR_TRUE, PR_FALSE,
-                                        stateObj);
+                                        stateObj,
+                                        aIsInitial);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = privateEvent->SetTrusted(PR_TRUE);
@@ -7761,7 +7766,7 @@ nsGlobalWindow::DispatchSyncPopState()
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool dummy; // default action
-  return DispatchEvent(popstateEvent, &dummy);
+  return DispatchEvent(domEvent, &dummy);
 }
 
 // Find an nsICanvasFrame under aFrame.  Only search the principal

@@ -236,10 +236,8 @@ public:
 
   GLTexture mTexture;
   gfxIntSize mSize;
-  nsRefPtr<GLContext> mASurfaceAsGLContext;
   gl::ShaderProgramType mLayerProgram;
 };
-
 
 #ifdef MOZ_IPC
 class ShadowImageLayerOGL : public ShadowImageLayer,

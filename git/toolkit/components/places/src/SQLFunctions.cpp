@@ -48,7 +48,9 @@
 #include "nsINavHistoryService.h"
 #include "nsPrintfCString.h"
 #include "nsNavHistory.h"
-
+#if defined(XP_OS2)
+#include "nsIRandomGenerator.h"
+#endif
 using namespace mozilla::storage;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,21 +397,21 @@ namespace places {
     while (matches && tokenizer.hasMoreTokens()) {
       const nsDependentCSubstring &token = tokenizer.nextToken();
 
-      bool matchTags = searchFunction(token, tags);
-      bool matchTitle = searchFunction(token, title);
-
-      // Make sure we match something in the title or tags if we have to.
-      matches = matchTags || matchTitle;
-      if (HAS_BEHAVIOR(TITLE) && !matches)
-        break;
-
-      bool matchURL = searchFunction(token, fixedURI);
-      // If we do not match the URL when we have to, reset matches to false.
-      // Otherwise, keep track that we did match the current search.
-      if (HAS_BEHAVIOR(URL) && !matchURL)
-        matches = false;
-      else
-        matches = matches || matchURL;
+      if (HAS_BEHAVIOR(TITLE) && HAS_BEHAVIOR(URL)) {
+        matches = (searchFunction(token, title) || searchFunction(token, tags)) &&
+                  searchFunction(token, fixedURI);
+      }
+      else if (HAS_BEHAVIOR(TITLE)) {
+        matches = searchFunction(token, title) || searchFunction(token, tags);
+      }
+      else if (HAS_BEHAVIOR(URL)) {
+        matches = searchFunction(token, fixedURI);
+      }
+      else {
+        matches = searchFunction(token, title) ||
+                  searchFunction(token, tags) ||
+                  searchFunction(token, fixedURI);
+      }
     }
 
     NS_ADDREF(*_result = new IntegerVariant(matches ? 1 : 0));
@@ -596,6 +598,15 @@ namespace places {
   nsresult
   GenerateGUIDFunction::create(mozIStorageConnection *aDBConn)
   {
+#if defined(XP_OS2)
+    // We need this service to be initialized on the main thread because it is
+    // not threadsafe.  We are about to use it asynchronously, so initialize it
+    // now.
+    nsCOMPtr<nsIRandomGenerator> rg =
+      do_GetService("@mozilla.org/security/random-generator;1");
+    NS_ENSURE_STATE(rg);
+#endif
+
     nsCOMPtr<GenerateGUIDFunction> function = new GenerateGUIDFunction();
     nsresult rv = aDBConn->CreateFunction(
       NS_LITERAL_CSTRING("generate_guid"), 0, function

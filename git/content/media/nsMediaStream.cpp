@@ -235,6 +235,9 @@ nsMediaChannelStream::OnStartRequest(nsIRequest* aRequest)
       // it's getting data for the start of the stream.
       mCacheStream.NotifyDataStarted(0);
       mOffset = 0;
+
+      // The server claimed it supported range requests.  It lied.
+      acceptsRanges = PR_FALSE;
     } else if (mOffset == 0 &&
                (responseStatus == HTTP_OK_CODE ||
                 responseStatus == HTTP_PARTIAL_RESPONSE_CODE)) {
@@ -319,6 +322,20 @@ nsMediaChannelStream::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
 
   if (!mIgnoreClose) {
     mCacheStream.NotifyDataEnded(aStatus);
+
+    // Move this request back into the foreground.  This is necessary for
+    // requests owned by video documents to ensure the load group fires
+    // OnStopRequest when restoring from session history.
+    if (mLoadInBackground) {
+      mLoadInBackground = PR_FALSE;
+
+      nsLoadFlags loadFlags;
+      nsresult rv = mChannel->GetLoadFlags(&loadFlags);
+      NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadFlags() failed!");
+
+      loadFlags &= ~nsIRequest::LOAD_BACKGROUND;
+      ModifyLoadFlags(loadFlags);
+    }
   }
 
   return NS_OK;
@@ -1155,28 +1172,40 @@ void nsMediaStream::MoveLoadsToBackground() {
     NS_WARNING("Null element in nsMediaStream::MoveLoadsToBackground()");
     return;
   }
-  nsCOMPtr<nsILoadGroup> loadGroup;
-  rv = mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
-  NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadGroup() failed!");
-  nsresult status;
-  mChannel->GetStatus(&status);
-  // Note: if (NS_FAILED(status)), the channel won't be in the load group.
-  PRBool isPending = PR_FALSE;
-  if (loadGroup &&
-      NS_SUCCEEDED(status) &&
-      NS_SUCCEEDED(mChannel->IsPending(&isPending)) &&
-      isPending) {
-    rv = loadGroup->RemoveRequest(mChannel, nsnull, status);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "RemoveRequest() failed!");
 
+  PRBool isPending = PR_FALSE;
+  if (NS_SUCCEEDED(mChannel->IsPending(&isPending)) &&
+      isPending) {
     nsLoadFlags loadFlags;
     rv = mChannel->GetLoadFlags(&loadFlags);
     NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadFlags() failed!");
 
     loadFlags |= nsIRequest::LOAD_BACKGROUND;
-    rv = mChannel->SetLoadFlags(loadFlags);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "SetLoadFlags() failed!");
+    ModifyLoadFlags(loadFlags);
+  }
+}
 
+void nsMediaStream::ModifyLoadFlags(nsLoadFlags aFlags)
+{
+  nsCOMPtr<nsILoadGroup> loadGroup;
+  nsresult rv = mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
+  NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadGroup() failed!");
+
+  nsresult status;
+  mChannel->GetStatus(&status);
+
+  // Note: if (NS_FAILED(status)), the channel won't be in the load group.
+  if (loadGroup &&
+      NS_SUCCEEDED(status)) {
+    rv = loadGroup->RemoveRequest(mChannel, nsnull, status);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "RemoveRequest() failed!");
+  }
+
+  rv = mChannel->SetLoadFlags(aFlags);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "SetLoadFlags() failed!");
+
+  if (loadGroup &&
+      NS_SUCCEEDED(status)) {
     rv = loadGroup->AddRequest(mChannel, nsnull);
     NS_ASSERTION(NS_SUCCEEDED(rv), "AddRequest() failed!");
   }

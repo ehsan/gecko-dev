@@ -3441,6 +3441,12 @@ nsDocShell::SetUseGlobalHistory(PRBool aUseGlobalHistory)
         return NS_OK;
     }
 
+    // No need to initialize mGlobalHistory if IHistory is available.
+    nsCOMPtr<IHistory> history = services::GetHistoryService();
+    if (history) {
+        return NS_OK;
+    }
+
     if (mGlobalHistory) {
         return NS_OK;
     }
@@ -6068,10 +6074,30 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
     if (!mEODForCurrentDocument && mContentViewer) {
         // Set the pending state object which will be returned to the page in
         // the popstate event.
-        SetDocPendingStateObj(mLSHE);
+        SetDocCurrentStateObj(mLSHE);
 
         mIsExecutingOnLoadHandler = PR_TRUE;
-        mContentViewer->LoadComplete(aStatus);
+        rv = mContentViewer->LoadComplete(aStatus);
+
+        // If the load wasn't stopped during LoadComplete, fire the popstate
+        // event, if we're not suppressing it.
+        if (NS_SUCCEEDED(rv) && rv != NS_SUCCESS_LOAD_STOPPED &&
+            !mSuppressPopstate) {
+
+            // XXX should I get the window via mScriptGlobal?  This is tricky
+            // since we're near onload and things might be changing.  But I
+            // think mContentViewer has the right view of the world.
+            nsCOMPtr<nsIDocument> document = mContentViewer->GetDocument();
+            if (document) {
+                nsCOMPtr<nsPIDOMWindow> window = document->GetWindow();
+                if (window) {
+                    // Dispatch the popstate event , passing PR_TRUE to indicate
+                    // that this is an "initial" (i.e. after-onload) popstate.
+                    window->DispatchSyncPopState(PR_TRUE);
+                }
+            }
+        }
+
         mIsExecutingOnLoadHandler = PR_FALSE;
 
         mEODForCurrentDocument = PR_TRUE;
@@ -6558,6 +6584,13 @@ nsDocShell::CanSavePresentation(PRUint32 aLoadType,
 {
     if (!mOSHE)
         return PR_FALSE; // no entry to save into
+
+    nsCOMPtr<nsIContentViewer> viewer;
+    mOSHE->GetContentViewer(getter_AddRefs(viewer));
+    if (viewer) {
+        NS_WARNING("mOSHE already has a content viewer!");
+        return PR_FALSE;
+    }
 
     // Only save presentation for "normal" loads and link loads.  Anything else
     // probably wants to refetch the page, so caching the old presentation
@@ -7048,6 +7081,11 @@ nsDocShell::RestoreFromHistory()
         mContentViewer->Close(mSavingOldViewer ? mOSHE.get() : nsnull);
         viewer->SetPreviousViewer(mContentViewer);
     }
+    if (mOSHE && (!mContentViewer || !mSavingOldViewer)) {
+        // We don't plan to save a viewer in mOSHE; tell it to drop
+        // any other state it's holding.
+        mOSHE->SyncPresentationState();
+    }
 
     // Order the mContentViewer setup just like Embed does.
     mContentViewer = nsnull;
@@ -7090,9 +7128,15 @@ nsDocShell::RestoreFromHistory()
     // Reattach to the window object.
     rv = mContentViewer->Open(windowState, mLSHE);
 
+    // Hack to keep nsDocShellEditorData alive across the
+    // SetContentViewer(nsnull) call below.
+    nsAutoPtr<nsDocShellEditorData> data(mLSHE->ForgetEditorData());
+
     // Now remove it from the cached presentation.
     mLSHE->SetContentViewer(nsnull);
     mEODForCurrentDocument = PR_FALSE;
+
+    mLSHE->SetEditorData(data.forget());
 
 #ifdef DEBUG
  {
@@ -7301,12 +7345,29 @@ nsDocShell::RestoreFromHistory()
         }
     }
 
+    // The FinishRestore call below can kill these, null them out so we don't
+    // have invalid pointer lying around.
+    newRootView = rootViewSibling = rootViewParent = nsnull;
+    newVM = nsnull;
+
     // Simulate the completion of the load.
     nsDocShell::FinishRestore();
 
     // Restart plugins, and paint the content.
-    if (shell)
+    if (shell) {
         shell->Thaw();
+
+        newVM = shell->GetViewManager();
+        if (newVM) {
+            // When we insert the root view above the resulting invalidate is
+            // dropped because painting is suppressed in the presshell until we
+            // call Thaw. So we issue the invalidate here.
+            newVM->GetRootView(newRootView);
+            if (newRootView) {
+                newVM->UpdateView(newRootView, NS_VMREFRESH_NO_SYNC);
+            }
+        }
+    }
 
     return privWin->FireDelayedDOMEvents();
 }
@@ -7648,9 +7709,14 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 
         mContentViewer->Close(mSavingOldViewer ? mOSHE.get() : nsnull);
         aNewViewer->SetPreviousViewer(mContentViewer);
-
-        mContentViewer = nsnull;
     }
+    if (mOSHE && (!mContentViewer || !mSavingOldViewer)) {
+        // We don't plan to save a viewer in mOSHE; tell it to drop
+        // any other state it's holding.
+        mOSHE->SyncPresentationState();
+    }
+
+    mContentViewer = nsnull;
 
     // Now that we're about to switch documents, forget all of our children.
     // Note that we cached them as needed up in CaptureState above.
@@ -7716,7 +7782,7 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 }
 
 nsresult
-nsDocShell::SetDocPendingStateObj(nsISHEntry *shEntry)
+nsDocShell::SetDocCurrentStateObj(nsISHEntry *shEntry)
 {
     nsresult rv;
 
@@ -7732,7 +7798,7 @@ nsDocShell::SetDocPendingStateObj(nsISHEntry *shEntry)
         // empty string.
     }
 
-    document->SetPendingStateObject(stateData);
+    document->SetCurrentStateObject(stateData);
     return NS_OK;
 }
 
@@ -8183,7 +8249,11 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     mAllowKeywordFixup =
       (aFlags & INTERNAL_LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP) != 0;
     mURIResultedInDocument = PR_FALSE;  // reset the clock...
-   
+
+    // If we've gotten this far, reset our "don't fire a popState" flag.  This
+    // will get set to true the next time someone calls push/replaceState.
+    mSuppressPopstate = PR_FALSE;
+
     //
     // First:
     // Check to see if the new URI is an anchor in the existing document.
@@ -8378,12 +8448,17 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 doc->SetDocumentURI(newURI);
             }
 
-            SetDocPendingStateObj(mOSHE);
+            SetDocCurrentStateObj(mOSHE);
 
-            // Dispatch the popstate and hashchange events, as appropriate
+            // Dispatch the popstate and hashchange events, as appropriate.
             nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mScriptGlobal);
             if (window) {
-                window->DispatchSyncPopState();
+                NS_ASSERTION(!mSuppressPopstate,
+                             "Popstate shouldn't be suppressed here.");
+
+                // Pass PR_FALSE to indicate that this is not an "initial" (i.e.
+                // after-onload) popstate.
+                window->DispatchSyncPopState(PR_FALSE);
 
                 if (doHashchange)
                   window->DispatchAsyncHashchange();
@@ -9567,13 +9642,33 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     nsresult rv;
 
-    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
-    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
-
-    // Step 1: Clone aData by getting its JSON representation
+    // Step 1: Clone aData by getting its JSON representation.
+    //
+    // StringifyJSValVariant might cause arbitrary JS to run, and this code
+    // might navigate the page we're on, potentially to a different origin! (bug
+    // 634834)  To protect against this, we abort if our principal changes due
+    // to the stringify call.
     nsString dataStr;
-    rv = StringifyJSValVariant(aData, dataStr);
-    NS_ENSURE_SUCCESS(rv, rv);
+    {
+        nsCOMPtr<nsIDocument> origDocument =
+            do_GetInterface(GetAsSupports(this));
+        if (!origDocument)
+            return NS_ERROR_DOM_SECURITY_ERR;
+        nsCOMPtr<nsIPrincipal> origPrincipal = origDocument->NodePrincipal();
+
+        rv = StringifyJSValVariant(aData, dataStr);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIDocument> newDocument =
+            do_GetInterface(GetAsSupports(this));
+        if (!newDocument)
+            return NS_ERROR_DOM_SECURITY_ERR;
+        nsCOMPtr<nsIPrincipal> newPrincipal = newDocument->NodePrincipal();
+
+        PRBool principalsEqual = PR_FALSE;
+        origPrincipal->Equals(newPrincipal, &principalsEqual);
+        NS_ENSURE_TRUE(principalsEqual, NS_ERROR_DOM_SECURITY_ERR);
+    }
 
     // Check that the state object isn't too long.
     // Default max length: 640k chars.
@@ -9587,6 +9682,9 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     }
     NS_ENSURE_TRUE(dataStr.Length() <= (PRUint32)maxStateObjSize,
                    NS_ERROR_ILLEGAL_VALUE);
+
+    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
+    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
     // Step 2: Resolve aURL
     PRBool equalURIs = PR_TRUE;
@@ -9759,6 +9857,10 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     else {
         FireDummyOnLocationChange();
     }
+
+    // A call to push/replaceState prevents popstate events from firing until
+    // the next time we call InternalLoad.
+    mSuppressPopstate = PR_TRUE;
 
     return NS_OK;
 }

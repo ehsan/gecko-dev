@@ -226,21 +226,29 @@ gfxAlphaRecovery::AlignRectForSubimageRecovery(const nsIntRect& aRect,
     }
 
     const PRInt32 x = aRect.x, y = aRect.y, w = aRect.width, h = aRect.height;
+    const PRInt32 r = x + w;
     const PRInt32 sw = surfaceSize.width, sh = surfaceSize.height;
     const PRInt32 strideAlign = ByteAlignment(kByteAlignLog2, stride);
 
-    PRInt32 dx, dy, dw;
-    // The outer two loops search for an aligned top-left pixel
-    for (dy = 0; (dy < pixPerAlign) && (y - dy >= 0) && (h + dy <= sh); ++dy) {
+    // The outer two loops below keep the rightmost (|r| above) and
+    // bottommost pixels in |aRect| fixed wrt <x,y>, to ensure that we
+    // return only a superset of the original rect.  These loops
+    // search for an aligned top-left pixel by trying to expand <x,y>
+    // left and up by <dx,dy> pixels, respectively.
+    //
+    // Then if a properly-aligned top-left pixel is found, the
+    // innermost loop tries to find an aligned stride by moving the
+    // rightmost pixel rightward by dr.
+    PRInt32 dx, dy, dr;
+    for (dy = 0; (dy < pixPerAlign) && (y - dy >= 0); ++dy) {
         for (dx = 0; (dx < pixPerAlign) && (x - dx >= 0); ++dx) {
             if (0 != ByteAlignment(kByteAlignLog2,
                                    bpp * (x - dx), y - dy, stride)) {
                 continue;
             }
-            // The inner searches for an aligned stride
-            for (dw = 0; (dw < pixPerAlign) && (w + dw + dx <= sw); ++dw) {
+            for (dr = 0; (dr < pixPerAlign) && (r + dr <= sw); ++dr) {
                 if (strideAlign == ByteAlignment(kByteAlignLog2,
-                                                 bpp * (w + dw + dx))) {
+                                                 bpp * (w + dr + dx))) {
                     goto FOUND_SOLUTION;
                 }
             }
@@ -251,7 +259,7 @@ gfxAlphaRecovery::AlignRectForSubimageRecovery(const nsIntRect& aRect,
     return aRect;
 
 FOUND_SOLUTION:
-    nsIntRect solution = nsIntRect(x - dx, y - dy, w + dw + dx, h + dy);
+    nsIntRect solution = nsIntRect(x - dx, y - dy, w + dr + dx, h + dy);
     NS_ABORT_IF_FALSE(nsIntRect(0,0, sw,sh).Contains(solution),
                       "'Solution' extends outside surface bounds!");
     return solution;

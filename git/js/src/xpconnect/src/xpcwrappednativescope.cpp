@@ -209,7 +209,7 @@ js::Class XPC_WN_NoHelper_Proto_JSClass = {
     js::PropertyStub,               // addProperty;
     js::PropertyStub,               // delProperty;
     js::PropertyStub,               // getProperty;
-    js::PropertyStub,               // setProperty;
+    js::StrictPropertyStub,         // setProperty;
     js::EnumerateStub,              // enumerate;
     JS_ResolveStub,                 // resolve;
     js::ConvertStub,                // convert;
@@ -363,7 +363,7 @@ WrappedNativeJSGCThingTracer(JSDHashTable *table, JSDHashEntryHdr *hdr,
     if(wrapper->HasExternalReference() && !wrapper->IsWrapperExpired())
     {
         JSTracer* trc = (JSTracer *)arg;
-        JS_CALL_OBJECT_TRACER(trc, wrapper->GetFlatJSObjectNoMark(),
+        JS_CALL_OBJECT_TRACER(trc, wrapper->GetFlatJSObjectPreserveColor(),
                               "XPCWrappedNative::mFlatJSObject");
     }
 

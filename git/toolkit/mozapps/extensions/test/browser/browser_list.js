@@ -2,7 +2,10 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Tests the recent updates pane
+// Tests the list view
+
+Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
+
 
 var gProvider;
 var gManagerWindow;
@@ -13,6 +16,20 @@ var gVersion = Services.appinfo.version;
 var gBlocklistURL = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
 var gPluginURL = Services.urlFormatter.formatURLPref("plugins.update.url");
 var gDate = new Date(2010, 7, 16);
+
+var gLWTheme = {
+                id: "4",
+                version: "1",
+                name: "Bling",
+                description: "SO MUCH BLING!",
+                author: "Pixel Pusher",
+                homepageURL: "http://localhost:4444/data/index.html",
+                headerURL: "http://localhost:4444/data/header.png",
+                footerURL: "http://localhost:4444/data/footer.png",
+                previewURL: "http://localhost:4444/data/preview.png",
+                iconURL: "http://localhost:4444/data/icon.png"
+              };
+
 
 function test() {
   waitForExplicitFinish();
@@ -570,4 +587,91 @@ add_test(function() {
   is_element_hidden(get_node(addon, "pending"), "Pending message should be hidden");
 
   run_next_test();
+});
+
+// Check that focus changes correctly move around the selected list item
+add_test(function() {
+  function is_node_in_list(aNode) {
+    var list = gManagerWindow.document.getElementById("addon-list");
+
+    while (aNode && aNode != list)
+      aNode = aNode.parentNode;
+
+    if (aNode)
+      return true;
+    return false;
+  }
+
+  // Ignore the OSX full keyboard access setting
+  Services.prefs.setBoolPref("accessibility.tabfocus_applies_to_xul", false);
+
+  let items = get_test_items();
+
+  var fm = Cc["@mozilla.org/focus-manager;1"].
+           getService(Ci.nsIFocusManager);
+
+  let addon = items["Test add-on 6"];
+  EventUtils.synthesizeMouseAtCenter(addon, { }, gManagerWindow);
+  is(fm.focusedElement, addon.parentNode, "Focus should have moved to the list");
+
+  EventUtils.synthesizeKey("VK_TAB", { }, gManagerWindow);
+  is(fm.focusedElement, get_node(addon, "details-btn"), "Focus should have moved to the more button");
+
+  EventUtils.synthesizeKey("VK_TAB", { }, gManagerWindow);
+  is(fm.focusedElement, get_node(addon, "disable-btn"), "Focus should have moved to the disable button");
+
+  EventUtils.synthesizeKey("VK_TAB", { }, gManagerWindow);
+  is(fm.focusedElement, get_node(addon, "remove-btn"), "Focus should have moved to the remove button");
+
+  EventUtils.synthesizeKey("VK_TAB", { }, gManagerWindow);
+  ok(!is_node_in_list(fm.focusedElement), "Focus should be outside the list");
+
+  EventUtils.synthesizeKey("VK_TAB", { shiftKey: true }, gManagerWindow);
+  is(fm.focusedElement, get_node(addon, "remove-btn"), "Focus should have moved to the remove button");
+
+  EventUtils.synthesizeKey("VK_TAB", { shiftKey: true }, gManagerWindow);
+  EventUtils.synthesizeKey("VK_TAB", { shiftKey: true }, gManagerWindow);
+  is(fm.focusedElement, get_node(addon, "details-btn"), "Focus should have moved to the more button");
+
+  EventUtils.synthesizeKey("VK_TAB", { shiftKey: true }, gManagerWindow);
+  is(fm.focusedElement, addon.parentNode, "Focus should have moved to the list");
+
+  EventUtils.synthesizeKey("VK_TAB", { shiftKey: true }, gManagerWindow);
+  ok(!is_node_in_list(fm.focusedElement), "Focus should be outside the list");
+
+  try {
+    Services.prefs.clearUserPref("accessibility.tabfocus_applies_to_xul");
+  }
+  catch (e) { }
+
+  run_next_test();
+});
+
+
+add_test(function() {
+  info("Enabling lightweight theme");
+  LightweightThemeManager.currentTheme = gLWTheme;
+  
+  gManagerWindow.loadView("addons://list/theme");
+  wait_for_view_load(gManagerWindow, function() {
+    var addon = get_addon_element(gManagerWindow, "4@personas.mozilla.org");
+
+    is_element_hidden(get_node(addon, "preferences-btn"), "Preferences button should be hidden");
+    is_element_hidden(get_node(addon, "enable-btn"), "Enable button should be hidden");
+    is_element_visible(get_node(addon, "disable-btn"), "Disable button should be visible");
+    is_element_visible(get_node(addon, "remove-btn"), "Remove button should be visible");
+
+    info("Disabling lightweight theme");
+    LightweightThemeManager.currentTheme = null;
+
+    is_element_hidden(get_node(addon, "preferences-btn"), "Preferences button should be hidden");
+    is_element_visible(get_node(addon, "enable-btn"), "Enable button should be hidden");
+    is_element_hidden(get_node(addon, "disable-btn"), "Disable button should be visible");
+    is_element_visible(get_node(addon, "remove-btn"), "Remove button should be visible");
+
+    AddonManager.getAddonByID("4@personas.mozilla.org", function(aAddon) {
+      aAddon.uninstall();
+      run_next_test();
+    });
+  });
 });

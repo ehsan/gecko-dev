@@ -70,6 +70,21 @@ nsIWidget::CreatePuppetWidget(PBrowserChild *aTabChild)
 namespace mozilla {
 namespace widget {
 
+static bool
+IsPopup(const nsWidgetInitData* aInitData)
+{
+  return aInitData && aInitData->mWindowType == eWindowType_popup;
+}
+
+static bool
+MightNeedIMEFocus(const nsWidgetInitData* aInitData)
+{
+  // In the puppet-widget world, popup widgets are just dummies and
+  // shouldn't try to mess with IME state.
+  return !IsPopup(aInitData);
+}
+
+
 // Arbitrary, fungible.
 const size_t PuppetWidget::kMaxDimension = 4000;
 
@@ -112,9 +127,11 @@ PuppetWidget::Create(nsIWidget        *aParent,
                                       gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = PR_FALSE;
-  PRUint32 chromeSeqno;
-  mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-  mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
+  if (MightNeedIMEFocus(aInitData)) {
+    PRUint32 chromeSeqno;
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
+  }
 
   PuppetWidget* parent = static_cast<PuppetWidget*>(aParent);
   if (parent) {
@@ -137,8 +154,7 @@ PuppetWidget::CreateChild(const nsIntRect  &aRect,
                           nsWidgetInitData *aInitData,
                           PRBool           aForceUseIWidgetParent)
 {
-  bool isPopup = aInitData && aInitData->mWindowType == eWindowType_popup;
-
+  bool isPopup = IsPopup(aInitData);
   nsCOMPtr<nsIWidget> widget = nsIWidget::CreatePuppetWidget(mTabChild);
   return ((widget &&
            NS_SUCCEEDED(widget->Create(isPopup ? nsnull: this, nsnull, aRect,
@@ -276,36 +292,37 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
                   nsCAutoString("PuppetWidget"), nsnull);
 #endif
 
-  aStatus = nsEventStatus_eIgnore;
-  if (mEventCallback) {
-    if (event->message == NS_COMPOSITION_START) {
-      mIMEComposing = PR_TRUE;
-    }
-    switch (event->eventStructType) {
-    case NS_COMPOSITION_EVENT:
-      mIMELastReceivedSeqno = static_cast<nsCompositionEvent*>(event)->seqno;
-      if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
-        return NS_OK;
-      break;
-    case NS_TEXT_EVENT:
-      mIMELastReceivedSeqno = static_cast<nsTextEvent*>(event)->seqno;
-      if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
-        return NS_OK;
-      break;
-    case NS_SELECTION_EVENT:
-      mIMELastReceivedSeqno = static_cast<nsSelectionEvent*>(event)->seqno;
-      if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
-        return NS_OK;
-      break;
-    }
-    aStatus = (*mEventCallback)(event);
+  NS_ABORT_IF_FALSE(!mChild || mChild->mWindowType == eWindowType_popup,
+                    "Unexpected event dispatch!");
 
-    if (event->message == NS_COMPOSITION_END) {
-      mIMEComposing = PR_FALSE;
-    }
-  } else if (mChild) {
-    event->widget = mChild;
-    mChild->DispatchEvent(event, aStatus);
+  aStatus = nsEventStatus_eIgnore;
+
+  NS_ABORT_IF_FALSE(mViewCallback, "No view callback!");
+
+  if (event->message == NS_COMPOSITION_START) {
+    mIMEComposing = PR_TRUE;
+  }
+  switch (event->eventStructType) {
+  case NS_COMPOSITION_EVENT:
+    mIMELastReceivedSeqno = static_cast<nsCompositionEvent*>(event)->seqno;
+    if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
+      return NS_OK;
+    break;
+  case NS_TEXT_EVENT:
+    mIMELastReceivedSeqno = static_cast<nsTextEvent*>(event)->seqno;
+    if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
+      return NS_OK;
+    break;
+  case NS_SELECTION_EVENT:
+    mIMELastReceivedSeqno = static_cast<nsSelectionEvent*>(event)->seqno;
+    if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
+      return NS_OK;
+    break;
+  }
+  aStatus = (*mViewCallback)(event);
+
+  if (event->message == NS_COMPOSITION_END) {
+    mIMEComposing = PR_FALSE;
   }
 
   return NS_OK;
@@ -335,6 +352,7 @@ PuppetWidget::IMEEndComposition(PRBool aCancel)
   nsEventStatus status;
   nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
   InitEvent(textEvent, nsnull);
+  textEvent.seqno = mIMELastReceivedSeqno;
   // SendEndIMEComposition is always called since ResetInputState
   // should always be called even if we aren't composing something.
   if (!mTabChild ||
@@ -349,6 +367,7 @@ PuppetWidget::IMEEndComposition(PRBool aCancel)
 
   nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_END, this);
   InitEvent(compEvent, nsnull);
+  compEvent.seqno = mIMELastReceivedSeqno;
   DispatchEvent(&compEvent, status);
   return NS_OK;
 }

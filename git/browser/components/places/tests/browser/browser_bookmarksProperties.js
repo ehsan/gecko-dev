@@ -39,9 +39,6 @@
  * Tests the bookmarks Properties dialog.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-
 // DOM ids of Places sidebar trees.
 const SIDEBAR_HISTORY_TREE_ID = "historyTree";
 const SIDEBAR_BOOKMARKS_TREE_ID = "bookmarks-view";
@@ -65,7 +62,7 @@ const ACTION_ADD = 1;
 const TYPE_FOLDER = 0;
 const TYPE_BOOKMARK = 1;
 
-const TEST_URL = "http://www.mozilla.org/";
+const TEST_URL = "http://www.example.com/";
 
 const DIALOG_URL = "chrome://browser/content/places/bookmarkProperties.xul";
 const DIALOG_URL_MINIMAL_UI = "chrome://browser/content/places/bookmarkProperties2.xul";

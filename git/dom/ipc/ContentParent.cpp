@@ -70,6 +70,11 @@
 #include "nsConsoleMessage.h"
 #include "AudioParent.h"
 
+#if defined(ANDROID) || defined(LINUX)
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif
+
 #ifdef MOZ_PERMISSIONS
 #include "nsPermissionManager.h"
 #endif
@@ -82,6 +87,10 @@
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/StorageParent.h"
 #include "nsAccelerometer.h"
+
+#ifdef ANDROID
+#include "gfxAndroidPlatform.h"
+#endif
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -145,6 +154,26 @@ ContentParent::OnChannelConnected(int32 pid)
     }
     else {
         SetOtherProcess(handle);
+
+#if defined(ANDROID) || defined(LINUX)
+        EnsurePrefService();
+        nsCOMPtr<nsIPrefBranch> branch;
+        branch = do_QueryInterface(mPrefService);
+
+        // Check nice preference
+        PRInt32 nice = 0;
+        branch->GetIntPref("dom.ipc.content.nice", &nice);
+
+        // Environment variable overrides preference
+        char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
+        if (relativeNicenessStr) {
+            nice = atoi(relativeNicenessStr);
+        }
+
+        if (nice != 0) {
+            setpriority(PRIO_PROCESS, pid, getpriority(PRIO_PROCESS, pid) + nice);
+        }
+#endif
     }
 }
 
@@ -296,6 +325,16 @@ ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
     return true;
 }
 
+bool
+ContentParent::RecvReadFontList(InfallibleTArray<FontListEntry>* retValue)
+{
+#ifdef ANDROID
+    gfxAndroidPlatform::GetPlatform()->GetFontList(retValue);
+#endif
+    return true;
+}
+
+
 void
 ContentParent::EnsurePrefService()
 {
@@ -381,9 +420,22 @@ ContentParent::Observe(nsISupports* aSubject,
         nsCOMPtr<nsIPrefServiceInternal> prefService =
           do_GetService("@mozilla.org/preferences-service;1");
 
-        PRBool prefHasValue;
-        prefService->PrefHasUserValue(strData, &prefHasValue);
-        if (prefHasValue) {
+        PRBool prefNeedUpdate;
+        prefService->PrefHasUserValue(strData, &prefNeedUpdate);
+
+        // If the pref does not have a user value, check if it exist on the
+        // default branch or not
+        if (!prefNeedUpdate) {
+          nsCOMPtr<nsIPrefBranch> defaultBranch;
+          nsCOMPtr<nsIPrefService> prefsService = do_QueryInterface(prefService);
+          prefsService->GetDefaultBranch(nsnull, getter_AddRefs(defaultBranch));
+
+          PRInt32 prefType = nsIPrefBranch::PREF_INVALID;
+          defaultBranch->GetPrefType(strData.get(), &prefType);
+          prefNeedUpdate = (prefType != nsIPrefBranch::PREF_INVALID);
+        }
+
+        if (prefNeedUpdate) {
             // Pref was created, or previously existed and its value
             // changed.
             PrefTuple pref;
