@@ -1397,7 +1397,6 @@ var gBrowserInit = {
     }
 
     // Final window teardown, do this last.
-    window.XULBrowserWindow.destroy();
     window.XULBrowserWindow = null;
     window.QueryInterface(Ci.nsIInterfaceRequestor)
           .getInterface(Ci.nsIWebNavigation)
@@ -3439,13 +3438,6 @@ var XULBrowserWindow = {
     this.onSecurityChange(null, null, securityUI.state);
   },
 
-  destroy: function () {
-    // XXXjag to avoid leaks :-/, see bug 60729
-    delete this.stopCommand;
-    delete this.reloadCommand;
-    delete this.statusText;
-  },
-
   setJSStatus: function () {
     // unsupported
   },
@@ -4034,11 +4026,6 @@ var TabsProgressListener = {
 
     // Filter out location changes in sub documents.
     if (aWebProgress.isTopLevel) {
-      // Initialize the click-to-play state.
-      aBrowser._clickToPlayPluginsActivated = new Map();
-      aBrowser._clickToPlayAllPluginsActivated = false;
-      aBrowser._pluginScriptedState = gPluginHandler.PLUGIN_SCRIPTED_STATE_NONE;
-
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }
   },
