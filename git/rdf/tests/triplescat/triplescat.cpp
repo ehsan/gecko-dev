@@ -95,11 +95,12 @@ public:
     // nsISupports interface
     NS_DECL_ISUPPORTS
 
-    // nsIOutputStream interface
+    // nsIBaseStream interface
     NS_IMETHOD Close(void) {
         return NS_OK;
     }
 
+    // nsIOutputStream interface
     NS_IMETHOD Write(const char* aBuf, PRUint32 aCount, PRUint32 *aWriteCount) {
         PR_Write(PR_GetSpecialFD(PR_StandardOutput), aBuf, aCount);
         *aWriteCount = aCount;

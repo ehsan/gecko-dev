@@ -5920,13 +5920,6 @@ nsDocument::SetXmlStandalone(PRBool aXmlStandalone)
 }
 
 NS_IMETHODIMP
-nsDocument::GetMozSyntheticDocument(PRBool *aSyntheticDocument)
-{
-  *aSyntheticDocument = mIsSyntheticDocument;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocument::GetXmlVersion(nsAString& aXmlVersion)
 {
   if (IsHTML()) {
